@@ -1,0 +1,89 @@
+
+<section id="s5"><h2>5. Async iterators and streams: how LLM tokens arrive</h2>
+<p>An <b>async generator</b> (<code>async function*</code>) yields values that arrive over time, and <code>for await...of</code> consumes them, exactly like Python's <code>async def</code> with <code>yield</code> and <code>async for</code>. Breaking out of the loop runs the generator's <code>finally</code>, which is where a stream closes its connection: below, the cleanup line prints after the full run, after the early <code>break</code>, and after <code>Array.fromAsync</code> collects a whole stream.</p>
+<div class="el-snip"><div class="el-olab">real output of j2_async_gen.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="j2_async_gen.txt">  token "The"
+  token " answer"
+  token " is"
+  token " 42"
+  token "."
+  (generator cleanup: close the HTTP connection here)
+full text: "The answer is 42."
+  (generator cleanup: close the HTTP connection here)
+  (generator cleanup: close the HTTP connection here)
+stopped early; Array.fromAsync collects a whole stream: [ 'The', ' answer', ' is', ' 42', '.' ]</pre><details class="mist"><summary>The code: j2_async_gen.mjs</summary><div class="b"><div class="el-file">j2_async_gen.mjs</div><pre class="el-code"><span class="cm">// async function* : an async generator (Python's async def with yield). Consume it with for await...of.</span>
+<span class="kw">const</span> sleep = ms =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(r, ms));
+<span class="kw">async</span> <span class="kw">function</span>* fakeModel(prompt) &#123;
+  <span class="kw">try</span> &#123;
+    <span class="kw">for</span> (<span class="kw">const</span> tok <span class="kw">of</span> [<span class="st">"The"</span>, <span class="st">" answer"</span>, <span class="st">" is"</span>, <span class="st">" 42"</span>, <span class="st">"."</span>]) &#123; <span class="kw">await</span> sleep(10); <span class="kw">yield</span> tok; &#125;
+  &#125; <span class="kw">finally</span> &#123;
+    console.log(<span class="st">"  (generator cleanup: close the HTTP connection here)"</span>);   <span class="cm">// runs on break, return or throw too</span>
+  &#125;
+&#125;
+<span class="kw">let</span> text = <span class="st">""</span>;
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> tok <span class="kw">of</span> fakeModel(<span class="st">"q"</span>)) &#123; text += tok; console.log(<span class="st">"  token"</span>, JSON.stringify(tok)); &#125;
+console.log(<span class="st">"full text:"</span>, JSON.stringify(text));
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> tok <span class="kw">of</span> fakeModel(<span class="st">"q"</span>)) &#123; <span class="kw">if</span> (tok === <span class="st">" is"</span>) <span class="kw">break</span>; &#125;       <span class="cm">// stop early, e.g. the user pressed Stop</span>
+console.log(<span class="st">"stopped early; Array.fromAsync collects a whole stream:"</span>, <span class="kw">await</span> Array.fromAsync(fakeModel(<span class="st">"q"</span>)));</pre></div></details></div>
+<p>A streaming LLM API sends <b>server-sent events</b> (SSE): an HTTP response that stays open, carrying text lines <code>data: {...}</code>, each event ended by a blank line (the format, its parsing rules and how eight real parsers handle them are on {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}). With <code>fetch</code>, <code>response.body</code> is a stream of <code>Uint8Array</code> byte chunks that you can <code>for await</code> over. The trap: <span class="hl">the network decides where chunks end, not the server</span>. A chunk can end in the middle of an event, and in the middle of a multi-byte UTF-8 character. Code that parses each chunk on its own works on a fast local test and fails in production behind a proxy. The fix is one streaming <code>TextDecoder</code> (<code>{ stream: true }</code> keeps half a character for the next chunk), a text buffer, and parsing only complete events. Official SDKs do this for you; the bug appears when you hand-roll a client, a proxy or a test.</p>
+<div class="el-anim" id="el-sse-card"><h4>The same nine chunks: parsed one by one, 0 of 6 tokens; buffered, all 6</h4>
+<div class="seg" id="el-sse-mode"><button data-m="naive" class="on">Parse each chunk (wrong)</button><button data-m="good">Buffer, then parse (right)</button></div>
+<div class="el-ctl" id="el-sse-ctl"></div>
+<div id="el-sse-view"></div>
+<div class="el-cap" id="el-sse-cap"></div>
+<div class="el-counters" id="el-sse-cnt"></div>
+<div class="el-src">The nine chunks are the ones the client really received in the recorded run of <code>j1_sse.mjs</code> (a local server writing 19-byte slices 15 ms apart; byte lengths saved by the script); the two parsers run <span class="el-live">live</span> in your browser on those bytes, and their final results are checked against the recorded run.</div>
+</div>
+<details class="dp"><summary>The parser code and its recorded run: j1_sse.mjs (a local SSE server and both parsers)</summary><div class="b">
+<div class="el-snip"><div class="el-olab">real output of j1_sse.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="j1_sse.txt">158 bytes arrived in 9 chunks; the first three:
+  chunk 1: "data: &#123;\"delta\":\"Hel"
+  chunk 2: "lo\"&#125;\n\ndata: &#123;\"delta"
+  chunk 3: "\":\",\"&#125;\n\ndata: &#123;\"del"
+naive parser, tokens: "" | errors: 5 [ 'Unterminated string', 'Unterminated string' ]
+buffered parser, tokens: "Hello, wörld! 🚀 done"</pre></div>
+<div class="el-snip"><div class="el-file">j1_sse.mjs</div><pre class="el-code"><span class="cm">// How an LLM token stream arrives: server-sent events (SSE) over HTTP, read with fetch.</span>
+<span class="cm">// A local server stands in for the model API: it sends six "data:" events, but the network</span>
+<span class="cm">// delivers bytes in arbitrary chunks (here: 19-byte slices, 15 ms apart), cutting events and even characters in half.</span>
+<span class="kw">import</span> &#123; createServer &#125; <span class="kw">from</span> <span class="st">"node:http"</span>;
+<span class="kw">const</span> TOKENS = [<span class="st">"Hello"</span>, <span class="st">","</span>, <span class="st">" wörld"</span>, <span class="st">"!"</span>, <span class="st">" 🚀"</span>, <span class="st">" done"</span>];
+<span class="kw">const</span> BODY = Buffer.<span class="kw">from</span>(TOKENS.map(t =&gt; <span class="st">`data: $&#123;JSON.stringify(&#123; delta: t &#125;)&#125;\n\n`</span>).join(<span class="st">""</span>) + <span class="st">"data: [DONE]\n\n"</span>);
+<span class="kw">const</span> server = createServer(<span class="kw">async</span> (req, res) =&gt; &#123;
+  res.writeHead(200, &#123; <span class="st">"content-type"</span>: <span class="st">"text/event-stream"</span> &#125;);
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; BODY.length; i += 19) &#123; res.write(BODY.subarray(i, i + 19)); <span class="kw">await</span> <span class="kw">new</span> Promise(r =&gt; setTimeout(r, 15)); &#125;
+  res.end();
+&#125;).listen(0);
+<span class="kw">const</span> url = <span class="st">`http://127.0.0.1:$&#123;server.address().port&#125;/v1/stream`</span>;
+
+<span class="cm">// Wrong: treat each chunk as text on its own and as whole events</span>
+<span class="kw">const</span> naive = &#123; chunks: [], lens: [], events: [], errors: [] &#125;;
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> chunk <span class="kw">of</span> (<span class="kw">await</span> fetch(url)).body) &#123;        <span class="cm">// a web ReadableStream is an async iterable of Uint8Array</span>
+  <span class="kw">const</span> text = <span class="kw">new</span> TextDecoder().decode(chunk);             <span class="cm">// a fresh decoder per chunk breaks split characters</span>
+  naive.chunks.push(text); naive.lens.push(chunk.length);
+  <span class="kw">for</span> (<span class="kw">const</span> part <span class="kw">of</span> text.split(<span class="st">"\n\n"</span>)) &#123;
+    <span class="kw">if</span> (!part.startsWith(<span class="st">"data: "</span>) || part === <span class="st">"data: [DONE]"</span>) <span class="kw">continue</span>;
+    <span class="kw">try</span> &#123; naive.events.push(JSON.parse(part.slice(6)).delta); &#125; <span class="kw">catch</span> (e) &#123; naive.errors.push(e.message.split(<span class="st">" in JSON"</span>)[0]); &#125;
+  &#125;
+&#125;
+<span class="cm">// Right: one streaming decoder, a buffer, and only complete events (ending in a blank line) are parsed</span>
+<span class="kw">async</span> <span class="kw">function</span>* sseEvents(body) &#123;
+  <span class="kw">const</span> dec = <span class="kw">new</span> TextDecoder(); <span class="kw">let</span> buf = <span class="st">""</span>;
+  <span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> chunk <span class="kw">of</span> body) &#123;
+    buf += dec.decode(chunk, &#123; stream: <span class="kw">true</span> &#125;);              <span class="cm">// stream: true keeps half a character for the next chunk</span>
+    <span class="kw">let</span> end;
+    <span class="kw">while</span> ((end = buf.indexOf(<span class="st">"\n\n"</span>)) &gt;= 0) &#123; <span class="kw">const</span> ev = buf.slice(0, end); buf = buf.slice(end + 2); <span class="kw">yield</span> ev; &#125;
+  &#125;
+&#125;
+<span class="kw">const</span> good = [];
+<span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> ev <span class="kw">of</span> sseEvents((<span class="kw">await</span> fetch(url)).body)) &#123;
+  <span class="kw">const</span> data = ev.slice(6);
+  <span class="kw">if</span> (data === <span class="st">"[DONE]"</span>) <span class="kw">break</span>;
+  good.push(JSON.parse(data).delta);
+&#125;
+server.close();
+console.log(<span class="st">`$&#123;BODY.length&#125; bytes arrived in $&#123;naive.chunks.length&#125; chunks; the first three:`</span>);
+naive.chunks.slice(0, 3).forEach((c, i) =&gt; console.log(<span class="st">`  chunk $&#123;i + 1&#125;: $&#123;JSON.stringify(c)&#125;`</span>));
+console.log(<span class="st">"naive parser, tokens:"</span>, JSON.stringify(naive.events.join(<span class="st">""</span>)), <span class="st">"| errors:"</span>, naive.errors.length, naive.errors.slice(0, 2));
+console.log(<span class="st">"buffered parser, tokens:"</span>, JSON.stringify(good.join(<span class="st">""</span>)));
+<span class="kw">if</span> (process.argv[2]) (<span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs"</span>)).writeFileSync(process.argv[2], JSON.stringify(&#123; body: BODY.toString(), slice: 19, chunks: naive.chunks, lens: naive.lens, naive: naive.events, naiveErrors: naive.errors, good &#125;));</pre></div>
+</div></details>
+<p><b>Node streams and backpressure.</b> Node also has its own older stream classes (<code>Readable</code>, <code>Writable</code>, <code>Transform</code>, <code>pipeline</code>) used by files, sockets and HTTP. They handle backpressure: a fast producer is paused while a slow consumer catches up, so memory stays bounded. Readable streams are async iterable too, which is the easiest way to use them. What happens to a server's memory when it ignores <code>write()</code>'s <code>false</code>, measured, is on {{TypeScript: LLM apps and agents|n:4055c17b0d0d8109aad6e69a87b3bd6f}}.</p>
+</section>

@@ -1,0 +1,57 @@
+
+<section id="s3"><h2>3. Concurrency on one thread, to scale</h2>
+<p>The same three jobs as the Python page's "Three coroutines, four ways" ({{Python: concurrency, asyncio and the GIL|n:4055c17b0d0d81bdbee8c37d80b55a0e}}, section 2): A, B and C wait 100, 200 and 300 ms, run four ways. Every bar is a real event from <code>i4_trace.mjs</code>, stamped with milliseconds since the start and drawn on the same 0 to 620 ms axis. Before you switch from mode 2 to mode 3, predict when A's 100 ms timer will run.</p>
+<div class="el-anim" id="el-tl-card"><h4>Waits overlap on one thread; a synchronous loop stops all of them</h4>
+<div class="seg" id="el-tl-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="all">2. Promise.all</button><button data-m="all_blocking">3. all, B busy-waits</button><button data-m="all_worker">4. all, B in a worker</button></div>
+<div class="el-ctl" id="el-tl-ctl"></div>
+<div class="el-svg" id="el-tl-svg"></div>
+<div class="el-cap" id="el-tl-cap"></div>
+<div class="el-counters" id="el-tl-cnt"></div>
+<div class="el-src">Thin bar: suspended at an <code>await</code> (the thread is free); dark bar: running on the thread; orange bar: holding the thread in a synchronous loop; ring: the moment a timer is due. Top lane: what the one JavaScript thread is doing.</div>
+</div>
+<div class="co key"><div class="t">What to notice</div><ul class="tight">
+<li><b>1 against 2</b>: <code>await</code> in sequence takes the sum (606.8 ms); <code>Promise.all</code> starts all three, so the waits overlap and the total is the longest (303.0 ms). Unlike Python, no "task" wrapper is needed: calling an async function already starts it.</li>
+<li><b>2 against 3</b>: a 200 ms synchronous loop in B holds the only thread. A's timer is due at 100 ms but runs at 200 ms; C cannot even start before 200 ms. Total 502.6 ms, and nothing warns you.</li>
+<li><b>3 against 4</b>: the same busy loop in a worker thread runs on another core; B just awaits a message, and the total is back to 302.7 ms.</li>
+</ul></div>
+<p><b>Blocking the event loop</b> is the server version of mode 3: a synchronous file read (<code>readFileSync</code>), a big <code>JSON.parse</code>, a CPU loop or synchronous crypto in a request handler stalls every other request. Use the async APIs, stream, or move CPU work to a worker thread (<code>worker_threads</code>, shown with real runs in the Node essentials of {{JavaScript and TypeScript: the essentials|n:3cd5c17b0d0d81dbac7be3b8686be023}}). Under the loop, libuv watches sockets with the operating system's readiness API and hands file-system calls, DNS lookups (<code>dns.lookup</code>), the asynchronous <code>crypto.pbkdf2</code>, <code>scrypt</code> and <code>randomBytes</code>, and <code>zlib</code> to a thread pool, 4 threads by default ({{libuv: thread pool|https://docs.libuv.org/en/v1.x/threadpool.html}}; {{Node: Don't block the event loop|https://nodejs.org/en/learn/asynchronous-work/dont-block-the-event-loop}}). A slow task there blocks the pool the same way.</p>
+<details class="dp"><summary>The recording and the code: i4_trace.mjs</summary><div class="b">
+<div class="el-snip"><div class="el-olab">real output of i4_trace.mjs, Node 24.21.0 (the animation replays the events it saved)</div><pre class="el-out" data-el-src="i4_trace.txt">sequential     606.8 ms  A:start A:await A:resume A:done B:start B:await B:resume B:done C:start C:await C:resume C:done
+all            303.0 ms  A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done
+all_blocking   502.6 ms  A:start A:await B:start B:block B:done C:start C:await A:resume A:done C:resume C:done
+all_worker     302.7 ms  A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done</pre></div>
+<div class="el-snip"><div class="el-file">i4_trace.mjs</div><pre class="el-code"><span class="cm">// Three jobs, A, B and C, wait 100, 200 and 300 ms (the same three as the Python page's asyncio replay).</span>
+<span class="cm">// Four ways to run them; every event is stamped with ms since the start. The Reading animation replays this file's output.</span>
+<span class="kw">import</span> &#123; Worker &#125; <span class="kw">from</span> <span class="st">"node:worker_threads"</span>;
+<span class="kw">import</span> &#123; setTimeout as sleep &#125; <span class="kw">from</span> <span class="st">"node:timers/promises"</span>;      <span class="cm">// a promise-returning setTimeout</span>
+<span class="kw">let</span> T0 = 0, EV = [];
+<span class="kw">const</span> ev = (who, what, note = <span class="st">""</span>) =&gt; EV.push([who, what, +(performance.now() - T0).toFixed(1), note]);
+<span class="kw">const</span> busyWait = ms =&gt; &#123; <span class="kw">const</span> end = performance.now() + ms; <span class="kw">while</span> (performance.now() &lt; end); &#125;;  <span class="cm">// holds the thread</span>
+
+<span class="kw">async</span> <span class="kw">function</span> job(name, ms) &#123; ev(name, <span class="st">"start"</span>); ev(name, <span class="st">"await"</span>, <span class="st">`sleep($&#123;ms&#125;)`</span>); <span class="kw">await</span> sleep(ms); ev(name, <span class="st">"resume"</span>); ev(name, <span class="st">"done"</span>); &#125;
+<span class="kw">async</span> <span class="kw">function</span> jobBlocking(name, ms) &#123; ev(name, <span class="st">"start"</span>); ev(name, <span class="st">"block"</span>, <span class="st">`busyWait($&#123;ms&#125;)`</span>); busyWait(ms); ev(name, <span class="st">"done"</span>); &#125;
+<span class="kw">async</span> <span class="kw">function</span> jobWorker(name, ms) &#123;
+  ev(name, <span class="st">"start"</span>); ev(name, <span class="st">"await"</span>, <span class="st">`a worker thread busy-waits $&#123;ms&#125; ms`</span>);
+  <span class="kw">await</span> <span class="kw">new</span> Promise((ok, fail) =&gt; &#123;
+    <span class="kw">const</span> w = <span class="kw">new</span> Worker(<span class="st">`const e = performance.now() + $&#123;ms&#125;; while (performance.now() &lt; e); require("node:worker_threads").parentPort.postMessage(1)`</span>, &#123; eval: <span class="kw">true</span> &#125;);
+    w.once(<span class="st">"message"</span>, ok); w.once(<span class="st">"error"</span>, fail);
+  &#125;);
+  ev(name, <span class="st">"resume"</span>); ev(name, <span class="st">"done"</span>);
+&#125;
+<span class="kw">const</span> MODES = &#123;
+  sequential: <span class="kw">async</span> () =&gt; &#123; <span class="kw">await</span> job(<span class="st">"A"</span>, 100); <span class="kw">await</span> job(<span class="st">"B"</span>, 200); <span class="kw">await</span> job(<span class="st">"C"</span>, 300); &#125;,
+  all: () =&gt; Promise.all([job(<span class="st">"A"</span>, 100), job(<span class="st">"B"</span>, 200), job(<span class="st">"C"</span>, 300)]),
+  all_blocking: () =&gt; Promise.all([job(<span class="st">"A"</span>, 100), jobBlocking(<span class="st">"B"</span>, 200), job(<span class="st">"C"</span>, 300)]),
+  all_worker: () =&gt; Promise.all([job(<span class="st">"A"</span>, 100), jobWorker(<span class="st">"B"</span>, 200), job(<span class="st">"C"</span>, 300)]),
+&#125;;
+<span class="kw">const</span> out = &#123;&#125;;
+<span class="kw">for</span> (<span class="kw">const</span> [mode, run] <span class="kw">of</span> Object.entries(MODES)) &#123;
+  EV = []; T0 = performance.now();
+  <span class="kw">await</span> run();
+  <span class="kw">const</span> total = +(performance.now() - T0).toFixed(1);
+  out[mode] = &#123; events: EV, total_ms: total &#125;;
+  console.log(<span class="st">`$&#123;mode.padEnd(13)&#125; $&#123;total.toFixed(1).padStart(6)&#125; ms  `</span> + EV.map(e =&gt; <span class="st">`$&#123;e[0]&#125;:$&#123;e[1]&#125;`</span>).join(<span class="st">" "</span>));
+&#125;
+<span class="kw">if</span> (process.argv[2]) (<span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs"</span>)).writeFileSync(process.argv[2], JSON.stringify(out));</pre></div>
+</div></details>
+</section>

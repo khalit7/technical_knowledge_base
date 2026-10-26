@@ -1,0 +1,91 @@
+
+<section id="s4"><h2>4. The async toolbox</h2>
+<p><b>Timers.</b> <code>setTimeout(f, ms)</code> runs <code>f</code> once, no earlier than <code>ms</code> later (later if the thread is busy, as mode 3 above showed); <code>setInterval</code> repeats; both return a handle for <code>clearTimeout</code>. <code>import { setTimeout as sleep } from "node:timers/promises"</code> gives Python's <code>asyncio.sleep</code>.</p>
+<p><b>Waiting for several.</b> Python's <code>asyncio.gather</code> is <code>Promise.all</code>: results in input order, rejects as soon as one rejects (the others keep running; nobody cancels them). <code>Promise.allSettled</code> never rejects and reports each outcome (<code>gather(..., return_exceptions=True)</code>). <code>Promise.race</code> settles with the first to settle; <code>Promise.any</code> with the first success, or an <code>AggregateError</code> of all failures. In the output, the 10 ms job finished first but its result is second, and the failing <code>all</code> rejects after 11 ms without waiting for the 50 ms job.</p>
+<div class="el-snip"><div class="el-olab">real output of i5_combinators.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="i5_combinators.txt">all: [ 'a', 'b' ] after 31 ms
+all: b failed after 11 ms
+allSettled: [ 'ok a', 'error b failed' ]
+race: fast
+any: AggregateError [ 'x', 'y' ]</pre><details class="mist"><summary>The code: i5_combinators.mjs</summary><div class="b"><div class="el-file">i5_combinators.mjs</div><pre class="el-code"><span class="cm">// Waiting for several promises: all (fail fast), allSettled (never rejects), race (first to settle), any (first success).</span>
+<span class="kw">const</span> ok = (ms, v) =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(() =&gt; r(v), ms));
+<span class="kw">const</span> bad = (ms, m) =&gt; <span class="kw">new</span> Promise((_, j) =&gt; setTimeout(() =&gt; j(<span class="kw">new</span> Error(m)), ms));
+<span class="kw">let</span> t0 = 0; <span class="kw">const</span> start = () =&gt; &#123; t0 = performance.now(); &#125;, took = () =&gt; <span class="st">`after $&#123;Math.round(performance.now() - t0)&#125; ms`</span>;
+start(); console.log(<span class="st">"all:"</span>, <span class="kw">await</span> Promise.all([ok(30, <span class="st">"a"</span>), ok(10, <span class="st">"b"</span>)]), took());   <span class="cm">// results in INPUT order</span>
+start(); <span class="kw">try</span> &#123; <span class="kw">await</span> Promise.all([ok(50, <span class="st">"a"</span>), bad(10, <span class="st">"b failed"</span>)]); &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="st">"all:"</span>, e.message, took()); &#125;
+<span class="kw">const</span> settled = <span class="kw">await</span> Promise.allSettled([ok(10, <span class="st">"a"</span>), bad(10, <span class="st">"b failed"</span>)]);
+console.log(<span class="st">"allSettled:"</span>, settled.map(s =&gt; s.status === <span class="st">"fulfilled"</span> ? <span class="st">`ok $&#123;s.value&#125;`</span> : <span class="st">`error $&#123;s.reason.message&#125;`</span>));
+console.log(<span class="st">"race:"</span>, <span class="kw">await</span> Promise.race([ok(30, <span class="st">"slow"</span>), ok(10, <span class="st">"fast"</span>)]));
+<span class="kw">try</span> &#123; <span class="kw">await</span> Promise.any([bad(5, <span class="st">"x"</span>), bad(5, <span class="st">"y"</span>)]); &#125; <span class="kw">catch</span> (e) &#123; console.log(<span class="st">"any:"</span>, e.constructor.name, e.errors.map(x =&gt; x.message)); &#125;</pre></div></details></div>
+<p><b>Cancellation and timeouts.</b> <span class="hl">A promise cannot be cancelled.</span> Instead, the work accepts an <code>AbortSignal</code> (from an <code>AbortController</code>, or <code>AbortSignal.timeout(ms)</code>) and stops when it fires; <code>fetch</code>, timers, streams and most SDKs accept <code>{ signal }</code>. Aborting is a request, not preemption: code that never looks at the signal runs to the end (the third line below). Python's <code>task.cancel()</code> is stronger: it throws <code>CancelledError</code> into the coroutine at its next <code>await</code>. How an LLM server passes the browser's disconnect through to the model call, measured, is on {{TypeScript: LLM apps and agents|n:4055c17b0d0d8109aad6e69a87b3bd6f}}; cancelling a stream on the wire is {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}.</p>
+<div class="el-snip"><div class="el-olab">real output of i6_abort.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="i6_abort.txt">AbortError | true AbortError
+AbortError | TimeoutError The operation was aborted
+finished anyway, after the abort</pre><details class="mist"><summary>The code: i6_abort.mjs</summary><div class="b"><div class="el-file">i6_abort.mjs</div><pre class="el-code"><span class="cm">// Cancelling: an AbortController's signal is passed to the work; aborting rejects with an AbortError.</span>
+<span class="cm">// Timeouts are the same mechanism: AbortSignal.timeout(ms). (Python: asyncio.timeout / task.cancel().)</span>
+<span class="kw">import</span> &#123; setTimeout as sleep &#125; <span class="kw">from</span> <span class="st">"node:timers/promises"</span>;
+<span class="kw">const</span> ac = <span class="kw">new</span> AbortController();
+setTimeout(() =&gt; ac.abort(), 50);
+<span class="kw">try</span> &#123; <span class="kw">await</span> sleep(1000, <span class="st">"done"</span>, &#123; signal: ac.signal &#125;); &#125;
+<span class="kw">catch</span> (e) &#123; console.log(e.name, <span class="st">"|"</span>, ac.signal.aborted, ac.signal.reason.name); &#125;
+<span class="kw">try</span> &#123; <span class="kw">await</span> sleep(1000, <span class="st">"done"</span>, &#123; signal: AbortSignal.timeout(30) &#125;); &#125;
+<span class="kw">catch</span> (e) &#123; console.log(e.name, <span class="st">"|"</span>, e.cause?.name ?? <span class="st">""</span>, e.message); &#125;
+<span class="cm">// Work that ignores the signal is NOT stopped: aborting is a request, not preemption.</span>
+<span class="kw">async</span> <span class="kw">function</span> stubborn(signal) &#123; <span class="kw">await</span> sleep(80); <span class="kw">return</span> signal.aborted ? <span class="st">"finished anyway, after the abort"</span> : <span class="st">"finished"</span>; &#125;
+<span class="kw">const</span> ac2 = <span class="kw">new</span> AbortController(); <span class="kw">const</span> p = stubborn(ac2.signal); ac2.abort();
+console.log(<span class="kw">await</span> p);</pre></div></details></div>
+<p><b>Forgotten promises.</b> Calling an async function without <code>await</code> or <code>.catch</code> ("fire and forget") means its error has nowhere to go. Since Node 15 the default (<code>--unhandled-rejections=throw</code>) is to treat it as an uncaught exception: the process dies, here before a pending timer gets to run ({{Node CLI docs|https://nodejs.org/api/cli.html#--unhandled-rejectionsmode}}). Browsers log an "Uncaught (in promise)" error and carry on. Await it, or add <code>.catch(log)</code> deliberately.</p>
+<div class="el-snip"><div class="el-olab">real output of i7_unhandled.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="i7_unhandled.txt">main code finished
+i7_unhandled.mjs:2
+async function sendTelemetry() &#123; throw new Error("telemetry server down"); &#125;
+                                       ^
+
+Error: telemetry server down
+    at sendTelemetry (i7_unhandled.mjs:2:40)
+    at i7_unhandled.mjs:3:1
+
+Node.js v24.21.0
+[exit code 1]</pre><details class="mist"><summary>The code: i7_unhandled.mjs</summary><div class="b"><div class="el-file">i7_unhandled.mjs</div><pre class="el-code"><span class="cm">// A rejected promise nobody handles: since Node 15 the process crashes (exit code 1), like an uncaught exception.</span>
+<span class="kw">async</span> <span class="kw">function</span> sendTelemetry() &#123; <span class="kw">throw</span> <span class="kw">new</span> Error(<span class="st">"telemetry server down"</span>); &#125;
+sendTelemetry();                                  <span class="cm">// fire and forget: no await, no .catch</span>
+setTimeout(() =&gt; console.log(<span class="st">"this never prints"</span>), 100);
+console.log(<span class="st">"main code finished"</span>);</pre></div></details></div>
+<p><b><code>await</code> in loops.</b> <code>forEach</code> ignores the promise its callback returns, so <code>await</code> inside it does not make the loop wait. Use <code>for...of</code> with <code>await</code> for one at a time, or <code>Promise.all(xs.map(...))</code> for all at once. Predict the first line:</p>
+<div class="el-snip el-pred"><div class="el-file">i8_foreach.mjs</div><pre class="el-code"><span class="cm">// await inside forEach does not wait: forEach ignores the promises its callback returns.</span>
+<span class="kw">const</span> sleep = ms =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(r, ms));
+<span class="kw">let</span> t0 = performance.now(); <span class="kw">const</span> took = () =&gt; <span class="st">`$&#123;Math.round(performance.now() - t0)&#125; ms`</span>;
+<span class="kw">const</span> ids = [1, 2, 3];
+ids.forEach(<span class="kw">async</span> id =&gt; &#123; <span class="kw">await</span> sleep(20); console.log(<span class="st">"  forEach item"</span>, id, <span class="st">"done at"</span>, took()); &#125;);
+console.log(<span class="st">"forEach returned after"</span>, took());     <span class="cm">// prints first: nothing was awaited</span>
+<span class="kw">await</span> sleep(40);
+t0 = performance.now();
+<span class="kw">for</span> (<span class="kw">const</span> id <span class="kw">of</span> ids) &#123; <span class="kw">await</span> sleep(20); &#125;        <span class="cm">// sequential: one after another</span>
+console.log(<span class="st">"for...of with await:"</span>, took());
+t0 = performance.now();
+<span class="kw">await</span> Promise.all(ids.map(id =&gt; sleep(20)));        <span class="cm">// concurrent: all at once</span>
+console.log(<span class="st">"Promise.all over map:"</span>, took());</pre><details><summary>Predict the output, then reveal</summary><div class="el-olab">real output, Node 24.21.0</div><pre class="el-out" data-el-src="i8_foreach.txt">forEach returned after 0 ms
+  forEach item 1 done at 22 ms
+  forEach item 2 done at 22 ms
+  forEach item 3 done at 22 ms
+for...of with await: 66 ms
+Promise.all over map: 22 ms</pre></details></div>
+<p><b>A concurrency limit.</b> "All at once" is wrong for 10,000 requests to a rate-limited API. The usual fix is a small pool: N workers pulling from a shared index, eight lines with no library (libraries such as <code>p-limit</code> do the same); Python's equivalent is an <code>asyncio.Semaphore</code>. Twenty 50 ms requests at three limits:</p>
+<div class="el-anim" id="el-lim"><h4>Time falls with the limit until every request is in flight</h4><div id="el-lim-bars"></div>
+<div class="el-src">Bars drawn from the recorded output below (<code>i9_limit.mjs</code>, Node 24.21.0): 20 requests of 50 ms each; the ideal is 20 / limit &times; 50 ms.</div></div>
+<div class="el-snip"><div class="el-olab">real output of i9_limit.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="i9_limit.txt">limit  1: 1033 ms, peak in flight 1, last result 361
+limit  4: 259 ms, peak in flight 4, last result 361
+limit 20: 51 ms, peak in flight 20, last result 361</pre><details class="mist"><summary>The code: i9_limit.mjs</summary><div class="b"><div class="el-file">i9_limit.mjs</div><pre class="el-code"><span class="cm">// 20 requests of 50 ms each, at most 4 in flight: a worker-pool limiter in eight lines (no library).</span>
+<span class="kw">const</span> sleep = ms =&gt; <span class="kw">new</span> Promise(r =&gt; setTimeout(r, ms));
+<span class="kw">async</span> <span class="kw">function</span> mapLimit(items, limit, fn) &#123;
+  <span class="kw">const</span> results = <span class="kw">new</span> Array(items.length); <span class="kw">let</span> next = 0, inFlight = 0, peak = 0;
+  <span class="kw">async</span> <span class="kw">function</span> worker() &#123;
+    <span class="kw">while</span> (next &lt; items.length) &#123; <span class="kw">const</span> i = next++; inFlight++; peak = Math.max(peak, inFlight); results[i] = <span class="kw">await</span> fn(items[i]); inFlight--; &#125;
+  &#125;
+  <span class="kw">await</span> Promise.all(Array.<span class="kw">from</span>(&#123; length: limit &#125;, worker));
+  <span class="kw">return</span> &#123; results, peak &#125;;
+&#125;
+<span class="kw">const</span> items = Array.<span class="kw">from</span>(&#123; length: 20 &#125;, (_, i) =&gt; i);
+<span class="kw">for</span> (<span class="kw">const</span> limit <span class="kw">of</span> [1, 4, 20]) &#123;
+  <span class="kw">const</span> t0 = performance.now();
+  <span class="kw">const</span> &#123; results, peak &#125; = <span class="kw">await</span> mapLimit(items, limit, <span class="kw">async</span> i =&gt; &#123; <span class="kw">await</span> sleep(50); <span class="kw">return</span> i * i; &#125;);
+  console.log(<span class="st">`limit $&#123;String(limit).padStart(2)&#125;: $&#123;Math.round(performance.now() - t0)&#125; ms, peak in flight $&#123;peak&#125;, last result $&#123;results.at(-1)&#125;`</span>);
+&#125;</pre></div></details></div>
+</section>
