@@ -39,3 +39,5 @@ Why about 33 minutes is right: the page owns some fourteen mechanisms (two broke
 ## Departures from the page-kind shape, and why
 - **A "measured" thread** (three experiments on a real Postgres), now folded into the sections whose claims it tests rather than a section of its own.
 - **No real image**: nothing physical teaches here; a vendor dashboard screenshot has no clear reuse licence.
+
+2026-10-26 (final follow-up sweep): the resumable-streams block's Vercel and OpenAI background-mode quotes moved to Streaming and real-time section 5 (one sentence links it); the server side of idempotency keys now points to Service APIs section 4 instead of Building a backend API, which no longer owns it. Service APIs section 6 also carries GitHub's "does not automatically redeliver failed deliveries" (kept here in the outbox paragraph). Ledger units 36, 186, 295 and 384 to 388 relabelled `owned:`.
