@@ -71,7 +71,9 @@ def rekey(path, swaps):
             k = u.get("key") or ""
             i = k.lower().find(q.lower())
             # the same quote ("19 min read") can follow several links: only the key whose next words match is this one
-            if i >= 0 and " ".join(k[i + len(q):].split()).lower()[:len(after)] == after[:len(" ".join(k[i + len(q):].split()))]:
+            rest = " ".join(k[i + len(q):].split()).lower() if i >= 0 else ""
+            # need some following words on both sides, else the match is a guess: leave it to ledger.py check
+            if i >= 0 and rest and after and (rest.startswith(after) or after.startswith(rest)):
                 u["key"] = k[:i] + q2 + k[i + len(q):]
                 n += 1
     if n:
