@@ -40,3 +40,6 @@ Why about 26 minutes is right: the page owns a broad subject (the curve, four ch
 ## Departures from the page-kind shape
 - The hero is schematic, not data: Gao et al. fit no proxy curve ("unable to obtain a satisfactory fit"), so drawing a measured proxy would invent it; the measured gold curves follow in section 2.
 - The KL-leash animation stays on the parent root (linked); this page owns over-optimisation and has the measured curves, so the root could link here instead of drawing its own (reported).
+
+## 2026-10-26 absorb
+Section 4's sandbox case now names the filesystem ioctl that got around AppArmor (from Harnesses for training, which keeps one sentence plus a link).
