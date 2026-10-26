@@ -1,11 +1,16 @@
 """Find reading times quoted for other pages that no longer match those pages' own headers.
 
-usage: python3 html_utils/check_times.py [--page <page path>] [--json out.json]
+usage: python3 html_utils/check_times.py [--page <page path>] [--json out.json] [--fix]
 Each page's header states "Reading: N min, plus M in closed details." (writing-style.md). This script reads every
 header, then scans every page's src/parts/*.html for links to another page ({{text|n:<id>...}}) and the time
 written within 160 characters after the link ("28 min", "about 31 min", "28 min, plus 3"). A quoted core time that
 differs from the target's header is printed as: <page part>: <target title> quotes N, header says M.
 Pages without a header in the new format are listed once as "no header" and their quotes are not judged.
+A time preceded by "Reading:" (the page's own header), a range ("17 to 27 min") or a tab name is skipped, as is a
+link to one tab (#t-...). Only the text up to the next link, list item, heading, summary or <a> is searched.
+--fix rewrites the unambiguous quotes in place (core and, when quoted, the closed-details figure); a quote followed
+by a second time before the next link ("19 min and 20 min") is printed as AMBIGUOUS and left for a person.
+Tech-news issues are dated records and are never judged. Rebuild every page --fix touched.
 """
 import json, re, sys
 from pathlib import Path
@@ -18,7 +23,7 @@ for p in pages:
     for a in p.get("aliases", []):
         by_id[a.replace("-", "")] = p
 HDR = re.compile(r"Reading:\s*(\d+)\s*min(?:,\s*plus\s*(\d+)\s*in closed details)?")
-LINK = re.compile(r"\{\{([^|{}]+)\|n:([0-9a-f]{32})[^}]*\}\}")
+LINK = re.compile(r"\{\{([^|{}]+)\|n:([0-9a-f]{32})([^}]*)\}\}")
 TIME = re.compile(r"(?:about\s+)?(\d+)\s*min(?:utes)?\b(?:,?\s*plus\s*(\d+))?")
 
 
@@ -36,33 +41,61 @@ def main():
     a = sys.argv[1:]
     only = a[a.index("--page") + 1].rstrip("/") if "--page" in a else None
     hdr = {p["id"].replace("-", ""): header(p) for p in pages}
-    out, missing = [], set()
+    fix = "--fix" in a
+    out, missing, fixed = [], set(), set()
     for p in pages:
+        if "/tech_news/" in p["path"]:
+            continue
         if only and p["path"] != only and p["path"] != "technical_knowledge_base/" + only:
             continue
         for f in sorted((ROOT / p["path"] / "src/parts").glob("*.html")) if (ROOT / p["path"] / "src/parts").is_dir() else []:
             s = f.read_text(errors="ignore")
-            for m in LINK.finditer(s):
+            links = list(LINK.finditer(s))
+            edits = []
+            for i, m in enumerate(links):
                 tid = m.group(2)
                 t = by_id.get(tid)
-                if not t or t is p:
+                if not t or t is p or "#" in m.group(3) or re.search(r"\b(tab|lab)\b", m.group(1), re.I):  # a tab's time
                     continue
-                tail = re.sub(r"<[^>]+>", " ", s[m.end():m.end() + 400])[:160]
-                tm = TIME.search(tail)
-                if not tm:
+                end = links[i + 1].start() if i + 1 < len(links) else len(s)
+                seg = s[m.end():min(end, m.end() + 400)]
+                seg = re.split(r"<(?:summary|/summary|details|/details|h[1-6]|li|/li|a\s)", seg)[0]  # stay in this item
+                tm = TIME.search(seg)
+                if not tm or len(re.sub(r"<[^>]+>", " ", seg[:tm.start()])) > 160:
+                    continue
+                before = re.sub(r"<[^>]+>", " ", seg[:tm.start()])
+                if re.search(r"\b(tab|lab)\b", before) or re.search(r"(Reading:|\bto|\d\s*[-\u2013]|calculator)\s*\(?\s*$", before):  # own header, a range, a tab's time
+                    continue
+                # a quoted reading time follows a tag, punctuation or "about"/"Reading"; "streams for 3 minutes" is a duration
+                if not (seg[:tm.start()].rstrip().endswith(">") or re.search(r"(^|[(~.,;:)]|about|About|Reading|read)\s*$", before.rstrip())):
                     continue
                 h = hdr.get(t["id"].replace("-", ""))
                 if h is None:
                     missing.add(t["title"])
                     continue
-                if int(tm.group(1)) != h[0]:
+                if int(tm.group(1)) != h[0] or (tm.group(2) and int(tm.group(2)) != h[1]):
+                    amb = seg[tm.end():tm.end() + 6].strip().startswith("each") or TIME.search(seg, tm.end()) is not None and len(re.sub(r"<[^>]+>", " ", seg[tm.end():TIME.search(seg, tm.end()).start()])) < 40
                     out.append({"file": str(f.relative_to(ROOT)), "target": t["title"], "target_path": t["path"],
-                                "quoted": tm.group(0), "header": f"{h[0]} min, plus {h[1]}"})
+                                "quoted": tm.group(0), "header": f"{h[0]} min, plus {h[1]}", "ambiguous": amb})
+                    if not amb:
+                        a0 = m.end() + tm.start()
+                        q = tm.group(0)
+                        q2 = re.sub(r"\d+", str(h[0]), q, count=1)
+                        if tm.group(2):
+                            q2 = re.sub(r"(plus\s*)\d+", lambda x: x.group(1) + str(h[1]), q2)
+                        edits.append((a0, a0 + len(q), q2))
+            if fix and edits:
+                for a0, a1, q2 in sorted(edits, reverse=True):
+                    s = s[:a0] + q2 + s[a1:]
+                f.write_text(s)
+                fixed.add(p["path"])
     for o in out:
-        print(f"{o['file']}: {o['target']} quotes \"{o['quoted']}\", header says {o['header']}")
+        print(f"{'AMBIGUOUS ' if o['ambiguous'] else ''}{o['file']}: {o['target']} quotes \"{o['quoted']}\", header says {o['header']}")
     for t in sorted(missing):
         print(f"no header: {t}")
-    print(f"{len(out)} stale quotes; {len(missing)} targets without a new-format header")
+    print(f"{len(out)} stale quotes ({sum(o['ambiguous'] for o in out)} ambiguous); {len(missing)} targets without a new-format header")
+    if fix:
+        print("fixed pages:\n" + "\n".join(sorted(fixed)))
     if "--json" in a:
         Path(a[a.index("--json") + 1]).write_text(json.dumps(out, indent=1))
 
