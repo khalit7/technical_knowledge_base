@@ -67,3 +67,5 @@ Why 28 minutes is right: the page owns six mechanisms (total against active, rou
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 386 units: core 243, depth 90, fat 53, owned 0, volatile 0. 376 drafted by `ledger.py init` from the page as built before the rebuild; keys found by script (a phrase of at least five words, else a number) and the residue labelled by hand; 10 added by hand for script-rendered visuals and tables and for the two units absorbed from the root (section "absorbed:..."). Fat units carry a `note`.
+
+2026-10-26 (final follow-up sweep): the global-batch evidence block adds Qiu et al.'s under 3% extra latency and links the Qwen page's micro-batch against global-batch toy.
