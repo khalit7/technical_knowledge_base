@@ -3,7 +3,7 @@
   if(!$('lnSvg'))return;
   const R={lin:'var(--c3)',full:'var(--c2)',msa:'var(--acc)',na:'var(--mute)'};
   // name, short name, date, attention route, total parameters (B, where published); the full rows are static HTML in #lnTab
-  const L=[['MiniMax-Text-01','01','2025-01-15','lin',456],['MiniMax-M1','M1','2025-06-16','lin',456],['MiniMax-M2','M2','2025-10-27','full',229.9],['MiniMax-M2.1','M2.1','2025-12-22','full',229.9],['MiniMax-M2.5','M2.5','2026-02-12','full',229.9],['MiniMax-M2.7','M2.7','2026-03-18','full',229.9],['MiniMax-M3','M3','2026-06-01','msa',428],['M3.1-Flash-Preview','M3.1 Preview','2026-09-27','na',0],['M3.1 Flash','M3.1 Flash','2026-10-19','na',0]];
+  const L=[['MiniMax-Text-01','01','2025-01-15','lin',456],['MiniMax-M1','M1','2025-06-16','lin',456],['MiniMax-M2','M2','2025-10-27','full',229.9],['MiniMax-M2.1','M2.1','2025-12-22','full',229.9],['MiniMax-M2.5','M2.5','2026-02-12','full',229.9],['MiniMax-M2.7','M2.7','2026-03-18','full',229.9],['MiniMax-M3','M3','2026-06-01','msa',428],['M3.1-Flash-Preview','M3.1 Preview','2026-09-27','na',0],['M3.1 Flash','M3.1 Flash','2026-10-19','msa',428]];
   let sel=-1;
   function pick(i){sel=i;draw();const d=$('lnDet');if(d)d.open=true;document.querySelectorAll('#lnTab tr[data-i]').forEach(r=>r.classList.toggle('sel',+r.dataset.i===i));const r=document.querySelector('#lnTab tr[data-i="'+i+'"]');if(r&&r.scrollIntoView)r.scrollIntoView({block:'nearest'})}
   function draw(){
