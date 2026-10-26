@@ -22,7 +22,7 @@ const both = text + ' ' + tex;
 const f = (v, d) => (+v).toFixed(d);
 const must = [
   f(E.tiny_mu, 3), f(E.tiny_sd, 3), f(E.tiny_se30, 3), f(E.tiny_hw30, 3), f(E.tiny_skew, 2), f(E.tiny_mle_var_n5, 3), f(E.tiny_var, 3),
-  f(E.s1_mean_a, 3), f(E.s1_mean_b, 3), f(E.s1_se10, 3), f(E.replication_capture * 100, 1), f(E.grid_normal_5_pct * 100, 1), f(E.grid_normal_5_t * 100, 1), f(Math.max(E.dd_even_maxgap, E.dd_decay05_maxgap, E.dd_decay1_maxgap) * 100, 1), f(E.shrink_mse_half, 2).slice(0, 3),
+  f(E.s1_mean_a, 3), f(E.s1_mean_b, 3), f(E.s1_se10, 3), f(E.replication_capture * 100, 1), f(E.grid_normal_5_pct * 100, 1), f(E.grid_normal_5_t * 100, 1), f(E.shrink_mse_half, 2).slice(0, 3),
   f(E.sv_mle, 0), f(E.sv_unb, 3), f(E.sv_s, 3), f(E.sv_se, 3), f(E.t7, 3), f(E.sv_ci_lo, 2), f(E.sv_ci_hi, 2), f(E.sv_s_bias_n2_normal, 3),
   f(E.t4, 3), f(E.t29, 3), f(E.se500, 3), f(E.se2000, 3), f(E.hw500_196, 3), f(E.hw500_2se, 3), f(E.be_C, 4), f(E.logn_skew, 2), 
   f(E.boot_p_left_out * 100, 1), f(E.boot_p_left_out_inf * 100, 1), String(E.boot_distinct_n3),
@@ -31,8 +31,6 @@ const must = [
   f(E.paired_se, 4), f(E.paired_hw, 3), f(E.unpaired_se, 4), f(E.unpaired_hw196, 3), f(E.z80, 4), f(E.n_power, 1), f(E.power_n30_d05 * 100, 1),
   f(E.perm_mean, 4), String(E.perm_count), f(E.perm_p, 4), f(E.perm_t, 3), f(E.perm_t_p, 3), f(E.fwer20, 2), f(E.bonf20, 4),
   f(E.markov_tiny, 3), f(E.markov_true, 3), f(E.hoeff500, 2), f(E.hoeff_n, 1), f(E.clt500, 3), f(E.exact500, 3), f(E.gen_single, 4), f(E.gen_million, 4), f(E.cos_sd_1024, 3),
-  f(E.ens_rho05, 2), f(E.dd_even_best_over[0], 3), f(E.dd_even_best_under[0], 3), f(E.dd_decay1_best_under[0], 3), f(E.dd_decay1_best_over[0], 3), String(E.dd_decay1_best_under[1]),
-  f(E.dd_samplewise_n30, 3), f(E.dd_samplewise_n55, 2), f(E.dd_samplewise_n80, 2), f(E.dd_samplewise_n200, 2), f(E.dd_smin['40'], 3), f(E.dd_smin['10'], 2), f(E.dd_smin['100'], 2), f(E.dd_even_ridge01_p40, 1),
   f(E.cv.cov_errxy * 100, 1), f(E.cv.cov_erravg * 100, 1), f(E.cv.err_avg_n, 3), f(E.cv.sd_est, 3), f(E.cv.mean_naive_se, 3), f(-E.cv.corr_est_errxy, 3),
   f(E.bayes_post_mean, 3), f(E.bayes_ci_lo, 3), f(E.bayes_ci_hi, 3), f(E.bayes_p_gt_half, 3), f(E.bf_ev0, 5), f(E.bf_ev1, 4), f(E.bf10, 2), f(E.bf_post_h0, 3),
   f(E.overlap_sep, 2), f(E.overlap_needed, 2), f(E.overlap_p, 4),
@@ -109,18 +107,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const m of ['z', 'pct']) await p.$eval('#lab-meth input[value="' + m + '"]', e => { e.click() });
   await noBad('#lab-tab', 'lab after unchecking'); await shot('#lab-card', 'lab');
   for (const m of ['z', 'pct']) await p.$eval('#lab-meth input[value="' + m + '"]', e => { e.click() });
-  // Double descent (Reading section 13; formerly its own tab)
-  await click('#tabs button[data-t="t-read"]');
-  for (const k of ['even', 'decay05', 'decay1']) {
-    await click('#dd-beta button[data-m="' + k + '"]');
-    for (const l of ['0', '0.01', '0.1', '1']) {
-      await click('#dd-lam button[data-m="' + l + '"]');
-      for (const pv of [1, 39, 40, 41, 100]) { await scrub('dd-p', pv); const t = await txt('#dd-cnt'); ok(!/NaN|undefined/.test(t), 'dd lab ' + k + l + pv + ': ' + t.slice(0, 60)) }
-    }
-    await click('#dd-lam button[data-m="0"]'); await scrub('dd-p', 10);
-    const t = await txt('#dd-cnt'); ok(t.includes(E['dd_' + k + '_theory_p10'].toFixed(3)) && t.includes(E['dd_' + k + '_sim_p10'].toFixed(3)), 'dd lab p10 ' + k + ': ' + t);
-  }
-  await scrub('dd-p', 40); await shot('#dd-card', 'ddlab');
+  // (the double-descent card moved to the Regularisation page on 2026-10-26; its checks moved with it)
   await click('#tabs button[data-t="t-read"]');
   // new Reading figures (2026-10-24): every control, no NaN, numbers equal recompute.py
   for (const m of ['10', '100', '1000']) { await click('#rd-ll-seg button[data-m="' + m + '"]'); const t = await txt('#rd-ll-cnt'); ok(!/NaN|undefined|Infinity/.test(t) && t.includes(E['mle_coin_se_' + m].toFixed(4)), 'll ' + m + ': ' + t) }

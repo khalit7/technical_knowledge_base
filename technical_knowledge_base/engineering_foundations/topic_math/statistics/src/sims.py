@@ -3,14 +3,14 @@
 
 Run from src/ (outside the repo's uv project):
   uv run --no-project --with numpy==2.5.3 --with scipy==1.18.1 python sims.py [part ...]
-Parts: grid anim clt boot dd conc peek cv entropy (default: all). Each part rewrites only its own key.
+Parts: grid anim clt boot conc peek cv entropy (default: all). Each part rewrites only its own key.
 """
 import json, math, os, sys, time
 import numpy as np
 from scipy import stats
 
 IN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "inputs")
-parts = sys.argv[1:] or ["grid", "anim", "clt", "boot", "dd", "conc", "peek", "cv", "entropy"]
+parts = sys.argv[1:] or ["grid", "anim", "clt", "boot", "conc", "peek", "cv", "entropy"]
 
 # ---------------- the tiny model (root page): loss of a sampled next word ----------------
 z = np.array([2.0, 1.0, 0.0]); P = np.exp(z) / np.exp(z).sum()
@@ -194,47 +194,7 @@ if "entropy" in parts:
         en["by_n"][str(n)] = row; print("entropy", n, row, flush=True)
     put("entropy", en)
 
-# ---------------- part dd: double descent with its bias and variance (weak-features linear regression) ----------------
-# Belkin, Hsu and Xu, "Two models of double descent for weak features" (SIAM J. Math. Data Science 2020; arXiv 1903.07571):
-# x ~ N(0, I_D), y = x.beta + noise, the model sees only the first p features, least squares (min-norm when p > n).
-DD_D, DD_N, DD_SIG = 100, 40, 0.2
-def dd_beta(kind):
-    b = np.ones(DD_D) if kind == "even" else np.arange(1, DD_D + 1) ** -(0.5 if kind == "decay05" else 1.0)
-    return b / np.linalg.norm(b)
-def dd_theory(p, beta, n=DD_N, sig=DD_SIG):
-    bP = float((beta[:p] ** 2).sum()); bR = float((beta[p:] ** 2).sum())
-    if p <= n - 2: return (bR + sig ** 2) * (1 + p / (n - p - 1))
-    if p >= n + 2: return bP * (1 - n / p) + (bR + sig ** 2) * (1 + n / (p - n - 1))
-    return None  # infinite expectation at p = n - 1, n, n + 1
-if "dd" in parts:
-    T = 1000; rng = np.random.default_rng(2019)
-    X = rng.standard_normal((T, DD_N, DD_D)); E = rng.standard_normal((T, DD_N))
-    ps = list(range(1, DD_D + 1)); lams = [0.0, 0.01, 0.1, 1.0]
-    dd = {"D": DD_D, "n": DD_N, "sigma": DD_SIG, "T": T, "p": ps, "lam": lams, "betas": {}, "smin": []}
-    for p in ps:
-        Xp = X[:, :, :p]
-        sv = np.linalg.svd(Xp, compute_uv=False)
-        dd["smin"].append(round(float(np.median(sv[:, -1])), 4))
-    for kind in ("even", "decay05", "decay1"):
-        beta = dd_beta(kind); y = X @ beta + DD_SIG * E
-        res = {"theory": [None if dd_theory(p, beta) is None else round(dd_theory(p, beta), 4) for p in ps]}
-        for lam in lams:
-            rows = {"mean": [], "median": [], "bias2": [], "var": []}
-            for p in ps:
-                Xp = X[:, :, :p]; Xt = np.transpose(Xp, (0, 2, 1))
-                if p >= DD_N:  # dual form: w = X^T (X X^T + lam I)^-1 y, the min-norm interpolator at lam = 0
-                    w = (Xt @ np.linalg.solve(Xp @ Xt + lam * np.eye(DD_N), y[:, :, None]))[:, :, 0]
-                else:  # primal: w = (X^T X + lam I)^-1 X^T y
-                    w = np.linalg.solve(Xt @ Xp + lam * np.eye(p), Xt @ y[:, :, None])[:, :, 0]
-                bR = float((beta[p:] ** 2).sum())
-                err = ((w - beta[:p]) ** 2).sum(1) + bR + DD_SIG ** 2
-                rows["mean"].append(round(float(err.mean()), 4)); rows["median"].append(round(float(np.median(err)), 4))
-                rows["bias2"].append(round(float(((w.mean(0) - beta[:p]) ** 2).sum() + bR), 4))
-                rows["var"].append(round(float(w.var(0).sum()), 4))
-            res[str(lam)] = rows
-            print("dd", kind, lam, rows["mean"][9], rows["mean"][39], rows["mean"][99], flush=True)
-        dd["betas"][kind] = res
-    put("dd", dd)
+# (part dd, the weak-features double descent, moved to the Regularisation page on 2026-10-26: src/weak_features_dd.py there)
 
 # ---------------- part conc: exact tail of a Bernoulli(0.5) mean, for the bounds chart ----------------
 if "conc" in parts:

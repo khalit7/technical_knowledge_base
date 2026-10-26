@@ -13,7 +13,7 @@ from scipy import stats
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S = {k: json.load(open(os.path.join(HERE, "inputs", "sims_%s.json" % k)))
-     for k in ("grid", "anim", "clt", "boot", "entropy", "dd", "conc", "peek", "cv")}
+     for k in ("grid", "anim", "clt", "boot", "entropy", "conc", "peek", "cv")}
 E = {}
 def put(k, v, nd=4):
     E[k] = round(float(v), nd) if isinstance(v, (float, np.floating)) else v
@@ -131,37 +131,7 @@ put("gen_single", math.sqrt(math.log(2 / 0.05) / (2 * 10000)), 4)
 put("gen_million", math.sqrt(math.log(2 * 1e6 / 0.05) / (2 * 10000)), 4)
 put("cos_sd_1024", 1 / math.sqrt(1024), 4)
 
-# ---- section 11: bias-variance for models, ensembles, double descent ----
-put("ens_rho0", 1 / 10, 2); put("ens_rho05", 0.5 + 0.5 / 10, 2)
-dd = S["dd"]; P = dd["p"]
-def at(kind, lam, key, pp): return dd["betas"][kind][str(lam)][key][P.index(pp)]
-for kind in ("even", "decay05", "decay1"):
-    th = dd["betas"][kind]["theory"]
-    E["dd_%s_theory_p10" % kind] = th[P.index(10)]; E["dd_%s_theory_p100" % kind] = th[P.index(100)]
-    E["dd_%s_sim_p10" % kind] = at(kind, 0.0, "mean", 10); E["dd_%s_sim_p100" % kind] = at(kind, 0.0, "mean", 100)
-    E["dd_%s_sim_p40_median" % kind] = at(kind, 0.0, "median", 40)
-    E["dd_%s_ridge01_p40" % kind] = at(kind, 0.1, "mean", 40)
-    # worst relative gap between simulation and theory away from the threshold
-    gaps = [abs(at(kind, 0.0, "mean", pp) / th[i] - 1) for i, pp in enumerate(P) if th[i] is not None and abs(pp - dd["n"]) >= 5]
-    E["dd_%s_maxgap" % kind] = round(max(gaps), 4)
-    E["dd_%s_sim_p40" % kind] = at(kind, 0.0, "mean", 40)
-    bk = np.ones(100) if kind == "even" else np.arange(1, 101) ** -(0.5 if kind == "decay05" else 1.0); bk = bk / np.linalg.norm(bk)
-    def thx(pp, nn=40, sig=0.2):
-        bP = float((bk[:pp] ** 2).sum()); bR = float((bk[pp:] ** 2).sum())
-        return (bR + sig ** 2) * (1 + pp / (nn - pp - 1)) if pp <= nn - 2 else bP * (1 - nn / pp) + (bR + sig ** 2) * (1 + nn / (pp - nn - 1))
-    th_min_under = min((thx(pp), pp) for pp in P if pp <= dd["n"] - 2)
-    th_min_over = min((thx(pp), pp) for pp in P if pp >= dd["n"] + 2)
-    E["dd_%s_best_under" % kind] = [round(th_min_under[0], 6), th_min_under[1]]
-    E["dd_%s_best_over" % kind] = [round(th_min_over[0], 6), th_min_over[1]]
-E["dd_smin"] = {str(pp): dd["smin"][P.index(pp)] for pp in (10, 30, 38, 40, 42, 60, 100)}
-# sample-wise: p = 40 features of the decaying (a = 1) signal, n from 30 to 40 data points (theory, Belkin, Hsu and Xu Theorem 1)
-def th(pp, nn, beta, sig=0.2):
-    bP = float((beta[:pp] ** 2).sum()); bR = float((beta[pp:] ** 2).sum())
-    if pp <= nn - 2: return (bR + sig ** 2) * (1 + pp / (nn - pp - 1))
-    if pp >= nn + 2: return bP * (1 - nn / pp) + (bR + sig ** 2) * (1 + nn / (pp - nn - 1))
-    return None
-beta = np.ones(100) / 10
-put("dd_samplewise_n30", th(60, 30, beta), 3); put("dd_samplewise_n55", th(60, 55, beta), 3); put("dd_samplewise_n80", th(60, 80, beta), 3); put("dd_samplewise_n200", th(60, 200, beta), 3)
+# (bias-variance for models, ensembles and double descent moved to the Regularisation page on 2026-10-26: src/weak_features_dd.py there)
 
 # ---- section 12: cross-validation ----
 E["cv"] = S["cv"]
