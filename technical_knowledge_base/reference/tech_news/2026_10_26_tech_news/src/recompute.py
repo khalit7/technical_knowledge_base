@@ -22,6 +22,6 @@ close(1144 / 1840 * 100, 62.2, 0.1)
 close(39 / 50 * 100, 78.0, 0.01)
 # UK AISI incident: 9 of 43 runs
 close(9 / 43 * 100, 20.9, 0.1)
-# GRAFT animation: penalty about 30% undetected; GRAFT up to 35% before ablation, near zero after
-assert 35 > 30 > 0
+# GRAFT animation (paper figures): penalty 25.9% undetected; GRAFT 38.5% before ablation, 1.6% after; task score 79.2 vs 60.2
+assert 38.5 > 25.9 > 1.6; close(79.2 - 60.2, 19.0, 0.001)
 print('all derived numbers check')
