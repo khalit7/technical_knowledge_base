@@ -41,3 +41,6 @@ The subject's core reading (Reading plus the toy tab the old Reading sent reader
 - `39_tab_more.html` Further reading; `99_js_tabs.js` tab wiring (storage key `pretrain-tab`).
 
 2026-10-26 (final follow-up sweep): section 3 adds Sardana et al.'s finding that loss keeps falling out to 10,000 tokens per parameter (from the Chinchilla paper page); the span-corruption arithmetic links the T5 paper page's span explorer (#spx-h).
+
+## 2026-10-26: owner of the inference-aware optimum
+Khalid's decision: this page owns Sardana et al.'s inference-aware optimum; the Chinchilla paper page links here. Added what only Chinchilla carried: the Eq. 3 objective (6ND_tr + 2ND_inf at fixed loss), the paper's 13B to 7B example (1.7e22 FLOPs, 17%), that only the 150M model reached 10,000 tokens per parameter, and the section 5 caveat on fits at extreme ratios (checked against arXiv 2401.00448v2). Ledger: 3 units added. Reading 23 to 24 min core.
