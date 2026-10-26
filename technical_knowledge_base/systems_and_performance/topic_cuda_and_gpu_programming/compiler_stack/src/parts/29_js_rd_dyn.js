@@ -35,11 +35,4 @@
   const X=T.explain;
   document.getElementById('cs-expl').innerHTML='<tr><th>Function</th><th class="num">graphs</th><th class="num">breaks</th><th class="num">ops in graphs</th><th>reason Dynamo gives</th></tr>'+
     Object.entries(X).map(([k,v])=>'<tr><td><code>'+k+'</code></td><td class="num">'+v.graphs+'</td><td class="num">'+v.breaks+'</td><td class="num">'+v.ops+'</td><td>'+(v.reasons.map(E).join('; ')||'<span class="mute">none</span>')+'</td></tr>').join('');
-  // recompilation bars (log scale)
-  function bars(){const el=document.getElementById('cs-recBars');const R=T.recompile_ms;const lg=v=>Math.log10(Math.max(v,0.1));const mx=lg(Math.max(...R.map(r=>r[1])));
-    const lab=['first call: compile','new shape: recompile, now dynamic','new shape: reuse','new shape: reuse'];
-    el.innerHTML=R.map((r,i)=>'<div class="cs-row"><div>'+r[0]+' rows <span class="mute small">'+lab[i]+'</span></div><div class="bar"><i style="width:'+Math.max(2,100*(lg(r[1])+1)/(mx+1)).toFixed(1)+'%"></i></div></div><div class="small" style="margin:-2px 0 4px 9.5em">'+r[1].toLocaleString('en-US')+' ms</div>').join('')+'<p class="small mute">Wall time of each call, log scale; CPU, 2 threads, torch 2.14.1; compile times on a GPU machine differ, the pattern does not.</p>';}
-  bars();
-  document.getElementById('cs-recLog').textContent=T.recompile_log.join('\n');
-  document.getElementById('cs-scal').textContent=T.scalar.map(l=>l.replace(/^[|\s+-]+/,'')).join('\n');
 })();
