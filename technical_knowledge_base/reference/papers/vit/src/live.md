@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)","Takeaway":"Split images into 16x16 patches and feed them to a vanilla Transformer; with 300M-image pre-training this beats the best CNNs at 2-4x less compute, proving data scale trumps convolutional inductive bias.","Topics":["generative-and-multimodal"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d811fa231cfcde6c1954d"}
+{"Paper":"An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)","Takeaway":"Split images into 16x16 patches and feed them to a vanilla Transformer; pre-trained on 300M JFT images, ViT-H/14 beats BiT-L on every benchmark and edges Noisy Student on ImageNet (88.55 vs 88.5) with about 4x less pre-training compute, while CNNs still win on smaller pre-training sets: at scale, data outweighs convolutional inductive bias.","Topics":["generative-and-multimodal"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d811fa231cfcde6c1954d"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
