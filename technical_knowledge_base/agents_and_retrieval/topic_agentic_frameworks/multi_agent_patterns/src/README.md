@@ -53,3 +53,5 @@ Why 26 minutes is right: the core carries eight measured experiments, each a cla
 
 ## Update pass 2026-10-26 (update-kb)
 Core 26.1 to 26.9 min (header 27). Anthropic's "when to fold subagents into your main agent loop" (22 Oct 2026, quotes checked against the article on 26 Oct) added to section 10 as the owner of that guidance (Context engineering links here), with a matching clause in section 11's first question. `check.py` needs the `.fm-v` values dumped from the rendered page as `[key, text]` pairs; 33 values, 0 problems after the edit.
+
+2026-10-26 (final follow-up sweep): the MAST paragraph names reasoning-action mismatch (13.2%, the largest inter-agent mode) in prose, since Emergence World cites this page for the term; it was only a chart label.
