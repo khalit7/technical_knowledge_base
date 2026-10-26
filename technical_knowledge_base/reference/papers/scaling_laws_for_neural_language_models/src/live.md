@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Scaling Laws for Neural Language Models","Takeaway":"LM loss follows smooth power laws in N, D, and C over 6+ orders of magnitude; prescribed spending compute mostly on model size (N \\~ C\\^0.73) with early stopping, an allocation Chinchilla later corrected to equal N/D scaling (\\~20 tokens/param).","Topics":["llm-training-and-post-training","data-curation-and-datasets","ml-fundamentals"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d81b08a1debb0c15cd252"}
+{"Paper":"Scaling Laws for Neural Language Models","Takeaway":"LM loss follows smooth power laws in N, D, and C (over about six orders of magnitude in N, eight in compute, two in D); prescribed spending compute mostly on model size (N ~ C^0.73) with early stopping, an allocation Chinchilla later corrected to equal N/D scaling (~20 tokens/param).","Topics":["llm-training-and-post-training","data-curation-and-datasets","ml-fundamentals"],"Year":"2020","url":"https://app.notion.com/p/3c65c17b0d0d81b08a1debb0c15cd252"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
