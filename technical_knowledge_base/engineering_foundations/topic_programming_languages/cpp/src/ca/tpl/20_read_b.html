@@ -1,0 +1,49 @@
+
+<section id="es-build">
+<h2>1. How a C++ program is built</h2>
+<p>Python reads your source and runs it; <code>import tokens</code> finds <code>tokens.py</code> at run time. C++ has no run-time import. Building is a separate step with three stages, and most confusing C++ errors come from not knowing which stage complained.</p>
+<ol>
+<li><span class="ca-def">Preprocessor.</span> Lines starting with <code>#</code> are text commands. <code>#include "tokens.h"</code> pastes the whole file in, literally. The result is one long file per <code>.cpp</code>, called a <b>translation unit</b>.</li>
+<li><span class="ca-def">Compiler.</span> Each translation unit is compiled <i>separately</i> into an <b>object file</b> (<code>.o</code>): machine code plus a table of the names (<b>symbols</b>) it defines and the ones it needs from elsewhere.</li>
+<li><span class="ca-def">Linker.</span> Joins the object files and libraries into one executable, matching every needed symbol to exactly one definition.</li>
+</ol>
+<p>The root page's token counter, split the way real projects are: a <b>header</b> (<code>.h</code>) <i>declares</i> the function (its name and types: a promise), a source file <i>defines</i> it (the body).</p>
+<div class="ca-two"><div>[[code:build1/tokens.h]]</div><div>[[code:build1/main.cpp]]</div></div>
+[[code:build1/tokens.cpp]]
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> after the preprocessor, how many lines is the translation unit of this 7-line main.cpp, and what does one standard header cost?</summary>[[out:b_pp_count]]<p>Fifty-five thousand lines, nearly all from <code>&lt;string_view&gt;</code>.</p></details>
+<p>Every <code>.cpp</code> that includes a standard header recompiles that header from text, which is why C++ builds are slow and why C++20 added <b>modules</b> (section 4) to replace textual inclusion.</p>
+
+<h3>The pipeline, step by step</h3>
+<p>The same three files through the three stages, with the real line counts, sizes, symbol tables and messages (Apple clang 17, <code>-std=c++20</code>); bars are to scale by line count. <b>Predict</b> before you pick "Forgot tokens.o": which stage fails, the compiler or the linker?</p>
+<div class="card" id="ca-bd-card">
+<div class="seg" id="ca-bd-seg" role="group" aria-label="Scenario"><button data-m="ok" class="on">A correct build</button><button data-m="missing">Forgot tokens.o</button><button data-m="odr">Function body in a header</button><button data-m="incr">Edit, then rebuild</button></div>
+<div class="ca-pipe" id="ca-bd-pipe"></div>
+<div class="ca-cap" id="ca-bd-cap" aria-live="polite"></div>
+<div class="ca-ctl" id="ca-bd-ctl"></div>
+<details class="dp" id="ca-bd-more"><summary>The real commands and output for this step</summary><div class="b" id="ca-bd-detail"></div></details>
+</div>
+<p><b>Reading a symbol table</b> (<code>nm</code>): <code>T</code> (green) is defined here, <code>U</code> (red) is used here and defined elsewhere. The linker must find exactly one <code>T</code> for each <code>U</code>: none is "Undefined symbols", two is "duplicate symbol". The compiler accepted <code>main.cpp</code> on the header's promise alone, so a missing definition is always the linker's error.</p>
+<p>The <b>one definition rule</b> (ODR) says a function may be defined once in the whole program. A function body in a header included from two <code>.cpp</code> files gives each object file its own copy: "duplicate symbol" from <code>ld</code> on macOS (GNU ld says "multiple definition"). The fix is <code>inline</code> ("identical copies may appear; keep one") or only a declaration in the header. Functions defined inside a class body, templates and <code>constexpr</code> functions are implicitly inline, which is why headers full of them link fine.</p>
+<div class="ca-py"><div class="t">Python bridge</div>A header is like a <code>.pyi</code> stub (types only) that every user pastes into their file. Python resolves names when the line runs; C++ resolves them at link time, so a missing or duplicated function is a build error, never a run-time <code>NameError</code>.</div>
+
+<h3>CMake: the build system</h3>
+<p><b>CMake</b> is the de facto standard build description: you list <b>targets</b> (executables, libraries) and their properties, and CMake generates the commands for a build tool such as Ninja. A real project separates a library from the program that uses it:</p>
+[[code:cmake2/CMakeLists.txt]]
+<p><code>PUBLIC</code> properties travel to every target that links the library; <code>PRIVATE</code> ones do not: the single most useful idea in CMake. In the generated commands, <code>-Icmake2/src</code> and <code>-std=gnu++20</code> reached <code>main.cpp</code>; <code>-Wall -Wextra</code> did not. The library became a <b>static library</b> <code>libtokens.a</code> (an archive of object files, made by <code>ar</code>). The payoff of separate compilation is incremental builds: editing a <code>.cpp</code> recompiles one file, editing a header recompiles everything that includes it.</p>
+<details class="dp"><summary>The recorded commands: compile, nm, both link errors, the inline fix, both CMake projects, the rebuilds <span class="mute">(Apple clang 17, CMake 4.4.4, Ninja)</span></summary><div class="b">
+<p class="small">Names like <code>count_tokens(std::__1::basic_string_view&lt;...&gt;)</code> are C++'s <b>mangled</b> names decoded by <code>nm -C</code>: the parameter types are part of the symbol, which is how overloading works at link time. <code>printf</code> stays <code>U</code> after linking: it lives in <code>libSystem</code>, linked dynamically.</p>
+[[out:b_compile]]
+[[out:b_nm]]
+[[out:b_link_missing]]
+[[out:b_link_ok]]
+<div class="ca-two"><div>[[code:odr/util.h]]</div><div>[[code:odr/b.cpp]]</div></div>
+[[out:b_odr]]
+[[code:odr/util_inline.h]]
+[[out:b_odr_fix]]
+[[code:cmake1/CMakeLists.txt]]
+[[out:b_cmake1]]
+[[out:b_cmake2]]
+[[out:b_incr]]
+</div></details>
+<p class="small"><b>What it buys</b>: each file compiles once, in parallel, and only what changed rebuilds. <b>What it costs</b>: headers are re-parsed in every file that includes them, and you maintain declarations and definitions separately. <b>Common mistakes</b>: a definition in a header without <code>inline</code>; global flags instead of per-target properties; forgetting <code>-std=</code> (section 4). llama.cpp's CMake build: {{the llama.cpp page|n:4055c17b0d0d8150a5effbb5a667dd9d}}, section 2.</p>
+</section>

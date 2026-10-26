@@ -1,5 +1,6 @@
-// Part 1 checks: click every control of Part 1's tabs at 390 dark and 920 light; report script errors, NaN/undefined,
-// sideways scroll; confirm each drill question has exactly one right choice; confirm the page embeds exactly the recorded outputs.
+// Checks for "C++: the essentials": click every control of the Reading tab at 390 dark and 920 light; report script errors,
+// NaN/undefined, sideways scroll; confirm nothing moves before the reader acts; confirm a link to one UB case opens it;
+// confirm the page embeds exactly the recorded outputs.
 // usage: node src/ca/check.mjs [shots dir]   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -7,13 +8,14 @@ import os from 'os';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
-const repo = path.resolve(here, '../../../../../..');
+import { execSync } from 'node:child_process';
+const repo = execSync('git rev-parse --show-toplevel', { cwd: here }).toString().trim();
 const require = createRequire(path.join(repo, 'html_utils/package.json'));
 const puppeteer = require('puppeteer');
 const page = path.resolve(here, '../../index.html');
 const shots = process.argv[2] || path.join(process.env.PL || path.join(os.tmpdir(), 'pl'), 'ca/shots');
 fs.mkdirSync(shots, { recursive: true });
-const TABS = ['t-ca-read', 't-ca-build', 't-ca-life', 't-ca-ub', 't-ca-drill'];
+const TABS = ['t-read', 't-more'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });
 let problems = 0;
@@ -25,8 +27,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.goto('file://' + page);
+  // nothing moves before the reader acts: the stepper is still on step 1 after 3 s on screen
+  await p.evaluate(() => document.getElementById('ca-bd-card').scrollIntoView());
+  await sleep(3000);
+  const still = await p.evaluate(() => document.getElementById('ca-bd-ctl-s').value);
+  if (still !== '0') { problems++; console.log('PROBLEM the build stepper moved by itself, step', still) }
   for (const t of TABS) {
-    await p.evaluate(t => window.SHOW_TAB(t), t);
+    await p.click(`button[data-t="${t}"]`);
     await sleep(200);
     // every segmented control / chip in this tab, then step every animation to its end and back
     const n = await p.evaluate(async t => {
@@ -39,7 +46,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
         for (const v of tab.querySelectorAll('select')) { v.value = '2'; v.dispatchEvent(new Event('change')); clicks++ }
       };
       await stepAll();
-      for (const g of tab.querySelectorAll('.seg,.chips')) for (const bt of g.querySelectorAll('button')) { bt.click(); clicks++; await wait(20); await stepAll() }
+      for (const g of tab.querySelectorAll('.seg,.chips,.ca-ubrow')) for (const bt of g.querySelectorAll('button')) { bt.click(); clicks++; await wait(20); await stepAll() }
       for (const d of tab.querySelectorAll('details')) { d.open = true; clicks++ }
       return clicks;
     }, t);
@@ -49,14 +56,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (bad || sw) { problems++; console.log(`PROBLEM ${t} ${scheme} ${width}: NaN/undefined ${bad}, sideways ${sw}`) }
     console.log(`${t} ${scheme} ${width}: ${n} interactions, NaN/undefined ${bad}, sideways ${sw}`);
   }
-  // drill answers in the 920 pass
   if (width === 920) {
-    await p.evaluate(() => window.SHOW_TAB('t-ca-drill'));
-    const d = await p.evaluate(() => [...document.querySelectorAll('#t-ca-drill .ca-q')].map(q => q.querySelectorAll('.ca-ch button[data-ok="1"]').length));
-    console.log('right choices per question', d.join(','));
-    const off = d.filter(x => x !== 1).length;
-    console.log('drill questions', d.length, 'with exactly one right choice:', d.length - off);
-    if (off) problems++;
+    // a link to one gallery case opens it
+    await p.goto('file://' + page + '#es-ub-string-view'); await sleep(300);
+    const sel = await p.evaluate(() => [document.querySelector('#ca-ub-list .on')?.id, document.querySelector('#ca-ub-view h3')?.textContent]);
+    console.log('link #es-ub-string-view opens:', sel.join(' / '));
+    if (sel[0] !== 'es-ub-string-view') problems++;
     // embedded outputs equal the recorded files (the "$ command" line included)
     const emb = await p.evaluate(() => { const r = {}; document.querySelectorAll('pre[data-ca-out]').forEach(e => { const n = e.dataset.caOut; const rest = e.nextElementSibling && e.nextElementSibling.querySelector('[data-ca-rest]'); (r[n] = r[n] || []).push(e.textContent + (rest ? '\n' + rest.textContent : '')) }); return r });
     let ok = 0, bad = 0;
@@ -64,10 +69,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       const want = fs.readFileSync(path.join(here, 'out', n + '.txt'), 'utf8').replace(/\n+$/, '');
       for (const got of list) { if (got === want) ok++; else { bad++; console.log('MISMATCH', n) } }
     }
-    // the JS data (lifetime, gallery, pipeline) is generated from the same files: compare a sample of each
-    const data = await p.evaluate(() => ({ lt: window.CA_DATA.lifetime.growth_nx.log.join('\n'), ub: window.CA_DATA.ub.race.O2, bd: window.CA_DATA.build.out.b_odr }));
+    // the JS data (gallery, pipeline) is generated from the same files: compare a sample of each
+    const data = await p.evaluate(() => ({ ub: window.CA_DATA.ub.race.O2, bd: window.CA_DATA.build.out.b_odr }));
     const f = n => fs.readFileSync(path.join(here, 'out', n + '.txt'), 'utf8');
-    const dataOk = f('lt_growth_nx').split('\n').slice(1).join('\n').replace(/\n+$/, '') === data.lt && f('ub_race_O2') === data.ub && f('b_odr') === data.bd;
+    const dataOk = f('ub_race_O2') === data.ub && f('b_odr') === data.bd;
     console.log(`embedded outputs: ${ok} match, ${bad} differ; JS data matches files: ${dataOk}`);
     if (bad || !dataOk) problems++;
   }
@@ -75,4 +80,4 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.close();
 }
 await b.close();
-console.log(problems ? `FAILED (${problems})` : 'all Part 1 checks passed');
+console.log(problems ? `FAILED (${problems})` : 'all checks passed');

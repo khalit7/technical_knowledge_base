@@ -1,11 +1,9 @@
-# C++: the language, the machine underneath, and reading llama.cpp
+# C++: the essentials
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0 (child of Topic: programming-languages)
 Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/cpp/
 
-Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2, Part 3); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
-- Part 1 "The language" (`src/ca/`, tabs Reading, Build pipeline, Object lifetimes, UB gallery, Predict the output): the build (preprocessor, translation units, linking, CMake), values, references and pointers, RAII, smart pointers, moves, classes and virtual calls (measured), templates and concepts, the standard library, lambdas, errors (exceptions against std::expected, measured), undefined behaviour at -O0 and -O2 with sanitizers, C++20/23/26 status. Generated from `src/ca/tpl/` by `src/ca/gen.py`.
-- Part 2 "The machine underneath" (`src/cb/`, tabs Reading, Latency ladder, Cache simulator, SIMD lanes, Roofline): memory hierarchy, cache lines, layout, pages and mmap, assembly, SIMD, branches, atomics and the memory model, false sharing, roofline, profiling, ABI, the bridge to GPUs; all measured on an M1 Pro.
-- Part 3 "Reading llama.cpp" (`src/cl/`, tabs Reading, Code tour, Quant blocks, Run it): llama.cpp pinned at commit 8e1642198dcd4e408f8776222d6ae31b74d01187, traced with SmolLM2-135M-Instruct Q8_0 (model and builds stay in the scratchpad; `src/cl/run_all.sh` reproduces).
-- Start here (`src/parts/20_tab_start.html`): the map, three routes, six measured findings.
-Replaces the old written pages "C++: zero to expert" (this Notion page, retitled) and "C++: modern practice and standards status" (marked TO DELETE); their claims are checked in each part's `coverage.json`. No child pages, databases or video.
+Interactive page: `index.html`, built from `src/` (`python3 src/ca/gen.py && sh src/build.sh`; `src/README.md` says how). Reading tab (about 17 min, plus 9 in closed details) and Further reading.
+- What every reader of the C++ pages needs first: who decides when an object dies (the hero: one `std::vector<float>` against Python's list, from real runs), the six ideas that follow and where each is taught, the six measured findings, how a program is built (with the Build pipeline stepper inline), undefined behaviour (with the UB gallery inline, ten cases at -O0, -O2 and under a sanitizer), libraries, which standard to ask for (the October 2026 status in a dated closed block), the mistakes that cut across the language and a hygiene checklist, and the four child pages.
+- Children (folders inside this one): `ownership_moves_and_lifetimes/`, `classes_templates_and_the_standard_library/`, `the_machine_underneath/`, `reading_llama_cpp/`.
+- Rebuilt on 2026-10-26 from the three-part page "C++: the language, the machine underneath, and reading llama.cpp"; its parts became the four children. Replaces the old written pages "C++: zero to expert" (this Notion page, retitled) and "C++: modern practice and standards status" (marked TO DELETE); their claims are checked in `src/ca/coverage.json` and the children's copies. No video.

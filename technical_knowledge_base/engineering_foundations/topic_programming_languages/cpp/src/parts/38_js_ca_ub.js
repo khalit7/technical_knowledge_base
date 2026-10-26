@@ -1,4 +1,5 @@
-// ---- Part 1: UB gallery tab. Code and outputs from CA_DATA.ub (recorded with LLVM clang 23.1.2) ----
+// ---- Section 2: the UB gallery (Reading). Code and outputs from CA_DATA.ub (recorded with LLVM clang 23.1.2).
+// The case buttons are static HTML with ids es-ub-<case>, so a link to #es-ub-double-free opens that case. ----
 (function(){
   const U=window.CA_DATA.ub,esc=CA.esc;
   const CASES=[
@@ -9,19 +10,24 @@
     ['dangling_vec','Reference into a vector, then push_back','first refers to users[0]; push_back reallocates and frees the old buffer, so first dangles.','Both runs printed an empty name from freed memory, with no error. ASan reports heap-use-after-free and shows where it was freed (inside push_back).','Copy the value (std::string first = users[0]), keep an index, or reserve() before taking references.'],
     ['string_view_temp','string_view of a temporary','make_name() returns a temporary std::string; the view points into it, and the string is destroyed at the end of the statement.','clang warned (-Wdangling-gsl) even without -Wall; both runs printed an empty name. ASan reports heap-use-after-free.','Keep the string: std::string name = make_name(); pass string_view only as a parameter.'],
     ['lambda_dangle','Lambda capturing a local by reference','The lambda captures count by reference and outlives make_counter(), whose frame is gone.','Both runs printed 2, as if correct: the dead stack slot happened to survive. ASan (with detect_stack_use_after_return) reports it. clang -Wall gave no warning.','Capture by value, with mutable: [count]() mutable { return ++count; }.'],
-    ['double_free','Double free (rule of five broken)','Buffer has a destructor but the compiler-written copy constructor copies the pointer, so a and b both delete[] the same array.','-O0 crashed (macOS malloc traps on double free; the earlier printf line was still buffered and was lost). -O2 printed and exited normally: the optimiser removed the allocation. ASan at -O0 reports attempting double-free.','Rule of zero: hold std::vector<float> instead of a raw pointer. Otherwise write all five special members (Reading section 6).'],
+    ['double_free','Double free (rule of five broken)','Buffer has a destructor but the compiler-written copy constructor copies the pointer, so a and b both delete[] the same array.','-O0 crashed (macOS malloc traps on double free; the earlier printf line was still buffered and was lost). -O2 printed and exited normally: the optimiser removed the allocation. ASan at -O0 reports attempting double-free.','Rule of zero: hold std::vector<float> instead of a raw pointer. Otherwise write all five special members (the ownership page, section 7).'],
     ['no_return','Missing return','sign(0) falls off the end of a function that must return int.','clang warned by default. -O0 trapped (clang inserts a trap instruction); -O2 returned -1 from the code that happened to follow. UBSan reports it.','return 0; at the end. Treat -Wreturn-type as an error (-Werror=return-type).'],
-    ['race','Data race','Two threads add to one plain long with no lock: a data race, which is UB.','-O0 lost updates; -O2 printed the right answer because the optimiser turned each loop into a single addition. A test at -O2 would pass. TSan reports the race.','std::atomic<long> counter, or a std::mutex; or give each thread its own counter and add them after join. Part 2 covers atomics and the memory model.']
+    ['race','Data race','Two threads add to one plain long with no lock: a data race, which is UB.','-O0 lost updates; -O2 printed the right answer because the optimiser turned each loop into a single addition. A test at -O2 would pass. TSan reports the race.','std::atomic<long> counter, or a std::mutex; or give each thread its own counter and add them after join. The machine page covers atomics and the memory model.']
   ];
   const tools={overflow:['san'],uninit:['warn','init'],index_oob:['san','hard','hard_dbg'],table:['san'],dangling_vec:['san'],string_view_temp:['warn','san'],lambda_dangle:['warn','san'],double_free:['san'],no_return:['san'],race:['san']};
   const toolName={san:'Sanitizer',warn:'Warning (-Wall)',init:'-ftrivial-auto-var-init=zero',hard:'Hardened libc++ (fast)',hard_dbg:'Hardened libc++ (debug)'};
   const pre=t=>{const L=t.replace(/\n+$/,'').split('\n'),c=L[0].startsWith('$ ')?L.shift():'';return '<pre class="ca-out'+(/\[exit code|ERROR|runtime error|WARNING: ThreadSanitizer|failed:/.test(t)?' ca-bad':'')+'">'+(c?'<span class="ca-cmd">'+esc(c)+'</span>\n':'')+esc(L.join('\n'))+'</pre>'};
   const list=document.getElementById('ca-ub-list'),view=document.getElementById('ca-ub-view');
-  list.innerHTML=CASES.map((c,i)=>'<button data-m="'+c[0]+'"'+(i?'':' class="on"')+'>'+esc(c[1])+'</button>').join('');
   function show(k){const c=CASES.find(x=>x[0]===k),d=U[k];
     view.innerHTML='<h3>'+esc(c[1])+'</h3><p>'+esc(c[2])+'</p><div class="ca-src"><div class="ca-fn">'+k+'.cpp</div><pre class="ca-code">'+d.src.split('\n').map(CA.hl).join('\n')+'</pre></div>'+
       '<div class="ca-two"><div><div class="band">Unoptimised, -O0</div>'+pre(d.O0)+'</div><div><div class="band">Optimised, -O2</div>'+pre(d.O2)+'</div></div>'+
-      tools[k].map(t=>'<div class="band">'+toolName[t]+'</div>'+pre(d[t])).join('')+
+      tools[k].map(t=>'<details class="dp"><summary>'+toolName[t]+': what it reports <span class="mute">('+d[t].replace(/\n+$/,'').split('\n').length+' lines)</span></summary><div class="b">'+pre(d[t])+'</div></details>').join('')+
       '<div class="co key"><div class="t">What happened</div>'+esc(c[3])+'</div><div class="co"><div class="t">The fix</div>'+esc(c[4])+'</div>'}
-  RD.seg(list,show);show('overflow');
+  RD.seg(list,show);
+  // a link to one case (#es-ub-double-free) selects it; the browser scrolls to its button
+  function fromHash(){const h=decodeURIComponent(location.hash.slice(1));if(!h.startsWith('es-ub-'))return false;
+    const b=document.getElementById(h);if(!b||!b.dataset.m||!list.contains(b))return false;
+    list.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));show(b.dataset.m);return true}
+  addEventListener('hashchange',fromHash);
+  if(!fromHash())show('double_free');
 })();

@@ -1,0 +1,149 @@
+
+<section id="es-build">
+<h2>1. How a C++ program is built</h2>
+<p>Python reads your source and runs it; <code>import tokens</code> finds <code>tokens.py</code> at run time. C++ has no run-time import. Building is a separate step with three stages, and most confusing C++ errors come from not knowing which stage complained.</p>
+<ol>
+<li><span class="ca-def">Preprocessor.</span> Lines starting with <code>#</code> are text commands. <code>#include "tokens.h"</code> pastes the whole file in, literally. The result is one long file per <code>.cpp</code>, called a <b>translation unit</b>.</li>
+<li><span class="ca-def">Compiler.</span> Each translation unit is compiled <i>separately</i> into an <b>object file</b> (<code>.o</code>): machine code plus a table of the names (<b>symbols</b>) it defines and the ones it needs from elsewhere.</li>
+<li><span class="ca-def">Linker.</span> Joins the object files and libraries into one executable, matching every needed symbol to exactly one definition.</li>
+</ol>
+<p>The root page's token counter, split the way real projects are: a <b>header</b> (<code>.h</code>) <i>declares</i> the function (its name and types: a promise), a source file <i>defines</i> it (the body).</p>
+<div class="ca-two"><div><div class="ca-src"><div class="ca-fn">tokens.h</div><pre class="ca-code"><span class="ca-cm">// tokens.h: the declaration (a promise that a definition exists somewhere)</span>
+<span class="ca-pp">#pragma once</span>
+<span class="ca-pp">#include &lt;string_view&gt;</span>
+<span class="ca-kw">int</span> count_tokens(std::string_view text);</pre></div></div><div><div class="ca-src"><div class="ca-fn">main.cpp</div><pre class="ca-code"><span class="ca-cm">// main.cpp: uses count_tokens; only sees the declaration</span>
+<span class="ca-pp">#include "tokens.h"</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    std::printf(<span class="ca-st">"%d tokens\n"</span>, count_tokens(<span class="ca-st">"C++ is fun, x86_64 too"</span>));
+&#125;</pre></div></div></div>
+<div class="ca-src"><div class="ca-fn">tokens.cpp</div><pre class="ca-code"><span class="ca-cm">// tokens.cpp: the definition</span>
+<span class="ca-pp">#include "tokens.h"</span>
+<span class="ca-pp">#include &lt;cctype&gt;</span>
+
+<span class="ca-kw">int</span> count_tokens(std::string_view text) &#123;
+    <span class="ca-kw">int</span> n = 0;
+    <span class="ca-kw">bool</span> inside = <span class="ca-kw">false</span>;
+    <span class="ca-kw">for</span> (<span class="ca-kw">unsigned</span> <span class="ca-kw">char</span> c : text) &#123;
+        <span class="ca-kw">bool</span> tok = std::isalnum(c) &amp;&amp; c &lt; 128;
+        <span class="ca-kw">if</span> (tok &amp;&amp; !inside) n += 1;
+        inside = tok;
+    &#125;
+    <span class="ca-kw">return</span> n;
+&#125;</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> after the preprocessor, how many lines is the translation unit of this 7-line main.cpp, and what does one standard header cost?</summary><pre class="ca-out" data-ca-out="b_pp_count"><span class="ca-cmd">$ wc -l main.cpp tokens.h; clang++ -std=c++20 -E main.cpp | wc -l</span>
+for h in cstdio string_view vector string algorithm iostream; do printf "#include &lt;%s&gt; alone: " $h; printf "#include &lt;$h&gt;\\n" | clang++ -std=c++20 -x c++ -E - | wc -l | tr -d " "; done
+       7 main.cpp
+       4 tokens.h
+      11 total
+   55693
+#include &lt;cstdio&gt; alone: 732
+#include &lt;string_view&gt; alone: 55683
+#include &lt;vector&gt; alone: 72835
+#include &lt;string&gt; alone: 59542
+#include &lt;algorithm&gt; alone: 54846
+#include &lt;iostream&gt; alone: 93507</pre><p>Fifty-five thousand lines, nearly all from <code>&lt;string_view&gt;</code>.</p></details>
+<p>Every <code>.cpp</code> that includes a standard header recompiles that header from text, which is why C++ builds are slow and why C++20 added <b>modules</b> (section 4) to replace textual inclusion.</p>
+
+<h3>The pipeline, step by step</h3>
+<p>The same three files through the three stages, with the real line counts, sizes, symbol tables and messages (Apple clang 17, <code>-std=c++20</code>); bars are to scale by line count. <b>Predict</b> before you pick "Forgot tokens.o": which stage fails, the compiler or the linker?</p>
+<div class="card" id="ca-bd-card">
+<div class="seg" id="ca-bd-seg" role="group" aria-label="Scenario"><button data-m="ok" class="on">A correct build</button><button data-m="missing">Forgot tokens.o</button><button data-m="odr">Function body in a header</button><button data-m="incr">Edit, then rebuild</button></div>
+<div class="ca-pipe" id="ca-bd-pipe"></div>
+<div class="ca-cap" id="ca-bd-cap" aria-live="polite"></div>
+<div class="ca-ctl" id="ca-bd-ctl"></div>
+<details class="dp" id="ca-bd-more"><summary>The real commands and output for this step</summary><div class="b" id="ca-bd-detail"></div></details>
+</div>
+<p><b>Reading a symbol table</b> (<code>nm</code>): <code>T</code> (green) is defined here, <code>U</code> (red) is used here and defined elsewhere. The linker must find exactly one <code>T</code> for each <code>U</code>: none is "Undefined symbols", two is "duplicate symbol". The compiler accepted <code>main.cpp</code> on the header's promise alone, so a missing definition is always the linker's error.</p>
+<p>The <b>one definition rule</b> (ODR) says a function may be defined once in the whole program. A function body in a header included from two <code>.cpp</code> files gives each object file its own copy: "duplicate symbol" from <code>ld</code> on macOS (GNU ld says "multiple definition"). The fix is <code>inline</code> ("identical copies may appear; keep one") or only a declaration in the header. Functions defined inside a class body, templates and <code>constexpr</code> functions are implicitly inline, which is why headers full of them link fine.</p>
+<div class="ca-py"><div class="t">Python bridge</div>A header is like a <code>.pyi</code> stub (types only) that every user pastes into their file. Python resolves names when the line runs; C++ resolves them at link time, so a missing or duplicated function is a build error, never a run-time <code>NameError</code>.</div>
+
+<h3>CMake: the build system</h3>
+<p><b>CMake</b> is the de facto standard build description: you list <b>targets</b> (executables, libraries) and their properties, and CMake generates the commands for a build tool such as Ninja. A real project separates a library from the program that uses it:</p>
+<div class="ca-src"><div class="ca-fn">CMakeLists.txt</div><pre class="ca-code">cmake_minimum_required(VERSION 3.28)
+project(tokcount LANGUAGES CXX)
+
+<span class="ca-pp"># A library target: compiled once, linked into anything that needs it</span>
+add_library(tokens src/tokens.cpp)
+target_include_directories(tokens PUBLIC src)      # users of tokens see src/
+target_compile_features(tokens PUBLIC cxx_std_20)  # and get C++20
+target_compile_options(tokens PRIVATE -Wall -Wextra)
+
+add_executable(tokcount src/main.cpp)
+target_link_libraries(tokcount PRIVATE tokens)     # brings the include dir and C++20 along</pre></div>
+<p><code>PUBLIC</code> properties travel to every target that links the library; <code>PRIVATE</code> ones do not: the single most useful idea in CMake. In the generated commands, <code>-Icmake2/src</code> and <code>-std=gnu++20</code> reached <code>main.cpp</code>; <code>-Wall -Wextra</code> did not. The library became a <b>static library</b> <code>libtokens.a</code> (an archive of object files, made by <code>ar</code>). The payoff of separate compilation is incremental builds: editing a <code>.cpp</code> recompiles one file, editing a header recompiles everything that includes it.</p>
+<details class="dp"><summary>The recorded commands: compile, nm, both link errors, the inline fix, both CMake projects, the rebuilds <span class="mute">(Apple clang 17, CMake 4.4.4, Ninja)</span></summary><div class="b">
+<p class="small">Names like <code>count_tokens(std::__1::basic_string_view&lt;...&gt;)</code> are C++'s <b>mangled</b> names decoded by <code>nm -C</code>: the parameter types are part of the symbol, which is how overloading works at link time. <code>printf</code> stays <code>U</code> after linking: it lives in <code>libSystem</code>, linked dynamically.</p>
+<pre class="ca-out" data-ca-out="b_compile"><span class="ca-cmd">$ clang++ -std=c++20 -O2 -Wall -c tokens.cpp &amp;&amp; clang++ -std=c++20 -O2 -Wall -c main.cpp &amp;&amp; ls *.o</span>
+main.o
+tokens.o</pre>
+<pre class="ca-out" data-ca-out="b_nm"><span class="ca-cmd">$ nm -C main.o; echo ---; nm -C tokens.o</span>
+                 U count_tokens(std::__1::basic_string_view&lt;char, std::__1::char_traits&lt;char&gt; &gt;)
+0000000000000000 T _main
+                 U _printf
+000000000000003c s l_.str
+0000000000000047 s l_.str.1
+0000000000000000 t ltmp0
+000000000000003c s ltmp1
+0000000000000060 s ltmp2
+---
+                 U __DefaultRuneLocale
+0000000000000000 T count_tokens(std::__1::basic_string_view&lt;char, std::__1::char_traits&lt;char&gt; &gt;)
+                 U ___maskrune
+0000000000000000 t ltmp0
+00000000000000a8 s ltmp1</pre>
+<pre class="ca-out ca-bad" data-ca-out="b_link_missing"><span class="ca-cmd">$ clang++ main.o -o app</span>
+Undefined symbols for architecture arm64:
+  "count_tokens(std::__1::basic_string_view&lt;char, std::__1::char_traits&lt;char&gt;&gt;)", referenced from:
+      _main in main.o
+ld: symbol(s) not found for architecture arm64
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+[exit code 1]</pre>
+<pre class="ca-out" data-ca-out="b_link_ok"><span class="ca-cmd">$ clang++ main.o tokens.o -o app &amp;&amp; ./app</span>
+6 tokens</pre>
+<div class="ca-two"><div><div class="ca-src"><div class="ca-fn">util.h</div><pre class="ca-code"><span class="ca-pp">#pragma once</span>
+<span class="ca-cm">// A function DEFINED in a header, not marked inline</span>
+<span class="ca-kw">int</span> twice(<span class="ca-kw">int</span> x) &#123; <span class="ca-kw">return</span> 2 * x; &#125;</pre></div></div><div><div class="ca-src"><div class="ca-fn">b.cpp</div><pre class="ca-code"><span class="ca-pp">#include "util.h"</span>
+<span class="ca-kw">int</span> a();
+<span class="ca-kw">int</span> main() &#123; <span class="ca-kw">return</span> a() + twice(2) - 6; &#125;</pre></div></div></div>
+<pre class="ca-out ca-bad" data-ca-out="b_odr"><span class="ca-cmd">$ clang++ -std=c++20 -c a.cpp b.cpp &amp;&amp; clang++ a.o b.o -o app</span>
+duplicate symbol 'twice(int)' in:
+    odr/a.o
+    odr/b.o
+ld: 1 duplicate symbols
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+[exit code 1]</pre>
+<div class="ca-src"><div class="ca-fn">util_inline.h</div><pre class="ca-code"><span class="ca-pp">#pragma once</span>
+<span class="ca-cm">// The fix: inline allows one identical definition per translation unit</span>
+<span class="ca-kw">inline</span> <span class="ca-kw">int</span> twice(<span class="ca-kw">int</span> x) &#123; <span class="ca-kw">return</span> 2 * x; &#125;</pre></div>
+<pre class="ca-out" data-ca-out="b_odr_fix"><span class="ca-cmd">$ sed -i.bak "s/util.h/util_inline.h/" a.cpp b.cpp &amp;&amp; clang++ -std=c++20 -c a.cpp b.cpp &amp;&amp; clang++ a.o b.o -o app &amp;&amp; ./app; echo "exit code $?"</span>
+exit code 0</pre>
+<div class="ca-src"><div class="ca-fn">CMakeLists.txt</div><pre class="ca-code">cmake_minimum_required(VERSION 3.28)
+project(hello LANGUAGES CXX)
+add_executable(hello main.cpp)</pre></div>
+<pre class="ca-out" data-ca-out="b_cmake1"><span class="ca-cmd">$ cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ &gt; /dev/null &amp;&amp; cmake --build build &amp;&amp; ./build/hello</span>
+[1/2] Building CXX object CMakeFiles/hello.dir/main.cpp.o
+[2/2] Linking CXX executable hello
+hello from CMake</pre>
+<pre class="ca-out" data-ca-out="b_cmake2"><span class="ca-cmd">$ cmake -S . -B build -G Ninja &amp;&amp; cmake --build build --verbose</span>
+clang++  -Icmake2/src -std=gnu++20 -arch arm64 -o CMakeFiles/tokcount.dir/src/main.cpp.o -c cmake2/src/main.cpp
+clang++  -Icmake2/src -std=gnu++20 -arch arm64 -Wall -Wextra -o CMakeFiles/tokens.dir/src/tokens.cpp.o -c cmake2/src/tokens.cpp
+cmake -E rm -f libtokens.a &amp;&amp; ar qc libtokens.a  CMakeFiles/tokens.dir/src/tokens.cpp.o &amp;&amp; ranlib libtokens.a &amp;&amp; cmake -E touch libtokens.a
+clang++ -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/tokcount.dir/src/main.cpp.o -o tokcount  libtokens.a
+$ ./build/tokcount
+6 tokens</pre>
+<pre class="ca-out" data-ca-out="b_incr"><span class="ca-cmd">$ touch src/tokens.cpp &amp;&amp; cmake --build build</span>
+[1/3] Building CXX object CMakeFiles/tokens.dir/src/tokens.cpp.o
+[2/3] Linking CXX static library libtokens.a
+[3/3] Linking CXX executable tokcount
+$ touch src/tokens.h &amp;&amp; cmake --build build
+[1/4] Building CXX object CMakeFiles/tokcount.dir/src/main.cpp.o
+[2/4] Building CXX object CMakeFiles/tokens.dir/src/tokens.cpp.o
+[3/4] Linking CXX static library libtokens.a
+[4/4] Linking CXX executable tokcount
+$ cmake --build build
+ninja: no work to do.</pre>
+</div></details>
+<p class="small"><b>What it buys</b>: each file compiles once, in parallel, and only what changed rebuilds. <b>What it costs</b>: headers are re-parsed in every file that includes them, and you maintain declarations and definitions separately. <b>Common mistakes</b>: a definition in a header without <code>inline</code>; global flags instead of per-target properties; forgetting <code>-std=</code> (section 4). llama.cpp's CMake build: {{the llama.cpp page|n:4055c17b0d0d8150a5effbb5a667dd9d}}, section 2.</p>
+</section>

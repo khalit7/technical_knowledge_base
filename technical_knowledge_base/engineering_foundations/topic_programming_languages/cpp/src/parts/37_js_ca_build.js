@@ -1,4 +1,5 @@
-// ---- Part 1: Build pipeline tab. All numbers and texts come from CA_DATA.build (recorded outputs) ----
+// ---- Section 1: the build pipeline stepper (Reading). All numbers and texts come from CA_DATA.build (recorded outputs).
+// Never moves on its own: Play or a step button starts it; a scenario switch resets to step 1 without playing. ----
 (function(){
   const B=window.CA_DATA.build,O=B.out,F=B.files,esc=CA.esc;
   const body=n=>O[n].split('\n').slice(1).join('\n').replace(/\n+$/,'');      // output without its "$ command" line
@@ -52,7 +53,7 @@
       {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b','x-app'],act:['o-a','o-b'],err:['x-app'],cap:'The one definition rule is broken and the linker refuses: "duplicate symbol".',det:pre('b_odr')},
       {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b','x-app'],act:['x-app'],cap:'The fix: mark the function inline (util_inline.h). The linker keeps one copy; the program links and exits with 0.',det:fileCode('odr/util_inline.h')+pre('b_odr_fix')}],
     incr:[
-      {vis:all,act:all,linked:true,cap:'The CMake project of Reading section 1 builds tokens.cpp into a static library, libtokens.a, and links it into tokcount. Ninja records what each output was built from.',det:pre('b_cmake2')},
+      {vis:all,act:all,linked:true,cap:'The CMake project of section 1 builds tokens.cpp into a static library, libtokens.a, and links it into tokcount. Ninja records what each output was built from.',det:pre('b_cmake2')},
       {vis:all,act:['s-tok','tu-tok','o-tok','x-app'],linked:true,cap:'Edit tokens.cpp (here: touch it). Only tokens.cpp recompiles; the library and the program relink. main.cpp is untouched.',det:pinc(0)},
       {vis:all,act:['s-h','tu-main','tu-tok','o-main','o-tok','x-app'],linked:true,cap:'Edit tokens.h. Both .cpp files include it, so both recompile: headers are why big C++ projects rebuild slowly.',det:pinc(1)},
       {vis:all,act:[],linked:true,cap:'Change nothing and build again: nothing to do.',det:pinc(2)}]
@@ -66,6 +67,6 @@
     pipe.querySelectorAll('.ca-f').forEach(e=>{const id=e.dataset.id;e.classList.toggle('vis',s.vis.includes(id));e.classList.toggle('act',(s.act||[]).includes(id));e.classList.toggle('err',(s.err||[]).includes(id))});
     pipe.querySelectorAll('.ca-stage').forEach(st=>st.classList.toggle('on',!!st.querySelector('.act,.err')));
     cap.innerHTML='<b>Step '+(i+1)+' of '+SC[sc].length+'.</b> '+esc(s.cap);det.innerHTML=s.det}
-  const a=CA.anim({card:'ca-bd-card',ctl:'ca-bd-ctl',n:SC.ok.length,draw,ms:2600,label:'Build step'},'t-ca-build');
-  RD.seg(document.getElementById('ca-bd-seg'),k=>{sc=k;a.reset(SC[k].length);a.play()});
+  const a=RD.anim({card:'ca-bd-card',ctl:'ca-bd-ctl',n:SC.ok.length,draw,ms:2600,label:'Build step'});
+  RD.seg(document.getElementById('ca-bd-seg'),k=>{sc=k;a.reset(SC[k].length)});
 })();

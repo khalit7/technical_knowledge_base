@@ -1,0 +1,49 @@
+
+<section id="es-ub">
+<h2>2. Undefined behaviour</h2>
+<p>The C++ standard lists operations whose result it does not define: reading outside an array or freed memory, overflowing a signed integer, reading an uninitialised variable, two threads writing one variable without synchronisation, falling off the end of a function that returns a value, and others. Such a program has <b>undefined behaviour</b> (UB): not "a wrong answer" but no meaning at all. The compiler is allowed to <i>assume UB never happens</i>, and its optimiser uses that assumption to delete checks and simplify code. So a program with UB can work at <code>-O0</code> and break at <code>-O2</code>, or work today and break after a compiler upgrade. This is the deepest difference from Python, where every one of these is either impossible or an exception.</p>
+<p>The classic example: "will <code>x + 1</code> overflow?" written the obvious way.</p>
+[[code:ub/overflow.cpp]]
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> compiled with <code>-O2</code>, what does <code>will_overflow(INT_MAX)</code> return? And at <code>-O0</code>?</summary>
+<div class="ca-two"><div>[[out:ub_overflow_O0]]</div><div>[[out:ub_overflow_O2]]</div></div>
+<p>At <code>-O0</code> the addition wrapped around to a negative number and the test said 1. At <code>-O2</code> the compiler reasoned "signed overflow cannot happen, so <code>x + 1 &lt; x</code> is always false" and compiled the function to <code>return false</code>.</p></details>
+<p>Neither build reported anything. The same assumption is what makes signed loop counters fast: a signed counter never overflows, so <code>i + 1 &gt; i</code> and the loop's trip count can be computed without wrap-around checks, which enables vectorisation and widening it to 64 bits. <b>Sanitizers</b> are compiler modes that add run-time checks for UB; UndefinedBehaviorSanitizer (UBSan) catches this one:</p>
+[[out:ub_overflow_san]]
+<p>(Under UBSan the program prints 1 again: the instrumented build computes the addition so it can check it.) The fix is to test before adding: <code>x == INT_MAX</code>, or <code>__builtin_add_overflow</code>, or C++26's <code>&lt;stdckdint.h&gt;</code> checked arithmetic. Unsigned integers do not have this problem: they wrap around by definition.</p>
+
+<h3 id="es-ub-gallery">The UB gallery: ten bugs that compile</h3>
+<p>Each program was compiled with LLVM clang 23.1.2 without optimisation (<code>-O0</code>) and with it (<code>-O2</code>), and run; then with the tool that catches it: a sanitizer, a warning, or a hardened standard library. Every output is the real one. <b>For each case, predict before you read the two runs</b>: does the bug show at <code>-O0</code>, at <code>-O2</code>, or at neither? Notice how often a buggy program prints something plausible.</p>
+<div class="card" id="ca-ub-card">
+<div class="ca-ubrow" id="ca-ub-list" role="group" aria-label="Case">
+<button id="es-ub-overflow" data-m="overflow">Signed overflow</button>
+<button id="es-ub-uninit" data-m="uninit">Uninitialised read</button>
+<button id="es-ub-index-oob" data-m="index_oob">Index past the end</button>
+<button id="es-ub-table" data-m="table">Off-by-one loop</button>
+<button id="es-ub-dangling-vec" data-m="dangling_vec">Reference into a reallocated vector</button>
+<button id="es-ub-string-view" data-m="string_view_temp">string_view of a temporary</button>
+<button id="es-ub-lambda" data-m="lambda_dangle">Dangling lambda capture</button>
+<button id="es-ub-double-free" data-m="double_free" class="on">Double free</button>
+<button id="es-ub-no-return" data-m="no_return">Missing return</button>
+<button id="es-ub-race" data-m="race">Data race</button>
+</div>
+<div id="ca-ub-view"></div>
+</div>
+<p class="small mute">Commands as recorded by <code>src/ca/steps/40_ub.sh</code>; each run had a 5-second time limit. The uninitialised case printed "not seen" at <code>-O0</code> and "seen" at <code>-O2</code> for the same call, and the compiler warned only with <code>-Wall</code>.</p>
+
+<h3>Your defences</h3>
+<ol>
+<li><b>Warnings</b>: <code>-Wall -Wextra</code> always, <code>-Werror</code> in CI. They caught the uninitialised read, the dangling <code>string_view</code> and the missing return in the gallery.</li>
+<li><b>Sanitizers in tests</b>: ASan (out of bounds, use after free, double free), UBSan (overflow, bad shifts, missing return), TSan (data races). They slow the program, so they run in tests, not production.</li>
+<li><b>A hardened standard library</b>: libc++ can check <code>v[i]</code>, <code>front()</code>, <code>string_view</code> bounds and more, turning silent UB into a trap.</li>
+<li><b>Initialise everything</b>; C++26 turns reading an uninitialised local into <b>erroneous behaviour</b>, a defined (wrong) value the implementation may diagnose, instead of UB ({{P2795|https://wg21.link/P2795}}).</li>
+<li><b>Prefer what cannot be misused</b>: <code>.at(i)</code> or a hardened library over raw indexing in non-hot code, smart pointers over <code>new</code>, values over references when lifetimes are unclear.</li>
+</ol>
+<details class="dp"><summary>The defences in detail: flags, slowdowns, hardening modes <span class="mute">(documentation checked 2026-10-05)</span></summary><div class="b">
+<ul class="tight">
+<li>Flags: <code>-fsanitize=address</code> (ASan), <code>-fsanitize=undefined</code> (UBSan), <code>-fsanitize=thread</code> (TSan). Slowdown: about 2 times for ASan per its {{documentation|https://clang.llvm.org/docs/AddressSanitizer.html}}, 5 to 15 times for TSan per {{its documentation|https://clang.llvm.org/docs/ThreadSanitizer.html}}.</li>
+<li>On this Mac Apple's own ASan did not start (the root's Toolchain atlas records it); LLVM clang 23's worked, and every sanitizer report on this page is from it.</li>
+<li>{{libc++ hardening|https://libcxx.llvm.org/Hardening.html}}: <code>-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST</code> is meant for production (cheap checks, a silent trap); the <code>_DEBUG</code> mode prints why (the "Index past the end" case shows both).</li>
+<li><code>-ftrivial-auto-var-init=zero</code> made the uninitialised example print "not seen" at <code>-O2</code>.</li>
+</ul></div></details>
+<div class="co warn"><div class="t">The honest summary</div>No tool catches all UB, and sanitizers find only what your tests execute. C++ makes you responsible for memory safety; Rust moves most of this list into compile errors ({{Rust: the essentials|n:3c65c17b0d0d8156bed9ead8a22f33b0}}, and the root page's comparison).</div>
+</section>
