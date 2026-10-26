@@ -56,3 +56,5 @@ Why about 30 minutes is right: the page teaches seven mechanisms (recurrence aga
 
 ## Departures from the topic-child shape
 The hero is an HTML grid rather than an SVG, so its cells wrap at phone width. The Mamba-1 material lives on the Mamba paper page and is linked, not repeated.
+
+2026-10-26 (final follow-up sweep, from the landscape pages): K3's bounded KDA decay (gate_lower_bound -5) in section 6; Qwen's NoPE trial and endless generation in the Kimi NoPE depth block; Qwen's measured 3:1 evidence (Flash-Next Table 1: 49.87, 51.15, 53.81) in section 7; lightning attention's left and right products as the chunked kernel in section 2, linking MiniMax; Nemotron 3 Nano's 533-token crossover against Qwen3-30B-A3B in section 10, linking Other notable providers.
