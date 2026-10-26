@@ -11,7 +11,7 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Transform a repository tab', 'Tables tab', 'Further reading tab'
 C = [
- ('Reading line "5 min read, +35m resources"', 'dropped: replaced by the build-computed reading time and resources total (the page now owns the paper\'s detail)', ['min to read', 'of resources']),
+ ('Reading line "5 min read, +35m resources"', 'dropped: replaced by the measured reading time, core and closed details (the page now owns the paper\'s detail)', ['Reading:', 'in closed details']),
  ('Authors: Silin Chen, Yufei Yang, Xiaodong Gu, Yuling Shi, Chengcheng Wan and Haibing Guan', R + ', headline card', ['Silin Chen, Yufei Yang, Xiaodong Gu, Yuling Shi, Chengcheng Wan, Haibing Guan']),
  ('Link arXiv 2609.27891 (35 min)', 'card and Further reading (time raised to 45 min: the tables and code reading need it)', ['https://arxiv.org/abs/2609.27891', 'https://arxiv.org/html/2609.27891v1']),
  ('"Code and data on GitHub"', R + ' (What the released code does differently) and Further reading; corrected: the code is released, the data behind the tables is not', ['https://github.com/cslsolow/Schrodinger-Repo', 'per-instance results are not released', 'Not released: the generated mappings']),
@@ -26,7 +26,7 @@ C = [
  ('Measured on SWE-bench Verified and SWE-QA', R + ', Setup, RQ1, RQ3', ['On SWE-QA (144 questions', 'SWE-bench Verified']),
  ('Repository exploration and localisation are the dominant cost drivers', R + ', RQ2', ['81.6% (GPT-5.4-mini) and 83.6% (DeepSeek-v4-Flash) of the extra actions are localisation and exploration']),
  ('Authors read it as partial reliance on memorised repository-side cues rather than robust reasoning', R + ', RQ1 and the verdict (reading questioned)', ['the degradation reflects familiarity with canonical repository cues', '"memorised" is not separated from "meaningful"'.replace('"memorised"', '"Memorised"')]),
- ('Figure provenance: aggregator records the gap as 6 to 14 points; abstract states direction only, so carried with attribution', R + ', provenance box under the nav (corrected: the paper itself states 6.0 to 14.4 points in §I and §VIII)', ['Where the "6 to 14 points" comes from', 'So the range is the paper\'s own number']),
+ ('Figure provenance: aggregator records the gap as 6 to 14 points; abstract states direction only, so carried with attribution', R + ', provenance block under the nav, closed since 2026-10-26 (corrected: the paper itself states 6.0 to 14.4 points in §I and §VIII)', ['where the old "6 to 14 points" came from', 'So the range is the paper\'s own number']),
  ('arXiv listing shows 21 August 2026; surfaced in the 24 September 2026 trending digest, which is why it was not recorded earlier', R + ', provenance box; card', ['"Submitted on 21 Aug 2026"', '24 September 2026 trending digest', '21 August 2026']),
  ('Third sensitivity a repository-level score conceals, beside the harness rule and the item-defect rule', R + ', Why it matters', ['It is the third sensitivity a repository-level score conceals', 'a harness-sensitive number needs its harness', 'an item-defective suite needs its residual decomposed']),
  ('Answers by construction what SWE-rebench-style monthly refreshment answers by the calendar', R + ', Why it matters', ['answers that by the calendar, this answers it by construction']),
