@@ -45,3 +45,6 @@ Why 42 minutes is right: the page owns a wide subject (parallel file systems and
 443 units: core 290, depth 109, fat 44, owned 0, volatile 0. 427 were drafted by `ledger.py init` from the old page; 16 were added by hand for the new visuals and for script-rendered tables and charts (their keys are written into captions). Keys were matched automatically against the rebuilt page's static text (the longest window of 3 to 9 words from the unit, numbers preferred), then every key shorter than six words without a number was reviewed by hand; labels follow where the key now lives (core outside closed blocks, depth inside).
 
 2026-10-24 topic close: section 7 links Fault tolerance at scale section 4 (checkpointing strategies); Further reading times fixed (Fault tolerance 40 to 35, Slurm 37 to 31, Interconnects 31 to 30); ledger keys 169, 404, 405, 409 updated.
+
+## 2026-10-26 ownership sweep
+Shard sizing is owned by Data curation's Storage and loading at scale (section 7); section 4's "Pack data into big shards" keeps one sentence plus a link (ledger 96 owned there).
