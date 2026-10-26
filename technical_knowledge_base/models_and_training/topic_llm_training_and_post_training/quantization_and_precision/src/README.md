@@ -54,3 +54,4 @@ Why 25 minutes is right: the page owns seven things (formats, scaling granularit
 
 ## Earlier history
 `live.md` is the old Notion text, verbatim. Overlap fix (19 October 2026): GGUF types are owned by "Local and on-device inference" (3c65c17b0d0d81f7a144fe25d799e811, sections 3 and 4, Quant ladder tab) and the container by "Model formats" (section 4); float bit layouts and the measured loss-scaling mechanics by "Numerical computing for ML" (3f05c17b0d0d81d6af0be4a9a2edba8d, sections 2 to 4 and 11). Facts the owners lacked were moved there first; `mk_coverage.py` probes moved facts in the owner's built page.
+2026-10-26 (final follow-up sweep): links to the merged Model formats page now point to Local and on-device inference section 3; its Further reading card removed and the Local card names the file formats.
