@@ -54,12 +54,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await clickAll('#la-ctl button', 'la ctl', 80); await p.evaluate(() => { const b = document.getElementById('la-ctl-p'); if (b.textContent.includes('Pause')) b.click() });
   await shot('#lbm-table', 'lbmeas');
   await slide('hr-l', [100, 20000, 1000]); await slide('hr-h', [0, 990, 1000, 900]); await slide('hr-c', [100, 20000, 600]); await shot('#hr-card', 'hitrate');
-  for (let i = 0; i < 3; i++) {
-    await p.evaluate(i => document.querySelectorAll('#sa-seg button')[i].click(), i); clicks++;
-    for (const v of [5, 20, 26, 40]) { await p.evaluate(v => { const s = document.getElementById('sa-ctl-s'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await sleep(50); await bad('sa ' + i + ' ' + v) }
-    await p.evaluate(() => { const s = document.getElementById('sa-ctl-s'); s.value = 26; s.dispatchEvent(new Event('input')) }); await shot('#sa-card', 'stampede' + i);
-  }
-  await p.evaluate(() => { const b = document.getElementById('sa-ctl-p'); if (b.textContent.includes('Pause')) b.click() });
   await shot('#pool-table', 'pool'); await shot('#gil-table', 'gil');
   await clickAll('#co-seg button', 'co'); await p.evaluate(() => document.querySelector('#co-seg button').click()); await shot('#co-card', 'co');
   await shot('#pk-card', 'peaks');
