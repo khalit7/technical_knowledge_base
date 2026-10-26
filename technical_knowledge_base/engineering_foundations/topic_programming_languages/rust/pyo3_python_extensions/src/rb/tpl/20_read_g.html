@@ -1,0 +1,61 @@
+
+<section id="rb-s11">
+<h2>11. Type stubs and tests</h2>
+<p>A compiled module has no Python source, so mypy, ty and your editor cannot see its signatures. You give them a <b>stub file</b> (<code>.pyi</code>): Python syntax with <code>...</code> for bodies, read only by type checkers. For a Rust-only project like this one, maturin picks up <code>&lt;module&gt;.pyi</code> next to <code>Cargo.toml</code> and adds it to the wheel with a <code>py.typed</code> marker (<a href="https://www.maturin.rs/project_layout.html#adding-python-type-information" target="_blank" rel="noopener noreferrer">maturin: adding Python type information</a>). The hand-written one, abridged:</p>
+[[file:ext/tokrs.pyi@1-14]]
+<p>A script with four mistakes (<code>code/c11_typed.py</code>: a <code>bytes</code> argument, a <code>float32</code> array, an <code>int</code> assigned to a <code>str</code>, a misspelt keyword) checked three ways: without the stub, mypy cannot check any call into <code>tokrs</code> (<code>missing library stubs or py.typed marker</code>); with it, mypy catches three mistakes and ty catches all four, including the <code>float32</code> array that mypy let through. A stub can drift out of date, since nothing checks it against the Rust code: test it with <code>mypy.stubtest</code>.</p>
+<details class="dp"><summary>The script and the three real checker outputs</summary><div>
+[[file:code/c11_typed.py]]
+[[out:c11_mypy_nostub.txt|$ mypy --strict c11_typed.py   (wheel without the stub)]]
+[[out:c11_mypy.txt|$ mypy --strict c11_typed.py   (with the stub)]]
+[[out:c11_ty.txt|$ ty check c11_typed.py   (with the stub)]]
+</div></details>
+<p>PyO3 is building automatic stubs (<code>experimental-inspect</code> feature, <code>maturin generate-stubs</code>, labelled "still in active development"). On this crate they were close but had gaps: <code>count_many(texts: list)</code> lost the element type (PyO3 cannot see inside a <code>Bound&lt;PyList&gt;</code>), NumPy arrays became <code>Incomplete</code>, <code>MalformedLine</code> was missing, and the file ends with a catch-all <code>def __getattr__(name: str) -> Incomplete</code>. It did show something true: <code>count_bytes_owned(data: Sequence[int])</code>, because a <code>Vec&lt;u8&gt;</code> parameter accepts any sequence of ints, not only <code>bytes</code>. For now, write the stub by hand.</p>
+<details class="dp"><summary>Part of the generated stub</summary><div>
+[[file:outputs/b9_stubs_auto.pyi@41-65]]
+</div></details>
+<p><b>Tests</b> call the extension the way users do: from Python. The pytest suite (<code>ext/tests/test_tokrs.py</code>, 16 tests) checks the rule 3 examples, equality with the Python reference on all 1,992 messages of the root's small log, the whole-file result against <code>PROGRAM.md</code>, the parallel split against the serial one, that errors arrive as the right exception types, and eight threads sharing nothing. It passes on 3.14.8 and on 3.14t; run it on the free-threaded build too, because the <code>Already borrowed</code> failure of section 9 only shows there. Rust-only helpers (<code>tokens</code>, <code>chunks</code>) can also have <code>#[test]</code> functions run by <code>cargo test</code>; tests that call into Python need an interpreter linked in, which is why most PyO3 projects test from pytest. What to test and CI in general is {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}.</p>
+<details class="dp"><summary>Three of the tests, and both runs</summary><div>
+[[file:ext/tests/test_tokrs.py@28-49]]
+[[out:c12_pytest.txt|$ python -m pytest -q tests   (CPython 3.14.8)]]
+[[out:c12_pytest_314t.txt|$ python3.14t -m pytest -q tests   (free-threaded)]]
+</div></details>
+</section>
+
+<section id="rb-s12">
+<h2>12. Wheels: abi3, abi3t, CI and publishing</h2>
+<p>Users should never need Rust to install your package: they need a wheel built for their Python and their machine, which pip or uv picks from PyPI by the tags in its file name ({{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}} owns wheel tags, platform tags such as <code>manylinux</code>, and the four packaging layers). <code>maturin build --release</code> wrote <code>tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</code>: CPython 3.14's full C ABI (it loads on 3.14 only; a free-threaded build would say <code>cp314t</code>), macOS 11 or later on Apple silicon. Inside: the compiled library, the stub and <code>py.typed</code>, metadata, and a software bill of materials (<code>sboms/</code>, the Rust crates compiled in, written by maturin). <code>otool -L</code> (macOS's <code>ldd</code>) shows the library does not link to <code>libpython</code>: it finds Python's C API symbols in the process that loads it, which is what lets one wheel work with any CPython 3.14 binary.</p>
+<details class="dp"><summary>The build output and the wheel's contents</summary><div>
+[[out:b3_wheel.txt|$ maturin build --release -o dist]]
+[[out:b4_wheel_files.txt|$ unzip -l dist/*.whl; otool -L tokrs/*.so]]
+</div></details>
+<h3>abi3: one wheel for many Python versions</h3>
+<p>A wheel per Python version per platform multiplies fast. CPython's <b>stable ABI</b> (the "limited API", <a href="https://peps.python.org/pep-0384/" target="_blank" rel="noopener noreferrer">PEP 384</a>) is a subset of the C API promised not to change; an extension that uses only that subset gets the <code>abi3</code> tag and loads on that version and every later one. In PyO3 it is a feature flag, <code>pyo3/abi3-py310</code> (minimum Python 3.10). Built once, installed into fresh virtual environments:</p>
+[[out:b5_abi3.txt|$ maturin build --release --features pyo3/abi3-py310]]
+[[out:b6_abi3_install.txt|one abi3 wheel on CPython 3.12, 3.13, 3.14 and 3.14t]]
+<p>The same file loaded on three versions and was refused by the free-threaded build: <code>abi3</code> assumes the GIL build's object layout. At run time abi3 can cost a little: under the limited API, PyO3 must call real C functions where the full API uses inline macros (list item access, string data).</p>
+<details class="dp"><summary>What abi3 cost here, call by call (noisy; read with the caveat)</summary><div>
+<p>The same calls against both builds on 3.14 (ns per item, medians; <code>code/c9_abi_cost.py</code>):</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Call</th><th class="num"><code>cp314</code> build</th><th class="num"><code>abi3</code> build</th></tr></thead><tbody id="rb-abi-tb"></tbody></table></div>
+<p class="small mute">Measured on a busy laptop (load average about 10) and the spread between runs was wide; only the <code>total_len</code> gap (reading items from a list) repeated across runs here (9.5 ns against 14.8 ns per item in this run). PyO3's changelog lists such cases, for example "Optimize <code>PyBytes::as_bytes()</code> when not using <code>abi3</code> or <code>abi3t</code>" (0.29.3).</p>
+</div></details>
+<p><b>abi3t</b> is the stable ABI for free-threaded builds, <a href="https://peps.python.org/pep-0803/" target="_blank" rel="noopener noreferrer">PEP 803</a> (status Final, Python 3.15), supported by PyO3 0.29 through the <code>abi3t-py315</code> feature. Built against the 3.15 release candidate:</p>
+[[out:b7_abi3t.txt|$ maturin build --release --features pyo3/abi3t-py315 -i python3.15t]]
+[[out:b8_abi3t_install.txt|the abi3t wheel on CPython 3.15.0rc3, free-threaded and with the GIL]]
+<p>The tag <code>abi3.abi3t</code> means one file for both 3.15 builds. Until you can require 3.15, ship an <code>abi3</code> wheel plus a <code>cp314t</code> wheel per platform (tokenizers, safetensors and polars build <code>abi3-py310</code> today); shipping only an abi3 wheel leaves free-threaded users unable to install.</p>
+<h3>Building for every platform in CI</h3>
+<p>You cannot build Windows or Linux wheels on a Mac without cross-compilers, so CI builds them on each platform. <code>maturin generate-ci github</code> writes a complete GitHub Actions workflow (186 lines; <a href="https://github.com/PyO3/maturin-action" target="_blank" rel="noopener noreferrer">PyO3/maturin-action</a> does the builds): every build job runs <code>maturin build --release --out dist --find-interpreter</code>, one wheel per Python found (one in total with abi3), and a release job uploads everything to PyPI on a git tag.</p>
+<details class="dp"><summary>What the generated workflow builds, and its release job verbatim</summary><div>
+<div class="tw"><table class="rb-t"><thead><tr><th>Job (maturin 1.15.0)</th><th>Targets</th></tr></thead><tbody>
+<tr><td>linux (manylinux)</td><td>x86_64, x86, aarch64, armv7, s390x, ppc64le</td></tr>
+<tr><td>musllinux</td><td>x86_64, x86, aarch64, armv7</td></tr>
+<tr><td>windows</td><td>x64, x86, aarch64</td></tr>
+<tr><td>macos</td><td>x86_64 (Intel runner), aarch64</td></tr>
+<tr><td>sdist</td><td>The source distribution, for anyone with no matching wheel (they need Rust)</td></tr>
+<tr><td>release</td><td>On a git tag: attest the artifacts and upload everything to PyPI</td></tr>
+</tbody></table></div>
+[[file:outputs/b10_ci.yml@161-186]]
+</div></details>
+<div class="co warn"><div class="t">Change one thing before you use it</div>The generated job uploads with a long-lived <code>PYPI_API_TOKEN</code> secret. With <b>trusted publishing</b> you register the repository and workflow on PyPI once, the job (which already has <code>id-token: write</code>) receives a short-lived token from GitHub, and <code>uv publish</code> needs no credentials (<a href="https://docs.astral.sh/uv/guides/package/" target="_blank" rel="noopener noreferrer">uv packaging guide</a>, <a href="https://docs.pypi.org/trusted-publishers/" target="_blank" rel="noopener noreferrer">PyPI trusted publishers</a>). Delete the <code>env:</code> lines after setting it up.</div>
+<p><b>cibuildwheel</b> is the other route: one tool that builds wheels for every CPython on every platform for any build backend, including maturin; for Rust it must install a Rust toolchain inside its Linux containers (<a href="https://cibuildwheel.pypa.io/en/stable/faq/" target="_blank" rel="noopener noreferrer">cibuildwheel FAQ, "Building Rust wheels"</a>). maturin-action is simpler for a Rust-only package; cibuildwheel suits projects that run test suites per wheel or mix C, C++ and Rust.</p>
+</section>

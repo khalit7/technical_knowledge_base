@@ -1,0 +1,208 @@
+
+<section id="rb-s11">
+<h2>11. Type stubs and tests</h2>
+<p>A compiled module has no Python source, so mypy, ty and your editor cannot see its signatures. You give them a <b>stub file</b> (<code>.pyi</code>): Python syntax with <code>...</code> for bodies, read only by type checkers. For a Rust-only project like this one, maturin picks up <code>&lt;module&gt;.pyi</code> next to <code>Cargo.toml</code> and adds it to the wheel with a <code>py.typed</code> marker (<a href="https://www.maturin.rs/project_layout.html#adding-python-type-information" target="_blank" rel="noopener noreferrer">maturin: adding Python type information</a>). The hand-written one, abridged:</p>
+<div class="rb-snip"><div class="rb-file">tokrs.pyi</div><pre class="rb-code"><span class="rb-st">""</span><span class="rb-st">"Type stubs for the tokrs extension: what mypy, ty and your editor see."</span><span class="rb-st">""</span>
+<span class="rb-kw">import</span> os
+
+<span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> numpy.typing <span class="rb-kw">as</span> npt
+
+Report = tuple[int, int, int, int, dict[str, int]]
+
+<span class="rb-kw">def</span> noop() -&gt; <span class="rb-kw">None</span>: ...
+<span class="rb-kw">def</span> count_tokens(text: str) -&gt; int: ...
+<span class="rb-kw">def</span> count_many(texts: list[str]) -&gt; list[int]: ...
+<span class="rb-kw">def</span> count_many_owned(texts: list[str]) -&gt; list[int]: ...
+<span class="rb-kw">def</span> total_len(texts: list[str]) -&gt; int: ...
+<span class="rb-kw">def</span> total_len_owned(texts: list[str]) -&gt; int: ...</pre></div>
+<p>A script with four mistakes (<code>code/c11_typed.py</code>: a <code>bytes</code> argument, a <code>float32</code> array, an <code>int</code> assigned to a <code>str</code>, a misspelt keyword) checked three ways: without the stub, mypy cannot check any call into <code>tokrs</code> (<code>missing library stubs or py.typed marker</code>); with it, mypy catches three mistakes and ty catches all four, including the <code>float32</code> array that mypy let through. A stub can drift out of date, since nothing checks it against the Rust code: test it with <code>mypy.stubtest</code>.</p>
+<details class="dp"><summary>The script and the three real checker outputs</summary><div>
+<div class="rb-snip"><div class="rb-file">c11_typed.py</div><pre class="rb-code"><span class="rb-st">""</span><span class="rb-st">"Calls that run, and calls a type checker should reject before they run."</span><span class="rb-st">""</span>
+<span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> tokrs
+
+n: int = tokrs.count_tokens(<span class="rb-st">"attention is all you need"</span>)
+counts = tokrs.count_many([<span class="rb-st">"a b"</span>, <span class="rb-st">"c"</span>])
+top: list[tuple[str, int]] = tokrs.Counter().top()
+
+tokrs.count_tokens(b<span class="rb-st">"bytes, not str"</span>)          <span class="rb-cm"># wrong argument type</span>
+tokrs.sum_sq_array(np.arange(3, dtype=np.float32))  <span class="rb-cm"># float32 array where float64 is expected</span>
+label: str = tokrs.count_bytes(b<span class="rb-st">"abc"</span>)          <span class="rb-cm"># returns int, not str</span>
+tokrs.tally_file(<span class="rb-st">"chat.jsonl"</span>, thread=4)        <span class="rb-cm"># misspelt keyword</span></pre></div>
+<div class="rb-snip"><div class="rb-olab">$ mypy --strict c11_typed.py   (wheel without the stub)</div><pre class="rb-out" data-rb-out="c11_mypy_nostub.txt">c11_typed.py:3: error: Skipping analyzing "tokrs": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+c11_typed.py:3: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+Found 1 error in 1 file (checked 1 source file)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ mypy --strict c11_typed.py   (with the stub)</div><pre class="rb-out" data-rb-out="c11_mypy.txt">c11_typed.py:9: error: Argument 1 to "count_tokens" has incompatible type "bytes"; expected "str"  [arg-type]
+c11_typed.py:11: error: Incompatible types in assignment (expression has type "int", variable has type "str")  [assignment]
+c11_typed.py:12: error: Unexpected keyword argument "thread" for "tally_file"; did you mean "threads"?  [call-arg]
+c11_typed.py:12: note: "tally_file" defined in "tokrs"
+Found 3 errors in 1 file (checked 1 source file)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ ty check c11_typed.py   (with the stub)</div><pre class="rb-out" data-rb-out="c11_ty.txt">c11_typed.py:9:20: error[invalid-argument-type] Argument to function `count_tokens` is incorrect: Expected `str`, found `Literal[b"bytes, not str"]`
+c11_typed.py:10:20: error[invalid-argument-type] Argument to function `sum_sq_array` is incorrect: Expected `NDArray[float64]`, found `_Array1D[floating[_32Bit]]`
+c11_typed.py:11:14: error[invalid-assignment] Object of type `int` is not assignable to `str`
+c11_typed.py:12:32: error[unknown-argument] Argument `thread` does not match any known parameter of function `tally_file`
+Found 4 diagnostics</pre></div>
+</div></details>
+<p>PyO3 is building automatic stubs (<code>experimental-inspect</code> feature, <code>maturin generate-stubs</code>, labelled "still in active development"). On this crate they were close but had gaps: <code>count_many(texts: list)</code> lost the element type (PyO3 cannot see inside a <code>Bound&lt;PyList&gt;</code>), NumPy arrays became <code>Incomplete</code>, <code>MalformedLine</code> was missing, and the file ends with a catch-all <code>def __getattr__(name: str) -> Incomplete</code>. It did show something true: <code>count_bytes_owned(data: Sequence[int])</code>, because a <code>Vec&lt;u8&gt;</code> parameter accepts any sequence of ints, not only <code>bytes</code>. For now, write the stub by hand.</p>
+<details class="dp"><summary>Part of the generated stub</summary><div>
+<div class="rb-snip"><div class="rb-file">b9_stubs_auto.pyi</div><pre class="rb-code"><span class="rb-kw">def</span> count_bytes_owned(data: Sequence[int]) -&gt; int:
+    <span class="rb-st">""</span>"
+    `Vec&lt;u8&gt;` <span class="rb-kw">from</span> `bytes`: a fresh copy of the whole buffer first.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_many(texts: list) -&gt; list[int]:
+    <span class="rb-st">""</span>"
+    Step 2b: the same list, borrowed: each item is viewed <span class="rb-kw">in</span> place, nothing is copied.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_many_owned(texts: Sequence[str]) -&gt; list[int]:
+    <span class="rb-st">""</span>"
+    Step 2a: one call <span class="rb-kw">for</span> a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_tokens(text: str) -&gt; int:
+    <span class="rb-st">""</span>"
+    Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> counts_array(texts: list) -&gt; Incomplete:
+    <span class="rb-st">""</span>"
+    ... <span class="rb-kw">or</span> a NumPy array that takes over the Vec's buffer without copying it.
+    <span class="rb-st">""</span>"
+</pre></div>
+</div></details>
+<p><b>Tests</b> call the extension the way users do: from Python. The pytest suite (<code>ext/tests/test_tokrs.py</code>, 16 tests) checks the rule 3 examples, equality with the Python reference on all 1,992 messages of the root's small log, the whole-file result against <code>PROGRAM.md</code>, the parallel split against the serial one, that errors arrive as the right exception types, and eight threads sharing nothing. It passes on 3.14.8 and on 3.14t; run it on the free-threaded build too, because the <code>Already borrowed</code> failure of section 9 only shows there. Rust-only helpers (<code>tokens</code>, <code>chunks</code>) can also have <code>#[test]</code> functions run by <code>cargo test</code>; tests that call into Python need an interpreter linked in, which is why most PyO3 projects test from pytest. What to test and CI in general is {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}.</p>
+<details class="dp"><summary>Three of the tests, and both runs</summary><div>
+<div class="rb-snip"><div class="rb-file">test_tokrs.py</div><pre class="rb-code"><span class="rb-kw">def</span> test_matches_python_on_every_message():
+    texts = []
+    <span class="rb-kw">for</span> line <span class="rb-kw">in</span> CHAT.read_text(encoding=<span class="rb-st">"utf-8"</span>).splitlines():
+        <span class="rb-kw">try</span>:
+            rec = json.loads(line)
+        <span class="rb-kw">except</span> ValueError:
+            continue
+        <span class="rb-kw">if</span> isinstance(rec, dict) <span class="rb-kw">and</span> isinstance(rec.get(<span class="rb-st">"text"</span>), str):
+            texts.append(rec[<span class="rb-st">"text"</span>])
+    <span class="rb-kw">assert</span> tokrs.count_many(texts) == [py_tokens(t) <span class="rb-kw">for</span> t <span class="rb-kw">in</span> texts]
+
+
+<span class="rb-kw">def</span> test_whole_file_matches_program_md():
+    lines, ok, bad, first_bad, per_user = tokrs.tally_file(CHAT)
+    <span class="rb-kw">assert</span> (lines, ok, bad, first_bad) == (2000, 1992, 8, 53)
+    <span class="rb-kw">assert</span> sum(per_user.values()) == 44698 <span class="rb-kw">and</span> per_user[<span class="rb-st">"u0029"</span>] == 9491
+
+
+@pytest.mark.parametrize(<span class="rb-st">"threads"</span>, [1, 2, 3, 8, 64])
+<span class="rb-kw">def</span> test_parallel_split_is_exact(threads):
+    data = CHAT.read_bytes()
+    <span class="rb-kw">assert</span> tokrs.tally_bytes_parallel(data, threads) == tokrs.tally_bytes(data)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ python -m pytest -q tests   (CPython 3.14.8)</div><pre class="rb-out" data-rb-out="c12_pytest.txt">................                                                         [100%]
+16 passed in 0.09s</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t -m pytest -q tests   (free-threaded)</div><pre class="rb-out" data-rb-out="c12_pytest_314t.txt">................                                                         [100%]
+16 passed in 0.11s</pre></div>
+</div></details>
+</section>
+
+<section id="rb-s12">
+<h2>12. Wheels: abi3, abi3t, CI and publishing</h2>
+<p>Users should never need Rust to install your package: they need a wheel built for their Python and their machine, which pip or uv picks from PyPI by the tags in its file name ({{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}} owns wheel tags, platform tags such as <code>manylinux</code>, and the four packaging layers). <code>maturin build --release</code> wrote <code>tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</code>: CPython 3.14's full C ABI (it loads on 3.14 only; a free-threaded build would say <code>cp314t</code>), macOS 11 or later on Apple silicon. Inside: the compiled library, the stub and <code>py.typed</code>, metadata, and a software bill of materials (<code>sboms/</code>, the Rust crates compiled in, written by maturin). <code>otool -L</code> (macOS's <code>ldd</code>) shows the library does not link to <code>libpython</code>: it finds Python's C API symbols in the process that loads it, which is what lets one wheel work with any CPython 3.14 binary.</p>
+<details class="dp"><summary>The build output and the wheel's contents</summary><div>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release -o dist</div><pre class="rb-out" data-rb-out="b3_wheel.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 0.03s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for CPython 3.14 to &lt;pl&gt;/rb/dist/tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ unzip -l dist/*.whl; otool -L tokrs/*.so</div><pre class="rb-out" data-rb-out="b4_wheel_files.txt">Archive:  tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+      103  01-01-1980 00:00   tokrs/__init__.py
+     1642  01-01-1980 00:00   tokrs/__init__.pyi
+        0  01-01-1980 00:00   tokrs/py.typed
+  1012496  01-01-1980 00:00   tokrs/tokrs.cpython-314-darwin.so
+      183  01-01-1980 00:00   tokrs-0.1.0.dist-info/METADATA
+      105  01-01-1980 00:00   tokrs-0.1.0.dist-info/WHEEL
+    46021  01-01-1980 00:00   tokrs-0.1.0.dist-info/sboms/tokrs.cyclonedx.json
+      615  01-01-1980 00:00   tokrs-0.1.0.dist-info/RECORD
+---------                     -------
+  1061165                     8 files
+tokrs/tokrs.cpython-314-darwin.so:
+	@rpath/tokrs.cpython-314-darwin.so (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1319.0.0)</pre></div>
+</div></details>
+<h3>abi3: one wheel for many Python versions</h3>
+<p>A wheel per Python version per platform multiplies fast. CPython's <b>stable ABI</b> (the "limited API", <a href="https://peps.python.org/pep-0384/" target="_blank" rel="noopener noreferrer">PEP 384</a>) is a subset of the C API promised not to change; an extension that uses only that subset gets the <code>abi3</code> tag and loads on that version and every later one. In PyO3 it is a feature flag, <code>pyo3/abi3-py310</code> (minimum Python 3.10). Built once, installed into fresh virtual environments:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release --features pyo3/abi3-py310</div><pre class="rb-out" data-rb-out="b5_abi3.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings with abi3-py3.10 support
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 1.29s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for abi3 Python ≥ 3.10 to &lt;pl&gt;/rb/dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">one abi3 wheel on CPython 3.12, 3.13, 3.14 and 3.14t</div><pre class="rb-out" data-rb-out="b6_abi3_install.txt">Python 3.12.15 loads tokrs.abi3.so -&gt; 3
+Python 3.13.16 loads tokrs.abi3.so -&gt; 3
+Python 3.14.8 loads tokrs.abi3.so -&gt; 3
+$ uv pip install (3.14t) tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl
+Using Python 3.14.8 environment at: abi_314t
+Resolved 2 packages in 1ms
+error: Failed to determine installation plan
+  cause: A path (dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl) dependency is incompatible with the current platform
+
+hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was built for the stable ABI (`abi3`), which requires a GIL-enabled interpreter</pre></div>
+<p>The same file loaded on three versions and was refused by the free-threaded build: <code>abi3</code> assumes the GIL build's object layout. At run time abi3 can cost a little: under the limited API, PyO3 must call real C functions where the full API uses inline macros (list item access, string data).</p>
+<details class="dp"><summary>What abi3 cost here, call by call (noisy; read with the caveat)</summary><div>
+<p>The same calls against both builds on 3.14 (ns per item, medians; <code>code/c9_abi_cost.py</code>):</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Call</th><th class="num"><code>cp314</code> build</th><th class="num"><code>abi3</code> build</th></tr></thead><tbody id="rb-abi-tb"></tbody></table></div>
+<p class="small mute">Measured on a busy laptop (load average about 10) and the spread between runs was wide; only the <code>total_len</code> gap (reading items from a list) repeated across runs here (9.5 ns against 14.8 ns per item in this run). PyO3's changelog lists such cases, for example "Optimize <code>PyBytes::as_bytes()</code> when not using <code>abi3</code> or <code>abi3t</code>" (0.29.3).</p>
+</div></details>
+<p><b>abi3t</b> is the stable ABI for free-threaded builds, <a href="https://peps.python.org/pep-0803/" target="_blank" rel="noopener noreferrer">PEP 803</a> (status Final, Python 3.15), supported by PyO3 0.29 through the <code>abi3t-py315</code> feature. Built against the 3.15 release candidate:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release --features pyo3/abi3t-py315 -i python3.15t</div><pre class="rb-out" data-rb-out="b7_abi3t.txt">🐍 Found CPython 3.15t at &lt;pl&gt;/py/cpython-3.15.0rc3+freethreaded-macos-aarch64-none/bin/python3.15t
+🔗 Found pyo3 bindings with abi3t-py3.15 support
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 1.30s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for abi3t Python ≥ 3.15 to &lt;pl&gt;/rb/dist_abi3t/tokrs-0.1.0-cp315-abi3.abi3t-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">the abi3t wheel on CPython 3.15.0rc3, free-threaded and with the GIL</div><pre class="rb-out" data-rb-out="b8_abi3t_install.txt">Python 3.15.0rc3 GIL enabled: False loads tokrs.abi3t.so -&gt; 3
+Python 3.15.0rc3 GIL enabled: True loads tokrs.abi3t.so -&gt; 3</pre></div>
+<p>The tag <code>abi3.abi3t</code> means one file for both 3.15 builds. Until you can require 3.15, ship an <code>abi3</code> wheel plus a <code>cp314t</code> wheel per platform (tokenizers, safetensors and polars build <code>abi3-py310</code> today); shipping only an abi3 wheel leaves free-threaded users unable to install.</p>
+<h3>Building for every platform in CI</h3>
+<p>You cannot build Windows or Linux wheels on a Mac without cross-compilers, so CI builds them on each platform. <code>maturin generate-ci github</code> writes a complete GitHub Actions workflow (186 lines; <a href="https://github.com/PyO3/maturin-action" target="_blank" rel="noopener noreferrer">PyO3/maturin-action</a> does the builds): every build job runs <code>maturin build --release --out dist --find-interpreter</code>, one wheel per Python found (one in total with abi3), and a release job uploads everything to PyPI on a git tag.</p>
+<details class="dp"><summary>What the generated workflow builds, and its release job verbatim</summary><div>
+<div class="tw"><table class="rb-t"><thead><tr><th>Job (maturin 1.15.0)</th><th>Targets</th></tr></thead><tbody>
+<tr><td>linux (manylinux)</td><td>x86_64, x86, aarch64, armv7, s390x, ppc64le</td></tr>
+<tr><td>musllinux</td><td>x86_64, x86, aarch64, armv7</td></tr>
+<tr><td>windows</td><td>x64, x86, aarch64</td></tr>
+<tr><td>macos</td><td>x86_64 (Intel runner), aarch64</td></tr>
+<tr><td>sdist</td><td>The source distribution, for anyone with no matching wheel (they need Rust)</td></tr>
+<tr><td>release</td><td>On a git tag: attest the artifacts and upload everything to PyPI</td></tr>
+</tbody></table></div>
+<div class="rb-snip"><div class="rb-file">b10_ci.yml</div><pre class="rb-code">  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' &#125;&#125;
+    needs: [linux, musllinux, windows, macos, sdist]
+    permissions:
+      <span class="rb-cm"># Use to sign the release artifacts</span>
+      id-token: write
+      <span class="rb-cm"># Used to upload release artifacts</span>
+      contents: write
+      <span class="rb-cm"># Used to generate artifact attestation</span>
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v7
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: 'wheels-*/*'
+      - name: Install uv
+        if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') &#125;&#125;
+        uses: astral-sh/setup-uv@v7
+      - name: Publish to PyPI
+        if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') &#125;&#125;
+        run: uv publish 'wheels-*/*'
+        env:
+          UV_PUBLISH_TOKEN: $&#123;&#123; secrets.PYPI_API_TOKEN &#125;&#125;</pre></div>
+</div></details>
+<div class="co warn"><div class="t">Change one thing before you use it</div>The generated job uploads with a long-lived <code>PYPI_API_TOKEN</code> secret. With <b>trusted publishing</b> you register the repository and workflow on PyPI once, the job (which already has <code>id-token: write</code>) receives a short-lived token from GitHub, and <code>uv publish</code> needs no credentials (<a href="https://docs.astral.sh/uv/guides/package/" target="_blank" rel="noopener noreferrer">uv packaging guide</a>, <a href="https://docs.pypi.org/trusted-publishers/" target="_blank" rel="noopener noreferrer">PyPI trusted publishers</a>). Delete the <code>env:</code> lines after setting it up.</div>
+<p><b>cibuildwheel</b> is the other route: one tool that builds wheels for every CPython on every platform for any build backend, including maturin; for Rust it must install a Rust toolchain inside its Linux containers (<a href="https://cibuildwheel.pypa.io/en/stable/faq/" target="_blank" rel="noopener noreferrer">cibuildwheel FAQ, "Building Rust wheels"</a>). maturin-action is simpler for a Rust-only package; cibuildwheel suits projects that run test suites per wheel or mix C, C++ and Rust.</p>
+</section>

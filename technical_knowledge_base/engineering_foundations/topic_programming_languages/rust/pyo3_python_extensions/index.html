@@ -1,0 +1,1493 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rust: speeding up Python with PyO3 and maturin</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+@media (max-width:520px){h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>Rust: speeding up Python with PyO3 and maturin</h1>
+<div class="sub">The slow part of a Python program moved into a Rust extension one measured step at a time: one function, conversions and NumPy, errors, classes, the GIL and threads, free-threaded Python, then stubs, tests and wheels anyone can <code>pip install</code>. Every output is a real run (CPython 3.14.8 and 3.14.8t, Rust 1.99.0, PyO3 0.29.3, maturin 1.15.0) on an Apple M1 Pro. A child of Rust: the essentials. Data as of October 2026. <span id="rb-time">Reading: 34 min, plus 13 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read pre{margin:0;border:1px solid var(--line);border-radius:0 0 6px 6px;padding:8px 10px;overflow:auto;max-height:440px;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;tab-size:4;white-space:pre;background:var(--soft)}
+#t-read pre.rb-out{background:var(--bg);border-style:dashed}
+#t-read .rb-snip{margin:10px 0}
+#t-read .rb-file,#t-read .rb-olab{font:11.5px ui-monospace,Menlo,Consolas,monospace;color:var(--mute);border:1px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;padding:2px 10px;background:var(--soft);display:inline-block;max-width:100%;overflow-wrap:anywhere}
+#t-read .rb-olab{background:var(--bg);border-style:dashed;margin-top:6px}
+#t-read .rb-cm{color:var(--mute)}#t-read .rb-kw{color:var(--c4)}#t-read .rb-st{color:var(--c3)}#t-read .rb-at{color:var(--c2)}
+#t-read .rb-pq{font-size:13.5px;margin:8px 0 4px}#t-read .rb-pq b{color:var(--acc)}
+#t-read .rb-rv{font-size:13px;margin:0 0 4px}
+#t-read .rb-py{border-left:3px solid var(--c3);background:var(--soft);padding:8px 12px;border-radius:0 6px 6px 0;margin:10px 0;font-size:14px}
+#t-read .rb-py .t{font-weight:600;font-size:13px;margin-bottom:2px;color:var(--good)}
+#t-read .rb-cost{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px;margin:10px 0}
+#t-read .rb-cost>div{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;line-height:1.45;min-width:0}
+#t-read .rb-cost .t{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--mute);margin-bottom:2px}
+#t-read .rb-n{font-weight:600;font-variant-numeric:tabular-nums}
+#t-read table.rb-t td,#t-read table.rb-t th{font-size:13px}
+#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl input[type=range]{flex:1 1 120px;min-width:100px;width:auto}
+#t-read .an-play{min-width:6.4em}
+#t-read .an-cap{min-height:4.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0;font-size:14px}
+#t-read .seg{flex-wrap:wrap;max-width:100%}
+#t-read .rb-src{font-size:12px;color:var(--mute);margin:2px 0 8px}
+#t-read .bars .row{grid-template-columns:minmax(0,13em) minmax(0,1fr) 5.6em}
+#t-read .rb-pb{margin:6px 0}#t-read .rb-pbr{margin:6px 0}#t-read .rb-pbl{font-size:12.5px;margin-bottom:2px}
+#t-read .rb-pbt{display:flex;height:16px;background:var(--soft);border-radius:3px;overflow:hidden}#t-read .rb-pbt span{display:block;height:100%;border-right:1px solid var(--bg)}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;min-width:0}
+#t-read .hero h4,#t-read .card h4{margin:0 0 6px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0 0 4px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;padding:0 12px}
+#t-read details.dp>summary{cursor:pointer;padding:7px 0;font-size:14px;color:var(--closed)}
+#t-read details.dp[open]>summary{border-bottom:1px solid var(--line);margin-bottom:6px}
+#t-read details.dp>div{padding:0 0 8px}
+#t-read code{overflow-wrap:anywhere}
+#t-read .meas{font-size:11.5px;color:var(--good);font-weight:600}
+@media (min-width:640px){#t-read .terms{grid-template-columns:max-content minmax(0,1fr)}#t-read .terms dd{margin:0}}
+@media (max-width:520px){#t-read pre{font-size:11px}#rb-gil-stats,#rb-cx-stats,#rb-ld-stats{grid-template-columns:repeat(2,minmax(0,1fr))}#t-read .bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 4.8em}
+ #rb-s0t thead{display:none}#rb-s0t tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}#rb-s0t td{display:block;border:0;padding:1px 4px}#rb-s0t td:first-child{font-weight:600}}
+</style>
+
+<section id="rb-top">
+<p class="core">A Rust extension pays off only when <span class="hl">the whole hot path crosses into Rust in one big call</span>, borrowing Python's memory instead of copying it and releasing the GIL while it works; moving one function inside a Python loop leaves the program waiting on the Python that is left.</p>
+<div class="hero" id="rb-hero-card"><h4>Moving only the token loop made the program 3x faster; moving the parsing too, on 8 threads, made it 23x</h4>
+<div id="rb-hero"></div>
+<p class="small">The running example: the root page's <code>count_tokens</code> program on a 200,000-line JSONL chat log (38.8 MB), cut into phases and timed inside the process (milliseconds, medians of 5, <code>code/ladder.py --phases</code>), all four bars on one scale <span class="meas">measured</span>. In the second bar the token loop has shrunk from <span class="rb-n" data-rbv="phases/python/count tokens" data-d="0"></span> ms to <span class="rb-n" data-rbv="phases/borrowed/Rust: count (with crossings)" data-d="0"></span> ms, and <code>json.loads</code> (still Python) is now most of the bar. The third bar moves the parsing into Rust too; the fourth releases the GIL and splits the work over 8 threads. Section 10 walks every step.</p></div>
+<p><b>You need:</b> ownership, borrowing and <code>Result</code> from <a href="https://app.notion.com/p/3c65c17b0d0d8156bed9ead8a22f33b0" target="_blank" rel="noopener noreferrer">Rust: the essentials</a>; <code>String</code> against <code>&amp;str</code>, <code>Result</code> and <code>?</code> from <a href="https://app.notion.com/p/4055c17b0d0d8129b199c18b4bd56935" target="_blank" rel="noopener noreferrer">Rust: enums, traits, errors and iterators</a>; lifetimes, <code>Mutex</code> and <code>Send</code> from <a href="https://app.notion.com/p/4055c17b0d0d8160aa32df9cda0aef03" target="_blank" rel="noopener noreferrer">Rust: lifetimes, smart pointers, threads and unsafe</a>. On the Python side, profiling and why the interpreter is slow are <a href="https://app.notion.com/p/4055c17b0d0d8111872ad7101b7e3c22" target="_blank" rel="noopener noreferrer">Python: CPython internals and performance</a>; the GIL and the free-threaded build are <a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a>; wheel tags and publishing are <a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a>.</p>
+<dl class="terms">
+<dt>Extension module</dt><dd>a compiled shared library (<code>.so</code>, <code>.pyd</code> on Windows) that <code>import</code> loads like a <code>.py</code> file; NumPy, PyTorch and orjson are extension modules.</dd>
+<dt>PyO3</dt><dd>a Rust crate that wraps CPython's C API: Rust types for Python objects, conversions, and macros that make a Rust function callable from Python.</dd>
+<dt>maturin</dt><dd>the build tool: compiles the crate with cargo and packs it into a wheel; also a PEP 517 build backend.</dd>
+<dt>Crossing</dt><dd>one call from Python into Rust: argument checks and conversions in, the result converted back out.</dd>
+<dt>Borrowed, owned</dt><dd>an argument Rust reads in place in Python's memory (a view), or copies into its own value.</dd>
+<dt>Detach</dt><dd><code>py.detach(...)</code>: release the GIL while pure-Rust work runs (called <code>allow_threads</code> before PyO3 0.26).</dd>
+<dt><code>#[pyclass]</code></dt><dd>a Rust struct that Python sees as a class, so state stays in Rust between calls.</dd>
+<dt>abi3, abi3t</dt><dd>CPython's stable ABI: one wheel for many Python versions; abi3t is the version free-threaded builds can load (3.15+).</dd>
+</dl>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#rb-s0">In one screen</a><a href="#rb-s1">1 Worth it?</a><a href="#rb-s2">2 First extension</a><a href="#rb-s3">3 Functions</a><a href="#rb-s4">4 Crossing</a><a href="#rb-s5">5 NumPy</a><a href="#rb-s6">6 Errors</a><a href="#rb-s7">7 Classes</a><a href="#rb-s8">8 The GIL</a><a href="#rb-s9">9 Free-threaded</a><a href="#rb-s10">10 The ladder</a><a href="#rb-s11">11 Stubs, tests</a><a href="#rb-s12">12 Wheels</a><a href="#rb-s13">13 Alternatives</a></nav>
+</section>
+
+<section id="rb-s0">
+<h2>In one screen</h2>
+<p>Each row: one idea, the number that shows it on this M1 Pro, and what it changes in the code you write.</p>
+<div class="tw"><table class="rb-t" id="rb-s0t">
+<thead><tr><th>Idea</th><th>Measured here</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><a href="#rb-s1">Profile before you port</a></td><td>Moving only the token loop: that loop <span class="rb-n" data-rbr="phases/python/count tokens|phases/borrowed/Rust: count (with crossings)" data-d="0"></span>x faster, the program only <span class="rb-n" data-rbr="L.python.median|L.borrowed.median" data-d="1"></span>x</td><td>Move the whole hot path, not one function inside it</td></tr>
+<tr><td><a href="#rb-s4">Every call crosses a boundary</a></td><td>An empty Rust function costs <span class="rb-n" data-rbv="convert.call_noop.med" data-d="0"></span> ns per call</td><td>Call once per batch, not once per element</td></tr>
+<tr><td><a href="#rb-s4">Borrow, do not copy</a></td><td>A <code>str</code> as <code>&amp;str</code>: <span class="rb-n" data-rbv="convert.len_borrowed.med" data-d="1"></span> ns; copied into a <code>String</code>: <span class="rb-n" data-rbv="convert.len_owned.med" data-d="0"></span> ns</td><td>Take <code>&amp;str</code>, <code>&amp;[u8]</code> and NumPy views</td></tr>
+<tr><td><a href="#rb-s5">NumPy arrays cross for free</a></td><td>A float from a list: <span class="rb-n" data-rbv="convert.floats_vec.med" data-d="1"></span> ns; from an array: <span class="rb-n" data-rbv="convert.floats_numpy.med" data-d="1"></span> ns; NumPy's own <code>dot</code> beat both</td><td>Pass arrays; never rewrite what NumPy already does</td></tr>
+<tr><td><a href="#rb-s8">Release the GIL for long work</a></td><td>4 threads calling Rust: <span class="rb-n" data-rbv="gil314.held.wall_ms" data-d="0"></span> ms with the GIL held, <span class="rb-n" data-rbv="gil314.detached.wall_ms" data-d="0"></span> ms released</td><td>Wrap pure-Rust work in <code>py.detach(...)</code></td></tr>
+<tr><td><a href="#rb-s9">Free-threaded Python changes the rules</a></td><td>8 threads sharing one <code>&amp;mut self</code> object on 3.14t: 13% of calls raised <code>Already borrowed</code></td><td><code>#[pyclass(frozen)]</code> plus a <code>Mutex</code></td></tr>
+<tr><td><a href="#rb-s10">The ladder</a></td><td>Whole program: <span class="rb-n" data-rbv="L.python.median" data-d="2"></span> s in Python, <span class="rb-n" data-rbv="L.parallel.median" data-rbm="1000" data-d="0"></span> ms with parsing and counting in Rust on 8 threads</td><td>Profile, port the path, batch, borrow, detach</td></tr>
+<tr><td><a href="#rb-s12">Ship wheels</a></td><td>One <code>abi3</code> wheel loaded on CPython 3.12, 3.13 and 3.14 and was refused by 3.14t; an <code>abi3t</code> wheel loaded on both 3.15 builds</td><td>Build abi3 plus a 3.14t wheel in CI with maturin-action</td></tr>
+<tr><td><a href="#rb-s13">Rust is not the only way</a></td><td>Cython, Numba and Rust within 2x of each other on this loop; mypyc <span class="rb-n" data-rbr="alts.python.med|alts.mypyc.med" data-d="1"></span>x</td><td>Pick by what else the native code must do</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>How everything on this page was measured</summary><div><p class="small">Every code block is a file in <code>src/rb/</code> of this page's folder and every output block is its real output, recorded on 2026-10-05 on an Apple M1 Pro (8 performance and 2 efficiency cores, macOS 27) with CPython 3.14.8, Rust 1.99.0, PyO3 0.29.3 and maturin 1.15.0 (exact versions in <code>src/rb/versions.txt</code>; <code>src/rb/run_all.sh</code> reproduces everything in about 10 minutes). Timings are medians of 7 runs with the spread beside them; the laptop was in normal use (load average 9 to 12 on 10 cores during the recorded runs, up to 26 during earlier trial runs), so read the second digit of any timing as noise. The 200,000-line input is regenerated from the root's <code>rosetta/data/gen_chat.py --lines 200000 --seed 7</code> (same sha256 as the root's benchmark). <code>tokrs</code>, the extension built here, was not published to PyPI.</p></div></details>
+</section>
+
+<section id="rb-s1">
+<h2>1. Is it worth it? Profile, then do the arithmetic</h2>
+<p>On <code>import</code>, CPython calls a function in an extension module named <code>PyInit_&lt;name&gt;</code>, which hands back a module object whose functions are machine code. Writing one costs a second language, a compiler in your build and a wheel per platform (section 12), so do it only when a profile says so. Finding the hot function and trying the cheap wins first (a better algorithm, a built-in such as <code>re</code> or <code>collections.Counter</code>, NumPy, an existing library) is <a href="https://app.notion.com/p/4055c17b0d0d8111872ad7101b7e3c22" target="_blank" rel="noopener noreferrer">Python: CPython internals and performance</a>; Rust comes after those, for a hot loop that is left and that no library already does.</p>
+<p>The hero's first two bars are <b>Amdahl's law</b>: if a fraction <i>p</i> of the time is sped up <i>s</i> times, the whole program speeds up 1 / ((1 - <i>p</i>) + <i>p</i>/<i>s</i>). The token loop was <span class="rb-n" data-rbv="PS.share" data-d="0"></span>% of the pure-Python run (<i>p</i> = <span data-rbv="PS.p" data-d="2"></span>), so even an infinitely fast loop leaves the other <span class="rb-n" data-rbv="PS.rest" data-d="0"></span>% and the best this change alone can give is 1 / (1 - <i>p</i>) = <span class="rb-n" data-rbv="PS.bound" data-d="1"></span>x; we measured <span class="rb-n" data-rbr="L.python.median|L.borrowed.median" data-d="1"></span>x end to end. To go further, the parsing has to move too.</p>
+<div class="rb-cost"><div><div class="t">Worth it when</div>a profile shows one hot path you own, it is not array arithmetic NumPy already does, it runs often (a tokenizer, a parser, a sampler, a graph walk), and you can pass it big batches.</div><div><div class="t">Not worth it when</div>the time is in I/O or the network, a library already does it (orjson, polars, pyarrow), or the hot code calls back into Python objects on every step.</div><div><div class="t">What it costs</div>A Rust toolchain in your build (about 10 s for a clean build here), wheels per platform, and a team that can read Rust.</div></div>
+</section>
+
+<section id="rb-s2">
+<h2>2. Your first extension: PyO3 and maturin</h2>
+<p>PyO3's <b>macros</b> (code generators run by the compiler, written <code>#[...]</code>) turn an ordinary Rust function into a Python-callable one; maturin compiles the crate and packs the library into a <b>wheel</b> (the <code>.whl</code> zip pip installs). The root page's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Toolchain atlas</a> tab has the first run recorded: <code>maturin new --bindings pyo3 tokrs</code> writes <code>Cargo.toml</code>, <code>pyproject.toml</code>, <code>src/lib.rs</code> and a GitHub Actions workflow. This page's project, <code>tokrs</code>, grew from that skeleton.</p>
+<details class="dp"><summary>The two configuration files, and what each line is for</summary><div>
+<div class="rb-snip"><div class="rb-file">Cargo.toml</div><pre class="rb-code">[package]
+name = <span class="rb-st">"tokrs"</span>
+version = <span class="rb-st">"0.1.0"</span>
+edition = <span class="rb-st">"2024"</span>
+
+[lib]
+name = <span class="rb-st">"tokrs"</span>
+crate-type = [<span class="rb-st">"cdylib"</span>]
+
+[dependencies]
+pyo3 = <span class="rb-st">"0.29.3"</span>
+numpy = <span class="rb-st">"0.29.0"</span>
+rayon = <span class="rb-st">"1.12.0"</span>
+serde = &#123; version = <span class="rb-st">"1"</span>, features = [<span class="rb-st">"derive"</span>] &#125;
+serde_json = <span class="rb-st">"1"</span>
+
+[profile.release]
+opt-level = 3</pre></div>
+<div class="rb-snip"><div class="rb-file">pyproject.toml</div><pre class="rb-code">[build-system]
+requires = [<span class="rb-st">"maturin&gt;=1.15,&lt;2.0"</span>]
+build-backend = <span class="rb-st">"maturin"</span>
+
+[project]
+name = <span class="rb-st">"tokrs"</span>
+version = <span class="rb-st">"0.1.0"</span>
+description = <span class="rb-st">"count_tokens from the Rust page, Part 2: a PyO3 extension built step by step"</span>
+requires-python = <span class="rb-st">"&gt;=3.10"</span>
+dependencies = [<span class="rb-st">"numpy&gt;=2"</span>]
+
+[tool.maturin]
+module-name = <span class="rb-st">"tokrs"</span></pre></div>
+<p><code>crate-type = ["cdylib"]</code> asks for a C-compatible dynamic library, the only kind Python can load. The other four dependencies are <code>numpy</code> (rust-numpy, section 5), <code>rayon</code> (parallel loops, section 8), and <code>serde</code> with <code>serde_json</code> (typed JSON parsing, section 10).</p>
+</div></details>
+<p><code>[profile.release]</code> settings apply to <code>--release</code> builds; without <code>--release</code> you get a debug build that is often 10 to 50 times slower, and timing it is the most common beginner mistake. A clean release build, installed into the virtual environment:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin develop --release   (clean, under /usr/bin/time -p)</div><pre class="rb-out" data-rb-out="b1_develop.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings
+Using Python 3.14.8 environment at: &lt;pl&gt;/rb/venv314
+Checked 1 package in 12ms
+    Finished `release` profile [optimized] target(s) in 9.25s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for CPython 3.14 to &lt;tmp&gt;/tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl
+✏️ Setting installed package as editable
+🛠 Installed tokrs-0.1.0
+real 10.32
+user 34.79
+sys 4.22</pre></div>
+<p>The 10 s is mostly compiling PyO3, the NumPy bindings, rayon and serde once; after that an edit to <code>lib.rs</code> rebuilds in a few seconds. <code>maturin develop</code> installs the wheel as <b>editable</b>, so you rerun it after each Rust change and then restart the interpreter or notebook kernel: a process cannot unload a shared library it has loaded, so <code>importlib.reload</code> will not pick up the new build.</p>
+<div class="co warn"><div class="t">Correction to older guides (and to the root's benchmark crate)</div>Older tutorials add <code>features = ["pyo3/extension-module"]</code> under <code>[tool.maturin]</code>. PyO3 now marks that feature deprecated: maturin 1.9.4 and later set the environment variable <code>PYO3_BUILD_EXTENSION_MODULE</code>, which does the same job (stop linking to <code>libpython</code>) (<a href="https://pyo3.rs/v0.29.3/features.html#extension-module" target="_blank" rel="noopener noreferrer">PyO3 features guide</a>). <code>tokrs</code> leaves it out; the root's <code>src/bench/ext_rust/</code> still has it, which is harmless.</div>
+<div class="rb-cost"><div><div class="t">maturin develop</div>Build and install into the current venv: your edit, compile, test loop.</div><div><div class="t">maturin build --release</div>Write a wheel into <code>target/wheels/</code> (or <code>-o dir</code>): what you ship (section 12).</div><div><div class="t">pip / uv</div><code>uv pip install .</code> calls maturin as the build backend, so users with a Rust toolchain can build from source.</div></div>
+</section>
+
+<section id="rb-s3">
+<h2>3. Functions and modules: <code>#[pyfunction]</code>, <code>#[pymodule]</code></h2>
+<p>Step 1 of the token counter: the root program's token loop as plain Rust, and a thin function Python can call.</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Tokens = maximal runs of ASCII letters or digits (rule 3 of PROGRAM.md).</span>
+<span class="rb-cm">/// Non-ASCII characters are UTF-8 bytes &gt;= 0x80, so a byte loop gives the char answer.</span>
+<span class="rb-kw">fn</span> tokens(s: &amp;[u8]) -&gt; u64 &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> n = 0;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> inside = <span class="rb-kw">false</span>;
+    <span class="rb-kw">for</span> &amp;b <span class="rb-kw">in</span> s &#123;
+        <span class="rb-kw">let</span> t = b.is_ascii_alphanumeric();
+        <span class="rb-kw">if</span> t &amp;&amp; !inside &#123;
+            n += 1;
+        &#125;
+        inside = t;
+    &#125;
+    n
+&#125;</pre></div>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_tokens(text: &amp;str) -&gt; u64 &#123;
+    tokens(text.as_bytes())
+&#125;</pre></div>
+<p><code>#[pyfunction]</code> generates the glue: a C-level function that takes Python's argument objects, converts each to the Rust parameter type (<code>&amp;str</code> here), calls your function, and converts the <code>u64</code> result back into a Python <code>int</code>. The <code>///</code> doc comment becomes the docstring. The module lists what it exports:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-at">#[pymodule]</span>
+<span class="rb-kw">mod</span> tokrs &#123;
+    <span class="rb-at">#[pymodule_export]</span>
+    <span class="rb-kw">use</span> <span class="rb-kw">super</span>::&#123;
+        count_bytes, count_bytes_owned, count_many, count_many_owned, count_tokens, counts_array,
+        counts_list, dict_total, dict_total_owned, first_token_len, noop, parse_line, sum_sq_array, sum_sq_list, tally_bytes,
+        tally_bytes_detached, tally_bytes_parallel, tally_file, total_len, total_len_owned, SharedCounter, Counter, MalformedLine,
+    &#125;;
+&#125;</pre></div>
+<p>The <code>#[pymodule]</code> name (<code>mod tokrs</code>), the library name in <code>Cargo.toml</code> and <code>module-name</code> in <code>pyproject.toml</code> must agree, because CPython looks for <code>PyInit_tokrs</code> when you <code>import tokrs</code>; a mismatch makes the import fail.</p>
+<div class="rb-snip"><div class="rb-file">c1_first.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+<span class="rb-kw">print</span>(tokrs.count_tokens(<span class="rb-st">"Hello from hello-tokens, x86_64 café!"</span>))
+<span class="rb-kw">print</span>(tokrs.count_tokens(<span class="rb-st">"日本語 v2.1 C++"</span>))
+<span class="rb-kw">print</span>(type(tokrs.count_tokens))
+<span class="rb-kw">print</span>(tokrs.count_tokens.__doc__)
+<span class="rb-kw">print</span>(tokrs.count_tokens.__text_signature__)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr1" aria-expanded="false">Reveal the real output</button><div id="rb-pr1" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c1_first.txt">7
+3
+&lt;class 'builtin_function_or_method'&gt;
+Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.
+(text)</pre></div></div>
+<p>Rule 3 of the program, checked: <code>x86_64</code> is 2 tokens and <code>café</code> is 1 (<code>caf</code>), and <code>日本語 v2.1 C++</code> has 3 (<code>v2</code>, <code>1</code>, <code>C</code>: the Japanese characters, the dot and the plus signs all separate). The function is a <code>builtin_function_or_method</code>, exactly like <code>len</code>, and PyO3 wrote its signature <code>(text)</code> from the Rust parameter name, so keyword calls work.</p>
+<h3>What Python sees when the types are wrong</h3>
+<p>Python has no compiler to stop <code>count_tokens(5)</code>, so the glue checks every argument at run time and raises <code>TypeError</code>. Nine wrong and right calls, run for real, gave four lessons.</p>
+<details class="dp"><summary>Predict the nine calls, then reveal the real output</summary><div>
+<div class="rb-snip"><div class="rb-file">c2_types.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+calls = [
+    'tokrs.count_tokens(5)',
+    'tokrs.count_tokens(b<span class="rb-st">"raw bytes"</span>)',
+    'tokrs.count_tokens(text=<span class="rb-st">"keyword works"</span>)',
+    'tokrs.count_many([<span class="rb-st">"fine"</span>, 3])',
+    'tokrs.count_many((<span class="rb-st">"a"</span>, <span class="rb-st">"tuple"</span>))',
+    'tokrs.count_many_owned((<span class="rb-st">"a"</span>, <span class="rb-st">"tuple"</span>))',
+    'tokrs.count_many_owned(<span class="rb-st">"abc"</span>)',
+    'tokrs.count_bytes(<span class="rb-st">"a str"</span>)',
+    'tokrs.count_tokens(<span class="rb-st">"\\ud800 lone surrogate"</span>)',
+]
+<span class="rb-kw">for</span> c <span class="rb-kw">in</span> calls:
+    <span class="rb-kw">try</span>:
+        r = eval(c)
+        <span class="rb-kw">print</span>(f<span class="rb-st">"&#123;c&#125;\n  -&gt; &#123;r!r&#125;"</span>)
+    <span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+        notes = <span class="rb-st">""</span>.join(f<span class="rb-st">" (&#123;n&#125;)"</span> <span class="rb-kw">for</span> n <span class="rb-kw">in</span> getattr(e, <span class="rb-st">"__notes__"</span>, []))
+        <span class="rb-kw">print</span>(f<span class="rb-st">"&#123;c&#125;\n  -&gt; &#123;type(e).__name__&#125;: &#123;e&#125;&#123;notes&#125;"</span>)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr2" aria-expanded="false">Reveal the real output</button><div id="rb-pr2" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c2_types.txt">tokrs.count_tokens(5)
+  -&gt; TypeError: 'int' object is not an instance of 'str' (while processing 'text')
+tokrs.count_tokens(b"raw bytes")
+  -&gt; TypeError: 'bytes' object is not an instance of 'str' (while processing 'text')
+tokrs.count_tokens(text="keyword works")
+  -&gt; 2
+tokrs.count_many(["fine", 3])
+  -&gt; TypeError: 'int' object is not an instance of 'str'
+tokrs.count_many(("a", "tuple"))
+  -&gt; TypeError: 'tuple' object is not an instance of 'list' (while processing 'texts')
+tokrs.count_many_owned(("a", "tuple"))
+  -&gt; [1, 1]
+tokrs.count_many_owned("abc")
+  -&gt; TypeError: Can't extract `str` to `Vec` (while processing 'texts')
+tokrs.count_bytes("a str")
+  -&gt; TypeError: 'str' object is not an instance of 'bytes' (while processing 'data')
+tokrs.count_tokens("\ud800 lone surrogate")
+  -&gt; UnicodeEncodeError: 'utf-8' codec can't encode character '\ud800' in position 0: surrogates not allowed (while processing 'text')</pre></div></div>
+</div></details>
+<p> (1) PyO3 adds a note naming the parameter (<code>while processing 'text'</code>, shown by Python 3.11+ as an exception note). (2) <code>&amp;Bound&lt;PyList&gt;</code> accepts exactly a <code>list</code>, so a tuple is refused, while <code>Vec&lt;String&gt;</code> accepts any sequence but deliberately refuses a <code>str</code>, which is also a sequence and a classic bug. (3) Inside <code>count_many</code> the item check runs after argument parsing, so its error has no note: say which item failed in your own messages. (4) A <code>str</code> holding a lone surrogate (legal in Python, not in UTF-8) cannot become <code>&amp;str</code> and raises <code>UnicodeEncodeError</code>.</p>
+<h3>The types in those signatures</h3>
+<div class="tw"><table class="rb-t"><thead><tr><th>Rust type</th><th>What it is</th><th>Python analogy</th></tr></thead><tbody>
+<tr><td><code>Python&lt;'py&gt;</code></td><td>A zero-size token proving this thread is attached to the interpreter (holds the GIL on a normal build). You get it as a parameter or from a <code>Bound</code>.</td><td>Being inside the interpreter at all</td></tr>
+<tr><td><code>Bound&lt;'py, T&gt;</code></td><td>A strong reference to a Python object of type <code>T</code> (<code>PyList</code>, <code>PyDict</code>, <code>PyAny</code>), usable only while attached. Dropping it decrements the refcount.</td><td>Any ordinary variable holding an object</td></tr>
+<tr><td><code>Py&lt;T&gt;</code></td><td>The same reference without the <code>'py</code> lifetime: can be stored in a struct or sent to another thread; call <code>.bind(py)</code> to use it.</td><td>An object kept in a global or a queue</td></tr>
+<tr><td><code>PyResult&lt;T&gt;</code></td><td><code>Result&lt;T, PyErr&gt;</code>: <code>Err</code> becomes a raised exception (section 6).</td><td>return or raise</td></tr>
+</tbody></table></div>
+<p>The <code>'py</code> is a <b>lifetime</b> (<a href="https://app.notion.com/p/4055c17b0d0d8160aa32df9cda0aef03" target="_blank" rel="noopener noreferrer">Rust: lifetimes, smart pointers, threads and unsafe</a>): the compiler uses it to stop a <code>Bound</code> escaping the region where the interpreter is attached. You rarely write it except in return types like <code>Bound&lt;'py, PyDict&gt;</code>.</p>
+</section>
+
+<section id="rb-s4">
+<h2>4. Crossing the boundary: what each conversion costs</h2>
+<p>A Python <code>str</code> is an object on Python's heap with a refcount, a length and its characters in one fixed width (1, 2 or 4 bytes each, whichever fits the widest character; <a href="https://peps.python.org/pep-0393/" target="_blank" rel="noopener noreferrer">PEP 393</a>). A Rust <code>&amp;str</code> is just a pointer and a length into UTF-8 bytes. So every argument crosses in one of two ways:</p>
+<ul class="tight"><li><b>Borrowed (a view):</b> Rust gets a pointer into memory Python owns: <code>&amp;str</code> from a <code>str</code>, <code>&amp;[u8]</code> from <code>bytes</code>, a NumPy array view. No allocation, no copy, but the view only lives for the call.</li>
+<li><b>Owned (a copy):</b> Rust builds its own value: <code>String</code>, <code>Vec&lt;T&gt;</code>, <code>HashMap&lt;K, V&gt;</code>, one allocation per string and one conversion per element. The value can then outlive the call, move to another thread, be stored in a struct.</li></ul>
+<div class="card" id="rb-cx-card"><h4>The same three items cross by copy or by view: copies cost an allocation each, views cost a pointer</h4>
+<div class="seg" id="rb-cx-mode" role="group" aria-label="Signature"><button data-m="sown" class="on">list[str] to Vec&lt;String&gt;</button><button data-m="sref">list[str] to &amp;str views</button><button data-m="fvec">list[float] to Vec&lt;f64&gt;</button><button data-m="fnp">NumPy array to slice</button></div>
+<div id="rb-cx-sig" class="small mono" style="margin:4px 0 6px"></div>
+<div id="rb-cx-svg"></div>
+<div class="out" id="rb-cx-stats"></div>
+<div class="an-cap" id="rb-cx-cap" aria-live="polite"></div>
+<div class="an-ctl" id="rb-cx-ctl"></div>
+<p class="small mute">Predict before you step: which signature touches each Python object, and which only looks at a buffer? One call, three items, eight steps. The objects follow what PyO3 0.29 and CPython 3.14 do (the UTF-8 cache is filled by <code>PyUnicode_AsUTF8AndSize</code>); the nanosecond figure under the picture is the measurement in the table below, not these three items.</p></div>
+<p>Measured with <code>timeit</code> on the first 20,000 messages of the log (<code>code/c3_convert.py</code>; nanoseconds per item, medians of 7):</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Python to Rust</th><th class="num">ns per item</th><th>What happens</th></tr></thead><tbody>
+<tr><td>an empty call, <code>noop()</code></td><td class="num"><span data-rbv="convert.call_noop.med" data-d="1"></span></td><td>The crossing alone: argument parsing, the call, returning <code>None</code></td></tr>
+<tr><td>one <code>str</code> per call, <code>count_tokens(t)</code></td><td class="num"><span data-rbv="convert.call_str.med" data-d="1"></span></td><td>Crossing plus about 40 ns of token counting on a 125-character message</td></tr>
+<tr><td><code>list[str]</code> as <code>&amp;str</code> views</td><td class="num"><span data-rbv="convert.len_borrowed.med" data-d="1"></span></td><td>Type check, then a pointer to the UTF-8 bytes</td></tr>
+<tr><td><code>list[str]</code> as <code>Vec&lt;String&gt;</code></td><td class="num"><span data-rbv="convert.len_owned.med" data-d="1"></span></td><td>One heap allocation and a byte copy per string</td></tr>
+<tr><td><code>list[str]</code> views of <i>fresh</i> strings</td><td class="num"><span data-rbv="convert.list_str_fresh.med" data-d="1"></span></td><td>A non-ASCII <code>str</code> has no UTF-8 form yet: CPython encodes it and caches the copy inside the object (here <span data-rbv="convert.non_ascii_share" data-rbm="100" data-d="0"></span>% of messages)</td></tr>
+<tr><td><code>bytes</code> as <code>&amp;[u8]</code> (per byte)</td><td class="num"><span data-rbv="convert.bytes_view.med" data-d="3"></span></td><td>A view; the cost is the token loop over 38.8 MB</td></tr>
+<tr><td><code>bytes</code> as <code>Vec&lt;u8&gt;</code> (per byte)</td><td class="num"><span data-rbv="convert.bytes_vec.med" data-d="3"></span></td><td>One <code>memcpy</code> of 38.8 MB first: fast, but double the memory</td></tr>
+<tr><td><code>list[float]</code> as <code>Vec&lt;f64&gt;</code></td><td class="num"><span data-rbv="convert.floats_vec.med" data-d="2"></span></td><td>Unbox each Python float object (section 5)</td></tr>
+<tr><td>NumPy <code>float64</code> array as a slice</td><td class="num"><span data-rbv="convert.floats_numpy.med" data-d="2"></span></td><td>A view of NumPy's buffer; the cost is the sum itself</td></tr>
+<tr><td><code>dict[str, int]</code> as <code>HashMap</code></td><td class="num"><span data-rbv="convert.dict_owned.med" data-d="1"></span></td><td>A new String per key, a new hash table</td></tr>
+<tr><td><code>dict</code> iterated in place</td><td class="num"><span data-rbv="convert.dict_borrowed.med" data-d="1"></span></td><td>Read each value where it is</td></tr>
+<tr><td>return <code>Vec&lt;u64&gt;</code> as a <code>list</code></td><td class="num"><span data-rbdiff="convert.ret_list.med|convert.list_str_borrowed.med" data-d="1"></span></td><td>Extra cost over counting alone; small because CPython caches the int objects -5 to 256 and most counts are small</td></tr>
+</tbody></table></div>
+<p class="rb-src">Defaults reproduce the root's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Benchmark</a> tab independently: there the empty PyO3 call took <span data-rbv="root.noop_pyo3" data-d="1"></span> ns (separate run, same machine). Pure Python for comparison: <code>sum(x*x for x in xs)</code> costs <span data-rbv="convert.floats_python.med" data-d="1"></span> ns per float.</p>
+<p>Three rules fall out. <b>Batch:</b> one crossing costs about as much as counting a whole message, so call once per list, not once per item. <b>Borrow:</b> a copy costs <span class="rb-n" data-rbr="convert.len_owned.med|convert.len_borrowed.med" data-d="0"></span>x a view per string; take <code>&amp;str</code>, <code>&amp;[u8]</code>, <code>&amp;Bound&lt;PyList&gt;</code> and array views unless Rust must keep the data. <b>Convert once, at the edge:</b> if the data goes back and forth, keep it on one side (as a Rust object behind a <code>#[pyclass]</code>, section 7, or as a NumPy array). Copy anyway when Rust must keep the data after the call (store it in a <code>#[pyclass]</code>, or hand it to a thread that outlives the call); views of immutable <code>str</code> and <code>bytes</code> may even be read with the GIL released, as <code>tally_bytes_detached</code> does (section 8).</p>
+</section>
+
+<section id="rb-s5">
+<h2>5. NumPy arrays without copies (rust-numpy)</h2>
+<p>A Python list of floats is an array of pointers to separate float objects, each 24 bytes with its own refcount; converting it visits every object. A NumPy array is one contiguous block of raw <code>f64</code> values plus a small header (shape, strides, dtype). The <a href="https://docs.rs/numpy/0.29.0/numpy/" target="_blank" rel="noopener noreferrer">numpy crate</a> (rust-numpy 0.29.0, the release matching PyO3 0.29) lets Rust read that block in place:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Sum of squares from a Python list: every float is converted into a new Vec&lt;f64&gt;.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> sum_sq_list(xs: Vec&lt;f64&gt;) -&gt; f64 &#123;
+    xs.iter().map(|x| x * x).sum()
+&#125;
+
+<span class="rb-cm">/// The same from a NumPy array: a read-only view of NumPy's own buffer, zero copies.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> sum_sq_array(xs: PyReadonlyArray1&lt;'_, f64&gt;) -&gt; PyResult&lt;f64&gt; &#123;
+    <span class="rb-kw">let</span> s = xs.as_slice()?; <span class="rb-cm">// error if the array is not contiguous</span>
+    Ok(s.iter().map(|x| x * x).sum())
+&#125;
+
+<span class="rb-cm">/// Returning results: a Vec&lt;u64&gt; becomes a Python list (one int object per element) ...</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> counts_list(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;Vec&lt;u64&gt;&gt; &#123;
+    count_many(texts)
+&#125;
+
+<span class="rb-cm">/// ... or a NumPy array that takes over the Vec's buffer without copying it.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> counts_array&lt;'py&gt;(py: Python&lt;'py&gt;, texts: &amp;Bound&lt;'py, PyList&gt;) -&gt; PyResult&lt;Bound&lt;'py, PyArray1&lt;u64&gt;&gt;&gt; &#123;
+    Ok(count_many(texts)?.into_pyarray(py))
+&#125;
+
+<span class="rb-cm">/// Dicts: `HashMap&lt;String, u64&gt;` copies every key into a new String ...</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> dict_total_owned(d: HashMap&lt;String, u64&gt;) -&gt; u64 &#123;
+    d.values().sum()
+&#125;
+
+<span class="rb-cm">/// ... while iterating the `PyDict` in place only reads the values.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> dict_total(d: &amp;Bound&lt;'_, PyDict&gt;) -&gt; PyResult&lt;u64&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> s = 0;
+    <span class="rb-kw">for</span> (_k, v) <span class="rb-kw">in</span> d.iter() &#123;
+        s += v.extract::&lt;u64&gt;()?;
+    &#125;
+    Ok(s)
+&#125;</pre></div>
+<p><code>PyReadonlyArray1&lt;f64&gt;</code> checks the dtype and takes a shared borrow of the array (rust-numpy tracks borrows so Rust cannot write to an array Python code also holds as read-only); <code>as_slice()</code> gives a plain <code>&amp;[f64]</code> when the memory is contiguous. On a million floats: list <span class="rb-n" data-rbv="convert.floats_vec.med" data-d="2"></span> ns per element, array <span class="rb-n" data-rbv="convert.floats_numpy.med" data-d="2"></span> ns. Returning works the other way: <code>into_pyarray</code> hands a <code>Vec</code>'s buffer to NumPy without copying.</p>
+<div class="co warn"><div class="t">Rust lost to NumPy here, and that is the lesson</div><code>np.dot(x, x)</code> took <span class="rb-n" data-rbv="convert.floats_np_dot.med" data-d="2"></span> ns per element, <span class="rb-n" data-rbr="convert.floats_numpy.med|convert.floats_np_dot.med" data-d="0"></span>x faster than the Rust loop. The Rust compiler may not reorder floating-point additions (the result would change in the last bits; <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing</a> says why), so <code>.sum()</code> runs one add at a time; NumPy calls a BLAS routine that keeps several partial sums in SIMD registers. Do not port what NumPy, PyTorch or polars already do; port the loops they cannot express.</div>
+<details class="dp"><summary>The failure modes, recorded: wrong dtype, strided views, lists, and who owns a returned array</summary><div>
+<div class="rb-snip"><div class="rb-file">c4_numpy.py</div><pre class="rb-code"><span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> tokrs
+
+a = np.arange(6, dtype=np.float64)
+<span class="rb-kw">print</span>(tokrs.sum_sq_array(a), tokrs.sum_sq_list(a.tolist()))
+counts = tokrs.counts_array([<span class="rb-st">"one two"</span>, <span class="rb-st">"three"</span>, <span class="rb-st">"日本語"</span>])
+<span class="rb-kw">print</span>(repr(counts), counts.flags[<span class="rb-st">"OWNDATA"</span>], counts.flags[<span class="rb-st">"WRITEABLE"</span>])
+
+<span class="rb-kw">def</span> attempt(label, f):
+    <span class="rb-kw">try</span>:
+        <span class="rb-kw">print</span>(label, <span class="rb-st">"-&gt;"</span>, f())
+    <span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+        notes = <span class="rb-st">""</span>.join(f<span class="rb-st">" (&#123;n&#125;)"</span> <span class="rb-kw">for</span> n <span class="rb-kw">in</span> getattr(e, <span class="rb-st">"__notes__"</span>, []))
+        <span class="rb-kw">print</span>(label, <span class="rb-st">"-&gt;"</span>, f<span class="rb-st">"&#123;type(e).__name__&#125;: &#123;e&#125;&#123;notes&#125;"</span>)
+
+attempt(<span class="rb-st">"float32 array"</span>, <span class="rb-kw">lambda</span>: tokrs.sum_sq_array(a.astype(np.float32)))
+attempt(<span class="rb-st">"every 2nd element a[::2]"</span>, <span class="rb-kw">lambda</span>: tokrs.sum_sq_array(a[::2]))
+attempt(<span class="rb-st">"np.ascontiguousarray(a[::2])"</span>, <span class="rb-kw">lambda</span>: tokrs.sum_sq_array(np.ascontiguousarray(a[::2])))
+attempt(<span class="rb-st">"a Python list"</span>, <span class="rb-kw">lambda</span>: tokrs.sum_sq_array([1.0, 2.0]))
+attempt(<span class="rb-st">"int64 array to Vec&lt;f64&gt;"</span>, <span class="rb-kw">lambda</span>: tokrs.sum_sq_list(np.arange(3)))</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr3" aria-expanded="false">Reveal the real output</button><div id="rb-pr3" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c4_numpy.txt">55.0 55.0
+array([2, 1, 0], dtype=uint64) False True
+float32 array -&gt; TypeError: 'ndarray' object is not an instance of 'ndarray' (while processing 'xs')
+every 2nd element a[::2] -&gt; TypeError: The given array is not contiguous or is misaligned.
+np.ascontiguousarray(a[::2]) -&gt; 20.0
+a Python list -&gt; TypeError: 'list' object is not an instance of 'ndarray' (while processing 'xs')
+int64 array to Vec&lt;f64&gt; -&gt; 5.0</pre></div></div>
+<p>The <code>float32</code> message (<code>'ndarray' object is not an instance of 'ndarray'</code>) is confusing: it means "not an <code>ndarray</code> of the dtype I asked for". A strided view (<code>a[::2]</code>) is refused by <code>as_slice</code>; either copy it with <code>np.ascontiguousarray</code> on the Python side or use <code>xs.as_array()</code>, an <code>ndarray</code> view that handles strides. <code>Vec&lt;f64&gt;</code> accepted an <code>int64</code> array because it converts element by element, at list speed. The array returned by <code>into_pyarray</code> has <code>OWNDATA</code> <code>False</code>: it points at Rust's allocation, and its <code>base</code> is a small Python object (<code>PySliceContainer</code>) that owns the buffer and frees it when the array is collected.</p>
+</div></details>
+</section>
+
+<section id="rb-s6">
+<h2>6. Errors become exceptions; panics become <code>PanicException</code></h2>
+<p>Return <code>PyResult&lt;T&gt;</code> and an <code>Err(PyErr)</code> is raised as an exception when the call returns. Many Rust errors convert by themselves: <code>std::io::Error</code> becomes the matching <code>OSError</code> subclass (<code>FileNotFoundError</code>, <code>PermissionError</code>), a failed UTF-8 decode becomes <code>UnicodeDecodeError</code>. For your own error kinds, declare a Python exception class from Rust:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code">create_exception!(tokrs, MalformedLine, PyException, <span class="rb-st">"A JSONL line that is not a chat message."</span>);
+
+<span class="rb-cm">/// Parse one line or raise. `?` turns each Rust error into a Python exception.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> parse_line(line: &amp;str) -&gt; PyResult&lt;(String, u64)&gt; &#123;
+    <span class="rb-kw">if</span> line.trim().is_empty() &#123;
+        <span class="rb-kw">return</span> Err(PyValueError::new_err(<span class="rb-st">"empty line"</span>));
+    &#125;
+    <span class="rb-kw">let</span> m: Message = serde_json::from_str(line)
+        .map_err(|e| MalformedLine::new_err(format!(<span class="rb-st">"&#123;e&#125;"</span>)))?;
+    Ok((m.user, tokens(m.text.as_bytes())))
+&#125;
+
+<span class="rb-cm">/// A bug, not an error: a Rust panic reaches Python as pyo3_runtime.PanicException.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> first_token_len(text: &amp;str) -&gt; usize &#123;
+    <span class="rb-kw">let</span> words: Vec&lt;&amp;str&gt; = text.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    words[0].len() <span class="rb-cm">// panics on a text with no tokens: index out of bounds</span>
+&#125;</pre></div>
+<p><code>map_err</code> turns serde's error into a <code>MalformedLine</code> carrying serde's message; <code>?</code> then raises it. A <b>panic</b> is different: Rust's reaction to a bug (an index out of bounds, an <code>unwrap()</code> on <code>None</code>), not an expected failure. PyO3 catches it at the boundary so it cannot unwind into C code, and raises <code>pyo3_runtime.PanicException</code>.</p>
+<div class="rb-snip"><div class="rb-file">c5_errors.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+good = '&#123;<span class="rb-st">"user"</span>: <span class="rb-st">"u0029"</span>, <span class="rb-st">"text"</span>: <span class="rb-st">"attention is all you need"</span>&#125;'
+<span class="rb-kw">print</span>(tokrs.parse_line(good))
+<span class="rb-kw">for</span> line <span class="rb-kw">in</span> ['&#123;<span class="rb-st">"user"</span>: 17, <span class="rb-st">"text"</span>: <span class="rb-st">"hi"</span>&#125;', '&#123;<span class="rb-st">"user"</span>: <span class="rb-st">"u1"</span>, <span class="rb-st">"text"</span>: <span class="rb-st">"unterminated', "</span>   "]:
+    <span class="rb-kw">try</span>:
+        tokrs.parse_line(line)
+    <span class="rb-kw">except</span> tokrs.MalformedLine <span class="rb-kw">as</span> e:
+        <span class="rb-kw">print</span>(<span class="rb-st">"MalformedLine:"</span>, e)
+    <span class="rb-kw">except</span> ValueError <span class="rb-kw">as</span> e:
+        <span class="rb-kw">print</span>(<span class="rb-st">"ValueError:"</span>, e)
+<span class="rb-kw">print</span>(tokrs.MalformedLine.__mro__)
+
+<span class="rb-kw">try</span>:
+    tokrs.tally_file(<span class="rb-st">"no_such_file.jsonl"</span>)
+<span class="rb-kw">except</span> OSError <span class="rb-kw">as</span> e:
+    <span class="rb-kw">print</span>(f<span class="rb-st">"&#123;type(e).__name__&#125;: &#123;e&#125;"</span>)
+
+<span class="rb-kw">print</span>(tokrs.first_token_len(<span class="rb-st">"hello world"</span>))
+<span class="rb-kw">try</span>:
+    tokrs.first_token_len(<span class="rb-st">"!!!"</span>)
+<span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+    <span class="rb-kw">print</span>(<span class="rb-st">"caught by except Exception:"</span>, type(e).__name__)
+<span class="rb-kw">except</span> BaseException <span class="rb-kw">as</span> e:
+    <span class="rb-kw">print</span>(<span class="rb-st">"only caught by except BaseException:"</span>, type(e).__name__, <span class="rb-st">"|"</span>, e)
+    <span class="rb-kw">print</span>(type(e).__mro__)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr4" aria-expanded="false">Reveal the real output</button><div id="rb-pr4" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c5_errors.txt">('u0029', 5)
+MalformedLine: invalid type: integer `17`, expected a string at line 1 column 11
+MalformedLine: EOF while parsing a string at line 1 column 36
+ValueError: empty line
+(&lt;class 'tokrs.MalformedLine'&gt;, &lt;class 'Exception'&gt;, &lt;class 'BaseException'&gt;, &lt;class 'object'&gt;)
+FileNotFoundError: No such file or directory (os error 2)
+5
+
+thread '&lt;unnamed&gt;' (16677647) panicked at src/lib.rs:285:10:
+index out of bounds: the len is 0 but the index is 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+only caught by except BaseException: PanicException | index out of bounds: the len is 0 but the index is 0
+(&lt;class 'pyo3_runtime.PanicException'&gt;, &lt;class 'BaseException'&gt;, &lt;class 'object'&gt;)</pre></div></div>
+<p>The last two lines: <code>PanicException</code> derives from <code>BaseException</code>, not <code>Exception</code>, so <code>except Exception:</code> does not catch it (PyO3's source says why: "Like SystemExit, this exception is derived from BaseException so that it will typically propagate all the way through the stack and cause the Python interpreter to exit", <a href="https://github.com/PyO3/pyo3/blob/v0.29.3/src/panic.rs" target="_blank" rel="noopener noreferrer">src/panic.rs</a>). Rust's panic handler also printed its own three lines to stderr (<code>thread '&lt;unnamed&gt;' ... panicked at src/lib.rs</code>) before Python saw the exception. Treat a <code>PanicException</code> in production as a bug report: fix the Rust (return a <code>PyResult</code> instead), do not catch it. The <code>FileNotFoundError</code> message is Rust's (<code>No such file or directory (os error 2)</code>), not Python's usual wording.</p>
+</section>
+
+<section id="rb-s7">
+<h2>7. Classes: <code>#[pyclass]</code> keeps Rust state between calls</h2>
+<p>When data goes back and forth, keep it on one side. A <code>#[pyclass]</code> is a Rust struct that Python sees as a class: the Python object owns the struct, methods run on it in place, and the per-user table never crosses the boundary until you ask for a result.</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// A running per-user counter that lives across calls.</span>
+#[pyclass(module = <span class="rb-st">"tokrs"</span>)]
+<span class="rb-kw">struct</span> Counter &#123;
+    per_user: HashMap&lt;String, u64&gt;,
+    lines: u64,
+&#125;
+
+<span class="rb-at">#[pymethods]</span>
+<span class="rb-kw">impl</span> Counter &#123;
+    <span class="rb-at">#[new]</span>
+    <span class="rb-kw">fn</span> new() -&gt; <span class="rb-kw">Self</span> &#123;
+        Counter &#123; per_user: HashMap::new(), lines: 0 &#125;
+    &#125;
+
+    <span class="rb-cm">/// Add one message. `&amp;mut self`: PyO3 checks at run time that nobody else holds it.</span>
+    <span class="rb-kw">fn</span> add(&amp;<span class="rb-kw">mut</span> <span class="rb-kw">self</span>, user: &amp;str, text: &amp;str) &#123;
+        <span class="rb-kw">self</span>.lines += 1;
+        *<span class="rb-kw">self</span>.per_user.entry(user.to_owned()).or_insert(0) += tokens(text.as_bytes());
+    &#125;
+
+    <span class="rb-cm">/// The n heaviest users, ties by id (rule 5).</span>
+    <span class="rb-at">#[pyo3(signature = (n=5))]</span>
+    <span class="rb-kw">fn</span> top(&amp;<span class="rb-kw">self</span>, n: usize) -&gt; Vec&lt;(String, u64)&gt; &#123;
+        <span class="rb-kw">let</span> <span class="rb-kw">mut</span> v: Vec&lt;(String, u64)&gt; = <span class="rb-kw">self</span>.per_user.iter().map(|(u, c)| (u.clone(), *c)).collect();
+        v.sort_by(|a, b| b.1.cmp(&amp;a.1).then_with(|| a.0.cmp(&amp;b.0)));
+        v.truncate(n);
+        v
+    &#125;
+
+    <span class="rb-at">#[getter]</span>
+    <span class="rb-kw">fn</span> total(&amp;<span class="rb-kw">self</span>) -&gt; u64 &#123;
+        <span class="rb-kw">self</span>.per_user.values().sum()
+    &#125;
+
+    <span class="rb-kw">fn</span> __len__(&amp;<span class="rb-kw">self</span>) -&gt; usize &#123;
+        <span class="rb-kw">self</span>.per_user.len()
+    &#125;
+
+    <span class="rb-kw">fn</span> __repr__(&amp;<span class="rb-kw">self</span>) -&gt; String &#123;
+        format!(<span class="rb-st">"Counter(users=&#123;&#125;, lines=&#123;&#125;, tokens=&#123;&#125;)"</span>, <span class="rb-kw">self</span>.per_user.len(), <span class="rb-kw">self</span>.lines, <span class="rb-kw">self</span>.total())
+    &#125;
+&#125;</pre></div>
+<p><code>#[new]</code> is <code>__init__</code> (strictly <code>__new__</code>), <code>#[getter]</code> makes a read-only property, and methods named like Python's special methods (<code>__len__</code>, <code>__repr__</code>) become them. <code>&amp;self</code> methods read; <code>&amp;mut self</code> methods write. Python has no borrow checker, so PyO3 enforces Rust's rule (many readers or one writer) at run time with a flag in each object.</p>
+<div class="rb-snip"><div class="rb-file">c6_class.py</div><pre class="rb-code"><span class="rb-kw">import</span> tokrs
+
+c = tokrs.Counter()
+c.add(<span class="rb-st">"u0029"</span>, <span class="rb-st">"attention is all you need"</span>)
+c.add(<span class="rb-st">"u0005"</span>, <span class="rb-st">"x86_64 café"</span>)
+c.add(<span class="rb-st">"u0029"</span>, <span class="rb-st">"v2.1 of the model"</span>)
+<span class="rb-kw">print</span>(c, len(c), c.total)
+<span class="rb-kw">print</span>(c.top(), c.top(n=1))
+<span class="rb-kw">for</span> stmt <span class="rb-kw">in</span> [<span class="rb-st">"c.total = 0"</span>, <span class="rb-st">"c.extra = 1"</span>, <span class="rb-st">"class Mine(tokrs.Counter): pass"</span>, <span class="rb-st">"c.add('u1')"</span>]:
+    <span class="rb-kw">try</span>:
+        exec(stmt)
+        <span class="rb-kw">print</span>(stmt, <span class="rb-st">"-&gt; ok"</span>)
+    <span class="rb-kw">except</span> Exception <span class="rb-kw">as</span> e:
+        <span class="rb-kw">print</span>(stmt, <span class="rb-st">"-&gt;"</span>, f<span class="rb-st">"&#123;type(e).__name__&#125;: &#123;e&#125;"</span>)</pre><div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div><button class="rb-rv" data-for="rb-pr5" aria-expanded="false">Reveal the real output</button><div id="rb-pr5" hidden><div class="rb-olab">real output, CPython 3.14.8</div><pre class="rb-out" data-rb-out="c6_class.txt">Counter(users=2, lines=3, tokens=13) 2 13
+[('u0029', 10), ('u0005', 3)] [('u0029', 10)]
+c.total = 0 -&gt; AttributeError: attribute 'total' of 'tokrs.Counter' objects is not writable
+c.extra = 1 -&gt; AttributeError: 'tokrs.Counter' object has no attribute 'extra' and no __dict__ for setting new attributes
+class Mine(tokrs.Counter): pass -&gt; TypeError: type 'tokrs.Counter' is not an acceptable base type
+c.add('u1') -&gt; TypeError: Counter.add() missing 1 required positional argument: 'text'</pre></div></div>
+<p>Unlike a Python class, a <code>#[pyclass]</code> has no <code>__dict__</code> (no new attributes), its getters are read-only, and it cannot be subclassed unless you write <code>#[pyclass(subclass)]</code>. Its fields cannot be <code>Bound</code> (no lifetimes in a pyclass): store <code>Py&lt;T&gt;</code> if it must hold Python objects. On a normal build the GIL serialises calls, so the borrow flag never trips; section 9 shows what happens on free-threaded Python.</p>
+<div class="rb-cost"><div><div class="t">Solves</div>State that lives across calls without re-converting it: a tokenizer's vocabulary, a parser's buffers, an index.</div><div><div class="t">Costs</div>Each method call is still a crossing (about 30 to 70 ns); keep methods coarse (<code>add_many</code> over <code>add</code>).</div><div><div class="t">Mistake</div>Returning a large Rust collection from a getter on every access: it is converted (copied) each time.</div></div>
+</section>
+
+<section id="rb-s8">
+<h2>8. Releasing the GIL, and parallel Rust with rayon</h2>
+<p>On the normal build only the thread holding the <b>GIL</b> may touch Python objects (<a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a> owns the lock itself). While your Rust function runs, the calling thread still holds it, so four Python threads calling the same Rust function take turns. But a function that only touches Rust data (bytes already borrowed, a <code>Vec</code>, a <code>HashMap</code>) does not need the interpreter: <code>py.detach(closure)</code> releases the GIL, runs the closure, and takes it back.</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 4: the same work with the GIL released. `py.detach` runs the closure</span>
+<span class="rb-cm">/// detached from the interpreter, so other Python threads keep running.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> tally_bytes_detached&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8]) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = py.detach(|| tally(data, 1));
+    to_python(py, t)
+&#125;</pre></div>
+<div class="co"><div class="t">Name check (PyO3 0.26 and later)</div>This method was called <code>allow_threads</code> until PyO3 0.26 (2025-08-29) renamed it <code>detach</code>; the token type once described as "holding the GIL" is now described as being "attached" to the interpreter, because on free-threaded Python there is no GIL to hold (<a href="https://github.com/PyO3/pyo3/blob/v0.29.3/CHANGELOG.md" target="_blank" rel="noopener noreferrer">PyO3 changelog</a>). Code and answers written before mid-2025 say <code>allow_threads</code>.</div>
+<p>Can you touch a Python object inside <code>detach</code> by mistake? No: the compiler refuses. The closure must be <code>Ungil</code> (on normal builds the same as <code>Send</code>: safe to use from another thread), and a <code>Bound</code> deliberately is not. In C you would find this bug as a crash under load; here it is a compile error. To use Python data inside <code>detach</code>, copy what you need into Rust values first (a reason to own, section 4).</p>
+<details class="dp"><summary>The deliberately wrong function and the real compile error</summary><div>
+<div class="rb-snip"><div class="rb-file">lib.rs</div><pre class="rb-code"><span class="rb-kw">use</span> pyo3::prelude::*;
+<span class="rb-kw">use</span> pyo3::types::PyList;
+
+<span class="rb-cm">/// Wrong on purpose: reads a Python list while detached from the interpreter.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_detached(py: Python&lt;'_&gt;, texts: Bound&lt;'_, PyList&gt;) -&gt; usize &#123;
+    py.detach(|| texts.len())
+&#125;</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ cargo build --release   (the real error, first part)</div><pre class="rb-out" data-rb-out="b2_send_err.txt">error[E0277]: `*mut pyo3::Python&lt;'static&gt;` cannot be shared between threads safely
+   --&gt; src/lib.rs:7:15
+    |
+  7 |     py.detach(|| texts.len())
+    |        ------ ^^^^^^^^^^^^^^ `*mut pyo3::Python&lt;'static&gt;` cannot be shared between threads safely
+    |        |
+    |        required by a bound introduced by this call
+    |
+    = help: within `pyo3::Bound&lt;'_, PyList&gt;`, the trait `Sync` is not implemented for `*mut pyo3::Python&lt;'static&gt;`
+note: required because it appears within the type `PhantomData&lt;*mut pyo3::Python&lt;'static&gt;&gt;`
+   --&gt; &lt;rustc&gt;/library/core/src/marker.rs:811:11
+note: required because it appears within the type `pyo3::marker::NotSend`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/marker.rs:362:8
+    |
+362 | struct NotSend(PhantomData&lt;*mut Python&lt;'static&gt;&gt;);
+    |        ^^^^^^^
+note: required because it appears within the type `PhantomData&lt;pyo3::marker::NotSend&gt;`
+   --&gt; &lt;rustc&gt;/library/core/src/marker.rs:811:11
+note: required because it appears within the type `pyo3::Python&lt;'_&gt;`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/marker.rs:358:12
+    |
+358 | pub struct Python&lt;'py&gt;(PhantomData&lt;&amp;'py AttachGuard&gt;, PhantomData&lt;NotSend&gt;);
+    |            ^^^^^^
+note: required because it appears within the type `pyo3::Bound&lt;'_, PyList&gt;`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/instance.rs:73:12
+    |
+ 73 | pub struct Bound&lt;'py, T&gt;(Python&lt;'py&gt;, ManuallyDrop&lt;Py&lt;T&gt;&gt;);
+    |            ^^^^^
+    = note: required for `&amp;pyo3::Bound&lt;'_, PyList&gt;` to implement `Send`
+note: required because it's used within this closure
+   --&gt; src/lib.rs:7:15
+    |
+  7 |     py.detach(|| texts.len())
+    |               ^^
+    = note: required for `&#123;closure@src/lib.rs:7:15: 7:17&#125;` to implement `Ungil`
+note: required by a bound in `pyo3::Python::&lt;'py&gt;::detach`
+   --&gt; &lt;registry&gt;/pyo3-0.29.3/src/marker.rs:564:12
+    |
+562 |     pub fn detach&lt;T, F&gt;(self, f: F) -&gt; T
+    |            ------ required by a bound in this associated function
+563 |     where
+564 |         F: Ungil + FnOnce() -&gt; T,
+    |            ^^^^^ required by this bound in `Python::&lt;'py&gt;::detach`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `send_err` (lib) due to 1 previous error</pre></div>
+<p>The error chain reads bottom-up: <code>detach</code> needs <code>F: Ungil</code>; the closure captures <code>&amp;Bound&lt;PyList&gt;</code>; <code>Bound</code> contains a <code>Python</code> token, which contains a raw pointer marker (<code>NotSend</code>) that is never <code>Sync</code>.</p>
+</div></details>
+<div class="card" id="rb-gil-card"><h4>Held, the four calls queue on the GIL; released, they overlap</h4>
+<div class="seg" id="rb-gil-mode" role="group" aria-label="Mode"><button data-m="serial" class="on">One thread, 4 calls</button><button data-m="held">4 threads, GIL held</button><button data-m="detached">4 threads, GIL released</button><button data-m="ft">4 threads, free-threaded 3.14t</button></div>
+<div id="rb-gil-svg"></div>
+<div class="out" id="rb-gil-stats"></div>
+<div class="an-cap" id="rb-gil-cap" aria-live="polite"></div>
+<div class="an-ctl" id="rb-gil-ctl"></div>
+<p class="small mute">Predict first: with the GIL held, do four threads finish sooner than one thread making four calls? Four Python threads each call Rust on one quarter of the log (9.7 MB each). Each bar is a real call, from the moment its Python code started it to the moment it returned (<code>time.perf_counter</code>, the median of 7 runs, <code>code/c7_gil.py</code>), on the same time scale in every mode; the GIL row shows who holds it <span class="meas">measured</span>.</p>
+</div>
+<p>With the GIL held, the four calls run one after another (<span class="rb-n" data-rbv="gil314.held.wall_ms" data-d="0"></span> ms, in the range of one thread doing all four: <span class="rb-n" data-rbv="gil314.serial.min_ms" data-d="0"></span> to <span class="rb-n" data-rbv="gil314.serial.max_ms" data-d="0"></span> ms over 7 runs on the busy laptop). Released, they overlap: <span class="rb-n" data-rbv="gil314.detached.wall_ms" data-d="0"></span> ms, <span class="rb-n" data-rbr="gil314.held.wall_ms|gil314.detached.wall_ms" data-d="1"></span>x faster on 4 threads (not 4x: the machine was busy, and building the result dict at the end needs the GIL again).</p>
+<h3>Parallelism inside one call: rayon</h3>
+<p>If the caller is single-threaded, Rust can split the work itself. <a href="https://docs.rs/rayon/1.12.0/rayon/" target="_blank" rel="noopener noreferrer">rayon</a> turns an iterator into a parallel one (<code>.into_par_iter()</code>) and runs it on a pool of OS threads, one per core by default; <code>reduce</code> merges the partial tallies:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 5: detached and parallel. rayon splits the chunks over its thread pool.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-at">#[pyo3(signature = (data, threads=8))]</span>
+<span class="rb-kw">fn</span> tally_bytes_parallel&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8], threads: usize) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = py.detach(|| &#123;
+        chunks(data, threads)
+            .into_par_iter()
+            .map(|(part, first)| tally(part, first))
+            .reduce(Tally::default, merge)
+    &#125;);
+    to_python(py, t)
+&#125;</pre></div>
+<p><code>tally</code> takes only <code>&amp;[u8]</code> and returns plain Rust data, so it is safe on any thread, and the compiler checks that too (rayon requires <code>Send</code>). The split (<code>chunks</code>, in <code>lib.rs</code>) cuts at newlines and remembers each chunk's first line number so "first malformed line" stays exact; the pytest suite (section 11) checks the parallel result equals the serial one for 1, 2, 3, 8 and 64 chunks.</p>
+<details class="dp"><summary><code>tally</code>: the serde parse and per-user count that every thread runs</summary><div>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Pure Rust, no Python objects: safe to run without the GIL and on many threads.</span>
+<span class="rb-kw">fn</span> tally(data: &amp;[u8], first_lineno: u64) -&gt; Tally &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> t = Tally::default();
+    <span class="rb-kw">for</span> (i, line) <span class="rb-kw">in</span> data.split_inclusive(|&amp;b| b == b'\n').enumerate() &#123;
+        t.lines += 1;
+        <span class="rb-kw">match</span> serde_json::from_slice::&lt;Message&gt;(line) &#123;
+            Ok(m) =&gt; &#123;
+                t.ok += 1;
+                *t.per_user.entry(m.user).or_insert(0) += tokens(m.text.as_bytes());
+            &#125;
+            Err(_) =&gt; &#123;
+                t.bad += 1;
+                <span class="rb-kw">if</span> t.first_bad == 0 &#123;
+                    t.first_bad = first_lineno + i <span class="rb-kw">as</span> u64;
+                &#125;
+            &#125;
+        &#125;
+    &#125;
+    t
+&#125;
+
+<span class="rb-kw">fn</span> merge(<span class="rb-kw">mut</span> a: Tally, b: Tally) -&gt; Tally &#123;
+    a.lines += b.lines;
+    a.ok += b.ok;
+    a.bad += b.bad;
+    <span class="rb-kw">if</span> a.first_bad == 0 &#123;
+        a.first_bad = b.first_bad;
+    &#125;
+    <span class="rb-kw">for</span> (u, n) <span class="rb-kw">in</span> b.per_user &#123;
+        *a.per_user.entry(u).or_insert(0) += n;
+    &#125;
+    a
+&#125;</pre></div>
+</div></details>
+<div class="rb-cost"><div><div class="t">Detach when</div>the Rust work is long-running and touches no Python objects. Do it on free-threaded Python too: there, a thread that stays attached through long work can stall the interpreter's stop-the-world pauses (garbage collection, <code>sys.settrace</code>, <code>fork</code>) for every other thread (<a href="https://pyo3.rs/v0.29.3/free-threading.html" target="_blank" rel="noopener noreferrer">PyO3 free-threading guide</a>).</div><div><div class="t">Mistakes</div>Detaching around a tiny function (all overhead, no gain); initialising a <code>std::sync::OnceLock</code> or <code>LazyLock</code> with code that calls Python, which can deadlock against the GIL (PyO3's FAQ: use <code>PyOnceLock</code>); starting a rayon pool in a process that already runs one worker per core (oversubscription).</div></div>
+</section>
+
+<section id="rb-s9">
+<h2>9. Free-threaded Python: what an extension must declare and protect</h2>
+<p>CPython 3.14 officially supports a build without the GIL, <code>python3.14t</code> (PEP 779); what it costs and what it breaks is <a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a>. For an extension author it changes two things.</p>
+<p><b>1. A module must declare that it is safe without the GIL,</b> or importing it turns the GIL back on for the whole process. Since PyO3 0.28 (2026-02-01) every PyO3 module declares itself safe by default; you opt out with <code>#[pymodule(gil_used = true)]</code> (from 0.23 to 0.27 it was the other way round). A one-function module that opts out (<code>code/gilused/</code>), imported after <code>tokrs</code> on 3.14t:</p>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t c10_ft.py</div><pre class="rb-out" data-rb-out="c10_ft.txt">GIL enabled at start: False
+after import tokrs: False
+after import gilused: True
+RuntimeWarning: The global interpreter lock (GIL) has been enabled to load module 'gilused.gilused', which has not declared that it can run safely without the GIL. To override this behavior and keep the GIL disabled (at your own risk), run with PYTHON_GIL=0 or -Xgil=0.</pre></div>
+<p><b>2. Calls really do run at the same time,</b> so state shared between threads must be protected by Rust, not by the GIL. <code>tokrs</code> functions that only read their arguments are fine. The <code>Counter</code> class of section 7 is not: its <code>add</code> takes <code>&amp;mut self</code>, and PyO3's run-time borrow flag now sees two threads asking for it at once. Eight threads, one shared <code>Counter</code>, 20,000 <code>add</code> calls each:</p>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t c13_ft_borrow.py, then python3.14 c13_ft_borrow.py</div><pre class="rb-out" data-rb-out="c13_ft_borrow.txt">GIL enabled: False
+Counter: 160000 calls, added 139164, raised 20836 Already borrowed
+SharedCounter: 160000 calls, added 160000, raised 0
+GIL enabled: True
+Counter: 160000 calls, added 160000, raised 0
+SharedCounter: 160000 calls, added 160000, raised 0</pre></div>
+<p>Nothing was corrupted (Rust's guarantee held: added plus raised equals 160,000), but on 3.14t 13% of the calls failed (22% to 27% in three earlier runs of the same script) with <code>RuntimeError: Already borrowed</code>, and the same script on the GIL build never fails, which is how this bug hides in testing. The fix is the Rust way of sharing: make the class <code>frozen</code> (no <code>&amp;mut self</code>, so no borrow flag) and put the mutable part behind a <code>Mutex</code> (or atomics), which makes threads wait their turn instead of failing:</p>
+<div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// The thread-safe version: `frozen` means no `&amp;mut self` ever, so PyO3 needs no</span>
+<span class="rb-cm">/// run-time borrow flag; the mutable state sits behind a Mutex that threads queue on.</span>
+#[pyclass(module = <span class="rb-st">"tokrs"</span>, frozen)]
+<span class="rb-kw">struct</span> SharedCounter &#123;
+    per_user: std::sync::Mutex&lt;HashMap&lt;String, u64&gt;&gt;,
+&#125;
+
+<span class="rb-at">#[pymethods]</span>
+<span class="rb-kw">impl</span> SharedCounter &#123;
+    <span class="rb-at">#[new]</span>
+    <span class="rb-kw">fn</span> new() -&gt; <span class="rb-kw">Self</span> &#123;
+        SharedCounter &#123; per_user: std::sync::Mutex::new(HashMap::new()) &#125;
+    &#125;
+
+    <span class="rb-kw">fn</span> add(&amp;<span class="rb-kw">self</span>, user: &amp;str, text: &amp;str) &#123;
+        <span class="rb-kw">let</span> n = tokens(text.as_bytes()); <span class="rb-cm">// count outside the lock</span>
+        *<span class="rb-kw">self</span>.per_user.lock().unwrap().entry(user.to_owned()).or_insert(0) += n;
+    &#125;
+
+    <span class="rb-at">#[getter]</span>
+    <span class="rb-kw">fn</span> total(&amp;<span class="rb-kw">self</span>) -&gt; u64 &#123;
+        <span class="rb-kw">self</span>.per_user.lock().unwrap().values().sum()
+    &#125;
+&#125;</pre></div>
+<p>The token counting happens before <code>lock()</code>, so threads only queue for the short dictionary update. PyO3's guide has the full checklist (<a href="https://pyo3.rs/v0.29.3/free-threading.html" target="_blank" rel="noopener noreferrer">free-threading</a>, <a href="https://pyo3.rs/v0.29.3/class/thread-safety.html" target="_blank" rel="noopener noreferrer">pyclass thread safety</a>), and <a href="https://py-free-threading.github.io/porting-extensions/" target="_blank" rel="noopener noreferrer">py-free-threading.github.io</a> tracks which libraries are ready. PyO3 0.29 supports 3.14t and later only (it dropped 3.13t, which CPython never declared supported).</p>
+</section>
+
+<section id="rb-s10">
+<h2>10. The token counter, step by step: the optimisation ladder</h2>
+<p>Now the whole program, end to end, as the user runs it: <code>python ladder.py STEP chat200k.jsonl</code>, timed by hyperfine (7 runs after a warm-up, including interpreter start-up), each step printing exactly the expected output of the root's <code>PROGRAM.md</code> (checked byte for byte: <code>outputs/ladder_check.txt</code>). Pick a step to see what changed, what it bought end to end, and where the remaining time goes.</p>
+<div class="card" id="rb-ld-card"><h4>Batching and borrowing barely help while json.loads is in Python; moving the parsing is the big step</h4>
+<div class="seg" id="rb-ld-seg" role="group" aria-label="Step"><button data-m="python" class="on">0 Python</button><button data-m="percall">1 per call</button><button data-m="owned">2 copied</button><button data-m="borrowed">3 borrowed</button><button data-m="bytes">4 parse in Rust</button><button data-m="parallel">5 parallel</button></div>
+<div class="out" id="rb-ld-stats"></div>
+<div class="an-cap" id="rb-ld-cap"></div>
+<div id="rb-ld-bars"></div>
+<label class="small"><input type="checkbox" id="rb-ld-log"> log scale</label>
+<p class="small mute">Seconds end to end, median of 7 (the dark tick shows min to max) <span class="meas">measured</span>. Grey: the root's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Benchmark</a> (separate run, same machine), where a standalone Rust binary does the whole job in <span data-rbv="root.rust" data-d="3"></span> s.</p>
+<p class="small" style="margin:10px 0 2px"><b>Where the time goes</b>, milliseconds inside the process (start-up excluded), this step against <select id="rb-ld-cmp" aria-label="Compare with step"><option value="prev" selected>the previous step</option><option value="python">0 Python</option><option value="percall">1 per call</option><option value="owned">2 copied</option><option value="borrowed">3 borrowed</option><option value="bytes">4 parse in Rust</option><option value="parallel">5 parallel</option></select></p>
+<div id="rb-ld-ph"></div>
+<details class="dp"><summary>The code that changed in this step</summary><div>
+<div data-rb-step="python"><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code"><span class="rb-kw">def</span> py_tokens(text):
+    <span class="rb-st">""</span><span class="rb-st">"The Rosetta Python token loop."</span><span class="rb-st">""</span>
+    n, inside = 0, <span class="rb-kw">False</span>
+    <span class="rb-kw">for</span> ch <span class="rb-kw">in</span> text:
+        is_tok = ch.isascii() <span class="rb-kw">and</span> ch.isalnum()
+        <span class="rb-kw">if</span> is_tok <span class="rb-kw">and</span> <span class="rb-kw">not</span> inside:
+            n += 1
+        inside = is_tok
+    <span class="rb-kw">return</span> n</pre></div><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">if</span> step == <span class="rb-st">"python"</span>:
+            counts = [py_tokens(s) <span class="rb-kw">for</span> s <span class="rb-kw">in</span> texts]</pre></div></div>
+<div data-rb-step="percall" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">elif</span> step == <span class="rb-st">"percall"</span>:
+            counts = [tokrs.count_tokens(s) <span class="rb-kw">for</span> s <span class="rb-kw">in</span> texts]</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_tokens(text: &amp;str) -&gt; u64 &#123;
+    tokens(text.as_bytes())
+&#125;</pre></div></div>
+<div data-rb-step="owned" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">elif</span> step == <span class="rb-st">"owned"</span>:
+            counts = tokrs.count_many_owned(texts)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 2a: one call for a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many_owned(texts: Vec&lt;String&gt;) -&gt; Vec&lt;u64&gt; &#123;
+    texts.iter().map(|t| tokens(t.as_bytes())).collect()
+&#125;
+
+<span class="rb-cm">/// Step 2b: the same list, borrowed: each item is viewed in place, nothing is copied.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;Vec&lt;u64&gt;&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> out = Vec::with_capacity(texts.len());
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        <span class="rb-kw">let</span> s = item.cast::&lt;PyString&gt;()?; <span class="rb-cm">// TypeError if an item is not a str</span>
+        out.push(tokens(s.to_str()?.as_bytes()));
+    &#125;
+    Ok(out)
+&#125;
+
+<span class="rb-cm">/// Conversion alone (no token loop): total UTF-8 length, borrowed ...</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;usize&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> n = 0;
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        n += item.cast::&lt;PyString&gt;()?.to_str()?.len();
+    &#125;
+    Ok(n)
+&#125;
+
+<span class="rb-cm">/// ... and copied into Strings first.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len_owned(texts: Vec&lt;String&gt;) -&gt; usize &#123;
+    texts.iter().map(|t| t.len()).sum()
+&#125;</pre></div></div>
+<div data-rb-step="borrowed" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">else</span>:
+            counts = tokrs.count_many(texts)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 2a: one call for a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many_owned(texts: Vec&lt;String&gt;) -&gt; Vec&lt;u64&gt; &#123;
+    texts.iter().map(|t| tokens(t.as_bytes())).collect()
+&#125;
+
+<span class="rb-cm">/// Step 2b: the same list, borrowed: each item is viewed in place, nothing is copied.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> count_many(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;Vec&lt;u64&gt;&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> out = Vec::with_capacity(texts.len());
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        <span class="rb-kw">let</span> s = item.cast::&lt;PyString&gt;()?; <span class="rb-cm">// TypeError if an item is not a str</span>
+        out.push(tokens(s.to_str()?.as_bytes()));
+    &#125;
+    Ok(out)
+&#125;
+
+<span class="rb-cm">/// Conversion alone (no token loop): total UTF-8 length, borrowed ...</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len(texts: &amp;Bound&lt;'_, PyList&gt;) -&gt; PyResult&lt;usize&gt; &#123;
+    <span class="rb-kw">let</span> <span class="rb-kw">mut</span> n = 0;
+    <span class="rb-kw">for</span> item <span class="rb-kw">in</span> texts.iter() &#123;
+        n += item.cast::&lt;PyString&gt;()?.to_str()?.len();
+    &#125;
+    Ok(n)
+&#125;
+
+<span class="rb-cm">/// ... and copied into Strings first.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> total_len_owned(texts: Vec&lt;String&gt;) -&gt; usize &#123;
+    texts.iter().map(|t| t.len()).sum()
+&#125;</pre></div></div>
+<div data-rb-step="bytes" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">    <span class="rb-kw">if</span> step <span class="rb-kw">in</span> (<span class="rb-st">"bytes"</span>, <span class="rb-st">"parallel"</span>):
+        <span class="rb-kw">with</span> open(path, <span class="rb-st">"rb"</span>) <span class="rb-kw">as</span> f:
+            data = f.read()
+        t.append(time.perf_counter())
+        <span class="rb-kw">if</span> step == <span class="rb-st">"bytes"</span>:
+            res = tokrs.tally_bytes(data)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// The typed parse of one JSONL line (same as the root's Rosetta Rust program):</span>
+<span class="rb-cm">/// serde checks that `user` and `text` exist and are strings while it parses.</span>
+<span class="rb-at">#[derive(Deserialize)]</span>
+<span class="rb-kw">struct</span> Message &#123;
+    user: String,
+    text: String,
+&#125;</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 3: the whole file in one call. Python reads the bytes; Rust parses and counts.</span>
+<span class="rb-cm">/// The GIL (or, on free-threaded Python, the thread's attachment) is held throughout.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-kw">fn</span> tally_bytes&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8]) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = tally(data, 1);
+    to_python(py, t)
+&#125;</pre></div></div>
+<div data-rb-step="parallel" hidden><div class="rb-snip"><div class="rb-file">ladder.py</div><pre class="rb-code">        <span class="rb-kw">else</span>:
+            res = tokrs.tally_bytes_parallel(data, 8)</pre></div><div class="rb-snip"><div class="rb-file">ext/src/lib.rs</div><pre class="rb-code"><span class="rb-cm">/// Step 5: detached and parallel. rayon splits the chunks over its thread pool.</span>
+<span class="rb-at">#[pyfunction]</span>
+<span class="rb-at">#[pyo3(signature = (data, threads=8))]</span>
+<span class="rb-kw">fn</span> tally_bytes_parallel&lt;'py&gt;(py: Python&lt;'py&gt;, data: &amp;[u8], threads: usize) -&gt; PyResult&lt;Report&lt;'py&gt;&gt; &#123;
+    <span class="rb-kw">let</span> t = py.detach(|| &#123;
+        chunks(data, threads)
+            .into_par_iter()
+            .map(|(part, first)| tally(part, first))
+            .reduce(Tally::default, merge)
+    &#125;);
+    to_python(py, t)
+&#125;</pre></div></div>
+<p class="small mute">Full sources: <code>src/rb/code/ladder.py</code> and <code>src/rb/ext/src/lib.rs</code>. The output every step prints:</p>
+<div class="rb-snip"><div class="rb-olab">real output (identical for all six steps)</div><pre class="rb-out" data-rb-out="ladder_output.txt">lines 200000  ok 199992  malformed 8 (first at line 6685)
+users 200  tokens 4413871
+top 5 users by tokens:
+ 1. u0029  939855
+ 2. u0005  433400
+ 3. u0042  279373
+ 4. u0169  204481
+ 5. u0082  159042</pre></div>
+</div></details>
+</div>
+<p>Read it as a story. <b>Steps 1 to 3</b> move only the token loop: a 3x gain. Step 1 calls Rust 199,992 times (once per message); step 2 makes one call but <code>Vec&lt;String&gt;</code> copies all 25 million characters first, so its counting phase is slower than step 1's and end to end the two are within noise; step 3 borrows <code>&amp;str</code> views and barely beats step 1, because once the loop is in Rust the program is waiting on <code>json.loads</code>. <b>Step 4</b> moves the parsing too: Python reads the file as <code>bytes</code> and makes one call; serde parses each line straight into a typed struct, and the program runs <span class="rb-n" data-rbr="L.python.median|L.bytes.median" data-d="0"></span> times faster than the Python version. <b>Step 5</b> releases the GIL and splits the file over 8 rayon threads. The root's own whole-file PyO3 variant measured <span data-rbv="root.pyrs_file" data-d="3"></span> s (one thread) and <span data-rbv="root.pyrs_file4" data-d="3"></span> s (4 threads), in line with steps 4 and 5.</p>
+<div class="rb-pq"><b>Predict:</b> step 5 runs on 8 threads. Why is it about 2x faster than step 4 and not 8x?</div>
+<button class="rb-rv" data-for="rb-pr-l5" aria-expanded="false">Reveal the answer</button>
+<div id="rb-pr-l5" hidden><p class="small">The phases (from <code>ladder.py --phases</code>): the Rust part fell from <span class="rb-n" data-rbv="phases/bytes/Rust: parse + count" data-d="0"></span> ms to <span class="rb-n" data-rbv="phases/parallel/Rust: parse + count" data-d="0"></span> ms (<span data-rbr="phases/bytes/Rust: parse + count|phases/parallel/Rust: parse + count" data-d="1"></span>x on a busy laptop with 2 of its 10 cores slower efficiency cores). What did not shrink is everything else in the process: starting Python and importing <code>tokrs</code> (<span class="rb-n" data-rbv="startup.median" data-rbm="1000" data-d="0"></span> ms on its own, measured with hyperfine), reading the file, building the result dict and printing. Amdahl again.</p></div>
+</section>
+
+<section id="rb-s11">
+<h2>11. Type stubs and tests</h2>
+<p>A compiled module has no Python source, so mypy, ty and your editor cannot see its signatures. You give them a <b>stub file</b> (<code>.pyi</code>): Python syntax with <code>...</code> for bodies, read only by type checkers. For a Rust-only project like this one, maturin picks up <code>&lt;module&gt;.pyi</code> next to <code>Cargo.toml</code> and adds it to the wheel with a <code>py.typed</code> marker (<a href="https://www.maturin.rs/project_layout.html#adding-python-type-information" target="_blank" rel="noopener noreferrer">maturin: adding Python type information</a>). The hand-written one, abridged:</p>
+<div class="rb-snip"><div class="rb-file">tokrs.pyi</div><pre class="rb-code"><span class="rb-st">""</span><span class="rb-st">"Type stubs for the tokrs extension: what mypy, ty and your editor see."</span><span class="rb-st">""</span>
+<span class="rb-kw">import</span> os
+
+<span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> numpy.typing <span class="rb-kw">as</span> npt
+
+Report = tuple[int, int, int, int, dict[str, int]]
+
+<span class="rb-kw">def</span> noop() -&gt; <span class="rb-kw">None</span>: ...
+<span class="rb-kw">def</span> count_tokens(text: str) -&gt; int: ...
+<span class="rb-kw">def</span> count_many(texts: list[str]) -&gt; list[int]: ...
+<span class="rb-kw">def</span> count_many_owned(texts: list[str]) -&gt; list[int]: ...
+<span class="rb-kw">def</span> total_len(texts: list[str]) -&gt; int: ...
+<span class="rb-kw">def</span> total_len_owned(texts: list[str]) -&gt; int: ...</pre></div>
+<p>A script with four mistakes (<code>code/c11_typed.py</code>: a <code>bytes</code> argument, a <code>float32</code> array, an <code>int</code> assigned to a <code>str</code>, a misspelt keyword) checked three ways: without the stub, mypy cannot check any call into <code>tokrs</code> (<code>missing library stubs or py.typed marker</code>); with it, mypy catches three mistakes and ty catches all four, including the <code>float32</code> array that mypy let through. A stub can drift out of date, since nothing checks it against the Rust code: test it with <code>mypy.stubtest</code>.</p>
+<details class="dp"><summary>The script and the three real checker outputs</summary><div>
+<div class="rb-snip"><div class="rb-file">c11_typed.py</div><pre class="rb-code"><span class="rb-st">""</span><span class="rb-st">"Calls that run, and calls a type checker should reject before they run."</span><span class="rb-st">""</span>
+<span class="rb-kw">import</span> numpy <span class="rb-kw">as</span> np
+<span class="rb-kw">import</span> tokrs
+
+n: int = tokrs.count_tokens(<span class="rb-st">"attention is all you need"</span>)
+counts = tokrs.count_many([<span class="rb-st">"a b"</span>, <span class="rb-st">"c"</span>])
+top: list[tuple[str, int]] = tokrs.Counter().top()
+
+tokrs.count_tokens(b<span class="rb-st">"bytes, not str"</span>)          <span class="rb-cm"># wrong argument type</span>
+tokrs.sum_sq_array(np.arange(3, dtype=np.float32))  <span class="rb-cm"># float32 array where float64 is expected</span>
+label: str = tokrs.count_bytes(b<span class="rb-st">"abc"</span>)          <span class="rb-cm"># returns int, not str</span>
+tokrs.tally_file(<span class="rb-st">"chat.jsonl"</span>, thread=4)        <span class="rb-cm"># misspelt keyword</span></pre></div>
+<div class="rb-snip"><div class="rb-olab">$ mypy --strict c11_typed.py   (wheel without the stub)</div><pre class="rb-out" data-rb-out="c11_mypy_nostub.txt">c11_typed.py:3: error: Skipping analyzing "tokrs": module is installed, but missing library stubs or py.typed marker  [import-untyped]
+c11_typed.py:3: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+Found 1 error in 1 file (checked 1 source file)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ mypy --strict c11_typed.py   (with the stub)</div><pre class="rb-out" data-rb-out="c11_mypy.txt">c11_typed.py:9: error: Argument 1 to "count_tokens" has incompatible type "bytes"; expected "str"  [arg-type]
+c11_typed.py:11: error: Incompatible types in assignment (expression has type "int", variable has type "str")  [assignment]
+c11_typed.py:12: error: Unexpected keyword argument "thread" for "tally_file"; did you mean "threads"?  [call-arg]
+c11_typed.py:12: note: "tally_file" defined in "tokrs"
+Found 3 errors in 1 file (checked 1 source file)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ ty check c11_typed.py   (with the stub)</div><pre class="rb-out" data-rb-out="c11_ty.txt">c11_typed.py:9:20: error[invalid-argument-type] Argument to function `count_tokens` is incorrect: Expected `str`, found `Literal[b"bytes, not str"]`
+c11_typed.py:10:20: error[invalid-argument-type] Argument to function `sum_sq_array` is incorrect: Expected `NDArray[float64]`, found `_Array1D[floating[_32Bit]]`
+c11_typed.py:11:14: error[invalid-assignment] Object of type `int` is not assignable to `str`
+c11_typed.py:12:32: error[unknown-argument] Argument `thread` does not match any known parameter of function `tally_file`
+Found 4 diagnostics</pre></div>
+</div></details>
+<p>PyO3 is building automatic stubs (<code>experimental-inspect</code> feature, <code>maturin generate-stubs</code>, labelled "still in active development"). On this crate they were close but had gaps: <code>count_many(texts: list)</code> lost the element type (PyO3 cannot see inside a <code>Bound&lt;PyList&gt;</code>), NumPy arrays became <code>Incomplete</code>, <code>MalformedLine</code> was missing, and the file ends with a catch-all <code>def __getattr__(name: str) -> Incomplete</code>. It did show something true: <code>count_bytes_owned(data: Sequence[int])</code>, because a <code>Vec&lt;u8&gt;</code> parameter accepts any sequence of ints, not only <code>bytes</code>. For now, write the stub by hand.</p>
+<details class="dp"><summary>Part of the generated stub</summary><div>
+<div class="rb-snip"><div class="rb-file">b9_stubs_auto.pyi</div><pre class="rb-code"><span class="rb-kw">def</span> count_bytes_owned(data: Sequence[int]) -&gt; int:
+    <span class="rb-st">""</span>"
+    `Vec&lt;u8&gt;` <span class="rb-kw">from</span> `bytes`: a fresh copy of the whole buffer first.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_many(texts: list) -&gt; list[int]:
+    <span class="rb-st">""</span>"
+    Step 2b: the same list, borrowed: each item is viewed <span class="rb-kw">in</span> place, nothing is copied.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_many_owned(texts: Sequence[str]) -&gt; list[int]:
+    <span class="rb-st">""</span>"
+    Step 2a: one call <span class="rb-kw">for</span> a list. `Vec&lt;String&gt;` copies every string into a new Rust allocation.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> count_tokens(text: str) -&gt; int:
+    <span class="rb-st">""</span>"
+    Step 1: one message per call. `&amp;str` borrows the Python string's UTF-8 bytes.
+    <span class="rb-st">""</span>"
+
+<span class="rb-kw">def</span> counts_array(texts: list) -&gt; Incomplete:
+    <span class="rb-st">""</span>"
+    ... <span class="rb-kw">or</span> a NumPy array that takes over the Vec's buffer without copying it.
+    <span class="rb-st">""</span>"
+</pre></div>
+</div></details>
+<p><b>Tests</b> call the extension the way users do: from Python. The pytest suite (<code>ext/tests/test_tokrs.py</code>, 16 tests) checks the rule 3 examples, equality with the Python reference on all 1,992 messages of the root's small log, the whole-file result against <code>PROGRAM.md</code>, the parallel split against the serial one, that errors arrive as the right exception types, and eight threads sharing nothing. It passes on 3.14.8 and on 3.14t; run it on the free-threaded build too, because the <code>Already borrowed</code> failure of section 9 only shows there. Rust-only helpers (<code>tokens</code>, <code>chunks</code>) can also have <code>#[test]</code> functions run by <code>cargo test</code>; tests that call into Python need an interpreter linked in, which is why most PyO3 projects test from pytest. What to test and CI in general is <a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a>.</p>
+<details class="dp"><summary>Three of the tests, and both runs</summary><div>
+<div class="rb-snip"><div class="rb-file">test_tokrs.py</div><pre class="rb-code"><span class="rb-kw">def</span> test_matches_python_on_every_message():
+    texts = []
+    <span class="rb-kw">for</span> line <span class="rb-kw">in</span> CHAT.read_text(encoding=<span class="rb-st">"utf-8"</span>).splitlines():
+        <span class="rb-kw">try</span>:
+            rec = json.loads(line)
+        <span class="rb-kw">except</span> ValueError:
+            continue
+        <span class="rb-kw">if</span> isinstance(rec, dict) <span class="rb-kw">and</span> isinstance(rec.get(<span class="rb-st">"text"</span>), str):
+            texts.append(rec[<span class="rb-st">"text"</span>])
+    <span class="rb-kw">assert</span> tokrs.count_many(texts) == [py_tokens(t) <span class="rb-kw">for</span> t <span class="rb-kw">in</span> texts]
+
+
+<span class="rb-kw">def</span> test_whole_file_matches_program_md():
+    lines, ok, bad, first_bad, per_user = tokrs.tally_file(CHAT)
+    <span class="rb-kw">assert</span> (lines, ok, bad, first_bad) == (2000, 1992, 8, 53)
+    <span class="rb-kw">assert</span> sum(per_user.values()) == 44698 <span class="rb-kw">and</span> per_user[<span class="rb-st">"u0029"</span>] == 9491
+
+
+@pytest.mark.parametrize(<span class="rb-st">"threads"</span>, [1, 2, 3, 8, 64])
+<span class="rb-kw">def</span> test_parallel_split_is_exact(threads):
+    data = CHAT.read_bytes()
+    <span class="rb-kw">assert</span> tokrs.tally_bytes_parallel(data, threads) == tokrs.tally_bytes(data)</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ python -m pytest -q tests   (CPython 3.14.8)</div><pre class="rb-out" data-rb-out="c12_pytest.txt">................                                                         [100%]
+16 passed in 0.09s</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ python3.14t -m pytest -q tests   (free-threaded)</div><pre class="rb-out" data-rb-out="c12_pytest_314t.txt">................                                                         [100%]
+16 passed in 0.11s</pre></div>
+</div></details>
+</section>
+
+<section id="rb-s12">
+<h2>12. Wheels: abi3, abi3t, CI and publishing</h2>
+<p>Users should never need Rust to install your package: they need a wheel built for their Python and their machine, which pip or uv picks from PyPI by the tags in its file name (<a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a> owns wheel tags, platform tags such as <code>manylinux</code>, and the four packaging layers). <code>maturin build --release</code> wrote <code>tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</code>: CPython 3.14's full C ABI (it loads on 3.14 only; a free-threaded build would say <code>cp314t</code>), macOS 11 or later on Apple silicon. Inside: the compiled library, the stub and <code>py.typed</code>, metadata, and a software bill of materials (<code>sboms/</code>, the Rust crates compiled in, written by maturin). <code>otool -L</code> (macOS's <code>ldd</code>) shows the library does not link to <code>libpython</code>: it finds Python's C API symbols in the process that loads it, which is what lets one wheel work with any CPython 3.14 binary.</p>
+<details class="dp"><summary>The build output and the wheel's contents</summary><div>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release -o dist</div><pre class="rb-out" data-rb-out="b3_wheel.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 0.03s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for CPython 3.14 to &lt;pl&gt;/rb/dist/tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">$ unzip -l dist/*.whl; otool -L tokrs/*.so</div><pre class="rb-out" data-rb-out="b4_wheel_files.txt">Archive:  tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+      103  01-01-1980 00:00   tokrs/__init__.py
+     1642  01-01-1980 00:00   tokrs/__init__.pyi
+        0  01-01-1980 00:00   tokrs/py.typed
+  1012496  01-01-1980 00:00   tokrs/tokrs.cpython-314-darwin.so
+      183  01-01-1980 00:00   tokrs-0.1.0.dist-info/METADATA
+      105  01-01-1980 00:00   tokrs-0.1.0.dist-info/WHEEL
+    46021  01-01-1980 00:00   tokrs-0.1.0.dist-info/sboms/tokrs.cyclonedx.json
+      615  01-01-1980 00:00   tokrs-0.1.0.dist-info/RECORD
+---------                     -------
+  1061165                     8 files
+tokrs/tokrs.cpython-314-darwin.so:
+	@rpath/tokrs.cpython-314-darwin.so (compatibility version 0.0.0, current version 0.0.0)
+	/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1319.0.0)</pre></div>
+</div></details>
+<h3>abi3: one wheel for many Python versions</h3>
+<p>A wheel per Python version per platform multiplies fast. CPython's <b>stable ABI</b> (the "limited API", <a href="https://peps.python.org/pep-0384/" target="_blank" rel="noopener noreferrer">PEP 384</a>) is a subset of the C API promised not to change; an extension that uses only that subset gets the <code>abi3</code> tag and loads on that version and every later one. In PyO3 it is a feature flag, <code>pyo3/abi3-py310</code> (minimum Python 3.10). Built once, installed into fresh virtual environments:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release --features pyo3/abi3-py310</div><pre class="rb-out" data-rb-out="b5_abi3.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
+🔗 Found pyo3 bindings with abi3-py3.10 support
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 1.29s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for abi3 Python ≥ 3.10 to &lt;pl&gt;/rb/dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">one abi3 wheel on CPython 3.12, 3.13, 3.14 and 3.14t</div><pre class="rb-out" data-rb-out="b6_abi3_install.txt">Python 3.12.15 loads tokrs.abi3.so -&gt; 3
+Python 3.13.16 loads tokrs.abi3.so -&gt; 3
+Python 3.14.8 loads tokrs.abi3.so -&gt; 3
+$ uv pip install (3.14t) tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl
+Using Python 3.14.8 environment at: abi_314t
+Resolved 2 packages in 1ms
+error: Failed to determine installation plan
+  cause: A path (dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl) dependency is incompatible with the current platform
+
+hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was built for the stable ABI (`abi3`), which requires a GIL-enabled interpreter</pre></div>
+<p>The same file loaded on three versions and was refused by the free-threaded build: <code>abi3</code> assumes the GIL build's object layout. At run time abi3 can cost a little: under the limited API, PyO3 must call real C functions where the full API uses inline macros (list item access, string data).</p>
+<details class="dp"><summary>What abi3 cost here, call by call (noisy; read with the caveat)</summary><div>
+<p>The same calls against both builds on 3.14 (ns per item, medians; <code>code/c9_abi_cost.py</code>):</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Call</th><th class="num"><code>cp314</code> build</th><th class="num"><code>abi3</code> build</th></tr></thead><tbody id="rb-abi-tb"></tbody></table></div>
+<p class="small mute">Measured on a busy laptop (load average about 10) and the spread between runs was wide; only the <code>total_len</code> gap (reading items from a list) repeated across runs here (9.5 ns against 14.8 ns per item in this run). PyO3's changelog lists such cases, for example "Optimize <code>PyBytes::as_bytes()</code> when not using <code>abi3</code> or <code>abi3t</code>" (0.29.3).</p>
+</div></details>
+<p><b>abi3t</b> is the stable ABI for free-threaded builds, <a href="https://peps.python.org/pep-0803/" target="_blank" rel="noopener noreferrer">PEP 803</a> (status Final, Python 3.15), supported by PyO3 0.29 through the <code>abi3t-py315</code> feature. Built against the 3.15 release candidate:</p>
+<div class="rb-snip"><div class="rb-olab">$ maturin build --release --features pyo3/abi3t-py315 -i python3.15t</div><pre class="rb-out" data-rb-out="b7_abi3t.txt">🐍 Found CPython 3.15t at &lt;pl&gt;/py/cpython-3.15.0rc3+freethreaded-macos-aarch64-none/bin/python3.15t
+🔗 Found pyo3 bindings with abi3t-py3.15 support
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+    Finished `release` profile [optimized] target(s) in 1.30s
+📖 Found type stub file at tokrs.pyi
+📦 Built wheel for abi3t Python ≥ 3.15 to &lt;pl&gt;/rb/dist_abi3t/tokrs-0.1.0-cp315-abi3.abi3t-macosx_11_0_arm64.whl</pre></div>
+<div class="rb-snip"><div class="rb-olab">the abi3t wheel on CPython 3.15.0rc3, free-threaded and with the GIL</div><pre class="rb-out" data-rb-out="b8_abi3t_install.txt">Python 3.15.0rc3 GIL enabled: False loads tokrs.abi3t.so -&gt; 3
+Python 3.15.0rc3 GIL enabled: True loads tokrs.abi3t.so -&gt; 3</pre></div>
+<p>The tag <code>abi3.abi3t</code> means one file for both 3.15 builds. Until you can require 3.15, ship an <code>abi3</code> wheel plus a <code>cp314t</code> wheel per platform (tokenizers, safetensors and polars build <code>abi3-py310</code> today); shipping only an abi3 wheel leaves free-threaded users unable to install.</p>
+<h3>Building for every platform in CI</h3>
+<p>You cannot build Windows or Linux wheels on a Mac without cross-compilers, so CI builds them on each platform. <code>maturin generate-ci github</code> writes a complete GitHub Actions workflow (186 lines; <a href="https://github.com/PyO3/maturin-action" target="_blank" rel="noopener noreferrer">PyO3/maturin-action</a> does the builds): every build job runs <code>maturin build --release --out dist --find-interpreter</code>, one wheel per Python found (one in total with abi3), and a release job uploads everything to PyPI on a git tag.</p>
+<details class="dp"><summary>What the generated workflow builds, and its release job verbatim</summary><div>
+<div class="tw"><table class="rb-t"><thead><tr><th>Job (maturin 1.15.0)</th><th>Targets</th></tr></thead><tbody>
+<tr><td>linux (manylinux)</td><td>x86_64, x86, aarch64, armv7, s390x, ppc64le</td></tr>
+<tr><td>musllinux</td><td>x86_64, x86, aarch64, armv7</td></tr>
+<tr><td>windows</td><td>x64, x86, aarch64</td></tr>
+<tr><td>macos</td><td>x86_64 (Intel runner), aarch64</td></tr>
+<tr><td>sdist</td><td>The source distribution, for anyone with no matching wheel (they need Rust)</td></tr>
+<tr><td>release</td><td>On a git tag: attest the artifacts and upload everything to PyPI</td></tr>
+</tbody></table></div>
+<div class="rb-snip"><div class="rb-file">b10_ci.yml</div><pre class="rb-code">  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' &#125;&#125;
+    needs: [linux, musllinux, windows, macos, sdist]
+    permissions:
+      <span class="rb-cm"># Use to sign the release artifacts</span>
+      id-token: write
+      <span class="rb-cm"># Used to upload release artifacts</span>
+      contents: write
+      <span class="rb-cm"># Used to generate artifact attestation</span>
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v7
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: 'wheels-*/*'
+      - name: Install uv
+        if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') &#125;&#125;
+        uses: astral-sh/setup-uv@v7
+      - name: Publish to PyPI
+        if: $&#123;&#123; startsWith(github.ref, 'refs/tags/') &#125;&#125;
+        run: uv publish 'wheels-*/*'
+        env:
+          UV_PUBLISH_TOKEN: $&#123;&#123; secrets.PYPI_API_TOKEN &#125;&#125;</pre></div>
+</div></details>
+<div class="co warn"><div class="t">Change one thing before you use it</div>The generated job uploads with a long-lived <code>PYPI_API_TOKEN</code> secret. With <b>trusted publishing</b> you register the repository and workflow on PyPI once, the job (which already has <code>id-token: write</code>) receives a short-lived token from GitHub, and <code>uv publish</code> needs no credentials (<a href="https://docs.astral.sh/uv/guides/package/" target="_blank" rel="noopener noreferrer">uv packaging guide</a>, <a href="https://docs.pypi.org/trusted-publishers/" target="_blank" rel="noopener noreferrer">PyPI trusted publishers</a>). Delete the <code>env:</code> lines after setting it up.</div>
+<p><b>cibuildwheel</b> is the other route: one tool that builds wheels for every CPython on every platform for any build backend, including maturin; for Rust it must install a Rust toolchain inside its Linux containers (<a href="https://cibuildwheel.pypa.io/en/stable/faq/" target="_blank" rel="noopener noreferrer">cibuildwheel FAQ, "Building Rust wheels"</a>). maturin-action is simpler for a Rust-only package; cibuildwheel suits projects that run test suites per wheel or mix C, C++ and Rust.</p>
+</section>
+
+<section id="rb-s13">
+<h2>13. Alternatives, measured on the same loop</h2>
+<p>Rust is one of several ways to make a Python loop fast. The token count of the same 20,000 messages, one batch call each, every tool's result checked equal to the Python loop first (<code>code/c8_alts.py</code> and <code>code/alts/</code>; nanoseconds per message, medians of 7):</p>
+<div class="card"><h4>Cython, Numba and Rust land within 2x of each other; compiling the same Python with mypyc gains little</h4><div id="rb-alts"></div><p class="small mute">Log scale <span class="meas">measured</span>. nanobind and pybind11 (C++) are the root's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Benchmark</a> figures for the same batch call (separate run, same machine); cffi was not measured.</p></div>
+<p>Cython with C types, Numba and Rust are <span class="rb-n" data-rbr="alts.python.med|alts.cython.med" data-d="0"></span> to <span class="rb-n" data-rbr="alts.python.med|alts.pyo3.med" data-d="0"></span> times faster than the Python loop, while mypyc gains <span class="rb-n" data-rbr="alts.python.med|alts.mypyc.med" data-d="1"></span>x. The differences that decide are not on this chart: what else the native code must do (parse JSON, run threads, hold state), what your team can maintain, and which ecosystem has the libraries you need.</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Tool</th><th>You write</th><th>Wins when</th><th>Costs</th></tr></thead><tbody>
+<tr><td>Cython (3.3.0)</td><td>Python with C type declarations, compiled to C</td><td>Speeding up existing Python a function at a time; wrapping C libraries</td><td>A dialect; C's lack of memory safety once you use pointers; a C compiler in the build</td></tr>
+<tr><td>Numba (0.68.0)</td><td>Plain Python numeric code with <code>@njit</code>, compiled by LLVM at first call</td><td>Numeric loops over NumPy arrays, no build step</td><td>First call compiles (<span class="rb-n" data-rbv="alts.numba_first_call_ms" data-d="0"></span> ms here); a subset of Python; strings had to become a byte array plus offsets (<span class="rb-n" data-rbv="alts.numba_prepare" data-d="0"></span> ns per message to prepare)</td></tr>
+<tr><td>mypyc (mypy 2.4.0)</td><td>Your type-annotated Python, unchanged</td><td>Whole typed code bases (mypy compiles itself with it)</td><td>Modest gains when the work is on <code>str</code> objects: it still calls the same <code>str</code> methods</td></tr>
+<tr><td>nanobind, pybind11</td><td>C++ with binding declarations</td><td>You already have C++ (an inference engine, CUDA kernels); see <a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++: the essentials</a></td><td>C++'s memory and thread safety are on you; CMake</td></tr>
+<tr><td>cffi</td><td>Python plus a C header; calls an existing C library</td><td>Wrapping a C library without writing extension code</td><td>You still need the C library; each call is a crossing</td></tr>
+<tr><td>Rust, PyO3</td><td>Rust</td><td>New native code that must be correct under threads; the Rust ecosystem (serde, rayon, regex)</td><td>Learning Rust; compile times</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>Who ships Rust to Python users, and how (read from each project's build files on 2026-10-05)</summary><div>
+<p>The pattern is the one this page built: PyO3 for the bindings, maturin for the wheels, <code>abi3-py310</code> to cut the wheel count. The links go to the build file.</p>
+<div class="tw"><table class="rb-t"><thead><tr><th>Project</th><th>What is in Rust</th><th>How it is bound and built</th></tr></thead><tbody>
+<tr><td>tokenizers (Hugging Face)</td><td>The whole tokenizer pipeline (normalise, pre-tokenise, BPE/WordPiece/Unigram, batch encode on all cores)</td><td>PyO3 0.29 with <code>abi3-py310</code> and the numpy crate, maturin, module <code>tokenizers.tokenizers</code> inside a Python package (<a href="https://github.com/huggingface/tokenizers/blob/main/bindings/python/Cargo.toml" target="_blank" rel="noopener noreferrer">Cargo.toml</a>, <a href="https://github.com/huggingface/tokenizers/blob/main/bindings/python/pyproject.toml" target="_blank" rel="noopener noreferrer">pyproject.toml</a>; the main branch is a 1.0 rework "not for release yet")</td></tr>
+<tr><td>safetensors (Hugging Face)</td><td>Reading and writing tensor files, header parsing with serde_json</td><td>PyO3 0.29 with <code>abi3-py310</code> (<a href="https://github.com/huggingface/safetensors/blob/main/bindings/python/Cargo.toml" target="_blank" rel="noopener noreferrer">Cargo.toml</a>)</td></tr>
+<tr><td>polars</td><td>The whole query engine; Python is a thin API</td><td>The <code>polars</code> package is pure Python and depends on a separate compiled runtime, <code>polars-runtime-32</code> (with <code>-64</code> and <code>-compat</code> variants), built by maturin from the <code>polars-python</code> crate: PyO3 0.29 with <code>abi3-py310</code>, numpy 0.29, rayon (<a href="https://github.com/pola-rs/polars/blob/main/py-polars/pyproject.toml" target="_blank" rel="noopener noreferrer">py-polars</a>, <a href="https://github.com/pola-rs/polars/blob/main/crates/polars-python/Cargo.toml" target="_blank" rel="noopener noreferrer">polars-python</a>; version 2.0.0rc2 on main)</td></tr>
+<tr><td>pydantic-core</td><td>Pydantic's validation and serialisation; JSON parsing through jiter (also Rust)</td><td>PyO3 0.29.2. Moved into the <code>pydantic</code> repository; the old <code>pydantic-core</code> repository is archived (<a href="https://github.com/pydantic/pydantic/blob/main/pydantic-core/Cargo.toml" target="_blank" rel="noopener noreferrer">Cargo.toml</a>)</td></tr>
+<tr><td>orjson</td><td>A JSON library, with SIMD UTF-8 validation (simdutf8)</td><td>Not PyO3's high-level API: only <code>pyo3-ffi</code>, the raw declarations of CPython's C API, for full control; built with maturin (<a href="https://github.com/ijl/orjson/blob/master/Cargo.toml" target="_blank" rel="noopener noreferrer">Cargo.toml</a>)</td></tr>
+<tr><td>uv, ruff (Astral)</td><td>The whole program</td><td>No extension module at all: maturin with <code>bindings = "bin"</code> packs the compiled executable into a wheel, so <code>pip install ruff</code> installs a native binary (<a href="https://github.com/astral-sh/ruff/blob/main/pyproject.toml" target="_blank" rel="noopener noreferrer">ruff</a>, <a href="https://github.com/astral-sh/uv/blob/main/pyproject.toml" target="_blank" rel="noopener noreferrer">uv</a> pyproject.toml)</td></tr>
+</tbody></table></div>
+<p class="small mute">The old Notion page also named <code>hf_transfer</code> (Hugging Face's Rust download accelerator) in this list; it was not re-checked.</p>
+</div></details>
+</section>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<h2 style="margin-top:14px">Further reading</h2>
+<h3>In this knowledge base</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d8156bed9ead8a22f33b0" target="_blank" rel="noopener noreferrer">Rust: the essentials</a></div><p>Cargo, ownership and borrowing: what every section here assumes.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4055c17b0d0d8129b199c18b4bd56935" target="_blank" rel="noopener noreferrer">Rust: enums, traits, errors and iterators</a></div><p><code>String</code> against <code>&amp;str</code>, <code>Result</code> and <code>?</code>: the Rust side of sections 4 and 6.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4055c17b0d0d8160aa32df9cda0aef03" target="_blank" rel="noopener noreferrer">Rust: lifetimes, smart pointers, threads and unsafe</a></div><p>Lifetimes (the <code>'py</code> in section 3), <code>Send</code>, <code>Sync</code> and <code>Mutex</code> (sections 8 and 9).</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4055c17b0d0d8148b863faa050cf5456" target="_blank" rel="noopener noreferrer">Rust: async with tokio, services with axum, and CLIs</a></div><p>The other way to ship Rust to Python users: a service or a binary.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4055c17b0d0d8111872ad7101b7e3c22" target="_blank" rel="noopener noreferrer">Python: CPython internals and performance</a></div><p>Profiling and the cheap wins to try before a port; why the interpreter loop is slow.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a></div><p>The GIL and the free-threaded build in full; the C-extension version of section 9's GIL opt-out, and which popular packages ship free-threaded wheels.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a></div><p>Wheel and platform tags, cibuildwheel, trusted publishing, and abi3t from the packaging side.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Topic: programming-languages</a></div><p>The root: Benchmark (every language and binding on the same token counter), Toolchain atlas (the recorded <code>maturin new</code> walkthrough), Rosetta.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3cd5c17b0d0d81ceadcee44fe9c023a0" target="_blank" rel="noopener noreferrer">C++: the essentials</a> and <a href="https://app.notion.com/p/4055c17b0d0d811fa947ee576a97a516" target="_blank" rel="noopener noreferrer">C++: the machine underneath</a></div><p>nanobind and pybind11; what the CPU does under these loops (why <code>np.dot</code> beat the Rust sum).</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81548848e2ebdd2f63ee" target="_blank" rel="noopener noreferrer">Testing and quality</a>, <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a></div><p>CI and what to test; measuring performance properly.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing</a></div><p>Why floating-point sums cannot be reordered freely.</p></div>
+</div>
+<h3>Outside</h3>
+<div class="grid">
+<div class="sp"><div class="n"><a href="https://pyo3.rs/v0.29.3/" target="_blank" rel="noopener noreferrer">The PyO3 user guide</a></div><p>Functions, classes, conversions, parallelism, free-threading. <span class="rt">about 2 hours for the core chapters</span></p></div>
+<div class="sp"><div class="n"><a href="https://www.maturin.rs/" target="_blank" rel="noopener noreferrer">maturin user guide</a></div><p>Project layouts, stubs, cross-compiling, CI. <span class="rt">30 minutes</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.rs/numpy/0.29.0/numpy/" target="_blank" rel="noopener noreferrer">rust-numpy API docs</a> and <a href="https://docs.rs/rayon/1.12.0/rayon/" target="_blank" rel="noopener noreferrer">rayon docs</a></div><p>Array views and borrows; parallel iterators. <span class="rt">20 and 15 minutes</span></p></div>
+<div class="sp"><div class="n"><a href="https://py-free-threading.github.io/" target="_blank" rel="noopener noreferrer">Python free-threading guide</a></div><p>Porting extensions and the readiness tracker. <span class="rt">30 minutes for the porting pages</span></p></div>
+<div class="sp"><div class="n"><a href="https://peps.python.org/pep-0803/" target="_blank" rel="noopener noreferrer">PEP 803, abi3t</a> and <a href="https://docs.python.org/3/c-api/stable.html" target="_blank" rel="noopener noreferrer">CPython's C API stability page</a></div><p>The stable ABIs, from the source. <span class="rt">20 and 15 minutes</span></p></div>
+<div class="sp"><div class="n"><a href="https://docs.pypi.org/trusted-publishers/" target="_blank" rel="noopener noreferrer">PyPI trusted publishers</a></div><p>Publishing from CI without a stored token. <span class="rt">10 minutes</span></p></div>
+<div class="sp"><div class="n">Real bindings</div><p>The tokenizers, polars and orjson build files linked in section 13, then their <code>src/</code> folders: the best examples of large PyO3 APIs, abi3 wheels and the raw-FFI alternative. <span class="rt">an hour each, browsing</span></p></div>
+</div>
+<p class="small mute">Sources and reproduction: <code>src/rb/</code> in this page's folder (<code>run_all.sh</code> reruns every measurement; <code>check_outputs.py</code> proves the page embeds the recorded outputs).</p>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 40_js_rb_0data.js */
+// ---- Part 2 (Speeding up Python): every measured number on this part's tabs, generated by src/rb/gen.py from src/rb/outputs/ and the root's src/bench/results/ ----
+window.RB={"convert":{"n_texts":20000,"avg_chars":125.0,"non_ascii_share":0.342,"file_bytes":38792775,"n_floats":1000000,"n_dict":10000,"call_noop":{"med":25.862333015538752,"min":25.585042021702975,"max":61.30374997155741},"call_str":{"med":66.36775005608797,"min":65.78954099677503,"max":68.87404201552272},"list_str_borrowed":{"med":78.5662500129547,"min":75.54291762062348,"max":86.32301993202418},"len_borrowed":{"med":9.36135504161939,"min":9.003852464957163,"max":9.664792596595362},"len_owned":{"med":72.67583496286534,"min":68.94250007462688,"max":81.13541742204688},"list_str_owned":{"med":139.38646006863564,"min":134.65541502228007,"max":195.0872923771385},"list_str_fresh":{"med":62.274999800138175,"min":57.762497453950346,"max":69.95624862611294},"bytes_view":{"med":0.2946119890854329,"min":0.2892755158525132,"max":0.3618008304209437},"bytes_vec":{"med":0.31800509242124025,"min":0.3072681293108906,"max":0.350038335796347},"floats_vec":{"med":6.695308408234268,"min":6.645366793964058,"max":7.198533392511308},"floats_numpy":{"med":0.9742374997586012,"min":0.959814601810649,"max":1.050066648167558},"floats_np_dot":{"med":0.16821040189824998,"min":0.1637854496948421,"max":0.17723125056363642},"floats_python":{"med":20.376000029500574,"min":19.99075000640005,"max":20.626041979994625},"ret_list":{"med":78.6688549851533,"min":75.98333249916323,"max":82.69260491942987},"ret_numpy":{"med":73.13562498893589,"min":71.11135244485922,"max":86.17447994765826},"dict_owned":{"med":82.62866595759988,"min":68.6190000269562,"max":104.62825000286102},"dict_borrowed":{"med":7.170666009187698,"min":7.039999938569963,"max":8.262415998615324}},"gil314":{"python":"3.14.8","gil_enabled":true,"bytes":38792775,"threads":4,"runs":7,"serial":{"wall_ms":117.32,"min_ms":89.85,"max_ms":191.28,"spans":[[0.01,51.14],[51.14,73.08],[73.08,93.58],[93.59,117.32]]},"held":{"wall_ms":93.65,"min_ms":84.04,"max_ms":103.24,"spans":[[0.13,28.12],[28.18,93.56],[50.29,93.59],[72.37,93.64]]},"detached":{"wall_ms":35.06,"min_ms":30.69,"max_ms":47.88,"spans":[[0.09,34.99],[0.12,32.43],[0.17,32.24],[0.2,32.34]]},"rayon4":{"wall_ms":46.95,"min_ms":44.36,"max_ms":58.67}},"gil314t":{"python":"3.14.8","gil_enabled":false,"bytes":38792775,"threads":4,"runs":7,"serial":{"wall_ms":88.37,"min_ms":85.86,"max_ms":95.49,"spans":[[0.0,21.26],[21.26,43.03],[43.03,65.86],[65.87,88.37]]},"held":{"wall_ms":31.95,"min_ms":26.09,"max_ms":37.08,"spans":[[0.1,26.53],[0.26,26.74],[1.03,27.21],[3.09,31.58]]},"detached":{"wall_ms":32.36,"min_ms":27.82,"max_ms":44.17,"spans":[[0.14,30.49],[0.49,32.01],[0.69,28.64],[1.16,30.95]]},"rayon4":{"wall_ms":43.65,"min_ms":36.12,"max_ms":49.96}},"ladder":[{"step":"python","median":1.358409583,"min":1.337037459,"max":1.3841107080000001},{"step":"percall","median":0.466098875,"min":0.44445662500000005,"max":0.47418820800000006},{"step":"owned","median":0.45829395900000003,"min":0.449348375,"max":0.6694878750000001},{"step":"borrowed","median":0.423035541,"min":0.41840766700000004,"max":0.458886},{"step":"bytes","median":0.11212225,"min":0.109749125,"max":0.11995725},{"step":"parallel","median":0.05877525,"min":0.057328750000000005,"max":0.060327958}],"phases":{"python":{"read lines":59.9,"Python: json.loads":276.5,"count tokens":964.7,"Python: add per user":22.1},"percall":{"read lines":64.2,"Python: json.loads":276.6,"Rust: count (with crossings)":36.5,"Python: add per user":21.9},"owned":{"read lines":61.5,"Python: json.loads":280.7,"Rust: count (with crossings)":46.1,"Python: add per user":21.6},"borrowed":{"read lines":61.4,"Python: json.loads":269.9,"Rust: count (with crossings)":28.4,"Python: add per user":21.6},"bytes":{"read file":5.5,"Rust: parse + count":84.5},"parallel":{"read file":5.6,"Rust: parse + count":32.0}},"alts":{"n":20000,"numba_first_call_ms":418.0,"numba_prepare":361.93960113450885,"python":{"med":4830.241700983606,"min":4746.689548483118,"max":5001.58955110237},"regex":{"med":2157.323340070434,"min":2087.3120799660683,"max":2237.2258303221315},"mypyc":{"med":3124.4429101934657,"min":2726.1287497822195,"max":3462.159159826115},"cython":{"med":148.36146001471207,"min":145.93666754080914,"max":192.0590625377372},"numba":{"med":116.30843742750585,"min":114.45395997725427,"max":123.81864493363537},"numba_with_prepare":{"med":236.77207995206118,"min":227.69542003516108,"max":250.7058304036036},"pyo3":{"med":75.75291747343726,"min":74.09385492792353,"max":79.41770760226063}},"abi":[{"python":"3.14.8","module_file":"tokrs.cpython-314-darwin.so","noop":{"med":26.718499953858554,"min":25.793167005758733,"max":28.434125008061528},"count_tokens":{"med":69.44120896514505,"min":66.34920800570399,"max":111.55491700628772},"total_len":{"med":9.4791674928274,"min":9.381042473251,"max":14.042707480257377},"count_many":{"med":78.18031241185963,"min":76.3134376029484,"max":90.62791490578093},"sum_sq_array":{"med":1.0390083480160683,"min":0.9903291502268985,"max":1.1391791485948488}},{"python":"3.14.8","module_file":"tokrs.abi3.so","noop":{"med":26.246791996527463,"min":25.806749996263534,"max":28.42058299575001},"count_tokens":{"med":76.96525001665577,"min":75.3427500021644,"max":84.36562499264255},"total_len":{"med":14.75198005209677,"min":14.701144973514602,"max":19.71750010852702},"count_many":{"med":85.05802252329886,"min":83.14531252835877,"max":94.78208245127462},"sum_sq_array":{"med":1.0270228987792507,"min":0.9997458488214761,"max":1.3734895997913554}}],"root":{"py314_loop":1.3375,"py314_re":0.8836,"rust":0.0861,"pyrs_percall":0.394,"pyrs_batch":0.4073,"pyrs_file":0.1188,"pyrs_file4":0.0657,"pypb_percall":0.4273,"pynb_percall":0.4415,"pypb_batch":0.4744,"pynb_batch":0.4313,"py314t_thr8":0.4453,"noop_pyo3":25.03662504022941,"noop_nanobind":16.804957995191216,"noop_pybind11":37.472916999831796,"msg_pyo3_batch":74.10354010062292,"msg_nanobind_batch":156.2191647826694,"msg_pybind11_batch":211.3868750166148},"startup":{"median":0.018756500000000002,"min":0.018490958000000002,"max":0.019481042}};
+</script>
+<script>/* 40_js_rb_1core.js */
+// ---- shared helpers (number fill, predict-then-reveal, small charts) ----
+window.RBX=(function(){
+  const RB=window.RB||{};
+  RB.L={};(RB.ladder||[]).forEach(r=>{RB.L[r.step]=r});
+  // Amdahl: share of the pure-Python run spent in the token loop (in-process phases)
+  (function(){const ph=(RB.phases||{}).python;if(!ph)return;const tot=Object.values(ph).reduce((a,b)=>a+b,0),p=ph['count tokens']/tot;
+    RB.PS={p,share:p*100,rest:(1-p)*100,bound:1/(1-p),total:tot}})();
+  const get=p=>p.split(p.includes('/')?'/':'.').reduce((o,k)=>o==null?undefined:o[k],RB);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function fmt(v,d){if(typeof v!=='number'||!isFinite(v))return '?';if(d==null||d==='')d=Math.abs(v)>=100?0:Math.abs(v)>=10?1:2;
+    return (+v).toLocaleString('en-US',{minimumFractionDigits:+d,maximumFractionDigits:+d})}
+  // data-rbv="path" (value), data-rbm="1000" (multiply), data-rbr="a|b" (ratio a/b), data-rbdiff="a|b" (a-b)
+  function fill(root){
+    root.querySelectorAll('[data-rbv]').forEach(el=>{el.textContent=fmt(get(el.dataset.rbv)*(+(el.dataset.rbm||1)),el.dataset.d)});
+    root.querySelectorAll('[data-rbr]').forEach(el=>{const [a,b]=el.dataset.rbr.split('|');el.textContent=fmt(get(a)/get(b),el.dataset.d==null?1:el.dataset.d)});
+    root.querySelectorAll('[data-rbdiff]').forEach(el=>{const [a,b]=el.dataset.rbdiff.split('|');el.textContent=fmt((get(a)-get(b))*(+(el.dataset.rbm||1)),el.dataset.d)});
+  }
+  document.addEventListener('click',e=>{const b=e.target.closest('.rb-rv');if(!b)return;const t=document.getElementById(b.dataset.for);if(!t)return;
+    if(!b.dataset.lab)b.dataset.lab=b.textContent;t.hidden=!t.hidden;b.setAttribute('aria-expanded',String(!t.hidden));b.textContent=t.hidden?b.dataset.lab:'Hide it again'});
+  // horizontal bars: rows [{label, v, lo, hi, color, note}], unit string, log scale optional
+  function bars(el,rows,o){o=o||{};const max=Math.max(...rows.map(r=>r.hi||r.v));const lg=!!o.log;
+    const mn=lg?Math.min(...rows.map(r=>r.lo||r.v))/1.5:0;
+    const pos=v=>lg?(Math.log(v)-Math.log(mn))/(Math.log(max*1.05)-Math.log(mn))*100:v/max/1.05*100;
+    el.innerHTML='<div class="bars">'+rows.map(r=>'<div class="row'+(r.hl?' hl':'')+'" title="'+esc(r.note||'')+'"><span class="nm">'+esc(r.label)+'</span><span class="track"><span class="fill" style="width:'+Math.max(.5,pos(r.v)).toFixed(2)+'%;background:'+(r.color||'var(--acc)')+'"></span>'+
+      (r.lo!=null?'<span style="position:absolute;top:5px;height:4px;left:'+pos(r.lo).toFixed(2)+'%;width:'+Math.max(.3,pos(r.hi)-pos(r.lo)).toFixed(2)+'%;background:var(--ink);opacity:.45"></span>':'')+
+      '</span><span class="val">'+fmt(r.v,o.d)+(o.unit||'')+'</span></div>').join('')+'</div>'}
+  return {RB,get,fmt,fill,esc,bars};
+})();
+(function(){const el=document.getElementById('t-read');if(el)RBX.fill(el)})();
+</script>
+<script>/* 41_js_rb_read.js */
+// ---- Reading: hero phase bars, abi3 table, alternatives chart ----
+(function(){
+  const X=window.RBX,RB=X.RB,fmt=X.fmt,esc=X.esc;
+  const PH_COL={'read lines':'var(--mute)','read file':'var(--mute)','Python: json.loads':'var(--c2)','count tokens':'var(--c4)','Rust: count (with crossings)':'var(--c3)','Python: add per user':'var(--c5)','Rust: parse + count':'var(--c3)'};
+  const STEPS=[
+    {id:'python',n:0,name:'Pure Python',chg:'The Rosetta program, cut into phases: json.loads per line, a Python loop per character'},
+    {id:'percall',n:1,name:'Rust counts, per call',chg:'count_tokens(text: &str) called 199,992 times'},
+    {id:'owned',n:2,name:'One call, copied',chg:'count_many_owned(Vec<String>): one crossing, every string copied'},
+    {id:'borrowed',n:3,name:'One call, borrowed',chg:'count_many(&Bound<PyList>): one crossing, &str views'},
+    {id:'bytes',n:4,name:'Rust parses and counts',chg:'tally_bytes(&[u8]): Python reads bytes; serde parses, Rust counts and tallies'},
+    {id:'parallel',n:5,name:'Detached, 8 threads',chg:'tally_bytes_parallel: py.detach plus rayon over 8 chunks'}];
+  X.STEPS=STEPS;X.PH_COL=PH_COL;
+  // stacked phase bars: el, list of step ids, scale max (ms) or auto
+  X.phaseBars=function(el,ids,o){o=o||{};const P=RB.phases||{};const tot=id=>Object.values(P[id]||{}).reduce((a,b)=>a+b,0);
+    const max=o.max||Math.max(...ids.map(tot));const seen={};
+    let h='<div class="rb-pb">';ids.forEach(id=>{const s=STEPS.find(x=>x.id===id);const ph=P[id]||{};
+      h+='<div class="rb-pbr"><div class="rb-pbl">'+s.n+'. '+esc(s.name)+' <span class="mute">'+fmt(tot(id),0)+' ms</span></div><div class="rb-pbt">'+
+        Object.entries(ph).map(([k,v])=>{seen[k]=1;return '<span title="'+esc(k)+': '+fmt(v,1)+' ms" style="width:'+(v/max*100).toFixed(2)+'%;background:'+(PH_COL[k]||'var(--acc)')+'"></span>'}).join('')+'</div></div>'});
+    h+='</div><div class="hmleg">'+Object.keys(seen).map(k=>'<span><svg width="10" height="10"><rect width="10" height="10" fill="'+PH_COL[k]+'"/></svg>'+esc(k)+'</span>').join('')+'</div>';
+    el.innerHTML=h};
+  function ladderRows(hl){const L=RB.L;return STEPS.map(s=>({label:s.n+'. '+s.name,v:L[s.id].median,lo:L[s.id].min,hi:L[s.id].max,
+      color:s.id==='python'?'var(--c2)':'var(--c3)',hl:s.id===hl}))}
+  X.ladderRows=ladderRows;
+  function draw(){
+    // hero: four steps on one scale (in-process phases)
+    const he=document.getElementById('rb-hero');if(he)X.phaseBars(he,['python','borrowed','bytes','parallel']);
+    const at=document.getElementById('rb-abi-tb');if(at&&RB.abi&&RB.abi.length===2){const [a,b]=RB.abi;
+      const rows=[['noop','empty call, per call'],['count_tokens','count_tokens(t), per call'],['total_len','list of str to &str, per item'],['count_many','count_many, per message'],['sum_sq_array','NumPy sum of squares, per float']];
+      at.innerHTML=rows.map(([k,l])=>'<tr><td>'+l+'</td><td class="num">'+fmt(a[k].med,1)+'</td><td class="num">'+fmt(b[k].med,1)+'</td></tr>').join('')}
+    const al=document.getElementById('rb-alts');if(al){const A=RB.alts,R=RB.root;
+      const rows=[['Python loop','python','var(--c2)'],['re.findall (C regex)','regex','var(--c2)'],['mypyc','mypyc','var(--c5)'],['Cython, C types','cython','var(--c5)'],['Numba, arrays ready','numba','var(--c6)'],['Numba, incl. preparing','numba_with_prepare','var(--c6)'],['Rust via PyO3','pyo3','var(--c3)']]
+        .map(([l,k,c])=>({label:l,v:A[k].med,lo:A[k].min,hi:A[k].max,color:c,hl:k==='pyo3'}));
+      rows.push({label:'root: nanobind (C++)',v:R.msg_nanobind_batch,color:'var(--dim)'},{label:'root: pybind11 (C++)',v:R.msg_pybind11_batch,color:'var(--dim)'});
+      X.bars(al,rows,{unit:' ns',d:0,log:true})}
+  }
+  RD.onRender(draw);RD.onResize(draw);
+  draw();
+})();
+</script>
+<script>/* 42_js_rb_gil.js */
+// ---- Reading, section 8: four Python threads calling Rust, real timelines (code/c7_gil.py), GIL held vs released vs free-threaded ----
+(function(){
+  const X=window.RBX,RB=X.RB,fmt=X.fmt;if(!RB.gil314||!document.getElementById('rb-gil-card'))return;
+  const MODES={
+    serial:{d:RB.gil314.serial,lanes:1,gil:'held',name:'One Python thread calls Rust four times, one quarter each (CPython 3.14, GIL held).'},
+    held:{d:RB.gil314.held,lanes:4,gil:'held',name:'Four Python threads each call tally_bytes on one quarter. The GIL stays held during the Rust work (CPython 3.14).'},
+    detached:{d:RB.gil314.detached,lanes:4,gil:'free',name:'Four Python threads each call tally_bytes_detached: py.detach releases the GIL during the Rust work (CPython 3.14).'},
+    ft:{d:RB.gil314t.held,lanes:4,gil:'none',name:'The GIL-holding function again, on free-threaded CPython 3.14t: there is no GIL to wait for.'}};
+  const TMAX=Math.max(...Object.values(MODES).map(m=>m.d.wall_ms))*1.04;const N=49;
+  const COL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+  let mode='serial';const box=document.getElementById('rb-gil-svg'),stats=document.getElementById('rb-gil-stats'),cap=document.getElementById('rb-gil-cap');
+  function owner(sp,t){for(let i=0;i<sp.length;i++)if(t>=sp[i][0]&&t<sp[i][1])return i;return -1}
+  function draw(i){
+    const m=MODES[mode],sp=m.d.spans,t=Math.min(i/(N-1)*TMAX,TMAX);
+    const W=Math.max(280,Math.min(860,RD.width(box))),L=78,R=12,lane=26,top=36;const lanes=m.lanes;const H=top+lanes*lane+22;
+    const x=v=>L+(W-L-R)*v/TMAX;let s='';
+    // axis
+    const stT=W<520?50:20;for(let k=0;k<=TMAX;k+=stT){s+='<line x1="'+x(k)+'" x2="'+x(k)+'" y1="'+(top-6)+'" y2="'+(top+lanes*lane)+'" stroke="var(--line)"/>'+RD.t(x(k),top+lanes*lane+14,k+' ms',{a:'middle',fs:10,fill:'var(--mute)'})}
+    // GIL lane
+    s+=RD.t(4,top-12,'GIL',{fs:11,w:600});
+    if(m.gil==='held'){sp.forEach((p,j)=>{const a=p[0],b=Math.min(p[1],t);if(b>a)s+='<rect x="'+x(a)+'" y="'+(top-22)+'" width="'+Math.max(0,x(b)-x(a))+'" height="12" rx="2" fill="'+COL[j]+'" opacity=".55"/>'})}
+    else s+=RD.t(x(0)+4,top-12,m.gil==='free'?'released during the Rust work':'none (free-threaded)',{fs:10.5,fill:'var(--mute)'});
+    // thread lanes
+    for(let ln=0;ln<lanes;ln++){const y=top+ln*lane;s+=RD.t(4,y+17,lanes===1?'thread 1':'thread '+(ln+1),{fs:11});
+      s+='<rect x="'+x(0)+'" y="'+(y+5)+'" width="'+(x(TMAX)-x(0))+'" height="16" fill="var(--soft)"/>'}
+    sp.forEach((p,j)=>{const ln=lanes===1?0:j,y=top+ln*lane;const a=p[0],b=Math.min(p[1],t);
+      if(t>a){s+='<rect x="'+x(a)+'" y="'+(y+5)+'" width="'+Math.max(1,x(b)-x(a))+'" height="16" rx="2" fill="'+COL[j]+'"/>';
+        if(x(b)-x(a)>40)s+=RD.t(x(a)+4,y+17,'quarter '+(j+1),{fs:10,fill:'var(--bg)'})}});
+    // cursor
+    s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+(top-24)+'" y2="'+(top+lanes*lane)+'" stroke="var(--ink)" stroke-dasharray="3 2"/>';
+    box.innerHTML=RD.svg(W,H,s,'Timeline of four Rust calls');
+    const done=sp.filter(p=>p[1]<=t).length,work=sp.reduce((a,p)=>a+Math.max(0,Math.min(t,p[1])-p[0])/(p[1]-p[0]),0)/sp.length;
+    const run=sp.filter(p=>t>=p[0]&&t<p[1]).length;
+    stats.innerHTML=RD.stat('Elapsed',fmt(Math.min(t,m.d.wall_ms),0)+' ms')+RD.stat('Calls finished',done+' of 4')+RD.stat('Running right now',String(run))+RD.stat('Work done',fmt(work*100,0)+'%','total '+fmt(m.d.wall_ms,0)+' ms');
+    const own=owner(sp,t);
+    cap.textContent=m.name+' '+(t>=m.d.wall_ms?'Finished after '+fmt(m.d.wall_ms,0)+' ms.':
+      m.gil==='held'?(own>=0?'Thread '+(lanes===1?1:own+1)+' holds the GIL, so it is the only one running; '+(lanes===1?'the next quarter waits for this call to return.':'the other threads are blocked waiting for the GIL (their bars have not started yet).'):'Between calls.'):
+      run+' calls running at the same time.')}
+  const an=RD.anim({card:'rb-gil-card',ctl:'rb-gil-ctl',n:N,ms:140,draw,label:'Time'});
+  RD.seg(document.getElementById('rb-gil-mode'),v=>{mode=v;an.reset(N)});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 43_js_rb_ladder.js */
+// ---- Reading, section 10: the optimisation ladder explorer ----
+(function(){
+  const X=window.RBX,RB=X.RB,fmt=X.fmt;const root=document.getElementById('rb-ld-card');if(!root||!RB.ladder)return;
+  const NOTE={python:'The baseline. The Python loop over characters takes about three quarters of the run; json.loads most of the rest.',
+    percall:'Only the token loop moved, and it is called once per message: 199,992 crossings. The loop phase shrinks by more than 20x, the whole program by about 3x, because json.loads is untouched.',
+    owned:'One crossing for the whole list, but Vec<String> copies all 25 million characters into new Rust strings first: its counting phase is slower than step 1\'s 199,992 calls, and end to end the two are within noise.',
+    borrowed:'One crossing, no copies: &str views of the Python strings. Barely better than step 1: the program is now waiting on json.loads.',
+    bytes:'The parsing moves too. Python reads the file as bytes and makes one call; serde parses each line into a typed struct and Rust tallies per user.',
+    parallel:'py.detach releases the GIL and rayon splits the bytes into 8 chunks at newlines. The Rust phase shrinks; start-up and reading the file do not.'};
+  const STEPS=X.STEPS;let cur='python',cmp='prev';
+  const prevOf=id=>{const i=STEPS.findIndex(s=>s.id===id);return i>0?STEPS[i-1].id:null};
+  function draw(){
+    const L=RB.L,s=STEPS.find(x=>x.id===cur),p=prevOf(cur),t=L[cur].median;
+    document.getElementById('rb-ld-stats').innerHTML=RD.stat('End to end',fmt(t*1000,0)+' ms','min '+fmt(L[cur].min*1000,0)+', max '+fmt(L[cur].max*1000,0))+
+      RD.stat('vs pure Python',fmt(L.python.median/t,1)+'x faster')+RD.stat('vs previous step',p?fmt(L[p].median/t,2)+'x':'(first step)')+
+      RD.stat('Calls into Rust',{python:'0',percall:'199,992',owned:'1',borrowed:'1',bytes:'1',parallel:'1'}[cur]);
+    document.getElementById('rb-ld-cap').textContent=s.n+'. '+s.name+': '+NOTE[cur];
+    X.bars(document.getElementById('rb-ld-bars'),X.ladderRows(cur).concat([{label:'root: Rust binary alone',v:RB.root.rust,color:'var(--dim)'}]),{unit:' s',d:3,log:document.getElementById('rb-ld-log').checked});
+    const c=cmp==='prev'?p:cmp;const ids=c&&c!==cur?[c,cur]:[cur];
+    const P=RB.phases;const tot=id=>Object.values(P[id]).reduce((a,b)=>a+b,0);
+    X.phaseBars(document.getElementById('rb-ld-ph'),ids,{max:Math.max(...ids.map(tot))});
+    root.querySelectorAll('[data-rb-step]').forEach(d=>{d.hidden=d.dataset.rbStep!==cur})}
+  RD.seg(document.getElementById('rb-ld-seg'),v=>{cur=v;draw()});
+  document.getElementById('rb-ld-cmp').addEventListener('change',e=>{cmp=e.target.value;draw()});
+  document.getElementById('rb-ld-log').addEventListener('change',draw);
+  RD.onRender(draw);RD.onResize(draw);
+  draw();
+})();
+</script>
+<script>/* 44_js_rb_cross.js */
+// ---- Reading, section 4, crossing the boundary: one call with three items, copied against borrowed ----
+(function(){
+  const X=window.RBX,RB=X.RB,fmt=X.fmt;const card=document.getElementById('rb-cx-card');if(!card||!RB.convert)return;
+  const C=RB.convert;
+  const STR=[{t:'café',kind:'1 byte per char (Latin-1)',ascii:false,u8:5,tok:1},{t:'x86_64',kind:'ASCII',ascii:true,u8:6,tok:2},{t:'v2.1 C++',kind:'ASCII',ascii:true,u8:8,tok:3}];
+  const FL=[0.5,1.5,2.5];
+  const M={
+    sown:{sig:'fn count_many_owned(texts: Vec<String>) -> Vec<u64>',kind:'s',copy:true,ns:C.len_owned.med,nsl:'conversion per string, measured'},
+    sref:{sig:'fn count_many(texts: &Bound<PyList>) -> PyResult<Vec<u64>>',kind:'s',copy:false,ns:C.len_borrowed.med,nsl:'conversion per string, measured'},
+    fvec:{sig:'fn sum_sq_list(xs: Vec<f64>) -> f64',kind:'f',copy:true,ns:C.floats_vec.med,nsl:'per float incl. the sum, measured'},
+    fnp:{sig:'fn sum_sq_array(xs: PyReadonlyArray1<f64>) -> PyResult<f64>',kind:'f',copy:false,ns:C.floats_numpy.med,nsl:'per float incl. the sum, measured'}};
+  // steps: 0 before, 1 call, 2..4 items, 5 rust work, 6 return, 7 drop
+  const N=8;let mode='sown';
+  const box=document.getElementById('rb-cx-svg'),stats=document.getElementById('rb-cx-stats'),cap=document.getElementById('rb-cx-cap'),sig=document.getElementById('rb-cx-sig');
+  function caption(m,i){
+    const s=m.kind==='s',it=i>=2&&i<=4?i-2:-1;
+    if(i===0)return s?'Before the call: a Python list holding three str objects. CPython stores each str in the narrowest fixed width that fits its widest character; ASCII text is already valid UTF-8, "café" is not (é is one byte here, two in UTF-8).':
+      (m.copy?'Before the call: a Python list of three float objects, each a separate 24-byte object on the heap with its own refcount.':'Before the call: a NumPy array: a small header plus one contiguous 24-byte buffer of raw f64 values.');
+    if(i===1)return 'Python calls the function. PyO3\'s generated glue checks the argument\'s type ('+(s?(m.copy?'any sequence except str':'exactly a list'):(m.copy?'any sequence of floats':'an ndarray of float64'))+') before your Rust code runs.';
+    if(it>=0){if(!s)return m.copy?'Float '+(it+1)+': PyO3 reads the f64 out of the Python float object (unboxing) and pushes it into a new Rust Vec<f64>. One object visited per element.':
+        (it===0?'No per-element work: as_slice() gives Rust a pointer to NumPy\'s buffer and a length. The three values are read where they are.':'Nothing to do for this element: it is already in the slice.');
+      const x=STR[it];
+      if(!x.ascii)return 'Item 1, "café": Rust needs UTF-8, so CPython encodes it (5 bytes) and caches the result inside the str object, once. '+(m.copy?'Then PyO3 allocates a Rust String and copies the 5 bytes into it.':'Rust gets a &str pointing at that cached copy: no Rust allocation.');
+      return 'Item '+(it+1)+', "'+x.t+'": ASCII, so its stored bytes are already UTF-8. '+(m.copy?'PyO3 allocates a Rust String and copies '+x.u8+' bytes.':'Rust gets a &str pointing straight at them.')}
+    if(i===5)return s?'Rust counts the tokens of each item: 1, 2 and 3. The loop is the same in both signatures; only where the bytes live differs.':'Rust sums the squares: 0.25 + 2.25 + 6.25 = 8.75. Same loop either way.';
+    if(i===6)return s?'The Vec<u64> result is converted into a new Python list of three ints (small ints come from CPython\'s cache, so no new int objects).':'The f64 result becomes one new Python float object.';
+    return m.copy?'The call returns and Rust frees what it allocated: the copies existed only for this call.':'The call returns. Nothing to free on the Rust side: the views simply end. (A view can never outlive the call: the compiler enforces it.)'}
+  function counts(m,i){let copied=0,allocs=0,pyobj=0,utf8=0;
+    const items=i>=2?Math.min(3,i-1):0;
+    if(m.kind==='s'){for(let k=0;k<items;k++){if(!STR[k].ascii)utf8+=STR[k].u8;if(m.copy){copied+=STR[k].u8;allocs++}}if(m.copy&&i>=2)allocs++;}
+    else{if(m.copy){copied=items*8;if(i>=2)allocs=1}}
+    if(i>=6){pyobj=m.kind==='s'?1:1;if(m.kind==='s')allocs++}
+    return {copied,allocs,pyobj,utf8}}
+  function draw(i){
+    const m=M[mode];sig.textContent=m.sig.replace('->','-\u2060>');
+    const W=Math.max(280,Math.min(860,RD.width(box)));const narrow=W<560;
+    const pw=narrow?W:W*0.5-6,rx=narrow?0:W*0.5+6,ry=narrow?190:0,H=narrow?380:200;
+    let s='';const t=(x,y,str,o)=>{s+=RD.t(x,y,str,o)};const rect=(x,y,w,h,f,st,o)=>{s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="4" fill="'+f+'" stroke="'+(st||'var(--line)')+'"'+(o?' opacity="'+o+'"':'')+'/>'};
+    rect(0,0,pw,180,'var(--soft)');t(8,16,'Python heap',{w:600,fs:12});
+    rect(rx,ry,pw,180,'none','var(--acc)');t(rx+8,ry+16,'Rust, inside this call',{w:600,fs:12,fill:'var(--acc)'});
+    const it=i>=2&&i<=4?i-2:-1,active=k=>i>=2&&k<=Math.min(2,i-2);
+    const iy=k=>40+k*44;
+    const arrow=(x1,y1,x2,y2,c)=>{s+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="1.5" marker-end="url(#rb-cx-ah)"/>'};
+    s+='<defs><marker id="rb-cx-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--ink)"/></marker></defs>';
+    const ow=Math.min(pw-80,190);
+    if(m.kind==='s'){
+      rect(8,28,58,140,'var(--bg)');t(14,44,'list',{fs:11,w:600});t(14,58,'3 refs',{fs:10,fill:'var(--mute)'});
+      STR.forEach((x,k)=>{const y=iy(k),ox=76;const hl=k===it;
+        rect(ox,y-8,ow,36,'var(--bg)',hl?'var(--acc)':'var(--line)');t(ox+6,y+6,'str "'+x.t+'"',{fs:11,w:600});t(ox+6,y+20,x.kind,{fs:10,fill:'var(--mute)'});
+        if(!x.ascii&&i>=2){t(ox+ow-6,y+20,'+ UTF-8 cache',{fs:10,a:'end',fill:'var(--c2)'})}
+        s+='<line x1="66" y1="'+(y+8)+'" x2="'+ox+'" y2="'+(y+8)+'" stroke="var(--mute)"/>';
+        if(i>=1&&i<7){const by=ry+40+k*44,bx=rx+10,bw=Math.min(pw-20,170);
+          if(active(k)){if(m.copy){rect(bx,by-8,bw,30,'var(--acc2)','var(--acc)');t(bx+6,by+6,'String: copy, '+x.u8+' bytes',{fs:10.5});t(bx+6,by+18,'heap allocation',{fs:9.5,fill:'var(--mute)'})}
+            else{rect(bx,by-8,bw,30,'var(--bg)','var(--good)');t(bx+6,by+6,'&str view (ptr, len '+x.u8+')',{fs:10.5});
+              if(narrow)arrow(bx+bw/2,by-8,ox+ow/2,y+28,'var(--good)');else arrow(bx,by+7,ox+ow,y+10,'var(--good)')}}}
+      });
+      if(i>=5&&i<7)t(rx+10,ry+172,'tokens: [1, 2, 3]',{fs:11,w:600,fill:'var(--good)'});
+      if(i>=6)t(8,176,'new list [1, 2, 3] returned',{fs:10.5,w:600,fill:'var(--good)'});
+    }else{
+      if(m.copy){rect(8,28,58,140,'var(--bg)');t(14,44,'list',{fs:11,w:600});
+        FL.forEach((v,k)=>{const y=iy(k),ox=76;rect(ox,y-8,Math.min(ow,150),30,'var(--bg)',k===it?'var(--acc)':'var(--line)');t(ox+6,y+6,'float '+v,{fs:11,w:600});t(ox+6,y+18,'24-byte object',{fs:9.5,fill:'var(--mute)'});
+          s+='<line x1="66" y1="'+(y+7)+'" x2="'+ox+'" y2="'+(y+7)+'" stroke="var(--mute)"/>'});
+        if(i>=2&&i<7){const n=Math.min(3,i-1);rect(rx+10,ry+30,Math.min(pw-20,200),40,'var(--acc2)','var(--acc)');t(rx+16,ry+46,'Vec<f64>: '+n+' of 3 values copied',{fs:10.5});
+          t(rx+16,ry+62,'['+FL.slice(0,n).join(', ')+']',{fs:10.5,fill:'var(--mute)'})}}
+      else{rect(8,28,Math.min(pw-16,220),56,'var(--bg)');t(14,44,'ndarray header',{fs:11,w:600});t(14,58,'dtype float64, shape (3,), strides (8,)',{fs:9.5,fill:'var(--mute)'});
+        const bw=Math.min(pw-16,220);rect(8,100,bw,30,'var(--bg)',it===0?'var(--acc)':'var(--line)');FL.forEach((v,k)=>{t(14+k*bw/3,119,String(v),{fs:11})});t(8,146,'one contiguous 24-byte buffer',{fs:10,fill:'var(--mute)'});
+        if(i>=2&&i<7){const bx=rx+10,by=ry+40;rect(bx,by,Math.min(pw-20,170),30,'var(--bg)','var(--good)');t(bx+6,by+19,'&[f64] slice (ptr, len 3)',{fs:10.5});
+          if(narrow)arrow(bx+60,by,60,130,'var(--good)');else arrow(bx,by+15,8+bw,115,'var(--good)')}}
+      if(i>=5&&i<7)t(rx+10,ry+172,'sum of squares: 8.75',{fs:11,w:600,fill:'var(--good)'});
+      if(i>=6)t(8,176,'new float 8.75 returned',{fs:10.5,w:600,fill:'var(--good)'});
+    }
+    if(i===7&&m.copy)t(rx+10,ry+100,'copies freed',{fs:11,w:600,fill:'var(--bad)'});
+    box.innerHTML=RD.svg(W,H,s,'One call crossing from Python to Rust');
+    const c=counts(m,i);
+    stats.innerHTML=RD.stat('Bytes copied into Rust',String(c.copied))+RD.stat('Rust heap allocations',String(c.allocs))+
+      (m.kind==='s'?RD.stat('UTF-8 bytes encoded by CPython',String(c.utf8),'once per str, then cached'):RD.stat('Python objects visited',String(m.copy?Math.max(0,Math.min(3,i-1)):0)))+
+      RD.stat('Measured at scale',fmt(m.ns,m.ns<10?2:1)+' ns',m.nsl);
+    cap.textContent=caption(m,i)}
+  const an=RD.anim({card:'rb-cx-card',ctl:'rb-cx-ctl',n:N,ms:2200,draw,label:'Step'});
+  RD.seg(document.getElementById('rb-cx-mode'),v=>{mode=v;an.reset(N)});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (storage key pyo3-tab: this page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('pyo3-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('pyo3-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+</script>
+</body></html>

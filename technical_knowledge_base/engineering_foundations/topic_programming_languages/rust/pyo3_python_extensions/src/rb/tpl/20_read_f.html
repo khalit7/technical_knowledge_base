@@ -1,0 +1,29 @@
+
+<section id="rb-s10">
+<h2>10. The token counter, step by step: the optimisation ladder</h2>
+<p>Now the whole program, end to end, as the user runs it: <code>python ladder.py STEP chat200k.jsonl</code>, timed by hyperfine (7 runs after a warm-up, including interpreter start-up), each step printing exactly the expected output of the root's <code>PROGRAM.md</code> (checked byte for byte: <code>outputs/ladder_check.txt</code>). Pick a step to see what changed, what it bought end to end, and where the remaining time goes.</p>
+<div class="card" id="rb-ld-card"><h4>Batching and borrowing barely help while json.loads is in Python; moving the parsing is the big step</h4>
+<div class="seg" id="rb-ld-seg" role="group" aria-label="Step"><button data-m="python" class="on">0 Python</button><button data-m="percall">1 per call</button><button data-m="owned">2 copied</button><button data-m="borrowed">3 borrowed</button><button data-m="bytes">4 parse in Rust</button><button data-m="parallel">5 parallel</button></div>
+<div class="out" id="rb-ld-stats"></div>
+<div class="an-cap" id="rb-ld-cap"></div>
+<div id="rb-ld-bars"></div>
+<label class="small"><input type="checkbox" id="rb-ld-log"> log scale</label>
+<p class="small mute">Seconds end to end, median of 7 (the dark tick shows min to max) <span class="meas">measured</span>. Grey: the root's {{Benchmark|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} (separate run, same machine), where a standalone Rust binary does the whole job in <span data-rbv="root.rust" data-d="3"></span> s.</p>
+<p class="small" style="margin:10px 0 2px"><b>Where the time goes</b>, milliseconds inside the process (start-up excluded), this step against <select id="rb-ld-cmp" aria-label="Compare with step"><option value="prev" selected>the previous step</option><option value="python">0 Python</option><option value="percall">1 per call</option><option value="owned">2 copied</option><option value="borrowed">3 borrowed</option><option value="bytes">4 parse in Rust</option><option value="parallel">5 parallel</option></select></p>
+<div id="rb-ld-ph"></div>
+<details class="dp"><summary>The code that changed in this step</summary><div>
+<div data-rb-step="python">[[file:code/ladder.py@18-26]][[file:code/ladder.py@81-82]]</div>
+<div data-rb-step="percall" hidden>[[file:code/ladder.py@83-84]][[rs:step1]]</div>
+<div data-rb-step="owned" hidden>[[file:code/ladder.py@85-86]][[rs:step2]]</div>
+<div data-rb-step="borrowed" hidden>[[file:code/ladder.py@87-88]][[rs:step2]]</div>
+<div data-rb-step="bytes" hidden>[[file:code/ladder.py@52-57]][[rs:message]][[rs:step3]]</div>
+<div data-rb-step="parallel" hidden>[[file:code/ladder.py@58-59]][[rs:step5]]</div>
+<p class="small mute">Full sources: <code>src/rb/code/ladder.py</code> and <code>src/rb/ext/src/lib.rs</code>. The output every step prints:</p>
+[[out:ladder_output.txt|real output (identical for all six steps)]]
+</div></details>
+</div>
+<p>Read it as a story. <b>Steps 1 to 3</b> move only the token loop: a 3x gain. Step 1 calls Rust 199,992 times (once per message); step 2 makes one call but <code>Vec&lt;String&gt;</code> copies all 25 million characters first, so its counting phase is slower than step 1's and end to end the two are within noise; step 3 borrows <code>&amp;str</code> views and barely beats step 1, because once the loop is in Rust the program is waiting on <code>json.loads</code>. <b>Step 4</b> moves the parsing too: Python reads the file as <code>bytes</code> and makes one call; serde parses each line straight into a typed struct, and the program runs <span class="rb-n" data-rbr="L.python.median|L.bytes.median" data-d="0"></span> times faster than the Python version. <b>Step 5</b> releases the GIL and splits the file over 8 rayon threads. The root's own whole-file PyO3 variant measured <span data-rbv="root.pyrs_file" data-d="3"></span> s (one thread) and <span data-rbv="root.pyrs_file4" data-d="3"></span> s (4 threads), in line with steps 4 and 5.</p>
+<div class="rb-pq"><b>Predict:</b> step 5 runs on 8 threads. Why is it about 2x faster than step 4 and not 8x?</div>
+<button class="rb-rv" data-for="rb-pr-l5" aria-expanded="false">Reveal the answer</button>
+<div id="rb-pr-l5" hidden><p class="small">The phases (from <code>ladder.py --phases</code>): the Rust part fell from <span class="rb-n" data-rbv="phases/bytes/Rust: parse + count" data-d="0"></span> ms to <span class="rb-n" data-rbv="phases/parallel/Rust: parse + count" data-d="0"></span> ms (<span data-rbr="phases/bytes/Rust: parse + count|phases/parallel/Rust: parse + count" data-d="1"></span>x on a busy laptop with 2 of its 10 cores slower efficiency cores). What did not shrink is everything else in the process: starting Python and importing <code>tokrs</code> (<span class="rb-n" data-rbv="startup.median" data-rbm="1000" data-d="0"></span> ms on its own, measured with hyperfine), reading the file, building the result dict and printing. Amdahl again.</p></div>
+</section>

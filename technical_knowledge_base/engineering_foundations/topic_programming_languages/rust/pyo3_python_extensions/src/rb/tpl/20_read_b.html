@@ -1,0 +1,48 @@
+
+<section id="rb-s1">
+<h2>1. Is it worth it? Profile, then do the arithmetic</h2>
+<p>On <code>import</code>, CPython calls a function in an extension module named <code>PyInit_&lt;name&gt;</code>, which hands back a module object whose functions are machine code. Writing one costs a second language, a compiler in your build and a wheel per platform (section 12), so do it only when a profile says so. Finding the hot function and trying the cheap wins first (a better algorithm, a built-in such as <code>re</code> or <code>collections.Counter</code>, NumPy, an existing library) is {{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}; Rust comes after those, for a hot loop that is left and that no library already does.</p>
+<p>The hero's first two bars are <b>Amdahl's law</b>: if a fraction <i>p</i> of the time is sped up <i>s</i> times, the whole program speeds up 1 / ((1 - <i>p</i>) + <i>p</i>/<i>s</i>). The token loop was <span class="rb-n" data-rbv="PS.share" data-d="0"></span>% of the pure-Python run (<i>p</i> = <span data-rbv="PS.p" data-d="2"></span>), so even an infinitely fast loop leaves the other <span class="rb-n" data-rbv="PS.rest" data-d="0"></span>% and the best this change alone can give is 1 / (1 - <i>p</i>) = <span class="rb-n" data-rbv="PS.bound" data-d="1"></span>x; we measured <span class="rb-n" data-rbr="L.python.median|L.borrowed.median" data-d="1"></span>x end to end. To go further, the parsing has to move too.</p>
+<div class="rb-cost"><div><div class="t">Worth it when</div>a profile shows one hot path you own, it is not array arithmetic NumPy already does, it runs often (a tokenizer, a parser, a sampler, a graph walk), and you can pass it big batches.</div><div><div class="t">Not worth it when</div>the time is in I/O or the network, a library already does it (orjson, polars, pyarrow), or the hot code calls back into Python objects on every step.</div><div><div class="t">What it costs</div>A Rust toolchain in your build (about 10 s for a clean build here), wheels per platform, and a team that can read Rust.</div></div>
+</section>
+
+<section id="rb-s2">
+<h2>2. Your first extension: PyO3 and maturin</h2>
+<p>PyO3's <b>macros</b> (code generators run by the compiler, written <code>#[...]</code>) turn an ordinary Rust function into a Python-callable one; maturin compiles the crate and packs the library into a <b>wheel</b> (the <code>.whl</code> zip pip installs). The root page's {{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab has the first run recorded: <code>maturin new --bindings pyo3 tokrs</code> writes <code>Cargo.toml</code>, <code>pyproject.toml</code>, <code>src/lib.rs</code> and a GitHub Actions workflow. This page's project, <code>tokrs</code>, grew from that skeleton.</p>
+<details class="dp"><summary>The two configuration files, and what each line is for</summary><div>
+[[file:ext/Cargo.toml]]
+[[file:ext/pyproject.toml]]
+<p><code>crate-type = ["cdylib"]</code> asks for a C-compatible dynamic library, the only kind Python can load. The other four dependencies are <code>numpy</code> (rust-numpy, section 5), <code>rayon</code> (parallel loops, section 8), and <code>serde</code> with <code>serde_json</code> (typed JSON parsing, section 10).</p>
+</div></details>
+<p><code>[profile.release]</code> settings apply to <code>--release</code> builds; without <code>--release</code> you get a debug build that is often 10 to 50 times slower, and timing it is the most common beginner mistake. A clean release build, installed into the virtual environment:</p>
+[[out:b1_develop.txt|$ maturin develop --release   (clean, under /usr/bin/time -p)]]
+<p>The 10 s is mostly compiling PyO3, the NumPy bindings, rayon and serde once; after that an edit to <code>lib.rs</code> rebuilds in a few seconds. <code>maturin develop</code> installs the wheel as <b>editable</b>, so you rerun it after each Rust change and then restart the interpreter or notebook kernel: a process cannot unload a shared library it has loaded, so <code>importlib.reload</code> will not pick up the new build.</p>
+<div class="co warn"><div class="t">Correction to older guides (and to the root's benchmark crate)</div>Older tutorials add <code>features = ["pyo3/extension-module"]</code> under <code>[tool.maturin]</code>. PyO3 now marks that feature deprecated: maturin 1.9.4 and later set the environment variable <code>PYO3_BUILD_EXTENSION_MODULE</code>, which does the same job (stop linking to <code>libpython</code>) (<a href="https://pyo3.rs/v0.29.3/features.html#extension-module" target="_blank" rel="noopener noreferrer">PyO3 features guide</a>). <code>tokrs</code> leaves it out; the root's <code>src/bench/ext_rust/</code> still has it, which is harmless.</div>
+<div class="rb-cost"><div><div class="t">maturin develop</div>Build and install into the current venv: your edit, compile, test loop.</div><div><div class="t">maturin build --release</div>Write a wheel into <code>target/wheels/</code> (or <code>-o dir</code>): what you ship (section 12).</div><div><div class="t">pip / uv</div><code>uv pip install .</code> calls maturin as the build backend, so users with a Rust toolchain can build from source.</div></div>
+</section>
+
+<section id="rb-s3">
+<h2>3. Functions and modules: <code>#[pyfunction]</code>, <code>#[pymodule]</code></h2>
+<p>Step 1 of the token counter: the root program's token loop as plain Rust, and a thin function Python can call.</p>
+[[rs:tokens]]
+[[rs:step1]]
+<p><code>#[pyfunction]</code> generates the glue: a C-level function that takes Python's argument objects, converts each to the Rust parameter type (<code>&amp;str</code> here), calls your function, and converts the <code>u64</code> result back into a Python <code>int</code>. The <code>///</code> doc comment becomes the docstring. The module lists what it exports:</p>
+[[rs:module]]
+<p>The <code>#[pymodule]</code> name (<code>mod tokrs</code>), the library name in <code>Cargo.toml</code> and <code>module-name</code> in <code>pyproject.toml</code> must agree, because CPython looks for <code>PyInit_tokrs</code> when you <code>import tokrs</code>; a mismatch makes the import fail.</p>
+[[predict:code/c1_first.py|c1_first.txt]]
+<p>Rule 3 of the program, checked: <code>x86_64</code> is 2 tokens and <code>café</code> is 1 (<code>caf</code>), and <code>日本語 v2.1 C++</code> has 3 (<code>v2</code>, <code>1</code>, <code>C</code>: the Japanese characters, the dot and the plus signs all separate). The function is a <code>builtin_function_or_method</code>, exactly like <code>len</code>, and PyO3 wrote its signature <code>(text)</code> from the Rust parameter name, so keyword calls work.</p>
+<h3>What Python sees when the types are wrong</h3>
+<p>Python has no compiler to stop <code>count_tokens(5)</code>, so the glue checks every argument at run time and raises <code>TypeError</code>. Nine wrong and right calls, run for real, gave four lessons.</p>
+<details class="dp"><summary>Predict the nine calls, then reveal the real output</summary><div>
+[[predict:code/c2_types.py|c2_types.txt]]
+</div></details>
+<p> (1) PyO3 adds a note naming the parameter (<code>while processing 'text'</code>, shown by Python 3.11+ as an exception note). (2) <code>&amp;Bound&lt;PyList&gt;</code> accepts exactly a <code>list</code>, so a tuple is refused, while <code>Vec&lt;String&gt;</code> accepts any sequence but deliberately refuses a <code>str</code>, which is also a sequence and a classic bug. (3) Inside <code>count_many</code> the item check runs after argument parsing, so its error has no note: say which item failed in your own messages. (4) A <code>str</code> holding a lone surrogate (legal in Python, not in UTF-8) cannot become <code>&amp;str</code> and raises <code>UnicodeEncodeError</code>.</p>
+<h3>The types in those signatures</h3>
+<div class="tw"><table class="rb-t"><thead><tr><th>Rust type</th><th>What it is</th><th>Python analogy</th></tr></thead><tbody>
+<tr><td><code>Python&lt;'py&gt;</code></td><td>A zero-size token proving this thread is attached to the interpreter (holds the GIL on a normal build). You get it as a parameter or from a <code>Bound</code>.</td><td>Being inside the interpreter at all</td></tr>
+<tr><td><code>Bound&lt;'py, T&gt;</code></td><td>A strong reference to a Python object of type <code>T</code> (<code>PyList</code>, <code>PyDict</code>, <code>PyAny</code>), usable only while attached. Dropping it decrements the refcount.</td><td>Any ordinary variable holding an object</td></tr>
+<tr><td><code>Py&lt;T&gt;</code></td><td>The same reference without the <code>'py</code> lifetime: can be stored in a struct or sent to another thread; call <code>.bind(py)</code> to use it.</td><td>An object kept in a global or a queue</td></tr>
+<tr><td><code>PyResult&lt;T&gt;</code></td><td><code>Result&lt;T, PyErr&gt;</code>: <code>Err</code> becomes a raised exception (section 6).</td><td>return or raise</td></tr>
+</tbody></table></div>
+<p>The <code>'py</code> is a <b>lifetime</b> ({{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}): the compiler uses it to stop a <code>Bound</code> escaping the region where the interpreter is attached. You rarely write it except in return types like <code>Bound&lt;'py, PyDict&gt;</code>.</p>
+</section>
