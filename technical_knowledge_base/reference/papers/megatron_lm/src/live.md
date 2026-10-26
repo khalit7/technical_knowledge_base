@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism","Takeaway":"Introduced tensor (intra-layer model) parallelism: column-split the GEMM feeding each nonlinearity and row-split the one after it, so a transformer layer needs only 4 all-reduces, enabling an 8.3B GPT-2 on 512 V100s at 76% scaling efficiency.","Topics":["llm-training-and-post-training","inference-and-serving","hardware"],"Year":"2019","url":"https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e"}
+{"Paper":"Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism","Takeaway":"Made tensor (intra-layer model) parallelism simple for transformers in plain PyTorch: column-split the GEMM feeding each nonlinearity and row-split the one after it, so a transformer layer needs only 4 all-reduces (2 forward, 2 backward), training an 8.3B GPT-2 on 512 V100s at 76% weak-scaling efficiency against one GPU.","Topics":["llm-training-and-post-training","inference-and-serving","hardware"],"Year":"2019","url":"https://app.notion.com/p/3c65c17b0d0d8133ae92fbe90a1f308e"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
