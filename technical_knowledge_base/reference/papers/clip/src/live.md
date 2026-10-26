@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Learning Transferable Visual Models From Natural Language Supervision (CLIP)","Takeaway":"Contrastive pretraining on 400M web image-text pairs yields a shared embedding space where text builds zero-shot classifiers, matching supervised ResNet-50 on ImageNet with far better distribution-shift robustness.","Topics":["generative-and-multimodal","ml-fundamentals"],"Year":"2021","url":"https://app.notion.com/p/3c65c17b0d0d8194a85dfc5f3bf3f799"}
+{"Paper":"Learning Transferable Visual Models From Natural Language Supervision (CLIP)","Takeaway":"Contrastive pretraining on 400M web image-text pairs yields a shared embedding space where text builds zero-shot classifiers; the largest model (ViT-L/14 at 336px) matches the original supervised ResNet-50 on ImageNet zero-shot (76.2%), and zero-shot CLIP closes up to 75% of the accuracy gap under natural distribution shift.","Topics":["generative-and-multimodal","ml-fundamentals"],"Year":"2021","url":"https://app.notion.com/p/3c65c17b0d0d8194a85dfc5f3bf3f799"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
