@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness","Takeaway":"Exact attention made 2-7x faster and linear-memory by tiling + online softmax + backward recomputation in one fused CUDA kernel, proving HBM IO (not FLOPs) is the true cost of attention.","Topics":["cuda-and-gpu-programming","inference-and-serving","hardware","llm-training-and-post-training"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381"}
+{"Paper":"FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness","Takeaway":"Exact attention made up to 3x faster than standard attention at sequence lengths 128 to 2K (7.6x on GPT-2's attention) and linear in memory by tiling + online softmax + backward recomputation in one fused CUDA kernel, showing that HBM reads and writes, not FLOPs, bound attention's runtime on GPUs: the kernel does more FLOPs yet runs faster.","Topics":["cuda-and-gpu-programming","inference-and-serving","hardware","llm-training-and-post-training"],"Year":"2022","url":"https://app.notion.com/p/3c65c17b0d0d81e4a3e8e7a2c4771381"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
