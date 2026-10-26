@@ -55,3 +55,6 @@ claude -p invocations in all: 31 recorded sessions, 15 token-count and summary c
 
 ## Update pass 2026-10-26 (update-kb)
 Core 33.9 to 34.9 min (header 35). Integrated: Cloudflare's shared-prefix breakpoint (vendor figures) as the production case of section 2's ordering rule; cache engineering (`drop`, `repos`, arXiv 2610.28577) as a sixth compaction design in section 4; a pointer from section 6 to Multi-agent patterns, which now owns Anthropic's "fold subagents into the main loop" guidance and the 30 to 50 tool-definition figure.
+
+## 2026-10-26 absorb
+Section 8 (written by memory_layers/make_memory.py) now carries Mem0's p95 latency, 1.44 s against 17.12 s for full context, absorbed from Agentic retrieval, which keeps one sentence plus a link.
