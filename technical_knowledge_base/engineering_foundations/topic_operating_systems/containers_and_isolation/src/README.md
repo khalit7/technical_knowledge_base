@@ -59,3 +59,5 @@ No `live.md` or `coverage.json`: the page is new, with no old text. Measurements
 
 ## Topic close (2026-10-24)
 Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
+
+2026-10-26 (final follow-up sweep): the GPU-container failure list links Virtualization and the GPU driver stack section 10 (driver and runtime versions); the PID 1 paragraph links Processes section 5 (reaping and zombies).
