@@ -45,3 +45,5 @@ Why this length: the core now carries the six ideas a design needs (frame, data 
 
 ## Ledger (`ledger.json`, `python3 html_utils/ledger.py check` prints problems 0)
 424 units: core 175, depth 139, owned 3 (LiteLLM internals on Gateways and routing, KEDA thresholds on LLM serving in production, Feast's offline and online calls on ML platforms and workflows), fat 107, volatile 0.
+
+2026-10-26 (final follow-up sweep): units kept closed here moved to their owners and are now one linking sentence each: the rollout machinery (Istio `mirrorPercentage`, KServe `canaryTrafficPercent`, Argo `successCondition`) to Production eval engineering section 8; the OpenTelemetry GenAI metric names to LLM observability section 2; the Virtual Token Counter and llm-d's `InferenceObjective` priority to LLM serving in production section 2 (which also took "30-100+ seconds per switch", kept here as the cold-start reason); Anthropic's Priority Tier to Gateways and routing section 6. The shadow cost rule and the per-tenant split stay here as design rules. Ledger units 117, 127, 128, 198, 201, 202, 238 and 239 relabelled `owned:`. The semantic-cache facts were already on Caching.
