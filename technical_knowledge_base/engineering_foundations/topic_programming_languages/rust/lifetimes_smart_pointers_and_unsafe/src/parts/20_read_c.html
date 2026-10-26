@@ -1,0 +1,197 @@
+
+<section id="lsp-smart">
+<h2>2. Smart pointers and interior mutability</h2>
+<p>Single ownership and compile-time borrowing cover most code. For the rest, the standard library has types that own their contents in other ways, each with a cost:</p>
+<div class="tw"><table><thead><tr><th>Type</th><th>What it gives you</th><th>Cost</th><th>Python analogue</th></tr></thead><tbody>
+<tr><td><code>Box&lt;T&gt;</code></td><td>one owner, value on the heap; needed for recursive types and trait objects</td><td>one allocation</td><td>every object</td></tr>
+<tr><td><code>Rc&lt;T&gt;</code></td><td>shared ownership in one thread; freed when the last <code>Rc</code> goes</td><td>a counter update per clone and drop</td><td>reference counting</td></tr>
+<tr><td><code>Arc&lt;T&gt;</code></td><td>the same across threads</td><td>atomic counter updates (slower)</td><td>reference counting in free-threaded CPython</td></tr>
+<tr><td><code>Cell&lt;T&gt;</code>, <code>RefCell&lt;T&gt;</code></td><td><dfn>interior mutability</dfn>: change through a shared reference; <code>RefCell</code> checks the borrow rules at run time</td><td>a flag check per borrow; <b>a panic</b> if the rules are broken</td><td>(all objects are mutable)</td></tr>
+<tr><td><code>Mutex&lt;T&gt;</code>, <code>RwLock&lt;T&gt;</code></td><td>the same across threads, by locking</td><td>a lock per access; contention</td><td><code>threading.Lock</code></td></tr>
+<tr><td><code>Weak&lt;T&gt;</code></td><td>a non-owning pointer to an <code>Rc</code>/<code>Arc</code> value; breaks cycles</td><td><code>upgrade()</code> may find it gone</td><td><code>weakref</code></td></tr>
+</tbody></table></div>
+<p>A recursive type needs <code>Box</code>, because a value that contains itself directly would have infinite size; with the <code>Box</code> each child is one 8-byte pointer, as the run below prints (<code>size_of Box&lt;Expr&gt; = 8</code>).</p>
+<details class="dp"><summary>The recursive type without a Box <span class="mute">(E0072)</span></summary><div class="b">
+<pre class="ra-out ra-bad" data-ra-out="l_recursive_err">
+<span class="ra-cmd">$ rustc --edition 2024 recursive_err.rs</span>
+error[E0072]: recursive type `Expr` has infinite size
+ --&gt; recursive_err.rs:1:1
+  |
+1 | enum Expr &#123;
+  | ^^^^^^^^^
+2 |     Num(f64),
+3 |     Add(Expr, Expr),
+  |         ---- recursive without indirection
+  |
+help: insert some indirection (e.g., a `Box`, `Rc`, or `&amp;`) to break the cycle
+  |
+3 |     Add(Box&lt;Expr&gt;, Expr),
+  |         ++++    +
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0072`.
+[exit code 1]</pre>
+</div></details>
+
+<h3>Rc: shared ownership is a counter beside the value</h3>
+<div class="lsp-vis" id="lsp-rc">
+<h4>Cloning an Rc copies an 8-byte pointer and bumps a count; the value is freed when the count reaches 0</h4>
+<div class="lsp-ctl"><button id="lsp-rc-prev" aria-label="Previous step">Back</button><button id="lsp-rc-next" aria-label="Next step">Next</button><span class="n" id="lsp-rc-n"></span></div>
+<div class="hs"><svg id="lsp-rc-svg" viewBox="0 0 600 170" role="img" aria-label="Stack handles pointing to one heap block that holds the strong count and the Doc value"></svg></div>
+<p class="lsp-cap" id="lsp-rc-cap">Step through smart.rs lines 31 to 38. The counts at steps 3 and 4 are the program's own printed values.</p>
+</div>
+<p>The same program also shows <code>Cell</code>: <code>b.cache_hits.set(...)</code> changes the <code>Doc</code> through a shared <code>Rc</code>, which plain <code>&amp;</code> would refuse. <code>Cell</code> does it by copying values in and out, never handing out a reference, so it needs no check at all; <code>RefCell</code> hands out references, so it must count them.</p>
+<pre class="ra-out ra-bad" data-ra-out="l_smart">
+<span class="ra-cmd">$ rustc --edition 2024 smart.rs &amp;&amp; ./smart</span>
+2 + 3 * 4 = 14
+strong_count inside = 3
+strong_count after = 2, hits = 1, name = system prompt
+log = ["first", "second"]
+weak upgrade while alive: true
+weak upgrade after drop: false
+size_of Box&lt;Expr&gt; = 8, Rc&lt;Doc&gt; = 8, Expr = 24
+
+thread 'main' (16492202) panicked at smart.rs:58:22:
+RefCell already borrowed
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+[exit code 101]</pre>
+<details class="dp"><summary>smart.rs, the RefCell half <span class="mute">(lines 40 to 59)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">smart.rs (lines 40 to 59)</div><pre class="ra-code">    <span class="ra-cm">// RefCell: borrow rules checked at run time instead of compile time</span>
+    <span class="ra-kw">let</span> log = Rc::new(RefCell::new(Vec::&lt;String&gt;::new()));
+    <span class="ra-kw">let</span> writer = Rc::clone(&amp;log);
+    writer.borrow_mut().push(<span class="ra-st">"first"</span>.into());
+    writer.borrow_mut().push(<span class="ra-st">"second"</span>.into());
+    <span class="ra-mac">println!</span>(<span class="ra-st">"log = &#123;:?&#125;"</span>, log.borrow());
+
+    <span class="ra-cm">// Weak: a non-owning pointer (it does not keep the value alive); used to break cycles</span>
+    <span class="ra-kw">let</span> parent = Rc::new(String::<span class="ra-kw">from</span>(<span class="ra-st">"parent"</span>));
+    <span class="ra-kw">let</span> w: Weak&lt;String&gt; = Rc::downgrade(&amp;parent);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"weak upgrade while alive: &#123;&#125;"</span>, w.upgrade().is_some());
+    drop(parent);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"weak upgrade after drop: &#123;&#125;"</span>, w.upgrade().is_some());
+    <span class="ra-mac">println!</span>(<span class="ra-st">"size_of Box&lt;Expr&gt; = &#123;&#125;, Rc&lt;Doc&gt; = &#123;&#125;, Expr = &#123;&#125;"</span>,
+        std::mem::size_of::&lt;Box&lt;Expr&gt;&gt;(), std::mem::size_of::&lt;Rc&lt;Doc&gt;&gt;(), std::mem::size_of::&lt;Expr&gt;());
+
+    <span class="ra-cm">// The run-time check, failing: two mutable borrows at once</span>
+    <span class="ra-kw">let</span> first = log.borrow_mut();
+    <span class="ra-kw">let</span> second = log.borrow_mut(); <span class="ra-cm">// panics: already mutably borrowed</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; &#123;&#125;"</span>, first.len(), second.len());</pre></div>
+</div></details>
+<p>The panic is the price of <code>RefCell</code>: the same rule as compile-time borrowing, but discovered while the program runs. <code>Rc&lt;RefCell&lt;T&gt;&gt;</code> compiles in situations where plain references would not, and it is the most common way learners make a borrow error go away and turn it into a crash. So: <b><code>Rc&lt;RefCell&lt;T&gt;&gt;</code> compiles but can still panic because the exclusivity check moved from compile time to run time.</b> <code>try_borrow_mut</code> returns an error instead of panicking ({{RefCell docs|https://doc.rust-lang.org/std/cell/struct.RefCell.html}}), for code that can recover.</p>
+<details class="dp"><summary>smart.rs, the first half <span class="mute">(Box, Rc, Cell, Weak, sizes)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">smart.rs (lines 1 to 39)</div><pre class="ra-code"><span class="ra-kw">use</span> std::cell::&#123;Cell, RefCell&#125;;
+<span class="ra-kw">use</span> std::rc::&#123;Rc, Weak&#125;;
+
+<span class="ra-cm">// Box: put a value on the heap. Needed for recursive types, whose size would otherwise be infinite.</span>
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">enum</span> Expr &#123;
+    Num(f64),
+    Add(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+    Mul(Box&lt;Expr&gt;, Box&lt;Expr&gt;),
+&#125;
+
+<span class="ra-kw">fn</span> eval(e: &amp;Expr) -&gt; f64 &#123;
+    <span class="ra-kw">match</span> e &#123;
+        Expr::Num(x) =&gt; *x,
+        Expr::Add(a, b) =&gt; eval(a) + eval(b),
+        Expr::Mul(a, b) =&gt; eval(a) * eval(b),
+    &#125;
+&#125;
+
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">struct</span> Doc &#123;
+    name: String,
+    cache_hits: Cell&lt;u32&gt;, <span class="ra-cm">// interior mutability for a Copy value</span>
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> e = Expr::Add(Box::new(Expr::Num(2.0)), Box::new(Expr::Mul(Box::new(Expr::Num(3.0)), Box::new(Expr::Num(4.0)))));
+    <span class="ra-mac">println!</span>(<span class="ra-st">"2 + 3 * 4 = &#123;&#125;"</span>, eval(&amp;e));
+
+    <span class="ra-cm">// Rc: shared ownership in one thread; the last owner to go frees the value</span>
+    <span class="ra-kw">let</span> shared = Rc::new(Doc &#123; name: <span class="ra-st">"system prompt"</span>.into(), cache_hits: Cell::new(0) &#125;);
+    <span class="ra-kw">let</span> a = Rc::clone(&amp;shared); <span class="ra-cm">// copies a pointer, bumps a counter</span>
+    &#123;
+        <span class="ra-kw">let</span> b = Rc::clone(&amp;shared);
+        b.cache_hits.set(b.cache_hits.get() + 1); <span class="ra-cm">// mutate through a shared reference</span>
+        <span class="ra-mac">println!</span>(<span class="ra-st">"strong_count inside = &#123;&#125;"</span>, Rc::strong_count(&amp;shared));
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"strong_count after = &#123;&#125;, hits = &#123;&#125;, name = &#123;&#125;"</span>, Rc::strong_count(&amp;a), a.cache_hits.get(), a.name);
+</pre></div>
+</div></details>
+
+<h3>Reference cycles leak</h3>
+<p>Reference counting cannot free a cycle, in Rust as in Python (where the cycle collector cleans up afterwards; Rust has none). Leaking memory is <i>safe</i> in Rust's sense, so the compiler allows it.</p>
+<div class="lsp-vis">
+<h4>Before and after: two nodes that own each other never reach 0; make the back edge Weak and both drop</h4>
+<div class="hs"><svg viewBox="0 0 640 176" role="img" aria-label="Left: x and y point at each other with owning Rc edges; after the handles go each still has a strong count of 1, so neither is dropped. Right: x owns y, y points back to x with a Weak edge; when the handles go x's count reaches 0, x drops, which releases y, which drops">
+<defs><marker id="lsp-ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs>
+<g font-size="12" fill="var(--ink)">
+<text x="10" y="16" font-weight="600">Before: Rc both ways</text>
+<rect x="30" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="75" y="70" text-anchor="middle" font-weight="600">x</text><text x="75" y="86" text-anchor="middle" font-size="11">strong 2 then 1</text>
+<rect x="190" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="235" y="70" text-anchor="middle" font-weight="600">y</text><text x="235" y="86" text-anchor="middle" font-size="11">strong 2 then 1</text>
+<path d="M120,60 L188,60" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="154" y="54" text-anchor="middle" font-size="11">Rc</text>
+<path d="M190,84 L122,84" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="154" y="100" text-anchor="middle" font-size="11">Rc</text>
+<text x="10" y="128" font-size="11.5">Handles leave scope: counts fall to 1 and stop.</text>
+<text x="10" y="146" font-size="11.5" fill="var(--lsp-red)">No "drop" is printed: a leak, allowed in safe Rust.</text>
+<line x1="320" y1="8" x2="320" y2="168" stroke="var(--line)"/>
+<text x="340" y="16" font-weight="600">After: Weak back edge</text>
+<rect x="360" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="405" y="70" text-anchor="middle" font-weight="600">x</text><text x="405" y="86" text-anchor="middle" font-size="11">strong 1, weak 1</text>
+<rect x="520" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="565" y="70" text-anchor="middle" font-weight="600">y</text><text x="565" y="86" text-anchor="middle" font-size="11">strong 1</text>
+<path d="M450,60 L518,60" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="484" y="54" text-anchor="middle" font-size="11">Rc</text>
+<path d="M520,84 L452,84" stroke="var(--ink)" stroke-dasharray="4 3" fill="none" marker-end="url(#lsp-ar2)"/><text x="484" y="100" text-anchor="middle" font-size="11">Weak</text>
+<text x="340" y="128" font-size="11.5">Handle to x goes: x's strong count reaches 0,</text>
+<text x="340" y="146" font-size="11.5" fill="var(--good)">"drop x", which releases y: "drop y".</text>
+</g></svg></div>
+<p class="lsp-cap small">Counts are leak.rs's printed values (<code>cycle: x strong_count = 2</code>; <code>weak: x strong_count = 1, weak_count = 1</code>); the code and the full output are below.</p>
+</div>
+<details class="ra-pr"><summary><b>Predict, then reveal:</b> Which of the four nodes print "drop"?</summary><pre class="ra-out" data-ra-out="l_leak">
+<span class="ra-cmd">$ rustc --edition 2024 leak.rs &amp;&amp; ./leak</span>
+cycle: x strong_count = 2
+weak: x strong_count = 1, weak_count = 1
+y.back.upgrade() is x (Weak back edge)
+drop x (Weak back edge)
+drop y (Weak back edge)
+end of main: the Rc cycle was never dropped (a leak, which safe Rust allows)</pre></details>
+<p>Rule of thumb: <b>ownership should form a tree</b>. Back pointers (child to parent, node to previous) are <code>Weak</code>, or better, indexes into a <code>Vec</code> that owns all the nodes (an "arena"), which is how most Rust graph code is written. Miri (section 4) reports memory still allocated when a program ends, so it would flag this leak in a test.</p>
+<details class="dp"><summary>leak.rs in full</summary><div class="b">
+<div class="ra-src"><div class="ra-fn">leak.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::cell::RefCell;
+<span class="ra-kw">use</span> std::rc::&#123;Rc, Weak&#125;;
+
+<span class="ra-kw">struct</span> Node &#123;
+    name: &amp;<span class="ra-lt">'static</span> str,
+    next: RefCell&lt;Option&lt;Rc&lt;Node&gt;&gt;&gt;, <span class="ra-cm">// owning edge</span>
+    back: RefCell&lt;Weak&lt;Node&gt;&gt;,       <span class="ra-cm">// non-owning edge</span>
+&#125;
+
+<span class="ra-kw">impl</span> Drop <span class="ra-kw">for</span> Node &#123;
+    <span class="ra-kw">fn</span> drop(&amp;<span class="ra-kw">mut</span> <span class="ra-kw">self</span>) &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"drop &#123;&#125;"</span>, <span class="ra-kw">self</span>.name);
+    &#125;
+&#125;
+
+<span class="ra-kw">fn</span> node(name: &amp;<span class="ra-lt">'static</span> str) -&gt; Rc&lt;Node&gt; &#123;
+    Rc::new(Node &#123; name, next: RefCell::new(<span class="ra-kw">None</span>), back: RefCell::new(Weak::new()) &#125;)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    &#123;
+        <span class="ra-kw">let</span> x = node(<span class="ra-st">"x (cycle of Rc)"</span>);
+        <span class="ra-kw">let</span> y = node(<span class="ra-st">"y (cycle of Rc)"</span>);
+        *x.next.borrow_mut() = Some(Rc::clone(&amp;y)); <span class="ra-cm">// x -&gt; y</span>
+        *y.next.borrow_mut() = Some(Rc::clone(&amp;x)); <span class="ra-cm">// y -&gt; x: a cycle</span>
+        <span class="ra-mac">println!</span>(<span class="ra-st">"cycle: x strong_count = &#123;&#125;"</span>, Rc::strong_count(&amp;x));
+    &#125; <span class="ra-cm">// our two handles go, but each node still owns the other: neither count reaches 0</span>
+    &#123;
+        <span class="ra-kw">let</span> x = node(<span class="ra-st">"x (Weak back edge)"</span>);
+        <span class="ra-kw">let</span> y = node(<span class="ra-st">"y (Weak back edge)"</span>);
+        *x.next.borrow_mut() = Some(Rc::clone(&amp;y)); <span class="ra-cm">// x owns y</span>
+        *y.back.borrow_mut() = Rc::downgrade(&amp;x); <span class="ra-cm">// y only points back at x</span>
+        <span class="ra-mac">println!</span>(<span class="ra-st">"weak: x strong_count = &#123;&#125;, weak_count = &#123;&#125;"</span>, Rc::strong_count(&amp;x), Rc::weak_count(&amp;x));
+        <span class="ra-mac">println!</span>(<span class="ra-st">"y.back.upgrade() is &#123;&#125;"</span>, y.back.borrow().upgrade().map(|n| n.name).unwrap_or(<span class="ra-st">"gone"</span>));
+    &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"end of main: the Rc cycle was never dropped (a leak, which safe Rust allows)"</span>);
+&#125;</pre></div>
+</div></details>
+</section>

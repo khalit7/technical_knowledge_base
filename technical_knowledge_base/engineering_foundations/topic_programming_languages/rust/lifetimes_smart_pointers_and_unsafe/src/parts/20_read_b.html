@@ -1,0 +1,239 @@
+
+<section id="lsp-life">
+<h2>1. Lifetimes: a contract the compiler checks at every call</h2>
+<p>A <dfn>lifetime</dfn> is the stretch of the program during which a reference is valid. The checker computes them itself almost everywhere. You write one, as <code>'a</code>, only when a function returns a reference (or a struct holds one) and the compiler cannot tell which input it came from:</p>
+<pre class="ra-out ra-bad" data-ra-out="l_life_err">
+<span class="ra-cmd">$ rustc --edition 2024 life_err.rs</span>
+error[E0106]: missing lifetime specifier
+ --&gt; life_err.rs:1:33
+  |
+1 | fn longest(a: &amp;str, b: &amp;str) -&gt; &amp;str &#123;
+  |               ----     ----     ^ expected named lifetime parameter
+  |
+  = help: this function's return type contains a borrowed value, but the signature does not say whether it is borrowed from `a` or `b`
+help: consider introducing a named lifetime parameter
+  |
+1 | fn longest&lt;'a&gt;(a: &amp;'a str, b: &amp;'a str) -&gt; &amp;'a str &#123;
+  |           ++++     ++          ++          ++
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0106`.
+[exit code 1]</pre>
+<p>Read <code>'a</code> as a name for "some region of the program". The fixed signature <code>fn longest&lt;'a&gt;(a: &amp;'a str, b: &amp;'a str) -&gt; &amp;'a str</code> says: the result is valid as long as <b>both</b> inputs are, so at each call <code>'a</code> shrinks to the overlap of the two. Lifetimes generate no code; they are a contract the checker verifies at every call. The picture is that overlap, drawn for the two calls below.</p>
+<div class="lsp-vis" id="lsp-lt">
+<h4>The result's lifetime must fit inside both inputs': moving one use is the difference</h4>
+<div class="seg lsp-ctl" id="lsp-lt-seg" role="group" aria-label="Which program"><button data-m="err" class="on">Before: use after the block (life_err2.rs)</button><button data-m="ok">After: use inside it (life.rs)</button></div>
+<div class="hs" data-lsp-lt="err"><svg viewBox="0 0 600 168" role="img" aria-label="Timeline of life_err2.rs: a lives from line 6 to 13, b from line 9 to 11, and the borrow held by w runs from line 10 to its use at line 12, past the end of b, which is the error E0597">
+<g font-size="12" fill="var(--ink)">
+<text x="8" y="16" fill="var(--mute)" font-size="11">line</text>
+<g font-size="11" fill="var(--mute)" text-anchor="middle"><text x="130" y="16">6</text><text x="190" y="16">7</text><text x="250" y="16">8</text><text x="310" y="16">9</text><text x="370" y="16">10</text><text x="430" y="16">11</text><text x="490" y="16">12</text><text x="550" y="16">13</text></g>
+<text x="8" y="44" font-family="ui-monospace,Menlo,monospace">a</text><rect x="130" y="32" width="420" height="16" rx="3" fill="var(--c3)" opacity=".75"/>
+<text x="8" y="74" font-family="ui-monospace,Menlo,monospace">b</text><rect x="310" y="62" width="120" height="16" rx="3" fill="var(--c3)" opacity=".75"/><text x="436" y="74" font-size="11" fill="var(--mute)">freed at line 11</text>
+<text x="8" y="104" font-family="ui-monospace,Menlo,monospace">w ('a)</text><rect x="370" y="92" width="60" height="16" rx="3" fill="var(--acc)"/><rect x="430" y="92" width="60" height="16" rx="3" fill="var(--lsp-red)"/>
+<line x1="430" y1="26" x2="430" y2="114" stroke="var(--lsp-red)" stroke-dasharray="4 3"/>
+<text x="370" y="130" font-size="11.5">'a must end by line 11 (b's end),</text>
+<text x="370" y="146" font-size="11.5" fill="var(--lsp-red)">but w is used at line 12: E0597</text>
+</g></svg></div>
+<div class="hs" data-lsp-lt="ok" hidden><svg viewBox="0 0 600 168" role="img" aria-label="Timeline of life.rs: a lives from line 18 to 28, b from line 21 to 24, and the borrow held by w runs from line 22 to its use at line 23, inside both, so it compiles">
+<g font-size="12" fill="var(--ink)">
+<text x="8" y="16" fill="var(--mute)" font-size="11">line</text>
+<g font-size="11" fill="var(--mute)" text-anchor="middle"><text x="130" y="16">18</text><text x="190" y="16">19</text><text x="250" y="16">20</text><text x="310" y="16">21</text><text x="370" y="16">22</text><text x="430" y="16">23</text><text x="490" y="16">24</text><text x="550" y="16">28</text></g>
+<text x="8" y="44" font-family="ui-monospace,Menlo,monospace">a</text><rect x="130" y="32" width="420" height="16" rx="3" fill="var(--c3)" opacity=".75"/>
+<text x="8" y="74" font-family="ui-monospace,Menlo,monospace">b</text><rect x="310" y="62" width="180" height="16" rx="3" fill="var(--c3)" opacity=".75"/><text x="496" y="74" font-size="11" fill="var(--mute)">freed at 24</text>
+<text x="8" y="104" font-family="ui-monospace,Menlo,monospace">w ('a)</text><rect x="370" y="92" width="60" height="16" rx="3" fill="var(--acc)"/>
+<text x="370" y="130" font-size="11.5">'a = lines 22 to 23, inside a and b:</text>
+<text x="370" y="146" font-size="11.5" fill="var(--good)">compiles; prints "longest: logits!"</text>
+</g></svg></div>
+<p class="lsp-cap small">Bars run from a value's creation to its end of scope; the blue bar is the borrow <code>w</code> holds, from the call to its last use. The compiler fits <code>'a</code> to that bar and checks it against each input's bar.</p>
+</div>
+<p>Breaking the contract at a call site: <code>b</code> dies at the inner closing brace, but <code>w</code>, which may point into <code>b</code>, is used after it. The error names exactly the three points on the timeline: where <code>b</code> was borrowed, where it was dropped, where the borrow was used later.</p>
+<pre class="ra-out ra-bad" data-ra-out="l_life_err2">
+<span class="ra-cmd">$ rustc --edition 2024 life_err2.rs</span>
+error[E0597]: `b` does not live long enough
+  --&gt; life_err2.rs:10:25
+   |
+ 9 |         let b = String::from("logits!");
+   |             - binding `b` declared here
+10 |         w = longest(&amp;a, &amp;b);
+   |                         ^^ borrowed value does not live long enough
+11 |     &#125; // b is freed here
+   |     - `b` dropped here while still borrowed
+12 |     println!("&#123;w&#125;");
+   |                - borrow later used here
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0597`.
+[exit code 1]</pre>
+<details class="dp"><summary>The working program and the failing one, in full <span class="mute">(life.rs, life_err2.rs)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">life.rs</div><pre class="ra-code"><span class="ra-cm">// 'a names "some region of the program". The signature promises: the result</span>
+<span class="ra-cm">// lives no longer than the shorter-lived of a and b.</span>
+<span class="ra-kw">fn</span> longest&lt;<span class="ra-lt">'a</span>&gt;(a: &amp;<span class="ra-lt">'a</span> str, b: &amp;<span class="ra-lt">'a</span> str) -&gt; &amp;<span class="ra-lt">'a</span> str &#123;
+    <span class="ra-kw">if</span> a.len() &gt;= b.len() &#123; a &#125; <span class="ra-kw">else</span> &#123; b &#125;
+&#125;
+
+<span class="ra-cm">// One input reference: the compiler fills in the lifetimes itself (elision).</span>
+<span class="ra-kw">fn</span> first_word(s: &amp;str) -&gt; &amp;str &#123;
+    s.split(<span class="ra-st">' '</span>).next().unwrap_or(<span class="ra-st">""</span>)
+&#125;
+
+<span class="ra-cm">// A struct that holds a reference must say how long it may live.</span>
+<span class="ra-kw">struct</span> Token&lt;<span class="ra-lt">'a</span>&gt; &#123;
+    text: &amp;<span class="ra-lt">'a</span> str,
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> a = String::<span class="ra-kw">from</span>(<span class="ra-st">"tokens"</span>);
+    <span class="ra-kw">let</span> w;
+    &#123;
+        <span class="ra-kw">let</span> b = String::<span class="ra-kw">from</span>(<span class="ra-st">"logits!"</span>);
+        w = longest(&amp;a, &amp;b);
+        <span class="ra-mac">println!</span>(<span class="ra-st">"longest: &#123;w&#125;"</span>);
+    &#125;
+    <span class="ra-kw">let</span> t = Token &#123; text: first_word(<span class="ra-st">"hello world"</span>) &#125;;
+    <span class="ra-kw">let</span> s: &amp;<span class="ra-lt">'static</span> str = <span class="ra-st">"string literals live for the whole program"</span>;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125; | &#123;&#125;"</span>, t.text, s);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_life">
+<span class="ra-cmd">$ rustc --edition 2024 life.rs &amp;&amp; ./life</span>
+longest: logits!
+hello | string literals live for the whole program</pre>
+<div class="ra-src"><div class="ra-fn">life_err2.rs (lines 5 to 13)</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> a = String::<span class="ra-kw">from</span>(<span class="ra-st">"tokens"</span>);
+    <span class="ra-kw">let</span> w;
+    &#123;
+        <span class="ra-kw">let</span> b = String::<span class="ra-kw">from</span>(<span class="ra-st">"logits!"</span>);
+        w = longest(&amp;a, &amp;b);
+    &#125; <span class="ra-cm">// b is freed here</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;w&#125;"</span>);
+&#125;</pre></div>
+</div></details>
+
+<h3>When you write them: the three elision rules</h3>
+<p>The {{elision rules|https://doc.rust-lang.org/reference/lifetime-elision.html}} fill in the common cases, so most signatures carry no <code>'a</code>:</p>
+<div class="tw"><table><thead><tr><th>Rule</th><th>Example</th><th>Filled in as</th></tr></thead><tbody>
+<tr><td>1. Each input reference gets its own lifetime.</td><td><code>fn f(a: &amp;str, b: &amp;str)</code></td><td><code>fn f&lt;'1, '2&gt;(a: &amp;'1 str, b: &amp;'2 str)</code></td></tr>
+<tr><td>2. Exactly one input lifetime: outputs get it.</td><td><code>fn first_word(s: &amp;str) -&gt; &amp;str</code></td><td>the result borrows from <code>s</code></td></tr>
+<tr><td>3. A method with <code>&amp;self</code>: outputs get <code>self</code>'s.</td><td><code>fn name(&amp;self) -&gt; &amp;str</code></td><td>the result borrows from <code>self</code></td></tr>
+</tbody></table></div>
+<p>So you write lifetimes when a function has two or more reference inputs and returns a reference, or a struct stores a reference (<code>struct Token&lt;'a&gt; { text: &amp;'a str }</code> in life.rs). Rule 3 is the one that surprises: in a method it guesses <code>self</code>, even when the result can come from another argument.</p>
+<details class="dp"><summary>A method that returns its argument, refused under rule 3, and the fix <span class="mute">(elide_self_err.rs, elide_self_fix.rs)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">elide_self_err.rs (lines 5 to 10)</div><pre class="ra-code"><span class="ra-kw">impl</span> Vocab &#123;
+    <span class="ra-cm">// Elision rule 3: with &amp;self, the returned reference is assumed to borrow from self.</span>
+    <span class="ra-kw">fn</span> pick(&amp;<span class="ra-kw">self</span>, other: &amp;str) -&gt; &amp;str &#123;
+        <span class="ra-kw">if</span> other.is_empty() &#123; &amp;<span class="ra-kw">self</span>.name &#125; <span class="ra-kw">else</span> &#123; other &#125;
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_elide_self_err">
+<span class="ra-cmd">$ rustc --edition 2024 elide_self_err.rs</span>
+error: lifetime may not live long enough
+ --&gt; elide_self_err.rs:8:51
+  |
+7 |     fn pick(&amp;self, other: &amp;str) -&gt; &amp;str &#123;
+  |             -             - let's call the lifetime of this reference `'1`
+  |             |
+  |             let's call the lifetime of this reference `'2`
+8 |         if other.is_empty() &#123; &amp;self.name &#125; else &#123; other &#125;
+  |                                                   ^^^^^ method was supposed to return data with lifetime `'2` but it is returning data with lifetime `'1`
+  |
+help: consider introducing a named lifetime parameter and update trait if needed
+  |
+7 |     fn pick&lt;'a&gt;(&amp;self, other: &amp;'a str) -&gt; &amp;'a str &#123;
+  |            ++++                ++          ++
+
+error: aborting due to 1 previous error
+
+[exit code 1]</pre>
+<p>The compiler's suggestion ties only <code>other</code> to the result, which would then refuse <code>&amp;self.name</code>. The fix that matches what the code does names one lifetime for both inputs:</p>
+<div class="ra-src"><div class="ra-fn">elide_self_fix.rs (lines 5 to 10)</div><pre class="ra-code"><span class="ra-kw">impl</span> Vocab &#123;
+    <span class="ra-cm">// Say it explicitly: the result may come from self or from other.</span>
+    <span class="ra-kw">fn</span> pick&lt;<span class="ra-lt">'a</span>&gt;(&amp;<span class="ra-lt">'a</span> <span class="ra-kw">self</span>, other: &amp;<span class="ra-lt">'a</span> str) -&gt; &amp;<span class="ra-lt">'a</span> str &#123;
+        <span class="ra-kw">if</span> other.is_empty() &#123; &amp;<span class="ra-kw">self</span>.name &#125; <span class="ra-kw">else</span> &#123; other &#125;
+    &#125;
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_elide_self_fix">
+<span class="ra-cmd">$ rustc --edition 2024 elide_self_fix.rs &amp;&amp; ./elide_self_fix</span>
+cl100k
+gpt2</pre>
+</div></details>
+
+<h3>What no lifetime can do</h3>
+<p>Annotations describe lifetimes and never extend them, so no <code>'a</code> makes a reference to a value that is about to die:</p>
+<details class="dp"><summary>Returning a reference to a local <span class="mute">(dangle_err.rs, E0515)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">dangle_err.rs (lines 1 to 4)</div><pre class="ra-code"><span class="ra-kw">fn</span> make_greeting(name: &amp;str) -&gt; &amp;str &#123;
+    <span class="ra-kw">let</span> s = <span class="ra-mac">format!</span>(<span class="ra-st">"hello &#123;name&#125;"</span>);
+    &amp;s
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_dangle_err">
+<span class="ra-cmd">$ rustc --edition 2024 dangle_err.rs</span>
+error[E0515]: cannot return reference to local variable `s`
+ --&gt; dangle_err.rs:3:5
+  |
+3 |     &amp;s
+  |     ^^ returns a reference to data owned by the current function
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0515`.
+[exit code 1]</pre>
+</div></details>
+<p>The fix is to return the owned <code>String</code>. That is the general rule of thumb: <b>if "just add a lifetime" spreads <code>'a</code> through many types, store an owned value instead</b>; borrowing in structs is an optimisation for later.</p>
+
+<h3><code>'static</code>: two meanings, one of which is a bound</h3>
+<p><code>&amp;'static str</code> is a reference valid for the whole program: string literals are <code>&amp;'static str</code> because they live in the program's binary. <code>T: 'static</code> as a bound is weaker and far more common: <b><code>T</code> holds no borrow that could expire</b>. Every owned type (<code>String</code>, <code>Vec</code>, <code>Arc&lt;Mutex&lt;..&gt;&gt;</code>) satisfies it, and is still freed whenever its owner drops it. This is the bound on <code>std::thread::spawn</code> and <code>tokio::spawn</code>, and the reason section 3's first error says "requires argument type to outlive <code>'static</code>".</p>
+<pre class="ra-out" data-ra-out="l_static_bound">
+<span class="ra-cmd">$ rustc --edition 2024 static_bound.rs &amp;&amp; ./static_bound</span>
+"an owned String is 'static"
+dropped; a 'static bound never kept it alive</pre>
+<details class="dp"><summary>The program, and passing it a borrow of a local instead <span class="mute">(static_bound.rs, static_bound_err.rs, E0597)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">static_bound.rs (lines 1 to 14)</div><pre class="ra-code"><span class="ra-kw">use</span> std::fmt::Debug;
+
+<span class="ra-cm">// T: 'static means "T holds no borrow that could expire", not "T lives forever".</span>
+<span class="ra-kw">fn</span> keep&lt;T: Debug + <span class="ra-lt">'static</span>&gt;(t: T) -&gt; Box&lt;<span class="ra-kw">dyn</span> Debug&gt; &#123;
+    Box::new(t)
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> owned = String::<span class="ra-kw">from</span>(<span class="ra-st">"an owned String is 'static"</span>);
+    <span class="ra-kw">let</span> b = keep(owned); <span class="ra-cm">// fine: a String borrows nothing</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;b:?&#125;"</span>);
+    drop(b); <span class="ra-cm">// ... and it is freed right here, long before the program ends</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"dropped; a 'static bound never kept it alive"</span>);
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_static_bound_err">
+<span class="ra-cmd">$ rustc --edition 2024 static_bound_err.rs</span>
+error[E0597]: `local` does not live long enough
+  --&gt; static_bound_err.rs:9:18
+   |
+ 8 |     let local = String::from("local");
+   |         ----- binding `local` declared here
+ 9 |     let b = keep(&amp;local); // a borrow of a local is not 'static
+   |             -----^^^^^^-
+   |             |    |
+   |             |    borrowed value does not live long enough
+   |             argument requires that `local` is borrowed for `'static`
+10 |     println!("&#123;b:?&#125;");
+11 | &#125;
+   | - `local` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --&gt; static_bound_err.rs:3:20
+   |
+ 3 | fn keep&lt;T: Debug + 'static&gt;(t: T) -&gt; Box&lt;dyn Debug&gt; &#123;</pre><details class="ra-more"><summary>show the remaining 6 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_static_bound_err">
+   |                    ^^^^^^^
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0597`.
+[exit code 1]</pre></details>
+</div></details>
+<details class="dp"><summary>Further, for when you meet them <span class="mute">(not demonstrated here)</span></summary><div class="b">
+<ul>
+<li><b><code>'_</code></b>, the anonymous lifetime: "the elided one", written where a type needs a lifetime parameter but you want elision, as in <code>impl fmt::Display for Token&lt;'_&gt;</code>.</li>
+<li><b><code>T: 'a</code> bounds</b> say every reference inside <code>T</code> outlives <code>'a</code>; they appear on structs holding generic references, and the compiler infers most of them.</li>
+<li><b>Variance</b> decides when a <code>&amp;'long T</code> may be used where a <code>&amp;'short T</code> is expected (always, for shared references) and why <code>&amp;mut T</code> is stricter; the {{Rustonomicon's chapter on subtyping|https://doc.rust-lang.org/nomicon/subtyping.html}} is the reference.</li>
+<li>Borrows end at their last use, not at the end of the block (non-lexical lifetimes); {{Rust: the essentials|n:3c65c17b0d0d8156bed9ead8a22f33b0}} animates this on its borrow timeline, and its Borrow-checker lab has the lifetime scenarios (returning a local reference, a missing lifetime, a borrow outliving its owner, a struct holding a reference).</li>
+</ul>
+</div></details>
+</section>

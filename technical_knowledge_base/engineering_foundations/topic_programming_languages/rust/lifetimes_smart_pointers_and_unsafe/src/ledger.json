@@ -1,0 +1,1208 @@
+[
+ {
+  "id": 1,
+  "tab": "page",
+  "section": "",
+  "text": "Rust: lifetimes, smart pointers, threads and unsafe Rust: lifetimes, smart pointers, threads and unsafe How Rust's one aliasing rule is checked by lifetimes, carried across threads by Send and Sync, moved to run time by RefCell and Mutex, and left to you inside unsafe, with Miri to check it; every output recorded with rustc 1.99.0 on an Apple M1 Pro.",
+  "label": "core",
+  "key": "fetimes, smart pointers, threads and unsafe rust",
+  "where": ""
+ },
+ {
+  "id": 2,
+  "tab": "page",
+  "section": "",
+  "text": "A child of Rust: the essentials.",
+  "label": "core",
+  "key": "a child of rust: the essentials.",
+  "where": ""
+ },
+ {
+  "id": 3,
+  "tab": "page",
+  "section": "",
+  "text": "Data as of October 2026.",
+  "label": "core",
+  "key": "data as of october 2026.",
+  "where": ""
+ },
+ {
+  "id": 4,
+  "tab": "page",
+  "section": "",
+  "text": "Reading: 16 min, plus 14 in closed details.",
+  "label": "fat",
+  "key": "",
+  "where": ""
+ },
+ {
+  "id": 5,
+  "tab": "t-read",
+  "section": "",
+  "text": "The idea 1 Lifetimes 2 Smart pointers 3 Threads, Send, Sync 4 unsafe and Miri The idea in one sentence.",
+  "label": "core",
+  "key": "the idea 1 lifetimes 2 smart pointers 3 threads,",
+  "where": ""
+ },
+ {
+  "id": 6,
+  "tab": "t-read",
+  "section": "",
+  "text": "Rust has one rule, many readers or one writer, and no reference outlives what it points to ; lifetimes let the compiler check it for references, Send and Sync carry it across threads, RefCell and Mutex move the check to run time, and inside unsafe it becomes your job, with Miri checking it in your tests.",
+  "label": "core",
+  "key": "rust has one rule, many readers or one writer, a",
+  "where": ""
+ },
+ {
+  "id": 7,
+  "tab": "t-read",
+  "section": "",
+  "text": "One rule, four places it is checked, and what breaking it costs in each Read left to right as \"how late the mistake is found\".",
+  "label": "core",
+  "key": "one rule, four places it is checked, and what br",
+  "where": ""
+ },
+ {
+  "id": 8,
+  "tab": "t-read",
+  "section": "",
+  "text": "Most code lives in the first column; each step right buys flexibility and pays for it in when, and how loudly, a mistake shows up.",
+  "label": "core",
+  "key": "most code lives in the first column; each step r",
+  "where": ""
+ },
+ {
+  "id": 9,
+  "tab": "t-read",
+  "section": "",
+  "text": "You need Rust: the essentials : ownership, moves, and borrowing with its \"many readers or one writer\" rule on one Vec (its Ownership animation and Borrow-checker lab).",
+  "label": "core",
+  "key": "you need rust: the essentials : ownership, moves",
+  "where": ""
+ },
+ {
+  "id": 10,
+  "tab": "t-read",
+  "section": "",
+  "text": "This page starts where that one stops.",
+  "label": "core",
+  "key": "this page starts where that one stops.",
+  "where": ""
+ },
+ {
+  "id": 11,
+  "tab": "t-read",
+  "section": "",
+  "text": "Every program here was compiled and run with rustc 1.99.0 (edition 2024) on an Apple M1 Pro, and every output is the recorded one. lifetime the stretch of the program in which a reference is valid; written 'a elision the three rules by which the compiler fills in lifetimes you did not write T: 'static a bound: T holds no borrow that could expire (not \"lives forever\") interior mutability changing a value through a shared reference, with the exclusivity check done at run time Send , Sync marker traits: a value may move to another thread; a &T may be shared between threads data race two threads touch the same memory at once, one writing, nothing ordering them undefined behaviour a broken invariant inside unsafe ; the program may do anything, including appear to work Miri an interpreter that runs Rust and checks every memory access against the rules",
+  "label": "core",
+  "key": "every program here was compiled and run with rus",
+  "where": ""
+ },
+ {
+  "id": 12,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Lifetimes: a contract the compiler checks at every call A lifetime is the stretch of the program during which a reference is valid.",
+  "label": "core",
+  "key": "lifetimes: a contract the compiler checks at eve",
+  "where": ""
+ },
+ {
+  "id": 13,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The checker computes them itself almost everywhere.",
+  "label": "core",
+  "key": "the checker computes them itself almost everywhe",
+  "where": ""
+ },
+ {
+  "id": 14,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "You write one, as 'a , only when a function returns a reference (or a struct holds one) and the compiler cannot tell which input it came from: $ rustc --edition 2024 life_err.rs error[E0106]: missing lifetime specifier --> life_err.rs:1:33 | 1 | fn longest(a: &str, b: &str) -> &str { | ---- ---- ^ expected named lifetime parameter | = help: this function's return type contains a borrowed value, but the signature does not say whether it is borrowed from `a` or `b` help: consider introducing a named lifetime parameter | 1 | fn longest<'a>(a: &'a str, b: &'a str) -> &'a str { | ++++ ++ ++ ++ error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0106`. [exit code 1] Read 'a as a name for \"some region of the program\".",
+  "label": "core",
+  "key": "you write one, as 'a , only when a function retu",
+  "where": ""
+ },
+ {
+  "id": 15,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The fixed signature fn longest<'a>(a: &'a str, b: &'a str) -> &'a str says: the result is valid as long as both inputs are, so at each call 'a shrinks to the overlap of the two.",
+  "label": "core",
+  "key": "a: &'a str, b: &'a str) -> &'a str says: the res",
+  "where": ""
+ },
+ {
+  "id": 16,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Lifetimes generate no code; they are a contract the checker verifies at every call.",
+  "label": "core",
+  "key": "lifetimes generate no code; they are a contract",
+  "where": ""
+ },
+ {
+  "id": 17,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The picture is that overlap, drawn for the two calls below.",
+  "label": "core",
+  "key": "the picture is that overlap, drawn for the two c",
+  "where": ""
+ },
+ {
+  "id": 18,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The result's lifetime must fit inside both inputs': moving one use is the difference Before: use after the block (life_err2.rs) After: use inside it (life.rs) Bars run from a value's creation to its end of scope; the blue bar is the borrow w holds, from the call to its last use.",
+  "label": "core",
+  "key": "the result's lifetime must fit inside both input",
+  "where": ""
+ },
+ {
+  "id": 19,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The compiler fits 'a to that bar and checks it against each input's bar.",
+  "label": "core",
+  "key": "the compiler fits 'a to that bar and checks it a",
+  "where": ""
+ },
+ {
+  "id": 20,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Breaking the contract at a call site: b dies at the inner closing brace, but w , which may point into b , is used after it.",
+  "label": "core",
+  "key": "breaking the contract at a call site: b dies at",
+  "where": ""
+ },
+ {
+  "id": 21,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The error names exactly the three points on the timeline: where b was borrowed, where it was dropped, where the borrow was used later. $ rustc --edition 2024 life_err2.rs error[E0597]: `b` does not live long enough --> life_err2.rs:10:25 | 9 | let b = String::from(\"logits!\"); | - binding `b` declared here 10 | w = longest(&a, &b); | ^^ borrowed value does not live long enough 11 | } // b is freed here | - `b` dropped here while still borrowed 12 | println!(\"{w}\"); | - borrow later used here error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0597`. [exit code 1] The working program and the failing one, in full (life.rs, life_err2.rs) life.rs // 'a names \"some region of the program\".",
+  "label": "core",
+  "key": "the error names exactly the three points on the",
+  "where": ""
+ },
+ {
+  "id": 22,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The signature promises: the result // lives no longer than the shorter-lived of a and b. fn longest< 'a >(a: & 'a str, b: & 'a str) -> & 'a str { if a.len() >= b.len() { a } else { b } } // One input reference: the compiler fills in the lifetimes itself (elision). fn first_word(s: &str) -> &str { s.split( ' ' ).next().unwrap_or( \"\" ) } // A struct that holds a reference must say how long it may live. struct Token< 'a > { text: & 'a str, } fn main() { let a = String:: from ( \"tokens\" ); let w; { let b = String:: from ( \"logits!\" ); w = longest(&a, &b); println!",
+  "label": "depth",
+  "key": "the signature promises: the result // lives no l",
+  "where": ""
+ },
+ {
+  "id": 23,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "( \"longest: {w}\" ); } let t = Token { text: first_word( \"hello world\" ) }; let s: & 'static str = \"string literals live for the whole program\" ; println!",
+  "label": "depth",
+  "key": "( \"longest: {w}\" ); } let t = token { text: firs",
+  "where": ""
+ },
+ {
+  "id": 24,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "( \"{} | {}\" , t.text, s); } $ rustc --edition 2024 life.rs && ./life longest: logits! hello | string literals live for the whole program life_err2.rs (lines 5 to 13) fn main() { let a = String:: from ( \"tokens\" ); let w; { let b = String:: from ( \"logits!\" ); w = longest(&a, &b); } // b is freed here println!",
+  "label": "depth",
+  "key": "( \"{} | {}\" , t.text, s); } $ rustc --edition 20",
+  "where": ""
+ },
+ {
+  "id": 25,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "( \"{w}\" ); } When you write them: the three elision rules The elision rules fill in the common cases, so most signatures carry no 'a : Rule Example Filled in as 1.",
+  "label": "depth",
+  "key": "( \"{w}\" ); } when you write them: the three elis",
+  "where": ""
+ },
+ {
+  "id": 26,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Each input reference gets its own lifetime. fn f(a: &str, b: &str) fn f<'1, '2>(a: &'1 str, b: &'2 str) 2.",
+  "label": "core",
+  "key": "each input reference gets its own lifetime. fn f",
+  "where": ""
+ },
+ {
+  "id": 27,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Exactly one input lifetime: outputs get it. fn first_word(s: &str) -> &str the result borrows from s 3.",
+  "label": "core",
+  "key": "exactly one input lifetime: outputs get it. fn f",
+  "where": ""
+ },
+ {
+  "id": 28,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "A method with &self : outputs get self 's. fn name(&self) -> &str the result borrows from self So you write lifetimes when a function has two or more reference inputs and returns a reference, or a struct stores a reference ( struct Token<'a> { text: &'a str } in life.rs).",
+  "label": "core",
+  "key": "a method with &self : outputs get self 's. fn na",
+  "where": ""
+ },
+ {
+  "id": 29,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Rule 3 is the one that surprises: in a method it guesses self , even when the result can come from another argument.",
+  "label": "core",
+  "key": "rule 3 is the one that surprises: in a method it",
+  "where": ""
+ },
+ {
+  "id": 30,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "A method that returns its argument, refused under rule 3, and the fix (elide_self_err.rs, elide_self_fix.rs) elide_self_err.rs (lines 5 to 10) impl Vocab { // Elision rule 3: with &self, the returned reference is assumed to borrow from self. fn pick(& self , other: &str) -> &str { if other.is_empty() { & self .name } else { other } } } $ rustc --edition 2024 elide_self_err.rs error: lifetime may not live long enough --> elide_self_err.rs:8:51 | 7 | fn pick(&self, other: &str) -> &str { | - - let's call the lifetime of this reference `'1` | | | let's call the lifetime of this reference `'2` 8 | if other.is_empty() { &self.name } else { other } | ^^^^^ method was supposed to return data with lifetime `'2` but it is returning data with lifetime `'1` | help: consider introducing a named lifetime parameter and update trait if needed | 7 | fn pick<'a>(&self, other: &'a str) -> &'a str { | ++++ ++ ++ error: aborting due to 1 previous error [exit code 1] The compiler's suggestion ties only other to the result, which would then refuse &self.name .",
+  "label": "depth",
+  "key": "a method that returns its argument, refused unde",
+  "where": ""
+ },
+ {
+  "id": 31,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "The fix that matches what the code does names one lifetime for both inputs: elide_self_fix.rs (lines 5 to 10) impl Vocab { // Say it explicitly: the result may come from self or from other. fn pick< 'a >(& 'a self , other: & 'a str) -> & 'a str { if other.is_empty() { & self .name } else { other } } } $ rustc --edition 2024 elide_self_fix.rs && ./elide_self_fix cl100k gpt2 What no lifetime can do Annotations describe lifetimes and never extend them, so no 'a makes a reference to a value that is about to die: Returning a reference to a local (dangle_err.rs, E0515) dangle_err.rs (lines 1 to 4) fn make_greeting(name: &str) -> &str { let s = format!",
+  "label": "depth",
+  "key": "the fix that matches what the code does names on",
+  "where": ""
+ },
+ {
+  "id": 32,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "( \"hello {name}\" ); &s } $ rustc --edition 2024 dangle_err.rs error[E0515]: cannot return reference to local variable `s` --> dangle_err.rs:3:5 | 3 | &s | ^^ returns a reference to data owned by the current function error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0515`. [exit code 1] The fix is to return the owned String .",
+  "label": "depth",
+  "key": "( \"hello {name}\" ); &s } $ rustc --edition 2024",
+  "where": ""
+ },
+ {
+  "id": 33,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "That is the general rule of thumb: if \"just add a lifetime\" spreads 'a through many types, store an owned value instead ; borrowing in structs is an optimisation for later. 'static : two meanings, one of which is a bound &'static str is a reference valid for the whole program: string literals are &'static str because they live in the program's binary.",
+  "label": "core",
+  "key": "that is the general rule of thumb: if \"just add",
+  "where": ""
+ },
+ {
+  "id": 34,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "T: 'static as a bound is weaker and far more common: T holds no borrow that could expire .",
+  "label": "core",
+  "key": "t: 'static as a bound is weaker and far more com",
+  "where": ""
+ },
+ {
+  "id": 35,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Every owned type ( String , Vec , Arc<Mutex<..>> ) satisfies it, and is still freed whenever its owner drops it.",
+  "label": "core",
+  "key": ") satisfies it, and is still freed whenever its",
+  "where": ""
+ },
+ {
+  "id": 36,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "This is the bound on std::thread::spawn and tokio::spawn , and the reason section 3's first error says \"requires argument type to outlive 'static \". $ rustc --edition 2024 static_bound.rs && ./static_bound \"an owned String is 'static\" dropped; a 'static bound never kept it alive The program, and passing it a borrow of a local instead (static_bound.rs, static_bound_err.rs, E0597) static_bound.rs (lines 1 to 14) use std::fmt::Debug; // T: 'static means \"T holds no borrow that could expire\", not \"T lives forever\". fn keep<T: Debug + 'static >(t: T) -> Box< dyn Debug> { Box::new(t) } fn main() { let owned = String:: from ( \"an owned String is 'static\" ); let b = keep(owned); // fine: a String borrows nothing println!",
+  "label": "core",
+  "key": "this is the bound on std::thread::spawn and toki",
+  "where": ""
+ },
+ {
+  "id": 37,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "( \"{b:?}\" ); drop(b); // ... and it is freed right here, long before the program ends println!",
+  "label": "depth",
+  "key": "( \"{b:?}\" ); drop(b); // ... and it is freed rig",
+  "where": ""
+ },
+ {
+  "id": 38,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "( \"dropped; a 'static bound never kept it alive\" ); } $ rustc --edition 2024 static_bound_err.rs error[E0597]: `local` does not live long enough --> static_bound_err.rs:9:18 | 8 | let local = String::from(\"local\"); | ----- binding `local` declared here 9 | let b = keep(&local); // a borrow of a local is not 'static | -----^^^^^^- | | | | | borrowed value does not live long enough | argument requires that `local` is borrowed for `'static` 10 | println!(\"{b:?}\"); 11 | } | - `local` dropped here while still borrowed | note: requirement that the value outlives `'static` introduced here --> static_bound_err.rs:3:20 | 3 | fn keep<T: Debug + 'static>(t: T) -> Box<dyn Debug> { show the remaining 6 lines | ^^^^^^^ error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0597`. [exit code 1] Further, for when you meet them (not demonstrated here) '_ , the anonymous lifetime: \"the elided one\", written where a type needs a lifetime parameter but you want elision, as in impl fmt::Display for Token<'_> .",
+  "label": "depth",
+  "key": "( \"dropped; a 'static bound never kept it alive\"",
+  "where": ""
+ },
+ {
+  "id": 39,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "T: 'a bounds say every reference inside T outlives 'a ; they appear on structs holding generic references, and the compiler infers most of them.",
+  "label": "depth",
+  "key": "t: 'a bounds say every reference inside t outliv",
+  "where": ""
+ },
+ {
+  "id": 40,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Variance decides when a &'long T may be used where a &'short T is expected (always, for shared references) and why &mut T is stricter; the Rustonomicon's chapter on subtyping is the reference.",
+  "label": "depth",
+  "key": "variance decides when a &'long t may be used whe",
+  "where": ""
+ },
+ {
+  "id": 41,
+  "tab": "t-read",
+  "section": "1. lifetimes: a contract the compiler checks at every call",
+  "text": "Borrows end at their last use, not at the end of the block (non-lexical lifetimes); Rust: the essentials animates this on its borrow timeline, and its Borrow-checker lab has the lifetime scenarios (returning a local reference, a missing lifetime, a borrow outliving its owner, a struct holding a reference).",
+  "label": "depth",
+  "key": "borrows end at their last use, not at the end of",
+  "where": ""
+ },
+ {
+  "id": 42,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Smart pointers and interior mutability Single ownership and compile-time borrowing cover most code.",
+  "label": "core",
+  "key": "smart pointers and interior mutability single ow",
+  "where": ""
+ },
+ {
+  "id": 43,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "For the rest, the standard library has types that own their contents in other ways, each with a cost: Type What it gives you Cost Python analogue Box<T> one owner, value on the heap; needed for recursive types and trait objects one allocation every object Rc<T> shared ownership in one thread; freed when the last Rc goes a counter update per clone and drop reference counting Arc<T> the same across threads atomic counter updates (slower) reference counting in free-threaded CPython Cell<T> , RefCell<T> interior mutability : change through a shared reference; RefCell checks the borrow rules at run time a flag check per borrow; a panic if the rules are broken (all objects are mutable) Mutex<T> , RwLock<T> the same across threads, by locking a lock per access; contention threading.Lock Weak<T> a non-owning pointer to an Rc / Arc value; breaks cycles upgrade() may find it gone weakref A recursive type needs Box , because a value that contains itself directly would have infinite size; with the Box each child is one 8-byte pointer, as the run below prints ( size_of Box<Expr> = 8 ).",
+  "label": "core",
+  "key": "for the rest, the standard library has types tha",
+  "where": ""
+ },
+ {
+  "id": 44,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "The recursive type without a Box (E0072) $ rustc --edition 2024 recursive_err.rs error[E0072]: recursive type `Expr` has infinite size --> recursive_err.rs:1:1 | 1 | enum Expr { | ^^^^^^^^^ 2 | Num(f64), 3 | Add(Expr, Expr), | ---- recursive without indirection | help: insert some indirection (e.g., a `Box`, `Rc`, or `&`) to break the cycle | 3 | Add(Box<Expr>, Expr), | ++++ + error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0072`. [exit code 1] Rc: shared ownership is a counter beside the value Cloning an Rc copies an 8-byte pointer and bumps a count; the value is freed when the count reaches 0 Back Next Step through smart.rs lines 31 to 38.",
+  "label": "depth",
+  "key": "the recursive type without a box (e0072) $ rustc",
+  "where": ""
+ },
+ {
+  "id": 45,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "The counts at steps 3 and 4 are the program's own printed values.",
+  "label": "core",
+  "key": "the counts at steps 3 and 4 are the program's ow",
+  "where": ""
+ },
+ {
+  "id": 46,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "The same program also shows Cell : b.cache_hits.set(...) changes the Doc through a shared Rc , which plain & would refuse.",
+  "label": "core",
+  "key": "the same program also shows cell : b.cache_hits.",
+  "where": ""
+ },
+ {
+  "id": 47,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Cell does it by copying values in and out, never handing out a reference, so it needs no check at all; RefCell hands out references, so it must count them. $ rustc --edition 2024 smart.rs && ./smart 2 + 3 * 4 = 14 strong_count inside = 3 strong_count after = 2, hits = 1, name = system prompt log = [\"first\", \"second\"] weak upgrade while alive: true weak upgrade after drop: false size_of Box<Expr> = 8, Rc<Doc> = 8, Expr = 24 thread 'main' (16492202) panicked at smart.rs:58:22: RefCell already borrowed note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace [exit code 101] smart.rs, the RefCell half (lines 40 to 59) smart.rs (lines 40 to 59) // RefCell: borrow rules checked at run time instead of compile time let log = Rc::new(RefCell::new(Vec::<String>::new())); let writer = Rc::clone(&log); writer.borrow_mut().push( \"first\" .into()); writer.borrow_mut().push( \"second\" .into()); println!",
+  "label": "core",
+  "key": "cell does it by copying values in and out, never",
+  "where": ""
+ },
+ {
+  "id": 48,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"log = {:?}\" , log.borrow()); // Weak: a non-owning pointer (it does not keep the value alive); used to break cycles let parent = Rc::new(String:: from ( \"parent\" )); let w: Weak<String> = Rc::downgrade(&parent); println!",
+  "label": "depth",
+  "key": "( \"log = {:?}\" , log.borrow()); // weak: a non-o",
+  "where": ""
+ },
+ {
+  "id": 49,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"weak upgrade while alive: {}\" , w.upgrade().is_some()); drop(parent); println!",
+  "label": "depth",
+  "key": "( \"weak upgrade while alive: {}\" , w.upgrade().i",
+  "where": ""
+ },
+ {
+  "id": 50,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"weak upgrade after drop: {}\" , w.upgrade().is_some()); println!",
+  "label": "depth",
+  "key": "( \"weak upgrade after drop: {}\" , w.upgrade().is",
+  "where": ""
+ },
+ {
+  "id": 51,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"size_of Box<Expr> = {}, Rc<Doc> = {}, Expr = {}\" , std::mem::size_of::<Box<Expr>>(), std::mem::size_of::<Rc<Doc>>(), std::mem::size_of::<Expr>()); // The run-time check, failing: two mutable borrows at once let first = log.borrow_mut(); let second = log.borrow_mut(); // panics: already mutably borrowed println!",
+  "label": "depth",
+  "key": "()); // the run-time check, failing: two mutabl",
+  "where": ""
+ },
+ {
+  "id": 52,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"{} {}\" , first.len(), second.len()); The panic is the price of RefCell : the same rule as compile-time borrowing, but discovered while the program runs.",
+  "label": "depth",
+  "key": "( \"{} {}\" , first.len(), second.len()); the pani",
+  "where": ""
+ },
+ {
+  "id": 53,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Rc<RefCell<T>> compiles in situations where plain references would not, and it is the most common way learners make a borrow error go away and turn it into a crash.",
+  "label": "core",
+  "key": "compiles in situations where plain references w",
+  "where": ""
+ },
+ {
+  "id": 54,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "So: Rc<RefCell<T>> compiles but can still panic because the exclusivity check moved from compile time to run time. try_borrow_mut returns an error instead of panicking ( RefCell docs ), for code that can recover. smart.rs, the first half (Box, Rc, Cell, Weak, sizes) smart.rs (lines 1 to 39) use std::cell::{Cell, RefCell}; use std::rc::{Rc, Weak}; // Box: put a value on the heap.",
+  "label": "core",
+  "key": "compiles but can still panic because the exclus",
+  "where": ""
+ },
+ {
+  "id": 55,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Needed for recursive types, whose size would otherwise be infinite. #[derive(Debug)] enum Expr { Num(f64), Add(Box<Expr>, Box<Expr>), Mul(Box<Expr>, Box<Expr>), } fn eval(e: &Expr) -> f64 { match e { Expr::Num(x) => *x, Expr::Add(a, b) => eval(a) + eval(b), Expr::Mul(a, b) => eval(a) * eval(b), } } #[derive(Debug)] struct Doc { name: String, cache_hits: Cell<u32>, // interior mutability for a Copy value } fn main() { let e = Expr::Add(Box::new(Expr::Num(2.0)), Box::new(Expr::Mul(Box::new(Expr::Num(3.0)), Box::new(Expr::Num(4.0))))); println!",
+  "label": "depth",
+  "key": "needed for recursive types, whose size would oth",
+  "where": ""
+ },
+ {
+  "id": 56,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"2 + 3 * 4 = {}\" , eval(&e)); // Rc: shared ownership in one thread; the last owner to go frees the value let shared = Rc::new(Doc { name: \"system prompt\" .into(), cache_hits: Cell::new(0) }); let a = Rc::clone(&shared); // copies a pointer, bumps a counter { let b = Rc::clone(&shared); b.cache_hits.set(b.cache_hits.get() + 1); // mutate through a shared reference println!",
+  "label": "depth",
+  "key": "( \"2 + 3 * 4 = {}\" , eval(&e)); // rc: shared ow",
+  "where": ""
+ },
+ {
+  "id": 57,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"strong_count inside = {}\" , Rc::strong_count(&shared)); } println!",
+  "label": "depth",
+  "key": "( \"strong_count inside = {}\" , rc::strong_count(",
+  "where": ""
+ },
+ {
+  "id": 58,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"strong_count after = {}, hits = {}, name = {}\" , Rc::strong_count(&a), a.cache_hits.get(), a.name); Reference cycles leak Reference counting cannot free a cycle, in Rust as in Python (where the cycle collector cleans up afterwards; Rust has none).",
+  "label": "depth",
+  "key": "( \"strong_count after = {}, hits = {}, name = {}",
+  "where": ""
+ },
+ {
+  "id": 59,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Leaking memory is safe in Rust's sense, so the compiler allows it.",
+  "label": "core",
+  "key": "leaking memory is safe in rust's sense, so the c",
+  "where": ""
+ },
+ {
+  "id": 60,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Before and after: two nodes that own each other never reach 0; make the back edge Weak and both drop Counts are leak.rs's printed values ( cycle: x strong_count = 2 ; weak: x strong_count = 1, weak_count = 1 ); the code and the full output are below.",
+  "label": "core",
+  "key": "before and after: two nodes that own each other",
+  "where": ""
+ },
+ {
+  "id": 61,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Predict, then reveal: Which of the four nodes print \"drop\"? $ rustc --edition 2024 leak.rs && ./leak cycle: x strong_count = 2 weak: x strong_count = 1, weak_count = 1 y.back.upgrade() is x (Weak back edge) drop x (Weak back edge) drop y (Weak back edge) end of main: the Rc cycle was never dropped (a leak, which safe Rust allows) Rule of thumb: ownership should form a tree .",
+  "label": "depth",
+  "key": "predict, then reveal: which of the four nodes pr",
+  "where": ""
+ },
+ {
+  "id": 62,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Back pointers (child to parent, node to previous) are Weak , or better, indexes into a Vec that owns all the nodes (an \"arena\"), which is how most Rust graph code is written.",
+  "label": "core",
+  "key": "back pointers (child to parent, node to previous",
+  "where": ""
+ },
+ {
+  "id": 63,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "Miri (section 4) reports memory still allocated when a program ends, so it would flag this leak in a test. leak.rs in full leak.rs use std::cell::RefCell; use std::rc::{Rc, Weak}; struct Node { name: & 'static str, next: RefCell<Option<Rc<Node>>>, // owning edge back: RefCell<Weak<Node>>, // non-owning edge } impl Drop for Node { fn drop(& mut self ) { println!",
+  "label": "core",
+  "key": "miri (section 4) reports memory still allocated",
+  "where": ""
+ },
+ {
+  "id": 64,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"drop {}\" , self .name); } } fn node(name: & 'static str) -> Rc<Node> { Rc::new(Node { name, next: RefCell::new( None ), back: RefCell::new(Weak::new()) }) } fn main() { { let x = node( \"x (cycle of Rc)\" ); let y = node( \"y (cycle of Rc)\" ); *x.next.borrow_mut() = Some(Rc::clone(&y)); // x -> y *y.next.borrow_mut() = Some(Rc::clone(&x)); // y -> x: a cycle println!",
+  "label": "depth",
+  "key": "( \"drop {}\" , self .name); } } fn node(name: & '",
+  "where": ""
+ },
+ {
+  "id": 65,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"cycle: x strong_count = {}\" , Rc::strong_count(&x)); } // our two handles go, but each node still owns the other: neither count reaches 0 { let x = node( \"x (Weak back edge)\" ); let y = node( \"y (Weak back edge)\" ); *x.next.borrow_mut() = Some(Rc::clone(&y)); // x owns y *y.back.borrow_mut() = Rc::downgrade(&x); // y only points back at x println!",
+  "label": "depth",
+  "key": "( \"cycle: x strong_count = {}\" , rc::strong_coun",
+  "where": ""
+ },
+ {
+  "id": 66,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"weak: x strong_count = {}, weak_count = {}\" , Rc::strong_count(&x), Rc::weak_count(&x)); println!",
+  "label": "depth",
+  "key": "( \"weak: x strong_count = {}, weak_count = {}\" ,",
+  "where": ""
+ },
+ {
+  "id": 67,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"y.back.upgrade() is {}\" , y.back.borrow().upgrade().map(|n| n.name).unwrap_or( \"gone\" )); } println!",
+  "label": "depth",
+  "key": "( \"y.back.upgrade() is {}\" , y.back.borrow().upg",
+  "where": ""
+ },
+ {
+  "id": 68,
+  "tab": "t-read",
+  "section": "2. smart pointers and interior mutability",
+  "text": "( \"end of main: the Rc cycle was never dropped (a leak, which safe Rust allows)\" ); }",
+  "label": "depth",
+  "key": "( \"end of main: the rc cycle was never dropped (",
+  "where": ""
+ },
+ {
+  "id": 69,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Threads without data races: Send and Sync A data race is two threads touching the same memory at the same time, at least one of them writing, with nothing ordering them.",
+  "label": "core",
+  "key": "threads without data races: send and sync a data",
+  "where": ""
+ },
+ {
+  "id": 70,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Updates get lost or values tear.",
+  "label": "core",
+  "key": "updates get lost or values tear.",
+  "where": ""
+ },
+ {
+  "id": 71,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "In CPython the GIL used to hide most of these; free-threaded Python 3.14 does not, and an unsynchronised counter there loses updates (measured on Python: concurrency, asyncio and the GIL ).",
+  "label": "core",
+  "key": "in cpython the gil used to hide most of these; f",
+  "where": ""
+ },
+ {
+  "id": 72,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Rust makes data races a compile error in safe code by applying the borrowing rule across threads: shared data may be read by many threads, and changed only through a type that synchronises (a lock or an atomic).",
+  "label": "core",
+  "key": "rust makes data races a compile error in safe co",
+  "where": ""
+ },
+ {
+  "id": 73,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "What a race, a mutex and an atomic are at the OS level is taught on Concurrency: threads, locks, futexes, deadlock, and event-driven I/O ; this section is what Rust's types add.",
+  "label": "core",
+  "key": "what a race, a mutex and an atomic are at the os",
+  "where": ""
+ },
+ {
+  "id": 74,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "The obvious Python translation, eight threads incrementing one counter, does not compile, and the three errors are the three problems: race_err.rs use std::thread; fn main() { let mut counter = 0u64; let mut hs = vec! []; for _ in 0..8 { hs.push(thread::spawn(|| for _ in 0..100_000 { counter += 1; })); } for h in hs { h.join().unwrap(); } println!",
+  "label": "core",
+  "key": "the obvious python translation, eight threads in",
+  "where": ""
+ },
+ {
+  "id": 75,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"{counter}\" ); } Error The problem The fix E0373 the thread may outlive counter : a spawned thread is not joined automatically, so spawn demands a 'static closure (section 1) move owned data in, or use thread::scope , whose threads are joined before it returns E0499 eight closures would each hold &mut counter at once: the data race itself a Mutex or an atomic E0502 the final read overlaps the mutable borrows read after joining, through the lock The three errors as rustc printed them (race_err.rs) $ rustc --edition 2024 race_err.rs error[E0373]: closure may outlive the current function, but it borrows `counter`, which is owned by the current function --> race_err.rs:7:31 | 7 | hs.push(thread::spawn(|| for _ in 0..100_000 { counter += 1; })); | ^^ ------- `counter` is borrowed here | | | may outlive borrowed value `counter` | note: function requires argument type to outlive `'static` --> race_err.rs:7:17 | 7 | hs.push(thread::spawn(|| for _ in 0..100_000 { counter += 1; })); | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: to force the closure to take ownership of `counter` (and any other referenced variables), use the `move` keyword | 7 | hs.push(thread::spawn(move || for _ in 0..100_000 { counter += 1; })); | ++++ show the remaining 34 lines error[E0499]: cannot borrow `counter` as mutable more than once at a time --> race_err.rs:7:31 | 7 | hs.push(thread::spawn(|| for _ in 0..100_000 { counter += 1; })); | --------------^^--------------------------------------- | | | | | | | borrows occur due to use of `counter` in closure | | `counter` was mutably borrowed here in the previous iteration of the loop | argument requires that `counter` is borrowed for `'static` | note: requirement that the value outlives `'static` introduced here --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:128:14 error[E0502]: cannot borrow `counter` as immutable because it is also borrowed as mutable --> race_err.rs:10:16 | 7 | hs.push(thread::spawn(|| for _ in 0..100_000 { counter += 1; })); | ------------------------------------------------------- | | | | | | | first borrow occurs due to use of `counter` in closure | | mutable borrow occurs here | argument requires that `counter` is borrowed for `'static` ...",
+  "label": "core",
+  "key": "( \"{counter}\" ); } error the problem the fix e03",
+  "where": ""
+ },
+ {
+  "id": 76,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "10 | println!(\"{counter}\"); | ^^^^^^^ immutable borrow occurs here | note: requirement that the value outlives `'static` introduced here --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:128:14 error: aborting due to 3 previous errors Some errors have detailed explanations: E0373, E0499, E0502.",
+  "label": "depth",
+  "key": "10 | println!(\"{counter}\"); | ^^^^^^^ immutable",
+  "where": ""
+ },
+ {
+  "id": 77,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "For more information about an error, try `rustc --explain E0373`. [exit code 1] Scoped threads fix the first problem but not the second, which is the race ( thread::scope still gives E0499).",
+  "label": "depth",
+  "key": "for more information about an error, try `rustc",
+  "where": ""
+ },
+ {
+  "id": 78,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "The scoped version's error (race_scope_err.rs) $ rustc --edition 2024 race_scope_err.rs error[E0499]: cannot borrow `counter` as mutable more than once at a time --> race_scope_err.rs:7:21 | 5 | thread::scope(|s| { | - has type `&'1 Scope<'1, '_>` 6 | for _ in 0..8 { 7 | s.spawn(|| for _ in 0..100_000 { counter += 1; }); | --------^^--------------------------------------- | | | | | | | borrows occur due to use of `counter` in closure | | `counter` was mutably borrowed here in the previous iteration of the loop | argument requires that `counter` is borrowed for `'1` | note: requirement that the value outlives `'1` introduced here --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/scoped.rs:203:34 error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0499`. [exit code 1] The two marker traits Two marker traits carry the rule.",
+  "label": "depth",
+  "key": "the scoped version's error (race_scope_err.rs) $",
+  "where": ""
+ },
+ {
+  "id": 79,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "They have no methods; the compiler implements them automatically for a type whose parts all qualify ( std::marker::Send , the Rustonomicon on Send and Sync ): Send : a value of this type may be moved to another thread.",
+  "label": "core",
+  "key": "they have no methods; the compiler implements th",
+  "where": ""
+ },
+ {
+  "id": 80,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Sync : a &T may be shared between threads (precisely, T is Sync if &T is Send ). thread::spawn requires its closure to be Send , so everything the closure captures must be.",
+  "label": "core",
+  "key": "sync : a &t may be shared between threads (preci",
+  "where": ""
+ },
+ {
+  "id": 81,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Rc is neither, because two threads updating its non-atomic counter at once would be a race; Arc uses atomic updates and is both.",
+  "label": "core",
+  "key": "rc is neither, because two threads updating its",
+  "where": ""
+ },
+ {
+  "id": 82,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Moving an Rc into a thread is refused with E0277, \" Rc<Vec<i32>> cannot be sent between threads safely\", naming spawn 's bound as the reason.",
+  "label": "core",
+  "key": "moving an rc into a thread is refused with e0277",
+  "where": ""
+ },
+ {
+  "id": 83,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "The full error (rc_thread_err.rs) $ rustc --edition 2024 rc_thread_err.rs error[E0277]: `Rc<Vec<i32>>` cannot be sent between threads safely --> rc_thread_err.rs:7:27 | 7 | let h = thread::spawn(move || s2.len()); | ------------- -------^^^^^^^^^ | | | | | `Rc<Vec<i32>>` cannot be sent between threads safely | | within this `{closure@rc_thread_err.rs:7:27: 7:34}` | required by a bound introduced by this call | = help: within `{closure@rc_thread_err.rs:7:27: 7:34}`, the trait `Send` is not implemented for `Rc<Vec<i32>>` note: required because it's used within this closure --> rc_thread_err.rs:7:27 | 7 | let h = thread::spawn(move || s2.len()); | ^^^^^^^ note: required by a bound in `spawn` --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:125:0 show the remaining 5 lines error: aborting due to 1 previous error For more information about this error, try `rustc --explain E0277`. [exit code 1] Which types may cross threads: every cell below was checked by the compiler Predict before reading the columns: is Arc<RefCell<i32>> Send ?",
+  "label": "depth",
+  "key": "the full error (rc_thread_err.rs) $ rustc --edit",
+  "where": ""
+ },
+ {
+  "id": 84,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Is a Mutex holding a Cell Sync ?",
+  "label": "core",
+  "key": "is a mutex holding a cell sync ?",
+  "where": ""
+ },
+ {
+  "id": 85,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Type Send Sync Why i32, String, Vec<u8>, Box<i32> yes yes own their data; nothing shared behind them &i32 yes yes a shared reference is Send because i32 is Sync Rc<i32> no no two clones in two threads would update the plain counter at once Arc<i32> yes yes the counter is updated atomically Cell<i32>, RefCell<i32> yes no may move to one thread; sharing would let two threads mutate unsynchronised Arc<RefCell<i32>> no no Arc is only as shareable as its contents Mutex<i32>, RwLock<i32> yes yes the lock orders every access Mutex<Cell<i32>> yes yes a Mutex makes a non-Sync value Sync (it needs only Send) Arc<Mutex<Vec<u8>>> yes yes the shared-mutable-state pattern AtomicU64 yes yes hardware atomic operations MutexGuard<i32> no yes some platforms require the locking thread to unlock *const i32 no no raw pointers opt out; unsafe code must vouch with unsafe impl The 25 \"yes\" cells are asserted in sendsync.rs , which compiles ( all 25 \"yes\" claims compile ); the 9 \"no\" cells are each refused with E0277 in sendsync_err.rs .",
+  "label": "core",
+  "key": "s yes own their data; nothing shared behind them",
+  "where": ""
+ },
+ {
+  "id": 86,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Arc<T> is Send and Sync only when T is both; Mutex<T> is Sync when T is merely Send , which is how a lock makes unshareable data shareable.",
+  "label": "core",
+  "key": "is sync when t is merely send , which is how a l",
+  "where": ""
+ },
+ {
+  "id": 87,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "MutexGuard's reason is from its documentation .",
+  "label": "core",
+  "key": "mutexguard's reason is from its documentation .",
+  "where": ""
+ },
+ {
+  "id": 88,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "The two programs behind the table, and the nine refusals (sendsync.rs, sendsync_err.rs) sendsync.rs use std::cell::{Cell, RefCell}; use std::sync::atomic::AtomicU64; use std::sync::{Arc, Mutex, MutexGuard, RwLock}; fn send<T: Send>() {} fn sync<T: Sync>() {} // Every \"yes\" cell of the page's Send and Sync table, checked by the compiler. // The \"no\" cells are in sendsync_err.rs, each refused with its own error. fn main() { send::<i32>(); sync::<i32>(); send::<String>(); sync::<String>(); send::<Vec<u8>>(); sync::<Vec<u8>>(); send::<Box<i32>>(); sync::<Box<i32>>(); send::<&i32>(); sync::<&i32>(); send::<Arc<i32>>(); sync::<Arc<i32>>(); send::<Cell<i32>>(); send::<RefCell<i32>>(); send::<Mutex<i32>>(); sync::<Mutex<i32>>(); send::<Mutex<Cell<i32>>>(); sync::<Mutex<Cell<i32>>>(); send::<Arc<Mutex<Vec<u8>>>>(); sync::<Arc<Mutex<Vec<u8>>>>(); send::<RwLock<i32>>(); sync::<RwLock<i32>>(); send::<AtomicU64>(); sync::<AtomicU64>(); sync::<MutexGuard< 'static , i32>>(); println!",
+  "label": "depth",
+  "key": "the two programs behind the table, and the nine",
+  "where": ""
+ },
+ {
+  "id": 89,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"all 25 \\\"yes\\\" claims compile\" ); } $ rustc --edition 2024 sendsync.rs && ./sendsync all 25 \"yes\" claims compile sendsync_err.rs use std::cell::{Cell, RefCell}; use std::rc::Rc; use std::sync::{Arc, MutexGuard}; fn send<T: Send>() {} fn sync<T: Sync>() {} // Every \"no\" cell of the page's Send and Sync table: each line is refused with its own E0277. fn main() { send::<Rc<i32>>(); sync::<Rc<i32>>(); sync::<Cell<i32>>(); sync::<RefCell<i32>>(); send::<Arc<RefCell<i32>>>(); sync::<Arc<RefCell<i32>>>(); send::<MutexGuard< 'static , i32>>(); send::<* const i32>(); sync::<* const i32>(); } $ rustc --edition 2024 sendsync_err.rs error[E0277]: `Rc<i32>` cannot be sent between threads safely --> sendsync_err.rs:10:12 | 10 | send::<Rc<i32>>(); | ^^^^^^^ `Rc<i32>` cannot be sent between threads safely | = help: the trait `Send` is not implemented for `Rc<i32>` note: required by a bound in `send` --> sendsync_err.rs:5:12 | 5 | fn send<T: Send>() {} | ^^^^ required by this bound in `send` error[E0277]: `Rc<i32>` cannot be shared between threads safely --> sendsync_err.rs:11:12 | 11 | sync::<Rc<i32>>(); | ^^^^^^^ `Rc<i32>` cannot be shared between threads safely show the remaining 109 lines | = help: the trait `Sync` is not implemented for `Rc<i32>` note: required by a bound in `sync` --> sendsync_err.rs:6:12 | 6 | fn sync<T: Sync>() {} | ^^^^ required by this bound in `sync` error[E0277]: `Cell<i32>` cannot be shared between threads safely --> sendsync_err.rs:12:12 | 12 | sync::<Cell<i32>>(); | ^^^^^^^^^ `Cell<i32>` cannot be shared between threads safely | = help: the trait `Sync` is not implemented for `Cell<i32>` = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` or `std::sync::atomic::AtomicI32` instead note: required by a bound in `sync` --> sendsync_err.rs:6:12 | 6 | fn sync<T: Sync>() {} | ^^^^ required by this bound in `sync` error[E0277]: `RefCell<i32>` cannot be shared between threads safely --> sendsync_err.rs:13:12 | 13 | sync::<RefCell<i32>>(); | ^^^^^^^^^^^^ `RefCell<i32>` cannot be shared between threads safely | = help: the trait `Sync` is not implemented for `RefCell<i32>` = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead note: required by a bound in `sync` --> sendsync_err.rs:6:12 | 6 | fn sync<T: Sync>() {} | ^^^^ required by this bound in `sync` error[E0277]: `RefCell<i32>` cannot be shared between threads safely --> sendsync_err.rs:14:12 | 14 | send::<Arc<RefCell<i32>>>(); | ^^^^^^^^^^^^^^^^^ `RefCell<i32>` cannot be shared between threads safely | = help: the trait `Sync` is not implemented for `RefCell<i32>` = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead = note: required for `Arc<RefCell<i32>>` to implement `Send` note: required by a bound in `send` --> sendsync_err.rs:5:12 | 5 | fn send<T: Send>() {} | ^^^^ required by this bound in `send` error[E0277]: `RefCell<i32>` cannot be shared between threads safely --> sendsync_err.rs:15:12 | 15 | sync::<Arc<RefCell<i32>>>(); | ^^^^^^^^^^^^^^^^^ `RefCell<i32>` cannot be shared between threads safely | = help: the trait `Sync` is not implemented for `RefCell<i32>` = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead = note: required for `Arc<RefCell<i32>>` to implement `Sync` note: required by a bound in `sync` --> sendsync_err.rs:6:12 | 6 | fn sync<T: Sync>() {} | ^^^^ required by this bound in `sync` error[E0277]: `std::sync::MutexGuard<'static, i32>` cannot be sent between threads safely --> sendsync_err.rs:16:12 | 16 | send::<MutexGuard<'static, i32>>(); | ^^^^^^^^^^^^^^^^^^^^^^^^ `std::sync::MutexGuard<'static, i32>` cannot be sent between threads safely | = help: the trait `Send` is not implemented for `std::sync::MutexGuard<'static, i32>` note: required by a bound in `send` --> sendsync_err.rs:5:12 | 5 | fn send<T: Send>() {} | ^^^^ required by this bound in `send` error[E0277]: `*const i32` cannot be sent between threads safely --> sendsync_err.rs:17:12 | 17 | send::<*const i32>(); | ^^^^^^^^^^ `*const i32` cannot be sent between threads safely | = help: the trait `Send` is not implemented for `*const i32` note: required by a bound in `send` --> sendsync_err.rs:5:12 | 5 | fn send<T: Send>() {} | ^^^^ required by this bound in `send` error[E0277]: `*const i32` cannot be shared between threads safely --> sendsync_err.rs:18:12 | 18 | sync::<*const i32>(); | ^^^^^^^^^^ `*const i32` cannot be shared between threads safely | = help: the trait `Sync` is not implemented for `*const i32` note: required by a bound in `sync` --> sendsync_err.rs:6:12 | 6 | fn sync<T: Sync>() {} | ^^^^ required by this bound in `sync` error: aborting due to 9 previous errors For more information about this error, try `rustc --explain E0277`. [exit code 1] A type you write gets Send and Sync for free when its fields have them.",
+  "label": "depth",
+  "key": "( \"all 25 \\\"yes\\\" claims compile\" ); } $ rustc -",
+  "where": ""
+ },
+ {
+  "id": 90,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Only a type holding a raw pointer (a wrapper around a C handle, say) has to claim them by hand with unsafe impl Send for T {} , which is a promise the compiler cannot check: one of section 4's five unsafe operations.",
+  "label": "core",
+  "key": "only a type holding a raw pointer (a wrapper aro",
+  "where": ""
+ },
+ {
+  "id": 91,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "The working toolbox, every result exact Need Tool threads.rs printed owned work per thread thread::spawn(move || ...) plus join() spawned: [(0, 3), (1, 2), (2, 1)] threads that borrow local data thread::scope scoped sum: 1000000 shared mutable state Arc<Mutex<T>> mutex counter: 800000 (expected 800000) one counter or flag an atomic ( AtomicU64 ) atomic counter: 800000 pass messages instead of sharing a channel ( mpsc ) channel: [\"worker 0 done\", ...] lock() returns a guard that unlocks when dropped, and the data is reachable only through the guard, so you cannot forget the lock.",
+  "label": "core",
+  "key": "the working toolbox, every result exact need too",
+  "where": ""
+ },
+ {
+  "id": 92,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "What Ordering::Relaxed on the atomic means (and when you need stronger orderings) is memory order, taught on the OS concurrency page ; a counter needs only Relaxed .",
+  "label": "core",
+  "key": "what ordering::relaxed on the atomic means (and",
+  "where": ""
+ },
+ {
+  "id": 93,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "For data parallelism over a collection, the rayon crate turns iter() into par_iter() ; Rust: speeding up Python with PyO3 and maturin uses it to parallelise the token counter inside a Python extension. threads.rs (the five tools, with the full output) threads.rs use std::sync::atomic::{AtomicU64, Ordering}; use std::sync::mpsc; use std::sync::{Arc, Mutex}; use std::thread; fn main() { // 1. spawn + join; `move` gives the thread its own copy of what it uses let docs = vec! [ \"a b c\" , \"d e\" , \"f\" ]; let handles: Vec<_> = docs.into_iter().enumerate().map(|(i, d)| { thread::spawn( move || (i, d.split_whitespace().count())) }).collect(); let counts: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect(); println!",
+  "label": "core",
+  "key": "for data parallelism over a collection, the rayo",
+  "where": ""
+ },
+ {
+  "id": 94,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"spawned: {counts:?}\" ); // 2. scoped threads may borrow local data, because they are joined before the scope ends let data = vec! [1u64; 1_000_000]; let (left, right) = data.split_at(data.len() / 2); let total = thread::scope(|s| { let a = s.spawn(|| left.iter().sum::<u64>()); let b = s.spawn(|| right.iter().sum::<u64>()); a.join().unwrap() + b.join().unwrap() }); println!",
+  "label": "depth",
+  "key": "( \"spawned: {counts:?}\" ); // 2. scoped threads",
+  "where": ""
+ },
+ {
+  "id": 95,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"scoped sum: {total}\" ); // 3. shared mutable state: Arc (shared ownership across threads) + Mutex (one writer at a time) let counter = Arc::new(Mutex::new(0u64)); let mut hs = vec! []; for _ in 0..8 { let c = Arc::clone(&counter); hs.push(thread::spawn( move || for _ in 0..100_000 { *c.lock().unwrap() += 1; })); } for h in hs { h.join().unwrap(); } println!",
+  "label": "depth",
+  "key": "( \"scoped sum: {total}\" ); // 3. shared mutable",
+  "where": ""
+ },
+ {
+  "id": 96,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"mutex counter: {} (expected 800000)\" , *counter.lock().unwrap()); // 4. an atomic does the same without a lock let hits = Arc::new(AtomicU64::new(0)); thread::scope(|s| for _ in 0..8 { let h = &hits; s.spawn( move || for _ in 0..100_000 { h.fetch_add(1, Ordering::Relaxed); }); }); println!",
+  "label": "depth",
+  "key": "( \"mutex counter: {} (expected 800000)\" , *count",
+  "where": ""
+ },
+ {
+  "id": 97,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"atomic counter: {}\" , hits.load(Ordering::Relaxed)); // 5. channels: send values from many producers to one consumer let (tx, rx) = mpsc::channel(); for id in 0..3 { let tx = tx.clone(); thread::spawn( move || tx.send( format!",
+  "label": "depth",
+  "key": "( \"atomic counter: {}\" , hits.load(ordering::rel",
+  "where": ""
+ },
+ {
+  "id": 98,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"worker {id} done\" )).unwrap()); } drop(tx); // close our copy so the loop below ends when the workers finish let mut got: Vec<String> = rx.iter().collect(); got.sort(); println!",
+  "label": "depth",
+  "key": "( \"worker {id} done\" )).unwrap()); } drop(tx); /",
+  "where": ""
+ },
+ {
+  "id": 99,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "( \"channel: {got:?}\" ); } $ rustc --edition 2024 threads.rs && ./threads spawned: [(0, 3), (1, 2), (2, 1)] scoped sum: 1000000 mutex counter: 800000 (expected 800000) atomic counter: 800000 channel: [\"worker 0 done\", \"worker 1 done\", \"worker 2 done\"] What the compiler does not prevent Deadlocks (two threads each holding the lock the other needs), logic races (check-then-act with the lock released in between), and leaked memory are all possible in safe Rust. \"Fearless\" means no data races and no use after free, not no concurrency bugs.",
+  "label": "depth",
+  "key": "( \"channel: {got:?}\" ); } $ rustc --edition 2024",
+  "where": ""
+ },
+ {
+  "id": 100,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "Async is the other way to be concurrent: for thousands of network calls rather than CPU work, Rust uses async fn and a runtime library, almost always tokio.",
+  "label": "core",
+  "key": "async is the other way to be concurrent: for tho",
+  "where": ""
+ },
+ {
+  "id": 101,
+  "tab": "t-read",
+  "section": "3. threads without data races: send and sync",
+  "text": "The same two traits decide what may cross .await points on a multi-threaded runtime ( tokio::spawn needs Send + 'static ); Rust: async with tokio, services with axum, and CLIs owns it.",
+  "label": "core",
+  "key": "the same two traits decide what may cross .await",
+  "where": ""
+ },
+ {
+  "id": 102,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "4. unsafe, and checking it with Miri Some correct code cannot be proved safe by the compiler: the inside of Vec , calls into C libraries, hardware access.",
+  "label": "core",
+  "key": "4. unsafe, and checking it with miri some correc",
+  "where": ""
+ },
+ {
+  "id": 103,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Inside an unsafe block you may do five extra things, the \"unsafe superpowers\" ( Rust Book 20.1 ): dereference a raw pointer; call an unsafe function; access or modify a mutable static ; implement an unsafe trait (such as Send , section 3); access fields of a union .",
+  "label": "core",
+  "key": "inside an unsafe block you may do five extra thi",
+  "where": ""
+ },
+ {
+  "id": 104,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Nothing else changes: \" unsafe doesn't turn off the borrow checker or disable any of Rust's other safety checks\". unsafe_ok.rs fn main() { let v = vec! [10u32, 20, 30]; let p: * const u32 = v.as_ptr(); // making a raw pointer is safe let second = unsafe { *p.add(1) }; // dereferencing it is not: we promise it is in bounds println!",
+  "label": "core",
+  "key": "nothing else changes: \" unsafe doesn't turn off",
+  "where": ""
+ },
+ {
+  "id": 105,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "( \"second = {second}\" ); // A safe API built on unsafe: split_at_mut hands out two &mut halves of one slice, // which the borrow checker cannot prove disjoint by itself. let mut a = [1, 2, 3, 4]; let (l, r) = a.split_at_mut(2); l[0] += 100; r[0] += 100; println!",
+  "label": "core",
+  "key": "( \"second = {second}\" ); // a safe api built on",
+  "where": ""
+ },
+ {
+  "id": 106,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "( \"{a:?}\" ); } $ rustc --edition 2024 unsafe_ok.rs && ./unsafe_ok second = 20 [101, 2, 103, 4] Without the block, the compiler refuses and says why each operation needs it (E0133) $ rustc --edition 2024 unsafe_deref_err.rs error[E0133]: dereference of raw pointer is unsafe and requires unsafe block --> unsafe_deref_err.rs:4:20 | 4 | println!(\"{}\", *p.add(1)); | ^^^^^^^^^ dereference of raw pointer | = note: raw pointers may be null, dangling or unaligned; they can violate aliasing rules and cause data races: all of these are undefined behavior error[E0133]: call to unsafe function `std::ptr::const_ptr::<impl *const T>::add` is unsafe and requires unsafe block --> unsafe_deref_err.rs:4:21 | 4 | println!(\"{}\", *p.add(1)); | ^^^^^^^^ call to unsafe function | = note: consult the function's documentation for information on how to avoid undefined behavior error: aborting due to 2 previous errors For more information about this error, try `rustc --explain E0133`. [exit code 1] A small unsafe core behind a safe API: split_at_mut's halves can never overlap That is the pattern to aim for: a small unsafe core with a stated invariant (\"the two halves never overlap\"), wrapped in a safe API that cannot be used to break it ( split_at_mut docs : it panics if mid > len ).",
+  "label": "core",
+  "key": "( \"{a:?}\" ); } $ rustc --edition 2024 unsafe_ok.",
+  "where": ""
+ },
+ {
+  "id": 107,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Because unsafe is a keyword, every such place can be found with a text search and reviewed.",
+  "label": "core",
+  "key": "because unsafe is a keyword, every such place ca",
+  "where": ""
+ },
+ {
+  "id": 108,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "When you get it wrong: Miri Breaking an invariant is undefined behaviour , exactly as in C++: the program may do anything, including appear to work.",
+  "label": "core",
+  "key": "when you get it wrong: miri breaking an invarian",
+  "where": ""
+ },
+ {
+  "id": 109,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "This program reads one element past the end of a vector, and then reads a freed vector: main.rs // Undefined behaviour that compiles and \"works\": reading one element past the end // through a raw pointer, and using a pointer after its Vec was freed. fn main() { let v = vec! [10u32, 20, 30]; let p = v.as_ptr(); let past_end = unsafe { *p.add(3) }; // out of bounds: UB println!",
+  "label": "core",
+  "key": "this program reads one element past the end of a",
+  "where": ""
+ },
+ {
+  "id": 110,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "( \"read past the end: {past_end}\" ); let q = { let w = vec! [1u32, 2, 3]; w.as_ptr() }; // w freed here; q dangles let after_free = unsafe { *q }; // use after free: UB println!",
+  "label": "core",
+  "key": "( \"read past the end: {past_end}\" ); let q = { l",
+  "where": ""
+ },
+ {
+  "id": 111,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "( \"read after free: {after_free}\" ); } Miri is an interpreter for Rust's intermediate representation that checks every memory access against the rules.",
+  "label": "core",
+  "key": "( \"read after free: {after_free}\" ); } miri is a",
+  "where": ""
+ },
+ {
+  "id": 112,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Same program, two ways of running it: Before and after: the release build prints plausible numbers; Miri stops at the first bad read Native release build $ cargo run -q --release read past the end: 0 read after free: 0 Two zeros, exit code 0: nothing says anything went wrong.",
+  "label": "core",
+  "key": "same program, two ways of running it: before and",
+  "where": ""
+ },
+ {
+  "id": 113,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Under Miri (nightly) $ cargo +nightly miri run -q 2>&1 | grep -v \"^Preparing a sysroot\" error: Undefined Behavior: memory access failed: attempting to access 4 bytes, but got alloc291+0xc which is at or beyond the end of the allocation of size 12 bytes --> src/main.rs:6:29 | 6 | let past_end = unsafe { *p.add(3) }; // out of bounds: UB | ^^^^^^^^^ Undefined Behavior occurred here | = help: this indicates a bug in the program: it performed an invalid operation, and caused Undefined Behavior = help: see https://doc.rust-lang.org/nightly/reference/behavior-considered-undefined.html for further information help: alloc291 was allocated here: --> src/main.rs:4:13 | 4 | let v = vec![10u32, 20, 30]; | ^^^^^^^^^^^^^^^^^^^ note: some details are omitted, run with `MIRIFLAGS=-Zmiri-backtrace=full` for a verbose backtrace error: aborting due to 1 previous error Miri stops at the first violation, names it ( at or beyond the end of the allocation of size 12 bytes : three u32 s) and points at where the memory was allocated.",
+  "label": "core",
+  "key": "under miri (nightly) $ cargo +nightly miri run -",
+  "where": ""
+ },
+ {
+  "id": 114,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "It runs on the nightly toolchain (here rustc 1.101.0-nightly of 2026-10-04) and is much slower than native code, so you run your tests under it, not production.",
+  "label": "core",
+  "key": "it runs on the nightly toolchain (here rustc 1.1",
+  "where": ""
+ },
+ {
+  "id": 115,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "If you write unsafe , run cargo +nightly miri test in CI.",
+  "label": "core",
+  "key": "if you write unsafe , run cargo +nightly miri te",
+  "where": ""
+ },
+ {
+  "id": 116,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Miri catches (its README , read 2026-10-26) Miri cannot out-of-bounds accesses and use after free (shown above); uninitialised data; misaligned accesses; invalid values (a bool that is not 0 or 1, a bad enum tag); data races; memory still allocated at exit (section 2's leak); aliasing violations under the experimental Stacked Borrows or Tree Borrows models see executions you do not run (\"Miri tests one of many possible executions\"); call most C libraries or platform APIs, or use the network; prove code sound (\"Miri fundamentally cannot ensure that your code is sound\") Only the out-of-bounds read above was run here (2026-10-05); the other rows are the README's list, not run here because the nightly toolchain with Miri was not installed for this rebuild.",
+  "label": "core",
+  "key": "miri catches (its readme , read 2026-10-26) miri",
+  "where": ""
+ },
+ {
+  "id": 117,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "The C++ equivalents are the sanitizers, on C++: the essentials .",
+  "label": "core",
+  "key": "the c++ equivalents are the sanitizers, on c++:",
+  "where": ""
+ },
+ {
+  "id": 118,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Use unsafe for FFI (calling C), performance-critical data structures, and building safe abstractions the checker cannot verify.",
+  "label": "core",
+  "key": "use unsafe for ffi (calling c), performance-crit",
+  "where": ""
+ },
+ {
+  "id": 119,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Costs You take on C's obligations for that block; reviewers must check the invariant by hand.",
+  "label": "core",
+  "key": "costs you take on c's obligations for that block",
+  "where": ""
+ },
+ {
+  "id": 120,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "Do not Use unsafe to silence a borrow error.",
+  "label": "core",
+  "key": "do not use unsafe to silence a borrow error.",
+  "where": ""
+ },
+ {
+  "id": 121,
+  "tab": "t-read",
+  "section": "4. unsafe, and checking it with miri",
+  "text": "If safe code cannot express it, the design usually needs an index, a RefCell or a different owner.",
+  "label": "core",
+  "key": "if safe code cannot express it, the design usual",
+  "where": ""
+ },
+ {
+  "id": 122,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Further reading Links checked 2026-10-26.",
+  "label": "core",
+  "key": "further reading links checked 2026-10-26.",
+  "where": ""
+ },
+ {
+  "id": 123,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Times for outside sources are rough reading times.",
+  "label": "core",
+  "key": "times for outside sources are rough reading time",
+  "where": ""
+ },
+ {
+  "id": 124,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "The language page and its siblings Rust: the essentials : ownership and borrowing on one Vec, the Borrow-checker lab (its lifetime, thread and RefCell scenarios), Cargo.",
+  "label": "core",
+  "key": "the language page and its siblings rust: the ess",
+  "where": ""
+ },
+ {
+  "id": 125,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Rust: enums, traits, errors and iterators : traits and generics, which Send , Sync and 'static bounds are written with.",
+  "label": "core",
+  "key": "rust: enums, traits, errors and iterators : trai",
+  "where": ""
+ },
+ {
+  "id": 126,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Rust: speeding up Python with PyO3 and maturin : rayon and releasing the GIL inside an extension; Send rules on Python objects.",
+  "label": "core",
+  "key": "rust: speeding up python with pyo3 and maturin :",
+  "where": ""
+ },
+ {
+  "id": 127,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Rust: async with tokio, services with axum, and CLIs : async Rust from zero; why tokio::spawn needs Send + 'static .",
+  "label": "core",
+  "key": "ync with tokio, services with axum, and clis : a",
+  "where": ""
+ },
+ {
+  "id": 128,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Topic: programming-languages : the four-language comparison and concurrency across languages.",
+  "label": "core",
+  "key": "topic: programming-languages : the four-language",
+  "where": ""
+ },
+ {
+  "id": 129,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Neighbouring pages Concurrency: threads, locks, futexes, deadlock, and event-driven I/O : races as interleavings, mutexes, atomics and memory order, deadlock.",
+  "label": "core",
+  "key": "neighbouring pages concurrency: threads, locks,",
+  "where": ""
+ },
+ {
+  "id": 130,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Python: concurrency, asyncio and the GIL : the free-threaded counter that loses updates.",
+  "label": "core",
+  "key": "python: concurrency, asyncio and the gil : the f",
+  "where": ""
+ },
+ {
+  "id": 131,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "C++: the essentials : undefined behaviour and the sanitizers, C++'s answer to Miri; C++: ownership, moves and object lifetimes : unique_ptr and shared_ptr , the C++ side of Box and Rc / Arc .",
+  "label": "core",
+  "key": "c++: the essentials : undefined behaviour and th",
+  "where": ""
+ },
+ {
+  "id": 132,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Memory allocators : what Box::new and a dropped Rc cost underneath.",
+  "label": "core",
+  "key": "memory allocators : what box::new and a dropped",
+  "where": ""
+ },
+ {
+  "id": 133,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "Outside sources The Rust Book, chapters 10.3, 15, 16 and 20.1 : lifetimes, smart pointers, fearless concurrency, unsafe. about 2 h for the four Common Rust Lifetime Misconceptions : pretzelhammer on T: 'static , elision and more, with examples.",
+  "label": "core",
+  "key": "outside sources the rust book, chapters 10.3, 15",
+  "where": ""
+ },
+ {
+  "id": 134,
+  "tab": "t-more",
+  "section": "further reading",
+  "text": "45 min Learn Rust With Entirely Too Many Linked Lists : Box , Rc , RefCell and unsafe on one data structure, with Miri. about 4 h Rust Atomics and Locks : Mara Bos's free book: Send , Sync , atomics, memory ordering, building your own locks. about 6 h The Rustonomicon : what unsafe code must uphold: Send and Sync, variance, aliasing. about 3 h Miri : the README is the user guide: installing, flags, what it detects.",
+  "label": "core",
+  "key": "45 min learn rust with entirely too many linked",
+  "where": ""
+ }
+]

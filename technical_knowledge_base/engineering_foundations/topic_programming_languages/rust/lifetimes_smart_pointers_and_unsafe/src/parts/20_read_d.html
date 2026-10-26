@@ -1,0 +1,395 @@
+
+<section id="lsp-conc">
+<h2>3. Threads without data races: Send and Sync</h2>
+<p>A <dfn>data race</dfn> is two threads touching the same memory at the same time, at least one of them writing, with nothing ordering them. Updates get lost or values tear. In CPython the GIL used to hide most of these; free-threaded Python 3.14 does not, and an unsynchronised counter there loses updates (measured on {{Python: concurrency, asyncio and the GIL|n:4055c17b0d0d81bdbee8c37d80b55a0e}}). Rust makes data races a <b>compile error</b> in safe code by applying the borrowing rule across threads: shared data may be read by many threads, and changed only through a type that synchronises (a lock or an atomic). What a race, a mutex and an atomic are at the OS level is taught on {{Concurrency: threads, locks, futexes, deadlock, and event-driven I/O|n:3f05c17b0d0d8112ad1af99308fa913f}}; this section is what Rust's types add.</p>
+<p>The obvious Python translation, eight threads incrementing one counter, does not compile, and the three errors are the three problems:</p>
+<div class="ra-src"><div class="ra-fn">race_err.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::thread;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> counter = 0u64;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> hs = <span class="ra-mac">vec!</span>[];
+    <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..8 &#123;
+        hs.push(thread::spawn(|| <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..100_000 &#123; counter += 1; &#125;));
+    &#125;
+    <span class="ra-kw">for</span> h <span class="ra-kw">in</span> hs &#123; h.join().unwrap(); &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;counter&#125;"</span>);
+&#125;</pre></div>
+<div class="tw"><table><thead><tr><th>Error</th><th>The problem</th><th>The fix</th></tr></thead><tbody>
+<tr><td><code>E0373</code></td><td>the thread may outlive <code>counter</code>: a spawned thread is not joined automatically, so <code>spawn</code> demands a <code>'static</code> closure (section 1)</td><td><code>move</code> owned data in, or use <code>thread::scope</code>, whose threads are joined before it returns</td></tr>
+<tr><td><code>E0499</code></td><td>eight closures would each hold <code>&amp;mut counter</code> at once: <b>the data race itself</b></td><td>a <code>Mutex</code> or an atomic</td></tr>
+<tr><td><code>E0502</code></td><td>the final read overlaps the mutable borrows</td><td>read after joining, through the lock</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>The three errors as rustc printed them <span class="mute">(race_err.rs)</span></summary><div class="b">
+<pre class="ra-out ra-bad" data-ra-out="l_race_err">
+<span class="ra-cmd">$ rustc --edition 2024 race_err.rs</span>
+error[E0373]: closure may outlive the current function, but it borrows `counter`, which is owned by the current function
+ --&gt; race_err.rs:7:31
+  |
+7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                               ^^                       ------- `counter` is borrowed here
+  |                               |
+  |                               may outlive borrowed value `counter`
+  |
+note: function requires argument type to outlive `'static`
+ --&gt; race_err.rs:7:17
+  |
+7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: to force the closure to take ownership of `counter` (and any other referenced variables), use the `move` keyword
+  |
+7 |         hs.push(thread::spawn(move || for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                               ++++
+</pre><details class="ra-more"><summary>show the remaining 34 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_race_err">
+error[E0499]: cannot borrow `counter` as mutable more than once at a time
+ --&gt; race_err.rs:7:31
+  |
+7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+  |                 --------------^^---------------------------------------
+  |                 |             |                        |
+  |                 |             |                        borrows occur due to use of `counter` in closure
+  |                 |             `counter` was mutably borrowed here in the previous iteration of the loop
+  |                 argument requires that `counter` is borrowed for `'static`
+  |
+note: requirement that the value outlives `'static` introduced here
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:128:14
+
+error[E0502]: cannot borrow `counter` as immutable because it is also borrowed as mutable
+  --&gt; race_err.rs:10:16
+   |
+ 7 |         hs.push(thread::spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;));
+   |                 -------------------------------------------------------
+   |                 |             |                        |
+   |                 |             |                        first borrow occurs due to use of `counter` in closure
+   |                 |             mutable borrow occurs here
+   |                 argument requires that `counter` is borrowed for `'static`
+...
+10 |     println!("&#123;counter&#125;");
+   |                ^^^^^^^ immutable borrow occurs here
+   |
+note: requirement that the value outlives `'static` introduced here
+  --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:128:14
+
+error: aborting due to 3 previous errors
+
+Some errors have detailed explanations: E0373, E0499, E0502.
+For more information about an error, try `rustc --explain E0373`.
+[exit code 1]</pre></details>
+</div></details>
+<p>Scoped threads fix the first problem but not the second, which is the race (<code>thread::scope</code> still gives E0499).</p>
+<details class="dp"><summary>The scoped version's error <span class="mute">(race_scope_err.rs)</span></summary><div class="b">
+<pre class="ra-out ra-bad" data-ra-out="l_race_scope_err">
+<span class="ra-cmd">$ rustc --edition 2024 race_scope_err.rs</span>
+error[E0499]: cannot borrow `counter` as mutable more than once at a time
+ --&gt; race_scope_err.rs:7:21
+  |
+5 |     thread::scope(|s| &#123;
+  |                    - has type `&amp;'1 Scope&lt;'1, '_&gt;`
+6 |         for _ in 0..8 &#123;
+7 |             s.spawn(|| for _ in 0..100_000 &#123; counter += 1; &#125;);
+  |             --------^^---------------------------------------
+  |             |       |                        |
+  |             |       |                        borrows occur due to use of `counter` in closure
+  |             |       `counter` was mutably borrowed here in the previous iteration of the loop
+  |             argument requires that `counter` is borrowed for `'1`
+  |
+note: requirement that the value outlives `'1` introduced here
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/scoped.rs:203:34
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0499`.
+[exit code 1]</pre>
+</div></details>
+
+<h3>The two marker traits</h3>
+<p>Two marker traits carry the rule. They have no methods; the compiler implements them automatically for a type whose parts all qualify ({{std::marker::Send|https://doc.rust-lang.org/std/marker/trait.Send.html}}, {{the Rustonomicon on Send and Sync|https://doc.rust-lang.org/nomicon/send-and-sync.html}}):</p>
+<ul>
+<li><code>Send</code>: a value of this type may be moved to another thread.</li>
+<li><code>Sync</code>: a <code>&amp;T</code> may be shared between threads (precisely, <code>T</code> is <code>Sync</code> if <code>&amp;T</code> is <code>Send</code>).</li>
+</ul>
+<p><code>thread::spawn</code> requires its closure to be <code>Send</code>, so everything the closure captures must be. <code>Rc</code> is neither, because two threads updating its non-atomic counter at once would be a race; <code>Arc</code> uses atomic updates and is both. Moving an <code>Rc</code> into a thread is refused with E0277, "<code>Rc&lt;Vec&lt;i32&gt;&gt;</code> cannot be sent between threads safely", naming <code>spawn</code>'s bound as the reason.</p>
+<details class="dp"><summary>The full error <span class="mute">(rc_thread_err.rs)</span></summary><div class="b">
+<pre class="ra-out ra-bad" data-ra-out="l_rc_thread_err">
+<span class="ra-cmd">$ rustc --edition 2024 rc_thread_err.rs</span>
+error[E0277]: `Rc&lt;Vec&lt;i32&gt;&gt;` cannot be sent between threads safely
+ --&gt; rc_thread_err.rs:7:27
+  |
+7 |     let h = thread::spawn(move || s2.len());
+  |             ------------- -------^^^^^^^^^
+  |             |             |
+  |             |             `Rc&lt;Vec&lt;i32&gt;&gt;` cannot be sent between threads safely
+  |             |             within this `&#123;closure@rc_thread_err.rs:7:27: 7:34&#125;`
+  |             required by a bound introduced by this call
+  |
+  = help: within `&#123;closure@rc_thread_err.rs:7:27: 7:34&#125;`, the trait `Send` is not implemented for `Rc&lt;Vec&lt;i32&gt;&gt;`
+note: required because it's used within this closure
+ --&gt; rc_thread_err.rs:7:27
+  |
+7 |     let h = thread::spawn(move || s2.len());
+  |                           ^^^^^^^
+note: required by a bound in `spawn`
+ --&gt; /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/std/src/thread/functions.rs:125:0</pre><details class="ra-more"><summary>show the remaining 5 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_rc_thread_err">
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre></details>
+</div></details>
+<div class="lsp-vis">
+<h4>Which types may cross threads: every cell below was checked by the compiler</h4>
+<p class="small">Predict before reading the columns: is <code>Arc&lt;RefCell&lt;i32&gt;&gt;</code> <code>Send</code>? Is a <code>Mutex</code> holding a <code>Cell</code> <code>Sync</code>?</p>
+<div class="tw"><table class="lsp-ss"><thead><tr><th>Type</th><th>Send</th><th>Sync</th><th>Why</th></tr></thead><tbody><tr><td><code>i32, String, Vec&lt;u8&gt;, Box&lt;i32&gt;</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>own their data; nothing shared behind them</td></tr><tr><td><code>&amp;i32</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>a shared reference is Send because i32 is Sync</td></tr><tr><td><code>Rc&lt;i32&gt;</code></td><td class="lsp-no">no</td><td class="lsp-no">no</td><td>two clones in two threads would update the plain counter at once</td></tr><tr><td><code>Arc&lt;i32&gt;</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>the counter is updated atomically</td></tr><tr><td><code>Cell&lt;i32&gt;, RefCell&lt;i32&gt;</code></td><td class="lsp-yes">yes</td><td class="lsp-no">no</td><td>may move to one thread; sharing would let two threads mutate unsynchronised</td></tr><tr><td><code>Arc&lt;RefCell&lt;i32&gt;&gt;</code></td><td class="lsp-no">no</td><td class="lsp-no">no</td><td>Arc is only as shareable as its contents</td></tr><tr><td><code>Mutex&lt;i32&gt;, RwLock&lt;i32&gt;</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>the lock orders every access</td></tr><tr><td><code>Mutex&lt;Cell&lt;i32&gt;&gt;</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>a Mutex makes a non-Sync value Sync (it needs only Send)</td></tr><tr><td><code>Arc&lt;Mutex&lt;Vec&lt;u8&gt;&gt;&gt;</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>the shared-mutable-state pattern</td></tr><tr><td><code>AtomicU64</code></td><td class="lsp-yes">yes</td><td class="lsp-yes">yes</td><td>hardware atomic operations</td></tr><tr><td><code>MutexGuard&lt;i32&gt;</code></td><td class="lsp-no">no</td><td class="lsp-yes">yes</td><td>some platforms require the locking thread to unlock</td></tr><tr><td><code>*const i32</code></td><td class="lsp-no">no</td><td class="lsp-no">no</td><td>raw pointers opt out; unsafe code must vouch with unsafe impl</td></tr></tbody></table></div>
+<p class="lsp-cap small">The 25 "yes" cells are asserted in <code>sendsync.rs</code>, which compiles (<code>all 25 "yes" claims compile</code>); the 9 "no" cells are each refused with E0277 in <code>sendsync_err.rs</code>. <code>Arc&lt;T&gt;</code> is <code>Send</code> and <code>Sync</code> only when <code>T</code> is both; <code>Mutex&lt;T&gt;</code> is <code>Sync</code> when <code>T</code> is merely <code>Send</code>, which is how a lock makes unshareable data shareable. MutexGuard's reason is from its {{documentation|https://doc.rust-lang.org/std/sync/struct.MutexGuard.html}}.</p>
+</div>
+<details class="dp"><summary>The two programs behind the table, and the nine refusals <span class="mute">(sendsync.rs, sendsync_err.rs)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">sendsync.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::cell::&#123;Cell, RefCell&#125;;
+<span class="ra-kw">use</span> std::sync::atomic::AtomicU64;
+<span class="ra-kw">use</span> std::sync::&#123;Arc, Mutex, MutexGuard, RwLock&#125;;
+
+<span class="ra-kw">fn</span> send&lt;T: Send&gt;() &#123;&#125;
+<span class="ra-kw">fn</span> sync&lt;T: Sync&gt;() &#123;&#125;
+
+<span class="ra-cm">// Every "yes" cell of the page's Send and Sync table, checked by the compiler.</span>
+<span class="ra-cm">// The "no" cells are in sendsync_err.rs, each refused with its own error.</span>
+<span class="ra-kw">fn</span> main() &#123;
+    send::&lt;i32&gt;(); sync::&lt;i32&gt;();
+    send::&lt;String&gt;(); sync::&lt;String&gt;();
+    send::&lt;Vec&lt;u8&gt;&gt;(); sync::&lt;Vec&lt;u8&gt;&gt;();
+    send::&lt;Box&lt;i32&gt;&gt;(); sync::&lt;Box&lt;i32&gt;&gt;();
+    send::&lt;&amp;i32&gt;(); sync::&lt;&amp;i32&gt;();
+    send::&lt;Arc&lt;i32&gt;&gt;(); sync::&lt;Arc&lt;i32&gt;&gt;();
+    send::&lt;Cell&lt;i32&gt;&gt;();
+    send::&lt;RefCell&lt;i32&gt;&gt;();
+    send::&lt;Mutex&lt;i32&gt;&gt;(); sync::&lt;Mutex&lt;i32&gt;&gt;();
+    send::&lt;Mutex&lt;Cell&lt;i32&gt;&gt;&gt;(); sync::&lt;Mutex&lt;Cell&lt;i32&gt;&gt;&gt;();
+    send::&lt;Arc&lt;Mutex&lt;Vec&lt;u8&gt;&gt;&gt;&gt;(); sync::&lt;Arc&lt;Mutex&lt;Vec&lt;u8&gt;&gt;&gt;&gt;();
+    send::&lt;RwLock&lt;i32&gt;&gt;(); sync::&lt;RwLock&lt;i32&gt;&gt;();
+    send::&lt;AtomicU64&gt;(); sync::&lt;AtomicU64&gt;();
+    sync::&lt;MutexGuard&lt;<span class="ra-lt">'static</span>, i32&gt;&gt;();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"all 25 \"yes\" claims compile"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_sendsync">
+<span class="ra-cmd">$ rustc --edition 2024 sendsync.rs &amp;&amp; ./sendsync</span>
+all 25 "yes" claims compile</pre>
+<div class="ra-src"><div class="ra-fn">sendsync_err.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::cell::&#123;Cell, RefCell&#125;;
+<span class="ra-kw">use</span> std::rc::Rc;
+<span class="ra-kw">use</span> std::sync::&#123;Arc, MutexGuard&#125;;
+
+<span class="ra-kw">fn</span> send&lt;T: Send&gt;() &#123;&#125;
+<span class="ra-kw">fn</span> sync&lt;T: Sync&gt;() &#123;&#125;
+
+<span class="ra-cm">// Every "no" cell of the page's Send and Sync table: each line is refused with its own E0277.</span>
+<span class="ra-kw">fn</span> main() &#123;
+    send::&lt;Rc&lt;i32&gt;&gt;();
+    sync::&lt;Rc&lt;i32&gt;&gt;();
+    sync::&lt;Cell&lt;i32&gt;&gt;();
+    sync::&lt;RefCell&lt;i32&gt;&gt;();
+    send::&lt;Arc&lt;RefCell&lt;i32&gt;&gt;&gt;();
+    sync::&lt;Arc&lt;RefCell&lt;i32&gt;&gt;&gt;();
+    send::&lt;MutexGuard&lt;<span class="ra-lt">'static</span>, i32&gt;&gt;();
+    send::&lt;*<span class="ra-kw">const</span> i32&gt;();
+    sync::&lt;*<span class="ra-kw">const</span> i32&gt;();
+&#125;</pre></div>
+<pre class="ra-out ra-bad" data-ra-out="l_sendsync_err">
+<span class="ra-cmd">$ rustc --edition 2024 sendsync_err.rs</span>
+error[E0277]: `Rc&lt;i32&gt;` cannot be sent between threads safely
+  --&gt; sendsync_err.rs:10:12
+   |
+10 |     send::&lt;Rc&lt;i32&gt;&gt;();
+   |            ^^^^^^^ `Rc&lt;i32&gt;` cannot be sent between threads safely
+   |
+   = help: the trait `Send` is not implemented for `Rc&lt;i32&gt;`
+note: required by a bound in `send`
+  --&gt; sendsync_err.rs:5:12
+   |
+ 5 | fn send&lt;T: Send&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `send`
+
+error[E0277]: `Rc&lt;i32&gt;` cannot be shared between threads safely
+  --&gt; sendsync_err.rs:11:12
+   |
+11 |     sync::&lt;Rc&lt;i32&gt;&gt;();
+   |            ^^^^^^^ `Rc&lt;i32&gt;` cannot be shared between threads safely</pre><details class="ra-more"><summary>show the remaining 109 lines</summary><pre class="ra-out ra-bad" data-ra-rest="l_sendsync_err">
+   |
+   = help: the trait `Sync` is not implemented for `Rc&lt;i32&gt;`
+note: required by a bound in `sync`
+  --&gt; sendsync_err.rs:6:12
+   |
+ 6 | fn sync&lt;T: Sync&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `sync`
+
+error[E0277]: `Cell&lt;i32&gt;` cannot be shared between threads safely
+  --&gt; sendsync_err.rs:12:12
+   |
+12 |     sync::&lt;Cell&lt;i32&gt;&gt;();
+   |            ^^^^^^^^^ `Cell&lt;i32&gt;` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `Cell&lt;i32&gt;`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` or `std::sync::atomic::AtomicI32` instead
+note: required by a bound in `sync`
+  --&gt; sendsync_err.rs:6:12
+   |
+ 6 | fn sync&lt;T: Sync&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `sync`
+
+error[E0277]: `RefCell&lt;i32&gt;` cannot be shared between threads safely
+  --&gt; sendsync_err.rs:13:12
+   |
+13 |     sync::&lt;RefCell&lt;i32&gt;&gt;();
+   |            ^^^^^^^^^^^^ `RefCell&lt;i32&gt;` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `RefCell&lt;i32&gt;`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required by a bound in `sync`
+  --&gt; sendsync_err.rs:6:12
+   |
+ 6 | fn sync&lt;T: Sync&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `sync`
+
+error[E0277]: `RefCell&lt;i32&gt;` cannot be shared between threads safely
+  --&gt; sendsync_err.rs:14:12
+   |
+14 |     send::&lt;Arc&lt;RefCell&lt;i32&gt;&gt;&gt;();
+   |            ^^^^^^^^^^^^^^^^^ `RefCell&lt;i32&gt;` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `RefCell&lt;i32&gt;`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+   = note: required for `Arc&lt;RefCell&lt;i32&gt;&gt;` to implement `Send`
+note: required by a bound in `send`
+  --&gt; sendsync_err.rs:5:12
+   |
+ 5 | fn send&lt;T: Send&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `send`
+
+error[E0277]: `RefCell&lt;i32&gt;` cannot be shared between threads safely
+  --&gt; sendsync_err.rs:15:12
+   |
+15 |     sync::&lt;Arc&lt;RefCell&lt;i32&gt;&gt;&gt;();
+   |            ^^^^^^^^^^^^^^^^^ `RefCell&lt;i32&gt;` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `RefCell&lt;i32&gt;`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+   = note: required for `Arc&lt;RefCell&lt;i32&gt;&gt;` to implement `Sync`
+note: required by a bound in `sync`
+  --&gt; sendsync_err.rs:6:12
+   |
+ 6 | fn sync&lt;T: Sync&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `sync`
+
+error[E0277]: `std::sync::MutexGuard&lt;'static, i32&gt;` cannot be sent between threads safely
+  --&gt; sendsync_err.rs:16:12
+   |
+16 |     send::&lt;MutexGuard&lt;'static, i32&gt;&gt;();
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^ `std::sync::MutexGuard&lt;'static, i32&gt;` cannot be sent between threads safely
+   |
+   = help: the trait `Send` is not implemented for `std::sync::MutexGuard&lt;'static, i32&gt;`
+note: required by a bound in `send`
+  --&gt; sendsync_err.rs:5:12
+   |
+ 5 | fn send&lt;T: Send&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `send`
+
+error[E0277]: `*const i32` cannot be sent between threads safely
+  --&gt; sendsync_err.rs:17:12
+   |
+17 |     send::&lt;*const i32&gt;();
+   |            ^^^^^^^^^^ `*const i32` cannot be sent between threads safely
+   |
+   = help: the trait `Send` is not implemented for `*const i32`
+note: required by a bound in `send`
+  --&gt; sendsync_err.rs:5:12
+   |
+ 5 | fn send&lt;T: Send&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `send`
+
+error[E0277]: `*const i32` cannot be shared between threads safely
+  --&gt; sendsync_err.rs:18:12
+   |
+18 |     sync::&lt;*const i32&gt;();
+   |            ^^^^^^^^^^ `*const i32` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `*const i32`
+note: required by a bound in `sync`
+  --&gt; sendsync_err.rs:6:12
+   |
+ 6 | fn sync&lt;T: Sync&gt;() &#123;&#125;
+   |            ^^^^ required by this bound in `sync`
+
+error: aborting due to 9 previous errors
+
+For more information about this error, try `rustc --explain E0277`.
+[exit code 1]</pre></details>
+</div></details>
+<p>A type you write gets <code>Send</code> and <code>Sync</code> for free when its fields have them. Only a type holding a raw pointer (a wrapper around a C handle, say) has to claim them by hand with <code>unsafe impl Send for T {}</code>, which is a promise the compiler cannot check: one of section 4's five unsafe operations.</p>
+
+<h3>The working toolbox, every result exact</h3>
+<div class="tw"><table><thead><tr><th>Need</th><th>Tool</th><th>threads.rs printed</th></tr></thead><tbody>
+<tr><td>owned work per thread</td><td><code>thread::spawn(move || ...)</code> plus <code>join()</code></td><td><code>spawned: [(0, 3), (1, 2), (2, 1)]</code></td></tr>
+<tr><td>threads that borrow local data</td><td><code>thread::scope</code></td><td><code>scoped sum: 1000000</code></td></tr>
+<tr><td>shared mutable state</td><td><code>Arc&lt;Mutex&lt;T&gt;&gt;</code></td><td><code>mutex counter: 800000 (expected 800000)</code></td></tr>
+<tr><td>one counter or flag</td><td>an atomic (<code>AtomicU64</code>)</td><td><code>atomic counter: 800000</code></td></tr>
+<tr><td>pass messages instead of sharing</td><td>a channel (<code>mpsc</code>)</td><td><code>channel: ["worker 0 done", ...]</code></td></tr>
+</tbody></table></div>
+<p><code>lock()</code> returns a guard that unlocks when dropped, and the data is reachable <i>only</i> through the guard, so you cannot forget the lock. What <code>Ordering::Relaxed</code> on the atomic means (and when you need stronger orderings) is memory order, taught on the {{OS concurrency page|n:3f05c17b0d0d8112ad1af99308fa913f}}; a counter needs only <code>Relaxed</code>. For data parallelism over a collection, the {{rayon|https://docs.rs/rayon}} crate turns <code>iter()</code> into <code>par_iter()</code>; {{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}} uses it to parallelise the token counter inside a Python extension.</p>
+<details class="dp"><summary>threads.rs <span class="mute">(the five tools, with the full output)</span></summary><div class="b">
+<div class="ra-src"><div class="ra-fn">threads.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::sync::atomic::&#123;AtomicU64, Ordering&#125;;
+<span class="ra-kw">use</span> std::sync::mpsc;
+<span class="ra-kw">use</span> std::sync::&#123;Arc, Mutex&#125;;
+<span class="ra-kw">use</span> std::thread;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-cm">// 1. spawn + join; `move` gives the thread its own copy of what it uses</span>
+    <span class="ra-kw">let</span> docs = <span class="ra-mac">vec!</span>[<span class="ra-st">"a b c"</span>, <span class="ra-st">"d e"</span>, <span class="ra-st">"f"</span>];
+    <span class="ra-kw">let</span> handles: Vec&lt;_&gt; = docs.into_iter().enumerate().map(|(i, d)| &#123;
+        thread::spawn(<span class="ra-kw">move</span> || (i, d.split_whitespace().count()))
+    &#125;).collect();
+    <span class="ra-kw">let</span> counts: Vec&lt;_&gt; = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"spawned: &#123;counts:?&#125;"</span>);
+
+    <span class="ra-cm">// 2. scoped threads may borrow local data, because they are joined before the scope ends</span>
+    <span class="ra-kw">let</span> data = <span class="ra-mac">vec!</span>[1u64; 1_000_000];
+    <span class="ra-kw">let</span> (left, right) = data.split_at(data.len() / 2);
+    <span class="ra-kw">let</span> total = thread::scope(|s| &#123;
+        <span class="ra-kw">let</span> a = s.spawn(|| left.iter().sum::&lt;u64&gt;());
+        <span class="ra-kw">let</span> b = s.spawn(|| right.iter().sum::&lt;u64&gt;());
+        a.join().unwrap() + b.join().unwrap()
+    &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"scoped sum: &#123;total&#125;"</span>);
+
+    <span class="ra-cm">// 3. shared mutable state: Arc (shared ownership across threads) + Mutex (one writer at a time)</span>
+    <span class="ra-kw">let</span> counter = Arc::new(Mutex::new(0u64));
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> hs = <span class="ra-mac">vec!</span>[];
+    <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..8 &#123;
+        <span class="ra-kw">let</span> c = Arc::clone(&amp;counter);
+        hs.push(thread::spawn(<span class="ra-kw">move</span> || <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..100_000 &#123; *c.lock().unwrap() += 1; &#125;));
+    &#125;
+    <span class="ra-kw">for</span> h <span class="ra-kw">in</span> hs &#123; h.join().unwrap(); &#125;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"mutex counter: &#123;&#125; (expected 800000)"</span>, *counter.lock().unwrap());
+
+    <span class="ra-cm">// 4. an atomic does the same without a lock</span>
+    <span class="ra-kw">let</span> hits = Arc::new(AtomicU64::new(0));
+    thread::scope(|s| <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..8 &#123; <span class="ra-kw">let</span> h = &amp;hits; s.spawn(<span class="ra-kw">move</span> || <span class="ra-kw">for</span> _ <span class="ra-kw">in</span> 0..100_000 &#123; h.fetch_add(1, Ordering::Relaxed); &#125;); &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"atomic counter: &#123;&#125;"</span>, hits.load(Ordering::Relaxed));
+
+    <span class="ra-cm">// 5. channels: send values from many producers to one consumer</span>
+    <span class="ra-kw">let</span> (tx, rx) = mpsc::channel();
+    <span class="ra-kw">for</span> id <span class="ra-kw">in</span> 0..3 &#123;
+        <span class="ra-kw">let</span> tx = tx.clone();
+        thread::spawn(<span class="ra-kw">move</span> || tx.send(<span class="ra-mac">format!</span>(<span class="ra-st">"worker &#123;id&#125; done"</span>)).unwrap());
+    &#125;
+    drop(tx); <span class="ra-cm">// close our copy so the loop below ends when the workers finish</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> got: Vec&lt;String&gt; = rx.iter().collect();
+    got.sort();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"channel: &#123;got:?&#125;"</span>);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_threads">
+<span class="ra-cmd">$ rustc --edition 2024 threads.rs &amp;&amp; ./threads</span>
+spawned: [(0, 3), (1, 2), (2, 1)]
+scoped sum: 1000000
+mutex counter: 800000 (expected 800000)
+atomic counter: 800000
+channel: ["worker 0 done", "worker 1 done", "worker 2 done"]</pre>
+</div></details>
+<div class="co warn"><div class="t">What the compiler does not prevent</div>Deadlocks (two threads each holding the lock the other needs), logic races (check-then-act with the lock released in between), and leaked memory are all possible in safe Rust. "Fearless" means no data races and no use after free, not no concurrency bugs.</div>
+<p><b>Async</b> is the other way to be concurrent: for thousands of network calls rather than CPU work, Rust uses <code>async fn</code> and a runtime library, almost always tokio. The same two traits decide what may cross <code>.await</code> points on a multi-threaded runtime (<code>tokio::spawn</code> needs <code>Send + 'static</code>); {{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}} owns it.</p>
+</section>

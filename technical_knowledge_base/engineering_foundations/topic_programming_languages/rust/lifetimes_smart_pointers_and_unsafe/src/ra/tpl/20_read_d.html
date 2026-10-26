@@ -1,0 +1,59 @@
+
+<section id="lsp-conc">
+<h2>3. Threads without data races: Send and Sync</h2>
+<p>A <dfn>data race</dfn> is two threads touching the same memory at the same time, at least one of them writing, with nothing ordering them. Updates get lost or values tear. In CPython the GIL used to hide most of these; free-threaded Python 3.14 does not, and an unsynchronised counter there loses updates (measured on {{Python: concurrency, asyncio and the GIL|n:4055c17b0d0d81bdbee8c37d80b55a0e}}). Rust makes data races a <b>compile error</b> in safe code by applying the borrowing rule across threads: shared data may be read by many threads, and changed only through a type that synchronises (a lock or an atomic). What a race, a mutex and an atomic are at the OS level is taught on {{Concurrency: threads, locks, futexes, deadlock, and event-driven I/O|n:3f05c17b0d0d8112ad1af99308fa913f}}; this section is what Rust's types add.</p>
+<p>The obvious Python translation, eight threads incrementing one counter, does not compile, and the three errors are the three problems:</p>
+[[code:lang/race_err.rs]]
+<div class="tw"><table><thead><tr><th>Error</th><th>The problem</th><th>The fix</th></tr></thead><tbody>
+<tr><td><code>E0373</code></td><td>the thread may outlive <code>counter</code>: a spawned thread is not joined automatically, so <code>spawn</code> demands a <code>'static</code> closure (section 1)</td><td><code>move</code> owned data in, or use <code>thread::scope</code>, whose threads are joined before it returns</td></tr>
+<tr><td><code>E0499</code></td><td>eight closures would each hold <code>&amp;mut counter</code> at once: <b>the data race itself</b></td><td>a <code>Mutex</code> or an atomic</td></tr>
+<tr><td><code>E0502</code></td><td>the final read overlaps the mutable borrows</td><td>read after joining, through the lock</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>The three errors as rustc printed them <span class="mute">(race_err.rs)</span></summary><div class="b">
+[[out:l_race_err]]
+</div></details>
+<p>Scoped threads fix the first problem but not the second, which is the race (<code>thread::scope</code> still gives E0499).</p>
+<details class="dp"><summary>The scoped version's error <span class="mute">(race_scope_err.rs)</span></summary><div class="b">
+[[out:l_race_scope_err]]
+</div></details>
+
+<h3>The two marker traits</h3>
+<p>Two marker traits carry the rule. They have no methods; the compiler implements them automatically for a type whose parts all qualify ({{std::marker::Send|https://doc.rust-lang.org/std/marker/trait.Send.html}}, {{the Rustonomicon on Send and Sync|https://doc.rust-lang.org/nomicon/send-and-sync.html}}):</p>
+<ul>
+<li><code>Send</code>: a value of this type may be moved to another thread.</li>
+<li><code>Sync</code>: a <code>&amp;T</code> may be shared between threads (precisely, <code>T</code> is <code>Sync</code> if <code>&amp;T</code> is <code>Send</code>).</li>
+</ul>
+<p><code>thread::spawn</code> requires its closure to be <code>Send</code>, so everything the closure captures must be. <code>Rc</code> is neither, because two threads updating its non-atomic counter at once would be a race; <code>Arc</code> uses atomic updates and is both. Moving an <code>Rc</code> into a thread is refused with E0277, "<code>Rc&lt;Vec&lt;i32&gt;&gt;</code> cannot be sent between threads safely", naming <code>spawn</code>'s bound as the reason.</p>
+<details class="dp"><summary>The full error <span class="mute">(rc_thread_err.rs)</span></summary><div class="b">
+[[out:l_rc_thread_err]]
+</div></details>
+<div class="lsp-vis">
+<h4>Which types may cross threads: every cell below was checked by the compiler</h4>
+<p class="small">Predict before reading the columns: is <code>Arc&lt;RefCell&lt;i32&gt;&gt;</code> <code>Send</code>? Is a <code>Mutex</code> holding a <code>Cell</code> <code>Sync</code>?</p>
+[[sendsync]]
+<p class="lsp-cap small">The 25 "yes" cells are asserted in <code>sendsync.rs</code>, which compiles (<code>all 25 "yes" claims compile</code>); the 9 "no" cells are each refused with E0277 in <code>sendsync_err.rs</code>. <code>Arc&lt;T&gt;</code> is <code>Send</code> and <code>Sync</code> only when <code>T</code> is both; <code>Mutex&lt;T&gt;</code> is <code>Sync</code> when <code>T</code> is merely <code>Send</code>, which is how a lock makes unshareable data shareable. MutexGuard's reason is from its {{documentation|https://doc.rust-lang.org/std/sync/struct.MutexGuard.html}}.</p>
+</div>
+<details class="dp"><summary>The two programs behind the table, and the nine refusals <span class="mute">(sendsync.rs, sendsync_err.rs)</span></summary><div class="b">
+[[code:lang/sendsync.rs]]
+[[out:l_sendsync]]
+[[code:lang/sendsync_err.rs]]
+[[out:l_sendsync_err]]
+</div></details>
+<p>A type you write gets <code>Send</code> and <code>Sync</code> for free when its fields have them. Only a type holding a raw pointer (a wrapper around a C handle, say) has to claim them by hand with <code>unsafe impl Send for T {}</code>, which is a promise the compiler cannot check: one of section 4's five unsafe operations.</p>
+
+<h3>The working toolbox, every result exact</h3>
+<div class="tw"><table><thead><tr><th>Need</th><th>Tool</th><th>threads.rs printed</th></tr></thead><tbody>
+<tr><td>owned work per thread</td><td><code>thread::spawn(move || ...)</code> plus <code>join()</code></td><td><code>spawned: [(0, 3), (1, 2), (2, 1)]</code></td></tr>
+<tr><td>threads that borrow local data</td><td><code>thread::scope</code></td><td><code>scoped sum: 1000000</code></td></tr>
+<tr><td>shared mutable state</td><td><code>Arc&lt;Mutex&lt;T&gt;&gt;</code></td><td><code>mutex counter: 800000 (expected 800000)</code></td></tr>
+<tr><td>one counter or flag</td><td>an atomic (<code>AtomicU64</code>)</td><td><code>atomic counter: 800000</code></td></tr>
+<tr><td>pass messages instead of sharing</td><td>a channel (<code>mpsc</code>)</td><td><code>channel: ["worker 0 done", ...]</code></td></tr>
+</tbody></table></div>
+<p><code>lock()</code> returns a guard that unlocks when dropped, and the data is reachable <i>only</i> through the guard, so you cannot forget the lock. What <code>Ordering::Relaxed</code> on the atomic means (and when you need stronger orderings) is memory order, taught on the {{OS concurrency page|n:3f05c17b0d0d8112ad1af99308fa913f}}; a counter needs only <code>Relaxed</code>. For data parallelism over a collection, the {{rayon|https://docs.rs/rayon}} crate turns <code>iter()</code> into <code>par_iter()</code>; {{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}} uses it to parallelise the token counter inside a Python extension.</p>
+<details class="dp"><summary>threads.rs <span class="mute">(the five tools, with the full output)</span></summary><div class="b">
+[[code:lang/threads.rs]]
+[[out:l_threads]]
+</div></details>
+<div class="co warn"><div class="t">What the compiler does not prevent</div>Deadlocks (two threads each holding the lock the other needs), logic races (check-then-act with the lock released in between), and leaked memory are all possible in safe Rust. "Fearless" means no data races and no use after free, not no concurrency bugs.</div>
+<p><b>Async</b> is the other way to be concurrent: for thousands of network calls rather than CPU work, Rust uses <code>async fn</code> and a runtime library, almost always tokio. The same two traits decide what may cross <code>.await</code> points on a multi-threaded runtime (<code>tokio::spawn</code> needs <code>Send + 'static</code>); {{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}} owns it.</p>
+</section>
