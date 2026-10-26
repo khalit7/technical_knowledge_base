@@ -46,3 +46,5 @@ The core of the whole subject fell from about 54 minutes (Reading plus the lab t
 
 ## Checks (2026-10-24)
 `checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0. `check_page.py`: ALL OK. `check_ui.mjs` (tabs updated to Reading, Edit format bench, Further reading): clean at 390 dark and 920 light.
+
+2026-10-26 (final follow-up sweep, second batch): the per-provider stream details block links Service APIs section 7 (LLM provider APIs compared as designs).
