@@ -14,3 +14,4 @@ Scored with .claude/skills/explainer-page/visuals/choosing.md (0 to 2 each; repr
 | P-context_language_models.8 | SCR span relocation animation ([A B C] to [A B' C], keys re-rotated) | 6 | Rejected: the replay's SCR toggle shows the same accounting on a whole episode; Figure 4 is already a clear static picture |
 | P-context_language_models.9 | Figure 29 RL curves decoded | 5 | Rejected for now: the curves' end points are Table 2; decoding the whole training curve adds little to the verdict |
 | P-context_language_models.10 | Figure 30 context-length awareness scatter | 3 | Rejected: a PNG only (no vector data), and the claim is qualitative |
+| P-context_language_models.11 | The paper's Figure 1 as the hero and Figure 4 beside SCR (CC BY 4.0, embedded and credited) | 8 | Built 2026-10-26 (light pass): the canonical figures, licensed for reuse; a redraw would add nothing |
