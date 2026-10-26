@@ -74,3 +74,6 @@ Why about 36 minutes is right: the page now carries flow matching from an empty 
 - **Further reading**: the root card no longer points at the retired Flow and Diffusion lab tabs (the recordings are named as provenance, root `src/flow/out`, `src/diff/out`); times updated: diffusion from zero 36, latent diffusion 32 (33 after this pass), video and audio generation 28. Ledger units 365 and 368 (retired-tab reading times) are fat; 366 and 367 have new keys.
 - **Header unchanged**: 36 min core (8,332 words), 17 in closed details. Checks: checkpage fail=0, ledger problems 0, `check_data.py` and `check_page.mjs` OK.
 - Root fat audit (2026-10-24): "a second-order step with CFG costs four" passes restored in the solver-comparison mistake block (ledger unit 406). Reading time unchanged.
+
+## 2026-10-26: cross-link to the two-moons straightness run
+The Math page's two-moons lab moved to Diffusion from zero (Khalid's decision 11). Section 2 now quotes its straightness result in one sentence with a link (learned flow paths 0.55 against DDIM's 0.73 over 40 paths), beside this page's exact-field finding that curvature belongs to the problem. Reading time unchanged (36 plus 17). Note: `check_data.py` fails on a missing root file, `src/retired/parts/33_js_fw_0data.js`, which was never committed; this predates the edit.
