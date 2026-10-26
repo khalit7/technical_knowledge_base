@@ -1,0 +1,49 @@
+
+<section id="s5"><h2>5. ruff: one linter and formatter, and a default that grew sevenfold</h2>
+<p>A <b>linter</b> reads code without running it and reports likely bugs and style problems; a <b>formatter</b> rewrites layout so nobody argues about it. ruff does both, in Rust, and replaced flake8 and its plugins, isort, pyupgrade and black. Here is a file with eight problems you have probably written yourself:</p>
+<div class="pb-code" id="pb-ruff-src"></div>
+<div class="pb-drill" id="pb-drill-ruff"></div>
+<div class="pb-term" data-pb-tr="ruff" data-pb-cmd="uvx ruff@0.16.10 check --output-format concise chatlog.py"></div>
+<div class="co warn"><div class="t">New in ruff 0.16 (2026-07-23): the default set grew from 59 to 413 rules</div>That is why the first run already reports isort (I), pyupgrade (UP), bugbear (B), simplify (SIM) and bandit (S) findings with no configuration at all. The release also removed 18 pycodestyle and pyflakes rules from the default set, among them <code>E711</code> (<code>== None</code>) and <code>E401</code> (two imports on one line), which appear only once selected explicitly ({{ruff changelog|https://github.com/astral-sh/ruff/blob/main/CHANGELOG.md}}). Pin ruff in your dev group, or one upgrade can fail every CI run.</div>
+<div class="pb-cost"><div class="t">What it costs</div>Nothing at run time. The cost is noise: a large default rule set on an old codebase reports hundreds of findings. Adopt it with <code>ruff check --add-noqa</code> once (it writes suppression comments for existing findings) and fix new code only, or start from an explicit <code>select</code> list.</div>
+<details class="dp"><summary>Fixing, formatting and a starting configuration <span class="mute">(real runs, ruff 0.16.10)</span></summary><div class="b">
+<div class="pb-term" data-pb-tr="ruff" data-pb-cmd="uvx ruff@0.16.10 check --output-format concise --select|uvx ruff@0.16.10 check --select"></div>
+<p><code>--fix</code> applied nine safe fixes (sorted and pruned imports, <code>list</code> for <code>List</code>, <code>str | None</code> for <code>Optional[str]</code>, the empty f-string). The five that remain need a human: a mutable default argument (<code>seen=[]</code> is created once and shared by every call), a file opened without <code>with</code> and never closed, a <code>try</code>/<code>except</code>/<code>pass</code> that ruff suggests writing as <code>contextlib.suppress</code>, a bare <code>except</code> that also swallows <code>KeyboardInterrupt</code>, and <code>== None</code> (use <code>is None</code>). "Unsafe" fixes (<code>--unsafe-fixes</code>) are the ones that can change behaviour, so ruff never applies them silently.</p>
+<div class="pb-term" data-pb-tr="ruff" data-pb-cmd="uvx ruff@0.16.10 format chatlog.py"></div>
+<p>A small starting configuration in <code>pyproject.toml</code> (written for this page, not run as shown):</p>
+<div class="pb-code">[tool.ruff]
+target-version = "py314"   # lets UP rules rewrite to the newest syntax you support
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["E711", "E401"]   # add back what 0.16 removed, if you want it
+ignore = ["S101"]                  # assert is fine in tests</div>
+</div></details>
+</section>
+
+<section id="s6"><h2>6. pytest as a tool: discovery, fixtures and assertion rewriting</h2>
+<p>pytest finds files named <code>test_*.py</code>, runs every function named <code>test_*</code>, and treats a plain <code>assert</code> as the check. What to test, and how to run tests in CI, is {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}'s subject; this section is the tool. Predict first:</p>
+<div class="pb-drill" id="pb-drill-pt"></div>
+<p>That message is pytest's <b>assertion rewriting</b>: at import time it rewrites each <code>assert</code> in test files so that a failure shows the value of every sub-expression (<code>where 2 = tokens('max_tokens')</code>). This is why pytest needs no <code>assertEqual</code> family. Five more features cover most suites; all are in the one test file in the closed block below, testing the root page's token-counting rule:</p>
+<ul class="tight">
+<li><b>Fixtures</b> (<code>chat_file</code>, defined in <code>conftest.py</code> so every test file can use it) are set-up functions pytest calls when a test names them as a parameter. Built-in ones: <code>tmp_path</code> (a fresh folder per test) and <code>monkeypatch</code> (set an environment variable or attribute, undone after the test).</li>
+<li><b><code>@pytest.mark.parametrize</code></b> runs one test per row of inputs, each reported separately; <b><code>pytest.raises</code></b> asserts that a block raises a given exception.</li>
+<li><b>Subtests</b> (new in pytest 9.0, 2025-11-05) check several values inside one test and report each failure separately, for values known only at run time.</li>
+<li><b>Configuration</b> lives natively in <code>pyproject.toml</code> under <code>[tool.pytest]</code> (pytest 9.0; the older <code>[tool.pytest.ini_options]</code> table still works), and <code>strict = true</code> turns on every strictness option (unknown markers and config keys become errors).</li>
+<li><b>Selecting and spreading</b>: <code>-k</code> selects tests by name, <code>--co</code> lists what would run, and <code>-n 4</code> from the pytest-xdist plugin spreads tests over four worker processes. On nine tests the workers' start-up made it slower (0.37 s against 0.01 s); it pays off on suites that take minutes.</li>
+</ul>
+<details class="dp"><summary>The test file, its configuration and the real runs <span class="mute">(pytest 9.1.1)</span></summary><div class="b">
+<div class="pb-code" id="pb-pt-src"></div>
+<div class="pb-code" id="pb-pt-cfg"></div>
+<div class="pb-term" data-pb-tr="pytest" data-pb-cmd="uv run pytest tests/test_tokens.py"></div>
+<p class="small">The <code>u</code> marks are the two passing subtests.</p>
+<div class="pb-term" data-pb-tr="pytest" data-pb-cmd="uv run pytest -k|uv run --with pytest-xdist"></div>
+<p class="small">Note the parametrize ids, with non-ASCII escaped.</p>
+</div></details>
+<details class="dp"><summary>Common mistakes with pytest</summary><div class="b"><ul class="tight">
+<li>Testing implementation details (private functions, exact call counts) instead of behaviour, so every refactor breaks tests that found no bug.</li>
+<li>A fixture with <code>scope="session"</code> that returns a mutable object: one test's change leaks into the next.</li>
+<li>Forgetting that test files are imported: module-level code in a test file runs at collection time, even for tests you deselected.</li>
+<li>Running <code>pytest</code> instead of <code>uv run pytest</code>, so a global pytest without your dependencies runs the suite.</li>
+</ul></div></details>
+</section>

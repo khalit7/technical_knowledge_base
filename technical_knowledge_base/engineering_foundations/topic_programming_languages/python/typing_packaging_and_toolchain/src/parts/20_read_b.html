@@ -1,0 +1,108 @@
+
+<section id="s1"><h2>1. Hints are read by tools, not by Python</h2>
+<p>Annotations (<code>x: int</code>, <code>-&gt; str</code>) are stored on the function and otherwise ignored when the program runs. A <dfn>type checker</dfn> reads them and reports contradictions before anything runs. What the type system can say, in the forms worth using in 2026:</p>
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>To say</th><th>Write</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Containers and "or None"</td><td><code>list[str]</code>, <code>dict[str, int]</code>, <code>str | None</code></td><td>Built-in generics and unions; no imports since 3.9 and 3.10</td></tr>
+<tr><td>Same type in, same type out</td><td><code>def first[T](xs: Sequence[T]) -&gt; T</code></td><td>The 3.12 syntax ({{PEP 695|https://peps.python.org/pep-0695/}}); <code>T</code> is a <dfn>type variable</dfn></td></tr>
+<tr><td>"Anything with a <code>close()</code> method"</td><td><code>class SupportsClose(Protocol)</code></td><td>Structural typing ({{PEP 544|https://peps.python.org/pep-0544/}}): duck typing made checkable, usually better than an abstract base class</td></tr>
+<tr><td>The shape of a plain dict (a chat message)</td><td><code>class Message(TypedDict)</code>, <code>NotRequired[str]</code></td><td>{{PEP 589|https://peps.python.org/pep-0589/}}; still a plain dict at run time</td></tr>
+<tr><td>An exact set of values</td><td><code>Literal["system", "user", "assistant"]</code></td><td></td></tr>
+<tr><td>A return type that depends on the argument type</td><td><code>@overload</code>, one signature per case</td><td></td></tr>
+<tr><td>What a function accepts and returns</td><td>accept <code>Iterable</code>, <code>Sequence</code>, <code>Mapping</code>; return <code>list</code>, <code>dict</code></td><td>Abstract parameter types, concrete return types</td></tr>
+</tbody></table></div>
+<p>One file (<code>t1_types.py</code>, in the closed block below) uses every row, then makes five deliberate mistakes. It was run with Python 3.14.8 and checked with mypy 2.4.0 and ty 0.0.84.</p>
+<div class="pb-drill" id="tk-drill-t1"></div>
+<div class="pb-tbl pb-wide tk-grid"><table>
+<thead><tr><th>Deliberate mistake</th><th>python t1_types.py</th><th>mypy 2.4.0</th><th>ty 0.0.84</th></tr></thead>
+<tbody>
+<tr><td>1. <code>{"role": "admin", ...}</code> as a <code>Message</code></td><td class="s">ran past it</td><td class="y">error [typeddict-item]</td><td class="y">error[invalid-argument-type]</td></tr>
+<tr><td>2. <code>n: int = parse(b"ab")</code>; the overload returns <code>list[int]</code></td><td class="s">ran past it</td><td class="y">error [assignment]</td><td class="y">error[invalid-assignment]</td></tr>
+<tr><td>3. <code>find_user(msgs, "kh")["content"]</code>, which may be <code>None</code></td><td class="s">ran past it (the user happened to exist; printed "hello there")</td><td class="y">error [index]</td><td class="y">error[not-subscriptable]</td></tr>
+<tr><td>4. <code>legacy("text")</code>: <code>str + int</code> inside a function with no annotations</td><td class="x">TypeError: can only concatenate str (not "int") to str</td><td class="s">silent</td><td class="s">silent</td></tr>
+<tr><td>5. <code>shutdown([42])</code>: <code>int</code> has no <code>close()</code></td><td class="s">never reached (stopped at 4)</td><td class="y">error [list-item]</td><td class="y">error[invalid-argument-type]</td></tr>
+</tbody></table></div>
+<p class="small">Green: reported before running. Every cell is from the recorded outputs in the closed block (<code>src/pa/outputs/</code>).</p>
+<div class="co"><div class="t">What the table shows</div>
+<ul class="tight">
+<li>Python ran past mistakes 1 to 3 because annotations are not checked at run time; mistake 3 is a crash waiting for the day the user is missing. Both checkers caught 1, 2, 3 and 5 on the exact lines.</li>
+<li><b>Neither caught mistake 4</b>, the only one that crashed. <code>legacy</code> has no annotations, so its parameter is "any type" and anything goes; mypy by default does not even check the bodies of unannotated functions ({{mypy: no errors reported for obviously wrong code|https://mypy.readthedocs.io/en/stable/common_issues.html#no-errors-reported-for-obviously-wrong-code}}). <b>Type checking protects only the code you annotate.</b></li>
+<li><code>Conn</code> never mentions <code>SupportsClose</code> and passes; <code>int</code> fails because it has no <code>close</code>. That is a Protocol at work.</li>
+</ul></div>
+<div class="pb-cost"><div class="t">What it buys, what it costs, the habit</div>Whole classes of bugs found before running (None handling, wrong keys, wrong argument order), editor completion and documentation that cannot go stale, for the time spent writing annotations, occasional fights with the checker over correct code that is hard to express, and nothing at run time. Annotate every public function and every boundary, run the checker in CI, and validate external data at run time with Pydantic, because a <code>TypedDict</code> on <code>json.loads(...)</code> is a promise, not a check (the root's {{Types section|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} makes the same point for TypeScript).</div>
+<details class="dp"><summary>The file and the three real outputs <span class="mute">(t1_types.py; Python 3.14.8, mypy 2.4.0, ty 0.0.84)</span></summary><div class="b">
+<p class="small"><code>reveal_type(first(["a", "b"]))</code> printed <code>str</code> from both checkers, and at run time (3.11+) Python printed "Runtime type is 'str'".</p>
+<div class="pa-snip"><div class="pa-file">t1_types.py</div><pre class="pa-code"><span class="kw">from</span> collections.abc <span class="kw">import</span> Iterable, Sequence
+<span class="kw">from</span> typing <span class="kw">import</span> Literal, NotRequired, Protocol, TypedDict, overload, reveal_type
+
+<span class="kw">class</span> Message(TypedDict):                 <span class="cm"># the shape of a dict, checked statically only</span>
+    role: Literal[<span class="st">"system"</span>, <span class="st">"user"</span>, <span class="st">"assistant"</span>]
+    content: str
+    name: NotRequired[str]
+
+<span class="kw">def</span> first[T](xs: Sequence[T]) -&gt; T:       <span class="cm"># PEP 695 generic function (3.12+)</span>
+    <span class="kw">return</span> xs[0]
+
+<span class="kw">class</span> SupportsClose(Protocol):            <span class="cm"># structural: anything with close() fits</span>
+    <span class="kw">def</span> close(<span class="kw">self</span>) -&gt; <span class="kw">None</span>: ...
+
+<span class="kw">def</span> shutdown(things: Iterable[SupportsClose]) -&gt; int:
+    n = 0
+    <span class="kw">for</span> t <span class="kw">in</span> things:
+        t.close()
+        n += 1
+    <span class="kw">return</span> n
+
+<span class="kw">class</span> Conn:                               <span class="cm"># never mentions SupportsClose</span>
+    <span class="kw">def</span> close(<span class="kw">self</span>) -&gt; <span class="kw">None</span>:
+        print(<span class="st">"closed"</span>)
+
+@overload
+<span class="kw">def</span> parse(x: str) -&gt; int: ...
+@overload
+<span class="kw">def</span> parse(x: bytes) -&gt; list[int]: ...
+<span class="kw">def</span> parse(x: str | bytes) -&gt; int | list[int]:
+    <span class="kw">return</span> int(x) <span class="kw">if</span> isinstance(x, str) <span class="kw">else</span> list(x)
+
+<span class="kw">def</span> find_user(msgs: list[Message], name: str) -&gt; Message | <span class="kw">None</span>:
+    <span class="kw">return</span> next((m <span class="kw">for</span> m <span class="kw">in</span> msgs <span class="kw">if</span> m.get(<span class="st">"name"</span>) == name), <span class="kw">None</span>)
+
+<span class="kw">def</span> legacy(x):                            <span class="cm"># no annotations at all</span>
+    <span class="kw">return</span> x + 1
+
+msgs: list[Message] = [&#123;<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"hello there"</span>, <span class="st">"name"</span>: <span class="st">"kh"</span>&#125;]
+print(first([3, 4]), shutdown([Conn()]), parse(<span class="st">"42"</span>), parse(<span class="st">b"ab"</span>))
+reveal_type(first([<span class="st">"a"</span>, <span class="st">"b"</span>]))
+<span class="cm"># Deliberate mistakes. Python runs every line until one actually fails.</span>
+bad: Message = &#123;<span class="st">"role"</span>: <span class="st">"admin"</span>, <span class="st">"content"</span>: <span class="st">"x"</span>&#125;       <span class="cm"># 1. not an allowed role</span>
+n: int = parse(<span class="st">b"ab"</span>)                                    <span class="cm"># 2. the overload returns list[int]</span>
+print(find_user(msgs, <span class="st">"kh"</span>)[<span class="st">"content"</span>])                  <span class="cm"># 3. may be None</span>
+print(legacy(<span class="st">"text"</span>))                                    <span class="cm"># 4. str + int, inside an unannotated function</span>
+shutdown([42])                                           <span class="cm"># 5. int has no close()</span></pre></div>
+<div class="pa-snip"><div class="pa-olab">python t1_types.py (real output, Python 3.14.8)</div><pre class="pa-out" data-src="t1_types.txt">closed
+3 1 42 [97, 98]
+Runtime type is 'str'
+hello there
+Traceback (most recent call last):
+  File "t1_types.py", line 46, in &lt;module&gt;
+    print(legacy("text"))                                    # 4. str + int, inside an unannotated function
+          ~~~~~~^^^^^^^^
+  File "t1_types.py", line 37, in legacy
+    return x + 1
+           ~~^~~
+TypeError: can only concatenate str (not "int") to str</pre></div>
+<div class="pa-snip"><div class="pa-olab">mypy --python-version 3.14 t1_types.py (real output, mypy 2.4.0)</div><pre class="pa-out" data-src="t1_mypy.txt">t1_types.py:41: note: Revealed type is "str"
+t1_types.py:43: error: Incompatible types (expression has type "Literal['admin']", TypedDict item "role" has type "Literal['system', 'user', 'assistant']")  [typeddict-item]
+t1_types.py:44: error: Incompatible types in assignment (expression has type "list[int]", variable has type "int")  [assignment]
+t1_types.py:45: error: Value of type "Message | None" is not indexable  [index]
+t1_types.py:47: error: List item 0 has incompatible type "int"; expected "SupportsClose"  [list-item]
+Found 4 errors in 1 file (checked 1 source file)</pre></div>
+<div class="pa-snip"><div class="pa-olab">ty check --output-format concise t1_types.py (real output, ty 0.0.84)</div><pre class="pa-out" data-src="t1_ty.txt">t1_types.py:41:13: info[revealed-type] Revealed type: `str`
+t1_types.py:43:25: error[invalid-argument-type] Invalid argument to key "role" with declared type `Literal["system", "user", "assistant"]` on TypedDict `Message`: value of type `Literal["admin"]`
+t1_types.py:44:10: error[invalid-assignment] Object of type `list[int]` is not assignable to `int`
+t1_types.py:45:7: error[not-subscriptable] Cannot subscript object of type `None` with no `__getitem__` method
+t1_types.py:47:10: error[invalid-argument-type] Argument to function `shutdown` is incorrect: Expected `Iterable[SupportsClose]`, found `list[int]`
+Found 5 diagnostics</pre></div>
+</div></details>
+</section>

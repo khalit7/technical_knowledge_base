@@ -1,0 +1,68 @@
+
+<section id="s7"><h2>7. Wheels: the file name says where it installs</h2>
+<p>Building a pure-Python package is one command (<code>uv build</code>, transcript in the closed block). The interesting part is the name of what it builds: <code>name-version-python-abi-platform.whl</code>, and an installer picks the one file whose three tags match your interpreter and machine. Pick a real file from PyPI (fetched 2026-10-05):</p>
+<div class="card" id="pb-wh-card">
+<div class="chips" id="pb-wh-chips"></div>
+<div class="pb-code" id="pb-wh-name" style="white-space:normal;overflow-wrap:anywhere"></div>
+<div id="pb-wh-parts"></div>
+</div>
+<ul class="tight">
+<li><b>Python tag</b> (<code>cp314</code>, <code>py3</code>): which interpreter. <code>py3</code> means any Python 3, so pure Python.</li>
+<li><b>ABI tag</b> (<code>cp314</code>, <code>cp314t</code>, <code>abi3</code>, <code>none</code>): the <dfn title="Application binary interface: the layout of C structures and functions a compiled extension relies on.">ABI</dfn> the compiled code was built against. A <code>cp314</code> wheel loads only on CPython 3.14; <code>cp314t</code> only on the free-threaded 3.14t; <code>abi3</code> (the <b>stable ABI</b>) on every CPython from the tagged version on, so one wheel per platform covers future Pythons. But <code>abi3</code> does not load on free-threaded builds, which is why projects that ship <code>abi3</code> wheels must still build a separate <code>cp314t</code> wheel, or their users on 3.14t build from source.</li>
+<li><b>Platform tag</b>: <code>manylinux_2_28_x86_64</code> runs on any Linux with glibc 2.28 or newer (PEP 600); <code>musllinux</code> is for Alpine; <code>macosx_11_0_arm64</code> needs macOS 11 or newer on Apple silicon; <code>win_amd64</code> is 64-bit Windows.</li>
+</ul>
+<p><b>abi3t</b> (Python 3.15, PEP 803) is a stable ABI that free-threaded builds can load, so one <code>cp315-abi3.abi3t</code> wheel covers both builds of 3.15 and later; until projects port to it, a library supporting 3.11 and up ships three wheels per platform (details and tool support in the closed block).</p>
+<details class="dp"><summary>abi3t: what it needs and which build tools support it <span class="mute">(checked 2026-10-05 and 2026-09-25)</span></summary><div class="b">
+<div class="co"><div class="t">abi3t: the stable ABI for free-threaded builds (Python 3.15, PEP 803)</div>3.15 adds <code>abi3t</code>, a stable ABI that free-threaded builds can load: one wheel tagged <code>cp315-abi3.abi3t</code> runs on both builds of 3.15 and later. Porting "usually requires some non-trivial changes to the source code" ({{What's New in 3.15|https://docs.python.org/3.15/whatsnew/3.15.html}}), and free-threaded 3.14 predates it, so a project supporting 3.11 and up publishes three wheels per platform: <code>cp311-abi3</code>, <code>cp314-cp314t</code> and <code>cp315-abi3.abi3t</code>. What's New says build tools did not support it "at the time of writing"; the community guide, updated 2026-09-25, lists support released in CMake 4.4 with scikit-build-core 1.0, maturin 1.14 (1.14.1+ for both ABI families) and meson-python 0.21, with setuptools still under development ({{py-free-threading: abi3t|https://py-free-threading.github.io/abi3t/}}). <span id="pb-abi3t-count"></span></div>
+</div></details>
+<p class="small">What a free-threaded build does to threads, and an extension that silently turns the GIL back on, are on {{Python: concurrency, asyncio and the GIL|n:4055c17b0d0d81bdbee8c37d80b55a0e}}; this section is only what the wheel must declare.</p>
+<h3>Which backend builds it, and who builds every platform</h3>
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>Your package contains</th><th>Build backend</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Only Python</td><td><b>uv_build</b> (uv's default) or <b>hatchling</b></td><td>One <code>py3-none-any</code> wheel; nothing per platform</td></tr>
+<tr><td>Rust (PyO3)</td><td><b>maturin</b></td><td>{{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}} builds the root's token counter this way</td></tr>
+<tr><td>C or C++ (nanobind, pybind11)</td><td><b>scikit-build-core</b> (CMake) or <b>meson-python</b></td><td>The modern replacement for <code>setup.py build_ext</code></td></tr>
+<tr><td>Cython, or a legacy <code>setup.py</code></td><td>setuptools</td><td>Still everywhere; no need to start a new project with it</td></tr>
+</tbody></table></div>
+<p>A compiled package needs one wheel per Python version (or one <code>abi3</code>), times free-threaded or not, times each operating system and processor: numpy 2.5.3 publishes <span id="pb-np-wheels">65</span> wheels. Nobody builds those by hand: <b>cibuildwheel</b> runs the build in CI on Linux (inside manylinux containers), macOS and Windows runners, and <b>maturin-action</b> does the same for Rust. Since cibuildwheel 3.1 (2025-07-23) free-threaded 3.14 wheels are built by default, so a project that does not support free-threading must skip them explicitly (<code>cp31?t-*</code>) ({{cibuildwheel changelog|https://cibuildwheel.pypa.io/en/stable/changelog/}}).</p>
+<h3>Publishing without a stored password: trusted publishing</h3>
+<p>The old way was a PyPI API token stored as a CI secret, where it can leak. <b>Trusted publishing</b> uses OpenID Connect (OIDC) and leaves no long-lived secret anywhere ({{PyPI docs|https://docs.pypi.org/trusted-publishers/}}):</p>
+<div class="tk-flowh">
+<div>Once: you tell PyPI "this repository's workflow may publish this project".</div>
+<div class="acc">At publish time the CI service (GitHub Actions, GitLab CI/CD, Google Cloud and others) issues a short-lived signed token.</div>
+<div>PyPI verifies the token came from that repository and workflow, and accepts the upload.</div>
+</div>
+<p><code>uv publish</code> tries trusted publishing first; run from a laptop (not a CI job), it says so:</p>
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv publish --dry-run"></div>
+<div class="pb-cost"><div class="t">What publishing costs</div>A version number on PyPI can never be reused, even after deleting the file, so try uploads on TestPyPI first. Every compiled wheel you publish is a promise to keep building it for each new Python, including the free-threaded ones, and users on a platform you skip will try to compile from your sdist.</div>
+<details class="dp"><summary>What <code>uv build</code> makes, file by file <span class="mute">(the library from section 4, uv 0.12.23)</span></summary><div class="b">
+<div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv build|unzip -l|unzip -p|tar tzf"></div>
+<p>The wheel is a zip with your package and a <code>.dist-info</code> folder (<code>METADATA</code> is what PyPI shows; <code>RECORD</code> lists every file with its hash; <code>WHEEL</code> holds the tag). The sdist carries the source and <code>pyproject.toml</code> so any installer can rebuild it.</p>
+</div></details>
+</section>
+
+<section id="s8"><h2>8. Habits that keep a project healthy</h2>
+<p>Each one comes from a failure measured or shown above:</p>
+<ol class="tight">
+<li><b>Commit <code>uv.lock</code> and run CI with <code>uv sync --locked</code></b>, so a stale lock fails the build (section 4, step 6).</li>
+<li><b>Never <code>pip install</code> inside a uv project.</b> It installs into whatever environment is active (often none), and the next <code>uv sync</code> removes anything the lock does not list. Use <code>uv add</code>.</li>
+<li><b>Pin linters and type checkers in the dev group</b> (the lock file then pins them exactly). ruff 0.16 turned on 354 more rules overnight, and ty is a 0.0.x beta.</li>
+<li><b>Pick one type checker and run it in CI</b>, and learn which checks it leaves off by default (section 2).</li>
+<li><b>Test a library against its lowest allowed versions too</b>: your <code>&gt;=</code> ranges promise that the oldest versions work. Run the tests once with <code>uv sync --resolution lowest-direct</code> (lowest versions of your direct dependencies) in CI.</li>
+<li><b>Set ruff's <code>target-version</code> and the type checker's Python version to your minimum</b>, and run CI on your oldest supported version: a 3.15 feature such as <code>lazy import</code>, <code>frozendict</code> or <code>[*xs for xs in ...]</code> fails on older versions (as a SyntaxError before any line runs, for the syntax ones). What changed in each release is on {{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}.</li>
+</ol>
+<div class="tk-link">Designing a library that others install is {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}'s subject: its section 12 checks the <code>py.typed</code> marker of PEP 561 inside a real built wheel, section 5 measures pydantic's <code>model_construct</code> against validating, and its Further reading tab has the pre-commit file that runs ruff and the type checker at each commit.</div>
+<details class="dp"><summary>Other claims from the old pages, checked <span class="mute">(2026-10-05; dated facts)</span></summary><div class="b">
+<div class="pb-tbl pb-wide"><table>
+<thead><tr><th>Old claim</th><th>Verdict</th><th>On 2026-10-05</th></tr></thead>
+<tbody>
+<tr><td>pydantic "v2.12+ current; v3 ... not yet released"</td><td><span class="pb-pill ok">confirmed</span></td><td>Latest is 2.13.5 (2026-08-28); PyPI lists no 3.x release ({{PyPI|https://pypi.org/project/pydantic/}})</td></tr>
+<tr><td>polars "1.x ... 2.0 roadmap open"</td><td><span class="pb-pill ok">confirmed</span></td><td>polars 1.44.2 (2026-09-09). New since: the <code>polars</code> wheel is now pure Python and the compiled engine ships as <code>polars-runtime-32</code> (and <code>-64</code>, <code>-compat</code>)</td></tr>
+<tr><td>Astral's "pyx registry/build service"</td><td><span class="pb-pill ok">confirmed</span></td><td>Announced in beta on 2025-08-13 ({{Astral blog|https://astral.sh/blog}}); not used on this page</td></tr>
+<tr><td>"build backend uv_build (fast, zero-config) or hatchling"; "uv build &amp;&amp; uv publish (trusted publishing via OIDC)"</td><td><span class="pb-pill ok">confirmed</span></td><td>Ran in section 7: <code>uv init</code> writes the uv_build backend and <code>uv publish</code> tries trusted publishing first</td></tr>
+<tr><td>"pytest-xdist for parallelism"</td><td><span class="pb-pill ok">confirmed</span></td><td>Ran in section 6 (pytest-xdist 3.8.0, <code>-n 4</code>)</td></tr>
+<tr><td>"cibuildwheel for compiled projects; add cp314t wheels"</td><td><span class="pb-pill ok">confirmed</span></td><td>cibuildwheel builds cp314t by default since 3.1 (2025-07-23)</td></tr>
+</tbody></table></div>
+</div></details>
+</section>
