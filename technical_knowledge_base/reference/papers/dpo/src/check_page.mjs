@@ -43,7 +43,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
     // nothing may move before the reader acts (2026-10-25): scroll each animation into view, wait, count frames
-    for (const id of ['pipe', 'pair', 'lfx']) {
+    for (const id of ['pipe', 'pair']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
       const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before a click (${fr} frames)`);
@@ -96,7 +96,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       await audit('t-run after training');
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['pipe', 'pair', 'lfx']) {
+    for (const id of ['pipe', 'pair']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

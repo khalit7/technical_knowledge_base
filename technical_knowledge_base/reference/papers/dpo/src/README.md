@@ -60,3 +60,6 @@ Why about 20 minutes is right: the added top (core sentence, hero caption, terms
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 410 actions, 0 problems (including no movement before a click and every closed block opened); sweep rerun matches to 5e-5. `mk_coverage.py`: 51 of 51 (the reading-time item's keys and one quoted key updated). `check_engine.py` not rerun: the engine (`22_js_dpo.js`) is unchanged.
+
+## 2026-10-26: the loss-family push animation moved to Alignment
+Khalid's decision: the DPO-family animation (the push on a pair against its margin for unlikelihood, DPO, the SLiC hinge, IPO, cDPO and SimPO, with each loss's outcome on this page's toy) moved to Alignment, section 5, beside the claim it proves. `parts/25_js_then.js` was removed (ported there as `27_js_lfx.js`; its toy outcomes are copied from `_gen_toy.js` by that page's `mk_lfx_data.py`, so rerun it there if this toy is regenerated). The Then and now tab keeps the timeline and the what-survived table and links to the animation; this page keeps its derivation, its toy and its long runs. Ledger units 204 to 206 relabelled `owned:` Alignment.
