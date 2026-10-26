@@ -61,3 +61,6 @@ Reproduction (independent): dense nDCG@10 and R@100 equal MTEB's published all-M
 - RAGTruth arXiv v2 Table 3 prints 48 hallucinated QA responses for GPT-4-0613; the release has 42 (spans 51 match). Shown in a box on the spans tab.
 - BEIR's BM25 baseline is Anserini with title and text as separate fields (not Elasticsearch); our numbers are compared with Anserini's flat regression instead.
 - RAGAS response relevancy zeroes noncommittal answers in code, not in its docs.
+
+## 2026-10-26 absorbs
+hit@k naming moved to Evaluation metrics section 6; Jin et al. and LaRA moved to Agentic retrieval section 8. Each keeps one sentence plus a link (ledger 165, 167 and the hit@k unit owned there).
