@@ -10,7 +10,8 @@ A time preceded by "Reading:" (the page's own header), a range ("17 to 27 min") 
 link to one tab (#t-...). Only the text up to the next link, list item, heading, summary or <a> is searched.
 --fix rewrites the unambiguous quotes in place (core and, when quoted, the closed-details figure); a quote followed
 by a second time before the next link ("19 min and 20 min") is printed as AMBIGUOUS and left for a person.
-Tech-news issues are dated records and are never judged. Rebuild every page --fix touched.
+Tech-news issues are dated records and are never judged. --fix also re-keys ledger units on the fixed page whose
+key quoted the old time. Rebuild every page --fix touched, then run ledger.py check on it.
 """
 import json, re, sys
 from pathlib import Path
@@ -35,6 +36,26 @@ def header(p):
             return None
     m = HDR.search(f.read_text(errors="ignore")[:20000])
     return (int(m.group(1)), int(m.group(2) or 0)) if m else None
+
+
+def rekey(path, swaps):
+    """A ledger key may quote the time just fixed ("45 min caching every ..."): change it too, so ledger.py check
+    still finds it. Covers the page's own ledger; a unit on another page owned by this one is rare and is left to
+    ledger.py check."""
+    lf = ROOT / path / "src/ledger.json"
+    if not lf.exists():
+        return
+    units = json.loads(lf.read_text())
+    n = 0
+    for u in units:
+        for q, q2 in swaps:
+            k = u.get("key") or ""
+            i = k.lower().find(q.lower())
+            if i >= 0:
+                u["key"] = k[:i] + q2 + k[i + len(q):]
+                n += 1
+    if n:
+        lf.write_text(json.dumps(units, indent=1, ensure_ascii=False) + "\n")
 
 
 def main():
@@ -83,12 +104,13 @@ def main():
                         q2 = re.sub(r"\d+", str(h[0]), q, count=1)
                         if tm.group(2):
                             q2 = re.sub(r"(plus\s*)\d+", lambda x: x.group(1) + str(h[1]), q2)
-                        edits.append((a0, a0 + len(q), q2))
+                        edits.append((a0, a0 + len(q), q2, q))
             if fix and edits:
-                for a0, a1, q2 in sorted(edits, reverse=True):
+                for a0, a1, q2, _ in sorted(edits, reverse=True):
                     s = s[:a0] + q2 + s[a1:]
                 f.write_text(s)
                 fixed.add(p["path"])
+                rekey(p["path"], [(q, q2) for *_, q2, q in edits])
     for o in out:
         print(f"{'AMBIGUOUS ' if o['ambiguous'] else ''}{o['file']}: {o['target']} quotes \"{o['quoted']}\", header says {o['header']}")
     for t in sorted(missing):
