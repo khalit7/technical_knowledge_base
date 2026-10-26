@@ -91,7 +91,7 @@ const FIELDS=[['family','Family',r=>esc(FAM[r.family].label)+(r.embedded?' <span
 function drawDetail(){const r=byId[st.sel];if(!r){$('da-detail').innerHTML='';return}
   const srcKey={avoid:'reach',escape:'reach',chat:'reach',family:'-'};
   $('da-detail').innerHTML='<div class="da-det" role="region" aria-label="'+esc(r.name)+' details"><h3>'+esc(r.name)+'</h3>'+
-   '<div class="small mute">As of '+esc(fmtDate(D.asof))+'. Superscript numbers link the source each cell rests on.</div>'+
+   '<div class="small mute">As of '+esc(fmtDate(r.asof||D.asof))+'. Superscript numbers link the source each cell rests on.</div>'+
    '<dl class="kv">'+FIELDS.map(([k,l,f])=>'<dt>'+l+'</dt><dd>'+f(r)+srcSup(r,srcKey[k]||k)+'</dd>').join('')+
    (r.notes?'<dt>Notes</dt><dd class="small">'+esc(r.notes)+'</dd>':'')+'</dl>'+
    '<div class="small">Sources: '+[...new Set(Object.values(r.s).flat())].sort((a,b)=>a-b).map(i=>'['+(i+1)+'] <a href="'+esc(D.sources[i].u)+'" target="_blank" rel="noopener noreferrer">'+esc(D.sources[i].t)+'</a>').join('; ')+' (read '+esc(fmtDate(D.asof))+').</div>'+
