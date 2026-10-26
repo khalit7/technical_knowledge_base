@@ -34,6 +34,43 @@ def vae_loss(model, x, y=None, beta=1.0):
 </div></details>
 <p><b>The cost, measured.</b> The 16-number VAE pays <span data-av="lab.runs.vae16_b1p0.test_kl_nats"></span> nats of KL per test image and reconstructs worse than the plain autoencoder (<span data-av="lab.runs.vae16_b1p0.test_nll_nats"></span> against <span data-av="lab.runs.ae16.test_nll_nats"></span> nats, <span data-av="lab.runs.vae16_b1p0.test_psnr_db"></span> against <span data-av="lab.runs.ae16.test_psnr_db"></span> dB); in return its codes sit where N(0, I) expects them. In the 2-number VAE the encoder's &sigma; averages <span data-av="lab.runs.vae2.posterior_sigma_mean"></span>: each image claims a tiny ellipse of a space whose spread is 1. <span class="meas">measured</span></p>
 <p><b>How to check.</b> Log the KL per dimension: near 0 means unused (&mu; always about 0, &sigma; about 1). <dfn>Active units</dfn> count dimensions whose &mu; varies across images with variance above 0.01 ({{Burda et al. 2015|https://arxiv.org/abs/1509.00519}}); this VAE uses <span data-av="lab.runs.vae16_b1p0.active_units"></span> of 16.</p>
+<style>
+.avp .avvi .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.avp .avvi .small{font-size:13px}.avp .avvi .mute{color:var(--mute)}
+.avp .avvi .codew{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.avp .avvi .co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.avp .avvi .co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.avp .avvi .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.avp .avvi .chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.avp .avvi .chips button.on{outline:2px solid var(--ink)}
+.avp .avvi .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;align-items:start}
+.avp .avvi .two>div{min-width:0}
+.avp .avvi .tw{overflow-x:auto;max-width:100%;margin:8px 0}
+.avp .avvi .tw table.mini{min-width:0}
+.avp .avvi .mini{font-size:12.5px;border-collapse:collapse;width:auto;min-width:0}
+.avp .avvi .mini th,.avp .avvi .mini td{padding:3px 8px;border:1px solid var(--line);white-space:nowrap}
+.avp .avvi .mini th{background:var(--soft);color:var(--ink);font-weight:600}
+.avp .avvi .mini td.num{text-align:right}
+.avp .avvi canvas{max-width:100%;height:auto;image-rendering:pixelated}
+</style>
+<details class="dp avvi" id="av-m-vae"><summary>A 2-number VAE on MNIST: training curves, test numbers, latent map <span class="mute">(measured, a second dataset)</span></summary><div class="b">
+<p>The same model on handwritten digits instead of garments, trained in nats per image with its own script (built for the Math page's ELBO sections and moved here; the ELBO's gap and its split are taught on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}, sections 3 and 4).</p>
+<p><b>Setup</b> (<span class="codew">src/vi_mnist/vae.py</span>, PyTorch 2.11 on 2 CPU threads): {{MNIST|https://ossci-datasets.s3.amazonaws.com/mnist/}} handwritten digits, 60,000 for training and 10,000 for testing, binarised (pixel above 127 becomes 1); encoder 784 to 400 (ReLU) to a 2-D mean and log-variance; decoder 2 to 400 (ReLU) to 784 Bernoulli logits; Adam at 10<sup>&minus;3</sup>, batches of 128, 30 epochs (14,070 steps, about 1.5 to 4 seconds per epoch). A 2-D latent is chosen so it can be drawn; it reconstructs worse than a larger one (the 16-D MNIST sweep in section 5).</p>
+<div class="card" id="av-mn-curve-card"><div class="small"><b>The two terms during training</b> (training batches, averaged over each 100 steps; nats per image). Left axis: reconstruction, &minus;E<sub>q</sub> log p(x | z). Right axis: KL(q(z | x) &#8214; p(z)).</div><div id="av-mn-curve"></div></div>
+<p><b>What the curves say.</b> Reconstruction falls fast (222.5 nats at step 100, 159 by step 700, 138 at the end on training batches). The KL first <i>falls</i> (7.1 to 5.4 nats by step 700) and then slowly rises to about 6.3: early on the cheapest way to raise the ELBO is to keep codes near the prior; once the decoder can use precise codes, buying information about each image in the latent pays for its KL. On the test set after 30 epochs: reconstruction 143.98 and KL 6.22, so the negative ELBO is 150.20 nats per image. The KL is the number of nats the code carries about each image (at most; it is an upper bound on that mutual information, {{Information theory for ML, section 8|n:3c65c17b0d0d81c6baf3f778a62e14e5}}): about 6.2 nats, 9 bits, enough to say which digit and roughly how it is drawn, not the 144 nats of pixel detail the decoder still has to guess.</p>
+<p><b>The posterior widths are tiny.</b> Averaged over test images, the encoder's standard deviations are 0.066 and 0.086 against the prior's 1: each image owns a small patch of the latent plane. Below: 1,500 test images' codes coloured by digit, a 10 by 10 grid of decoded latent points (Kingma and Welling's Figure 4 recipe: grid points at evenly spaced quantiles of the prior), and ten reconstructions.</p>
+<div class="co"><div class="t">These numbers are not comparable with papers</div>Published MNIST log-likelihoods (around &minus;80 to &minus;90 nats) use <i>dynamically</i> binarised MNIST (each pixel resampled as Bernoulli of its grey level every epoch) and larger latents. Thresholding at 127, as here, gives a different, less noisy dataset, so the same model scores differently. Compare likelihoods only on the same data, binarisation and test split.</div>
+<div class="card" id="av-mn-card"><p>The same 2-D VAE, trained on binarised MNIST (784-400-2 encoder, 2-400-784 Bernoulli decoder, 30 epochs). Left: where the encoder puts 1,500 test images (the mean of each q(z | x)), coloured by the digit's true label, which the model never saw. Right: what the decoder draws at a 10 by 10 grid of latent points. Click a grid cell to mark its z on the map; click a digit to highlight it. The grid covers the prior's central 92% (quantiles 0.04 to 0.96 per axis); the codes themselves spread wider than the prior (standard deviations 1.55 and 1.08 across these images), because the KL term pulls each image's q towards N(0, I) only on average, against the reconstruction term.</p>
+<div class="chips" id="av-mn-chips"></div>
+<div class="two"><div><div id="av-mn-map"></div></div><div><canvas id="av-mn-grid" width="280" height="280" aria-label="Decoded latent grid"></canvas><p class="small mute" id="av-mn-gz"></p></div></div>
+<h4>Reconstructions</h4>
+<p class="small">Top: a binarised test image (the first of each digit in the test set). Bottom: the decoder's pixel probabilities at the encoder's mean code. With only 2 latent numbers the decoder draws a typical version of the digit, not this exact one: the 144 nats of reconstruction error per image.</p>
+<canvas id="av-mn-rec" width="560" height="112" aria-label="Reconstructions"></canvas>
+<h4>Measurements</h4>
+<div id="av-mn-meas"></div>
+<p class="small mute">All numbers in nats per image, test set unless stated. Training script <span class="codew">src/vi_mnist/vae.py</span>; gap split by the Math page's <span class="codew">src/data/vae_gap.py</span> on the same checkpoint; one run, seed fixed (another seed would move the last digits).</p>
+</div>
+</div></details>
 </section>
 
 <section id="av-s4">

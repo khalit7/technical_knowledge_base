@@ -1,0 +1,63 @@
+// ---- The MNIST VAE (section 3, closed) and the MNIST beta sweep (section 5, closed); data window.AVM (src/vi_mnist/make_data.py).
+// Moved from the Variational inference maths page on 2026-10-26. Charts draw when their block is opened; nothing moves by itself.
+(function(){
+  const $=id=>document.getElementById(id);const V=window.AVM;if(!V||!$('av-mn-map'))return;
+  const COL=['#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7','#9c755f','#8c8c8c'];
+  // ===== training curves =====
+  function curves(){const el=$('av-mn-curve');const c=V.curve,W=Math.min(RD.width(el),680),H=230,L=44,R=40,T=10,B=30;
+    const xmax=c[c.length-1][0],X=v=>L+v/xmax*(W-L-R),Y1=v=>T+(1-(v-130)/(230-130))*(H-T-B),Y2=v=>T+(1-(v-4)/(8-4))*(H-T-B);
+    let s='';[130,150,170,190,210,230].forEach(v=>{s+='<line x1="'+L+'" y1="'+Y1(v)+'" x2="'+(W-R)+'" y2="'+Y1(v)+'" stroke="var(--line)"/>'+RD.t(L-4,Y1(v)+4,v,{a:'end',fs:10,fill:'var(--c1)'})});
+    [4,5,6,7,8].forEach(v=>{s+=RD.t(W-R+4,Y2(v)+4,v,{fs:10,fill:'var(--c2)'})});
+    for(let e=0;e<=30;e+=5){const x=X(e*V.spe);s+=RD.t(x,H-12,e===0?'0':String(e),{a:'middle',fs:10})}
+    s+=RD.t((L+W-R)/2,H-1,'epoch',{a:'middle',fs:10.5});
+    const pl=(k,Y)=>c.map((r,i)=>(i?'L':'M')+X(r[0]).toFixed(1)+' '+Y(r[k]).toFixed(1)).join('');
+    s+='<path d="'+pl(1,Y1)+'" fill="none" stroke="var(--c1)" stroke-width="1.8"/><path d="'+pl(2,Y2)+'" fill="none" stroke="var(--c2)" stroke-width="1.8"/>';
+    el.innerHTML=RD.svg(W,H,s,'VAE reconstruction and KL over training')+'<div class="leg"><span style="--sw:var(--c1)">reconstruction (left axis, nats)</span><span style="--sw:var(--c2)">KL to the prior (right axis, nats)</span></div>'}
+  // ===== latent map, decoded grid, reconstructions =====
+  let hi=-1,mark=null;
+  const un4=b64=>{const s=atob(b64),o=new Float32Array(s.length*2);for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);o[2*i]=(c>>4)/15;o[2*i+1]=(c&15)/15}return o};
+  const un1=b64=>{const s=atob(b64),o=new Uint8Array(s.length*8);for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);for(let k=0;k<8;k++)o[8*i+k]=(c>>(7-k))&1}return o};
+  const G=un4(V.grid),RX=un1(V.rx),RP=un4(V.rp);
+  $('av-mn-chips').innerHTML='<button data-d="-1" class="on">all digits</button>'+COL.map((c,d)=>'<button data-d="'+d+'" style="border-left:6px solid '+c+'">'+d+'</button>').join('');
+  $('av-mn-chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;hi=+b.dataset.d;$('av-mn-chips').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));map()});
+  function map(){const el=$('av-mn-map'),W=Math.min(RD.width(el),460),H=W,R=Math.max(3.2,1.04*Math.max(...V.latent.map(p=>Math.max(Math.abs(p[0]),Math.abs(p[1]))))),X=v=>(v+R)/(2*R)*W,Y=v=>(R-v)/(2*R)*H;
+    let s='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="var(--line)"/>';
+    [-5,-4,-3,-2,-1,0,1,2,3,4,5].filter(v=>Math.abs(v)<R).forEach(v=>{s+='<line x1="'+X(v)+'" y1="0" x2="'+X(v)+'" y2="'+H+'" stroke="var(--line)" stroke-opacity="0.6"/><line x1="0" y1="'+Y(v)+'" x2="'+W+'" y2="'+Y(v)+'" stroke="var(--line)" stroke-opacity="0.6"/>'});
+    V.latent.forEach(p=>{const on=hi<0||p[2]===hi;s+='<circle cx="'+X(p[0]).toFixed(1)+'" cy="'+Y(p[1]).toFixed(1)+'" r="'+(on?2.2:1.4)+'" fill="'+COL[p[2]]+'" fill-opacity="'+(on?0.85:0.12)+'"/>'});
+    if(mark)s+='<circle cx="'+X(mark[0])+'" cy="'+Y(mark[1])+'" r="7" fill="none" stroke="var(--ink)" stroke-width="2"/>';
+    s+=RD.t(4,H-6,'z₁ →',{fs:10.5})+RD.t(4,12,'↑ z₂',{fs:10.5});
+    el.innerHTML=RD.svg(W,H,s,'Latent codes of test images')}
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#000'}
+  function rgb(h){const c=document.createElement('canvas').getContext('2d');c.fillStyle=h;const v=c.fillStyle;if(v[0]==='#')return [1,3,5].map(i=>parseInt(v.slice(i,i+2),16));const m=v.match(/\d+/g);return m.slice(0,3).map(Number)}
+  function paint(ctx,x0,y0,px,get){const bg=rgb(css('--bg')),fg=rgb(css('--ink'));const img=ctx.createImageData(28*px,28*px);
+    for(let r=0;r<28;r++)for(let c=0;c<28;c++){const v=get(r*28+c);for(let a=0;a<px;a++)for(let b=0;b<px;b++){const i=4*((r*px+a)*28*px+c*px+b);for(let k=0;k<3;k++)img.data[i+k]=Math.round(bg[k]+(fg[k]-bg[k])*v);img.data[i+3]=255}}
+    ctx.putImageData(img,x0,y0)}
+  function grid(){const cv=$('av-mn-grid'),ctx=cv.getContext('2d');cv.width=280;cv.height=280;for(let i=0;i<10;i++)for(let j=0;j<10;j++)paint(ctx,j*28,i*28,1,k=>G[(i*10+j)*784+k]);
+    cv.style.width=Math.min(RD.width(cv.parentNode),420)+'px'}
+  $('av-mn-grid').addEventListener('click',e=>{const r=e.target.getBoundingClientRect(),j=Math.min(9,Math.floor((e.clientX-r.left)/r.width*10)),i=Math.min(9,Math.floor((e.clientY-r.top)/r.height*10));
+    mark=[V.gz[j],V.gz[9-i]];$('av-mn-gz').textContent='Cell row '+(i+1)+', column '+(j+1)+': z = ('+mark[0].toFixed(2)+', '+mark[1].toFixed(2)+'), marked on the map.';map()});
+  function rec(){const cv=$('av-mn-rec'),ctx=cv.getContext('2d');const px=2;cv.width=10*28*px;cv.height=2*28*px;
+    for(let d=0;d<10;d++){paint(ctx,d*28*px,0,px,k=>RX[d*784+k]);paint(ctx,d*28*px,28*px,px,k=>RP[d*784+k])}cv.style.width=Math.min(RD.width(cv.parentNode),560)+'px'}
+  function meas(){const g=V.gap,e=V.epochs,last=e[e.length-1];const row=(k,v,d)=>'<tr><td>'+k+'</td><td class="num">'+v+'</td><td>'+d+'</td></tr>';
+    $('av-mn-meas').innerHTML='<div class="tw"><table class="mini" style="white-space:normal"><tr><th>Quantity</th><th>Value</th><th>Note</th></tr>'+
+      row('Reconstruction after epoch 1, 30',e[0][1].toFixed(2)+', '+last[1].toFixed(2),'−E_q log p(x|z), 10,000 test images')+
+      row('KL to the prior after epoch 1, 30',e[0][2].toFixed(2)+', '+last[2].toFixed(2),'closed form, section 3')+
+      row('Negative ELBO after epoch 30',(last[1]+last[2]).toFixed(2),'reconstruction + KL')+
+      row('Importance-weighted bound, K = 1, 10, 100, 1000',['1','10','100','1000'].map(k=>V.iwae[k].toFixed(1)).join(', '),'first 1,000 test images; encoder as proposal (Math page, section 3)')+
+      row('Mean encoder sd per latent dimension',V.sdmean.map(v=>v.toFixed(3)).join(', '),'prior sd is 1')+
+      row('log p(x) by quadrature',g.logpx_quadrature.toFixed(2),'first 100 test images, 161 × 161 grid per image (Math page, section 4)')+
+      row('ELBO with the encoder’s q; with q optimised per image',g.elbo_encoder.toFixed(2)+'; '+g.elbo_optimised.toFixed(2),'same 100 images')+
+      row('Approximation gap; amortisation gap',g.approximation_gap.toFixed(2)+'; '+g.amortisation_gap.toFixed(2),'Cremer et al. 2018 split')+'</table></div>'}
+  // ===== beta sweep: one row per run, KL per dimension as bars =====
+  function beta(){const el=$('av-mn-beta');const B=V.beta;
+    let h='<div class="tw"><table class="mini"><tr><th>β</th><th>rec.</th><th>KL</th><th>active</th><th>log p</th><th>KL per dim.</th></tr>';
+    B.forEach(b=>{const kd=b.kd.slice().sort((a,c)=>c-a);const mx=2.7;
+      const bars='<svg width="112" height="22" viewBox="0 0 112 22">'+kd.map((v,i)=>'<rect x="'+(i*7).toFixed(1)+'" y="'+(21-Math.max(0.6,v/mx*20)).toFixed(1)+'" width="5.6" height="'+Math.max(0.6,v/mx*20).toFixed(1)+'" fill="'+(v<0.01?'var(--dim)':'var(--c4)')+'"/>').join('')+'</svg>';
+      h+='<tr><td class="num">'+b.beta+'</td><td class="num">'+b.rec.toFixed(1)+'</td><td class="num">'+b.kl.toFixed(1)+'</td><td class="num">'+b.active+'</td><td class="num">'+b.iwae1000.toFixed(1)+'</td><td>'+bars+'</td></tr>'});
+    el.innerHTML=h+'</table></div><p class="av-note">Grey bars: dimensions with KL below 0.01 nats (unused). The best log-likelihood is near β = 1, the only value that trains on a bound of it.</p>'}
+  beta();meas();
+  const d1=$('av-m-vae');let drawn=false;
+  const all=()=>{curves();map();grid();rec()};
+  d1.addEventListener('toggle',()=>{if(d1.open){all();drawn=true}});
+  RD.onResize(()=>{if(d1.open)all()});
+})();
