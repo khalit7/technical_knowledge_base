@@ -29,7 +29,7 @@ without ids; (4) what a WebSocket frame is and why clients mask; (5) why webhook
 ## Rejected
 - Webhook replay as a Gantt chart: the measured times run 0 to 40 s with almost all events in the first 3 s; the two-column step lists read better than a squeezed or broken time axis (2026-10-24).
 - A real photo: nothing physical to show (2026-10-24).
-- Re-drawing the SSE chunk-parsing lab: the JS/TS page Part 1 owns it; linked.
+- Re-drawing the SSE chunk-parsing lab: the JavaScript event-loop child page (event_loop_promises_and_streams, section 5) owns it; linked.
 - A Nagle/token clumping timeline: Networking foundations owns it (section 7, TCP timeline tab); linked.
 - A proxy timeout chain builder: the HTTP page's Timeout chain tab owns it; linked.
 - Buffering-proxy and SSE idle-cut demos: the root's Failure lab cases; linked by name.
