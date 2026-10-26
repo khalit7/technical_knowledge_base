@@ -20,7 +20,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.goto(file);
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
   // never autoplay (2026-10-25): each animation card on screen for 1.5 s with nothing pressed, then after a mode switch, must draw no frame
-  for (const [tab, id] of [['t-read', 'spx'], ['t-then', 'inf']]) {
+  for (const [tab, id] of [['t-read', 'spx']]) {
     await p.$eval(`#tabs button[data-t=${tab}]`, b => b.click()); await p.$eval('#' + id, e => e.scrollIntoView());
     await new Promise(r => setTimeout(r, 1500));
     if (await p.$eval('#' + id, e => +e.dataset.frames || 0)) problems.push(`${scheme} ${width}: ${id} autoplayed`);
@@ -83,7 +83,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     if (t === 't-run') { await p.$eval('#fitGrid', e => { e.value = 'quick'; e.dispatchEvent(new Event('change')) }); await wait(1500); await clk('#fitGo'); await wait(2500); await clk('#bootGo'); await wait(4000); }
     await audit(t + ' after controls');
     // step the animations through every step and screenshot the middle
-    for (const id of ['spx', 'inf']) {
+    for (const id of ['spx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {

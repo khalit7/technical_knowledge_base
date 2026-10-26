@@ -148,27 +148,7 @@ row('b_fit', 'Approach 3 refitted on the 240 extracted points', 'E 1.8172, A 482
     'E and α match to 3 digits; B and β differ by 3% and 0.4%, along the ridge where B and β trade off (the points are stored here to 6 significant figures)')
 row('b_mean', 'The averaging bug, refitted', 'Hoffmann a = 0.454 (unrounded)', 'S3.T2', f['mean']['a_exp'], 'fit.py: same grid, Huber averaged instead of summed, SciPy L-BFGS-B defaults', 'derived',
     'stops early at a = %.3f (this page\'s JS optimiser: 0.450), against %.3f when summed' % (f['mean']['a_exp'], f['sum']['a_exp']))
-# --- Sardana et al. examples, with the unrounded constants ---
-def sard(Nc, Dinf, c):
-    E, A, B, a_, b_ = c; G = (a_ * A / (b_ * B)) ** (1 / (a_ + b_)); aa = b_ / (a_ + b_); bb = 1 - aa
-    Dc = (Nc / G) ** (bb / aa) / G; l = E + A / Nc ** a_ + B / Dc ** b_
-    def tot(N):
-        r = l - E - A / N ** a_
-        if r <= 0: return float('inf'), None
-        D = (B / r) ** (1 / b_); return 6 * N * D + 2 * N * Dinf, D
-    lo, hi = math.log(Nc * .05), math.log(Nc)
-    for _ in range(200):
-        m1 = lo + (hi - lo) / 3; m2 = hi - (hi - lo) / 3
-        if tot(math.exp(m1))[0] < tot(math.exp(m2))[0]: hi = m2
-        else: lo = m1
-    N = math.exp(lo); Tt, D = tot(N); T0 = 6 * Nc * Dc + 2 * Nc * Dinf
-    return N, D / Dc, 1 - Tt / T0, T0 - Tt
-U = (1.6934, 406.401, 410.7228, 0.33917084, 0.2849083)
-for i, (Nc, Di, pr_) in enumerate(((13e9, 2e12, '7B, saves 1.7e22 FLOPs (17%)'), (7e9, 1e11, '6B on 1.18× the data'), (30e9, 1e13, '13.6B on 2.84× the data, 28% fewer FLOPs'))):
-    N, rd, sv, sf = sard(Nc, Di, U)
-    row('sard%d' % i, 'Sardana et al.: %.0fB-Chinchilla quality, %.0e inference tokens' % (Nc / 1e9, Di), pr_, 'https://arxiv.org/html/2401.00448v2#S2', N,
-        'minimise 6ND + 2N·D_inf at the loss of the Chinchilla-optimal %.0fB (unrounded constants)' % (Nc / 1e9), 'partly',
-        '%.1fB on %.2f× the data, saves %.2g FLOPs (%.0f%%); with the rounded constants the answers move by 10 to 40%%' % (N / 1e9, rd, sf, 100 * sv))
+# Sardana et al.'s inference-aware examples moved to the Pretraining page (its recompute.py, scale.sardana) on 2026-10-26.
 # --- tokens per parameter of later models ---
 for nm, N, D, src in (('GPT-3 175B', 175e9, 300e9, 'S1.T1'), ('Gopher 280B', 280e9, 300e9, 'S1.T1'), ('Llama 2 7B', 7e9, 2e12, 'https://arxiv.org/html/2307.09288v2#S2.SS1'),
                       ('Llama 3 8B', 8e9, 15e12, 'https://arxiv.org/html/2407.21783v3#S3'), ('Llama 3 405B', 405e9, 15.6e12, 'https://arxiv.org/html/2407.21783v3#S3.SS2.SSS1'),
