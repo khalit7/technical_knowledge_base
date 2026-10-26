@@ -60,3 +60,5 @@ Rebuild from scratch (with the topic scratch present): `LA_SCRATCH=<scratch>/la`
 `build.sh`, `parts/` (above), `lab/` (scripts above, `out/`, `check_controls.mjs`, `check_page_data.py ../index.html`, `shoot_cards.mjs`), `ledger.json`, `facts.md`, `viz_ideas.md`, `coverage.md`.
 
 Reading time: see the length judgement above.
+
+2026-10-26 (final follow-up sweep): section 6 (prefix LM) links Bitune as the fine-tuning-time variant (bidirectional prompt read beside the causal one).
