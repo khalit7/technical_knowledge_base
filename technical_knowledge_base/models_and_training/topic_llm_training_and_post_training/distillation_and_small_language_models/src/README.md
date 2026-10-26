@@ -50,3 +50,5 @@ Why about 20 minutes is right: the page teaches six mechanisms (soft targets and
 ## Departures from the page-kind shape
 - Two tabs kept: the toy lab compares seven methods over three seeds and is referenced from four Reading sections; the small-models chart answers "across all small models". Neither explains a single mechanism.
 - No interview block (the old page had none).
+
+2026-10-26 (final follow-up sweep): Whose text adds NeoHorse-1's coarsened reverse KL (student's top-K candidates plus a remainder bin) as a published on-policy variant.
