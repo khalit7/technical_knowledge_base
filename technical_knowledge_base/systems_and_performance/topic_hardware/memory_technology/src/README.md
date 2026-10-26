@@ -49,3 +49,5 @@ Why about 23 minutes is right: the page teaches seven things a reader cannot get
 
 ### Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 312 units: core 246, depth 28, fat 24, owned 14 (all `owned:models_and_training/topic_llm_architecture/long_context`, from the KV pilot). 284 drafted by `ledger.py init` from the page before this rebuild; 17 carried over from the KV pilot ledger (section "pilot: ..."); 11 added by hand for script-rendered text (generations note, ladder table, SSD table, decode and random-block notes, bank captions) and for what was added (hero, CXL, photos, the decode bound). Fat units carry a `note`.
+
+2026-10-26 (final follow-up sweep): the tiers table's host DRAM capacity ("terabytes per server") now cites NVIDIA's DGX B200 page (2 TB, configurable to 4 TB).
