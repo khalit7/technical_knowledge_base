@@ -44,3 +44,5 @@ Why about 28 minutes: the root now holds only the map, the definitions every chi
 
 ## The topic close (2026-10-23): other pages of the topic
 Stale references fixed in the children (each rebuilt; checkpage fail=0, ledger problems 0, own data checks pass): Further reading times on every child set to each target's header and Model formats cards removed; old lab-tab names replaced by the Reading sections that absorbed them (vLLM sections citing Batching section 6, SGLang section 3, Distributed's "Measured here" block in section 4; SGLang citing Serving in production section 2); root section numbers updated (Local: sections 2 and 5; Speculative decoding: sections 1 and 2; Distributed: routing now links Serving in production section 2); Serving in production no longer calls its eight requests "the parent's" toy; Batching links vLLM sections 2 and 3; Sampling links SGLang section 6 (jump-forward); Distributed links SGLang section 9 (two-batch overlap). Child ledgers re-keyed where a key had captured a stale reading time.
+
+2026-10-26 (final follow-up sweep): the Memory technology card in Further reading no longer names its retired Memory lab tab.
