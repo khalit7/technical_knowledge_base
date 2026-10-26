@@ -78,3 +78,6 @@ Why 28 minutes is right: the page now teaches seven mechanisms (sharing, latent,
 - **The gate is added by patching** (`runs/av_model.py`) because `src/data` is read-only for children.
 
 2026-10-26 (final follow-up sweep): section 5 adds QSA and MSA rows to the stored/read table and one paragraph on the same idea at other labs (QSA, MSA, NaiveAI's DSA layout), each linking the lab page that owns it. MoBA (Kimi) is still not covered.
+
+## 2026-10-26 additions
+MoBA (Moonshot AI, arXiv 2502.13189) added to section 5: a row in the sparse comparison table and a paragraph, checked against the paper (block scoring by mean-pooled keys, current block always selected, no added parameters, Llama-8B-1M-MoBA with blocks of 4,096 and top 12, 95.31% sparse, 6.5x prefill at 1M, deployed for Kimi). Reading 28 (measured 29 before) to 30 min.
