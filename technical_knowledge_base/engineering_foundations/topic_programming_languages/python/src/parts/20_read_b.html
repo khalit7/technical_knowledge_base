@@ -1,0 +1,44 @@
+
+<section id="s2"><h2>2. Names, objects and references</h2>
+<p>A Python <dfn>object</dfn> is a block of memory that knows its type, its value and how many references point at it. A <dfn>name</dfn> (a variable) is an entry in a namespace, a dict-like table from strings to objects. Assignment, <code>b = a</code>, writes a second entry pointing at the same object. Nothing is copied. Two names for one object are <dfn>aliases</dfn>.</p>
+<p>Whether aliasing matters depends on <dfn>mutability</dfn>: whether the object can change after it is made. Lists, dicts, sets and most of your own classes are mutable. Ints, floats, strings, tuples, frozensets and bytes are immutable: every "change" builds a new object and rebinds the name. Predict what <code>b</code> holds before you open the answer:</p>
+<div class="es-snip es-pred"><div class="es-file">Aliasing</div><pre class="es-code">a = [1, 2]
+b = a
+a += [3]
+print(b)</pre><details><summary>Predict the output, then reveal</summary><div class="es-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="es-out">[1, 2, 3]</pre></details></div>
+<div class="es-snip"><div class="es-file">n1_alias.py</div><pre class="es-code">a = [1, 2]
+b = a              <span class="cm"># a second name for the same list object</span>
+b.append(3)
+print(a, a <span class="kw">is</span> b)
+
+x = 10
+y = x
+y += 1             <span class="cm"># ints are immutable: += builds a new int and rebinds y</span>
+print(x, y)</pre><div class="es-olab">real output, Python 3.14.8</div><pre class="es-out" data-src="n1_alias.txt">[1, 2, 3] True
+10 11</pre></div>
+<h3>Two questions about two names: equal, or the same object?</h3>
+<p><code>a == b</code> asks "equal values?" and calls <code>__eq__</code>; <code>a is b</code> asks "the same object?" and compares identities (the address, in CPython). Use <code>is</code> only for singletons such as <code>None</code>; for everything else it answers a question you did not mean to ask.</p>
+<div class="es-pair"><div><div class="es-snip es-pred"><div class="es-file">n2_identity.py</div><pre class="es-code">a = [1, 2]
+b = [1, 2]
+print(a == b, a <span class="kw">is</span> b)          <span class="cm"># equal values, two objects</span>
+
+x, y = 256, int(<span class="st">"256"</span>)
+print(x <span class="kw">is</span> y)                  <span class="cm"># CPython keeps one shared object for -5..256</span>
+x, y = 257, int(<span class="st">"257"</span>)
+print(x <span class="kw">is</span> y)                  <span class="cm"># outside that range: two objects</span>
+print(x == y)                  <span class="cm"># == is the question you meant to ask</span></pre><details><summary>Predict the output, then reveal</summary><div class="es-olab">real output, Python 3.14.8</div><pre class="es-out" data-src="n2_identity.txt">True False
+True
+False
+True</pre></details></div></div><div><div class="es-snip es-pred"><div class="es-file">is with strings</div><pre class="es-code"><span class="kw">import</span> sys
+a = <span class="st">'model'</span>
+b = <span class="st">''</span>.join([<span class="st">'mod'</span>, <span class="st">'el'</span>])
+print(a == b, a <span class="kw">is</span> b, a <span class="kw">is</span> sys.intern(b))</pre><details><summary>Predict the output, then reveal</summary><div class="es-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="es-out">True False True</pre></details></div></div></div>
+<p>The 256 against 257 split is an implementation detail: "The current implementation keeps an array of integer objects for all integers between -5 and 256" ({{C API: integer objects|https://docs.python.org/3/c-api/long.html}}). Strings are the same story: some are interned (one shared object), and <code>sys.intern</code> forces it. Code that relies on it works in tests with small numbers and breaks in production with large ones. Why the cache exists, and what each object costs, is {{CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}, section 2.</p>
+<h3>The default argument that remembers</h3>
+<p>A function's default values are evaluated once, when <code>def</code> runs, and stored on the function object; a mutable default is therefore one object shared by every call that does not pass its own. The fix is <code>None</code> as the default and a new list inside.</p>
+<div class="es-snip es-pred"><div class="es-file">Default argument</div><pre class="es-code"><span class="kw">def</span> f(x, seen=[]):
+    seen.append(x)
+    <span class="kw">return</span> len(seen)
+print(f(<span class="st">'a'</span>), f(<span class="st">'b'</span>), f(<span class="st">'c'</span>, []), f(<span class="st">'d'</span>))</pre><details><summary>Predict the output, then reveal</summary><div class="es-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="es-out">1 2 1 3</pre></details></div>
+<p>A call that passes its own list leaves the shared one alone; the next call that relies on the default picks up where the shared list left off. Copies (shallow against deep, the nested-list trap), what a function receives when you pass it an object, and <code>+=</code> as a method call are {{the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}, section 2, with a stepper over CPython's real objects.</p>
+</section>

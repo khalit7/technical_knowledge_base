@@ -1,25 +1,22 @@
-// ---- Two-level tabs: a part bar (#parts) and the tab bar (#tabs); each tab button carries data-part ----
+// ---- Tabs ---- (replace pyes-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
-  const bar=document.getElementById('tabs'),pbar=document.getElementById('parts');
-  const btns=[...bar.querySelectorAll('button[data-t]')],pbtns=[...pbar.querySelectorAll('button[data-p]')];
-  const KEY='tab-'+(document.querySelector('h1')||{}).textContent;const last={};
-  function partOf(id){const b=btns.find(x=>x.dataset.t===id);return b?b.dataset.part:'p0'}
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
   function show(id,save){
-    if(!document.getElementById(id))return;const p=partOf(id);last[p]=id;
-    pbtns.forEach(b=>b.setAttribute('aria-pressed',b.dataset.p===p?'true':'false'));
-    btns.forEach(b=>{b.hidden=b.dataset.part!==p;b.setAttribute('aria-selected',b.dataset.t===id?'true':'false')});
-    bar.hidden=btns.filter(b=>b.dataset.part===p).length<2;
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
     document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
-    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){window.__jsErr&&window.__jsErr(String(e))}});
-    dispatchEvent(new Event('resize'));
-    if(save){try{localStorage.setItem(KEY,id)}catch(e){}}
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('pyes-tab',id)}catch(e){}}
   }
-  window.SHOW_TAB=show;
   btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
-  pbtns.forEach(b=>b.addEventListener('click',()=>{const p=b.dataset.p;const first=btns.find(x=>x.dataset.part===p);show(last[p]||(first&&first.dataset.t),true)}));
-  bar.addEventListener('keydown',e=>{const vis=btns.filter(b=>!b.hidden);const i=vis.findIndex(b=>b.getAttribute('aria-selected')==='true');
-    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=vis[(i+(e.key==='ArrowRight'?1:vis.length-1))%vis.length];n.focus();show(n.dataset.t,true)}});
-  document.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();show(a.dataset.tab,true);pbar.scrollIntoView({block:'start'})});
-  let start='t-start';try{const v=localStorage.getItem(KEY);if(v&&document.getElementById(v))start=v}catch(e){}
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('pyes-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
   show(start,false);
 })();

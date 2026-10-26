@@ -1,12 +1,15 @@
-# Python: the language in depth and the 2026 toolchain
+# Python: the essentials
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998 (child of Topic: programming-languages)
 Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/python/
 
-Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
-- Part 1 "In depth" (`src/pa/`, tabs Reading, Event loop, Data model, Predict the output): names and objects, the data model, iterators and generators, closures and decorators, classes and descriptors, typing (mypy and ty errors), exceptions, context managers, threads and the GIL, asyncio from the event loop up, CPython internals (dis, refcounts, the specialising interpreter), performance. Generated from `src/pa/tpl/` by `src/pa/gen.py`.
-- Part 2 "Python in 2026" (`src/pb/`, tabs Reading, Version explorer, Runtime lab): packaging layers, uv, ruff, ty against mypy and pyright, pytest, wheels and trusted publishing, 3.12 to 3.15 changes, lazy imports, free-threading, the JIT and subinterpreters, all measured on an M1 Pro on 2026-10-05.
-- Start here (`src/parts/20_tab_start.html`): the map, three routes through, five measured findings.
-Replaces the old written pages "Python: zero to expert" (this Notion page, retitled) and "Python: staying current (3.12 to 3.15)" (marked TO DELETE); their claims are checked in `src/pa/coverage.json` and `src/pb/coverage.json`. No child pages, databases or video.
+Interactive page: `index.html`, built from `src/` (`python3 src/es/gen.py && sh src/build.sh`; see `src/README.md`). Tabs: Reading, Further reading. Reading: 10 min, plus 2 in closed details.
+The essentials page of the Python language (rebuilt 2026-10-26, when the old two-part page "Python: the language in depth and the 2026 toolchain" was split into four children): the core idea and a static hero (three lines: names, the object with its type and reference count, the special method each line calls, from a real run), five facts behind almost every surprise with five measured findings, names, objects and references (aliasing, `is` against `==`, the mutable default), the traps that cut across the language, choosing a tool for a job, and the child cards.
 
-2026-10-26 (final follow-up sweep): Part 2 section 4 adds pyrefly (stable since 1.0.0, not run here) and the checkers' strict settings (`mypy --strict`, pyright's modes), absorbed from Code design's checker table; Part 1 section 9 links Concurrency section 7 for the GIL as an OS lock, and section 11 links Memory allocators section 7 for what reference counting and the collector do to memory.
+Child pages (each folder here):
+- `data_model_and_protocols/`: Python: the data model and protocols
+- `concurrency_asyncio_and_the_gil/`: Python: concurrency, asyncio and the GIL
+- `cpython_internals_and_performance/`: Python: CPython internals and performance
+- `typing_packaging_and_toolchain/`: Python: typing, uv, packaging and the toolchain
+
+Replaces the old written pages "Python: zero to expert" (this Notion page, retitled) and "Python: staying current (3.12 to 3.15)"; their claims were checked in `src/old_pages/coverage_part1.json` and `coverage_part2.json`, and the corrections now sit on the child that owns each subject. No databases or video.
