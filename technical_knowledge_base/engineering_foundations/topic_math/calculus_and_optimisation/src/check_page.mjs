@@ -38,7 +38,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   // hero: the two local models at w0 = 1.5
   near(await txt('#rd-hero-g'), N.hero_g, 1e-3, 'hero slope'); near(await txt('#rd-hero-h'), N.hero_h, 1e-3, 'hero curvature');
   near(await txt('#rd-hero-gd'), N.hero_gd, 1e-3, 'hero gd lands'); near(await txt('#rd-hero-nt'), N.hero_nt, 1e-3, 'hero newton lands');
-  await shot('#rd-hero-card', 'hero'); await shot('#rd-lg-card', 'lossgrad');
+  await shot('#rd-hero-card', 'hero');
   // secant
   const H = [1, 0.1, 0.01, 0.001];
   for (let i = 0; i < 4; i++) { await setRange('#rd-sec-h', i); near(await txt('#rd-sec-slope'), N['sec_' + H[i]], 1e-6, 'secant ' + H[i]); near(await txt('#rd-sec-err'), N['linerr_' + H[i]], 1e-9, 'line error ' + H[i]) }

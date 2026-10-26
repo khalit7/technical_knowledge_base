@@ -34,15 +34,5 @@
     $('rd-hero-out').innerHTML=RD.stat('slope at w₀','<span id="rd-hero-g">'+M(g.toFixed(3))+'</span>','which way is down')+RD.stat('curvature at w₀','<span id="rd-hero-h">'+h.toFixed(3)+'</span>','bound β = '+B.toFixed(3))+RD.stat('gradient descent','<span id="rd-hero-gd">'+gd.toFixed(3)+'</span>','w₀ − slope/β')+RD.stat('Newton','<span id="rd-hero-nt">'+nt.toFixed(3)+'</span>','w₀ − slope/curvature')}
   reg(hero);
 
-  function lg(){const el=$('rd-lg-svg');if(!el)return;const W=Math.min(620,RD.width(el)),narrow=W<520;
-    const sig=CO.sig,zs=[...Array(241)].map((_,i)=>-8+i*0.05);
-    const ce=z=>sig(z)-1,ms=z=>{const p=sig(z);return 2*(p-1)*p*(1-p)};
-    const c=CO.chart({id:'lg',w:W,h:230,x:[-8,4],y:[-1.08,0.06],xt:[-8,-6,-4,-2,0,2,4],yt:[-1,-0.75,-0.5,-0.25,0],xl:'logit z (true label 1)',yl:'∂L/∂z',ml:46,
-      series:[{pts:zs.map(z=>[z,ce(z)]),col:'var(--c1)',w:2.4},{pts:zs.map(z=>[z,ms(z)]),col:'var(--c2)',w:2.4}],
-      extra:(sx,sy)=>'<line x1="'+sx(-6)+'" x2="'+sx(-6)+'" y1="'+sy(-1.08)+'" y2="'+sy(0.06)+'" style="stroke:var(--dim);stroke-dasharray:3 3"/>'+
-        '<circle cx="'+sx(-6)+'" cy="'+sy(ce(-6))+'" r="4" style="fill:var(--c1)"/><circle cx="'+sx(-6)+'" cy="'+sy(ms(-6))+'" r="4" style="fill:var(--c2)"/>'+
-        T(sx(-6)+6,sy(ce(-6))-8,'cross-entropy '+M(ce(-6).toFixed(4)),'start',11,'var(--c1)',600)+
-        T(sx(-6)+6,sy(ms(-6))+17,(narrow?'squared error ':'squared error on σ ')+M(ms(-6).toFixed(4)),'start',11,'var(--c2)',600)});
-    el.innerHTML=c.svg}
-  reg(lg);
+  // (the squared-error-on-a-sigmoid figure moved its lesson to Loss functions on 2026-10-26; the derivation steps stay in section 2)
 })();
