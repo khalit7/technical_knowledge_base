@@ -39,3 +39,5 @@ The subject's core reading (Reading plus the toy tab the old Reading sent reader
 - `20_read_a.html` (tab and styles) to `20_read_f.html`; JS `21_js_rd_common.js` (template), `22_js_rd_obj.js` (five objectives), `23_js_rd_t5.js` (T5 bars), `24_js_rd_run.js` (run stepper and the hero), `25_js_rd_anneal.js` (Table 11 split), `26_js_rd_scale0.js` / `26_js_rd_scale1.js` (scaling engine and sliders), `31_js_toy_data.js` (generated) and `32_js_toy.js` (toy cells, curves and heatmap, now in Reading).
 - `35_tab_speed.html`, `36_js_speed_data.js` (generated), `37_js_speed.js`.
 - `39_tab_more.html` Further reading; `99_js_tabs.js` tab wiring (storage key `pretrain-tab`).
+
+2026-10-26 (final follow-up sweep): section 3 adds Sardana et al.'s finding that loss keeps falling out to 10,000 tokens per parameter (from the Chinchilla paper page); the span-corruption arithmetic links the T5 paper page's span explorer (#spx-h).
