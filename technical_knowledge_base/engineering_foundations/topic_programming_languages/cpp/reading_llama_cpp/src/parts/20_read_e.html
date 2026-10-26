@@ -1,0 +1,87 @@
+
+<section id="cl-s9">
+<h2>9. The CPU backend: threads, barriers, chunks</h2>
+<p>The CPU backend runs the graph with a pool of threads (4 by default, <code>GGML_DEFAULT_N_THREADS</code>), simply and strictly: <b>every thread walks every node</b>, does its share, then waits at a <b>barrier</b> before the next node. The loop each thread runs:</p>
+<div class="cl-ex" data-ex="compute_thread"></div>
+<p>Views, reshapes and permutes are skipped (<code>ggml_op_is_empty</code>), so of the <span data-clv="v.nodes"></span> nodes, <span class="cl-num" data-clv="v.real_ops"></span> are real operations: up to <span data-clv="v.real_ops"></span> barriers per token, and the slowest thread sets the pace at each.</p>
+<details class="dp"><summary>The barrier in the source, and how an operation splits its work</summary><div><div class="cl-ex" data-ex="barrier"></div>
+<p>The barrier is a few atomic operations (a few fewer barriers run when fused operations run as one); a waiting thread spins instead of sleeping, which is fast when every thread has a core and wasteful when it does not. Inside a node, each operation splits its work with two numbers in <code>params</code>: <code>ith</code>, this thread's index, and <code>nth</code>, the number of threads (the root page's {{Design space|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab quotes the two lines from <code>ops.cpp</code>).</p></div></details>
+<p>For matrix products a static split is fragile: if one thread is slow (an efficiency core, or another program takes its core), everyone waits. So the rows are cut into more chunks than threads, and a thread that finishes takes the next chunk from a shared atomic counter; the repacked kernel aims at 4 chunks per thread. Measured with call counters (section 10): every decoded token makes <span class="cl-num" data-clv="v.gemv_tok"></span> kernel calls = <span data-clv="v.n_mulmat"></span> matrix products &times; <span data-clv="v.chunks_per_mm" data-d="0"></span> chunks (4 threads &times; 4). <i>Predict: with one thread at half speed, how much later than the others does a fixed four-way split finish?</i></p>
+<div class="card" id="cl-chk">
+<h4 style="margin:0 0 4px;font-size:14.5px">With chunks off a counter, one slow thread costs a little; with fixed shares it doubles the time</h4>
+<div class="seg" id="cl-chk-m"><button data-m="dyn" class="on">16 chunks, atomic counter</button><button data-m="static">4 fixed shares (one per thread)</button></div>
+<svg id="cl-chk-svg" class="cl-chart" role="img" aria-label="Four threads taking chunks of a matrix product"></svg>
+<div class="an-ctl" id="cl-chk-ctl"></div>
+<div class="an-cap" id="cl-chk-cap"></div>
+<p class="small mute"><span class="ill">Illustrative durations</span>: thread 3 made slow on purpose; the scheme and the 16 chunks are the real ones (counted).</p>
+</div>
+<details class="dp"><summary>The chunking code: the generic version and the repacked kernel's</summary><div>
+<div class="cl-ex" data-ex="chunks"></div>
+<div class="cl-ex" data-ex="repack_chunks"></div>
+</div></details>
+<p>The atomics are <code>memory_order_relaxed</code>: a thread only needs a unique chunk number, not to see other threads' writes in order (memory orders: {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, section 8).</p>
+<div class="co warn"><div class="t">A real mismatch on this machine</div>The thread pool aligns its counters to <code>GGML_CACHE_LINE</code>, which is 64 on every platform, but the M1 Pro has <b>128-byte</b> lines (measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, section 8). So <code>n_barrier_passed</code> and <code>current_chunk</code> share one 128-byte line, as do <code>n_graph</code> and <code>n_barrier</code>: the false sharing the alignment was meant to prevent. The cost per token was <b>not measured here</b>; it is a reading, not a benchmark.</div>
+<details class="dp"><summary>The thread pool struct, the alignment macro and the printed offsets</summary><div>
+<p>Compiling the struct's own definition and printing the offsets (<code>src/cl/code/threadpool_offsets.sh</code>; the pool is allocated with <code>vm_allocate</code>, so its start is page-aligned): with 128-byte lines, <code>n_graph</code> (byte <span data-clv="tp.n_graph"></span>) and <code>n_barrier</code> (<span data-clv="tp.n_barrier"></span>) share the line from byte 128, and <code>n_barrier_passed</code> (<span data-clv="tp.n_barrier_passed"></span>) and <code>current_chunk</code> (<span data-clv="tp.current_chunk"></span>) share the line from byte 256.</p>
+<div class="cl-ex" data-ex="threadpool"></div>
+<div class="cl-ex" data-ex="cache_align"></div>
+<pre class="cl-o" data-out="out.threadpool"></pre>
+</div></details>
+<h3>Threads and speed</h3>
+<div class="fig"><h4>Generation peaks at a few threads, and 8 threads collapse on a busy laptop</h4>
+<div class="seg" id="cl-thr-m"><button data-m="tg" class="on">Generating (one token at a time)</button><button data-m="pp">Prompt (64 tokens at once)</button></div>
+<div id="cl-thr" class="cl-chart" role="img" aria-label="Tokens per second against thread count"></div>
+<div class="cl-tip" id="cl-thr-cap">Median of 5 runs of <code>llama-bench</code>; dots are the individual runs. <span class="meas">Measured</span> while the laptop was busy (load average <span data-clv="v.load_lo" data-d="0"></span> to <span data-clv="v.load_hi" data-d="0"></span> on 10 cores).</div></div>
+<p>Generation peaks at a few threads: a token reads 143 MB once, so once memory bandwidth is the limit, more threads add barrier waiting, not speed. And 8 threads collapse (<span class="cl-num" data-clv="v.tg8" data-d="0"></span> tokens/s against <span class="cl-num" data-clv="v.tg4" data-d="0"></span> at 4) on a laptop where other programs already used most cores: one thread that loses its core stalls the other seven at each of hundreds of barriers per token. On a quiet machine 8 threads would do much better; on a shared server, use fewer threads than free cores, and benchmark with repetitions (<code>llama-bench -r 5</code>), every sample and the load average.</p>
+</section>
+
+<section id="cl-s10">
+<h2>10. Quantised blocks and the kernels that read them</h2>
+<p>A quantised type stores weights in <b>blocks</b>: 32 weights share one scale <code>d</code>, and each weight is a small integer <code>q</code>, with weight &asymp; <code>d &times; q</code>. Why quantise, the block types and what they cost in accuracy belong to {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} and {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}} (section 4, which also draws the k-quant block); here we read the code. The blocks are plain C structs:</p>
+<div class="cl-ex" data-ex="block_q8_0"></div>
+<div class="cl-ex" data-ex="block_q4_0"></div>
+<p><code>ggml_half</code> is a 16-bit float stored as a <code>uint16_t</code> (C has no portable half type). The <code>static_assert</code> pins the size: 34 bytes for Q8_0 (8.5 bits per weight), 18 for Q4_0 (4.5 bits: two 4-bit values per byte). The reference quantiser for Q8_0 is ten lines: find the largest magnitude, divide by 127, round each weight.</p>
+<details class="dp" id="cl-qb"><summary>Open one real block: its 34 bytes, and the same 32 weights through the Q8_0 and Q4_0 quantisers, step by step</summary><div>
+<div class="cl-ex" data-ex="quant_q8_0"></div>
+<p>The bytes below are the first 34 bytes of <code>blk.0.attn_q.weight</code> in the GGUF file (layer 0's query projection, row 0, weights 0 to 31), read by <code>src/cl/code/quant_demo.py</code>; the arithmetic follows <code>quantize_row_q8_0_ref</code> and <code>quantize_row_q4_0_ref</code> in <code>ggml-quants.c</code>, line for line.</p>
+<div class="qb-hex" id="qb-hex8"></div>
+<p class="small">The first 2 bytes (highlighted) are the scale <code>d</code> as a 16-bit float, little-endian: <code class="cl-mono" id="qb-d8"></code>. Each of the next 32 bytes is one weight as a signed 8-bit integer <code>q</code>; the weight is <code>d &times; q</code>. Tap a byte.</p>
+<div class="cl-tip" id="qb-hextip"></div>
+<p>The file's weights are already Q8_0, so requantising them as Q8_0 must give back the stored bytes exactly: that is our check that the Python matches ggml (it does). Q4_0 then shows what 4 bits cost on the same input.</p>
+<div class="card" id="qb-card">
+<div class="seg" id="qb-mode"><button data-m="q8" class="on">Q8_0: 34 bytes</button><button data-m="q4">Q4_0: 18 bytes</button></div>
+<svg id="qb-svg" class="cl-chart" role="img" aria-label="32 weights, their quantised values and the error"></svg>
+<div class="an-ctl" id="qb-ctl"></div>
+<div class="an-cap" id="qb-cap"></div>
+<div class="qb-stats" id="qb-stats"></div>
+<div class="qb-hex" id="qb-out"></div>
+</div>
+<div class="cl-ex" data-ex="quant_q4_0"></div>
+<p>Over the whole matrix (576 &times; 576 weights, 10,368 blocks), Q4_0 has a relative root-mean-square error of <b><span data-clv="quant.rel_rms_q4_tensor" data-d="4"></span></b> against the Q8_0 weights it was made from: about a tenth of the signal.</p>
+</div></details>
+<h3>The dot product, as most guides show it</h3>
+<p>A matrix-vector product is one dot product per weight row. ggml quantises the activations to Q8_0 too, so the inner loop multiplies 8-bit integers and applies the two scales once per block. In the NEON version of <code>ggml_vec_dot_q8_0_q8_0</code>, <code>ggml_vdotq_s32</code> is the SDOT instruction: 16 byte pairs multiplied and summed in groups of four into four 32-bit lanes, 16 multiply-adds in one instruction.</p>
+<details class="dp"><summary>The portable reference version and the NEON version, read line by line</summary><div>
+<p><code>vld1q_s8</code> loads 16 signed bytes into one 128-bit register. Two blocks per iteration, two accumulators (<code>sumv0</code>, <code>sumv1</code>), so two chains of additions run in parallel: the same tricks as the NEON dot product in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}} (section 6), which uses <code>float</code> lanes where this uses bytes. <code>GGML_RESTRICT</code> is C's <code>restrict</code>: a promise that <code>x</code> and <code>y</code> do not overlap, so the compiler need not reload after each store.</p>
+<div class="cl-ex" data-ex="dot_q8_generic"></div>
+<p>The middle of the NEON function; the full function also has SVE and i8mm paths behind <code>#if</code>:</p>
+<div class="cl-ex" data-ex="dot_q8_neon"></div>
+</div></details>
+<h3>What actually runs on this M1</h3>
+<p>To check, we built a copy of llama.cpp with a counter at the top of each candidate kernel (<code>src/cl/code/instrument.py</code>; the pinned clone stays untouched) and ran the same prompt:</p>
+<div class="fig"><h4>The function most guides point to ran zero times; a repacked kernel did every product</h4>
+<div class="tw" id="cl-cnt"></div></div>
+<p><code>ggml_vec_dot_q8_0_q8_0</code> runs <b>0 times</b>. The weights were repacked at load (section 5), so every product goes to <code>ggml_gemv_q8_0_4x4_q8_0</code> ("matrix times vector", four interleaved rows per step) for single rows and <code>ggml_gemm_q8_0_4x4_q8_0</code> for groups of four token rows. The loop that really did the work for every token on this page:</p>
+<div class="cl-ex" data-ex="gemv_kernel"></div>
+<p>The repacked block is a template with two integer parameters (<code>block&lt;8, 4&gt;</code>, a distinct type computed at compile time, which C cannot express): 4 rows' scales and their 32 weights each, interleaved 4 bytes at a time (136 bytes). Each iteration loads 128 weight bytes and the activation block once, and <code>vdotq_laneq_s32</code> multiplies 4 activation bytes (one "lane" of a register) against 4 bytes of each of the 4 rows: 16 multiply-adds, 4 rows advanced together; eight cover the block, one fused multiply-add applies the scales. Against <code>vec_dot</code>, the activation is loaded once per 4 rows instead of once per row, and the weights stream from one contiguous buffer: <span class="hot">fewer loads per multiply, which is what the repack copy buys</span>.</p>
+<details class="dp"><summary>The repacked block type, and where the kernel picks gemm or gemv</summary><div>
+<div class="cl-ex" data-ex="block_x4"></div><div class="cl-ex" data-ex="block_x4_use"></div>
+<div class="cl-ex" data-ex="gemm_or_gemv"></div>
+</div></details>
+<p>The arithmetic checks out exactly: one decoded token is <span data-clv="v.n_mulmat"></span> products &times; 16 chunks = <span class="cl-num" data-clv="v.gemv_tok"></span> <code>gemv</code> calls.</p>
+<details class="dp"><summary>The prompt's count, and what runs with <code>--repack 0</code> (tinyBLAS for the prompt, <code>vec_dot</code> for single rows)</summary><div><p>The 5-token prompt: 4 rows go through <code>gemm</code> and the fifth through <code>gemv</code>, except in the last layer, where only the last token's row is kept (the <code>GET_ROWS</code> in section 7), so its three feed-forward products and the output projection have one row: (211 &minus; 4) &times; 16 = <span class="cl-num" data-clv="v.gemm_prompt"></span> <code>gemm</code> calls.</p>
+<p>With <code>--repack 0</code> the generic path runs: <code>ggml_compute_forward_mul_mat</code> (<span data-clv="v.fwd_off"></span> calls = 211 products &times; 4 threads &times; 2 runs, a warm-up and the measured one) offers each product to llamafile's tinyBLAS, which takes the prompt's products but declines single rows (<code>if (n &lt; 2) return false;</code>), and <code>ggml_vec_dot_q8_0_q8_0</code> computes those one output at a time: (49,152 + 1,536 + 1,536 + 576) rows &times; 2 runs = <span class="cl-num" data-clv="v.vecdot_off"></span> calls.</p></div></details>
+<div class="cl-corr"><div class="t">Correction to the old notes and the root page's milestone</div>"Trace one call of <code>ggml_vec_dot_q4_0_q8_0</code> from the scalar version to the NEON one" is a good reading exercise, but on an Apple Silicon Mac with the default build that function does not run for Q4_0 weights either (counters: <code>gemv_q4_0_4x4</code> and <code>gemm_q4_0_4x4</code> do the work; <code>vec_dot_q4_0_q8_0</code> runs only with <code>--repack 0</code>, for single-row products). Read the <code>vec_dot</code> functions to learn the idea; read <code>arch/arm/repack.cpp</code> to see the hot loop on this machine. Repacking, tinyBLAS, BLAS or a GPU backend may each take the product.</div>
+<div class="cl-pr"><p class="q"><b>Predict.</b> We converted the model to Q4_0 (<code>llama-quantize --allow-requantize ... Q4_0</code>). The file shrinks from 145 MB to about what, and does the greedy continuation of "The capital of France is" stay the same?</p>
+<button class="cl-rv" data-for="cl-a10">Reveal the real answer</button><div class="cl-ans" id="cl-a10" hidden><span class="cl-num" data-clv="v.q4_bytes"></span> bytes (<span data-clv="v.q4_bpw" data-d="2"></span> bits per weight, not 4.5: the embedding table, which doubles as the output projection, stays at Q8_0: <code>llama-quantize</code> keeps that tensor at higher precision, wanted Q6_K, and logged <code>ncols 576 not divisible by 256 (required for type q6_K) -&gt; falling back to q8_0</code>). The text changed: <code class="cl-mono" data-clv="out.simple_q4_0"></code> instead of "... Paris. Paris is a city known for". Requantising an already quantised model, without an importance matrix, on a model this small, costs visible quality: the <a href="#cl-qb">block opened above</a> measures a <span data-clv="quant.rel_rms_q4_tensor" data-d="3"></span> relative error on one weight matrix. Decoding was faster: <span class="cl-num" data-clv="v.q4_tg4" data-d="0"></span> against <span class="cl-num" data-clv="v.tg4" data-d="0"></span> tokens/s at 4 threads (medians, busy laptop), since fewer bytes are read per token.</div></div>
+</section>

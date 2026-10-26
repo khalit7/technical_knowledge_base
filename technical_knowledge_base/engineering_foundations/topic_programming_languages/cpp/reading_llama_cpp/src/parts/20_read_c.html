@@ -1,0 +1,44 @@
+
+<section id="cl-s4">
+<h2>4. GGUF: reading the model file</h2>
+<p>GGUF is llama.cpp's one-file model format: weights plus architecture, tokenizer and chat template. What it holds and how it compares with safetensors belong to {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}} (section 3); here we read it as code. Every integer has a fixed width and is little-endian, and a string is a 64-bit length then the bytes, so any language reads it: a complete reader is 41 lines of Python, standard library only.</p>
+<details class="dp"><summary>The format as <code>gguf.h</code> writes it down, the 41-line reader and its output</summary><div>
+<div class="cl-ex" data-ex="gguf_format"></div>
+<pre data-out="out.gguf_read_py" data-lang="py"></pre>
+<pre class="cl-o" data-out="out.gguf_read"></pre>
+<p>The project's own Python package, <code>gguf-py</code> (used by the converters that turn Hugging Face checkpoints into GGUF), reads the same thing and adds names for the types:</p>
+<pre class="cl-o" data-out="out.gguf_dump"></pre>
+</div></details>
+<p>Three details matter in the C++ that consumes it. <b>Shapes are stored innermost first:</b> <code>token_embd.weight</code> has <code>ne=[576, 49152]</code> where PyTorch says <code>(49152, 576)</code>. <b>Offsets are relative</b> to the start of the data section, which begins at byte <span class="cl-num" data-clv="v.data_start"></span>, the end of the header rounded up to the alignment of 32 (so every tensor can be loaded with aligned SIMD reads). <b>Sizes follow from the type:</b> Q8_0 stores 32 weights in 34 bytes, so the embedding table is 576 &times; 49,152 / 32 &times; 34 = <span class="cl-num" data-clv="v.embd_bytes"></span> bytes. The C++ reader computes the byte strides from the same numbers:</p>
+<div class="cl-ex" data-ex="gguf_strides"></div>
+<details class="dp"><summary>The alignment code, and this model's file drawn to scale</summary><div>
+<div class="cl-ex" data-ex="gguf_align"></div>
+<div id="cl-gguf" class="cl-chart" role="img" aria-label="The model file drawn to scale: header, padding and tensor data"></div>
+<div class="cl-tip" id="cl-gguftip">The file to scale. The header is <span data-clv="v.hdr_end"></span> bytes, mostly the tokenizer's 49,152 token strings and 48,900 merge rules; then padding to a multiple of 32; then <span data-clv="v.n_tensors"></span> tensors back to back. Tap a block.</div>
+</div></details>
+<div class="cl-feat"><div class="t">C++ in gguf.cpp</div>A <code>gguf_reader</code> struct with overloaded <code>read()</code> functions per type, <code>std::vector</code> and <code>std::string</code> for the values, behind a C API. Reads whose length comes from the file sit in <code>try</code>/<code>catch (std::bad_alloc &amp;)</code> and every count is checked against <code>SIZE_MAX</code> before allocating, because a corrupt or malicious file can claim a string of 2<sup>63</sup> bytes: untrusted binary input is where C and C++ code gets exploited (undefined behaviour, {{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}).</div>
+<div class="cl-pr"><p class="q"><b>Predict.</b> The model has 134.5 million parameters stored mostly as Q8_0. Before looking: is the file bigger or smaller than 134.5 million bytes, and by roughly how much?</p>
+<button class="cl-rv" data-for="cl-a4">Reveal the real answer</button><div class="cl-ans" id="cl-a4" hidden>Bigger: <span data-clv="v.model_bytes"></span> bytes. Q8_0 spends 34 bytes on 32 weights (8.5 bits each, the scale costs the extra half bit), 61 small norm vectors stay in 32-bit float, and the header adds 1.8 MB. The loader reports <code>8.51 BPW</code> (bits per weight).</div></div>
+</section>
+
+<section id="cl-s5">
+<h2>5. Loading: mmap, then a surprise copy</h2>
+<p><code>llama_model_load_from_file</code> reads the header, creates one ggml tensor per weight, and does not read the 143 MB of weights: it <b>maps</b> the file, so nothing is read until a page is touched and a second process mapping the same model shares the pages (mmap: {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}; mapped against read, measured: {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}}, section 3). Each tensor then points straight into the mapping:</p>
+<div class="cl-ex" data-ex="loader_mmap"></div>
+<p><code>(uint8_t *) mapping-&gt;addr() + weight-&gt;offs</code> is pointer arithmetic: the base address of the mapped file plus the tensor's offset, cast to bytes so that adding <code>offs</code> moves <code>offs</code> bytes. No copy, no allocation. The <code>std::async</code> lambda is an optional parallel check of the bytes.</p>
+<p>Now grep the log, and the code explains each surprising line. The first one:</p>
+<ul>
+<li><b><code>CPU_REPACK model buffer size = 136.27 MiB</code>.</b> A second copy of almost all the weights: at load the CPU backend copies every Q8_0 matrix into an interleaved layout, four rows woven together, because its fastest kernel reads four rows in one stream (section 10). The layout is picked at run time from the processor's features: the M1 has <code>dotprod</code> (the SDOT instruction) but not <code>i8mm</code> (<code>sysctl hw.optional.arm</code>: <code>FEAT_DotProd: 1</code>, <code>FEAT_I8MM: 0</code>), so 4x4.</li>
+</ul>
+<details class="dp"><summary>Two more log lines explained: the weights not repacked, and a 135M model labelled 256M; the log and the source</summary><div>
+<ul>
+<li><b><code>token_embd.weight (q8_0) (and 61 others) cannot be used with ... CPU_REPACK</code>.</b> The 61 others are the 32-bit norm vectors. The embedding table stays in the mapping because row lookups (<code>GET_ROWS</code>: fetch row number <i>token id</i>) need the plain layout; the output projection tied to it is created a second time (<code>TENSOR_DUPLICATED</code>) and that copy, used for a matrix product, is repacked.</li>
+<li><b><code>model type = 256M</code></b> for a 135M model. The label is a guess from the number of layers: 30 layers is SmolDocling's size, so every 30-layer Llama-style model is labelled 256M. A cosmetic bug, but a good habit: when a log line surprises you, find the code that printed it.</li>
+</ul>
+<pre class="cl-o" data-out="out.simple_cpu_log"></pre>
+<div class="cl-ex" data-ex="repack_pick"></div>
+<div class="cl-ex" data-ex="arch_types"></div>
+</div></details>
+<div class="cl-pr"><p class="q"><b>Predict.</b> With repacking, how much memory do the weights take in total, and what happens to the mapped copy of the repacked tensors?</p>
+<button class="cl-rv" data-for="cl-a5">Reveal the real answer</button><div class="cl-ans" id="cl-a5" hidden><span data-clv="v.mapped_mib" data-d="2"></span> MiB mapped plus <span data-clv="v.repack_mib" data-d="2"></span> MiB repacked: about twice the file. The repacked copy is ordinary allocated memory. The mapped pages of those tensors were read once, during the copy, and then only sit in the OS file cache, which the OS may evict under pressure; the embedding table (<span data-clv="v.metal_cpu_mib" data-d="2"></span> MiB) stays in use from the mapping. On a phone or a full laptop, <code>--repack 0</code> (in <code>llama-bench</code>; <code>use_extra_bufts = false</code> in the API) trades that copy for a slower kernel.</div></div>
+</section>

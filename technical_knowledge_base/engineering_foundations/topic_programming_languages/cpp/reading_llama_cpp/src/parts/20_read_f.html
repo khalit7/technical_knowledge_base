@@ -1,0 +1,93 @@
+
+<section id="cl-s11">
+<h2>11. KV cache, batches and sampling</h2>
+<p>What the KV cache is and why it exists is taught by {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} (and how it grows with context by {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}); here is how llama.cpp writes it. It is a C++ class with virtual functions behind an abstract interface, <code>llama_memory_i</code> (a plain cache, a sliding-window one, one for recurrent models), storing one K and one V tensor per layer. Writing this token's K is a <code>SET_ROWS</code> node into the cells chosen for this batch; reading K for attention is a 4-dimensional <b>view</b> of the same tensor (section 6), <code>{64, 3, 256}</code> in our trace: 64 numbers per head, 3 KV heads, 256 cells.</p>
+<div class="cl-ex" data-ex="kv_get_k"></div>
+<details class="dp"><summary>The class declaration and the <code>SET_ROWS</code> write, in the source</summary><div>
+<div class="cl-ex" data-ex="kv_class"></div>
+<div class="cl-ex" data-ex="kv_cpy_k"></div>
+</div></details>
+<p>Size, from the log: <code>KV buffer size = <span data-clv="v.kv_mib" data-d="2"></span> MiB</code> = 2 (K and V) &times; 30 layers &times; <span data-clv="v.n_ctx"></span> cells &times; 192 numbers &times; 2 bytes (F16) = <span class="cl-num" data-clv="v.kv_bytes_formula"></span> bytes. <code>simple.cpp</code> asked for a context of 12 tokens (prompt + 8 &minus; 1); the context rounds it up to <span data-clv="v.n_ctx"></span> cells (<code>cparams.n_ctx = GGML_PAD(cparams.n_ctx, 256);</code> in <code>llama-context.cpp</code>).</p>
+<p><b>Batches.</b> A batch is a list of tokens, each with a position, a sequence id (which conversation) and a flag saying whether its logits are wanted; <code>simple.cpp</code> wants only the last token's, which lets the graph drop the other rows before the output projection.</p>
+<details class="dp"><summary>The batch helper in <code>simple.cpp</code></summary><div><div class="cl-ex" data-ex="batch_helper"></div></div></details>
+<p><b>Sampling</b> (the rules: {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}). Samplers are C style, each filling in a struct of function pointers. Greedy takes the highest logit:</p>
+<div class="cl-ex" data-ex="greedy"></div>
+<details class="dp"><summary>The sampler interface and greedy's table of function pointers</summary><div>
+<div class="cl-ex" data-ex="sampler_iface"></div>
+<div class="cl-ex" data-ex="greedy_vtable"></div>
+</div></details>
+<p>So one codebase writes interfaces two ways: the KV cache as a C++ class with <code>virtual</code> functions, samplers and backends as C structs of function pointers, because they are part of the C API other languages call (section 7's small program does both side by side).</p>
+</section>
+
+<section id="cl-s12">
+<h2>12. The server</h2>
+<p><code>llama-server</code> (in <code>tools/server/</code>, 20,000 lines of C++) serves the model over HTTP with an OpenAI-compatible API (its options, slots and modes, measured: {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}}, section 6). Several requests share one context, each in a <b>slot</b> (a C++ struct with owning smart pointers), and every step puts the next token of every active slot into <b>one batch</b> (continuous batching: {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}}). The step calls the same <code>llama_process</code> as <code>simple.cpp</code>, inside a <b>lambda</b> capturing by reference (<code>[&amp;]</code>), handed to the task queue so metrics requests are answered while the model runs:</p>
+<div class="cl-ex" data-ex="server_decode"></div>
+<details class="dp"><summary>The slot struct, and one real request with the server's log</summary><div>
+<div class="cl-ex" data-ex="server_slot"></div>
+<p>A real request to the server started with 2 slots (<code>-np 2</code>) on the CPU:</p>
+<pre class="cl-o" data-out="out.server"></pre>
+<pre class="cl-o" data-out="out.server_log"></pre>
+</div></details>
+<p>The same 8 tokens as <code>simple.cpp</code>, about <span class="cl-num" data-clv="v.srv_tg_ms_tok" data-d="1"></span> ms each instead of <span class="cl-num" data-clv="v.tg_ms_tok" data-d="1"></span>: the server adds HTTP, JSON, a task queue and per-token work for streaming and stop strings, and ran on the same busy laptop. A Python service calling it only sees the JSON.</p>
+<div class="cl-py"><div class="t">From Python</div>This is the role vLLM or Text Generation Inference play in Python land: a scheduler that batches requests around one model. llama-server is the C++ version for a single machine, often a laptop.</div>
+</section>
+
+<section id="cl-s13">
+<h2>13. One token, end to end, timed</h2>
+<p>Put together, the path of one generated token on the CPU, file by file. Switch between the prompt (the first call, which builds everything) and the next token (which reuses the graph): the same path, with four stops skipped. <i>Before stepping, predict which stops the next token can skip.</i></p>
+<div class="seg" id="tr-mode"><button data-m="prompt" class="on">Prompt: 5 tokens, first call</button><button data-m="next">Next token: 1 token, graph reused</button></div>
+<div class="card" id="tr-card">
+<h4 style="margin:0 0 4px;font-size:14.5px">The next token skips building, scheduling and planning: only its inputs change</h4>
+<svg id="tr-svg" class="cl-chart" role="img" aria-label="The files of llama.cpp and the token's current position"></svg>
+<div class="an-ctl" id="tr-ctl"></div>
+<div class="an-cap" id="tr-cap"></div>
+<div class="tr-list" id="tr-list" aria-label="Jump to a stop"></div>
+</div>
+<details class="dp"><summary>The code at the current stop</summary><div><div class="tr-stop" id="tr-stop"></div></div></details>
+<p class="small mute">Counts and timings come from the runs on this page (CPU, 4 threads, SmolLM2-135M Q8_0, prompt "The capital of France is"). Stops shown struck through are skipped in the selected mode.</p>
+<p>And the clock, from the run of <code>simple.cpp</code> (<code>llama_perf_context_print</code>):</p>
+<div class="tw"><table class="cl-t"><thead><tr><th>Phase</th><th>Measured</th><th>What it is</th></tr></thead><tbody>
+<tr><td>Load</td><td><span class="cl-num" data-clv="v.load_ms" data-d="0"></span> ms</td><td>From the start of model loading to the end of the first evaluation (that is how <code>llama-context.cpp</code> measures it, line 796): read the header, map the file, repack 136 MiB of weights, create the context, plan the graph's memory, and run the prompt</td></tr>
+<tr><td>Prompt (5 tokens)</td><td><span class="cl-num" data-clv="v.pp_ms" data-d="1"></span> ms, <span data-clv="v.pp_ms_tok" data-d="2"></span> ms per token</td><td>One forward pass over all 5 tokens; reading the weights once serves all five rows</td></tr>
+<tr><td>Each next token</td><td><span class="cl-num" data-clv="v.tg_ms_tok" data-d="2"></span> ms (<span data-clv="v.tg_runs"></span> runs)</td><td>One forward pass for one row: every weight read for a single dot product</td></tr>
+</tbody></table></div>
+<p>Per token, the prompt is cheaper than generation because the weights read from memory are reused across five rows: more arithmetic per byte (the roofline: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). The GPU shows the same split more sharply: on Metal a 64-token prompt ran at <span class="cl-num" data-clv="v.metal_pp" data-d="0"></span> tokens/s, against <span class="cl-num" data-clv="v.pp1_on" data-d="0"></span> on one CPU thread, while generation ran at <span class="cl-num" data-clv="v.metal_tg" data-d="0"></span> tokens/s, slower than the CPU's <span class="cl-num" data-clv="v.tg4" data-d="0"></span>: for a model this small, launching hundreds of tiny GPU kernels per token costs more than the arithmetic. Bigger models change that; measure your own.</p>
+<details class="dp"><summary>Habits for reading or running llama.cpp, collected</summary><div><ul>
+<li><b>Check what runs</b> before reading a kernel: call counters, or the log's <code>repack</code>, <code>splits</code> and <code>offloaded</code> lines (sections 5, 8, 10).</li>
+<li><b>Read shapes innermost first</b>: <code>ne[0]</code> is contiguous; <code>ggml_mul_mat(a, b)</code> multiplies rows of <code>a</code> by rows of <code>b</code> (section 6).</li>
+<li><b>A ggml call only adds a node</b>: inspect values with <code>llama-eval-callback</code>, after the graph runs (section 7).</li>
+<li><b>Pass <code>-ngl 0</code></b> to study the CPU path; the default offloads every layer (section 3).</li>
+<li><b>Benchmark with repetitions and fewer threads than free cores</b>, and record the load average (section 9).</li>
+<li><b>Build Release for timing</b>; keep a Debug build only for stepping through code in a debugger (section 2).</li>
+<li><b>Grep surprising log lines</b>: <code>model type = 256M</code> for a 135M model (section 5).</li>
+<li><b>Instrument a copy, never the clone you are reading</b>, so every excerpt and line number stays true to the commit (section 10).</li>
+</ul></div></details>
+</section>
+
+<section id="cl-notes">
+<h2>How this was run</h2>
+<p class="small">One shallow clone at a pinned commit, one 145 MB model, one laptop under load; the scripts in <code>src/cl/</code> reproduce every output on this page.</p>
+<details class="dp" id="cl-prov"><summary>Provenance: commit, model, machine, what was not done</summary><div>
+<p class="small">Source pinned at commit <span class="cl-mono" data-clv="v.commit7"></span> (<span data-clv="v.commit_date"></span>); every excerpt links to its exact lines on GitHub at that commit. The model is SmolLM2-135M-Instruct in Q8_0 (145 MB, sha256 checked). Every log line, count and timing is real, recorded on this Apple M1 Pro (8 performance and 2 efficiency cores, macOS 27) on 2026-10-05 while the laptop was busy (load average <span data-clv="v.load_lo" data-d="0"></span> to <span data-clv="v.load_hi" data-d="0"></span>), so timings carry noise; the scripts that reproduce everything are in <code>src/cl/</code> in the repository.</p>
+<p class="small">Model: <code class="cl-mono" data-clv="v.model_url"></code>, sha256 <code class="cl-mono" data-clv="v.model_sha"></code>, <span data-clv="v.model_bytes"></span> bytes; repository revision of the model files 2024-10-31. Built with Apple clang 17 (Command Line Tools, macOS 26 SDK), CMake 4.4.4, Ninja; Python 3.13 for the GGUF scripts. Kernel counts come from an instrumented copy built without Metal and BLAS (the CPU path is the same as <code>-ngl 0</code> for these prompt sizes, where BLAS is not used). Not done: profiling with Instruments or <code>perf</code> (Instruments did not start on this machine), and a quiet-machine benchmark. Versions and every command: <code>src/cl/versions.txt</code> and <code>src/cl/run_all.sh</code>; <code>src/cl/gen_data.py</code> turns the outputs into this page's data, and the page shows nothing else.</p>
+</div></details>
+<details class="dp" id="cl-run"><summary>Every command and raw output: reproduce, one prompt three ways, kernel counts, every benchmark sample, versions</summary><div>
+<h3>Reproduce</h3>
+<pre data-out="out.reproduce" data-lang="sh"></pre>
+<h3>One prompt, three ways</h3>
+<div class="seg cl-sw" data-pre="rn-out" data-cap="rn-cap"><button data-m="out.simple_cpu_log" class="on" data-c="CPU, <code>-ngl 0</code>: output <code>The capital of France is Paris. Paris is a city known for</code>. Lines kept: model description, buffers, context, graph size and timings; the full log runs to thousands of lines, mostly one per tensor.">CPU</button><button data-m="out.simple_metal_log" data-c="Metal, <code>-ngl 99</code>: all 31 layers offloaded; output differs after <code>Paris. Paris is</code> (the same sums rounded in a different order).">Metal GPU</button><button data-m="out.quantize" data-c="<code>llama-quantize</code> to Q4_0: sizes, and the embedding table kept at Q8_0. Output with the Q4_0 file: section 10.">Q4_0 copy</button></div>
+<div class="cl-tip" id="rn-cap"></div>
+<pre class="cl-o" id="rn-out"></pre>
+<p class="small">Generated text, as printed: CPU <code class="cl-mono" data-clv="out.simple_cpu"></code>; Metal <code class="cl-mono" data-clv="out.simple_metal"></code>; Q4_0 on the CPU <code class="cl-mono" data-clv="out.simple_q4_0"></code>.</p>
+<h3>Which kernels ran</h3>
+<p>Call counters from the instrumented copy (<code>src/cl/code/instrument.py</code> inserts one atomic increment at the top of each listed function and prints the totals when the program exits; built without Metal and BLAS):</p>
+<pre class="cl-o" data-out="out.counts"></pre>
+<h3>Speed, every sample</h3>
+<div class="tw" id="rn-bench"></div>
+<pre class="cl-o" data-out="bench.load"></pre>
+<p class="small">Load averages before and after each <code>llama-bench</code> group (1, 5 and 15 minute averages; 10 cores). The laptop ran other work throughout, so treat single samples with suspicion and compare medians only where they differ by much more than their spread.</p>
+<h3>Versions</h3>
+<pre class="cl-o" data-out="out.versions"></pre>
+</div></details>
+</section>

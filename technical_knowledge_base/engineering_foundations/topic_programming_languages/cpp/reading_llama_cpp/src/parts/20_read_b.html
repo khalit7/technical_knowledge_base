@@ -1,0 +1,62 @@
+
+<section id="cl-s1">
+<h2>1. The map: what is where</h2>
+<p>A codebase of a million lines is read like a city: first the districts, then one street. llama.cpp has two libraries and a ring of programs around them.</p>
+<ul>
+<li><b><code>ggml/</code>, the tensor library:</b> tensors, the compute graph, the file format, and one backend per kind of hardware (CPU, Metal, CUDA, Vulkan and others). Its core is C; most backends are C++ (Metal adds Objective-C and Metal shading language, CUDA adds <code>.cu</code> files).</li>
+<li><b><code>src/</code>, libllama:</b> everything that knows what an LLM is: loading a model file, one graph builder per architecture in <code>src/models/</code>, the KV cache, batches, the tokenizer, samplers. All C++.</li>
+<li><b><code>include/llama.h</code>, the public C API</b> (1,774 lines): every program, and every binding from Python, Go or Swift, goes through it.</li>
+</ul>
+<details class="dp"><summary>The rest of the tree</summary><div><p><b><code>common/</code></b> (argument parsing, chat templates, helpers shared by the tools), <b><code>tools/</code></b> (<code>llama-cli</code>, <code>llama-server</code>, <code>llama-bench</code>, <code>llama-quantize</code>), <b><code>examples/</code></b> (small programs; <code>simple/simple.cpp</code> is the one to read first), <b><code>gguf-py/</code></b> (the Python package that writes model files), <code>tests/</code> and <code>vendor/</code> (third-party code such as the HTTP library).</p></div></details>
+<div class="fig"><h4>Half the code is C++, and the CPU backend alone is about 95,000 lines of hand-vectorised kernels</h4>
+<div class="cl-legend" id="cl-mapleg"></div>
+<div id="cl-map" class="cl-chart" role="img" aria-label="Lines of code per area of llama.cpp, coloured by language"></div>
+<div class="cl-tip" id="cl-maptip">Lines per area, counted with <code>git ls-files</code> at the pinned commit (<code>src/cl/code/repo_map.py</code>). Hover or tap a bar.</div></div>
+<p>Of <span class="cl-num" data-clv="v.lines_total"></span> lines, <span class="cl-num" data-clv="v.lines_cpp"></span> are C++ and <span class="cl-num" data-clv="v.lines_c"></span> C, plus headers shared by both; of the CPU backend's <span class="cl-num" data-clv="v.lines_cpu"></span> lines, mostly hand-vectorised kernels for each processor family, you will read about 200.</p>
+<div class="cl-py"><div class="t">From Python</div>It is the same shape as PyTorch: a Python API (<code>torch/</code>) over a C++ tensor library (ATen) with one backend per device. Here the "Python API" is the C header <code>llama.h</code>, and the tensor library is ggml. The Python package <code>llama-cpp-python</code> wraps exactly that header with <code>ctypes</code>.</div>
+<p><b>How to read it:</b> start from the smallest program that works (<code>examples/simple/simple.cpp</code>), follow each call one level down with <code>grep -rn "name(" src ggml</code>, skip every backend you are not running, and read declarations in headers before definitions. When a log line puzzles you, grep for its text: the code that printed it is the explanation (<a href="#cl-s5">section 5</a>).</p>
+</section>
+
+<section id="cl-s2">
+<h2>2. Building it</h2>
+<p>llama.cpp builds with CMake (the build itself is taught on {{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}): CMake asks questions about the machine (which compiler, is the Accelerate framework there, is Metal there) and writes a plan for Ninja, which runs the compiler in parallel. Each backend is one <code>option()</code> line, chosen at build time:</p>
+<pre class="cl-o" data-out="out.build_cmd" data-lang="sh"></pre>
+<div class="tw"><table class="cl-t"><thead><tr><th>Option</th><th>Default here</th><th>What it changes</th></tr></thead><tbody>
+<tr><td><code>GGML_METAL</code></td><td>ON</td><td>Apple GPU backend; <code>-ngl 99</code> at run time then puts all layers on the GPU</td></tr>
+<tr><td><code>GGML_CUDA</code></td><td>OFF</td><td>NVIDIA backend; needs the CUDA toolkit (<code>nvcc</code>); the kernels are {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}'s subject</td></tr>
+<tr><td><code>GGML_NATIVE</code></td><td>ON</td><td>Compile for this exact processor (<code>-mcpu=native</code>): fast here, may crash on an older machine</td></tr>
+<tr><td><code>GGML_CPU_REPACK</code></td><td>ON</td><td>Rearrange quantised weights at load time for faster CPU kernels (<a href="#cl-s5">section 5</a>)</td></tr>
+<tr><td><code>GGML_LLAMAFILE</code></td><td>ON</td><td>Extra matrix-multiply kernels from the llamafile project (tinyBLAS)</td></tr>
+<tr><td><code>CMAKE_BUILD_TYPE</code></td><td>Release here</td><td>A Debug build is compiled at <code>-O0</code>, without optimisation, many times slower: never time one ({{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, section 5, shows what <code>-O2</code> does to a loop)</td></tr>
+</tbody></table></div>
+<p>What the build found: <b>OpenMP not found</b> (Apple's clang ships without it), so ggml uses its own thread pool (<a href="#cl-s9">section 9</a>); <b>Accelerate</b>, Apple's BLAS library, became a backend of its own, which only takes matrix products where every side is at least 32 long (a long prompt, not one token). Each backend became its own shared library, <code>libllama.dylib</code> on top.</p>
+<details class="dp"><summary>The libraries, the option lines and the real build output</summary><div>
+<p>Accelerate converts the weights to float first. The libraries are <code>libggml-cpu.dylib</code>, <code>libggml-metal.dylib</code> and <code>libggml-blas.dylib</code>, linked together by <code>libggml.dylib</code>, which keeps the list of available backends. Building <span data-clv="v.build_steps"></span> steps took <span class="cl-num" data-clv="v.build_s" data-d="0"></span> s with 4 parallel jobs on the busy laptop.</p>
+<div class="cl-ex" data-ex="cmake_opts"></div>
+<p>What the configure step found, and what the build produced (real output, filtered to the interesting lines):</p>
+<pre class="cl-o" data-out="out.build"></pre>
+</div></details>
+<div class="cl-py"><div class="t">From Python</div><code>pip install llama-cpp-python</code> runs this same CMake build for you (through scikit-build); its <code>CMAKE_ARGS="-DGGML_CUDA=on"</code> environment variable is how you pass these options from pip.</div>
+</section>
+
+<section id="cl-s3">
+<h2>3. The API and the smallest program</h2>
+<p>Start where a user starts: <code>examples/simple/simple.cpp</code>, 238 lines. The setup loads the weights, tokenizes the prompt, and creates a <b>context</b> (the KV cache and compute buffers for one conversation) and a <b>sampler</b> (the rule that picks the next token). The loop runs the model on the batch, samples one token, prints it, and feeds it back as the next batch of one:</p>
+<div class="cl-ex" data-ex="simple_loop"></div>
+<p>What it printed on this laptop, with the model on the CPU (<code>-ngl 0</code>; see the predict box below): <code class="cl-mono" data-clv="out.simple_cpu"></code></p>
+<details class="dp"><summary>The setup code, and the full output</summary><div>
+<div class="cl-ex" data-ex="simple_setup"></div>
+<pre class="cl-o" data-out="out.simple_cpu"></pre>
+</div></details>
+<div class="cl-feat"><div class="t">C and C++ in this file</div>
+<ul>
+<li><b>A C API with opaque pointers.</b> <code>llama_model *</code>, <code>llama_context *</code> and <code>llama_sampler *</code> point to types whose fields you never see; you create each with one function and free it with another (<code>llama_model_free</code>, <code>llama_free</code>, lines 232 to 235). C is what lets Python, Go or Swift call the library: a C function has one agreed calling convention, while C++ names and layouts differ between compilers (the ABI, {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, section 11).</li>
+<li><b>RAII for C++ callers.</b> <code>include/llama-cpp.h</code> wraps each handle in a <code>std::unique_ptr</code> with a custom deleter, so the free call cannot be forgotten ({{C++: ownership, moves and object lifetimes|n:4055c17b0d0d81819d74fa010e68ac2a}}, section 4).</li>
+</ul>
+<details class="dp"><summary>The two lines that turn a C handle into a <code>unique_ptr</code>, and the ordinary C++ around them</summary><div><div class="cl-ex" data-ex="deleters"></div><div class="cl-ex" data-ex="unique_ptr"></div>
+<p><b>Ordinary modern C++ around it:</b> <code>std::string</code> and <code>std::vector&lt;llama_token&gt;</code>, a range-for loop over the tokens, <code>auto</code>, and <code>try</code>/<code>catch (...)</code> around <code>std::stoi</code>. The size query on line 109 is a C idiom: call <code>llama_tokenize</code> once with no buffer, and it returns minus the number of tokens it needs.</p></div></details>
+</div>
+<div class="cl-py"><div class="t">From Python</div>With <code>transformers</code> this is <code>model = AutoModelForCausalLM.from_pretrained(...)</code>, <code>tok(prompt)</code>, then <code>model.generate(...)</code>, and the garbage collector frees everything. Here every object you create, you destroy, and the generation loop that <code>generate</code> hides is 35 lines you can read.</div>
+<div class="cl-pr"><p class="q"><b>Predict.</b> <code>simple.cpp</code> sets <code>int ngl = 99;</code> (line 33) and passes it as <code>model_params.n_gpu_layers</code>. On this Mac, where do the layers run if you do not pass <code>-ngl</code>?</p>
+<button class="cl-rv" data-for="cl-a3">Reveal the real answer</button><div class="cl-ans" id="cl-a3" hidden>On the GPU. 99 means "up to 99 layers", so all 30 layers go to Metal. The run with <code>-ngl 99</code> logged <code>offloaded 31/31 layers to GPU</code> (30 blocks plus the output layer) and printed a <em>different</em> continuation: <code class="cl-mono" data-clv="out.simple_metal"></code>. The GPU adds the same numbers in a different order, rounding differs in the last bits, and greedy sampling (always the top score) flips where two scores were nearly tied: floating-point addition is not associative ({{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, SIMD section). This page passes <code>-ngl 0</code> to stay on the CPU, the code we read; when studying the CPU path, check the log says no layers were offloaded.</div></div>
+</section>
