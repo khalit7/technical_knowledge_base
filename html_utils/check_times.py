@@ -67,10 +67,11 @@ def rekey(path, swaps):
     units = json.loads(lf.read_text())
     n = 0
     for u in units:
-        for q, q2 in swaps:
+        for q, q2, after in swaps:
             k = u.get("key") or ""
             i = k.lower().find(q.lower())
-            if i >= 0:
+            # the same quote ("19 min read") can follow several links: only the key whose next words match is this one
+            if i >= 0 and " ".join(k[i + len(q):].split()).lower()[:len(after)] == after[:len(" ".join(k[i + len(q):].split()))]:
                 u["key"] = k[:i] + q2 + k[i + len(q):]
                 n += 1
     if n:
@@ -123,13 +124,14 @@ def main():
                         q2 = re.sub(r"\d+", str(h[0]), q, count=1)
                         if tm.group(2):
                             q2 = re.sub(r"(plus\s*)\d+", lambda x: x.group(1) + str(h[1]), q2)
-                        edits.append((a0, a0 + len(q), q2, q))
+                        tail = re.sub(r"\{\{([^|{}]+)\|[^}]*\}\}", r"\1", s[a0 + len(q):a0 + len(q) + 300])
+                        edits.append((a0, a0 + len(q), q2, q, " ".join(re.sub(r"<[^>]+>", " ", tail).split())[:12].lower()))
             if fix and edits:
-                for a0, a1, q2, _ in sorted(edits, reverse=True):
+                for a0, a1, q2, *_ in sorted(edits, reverse=True):
                     s = s[:a0] + q2 + s[a1:]
                 f.write_text(s)
                 fixed.add(p["path"])
-                rekey(p["path"], [(q, q2) for *_, q2, q in edits])
+                rekey(p["path"], [(q, q2, after) for *_, q2, q, after in edits])
     for o in out:
         print(f"{'AMBIGUOUS ' if o['ambiguous'] else ''}{o['file']}: {o['target']} quotes \"{o['quoted']}\", header says {o['header']}")
     for t in sorted(missing):
