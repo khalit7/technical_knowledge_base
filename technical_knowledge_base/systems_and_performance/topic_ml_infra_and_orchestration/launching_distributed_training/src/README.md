@@ -52,3 +52,6 @@ Why about 30 minutes is right: the Reading tab now carries what two lab tabs use
 A child page (since 2026-10-24 with one tool tab; it had three lab tabs); the root's Launch lab already owns start-up timings, environment dumps and broken launches, so this page reuses them (linked, stage medians recomputed from its `launch_times.json`, environment values from its `env.json`) and goes into the agent, the rendezvous state machine, the workers' store, NCCL's bootstrap and hang diagnosis. NCCL is described from source and documentation (no GPUs).
 
 2026-10-24 topic close: section 9's network-namespace row links Kubernetes for ML section 5 (Multus, SR-IOV); its Further reading entry for Kubernetes names section 5. The flight-recorder pointer already linked Distributed PyTorch section 11.
+
+## 2026-10-26 ownership sweep
+This page owns the network-hang checklist (Khalid's decision): section 6 now carries it as a key box (wrong interface with GLOO_SOCKET_IFNAME, firewall, MTU mismatch, silent socket fallback, accept queue, straggler), absorbed from Networking foundations section 14, which keeps one sentence plus a link. Reading 30 to 31 min.
