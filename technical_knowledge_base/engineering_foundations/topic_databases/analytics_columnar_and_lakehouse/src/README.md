@@ -49,3 +49,5 @@ Why about 43 minutes: the core now carries the two tabs that explained the Parqu
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 456 units: core 381, depth 25, volatile 20 (in the dated table on this page), fat 30 (each with a `note`). Keys were proposed automatically (the longest number or phrase of each unit found in the rebuilt page, preferring rare ones) and 22 set by hand. Labels follow where the key now sits: inside a closed block is depth, in the dated table volatile.
+
+2026-10-26 (final follow-up sweep): section 11's shard advice links Storage and loading at scale (sections 7 and 11), which owns shard sizing and mid-epoch resume; the one line stays here as the analytics view.
