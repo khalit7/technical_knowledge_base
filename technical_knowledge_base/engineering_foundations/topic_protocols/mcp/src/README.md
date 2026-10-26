@@ -55,3 +55,5 @@ Why about 32 minutes is right: the page owns ten mechanisms (roles and the loop,
 
 ## Departures from the page-kind shape
 The visuals are recordings of protocol behaviour, not published figures to reproduce; the "reproduces" check is `check_embed.py` recomputing every prose number from the recordings. No model is called anywhere; user consent and the user's "yes" are scripted and labelled.
+
+2026-10-26 (final follow-up sweep): the deployment block's Claude Code details (`managed-mcp.json`, `managedMcpServers`, allow and deny lists) moved to Claude Code section 10, which now carries them; one sentence links there (ledger unit 326 `owned:`).
