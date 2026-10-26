@@ -50,3 +50,6 @@ Why about 31 minutes is right: the page owns the whole of Slurm for ML (daemons,
 2026-10-24 topic close: section 2's job states note that under torchrun Slurm records torchrun's exit code 1, linking Launching distributed training section 3; Further reading training-root time 27 to 22.
 
 2026-10-26 (final follow-up sweep): Further reading adds SSH (section 13, cluster workflows) for getting to the login node.
+
+## 2026-10-26 ownership sweep
+This page owns Slurm on Kubernetes (Khalid's decision). The closed block in section 12 absorbed the root Tool map's Slinky and SUNK facts (open-sourcing date, slurm-bridge, SUNK accounting and scope, which to pick); the root keeps one merged row linking here.
