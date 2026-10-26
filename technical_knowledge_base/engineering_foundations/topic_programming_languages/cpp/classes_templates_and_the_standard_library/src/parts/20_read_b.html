@@ -1,0 +1,232 @@
+
+<section id="ct-s3">
+<h2>3. Templates and concepts: generic code resolved at compile time</h2>
+<p>A Python function accepts anything with the right methods (duck typing), checked when the line runs. A C++ <b>template</b> is a pattern from which the compiler writes a separate function or class for each type you use it with (<b>instantiation</b>, or monomorphisation), checked at compile time. Each generated function is as fast as if you had written it by hand: no boxing, no dispatch, and the compiler can inline and vectorise it. That is the "decided at compile time" lane of the hero.</p>
+<div class="ca-src"><div class="ca-fn">templates.cpp (lines 5 to 14)</div><pre class="ca-code"><span class="ca-cm">// One template, many functions: the compiler writes a copy per type used.</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> T&gt;
+T total(<span class="ca-kw">const</span> std::vector&lt;T&gt;&amp; xs) &#123;
+    T sum&#123;&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> T&amp; x : xs) sum += x;
+    <span class="ca-kw">return</span> sum;
+&#125;
+
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> K, <span class="ca-kw">typename</span> V&gt;
+<span class="ca-kw">struct</span> Pair &#123; K key; V value; &#125;;       <span class="ca-cm">// a class template</span></pre></div>
+<div class="fig"><h4>One template in the source, three real functions in the object file</h4>
+<div class="ct-tpl"><div class="ct-cells"><div class="ct-cell v">template &lt;typename T&gt;<br>T total(const std::vector&lt;T&gt;&amp;)</div></div><div class="ar" aria-hidden="true">&#8594;</div>
+<div class="ct-cells" style="flex-direction:column"><div class="ct-cell">int total&lt;int&gt;(vector&lt;int&gt; const&amp;)<small>called with {1, 2, 3}: printed 6</small></div><div class="ct-cell">double total&lt;double&gt;(vector&lt;double&gt; const&amp;)<small>called with {0.5, 0.25}: printed 0.8</small></div><div class="ct-cell">string total&lt;string&gt;(vector&lt;string&gt; const&amp;)<small>called with {"to", "ken"}: printed "token"</small></div></div></div>
+<p class="cap">The symbols are the ones <code>nm -C</code> listed in <code>templates.o</code> (names shortened; the full lines are below). Three copies of the machine code: the price of templates is compile time and binary size, and template code must live in headers, because the compiler needs the body to instantiate it.</p></div>
+<details class="dp"><summary>The whole program, its output and the raw <code>nm</code> listing</summary><div><div class="ca-src"><div class="ca-fn">templates.cpp (lines 16 to 22)</div><pre class="ca-code"><span class="ca-kw">int</span> main() &#123;
+    std::printf(<span class="ca-st">"%d\n"</span>, total(std::vector&lt;<span class="ca-kw">int</span>&gt;&#123;1, 2, 3&#125;));
+    std::printf(<span class="ca-st">"%.1f\n"</span>, total(std::vector&lt;<span class="ca-kw">double</span>&gt;&#123;0.5, 0.25&#125;));
+    std::printf(<span class="ca-st">"%s\n"</span>, total(std::vector&lt;std::string&gt;&#123;<span class="ca-st">"to"</span>, <span class="ca-st">"ken"</span>&#125;).c_str());
+    Pair&lt;std::string, <span class="ca-kw">long</span>&gt; p&#123;<span class="ca-st">"u0029"</span>, 9491&#125;;
+    std::printf(<span class="ca-st">"%s %ld\n"</span>, p.key.c_str(), p.value);
+&#125;</pre></div><pre class="ca-out" data-ca-out="l_templates"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra templates.cpp -o templates &amp;&amp; ./templates</span>
+6
+0.8
+token
+u0029 9491</pre><pre class="ca-out" data-ca-out="l_templates_nm"><span class="ca-cmd">$ clang++ -std=c++23 -O0 -c templates.cpp -o templates.o &amp;&amp; nm -C templates.o | grep " total&lt;"</span>
+0000000000000580 T std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt; total&lt;std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt; &gt;(std::__1::vector&lt;std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt;, std::__1::allocator&lt;std::__1::basic_string&lt;char, std::__1::char_traits&lt;char&gt;, std::__1::allocator&lt;char&gt; &gt; &gt; &gt; const&amp;)
+0000000000000488 T double total&lt;double&gt;(std::__1::vector&lt;double, std::__1::allocator&lt;double&gt; &gt; const&amp;)
+0000000000000394 T int total&lt;int&gt;(std::__1::vector&lt;int, std::__1::allocator&lt;int&gt; &gt; const&amp;)</pre></div></details>
+<p>The cost shows up when a type does not fit. Without constraints, the error appears deep inside the template body, at the line that failed, after the compiler explains the chain of instantiations that led there. For a small template that is readable; for a standard algorithm it is not. Here is <code>std::sort</code> on a struct with no <code>&lt;</code>, against C++20's <code>std::ranges::sort</code>, which states its requirements as <b>concepts</b>:</p>
+<div class="fig"><h4>The same mistake, two diagnostics: 9 times shorter with concepts</h4>
+<div class="bars"><div class="row"><span class="nm"><code>std::sort</code> (unconstrained)</span><span class="track"><span class="fill" style="width:100%;background:var(--bad)"></span></span><span class="val">308 lines</span></div>
+<div class="row"><span class="nm"><code>std::ranges::sort</code> (concepts)</span><span class="track"><span class="fill" style="width:11%;background:var(--acc)"></span></span><span class="val">34 lines</span></div></div>
+<p class="cap">clang's diagnostics for each file: 20 errors against 1.</p></div>
+<p>A <b>concept</b> is a named, compile-time predicate on types. Put it in a template's signature and the compiler checks it at the call, and the error names the requirement that failed:</p>
+<div class="ca-src"><div class="ca-fn">concept_err.cpp (lines 2 to 11)</div><pre class="ca-code"><span class="ca-cm">// A concept names the requirement: T must support += and start from T&#123;&#125;</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> T&gt;
+<span class="ca-kw">concept</span> Summable = <span class="ca-kw">requires</span>(T a, T b) &#123; T&#123;&#125;; a += b; &#125;;
+
+<span class="ca-kw">template</span> &lt;Summable T&gt;
+T total(<span class="ca-kw">const</span> std::vector&lt;T&gt;&amp; xs) &#123;
+    T sum&#123;&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> T&amp; x : xs) sum += x;
+    <span class="ca-kw">return</span> sum;
+&#125;</pre></div>
+<pre class="ca-out ca-bad" data-ca-out="l_concept_err"><span class="ca-cmd">$ clang++ -std=c++23 -Wall -Wextra -c concept_err.cpp -o /dev/null</span>
+concept_err.cpp:16:5: error: no matching function for call to 'total'
+   16 |     total(msgs);    // rejected at the call, with the reason
+      |     ^~~~~
+concept_err.cpp:7:3: note: candidate template ignored: constraints not satisfied [with T = Msg]
+    7 | T total(const std::vector&lt;T&gt;&amp; xs) &#123;
+      |   ^
+concept_err.cpp:6:11: note: because 'Msg' does not satisfy 'Summable'
+    6 | template &lt;Summable T&gt;
+      |           ^
+concept_err.cpp:4:48: note: because 'a += b' would be invalid: no viable overloaded '+='
+    4 | concept Summable = requires(T a, T b) &#123; T&#123;&#125;; a += b; &#125;;
+      |                                                ^
+1 error generated.
+[exit code 1]</pre>
+<details class="dp"><summary>The same template without the concept: where the error lands instead</summary><div><div class="ca-src"><div class="ca-fn">tmpl_err.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;vector&gt;</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">typename</span> T&gt;
+T total(<span class="ca-kw">const</span> std::vector&lt;T&gt;&amp; xs) &#123;
+    T sum&#123;&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> T&amp; x : xs) sum += x;
+    <span class="ca-kw">return</span> sum;
+&#125;
+<span class="ca-kw">struct</span> Msg &#123; <span class="ca-kw">const</span> <span class="ca-kw">char</span>* text; &#125;;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;Msg&gt; msgs&#123;&#123;<span class="ca-st">"hi"</span>&#125;, &#123;<span class="ca-st">"there"</span>&#125;&#125;;
+    total(msgs);    <span class="ca-cm">// Msg has no +=</span>
+&#125;</pre></div><pre class="ca-out ca-bad" data-ca-out="l_tmpl_err"><span class="ca-cmd">$ clang++ -std=c++23 -Wall -Wextra -c tmpl_err.cpp -o /dev/null</span>
+tmpl_err.cpp:5:31: error: no viable overloaded '+='
+    5 |     for (const T&amp; x : xs) sum += x;
+      |                           ~~~ ^  ~
+tmpl_err.cpp:12:5: note: in instantiation of function template specialization 'total&lt;Msg&gt;' requested here
+   12 |     total(msgs);    // Msg has no +=
+      |     ^
+1 error generated.
+[exit code 1]</pre></div></details>
+<div class="ca-py"><div class="t">Python bridge</div>A concept is a <code>typing.Protocol</code> that the compiler enforces at every call, and a template is a generic function where the type checker is the compiler. The difference: Python runs one function for all types; C++ compiles one per type.</div>
+<div class="ca-cost"><div><b>Problem it solves</b>Generic code at full speed (the standard library is almost all templates).</div><div><b>What it costs</b>Compile time, binary size, code in headers.</div><div><b>Common mistakes</b>Unconstrained templates with unreadable errors; heavy template metaprogramming where a plain function would do.</div></div>
+</section>
+
+<section id="ct-s4">
+<h2>4. The standard library you will actually use</h2>
+<p>The standard library ("the STL") is C++'s built-ins plus <code>collections</code> and <code>itertools</code>. On macOS it is LLVM's <b>libc++</b>; on Linux usually GCC's <b>libstdc++</b>; on Windows Microsoft's STL. The interfaces are standard; the sizes, growth factors and string buffers below are libc++'s, measured. The defaults: <code>vector</code>, <code>string</code>, <code>unordered_map</code>; <code>string_view</code> and <code>span</code> as parameters; algorithms over hand-written loops.</p>
+
+<h3>std::vector: one buffer that moves when it grows</h3>
+<p>A growable array, like a Python list, except that it holds the elements themselves, contiguously, not pointers to objects; that is why section 2's flat vector beat every pointer layout. Use it unless you have measured a reason not to. Growth is geometric, so <code>push_back</code> is cheap on average:</p>
+<div class="fig"><h4>Capacity doubles; each step is a new buffer, and every old pointer into the vector dangles</h4>
+<div class="rd-svg" id="ct-grow" role="img" aria-label="Staircase of vector capacity against size: 1, 2, 4, 8, 16, 32, 64; each step is a reallocation"></div>
+<p class="cap">The real output of <code>vector_growth.cpp</code> (libc++): the size at which each new buffer was allocated, and its capacity. <b>At every step</b> all elements move to the new buffer and the old one is freed, so every pointer, reference and iterator into the old buffer now dangles (the essentials page's UB gallery runs that bug). If you know the final size, call <code>reserve(n)</code> first: one allocation, no moves. Whether the elements are moved or copied at each step depends on <code>noexcept</code>, replayed on {{the ownership page|n:4055c17b0d0d81819d74fa010e68ac2a}}.</p></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> at which sizes does the capacity change?</summary><pre class="ca-out" data-ca-out="l_vector_growth"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra vector_growth.cpp -o vector_growth &amp;&amp; ./vector_growth</span>
+size 0 capacity 0
+size 1 capacity 1
+size 2 capacity 2
+size 3 capacity 4
+size 5 capacity 8
+size 9 capacity 16
+size 17 capacity 32
+size 33 capacity 64
+size 65 capacity 128
+size 129 capacity 256
+size 257 capacity 512
+size 513 capacity 1024</pre></details>
+<p>libc++ doubles; the factor is implementation-defined (MSVC's differs), so never rely on it.</p>
+
+<h3>std::string and std::string_view</h3>
+<p><code>std::string</code> owns a growable byte buffer. Short strings are stored inside the 24-byte object itself (the <b>small-string optimisation</b>, SSO), so they need no heap allocation; <code>std::string_view</code> is a pointer and a length into characters owned by someone else, so passing one never copies.</p>
+<div class="fig"><h4>Up to 22 characters live inside the string object; longer ones go to the heap</h4>
+<div class="ct-objs">
+<div class="ct-obj"><div class="nm"><code>small = "u0029"</code>: 24 B, no allocation</div><div class="ct-cells"><div class="ct-cell v">u 0 0 2 9 &middot; &middot; &middot;<small>characters stored inline (capacity 22)</small></div><div class="ct-cell">size 5<small>packed in the same 24 B</small></div></div></div>
+<div class="ct-obj"><div class="nm"><code>big</code> (50 characters): 24 B plus a heap buffer</div><div class="ct-cells"><div class="ct-cell v">data*<small>8 B</small></div><div class="ct-cell">size 50<small>8 B</small></div><div class="ct-cell">capacity<small>8 B</small></div></div><div class="ct-arrow">&#8595; data points to a heap buffer holding the 50 bytes</div></div>
+<div class="ct-obj"><div class="nm"><code>string_view</code>: 16 B, owns nothing</div><div class="ct-cells"><div class="ct-cell h">const char*<small>into someone's string</small></div><div class="ct-cell h">length<small>8 B</small></div></div></div>
+</div>
+<p class="cap">Layout simplified (libc++ packs the short form differently); the numbers are the program's: an empty string's capacity 22, "chars stored inside the object" 1 for the small string and 0 for the big one, <code>sizeof(std::string_view)</code> 16.</p></div>
+<details class="dp"><summary>strings.cpp and its output</summary><div><div class="ca-src"><div class="ca-fn">strings.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;string_view&gt;</span>
+
+<span class="ca-cm">// string_view: a pointer and a length into someone else's characters (no copy)</span>
+std::string_view first_word(std::string_view s) &#123;
+    <span class="ca-kw">auto</span> end = s.find(<span class="ca-st">' '</span>);
+    <span class="ca-kw">return</span> s.substr(0, end);            <span class="ca-cm">// still points into the caller's string</span>
+&#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::string small = <span class="ca-st">"u0029"</span>;
+    std::string big = <span class="ca-st">"a user id far too long for the small-string buffer"</span>;
+    std::printf(<span class="ca-st">"capacity of an empty std::string: %zu\n"</span>, std::string&#123;&#125;.capacity());
+    std::printf(<span class="ca-st">"small: size %zu, chars stored inside the object: %d\n"</span>, small.size(),
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)small.data() &gt;= (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)&amp;small &amp;&amp;
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)small.data() &lt; (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)(&amp;small + 1));
+    std::printf(<span class="ca-st">"big:   size %zu, chars stored inside the object: %d\n"</span>, big.size(),
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)big.data() &gt;= (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)&amp;big &amp;&amp;
+                (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)big.data() &lt; (<span class="ca-kw">const</span> <span class="ca-kw">void</span>*)(&amp;big + 1));
+
+    std::string line = <span class="ca-st">"attention training trained"</span>;
+    std::string_view w = first_word(line);
+    std::printf(<span class="ca-st">"first word: %.*s (%zu bytes, no copy)\n"</span>, (<span class="ca-kw">int</span>)w.size(), w.data(), w.size());
+    std::string cafe = <span class="ca-st">"caf\xc3\xa9"</span>;   <span class="ca-cm">// UTF-8 bytes; size() counts bytes, not characters</span>
+    std::printf(<span class="ca-st">"\"%s\" size() = %zu\n"</span>, cafe.c_str(), cafe.size());
+&#125;</pre></div><pre class="ca-out" data-ca-out="l_strings"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra strings.cpp -o strings &amp;&amp; ./strings</span>
+capacity of an empty std::string: 22
+small: size 5, chars stored inside the object: 1
+big:   size 50, chars stored inside the object: 0
+first word: attention (9 bytes, no copy)
+"café" size() = 5</pre></div></details>
+<p>C++ strings are bytes: <code>size()</code> counts UTF-8 bytes, so <code>"café"</code> has size 5. A <code>string_view</code> (and a <code>std::span</code>, the same idea for any contiguous elements) is the right parameter type for "read some text" or "read some numbers", and the wrong type to store: it does not keep its characters alive. Initialise one from a temporary string and it dangles at the semicolon; clang warns, and the essentials page's UB gallery shows the result.</p>
+
+<h3>Maps, spans and algorithms</h3>
+<div class="ca-src"><div class="ca-fn">containers.cpp (lines 15 to 34)</div><pre class="ca-code"><span class="ca-kw">int</span> main() &#123;
+    std::unordered_map&lt;std::string, <span class="ca-kw">long</span>&gt; per_user;   <span class="ca-cm">// Python's dict</span>
+    <span class="ca-kw">const</span> <span class="ca-kw">char</span>* users[] = &#123;<span class="ca-st">"u0029"</span>, <span class="ca-st">"u0005"</span>, <span class="ca-st">"u0029"</span>, <span class="ca-st">"u0042"</span>, <span class="ca-st">"u0005"</span>, <span class="ca-st">"u0029"</span>&#125;;
+    <span class="ca-kw">const</span> <span class="ca-kw">long</span> tokens[] = &#123;10, 7, 5, 9, 1, 3&#125;;
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> i = 0; i &lt; 6; ++i) per_user[users[i]] += tokens[i];  <span class="ca-cm">// [] inserts 0 if missing</span>
+
+    std::printf(<span class="ca-st">"contains u0099? %d (contains() does not insert)\n"</span>, per_user.contains(<span class="ca-st">"u0099"</span>));
+    <span class="ca-kw">long</span>&amp; ref = per_user[<span class="ca-st">"u0099"</span>];                    <span class="ca-cm">// operator[] DOES insert</span>
+    std::printf(<span class="ca-st">"after per_user[\"u0099\"]: size %zu, value %ld\n"</span>, per_user.size(), ref);
+
+    std::vector&lt;std::pair&lt;std::string, <span class="ca-kw">long</span>&gt;&gt; rows(per_user.begin(), per_user.end());
+    std::ranges::sort(rows, [](<span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; a, <span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; b) &#123;
+        <span class="ca-kw">return</span> a.second != b.second ? a.second &gt; b.second : a.first &lt; b.first;  <span class="ca-cm">// count desc, id asc</span>
+    &#125;);
+    <span class="ca-kw">for</span> (<span class="ca-kw">const</span> <span class="ca-kw">auto</span>&amp; [user, n] : rows) std::printf(<span class="ca-st">"%s %ld\n"</span>, user.c_str(), n);  <span class="ca-cm">// structured binding</span>
+
+    std::vector&lt;<span class="ca-kw">long</span>&gt; v&#123;3, 1, 4, 1, 5&#125;;
+    <span class="ca-kw">long</span> arr[] = &#123;9, 2, 6&#125;;
+    std::printf(<span class="ca-st">"sum(v)=%ld sum(arr)=%ld sum(first 2 of v)=%ld\n"</span>,
+                sum(v), sum(arr), sum(std::span(v).first(2)));</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> what does per_user["u0099"] do to the map, and in what order are the rows printed?</summary><pre class="ca-out" data-ca-out="l_containers"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra containers.cpp -o containers &amp;&amp; ./containers</span>
+contains u0099? 0 (contains() does not insert)
+after per_user["u0099"]: size 4, value 0
+u0029 18
+u0042 9
+u0005 8
+u0099 0
+sum(v)=14 sum(arr)=17 sum(first 2 of v)=4</pre></details>
+<ul>
+<li><code>std::unordered_map</code> is a hash table like <code>dict</code>, but unordered (no insertion order), and its <code>[]</code> <b>inserts</b> a default value when the key is missing, so it cannot be used on a <code>const</code> map. Python's <code>dict</code> raises <code>KeyError</code>; C++ silently grows. Use <code>contains</code> or <code>find</code> to look without inserting. <code>std::map</code> is a sorted tree.</li>
+<li><code>std::ranges::sort(rows, cmp)</code> sorts with your comparison; the lambda gives the root page's tie-break: count descending, then user id ascending. <code>auto&amp; [user, n]</code> is a <b>structured binding</b>: tuple unpacking.</li>
+<li>One <code>sum(std::span&lt;const long&gt;)</code> accepted a vector, a plain array and a slice of the vector, with no copies.</li>
+</ul>
+
+<h3>Ranges: lazy pipelines, like generators</h3>
+<p>C++20 <b>ranges</b> compose lazily, like Python generators: <code>views::filter</code>, <code>views::transform</code> and <code>views::take</code> build a pipeline that computes nothing until a loop pulls from it. The prints inside the lambdas record the order of evaluation; step through them.</p>
+<div class="ca-src"><div class="ca-fn">ranges.cpp (lines 6 to 13)</div><pre class="ca-code">    std::vector&lt;<span class="ca-kw">int</span>&gt; counts&#123;12, 0, 7, 31, 0, 5, 18&#125;;
+    <span class="ca-cm">// A lazy pipeline: nothing runs until the loop pulls values (like a Python generator)</span>
+    <span class="ca-kw">auto</span> pipeline = counts
+        | std::views::filter([](<span class="ca-kw">int</span> n) &#123; std::printf(<span class="ca-st">"  filter %d\n"</span>, n); <span class="ca-kw">return</span> n &gt; 0; &#125;)
+        | std::views::transform([](<span class="ca-kw">int</span> n) &#123; std::printf(<span class="ca-st">"  square %d\n"</span>, n); <span class="ca-kw">return</span> n * n; &#125;)
+        | std::views::take(2);
+    std::printf(<span class="ca-st">"pipeline built, nothing computed yet\n"</span>);
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> x : pipeline) std::printf(<span class="ca-st">"got %d\n"</span>, x);</pre></div>
+<div class="card" id="ct-rng-card">
+<p class="pred" style="margin-top:0"><b>Predict first:</b> the loop takes 2 values from 7 counts. How many counts get filtered, and how many squared?</p>
+<div class="ct-pipe" id="ct-rng-pipe"></div>
+<div class="ct-read" id="ct-rng-cap"></div>
+<pre class="ca-out ct-log" id="ct-rng-log"></pre>
+<div class="ct-ctl" id="ct-rng-ctl"></div>
+</div>
+<p>Only what the loop needed was computed: 31 was filtered but never squared (taking the second value advanced the filter to look for a third before <code>take</code> said stop), and 5 and 18 were never touched. C++23's <code>std::ranges::to&lt;std::vector&gt;()</code> collects a pipeline into a container, like <code>list(gen)</code>. A view does not own its data, so a view of a temporary container dangles, just as a <code>string_view</code> does.</p>
+<details class="dp"><summary>The rest of ranges.cpp and the raw output</summary><div><div class="ca-src"><div class="ca-fn">ranges.cpp (lines 15 to 19)</div><pre class="ca-code">    <span class="ca-cm">// C++23: collect into a container, like list(...) in Python</span>
+    <span class="ca-kw">auto</span> evens = std::views::iota(1, 11)
+               | std::views::filter([](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n % 2 == 0; &#125;)
+               | std::ranges::to&lt;std::vector&gt;();
+    std::printf(<span class="ca-st">"evens: %zu values, last %d\n"</span>, evens.size(), evens.back());</pre></div><pre class="ca-out" data-ca-out="l_ranges"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra ranges.cpp -o ranges &amp;&amp; ./ranges</span>
+pipeline built, nothing computed yet
+  filter 12
+  square 12
+got 144
+  filter 0
+  filter 7
+  square 7
+got 49
+  filter 31
+evens: 5 values, last 10</pre></div></details>
+<details class="dp"><summary><code>std::vector&lt;bool&gt;</code>, <code>std::list</code> and the other standard-library traps</summary><div>
+<ul>
+<li><b><code>std::vector&lt;bool&gt;</code> is not a container of <code>bool</code></b>: it is specialised to pack bits, so <code>v[i]</code> returns a proxy object, not a <code>bool&amp;</code>; <code>bool&amp; r = v[0]</code> does not compile, <code>&amp;v[0]</code> is not a <code>bool*</code>, and concurrent writes to different elements can race. Use <code>std::vector&lt;char&gt;</code> or <code>std::vector&lt;uint8_t&gt;</code> when you need real elements.</li>
+<li><b><code>std::list</code></b> is a linked list: one heap node per element, so it is almost always slower than <code>vector</code>, for the scattered-pointer reasons measured in section 2.</li>
+<li><b><code>map[key]</code> to test membership</b> inserts the key (above).</li>
+<li><b>A reference or iterator kept across <code>push_back</code></b> dangles after a reallocation (the staircase above).</li>
+</ul></div></details>
+<div class="ca-cost"><div><b>Defaults</b><code>vector</code>, <code>string</code>, <code>unordered_map</code>; <code>string_view</code> and <code>span</code> as parameters; algorithms over hand-written loops.</div><div><b>What it costs</b>Every container owns heap memory; views and spans own nothing and can dangle.</div><div><b>Common mistakes</b>Keeping a reference or iterator across a <code>push_back</code>; <code>map[key]</code> to test membership; <code>std::list</code>.</div></div>
+</section>

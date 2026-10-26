@@ -1,0 +1,201 @@
+
+<section id="ct-s5">
+<h2>5. Lambdas: a closure is an object you can measure</h2>
+<p>A lambda is an inline function, like Python's <code>lambda</code> but with statements allowed. The square brackets say which outside variables it <b>captures</b> and how: <code>[x]</code> copies x when the lambda is created; <code>[&amp;x]</code> refers to the variable itself; <code>[=]</code> and <code>[&amp;]</code> capture everything used, by copy or by reference.</p>
+<div class="ca-src"><div class="ca-fn">lambdas.cpp (lines 6 to 10)</div><pre class="ca-code">    <span class="ca-kw">int</span> threshold = 10;
+    <span class="ca-kw">auto</span> by_value = [threshold](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n &gt; threshold; &#125;;   <span class="ca-cm">// copies threshold now</span>
+    <span class="ca-kw">auto</span> by_ref   = [&amp;threshold](<span class="ca-kw">int</span> n) &#123; <span class="ca-kw">return</span> n &gt; threshold; &#125;;  <span class="ca-cm">// refers to the variable</span>
+    threshold = 100;
+    std::printf(<span class="ca-st">"by_value(50)=%d by_ref(50)=%d\n"</span>, by_value(50), by_ref(50));</pre></div>
+<details class="ca-pr"><summary><b>Predict, then reveal:</b> by_value(50) and by_ref(50) after threshold becomes 100?</summary><pre class="ca-out" data-ca-out="l_lambdas"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lambdas.cpp -o lambdas &amp;&amp; ./lambdas</span>
+by_value(50)=1 by_ref(50)=0
+counter() -&gt; 3, outer calls still 0
+twice(21)=42 twice(1.5)=3.0
+sizeof: no capture 1, one int 4, one reference 8
+sizeof(std::function) 32</pre></details>
+<div class="fig"><h4>The compiler writes a class per lambda; its members are the captures</h4>
+<div class="ct-objs">
+<div class="ct-obj"><div class="nm"><code>by_value</code>: 4 bytes</div><div class="ct-cells"><div class="ct-cell v">int threshold = 10<small>a copy, taken at creation</small></div></div><div class="ct-arrow">later changes to <code>threshold</code> are not seen: 50 &gt; 10 is true</div></div>
+<div class="ct-obj"><div class="nm"><code>by_ref</code>: 8 bytes</div><div class="ct-cells"><div class="ct-cell h">int&amp; &#8594; threshold<small>the variable's address</small></div></div><div class="ct-arrow">sees 100: 50 &gt; 100 is false; dangles if the lambda outlives <code>threshold</code></div></div>
+<div class="ct-obj"><div class="nm"><code>std::function&lt;bool(int)&gt;</code>: 32 bytes</div><div class="ct-cells"><div class="ct-cell">storage for a small callable, or a pointer to a heap copy<small>plus a pointer to its call routine</small></div></div><div class="ct-arrow">holds any callable with that signature, called indirectly</div></div>
+</div>
+<p class="cap">Sizes printed by <code>sizeof</code> (a lambda with no capture: 1 byte). The <code>std::function</code> layout is described, not measured; its 32 bytes are measured.</p></div>
+<p>Python closures always capture variables by reference and keep them alive. A C++ reference capture keeps nothing alive, so a lambda that outlives the function it was made in (returned, stored, or given to a thread) must capture by value; <code>[&amp;]</code> in an escaping lambda is the essentials page's "dangling capture" bug, and capturing <code>this</code> has the same problem with the object. A lambda passed to a template (<code>std::ranges::sort(rows, cmp)</code>) is inlined like any template code: it costs nothing. Stored in a <code>std::function</code>, it pays a type-erased indirect call, and with mixed callables section 2 measured that at 6.01 ns per call; templates and <code>auto</code> parameters avoid it.</p>
+<details class="dp"><summary><code>mutable</code>, generic lambdas, and the rest of lambdas.cpp</summary><div><div class="ca-src"><div class="ca-fn">lambdas.cpp (lines 12 to 24)</div><pre class="ca-code">    <span class="ca-kw">int</span> calls = 0;
+    <span class="ca-kw">auto</span> counter = [calls]() <span class="ca-kw">mutable</span> &#123; <span class="ca-kw">return</span> ++calls; &#125;;   <span class="ca-cm">// mutable: may change its own copy</span>
+    counter(); counter();
+    std::printf(<span class="ca-st">"counter() -&gt; %d, outer calls still %d\n"</span>, counter(), calls);
+
+    <span class="ca-kw">auto</span> twice = [](<span class="ca-kw">auto</span> x) &#123; <span class="ca-kw">return</span> x + x; &#125;;              <span class="ca-cm">// generic lambda (a template)</span>
+    std::printf(<span class="ca-st">"twice(21)=%d twice(1.5)=%.1f\n"</span>, twice(21), twice(1.5));
+
+    <span class="ca-cm">// A lambda is an object of a compiler-written class; its size is its captures</span>
+    std::printf(<span class="ca-st">"sizeof: no capture %zu, one int %zu, one reference %zu\n"</span>,
+                <span class="ca-kw">sizeof</span>([] &#123;&#125;), <span class="ca-kw">sizeof</span>(by_value), <span class="ca-kw">sizeof</span>(by_ref));
+    std::function&lt;<span class="ca-kw">bool</span>(<span class="ca-kw">int</span>)&gt; f = by_value;   <span class="ca-cm">// type-erased holder: can store any callable</span>
+    std::printf(<span class="ca-st">"sizeof(std::function) %zu\n"</span>, <span class="ca-kw">sizeof</span>(f));</pre></div><pre class="ca-out" data-ca-out="l_lambdas"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lambdas.cpp -o lambdas &amp;&amp; ./lambdas</span>
+by_value(50)=1 by_ref(50)=0
+counter() -&gt; 3, outer calls still 0
+twice(21)=42 twice(1.5)=3.0
+sizeof: no capture 1, one int 4, one reference 8
+sizeof(std::function) 32</pre><p><code>mutable</code> lets the lambda change its own copy (the outer <code>calls</code> stays 0); <code>[](auto x)</code> is a generic lambda, a template, so <code>twice</code> works for ints and doubles.</p></div></details>
+</section>
+
+<section id="ct-s6">
+<h2>6. Errors: exceptions against std::expected, measured</h2>
+<p>C++ has three ways to say "this did not work", and real code uses all three:</p>
+<ul>
+<li><b>Exceptions</b> work like Python's: <code>throw</code>, <code>try</code>/<code>catch</code>, unwinding that runs destructors on the way ({{the ownership page|n:4055c17b0d0d81819d74fa010e68ac2a}} replays it). Use them for errors the immediate caller cannot handle: a missing config file, out of memory.</li>
+<li><b><code>std::optional&lt;T&gt;</code></b> (C++17) is "a T or nothing", like returning <code>None</code>, with no reason attached.</li>
+<li><b><code>std::expected&lt;T, E&gt;</code></b> (C++23) is "a T or an error E", like Rust's <code>Result</code>. The caller must look; <code>transform</code> and <code>and_then</code> chain steps that run only on success. Use it for failures that are part of normal operation: parsing user input, a malformed JSONL line.</li>
+</ul>
+<div class="ca-src"><div class="ca-fn">errors.cpp (lines 26 to 34)</div><pre class="ca-code"><span class="ca-cm">// 3. expected (C++23): "a value or an error", like Rust's Result</span>
+<span class="ca-kw">enum</span> <span class="ca-kw">class</span> ParseError &#123; empty, not_a_number &#125;;
+std::expected&lt;<span class="ca-kw">long</span>, ParseError&gt; parse_exp(std::string_view s) &#123;
+    <span class="ca-kw">if</span> (s.empty()) <span class="ca-kw">return</span> std::unexpected(ParseError::empty);
+    <span class="ca-kw">long</span> v = 0;
+    <span class="ca-kw">auto</span> [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    <span class="ca-kw">if</span> (ec != std::errc&#123;&#125; || p != s.data() + s.size()) <span class="ca-kw">return</span> std::unexpected(ParseError::not_a_number);
+    <span class="ca-kw">return</span> v;
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_errors"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra errors.cpp -o errors &amp;&amp; ./errors</span>
+caught: not a number: 12x
+optional: has_value=0, value_or(-1)=-1
+expected "4816": value 9632
+expected "": error 0
+expected "12x": error 1</pre>
+<details class="dp"><summary>The same parser written with an exception and with optional (the whole errors.cpp)</summary><div><div class="ca-src"><div class="ca-fn">errors.cpp (lines 1 to 25)</div><pre class="ca-code"><span class="ca-pp">#include &lt;charconv&gt;</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;expected&gt;</span>
+<span class="ca-pp">#include &lt;optional&gt;</span>
+<span class="ca-pp">#include &lt;stdexcept&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;string_view&gt;</span>
+
+<span class="ca-cm">// 1. Exceptions: like Python's raise/except</span>
+<span class="ca-kw">long</span> parse_or_throw(std::string_view s) &#123;
+    <span class="ca-kw">long</span> v = 0;
+    <span class="ca-kw">auto</span> [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    <span class="ca-kw">if</span> (ec != std::errc&#123;&#125; || p != s.data() + s.size())
+        <span class="ca-kw">throw</span> std::invalid_argument(<span class="ca-st">"not a number: "</span> + std::string(s));
+    <span class="ca-kw">return</span> v;
+&#125;
+
+<span class="ca-cm">// 2. optional: "a value or nothing", no reason given (like returning None)</span>
+std::optional&lt;<span class="ca-kw">long</span>&gt; parse_opt(std::string_view s) &#123;
+    <span class="ca-kw">long</span> v = 0;
+    <span class="ca-kw">auto</span> [p, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    <span class="ca-kw">if</span> (ec != std::errc&#123;&#125; || p != s.data() + s.size()) <span class="ca-kw">return</span> std::nullopt;
+    <span class="ca-kw">return</span> v;
+&#125;
+</pre></div><div class="ca-src"><div class="ca-fn">errors.cpp (lines 36 to 51)</div><pre class="ca-code"><span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">try</span> &#123;
+        parse_or_throw(<span class="ca-st">"12x"</span>);
+    &#125; <span class="ca-kw">catch</span> (<span class="ca-kw">const</span> std::invalid_argument&amp; e) &#123;
+        std::printf(<span class="ca-st">"caught: %s\n"</span>, e.what());
+    &#125;
+    <span class="ca-kw">auto</span> o = parse_opt(<span class="ca-st">"12x"</span>);
+    std::printf(<span class="ca-st">"optional: has_value=%d, value_or(-1)=%ld\n"</span>, o.has_value(), o.value_or(-1));
+
+    <span class="ca-kw">for</span> (std::string_view s : &#123;<span class="ca-st">"4816"</span>, <span class="ca-st">""</span>, <span class="ca-st">"12x"</span>&#125;) &#123;
+        <span class="ca-kw">auto</span> r = parse_exp(s)
+                   .transform([](<span class="ca-kw">long</span> v) &#123; <span class="ca-kw">return</span> v * 2; &#125;);   <span class="ca-cm">// runs only on success</span>
+        <span class="ca-kw">if</span> (r) std::printf(<span class="ca-st">"expected \"%.*s\": value %ld\n"</span>, (<span class="ca-kw">int</span>)s.size(), s.data(), *r);
+        <span class="ca-kw">else</span>   std::printf(<span class="ca-st">"expected \"%.*s\": error %d\n"</span>, (<span class="ca-kw">int</span>)s.size(), s.data(), (<span class="ca-kw">int</span>)r.error());
+    &#125;
+&#125;</pre></div></div></details>
+<p>Compilers implement exceptions with tables that are read only when something is thrown ("zero-cost" exceptions, which still cost binary size). So the success path should be almost free and a throw expensive. How expensive, and when does it matter? The benchmark calls one tiny function written both ways, and varies the share of calls that fail.</p>
+<p class="pred"><b>Predict, then drag:</b> at what failure rate does the exception version cost twice the <code>expected</code> version? At what rate ten times?</p>
+<div class="card" id="ct-exc-card">
+<div class="ct-ctl"><label for="ct-exc-r" class="small">Share of calls that fail</label><input type="range" id="ct-exc-r" min="0" max="5" step="1" value="0" aria-label="Share of calls that fail"><b id="ct-exc-rv"></b></div>
+<div class="bars" id="ct-exc-bars"></div>
+<p class="ct-read" id="ct-exc-read"></p>
+<p class="small mute">ns per call, log scale, the median of three runs at each of the six measured rates (the slider has no in-between values). Depth 1: the error is handled by the direct caller. Apple M1 Pro, Apple clang 17, <code>-O2</code>.</p>
+</div>
+<p>The rates tell the rule. With no failures the exception version cost 1.61 ns per call against 0.96 (both functions are out-of-line calls; this benchmark does not explain the 0.6 ns gap). At 1 failure in 10,000 it was 2.19 ns; at 1 in 1,000, 6.64; at 1 in 100, 50.79, about 50 times the <code>expected</code> version, which stayed at 0.96 ns at every rate because returning an error is just returning a value. A simple model fits every row: cost per call = success path + failure rate &times; the cost of one throw, about 4,799 ns (derived from the 50% row). So exceptions for rare failures, <code>expected</code> or <code>optional</code> where failure is common.</p>
+<h3>How far the error travels</h3>
+<p>A throw also grows with the number of stack frames it unwinds: the runtime walks each frame's table and runs its destructors. The second sweep makes the error cross 1 to 64 nested calls before it is handled:</p>
+<div class="fig"><h4>A throw pays per frame unwound; an expected pays only the ordinary return</h4>
+<div class="bars" id="ct-depth"></div>
+<p class="cap">Failure path, ns per call, log scale, medians of three runs. The <code>expected</code> version checks and returns the error at every level; its cost is the same as its success path at that depth (the calls themselves). The throw went from 5,760 ns at depth 1 to 50,586 at depth 64: about 712 ns per frame.</p></div>
+<p>On the success path the two styles cost the same at depth: at 64 frames 329.11 against 321.37 ns, set by the 64 calls, not by the error handling. The one check per level that <code>expected</code> adds is noise beside the call it follows.</p>
+<details class="dp"><summary>The benchmarks (throw_cost.cpp, exc_cost.cpp), all three runs, and the C++ page's original measurement reproduced</summary><div>
+<div class="ca-src"><div class="ca-fn">exc_cost.cpp (lines 10 to 27)</div><pre class="ca-code">__attribute__((noinline)) <span class="ca-kw">int</span> f_throw(<span class="ca-kw">int</span> i) &#123; <span class="ca-kw">if</span> (i &lt; 0) <span class="ca-kw">throw</span> std::runtime_error(<span class="ca-st">"neg"</span>); <span class="ca-kw">return</span> i; &#125;
+__attribute__((noinline)) std::expected&lt;<span class="ca-kw">int</span>, <span class="ca-kw">int</span>&gt; f_exp(<span class="ca-kw">int</span> i) &#123; <span class="ca-kw">if</span> (i &lt; 0) <span class="ca-kw">return</span> std::unexpected(1); <span class="ca-kw">return</span> i; &#125;
+
+<span class="ca-cm">// The error crosses `d` frames: each level calls the next; only the top handles it.</span>
+<span class="ca-cm">// The empty asm after each call keeps every frame real (clang would otherwise turn the recursion into a loop).</span>
+__attribute__((noinline)) <span class="ca-kw">int</span> deep_throw(<span class="ca-kw">int</span> d, <span class="ca-kw">int</span> i) &#123;
+    <span class="ca-kw">if</span> (d == 0) <span class="ca-kw">return</span> f_throw(i);
+    <span class="ca-kw">int</span> r = deep_throw(d - 1, i);
+    asm <span class="ca-kw">volatile</span>(<span class="ca-st">""</span>);
+    <span class="ca-kw">return</span> r + 1;
+&#125;
+__attribute__((noinline)) std::expected&lt;<span class="ca-kw">int</span>, <span class="ca-kw">int</span>&gt; deep_exp(<span class="ca-kw">int</span> d, <span class="ca-kw">int</span> i) &#123;
+    <span class="ca-kw">if</span> (d == 0) <span class="ca-kw">return</span> f_exp(i);
+    <span class="ca-kw">auto</span> r = deep_exp(d - 1, i);
+    asm <span class="ca-kw">volatile</span>(<span class="ca-st">""</span>);
+    <span class="ca-kw">if</span> (!r) <span class="ca-kw">return</span> r;            <span class="ca-cm">// every level checks and passes the error up</span>
+    <span class="ca-kw">return</span> *r + 1;
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="t_exc"><span class="ca-cmd">$ clang++ -std=c++23 -O2 exc_cost.cpp -o exc_cost &amp;&amp; for r in 1 2 3; do echo "run $r, load average $(sysctl -n vm.loadavg)"; ./exc_cost; done</span>
+run 1, load average &#123; 11.35 8.63 7.33 &#125;
+1. failure rate (depth 1): ns per call, best of 5
+   failing   exceptions   expected
+   0               1.61       0.96
+   0.0001          2.24       0.95
+   0.001           6.63       0.97
+   0.01           50.79       0.96
+   0.1           488.67       0.99
+   0.5          2448.55       0.99
+2. depth (frames the error crosses): ns per call, best of 5
+   depth      ok:throw  ok:expected   fail:throw fail:expected
+   1              2.45         1.60         5766         1.58
+   4             10.56         6.05         7908         5.56
+   16            25.36        30.82        16391        22.21
+   64           329.11       321.37        50586       321.73
+run 2, load average &#123; 12.14 8.90 7.45 &#125;
+1. failure rate (depth 1): ns per call, best of 5
+   failing   exceptions   expected</pre><details class="ca-more"><summary>show the remaining 27 lines</summary><pre class="ca-out" data-ca-rest="t_exc">   0               1.60       0.96
+   0.0001          2.14       0.96
+   0.001           6.64       0.96
+   0.01           50.46       0.95
+   0.1           483.16       0.96
+   0.5          2395.03       0.96
+2. depth (frames the error crosses): ns per call, best of 5
+   depth      ok:throw  ok:expected   fail:throw fail:expected
+   1              2.45         1.60         5760         1.60
+   4             10.59         5.89         7933         5.64
+   16            24.76        30.47        16451        22.39
+   64           340.54       328.64        51469       328.25
+run 3, load average &#123; 11.20 8.81 7.43 &#125;
+1. failure rate (depth 1): ns per call, best of 5
+   failing   exceptions   expected
+   0               1.65       0.97
+   0.0001          2.19       0.96
+   0.001           6.83       0.96
+   0.01           51.84       0.96
+   0.1           487.28       0.96
+   0.5          2401.33       0.95
+2. depth (frames the error crosses): ns per call, best of 5
+   depth      ok:throw  ok:expected   fail:throw fail:expected
+   1              2.44         1.61         5728         1.58
+   4             10.58         6.26         7922         5.56
+   16            24.93        29.97        16441        22.15
+   64           326.12       320.06        50304       359.46</pre></details>
+<p>The C++ page's measurement rerun today, then as recorded on 2026-10-05 (throw and catch 4766 ns then):</p>
+<div class="ca-src"><div class="ca-fn">throw_cost.cpp (lines 7 to 8)</div><pre class="ca-code">__attribute__((noinline)) <span class="ca-kw">int</span> f_throw(<span class="ca-kw">int</span> i) &#123; <span class="ca-kw">if</span> (i &lt; 0) <span class="ca-kw">throw</span> std::runtime_error(<span class="ca-st">"neg"</span>); <span class="ca-kw">return</span> i; &#125;
+__attribute__((noinline)) std::expected&lt;<span class="ca-kw">int</span>, <span class="ca-kw">int</span>&gt; f_exp(<span class="ca-kw">int</span> i) &#123; <span class="ca-kw">if</span> (i &lt; 0) <span class="ca-kw">return</span> std::unexpected(1); <span class="ca-kw">return</span> i; &#125;</pre></div>
+<pre class="ca-out" data-ca-out="t_throw"><span class="ca-cmd">$ sysctl -n vm.loadavg; clang++ -std=c++23 -O2 throw_cost.cpp -o throw_cost &amp;&amp; ./throw_cost</span>
+&#123; 5.79 7.51 6.89 &#125;
+success path:  exception-style 1.50 ns/call, expected-style 0.97 ns/call
+failure path:  throw+catch 4643 ns/call, expected 0.95 ns/call</pre>
+<pre class="ca-out" data-ca-out="out_2026-10-05/t_throw"><span class="ca-cmd">$ sysctl -n vm.loadavg; clang++ -std=c++23 -O2 throw_cost.cpp -o throw_cost &amp;&amp; ./throw_cost</span>
+&#123; 13.33 8.47 7.38 &#125;
+success path:  exception-style 1.51 ns/call, expected-style 0.98 ns/call
+failure path:  throw+catch 4766 ns/call, expected 0.96 ns/call</pre>
+<p>Not measured here: throwing from several threads at once (some unwinders take a global lock; macOS's libunwind was not tested), and the binary-size cost of the unwind tables.</p>
+</div></details>
+<p>Some codebases (game engines, parts of Google's, many embedded ones) compile with exceptions turned off, and ggml, the C core under llama.cpp, reports errors with return values and assertions, since C has no exceptions. Mark functions that never throw <code>noexcept</code>, above all move constructors and destructors ({{the ownership page|n:4055c17b0d0d81819d74fa010e68ac2a}} shows why a vector needs it), and add <code>[[nodiscard]]</code> to a function returning <code>expected</code>, so ignoring the result is a warning.</p>
+<div class="ca-cost"><div><b>Rule of thumb</b>Exceptional and far away: throw. Expected and handled by the caller: <code>std::expected</code>. "Not found": <code>std::optional</code>.</div><div><b>What it costs</b>Exceptions: about 5.8 µs per throw plus 712 ns per frame, nothing otherwise. <code>expected</code>: a returned value, about 1 ns.</div><div><b>Common mistakes</b>Exceptions as control flow in a hot loop; throwing from a destructor; ignoring an <code>expected</code>.</div></div>
+</section>

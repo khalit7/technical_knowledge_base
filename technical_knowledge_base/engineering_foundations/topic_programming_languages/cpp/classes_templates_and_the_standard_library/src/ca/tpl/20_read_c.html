@@ -1,0 +1,55 @@
+
+<section id="ct-s5">
+<h2>5. Lambdas: a closure is an object you can measure</h2>
+<p>A lambda is an inline function, like Python's <code>lambda</code> but with statements allowed. The square brackets say which outside variables it <b>captures</b> and how: <code>[x]</code> copies x when the lambda is created; <code>[&amp;x]</code> refers to the variable itself; <code>[=]</code> and <code>[&amp;]</code> capture everything used, by copy or by reference.</p>
+[[code:lang/lambdas.cpp:6-10]]
+[[pr:l_lambdas|by_value(50) and by_ref(50) after threshold becomes 100?]]
+<div class="fig"><h4>The compiler writes a class per lambda; its members are the captures</h4>
+<div class="ct-objs">
+<div class="ct-obj"><div class="nm"><code>by_value</code>: [[g:l_lambdas|one int (\d+)]] bytes</div><div class="ct-cells"><div class="ct-cell v">int threshold = 10<small>a copy, taken at creation</small></div></div><div class="ct-arrow">later changes to <code>threshold</code> are not seen: 50 &gt; 10 is true</div></div>
+<div class="ct-obj"><div class="nm"><code>by_ref</code>: [[g:l_lambdas|one reference (\d+)]] bytes</div><div class="ct-cells"><div class="ct-cell h">int&amp; &#8594; threshold<small>the variable's address</small></div></div><div class="ct-arrow">sees 100: 50 &gt; 100 is false; dangles if the lambda outlives <code>threshold</code></div></div>
+<div class="ct-obj"><div class="nm"><code>std::function&lt;bool(int)&gt;</code>: [[g:l_lambdas|sizeof\(std::function\) (\d+)]] bytes</div><div class="ct-cells"><div class="ct-cell">storage for a small callable, or a pointer to a heap copy<small>plus a pointer to its call routine</small></div></div><div class="ct-arrow">holds any callable with that signature, called indirectly</div></div>
+</div>
+<p class="cap">Sizes printed by <code>sizeof</code> (a lambda with no capture: [[g:l_lambdas|no capture (\d+)]] byte). The <code>std::function</code> layout is described, not measured; its 32 bytes are measured.</p></div>
+<p>Python closures always capture variables by reference and keep them alive. A C++ reference capture keeps nothing alive, so a lambda that outlives the function it was made in (returned, stored, or given to a thread) must capture by value; <code>[&amp;]</code> in an escaping lambda is the essentials page's "dangling capture" bug, and capturing <code>this</code> has the same problem with the object. A lambda passed to a template (<code>std::ranges::sort(rows, cmp)</code>) is inlined like any template code: it costs nothing. Stored in a <code>std::function</code>, it pays a type-erased indirect call, and with mixed callables section 2 measured that at [[m:d.std::function, 3 mixed.o]] ns per call; templates and <code>auto</code> parameters avoid it.</p>
+<details class="dp"><summary><code>mutable</code>, generic lambdas, and the rest of lambdas.cpp</summary><div>[[code:lang/lambdas.cpp:12-24]][[out:l_lambdas]]<p><code>mutable</code> lets the lambda change its own copy (the outer <code>calls</code> stays 0); <code>[](auto x)</code> is a generic lambda, a template, so <code>twice</code> works for ints and doubles.</p></div></details>
+</section>
+
+<section id="ct-s6">
+<h2>6. Errors: exceptions against std::expected, measured</h2>
+<p>C++ has three ways to say "this did not work", and real code uses all three:</p>
+<ul>
+<li><b>Exceptions</b> work like Python's: <code>throw</code>, <code>try</code>/<code>catch</code>, unwinding that runs destructors on the way ({{the ownership page|n:4055c17b0d0d81819d74fa010e68ac2a}} replays it). Use them for errors the immediate caller cannot handle: a missing config file, out of memory.</li>
+<li><b><code>std::optional&lt;T&gt;</code></b> (C++17) is "a T or nothing", like returning <code>None</code>, with no reason attached.</li>
+<li><b><code>std::expected&lt;T, E&gt;</code></b> (C++23) is "a T or an error E", like Rust's <code>Result</code>. The caller must look; <code>transform</code> and <code>and_then</code> chain steps that run only on success. Use it for failures that are part of normal operation: parsing user input, a malformed JSONL line.</li>
+</ul>
+[[code:lang/errors.cpp:26-34]]
+[[out:l_errors]]
+<details class="dp"><summary>The same parser written with an exception and with optional (the whole errors.cpp)</summary><div>[[code:lang/errors.cpp:1-25]][[code:lang/errors.cpp:36-51]]</div></details>
+<p>Compilers implement exceptions with tables that are read only when something is thrown ("zero-cost" exceptions, which still cost binary size). So the success path should be almost free and a throw expensive. How expensive, and when does it matter? The benchmark calls one tiny function written both ways, and varies the share of calls that fail.</p>
+<p class="pred"><b>Predict, then drag:</b> at what failure rate does the exception version cost twice the <code>expected</code> version? At what rate ten times?</p>
+<div class="card" id="ct-exc-card">
+<div class="ct-ctl"><label for="ct-exc-r" class="small">Share of calls that fail</label><input type="range" id="ct-exc-r" min="0" max="5" step="1" value="0" aria-label="Share of calls that fail"><b id="ct-exc-rv"></b></div>
+<div class="bars" id="ct-exc-bars"></div>
+<p class="ct-read" id="ct-exc-read"></p>
+<p class="small mute">ns per call, log scale, the median of three runs at each of the six measured rates (the slider has no in-between values). Depth 1: the error is handled by the direct caller. Apple M1 Pro, Apple clang 17, <code>-O2</code>.</p>
+</div>
+<p>The rates tell the rule. With no failures the exception version cost [[m:r.0.t]] ns per call against [[m:r.0.e]] (both functions are out-of-line calls; this benchmark does not explain the 0.6 ns gap). At 1 failure in 10,000 it was [[m:r.0.0001.t]] ns; at 1 in 1,000, [[m:r.0.001.t]]; at 1 in 100, [[m:r.0.01.t]], about 50 times the <code>expected</code> version, which stayed at [[m:r.0.e]] ns at every rate because returning an error is just returning a value. A simple model fits every row: cost per call = success path + failure rate &times; the cost of one throw, about [[m:r.throw]] ns (derived from the 50% row). So exceptions for rare failures, <code>expected</code> or <code>optional</code> where failure is common.</p>
+<h3>How far the error travels</h3>
+<p>A throw also grows with the number of stack frames it unwinds: the runtime walks each frame's table and runs its destructors. The second sweep makes the error cross 1 to 64 nested calls before it is handled:</p>
+<div class="fig"><h4>A throw pays per frame unwound; an expected pays only the ordinary return</h4>
+<div class="bars" id="ct-depth"></div>
+<p class="cap">Failure path, ns per call, log scale, medians of three runs. The <code>expected</code> version checks and returns the error at every level; its cost is the same as its success path at that depth (the calls themselves). The throw went from [[m:x.1.bt]] ns at depth 1 to [[m:x.64.bt]] at depth 64: about [[m:x.perframe]] ns per frame.</p></div>
+<p>On the success path the two styles cost the same at depth: at 64 frames [[m:x.64.ot]] against [[m:x.64.oe]] ns, set by the 64 calls, not by the error handling. The one check per level that <code>expected</code> adds is noise beside the call it follows.</p>
+<details class="dp"><summary>The benchmarks (throw_cost.cpp, exc_cost.cpp), all three runs, and the C++ page's original measurement reproduced</summary><div>
+[[code:lang/exc_cost.cpp:10-27]]
+[[out:t_exc]]
+<p>The C++ page's measurement rerun today, then as recorded on 2026-10-05 (throw and catch 4766 ns then):</p>
+[[code:lang/throw_cost.cpp:7-8]]
+[[out:t_throw]]
+[[out:out_2026-10-05/t_throw]]
+<p>Not measured here: throwing from several threads at once (some unwinders take a global lock; macOS's libunwind was not tested), and the binary-size cost of the unwind tables.</p>
+</div></details>
+<p>Some codebases (game engines, parts of Google's, many embedded ones) compile with exceptions turned off, and ggml, the C core under llama.cpp, reports errors with return values and assertions, since C has no exceptions. Mark functions that never throw <code>noexcept</code>, above all move constructors and destructors ({{the ownership page|n:4055c17b0d0d81819d74fa010e68ac2a}} shows why a vector needs it), and add <code>[[nodiscard]]</code> to a function returning <code>expected</code>, so ignoring the result is a warning.</p>
+<div class="ca-cost"><div><b>Rule of thumb</b>Exceptional and far away: throw. Expected and handled by the caller: <code>std::expected</code>. "Not found": <code>std::optional</code>.</div><div><b>What it costs</b>Exceptions: about [[m:x.us1]] µs per throw plus [[m:x.perframe]] ns per frame, nothing otherwise. <code>expected</code>: a returned value, about 1 ns.</div><div><b>Common mistakes</b>Exceptions as control flow in a hot loop; throwing from a destructor; ignoring an <code>expected</code>.</div></div>
+</section>
