@@ -14,5 +14,5 @@ Owner files: `../parts/33_tab_roof.html` (HTML and CSS scoped under `#t-roof`), 
 - bf16 peak on the M1 is taken equal to fp16 (same ALUs); MLX's bf16 matmul is slower and that is shown in the kernel table.
 - MLX's kernel choice (batch 1 to gemv, batch 2+ to the tiled GEMM on GPU generation < 15) read from `mlx/backend/metal/matmul.cpp` at tag v0.32.3, `Matmul::eval_gpu` and `gemv_wide_config`.
 - No GPU performance counters were read (no Instruments/Metal counters run), so "limited by" is a reading from the roofline, said on the page.
-- M1 Pro CPU roof: medians of the three runs of `roof.cpp` on the C++ page (`engineering_foundations/topic_programming_languages/cpp/src/cb/out/roof_*.txt`), copied into `gen_data.py`.
+- M1 Pro CPU roof: medians of the three runs of `roof.cpp` in C++: the machine underneath, section 9 (`engineering_foundations/topic_programming_languages/cpp/the_machine_underneath/src/cb/out/roof_*.txt`), copied into `gen_data.py`.
 - Vendor specs: all fetched 2026-10-05, URLs in `gen_data.py` and on the page; also in the shared FACTS file of this build. B200 per GPU = HGX B200 8-GPU totals divided by 8, BF16 36 PF read as sparse like the FP8 row.

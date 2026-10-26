@@ -31,7 +31,8 @@ meta = {"date": meta["date"][:10], "mlx": meta["mlx"], "numpy": meta["numpy"], "
         "load_range": [round(min(min(r["meta"]["load_start"][0], r["meta"]["load_end"][0]) for r in runs), 1),
                        round(max(max(r["meta"]["load_start"][0], r["meta"]["load_end"][0]) for r in runs), 1)]}
 
-# M1 Pro CPU, measured on the C++ page (Part 2, roof.cpp, 3 runs; medians of the three)
+# M1 Pro CPU, measured in C++: the machine underneath, section 9 (roof.cpp, 3 runs; medians of the three),
+# from engineering_foundations/topic_programming_languages/cpp/the_machine_underneath/src/cb/out/roof_*.txt
 cpu_runs = {"p8": [562.0, 493.8, 602.8], "bw8": [104.5, 79.6, 106.6], "p1": [97.5, 95.4, 98.7], "bw1": [49.3, 52.8, 45.4],
             "mv8": [51.2, 32.2, 49.8], "mm8": [82.0, 64.1, 101.0]}
 cpu = {k: {"median": statistics.median(v), "min": min(v), "max": max(v)} for k, v in cpu_runs.items()}
@@ -59,7 +60,7 @@ chips = [
   "note": "Measured: peak from the FMA kernel, bandwidth from the stream copy. No tensor cores: fp16 and bf16 run on the same ALUs at the fp32 rate (bf16 taken equal to fp16; MLX's bf16 matmul is slower, see the kernel table). Apple publishes 200 GB/s; 5.308 TFLOP/s fp32 is an independent derivation (16 cores x 128 ALUs x 2 x 1.296 GHz)."},
  {"id": "m1c", "name": "Apple M1 Pro CPU, 8 threads (measured, C++ page)", "kind": "measured", "bw": cpu["bw8"]["median"], "mem_gb": 16,
   "peaks": {"fp32": cpu["p8"]["median"] / 1e3}, "src": "cpp",
-  "note": "From the C++ page, Part 2 (roof.cpp): NEON FMA on 8 threads and a read of a large array; medians of three runs."},
+  "note": "From C++: the machine underneath, section 9 (roof.cpp): NEON FMA on 8 threads and a read of a large array; medians of three runs."},
  {"id": "h100", "name": "NVIDIA H100 SXM", "kind": "vendor", "bw": 3350, "mem_gb": 80,
   "peaks": {"fp32": 67, "tf32": 494.5, "bf16": 989.5, "fp16": 989.5, "fp8": 1979}, "src": S["h100"],
   "note": "Vendor page lists tensor figures with sparsity (1,979 BF16); dense is half."},
