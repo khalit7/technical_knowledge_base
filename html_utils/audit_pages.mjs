@@ -25,16 +25,20 @@ for (const d of dirs) {
       res.tabs.push(await p.evaluate((t) => {
         const root = t ? document.getElementById(t) : document.body;
         if (!root) return { tab: t, missing: true };
+        // MathML: the TeX in <annotation> is never shown, and each symbol is its own text node, so a formula
+        // counts as its visible characters / 6 (one average word plus space), not one word per symbol.
         let core = 0, depth = 0;
         const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         for (let n = w.nextNode(); n; n = w.nextNode()) {
           const el = n.parentElement;
-          if (!el || el.closest('script,style,svg,button,nav,[role=tablist]')) continue;
-          const k = n.textContent.split(/\s+/).filter(Boolean).length;
+          if (!el || el.closest('script,style,svg,button,nav,[role=tablist],annotation,annotation-xml')) continue;
+          const k = el.closest('math') ? n.textContent.replace(/\s+/g, '').length / 6
+            : n.textContent.split(/\s+/).filter(Boolean).length;
           if (!k) continue;
           const det = el.closest('details');
           if (det && !el.closest('summary') && root.contains(det)) depth += k; else core += k;
         }
+        core = Math.round(core); depth = Math.round(depth);
         let vis = 0;
         for (const v of root.querySelectorAll('svg,canvas,img')) {
           if (v.tagName.toLowerCase() === 'svg' && v.parentElement.closest('svg')) continue;
