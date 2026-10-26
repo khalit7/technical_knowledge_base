@@ -30,3 +30,6 @@ Why 26 minutes is right: about 3.5 minutes of the core is the stepped trial's ow
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 305 units: core 248, depth 30, fat 26, owned 1 (MAST's 14 modes, at Multi-agent patterns). 292 were drafted by `ledger.py init` from the old page and keyed by phrase match against the new page, then reviewed by hand; 13 were added by hand for script-drawn figures and new content. Fat units carry a `note`.
+
+## 2026-10-26 ownership sweep
+This page owns the pass^k and pass@k formulas and estimator (Khalid's decision). Absorbed from Agentic benchmarks section 2: the pass@k formula beside pass^k, Codex lineage, unbiased for k <= n, both equal the mean at k = 1.
