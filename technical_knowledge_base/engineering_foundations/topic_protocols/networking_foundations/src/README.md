@@ -45,3 +45,6 @@ Why about 41 minutes is right: the page owns fifteen mechanisms that each explai
 ## Departures from the child-page shape
 - Measurements are on one laptop and one home line (macOS, not Linux); Linux behaviour is taught from kernel source and documentation and labelled. No root access: no packet captures, netem or dummynet.
 - No real images: nothing physical on this page teaches the mechanisms.
+
+## Final sweep (2026-10-26)
+The closed block "The three RDMA fabrics in one paragraph" moved to its owner, Interconnects and scaling (section 4, closed block); section 14 keeps the one-line list of fabrics and links there. Ledger units 341 to 344 are labelled `owned:systems_and_performance/topic_hardware/interconnects_and_scaling`.
