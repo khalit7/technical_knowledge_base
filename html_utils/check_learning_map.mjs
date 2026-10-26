@@ -1,19 +1,22 @@
 // Check the learning map on the home page: builds the site to a scratch folder, serves it, and opens the home page
-// at 920 px light, 920 px with reduced motion, and 390 px dark in headless Chrome.
+// at 920 px light, 920 px dark, 920 px with reduced motion, and 390 px dark in headless Chrome.
 // usage: node html_utils/check_learning_map.mjs <scratch dir> [screenshot dir, default <scratch dir>]
 // Checks, against the graph recomputed here from pages.json:
 //   overview  every topic has one card, in the layer the rule gives (topic A below topic B when at least a third of
 //             A's pages have a page of B in their prerequisite closure; layer = longest chain of such links), layers
-//             stacked top to bottom; card numbers (pages, hours, pages per stage, pages that start without other
-//             topics, the "Some pages also use" list); every strong link drawn as a line from card to card, thickness
+//             stacked top to bottom; card numbers (pages, hours, pages per stage with each pill titled "n pages at
+//             stage k" under stage numbers 1..N, the "Some pages also use" list); every strong link drawn as a line from card to card, thickness
 //             by share, passing through no other card; no weak link visible before a focus; cards and labels fit
 //   focus     hovering (wide) or tapping (narrow) each topic lights exactly it, the topics it builds on and the topics
-//             building on it, shows its weak links dotted and its strong links' labels, and clears on leave
+//             building on it, shows its weak links dotted and its strong links' labels, runs dots along the lines into
+//             it while focused, and clears (dots stopped and removed) on leave
 //   views     every topic view links only to built pages and holds every topic page; it grows in under 700 ms after a
 //             click; "path to" three sample pages lists exactly the closure in a valid order with the right minutes
 //             and topic strip; Step draws the arriving lines before filling the page
-//   manners   no script errors or outside fetches, no sideways scroll, nothing moves before a click, reduced motion
-//             runs no animation and drops Play, phone path rows put topic and minutes under the title
+//   reveal    the one-time load reveal runs, ends within 1.3 s, and leaves exactly the layout that reduced motion shows
+//             at once (boxes, lines, opacities); after it nothing moves before a click; frames saved as screenshots
+//   manners   no script errors or outside fetches, no sideways scroll, reduced motion runs no animation (also none on
+//             load) and drops Play, phone path rows put topic and minutes under the title
 // Ends "learning map: fail=0" when clean.
 import puppeteer from 'puppeteer';
 import { execFileSync } from 'node:child_process';
@@ -123,6 +126,15 @@ const geometry = p => p.evaluate(() => {
   if (sb.x + sb.width > w + 1 || sb.y + sb.height > h + 1 || sb.x < -3) out.push(`drawing outside its svg ${JSON.stringify([sb.x, sb.y, sb.width, sb.height, w, h])}`);
   return out;
 });
+const finalLayout = p => p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t, #lm-ov .lm-se, #lm-ov .lm-bd, #lm-ovcap, #lm-ovl > *')].map(e => {
+  const b = e.getBoundingClientRect(), cs = getComputedStyle(e);
+  return [b.x, b.y, b.width, b.height].map(v => Math.round(v)).join(',') + ':' + (+cs.opacity).toFixed(2) + ':' + cs.transform + ':' + cs.strokeDasharray + ':' + cs.strokeDashoffset }).join('|'));
+const infinite = p => p.evaluate(() => document.getAnimations().filter(a => a.effect && a.effect.getTiming().iterations === Infinity).length);
+// pause every running animation at time t (ms from its start, delays included) for a screenshot, then let them go on
+const freezeAt = (p, t) => p.evaluate(t => document.getAnimations().forEach(a => { a.pause(); a.currentTime = t }), t);
+const resume = p => p.evaluate(() => document.getAnimations().forEach(a => a.play()));
+const finishAll = p => p.evaluate(() => document.getAnimations().forEach(a => { try { a.finish() } catch (e) { a.cancel() } }));
+let finalNormal = null;
 const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|' + document.getAnimations().length + '|' + location.hash);
 const focusSets = p => p.evaluate(() => { const D = JSON.parse(document.getElementById('lm-data').textContent), g = c => [...document.querySelectorAll('#lm .lm-t.' + c)].filter(x => x.getBoundingClientRect().width > 0).map(x => D.T[+x.dataset.k].slug);
   return { foc: document.getElementById('lm').classList.contains('foc'), me: g('me'), up: g('up'), dn: g('dn') } });
@@ -135,9 +147,12 @@ const checkFocus = (s, f, where) => {
 // ---------------- 920 light
 {
   const { p, errs } = await open(920, 'light');
+  if (!(await p.evaluate(() => document.getAnimations().length))) bad('no load reveal');
+  await wait(1300);
+  if (await p.evaluate(() => document.getAnimations().length)) bad('the load reveal still runs 1.3 s after load');
+  finalNormal = await finalLayout(p);
   const s0 = await state(p); await wait(2000); const s1 = await state(p);
-  if (s0 !== s1) bad('the map changed before any click');
-  if (await p.evaluate(() => document.getAnimations().length)) bad('animations running on load');
+  if (s0 !== s1) bad('the map changed before any click (after the reveal)');
   if (await p.$('#lm .cur,#lm .todo,#lm.foc')) bad('something is highlighted on load');
   if (await sideways(p)) bad('920: sideways scroll');
   if (!await p.$eval('#lm-ov', e => e.getBoundingClientRect().width > 0)) bad('920: the topic graph is not shown');
@@ -147,7 +162,8 @@ const checkFocus = (s, f, where) => {
   // cards: one per topic, right layer, right numbers
   const cards = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t')].map(g => { const r = g.querySelector('.lm-box').getBBox();
     return { k: +g.dataset.k, l: +g.dataset.l, y0: r.y, y1: r.y + r.height, x0: r.x, x1: r.x + r.width, text: [...g.querySelectorAll('text')].map(t => t.textContent).join(' '),
-      cells: g.querySelectorAll('.lm-cell').length, cnts: [...g.querySelectorAll('.lm-cell')].map(c => { const t = c.nextElementSibling; return t && t.matches('.lm-cnt') ? +t.textContent : 0 }),
+      cells: g.querySelectorAll('.lm-cell').length, sl: [...g.querySelectorAll('.lm-sl')].map(t => t.textContent).join(' '),
+      tips: [...g.querySelectorAll('.lm-cell')].map(c => (c.querySelector('title') || {}).textContent || ''), cnts: [...g.querySelectorAll('.lm-cell')].map(c => { const t = c.nextElementSibling; return t && t.matches('.lm-cnt') ? +t.textContent : 0 }),
       free: g.dataset.free === '1', wk: [...document.querySelectorAll(`#lm-ov .lm-wkp[data-k="${g.dataset.k}"] .lm-wk`)].map(t => t.textContent).join(''),
       wkResting: g.querySelectorAll('.lm-wk').length } }));
   const seenT = new Set();
@@ -157,8 +173,11 @@ const checkFocus = (s, f, where) => {
     if (seenT.has(s)) bad('two cards for', s); seenT.add(s);
     if (c.l !== layerMemo[s]) bad(`card ${s} in layer ${c.l + 1}, the rule gives ${layerMemo[s] + 1}`);
     if (!c.text.includes(`${w.n} pages, ${(w.m / 60).toFixed(1)} h`)) bad(`card ${s}: want "${w.n} pages, ${(w.m / 60).toFixed(1)} h" in "${c.text}"`);
-    if (!c.text.includes(`${w.alone} of ${w.n} pages need no other topic`)) bad(`card ${s}: want ${w.alone} of ${w.n} pages need no other topic`);
+    if (c.text.includes('need no other topic')) bad(`card ${s}: still shows the "need no other topic" line`);
     if (c.cells !== nst || c.cnts.join() !== w.st.join()) bad(`card ${s}: strip ${c.cnts} want ${w.st}`);
+    if (c.sl !== [...Array(nst).keys()].map(g => g + 1).join(' ')) bad(`card ${s}: stage labels "${c.sl}"`);
+    const wantTips = w.st.map((n, g) => `${n} page${n !== 1 ? 's' : ''} at stage ${g + 1}`);
+    if (c.tips.join('|') !== wantTips.join('|')) bad(`card ${s}: pill titles ${c.tips} want ${wantTips}`);
     const wu = weakUses(s).map(x => NAME[x]);
     if (wu.some(x => !c.wk.includes(x)) || (!wu.length && c.wk)) bad(`card ${s}: "Some pages also use" shows "${c.wk}", want ${wu}`);
     if (c.wkResting) bad(`card ${s}: the "also use" list sits on the resting card`);
@@ -204,6 +223,7 @@ const checkFocus = (s, f, where) => {
     checkFocus(s, await focusSets(p), 'hover');
   }
   const fk = S.indexOf('inference_and_serving') >= 0 ? S.indexOf('inference_and_serving') : cards[0].k;
+  await p.mouse.move(5, 5); await wait(40);
   await p.hover(`#lm-ov .lm-t[data-k="${fk}"] .lm-box`); await wait(300);
   const fv = await p.evaluate(k => { const on = s => [...document.querySelectorAll(s)].map(e => [+e.dataset.a, +e.dataset.b, +getComputedStyle(e).opacity]);
     return { we: on('#lm-ov .lm-we'), el: on('#lm-ov .lm-el'), dim: [...document.querySelectorAll('#lm-ov .lm-t')].map(g => [+g.dataset.k, +getComputedStyle(g).opacity]),
@@ -214,9 +234,15 @@ const checkFocus = (s, f, where) => {
   fv.el.forEach(([a, bb, op]) => { const inc = a === fk || bb === fk; if (inc !== op > 0.5) bad('focus: line label', S[a], S[bb], op) });
   const lit = new Set([S[fk], ...upOf(S[fk]), ...dnOf(S[fk])]);
   fv.dim.forEach(([k, op]) => { if (lit.has(S[k]) !== op > 0.5) bad('focus: card opacity', S[k], op) });
+  const nIn = [...strong.keys()].filter(k => k.endsWith('>' + S[fk])).length;
+  await wait(500);
+  const dots = await p.$$eval('#lm-ov .lm-dot', ds => ds.length), inf = await infinite(p);
+  if (nIn && (!dots || !inf)) bad('focus: no dots run along the lines into', S[fk], dots, inf);
+  if (!nIn && dots) bad('focus: dots without incoming lines', S[fk]);
   await shot(p, 'lm_920_light_focus.png');
   await p.mouse.move(5, 5); await wait(40);
   if (await p.$('#lm.foc')) bad('focus stays after the pointer leaves');
+  if (await infinite(p) || await p.$('#lm-ov .lm-dot')) bad('focus dots keep running after blur');
   await wait(300);
   await shot(p, 'lm_920_light_overview.png');
   // every topic view: grows after the click and settles in time, links exist, every topic page appears, geometry
@@ -299,9 +325,38 @@ const checkFocus = (s, f, where) => {
   await p.close();
 }
 
+// ---------------- 920 light and dark: frames of the load reveal, focus with its dots, a topic view, a path mid-step
+for (const scheme of ['light', 'dark']) {
+  const { p, errs } = await open(920, scheme);
+  for (const t of [120, 330, 560, 800]) { await freezeAt(p, t); await shot(p, `lm_920_${scheme}_reveal_${t}.png`) }
+  await finishAll(p); await wait(50);
+  if (scheme === 'dark') await shot(p, 'lm_920_dark_overview.png');
+  const S = await slugs(p), fk = S.indexOf('inference_and_serving') >= 0 ? S.indexOf('inference_and_serving') : 0;
+  await p.hover(`#lm-ov .lm-t[data-k="${fk}"] .lm-box`); await wait(1000);
+  await shot(p, `lm_920_${scheme}_focus_mid.png`);
+  await p.mouse.move(5, 5); await wait(300);
+  await p.click(`#lm-ov .lm-t[data-k="${fk}"] .lm-box`); await wait(40);
+  await freezeAt(p, 200); await shot(p, `lm_920_${scheme}_topic_grow.png`); await finishAll(p); await wait(60);
+  if (scheme === 'dark') await shot(p, 'lm_920_dark_topic.png');
+  const t = topicPages.find(x => x.path.endsWith('/xai_spacexai_grok')) || topicPages.find(x => closure(x).size > 2);
+  await p.evaluate(id => { location.hash = 'path=' + id }, t.id.replace(/-/g, '')); await wait(150);
+  await p.click('#lm-next'); await wait(450); await p.click('#lm-next'); await wait(450); await p.click('#lm-next'); await wait(20);
+  await freezeAt(p, 150); await shot(p, `lm_920_${scheme}_path_midstep.png`); await finishAll(p);
+  errs.forEach(e => bad(`920 ${scheme} error:`, e));
+  await p.close();
+}
+
 // ---------------- 920 with reduced motion: no animation anywhere, Play dropped
 {
   const { p, errs } = await open(920, 'light', true);
+  if (await p.evaluate(() => document.getAnimations().length)) bad('reduced motion: something animates on load');
+  await wait(300);
+  if (await p.evaluate(() => document.getAnimations().length)) bad('reduced motion: something animates after load');
+  const fr = await finalLayout(p);
+  if (fr !== finalNormal) { const a = fr.split('|'), c = (finalNormal || '').split('|'); const i = a.findIndex((x, j) => x !== c[j]); bad('the load reveal does not end in the reduced-motion layout, first difference at', i, a[i], 'vs', c[i]) }
+  await p.hover(`#lm-ov .lm-t .lm-box`); await wait(100);
+  if (await p.$('#lm-ov .lm-dot') || await infinite(p)) bad('reduced motion: focus runs dots');
+  await p.mouse.move(5, 5);
   const S = await slugs(p);
   await p.click(`#lm-ov .lm-t[data-k="${S.indexOf('cuda_and_gpu_programming') >= 0 ? S.indexOf('cuda_and_gpu_programming') : 0}"] .lm-box`); await wait(60);
   if (!(await p.$('#lm-view .lm-n'))) bad('reduced motion: the topic did not open');
@@ -319,6 +374,9 @@ const checkFocus = (s, f, where) => {
 // ---------------- 390 dark
 {
   const { p, errs } = await open(390, 'dark');
+  await freezeAt(p, 150); await shot(p, 'lm_390_dark_reveal_150.png'); await resume(p);
+  await wait(1300);
+  if (await p.evaluate(() => document.getAnimations().length)) bad('390: the load reveal still runs after 1.3 s');
   const s0 = await state(p); await wait(1500);
   if (s0 !== await state(p)) bad('390: the map changed before any click');
   if (await sideways(p)) bad('390: sideways scroll');
@@ -329,7 +387,8 @@ const checkFocus = (s, f, where) => {
   // cards: one per topic, under its layer's heading, with "Builds on" naming exactly its strong links
   const nc = await p.evaluate(() => [...document.querySelectorAll('#lm-ovl .lm-c')].map(c => ({ k: +c.dataset.k, head: (c.parentElement.previousElementSibling.matches('p') ? c.parentElement.previousElementSibling.previousElementSibling : c.parentElement.previousElementSibling).textContent,
     cwShown: (c.querySelector('.lm-cw') || { offsetParent: null }).offsetParent !== null,
-    cb: (c.querySelector('.lm-cb') || {}).textContent || '', w: c.getBoundingClientRect().width, over: c.scrollWidth > c.clientWidth + 1 })));
+    cb: (c.querySelector('.lm-cb') || {}).textContent || '', sl: [...c.querySelectorAll('.lm-strip em')].map(e => e.textContent).join(' '),
+    cnt: [...c.querySelectorAll('.lm-strip i')].map(e => +e.textContent || 0).join(), tx: c.textContent, w: c.getBoundingClientRect().width, over: c.scrollWidth > c.clientWidth + 1 })));
   const seenN = new Set();
   for (const c of nc) {
     const s = S[c.k]; seenN.add(s);
@@ -339,6 +398,8 @@ const checkFocus = (s, f, where) => {
     if (want.length !== (c.cb.match(/ of /g) || []).length) bad(`390: ${s} builds on "${c.cb}", want ${want}`);
     want.forEach(k => { const [bb] = k.split('>'); if (!c.cb.includes(`(${strong.get(k)} of ${TP[s].n} pages)`)) bad(`390: ${s} builds on text lacks ${bb}`) });
     if (c.over) bad('390: card content wider than its card', s);
+    if (c.sl !== [...Array(nst).keys()].map(g => g + 1).join(' ') || c.cnt !== TP[s].st.join()) bad(`390: ${s} strip labels "${c.sl}" counts ${c.cnt} want ${TP[s].st}`);
+    if (c.tx.includes('need no other topic')) bad(`390: ${s} still shows "need no other topic"`);
     if (c.cwShown) bad('390: "also use" list shown on a resting card', s);
   }
   if (seenN.size !== Object.keys(TP).length || nc.length !== seenN.size) bad('390: cards', nc.length, 'topics', Object.keys(TP).length);

@@ -15,14 +15,19 @@ Layout (all at build time, no runtime layout library):
                 build on B (a page of B is in the page's prerequisite closure); layer = longest chain over these
                 strong links (topics that mostly build on each other would share a layer). Strong links are solid
                 lines, thicker by share of pages; weaker ones (some pages, under STRONG) show dotted only when a topic
-                is focused and are listed on its card. Each card: pages, hours, pages per stage, pages that start
-                without other topics. Topics with no strong link sit in rows above the linked row of their layer.
+                is focused and are listed on its card. Each card: pages, hours, and pages per stage as pills under
+                stage numbers 1..N (each titled "n pages at stage k"). Topics with no strong link sit in rows above the linked row of their layer.
                 Below 900 px the same layers are rows of HTML cards with "Builds on" text.
   topic and path views: pages in columns by stage;
   order       = barycenter sweeps over layers with dummy nodes for long edges, keeping the order with fewest crossings
   y           = repeated least-squares pulls toward neighbours under order and spacing constraints (isotonic fit)
 The overview is an inline SVG (plus HTML cards for narrow screens); topic views and "path to" views are a small JSON of coordinates that the page's
 script draws (it never computes a layout).
+Motion (CSS transforms, opacity and stroke-dashoffset through the Web Animations API, no library; all skipped under
+prefers-reduced-motion): a one-time load reveal (layers rise top to bottom, strong lines draw upper to lower, then the
+start-anytime band; about 1 s, finished at once by any input), focus (lines into the topic draw, dots run along them
+from the topics it builds on until blur), opening a topic (the card's outline grows into the view, pages appear stage by
+stage) and path Step (arriving lines draw with a dot running into the page, then it fills).
 """
 import html, json, re, sys
 from collections import defaultdict
@@ -608,7 +613,19 @@ def path_view(P, t, clo):
 FREE_HEAD = "Start anytime: no other topic is mostly needed"
 FREE_NOTE = "Their weaker links show dotted when you focus one."
 STRONG = 1 / 3     # topic A is placed after topic B when at least this share of A's pages build on B's pages
-CW_MIN, CW_MAX, CW_FREE, CG, GUT = 140, 205, 150, 14, 26   # card widths (min, max, start-anytime grid), gap, gutter for layer names
+CW_MIN, CW_MAX, CW_FREE, CG, GUT = 140, 205, 150, 16, 26   # card widths (min, max, start-anytime grid), gap, gutter for layer names
+RX, SH = 10, 14    # card corner radius, height of the stage pills
+
+
+def accent(x, y, h, rx=RX, w=3):
+    """the section colour as a thin strip along the card's left edge, following its rounded corners"""
+    dy = rx - (rx * rx - (rx - w) ** 2) ** 0.5
+    return (f'<path class="lm-bar" d="M{x + w:.1f} {y + dy:.1f}A{rx} {rx} 0 0 0 {x:.1f} {y + rx:.1f}V{y + h - rx:.1f}'
+            f'A{rx} {rx} 0 0 0 {x + w:.1f} {y + h - dy:.1f}Z"/>')
+
+
+DEFS = ('<filter id="lm-sh" x="-10%" y="-12%" width="120%" height="136%"><feDropShadow class="lm-fs" dx="0" dy="1" stdDeviation="1.6"/></filter>'
+        '<filter id="lm-sh2" x="-14%" y="-16%" width="128%" height="148%"><feDropShadow class="lm-fs2" dx="0" dy="3" stdDeviation="4"/></filter>')
 
 
 def topic_links(P, T):
@@ -731,12 +748,10 @@ def overview(P, T):
     for k, t in enumerate(T):
         n = len(t["p"])
         tw = width[k] - TX - 8
-        tl = wrap(t["n"], tw, 13, True, 2)
-        al = wrap(f"{alone[k]} of {n} pages need no other topic", tw, 11, maxlines=3)
+        tl = wrap(t["n"], tw, 13.5, True, 2)
         wk = wrap("Some pages also use: " + names(t["wu"]), tw, 11, maxlines=6) if t["wu"] else []
-        h = 8 + 16 * len(tl) + 16 + 7 + 16 + 4 + 14 * len(al) + 8
-        card[k] = {"tl": tl, "al": al, "wk": wk, "h": h}
-    cell = min(20, (CW_MIN - TX - 8 + 3) / nst - 3)
+        h = 11 + 16 * len(tl) + 16 + 5 + 11 + SH + 12
+        card[k] = {"tl": tl, "wk": wk, "h": h}
 
     xs, dpts = {}, {}
     if lk:
@@ -820,12 +835,13 @@ def overview(P, T):
             else:
                 head = f"L{l + 1}"
             my = (a + b) / 2
-            o.append(f'<rect class="lm-band{l % 2}" x="0" y="{a}" width="{W}" height="{b - a}" rx="8"/>'
-                     f'<text class="lm-lh" x="17" y="{my:.0f}" text-anchor="middle" transform="rotate(-90 17 {my:.0f})">{head}</text>')
+            o.append(f'<g class="lm-bd" data-l="{l}"><rect class="lm-band" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="12"/>'
+                     f'<text class="lm-lh" x="16" y="{my:.0f}" text-anchor="middle" transform="rotate(-90 16 {my:.0f})">{head}</text></g>')
         else:
-            o.append(f'<rect class="lm-bandf" x="0" y="{a}" width="{W}" height="{b - a}" rx="8"/>'
+            o.append(f'<g class="lm-bd" data-l="f"><rect class="lm-bandf" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="12"/>'
                      f'<text class="lm-lh" x="{GUT}" y="{a + 19}">{FREE_HEAD} ({len(free)} topics).</text>'
-                     f'<text class="lm-lh2" x="{GUT + text_w(FREE_HEAD + f" ({len(free)} topics).", 12, True) + 8:.0f}" y="{a + 19}">{FREE_NOTE}</text>')
+                     f'<text class="lm-lh2" x="{GUT + text_w(FREE_HEAD + f" ({len(free)} topics).", 12, True) + 8:.0f}" y="{a + 19}">{FREE_NOTE}</text></g>')
+    grads = []
     o.append('<g class="lm-es">')
     labels = []
     for e in sorted(E, key=lambda e: -strong[e]):
@@ -841,11 +857,14 @@ def overview(P, T):
         d += vcurve(x0, y0, x1, y1)
         wpx = 1 + 6.5 * c / n
         tip = f"{T[a]['n']}: {c} of {n} pages build on {T[b]['n']}"
-        o.append(f'<path class="lm-se" data-a="{b}" data-b="{a}" d="{d}" stroke-width="{wpx:.1f}"><title>{html.escape(tip)}</title></path>')
+        gx0, gy0 = sx[e], box[b][1] + box[b][3]
+        grads.append(f'<linearGradient id="lm-g{b}-{a}" gradientUnits="userSpaceOnUse" x1="{gx0:.0f}" y1="{gy0:.0f}" x2="{x1:.0f}" y2="{y1:.0f}">'
+                     f'<stop offset="0" class="lm-st s{T[b]["s"]}"/><stop offset="1" class="lm-st s{T[a]["s"]}"/></linearGradient>')
+        o.append(f'<path class="lm-se" data-a="{b}" data-b="{a}" d="{d}" stroke="url(#lm-g{b}-{a})" stroke-width="{wpx:.1f}"><title>{html.escape(tip)}</title></path>')
         lx, ly = (x0 + x1) / 2, (y0 + y1) / 2
         lt = f"{c} of {n} pages"
-        lw = text_w(lt, 11) + 10
-        labels.append(f'<g class="lm-el" data-a="{b}" data-b="{a}"><rect x="{lx - lw / 2:.0f}" y="{ly - 9:.0f}" width="{lw:.0f}" height="17" rx="8"/>'
+        lw = text_w(lt, 11) + 14
+        labels.append(f'<g class="lm-el" data-a="{b}" data-b="{a}"><rect x="{lx - lw / 2:.0f}" y="{ly - 10:.0f}" width="{lw:.0f}" height="20" rx="10"/>'
                       f'<text x="{lx:.0f}" y="{ly + 4:.0f}" text-anchor="middle">{lt}</text></g>')
     o.append('</g><g class="lm-ws">')
     for e in sorted(weak, key=lambda e: -weak[e]):
@@ -859,20 +878,27 @@ def overview(P, T):
             d = f"M{cx(b):.0f} {yb:.0f}C{cx(b):.0f} {yb - 44:.0f} {cx(a):.0f} {ya - 44:.0f} {cx(a):.0f} {ya - 2:.0f}"
         tip = f"{T[a]['n']}: {weak[e]} of {len(T[a]['p'])} pages build on {T[b]['n']}"
         o.append(f'<path class="lm-we" data-a="{b}" data-b="{a}" d="{d}" marker-end="url(#lm-ar2)"><title>{html.escape(tip)}</title></path>')
-    o.append('</g>')
+    o.append('</g><g class="lm-dots"></g>')
+    o[1] = '<defs>' + DEFS + "".join(grads) + o[1][len('<defs>'):]
 
     def strip_svg(k, x, y):
-        s = ""
+        """stage numbers on a tiny row, then one pill per stage with its page count"""
+        s, cell = "", min(30, (width[k] - TX - 12 + 4) / nst - 4)
         for g, c in enumerate(T[k]["st"]):
-            cx0 = x + g * (cell + 3)
-            s += f'<rect class="lm-cell{" z" if not c else ""}" x="{cx0:.1f}" y="{y}" width="{cell:.1f}" height="16" rx="3"/>'
+            cx0 = x + g * (cell + 4)
+            s += f'<text class="lm-sl" x="{cx0 + cell / 2:.1f}" y="{y + 8}" text-anchor="middle">{g + 1}</text>'
+        y += 11
+        for g, c in enumerate(T[k]["st"]):
+            cx0 = x + g * (cell + 4)
+            tip = f"{c} page{'s' if c != 1 else ''} at stage {g + 1}"
+            s += f'<rect class="lm-cell{" z" if not c else ""}" x="{cx0:.1f}" y="{y}" width="{cell:.1f}" height="{SH}" rx="{SH / 2:.0f}"><title>{tip}</title></rect>'
             if c:
-                s += f'<text class="lm-cnt" x="{cx0 + cell / 2:.1f}" y="{y + 12}" text-anchor="middle">{c}</text>'
+                s += f'<text class="lm-cnt" x="{cx0 + cell / 2:.1f}" y="{y + 10.5}" text-anchor="middle">{c}</text>'
         return s
 
     def tip_of(k):
         t = T[k]
-        s = f'{t["n"]}: {len(t["p"])} pages, {t["m"]} min core reading; {t["al"]} of {len(t["p"])} pages need no other topic.'
+        s = f'{t["n"]}: {len(t["p"])} pages, {t["m"]} min core reading; pages per stage ' + ", ".join(str(c) for c in t["st"]) + f'; {t["al"]} of {len(t["p"])} pages build only on pages of this topic.'
         if t["su"]:
             s += " Builds on " + ", ".join(f'{T[b]["n"]} ({strong[(b, k)]} of {len(t["p"])} pages)' for b in t["su"]) + "."
         if t["wu"]:
@@ -885,24 +911,19 @@ def overview(P, T):
         meta = f'{len(t["p"])} pages, {t["m"] / 60:.1f} h'
         s = (f'<g class="lm-t s{t["s"]}" data-t="{k}" data-k="{k}" data-l="{lay[k]}" data-free="{0 if k in linked else 1}" role="button" tabindex="0" '
              f'aria-label="Open {html.escape(t["n"])}: {meta}"><title>{html.escape(tip_of(k))}</title>'
-             f'<rect class="lm-box" x="{x:.1f}" y="{y}" width="{w}" height="{h}" rx="7"/>'
-             f'<rect class="lm-bar" x="{x:.1f}" y="{y}" width="5" height="{h}" rx="2"/>')
-        yy = y + 8
+             f'<rect class="lm-box" x="{x:.1f}" y="{y}" width="{w:.1f}" height="{h}" rx="{RX}"/>' + accent(x, y, h))
+        yy = y + 11
         for ln in c["tl"]:
+            s += f'<text class="lm-tl" x="{x + TX:.1f}" y="{yy + 12}">{html.escape(ln)}</text>'
             yy += 16
-            s += f'<text class="lm-tl" x="{x + TX:.1f}" y="{yy - 3}">{html.escape(ln)}</text>'
-        yy += 16
-        s += f'<text class="lm-m" x="{x + TX:.1f}" y="{yy - 3}">{meta}</text>'
-        yy += 7
+        s += (f'<text class="lm-m" x="{x + TX:.1f}" y="{yy + 12}"><tspan class="lm-pn">{len(t["p"])}</tspan> pages, '
+              f'<tspan class="lm-hr">{t["m"] / 60:.1f} h</tspan></text>')
+        yy += 16 + 5
         s += strip_svg(k, x + TX, yy)
-        yy += 16 + 4
-        for ln in c["al"]:
-            yy += 14
-            s += f'<text class="lm-al" x="{x + TX:.1f}" y="{yy - 3}">{html.escape(ln)}</text>'
         o.append(s + '</g>')
     o.append('<g class="lm-els">' + "".join(labels) + '</g>')
     for k, (x, py, w, ph) in panel.items():
-        s = f'<g class="lm-wkp" data-k="{k}"><rect x="{x:.1f}" y="{py:.0f}" width="{w:.1f}" height="{ph}" rx="6"/>'
+        s = f'<g class="lm-wkp" data-k="{k}"><rect x="{x:.1f}" y="{py:.0f}" width="{w:.1f}" height="{ph}" rx="8"/>'
         for j, ln in enumerate(card[k]["wk"]):
             s += f'<text class="lm-wk" x="{x + TX:.1f}" y="{py + 17 + 14 * j:.0f}">{html.escape(ln)}</text>'
         o.append(s + '</g>')
@@ -916,11 +937,11 @@ def overview(P, T):
         for k in ks:
             t = T[k]
             n = len(t["p"])
-            st = "".join(f'<i class="{"z" if not c else ""}">{c or ""}</i>' for c in t["st"])
+            st = "".join(f'<span title="{c} page{"s" if c != 1 else ""} at stage {g + 1}"><em>{g + 1}</em><i class="{"z" if not c else ""}">{c or ""}</i></span>'
+                         for g, c in enumerate(t["st"]))
             q.append(f'<div class="lm-c lm-t s{t["s"]}" data-k="{k}" role="button" tabindex="0" aria-label="{html.escape(t["n"])}: show what it builds on">'
                      f'<b>{html.escape(t["n"])}</b><span class="lm-cm">{n} pages, {t["m"] / 60:.1f} h</span>'
-                     f'<span class="lm-strip" title="pages in stages 1 to {nst}">{st}</span>'
-                     f'<span class="lm-ca">{t["al"]} of {n} pages need no other topic</span>'
+                     f'<span class="lm-strip">{st}</span>'
                      + (f'<span class="lm-cb">Builds on: ' + ", ".join(f'{html.escape(T[b]["n"])} ({strong[(b, k)]} of {n} pages)' for b in t["su"]) + '</span>' if t["su"] else '')
                      + (f'<span class="lm-cw">Some pages also use: {html.escape(names(t["wu"]))}</span>' if t["wu"] else '')
                      + f'<button class="lm-btn lm-open" data-t="{k}">Open its pages</button></div>')
@@ -933,78 +954,92 @@ def overview(P, T):
 
 # ---------------------------------------------------------------- HTML
 CSS = """
-.lm{margin:18px 0 8px;--s0:#2f6fb5;--s1:#b8602a;--s2:#2b8a57;--s3:#8a4fb8;--s4:#1f8585;--card:#fff;--hl:#d99a00;--card2:#f6f6f4;--band:#f8f8f6}
-@media (prefers-color-scheme:dark){.lm{--s0:#6ea8e6;--s1:#e3925c;--s2:#5cc48d;--s3:#b98ce3;--s4:#4fc1c1;--card:#202020;--hl:#f2c14e;--card2:#262626;--band:#1e1e1e}}
-.lm h2{margin:0 0 2px}.lm .lm-sub{color:var(--mute);margin:0 0 10px;font-size:14px}
-.lm-bar0{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:0 0 10px}
+.lm{position:relative;margin:24px 0 8px;--s0:#2f6fb5;--s1:#b8602a;--s2:#2b8a57;--s3:#8a4fb8;--s4:#1f8585;--card:#fff;--hl:#d99a00;--card2:#f7f7f5;
+ --cardln:rgba(31,35,40,.10);--cardln2:rgba(31,35,40,.18);--shc:#1f2328;--sho:.09;--sho2:.16;--band:rgba(31,35,40,.028);--pill0:rgba(31,35,40,.05);--edge:.5}
+@media (prefers-color-scheme:dark){.lm{--s0:#6ea8e6;--s1:#e3925c;--s2:#5cc48d;--s3:#b98ce3;--s4:#4fc1c1;--card:#232323;--hl:#f2c14e;--card2:#262626;
+ --cardln:rgba(255,255,255,.08);--cardln2:rgba(255,255,255,.16);--shc:#000;--sho:.5;--sho2:.7;--band:rgba(255,255,255,.025);--pill0:rgba(255,255,255,.06);--edge:.55}}
+.lm h2{margin:0 0 4px;letter-spacing:-.01em}.lm .lm-sub{color:var(--mute);margin:0 0 16px;font-size:14px}
+.lm-bar0{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:0 0 12px}
 .lm-qw{position:relative;flex:1 1 260px;max-width:420px}
-.lm-qw input{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
-.lm-sug{position:absolute;z-index:5;left:0;right:0;top:100%;margin:2px 0 0;padding:4px 0;list-style:none;background:var(--bg);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
-.lm-sug li{margin:0}.lm-sug button{display:block;width:100%;text-align:left;font:inherit;font-size:13.5px;padding:5px 10px;border:0;background:none;color:var(--ink);cursor:pointer}
+.lm-qw input{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:8px 12px;border:1px solid var(--cardln2);border-radius:10px;background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.lm-qw input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 20%,transparent)}
+.lm-sug{position:absolute;z-index:5;left:0;right:0;top:100%;margin:4px 0 0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--cardln);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.lm-sug li{margin:0}.lm-sug button{display:block;width:100%;text-align:left;font:inherit;font-size:13.5px;padding:6px 10px;border:0;border-radius:6px;background:none;color:var(--ink);cursor:pointer}
 .lm-sug button:hover,.lm-sug button.on{background:var(--card2)}
-.lm button.lm-btn{font:inherit;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);cursor:pointer}
+.lm button.lm-btn{font:inherit;font-size:13px;padding:5px 12px;border:1px solid var(--cardln2);border-radius:8px;background:var(--card);color:var(--ink);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05);transition:border-color .15s,background .15s}
 .lm button.lm-btn:hover{border-color:var(--acc)}.lm button.lm-btn:disabled{opacity:.45;cursor:default}
-.lm-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--mute);margin:0 0 8px}
-.lm-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
-.lm-head{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;margin:0 0 6px}.lm-head b{font-size:15.5px}.lm-head span{color:var(--mute);font-size:13.5px}
+.lm-leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute);margin:0 0 12px}
+.lm-leg i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.lm-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;margin:0 0 8px}.lm-head b{font-size:15.5px}.lm-head span{color:var(--mute);font-size:13.5px}
 .lm-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
-.lm-svg{display:block;font-family:inherit}
-.lm-col{font-size:11.5px;fill:var(--mute);font-weight:600;letter-spacing:.02em}
-.lm-e{fill:none;stroke:var(--mute);stroke-opacity:.5}.lm-arh{fill:var(--mute)}
-.lm-e.on{stroke:var(--ink);stroke-opacity:.95;stroke-width:2}.lm-e.off{stroke-opacity:.12}.lm-e.drw{marker-end:none}
-.lm-box{fill:var(--card);stroke:var(--sc);stroke-width:1.3}.lm-bar{fill:var(--sc)}
+.lm-svg{display:block;font-family:inherit;font-variant-numeric:tabular-nums;overflow:visible}
+.lm-fs{flood-color:var(--shc);flood-opacity:var(--sho)}.lm-fs2{flood-color:var(--shc);flood-opacity:var(--sho2)}
+.lm-st{stop-color:var(--sc)}
+.lm-col{font-size:11px;fill:var(--mute);font-weight:600;letter-spacing:.06em}
+.lm-e{fill:none;stroke:var(--mute);stroke-opacity:.45;stroke-linecap:round}.lm-arh{fill:var(--mute)}
+.lm-e.on{stroke:var(--hl);stroke-opacity:1;stroke-width:2.2}.lm-e.off{stroke-opacity:.1}.lm-e.drw{marker-end:none}
+.lm-box{fill:var(--card);stroke:var(--cardln);stroke-width:1;filter:url(#lm-sh);transition:stroke .15s,fill .25s}.lm-bar{fill:var(--sc)}
 .s0{--sc:var(--s0)}.s1{--sc:var(--s1)}.s2{--sc:var(--s2)}.s3{--sc:var(--s3)}.s4{--sc:var(--s4)}
-.lm-tl{font-size:13px;fill:var(--ink);font-weight:600}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11.5px;fill:var(--mute)}
-.lm-t,.lm-pb{cursor:pointer}.lm-t:hover .lm-box,.lm-t:focus .lm-box{stroke-width:2.6}.lm-t:focus{outline:none}
-.lm-band0{fill:var(--band)}.lm-band1{fill:none}.lm-bandf{fill:none;stroke:var(--line);stroke-dasharray:5 4}.lm-lh2{font-size:12px;fill:var(--mute)}
-.lm-lh{font-size:12px;font-weight:600;fill:var(--mute);letter-spacing:.02em;paint-order:stroke;stroke:var(--bg);stroke-width:4px}
-.lm-cell{fill:var(--sc);fill-opacity:.18;stroke:var(--sc);stroke-width:1}.lm-cell.z{fill:none;stroke:var(--line)}
-.lm-cnt{font-size:11px;font-weight:600;fill:var(--ink)}
-.lm-al{font-size:11px;fill:var(--ink)}.lm-wk{font-size:11px;fill:var(--mute)}
-.lm-se{fill:none;stroke:var(--mute);stroke-opacity:.55;transition:stroke-opacity .15s}
-.lm-we{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-dasharray:2 4;stroke-linecap:round;opacity:0;pointer-events:none;transition:opacity .15s}
-.lm-wkp{opacity:0;pointer-events:none;transition:opacity .15s}.lm-wkp rect{fill:var(--card);stroke:var(--line)}.lm.foc .lm-wkp.on{opacity:1}
-.lm-el{opacity:0;pointer-events:none;transition:opacity .15s}.lm-el rect{fill:var(--bg);stroke:var(--line)}.lm-el text{font-size:11px;fill:var(--ink);font-weight:600}
-#lm-ov .lm-t{transition:opacity .15s}
-.lm.foc #lm-ov .lm-t,.lm.foc .lm-c{opacity:.22}
+.lm-tl{font-size:13.5px;fill:var(--ink);font-weight:600;letter-spacing:-.005em}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11.5px;fill:var(--mute)}
+.lm-pn{fill:var(--ink);font-weight:600}.lm-hr{fill-opacity:.8}
+.lm-t,.lm-pb{cursor:pointer}.lm-t:hover .lm-box,.lm-t:focus-visible .lm-box{stroke:var(--sc);filter:url(#lm-sh2)}.lm-t:focus{outline:none}
+.lm-band{fill:var(--band)}.lm-bandf{fill:none;stroke:var(--cardln2);stroke-dasharray:3 5;stroke-linecap:round}.lm-lh2{font-size:12px;fill:var(--mute)}
+.lm-lh{font-size:11px;font-weight:600;fill:var(--mute);letter-spacing:.06em}
+.lm-sl{font-size:9px;fill:var(--mute);fill-opacity:.8;font-weight:500}
+.lm-cell{fill:var(--sc);fill-opacity:.15}.lm-cell.z{fill:var(--pill0);fill-opacity:1}
+.lm-cnt{font-size:11px;font-weight:650;fill:var(--sc);pointer-events:none}
+.lm-wk{font-size:11px;fill:var(--mute)}
+.lm-se{fill:none;stroke-linecap:round;stroke-opacity:var(--edge);transition:stroke-opacity .2s}
+.lm-we{fill:none;stroke:var(--mute);stroke-width:1.6;stroke-dasharray:1 5;stroke-linecap:round;opacity:0;pointer-events:none;transition:opacity .25s}
+.lm-wkp{opacity:0;pointer-events:none;transition:opacity .2s}.lm-wkp rect{fill:var(--card);stroke:var(--cardln);filter:url(#lm-sh2)}.lm.foc .lm-wkp.on{opacity:1}
+.lm-el{opacity:0;pointer-events:none;transition:opacity .2s}.lm-el rect{fill:var(--card);stroke:var(--cardln);filter:url(#lm-sh)}.lm-el text{font-size:11px;fill:var(--ink);font-weight:600}
+.lm-dot{fill:var(--card);stroke:var(--sc);stroke-width:2;pointer-events:none}
+#lm-ov .lm-t{transition:opacity .2s}
+.lm.foc #lm-ov .lm-t,.lm.foc .lm-c{opacity:.25}
 .lm.foc #lm-ov .lm-t.me,.lm.foc #lm-ov .lm-t.up,.lm.foc #lm-ov .lm-t.dn,.lm.foc .lm-c.me,.lm.foc .lm-c.up,.lm.foc .lm-c.dn{opacity:1}
-.lm.foc #lm-ov .lm-se{stroke-opacity:.1}.lm.foc #lm-ov .lm-se.on{stroke:var(--ink);stroke-opacity:.8}
-.lm.foc .lm-we.on{opacity:.75}.lm.foc .lm-el.on{opacity:1}
-#lm-ov .lm-t.me .lm-box{stroke-width:3}
-.lm-ovkey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute);margin:6px 0 0}
-.lm-ovkey svg{vertical-align:-4px;margin-right:5px}
-.lm-n a:hover .lm-box,.lm-n a:focus .lm-box{stroke-width:2.6}.lm-n a{text-decoration:none}
-.lm-n.ghost .lm-box{stroke-dasharray:4 3;fill:var(--card2)}
-.lm-n.tgt .lm-box{stroke-width:3}
-.lm-n.done .lm-box{fill:color-mix(in srgb,var(--sc) 16%,var(--card))}
-.lm-n.cur .lm-box{stroke:var(--hl);stroke-width:4;fill:color-mix(in srgb,var(--hl) 16%,var(--card))}.lm-n.todo{opacity:.3}
+.lm.foc #lm-ov .lm-se{stroke-opacity:.07}.lm.foc #lm-ov .lm-se.on{stroke-opacity:1}
+.lm.foc .lm-we.on{opacity:.9}.lm.foc .lm-el.on{opacity:1}
+#lm-ov .lm-t.me .lm-box{stroke:var(--sc);stroke-width:1.5;filter:url(#lm-sh2)}
+.lm-ovkey{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12.5px;color:var(--mute);margin:8px 0 0;align-items:center}
+.lm-ovkey svg{vertical-align:middle;margin-right:6px}.lm-ovkey .lm-sl,.lm-ovkey .lm-cnt{font-size:11px}
+.lm-n a:hover .lm-box,.lm-n a:focus .lm-box{stroke:var(--sc);filter:url(#lm-sh2)}.lm-n a{text-decoration:none}
+.lm-n.ghost .lm-box{stroke:var(--sc);stroke-opacity:.7;stroke-dasharray:4 3;fill:var(--card2);filter:none}.lm-n.ghost .lm-bar{fill-opacity:.5}
+.lm-n.tgt .lm-box{stroke:var(--sc);stroke-width:2}
+.lm-n.done .lm-box{fill:color-mix(in srgb,var(--sc) 14%,var(--card))}
+.lm-n.cur .lm-box{stroke:var(--hl);stroke-width:2.5;fill:color-mix(in srgb,var(--hl) 16%,var(--card))}.lm-n{transition:opacity .25s}.lm-n.todo{opacity:.3}
 .lm-pb circle{fill:var(--card);stroke:var(--acc);stroke-width:1.2}.lm-pb path{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .lm-pb:hover circle,.lm-pb:focus circle{fill:var(--acc)}.lm-pb:hover path,.lm-pb:focus path{stroke:var(--bg)}.lm-pb:focus{outline:none}
-.lm-cap{color:var(--mute);font-size:13px;margin:6px 0 0}
-.lm-list{display:none}.lm-list h4{margin:14px 0 6px;font-size:13px;color:var(--mute);font-weight:600}
+.lm-cap{color:var(--mute);font-size:13px;margin:8px 0 0}
+.lm-fly{position:absolute;pointer-events:none;transform-origin:0 0;border:1.5px solid var(--sc);border-radius:12px;background:color-mix(in srgb,var(--sc) 5%,transparent);box-sizing:border-box;z-index:3}
+.lm-list{display:none}.lm-list h4{margin:16px 0 8px;font-size:12px;color:var(--mute);font-weight:600;letter-spacing:.05em}
 .lm-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
-.lm-c{display:flex;flex-direction:column;gap:3px;padding:7px 9px 8px 10px;border:1px solid var(--sc);border-left-width:5px;border-radius:7px;background:var(--card);color:var(--ink);cursor:pointer;font-size:12px;line-height:1.35;transition:opacity .15s;min-width:0}
-.lm-c b{font-size:13.5px;overflow-wrap:anywhere}.lm-c .lm-cm{color:var(--mute)}.lm-c .lm-cw{color:var(--mute);display:none}.lm-c.me .lm-cw{display:block}
-.lm-c.me{outline:2px solid var(--sc)}.lm-c:focus{outline:2px solid var(--sc)}
-.lm-strip{display:flex;gap:3px}.lm-strip i{font-style:normal;font-weight:600;font-size:11px;width:20px;height:16px;line-height:16px;text-align:center;border-radius:3px;border:1px solid var(--sc);background:color-mix(in srgb,var(--sc) 18%,transparent)}
-.lm-strip i.z{border-color:var(--line);background:none}
+.lm-c{display:flex;flex-direction:column;gap:4px;padding:10px 10px 10px 13px;border:1px solid var(--cardln);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer;font-size:12px;line-height:1.35;transition:opacity .2s,box-shadow .2s;min-width:0;
+ box-shadow:inset 3px 0 0 var(--sc),0 1px 3px color-mix(in srgb,var(--shc) calc(var(--sho)*100%),transparent)}
+.lm-c b{font-size:13.5px;font-weight:600;overflow-wrap:anywhere}.lm-c .lm-cm{color:var(--mute);font-variant-numeric:tabular-nums}.lm-c .lm-cw{color:var(--mute);display:none}.lm-c.me .lm-cw{display:block}
+.lm-c.me,.lm-c:focus-visible{outline:none;border-color:var(--sc);box-shadow:inset 3px 0 0 var(--sc),0 4px 14px color-mix(in srgb,var(--shc) calc(var(--sho2)*100%),transparent)}
+.lm-c .lm-cb{color:var(--mute)}
+.lm-strip{display:flex;gap:3px;margin:2px 0 1px;font-variant-numeric:tabular-nums}.lm-strip>span{display:flex;flex-direction:column;align-items:center;gap:1px}
+.lm-strip em{font-style:normal;font-size:11px;line-height:12px;color:var(--mute);opacity:.8}
+.lm-strip i{font-style:normal;font-weight:650;font-size:11px;width:22px;height:15px;line-height:15px;text-align:center;border-radius:8px;color:var(--sc);background:color-mix(in srgb,var(--sc) 15%,transparent)}
+.lm-strip i.z{background:var(--pill0)}
 .lm-c .lm-open{display:none;margin-top:4px;align-self:flex-start}.lm-c.me .lm-open{display:block}
-.lm-fp{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:12.5px;margin:4px 0 8px}.lm-fp>span:first-child{color:var(--mute)}
-.lm-fp .ch{padding:1px 8px;border:1px solid var(--sc);border-left-width:4px;border-radius:5px;background:var(--card)}.lm-fp .ch b{font-weight:600}
+.lm-fp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;margin:4px 0 8px}.lm-fp>span:first-child{color:var(--mute)}
+.lm-fp .ch{padding:2px 10px 2px 8px;border:1px solid var(--cardln);border-radius:999px;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.05)}.lm-fp .ch::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--sc);margin-right:6px;vertical-align:1px}
+.lm-fp .ch b{font-weight:600;font-variant-numeric:tabular-nums}
 .lm-note{font-size:12.5px;color:var(--mute);margin:4px 0}
 .lm-pl-list{padding:0;margin:4px 0;list-style:none}
-.lm-pl-list li{display:flex;gap:8px;align-items:baseline;margin:3px 0;padding:3px 0 3px 8px;border-left:4px solid var(--sc)}
+.lm-pl-list li{display:flex;gap:8px;align-items:baseline;margin:4px 0;padding:4px 0 4px 10px;border-left:3px solid var(--sc);border-radius:2px}
 .lm-pl-list li a{flex:1;min-width:0}.lm-pl-list li .mm{color:var(--mute);font-size:12.5px;white-space:nowrap}
-.lm-pl-list li .lm-pbt{margin-left:auto;font:inherit;font-size:12px;padding:1px 7px;border:1px solid var(--line);border-radius:5px;background:none;color:var(--acc);cursor:pointer;white-space:nowrap}
-.lm-path{margin-top:12px}.lm-path ol{padding-left:0;list-style:none;counter-reset:s;margin:6px 0}
-.lm-path ol li{counter-increment:s;display:flex;gap:8px;align-items:baseline;margin:2px 0;padding:3px 6px;border-left:4px solid var(--sc);border-radius:2px}
-.lm-path ol li::before{content:counter(s);color:var(--mute);font-size:12.5px;min-width:1.4em;text-align:right}
+.lm-pl-list li .lm-pbt{margin-left:auto;font:inherit;font-size:12px;padding:1px 8px;border:1px solid var(--cardln2);border-radius:999px;background:none;color:var(--acc);cursor:pointer;white-space:nowrap}
+.lm-path{margin-top:16px}.lm-path ol{padding-left:0;list-style:none;counter-reset:s;margin:8px 0}
+.lm-path ol li{counter-increment:s;display:flex;gap:8px;align-items:baseline;margin:2px 0;padding:5px 8px;border-left:3px solid var(--sc);border-radius:2px 8px 8px 2px;transition:background .25s,opacity .25s}
+.lm-path ol li::before{content:counter(s);color:var(--mute);font-size:12.5px;min-width:1.4em;text-align:right;font-variant-numeric:tabular-nums}
 .lm-path ol li .tx{flex:1;display:flex;gap:8px;align-items:baseline;min-width:0}.lm-path ol li .tx a{min-width:0}
-.lm-path ol li .mm{color:var(--mute);font-size:12.5px;margin-left:auto;white-space:nowrap}
-.lm-path ol li.done{background:color-mix(in srgb,var(--sc) 10%,transparent)}
-.lm-path ol li.cur{background:var(--card2);outline:2px solid var(--hl)}.lm-path ol li.todo{opacity:.45}
+.lm-path ol li .mm{color:var(--mute);font-size:12.5px;margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
+.lm-path ol li.done{background:color-mix(in srgb,var(--sc) 9%,transparent)}
+.lm-path ol li.cur{background:color-mix(in srgb,var(--hl) 14%,transparent);box-shadow:inset 0 0 0 1.5px var(--hl)}.lm-path ol li.todo{opacity:.45}
 .lm-path ol li.tg{font-weight:600}
-.lm-sum{font-size:14px;margin:4px 0}.lm-ctl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.lm-sum{font-size:14px;margin:4px 0}.lm-ctl{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 @media (max-width:899px){.lm.ov .lm-map{display:none}.lm.ov .lm-list{display:block}.lm-ovkey .ln{display:none}}
 @media (max-width:640px){.lm .lm-map{display:none}.lm .lm-list{display:block}.lm-qw{max-width:none}
  .lm-path ol li .tx{display:block}.lm-path ol li .mm{display:block;margin:1px 0 0;white-space:normal}}
@@ -1020,33 +1055,52 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const byId={};P.forEach((p,i)=>byId[p.id]=i);
 const mins=p=>p.m==null?'?':p.m;
 const settle=()=>root.getAnimations({subtree:true}).forEach(a=>{try{a.finish()}catch(e){a.cancel()}});
+const NS='http://www.w3.org/2000/svg',EASE='cubic-bezier(.2,.7,.2,1)';
+const accent=(x,y,h,rx)=>{const w=3,dy=rx-Math.sqrt(rx*rx-(rx-w)*(rx-w));return `<path class="lm-bar" d="M${x+w} ${y+dy}A${rx} ${rx} 0 0 0 ${x} ${y+rx}V${y+h-rx}A${rx} ${rx} 0 0 0 ${x+w} ${y+h-dy}Z"/>`};
+const drawKF=L=>[{strokeDasharray:`${L} ${L}`,strokeDashoffset:L},{strokeDasharray:`${L} ${L}`,strokeDashoffset:0}];
+// keyframes that carry a dot along a path, from its start (the page or topic built on) to its end
+function along(e,fade){const L=e.getTotalLength(),n=Math.max(8,Math.round(L/14)),kf=[];
+ for(let i=0;i<=n;i++){const q=e.getPointAtLength(L*i/n);kf.push({transform:`translate(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px)`,opacity:fade&&(i===0||i===n)?0:1})}return kf}
+function dot(g,sc,r){const c=document.createElementNS(NS,'circle');c.setAttribute('r',r);c.setAttribute('class','lm-dot s'+sc);g.appendChild(c);return c}
 function nodeSVG(i,x,y,cls){const p=P[i],w=110,h=p.h;let s=`<g class="lm-n s${T[p.c].s} ${cls}" data-i="${i}"><a href="${esc(p.u)}"><title>${esc(p.t)} (${esc(T[p.c].n)}), ${mins(p)} min</title>`+
- `<rect class="lm-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><rect class="lm-bar" x="${x}" y="${y}" width="4" height="${h}" rx="2"/>`;
- p.l.forEach((ln,j)=>s+=`<text class="lm-pl" x="${x+9}" y="${y+18+15*j}">${esc(ln)}</text>`);
- s+=`<text class="lm-m" x="${x+9}" y="${y+h-7}">${mins(p)} min</text></a>`;
+ `<rect class="lm-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="8"/>`+accent(x,y,h,8);
+ p.l.forEach((ln,j)=>s+=`<text class="lm-pl" x="${x+10}" y="${y+18+15*j}">${esc(ln)}</text>`);
+ s+=`<text class="lm-m" x="${x+10}" y="${y+h-7}">${mins(p)} min</text></a>`;
  s+=`<g class="lm-pb" role="button" tabindex="0" data-p="${i}" aria-label="Path to ${esc(p.t)}"><title>Path to this page</title><circle cx="${x+w-11}" cy="${y+h-11}" r="8"/><path d="M${x+w-15} ${y+h-8}l3-3 2 2 3-4m-2 0h2v2"/></g></g>`;return s}
-function svgOf(v,cls,heads){let s=`<svg class="lm-svg" width="${v.w}" height="${v.h}" viewBox="0 0 ${v.w} ${v.h}">`;
+function svgOf(v,cls,heads){let s=`<svg class="lm-svg" width="${v.w}" height="${v.h}" viewBox="0 0 ${v.w} ${v.h}"><defs>${D.DEFS}</defs>`;
  v.cols.forEach((x,k)=>s+=`<text class="lm-col" x="${x+55}" y="14" text-anchor="middle">${heads[k]}</text>`);
  s+='<g>'+v.e.map(e=>`<path class="lm-e" data-a="${e[0]}" data-b="${e[1]}" d="${e[2]}" stroke-width="1.3" marker-end="url(#lm-ar)"/>`).join('')+'</g>';
  v.n.forEach(n=>s+=nodeSVG(n[0],n[1],n[2],(n[3]?'ghost ':'')+(cls[n[0]]||'')));
  return s+'<defs><marker id="lm-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="lm-arh"/></marker></defs></svg>'}
 const pli=(i,extra)=>{const p=P[i];return `<li class="s${T[p.c].s}"><a href="${esc(p.u)}">${esc(p.t)}</a><span class="mm">${mins(p)} min</span>${extra||''}<button class="lm-pbt" data-p="${i}" aria-label="Path to ${esc(p.t)}">path</button></li>`};
-let step=-1,timer=null,cur=null,ptok=0,from=null;
+let step=-1,timer=null,cur=null,ptok=0,from=null,fk=null;const DOTS=[];
 function stopPlay(){if(timer){clearInterval(timer);timer=null}const b=$('#lm-play');if(b)b.textContent='Play'}
 // focus on a topic: it, the topics its pages build on and the topics building on it stay lit, the rest dims
-function focusT(k){root.classList.toggle('foc',k!=null);const t=k==null?null:T[k];
+// while focused, the lines into the topic draw in and dots run along them from the topics it builds on (stops on blur)
+function dotsOff(){DOTS.forEach(a=>a.cancel());DOTS.length=0;root.querySelectorAll('.lm-dots').forEach(g=>g.textContent='')}
+function dotsOn(k){const svg=$('#lm-ov');if(RM.matches||!svg||!svg.getBoundingClientRect().width)return;const g=svg.querySelector('.lm-dots');
+ svg.querySelectorAll(`.lm-se[data-b="${k}"]`).forEach(e=>{const L=e.getTotalLength(),kf=along(e,true),dur=Math.max(1100,L*11),nd=L>140?3:2,sc=T[+e.dataset.a].s;
+  DOTS.push(e.animate(drawKF(L),{duration:380,easing:EASE}));
+  for(let j=0;j<nd;j++)DOTS.push(dot(g,sc,3.5).animate(kf,{duration:dur,delay:300+j*dur/nd,iterations:Infinity,fill:'backwards'}))})}
+function focusT(k){if(k===fk&&(k==null||root.classList.contains('foc')))return;fk=k;dotsOff();root.classList.toggle('foc',k!=null);const t=k==null?null:T[k];
  root.querySelectorAll('.lm-t[data-k]').forEach(x=>{const j=+x.dataset.k;x.classList.toggle('me',j===k);x.classList.toggle('up',!!t&&t.up.includes(j));x.classList.toggle('dn',!!t&&t.dn.includes(j))});
  root.querySelectorAll('#lm-ov .lm-se,#lm-ov .lm-we,#lm-ov .lm-el').forEach(e=>e.classList.toggle('on',k!=null&&(+e.dataset.a===k||+e.dataset.b===k)));
- root.querySelectorAll('#lm-ov .lm-wkp').forEach(e=>e.classList.toggle('on',+e.dataset.k===k))}
-function showOverview(){stopPlay();settle();cur=null;view.innerHTML=D.OV;root.classList.add('ov');focusT(null);plist.innerHTML='';path.hidden=true;
+ root.querySelectorAll('#lm-ov .lm-wkp').forEach(e=>e.classList.toggle('on',+e.dataset.k===k));if(k!=null)dotsOn(k)}
+function showOverview(){stopPlay();dotsOff();settle();cur=null;fk=null;view.innerHTML=D.OV;root.classList.add('ov');focusT(null);plist.innerHTML='';path.hidden=true;
  $('#lm-head').innerHTML='<b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span>'}
 // open a view by growing the clicked card into it, then reveal its pages stage by stage (only after a click)
 function grow(rs){const box=[view,list].find(e=>e.offsetParent!==null);if(!from||RM.matches||!box){from=null;return}
- const r=from;from=null;let c=box.getBoundingClientRect();if(c.top<0){scrollBy(0,c.top-12);c=box.getBoundingClientRect()}
+ const [r,sc]=from;from=null;let c=box.getBoundingClientRect();if(c.top<0){scrollBy(0,c.top-12);c=box.getBoundingClientRect()}
  const t=Math.max(0,Math.min(r.top-c.top,c.height-r.height)),l=Math.max(0,r.left-c.left),rt=Math.max(0,c.width-l-r.width),b=Math.max(0,c.height-t-r.height);
- box.animate([{clipPath:`inset(${t}px ${rt}px ${b}px ${l}px round 8px)`},{clipPath:'inset(0px 0px 0px 0px round 0px)'}],{duration:260,easing:'cubic-bezier(.2,.7,.2,1)'});
- rs.forEach(([el,k])=>el.animate([{opacity:0},{opacity:1}],{duration:150,delay:200+60*Math.min(k,4),fill:'backwards'}))}
-function showTopic(k){stopPlay();settle();cur=null;root.classList.remove('ov');focusT(null);const t=T[k],v=V.topic[k],heads=v.cols.map((_,j)=>v.before?(j?'Stage '+j:'From other topics'):'Stage '+(j+1));
+ box.animate([{clipPath:`inset(${t}px ${rt}px ${b}px ${l}px round 10px)`},{clipPath:'inset(0px 0px 0px 0px round 12px)'}],{duration:280,easing:EASE});
+ // the card's outline grows into the frame of the view (FLIP), then fades
+ const R=root.getBoundingClientRect(),f=document.createElement('div');f.className='lm-fly s'+sc;
+ Object.assign(f.style,{left:c.left-R.left+'px',top:c.top-R.top+'px',width:c.width+'px',height:Math.min(c.height,innerHeight)+'px'});root.appendChild(f);
+ const fa=f.animate([{transform:`translate(${r.left-c.left}px,${r.top-c.top}px) scale(${r.width/c.width},${r.height/Math.min(c.height,innerHeight)})`,opacity:1},{transform:'none',opacity:.9,offset:.75},{transform:'none',opacity:0}],{duration:360,easing:EASE});
+ fa.finished.then(()=>f.remove(),()=>f.remove());
+ // then the pages appear stage by stage, left to right
+ rs.forEach(([el,k])=>el.animate([{opacity:0,transform:'translateX(-8px)'},{opacity:1,transform:'none'}],{duration:180,delay:180+65*Math.min(k,4),easing:EASE,fill:'backwards'}))}
+function showTopic(k){stopPlay();dotsOff();settle();cur=null;root.classList.remove('ov');focusT(null);const t=T[k],v=V.topic[k],heads=v.cols.map((_,j)=>v.before?(j?'Stage '+j:'From other topics'):'Stage '+(j+1));
  path.hidden=true;
  $('#lm-head').innerHTML=`<button class="lm-btn" id="lm-back">All topics</button><b><a href="${esc(P[t.r].u)}">${esc(P[t.r].t)}</a></b><span>${t.p.length} pages, ${t.m} min core reading</span>`;
  view.innerHTML=`<div class="lm-scroll">${svgOf(v,{},heads)}</div><p class="lm-cap">Each column needs only the columns to its left. ${v.before?'Dashed pages belong to other topics. ':''}Click a page to read it, or its round button for its full path.</p>`;
@@ -1059,11 +1113,13 @@ function paint(fwd){if(!cur)return;const o=cur.order,rk={},tok=++ptok;o.forEach(
   view.querySelectorAll('.lm-n').forEach(g=>cl(g,rk[+g.dataset.i]));path.querySelectorAll('ol li').forEach((li,r)=>cl(li,r));
   view.querySelectorAll('.lm-e.drw').forEach(e=>e.classList.remove('drw'))};
  const inc=[];view.querySelectorAll('.lm-e').forEach(e=>{const rb=rk[+e.dataset.b],into=step>=0&&rb===step;e.classList.toggle('on',into);e.classList.toggle('off',step>=0&&rb>step);if(into)inc.push(e)});
- if(fwd&&inc.length&&!RM.matches){setN(false);const as=inc.map(e=>{e.classList.add('drw');const L=e.getTotalLength();return e.animate([{strokeDasharray:`${L} ${L}`,strokeDashoffset:L},{strokeDasharray:`${L} ${L}`,strokeDashoffset:0}],{duration:320,easing:'ease-out'})});
+ if(fwd&&inc.length&&!RM.matches){setN(false);const g=view.querySelector('.lm-svg>g');
+  const as=inc.map(e=>{e.classList.add('drw');const L=e.getTotalLength(),o={duration:380,easing:'cubic-bezier(.4,0,.2,1)'},d=dot(g,T[P[+e.dataset.a].c].s,4),da=d.animate(along(e,false),o);
+   da.finished.then(()=>d.remove(),()=>d.remove());return e.animate(drawKF(L),o)});
   Promise.all(as.map(a=>a.finished)).then(()=>{if(tok===ptok)setN(true)},()=>{})}else setN(true);
  $('#lm-prev').disabled=step<=0;$('#lm-next').disabled=step>=o.length-1;
  $('#lm-pos').textContent=step<0?'':`${step+1} of ${o.length}: ${P[o[step]].t}`}
-function showPath(i){stopPlay();settle();root.classList.remove('ov');focusT(null);const p=P[i],v=V.path[i],order=v?v.order:[i];cur={i,order};step=-1;
+function showPath(i){stopPlay();dotsOff();settle();root.classList.remove('ov');focusT(null);const p=P[i],v=V.path[i],order=v?v.order:[i];cur={i,order};step=-1;
  $('#lm-head').innerHTML=`<button class="lm-btn" id="lm-back">All topics</button><button class="lm-btn" data-t="${p.c}" id="lm-totopic">${esc(T[p.c].n)}</button><b>Path to ${esc(p.t)}</b>`;
  if(v){const nc=v.cols.length,heads=v.cols.map((_,j)=>'Stage '+(j+1)),cls={};cls[i]='tgt';
   view.innerHTML=`<div class="lm-scroll">${svgOf(v,cls,heads)}</div><p class="lm-cap">Everything this page needs, directly or through another page, in ${nc} stages. Thick border: the page you picked.</p>`}
@@ -1083,7 +1139,7 @@ function route(){const h=decodeURIComponent(location.hash.slice(1));let m;
  else if(h.startsWith('path=')||h.startsWith('topic=')||cur||!root.classList.contains('ov'))showOverview()}
 const go=hash=>{if(location.hash.slice(1)===hash)route();else location.hash=hash};
 root.addEventListener('click',e=>{
- const c=e.target.closest('.lm-c');if(c&&!e.target.closest('.lm-open')){e.preventDefault();const k=+c.dataset.k;if(c.classList.contains('me')){from=c.getBoundingClientRect();go('topic='+T[k].slug)}else focusT(k);return}
+ const c=e.target.closest('.lm-c');if(c&&!e.target.closest('.lm-open')){e.preventDefault();const k=+c.dataset.k;if(c.classList.contains('me')){from=[c.getBoundingClientRect(),T[k].s];go('topic='+T[k].slug)}else focusT(k);return}
  const t=e.target.closest('[data-t],[data-p],#lm-back,#lm-prev,#lm-next,#lm-play,#lm-all');if(!t){if(root.classList.contains('foc')&&!e.target.closest('#lm-ov'))focusT(null);return}
  if(t.id==='lm-back'){history.pushState('',document.title,location.pathname+location.search);showOverview();return}
  if(t.id==='lm-next'){stopPlay();step=Math.min(step+1,cur.order.length-1);paint(true);return}
@@ -1093,9 +1149,9 @@ root.addEventListener('click',e=>{
   const adv=()=>{if(document.hidden)return;step++;paint(true);if(step>=cur.order.length-1)stopPlay()};adv();timer=setInterval(adv,1300);return}
  e.preventDefault();
  if(t.dataset.p!=null)go('path='+P[+t.dataset.p].id);
- else{const card=t.closest('.lm-t')||t.closest('.lm-c');if(card)from=card.getBoundingClientRect();go('topic='+T[+t.dataset.t].slug)}});
+ else{const card=t.closest('.lm-t')||t.closest('.lm-c');if(card)from=[(card.querySelector('.lm-box')||card).getBoundingClientRect(),T[+t.dataset.t].s];go('topic='+T[+t.dataset.t].slug)}});
 root.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role=button]')){e.preventDefault();
-  if(e.target.matches('.lm-c')){if(!e.target.classList.contains('me'))focusT(+e.target.dataset.k);else{from=e.target.getBoundingClientRect();go('topic='+T[+e.target.dataset.k].slug)}}
+  if(e.target.matches('.lm-c')){if(!e.target.classList.contains('me'))focusT(+e.target.dataset.k);else{from=[e.target.getBoundingClientRect(),T[+e.target.dataset.k].s];go('topic='+T[+e.target.dataset.k].slug)}}
   else e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}))}
  else if(e.key==='Escape')focusT(null)});
 ['mouseover','focusin'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g)focusT(+g.dataset.k);else if(ev==='focusin'&&e.target.matches('.lm-c:focus-visible'))focusT(+e.target.dataset.k)}));
@@ -1113,25 +1169,43 @@ sug.addEventListener('mousedown',e=>{const b=e.target.closest('[data-p]');if(b){
 document.addEventListener('click',e=>{if(!e.target.closest('.lm-qw')){hits=[];drawSug()}});
 window.addEventListener('hashchange',route);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPlay()});
-D.OV=view.innerHTML;route()})();
+// once per page load (Khalid's explicit choice for the home page): the layers rise in top to bottom, the strong lines
+// draw from the upper topic to the lower, then the start-anytime band fades in; about 1 s, then still. Any pointer or
+// key input finishes it at once; reduced motion skips it.
+function reveal(){if(RM.matches||document.hidden||location.hash)return;const A=[],ST=110,FD=620;
+ const rise=[{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],fade=[{opacity:0},{opacity:1}];
+ const svg=$('#lm-ov');
+ if(svg&&svg.getBoundingClientRect().width){
+  svg.querySelectorAll('.lm-bd,.lm-t').forEach(g=>{const f=g.dataset.l==='f'||g.dataset.free==='1';
+   A.push(g.animate(f?fade:rise,{duration:f?340:320,delay:f?FD:ST*+g.dataset.l,easing:EASE,fill:'backwards'}))});
+  svg.querySelectorAll('.lm-se').forEach(e=>{const la=+svg.querySelector(`.lm-t[data-k="${e.dataset.a}"]`).dataset.l;
+   A.push(e.animate(drawKF(e.getTotalLength()),{duration:380,delay:ST*(la+1)+170,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'}))});
+  const cap=$('#lm-ovcap');if(cap)A.push(cap.animate(fade,{duration:340,delay:FD,fill:'backwards'}))}
+ else{const ov=$('#lm-ovl');if(ov&&ov.offsetParent!==null){let l=0;[...ov.children].forEach(el=>{if(el.matches('h4'))l++;
+   A.push(el.animate(rise,{duration:300,delay:Math.min(l-1,4)*ST,easing:EASE,fill:'backwards'}))})}}
+ if(!A.length)return;const stop=()=>{A.forEach(a=>{try{a.finish()}catch(e){}});['pointerdown','keydown','wheel','mouseover'].forEach(ev=>root.removeEventListener(ev,stop,true))};
+ ['pointerdown','keydown','wheel','mouseover'].forEach(ev=>root.addEventListener(ev,stop,true));Promise.all(A.map(a=>a.finished)).then(stop,()=>{})}
+D.OV=view.innerHTML;route();reveal()})();
 """
 
 
 def section(url, kb=None):
     """the learning map block for the home page"""
     P, T, views, ov_svg, ov_list, note, _ = build(url, kb)
-    data = {"P": P, "T": T, "V": {"topic": views["topic"], "path": views["path"]}}
+    data = {"P": P, "T": T, "V": {"topic": views["topic"], "path": views["path"]}, "DEFS": DEFS}
     js_data = json.dumps(data, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
     leg = "".join(f'<span><i style="background:var(--s{k})"></i>{html.escape(s)}</span>' for k, s in enumerate(SECTIONS))
     npages, nedges = len(P), sum(len(p["pre"]) for p in P)
     nst = len(T[0]["st"])
-    cells = "".join(f'<rect class="lm-cell{" z" if not c else ""}" x="{1 + g * 17}" y="2" width="14" height="14" rx="3"/>'
-                    + (f'<text class="lm-cnt" x="{8 + g * 17}" y="13" text-anchor="middle">{c}</text>' if c else "")
+    cells = "".join(f'<text class="lm-sl" x="{10 + g * 21}" y="9" text-anchor="middle">{g + 1}</text>'
+                    f'<rect class="lm-cell{" z" if not c else ""}" x="{1 + g * 21}" y="12" width="18" height="{SH}" rx="{SH // 2}"/>'
+                    + (f'<text class="lm-cnt" x="{10 + g * 21}" y="23" text-anchor="middle">{c}</text>' if c else "")
                     for g, c in enumerate([3, 4, 1] + [0] * (nst - 3)))
     share = f"{round(STRONG * 100)}%" if abs(STRONG - 1 / 3) > 1e-9 else "a third"
-    key = (f'<div class="lm-ovkey"><span><svg class="s0" width="{2 + nst * 17}" height="18" aria-hidden="true">{cells}</svg>'
-           f'pages in stages 1 to {nst} (stage: a page\'s longest chain of prerequisites)</span>'
-           '<span class="ln"><svg width="34" height="14" aria-hidden="true"><path class="lm-se" d="M2 7H32" stroke-width="5"/></svg>'
+    key = (f'<div class="lm-ovkey"><span><svg class="s0" width="{2 + nst * 21}" height="28" aria-hidden="true">{cells}</svg>'
+           f'pages at stages 1 to {nst} (stage: a page\'s longest chain of prerequisites)</span>'
+           '<span class="ln"><svg width="34" height="14" aria-hidden="true"><defs><linearGradient id="lm-gk" gradientUnits="userSpaceOnUse" x1="3" y1="0" x2="31" y2="0"><stop offset="0" class="lm-st s0"/>'
+           '<stop offset="1" class="lm-st s1"/></linearGradient></defs><path class="lm-se" d="M3 7H31" stroke="url(#lm-gk)" stroke-width="5"/></svg>'
            f'at least {share} of the lower topic\'s pages build on the upper one; thicker, more of them</span>'
            '<span class="ln"><svg width="34" height="14" aria-hidden="true"><path class="lm-we" style="opacity:.9" d="M2 7H32"/></svg>'
            'a few pages (under that share), shown when a topic is focused</span></div>')
@@ -1143,7 +1217,7 @@ def section(url, kb=None):
 <div class="lm-head" id="lm-head"><b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span></div>
 <div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div></div>
 <div class="lm-list"><div id="lm-ovl">{ov_list}</div><div id="lm-plist"></div></div>
-<div id="lm-ovcap">{key}<p class="lm-cap">Topics in study order, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), and a solid line joins them, thicker when more of its pages do; topics with no such link either way are in the last band and can be read at any time. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></div>
+<div id="lm-ovcap">{key}<p class="lm-cap">A stage counts a page's whole chain of prerequisites across all topics, so a topic can have pages at stage 1 even when it sits in a later layer. Topics in study order, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), and a solid line joins them, thicker when more of its pages do; topics with no such link either way are in the last band and can be read at any time. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></div>
 <div class="lm-path" id="lm-path" hidden></div>
 <script type="application/json" id="lm-data">{js_data}</script>
 <script>{JS}</script>
