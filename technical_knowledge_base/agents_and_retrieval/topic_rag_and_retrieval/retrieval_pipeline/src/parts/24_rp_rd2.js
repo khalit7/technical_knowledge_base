@@ -25,7 +25,7 @@
       return '<tr'+(n.indexOf('default')>=0?' class="hl"':'')+'><td>'+E(n)+'</td><td class="num">'+a.ndcg10.toFixed(3)+'</td><td class="num">'+a.r100.toFixed(3)+'</td><td class="num">'+c.ndcg10.toFixed(3)+'</td><td class="num">'+RP.fmt(a.vocab)+'</td></tr>'}).join('')}
   // 3 learned sparse example
   const SP=D.sparse||{};
-  if(SP.scifact&&SP.scifact.example_doc){const ex=SP.scifact.example_doc;
+  if(SP.scifact&&SP.scifact.example_doc&&$('rp-sparse-ex')){const ex=SP.scifact.example_doc;
     $('rp-sparse-ex').innerHTML='<p class="small" style="margin:4px 0">The heaviest 20 terms the model wrote for one SciFact abstract (&ldquo;'+E(ex.title)+'&rdquo;); <b>bold</b> = a term that does not appear anywhere in the abstract\'s text (expansion).</p><p class="small">'+
       ex.top_terms.map(([t,w,inn])=>(inn?'':'<b>')+'<code>'+E(t)+'</code> '+w.toFixed(2)+(inn?'':'</b>')).join(' &middot; ')+'</p>'}
   // 4.2 margins
