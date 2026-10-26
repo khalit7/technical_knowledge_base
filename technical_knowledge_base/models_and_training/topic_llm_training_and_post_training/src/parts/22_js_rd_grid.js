@@ -11,7 +11,7 @@
     'Trillions of web tokens',
     'Most of the compute',
     'Divergence, failing hardware']},
-  {n:'Mid-training, CPT, long context',k:'same objective, shifted mix',page:`{{Continued Pretraining (CPT)|n:3c65c17b0d0d8119b8f0e801caa09474}}`,c:[
+  {n:'Mid-training, CPT, long context',k:'same objective, shifted mix',page:`{{Data mixing|n:3c65c17b0d0d819ea5d6c59471e66875}}`,c:[
     'Domain, quality, length',
     'Billions of curated tokens',
     'A few % of pretraining',
