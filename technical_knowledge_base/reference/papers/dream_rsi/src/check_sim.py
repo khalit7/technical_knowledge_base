@@ -1,4 +1,5 @@
-"""Check the page's replay simulator (parts/14_js_simcore.js) against an independent Python implementation of §3.
+"""Check the page's replay simulator (parts/14_js_simcore.js) against an independent Python implementation of §3
+(v1's Eq. 1; v2's score is checked against the released code by check_score.py).
 
   python3 check_sim.py        (needs node; writes inputs/check_sim.json)
 
@@ -14,7 +15,7 @@ const SIM=require('./parts/14_js_simcore.js');
 const worlds=[1,2,3].map(s=>SIM.world(s)); const out={worlds:worlds.map(w=>({s:w.s,best:w.best})),runs:[]};
 const pool=SIM.pool();
 pool.forEach((pol,i)=>worlds.forEach((w,j)=>{const t=SIM.replay(w,pol,10);out.runs.push({i,j,pol:{w:pol.w,p:pol.p===Infinity?null:pol.p,k:pol.k,refill:pol.refill},N:t.N,k:t.k,best:t.best,V:SIM.V(t,0.002,0.01)})}));
-const res=SIM.dream(worlds,0.002,0.01,10);const win=SIM.pick(res);const fx=res.find(r=>SIM.same(r.pol,SIM.FIXED));
+const res=SIM.dream(worlds,{v:1,b1:0.002,b2:0.01},10);const win=SIM.pick(res);const fx=res.find(r=>SIM.same(r.pol,SIM.FIXED));
 out.win={V:win.V,pol:{w:win.pol.w,p:win.pol.p===Infinity?null:win.pol.p,k:win.pol.k,refill:win.pol.refill}};out.fixedV=fx.V;
 console.log(JSON.stringify(out));
 '''

@@ -1,7 +1,7 @@
 """Writes parts/03a_hero.svg.html: the hero figure (2026-10-25 light pass), a static SVG redrawn from the paper's loop (Figure 1, §3)
 and its headline numbers: Lasso with Gemini-3.1-Pro, 550 against 317 discovery-agent calls and 3,587.1 against 2,931.0 ms average held-out
-runtime, faster on 1 of 6 datasets (Figure 3a; the per-dataset count is recompute.py's); VGG16, 990 against 408 generations (2.43x by total
-budget, 1.89x at matched speed, Figure 4 decoded). The two small grids are illustrative (6 branches x 6 attempts, invented scores); they show
+runtime, faster on 1 of 6 datasets (v2 Figure 4a; the per-dataset count is recompute.py's); VGG16, 990 against 408 generations (2.43x by total
+budget, 1.89x at matched speed, v2 Figure 3 decoded). Since 2026-10-26 the right panel states v2's Eq. 1 and M = 4. The two small grids are illustrative (6 branches x 6 attempts, invented scores); they show
 the replay rule of §3: a replayed policy reveals only recorded cells, so it can match the recorded best with fewer probes but never beat it.
 The paper is under arXiv's non-exclusive licence and the repository's figures carry no licence, so nothing is embedded; this is a redraw.
 Run by build.sh. Text is at least 11.5 px at scale 1 (the SVG never shrinks below its 700 px viewBox width)."""
@@ -57,7 +57,7 @@ def grid(x0, y0, reveal):
 s = ('<svg viewBox="0 0 700 360" width="700" height="360" role="img" aria-label="The Dream-RSI loop. Left: an online run records a tree, '
      'here 6 branches by 6 attempts, all 36 attempts evaluated, best node outlined. Middle: dreaming replays a revised policy on the same record, '
      'revealing only recorded cells; it deepens two branches and closes the others, reaching the same best in NREV of 36 attempts and never above it. '
-     'Right: the best-scoring version steers the next online run. Bottom: Lasso with Gemini-3.1-Pro, 550 against 317 calls, average runtime 3,587.1 '
+     'Right: four policy versions are scored by the area of their quality-against-calls trade-off and the best steers the next online run. Bottom: Lasso with Gemini-3.1-Pro, 550 against 317 calls, average runtime 3,587.1 '
      'against 2,931.0 milliseconds, faster on 1 of 6 datasets; VGG16 kernel, 990 against 408 generations, 2.43 times by total budget, 1.89 at matched speed.">')
 s = s.replace('NREV', str(len(REVEAL)))
 s += text(8, 16, '1  Online: a policy steers the agent;', fs=12, c=MUTE) + text(8, 31, '    every attempt is recorded', fs=12, c=MUTE)
@@ -72,7 +72,7 @@ s += text(268, 244, 'grey: never revealed; orange: failed', fs=11.5, c=MUTE)
 s += arr(454, 128, 496, 128, ACC)
 s += '<rect x="500" y="44" width="192" height="170" rx="8" fill="var(--soft)" stroke="var(--line)"/>'
 s += text(510, 16, '3  Redeploy the best version;', fs=12, c=MUTE) + text(510, 31, '    its run adds a new tree', fs=12, c=MUTE)
-for i, t in enumerate(['M policy versions', 'scored by Eq. 1 on', 'every recorded tree:', 'best score, minus a', 'charge per attempt,', 'plus a batching bonus']):
+for i, t in enumerate(['M = 4 policy versions,', 'each replayed at five', 'budget settings on every', 'recorded tree; score: the', 'quality-against-calls', 'area (v2 Eq. 1)']):
     s += text(596, 70 + i * 19, t, fs=12, c=INK, a='middle')
 s += text(596, 196, 'ceiling: the recorded best', fs=11.5, c=BAD, a='middle', w='600')
 s += '<path d="M596,214 L596,262 L103,262 L103,252" fill="none" stroke="var(--mute)" stroke-width="1.5" stroke-dasharray="4 3"/>'
@@ -81,7 +81,7 @@ s += text(350, 276, 'next round, with one more recorded tree', fs=11.5, c=MUTE, 
 s += '<line x1="8" y1="290" x2="692" y2="290" stroke="var(--line)"/>'
 s += text(8, 310, 'Lasso, Gemini-3.1-Pro', fs=12.5, c=ACC, w='600') + text(170, 310, '550 → 317 calls; 3,587.1 → 2,931.0 ms average, but faster on 1 of 6 datasets', fs=12, c=INK)
 s += text(8, 332, 'VGG16 kernel', fs=12.5, c=ACC, w='600') + text(170, 332, '990 → 408 generations: 2.43× by total budget, 1.89× at matched speed', fs=12, c=INK)
-s += text(8, 354, 'One run per arm against a fixed-policy baseline. Grids illustrative; numbers from Figures 3 and 4.', fs=11.5, c=MUTE)
+s += text(8, 354, 'One run per arm against a fixed-policy baseline. Grids illustrative; numbers from Figures 4 and 3 (v2).', fs=11.5, c=MUTE)
 s += '</svg>'
 out = HERE / 'parts' / '03a_hero.svg.html'
 out.write_text(s + '\n', encoding='utf-8')

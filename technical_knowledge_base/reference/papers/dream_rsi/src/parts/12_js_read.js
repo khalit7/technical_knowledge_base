@@ -24,8 +24,8 @@ function stepChart(w,series,o){const H=o.H||220,pl=50,pr=12,pt=14,pb=34,W=w;
 (function(){
   const host=$('rc');if(!host)return;
   const T=()=>$('rcTask').value;
-  function data(t){if(t==='pro'||t==='flash'){const F=TB.fig3b[t];return{f:F.fixed,d:F.dream,low:true,unit:'agent calls',yl:'held-out runtime, ms',lab:t==='pro'?'Lasso, Gemini-3.1-Pro':'Lasso, Gemini-3.7-Flash'}}
-    const F=TB.fig4[t];return{f:F.fixed,d:F.dream,low:false,unit:'generations',yl:'round-best speed, 1/ms',lab:t}}
+  function data(t){if(t==='pro'||t==='flash'){const F=TB.lasso_dyn[t];return{f:F.fixed,d:F.dream,low:true,unit:'agent calls',yl:'held-out runtime, ms',lab:t==='pro'?'Lasso, Gemini-3.1-Pro':'Lasso, Gemini-3.7-Flash'}}
+    const F=TB.kern[t];return{f:F.fixed,d:F.dream,low:false,unit:'generations',yl:'round-best speed, 1/ms',lab:t}}
   const per=a=>a.map((p,i)=>p[0]-(i?a[i-1][0]:0));
   function caption(t,k){const D=data(t),f=D.f[Math.min(k,D.f.length-1)],d=D.d[Math.min(k,D.d.length-1)],pf=per(D.f),pd=per(D.d);
     const v=x=>D.low?nf(x,1)+' ms':nf(x,4)+' per ms';
@@ -76,9 +76,20 @@ PRED_REVEAL.pq1=function(){const host=$('pq1Bars');const L=TB.lasso,R=k=>L.rows.
     rows.forEach((r,i)=>{const y=22+i*rh;s+=tx(pl-6,y+15,r[0],{fs:11,a:'end',w:i>=6?600:400});
       [[r[1],CD,0],[r[2],'var(--c3)',12]].forEach(([v,c,dy])=>{const x0=X(1),x1=X(Math.max(0.55,Math.min(1.8,v)));s+=rc(Math.min(x0,x1),y+dy,Math.abs(x1-x0),10,c,{r:2});s+=tx(x1+(v>1?4:-4),y+dy+9,nf(v,2),{fs:11,a:v>1?'start':'end',c:'var(--mute)'})})});
     const L2=legend([['Gemini-3.1-Pro',CD],['Gemini-3.7-Flash','var(--c3)']],pl,H+8,w-pl);
-    host.innerHTML=svgW(w,H+L2.h+6,s+L2.s,'Dream-RSI runtime divided by fixed exploration runtime per dataset')+'<p class="small mute">Dream-RSI runtime ÷ fixed-exploration runtime; left of "same speed" means Dream-RSI is faster. Log scale. From Figure 3(a).</p>'})};
+    host.innerHTML=svgW(w,H+L2.h+6,s+L2.s,'Dream-RSI runtime divided by fixed exploration runtime per dataset')+'<p class="small mute">Dream-RSI runtime ÷ fixed-exploration runtime; left of "same speed" means Dream-RSI is faster. Log scale. From Figure 4(a).</p>'})};
 
 // ---- predict 2: VGG16 at matched performance ----
-PRED_REVEAL.pq2=function(){const F=TB.fig4.VGG16,yd=F.dream[F.dream.length-1][1];
+PRED_REVEAL.pq2=function(){const F=TB.kern.VGG16,yd=F.dream[F.dream.length-1][1];
   fit($('pq2Plot'),w=>{$('pq2Plot').innerHTML=stepChart(w,[{pts:F.fixed,c:CF},{pts:F.dream,c:CD}],{xmax:1000,ymin:0.35,ymax:0.55,xl:'generations',yl:'VGG16 speed, 1/ms',
     hl:[{y:yd,t:'Dream-RSI final '+nf(yd,4),c:CD}],vl:[{x:408,t:'408',c:CD,a:'end'},{x:770,t:'770',c:CF,dy:14}],leg:[['Fixed exploration',CF],['Dream-RSI',CD]],label:'VGG16 curves'})})};
+
+// ---- the harness run (Figure 5a decoded), score and passed trials on one chart ----
+(function(){const host=$('h5Svg');if(!host)return;const H5=TB.harness,n=H5.tasks*H5.runs_per_task;
+  const pts=[[0,H5.seed]].concat(H5.steps);
+  const draw=()=>fit(host,w=>{const ch=stepChart(w,[{pts:pts.concat([[H5.end_generations,H5.final]]),c:CD}],{H:230,xmax:H5.end_generations,ymin:0.715,ymax:0.815,xl:'generations (candidate harnesses evaluated)',yl:'best-so-far TB2.1 score',yf:v=>nf(v,2),
+      hl:[{y:H5.seed,t:'seed (Terminus-Kira) '+nf(H5.seed,4)},{y:H5.bars['Claude Code'],t:'Claude Code 0.75',c:CF},{y:H5.bars['Meta-Harness'],t:'Meta-Harness 0.79',c:CF}],label:'Harness search, best so far'});
+    // passed trials beside each step
+    const pl=50,pr=12,pt=14,pb=34,Hh=230,X=v=>pl+(w-pl-pr)*v/H5.end_generations,Y=v=>pt+(Hh-pt-pb)*(1-(v-0.715)/0.1);
+    let s='';pts.forEach(p=>{s+=tx(X(p[0])+5,Y(p[1])-6,Math.round(p[1]*n)+'/'+n,{fs:11,c:'var(--ink)'})});
+    host.innerHTML=ch.replace('</svg>',s+'</svg>')});
+  draw();onTab('t-read',draw)})();

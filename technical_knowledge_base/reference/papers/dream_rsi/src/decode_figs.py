@@ -2,6 +2,7 @@
 
 usage: curl -sL https://arxiv.org/html/2609.14858v1 -o $SCRATCH/dream1.html
        python3 decode_figs.py $SCRATCH/dream1.html     (writes inputs/figs.json)
+       python3 decode_figs.py $SCRATCH/dream2.html v2  (writes inputs/figs_v2.json; added 2026-10-26)
 
 Method: every <g transform> is composed down to each <path>; tick marks (#737373 short
 segments) are paired, in order, with the numeric tick labels of the same panel; a straight
@@ -151,8 +152,13 @@ def series(paths, panel, ax):
 
 if __name__ == '__main__':
     s = open(sys.argv[1]).read()
-    out = {'source': 'https://arxiv.org/html/2609.14858v1', 'figures': {}}
-    for fid in ['S4.F3', 'S4.F4', 'S5.F5', 'S5.F6']:
+    v = sys.argv[2] if len(sys.argv) > 2 else 'v1'
+    FIGS = {'v1': ['S4.F3', 'S4.F4', 'S5.F5', 'S5.F6'],
+            # v2 renumbers: S4.F3 kernels (v1 S4.F4), S4.F4 Lasso (v1 S4.F3), S4.F5 harness (new),
+            # S5.F6 guidance (v1 S5.F5), S5.F7 behaviour (v1 S5.F6), A3.F8 PACEvolve (new)
+            'v2': ['S4.F3', 'S4.F4', 'S4.F5', 'S5.F6', 'S5.F7', 'A3.F8']}[v]
+    out = {'source': 'https://arxiv.org/html/2609.14858' + v, 'figures': {}}
+    for fid in FIGS:
         fig = re.search(r'<figure[^>]*id="' + re.escape(fid) + r'".*?</figure>', s, re.S).group(0)
         svgs = re.findall(r'<svg\b.*?</svg>', fig, re.S)
         figo = []
@@ -175,7 +181,7 @@ if __name__ == '__main__':
                 figo.append({'svg': si, 'panel': pn, 'xcal_resid': ax['x'][2], 'ycal_resid': ax['y'][2],
                              'x_from_panel': ax.get('x_from_panel'), 'xticks': ax['xticks'], 'yticks': ax['yticks'], 'lines': lines, 'markers': marks, 'labels': txt})
         out['figures'][fid] = figo
-    json.dump(out, open('inputs/figs.json', 'w'), indent=1)
+    json.dump(out, open('inputs/figs.json' if v == 'v1' else 'inputs/figs_%s.json' % v, 'w'), indent=1)
     for fid, f in out['figures'].items():
         for p in f:
             print(fid, p.get('svg'), p.get('panel'), p.get('error', ''), 'resid', p.get('xcal_resid'), p.get('ycal_resid'),

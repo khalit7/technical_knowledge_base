@@ -32,3 +32,12 @@ What the methodology lacked for this page: a rule for **ratios chosen at a favou
 | P-dream_rsi.h2 | Replay stepper moved from the Dream tab into Method | 5 / 4 / 1 | Reading, Method | moved |
 | P-dream_rsi.h3 | The paper's Figure 1 embedded as the hero | rejected: arXiv non-exclusive licence; the repository's figures carry no licence |
 
+
+## 2026-10-26 v2 rewrite
+| id | idea | score | placement | status |
+|---|---|---|---|---|
+| P-dream_rsi.v1 | **The area of one recorded world**: the dreamed policy's five budget-preference replays as calls against attainment, the dominated staircase shaded, the fixed policy's single exhaustive point with zero area; follows the stepper's world | 5 / 5 (same computation as the released eval.py, checked) / 1 | Reading, Method, beside v2's Eq. 1 | built |
+| P-dream_rsi.v2 | Harness search, Figure 5(a) decoded, each step labelled in passed trials of 178, Claude Code and Meta-Harness as reference lines | 4 / 5 / 1 | Reading, Harness | built |
+| P-dream_rsi.v3 | Table 2 drawn on Figure 3's ConvDiv curve: the all-history run at 437 calls against the current-history run's 1.59 at 430 | 4 / 5 / 1 | Tables | built |
+| P-dream_rsi.v4 | Score toggle in the dream sweep (v2 released score, v1 Eq. 1) and the deployment budget preference | 4 / 5 / 1 | Dream tab | built |
+| P-dream_rsi.v5 | PACEvolve's final value as a dashed line on the kernel chart, at its printed value | 3 / 5 / 1 | Tables | built |

@@ -2,6 +2,7 @@
 before migration, fetched 2026-10-03, last edited 2026-09-21) with where the HTML carries it, and verify each
 item's check strings against the built index.html (tags stripped, scripts kept, whitespace normalised).
 The item list below is this paper's own, written from src/live.md (Dream-RSI), not copied from another page.
+Updated 2026-10-26 for the v2 rewrite: the check strings follow the page's v2 wording; the facts are still live.md's.
 usage: python3 mk_coverage.py   (after build.sh)"""
 import html, json, re, sys
 
@@ -11,28 +12,28 @@ txt = re.sub(r'\s+', ' ', txt)
 R, S, T, F = 'The paper tab', 'Dream over a recorded tree tab', 'Tables tab', 'Further reading tab'
 C = [
  # properties (they stay in Notion; the card repeats the takeaway)
- ('Takeaway property (on the card, scoped 2026-10-25 with a note)', R + ', headline card "In one line"', ["Treat an agent's accumulated discovery history as a replay simulator over the search space already explored", 'Scoped on 25 October 2026']),
+ ('Takeaway property (on the card, scoped 2026-10-25, rescoped 2026-10-26 for v2 with a note)', R + ', headline card "In one line"', ["Treat an agent's accumulated discovery history as a replay simulator", 'Rescoped on 26 October 2026']),
  ('Topics property: rl, agentic-harnesses, llm-training-and-post-training', F + ', Topics', ['https://app.notion.com/p/3c65c17b0d0d8195a6c6c11ad093c16e', 'https://app.notion.com/p/3c65c17b0d0d81d881a8fe98b4cff7bb', 'https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b']),
  ('Year property: 2026', 'crumb line', ['Papers', '· 2026 ·']),
  # header
  ('Reading time line "4 min read, +40m resources"', 'dropped: replaced by the measured reading time (header format of 2026-10-25); each resource keeps its time in Further reading', ['in closed details', 'Reading: ']),
  ('Authors: Tong Zheng ... Yunsong Guo (17)', R + ', headline card', ['Tong Zheng', 'Xidong Wu', 'Zheng Zhang', 'Zhankui He', 'Chaoyi Zhang', 'Benjamin Coleman', 'Ruoqiao Wei', 'Di Bai', 'Haolin Liu', 'Rui Liu', 'Xue Wang', 'Yue Zhuan', 'Wang-Cheng Kang', 'Renkai Xiang', 'Heng Huang', 'Xinwu Cheng', 'Yunsong Guo']),
  ('arXiv 2609.14858, 14 September 2026', R + ', headline card', ['arXiv 2609.14858', '14 September 2026']),
- ('12 pages, cs.CL', R + ', headline card', ['arXiv cs.CL, 12 pages']),
+ ('12 pages, cs.CL (v1; v2 has 11)', R + ', headline card (the page follows v2)', ['arXiv cs.CL, 11 pages (v2)']),
  ('"The most-upvoted paper of the week on Hugging Face"', 'corrected: R, closed note under the nav and the dated block in What it takes to use this (250 upvotes on 3 October, 334 on 25 October 2026; the original claim marked unconfirmed)', ['250 upvotes', 'sixth in its week', 'most-upvoted paper of its week', 'unconfirmed on 3 October']),
  # problem
  ('Discovery loops (propose, evaluate, learn) are bounded by evaluation cost', R + ', Problem', ['proposes a candidate', 'evaluates it, learns from the result', 'costs a model call plus an evaluation']),
- ('Compiling and benchmarking a GPU kernel, or running an optimisation to convergence, is expensive', R + ', Problem', ['compiling and benchmarking a GPU kernel, or running an optimisation to convergence']),
+ ('Compiling and benchmarking a GPU kernel, or running an optimisation to convergence, is expensive', R + ', Problem', ['compiling and benchmarking a GPU kernel, running an optimisation to convergence']),
  ('Every improvement to the exploration policy normally costs a fresh round of evaluations', R + ', Problem', ['each costs a long online rollout to find that out', 'Judging a policy means watching it steer a whole discovery run']),
  # mechanism
  ('The loop has already paid for many evaluations; their record is a model of the region of search space already visited', R + ', Idea', ['the history you already paid for is a simulator', 'exact where the record goes and silent everywhere else']),
  ('Builds a replay simulator from the accumulated history and improves the exploration policy against it: cheap off-policy feedback, no new online evaluations', R + ', Idea and Method', ['No agent call, no evaluation', 'each policy version is replayed on every recorded tree', 'off-policy']),
  ('A lightweight orchestration layer over the agent handles the propose, dream, refine cycle', 'corrected: R, Idea (the loop is online explore, build the simulator, dream, redeploy; only the policy code changes, the agent is untouched)', ['1 Online explore', '2 Build the simulator', '3 Dream', '4 Redeploy', 'Only the policy\'s code changes']),
- ('Quote: "accumulated discovery history can serve as a replay simulator over the realized search space"', R + ', Idea', ['accumulated discovery history can serve as a replay simulator over the realized search space']),
+ ('Quote: "accumulated discovery history can serve as a replay simulator over the realized search space" (v1 abstract; v2 says "act as")', R + ', Idea, quoting v2', ['accumulated discovery history can act as a replay simulator over the realized search space']),
  # results
  ('Demonstrated in algorithm engineering, mathematical optimisation and GPU kernel engineering', R + ', Setup and sections 4.1 to 4.3', ['Algorithm engineering: a faster Lasso path solver', 'Mathematical optimisation: three open problems', 'GPU kernel engineering: four KernelBench tasks']),
- ('Competitive with or better than online baselines at substantially lower discovery cost', R + ', results sections and How much to believe (judged)', ['competitive or improved', 'believe that it can cut calls']),
- ('"Reports the pattern rather than a single headline number", a limitation against the harness papers', 'corrected: R, headline card and results (the paper prints 162×, 1.7×, 50×, 2.43×, 1.79×, 2.09×, 1.44×; the limitation is that each is one run)', ['162 times more than 317', '2.43× and 1.79×', '2.09× and 1.44×', 'One run per arm, no error bars']),
+ ('Competitive with or better than online baselines at substantially lower discovery cost', R + ', results sections and How much to believe (judged)', ['They write "competitive" and "in several settings"', 'believe that it can cut calls']),
+ ('"Reports the pattern rather than a single headline number", a limitation against the harness papers', 'corrected: R, headline card and results (the paper prints 162×, 27×, 2.43×, 1.79×, 2.09×, 1.44× and in v1 also 1.7× and 50×; the limitation is that each is one run)', ['approximately 162× and 27× fewer discovery-agent calls', '2.43× and 1.79×', '2.09× and 1.44×', 'One run per arm, no error bars']),
  # limit
  ('A replay simulator is only valid inside the region the history covers', R + ', How much to believe, The limit', ['A replay simulator is only valid inside the region the history covers']),
  ('So it sharpens exploitation of a mapped space rather than expanding exploration into an unmapped one', R + ', The limit; ' + S, ['sharpens how a mapped space is exploited', 'cannot by itself push exploration into unmapped territory']),
@@ -56,7 +57,7 @@ json.dump({'source': 'live.md (Notion page as of 2026-09-20)', 'items': len(out)
                          '"A lightweight orchestration layer ... handles the propose, dream, refine cycle": the paper\'s loop is online explore, construct the replay simulator, dream-based policy improvement, redeploy; the orchestration layer makes exploration programmable and a separate development agent rewrites the policy',
                          '"Reports the pattern rather than a single headline number": it prints several headline ratios (162×, 1.7×, 50×, 2.43×, 1.79×, 2.09×, 1.44×); the real limitation is one run per setting, ratios chosen at favourable points, and no error bars',
                          '"Competitive or better" quality: on autocorrelation Dream-RSI is beaten by its own fixed baseline, and the Gemini-3.1-Pro Lasso solver is faster than the baseline on only 1 of 6 datasets',
-                         'Not in the old page: the SimpleTES Lasso row is copied from SimpleTES\'s own paper and was timed on another machine; the cost count leaves out the development agent; the objective in Appendix B.2 differs from Eq. 1; no code or traces are released'],
+                         'Not in the old page: the SimpleTES Lasso row is copied from SimpleTES\'s own paper and was timed on another machine; the cost count leaves out the development agent; v1\'s objective differed from its own prompt (v2 aligns them); no code or traces were released (code since 6 October, checked against the text on 26 October; traces still not released)'],
            'items_list': out}, open('coverage.json', 'w'), indent=1, ensure_ascii=False)
 print('coverage items', len(out), 'verified', sum(o['verified'] for o in out))
 for f, m in miss: print('MISSING', f[:70], m)

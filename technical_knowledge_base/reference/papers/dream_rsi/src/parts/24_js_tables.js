@@ -25,7 +25,7 @@
   $('tlRef').addEventListener('change',e=>{ref=+e.target.value;lasso()});
   segBind('tlMean',m=>{mean=m;lasso()});
   const st=L.simpletes_supp16,rg=RC.ratios;
-  $('tlSrc').innerHTML='The unmarked SimpleTES row is identical, value for value, to SimpleTES\'s own Supplementary Table 16 ('+A('https://arxiv.org/abs/2604.19341','Ye et al.')+'), timed on SimpleTES\'s machine. This paper\'s glmnet times are '+rg.glmnet.map(v=>nf(v,2)).join(', ')+' times SimpleTES\'s glmnet times on the same six datasets, and its sklearn times '+rg.sklearn.map(v=>nf(v,2)).join(', ')+' times: a slower machine. SimpleTES† (the paper never defines the dagger; the project page calls it "our reproduction") is '+rg.dagger.map(v=>nf(v,2)).join(', ')+' times the copied row, about the same factor, so it reads as SimpleTES re-timed here. Against SimpleTES† the Dream-RSI solvers win on '+RC.lasso_wins.pro_vs_dagger.length+' (Pro) and '+RC.lasso_wins.flash_vs_dagger.length+' (Flash) of six datasets.';
+  $('tlSrc').innerHTML='The unmarked SimpleTES row is identical, value for value, to SimpleTES\'s own Supplementary Table 16 ('+A('https://arxiv.org/abs/2604.19341','Ye et al.')+'), timed on SimpleTES\'s machine. This paper\'s glmnet times are '+rg.glmnet.map(v=>nf(v,2)).join(', ')+' times SimpleTES\'s glmnet times on the same six datasets, and its sklearn times '+rg.sklearn.map(v=>nf(v,2)).join(', ')+' times: a slower machine. SimpleTES† (v1 never defined the dagger; v2: "results reproduced by us") is '+rg.dagger.map(v=>nf(v,2)).join(', ')+' times the copied row, about the same factor, so it is SimpleTES re-run here. Against SimpleTES† the Dream-RSI solvers win on '+RC.lasso_wins.pro_vs_dagger.length+' (Pro) and '+RC.lasso_wins.flash_vs_dagger.length+' (Flash) of six datasets.';
   // Table 1
   const M=TB.math,bold=(k,v)=>M.bold[k].includes(v);
   let h='<thead><tr><th>Method</th><th>LLM</th><th class="num">Sum Diff ↑</th><th class="num">Auto Corr. ↓</th><th class="num">Circle Packing ↑</th></tr></thead><tbody>';
@@ -33,36 +33,42 @@
   M.rows.forEach(r=>{h+='<tr'+(r.method==='Dream-RSI'?' style="background:var(--soft)"':'')+'><td>'+r.method+'</td><td>'+r.llm+'</td>'+c('sumdiff',r.sumdiff)+c('autocorr',r.autocorr)+c('circle',r.circle)+'</tr>'});
   h+='<tr class="mute"><td>Together AI (from SimpleTES Table 1)</td><td>–</td><td class="num">–</td><td class="num">'+nf(M.simpletes_t1.third_autocorr_prev_best.v,6)+'</td><td class="num">–</td></tr>';
   $('tmTab').innerHTML=h+'</tbody>';
-  // Figure 4 at any budget
-  const tk=()=>TB.fig4[$('tkTask').value];
+  // Figure 3 at any budget
+  const tk=()=>TB.kern[$('tkTask').value],pc=()=>TB.pace[$('tkTask').value];
   const at=(ser,b)=>{let v=null;ser.forEach(p=>{if(p[0]<=b)v=p[1]});return v};
   const reach=(ser,y)=>{for(const p of ser)if(p[1]>=y-1e-9)return p[0];return null};
   function kern(){const F=tk(),b=+$('tkB').value;$('tkBv').textContent=String(b);
-    fit($('tkSvg'),w=>{const ys=[...F.fixed,...F.dream].map(p=>p[1]),lo=Math.min(...ys),hi=Math.max(...ys),pd=(hi-lo)*0.1;
-      $('tkSvg').innerHTML=stepChart(w,[{pts:F.fixed,c:CF},{pts:F.dream,c:CD}],{xmax:1000,ymin:lo-pd,ymax:hi+pd,xl:'generations',yl:$('tkTask').value+' speed, 1/ms',vl:[{x:b,t:'budget '+b,c:'var(--ink)',a:b>700?'end':'start'}],leg:[['Fixed exploration',CF],['Dream-RSI',CD]],label:'Kernel curves'})});
+    const PC=pc();
+    fit($('tkSvg'),w=>{const ys=[...F.fixed,...F.dream].map(p=>p[1]).concat([PC.label]),lo=Math.min(...ys),hi=Math.max(...ys),pd=(hi-lo)*0.1;
+      $('tkSvg').innerHTML=stepChart(w,[{pts:F.fixed,c:CF},{pts:F.dream,c:CD}],{xmax:1000,ymin:lo-pd,ymax:hi+pd,xl:'generations',yl:$('tkTask').value+' speed, 1/ms',hl:[{y:PC.label,t:'PACEvolve, 48 h: '+nf(PC.label,4),c:'var(--c3)'}],vl:[{x:b,t:'budget '+b,c:'var(--ink)',a:b>700?'end':'start'}],leg:[['Fixed exploration',CF],['Dream-RSI',CD],['PACEvolve final (dashed)','var(--c3)','3 3']],label:'Kernel curves'})});
     const vd=at(F.dream,b),vf=at(F.fixed,b),yd=F.dream[F.dream.length-1],yf=F.fixed[F.fixed.length-1];
     const r=reach(F.fixed,yd[1]);
     $('tkOut').innerHTML=stat('At '+b+' generations',vd==null?'–':nf(vd/vf,2)+'×',vd==null?'Dream-RSI has no round yet':'Dream-RSI '+nf(vd,4)+' ÷ fixed '+nf(vf,4))+
       stat('Printed claim',F.claim.replace(/\(.*$/,''),F.claim.match(/\((.*)\)/)?F.claim.match(/\((.*)\)/)[1]:'')+
       stat('Finals',nf(yd[1]/yf[1],2)+'×','Dream-RSI '+nf(yd[1],4)+' at '+yd[0]+'; fixed '+nf(yf[1],4)+' at '+yf[0])+
-      stat('Matched performance',r?nf(r/yd[0],2)+'× fewer':'never reached',r?'fixed first reaches Dream-RSI\'s final at '+r+' generations':'fixed exploration never reaches Dream-RSI\'s final within 990')}
+      stat('Matched performance',r?nf(r/yd[0],2)+'× fewer':'never reached',r?'fixed first reaches Dream-RSI\'s final at '+r+' generations':'fixed exploration never reaches Dream-RSI\'s final within 990')+
+      stat('PACEvolve (48 hours)',nf(PC.label,4),PC.f8_generations+' generations (Figure 8); Dream-RSI final ÷ PACEvolve '+nf(yd[1]/PC.label,2)+'×')}
   $('tkTask').addEventListener('change',()=>{const F=tk();$('tkB').value=String(F.dream[F.dream.length-1][0]);kern()});$('tkB').addEventListener('input',kern);
-  // Figures 5 and 6
-  function f56(){const F=TB.fig5;fit($('tgSvg'),w=>{$('tgSvg').innerHTML=stepChart(w,[{pts:F.fixed,c:CF},{pts:F.dream,c:CD},{pts:F.fixed_guided,c:CF,da:'5 4'},{pts:F.dream_guided,c:CD,da:'5 4'}],{xmax:1000,ymin:0.3,ymax:2.0,xl:'generations',yl:'ConvDiv speed, 1/ms',leg:[['Fixed',CF],['Dream-RSI',CD],['Fixed + guidance',CF,'5 4'],['Dream-RSI + guidance',CD,'5 4']],label:'Figure 5 rebuilt'})+'<p class="small mute">Figure 5 rebuilt. The unguided runs are Figure 4\'s ConvDiv runs (identical to 0.0002). Both guided runs lead early; the guided Dream-RSI run has 11 rounds, the others 9 (fixed + guidance 8).</p>'});
-    const G=TB.fig6;fit($('t6Svg'),w=>{const H=190,pl=40,pr=40,pt=16,pb=30,n=9,bw=(w-pl-pr)/n,Ya=v=>pt+(H-pt-pb)*(1-v/120),Yb=v=>pt+(H-pt-pb)*(1-v/2.0);let s='';
+  // Table 3
+  const C3=TB.config.rows;
+  $('tcTab').innerHTML='<thead><tr><th>Task</th><th>Discovery model</th><th class="num">T</th><th class="num">W</th><th class="num">B</th><th class="num">M</th><th class="num">T × B</th></tr></thead><tbody>'+C3.map(c=>'<tr><td>'+c.task+'</td><td>'+c.model+'</td><td class="num">'+c.T+'</td><td class="num">'+c.W+'</td><td class="num">'+c.B+' ('+c.branches+' × '+c.attempts+')</td><td class="num">'+c.M+'</td><td class="num">'+nf(c.T*c.B,0)+'</td></tr>').join('')+'</tbody>';
+  // Table 2, Figures 6 and 7
+  function f56(){const F=TB.guide;
+    const Hs=TB.hist,cd=TB.kern.ConvDiv.dream;fit($('thSvg'),w=>{$('thSvg').innerHTML=stepChart(w,[{pts:cd,c:CD}],{xmax:1000,ymin:0.3,ymax:2.0,xl:'generations',yl:'ConvDiv speed, 1/ms',vl:[{x:Hs.current.compute,t:'current history only: '+Hs.current.perf+' at '+Hs.current.compute,c:'var(--c3)',a:'end'},{x:Hs.all.compute,t:'all history: '+Hs.all.perf.toFixed(2)+' at '+Hs.all.compute,c:CD,a:'end',dy:14}],hl:[{y:Hs.current.perf,c:'var(--c3)'}],leg:[['Dream-RSI, all history (Figure 3\'s run)',CD],['Current history only, final (Table 2)','var(--c3)','3 3']],label:'Table 2 against the all-history curve'})+'<p class="small mute">Table 2 rebuilt on Figure 3\'s ConvDiv curve: the all-history run is that curve (1.8976 at 786). At 437 generations it stood at 1.4881, below the current-history-only run\'s final 1.59 at 430 (dashed). One run each.</p>'});fit($('tgSvg'),w=>{$('tgSvg').innerHTML=stepChart(w,[{pts:F.fixed,c:CF},{pts:F.dream,c:CD},{pts:F.fixed_guided,c:CF,da:'5 4'},{pts:F.dream_guided,c:CD,da:'5 4'}],{xmax:1000,ymin:0.3,ymax:2.0,xl:'generations',yl:'ConvDiv speed, 1/ms',leg:[['Fixed',CF],['Dream-RSI',CD],['Fixed + guidance',CF,'5 4'],['Dream-RSI + guidance',CD,'5 4']],label:'Figure 6 rebuilt'})+'<p class="small mute">Figure 6 rebuilt. The unguided runs are Figure 3\'s ConvDiv runs (identical to 0.0002). Both guided runs lead early; the guided Dream-RSI run has 11 rounds, the others 9 (fixed + guidance 8).</p>'});
+    const G=TB.behav;fit($('t6Svg'),w=>{const H=190,pl=40,pr=40,pt=16,pb=30,n=9,bw=(w-pl-pr)/n,Ya=v=>pt+(H-pt-pb)*(1-v/120),Yb=v=>pt+(H-pt-pb)*(1-v/2.0);let s='';
       [0,50,100].forEach(v=>{s+=ln2(pl,Ya(v),w-pr,Ya(v),'var(--line)')+tx(pl-5,Ya(v)+4,String(v),{fs:11,a:'end',c:'var(--mute)'})});
       [0.5,1,1.5,2].forEach(v=>{s+=tx(w-pr+5,Yb(v)+4,String(v),{fs:11,c:CD})});
       G.attempts.forEach((a,i)=>{const x=pl+i*bw;s+=rc(x+bw*0.18,Ya(a),bw*0.64,Ya(0)-Ya(a),'var(--dim)',{r:2})+tx(x+bw/2,Ya(0)-5,String(a),{fs:11,a:'middle',c:'var(--ink)'})+tx(x+bw/2,H-pb+15,G.rounds[i],{fs:11,a:'middle',c:'var(--mute)'})});
       let d='';G.best.forEach((v,i)=>{d+=(i?' L':'M')+(pl+i*bw+bw/2).toFixed(1)+' '+Yb(v).toFixed(1)});s+='<path d="'+d+'" fill="none" stroke="'+CD+'" stroke-width="2.2"/>';G.best.forEach((v,i)=>{s+='<circle cx="'+(pl+i*bw+bw/2)+'" cy="'+Yb(v)+'" r="3.2" fill="'+CD+'"/>'});
       s+=tx(pl,10,'bars: attempts per round (left)',{fs:11,c:'var(--mute)'})+tx(w-pr+30,10,'line: speed (right)',{fs:11,a:'end',c:CD});
-      $('t6Svg').innerHTML=svgW(w,H,s,'Figure 6 rebuilt')+'<p class="small mute">Figure 6 rebuilt from its printed labels: attempts per round (bars, left) and round-best speed (line, right axis, 1/ms). The attempts add up to 786, Figure 4\'s ConvDiv budget.</p>'})}
+      $('t6Svg').innerHTML=svgW(w,H,s,'Figure 7 rebuilt')+'<p class="small mute">Figure 7 rebuilt from its printed labels: attempts per round (bars, left) and round-best speed (line, right axis, 1/ms). The attempts add up to 786, Figure 3\'s ConvDiv budget.</p>'})}
   $('tkTask').value='ConvDiv';
   // checks
   let flt='all';
-  function chk(){const C=RC.checks.filter(c=>flt==='all'||(flt==='added'?c.verdict==='added':c.verdict!=='added'));
-    const cls={reproduces:'ok','partly':'pt','does not':'no','added':'ad'};
+  function chk(){const C=RC.checks.filter(c=>flt==='all'||(flt==='added'?c.verdict==='added':flt==='v1'?c.verdict==='v1 only':(c.verdict!=='added'&&c.verdict!=='v1 only')));
+    const cls={reproduces:'ok','partly':'pt','does not':'no','added':'ad','v1 only':'v1'};
     $('chkTab').innerHTML='<thead><tr><th>Claim or check</th><th>Where</th><th>Printed</th><th>Recomputed</th><th>Verdict</th></tr></thead><tbody>'+C.map(c=>'<tr><td>'+c.claim+(c.note?'<div class="small mute">'+c.note+'</div>':'')+'</td><td class="small">'+(c.wl?A(PAPER.meta.ax+'#'+c.where,c.wl):c.where)+'</td><td class="small">'+c.printed+'</td><td class="small">'+c.recomputed+'</td><td class="v"><span class="verdict '+cls[c.verdict]+'">'+c.verdict+'</span></td></tr>').join('')+'</tbody>';
-    const S=RC.summary;$('chkSum').textContent=RC.checks.length+' checks: '+S.reproduces+' of the paper\'s numbers reproduce, '+S.partly+' partly, '+S['does not']+' do not; '+S.added+' are checks this page adds (things the paper does not compute).'}
+    const S=RC.summary;$('chkSum').textContent=RC.checks.length+' checks: '+S.reproduces+' of v2\'s numbers reproduce, '+S.partly+' partly, '+S['does not']+' do not; '+S.added+' are checks this page adds (things the paper does not compute); '+S['v1 only']+' test claims only v1 made, which v2 dropped or softened.'}
   segBind('chkF',m=>{flt=m;chk()});
   onTab('t-tables',()=>{lasso();kern();f56();chk()});
 })();

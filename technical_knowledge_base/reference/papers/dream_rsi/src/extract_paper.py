@@ -1,12 +1,13 @@
 """Extract the arXiv HTML of Dream-RSI (v1) to plain text, its tables to text, and its anchor list.
 usage: curl -sL https://arxiv.org/html/2609.14858v1 -o $SCRATCH/dream1.html; python3 extract_paper.py $SCRATCH/dream1.html v1  (writes into inputs/)
-Only v1 existed on 2026-10-03; v2 appeared on 6 October 2026 (extracted 2026-10-25 for the dated block only; the page follows v1)."""
+Only v1 existed on 2026-10-03; v2 appeared on 6 October 2026; since 2026-10-26 the page follows v2 (v1 kept for the What changed block).
+2026-10-26: math alttext is unescaped only after tags are stripped (a '<' inside a formula used to swallow text up to the next tag)."""
 import re, sys, html, os
 s = open(sys.argv[1]).read(); v = sys.argv[2]
 URL = 'https://arxiv.org/html/2609.14858' + v
 os.makedirs('inputs', exist_ok=True)
 def txt(x):
-    x = re.sub(r'<math[^>]*alttext="([^"]*)"[^>]*>.*?</math>', lambda m: ' $' + html.unescape(m.group(1)) + '$ ', x, flags=re.S)
+    x = re.sub(r'<math[^>]*alttext="([^"]*)"[^>]*>.*?</math>', lambda m: ' $' + m.group(1) + '$ ', x, flags=re.S)
     x = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', x, flags=re.S)
     x = re.sub(r'</(p|h\d|div|tr|li|figcaption)>', '\n', x)
     x = re.sub(r'</t[dh]>', '\t', x)

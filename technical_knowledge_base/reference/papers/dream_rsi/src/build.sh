@@ -5,22 +5,25 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Link macros in the HTML parts:
 #   {{text|url}}            external link, new tab
 #   {{text|n:<notion id>}}  knowledge base page
-#   {{text|ax:<anchor>}}    the paper's arXiv HTML (v1, the only version) at that anchor (e.g. ax:S3.E1)
+#   {{text|ax:<anchor>}}    the paper's arXiv HTML (v2 since 2026-10-26) at that anchor (e.g. ax:S3.E1)
+#   {{text|ax1:<anchor>}}   the v1 HTML at that anchor (the What changed from v1 block)
 #   {{text|tab:<tab>[:id]}} another tab of this page (optionally scrolled to an element)
 #   [[<anchor>|label]]      the "in the paper" margin label for a section
 #   @@CARD@@                the headline card generated from paper.json
 set -e
 cd "$(dirname "$0")"
 python3 mk_tables.py > /dev/null
-python3 recompute.py > /dev/null
 python3 check_sim.py > /dev/null
+python3 check_score.py > /dev/null
+python3 recompute.py > /dev/null
 python3 mk_paper.py
 python3 mk_hero.py > /dev/null
 python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-ANC = {'v1': set(open('inputs/anchors_v1.txt').read().split())}
+ANC = {v: set(open('inputs/anchors_%s.txt' % v).read().split()) for v in ('v1', 'v2')}
+AX1 = 'https://arxiv.org/html/%sv1' % P['arxiv']
 HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '03b_results.html', '03d_trust.html', '04_run.html', '05_tables.html', '_gen_more.html']
 JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '14_js_simcore.js', '12_js_read.js', '15_js_run.js', '24_js_tables.js', '99_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
@@ -33,13 +36,16 @@ def link(m):
         return '<a href="#" data-tab="%s"%s>%s</a>' % (x[0], (' data-to="%s"' % x[1]) if len(x) > 1 else '', t)
     if u.startswith('n:'): u = 'https://app.notion.com/p/' + u[2:]
     elif u.startswith('ax:'):
-        if u[3:] not in ANC['v1']: raise SystemExit('no anchor ' + u)
+        if u[3:] not in ANC[P['arxiv_v']]: raise SystemExit('no anchor ' + u)
         u = AX + '#' + u[3:]
+    elif u.startswith('ax1:'):
+        if u[4:] not in ANC['v1']: raise SystemExit('no v1 anchor ' + u)
+        u = AX1 + '#' + u[4:]
     elif not u.startswith('http'): raise SystemExit('bad link target ' + u)
     return A(u, t)
 body = re.sub(r'\{\{([^|{}]+)\|([^{}]+)\}\}', link, body)
 for m in re.finditer(r'\[\[([A-Za-z0-9.]+)\|', body):
-    if m.group(1) not in ANC['v1']: raise SystemExit('no anchor for margin label ' + m.group(1))
+    if m.group(1) not in ANC[P['arxiv_v']]: raise SystemExit('no anchor for margin label ' + m.group(1))
 body = re.sub(r'\[\[([A-Za-z0-9.]+)\|([^\]]+)\]\]', lambda m: '<a class="where" href="%s#%s" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">%s</a>' % (AX, m.group(1), m.group(2)), body)
 out = body + '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>\n'
 out += rd('05z_errbox.js.html')
@@ -57,7 +63,7 @@ tot = 0
 for x in re.findall(r'class="rt">\(([^)]*)\)', fr):
     h = re.search(r'(\d+)h', x); mm = re.search(r'(\d+) ?m(?:in)?\b', x)
     tot += (int(h.group(1)) * 60 if h else 0) + (int(mm.group(1)) if mm else 0)
-RDT = json.load(open('reading.json'))  # measured by html_utils/audit_pages.mjs after a build, written by hand (2026-10-25)
+RDT = json.load(open('reading.json'))  # measured by html_utils/audit_pages.mjs after a build, written by hand (2026-10-25; 2026-10-26: 30.6 and 8.1 min)
 out = out.replace('RD_CORE', str(RDT['core'])).replace('RD_DET', str(RDT['details'])).replace('RES_TIME', '%dh %02dm' % (tot // 60, tot % 60))
 open('../index.html', 'w', encoding='utf-8').write(out)
 print('reading words', w, 'minutes', mins, 'resources %dh %02dm' % (tot // 60, tot % 60), 'bytes', len(out.encode()))

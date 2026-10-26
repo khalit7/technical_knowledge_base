@@ -1,20 +1,26 @@
-"""Build tables.json from the arXiv HTML extract (inputs/paper_v1.txt), the decoded figures (inputs/figs.json)
-and the SimpleTES extract (inputs/extracts.txt). Every value is parsed, not typed, and asserted against the
-printed numbers that the paper's text also quotes.
+"""Build tables.json from the arXiv HTML v2 extract (inputs/paper_v2.txt, tables_v2.txt), the decoded figures
+(inputs/figs.json from v1, inputs/figs_v2.json from v2) and the SimpleTES extract (inputs/extracts.txt). Every value
+is parsed, not typed, and asserted against the printed numbers that the paper's text also quotes.
+Since 2026-10-26 the page follows v2. The runs drawn in both versions (Lasso dynamics, kernels, guidance, behaviour)
+are taken from the v1 decode, and recompute.py checks that v2 redraws the same points; the figures and tables only
+v2 has (harness, PACEvolve, Table 2, Table 3) come from v2. Keys are named by content, not by figure number,
+because v2 renumbers the figures (v1 Figure 3 is v2 Figure 4 and so on).
 
   python3 mk_tables.py      (build.sh runs it)
 """
 import json, re
 
-T = open('inputs/paper_v1.txt').read()
+T = open('inputs/paper_v2.txt').read()
+TT = open('inputs/tables_v2.txt').read()
 F = json.load(open('inputs/figs.json'))['figures']
+F2 = json.load(open('inputs/figs_v2.json'))['figures']
 X = open('inputs/extracts.txt').read()
 
 def cells(block):
     return [c.strip() for c in block.split('\t') if c.strip() != '']
 
-# ---- Figure 3(a): the Lasso table (a table inside a figure environment, S4.F3) ----
-a = T.index('Method\t\nModel\t\nCompute'); b = T.index('(a) Final performance.')
+# ---- Figure 4(a) in v2 (3(a) in v1): the Lasso table (a table inside a figure environment, S4.F4) ----
+a = T.index('Method\t\nModel\t\nCompute'); b = T.index('(a) Final performance of running time (ms).')
 c = [x.strip() for x in T[a:b].replace('\t', '\n').split('\n') if x.strip()]
 DS = ['Gisette', 'RCV1', 'DNA', 'Leukemia', 'Colon', 'Duke Breast']
 assert c[3:5] == ['Non-biological', 'Biological'] and c[6:12] == DS, c[:14]
@@ -45,7 +51,7 @@ for name, key in (('Gisette', 'Gisette'), ('RCV1', 'RCV1'), ('DNA', 'DNA'), ('Le
     st[key] = {'glmnet': float(m.group(1)), 'sklearn': float(m.group(2)), 'simpletes': float(m.group(3))}
 
 lasso = {'datasets': DS, 'bio': [False, False, True, True, True, True], 'rows': rows, 'simpletes_supp16': st,
-         'bold': 'only the Dream-RSI Gemini-3.7-Flash average (2350.6) is bold', 'at': 'S4.F3'}
+         'bold': 'only the Dream-RSI Gemini-3.7-Flash average (2350.6) is bold', 'at': 'S4.F4'}
 
 # ---- Table 1: mathematics ----
 a = T.index('Method\t\nLLM\t\nSum Diff'); b = T.index('4.2 Mathematics Optimization')
@@ -65,18 +71,19 @@ assert math['simpletes_t1']['third_autocorr_simpletes'] == 1.453675
 
 # ---- decoded figures ----
 def panel(fid, pn): return [p for p in F[fid] if p['panel'] == pn][0]
+def panel2(fid, pn): return [p for p in F2[fid] if p['panel'] == pn][0]
 def from_markers(p, col):
     return sorted(p['markers'][col])
 
 def r4(v): return round(v, 4)
-fig3b = {}
+lasso_dyn = {}
 for pn, key in ((0, 'pro'), (1, 'flash')):
-    p = panel('S4.F3', pn)
-    fig3b[key] = {'fixed': [[round(x), round(y, 1)] for x, y in p['lines']['#0000BF'][0]],
+    p = panel('S4.F3', pn)  # v1 numbering (v2 Figure 4b)
+    lasso_dyn[key] = {'fixed': [[round(x), round(y, 1)] for x, y in p['lines']['#0000BF'][0]],
                   'dream': [[round(x), round(y, 1)] for x, y in p['lines']['#CC0000'][0]],
                   'ycal_resid_ms': round(p['ycal_resid'], 3)}
-assert fig3b['pro']['fixed'][-1] == [550, 3587.0] and fig3b['pro']['dream'][-1] == [317, 2931.0]
-assert fig3b['flash']['dream'][-1] == [1879, 2350.6]
+assert lasso_dyn['pro']['fixed'][-1] == [550, 3587.0] and lasso_dyn['pro']['dream'][-1] == [317, 2931.0]
+assert lasso_dyn['flash']['dream'][-1] == [1879, 2350.6]
 
 def runs(ln):
     """Round values from a pgfplots step line: the y of each horizontal run, keyed by the x where it starts,
@@ -91,32 +98,68 @@ def runs(ln):
         else: res.append([x, y])
     return res
 
-fig4 = {}
+kern = {}
 for pn, key in ((0, 'VGG16'), (1, 'LayerNorm'), (2, 'ConvDiv'), (3, 'ConvMax')):
-    p = panel('S4.F4', pn)
-    fig4[key] = {'dream': runs(p['lines']['#0072B2'][0]), 'fixed': runs(p['lines']['#6B7280'][0]),
+    p = panel('S4.F4', pn)  # v1 numbering (v2 Figure 3)
+    kern[key] = {'dream': runs(p['lines']['#0072B2'][0]), 'fixed': runs(p['lines']['#6B7280'][0]),
                  'claim': [l for l in p['labels'] if '×' in l][0]}
     for ser, col in (('dream', '#0072B2'), ('fixed', '#6B7280')):
         mk = from_markers(p, col)
-        assert len(mk) == len(fig4[key][ser]), (key, ser, len(mk), fig4[key][ser])
-        for (mx, my), (x, y) in zip(mk, fig4[key][ser]):
+        assert len(mk) == len(kern[key][ser]), (key, ser, len(mk), kern[key][ser])
+        for (mx, my), (x, y) in zip(mk, kern[key][ser]):
             assert abs(mx - x) < 0.6 and abs(my - y) < 2.5e-4, (key, ser, mx, my, x, y)
 
-p = panel('S5.F5', 0)
-fig5 = {}
+p = panel('S5.F5', 0)  # v1 numbering (v2 Figure 6)
+guide = {}
 for col, key in (('#0072B2', 'dream'), ('#6B7280', 'fixed'), ('#D55E00', 'dream_guided'), ('#009E73', 'fixed_guided')):
-    fig5[key] = runs(p['lines'][col][0])
-fig5['start'] = r4(p['lines']['#0072B2'][0][0][1])
+    guide[key] = runs(p['lines'][col][0])
+guide['start'] = r4(p['lines']['#0072B2'][0][0][1])
 
-f6 = F['S5.F6']
+f6 = F['S5.F6']  # v1 numbering (v2 Figure 7)
 best = [float(l['t']) for l in f6[0]['labels'] if re.fullmatch(r'\d\.\d{3}', l['t'])]
 att = [int(l['t']) for l in f6[1]['labels'] if re.fullmatch(r'\d+', l['t'])][3:]
-fig6 = {'best': best, 'attempts': att, 'rounds': ['E%d' % k for k in range(9)]}
+behav = {'best': best, 'attempts': att, 'rounds': ['E%d' % k for k in range(9)]}
 assert len(best) == 9 and att == [110, 110, 87, 80, 50, 92, 80, 91, 86]
 
-out = {'_doc': 'Transcribed and decoded by mk_tables.py from the arXiv HTML v1 of 2609.14858 (tables: printed values; figures: vector paths calibrated on their own tick marks by decode_figs.py; Figure 6 values are its printed bar labels).',
-       'lasso': lasso, 'math': math, 'fig3b': fig3b, 'fig4': fig4, 'fig5': fig5, 'fig6': fig6}
+# ---- v2 only ----
+# PACEvolve: Figure 3's dashed line labels (its final value per task) and Appendix C's Figure 8 (best so far per generation)
+pace = {}
+for pn, key in ((0, 'VGG16'), (1, 'LayerNorm'), (2, 'ConvDiv'), (3, 'ConvMax')):
+    lab = [float(l) for l in panel2('S4.F3', pn)['labels'] if re.fullmatch(r'0\.\d{4}', l)]
+    m8 = sorted(panel2('A3.F8', pn)['markers']['#0072B2'])
+    pace[key] = {'label': lab[0], 'f8_final': r4(m8[-1][1]), 'f8_generations': round(m8[-1][0]), 'f8_points': len(m8),
+                 'line_drawn_at': r4(panel2('S4.F3', pn)['lines']['#D55E00'][0][0][1])}
+assert [pace[k]['label'] for k in pace] == [0.2002, 0.8264, 0.6452, 0.2654]
+# harness: Figure 5(a) best-so-far steps, Figure 5(b) printed bar labels
+h5 = panel2('S4.F5', 0)
+harness = {'steps': [[round(x), r4(y)] for x, y in sorted(h5['markers']['#0072B2'])], 'seed': 0.7247, 'final': 0.8090,
+           'end_generations': round(h5['lines']['#0072B2'][0][-1][0]),
+           'bars': {'Claude Code': 0.75, 'Terminus-Kira': 0.72, 'Meta-Harness': 0.79, 'Dream-RSI': 0.81}, 'tasks': 89, 'runs_per_task': 2, 'at': 'S4.F5'}
+lb = [l['t'] for l in F2['S4.F5'][1]['labels']]
+assert all(('%g' % v) in lb or ('%.2f' % v) in lb for v in harness['bars'].values()), lb
+assert harness['steps'][-1][1] == 0.809 and '0.7247→0.8090' in ''.join(h5['labels']).replace(' ', '')
+# Table 2 (history ablation) and Table 3 (configurations)
+t2 = TT[TT.index('=== S5.T2'):TT.index('=== A2.T3')]
+c2 = [x.strip() for x in t2.replace('\t', '\n').split('\n') if x.strip()]
+i = c2.index('Dream-RSI (All History)')
+hist = {'all': {'perf': float(c2[i + 1]), 'compute': int(c2[i + 2])}, 'current': {'perf': float(c2[i + 4]), 'compute': int(c2[i + 5])}, 'at': 'S5.T2'}
+assert hist == {'all': {'perf': 1.9, 'compute': 786}, 'current': {'perf': 1.59, 'compute': 430}, 'at': 'S5.T2'}
+t3 = TT[TT.index('=== A2.T3'):]
+c3 = [x.strip() for x in t3.replace('\t', '\n').split('\n') if x.strip()]
+i = c3.index('Lasso'); cfg = []
+while i + 5 < len(c3) and len(cfg) < 10:
+    bm = re.match(r'\$(\d+)\\;\((\d+)\\times(\d+)\)\$', c3[i + 4].replace(' ', ''))
+    cfg.append({'task': c3[i], 'model': c3[i + 1], 'T': int(c3[i + 2]), 'W': int(c3[i + 3]), 'B': int(bm.group(1)), 'branches': int(bm.group(2)), 'attempts': int(bm.group(3)), 'M': int(c3[i + 5])}); i += 6
+assert len(cfg) == 10 and all(c['B'] == c['branches'] * c['attempts'] and c['M'] == 4 for c in cfg) and cfg[-1]['task'] == 'Harness Optimization'
+config = {'rows': cfg, 'at': 'A2.T3'}
+
+out = {'_doc': 'Transcribed and decoded by mk_tables.py from the arXiv HTML of 2609.14858: tables from v2 (identical to v1 where both have them); runs drawn in both versions decoded from v1 (recompute.py checks v2 against them), harness, PACEvolve, Table 2 and Table 3 from v2. Figures: vector paths calibrated on their own tick marks by decode_figs.py; the behaviour figure uses its printed bar labels. Keys are by content because v2 renumbers the figures.',
+       'lasso': lasso, 'math': math, 'lasso_dyn': lasso_dyn, 'kern': kern, 'guide': guide, 'behav': behav,
+       'pace': pace, 'harness': harness, 'hist': hist, 'config': config}
 json.dump(out, open('tables.json', 'w'), indent=1, ensure_ascii=False)
 print('tables.json written:', {k: len(json.dumps(v)) for k, v in out.items()})
-for k, v in fig4.items(): print(k, 'dream', v['dream'], '\n   fixed', v['fixed'])
-print('fig5', fig5)
+for k, v in kern.items(): print(k, 'dream', v['dream'], '\n   fixed', v['fixed'])
+print('guide', guide)
+print('pace', pace)
+print('harness', harness)
+print('config', config['rows'][-1])
