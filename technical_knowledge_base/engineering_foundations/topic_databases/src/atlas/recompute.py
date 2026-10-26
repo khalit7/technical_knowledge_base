@@ -52,10 +52,11 @@ else:
     print('no test_out.json; run test_atlas.mjs first')
 # 4. hygiene
 for r in rows:
-    if r['version_date']: check(r['version_date'] <= A['asof'], f"{r['id']} version date {r['version_date']} after as-of")
+    asof = r.get('asof') or A['asof']  # a row re-read after the atlas date carries its own as-of
+    if r['version_date']: check(r['version_date'] <= asof, f"{r['id']} version date {r['version_date']} after as-of")
     for k in ('jepsen', 'licence_events'):
         ds = [e['date'] for e in r[k]]; check(ds == sorted(ds), f"{r['id']} {k} order")
-        for d in ds: check(d <= A['asof'], f"{r['id']} {k} date {d} in future")
+        for d in ds: check(d <= asof, f"{r['id']} {k} date {d} in future")
 check('\u2014' not in json.dumps(A, ensure_ascii=False), 'no em-dash')
 fam = {}
 for r in rows: fam[r['family']] = fam.get(r['family'], 0) + 1
