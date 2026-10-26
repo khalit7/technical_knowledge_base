@@ -9,9 +9,9 @@ txt = html.unescape(re.sub(r'<[^>]+>', ' ', raw))
 txt = re.sub(r'\s+', ' ', txt)
 R, L, T, M = 'The paper tab', 'Run the four schedules tab', "The paper's tables tab", 'Further reading tab'
 C = [
- ('Header "3 min read · +40m resources"', 'dropped: replaced by the build-computed reading time and resources total', ['min to read The paper tab', 'of resources']),
+ ('Header "3 min read · +40m resources"', 'dropped: replaced by the measured reading time (reading.json, 2026-10-26)', ['Reading: ', 'in closed details']),
  ('Link arXiv 2609.14306 (40 min)', R + ' card; ' + M, ['https://arxiv.org/abs/2609.14306', '(40 min)']),
- ('Claim: the four main memory bottlenecks of training a large MoE can be bounded inside a fixed GPU memory budget without approximating the computation', R + ', card takeaway, Problem, corrections box', ['Bounds the four main memory bottlenecks of large-MoE training inside a fixed GPU memory budget', 'four bottlenecks bounded by scheduling, not approximation']),
+ ('Claim: the four main memory bottlenecks of training a large MoE can be bounded inside a fixed GPU memory budget without approximating the computation', R + ', card takeaway, Problem, corrections box', ['Bounds four memory peaks of large-MoE training', 'four bottlenecks bounded by scheduling, not approximation']),
  ('The four: expert dispatch, vocabulary projection, activation checkpointing, optimiser state', R + ', Problem list, Table 1, calculator', ['Expert dispatch', 'The vocabulary projection', 'Gradient-checkpoint boundaries', 'Optimizer state']),
  ('Contribution is scheduling rather than approximation', R + ', Problem "The constraint it sets itself"', ['change only the order and granularity of computation and data movement', 'No low-rank adapters, no quantised state, no approximate routing or attention']),
  ('Distinguished from the usual quantise-or-offload answers', R + ', corrections box (corrected: two of the four operators are scheduled offload; what is excluded is quantisation and approximation)', ['two of the four operators', 'are offload, scheduled', 'it excludes quantisation and approximate routing, not offload']),
@@ -23,7 +23,7 @@ C = [
  ('No numbers, baselines, model scales or ablations recorded; nothing to be quoted as measured', R + ', corrections box (superseded: this page is written from the full paper, with every number sourced)', ['no numbers, baselines, scales or ablations, nothing to quote as measured', 'This page is written from the full paper']),
  ('Read the arXiv entry before relying on it; the row exists so the paper is not lost', 'superseded: the page is the reading; the evidence is judged in How much of this to believe', ['How much of this to believe']),
  ('Integrated on Topic: llm-training-and-post-training', R + ' Connections; ' + M, ['Topic: llm-training-and-post-training', 'where this row is integrated', 'https://app.notion.com/p/3c65c17b0d0d81b6876ee72b7056793b']),
- ('Property Takeaway (on the card)', R + ', headline card "In one line"', ['by scheduling rather than by approximating the computation, across expert dispatch, vocabulary projection, activation checkpointing and optimiser state']),
+ ('Property Takeaway (on the card; softened 2026-10-26, the original in src/README.md)', R + ', headline card "In one line"', ['by changing only the order and granularity of the work, so the arithmetic stays exact']),
  ('Property Topics: llm-training-and-post-training, ml-infra-and-orchestration', R + ' Connections; ' + M, ['Topic: ml-infra-and-orchestration', 'https://app.notion.com/p/3c65c17b0d0d81b5925bfd1d8665dd4b']),
  ('Property Year 2026, Paper title', 'header crumb and card (the database keeps the properties)', ['Papers · 2026', 'Listed in the Papers database as "Bounding the memory bottlenecks of large mixture-of-experts training"']),
  ('Parent Papers database', M + ' footnote and crumb', ['https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f', 'its properties (Paper, Takeaway, Topics, Year) live there']),
