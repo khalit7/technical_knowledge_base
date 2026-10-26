@@ -53,3 +53,5 @@ JS: `10_js_common`, `_gen_data`, `11_js_ui` (reference copies; `makeAnim` never 
 - `mk_coverage.py`: reading-time and pipeline items updated for the new wording; 112 of 112. Saved extracts: em-dashes replaced with `--`; no author emails were present, and `extract_paper.py` now redacts any it meets.
 
 Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 228 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 384 actions, 0 problems.
+
+2026-10-26 (final follow-up sweep): the Keeping it running paragraph adds the Table 5 grouping check (76.6% without the network rows, 85.0% with them, the 78% grouping unconfirmed; GPUs 268 of 419), absorbed from Meta: Llama and Meta Superintelligence Labs.
