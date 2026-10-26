@@ -21,7 +21,7 @@ What the text needs to be understood: why a read's cost depends on the reads bef
 - **Contiguous vs paged KV allocation animation**: already built, at the paper's scale, on the PagedAttention paper page (tab "Simulate the KV cache"); linked instead.
 - **MLA mechanism animation**: on the DeepSeek page; linked.
 - **Decode token on four memories**: the parent root's section 3 animation; linked.
-- **CPU latency ladder**: the C++ page Part 2 owns it; this page measures the GPU's.
+- **CPU latency ladder**: C++: the machine underneath (section 1) owns it; this page measures the GPU's.
 - **Bandwidth against threads in flight**: the CUDA root's GPU simulator measured it on this GPU; cited for the Little's law cross-check.
 - **HBM stack cross-section drawing**: a static picture with no numbers to read from; the mech cards and width x rate chart carry the idea.
 - **Capacity vs bandwidth log-log scatter**: many tiers have no single capacity (links, host memory); the ladder bars show capacity as text instead.
