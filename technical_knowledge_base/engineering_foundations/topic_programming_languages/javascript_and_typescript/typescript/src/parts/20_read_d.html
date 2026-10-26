@@ -1,0 +1,48 @@
+
+<section id="s6">
+<h2>6. Where the checker lies: any, as, and the unsound holes</h2>
+<p>Three special types every TypeScript programmer must keep apart:</p>
+<ul>
+<li><code>any</code> switches checking off: every operation is allowed, and the result is <code>any</code> again. <code>JSON.parse</code> returns <code>any</code>, and so does untyped JavaScript.</li>
+<li><code>unknown</code> is the safe "could be anything": nothing is allowed until you narrow it. Use it for anything from outside your program.</li>
+<li><code>never</code> is the empty type: a function that always throws returns <code>never</code>, and a fully narrowed union is <code>never</code>.</li>
+</ul>
+<div data-tb-s="50_any_unknown" data-tb-fold="any against unknown on the same value"><p>Only line 4 is an error. <code>a.foo.bar()</code> would crash, and <code>tsc</code> did not say a word.</p></div>
+<p>Worse, <code>any</code> spreads: anything computed from it is unchecked too.</p>
+<div data-tb-s="51_any_spreads" data-tb-q="config.retries is the string &quot;3&quot;. What does this print?" data-tb-opts="[ 3, 6, 9 ] 4 number|[ 3, 6, 9 ] 31 string|A type error from tsc" data-tb-ans="1"><p><code>i * "3"</code> is 3 (JavaScript converts the string for <code>*</code>), but <code>"3" + 1</code> is the string <code>"31"</code>, assigned to a variable declared <code>number</code>. No error, no crash, a wrong value. The cure is to type the boundary: <code>const config: unknown = JSON.parse(...)</code> and then check (or parse with zod, section 7).</p></div>
+<div data-tb-s="d06_json" data-tb-drill data-tb-title="Reading a misspelt key from JSON.parse"><p><code>JSON.parse</code> returns <code>any</code>, so the typo <code>nmae</code> passes and the annotation <code>: string</code> is believed. The crash comes later, far from the cause.</p></div>
+<p><b>Assertions are claims, not checks.</b> <code>x as T</code> (a <dfn>type assertion</dfn>, often called a cast) tells <code>tsc</code> "trust me, x is a T"; it generates no code and checks nothing at run time. <code>x!</code> (the <dfn>non-null assertion</dfn>) says "this is not null or undefined". <code>as const</code> is different: it is not a claim, it only makes inference narrower, and it is always safe.</p>
+<details class="mist tb-fold"><summary>as and ! letting a wrong value through, the double cast, and when as is legitimate</summary><div class="b">
+<div data-tb-s="52_as_lies"></div>
+<div data-tb-s="53_bang"></div>
+<p>Notice the source line in Node's error for <code>bang.ts</code>: <code>users.get("u2") .name</code>. The <code>!</code> is gone, replaced by a space: that is Node's type stripping, and it shows that the assertion never existed at run time.</p>
+<p><code>as</code> does refuse conversions that are obviously wrong, but the double cast through <code>unknown</code> always works, which is why reviewers look for it:</p>
+<div data-tb-s="54_as_rejected"></div>
+<p>When is <code>as</code> legitimate? When you know something the checker cannot (a DOM element you just created, a value you validated by other means), and in tests.</p>
+</div></details>
+<h3>Unsound by design</h3>
+<p>A type system is <dfn>sound</dfn> if a program that type-checks can never have a value of the wrong type at run time. TypeScript is not, on purpose: its design goals put "a balance between correctness and productivity" ahead of soundness ({{Design Goals|https://github.com/microsoft/TypeScript/wiki/TypeScript-Design-Goals}}, non-goal 3). Knowing where the holes are is what makes you trust the checker everywhere else. Each hole below passes <code>npx tsc</code> with the strict configuration and then crashes in Node:</p>
+<div class="tb-tbl tb-wide"><table><thead><tr><th>Hole</th><th>What passes</th><th>Why it exists</th><th>Your protection</th></tr></thead><tbody>
+<tr><td>Array covariance</td><td>A <code>Dog[]</code> used as an <code>Animal[]</code>, then an <code>Animal</code> pushed into the dogs</td><td>Arrays are passed around read-only most of the time; invariance would reject that common, safe code</td><td>Take <code>readonly T[]</code> in parameters you do not mutate</td></tr>
+<tr><td>Method bivariance</td><td>A handler that accepts only <code>string</code> where the interface promises <code>string | number</code>, if the interface uses method syntax</td><td>The DOM and many libraries rely on it</td><td>Declare callbacks as properties: <code>handle: (e: E) =&gt; void</code> (<code>strictFunctionTypes</code>, part of <code>strict</code>, applies only to that syntax)</td></tr>
+<tr><td>Narrowing across calls</td><td>A field narrowed to <code>string</code>, then a call sets it to <code>null</code>; tsc does not assume a call can change your object</td><td>Invalidating on every call would make narrowing useless</td><td>Copy to a <code>const</code> before checking: <code>const v = state.value</code></td></tr>
+<tr><td>Index reads</td><td><code>scores[2]</code> typed <code>number</code> without <code>noUncheckedIndexedAccess</code> (section 2)</td><td>Compatibility</td><td><code>noUncheckedIndexedAccess</code> (default in new configs)</td></tr>
+<tr><td><code>any</code>, <code>as</code>, <code>!</code>, predicates</td><td>Anything (above, and lying type predicates in section 4)</td><td>Escape hatches for what the checker cannot know</td><td><code>unknown</code> plus checks, or a schema; lint rules against <code>any</code> (section 8)</td></tr>
+<tr><td>Data from outside</td><td>Whatever the network sends</td><td>Types are erased: nothing to check against at run time</td><td>zod at every boundary (section 7)</td></tr>
+</tbody></table></div>
+<details class="mist tb-fold"><summary>The first three holes, each type-checking and then crashing</summary><div class="b">
+<p><b>1. Arrays are covariant</b> (the root's Design space shows the same hole with <code>string[]</code> and numbers; here with classes):</p>
+<div data-tb-s="58_array_covariance"></div>
+<p><b>2. Method parameters are bivariant</b>, and the same interface written with a function-typed property is checked properly:</p>
+<div data-tb-s="55_method_bivariance"></div>
+<div data-tb-s="56_fn_property"></div>
+<p><b>3. Narrowing survives function calls:</b></p>
+<div data-tb-s="57_stale_narrowing"></div>
+</div></details>
+<div data-tb-s="d07_covariance" data-tb-drill data-tb-title="Pushing a string into a number array through an alias"><p>Arrays are covariant: a <code>number[]</code> is accepted as a <code>(number | string)[]</code>, and the push lands in the original array. One of TypeScript's deliberate holes.</p></div>
+<div data-tb-s="d12_parseint" data-tb-drill data-tb-title="Types cannot catch a wrong meaning"><p>Type-checks: <code>parseInt(string, radix?)</code> fits the callback type. But <code>map</code> passes the index as the second argument, so the calls are <code>parseInt("2", 1)</code> and <code>parseInt("3", 2)</code>: NaN. Types cannot catch a wrong meaning.</p></div>
+<details class="mist"><summary>More drills: a readonly parameter, sorting numbers</summary><div class="b">
+<div data-tb-s="d16_readonly_param" data-tb-drill><p>Accepted: a <code>readonly number[]</code> parameter only promises the function will not mutate it. The caller can still sort its own array, and does: the function then sees 1, not 3.</p></div>
+<div data-tb-s="d19_sort_numbers" data-tb-drill><p>Type-checks, and prints <code>[ 1, 10, 9 ]</code>: <code>sort()</code> with no comparator compares as strings. Pass <code>(a, b) =&gt; a - b</code>.</p></div>
+</div></details>
+</section>

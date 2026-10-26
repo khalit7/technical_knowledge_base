@@ -1,0 +1,33 @@
+
+<section id="s7">
+<h2>7. Checking data at run time with zod</h2>
+<p>Types are erased, so nothing checks data that arrives while the program runs: an HTTP body, a file, an environment variable, and above all the JSON an LLM writes. <code>JSON.parse(text) as Reply</code> is a promise you cannot keep. The answer is a <dfn>schema library</dfn>: you describe the shape once as a run-time object, it validates values, and TypeScript derives the static type from it. zod is the most used (4.6.5 here; {{zod.dev|https://zod.dev}}); valibot and ArkType are alternatives with the same idea.</p>
+<div data-tb-s="70_zod_basics"></div>
+<p><code>z.infer&lt;typeof ToolCall&gt;</code> is the static type, computed from the schema, so the two can never drift apart. <code>parse</code> returns the typed value or throws; <code>safeParse</code> returns <code>{ success: true, data }</code> or <code>{ success: false, error }</code>, a discriminated union you narrow on <code>success</code>. Each issue has a <code>path</code> (which field) and a message, and <code>z.prettifyError</code> formats them, as above. It is pydantic with the direction inverted (the table at the top): validate at the boundary, trust the types inside.</p>
+<div data-tb-s="71_zod_infer" data-tb-fold="The type tsc derives from the schema"></div>
+<h3>Parsing LLM output</h3>
+<p>Model output fails in predictable ways: the JSON is wrapped in a Markdown fence or a sentence, a number arrives as a string, a field is missing, the reply is cut off by the token limit. A robust reader has three steps: find the JSON, <code>JSON.parse</code> it inside <code>try</code>, and validate with the schema, returning a typed result or an error message you can send back to the model for a retry.</p>
+<div data-tb-s="72_zod_llm" data-tb-fold="The three-step reader, parseAnswer, on five replies"></div>
+<div class="card">
+<h4>A cast is silently wrong on 2 of 10 replies and crashes on 4; every zod reader either answers correctly or says why not</h4>
+<p class="small">Ten replies a model can give when asked for <code>{"city": string, "population": number}</code>, each read four ways: a cast (<code>JSON.parse(...) as Answer</code>) and three zod schemas. The program then prints <code>CITY has N people</code>. Every cell is the real output of <code>src/tb/zodlab/lab.ts</code> (type-checked by tsc 7.0.2, run by Node 22.22.2, zod 4.6.5). Predict the cast's column before you look, then click a cell.</p>
+<div class="tbz-leg"><span><i class="k-ok"></i>correct output</span><span><i class="k-caught"></i>rejected with a reason (you can retry the model)</span><span><i class="k-silent"></i>printed, but the data was wrong</span><span><i class="k-crash"></i>crashed</span></div>
+<div class="tbz-wrap"><table id="tbz-tbl"></table></div>
+<div class="tbz-sum" id="tbz-sum"></div>
+<div class="tbz-det" id="tbz-det"></div>
+<details class="mist"><summary>The whole program (lab.ts)</summary><div class="b" id="tbz-src" style="padding-left:12px"></div></details>
+<details class="mist"><summary>How a cell is coloured, and the two silent cases</summary><div class="b"><p>How a cell is coloured: an exception is a crash; output starting with "rejected" was caught by the reader; an output from the cast is marked "data was wrong" when the default zod schema rejected the same reply (the program printed something, from a value of the wrong type); everything else is correct. The two silent cases: <code>"2100000"</code> as a string printed "PARIS has 2100000 people", and <code>"2.1 million"</code> printed "PARIS has 2.1 million people", because <code>toLocaleString</code> exists on strings too.</p></div></details>
+</div>
+<h3>One schema, three uses: the type, the check, and the tool definition</h3>
+<p>Tool use (function calling) needs a JSON Schema for each tool's input. zod 4 writes it from the same schema ({{zod: JSON Schema|https://zod.dev/json-schema}}), so the description sent to the model, the type in your code and the validation of the model's arguments come from one definition. A detail that matters: by default the JSON Schema describes the <b>output</b> of parsing, where a field with a default (<code>unit</code>) always exists, so it is listed as required. What a model sends is the <b>input</b>, where <code>unit</code> may be omitted: <code>{ io: "input" }</code> gives that version.</p>
+<div data-tb-s="73_zod_jsonschema" data-tb-fold="z.toJSONSchema on a Weather tool, output and input sides"></div>
+<p>How a server forces the model to emit valid JSON in the first place (constrained decoding, provider "structured outputs") is on {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}; how agent libraries send the schema, validate and retry is on {{Typed agent libraries|n:3f15c17b0d0d819fba89f9ec88feb859}} (Mastra's <code>createTool()</code> takes a Zod <code>inputSchema</code>). Tool calling and structured output in TypeScript, on real SDKs, are on {{TypeScript: LLM apps and agents|n:4055c17b0d0d8109aad6e69a87b3bd6f}}. A server is not a validator: the schema check stays in your code either way.</p>
+<p><code>z.strictObject</code> rejects unknown keys and <code>z.coerce.number()</code> converts strings first: the lab's last two columns.</p>
+<details class="mist tb-fold"><summary>strictObject, coerce and transform</summary><div class="b">
+<p><code>z.object</code> drops unknown keys silently; <code>z.strictObject</code> rejects them (useful to catch a model inventing fields; harmful if the API adds fields later). <code>z.coerce.number()</code> runs <code>Number(x)</code> first, so <code>"7"</code> becomes 7, but <code>"2.1 million"</code> becomes <code>NaN</code> and fails (the lab's fifth row). <code>.transform</code> converts after validating, and <code>z.infer</code> gives the transformed type.</p>
+<div data-tb-s="74_zod_extra"></div></div></details>
+<details class="mist"><summary>The topic's running program, typed: the token counter with a zod schema</summary><div class="b">
+<p>The root page's running program counts tokens per user in a JSONL chat log; the language page wrote it in plain JavaScript (<code>count_tokens.mjs</code>) with a hand-written <code>isMessage</code> check. Here it is in TypeScript: the check becomes a zod schema, each line is parsed to <code>unknown</code> and validated, the counters get a <code>Stats</code> type, and the <code>catch</code> narrows the <code>unknown</code> error before reading <code>code</code>. Same input (the root's 2,000-line <code>chat.jsonl</code> with 8 malformed lines), same output as the JavaScript version, now checked by <code>tsc</code>:</p>
+<div data-tb-s="75_count_tokens"></div>
+</div></details>
+</section>

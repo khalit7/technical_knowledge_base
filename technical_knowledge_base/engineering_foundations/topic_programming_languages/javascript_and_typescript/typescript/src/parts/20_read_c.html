@@ -1,0 +1,82 @@
+
+<section id="s4">
+<h2>4. Unions and narrowing: where TypeScript earns its keep</h2>
+<p>A <dfn>union</dfn> <code>A | B</code> is a value that is one of several types. You can only use what all members share: on <code>string | number | null</code> you cannot call <code>toFixed</code>, because a string has no such method and <code>null</code> has nothing at all.</p>
+<div data-tb-s="31_narrow_err"></div>
+<p><dfn>Narrowing</dfn> is how you get to a single member: <code>tsc</code> follows your <code>if</code>s, <code>switch</code>es and early <code>return</code>s and, at each line, knows which members are still possible. Every check JavaScript can do at run time narrows:</p>
+<div class="tb-tbl"><table><thead><tr><th>Check</th><th>Narrows</th></tr></thead><tbody>
+<tr><td><code>typeof x === "string"</code></td><td>primitives: string, number, boolean, bigint, symbol, undefined, function, object</td></tr>
+<tr><td><code>x === null</code>, <code>x == null</code>, <code>if (x)</code></td><td>removes null and undefined (truthiness also removes <code>""</code>, <code>0</code>, <code>false</code>: a classic bug with numbers)</td></tr>
+<tr><td><code>Array.isArray(x)</code>, <code>x instanceof Date</code></td><td>arrays, class instances</td></tr>
+<tr><td><code>"text" in x</code></td><td>object members that have that property</td></tr>
+<tr><td><code>x.type === "text"</code></td><td>a discriminated union to one member (below)</td></tr>
+<tr><td><code>isCat(x)</code> where <code>isCat(a): a is Cat</code></td><td>whatever your own predicate says (unchecked: it can lie)</td></tr>
+</tbody></table></div>
+<div data-tb-s="30_narrow_basic" data-tb-fold="typeof and == null narrowing one value"></div>
+<div class="card" id="tbn-card">
+<h4>Watch the type shrink, line by line, and see what loses it</h4>
+<p class="small">One function at a time. Each type is TypeScript 7.0.2's own answer, read by inserting <code>expr satisfies never;</code> at that line and recording the error message (<code>src/tb/gen_narrow.mjs</code>). Predict, for the "before" version of each program, which line will stop narrowing; then step. The other version's type at the same line is shown underneath.</p>
+<div class="chips" id="tbn-prog"></div>
+<div class="seg" id="tbn-var"></div>
+<div class="tb-ctl" id="tbn-ctl"></div>
+<div class="tb-cap" id="tbn-cap"></div>
+<div class="tbn-grid"><div class="tb-er" id="tbn-code"></div><div class="tbn-panel" id="tbn-types"></div></div>
+<p class="small mute">Struck-through members were possible at the previous step and are ruled out now. The last step shows what <code>tsc</code> says about the whole program (and what Node printed, when it type-checks).</p>
+</div>
+<h3>Discriminated unions: the pattern for LLM events, tool calls and states</h3>
+<p>A <dfn>discriminated union</dfn> is a union of object types that share one literal field (the <dfn>tag</dfn>, here <code>type</code>). Checking the tag narrows to exactly one member, with its own fields. This is how every LLM SDK types its streaming events, and how you should model anything with states. A <code>default</code> branch that assigns the value to a variable of type <code>never</code> (the empty type: no value has it) compiles only if every member was handled. Add a member to the union and forget to handle it:</p>
+<div data-tb-s="32_discriminated" data-tb-fold="The four-member Event union and its switch, before the new member"></div>
+<div data-tb-s="33_exhaustive"></div>
+<p>That is <dfn>exhaustiveness checking</dfn>: the compiler lists the case you forgot, with its full shape. The same data modelled as one object with optional fields (the shape a quick port from JSON often produces) makes every field "maybe", so every use needs a check, and nothing tells you when a new kind appears. The rule: <b>make illegal states unrepresentable</b>. If a <code>text</code> event always has a <code>delta</code> and never a <code>name</code>, give it its own member. (Rust's enums and <code>match</code> are the same idea built into the language: {{Rust: enums, traits, errors and iterators|n:4055c17b0d0d8129b199c18b4bd56935}}.)</p>
+<div data-tb-s="34_bag" data-tb-fold="The same events as a bag of optional fields"></div>
+<div data-tb-s="d18_switch_fallthrough" data-tb-drill data-tb-title="A shape union and an early return"><p>After <code>if (s.kind === "circle") return</code>, <code>s</code> is the square member, which has <code>side</code>, not <code>r</code>. The narrowing found a real bug.</p></div>
+<div data-tb-s="d04_find" data-tb-drill data-tb-title=".find() on an array"><p><code>find</code> returns <code>string | undefined</code>: nothing may match. Check before use, or use <code>?.</code>.</p></div>
+<h3>Your own narrowing: type predicates and assertion functions</h3>
+<p>A function returning <code>a is Cat</code> (a <dfn>type predicate</dfn>) narrows its argument where it is called, and <code>.filter(isCat)</code> even returns <code>Cat[]</code>. A function declared <code>asserts v is string</code> narrows everything after the call, or throws. Both are trusted blindly:</p>
+<div data-tb-s="35_guards" data-tb-fold="A predicate, .filter(isCat) and an assertion function"></div>
+<div data-tb-s="36_lying_guard" data-tb-q="isCat always returns true. Does tsc catch it?" data-tb-opts="Yes, the predicate does not match its body|No, it type-checks and crashes" data-tb-ans="1"><p>A predicate is a promise the compiler cannot verify. Keep predicates tiny and obviously right, or generate them from a schema (zod, section 7).</p></div>
+</section>
+
+<section id="s5">
+<h2>5. Generics, and types computed from values</h2>
+<p>A <dfn>generic</dfn> function has type parameters in angle brackets: <code>first&lt;T&gt;(xs: T[]): T | undefined</code> works for any element type and keeps it, instead of losing it to <code>any</code>; <code>tsc</code> infers <code>T</code> from the arguments, so callers almost never write it. A <dfn>constraint</dfn> (<code>T extends { length: number }</code>) says what <code>T</code> must at least have, and <code>K extends keyof T</code> says "K is one of T's keys", which is how <code>pluck(rows, "tokens")</code> knows it returns <code>number[]</code>. The constraints are what make the errors precise. Two rules of thumb: a type parameter that appears only once in a signature does nothing (<code>f&lt;T&gt;(x: T): void</code> is just <code>f(x: unknown): void</code>), and a generic that needs a comment to be understood is probably worse than two plain functions.</p>
+<div data-tb-s="40_generics" data-tb-fold="first, longest and pluck"></div>
+<div data-tb-s="41_generics_err" data-tb-fold="What the constraints reject"></div>
+<p>TypeScript also has a small language for computing types from values, which is how one constant becomes the single source of truth for both:</p>
+<ul>
+<li><code>typeof DEFAULTS</code> in a type position reads the type of a value.</li>
+<li><code>keyof T</code> is the union of T's keys; <code>T["temperature"]</code> (an <dfn>indexed access type</dfn>) is the type of one property.</li>
+<li><code>(typeof MODELS)[number]</code> turns an <code>as const</code> array into the union of its elements: write the list once, get the type for free.</li>
+</ul>
+<div data-tb-s="42_keyof_typeof" data-tb-fold="keyof, typeof and indexed access, with the types tsc computed"><p>To make <code>tsc</code> print a type, the snippets assign it to <code>never</code> with <code>satisfies</code> and read the error message; the trick is used throughout this page. Note the order in the printed unions: <code>"large" | "medium" | "small"</code> is not the order the array was written in. TypeScript 7 orders union members deterministically (<code>stableTypeOrdering</code> is "true by default, and cannot be turned off", says the {{7.0 post|https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/}}), so do not read meaning into the order in an error message.</p></div>
+<p><b><code>satisfies</code>: check without forgetting.</b> An annotation (<code>const a: Record&lt;string, Route&gt;</code>) checks the value and then <b>replaces</b> its type with the annotation, so the specific keys are forgotten. <code>satisfies</code> (TypeScript 4.9) checks the value against the type and <b>keeps</b> the inferred type: the wrong <code>auth</code> on line 4 is caught, and so is the typo <code>b.hom</code>.</p>
+<div data-tb-s="43_satisfies"></div>
+<p>Prefer <code>satisfies</code> for configuration objects and lookup tables, and never <code>as</code> to get the same effect (<code>as</code> checks nothing, section 6).</p>
+<details class="mist"><summary>Utility types: Partial, Pick, Omit, Record, ReturnType, Awaited and the rest, with tsc's printout</summary><div class="b">
+<p>The standard library ships generic types that transform others. These are the ones you will read in every codebase, applied to one interface (the types are tsc 7's own printout):</p>
+<div data-tb-s="21_utility"></div>
+<div class="tb-tbl"><table><thead><tr><th>Type</th><th>Gives</th><th>Typical use</th></tr></thead><tbody>
+<tr><td><code>Partial&lt;T&gt;</code></td><td>every property optional</td><td>an update or patch payload; user overrides of defaults</td></tr>
+<tr><td><code>Required&lt;T&gt;</code></td><td>every property required</td><td>a config after defaults are applied</td></tr>
+<tr><td><code>Readonly&lt;T&gt;</code></td><td>every property readonly</td><td>values you hand out and do not want changed</td></tr>
+<tr><td><code>Pick&lt;T, K&gt;</code>, <code>Omit&lt;T, K&gt;</code></td><td>only, or all but, some keys</td><td>a public view of an internal type; "create" input without the <code>id</code></td></tr>
+<tr><td><code>Record&lt;K, V&gt;</code></td><td>an object with keys K and values V</td><td>lookup tables keyed by a union</td></tr>
+<tr><td><code>Exclude&lt;U, X&gt;</code>, <code>Extract&lt;U, X&gt;</code></td><td>union members not matching, or matching, X</td><td>removing one case from a union</td></tr>
+<tr><td><code>NonNullable&lt;T&gt;</code></td><td>T without null and undefined</td><td>after a check</td></tr>
+<tr><td><code>ReturnType&lt;F&gt;</code>, <code>Parameters&lt;F&gt;</code></td><td>a function's return type, its parameter tuple</td><td>typing a wrapper around a library function you do not own</td></tr>
+<tr><td><code>Awaited&lt;T&gt;</code></td><td>what <code>await</code> on T gives</td><td><code>Awaited&lt;ReturnType&lt;typeof fetchMsg&gt;&gt;</code> is <code>Msg</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Full list: {{TypeScript Handbook: Utility Types|https://www.typescriptlang.org/docs/handbook/utility-types.html}}.</p>
+</div></details>
+<details class="mist"><summary>Mapped, conditional and template literal types, at a practical level</summary><div class="b">
+<p>The utility types are not built-in magic: they are written in TypeScript's type language, which has loops over keys, if-then-else and string building. You will read these in library code more often than you write them.</p>
+<p><b>Mapped types</b> loop over keys: <code>{ [K in keyof T]: ... }</code>. <code>as</code> renames keys, and <code>-readonly</code> or <code>-?</code> removes a modifier.</p>
+<div data-tb-s="44_mapped"></div>
+<p><b>Conditional types</b> choose: <code>T extends U ? X : Y</code>. <code>infer</code> names a part of the type being matched, so you can pull it out. Over a union they <dfn>distribute</dfn> (apply to each member separately), unless you wrap both sides in brackets:</p>
+<div data-tb-s="45_conditional"></div>
+<p><b>Template literal types</b> build string types, and combined with conditional types they can even parse a route string:</p>
+<div data-tb-s="46_template"></div>
+<p>Where to stop: a type that takes ten minutes to understand is worse than a run-time check plus a comment, and deep recursive types slow the checker and the editor.</p>
+</div></details>
+<p>The best use of this machinery in application code is deriving types from one source (a schema, a const table, a route list) so they cannot drift apart.</p>
+</section>

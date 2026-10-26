@@ -1,0 +1,87 @@
+
+<section id="s2">
+<h2>2. tsconfig: the strictness you get by default</h2>
+<p>A TypeScript project is a JavaScript project plus <code>typescript</code> as a dev dependency, type packages for anything untyped, and a <code>tsconfig.json</code> that tells <code>tsc</code> what to check and how strictly. Below, the options that matter, each with the error it produces.</p>
+<details class="mist"><summary>Setting a project up: where it is walked through</summary><div class="b"><p>A TypeScript project is a JavaScript project (<code>package.json</code>, <code>node_modules</code>) with those three additions. The root page's Toolchain atlas tab ({{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}) creates one from an empty folder, including the two errors a fresh project hits (no <code>"type": "module"</code>, and <code>.ts</code> import paths).</p></div></details>
+<details class="mist"><summary>The file TypeScript 7's <code>npx tsc --init</code> writes, and the configuration every snippet here uses</summary><div class="b">
+<pre class="tb-code" style="border-top:1px solid var(--line);border-radius:8px">{
+  "compilerOptions": {
+    "module": "nodenext",
+    "target": "esnext",
+    "types": [],
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+  }
+}</pre>
+<p>Comments removed; the generated file explains each line. Every snippet on this page is checked with that file, plus <code>"types": ["node"]</code>, <code>"noEmit": true</code> and <code>"allowImportingTsExtensions": true</code> (so files can import <code>./x.ts</code> and run under Node), minus the output and JSX options that <code>noEmit</code> makes irrelevant, in a folder whose <code>package.json</code> says <code>"type": "module"</code>. When a snippet changes an option, its file header says so.</p>
+</div></details>
+<div class="tb-fix"><div class="t">Correction to the old page</div>The old "TypeScript: zero to expert" page said "<code>tsc --init</code>, then set <code>"strict": true</code>" and "add <code>noUncheckedIndexedAccess</code> too". In TypeScript 7 both are already in the generated file, and <code>strict</code> is the default even without a tsconfig since 6.0 ({{TypeScript 7.0 announcement|https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/}}). It also said @types packages "just work" once installed: since 6.0 <code>types</code> defaults to <code>[]</code>, so even <code>@types/node</code> is ignored until you list it.</div>
+<p><b><code>strict</code></b> switches on a family of checks; the two you meet first are <code>noImplicitAny</code> (a parameter without a type is an error, not silently <code>any</code>) and <code>strictNullChecks</code> (<code>null</code> and <code>undefined</code> are separate types, not members of every type). With strict off, <code>tsc</code> accepted a <code>string | undefined</code> as a <code>string</code> and the program crashed on <code>found.length</code>; with strict on, both lines are caught. Never turn it off; in an old codebase, turn it on and fix file by file.</p>
+<details class="mist tb-fold"><summary>The same file with strict off, then on</summary><div class="b"><div data-tb-s="14_strict_off"></div><div data-tb-s="15_strict_on"></div></div></details>
+<p><b><code>noUncheckedIndexedAccess</code>: an index may be missing.</b></p>
+<div data-tb-s="12_unchecked_off" data-tb-q="With noUncheckedIndexedAccess OFF, does tsc accept scores[2].toFixed(2)?" data-tb-opts="Yes, and node crashes|No, tsc reports possibly undefined" data-tb-ans="0"><p>Without the option, <code>scores[2]</code> has type <code>number</code> even though the array has two elements. With it (the default from <code>tsc --init</code>), every index read is <code>number | undefined</code> until you check:</p></div>
+<div data-tb-s="11_unchecked_index" data-tb-fold="The same code with the option on"></div>
+<p>The cost: you write more checks (<code>if (x !== undefined)</code>, <code>?? 0</code>, or <code>for...of</code> instead of indexes). Most new projects keep it. A length check does not count as one:</p>
+<div data-tb-s="d15_length_check" data-tb-drill><p>With <code>noUncheckedIndexedAccess</code>, a length check does not narrow an index read: <code>scores[0]</code> is still <code>number | undefined</code>. Use <code>const [first] = scores; if (first !== undefined)</code>, or <code>scores.at(0)</code> with a check.</p></div>
+<p><b><code>exactOptionalPropertyTypes</code>: "may be absent" is not "may be undefined".</b> <code>temperature?: number</code> now means the key may be missing, not that it may hold <code>undefined</code>. It matters because <code>JSON.stringify</code> drops a key whose value is <code>undefined</code>, but <code>"temperature" in opts</code> and a spread such as <code>{ ...defaults, ...opts }</code> do not: the spread overwrites the default with <code>undefined</code>. If you need both, write <code>temperature?: number | undefined</code>.</p>
+<div data-tb-s="13_exact_optional" data-tb-fold="exactOptionalPropertyTypes rejects an explicit undefined"></div>
+<p><b><code>types</code>: which global type packages load.</b> <code>process</code> is a Node global, described by <code>@types/node</code>. Installed is not enough: since TypeScript 6.0 the default is <code>"types": []</code> and you list what your program may use, <code>["node"]</code> for a Node program. The message says so, which is a good habit with <code>tsc</code>: read the whole error, the fix is often in it.</p>
+<div data-tb-s="10_types_empty" data-tb-fold="Cannot find name 'process'"></div>
+<details class="mist"><summary>The module options: nodenext, verbatimModuleSyntax, isolatedModules, skipLibCheck</summary><div class="b"><ul>
+<li><code>"module": "nodenext"</code> makes <code>tsc</code> resolve imports exactly as Node does: ES modules or CommonJS decided by the nearest <code>package.json</code> <code>"type"</code> field, and relative imports need their file extension (<code>./tokens.ts</code> or <code>./tokens.js</code>). ESM against CommonJS is explained on the language page (modules). Use <code>"bundler"</code> resolution instead only when a bundler (Vite, esbuild) builds the code.</li>
+<li><code>verbatimModuleSyntax</code> keeps every import you write and drops only those marked <code>import type</code>, so what Node runs matches what you wrote. Write <code>import type { Msg } from "./types.ts"</code> for type-only imports.</li>
+<li><code>isolatedModules</code> rejects code that a one-file-at-a-time stripper (Node, esbuild, Bun) cannot handle correctly. Keep it on.</li>
+<li><code>skipLibCheck</code> skips checking the <code>.d.ts</code> files in <code>node_modules</code>: one badly typed dependency then does not fail your build. Keep it on.</li>
+</ul><p>Each option is documented in the {{TSConfig reference|https://www.typescriptlang.org/tsconfig/}}.</p></div></details>
+<details class="mist"><summary>More drills on strictness: null, an optional parameter, an explicit undefined in a Partial</summary><div class="b">
+<div data-tb-s="d10_null" data-tb-drill><p>With <code>strictNullChecks</code>, <code>null</code> is its own type. Write <code>number | null</code> if you mean it.</p></div>
+<div data-tb-s="d05_optional_param" data-tb-drill><p><code>x?: number</code> is <code>number | undefined</code> inside the function; <code>undefined + 1</code> would be <code>NaN</code>.</p></div>
+<div data-tb-s="d20_spread_override" data-tb-drill><p>With <code>exactOptionalPropertyTypes</code>, an optional property may be absent but not <code>undefined</code>. Without that option this compiles, and the spread overwrites the default with <code>undefined</code>.</p></div>
+</div></details>
+</section>
+
+<section id="s3">
+<h2>3. Inference, objects and structural typing</h2>
+<p>You annotate with a colon after the name, as in Python: <code>let n: number = 0</code>, <code>function f(x: string): number</code>. The basic types are JavaScript's values: <code>number</code> (one type for ints and floats: a 64-bit double), <code>string</code>, <code>boolean</code>, <code>bigint</code>, <code>null</code>, <code>undefined</code>, arrays <code>number[]</code> (also <code>Array&lt;number&gt;</code>), tuples <code>[string, number]</code> and object types <code>{ id: number }</code>. Most of the time you do not write them: <code>tsc</code> <dfn>infers</dfn> types from values, by four rules that explain many surprising errors later.</p>
+<ul>
+<li><b><code>let</code> widens, <code>const</code> keeps the literal.</b> <code>const role = "user"</code> has the type <code>"user"</code> (a <dfn>literal type</dfn>: exactly that string), because a <code>const</code> can never hold anything else; with <code>let</code> it is any <code>string</code>.</li>
+<li><b>Object properties and array elements widen</b> even in a <code>const</code>, because they can be reassigned: <code>msg.role</code> is <code>string</code>, not <code>"user"</code>.</li>
+<li><b><code>as const</code> freezes everything</b>: <code>["ana", 3] as const</code> is a <code>readonly</code> tuple of literals; without it, an array of <code>string | number</code>, not a pair.</li>
+<li><b>Return types are inferred</b>, including a <code>number | null</code> with the <code>null</code> you might forget. The common convention: annotate parameters always (they cannot be inferred), and return types of exported functions (so a change inside cannot silently change your public API); let everything else be inferred.</li>
+</ul>
+<div data-tb-s="20_infer" data-tb-fold="What tsc inferred, printed as a declaration file"><p>To see what <code>tsc</code> inferred, ask it to write a declaration file (<code>.d.ts</code>: the types of a module without its code).</p></div>
+<div data-tb-s="d02_widen" data-tb-drill data-tb-title="Rule 2 in practice: a const object with a string tag"><p><code>ev</code> is a <code>const</code>, but its property can still be reassigned, so <code>kind</code> widens to <code>string</code>, which is not <code>"text" | "image"</code>. With <code>as const</code> (or the literal written inline in the call) it fits, as the next drill shows.</p></div>
+<details class="mist"><summary>Drill: the same with <code>as const</code></summary><div class="b"><div data-tb-s="d03_asconst" data-tb-drill><p><code>as const</code> keeps <code>kind</code> as the literal <code>"text"</code> (and makes it readonly), so it fits. Writing the literal inline in the call also works.</p></div></div></details>
+<p><b>Functions and object types</b> read as you would guess from Python, with three things to know: a function passed where a function type is expected gets its parameter types from it (<dfn>contextual typing</dfn>, why <code>.map(s =&gt; s.length)</code> needs no annotations); <code>interface</code> and <code>type</code> overlap almost completely (many codebases use <code>interface</code> for object shapes and <code>type</code> for everything else, such as unions); and <code>readonly</code> is checked only by <code>tsc</code>, the object stays mutable at run time.</p>
+<details class="mist tb-fold"><summary>Functions, overloads, interface against type, readonly, index signatures</summary><div class="b">
+<p>Optional parameters (<code>stop?: string</code>) have the type <code>string | undefined</code> inside; default values make a parameter optional for callers and give it a type by inference; rest parameters collect into an array; <code>void</code> means "the return value is not meant to be used". A function type is written like an arrow, <code>(text: string) =&gt; number</code>, and a function passed where one is expected gets its parameter types from it: <dfn>contextual typing</dfn>, why <code>.map(s =&gt; s.length)</code> rarely needs annotations. <dfn>Overloads</dfn> give one function several signatures when the return type depends on the argument type; use them sparingly, a union parameter or a generic is usually clearer.</p>
+<div data-tb-s="22_functions" data-tb-fold="Optional, default and rest parameters, void, contextual typing"></div>
+<div data-tb-s="23_overload" data-tb-fold="Overloads"><p>The callers see only the first two signatures; the third is the implementation and must handle every case.</p></div>
+<p>They overlap almost completely. <code>interface</code> names an object shape; two declarations with the same name <b>merge</b> (how libraries let you add fields to their types), and <code>extends</code> builds on another. <code>type</code> names any type: an object, but also a union, a tuple, a function or a computed type, and <code>&amp;</code> (an <dfn>intersection</dfn>) combines object types. The pragmatic rule many codebases use: <code>interface</code> for object shapes, <code>type</code> for everything else. <code>?</code> marks an optional property, <code>readonly</code> one that cannot be reassigned (checked only by <code>tsc</code>; at run time the object is mutable, use <code>Object.freeze</code> for that), and <code>{ [model: string]: number }</code> (an <dfn>index signature</dfn>, same as <code>Record&lt;string, number&gt;</code>) any number of string keys.</p>
+<div data-tb-s="24_interface_type" data-tb-fold="interface, type, merging, intersections"></div>
+<div data-tb-s="25_readonly" data-tb-fold="readonly: checked by tsc, not at run time"></div>
+</div></details>
+<p><b>Excess property checks: why a typo is caught, sometimes.</b></p>
+<div data-tb-s="26_excess" data-tb-q="Which of the two calls does tsc reject?" data-tb-opts="Both|Only the object literal on line 3|Only the variable on line 5|Neither" data-tb-ans="1"><p>An object type means "at least these properties", so <code>opts</code> (which has <code>model</code> and an extra key) fits <code>Options</code>. As a special case, a <b>fresh object literal</b> written directly where a type is expected may not have unknown keys, because there the extra key is almost always a typo. Through a variable, the typo passes silently and <code>temperature</code> is never sent.</p></div>
+<p><b>Structural typing: shape, not name.</b> A value fits a type if it has the right members, whatever class or name it came from: a string, an array, an instance of an unrelated class and a plain object all have a numeric <code>length</code>, so all four fit <code>HasLength</code>. This is the deepest difference from Java, C# or Rust, and it is what Python's <code>typing.Protocol</code> does (the root's Design space compares structural typing with Rust traits and C++ templates). When you need the opposite, two string types that must not mix (a user id and an order id), add a <dfn>brand</dfn>: a fake property that exists only in the type. It costs nothing at run time (the value is still a plain string), and the only way to make a <code>UserId</code> is through a function you control (<code>asUserId</code>, ideally after validating).</p>
+<div data-tb-s="27_structural" data-tb-fold="Four unrelated values fit HasLength"></div>
+<div data-tb-s="28_brand_err" data-tb-fold="A branded UserId refuses an OrderId"></div>
+<div data-tb-s="d09_keys" data-tb-drill data-tb-title="Structural typing has a price: Object.keys"><p><code>Object.keys</code> returns <code>string[]</code>, not <code>("small" | "large")[]</code>, because an object may have more keys than its type lists (structural typing). Use <code>Object.entries</code>, or a typed key list.</p></div>
+<details class="mist"><summary>More drills on the basics: a typo through a variable, <code>{}</code>, string arithmetic, a missing return, a void callback</summary><div class="b">
+<div data-tb-s="d01_excess" data-tb-drill><p>An object type means "at least these properties". The excess-property check applies only to a fresh object literal, so through a variable the misspelt <code>temprature</code> is accepted and silently ignored.</p></div>
+<div data-tb-s="d13_empty_object" data-tb-drill><p><code>{}</code> means "any value except null and undefined", not "an empty object". Use <code>Record&lt;string, never&gt;</code> or <code>object</code> if you mean an object.</p></div>
+<div data-tb-s="d14_string_math" data-tb-drill><p>JavaScript would happily compute <code>"5" * 2 = 10</code>; TypeScript rejects arithmetic on strings, which catches unparsed input.</p></div>
+<div data-tb-s="d17_missing_return" data-tb-drill><p>The return type says <code>string</code>, but for <code>n === 0</code> the function returns nothing. tsc requires every path to return.</p></div>
+<div data-tb-s="d11_void" data-tb-drill><p>A function type returning <code>void</code> accepts functions that return something; the value is just not supposed to be used. That is what allows <code>xs.forEach(x =&gt; out.push(x))</code>, whose callback returns a number. It prints 5 because JavaScript keeps the value anyway.</p></div>
+</div></details>
+</section>
