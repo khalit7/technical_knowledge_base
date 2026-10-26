@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3c6
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Attention Is All You Need (Transformer)","Takeaway":"Replaced recurrence entirely with multi-head scaled dot-product self-attention, making sequence training parallel and becoming the backbone of every modern LLM.","Topics":["ml-fundamentals","llm-training-and-post-training","llms"],"Year":"2017","url":"https://app.notion.com/p/3c65c17b0d0d81999af7f16f8ed8ee9e"}
+{"Paper":"Attention Is All You Need (Transformer)","Takeaway":"Replaced recurrence entirely with multi-head scaled dot-product self-attention, making sequence training parallel and becoming the backbone of nearly every modern LLM.","Topics":["ml-fundamentals","llm-training-and-post-training","llms"],"Year":"2017","url":"https://app.notion.com/p/3c65c17b0d0d81999af7f16f8ed8ee9e"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>
