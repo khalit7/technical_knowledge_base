@@ -1,0 +1,26 @@
+<section id="s7"><h2>7. Lazy imports (3.15), measured</h2>
+<p>A Python program's start-up time is mostly imports: each <code>import</code> finds a file, loads or compiles its bytecode and runs all its top-level code, including its own imports. A command-line tool that imports httpx, pydantic and rich at the top pays for all three even when the user only asked for <code>--help</code>. Until now the fix was to move imports inside functions. 3.15 adds <code>lazy import</code> ({{PEP 810|https://peps.python.org/pep-0810/}}): the name is bound to a lightweight proxy and the module loads the first time the name is used.</p>
+<div class="ci-code2">import argparse
+
+lazy import httpx                     # was: import httpx
+lazy import pydantic                  # was: import pydantic
+lazy from rich.console import Console # was: from rich.console import Console</div>
+<p>That is the only change between the two files measured below (<code>src/pb/lazy/</code>). Both run the fast path, <code>count "hello world"</code>, which needs none of the three libraries. Step through what Python imports, to scale; switching mode starts again from the first import:</p>
+<div class="ci-anim" id="ci-lz-card"><h4>Three unused imports cost three quarters of the start-up</h4>
+<div class="seg" id="ci-lz-seg"><button data-m="cli_eager" class="on">Eager imports</button><button data-m="cli_lazy">lazy import</button><button data-m="cli_all">Eager file, -X lazy_imports=all</button></div>
+<div class="ci-svg" id="ci-lz-plot"></div>
+<div class="ci-cnt" id="ci-lz-cnt"></div>
+<div class="ci-cap" id="ci-lz-cap"></div>
+<div class="ci-ctl" id="ci-lz-ctl"></div>
+<div class="ci-src" id="ci-lz-src"></div>
+</div>
+<div id="ci-lz-bars"></div>
+<p>What to take from it: the lazy file loads 64 of the eager file's 268 modules and the whole run takes 26 ms instead of 100 ms (hyperfine medians), and the global switch <code>-X lazy_imports=all</code> (or <code>PYTHON_LAZY_IMPORTS=all</code>) gets the same result without editing the file. The work has not disappeared: a run that uses httpx pays for it at the first use instead.</p>
+<div class="ci-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
+<li>Errors move: a misspelled module raises at first use, not at start-up; the traceback shows both places.</li>
+<li>Import side effects (a plugin registering itself, logging configured at import) happen later or never. Do not make such imports lazy; the global <code>all</code> mode can be filtered with <code>sys.set_lazy_imports_filter</code>.</li>
+<li>Only at module level: <code>lazy</code> inside a function, a class body or a <code>try</code> block is a <code>SyntaxError</code>, and so is <code>lazy from x import *</code>.</li>
+<li>Code that must also run on 3.14 or older cannot use the keyword (it is a <code>SyntaxError</code> there; see the {{Version explorer|#t-ver}}); list the modules in <code>__lazy_modules__</code> instead, which older versions ignore.</li>
+</ul></div>
+<details class="dp"><summary>The PEP and the release disagree on one detail</summary><div class="b">PEP 810 (status Final) describes three global modes, <code>normal</code>, <code>all</code> and <code>none</code> (none would force every import eager, for debugging). 3.15.0rc3 accepts only two, as What's New says:<div class="ci-term" id="ci-lz-none"></div>Use <code>normal</code> to undo <code>all</code>; there is no switch that forces explicit <code>lazy</code> imports eager.</div></details>
+</section>

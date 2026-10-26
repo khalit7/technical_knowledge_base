@@ -1,0 +1,18 @@
+<section id="s5"><h2>5. The experimental JIT, on and off</h2>
+<p>A <dfn>JIT</dfn> (just-in-time compiler) turns hot code into machine code while the program runs. CPython's ({{PEP 744|https://peps.python.org/pep-0744/}}, since 3.13) is a <b>copy-and-patch</b> JIT: when the specialising interpreter of section 1 finds a hot loop, it records a trace of its micro-operations and stitches together machine-code templates ("stencils") that were compiled with LLVM when CPython itself was built, so you need no LLVM at run time. It ships compiled into the official macOS and Windows installers and the uv builds used here, but is off unless you set <code>PYTHON_JIT=1</code>; in 3.14 and later, <code>sys._jit.is_enabled()</code> tells you whether it is on.</p>
+<div class="pr" id="ci-pr-jit"></div>
+<div class="ci-anim"><h4>The 3.15 JIT speeds up plain loops, not generator pipelines; the 3.14 JIT is mostly a wash</h4>
+<div class="ci-tbl"><table id="ci-jit-tbl"></table></div>
+<p class="ci-src" id="ci-jit-note"></p></div>
+<p>Read it as: on 3.15 the JIT sped up the plain Python loops (character scanning 1.64x, float arithmetic) by about half or more, helped small-object code less, and did not help (here, slightly slowed) the generator pipeline, inside What's New's own range for 3.15 ("roughly 15% slowdown to over 100% speedup", 11-12% geometric mean on AArch64 macOS; {{What's new in 3.15|https://docs.python.org/3.15/whatsnew/3.15.html}}, vendor figure). The 3.13 JIT gave the character loop about the same (1.66x); the 3.14 JIT on this machine is mostly a wash, sometimes slower. <span class="hl">Trust the direction, not the digits</span>: the final run was made with a load average around 10, and an earlier run the same day (<code>src/pb/out/jit_earlier_run.txt</code>) gave 1.5x instead of 2.4x for <code>json_count</code> on 3.15.</p>
+<p>It is off by default in 3.15 too, and a 2x speed-up of a Python loop is still far from moving the loop to NumPy or Rust (section 4; the root's {{Benchmark|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab measures the token counter in all four languages).</p>
+<details class="dp"><summary>Method and every time measured <span class="mute">(the language page's Runtime lab, part 3)</span></summary><div class="b">
+<p class="small">Five workloads (<code>src/pb/jit/jit_cases.py</code>): each is timed 7 times after 3 warm-ups inside one process (median), and that process is run 3 times per setting (median of the three). <code>PYTHON_JIT=0</code> and <code>=1</code> on the uv builds of 3.13.16, 3.14.8 and 3.15.0rc3, all configured with <code>--enable-experimental-jit=yes-off</code> (built in, off by default). "JIT on" is confirmed by <code>sys._jit.is_enabled()</code> on 3.14 and 3.15 (3.13 has no such function).</p>
+<div class="ci-tbl wide"><table id="ci-jit-all"></table></div>
+<p class="small mute" id="ci-jit-load"></p>
+<p class="small"><b>The mistake this avoids: measuring the JIT with one run on a busy laptop.</b> The differences here are tens of percent; noise on a loaded machine is several percent. Run each case in several fresh processes, take medians, and record the load, as this page does.</p>
+</div></details>
+<details class="dp"><summary>The old page's JIT claims, checked</summary><div class="b">
+<p class="small">Old page "Python: staying current": 3.13 "copy-and-patch JIT ... modest gains"; 3.14 JIT "wins on tight loops". <span class="ci-pill bad">imprecise</span> Measured above: gains depend on the workload and the version. The 3.13 and 3.15 JITs sped up the character loop by about 1.6x; the 3.14 JIT was mostly a wash; the 3.15 JIT is the broadest win on tight loops.</p>
+</div></details>
+</section>

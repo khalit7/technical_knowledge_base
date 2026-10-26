@@ -1,0 +1,1033 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python: CPython internals and performance</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+@media (max-width:520px){h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>Python: CPython internals and performance</h1>
+<div class="sub">What CPython does with your code (bytecode, the specialising interpreter, reference counts, object sizes), how to find where the time goes, how to move the loop out of Python, the experimental JIT measured, and what changed from 3.12 to 3.15; every example run on CPython 3.11 to 3.15 on an Apple M1 Pro. A child of Python: the essentials. Data as of October 2026. <span id="ci-time">Reading: 19 min, plus 6 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-ver" aria-selected="false">Version explorer</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read{--pbg:#1f2328;--pbf:#e6edf3}
+@media (prefers-color-scheme:dark){#t-read{--pbg:#0d1117;--pbf:#e6edf3}}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4{margin:0 0 2px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .leg i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;min-width:0}
+#t-read .ci-snip{margin:10px 0 12px;min-width:0}
+#t-read .ci-file,#t-read .ci-olab{font:11.5px/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--mute);padding:3px 10px;border:1px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;background:var(--soft);display:inline-block}
+#t-read .ci-olab{background:var(--bg);margin-top:6px}
+#t-read pre.ci-code,#t-read pre.ci-out{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:0;padding:8px 10px;overflow-x:auto;white-space:pre;border:1px solid var(--line);border-radius:0 6px 6px 6px;max-width:100%}
+#t-read pre.ci-code{background:var(--soft)}
+#t-read pre.ci-out{background:var(--bg);border-left:3px solid var(--good)}
+#t-read .ci-code .cm{color:var(--mute);font-style:italic}#t-read .ci-code .st{color:var(--c3)}#t-read .ci-code .kw{color:var(--c4);font-weight:600}
+#t-read .ci-pred details{margin-top:6px}
+#t-read .ci-pred summary{cursor:pointer;display:inline-block;font-size:13px;color:var(--acc);border:1px solid var(--acc);border-radius:99px;padding:2px 12px;list-style:none}
+#t-read .ci-pred summary::-webkit-details-marker{display:none}
+#t-read .ci-pred details[open] summary{background:var(--acc2)}
+#t-read .ci-anim{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0;min-width:0}
+#t-read .ci-anim h4{margin:0 0 4px;font-size:14.5px}
+#t-read .ci-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+#t-read .ci-ctl input[type=range]{flex:1 1 120px;min-width:100px;width:auto}
+#t-read .ci-cap{font-size:13.5px;min-height:3.2em;margin:6px 0 2px;border-left:3px solid var(--acc);padding:2px 0 2px 10px}
+#t-read .ci-cnt{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}
+#t-read .ci-cnt b{color:var(--ink);font-variant-numeric:tabular-nums}
+#t-read .ci-svg{overflow:hidden;margin:6px 0}
+#t-read .ci-src{font-size:12px;color:var(--mute)}
+#t-read .tw table{min-width:560px}
+#t-read table.ci-t td,#t-read table.ci-t th{font-size:13px}
+#t-read .ci-term{background:var(--pbg);color:var(--pbf);border-radius:8px;padding:9px 11px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+#t-read .ci-term .c{color:#8bd5ff}#t-read .ci-term .c:before{content:"$ ";color:#7d8590}#t-read .ci-term .e{color:#ff9b8b}#t-read .ci-term .w{color:#e3c46b}#t-read .ci-term .k{color:#7d8590}#t-read .ci-term .ok{color:#7ee2a0}
+#t-read .ci-code2{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+#t-read .ci-tbl{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+#t-read .ci-tbl table{border-collapse:collapse;width:100%;font-size:13px}
+#t-read .ci-tbl th,#t-read .ci-tbl td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+#t-read .ci-tbl thead th{background:var(--soft);font-weight:600}
+#t-read .ci-tbl td.n,#t-read .ci-tbl th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#t-read .ci-tbl tr:last-child td{border-bottom:0}
+#t-read .ci-tbl.wide table{min-width:620px}
+#t-read .ci-ws td.y{color:var(--good);font-weight:600;text-align:center}#t-read .ci-ws td.no{color:var(--dim);text-align:center}
+#t-read .ci-ws td.fn{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;overflow-wrap:anywhere;min-width:16em}
+#t-read .pr{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;background:var(--soft)}
+#t-read .pr .q{font-weight:600;font-size:14px;color:var(--ink);margin-bottom:6px}
+#t-read .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-read .pr .opts button{font-size:13px;text-align:left;white-space:normal}
+#t-read .pr .opts button.right{border-color:var(--good);color:var(--good);font-weight:600}
+#t-read .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-read .pr .ans{font-size:13.5px;margin-top:6px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-read .ci-cost{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13.5px}
+#t-read .ci-cost .t{font-weight:600;margin-bottom:4px}
+#t-read .bars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 5em}#t-read .bars .row .nm{white-space:normal;line-height:1.2}
+@media (max-width:520px){#t-read .bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 4.6em}}
+#t-read .ci-leg2{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .ci-leg2 i{display:inline-block;width:12px;height:3px;margin-right:5px;vertical-align:3px}
+#t-read .seg button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read code{overflow-wrap:anywhere}
+#t-read table.ci-dis{font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;min-width:0;word-break:break-word;width:100%}
+#t-read table.ci-dis td,#t-read table.ci-dis th{padding:2px 6px}#t-read table.ci-dis td:nth-child(-n+2),#t-read table.ci-dis th{white-space:nowrap}
+#t-read table.ci-dis tr.ch{background:var(--hl)}#t-read table.ci-dis tr.ch td:last-child{font-weight:700}
+#t-read .ci-was{color:var(--mute);font-weight:400}
+#t-read .ci-pill{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;border:1px solid var(--line)}
+#t-read .ci-pill.bad{border-color:var(--bad);color:var(--bad)}#t-read .ci-pill.ok{border-color:var(--good);color:var(--good)}
+#t-read .ci-life text{font-family:inherit}
+</style>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s0">The idea</a><a href="#s1">Bytecode</a><a href="#s2">Objects</a><a href="#s3">Profiling</a><a href="#s4">Out of Python</a><a href="#s5">The JIT</a><a href="#s6">3.12 to 3.15</a><a href="#s7">Lazy imports</a></nav>
+
+<section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">CPython runs your code as <span class="hl">bytecode in a loop written in C, and every value is a separate heap object</span>, so a Python loop pays an interpreter step and new objects for every element. Speed comes from <span class="hl">moving the loop out of Python</span> (into built-ins, NumPy or native code), and from <span class="hl">measuring first</span> to find the one loop that matters.</p>
+<div class="hero" id="ci-hero-card"><h4>The same reduction over a million floats: 47.6 ms as a Python loop, 3.2 ms as one NumPy call</h4>
+<div class="ci-svg" id="ci-hero"></div>
+<p class="small">Notice where the work sits. Top: a list holds a million pointers to separate float objects, and the C evaluation loop runs the loop body's bytecode once per element, making three new floats each time (<code>x - m</code>, the <code>exp</code>, the new <code>s</code>). Bottom: one call, three C loops over one contiguous buffer of 8-byte doubles, no objects per element. Times are the real <code>p2_numpy</code> run of section 4 (CPython 3.14.8, NumPy 2.5.3, Apple M1 Pro).</p></div>
+<div class="ci-anim"><h4>Within Python a remedy buys under 3x; moving the loop out buys 15x</h4><div id="ci-ladder"></div>
+<p class="ci-src">Speed-up of each remedy measured on this page, on the same machine (different workloads, named in each bar). The specialising interpreter (section 1) is already in the "Python loop" time; the JIT (section 5) is off by default.</p></div>
+<p><b>You need:</b> <a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python: the essentials</a> (names, objects and the one interpreter). What reference counting and the collector do to a process's memory (pymalloc's arenas, memory that never returns to the OS) is <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a>, section 7; profiling a live service with py-spy and flame graphs is <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>.</p>
+<dl class="terms">
+<dt>Bytecode</dt><dd>instructions for CPython's virtual stack machine, compiled from your source and cached in <code>__pycache__/*.pyc</code>.</dd>
+<dt>Evaluation loop</dt><dd>the C loop (<code>Python/ceval.c</code>) that executes bytecode one instruction at a time.</dd>
+<dt>Specialising interpreter</dt><dd>since 3.11, an instruction that keeps seeing the same types is rewritten in place into a faster, type-specific version.</dd>
+<dt>Reference count</dt><dd>the number of references to an object, stored in its header; at zero the object is freed at once.</dd>
+<dt>Cycle collector</dt><dd>the <code>gc</code> module's periodic search for objects that refer only to each other.</dd>
+<dt>Deterministic, sampling profiler</dt><dd>records every call (cProfile), or looks at the stack a few hundred times a second (py-spy, Scalene).</dd>
+<dt>Vectorise</dt><dd>replace a per-element Python loop with one call that loops in C over a typed buffer.</dd>
+<dt>JIT</dt><dd>just-in-time compiler: turns hot code into machine code while the program runs; CPython's is experimental and off by default.</dd>
+</dl>
+</section>
+<section id="s1"><h2>1. Bytecode, and how it rewrites itself while running</h2>
+<p>CPython, the standard Python, is a C program. It compiles your source to <dfn>bytecode</dfn>, instructions for a virtual stack machine (cached in <code>__pycache__/*.pyc</code>), and an <dfn>evaluation loop</dfn> in C executes them one by one. The root page's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">How code runs</a> section follows one line through Python, C++, Rust and JavaScript; this section is CPython's half, seen with the <code>dis</code> module.</p>
+<p>Since 3.11 the interpreter is <dfn>specialising and adaptive</dfn> (<a href="https://peps.python.org/pep-0659/" target="_blank" rel="noopener noreferrer">PEP 659</a>): after an instruction has run a few times it is rewritten in place into a version specialised for the types it saw, guarded by a cheap check; if the check starts failing, it falls back and re-specialises. "Python 3.11 is between 10-60% faster than Python 3.10", 1.25x on average (<a href="https://docs.python.org/3/whatsnew/3.11.html" target="_blank" rel="noopener noreferrer">What's new in 3.11</a>, vendor figure), largely from this. <code>dis.dis(f, adaptive=True)</code> shows the live, rewritten instructions. Step through one function, <code>total(xs)</code>, which sums a list with <code>s = s + x</code>:</p>
+<div class="ci-anim" id="ci-dis-card"><h4>The interpreter rewrites <code>+</code> for the types it has seen</h4>
+<div class="ci-ctl" id="ci-dis-ctl"></div>
+<div class="ci-svg" id="ci-dis-view"></div>
+<div class="ci-cap" id="ci-dis-cap"></div>
+<div class="ci-src">The three listings are the real output of <code>code/i1_dis.py</code> on Python 3.14.8 (the script is in the closed block below). Highlighted rows changed since the previous listing.</div>
+</div>
+<div class="pr" id="ci-pr-dis"></div>
+<details class="dp"><summary>The script behind the listings <span class="mute">(i1_dis.py)</span></summary><div class="b">
+<div class="ci-snip"><div class="ci-file">i1_dis.py</div><pre class="ci-code"><span class="kw">import</span> dis
+
+<span class="kw">def</span> total(xs):
+    s = 0
+    <span class="kw">for</span> x <span class="kw">in</span> xs:
+        s = s + x
+    <span class="kw">return</span> s
+
+print(<span class="st">"--- before running (generic instructions)"</span>)
+dis.dis(total, adaptive=<span class="kw">True</span>)
+total(list(range(1000)))            <span class="cm"># warm up with ints only</span>
+print(<span class="st">"--- after 1000 int additions (specialised in place)"</span>)
+dis.dis(total, adaptive=<span class="kw">True</span>)
+<span class="kw">for</span> _ <span class="kw">in</span> range(100):
+    total([0.5] * 1000)             <span class="cm"># now feed floats</span>
+print(<span class="st">"--- after floats arrive (re-specialised)"</span>)
+dis.dis(total, adaptive=<span class="kw">True</span>)</pre></div>
+</div></details>
+<p><code>BINARY_OP (+)</code>, which must handle every type with an <code>__add__</code>, became <code>BINARY_OP_ADD_INT</code>, then <code>BINARY_OP_ADD_FLOAT</code> when the types changed; <code>FOR_ITER</code> became <code>FOR_ITER_LIST</code>. <code>JUMP_BACKWARD_NO_JIT</code> is the loop's back-edge on a build where the experimental JIT is off, which is the default in 3.14 (<a href="https://docs.python.org/3.14/whatsnew/3.14.html" target="_blank" rel="noopener noreferrer">What's new in 3.14</a>); section 5 turns it on and measures it. The lesson for speed: <span class="hl">hot loops whose types never change are the ones CPython can specialise</span>, and even specialised, each element still costs several instructions.</p>
+</section>
+
+<section id="s2"><h2>2. What objects cost</h2>
+<p>Every value is a heap object with a header: a reference count and a pointer to its type, 16 bytes on a 64-bit build. A <code>float</code> adds its 8-byte double; an <code>int</code> adds a size field and 30-bit digits, because ints are arbitrary precision.</p>
+<div class="hero" id="ci-obj-card"><h4>A Python int is 28 bytes where a C <code>int64</code> is 8, and grows 4 bytes per 30 bits</h4>
+<div class="ci-svg" id="ci-obj"></div>
+<p class="small">Sizes from <code>sys.getsizeof</code> on Python 3.14.8 (the full output is in the closed block below). A list of a million floats is a million 8-byte pointers to a million separate 24-byte objects; NumPy stores 8 bytes each, contiguously.</p></div>
+<p>A <code>str</code> stores 1, 2 or 4 bytes per character for the whole string, chosen by its widest character (<a href="https://peps.python.org/pep-0393/" target="_blank" rel="noopener noreferrer">PEP 393</a>); a non-ASCII string also carries a larger header, which is why <code>'é'</code> (1 byte per character) costs 61 bytes against 42 for <code>'a'</code>, and <code>'🙂'</code> (4 bytes per character) 64. A list over-allocates: appends reserve spare room in steps (56, 88, 120, 184 bytes as it grows), which is why <code>append</code> is O(1) on average.</p>
+<details class="dp"><summary>Every size measured <span class="mute">(i3_sizes.py and its output)</span></summary><div class="b">
+<div class="ci-snip"><div class="ci-file">i3_sizes.py</div><pre class="ci-code"><span class="kw">import</span> sys
+<span class="kw">for</span> v <span class="kw">in</span> [0, 1, 2**30, 2**60, 2**100, 1.5, <span class="st">""</span>, <span class="st">"a"</span>, <span class="st">"é"</span>, <span class="st">"日"</span>, <span class="st">"🙂"</span>, <span class="st">b""</span>, (), [], &#123;&#125;, set()]:
+    print(<span class="st">f"&#123;v!r:&gt;40&#125;  &#123;type(v).__name__:6&#125; &#123;sys.getsizeof(v):4&#125; bytes"</span>)
+xs, last = [], <span class="kw">None</span>
+growth = []
+<span class="kw">for</span> i <span class="kw">in</span> range(33):
+    size = sys.getsizeof(xs)
+    <span class="kw">if</span> size != last:
+        growth.append((len(xs), size))
+        last = size
+    xs.append(i)
+print(<span class="st">"list size jumps (length, bytes):"</span>, growth)</pre><div class="ci-olab">real output, Python 3.14.8</div><pre class="ci-out" data-src="i3_sizes.txt">                                       0  int      28 bytes
+                                       1  int      28 bytes
+                              1073741824  int      32 bytes
+                     1152921504606846976  int      36 bytes
+         1267650600228229401496703205376  int      40 bytes
+                                     1.5  float    24 bytes
+                                      ''  str      41 bytes
+                                     'a'  str      42 bytes
+                                     'é'  str      61 bytes
+                                     '日'  str      60 bytes
+                                     '🙂'  str      64 bytes
+                                     b''  bytes    33 bytes
+                                      ()  tuple    48 bytes
+                                      []  list     56 bytes
+                                      &#123;&#125;  dict     64 bytes
+                                   set()  set     216 bytes
+list size jumps (length, bytes): [(0, 56), (1, 88), (5, 120), (9, 184), (17, 248), (25, 312)]</pre></div>
+</div></details>
+<h3>Reference counting and the cycle collector</h3>
+<p>When an object's count reaches zero it is freed at once, deterministically; that is why a file closed by going out of scope closes immediately in CPython. Counting cannot free a <dfn>cycle</dfn> (A points at B, B at A: both counts stay at 1 after your last name is gone), so a separate <dfn>cycle collector</dfn> (<code>gc</code>) periodically looks for groups of objects reachable only from each other. Predict when each object below is freed:</p>
+<div class="ci-snip ci-pred"><div class="ci-file">i2_refcount.py</div><pre class="ci-code"><span class="kw">import</span> gc, sys, weakref
+
+<span class="kw">class</span> Node:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, name):
+        <span class="kw">self</span>.name, <span class="kw">self</span>.other = name, <span class="kw">None</span>
+
+a = Node(<span class="st">"a"</span>)
+print(<span class="st">"refcount:"</span>, sys.getrefcount(a))          <span class="cm"># +1 for getrefcount's own argument</span>
+b = a
+print(<span class="st">"refcount:"</span>, sys.getrefcount(a))
+weakref.finalize(a, print, <span class="st">"  a freed"</span>)          <span class="cm"># prints when the object dies</span>
+<span class="kw">del</span> a
+print(<span class="st">"del a: still alive through b"</span>)
+<span class="kw">del</span> b                                            <span class="cm"># count hits 0: freed immediately</span>
+print(<span class="st">"del b done"</span>)
+
+x, y = Node(<span class="st">"x"</span>), Node(<span class="st">"y"</span>)
+x.other, y.other = y, x                          <span class="cm"># a reference cycle</span>
+weakref.finalize(x, print, <span class="st">"  x freed"</span>)
+weakref.finalize(y, print, <span class="st">"  y freed"</span>)
+<span class="kw">del</span> x, y                                         <span class="cm"># counts never reach 0</span>
+print(<span class="st">"after del x, y: nothing freed yet"</span>)
+print(<span class="st">"gc.collect() found"</span>, gc.collect(), <span class="st">"unreachable objects"</span>)
+print(<span class="st">"thresholds:"</span>, gc.get_threshold())</pre><details><summary>Predict the output, then reveal</summary><div class="ci-olab">real output, Python 3.14.8</div><pre class="ci-out" data-src="i2_refcount.txt">refcount: 2
+refcount: 3
+del a: still alive through b
+  a freed
+del b done
+after del x, y: nothing freed yet
+  x freed
+  y freed
+gc.collect() found 4 unreachable objects
+thresholds: (2000, 10, 10)</pre></details></div>
+<p><code>sys.getrefcount</code> reports one more than you expect because its own argument is a reference. <code>a</code> died the instant its last name went; the cycle survived <code>del</code> until <code>gc.collect()</code>. The thresholds <code>(2000, 10, 10)</code> are those of the generational collector: Python 3.14.0 to 3.14.4 shipped an incremental collector, and 3.14.5 reverted to "the generational GC from 3.13" after "reports of significant memory pressure in production environments" (<a href="https://docs.python.org/3.14/whatsnew/3.14.html" target="_blank" rel="noopener noreferrer">What's new in 3.14, Garbage collection</a>).</p>
+<p>Practical consequences: break cycles in long-lived structures (parent pointers, callbacks that capture <code>self</code>) or use <code>weakref</code>; do not rely on <code>__del__</code> for clean-up (use <code>with</code>); and for PyTorch, a tensor held by a cycle keeps its GPU memory until the collector runs. What both mechanisms do to a process's memory (pymalloc's arenas and pools, freed memory that does not go back to the operating system, the copy-on-write cost in DataLoader workers) is <a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a>, section 7.</p>
+<h3>Two implementation details that leak into results</h3>
+<div class="ci-snip ci-pred"><div class="ci-file">Integer caching</div><pre class="ci-code">a = 1000
+b = 999 + int(<span class="st">'1'</span>)
+print(a == b, a <span class="kw">is</span> b, 10 <span class="kw">is</span> 5 + 5)</pre><details><summary>Predict the output, then reveal</summary><div class="ci-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="ci-out">&lt;drill&gt;:3: SyntaxWarning: "is" with 'int' literal. Did you mean "=="?
+True False True</pre></details></div>
+<p class="small">CPython keeps one shared object for every integer from -5 to 256 ("The current implementation keeps an array of integer objects for all integers between -5 and 256", <a href="https://docs.python.org/3/c-api/long.html" target="_blank" rel="noopener noreferrer">C API, integer objects</a>), so <code>10 is 5 + 5</code> is <code>True</code> while two separately made 1000s are different objects; the compiler warns about <code>is</code> with a literal. Compare values with <code>==</code>; <code>is</code> is for <code>None</code> and sentinels.</p>
+<div class="ci-snip ci-pred"><div class="ci-file">Float arithmetic</div><pre class="ci-code">print(0.1 + 0.2 == 0.3, round(2.5), round(3.5), 7 // -2, -7 % 3)</pre><details><summary>Predict the output, then reveal</summary><div class="ci-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="ci-out">False 2 4 -4 2</pre></details></div>
+<p class="small">A <code>float</code> is an IEEE 754 double, so 0.1 and 0.2 are not exact; <code>round</code> rounds halves to even; <code>//</code> and <code>%</code> round towards minus infinity. Why, and what it does to training numerics, is <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing</a>.</p>
+<p>On the same accounting, the built-in containers have the costs below: fast where the work stays inside one C structure, slow where every element must be visited or a new object made.</p>
+<details class="dp"><summary>What the built-in containers cost <span class="mute">(type, what it is, fast and slow operations)</span></summary><div class="b">
+<div class="tw"><table class="ci-t">
+<thead><tr><th>Type</th><th>Is</th><th>Fast</th><th>Slow</th></tr></thead>
+<tbody>
+<tr><td><code>list</code></td><td>Dynamic array of pointers</td><td>index, append (amortised O(1)), pop from the end</td><td><code>x in list</code>, insert or pop at the front (O(n))</td></tr>
+<tr><td><code>collections.deque</code></td><td>Linked blocks</td><td>append and pop at both ends</td><td>indexing the middle</td></tr>
+<tr><td><code>dict</code>, <code>set</code></td><td>Hash tables (dict keeps insertion order)</td><td>lookup, insert, delete: O(1) on average</td><td>memory (about 2x a plain object per record; <a href="https://app.notion.com/p/4055c17b0d0d816a8705e4d3f20b3da7" target="_blank" rel="noopener noreferrer">Python: the data model and protocols</a> measures it)</td></tr>
+<tr><td><code>tuple</code></td><td>Immutable array</td><td>creation, hashing (if items hash)</td><td>any "change" makes a new tuple</td></tr>
+<tr><td><code>str</code>, <code>bytes</code></td><td>Immutable; <code>str</code> is Unicode code points, <code>bytes</code> raw octets; convert with <code>encode</code>/<code>decode</code> at the edges</td><td>slicing, <code>in</code>, <code>join</code></td><td><code>s += t</code> in a loop (a new string each time; use <code>"".join</code>)</td></tr>
+<tr><td><code>int</code>, <code>float</code></td><td>Arbitrary-precision integer; IEEE 754 double</td><td>small values</td><td>every operation allocates a new object (above)</td></tr>
+</tbody></table></div>
+<p class="small mute">Time complexities as listed on the <a href="https://wiki.python.org/moin/TimeComplexity" target="_blank" rel="noopener noreferrer">Python wiki's TimeComplexity page</a>.</p>
+</div></details>
+</section>
+<section id="s3"><h2>3. Measure first: profiling</h2>
+<p>The order that works: <span class="hl">measure where the time goes</span>, fix the algorithm or data structure, push loops into code that runs in C (built-ins, <code>re</code>, NumPy), and only then write native code. Guessing skips the first step and usually optimises the wrong thing.</p>
+<p>The subject is a deliberately slow version of the root page's token counter: it calls a Python function for every character and keeps per-user totals in two parallel lists (<code>p1_slow.py</code>, in the closed block below). <code>cProfile</code> (standard library) records every function call. Before reading its report:</p>
+<div class="pr" id="ci-pr-prof"></div>
+<div class="ci-snip"><div class="ci-olab">python p1_profile.py: cProfile on per_user(), then both versions timed without it (real output, Python 3.14.8)</div><pre class="ci-out" data-src="p1_profile.txt">         8194880 function calls in 1.456 seconds
+
+   Ordered by: internal time
+   List reduced from 18 to 6 due to restriction &lt;6&gt;
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+  2669805    0.631    0.000    1.016    0.000 p1_slow.py:11(is_token_char)
+    20000    0.323    0.000    1.340    0.000 p1_slow.py:14(count_tokens)
+  2614667    0.203    0.000    0.203    0.000 &#123;method 'isalnum' of 'str' objects&#125;
+  2669805    0.183    0.000    0.183    0.000 &#123;method 'isascii' of 'str' objects&#125;
+        1    0.033    0.033    1.456    1.456 p1_slow.py:23(per_user)
+    20000    0.023    0.000    0.023    0.000 &#123;method 'index' of 'list' objects&#125;
+
+
+p1_slow: 206 ms per run (no profiler)
+p1_fast: 74 ms per run (no profiler)</pre></div>
+<p>Read <code>tottime</code> (time inside the function itself) first: 2.7 million calls of <code>is_token_char</code>, one per character, dominate. The list scans that look bad on paper (<code>users.index</code>) cost 23 ms, because there are only 200 users. The fix follows the profile: count with a compiled regular expression (the loop over characters then runs inside the C regex engine) and keep totals in a dict (a <code>Counter</code>). Same answer (the script asserts it), 206 ms down to 74 ms.</p>
+<details class="dp"><summary>The slow and the fast version <span class="mute">(p1_slow.py, p1_fast.py)</span></summary><div class="b">
+<div class="ci-snip"><div class="ci-file">p1_slow.py</div><pre class="ci-code"><span class="kw">def</span> count_tokens(text):
+    n, inside = 0, <span class="kw">False</span>
+    <span class="kw">for</span> c <span class="kw">in</span> text:                          <span class="cm"># one Python-level call per character</span>
+        tok = is_token_char(c)
+        <span class="kw">if</span> tok <span class="kw">and</span> <span class="kw">not</span> inside:
+            n += 1
+        inside = tok
+    <span class="kw">return</span> n
+
+<span class="kw">def</span> per_user(lines):
+    users, totals = [], []                  <span class="cm"># parallel lists: `in` and .index() scan them</span>
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        msg = json.loads(line)
+        u = msg[<span class="st">"user"</span>]
+        <span class="kw">if</span> u <span class="kw">not</span> <span class="kw">in</span> users:
+            users.append(u)
+            totals.append(0)
+        totals[users.index(u)] += count_tokens(msg[<span class="st">"text"</span>])
+    <span class="kw">return</span> sorted(zip(users, totals), key=<span class="kw">lambda</span> p: (-p[1], p[0]))[:5]
+</pre></div>
+<div class="ci-snip"><div class="ci-file">p1_fast.py</div><pre class="ci-code">"""The same result after reading the profile: a dict instead of list scans, and a compiled regex
+instead of a Python-level loop over characters."""
+<span class="kw">import</span> json, re
+<span class="kw">from</span> collections <span class="kw">import</span> Counter
+<span class="kw">from</span> p1_slow <span class="kw">import</span> make_log
+
+TOKEN = re.compile(<span class="st">r"[A-Za-z0-9]+"</span>)         <span class="cm"># the same token rule, run by the C regex engine</span>
+
+<span class="kw">def</span> per_user(lines):
+    totals = Counter()
+    <span class="kw">for</span> line <span class="kw">in</span> lines:
+        msg = json.loads(line)
+        totals[msg[<span class="st">"user"</span>]] += len(TOKEN.findall(msg[<span class="st">"text"</span>]))
+    <span class="kw">return</span> sorted(totals.items(), key=<span class="kw">lambda</span> p: (-p[1], p[0]))[:5]
+</pre></div>
+</div></details>
+<div class="ci-anim"><h4>cProfile made the program 7 times slower; the fix it pointed to made it 2.8 times faster</h4><div id="ci-prof-bars"></div></div>
+<p>A <dfn>deterministic</dfn> profiler like cProfile adds work to each of 8 million calls, so it distorts call-heavy code: trust its ranking, not its absolute times. A <dfn>sampling</dfn> profiler looks at the stack a few hundred times a second and barely slows the program. Two of them:</p>
+<ul class="tight">
+<li><b>py-spy</b>: "a sampling profiler for Python programs ... without restarting the program or modifying the code in any way" (<a href="https://github.com/benfred/py-spy" target="_blank" rel="noopener noreferrer">py-spy</a>); attach to a running server with <code>py-spy top --pid</code> or <code>py-spy dump</code>. On macOS "OSX always requires running as root", which is what happened here (below). Using it on a live service, with flame graphs and off-CPU time, is <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>.</li>
+<li><b>Scalene</b> samples per line and splits time into Python and native code (and memory, if asked). Its summary for the whole slow script, which also builds the 20,000-line test log, attributes about half the run (49%) to <code>make_log</code>, the fake-data generator that cProfile was not asked to measure: profile the whole program, not just the function you suspect.</li>
+</ul>
+<details class="dp"><summary>The py-spy refusal and the Scalene summary <span class="mute">(real outputs)</span></summary><div class="b">
+<div class="ci-snip"><div class="ci-olab">py-spy record -- python p1_slow.py (real output, py-spy 0.4.2, macOS 27, no sudo)</div><pre class="ci-out" data-src="p1_pyspy.txt">This program requires root on OSX.
+Try running again with elevated permissions by going 'sudo !!'</pre></div>
+<div class="ci-snip"><div class="ci-olab">scalene run --cpu-only p1_slow.py, then scalene view --cli -r (real output, Scalene 2.3.0)</div><pre class="ci-out" data-src="p1_scalene.txt">Function summaries:
+  make_log (line 4): 4% Python, 45% native
+  is_token_char (line 11): 9% Python, 11% native
+  count_tokens (line 14): 6% Python, 2% native
+  per_user (line 23): 0% Python, 12% native</pre></div>
+<p class="small mute">Scalene's Python/native split is sampled and approximate; treat it as a pointer, not a measurement.</p>
+</div></details>
+</section>
+
+<section id="s4"><h2>4. Move the loop out of Python</h2>
+<p>NumPy stores numbers in one contiguous typed buffer and runs each operation as a C loop over it, with no per-element object, method lookup or reference count. The hero's reduction (the denominator of a softmax, <code>sum(exp(x - max(x)))</code>) as a Python loop, as <code>map</code> with <code>math.fsum</code>, and as NumPy, from 10 to a million elements:</p>
+<div class="pr" id="ci-pr-np"></div>
+<div class="ci-anim"><h4>NumPy loses at 10 elements and wins 10 to 16 times from a thousand up</h4><div id="ci-np-bars"></div></div>
+<details class="dp"><summary>The script and its output <span class="mute">(p2_numpy.py)</span></summary><div class="b">
+<div class="ci-snip"><div class="ci-file">p2_numpy.py</div><pre class="ci-code">"""Softmax-style work (sum of exp(x - max)) on n floats: a Python loop, a generator with
+math.exp, and NumPy, plus the cost of converting the list to an array. Median of timeit repeats, in microseconds per call."""
+<span class="kw">import</span> math, os, statistics, sys, timeit
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> py_loop(xs):
+    m = max(xs)
+    s = 0.0
+    <span class="kw">for</span> x <span class="kw">in</span> xs:
+        s += math.exp(x - m)
+    <span class="kw">return</span> s
+
+<span class="kw">def</span> py_builtin(xs):
+    m = max(xs)
+    <span class="kw">return</span> math.fsum(map(math.exp, (x - m <span class="kw">for</span> x <span class="kw">in</span> xs)))
+
+<span class="kw">def</span> np_vec(a):
+    <span class="kw">return</span> np.exp(a - a.max()).sum()       <span class="cm"># three passes in C over a contiguous buffer</span>
+
+<span class="kw">def</span> us(f, arg):
+    t = timeit.Timer(<span class="kw">lambda</span>: f(arg))
+    n, _ = t.autorange()
+    <span class="kw">return</span> statistics.median(t.repeat(5, n)) / n * 1e6
+
+print(<span class="st">f"Python &#123;sys.version.split()[0]&#125;, NumPy &#123;np.__version__&#125;, load &#123;os.getloadavg()[0]:.2f&#125;"</span>)
+print(<span class="st">f"&#123;'n':&gt;9&#125; &#123;'loop':&gt;11&#125; &#123;'map+fsum':&gt;11&#125; &#123;'numpy':&gt;11&#125; &#123;'np.array(list)':&gt;15&#125;  numpy speed-up over loop"</span>)
+<span class="kw">for</span> n <span class="kw">in</span> (10, 1_000, 100_000, 1_000_000):
+    xs = [((i * 7919) % 1000) / 100 <span class="kw">for</span> i <span class="kw">in</span> range(n)]
+    a = np.array(xs)
+    <span class="kw">assert</span> abs(py_loop(xs) - np_vec(a)) &lt; 1e-6 * py_loop(xs)
+    t1, t2, t3, t4 = us(py_loop, xs), us(py_builtin, xs), us(np_vec, a), us(np.array, xs)
+    print(<span class="st">f"&#123;n:&gt;9,&#125; &#123;t1:&gt;9.1f&#125;us &#123;t2:&gt;9.1f&#125;us &#123;t3:&gt;9.1f&#125;us &#123;t4:&gt;13.1f&#125;us  &#123;t1 / t3:6.1f&#125;x"</span>)</pre><div class="ci-olab">real output, Python 3.14.8</div><pre class="ci-out" data-src="p2_numpy.txt">Python 3.14.8, NumPy 2.5.3, load 6.27
+        n        loop    map+fsum       numpy  np.array(list)  numpy speed-up over loop
+       10       0.6us       0.8us       1.4us           0.4us     0.4x
+    1,000      47.5us      53.7us       4.6us          20.4us    10.3x
+  100,000    4777.5us    5466.8us     308.3us        2071.0us    15.5x
+1,000,000   47592.6us   53931.6us    3195.0us       20325.1us    14.9x</pre></div>
+</div></details>
+<p>Three lessons, all from the measurement. At 10 elements NumPy is <i>slower</i> than the loop (a fixed cost of about a microsecond per NumPy call). From a thousand elements up it is 10 to 16 times faster. And converting a Python list to an array costs about 40% of the whole Python loop: keep data in arrays from the start (load with NumPy, pandas, polars or PyTorch), or the conversion eats the gain. Clever pure Python (<code>map</code>, <code>fsum</code>) did not help: the per-element work is still Python objects.</p>
+<h3>When to drop to native code</h3>
+<p>When the profile shows a hot loop that is not array arithmetic (a tokenizer, a parser, a graph walk, a custom sampler), no library already does it, and it is called often enough to matter. Then write that one function in a compiled language and call it from Python. <a href="https://app.notion.com/p/4055c17b0d0d81048311c87e9b76a78a" target="_blank" rel="noopener noreferrer">Rust: speeding up Python with PyO3 and maturin</a> does exactly this, from one function to a published wheel, and compares the alternatives (Cython, Numba, mypyc, nanobind or pybind11 for C++, cffi); <a href="https://app.notion.com/p/4055c17b0d0d811fa947ee576a97a516" target="_blank" rel="noopener noreferrer">C++: the machine underneath</a> shows what the CPU does underneath. The root's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Benchmark</a> tab measures the token counter in all four languages and the cost of each crossing between Python and native code: <span class="hl">batch work so you cross once per array, not once per element</span>.</p>
+<div class="grid">
+<div class="sp"><div class="n">Cheap wins first</div><p>A dict or set instead of list membership; <code>str.join</code> instead of <code>+=</code> in a loop; built-ins (<code>sum</code>, <code>sorted</code>, <code>re</code>, <code>collections.Counter</code>) over hand loops; local variables in hot loops; caching (<a href="https://app.notion.com/p/4055c17b0d0d816a8705e4d3f20b3da7" target="_blank" rel="noopener noreferrer">Python: the data model and protocols</a>).</p></div>
+<div class="sp"><div class="n">Then</div><p>NumPy or PyTorch for numbers; processes or the free-threaded build for parallel CPU work, asyncio for waiting (<a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a>); a Rust or C++ extension for the hot loop that is left.</p></div>
+<div class="sp"><div class="n">Mistakes</div><p>Optimising without a profile; timing once (use <code>timeit</code> or hyperfine, take the median); trusting cProfile's absolute times; micro-benchmarking with a warm cache and deploying with a cold one.</p></div>
+</div>
+</section>
+<section id="s5"><h2>5. The experimental JIT, on and off</h2>
+<p>A <dfn>JIT</dfn> (just-in-time compiler) turns hot code into machine code while the program runs. CPython's (<a href="https://peps.python.org/pep-0744/" target="_blank" rel="noopener noreferrer">PEP 744</a>, since 3.13) is a <b>copy-and-patch</b> JIT: when the specialising interpreter of section 1 finds a hot loop, it records a trace of its micro-operations and stitches together machine-code templates ("stencils") that were compiled with LLVM when CPython itself was built, so you need no LLVM at run time. It ships compiled into the official macOS and Windows installers and the uv builds used here, but is off unless you set <code>PYTHON_JIT=1</code>; in 3.14 and later, <code>sys._jit.is_enabled()</code> tells you whether it is on.</p>
+<div class="pr" id="ci-pr-jit"></div>
+<div class="ci-anim"><h4>The 3.15 JIT speeds up plain loops, not generator pipelines; the 3.14 JIT is mostly a wash</h4>
+<div class="ci-tbl"><table id="ci-jit-tbl"></table></div>
+<p class="ci-src" id="ci-jit-note"></p></div>
+<p>Read it as: on 3.15 the JIT sped up the plain Python loops (character scanning 1.64x, float arithmetic) by about half or more, helped small-object code less, and did not help (here, slightly slowed) the generator pipeline, inside What's New's own range for 3.15 ("roughly 15% slowdown to over 100% speedup", 11-12% geometric mean on AArch64 macOS; <a href="https://docs.python.org/3.15/whatsnew/3.15.html" target="_blank" rel="noopener noreferrer">What's new in 3.15</a>, vendor figure). The 3.13 JIT gave the character loop about the same (1.66x); the 3.14 JIT on this machine is mostly a wash, sometimes slower. <span class="hl">Trust the direction, not the digits</span>: the final run was made with a load average around 10, and an earlier run the same day (<code>src/pb/out/jit_earlier_run.txt</code>) gave 1.5x instead of 2.4x for <code>json_count</code> on 3.15.</p>
+<p>It is off by default in 3.15 too, and a 2x speed-up of a Python loop is still far from moving the loop to NumPy or Rust (section 4; the root's <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Benchmark</a> tab measures the token counter in all four languages).</p>
+<details class="dp"><summary>Method and every time measured <span class="mute">(the language page's Runtime lab, part 3)</span></summary><div class="b">
+<p class="small">Five workloads (<code>src/pb/jit/jit_cases.py</code>): each is timed 7 times after 3 warm-ups inside one process (median), and that process is run 3 times per setting (median of the three). <code>PYTHON_JIT=0</code> and <code>=1</code> on the uv builds of 3.13.16, 3.14.8 and 3.15.0rc3, all configured with <code>--enable-experimental-jit=yes-off</code> (built in, off by default). "JIT on" is confirmed by <code>sys._jit.is_enabled()</code> on 3.14 and 3.15 (3.13 has no such function).</p>
+<div class="ci-tbl wide"><table id="ci-jit-all"></table></div>
+<p class="small mute" id="ci-jit-load"></p>
+<p class="small"><b>The mistake this avoids: measuring the JIT with one run on a busy laptop.</b> The differences here are tens of percent; noise on a loaded machine is several percent. Run each case in several fresh processes, take medians, and record the load, as this page does.</p>
+</div></details>
+<details class="dp"><summary>The old page's JIT claims, checked</summary><div class="b">
+<p class="small">Old page "Python: staying current": 3.13 "copy-and-patch JIT ... modest gains"; 3.14 JIT "wins on tight loops". <span class="ci-pill bad">imprecise</span> Measured above: gains depend on the workload and the version. The 3.13 and 3.15 JITs sped up the character loop by about 1.6x; the 3.14 JIT was mostly a wash; the 3.15 JIT is the broadest win on tight loops.</p>
+</div></details>
+</section>
+<section id="s6"><h2>6. What changed from 3.12 to 3.15, and what it means for your code</h2>
+<p>A new CPython ships every October (<a href="https://peps.python.org/pep-0602/" target="_blank" rel="noopener noreferrer">PEP 602</a>) and gets two years of bug fixes, then security fixes until five years. 3.15.0 was released on 2026-10-09 and is the newest feature line; 3.14 (3.14.8) is in bug fixes, 3.12 and 3.13 get security fixes only (<a href="https://peps.python.org/pep-0790/" target="_blank" rel="noopener noreferrer">PEP 790</a>; <a href="https://devguide.python.org/versions/" target="_blank" rel="noopener noreferrer">devguide</a>). The measurements on this page used 3.15.0rc3 (2026-10-02), the last release candidate before the final.</p>
+<div class="ci-anim ci-life"><h4>Each line gets bug fixes for two years, then security fixes to five</h4>
+<div class="ci-svg" id="ci-life"></div></div>
+<div class="ci-tbl wide"><table>
+<thead><tr><th>Release</th><th>Language and library</th><th>Runtime</th><th>What it changes for you</th></tr></thead>
+<tbody>
+<tr><td><b>3.12</b><br><span class="small mute">2023-10-02, security fixes to 2028-10</span></td><td><code>def f[T]</code> and <code>type X = ...</code> (PEP 695); f-strings in the grammar (PEP 701); <code>typing.override</code> (PEP 698); <code>itertools.batched</code>; <code>Path.walk</code>; the buffer protocol from Python (PEP 688); better "did you forget to import" errors</td><td>A per-interpreter GIL in the C API (PEP 684), the groundwork for 3.14's subinterpreters; comprehensions inlined (PEP 709)</td><td>The oldest version worth targeting for new code: it is where modern generic syntax starts</td></tr>
+<tr><td><b>3.13</b><br><span class="small mute">2024-10-07, security fixes to 2029-10</span></td><td>Type parameter defaults (PEP 696), <code>TypeIs</code> (PEP 742), <code>ReadOnly</code> TypedDict items (PEP 705), <code>warnings.deprecated</code> (PEP 702), <code>copy.replace</code>; 19 "dead batteries" and lib2to3 removed (PEP 594); defined <code>locals()</code> semantics (PEP 667)</td><td>New interactive REPL (colour, multi-line editing; based on PyPy's); experimental free-threaded build (PEP 703); experimental JIT, off by default (PEP 744)</td><td>Old scripts that import <code>cgi</code> or <code>telnetlib</code> break</td></tr>
+<tr><td><b>3.14</b><br><span class="small mute">2025-10-07, bug fixes; 3.14.8 on 2026-09-30</span></td><td>t-strings (PEP 750); deferred annotations (PEP 649/749); <code>except A, B</code> without parentheses (PEP 758); <code>compression.zstd</code> (PEP 784); <code>concurrent.interpreters</code> (PEP 734); a <code>SyntaxWarning</code> for <code>return</code> in <code>finally</code> (PEP 765)</td><td>Free-threaded build officially supported (PEP 779); JIT in the official macOS and Windows installers, still off by default; <code>python -m asyncio ps PID</code> and <code>pstree</code> show a running program's tasks; safe external debugger attach (PEP 768)</td><td>Forward references need no quotes; try free-threading for CPU-bound threads</td></tr>
+<tr><td><b>3.15</b><br><span class="small mute">2026-10-09 (rc3 2026-10-02)</span></td><td><code>lazy import</code> (PEP 810); <code>frozendict</code> (PEP 814) and <code>sentinel</code> (PEP 661) built-ins; <code>[*xs for xs in ...]</code> (PEP 798); UTF-8 by default (PEP 686); <code>profiling</code> package with the Tachyon sampler (PEP 799); <code>TypedDict</code> extra items (PEP 728), <code>TypeForm</code> (PEP 747)</td><td>The JIT "significantly upgraded" (What's New: 11-12% faster than the tail-calling interpreter on AArch64 macOS, pyperformance geometric mean) but still off by default; frame pointers on by default (PEP 831); a stable ABI for free-threaded builds, <code>abi3t</code> (PEP 803)</td><td>Pass <code>encoding=</code> explicitly; use <code>lazy import</code> in CLIs; ship <code>abi3t</code> wheels if you build extensions</td></tr>
+</tbody></table></div>
+<p>The runtime column is taught where it matters: free-threading and subinterpreters on <a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a>, the typing PEPs and <code>abi3t</code> wheels on <a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a>, the JIT in section 5 and lazy imports in section 7. The <a href="#" data-tab="t-ver">Version explorer</a> tab runs 21 small programs, one per change, on 3.11 to 3.15 and shows the real output of each; pick your minimum version there to see which features you can use.</p>
+<h3>The quiet one: UTF-8 by default</h3>
+<p>Before 3.15, <code>open()</code> without <code>encoding=</code> used the locale's encoding, so the same script read a file differently on a Windows machine or a server with a Latin-1 locale. The same two-line snippet, run under an <code>en_US.ISO8859-1</code> locale (the plain C locale already turns UTF-8 mode on):</p>
+<div class="ci-term" id="ci-utf8"></div>
+<p>So <span class="hl">move to 3.15 deliberately</span>: <code>lazy import</code> for CLIs, and pass <code>encoding=</code> wherever you open text files, because on 3.15 the default is UTF-8 on every platform while older versions in your support range still use the locale.</p>
+<details class="dp"><summary>Corrections to the old page "Python: staying current"</summary><div class="b"><ul class="tight">
+<li>"Python 3.15 is due 2026-10-01": a third release candidate was added (2026-10-02) and the final shipped on 2026-10-09 (PEP 790).</li>
+<li>"Python 3.15 ... lazy imports and abi3t are its headline items": true but incomplete; What's New also lists <code>frozendict</code>, <code>sentinel</code>, UTF-8 as the default encoding, unpacking in comprehensions, the Tachyon profiler and the JIT upgrade as highlights.</li>
+<li>"abi3t lets NumPy-class extensions ship one wheel per platform": imprecise. One <code>cp315-abi3.abi3t</code> wheel covers 3.15 and later on both builds, but free-threaded 3.14 still needs its own wheel, and of 25 popular compiled packages only one (cryptography) ships an abi3t wheel today (the wheel survey is on <a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a>).</li>
+<li>"from __future__ import annotations is finally obsolete": imprecise. It still works and is deprecated; What's New 3.14 says removal will not happen before 3.13's end of life in 2029.</li>
+<li>"t-strings ... showing up in LLM prompt-templating libraries": no source given; not confirmed here, so left out.</li>
+</ul></div></details>
+</section>
+<section id="s7"><h2>7. Lazy imports (3.15), measured</h2>
+<p>A Python program's start-up time is mostly imports: each <code>import</code> finds a file, loads or compiles its bytecode and runs all its top-level code, including its own imports. A command-line tool that imports httpx, pydantic and rich at the top pays for all three even when the user only asked for <code>--help</code>. Until now the fix was to move imports inside functions. 3.15 adds <code>lazy import</code> (<a href="https://peps.python.org/pep-0810/" target="_blank" rel="noopener noreferrer">PEP 810</a>): the name is bound to a lightweight proxy and the module loads the first time the name is used.</p>
+<div class="ci-code2">import argparse
+
+lazy import httpx                     # was: import httpx
+lazy import pydantic                  # was: import pydantic
+lazy from rich.console import Console # was: from rich.console import Console</div>
+<p>That is the only change between the two files measured below (<code>src/pb/lazy/</code>). Both run the fast path, <code>count "hello world"</code>, which needs none of the three libraries. Step through what Python imports, to scale; switching mode starts again from the first import:</p>
+<div class="ci-anim" id="ci-lz-card"><h4>Three unused imports cost three quarters of the start-up</h4>
+<div class="seg" id="ci-lz-seg"><button data-m="cli_eager" class="on">Eager imports</button><button data-m="cli_lazy">lazy import</button><button data-m="cli_all">Eager file, -X lazy_imports=all</button></div>
+<div class="ci-svg" id="ci-lz-plot"></div>
+<div class="ci-cnt" id="ci-lz-cnt"></div>
+<div class="ci-cap" id="ci-lz-cap"></div>
+<div class="ci-ctl" id="ci-lz-ctl"></div>
+<div class="ci-src" id="ci-lz-src"></div>
+</div>
+<div id="ci-lz-bars"></div>
+<p>What to take from it: the lazy file loads 64 of the eager file's 268 modules and the whole run takes 26 ms instead of 100 ms (hyperfine medians), and the global switch <code>-X lazy_imports=all</code> (or <code>PYTHON_LAZY_IMPORTS=all</code>) gets the same result without editing the file. The work has not disappeared: a run that uses httpx pays for it at the first use instead.</p>
+<div class="ci-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
+<li>Errors move: a misspelled module raises at first use, not at start-up; the traceback shows both places.</li>
+<li>Import side effects (a plugin registering itself, logging configured at import) happen later or never. Do not make such imports lazy; the global <code>all</code> mode can be filtered with <code>sys.set_lazy_imports_filter</code>.</li>
+<li>Only at module level: <code>lazy</code> inside a function, a class body or a <code>try</code> block is a <code>SyntaxError</code>, and so is <code>lazy from x import *</code>.</li>
+<li>Code that must also run on 3.14 or older cannot use the keyword (it is a <code>SyntaxError</code> there; see the <a href="#" data-tab="t-ver">Version explorer</a>); list the modules in <code>__lazy_modules__</code> instead, which older versions ignore.</li>
+</ul></div>
+<details class="dp"><summary>The PEP and the release disagree on one detail</summary><div class="b">PEP 810 (status Final) describes three global modes, <code>normal</code>, <code>all</code> and <code>none</code> (none would force every import eager, for debugging). 3.15.0rc3 accepts only two, as What's New says:<div class="ci-term" id="ci-lz-none"></div>Use <code>normal</code> to undo <code>all</code>; there is no switch that forces explicit <code>lazy</code> imports eager.</div></details>
+</section>
+</div>
+<div class="tab" id="t-ver" role="tabpanel" hidden>
+<style>
+#t-ver .vx-tbl{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+#t-ver .vx-grid{border-collapse:collapse;width:100%;font-size:12.5px;min-width:560px}
+#t-ver .vx-grid th,#t-ver .vx-grid td{border-bottom:1px solid var(--line);padding:4px 6px}
+#t-ver .vx-grid thead th{background:var(--soft);text-align:center;font-weight:600}
+#t-ver .vx-grid th.f{text-align:left;font-weight:400;min-width:12em}
+#t-ver .vx-grid th.f .k{font-size:11px;color:var(--mute);display:block}
+#t-ver .vx-grid td.c{text-align:center;cursor:pointer;font-weight:600;white-space:nowrap}
+#t-ver .vx-grid td.c.ok{color:var(--good)}#t-ver .vx-grid td.c.bad{color:var(--bad)}#t-ver .vx-grid td.c.warn{color:var(--c5)}
+#t-ver .vx-grid td.c.sel{outline:2px solid var(--ink);outline-offset:-2px}
+#t-ver .vx-grid tr.off th.f{opacity:.45}#t-ver .vx-grid tr.off td.c{opacity:.45}
+#t-ver .vx-grid tr.hid{display:none}
+#t-ver .vx-cell{font-size:11px;font-weight:400;display:block;color:var(--mute)}
+#t-ver .vx-need{font-size:11px;color:var(--bad)}
+#t-ver .vx-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-ver .tag{display:inline-block;font-size:11.5px;border:1px solid var(--line);border-radius:99px;padding:0 8px;margin:0 4px 4px 0}
+#t-ver .vx-code{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+#t-ver .vx-term{background:#1f2328;color:#e6edf3;border-radius:8px;padding:9px 11px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+@media (prefers-color-scheme:dark){#t-ver .vx-term{background:#0d1117}}
+#t-ver .vx-term .c{color:#8bd5ff}#t-ver .vx-term .c:before{content:"$ ";color:#7d8590}#t-ver .vx-term .e{color:#ff9b8b}#t-ver .vx-term .w{color:#e3c46b}#t-ver .vx-term .k{color:#7d8590}#t-ver .vx-term .ok{color:#7ee2a0}
+#t-ver .seg button.on,#t-ver .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-ver .pr{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;background:var(--soft)}
+#t-ver .pr .q{font-weight:600;font-size:14px;margin-bottom:6px}
+#t-ver .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-ver .pr .opts button.right{border-color:var(--good);color:var(--good);font-weight:600}
+#t-ver .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-ver .pr .ans{font-size:13.5px;margin-top:6px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-ver code{overflow-wrap:anywhere}
+</style>
+<h2 style="margin-top:14px">Does this run on my version?</h2>
+<p class="lead">21 changes from Python 3.12 to 3.15, each as a small program run on CPython 3.11.17, 3.12.15, 3.13.16, 3.14.8 and 3.15.0rc3 on 2026-10-05. Every cell is that version's real result; click one to see its output. What the changes mean is section 6 of the <a href="#" data-tab="t-read">Reading</a> tab.</p>
+<div class="card">
+<div class="small"><b>My code must also run on</b> (features newer than this are greyed out and flagged):</div>
+<div class="seg" id="vx-min"><button data-m="3.11">3.11</button><button data-m="3.12" class="on">3.12</button><button data-m="3.13">3.13</button><button data-m="3.14">3.14</button><button data-m="3.15">3.15</button></div>
+<div class="chips" id="vx-kind"></div>
+<p class="small" id="vx-sum"></p>
+</div>
+<div class="vx-tbl"><table class="vx-grid" id="vx-grid"></table></div>
+<div class="vx-leg"><span><b style="color:var(--good)">ran</b>: exit code 0</span><span><b style="color:var(--c5)">ran, warned</b>: exit 0 with a warning</span><span><b style="color:var(--bad)">failed</b>: the error type it raised</span></div>
+<div class="detail" id="vx-detail"></div>
+<h2>Predict, then reveal</h2>
+<div class="pr" id="vx-drill"></div>
+<p class="small mute">Snippets: <code>src/pb/versions/</code>; runner: <code>run_versions.py</code> (one process per file and version; the UTF-8 snippet runs under an <code>en_US.ISO8859-1</code> locale, because the plain C locale already turns UTF-8 mode on). Descriptions: <code>src/pb/features.py</code>, each with its PEP or What's New link.</p>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<style>
+#t-more li{margin:4px 0;font-size:14px}
+#t-more .tm{color:var(--mute);font-size:12.5px}
+</style>
+<h2 style="margin-top:14px">Further reading</h2>
+<p class="small">Links checked 2026-10-26. Times for outside sources are rough reading times.</p>
+<h3>On this page</h3>
+<ul>
+<li><a href="#" data-tab="t-ver">Version explorer</a>: 21 changes run on five versions, with a minimum-version filter and a prediction drill. <span class="tm">15 min</span></li>
+</ul>
+<h3>The language page and its siblings</h3>
+<ul>
+<li><a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python: the essentials</a>: names and objects, the one interpreter, the traps that cut across the Python pages.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d816a8705e4d3f20b3da7" target="_blank" rel="noopener noreferrer">Python: the data model and protocols</a>: how syntax becomes method calls, generators, decorators and caching, classes, <code>__slots__</code> and what a record costs.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d81bdbee8c37d80b55a0e" target="_blank" rel="noopener noreferrer">Python: concurrency, asyncio and the GIL</a>: the GIL measured, asyncio from the event loop up, the free-threaded build and subinterpreters.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a>: type checkers, uv, ruff, pytest, wheels and tags (<code>abi3</code>, <code>abi3t</code>).</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Topic: programming-languages</a>: the four languages compared; the Benchmark tab runs the token counter in Python (GIL and free-threaded), C++, Rust and TypeScript, and the Toolchain atlas and Rosetta tabs. <span class="tm">about 40 min</span></li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d81048311c87e9b76a78a" target="_blank" rel="noopener noreferrer">Rust: speeding up Python with PyO3 and maturin</a>: the step after "the JIT is not enough": the hot loop as a Rust extension, from one function to a published wheel.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d811fa947ee576a97a516" target="_blank" rel="noopener noreferrer">C++: the machine underneath</a>: caches, layout and SIMD, which is why a contiguous NumPy buffer beats a list of pointers.</li>
+</ul>
+<h3>Neighbouring pages</h3>
+<ul>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d81209ae9d856695dc958" target="_blank" rel="noopener noreferrer">Memory allocators</a>, section 7: pymalloc, reference counting and the collector seen from the allocator, and why freed memory stays with the process.</li>
+<li><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>: profiling a running service (py-spy, flame graphs, off-CPU time).</li>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing</a>: floating point, rounding and what they do to numerics.</li>
+</ul>
+<h3>Outside sources</h3>
+<ul>
+<li><a href="https://docs.python.org/3/library/dis.html" target="_blank" rel="noopener noreferrer">dis</a> and <a href="https://peps.python.org/pep-0659/" target="_blank" rel="noopener noreferrer">PEP 659</a>: the bytecode and the specialising interpreter. <span class="tm">30 min and 20 min</span></li>
+<li><b>CPython Internals</b>, Shaw, with the <a href="https://github.com/python/cpython" target="_blank" rel="noopener noreferrer">CPython source</a>: <code>Objects/listobject.c</code>, <code>Objects/dictobject.c</code>, <code>Python/ceval.c</code>. <span class="tm">about 10 h</span></li>
+<li><b>Python Distilled</b>, Beazley: short and precise on the object and execution model. <span class="tm">about 9 h</span></li>
+<li><a href="https://docs.python.org/3.15/whatsnew/3.15.html" target="_blank" rel="noopener noreferrer">What's New in Python 3.15</a>: the canonical list; read the summary and the lazy imports, JIT and abi3t sections. <span class="tm">35 min</span></li>
+<li><a href="https://docs.python.org/3.14/whatsnew/3.14.html" target="_blank" rel="noopener noreferrer">What's New in Python 3.14</a> (the garbage-collector revert in 3.14.5, the JIT in the installers) and <a href="https://docs.python.org/3/whatsnew/3.11.html" target="_blank" rel="noopener noreferrer">What's New in Python 3.11</a> (the faster CPython project). <span class="tm">45 min and 30 min</span></li>
+<li><a href="https://peps.python.org/pep-0810/" target="_blank" rel="noopener noreferrer">PEP 810</a>, <a href="https://peps.python.org/pep-0779/" target="_blank" rel="noopener noreferrer">PEP 779</a>, <a href="https://peps.python.org/pep-0734/" target="_blank" rel="noopener noreferrer">PEP 734</a>, <a href="https://peps.python.org/pep-0750/" target="_blank" rel="noopener noreferrer">PEP 750</a>, <a href="https://peps.python.org/pep-0803/" target="_blank" rel="noopener noreferrer">PEP 803</a>: lazy imports, free-threading phase II, subinterpreters, t-strings, abi3t: the rationale behind each. <span class="tm">2 h 30 min for the five</span></li>
+<li><a href="https://peps.python.org/pep-0744/" target="_blank" rel="noopener noreferrer">PEP 744</a>: the JIT's design, and the conditions the PEP sets for it to stop being experimental. <span class="tm">25 min</span></li>
+</ul>
+</div>
+<p class="foot">Built 2026-10-26 by splitting the Python language page (its Part 1 sections 11 and 12 and the containers table of section 13, Part 2 sections 7, 8 and 10, the Version explorer tab and Runtime lab part 3); every output is the recorded run from that page, made on 2026-10-05 on an Apple M1 Pro in normal use (src/README.md says how). What transfers to a Linux server: which approach wins and the shape of each result; what does not: absolute times.</p>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_ci_0pa.js */
+// written by src/pa/gen.py from src/pa/outputs; do not edit by hand (edit src/pa/tpl/22_js_ci_0pa.js)
+window.PA={dis:[{"title":"before running (generic instructions)","ins":[["3","","RESUME","0"],["4","","LOAD_SMALL_INT","0"],["","","STORE_FAST","1 (s)"],["5","","LOAD_FAST_BORROW","0 (xs)"],["","","GET_ITER",""],["","L1:","FOR_ITER","11 (to L2)"],["","","STORE_FAST","2 (x)"],["6","","LOAD_FAST_BORROW_LOAD_FAST_BORROW","18 (s, x)"],["","","BINARY_OP","0 (+)"],["","","STORE_FAST","1 (s)"],["","","JUMP_BACKWARD","13 (to L1)"],["5","L2:","END_FOR",""],["","","POP_ITER",""],["7","","LOAD_FAST_BORROW","1 (s)"],["","","RETURN_VALUE",""]]},{"title":"after 1000 int additions (specialised in place)","ins":[["3","","RESUME_CHECK","0"],["4","","LOAD_SMALL_INT","0"],["","","STORE_FAST","1 (s)"],["5","","LOAD_FAST_BORROW","0 (xs)"],["","","GET_ITER",""],["","L1:","FOR_ITER_LIST","11 (to L2)"],["","","STORE_FAST","2 (x)"],["6","","LOAD_FAST_BORROW_LOAD_FAST_BORROW","18 (s, x)"],["","","BINARY_OP_ADD_INT","0 (+)"],["","","STORE_FAST","1 (s)"],["","","JUMP_BACKWARD_NO_JIT","13 (to L1)"],["5","L2:","END_FOR",""],["","","POP_ITER",""],["7","","LOAD_FAST_BORROW","1 (s)"],["","","RETURN_VALUE",""]]},{"title":"after floats arrive (re-specialised)","ins":[["3","","RESUME_CHECK","0"],["4","","LOAD_SMALL_INT","0"],["","","STORE_FAST","1 (s)"],["5","","LOAD_FAST_BORROW","0 (xs)"],["","","GET_ITER",""],["","L1:","FOR_ITER_LIST","11 (to L2)"],["","","STORE_FAST","2 (x)"],["6","","LOAD_FAST_BORROW_LOAD_FAST_BORROW","18 (s, x)"],["","","BINARY_OP_ADD_FLOAT","0 (+)"],["","","STORE_FAST","1 (s)"],["","","JUMP_BACKWARD_NO_JIT","13 (to L1)"],["5","L2:","END_FOR",""],["","","POP_ITER",""],["7","","LOAD_FAST_BORROW","1 (s)"],["","","RETURN_VALUE",""]]}],np:[[10,0.6,0.8,1.4,0.4],[1000,47.5,53.7,4.6,20.4],[100000,4777.5,5466.8,308.3,2071.0],[1000000,47592.6,53931.6,3195.0,20325.1]],prof:{"profiled_s":1.456,"slow_ms":206,"fast_ms":74}};
+</script>
+<script>/* 22_js_ci_0pb.js */
+// written by src/pb/build_data.py from src/pb/out; do not edit by hand
+window.PB={"ver":{"interpreters":{"3.11":"3.11.17","3.12":"3.12.15","3.13":"3.13.16","3.14":"3.14.8","3.15":"3.15.0rc3"},"features":[{"id":"v12_type_params","v":"3.12","kind":"syntax","title":"Type parameter syntax and the type statement","pep":"PEP 695","url":"https://peps.python.org/pep-0695/","note":"Write generics without importing TypeVar: def first[T](xs: list[T]) -> T, class Box[T], type Pair[T] = tuple[T, T]. The alias value is evaluated lazily. A file that uses it does not even parse on 3.11, so it pins your minimum version to 3.12.","src":"type Pair[T] = tuple[T, T]\n\n\ndef first[T](xs: list[T]) -> T:\n    return xs[0]\n\n\nprint(first([3, 1, 2]), Pair.__value__)","runs":{"3.11":{"rc":1,"out":"  File \"v12_type_params.py\", line 1\n    type Pair[T] = tuple[T, T]\n         ^^^^\nSyntaxError: invalid syntax"},"3.12":{"rc":0,"out":"3 tuple[T, T]"},"3.13":{"rc":0,"out":"3 tuple[T, T]"},"3.14":{"rc":0,"out":"3 tuple[T, T]"},"3.15":{"rc":0,"out":"3 tuple[T, T]"}}},{"id":"v12_fstring","v":"3.12","kind":"syntax","title":"f-strings are part of the grammar","pep":"PEP 701","url":"https://peps.python.org/pep-0701/","note":"Reuse the same quote inside the braces (f\"{d[\"key\"]}\"), put backslashes and comments in the expression part. Before 3.12 the same line is a SyntaxError, so code meant for older versions must keep alternating quotes.","src":"user = {\"name\": \"Ada\", \"tokens\": 1234}\nwords = [\"a\", \"b\"]\nprint(f\"{user[\"name\"]} used {user[\"tokens\"]:,} tokens; {\"\\n\".join(words)!r}\")","runs":{"3.11":{"rc":1,"out":"  File \"v12_fstring.py\", line 3\n    print(f\"{user[\"name\"]} used {user[\"tokens\"]:,} tokens; {\"\\n\".join(words)!r}\")\n                   ^^^^\nSyntaxError: f-string: unmatched '['"},"3.12":{"rc":0,"out":"Ada used 1,234 tokens; 'a\\nb'"},"3.13":{"rc":0,"out":"Ada used 1,234 tokens; 'a\\nb'"},"3.14":{"rc":0,"out":"Ada used 1,234 tokens; 'a\\nb'"},"3.15":{"rc":0,"out":"Ada used 1,234 tokens; 'a\\nb'"}}},{"id":"v12_batched","v":"3.12","kind":"library","title":"itertools.batched","pep":"","url":"https://docs.python.org/3.12/whatsnew/3.12.html","note":"Chunk any iterable into tuples of n, the usual need when sending items to an API in batches. 3.13 added strict=True to fail on a short last batch.","src":"from itertools import batched\n\nprint(list(batched(range(7), 3)))","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_batched.py\", line 1, in <module>\n    from itertools import batched\nImportError: cannot import name 'batched' from 'itertools' (unknown location)"},"3.12":{"rc":0,"out":"[(0, 1, 2), (3, 4, 5), (6,)]"},"3.13":{"rc":0,"out":"[(0, 1, 2), (3, 4, 5), (6,)]"},"3.14":{"rc":0,"out":"[(0, 1, 2), (3, 4, 5), (6,)]"},"3.15":{"rc":0,"out":"[(0, 1, 2), (3, 4, 5), (6,)]"}}},{"id":"v12_override","v":"3.12","kind":"typing","title":"typing.override","pep":"PEP 698","url":"https://peps.python.org/pep-0698/","note":"Mark a method that must override a parent method; type checkers then report it if the parent method is renamed or removed. No effect at run time beyond setting __override__.","src":"from typing import override\n\n\nclass Base:\n    def run(self) -> str:\n        return \"base\"\n\n\nclass Child(Base):\n    @override\n    def run(self) -> str:\n        return \"child\"\n\n\nprint(Child().run())","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_override.py\", line 1, in <module>\n    from typing import override\nImportError: cannot import name 'override' from 'typing' (~/pl/py/cpython-3.11.17-macos-aarch64-none/lib/python3.11/typing.py)"},"3.12":{"rc":0,"out":"child"},"3.13":{"rc":0,"out":"child"},"3.14":{"rc":0,"out":"child"},"3.15":{"rc":0,"out":"child"}}},{"id":"v12_nameerror","v":"3.12","kind":"errors","title":"Better error messages: forgotten imports","pep":"","url":"https://docs.python.org/3.12/whatsnew/3.12.html","note":"A NameError for a standard library module now suggests the missing import. The program still fails; only the message improves, which is why every version fails this snippet.","src":"print(sys.version_info[:2])","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_nameerror.py\", line 1, in <module>\n    print(sys.version_info[:2])\n          ^^^\nNameError: name 'sys' is not defined"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_nameerror.py\", line 1, in <module>\n    print(sys.version_info[:2])\n          ^^^\nNameError: name 'sys' is not defined. Did you forget to import 'sys'?"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_nameerror.py\", line 1, in <module>\n    print(sys.version_info[:2])\n          ^^^\nNameError: name 'sys' is not defined. Did you forget to import 'sys'?"},"3.14":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_nameerror.py\", line 1, in <module>\n    print(sys.version_info[:2])\n          ^^^\nNameError: name 'sys' is not defined. Did you forget to import 'sys'?"},"3.15":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v12_nameerror.py\", line 1, in <module>\n    print(sys.version_info[:2])\n          ^^^\nNameError: name 'sys' is not defined. Did you forget to import 'sys'?"}}},{"id":"v13_typevar_default","v":"3.13","kind":"typing","title":"Defaults for type parameters","pep":"PEP 696","url":"https://peps.python.org/pep-0696/","note":"class Box[T = int] gives a generic a default, so Box means Box[int]. Uses the 3.12 bracket syntax, so it is a SyntaxError before 3.13.","src":"class Box[T = int]:\n    def __init__(self, item: T) -> None:\n        self.item = item\n\n\nprint(Box.__type_params__[0].__default__)","runs":{"3.11":{"rc":1,"out":"  File \"v13_typevar_default.py\", line 1\n    class Box[T = int]:\n             ^\nSyntaxError: invalid syntax"},"3.12":{"rc":1,"out":"  File \"v13_typevar_default.py\", line 1\n    class Box[T = int]:\n                ^\nSyntaxError: invalid syntax"},"3.13":{"rc":0,"out":"<class 'int'>"},"3.14":{"rc":0,"out":"<class 'int'>"},"3.15":{"rc":0,"out":"<class 'int'>"}}},{"id":"v13_dead_batteries","v":"3.13","kind":"removal","title":"19 \"dead batteries\" removed","pep":"PEP 594","url":"https://peps.python.org/pep-0594/","note":"aifc, audioop, cgi, cgitb, chunk, crypt, imghdr, mailcap, msilib, nis, nntplib, ossaudiodev, pipes, sndhdr, spwd, sunau, telnetlib, uu and xdrlib are gone, and so are 2to3 and lib2to3. Old code that imports one of them fails at import on 3.13+; the replacements are on PyPI.","src":"import telnetlib\n\nprint(\"telnetlib imported\")","runs":{"3.11":{"rc":0,"out":"telnetlib imported\nv13_dead_batteries.py:1: DeprecationWarning: 'telnetlib' is deprecated and slated for removal in Python 3.13\n  import telnetlib"},"3.12":{"rc":0,"out":"telnetlib imported\nv13_dead_batteries.py:1: DeprecationWarning: 'telnetlib' is deprecated and slated for removal in Python 3.13\n  import telnetlib"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_dead_batteries.py\", line 1, in <module>\n    import telnetlib\nModuleNotFoundError: No module named 'telnetlib'"},"3.14":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_dead_batteries.py\", line 1, in <module>\n    import telnetlib\nModuleNotFoundError: No module named 'telnetlib'"},"3.15":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_dead_batteries.py\", line 1, in <module>\n    import telnetlib\nModuleNotFoundError: No module named 'telnetlib'"}}},{"id":"v13_deprecated","v":"3.13","kind":"library","title":"warnings.deprecated","pep":"PEP 702","url":"https://peps.python.org/pep-0702/","note":"One decorator that both warns at run time and lets type checkers flag every call site of a deprecated function.","src":"import warnings\nfrom warnings import deprecated\n\nwarnings.simplefilter(\"always\")\n\n\n@deprecated(\"use count_tokens_v2\")\ndef count_tokens(text: str) -> int:\n    return len(text.split())\n\n\nprint(count_tokens(\"a b c\"))","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_deprecated.py\", line 2, in <module>\n    from warnings import deprecated\nImportError: cannot import name 'deprecated' from 'warnings' (~/pl/py/cpython-3.11.17-macos-aarch64-none/lib/python3.11/warnings.py)"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_deprecated.py\", line 2, in <module>\n    from warnings import deprecated\nImportError: cannot import name 'deprecated' from 'warnings' (~/pl/py/cpython-3.12.15-macos-aarch64-none/lib/python3.12/warnings.py). Did you mean: '_deprecated'?"},"3.13":{"rc":0,"out":"3\nv13_deprecated.py:12: DeprecationWarning: use count_tokens_v2\n  print(count_tokens(\"a b c\"))"},"3.14":{"rc":0,"out":"3\nv13_deprecated.py:12: DeprecationWarning: use count_tokens_v2\n  print(count_tokens(\"a b c\"))"},"3.15":{"rc":0,"out":"3\nv13_deprecated.py:12: DeprecationWarning: use count_tokens_v2\n  print(count_tokens(\"a b c\"))"}}},{"id":"v13_copy_replace","v":"3.13","kind":"library","title":"copy.replace","pep":"","url":"https://docs.python.org/3.13/whatsnew/3.13.html","note":"One function to copy an immutable object with some fields changed: dataclasses, named tuples, datetime objects and anything that defines __replace__.","src":"import copy\nfrom dataclasses import dataclass\n\n\n@dataclass(frozen=True)\nclass Config:\n    model: str\n    temperature: float\n\n\nc = Config(\"small\", 0.7)\nprint(copy.replace(c, temperature=0.0))","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_copy_replace.py\", line 12, in <module>\n    print(copy.replace(c, temperature=0.0))\n          ^^^^^^^^^^^^\nAttributeError: module 'copy' has no attribute 'replace'"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v13_copy_replace.py\", line 12, in <module>\n    print(copy.replace(c, temperature=0.0))\n          ^^^^^^^^^^^^\nAttributeError: module 'copy' has no attribute 'replace'"},"3.13":{"rc":0,"out":"Config(model='small', temperature=0.0)"},"3.14":{"rc":0,"out":"Config(model='small', temperature=0.0)"},"3.15":{"rc":0,"out":"Config(model='small', temperature=0.0)"}}},{"id":"v14_tstrings","v":"3.14","kind":"syntax","title":"Template strings (t-strings)","pep":"PEP 750","url":"https://peps.python.org/pep-0750/","note":"t\"...\" looks like an f-string but returns a Template holding the literal parts and the interpolated values separately, not a str. A library can then escape the values (SQL, HTML, shell) instead of trusting a pre-built string. Nothing is escaped by itself: you still need a function that consumes the Template.","src":"name = \"Robert'); DROP TABLE users;--\"\ntemplate = t\"SELECT * FROM users WHERE name = {name}\"\nprint(type(template).__name__)\nprint(template.strings)\nprint([i.value for i in template.interpolations])","runs":{"3.11":{"rc":1,"out":"  File \"v14_tstrings.py\", line 2\n    template = t\"SELECT * FROM users WHERE name = {name}\"\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nSyntaxError: invalid syntax"},"3.12":{"rc":1,"out":"  File \"v14_tstrings.py\", line 2\n    template = t\"SELECT * FROM users WHERE name = {name}\"\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nSyntaxError: invalid syntax"},"3.13":{"rc":1,"out":"  File \"v14_tstrings.py\", line 2\n    template = t\"SELECT * FROM users WHERE name = {name}\"\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nSyntaxError: invalid syntax"},"3.14":{"rc":0,"out":"Template\n('SELECT * FROM users WHERE name = ', '')\n[\"Robert'); DROP TABLE users;--\"]"},"3.15":{"rc":0,"out":"Template\n('SELECT * FROM users WHERE name = ', '')\n[\"Robert'); DROP TABLE users;--\"]"}}},{"id":"v14_deferred_annotations","v":"3.14","kind":"typing","title":"Deferred evaluation of annotations","pep":"PEP 649, PEP 749","url":"https://peps.python.org/pep-0649/","note":"Annotations are evaluated only when something asks for them, so a forward reference no longer needs quotes or from __future__ import annotations. That future import still works and is now deprecated, to be removed only after 3.13's end of life in 2029. Read annotations with annotationlib.get_annotations.","src":"def handle(msg: Message) -> Reply:  # Message and Reply are defined below\n    return Reply(msg.text.upper())\n\n\nclass Message:\n    def __init__(self, text: str) -> None:\n        self.text = text\n\n\nclass Reply(Message):\n    pass\n\n\nprint(handle(Message(\"hi\")).text, handle.__annotations__[\"msg\"].__name__)","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_deferred_annotations.py\", line 1, in <module>\n    def handle(msg: Message) -> Reply:  # Message and Reply are defined below\n                    ^^^^^^^\nNameError: name 'Message' is not defined"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_deferred_annotations.py\", line 1, in <module>\n    def handle(msg: Message) -> Reply:  # Message and Reply are defined below\n                    ^^^^^^^\nNameError: name 'Message' is not defined"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_deferred_annotations.py\", line 1, in <module>\n    def handle(msg: Message) -> Reply:  # Message and Reply are defined below\n                    ^^^^^^^\nNameError: name 'Message' is not defined"},"3.14":{"rc":0,"out":"HI Message"},"3.15":{"rc":0,"out":"HI Message"}}},{"id":"v14_except_no_parens","v":"3.14","kind":"syntax","title":"except A, B without parentheses","pep":"PEP 758","url":"https://peps.python.org/pep-0758/","note":"except ValueError, TypeError: now catches both (it was a SyntaxError since Python 3.0). Readers used to older Python may misread it; parentheses still work.","src":"try:\n    int(\"x\")\nexcept ValueError, TypeError:\n    print(\"caught without parentheses\")","runs":{"3.11":{"rc":1,"out":"  File \"v14_except_no_parens.py\", line 3\n    except ValueError, TypeError:\n           ^^^^^^^^^^^^^^^^^^^^^\nSyntaxError: multiple exception types must be parenthesized"},"3.12":{"rc":1,"out":"  File \"v14_except_no_parens.py\", line 3\n    except ValueError, TypeError:\n           ^^^^^^^^^^^^^^^^^^^^^\nSyntaxError: multiple exception types must be parenthesized"},"3.13":{"rc":1,"out":"  File \"v14_except_no_parens.py\", line 3\n    except ValueError, TypeError:\n           ^^^^^^^^^^^^^^^^^^^^^\nSyntaxError: multiple exception types must be parenthesized"},"3.14":{"rc":0,"out":"caught without parentheses"},"3.15":{"rc":0,"out":"caught without parentheses"}}},{"id":"v14_interpreters","v":"3.14","kind":"library","title":"Subinterpreters in the standard library","pep":"PEP 734","url":"https://peps.python.org/pep-0734/","note":"concurrent.interpreters and InterpreterPoolExecutor run Python in several isolated interpreters inside one process, each with its own GIL. Measured below: start-up and throughput against threads and processes.","src":"from concurrent import interpreters\n\ninterp = interpreters.create()\nprint(interp.call(sum, [1, 2, 3]))\ninterp.close()","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_interpreters.py\", line 1, in <module>\n    from concurrent import interpreters\nImportError: cannot import name 'interpreters' from 'concurrent' (~/pl/py/cpython-3.11.17-macos-aarch64-none/lib/python3.11/concurrent/__init__.py)"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_interpreters.py\", line 1, in <module>\n    from concurrent import interpreters\nImportError: cannot import name 'interpreters' from 'concurrent' (~/pl/py/cpython-3.12.15-macos-aarch64-none/lib/python3.12/concurrent/__init__.py)"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_interpreters.py\", line 1, in <module>\n    from concurrent import interpreters\nImportError: cannot import name 'interpreters' from 'concurrent' (~/pl/py/cpython-3.13.16-macos-aarch64-none/lib/python3.13/concurrent/__init__.py)"},"3.14":{"rc":0,"out":"6"},"3.15":{"rc":0,"out":"6"}}},{"id":"v14_zstd","v":"3.14","kind":"library","title":"compression.zstd","pep":"PEP 784","url":"https://peps.python.org/pep-0784/","note":"Zstandard compression without a third-party package; also readable through tarfile, zipfile and shutil.","src":"from compression import zstd\n\ndata = b\"token \" * 1000\npacked = zstd.compress(data)\nprint(len(data), \"->\", len(packed), zstd.decompress(packed) == data)","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_zstd.py\", line 1, in <module>\n    from compression import zstd\nModuleNotFoundError: No module named 'compression'"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_zstd.py\", line 1, in <module>\n    from compression import zstd\nModuleNotFoundError: No module named 'compression'"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v14_zstd.py\", line 1, in <module>\n    from compression import zstd\nModuleNotFoundError: No module named 'compression'"},"3.14":{"rc":0,"out":"6000 -> 24 True"},"3.15":{"rc":0,"out":"6000 -> 24 True"}}},{"id":"v14_finally_return","v":"3.14","kind":"errors","title":"return in finally warns","pep":"PEP 765","url":"https://peps.python.org/pep-0765/","note":"return, break or continue inside finally silently swallow an exception. The code still runs on every version (the exception is still lost), but 3.14 prints a SyntaxWarning when it compiles the file.","src":"def f() -> int:\n    try:\n        raise RuntimeError(\"lost\")\n    finally:\n        return 1\n\n\nprint(f())","runs":{"3.11":{"rc":0,"out":"1"},"3.12":{"rc":0,"out":"1"},"3.13":{"rc":0,"out":"1"},"3.14":{"rc":0,"out":"1\nv14_finally_return.py:5: SyntaxWarning: 'return' in a 'finally' block\n  return 1"},"3.15":{"rc":0,"out":"1\nv14_finally_return.py:5: SyntaxWarning: 'return' in a 'finally' block\n  return 1"}}},{"id":"v15_lazy_import","v":"3.15","kind":"syntax","title":"Explicit lazy imports","pep":"PEP 810","url":"https://peps.python.org/pep-0810/","note":"lazy import json defers loading until the name is first used, so a CLI only pays for the modules a run needs. Only at module level, not inside try or functions; errors surface at first use. Measured below.","src":"import sys\n\nlazy import json\n\nprint(\"json loaded before use:\", \"json\" in sys.modules)\njson.dumps({})\nprint(\"json loaded after use:\", \"json\" in sys.modules)","runs":{"3.11":{"rc":1,"out":"  File \"v15_lazy_import.py\", line 3\n    lazy import json\n         ^^^^^^\nSyntaxError: invalid syntax"},"3.12":{"rc":1,"out":"  File \"v15_lazy_import.py\", line 3\n    lazy import json\n         ^^^^^^\nSyntaxError: invalid syntax"},"3.13":{"rc":1,"out":"  File \"v15_lazy_import.py\", line 3\n    lazy import json\n         ^^^^^^\nSyntaxError: invalid syntax"},"3.14":{"rc":1,"out":"  File \"v15_lazy_import.py\", line 3\n    lazy import json\n         ^^^^^^\nSyntaxError: invalid syntax"},"3.15":{"rc":0,"out":"json loaded before use: False\njson loaded after use: True"}}},{"id":"v15_frozendict","v":"3.15","kind":"library","title":"frozendict built-in","pep":"PEP 814","url":"https://peps.python.org/pep-0814/","note":"An immutable, hashable mapping: usable as a dict key or cache key (for example a request config). It is not a dict subclass, so isinstance(x, dict) checks must be widened to Mapping.","src":"cfg = frozendict(model=\"small\", temperature=0.7)\ncache = {cfg: \"result\"}\nprint(cfg, cache[frozendict(temperature=0.7, model=\"small\")])","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_frozendict.py\", line 1, in <module>\n    cfg = frozendict(model=\"small\", temperature=0.7)\n          ^^^^^^^^^^\nNameError: name 'frozendict' is not defined. Did you mean: 'frozenset'?"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_frozendict.py\", line 1, in <module>\n    cfg = frozendict(model=\"small\", temperature=0.7)\n          ^^^^^^^^^^\nNameError: name 'frozendict' is not defined. Did you mean: 'frozenset'?"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_frozendict.py\", line 1, in <module>\n    cfg = frozendict(model=\"small\", temperature=0.7)\n          ^^^^^^^^^^\nNameError: name 'frozendict' is not defined. Did you mean: 'frozenset'?"},"3.14":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_frozendict.py\", line 1, in <module>\n    cfg = frozendict(model=\"small\", temperature=0.7)\n          ^^^^^^^^^^\nNameError: name 'frozendict' is not defined. Did you mean: 'frozenset'?"},"3.15":{"rc":0,"out":"frozendict({'model': 'small', 'temperature': 0.7}) result"}}},{"id":"v15_unpack_comprehension","v":"3.15","kind":"syntax","title":"Unpacking in comprehensions","pep":"PEP 798","url":"https://peps.python.org/pep-0798/","note":"[*b for b in batches] flattens one level, replacing the double-for comprehension or itertools.chain.from_iterable.","src":"batches = [[1, 2], [3, 4], [5]]\nprint([*b for b in batches])","runs":{"3.11":{"rc":1,"out":"  File \"v15_unpack_comprehension.py\", line 2\n    print([*b for b in batches])\n           ^^\nSyntaxError: iterable unpacking cannot be used in comprehension"},"3.12":{"rc":1,"out":"  File \"v15_unpack_comprehension.py\", line 2\n    print([*b for b in batches])\n           ^^\nSyntaxError: iterable unpacking cannot be used in comprehension"},"3.13":{"rc":1,"out":"  File \"v15_unpack_comprehension.py\", line 2\n    print([*b for b in batches])\n           ^^\nSyntaxError: iterable unpacking cannot be used in comprehension"},"3.14":{"rc":1,"out":"  File \"v15_unpack_comprehension.py\", line 2\n    print([*b for b in batches])\n           ^^\nSyntaxError: iterable unpacking cannot be used in comprehension"},"3.15":{"rc":0,"out":"[1, 2, 3, 4, 5]"}}},{"id":"v15_sentinel","v":"3.15","kind":"library","title":"sentinel built-in","pep":"PEP 661","url":"https://peps.python.org/pep-0661/","note":"A named unique marker for \"argument not given\" with a readable repr, replacing MISSING = object().","src":"MISSING = sentinel(\"MISSING\")\n\n\ndef get(d: dict, key: str, default=MISSING):\n    if default is MISSING:\n        return d[key]\n    return d.get(key, default)\n\n\nprint(MISSING, get({\"a\": 1}, \"b\", 0))","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_sentinel.py\", line 1, in <module>\n    MISSING = sentinel(\"MISSING\")\n              ^^^^^^^^\nNameError: name 'sentinel' is not defined"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_sentinel.py\", line 1, in <module>\n    MISSING = sentinel(\"MISSING\")\n              ^^^^^^^^\nNameError: name 'sentinel' is not defined"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_sentinel.py\", line 1, in <module>\n    MISSING = sentinel(\"MISSING\")\n              ^^^^^^^^\nNameError: name 'sentinel' is not defined"},"3.14":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_sentinel.py\", line 1, in <module>\n    MISSING = sentinel(\"MISSING\")\n              ^^^^^^^^\nNameError: name 'sentinel' is not defined"},"3.15":{"rc":0,"out":"MISSING 0"}}},{"id":"v15_utf8_default","v":"3.15","kind":"behaviour","title":"UTF-8 is the default encoding","pep":"PEP 686","url":"https://peps.python.org/pep-0686/","note":"open() without encoding= now uses UTF-8 whatever the locale. Shown here under a Latin-1 locale: before 3.15 the same open() picked ISO8859-1. Pass encoding= explicitly in code that must behave the same on every version.","src":"import sys\n\nwith open(__file__) as f:\n    print(\"utf8_mode:\", sys.flags.utf8_mode, \"| open() encoding:\", f.encoding)","runs":{"3.11":{"rc":0,"out":"utf8_mode: 0 | open() encoding: ISO8859-1"},"3.12":{"rc":0,"out":"utf8_mode: 0 | open() encoding: ISO8859-1"},"3.13":{"rc":0,"out":"utf8_mode: 0 | open() encoding: ISO8859-1"},"3.14":{"rc":0,"out":"utf8_mode: 0 | open() encoding: ISO8859-1"},"3.15":{"rc":0,"out":"utf8_mode: 1 | open() encoding: utf-8"}}},{"id":"v15_profiling","v":"3.15","kind":"library","title":"profiling package and the Tachyon sampler","pep":"PEP 799","url":"https://peps.python.org/pep-0799/","note":"profiling.tracing is the old cProfile (still importable under that name) and profiling.sampling is Tachyon, a sampling profiler that can attach to a running process by PID.","src":"import cProfile\nimport profiling.sampling\nimport profiling.tracing\n\nprint(\"cProfile.Profile is profiling.tracing.Profile:\", cProfile.Profile is profiling.tracing.Profile)","runs":{"3.11":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_profiling.py\", line 2, in <module>\n    import profiling.sampling\nModuleNotFoundError: No module named 'profiling'"},"3.12":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_profiling.py\", line 2, in <module>\n    import profiling.sampling\nModuleNotFoundError: No module named 'profiling'"},"3.13":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_profiling.py\", line 2, in <module>\n    import profiling.sampling\nModuleNotFoundError: No module named 'profiling'"},"3.14":{"rc":1,"out":"Traceback (most recent call last):\n  File \"v15_profiling.py\", line 2, in <module>\n    import profiling.sampling\nModuleNotFoundError: No module named 'profiling'"},"3.15":{"rc":0,"out":"cProfile.Profile is profiling.tracing.Profile: True"}}}]},"jit":{"loadavg_start":[9.88671875,9.8349609375,8.91455078125],"runs":{"3.13|char_loop|0":{"python":"3.13.16","median_s":0.2109,"all_s":[0.2071,0.2109,0.2705],"jit_enabled_reported":null},"3.13|char_loop|1":{"python":"3.13.16","median_s":0.1272,"all_s":[0.1359,0.1272,0.1248],"jit_enabled_reported":null},"3.13|float_loop|0":{"python":"3.13.16","median_s":0.4739,"all_s":[0.1943,0.5449,0.4739],"jit_enabled_reported":null},"3.13|float_loop|1":{"python":"3.13.16","median_s":0.3386,"all_s":[0.3487,0.3386,0.2911],"jit_enabled_reported":null},"3.13|objects|0":{"python":"3.13.16","median_s":0.1683,"all_s":[0.1641,0.2139,0.1683],"jit_enabled_reported":null},"3.13|objects|1":{"python":"3.13.16","median_s":0.1662,"all_s":[0.1663,0.1662,0.1658],"jit_enabled_reported":null},"3.13|gen_pipeline|0":{"python":"3.13.16","median_s":0.0482,"all_s":[0.0488,0.0473,0.0482],"jit_enabled_reported":null},"3.13|gen_pipeline|1":{"python":"3.13.16","median_s":0.0499,"all_s":[0.0497,0.0499,0.0502],"jit_enabled_reported":null},"3.13|json_count|0":{"python":"3.13.16","median_s":0.1503,"all_s":[0.1544,0.1503,0.1502],"jit_enabled_reported":null},"3.13|json_count|1":{"python":"3.13.16","median_s":0.106,"all_s":[0.106,0.1054,0.1097],"jit_enabled_reported":null},"3.14|char_loop|0":{"python":"3.14.8","median_s":0.1495,"all_s":[0.1539,0.1488,0.1495],"jit_enabled_reported":false},"3.14|char_loop|1":{"python":"3.14.8","median_s":0.1425,"all_s":[0.1425,0.1351,0.1435],"jit_enabled_reported":true},"3.14|float_loop|0":{"python":"3.14.8","median_s":0.1843,"all_s":[0.1851,0.1843,0.1826],"jit_enabled_reported":false},"3.14|float_loop|1":{"python":"3.14.8","median_s":0.2132,"all_s":[0.2445,0.2099,0.2132],"jit_enabled_reported":true},"3.14|objects|0":{"python":"3.14.8","median_s":0.1239,"all_s":[0.1231,0.1239,0.1261],"jit_enabled_reported":false},"3.14|objects|1":{"python":"3.14.8","median_s":0.1275,"all_s":[0.128,0.1275,0.1264],"jit_enabled_reported":true},"3.14|gen_pipeline|0":{"python":"3.14.8","median_s":0.0443,"all_s":[0.0443,0.0446,0.0435],"jit_enabled_reported":false},"3.14|gen_pipeline|1":{"python":"3.14.8","median_s":0.0439,"all_s":[0.0434,0.0439,0.0442],"jit_enabled_reported":true},"3.14|json_count|0":{"python":"3.14.8","median_s":0.1238,"all_s":[0.1238,0.1252,0.1226],"jit_enabled_reported":false},"3.14|json_count|1":{"python":"3.14.8","median_s":0.1236,"all_s":[0.1158,0.1262,0.1236],"jit_enabled_reported":true},"3.15|char_loop|0":{"python":"3.15.0rc3","median_s":0.1663,"all_s":[0.172,0.1622,0.1663],"jit_enabled_reported":false},"3.15|char_loop|1":{"python":"3.15.0rc3","median_s":0.1017,"all_s":[0.0985,0.1017,0.1378],"jit_enabled_reported":true},"3.15|float_loop|0":{"python":"3.15.0rc3","median_s":0.1745,"all_s":[0.2039,0.1736,0.1745],"jit_enabled_reported":false},"3.15|float_loop|1":{"python":"3.15.0rc3","median_s":0.112,"all_s":[0.1106,0.112,0.1165],"jit_enabled_reported":true},"3.15|objects|0":{"python":"3.15.0rc3","median_s":0.1222,"all_s":[0.149,0.1222,0.1069],"jit_enabled_reported":false},"3.15|objects|1":{"python":"3.15.0rc3","median_s":0.096,"all_s":[0.0965,0.096,0.096],"jit_enabled_reported":true},"3.15|gen_pipeline|0":{"python":"3.15.0rc3","median_s":0.0453,"all_s":[0.0453,0.0474,0.0448],"jit_enabled_reported":false},"3.15|gen_pipeline|1":{"python":"3.15.0rc3","median_s":0.0505,"all_s":[0.0443,0.0505,0.0694],"jit_enabled_reported":true},"3.15|json_count|0":{"python":"3.15.0rc3","median_s":0.2212,"all_s":[0.2638,0.2212,0.138],"jit_enabled_reported":false},"3.15|json_count|1":{"python":"3.15.0rc3","median_s":0.0914,"all_s":[0.0914,0.0888,0.0989],"jit_enabled_reported":true}},"loadavg_end":[18.43310546875,14.17138671875,10.89111328125]},"lazy":{"versions":"3.15.0rc3 0.28.1 2.13.2","loadavg":[22.6416015625,15.91845703125,11.65625],"importtime":{"cli_eager":{"modules":268,"top":[{"self_us":353,"cum_us":633,"depth":0,"name":"_frozen_importlib_external","n_mods":4},{"self_us":162,"cum_us":745,"depth":0,"name":"zipimport","n_mods":2},{"self_us":511,"cum_us":1224,"depth":0,"name":"encodings","n_mods":4},{"self_us":120,"cum_us":120,"depth":0,"name":"encodings.utf_8","n_mods":1},{"self_us":48,"cum_us":48,"depth":0,"name":"_signal","n_mods":1},{"self_us":662,"cum_us":6779,"depth":0,"name":"site","n_mods":26},{"self_us":1080,"cum_us":4332,"depth":0,"name":"argparse","n_mods":10},{"self_us":270,"cum_us":46645,"depth":0,"name":"httpx","n_mods":153},{"self_us":271,"cum_us":16022,"depth":0,"name":"pydantic","n_mods":20},{"self_us":3620,"cum_us":47379,"depth":0,"name":"rich.console","n_mods":47}],"total_us":124055},"cli_lazy":{"modules":64,"top":[{"self_us":540,"cum_us":1548,"depth":0,"name":"_frozen_importlib_external","n_mods":4},{"self_us":580,"cum_us":1458,"depth":0,"name":"zipimport","n_mods":2},{"self_us":691,"cum_us":1723,"depth":0,"name":"encodings","n_mods":4},{"self_us":176,"cum_us":176,"depth":0,"name":"encodings.utf_8","n_mods":1},{"self_us":61,"cum_us":61,"depth":0,"name":"_signal","n_mods":1},{"self_us":599,"cum_us":4976,"depth":0,"name":"site","n_mods":26},{"self_us":1125,"cum_us":4738,"depth":0,"name":"argparse","n_mods":10},{"self_us":875,"cum_us":944,"depth":0,"name":"locale","n_mods":2},{"self_us":763,"cum_us":3302,"depth":0,"name":"shutil","n_mods":14}],"total_us":18953},"cli_all":{"modules":60,"top":[{"self_us":350,"cum_us":698,"depth":0,"name":"_frozen_importlib_external","n_mods":4},{"self_us":163,"cum_us":769,"depth":0,"name":"zipimport","n_mods":2},{"self_us":542,"cum_us":1298,"depth":0,"name":"encodings","n_mods":4},{"self_us":125,"cum_us":125,"depth":0,"name":"encodings.utf_8","n_mods":1},{"self_us":47,"cum_us":47,"depth":0,"name":"_signal","n_mods":1},{"self_us":635,"cum_us":4692,"depth":0,"name":"site","n_mods":26},{"self_us":1537,"cum_us":1537,"depth":0,"name":"argparse","n_mods":1},{"self_us":823,"cum_us":4051,"depth":0,"name":"re","n_mods":7},{"self_us":237,"cum_us":237,"depth":0,"name":"gettext","n_mods":1},{"self_us":605,"cum_us":667,"depth":0,"name":"locale","n_mods":2},{"self_us":553,"cum_us":2380,"depth":0,"name":"shutil","n_mods":11}],"total_us":16527}},"hyperfine":[{"command":"~/pl/pb/work/lazyvenv/bin/python cli_eager.py count 'hello world'","median_ms":100.4,"mean_ms":104.3,"stddev_ms":12.8},{"command":"~/pl/pb/work/lazyvenv/bin/python cli_lazy.py count 'hello world'","median_ms":25.8,"mean_ms":25.9,"stddev_ms":1.1},{"command":"~/pl/pb/work/lazyvenv/bin/python -X lazy_imports=all cli_eager.py count 'hello world'","median_ms":26.3,"mean_ms":28.1,"stddev_ms":5.7},{"command":"~/pl/pb/work/lazyvenv/bin/python -c pass","median_ms":18.6,"mean_ms":18.9,"stddev_ms":1.6}],"none_mode":"$ python3.15 -X lazy_imports=none cli_lazy.py count \"hello world\"\nFatal Python error: config_init_lazy_imports: -X lazy_imports: invalid value; expected 'all' or 'normal'\n[exit 1]\n\n$ python3.15 -c \"import sys; sys.set_lazy_imports('none')\"\nValueError: mode must be 'normal' or 'all'\n[exit 1]\n","outputs":{"cli_eager":"2","cli_lazy":"2"}}};
+</script>
+<script>/* 23_js_ci_util.js */
+// ---- Shared helpers for this page (window.CIU): transcripts, prediction prompts, bars. Adapted from the language page's 41_js_pb_util.js ----
+window.CIU=(function(){
+  const esc=RD.esc;
+  // colour one line of tool output
+  function line(l){
+    const e=esc(l);
+    if(/^\[exit \d+\]$/.test(l))return '<span class="'+(l==='[exit 0]'?'k':'e')+'">'+e+'</span>';
+    if(/(^|[^a-z])(error|Error|Traceback|FAILED|Fatal|failed)\b|^E\s|NotShareable|ModuleNotFound|SyntaxError|NameError|ImportError|AttributeError|ValueError/.test(l))return '<span class="e">'+e+'</span>';
+    if(/[Ww]arning|^hint:|^Note:|^info:/.test(l))return '<span class="w">'+e+'</span>';
+    if(/passed|All checks passed|Successfully built|in sync/.test(l))return '<span class="ok">'+e+'</span>';
+    return e;
+  }
+  function block(b){
+    let h='<span class="c">'+esc(b.cmd)+'</span>\n';
+    if(b.out)h+=b.out.split('\n').map(line).join('\n')+'\n';
+    if(b.rc!=null)h+=line('[exit '+b.rc+']');
+    return h;
+  }
+  // blocks in transcript `name` whose command starts with each prefix (first match after the previous one)
+  function pick(name,prefixes){
+    const T=(window.PB&&PB[name])||[];const out=[];let from=0;
+    prefixes.forEach(p=>{let i=T.findIndex((b,k)=>k>=from&&b.cmd&&b.cmd.startsWith(p));if(i<0)i=T.findIndex(b=>b.cmd&&b.cmd.startsWith(p));if(i>=0){out.push(T[i]);from=i+1}});
+    return out;
+  }
+  function fillTerms(root){
+    (root||document).querySelectorAll('[data-ci-tr]').forEach(el=>{
+      const bs=pick(el.dataset.ciTr,el.dataset.ciCmd.split('|'));
+      el.innerHTML=bs.length?bs.map(block).join('\n\n'):'<span class="e">(output missing)</span>';
+    });
+  }
+  // prediction prompt: opts [{t, right}], answer HTML (or a function returning it)
+  function drill(el,q,opts,answer){
+    if(!el)return;
+    el.innerHTML='<div class="q">'+q+'</div><div class="opts">'+opts.map((o,i)=>'<button data-i="'+i+'">'+o.t+'</button>').join('')+
+      '<button data-i="-1" class="mute">Just show me</button></div><div class="ans" hidden></div>';
+    const a=el.querySelector('.ans');
+    el.querySelector('.opts').addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;const i=+b.dataset.i;
+      el.querySelectorAll('.opts button').forEach(x=>{const j=+x.dataset.i;x.classList.remove('right','wrong');if(j>=0&&opts[j].right)x.classList.add('right')});
+      if(i>=0&&!opts[i].right)b.classList.add('wrong');
+      a.hidden=false;a.innerHTML=(i<0?'':(opts[i].right?'<b>Right.</b> ':'<b>Not quite.</b> '))+(typeof answer==='function'?answer():answer)});
+  }
+  const fmt=(x,d)=>(x==null||isNaN(x))?'n/a':Number(x).toFixed(d==null?2:d);
+  const la=a=>a?a.map(x=>x.toFixed(1)).join(' / '):'n/a';
+  // horizontal bars: rows [{name, v, label, col, hl}]
+  function bars(el,rows,max,note){
+    if(!el)return;
+    const M=max||Math.max(...rows.map(r=>r.v));
+    el.innerHTML='<div class="bars">'+rows.map(r=>'<div class="row'+(r.hl?' hl':'')+'"><span class="nm" title="'+esc(r.name)+'">'+esc(r.name)+'</span><span class="track"><span class="fill" style="width:'+(100*r.v/M).toFixed(1)+'%;background:'+(r.col||'var(--c1)')+'"></span></span><span class="val">'+r.label+'</span></div>').join('')+'</div>'+(note?'<div class="ci-src">'+note+'</div>':'');
+  }
+  // redraw f when a closed <details> containing el is opened (a closed block has no width)
+  function onOpen(el,f){const d=el&&el.closest('details');if(d)d.addEventListener('toggle',()=>{if(d.open)f()})}
+  return {esc,line,block,pick,fillTerms,drill,fmt,la,bars,onOpen};
+})();
+</script>
+<script>/* 24_js_ci_hero.js */
+// ---- Hero (a list of float objects against one NumPy buffer, with the measured times), the speed-up ladder, and the object-layout figure of section 2. Static figures drawn at the measured width ----
+(function(){
+  const $=id=>document.getElementById(id),T=RD.t,esc=RD.esc;
+  const np=window.PA&&PA.np;if(!np)return;
+  const big=np[np.length-1];                 // [n, loop us, map+fsum us, numpy us, np.array(list) us]
+  const LOOP=big[1]/1000,NPY=big[3]/1000;
+  function hero(){
+    const el=$('ci-hero');if(!el)return;
+    const W=Math.min(860,RD.width(el)),nar=W<520,L=4,R=W-4;
+    let s='',y=16;
+    // lane 1: the Python loop
+    s+=T(L,y,nar?'Python loop':'Python loop: for x in xs: s += math.exp(x - m)',{w:600,fs:12.5,fill:'var(--ink)'});
+    s+=T(L,y+16,nar?'list: 8-byte pointers':'list: one 8-byte pointer per element',{fs:11,fill:'var(--mute)'});
+    y+=24;const n=Math.max(6,Math.min(12,Math.floor((R-L-70)/40))),cw=Math.min(40,(R-L-70)/n);
+    for(let i=0;i<n;i++){const x=L+i*cw;s+='<rect x="'+x+'" y="'+y+'" width="'+(cw-2)+'" height="16" fill="var(--soft)" stroke="var(--line)"></rect>';
+      s+='<circle cx="'+(x+cw/2-1)+'" cy="'+(y+8)+'" r="2.5" fill="var(--ink)"></circle>'}
+    s+=T(L+n*cw+4,y+12,'…',{fs:12,fill:'var(--mute)'});
+    const oy=y+34;
+    for(let i=0;i<n;i++){const x0=L+i*cw+cw/2-1,xo=L+i*cw+((i*37)%11)-4,yo=oy+((i*53)%3)*9;
+      s+='<line x1="'+x0+'" y1="'+(y+16)+'" x2="'+(xo+cw/2-2)+'" y2="'+yo+'" stroke="var(--mute)" stroke-width="1"></line>';
+      s+='<rect x="'+xo+'" y="'+yo+'" width="'+(cw-6)+'" height="14" rx="2" fill="var(--c2)" opacity=".8"></rect>'}
+    s+=T(L,oy+44,nar?'a 24-byte float object each':'a separate 24-byte float object per element (refcount, type, value)',{fs:11,fill:'var(--mute)'});
+    const ly=oy+54;
+    s+='<rect x="'+L+'" y="'+ly+'" width="'+(R-L)+'" height="22" rx="4" fill="none" stroke="var(--acc)"></rect>';
+    s+=T(L+6,ly+15,nar?'C eval loop: bytecode + 3 new floats per element':'C evaluation loop: the body\'s bytecode once per element, 3 new floats each time',{fs:11,fill:'var(--ink)'});
+    const by=ly+30,bw=R-L-62;
+    s+='<rect x="'+L+'" y="'+by+'" width="'+bw+'" height="12" fill="var(--c2)"></rect>'+T(L+bw+4,by+10,LOOP.toFixed(1)+' ms',{fs:11.5,w:600,fill:'var(--ink)'});
+    // lane 2: NumPy
+    y=by+38;
+    s+=T(L,y,nar?'NumPy':'NumPy: np.exp(a - a.max()).sum()',{w:600,fs:12.5,fill:'var(--ink)'});
+    y+=8;const m=Math.max(12,Math.min(40,Math.floor((R-L-20)/14))),dw=(R-L-20)/m;
+    s+='<rect x="'+L+'" y="'+y+'" width="'+(m*dw)+'" height="16" fill="var(--c1)" opacity=".85"></rect>';
+    for(let i=1;i<m;i++)s+='<line x1="'+(L+i*dw)+'" x2="'+(L+i*dw)+'" y1="'+y+'" y2="'+(y+16)+'" stroke="var(--bg)" stroke-width="1"></line>';
+    s+=T(L+m*dw+4,y+12,'…',{fs:12,fill:'var(--mute)'});
+    s+=T(L,y+30,nar?'one buffer, 8 bytes per double':'one contiguous buffer, 8 bytes per double, no object per element',{fs:11,fill:'var(--mute)'});
+    const ly2=y+38;
+    s+='<rect x="'+L+'" y="'+ly2+'" width="'+(R-L)+'" height="22" rx="4" fill="none" stroke="var(--acc)"></rect>';
+    s+=T(L+6,ly2+15,nar?'one call: 3 C loops over the buffer':'one Python call: three tight C loops over the buffer (subtract, exp, sum)',{fs:11,fill:'var(--ink)'});
+    const by2=ly2+30,bw2=Math.max(2,bw*NPY/LOOP);
+    s+='<rect x="'+L+'" y="'+by2+'" width="'+bw2+'" height="12" fill="var(--c1)"></rect>'+T(L+bw2+4,by2+10,NPY.toFixed(1)+' ms ('+(LOOP/NPY).toFixed(1)+'x faster)',{fs:11.5,w:600,fill:'var(--ink)'});
+    el.innerHTML=RD.svg(W,by2+18,s,'A Python list of pointers to separate float objects, looped over by the interpreter, against one NumPy buffer looped over in C; 47.6 ms against 3.2 ms');
+  }
+  function ladder(){
+    const el=$('ci-ladder');if(!el||!window.PB||!window.PB.jit)return;
+    const J=PB.jit.runs,jit=J['3.15|char_loop|0'].median_s/J['3.15|char_loop|1'].median_s,P=PA.prof;
+    CIU.bars(el,[
+      {name:'JIT on, 3.15 (character loop, section 5)',v:jit,label:jit.toFixed(2)+'x',col:'var(--c5)'},
+      {name:'Profile, then regex and a dict (section 3)',v:P.slow_ms/P.fast_ms,label:(P.slow_ms/P.fast_ms).toFixed(1)+'x',col:'var(--c3)'},
+      {name:'Loop moved into NumPy, 1,000,000 floats (section 4)',v:LOOP/NPY,label:(LOOP/NPY).toFixed(1)+'x',col:'var(--c1)'}]);
+  }
+  // section 2: what an object holds
+  function obj(){
+    const el=$('ci-obj');if(!el)return;
+    const W=Math.min(760,RD.width(el)),nar=W<520,u=Math.min(nar?9:12,(W-130)/40);   // px per byte
+    const rows=[
+      ['C int64',[['value',8,'var(--c1)']],'8 B'],
+      ['float 1.5',[['refcount',8,'var(--dim)'],['type',8,'var(--dim)'],['double',8,'var(--c2)']],'24 B'],
+      ['int 1',[['refcount',8,'var(--dim)'],['type',8,'var(--dim)'],['size',8,'var(--c5)'],['digit',4,'var(--c2)']],'28 B'],
+      ['int 2**60',[['refcount',8,'var(--dim)'],['type',8,'var(--dim)'],['size',8,'var(--c5)'],['3 digits',12,'var(--c2)']],'36 B']];
+    const L=nar?66:84;let s='',y=6;
+    rows.forEach(r=>{let x=L;s+=T(0,y+14,r[0],{fs:11.5,fill:'var(--ink)'});
+      r[1].forEach(c=>{const w=c[1]*u;s+='<rect x="'+x+'" y="'+y+'" width="'+(w-1)+'" height="20" fill="'+c[2]+'" opacity=".85"></rect>';
+        if(w>(nar?44:52))s+=T(x+w/2,y+14,c[0],{a:'middle',fs:11,fill:c[2]==='var(--dim)'?'var(--ink)':'var(--bg)'});x+=w});
+      s+=T(x+5,y+14,r[2],{fs:11.5,w:600,fill:'var(--ink)'});y+=28});
+    el.innerHTML=RD.svg(W,y,s,'Object layouts: a C int64 is 8 bytes; a Python float 24 bytes; an int 28 bytes plus 4 per 30 bits')+
+      '<div class="leg"><span><i style="background:var(--dim)"></i>header every object has (16 B)</span><span><i style="background:var(--c5)"></i>int size field</span><span><i style="background:var(--c2)"></i>the value</span></div>';
+  }
+  function all(){hero();ladder();obj()}
+  all();RD.onRender(all);RD.onResize(all);
+})();
+</script>
+<script>/* 25_js_ci_perf.js */
+// ---- Sections 1, 3 and 4: the bytecode stepper (from the language page's 35_js_pa_read.js), the prediction prompts, the profile and NumPy bars ----
+(function(){
+  const $=id=>document.getElementById(id),esc=RD.esc;
+  if(!window.PA)return;
+  // 1. bytecode before and after specialisation (real dis output, three listings); never moves before the reader acts
+  (function(){
+    if(!$('ci-dis-card'))return;
+    const CAP=['Before the first call: generic instructions. <code>BINARY_OP (+)</code> must work for any two objects with an <code>__add__</code>; <code>FOR_ITER</code> for any iterator.',
+      'After summing a list of 1,000 ints: the interpreter has rewritten instructions in place. <code>BINARY_OP_ADD_INT</code> adds two ints directly after a cheap type check; <code>FOR_ITER_LIST</code> walks a list without the general iterator protocol; <code>RESUME_CHECK</code> and <code>JUMP_BACKWARD_NO_JIT</code> are the specialised entry and loop back-edge (the JIT is off).',
+      'After calls with floats: the int guard failed, the instruction fell back and re-specialised to <code>BINARY_OP_ADD_FLOAT</code>. Code whose types keep changing pays for this churn; code with stable types stays on the fast path.'];
+    function draw(i){
+      const blk=PA.dis[i],prev=i>0?PA.dis[i-1]:null;
+      let h='<div class="tw"><table class="ci-dis"><thead><tr><th>line</th><th></th><th>instruction and argument</th></tr></thead><tbody>';
+      blk.ins.forEach((r,k)=>{const ch=prev&&prev.ins[k]&&prev.ins[k][2]!==r[2];
+        h+='<tr'+(ch?' class="ch"':'')+'><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td>'+esc(r[2])+' <span class="ci-was">'+esc(r[3])+'</span>'+(ch?'<br><span class="ci-was">was '+esc(prev.ins[k][2])+'</span>':'')+'</td></tr>'});
+      $('ci-dis-view').innerHTML=h+'</tbody></table></div>';
+      const nch=prev?blk.ins.filter((r,k)=>prev.ins[k]&&prev.ins[k][2]!==r[2]).length:0;
+      $('ci-dis-cap').innerHTML='<b>'+(i+1)+' of 3, '+esc(blk.title)+'</b> ('+nch+' instruction'+(nch===1?'':'s')+' changed). '+CAP[i];
+    }
+    RD.anim({card:'ci-dis-card',ctl:'ci-dis-ctl',n:PA.dis.length,draw,ms:3200,label:'Listing'});
+  })();
+  const find=(blk,pre)=>(blk.ins.find(r=>r[2].startsWith(pre))||[])[2];
+  CIU.drill($('ci-pr-dis'),'Predict: after 1,000 int additions the <code>+</code> is <code>BINARY_OP_ADD_INT</code>. Then the same function is called with lists of floats. What happens to that instruction?',
+    [{t:'It stays ADD_INT and each float addition takes a slow path forever',right:false},{t:'It falls back and re-specialises for floats',right:true},{t:'It returns to the generic BINARY_OP for good',right:false}],
+    ()=>'Listing 3 shows <code>'+esc(find(PA.dis[2],'BINARY_OP'))+'</code>: the guard failed, the instruction fell back and was specialised again for the new type. Step the listings above to see each rewrite.');
+  // 3. what the profiler did to the program
+  const P=PA.prof;
+  CIU.drill($('ci-pr-prof'),'Predict: the slow version takes '+P.slow_ms+' ms. How long does the same call take under cProfile?',
+    [{t:'About the same (under 10% more)',right:false},{t:'About twice as long',right:false},{t:'About seven times as long',right:true}],
+    'Measured: '+P.profiled_s.toFixed(2)+' s under cProfile against '+P.slow_ms+' ms without it, because the profiler adds work to each of 8 million calls (the first line of its report).');
+  CIU.bars($('ci-prof-bars'),[
+    {name:'p1_slow under cProfile',v:P.profiled_s*1000,label:Math.round(P.profiled_s*1000)+' ms',col:'var(--c6)'},
+    {name:'p1_slow, no profiler',v:P.slow_ms,label:P.slow_ms+' ms',col:'var(--c2)'},
+    {name:'p1_fast (regex, Counter)',v:P.fast_ms,label:P.fast_ms+' ms',col:'var(--c3)'}],0,'Wall-clock time of one per_user() call over 20,000 lines, from p1_profile.py (mean of 3 runs without the profiler). Python 3.14.8, Apple M1 Pro.');
+  // 4. NumPy against the loop at four sizes
+  const small=PA.np[0];
+  CIU.drill($('ci-pr-np'),'Predict: at <b>10</b> elements, which is faster, the Python loop or NumPy?',
+    [{t:'NumPy, by about 10x',right:false},{t:'About the same',right:false},{t:'The Python loop',right:true}],
+    'The loop: '+small[1].toFixed(1)+' µs against '+small[3].toFixed(1)+' µs for NumPy, whose fixed cost per call (about a microsecond) is more than ten elements of work. The bars below show where it turns round.');
+  function drawNp(){
+    const el=$('ci-np-bars');if(!el)return;
+    let h='';
+    PA.np.forEach(r=>{const [n,loop,mapf,npv,conv]=r,max=Math.max(loop,mapf,npv,conv);
+      h+='<div class="ci-src" style="margin-top:6px">n = '+n.toLocaleString('en-US')+' (bars relative to the slowest at this size; NumPy '+(loop/npv).toFixed(1)+'x the loop)</div><div class="bars">'+
+      [['Python loop',loop,'var(--c2)'],['map + fsum',mapf,'var(--c5)'],['NumPy',npv,'var(--c1)'],['np.array(list)',conv,'var(--dim)']].map(([nm,v,c])=>'<div class="row"><span class="nm">'+nm+'</span><span class="track"><span class="fill" style="width:'+(100*v/max).toFixed(1)+'%;background:'+c+'"></span></span><span class="val">'+(v>=1000?(v/1000).toFixed(1)+' ms':v.toFixed(1)+' µs')+'</span></div>').join('')+'</div>'});
+    el.innerHTML=h+'<div class="ci-src">Median of timeit repeats per call, from p2_numpy.py (Python 3.14.8, NumPy 2.5.3, Apple M1 Pro, load 6.3). np.array(list) is the conversion alone.</div>';
+  }
+  drawNp();
+})();
+</script>
+<script>/* 26_js_ci_jit.js */
+// ---- Section 5: the JIT on and off (from the language page's 42_js_pb_read_d.js and the Runtime lab's part 3, 44_js_pb_lab.js) ----
+(function(){
+  const $=id=>document.getElementById(id);
+  if(!window.PB||!PB.jit||!$('ci-jit-tbl'))return;
+  const J=PB.jit.runs,V=['3.13','3.14','3.15'],C=['char_loop','float_loop','objects','gen_pipeline','json_count'],F=CIU.fmt;
+  const CN={char_loop:'Character loop (the token counter)',float_loop:'Float arithmetic loop',objects:'Small objects and method calls',gen_pipeline:'Generator pipeline',json_count:'json.loads plus token counting'};
+  const r=(v,c)=>J[v+'|'+c+'|0'].median_s/J[v+'|'+c+'|1'].median_s;
+  const col=x=>x>=1.1?'var(--good)':x<=0.91?'var(--bad)':'var(--mute)';
+  const cat=x=>x<0.9?0:x<1.15?1:x<1.8?2:3,cr=cat(r('3.15','char_loop'));
+  CIU.drill($('ci-pr-jit'),'Predict: with <code>PYTHON_JIT=1</code> on 3.15.0rc3, how much faster is the token counter\'s character loop?',
+    [{t:'Slower',right:cr===0},{t:'About the same (within 10%)',right:cr===1},{t:'1.2x to 1.8x faster',right:cr===2},{t:'1.8x or more',right:cr===3}],
+    'Measured: '+F(r('3.15','char_loop'),2)+'x ('+F(J['3.15|char_loop|0'].median_s*1000,0)+' ms off, '+F(J['3.15|char_loop|1'].median_s*1000,0)+' ms on). On 3.14 the same loop: '+F(r('3.14','char_loop'),2)+'x. The table has all five workloads.');
+  $('ci-jit-tbl').innerHTML='<thead><tr><th>Workload (JIT on vs off)</th>'+V.map(v=>'<th class="n">'+v+'</th>').join('')+'</tr></thead><tbody>'+
+    C.map(c=>'<tr><td>'+CN[c]+'</td>'+V.map(v=>{const x=r(v,c);return '<td class="n" style="color:'+col(x)+'">'+F(x,2)+'x</td>'}).join('')+'</tr>').join('')+'</tbody>';
+  $('ci-jit-note').textContent='Speed-up = time with PYTHON_JIT=0 divided by time with PYTHON_JIT=1; green 1.1x or better, red 0.91x or worse, grey within noise. Median of 3 processes x 7 timed repeats, Apple M1 Pro, load average '+CIU.la(PB.jit.loadavg_start)+' at the start. Every time is in the closed block below.';
+  // every run (the Runtime lab's table)
+  $('ci-jit-all').innerHTML='<thead><tr><th>Workload</th>'+V.map(v=>'<th class="n">'+v+' off</th><th class="n">'+v+' on</th><th class="n">ratio</th>').join('')+'</tr></thead><tbody>'+
+    C.map(c=>'<tr><td>'+CN[c]+'</td>'+V.map(v=>{const a=J[v+'|'+c+'|0'],b=J[v+'|'+c+'|1'],x=a.median_s/b.median_s;
+      return '<td class="n" title="runs: '+a.all_s.join(', ')+'">'+F(a.median_s*1000,0)+' ms</td><td class="n" title="runs: '+b.all_s.join(', ')+(b.jit_enabled_reported===true?'; sys._jit.is_enabled() True':'')+'">'+F(b.median_s*1000,0)+' ms</td><td class="n" style="color:'+col(x)+'">'+F(x,2)+'x</td>'}).join('')+'</tr>').join('')+'</tbody>';
+  const jon=Object.entries(J).filter(([k])=>k.endsWith('|1')&&!k.startsWith('3.13')).every(([,v])=>v.jit_enabled_reported===true);
+  $('ci-jit-load').textContent='Load average '+CIU.la(PB.jit.loadavg_start)+' at the start, '+CIU.la(PB.jit.loadavg_end)+' at the end. sys._jit.is_enabled() reported True in every 3.14 and 3.15 "on" run: '+(jon?'yes':'no')+'. Hover a time for the three process medians.';
+})();
+</script>
+<script>/* 27_js_ci_ver.js */
+// ---- Version explorer tab (t-ver) and section 6's release lines and UTF-8 run. From the language page's 43_js_pb_ver.js (2026-10-26) ----
+(function(){
+  if(!window.PB||!PB.ver)return;
+  const $=id=>document.getElementById(id),E=CIU.esc,V=PB.ver,F=V.features,VS=['3.11','3.12','3.13','3.14','3.15'];
+  const KIND={syntax:'Syntax',typing:'Typing',library:'Library',behaviour:'Behaviour',errors:'Errors and warnings',removal:'Removals'};
+  let minV='3.12',kind='all',sel={f:F.findIndex(f=>f.id==='v14_tstrings'),v:'3.14'};
+  const lastLine=o=>{const ls=(o||'').trim().split('\n');return ls[ls.length-1]};
+  function status(r){if(r.rc!==0){const m=lastLine(r.out).match(/^(\w+(?:Error|Exception))/);return {c:'bad',t:m?m[1]:'exit '+r.rc}}
+    if(/Warning/.test(r.out))return {c:'warn',t:'ran, warned'};return {c:'ok',t:'ran'}}
+  const vnum=v=>+v.split('.')[1];
+  function grid(){
+    $('vx-grid').innerHTML='<thead><tr><th class="f">Change (introduced in)</th>'+VS.map(v=>'<th>'+v+'<span class="vx-cell">'+E(V.interpreters[v])+'</span></th>').join('')+'</tr></thead><tbody>'+
+      F.map((f,i)=>{const off=vnum(f.v)>vnum(minV)&&f.kind!=='removal'&&f.kind!=='errors';const hid=kind!=='all'&&f.kind!==kind;
+        return '<tr class="'+(off?'off ':'')+(hid?'hid':'')+'"><th class="f">'+E(f.title)+' <span class="k">'+f.v+(f.pep?' · '+E(f.pep):'')+' · '+KIND[f.kind]+(off?' <span class="vx-need">needs '+f.v+'</span>':'')+'</span></th>'+
+          VS.map(v=>{const s=status(f.runs[v]);return '<td class="c '+s.c+(sel.f===i&&sel.v===v?' sel':'')+'" data-f="'+i+'" data-v="'+v+'" title="'+E(f.title)+' on '+v+'">'+(s.c==='bad'?'&#10007;':'&#10003;')+'<span class="vx-cell">'+E(s.t)+'</span></td>'}).join('')+'</tr>'}).join('')+'</tbody>';
+    const usable=F.filter(f=>vnum(f.v)<=vnum(minV)&&f.kind!=='removal'&&f.kind!=='errors').length,newer=F.filter(f=>vnum(f.v)>vnum(minV)&&f.kind!=='removal'&&f.kind!=='errors');
+    $('vx-sum').innerHTML='Supporting '+minV+' and later, you can use <b>'+usable+'</b> of the new features shown; <b>'+newer.length+'</b> need a newer minimum'+(newer.length?': '+newer.map(f=>E(f.title)).join('; '):'')+'. Removals and error-message changes apply whatever you choose.';
+  }
+  function detail(){
+    const f=F[sel.f],r=f.runs[sel.v],s=status(r);
+    $('vx-detail').innerHTML='<h3>'+E(f.title)+'</h3><div><span class="tag">new in '+f.v+'</span>'+(f.pep?'<span class="tag"><a href="'+E(f.url)+'" target="_blank" rel="noopener noreferrer">'+E(f.pep)+'</a></span>':'<span class="tag"><a href="'+E(f.url)+'" target="_blank" rel="noopener noreferrer">What\'s New</a></span>')+'<span class="tag">'+KIND[f.kind]+'</span></div>'+
+      '<p class="small">'+E(f.note)+'</p><div class="vx-code">'+E(f.src)+'</div>'+
+      '<div class="seg" id="vx-vs">'+VS.map(v=>'<button data-m="'+v+'"'+(v===sel.v?' class="on"':'')+'>'+v+'</button>').join('')+'</div>'+
+      '<div class="vx-term">'+CIU.block({cmd:'python'+sel.v+' '+f.id+'.py'+(f.id==='v15_utf8_default'?'   # LC_ALL=en_US.ISO8859-1':''),out:r.out,rc:r.rc})+'</div>';
+    $('vx-vs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sel.v=b.dataset.m;grid();detail()});
+  }
+  $('vx-kind').innerHTML='<button data-m="all" class="on">All kinds</button>'+Object.entries(KIND).map(([k,t])=>'<button data-m="'+k+'">'+t+'</button>').join('');
+  $('vx-kind').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;kind=b.dataset.m;$('vx-kind').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));grid()});
+  RD.seg($('vx-min'),m=>{minV=m;grid()});
+  $('vx-grid').addEventListener('click',e=>{const td=e.target.closest('td.c');if(!td)return;sel={f:+td.dataset.f,v:td.dataset.v};grid();detail()});
+  grid();detail();
+
+  // drill: first version where it runs
+  const pool=F.filter(f=>f.kind!=='removal'&&f.kind!=='errors'&&f.id!=='v14_finally_return'&&f.id!=='v15_utf8_default');let di=0;
+  function drill(){
+    const f=pool[di%pool.length];const first=VS.find(v=>f.runs[v].rc===0);
+    const el=$('vx-drill');
+    CIU.drill(el,'<span class="mute small">Question '+(di%pool.length+1)+' of '+pool.length+'.</span> What is the oldest version on which this runs?<div class="vx-code" style="font-weight:400">'+E(f.src)+'</div>',
+      VS.map(v=>({t:v,right:v===first})),
+      ()=>{const prev=VS[VS.indexOf(first)-1];return '<b>'+first+'</b>: '+E(f.title)+(f.pep?' ('+E(f.pep)+')':'')+'.'+(prev?' On '+prev+' it fails with:<div class="vx-term">'+E(lastLine(f.runs[prev].out))+'</div>':'')+'<button id="vx-next">Next question</button>'});
+  }
+  $('vx-drill').addEventListener('click',e=>{if(e.target.id==='vx-next'){di++;drill()}});
+  drill();
+
+  // release lines
+  const LIFE=[['3.11','2022-10-24','2027-10','security'],['3.12','2023-10-02','2028-10','security'],['3.13','2024-10-07','2029-10','security'],['3.14','2025-10-07','2030-10','bugfix'],['3.15','2026-10-09','2031-10','bugfix'],['3.16','2027-10-06','2032-10','in development']];
+  const d=s=>{const p=s.split('-');return +p[0]+((+p[1]-1)+((+p[2]||1)-1)/30)/12};
+  function life(){
+    const el=$('ci-life');if(!el)return;const w=RD.width(el),L0=44,R=10,y0=6,rh=22,X0=2022.5,X1=2033,X=v=>L0+(w-L0-R)*(v-X0)/(X1-X0);
+    let s='';LIFE.forEach((r,k)=>{const y=y0+k*rh,a=X(d(r[1])),b=X(d(r[2]+'-01')),b2=X(Math.min(d(r[1])+(vnum(r[0])>=13?2:1.5),d(r[2]+'-01')));
+      s+='<text x="0" y="'+(y+14)+'" font-size="12" font-weight="600">'+r[0]+'</text><rect x="'+a+'" y="'+(y+3)+'" width="'+Math.max(1,b2-a)+'" height="14" fill="var(--c3)" opacity=".8"></rect><rect x="'+b2+'" y="'+(y+3)+'" width="'+Math.max(1,b-b2)+'" height="14" fill="var(--c5)" opacity=".55"></rect>';
+      if(b-a>130)s+='<text x="'+(a+4)+'" y="'+(y+14)+'" font-size="10.5" fill="var(--bg)">'+r[3]+'</text>'});
+    const yA=y0+LIFE.length*rh;for(let v=2023;v<=2032;v++){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+yA+'" y2="'+(yA+4)+'" stroke="var(--mute)"></line>'+(w>500||v%2?'<text x="'+x+'" y="'+(yA+15)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+v+'</text>':'')}
+    const xt=X(d('2026-10-09'));s+='<line x1="'+xt+'" x2="'+xt+'" y1="0" y2="'+yA+'" stroke="var(--bad)" stroke-width="1.5"></line>';
+    el.innerHTML=RD.svg(w,yA+20,s,'Python release lines from first release to end of life')+'<div class="leg"><span><i style="background:var(--c3)"></i>bug fixes: two years from 3.13 on, 18 months before (PEP 602)</span><span><i style="background:var(--c5);opacity:.55"></i>security fixes to end of life</span><span><i style="background:var(--bad)"></i>3.15.0 released, 2026-10-09</span><span>Label: status on the devguide, October 2026</span></div>';
+  }
+  RD.onRender(life);RD.onResize(life);
+  life();
+  // section 6: the UTF-8 snippet on 3.14 and 3.15
+  const u=F.find(f=>f.id==='v15_utf8_default');
+  if(u&&$('ci-utf8'))$('ci-utf8').innerHTML='<span class="k">'+E(u.src.split('\n').filter(l=>l.trim()&&!l.startsWith('#')).join('\n'))+'</span>\n\n'+
+    ['3.14','3.15'].map(v=>CIU.block({cmd:'LC_ALL=en_US.ISO8859-1 python'+v+' v15_utf8_default.py',out:u.runs[v].out,rc:u.runs[v].rc})).join('\n\n');
+  RD.tabLinks($('t-ver'));
+})();
+</script>
+<script>/* 28_js_ci_lazy.js */
+// ---- Section 7: lazy imports, the same CLI's imports stepped to scale. From the language page's 42_js_pb_read_c.js (2026-10-26); a mode switch now resets to the first step instead of playing ----
+(function(){
+  if(!window.PB||!PB.lazy||!document.getElementById('ci-lz-card'))return;
+  const $=id=>document.getElementById(id),E=CIU.esc,L=PB.lazy,IT=L.importtime;
+  const MODES={cli_eager:'Eager imports',cli_lazy:'lazy import',cli_all:'Eager file, -X lazy_imports=all'};
+  const tot=k=>IT[k].top.reduce((a,r)=>a+r.cum_us,0);
+  const MAXT=Math.max(...Object.keys(IT).map(tot));
+  const COL={site:'var(--c6)',argparse:'var(--c5)',httpx:'var(--c2)',pydantic:'var(--c4)','rich.console':'var(--c1)'};
+  const col=n=>COL[n]||'var(--dim)';
+  let mode='cli_eager',A=null;
+  function cap(r,mode){
+    const base='<code>'+E(r.name)+'</code>: '+CIU.fmt(r.cum_us/1000,1)+' ms, '+r.n_mods+' module'+(r.n_mods>1?'s':'')+'. ';
+    if(['_frozen_importlib_external','zipimport','encodings','encodings.utf_8','_signal'].includes(r.name))return base+'Start-up machinery every Python process imports before your first line; the same in all three runs.';
+    if(r.name==='site')return base+'<code>site</code> sets up <code>sys.path</code> and the environment\'s site-packages; also the same in every run.';
+    if(r.name==='argparse')return base+(mode==='cli_all'?'With every import lazy, even argparse\'s own imports wait until it uses them, so argparse itself is one module here.':'Your first line of code: <code>import argparse</code>, eager in all versions of the file.');
+    if(r.name==='httpx')return base+'The HTTP client and everything it imports at start-up (among them http.client, ssl, socket, email, idna, zstandard), loaded although <code>count</code> never uses it.';
+    if(r.name==='pydantic')return base+'Loaded although unused.';
+    if(r.name==='rich.console')return base+'Loaded although unused. Three unused imports cost most of the start-up.';
+    if(['locale','shutil','re','gettext'].includes(r.name))return base+'Loaded only when argparse first needs it while parsing the command line. (In the eager run an earlier import had already brought it in, so it never appeared on its own.)';
+    return base;
+  }
+  function draw(i){
+    const top=IT[mode].top,n=top.length,last=i>=n;
+    const w=RD.width($('ci-lz-plot')),pad=4,H=58,X=t=>pad+(w-2*pad)*t/MAXT;
+    let s='',t=0;
+    top.forEach((r,k)=>{if(k>i)return;const x0=X(t),x1=X(t+r.cum_us);t+=r.cum_us;const cur=k===i;
+      s+='<rect x="'+x0.toFixed(1)+'" y="8" width="'+Math.max(1,x1-x0).toFixed(1)+'" height="26" fill="'+col(r.name)+'" opacity="'+(cur?1:0.75)+'" stroke="var(--bg)" stroke-width="1"></rect>';
+      if(x1-x0>46)s+='<text x="'+((x0+x1)/2).toFixed(1)+'" y="25" text-anchor="middle" font-size="11" fill="var(--bg)">'+E(r.name)+'</text>'});
+    // axis
+    const step=MAXT>60000?20000:10000;
+    for(let v=0;v<=MAXT;v+=step){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="36" y2="40" stroke="var(--mute)"></line><text x="'+x+'" y="52" font-size="10.5" text-anchor="'+(v===0?'start':x>w-30?'end':'middle')+'" fill="var(--mute)">'+(v/1000)+' ms</text>'}
+    $('ci-lz-plot').innerHTML=RD.svg(w,H,s,'Top-level imports of the CLI, to scale');
+    const done=top.slice(0,Math.min(i+1,n)),ms=done.reduce((a,r)=>a+r.cum_us,0)/1000,mods=done.reduce((a,r)=>a+r.n_mods,0);
+    $('ci-lz-cnt').innerHTML='<span>import time so far <b>'+CIU.fmt(ms,1)+' ms</b></span><span>modules imported <b>'+mods+'</b> of '+IT[mode].modules+'</span><span>top-level imports <b>'+Math.min(i+1,n)+'</b> of '+n+'</span>';
+    const hf=L.hyperfine,wall={cli_eager:hf[0],cli_lazy:hf[1],cli_all:hf[2]}[mode];
+    $('ci-lz-cap').innerHTML=last?'<b>Done.</b> The program printed <code>'+E(L.outputs[mode==='cli_lazy'?'cli_lazy':'cli_eager'])+'</code>. Imports took '+CIU.fmt(tot(mode)/1000,1)+' ms of import time for '+IT[mode].modules+' modules; measured without <code>-X importtime</code>, the whole run took '+CIU.fmt(wall.median_ms,0)+' ms (median of 30).'+(mode!=='cli_eager'?' httpx, pydantic and rich were never loaded: the <code>count</code> path never touched the names.':''):
+      '<b>'+(i+1)+'.</b> '+cap(top[i],mode);
+  }
+  function setMode(m){mode=m;const n=IT[m].top.length+1;if(A)A.reset(n)}
+  RD.seg($('ci-lz-seg'),setMode);
+  A=RD.anim({card:'ci-lz-card',ctl:'ci-lz-ctl',n:IT.cli_eager.top.length+1,draw:draw,ms:1500,label:'Import step'});
+  $('ci-lz-src').innerHTML='Recorded with <code>python -X importtime</code> on '+E(L.versions.split(' ')[0])+' (httpx '+E(L.versions.split(' ')[1])+', pydantic '+E(L.versions.split(' ')[2])+', rich 15.0.0); top-level imports in the order Python ran them, each bar its cumulative import time including the modules it pulled in. <code>-X importtime</code> itself adds overhead, so wall times come from the separate hyperfine runs below.';
+  // wall-time bars
+  const hf=L.hyperfine,lab=['Eager imports','lazy import','-X lazy_imports=all','python -c pass (empty)'],cols=['var(--c2)','var(--c3)','var(--c1)','var(--dim)'];
+  CIU.bars($('ci-lz-bars'),hf.map((h,k)=>({name:lab[k],v:h.median_ms,label:CIU.fmt(h.median_ms,1)+' ms',col:cols[k]})),0,'Wall time of the whole run, hyperfine, 30 runs after 3 warm-ups, median (standard deviations '+hf.map(h=>CIU.fmt(h.stddev_ms,1)).join(', ')+' ms); load average '+CIU.la(L.loadavg)+'. The empty interpreter is the floor: most of what remains above it is site and argparse.');
+  $('ci-lz-none').innerHTML=L.none_mode.trim().split('\n\n').map(b=>{const ls=b.split('\n');return CIU.block({cmd:ls[0].replace(/^\$ /,''),out:ls.slice(1,-1).join('\n'),rc:+(ls[ls.length-1].match(/\d+/)||[0])[0]})}).join('\n\n');
+  RD.onResize(()=>A.redraw());RD.onRender(()=>A.redraw());
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (replace ci-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('ci-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('ci-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+</script>
+</body></html>
