@@ -47,3 +47,5 @@ Why about 51 minutes is right: the page owns ten mechanisms (bits, gaps and roun
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 501 units: core 362, depth 96, fat 41, owned 2 (MX block details on Quantization and precision). 489 drafted by `ledger.py init`, keys proposed by matching each unit's longest surviving phrase and reviewed by hand (units whose numbers vanished were checked one by one); 12 added by hand for script-rendered visuals and tables. Fat units carry a `note` (question wind-ups, navigation, pointers to the removed tab, restatements, decimal and binary place-value examples below the reader).
+
+2026-10-26 (final follow-up sweep): the depth block's DeepSeek-V3 pointer names the paper page's FP8 training section (#s-fp8); its Quantise and accumulate tab was merged into the Reading tab.
