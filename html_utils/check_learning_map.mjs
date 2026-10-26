@@ -1,10 +1,20 @@
 // Check the learning map on the home page: builds the site to a scratch folder, serves it, and opens the home page
-// at 920 px light and 390 px dark in headless Chrome.
+// at 920 px light, 920 px with reduced motion, and 390 px dark in headless Chrome.
 // usage: node html_utils/check_learning_map.mjs <scratch dir> [screenshot dir, default <scratch dir>]
-// Checks: no script errors, no sideways scroll, every map node links to a built page, every topic page is on the map,
-// node labels fit their boxes and nodes never overlap, each overview bar spans exactly its topic's earliest and latest
-// page stage (stage = longest prerequisite chain, recomputed here), "path to" for three sample pages lists exactly the prerequisite
-// closure in a valid order, and nothing changes or animates before a click. Ends "learning map: fail=0" when clean.
+// Checks, against the graph recomputed here from pages.json:
+//   overview  every topic has one card, in the layer the rule gives (topic A below topic B when at least a third of
+//             A's pages have a page of B in their prerequisite closure; layer = longest chain of such links), layers
+//             stacked top to bottom; card numbers (pages, hours, pages per stage, pages that start without other
+//             topics, the "Some pages also use" list); every strong link drawn as a line from card to card, thickness
+//             by share, passing through no other card; no weak link visible before a focus; cards and labels fit
+//   focus     hovering (wide) or tapping (narrow) each topic lights exactly it, the topics it builds on and the topics
+//             building on it, shows its weak links dotted and its strong links' labels, and clears on leave
+//   views     every topic view links only to built pages and holds every topic page; it grows in under 700 ms after a
+//             click; "path to" three sample pages lists exactly the closure in a valid order with the right minutes
+//             and topic strip; Step draws the arriving lines before filling the page
+//   manners   no script errors or outside fetches, no sideways scroll, nothing moves before a click, reduced motion
+//             runs no animation and drops Play, phone path rows put topic and minutes under the title
+// Ends "learning map: fail=0" when clean.
 import puppeteer from 'puppeteer';
 import { execFileSync } from 'node:child_process';
 import http from 'node:http';
@@ -20,7 +30,8 @@ const OUT = path.join(scratch, 'lm_site');
 fs.mkdirSync(shots, { recursive: true });
 execFileSync('python3', [path.join(ROOT, 'html_utils/build_site.py'), OUT, '/'], { stdio: ['ignore', 'ignore', 'inherit'] });
 
-// the graph, read independently from pages.json
+// ---------------- the graph, read independently from pages.json
+const STRONG = 1 / 3;
 const pages = JSON.parse(fs.readFileSync(path.join(ROOT, 'technical_knowledge_base/pages.json'), 'utf8')).pages;
 const byId = {}; pages.forEach(p => byId[p.id.replace(/-/g, '')] = p);
 pages.forEach(p => (p.aliases || []).forEach(a => byId[a.replace(/-/g, '')] ??= p));
@@ -28,15 +39,33 @@ const urlOf = p => '/' + p.path.replace(/^technical_knowledge_base\//, '') + '/'
 const pre = p => (p.prereqs || []).map(r => byId[r.replace(/-/g, '')]).filter(Boolean);
 const closure = (p, s = new Set()) => { for (const q of pre(p)) if (!s.has(q)) { s.add(q); closure(q, s) } return s };
 const topicPages = pages.filter(p => p.status === 'html_only' && !p.path.includes('/reference/') && fs.existsSync(path.join(ROOT, p.path, 'index.html')));
-// page stage (0 = needs nothing) and topic (top-most ancestor in pages.json) -> expected bar per topic slug
 const byPath = Object.fromEntries(pages.map(p => [p.path, p]));
 const stageMemo = new Map();
 const stage = p => { if (!stageMemo.has(p)) stageMemo.set(p, 1 + Math.max(-1, ...pre(p).map(stage))); return stageMemo.get(p) };
 const rootOf = p => { let r = p.path, q = p.path; while (q.includes('/')) { q = q.slice(0, q.lastIndexOf('/')); if (byPath[q]) r = q } return r };
-const wantBar = {};
-for (const p of topicPages) { const slug = rootOf(p).split('/').pop().replace(/^topic_/, ''), g = stage(p);
-  const w = wantBar[slug] ??= { a: g, b: g, n: 0 }; w.a = Math.min(w.a, g); w.b = Math.max(w.b, g); w.n++ }
+const slugOf = p => rootOf(p).split('/').pop().replace(/^topic_/, '');
+const minutesOf = p => { const m = fs.readFileSync(path.join(ROOT, p.path, 'index.html'), 'utf8').match(/Reading:\s*(?:<[^>]+>\s*)*(\d+)\s*min/); return m ? +m[1] : 0 };
+const nst = Math.max(...topicPages.map(stage)) + 1;
+const TP = {};   // slug -> {n, m, alone, st, cnt: {slug: pages building on it}}
+for (const p of topicPages) {
+  const s = slugOf(p), t = TP[s] ??= { n: 0, m: 0, alone: 0, st: Array(nst).fill(0), cnt: {} };
+  t.n++; t.m += minutesOf(p); t.st[stage(p)]++;
+  const d = new Set([...closure(p)].map(slugOf)); d.delete(s);
+  if (!d.size) t.alone++;
+  d.forEach(b => t.cnt[b] = (t.cnt[b] || 0) + 1);
+}
+const strong = new Map(), weak = new Map();   // "b>a" -> count (a's pages build on b)
+for (const [a, t] of Object.entries(TP)) for (const [b, c] of Object.entries(t.cnt)) (c >= STRONG * t.n - 1e-9 ? strong : weak).set(b + '>' + a, c);
+const layerMemo = {}, visiting = new Set();
+const layerOf = a => { if (a in layerMemo) return layerMemo[a]; if (visiting.has(a)) { console.log('NOTE strong links form a cycle at', a); return 0 }
+  visiting.add(a); const l = 1 + Math.max(-1, ...[...strong.keys()].filter(k => k.endsWith('>' + a)).map(k => layerOf(k.split('>')[0]))); visiting.delete(a); return layerMemo[a] = l };
+Object.keys(TP).forEach(layerOf);
+const upOf = a => new Set(Object.keys(TP[a].cnt));
+const dnOf = b => new Set(Object.keys(TP).filter(a => TP[a].cnt[b]));
+const weakUses = a => Object.keys(TP[a].cnt).filter(b => weak.has(b + '>' + a));
+console.log(`graph: ${Object.keys(TP).length} topics, ${strong.size} strong links, ${weak.size} weak, ${Math.max(...Object.values(layerMemo)) + 1} layers`);
 
+// ---------------- serve and drive
 const server = http.createServer((req, res) => {
   let f = path.join(OUT, decodeURIComponent(req.url.split(/[?#]/)[0]));
   if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
@@ -52,11 +81,13 @@ const bad = (...m) => { fail++; console.log('FAIL', ...m) };
 const exists = href => { const u = new URL(href, BASE); if (u.origin !== new URL(BASE).origin) return false;
   return fs.existsSync(path.join(OUT, decodeURIComponent(u.pathname), 'index.html')) };
 const wait = ms => new Promise(r => setTimeout(r, ms));
+const setEq = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
+const fmt = s => [...s].sort().join(', ');
 
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined,
   args: process.platform === 'linux' ? ['--no-sandbox'] : [] });
 
-async function open(width, scheme) {
+async function open(width, scheme, reduced = false) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -65,12 +96,13 @@ async function open(width, scheme) {
   await p.setRequestInterception(true);
   p.on('request', r => r.url().startsWith(BASE) ? r.continue() : (errs.push('outside fetch ' + r.url()), r.abort()));
   await p.setViewport({ width, height: 1000 });
-  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+  await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: reduced ? 'reduce' : 'no-preference' }]);
   await p.goto(BASE, { waitUntil: 'load' });
   return { p, errs };
 }
 const sideways = p => p.evaluate(() => document.documentElement.scrollWidth > innerWidth);
-const shot = async (p, name) => { const el = await p.$('#lm'); await el.screenshot({ path: path.join(shots, name) }); console.log('shot', path.join(shots, name)) };
+const shot = async (p, name, sel = '#lm') => { const el = await p.$(sel); await el.screenshot({ path: path.join(shots, name) }); console.log('shot', path.join(shots, name)) };
+const slugs = p => p.evaluate(() => JSON.parse(document.getElementById('lm-data').textContent).T.map(t => t.slug));
 
 // labels inside their boxes, no two boxes overlapping, in the SVG shown now
 const geometry = p => p.evaluate(() => {
@@ -92,6 +124,13 @@ const geometry = p => p.evaluate(() => {
   return out;
 });
 const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|' + document.getAnimations().length + '|' + location.hash);
+const focusSets = p => p.evaluate(() => { const D = JSON.parse(document.getElementById('lm-data').textContent), g = c => [...document.querySelectorAll('#lm .lm-t.' + c)].filter(x => x.getBoundingClientRect().width > 0).map(x => D.T[+x.dataset.k].slug);
+  return { foc: document.getElementById('lm').classList.contains('foc'), me: g('me'), up: g('up'), dn: g('dn') } });
+const checkFocus = (s, f, where) => {
+  if (!f.foc || f.me.length !== 1 || f.me[0] !== s) { bad(where, 'focus on', s, 'lit', f.me); return }
+  if (!setEq(new Set(f.up), upOf(s))) bad(where, s, 'builds on lit:', fmt(new Set(f.up)), 'want', fmt(upOf(s)));
+  if (!setEq(new Set(f.dn), dnOf(s))) bad(where, s, 'built on by lit:', fmt(new Set(f.dn)), 'want', fmt(dnOf(s)));
+};
 
 // ---------------- 920 light
 {
@@ -99,60 +138,104 @@ const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|
   const s0 = await state(p); await wait(2000); const s1 = await state(p);
   if (s0 !== s1) bad('the map changed before any click');
   if (await p.evaluate(() => document.getAnimations().length)) bad('animations running on load');
-  if (await p.$('#lm .cur,#lm .todo')) bad('a step is highlighted on load');
+  if (await p.$('#lm .cur,#lm .todo,#lm.foc')) bad('something is highlighted on load');
   if (await sideways(p)) bad('920: sideways scroll');
+  if (!await p.$eval('#lm-ov', e => e.getBoundingClientRect().width > 0)) bad('920: the topic graph is not shown');
   (await geometry(p)).forEach(m => bad('overview', m));
-  // each bar spans exactly its pages' min and max stage, in data and on screen
-  const bars = await p.evaluate(() => {
-    const D = JSON.parse(document.getElementById('lm-data').textContent);
-    const heads = [...document.querySelectorAll('#lm-ov .lm-col')].map(t => { const b = t.getBBox(); return b.x + b.width / 2 });
-    const cw = heads.length > 1 ? heads[1] - heads[0] : 0;
-    return { cols: heads.length, bars: [...document.querySelectorAll('#lm-ov .lm-t')].map(g => { const r = g.querySelector('.lm-span').getBBox(), k = +g.dataset.t;
-      const a = +g.dataset.a, b = +g.dataset.b;
-      return { slug: D.T[k].slug, a, b, n: D.T[k].p.length, x0: r.x, x1: r.x + r.width, c0: heads[a] - cw / 2, c1: heads[b] + cw / 2 } }) };
-  });
-  const maxStage = Math.max(...topicPages.map(stage));
-  if (bars.cols !== maxStage + 1) bad('overview has', bars.cols, 'stage columns, want', maxStage + 1);
-  for (const bar of bars.bars) {
-    const w = wantBar[bar.slug];
-    if (!w) { bad('bar for an unknown topic', bar.slug); continue }
-    if (bar.a !== w.a || bar.b !== w.b) bad(`bar ${bar.slug} spans stages ${bar.a + 1}--${bar.b + 1}, its pages span ${w.a + 1}--${w.b + 1}`);
-    if (bar.n !== w.n) bad(`bar ${bar.slug} has ${bar.n} pages, want ${w.n}`);
-    if (Math.abs(bar.x0 - bar.c0) > 5 || Math.abs(bar.x1 - bar.c1) > 5) bad(`bar ${bar.slug} drawn from x ${bar.x0.toFixed(0)} to ${bar.x1.toFixed(0)}, its stage cells run ${bar.c0.toFixed(0)} to ${bar.c1.toFixed(0)}`);
-    w.seen = true;
+  const S = await slugs(p);
+  const NAME = Object.fromEntries(await p.evaluate(() => JSON.parse(document.getElementById('lm-data').textContent).T.map(t => [t.slug, t.n])));
+  // cards: one per topic, right layer, right numbers
+  const cards = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-t')].map(g => { const r = g.querySelector('.lm-box').getBBox();
+    return { k: +g.dataset.k, l: +g.dataset.l, y0: r.y, y1: r.y + r.height, x0: r.x, x1: r.x + r.width, text: [...g.querySelectorAll('text')].map(t => t.textContent).join(' '),
+      cells: g.querySelectorAll('.lm-cell').length, cnts: [...g.querySelectorAll('.lm-cell')].map(c => { const t = c.nextElementSibling; return t && t.matches('.lm-cnt') ? +t.textContent : 0 }),
+      free: g.dataset.free === '1', wk: [...document.querySelectorAll(`#lm-ov .lm-wkp[data-k="${g.dataset.k}"] .lm-wk`)].map(t => t.textContent).join(''),
+      wkResting: g.querySelectorAll('.lm-wk').length } }));
+  const seenT = new Set();
+  for (const c of cards) {
+    const s = S[c.k], w = TP[s];
+    if (!w) { bad('card for an unknown topic', s); continue }
+    if (seenT.has(s)) bad('two cards for', s); seenT.add(s);
+    if (c.l !== layerMemo[s]) bad(`card ${s} in layer ${c.l + 1}, the rule gives ${layerMemo[s] + 1}`);
+    if (!c.text.includes(`${w.n} pages, ${(w.m / 60).toFixed(1)} h`)) bad(`card ${s}: want "${w.n} pages, ${(w.m / 60).toFixed(1)} h" in "${c.text}"`);
+    if (!c.text.includes(`${w.alone} of ${w.n} pages need no other topic`)) bad(`card ${s}: want ${w.alone} of ${w.n} pages need no other topic`);
+    if (c.cells !== nst || c.cnts.join() !== w.st.join()) bad(`card ${s}: strip ${c.cnts} want ${w.st}`);
+    const wu = weakUses(s).map(x => NAME[x]);
+    if (wu.some(x => !c.wk.includes(x)) || (!wu.length && c.wk)) bad(`card ${s}: "Some pages also use" shows "${c.wk}", want ${wu}`);
+    if (c.wkResting) bad(`card ${s}: the "also use" list sits on the resting card`);
+    const isFree = ![...strong.keys()].some(e => e.split('>').includes(s));
+    if (c.free !== isFree) bad(`card ${s}: in the ${c.free ? 'start-anytime band' : 'spine'}, the rule says ${isFree ? 'no strong link' : 'it has a strong link'}`);
   }
-  Object.entries(wantBar).forEach(([s, w]) => { if (!w.seen) bad('topic without a bar', s) });
-  console.log(`overview: ${bars.bars.length} bars on ${bars.cols} stages`);
-  // hover lights up the topics a bar's pages build on, and only them
-  {
-    const k = await p.$eval('#lm-ov .lm-t[data-dep]:not([data-dep=""])', g => g.dataset.t).catch(() => null);
-    if (k != null) {
-      await p.hover(`#lm-ov .lm-t[data-t="${k}"] .lm-span`); await wait(40);
-      const r = await p.evaluate(k => { const g = document.querySelector(`#lm-ov .lm-t[data-t="${k}"]`), ds = g.dataset.dep.split(' ');
-        const lit = [...document.querySelectorAll('#lm-ov .lm-t.dep')].map(x => x.dataset.t);
-        return lit.length === ds.length && ds.every(d => lit.includes(d)) && g.classList.contains('me') }, k);
-      if (!r) bad('hover does not light up exactly the topics a bar depends on');
-      await shot(p, 'lm_920_light_overview_hover.png');
-      await p.mouse.move(5, 5); await wait(40);
-      if (await p.$('#lm-ov.hov')) bad('hover highlight stays after the pointer leaves');
-    }
+  Object.keys(TP).forEach(s => { if (!seenT.has(s)) bad('topic without a card', s) });
+  const nl = Math.max(...Object.values(layerMemo)) + 1;
+  const spine = cards.filter(c => !c.free), freeC = cards.filter(c => c.free);
+  for (let l = 1; l < nl; l++) {
+    const above = Math.max(...spine.filter(c => c.l === l - 1).map(c => c.y1)), below = Math.min(...spine.filter(c => c.l === l).map(c => c.y0));
+    if (!(below > above + 20)) bad(`layer ${l + 1} is not below layer ${l}`);
   }
+  if (freeC.length && Math.min(...freeC.map(c => c.y0)) < Math.max(...spine.map(c => c.y1))) bad('the start-anytime band is not after the spine');
+  console.log(`overview: ${cards.length} cards; spine ` + [...Array(nl).keys()].map(l => `${l + 1}: ${spine.filter(c => c.l === l).map(c => S[c.k]).join(', ')}`).join(' | ') + `; start anytime: ${freeC.map(c => S[c.k]).join(', ')}`);
+  // lines: every strong link drawn card to card, through no other card; no weak link visible
+  const lines = await p.evaluate(() => { const box = k => document.querySelector(`#lm-ov .lm-t[data-k="${k}"] .lm-box`).getBBox();
+    const all = [...document.querySelectorAll('#lm-ov .lm-t')].map(g => [+g.dataset.k, g.querySelector('.lm-box').getBBox()]);
+    const f = e => { const L = e.getTotalLength(), a = +e.dataset.a, b = +e.dataset.b, s = e.getPointAtLength(0), t = e.getPointAtLength(L), A = box(a), B = box(b), cs = getComputedStyle(e);
+      const through = []; for (let i = 1; i < 40; i++) { const q = e.getPointAtLength(L * i / 40); for (const [k, r] of all) if (k !== a && k !== b && q.x > r.x + 2 && q.x < r.x + r.width - 2 && q.y > r.y + 2 && q.y < r.y + r.height - 2) through.push(k) }
+      return { a, b, w: parseFloat(e.getAttribute('stroke-width') || 0), op: +cs.opacity * +cs.strokeOpacity, vis: cs.display !== 'none' && cs.visibility !== 'hidden', title: e.textContent,
+        startOk: Math.abs(s.y - (A.y + A.height)) < 3 && s.x > A.x && s.x < A.x + A.width, endOk: Math.abs(t.y - B.y) < 4 && t.x > B.x && t.x < B.x + B.width, through: [...new Set(through)] } };
+    return { strong: [...document.querySelectorAll('#lm-ov .lm-se')].map(f), weak: [...document.querySelectorAll('#lm-ov .lm-we')].map(e => ({ a: +e.dataset.a, b: +e.dataset.b, op: +getComputedStyle(e).opacity })) } });
+  const drawn = new Set();
+  for (const e of lines.strong) {
+    const key = S[e.a] + '>' + S[e.b]; drawn.add(key);
+    if (!strong.has(key)) { bad('line drawn for a link that is not strong', key); continue }
+    const c = strong.get(key), n = TP[S[e.b]].n;
+    if (!e.vis || e.op < 0.3) bad('strong line not visible', key);
+    if (Math.abs(e.w - (1 + 6.5 * c / n)) > 0.15) bad('line thickness does not follow its share', key, e.w);
+    if (!e.title.includes(`${c} of ${n} pages build on`)) bad('line tooltip', key, e.title);
+    if (!e.startOk || !e.endOk) bad('line does not run from card to card', key);
+    if (e.through.length) bad('line passes through cards', key, e.through.map(k => S[k]));
+  }
+  [...strong.keys()].forEach(k => { if (!drawn.has(k)) bad('strong link not drawn', k) });
+  const wset = new Set(lines.weak.map(e => S[e.a] + '>' + S[e.b]));
+  if (!setEq(wset, new Set(weak.keys()))) bad('weak links in the drawing differ from the data', fmt(wset), 'want', fmt(new Set(weak.keys())));
+  if (lines.weak.some(e => e.op > 0.01)) bad('a weak link is visible before any focus');
+  // focus: hover each card
+  for (const c of cards) {
+    const s = S[c.k];
+    await p.hover(`#lm-ov .lm-t[data-k="${c.k}"] .lm-box`); await wait(20);
+    checkFocus(s, await focusSets(p), 'hover');
+  }
+  const fk = S.indexOf('inference_and_serving') >= 0 ? S.indexOf('inference_and_serving') : cards[0].k;
+  await p.hover(`#lm-ov .lm-t[data-k="${fk}"] .lm-box`); await wait(300);
+  const fv = await p.evaluate(k => { const on = s => [...document.querySelectorAll(s)].map(e => [+e.dataset.a, +e.dataset.b, +getComputedStyle(e).opacity]);
+    return { we: on('#lm-ov .lm-we'), el: on('#lm-ov .lm-el'), dim: [...document.querySelectorAll('#lm-ov .lm-t')].map(g => [+g.dataset.k, +getComputedStyle(g).opacity]),
+    wkp: [...document.querySelectorAll('#lm-ov .lm-wkp')].map(e => [+e.dataset.k, +getComputedStyle(e).opacity]) } }, fk);
+  fv.wkp.forEach(([k, op]) => { if ((k === fk) !== op > 0.5) bad('focus: "also use" panel', S[k], op) });
+  if (weakUses(S[fk]).length && !fv.wkp.some(([k]) => k === fk)) bad('focus: no "also use" panel for', S[fk]);
+  fv.we.forEach(([a, bb, op]) => { const inc = a === fk || bb === fk; if (inc && op < 0.5) bad('focus: weak link not shown', S[a], S[bb]); if (!inc && op > 0.01) bad('focus: unrelated weak link shown', S[a], S[bb]) });
+  fv.el.forEach(([a, bb, op]) => { const inc = a === fk || bb === fk; if (inc !== op > 0.5) bad('focus: line label', S[a], S[bb], op) });
+  const lit = new Set([S[fk], ...upOf(S[fk]), ...dnOf(S[fk])]);
+  fv.dim.forEach(([k, op]) => { if (lit.has(S[k]) !== op > 0.5) bad('focus: card opacity', S[k], op) });
+  await shot(p, 'lm_920_light_focus.png');
+  await p.mouse.move(5, 5); await wait(40);
+  if (await p.$('#lm.foc')) bad('focus stays after the pointer leaves');
+  await wait(300);
   await shot(p, 'lm_920_light_overview.png');
-  // every topic view: links exist, every topic page appears, geometry
-  const nT = await p.$$eval('#lm-ov .lm-t', g => g.length);
+  // every topic view: grows after the click and settles in time, links exist, every topic page appears, geometry
   const seen = new Set();
-  for (let k = 0; k < nT; k++) {
-    await p.click(`#lm-ov .lm-t[data-t="${k}"]`).catch(async () => { await p.evaluate(k => document.querySelector(`#lm-ov .lm-t[data-t="${k}"]`).dispatchEvent(new MouseEvent('click', { bubbles: true })), k) });
-    await wait(60);
+  for (const c of cards) {
+    const k = c.k;
+    await p.click(`#lm-ov .lm-t[data-k="${k}"] .lm-box`); await wait(30);
+    if (k === cards[0].k && !(await p.evaluate(() => document.getAnimations().length))) bad('opening a topic does not grow the card into its view');
+    await wait(670);
+    if (await p.evaluate(() => document.getAnimations().length)) bad('topic view still animating 700 ms after the click', S[k]);
     const hrefs = await p.$$eval('#lm-view .lm-n a', as => as.map(a => a.getAttribute('href')));
-    if (!hrefs.length) bad('topic view empty', k);
+    if (!hrefs.length) bad('topic view empty', S[k]);
     hrefs.forEach(h => { seen.add(h); if (!exists(h)) bad('node links to a missing page', h) });
-    (await geometry(p)).forEach(m => bad('topic', k, m));
-    if (k === 0 || k === 19) await shot(p, `lm_920_light_topic${k}.png`);
+    (await geometry(p)).forEach(m => bad('topic', S[k], m));
+    if (S[k] === 'inference_and_serving') await shot(p, 'lm_920_light_topic.png');
     await p.click('#lm-back'); await wait(40);
   }
   topicPages.forEach(tp => { if (!seen.has(urlOf(tp))) bad('topic page missing from the map', tp.title) });
-  console.log(`topics ${nT}, distinct page nodes ${seen.size} of ${topicPages.length}`);
+  console.log(`topic views ${cards.length}, distinct page nodes ${seen.size} of ${topicPages.length}`);
   // path to three sample pages, picked through the search box
   const samples = ['xai_spacexai_grok', 'parameter_efficient_fine_tuning', 'attention_variants']
     .map(s => topicPages.find(t => t.path.endsWith('/' + s)) || topicPages.find(t => t.path.includes(s))).filter(Boolean);
@@ -161,13 +244,12 @@ const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|
     await p.click('#lm-q', { clickCount: 3 }); await p.type('#lm-q', t.title.split(':')[0].slice(0, 40));
     await wait(80);
     const first = await p.$$eval('#lm-sug button', bs => bs.map(x => x.textContent));
-    // choose the suggestion that is this page
     const idx = await p.$$eval('#lm-sug button', (bs, title) => bs.findIndex(x => x.textContent.startsWith(title)), t.title);
     if (idx < 0) { bad('search did not offer', t.title, first); continue }
     for (let i = 0; i < idx; i++) await p.keyboard.press('ArrowDown');
     await p.keyboard.press('Enter'); await wait(120);
     const got = await p.$$eval('#lm-order li a', as => as.map(a => a.getAttribute('href')));
-    const want = new Set([...closure(t)].map(urlOf).concat([urlOf(t)]));
+    const wantPages = [...closure(t), t], want = new Set(wantPages.map(urlOf));
     const gotSet = new Set(got);
     if (got.length !== want.size || [...want].some(u => !gotSet.has(u))) bad('path list is not the closure', t.title, got.length, want.size);
     const posn = Object.fromEntries(got.map((u, i) => [u, i]));
@@ -177,22 +259,60 @@ const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|
     if (mapHrefs.length !== want.size || mapHrefs.some(h => !want.has(h))) bad('path map nodes differ from the closure', t.title);
     (await geometry(p)).forEach(m => bad('path', t.title, m));
     const total = await p.$eval('.lm-sum', e => e.textContent);
-    const mins = [...want].reduce((s, u) => { const f = path.join(ROOT, 'technical_knowledge_base', u, 'index.html'); const m = fs.readFileSync(f, 'utf8').match(/Reading:\s*(\d+)\s*min/); return s + (m ? +m[1] : 0) }, 0);
+    const mins = wantPages.reduce((s, q) => s + minutesOf(q), 0);
     if (!total.includes(mins + ' min')) bad('total minutes', t.title, total, mins);
-    console.log(`path to ${t.title}: ${got.length} pages, ${mins} min, ok order`);
+    // topic strip: each topic on the way once, with its minutes on this path
+    const fp = await p.$$eval('#lm-fp .ch', cs => cs.map(c => c.textContent));
+    const wantFp = {}; wantPages.forEach(q => wantFp[slugOf(q)] = (wantFp[slugOf(q)] || 0) + minutesOf(q));
+    const D = await p.evaluate(() => JSON.parse(document.getElementById('lm-data').textContent).T.map(t => [t.slug, t.n]));
+    const nameOf = Object.fromEntries(D);
+    if (fp.length !== Object.keys(wantFp).length || Object.entries(wantFp).some(([s, m]) => !fp.includes(`${nameOf[s]} ${m} min`))) bad('topic strip', t.title, fp, wantFp);
+    console.log(`path to ${t.title}: ${got.length} pages, ${mins} min, ok order; topics ${fp.join(' | ')}`);
     // nothing moves until a step is pressed
     const a0 = await state(p); await wait(1500);
     if (a0 !== await state(p) || await p.$('#lm .cur')) bad('path view changed before a click', t.title);
     if (t === samples[0]) {
-      await shot(p, 'lm_920_light_path.png');
-      await p.click('#lm-next'); await p.click('#lm-next'); await p.click('#lm-next'); await wait(60);
-      const cur = await p.$$eval('#lm-view .lm-n.cur', g => g.length), li = await p.$$eval('#lm-order li.cur', g => g.length);
-      if (cur !== 1 || li !== 1) bad('step did not highlight exactly one page', cur, li);
-      await shot(p, 'lm_920_light_path_step3.png');
+      // Step: the lines arriving from read pages draw first, then the page fills and its row lights
+      const order = await p.$$eval('#lm-order li', ls => ls.map(l => +l.dataset.i));
+      const incoming = await p.evaluate(() => { const o = {}; document.querySelectorAll('#lm-view .lm-e').forEach(e => (o[e.dataset.b] ??= []).push(+e.dataset.a)); return o });
+      let checkedDraw = false;
+      for (let s = 0; s < Math.min(3, order.length); s++) {
+        await p.click('#lm-next');
+        if (!checkedDraw && incoming[order[s]]) {
+          const mid = await p.evaluate(i => ({ an: document.getAnimations().length, cur: !!document.querySelector(`#lm-view .lm-n[data-i="${i}"].cur`) }), order[s]);
+          if (!mid.an || mid.cur) bad('step does not draw the arriving lines before filling the page', JSON.stringify(mid));
+          checkedDraw = true;
+        }
+        await wait(450);
+      }
+      const st = await p.evaluate(() => ({ cur: document.querySelectorAll('#lm-view .lm-n.cur').length, li: document.querySelectorAll('#lm-order li.cur').length,
+        done: document.querySelectorAll('#lm-view .lm-n.done').length, on: [...document.querySelectorAll('#lm-view .lm-e.on')].map(e => +e.dataset.b) }));
+      const s = Math.min(3, order.length) - 1;
+      if (st.cur !== 1 || st.li !== 1) bad('step did not highlight exactly one page', st.cur, st.li);
+      if (st.done !== s) bad('step: read pages filled', st.done, 'want', s);
+      if (st.on.some(x => x !== order[s]) || st.on.length !== (incoming[order[s]] || []).length) bad('step: lit lines are not the ones arriving at the current page');
+      await shot(p, 'lm_920_light_path_step.png');
     }
   }
   if (await sideways(p)) bad('920: sideways scroll after use');
   errs.forEach(e => bad('920 error:', e));
+  await p.close();
+}
+
+// ---------------- 920 with reduced motion: no animation anywhere, Play dropped
+{
+  const { p, errs } = await open(920, 'light', true);
+  const S = await slugs(p);
+  await p.click(`#lm-ov .lm-t[data-k="${S.indexOf('cuda_and_gpu_programming') >= 0 ? S.indexOf('cuda_and_gpu_programming') : 0}"] .lm-box`); await wait(60);
+  if (!(await p.$('#lm-view .lm-n'))) bad('reduced motion: the topic did not open');
+  if (await p.evaluate(() => document.getAnimations().length)) bad('reduced motion: opening a topic animates');
+  await p.evaluate(() => { const b = [...document.querySelectorAll('#lm-view .lm-pb')].pop(); b.dispatchEvent(new MouseEvent('click', { bubbles: true })) }); await wait(60);
+  if (await p.$('#lm-next')) {
+    if (await p.$('#lm-play')) bad('reduced motion: Play is offered');
+    await p.click('#lm-next'); await p.click('#lm-next');
+    if (await p.evaluate(() => document.getAnimations().length) || !(await p.$('#lm-view .lm-n.cur'))) bad('reduced motion: Step does not jump to its final state');
+  }
+  errs.forEach(e => bad('reduced motion error:', e));
   await p.close();
 }
 
@@ -202,20 +322,49 @@ const state = p => p.evaluate(() => document.getElementById('lm').innerHTML + '|
   const s0 = await state(p); await wait(1500);
   if (s0 !== await state(p)) bad('390: the map changed before any click');
   if (await sideways(p)) bad('390: sideways scroll');
-  if (await p.$eval('#lm-view', e => e.offsetParent !== null)) bad('390: the wide map is shown instead of the list');
-  const small = await p.$$eval('#lm .lm-list *, #lm .lm-sub', es => es.filter(e => e.childNodes.length && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 11).length);
+  if (await p.$eval('#lm-view', e => e.offsetParent !== null)) bad('390: the wide map is shown instead of the cards');
+  const small = await p.$$eval('#lm .lm-list *, #lm .lm-sub, #lm-ovcap *', es => es.filter(e => e.offsetParent !== null && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 11).length);
   if (small) bad('390: text under 11 px', small);
+  const S = await slugs(p);
+  // cards: one per topic, under its layer's heading, with "Builds on" naming exactly its strong links
+  const nc = await p.evaluate(() => [...document.querySelectorAll('#lm-ovl .lm-c')].map(c => ({ k: +c.dataset.k, head: (c.parentElement.previousElementSibling.matches('p') ? c.parentElement.previousElementSibling.previousElementSibling : c.parentElement.previousElementSibling).textContent,
+    cwShown: (c.querySelector('.lm-cw') || { offsetParent: null }).offsetParent !== null,
+    cb: (c.querySelector('.lm-cb') || {}).textContent || '', w: c.getBoundingClientRect().width, over: c.scrollWidth > c.clientWidth + 1 })));
+  const seenN = new Set();
+  for (const c of nc) {
+    const s = S[c.k]; seenN.add(s);
+    const isFree = ![...strong.keys()].some(e => e.split('>').includes(s));
+    if (!(isFree ? c.head.startsWith('Start anytime') : c.head.startsWith(`Layer ${layerMemo[s] + 1}`))) bad(`390: ${s} under "${c.head}", want layer ${layerMemo[s] + 1}`);
+    const want = [...strong.keys()].filter(k => k.endsWith('>' + s));
+    if (want.length !== (c.cb.match(/ of /g) || []).length) bad(`390: ${s} builds on "${c.cb}", want ${want}`);
+    want.forEach(k => { const [bb] = k.split('>'); if (!c.cb.includes(`(${strong.get(k)} of ${TP[s].n} pages)`)) bad(`390: ${s} builds on text lacks ${bb}`) });
+    if (c.over) bad('390: card content wider than its card', s);
+    if (c.cwShown) bad('390: "also use" list shown on a resting card', s);
+  }
+  if (seenN.size !== Object.keys(TP).length || nc.length !== seenN.size) bad('390: cards', nc.length, 'topics', Object.keys(TP).length);
+  const perRow = await p.evaluate(() => { const c = [...document.querySelectorAll('#lm-ovl .lm-c')].slice(0, 3).map(x => x.getBoundingClientRect().top); return c[0] === c[1] ? 2 : 1 });
+  if (perRow !== 2) bad('390: cards are not two per row');
   await shot(p, 'lm_390_dark_overview.png');
-  await p.click('#lm-ovl .lm-chip'); await wait(80);
+  // tap: focus; tap again: open
+  const ki = S.indexOf('generative_and_multimodal') >= 0 ? S.indexOf('generative_and_multimodal') : 0;
+  await p.click(`#lm-ovl .lm-c[data-k="${ki}"] b`); await wait(250);
+  checkFocus(S[ki], await focusSets(p), '390 tap');
+  if (!(await p.$eval(`#lm-ovl .lm-c[data-k="${ki}"] .lm-open`, e => e.offsetParent !== null))) bad('390: focused card shows no Open button');
+  await p.evaluate(k => document.querySelector(`#lm-ovl .lm-c[data-k="${k}"]`).scrollIntoView({ block: 'center' }), ki);
+  await p.screenshot({ path: path.join(shots, 'lm_390_dark_focus.png') }); console.log('shot', path.join(shots, 'lm_390_dark_focus.png'));
+  await p.click(`#lm-ovl .lm-c[data-k="${ki}"] b`); await wait(700);
   const hrefs = await p.$$eval('#lm-plist a', as => as.map(a => a.getAttribute('href')));
-  if (!hrefs.length) bad('390: topic list empty');
+  if (!hrefs.length) bad('390: topic list empty after the second tap');
   hrefs.forEach(h => { if (!exists(h)) bad('390: list links to a missing page', h) });
   if (await sideways(p)) bad('390: sideways scroll in a topic');
   await shot(p, 'lm_390_dark_topic.png');
   const btns = await p.$$('#lm-plist .lm-pbt'); await btns[btns.length - 1].click(); await wait(80);
   if (!(await p.$$('#lm-order li')).length) bad('390: path list empty');
+  const under = await p.$$eval('#lm-order li', ls => ls.every(l => { const a = l.querySelector('a').getBoundingClientRect(), m = l.querySelector('.mm').getBoundingClientRect(); return m.top >= a.bottom - 2 }));
+  if (!under) bad('390: path rows do not put topic and minutes under the title');
+  if (await p.$('#lm-next')) { await p.click('#lm-next'); await wait(450); await p.click('#lm-next'); await wait(450) }
   if (await sideways(p)) bad('390: sideways scroll in a path');
-  await shot(p, 'lm_390_dark_path.png');
+  await shot(p, 'lm_390_dark_path_step.png');
   errs.forEach(e => bad('390 error:', e));
   await p.close();
 }

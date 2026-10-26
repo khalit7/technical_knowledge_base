@@ -11,18 +11,23 @@ Graph rules (check):
            a transitively redundant edge, a prereq the page's own "You need" line no longer links (staleness)
 Layout (all at build time, no runtime layout library):
   page stage  = longest prerequisite chain below the page (stage 1 needs nothing)
-  overview    = one bar per topic on the shared stage axis, from the stage of its earliest page to the stage of its
-                latest page, with the number of its pages in each stage and a ring on the root page's stage when that
-                is later than the earliest page; rows sorted by start stage, then mean page stage, then end stage. Hovering or
-                focusing a bar lights up the topics its pages directly need (no topic-level arrows).
+  overview    = the topic graph: topic A sits in a layer below topic B when at least STRONG (a third) of A's pages
+                build on B (a page of B is in the page's prerequisite closure); layer = longest chain over these
+                strong links (topics that mostly build on each other would share a layer). Strong links are solid
+                lines, thicker by share of pages; weaker ones (some pages, under STRONG) show dotted only when a topic
+                is focused and are listed on its card. Each card: pages, hours, pages per stage, pages that start
+                without other topics. Topics with no strong link sit in rows above the linked row of their layer.
+                Below 900 px the same layers are rows of HTML cards with "Builds on" text.
   topic and path views: pages in columns by stage;
   order       = barycenter sweeps over layers with dummy nodes for long edges, keeping the order with fewest crossings
   y           = repeated least-squares pulls toward neighbours under order and spacing constraints (isotonic fit)
-The overview is an inline SVG; topic views and "path to" views are a small JSON of coordinates that the page's
+The overview is an inline SVG (plus HTML cards for narrow screens); topic views and "path to" views are a small JSON of coordinates that the page's
 script draws (it never computes a layout).
 """
 import html, json, re, sys
 from collections import defaultdict
+from itertools import permutations
+from math import factorial
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -326,7 +331,7 @@ def layout(nodes, edges, layer, height, colx, gap=14, iters=28, cgap=26):
     return tops, pts, y0 - cgap
 
 
-def _layout(nodes, edges, layer, height, gap=14, iters=28):
+def _layout(nodes, edges, layer, height, gap=14, iters=28, dgap=6, maxw=None):
     """nodes: ids in a preferred initial order; edges (u, v) with layer[u] < layer[v]; height: id -> px.
     returns (top y per node, chains: (u, v) -> list of (layer, y) for its dummy points, total height)"""
     nl = max(layer[v] for v in nodes) + 1
@@ -377,6 +382,38 @@ def _layout(nodes, edges, layer, height, gap=14, iters=28):
         if c < best_c:
             best, best_c = [list(l) for l in L], c
     L = best
+    # then swap neighbours while that removes crossings, or keeps them and shortens the lines (greedy switch)
+    def cost():
+        pos = pos_of()
+        return total(), sum(abs(pos[a] - pos[b]) for l in range(nl - 1) for a in L[l] for b in dn[a])
+
+    better, c0 = True, cost()
+    while better and c0[0]:
+        better = False
+        for l in range(nl):
+            for i in range(len(L[l]) - 1):
+                L[l][i], L[l][i + 1] = L[l][i + 1], L[l][i]
+                c1 = cost()
+                if c1 < c0:
+                    c0, better = c1, True
+                else:
+                    L[l][i], L[l][i + 1] = L[l][i + 1], L[l][i]
+    # small drawings (the topic graph): try every order of each pair of neighbouring layers
+    better = True
+    while better and c0[0]:
+        better = False
+        for l in range(nl - 1):
+            if factorial(len(L[l])) * factorial(len(L[l + 1])) > 20000:
+                continue
+            keep = best2 = (list(L[l]), list(L[l + 1]))
+            for pa in permutations(keep[0]):
+                L[l] = list(pa)
+                for pb in permutations(keep[1]):
+                    L[l + 1] = list(pb)
+                    c1 = cost()
+                    if c1 < c0:
+                        c0, better, best2 = c1, True, (list(pa), list(pb))
+            L[l], L[l + 1] = best2
     # y: stack, then pull toward neighbours under the order and spacing constraints
     y = {}
     for l in L:
@@ -399,7 +436,7 @@ def _layout(nodes, edges, layer, height, gap=14, iters=28):
             for i, v in enumerate(row):
                 if i:
                     a = row[i - 1]
-                    g = 6 if (kind[a] == "d" or kind[v] == "d") else gap
+                    g = dgap if (kind[a] == "d" or kind[v] == "d") else gap
                     acc += h[a] / 2 + g + h[v] / 2
                 s.append(acc)
             fit = isotonic([want[i] - s[i] for i in range(len(row))], wts)
@@ -408,6 +445,18 @@ def _layout(nodes, edges, layer, height, gap=14, iters=28):
     top = min(y[v] - h[v] / 2 for v in y)
     for v in y:
         y[v] -= top
+    if maxw:  # keep every layer inside [0, maxw], keeping its order and spacing
+        for row in L:
+            gp = [0] + [dgap if (kind[a] == "d" or kind[v] == "d") else gap for a, v in zip(row, row[1:])]
+            hi = maxw
+            for i in range(len(row) - 1, -1, -1):
+                v = row[i]
+                y[v] = min(y[v], hi - h[v] / 2)
+                hi = y[v] - h[v] / 2 - gp[i]
+            lo = 0
+            for i, v in enumerate(row):
+                y[v] = max(y[v], lo + h[v] / 2)
+                lo = y[v] + h[v] / 2 + (gp[i + 1] if i + 1 < len(row) else 0)
     H = max(y[v] + h[v] / 2 for v in y)
     tops = {v: y[v] - height[v] / 2 for v in nodes}
     pts = {e: [(lay[d], y[d]) for d in ch] for e, ch in chains.items()}
@@ -556,74 +605,336 @@ def path_view(P, t, clo):
     return v
 
 
+FREE_HEAD = "Start anytime: no other topic is mostly needed"
+FREE_NOTE = "Their weaker links show dotted when you focus one."
+STRONG = 1 / 3     # topic A is placed after topic B when at least this share of A's pages build on B's pages
+CW_MIN, CW_MAX, CW_FREE, CG, GUT = 140, 205, 150, 14, 26   # card widths (min, max, start-anytime grid), gap, gutter for layer names
+
+
+def topic_links(P, T):
+    """for each topic, how many of its pages build on each other topic (that topic's pages are in the page's
+    prerequisite closure). returns strong {(b, a): count} (a's pages mostly build on b), weak (some, under STRONG),
+    and per topic the number of pages whose closure stays inside the topic"""
+    clo = closures({i: P[i]["pre"] for i in range(len(P))})
+    strong, weak, alone = {}, {}, []
+    for k, t in enumerate(T):
+        cnt, a = defaultdict(int), 0
+        for i in t["p"]:
+            d = {P[j]["c"] for j in clo[i]} - {k}
+            a += not d
+            for b in d:
+                cnt[b] += 1
+        alone.append(a)
+        for b, c in cnt.items():
+            (strong if c >= STRONG * len(t["p"]) - 1e-9 else weak)[(b, k)] = c
+    return strong, weak, alone
+
+
+def sccs(n, edges):
+    adj = defaultdict(list)
+    for b, a in edges:
+        adj[b].append(a)
+    idx, low, on, st, out = {}, {}, set(), [], []
+
+    def sc(v):
+        idx[v] = low[v] = len(idx)
+        st.append(v); on.add(v)
+        for w in adj[v]:
+            if w not in idx:
+                sc(w); low[v] = min(low[v], low[w])
+            elif w in on:
+                low[v] = min(low[v], idx[w])
+        if low[v] == idx[v]:
+            comp = []
+            while True:
+                w = st.pop(); on.discard(w); comp.append(w)
+                if w == v:
+                    break
+            out.append(comp)
+
+    for v in range(n):
+        if v not in idx:
+            sc(v)
+    return out
+
+
+def topic_layers(nT, strong):
+    """layer = longest chain over the strong edges; topics that mostly build on each other (a cycle) share a layer"""
+    comps = sccs(nT, strong)
+    cid = {v: c for c, vs in enumerate(comps) for v in vs}
+    preds = defaultdict(set)
+    for b, a in strong:
+        if cid[b] != cid[a]:
+            preds[cid[a]].add(cid[b])
+    cl = longest_layers(set(range(len(comps))), preds)
+    return {v: cl[cid[v]] for v in range(nT)}, [c for c in comps if len(c) > 1]
+
+
+def vcurve(x0, y0, x1, y1):
+    dy = (y1 - y0) / 2
+    return f"C{x0:.0f} {y0 + dy:.0f} {x1:.0f} {y1 - dy:.0f} {x1:.0f} {y1:.0f}"
+
+
 def overview(P, T):
-    """topics as bars on the page-stage axis -> inline SVG (and the phone list)"""
+    """the topic graph: one card per topic in layers top to bottom (study order), solid lines for the strong links;
+    returns (inline SVG for wide screens, card rows for narrow screens, cycle note)"""
     nT = len(T)
-    ncol = max(p["g"] for p in P) + 1
-    span = {k: (min(P[i]["g"] for i in T[k]["p"]), max(P[i]["g"] for i in T[k]["p"])) for k in range(nT)}
-    per = {k: defaultdict(int) for k in range(nT)}
-    for k in range(nT):
-        for i in T[k]["p"]:
-            per[k][P[i]["g"]] += 1
-    deps = {k: sorted({P[a]["c"] for i in T[k]["p"] for a in P[i]["pre"]} - {k}) for k in range(nT)}
-    mean = {k: sum(P[i]["g"] for i in T[k]["p"]) / len(T[k]["p"]) for k in range(nT)}
-    rows = sorted(range(nT), key=lambda k: (span[k][0], round(mean[k], 6), span[k][1], T[k]["s"], k))
-    meta = {k: f'{len(T[k]["p"])} pages' for k in range(nT)}
-    LW = round(max(text_w(T[k]["n"], 12.5, True) for k in range(nT)) + 10
-               + max(text_w(meta[k], 11) for k in range(nT)) + 22)
-    cw = (W - LW) / ncol
-    cx = [LW + l * cw for l in range(ncol)]
-    RH, BH, top = 30, 20, TOP + 2
-    Hs = top + RH * nT + 6
-    o = [f'<svg id="lm-ov" class="lm-svg" width="{W}" height="{Hs}" viewBox="0 0 {W} {Hs}" '
-         f'role="group" aria-label="Topics as bars from the stage of their first page to the stage of their last page">']
-    for l in range(ncol):
-        o.append(f'<rect class="lm-band{l % 2}" x="{cx[l]:.1f}" y="{TOP - 6}" width="{cw:.1f}" height="{Hs - TOP + 6}"/>'
-                 f'<text class="lm-col" x="{cx[l] + cw / 2:.1f}" y="14" text-anchor="middle">Stage {l + 1}</text>')
-    for r, k in enumerate(rows):
-        t, (a, b) = T[k], span[k]
-        y = top + r * RH
-        rs = P[t["r"]]["g"]
-        dn = ", ".join(T[d]["n"] for d in deps[k]) or "no other topic"
-        tip = (f'{t["n"]}: {len(t["p"])} pages, {t["m"]} min core reading; stages {a + 1} to {b + 1}'
-               + (f', root page at stage {rs + 1}' if rs != a else '') + f'. Its pages build on {dn}. Click to open its pages.')
-        o.append(f'<g class="lm-t s{t["s"]}" data-t="{k}" data-a="{a}" data-b="{b}" data-r="{rs}" data-dep="{" ".join(map(str, deps[k]))}" '
-                 f'role="button" tabindex="0" aria-label="Open {html.escape(t["n"])}: {len(t["p"])} pages, stages {a + 1} to {b + 1}">'
-                 f'<title>{html.escape(tip)}</title>'
-                 f'<rect class="lm-box" x="0" y="{y}" width="{W}" height="{RH}" rx="4"/>'
-                 f'<text class="lm-tl" x="8" y="{y + RH / 2 + 4.5:.1f}">{html.escape(t["n"])}</text>'
-                 f'<text class="lm-m" x="{LW - 10}" y="{y + RH / 2 + 4:.1f}" text-anchor="end">{meta[k]}</text>'
-                 f'<rect class="lm-span" x="{cx[a] + 3:.1f}" y="{y + (RH - BH) / 2}" width="{cx[b] + cw - cx[a] - 6:.1f}" height="{BH}" rx="5"/>')
-        for l in range(a, b + 1):
-            n = per[k].get(l, 0)
-            mx = cx[l] + cw / 2
-            if l == rs and rs != a:
-                o.append(f'<circle class="lm-root" cx="{mx:.1f}" cy="{y + RH / 2}" r="8.5"/>')
-            if n:
-                o.append(f'<text class="lm-cnt" x="{mx:.1f}" y="{y + RH / 2 + 4}" text-anchor="middle">{n}</text>')
-        o.append('</g>')
+    strong, weak, alone = topic_links(P, T)
+    lay, cyc = topic_layers(nT, strong)
+    nst = max(p["g"] for p in P) + 1
+    names = lambda ks: ", ".join(T[b]["n"] for b in ks)
+    for k, t in enumerate(T):
+        n = len(t["p"])
+        t["l"], t["al"] = lay[k], alone[k]
+        t["st"] = [sum(1 for i in t["p"] if P[i]["g"] == g) for g in range(nst)]
+        t["up"] = sorted(b for (b, a) in list(strong) + list(weak) if a == k)
+        t["dn"] = sorted(a for (b, a) in list(strong) + list(weak) if b == k)
+        t["su"] = sorted((b for (b, a) in strong if a == k), key=lambda b: -strong[(b, k)])
+        t["wu"] = sorted((b for (b, a) in weak if a == k), key=lambda b: (-weak[(b, k)], b))
+    linked = {v for e in strong for v in e}
+    nl = max(lay.values()) + 1
+    secord = lambda k: (T[k]["s"], k)
+
+    # ---- rows: the spine first, layer by layer: the linked topics of a layer in one row whose order and x come from
+    # the layered layout (barycenter sweeps, exhaustive swaps, isotonic x), leaving room for lines passing through.
+    # Then one band of the topics with no strong link either way ("start anytime"), in a compact grid.
+    AW = W - GUT - 8
+    per = max(1, int((AW + CG) // (CW_FREE + CG)))
+    lk = sorted(linked, key=secord)
+    free = sorted((k for k in range(nT) if k not in linked), key=secord)
+    es = [(b, a) for (b, a) in strong if lay[b] < lay[a]]
+    through = defaultdict(int)
+    for b, a in es:
+        for l in range(lay[b] + 1, lay[a]):
+            through[l] += 1
+    width = {}
+    rows_of = []          # per spine layer: [row]; then the start-anytime rows
+    for l in range(nl):
+        lr = [k for k in lk if lay[k] == l]
+        if lr:
+            n = len(lr)
+            w = max(CW_MIN, min(CW_MAX, (AW - 4 - (n - 1) * CG - through[l] * (4 + 2 * 12 - CG)) / n))
+            for k in lr:
+                width[k] = w
+            rows_of.append([lr])
+    nsp = len(rows_of)
+    if free:
+        nr = -(-len(free) // per)
+        m = -(-len(free) // nr)
+        rows_of.append([free[i:i + m] for i in range(0, len(free), m)])
+        for k in free:
+            width[k] = min(CW_MAX, (AW - (m - 1) * CG) / m)
+
+    # ---- card contents (sizes known at build time); the "also use" list is a panel shown only on focus
+    TX = 12
+    card = {}
+    for k, t in enumerate(T):
+        n = len(t["p"])
+        tw = width[k] - TX - 8
+        tl = wrap(t["n"], tw, 13, True, 2)
+        al = wrap(f"{alone[k]} of {n} pages need no other topic", tw, 11, maxlines=3)
+        wk = wrap("Some pages also use: " + names(t["wu"]), tw, 11, maxlines=6) if t["wu"] else []
+        h = 8 + 16 * len(tl) + 16 + 7 + 16 + 4 + 14 * len(al) + 8
+        card[k] = {"tl": tl, "al": al, "wk": wk, "h": h}
+    cell = min(20, (CW_MIN - TX - 8 + 3) / nst - 3)
+
+    xs, dpts = {}, {}
+    if lk:
+        tops, pts, ext = _layout(lk, es, lay, {k: width[k] for k in lk}, gap=CG, dgap=12, maxw=AW)
+        ox = GUT + max(0, (AW - ext) / 2)
+        for k in lk:
+            xs[k] = ox + tops[k]
+        dpts = {e: [(l, ox + x) for l, x in p] for e, p in pts.items()}
+    for rows in rows_of[:nsp]:   # linked rows in layout order; wrap evenly if they do not fit (lines may then cross cards)
+        lr = sorted(rows[-1], key=lambda k: xs[k])
+        if xs[lr[-1]] + width[lr[-1]] > W + 1:
+            rows.pop()
+            for i in range(0, len(lr), per):
+                rows.append(lr[i:i + per])
+            for k in lr:
+                xs.pop(k)
+        else:
+            rows[-1] = lr
+
+    box, crow, y, bands = {}, {}, 0, []
+    for l, rows in enumerate(rows_of):
+        y0 = y
+        y += 12 if l < nsp else 30
+        for r, row in enumerate(rows):
+            rh = max(card[k]["h"] for k in row)
+            if row[0] in xs:
+                for k in row:
+                    box[k] = (xs[k], y, width[k], rh)
+                crow[l] = (y, y + rh)
+            else:
+                tot = sum(width[k] for k in row) + (len(row) - 1) * CG
+                x = GUT + (AW - tot) / 2
+                for k in row:
+                    box[k] = (x, y, width[k], rh)
+                    x += width[k] + CG
+            y += rh + (CG if r < len(rows) - 1 else 0)
+        crow.setdefault(l, (y0 + 12, y))
+        bands.append((y0, y + 12))
+        y += 12 + (44 if l + 1 < nsp else 28)
+    y -= 12 + (44 if len(rows_of) <= nsp else 28)
+    # focus panels ("Some pages also use"), under the card, or above it when there is no room below
+    panel = {}
+    for k in box:
+        if card[k]["wk"]:
+            x, yb, w, hb = box[k]
+            ph = 10 + 14 * len(card[k]["wk"])
+            py = yb + hb + 4 if yb + hb + 4 + ph <= y + 12 else yb - 4 - ph
+            panel[k] = (x, py, w, ph)
+    H = round(y + 12)
+
+    # ---- strong edges: from the bottom of the topic built on to the top of the topic building on it
+    def ports(lst, key):
+        out = {}
+        groups = defaultdict(list)
+        for e in lst:
+            groups[key(e)[0]].append((key(e)[1], e))
+        for n, g in groups.items():
+            g.sort()
+            m = len(g)
+            span = min(box[n][2] - 44, 18 * (m - 1))
+            for i, (_, e) in enumerate(g):
+                out[e] = box[n][0] + box[n][2] / 2 + (0 if m == 1 else -span / 2 + span * i / (m - 1))
+        return out
+
+    E = [e for e in strong if lay[e[0]] < lay[e[1]]]
+    cx = lambda k: box[k][0] + box[k][2] / 2
+    sx = ports(E, lambda e: (e[0], dpts[e][0][1] if dpts.get(e) else cx(e[1])))
+    tx = ports(E, lambda e: (e[1], dpts[e][-1][1] if dpts.get(e) else cx(e[0])))
+    o = [f'<svg id="lm-ov" class="lm-svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="group" '
+         f'aria-label="The {nT} topics in layers, in study order from top to bottom">']
+    o.append('<defs><marker id="lm-ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">'
+             '<path d="M0 0L8 4L0 8z" class="lm-arh"/></marker></defs>')
+    for l, (a, b) in enumerate(bands):
+        if l < nsp:
+            cnt = len(rows_of[l][0]) if len(rows_of[l]) == 1 else sum(map(len, rows_of[l]))
+            head = f"Layer {l + 1}" + (": start here" if l == 0 else "") + f", {cnt} topic{'s' if cnt != 1 else ''}"
+            for alt in (head, f"Layer {l + 1}" + (": start here" if l == 0 else ""), f"Layer {l + 1}"):
+                if text_w(alt, 12, True) <= b - a - 10:
+                    head = alt
+                    break
+            else:
+                head = f"L{l + 1}"
+            my = (a + b) / 2
+            o.append(f'<rect class="lm-band{l % 2}" x="0" y="{a}" width="{W}" height="{b - a}" rx="8"/>'
+                     f'<text class="lm-lh" x="17" y="{my:.0f}" text-anchor="middle" transform="rotate(-90 17 {my:.0f})">{head}</text>')
+        else:
+            o.append(f'<rect class="lm-bandf" x="0" y="{a}" width="{W}" height="{b - a}" rx="8"/>'
+                     f'<text class="lm-lh" x="{GUT}" y="{a + 19}">{FREE_HEAD} ({len(free)} topics).</text>'
+                     f'<text class="lm-lh2" x="{GUT + text_w(FREE_HEAD + f" ({len(free)} topics).", 12, True) + 8:.0f}" y="{a + 19}">{FREE_NOTE}</text>')
+    o.append('<g class="lm-es">')
+    labels = []
+    for e in sorted(E, key=lambda e: -strong[e]):
+        b, a = e
+        n = len(T[a]["p"]); c = strong[e]
+        x0, y0 = sx[e], box[b][1] + box[b][3]
+        d = f"M{x0:.0f} {y0:.0f}"
+        for l, x in dpts.get(e, []):
+            t0, t1 = crow[l]
+            d += vcurve(x0, y0, x, t0) + f"V{t1:.0f}"
+            x0, y0 = x, t1
+        x1, y1 = tx[e], box[a][1]
+        d += vcurve(x0, y0, x1, y1)
+        wpx = 1 + 6.5 * c / n
+        tip = f"{T[a]['n']}: {c} of {n} pages build on {T[b]['n']}"
+        o.append(f'<path class="lm-se" data-a="{b}" data-b="{a}" d="{d}" stroke-width="{wpx:.1f}"><title>{html.escape(tip)}</title></path>')
+        lx, ly = (x0 + x1) / 2, (y0 + y1) / 2
+        lt = f"{c} of {n} pages"
+        lw = text_w(lt, 11) + 10
+        labels.append(f'<g class="lm-el" data-a="{b}" data-b="{a}"><rect x="{lx - lw / 2:.0f}" y="{ly - 9:.0f}" width="{lw:.0f}" height="17" rx="8"/>'
+                      f'<text x="{lx:.0f}" y="{ly + 4:.0f}" text-anchor="middle">{lt}</text></g>')
+    o.append('</g><g class="lm-ws">')
+    for e in sorted(weak, key=lambda e: -weak[e]):
+        b, a = e
+        (xb, yb, _, hb), (xa, ya, _, ha) = box[b], box[a]
+        if ya >= yb + hb + 4:
+            d = f"M{cx(b) + 8:.0f} {yb + hb:.0f}" + vcurve(cx(b) + 8, yb + hb, cx(a) - 8, ya - 2)
+        elif ya + ha <= yb - 4:
+            d = f"M{cx(b) - 8:.0f} {yb:.0f}" + vcurve(cx(b) - 8, yb, cx(a) + 8, ya + ha + 2)
+        else:
+            d = f"M{cx(b):.0f} {yb:.0f}C{cx(b):.0f} {yb - 44:.0f} {cx(a):.0f} {ya - 44:.0f} {cx(a):.0f} {ya - 2:.0f}"
+        tip = f"{T[a]['n']}: {weak[e]} of {len(T[a]['p'])} pages build on {T[b]['n']}"
+        o.append(f'<path class="lm-we" data-a="{b}" data-b="{a}" d="{d}" marker-end="url(#lm-ar2)"><title>{html.escape(tip)}</title></path>')
+    o.append('</g>')
+
+    def strip_svg(k, x, y):
+        s = ""
+        for g, c in enumerate(T[k]["st"]):
+            cx0 = x + g * (cell + 3)
+            s += f'<rect class="lm-cell{" z" if not c else ""}" x="{cx0:.1f}" y="{y}" width="{cell:.1f}" height="16" rx="3"/>'
+            if c:
+                s += f'<text class="lm-cnt" x="{cx0 + cell / 2:.1f}" y="{y + 12}" text-anchor="middle">{c}</text>'
+        return s
+
+    def tip_of(k):
+        t = T[k]
+        s = f'{t["n"]}: {len(t["p"])} pages, {t["m"]} min core reading; {t["al"]} of {len(t["p"])} pages need no other topic.'
+        if t["su"]:
+            s += " Builds on " + ", ".join(f'{T[b]["n"]} ({strong[(b, k)]} of {len(t["p"])} pages)' for b in t["su"]) + "."
+        if t["wu"]:
+            s += " Some pages also use " + ", ".join(f'{T[b]["n"]} ({weak[(b, k)]})' for b in t["wu"]) + "."
+        return s + " Click to open its pages."
+
+    for k in sorted(box, key=lambda k: (box[k][1], box[k][0])):
+        t, c = T[k], card[k]
+        x, y, w, h = box[k]
+        meta = f'{len(t["p"])} pages, {t["m"] / 60:.1f} h'
+        s = (f'<g class="lm-t s{t["s"]}" data-t="{k}" data-k="{k}" data-l="{lay[k]}" data-free="{0 if k in linked else 1}" role="button" tabindex="0" '
+             f'aria-label="Open {html.escape(t["n"])}: {meta}"><title>{html.escape(tip_of(k))}</title>'
+             f'<rect class="lm-box" x="{x:.1f}" y="{y}" width="{w}" height="{h}" rx="7"/>'
+             f'<rect class="lm-bar" x="{x:.1f}" y="{y}" width="5" height="{h}" rx="2"/>')
+        yy = y + 8
+        for ln in c["tl"]:
+            yy += 16
+            s += f'<text class="lm-tl" x="{x + TX:.1f}" y="{yy - 3}">{html.escape(ln)}</text>'
+        yy += 16
+        s += f'<text class="lm-m" x="{x + TX:.1f}" y="{yy - 3}">{meta}</text>'
+        yy += 7
+        s += strip_svg(k, x + TX, yy)
+        yy += 16 + 4
+        for ln in c["al"]:
+            yy += 14
+            s += f'<text class="lm-al" x="{x + TX:.1f}" y="{yy - 3}">{html.escape(ln)}</text>'
+        o.append(s + '</g>')
+    o.append('<g class="lm-els">' + "".join(labels) + '</g>')
+    for k, (x, py, w, ph) in panel.items():
+        s = f'<g class="lm-wkp" data-k="{k}"><rect x="{x:.1f}" y="{py:.0f}" width="{w:.1f}" height="{ph}" rx="6"/>'
+        for j, ln in enumerate(card[k]["wk"]):
+            s += f'<text class="lm-wk" x="{x + TX:.1f}" y="{py + 17 + 14 * j:.0f}">{html.escape(ln)}</text>'
+        o.append(s + '</g>')
     o.append('</svg>')
-    # phone list: the same order, grouped by the stage a topic can start at
-    lst, cur = [], None
-    for k in rows:
-        a, b = span[k]
-        if a != cur:
-            if cur is not None:
-                lst.append('</div>')
-            lst.append(f'<h4>Start at stage {a + 1}</h4><div class="lm-chips">')
-            cur = a
-        rs = P[T[k]["r"]]["g"]
-        st = f"stage {a + 1}" if a == b else f"stages {a + 1} to {b + 1}"
-        lst.append(f'<button class="lm-chip s{T[k]["s"]}" data-t="{k}">{html.escape(T[k]["n"])}<span>{st}, {meta[k]}'
-                   + (f', root at {rs + 1}' if rs != a else '') + '</span></button>')
-    lst.append('</div>')
-    return "".join(o), "".join(lst), []
+
+    # ---- narrow screens: the same layers as rows of cards, links as text
+    q = []
+    for l, rows in enumerate(rows_of):
+        ks = [k for row in rows for k in row]
+        q.append((f'<h4>Layer {l + 1}{": start here" if l == 0 else ""}</h4>' if l < nsp else f'<h4>{FREE_HEAD}</h4><p class="lm-note">{FREE_NOTE}</p>') + '<div class="lm-cards">')
+        for k in ks:
+            t = T[k]
+            n = len(t["p"])
+            st = "".join(f'<i class="{"z" if not c else ""}">{c or ""}</i>' for c in t["st"])
+            q.append(f'<div class="lm-c lm-t s{t["s"]}" data-k="{k}" role="button" tabindex="0" aria-label="{html.escape(t["n"])}: show what it builds on">'
+                     f'<b>{html.escape(t["n"])}</b><span class="lm-cm">{n} pages, {t["m"] / 60:.1f} h</span>'
+                     f'<span class="lm-strip" title="pages in stages 1 to {nst}">{st}</span>'
+                     f'<span class="lm-ca">{t["al"]} of {n} pages need no other topic</span>'
+                     + (f'<span class="lm-cb">Builds on: ' + ", ".join(f'{html.escape(T[b]["n"])} ({strong[(b, k)]} of {n} pages)' for b in t["su"]) + '</span>' if t["su"] else '')
+                     + (f'<span class="lm-cw">Some pages also use: {html.escape(names(t["wu"]))}</span>' if t["wu"] else '')
+                     + f'<button class="lm-btn lm-open" data-t="{k}">Open its pages</button></div>')
+        q.append('</div>')
+    note = ""
+    if cyc:
+        note = " " + " ".join(f'{" and ".join(T[v]["n"] for v in c)} mostly build on each other, so they sit side by side.' for c in cyc)
+    return "".join(o), "".join(q), note
 
 
 # ---------------------------------------------------------------- HTML
 CSS = """
-.lm{margin:18px 0 8px;--s0:#2f6fb5;--s1:#b8602a;--s2:#2b8a57;--s3:#8a4fb8;--s4:#1f8585;--card:#fff;--hl:#d99a00;--card2:#f6f6f4}
-@media (prefers-color-scheme:dark){.lm{--s0:#6ea8e6;--s1:#e3925c;--s2:#5cc48d;--s3:#b98ce3;--s4:#4fc1c1;--card:#202020;--hl:#f2c14e;--card2:#262626}}
+.lm{margin:18px 0 8px;--s0:#2f6fb5;--s1:#b8602a;--s2:#2b8a57;--s3:#8a4fb8;--s4:#1f8585;--card:#fff;--hl:#d99a00;--card2:#f6f6f4;--band:#f8f8f6}
+@media (prefers-color-scheme:dark){.lm{--s0:#6ea8e6;--s1:#e3925c;--s2:#5cc48d;--s3:#b98ce3;--s4:#4fc1c1;--card:#202020;--hl:#f2c14e;--card2:#262626;--band:#1e1e1e}}
 .lm h2{margin:0 0 2px}.lm .lm-sub{color:var(--mute);margin:0 0 10px;font-size:14px}
 .lm-bar0{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:0 0 10px}
 .lm-qw{position:relative;flex:1 1 260px;max-width:420px}
@@ -640,32 +951,46 @@ CSS = """
 .lm-svg{display:block;font-family:inherit}
 .lm-col{font-size:11.5px;fill:var(--mute);font-weight:600;letter-spacing:.02em}
 .lm-e{fill:none;stroke:var(--mute);stroke-opacity:.5}.lm-arh{fill:var(--mute)}
-.lm-e.on{stroke:var(--ink);stroke-opacity:.95}.lm-e.off{stroke-opacity:.12}
+.lm-e.on{stroke:var(--ink);stroke-opacity:.95;stroke-width:2}.lm-e.off{stroke-opacity:.12}.lm-e.drw{marker-end:none}
 .lm-box{fill:var(--card);stroke:var(--sc);stroke-width:1.3}.lm-bar{fill:var(--sc)}
 .s0{--sc:var(--s0)}.s1{--sc:var(--s1)}.s2{--sc:var(--s2)}.s3{--sc:var(--s3)}.s4{--sc:var(--s4)}
-.lm-tl{font-size:12px;fill:var(--ink);font-weight:600}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11px;fill:var(--mute)}
+.lm-tl{font-size:13px;fill:var(--ink);font-weight:600}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11.5px;fill:var(--mute)}
 .lm-t,.lm-pb{cursor:pointer}.lm-t:hover .lm-box,.lm-t:focus .lm-box{stroke-width:2.6}.lm-t:focus{outline:none}
-.lm-t.dim,.lm-n.dim{opacity:.35}
-#lm-ov .lm-box{fill:transparent;stroke:none}#lm-ov .lm-tl{font-size:12.5px}
-#lm-ov .lm-t:hover .lm-box,#lm-ov .lm-t:focus .lm-box{fill:var(--card2);stroke:none}
-.lm-band0{fill:var(--card2)}.lm-band1{fill:none}
-.lm-span{fill:var(--sc);fill-opacity:.2;stroke:var(--sc);stroke-width:1.3}
-.lm-cnt{font-size:11.5px;font-weight:600;fill:var(--ink)}.lm-root{fill:var(--card);stroke:var(--ink);stroke-width:1.3}
-#lm-ov.hov .lm-t{opacity:.28}#lm-ov.hov .lm-t.me,#lm-ov.hov .lm-t.dep{opacity:1}
-#lm-ov .lm-t.dep .lm-span{stroke-width:2.6;fill-opacity:.32}#lm-ov .lm-t.me .lm-span{stroke-width:2.6}
+.lm-band0{fill:var(--band)}.lm-band1{fill:none}.lm-bandf{fill:none;stroke:var(--line);stroke-dasharray:5 4}.lm-lh2{font-size:12px;fill:var(--mute)}
+.lm-lh{font-size:12px;font-weight:600;fill:var(--mute);letter-spacing:.02em;paint-order:stroke;stroke:var(--bg);stroke-width:4px}
+.lm-cell{fill:var(--sc);fill-opacity:.18;stroke:var(--sc);stroke-width:1}.lm-cell.z{fill:none;stroke:var(--line)}
+.lm-cnt{font-size:11px;font-weight:600;fill:var(--ink)}
+.lm-al{font-size:11px;fill:var(--ink)}.lm-wk{font-size:11px;fill:var(--mute)}
+.lm-se{fill:none;stroke:var(--mute);stroke-opacity:.55;transition:stroke-opacity .15s}
+.lm-we{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-dasharray:2 4;stroke-linecap:round;opacity:0;pointer-events:none;transition:opacity .15s}
+.lm-wkp{opacity:0;pointer-events:none;transition:opacity .15s}.lm-wkp rect{fill:var(--card);stroke:var(--line)}.lm.foc .lm-wkp.on{opacity:1}
+.lm-el{opacity:0;pointer-events:none;transition:opacity .15s}.lm-el rect{fill:var(--bg);stroke:var(--line)}.lm-el text{font-size:11px;fill:var(--ink);font-weight:600}
+#lm-ov .lm-t{transition:opacity .15s}
+.lm.foc #lm-ov .lm-t,.lm.foc .lm-c{opacity:.22}
+.lm.foc #lm-ov .lm-t.me,.lm.foc #lm-ov .lm-t.up,.lm.foc #lm-ov .lm-t.dn,.lm.foc .lm-c.me,.lm.foc .lm-c.up,.lm.foc .lm-c.dn{opacity:1}
+.lm.foc #lm-ov .lm-se{stroke-opacity:.1}.lm.foc #lm-ov .lm-se.on{stroke:var(--ink);stroke-opacity:.8}
+.lm.foc .lm-we.on{opacity:.75}.lm.foc .lm-el.on{opacity:1}
+#lm-ov .lm-t.me .lm-box{stroke-width:3}
 .lm-ovkey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--mute);margin:6px 0 0}
 .lm-ovkey svg{vertical-align:-4px;margin-right:5px}
 .lm-n a:hover .lm-box,.lm-n a:focus .lm-box{stroke-width:2.6}.lm-n a{text-decoration:none}
 .lm-n.ghost .lm-box{stroke-dasharray:4 3;fill:var(--card2)}
 .lm-n.tgt .lm-box{stroke-width:3}
-.lm-n.cur .lm-box{stroke:var(--hl);stroke-width:4}.lm-n.todo{opacity:.3}
+.lm-n.done .lm-box{fill:color-mix(in srgb,var(--sc) 16%,var(--card))}
+.lm-n.cur .lm-box{stroke:var(--hl);stroke-width:4;fill:color-mix(in srgb,var(--hl) 16%,var(--card))}.lm-n.todo{opacity:.3}
 .lm-pb circle{fill:var(--card);stroke:var(--acc);stroke-width:1.2}.lm-pb path{fill:none;stroke:var(--acc);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .lm-pb:hover circle,.lm-pb:focus circle{fill:var(--acc)}.lm-pb:hover path,.lm-pb:focus path{stroke:var(--bg)}.lm-pb:focus{outline:none}
 .lm-cap{color:var(--mute);font-size:13px;margin:6px 0 0}
-.lm-list{display:none}.lm-list h4{margin:12px 0 4px;font-size:13px;color:var(--mute);font-weight:600}
-.lm-chips{display:flex;flex-wrap:wrap;gap:6px}
-.lm-chip{font:inherit;font-size:13.5px;text-align:left;padding:5px 10px;border:1px solid var(--sc);border-left-width:4px;border-radius:6px;background:var(--card);color:var(--ink);cursor:pointer}
-.lm-chip span{display:block;font-size:11.5px;color:var(--mute)}
+.lm-list{display:none}.lm-list h4{margin:14px 0 6px;font-size:13px;color:var(--mute);font-weight:600}
+.lm-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.lm-c{display:flex;flex-direction:column;gap:3px;padding:7px 9px 8px 10px;border:1px solid var(--sc);border-left-width:5px;border-radius:7px;background:var(--card);color:var(--ink);cursor:pointer;font-size:12px;line-height:1.35;transition:opacity .15s;min-width:0}
+.lm-c b{font-size:13.5px;overflow-wrap:anywhere}.lm-c .lm-cm{color:var(--mute)}.lm-c .lm-cw{color:var(--mute);display:none}.lm-c.me .lm-cw{display:block}
+.lm-c.me{outline:2px solid var(--sc)}.lm-c:focus{outline:2px solid var(--sc)}
+.lm-strip{display:flex;gap:3px}.lm-strip i{font-style:normal;font-weight:600;font-size:11px;width:20px;height:16px;line-height:16px;text-align:center;border-radius:3px;border:1px solid var(--sc);background:color-mix(in srgb,var(--sc) 18%,transparent)}
+.lm-strip i.z{border-color:var(--line);background:none}
+.lm-c .lm-open{display:none;margin-top:4px;align-self:flex-start}.lm-c.me .lm-open{display:block}
+.lm-fp{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:12.5px;margin:4px 0 8px}.lm-fp>span:first-child{color:var(--mute)}
+.lm-fp .ch{padding:1px 8px;border:1px solid var(--sc);border-left-width:4px;border-radius:5px;background:var(--card)}.lm-fp .ch b{font-weight:600}
 .lm-note{font-size:12.5px;color:var(--mute);margin:4px 0}
 .lm-pl-list{padding:0;margin:4px 0;list-style:none}
 .lm-pl-list li{display:flex;gap:8px;align-items:baseline;margin:3px 0;padding:3px 0 3px 8px;border-left:4px solid var(--sc)}
@@ -674,19 +999,27 @@ CSS = """
 .lm-path{margin-top:12px}.lm-path ol{padding-left:0;list-style:none;counter-reset:s;margin:6px 0}
 .lm-path ol li{counter-increment:s;display:flex;gap:8px;align-items:baseline;margin:2px 0;padding:3px 6px;border-left:4px solid var(--sc);border-radius:2px}
 .lm-path ol li::before{content:counter(s);color:var(--mute);font-size:12.5px;min-width:1.4em;text-align:right}
+.lm-path ol li .tx{flex:1;display:flex;gap:8px;align-items:baseline;min-width:0}.lm-path ol li .tx a{min-width:0}
 .lm-path ol li .mm{color:var(--mute);font-size:12.5px;margin-left:auto;white-space:nowrap}
+.lm-path ol li.done{background:color-mix(in srgb,var(--sc) 10%,transparent)}
 .lm-path ol li.cur{background:var(--card2);outline:2px solid var(--hl)}.lm-path ol li.todo{opacity:.45}
 .lm-path ol li.tg{font-weight:600}
 .lm-sum{font-size:14px;margin:4px 0}.lm-ctl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
-@media (max-width:640px){.lm .lm-map{display:none}.lm .lm-list{display:block}.lm-qw{max-width:none}}
+@media (max-width:899px){.lm.ov .lm-map{display:none}.lm.ov .lm-list{display:block}.lm-ovkey .ln{display:none}}
+@media (max-width:640px){.lm .lm-map{display:none}.lm .lm-list{display:block}.lm-qw{max-width:none}
+ .lm-path ol li .tx{display:block}.lm-path ol li .mm{display:block;margin:1px 0 0;white-space:normal}}
+.lm:not(.ov) #lm-ovcap,.lm:not(.ov) #lm-ovl{display:none}
+@media (prefers-reduced-motion:reduce){.lm *{transition:none!important}}
 """
 
 JS = r"""
 (()=>{const D=JSON.parse(document.getElementById('lm-data').textContent),P=D.P,T=D.T,V=D.V;
-const $=s=>document.querySelector(s),root=$('#lm'),view=$('#lm-view'),plist=$('#lm-plist'),path=$('#lm-path');
+const $=s=>document.querySelector(s),root=$('#lm'),view=$('#lm-view'),plist=$('#lm-plist'),path=$('#lm-path'),list=$('.lm-list');
+const RM=matchMedia('(prefers-reduced-motion: reduce)');
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const byId={};P.forEach((p,i)=>byId[p.id]=i);
 const mins=p=>p.m==null?'?':p.m;
+const settle=()=>root.getAnimations({subtree:true}).forEach(a=>{try{a.finish()}catch(e){a.cancel()}});
 function nodeSVG(i,x,y,cls){const p=P[i],w=110,h=p.h;let s=`<g class="lm-n s${T[p.c].s} ${cls}" data-i="${i}"><a href="${esc(p.u)}"><title>${esc(p.t)} (${esc(T[p.c].n)}), ${mins(p)} min</title>`+
  `<rect class="lm-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><rect class="lm-bar" x="${x}" y="${y}" width="4" height="${h}" rx="2"/>`;
  p.l.forEach((ln,j)=>s+=`<text class="lm-pl" x="${x+9}" y="${y+18+15*j}">${esc(ln)}</text>`);
@@ -698,54 +1031,75 @@ function svgOf(v,cls,heads){let s=`<svg class="lm-svg" width="${v.w}" height="${
  v.n.forEach(n=>s+=nodeSVG(n[0],n[1],n[2],(n[3]?'ghost ':'')+(cls[n[0]]||'')));
  return s+'<defs><marker id="lm-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="lm-arh"/></marker></defs></svg>'}
 const pli=(i,extra)=>{const p=P[i];return `<li class="s${T[p.c].s}"><a href="${esc(p.u)}">${esc(p.t)}</a><span class="mm">${mins(p)} min</span>${extra||''}<button class="lm-pbt" data-p="${i}" aria-label="Path to ${esc(p.t)}">path</button></li>`};
-let step=-1,timer=null,cur=null;
+let step=-1,timer=null,cur=null,ptok=0,from=null;
 function stopPlay(){if(timer){clearInterval(timer);timer=null}const b=$('#lm-play');if(b)b.textContent='Play'}
-function showOverview(){stopPlay();cur=null;view.innerHTML=D.OV;$('#lm-ovl').hidden=false;plist.innerHTML='';path.hidden=true;
- $('#lm-head').innerHTML='<b>All topics</b><span>Pick a topic to see its pages in order</span>'}
-function showTopic(k){stopPlay();cur=null;const t=T[k],v=V.topic[k],heads=v.cols.map((_,j)=>v.before?(j?'Stage '+j:'From other topics'):'Stage '+(j+1));
- $('#lm-ovl').hidden=true;path.hidden=true;
+// focus on a topic: it, the topics its pages build on and the topics building on it stay lit, the rest dims
+function focusT(k){root.classList.toggle('foc',k!=null);const t=k==null?null:T[k];
+ root.querySelectorAll('.lm-t[data-k]').forEach(x=>{const j=+x.dataset.k;x.classList.toggle('me',j===k);x.classList.toggle('up',!!t&&t.up.includes(j));x.classList.toggle('dn',!!t&&t.dn.includes(j))});
+ root.querySelectorAll('#lm-ov .lm-se,#lm-ov .lm-we,#lm-ov .lm-el').forEach(e=>e.classList.toggle('on',k!=null&&(+e.dataset.a===k||+e.dataset.b===k)));
+ root.querySelectorAll('#lm-ov .lm-wkp').forEach(e=>e.classList.toggle('on',+e.dataset.k===k))}
+function showOverview(){stopPlay();settle();cur=null;view.innerHTML=D.OV;root.classList.add('ov');focusT(null);plist.innerHTML='';path.hidden=true;
+ $('#lm-head').innerHTML='<b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span>'}
+// open a view by growing the clicked card into it, then reveal its pages stage by stage (only after a click)
+function grow(rs){const box=[view,list].find(e=>e.offsetParent!==null);if(!from||RM.matches||!box){from=null;return}
+ const r=from;from=null;let c=box.getBoundingClientRect();if(c.top<0){scrollBy(0,c.top-12);c=box.getBoundingClientRect()}
+ const t=Math.max(0,Math.min(r.top-c.top,c.height-r.height)),l=Math.max(0,r.left-c.left),rt=Math.max(0,c.width-l-r.width),b=Math.max(0,c.height-t-r.height);
+ box.animate([{clipPath:`inset(${t}px ${rt}px ${b}px ${l}px round 8px)`},{clipPath:'inset(0px 0px 0px 0px round 0px)'}],{duration:260,easing:'cubic-bezier(.2,.7,.2,1)'});
+ rs.forEach(([el,k])=>el.animate([{opacity:0},{opacity:1}],{duration:150,delay:200+60*Math.min(k,4),fill:'backwards'}))}
+function showTopic(k){stopPlay();settle();cur=null;root.classList.remove('ov');focusT(null);const t=T[k],v=V.topic[k],heads=v.cols.map((_,j)=>v.before?(j?'Stage '+j:'From other topics'):'Stage '+(j+1));
+ path.hidden=true;
  $('#lm-head').innerHTML=`<button class="lm-btn" id="lm-back">All topics</button><b><a href="${esc(P[t.r].u)}">${esc(P[t.r].t)}</a></b><span>${t.p.length} pages, ${t.m} min core reading</span>`;
  view.innerHTML=`<div class="lm-scroll">${svgOf(v,{},heads)}</div><p class="lm-cap">Each column needs only the columns to its left. ${v.before?'Dashed pages belong to other topics. ':''}Click a page to read it, or its round button for its full path.</p>`;
  const cols=heads.map(()=>[]);v.n.forEach(n=>cols[v.lay[n[0]]].push(n));
- plist.innerHTML=cols.map((c,j)=>c.length?`<h4>${heads[j]}</h4><ul class="lm-pl-list">${c.sort((a,b)=>a[2]-b[2]).map(n=>pli(n[0],n[3]?`<span class="mm">${esc(T[P[n[0]].c].n)}</span>`:'')).join('')}</ul>`:'').join('')}
-function paint(){if(!cur)return;const o=cur.order;
- view.querySelectorAll('.lm-n').forEach(g=>{const r=o.indexOf(+g.dataset.i);g.classList.toggle('cur',step>=0&&r===step);g.classList.toggle('todo',step>=0&&r>step)});
- view.querySelectorAll('.lm-e').forEach(e=>{const on=step>=0&&+e.dataset.b===o[step];e.classList.toggle('on',on);e.classList.toggle('off',step>=0&&!on)});
- path.querySelectorAll('ol li').forEach((li,r)=>{li.classList.toggle('cur',step>=0&&r===step);li.classList.toggle('todo',step>=0&&r>step)});
+ plist.innerHTML=cols.map((c,j)=>c.length?`<div data-j="${j}"><h4>${heads[j]}</h4><ul class="lm-pl-list">${c.sort((a,b)=>a[2]-b[2]).map(n=>pli(n[0],n[3]?`<span class="mm">${esc(T[P[n[0]].c].n)}</span>`:'')).join('')}</ul></div>`:'').join('');
+ const rs=[...view.querySelectorAll('.lm-n')].map(g=>[g,v.lay[g.dataset.i]]).concat([...view.querySelectorAll('.lm-e')].map(e=>[e,v.lay[e.dataset.b]]),[...view.querySelectorAll('.lm-col')].map((e,j)=>[e,j]),[...plist.querySelectorAll('[data-j]')].map(e=>[e,+e.dataset.j]));
+ grow(rs)}
+function paint(fwd){if(!cur)return;const o=cur.order,rk={},tok=++ptok;o.forEach((j,r)=>rk[j]=r);settle();
+ const setN=withCur=>{const cl=(el,r)=>{el.classList.toggle('done',step>=0&&r<step);el.classList.toggle('cur',withCur&&step>=0&&r===step);el.classList.toggle('todo',step>=0&&(r>step||(!withCur&&r===step)))};
+  view.querySelectorAll('.lm-n').forEach(g=>cl(g,rk[+g.dataset.i]));path.querySelectorAll('ol li').forEach((li,r)=>cl(li,r));
+  view.querySelectorAll('.lm-e.drw').forEach(e=>e.classList.remove('drw'))};
+ const inc=[];view.querySelectorAll('.lm-e').forEach(e=>{const rb=rk[+e.dataset.b],into=step>=0&&rb===step;e.classList.toggle('on',into);e.classList.toggle('off',step>=0&&rb>step);if(into)inc.push(e)});
+ if(fwd&&inc.length&&!RM.matches){setN(false);const as=inc.map(e=>{e.classList.add('drw');const L=e.getTotalLength();return e.animate([{strokeDasharray:`${L} ${L}`,strokeDashoffset:L},{strokeDasharray:`${L} ${L}`,strokeDashoffset:0}],{duration:320,easing:'ease-out'})});
+  Promise.all(as.map(a=>a.finished)).then(()=>{if(tok===ptok)setN(true)},()=>{})}else setN(true);
  $('#lm-prev').disabled=step<=0;$('#lm-next').disabled=step>=o.length-1;
  $('#lm-pos').textContent=step<0?'':`${step+1} of ${o.length}: ${P[o[step]].t}`}
-function showPath(i){stopPlay();const p=P[i],v=V.path[i],order=v?v.order:[i];cur={i,order};step=-1;
- $('#lm-ovl').hidden=true;
+function showPath(i){stopPlay();settle();root.classList.remove('ov');focusT(null);const p=P[i],v=V.path[i],order=v?v.order:[i];cur={i,order};step=-1;
  $('#lm-head').innerHTML=`<button class="lm-btn" id="lm-back">All topics</button><button class="lm-btn" data-t="${p.c}" id="lm-totopic">${esc(T[p.c].n)}</button><b>Path to ${esc(p.t)}</b>`;
  if(v){const nc=v.cols.length,heads=v.cols.map((_,j)=>'Stage '+(j+1)),cls={};cls[i]='tgt';
   view.innerHTML=`<div class="lm-scroll">${svgOf(v,cls,heads)}</div><p class="lm-cap">Everything this page needs, directly or through another page, in ${nc} stages. Thick border: the page you picked.</p>`}
  else view.innerHTML='<p class="lm-cap">This page has no prerequisites in the knowledge base: start here.</p>';
  plist.innerHTML='';
  const before=order.slice(0,-1),sm=a=>a.reduce((s,j)=>s+(P[j].m||0),0),sx=a=>a.reduce((s,j)=>s+(P[j].x||0),0),tot=sm(order);
+ const fp=[];order.forEach(j=>{const c=P[j].c;let f=fp.find(x=>x.c===c);if(!f)fp.push(f={c,m:0});f.m+=P[j].m||0});
  path.hidden=false;
  path.innerHTML=`<p class="lm-sum">${before.length?`<b>${before.length} page${before.length>1?'s':''} first</b>, ${sm(before)} min of core reading; with the page itself <b>${tot} min</b> (about ${(tot/60).toFixed(1)} h), plus ${sx(order)} min in closed details.`:'No prerequisites: read it directly.'}</p>`+
- (before.length?`<div class="lm-ctl"><button class="lm-btn" id="lm-prev">Previous</button><button class="lm-btn" id="lm-next">Step</button><button class="lm-btn" id="lm-play">Play</button><button class="lm-btn" id="lm-all">Show all</button><span id="lm-pos" class="lm-cap" style="margin:0;align-self:center"></span></div>`:'')+
- `<ol id="lm-order">${order.map((j,r)=>`<li class="s${T[P[j].c].s}${j===i?' tg':''}" data-i="${j}"><a href="${esc(P[j].u)}">${esc(P[j].t)}</a><span class="mm">${esc(T[P[j].c].n)}, ${mins(P[j])} min</span></li>`).join('')}</ol>`;
- if(before.length)paint()}
+ `<div class="lm-fp" id="lm-fp"><span>Topics on the way:</span>${fp.map(f=>`<span class="ch s${T[f.c].s}" data-c="${f.c}">${esc(T[f.c].n)} <b>${f.m} min</b></span>`).join('')}</div>`+
+ (before.length?`<div class="lm-ctl"><button class="lm-btn" id="lm-prev">Previous</button><button class="lm-btn" id="lm-next">Step</button>${RM.matches?'':'<button class="lm-btn" id="lm-play">Play</button>'}<button class="lm-btn" id="lm-all">Show all</button><span id="lm-pos" class="lm-cap" style="margin:0;align-self:center"></span></div>`:'')+
+ `<ol id="lm-order">${order.map(j=>`<li class="s${T[P[j].c].s}${j===i?' tg':''}" data-i="${j}"><span class="tx"><a href="${esc(P[j].u)}">${esc(P[j].t)}</a><span class="mm">${esc(T[P[j].c].n)}, ${mins(P[j])} min</span></span></li>`).join('')}</ol>`;
+ if(before.length)paint(false)}
 function route(){const h=decodeURIComponent(location.hash.slice(1));let m;
  if((m=h.match(/^path=([0-9a-f]{32})$/))&&m[1]in byId)showPath(byId[m[1]]);
  else if((m=h.match(/^topic=([a-z0-9_]+)$/))&&T.some(t=>t.slug===m[1]))showTopic(T.findIndex(t=>t.slug===m[1]));
- else if(h.startsWith('path=')||h.startsWith('topic=')||cur)showOverview()}
+ else if(h.startsWith('path=')||h.startsWith('topic=')||cur||!root.classList.contains('ov'))showOverview()}
 const go=hash=>{if(location.hash.slice(1)===hash)route();else location.hash=hash};
-root.addEventListener('click',e=>{const t=e.target.closest('[data-t],[data-p],#lm-back,#lm-prev,#lm-next,#lm-play,#lm-all');if(!t)return;
+root.addEventListener('click',e=>{
+ const c=e.target.closest('.lm-c');if(c&&!e.target.closest('.lm-open')){e.preventDefault();const k=+c.dataset.k;if(c.classList.contains('me')){from=c.getBoundingClientRect();go('topic='+T[k].slug)}else focusT(k);return}
+ const t=e.target.closest('[data-t],[data-p],#lm-back,#lm-prev,#lm-next,#lm-play,#lm-all');if(!t){if(root.classList.contains('foc')&&!e.target.closest('#lm-ov'))focusT(null);return}
  if(t.id==='lm-back'){history.pushState('',document.title,location.pathname+location.search);showOverview();return}
- if(t.id==='lm-next'){stopPlay();step=Math.min(step+1,cur.order.length-1);paint();return}
- if(t.id==='lm-prev'){stopPlay();step=Math.max(step-1,0);paint();return}
- if(t.id==='lm-all'){stopPlay();step=-1;paint();return}
+ if(t.id==='lm-next'){stopPlay();step=Math.min(step+1,cur.order.length-1);paint(true);return}
+ if(t.id==='lm-prev'){stopPlay();step=Math.max(step-1,0);paint(false);return}
+ if(t.id==='lm-all'){stopPlay();step=-1;paint(false);return}
  if(t.id==='lm-play'){if(timer){stopPlay();return}if(step>=cur.order.length-1)step=-1;t.textContent='Pause';
-  const adv=()=>{if(document.hidden)return;step++;paint();if(step>=cur.order.length-1)stopPlay()};adv();timer=setInterval(adv,1300);return}
- e.preventDefault();if(t.dataset.p!=null)go('path='+P[+t.dataset.p].id);else go('topic='+T[+t.dataset.t].slug)});
-root.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role=button]')){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}))}});
-// hover or focus on a topic bar: light up the topics its pages build on
-function hov(g){const ov=$('#lm-ov');if(!ov)return;const ds=g?g.dataset.dep.split(' ').filter(Boolean):[];
- ov.classList.toggle('hov',!!g);ov.querySelectorAll('.lm-t').forEach(x=>{x.classList.toggle('me',x===g);x.classList.toggle('dep',ds.includes(x.dataset.t))})}
-['mouseover','focusin'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g)hov(g)}));
-['mouseout','focusout'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g&&!(e.relatedTarget&&g.contains(e.relatedTarget)))hov(null)}));
+  const adv=()=>{if(document.hidden)return;step++;paint(true);if(step>=cur.order.length-1)stopPlay()};adv();timer=setInterval(adv,1300);return}
+ e.preventDefault();
+ if(t.dataset.p!=null)go('path='+P[+t.dataset.p].id);
+ else{const card=t.closest('.lm-t')||t.closest('.lm-c');if(card)from=card.getBoundingClientRect();go('topic='+T[+t.dataset.t].slug)}});
+root.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role=button]')){e.preventDefault();
+  if(e.target.matches('.lm-c')){if(!e.target.classList.contains('me'))focusT(+e.target.dataset.k);else{from=e.target.getBoundingClientRect();go('topic='+T[+e.target.dataset.k].slug)}}
+  else e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}))}
+ else if(e.key==='Escape')focusT(null)});
+['mouseover','focusin'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g)focusT(+g.dataset.k);else if(ev==='focusin'&&e.target.matches('.lm-c:focus-visible'))focusT(+e.target.dataset.k)}));
+['mouseout','focusout'].forEach(ev=>root.addEventListener(ev,e=>{const g=e.target.closest('#lm-ov .lm-t');if(g&&!(e.relatedTarget&&g.contains(e.relatedTarget)))focusT(null)}));
 // search over titles
 const q=$('#lm-q'),sug=$('#lm-sug');let hits=[],hi=0;
 function drawSug(){sug.hidden=!hits.length;sug.innerHTML=hits.map((i,r)=>`<li><button class="${r===hi?'on':''}" data-p="${i}">${esc(P[i].t)} <span class="lm-m" style="color:var(--mute)">${esc(T[P[i].c].n)}</span></button></li>`).join('')}
@@ -765,22 +1119,31 @@ D.OV=view.innerHTML;route()})();
 
 def section(url, kb=None):
     """the learning map block for the home page"""
-    P, T, views, ov_svg, ov_list, _, _ = build(url, kb)
+    P, T, views, ov_svg, ov_list, note, _ = build(url, kb)
     data = {"P": P, "T": T, "V": {"topic": views["topic"], "path": views["path"]}}
     js_data = json.dumps(data, separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
     leg = "".join(f'<span><i style="background:var(--s{k})"></i>{html.escape(s)}</span>' for k, s in enumerate(SECTIONS))
     npages, nedges = len(P), sum(len(p["pre"]) for p in P)
-    key = ('<div class="lm-ovkey"><span><svg width="34" height="16" aria-hidden="true"><rect class="lm-span s0" x="1" y="2" width="32" height="12" rx="4"/>'
-           '<text class="lm-cnt" x="17" y="12" text-anchor="middle">3</text></svg>pages of the topic in that stage</span>'
-           '<span><svg width="18" height="18" aria-hidden="true"><circle class="lm-root" cx="9" cy="9" r="7.5"/></svg>its root page, when it comes later</span></div>')
-    return f"""<section id="lm" class="lm" data-pagefind-ignore>
+    nst = len(T[0]["st"])
+    cells = "".join(f'<rect class="lm-cell{" z" if not c else ""}" x="{1 + g * 17}" y="2" width="14" height="14" rx="3"/>'
+                    + (f'<text class="lm-cnt" x="{8 + g * 17}" y="13" text-anchor="middle">{c}</text>' if c else "")
+                    for g, c in enumerate([3, 4, 1] + [0] * (nst - 3)))
+    share = f"{round(STRONG * 100)}%" if abs(STRONG - 1 / 3) > 1e-9 else "a third"
+    key = (f'<div class="lm-ovkey"><span><svg class="s0" width="{2 + nst * 17}" height="18" aria-hidden="true">{cells}</svg>'
+           f'pages in stages 1 to {nst} (stage: a page\'s longest chain of prerequisites)</span>'
+           '<span class="ln"><svg width="34" height="14" aria-hidden="true"><path class="lm-se" d="M2 7H32" stroke-width="5"/></svg>'
+           f'at least {share} of the lower topic\'s pages build on the upper one; thicker, more of them</span>'
+           '<span class="ln"><svg width="34" height="14" aria-hidden="true"><path class="lm-we" style="opacity:.9" d="M2 7H32"/></svg>'
+           'a few pages (under that share), shown when a topic is focused</span></div>')
+    return f"""<section id="lm" class="lm ov" data-pagefind-ignore>
 <h2>Learning map</h2>
 <p class="lm-sub">The order to study in, from each page's strict prerequisites ({npages} pages, {nedges} links). A page's stage is its longest chain of prerequisites: stage 1 needs nothing, and every page needs only pages in earlier stages.</p>
 <div class="lm-bar0"><div class="lm-qw"><input id="lm-q" type="search" placeholder="Path to a page: type a title, e.g. FlashAttention" aria-label="Path to a page" autocomplete="off"><ul id="lm-sug" class="lm-sug" hidden></ul></div></div>
 <div class="lm-leg">{leg}</div>
-<div class="lm-head" id="lm-head"><b>All topics</b><span>Pick a topic to see its pages in order</span></div>
-<div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div>{key}<p class="lm-cap">Each bar runs from the stage where a topic's first pages can be read to the stage of its deepest page, so you see when you can start it and how far it goes. Hover a topic to light up the topics its pages build on; click it for its pages in order.</p></div>
+<div class="lm-head" id="lm-head"><b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span></div>
+<div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div></div>
 <div class="lm-list"><div id="lm-ovl">{ov_list}</div><div id="lm-plist"></div></div>
+<div id="lm-ovcap">{key}<p class="lm-cap">Topics in study order, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), and a solid line joins them, thicker when more of its pages do; topics with no such link either way are in the last band and can be read at any time. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></div>
 <div class="lm-path" id="lm-path" hidden></div>
 <script type="application/json" id="lm-data">{js_data}</script>
 <script>{JS}</script>
