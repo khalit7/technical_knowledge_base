@@ -1,0 +1,169 @@
+<section id="je-s2"><h2>2. Node essentials: files, the process, streams, fetch, workers</h2>
+<p>Node's standard library is imported with a <code>node:</code> prefix. Five modules cover most scripts and services: <code>node:fs/promises</code> (files), <code>node:path</code> and <code>node:os</code>, <code>node:process</code> (also a global), <code>node:http</code> plus the global <code>fetch</code>, and <code>node:worker_threads</code>. A <code>Buffer</code> (or <code>Uint8Array</code>) is Python's <code>bytes</code>. Every call that waits returns a promise, so each section of a script is an <code>await</code>, and the thread is free meanwhile.</p>
+
+<h3>Files and the process</h3>
+<p><code>node:fs/promises</code> has the async file API (open, read, write, stat, readdir, mkdir, rm); a missing file rejects with an error whose <code>code</code> is <code>"ENOENT"</code>, as Python's <code>FileNotFoundError</code> carries <code>errno</code>. <code>process.argv</code> is <code>sys.argv</code> with two leading entries (the node binary and the script), so <code>sys.argv[1:]</code> is <code>slice(2)</code>; <code>process.env</code> is <code>os.environ</code> (a missing variable is <code>undefined</code>); <code>node:util</code>'s <code>parseArgs</code> is a small <code>argparse</code>. Prefer setting <code>process.exitCode</code> to calling <code>process.exit()</code>, which kills pending output and timers.</p>
+<div class="je-snip"><div class="je-olab">real output of k1_fs.mjs, Node 24.21.0: two files written and read back, then a missing one</div><pre class="je-out" data-je-src="k1_fs.txt">[ 'u1', 'u2' ] 61 bytes
+[ 'a.jsonl' ]
+ENOENT open true</pre><details class="je-more"><summary>The script: k1_fs.mjs</summary><div class="je-file">k1_fs.mjs</div><pre class="je-code"><span class="cm">// node:fs/promises: the async file API (open, read, write, stat, readdir, mkdir, rm), with node:path and node:os.</span>
+<span class="kw">import</span> &#123; mkdtemp, writeFile, readFile, readdir, stat, rm, appendFile &#125; <span class="kw">from</span> <span class="st">"node:fs/promises"</span>;
+<span class="kw">import</span> &#123; join &#125; <span class="kw">from</span> <span class="st">"node:path"</span>;
+<span class="kw">import</span> &#123; tmpdir &#125; <span class="kw">from</span> <span class="st">"node:os"</span>;
+<span class="kw">const</span> dir = <span class="kw">await</span> mkdtemp(join(tmpdir(), <span class="st">"ja-"</span>));
+<span class="kw">await</span> writeFile(join(dir, <span class="st">"a.jsonl"</span>), <span class="st">'&#123;"user":"u1","text":"hi"&#125;\n'</span>);
+<span class="kw">await</span> appendFile(join(dir, <span class="st">"a.jsonl"</span>), <span class="st">'&#123;"user":"u2","text":"hello there"&#125;\n'</span>);
+<span class="kw">const</span> text = <span class="kw">await</span> readFile(join(dir, <span class="st">"a.jsonl"</span>), <span class="st">"utf8"</span>);          <span class="cm">// without "utf8" you get a Buffer of bytes</span>
+console.log(text.trim().split(<span class="st">"\n"</span>).map(l =&gt; JSON.parse(l).user), (<span class="kw">await</span> stat(join(dir, <span class="st">"a.jsonl"</span>))).size, <span class="st">"bytes"</span>);
+console.log(<span class="kw">await</span> readdir(dir));
+<span class="kw">try</span> &#123; <span class="kw">await</span> readFile(join(dir, <span class="st">"missing.txt"</span>)); &#125;
+<span class="kw">catch</span> (e) &#123; console.log(e.code, e.syscall, e <span class="kw">instanceof</span> Error); &#125;   <span class="cm">// errors carry a code: test e.code, not the message</span>
+<span class="kw">await</span> rm(dir, &#123; recursive: <span class="kw">true</span> &#125;);</pre></details></div>
+<div class="je-snip"><div class="je-olab">real output of k2_process.mjs chat.jsonl -k 3 --verbose, Node 24.21.0</div><pre class="je-out" data-je-src="k2_process.txt">[ 'chat.jsonl', '-k', '3', '--verbose' ]
+HOME is set undefined
+[Object: null prototype] &#123; top: '3', verbose: true &#125; [ 'chat.jsonl' ]
+a warning goes to stderr
+[exit code 2]</pre><details class="je-more"><summary>The script: k2_process.mjs</summary><div class="je-file">k2_process.mjs</div><pre class="je-code"><span class="cm">// process: the running program. argv, env, cwd, exit codes, stdout and stderr.</span>
+console.log(process.argv.slice(2));                    <span class="cm">// argv[0] is node, argv[1] the script: sys.argv[1:] is slice(2)</span>
+console.log(process.env.HOME ? <span class="st">"HOME is set"</span> : <span class="st">"no HOME"</span>, process.env.NO_SUCH_VAR);   <span class="cm">// missing env vars are undefined</span>
+<span class="kw">import</span> &#123; parseArgs &#125; <span class="kw">from</span> <span class="st">"node:util"</span>;                  <span class="cm">// a small built-in argparse</span>
+<span class="kw">const</span> &#123; values, positionals &#125; = parseArgs(&#123; args: process.argv.slice(2), allowPositionals: <span class="kw">true</span>,
+  options: &#123; top: &#123; type: <span class="st">"string"</span>, short: <span class="st">"k"</span>, <span class="kw">default</span>: <span class="st">"5"</span> &#125;, verbose: &#123; type: <span class="st">"boolean"</span> &#125; &#125; &#125;);
+console.log(values, positionals);
+process.stderr.write(<span class="st">"a warning goes to stderr\n"</span>);
+process.exitCode = 2;                                   <span class="cm">// set the exit code and let the program finish normally</span></pre></details></div>
+
+<h3>The running program, streamed</h3>
+<p>The root page's running example counts tokens per user in a JSONL chat log ({{Topic: programming-languages, Rosetta tab|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). Here it is in plain JavaScript: <code>createReadStream</code> plus <code>readline</code> yields one line at a time through <code>for await</code>, the Node equivalent of Python's <code>for line in open(path)</code>. Its output is byte-identical to the spec's expected output. The root's TypeScript version is this file plus types, which the TypeScript page starts from.</p>
+<div class="je-snip"><div class="je-olab">real output, Node 24.21.0: the root's 2,000-line chat.jsonl, then a missing file</div><pre class="je-out" data-je-src="k3_count_tokens.txt">lines 2000  ok 1992  malformed 8 (first at line 53)
+users 176  tokens 44698
+top 5 users by tokens:
+ 1. u0029  9491
+ 2. u0005  4816
+ 3. u0042  3499
+ 4. u0169  2291
+ 5. u0121  1401
+error: cannot open nope.jsonl: ENOENT
+[exit code 1]</pre><details class="je-more"><summary>The script: k3_count_tokens.mjs</summary><div class="je-file">k3_count_tokens.mjs</div><pre class="je-code"><span class="cm">// The root page's running program (count tokens per user in a JSONL chat log, print the top 5), in plain JavaScript.</span>
+<span class="cm">// It streams the file line by line, so memory stays flat whatever the file size. Part 2 adds the types.</span>
+<span class="kw">import</span> &#123; createReadStream &#125; <span class="kw">from</span> <span class="st">"node:fs"</span>;
+<span class="kw">import</span> &#123; createInterface &#125; <span class="kw">from</span> <span class="st">"node:readline"</span>;
+
+<span class="kw">const</span> isMessage = v =&gt; <span class="kw">typeof</span> v === <span class="st">"object"</span> &amp;&amp; v !== <span class="kw">null</span> &amp;&amp; !Array.isArray(v)
+  &amp;&amp; <span class="kw">typeof</span> v.user === <span class="st">"string"</span> &amp;&amp; <span class="kw">typeof</span> v.text === <span class="st">"string"</span>;
+<span class="kw">const</span> countTokens = text =&gt; (text.match(/[A-Za-z0-9]+/g) ?? []).length;
+
+<span class="kw">const</span> path = process.argv[2] ?? <span class="st">"chat.jsonl"</span>;
+<span class="kw">const</span> perUser = <span class="kw">new</span> Map();
+<span class="kw">let</span> lines = 0, ok = 0, bad = 0, firstBad = 0;
+<span class="kw">try</span> &#123;
+  <span class="kw">const</span> input = createReadStream(path, &#123; encoding: <span class="st">"utf8"</span> &#125;);
+  <span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> line <span class="kw">of</span> createInterface(&#123; input, crlfDelay: Infinity &#125;)) &#123;
+    lines++;
+    <span class="kw">let</span> rec;
+    <span class="kw">try</span> &#123; rec = JSON.parse(line); &#125; <span class="kw">catch</span> &#123; rec = <span class="kw">undefined</span>; &#125;
+    <span class="kw">if</span> (!isMessage(rec)) &#123; bad++; firstBad ||= lines; <span class="kw">continue</span>; &#125;
+    ok++;
+    perUser.set(rec.user, (perUser.get(rec.user) ?? 0) + countTokens(rec.text));
+  &#125;
+&#125; <span class="kw">catch</span> (e) &#123;
+  console.error(<span class="st">`error: cannot open $&#123;path&#125;: $&#123;e.code&#125;`</span>);
+  process.exit(1);
+&#125;
+<span class="kw">let</span> total = 0;
+<span class="kw">for</span> (<span class="kw">const</span> n <span class="kw">of</span> perUser.values()) total += n;
+<span class="kw">const</span> top = [...perUser].sort((a, b) =&gt; b[1] - a[1] || (a[0] &lt; b[0] ? -1 : a[0] &gt; b[0] ? 1 : 0));
+console.log(<span class="st">`lines $&#123;lines&#125;  ok $&#123;ok&#125;  malformed $&#123;bad&#125; (first at line $&#123;firstBad&#125;)`</span>);
+console.log(<span class="st">`users $&#123;perUser.size&#125;  tokens $&#123;total&#125;`</span>);
+console.log(<span class="st">"top 5 users by tokens:"</span>);
+top.slice(0, 5).forEach(([user, n], i) =&gt; console.log(<span class="st">`$&#123;String(i + 1).padStart(2)&#125;. $&#123;user&#125;  $&#123;n&#125;`</span>));</pre></details></div>
+<div class="je-fig"><h4>Streaming is not a style choice: reading the whole file first costs about five times the memory, for no gain in speed</h4>
+<p class="small">The same program on the root generator's 200,000-line file (38.8 MB).</p>
+<div class="je-bars"><div class="row"><div class="nm">streamed line by line (k3)</div><div class="track"><div class="fill" style="width:20.5%;background:var(--c3)"></div></div><div class="val">71 MB, 0.39 s</div></div><div class="row"><div class="nm">whole file read first (k4)</div><div class="track"><div class="fill" style="width:100.0%;background:var(--bad)"></div></div><div class="val">347 MB, 0.43 s</div></div></div><div class="je-src">Peak resident memory, first of three runs each, on the same 38.8 MB file; the time is the wall time of that run. Drawn from the output below.</div>
+<details class="je-more"><summary>The recorded run: m3_memory.sh (/usr/bin/time -l, three runs each)</summary>
+<div class="je-snip"><div class="je-olab">real output of m3_memory.sh: /usr/bin/time -l, three runs each, Node 24.21.0 (load average printed: the laptop was busy)</div><pre class="je-out" data-je-src="m3_memory.txt">input: 38792775 bytes; load average 5.16 5.27 8.72
+k3_count_tokens run 1: 0.39 s, peak RSS 71 MB
+k3_count_tokens run 2: 0.41 s, peak RSS 71 MB
+k3_count_tokens run 3: 0.39 s, peak RSS 71 MB
+k4_whole run 1: 0.43 s, peak RSS 347 MB
+k4_whole run 2: 0.39 s, peak RSS 347 MB
+k4_whole run 3: 0.40 s, peak RSS 347 MB
+k3 output on the big file:
+lines 200000  ok 199992  malformed 8 (first at line 6685)
+users 200  tokens 4413871
+top 5 users by tokens:
+ 1. u0029  939855
+ 2. u0005  433400
+ 3. u0042  279373
+ 4. u0169  204481
+ 5. u0082  159042</pre></div>
+<div class="je-snip"><div class="je-file">k4_whole.mjs</div><pre class="je-code"><span class="cm">// The same count, but reading the whole file into one string first (the mistake everyone makes once).</span>
+<span class="kw">import</span> &#123; readFile &#125; <span class="kw">from</span> <span class="st">"node:fs/promises"</span>;
+<span class="kw">const</span> text = <span class="kw">await</span> readFile(process.argv[2], <span class="st">"utf8"</span>);
+<span class="kw">const</span> perUser = <span class="kw">new</span> Map(); <span class="kw">let</span> ok = 0;
+<span class="kw">for</span> (<span class="kw">const</span> line <span class="kw">of</span> text.split(<span class="st">"\n"</span>)) &#123;
+  <span class="kw">if</span> (!line) <span class="kw">continue</span>;
+  <span class="kw">let</span> rec; <span class="kw">try</span> &#123; rec = JSON.parse(line); &#125; <span class="kw">catch</span> &#123; <span class="kw">continue</span>; &#125;
+  <span class="kw">if</span> (<span class="kw">typeof</span> rec?.user !== <span class="st">"string"</span> || <span class="kw">typeof</span> rec?.text !== <span class="st">"string"</span>) <span class="kw">continue</span>;
+  ok++; perUser.set(rec.user, (perUser.get(rec.user) ?? 0) + (rec.text.match(/[A-Za-z0-9]+/g) ?? []).length);
+&#125;
+console.log(<span class="st">`ok $&#123;ok&#125;  users $&#123;perUser.size&#125;`</span>);</pre></div>
+</details>
+</div>
+
+<h3>HTTP and fetch</h3>
+<p><code>fetch</code> is built in (stable since Node 21) and is the same API as in browsers: <code>await fetch(url, { method, headers, body, signal })</code>, then <code>await res.json()</code> or <code>res.text()</code> or <code>res.body</code> (a stream). An HTTP error status does <b>not</b> throw; only a network failure does. Check <code>res.ok</code> (Python's <code>requests</code> does not raise either, unless you call <code>raise_for_status()</code>). A local server stands in for a JSON API:</p>
+<div class="je-snip"><div class="je-olab">real output of k5_fetch.mjs, Node 24.21.0: a 200, a 503 that did not throw, a refused connection that did</div><pre class="je-out" data-je-src="k5_fetch.txt">200 true application/json
+&#123;"echo":&#123;"model":"small","messages":[&#123;"role":"user","content":"hi"&#125;]&#125;,"method":"POST"&#125;
+503 false overloaded
+TypeError fetch failed | cause: ECONNREFUSED</pre><details class="je-more"><summary>The script: k5_fetch.mjs</summary><div class="je-file">k5_fetch.mjs</div><pre class="je-code"><span class="cm">// fetch is built in (Node 18+): the same API as in browsers. A local server stands in for a JSON API.</span>
+<span class="kw">import</span> &#123; createServer &#125; <span class="kw">from</span> <span class="st">"node:http"</span>;
+<span class="kw">const</span> server = createServer((req, res) =&gt; &#123;
+  <span class="kw">let</span> body = <span class="st">""</span>;
+  req.on(<span class="st">"data"</span>, c =&gt; body += c).on(<span class="st">"end"</span>, () =&gt; &#123;
+    <span class="kw">if</span> (req.url === <span class="st">"/fail"</span>) &#123; res.writeHead(503).end(<span class="st">"overloaded"</span>); <span class="kw">return</span>; &#125;
+    res.writeHead(200, &#123; <span class="st">"content-type"</span>: <span class="st">"application/json"</span> &#125;).end(JSON.stringify(&#123; echo: JSON.parse(body || <span class="st">"&#123;&#125;"</span>), method: req.method &#125;));
+  &#125;);
+&#125;).listen(0);
+<span class="kw">const</span> base = <span class="st">`http://127.0.0.1:$&#123;server.address().port&#125;`</span>;
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="st">`$&#123;base&#125;/v1/chat`</span>, &#123;
+  method: <span class="st">"POST"</span>, headers: &#123; <span class="st">"content-type"</span>: <span class="st">"application/json"</span> &#125;,
+  body: JSON.stringify(&#123; model: <span class="st">"small"</span>, messages: [&#123; role: <span class="st">"user"</span>, content: <span class="st">"hi"</span> &#125;] &#125;),
+&#125;);
+console.log(res.status, res.ok, res.headers.get(<span class="st">"content-type"</span>));
+console.log(JSON.stringify(<span class="kw">await</span> res.json()));
+<span class="kw">const</span> bad = <span class="kw">await</span> fetch(<span class="st">`$&#123;base&#125;/fail`</span>);           <span class="cm">// an HTTP error status does NOT throw: check res.ok yourself</span>
+console.log(bad.status, bad.ok, <span class="kw">await</span> bad.text());
+server.close();
+<span class="kw">const</span> gone = createServer().listen(0), port = gone.address().port; gone.close();   <span class="cm">// a port nobody listens on</span>
+<span class="kw">try</span> &#123; <span class="kw">await</span> fetch(<span class="st">`http://127.0.0.1:$&#123;port&#125;/v1/chat`</span>); &#125;   <span class="cm">// only network failures throw</span>
+<span class="kw">catch</span> (e) &#123; console.log(e.name, e.message, <span class="st">"| cause:"</span>, e.cause?.code); &#125;</pre></details></div>
+
+<h3>Worker threads: CPU work off the event loop</h3>
+<p>One thread means CPU-heavy work (parsing a huge JSON, hashing, tokenising a corpus) stops everything else: timers, requests, streams. A <b>worker thread</b> is a second V8 instance on another OS thread with its own event loop; it shares nothing by default and talks by messages (<code>postMessage</code>, copied with the structured clone algorithm), or shares memory explicitly through a <code>SharedArrayBuffer</code> with <code>Atomics</code>. It is closer to Python's <code>multiprocessing</code> than to <code>threading</code>, but cheaper to start. Below, a 10 ms heartbeat timer measures how long the event loop was stuck while the same prime count ran on the main thread, then in a worker.</p>
+<div class="je-fig"><h4>The same 0.4 s of CPU work: on the main thread the timer waited 438 ms; in a worker, never more than 14 ms</h4>
+<div class="je-bars"><div class="row"><div class="nm">on the main thread</div><div class="track"><div class="fill" style="width:100.0%;background:var(--bad)"></div></div><div class="val">438 ms worst gap, 3 beats</div></div><div class="row"><div class="nm">in a worker thread</div><div class="track"><div class="fill" style="width:3.2%;background:var(--c3)"></div></div><div class="val">14 ms worst gap, 45 beats</div></div></div><div class="je-src">The longest time the 10 ms heartbeat timer had to wait, while the same prime count (result 216816) ran. Drawn from the output below.</div>
+<details class="je-more"><summary>The recorded run and the script: k6_workers.mjs</summary>
+<div class="je-snip"><div class="je-olab">real output, Node 24.21.0</div><pre class="je-out" data-je-src="k6_workers.txt">on the main thread:      result 216816  took 439 ms  heartbeats 3  worst gap 438 ms
+in a worker thread:      result 216816  took 504 ms  heartbeats 45  worst gap 14 ms</pre></div>
+<div class="je-snip"><div class="je-file">k6_workers.mjs</div><pre class="je-code"><span class="cm">// CPU work blocks the event loop; a worker thread runs it on another core. A 10 ms heartbeat timer shows the difference.</span>
+<span class="kw">import</span> &#123; Worker &#125; <span class="kw">from</span> <span class="st">"node:worker_threads"</span>;
+<span class="kw">function</span> primes(n) &#123; <span class="kw">let</span> c = 0; <span class="kw">for</span> (<span class="kw">let</span> i = 2; i &lt; n; i++) &#123; <span class="kw">let</span> p = <span class="kw">true</span>; <span class="kw">for</span> (<span class="kw">let</span> j = 2; j * j &lt;= i; j++) <span class="kw">if</span> (i % j === 0) &#123; p = <span class="kw">false</span>; <span class="kw">break</span>; &#125; <span class="kw">if</span> (p) c++; &#125; <span class="kw">return</span> c; &#125;
+<span class="kw">async</span> <span class="kw">function</span> heartbeat(label, work) &#123;
+  <span class="kw">let</span> last = performance.now(), worst = 0, beats = 0;
+  <span class="kw">const</span> t = setInterval(() =&gt; &#123; <span class="kw">const</span> now = performance.now(); worst = Math.max(worst, now - last); last = now; beats++; &#125;, 10);
+  <span class="kw">const</span> t0 = performance.now(); <span class="kw">const</span> result = <span class="kw">await</span> work();
+  <span class="kw">await</span> <span class="kw">new</span> Promise(r =&gt; setTimeout(r, 30)); clearInterval(t);
+  console.log(<span class="st">`$&#123;label.padEnd(24)&#125; result $&#123;result&#125;  took $&#123;Math.round(performance.now() - t0 - 30)&#125; ms  heartbeats $&#123;beats&#125;  worst gap $&#123;Math.round(worst)&#125; ms`</span>);
+&#125;
+<span class="kw">const</span> N = 3_000_000;
+<span class="kw">await</span> heartbeat(<span class="st">"on the main thread:"</span>, <span class="kw">async</span> () =&gt; primes(N));
+<span class="kw">await</span> heartbeat(<span class="st">"in a worker thread:"</span>, () =&gt; <span class="kw">new</span> Promise((ok, fail) =&gt; &#123;
+  <span class="kw">const</span> w = <span class="kw">new</span> Worker(<span class="st">`const &#123; parentPort, workerData &#125; = require("node:worker_threads");</span>
+<span class="st">    $&#123;primes.toString()&#125;</span>
+<span class="st">    parentPort.postMessage(primes(workerData));`</span>, &#123; eval: <span class="kw">true</span>, workerData: N &#125;);
+  w.once(<span class="st">"message"</span>, ok); w.once(<span class="st">"error"</span>, fail);
+&#125;));</pre></div>
+</details>
+</div>
+<p class="small">Why the loop freezes, step by step, and the same work as four schedules (sequential, <code>Promise.all</code>, a busy loop, a worker) is on {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}, section 3. The root page's {{Reading, Concurrency section|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows workers losing updates on a shared counter without <code>Atomics</code> and getting it exact with them.</p>
+</section>

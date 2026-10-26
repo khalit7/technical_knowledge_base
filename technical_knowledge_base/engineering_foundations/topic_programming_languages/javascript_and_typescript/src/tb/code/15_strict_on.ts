@@ -1,5 +1,0 @@
-// run: no
-function shout(s) { return s.toUpperCase(); }
-const names: string[] = ["ana"];
-const found: string = names.find(n => n === "bob");
-console.log(shout("hi"), found.length);

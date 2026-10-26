@@ -1,11 +1,14 @@
-# JavaScript and TypeScript: the runtime, the type system, LLM apps and agents
+# JavaScript and TypeScript: the essentials
 
 Notion: https://app.notion.com/p/3cd5c17b0d0d81dbac7be3b8686be023 (child of Topic: programming-languages)
 Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/javascript_and_typescript/
 
-Interactive page: `index.html`, built from `src/` (`sh src/build.sh`). One page with a part bar (Start here, Part 1, Part 2, Part 3); each part has its own tabs, and each part's sources, real runs and checks live in its own `src/<part>/` folder (see its README).
-- Part 1 "JavaScript and its runtime" (`src/ja/`, tabs Reading, Event-loop stepper, JS playground): JavaScript from zero, the event loop, promises, SSE streams, Node, packages, Bun and Deno, V8; the playground runs code live in a Web Worker where the host allows.
-- Part 2 "TypeScript" (`src/tb/`, tabs Reading, Narrowing stepper, Will it type-check?, LLM JSON lab): every error from tsc 7.0.2; zod for model output; the root's count_tokens typed.
-- Part 3 "LLM apps and agents" (`src/tl/`, tabs Reading, Agent loop stepper, MCP message flow): Anthropic and OpenAI SDKs, agent loops, structured output, Vercel AI SDK, Claude Agent SDK, MCP server and client, serving. No API key used: model answers come from a local mock (`src/tl/code/mock_model.ts`), labelled synthetic.
-- Start here (`src/parts/20_tab_start.html`): the map, three routes, five measured findings.
-All runs on an Apple M1 Pro, 2026-10-05. npm runs with an empty npmrc in the scratchpad. Replaces the old written pages "JavaScript: zero to expert" (this Notion page, retitled) and "TypeScript: zero to expert" (marked TO DELETE); their claims are checked in each part's `coverage.json`. No child pages, databases or video.
+Interactive page: `index.html`, built from `src/` (`python3 src/ja/gen.py && sh src/build.sh`). Tabs Reading and Further reading. What every reader of the JavaScript and TypeScript pages needs first: one thread around an event loop, types erased before anything runs, Node's standard library, packages and the runtime choice (Node, npm and pnpm, Bun, Deno in one table), the traps that cut across the language, and the map of the four child pages. Reading: 17 min, plus 11 in closed details. Rebuilt 2026-10-26 from the old three-part page; `src/README.md` says how and what moved.
+
+Child pages (folders inside this one):
+- `the_language_for_python_programmers/`: JavaScript: values, objects, functions and modules for Python programmers.
+- `event_loop_promises_and_streams/`: JavaScript: the event loop, promises and streams.
+- `typescript/`: TypeScript: the type system, narrowing and runtime validation.
+- `llm_apps_and_agents/`: TypeScript: LLM apps and agents.
+
+All runs on an Apple M1 Pro, 2026-10-05. Replaces the old written pages "JavaScript: zero to expert" (this Notion page, retitled) and "TypeScript: zero to expert" (marked TO DELETE). No video.

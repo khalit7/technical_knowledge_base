@@ -1,0 +1,35 @@
+<section id="je-s2"><h2>2. Node essentials: files, the process, streams, fetch, workers</h2>
+<p>Node's standard library is imported with a <code>node:</code> prefix. Five modules cover most scripts and services: <code>node:fs/promises</code> (files), <code>node:path</code> and <code>node:os</code>, <code>node:process</code> (also a global), <code>node:http</code> plus the global <code>fetch</code>, and <code>node:worker_threads</code>. A <code>Buffer</code> (or <code>Uint8Array</code>) is Python's <code>bytes</code>. Every call that waits returns a promise, so each section of a script is an <code>await</code>, and the thread is free meanwhile.</p>
+
+<h3>Files and the process</h3>
+<p><code>node:fs/promises</code> has the async file API (open, read, write, stat, readdir, mkdir, rm); a missing file rejects with an error whose <code>code</code> is <code>"ENOENT"</code>, as Python's <code>FileNotFoundError</code> carries <code>errno</code>. <code>process.argv</code> is <code>sys.argv</code> with two leading entries (the node binary and the script), so <code>sys.argv[1:]</code> is <code>slice(2)</code>; <code>process.env</code> is <code>os.environ</code> (a missing variable is <code>undefined</code>); <code>node:util</code>'s <code>parseArgs</code> is a small <code>argparse</code>. Prefer setting <code>process.exitCode</code> to calling <code>process.exit()</code>, which kills pending output and timers.</p>
+[[outc:k1_fs|real output of k1_fs.mjs, Node 24.21.0: two files written and read back, then a missing one]]
+[[outc:k2_process|real output of k2_process.mjs chat.jsonl -k 3 --verbose, Node 24.21.0]]
+
+<h3>The running program, streamed</h3>
+<p>The root page's running example counts tokens per user in a JSONL chat log ({{Topic: programming-languages, Rosetta tab|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). Here it is in plain JavaScript: <code>createReadStream</code> plus <code>readline</code> yields one line at a time through <code>for await</code>, the Node equivalent of Python's <code>for line in open(path)</code>. Its output is byte-identical to the spec's expected output. The root's TypeScript version is this file plus types, which the TypeScript page starts from.</p>
+[[outc:k3_count_tokens|real output, Node 24.21.0: the root's 2,000-line chat.jsonl, then a missing file]]
+<div class="je-fig"><h4>Streaming is not a style choice: reading the whole file first costs about five times the memory, for no gain in speed</h4>
+<p class="small">The same program on the root generator's 200,000-line file (38.8 MB).</p>
+[[gen:memory]]
+<details class="je-more"><summary>The recorded run: m3_memory.sh (/usr/bin/time -l, three runs each)</summary>
+[[out:m3_memory|real output of m3_memory.sh: /usr/bin/time -l, three runs each, Node 24.21.0 (load average printed: the laptop was busy)]]
+[[code:k4_whole]]
+</details>
+</div>
+
+<h3>HTTP and fetch</h3>
+<p><code>fetch</code> is built in (stable since Node 21) and is the same API as in browsers: <code>await fetch(url, { method, headers, body, signal })</code>, then <code>await res.json()</code> or <code>res.text()</code> or <code>res.body</code> (a stream). An HTTP error status does <b>not</b> throw; only a network failure does. Check <code>res.ok</code> (Python's <code>requests</code> does not raise either, unless you call <code>raise_for_status()</code>). A local server stands in for a JSON API:</p>
+[[outc:k5_fetch|real output of k5_fetch.mjs, Node 24.21.0: a 200, a 503 that did not throw, a refused connection that did]]
+
+<h3>Worker threads: CPU work off the event loop</h3>
+<p>One thread means CPU-heavy work (parsing a huge JSON, hashing, tokenising a corpus) stops everything else: timers, requests, streams. A <b>worker thread</b> is a second V8 instance on another OS thread with its own event loop; it shares nothing by default and talks by messages (<code>postMessage</code>, copied with the structured clone algorithm), or shares memory explicitly through a <code>SharedArrayBuffer</code> with <code>Atomics</code>. It is closer to Python's <code>multiprocessing</code> than to <code>threading</code>, but cheaper to start. Below, a 10 ms heartbeat timer measures how long the event loop was stuck while the same prime count ran on the main thread, then in a worker.</p>
+<div class="je-fig"><h4>The same 0.4 s of CPU work: on the main thread the timer waited 438 ms; in a worker, never more than 14 ms</h4>
+[[gen:heartbeat]]
+<details class="je-more"><summary>The recorded run and the script: k6_workers.mjs</summary>
+[[out:k6_workers|real output, Node 24.21.0]]
+[[code:k6_workers]]
+</details>
+</div>
+<p class="small">Why the loop freezes, step by step, and the same work as four schedules (sequential, <code>Promise.all</code>, a busy loop, a worker) is on {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}, section 3. The root page's {{Reading, Concurrency section|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows workers losing updates on a shared counter without <code>Atomics</code> and getting it exact with them.</p>
+</section>

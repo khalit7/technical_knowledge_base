@@ -1,0 +1,51 @@
+<section id="je-top">
+<p class="core">JavaScript runs your code on <span class="hl">one thread around an event loop</span>: nothing runs in parallel with your code, every slow operation is started and finishes later as a callback, a promise or an <code>await</code>, and a long loop freezes everything. TypeScript is <span class="hl">a type layer erased before anything runs</span>: it is checked in your editor and CI, then deleted, so what runs is always plain JavaScript.</p>
+<div class="je-fig" id="je-hero"><h4>Types stop at the dashed line; below it, one thread takes one task at a time and the slow work happens outside it</h4>
+<div class="je-hero">
+<div class="je-box"><b><code>count.ts</code></b>JavaScript plus types: <code>function countTokens(text: string): number</code></div>
+<div class="je-arr"><i>&rarr;</i>types erased: stripped by <code>node</code>, Bun or Deno, or compiled by <code>tsc</code></div>
+<div class="je-box"><b><code>count.js</code></b>the same code with no types: <code>function countTokens(text)</code></div>
+<div class="je-arr"><i>&rarr;</i>loaded by a runtime</div>
+<div class="je-box acc"><b>Node, Bun or Deno</b>an engine plus files, sockets, processes and the event loop</div>
+</div>
+<div class="je-cut">run time: only JavaScript exists below this line; <code>tsc</code> checked the types earlier and nothing checks them now</div>
+<div class="je-run">
+<div class="je-eng"><b>The engine, on one thread</b> <span class="small mute">(V8 in Node and Deno, JavaScriptCore in Bun)</span>
+<div class="je-q">
+<div class="s"><b>Call stack</b>your code, one function at a time; while it runs, nothing else does</div>
+<div><b>Microtask queue</b>what runs after an <code>await</code> or in a <code>.then</code>; emptied completely after every task</div>
+<div><b>Task queue</b>timers and finished I/O, one task per turn of the loop</div>
+</div>
+<div class="je-loop"><b>The event loop:</b> run one task to the end, run every microtask, take the next task. A <code>for</code> loop that computes for 0.44 s holds the stack for 0.44 s: no timer, request or stream moves meanwhile (section 2 measures it).</div>
+</div>
+<div class="je-side">
+<div class="je-box"><b>libuv, under Node</b>watches sockets with the operating system's readiness API; files, <code>dns.lookup</code>, some <code>crypto</code> and <code>zlib</code> calls run on its thread pool, 4 threads by default. Results come back as tasks.</div>
+<div class="je-box"><b>Worker threads</b>a second engine with its own loop on another core; shares nothing unless asked, talks by messages. The way to run CPU work without freezing the loop.</div>
+</div>
+</div>
+<p class="small mute">A static map: the queues are drawn as {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}} steps them, and the erasure as {{TypeScript: the type system, narrowing and runtime validation|n:4055c17b0d0d81519278df19753ab5ec}} shows it on a real file; the root's {{Topic: programming-languages, Design space tab, false friend "TypeScript types vanish at run time"|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows it with a real run. libuv's pool size and what uses it: {{libuv: thread pool|https://docs.libuv.org/en/v1.x/threadpool.html}}.</p>
+</div>
+<p><b>You need</b> everyday Python; asyncio helps but is not assumed. Nothing else: this page is where the JavaScript and TypeScript pages start.</p>
+<dl class="terms">
+<dt>runtime</dt><dd>the program that runs JavaScript and gives it files, network and processes (Node, Bun, Deno; a browser is another)</dd>
+<dt>event loop, task, microtask</dt><dd>the loop that feeds the one thread; a task is a timer or finished I/O, a microtask is a promise continuation</dd>
+<dt>libuv</dt><dd>the C library under Node that waits on sockets and runs blocking calls on a small thread pool</dd>
+<dt>type stripping</dt><dd>deleting TypeScript's annotations so the file runs as JavaScript, with no checking</dd>
+<dt>ES module, CommonJS</dt><dd>the standard <code>import</code>/<code>export</code> module system, and Node's older <code>require</code></dd>
+<dt>lockfile</dt><dd><code>package-lock.json</code> (or pnpm's, Bun's): the exact resolved dependency tree, like <code>uv.lock</code></dd>
+<dt>LTS</dt><dd>a long-term support release line of Node</dd>
+</dl>
+</section>
+
+<section id="je-s1"><h2>1. Running JavaScript</h2>
+<p>JavaScript was made for web pages in 1995; <b>Node.js</b> (2009) took Google's <b>V8</b> engine out of the browser and added what a server needs: files, sockets, processes, and an event loop built on the C library libuv. The language itself (ECMAScript) has no files, network or processes: a runtime adds them. In Python terms, Node is both the interpreter (<code>python</code>) and a large standard library. You write a file and run it; there is no compile step.</p>
+[[run:a1_hello]]
+<ul class="tight">
+<li><b>File extensions.</b> <code>.mjs</code> is always an ES module, <code>.cjs</code> always CommonJS; plain <code>.js</code> follows the nearest <code>package.json</code>'s <code>"type"</code> field. Use ES modules for anything new (how the two systems differ and interoperate: {{JavaScript: values, objects, functions and modules for Python programmers|n:4055c17b0d0d810c982ac6ab36f88539}}, section 5).</li>
+<li><b>Interactive.</b> <code>node</code> alone opens a REPL, like <code>python</code>; <code>node -e "console.log(1 + 1)"</code> runs one line; <code>node --watch app.mjs</code> reruns on every save.</li>
+<li><b>Debugging.</b> <code>node --inspect-brk app.mjs</code> pauses on the first line and lets Chrome's DevTools (or VS Code) attach: breakpoints, stepping, the call stack (Python's <code>pdb</code>, with a GUI).</li>
+<li><b>TypeScript.</b> <code>node app.ts</code> strips the types and runs the file; <code>npx tsc --noEmit</code> is what checks them. The TypeScript page covers both.</li>
+<li><b>Which Node.</b> Even-numbered releases become long-term support (LTS). On 2026-10-05, Node 24 is the Active LTS and Node 26 is "Current", due to become LTS on 2026-10-28 ({{Node.js releases|https://nodejs.org/en/about/previous-releases}}); from Node 27 every major release will be LTS, once a year. Install it with a version manager (nvm, fnm, mise) rather than a system package. The root's {{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab has the dated release grid.</li>
+</ul>
+<div class="co"><div class="t">Node or the browser</div>Green boxes are Node's real output, recorded by <code>src/ja/run_all.sh</code>. Your browser also runs JavaScript (V8 in Chrome and Edge, JavaScriptCore in Safari, SpiderMonkey in Firefox): the language behaves the same, but <code>process</code>, <code>fs</code>, <code>setImmediate</code> and <code>process.nextTick</code> are Node's, and the way <code>console.log</code> prints objects differs.</div>
+</section>
