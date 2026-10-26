@@ -1,0 +1,244 @@
+<style>
+#t-read .dm-ex-grp{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin:8px 0 2px}
+#t-read #dm-ex-pick .chips{margin:2px 0 4px}
+#t-read #dm-ex-pick .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read .dm-ex-expr{font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:10px 0 4px;overflow-x:auto;white-space:pre}
+#t-read .dm-ex-expr .d{display:block;font:12.5px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--mute);white-space:normal}
+#t-read ol.dm-ex-steps{list-style:none;padding:0;margin:8px 0}
+#t-read ol.dm-ex-steps li{border:1px solid var(--line);border-left:4px solid var(--good);border-radius:6px;padding:6px 10px;margin:5px 0;font-size:13.5px;transition:opacity .25s}
+#t-read ol.dm-ex-steps li.impl{border-left-color:var(--dim)}
+#t-read ol.dm-ex-steps li.res{border-left-color:var(--acc)}
+#t-read ol.dm-ex-steps li.err{border-left-color:var(--bad)}
+#t-read ol.dm-ex-steps li.fut{opacity:.18}
+#t-read ol.dm-ex-steps li.cur{outline:2px solid var(--acc);outline-offset:1px}
+#t-read ol.dm-ex-steps code.l{display:block;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:2px}
+#t-read ol.dm-ex-steps .tg{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+</style>
+<section id="s1"><h2>1. Syntax becomes method calls on the type</h2>
+<p>The <dfn>data model</dfn> is the chapter of the language reference that says which method Python calls for each piece of syntax ({{Data model|https://docs.python.org/3/reference/datamodel.html}}; the old page called it "the single highest-value document in Python", and it is). You almost never call these <dfn>dunder methods</dfn> yourself; the syntax does.</p>
+<div class="tw"><table class="dm-t">
+<thead><tr><th>You write</th><th>Python calls</th><th>Fallback if it is missing</th></tr></thead>
+<tbody>
+<tr><td><code>len(x)</code></td><td><code>type(x).__len__(x)</code></td><td>TypeError; the result must be an int &ge; 0</td></tr>
+<tr><td><code>bool(x)</code>, <code>if x:</code></td><td><code>__bool__</code></td><td><code>__len__() != 0</code>, else always true</td></tr>
+<tr><td><code>for v in x</code>, <code>list(x)</code></td><td><code>__iter__</code>, then <code>__next__</code> until StopIteration</td><td><code>__getitem__(0)</code>, <code>(1)</code>, ... until IndexError</td></tr>
+<tr><td><code>v in x</code></td><td><code>__contains__</code></td><td>iterate and compare with <code>==</code></td></tr>
+<tr><td><code>x[k]</code>, <code>x[k] = v</code></td><td><code>__getitem__</code>, <code>__setitem__</code></td><td>TypeError</td></tr>
+<tr><td><code>a + b</code></td><td><code>a.__add__(b)</code></td><td>if it returns <code>NotImplemented</code>: <code>b.__radd__(a)</code>, then TypeError</td></tr>
+<tr><td><code>a += b</code></td><td><code>a.__iadd__(b)</code></td><td><code>a = a + b</code></td></tr>
+<tr><td><code>a == b</code></td><td><code>a.__eq__(b)</code></td><td><code>b.__eq__(a)</code>, then identity (<code>a is b</code>)</td></tr>
+<tr><td><code>hash(x)</code>, dict key, set member</td><td><code>__hash__</code></td><td>identity-based hash; set to <code>None</code> (unhashable) if you define <code>__eq__</code> alone</td></tr>
+<tr><td><code>with x as r:</code></td><td><code>__enter__</code>, then <code>__exit__(type, value, tb)</code></td><td>TypeError</td></tr>
+<tr><td><code>x.attr</code></td><td><code>type(x).__getattribute__</code> (descriptors, then <code>x.__dict__</code>, then the class)</td><td><code>__getattr__</code>, then AttributeError</td></tr>
+<tr><td><code>repr(x)</code>, <code>str(x)</code>, <code>f"{x}"</code></td><td><code>__repr__</code> (for developers), <code>__str__</code> (for users), <code>__format__</code></td><td><code>__str__</code> falls back to <code>__repr__</code></td></tr>
+</tbody></table></div>
+<p>A small vector class implements a handful of these, and the built-ins start working. Nothing inherits from anything: Python's polymorphism is by protocol (the methods you have), not by declared parent class.</p>
+<div class="dm-snip"><div class="dm-file">d1_vec.py</div><pre class="dm-code"><span class="kw">class</span> Vec:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, *xs):
+        <span class="kw">self</span>.xs = tuple(xs)
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>):                 <span class="cm"># what the REPL and debuggers show</span>
+        <span class="kw">return</span> <span class="st">f"Vec&#123;self.xs&#125;"</span>
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):                  <span class="cm"># len(v)</span>
+        <span class="kw">return</span> len(<span class="kw">self</span>.xs)
+    <span class="kw">def</span> __iter__(<span class="kw">self</span>):                 <span class="cm"># for, list(), unpacking, sum()</span>
+        <span class="kw">return</span> iter(<span class="kw">self</span>.xs)
+    <span class="kw">def</span> __getitem__(<span class="kw">self</span>, i):           <span class="cm"># v[i], v[1:]</span>
+        <span class="kw">return</span> <span class="kw">self</span>.xs[i]
+    <span class="kw">def</span> __eq__(<span class="kw">self</span>, other):            <span class="cm"># ==</span>
+        <span class="kw">if</span> <span class="kw">not</span> isinstance(other, Vec):
+            <span class="kw">return</span> NotImplemented       <span class="cm"># "I don't know": let Python try the other side</span>
+        <span class="kw">return</span> <span class="kw">self</span>.xs == other.xs
+    <span class="kw">def</span> __hash__(<span class="kw">self</span>):                 <span class="cm"># dict keys, set members; must agree with ==</span>
+        <span class="kw">return</span> hash(<span class="kw">self</span>.xs)
+    <span class="kw">def</span> __add__(<span class="kw">self</span>, other):           <span class="cm"># v + w</span>
+        <span class="kw">if</span> <span class="kw">not</span> isinstance(other, Vec):
+            <span class="kw">return</span> NotImplemented
+        <span class="kw">return</span> Vec(*(a + b <span class="kw">for</span> a, b <span class="kw">in</span> zip(<span class="kw">self</span>.xs, other.xs, strict=<span class="kw">True</span>)))
+    <span class="kw">def</span> __radd__(<span class="kw">self</span>, other):          <span class="cm"># 0 + v, which sum() does first</span>
+        <span class="kw">return</span> <span class="kw">self</span> <span class="kw">if</span> other == 0 <span class="kw">else</span> NotImplemented
+    <span class="kw">def</span> __bool__(<span class="kw">self</span>):                 <span class="cm"># if v:</span>
+        <span class="kw">return</span> any(<span class="kw">self</span>.xs)
+
+v, w = Vec(1, 2), Vec(3, 4)
+print(v + w, len(v), list(v), 2 <span class="kw">in</span> v, v[-1])
+print(sum([v, w, Vec(10, 10)]))
+print(v == Vec(1, 2), len(&#123;v, Vec(1, 2)&#125;), bool(Vec(0, 0)))
+print(v == (1, 2))
+<span class="kw">try</span>:
+    v + 1
+<span class="kw">except</span> TypeError <span class="kw">as</span> e:
+    print(<span class="st">"TypeError:"</span>, e)</pre><div class="dm-olab">real output, Python 3.14.8</div><pre class="dm-out" data-src="d1_vec.txt">Vec(4, 6) 2 [1, 2] True 2
+Vec(14, 16)
+True 1 False
+False
+TypeError: unsupported operand type(s) for +: 'Vec' and 'int'</pre></div>
+<p>The last three lines are the dispatch rules at work. <code>sum()</code> starts from the integer 0, so it first computes <code>0 + Vec(1, 2)</code>; <code>int.__add__</code> does not know Vec and returns <code>NotImplemented</code>, so Python tries the right operand's <code>__radd__</code>. <code>v == (1, 2)</code> is False rather than an error because both sides returned <code>NotImplemented</code> and Python fell back to identity. And <code>v + 1</code> raises TypeError only after both sides declined.</p>
+<div class="co key"><div class="t"><code>NotImplemented</code> is not <code>NotImplementedError</code></div>Returning the singleton <code>NotImplemented</code> means "I do not handle this type; ask the other operand". Raising <code>NotImplementedError</code> means "this abstract method was not written" and stops the dispatch dead. Mixing them up is a common bug in operator methods.</div>
+<h3>Three rules people learn the hard way</h3>
+<ul>
+<li><b>Special methods are looked up on the type, not the instance.</b> "Implicit invocations of special methods are only guaranteed to work correctly if defined on an object's type, not in the object's instance dictionary" ({{Special method lookup|https://docs.python.org/3/reference/datamodel.html#special-method-lookup}}). Setting <code>x.__len__ = ...</code> on one object does nothing for <code>len(x)</code>. This lets CPython skip the instance dict on every operator.</li>
+<li><b>A subclass on the right goes first.</b> "If the operands are of different types, and the right operand's type is a direct or indirect subclass of the left operand's type, the reflected method of the right operand has priority" (same page). So a subclass can override how it combines with its parent from either side.</li>
+<li><b><code>__eq__</code> and <code>__hash__</code> travel together.</b> "A class that overrides <code>__eq__()</code> and does not define <code>__hash__()</code> will have its <code>__hash__()</code> implicitly set to None" (same page). Objects that compare equal must have equal hashes, and a hash must not change while the object is in a dict or set; that is why mutable built-ins are unhashable and why a dict key should be immutable.</li>
+</ul>
+<p>Predict both before revealing: the first class defines nothing, the second only <code>__eq__</code>.</p>
+<div class="dm-snip dm-pred"><div class="dm-file">== without __eq__</div><pre class="dm-code"><span class="kw">class</span> P:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, x): <span class="kw">self</span>.x = x
+print(P(1) == P(1), len(&#123;P(1), P(1)&#125;))</pre><details><summary>Predict the output, then reveal</summary><div class="dm-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="dm-out">False 2</pre></details></div>
+<div class="dm-snip dm-pred"><div class="dm-file">__eq__ without __hash__</div><pre class="dm-code"><span class="kw">class</span> P:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, x): <span class="kw">self</span>.x = x
+    <span class="kw">def</span> __eq__(<span class="kw">self</span>, o): <span class="kw">return</span> <span class="kw">self</span>.x == o.x
+print(&#123;P(1)&#125;)</pre><details><summary>Predict the output, then reveal</summary><div class="dm-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="dm-out">TypeError: cannot use 'P' as a set element (unhashable type: 'P')</pre></details></div>
+<p>Without <code>__eq__</code>, <code>==</code> falls back to identity, so two equal-looking objects are different set members. With <code>__eq__</code> alone, the class loses its hash.</p>
+
+<div class="dm-anim" id="dm-ex-card">
+<h4>Data model explorer: which method does Python call, in what order?</h4>
+<p class="small">Pick an expression, then step. Green rows logged themselves in a real run of <code>code/d2_dispatch.py</code>; grey rows happen inside C. Scenarios come in pairs that differ in one detail: predict the second of each pair before stepping it.</p>
+<div id="dm-ex-pick"></div>
+<div class="dm-ex-expr" id="dm-ex-expr"></div>
+<div class="dm-ctl" id="dm-ex-ctl"></div>
+<ol class="dm-ex-steps" id="dm-ex-steps"></ol>
+<div class="dm-cap" id="dm-ex-rule"></div>
+</div>
+<details class="dp"><summary>The full script that produced every trace <span class="mute">(d2_dispatch.py)</span></summary><div class="b">
+<div class="dm-snip"><div class="dm-file">d2_dispatch.py</div><pre class="dm-code">"""Run each data-model scenario and record which special methods Python called, in order.
+The Data model tab replays these traces; everything in them is printed by real calls."""
+<span class="kw">import</span> json, sys
+
+LOG = []
+<span class="kw">def</span> log(msg):
+    LOG.append(msg)
+
+<span class="kw">def</span> scenario(fn):
+    LOG.clear()
+    <span class="kw">try</span>:
+        r = fn()
+        LOG.append(<span class="st">f"result: &#123;r!r&#125;"</span>)
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        LOG.append(<span class="st">f"raises &#123;type(e).__name__&#125;: &#123;e&#125;"</span>)
+    <span class="kw">return</span> list(LOG)
+
+out = &#123;&#125;
+
+<span class="cm"># 1. a + b, both A, A.__add__ handles it</span>
+<span class="kw">class</span> A:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, n): <span class="kw">self</span>.n = n
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>): <span class="kw">return</span> <span class="st">f"&#123;type(self).__name__&#125;(&#123;self.n&#125;)"</span>
+    <span class="kw">def</span> __add__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call &#123;type(self).__name__&#125;.__add__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">if</span> <span class="kw">not</span> isinstance(o, A): log(<span class="st">"  -&gt; NotImplemented"</span>); <span class="kw">return</span> NotImplemented
+        <span class="kw">return</span> A(<span class="kw">self</span>.n + o.n)
+    <span class="kw">def</span> __radd__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call &#123;type(self).__name__&#125;.__radd__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">if</span> isinstance(o, int): <span class="kw">return</span> type(<span class="kw">self</span>)(<span class="kw">self</span>.n + o)
+        log(<span class="st">"  -&gt; NotImplemented"</span>); <span class="kw">return</span> NotImplemented
+out[<span class="st">"add_same"</span>] = scenario(<span class="kw">lambda</span>: A(1) + A(2))
+<span class="cm"># 2. left side gives up: int + A</span>
+out[<span class="st">"add_reflected"</span>] = scenario(<span class="kw">lambda</span>: 5 + A(2))
+<span class="cm"># 3. subclass on the right that overrides __radd__ goes FIRST</span>
+<span class="kw">class</span> B(A):
+    <span class="kw">def</span> __radd__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call B.__radd__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">return</span> B(<span class="kw">self</span>.n + o.n + 100)
+out[<span class="st">"add_subclass"</span>] = scenario(<span class="kw">lambda</span>: A(1) + B(2))
+<span class="cm"># 4. nobody handles it</span>
+<span class="kw">class</span> C:
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>): <span class="kw">return</span> <span class="st">"C()"</span>
+out[<span class="st">"add_fail"</span>] = scenario(<span class="kw">lambda</span>: A(1) + C())
+
+<span class="cm"># 5. == with NotImplemented on both sides falls back to identity</span>
+<span class="kw">class</span> E:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, n): <span class="kw">self</span>.n = n
+    <span class="kw">def</span> __repr__(<span class="kw">self</span>): <span class="kw">return</span> <span class="st">f"E(&#123;self.n&#125;)"</span>
+    <span class="kw">def</span> __eq__(<span class="kw">self</span>, o):
+        log(<span class="st">f"call E.__eq__(&#123;self!r&#125;, &#123;o!r&#125;)"</span>)
+        <span class="kw">if</span> <span class="kw">not</span> isinstance(o, E): log(<span class="st">"  -&gt; NotImplemented"</span>); <span class="kw">return</span> NotImplemented
+        <span class="kw">return</span> <span class="kw">self</span>.n == o.n
+out[<span class="st">"eq_fallback"</span>] = scenario(<span class="kw">lambda</span>: E(1) == <span class="st">"1"</span>)
+out[<span class="st">"eq_same"</span>] = scenario(<span class="kw">lambda</span>: E(1) == E(1))
+
+<span class="cm"># 6. defining __eq__ without __hash__ makes instances unhashable</span>
+out[<span class="st">"hash_none"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">f"# E.__dict__['__hash__'] is &#123;E.__dict__['__hash__']!r&#125;"</span>), hash(E(1)))[1])
+
+<span class="cm"># 7. len() looks __len__ up on the TYPE, never on the instance</span>
+<span class="kw">class</span> L:
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):
+        log(<span class="st">"call L.__len__"</span>); <span class="kw">return</span> 3
+x = L()
+x.__len__ = <span class="kw">lambda</span>: 99
+out[<span class="st">"len_type"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# x.__len__ = lambda: 99 was set on the instance"</span>), len(x))[1])
+<span class="kw">class</span> Neg:
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):
+        log(<span class="st">"call Neg.__len__ -&gt; -1"</span>); <span class="kw">return</span> -1
+out[<span class="st">"len_negative"</span>] = scenario(<span class="kw">lambda</span>: len(Neg()))
+
+<span class="cm"># 8. bool() falls back to __len__, then to True</span>
+<span class="kw">class</span> OnlyLen:
+    <span class="kw">def</span> __len__(<span class="kw">self</span>):
+        log(<span class="st">"call OnlyLen.__len__ -&gt; 0"</span>); <span class="kw">return</span> 0
+<span class="kw">class</span> Nothing: <span class="kw">pass</span>
+out[<span class="st">"bool_len"</span>] = scenario(<span class="kw">lambda</span>: bool(OnlyLen()))
+out[<span class="st">"bool_default"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# class Nothing has no __bool__ and no __len__"</span>), bool(Nothing()))[1])
+
+<span class="cm"># 9. iteration falls back to the old __getitem__ protocol</span>
+<span class="kw">class</span> Old:
+    <span class="kw">def</span> __getitem__(<span class="kw">self</span>, i):
+        log(<span class="st">f"call Old.__getitem__(&#123;i&#125;)"</span>)
+        <span class="kw">if</span> i &gt;= 3: log(<span class="st">"  -&gt; raises IndexError: iteration stops"</span>); <span class="kw">raise</span> IndexError(i)
+        <span class="kw">return</span> i * 10
+out[<span class="st">"iter_getitem"</span>] = scenario(<span class="kw">lambda</span>: list(Old()))
+
+<span class="cm"># 10. `in` without __contains__ scans __iter__</span>
+<span class="kw">class</span> It:
+    <span class="kw">def</span> __iter__(<span class="kw">self</span>):
+        log(<span class="st">"call It.__iter__"</span>)
+        <span class="kw">for</span> v <span class="kw">in</span> (1, 2, 3):
+            log(<span class="st">f"  yields &#123;v&#125;"</span>); <span class="kw">yield</span> v
+out[<span class="st">"contains_iter"</span>] = scenario(<span class="kw">lambda</span>: 2 <span class="kw">in</span> It())
+
+<span class="cm"># 11. with: __enter__, body, __exit__ (a true return value swallows the exception)</span>
+<span class="kw">class</span> Ctx:
+    <span class="kw">def</span> __init__(<span class="kw">self</span>, swallow): <span class="kw">self</span>.swallow = swallow
+    <span class="kw">def</span> __enter__(<span class="kw">self</span>):
+        log(<span class="st">"call Ctx.__enter__"</span>); <span class="kw">return</span> <span class="st">"resource"</span>
+    <span class="kw">def</span> __exit__(<span class="kw">self</span>, et, ev, tb):
+        log(<span class="st">f"call Ctx.__exit__(&#123;et.__name__ if et else None&#125;, &#123;ev!r&#125;, tb) -&gt; &#123;self.swallow&#125;"</span>)
+        <span class="kw">return</span> <span class="kw">self</span>.swallow
+<span class="kw">def</span> body(swallow):
+    <span class="kw">with</span> Ctx(swallow) <span class="kw">as</span> r:
+        log(<span class="st">f"body: r = &#123;r!r&#125;; raise ValueError('boom')"</span>)
+        <span class="kw">raise</span> ValueError(<span class="st">"boom"</span>)
+    <span class="kw">return</span> <span class="st">"after the with"</span>
+out[<span class="st">"with_propagate"</span>] = scenario(<span class="kw">lambda</span>: body(<span class="kw">False</span>))
+out[<span class="st">"with_swallow"</span>] = scenario(<span class="kw">lambda</span>: body(<span class="kw">True</span>))
+
+<span class="cm"># 12. attribute lookup order: data descriptor &gt; instance __dict__ &gt; non-data descriptor/class attr &gt; __getattr__</span>
+<span class="kw">class</span> Data:
+    <span class="kw">def</span> __get__(<span class="kw">self</span>, obj, owner): log(<span class="st">f"call Data.__get__(o, &#123;owner.__name__&#125;)"</span>); <span class="kw">return</span> <span class="st">"from data descriptor"</span>
+    <span class="kw">def</span> __set__(<span class="kw">self</span>, obj, v): log(<span class="st">"Data.__set__"</span>)
+<span class="kw">class</span> NonData:
+    <span class="kw">def</span> __get__(<span class="kw">self</span>, obj, owner): log(<span class="st">f"call NonData.__get__(o, &#123;owner.__name__&#125;)"</span>); <span class="kw">return</span> <span class="st">"from non-data descriptor"</span>
+<span class="kw">class</span> K:
+    d = Data()
+    nd = NonData()
+    plain = <span class="st">"class attribute"</span>
+    <span class="kw">def</span> __getattr__(<span class="kw">self</span>, name):
+        log(<span class="st">f"normal lookup failed: call K.__getattr__(&#123;name!r&#125;)"</span>); <span class="kw">return</span> <span class="st">f"made up for &#123;name&#125;"</span>
+o = K()
+o.__dict__.update(d=<span class="st">"instance dict d"</span>, nd=<span class="st">"instance dict nd"</span>)
+out[<span class="st">"attr_data"</span>] = scenario(<span class="kw">lambda</span>: o.d)
+out[<span class="st">"attr_instance"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# o.__dict__ has 'nd'; NonData has no __set__"</span>), o.nd)[1])
+out[<span class="st">"attr_class"</span>] = scenario(<span class="kw">lambda</span>: (log(<span class="st">"# 'plain' is a str on the class, not in o.__dict__"</span>), o.plain)[1])
+out[<span class="st">"attr_getattr"</span>] = scenario(<span class="kw">lambda</span>: o.missing)
+
+json.dump(out, sys.stdout, indent=1)
+print()</pre></div>
+</div></details>
+<details class="dp"><summary>Three more predictions on truth, comparison and equal keys <span class="mute">(recorded drills)</span></summary><div class="b">
+<div class="dm-snip dm-pred"><div class="dm-file">bool of containers</div><pre class="dm-code">print(bool([]), bool([0]), bool(<span class="st">''</span>), bool(<span class="st">' '</span>), bool(0.0), bool(<span class="kw">None</span>))</pre><details><summary>Predict the output, then reveal</summary><div class="dm-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="dm-out">False True False True False False</pre></details></div>
+<div class="dm-snip dm-pred"><div class="dm-file">Chained comparison</div><pre class="dm-code">print(1 &lt; 2 &lt; 3, 3 &gt; 2 &gt; 1 == 1, (1 &lt; 2) &lt; 3, 1 == 1.0 == <span class="kw">True</span>)</pre><details><summary>Predict the output, then reveal</summary><div class="dm-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="dm-out">True True True True</pre></details></div>
+<div class="dm-snip dm-pred"><div class="dm-file">Dict keys that are equal</div><pre class="dm-code">d = &#123;1: <span class="st">'int'</span>, 1.0: <span class="st">'float'</span>, <span class="kw">True</span>: <span class="st">'bool'</span>&#125;
+print(d)</pre><details><summary>Predict the output, then reveal</summary><div class="dm-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="dm-out">&#123;1: 'bool'&#125;</pre></details></div>
+<p><code>1 &lt; 2 &lt; 3</code> means <code>1 &lt; 2 and 2 &lt; 3</code>; <code>(1 &lt; 2) &lt; 3</code> compares <code>True &lt; 3</code>, and <code>True == 1</code>. In the dict, <code>1</code>, <code>1.0</code> and <code>True</code> are equal and hash equally, so they are one key: the first key object stays and the last value wins.</p>
+</div></details>
+<details class="dp"><summary>Costs and habits <span class="mute">(what it solves, what it costs, when not to)</span></summary><div class="b"><div class="dm-cost"><div><div class="t">What it solves</div>Your types plug into every built-in, library and syntax form: <code>sorted</code>, <code>sum</code>, <code>dict</code>, f-strings, <code>with</code>, PyTorch's <code>__torch_function__</code>, NumPy's <code>__array__</code>.</div><div><div class="t">What it costs</div>Every operator is a method lookup and call; that is a large part of why pure-Python arithmetic is slow ({{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}).</div><div><div class="t">When not to</div>Do not overload operators with surprising meanings; <code>+</code> should combine, <code>==</code> should compare. Prefer a dataclass (section 5) when you only need <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code>.</div></div></div></details>
+</section>

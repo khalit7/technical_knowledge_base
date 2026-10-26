@@ -1,0 +1,69 @@
+<style>
+#t-read .dm-ex-grp{font-size:11.5px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin:8px 0 2px}
+#t-read #dm-ex-pick .chips{margin:2px 0 4px}
+#t-read #dm-ex-pick .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read .dm-ex-expr{font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:10px 0 4px;overflow-x:auto;white-space:pre}
+#t-read .dm-ex-expr .d{display:block;font:12.5px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--mute);white-space:normal}
+#t-read ol.dm-ex-steps{list-style:none;padding:0;margin:8px 0}
+#t-read ol.dm-ex-steps li{border:1px solid var(--line);border-left:4px solid var(--good);border-radius:6px;padding:6px 10px;margin:5px 0;font-size:13.5px;transition:opacity .25s}
+#t-read ol.dm-ex-steps li.impl{border-left-color:var(--dim)}
+#t-read ol.dm-ex-steps li.res{border-left-color:var(--acc)}
+#t-read ol.dm-ex-steps li.err{border-left-color:var(--bad)}
+#t-read ol.dm-ex-steps li.fut{opacity:.18}
+#t-read ol.dm-ex-steps li.cur{outline:2px solid var(--acc);outline-offset:1px}
+#t-read ol.dm-ex-steps code.l{display:block;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:2px}
+#t-read ol.dm-ex-steps .tg{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+</style>
+<section id="s1"><h2>1. Syntax becomes method calls on the type</h2>
+<p>The <dfn>data model</dfn> is the chapter of the language reference that says which method Python calls for each piece of syntax ({{Data model|https://docs.python.org/3/reference/datamodel.html}}; the old page called it "the single highest-value document in Python", and it is). You almost never call these <dfn>dunder methods</dfn> yourself; the syntax does.</p>
+<div class="tw"><table class="dm-t">
+<thead><tr><th>You write</th><th>Python calls</th><th>Fallback if it is missing</th></tr></thead>
+<tbody>
+<tr><td><code>len(x)</code></td><td><code>type(x).__len__(x)</code></td><td>TypeError; the result must be an int &ge; 0</td></tr>
+<tr><td><code>bool(x)</code>, <code>if x:</code></td><td><code>__bool__</code></td><td><code>__len__() != 0</code>, else always true</td></tr>
+<tr><td><code>for v in x</code>, <code>list(x)</code></td><td><code>__iter__</code>, then <code>__next__</code> until StopIteration</td><td><code>__getitem__(0)</code>, <code>(1)</code>, ... until IndexError</td></tr>
+<tr><td><code>v in x</code></td><td><code>__contains__</code></td><td>iterate and compare with <code>==</code></td></tr>
+<tr><td><code>x[k]</code>, <code>x[k] = v</code></td><td><code>__getitem__</code>, <code>__setitem__</code></td><td>TypeError</td></tr>
+<tr><td><code>a + b</code></td><td><code>a.__add__(b)</code></td><td>if it returns <code>NotImplemented</code>: <code>b.__radd__(a)</code>, then TypeError</td></tr>
+<tr><td><code>a += b</code></td><td><code>a.__iadd__(b)</code></td><td><code>a = a + b</code></td></tr>
+<tr><td><code>a == b</code></td><td><code>a.__eq__(b)</code></td><td><code>b.__eq__(a)</code>, then identity (<code>a is b</code>)</td></tr>
+<tr><td><code>hash(x)</code>, dict key, set member</td><td><code>__hash__</code></td><td>identity-based hash; set to <code>None</code> (unhashable) if you define <code>__eq__</code> alone</td></tr>
+<tr><td><code>with x as r:</code></td><td><code>__enter__</code>, then <code>__exit__(type, value, tb)</code></td><td>TypeError</td></tr>
+<tr><td><code>x.attr</code></td><td><code>type(x).__getattribute__</code> (descriptors, then <code>x.__dict__</code>, then the class)</td><td><code>__getattr__</code>, then AttributeError</td></tr>
+<tr><td><code>repr(x)</code>, <code>str(x)</code>, <code>f"{x}"</code></td><td><code>__repr__</code> (for developers), <code>__str__</code> (for users), <code>__format__</code></td><td><code>__str__</code> falls back to <code>__repr__</code></td></tr>
+</tbody></table></div>
+<p>A small vector class implements a handful of these, and the built-ins start working. Nothing inherits from anything: Python's polymorphism is by protocol (the methods you have), not by declared parent class.</p>
+[[run:d1_vec]]
+<p>The last three lines are the dispatch rules at work. <code>sum()</code> starts from the integer 0, so it first computes <code>0 + Vec(1, 2)</code>; <code>int.__add__</code> does not know Vec and returns <code>NotImplemented</code>, so Python tries the right operand's <code>__radd__</code>. <code>v == (1, 2)</code> is False rather than an error because both sides returned <code>NotImplemented</code> and Python fell back to identity. And <code>v + 1</code> raises TypeError only after both sides declined.</p>
+<div class="co key"><div class="t"><code>NotImplemented</code> is not <code>NotImplementedError</code></div>Returning the singleton <code>NotImplemented</code> means "I do not handle this type; ask the other operand". Raising <code>NotImplementedError</code> means "this abstract method was not written" and stops the dispatch dead. Mixing them up is a common bug in operator methods.</div>
+<h3>Three rules people learn the hard way</h3>
+<ul>
+<li><b>Special methods are looked up on the type, not the instance.</b> "Implicit invocations of special methods are only guaranteed to work correctly if defined on an object's type, not in the object's instance dictionary" ({{Special method lookup|https://docs.python.org/3/reference/datamodel.html#special-method-lookup}}). Setting <code>x.__len__ = ...</code> on one object does nothing for <code>len(x)</code>. This lets CPython skip the instance dict on every operator.</li>
+<li><b>A subclass on the right goes first.</b> "If the operands are of different types, and the right operand's type is a direct or indirect subclass of the left operand's type, the reflected method of the right operand has priority" (same page). So a subclass can override how it combines with its parent from either side.</li>
+<li><b><code>__eq__</code> and <code>__hash__</code> travel together.</b> "A class that overrides <code>__eq__()</code> and does not define <code>__hash__()</code> will have its <code>__hash__()</code> implicitly set to None" (same page). Objects that compare equal must have equal hashes, and a hash must not change while the object is in a dict or set; that is why mutable built-ins are unhashable and why a dict key should be immutable.</li>
+</ul>
+<p>Predict both before revealing: the first class defines nothing, the second only <code>__eq__</code>.</p>
+[[drill:== without __eq__]]
+[[drill:__eq__ without __hash__]]
+<p>Without <code>__eq__</code>, <code>==</code> falls back to identity, so two equal-looking objects are different set members. With <code>__eq__</code> alone, the class loses its hash.</p>
+
+<div class="dm-anim" id="dm-ex-card">
+<h4>Data model explorer: which method does Python call, in what order?</h4>
+<p class="small">Pick an expression, then step. Green rows logged themselves in a real run of <code>code/d2_dispatch.py</code>; grey rows happen inside C. Scenarios come in pairs that differ in one detail: predict the second of each pair before stepping it.</p>
+<div id="dm-ex-pick"></div>
+<div class="dm-ex-expr" id="dm-ex-expr"></div>
+<div class="dm-ctl" id="dm-ex-ctl"></div>
+<ol class="dm-ex-steps" id="dm-ex-steps"></ol>
+<div class="dm-cap" id="dm-ex-rule"></div>
+</div>
+<details class="dp"><summary>The full script that produced every trace <span class="mute">(d2_dispatch.py)</span></summary><div class="b">
+[[code:d2_dispatch]]
+</div></details>
+<details class="dp"><summary>Three more predictions on truth, comparison and equal keys <span class="mute">(recorded drills)</span></summary><div class="b">
+[[drill:bool of containers]]
+[[drill:Chained comparison]]
+[[drill:Dict keys that are equal]]
+<p><code>1 &lt; 2 &lt; 3</code> means <code>1 &lt; 2 and 2 &lt; 3</code>; <code>(1 &lt; 2) &lt; 3</code> compares <code>True &lt; 3</code>, and <code>True == 1</code>. In the dict, <code>1</code>, <code>1.0</code> and <code>True</code> are equal and hash equally, so they are one key: the first key object stays and the last value wins.</p>
+</div></details>
+<details class="dp"><summary>Costs and habits <span class="mute">(what it solves, what it costs, when not to)</span></summary><div class="b"><div class="dm-cost"><div><div class="t">What it solves</div>Your types plug into every built-in, library and syntax form: <code>sorted</code>, <code>sum</code>, <code>dict</code>, f-strings, <code>with</code>, PyTorch's <code>__torch_function__</code>, NumPy's <code>__array__</code>.</div><div><div class="t">What it costs</div>Every operator is a method lookup and call; that is a large part of why pure-Python arithmetic is slow ({{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}).</div><div><div class="t">When not to</div>Do not overload operators with surprising meanings; <code>+</code> should combine, <code>==</code> should compare. Prefer a dataclass (section 5) when you only need <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code>.</div></div></div></details>
+</section>

@@ -1,0 +1,74 @@
+<section id="s5"><h2>5. Classes: the MRO, dataclasses, slots and descriptors</h2>
+<p>A <code>class</code> statement runs its body like a function body, collects the names it defined into a dict, and builds a class object from it. An instance stores its own attributes (usually in <code>obj.__dict__</code>); everything else, methods included, lives on the class and is found by looking up the chain of classes.</p>
+<h3>Multiple inheritance and the MRO</h3>
+<p>That chain is the <dfn>method resolution order</dfn> (MRO), <code>Cls.__mro__</code>, computed by the C3 linearisation algorithm ({{The Python 2.3 MRO|https://docs.python.org/3/howto/mro.html}}): every class appears before its parents, and parents keep the order you listed them. <code>super()</code> means "the next class in the MRO of <code>type(self)</code>", not "my parent", which is what lets several mixins each run their part of <code>setup</code> exactly once (<dfn>cooperative</dfn> multiple inheritance).</p>
+<figure class="dm-anim" style="margin:12px 0">
+<h4>Logging's <code>super()</code> reaches Caching, a class it never names, when <code>self</code> is a Service</h4>
+<svg viewBox="0 0 380 200" width="100%" style="max-width:520px;display:block" role="img" aria-label="Class diamond Service inherits Logging and Caching, both inherit Base; Service's MRO is Service, Logging, Caching, Base, object, and super() in Logging goes to Caching">
+<defs><marker id="dm-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="var(--mute)"/></marker><marker id="dm-ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="var(--acc)"/></marker></defs>
+<text x="85" y="13" text-anchor="middle" font-size="11" fill="var(--mute)">class Service(Logging, Caching)</text>
+<rect x="50" y="22" width="70" height="24" rx="5" fill="var(--soft)" stroke="var(--mute)"/><text x="85" y="38" text-anchor="middle" font-size="12">Service</text>
+<rect x="2" y="78" width="70" height="24" rx="5" fill="var(--soft)" stroke="var(--mute)"/><text x="37" y="94" text-anchor="middle" font-size="12">Logging</text>
+<rect x="98" y="78" width="70" height="24" rx="5" fill="var(--soft)" stroke="var(--mute)"/><text x="133" y="94" text-anchor="middle" font-size="12">Caching</text>
+<rect x="50" y="134" width="70" height="24" rx="5" fill="var(--soft)" stroke="var(--mute)"/><text x="85" y="150" text-anchor="middle" font-size="12">Base</text>
+<line x1="70" y1="46" x2="45" y2="76" stroke="var(--mute)" marker-end="url(#dm-ar)"/><line x1="100" y1="46" x2="125" y2="76" stroke="var(--mute)" marker-end="url(#dm-ar)"/>
+<line x1="45" y1="102" x2="70" y2="132" stroke="var(--mute)" marker-end="url(#dm-ar)"/><line x1="125" y1="102" x2="100" y2="132" stroke="var(--mute)" marker-end="url(#dm-ar)"/>
+<text x="85" y="182" text-anchor="middle" font-size="11" fill="var(--mute)">arrows: "inherits from"</text>
+<text x="275" y="13" text-anchor="middle" font-size="11" fill="var(--mute)">Service.__mro__</text>
+<g font-size="12"><rect x="240" y="20" width="70" height="22" rx="5" fill="var(--acc2)" stroke="var(--acc)"/><text x="275" y="35" text-anchor="middle">Service</text>
+<rect x="240" y="54" width="70" height="22" rx="5" fill="var(--acc2)" stroke="var(--acc)"/><text x="275" y="69" text-anchor="middle">Logging</text>
+<rect x="240" y="88" width="70" height="22" rx="5" fill="var(--acc2)" stroke="var(--acc)"/><text x="275" y="103" text-anchor="middle">Caching</text>
+<rect x="240" y="122" width="70" height="22" rx="5" fill="var(--acc2)" stroke="var(--acc)"/><text x="275" y="137" text-anchor="middle">Base</text>
+<rect x="240" y="156" width="70" height="22" rx="5" fill="var(--soft)" stroke="var(--mute)"/><text x="275" y="171" text-anchor="middle">object</text></g>
+<g stroke="var(--acc)" stroke-width="1.4" fill="none" marker-end="url(#dm-ar2)"><path d="M275,42 L275,52"/><path d="M275,76 L275,86"/><path d="M275,110 L275,120"/><path d="M275,144 L275,154"/></g>
+<text x="316" y="78" font-size="10.5" fill="var(--acc)">super() in</text><text x="316" y="90" font-size="10.5" fill="var(--acc)">Logging</text><text x="316" y="102" font-size="10.5" fill="var(--acc)">lands here</text>
+<text x="200" y="195" font-size="10.5" fill="var(--mute)">each class before its parents</text>
+</svg>
+<figcaption class="small">From the real run below: <code>Service().setup()</code> prints Service, Logging, Caching, Base, each once. <code>Logging().setup()</code> on its own goes straight to Base, because Logging's own MRO has no Caching in it.</figcaption>
+</figure>
+[[runx:c1_mro]]
+[[drill:super() follows the MRO]]
+<p>Use this sparingly. Mixins with cooperative <code>super()</code> calls are fine; deep hierarchies are rarely worth it. Composition (an object that holds a <code>Cache</code> and a <code>Logger</code>) is usually easier to read and test than inheriting from both; when to choose composition over inheritance is a design question, on {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}.</p>
+<h3>Dataclasses: classes for data, without the boilerplate</h3>
+<p><code>@dataclass</code> writes <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code> from the annotated class attributes ({{dataclasses|https://docs.python.org/3/library/dataclasses.html}}). <code>frozen=True</code> forbids assignment and makes instances hashable; <code>slots=True</code> (3.10+) adds <code>__slots__</code>; <code>order=True</code> adds comparisons. Mutable defaults must go through <code>field(default_factory=...)</code>; the decorator refuses the mistake outright (last error below).</p>
+[[runx:c2_dataclass]]
+<p>For data that crosses a boundary (JSON from an API, a config file) a dataclass checks nothing; its annotations are not enforced at run time. Use Pydantic there, which validates and converts; use dataclasses inside your program, where the type checker already guards the values.</p>
+<h3><code>__slots__</code> and what an object really costs</h3>
+<p><code>__slots__ = ("user", "n")</code> tells CPython to reserve fixed storage for exactly those attributes and not to create a per-instance <code>__dict__</code>. Measured on 100,000 small records with <code>tracemalloc</code> (each figure includes the 8-byte slot in the list that holds them):</p>
+<div class="dm-anim" id="dm-sizes">
+<h4>Slots cut a record from 96 to 56 bytes; a dict per record costs twice a plain object</h4>
+<div class="bars">
+<div class="row"><span class="nm">class</span><span class="track"><span class="fill" style="width:50.1%;background:var(--c1)"></span></span><span class="val">96.1 B</span></div>
+<div class="row hl"><span class="nm">class + __slots__</span><span class="track"><span class="fill" style="width:29.2%;background:var(--acc)"></span></span><span class="val">56.0 B</span></div>
+<div class="row"><span class="nm">dataclass</span><span class="track"><span class="fill" style="width:50%;background:var(--c1)"></span></span><span class="val">96.0 B</span></div>
+<div class="row hl"><span class="nm">dataclass(slots=True)</span><span class="track"><span class="fill" style="width:29.2%;background:var(--acc)"></span></span><span class="val">56.0 B</span></div>
+<div class="row"><span class="nm">namedtuple</span><span class="track"><span class="fill" style="width:41.7%;background:var(--c5)"></span></span><span class="val">80.0 B</span></div>
+<div class="row"><span class="nm">tuple</span><span class="track"><span class="fill" style="width:37.5%;background:var(--c5)"></span></span><span class="val">72.0 B</span></div>
+<div class="row"><span class="nm">dict</span><span class="track"><span class="fill" style="width:100%;background:var(--c2)"></span></span><span class="val">192.0 B</span></div>
+</div>
+<div class="dm-src">Bytes per record, from <code>outputs/c3_sizes.txt</code> (CPython 3.14.8, Python allocations only). The script is in the closed block below.</div>
+</div>
+<details class="dp"><summary>The measuring script and its output <span class="mute">(c3_sizes.py)</span></summary><div class="b">
+[[run:c3_sizes]]
+</div></details>
+<p>Slots save 40 bytes per record here (96 against 56). The gap used to be larger: since 3.11 "Objects now require less memory due to lazily created object namespaces" ({{What's new in 3.11|https://docs.python.org/3/whatsnew/3.11.html}}), so a plain instance no longer builds a full dict up front. The costs of slots: no new attributes at run time (the AttributeError below), and some care with multiple inheritance. Use them for classes with millions of instances; ignore them otherwise.</p>
+[[drill:__slots__]]
+<h3>Descriptors: how <code>property</code>, methods and <code>self</code> work</h3>
+<p>A <dfn>descriptor</dfn> is an object stored on a class that defines <code>__get__</code> (and optionally <code>__set__</code> and <code>__delete__</code>). When attribute lookup finds one on the class, it calls it instead of returning it ({{Descriptor guide|https://docs.python.org/3/howto/descriptor.html}}). One with <code>__set__</code> is a <dfn>data descriptor</dfn>, and the order is fixed: "data descriptors always override instance dictionaries. However, non-data descriptors can be overridden by instance dictionaries" ({{Invoking descriptors|https://docs.python.org/3/reference/datamodel.html#invoking-descriptors}}). The full lookup for <code>obj.x</code> (the fourth row of the hero; step each outcome in the explorer of section 1, group "Attribute lookup"):</p>
+<ol class="tight">
+<li>a data descriptor named <code>x</code> on <code>type(obj)</code> or its MRO (for example a <code>property</code>);</li>
+<li>otherwise <code>obj.__dict__["x"]</code>;</li>
+<li>otherwise a non-data descriptor (a plain function, which becomes a bound method) or plain class attribute;</li>
+<li>otherwise <code>__getattr__</code>, if the class defines it; otherwise AttributeError.</li>
+</ol>
+<p>This one mechanism explains a lot of "magic". <code>property</code> is a data descriptor, which is why assigning to a read-only property fails instead of shadowing it. A function is a non-data descriptor: <code>s.describe</code> calls <code>describe.__get__(s, Sampling)</code>, which returns a <dfn>bound method</dfn> that remembers <code>s</code> and passes it as <code>self</code>. Frameworks (Django fields, SQLAlchemy columns, Pydantic) are descriptors with validation inside, like the <code>Positive</code> below.</p>
+[[runx:c4_descriptor]]
+<details class="dp"><summary>Why <code>obj.method()</code> does not build a bound method <span class="mute">(bytecode)</span></summary><div class="b">
+<p>The last line above shows that <code>s.describe</code> builds a new bound-method object each time. The direct call form <code>obj.method()</code> skips it: the compiler emits one <code>LOAD_ATTR</code> that pushes the function and <code>self</code> separately, shown as <code>describe + NULL|self</code> below, so no bound-method object is built; the optimisation was called <code>LOAD_METHOD</code> when it arrived in 3.7. Bytecode in general is on {{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}.</p>
+[[run:c6_method_call]]
+</div></details>
+<p>And the classic trap, a mutable class attribute, follows from step 3 of the lookup: reading <code>a.tools</code> finds the class's list; assigning <code>a.tools = ...</code> creates an instance entry that shadows it.</p>
+[[predict:c5_classattr]]
+[[drill:Class attribute vs instance attribute]]
+<details class="dp"><summary>Costs and habits <span class="mute">(what it solves, what it costs, when not to)</span></summary><div class="b"><div class="dm-cost"><div><div class="t">Choose</div>A dataclass for plain records; a frozen dataclass for values and dict keys; Pydantic at trust boundaries; a <code>Protocol</code> (on the typing page) instead of a base class when you only need "has these methods".</div><div><div class="t">Avoid</div>Inheritance for code reuse alone; metaclasses unless you are writing a framework (<code>__init_subclass__</code> covers most "run code when a subclass is defined" needs); mutable class attributes.</div></div></div></details>
+</section>
