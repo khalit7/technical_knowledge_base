@@ -57,3 +57,6 @@ Core 30.3 to 32.6 min (header 33; the closed-details figure, 16, was left as com
 **Contract pass 2026-10-26** (after the routine audit): item 5 of the trajectories section ("Can the weights absorb the harness?") no longer retells the Scaffolds paper (theorem, complexity classes, five numbers): it states the result with its scope in two sentences and links the paper page, which owns the method, numbers and evidence (OWNERS.md, Reference). Ledger: unit 355 and two new units are `owned:reference/papers/scaffold_computational_separations`. Header 32 min, plus 24 in closed details (measured 7,360 and 5,624 words at 230 a minute; the old "plus 16" was stale before the run).
 
 2026-10-26 (final follow-up sweep): section 4's EnvHarness band corrected against the paper page's Table 8 check (0.4 to 0.6 is SWE-bench's acceptance rule only; ALFWorld asks for +0.2; the rest is designer judgement); section 7 adds the prior searches SoL-Pi cites (Meta-Harness, Recursive Harness Self-Improvement, Wang et al. 2026's held-out overfitting).
+
+## 2026-10-26 absorb
+The DSec answer-key case (ioctl around AppArmor) is owned by Reward Hacking section 4; the depth bullet keeps one sentence plus a link (ledger 106, 107 owned there).
