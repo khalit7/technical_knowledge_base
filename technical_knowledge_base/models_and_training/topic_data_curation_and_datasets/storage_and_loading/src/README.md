@@ -73,3 +73,5 @@ split_dataset_by_node rule, the tar-member figure, the sharding diagram). Fat un
 
 ## Topic close (2026-10-24)
 The root was rebuilt as a map; this page's Further reading now quotes the root as "31 min, plus 7" and siblings as their headers, and its ledger keys that quoted old times were re-keyed. The Parquet correction now says the root gives the cause; the root card has its time.
+
+2026-10-26 (final follow-up sweep): section 4 links Storage and file systems section 2 (small-file metadata, 56x slower cold on ext4); section 10 links its section 11 (data stalls measured by Mohan et al., VLDB 2021; page cache and readahead). Analytics keeps its one-line shard advice and this page stays the owner of shard sizing (section 7).
