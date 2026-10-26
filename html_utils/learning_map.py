@@ -25,7 +25,7 @@ The overview is an inline SVG (plus HTML cards for narrow screens); topic views 
 script draws (it never computes a layout).
 Motion (CSS transforms, opacity and stroke-dashoffset through the Web Animations API, no library; all skipped under
 prefers-reduced-motion): a one-time load reveal (layers rise top to bottom, strong lines draw upper to lower, then the
-start-anytime band; about 1 s, finished at once by any input), focus (lines into the topic draw, dots run along them
+caption; about 1 s, finished at once by any input), focus (lines into the topic draw, dots run along them
 from the topics it builds on until blur), opening a topic (the card's outline grows into the view, pages appear stage by
 stage) and path Step (arriving lines draw with a dot running into the page, then it fills).
 """
@@ -603,10 +603,9 @@ def path_view(P, t, clo):
     return v
 
 
-FREE_HEAD = "Start anytime: no other topic is mostly needed"
-FREE_NOTE = "Their weaker links show dotted when you focus one."
+L1_HEAD = "Layer 1: start here, in any order"
 STRONG = 1 / 3     # topic A is placed after topic B when at least this share of A's pages build on B's pages
-CW_MIN, CW_MAX, CW_FREE, CG, GUT = 140, 205, 150, 16, 26   # card widths (min, max, start-anytime grid), gap, gutter for layer names
+CW_MIN, CW_MAX, CW_GRID, CG, GUT = 140, 205, 150, 16, 26   # card widths (min, max, layer-1 grid), gap, gutter for layer names
 RX, SH = 10, 14    # card corner radius, height of the stage pills
 
 
@@ -707,9 +706,10 @@ def overview(P, T):
 
     # ---- rows: the spine first, layer by layer: the linked topics of a layer in one row whose order and x come from
     # the layered layout (barycenter sweeps, exhaustive swaps, isotonic x), leaving room for lines passing through.
-    # Then one band of the topics with no strong link either way ("start anytime"), in a compact grid.
+    # Topics with no strong link either way are layer 1 too: a compact grid in the upper rows of layer 1, above the
+    # linked layer-1 row, so every line leaves from that bottom row and none crosses a card.
     AW = W - GUT - 8
-    per = max(1, int((AW + CG) // (CW_FREE + CG)))
+    per = max(1, int((AW + CG) // (CW_GRID + CG)))
     lk = sorted(linked, key=secord)
     free = sorted((k for k in range(nT) if k not in linked), key=secord)
     es = [(b, a) for (b, a) in strong if lay[b] < lay[a]]
@@ -718,22 +718,24 @@ def overview(P, T):
         for l in range(lay[b] + 1, lay[a]):
             through[l] += 1
     width = {}
-    rows_of = []          # per spine layer: [row]; then the start-anytime rows
+    rows_of = []          # per layer: [row]; layer 1 starts with the grid of unlinked topics, its linked row last
     for l in range(nl):
         lr = [k for k in lk if lay[k] == l]
+        rows = []
+        if l == 0 and free:
+            nr = -(-len(free) // per)
+            m = -(-len(free) // nr)
+            rows = [free[i:i + m] for i in range(0, len(free), m)]
+            for k in free:
+                width[k] = min(CW_MAX, (AW - (m - 1) * CG) / m)
         if lr:
             n = len(lr)
             w = max(CW_MIN, min(CW_MAX, (AW - 4 - (n - 1) * CG - through[l] * (4 + 2 * 12 - CG)) / n))
             for k in lr:
                 width[k] = w
-            rows_of.append([lr])
-    nsp = len(rows_of)
-    if free:
-        nr = -(-len(free) // per)
-        m = -(-len(free) // nr)
-        rows_of.append([free[i:i + m] for i in range(0, len(free), m)])
-        for k in free:
-            width[k] = min(CW_MAX, (AW - (m - 1) * CG) / m)
+            rows.append(lr)
+        if rows:
+            rows_of.append(rows)
 
     # ---- card contents (sizes known at build time); the "also use" list is a panel shown only on focus
     TX = 12
@@ -753,7 +755,9 @@ def overview(P, T):
         for k in lk:
             xs[k] = ox + tops[k]
         dpts = {e: [(l, ox + x) for l, x in p] for e, p in pts.items()}
-    for rows in rows_of[:nsp]:   # linked rows in layout order; wrap evenly if they do not fit (lines may then cross cards)
+    for rows in rows_of:   # linked rows in layout order; wrap evenly if they do not fit (lines may then cross cards)
+        if rows[-1][0] not in xs:
+            continue
         lr = sorted(rows[-1], key=lambda k: xs[k])
         if xs[lr[-1]] + width[lr[-1]] > W + 1:
             rows.pop()
@@ -767,7 +771,7 @@ def overview(P, T):
     box, crow, y, bands = {}, {}, 0, []
     for l, rows in enumerate(rows_of):
         y0 = y
-        y += 12 if l < nsp else 30
+        y += 12
         for r, row in enumerate(rows):
             rh = max(card[k]["h"] for k in row)
             if row[0] in xs:
@@ -783,8 +787,8 @@ def overview(P, T):
             y += rh + (CG if r < len(rows) - 1 else 0)
         crow.setdefault(l, (y0 + 12, y))
         bands.append((y0, y + 12))
-        y += 12 + (44 if l + 1 < nsp else 28)
-    y -= 12 + (44 if len(rows_of) <= nsp else 28)
+        y += 12 + 44
+    y -= 12 + 44
     # focus panels ("Some pages also use"), under the card, or above it when there is no room below
     panel = {}
     for k in box:
@@ -818,22 +822,18 @@ def overview(P, T):
     o.append('<defs><marker id="lm-ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">'
              '<path d="M0 0L8 4L0 8z" class="lm-arh"/></marker></defs>')
     for l, (a, b) in enumerate(bands):
-        if l < nsp:
-            cnt = len(rows_of[l][0]) if len(rows_of[l]) == 1 else sum(map(len, rows_of[l]))
-            head = f"Layer {l + 1}" + (": start here" if l == 0 else "") + f", {cnt} topic{'s' if cnt != 1 else ''}"
-            for alt in (head, f"Layer {l + 1}" + (": start here" if l == 0 else ""), f"Layer {l + 1}"):
-                if text_w(alt, 12, True) <= b - a - 10:
-                    head = alt
-                    break
-            else:
-                head = f"L{l + 1}"
-            my = (a + b) / 2
-            o.append(f'<g class="lm-bd" data-l="{l}"><rect class="lm-band" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="12"/>'
-                     f'<text class="lm-lh" x="16" y="{my:.0f}" text-anchor="middle" transform="rotate(-90 16 {my:.0f})">{head}</text></g>')
+        cnt = sum(map(len, rows_of[l]))
+        lname = L1_HEAD if l == 0 else f"Layer {l + 1}"
+        head = lname + f", {cnt} topic{'s' if cnt != 1 else ''}"
+        for alt in (head, lname, "Layer 1: start here" if l == 0 else lname, f"Layer {l + 1}"):
+            if text_w(alt, 12, True) <= b - a - 10:
+                head = alt
+                break
         else:
-            o.append(f'<g class="lm-bd" data-l="f"><rect class="lm-bandf" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="12"/>'
-                     f'<text class="lm-lh" x="{GUT}" y="{a + 19}">{FREE_HEAD} ({len(free)} topics).</text>'
-                     f'<text class="lm-lh2" x="{GUT + text_w(FREE_HEAD + f" ({len(free)} topics).", 12, True) + 8:.0f}" y="{a + 19}">{FREE_NOTE}</text></g>')
+            head = f"L{l + 1}"
+        my = (a + b) / 2
+        o.append(f'<g class="lm-bd" data-l="{l}"><rect class="lm-band" x="0.5" y="{a}" width="{W - 1}" height="{b - a}" rx="12"/>'
+                 f'<text class="lm-lh" x="16" y="{my:.0f}" text-anchor="middle" transform="rotate(-90 16 {my:.0f})">{head}</text></g>')
     grads = []
     o.append('<g class="lm-es">')
     labels = []
@@ -926,7 +926,7 @@ def overview(P, T):
     q = []
     for l, rows in enumerate(rows_of):
         ks = [k for row in rows for k in row]
-        q.append((f'<h4>Layer {l + 1}{": start here" if l == 0 else ""}</h4>' if l < nsp else f'<h4>{FREE_HEAD}</h4><p class="lm-note">{FREE_NOTE}</p>') + '<div class="lm-cards">')
+        q.append(f'<h4>{L1_HEAD if l == 0 else f"Layer {l + 1}"}</h4><div class="lm-cards">')
         for k in ks:
             t = T[k]
             n = len(t["p"])
@@ -976,7 +976,7 @@ CSS = """
 .lm-tl{font-size:13.5px;fill:var(--ink);font-weight:600;letter-spacing:-.005em}.lm-pl{font-size:12px;fill:var(--ink)}.lm-m{font-size:11.5px;fill:var(--mute)}
 .lm-pn{fill:var(--ink);font-weight:600}.lm-hr{fill-opacity:.8}
 .lm-t,.lm-pb{cursor:pointer}.lm-t:hover .lm-box,.lm-t:focus-visible .lm-box{stroke:var(--sc);filter:url(#lm-sh2)}.lm-t:focus{outline:none}
-.lm-band{fill:var(--band)}.lm-bandf{fill:none;stroke:var(--cardln2);stroke-dasharray:3 5;stroke-linecap:round}.lm-lh2{font-size:12px;fill:var(--mute)}
+.lm-band{fill:var(--band)}
 .lm-lh{font-size:11px;font-weight:600;fill:var(--mute);letter-spacing:.06em}
 .lm-sl{font-size:9px;fill:var(--mute);fill-opacity:.8;font-weight:500}
 .lm-cell{fill:var(--sc);fill-opacity:.15}.lm-cell.z{fill:var(--pill0);fill-opacity:1}
@@ -1019,7 +1019,6 @@ CSS = """
 .lm-fp{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;margin:4px 0 8px}.lm-fp>span:first-child{color:var(--mute)}
 .lm-fp .ch{padding:2px 10px 2px 8px;border:1px solid var(--cardln);border-radius:999px;background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.05)}.lm-fp .ch::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--sc);margin-right:6px;vertical-align:1px}
 .lm-fp .ch b{font-weight:600;font-variant-numeric:tabular-nums}
-.lm-note{font-size:12.5px;color:var(--mute);margin:4px 0}
 .lm-pl-list{padding:0;margin:4px 0;list-style:none}
 .lm-pl-list li{display:flex;gap:8px;align-items:baseline;margin:4px 0;padding:4px 0 4px 10px;border-left:3px solid var(--sc);border-radius:2px}
 .lm-pl-list li a{flex:1;min-width:0}.lm-pl-list li .mm{color:var(--mute);font-size:12.5px;white-space:nowrap}
@@ -1163,14 +1162,13 @@ document.addEventListener('click',e=>{if(!e.target.closest('.lm-qw')){hits=[];dr
 window.addEventListener('hashchange',route);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPlay()});
 // once per page load (Khalid's explicit choice for the home page): the layers rise in top to bottom, the strong lines
-// draw from the upper topic to the lower, then the start-anytime band fades in; about 1 s, then still. Any pointer or
+// draw from the upper topic to the lower, then the caption fades in; about 1 s, then still. Any pointer or
 // key input finishes it at once; reduced motion skips it.
 function reveal(){if(RM.matches||document.hidden||location.hash)return;const A=[],ST=110,FD=620;
  const rise=[{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],fade=[{opacity:0},{opacity:1}];
  const svg=$('#lm-ov');
  if(svg&&svg.getBoundingClientRect().width){
-  svg.querySelectorAll('.lm-bd,.lm-t').forEach(g=>{const f=g.dataset.l==='f'||g.dataset.free==='1';
-   A.push(g.animate(f?fade:rise,{duration:f?340:320,delay:f?FD:ST*+g.dataset.l,easing:EASE,fill:'backwards'}))});
+  svg.querySelectorAll('.lm-bd,.lm-t').forEach(g=>A.push(g.animate(rise,{duration:320,delay:ST*+g.dataset.l,easing:EASE,fill:'backwards'})));
   svg.querySelectorAll('.lm-se').forEach(e=>{const la=+svg.querySelector(`.lm-t[data-k="${e.dataset.a}"]`).dataset.l;
    A.push(e.animate(drawKF(e.getTotalLength()),{duration:380,delay:ST*(la+1)+170,easing:'cubic-bezier(.4,0,.2,1)',fill:'backwards'}))});
   const cap=$('#lm-ovcap');if(cap)A.push(cap.animate(fade,{duration:340,delay:FD,fill:'backwards'}))}
@@ -1210,7 +1208,7 @@ def section(url, kb=None):
 <div class="lm-head" id="lm-head"><b>All topics</b><span>Hover or tap a topic to see what it builds on; click to open its pages</span></div>
 <div class="lm-map" id="lm-view"><div class="lm-scroll">{ov_svg}</div></div>
 <div class="lm-list"><div id="lm-ovl">{ov_list}</div><div id="lm-plist"></div></div>
-<div id="lm-ovcap">{key}<p class="lm-cap">A stage counts a page's whole chain of prerequisites across all topics, so a topic can have pages at stage 1 even when it sits in a later layer. Topics in study order, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), and a solid line joins them, thicker when more of its pages do; topics with no such link either way are in the last band and can be read at any time. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></div>
+<div id="lm-ovcap">{key}<p class="lm-cap">Layers order topics, top to bottom: a topic sits below another when at least {share} of its pages build on that topic's pages (directly or through other pages), with a solid line between them, thicker when more of its pages do; layer 1 holds every topic that builds on no other this way, so any of them can come first. Stages order pages: the pills on each card and the columns of a topic view count a page's whole chain of prerequisites across all topics, 1 to {nst}, so a topic in a later layer can still have stage-1 pages. Hover or tap a topic to light up what it builds on and what builds on it, with dotted lines (and the list "Some pages also use") where only a few of its pages do; click it for its pages in order.{html.escape(note)}</p></div>
 <div class="lm-path" id="lm-path" hidden></div>
 <script type="application/json" id="lm-data">{js_data}</script>
 <script>{JS}</script>

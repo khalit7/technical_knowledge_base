@@ -3,7 +3,8 @@
 // usage: node html_utils/check_learning_map.mjs <scratch dir> [screenshot dir, default <scratch dir>]
 // Checks, against the graph recomputed here from pages.json:
 //   overview  every topic has one card, in the layer the rule gives (topic A below topic B when at least a third of
-//             A's pages have a page of B in their prerequisite closure; layer = longest chain of such links), layers
+//             A's pages have a page of B in their prerequisite closure; layer = longest chain of such links; topics with no
+//             such link either way in layer 1's upper rows, no other band; phone lists layer 1's linked topics last), layers
 //             stacked top to bottom; card numbers (pages, hours, pages per stage with each pill titled "n pages at
 //             stage k" under stage numbers 1..N, the "Some pages also use" list); every strong link drawn as a line from card to card, thickness
 //             by share, passing through no other card; no weak link visible before a focus; cards and labels fit
@@ -186,7 +187,8 @@ const checkFocus = (s, f, where) => {
     if (wu.some(x => !c.wk.includes(x)) || (!wu.length && c.wk)) bad(`card ${s}: "Some pages also use" shows "${c.wk}", want ${wu}`);
     if (c.wkResting) bad(`card ${s}: the "also use" list sits on the resting card`);
     const isFree = ![...strong.keys()].some(e => e.split('>').includes(s));
-    if (c.free !== isFree) bad(`card ${s}: in the ${c.free ? 'start-anytime band' : 'spine'}, the rule says ${isFree ? 'no strong link' : 'it has a strong link'}`);
+    if (c.free !== isFree) bad(`card ${s}: marked ${c.free ? 'without' : 'with'} a strong link, the rule says ${isFree ? 'none' : 'it has one'}`);
+    if (isFree && c.l !== 0) bad(`card ${s}: no strong link either way but not in layer 1`);
   }
   Object.keys(TP).forEach(s => { if (!seenT.has(s)) bad('topic without a card', s) });
   const nl = Math.max(...Object.values(layerMemo)) + 1;
@@ -195,8 +197,16 @@ const checkFocus = (s, f, where) => {
     const above = Math.max(...spine.filter(c => c.l === l - 1).map(c => c.y1)), below = Math.min(...spine.filter(c => c.l === l).map(c => c.y0));
     if (!(below > above + 20)) bad(`layer ${l + 1} is not below layer ${l}`);
   }
-  if (freeC.length && Math.min(...freeC.map(c => c.y0)) < Math.max(...spine.map(c => c.y1))) bad('the start-anytime band is not after the spine');
-  console.log(`overview: ${cards.length} cards; spine ` + [...Array(nl).keys()].map(l => `${l + 1}: ${spine.filter(c => c.l === l).map(c => S[c.k]).join(', ')}`).join(' | ') + `; start anytime: ${freeC.map(c => S[c.k]).join(', ')}`);
+  // layer 1 holds the topics with no strong link either way, in rows above its linked row; no other band exists
+  const l1 = spine.filter(c => c.l === 0);
+  if (freeC.length && l1.length && Math.max(...freeC.map(c => c.y1)) > Math.min(...l1.map(c => c.y0)) - 8) bad('layer 1: unlinked topics are not in the rows above its linked row');
+  if (freeC.length && spine.some(c => c.l === 1) && Math.max(...freeC.map(c => c.y1)) > Math.min(...spine.filter(c => c.l === 1).map(c => c.y0)) - 20) bad('layer 1: unlinked topics reach into layer 2');
+  const bands = await p.evaluate(() => [...document.querySelectorAll('#lm-ov .lm-bd')].map(g => { const r = g.querySelector('rect').getBBox(); return { l: g.dataset.l, y0: r.y, y1: r.y + r.height, h: g.textContent } }));
+  if (bands.length !== nl || bands.some((b, i) => b.l !== String(i))) bad(`want exactly ${nl} layer bands, got ${JSON.stringify(bands.map(b => b.l))}`);
+  if (await p.$('#lm-ov .lm-bandf, #lm-ov .lm-lh2')) bad('a separate band is still drawn');
+  if (bands[0] && !bands[0].h.startsWith('Layer 1: start here')) bad(`layer 1 band reads "${bands[0].h}"`);
+  cards.forEach(c => { const b = bands[c.l]; if (b && (c.y0 < b.y0 || c.y1 > b.y1)) bad(`card ${S[c.k]} outside its layer band`) });
+  console.log(`overview: ${cards.length} cards; ` + [...Array(nl).keys()].map(l => `layer ${l + 1}: ${cards.filter(c => c.l === l).map(c => S[c.k]).join(', ')}`).join(' | ') + `; ${freeC.length} of layer 1 with no strong link`);
   // lines: every strong link drawn card to card, through no other card; no weak link visible
   const lines = await p.evaluate(() => { const box = k => document.querySelector(`#lm-ov .lm-t[data-k="${k}"] .lm-box`).getBBox();
     const all = [...document.querySelectorAll('#lm-ov .lm-t')].map(g => [+g.dataset.k, g.querySelector('.lm-box').getBBox()]);
@@ -397,7 +407,7 @@ for (const scheme of ['light', 'dark']) {
   for (const c of nc) {
     const s = S[c.k]; seenN.add(s);
     const isFree = ![...strong.keys()].some(e => e.split('>').includes(s));
-    if (!(isFree ? c.head.startsWith('Start anytime') : c.head.startsWith(`Layer ${layerMemo[s] + 1}`))) bad(`390: ${s} under "${c.head}", want layer ${layerMemo[s] + 1}`);
+    if (!c.head.startsWith(`Layer ${layerMemo[s] + 1}`) || /\d/.test(c.head.charAt(`Layer ${layerMemo[s] + 1}`.length)) || (isFree && layerMemo[s] !== 0)) bad(`390: ${s} under "${c.head}", want layer ${layerMemo[s] + 1}`);
     const want = [...strong.keys()].filter(k => k.endsWith('>' + s));
     if (want.length !== (c.cb.match(/ of /g) || []).length) bad(`390: ${s} builds on "${c.cb}", want ${want}`);
     want.forEach(k => { const [bb] = k.split('>'); if (!c.cb.includes(`(${strong.get(k)} of ${TP[s].n} pages)`)) bad(`390: ${s} builds on text lacks ${bb}`) });
@@ -407,6 +417,9 @@ for (const scheme of ['light', 'dark']) {
     if (c.cwShown) bad('390: "also use" list shown on a resting card', s);
   }
   if (seenN.size !== Object.keys(TP).length || nc.length !== seenN.size) bad('390: cards', nc.length, 'topics', Object.keys(TP).length);
+  { const l1 = nc.filter(c => layerMemo[S[c.k]] === 0), lk = l1.map(c => [...strong.keys()].some(e => e.split('>').includes(S[c.k])));
+    if (lk.some((x, i) => !x && lk.slice(0, i).some(Boolean))) bad('390: layer 1 does not list its linked topics last');
+    if (new Set(nc.map(c => c.head)).size !== Math.max(...Object.values(layerMemo)) + 1) bad('390: headings are not exactly one per layer', [...new Set(nc.map(c => c.head))]) }
   const perRow = await p.evaluate(() => { const c = [...document.querySelectorAll('#lm-ovl .lm-c')].slice(0, 3).map(x => x.getBoundingClientRect().top); return c[0] === c[1] ? 2 : 1 });
   if (perRow !== 2) bad('390: cards are not two per row');
   await shot(p, 'lm_390_dark_overview.png');
