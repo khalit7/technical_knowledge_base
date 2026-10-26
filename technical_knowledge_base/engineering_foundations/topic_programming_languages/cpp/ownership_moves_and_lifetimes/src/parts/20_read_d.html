@@ -1,0 +1,120 @@
+
+<section id="ow-s5">
+<h2>5. Moves</h2>
+<p>Copy-by-default has an obvious cost: returning a vector of a million elements, or putting a string into a container, would copy every byte. C++11 added <b>moves</b>: when the source object is about to die anyway, the new object may <i>steal</i> its heap buffer (copy three pointers, set the source's to null) instead of copying the contents. The compiler needs to know when stealing is safe, so it sorts expressions into two families (simplified):</p>
+<ul>
+<li>an <b>lvalue</b> has a name and an address you can take: <code>a</code>, <code>v[3]</code>, <code>*p</code>. It will be used again, so it must be copied.</li>
+<li>an <b>rvalue</b> is a temporary about to disappear: <code>make_name()</code>, <code>a + b</code>, <code>Tracer{"x"}</code>. It may be moved from.</li>
+</ul>
+<p>A class gets a <b>move constructor</b> <code>T(T&amp;&amp; other)</code> (the <code>&amp;&amp;</code> means "rvalue reference": it binds only to things that may be moved from) alongside its copy constructor <code>T(const T&amp; other)</code>, and overload resolution picks one. <b><code>std::move(x)</code> moves nothing.</b> It is a cast that says "treat x as an rvalue; I will not need its value again" ({{cppreference: "exactly equivalent to a static_cast to an rvalue reference type"|https://en.cppreference.com/w/cpp/utility/move}}); the move constructor that it selects does the stealing.</p>
+<p class="pred"><b>Predict, then step:</b> in Copy vs move, which constructors run, and what is left in <code>a.name</code>? In Passing and returning, how many Tracers are made in total, and where does <code>m</code> come from?</p>
+<div class="card" id="ow-a3-card">
+<div class="chips" id="ow-a3-seg" role="group" aria-label="Scenario"><button data-m="copymove" class="on">Copy vs move</button><button data-m="calls">Passing and returning</button></div>
+<div id="ow-a3"></div>
+<div class="ca-ctl" id="ow-a3-ctl"></div>
+</div>
+<ul>
+<li><b>Copy vs move:</b> the moved-from <code>a</code> is still a valid object (its destructor runs, #1, at the end) but its value is unspecified; libc++ leaves the string empty. The standard only promises "valid but unspecified": you may assign to it or destroy it; do not read it. <code>b = c</code> is an <i>assignment</i> (b already exists), so no object is created.</li>
+<li><b>Passing and returning:</b> passing by reference makes nothing; by value makes a copy (#2), or a move (#3) when the argument is <code>std::move(a)</code>. <code>m</code> is the object constructed inside <code>make()</code> at line 10: returning it cost no copy and no move. Four Tracers in total.</li>
+</ul>
+<p>That last line is <b>copy elision</b>: since C++17, returning a temporary constructs the result directly in the caller's variable, guaranteed, and compilers do the same for a returned local variable in practice ({{cppreference|https://en.cppreference.com/w/cpp/language/copy_elision}}). So return big objects by value, and never write <code>return std::move(local);</code>, which can only prevent elision. What moving buys, and one trap:</p>
+<div class="ca-src"><div class="ca-fn">moved_from.cpp (lines 7 to 20)</div><pre class="ca-code">    std::string s = <span class="ca-st">"a string long enough to live on the heap"</span>;
+    std::string t = std::move(s);       <span class="ca-cm">// t steals s's heap buffer</span>
+    std::printf(<span class="ca-st">"t: %zu chars, s: %zu chars\n"</span>, t.size(), s.size());
+    s = <span class="ca-st">"reusable"</span>;                     <span class="ca-cm">// a moved-from object can be assigned to</span>
+    std::printf(<span class="ca-st">"s: %s\n"</span>, s.c_str());
+
+    std::vector&lt;<span class="ca-kw">int</span>&gt; v(1<span class="ca-st">'000'</span>000, 7);
+    <span class="ca-kw">const</span> <span class="ca-kw">int</span>* before = v.data();
+    std::vector&lt;<span class="ca-kw">int</span>&gt; w = std::move(v);  <span class="ca-cm">// O(1): three pointers change hands</span>
+    std::printf(<span class="ca-st">"w.data() == old v.data(): %d, v.size() now %zu\n"</span>, w.data() == before, v.size());
+
+    <span class="ca-kw">const</span> std::string c = <span class="ca-st">"const"</span>;
+    std::string d = std::move(c);       <span class="ca-cm">// compiles, but COPIES: you cannot steal from const</span>
+    std::printf(<span class="ca-st">"c after 'move': %s\n"</span>, c.c_str());</pre></div>
+<pre class="ca-out" data-ca-out="l_moved_from"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra moved_from.cpp -o moved_from &amp;&amp; ./moved_from</span>
+t: 40 chars, s: 0 chars
+s: reusable
+w.data() == old v.data(): 1, v.size() now 0
+c after 'move': const</pre>
+<p>The million-element vector changed hands in constant time: <code>w</code> owns the very same buffer, and <code>v</code> is empty. A moved-from string can be assigned to and reused. The last line is the trap: <code>std::move</code> of a <code>const</code> object silently copies, because a move constructor needs to modify its source. It compiles and copies, with no warning.</p>
+</section>
+
+<section id="ow-s6">
+<h2>6. Why noexcept on a move constructor matters: one vector, two classes</h2>
+<p>A <code>std::vector</code> keeps its elements in one buffer. When the buffer is full, <code>push_back</code> allocates a bigger one, transfers the old elements and frees the old buffer. It would like to <i>move</i> them, but if a move threw an exception halfway, the old buffer would be half-emptied and the vector could not restore it. So the standard library moves only if the move constructor is declared <code>noexcept</code> ("this never throws"); otherwise it copies, to keep its strong exception guarantee ({{std::move_if_noexcept|https://en.cppreference.com/w/cpp/utility/move_if_noexcept}}). The animation runs the same three <code>push_back</code> calls on two versions of Tracer that differ only in that one keyword.</p>
+<p class="pred"><b>Predict, then step:</b> without <code>noexcept</code>, how many of the transfers become copies?</p>
+<div class="card" id="ow-a4-card">
+<div class="seg" id="ow-a4-seg" role="group" aria-label="Which version"><button data-m="growth" class="on">Move is noexcept</button><button data-m="growth_nx">Move may throw (before)</button><button data-m="reserve">reserve + emplace_back</button></div>
+<div id="ow-a4"></div>
+<div class="ca-ctl" id="ow-a4-ctl"></div>
+</div>
+<p>Both versions make 9 objects. With <code>noexcept</code>, each reallocation moves the old elements (cheap); without it, the same code copies them: 3 copies here (<code>x</code> at the second growth, <code>x</code> and <code>y</code> at the third). For a vector of strings each copy is a heap allocation and a byte copy, on every growth. With <code>reserve(3)</code> and <code>emplace_back</code>, three objects are built directly in the vector's buffer: no temporaries, no moves. The compiler writes a <code>noexcept</code> move constructor for you when every member's is <code>noexcept</code> (the rule of zero, below), which is one more reason not to write them by hand.</p>
+<details class="dp"><summary>Details in the growth traces</summary><div>
+<p>The capacities on this libc++ go 1, 2, 4: the third <code>push_back</code> reallocates again. Each new element is constructed in the new buffer <i>before</i> the old elements are transferred (#7 before #8 and #9), so the argument stays valid even if it referred to an element of the old buffer. At the end, libc++ destroys the elements last to first (#7, #9, #8 are z, y, x); the standard does not fix that order for a vector.</p>
+<pre class="ca-out" data-ca-out="lt_growth_nx"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp -o lifetime &amp;&amp; ./lifetime growth_nx</span>
+ctor #1 x stack L51
+move #2 from #1 x heap L0
+dtor #1
+@52 capacity 1, now push y
+ctor #3 y stack L53
+move #4 from #3 y heap L0
+copy #5 from #2 x heap L0
+dtor #2
+dtor #3
+@54 capacity 2, now push z
+ctor #6 z stack L55
+move #7 from #6 z heap L0
+copy #8 from #5 x heap L0
+copy #9 from #4 y heap L0
+dtor #5
+dtor #4
+dtor #6
+@56 end of function
+dtor #7
+dtor #9
+dtor #8
+@0 back in main</pre>
+</div></details>
+</section>
+
+<section id="ow-s7">
+<h2>7. The rule of zero and the rule of five</h2>
+<p>Five <b>special member functions</b> control a class's lifetime: destructor, copy constructor, copy assignment, move constructor, move assignment. The compiler writes all five for you, member by member. That is correct when every member manages itself (<code>std::vector</code>, <code>std::string</code>, <code>std::unique_ptr</code>): the <b>rule of zero</b> says write none of them. A class that owns a raw resource must write all five (the <b>rule of five</b>), because the compiler-written copy would copy the pointer, not the buffer:</p>
+<div class="ca-two"><div><div class="ca-src"><div class="ca-fn">rule_of_five.cpp (lines 5 to 29)</div><pre class="ca-code"><span class="ca-cm">// A class that owns a raw buffer must write all five special members.</span>
+<span class="ca-kw">class</span> Buffer &#123;
+    <span class="ca-kw">float</span>* data_;
+    std::size_t n_;
+<span class="ca-kw">public</span>:
+    <span class="ca-kw">explicit</span> Buffer(std::size_t n) : data_(<span class="ca-kw">new</span> <span class="ca-kw">float</span>[n]()), n_(n) &#123;&#125;
+    ~Buffer() &#123; <span class="ca-kw">delete</span>[] data_; &#125;                                   <span class="ca-cm">// 1 destructor</span>
+    Buffer(<span class="ca-kw">const</span> Buffer&amp; o) : data_(<span class="ca-kw">new</span> <span class="ca-kw">float</span>[o.n_]), n_(o.n_) &#123;    <span class="ca-cm">// 2 copy constructor</span>
+        std::memcpy(data_, o.data_, n_ * <span class="ca-kw">sizeof</span>(<span class="ca-kw">float</span>));
+    &#125;
+    Buffer&amp; <span class="ca-kw">operator</span>=(<span class="ca-kw">const</span> Buffer&amp; o) &#123;                            <span class="ca-cm">// 3 copy assignment</span>
+        Buffer tmp(o);
+        swap(tmp);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    Buffer(Buffer&amp;&amp; o) <span class="ca-kw">noexcept</span>                                     <span class="ca-cm">// 4 move constructor</span>
+        : data_(std::exchange(o.data_, <span class="ca-kw">nullptr</span>)), n_(std::exchange(o.n_, 0)) &#123;&#125;
+    Buffer&amp; <span class="ca-kw">operator</span>=(Buffer&amp;&amp; o) <span class="ca-kw">noexcept</span> &#123;                        <span class="ca-cm">// 5 move assignment</span>
+        Buffer tmp(std::move(o));
+        swap(tmp);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    <span class="ca-kw">void</span> swap(Buffer&amp; o) <span class="ca-kw">noexcept</span> &#123; std::swap(data_, o.data_); std::swap(n_, o.n_); &#125;
+    std::size_t size() <span class="ca-kw">const</span> &#123; <span class="ca-kw">return</span> n_; &#125;
+&#125;;</pre></div></div><div><div class="ca-src"><div class="ca-fn">rule_of_five.cpp (lines 31 to 35)</div><pre class="ca-code"><span class="ca-cm">// Rule of zero: let a member that already manages itself do the work.</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+<span class="ca-kw">struct</span> Buffer0 &#123;
+    std::vector&lt;<span class="ca-kw">float</span>&gt; data;   <span class="ca-cm">// the compiler writes all five, correctly</span>
+&#125;;</pre></div></div></div>
+<pre class="ca-out" data-ca-out="l_rule_of_five"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra rule_of_five.cpp -o rule_of_five &amp;&amp; ./rule_of_five</span>
+b 4, c 4, moved-from a 0; y 4, z 4, moved-from x 0</pre>
+<p>Thirty lines of careful code against one line (<code>std::vector&lt;float&gt; data;</code>), with the same behaviour: copies get their own buffer, moved-from objects are empty. Write only a destructor and forget the other four, and copying the object gives two owners of one buffer, freed twice: the UB gallery on {{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}} shows its "double free" case crash at <code>-O0</code>, and the bug vanish at <code>-O2</code>, where the compiler removed the allocation altogether.</p>
+<details class="dp"><summary>Which special members does the compiler write for a class holding a unique_ptr and a vector?</summary><div>
+<p>It generates the destructor, the move constructor and the move assignment (member-wise; <code>noexcept</code> because both members' are). It defines the copy constructor and copy assignment as <b>deleted</b>, because <code>unique_ptr</code>'s copy operations are deleted: a member-wise copy is impossible. The class is move-only, like <code>unique_ptr</code> itself. Declaring any of the five yourself (even <code>~T() = default;</code>) would suppress the implicit moves, and copies would silently take their place where copying is allowed; that is why the rule of zero says declare none. The exact conditions are listed under "Implicitly-declared move constructor" on {{cppreference|https://en.cppreference.com/w/cpp/language/move_constructor}}.</p>
+</div></details>
+<div class="ca-cost"><div><b>Problem moves solve</b>Copy-by-default without paying for copies of temporaries and returned values.</div><div><b>What they cost</b>The rules (value categories, <code>noexcept</code>, moved-from states) are the hardest part of the language to learn.</div><div><b>Common mistakes</b>Using an object after <code>std::move</code>; <code>return std::move(x)</code>; a hand-written move constructor without <code>noexcept</code>; moving from <code>const</code>.</div></div>
+</section>

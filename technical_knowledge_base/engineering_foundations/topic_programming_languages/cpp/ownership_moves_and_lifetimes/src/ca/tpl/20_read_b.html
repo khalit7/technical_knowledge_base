@@ -1,0 +1,45 @@
+
+<section id="ow-s1">
+<h2>1. Values, references and pointers</h2>
+<p>In Python every variable is a name bound to an object on the heap, and <code>b = a</code> binds a second name to the same object. In C++ a variable <i>is</i> the object: its bytes live where the variable lives. So assignment and initialisation <b>copy</b>, and a second name has to be asked for.</p>
+<div class="ca-two"><div>[[code:lang/copy.cpp:4-8]][[pr:l_copy|what sizes does each line print?]]</div><div>[[code:lang/copy.py]][[out:l_copy_py]]</div></div>
+<p>The same three lines give "a has 4, b has 4" in Python (one list, two names) and "a has 3, b has 4" in C++ (two vectors). The two ways to ask for a second name:</p>
+<div class="tw"><table class="ow-t">
+<thead><tr><th></th><th>Reference, <code>T&amp; r = a;</code></th><th>Pointer, <code>T* p = &amp;a;</code></th></tr></thead>
+<tbody>
+<tr><td>What it is</td><td>another name for an existing object</td><td>a variable holding an address (<code>&amp;a</code>: "the address of a")</td></tr>
+<tr><td>Using it</td><td>exactly like using <code>a</code></td><td><code>*p</code> is the object; <code>p-&gt;f()</code> is short for <code>(*p).f()</code></td></tr>
+<tr><td>Re-point it</td><td>never: bound once, when created</td><td>yes, <code>p = &amp;b;</code></td></tr>
+<tr><td>Point at nothing</td><td>never</td><td><code>nullptr</code></td></tr>
+<tr><td>Keeps <code>a</code> alive</td><td>no</td><td>no</td></tr>
+</tbody></table></div>
+<p>The last row is the one that matters on this page: neither reference nor pointer keeps <code>a</code> alive; they only refer to memory that <code>a</code> owns. A reference or pointer that outlives its object <b>dangles</b>, and reading through it is undefined behaviour, the root of every dangling-reference bug (the essentials page's undefined behaviour section and its UB gallery show them crash, or worse, not crash).</p>
+<p><b><code>const</code></b> marks something read-only, checked by the compiler. Its everyday use is the parameter type <code>const T&amp;</code>: "let me read your object without copying it, and I promise not to change it". With pointers, <code>const</code> can apply to the pointed-at object or to the pointer itself; read the declaration right to left (<code>int* const q</code>: q is a const pointer to int).</p>
+<div class="ca-cost"><div><b>Pass by</b><code>T</code> for small values (int, double, a pointer, a <code>string_view</code>); <code>const T&amp;</code> to read a big object; <code>T&amp;</code> to modify the caller's object; <code>T*</code> when "no object" is a valid answer.</div><div><b>What it costs</b>Copies are real: passing a <code>std::vector</code> by value copies every element.</div><div><b>Common mistakes</b>Passing big objects by value by accident; a reference or pointer that outlives its object.</div></div>
+<details class="dp"><summary>const in three compile errors, and how to read a long C++ error</summary><div>
+[[code:lang/const.cpp]]
+[[out:l_const]]
+<p>Three errors, all at compile time. The second shows a feature of C++ error messages you will meet constantly: the compiler lists every overload of <code>+=</code> it tried and why each failed ("method is not marked const"). Read the first line and the line pointing at your own file; skim the candidates. The rest of copy.cpp (a reference and a pointer modifying <code>a</code>, then the pointer set to <code>nullptr</code>):</p>
+[[code:lang/copy.cpp]]
+[[out:l_copy]]
+</div></details>
+</section>
+
+<section id="ow-s2">
+<h2>2. Where objects live: the stack, the heap and static storage</h2>
+<p>A C++ object lives in one of three kinds of storage, and the kind decides when it dies:</p>
+<ul>
+<li><b>Automatic storage, "the stack"</b>: local variables. Each function call pushes a frame for its locals and pops it on return. Allocation is free (the stack pointer moves) and destruction happens at the closing brace <code>}</code>, in reverse order of creation.</li>
+<li><b>Dynamic storage, "the heap"</b>: objects created with <code>new</code> (properly, with <code>std::make_unique</code>, section 4). They live until someone destroys them. Allocation calls the memory allocator (<code>malloc</code>), which costs tens of nanoseconds and can fragment memory; how it does that is {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}' subject.</li>
+<li><b>Static storage</b>: globals and <code>static</code> variables, alive for the whole program.</li>
+</ul>
+<p>Python puts every object on the heap and frees it when its reference count reaches zero ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} also owns reference counting and the cycle collector as memory behaviour). C++ lets you put most things on the stack. One program printing the addresses of each kind:</p>
+<div class="fig"><h4>The vector object sits on the stack; its elements sit on the heap, owned by it</h4>
+<div class="rd-svg" id="ow-addr" role="img" aria-label="Addresses printed by stack_heap.cpp, grouped into static, heap and stack regions"></div>
+<p class="cap">Real addresses from one run of <code>stack_heap.cpp</code> <span class="meas">measured</span> (they change on every run: macOS randomises where each region starts). The stack addresses (<code>0x16...</code>) go <i>down</i> as variables are added: on this ARM Mac the stack grows towards lower addresses. The <code>std::vector</code> object itself is [[g:l_stack_heap|sizeof\(v\) = (\d+) bytes]] bytes on the stack (a pointer to the elements, the size, the capacity), and its elements live in a heap buffer it owns.</p></div>
+<p>When the vector dies, its destructor frees the buffer. That pattern, a small <span class="own">owner</span> on the stack and a big buffer on the heap, is how C++ gets automatic cleanup of heap memory, and it has a name: RAII. Why stack memory is fast (it is almost always in the CPU cache) and what an allocation costs on this machine are measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}; the root page {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} draws the same records laid out in Python, C++ and Rust.</p>
+<details class="dp"><summary>The program and its raw output</summary><div>
+[[code:lang/stack_heap.cpp]]
+[[out:l_stack_heap]]
+</div></details>
+</section>

@@ -1,0 +1,159 @@
+
+<section id="ow-s1">
+<h2>1. Values, references and pointers</h2>
+<p>In Python every variable is a name bound to an object on the heap, and <code>b = a</code> binds a second name to the same object. In C++ a variable <i>is</i> the object: its bytes live where the variable lives. So assignment and initialisation <b>copy</b>, and a second name has to be asked for.</p>
+<div class="ca-two"><div><div class="ca-src"><div class="ca-fn">copy.cpp (lines 4 to 8)</div><pre class="ca-code"><span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; a&#123;1, 2, 3&#125;;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; b = a;    <span class="ca-cm">// a COPY: b gets its own three ints</span>
+    b.push_back(4);
+    std::printf(<span class="ca-st">"a has %zu, b has %zu\n"</span>, a.size(), b.size());</pre></div><details class="ca-pr"><summary><b>Predict, then reveal:</b> what sizes does each line print?</summary><pre class="ca-out" data-ca-out="l_copy"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra copy.cpp -o copy &amp;&amp; ./copy</span>
+a has 3, b has 4
+a has 4 after r.push_back
+a has 5 after p-&gt;push_back; p == &amp;a is 1
+p is now null</pre></details></div><div><div class="ca-src"><div class="ca-fn">copy.py</div><pre class="ca-code">a = [1, 2, 3]
+b = a          # no copy: a second name <span class="ca-kw">for</span> the same list
+b.append(4)
+print(f<span class="ca-st">"a has &#123;len(a)&#125;, b has &#123;len(b)&#125;"</span>)</pre></div><pre class="ca-out" data-ca-out="l_copy_py"><span class="ca-cmd">$ python3.14 copy.py</span>
+a has 4, b has 4</pre></div></div>
+<p>The same three lines give "a has 4, b has 4" in Python (one list, two names) and "a has 3, b has 4" in C++ (two vectors). The two ways to ask for a second name:</p>
+<div class="tw"><table class="ow-t">
+<thead><tr><th></th><th>Reference, <code>T&amp; r = a;</code></th><th>Pointer, <code>T* p = &amp;a;</code></th></tr></thead>
+<tbody>
+<tr><td>What it is</td><td>another name for an existing object</td><td>a variable holding an address (<code>&amp;a</code>: "the address of a")</td></tr>
+<tr><td>Using it</td><td>exactly like using <code>a</code></td><td><code>*p</code> is the object; <code>p-&gt;f()</code> is short for <code>(*p).f()</code></td></tr>
+<tr><td>Re-point it</td><td>never: bound once, when created</td><td>yes, <code>p = &amp;b;</code></td></tr>
+<tr><td>Point at nothing</td><td>never</td><td><code>nullptr</code></td></tr>
+<tr><td>Keeps <code>a</code> alive</td><td>no</td><td>no</td></tr>
+</tbody></table></div>
+<p>The last row is the one that matters on this page: neither reference nor pointer keeps <code>a</code> alive; they only refer to memory that <code>a</code> owns. A reference or pointer that outlives its object <b>dangles</b>, and reading through it is undefined behaviour, the root of every dangling-reference bug (the essentials page's undefined behaviour section and its UB gallery show them crash, or worse, not crash).</p>
+<p><b><code>const</code></b> marks something read-only, checked by the compiler. Its everyday use is the parameter type <code>const T&amp;</code>: "let me read your object without copying it, and I promise not to change it". With pointers, <code>const</code> can apply to the pointed-at object or to the pointer itself; read the declaration right to left (<code>int* const q</code>: q is a const pointer to int).</p>
+<div class="ca-cost"><div><b>Pass by</b><code>T</code> for small values (int, double, a pointer, a <code>string_view</code>); <code>const T&amp;</code> to read a big object; <code>T&amp;</code> to modify the caller's object; <code>T*</code> when "no object" is a valid answer.</div><div><b>What it costs</b>Copies are real: passing a <code>std::vector</code> by value copies every element.</div><div><b>Common mistakes</b>Passing big objects by value by accident; a reference or pointer that outlives its object.</div></div>
+<details class="dp"><summary>const in three compile errors, and how to read a long C++ error</summary><div>
+<div class="ca-src"><div class="ca-fn">const.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;string&gt;</span>
+
+<span class="ca-cm">// const&amp; : read without copying, and promise not to change it</span>
+<span class="ca-kw">int</span> count_chars(<span class="ca-kw">const</span> std::string&amp; s) &#123; <span class="ca-kw">return</span> <span class="ca-kw">static_cast</span>&lt;<span class="ca-kw">int</span>&gt;(s.size()); &#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">const</span> <span class="ca-kw">int</span> limit = 10;
+    limit = 11;                     <span class="ca-cm">// error: limit is const</span>
+
+    std::string name = <span class="ca-st">"u0029"</span>;
+    <span class="ca-kw">const</span> std::string&amp; view = name;
+    view += <span class="ca-st">"!"</span>;                    <span class="ca-cm">// error: view is a read-only name</span>
+
+    <span class="ca-kw">int</span> x = 1, y = 2;
+    <span class="ca-kw">const</span> <span class="ca-kw">int</span>* p = &amp;x;              <span class="ca-cm">// pointer to const int: *p is read-only</span>
+    p = &amp;y;                         <span class="ca-cm">// fine: p itself can move</span>
+    <span class="ca-kw">int</span>* <span class="ca-kw">const</span> q = &amp;x;              <span class="ca-cm">// const pointer to int: q cannot move</span>
+    *q = 5;                         <span class="ca-cm">// fine: what it points at can change</span>
+    q = &amp;y;                         <span class="ca-cm">// error</span>
+    <span class="ca-kw">return</span> count_chars(name) + *p;
+&#125;</pre></div>
+<pre class="ca-out ca-bad" data-ca-out="l_const"><span class="ca-cmd">$ clang++ -std=c++23 -Wall -Wextra -c const.cpp -o /dev/null</span>
+const.cpp:8:11: error: cannot assign to variable 'limit' with const-qualified type 'const int'
+    8 |     limit = 11;                     // error: limit is const
+      |     ~~~~~ ^
+const.cpp:7:15: note: variable 'limit' declared const here
+    7 |     const int limit = 10;
+      |     ~~~~~~~~~~^~~~~~~~~~
+const.cpp:12:10: error: no viable overloaded '+='
+   12 |     view += "!";                    // error: view is a read-only name
+      |     ~~~~ ^  ~~~
+&lt;sdk&gt;/usr/include/c++/v1/string:1363:69: note: candidate function not viable: 'this' argument has type 'const std::string' (aka 'const basic_string&lt;char&gt;'), but method is not marked const
+ 1363 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 basic_string&amp; operator+=(const basic_string&amp; __str) &#123;
+      |                                                                     ^
+&lt;sdk&gt;/usr/include/c++/v1/string:1372:3: note: candidate template ignored: requirement '__can_be_converted_to_string_view&lt;char, std::char_traits&lt;char&gt;, char[2]&gt;::value' was not satisfied [with _Tp = char[2]]
+ 1372 |   operator+=(const _Tp&amp; __t) &#123;
+      |   ^
+&lt;sdk&gt;/usr/include/c++/v1/string:1377:69: note: candidate function not viable: 'this' argument has type 'const std::string' (aka 'const basic_string&lt;char&gt;'), but method is not marked const
+ 1377 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 basic_string&amp; operator+=(const value_type* __s) &#123;
+      |                                                                     ^</pre><details class="ca-more"><summary>show the remaining 14 lines</summary><pre class="ca-out ca-bad" data-ca-rest="l_const">&lt;sdk&gt;/usr/include/c++/v1/string:1381:69: note: candidate function not viable: 'this' argument has type 'const std::string' (aka 'const basic_string&lt;char&gt;'), but method is not marked const
+ 1381 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 basic_string&amp; operator+=(value_type __c) &#123;
+      |                                                                     ^
+&lt;sdk&gt;/usr/include/c++/v1/string:1387:69: note: candidate function not viable: 'this' argument has type 'const std::string' (aka 'const basic_string&lt;char&gt;'), but method is not marked const
+ 1387 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 basic_string&amp; operator+=(initializer_list&lt;value_type&gt; __il) &#123;
+      |                                                                     ^
+const.cpp:19:7: error: cannot assign to variable 'q' with const-qualified type 'int *const'
+   19 |     q = &amp;y;                         // error
+      |     ~ ^
+const.cpp:17:16: note: variable 'q' declared const here
+   17 |     int* const q = &amp;x;              // const pointer to int: q cannot move
+      |     ~~~~~~~~~~~^~~~~~
+3 errors generated.
+[exit code 1]</pre></details>
+<p>Three errors, all at compile time. The second shows a feature of C++ error messages you will meet constantly: the compiler lists every overload of <code>+=</code> it tried and why each failed ("method is not marked const"). Read the first line and the line pointing at your own file; skim the candidates. The rest of copy.cpp (a reference and a pointer modifying <code>a</code>, then the pointer set to <code>nullptr</code>):</p>
+<div class="ca-src"><div class="ca-fn">copy.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; a&#123;1, 2, 3&#125;;
+    std::vector&lt;<span class="ca-kw">int</span>&gt; b = a;    <span class="ca-cm">// a COPY: b gets its own three ints</span>
+    b.push_back(4);
+    std::printf(<span class="ca-st">"a has %zu, b has %zu\n"</span>, a.size(), b.size());
+
+    std::vector&lt;<span class="ca-kw">int</span>&gt;&amp; r = a;   <span class="ca-cm">// a REFERENCE: another name for a</span>
+    r.push_back(99);
+    std::printf(<span class="ca-st">"a has %zu after r.push_back\n"</span>, a.size());
+
+    std::vector&lt;<span class="ca-kw">int</span>&gt;* p = &amp;a;  <span class="ca-cm">// a POINTER: holds a's address</span>
+    p-&gt;push_back(7);           <span class="ca-cm">// -&gt; follows the pointer</span>
+    std::printf(<span class="ca-st">"a has %zu after p-&gt;push_back; p == &amp;a is %d\n"</span>, a.size(), p == &amp;a);
+
+    p = <span class="ca-kw">nullptr</span>;               <span class="ca-cm">// a pointer can be re-pointed, or point at nothing</span>
+    std::printf(<span class="ca-st">"p is now %s\n"</span>, p ? <span class="ca-st">"set"</span> : <span class="ca-st">"null"</span>);
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_copy"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra copy.cpp -o copy &amp;&amp; ./copy</span>
+a has 3, b has 4
+a has 4 after r.push_back
+a has 5 after p-&gt;push_back; p == &amp;a is 1
+p is now null</pre>
+</div></details>
+</section>
+
+<section id="ow-s2">
+<h2>2. Where objects live: the stack, the heap and static storage</h2>
+<p>A C++ object lives in one of three kinds of storage, and the kind decides when it dies:</p>
+<ul>
+<li><b>Automatic storage, "the stack"</b>: local variables. Each function call pushes a frame for its locals and pops it on return. Allocation is free (the stack pointer moves) and destruction happens at the closing brace <code>}</code>, in reverse order of creation.</li>
+<li><b>Dynamic storage, "the heap"</b>: objects created with <code>new</code> (properly, with <code>std::make_unique</code>, section 4). They live until someone destroys them. Allocation calls the memory allocator (<code>malloc</code>), which costs tens of nanoseconds and can fragment memory; how it does that is {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}' subject.</li>
+<li><b>Static storage</b>: globals and <code>static</code> variables, alive for the whole program.</li>
+</ul>
+<p>Python puts every object on the heap and frees it when its reference count reaches zero ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} also owns reference counting and the cycle collector as memory behaviour). C++ lets you put most things on the stack. One program printing the addresses of each kind:</p>
+<div class="fig"><h4>The vector object sits on the stack; its elements sit on the heap, owned by it</h4>
+<div class="rd-svg" id="ow-addr" role="img" aria-label="Addresses printed by stack_heap.cpp, grouped into static, heap and stack regions"></div>
+<p class="cap">Real addresses from one run of <code>stack_heap.cpp</code> <span class="meas">measured</span> (they change on every run: macOS randomises where each region starts). The stack addresses (<code>0x16...</code>) go <i>down</i> as variables are added: on this ARM Mac the stack grows towards lower addresses. The <code>std::vector</code> object itself is 24 bytes on the stack (a pointer to the elements, the size, the capacity), and its elements live in a heap buffer it owns.</p></div>
+<p>When the vector dies, its destructor frees the buffer. That pattern, a small <span class="own">owner</span> on the stack and a big buffer on the heap, is how C++ gets automatic cleanup of heap memory, and it has a name: RAII. Why stack memory is fast (it is almost always in the CPU cache) and what an allocation costs on this machine are measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}; the root page {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} draws the same records laid out in Python, C++ and Rust.</p>
+<details class="dp"><summary>The program and its raw output</summary><div>
+<div class="ca-src"><div class="ca-fn">stack_heap.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">int</span> global_counter = 0;            <span class="ca-cm">// static storage: lives for the whole program</span>
+
+<span class="ca-kw">void</span> show(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* what, <span class="ca-kw">const</span> <span class="ca-kw">void</span>* p) &#123; std::printf(<span class="ca-st">"%-28s %p\n"</span>, what, p); &#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">int</span> on_stack = 1;                       <span class="ca-cm">// automatic storage (the stack)</span>
+    <span class="ca-kw">int</span> also_on_stack = 2;
+    <span class="ca-kw">auto</span> on_heap = std::make_unique&lt;<span class="ca-kw">int</span>&gt;(3); <span class="ca-cm">// dynamic storage (the heap)</span>
+    std::vector&lt;<span class="ca-kw">int</span>&gt; v&#123;1, 2, 3&#125;;            <span class="ca-cm">// the vector object is on the stack...</span>
+
+    show(<span class="ca-st">"&amp;global_counter (static)"</span>, &amp;global_counter);
+    show(<span class="ca-st">"&amp;on_stack"</span>, &amp;on_stack);
+    show(<span class="ca-st">"&amp;also_on_stack"</span>, &amp;also_on_stack);
+    show(<span class="ca-st">"&amp;v (the vector object)"</span>, &amp;v);
+    show(<span class="ca-st">"on_heap.get() (heap int)"</span>, on_heap.get());
+    show(<span class="ca-st">"v.data() (its elements)"</span>, v.data());     <span class="ca-cm">// ...its elements are on the heap</span>
+    std::printf(<span class="ca-st">"sizeof(v) = %zu bytes, whatever v.size() is\n"</span>, <span class="ca-kw">sizeof</span>(v));
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_stack_heap"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra stack_heap.cpp -o stack_heap &amp;&amp; ./stack_heap</span>
+&amp;global_counter (static)     0x104dc8000
+&amp;on_stack                    0x16b03e65c
+&amp;also_on_stack               0x16b03e658
+&amp;v (the vector object)       0x16b03e640
+on_heap.get() (heap int)     0x105591410
+v.data() (its elements)      0x105591420
+sizeof(v) = 24 bytes, whatever v.size() is</pre>
+</div></details>
+</section>

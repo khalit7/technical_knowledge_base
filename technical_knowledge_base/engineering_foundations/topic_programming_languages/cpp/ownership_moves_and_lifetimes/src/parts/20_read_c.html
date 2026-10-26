@@ -1,0 +1,391 @@
+
+<section id="ow-s3">
+<h2>3. Destructors and RAII</h2>
+<p>A class can define a <b>constructor</b>, which runs when an object is created, and a <b>destructor</b>, written <code>~ClassName()</code>, which runs automatically when the object dies: at the closing brace for a local, when its owner dies for a member, when <code>delete</code> is called for a heap object. <b>RAII</b> means: tie every resource (memory, a file, a lock, a GPU buffer, a socket) to an object whose destructor releases it. Then you can never forget to release it, even when an exception jumps out of the function.</p>
+<p>To watch it happen, this page uses a small class, <code>Tracer</code>, that prints a line from each special member function, numbers its objects <code>#1</code>, <code>#2</code>... and says whether each lives on the stack or the heap. The animations replay that real output one line at a time: the code line that caused the event (taken from <code>std::source_location</code>), the live objects, and the log. Lines starting with <code>@</code> are the program's own <code>STEP</code> markers, with their line numbers.</p>
+<p class="pred"><b>Predict, then step:</b> in Scopes, in what order are <code>a</code>, <code>b</code> and <code>c</code> destroyed? In Temporaries, which of <code>t</code> and <code>u</code> outlives its line?</p>
+<div class="card" id="ow-a1-card">
+<div class="chips" id="ow-a1-seg" role="group" aria-label="Scenario"><button data-m="scope" class="on">Scopes</button><button data-m="temps">Temporaries</button><button data-m="unwind">Exception unwinding</button></div>
+<div id="ow-a1"></div>
+<div class="ca-ctl" id="ow-a1-ctl"></div>
+</div>
+<ul>
+<li><b>Scopes:</b> <code>b</code> dies at its inner brace, before <code>c</code> is even created; at the end, <code>c</code> dies before <code>a</code>: reverse order of construction, always.</li>
+<li><b>Temporaries:</b> <code>Tracer{"u"}</code> dies at the semicolon of its own line, right after its size is printed. <code>Tracer{"t"}</code> is bound to <code>const Tracer&amp; r</code>, which extends it to <code>r</code>'s lifetime, so it dies at the closing brace. The extension works only for a reference bound directly to the temporary (or to one of its members); a reference <i>returned by a function</i> called on a temporary (<code>make().items()</code>), or a <code>string_view</code> of a temporary string, dangles at the semicolon.</li>
+<li><b>Exception unwinding:</b> when <code>throw</code> leaves the <code>try</code> block, C++ <b>unwinds the stack</b>: it destroys every local in the scopes being left (<code>b</code>) before the <code>catch</code> runs. This is why RAII and exceptions work together, and why C++ code almost never needs <code>finally</code>.</li>
+</ul>
+<div class="ca-py"><div class="t">Python bridge</div><code>with open(p) as f:</code> is RAII you opt into for one block. In C++ every object behaves like a <code>with</code> block, and the "exit" is the destructor. Python's <code>__del__</code> is <i>not</i> the equivalent: it runs whenever the reference count or the garbage collector gets to it.</div>
+<div class="ca-cost"><div><b>Problem it solves</b>Leaks and forgotten cleanup, including on error paths.</div><div><b>What it costs</b>Nothing at run time beyond the destructor's own work.</div><div><b>Common mistakes</b>Holding a resource in a raw pointer instead of an owning object; a destructor that throws (it must not: a second exception during unwinding terminates the program).</div></div>
+<details class="dp"><summary>The Tracer class (tracer.h) and the whole traced program (lifetime.cpp)</summary><div>
+<div class="ca-src"><div class="ca-fn">tracer.h</div><pre class="ca-code"><span class="ca-cm">// tracer.h: a class that reports every special member function call.</span>
+<span class="ca-cm">// Each object gets a number (#1, #2, ...) and says whether it lives on the stack or the heap.</span>
+<span class="ca-pp">#pragma once</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;cstdlib&gt;</span>
+<span class="ca-pp">#include &lt;cstring&gt;</span>
+<span class="ca-pp">#include &lt;source_location&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;utility&gt;</span>
+
+<span class="ca-kw">inline</span> <span class="ca-kw">const</span> <span class="ca-kw">char</span>* stack_anchor = <span class="ca-kw">nullptr</span>;   <span class="ca-cm">// set to a local's address in main()</span>
+<span class="ca-kw">inline</span> <span class="ca-kw">int</span> next_id = 1;
+
+<span class="ca-kw">inline</span> <span class="ca-kw">const</span> <span class="ca-kw">char</span>* where(<span class="ca-kw">const</span> <span class="ca-kw">void</span>* p) &#123;
+    <span class="ca-kw">long</span> d = <span class="ca-kw">static_cast</span>&lt;<span class="ca-kw">const</span> <span class="ca-kw">char</span>*&gt;(p) - stack_anchor;
+    <span class="ca-kw">return</span> std::labs(d) &lt; (8L &lt;&lt; 20) ? <span class="ca-st">"stack"</span> : <span class="ca-st">"heap"</span>;
+&#125;
+<span class="ca-pp">#define STEP(text) std::printf("@%d %s\n", __LINE__, text)</span>
+<span class="ca-cm">// The line in lifetime.cpp that caused a constructor call (blank when called from inside the library)</span>
+<span class="ca-kw">inline</span> <span class="ca-kw">int</span> at(<span class="ca-kw">const</span> std::source_location&amp; l) &#123;
+    <span class="ca-kw">return</span> std::strstr(l.file_name(), <span class="ca-st">"lifetime.cpp"</span>) ? <span class="ca-kw">static_cast</span>&lt;<span class="ca-kw">int</span>&gt;(l.line()) : 0;
+&#125;
+<span class="ca-kw">using</span> Loc = std::source_location;
+
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">bool</span> NoexceptMove&gt;
+<span class="ca-kw">struct</span> BasicTracer &#123;
+    <span class="ca-kw">int</span> id;
+    std::string name;
+    <span class="ca-kw">explicit</span> BasicTracer(std::string n, Loc l = Loc::current()) : id(next_id++), name(std::move(n)) &#123;
+        std::printf(<span class="ca-st">"ctor #%d %s %s L%d\n"</span>, id, name.c_str(), where(<span class="ca-kw">this</span>), at(l));
+    &#125;
+    BasicTracer(<span class="ca-kw">const</span> BasicTracer&amp; o, Loc l = Loc::current()) : id(next_id++), name(o.name) &#123;
+        std::printf(<span class="ca-st">"copy #%d from #%d %s %s L%d\n"</span>, id, o.id, name.c_str(), where(<span class="ca-kw">this</span>), at(l));
+    &#125;
+    BasicTracer(BasicTracer&amp;&amp; o, Loc l = Loc::current()) <span class="ca-kw">noexcept</span>(NoexceptMove) : id(next_id++), name(std::move(o.name)) &#123;
+        std::printf(<span class="ca-st">"move #%d from #%d %s %s L%d\n"</span>, id, o.id, name.c_str(), where(<span class="ca-kw">this</span>), at(l));
+    &#125;
+    BasicTracer&amp; <span class="ca-kw">operator</span>=(<span class="ca-kw">const</span> BasicTracer&amp; o) &#123;
+        name = o.name;
+        std::printf(<span class="ca-st">"copy= #%d from #%d\n"</span>, id, o.id);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    BasicTracer&amp; <span class="ca-kw">operator</span>=(BasicTracer&amp;&amp; o) <span class="ca-kw">noexcept</span>(NoexceptMove) &#123;
+        name = std::move(o.name);
+        std::printf(<span class="ca-st">"move= #%d from #%d\n"</span>, id, o.id);
+        <span class="ca-kw">return</span> *<span class="ca-kw">this</span>;
+    &#125;
+    ~BasicTracer() &#123; std::printf(<span class="ca-st">"dtor #%d\n"</span>, id); &#125;
+&#125;;
+<span class="ca-kw">using</span> Tracer = BasicTracer&lt;<span class="ca-kw">true</span>&gt;;     <span class="ca-cm">// move constructor marked noexcept</span>
+<span class="ca-kw">using</span> TracerNX = BasicTracer&lt;<span class="ca-kw">false</span>&gt;;  <span class="ca-cm">// the same class without noexcept</span></pre></div>
+<div class="ca-src"><div class="ca-fn">lifetime.cpp</div><pre class="ca-code"><span class="ca-pp">#include "tracer.h"</span>
+<span class="ca-pp">#include &lt;cstring&gt;</span>
+<span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;stdexcept&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-cm">// &lt;helpers&gt;</span>
+<span class="ca-kw">void</span> by_value(Tracer) &#123; STEP(<span class="ca-st">"inside by_value"</span>); &#125;
+<span class="ca-kw">void</span> by_ref(<span class="ca-kw">const</span> Tracer&amp;) &#123; STEP(<span class="ca-st">"inside by_ref"</span>); &#125;
+Tracer make(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n) &#123; Tracer t&#123;n&#125;; <span class="ca-kw">return</span> t; &#125;
+<span class="ca-cm">// &lt;/helpers&gt;</span>
+
+<span class="ca-cm">// &lt;scope&gt;</span>
+<span class="ca-kw">void</span> scope() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    &#123;
+        Tracer b&#123;<span class="ca-st">"b"</span>&#125;;
+        STEP(<span class="ca-st">"end of inner block"</span>);
+    &#125;
+    Tracer c&#123;<span class="ca-st">"c"</span>&#125;;
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/scope&gt;</span>
+
+<span class="ca-cm">// &lt;copymove&gt;</span>
+<span class="ca-kw">void</span> copymove() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    Tracer b = a;             <span class="ca-cm">// copy constructor</span>
+    Tracer c = std::move(a);  <span class="ca-cm">// move constructor: steals a's string</span>
+    std::printf(<span class="ca-st">"a.name is now \"%s\"\n"</span>, a.name.c_str());
+    b = c;                    <span class="ca-cm">// copy assignment (b already exists)</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/copymove&gt;</span>
+
+<span class="ca-cm">// &lt;calls&gt;</span>
+<span class="ca-kw">void</span> calls() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    by_ref(a);                <span class="ca-cm">// no new object</span>
+    by_value(a);              <span class="ca-cm">// a copy for the parameter</span>
+    by_value(std::move(a));   <span class="ca-cm">// a move for the parameter</span>
+    Tracer m = make(<span class="ca-st">"m"</span>);     <span class="ca-cm">// no copy, no move: built in place</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/calls&gt;</span>
+
+<span class="ca-cm">// &lt;growth&gt;</span>
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">class</span> T&gt;
+<span class="ca-kw">void</span> growth() &#123;
+    std::vector&lt;T&gt; v;
+    v.push_back(T&#123;<span class="ca-st">"x"</span>&#125;);
+    STEP(<span class="ca-st">"capacity 1, now push y"</span>);
+    v.push_back(T&#123;<span class="ca-st">"y"</span>&#125;);
+    STEP(<span class="ca-st">"capacity 2, now push z"</span>);
+    v.push_back(T&#123;<span class="ca-st">"z"</span>&#125;);
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/growth&gt;</span>
+
+<span class="ca-cm">// &lt;reserve&gt;</span>
+<span class="ca-kw">void</span> reserve() &#123;
+    std::vector&lt;Tracer&gt; v;
+    v.reserve(3);             <span class="ca-cm">// one allocation up front</span>
+    v.emplace_back(<span class="ca-st">"x"</span>);      <span class="ca-cm">// built directly inside the vector</span>
+    v.emplace_back(<span class="ca-st">"y"</span>);
+    v.emplace_back(<span class="ca-st">"z"</span>);
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/reserve&gt;</span>
+
+<span class="ca-cm">// &lt;unique&gt;</span>
+<span class="ca-kw">void</span> unique() &#123;
+    <span class="ca-kw">auto</span> p = std::make_unique&lt;Tracer&gt;(<span class="ca-st">"h"</span>);   <span class="ca-cm">// the Tracer lives on the heap</span>
+    std::unique_ptr&lt;Tracer&gt; q = std::move(p);  <span class="ca-cm">// ownership moves; the Tracer does not</span>
+    std::printf(<span class="ca-st">"p is %s, q owns #%d\n"</span>, p ? <span class="ca-st">"set"</span> : <span class="ca-st">"null"</span>, q-&gt;id);
+    q.reset();                                 <span class="ca-cm">// the owner lets go: destroyed now</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/unique&gt;</span>
+
+<span class="ca-cm">// &lt;shared&gt;</span>
+<span class="ca-kw">void</span> shared() &#123;
+    <span class="ca-kw">auto</span> s = std::make_shared&lt;Tracer&gt;(<span class="ca-st">"s"</span>);
+    &#123;
+        std::shared_ptr&lt;Tracer&gt; t = s;         <span class="ca-cm">// a second owner</span>
+        std::printf(<span class="ca-st">"use_count %ld\n"</span>, s.use_count());
+    &#125;
+    std::printf(<span class="ca-st">"use_count %ld\n"</span>, s.use_count());
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/shared&gt;</span>
+
+<span class="ca-cm">// &lt;unwind&gt;</span>
+<span class="ca-kw">void</span> unwind() &#123;
+    Tracer a&#123;<span class="ca-st">"a"</span>&#125;;
+    <span class="ca-kw">try</span> &#123;
+        Tracer b&#123;<span class="ca-st">"b"</span>&#125;;
+        <span class="ca-kw">throw</span> std::runtime_error(<span class="ca-st">"boom"</span>);
+        STEP(<span class="ca-st">"never reached"</span>);
+    &#125; <span class="ca-kw">catch</span> (<span class="ca-kw">const</span> std::exception&amp; e) &#123;
+        std::printf(<span class="ca-st">"caught %s\n"</span>, e.what());
+    &#125;
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/unwind&gt;</span>
+
+<span class="ca-cm">// &lt;cycle&gt;</span>
+<span class="ca-kw">struct</span> Node &#123;
+    Tracer t;
+    std::shared_ptr&lt;Node&gt; next;   <span class="ca-cm">// owns the node it points at</span>
+    std::weak_ptr&lt;Node&gt; prev;     <span class="ca-cm">// observes only</span>
+    <span class="ca-kw">explicit</span> Node(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n) : t&#123;n&#125; &#123;&#125;
+&#125;;
+<span class="ca-kw">void</span> cycle() &#123;
+    &#123;
+        <span class="ca-kw">auto</span> a = std::make_shared&lt;Node&gt;(<span class="ca-st">"a"</span>);
+        <span class="ca-kw">auto</span> b = std::make_shared&lt;Node&gt;(<span class="ca-st">"b"</span>);
+        a-&gt;next = b;
+        b-&gt;next = a;              <span class="ca-cm">// a cycle of owners</span>
+    &#125;
+    STEP(<span class="ca-st">"a and b are unreachable"</span>);
+    &#123;
+        <span class="ca-kw">auto</span> c = std::make_shared&lt;Node&gt;(<span class="ca-st">"c"</span>);
+        <span class="ca-kw">auto</span> d = std::make_shared&lt;Node&gt;(<span class="ca-st">"d"</span>);
+        c-&gt;next = d;
+        d-&gt;prev = c;              <span class="ca-cm">// the back edge only observes</span>
+    &#125;
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/cycle&gt;</span>
+
+<span class="ca-cm">// &lt;temps&gt;</span>
+<span class="ca-kw">void</span> temps() &#123;
+    <span class="ca-kw">const</span> Tracer&amp; r = Tracer&#123;<span class="ca-st">"t"</span>&#125;;                <span class="ca-cm">// bound to a const&amp;: lives as long as r</span>
+    STEP(<span class="ca-st">"r is still alive"</span>);
+    std::printf(<span class="ca-st">"size %zu\n"</span>, Tracer&#123;<span class="ca-st">"u"</span>&#125;.name.size());  <span class="ca-cm">// dies at the semicolon</span>
+    STEP(<span class="ca-st">"end of function"</span>);
+&#125;
+<span class="ca-cm">// &lt;/temps&gt;</span>
+
+<span class="ca-kw">int</span> main(<span class="ca-kw">int</span> argc, <span class="ca-kw">char</span>** argv) &#123;
+    <span class="ca-kw">char</span> here;
+    stack_anchor = &amp;here;
+    <span class="ca-kw">const</span> <span class="ca-kw">char</span>* s = argc &gt; 1 ? argv[1] : <span class="ca-st">""</span>;
+    <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"scope"</span>)) scope();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"copymove"</span>)) copymove();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"calls"</span>)) calls();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"growth"</span>)) growth&lt;Tracer&gt;();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"growth_nx"</span>)) growth&lt;TracerNX&gt;();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"reserve"</span>)) reserve();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"unique"</span>)) unique();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"shared"</span>)) shared();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"unwind"</span>)) unwind();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"cycle"</span>)) cycle();
+    <span class="ca-kw">else</span> <span class="ca-kw">if</span> (!std::strcmp(s, <span class="ca-st">"temps"</span>)) temps();
+    std::printf(<span class="ca-st">"@0 back in main\n"</span>);
+&#125;</pre></div>
+<p>Every scenario was compiled with <code>clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp</code> (Apple clang 17) and run once; <code>src/ca/run_all.sh</code> records them all. The stack or heap label is a heuristic: an address within 8 MB of a local in <code>main</code> counts as stack.</p>
+</div></details>
+</section>
+
+<section id="ow-s4">
+<h2>4. Owning heap objects: unique_ptr, shared_ptr and weak_ptr</h2>
+<p>When an object must live on the heap (it must outlive the function, it is too big for the stack, or its exact type is decided at run time), do not write <code>new</code> and <code>delete</code>. Use a <b>smart pointer</b>: a small stack object that <span class="own">owns</span> the heap object and deletes it in its destructor.</p>
+<ul>
+<li><b><code>std::unique_ptr&lt;T&gt;</code></b>: exactly one owner. It cannot be copied (two owners would delete twice), only <i>moved</i> (section 5): ownership is handed over and the source becomes null. It is the same size as a raw pointer and costs nothing extra. Create one with <code>std::make_unique&lt;T&gt;(args...)</code>. This is the default.</li>
+<li><b><code>std::shared_ptr&lt;T&gt;</code></b>: shared ownership with a reference count, like a Python object. The object dies when the last <code>shared_ptr</code> to it dies. It costs a separate <b>control block</b> holding the counts, twice the size, and an atomic (thread-safe) increment or decrement on every copy.</li>
+<li><b><code>std::weak_ptr&lt;T&gt;</code></b>: observes an object owned by <code>shared_ptr</code>s without keeping it alive. It breaks reference cycles, which reference counting alone never frees: Python has a cycle collector; C++ does not.</li>
+</ul>
+<p class="pred"><b>Predict, then step:</b> in the cycle, which Tracers are ever destroyed?</p>
+<div class="card" id="ow-a2-card">
+<div class="chips" id="ow-a2-seg" role="group" aria-label="Scenario"><button data-m="unique" class="on">unique_ptr</button><button data-m="shared">shared_ptr</button><button data-m="cycle">A cycle, then weak_ptr</button></div>
+<div id="ow-a2"></div>
+<div class="ca-ctl" id="ow-a2-ctl"></div>
+</div>
+<ul>
+<li><b>unique_ptr:</b> the Tracer is created once (#1, on the heap) and never copied or moved: moving the <code>unique_ptr</code> moved only the 8-byte pointer, and <code>p</code> became null. <code>reset()</code> destroyed it at that line, before the end of the function.</li>
+<li><b>shared_ptr:</b> the count is 2 while <code>t</code> exists and 1 after; the Tracer dies with the last owner, <code>s</code>.</li>
+<li><b>The cycle:</b> <code>a</code> and <code>b</code> own each other, so when both locals go, each node still has a count of 1: no destructor ever runs for #1 and #2, and the memory leaks until the process exits. In the second block the back edge is a <code>weak_ptr</code>, so <code>c</code>'s count reaches 0 and both nodes go. Note the order: #4 (d's Tracer) dies before #3 (c's), because destroying node c destroys its members in reverse declaration order: <code>prev</code>, then <code>next</code> (releasing d, whose count reaches 0), then <code>t</code>.</li>
+</ul>
+<p>Copying a <code>unique_ptr</code> does not compile, and the error says why:</p>
+<div class="ca-src"><div class="ca-fn">unique_copy.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+
+<span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">auto</span> p = std::make_unique&lt;std::string&gt;(<span class="ca-st">"weights.bin"</span>);
+    <span class="ca-kw">auto</span> q = p;              <span class="ca-cm">// error: a unique_ptr cannot be copied</span>
+    <span class="ca-kw">auto</span> r = std::move(p);   <span class="ca-cm">// fine: ownership is transferred</span>
+&#125;</pre></div>
+<pre class="ca-out ca-bad" data-ca-out="l_unique_copy"><span class="ca-cmd">$ clang++ -std=c++23 -Wall -Wextra -c unique_copy.cpp -o /dev/null</span>
+unique_copy.cpp:6:10: error: call to implicitly-deleted copy constructor of 'unique_ptr&lt;string&gt;'
+    6 |     auto q = p;              // error: a unique_ptr cannot be copied
+      |          ^   ~
+&lt;sdk&gt;/usr/include/c++/v1/__memory/unique_ptr.h:221:55: note: copy constructor is implicitly deleted because 'unique_ptr&lt;std::string&gt;' has a user-declared move constructor
+  221 |   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX23 unique_ptr(unique_ptr&amp;&amp; __u) _NOEXCEPT
+      |                                                       ^
+1 error generated.
+[exit code 1]</pre>
+<div class="fig"><h4>Owning costs nothing until you copy a shared_ptr, and much more when threads share one</h4>
+<div class="bars" id="ow-cost"></div>
+<p class="cap"><code>ptr_cost.cpp</code> <span class="meas">measured</span> on the M1 Pro (Apple clang 17, <code>-O2</code>, best of 5 runs, load average 6.70): one non-inlined call that reads an <code>int</code>, 100 million times. Passing a raw pointer, a <code>const unique_ptr&amp;</code> or a <code>const shared_ptr&amp;</code> costs the same, 0.96 ns per call. Passing the <code>shared_ptr</code> by value copies it, two atomic count updates: 13.50 ns. With 4 threads copying the same <code>shared_ptr</code>, every update fights for the cache line holding the count: 302.42 ns per call per thread (why a shared line is that slow is measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}). Scale is logarithmic.</p></div>
+<p>So pass a smart pointer only when the callee takes part in ownership (the C++ Core Guidelines' {{rule R.30|https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rr-smartptrparam}}); a function that only uses the object takes <code>T&amp;</code>, <code>const T&amp;</code> or <code>T*</code>. Sizes on this Mac (<code>sizeof</code>, in bytes): <code>int*</code> 8, <code>std::unique_ptr&lt;int&gt;</code> 8, <code>std::shared_ptr&lt;int&gt;</code> 16 (a pointer to the object and one to the control block).</p>
+<div class="ca-cost"><div><b>Rule</b><code>unique_ptr</code> by default; <code>shared_ptr</code> only when ownership is genuinely shared (a cache entry used by several requests); raw pointers and references only to <i>observe</i> an object someone else owns.</div><div><b>What it costs</b><code>unique_ptr</code>: nothing. <code>shared_ptr</code>: 16 bytes, a control block allocation, atomic count updates.</div><div><b>Common mistakes</b><code>shared_ptr</code> everywhere "to be safe" (slow and hides who owns what); two <code>shared_ptr</code>s made separately from one raw pointer (two counts, double delete); cycles of <code>shared_ptr</code>.</div></div>
+<div class="ca-py"><div class="t">Rust bridge</div><code>Box&lt;T&gt;</code> is <code>unique_ptr</code>; <code>Rc&lt;T&gt;</code> and <code>Arc&lt;T&gt;</code> are <code>shared_ptr</code> without and with atomic counts; <code>Weak</code> is <code>weak_ptr</code>. Rust's compiler enforces the "do not use after move" rule that C++ only recommends: {{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}.</div>
+<details class="dp"><summary>The benchmark (ptr_cost.cpp), its output, and every sizeof on this Mac</summary><div>
+<div class="ca-src"><div class="ca-fn">ptr_cost.cpp</div><pre class="ca-code"><span class="ca-cm">// What an owner costs per call: the same function called 100 million times with the object passed</span>
+<span class="ca-cm">// as a raw pointer, a const unique_ptr&amp;, a const shared_ptr&amp;, and a shared_ptr by value (a copy: two atomic</span>
+<span class="ca-cm">// count updates). Then 4 threads copying one shared_ptr at once, all updating the same count.</span>
+<span class="ca-cm">// noinline plus an empty asm statement with a memory clobber keep every call real (without them clang hoisted</span>
+<span class="ca-cm">// the read-only calls out of the loop and printed 0.00 ns); best of 5 runs; ns per call.</span>
+<span class="ca-pp">#include &lt;atomic&gt;</span>
+<span class="ca-pp">#include &lt;chrono&gt;</span>
+<span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;cstdlib&gt;</span>
+<span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;thread&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-pp">#define NOINLINE __attribute__((noinline))</span>
+<span class="ca-pp">#define KEEP asm volatile("" ::: "memory")</span>
+NOINLINE <span class="ca-kw">long</span> by_raw(<span class="ca-kw">const</span> <span class="ca-kw">int</span>* p) &#123; KEEP; <span class="ca-kw">return</span> *p; &#125;
+NOINLINE <span class="ca-kw">long</span> by_uref(<span class="ca-kw">const</span> std::unique_ptr&lt;<span class="ca-kw">int</span>&gt;&amp; p) &#123; KEEP; <span class="ca-kw">return</span> *p; &#125;
+NOINLINE <span class="ca-kw">long</span> by_sref(<span class="ca-kw">const</span> std::shared_ptr&lt;<span class="ca-kw">int</span>&gt;&amp; p) &#123; KEEP; <span class="ca-kw">return</span> *p; &#125;
+NOINLINE <span class="ca-kw">long</span> by_sval(std::shared_ptr&lt;<span class="ca-kw">int</span>&gt; p) &#123; KEEP; <span class="ca-kw">return</span> *p; &#125;
+
+<span class="ca-kw">constexpr</span> <span class="ca-kw">long</span> N = 100<span class="ca-st">'000'</span>000;
+<span class="ca-kw">volatile</span> <span class="ca-kw">long</span> sink;
+
+<span class="ca-kw">template</span> &lt;<span class="ca-kw">class</span> F&gt; <span class="ca-kw">double</span> best_ns(F f) &#123;
+    <span class="ca-kw">double</span> best = 1e30;
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> r = 0; r &lt; 5; ++r) &#123;
+        <span class="ca-kw">auto</span> t0 = std::chrono::steady_clock::now();
+        <span class="ca-kw">long</span> s = 0;
+        <span class="ca-kw">for</span> (<span class="ca-kw">long</span> i = 0; i &lt; N; ++i) s += f();
+        sink = s;
+        <span class="ca-kw">double</span> ns = std::chrono::duration&lt;<span class="ca-kw">double</span>, std::nano&gt;(std::chrono::steady_clock::now() - t0).count() / N;
+        <span class="ca-kw">if</span> (ns &lt; best) best = ns;
+    &#125;
+    <span class="ca-kw">return</span> best;
+&#125;
+
+<span class="ca-kw">int</span> main() &#123;
+    <span class="ca-kw">double</span> load[1];
+    getloadavg(load, 1);
+    std::printf(<span class="ca-st">"load average %.2f\n"</span>, load[0]);
+    <span class="ca-kw">auto</span> u = std::make_unique&lt;<span class="ca-kw">int</span>&gt;(1);
+    <span class="ca-kw">auto</span> s = std::make_shared&lt;<span class="ca-kw">int</span>&gt;(1);
+    std::printf(<span class="ca-st">"raw pointer              %.2f ns per call\n"</span>, best_ns([&amp;] &#123; <span class="ca-kw">return</span> by_raw(u.get()); &#125;));
+    std::printf(<span class="ca-st">"const unique_ptr&amp;        %.2f ns per call\n"</span>, best_ns([&amp;] &#123; <span class="ca-kw">return</span> by_uref(u); &#125;));
+    std::printf(<span class="ca-st">"const shared_ptr&amp;        %.2f ns per call\n"</span>, best_ns([&amp;] &#123; <span class="ca-kw">return</span> by_sref(s); &#125;));
+    std::printf(<span class="ca-st">"shared_ptr by value      %.2f ns per call\n"</span>, best_ns([&amp;] &#123; <span class="ca-kw">return</span> by_sval(s); &#125;));
+    <span class="ca-cm">// 4 threads, each passing the same shared_ptr by value: the count's cache line moves between cores</span>
+    <span class="ca-kw">for</span> (<span class="ca-kw">int</span> threads : &#123;1, 4&#125;) &#123;
+        <span class="ca-kw">double</span> best = 1e30;
+        <span class="ca-kw">for</span> (<span class="ca-kw">int</span> r = 0; r &lt; 5; ++r) &#123;
+            std::vector&lt;std::thread&gt; ts;
+            std::atomic&lt;<span class="ca-kw">int</span>&gt; ready&#123;0&#125;;
+            <span class="ca-kw">auto</span> t0 = std::chrono::steady_clock::now();
+            <span class="ca-kw">for</span> (<span class="ca-kw">int</span> t = 0; t &lt; threads; ++t)
+                ts.emplace_back([&amp;] &#123;
+                    ready++;
+                    <span class="ca-kw">while</span> (ready &lt; threads) &#123;&#125;
+                    <span class="ca-kw">long</span> acc = 0;
+                    <span class="ca-kw">for</span> (<span class="ca-kw">long</span> i = 0; i &lt; N / 10; ++i) acc += by_sval(s);
+                    sink = acc;
+                &#125;);
+            <span class="ca-kw">for</span> (<span class="ca-kw">auto</span>&amp; t : ts) t.join();
+            <span class="ca-kw">double</span> ns = std::chrono::duration&lt;<span class="ca-kw">double</span>, std::nano&gt;(std::chrono::steady_clock::now() - t0).count() / (N / 10);
+            <span class="ca-kw">if</span> (ns &lt; best) best = ns;
+        &#125;
+        std::printf(<span class="ca-st">"by value, %d thread%s on one shared_ptr: %.2f ns per call per thread\n"</span>, threads, threads &gt; 1 ? <span class="ca-st">"s"</span> : <span class="ca-st">" "</span>, best);
+    &#125;
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="t_ptr_cost"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra ptr_cost.cpp -o ptr_cost &amp;&amp; ./ptr_cost</span>
+load average 6.70
+raw pointer              0.96 ns per call
+const unique_ptr&amp;        0.96 ns per call
+const shared_ptr&amp;        0.96 ns per call
+shared_ptr by value      13.50 ns per call
+by value, 1 thread  on one shared_ptr: 13.46 ns per call per thread
+by value, 4 threads on one shared_ptr: 302.42 ns per call per thread</pre>
+<p>The single-thread "by value" lines appear twice (13.50 and 13.46 ns) because the 1-thread run repeats the measurement through the threaded harness, including thread start-up. The empty <code>asm</code> statement matters: without it clang saw that the read-only calls return the same value every time, hoisted them out of the loop and printed 0.00 ns.</p>
+<div class="ca-src"><div class="ca-fn">sizes.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
+<span class="ca-pp">#include &lt;functional&gt;</span>
+<span class="ca-pp">#include &lt;memory&gt;</span>
+<span class="ca-pp">#include &lt;optional&gt;</span>
+<span class="ca-pp">#include &lt;span&gt;</span>
+<span class="ca-pp">#include &lt;string&gt;</span>
+<span class="ca-pp">#include &lt;string_view&gt;</span>
+<span class="ca-pp">#include &lt;vector&gt;</span>
+
+<span class="ca-kw">struct</span> Plain   &#123; <span class="ca-kw">double</span> x; <span class="ca-kw">void</span> f() &#123;&#125; &#125;;
+<span class="ca-kw">struct</span> Virtual &#123; <span class="ca-kw">double</span> x; <span class="ca-kw">virtual</span> <span class="ca-kw">void</span> f() &#123;&#125; <span class="ca-kw">virtual</span> ~Virtual() = <span class="ca-kw">default</span>; &#125;;
+
+<span class="ca-kw">int</span> main() &#123;
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"int*"</span>, <span class="ca-kw">sizeof</span>(<span class="ca-kw">int</span>*));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::unique_ptr&lt;int&gt;"</span>, <span class="ca-kw">sizeof</span>(std::unique_ptr&lt;<span class="ca-kw">int</span>&gt;));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::shared_ptr&lt;int&gt;"</span>, <span class="ca-kw">sizeof</span>(std::shared_ptr&lt;<span class="ca-kw">int</span>&gt;));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::vector&lt;int&gt;"</span>, <span class="ca-kw">sizeof</span>(std::vector&lt;<span class="ca-kw">int</span>&gt;));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::string"</span>, <span class="ca-kw">sizeof</span>(std::string));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::string_view"</span>, <span class="ca-kw">sizeof</span>(std::string_view));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::span&lt;int&gt;"</span>, <span class="ca-kw">sizeof</span>(std::span&lt;<span class="ca-kw">int</span>&gt;));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::optional&lt;int&gt;"</span>, <span class="ca-kw">sizeof</span>(std::optional&lt;<span class="ca-kw">int</span>&gt;));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"std::function&lt;int(int)&gt;"</span>, <span class="ca-kw">sizeof</span>(std::function&lt;<span class="ca-kw">int</span>(<span class="ca-kw">int</span>)&gt;));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"Plain &#123;double; f()&#125;"</span>, <span class="ca-kw">sizeof</span>(Plain));
+    std::printf(<span class="ca-st">"%-30s %zu\n"</span>, <span class="ca-st">"Virtual &#123;double; virtual f()&#125;"</span>, <span class="ca-kw">sizeof</span>(Virtual));
+&#125;</pre></div>
+<pre class="ca-out" data-ca-out="l_sizes"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra sizes.cpp -o sizes &amp;&amp; ./sizes</span>
+int*                           8
+std::unique_ptr&lt;int&gt;           8
+std::shared_ptr&lt;int&gt;           16
+std::vector&lt;int&gt;               24
+std::string                    24
+std::string_view               16
+std::span&lt;int&gt;                 16
+std::optional&lt;int&gt;             8
+std::function&lt;int(int)&gt;        32
+Plain &#123;double; f()&#125;            8
+Virtual &#123;double; virtual f()&#125;  16</pre>
+</div></details>
+</section>
