@@ -71,3 +71,5 @@ Why about 28 minutes is right: the Reading tab now carries what three tabs did (
 ## Rebuild
 `python3 -I compact.py <raw runs>`, `python3 -I build_data.py`, `python3 -I recompute.py`, `sh build.sh`,
 `python3 -I check_data.py`, then from the repo root `sh html_utils/checkpage.sh <this page folder>`, `node <page>/src/scripts/check_page.mjs <shots dir> full` and `python3 html_utils/ledger.py check <page>`.
+
+2026-10-26 (final follow-up sweep): the MTP row of the drafter table adds GLM-5's acceptance length (2.76 against 2.55 for DeepSeek-V3.2) and GLM-5.2's 4.56 to 5.47, linking Zhipu: GLM. The Leviathan Table 4 recompute and the Gemma 4 drafter preset stay on the Google page, which this page links.
