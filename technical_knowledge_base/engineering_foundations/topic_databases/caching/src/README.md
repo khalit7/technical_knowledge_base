@@ -60,3 +60,6 @@ Overlap fix (19 October 2026): section 10 no longer teaches the KV cache and pre
 **Ledger** (`src/ledger.json`, `python3 html_utils/ledger.py check` prints problems 0): 426 units: core 319, depth 93, volatile 1 (the dated price table, kept here in a dated closed block), fat 13 (wind-ups, the old reading-time line and tab bar, section previews, the lab's try-line). 20 units added by hand for script-rendered tables and absorbed content.
 
 **Checks**: `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `node src/check_ui.mjs` (repo root) 1,716 actions, 0 problems; `python3 src/recompute.py` 71 checks, 0 failed.
+
+## 2026-10-26 ownership sweep
+Khalid decided Caching owns prompt-caching pricing and economics across providers. Section 11 absorbed the 1-hour write break-even (one write plus two reads) and batch stacking from ML system design and the Anthropic page, which now keep one sentence plus a link. Reading 40 to 41 min.
