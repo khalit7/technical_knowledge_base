@@ -53,3 +53,6 @@
 `sh html_utils/checkpage.sh <folder>`: tabs 4, 207.5 KB, emdash 0, errbox 1, clipped 0, fail=0. `check_page.mjs`: 468 actions, 0 problems. `mk_coverage.py`: 80 of 80 verified. Em-dashes appear only in the verbatim source extracts under `inputs/` (the paper's own text), as in the other paper folders.
 
 Rechecked 2026-10-24 after the light pass: `checkpage.sh` tabs 4, 213.0 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 464 actions, 0 problems (including the no-autoplay check); `mk_coverage.py` 80 of 80.
+
+## 2026-10-26: in-context learning owned by Test-time compute and reasoning
+Khalid's decision: in-context learning and the few-shot protocol are owned by Test-time compute and reasoning (section 10). This page keeps its own results and method (the scaling of few minus zero, Figure 2.1 before/after, task by task) and now links there from New terms, "Why call it learning" and Connections.
