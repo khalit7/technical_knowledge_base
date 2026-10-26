@@ -21,3 +21,10 @@ Scores: teaches (0 to 3), data available (0 to 3), cost (3 = cheap). Built ones 
 - Lesson worth adding to papers.md: **check whether a paper's baseline rows were copied from another paper.** Matching value and standard deviation to the decimal against the cited paper's tables (per cell, since rows can mix copied and new cells) found 36 of 60 baseline cells copied here, which the paper only implies.
 - When an agent paper releases nothing, the memory or retrieval traffic of its protocol can often still be replayed exactly on the benchmark's public task list; it turns an argument ("delayed credit") into a measured number.
 - Score granularity of decoded validation curves gives the validation-set size; compare it with the test set's.
+
+## Light pass, 2026-10-26
+
+| id | Idea | Score | Data | Placement | Status |
+|---|---|---|---|---|---|
+| P-just_in_time_memory.12 | Hero: write time against read time on one trajectory (static), with the replay's first-use delay and the Qwen3-8B gain split into untrained curator and RL training against RL SkillOS | 3/3/3 | Figure 1 and §3 (structure, redrawn); inputs/stream.json; recompute.py decomposition of Tables 1 and 9 | Reading, top | built (mk_hero.py) |
+| P-just_in_time_memory.13 | Embed the paper's Figure 1 | | arXiv non-exclusive licence | | rejected: licence does not allow reuse; redrawn instead |

@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3e9
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents","Takeaway":"Curating an agent's memory at read time, once the task is known, beats distilling trajectories at write time by 16.2 and 16.3 points on ALFWorld and WebShop, and an untrained curator already wins, so the gain is the timing rather than the model.","Topics":["agentic-harnesses","rag-and-retrieval","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d818f89b3f066f816727b"}
+{"Paper":"Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents","Takeaway":"Curating an agent's memory at read time, once the task is known, usually beat distilling trajectories at write time in this paper's tests: untrained against untrained it won 15 of 17 comparisons on ALFWorld, WebShop and tau2-bench. The RL-trained curator leads the strongest baseline by 16.2 and 16.3 points on ALFWorld and WebShop with a Qwen3-8B executor, but most of that comes from the RL training (57% and 92% of the gain over no memory), the baselines in that Qwen3-8B block match SkillOS's published numbers to the decimal (taken from that paper, not rerun), and the tau2-bench +3.9 is under two standard errors.","Topics":["agentic-harnesses","rag-and-retrieval","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3e95c17b0d0d818f89b3f066f816727b"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

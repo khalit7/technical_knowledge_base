@@ -15,7 +15,7 @@ C = [
  ('arXiv 2609.27334 link', 'headline card; Further reading', ['https://arxiv.org/abs/2609.27334']),
  ('Paper reading time 45 min', 'Further reading, The paper', ['(45 min)']),
  ('Topics: agentic-harnesses, rag-and-retrieval, llm-training-and-post-training', 'Further reading, Topics', ['3c65c17b0d0d81d881a8fe98b4cff7bb', '3c65c17b0d0d81b89145c37dfe8a3b0b', '3c65c17b0d0d81b6876ee72b7056793b']),
- ('Database property Takeaway', 'stays in the database; also on the headline card, with its correction in the verdict', ['Curating an agent\'s memory at read time, once the task is known, beats distilling trajectories at write time']),
+ ('Database property Takeaway', 'stays in the database; on the headline card, scoped on 26 October 2026 (takeaway_note), with its correction in the verdict', ['Curating an agent\'s memory at read time, once the task is known, usually beat distilling trajectories at write time']),
  # problem
  ('Agentic memory systems curate at write time: a finished trajectory is distilled into a fixed artifact such as a reflection or a skill', R + ', Problem; Idea animation', ['write time', 'reflection', 'skill', 'fixed artifact']),
  ('Whatever the distillation discarded is unavailable to every later task', R + ', Problem', ['unavailable to every later task']),
