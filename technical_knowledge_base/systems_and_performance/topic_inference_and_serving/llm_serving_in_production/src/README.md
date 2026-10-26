@@ -53,3 +53,5 @@ Why 30 minutes is right: the page covers eight production decisions, each with a
 
 ## Departures from the method
 A child page whose subject is a set of production decisions rather than one mechanism: the Reading tab is one section per decision, each with its mechanism, measured evidence on this machine and its picture inline; cost and how to check where they matter. No lab tabs since 2026-10-23: each lab explained one decision, so its visuals sit in that section.
+
+2026-10-26 (final follow-up sweep): the routing depth block adds llm-d's `InferenceObjective` priority and the Virtual Token Counter's fairness bound; the cold-start section adds the vLLM post's "30-100+ seconds per switch" for a full reload. Both absorbed from ML system design, which keeps multi-tenancy as a design question and links here. Three ledger units added.
