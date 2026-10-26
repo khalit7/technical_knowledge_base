@@ -48,3 +48,5 @@ Estimator lab experiments 2 to 4 (engine unchanged, so `lab/check.py` validates 
 - **Section 7 overlaps Value-based deep RL**, which also draws Baird's counterexample (two distributions) and the w, 2w pair. The brief gives this page the triad; this page's visual switches each leg off in turn. Value-based deep RL should keep DQN's side (soft divergence on Atari, target networks, gradient-TD in practice) and link here for the triad itself.
 
 2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; ledger units 23 and 25 re-keyed to the rebuilt root's vocabulary; ledger keys that quoted old times re-keyed.
+
+2026-10-26 (final follow-up sweep): section 7 now states that with the on-policy distribution of updates convergence is guaranteed (§11.2), absorbed from Value-based deep RL's triad sentence.
