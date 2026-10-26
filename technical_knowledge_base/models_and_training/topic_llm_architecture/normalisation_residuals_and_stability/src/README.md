@@ -82,3 +82,5 @@ Why about 27 minutes is right: the page teaches nine mechanisms (the residual pa
 353 units: core 260, depth 68, fat 25, owned 0, volatile 0. 338 were drafted from the old page by `ledger.py init`; 15 record what was absorbed from the root's Block lab (section "absorbed ...", `where` empty: they live here). Keys were found by script (the longest number in the unit that is on the page, else a phrase of four to seven words) and the residue, plus every key that was only a year or a common number, set by hand; core or depth follows whether the key is outside or inside a closed block. Fat units carry a `note`.
 
 2026-10-26 (final follow-up sweep): section 8's spike table adds DeepSeek-V4's anticipatory routing (linking the DeepSeek page's balancing section); the mHC paragraph links the DeepSeek page's 4 x 4 Sinkhorn-Knopp stepper.
+
+2026-10-26 (final follow-up sweep): section 4 quotes ViT-22B's attention logits growing "to over 50000 in magnitude" without normalisation (Dehghani et al. 2023, appendix B), absorbed from Numerical computing, which keeps the float16-range view and links here. One ledger unit added.
