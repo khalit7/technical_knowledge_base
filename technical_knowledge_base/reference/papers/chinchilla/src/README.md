@@ -58,3 +58,6 @@ Parts: `00_top`, `01_css` (reference CSS plus a few additions), `02_header`, `03
 - `mk_tables.py`: one escape fixed (`'\\;'` for `'\;'`, the same string) so newer Pythons stop warning.
 
 Rechecked 2026-10-25: `checkpage.sh` 5 tabs, 217.7 KB, emdash 0, errbox 1, clipped 0, fail=0; `check_page.mjs` 294 actions, 0 problems (including the no-autoplay checks); `check_fit.mjs` unchanged results; `mk_coverage.py` 58 of 58.
+
+## 2026-10-26: inference-aware optimum owned by Pretraining
+Khalid's decision: Pretraining owns Sardana et al.'s inference-aware optimum (it now carries the Eq. 3 objective, the paper's example and caveats). The Then and now card stays as this paper's replay against its own fits and names Pretraining as the owner. Ledger key 210 re-keyed for the added line.
