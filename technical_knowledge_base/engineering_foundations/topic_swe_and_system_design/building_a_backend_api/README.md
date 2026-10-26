@@ -1,4 +1,4 @@
-# Building a backend API: HTTP design, validation, errors, versioning, idempotency
+# Building a backend API: request lifecycle, data layer, async and workers, shutdown
 
 Notion: https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79 (child of Topic: swe-and-system-design)
 Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/building_a_backend_api/
