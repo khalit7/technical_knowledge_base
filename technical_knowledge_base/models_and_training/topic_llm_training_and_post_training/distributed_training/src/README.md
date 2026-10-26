@@ -53,3 +53,5 @@ Why 27 minutes is right: the static prose of the core is about the same length a
 - `viz_ideas.md`: candidates scored, chosen and rejected.
 
 Overlap fix (19 October 2026, still in force): every section ends with an "Implemented in" line linking Distributed PyTorch, Sharding and scale (JAX), Interconnects and scaling, Launching distributed training, Fault tolerance at scale and Mixture of experts. The collective-cost calculator stays removed (Interconnects' Collective simulator owns collectives on the wire). The DeepSeek-V3 expert-parallel layout points to Mixture of experts section 7.
+
+2026-10-26 (final follow-up sweep): links to retired paper tabs now name sections (ZeRO's Communication #s-comm, Megatron-LM's f and g operators #s-mlp); the DeepSeek card and the pipeline note name its Training systems and Serving sections; ZeRO, Megatron-LM and DeepSeek card times set to their headers; ledger units 205 and 206 re-keyed.
