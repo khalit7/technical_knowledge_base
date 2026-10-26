@@ -1,0 +1,52 @@
+<section id="s2"><h2>2. asyncio from the event loop up</h2>
+<p>An <dfn>event loop</dfn> is a loop on one thread that keeps a queue of tasks ready to run and a list of things being waited for (sockets, timers). It runs a ready task until that task says "I am waiting for X", then runs the next ready task; when X happens, the waiting task goes back on the ready queue. Nothing is interrupted: a task gives up the thread only at an <code>await</code>. That is <dfn>cooperative</dfn> multitasking. Underneath, the loop asks the operating system which sockets are ready with one call (<code>epoll</code> on Linux, <code>kqueue</code> on macOS), which {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}} section 8 explains.</p>
+<p>The pieces: <code>async def</code> defines a <dfn>coroutine function</dfn>; calling it runs nothing and returns a <dfn>coroutine</dfn> object, a paused computation. <code>await c</code> runs <code>c</code> until it finishes, suspending the current coroutine whenever <code>c</code> waits. A <dfn>task</dfn> (<code>asyncio.create_task(c)</code>) wraps a coroutine and schedules it on the loop to run concurrently with the others. <code>asyncio.run(main())</code> creates a loop, runs <code>main</code> to completion and closes the loop. Two predictions first:</p>
+[[predict:a1_coro]]
+[[drill:gather keeps argument order]]
+<p class="small">The second answer: tasks finish in the order their waits end (1, 2, 3), but <code>gather</code> returns results in the order of its arguments, <code>[3, 1, 2]</code>.</p>
+
+<h3>Three coroutines, four ways</h3>
+<p>Three coroutines wait 100, 200 and 300 ms. Awaited one after another they take 0.6 s; started together with <code>asyncio.gather</code> they take 0.3 s, the longest single wait. Then the middle one calls blocking <code>time.sleep(0.2)</code> instead of <code>await asyncio.sleep(0.2)</code>. Every step below is a real event from <code>a2_trace.py</code>, stamped with the loop's clock and drawn to scale on one 0 to 620 ms axis, so the four modes compare by eye.</p>
+<div class="pr" id="cg-pr-loop"></div>
+<div class="cg-anim" id="cg-loop-card"><h4>One blocking call freezes every task; <code>to_thread</code> gives the time back</h4>
+<div class="seg" id="cg-loop-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="gathered">2. gather</button><button data-m="gathered_blocking">3. gather, B blocks</button><button data-m="gathered_thread">4. gather, B in a thread</button></div>
+<div class="cg-ctl" id="cg-loop-ctl"></div>
+<div class="cg-svg" id="cg-loop-svg"></div>
+<div class="cg-cap" id="cg-loop-cap"></div>
+<div class="cg-cnt" id="cg-loop-cnt"></div>
+<div class="cg-src">Thin bar: suspended at an <code>await</code> (the thread is free). Thick dark bar: holding the thread. Orange bar: a blocking call. Ring: the moment a timer is due. The top lane is what the one thread is doing.</div>
+</div>
+<ul class="tight small">
+<li><b>1 against 2</b>: the same coroutines; <code>await</code> in a loop runs them back to back (0.6 s), <code>gather</code> wraps each in a task so their waits overlap (0.3 s).</li>
+<li><b>2 against 3</b>: one <code>time.sleep</code> in B holds the thread for 200 ms. A's timer is due at 100 ms but A cannot resume until 200 ms; C cannot even start until 200 ms; total 0.5 s. Nothing crashed and nothing warned: a blocked loop is silent unless debug mode is on.</li>
+<li><b>3 against 4</b>: <code>await asyncio.to_thread(time.sleep, 0.2)</code> runs the same blocking call in a worker thread; B suspends like any other await, and the total is back to 0.3 s.</li>
+</ul>
+<details class="dp"><summary>The script, <code>a2_trace.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
+[[code:a2_trace]]
+[[out:a2_trace|real output, Python 3.14.8]]
+</div></details>
+<div class="co warn"><div class="t">Never block the loop</div>"If a function performs a CPU-intensive calculation for 1 second, all concurrent asyncio Tasks and IO operations would be delayed by 1 second" ({{Developing with asyncio|https://docs.python.org/3/library/asyncio-dev.html}}). Culprits: <code>requests</code>, <code>time.sleep</code>, a synchronous database driver, a big <code>json.loads</code>, tokenising a long document. Fixes: an async library, <code>await asyncio.to_thread(f)</code>, or a process pool via <code>loop.run_in_executor</code>. Debug mode reports any step that holds the loop longer than 100 ms:</div>
+[[run:a6_debug]]
+
+<h3>A real HTTP fan-out against a local server</h3>
+<p>The common LLM-application pattern: call an API many times concurrently, but not unboundedly. A standard-library server (<code>asyncio.start_server</code>) answers <code>GET /delay/100</code> after 100 ms, standing in for a model API; the client opens a connection per request with <code>asyncio.open_connection</code>. Twenty calls:</p>
+<div class="cg-svg" id="cg-fan-bars"></div>
+<p>Twenty sequential calls take twenty times 100 ms. <code>gather</code> overlaps all the waits: 0.10 s. A <code>Semaphore(5)</code> keeps at most five requests in flight (rate limits are real), giving four waves of 100 ms. <code>TaskGroup</code> (3.11+) is <code>gather</code> with structured clean-up: if one task fails, the others are cancelled and the errors arrive together as an ExceptionGroup. <code>asyncio.timeout</code> (3.11+) bounds a block of awaits: one 2 s call with a 250 ms budget stopped at 0.252 s.</p>
+<details class="dp"><summary>The script, <code>a3_fanout.py</code> (server and client, standard library only), and its real output <span class="mute">(code)</span></summary><div class="b">
+[[run:a3_fanout]]
+</div></details>
+
+<h3>Cancellation and timeouts</h3>
+<p><code>task.cancel()</code> does not stop a task immediately; it arranges for <code>CancelledError</code> to be raised inside it at its current <code>await</code>, so its <code>finally</code> blocks and <code>async with</code> exits run. A timeout is a cancellation that the timeout block turns into <code>TimeoutError</code>. The rule: if you catch <code>CancelledError</code> to clean up, re-raise it. A coroutine that swallows it reports success to whoever cancelled it, and <code>TaskGroup</code> and <code>timeout</code> stop working around it. The real run: <code>w1</code> re-raises, the swallower returns a value, <code>w2</code> sits under a 50 ms timeout.</p>
+[[out:a4_cancel|real output of a4_cancel.py, Python 3.14.8]]
+<details class="dp"><summary>The script, <code>a4_cancel.py</code> <span class="mute">(code)</span></summary><div class="b">
+[[code:a4_cancel]]
+</div></details>
+
+<h3>Async generators: streaming responses</h3>
+<p>An <code>async def</code> containing <code>yield</code> is an <dfn>async generator</dfn> ({{PEP 525|https://peps.python.org/pep-0525/}}), consumed with <code>async for</code>. It is exactly how the async LLM SDKs expose a streamed response: each step awaits the next chunk, so other tasks keep running between tokens (in the run below, a ticker task ran 7 times meanwhile). Close it with <code>aclose()</code> when you stop early, so its clean-up runs now and not whenever the garbage collector gets to it.</p>
+<details class="dp"><summary>The script, <code>a5_stream.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
+[[run:a5_stream]]
+</div></details>
+<p class="small mute">Python 3.14 adds <code>python -m asyncio ps PID</code> and <code>pstree PID</code> to list the tasks of a running process ({{What's new in 3.14|https://docs.python.org/3.14/whatsnew/3.14.html}}). JavaScript has the same single-threaded loop built into every runtime ({{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}); Rust's async with tokio is {{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}}. Choosing async, threads or worker processes inside a web service is {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+</section>

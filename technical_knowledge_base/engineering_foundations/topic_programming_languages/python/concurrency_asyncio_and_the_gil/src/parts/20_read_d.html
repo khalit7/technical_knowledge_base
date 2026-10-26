@@ -1,0 +1,54 @@
+<section id="s3"><h2>3. Free-threading in practice</h2>
+<p>The <b>free-threaded build</b> removes the GIL ({{PEP 703|https://peps.python.org/pep-0703/}}): experimental in 3.13, officially supported but still optional in 3.14 ({{PEP 779|https://peps.python.org/pep-0779/}}), installed separately as <code>python3.14t</code> (<code>uv python install 3.14t</code>). Check which one you are on with <code>sys._is_gil_enabled()</code>.</p>
+<p>The workload is the parent topic's program: count tokens per user over 100,000 JSONL chat lines (the root's generator, seed 7), split across threads, each thread filling its own <code>Counter</code> that the main thread merges (<code>src/pb/ft/</code>). Every thread recorded when it finished each block of 1,000 lines; this is that recording, to scale, for four threads. Predict before you switch builds: with the GIL, do four threads finish sooner than one?</p>
+<div class="cg-anim" id="cg-ft-card"><h4>With the GIL four lanes do one core's work; without it they run at once</h4>
+<div class="seg" id="cg-ft-seg"><button data-m="PY314" class="on">3.14, GIL</button><button data-m="PY314T">3.14t, no GIL</button><button data-m="PY315">3.15rc3, GIL</button><button data-m="PY315T">3.15rc3t, no GIL</button></div>
+<div class="cg-svg" id="cg-ft-plot"></div>
+<div class="cg-cnt" id="cg-ft-cnt"></div>
+<div class="cg-cap" id="cg-ft-cap"></div>
+<div class="cg-ctl" id="cg-ft-ctl"></div>
+<div class="cg-src" id="cg-ft-src"></div>
+</div>
+<p id="cg-ft-scale-p"></p>
+<div class="cg-svg" id="cg-ft-bars"></div>
+<p class="small mute">Speed-up over one thread on the same interpreter, median of five runs. Section 1 timed a different CPU-bound job on 3.14t (0.94 s serial, 0.37 s on four threads, about 2.5x); this final run of the token counter measured <span id="cg-ft-cmp4"></span> with four threads, under a heavier load. Both are rough: on a busy laptop the same job varies by tens of percent between runs.</p>
+<details class="dp" id="cg-scale-det"><summary>Every scaling run, 1 to 8 threads, and the single-thread overhead <span class="mute">(all runs)</span></summary><div class="b">
+<p class="small">100,000 lines split evenly across N threads; each thread counts into its own <code>Counter</code>, then the main thread merges and checks the total against a single-threaded run. Five timed runs per point after one warm-up; the chart shows the median, the table every run. Script: <code>src/pb/ft/ft_bench.py</code>. One laptop (Apple M1 Pro: 8 performance and 2 efficiency cores, 16 GB, macOS 27) in normal use: treat differences under about 10% as noise; ratios on the same interpreter are more portable than absolute times.</p>
+<div class="seg" id="cg-sc-mode"><button data-m="t" class="on">Time</button><button data-m="s">Speed-up over 1 thread</button></div>
+<div class="cg-svg" id="cg-sc-plot"></div>
+<div class="cg-leg2" id="cg-sc-leg"></div>
+<div class="cg-tbl"><table id="cg-sc-tbl"></table></div>
+<p id="cg-sc-ovh" class="small"></p>
+</div></details>
+
+<h3>The bug the GIL was hiding (and was not preventing)</h3>
+<p>Now the same four threads update one shared dictionary instead of their own: <code>shared[user] = shared.get(user, 0) + n</code>. That line reads, adds and writes back in three steps; if two threads read the same old value, one addition is lost.</p>
+<div class="pr" id="cg-pr-race"></div>
+<p>Python's documentation never promised that a read-modify-write like this is atomic under the GIL ({{Python FAQ|https://docs.python.org/3/faq/library.html#what-kinds-of-global-value-mutation-are-thread-safe}}); the GIL only made losing an update rare. Without the GIL the same bug happens on most runs (the parent topic's section 9, Concurrency, measured about 70% of unsynchronised counter updates lost, {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). What the free-threaded build does guarantee is that built-in objects stay internally consistent: the dictionary never crashes or corrupts, it only holds the wrong totals. The fixes are the same on both builds: a <code>threading.Lock</code> around the update (exact in every run), or, better, no shared state, which is what the scaling run did.</p>
+
+<h3>Will your dependencies run without the GIL?</h3>
+<p>A C, C++ or Rust extension must declare that it is safe without the GIL. If it does not, importing it on the free-threaded build silently turns the GIL back on for the whole process, with a warning. Real output from two tiny C extensions, identical except for one line that declares support (<code>Py_mod_gil</code>):</p>
+<div class="cg-term" data-cg-tr="cext" data-cg-cmd="python3.14t -u check.py|python3.14t -u -X gil=0"></div>
+<p><code>-X gil=0</code> (or <code>PYTHON_GIL=0</code>) forces it off anyway, at your own risk. Packages that have not been ported may also refuse to build. This is orjson 3.12.0, which has no free-threaded wheel, being built from source for 3.14t:</p>
+<div class="cg-term" id="cg-orjson"></div>
+<p class="cg-src">Real output of <code>uv run --python 3.14t --with orjson==3.12.0</code> on 2026-10-05, filtered to the error lines (paths shortened to ...); the full log is long.</p>
+<p id="cg-ft-wheels"></p>
+<details class="dp"><summary>Which popular compiled packages ship free-threaded wheels <span class="mute">(the survey)</span></summary><div class="b">
+<p class="small" id="cg-ws-note"></p>
+<div class="chips" id="cg-ws-filter"><button data-m="all" class="on">All</button><button data-m="no314t">No cp314t wheel</button><button data-m="abi3">Ships abi3</button></div>
+<div class="cg-tbl cg-ws"><table id="cg-ws-tbl"></table></div>
+<p class="small mute">A missing <code>cp314t</code> wheel means an installer on 3.14t builds from the sdist (which needs a compiler, and may refuse, as orjson does) or fails. <code>abi3</code> wheels do not load on free-threaded builds; <code>abi3t</code> (3.15+) does; wheel tags are {{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}}. polars appears as <code>polars-runtime-32</code> because the <code>polars</code> wheel itself is now pure Python. Script: <code>src/pb/pack/wheels.py</code>.</p>
+</div></details>
+<div class="cg-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
+<li><b>Single-thread speed.</b> The 3.13 HOWTO measured about 40% overhead; for 3.14, What's New says "roughly 5-10%" and the 3.14 HOWTO "about 1% on macOS aarch64 to 8% on x86-64 Linux" (pyperformance). Measured here on one workload: <span id="cg-ft-ovh"></span>.</li>
+<li><b>Memory.</b> PEP 779 set a 20% memory overhead target for phase II; this page did not measure memory.</li>
+<li><b>Your own thread safety.</b> Races that the GIL made rare now happen; audit shared mutable state before switching.</li>
+<li><b>Dependencies.</b> One unported extension turns the GIL back on for everyone (above).</li>
+<li><b>Not for I/O-bound work</b>: threads already overlap waiting under the GIL, and asyncio is the usual tool for many connections.</li>
+</ul>Whether the free-threaded build ever becomes the default ("phase III") is "left for a future PEP" (PEP 779); the old page's forecast of 3.16 to 3.17 is a guess, not a plan.</div>
+<details class="dp"><summary>Corrections to the old Notion page <span class="mute">(provenance)</span></summary><div class="b"><ul class="tight">
+<li>"~3x speedups on 4-core CPU-bound thread pools": no source given. Measured here on a busy 10-core laptop: <span id="cg-ft-fix4"></span> with 4 threads on 3.14t.</li>
+<li>"single-digit-percent single-thread overhead (down from ~40% in 3.13)": both figures are the official ones (3.14 What's New, 3.13 HOWTO); this workload measured <span id="cg-ft-fix1"></span>.</li>
+<li>"free-threaded builds (3.14+)": imprecise. The free-threaded build was experimental from 3.13 (PEP 703) and officially supported from 3.14 (PEP 779).</li>
+</ul></div></details>
+</section>

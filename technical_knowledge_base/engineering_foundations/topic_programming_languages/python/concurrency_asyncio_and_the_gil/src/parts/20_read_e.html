@@ -1,0 +1,18 @@
+<section id="s4"><h2>4. Subinterpreters (3.14), measured</h2>
+<p>A <b>subinterpreter</b> is a second, isolated Python interpreter inside the same process: its own modules, its own globals and, since 3.12, its own GIL ({{PEP 684|https://peps.python.org/pep-0684/}}). 3.14 exposed them in the standard library ({{PEP 734|https://peps.python.org/pep-0734/}}): <code>concurrent.interpreters</code> and <code>InterpreterPoolExecutor</code>, which has the same interface as the thread and process pools. They sit between threads and processes: parallel on the normal GIL build like processes, but cheaper to start, and like processes they share nothing by default: arguments and results cross by pickling, except immutable built-ins (None, bool, bytes, str, int, float and tuples of these), which are shared or copied cheaply, and <code>memoryview</code> and interpreter queues, which really share mutable data ({{docs|https://docs.python.org/3.14/library/concurrent.interpreters.html}}).</p>
+<div class="cg-code2">from concurrent.futures import InterpreterPoolExecutor
+
+with InterpreterPoolExecutor(max_workers=4) as ex:
+    totals = list(ex.map(count_slice, parts))   # same code as with ThreadPoolExecutor</div>
+<div class="cg-svg" id="cg-int-bars"></div>
+<div class="cg-tbl"><table id="cg-int-tbl"></table></div>
+<p class="small mute" id="cg-int-note"></p>
+<p>On this job, subinterpreters and processes both clearly beat threads on the GIL build, because each worker has its own GIL; processes were somewhat faster here. Neither reached 4x with 4 workers: each worker receives 25,000 lines by pickling and returns a pickled <code>Counter</code>, and the machine was busy. A new subinterpreter started more than ten times faster than a spawned process, and about a hundred times slower than a thread.</p>
+<details class="dp"><summary>Every run, with the method and the machine's load <span class="mute">(all runs)</span></summary><div class="b">
+<p class="small">Start-up: create a worker and run a trivial function in it (median of 20 for threads and subinterpreters, 10 for spawned processes). Job: the 100,000-line count split 4 ways with each executor, median of 5 (the result is checked every time). Script: <code>src/pb/interp/interp_bench.py</code>.</p>
+<div class="cg-tbl"><table id="cg-int-all"></table></div>
+</div></details>
+<p>The mistake everyone makes first: a subinterpreter has its own <code>sys.path</code>, so a module the main interpreter found through a <code>sys.path.insert</code> is invisible to it. Simple arguments can hide this; a list argument has to be pickled together with the function, and then it fails:</p>
+<div class="cg-term" data-cg-tr="interp_mistake" data-cg-cmd="python3.14 -u mistake.py|PYTHONPATH"></div>
+<div class="cg-cost"><div class="t">What it costs, and when not to use it</div>Every extension module must opt in to being loaded in several interpreters, and the most important one has not:<div class="cg-term" data-cg-tr="interp_numpy" data-cg-cmd="uv run"></div>Objects cannot be shared, only copied; and on the free-threaded build plain threads already run in parallel with shared memory. Use them on the normal build for CPU-bound work whose inputs and outputs are small, when process start-up is the problem.</div>
+</section>

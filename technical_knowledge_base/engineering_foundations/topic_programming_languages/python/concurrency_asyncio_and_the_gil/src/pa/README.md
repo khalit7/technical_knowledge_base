@@ -1,0 +1,3 @@
+# pa: threads, the GIL and asyncio (code, recorded outputs, generator)
+
+Copied from the Python language page's `src/pa/` on 2026-10-26 and trimmed to this page. `code/*.py` are the examples shown on the page; `run_all.sh` reruns them into `outputs/` (needs the scratch toolchain in `versions.txt`; paths shortened). `tpl/` holds this page's generated parts; `gen.py` expands them into `../parts/` (`python3 gen.py`). `check_numbers.py` lists any measured number quoted in the prose that no longer matches `outputs/` after a rerun. `coverage.json`: the old Notion page's claims on these subjects and where they landed (paths there refer to the language page's former sections).

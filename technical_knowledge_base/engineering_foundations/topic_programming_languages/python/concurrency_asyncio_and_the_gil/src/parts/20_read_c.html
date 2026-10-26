@@ -1,0 +1,300 @@
+<section id="s2"><h2>2. asyncio from the event loop up</h2>
+<p>An <dfn>event loop</dfn> is a loop on one thread that keeps a queue of tasks ready to run and a list of things being waited for (sockets, timers). It runs a ready task until that task says "I am waiting for X", then runs the next ready task; when X happens, the waiting task goes back on the ready queue. Nothing is interrupted: a task gives up the thread only at an <code>await</code>. That is <dfn>cooperative</dfn> multitasking. Underneath, the loop asks the operating system which sockets are ready with one call (<code>epoll</code> on Linux, <code>kqueue</code> on macOS), which {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}} section 8 explains.</p>
+<p>The pieces: <code>async def</code> defines a <dfn>coroutine function</dfn>; calling it runs nothing and returns a <dfn>coroutine</dfn> object, a paused computation. <code>await c</code> runs <code>c</code> until it finishes, suspending the current coroutine whenever <code>c</code> waits. A <dfn>task</dfn> (<code>asyncio.create_task(c)</code>) wraps a coroutine and schedules it on the loop to run concurrently with the others. <code>asyncio.run(main())</code> creates a loop, runs <code>main</code> to completion and closes the loop. Two predictions first:</p>
+<div class="cg-snip cg-pred"><div class="cg-file">a1_coro.py</div><pre class="cg-code"><span class="kw">import</span> asyncio, inspect
+
+<span class="kw">async</span> <span class="kw">def</span> fetch(name):
+    print(<span class="st">f"fetch(&#123;name&#125;) starts"</span>)
+    <span class="kw">await</span> asyncio.sleep(0.01)
+    <span class="kw">return</span> name.upper()
+
+c = fetch(<span class="st">"a"</span>)                      <span class="cm"># nothing runs yet: calling makes a coroutine OBJECT</span>
+print(type(c).__name__, inspect.getcoroutinestate(c))
+print(asyncio.run(c))               <span class="cm"># the event loop drives it to completion</span>
+
+fetch(<span class="st">"b"</span>)                          <span class="cm"># created and never awaited: it never runs</span>
+<span class="kw">import</span> gc; gc.collect()             <span class="cm"># CPython warns when the unused coroutine is destroyed</span>
+print(<span class="st">"end"</span>)</pre><details><summary>Predict the output, then reveal</summary><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a1_coro.txt">coroutine CORO_CREATED
+fetch(a) starts
+A
+a1_coro.py:12: RuntimeWarning: coroutine 'fetch' was never awaited
+  fetch("b")                          # created and never awaited: it never runs
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+end</pre></details></div>
+<div class="cg-snip cg-pred"><div class="cg-file">gather keeps argument order</div><pre class="cg-code"><span class="kw">import</span> asyncio
+<span class="kw">async</span> <span class="kw">def</span> f(n):
+    <span class="kw">await</span> asyncio.sleep(n / 100)
+    print(<span class="st">'done'</span>, n)
+    <span class="kw">return</span> n
+<span class="kw">async</span> <span class="kw">def</span> main():
+    print(<span class="kw">await</span> asyncio.gather(f(3), f(1), f(2)))
+asyncio.run(main())</pre><details><summary>Predict the output, then reveal</summary><div class="cg-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="cg-out">done 1
+done 2
+done 3
+[3, 1, 2]</pre></details></div>
+<p class="small">The second answer: tasks finish in the order their waits end (1, 2, 3), but <code>gather</code> returns results in the order of its arguments, <code>[3, 1, 2]</code>.</p>
+
+<h3>Three coroutines, four ways</h3>
+<p>Three coroutines wait 100, 200 and 300 ms. Awaited one after another they take 0.6 s; started together with <code>asyncio.gather</code> they take 0.3 s, the longest single wait. Then the middle one calls blocking <code>time.sleep(0.2)</code> instead of <code>await asyncio.sleep(0.2)</code>. Every step below is a real event from <code>a2_trace.py</code>, stamped with the loop's clock and drawn to scale on one 0 to 620 ms axis, so the four modes compare by eye.</p>
+<div class="pr" id="cg-pr-loop"></div>
+<div class="cg-anim" id="cg-loop-card"><h4>One blocking call freezes every task; <code>to_thread</code> gives the time back</h4>
+<div class="seg" id="cg-loop-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="gathered">2. gather</button><button data-m="gathered_blocking">3. gather, B blocks</button><button data-m="gathered_thread">4. gather, B in a thread</button></div>
+<div class="cg-ctl" id="cg-loop-ctl"></div>
+<div class="cg-svg" id="cg-loop-svg"></div>
+<div class="cg-cap" id="cg-loop-cap"></div>
+<div class="cg-cnt" id="cg-loop-cnt"></div>
+<div class="cg-src">Thin bar: suspended at an <code>await</code> (the thread is free). Thick dark bar: holding the thread. Orange bar: a blocking call. Ring: the moment a timer is due. The top lane is what the one thread is doing.</div>
+</div>
+<ul class="tight small">
+<li><b>1 against 2</b>: the same coroutines; <code>await</code> in a loop runs them back to back (0.6 s), <code>gather</code> wraps each in a task so their waits overlap (0.3 s).</li>
+<li><b>2 against 3</b>: one <code>time.sleep</code> in B holds the thread for 200 ms. A's timer is due at 100 ms but A cannot resume until 200 ms; C cannot even start until 200 ms; total 0.5 s. Nothing crashed and nothing warned: a blocked loop is silent unless debug mode is on.</li>
+<li><b>3 against 4</b>: <code>await asyncio.to_thread(time.sleep, 0.2)</code> runs the same blocking call in a worker thread; B suspends like any other await, and the total is back to 0.3 s.</li>
+</ul>
+<details class="dp"><summary>The script, <code>a2_trace.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a2_trace.py</div><pre class="cg-code">"""Three coroutines, four ways of running them. Every event is stamped with the event
+loop's clock (ms since the run started); the event-loop stepper on this page replays these traces."""
+<span class="kw">import</span> asyncio, json, sys, time
+
+EV = []
+<span class="kw">def</span> ev(who, what, note=<span class="st">""</span>):
+    EV.append([who, what, round((time.perf_counter() - T0) * 1000, 1), note])
+
+<span class="kw">async</span> <span class="kw">def</span> fetch(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"await"</span>, <span class="st">f"asyncio.sleep(&#123;secs&#125;)"</span>)
+    <span class="kw">await</span> asyncio.sleep(secs)                  <span class="cm"># suspends: control goes back to the loop</span>
+    ev(name, <span class="st">"resume"</span>)
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> fetch_blocking(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"block"</span>, <span class="st">f"time.sleep(&#123;secs&#125;)"</span>)
+    time.sleep(secs)                           <span class="cm"># blocks the whole thread: no other coroutine can run</span>
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> fetch_thread(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"await"</span>, <span class="st">f"asyncio.to_thread(time.sleep, &#123;secs&#125;)"</span>)
+    <span class="kw">await</span> asyncio.to_thread(time.sleep, secs)  <span class="cm"># the blocking call runs in a worker thread</span>
+    ev(name, <span class="st">"resume"</span>)
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+JOBS = [(<span class="st">"A"</span>, 0.10), (<span class="st">"B"</span>, 0.20), (<span class="st">"C"</span>, 0.30)]
+
+<span class="kw">async</span> <span class="kw">def</span> sequential():
+    <span class="kw">return</span> [<span class="kw">await</span> fetch(n, s) <span class="kw">for</span> n, s <span class="kw">in</span> JOBS]
+
+<span class="kw">async</span> <span class="kw">def</span> gathered():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(*(fetch(n, s) <span class="kw">for</span> n, s <span class="kw">in</span> JOBS))
+
+<span class="kw">async</span> <span class="kw">def</span> gathered_blocking():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(fetch(<span class="st">"A"</span>, 0.10), fetch_blocking(<span class="st">"B"</span>, 0.20), fetch(<span class="st">"C"</span>, 0.30))
+
+<span class="kw">async</span> <span class="kw">def</span> gathered_thread():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(fetch(<span class="st">"A"</span>, 0.10), fetch_thread(<span class="st">"B"</span>, 0.20), fetch(<span class="st">"C"</span>, 0.30))
+
+out = &#123;&#125;
+<span class="kw">for</span> mode <span class="kw">in</span> (sequential, gathered, gathered_blocking, gathered_thread):
+    EV.clear()
+    T0 = time.perf_counter()
+    res = asyncio.run(mode())
+    total = round((time.perf_counter() - T0) * 1000, 1)
+    out[mode.__name__] = &#123;<span class="st">"events"</span>: list(EV), <span class="st">"total_ms"</span>: total, <span class="st">"result"</span>: res&#125;
+    print(<span class="st">f"&#123;mode.__name__:18&#125; &#123;total:6.1f&#125; ms  order of events: "</span> +
+          <span class="st">" "</span>.join(<span class="st">f"&#123;w&#125;:&#123;e&#125;"</span> <span class="kw">for</span> w, e, _, _ <span class="kw">in</span> EV))
+<span class="kw">with</span> open(sys.argv[1] <span class="kw">if</span> len(sys.argv) &gt; 1 <span class="kw">else</span> <span class="st">"/dev/null"</span>, <span class="st">"w"</span>) <span class="kw">as</span> f:
+    json.dump(out, f)</pre></div>
+<div class="cg-snip"><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a2_trace.txt">sequential          605.2 ms  order of events: A:start A:await A:resume A:done B:start B:await B:resume B:done C:start C:await C:resume C:done
+gathered            302.5 ms  order of events: A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done
+gathered_blocking   505.0 ms  order of events: A:start A:await B:start B:block B:done C:start C:await A:resume A:done C:resume C:done
+gathered_thread     305.7 ms  order of events: A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done</pre></div>
+</div></details>
+<div class="co warn"><div class="t">Never block the loop</div>"If a function performs a CPU-intensive calculation for 1 second, all concurrent asyncio Tasks and IO operations would be delayed by 1 second" ({{Developing with asyncio|https://docs.python.org/3/library/asyncio-dev.html}}). Culprits: <code>requests</code>, <code>time.sleep</code>, a synchronous database driver, a big <code>json.loads</code>, tokenising a long document. Fixes: an async library, <code>await asyncio.to_thread(f)</code>, or a process pool via <code>loop.run_in_executor</code>. Debug mode reports any step that holds the loop longer than 100 ms:</div>
+<div class="cg-snip"><div class="cg-file">a6_debug.py</div><pre class="cg-code"><span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> handler():
+    time.sleep(0.2)                    <span class="cm"># a blocking call hiding in async code</span>
+    <span class="kw">await</span> asyncio.sleep(0)
+
+asyncio.run(handler(), debug=<span class="kw">True</span>)     <span class="cm"># or PYTHONASYNCIODEBUG=1, or python -X dev</span></pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a6_debug.txt">Executing &lt;Task pending name='Task-1' coro=&lt;handler() running at a6_debug.py:5&gt; cb=[_run_until_complete_cb() at &lt;stdlib&gt;/asyncio/base_events.py:181] created at &lt;stdlib&gt;/asyncio/runners.py:110&gt; took 0.210 seconds</pre></div>
+
+<h3>A real HTTP fan-out against a local server</h3>
+<p>The common LLM-application pattern: call an API many times concurrently, but not unboundedly. A standard-library server (<code>asyncio.start_server</code>) answers <code>GET /delay/100</code> after 100 ms, standing in for a model API; the client opens a connection per request with <code>asyncio.open_connection</code>. Twenty calls:</p>
+<div class="cg-svg" id="cg-fan-bars"></div>
+<p>Twenty sequential calls take twenty times 100 ms. <code>gather</code> overlaps all the waits: 0.10 s. A <code>Semaphore(5)</code> keeps at most five requests in flight (rate limits are real), giving four waves of 100 ms. <code>TaskGroup</code> (3.11+) is <code>gather</code> with structured clean-up: if one task fails, the others are cancelled and the errors arrive together as an ExceptionGroup. <code>asyncio.timeout</code> (3.11+) bounds a block of awaits: one 2 s call with a 250 ms budget stopped at 0.252 s.</p>
+<details class="dp"><summary>The script, <code>a3_fanout.py</code> (server and client, standard library only), and its real output <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a3_fanout.py</div><pre class="cg-code">"""A real HTTP fan-out against a local server, standard library only.
+The server answers GET /delay/&lt;ms&gt; after &lt;ms&gt; milliseconds (like a slow model API).
+The client opens a TCP connection per request with asyncio.open_connection."""
+<span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> handle(reader, writer):              <span class="cm"># one coroutine per incoming connection</span>
+    request_line = (<span class="kw">await</span> reader.readline()).decode()
+    <span class="kw">while</span> (<span class="kw">await</span> reader.readline()) <span class="kw">not</span> <span class="kw">in</span> (<span class="st">b"\r\n"</span>, <span class="st">b""</span>):
+        <span class="kw">pass</span>                                   <span class="cm"># skip headers</span>
+    ms = int(request_line.split()[1].rsplit(<span class="st">"/"</span>, 1)[1])
+    <span class="kw">await</span> asyncio.sleep(ms / 1000)
+    body = <span class="st">f"slept &#123;ms&#125; ms"</span>.encode()
+    writer.write(<span class="st">b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"</span> % (len(body), body))
+    <span class="kw">await</span> writer.drain()
+    writer.close()
+
+<span class="kw">async</span> <span class="kw">def</span> get(port, path):
+    reader, writer = <span class="kw">await</span> asyncio.open_connection(<span class="st">"127.0.0.1"</span>, port)
+    writer.write(<span class="st">f"GET &#123;path&#125; HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"</span>.encode())
+    <span class="kw">await</span> writer.drain()
+    raw = <span class="kw">await</span> reader.read()                  <span class="cm"># read until the server closes</span>
+    writer.close()
+    <span class="kw">await</span> writer.wait_closed()
+    <span class="kw">return</span> raw.split(<span class="st">b"\r\n\r\n"</span>, 1)[1].decode()
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    server = <span class="kw">await</span> asyncio.start_server(handle, <span class="st">"127.0.0.1"</span>, 0)
+    port = server.sockets[0].getsockname()[1]
+    delays = [100] * 20                        <span class="cm"># 20 calls of 100 ms each</span>
+
+    t0 = time.perf_counter()
+    <span class="kw">for</span> d <span class="kw">in</span> delays:
+        <span class="kw">await</span> get(port, <span class="st">f"/delay/&#123;d&#125;"</span>)         <span class="cm"># one after another</span>
+    print(<span class="st">f"sequential, 20 calls      &#123;time.perf_counter() - t0:6.3f&#125; s"</span>)
+
+    t0 = time.perf_counter()
+    bodies = <span class="kw">await</span> asyncio.gather(*(get(port, <span class="st">f"/delay/&#123;d&#125;"</span>) <span class="kw">for</span> d <span class="kw">in</span> delays))
+    print(<span class="st">f"gather, 20 at once        &#123;time.perf_counter() - t0:6.3f&#125; s   &#123;bodies[0]!r&#125;"</span>)
+
+    limit = asyncio.Semaphore(5)               <span class="cm"># at most 5 in flight: be polite to the API</span>
+    <span class="kw">async</span> <span class="kw">def</span> polite(d):
+        <span class="kw">async</span> <span class="kw">with</span> limit:
+            <span class="kw">return</span> <span class="kw">await</span> get(port, <span class="st">f"/delay/&#123;d&#125;"</span>)
+    t0 = time.perf_counter()
+    <span class="kw">await</span> asyncio.gather(*(polite(d) <span class="kw">for</span> d <span class="kw">in</span> delays))
+    print(<span class="st">f"gather, at most 5 at once &#123;time.perf_counter() - t0:6.3f&#125; s"</span>)
+
+    t0 = time.perf_counter()
+    <span class="kw">async</span> <span class="kw">with</span> asyncio.TaskGroup() <span class="kw">as</span> tg:      <span class="cm"># 3.11+: same speed, and cancels siblings on failure</span>
+        tasks = [tg.create_task(get(port, <span class="st">f"/delay/&#123;d&#125;"</span>)) <span class="kw">for</span> d <span class="kw">in</span> delays]
+    print(<span class="st">f"TaskGroup, 20 at once     &#123;time.perf_counter() - t0:6.3f&#125; s   &#123;len(tasks)&#125; results"</span>)
+
+    t0 = time.perf_counter()
+    <span class="kw">try</span>:
+        <span class="kw">async</span> <span class="kw">with</span> asyncio.timeout(0.25):      <span class="cm"># one slow call (2 s) with a 250 ms budget</span>
+            <span class="kw">await</span> get(port, <span class="st">"/delay/2000"</span>)
+    <span class="kw">except</span> TimeoutError:
+        print(<span class="st">f"timeout after             &#123;time.perf_counter() - t0:6.3f&#125; s"</span>)
+
+    server.close()
+    <span class="kw">await</span> server.wait_closed()
+
+asyncio.run(main())</pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a3_fanout.txt">sequential, 20 calls       2.058 s
+gather, 20 at once         0.104 s   'slept 100 ms'
+gather, at most 5 at once  0.416 s
+TaskGroup, 20 at once      0.107 s   20 results
+timeout after              0.252 s</pre></div>
+</div></details>
+
+<h3>Cancellation and timeouts</h3>
+<p><code>task.cancel()</code> does not stop a task immediately; it arranges for <code>CancelledError</code> to be raised inside it at its current <code>await</code>, so its <code>finally</code> blocks and <code>async with</code> exits run. A timeout is a cancellation that the timeout block turns into <code>TimeoutError</code>. The rule: if you catch <code>CancelledError</code> to clean up, re-raise it. A coroutine that swallows it reports success to whoever cancelled it, and <code>TaskGroup</code> and <code>timeout</code> stop working around it. The real run: <code>w1</code> re-raises, the swallower returns a value, <code>w2</code> sits under a 50 ms timeout.</p>
+<div class="cg-snip"><div class="cg-olab">real output of a4_cancel.py, Python 3.14.8</div><pre class="cg-out" data-src="a4_cancel.txt">w1: working
+w1: cancelled, cleaning up
+w1: finally
+main: w1 is cancelled: True
+swallower: caught CancelledError and returned (a bug)
+main: swallower result: pretends to have finished | cancelled(): False
+w2: working
+w2: cancelled, cleaning up
+w2: finally
+main: w2 timed out</pre></div>
+<details class="dp"><summary>The script, <code>a4_cancel.py</code> <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a4_cancel.py</div><pre class="cg-code"><span class="kw">import</span> asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> worker(name):
+    <span class="kw">try</span>:
+        print(<span class="st">f"&#123;name&#125;: working"</span>)
+        <span class="kw">await</span> asyncio.sleep(10)
+    <span class="kw">except</span> asyncio.CancelledError:
+        print(<span class="st">f"&#123;name&#125;: cancelled, cleaning up"</span>)
+        <span class="kw">raise</span>                                   <span class="cm"># always re-raise CancelledError</span>
+    <span class="kw">finally</span>:
+        print(<span class="st">f"&#123;name&#125;: finally"</span>)
+
+<span class="kw">async</span> <span class="kw">def</span> swallower():
+    <span class="kw">try</span>:
+        <span class="kw">await</span> asyncio.sleep(10)
+    <span class="kw">except</span> asyncio.CancelledError:
+        print(<span class="st">"swallower: caught CancelledError and returned (a bug)"</span>)
+        <span class="kw">return</span> <span class="st">"pretends to have finished"</span>
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    t = asyncio.create_task(worker(<span class="st">"w1"</span>))
+    <span class="kw">await</span> asyncio.sleep(0.01)                   <span class="cm"># let it start</span>
+    t.cancel()                                  <span class="cm"># request: CancelledError is raised at its await</span>
+    <span class="kw">try</span>:
+        <span class="kw">await</span> t
+    <span class="kw">except</span> asyncio.CancelledError:
+        print(<span class="st">"main: w1 is cancelled:"</span>, t.cancelled())
+
+    s = asyncio.create_task(swallower())
+    <span class="kw">await</span> asyncio.sleep(0.01)
+    s.cancel()
+    print(<span class="st">"main: swallower result:"</span>, <span class="kw">await</span> s, <span class="st">"| cancelled():"</span>, s.cancelled())
+
+    <span class="kw">try</span>:
+        <span class="kw">async</span> <span class="kw">with</span> asyncio.timeout(0.05):       <span class="cm"># a timeout is a cancellation plus a TimeoutError</span>
+            <span class="kw">await</span> worker(<span class="st">"w2"</span>)
+    <span class="kw">except</span> TimeoutError:
+        print(<span class="st">"main: w2 timed out"</span>)
+
+asyncio.run(main())</pre></div>
+</div></details>
+
+<h3>Async generators: streaming responses</h3>
+<p>An <code>async def</code> containing <code>yield</code> is an <dfn>async generator</dfn> ({{PEP 525|https://peps.python.org/pep-0525/}}), consumed with <code>async for</code>. It is exactly how the async LLM SDKs expose a streamed response: each step awaits the next chunk, so other tasks keep running between tokens (in the run below, a ticker task ran 7 times meanwhile). Close it with <code>aclose()</code> when you stop early, so its clean-up runs now and not whenever the garbage collector gets to it.</p>
+<details class="dp"><summary>The script, <code>a5_stream.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a5_stream.py</div><pre class="cg-code"><span class="st">"""Async generators: how LLM SDKs stream tokens. The consumer uses `async for`."""</span>
+<span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> stream_tokens(text, delay=0.02):
+    <span class="kw">try</span>:
+        <span class="kw">for</span> tok <span class="kw">in</span> text.split(<span class="st">" "</span>):
+            <span class="kw">await</span> asyncio.sleep(delay)          <span class="cm"># waiting for the next chunk from the network</span>
+            <span class="kw">yield</span> tok + <span class="st">" "</span>
+    <span class="kw">finally</span>:
+        print(<span class="st">"\n[stream closed]"</span>)
+
+<span class="kw">async</span> <span class="kw">def</span> ticker(stop):
+    n = 0
+    <span class="kw">while</span> <span class="kw">not</span> stop.is_set():
+        <span class="kw">await</span> asyncio.sleep(0.02)
+        n += 1
+    <span class="kw">return</span> n
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    stop = asyncio.Event()
+    tick = asyncio.create_task(ticker(stop))    <span class="cm"># other work keeps running while we stream</span>
+    t0 = time.perf_counter()
+    <span class="kw">async</span> <span class="kw">for</span> tok <span class="kw">in</span> stream_tokens(<span class="st">"the event loop interleaves waiting, never computing"</span>):
+        print(tok, end=<span class="st">""</span>, flush=<span class="kw">True</span>)
+    stop.set()
+    print(<span class="st">f"streamed in &#123;time.perf_counter() - t0:.2f&#125; s; the ticker ran &#123;await tick&#125; times meanwhile"</span>)
+
+    agen = stream_tokens(<span class="st">"stop me after two tokens please"</span>)
+    got = []
+    <span class="kw">async</span> <span class="kw">for</span> tok <span class="kw">in</span> agen:
+        got.append(tok)
+        <span class="kw">if</span> len(got) == 2:
+            <span class="kw">break</span>                               <span class="cm"># leaves the generator suspended</span>
+    <span class="kw">await</span> agen.aclose()                         <span class="cm"># run the generator's finally now, not at GC</span>
+    print(<span class="st">"got"</span>, got)
+
+asyncio.run(main())</pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a5_stream.txt">the event loop interleaves waiting, never computing 
+[stream closed]
+streamed in 0.15 s; the ticker ran 7 times meanwhile
+
+[stream closed]
+got ['stop ', 'me ']</pre></div>
+</div></details>
+<p class="small mute">Python 3.14 adds <code>python -m asyncio ps PID</code> and <code>pstree PID</code> to list the tasks of a running process ({{What's new in 3.14|https://docs.python.org/3.14/whatsnew/3.14.html}}). JavaScript has the same single-threaded loop built into every runtime ({{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}); Rust's async with tokio is {{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}}. Choosing async, threads or worker processes inside a web service is {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</p>
+</section>

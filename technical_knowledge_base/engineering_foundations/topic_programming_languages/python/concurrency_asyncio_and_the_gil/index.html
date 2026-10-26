@@ -1,0 +1,1094 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python: concurrency, asyncio and the GIL</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#s-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tabs{flex-wrap:wrap}.tabsep{align-self:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mute);border-left:1px solid var(--line);padding:0 4px 0 10px;margin-left:6px}
+.tabs button.deep{font-style:italic}
+.deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px;color:var(--mute)}.deepnote b{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--acc)}a:visited{color:var(--acc)}
+@media (max-width:520px){h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+</style></head><body><div class="w">
+<h1>Python: concurrency, asyncio and the GIL</h1>
+<div class="sub">What one interpreter lock lets threads do, asyncio from the event loop up, and the two ways round the lock that ship today (the free-threaded build and subinterpreters), every example run on CPython 3.14.8, 3.14.8t and 3.15.0rc3 on an Apple M1 Pro. A child of Python: the essentials. Data as of October 2026. <span id="cg-time">Reading: 17 min, plus 10 in closed details.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">Reading</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<div class="tab" id="t-read" role="tabpanel">
+<style>
+#t-read{--pbg:#1f2328;--pbf:#e6edf3}
+@media (prefers-color-scheme:dark){#t-read{--pbg:#0d1117;--pbf:#e6edf3}}
+#t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
+#t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
+#t-read .hl{color:var(--acc);font-weight:600}
+#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+#t-read .hero h4{margin:0 0 2px;font-size:14.5px}
+#t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+#t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
+@media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
+#t-read .leg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .leg i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#t-read details.dp{border:1px solid var(--line);border-radius:8px;margin:10px 0;background:var(--bg)}
+#t-read details.dp>summary{cursor:pointer;padding:7px 12px;font-size:14px;font-weight:600}
+#t-read details.dp>summary .mute{font-weight:400}
+#t-read details.dp>.b{padding:0 12px 10px;min-width:0}
+#t-read .cg-snip{margin:10px 0 12px;min-width:0}
+#t-read .cg-file,#t-read .cg-olab{font:11.5px/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--mute);padding:3px 10px;border:1px solid var(--line);border-bottom:0;border-radius:6px 6px 0 0;background:var(--soft);display:inline-block}
+#t-read .cg-olab{background:var(--bg);margin-top:6px}
+#t-read pre.cg-code,#t-read pre.cg-out{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:0;padding:8px 10px;overflow-x:auto;white-space:pre;border:1px solid var(--line);border-radius:0 6px 6px 6px;max-width:100%}
+#t-read pre.cg-code{background:var(--soft)}
+#t-read pre.cg-out{background:var(--bg);border-left:3px solid var(--good)}
+#t-read .cg-code .cm{color:var(--mute);font-style:italic}#t-read .cg-code .st{color:var(--c3)}#t-read .cg-code .kw{color:var(--c4);font-weight:600}
+#t-read .cg-pred details{margin-top:6px}
+#t-read .cg-pred summary{cursor:pointer;display:inline-block;font-size:13px;color:var(--acc);border:1px solid var(--acc);border-radius:99px;padding:2px 12px;list-style:none}
+#t-read .cg-pred summary::-webkit-details-marker{display:none}
+#t-read .cg-pred details[open] summary{background:var(--acc2)}
+#t-read .cg-anim{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0;min-width:0}
+#t-read .cg-anim h4{margin:0 0 4px;font-size:14.5px}
+#t-read .cg-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+#t-read .cg-ctl input[type=range]{flex:1 1 120px;min-width:100px;width:auto}
+#t-read .cg-cap{font-size:13.5px;min-height:3.2em;margin:6px 0 2px;border-left:3px solid var(--acc);padding:2px 0 2px 10px}
+#t-read .cg-cnt{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--mute);margin:4px 0}
+#t-read .cg-cnt b{color:var(--ink);font-variant-numeric:tabular-nums}
+#t-read .cg-svg{overflow:hidden;margin:6px 0}
+#t-read .cg-src{font-size:12px;color:var(--mute)}
+#t-read .tw table{min-width:560px}
+#t-read table.cg-t td,#t-read table.cg-t th{font-size:13px}
+#t-read .cg-term{background:var(--pbg);color:var(--pbf);border-radius:8px;padding:9px 11px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+#t-read .cg-term .c{color:#8bd5ff}#t-read .cg-term .c:before{content:"$ ";color:#7d8590}#t-read .cg-term .e{color:#ff9b8b}#t-read .cg-term .w{color:#e3c46b}#t-read .cg-term .k{color:#7d8590}#t-read .cg-term .ok{color:#7ee2a0}
+#t-read .cg-code2{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin:8px 0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;max-width:100%}
+#t-read .cg-tbl{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+#t-read .cg-tbl table{border-collapse:collapse;width:100%;font-size:13px}
+#t-read .cg-tbl th,#t-read .cg-tbl td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+#t-read .cg-tbl thead th{background:var(--soft);font-weight:600}
+#t-read .cg-tbl td.n,#t-read .cg-tbl th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#t-read .cg-tbl tr:last-child td{border-bottom:0}
+#t-read .cg-tbl.wide table{min-width:620px}
+#t-read .cg-ws td.y{color:var(--good);font-weight:600;text-align:center}#t-read .cg-ws td.no{color:var(--dim);text-align:center}
+#t-read .cg-ws td.fn{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;overflow-wrap:anywhere;min-width:16em}
+#t-read .pr{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:12px 0;background:var(--soft)}
+#t-read .pr .q{font-weight:600;font-size:14px;color:var(--ink);margin-bottom:6px}
+#t-read .pr .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#t-read .pr .opts button{font-size:13px;text-align:left;white-space:normal}
+#t-read .pr .opts button.right{border-color:var(--good);color:var(--good);font-weight:600}
+#t-read .pr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
+#t-read .pr .ans{font-size:13.5px;margin-top:6px;border-left:3px solid var(--good);padding:2px 0 2px 10px}
+#t-read .cg-cost{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13.5px}
+#t-read .cg-cost .t{font-weight:600;margin-bottom:4px}
+#t-read .bars .row{grid-template-columns:minmax(0,12em) minmax(0,1fr) 5em}#t-read .bars .row .nm{white-space:normal;line-height:1.2}
+@media (max-width:520px){#t-read .bars .row{grid-template-columns:minmax(0,8.5em) minmax(0,1fr) 4.6em}}
+#t-read .cg-leg2{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .cg-leg2 i{display:inline-block;width:12px;height:3px;margin-right:5px;vertical-align:3px}
+#t-read .seg button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+#t-read code{overflow-wrap:anywhere}
+</style>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s0">The idea</a><a href="#s1">Threads and the GIL</a><a href="#s2">asyncio</a><a href="#s3">Free-threading</a><a href="#s4">Subinterpreters</a><a href="#s5">Choosing</a></nav>
+
+<section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
+<p class="core">In the default CPython build <span class="hl">one lock, the GIL, lets only one thread run Python bytecode at a time</span>, so threads overlap waiting but never computing. asyncio replaces many waiting threads with <span class="hl">one event loop that switches tasks only at an <code>await</code></span>, so a single blocking call stalls every task. To compute in parallel you need several GILs (processes, subinterpreters), no GIL (the free-threaded build), or native code that releases it.</p>
+<div class="hero" id="cg-hero-card"><h4>Who runs Python bytecode at each instant, four ways</h4>
+<div class="cg-svg" id="cg-hero"></div>
+<div class="leg"><span><i style="background:var(--acc)"></i>running Python bytecode (in the asyncio row, one colour per task)</span><span><i style="background:var(--c3);opacity:.45"></i>waiting on I/O (lock released)</span><span><i style="border:1px dashed var(--mute);height:8px"></i>ready, waiting for the GIL or the loop</span><span><i style="background:var(--bad)"></i>a blocking call inside the loop</span><span><i style="background:var(--dim)"></i>process start-up and pickling</span></div>
+<p class="small">Schedules <span class="mute">illustrative</span>; every one is measured below. Notice that in the GIL row two blue bars never overlap, in the free-threaded and process rows they do, and in the asyncio row one orange block stops every task.</p></div>
+<p><b>You need:</b> <a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python: the essentials</a> (names, objects and the one interpreter). What a thread, a lock and <code>epoll</code> are at the operating-system level, and the GIL seen as an OS lock, is <a href="https://app.notion.com/p/3f05c17b0d0d8112ad1af99308fa913f" target="_blank" rel="noopener noreferrer">Concurrency: threads, locks, futexes, deadlock, and event-driven I/O</a> (sections 1, 7 and 8); this page is what the lock means in Python code, with measurements.</p>
+<dl class="terms">
+<dt>GIL</dt><dd>the global interpreter lock: only the thread holding it runs Python bytecode.</dd>
+<dt>Free-threaded build</dt><dd>CPython compiled without the GIL (<code>python3.14t</code>), installed separately.</dd>
+<dt>Coroutine</dt><dd>what calling an <code>async def</code> function returns: a paused computation that runs only when awaited or wrapped in a task.</dd>
+<dt>Task</dt><dd>a coroutine scheduled on the event loop, so it runs concurrently with other tasks.</dd>
+<dt>Event loop</dt><dd>one thread that runs ready tasks until each reaches an <code>await</code>, and wakes them when what they wait for happens.</dd>
+<dt>Cooperative</dt><dd>a task gives up the thread only at an <code>await</code>; nothing interrupts it.</dd>
+<dt>Subinterpreter</dt><dd>a second, isolated interpreter in the same process, with its own GIL.</dd>
+<dt>CPU-bound, I/O-bound</dt><dd>limited by computing, or by waiting (network, disk, a model API).</dd>
+</dl>
+</section>
+<section id="s1"><h2>1. Threads, the GIL and processes</h2>
+<p>CPython's default build has a <dfn>global interpreter lock</dfn> (GIL): "the mechanism used by the CPython interpreter to assure that only one thread executes Python bytecode at a time" (<a href="https://docs.python.org/3/glossary.html#term-global-interpreter-lock" target="_blank" rel="noopener noreferrer">glossary</a>). Threads are real operating-system threads, but only the one holding the GIL runs Python code. A thread releases it while it waits for I/O or sleeps, and C extensions such as NumPy release it during long computations. So threads give concurrency for waiting, not parallelism for Python computing. Processes each have their own interpreter and their own GIL, so they compute in parallel, at the cost of start-up time and of pickling (serialising) every argument and result between processes.</p>
+<p class="small mute">How the lock is handed between threads, and what the free-threaded build replaces it with inside, is the OS view on <a href="https://app.notion.com/p/3f05c17b0d0d8112ad1af99308fa913f" target="_blank" rel="noopener noreferrer">Concurrency</a>, section 7. How a worker process is created (fork, forkserver or spawn, and why 3.14 changed the Linux default) is <a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a>, section 9.</p>
+<p>The experiment: the same CPU job (count primes below 250,000 by trial division, four times) and the same I/O job (four 200 ms waits), each run serially, on four threads and on four processes, best of three, pool start-up inside the timing as in a real script.</p>
+<div class="pr" id="cg-pr-gil"></div>
+<div class="cg-svg" id="cg-gil-bars"></div>
+<p>Four threads did the CPU job no faster than one (0.96 s serial, 0.99 s on four threads): exactly the GIL. Four processes did it about 2.7 times faster, not four, because starting the pool and moving data between processes is inside the timing and the laptop was busy (load average near 8 on 10 cores). For waiting, threads are as good as anything: four 200 ms waits took 208 ms.</p>
+<p>Python 3.14's <dfn>free-threaded build</dfn> (<code>python3.14t</code>, officially supported since 3.14, <a href="https://peps.python.org/pep-0779/" target="_blank" rel="noopener noreferrer">PEP 779</a>) has no GIL. On the same file its four threads compute in parallel (0.94 s to 0.37 s). The price: code that was accidentally safe under the GIL is not any more, and C extensions must declare support; section 3 measures both.</p>
+<details class="dp"><summary>The script, <code>k1_gil.py</code>, and its two real outputs <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">k1_gil.py</div><pre class="cg-code">"""The same CPU-bound job and the same I/O-bound job, run serially, on 4 threads and on 4 processes.
+Wall-clock seconds, best of 3. CPU job: count primes below 250,000 by trial division, 4 times.
+Pool start-up is inside the timing, as it is in a real script."""
+<span class="kw">import</span> os, sys, sysconfig, time
+<span class="kw">from</span> concurrent.futures <span class="kw">import</span> ThreadPoolExecutor, ProcessPoolExecutor
+
+<span class="kw">def</span> count_primes(limit):                 <span class="cm"># pure-Python CPU work: holds the GIL while it runs</span>
+    n = 0
+    <span class="kw">for</span> k <span class="kw">in</span> range(2, limit):
+        <span class="kw">for</span> d <span class="kw">in</span> range(2, int(k ** 0.5) + 1):
+            <span class="kw">if</span> k % d == 0:
+                <span class="kw">break</span>
+        <span class="kw">else</span>:
+            n += 1
+    <span class="kw">return</span> n
+
+<span class="kw">def</span> wait_io(_):                          <span class="cm"># stands in for a network call: sleeping releases the GIL</span>
+    time.sleep(0.2)
+    <span class="kw">return</span> 1
+
+<span class="kw">def</span> pool(kind, fn, args):
+    <span class="kw">with</span> kind(max_workers=4) <span class="kw">as</span> ex:
+        <span class="kw">return</span> list(ex.map(fn, args))
+
+<span class="kw">def</span> best(f, reps=3):
+    ts = []
+    <span class="kw">for</span> _ <span class="kw">in</span> range(reps):
+        t0 = time.perf_counter(); f(); ts.append(time.perf_counter() - t0)
+    <span class="kw">return</span> min(ts)
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    gil = <span class="st">"free-threaded"</span> <span class="kw">if</span> sysconfig.get_config_var(<span class="st">"Py_GIL_DISABLED"</span>) <span class="kw">else</span> <span class="st">"GIL"</span>
+    print(<span class="st">f"Python &#123;sys.version.split()[0]&#125; (&#123;gil&#125; build), &#123;os.cpu_count()&#125; CPUs, load &#123;os.getloadavg()[0]:.2f&#125;"</span>)
+    jobs = [250_000] * 4
+    <span class="kw">for</span> name, f <span class="kw">in</span> [(<span class="st">"CPU serial"</span>, <span class="kw">lambda</span>: [count_primes(j) <span class="kw">for</span> j <span class="kw">in</span> jobs]),
+                    (<span class="st">"CPU 4 threads"</span>, <span class="kw">lambda</span>: pool(ThreadPoolExecutor, count_primes, jobs)),
+                    (<span class="st">"CPU 4 processes"</span>, <span class="kw">lambda</span>: pool(ProcessPoolExecutor, count_primes, jobs)),
+                    (<span class="st">"I/O serial"</span>, <span class="kw">lambda</span>: [wait_io(i) <span class="kw">for</span> i <span class="kw">in</span> range(4)]),
+                    (<span class="st">"I/O 4 threads"</span>, <span class="kw">lambda</span>: pool(ThreadPoolExecutor, wait_io, range(4)))]:
+        print(<span class="st">f"&#123;name:16&#125; &#123;best(f):6.3f&#125; s"</span>)</pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="k1_gil.txt">Python 3.14.8 (GIL build), 10 CPUs, load 7.96
+CPU serial        0.957 s
+CPU 4 threads     0.988 s
+CPU 4 processes   0.357 s
+I/O serial        0.826 s
+I/O 4 threads     0.208 s</pre></div>
+<div class="cg-snip"><div class="cg-olab">the same file, real output, Python 3.14.8 free-threaded build</div><pre class="cg-out" data-src="k1_gil_314t.txt">Python 3.14.8 (free-threaded build), 10 CPUs, load 7.88
+CPU serial        0.939 s
+CPU 4 threads     0.369 s
+CPU 4 processes   0.311 s
+I/O serial        0.833 s
+I/O 4 threads     0.208 s</pre></div>
+</div></details>
+</section>
+<section id="s2"><h2>2. asyncio from the event loop up</h2>
+<p>An <dfn>event loop</dfn> is a loop on one thread that keeps a queue of tasks ready to run and a list of things being waited for (sockets, timers). It runs a ready task until that task says "I am waiting for X", then runs the next ready task; when X happens, the waiting task goes back on the ready queue. Nothing is interrupted: a task gives up the thread only at an <code>await</code>. That is <dfn>cooperative</dfn> multitasking. Underneath, the loop asks the operating system which sockets are ready with one call (<code>epoll</code> on Linux, <code>kqueue</code> on macOS), which <a href="https://app.notion.com/p/3f05c17b0d0d8112ad1af99308fa913f" target="_blank" rel="noopener noreferrer">Concurrency</a> section 8 explains.</p>
+<p>The pieces: <code>async def</code> defines a <dfn>coroutine function</dfn>; calling it runs nothing and returns a <dfn>coroutine</dfn> object, a paused computation. <code>await c</code> runs <code>c</code> until it finishes, suspending the current coroutine whenever <code>c</code> waits. A <dfn>task</dfn> (<code>asyncio.create_task(c)</code>) wraps a coroutine and schedules it on the loop to run concurrently with the others. <code>asyncio.run(main())</code> creates a loop, runs <code>main</code> to completion and closes the loop. Two predictions first:</p>
+<div class="cg-snip cg-pred"><div class="cg-file">a1_coro.py</div><pre class="cg-code"><span class="kw">import</span> asyncio, inspect
+
+<span class="kw">async</span> <span class="kw">def</span> fetch(name):
+    print(<span class="st">f"fetch(&#123;name&#125;) starts"</span>)
+    <span class="kw">await</span> asyncio.sleep(0.01)
+    <span class="kw">return</span> name.upper()
+
+c = fetch(<span class="st">"a"</span>)                      <span class="cm"># nothing runs yet: calling makes a coroutine OBJECT</span>
+print(type(c).__name__, inspect.getcoroutinestate(c))
+print(asyncio.run(c))               <span class="cm"># the event loop drives it to completion</span>
+
+fetch(<span class="st">"b"</span>)                          <span class="cm"># created and never awaited: it never runs</span>
+<span class="kw">import</span> gc; gc.collect()             <span class="cm"># CPython warns when the unused coroutine is destroyed</span>
+print(<span class="st">"end"</span>)</pre><details><summary>Predict the output, then reveal</summary><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a1_coro.txt">coroutine CORO_CREATED
+fetch(a) starts
+A
+a1_coro.py:12: RuntimeWarning: coroutine 'fetch' was never awaited
+  fetch("b")                          # created and never awaited: it never runs
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
+end</pre></details></div>
+<div class="cg-snip cg-pred"><div class="cg-file">gather keeps argument order</div><pre class="cg-code"><span class="kw">import</span> asyncio
+<span class="kw">async</span> <span class="kw">def</span> f(n):
+    <span class="kw">await</span> asyncio.sleep(n / 100)
+    print(<span class="st">'done'</span>, n)
+    <span class="kw">return</span> n
+<span class="kw">async</span> <span class="kw">def</span> main():
+    print(<span class="kw">await</span> asyncio.gather(f(3), f(1), f(2)))
+asyncio.run(main())</pre><details><summary>Predict the output, then reveal</summary><div class="cg-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div><pre class="cg-out">done 1
+done 2
+done 3
+[3, 1, 2]</pre></details></div>
+<p class="small">The second answer: tasks finish in the order their waits end (1, 2, 3), but <code>gather</code> returns results in the order of its arguments, <code>[3, 1, 2]</code>.</p>
+
+<h3>Three coroutines, four ways</h3>
+<p>Three coroutines wait 100, 200 and 300 ms. Awaited one after another they take 0.6 s; started together with <code>asyncio.gather</code> they take 0.3 s, the longest single wait. Then the middle one calls blocking <code>time.sleep(0.2)</code> instead of <code>await asyncio.sleep(0.2)</code>. Every step below is a real event from <code>a2_trace.py</code>, stamped with the loop's clock and drawn to scale on one 0 to 620 ms axis, so the four modes compare by eye.</p>
+<div class="pr" id="cg-pr-loop"></div>
+<div class="cg-anim" id="cg-loop-card"><h4>One blocking call freezes every task; <code>to_thread</code> gives the time back</h4>
+<div class="seg" id="cg-loop-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="gathered">2. gather</button><button data-m="gathered_blocking">3. gather, B blocks</button><button data-m="gathered_thread">4. gather, B in a thread</button></div>
+<div class="cg-ctl" id="cg-loop-ctl"></div>
+<div class="cg-svg" id="cg-loop-svg"></div>
+<div class="cg-cap" id="cg-loop-cap"></div>
+<div class="cg-cnt" id="cg-loop-cnt"></div>
+<div class="cg-src">Thin bar: suspended at an <code>await</code> (the thread is free). Thick dark bar: holding the thread. Orange bar: a blocking call. Ring: the moment a timer is due. The top lane is what the one thread is doing.</div>
+</div>
+<ul class="tight small">
+<li><b>1 against 2</b>: the same coroutines; <code>await</code> in a loop runs them back to back (0.6 s), <code>gather</code> wraps each in a task so their waits overlap (0.3 s).</li>
+<li><b>2 against 3</b>: one <code>time.sleep</code> in B holds the thread for 200 ms. A's timer is due at 100 ms but A cannot resume until 200 ms; C cannot even start until 200 ms; total 0.5 s. Nothing crashed and nothing warned: a blocked loop is silent unless debug mode is on.</li>
+<li><b>3 against 4</b>: <code>await asyncio.to_thread(time.sleep, 0.2)</code> runs the same blocking call in a worker thread; B suspends like any other await, and the total is back to 0.3 s.</li>
+</ul>
+<details class="dp"><summary>The script, <code>a2_trace.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a2_trace.py</div><pre class="cg-code">"""Three coroutines, four ways of running them. Every event is stamped with the event
+loop's clock (ms since the run started); the event-loop stepper on this page replays these traces."""
+<span class="kw">import</span> asyncio, json, sys, time
+
+EV = []
+<span class="kw">def</span> ev(who, what, note=<span class="st">""</span>):
+    EV.append([who, what, round((time.perf_counter() - T0) * 1000, 1), note])
+
+<span class="kw">async</span> <span class="kw">def</span> fetch(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"await"</span>, <span class="st">f"asyncio.sleep(&#123;secs&#125;)"</span>)
+    <span class="kw">await</span> asyncio.sleep(secs)                  <span class="cm"># suspends: control goes back to the loop</span>
+    ev(name, <span class="st">"resume"</span>)
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> fetch_blocking(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"block"</span>, <span class="st">f"time.sleep(&#123;secs&#125;)"</span>)
+    time.sleep(secs)                           <span class="cm"># blocks the whole thread: no other coroutine can run</span>
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+<span class="kw">async</span> <span class="kw">def</span> fetch_thread(name, secs):
+    ev(name, <span class="st">"start"</span>)
+    ev(name, <span class="st">"await"</span>, <span class="st">f"asyncio.to_thread(time.sleep, &#123;secs&#125;)"</span>)
+    <span class="kw">await</span> asyncio.to_thread(time.sleep, secs)  <span class="cm"># the blocking call runs in a worker thread</span>
+    ev(name, <span class="st">"resume"</span>)
+    ev(name, <span class="st">"done"</span>)
+    <span class="kw">return</span> name
+
+JOBS = [(<span class="st">"A"</span>, 0.10), (<span class="st">"B"</span>, 0.20), (<span class="st">"C"</span>, 0.30)]
+
+<span class="kw">async</span> <span class="kw">def</span> sequential():
+    <span class="kw">return</span> [<span class="kw">await</span> fetch(n, s) <span class="kw">for</span> n, s <span class="kw">in</span> JOBS]
+
+<span class="kw">async</span> <span class="kw">def</span> gathered():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(*(fetch(n, s) <span class="kw">for</span> n, s <span class="kw">in</span> JOBS))
+
+<span class="kw">async</span> <span class="kw">def</span> gathered_blocking():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(fetch(<span class="st">"A"</span>, 0.10), fetch_blocking(<span class="st">"B"</span>, 0.20), fetch(<span class="st">"C"</span>, 0.30))
+
+<span class="kw">async</span> <span class="kw">def</span> gathered_thread():
+    <span class="kw">return</span> <span class="kw">await</span> asyncio.gather(fetch(<span class="st">"A"</span>, 0.10), fetch_thread(<span class="st">"B"</span>, 0.20), fetch(<span class="st">"C"</span>, 0.30))
+
+out = &#123;&#125;
+<span class="kw">for</span> mode <span class="kw">in</span> (sequential, gathered, gathered_blocking, gathered_thread):
+    EV.clear()
+    T0 = time.perf_counter()
+    res = asyncio.run(mode())
+    total = round((time.perf_counter() - T0) * 1000, 1)
+    out[mode.__name__] = &#123;<span class="st">"events"</span>: list(EV), <span class="st">"total_ms"</span>: total, <span class="st">"result"</span>: res&#125;
+    print(<span class="st">f"&#123;mode.__name__:18&#125; &#123;total:6.1f&#125; ms  order of events: "</span> +
+          <span class="st">" "</span>.join(<span class="st">f"&#123;w&#125;:&#123;e&#125;"</span> <span class="kw">for</span> w, e, _, _ <span class="kw">in</span> EV))
+<span class="kw">with</span> open(sys.argv[1] <span class="kw">if</span> len(sys.argv) &gt; 1 <span class="kw">else</span> <span class="st">"/dev/null"</span>, <span class="st">"w"</span>) <span class="kw">as</span> f:
+    json.dump(out, f)</pre></div>
+<div class="cg-snip"><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a2_trace.txt">sequential          605.2 ms  order of events: A:start A:await A:resume A:done B:start B:await B:resume B:done C:start C:await C:resume C:done
+gathered            302.5 ms  order of events: A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done
+gathered_blocking   505.0 ms  order of events: A:start A:await B:start B:block B:done C:start C:await A:resume A:done C:resume C:done
+gathered_thread     305.7 ms  order of events: A:start A:await B:start B:await C:start C:await A:resume A:done B:resume B:done C:resume C:done</pre></div>
+</div></details>
+<div class="co warn"><div class="t">Never block the loop</div>"If a function performs a CPU-intensive calculation for 1 second, all concurrent asyncio Tasks and IO operations would be delayed by 1 second" (<a href="https://docs.python.org/3/library/asyncio-dev.html" target="_blank" rel="noopener noreferrer">Developing with asyncio</a>). Culprits: <code>requests</code>, <code>time.sleep</code>, a synchronous database driver, a big <code>json.loads</code>, tokenising a long document. Fixes: an async library, <code>await asyncio.to_thread(f)</code>, or a process pool via <code>loop.run_in_executor</code>. Debug mode reports any step that holds the loop longer than 100 ms:</div>
+<div class="cg-snip"><div class="cg-file">a6_debug.py</div><pre class="cg-code"><span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> handler():
+    time.sleep(0.2)                    <span class="cm"># a blocking call hiding in async code</span>
+    <span class="kw">await</span> asyncio.sleep(0)
+
+asyncio.run(handler(), debug=<span class="kw">True</span>)     <span class="cm"># or PYTHONASYNCIODEBUG=1, or python -X dev</span></pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a6_debug.txt">Executing &lt;Task pending name='Task-1' coro=&lt;handler() running at a6_debug.py:5&gt; cb=[_run_until_complete_cb() at &lt;stdlib&gt;/asyncio/base_events.py:181] created at &lt;stdlib&gt;/asyncio/runners.py:110&gt; took 0.210 seconds</pre></div>
+
+<h3>A real HTTP fan-out against a local server</h3>
+<p>The common LLM-application pattern: call an API many times concurrently, but not unboundedly. A standard-library server (<code>asyncio.start_server</code>) answers <code>GET /delay/100</code> after 100 ms, standing in for a model API; the client opens a connection per request with <code>asyncio.open_connection</code>. Twenty calls:</p>
+<div class="cg-svg" id="cg-fan-bars"></div>
+<p>Twenty sequential calls take twenty times 100 ms. <code>gather</code> overlaps all the waits: 0.10 s. A <code>Semaphore(5)</code> keeps at most five requests in flight (rate limits are real), giving four waves of 100 ms. <code>TaskGroup</code> (3.11+) is <code>gather</code> with structured clean-up: if one task fails, the others are cancelled and the errors arrive together as an ExceptionGroup. <code>asyncio.timeout</code> (3.11+) bounds a block of awaits: one 2 s call with a 250 ms budget stopped at 0.252 s.</p>
+<details class="dp"><summary>The script, <code>a3_fanout.py</code> (server and client, standard library only), and its real output <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a3_fanout.py</div><pre class="cg-code">"""A real HTTP fan-out against a local server, standard library only.
+The server answers GET /delay/&lt;ms&gt; after &lt;ms&gt; milliseconds (like a slow model API).
+The client opens a TCP connection per request with asyncio.open_connection."""
+<span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> handle(reader, writer):              <span class="cm"># one coroutine per incoming connection</span>
+    request_line = (<span class="kw">await</span> reader.readline()).decode()
+    <span class="kw">while</span> (<span class="kw">await</span> reader.readline()) <span class="kw">not</span> <span class="kw">in</span> (<span class="st">b"\r\n"</span>, <span class="st">b""</span>):
+        <span class="kw">pass</span>                                   <span class="cm"># skip headers</span>
+    ms = int(request_line.split()[1].rsplit(<span class="st">"/"</span>, 1)[1])
+    <span class="kw">await</span> asyncio.sleep(ms / 1000)
+    body = <span class="st">f"slept &#123;ms&#125; ms"</span>.encode()
+    writer.write(<span class="st">b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s"</span> % (len(body), body))
+    <span class="kw">await</span> writer.drain()
+    writer.close()
+
+<span class="kw">async</span> <span class="kw">def</span> get(port, path):
+    reader, writer = <span class="kw">await</span> asyncio.open_connection(<span class="st">"127.0.0.1"</span>, port)
+    writer.write(<span class="st">f"GET &#123;path&#125; HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"</span>.encode())
+    <span class="kw">await</span> writer.drain()
+    raw = <span class="kw">await</span> reader.read()                  <span class="cm"># read until the server closes</span>
+    writer.close()
+    <span class="kw">await</span> writer.wait_closed()
+    <span class="kw">return</span> raw.split(<span class="st">b"\r\n\r\n"</span>, 1)[1].decode()
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    server = <span class="kw">await</span> asyncio.start_server(handle, <span class="st">"127.0.0.1"</span>, 0)
+    port = server.sockets[0].getsockname()[1]
+    delays = [100] * 20                        <span class="cm"># 20 calls of 100 ms each</span>
+
+    t0 = time.perf_counter()
+    <span class="kw">for</span> d <span class="kw">in</span> delays:
+        <span class="kw">await</span> get(port, <span class="st">f"/delay/&#123;d&#125;"</span>)         <span class="cm"># one after another</span>
+    print(<span class="st">f"sequential, 20 calls      &#123;time.perf_counter() - t0:6.3f&#125; s"</span>)
+
+    t0 = time.perf_counter()
+    bodies = <span class="kw">await</span> asyncio.gather(*(get(port, <span class="st">f"/delay/&#123;d&#125;"</span>) <span class="kw">for</span> d <span class="kw">in</span> delays))
+    print(<span class="st">f"gather, 20 at once        &#123;time.perf_counter() - t0:6.3f&#125; s   &#123;bodies[0]!r&#125;"</span>)
+
+    limit = asyncio.Semaphore(5)               <span class="cm"># at most 5 in flight: be polite to the API</span>
+    <span class="kw">async</span> <span class="kw">def</span> polite(d):
+        <span class="kw">async</span> <span class="kw">with</span> limit:
+            <span class="kw">return</span> <span class="kw">await</span> get(port, <span class="st">f"/delay/&#123;d&#125;"</span>)
+    t0 = time.perf_counter()
+    <span class="kw">await</span> asyncio.gather(*(polite(d) <span class="kw">for</span> d <span class="kw">in</span> delays))
+    print(<span class="st">f"gather, at most 5 at once &#123;time.perf_counter() - t0:6.3f&#125; s"</span>)
+
+    t0 = time.perf_counter()
+    <span class="kw">async</span> <span class="kw">with</span> asyncio.TaskGroup() <span class="kw">as</span> tg:      <span class="cm"># 3.11+: same speed, and cancels siblings on failure</span>
+        tasks = [tg.create_task(get(port, <span class="st">f"/delay/&#123;d&#125;"</span>)) <span class="kw">for</span> d <span class="kw">in</span> delays]
+    print(<span class="st">f"TaskGroup, 20 at once     &#123;time.perf_counter() - t0:6.3f&#125; s   &#123;len(tasks)&#125; results"</span>)
+
+    t0 = time.perf_counter()
+    <span class="kw">try</span>:
+        <span class="kw">async</span> <span class="kw">with</span> asyncio.timeout(0.25):      <span class="cm"># one slow call (2 s) with a 250 ms budget</span>
+            <span class="kw">await</span> get(port, <span class="st">"/delay/2000"</span>)
+    <span class="kw">except</span> TimeoutError:
+        print(<span class="st">f"timeout after             &#123;time.perf_counter() - t0:6.3f&#125; s"</span>)
+
+    server.close()
+    <span class="kw">await</span> server.wait_closed()
+
+asyncio.run(main())</pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a3_fanout.txt">sequential, 20 calls       2.058 s
+gather, 20 at once         0.104 s   'slept 100 ms'
+gather, at most 5 at once  0.416 s
+TaskGroup, 20 at once      0.107 s   20 results
+timeout after              0.252 s</pre></div>
+</div></details>
+
+<h3>Cancellation and timeouts</h3>
+<p><code>task.cancel()</code> does not stop a task immediately; it arranges for <code>CancelledError</code> to be raised inside it at its current <code>await</code>, so its <code>finally</code> blocks and <code>async with</code> exits run. A timeout is a cancellation that the timeout block turns into <code>TimeoutError</code>. The rule: if you catch <code>CancelledError</code> to clean up, re-raise it. A coroutine that swallows it reports success to whoever cancelled it, and <code>TaskGroup</code> and <code>timeout</code> stop working around it. The real run: <code>w1</code> re-raises, the swallower returns a value, <code>w2</code> sits under a 50 ms timeout.</p>
+<div class="cg-snip"><div class="cg-olab">real output of a4_cancel.py, Python 3.14.8</div><pre class="cg-out" data-src="a4_cancel.txt">w1: working
+w1: cancelled, cleaning up
+w1: finally
+main: w1 is cancelled: True
+swallower: caught CancelledError and returned (a bug)
+main: swallower result: pretends to have finished | cancelled(): False
+w2: working
+w2: cancelled, cleaning up
+w2: finally
+main: w2 timed out</pre></div>
+<details class="dp"><summary>The script, <code>a4_cancel.py</code> <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a4_cancel.py</div><pre class="cg-code"><span class="kw">import</span> asyncio
+
+<span class="kw">async</span> <span class="kw">def</span> worker(name):
+    <span class="kw">try</span>:
+        print(<span class="st">f"&#123;name&#125;: working"</span>)
+        <span class="kw">await</span> asyncio.sleep(10)
+    <span class="kw">except</span> asyncio.CancelledError:
+        print(<span class="st">f"&#123;name&#125;: cancelled, cleaning up"</span>)
+        <span class="kw">raise</span>                                   <span class="cm"># always re-raise CancelledError</span>
+    <span class="kw">finally</span>:
+        print(<span class="st">f"&#123;name&#125;: finally"</span>)
+
+<span class="kw">async</span> <span class="kw">def</span> swallower():
+    <span class="kw">try</span>:
+        <span class="kw">await</span> asyncio.sleep(10)
+    <span class="kw">except</span> asyncio.CancelledError:
+        print(<span class="st">"swallower: caught CancelledError and returned (a bug)"</span>)
+        <span class="kw">return</span> <span class="st">"pretends to have finished"</span>
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    t = asyncio.create_task(worker(<span class="st">"w1"</span>))
+    <span class="kw">await</span> asyncio.sleep(0.01)                   <span class="cm"># let it start</span>
+    t.cancel()                                  <span class="cm"># request: CancelledError is raised at its await</span>
+    <span class="kw">try</span>:
+        <span class="kw">await</span> t
+    <span class="kw">except</span> asyncio.CancelledError:
+        print(<span class="st">"main: w1 is cancelled:"</span>, t.cancelled())
+
+    s = asyncio.create_task(swallower())
+    <span class="kw">await</span> asyncio.sleep(0.01)
+    s.cancel()
+    print(<span class="st">"main: swallower result:"</span>, <span class="kw">await</span> s, <span class="st">"| cancelled():"</span>, s.cancelled())
+
+    <span class="kw">try</span>:
+        <span class="kw">async</span> <span class="kw">with</span> asyncio.timeout(0.05):       <span class="cm"># a timeout is a cancellation plus a TimeoutError</span>
+            <span class="kw">await</span> worker(<span class="st">"w2"</span>)
+    <span class="kw">except</span> TimeoutError:
+        print(<span class="st">"main: w2 timed out"</span>)
+
+asyncio.run(main())</pre></div>
+</div></details>
+
+<h3>Async generators: streaming responses</h3>
+<p>An <code>async def</code> containing <code>yield</code> is an <dfn>async generator</dfn> (<a href="https://peps.python.org/pep-0525/" target="_blank" rel="noopener noreferrer">PEP 525</a>), consumed with <code>async for</code>. It is exactly how the async LLM SDKs expose a streamed response: each step awaits the next chunk, so other tasks keep running between tokens (in the run below, a ticker task ran 7 times meanwhile). Close it with <code>aclose()</code> when you stop early, so its clean-up runs now and not whenever the garbage collector gets to it.</p>
+<details class="dp"><summary>The script, <code>a5_stream.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">a5_stream.py</div><pre class="cg-code"><span class="st">"""Async generators: how LLM SDKs stream tokens. The consumer uses `async for`."""</span>
+<span class="kw">import</span> asyncio, time
+
+<span class="kw">async</span> <span class="kw">def</span> stream_tokens(text, delay=0.02):
+    <span class="kw">try</span>:
+        <span class="kw">for</span> tok <span class="kw">in</span> text.split(<span class="st">" "</span>):
+            <span class="kw">await</span> asyncio.sleep(delay)          <span class="cm"># waiting for the next chunk from the network</span>
+            <span class="kw">yield</span> tok + <span class="st">" "</span>
+    <span class="kw">finally</span>:
+        print(<span class="st">"\n[stream closed]"</span>)
+
+<span class="kw">async</span> <span class="kw">def</span> ticker(stop):
+    n = 0
+    <span class="kw">while</span> <span class="kw">not</span> stop.is_set():
+        <span class="kw">await</span> asyncio.sleep(0.02)
+        n += 1
+    <span class="kw">return</span> n
+
+<span class="kw">async</span> <span class="kw">def</span> main():
+    stop = asyncio.Event()
+    tick = asyncio.create_task(ticker(stop))    <span class="cm"># other work keeps running while we stream</span>
+    t0 = time.perf_counter()
+    <span class="kw">async</span> <span class="kw">for</span> tok <span class="kw">in</span> stream_tokens(<span class="st">"the event loop interleaves waiting, never computing"</span>):
+        print(tok, end=<span class="st">""</span>, flush=<span class="kw">True</span>)
+    stop.set()
+    print(<span class="st">f"streamed in &#123;time.perf_counter() - t0:.2f&#125; s; the ticker ran &#123;await tick&#125; times meanwhile"</span>)
+
+    agen = stream_tokens(<span class="st">"stop me after two tokens please"</span>)
+    got = []
+    <span class="kw">async</span> <span class="kw">for</span> tok <span class="kw">in</span> agen:
+        got.append(tok)
+        <span class="kw">if</span> len(got) == 2:
+            <span class="kw">break</span>                               <span class="cm"># leaves the generator suspended</span>
+    <span class="kw">await</span> agen.aclose()                         <span class="cm"># run the generator's finally now, not at GC</span>
+    print(<span class="st">"got"</span>, got)
+
+asyncio.run(main())</pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="a5_stream.txt">the event loop interleaves waiting, never computing 
+[stream closed]
+streamed in 0.15 s; the ticker ran 7 times meanwhile
+
+[stream closed]
+got ['stop ', 'me ']</pre></div>
+</div></details>
+<p class="small mute">Python 3.14 adds <code>python -m asyncio ps PID</code> and <code>pstree PID</code> to list the tasks of a running process (<a href="https://docs.python.org/3.14/whatsnew/3.14.html" target="_blank" rel="noopener noreferrer">What's new in 3.14</a>). JavaScript has the same single-threaded loop built into every runtime (<a href="https://app.notion.com/p/4055c17b0d0d81fe857de8b34db109ea" target="_blank" rel="noopener noreferrer">JavaScript: the event loop, promises and streams</a>); Rust's async with tokio is <a href="https://app.notion.com/p/4055c17b0d0d8148b863faa050cf5456" target="_blank" rel="noopener noreferrer">Rust: async with tokio, services with axum, and CLIs</a>. Choosing async, threads or worker processes inside a web service is <a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>.</p>
+</section>
+<section id="s3"><h2>3. Free-threading in practice</h2>
+<p>The <b>free-threaded build</b> removes the GIL (<a href="https://peps.python.org/pep-0703/" target="_blank" rel="noopener noreferrer">PEP 703</a>): experimental in 3.13, officially supported but still optional in 3.14 (<a href="https://peps.python.org/pep-0779/" target="_blank" rel="noopener noreferrer">PEP 779</a>), installed separately as <code>python3.14t</code> (<code>uv python install 3.14t</code>). Check which one you are on with <code>sys._is_gil_enabled()</code>.</p>
+<p>The workload is the parent topic's program: count tokens per user over 100,000 JSONL chat lines (the root's generator, seed 7), split across threads, each thread filling its own <code>Counter</code> that the main thread merges (<code>src/pb/ft/</code>). Every thread recorded when it finished each block of 1,000 lines; this is that recording, to scale, for four threads. Predict before you switch builds: with the GIL, do four threads finish sooner than one?</p>
+<div class="cg-anim" id="cg-ft-card"><h4>With the GIL four lanes do one core's work; without it they run at once</h4>
+<div class="seg" id="cg-ft-seg"><button data-m="PY314" class="on">3.14, GIL</button><button data-m="PY314T">3.14t, no GIL</button><button data-m="PY315">3.15rc3, GIL</button><button data-m="PY315T">3.15rc3t, no GIL</button></div>
+<div class="cg-svg" id="cg-ft-plot"></div>
+<div class="cg-cnt" id="cg-ft-cnt"></div>
+<div class="cg-cap" id="cg-ft-cap"></div>
+<div class="cg-ctl" id="cg-ft-ctl"></div>
+<div class="cg-src" id="cg-ft-src"></div>
+</div>
+<p id="cg-ft-scale-p"></p>
+<div class="cg-svg" id="cg-ft-bars"></div>
+<p class="small mute">Speed-up over one thread on the same interpreter, median of five runs. Section 1 timed a different CPU-bound job on 3.14t (0.94 s serial, 0.37 s on four threads, about 2.5x); this final run of the token counter measured <span id="cg-ft-cmp4"></span> with four threads, under a heavier load. Both are rough: on a busy laptop the same job varies by tens of percent between runs.</p>
+<details class="dp" id="cg-scale-det"><summary>Every scaling run, 1 to 8 threads, and the single-thread overhead <span class="mute">(all runs)</span></summary><div class="b">
+<p class="small">100,000 lines split evenly across N threads; each thread counts into its own <code>Counter</code>, then the main thread merges and checks the total against a single-threaded run. Five timed runs per point after one warm-up; the chart shows the median, the table every run. Script: <code>src/pb/ft/ft_bench.py</code>. One laptop (Apple M1 Pro: 8 performance and 2 efficiency cores, 16 GB, macOS 27) in normal use: treat differences under about 10% as noise; ratios on the same interpreter are more portable than absolute times.</p>
+<div class="seg" id="cg-sc-mode"><button data-m="t" class="on">Time</button><button data-m="s">Speed-up over 1 thread</button></div>
+<div class="cg-svg" id="cg-sc-plot"></div>
+<div class="cg-leg2" id="cg-sc-leg"></div>
+<div class="cg-tbl"><table id="cg-sc-tbl"></table></div>
+<p id="cg-sc-ovh" class="small"></p>
+</div></details>
+
+<h3>The bug the GIL was hiding (and was not preventing)</h3>
+<p>Now the same four threads update one shared dictionary instead of their own: <code>shared[user] = shared.get(user, 0) + n</code>. That line reads, adds and writes back in three steps; if two threads read the same old value, one addition is lost.</p>
+<div class="pr" id="cg-pr-race"></div>
+<p>Python's documentation never promised that a read-modify-write like this is atomic under the GIL (<a href="https://docs.python.org/3/faq/library.html#what-kinds-of-global-value-mutation-are-thread-safe" target="_blank" rel="noopener noreferrer">Python FAQ</a>); the GIL only made losing an update rare. Without the GIL the same bug happens on most runs (the parent topic's section 9, Concurrency, measured about 70% of unsynchronised counter updates lost, <a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Topic: programming-languages</a>). What the free-threaded build does guarantee is that built-in objects stay internally consistent: the dictionary never crashes or corrupts, it only holds the wrong totals. The fixes are the same on both builds: a <code>threading.Lock</code> around the update (exact in every run), or, better, no shared state, which is what the scaling run did.</p>
+
+<h3>Will your dependencies run without the GIL?</h3>
+<p>A C, C++ or Rust extension must declare that it is safe without the GIL. If it does not, importing it on the free-threaded build silently turns the GIL back on for the whole process, with a warning. Real output from two tiny C extensions, identical except for one line that declares support (<code>Py_mod_gil</code>):</p>
+<div class="cg-term" data-cg-tr="cext" data-cg-cmd="python3.14t -u check.py|python3.14t -u -X gil=0"></div>
+<p><code>-X gil=0</code> (or <code>PYTHON_GIL=0</code>) forces it off anyway, at your own risk. Packages that have not been ported may also refuse to build. This is orjson 3.12.0, which has no free-threaded wheel, being built from source for 3.14t:</p>
+<div class="cg-term" id="cg-orjson"></div>
+<p class="cg-src">Real output of <code>uv run --python 3.14t --with orjson==3.12.0</code> on 2026-10-05, filtered to the error lines (paths shortened to ...); the full log is long.</p>
+<p id="cg-ft-wheels"></p>
+<details class="dp"><summary>Which popular compiled packages ship free-threaded wheels <span class="mute">(the survey)</span></summary><div class="b">
+<p class="small" id="cg-ws-note"></p>
+<div class="chips" id="cg-ws-filter"><button data-m="all" class="on">All</button><button data-m="no314t">No cp314t wheel</button><button data-m="abi3">Ships abi3</button></div>
+<div class="cg-tbl cg-ws"><table id="cg-ws-tbl"></table></div>
+<p class="small mute">A missing <code>cp314t</code> wheel means an installer on 3.14t builds from the sdist (which needs a compiler, and may refuse, as orjson does) or fails. <code>abi3</code> wheels do not load on free-threaded builds; <code>abi3t</code> (3.15+) does; wheel tags are <a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a>. polars appears as <code>polars-runtime-32</code> because the <code>polars</code> wheel itself is now pure Python. Script: <code>src/pb/pack/wheels.py</code>.</p>
+</div></details>
+<div class="cg-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
+<li><b>Single-thread speed.</b> The 3.13 HOWTO measured about 40% overhead; for 3.14, What's New says "roughly 5-10%" and the 3.14 HOWTO "about 1% on macOS aarch64 to 8% on x86-64 Linux" (pyperformance). Measured here on one workload: <span id="cg-ft-ovh"></span>.</li>
+<li><b>Memory.</b> PEP 779 set a 20% memory overhead target for phase II; this page did not measure memory.</li>
+<li><b>Your own thread safety.</b> Races that the GIL made rare now happen; audit shared mutable state before switching.</li>
+<li><b>Dependencies.</b> One unported extension turns the GIL back on for everyone (above).</li>
+<li><b>Not for I/O-bound work</b>: threads already overlap waiting under the GIL, and asyncio is the usual tool for many connections.</li>
+</ul>Whether the free-threaded build ever becomes the default ("phase III") is "left for a future PEP" (PEP 779); the old page's forecast of 3.16 to 3.17 is a guess, not a plan.</div>
+<details class="dp"><summary>Corrections to the old Notion page <span class="mute">(provenance)</span></summary><div class="b"><ul class="tight">
+<li>"~3x speedups on 4-core CPU-bound thread pools": no source given. Measured here on a busy 10-core laptop: <span id="cg-ft-fix4"></span> with 4 threads on 3.14t.</li>
+<li>"single-digit-percent single-thread overhead (down from ~40% in 3.13)": both figures are the official ones (3.14 What's New, 3.13 HOWTO); this workload measured <span id="cg-ft-fix1"></span>.</li>
+<li>"free-threaded builds (3.14+)": imprecise. The free-threaded build was experimental from 3.13 (PEP 703) and officially supported from 3.14 (PEP 779).</li>
+</ul></div></details>
+</section>
+<section id="s4"><h2>4. Subinterpreters (3.14), measured</h2>
+<p>A <b>subinterpreter</b> is a second, isolated Python interpreter inside the same process: its own modules, its own globals and, since 3.12, its own GIL (<a href="https://peps.python.org/pep-0684/" target="_blank" rel="noopener noreferrer">PEP 684</a>). 3.14 exposed them in the standard library (<a href="https://peps.python.org/pep-0734/" target="_blank" rel="noopener noreferrer">PEP 734</a>): <code>concurrent.interpreters</code> and <code>InterpreterPoolExecutor</code>, which has the same interface as the thread and process pools. They sit between threads and processes: parallel on the normal GIL build like processes, but cheaper to start, and like processes they share nothing by default: arguments and results cross by pickling, except immutable built-ins (None, bool, bytes, str, int, float and tuples of these), which are shared or copied cheaply, and <code>memoryview</code> and interpreter queues, which really share mutable data (<a href="https://docs.python.org/3.14/library/concurrent.interpreters.html" target="_blank" rel="noopener noreferrer">docs</a>).</p>
+<div class="cg-code2">from concurrent.futures import InterpreterPoolExecutor
+
+with InterpreterPoolExecutor(max_workers=4) as ex:
+    totals = list(ex.map(count_slice, parts))   # same code as with ThreadPoolExecutor</div>
+<div class="cg-svg" id="cg-int-bars"></div>
+<div class="cg-tbl"><table id="cg-int-tbl"></table></div>
+<p class="small mute" id="cg-int-note"></p>
+<p>On this job, subinterpreters and processes both clearly beat threads on the GIL build, because each worker has its own GIL; processes were somewhat faster here. Neither reached 4x with 4 workers: each worker receives 25,000 lines by pickling and returns a pickled <code>Counter</code>, and the machine was busy. A new subinterpreter started more than ten times faster than a spawned process, and about a hundred times slower than a thread.</p>
+<details class="dp"><summary>Every run, with the method and the machine's load <span class="mute">(all runs)</span></summary><div class="b">
+<p class="small">Start-up: create a worker and run a trivial function in it (median of 20 for threads and subinterpreters, 10 for spawned processes). Job: the 100,000-line count split 4 ways with each executor, median of 5 (the result is checked every time). Script: <code>src/pb/interp/interp_bench.py</code>.</p>
+<div class="cg-tbl"><table id="cg-int-all"></table></div>
+</div></details>
+<p>The mistake everyone makes first: a subinterpreter has its own <code>sys.path</code>, so a module the main interpreter found through a <code>sys.path.insert</code> is invisible to it. Simple arguments can hide this; a list argument has to be pickled together with the function, and then it fails:</p>
+<div class="cg-term" data-cg-tr="interp_mistake" data-cg-cmd="python3.14 -u mistake.py|PYTHONPATH"></div>
+<div class="cg-cost"><div class="t">What it costs, and when not to use it</div>Every extension module must opt in to being loaded in several interpreters, and the most important one has not:<div class="cg-term" data-cg-tr="interp_numpy" data-cg-cmd="uv run"></div>Objects cannot be shared, only copied; and on the free-threaded build plain threads already run in parallel with shared memory. Use them on the normal build for CPU-bound work whose inputs and outputs are small, when process start-up is the problem.</div>
+</section>
+<section id="s5"><h2>5. Choosing</h2>
+<div class="tw"><table class="cg-t">
+<thead><tr><th>Your work is</th><th>Use</th><th>Why, and the cost</th></tr></thead>
+<tbody>
+<tr><td>Waiting on many network calls, with async libraries (httpx, an async SDK)</td><td><code>asyncio</code></td><td>Thousands of waits on one thread, tiny memory per task; everything must be async, and one blocking call stalls all of it (section 2)</td></tr>
+<tr><td>Waiting, with blocking libraries (requests, a database driver, boto3)</td><td><code>ThreadPoolExecutor</code></td><td>Works with any library; each thread costs a stack and the GIL hand-offs; shared state needs locks</td></tr>
+<tr><td>Computing in Python, normal build</td><td><code>ProcessPoolExecutor</code>, or <code>InterpreterPoolExecutor</code> when start-up matters</td><td>True parallelism, each worker with its own GIL; start-up, pickling, memory per worker (sections 1 and 4)</td></tr>
+<tr><td>Computing in Python, dependencies all ported</td><td>threads on the free-threaded build</td><td>Shared memory, no pickling; single-thread overhead, and your own races now bite (section 3)</td></tr>
+<tr><td>Computing on arrays</td><td>NumPy, PyTorch, a Rust or C++ extension</td><td>The loop runs in native code, often releasing the GIL (<a href="https://app.notion.com/p/4055c17b0d0d8111872ad7101b7e3c22" target="_blank" rel="noopener noreferrer">Python: CPython internals and performance</a>; <a href="https://app.notion.com/p/4055c17b0d0d81048311c87e9b76a78a" target="_blank" rel="noopener noreferrer">Rust: speeding up Python with PyO3 and maturin</a>)</td></tr>
+</tbody></table></div>
+<p>Two beliefs the measurements correct:</p>
+<ul class="tight">
+<li><b>"The GIL made <code>x += 1</code> safe."</b> It made races rare, not impossible: the GIL build lost updates in section 3's measurement too. Use a lock or per-thread state.</li>
+<li><b>"Switch to the free-threaded build to speed up I/O-bound code."</b> Threads already overlap waits under the GIL. The free-threaded build helps only CPU-bound Python running in several threads, and costs single-thread speed and dependency risk.</li>
+</ul>
+<p class="small mute">The GIL as a capacity question for a server (how many workers, pool sizes, py-spy on a live service) is <a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>, which measured the GIL against free-threaded Python on a server workload.</p>
+</section>
+<p class="foot">Built 2026-10-26 by splitting the Python language page (its Part 1 sections 9 and 10, Event loop tab, Part 2 sections 9 and 11 and Runtime lab parts 1, 2, 4 and 5); every output is the recorded run from that page, made on 2026-10-05 on an Apple M1 Pro in normal use (src/README.md says how). What transfers to a Linux server: which model wins and the shape of each result; what does not: absolute times, and speed-ups on a machine whose other cores were busy.</p>
+</div>
+<div class="tab" id="t-more" role="tabpanel" hidden>
+<style>
+#t-more li{margin:4px 0;font-size:14px}
+#t-more .tm{color:var(--mute);font-size:12.5px}
+</style>
+<h2 style="margin-top:14px">Further reading</h2>
+<p class="small">Links checked 2026-10-26. Times for outside sources are rough reading or viewing times.</p>
+<h3>The language page and its siblings</h3>
+<ul>
+<li><a href="https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998" target="_blank" rel="noopener noreferrer">Python: the essentials</a>: names and objects, the one interpreter, traps that cut across the Python pages, and choosing a tool.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d816a8705e4d3f20b3da7" target="_blank" rel="noopener noreferrer">Python: the data model and protocols</a>: generators (the ancestor of coroutines), context managers (<code>async with</code> is the same protocol with awaits), exception groups (what <code>TaskGroup</code> raises).</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d8111872ad7101b7e3c22" target="_blank" rel="noopener noreferrer">Python: CPython internals and performance</a>: bytecode, reference counts, profiling and moving the loop to native code; the experimental JIT measured.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d8192878fce7505cc612f" target="_blank" rel="noopener noreferrer">Python: typing, uv, packaging and the toolchain</a>: installing <code>3.14t</code> with uv, and wheel tags (<code>cp314t</code>, <code>abi3</code>, <code>abi3t</code>).</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d81a2bb1ac0bc8aeb6aa9" target="_blank" rel="noopener noreferrer">Topic: programming-languages</a>: concurrency in four languages (section 9) and the Benchmark tab, where the same token counter runs in Python (GIL and free-threaded), C++, Rust and TypeScript.</li>
+</ul>
+<h3>Neighbouring pages</h3>
+<ul>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d8112ad1af99308fa913f" target="_blank" rel="noopener noreferrer">Concurrency: threads, locks, futexes, deadlock, and event-driven I/O</a>: the GIL as an operating-system lock (section 7), <code>epoll</code> and <code>kqueue</code> under the event loop (section 8), choosing threads, processes or a loop (section 9).</li>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d811e99f7cb8c15d12697" target="_blank" rel="noopener noreferrer">Processes and the system-call API</a>: fork, forkserver and spawn, and the DataLoader's workers (section 9).</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d8190ade6c34e8f653e79" target="_blank" rel="noopener noreferrer">Building a backend API</a>: async against threads against worker processes inside a Python service.</li>
+<li><a href="https://app.notion.com/p/3ef5c17b0d0d81458291d55d7443700c" target="_blank" rel="noopener noreferrer">Capacity planning and performance</a>: the GIL as a capacity question, measured against free-threaded Python on a server workload.</li>
+<li><a href="https://app.notion.com/p/4055c17b0d0d81fe857de8b34db109ea" target="_blank" rel="noopener noreferrer">JavaScript: the event loop, promises and streams</a> and <a href="https://app.notion.com/p/4055c17b0d0d8148b863faa050cf5456" target="_blank" rel="noopener noreferrer">Rust: async with tokio, services with axum, and CLIs</a>: the same ideas in two other runtimes.</li>
+</ul>
+<h3>Outside sources</h3>
+<ul>
+<li><a href="https://docs.python.org/3/library/asyncio.html" target="_blank" rel="noopener noreferrer">asyncio documentation</a>, especially <a href="https://docs.python.org/3/library/asyncio-dev.html" target="_blank" rel="noopener noreferrer">Developing with asyncio</a> (debug mode, blocking calls). <span class="tm">2 h; the developing page 15 min</span></li>
+<li><a href="https://www.youtube.com/watch?v=MCs5OvhV9S4" target="_blank" rel="noopener noreferrer">Beazley, Python Concurrency From the Ground Up</a>: builds an event loop live from generators and sockets. <span class="tm">55 min</span></li>
+<li><b>Fluent Python</b>, Ramalho: the data model, functions as objects and concurrency; its concurrency chapters cover threads, processes and asyncio. <span class="tm">about 25 h for the book</span></li>
+<li><a href="https://docs.python.org/3.14/howto/free-threading-python.html" target="_blank" rel="noopener noreferrer">Python support for free threading (HOWTO)</a>: the official limits and overhead figures. <span class="tm">20 min</span></li>
+<li><a href="https://py-free-threading.github.io/" target="_blank" rel="noopener noreferrer">Python free-threading guide</a>: the community site for porting extensions and tracking compatibility. <span class="tm">30 min for the porting pages</span></li>
+<li><a href="https://docs.python.org/3.14/whatsnew/3.14.html" target="_blank" rel="noopener noreferrer">What's New in Python 3.14</a>: free-threading phase II, subinterpreters, <code>asyncio ps</code>. <span class="tm">45 min</span></li>
+<li><a href="https://docs.python.org/3.14/library/concurrent.interpreters.html" target="_blank" rel="noopener noreferrer">concurrent.interpreters</a>: what can be shared between interpreters. <span class="tm">20 min</span></li>
+<li>The rationale: <a href="https://peps.python.org/pep-0703/" target="_blank" rel="noopener noreferrer">PEP 703</a> (making the GIL optional), <a href="https://peps.python.org/pep-0779/" target="_blank" rel="noopener noreferrer">PEP 779</a> (phase II), <a href="https://peps.python.org/pep-0684/" target="_blank" rel="noopener noreferrer">PEP 684</a> (a GIL per interpreter), <a href="https://peps.python.org/pep-0734/" target="_blank" rel="noopener noreferrer">PEP 734</a> (subinterpreters in the standard library), <a href="https://peps.python.org/pep-0525/" target="_blank" rel="noopener noreferrer">PEP 525</a> (async generators). <span class="tm">15 min each for the motivation sections</span></li>
+</ul>
+</div>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 21_js_rd_common.js */
+// ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
+// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
+// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
+window.RD=(function(){
+  const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+  const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  function anim(o){
+    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const pid=o.ctl+'-';
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
+      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
+      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
+      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
+    const $=s=>document.getElementById(pid+s);
+    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
+    $('p').addEventListener('click',()=>setPlay(!st.play));
+    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
+      kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    onRender(()=>{show();kick()});
+    show();
+    return {
+      // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
+      reset(n){setPlay(false);st.n=n;st.i=0;show()},
+      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i}, get n(){return st.n}
+    };
+  }
+  // width available inside an element (falls back when the tab is hidden)
+  const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(860,(document.documentElement.clientWidth||900)-60))};
+  // tab links inside HTML written by a script (99_js_tabs.js only binds the links present at load)
+  function tabLinks(el){el.addEventListener('click',e=>{const a=e.target.closest('a[data-tab]');if(!a)return;e.preventDefault();
+    const b=document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]');if(b){b.click();document.getElementById('tabs').scrollIntoView({block:'start'})}})}
+  return {RM,esc,stat,anim,onRender,width,tabLinks};
+})();
+RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
+RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+// segmented buttons: el contains <button data-m>; calls f(value)
+RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
+// section nav highlight
+(function(){const nav=document.getElementById('rd-nav');if(!nav||!('IntersectionObserver' in window))return;
+  const links=[...nav.querySelectorAll('a')];const map={};links.forEach(a=>map[a.getAttribute('href').slice(1)]=a);
+  const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.classList.remove('cur'));const a=map[en.target.id];if(a){a.classList.add('cur');nav.scrollLeft=Math.max(0,a.offsetLeft-40)}}})},{rootMargin:'-45% 0px -50% 0px'});
+  Object.keys(map).forEach(id=>{const s=document.getElementById(id);if(s)io.observe(s)});})();
+</script>
+<script>/* 22_js_cg_0pa.js */
+// written by src/pa/gen.py from src/pa/outputs; do not edit by hand (edit src/pa/tpl/22_js_cg_0pa.js and re-run gen.py)
+window.PA=window.PA||{};
+PA.k1={"gil":[["CPU","serial",0.957],["CPU","4 threads",0.988],["CPU","4 processes",0.357],["I/O","serial",0.826],["I/O","4 threads",0.208]],"ft":[["CPU","serial",0.939],["CPU","4 threads",0.369],["CPU","4 processes",0.311],["I/O","serial",0.833],["I/O","4 threads",0.208]]};
+PA.loop={"sequential":{"events":[["A","start",0.2,""],["A","await",0.2,"asyncio.sleep(0.1)"],["A","resume",100.6,""],["A","done",100.6,""],["B","start",100.6,""],["B","await",100.6,"asyncio.sleep(0.2)"],["B","resume",302.8,""],["B","done",302.8,""],["C","start",302.8,""],["C","await",302.8,"asyncio.sleep(0.3)"],["C","resume",604.9,""],["C","done",604.9,""]],"total_ms":605.2,"result":["A","B","C"]},"gathered":{"events":[["A","start",0.2,""],["A","await",0.2,"asyncio.sleep(0.1)"],["B","start",0.2,""],["B","await",0.2,"asyncio.sleep(0.2)"],["C","start",0.2,""],["C","await",0.2,"asyncio.sleep(0.3)"],["A","resume",102.3,""],["A","done",102.3,""],["B","resume",201.3,""],["B","done",201.3,""],["C","resume",302.3,""],["C","done",302.3,""]],"total_ms":302.5,"result":["A","B","C"]},"gathered_blocking":{"events":[["A","start",0.1,""],["A","await",0.1,"asyncio.sleep(0.1)"],["B","start",0.1,""],["B","block",0.1,"time.sleep(0.2)"],["B","done",202.0,""],["C","start",202.1,""],["C","await",202.1,"asyncio.sleep(0.3)"],["A","resume",202.1,""],["A","done",202.1,""],["C","resume",504.2,""],["C","done",504.3,""]],"total_ms":505.0,"result":["A","B","C"]},"gathered_thread":{"events":[["A","start",0.4,""],["A","await",0.4,"asyncio.sleep(0.1)"],["B","start",0.4,""],["B","await",0.4,"asyncio.to_thread(time.sleep, 0.2)"],["C","start",3.1,""],["C","await",3.1,"asyncio.sleep(0.3)"],["A","resume",108.4,""],["A","done",108.4,""],["B","resume",212.3,""],["B","done",212.3,""],["C","resume",305.2,""],["C","done",305.2,""]],"total_ms":305.7,"result":["A","B","C"]}};
+PA.a3=[["sequential, 20 calls",2.058],["gather, 20 at once",0.104],["gather, at most 5 at once",0.416],["TaskGroup, 20 at once",0.107],["timeout after",0.252]];
+</script>
+<script>/* 22_js_cg_0pb.js */
+// written by src/pb/build_data.py from src/pb/out; do not edit by hand
+window.PB={"cext":[{"cmd":"python3.14t -u check.py","out":"before import, GIL enabled: False\nafter newext, GIL enabled: False\n<frozen importlib._bootstrap>:491: RuntimeWarning: The global interpreter lock (GIL) has been enabled to load module 'oldext', which has not declared that it can run safely without the GIL. To override this behavior and keep the GIL disabled (at your own risk), run with PYTHON_GIL=0 or -Xgil=0.\nafter oldext, GIL enabled: True","rc":0},{"cmd":"python3.14t -u -X gil=0 check.py","out":"before import, GIL enabled: False\nafter newext, GIL enabled: False\nafter oldext, GIL enabled: False","rc":0}],"interp_mistake":[{"cmd":"python3.14 -u mistake.py","out":"main interpreter can import tokwork: True\nsubinterpreter can import tokwork: False\nException: ModuleNotFoundError: No module named 'tokwork'\nconcurrent.interpreters.NotShareableError: object could not be unpickled\nconcurrent.interpreters.NotShareableError: args not shareable","rc":1},{"cmd":"PYTHONPATH=../ft python3.14 -u mistake.py","out":"main interpreter can import tokwork: True\nsubinterpreter can import tokwork: True\n[Counter({'u1': 3})]","rc":0}],"interp_numpy":[{"cmd":"uv run --python 3.14 --with numpy==2.5.3 python numpy_in_sub.py","out":"ExecutionFailed: Original error was: module numpy._core._multiarray_umath does not support loading in subinterpreters","rc":0}],"ft":{"PY314":{"python":"3.14.8","free_threaded":false,"gil_enabled":true,"lines":100000,"expected_tokens":2202874,"switch_interval_s":0.005,"loadavg_start":[10.62109375,9.86474609375,8.84521484375],"loadavg_end":[10.30078125,9.83984375,8.85888671875],"scale":{"1":{"median_s":0.6331,"all_s":[0.6393,0.615,0.6389,0.6226,0.6331]},"2":{"median_s":0.6492,"all_s":[0.641,0.688,0.6402,0.6492,0.6512]},"4":{"median_s":0.6769,"all_s":[0.6769,0.6305,0.6242,0.6907,0.6793]},"8":{"median_s":0.7042,"all_s":[0.7034,0.7042,0.8351,0.7358,0.6756]}},"trace4":[[[0.01,6.12],[6.12,44.85],[44.85,62.19],[62.19,86.38],[86.38,123.82],[123.82,147.88],[147.88,172.06],[172.06,191.14],[191.14,208.85],[208.85,227.83],[227.83,246.87],[246.88,278.44],[278.44,301.79],[301.79,325.31],[325.31,350.24],[350.24,375.34],[375.34,419.23],[419.23,437.24],[437.24,508.26],[508.26,532.17],[532.17,557.74],[557.74,583.34],[583.34,612.17],[612.17,631.32],[631.32,648.23]],[[17.85,36.39],[36.39,54.95],[54.95,79.37],[79.37,104.47],[104.47,129.33],[129.33,154.84],[154.84,179.53],[179.53,204.98],[204.98,236.09],[236.09,262.03],[262.03,286.13],[286.13,309.77],[309.77,333.64],[333.64,352.78],[352.78,377.9],[377.9,403.26],[403.26,427.8],[427.8,452.49],[452.49,471.02],[471.02,490.54],[490.54,515.5],[515.5,546.98],[546.98,565.17],[565.17,590.21],[590.21,609.25]],[[11.55,30.5],[30.51,72.44],[72.45,96.63],[96.63,116.02],[116.02,139.55],[139.55,158.52],[158.52,183.59],[183.59,219.39],[219.39,231.66],[231.66,249.89],[249.89,270.57],[270.57,295.77],[295.77,339.49],[339.49,358.22],[358.22,389.41],[389.41,408.11],[408.11,444.24],[444.24,474.92],[474.92,494.69],[494.69,519.87],[519.87,539.24],[539.24,571.78],[571.78,596.15],[596.15,620.4],[620.4,639.16]],[[24.12,49.01],[49.01,66.83],[66.83,91.16],[91.16,110.0],[110.0,133.5],[133.5,163.95],[163.95,195.29],[195.29,256.16],[256.17,280.85],[280.85,305.75],[305.75,329.77],[329.77,366.98],[366.98,385.74],[385.74,398.4],[398.4,423.03],[423.03,440.88],[440.88,460.28],[460.28,485.06],[485.06,503.91],[503.91,528.18],[528.18,553.9],[553.9,580.21],[580.21,622.75],[622.75,628.69],[628.69,645.17]]],"race_nolock":[2202874,2202737,2202874,2195974,2198228],"race_lock":[2202874,2202874,2202874]},"PY314T":{"python":"3.14.8","free_threaded":true,"gil_enabled":false,"lines":100000,"expected_tokens":2202874,"switch_interval_s":0.005,"loadavg_start":[10.30078125,9.83984375,8.85888671875],"loadavg_end":[11.14453125,10.0439453125,8.9482421875],"scale":{"1":{"median_s":0.6828,"all_s":[0.634,0.7549,0.7491,0.6828,0.6692]},"2":{"median_s":0.3765,"all_s":[0.4502,0.3786,0.3543,0.3685,0.3765]},"4":{"median_s":0.3643,"all_s":[0.3643,0.3676,0.4121,0.2837,0.3059]},"8":{"median_s":0.2104,"all_s":[0.2124,0.183,0.2104,0.2106,0.2008]}},"trace4":[[[0.02,11.36],[11.36,20.03],[20.03,34.82],[34.82,43.41],[43.41,54.85],[54.85,67.35],[67.35,73.81],[73.81,87.69],[87.69,94.11],[94.11,106.35],[106.35,123.64],[123.65,133.36],[133.36,141.53],[141.53,155.12],[155.12,163.42],[163.42,172.62],[172.62,180.93],[180.93,188.76],[188.76,196.06],[196.06,202.33],[202.33,217.06],[217.06,234.44],[234.44,247.94],[247.94,261.76],[261.76,273.62]],[[-0.0,12.15],[12.16,25.31],[25.31,42.16],[42.16,54.49],[54.49,73.42],[73.42,86.88],[86.88,99.2],[99.2,105.64],[105.64,113.5],[113.5,122.55],[122.55,139.97],[139.97,154.53],[154.53,162.91],[162.91,175.98],[175.98,195.83],[195.83,210.45],[210.46,229.51],[229.51,247.49],[247.49,259.89],[259.89,273.26],[273.26,291.34],[291.34,303.47],[303.47,312.7],[312.7,323.96],[323.96,330.29]],[[0.04,12.52],[12.52,23.57],[23.57,36.2],[36.2,53.33],[53.33,66.44],[66.45,79.84],[79.84,97.24],[97.24,103.95],[103.95,110.62],[110.62,118.91],[118.91,133.09],[133.09,146.32],[146.33,159.89],[159.89,169.26],[169.26,187.81],[187.81,205.8],[205.8,217.17],[217.17,233.95],[233.95,251.15],[251.15,263.44],[263.44,274.75],[274.75,290.52],[290.52,301.1],[301.1,312.22],[312.22,323.95]],[[0.06,11.56],[11.56,20.52],[20.52,36.71],[36.71,44.4],[44.4,54.31],[54.31,65.56],[65.56,72.29],[72.29,80.53],[80.53,90.22],[90.22,97.92],[97.92,117.02],[117.02,130.27],[130.27,136.8],[136.8,146.3],[146.3,157.08],[157.08,165.32],[165.32,175.28],[175.28,183.61],[183.61,192.45],[192.45,199.24],[199.24,213.71],[213.71,231.97],[231.97,243.7],[243.7,265.87],[265.87,275.48]]],"race_nolock":[2178699,2167030,2168554,2170657,2171566],"race_lock":[2202874,2202874,2202874]},"PY315":{"python":"3.15.0rc3","free_threaded":false,"gil_enabled":true,"lines":100000,"expected_tokens":2202874,"switch_interval_s":0.005,"loadavg_start":[11.14453125,10.0439453125,8.9482421875],"loadavg_end":[10.06005859375,9.8759765625,8.9130859375],"scale":{"1":{"median_s":0.6855,"all_s":[0.6775,0.6855,0.6867,0.6833,0.7052]},"2":{"median_s":0.6919,"all_s":[0.6804,0.6919,0.6945,0.6796,0.6922]},"4":{"median_s":0.6652,"all_s":[0.7205,0.6597,0.6698,0.6586,0.6652]},"8":{"median_s":0.6565,"all_s":[0.651,0.6535,0.6591,0.6662,0.6565]}},"trace4":[[[0.01,6.62],[6.62,25.36],[25.37,50.09],[50.09,73.57],[73.57,98.62],[98.62,123.66],[123.66,137.7],[137.7,156.69],[156.69,181.04],[181.04,211.97],[211.97,242.8],[242.8,285.48],[285.48,321.15],[321.15,327.64],[327.64,410.24],[410.24,428.25],[428.25,447.29],[447.29,478.63],[478.64,497.62],[497.62,522.71],[522.71,614.66],[614.66,647.44],[647.44,667.97],[667.97,688.43],[688.43,712.65]],[[12.48,31.94],[31.94,56.79],[56.79,85.96],[85.96,105.4],[105.4,167.68],[167.68,186.83],[186.83,206.29],[206.29,225.31],[225.31,267.41],[267.41,291.64],[291.64,310.92],[310.92,336.4],[336.41,369.79],[369.79,395.57],[395.57,440.0],[440.0,471.65],[471.65,502.98],[502.98,565.35],[565.35,606.42],[606.42,632.12],[632.12,638.42],[638.42,694.94],[694.94,731.77],[731.77,744.59],[744.59,751.8]],[[18.17,37.45],[37.45,68.06],[68.06,80.66],[80.66,118.55],[118.55,143.78],[143.78,162.31],[162.31,192.23],[192.24,217.51],[217.51,235.84],[235.84,260.61],[260.61,278.19],[278.19,372.09],[372.09,403.93],[403.93,434.73],[434.73,460.03],[460.03,485.55],[485.55,510.04],[510.04,532.94],[532.94,589.93],[589.93,621.27],[621.27,677.29],[677.29,701.75],[701.75,724.53],[724.53,737.44],[737.44,750.41]],[[42.52,61.59],[61.59,91.86],[91.86,110.84],[110.84,129.79],[129.79,148.8],[148.8,172.9],[172.9,197.6],[197.6,229.25],[229.25,253.83],[253.83,300.58],[300.58,343.39],[343.39,349.81],[349.81,379.99],[379.99,398.78],[398.78,422.97],[422.97,454.88],[454.88,467.36],[467.36,492.94],[492.94,517.68],[517.68,550.52],[550.52,581.11],[581.11,626.7],[626.7,689.37],[689.37,715.61],[715.61,723.1]]],"race_nolock":[2196362,2198429,2202247,2202798,2202459],"race_lock":[2202874,2202874,2202874]},"PY315T":{"python":"3.15.0rc3","free_threaded":true,"gil_enabled":false,"lines":100000,"expected_tokens":2202874,"switch_interval_s":0.005,"loadavg_start":[10.06005859375,9.8759765625,8.9130859375],"loadavg_end":[9.88671875,9.8349609375,8.91455078125],"scale":{"1":{"median_s":0.8299,"all_s":[0.8112,0.8181,0.8299,0.8547,0.8509]},"2":{"median_s":0.4454,"all_s":[0.469,0.4543,0.4369,0.4454,0.4444]},"4":{"median_s":0.3176,"all_s":[0.3176,0.3225,0.3037,0.2758,0.3186]},"8":{"median_s":0.2196,"all_s":[0.2145,0.2213,0.2329,0.2196,0.2119]}},"trace4":[[[5.15,17.1],[17.11,31.17],[31.17,41.79],[41.79,51.35],[51.35,70.01],[70.02,82.39],[82.39,90.62],[90.62,102.52],[102.52,112.52],[112.52,122.81],[122.81,137.85],[137.85,148.18],[148.18,161.34],[161.34,177.5],[177.5,185.65],[185.65,194.01],[194.01,202.65],[202.65,214.28],[214.28,228.91],[228.91,240.37],[240.37,251.7],[251.7,266.03],[266.03,277.97],[277.97,287.35],[287.35,303.65]],[[0.0,8.73],[8.73,24.69],[24.69,33.46],[33.46,44.13],[44.13,55.51],[55.51,64.34],[64.35,72.78],[72.78,86.15],[86.15,100.81],[100.81,122.19],[122.19,137.18],[137.18,154.76],[154.76,166.73],[166.73,175.31],[175.32,192.87],[192.87,208.61],[208.61,223.42],[223.42,233.19],[233.19,244.35],[244.35,258.04],[258.04,273.23],[273.23,283.15],[283.15,302.29],[302.29,319.98],[319.98,332.98]],[[0.01,8.78],[8.78,24.86],[24.86,33.68],[33.68,44.85],[44.85,55.42],[55.42,64.08],[64.08,72.56],[72.56,85.75],[85.75,98.33],[98.34,121.4],[121.4,136.57],[136.57,154.2],[154.2,166.33],[166.33,174.75],[174.75,198.66],[198.66,210.87],[210.87,226.69],[226.69,235.72],[235.72,247.41],[247.41,263.83],[263.83,274.89],[274.89,284.67],[284.67,307.47],[307.47,322.94],[322.95,333.85]],[[0.03,12.58],[12.58,24.27],[24.27,37.36],[37.36,45.82],[45.82,58.55],[58.55,77.43],[77.43,85.8],[85.8,95.72],[95.72,106.64],[106.64,115.84],[115.84,128.09],[128.1,141.67],[141.67,157.5],[157.5,170.77],[170.77,181.98],[181.98,190.34],[190.34,199.31],[199.32,209.68],[209.68,224.71],[224.71,233.64],[233.64,248.08],[248.08,257.78],[257.78,275.14],[275.14,283.81],[283.81,300.07]]],"race_nolock":[2189919,2181340,2187612,2172270,2185452],"race_lock":[2202874,2202874,2202874]}},"interp":{"PY314":{"python":"3.14.8","lines":100000,"loadavg_start":[18.43310546875,14.17138671875,10.89111328125],"mp_start_method":"spawn","startup_ms":{"thread":0.052,"subinterpreter":5.985,"process_spawn":84.367},"job_s":{"serial":{"median_s":0.8085,"all_s":[0.8085,0.8119,0.8645,0.6468,0.627]},"threads":{"median_s":0.7494,"all_s":[0.6733,0.7438,0.7665,0.7494,1.0852]},"processes":{"median_s":0.3343,"all_s":[0.4894,0.325,0.3343,0.3132,0.4088]},"subinterpreters":{"median_s":0.3844,"all_s":[0.512,0.3844,0.4161,0.3372,0.3746]}},"loadavg_end":[27.6474609375,16.48095703125,11.775390625]},"PY315":{"python":"3.15.0rc3","lines":100000,"loadavg_start":[27.6474609375,16.48095703125,11.775390625],"mp_start_method":"spawn","startup_ms":{"thread":0.052,"subinterpreter":5.67,"process_spawn":45.604},"job_s":{"serial":{"median_s":0.6897,"all_s":[0.6519,0.6628,0.7173,0.779,0.6897]},"threads":{"median_s":0.7029,"all_s":[1.002,0.7731,0.7029,0.6495,0.653]},"processes":{"median_s":0.2644,"all_s":[0.283,0.2642,0.2554,0.2644,0.3174]},"subinterpreters":{"median_s":0.373,"all_s":[0.373,0.3623,0.4838,0.3693,0.3898]}},"loadavg_end":[24.177734375,16.10302734375,11.69580078125]}},"wheels":{"fetched":"2026-10-05T11:37Z","pkgs":{"numpy":{"version":"2.5.3","uploaded":"2026-09-06","wheels":65,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"numpy-2.5.3-cp314-cp314t-macosx_11_0_arm64.whl"},"pandas":{"version":"3.0.6","uploaded":"2026-09-17","wheels":57,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"pandas-3.0.6-cp314-cp314t-macosx_10_15_x86_64.whl"},"polars-runtime-32":{"version":"1.44.2","uploaded":"2026-09-09","wheels":8,"cp314":false,"cp314t":false,"cp315":false,"cp315t":false,"abi3":true,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"polars_runtime_32-1.44.2-cp310-abi3-macosx_11_0_arm64.whl"},"pyarrow":{"version":"25.0.1","uploaded":"2026-08-10","wheels":42,"cp314":true,"cp314t":true,"cp315":false,"cp315t":false,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"pyarrow-25.0.1-cp314-cp314t-macosx_12_0_arm64.whl"},"scipy":{"version":"1.18.1","uploaded":"2026-08-21","wheels":60,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"scipy-1.18.1-cp314-cp314t-macosx_10_15_x86_64.whl"},"scikit-learn":{"version":"1.9.1","uploaded":"2026-09-10","wheels":42,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":false,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"scikit_learn-1.9.1-cp314-cp314t-macosx_10_15_x86_64.whl"},"torch":{"version":"2.14.1","uploaded":"2026-09-30","wheels":24,"cp314":true,"cp314t":true,"cp315":false,"cp315t":false,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":false,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"torch-2.14.1-cp314-cp314t-macosx_14_0_arm64.whl"},"tokenizers":{"version":"0.23.2","uploaded":"2026-09-03","wheels":16,"cp314":false,"cp314t":false,"cp315":false,"cp315t":false,"abi3":true,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"tokenizers-0.23.2-cp310-abi3-macosx_11_0_arm64.whl"},"safetensors":{"version":"0.8.0","uploaded":"2026-06-09","wheels":16,"cp314":false,"cp314t":false,"cp315":false,"cp315t":false,"abi3":true,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"safetensors-0.8.0-cp310-abi3-macosx_11_0_arm64.whl"},"pydantic-core":{"version":"2.49.0","uploaded":"2026-09-09","wheels":136,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"pydantic_core-2.49.0-cp314-cp314t-macosx_10_12_x86_64.whl"},"orjson":{"version":"3.12.0","uploaded":"2026-08-14","wheels":64,"cp314":true,"cp314t":false,"cp315":true,"cp315t":false,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"orjson-3.12.0-cp310-cp310-macosx_10_15_x86_64.macosx_11_0_arm64.macosx_10_15_universal2.whl"},"msgspec":{"version":"0.22.0","uploaded":"2026-09-29","wheels":81,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"msgspec-0.22.0-cp314-cp314t-macosx_10_15_x86_64.whl"},"cryptography":{"version":"50.0.2","uploaded":"2026-09-30","wheels":58,"cp314":false,"cp314t":true,"cp315":false,"cp315t":false,"abi3":true,"abi3t":true,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"cryptography-50.0.2-cp315-abi3.abi3t-macosx_11_0_arm64.whl","example":"cryptography-50.0.2-cp314-cp314t-macosx_11_0_arm64.whl"},"lxml":{"version":"6.1.3","uploaded":"2026-09-02","wheels":175,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"lxml-6.1.3-cp314-cp314t-macosx_10_15_universal2.whl"},"regex":{"version":"2026.9.29","uploaded":"2026-09-29","wheels":129,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"regex-2026.9.29-cp314-cp314t-macosx_10_15_universal2.whl"},"tiktoken":{"version":"0.14.0","uploaded":"2026-08-17","wheels":63,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"tiktoken-0.14.0-cp314-cp314t-macosx_10_15_x86_64.whl"},"uvloop":{"version":"0.23.0","uploaded":"2026-10-01","wheels":60,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":false,"abi3t_file":"","example":"uvloop-0.23.0-cp314-cp314t-macosx_10_15_universal2.whl"},"psutil":{"version":"7.2.2","uploaded":"2026-01-28","wheels":20,"cp314":false,"cp314t":true,"cp315":false,"cp315t":false,"abi3":true,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"psutil-7.2.2-cp314-cp314t-macosx_10_15_x86_64.whl"},"pillow":{"version":"12.3.0","uploaded":"2026-07-01","wheels":86,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"pillow-12.3.0-cp314-cp314t-macosx_10_15_x86_64.whl"},"zstandard":{"version":"0.25.0","uploaded":"2025-09-14","wheels":98,"cp314":true,"cp314t":false,"cp315":false,"cp315t":false,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"zstandard-0.25.0-cp310-cp310-macosx_11_0_arm64.whl"},"grpcio":{"version":"1.84.0","uploaded":"2026-09-14","wheels":60,"cp314":true,"cp314t":false,"cp315":true,"cp315t":false,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"grpcio-1.84.0-cp310-cp310-linux_armv7l.whl"},"jiter":{"version":"0.17.0","uploaded":"2026-09-12","wheels":118,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"jiter-0.17.0-cp314-cp314t-macosx_11_0_arm64.whl"},"rpds-py":{"version":"2026.9.1","uploaded":"2026-10-04","wheels":127,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"rpds_py-2026.9.1-cp314-cp314t-macosx_10_12_x86_64.whl"},"markupsafe":{"version":"3.0.4","uploaded":"2026-10-02","wheels":150,"cp314":true,"cp314t":true,"cp315":true,"cp315t":true,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"markupsafe-3.0.4-cp314-cp314t-macosx_10_15_x86_64.whl"},"pyyaml":{"version":"6.0.3","uploaded":"2025-09-25","wheels":72,"cp314":true,"cp314t":true,"cp315":false,"cp315t":false,"abi3":false,"abi3t":false,"pure":false,"manylinux":true,"musllinux":true,"macos_arm64":true,"windows":true,"abi3t_file":"","example":"pyyaml-6.0.3-cp314-cp314t-macosx_10_13_x86_64.whl"}}},"orjson":["error: Failed to build `orjson==3.12.0`","  cause: The build backend returned an error","           orjson v3.12.0 does not support free-threaded Python","           Caused by: Failed to build a native library through cargo"]};
+</script>
+<script>/* 23_js_cg_util.js */
+// ---- Shared helpers for this page (window.CGU): transcripts, prediction prompts, bars. Adapted from the language page's 41_js_pb_util.js ----
+window.CGU=(function(){
+  const esc=RD.esc;
+  // colour one line of tool output
+  function line(l){
+    const e=esc(l);
+    if(/^\[exit \d+\]$/.test(l))return '<span class="'+(l==='[exit 0]'?'k':'e')+'">'+e+'</span>';
+    if(/(^|[^a-z])(error|Error|Traceback|FAILED|Fatal|failed)\b|^E\s|NotShareable|ModuleNotFound|SyntaxError|NameError|ImportError|AttributeError|ValueError/.test(l))return '<span class="e">'+e+'</span>';
+    if(/[Ww]arning|^hint:|^Note:|^info:/.test(l))return '<span class="w">'+e+'</span>';
+    if(/passed|All checks passed|Successfully built|in sync/.test(l))return '<span class="ok">'+e+'</span>';
+    return e;
+  }
+  function block(b){
+    let h='<span class="c">'+esc(b.cmd)+'</span>\n';
+    if(b.out)h+=b.out.split('\n').map(line).join('\n')+'\n';
+    if(b.rc!=null)h+=line('[exit '+b.rc+']');
+    return h;
+  }
+  // blocks in transcript `name` whose command starts with each prefix (first match after the previous one)
+  function pick(name,prefixes){
+    const T=(window.PB&&PB[name])||[];const out=[];let from=0;
+    prefixes.forEach(p=>{let i=T.findIndex((b,k)=>k>=from&&b.cmd&&b.cmd.startsWith(p));if(i<0)i=T.findIndex(b=>b.cmd&&b.cmd.startsWith(p));if(i>=0){out.push(T[i]);from=i+1}});
+    return out;
+  }
+  function fillTerms(root){
+    (root||document).querySelectorAll('[data-cg-tr]').forEach(el=>{
+      const bs=pick(el.dataset.cgTr,el.dataset.cgCmd.split('|'));
+      el.innerHTML=bs.length?bs.map(block).join('\n\n'):'<span class="e">(output missing)</span>';
+    });
+  }
+  // prediction prompt: opts [{t, right}], answer HTML (or a function returning it)
+  function drill(el,q,opts,answer){
+    if(!el)return;
+    el.innerHTML='<div class="q">'+q+'</div><div class="opts">'+opts.map((o,i)=>'<button data-i="'+i+'">'+o.t+'</button>').join('')+
+      '<button data-i="-1" class="mute">Just show me</button></div><div class="ans" hidden></div>';
+    const a=el.querySelector('.ans');
+    el.querySelector('.opts').addEventListener('click',ev=>{const b=ev.target.closest('button');if(!b)return;const i=+b.dataset.i;
+      el.querySelectorAll('.opts button').forEach(x=>{const j=+x.dataset.i;x.classList.remove('right','wrong');if(j>=0&&opts[j].right)x.classList.add('right')});
+      if(i>=0&&!opts[i].right)b.classList.add('wrong');
+      a.hidden=false;a.innerHTML=(i<0?'':(opts[i].right?'<b>Right.</b> ':'<b>Not quite.</b> '))+(typeof answer==='function'?answer():answer)});
+  }
+  const fmt=(x,d)=>(x==null||isNaN(x))?'n/a':Number(x).toFixed(d==null?2:d);
+  const la=a=>a?a.map(x=>x.toFixed(1)).join(' / '):'n/a';
+  // horizontal bars: rows [{name, v, label, col, hl}]
+  function bars(el,rows,max,note){
+    if(!el)return;
+    const M=max||Math.max(...rows.map(r=>r.v));
+    el.innerHTML='<div class="bars">'+rows.map(r=>'<div class="row'+(r.hl?' hl':'')+'"><span class="nm" title="'+esc(r.name)+'">'+esc(r.name)+'</span><span class="track"><span class="fill" style="width:'+(100*r.v/M).toFixed(1)+'%;background:'+(r.col||'var(--c1)')+'"></span></span><span class="val">'+r.label+'</span></div>').join('')+'</div>'+(note?'<div class="cg-src">'+note+'</div>':'');
+  }
+  // redraw f when a closed <details> containing el is opened (a closed block has no width)
+  function onOpen(el,f){const d=el&&el.closest('details');if(d)d.addEventListener('toggle',()=>{if(d.open)f()})}
+  return {esc,line,block,pick,fillTerms,drill,fmt,la,bars,onOpen};
+})();
+</script>
+<script>/* 24_js_cg_hero.js */
+// ---- Hero: who runs Python bytecode at each instant under four models (static, illustrative schedules; drawn at the measured width) ----
+(function(){
+  const el=document.getElementById('cg-hero');if(!el)return;
+  // segment kinds: r run Python, i waiting on I/O, w ready but waiting for the GIL, b blocking call, s start-up and pickling, a/b/c asyncio task slices
+  const P=[
+    {t:'4 threads, default build: one GIL, so one runner at a time',n:'4 threads, GIL: one runner at a time',lanes:[
+      ['T1',[['r',0,2],['i',2,6],['w',6,7],['r',7,9],['i',9,12]]],
+      ['T2',[['w',0,2],['r',2,4],['i',4,8],['w',8,9],['r',9,11]]],
+      ['T3',[['w',0,4],['r',4,7],['i',7,12]]],
+      ['T4',[['w',0,11],['r',11,12]]]]},
+    {t:'4 threads, free-threaded build (3.14t): no GIL, runners overlap',n:'4 threads, 3.14t (no GIL): overlap',lanes:[
+      ['T1',[['r',0,5],['i',5,7],['r',7,10]]],
+      ['T2',[['r',0,6],['i',6,8],['r',8,10.5]]],
+      ['T3',[['r',0,4],['i',4,6],['r',6,10]]],
+      ['T4',[['r',0,5.5],['i',5.5,7.5],['r',7.5,10.2]]]]},
+    {t:'asyncio: one thread, three tasks, switching only at await',n:'asyncio: one thread, switch at await',lanes:[
+      ['loop',[['A',0,0.8],['B',0.8,1.6],['C',1.6,2.4],['A',3.6,4.4],['b',4.4,7.4],['C',7.4,8.2],['B',8.2,9]]],
+      ['A',[['A',0,0.8],['i',0.8,3.6],['A',3.6,4.4]]],
+      ['B',[['B',0.8,1.6],['i',1.6,4.4],['b',4.4,7.4],['i',7.4,8.2],['B',8.2,9]]],
+      ['C',[['C',1.6,2.4],['i',2.4,5],['w',5,7.4],['C',7.4,8.2]]]]},
+    {t:'4 processes: four GILs, paid for in start-up and pickling',n:'4 processes: four GILs, start-up cost',lanes:[
+      ['P1',[['s',0,1.6],['r',1.6,6.4],['s',6.4,7]]],
+      ['P2',[['s',0,1.8],['r',1.8,6.6],['s',6.6,7.2]]],
+      ['P3',[['s',0,2],['r',2,6.8],['s',6.8,7.4]]],
+      ['P4',[['s',0,2.2],['r',2.2,7],['s',7,7.6]]]]}];
+  const TC={A:'var(--c1)',B:'var(--c4)',C:'var(--c6)'};
+  function draw(){
+    const W=Math.min(900,RD.width(el)),L=34,R=8,lh=13,gap=4,X=t=>L+(W-L-R)*t/12;
+    let y=0,s='';
+    P.forEach((p,k)=>{
+      y+=k?14:2;s+=RD.t(0,y+11,W<560?p.n:p.t,{fs:12,w:600,fill:'var(--ink)'});y+=18;
+      p.lanes.forEach(([nm,segs])=>{
+        s+=RD.t(0,y+lh-2,nm,{fs:11,fill:'var(--mute)'});
+        s+='<rect x="'+L+'" y="'+y+'" width="'+(W-L-R)+'" height="'+lh+'" fill="var(--soft)"/>';
+        segs.forEach(([kd,a,b])=>{const x=X(a),w=Math.max(1,X(b)-X(a));
+          if(kd==='r')s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+lh+'" rx="2" fill="var(--acc)"/>';
+          else if(kd==='i')s+='<rect x="'+x+'" y="'+(y+lh/2-2)+'" width="'+w+'" height="4" rx="2" fill="var(--c3)" opacity=".55"/>';
+          else if(kd==='w')s+='<rect x="'+(x+0.5)+'" y="'+(y+1.5)+'" width="'+Math.max(1,w-1)+'" height="'+(lh-3)+'" rx="2" fill="none" stroke="var(--mute)" stroke-dasharray="3 2"/>';
+          else if(kd==='b')s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+lh+'" rx="2" fill="var(--bad)"/>';
+          else if(kd==='s')s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+lh+'" rx="2" fill="var(--dim)"/>';
+          else{s+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+lh+'" rx="2" fill="'+TC[kd]+'"/>';if(w>14)s+=RD.t(x+w/2,y+lh-2.5,kd,{a:'middle',fs:10.5,w:600,fill:'var(--bg)'})}
+        });
+        y+=lh+gap;
+      });
+      if(k===2){const xb=X(4.4),xe=X(7.4);s+=RD.t(Math.min((xb+xe)/2,W-60),y+9,'time.sleep: A and C wait',{a:'middle',fs:10.5,fill:'var(--bad)'});y+=10}
+    });
+    y+=6;s+='<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+'" stroke="var(--line)"/>'+RD.t(W-R,y+13,'time',{a:'end',fs:10.5,fill:'var(--mute)'});
+    el.innerHTML=RD.svg(W,y+16,s,'Four timelines: threads under the GIL, threads on the free-threaded build, an asyncio loop with one blocking call, and four processes');
+  }
+  draw();RD.onRender(draw);RD.onResize(draw);
+})();
+</script>
+<script>/* 25_js_cg_s12.js */
+// ---- Sections 1 and 2: the GIL bars and prediction, the event-loop prediction, the fan-out bars (data: PA from src/pa/outputs) ----
+(function(){
+  const $=id=>document.getElementById(id);if(!window.PA||!window.CGU)return;
+  const G=PA.k1.gil,F=PA.k1.ft,val=(rows,kind,how)=>rows.find(r=>r[0]===kind&&r[1]===how)[2];
+  // prediction: four threads on CPU-bound Python, default build
+  const s=val(G,'CPU','serial'),t=val(G,'CPU','4 threads'),r=t/s;
+  CGU.drill($('cg-pr-gil'),'Predict: on the default 3.14 build, how long do four threads take for the CPU job, against '+s.toFixed(2)+' s serially?',
+    [{t:'About a quarter of the time (four cores)',right:r<0.4},{t:'About half',right:r>=0.4&&r<0.8},{t:'About the same as serial',right:r>=0.8&&r<1.25},{t:'Much slower than serial',right:r>=1.25}],
+    'Measured: '+t.toFixed(3)+' s on four threads against '+s.toFixed(3)+' s serially. The bars below have every case on both builds.');
+  // bars: both builds
+  const rows=[];
+  [['gil','3.14 (GIL)','var(--c2)'],['ft','3.14t (no GIL)','var(--acc)']].forEach(([k,lab,c])=>PA.k1[k].forEach(x=>rows.push({name:x[0]+' '+x[1]+', '+lab,v:x[2],label:x[2].toFixed(2)+' s',col:c,cpu:x[0]==='CPU'})));
+  rows.sort((a,b)=>(a.cpu?0:1)-(b.cpu?0:1));
+  CGU.bars($('cg-gil-bars'),rows,null,'Wall-clock seconds, best of 3, from <code>k1_gil.py</code> on CPython 3.14.8 and 3.14.8t (Apple M1 Pro, load average near 8); shorter is better.');
+
+  // prediction: the blocked loop
+  const ev=PA.loop.gathered_blocking.events,aRes=ev.find(e=>e[0]==='A'&&e[1]==='resume')[2];
+  CGU.drill($('cg-pr-loop'),'Predict, for mode 3 below: A\'s 100 ms timer is due while B is inside <code>time.sleep(0.2)</code>. When does A resume?',
+    [{t:'At 100 ms, on time',right:aRes<150},{t:'At about 200 ms, when B\'s sleep returns',right:aRes>=150&&aRes<260},{t:'At about 300 ms, after C',right:aRes>=260}],
+    'A resumed at '+aRes.toFixed(1)+' ms in the real trace: the loop could not run its timer while the thread was stuck in B. Step through mode 3 to see it.');
+
+  // fan-out bars
+  const NM={'sequential, 20 calls':'sequential, 20 calls','gather, 20 at once':'gather, 20 at once','gather, at most 5 at once':'Semaphore(5): 5 in flight','TaskGroup, 20 at once':'TaskGroup, 20 at once','timeout after':'timeout(0.25) on a 2 s call'};
+  CGU.bars($('cg-fan-bars'),PA.a3.map(x=>({name:NM[x[0]]||x[0],v:x[1],label:x[1].toFixed(3)+' s',col:/sequential/.test(x[0])?'var(--c2)':'var(--acc)'})),null,
+    'Twenty calls of 100 ms each against a local standard-library server, from <code>a3_fanout.py</code> on CPython 3.14.8; shorter is better.');
+})();
+</script>
+<script>/* 26_js_cg_loop.js */
+// ---- Section 2: the event-loop stepper, a replay of the real a2_trace.py events drawn to scale. Adapted from the language page's 36_js_pa_loop.js (now inline, never autoplays, a mode switch resets to step 1) ----
+(function(){
+  const $=id=>document.getElementById(id),esc=RD.esc;
+  if(!$('cg-loop-card')||!window.PA)return;
+  const WHO=['A','B','C'],AXIS=620;
+  let mode='sequential';
+  const secs=n=>{const m=/([\d.]+)\)?$/.exec(n||'');return m?parseFloat(m[1]):0};
+  function state(ev,i){
+    const T=ev[i][2],st={};
+    WHO.forEach(w=>{const mine=ev.slice(0,i+1).filter(e=>e[0]===w);
+      if(!mine.length){st[w]={s:mode==='sequential'?'not created yet':'ready (task queued)',k:mode==='sequential'?'none':'ready'};return}
+      const last=mine[mine.length-1];
+      if(last[1]==='start'||last[1]==='resume')st[w]={s:'running',k:'run'};
+      else if(last[1]==='block')st[w]={s:'blocking the thread',k:'block'};
+      else if(last[1]==='done')st[w]={s:'done at '+last[2].toFixed(0)+' ms',k:'done'};
+      else if(last[1]==='await'){const due=last[2]+secs(last[3])*1000;st[w]=T>=due-0.5?{s:'ready (due at '+due.toFixed(0)+' ms)',k:'ready'}:{s:'suspended until '+due.toFixed(0)+' ms',k:'wait'}}
+    });
+    return st;
+  }
+  function caption(ev,i,tot){
+    const [w,what,t,note]=ev[i];let c='<b>'+t.toFixed(1)+' ms.</b> ';
+    if(what==='start')c+=w+' starts running on the loop\'s one thread.'+(mode==='sequential'&&w!=='A'?' In this mode <code>main</code> awaits each coroutine in turn, so '+w+' is created only now.':'');
+    else if(what==='await'){const due=t+secs(note)*1000;
+      c+=w+' reaches <code>await '+esc(note)+'</code> and suspends: the thread goes back to the loop'+(note.indexOf('to_thread')>=0?', and the blocking call runs in a worker thread.':', which sets a timer for '+due.toFixed(0)+' ms.')+(mode!=='sequential'&&w!=='C'?' The loop immediately runs the next ready task.':'')}
+    else if(what==='block')c+=w+' calls <code>'+esc(note)+'</code>. That is not an <code>await</code>: the thread is stuck inside the call, and the loop cannot run A\'s timer or start C until it returns.';
+    else if(what==='resume'){let a=null;for(let k=i-1;k>=0;k--)if(ev[k][0]===w&&ev[k][1]==='await'){a=ev[k];break}
+      const due=a?a[2]+secs(a[3])*1000:t,late=t-due;
+      c+=w+'\'s wait is over (due at '+due.toFixed(0)+' ms); the loop resumes it.'+(late>20?' <b>'+late.toFixed(0)+' ms late</b>: the thread was busy with B\'s blocking call.':'')}
+    else if(what==='done')c+=w+' returns its result.'+(i===ev.length-1?' <b>All done: total '+tot.toFixed(0)+' ms.</b>':'');
+    return c;
+  }
+  function draw(i){
+    const D=PA.loop[mode],ev=D.events,T=ev[i][2];
+    const W=Math.min(860,RD.width($('cg-loop-svg'))),L=58,x=v=>L+(W-L-10)*v/AXIS,lh=34,top=22,H=top+4*lh+26,narrow=W<520;
+    let b='';
+    for(let m=0;m<=600;m+=100){b+='<line x1="'+x(m)+'" y1="'+top+'" x2="'+x(m)+'" y2="'+(top+4*lh)+'" stroke="var(--line)"/>';if(!narrow||m%200===0)b+=RD.t(x(m),top+4*lh+14,m+(m===600||(narrow&&m===400)?' ms':''),{a:'middle',fs:10.5,fill:'var(--mute)'})}
+    ['thread'].concat(WHO).forEach((n,k)=>{b+=RD.t(4,top+k*lh+lh/2+4,n==='thread'?'thread':'coro '+n,{fs:11.5,w:n==='thread'?600:400,fill:'var(--ink)'})});
+    const seen=ev.slice(0,i+1);
+    WHO.forEach((w,k)=>{const y=top+(k+1)*lh+lh/2,mine=seen.filter(e=>e[0]===w);
+      for(let j=0;j<mine.length;j++){const e=mine[j],nx=mine[j+1],end=nx?nx[2]:T;
+        if(e[1]==='start'||e[1]==='resume'){if(nx||e[2]<=T)b+='<rect x="'+x(e[2])+'" y="'+(y-7)+'" width="'+Math.max(3,x(end)-x(e[2]))+'" height="14" rx="2" fill="var(--ink)"/>'}
+        else if(e[1]==='await'){b+='<rect x="'+x(e[2])+'" y="'+(y-2)+'" width="'+Math.max(1,x(end)-x(e[2]))+'" height="4" rx="2" fill="var(--c1)"/>';
+          const due=e[2]+secs(e[3])*1000;b+='<circle cx="'+x(due)+'" cy="'+y+'" r="4" fill="var(--bg)" stroke="var(--c1)" stroke-width="2"/>'}
+        else if(e[1]==='block'){b+='<rect x="'+x(e[2])+'" y="'+(y-7)+'" width="'+Math.max(3,x(end)-x(e[2]))+'" height="14" rx="2" fill="var(--bad)"/>'}
+      }});
+    const ty=top+lh/2;b+='<rect x="'+x(0)+'" y="'+(ty-1)+'" width="'+(x(T)-x(0))+'" height="2" fill="var(--dim)"/>';
+    seen.forEach(e=>{if(e[1]==='block'){const d=seen.find(f=>f[0]===e[0]&&f[1]==='done'&&f[2]>=e[2]);b+='<rect x="'+x(e[2])+'" y="'+(ty-7)+'" width="'+Math.max(3,x(d?d[2]:T)-x(e[2]))+'" height="14" rx="2" fill="var(--bad)"/>'}
+      else b+='<rect x="'+(x(e[2])-1.5)+'" y="'+(ty-7)+'" width="3" height="14" fill="var(--ink)"/>'});
+    b+='<line x1="'+x(T)+'" y1="'+(top-8)+'" x2="'+x(T)+'" y2="'+(top+4*lh)+'" stroke="var(--acc)" stroke-width="1.5"/>'+RD.t(Math.max(L+16,Math.min(x(T),W-40)),top-10,T.toFixed(0)+' ms',{a:'middle',fs:11,fill:'var(--acc)',w:600});
+    $('cg-loop-svg').innerHTML=RD.svg(W,H,b,'Timeline of three coroutines, mode '+mode);
+    $('cg-loop-cap').innerHTML='<b>Step '+(i+1)+' of '+ev.length+'.</b> '+caption(ev,i,D.total_ms);
+    const st=state(ev,i),cnt=k=>WHO.filter(w=>st[w].k===k).length;
+    $('cg-loop-cnt').innerHTML='<span>loop clock: <b>'+T.toFixed(1)+' ms</b></span>'+WHO.map(w=>'<span>'+w+': <b>'+esc(st[w].s)+'</b></span>').join('')+'<span>suspended: <b>'+cnt('wait')+'</b>, ready: <b>'+cnt('ready')+'</b>, done: <b>'+cnt('done')+'</b></span><span>this mode\'s total: <b>'+D.total_ms.toFixed(0)+' ms</b></span>';
+  }
+  const an=RD.anim({card:'cg-loop-card',ctl:'cg-loop-ctl',n:PA.loop[mode].events.length,draw,ms:1500,label:'Event'});
+  RD.seg($('cg-loop-mode'),m=>{mode=m;an.reset(PA.loop[m].events.length)});
+  RD.onResize(()=>an.redraw());
+})();
+</script>
+<script>/* 27_js_cg_ft.js */
+// ---- Sections 3 and 4: free-threading lanes, scaling, lost updates, wheels; subinterpreters (data: PB from src/pb/out).
+// Adapted from the language page's 42_js_pb_read_d.js and the Runtime lab's 44_js_pb_lab.js (parts 1, 2, 4 and 5) ----
+(function(){
+  const $=id=>document.getElementById(id);if(!window.PB||!window.CGU||!$('cg-ft-card'))return;
+  const E=CGU.esc,F=PB.ft,fmt=CGU.fmt;
+  const LAB={PY314:'3.14.8, GIL',PY314T:'3.14.8t, no GIL',PY315:'3.15.0rc3, GIL',PY315T:'3.15.0rc3t, no GIL'};
+  const KEYS=['PY314','PY314T','PY315','PY315T'];
+  const endOf=k=>Math.max(...F[k].trace4.map(l=>l[l.length-1][1]));
+  const MAXT=Math.max(...KEYS.map(endOf));
+  const meanChunk=k=>{let s=0,n=0;F[k].trace4.forEach(l=>l.forEach(c=>{s+=c[1]-c[0];n++}));return s/n};
+  const NSTEP=22;let mode='PY314',A=null;
+  function draw(i){
+    const tr=F[mode].trace4,end=endOf(mode),t=i>=NSTEP?end:end*i/NSTEP;
+    const w=RD.width($('cg-ft-plot')),L0=62,R=8,lane=24,H=4*lane+34,X=v=>L0+(w-L0-R)*v/MAXT;
+    let s='';const cols=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+    tr.forEach((l,k)=>{const y=6+k*lane;s+='<text x="0" y="'+(y+15)+'" font-size="11" fill="var(--mute)">thread '+(k+1)+'</text>';
+      s+='<rect x="'+L0+'" y="'+(y+2)+'" width="'+(w-L0-R)+'" height="'+(lane-6)+'" fill="var(--soft)"></rect>';
+      l.forEach(c=>{if(c[0]>=t)return;const x0=X(c[0]),x1=X(Math.min(c[1],t));s+='<rect x="'+x0.toFixed(1)+'" y="'+(y+2)+'" width="'+Math.max(0.6,x1-x0-0.6).toFixed(1)+'" height="'+(lane-6)+'" fill="'+cols[k]+'" opacity="'+(c[1]<=t?0.85:0.45)+'"></rect>'})});
+    const yA=6+4*lane;const stepv=w<520?200:100;
+    for(let v=0;v<=MAXT;v+=stepv){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+yA+'" y2="'+(yA+4)+'" stroke="var(--mute)"></line><text x="'+x+'" y="'+(yA+16)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+v+' ms</text>'}
+    s+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="2" y2="'+yA+'" stroke="var(--ink)" stroke-width="1.5"></line>';
+    $('cg-ft-plot').innerHTML=RD.svg(w,H,s,'Four threads processing blocks of 1,000 lines over time');
+    const done=tr.reduce((a,l)=>a+l.filter(c=>c[1]<=t).length,0)*1000;
+    $('cg-ft-cnt').innerHTML='<span>elapsed <b>'+fmt(t,0)+' ms</b></span><span>lines counted <b>'+done.toLocaleString('en-US')+'</b> of '+F[mode].lines.toLocaleString('en-US')+'</span><span>average block <b>'+fmt(meanChunk(mode),1)+' ms</b></span>';
+    const gil=!F[mode].free_threaded,one=F[mode].scale['1'].median_s*1000;
+    let c;
+    if(i===0)c='<b>'+LAB[mode]+'.</b> Four threads start together; each will count 25 blocks of 1,000 lines. A darker block is finished, a pale one is in progress. Press play or step.';
+    else if(i<NSTEP)c=gil?'All four threads make progress, but each block takes about '+fmt(meanChunk(mode)/(one/F[mode].lines*1000),1)+' times as long as one thread alone needs for it: they take turns holding the GIL, switching every '+(F[mode].switch_interval_s*1000)+' ms. Four lanes, one core\'s worth of work.':
+      'The four threads run at the same moment on different cores. Each block takes '+fmt(meanChunk(mode)/(one/F[mode].lines*1000),1)+' times as long as one thread alone needs for it: close to 1 would be perfect parallelism; the excess is the busy machine and contention.';
+    else c='<b>Finished in '+fmt(end,0)+' ms.</b> One thread alone took '+fmt(one,0)+' ms on this interpreter (median of the scaling runs), so four threads were '+fmt(one/end,1)+'x faster here. Switch the build above to compare, on the same time axis.';
+    $('cg-ft-cap').innerHTML=c;
+  }
+  A=RD.anim({card:'cg-ft-card',ctl:'cg-ft-ctl',n:NSTEP+1,draw:draw,ms:600,label:'Time step'});
+  RD.seg($('cg-ft-seg'),m=>{mode=m;A.reset(NSTEP+1)});
+  $('cg-ft-src').innerHTML='Real per-block timestamps from one run on each interpreter (<code>ft_bench.py</code>, <code>trace(4)</code>); the time axis is the same for all four builds. Load average during the runs: '+KEYS.map(k=>LAB[k]+' '+CGU.la(F[k].loadavg_start)).join('; ')+'.';
+  RD.onResize(()=>A.redraw());
+
+  // scaling summary and bars
+  const sp=(k,n)=>F[k].scale['1'].median_s/F[k].scale[n].median_s;
+  $('cg-ft-scale-p').innerHTML='The same comparison as speed-ups. With the GIL, 2, 4 or 8 threads were no faster than one ('+fmt(sp('PY314','4'),2)+'x with 4 on 3.14). Without it, 4 threads were '+fmt(sp('PY314T','4'),1)+'x faster and 8 threads '+fmt(sp('PY314T','8'),1)+'x on 3.14t ('+fmt(sp('PY315T','4'),1)+'x and '+fmt(sp('PY315T','8'),1)+'x on 3.15rc3t). Not 4x and 8x: other programs were using the CPU, two of the ten cores are slower efficiency cores, and part of the job (splitting, merging) is serial.';
+  const rows=[];KEYS.forEach(k=>['4','8'].forEach(n=>rows.push({name:LAB[k]+', '+n+' threads',v:sp(k,n),label:fmt(sp(k,n),2)+'x',col:F[k].free_threaded?'var(--acc)':'var(--c2)'})));
+  CGU.bars($('cg-ft-bars'),rows);
+  const ov=(f,g)=>(F[f].scale['1'].median_s/F[g].scale['1'].median_s-1)*100;
+  const sg=x=>(x>=0?'+':'')+fmt(x,0)+'%';
+  const ovt='3.14t '+sg(ov('PY314T','PY314'))+' and 3.15rc3t '+sg(ov('PY315T','PY315'))+' single-thread time against the GIL build of the same version (one workload, five runs, busy machine)';
+  $('cg-ft-ovh').textContent=ovt;$('cg-ft-fix1').textContent=ovt;
+  $('cg-ft-cmp4').textContent=fmt(sp('PY314T','4'),1)+'x';
+  $('cg-ft-fix4').textContent=fmt(sp('PY314T','4'),1)+'x';
+
+  // every scaling run (closed block): chart with a time / speed-up toggle, and the table
+  const COL={PY314:'var(--c2)',PY314T:'var(--acc)',PY315:'var(--c4)',PY315T:'var(--c3)'},NS=['1','2','4','8'];let smode='t';
+  function plot(){
+    const el=$('cg-sc-plot');if(!el)return;const w=RD.width(el),H=230,L0=46,R=12,T0=10,B=30;
+    const val=(k,n)=>smode==='t'?F[k].scale[n].median_s:F[k].scale['1'].median_s/F[k].scale[n].median_s;
+    const max=smode==='t'?Math.max(...KEYS.flatMap(k=>NS.map(n=>val(k,n))))*1.1:8.4;
+    const X=i=>L0+(w-L0-R)*i/3,Y=v=>T0+(H-T0-B)*(1-v/max);let s='';
+    const ticks=smode==='t'?[0,0.2,0.4,0.6,0.8,1.0].filter(v=>v<=max):[0,1,2,4,6,8];
+    ticks.forEach(v=>{s+='<line x1="'+L0+'" x2="'+(w-R)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"></line><text x="'+(L0-5)+'" y="'+(Y(v)+4)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+(smode==='t'?v.toFixed(1)+' s':v+'x')+'</text>'});
+    if(smode==='s'){s+='<polyline points="'+NS.map((n,i)=>X(i)+','+Y(+n)).join(' ')+'" fill="none" stroke="var(--dim)" stroke-dasharray="4 3"></polyline><text x="'+(X(3)-4)+'" y="'+(Y(8)+12)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">perfect scaling</text>'}
+    NS.forEach((n,i)=>{s+='<text x="'+X(i)+'" y="'+(H-10)+'" font-size="11" text-anchor="'+(i===0?'start':i===3?'end':'middle')+'" fill="var(--mute)">'+n+' thread'+(n==='1'?'':'s')+'</text>'});
+    KEYS.forEach(k=>{s+='<polyline points="'+NS.map((n,i)=>X(i)+','+Y(val(k,n)).toFixed(1)).join(' ')+'" fill="none" stroke="'+COL[k]+'" stroke-width="2"></polyline>'+NS.map((n,i)=>'<circle cx="'+X(i)+'" cy="'+Y(val(k,n)).toFixed(1)+'" r="3.5" fill="'+COL[k]+'"><title>'+LAB[k]+', '+n+': '+(smode==='t'?fmt(val(k,n),3)+' s':fmt(val(k,n),2)+'x')+'</title></circle>').join('')});
+    el.innerHTML=RD.svg(w,H,s,'Thread scaling of the token count on four interpreters');
+  }
+  $('cg-sc-leg').innerHTML=KEYS.map(k=>'<span><i style="background:'+COL[k]+'"></i>'+LAB[k]+'</span>').join('');
+  RD.seg($('cg-sc-mode'),m=>{smode=m;plot()});
+  $('cg-sc-tbl').innerHTML='<thead><tr><th>Interpreter</th>'+NS.map(n=>'<th class="n">'+n+' thr. median (s)</th>').join('')+'<th>All runs (s), 1 / 2 / 4 / 8 threads</th><th class="n">Load avg</th></tr></thead><tbody>'+
+    KEYS.map(k=>'<tr><td>'+LAB[k]+'</td>'+NS.map(n=>'<td class="n">'+fmt(F[k].scale[n].median_s,3)+'</td>').join('')+'<td class="small">'+NS.map(n=>F[k].scale[n].all_s.join(', ')).join(' / ')+'</td><td class="n">'+CGU.la(F[k].loadavg_start)+'</td></tr>').join('')+'</tbody>';
+  $('cg-sc-ovh').innerHTML='Single-thread overhead of the free-threaded build on this workload (1-thread median against the GIL build of the same version): 3.14t <b>'+(ov('PY314T','PY314')>=0?'+':'')+fmt(ov('PY314T','PY314'),1)+'%</b>, 3.15rc3t <b>'+(ov('PY315T','PY315')>=0?'+':'')+fmt(ov('PY315T','PY315'),1)+'%</b>. One workload on a busy machine is not a benchmark suite: read differences of a few percent as noise.';
+  plot();CGU.onOpen($('cg-sc-plot'),plot);RD.onResize(plot);
+
+  // lost updates
+  const lost=k=>F[k].race_nolock.map(x=>F[k].expected_tokens-x);
+  const l14=lost('PY314'),l14t=lost('PY314T');
+  CGU.drill($('cg-pr-race'),'Predict: four threads, one shared dict, no lock, on the <b>normal 3.14 build with the GIL</b>. Out of '+F.PY314.expected_tokens.toLocaleString('en-US')+' tokens, how many are lost per run?',
+    [{t:'None: the GIL makes it safe',right:Math.max(...l14)===0},{t:'Some runs lose a few hundred or thousand',right:Math.max(...l14)>0&&Math.max(...l14)<20000},{t:'Tens of thousands every run',right:Math.min(...l14)>=10000}],
+    ()=>'<div class="cg-tbl"><table><thead><tr><th>Build</th><th class="n">Expected tokens</th><th>Tokens lost in each of 5 runs, no lock</th><th>With a lock (3 runs)</th></tr></thead><tbody>'+
+      KEYS.map(k=>'<tr><td>'+LAB[k]+'</td><td class="n">'+F[k].expected_tokens.toLocaleString('en-US')+'</td><td class="n">'+lost(k).map(x=>x.toLocaleString('en-US')).join(', ')+'</td><td class="n">'+F[k].race_lock.map(x=>(F[k].expected_tokens-x).toLocaleString('en-US')).join(', ')+'</td></tr>').join('')+'</tbody></table></div>'+
+      'With the GIL: '+l14.filter(x=>x>0).length+' of 5 runs lost updates (up to '+Math.max(...l14).toLocaleString('en-US')+' tokens). Without it: every run, '+Math.min(...l14t).toLocaleString('en-US')+' to '+Math.max(...l14t).toLocaleString('en-US')+' tokens.');
+
+  // transcripts
+  $('cg-orjson').innerHTML=PB.orjson.map(l=>CGU.line(l)).join('\n');
+  CGU.fillTerms($('t-read'));
+
+  // wheels: sentence and survey table
+  const W=PB.wheels.pkgs,ks=Object.keys(W),n14=ks.filter(k=>W[k].cp314t).length,n15=ks.filter(k=>W[k].cp315t).length,miss=ks.filter(k=>!W[k].cp314t);
+  $('cg-ft-wheels').innerHTML='How common is support? Of '+ks.length+' popular compiled packages on PyPI (latest releases, '+E(PB.wheels.fetched.slice(0,10))+'), <b>'+n14+'</b> ship a free-threaded 3.14 wheel and '+n15+' already ship one for 3.15; without a cp314t wheel: '+miss.map(k=>E(k)).join(', ')+'. The survey is in the closed block below.';
+  $('cg-ws-note').innerHTML='PyPI JSON API, latest release of each package, fetched '+E(PB.wheels.fetched)+'. A tick means at least one wheel with that tag exists for the release.';
+  const yes=b=>b?'<td class="y">&#10003;</td>':'<td class="no">&#183;</td>';let filt='all';
+  function ws(){
+    const kk=ks.filter(k=>filt==='all'||(filt==='no314t'&&!W[k].cp314t)||(filt==='abi3'&&W[k].abi3));
+    $('cg-ws-tbl').innerHTML='<thead><tr><th>Package</th><th>Version (uploaded)</th><th>cp314t</th><th>cp315</th><th>cp315t</th><th>abi3</th><th>abi3t</th><th class="n">Wheels</th><th>Example file</th></tr></thead><tbody>'+
+      kk.map(k=>{const p=W[k];return '<tr><td>'+E(k)+'</td><td class="small">'+E(p.version)+' ('+E(p.uploaded)+')</td>'+yes(p.cp314t)+yes(p.cp315)+yes(p.cp315t)+yes(p.abi3)+yes(p.abi3t)+'<td class="n">'+p.wheels+'</td><td class="fn">'+E(p.abi3t_file||p.example)+'</td></tr>'}).join('')+'</tbody>';
+  }
+  $('cg-ws-filter').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;filt=b.dataset.m;$('cg-ws-filter').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));ws()});
+  ws();
+
+  // subinterpreters
+  const IN=PB.interp,IK=['PY314','PY315'];
+  const row=(name,f)=>'<tr><td>'+name+'</td>'+IK.map(k=>'<td class="n">'+f(IN[k])+'</td>').join('')+'</tr>';
+  $('cg-int-tbl').innerHTML='<thead><tr><th></th><th class="n">3.14.8</th><th class="n">3.15.0rc3</th></tr></thead><tbody>'+
+    row('Start one thread and run a call',d=>fmt(d.startup_ms.thread,3)+' ms')+row('Start one subinterpreter and run a call',d=>fmt(d.startup_ms.subinterpreter,2)+' ms')+row('Spawn one process and run a call',d=>fmt(d.startup_ms.process_spawn,1)+' ms')+'</tbody>';
+  const J=IN.PY314.job_s,jr=[['1 thread (serial)','serial','var(--dim)'],['4 threads','threads','var(--c2)'],['4 processes','processes','var(--acc)'],['4 subinterpreters','subinterpreters','var(--c4)']];
+  CGU.bars($('cg-int-bars'),jr.map(([n,k,c])=>({name:n,v:J[k].median_s,label:fmt(J[k].median_s,3)+' s',col:c})),null,'The 100,000-line count split 4 ways on CPython 3.14.8 (GIL build), median of 5; shorter is better. Start-up costs below.');
+  $('cg-int-note').textContent='Normal (GIL) builds. Load average '+IK.map(k=>CGU.la(IN[k].loadavg_start)).join(' and ')+' at the start of the runs.';
+  $('cg-int-all').innerHTML='<thead><tr><th></th>'+IK.map(k=>'<th class="n">'+E(IN[k].python)+'</th>').join('')+'</tr></thead><tbody>'+
+    row('Start-up, thread (ms)',d=>fmt(d.startup_ms.thread,3))+row('Start-up, subinterpreter (ms)',d=>fmt(d.startup_ms.subinterpreter,2))+row('Start-up, spawned process (ms)',d=>fmt(d.startup_ms.process_spawn,1))+
+    ['serial','threads','processes','subinterpreters'].map(j=>row('Job, '+j+' (s, median; all runs)',d=>fmt(d.job_s[j].median_s,3)+'<span class="small mute" style="display:block">'+d.job_s[j].all_s.join(', ')+'</span>')).join('')+
+    row('Load average at start',d=>CGU.la(d.loadavg_start))+row('multiprocessing start method',d=>E(d.mp_start_method))+'</tbody>';
+})();
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (replace cg-tab with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('cg-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);bar.scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('cg-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+</script>
+</body></html>

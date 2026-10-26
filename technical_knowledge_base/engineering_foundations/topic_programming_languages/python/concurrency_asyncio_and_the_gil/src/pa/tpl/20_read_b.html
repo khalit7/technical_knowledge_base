@@ -1,0 +1,13 @@
+<section id="s1"><h2>1. Threads, the GIL and processes</h2>
+<p>CPython's default build has a <dfn>global interpreter lock</dfn> (GIL): "the mechanism used by the CPython interpreter to assure that only one thread executes Python bytecode at a time" ({{glossary|https://docs.python.org/3/glossary.html#term-global-interpreter-lock}}). Threads are real operating-system threads, but only the one holding the GIL runs Python code. A thread releases it while it waits for I/O or sleeps, and C extensions such as NumPy release it during long computations. So threads give concurrency for waiting, not parallelism for Python computing. Processes each have their own interpreter and their own GIL, so they compute in parallel, at the cost of start-up time and of pickling (serialising) every argument and result between processes.</p>
+<p class="small mute">How the lock is handed between threads, and what the free-threaded build replaces it with inside, is the OS view on {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}, section 7. How a worker process is created (fork, forkserver or spawn, and why 3.14 changed the Linux default) is {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}, section 9.</p>
+<p>The experiment: the same CPU job (count primes below 250,000 by trial division, four times) and the same I/O job (four 200 ms waits), each run serially, on four threads and on four processes, best of three, pool start-up inside the timing as in a real script.</p>
+<div class="pr" id="cg-pr-gil"></div>
+<div class="cg-svg" id="cg-gil-bars"></div>
+<p>Four threads did the CPU job no faster than one (0.96 s serial, 0.99 s on four threads): exactly the GIL. Four processes did it about 2.7 times faster, not four, because starting the pool and moving data between processes is inside the timing and the laptop was busy (load average near 8 on 10 cores). For waiting, threads are as good as anything: four 200 ms waits took 208 ms.</p>
+<p>Python 3.14's <dfn>free-threaded build</dfn> (<code>python3.14t</code>, officially supported since 3.14, {{PEP 779|https://peps.python.org/pep-0779/}}) has no GIL. On the same file its four threads compute in parallel (0.94 s to 0.37 s). The price: code that was accidentally safe under the GIL is not any more, and C extensions must declare support; section 3 measures both.</p>
+<details class="dp"><summary>The script, <code>k1_gil.py</code>, and its two real outputs <span class="mute">(code)</span></summary><div class="b">
+[[run:k1_gil]]
+[[out:k1_gil_314t|the same file, real output, Python 3.14.8 free-threaded build]]
+</div></details>
+</section>

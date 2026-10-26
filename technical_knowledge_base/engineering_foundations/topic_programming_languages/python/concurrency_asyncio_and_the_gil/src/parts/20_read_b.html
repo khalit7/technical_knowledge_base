@@ -1,0 +1,62 @@
+<section id="s1"><h2>1. Threads, the GIL and processes</h2>
+<p>CPython's default build has a <dfn>global interpreter lock</dfn> (GIL): "the mechanism used by the CPython interpreter to assure that only one thread executes Python bytecode at a time" ({{glossary|https://docs.python.org/3/glossary.html#term-global-interpreter-lock}}). Threads are real operating-system threads, but only the one holding the GIL runs Python code. A thread releases it while it waits for I/O or sleeps, and C extensions such as NumPy release it during long computations. So threads give concurrency for waiting, not parallelism for Python computing. Processes each have their own interpreter and their own GIL, so they compute in parallel, at the cost of start-up time and of pickling (serialising) every argument and result between processes.</p>
+<p class="small mute">How the lock is handed between threads, and what the free-threaded build replaces it with inside, is the OS view on {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}, section 7. How a worker process is created (fork, forkserver or spawn, and why 3.14 changed the Linux default) is {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}, section 9.</p>
+<p>The experiment: the same CPU job (count primes below 250,000 by trial division, four times) and the same I/O job (four 200 ms waits), each run serially, on four threads and on four processes, best of three, pool start-up inside the timing as in a real script.</p>
+<div class="pr" id="cg-pr-gil"></div>
+<div class="cg-svg" id="cg-gil-bars"></div>
+<p>Four threads did the CPU job no faster than one (0.96 s serial, 0.99 s on four threads): exactly the GIL. Four processes did it about 2.7 times faster, not four, because starting the pool and moving data between processes is inside the timing and the laptop was busy (load average near 8 on 10 cores). For waiting, threads are as good as anything: four 200 ms waits took 208 ms.</p>
+<p>Python 3.14's <dfn>free-threaded build</dfn> (<code>python3.14t</code>, officially supported since 3.14, {{PEP 779|https://peps.python.org/pep-0779/}}) has no GIL. On the same file its four threads compute in parallel (0.94 s to 0.37 s). The price: code that was accidentally safe under the GIL is not any more, and C extensions must declare support; section 3 measures both.</p>
+<details class="dp"><summary>The script, <code>k1_gil.py</code>, and its two real outputs <span class="mute">(code)</span></summary><div class="b">
+<div class="cg-snip"><div class="cg-file">k1_gil.py</div><pre class="cg-code">"""The same CPU-bound job and the same I/O-bound job, run serially, on 4 threads and on 4 processes.
+Wall-clock seconds, best of 3. CPU job: count primes below 250,000 by trial division, 4 times.
+Pool start-up is inside the timing, as it is in a real script."""
+<span class="kw">import</span> os, sys, sysconfig, time
+<span class="kw">from</span> concurrent.futures <span class="kw">import</span> ThreadPoolExecutor, ProcessPoolExecutor
+
+<span class="kw">def</span> count_primes(limit):                 <span class="cm"># pure-Python CPU work: holds the GIL while it runs</span>
+    n = 0
+    <span class="kw">for</span> k <span class="kw">in</span> range(2, limit):
+        <span class="kw">for</span> d <span class="kw">in</span> range(2, int(k ** 0.5) + 1):
+            <span class="kw">if</span> k % d == 0:
+                <span class="kw">break</span>
+        <span class="kw">else</span>:
+            n += 1
+    <span class="kw">return</span> n
+
+<span class="kw">def</span> wait_io(_):                          <span class="cm"># stands in for a network call: sleeping releases the GIL</span>
+    time.sleep(0.2)
+    <span class="kw">return</span> 1
+
+<span class="kw">def</span> pool(kind, fn, args):
+    <span class="kw">with</span> kind(max_workers=4) <span class="kw">as</span> ex:
+        <span class="kw">return</span> list(ex.map(fn, args))
+
+<span class="kw">def</span> best(f, reps=3):
+    ts = []
+    <span class="kw">for</span> _ <span class="kw">in</span> range(reps):
+        t0 = time.perf_counter(); f(); ts.append(time.perf_counter() - t0)
+    <span class="kw">return</span> min(ts)
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    gil = <span class="st">"free-threaded"</span> <span class="kw">if</span> sysconfig.get_config_var(<span class="st">"Py_GIL_DISABLED"</span>) <span class="kw">else</span> <span class="st">"GIL"</span>
+    print(<span class="st">f"Python &#123;sys.version.split()[0]&#125; (&#123;gil&#125; build), &#123;os.cpu_count()&#125; CPUs, load &#123;os.getloadavg()[0]:.2f&#125;"</span>)
+    jobs = [250_000] * 4
+    <span class="kw">for</span> name, f <span class="kw">in</span> [(<span class="st">"CPU serial"</span>, <span class="kw">lambda</span>: [count_primes(j) <span class="kw">for</span> j <span class="kw">in</span> jobs]),
+                    (<span class="st">"CPU 4 threads"</span>, <span class="kw">lambda</span>: pool(ThreadPoolExecutor, count_primes, jobs)),
+                    (<span class="st">"CPU 4 processes"</span>, <span class="kw">lambda</span>: pool(ProcessPoolExecutor, count_primes, jobs)),
+                    (<span class="st">"I/O serial"</span>, <span class="kw">lambda</span>: [wait_io(i) <span class="kw">for</span> i <span class="kw">in</span> range(4)]),
+                    (<span class="st">"I/O 4 threads"</span>, <span class="kw">lambda</span>: pool(ThreadPoolExecutor, wait_io, range(4)))]:
+        print(<span class="st">f"&#123;name:16&#125; &#123;best(f):6.3f&#125; s"</span>)</pre><div class="cg-olab">real output, Python 3.14.8</div><pre class="cg-out" data-src="k1_gil.txt">Python 3.14.8 (GIL build), 10 CPUs, load 7.96
+CPU serial        0.957 s
+CPU 4 threads     0.988 s
+CPU 4 processes   0.357 s
+I/O serial        0.826 s
+I/O 4 threads     0.208 s</pre></div>
+<div class="cg-snip"><div class="cg-olab">the same file, real output, Python 3.14.8 free-threaded build</div><pre class="cg-out" data-src="k1_gil_314t.txt">Python 3.14.8 (free-threaded build), 10 CPUs, load 7.88
+CPU serial        0.939 s
+CPU 4 threads     0.369 s
+CPU 4 processes   0.311 s
+I/O serial        0.833 s
+I/O 4 threads     0.208 s</pre></div>
+</div></details>
+</section>
