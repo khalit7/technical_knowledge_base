@@ -1,0 +1,43 @@
+
+<section id="s1"><h2>1. One call, read as data</h2>
+<p>In Python you would write <code>client = anthropic.Anthropic()</code> and <code>client.messages.create(...)</code>. The TypeScript SDK is the same API with one difference you feel at once: <code>create</code> returns a <b>promise</b>, so you <code>await</code> it; top-level <code>await</code> works because the file is an ES module. Every SDK takes a <b>base URL</b>; in production you leave it alone (it defaults to <code>https://api.anthropic.com</code>, or reads <code>ANTHROPIC_BASE_URL</code>), and here every script passes the address of <code>mock_model.ts</code>, started on a free local port.</p>
+[[outc:a1_first_call]]
+<ul>
+<li><b><code>content</code> is an array of blocks</b>, each with a <code>type</code>: <code>text</code>, <code>tool_use</code>, <code>thinking</code> and others. The response type is a <span class="hl">discriminated union</span>, so TypeScript makes you narrow on <code>block.type === "text"</code> before you may read <code>block.text</code> (narrowing: section 4 of {{the TypeScript page|n:4055c17b0d0d81519278df19753ab5ec}}): <code>msg.content[0].text</code> is a type error, and it should be, because the first block is not always text.</li>
+<li><b><code>stop_reason</code></b> says why the model stopped: <code>end_turn</code> (finished), <code>max_tokens</code> (cut off), <code>tool_use</code> (wants a tool), <code>stop_sequence</code>, <code>pause_turn</code>, <code>refusal</code> and <code>model_context_window_exceeded</code> (the full list from the SDK's <code>StopReason</code> type in 0.131.0). Check it on every response.</li>
+<li><b><code>usage</code></b> counts input and output tokens: the bill. Real responses also carry cache counts (<code>cache_read_input_tokens</code>, <code>cache_creation_input_tokens</code>).</li>
+<li>The wire shows what the SDK added for you: the <code>anthropic-version: 2023-06-01</code> header (the API's version, not the model's), its retry counter, and its timeout (600 s).</li>
+</ul>
+<p>The OpenAI SDK has the same shape of code with different names. Its current API is <b>Responses</b> (<code>client.responses.create</code>); the older Chat Completions API still exists.</p>
+<details class="dp"><summary>Anthropic Messages against OpenAI Responses, field by field, and the same question through the OpenAI SDK</summary><div class="b">
+<div class="tw"><table class="tl-t">
+<thead><tr><th></th><th>Anthropic Messages</th><th>OpenAI Responses</th></tr></thead>
+<tbody>
+<tr><td>Endpoint</td><td><code>POST /v1/messages</code></td><td><code>POST /v1/responses</code></td></tr>
+<tr><td>Input</td><td><code>messages: [{role, content}]</code>, <code>system</code> separate, <code>max_tokens</code> required</td><td><code>input</code>: a string or a list of items; <code>instructions</code> for the system prompt</td></tr>
+<tr><td>Output</td><td><code>content</code>: blocks (<code>text</code>, <code>tool_use</code>, ...)</td><td><code>output</code>: items (<code>message</code> with <code>output_text</code> parts, <code>function_call</code>, ...); the SDK adds <code>output_text</code></td></tr>
+<tr><td>A tool call / its result</td><td><code>tool_use</code> block / <code>tool_result</code> block in the next user message</td><td><code>function_call</code> item / <code>function_call_output</code> item</td></tr>
+<tr><td>Conversation state</td><td>None on the server: you resend the history</td><td>You resend, or pass <code>previous_response_id</code> and the server keeps it</td></tr>
+<tr><td>Key from</td><td><code>ANTHROPIC_API_KEY</code></td><td><code>OPENAI_API_KEY</code></td></tr>
+</tbody></table></div>
+<p class="small mute">Sources: the type definitions in <code>@anthropic-ai/sdk</code> 0.131.0 and <code>openai</code> 7.28.0 (<code>resources/messages/messages.d.ts</code>, <code>resources/responses/responses.d.ts</code>); <a href="https://platform.claude.com/docs/en/api/messages" target="_blank" rel="noopener noreferrer">Messages API reference</a>; <a href="https://developers.openai.com/api/docs/api-reference/responses" target="_blank" rel="noopener noreferrer">Responses API reference</a>.</p>
+[[run:a2_openai_first]]
+</div></details>
+<details class="dp"><summary>The mock model: how a script plays the model, and the type check of every file</summary><div class="b">
+<p>The mock answers <code>POST /v1/messages</code> and <code>POST /v1/responses</code> with the exact JSON and SSE shapes of the real APIs (checked against the SDKs' own type definitions, and confirmed by the SDKs parsing them without complaint). Its "model" is a short function, <code>decide()</code>, that reads the conversation and returns the next turn. That is exactly what a real model does from the SDK's point of view, so every line of client code on this page is the code you would run against the real API; only the answers are scripted. The same trick is how you should test your own LLM code: a mock server makes tests fast, free, deterministic, and able to produce failures (a 429, a timeout, a malformed tool call) on demand (testing practice in general: {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}).</p>
+[[code:mock_model.ts@39-56]]
+<p class="small">The rest of the mock (the SSE framing, the OpenAI shapes) is in <code>src/tl/code/mock_model.ts</code>. Every file is type-checked before it runs:</p>
+[[out:tsc|tsc 7.0.2 over all the code of this page]]
+<p>The scripts run with <code>node file.ts</code>: Node runs TypeScript directly by stripping the types (on by default since Node 22.18 and 23.6; what that can and cannot run is in section 1 of {{the TypeScript page|n:4055c17b0d0d81519278df19753ab5ec}}). Imports therefore name the <code>.ts</code> file (<code>./mock_model.ts</code>).</p>
+</div></details>
+</section>
+
+<section id="s2"><h2>2. When the call fails: the SDK already retries</h2>
+<p>A model API fails in ordinary ways: rate limits (HTTP 429), overload (529 and other 5xx), a slow or dead connection, or a request you got wrong (400). Read from the SDK's source (<code>client.js</code>, 0.131.0): it <span class="hl">retries 2 times by default</span> (<code>maxRetries</code>), on 408, 409, 429, every 5xx, and connection errors; it waits with exponential backoff or for the server's <code>retry-after</code> / <code>retry-after-ms</code> header; and its <b>timeout is 10 minutes</b> per attempt (in milliseconds in TypeScript: <code>timeout: 600_000</code>). A 400 is never retried: retrying a wrong request cannot fix it.</p>
+[[predictc:a3_errors|the server answers 429 twice, then succeeds. How many requests does it see, and does your code see an error? And when it never answers, with a 300 ms timeout and maxRetries 1, how long until the error?]]
+<div class="tl-fig"><h4>Three failures as the server saw them: retried, not retried, timed out twice</h4>
+[[gen:retries]]
+<p class="small">Blue: a request reaching the server, numbered. Below the track, what your code finally got. Times from the recorded run of <code>a3_errors.ts</code>, measured from each case's first request.</p></div>
+<p>Two lessons sit in the last row. First, <b>timeouts are retried</b>, so the worst case is about <code>timeout × (maxRetries + 1)</code> plus backoff (here two 300 ms attempts plus about 450 ms of backoff: about one second from the first attempt to the error). Second, catch the <b>specific</b> error classes (<code>RateLimitError</code>, <code>BadRequestError</code>, <code>APIConnectionTimeoutError</code>, all subclasses of <code>Anthropic.APIError</code>) with <code>instanceof</code>, never by matching message strings. In Python the same classes exist with the same names (<code>anthropic.RateLimitError</code>); TypeScript's <code>catch (e)</code> gives <code>e</code> the type <code>unknown</code>, so <code>instanceof</code> is also how you get a typed error back. And do not wrap the SDK in your own retry loop: its 3 attempts inside your 3 attempts is 9 requests.</p>
+<p class="small">Why retries multiply across layers, jitter, circuit breakers and retry budgets: {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+</section>

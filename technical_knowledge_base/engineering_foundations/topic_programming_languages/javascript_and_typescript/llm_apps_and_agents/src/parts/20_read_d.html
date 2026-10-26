@@ -1,0 +1,160 @@
+
+<section id="s5"><h2>5. Structured output: one zod schema, three jobs</h2>
+<p>Often you want data, not prose: <code>{"user": "u0029", "tokens": 9491, "share_pct": 21.2}</code>. One zod schema (zod from zero: section 7 of {{the TypeScript page|n:4055c17b0d0d81519278df19753ab5ec}}) does three jobs:</p>
+<ol>
+<li><b>Ask with a schema.</b> <code>output_config.format</code> sends a JSON Schema and the API constrains the model to produce matching JSON (Anthropic calls this structured outputs; <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener noreferrer">docs</a>). <code>zodOutputFormat(schema)</code> converts the zod schema.</li>
+<li><b>Check what came back.</b> <code>client.messages.parse()</code> runs the zod schema on the reply and puts the typed result in <code>parsed_output</code>.</li>
+<li><b>Get the type for free.</b> <code>z.infer&lt;typeof Heaviest&gt;</code> is the TypeScript type, so the rest of your program is checked against the same definition.</li>
+</ol>
+<div class="tl-snip"><div class="tl-olab">real output of d1_structured.ts, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="d1_structured.txt">1. parsed_output: &#123;"user":"u0029","tokens":9491,"share_pct":21.2&#125; | h.tokens + 1 = 9492
+   output_config sent: &#123;"format":&#123;"type":"json_schema","schema":&#123;"type":"object","properties":&#123;"user":&#123;"type":"string","description":"&#123;pattern: \"^u\\\\d&#123;4&#125;$\"&#125;"&#125;,"tokens":&#123;"type":"integer","description":"&#123;minimum: 0, maximum: 9007199254740991&#125;"&#125;,"share_pct":&#123;"type":"number","description":"&#123;minimum: 0, maximum: 100&#125;"&#125;&#125;,"additionalProperties":false,"required":["user","tokens","share_pct"],"description":"&#123;$schema: \"https://json-schema.org/draft/2020-12/schema\"&#125;"&#125;&#125;&#125;
+2. AnthropicError: Failed to parse structured output: Error: Failed to parse structured output: [
+     &#123;
+       "expected": "number",
+       "code": "invalid_type",
+       "path": [
+         "tokens"
+3. safeParse: 
+✖ Invalid input: expected number, received string
+  → at tokens
+✖ Invalid input: expected number, received undefined
+  → at share_pct</pre><details class="dp"><summary>The code: d1_structured.ts</summary><div class="b"><div class="tl-file">d1_structured.ts</div><pre class="tl-code"><span class="tl-cm">// Structured output: one zod schema gives the JSON Schema sent to the API, the TypeScript type, and the run-time check.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; zodOutputFormat &#125; <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk/helpers/zod"</span>;
+<span class="tl-kw">import</span> &#123; z &#125; <span class="tl-kw">from</span> <span class="tl-st">"zod"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> Heaviest = z.object(&#123;
+  user: z.string().regex(/^u\d&#123;4&#125;$/),
+  tokens: z.number().int().nonnegative(),
+  share_pct: z.number().min(0).max(100),
+&#125;);
+<span class="tl-kw">type</span> Heaviest = z.infer&lt;<span class="tl-kw">typeof</span> Heaviest&gt;;          <span class="tl-cm">// &#123; user: string; tokens: number; share_pct: number &#125;</span>
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> ask = (scenario: string) =&gt; client.messages.parse(&#123;
+  model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 1024,
+  messages: [&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"From these stats, who is the heaviest user? ..."</span> &#125;],
+  output_config: &#123; format: zodOutputFormat(Heaviest) &#125;,
+&#125;, &#123; headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: scenario &#125; &#125;);
+
+<span class="tl-kw">const</span> good = <span class="tl-kw">await</span> ask(<span class="tl-st">"extract"</span>);
+<span class="tl-kw">const</span> h: Heaviest | <span class="tl-kw">null</span> = good.parsed_output;    <span class="tl-cm">// typed, and already validated against the schema</span>
+console.log(<span class="tl-st">"1. parsed_output:"</span>, JSON.stringify(h), <span class="tl-st">"| h.tokens + 1 ="</span>, (h?.tokens ?? 0) + 1);
+console.log(<span class="tl-st">"   output_config sent:"</span>, JSON.stringify(mock.log[0]!.request.output_config));
+
+<span class="tl-kw">try</span> &#123;                                             <span class="tl-cm">// the model's JSON does not match: the SDK throws, it does not guess</span>
+  <span class="tl-kw">const</span> bad = <span class="tl-kw">await</span> ask(<span class="tl-st">"extract_bad"</span>);
+  console.log(<span class="tl-st">"2. parsed_output:"</span>, JSON.stringify(bad.parsed_output));
+&#125; <span class="tl-kw">catch</span> (e) &#123;
+  console.log(<span class="tl-st">`2. $&#123;(e as Error).constructor.name&#125;: $&#123;(e as Error).message.split("\n").slice(0, 6).join("\n   ")&#125;`</span>);
+&#125;
+
+<span class="tl-cm">// Without the helper (or with any other provider): parse the text yourself, then validate. safeParse never throws.</span>
+<span class="tl-kw">const</span> raw = <span class="tl-st">'&#123;"user": "u0029", "tokens": "9491"&#125;'</span>;
+<span class="tl-kw">const</span> r = Heaviest.safeParse(JSON.parse(raw));
+console.log(<span class="tl-st">"3. safeParse:"</span>, r.success ? <span class="tl-st">"ok"</span> : <span class="tl-st">"\n"</span> + z.prettifyError(r.error));
+<span class="tl-kw">await</span> mock.close();</pre></div></details></div>
+<div class="tl-find"><div class="t">Found by running it: not every rule reaches the API</div>Look at the <code>output_config sent</code> line. The SDK sent <code>user</code> as a plain string and moved the regular expression into the field's <code>description</code> (<code>"{pattern: \"^u\\\\d{4}$\"}"</code>); the same happened to <code>minimum</code>/<code>maximum</code> on the numbers. So the API's constraint guarantees the JSON's <b>shape</b> (fields, types, no extra keys), but rules like a pattern or a range are only hinted to the model and enforced <b>afterwards</b>, by zod, in <code>parse()</code>. That is why case 2 ends in an error raised by the SDK rather than a wrong value in your program. <span class="hl">Keep the zod check even when the API constrains output.</span></div>
+<p>With OpenAI the equivalent is <code>zodTextFormat(schema, name)</code> in <code>text.format</code> with <code>client.responses.parse()</code> (from <code>openai/helpers/zod</code>, 7.28.0). With any other provider, or a model without constrained decoding: ask for JSON in the prompt, <code>JSON.parse</code>, then <code>safeParse</code>; on failure, send the zod error message back to the model and ask again, once or twice (the error text, case 3 above, is written for exactly that). How a server forces valid JSON in the first place (constrained decoding) is on {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}; how agent libraries send the schema, validate and retry is on {{Typed agent libraries|n:3f15c17b0d0d819fba89f9ec88feb859}}.</p>
+<p class="small">An alternative you will see in older code: defining a tool whose input schema is the output you want and forcing the model to call it. On Claude Sonnet 5.5 and Opus 5.5, forcing a specific tool (<code>tool_choice</code> <code>any</code> or <code>tool</code>) is rejected with a 400 (<a href="https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide" target="_blank" rel="noopener noreferrer">Sonnet 5.5 migration guide</a>), so use structured outputs instead.</p>
+</section>
+
+<section id="s6"><h2>6. Conversation state: you resend everything</h2>
+<p>The Messages API keeps <b>no memory</b> between requests. The conversation is an array in your program; each turn you append the user's message, send the <b>whole</b> array, and append the reply.</p>
+<div class="tl-snip tl-pred"><div class="tl-q"><b>Predict:</b> the first call says "My name is Khalid." and a second, separate call asks "What is my name?". What does the second call answer? Then, in the kept history, how does the input grow over six turns?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output of e1_state.ts, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="e1_state.txt">forgetful: I don't know your name: it is not in this conversation.
+turn 1: sent 1 messages, input  15 (mock est.)  "Nice to meet you."
+turn 2: sent 3 messages, input  39 (mock est.)  "Your name is Khalid."
+turn 3: sent 5 messages, input  69 (mock est.)  "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."
+turn 4: sent 7 messages, input 121 (mock est.)  "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."
+turn 5: sent 9 messages, input 173 (mock est.)  "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs."
+turn 6: sent 11 messages, input 219 (mock est.)  "Your name is Khalid."
+input tokens billed over the 6 turns: 636 (each turn pays again for everything before it)</pre></details><details class="dp"><summary>The code: e1_state.ts</summary><div class="b"><div class="tl-file">e1_state.ts</div><pre class="tl-code"><span class="tl-cm">// The Messages API is stateless: the conversation is an array you keep and resend in full every turn.</span>
+<span class="tl-kw">import</span> Anthropic <span class="tl-kw">from</span> <span class="tl-st">"@anthropic-ai/sdk"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> client = <span class="tl-kw">new</span> Anthropic(&#123; baseURL: mock.url, apiKey: <span class="tl-st">"mock-key"</span> &#125;);
+<span class="tl-kw">const</span> turn = <span class="tl-kw">async</span> (messages: Anthropic.MessageParam[]) =&gt; &#123;
+  <span class="tl-kw">const</span> r = <span class="tl-kw">await</span> client.messages.create(&#123; model: <span class="tl-st">"claude-sonnet-5-5"</span>, max_tokens: 256, messages &#125;);
+  <span class="tl-kw">return</span> &#123; text: r.content[0]?.<span class="tl-kw">type</span> === <span class="tl-st">"text"</span> ? r.content[0].text : <span class="tl-st">""</span>, input: r.usage.input_tokens &#125;;
+&#125;;
+
+<span class="tl-cm">// Wrong: two separate calls. The second request does not contain the first, so the "model" cannot know.</span>
+<span class="tl-kw">await</span> turn([&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"My name is Khalid."</span> &#125;]);
+console.log(<span class="tl-st">"forgetful:"</span>, (<span class="tl-kw">await</span> turn([&#123; role: <span class="tl-st">"user"</span>, content: <span class="tl-st">"What is my name?"</span> &#125;])).text);
+
+<span class="tl-cm">// Right: keep the history and append both sides of every turn.</span>
+<span class="tl-kw">const</span> history: Anthropic.MessageParam[] = []; <span class="tl-kw">let</span> billed = 0;
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> q <span class="tl-kw">of</span> [<span class="tl-st">"My name is Khalid."</span>, <span class="tl-st">"What is my name?"</span>, <span class="tl-st">"In one sentence, what is TypeScript?"</span>, <span class="tl-st">"In one sentence, what is TypeScript?"</span>, <span class="tl-st">"In one sentence, what is TypeScript?"</span>, <span class="tl-st">"What is my name?"</span>]) &#123;
+  history.push(&#123; role: <span class="tl-st">"user"</span>, content: q &#125;);
+  <span class="tl-kw">const</span> a = <span class="tl-kw">await</span> turn(history);
+  history.push(&#123; role: <span class="tl-st">"assistant"</span>, content: a.text &#125;); billed += a.input;
+  console.log(<span class="tl-st">`turn $&#123;history.length / 2&#125;: sent $&#123;history.length - 1&#125; messages, input $&#123;String(a.input).padStart(3)&#125; (mock est.)  $&#123;JSON.stringify(a.text)&#125;`</span>);
+&#125;
+console.log(<span class="tl-st">`input tokens billed over the 6 turns: $&#123;billed&#125; (each turn pays again for everything before it)`</span>);
+<span class="tl-kw">await</span> mock.close();</pre></div></details></div>
+<div class="tl-fig"><h4>Each request carries every turn before it, so the input climbs every turn</h4>
+<div class="bars"><div class="row"><span class="nm">turn 1: 1 messages</span><span class="track"><span class="fill" style="width:6.8%;background:var(--acc)"></span></span><span class="val">15</span></div><div class="row"><span class="nm">turn 2: 3 messages</span><span class="track"><span class="fill" style="width:17.8%;background:var(--acc)"></span></span><span class="val">39</span></div><div class="row"><span class="nm">turn 3: 5 messages</span><span class="track"><span class="fill" style="width:31.5%;background:var(--acc)"></span></span><span class="val">69</span></div><div class="row"><span class="nm">turn 4: 7 messages</span><span class="track"><span class="fill" style="width:55.3%;background:var(--acc)"></span></span><span class="val">121</span></div><div class="row"><span class="nm">turn 5: 9 messages</span><span class="track"><span class="fill" style="width:79.0%;background:var(--acc)"></span></span><span class="val">173</span></div><div class="row"><span class="nm">turn 6: 11 messages</span><span class="track"><span class="fill" style="width:100.0%;background:var(--acc)"></span></span><span class="val">219</span></div></div><p class="small mute">Input tokens per request (the mock's estimate, characters / 4); the six requests together billed <b>636</b>.</p></div>
+<p>Because each request repeats everything before it, the total input billed grows with the <span class="hl">square</span> of the number of turns: the six turns billed 636 estimated input tokens for a conversation whose final request was 219. Three tools fight that: <b>prompt caching</b> (mark the stable prefix with <code>cache_control</code>; later requests that start with the same bytes are billed at a fraction, and any change early in the prefix, such as a timestamp in the system prompt, silently defeats it; prices and economics across providers are on {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}); <b>compaction or trimming</b> (summarise or drop old turns; Anthropic offers <a href="https://platform.claude.com/docs/en/build-with-claude/compaction" target="_blank" rel="noopener noreferrer">server-side compaction</a> as a beta); and <b>server-side state</b> (OpenAI's Responses API keeps the conversation if you pass <code>previous_response_id</code>, <a href="https://developers.openai.com/api/docs/guides/conversation-state" target="_blank" rel="noopener noreferrer">conversation state guide</a>; you are still billed for those input tokens, you just do not send them). Where the array lives is an application decision: in memory for a script, a database row per conversation for a web app ({{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}).</p>
+</section>
+
+<section id="s7"><h2>7. Higher-level libraries: the Vercel AI SDK and the Claude Agent SDK</h2>
+<p><b>The Vercel AI SDK</b> (package <code>ai</code>, version 7) is one TypeScript API over many providers: <code>generateText</code>, <code>streamText</code>, tools with zod schemas, and a loop controlled by <code>stopWhen</code>. You swap <code>anthropic("claude-sonnet-5-5")</code> for <code>openai("gpt-5.5")</code> and the rest stays; its React hooks and stream helpers for web UIs are why front-end teams use it.</p>
+<div class="tl-snip tl-pred"><div class="tl-q"><b>Predict:</b> the first generateText call passes tools but no stopWhen. Does it run the tools and answer, or stop early?</div><details><summary>Reveal the real output</summary><div class="tl-olab">real output of f1_aisdk.ts, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="f1_aisdk.txt">default stopWhen: 1 step, finishReason tool-calls, text "I'll count the tokens per user first."
+step 1: count_tokens(&#123;"path":"chat.jsonl","top":3&#125;) -&gt; finish tool-calls
+step 2: user_profile(&#123;"user":"u0029"&#125;) + user_profile(&#123;"user":"u0005"&#125;) -&gt; finish tool-calls
+step 3: no tool calls -&gt; finish stop
+text: The three heaviest users are u0029 (9491), u0005 (4816), u0042 (3499): 17806 of 44698 tokens, 39.8%. u0029 is on research; u0005 is on platform.
+usage summed over steps: 1013 in, 145 out (mock est.)
+streamText: 18 text deltas, first three ["TypeScript"," is"," JavaScript"]</pre></details><details class="dp"><summary>The code: f1_aisdk.ts</summary><div class="b"><div class="tl-file">f1_aisdk.ts</div><pre class="tl-code"><span class="tl-cm">// The same agent with the Vercel AI SDK: one API over many providers; the loop is generateText + stopWhen.</span>
+<span class="tl-kw">import</span> &#123; generateText, streamText, tool, isStepCount &#125; <span class="tl-kw">from</span> <span class="tl-st">"ai"</span>;
+<span class="tl-kw">import</span> &#123; createAnthropic &#125; <span class="tl-kw">from</span> <span class="tl-st">"@ai-sdk/anthropic"</span>;
+<span class="tl-kw">import</span> &#123; startMock &#125; <span class="tl-kw">from</span> <span class="tl-st">"./mock_model.ts"</span>;
+<span class="tl-kw">import</span> &#123; CountArgs, ProfileArgs, countTokens, startProfileService, userProfile &#125; <span class="tl-kw">from</span> <span class="tl-st">"./tools.ts"</span>;
+
+process.chdir(<span class="tl-kw">new</span> URL(<span class="tl-st">"."</span>, <span class="tl-kw">import</span>.meta.url).pathname);
+<span class="tl-kw">const</span> mock = <span class="tl-kw">await</span> startMock();
+<span class="tl-kw">const</span> prof = <span class="tl-kw">await</span> startProfileService(20);
+<span class="tl-kw">const</span> anthropic = createAnthropic(&#123; baseURL: mock.url + <span class="tl-st">"/v1"</span>, apiKey: <span class="tl-st">"mock-key"</span>, headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"happy"</span> &#125; &#125;);
+<span class="tl-kw">const</span> tools = &#123;
+  count_tokens: tool(&#123; description: <span class="tl-st">"Count word tokens per user in a JSONL chat log."</span>, inputSchema: CountArgs,
+    execute: <span class="tl-kw">async</span> (args) =&gt; countTokens(args) &#125;),
+  user_profile: tool(&#123; description: <span class="tl-st">"Look up a user's team."</span>, inputSchema: ProfileArgs,
+    execute: <span class="tl-kw">async</span> (args, &#123; abortSignal &#125;) =&gt; JSON.parse(<span class="tl-kw">await</span> userProfile(prof.url, args, abortSignal)) &#125;),
+&#125;;
+<span class="tl-kw">const</span> prompt = <span class="tl-st">"Who are the 3 heaviest users in chat.jsonl, and what share of all tokens do they have? Add the team of the top two."</span>;
+
+<span class="tl-kw">const</span> one = <span class="tl-kw">await</span> generateText(&#123; model: anthropic(<span class="tl-st">"claude-sonnet-5-5"</span>), tools, prompt &#125;);          <span class="tl-cm">// default: one step</span>
+console.log(<span class="tl-st">`default stopWhen: $&#123;one.steps.length&#125; step, finishReason $&#123;one.finishReason&#125;, text $&#123;JSON.stringify(one.text)&#125;`</span>);
+
+<span class="tl-kw">const</span> r = <span class="tl-kw">await</span> generateText(&#123; model: anthropic(<span class="tl-st">"claude-sonnet-5-5"</span>), tools, prompt, stopWhen: isStepCount(5) &#125;);
+<span class="tl-kw">for</span> (<span class="tl-kw">const</span> [i, s] <span class="tl-kw">of</span> r.steps.entries())
+  console.log(<span class="tl-st">`step $&#123;i + 1&#125;: $&#123;s.toolCalls.map(c =&gt; `</span>$&#123;c.toolName&#125;($&#123;JSON.stringify(c.input)&#125;)<span class="tl-st">`).join(" + ") || "no tool calls"&#125; -&gt; finish $&#123;s.finishReason&#125;`</span>);
+console.log(<span class="tl-st">"text:"</span>, r.text);
+console.log(<span class="tl-st">"usage summed over steps:"</span>, JSON.stringify(r.totalUsage.inputTokens), <span class="tl-st">"in,"</span>, JSON.stringify(r.totalUsage.outputTokens), <span class="tl-st">"out (mock est.)"</span>);
+
+<span class="tl-kw">const</span> s = streamText(&#123; model: anthropic(<span class="tl-st">"claude-sonnet-5-5"</span>), prompt: <span class="tl-st">"In one sentence, what is TypeScript?"</span>,
+  headers: &#123; <span class="tl-st">"x-mock-scenario"</span>: <span class="tl-st">"chat"</span> &#125; &#125;);
+<span class="tl-kw">const</span> parts: string[] = [];
+<span class="tl-kw">for</span> <span class="tl-kw">await</span> (<span class="tl-kw">const</span> delta <span class="tl-kw">of</span> s.textStream) parts.push(delta);
+console.log(<span class="tl-st">`streamText: $&#123;parts.length&#125; text deltas, first three $&#123;JSON.stringify(parts.slice(0, 3))&#125;`</span>);
+<span class="tl-kw">await</span> prof.close(); <span class="tl-kw">await</span> mock.close();</pre></div></details></div>
+<div class="tl-corr"><div class="t">A default that bites</div>In AI SDK 7, <code>generateText</code> and <code>streamText</code> default to <code>stopWhen: isStepCount(1)</code> (the type definitions in <code>ai</code> 7.0.127 say <code>@default isStepCount(1)</code>): one model call. With tools, the first step is usually a tool call, so the result is the model's preamble and <code>finishReason: "tool-calls"</code>, not an answer. Pass <code>stopWhen: isStepCount(n)</code> (also exported as <code>stepCountIs</code>). Its <code>ToolLoopAgent</code> class defaults to 20 steps.</div>
+<p><b>The Claude Agent SDK</b> (<code>@anthropic-ai/claude-agent-sdk</code>) is not a thinner client; it is <b>Claude Code as a library</b>, and its own page is {{Claude Agent SDK|n:3c65c17b0d0d813b960fd9857118fbd2}}. What the TypeScript run here adds: <code>query()</code> starts a native binary shipped per platform (here <code>@anthropic-ai/claude-agent-sdk-darwin-arm64</code>), and one tiny question, pointed at the mock through <code>ANTHROPIC_BASE_URL</code>, sent <span class="hl">one model request of about 59 KB carrying 20 tool definitions</span> and Claude Code's system prompt (plus a GET <code>/api/hello</code>). That is the trade: a capable coding agent for free, paid for in context on every call. And <code>allowedTools</code> is the list of tools that run <b>without asking for permission</b>, not the list the model sees; the SDK's own documentation (in <code>sdk.d.ts</code>) says to restrict the available tools with the <code>tools</code> option.</p>
+<details class="dp"><summary>The Claude Agent SDK against the mock: f2_agent_sdk.ts and its output</summary><div class="b"><div class="tl-olab">real output of f2_agent_sdk.ts, Node 24.21.0, model answers from the local mock (synthetic)</div><pre class="tl-out" data-tl-src="f2_agent_sdk.txt">result: "TypeScript is JavaScript with static types that are checked before the program runs and erased when it runs." | turns 1
+messages from query(): system/init, assistant, system/informational, result/success
+HTTP requests to the model API: 2 (/api/hello, /v1/messages)
+largest request: 59014 bytes, 20 tools: Agent, Bash, CronCreate, CronDelete, CronList, Edit, EnterWorktree, ExitWorktree, ListAgents, NotebookEdit, Read, ReportFindings, ScheduleWakeup, SendMessage, Skill, TaskStop, WebFetch, WebSearch, Workflow, Write</pre></div></details>
+<div class="tw"><table class="tl-t">
+<thead><tr><th>Option</th><th>What you write</th><th>Use it when</th><th>Avoid it when</th></tr></thead>
+<tbody>
+<tr><td>Hand-written loop</td><td>The loop, the tools, the guards</td><td>You want every step under your control and logged your way</td><td>A helper already does exactly what you need</td></tr>
+<tr><td>SDK tool runner</td><td>Tools (zod + <code>run</code>)</td><td>A custom-tool agent on one provider; most cases</td><td>You need hooks it does not expose</td></tr>
+<tr><td>Vercel AI SDK</td><td>Tools, <code>stopWhen</code>, UI hooks</td><td>Several providers, or a React front end streaming tokens</td><td>You need a provider feature it has not wrapped yet</td></tr>
+<tr><td>Claude Agent SDK</td><td>A prompt and options</td><td>You want a file-and-shell coding agent on your own machine or server</td><td>A narrow app: the built-in context and tools cost tokens on every call</td></tr>
+<tr><td>OpenAI Agents SDK (<code>@openai/agents</code>, 0.18.0)</td><td>Agents, handoffs, guardrails</td><td>Multi-agent designs on OpenAI models</td><td>(not run on this page; its Python twin is on {{Typed agent libraries|n:3f15c17b0d0d819fba89f9ec88feb859}})</td></tr>
+</tbody></table></div>
+<p class="small">Docs: <a href="https://ai-sdk.dev/docs" target="_blank" rel="noopener noreferrer">AI SDK</a>, <a href="https://platform.claude.com/docs/en/agent-sdk/overview" target="_blank" rel="noopener noreferrer">Claude Agent SDK</a>. Frameworks compared at length: {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}.</p>
+</section>
