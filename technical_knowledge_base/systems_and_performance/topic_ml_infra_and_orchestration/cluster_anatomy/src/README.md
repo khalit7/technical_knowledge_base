@@ -34,3 +34,5 @@ Why about 22 minutes is right: the page covers six physical levels plus the cont
 279 units: core 164, depth 78, fat 36 (each with a `note`), owned 1 (the running example's 112,577-parameter GPT, carried by the parent root). 275 drafted from the old page by `ledger.py init`; 4 added by hand for script-drawn visuals (ladder, node schematic, designs table, placement counters), each keyed to static text.
 
 2026-10-24 topic close: section 3 links Kubernetes for ML section 5 for the RDMA card in a pod and Launching sections 6 and 8 for bootstrap and hangs; section 5 links Storage and data movement's opening figure and sections 2 and 4 instead of re-teaching striping and metadata (tier table kept); Further reading times fixed (Topic: hardware 37 to 28, training root 27 to 22); ledger keys 85, 263, 268 updated.
+
+2026-10-26 (final follow-up sweep): the login-node definition links SSH section 13 (cluster workflows: bastion, keys, multiplexing, tunnels).
