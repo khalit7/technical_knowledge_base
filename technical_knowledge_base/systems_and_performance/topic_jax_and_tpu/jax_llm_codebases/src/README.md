@@ -59,3 +59,5 @@ Why 27 minutes is right: the page covers three codebases plus the others, and it
 
 ## Departures from the method
 A child page with three subjects (three codebases) rather than one mechanism: the Reading tab follows MaxText's five boxes and then Tunix and Levanter. The labs are the three the brief asked for. No `live.md`: the page is new (no old Notion text).
+
+2026-10-26 (final follow-up sweep): the PEFT and LoRA paper card quotes their headers (22 and 21 min) instead of "about 30 min each".
