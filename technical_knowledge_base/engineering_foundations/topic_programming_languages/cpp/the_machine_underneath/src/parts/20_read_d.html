@@ -1,0 +1,49 @@
+<section id="cb-s4">
+<h2>4. Pages and mmap, as a C++ program meets them</h2>
+<p>Addresses are virtual, mapped one <b>page</b> at a time; on Apple silicon a page is 16 KB (<code>hw.pagesize</code> printed 16384; 4 KB on most Linux machines). The mechanism (page tables, the TLB, page faults, the page cache) belongs to {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}. Two consequences for C++ code, measured here: <code>new</code> of a big block only reserves addresses, and the first touch of each page is a <b>page fault</b> costing about <span class="cb-num" data-cbv="mmap.v.fault_us.runs.0" data-d="2"></span> microseconds (three runs: <span data-cbsp="mmap.v.fault_us" data-d="2"></span>); and <code>mmap</code> of a 512 MB file took <span data-cbsp="mmap.v.map_ms" data-d="3"></span> ms whatever its size, with pages read only when touched. That is why llama.cpp maps model files: loading is nearly instant, processes running the same model share the physical pages, and a restart finds the weights still cached ({{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}} measures it for safetensors and GGUF).</p>
+<details class="dp"><summary>The mmap measurement, three runs (cold and warm page cache), and llama.cpp's loader</summary><div>
+<pre data-src="mmap_demo.cpp" data-lines="40-60"></pre>
+<div class="seg cb-sw" data-pre="cb-mmruns"><button data-m="mmap.raws.0" class="on">Run 1</button><button data-m="mmap.raws.1">Run 2</button><button data-m="mmap.raws.2">Run 3</button></div>
+<pre class="cb-o" id="cb-mmruns"></pre>
+<p>Filling fresh memory took <span class="cb-num" data-cbv="mmap.v.first.runs.0"></span> ms the first time and <span class="cb-num" data-cbv="mmap.v.second.runs.0"></span> ms the second; the difference over 16,384 page faults gives the per-fault cost. Reading 8 bytes spread through the mapped file cost just 8 page faults; reading the whole file with <code>read()</code> took <span class="cb-num" data-cbv="mmap.v.read_ms.runs.0"></span> ms before the first byte was usable and doubled the memory in use. Touching every page is fast only when the file is in the page cache (minor faults, about 25 ms here); in run 1 other programs had pushed it out of RAM, so the touch took about 0.9 s of major faults, and its <code>read()</code> afterwards was fast because the mapping had just brought the file back.</p>
+<p>The pinned llama.cpp (commit <code>8e16421</code>) maps the model with hints to the kernel about the access pattern:</p>
+<pre data-out="llamaex.mmap" data-lang="cpp"></pre>
+<p class="small mute">{{src/llama-mmap.cpp lines 482 to 498|https://github.com/ggml-org/llama.cpp/blob/8e1642198dcd4e408f8776222d6ae31b74d01187/src/llama-mmap.cpp#L482-L498}}. The operating system can also drop clean mapped pages under memory pressure and re-read them later instead of swapping. From Python, <code>numpy.memmap</code>, safetensors' lazy loading and <code>torch.load(..., mmap=True)</code> are the same system call: "the model loaded instantly but the first token was slow" is page faults paid on first use.</p>
+</div></details>
+</section>
+
+<section id="cb-s5">
+<h2>5. The compiler's view: reading assembly</h2>
+<p>Clang (via LLVM) translates C++ into machine code; <b>assembly</b> is its readable text. Reading a little of it is the only reliable way to know what your C++ became: <code>clang++ -O2 -S file.cpp -o -</code>, or {{Compiler Explorer (godbolt.org)|https://godbolt.org/}}, which colours each source line and its instructions alike.</p>
+<pre data-src="codegen.cpp" data-lines="2-7"></pre>
+<div class="cb-pr"><p class="q"><b>Predict.</b> At <code>-O2</code>, how many times does <code>sum_squares(1000)</code> call <code>square</code>? How many times does its loop run?</p>
+<button class="cb-rv" data-for="cb-a5" aria-expanded="false">Reveal the real assembly</button>
+<div class="cb-ans" id="cb-a5" hidden>
+<div class="seg cb-sw" data-pre="cb-sqasm" data-cap="cb-sqcap"><button data-m="asm.sq_O0" data-lang="asm" class="on" data-c="<b>-O0</b> (no optimisation): every variable lives on the stack (<code>[sp, #8]</code> is <code>s</code>, <code>[sp, #4]</code> is <code>i</code>), each iteration loads and stores them, and <code>bl __Z6squarei</code> really calls <code>square</code> n times. This is what a debug build runs.">-O0</button><button data-m="asm.sq_O2" data-lang="asm" data-c="<b>-O2</b>: no loop and no call. The compiler inlined <code>square</code>, recognised the sum of squares, and replaced the loop with the closed formula (n-1)n(2n-1)/6, using a multiply by the constant 0x55555556 to divide by 3. Time no longer depends on n.">-O2</button></div>
+<div class="an-cap" id="cb-sqcap"></div>
+<pre id="cb-sqasm"></pre></div></div>
+<p>Three transformations decide whether an abstraction is free:</p>
+<ul>
+<li><b>Inlining</b>: copying a small function's body into its caller, removing the call and letting the optimiser see through it. It is why small functions, lambdas and templates cost nothing, and it needs the body to be visible: same file, a header, or link-time optimisation (<code>-flto</code>).</li>
+<li><b>Devirtualisation</b>: a <code>virtual</code> call loads the object's vtable pointer, loads the function's address from it and jumps there, which also blocks inlining. When the compiler can prove the exact type (here the class is <code>final</code>), it calls or inlines directly. ({{C++: classes, templates and the standard library|n:4055c17b0d0d818a9509f6035089a7e1}} measures what dispatch costs.)</li>
+<li><b>Vectorisation</b>: processing several elements per instruction (next section). Clang reports its decisions with <code>-Rpass=loop-vectorize</code> (done), <code>-Rpass-missed=loop-vectorize</code> (refused) and <code>-Rpass-analysis=loop-vectorize</code> (why) ({{LLVM vectoriser docs|https://llvm.org/docs/Vectorizers.html}}).</li>
+</ul>
+<details class="dp"><summary>Devirtualisation in the assembly: a virtual call against a <code>final</code> class</summary><div><pre data-src="codegen.cpp" data-lines="8-11"></pre>
+<div class="grid"><div><p class="cb-lbl">area_of(const Shape&amp;): virtual call</p><pre data-out="asm.area" data-lang="asm"></pre><p class="small">Load the vtable pointer from the object (<code>[x0]</code>), load the function pointer at offset 16 of the vtable, jump (<code>br x1</code>).</p></div>
+<div><p class="cb-lbl">area_of_square(const Square&amp;): devirtualised and inlined</p><pre data-out="asm.area_sq" data-lang="asm"></pre><p class="small">Load <code>side</code> (offset 8, after the vtable pointer), multiply, return.</p></div></div></div></details>
+<p>The vectoriser's report for the dot products of the next section:</p>
+<pre class="cb-o" data-out="remarks"></pre>
+<div class="co warn"><div class="t">A report is not the truth</div>The remark says <code>dot_auto</code> (line 16) was "vectorized (vectorization width: 4, interleaved count: 4)". The assembly in the next section shows that only the multiplications were; the additions still run one at a time, in source order, because float addition may not be reordered. Always confirm in the assembly.</div>
+<details class="dp"><summary>ARM64 assembly in two minutes: registers, the calling convention, the instructions you will meet</summary><div>
+<p>This laptop runs ARM64 (AArch64). Each line is one instruction, written <code>operation destination, source, source</code>:</p>
+<div class="tw"><table class="cb-t"><thead><tr><th>You see</th><th>It means</th></tr></thead><tbody>
+<tr><td><code>x0</code> .. <code>x30</code>, <code>w0</code> .. <code>w30</code></td><td>The 64-bit general registers; <code>w</code> is the low 32 bits of the same register. <code>sp</code> is the stack pointer.</td></tr>
+<tr><td><code>s0</code>, <code>d0</code>, <code>q0</code>, <code>v0.4s</code></td><td>The SIMD and float registers: one 32-bit float, one 64-bit double, the whole 128 bits, or the 128 bits seen as 4 floats ("4s" means 4 single-precision lanes; Apple's assembler prints <code>fmla.4s</code>).</td></tr>
+<tr><td>arguments and result</td><td>By the calling convention ({{AAPCS64|https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst}}), the first 8 integer or pointer arguments arrive in <code>x0</code>..<code>x7</code>, float ones in <code>v0</code>..<code>v7</code>, and the result goes back in <code>x0</code> or <code>s0</code>/<code>d0</code>.</td></tr>
+<tr><td><code>ldr</code>, <code>str</code>, <code>ldp</code></td><td>Load a register from memory, store it, load a pair. <code>[x0, #8]</code> is "the address in x0 plus 8"; <code>[x0], #4</code> loads then adds 4 to x0.</td></tr>
+<tr><td><code>add</code>, <code>mul</code>, <code>madd</code>, <code>fadd</code>, <code>fmadd</code>, <code>fmla</code></td><td>Integer and float arithmetic; <code>fmadd</code>/<code>fmla</code> are fused multiply-add (a + b x c in one instruction, one rounding).</td></tr>
+<tr><td><code>cmp</code>, <code>subs</code>, <code>b.ne</code>, <code>b.lt</code>, <code>cbz</code>, <code>tbz</code></td><td>Compare (set flags), then branch if not equal, less than, if zero, if a bit is zero. A loop ends with one of these jumping back to its label.</td></tr>
+<tr><td><code>bl</code>, <code>br</code>, <code>ret</code></td><td>Call a function, jump to an address held in a register, return.</td></tr>
+</tbody></table></div>
+</div></details>
+</section>

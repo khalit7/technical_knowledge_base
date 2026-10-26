@@ -1,0 +1,73 @@
+<section id="cb-top">
+<div class="core"><b class="k">The idea in one sentence</b>Once a loop compiles to a handful of machine instructions, <span class="hot">memory, not arithmetic, sets its speed</span>: where the data sits in the cache ladder, how it is laid out in cache lines and whether the compiler could turn it into independent SIMD work decide whether the same loop runs 50 times faster or slower.</div>
+<div class="fig" id="cb-hero"><h4>One load from DRAM costs as much time as 13,000 floating-point operations</h4>
+<div class="rd-svg" id="cb-hero-svg"></div>
+<p class="cap">Time for one operation, log scale, all on this M1 Pro. A load from L1 (about 1 ns) is as cheap as one fused multiply-add; a load whose address the hardware cannot predict, from a 512 MB buffer, takes about 133 ns; in that time one core running at its measured peak of 97.5 GFLOP/s could have done 97.5 x 133 = about 13,000 FLOPs <span class="der">derived</span>. The same 512 MB read in address order costs about 11 ns per load, because the prefetcher fetches ahead. The rest of the page is how to stay on the left of this picture.</p></div>
+<p class="small"><b>You need</b>: how C++ is compiled and linked, and what undefined behaviour means ({{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}); <code>new</code>, RAII and moves ({{C++: ownership, moves and object lifetimes|n:4055c17b0d0d81819d74fa010e68ac2a}}). Python habits are enough for the rest: each section says where NumPy or CPython meets the same machine.</p>
+<div class="terms">
+<div><dfn>Cache line</dfn>: the unit memory moves in, 128 bytes on Apple silicon (64 on most x86).</div>
+<div><dfn>Prefetcher</dfn>: hardware that spots a regular address pattern and fetches lines before they are asked for.</div>
+<div><dfn>AoS / SoA</dfn>: array of structs (records side by side) / struct of arrays (one array per field).</div>
+<div><dfn>SIMD, NEON</dfn>: one instruction on a short vector (4 floats in a 128-bit NEON register on ARM).</div>
+<div><dfn>Dependency chain</dfn>: instructions that each wait for the previous result; its length, not the instruction count, sets the time.</div>
+<div><dfn>Misprediction</dfn>: the core guessed a branch wrong and throws away the work it did on the guess.</div>
+<div><dfn>Memory order</dfn>: what an atomic operation promises about the order other cores see writes in (relaxed, acquire, release, seq_cst).</div>
+<div><dfn>False sharing</dfn>: two threads writing different variables on one cache line, fighting over the line.</div>
+<div><dfn>ABI</dfn>: the binary contract between compiled pieces: registers, layouts, symbol names.</div>
+</div>
+<nav class="nav" id="rd-nav" aria-label="Sections">
+<a href="#cb-s0">In one screen</a><a href="#cb-s1">1 Cache ladder</a><a href="#cb-s2">2 Cache lines</a><a href="#cb-s3">3 Layout</a><a href="#cb-s4">4 Pages</a><a href="#cb-s5">5 Assembly</a><a href="#cb-s6">6 SIMD</a><a href="#cb-s7">7 Branches</a><a href="#cb-s8">8 Memory model</a><a href="#cb-s9">9 Roofline</a><a href="#cb-s10">10 Measuring</a><a href="#cb-s11">11 ABI</a><a href="#cb-s12">12 To the GPU</a>
+</nav>
+</section>
+
+<section id="cb-s0">
+<h2>In one screen</h2>
+<p>Each row: one idea, the number that shows it on this M1 Pro, and what it changes in the code you write.</p>
+<div class="tw"><table class="cb-t">
+<thead><tr><th>Idea</th><th>Measured on this M1 Pro</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><a href="#cb-s1">Memory is a ladder of caches</a></td><td>A load takes <span class="cb-num" data-cbv="ladder.random.0.pts.3.1" data-d="2"></span> ns from L1 and about <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="0"></span> ns from DRAM when the address is unpredictable</td><td>Keep the working set small; reuse data while it is hot</td></tr>
+<tr><td><a href="#cb-s2">Memory moves in 128-byte lines</a></td><td>Summing a matrix by columns is <span class="cb-num" data-cbv="rowcol.v.ratio.runs.0" data-d="0"></span>x slower than by rows</td><td>Walk memory in the order it is laid out</td></tr>
+<tr><td><a href="#cb-s3">Layout decides what you read</a></td><td>Struct of arrays is <span class="cb-num" data-cbratio="aos.v.i_aos.runs.0|aos.v.i_soa.runs.0"></span>x faster than array of structs for one field of eight</td><td>Group the fields that are used together; values, not pointers</td></tr>
+<tr><td><a href="#cb-s4">Memory comes in 16 KB pages, lazily</a></td><td>A first touch costs about <span class="cb-num" data-cbv="mmap.v.fault_us.runs.0" data-d="2"></span> microseconds per page</td><td>mmap big read-only files</td></tr>
+<tr><td><a href="#cb-s5">The compiler rewrites your code</a></td><td>At -O2 a loop of n calls became a formula with no loop</td><td>Read the assembly before guessing</td></tr>
+<tr><td><a href="#cb-s6">SIMD: one instruction, four floats</a></td><td>Dot product: <span class="cb-num" data-cbratio="dot.v.l1_scalar.runs.0|dot.v.l1_neon.runs.0" data-d="0"></span>x faster with NEON and independent accumulators</td><td>Break dependency chains; let the compiler vectorise</td></tr>
+<tr><td><a href="#cb-s7">The processor guesses branches</a></td><td>Unpredictable branch: <span class="cb-num" data-cbv="br_keep.v.r.runs.0" data-d="1"></span>x slower than the same loop on sorted data</td><td>Make branches predictable or remove them</td></tr>
+<tr><td><a href="#cb-s8">Cores see memory in different orders</a></td><td>Relaxed atomics: <span class="cb-num" data-cbv="litmus.v.relaxed.runs.0" data-d="0"></span> reordered messages in 52 million; false sharing: <span class="cb-num" data-cbratio="fs.v.b8.runs.0|fs.v.b128.runs.0" data-d="0"></span>x slower</td><td>Release/acquire to publish data; one 128-byte line per hot counter</td></tr>
+<tr><td><a href="#cb-s9">Most code is memory-bound</a></td><td>Matrix-vector product: <span class="cb-num" data-cbv="roof.v.mv1.runs.0"></span> GFLOP/s of a <span class="cb-num" data-cbv="roof.v.p1.runs.0" data-d="0"></span> GFLOP/s core</td><td>Count bytes, not FLOPs, for LLM decode</td></tr>
+<tr><td><a href="#cb-s10">Measure, with counters</a></td><td>Column walk: <span class="cb-num" data-cbv="profile.v.ipc_c.runs.0" data-d="2"></span> instructions per cycle against <span class="cb-num" data-cbv="profile.v.ipc_r.runs.0" data-d="2"></span></td><td>Profile first; microbenchmarks mislead</td></tr>
+<tr><td><a href="#cb-s11">The ABI is a binary contract</a></td><td><code>dot(const float*, ...)</code> is the symbol <code>__ZN9ggml_like3dotEPKfS1_i</code></td><td><code>extern "C"</code> at language boundaries</td></tr>
+</tbody></table></div>
+<details class="dp"><summary>How everything on this page was measured</summary><div><p>Apple M1 Pro (8 performance and 2 efficiency cores, 16 GB, macOS 27), Apple clang 17 (LLVM clang 23 for ThreadSanitizer), recorded 2026-10-05. Timings are the first of three runs with the spread of all three beside them; the laptop was in normal use (load average about 5 to 12 on 10 cores), so treat the second digit of any timing as noise. Programs, outputs and the script that reproduces them: <code>src/cb/</code>.</p></div></details>
+<div class="cb-py"><div class="t">Why Python never showed you this</div>In CPython, <code>total += x</code> costs tens of nanoseconds whatever the data looks like, because the interpreter's own work dwarfs the memory access ({{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}). Once a loop compiles to a few machine instructions, as in C++, Rust or inside NumPy, the memory system is what is left. That is why <code>numpy.sum</code> on a contiguous array is fast and on a strided view can be much slower.</div>
+</section>
+
+<section id="cb-s1">
+<h2>1. The ladder of caches</h2>
+<p>An addition takes a fraction of a nanosecond; fetching a number from DRAM takes about a hundred. To hide the gap the chip keeps copies of recently used memory in <b>caches</b>, each level bigger and slower than the one before: on this M1 Pro, 128 KB of <b>L1</b> per performance core, 12 MB of <b>L2</b> shared by the 8 performance cores, a <b>system level cache</b> shared with the GPU (size unpublished), then 16 GB of DRAM, "up to 200GB/s" for the chip ({{Apple|https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/}}).</p>
+<p>To time one load you must stop the processor from overlapping loads. A <b>pointer chase</b> does it: a linked list scattered over a buffer, each node holding the address of the next, so load <i>k</i>+1 cannot start before load <i>k</i> returns. Time per load is the latency of whatever level holds the buffer; grow the buffer from 4 KB to 1 GB and each level overflows in turn.</p>
+<div class="card" id="cb-ld-card">
+<h4 style="margin:0 0 4px;font-size:14.5px">Each time the buffer outgrows a cache, a load gets several times dearer</h4>
+<div class="an-ctl"><span class="seg" id="cb-ld-y"><button data-m="log" class="on">Log scale</button><button data-m="lin">Linear scale</button></span>
+<label class="chk"><input type="checkbox" id="cb-ld-seq" checked> address order</label><label class="chk"><input type="checkbox" id="cb-ld-all" checked> all runs</label></div>
+<div class="cb-chart" id="cb-ld-chart"></div>
+<div class="cb-tip" id="cb-ld-tip" aria-live="polite"></div>
+<div class="an-ctl" id="cb-ld-ctl"></div>
+<div class="an-cap" id="cb-ld-cap"></div>
+<div class="out" id="cb-ld-stats"></div>
+<p class="small mute">Measured: <code>ladder.cpp</code>, one node per 128-byte line, best of 3 timings inside each run; three runs in random order, two in address order (load average per run: <span id="cb-ld-load"></span>). Step through the sizes, or hover or tap the chart to read any point; the linear scale shows how far DRAM is.</p>
+</div>
+<p>Up to 128 KB (L1) a load costs about 1 ns, three clock cycles. Past that the buffer lives in L2 and loads cost 5 to 15 ns. From about 8 MB they climb towards DRAM's roughly 125 ns, a hundred times L1. The steps are soft because other programs share L2 and DRAM, and because past a few MB the chase also misses in the <b>TLB</b>, the cache of address translations ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} owns it).</p>
+<div class="cb-pr"><p class="q"><b>Predict.</b> The same 512 MB buffer, but the list visits the nodes in address order (node 0, 1, 2, ...). Each load still waits for the previous one. Still about 125 ns per load?</p>
+<button class="cb-rv" data-for="cb-a1" aria-expanded="false">Reveal the real output</button>
+<div class="cb-ans" id="cb-a1" hidden><p>No: <span class="cb-num" data-cbv="ladder.seq.0.pts.34.1"></span> ns per load in address order, against <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="0"></span> ns in random order, over the same 512 MB. The <b>prefetcher</b> notices that addresses go up by 128 bytes each time and fetches the next lines before they are asked for. Predictable access is the cheapest optimisation there is: you get it by storing data in the order you read it.</p></div></div>
+<p>A hash-table lookup or linked-structure walk over a big table pays the right-hand end of this chart per hop; a scan over a contiguous array pays the bottom curve or less. Shrinking the working set by one level (from DRAM-sized to L2-sized) is often worth more than any change to the arithmetic.</p>
+<div class="cb-py"><div class="t">In Python</div>A Python list of floats is an array of pointers to float objects scattered on the heap, so iterating it is closer to a pointer chase than to a scan; the {{root page|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} measured about 17 ns per element in order and 77 ns shuffled. A NumPy array stores the numbers themselves, contiguously.</div>
+<details class="dp"><summary>The pointer chase in code, the sysctl output and the table of all sizes</summary><div>
+<p>Registers sit inside the core: 31 general of 64 bits and 32 SIMD of 128 bits, read in the same cycle. The efficiency cores have 64 KB of L1 and share 4 MB of L2. Sizes from <code>sysctl</code> on this machine:</p>
+<pre data-src="ladder.cpp" data-lines="1-34"></pre>
+<pre class="cb-o" data-out="sysctl"></pre>
+<p class="small">Random order, run 1, with the range of the three runs (the system level cache sits between L2 and DRAM and shows only as a softer ramp):</p>
+<div class="tw"><table class="cb-t" id="cb-ladtab"></table></div>
+</div></details>
+</section>

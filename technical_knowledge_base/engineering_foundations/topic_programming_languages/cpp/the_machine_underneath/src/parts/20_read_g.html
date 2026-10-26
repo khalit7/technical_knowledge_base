@@ -1,0 +1,54 @@
+<section id="cb-s10">
+<h2>10. Measuring: counters, and why microbenchmarks lie</h2>
+<p><b>Profile before optimising</b>: a sampling profiler records where the program is thousands of times a second (which profiler answers which question is {{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}; flame graphs for services are {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}). For one hot loop the quickest health check is two hardware counters, instructions retired and cycles, and their ratio, <b>instructions per cycle</b> (IPC). macOS's <code>/usr/bin/time -l</code> prints both. The row and column sums of section 2, 20 times each:</p>
+<pre class="cb-o" data-out="profile.raw"></pre>
+<p>The column walk ran 4 times as many instructions (no SIMD) and still spent most cycles waiting: <span class="cb-num" data-cbv="profile.v.ipc_c.runs.0" data-d="2"></span> instructions per cycle against <span class="cb-num" data-cbv="profile.v.ipc_r.runs.0" data-d="2"></span>. An IPC well below 1 on a loop says "waiting for memory" (or for mispredicted branches); 3 or more says the core is busy computing.</p>
+<details class="dp"><summary>Why microbenchmarks lie, and the profilers not run here</summary><div>
+<pre data-src="profile.sh"></pre>
+<ul>
+<li><b>The compiler deletes unused work.</b> If a result is never used, the loop may vanish. Every benchmark here passes results to <code>keep()</code>, an empty <code>asm volatile</code> that forces the value to exist (<code>bench.h</code>); {{Google Benchmark|https://github.com/google/benchmark}} calls it <code>benchmark::DoNotOptimize</code>.</li>
+<li><b>Caches are warm.</b> A loop timed a million times on the same few KB runs from L1; the same code in a real program meets cold data. The NEON dot product ran about twice as fast in L1 as from DRAM, and a load from DRAM costs 100 times one from L1 (section 1).</li>
+<li><b>The compiler sees your test data.</b> A constant input can be folded away (section 5's formula).</li>
+<li><b>A debug build means nothing.</b> <code>-O0</code> keeps every variable in memory and calls every function; benchmark optimised builds, with debug info (<code>-O2 -g</code>) for profiling.</li>
+<li><b>Cores differ and clocks move.</b> This chip has fast and slow cores; macOS cannot pin a thread to a core, so the benchmarks ask for the highest quality-of-service class and report the best of several runs.</li>
+<li><b>The machine is busy.</b> Every timing on this page says how many runs it took and how far they spread, and records the load average. Multi-threaded results spread most.</li>
+</ul>
+<p>Not run here: Instruments' Time Profiler (<code>xcrun xctrace record --template 'Time Profiler' --launch -- ./prog</code>) hung even for <code>xctrace version</code>, the built-in <code>sample</code> tool could not attach in this session, and Linux's <code>perf record -g</code>, <code>perf report</code> and <code>perf stat</code> ({{perf wiki|https://perf.wiki.kernel.org/index.php/Tutorial}}) need a Linux machine. Treat those commands as reference.</p>
+</div></details>
+</section>
+
+<section id="cb-s11">
+<h2>11. The ABI: C++'s binary contract</h2>
+<p>An <b>API</b> is a contract in source code. An <b>ABI</b> (application binary interface) is the contract between already-compiled machine code: which registers carry arguments (section 5), how structs are laid out (section 3), how virtual tables and exceptions work, and what symbols are called. Two object files work together only if they agree on all of it; Python programmers meet it as "this wheel does not match your Python" or a crash after mixing builds.</p>
+<p><b>Name mangling.</b> C has one function per name; C++ allows the same name in different namespaces and overloads, so the compiler encodes the namespace and parameter types into the symbol, following the {{Itanium C++ ABI|https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling}} (used by clang and GCC everywhere except Windows, despite its name). <code>extern "C"</code> turns mangling off, which is why every C++ library meant to be called from another language exposes a C interface.</p>
+<pre data-src="abi.cpp"></pre>
+<pre class="cb-o" data-out="abi"></pre>
+<p>Read <code>__ZN9ggml_like3dotEPKfS1_i</code> as: <code>_Z</code> a mangled name (macOS adds one more underscore), <code>N ... E</code> a nested name of <code>9ggml_like</code> (9 characters) and <code>3dot</code>, then the parameters: <code>PKf</code> pointer to const float, <code>S1_</code> the same type again, <code>i</code> int. The <code>double</code> overload differs only in <code>d</code>; <code>c_dot</code> is just <code>_c_dot</code>.</p>
+<div class="cb-py"><div class="t">From Python</div><code>ctypes</code> and <code>cffi</code> call only C symbols, so they need <code>extern "C"</code>. pybind11 and nanobind compile C++ against CPython's own C ABI; a wheel built for one Python version works only on that version unless it uses the limited "abi3" stable ABI ({{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}} covers abi3 wheels).</div>
+<details class="dp"><summary>What breaks when you mix builds</summary><div>
+<ul>
+<li><b>Different standard libraries.</b> clang on macOS uses libc++; GCC on Linux uses libstdc++. Their <code>std::string</code>, <code>std::vector</code> and friends have different layouts, so a <code>std::string</code> cannot cross between code built against the two. Within one library, flags that change layouts (debug iterators, <code>_GLIBCXX_USE_CXX11_ABI</code> on Linux) must match.</li>
+<li><b>Standard library designs that cannot be fixed.</b> Programs compiled years ago still link against today's shared standard library, so vendors avoid any change to a type's layout or a function's mangled name; known-slow designs (<code>std::unordered_map</code>'s node-based buckets, <code>std::regex</code>) stay as they are for that reason.</li>
+<li><b>Headers and flags out of step.</b> Two translation units that see different definitions of the same struct (a different <code>#define</code>, packing pragma or alignment) break the one-definition rule: no error, just corrupted fields at run time.</li>
+<li><b>Mixing compilers</b> is fine through a C interface, risky through C++ types, and the reason C++ has no universal package of prebuilt binaries like PyPI's wheels (builds and package managers are on {{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}).</li>
+</ul>
+<p>Apple's ARM64 ABI differs from the standard Linux one in a few details (for example, how variadic arguments are passed): {{Writing ARM64 code for Apple platforms|https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms}}.</p>
+</div></details>
+</section>
+
+<section id="cb-s12">
+<h2>12. To the GPU: the same ideas with the dials turned</h2>
+<p>Everything above carries over to GPUs: SIMD becomes SIMT (a warp of 32 threads runs one instruction together, written as scalar code per thread), cache lines become coalescing (a warp should read neighbouring addresses), a mispredicted branch becomes divergence (both paths run in turn), and the roofline's ridge moves far right, so LLM decode is even more memory-bound. The owners: {{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}} for threads, warps and divergence, {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}} for coalescing and shared-memory tiling. CUDA C++ is C++ with extensions; this page and the essentials are its prerequisites.</p>
+<details class="dp"><summary>The mapping, row by row</summary><div>
+<div class="tw"><table class="cb-t"><thead><tr><th>Idea on the CPU (this page)</th><th>Its GPU counterpart</th></tr></thead><tbody>
+<tr><td>A few large cores with big caches, branch predictors and out-of-order execution, built to make one thread fast</td><td>Thousands of simple lanes, built for throughput; little cache per lane, no out-of-order execution</td></tr>
+<tr><td>Latency hidden by caches and the prefetcher</td><td>Latency hidden by switching between many groups of threads while some wait for memory</td></tr>
+<tr><td>SIMD: one instruction on 4 lanes (NEON), written as vectors</td><td>SIMT: groups of 32 threads (a warp) run one instruction together, written as scalar code per thread</td></tr>
+<tr><td>Cache lines: read neighbours together</td><td>Coalescing: the threads of a warp should read neighbouring addresses</td></tr>
+<tr><td>A branch mispredicted costs a pipeline flush</td><td>Threads of a warp that take different branches run both paths, one after the other (divergence)</td></tr>
+<tr><td>Register blocking, cache tiling</td><td>Shared-memory tiling, tensor cores</td></tr>
+<tr><td>Roofline with about 100 GB/s and 0.5 TFLOP/s on this laptop's CPU</td><td>The same model at TB/s and hundreds of TFLOP/s: the ridge is further right</td></tr>
+<tr><td>Atomics and memory orders between threads</td><td>The same, plus scopes (block, device, system)</td></tr>
+</tbody></table></div>
+</div></details>
+</section>
