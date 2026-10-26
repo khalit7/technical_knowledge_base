@@ -8,7 +8,7 @@ Here is the result of "fetch" for the Page with URL https://app.notion.com/p/3fe
 <ancestor-5-page url="https://app.notion.com/p/3b75c17b0d0d8148b63dd36e88459017" title="Me"/>
 </ancestor-path>
 <properties>
-{"Paper":"Sharpening Tax in Post-Training","Takeaway":"On agentic tasks, base models with a light harness often beat their post-trained versions at pass@K (most of 42 cases), because post-training pushes tasks to always-solved or never-solved; per-prompt tempered sampling (PTGS) during RL pays a smaller tax and also raises pass@1.","Topics":["rl","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3fe5c17b0d0d81efa2a9f532c14c87a3"}
+{"Paper":"Sharpening Tax in Post-Training","Takeaway":"On three agentic benchmarks and 14 open base/post-trained pairs, post-training trades retry value for pass@1: the Sharpening Tax is positive in 36 of 42 cells, with tasks polarising toward always-solved or never-solved. The base model reaches more tasks at pass@128 in only 26 cells (clearly in 18, mostly larger models), with an authors' harness for the base side and post-trained models run without thinking at one shared temperature. Per-prompt tempered sampling (PTGS) is a promising but not yet demonstrated mitigation: five runs on two grid games, tax reductions within the noise.","Topics":["rl","llm-training-and-post-training"],"Year":"2026","url":"https://app.notion.com/p/3fe5c17b0d0d81efa2a9f532c14c87a3"}
 </properties>
 <iconMetadata>null</iconMetadata>
 <content>

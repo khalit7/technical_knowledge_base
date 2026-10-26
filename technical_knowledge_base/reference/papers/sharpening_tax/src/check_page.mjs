@@ -47,6 +47,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click());
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
+    // nothing may move before the reader acts (2026-10-26): scroll each animation into view and wait
+    for (const id of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) }
+    // closed details hold text too: open them all
+    await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(300); await audit(t + ' details open');
     for (const pr of await p.$$(`#${t} .pred`)) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
     await audit(t + ' predictions revealed');
     for (const id of await p.$$eval(`#${t} input[type=range]`, xs => xs.map(x => x.id))) {
@@ -73,7 +78,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     for (const id of await p.$$eval(`#${t} .an-svg`, xs => xs.map(x => x.id.replace(/Svg$/, '')))) {
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m));
       for (const m of modes) {
-        await p.$eval(`#${id}M button[data-m="${m}"]`, b => b.click()); await p.$eval(`#${id}Play`, b => b.click()).catch(() => {});
+        await p.$eval(`#${id}M button[data-m="${m}"]`, b => b.click()); // a mode switch pauses on step 1 (no autoplay since 2026-10-26)
         const n = await p.$eval(`#${id}Scrub`, e => +e.max / 100);
         for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++ }
         await audit(`${t} anim ${id} ${m} end`);

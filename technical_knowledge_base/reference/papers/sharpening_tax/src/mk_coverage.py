@@ -12,10 +12,10 @@ C = [
  # live.md: the row as fetched on 2026-10-19 (body "Being built in the technical_knowledge_base repository.")
  ('Body line "Being built in the technical_knowledge_base repository."', 'replaced: the page is the built body', ['Replay the 42 cells']),
  ('Paper property: "Sharpening Tax in Post-Training" (stays in Notion)', 'title and headline card', ['Sharpening Tax in Post-Training']),
- ('Takeaway property (stays in Notion), shown verbatim on the card', R + ', headline card "In one line"', ['the Sharpening Tax is positive in 36 of 42 base/post-trained cases (base models beat their post-trained versions at pass@128 in 26)']),
+ ('Takeaway property (stays in Notion), shown verbatim on the card', R + ', headline card "In one line"', ['the Sharpening Tax is positive in 36 of 42 cells, with tasks polarising toward always-solved or never-solved', 'Scoped on 26 October 2026']),
  ('Takeaway: tax positive in 36 of 42; base beats post-trained at pass@128 in 26', R + ', The tax and How much to believe (with 18 of 26 clear of zero); Replay map', ['Two counts, two questions', 'clearly in 18']),
- ('Takeaway: post-training pushes tasks to always-solved or never-solved', R + ', Base against post-trained; animation', ['tasks go to the extremes']),
- ('Takeaway: PTGS a promising but not yet demonstrated mitigation', R + ', PTGS results and How much to believe', ['lowers Tax', 'improves pass@1 and pass@128 for both algorithms in both games']),
+ ('Takeaway: tasks polarise toward always-solved or never-solved', R + ', Base against post-trained; animation', ['tasks go to the extremes']),
+ ('Takeaway: PTGS a promising but not yet demonstrated mitigation (five runs, two grid games, tax reductions within noise)', R + ', PTGS results and How much to believe', ['tax reductions within the noise', 'lowers Tax', 'improves pass@1 and pass@128 for both algorithms in both games']),
  ('Topics rl, llm-training-and-post-training (stay in Notion)', 'Connections and Further reading topics', ['RL for LLMs: RLHF, GRPO, RLVR', 'Topic: llm-training-and-post-training']),
  # the paper's own claims (no old body, so coverage runs against them)
  ('Authors and affiliations', 'headline card', ['Changdae Oh', 'Sharon Li', 'Azalia Mirhoseini', 'Meta Superintelligence Labs']),
