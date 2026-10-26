@@ -67,7 +67,7 @@
     CK.forEach(c=>{const v=vis.includes(c);const col=c.interrupt?'var(--c5)':c.next.length===0?(hidN(c.hidden)===6?'var(--good)':'var(--c2)'):c.source==='update'?'var(--c4)':'var(--c1)';
       s+='<circle cx="'+X(c)+'" cy="'+Y(c)+'" r="'+(sel===c.id?8:6)+'" fill="'+(v?col:'none')+'" stroke="'+(v?col:'var(--dim)')+'" stroke-dasharray="'+(v?'':'2 2')+'" data-ck="'+c.id+'" style="cursor:pointer" tabindex="0"><title>checkpoint '+c.id+'</title></circle>'});
     if(vis.length){const e=vis.filter(c=>c.next.length===0);e.forEach(c=>{s+='<text x="'+(X(c)-10)+'" y="'+(Y(c)+22)+'" text-anchor="end" font-size="10.5" fill="var(--ink)">'+hidN(c.hidden)+'/6 hidden</text>'})}
-    s+='<text x="'+x0+'" y="'+(H-6)+'" font-size="10" fill="var(--mute)">step number; top row: first run; bottom row: rewound branch</text>';
+    s+='<text x="'+x0+'" y="'+(H-6)+'" font-size="10" fill="var(--mute)">'+(Wd<420?'step; top: first run; bottom: rewound branch':'step number; top row: first run; bottom row: rewound branch')+'</text>';
     el.innerHTML=mode==='with'?'<svg viewBox="0 0 '+Wd+' '+H+'" width="'+Wd+'" height="'+H+'" role="img" aria-label="Checkpoint tree">'+s+'</svg>':'<p class="small mute">Without a checkpointer there is nothing here: no rows, no history, nothing to resume or rewind.</p>'}
   function inspect(id){sel=id;const c=byId[id];if(!c)return;
     document.getElementById('orch-ckh').textContent='Checkpoint …'+c.id+' (step '+c.step+')';

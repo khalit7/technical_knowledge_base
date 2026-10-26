@@ -88,6 +88,13 @@ supply chain, gate, approval, sandbox, egress, credentials, detection, red-teami
 them, and it still got shorter in total (29.2 to 23.9 core minutes including the old tabs) because restatement, the
 mistakes list and tab prose went. Every remaining core unit carries a mechanism, a number or a source a reader needs.
 
+**Update pass 2026-10-26** (update-kb): core 23.9 to 27.6 min (header 28). Integrated the LiteLLM 1.107.0 signed-pipeline
+compromise and Railway (section 3), OpenShell and 1Password for Agents as credential injection (section 8), Anthropic's
+Red-teaming Auto Mode and METR/Redwood's review of OpenAI monitoring (section 9, heading now "an alert is not a brake"
+since blocking monitors do block), the UK AISI Mythos 5 assessment (section 9 callout), and the matching table rows and
+checklist question. All new units are core (10 ledger units, section "added: ..."). The egress stepper's first line
+now wraps (it clipped at 390 px in Linux Chromium fonts).
+
 **Ledger** (`src/ledger.json`, `python3 html_utils/ledger.py check`: problems 0): 311 units, core 213, depth 22, fat 76.
 299 drafted by `ledger.py init` from the old page; 12 added by hand for the new owned content (section names start
 "added:"). Fat units carry a `note`.

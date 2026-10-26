@@ -53,3 +53,6 @@ Why 36 minutes is right: the page owns thirteen mechanisms of one product (loop,
 
 ## Ledger (src/ledger.json)
 350 units: core 266, depth 56, volatile 6, fat 22, owned 0. Units added by hand for script-rendered tables and the new MCP section. `html_utils/ledger.py check` prints problems 0. No unit was handed to another page: every owner link (building_a_harness, context_engineering, agent_security, MCP, Claude Agent SDK, other coding harnesses) points at material those pages already hold, and this page keeps its own Claude Code specifics.
+
+## Update pass 2026-10-26 (update-kb)
+Core 36.9 to 37.3 min, closed details 23.0 to 23.6 (header now "37 min, plus 24"). One ledger key (unit 172) was shortened because its sentence now continues past the semicolon. Integrated: two rows in Dated changes for 2.1.304 to 2.1.310 (auto-mode setup, `decider: "person"`, `claude_code.safety_event`, `/claude-api api-version`, `sed -i` and `/rewind`, nested user namespaces), the table's "updated through" date; the auto mode bullet in section 3 now carries the red-team result (owned by Agent security section 9) and the two new controls; section 7 says the Agent Skills standard now sits at the Agentic AI Foundation. The recordings stay on 2.1.290.

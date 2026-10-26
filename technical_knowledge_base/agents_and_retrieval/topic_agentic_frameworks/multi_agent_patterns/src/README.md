@@ -50,3 +50,6 @@ Why 26 minutes is right: the core carries eight measured experiments, each a cla
 - Handoff runs use a local 4B model, never compared with Claude.
 - Prompt caching crosses runs: fan-out runs 2 and 3 re-sent run 1's prompts within the hour and paid cache-read prices; the page says so and quotes run 1 alone.
 - Page size about 430 KB (data about 280 KB): accepted, as the methods allow, because the labs show every recorded run.
+
+## Update pass 2026-10-26 (update-kb)
+Core 26.1 to 26.9 min (header 27). Anthropic's "when to fold subagents into your main agent loop" (22 Oct 2026, quotes checked against the article on 26 Oct) added to section 10 as the owner of that guidance (Context engineering links here), with a matching clause in section 11's first question. `check.py` needs the `.fm-v` values dumped from the rendered page as `[key, text]` pairs; 33 values, 0 problems after the edit.

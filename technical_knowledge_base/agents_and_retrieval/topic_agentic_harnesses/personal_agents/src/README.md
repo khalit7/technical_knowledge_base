@@ -50,3 +50,6 @@ The core fell by 11 minutes while gaining a whole subject (computer use) and a f
 **Ledger** (`ledger.json`, labels from `label_ledger.py`): 347 units: core 139, depth 125, volatile 12, owned 2 (Context engineering: memory products; Agent security: credentials), fat 69; `ledger.py check` problems 0.
 
 **Checks**: `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check.py` 0 failures; `check_controls.mjs` clean at 390 dark and 920 light, nothing autoplays with or without reduced motion.
+
+## Update pass 2026-10-26 (update-kb)
+Core 25.6 to 26.2 min (header unchanged, 26). Claude Duet (Anthropic, research preview from 21 Oct 2026; product page read 26 Oct) added as a row of the section 8 products table, one paragraph comparing it with Muse's published boundary, and named in the top comparison's personal-agent column. The page does not claim Duet asks before deleting: the product page names only "sending messages or paying".

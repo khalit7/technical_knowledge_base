@@ -57,7 +57,7 @@
       S.reqs.forEach(r=>{const h=Math.max(2,(r.lat/maxL)*(rowH-8));const col=r.by==='primary'?'var(--good)':r.by==='backup'?'var(--c6)':'var(--bad)';
         s+='<rect x="'+(x(r.t)-bw/2)+'" y="'+(y0+rowH-2-h)+'" width="'+bw+'" height="'+h+'" fill="'+col+'"><title>request at '+r.t.toFixed(1)+' s: '+r.by+', waited '+r.lat.toFixed(1)+' s, '+r.prim+' attempt(s) at the primary</title></rect>'});
     });
-    const step=T>100?20:10;for(let t=0;t<=T;t+=step)s+='<text x="'+x(t)+'" y="'+(H-6)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+t+' s</text>';
+    const step=T>100?20:10;for(let t=0;t<=T;t+=step)s+='<text x="'+x(t)+'" y="'+(H-6)+'" font-size="10.5" text-anchor="'+(t+step>T?'end':'middle')+'" fill="var(--mute)">'+t+' s</text>';
     s+='<text x="'+(lw+pw)+'" y="'+(H-20)+'" font-size="10" text-anchor="end" fill="var(--mute)">bar height: 0 to '+maxL.toFixed(0)+' s</text>';
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'+s+'</svg>';
     const row=(n,S)=>'<tr><td>'+n+'</td><td class="num">'+(S.ok*100).toFixed(0)+'%</td><td class="num">'+S.bk+'</td><td class="num">'+S.err+'</td><td class="num">'+S.p50.toFixed(1)+' s</td><td class="num">'+S.p95.toFixed(1)+' s</td><td class="num">'+S.att.toFixed(2)+'</td><td class="num">'+S.n429+'</td></tr>';

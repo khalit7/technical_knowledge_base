@@ -52,3 +52,6 @@ claude -p invocations in all: 31 recorded sessions, 15 token-count and summary c
 - No `live.md` or `coverage.json`: a new page with no old Notion text. The parent root's section 3 and Trace and context lab are the floor; this page links their numbers (13,242-token startup, 184-token CLAUDE.md, the Loop lab's 0 cache reads) rather than repeating them, and carries everything new (forced compaction, cache placement, policies, skills, subagents, needles) with its own runs.
 - Three lab tabs rather than one: each holds a different kind of evidence (a rules simulator, recorded sessions, graded calls).
 - The needle tests are small (one haystack, few seeds) and say so; the published benchmarks are on the Long-context benchmarks page, linked.
+
+## Update pass 2026-10-26 (update-kb)
+Core 33.9 to 34.9 min (header 35). Integrated: Cloudflare's shared-prefix breakpoint (vendor figures) as the production case of section 2's ordering rule; cache engineering (`drop`, `repos`, arXiv 2610.28577) as a sixth compaction design in section 4; a pointer from section 6 to Multi-agent patterns, which now owns Anthropic's "fold subagents into the main loop" guidance and the 30 to 50 tool-definition figure.

@@ -250,8 +250,11 @@
     function lab(r){ return (r.kind==='dns'?'DNS ':'HTTPS ')+r.dest; }
     var redraw=reg('hsec-eg-svg',function(el,w){
       var r=eg[cur], g=DEFS, y=4, W=w-2, narrow=w<560;
-      g+=box(0,y,W,40,{fill:'var(--soft)'})+T(8,y+16,'any tool, any command: '+esc(r.why_for),{fs:11,fill:'var(--mute)'})+T(8,y+32,esc(lab(r)),{fs:12.5,w:600,fill:'var(--ink)'});
-      y+=40; g+=arrow(W/2,y+2,W/2,y+18,{c:'var(--acc)'}); y+=20;
+      var wl=wrap('any tool, any command: '+r.why_for, Math.floor((W-16)/cw(11))), bh=26+wl.length*14;
+      g+=box(0,y,W,bh,{fill:'var(--soft)'});
+      wl.forEach(function(s,i){ g+=T(8,y+16+i*14,esc(s),{fs:11,fill:'var(--mute)'}); });
+      g+=T(8,y+bh-8,esc(lab(r)),{fs:12.5,w:600,fill:'var(--ink)'});
+      y+=bh; g+=arrow(W/2,y+2,W/2,y+18,{c:'var(--acc)'}); y+=20;
       var ph=narrow?62:46;
       g+=box(0,y,W,ph,{stroke:'var(--acc)',sw:2,fill:'var(--acc2)'})+T(8,y+17,'Proxy and resolver, below the agent: default deny',{fs:12.5,w:600,fill:'var(--ink)'});
       var ls=wrap('allow-list: '+listed.join(', '), Math.floor((W-16)/cw(11)));

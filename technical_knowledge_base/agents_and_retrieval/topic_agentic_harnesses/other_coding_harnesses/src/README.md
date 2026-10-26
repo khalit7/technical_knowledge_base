@@ -69,3 +69,6 @@ The core of the subject (Reading plus the lab it sent the reader to) fell from a
 
 ## Checks (2026-10-24)
 `checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0. `check_numbers.py`: ok=63 fail=0 (two phrase checks updated to the new wording). `check_ui.mjs`: clean at 390 dark and 920 light, nothing moving before the reader acts. Privacy grep clean.
+
+## Update pass 2026-10-26 (update-kb)
+Core 25.9 to 26.4 min (header unchanged, 26). Integrated: arXiv 2610.32483 (harness rankings change with the model; 52,168 trajectories) beside the "not to rank products" caveat in the runs section; Codex to 0.164.0 and Gemini CLI to 0.65.0 in the versions table (its column header names which rows run to 26 October); the Codex daemon issue #48195 re-read on 26 October (still open, no maintainer reply, default unchanged). Ledger unit 58's key updated to the new wording. The first-request legend now wraps on a phone (it clipped at 390 px in Linux Chromium fonts).

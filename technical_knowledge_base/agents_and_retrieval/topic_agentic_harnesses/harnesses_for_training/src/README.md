@@ -50,3 +50,6 @@ Why 30 minutes is right: the page teaches five mechanisms on its own evidence (s
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 350 units: core 247, depth 71, fat 22, owned 10 (all RL for LLMs: the GRPO arithmetic and the baseline). 332 drafted by `ledger.py init`; 18 added by hand for script-rendered visuals and tables and for the new hero, core sentence and fleet diagram.
+
+## Update pass 2026-10-26 (update-kb)
+Core 30.3 to 32.6 min (header 33; the closed-details figure, 16, was left as computed before: the audit now reads 24.5 because it counts widget tables in closed blocks). Integrated: harness rankings change across models (arXiv 2610.32483, owned by Other coding harnesses) and state that cannot be re-observed, with the ARC-AGI-3 gap decomposition (arXiv 2610.26632), in section 1; "Can the weights absorb the harness?" (arXiv 2610.27157, the scaffold separation result) as point 5 of section 6; the ARC-AGI-3 self-revision study (arXiv 2610.30499) in section 7. The scaffold paper links to its KB paper page; its figures follow that page's corrections (43.6% is the 85-call tree, which has no student; best student 35.8%; LoRA rank 16 to 64 +1.8, full fine-tuning +2.2; the 4B student's lead is within noise; the theorem covers logarithmic chains of thought only).

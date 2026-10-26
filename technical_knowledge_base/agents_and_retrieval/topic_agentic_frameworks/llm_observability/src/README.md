@@ -53,3 +53,6 @@ Scripts as run are in `code/` (they ran from a scratch folder; paths there are r
 Thirty minutes is right for this page: it owns nine concepts that the rest of the knowledge base links to (trace structure for agents, the GenAI conventions, instrumentation choices, a backend's data model, tools by design, cost attribution, sampling, redaction, evals on traces), each carried by a measured run and its visual. What was cut is restatement; what moved is depth a first read does not need.
 
 Ledger (`src/ledger.json`, 348 units): core 234, depth 48, volatile 15, fat 51; `ledger.py check` problems 0.
+
+## Update pass 2026-10-26 (update-kb)
+Core 29.9 to 30.0 min, closed details 8.4 to 8.9 (header now "plus 9"). Integrated in the runtime table of section 5: ADK 2.13.0's switch to the GenAI conventions v2 and the `call_llm` span going away (release notes read 26 Oct 2026; they say removed in one place and deprecated in another, and the page says so), and Claude Code's `claude_code.safety_event` (2.1.307). The Langfuse ADK screenshot's caption and alt text now say it predates ADK 2.13. Further reading's time for Claude Code, taken apart is now 37 min.

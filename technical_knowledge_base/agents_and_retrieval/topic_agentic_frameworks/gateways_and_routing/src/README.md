@@ -52,3 +52,6 @@ The core fell by 5 minutes while absorbing three lab tabs (about 10 minutes of t
 Ledger (`ledger.json`, 382 units drafted from the old page): core 294, depth 66, fat 17, owned 2 (the five rate-limit algorithms on Reliability engineering; the Stripe news on the parent), volatile 3 (kept in the dated table on this page); `ledger.py check` problems 0.
 
 Images: none. This is a mechanism page; no physical object teaches here, and a vendor dashboard screenshot would be an unclear licence and add nothing a recording does not show.
+
+## Update pass 2026-10-26 (update-kb)
+Core 32.9 to 34.0 min (header 34). Integrated: the gateway as the prize for its provider keys, with the LiteLLM 1.107.0 signed-release compromise and what to do (section 1 costs; chain owned by Agent security section 3); OpenAI models on Vertex AI in private preview (section 3 fallbacks); Claude API `2026-10-21` (sampling parameters return 400, SDKs send `Authorization: Bearer`) in section 8; the dated table's LiteLLM row; two checklist rows. The budget-run segmented control now wraps (it overflowed at 390 px in Linux Chromium fonts). `check_page.py` flags the login name as a forbidden string, so in a cloud sandbox whose home folder name is also an ordinary English word on the page, run it with a neutral `HOME`.

@@ -99,7 +99,8 @@ window.OCV=(function(){
       const x0=L+(narrow?0:6),bw=w-x0-RW;let x=x0;
       [[f.system_chars,'var(--c1)','system prompt'],[f.tools_chars,'var(--c2)','tools'],[f.user_chars,'var(--c3)','user']].forEach(s=>{const sw=bw*s[0]/mx;if(sw>0)g+='<rect x="'+x.toFixed(1)+'" y="'+(y+2)+'" width="'+sw.toFixed(1)+'" height="13" fill="'+s[1]+'"><title>'+esc(s[2]+': '+fmt(s[0])+' characters')+'</title></rect>';x+=sw});
       g+=T(w-2,y+13,fmt(f.in)+' tok',{a:'end',fs:11.5,fill:'var(--ink)'});y+=narrow?20:21});
-    g+=T(0,y+12,'bar length: characters of the first request; right: prompt tokens counted',{fs:11,fill:'var(--mute)'});
+    if(narrow){g+=T(0,y+12,'bar length: characters of the first request;',{fs:11,fill:'var(--mute)'});y+=14;g+=T(0,y+12,'right: prompt tokens counted',{fs:11,fill:'var(--mute)'})}
+    else g+=T(0,y+12,'bar length: characters of the first request; right: prompt tokens counted',{fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(w,y+18,g,'First request of each harness by part');
   });
 
