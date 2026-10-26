@@ -43,3 +43,5 @@ Why about 24 minutes is right: the core is a map (hero, one screen, child cards)
 
 ## Proposed for OWNERS.md (not edited here)
 The root owns: the topic map, the boundary-cost ladder, the symptom-to-subsystem table, OSTEP's simulators (scheduling policies, TLB array walk, page replacement, x86.py races, crash consistency), the Syscall tracer and the Debug lab.
+
+2026-10-26 (final follow-up sweep): section 6's Go deeper names Concurrency section 2 (the race stepped instruction by instruction); section 9's names Virtualization section 9 (one CUDA call down to the driver and GSP).
