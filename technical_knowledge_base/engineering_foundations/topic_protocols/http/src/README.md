@@ -76,3 +76,5 @@ Why about 41 minutes is right: the page owns twelve mechanisms (the message and 
 - hypercorn 0.18.0 (h11 0.16.0) answers a request hidden behind Content-Length plus Transfer-Encoding on the same connection, where RFC 9112 s6.3 says the server MUST close it. Not exploitable behind nginx (which rejects such messages).
 - The official Anthropic and OpenAI Python SDKs retry POSTs after read timeouts and dropped connections (3 attempts) without an idempotency key, and speak HTTP/1.1 unless given an `http2=True` client.
 - Cloudflare's origin timeout (error 524) is now documented as 125 s, not the 100 s many guides quote.
+
+2026-10-26 (final follow-up sweep): section 2 adds the reason-phrase note (uvicorn's 422 Unprocessable Entity against RFC 9110's Unprocessable Content; HTTP/2 sends no phrase), absorbed from Building a backend API; section 4's cookie attributes add the `__Host-` prefix, absorbed from Auth (HTTP owns cookie attributes). Two ledger units added.
