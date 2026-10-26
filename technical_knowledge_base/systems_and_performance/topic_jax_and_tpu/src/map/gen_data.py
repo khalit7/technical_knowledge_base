@@ -71,7 +71,7 @@ for t in T:
     if t["id"] == "torchxla": lic = "BSD-style (repository LICENSE; GitHub does not detect an SPDX id)"
     if t["id"] == "libtpu": lic = "Google Cloud Platform Terms of Service (PyPI)"
     if t["id"] == "metal": lic = "Apple proprietary (PyPI)"
-    if t["id"] == "torchtpu": lic = "not published"
+    if t["id"] == "torchtpu": lic = "Apache-2.0 (repository LICENSE, read 2026-10-26)"
     if t["layer"] == "cloud" and not t.get("repo"): lic = "Google Cloud terms"
     if t["id"] == "stax" or t["id"] == "jax2tf": lic = "Apache-2.0 (part of jax)"
     lic = {"Apache 2.0": "Apache-2.0", "Apache License 2.0": "Apache-2.0", "Apache License": "Apache-2.0", "MIT License": "MIT"}.get(lic, lic)

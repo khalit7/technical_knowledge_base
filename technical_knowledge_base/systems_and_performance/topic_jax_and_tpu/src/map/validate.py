@@ -21,7 +21,7 @@ for a, b in PAIRS:
 if "Ten jobs" in prose and len(D["slots"]) != 10: fails.append("prose says ten jobs, data has %d" % len(D["slots"]))
 st = {t["id"]: t["status"] for t in D["tools"]}
 for tid, s in [("haiku", "maintenance"), ("objax", "archived"), ("trax", "archived"), ("penzai", "archived"), ("jetstream", "deprecated"),
-               ("xpk", "deprecated"), ("torchxla", "deprecated"), ("torchtpu", "preview"), ("linen", "maintained")]:
+               ("xpk", "deprecated"), ("torchxla", "deprecated"), ("torchtpu", "active"), ("linen", "maintained")]:
     if st.get(tid) != s: fails.append(f"key-points box assumes {tid} is {s}, data says {st.get(tid)}")
 for f in glob.glob(os.path.join(ROOT, "src", "parts", "36_*")) + glob.glob(os.path.join(HERE, "**", "*"), recursive=True):
     if os.path.isdir(f) or f.endswith(".png") or os.path.abspath(f) == os.path.abspath(__file__): continue

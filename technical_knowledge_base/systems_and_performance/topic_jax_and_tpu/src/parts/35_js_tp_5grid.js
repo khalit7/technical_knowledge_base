@@ -28,7 +28,7 @@
       b+=T.rect(ox+i*c[0]*sc,yA+k*c[2]*sc,c[0]*sc,c[2]*sc,{fill:col,op:mk.a?.9:.45,st:col,sw:mk.a?2:1,dash:mk.a?'':'3 2'});
       b+=T.rect(ox+i*c[0]*sc,yO+j*c[1]*sc,c[0]*sc,c[1]*sc,{fill:col,op:.6,st:col,sw:2});
       b+=T.rect(ox+k*c[2]*sc,yB+j*c[1]*sc,c[2]*sc,c[1]*sc,{fill:col,op:mk.b?.9:.45,st:col,sw:mk.b?2:1,dash:mk.b?'':'3 2'})}
-    b+=T.tx(ox,yA-4,'A drawn transposed: 4,096 rows run left to right, K = 512 down',{fs:9.5,fill:'var(--mute)'});
+    b+=T.tx(ox,yA-4,'A transposed: 4,096 rows across, K = 512 down',{fs:9.5,fill:'var(--mute)'});
     b+=T.tx(ox+bw+8,yB+bh-1,'B [512 x 128], K left to right',{fs:9.5,fill:'var(--mute)'});
     el.innerHTML=T.svg(W,H,b,'Matrices A, B and O with the current Pallas blocks');
     const vm=2*(c[0]*c[2]+c[2]*c[1])*2+2*c[0]*c[1]*4;const steps=ORD.length;

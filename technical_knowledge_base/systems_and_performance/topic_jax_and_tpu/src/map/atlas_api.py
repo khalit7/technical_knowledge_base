@@ -45,8 +45,8 @@ P = [
       why="vLLM TPU (tpu-inference) serves JAX and unchanged PyTorch model code behind the usual vLLM API; SGLang-JAX is the second engine.",
       hw={"nvidia": "On NVIDIA GPUs, serve with vLLM or SGLang on PyTorch; JAX serving engines are TPU-first.", "amd": "Same: the JAX engines target TPUs."},
       avoid=["jetstream"]),
- dict(id="pytpu", label="Run existing PyTorch code on TPU", stack=["torchax", "tpuinf", "torchtpu"],
-      why="Today: torchax runs torch code through JAX (and vLLM TPU uses it for serving). Next: TorchTPU, announced in 2026 as native PyTorch on TPU, not public as of 2026-10-15.",
+ dict(id="pytpu", label="Run existing PyTorch code on TPU", stack=["torchtpu", "tpuinf", "torchax"],
+      why="TorchTPU runs PyTorch natively on TPU (open-sourced 20 October 2026), and vLLM and SGLang TPU engines are built on it; torchax still runs torch code through JAX, the route vLLM TPU took first.",
       hw={"nvidia": "Not needed: PyTorch runs natively on NVIDIA GPUs.", "amd": "Not needed: PyTorch runs on ROCm.", "cpu": "torchax runs on the JAX CPU backend for testing."},
       avoid=["torchxla"]),
  dict(id="port", label="Port a PyTorch model to JAX", stack=["nnx", "optax", "torchax", "orbax"],
@@ -92,6 +92,6 @@ EV = [
  ["2025-10", "torch", "torchax (bridge)", "torchax", "torchax moves to its own repository (google/torchax, 2025-10-03)."],
  ["2025-11", "otrain", "Marin (Levanter inside)", "marin", "Levanter merged into the Marin monorepo."],
  ["2026-01", "serve", "vLLM TPU (tpu-inference)", "tpuinf", "JetStream's archival notice: functionality moved to tpu-inference."],
- ["2026-04", "torch", "TorchTPU (announced, preview)", "torchtpu", "TorchTPU announced; it will replace PyTorch/XLA once public."],
+ ["2026-04", "torch", "TorchTPU (native PyTorch)", "torchtpu", "TorchTPU announced in April and open-sourced on 20 October 2026, replacing PyTorch/XLA."],
  ["2026-08", "cluster", "Cluster Toolkit", "clustertk", "XPK deprecated in favour of Cluster Toolkit."],
 ]

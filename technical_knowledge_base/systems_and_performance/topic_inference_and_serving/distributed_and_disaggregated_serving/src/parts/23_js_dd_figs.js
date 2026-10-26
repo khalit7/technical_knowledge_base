@@ -13,8 +13,8 @@
   // 1. hero: five splits, what crosses and over which link
   function hero(){
     const el=$('dd-hero');if(!el)return;
-    const W=RD.width(el),narrow=W<600,rowH=narrow?74:64,G=4,bw=narrow?26:48,gap=narrow?10:22,bh=26,px=4;
-    const picW=G*bw+(G-1)*gap,tx=px+picW+(narrow?12:22);
+    const W=RD.width(el),narrow=W<600,rowH=narrow?74:64,G=4,bw=narrow?24:48,gap=narrow?10:22,bh=26,px=4;
+    const picW=G*bw+(G-1)*gap,tx=px+picW+(narrow?10:22);
     const rows=[
       ['rep','Replicas: more users','each GPU a whole copy','nothing','none: a router in front'],
       ['tp','Tensor parallel: lower latency','each GPU a slice of every layer',MB(C.tp_bytes['8'].per_token_sent)+' per token per GPU','NVLink, inside one server'],
