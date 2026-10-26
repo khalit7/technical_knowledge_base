@@ -25,3 +25,6 @@ Why about 27 minutes: the topic starts from zero and its children run 27 to 43 m
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 486 units drafted by `ledger.py init` from the page before the close: core 346, owned 46 (Query planning 12, Transactions 11, SQL and data modelling 7, Storage engines 5, Search 4, NoSQL 2, Analytics 2, Scaling 1, Running Postgres 1, Caching 1), fat 94 (48 glossary entries restating inline definitions, old section-preview cards, navigation, widget instructions of the retired animations, wind-ups and headings; each has a `note`). Three units no child carried were kept here instead of cut: the SQLite deployment count (map, Embedded row), "business rules beyond constraints stay your code's job" and "serializable also catches anomalies you did not think of" (section 3).
+
+## 2026-10-26 ownership sweep
+Families table: the vector row is now "Vector stores (pgvector, Qdrant, Milvus, Pinecone, Turbopuffer)" and its owner cell links Search and vector databases (sections 7 to 12; Turbopuffer and the dedicated stores in section 12).
