@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const R = createRequire(path.resolve(here, '../../../../../html_utils/package.json'));
 const puppeteer = R('puppeteer');
-const file = 'file://' + path.resolve(here, '../index.html');
+const file = 'file://' + path.resolve(here, '../index.html') + '#t-read';  // the tab script remembers the last tab; start every pass on The paper
 const shots = path.resolve(here, '../.shots'); fs.mkdirSync(shots, { recursive: true });
 const SWEEP = JSON.parse(fs.readFileSync(path.join(here, 'inputs/toy.json')));
 const RC = JSON.parse(fs.readFileSync(path.join(here, 'inputs/recompute.json')));

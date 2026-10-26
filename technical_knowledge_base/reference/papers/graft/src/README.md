@@ -1,6 +1,6 @@
 # GRAFT: page source
 
-`sh build.sh` writes `../index.html`. The paper is arXiv 2610.17062v1 (12 October 2026; its arXiv title is "Gradient Routing Localizes and Removes Unintended Behaviors in RL", the code README and the knowledge base add the "GRAFT:" prefix). The Papers row is new (created by the lead at publish), so there is no `live.md` and coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces copied from the Sharpening Tax page (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs`, `mk_paper.py`, `build.sh`); `check_page.mjs`, `mk_coverage.py`, `recompute.py` and the rest written for this paper.
+`sh build.sh` writes `../index.html`. The paper is arXiv 2610.17062v1 (12 October 2026; its arXiv title is "Gradient Routing Localizes and Removes Unintended Behaviors in RL", the code README and the knowledge base add the "GRAFT:" prefix). The Papers row is new (created by the lead at publish), so there is no `live.md` and coverage runs against the paper's own claims. Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces copied from the Sharpening Tax page (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `mk_paper.py`, `build.sh`); `check_page.mjs`, `mk_coverage.py`, `recompute.py` and the rest written for this paper.
 
 ## Tabs
 
@@ -38,7 +38,12 @@
 
 ## Length
 
-Reading 20 minutes (4,578 words at 230 a minute) plus 1 in closed details. A paper page owns every detail of its paper; the Reading carries three result sections because the paper's three experiments make different claims (preemption on Countdown, removal of learned undetected hacks in the toys, propensity under elicitation in SFT), and the verdict depends on all three.
+Reading 19 minutes (4,389 words at 230 a minute) plus 2 in closed details (contract pass, 26 October 2026: the replay check of Figure 2 and the Table 2 transfer and Appendix D.3 paragraph moved into closed blocks, as provenance and per-item detail). A paper page owns every detail of its paper; the Reading carries three result sections because the paper's three experiments make different claims (preemption on Countdown, removal of learned undetected hacks in the toys, propensity under elicitation in SFT), and the verdict depends on all three.
+
+## Contract pass (26 October 2026, after the routine audit)
+
+- The tab script is the skill template `99_js_tabs.js` (storage key `gr-tab`) in place of the old `90_js_tabs.js`, so links like `#t-toy` open their tab; `check_page.mjs` loads the page at `#t-read` so a remembered tab never changes where a pass starts.
+- `src/ledger.json` drafted with `ledger.py init` and labelled by `label_ledger.py` (227 units: core 193, depth 32, owned 2: GRPO on RL for LLMs, monitor obfuscation on Reward Hacking); `ledger.py check` problems 0.
 
 ## Checks (26 October 2026)
 
