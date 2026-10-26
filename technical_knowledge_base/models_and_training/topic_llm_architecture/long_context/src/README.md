@@ -78,3 +78,5 @@ still go: the levers table at the top (it is the one-screen map, kept) and the p
 
 ## For the Positional Encodings child
 `past/out/past.json` and `kv/out/map.json` are reusable as is.
+
+2026-10-26 (final follow-up sweep): the effective-context paragraph names Liu et al.'s lost-in-the-middle U (owned by Long-context and multimodal benchmarks, linked there); the Proactive memory agent paper page sends readers here for it. MiniMax presets for the calculator were proposed and not added.
