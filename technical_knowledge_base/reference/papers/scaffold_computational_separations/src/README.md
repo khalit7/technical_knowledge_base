@@ -1,6 +1,6 @@
 # Understanding the Benefits of Scaffolds through Computational Separations: page source
 
-`sh build.sh` writes `../index.html`. The paper (arXiv 2610.27157v1, 19 October 2026, Gai, Block and Risteski) was added by the 2026-10-26 update-kb run; its Papers row did not exist yet, so there is no `live.md` and coverage runs against the paper's own claims (`inputs/paper_v1.txt`, the saved arXiv HTML text). Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `90_js_tabs`, `mk_paper.py`, `build.sh`, `extract_paper.py`) copied via the Sharpening Tax page; `mk_coverage.py` and `check_page.mjs` rewritten for this paper. `11_js_ui.js`'s step animation no longer starts by itself (never autoplay, 2026-10-23).
+`sh build.sh` writes `../index.html`. The paper (arXiv 2610.27157v1, 19 October 2026, Gai, Block and Risteski) was added by the 2026-10-26 update-kb run; its Papers row did not exist yet, so there is no `live.md` and coverage runs against the paper's own claims (`inputs/paper_v1.txt`, the saved arXiv HTML text). Built from `.claude/skills/explainer-page/page-kinds/paper.md` with the shared pieces (`01_css`, `05z_errbox`, `10_js_common`, `11_js_ui`, `14_js_charts`, `mk_paper.py`, `build.sh`, `extract_paper.py`) copied via the Sharpening Tax page; `mk_coverage.py` and `check_page.mjs` rewritten for this paper. `11_js_ui.js`'s step animation no longer starts by itself, and a mode switch stops on step 1 (never autoplay, 2026-10-23). The tab script is the skill template `99_js_tabs.js` (storage key `sc-tab`), so links like `#t-run` open their tab.
 
 ## Tabs
 
@@ -16,7 +16,7 @@
 - **The live ingredient is a simulation of the theorem's mechanism, not a trained model.** The paper is theory plus distillation experiments that need its traces and models (none released). The theorem is the part that can be run exactly: its harness is plain breadth-first search over an edge-lookup oracle. The fixed-depth "reader" is one standard constant-depth strategy (repeated Boolean squaring), labelled as such; it illustrates why depth matters and cannot show that every constant-depth circuit fails (that is the open NL vs TC0 question). A tiny transformer student trained on BFS traces was considered and rejected (`viz_ideas.md` row 11).
 - **Figures decoded, not tables transcribed.** The paper prints nearly every result as a chart. `decode_figs.py` reads the e-print's vector PDFs (bars, tick marks, error bars, dashed reference lines) with PyMuPDF; the 91 bars that carry a printed label agree with it to the label's precision. Values without labels (Figures 2b and 9, Figure 13c intervals, the teacher lines) are marked decoded. Figures 6 to 8 and 10 (line and scatter panels of ablations, no printed values) are summarised in words only.
 - **No "Then and now"**: the paper is a week old.
-- **Reading time** 21 minutes (counted by the build, predict reveals included). The page owns every detail of the paper; the knowledge the topic pages own (chain of thought as computation on Test-time compute and reasoning, distillation recipes, scaffold sensitivity) is linked, not retaught.
+- **Reading time** 20 minutes plus 1 in closed details (counted by the build, predict reveals included). The page owns every detail of the paper; the knowledge the topic pages own (chain of thought as computation on Test-time compute and reasoning, distillation recipes, scaffold sensitivity) is linked, not retaught.
 
 ## Corrections and findings (against the paper's text and the brief's summary)
 
@@ -31,6 +31,12 @@
 - Reproduced: calls per tree (sum of d^i) equal Figure 12d; Figure 1's teacher lines equal Figure 8's caption (0.765/0.605, 0.99/0.98); Figure 2c equals Table 2's BT rows; A* gap 0.65 to 0.13 and VGB students passing the teacher (Appendix C.1).
 - Derived: Table 1's parameter counts fit 12 L d^2 + 2,289 d within 3.2% (configs not released); binomial standard errors for every Qwen3 gap; Lemma 1 on 100 vertices (14 tokens, 16,384 transcripts).
 
+## Contract pass (26 October 2026, after the routine audit)
+
+- **Closed depth**: Lemma 1 on numbers with the Part (ii) reduction, the size sweep's teacher-size point, and the paper's bookkeeping slips (with the Figure 5b shape) are closed `<details>`; the theorem statement, the BFS box, why depth is the limit, what the lab does and does not show, and what the theorem does not say stay in core. "You need" moved above New terms. The BFS formula is two lines (it overflowed at 920 px). Trust: small-tree gaps are 1 to 4 points.
+- **Takeaway scoped to matched trees** (`paper.json`, card): the old one led with 43.6% (85 calls, no student) against 35.8% (the best student, 7 calls), the comparison the trust section calls the flaw. Matched trees from Figure 5a: 13 calls 40.4 against 35.2, 15 calls 38.0 against 30.0, 21 calls 41.4 against 31.8, 40 calls 42.8 against 26.8; trees of up to 7 calls differ by 1.0 to 4.0. The first headline stat is now the 40-call tree, 42.8 against 26.8. The Notion Takeaway property needs the same text.
+- **Ledger**: `src/ledger.json` drafted with `ledger.py init` and labelled by `label_ledger.py` (224 units: core 215, depth 7, owned 2); `ledger.py check` problems 0.
+
 ## Files
 
 - `extract_paper.py`: arXiv HTML v1 to `inputs/paper_v1.txt` and `inputs/table_*.txt`; anchors in `inputs/anchors.txt`.
@@ -41,4 +47,4 @@
 
 ## Checks (26 October 2026)
 
-`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs. `check_page.mjs`: 0 problems. `mk_coverage.py`: 49 of 49. Everything here is deterministic CPU work on a Linux cloud container; nothing was trained.
+`checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0, 4 tabs (rerun after the contract pass). `check_page.mjs`: 0 problems. `mk_coverage.py`: 49 of 49. Everything here is deterministic CPU work on a Linux cloud container; nothing was trained.

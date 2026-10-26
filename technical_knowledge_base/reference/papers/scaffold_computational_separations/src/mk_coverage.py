@@ -19,7 +19,7 @@ C = [
  ('Contribution 1: same-size students cannot internalise VGB and A*, across ablations', R + ', Same-size students', ['Neither student reaches the teacher', 'twenty times more traces barely moves the student']),
  ('Contribution 2: gap closes with larger student, easier scaffold, longer CoT', R + ', Closing the gap', ['A bigger student', 'A simpler harness', 'A longer chain of thought']),
  ('Contribution 3: formal obstruction via STCON, AC0 lookups, TC0 students, NL not in TC0', R + ', The theorem', ['Theorem 1.', 'Assume NL ⊄ TC⁰']),
- ('Contribution 4: Branching on Qwen3-1.7B, 43.6% at 85 calls, student near 36%, LoRA rank +2.2, 4B closes', R + ', Branching; card', ['43.6 vs 35.8', '+1.8 / +2.2', '"LoRA rank improves the student by only 2.2 percentage points" is the full fine-tune']),
+ ('Contribution 4: Branching on Qwen3-1.7B, 43.6% at 85 calls, student near 36%, LoRA rank +2.2, 4B closes', R + ', Branching; card', ['42.8 vs 26.8', 'the 85-call tree (4,3) scores 43.6%', '+1.8 / +2.2', '"LoRA rank improves the student by only 2.2 percentage points" is the full fine-tune']),
  ('Inclusions AC0 in TC0 in L in NL in P; logspace uniformity', R + ', ladder figure', ['AC⁰ ⊆ TC⁰ ⊆ L ⊆ NL ⊆ P']),
  # section 2
  ('Dyck: 4 types, length 64, ID probs 0.1..0.4, OOD reversed', R + ', Same-size students', ['64 properly nested brackets of 4 types']),
