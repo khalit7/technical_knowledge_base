@@ -25,7 +25,7 @@ lc, cc = sum(map(pr, L)), sum(map(pr, C))
 check(abs(cc - an["cc"]["cost"]) < 1e-6, "Claude Code cost reproduces CLI: %.6f vs %.6f" % (cc, an["cc"]["cost"]))
 check(abs(lc - cc) / cc < 0.1, "two land close in dollars: %.4f vs %.4f" % (lc, cc))
 o = A["sets"]["tb20"]["rows"]; opus = [r for r in o if r["m"] == "Claude Opus 4.6"]
-check(len(opus) == 9 and "nine agents in all" in html, "Opus 4.6 nine agents")
+check(len(opus) == 9 and "across nine agents" in html, "Opus 4.6 nine agents (caption pointing to Agentic benchmarks)")
 check(min(opus, key=lambda r: r["v"])["h"] == "Claude Code" and max(opus, key=lambda r: r["v"])["h"] == "Meta-Harness", "Opus 4.6 ends")
 blog = (HERE.parent.parent.parent.parent / "measurement/topic_benchmarks/agentic/src/inputs/arena_harness_tax_2026-09-16_text.txt").read_text()
 for s in ["2.0× as much as Pi and 1.6× as much as Codex on SWE-bench Lite", "within ±2% on SWE-bench Lite and within about ±5% on Terminal-Bench 2.0", "97.8% of attempts in Claude Code, 96.7% in Codex and 96.7% in Pi", "($1.33 vs $0.67)"]:

@@ -4,9 +4,9 @@
   const S=A.sets||{};if(!S.tb20)return;
   const KC={own:'var(--c1)',third:'var(--c2)',neutral:'var(--c3)',mini:'var(--c4)',vendor:'var(--c5)'};
   const KN={own:"model provider's own harness",third:'third-party harness',neutral:'Terminus 2 (the benchmark\'s neutral agent)',mini:'mini-SWE-agent, bash only',vendor:"vendor's launch figure"};
-  const ORDER=['tb20','tb21','swev','htswe','httb'];
+  const ORDER=['htswe','httb'];  // controlled same-model comparisons only; public-board spreads live on Agentic benchmarks section 3
   $('atl-sset').innerHTML=ORDER.map(k=>'<option value="'+k+'">'+esc(S[k].title)+'</option>').join('');
-  let cur='tb20',met='v';
+  let cur='htswe',met='v';
   function rowsOf(){const r=S[cur].rows;const by={};r.forEach(x=>{(by[x.m]=by[x.m]||[]).push(x)});
     const val=x=>met==='c'&&x.c!=null?x.c:x.v;
     return Object.entries(by).map(([m,xs])=>({m,xs,max:Math.max(...xs.map(val)),min:Math.min(...xs.map(val))})).sort((a,b)=>b.max-a.max)}

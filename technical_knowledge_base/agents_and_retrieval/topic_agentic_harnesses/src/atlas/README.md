@@ -22,3 +22,6 @@ Owner files: `parts/33_tab_atlas.html`, `parts/33_js_atl_a_data.js` (generated),
 
 ## Update pass 2026-10-26 (update-kb)
 `inputs/r1_vendor_cli.json`: "latest" moved to Claude Code 2.1.310 (npm, 23 Oct 2026), Codex 0.164.0 (23 Oct, GitHub releases) and Gemini CLI v0.65.0 (20 Oct), so the root names the same latest versions as its children; regenerated with `build_data.py`. In a cloud sandbox whose login name is an ordinary word the page uses, run `build_data.py` and `check_prose.py` with a neutral `USER`/`LOGNAME`/`HOME`: their private-string check otherwise trips on that word. Reading sections 5 to 7 gained one sentence each (monitors and the LiteLLM supply chain; hosted personal agents; harness distillation's limit); core 20.8 to 21.4 min, header unchanged (21).
+
+## 2026-10-26 ownership sweep
+"The harness changes the score": the chart (ORDER in 33_js_atl_c_scores.js) now offers only the controlled HarnessTax sets (htswe, httb); the public-board sets (tb20, tb21, swev) stay in the data for the numbers quoted in prose but are not charted. A caption links Agentic benchmarks section 3 for the leaderboard spread; the leaderboard bullets became one sentence plus a link (root ledger 604, 607, 614 owned there).
