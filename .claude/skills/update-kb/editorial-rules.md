@@ -10,6 +10,7 @@ How new material enters a page so the knowledge base reads like a reference, not
 ## Integrate, never append
 **A page must read as though its current state had always been true.** A first-time reader should not be able to tell which sentence was written this week.
 - No dated additions: not "Added 2026-09-21", not "Update:", not a section at the bottom holding this week's news, not a dated bullet on a list. If the page discusses the thing, revise the passage; if not, write it where it belongs.
+- **A volatile fact is a dated reading, not an addition.** A version, price, availability, leaderboard reading or incident goes in the provider page's dated lineup table, or in a closed `<details>` whose summary carries its read date ("as of 26 October 2026"; on a paper page "Since the paper (checked <date>)"), rewritten in place each run; or only in the issue. Never as present-tense core prose ("now", "the latest", "currently"). Core keeps the durable lesson the reading illustrates (teaching contract, `volatile` label).
 - When new material supersedes something, rewrite the old passage. Never leave both accounts.
 - A date inside a sentence is fine when it is part of the fact ("shipped in September 2026"); "added September 2026" is bookkeeping.
 - No notes to a future editor in page prose. Do the work now.
@@ -28,6 +29,8 @@ The commonest defect: a child page knows about something its root has never hear
 - One page owns a mechanism; others name it and link. Generic mechanism above, provider- or lab-specific detail below.
 - Two roots must not map the same ground; decide which through-line each carries.
 - **Move, then cut.** Before deleting a duplicate passage, check the owner carries every clause of it, caveats included.
+- Owners are listed in [../../../technical_knowledge_base/OWNERS.md](../../../technical_knowledge_base/OWNERS.md); look there before writing.
+- **A paper's method, numbers and evidence belong to its paper page** (OWNERS.md, Reference). A concept page states the result in a sentence or two, with the paper's scope (model, size, runs), and links the paper rather than retelling its numbers.
 
 ## The rule that explains most staleness
 **A fact on the root but not on the child that owns the subject is a staleness bug on the child.** Updates land on the root because it is the page being edited, and nobody goes back down. Every edit has a second half: open the owner and make it true there. Past examples: a root covered a new model generation while the provider page still called the old one current; a root had a new benchmark version while the benchmark's own page called the old one current.
@@ -46,7 +49,7 @@ A score moves with its harness, split, date and reporter, or not at all (the sam
 ## Claims that rot without anyone editing them
 - **A superlative is a dated statement wearing no date.** Give it its scope in the same sentence ("the top open-weight model on the aggregate indices").
 - **Close the window on present-tense claims**: "left through the summer of 2026 with no patch", not "still unpatched".
-- **No forward-looking dates** ("scheduled for 26 August"): prefer "the current line is X" plus a fact that dates itself.
+- **No forward-looking dates** ("scheduled for 26 August", "weights promised by 4 November"), in core or in a dated block: prefer "the current line is X" plus a fact that dates itself.
 - **Adoption as evidence, not trajectory**: "used in Kimi K2 and shipped in optax", not "landing in mainstream frameworks".
 - **A mitigation names what defeats it.**
 - **A saturation claim names the population** that saturated.
@@ -59,7 +62,7 @@ Release-driven intake is blind to everything without a product name. The largest
 A "current as of version X" line names the changelog that would falsify it.
 
 ## Two rulings
-- An **interview-ready summary** section stays: it is a rehearsal device, the one place restating is the point.
+- **Interview rehearsal** is optional and lives only in a closed block (teaching contract, 2026-10-23); an update never adds a summary section that restates the core.
 - **Do not expand acronyms the reader owns** (LLM, GPU, API, NLP, RAG); expand what a specialist in a neighbouring field would not know.
 
 ## Writing for the reader
@@ -73,9 +76,10 @@ An MSc-level AI engineer with production LLM experience; most fat comes from wri
 - No em-dashes; the rest of the house style is [../explainer-page/teaching/writing-style.md](../explainer-page/teaching/writing-style.md).
 
 ## Checks before publishing an update
-- Durable knowledge went into its owning page, not only into the issue, and not as a dated block.
+- Durable knowledge went into its owning page (OWNERS.md), not only into the issue; other pages carry one sentence and a link. Volatile facts sit in the provider page's dated table or a dated closed block, never in core prose; no forward-looking dates anywhere.
+- Paper claims (issue items, concept pages, takeaways) carry the paper's scope: model and size, runs, metric, matched comparisons, a theorem's conditions.
 - No bookkeeping dates; no month in a heading.
 - The root's map, tables and summary claims still tell the truth; children name the same latest versions as their roots.
 - A page with a video says what the video now misses.
-- Reading times recomputed for every changed page; root pointers to changed children still match.
+- Every changed page: header "Reading: N min, plus M in closed details." measured with `audit_pages.mjs` (230 words a minute); `ledger.py check` problems 0 where it has a ledger; `checkpage.sh` `fail=0`. Then `check_times.py --fix`, the pages it touched rebuilt, its AMBIGUOUS lines reported.
 - Every new link resolves to a page in `pages.json` that is not retired.

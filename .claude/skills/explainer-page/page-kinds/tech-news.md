@@ -29,7 +29,7 @@ The reader's questions: **"what happened, what connects it, and did it hold?"** 
 - **Further reading**: the knowledge base pages the items feed, the previous and next issues, the parent Tech news page, and the best resources, each with a time estimate.
 
 ## Content as data
-- **`live.md`**: the verbatim Notion fetch, extracted by script from the saved tool result (never retyped). A new issue written by the `update-kb` skill has no Notion original: its text is written into `src/issue.md`, which plays the same role (the issue's own words; later checks go in boxes beside it).
+- **`live.md`**: the verbatim Notion fetch, extracted by script from the saved tool result (never retyped). A new issue written by the `update-kb` skill has no Notion original: its text is written into `src/issue.md`, which plays the same role (the issue's own words; later checks go in boxes beside it). Because those words are frozen once published, they are checked before publishing, not after: an item about a paper is written from the paper, or from its paper page when the run builds one (build that page first), never from the blog or abstract. It says which model and size, single runs or seeds, which metric, matched comparisons rather than each side's best, and the conditions a theorem needs; no "first", "proves", "beats" or "consistently" without support. It quotes the paper page's takeaway rather than a new summary. The 2026-10-26 issue printed a blog's "about 30%", "nearly 20 points" (a different metric) and an unconditional theorem, and could only correct them in boxes.
 - **`mk_items.py`** parses it into `data/items.json`.
 - **`data/annotations.json`** holds:
   - the issue window and strip axis, glance texts, and section leads;

@@ -11,7 +11,7 @@ Approved on Attention Is All You Need (2026-10-02); used for all 63 rows of the 
 ## Inputs
 - **An existing row** (title, Notion id, folder from `technical_knowledge_base/pages.json`, entries with `"parent": "Papers"`):
   - fetch the row page read-only and save it verbatim to `src/live.md` with a script (`save_live.py`), never retyped;
-  - the row's body is only the link line to the site page. The database properties (Paper, Takeaway, Topics, Year) stay in Notion and are not edited. Use the Takeaway on the headline card, and flag a wrong Takeaway to Khalid rather than editing it.
+  - the row's body is only the link line to the site page. The database properties (Paper, Takeaway, Topics, Year) stay in Notion and are not edited. Use the Takeaway on the headline card, and flag a wrong Takeaway to Khalid rather than editing it (the `update-kb` pass writes the Takeaway of the rows it creates, scoped as below).
 - **A new paper Khalid names** (title, arXiv link or PDF): the row must exist in the Papers database first. Ask him to create it, or whether to create it (its properties are his). The periodic `update-kb` pass creates rows itself for papers central to a topic (its step 6). There is no old body, so coverage runs against the paper's own claims.
 - **Either way**: fetch the paper itself (arXiv HTML where it exists, else the PDF text or the publisher page) and read it until you could teach it ([../understand/research.md](../understand/research.md)). Keep small extracts in `src/inputs/`, never PDFs or files over about 1 MB.
 
@@ -62,10 +62,23 @@ Three outside ideas shaped it:
 4. **Then and now** (optional): what later work changed and what survived, what it improved on in earlier work, or both. Built as a step-by-step morph or a recipe card that changes line by line, each step with its paper and knowledge base link. Worth it for papers whose design became a standard (architectures, training recipes, systems); skip it for a result paper.
 5. **Further reading**, generated from `paper.json`:
    - the paper, the code, and the best interactive explainers, each with a time estimate;
-   - connected knowledge base paper pages and topic pages (`https://app.notion.com/p/<id>`);
+   - connected knowledge base paper pages and topic pages (`https://app.notion.com/p/<id>` in `paper.json`; the site build rewrites them to site pages, [../../sync-kb-github/site.md](../../sync-kb-github/site.md));
    - the parent Papers database (`3c65c17b0d0d81549dbedb27e8f2a26f`).
 
 Tabs may merge when the content is thin (a short paper can put its tables in Reading) or be renamed to match what the reader does; say why in `src/README.md`.
+
+## Teaching contract on a paper page (the 2026-10-26 light pass)
+Every paper was brought to the [teaching contract](../teaching/teaching-contract.md) on 2026-10-25 and 26; a new paper starts there. Each folder's `src/README.md` has a "light pass" section (`reference/papers/sharpening_tax` and `.../agora` are good examples).
+- **Top, after the card**: "The idea in one sentence"; one hero (the paper's own figure when its licence allows, embedded as WebP and credited under it and in `img/CREDITS.md`, otherwise redrawn as SVG, with a title saying what to notice); "You need" (links to the owners of what the paper assumes); new terms. In that order, at body size.
+- **Owned elsewhere**: a general mechanism the paper uses (UCB, bootstrap, temperature) gets a sentence and a link to its owner ([OWNERS.md](../../../../technical_knowledge_base/OWNERS.md)); the page owns only the paper's method, numbers and evidence.
+- **Closed `<details>`**: proofs and derivations, provenance and "how the replay was checked" boxes, per-item and per-figure lists, hyperparameters, bookkeeping slips, version-to-version changes, related work, the bullets of What it takes (one open summary paragraph stays). The argument in the paper's order, the verdict and How much to believe stay open. A page with no closed block is a defect.
+- **Volatile**: release status, code availability, later versions sit in one dated closed block, "Since the paper (checked <date>)", never in open prose.
+- **Tabs**: a tab stays only when it is a tool used across the page (a replay, a toy, the tables); a tab explaining one mechanism moves into the Reading flow.
+- **Nothing moves before a click**: `makeAnim` waits on step 1 and a mode switch pauses on step 1; `check_page.mjs` fails if an animation draws a frame before a click and opens every closed block. Tabs use the template `99_js_tabs.js` from [../build/templates/](../build/templates/) (storage key `<prefix>-tab`, keeping the page's `data-to` scroll), never the old `90_js_tabs.js`.
+- **Header**: "Reading: N min, plus M in closed details.", both numbers measured (`html_utils/audit_pages.mjs`, 230 words a minute; several pages write them to `src/reading.json` and `build.sh` fills the header from it).
+- **Takeaway scoped to the paper's own evidence**: the model and size it was shown on, single runs or seeds, the metric, matched comparisons rather than each side's best point (a headline that compares different settings is the flaw the trust section names, so it cannot lead), a theorem's conditions, no "first", "proves", "beats" or "consistently" without support. One text in `paper.json` (plus `takeaway_note` when it needs a qualifier), the card, `live.md` where the page has one, `mk_coverage.py` and the row's Takeaway property.
+- **Ledger**: once the page is final, `python3 html_utils/ledger.py init <folder>`, label every unit (paper text `core`, provenance `depth`, mechanisms taught elsewhere `owned:<path>`, the release block `volatile`), keys on the built page; `ledger.py check` problems 0. `src/README.md` records the length judgement and ledger counts.
+- **Privacy in extracts**: `extract_paper.py` replaces author emails with "[email removed]" and long dashes with `--`.
 
 ## The live ingredient, by kind of paper
 Choose it by what the paper is, and only if it teaches more than reading.
@@ -117,7 +130,8 @@ When you copy `mk_coverage.py` from another paper, **replace its item list entir
 
 ## Checks
 - `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `clipped 0`.
-- `node src/check_page.mjs` passes.
+- `node src/check_page.mjs` passes, with no animation frame before a click.
+- `python3 html_utils/ledger.py check <folder>` prints problems 0; the header matches the measured minutes.
 - `check_forward.py` passes, and `mk_coverage.py` accounts for every item.
 - Look at screenshots of every tab (cropped) and mid-animation frames.
 - Exercise every control by DOM clicks (a sticky nav swallows coordinate clicks) at 390 dark and 920 light: no errors, NaN, undefined, sideways scroll, text under 11 px or overlap.
@@ -156,7 +170,7 @@ Progress is in `pages.json`. A paper with status `not_migrated` whose folder alr
 2. **Measure before claiming.** "About 0.1%" train/test overlap and "1.1 billion sentences" were first guesses; measuring gave 49% and 540.8 million. Every number about the toy model comes from a script, from the start.
 3. **Design the toy task for the ablations you want to show.** Positional encoding failed spectacularly (3.6%) but one head did not fail at all; a task with two simultaneous dependencies per word (agreement plus reordering) would probably make the head count matter. Decide which variants should differ before training, then check that they do.
 4. **Start from the reference folder.** Copy its `src/` pieces rather than adapting another page's CSS and helpers by hand.
-5. **Keep the Reading tab near the old length.** It came out at 14 minutes against the old page's 9, because the paper page owns every detail of the paper; fold long lists into details blocks (later pages ran 18 to 22 minutes plus closed details).
+5. **Judge the Reading tab's length by its ledger, not by the old page.** It came out at 14 minutes against the old page's 9, because the paper page owns every detail of the paper; long lists, provenance and proofs go into closed details blocks (the 2026-10-26 light pass left most papers at 16 to 28 minutes of core plus closed details, each with its length judgement in src/README.md).
 6. **Test with DOM clicks.** A sticky nav silently swallowed puppeteer's coordinate clicks; `check_page.mjs` clicks through the DOM.
 7. **Pick what you draw by measurement, not by eye.** The page draws the attention head whose weights best match the rule alignment and says which and how well (over 90% on the default sentence), so the choice is reproducible.
 
