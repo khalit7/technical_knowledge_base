@@ -53,3 +53,5 @@ No `live.md` or `coverage.json`: the page was new, with no old text; since 2026-
 
 ## Topic close (2026-10-24)
 Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
+
+2026-10-26 (final follow-up sweep): the network-storage reference block's Lustre row is trimmed to what a checkpoint writer needs (metadata is the shared bottleneck) and links Storage and data movement, which owns Lustre's architecture and striping (ledger unit 283 and one new unit `owned:`; 284 re-keyed). The object-store, FUSE and GPUDirect Storage rows stay: they are semantics this section teaches.
