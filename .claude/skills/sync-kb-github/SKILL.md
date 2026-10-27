@@ -6,7 +6,7 @@ description: Publish the Technical knowledge base from this repository (the sour
 # sync-kb-github
 
 **This repository is the source of truth. The reading site shows it; Notion links to it.** Since 2026-10-23:
-- **The site**: https://khalit7.github.io/technical_knowledge_base/ is built from `main` by `.github/workflows/site.yml` on every push that touches a page (`html_utils/build_site.py` plus Pagefind search). Its landing page carries the learning map, built from each topic page's `"prereqs"` in `pages.json` by `html_utils/learning_map.py`; an unknown prerequisite id or a cycle fails the build, so run `python3 html_utils/learning_map.py check` before every push (`sync_status.py` reports its errors too). Public to read; only Khalid can push. Details: [site.md](site.md).
+- **The site**: https://khalit7.github.io/technical_knowledge_base/ is built from `main` by `.github/workflows/site.yml` on every push that touches a page (`html_utils/build_site.py` plus Pagefind search). Its landing page opens with What's new (the latest tech-news issue and the newest papers, `html_utils/whats_new.py`), then the learning map, built from each topic page's `"prereqs"` in `pages.json` by `html_utils/learning_map.py`; an unknown prerequisite id or a cycle fails the build, so run `python3 html_utils/learning_map.py check` before every push (`sync_status.py` reports its errors too). Public to read; only Khalid can push. Details: [site.md](site.md).
 - **Notion**: the same tree of pages under "Technical knowledge base" (`3c65c17b-0d0d-81c7-b646-e548e65d9446`). Each knowledge-base page holds exactly one link line to its site page, then its video (if it has one) and its child pages. Nothing else. Notion never holds knowledge.
 
 ## The link line
@@ -39,7 +39,7 @@ Use the Notion connector (load its tools with ToolSearch). Space id `13e79c56-eb
 MP4s are never committed (`.gitignore` blocks them). A page's HyperFrames project lives in `<page>/video/`; the rendered MP4 is uploaded to the page's Notion page by the `explainer-video` skill, under the link line, and exists only there.
 
 ## Pages not migrated yet
-A `pages.json` entry with status `not_migrated` (Papers, Tech news: containers with no page of their own) is listed on the site as a list of its children; its Notion page holds its database or child pages.
+A `pages.json` entry with status `not_migrated` (Papers, Tech news: containers with no page of their own) is listed on the site as cards of its children (`html_utils/whats_new.py`); its Notion page holds its database or child pages.
 
 ## Report
 Pages committed and pushed, the deploy run's result, Notion pages created, converted, renamed or moved, anything found in Notion that was not in the repository.

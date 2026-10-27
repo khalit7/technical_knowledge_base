@@ -2,7 +2,7 @@
 
 Floor: `technical_knowledge_base/models_and_training/topic_llms/src/parts/35_*` (built 2026-10-01/02), whose tab will be
 replaced by a link to this page. Every claim was checked against the primary source (saved text of the paper pages in
-`reference/papers/*/src/inputs/`, arXiv HTML fetched 2026-10-18, configs, transformers 5.20.1 source). Status:
+`whats_new/papers/*/src/inputs/`, arXiv HTML fetched 2026-10-18, configs, transformers 5.20.1 source). Status:
 **carried** (same claim, verified), **corrected** (claim changed, why), **replaced** (an illustrative visual replaced by a
 recorded one), **dropped** (with the reason). Where on this page: Reading section (s0 to s9), tab.
 

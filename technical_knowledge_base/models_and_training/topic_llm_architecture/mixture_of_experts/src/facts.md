@@ -1,6 +1,6 @@
 # Verified facts used on the MoE page (2026-10-18)
 
-Published (sources read 2026-10-18; the paper pages' saved texts in `reference/papers/*/src/inputs/` or arXiv HTML):
+Published (sources read 2026-10-18; the paper pages' saved texts in `whats_new/papers/*/src/inputs/` or arXiv HTML):
 - Switch (arXiv 2101.03961 v3): aux loss alpha N sum f_i P_i, eq. 4 to 6; alpha 1e-2 after a sweep 1e-1 to 1e-5, "found 10^-2 balanced load quickly without interfering with training loss"; Shazeer et al. "conjectured that routing to k>1 experts was necessary in order to have non-trivial gradients to the routing functions" (section 2.1); No-Token-Left-Behind "we found no empirical benefits" (appendix B); selective precision: router in float32.
 - ST-MoE (arXiv 2202.08906 v2): z-loss (1/B) sum (log sum e^x)^2, c_z = 0.001; Table 4 baseline stable 4/6 (quality -1.755), update clipping 3/3 (-4.206), z-loss 3/3 (-1.741); "The train capacity factor is 1.25 and the eval capacity factor is 2.0"; top-2 +0.004 over top-1 at train CF 1.25 (Table 8); recommends "top-2 routing with 1.25 capacity factor".
 - Shazeer 2017 (arXiv 1701.06538): G(x) = Softmax(KeepTopK(H(x), k)), H(x) = x W_g + StandardNormal() Softplus(x W_noise).

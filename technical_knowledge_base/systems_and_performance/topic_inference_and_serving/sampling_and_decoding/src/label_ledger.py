@@ -4,7 +4,7 @@ p = pathlib.Path(__file__).with_name('ledger.json')
 U = json.loads(p.read_text())
 SPEC = 'systems_and_performance/topic_inference_and_serving/speculative_decoding'
 GDM = 'models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma'
-NEWS = 'reference/tech_news/2026_08_24_tech_news'
+NEWS = 'whats_new/tech_news/2026_08_24_tech_news'
 L = {  # id: (label, key, note)
  1: ('fat', '', 'header blurb rewritten'), 2: ('core', 'Every distribution on this page is real', ''),
  3: ('fat', '', 'parent link and date in the new header'), 4: ('fat', '', 'old reading-time line'),

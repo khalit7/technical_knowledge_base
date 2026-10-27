@@ -30,7 +30,7 @@ The commonest defect: a child page knows about something its root has never hear
 - Two roots must not map the same ground; decide which through-line each carries.
 - **Move, then cut.** Before deleting a duplicate passage, check the owner carries every clause of it, caveats included.
 - Owners are listed in [../../../technical_knowledge_base/OWNERS.md](../../../technical_knowledge_base/OWNERS.md); look there before writing.
-- **A paper's method, numbers and evidence belong to its paper page** (OWNERS.md, Reference). A concept page states the result in a sentence or two, with the paper's scope (model, size, runs), and links the paper rather than retelling its numbers.
+- **A paper's method, numbers and evidence belong to its paper page** (OWNERS.md, What's new). A concept page states the result in a sentence or two, with the paper's scope (model, size, runs), and links the paper rather than retelling its numbers.
 
 ## The rule that explains most staleness
 **A fact on the root but not on the child that owns the subject is a staleness bug on the child.** Updates land on the root because it is the page being edited, and nobody goes back down. Every edit has a second half: open the owner and make it true there. Past examples: a root covered a new model generation while the provider page still called the old one current; a root had a new benchmark version while the benchmark's own page called the old one current.

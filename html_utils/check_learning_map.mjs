@@ -48,7 +48,7 @@ pages.forEach(p => (p.aliases || []).forEach(a => byId[a.replace(/-/g, '')] ??= 
 const urlOf = p => '/' + p.path.replace(/^technical_knowledge_base\//, '') + '/';
 const pre = p => (p.prereqs || []).map(r => byId[r.replace(/-/g, '')]).filter(Boolean);
 const closure = (p, s = new Set()) => { for (const q of pre(p)) if (!s.has(q)) { s.add(q); closure(q, s) } return s };
-const topicPages = pages.filter(p => p.status === 'html_only' && !p.path.includes('/reference/') && fs.existsSync(path.join(ROOT, p.path, 'index.html')));
+const topicPages = pages.filter(p => p.status === 'html_only' && !p.path.includes('/whats_new/') && fs.existsSync(path.join(ROOT, p.path, 'index.html')));
 const byPath = Object.fromEntries(pages.map(p => [p.path, p]));
 const stageMemo = new Map();
 const stage = p => { if (!stageMemo.has(p)) stageMemo.set(p, 1 + Math.max(-1, ...pre(p).map(stage))); return stageMemo.get(p) };

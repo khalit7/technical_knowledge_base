@@ -10,7 +10,7 @@ technical_knowledge_base/      the pages, in the same tree as Notion
     topic_llm_landscape/       index.html + src/, and one folder per child page
     ...
   systems_and_performance/  agents_and_retrieval/  measurement/
-  engineering_foundations/  reference/
+  engineering_foundations/  whats_new/
   pages.json                   every page: path, Notion title and id, status, Notion link state, video
   OWNERS.md                    which page owns each concept
 html_utils/                    build checks, audit, ledger, site build, publish status

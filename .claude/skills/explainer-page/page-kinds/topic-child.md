@@ -16,7 +16,7 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
    - each lab's `README.md`, `facts.md` and recorded `out/`;
    - the Reading notes.
 2. **The topic's shared `FACTS.md`** and the known findings in your brief. Never contradict them; append what you verify, and copy it into your own `src/facts.md`.
-3. **The siblings already built**, and the paper pages in `technical_knowledge_base/reference/papers/` on the same mechanism. Where a live toy or animation exists (DPO, GRPO, LoRA, NF4, ZeRO, pipeline, RoPE, DDPM, CLIP), link it and build what is missing.
+3. **The siblings already built**, and the paper pages in `technical_knowledge_base/whats_new/papers/` on the same mechanism. Where a live toy or animation exists (DPO, GRPO, LoRA, NF4, ZeRO, pipeline, RoPE, DDPM, CLIP), link it and build what is missing.
 4. **The paper pages' verified facts**, not the old page's: they carry corrections.
 5. **The old Notion page this child reuses**, if any, saved verbatim: unverified notes, the floor of what to carry ([migrate-or-fold.md](migrate-or-fold.md)).
 

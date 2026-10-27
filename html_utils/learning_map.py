@@ -74,7 +74,7 @@ class KB:
         return path
 
     def is_topic(self, p):
-        return (p.get("status") == "html_only" and "/reference/" not in "/" + p["path"] + "/"
+        return (p.get("status") == "html_only" and "/whats_new/" not in "/" + p["path"] + "/"
                 and (ROOT / p["path"] / "index.html").exists())
 
     def resolve(self, ref):

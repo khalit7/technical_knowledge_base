@@ -33,7 +33,7 @@ out['stat_text'] = {'interval_unpaired': [-2 - 100 * z * seU, -2 + 100 * z * seU
 
 # Physics re-grading attribution (paper page tables.json funnel)
 here = os.path.dirname(os.path.abspath(__file__))
-tab = json.load(open(os.path.join(here, '../../../../reference/papers/re_grading_six_physics_benchmarks/src/tables.json')))
+tab = json.load(open(os.path.join(here, '../../../../whats_new/papers/re_grading_six_physics_benchmarks/src/tables.json')))
 f = tab['funnel']
 attr = {}
 for b in ['HLE-Physics', 'PRISM-Physics', 'PHYBench', 'UGPhysics']:

@@ -43,7 +43,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Reference folders.**
 - `models_and_training/topic_generative_and_multimodal/src/parts/31_js_lt_2walk.js`: one image through each autoencoder model, five stages.
 - `models_and_training/topic_generative_and_multimodal/src/parts/35_js_vl_2pipe.js`: one image through SmolVLM-500M with real vectors, or LLaVA-1.5 with config-derived shapes (colours labelled illustrative).
-- `reference/papers/zero/src/parts/14_js_step.js`: one 8-layer training step on 2, 4 or 8 GPUs, two ZeRO stages at once, memory strips to scale (2 : 2 : 12 bytes), arrows for all-gather and reduce-scatter, counters against 2 or 3 times the parameter count.
+- `whats_new/papers/zero/src/parts/14_js_step.js`: one 8-layer training step on 2, 4 or 8 GPUs, two ZeRO stages at once, memory strips to scale (2 : 2 : 12 bytes), arrows for all-gather and reduce-scatter, counters against 2 or 3 times the parameter count.
 
 ---
 
@@ -115,7 +115,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Reference folders.**
 - `models_and_training/topic_generative_and_multimodal/vision_language_models/` (What the model saw tab): tiles and token positions from SmolVLM's real processor.
 - `models_and_training/topic_generative_and_multimodal/latent_diffusion_and_dits/` (Cross-attention viewer tab): precomputed SD 1.5 cross-attention maps for a prompt.
-- `reference/papers/attention_is_all_you_need_transformer/src/parts/`: every attention map (encoder, masked decoder, cross) of a live toy Transformer.
+- `whats_new/papers/attention_is_all_you_need_transformer/src/parts/`: every attention map (encoder, masked decoder, cross) of a live toy Transformer.
 
 ---
 
@@ -160,7 +160,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **Reference folders.**
 - `models_and_training/topic_generative_and_multimodal/src/parts/23_js_rd_drills.js`: the Reading tab's predict-then-reveal drills, numbers filled from the lab data.
-- `reference/papers/attention_is_all_you_need_transformer/src/parts/11_js_ui.js` (the predict widget) and `13_js_read.js`: three questions before the answers, with live demos.
+- `whats_new/papers/attention_is_all_you_need_transformer/src/parts/11_js_ui.js` (the predict widget) and `13_js_read.js`: three questions before the answers, with live demos.
 
 ---
 
@@ -187,7 +187,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **What makes it good.** Held-out accuracy reported with how the test set was drawn; JS against PyTorch agreement stated; ablations that do not reproduce the paper's effect at toy scale say so beside the paper's figure.
 
-**Reference folders.** `reference/papers/attention_is_all_you_need_transformer/` (35,184-parameter Transformer, logits within 1.1e-5 of PyTorch); `models_and_training/topic_generative_and_multimodal/src/parts/33_js_fw_2toy.js` (live flow networks).
+**Reference folders.** `whats_new/papers/attention_is_all_you_need_transformer/` (35,184-parameter Transformer, logits within 1.1e-5 of PyTorch); `models_and_training/topic_generative_and_multimodal/src/parts/33_js_fw_2toy.js` (live flow networks).
 
 ---
 

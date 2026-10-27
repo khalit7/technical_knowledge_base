@@ -1,7 +1,7 @@
 """Recompute every number this page derives, and write data/mx2_data.json (what the page embeds) and data/checks.json.
 
 Inputs: src/inputs/*.json (published tables cut by scripts/extract_inputs.py), data/regmix_fit.json (scripts/regmix_fit.py),
-the OLMo 2 paper page's transcribed tables (reference/papers/olmo_2/src/tables.json in this repo).
+the OLMo 2 paper page's transcribed tables (whats_new/papers/olmo_2/src/tables.json in this repo).
 Pure Python 3 standard library; run from anywhere: python3 recompute.py
 """
 import json, math, os, csv
@@ -122,7 +122,7 @@ for j, s in enumerate(keep):
     sm_out.append({'name': ['Stage 1 (stable)', 'Stage 2 (stable)', 'Stage 3 (decay)'][j], 'from_T': r(a * tps / 1e12, 2), 'to_T': r(b * tps / 1e12, 2), 'raw_weight_sum': r(tot, 4),
                    'groups': {k: r(v, 4) for k, v in sorted(g.items())}, 'n_sources': len(s['folders'])})
 chk('smollm3 decay stage starts at lr decay step', keep[2]['start_step'] == keep[2]['lr_decay_start'], f"{keep[2]['start_step']} vs {keep[2]['lr_decay_start']}")
-olmo = json.load(open(os.path.join(REPO_KB, 'reference/papers/olmo_2/src/tables.json')))
+olmo = json.load(open(os.path.join(REPO_KB, 'whats_new/papers/olmo_2/src/tables.json')))
 t4 = olmo['t4']['rows']; t13 = olmo['t13']['rows']
 def tok(s):
     m = {'T': 1e12, 'B': 1e9, 'M': 1e6}; return float(s[:-1]) * m[s[-1]]

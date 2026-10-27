@@ -263,7 +263,7 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | TypeScript's type system, narrowing, zod validation, tsconfig, publishing (exports map), TypeScript 7 | `.../topic_programming_languages/javascript_and_typescript/typescript` | |
 | LLM SDKs, agents, MCP servers and serving in TypeScript | `.../topic_programming_languages/javascript_and_typescript/llm_apps_and_agents` | agentic harnesses owns the loop; MCP owns the protocol |
 
-## Reference
+## What's new
 | Concept | Owner | Others |
 |---|---|---|
-| A paper's own method, results and evidence, and the audit of its claims (its takeaway checked against its own tables); nothing else. Examples: the Llama 3 report's data mix, 4D mesh, interruptions and scaling forecast (`reference/papers/llama_3_herd`); DeepSeek-V3's bill against Llama 3.1 405B and its all-to-all dispatch route (`reference/papers/deepseek_v3_technical_report`); Mixtral's routing-repetition evidence (`reference/papers/mixtral_of_experts`) | the paper's page under `reference/papers` | concept pages link for what the paper did; the paper links the concept owners for the mechanisms |
+| A paper's own method, results and evidence, and the audit of its claims (its takeaway checked against its own tables); nothing else. Examples: the Llama 3 report's data mix, 4D mesh, interruptions and scaling forecast (`whats_new/papers/llama_3_herd`); DeepSeek-V3's bill against Llama 3.1 405B and its all-to-all dispatch route (`whats_new/papers/deepseek_v3_technical_report`); Mixtral's routing-repetition evidence (`whats_new/papers/mixtral_of_experts`) | the paper's page under `whats_new/papers` | concept pages link for what the paper did; the paper links the concept owners for the mechanisms |

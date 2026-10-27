@@ -35,7 +35,7 @@ lego = {(p["model"].split(" (")[1][:4], p["harness"]): p["value"] for p in A["le
 check(lego[("base", "OpenHands SDK")] == 64.0 and lego[("afte", "OpenCode")] == 66.6, "LEGO-RL values")
 st = " ".join(s["numbers"] for s in A["studies"])
 check("+22.6 in Codex" in st and "+0.6 Qwen Code" in st, "Polar gains")
-pages = HERE.parent.parent.parent.parent / "reference/papers"
+pages = HERE.parent.parent.parent.parent / "whats_new/papers"
 txt = lambda p: re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", (pages / p / "index.html").read_text()))
 tu = txt("terminal_universe"); check("52.1 vs 36.7" in tu and "37,273 of 359,593" in tu, "Terminal-Universe numbers")
 check("3 M sandboxes a day" in txt("dsec"), "DSec 3M a day")

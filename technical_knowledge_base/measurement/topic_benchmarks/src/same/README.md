@@ -13,7 +13,7 @@ Files
 | Case | Readings from | How read |
 |---|---|---|
 | ARC-AGI-3, GPT-6 Astra | ARC Prize `v3.json` (generated 2026-09-30); blog `arcprize.org/blog/astra` (3 Sep) | JSON, `inputs/arcprize_leaderboard_v3_2026-09-30.json` |
-| ARC-AGI-3, Claude Opus 5 | same JSON (30.16%, $20,657); Prime Agent paper and blog via the verified paper page; TechCrunch for Nvidia AVO | KB paper page `reference/papers/prime_agent` |
+| ARC-AGI-3, Claude Opus 5 | same JSON (30.16%, $20,657); Prime Agent paper and blog via the verified paper page; TechCrunch for Nvidia AVO | KB paper page `whats_new/papers/prime_agent` |
 | Terminal-Bench, GPT-6 Astra | Artificial Analysis page data (2.1 and 4.0 per effort); tbench.ai 4.0 leaderboard page data (330 trials, CI, pass@k, cost); Anthropic Opus 5.5 card section 8.5 (OpenAI's 57.9% at high); Google's Argon table via the Topic: llm-landscape grid | `inputs/aa_terminalbench_2026-10-04.json`, `inputs/tbench_4_0_leaderboard_2026-10-04.json`, `inputs/opus55_card_8_5_8_6.txt` |
 | SWE-bench Pro, Claude Opus 5 | Opus 5.5 card Table 8.1.A (79.2%); Scale V2 leaderboard and blog (638/642, 222/272, HARD 98.0) | `inputs/opus55_card_table_8_1_A.txt`, `inputs/scale_swe_bench_pro_v2_leaderboard_2026-10-04.txt` |
 | SWE-bench Pro v1, GPT-5 | arXiv 2509.16941v1 section 4 (23.3, 14.9, 200 turns); Scale v1 leaderboard page data (41.78 added 2025-11-26; 14.86 added 2025-09-19) | `inputs/swe_bench_pro_paper_v1_s4.txt`, `inputs/scale_swe_bench_pro_v1_leaderboard_2026-10-04.txt` |
@@ -23,7 +23,7 @@ Files
 | GPQA Diamond, Claude 3.7 Sonnet | Anthropic 3.7 Sonnet table (image, read by eye: 68.0, 78.2 / 84.8) and the extended-thinking post (256 samples, scorer); Epoch `gpqa_diamond.csv` | `inputs/epoch_gpqa_diamond_subset_2026-10-04.csv` |
 | MMLU, Gemini Ultra | Gemini report v1 Table 2 and Appendix 9.1 Figure 7 (printed labels) | `inputs/gemini_1_report_v1_s5_1_1_table2.txt` |
 | Legal Research Bench, GPT-6 Astra | OpenAI's figures as reported by The Next Web (openai.com 403); Vals AI leaderboard page (1 Oct update) | WebFetch summaries, numbers quoted |
-| SchrodingerRepo, GPT-5.4-mini | Table I via the verified paper page `reference/papers/schrodingers_code_repository/src/tables.json` | |
+| SchrodingerRepo, GPT-5.4-mini | Table I via the verified paper page `whats_new/papers/schrodingers_code_repository/src/tables.json` | |
 
 Calculator presets: each item count is linked on the page (Real-SWE 10, AIME 30, SWE-Bench Pro V2 HARD 51, Terminal-Bench 4.0 66, Terminal-Bench-Science 70, Terminal-Bench 2.1 89, OSWorld 2.0 108, GPQA Diamond 198, Legal Research Bench validation 200, SWE-Bench Pro V2 private 272, SWE-bench Verified 500, SWE-Bench Pro V2 public 642, HLE 2,500, MMLU 14,042).
 

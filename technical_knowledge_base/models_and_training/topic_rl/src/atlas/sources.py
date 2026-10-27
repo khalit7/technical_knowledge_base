@@ -52,11 +52,11 @@ SRC = {
 
 # repo texts that hold the full paper text for a source (checked for quotes; never shipped)
 REPO_TEXT = {
- 'instructgpt': ['technical_knowledge_base/reference/papers/instructgpt/src/inputs/paper_v1.txt'],
- 'chatgpt': ['technical_knowledge_base/reference/papers/instructgpt/src/inputs/later_extracts.txt'],
- 'r1': ['technical_knowledge_base/reference/papers/deepseek_r1/src/inputs/paper_v1.txt'],
- 'llama3': ['technical_knowledge_base/reference/papers/llama_3_herd/src/inputs/paper_v3.txt'],
- 'samrpo_page': ['technical_knowledge_base/reference/papers/learn_whats_left_not_whats_mastered/src/README.md'],
+ 'instructgpt': ['technical_knowledge_base/whats_new/papers/instructgpt/src/inputs/paper_v1.txt'],
+ 'chatgpt': ['technical_knowledge_base/whats_new/papers/instructgpt/src/inputs/later_extracts.txt'],
+ 'r1': ['technical_knowledge_base/whats_new/papers/deepseek_r1/src/inputs/paper_v1.txt'],
+ 'llama3': ['technical_knowledge_base/whats_new/papers/llama_3_herd/src/inputs/paper_v3.txt'],
+ 'samrpo_page': ['technical_knowledge_base/whats_new/papers/learn_whats_left_not_whats_mastered/src/README.md'],
 }
 
 # knowledge base pages a row links to (Notion ids)

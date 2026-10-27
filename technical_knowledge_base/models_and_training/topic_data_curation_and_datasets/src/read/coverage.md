@@ -160,7 +160,7 @@ Sources were read in their arXiv HTML versions (tables where stated) and in the 
 | ToolGrad 99.8%, 16,000 APIs, Gemma 3 12B on 500 examples matched Gemini 2.5 Pro | verified, sharpened | Google Research blog 2026-09-10: BFCL 83.1 vs 83.2 | R9 |
 | Terminal-Universe: 37,300 environments; +11.9 Terminal-Bench 2.1, +13.8 EvoCode-Bench v2 MT@4 | verified (abstract) | arXiv 2609.04148 | R9 |
 | EnvHarness | dropped from root | Not verified; for a child page | none |
-| Repo-To-Skill AREX library: 5,000+ skills, 1,000 repos, MLE-bench +134.3% etc. | verified | Repo's paper page (reference/papers/repo_to_skill) | R9 (one line), Further reading |
+| Repo-To-Skill AREX library: 5,000+ skills, 1,000 repos, MLE-bench +134.3% etc. | verified | Repo's paper page (whats_new/papers/repo_to_skill) | R9 (one line), Further reading |
 | Contamination laundering through distillation | verified as a known risk | Tulu 3 found and removed contaminated public sets | R6 |
 | Model collapse: Shumailov; Gerstgrasser accumulation; ToEdit | verified except ToEdit (moved) | | R8 |
 | Post-2023 crawls fill with AI text | kept, labelled as a concern without a measured rate | | R8 |

@@ -5,7 +5,7 @@ Reads (all in the repo):
   ../../data_mixing/src/data/mx2_data.json      the data mixing child's verified numbers (Muennighoff, CMR, RegMix Table 4, recipes)
   ../../data_mixing/src/data/smoke.json         the child's CPU smoke test of the proxy experiment
   ../../data_mixing/src/data/proxy_runs.json    the proxy experiment's results, once run_pending.sh has run (optional)
-  reference/papers/olmo_2/src/tables.json        OLMo 2 Tables 4, 5, 13 (transcribed from arXiv 2501.00656v3)
+  whats_new/papers/olmo_2/src/tables.json        OLMo 2 Tables 4, 5, 13 (transcribed from arXiv 2501.00656v3)
 Writes mx_data.json (here) and ../parts/34_js_mx_0data.js (what the page embeds).
 Run: python3 build_data.py   (standard library only)
 """

@@ -3,7 +3,7 @@
 Purpose: the fill-in prompt for a subagent that builds one paper page (a row of the Papers database) as an HTML-only page; used when several papers are built at once, about four agents at a time.
 
 ## How to fill it
-- Give each agent the paper's exact title, Notion id (the row page; for a brand-new paper, the lead creates the row first or leaves the id pending), folder `technical_knowledge_base/reference/papers/<slug>/`, and anything the lead already knows (the paper's kind, an existing KB page that animates the same mechanism).
+- Give each agent the paper's exact title, Notion id (the row page; for a brand-new paper, the lead creates the row first or leaves the id pending), folder `technical_knowledge_base/whats_new/papers/<slug>/`, and anything the lead already knows (the paper's kind, an existing KB page that animates the same mechanism).
 - The method is [../../page-kinds/paper.md](../../page-kinds/paper.md); this brief adds the rules for running many builders on one machine.
 - Placeholders: `{{PAPER_TITLE}}`, `{{ROW_ID}}`, `{{SLUG}}`, `{{SCRATCH}}`, `{{TOOLS}}`, `{{KNOWN}}`.
 
@@ -11,9 +11,9 @@ Purpose: the fill-in prompt for a subagent that builds one paper page (a row of 
 
 ## Template
 
-You build ONE paper page of the knowledge base: "{{PAPER_TITLE}}" (Papers database row {{ROW_ID}}; folder `technical_knowledge_base/reference/papers/{{SLUG}}/`). {{KNOWN}}
+You build ONE paper page of the knowledge base: "{{PAPER_TITLE}}" (Papers database row {{ROW_ID}}; folder `technical_knowledge_base/whats_new/papers/{{SLUG}}/`). {{KNOWN}}
 
-READ, in this order: CLAUDE.md (no em-dashes anywhere); the explainer-page skill at `.claude/skills/explainer-page/`: SKILL.md, `page-kinds/paper.md` (the approved paper method and its dated lessons; a SUGGESTION, not a template: follow it where it fits this paper, depart where it does not and say why in `src/README.md`; a paper with nothing to run, no table worth rebuilding or no "then and now" simply does not get that tab), `teaching/page-quality.md`, `teaching/writing-style.md`, `evidence/sourcing.md`, `evidence/local-runs.md`, `evidence/resource-safety.md`, `visuals/choosing.md`, `visuals/animation-types.md`, `visuals/mechanics.md`, `build/scaffold.md`, `build/checks.md`. Then the reference implementation `technical_knowledge_base/reference/papers/attention_is_all_you_need_transformer/` (index.html and src/: copy its reusable pieces as `page-kinds/paper.md` lists them; never edit that folder).
+READ, in this order: CLAUDE.md (no em-dashes anywhere); the explainer-page skill at `.claude/skills/explainer-page/`: SKILL.md, `page-kinds/paper.md` (the approved paper method and its dated lessons; a SUGGESTION, not a template: follow it where it fits this paper, depart where it does not and say why in `src/README.md`; a paper with nothing to run, no table worth rebuilding or no "then and now" simply does not get that tab), `teaching/page-quality.md`, `teaching/writing-style.md`, `evidence/sourcing.md`, `evidence/local-runs.md`, `evidence/resource-safety.md`, `visuals/choosing.md`, `visuals/animation-types.md`, `visuals/mechanics.md`, `build/scaffold.md`, `build/checks.md`. Then the reference implementation `technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/` (index.html and src/: copy its reusable pieces as `page-kinds/paper.md` lists them; never edit that folder).
 
 STEP 0, SAVE AND READ: fetch the row page read-only (ToolSearch `select:mcp__notion__notion-fetch`) and save it verbatim to `src/live.md` with a script (never retype). The database properties (Paper, Takeaway, Topics, Year) stay in Notion; use the Takeaway on the headline card; every fact of the old page body must survive or be corrected (`src/coverage.json`). Fetch the paper itself (arXiv HTML where it exists, else the PDF text or the publisher page; keep small extracts in `src/inputs/`, never PDFs or files over about 1 MB) and read it, tables and appendix included, until you could teach it.
 
@@ -35,7 +35,7 @@ WORK IN SMALL STEPS AND SHARE THE MACHINE (several builders run at once):
 
 PAGE: the paper tab ends with "How much of this to believe" (the paper's own evidence judged: what holds up, what is not like for like, single runs, error bars, appendix contradictions, a plain verdict) and, for papers recent enough to adopt, "What it takes to use this"; the headline card carries the one-line verdict. Every claim links into the paper at section, table or equation level; derived numbers recomputed in `src/recompute.py` with "defaults reproduce X (independently or by construction)" or a plain "does not reproduce" box.
 
-CHECKS: `sh html_utils/checkpage.sh technical_knowledge_base/reference/papers/{{SLUG}}` ends fail=0, emdash 0, errbox 1, clipped 0; look at the screenshots of every tab (crop them) and mid-animation frames; exercise every control with a script at 390 px dark and 920 px light (`headless: 'shell'`; no errors, NaN, undefined, sideways scroll, text under 11 px, overlap); privacy grep (`/Users/`, `Users-`, `claude-`, `glpat`, `sk-ant`, emails); delete `__pycache__` and `.shots`. Rebuild the page as the very last step, after any final rerun or edit.
+CHECKS: `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/{{SLUG}}` ends fail=0, emdash 0, errbox 1, clipped 0; look at the screenshots of every tab (crop them) and mid-animation frames; exercise every control with a script at 390 px dark and 920 px light (`headless: 'shell'`; no errors, NaN, undefined, sideways scroll, text under 11 px, overlap); privacy grep (`/Users/`, `Users-`, `claude-`, `glpat`, `sk-ant`, emails); delete `__pycache__` and `.shots`. Rebuild the page as the very last step, after any final rerun or edit.
 
 DO NOT: write to Notion, commit, edit `pages.json`, other papers' folders or `html_utils/`. Record visuals built and rejected in `src/viz_ideas.md`.
 

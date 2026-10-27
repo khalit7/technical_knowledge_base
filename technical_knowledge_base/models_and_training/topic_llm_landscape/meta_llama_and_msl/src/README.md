@@ -39,4 +39,4 @@ Why about 25 minutes is right: the page carries two eras with different reasons 
 - `inputs/`: saved sources (Llama 1/2/3 papers, Sardana, configs, the Glimmer card, `modeling_llama4.py`).
 - `viz_ideas.md`: scored candidates and rejections.
 
-2026-10-26 (final follow-up sweep): the closed Two checks on Table 5 block moved to the Llama 3 paper page (Keeping it running); one sentence and a link remain; ledger units 267 and 268 owned:reference/papers/llama_3_herd.
+2026-10-26 (final follow-up sweep): the closed Two checks on Table 5 block moved to the Llama 3 paper page (Keeping it running); one sentence and a link remain; ledger units 267 and 268 owned:whats_new/papers/llama_3_herd.

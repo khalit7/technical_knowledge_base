@@ -3,7 +3,7 @@
 One week of AI/ML and big-tech news as a dated record: the issue's own words verbatim, re-checked against sources, with what happened next added beside them, never over them.
 
 Approved on 2026-08-24: tech news (2026-10-02), then used for the five issues after it.
-- **Reference folder**: `technical_knowledge_base/reference/tech_news/2026_08_24_tech_news/`.
+- **Reference folder**: `technical_knowledge_base/whats_new/tech_news/2026_08_24_tech_news/`.
 - **Newest scripts**: in `2026_09_21_tech_news/` and `2026_09_28_tech_news/`, whose `src/README.md` describes the machinery.
 
 A suggestion, not a template: use the sections the issue actually has.
@@ -12,6 +12,7 @@ A suggestion, not a template: use the sections the issue actually has.
 The reader's questions: **"what happened, what connects it, and did it hold?"** Unlike a topic page, the text is a record. **The issue's own words stay verbatim.** Everything learned since is added beside them in labelled boxes.
 
 ## Shape that worked
+- **The site's home page reads the issue's source** (`html_utils/whats_new.py`): the first line of `src/issue.md` is the intro ("One week, A to B: <what the week was about>"; the part after the colon is shown), and each top story is one paragraph under `# Top stories` that opens with its headline sentence in bold. Keep that shape; the newest issue is the featured card in What's new.
 - **One tab per section**, in the issue's own order, with short labels, for example: At a glance | Top stories | Models | Research | Industry | Compute | Dev tools | Talk of the town | Further reading.
   - Use the sections the issue has (one issue had a Security section).
   - An issue assembled from several parts gets tabs by subject, with each card labelled by its part.
@@ -74,4 +75,4 @@ A new issue copies the machinery and writes new annotations.
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
 
-Sources distilled: html_utils/methods/tech_news.md (whole method, rules, lesson); html_utils/interactive-html-ideas.md section 2 (news-issue rules); reference/tech_news/2026_09_28_tech_news/src/README.md (machinery).
+Sources distilled: html_utils/methods/tech_news.md (whole method, rules, lesson); html_utils/interactive-html-ideas.md section 2 (news-issue rules); whats_new/tech_news/2026_09_28_tech_news/src/README.md (machinery).

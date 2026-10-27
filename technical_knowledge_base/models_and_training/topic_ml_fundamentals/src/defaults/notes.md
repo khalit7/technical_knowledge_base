@@ -1,6 +1,6 @@
 # Sources: Defaults across models (tab t-defaults)
 
-Read 2026-10-03. Authoring source: `rows.py` (writes `../data/defaults.json`); `mk_defaults.py` validates and inlines it; `recompute.py` recomputes every derived cell and checks cited config values against `inputs/` (58 checks); `check_defaults.mjs` clicks every control at 390 dark and 920 light. Verbatim extracts of the non-arXiv and code sources are in `inputs/extracts.txt`; the arXiv papers were read through the repo paper pages (`technical_knowledge_base/reference/papers/*/src/inputs/paper_v*.txt`) where they exist, and fetched from arXiv HTML otherwise.
+Read 2026-10-03. Authoring source: `rows.py` (writes `../data/defaults.json`); `mk_defaults.py` validates and inlines it; `recompute.py` recomputes every derived cell and checks cited config values against `inputs/` (58 checks); `check_defaults.mjs` clicks every control at 390 dark and 920 light. Verbatim extracts of the non-arXiv and code sources are in `inputs/extracts.txt`; the arXiv papers were read through the repo paper pages (`technical_knowledge_base/whats_new/papers/*/src/inputs/paper_v*.txt`) where they exist, and fetched from arXiv HTML otherwise.
 
 Rules applied: one checkpoint per row, never spliced; release config.json files are used for architecture only (activation, widths, norm epsilon), never for training values; training configs published by the lab (OLMo 2, SmolLM3) and released training code (BERT) count as published; "inherited" only where the paper names the predecessor it follows.
 

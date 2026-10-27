@@ -1,6 +1,6 @@
 # Verified source notes (fetched 3 October 2026)
 
-Quotes the page relies on, with URLs. Em dashes in sources are written " -- " (repository rule). Abstracts of the method papers are in `abstracts.txt`; tables in `biderman2024_tables.txt` and `slora_tables.txt`; LoRA and QLoRA facts were taken from the paper pages' verified extracts (`reference/papers/lora/src/inputs/`, `reference/papers/qlora/src/inputs/`).
+Quotes the page relies on, with URLs. Em dashes in sources are written " -- " (repository rule). Abstracts of the method papers are in `abstracts.txt`; tables in `biderman2024_tables.txt` and `slora_tables.txt`; LoRA and QLoRA facts were taken from the paper pages' verified extracts (`whats_new/papers/lora/src/inputs/`, `whats_new/papers/qlora/src/inputs/`).
 
 == https://thinkingmachines.ai/blog/lora/ (John Schulman and Thinking Machines Lab, 29 Sep 2025)
 - "Rank-1 LoRA for Llama-3.1-8B already has 3M parameters"

@@ -1,6 +1,7 @@
 """Build the private reading site from the repo: every page's index.html (and img/), a home page with the whole tree,
 links between pages rewritten from Notion URLs to site paths, and a small bar on each page (home, breadcrumb, search).
-The home page carries the learning map (html_utils/learning_map.py): the build fails when the prerequisite graph has an error.
+The home page opens with What's new (the tech-news issues and papers, html_utils/whats_new.py), then the learning map
+(html_utils/learning_map.py): the build fails when the prerequisite graph has an error.
 
 usage: python3 html_utils/build_site.py [out dir, default site/] [base path, default /]
        the GitHub Pages site lives under /technical_knowledge_base/, so CI passes that as the base path
@@ -12,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import learning_map
+import whats_new
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "site"
@@ -22,7 +24,8 @@ by_id = {p["id"].replace("-", ""): p for p in pages}
 for _p in pages:
     for _a in _p.get("aliases", []):
         by_id.setdefault(_a.replace("-", ""), _p)
-SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations", "Reference"]
+NEWS, PAPERS = "technical_knowledge_base/whats_new/tech_news", "technical_knowledge_base/whats_new/papers"
+SECTIONS = ["Models & training", "Systems & performance", "Agents & retrieval", "Measurement", "Engineering foundations"]  # What's new sits above them
 
 
 def url(p):
@@ -69,7 +72,7 @@ def bar(p):
         crumbs.insert(0, q)
         q = parent(q)
     sec = section(p)
-    k = SECTIONS.index(sec) if sec in SECTIONS[:5] else None
+    k = SECTIONS.index(sec) if sec in SECTIONS else None
     parts = [f'<a href="{BASE}">Knowledge base</a>'] + [f'<a href="{url(c)}">' + ('<i class="d"></i>' if k is not None and i == 0 else "")
                                                       + f'{html.escape(title(c))}</a>' for i, c in enumerate(crumbs)]
     cls = f' class="k{k}"' if k is not None else ""
@@ -108,7 +111,7 @@ def redirects():
 
 
 def tree(p, depth=0):
-    kids = sorted(children(p), key=lambda c: c["title"]) if "reference/" in p["path"] else children(p)
+    kids = sorted(children(p), key=lambda c: c["title"]) if "whats_new/" in p["path"] else children(p)
     li = f'<li><a href="{url(p)}">{html.escape(title(p))}</a>'
     if kids:
         open_ = " open" if depth == 0 and len(kids) < 20 else ""
@@ -127,16 +130,17 @@ def stats():
 
 def home():
     roots = [p for p in pages if parent(p) is None]
-    body = ""
+    body, nsec = "", 0
     for k, sec in enumerate(SECTIONS):
         rs = [p for p in roots if p.get("section") == sec]
         if rs:
             n = sum(1 + len(desc(r)) for r in rs)
+            nsec += n
             body += (f'<div class="sec s{k}"><h3><i></i>{html.escape(sec)}<span>{n} pages</span></h3><ul>'
                      + "".join(tree(r) for r in rs) + "</ul></div>")
     npages, ntopics, hours = stats()
-    body = (learning_map.section(url, KB)
-            + f'<details class="all"><summary>All pages by section<span>{npages} pages</span></summary><div class="secs">{body}</div></details>')
+    body = (whats_new.home(pages, url, by_id, by_path[NEWS], by_path[PAPERS]) + learning_map.section(url, KB)
+            + f'<details class="all"><summary>All pages by section<span>{nsec} pages</span></summary><div class="secs">{body}</div></details>')
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Technical knowledge base</title><meta name="description" content="Khalid's technical knowledge base: {npages} pages in {ntopics} topics, with a learning map of the order to study them in.">
@@ -182,10 +186,11 @@ details.all[open]>summary::before{{transform:rotate(45deg)}}details.all>summary 
  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E")}}}}
 @media (max-width:640px){{.hero{{padding-top:30px}}h1{{font-size:26px}}.tag{{font-size:15px}}}}
 @media (prefers-reduced-motion:reduce){{*{{transition:none!important}}}}
-{learning_map.CSS}</style></head>
+{learning_map.CSS}
+{whats_new.CSS}</style></head>
 <body><div class="glow"><header class="hero w"><h1>Technical knowledge base</h1>
-<p class="tag">Deep, visual explanations of how modern AI systems work, and a map of the order to learn them in.</p>
-<ul class="stats" aria-label="Size of the knowledge base"><li><b>{npages}</b> pages</li><li><b>{ntopics}</b> topics</li><li><b>{len(SECTIONS) - 1}</b> sections</li><li><b>{hours}</b> h of core reading</li></ul>
+<p class="tag">Deep, visual explanations of how modern AI systems work: what's new each week, and a map of the order to learn it all in.</p>
+<ul class="stats" aria-label="Size of the knowledge base"><li><b>{npages}</b> pages</li><li><b>{ntopics}</b> topics</li><li><b>{len(SECTIONS)}</b> sections</li><li><b>{hours}</b> h of core reading</li></ul>
 <div id="search"><span class="kbd" aria-hidden="true">/</span></div></header></div><div class="w">{body}</div>
 <script>window.addEventListener('DOMContentLoaded',()=>{{try{{new PagefindUI({{element:'#search',showSubResults:true,showImages:false,baseUrl:'{BASE}',bundlePath:'{BASE}pagefind/',translations:{{placeholder:'Search all {npages} pages'}}}})}}catch(e){{}}}});
 document.addEventListener('keydown',e=>{{if(e.key!=='/'||e.metaKey||e.ctrlKey||e.altKey||e.target.closest('input,textarea,select,[contenteditable]'))return;const i=document.querySelector('#search input');if(i){{e.preventDefault();i.focus()}}}})</script>
@@ -218,12 +223,22 @@ def main():
             s = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + bar(p), s, count=1)
             (dst / "index.html").write_text(s)
             n += 1
-        else:  # a parent with no page of its own (Papers, Tech news): list its children
-            kids = "".join(f'<li><a href="{url(c)}">{html.escape(c["title"])}</a></li>' for c in sorted(children(p), key=lambda c: c["title"]))
-            (dst / "index.html").write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(p["title"])}</title>{BAR_CSS}</head><body style="font:15px/1.6 sans-serif;max-width:920px;margin:0 auto;padding:0 16px">{bar(p)}<h1>{html.escape(p["title"])}</h1><ul>{kids}</ul></body></html>')
+        else:  # a parent with no page of its own (Papers, Tech news): its children as cards (html_utils/whats_new.py)
+            main_ = (whats_new.papers_index(pages, url, by_id) if p["path"] == PAPERS else whats_new.news_index(pages, url) if p["path"] == NEWS
+                     else "<h1>" + html.escape(p["title"]) + "</h1><ul>" + "".join(f'<li><a href="{url(c)}">{html.escape(c["title"])}</a></li>' for c in children(p)) + "</ul>")
+            (dst / "index.html").write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+                                            f'<title>{html.escape(p["title"])}</title><style>{whats_new.PAGE_CSS}\n{whats_new.CSS}</style>{BAR_CSS}</head>'
+                                            f'<body>{bar(p)}<main class="w">{main_}</main></body></html>')
         if (src / "img").is_dir():
             shutil.copytree(src / "img", dst / "img")
     redirects()
+    # the section was "Reference" (folder reference/) until 2026-10-27: old links land on the moved page
+    for p in pages:
+        if p["path"].startswith("technical_knowledge_base/whats_new/"):
+            d = OUT / ("reference" + p["path"].removeprefix("technical_knowledge_base/whats_new"))
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><title>Redirect</title><meta name="robots" content="noindex">'
+                                          f'<script>location.replace({json.dumps(url(p))}+location.hash)</script><a href="{url(p)}">{html.escape(p["title"])}</a>')
     (OUT / "index.html").write_text(home())
     print(f"site: {n} pages in {OUT}")
 
