@@ -9,14 +9,19 @@
   function bytes(b){const a=Math.abs(b);if(a>=2**30)return (b/2**30).toFixed(2)+' GiB';if(a>=2**20)return (b/2**20).toFixed(a>=100*2**20?0:1)+' MiB';if(a>=1024)return (b/1024).toFixed(a>=100*1024?0:1)+' KiB';return Math.round(b)+' B'}
   const V={mha:{nm:'MHA',kv:8},gqa4:{nm:'GQA-4',kv:4},gqa2:{nm:'GQA-2',kv:2},mqa:{nm:'MQA',kv:1},mla:{nm:'MLA',lat:64,rope:16},swa:{nm:'Sliding window (8, illustrative)',kv:8,W:8}};
   const nums=v=>v.lat?v.lat+v.rope:2*v.kv*32;
-  const hue=g=>'hsl('+[212,25,140,280,45,185,330,95][g%8]+',55%,52%)';
+  // one colour per KV head: a muted, evenly weighted set (Tableau 10 order) so eight heads read as a family, not a rainbow
+  const hue=g=>['#4e79a7','#f28e2b','#59a14f','#b07aa1','#d4a72c','#76b7b2','#e15759','#9c755f'][g%8];
   let cur='gqa2';
   function panel(v,i,x0,y0,s,lab){
     const cw=4*s,gap=Math.max(3,s),out=[];let h=0;
     out.push(RD.t(x0,y0+12,lab,{fs:12,w:600}));
     const gy=y0+20;
+    const rows=v.lat?2:v.kv;
+    // empty slots for the tokens still to come, so the panel is laid out at full size from the first step
+    for(let j=i+1;j<N;j++)out.push('<rect x="'+(x0+j*(cw+gap))+'" y="'+gy+'" width="'+(cw-1)+'" height="'+(rows*s-1)+'" rx="2" fill="none" stroke="var(--line)" stroke-dasharray="3 3"/>');
     for(let j=0;j<=i;j++){
       const x=x0+j*(cw+gap);const ev=v.W&&j<=i-v.W;
+      out.push('<g'+(j===i?' class="rd-new"':v.W&&j===i-v.W?' class="rd-gone"':'')+'>');
       if(v.lat){
         for(let c=0;c<4;c++)out.push('<rect x="'+(x+c*s)+'" y="'+gy+'" width="'+(s-1)+'" height="'+(s-1)+'" rx="1" fill="var(--good)"/>');
         out.push('<rect x="'+x+'" y="'+(gy+s)+'" width="'+(s-1)+'" height="'+(s-1)+'" rx="1" fill="var(--c6)"/>');h=Math.max(h,2*s);
@@ -26,6 +31,7 @@
         }
         h=Math.max(h,v.kv*s);
       }
+      out.push('</g>');
       if(j===i)out.push('<rect x="'+(x-1.5)+'" y="'+(gy-1.5)+'" width="'+(cw+2)+'" height="'+((v.lat?2:v.kv)*s+2)+'" fill="none" stroke="var(--ink)" stroke-width="1.2" rx="2"/>');
     }
     let ty=gy+Math.max(h,s);
@@ -50,7 +56,7 @@
   }
   function draw(i){
     const el=$('av-cc-svg'),W=Math.max(300,RD.width(el));
-    const s=Math.max(4,Math.min(10,Math.floor((W-6)/(N*5))));
+    const s=Math.max(4,Math.min(12,Math.floor((W-6)/(N*5))));
     const p1=panel(V.mha,i,2,0,s,'Before: MHA, 512 numbers per token per layer');
     const p2=panel(V[cur],i,2,p1.h+16,s,'After: '+V[cur].nm+', '+nums(V[cur])+' numbers per token per layer');
     el.innerHTML=RD.svg(W,p1.h+16+p2.h+4,p1.svg+p2.svg,'Cache entries per token, MHA against '+V[cur].nm);

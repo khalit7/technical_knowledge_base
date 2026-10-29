@@ -35,7 +35,7 @@
   const NAR={W:360,H:520,ht:[10,46],pA:[76,52,80,40],pB:[76,120,80,40],pK:[76,52,80,40],pV:[76,176,80,40],cc:[188,40],kr:[188,118],gK:[170,30],gV:[170,160],
     up:[292,120,58,58],upA:[[321,300,321,180],[292,149,286,95],[292,149,286,215]],qd:[170,40],o1:[10,212,150,40],o2:[10,152,150,40],oA:[[60,306,60,254],[60,212,60,194]],
     cache:[8,286,344,172],col0:[20,318],cK:[20,306],cV:[150,306],bus:[226,312],busH:[76,304],qOut:'down',qTxt:[10,206],bars:[10,484]};
-  const st={m:'mla',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'mla',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',stop:-1}; // stop: the step a single forward step plays to
   const steps=()=>st.m==='mla'?SM:SH;
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
   // n cells of a grid as one path
@@ -72,9 +72,9 @@
     const htOp=k===0?1:(k>=(mla?4:4)?.3:.85),htN=k===0?Math.round(112*e):112;
     s+=G(htOp,cells(L.ht[0],L.ht[1],8,htN,cH,.7)+T(L.ht[0],L.ht[1]-8,'hₜ · 7,168',{fs:12}));
     if(mla){
-      const pOp=k<1?0:k===1?e:k>=4?(k===4?.3:0):1;
+      const pOp=k<1?.14:k===1?Math.max(.14,e):k>=4?(k===4?.3:0):1; // .14: still to come, drawn faint so the stage is laid out from step 1
       s+=box(L.pA,['Wᴰᴷⱽ','down-projection'],'box',pOp);
-      s+=box(L.pB,['Wᴷᴿ, RoPE','decoupled key'],'box',k<2?0:k===2?e:k>=4?(k===4?.3:0):1);
+      s+=box(L.pB,['Wᴷᴿ, RoPE','decoupled key'],'box',k<2?.14:k===2?Math.max(.14,e):k>=4?(k===4?.3:0):1);
       const hO=[L.ht[0]+56,L.ht[1]+49];
       if(k===1&&!RM)s+=packets([hO,ctr(L.pA),[L.cc[0]+3,L.cc[1]+28]],e,cC);
       if(k===2&&!RM)s+=packets([hO,ctr(L.pB),[L.kr[0]+3,L.kr[1]+3]],e,cR);
@@ -101,8 +101,8 @@
         L.oA.forEach(a=>s+=arr(a,cl(e*2-.4)));
       }
     }else{
-      s+=box(L.pK,['Wᴷ','keys, per head'],'box',k<1?0:k===1?e:k>=4?0:1);
-      s+=box(L.pV,['Wⱽ','values, per head'],'box',k<2?0:k===2?e:k>=4?0:1);
+      s+=box(L.pK,['Wᴷ','keys, per head'],'box',k<1?.14:k===1?Math.max(.14,e):k>=4?0:1);
+      s+=box(L.pV,['Wⱽ','values, per head'],'box',k<2?.14:k===2?Math.max(.14,e):k>=4?0:1);
       const hO=[L.ht[0]+56,L.ht[1]+49];
       if(k===1&&!RM)s+=packets([hO,ctr(L.pK),[L.gK[0]+56,L.gK[1]+56]],e,cK);
       if(k===2&&!RM)s+=packets([hO,ctr(L.pV),[L.gV[0]+56,L.gV[1]+56]],e,cV);
@@ -132,17 +132,21 @@
     if(st.lk!==k||st.lm!==st.m){const S=steps()[k];$('av-mlxStep').innerHTML='Step '+(k+1)+' of '+steps().length+': '+S.t.replace(/^\d+\. /,'');$('av-mlxCap').innerHTML=S.c;st.lk=k;st.lm=st.m}
     const c=cur;$('av-mlxCnt').innerHTML=stat('Numbers cached for this token, this layer',fmt(c),mla?'MLA writes 512 + 64':'MHA writes 2 × 128 × 128')+stat('Over all 61 layers',fmt(c*LAY),'numbers per token')+stat('In BF16',fmtBytes(c*LAY*2),fmt(c*LAY*2)+' bytes per token');
     const n=steps().length,sc=$('av-mlxScrub');sc.max=n*100;sc.value=Math.round((k+st.t)*100);
-    const pb=$('av-mlxPlay'),end=k===n-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
+    const pb=$('av-mlxPlay'),end=k===n-1&&st.t>=1;const run=st.play&&st.stop<0;pb.innerHTML=run?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',run?'Pause':end?'Replay':'Play');
   }
   function cntNow(){const k=st.k,e=RM?1:ease(cl(st.t/MOVE)),N=nums[st.m];return k<3?0:k===3?Math.round(N*e):N}
   const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
   function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
+    st.t+=dt*st.spd*(st.stop>=0?1.6:1)/DUR;const n=steps().length;
+    if(st.stop===st.k&&st.t>=MOVE){st.t=1;st.play=false;st.stop=-1}
+    else if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
     card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
   function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('av-mlxPlay').addEventListener('click',()=>{if(st.play){pause()}else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $('av-mlxFwd').addEventListener('click',()=>{pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
+  const pause=()=>{st.play=false;st.stop=-1;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+  $('av-mlxPlay').addEventListener('click',()=>{if(st.play&&st.stop>=0){st.stop=-1}else if(st.play){pause()}else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
+  // a forward step plays that step's motion once (instant under reduced motion); back and the scrubber jump
+  $('av-mlxFwd').addEventListener('click',()=>{pause();if(st.k>=steps().length-1){st.t=1;draw();return}st.k++;
+    if(RM){st.t=1;draw();return}st.t=0;st.stop=st.k;st.play=true;kick();draw()});
   $('av-mlxBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
   $('av-mlxScrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('av-mlxSpd').addEventListener('change',e=>{st.spd=+e.target.value});
