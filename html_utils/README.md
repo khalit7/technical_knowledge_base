@@ -14,6 +14,7 @@ Runtime tools the knowledge base pages are checked and published with. How pages
 | `check_times.py` | Lists reading times quoted for other pages that no longer match those pages' headers (`--page` for one page). |
 | `build_site.py` | Builds the reading site (GitHub Pages) from every page, with links rewritten and `p/<id>/` redirects. |
 | `learning_map.py`, `check_learning_map.mjs` | The home page's learning map from the strict `prereqs` in `pages.json`: `learning_map.py check` validates the graph (the build fails on an error); the `.mjs` builds to a scratch folder and checks the map in a browser. |
+| `whats_new.py` | The home page's first block, What's new (the latest tech-news issue and the newest papers), and the Tech news and Papers index pages; `whats_new.py check` validates the data each card needs (the build fails on a problem). |
 | `cloud_setup.sh` | Sets up a cloud sandbox (the weekly routine) to build and check pages. |
 
 Setup: `cd html_utils && NPM_CONFIG_USERCONFIG= npm ci` (puppeteer with its own Chrome).

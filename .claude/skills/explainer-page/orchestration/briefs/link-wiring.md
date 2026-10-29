@@ -21,8 +21,3 @@ Link-wiring pass for the knowledge-base topic "{{TOPIC_TITLE}}" (folder `{{ROOT_
 Then for the root and each child: `sh src/build.sh`; its quick data and UI checks (each page's `src/` has them; skip any that need clusters, GPUs or scratch data that no longer exists, and say which); `sh html_utils/checkpage.sh <folder>` (fail=0, emdash 0, errbox 1, clipped 0). Grep each built `index.html` for leftover "being built" and for unexpanded `{{` `}}`. Privacy grep (`/Users/`, `Users-`, `claude-`, `glpat`, `sk-ant`, emails). Delete `__pycache__` and `.shots`. Mark the root's `src/read/links_todo.md` done. Do not commit and do not write to Notion. Report (once), per page: links wired, checks, anything left in plain text and why.
 
 ---
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-The lead's prompts "ML infra: wire child-page links" and "Generative: wire links and root fixes" (2026-10-17); `links_todo.md` from the ML infra root fix pass (2026-10-16, 36 plain-text mentions).

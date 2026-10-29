@@ -1,6 +1,7 @@
 # Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d81fda06bf955af7c2b58
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_llm_architecture/mixture_of_experts/
 
 Child page of Topic: llm-architecture. HTML only: `index.html` is built from `src/` by `sh src/build.sh` (see `src/README.md`).
 

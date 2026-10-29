@@ -80,5 +80,3 @@ Commit and push like any page (`sync-kb-github`). Its Notion page has child page
 
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Sources distilled: html_utils/methods/topic_pages.md Part A (shape, data tabs, deeper dives, publishing, lessons); html_utils/methods/README.md; html_utils/BRIEF_page_agent.md (root model); memory rl, swe, benchmarks, evaluation, ml-fundamentals, training, inference, pytorch, rag, dc, jax, mi, gm, proglang, agents and gpu topic logs; kb_briefs gm/mi/jx/dc common and tabs (THE ROOT, lab and read briefs); the generative root's README and src/read/README.md.

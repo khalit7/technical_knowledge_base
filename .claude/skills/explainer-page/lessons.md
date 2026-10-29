@@ -55,6 +55,7 @@ Each lesson says what happened and the rule it produced. The rules are already f
 - **2026-10-03, glob order.** `20_read_b.html` sorted before `20_read.html` in this locale. Rule: first Reading part is `20_read_a.html`, or list parts explicitly.
 - **2026-10-14, zsh loops.** A scaffold loop over `$list` in zsh did not split words and created one wrongly named file. Rule: scaffold loops in `sh` or with explicit names.
 - **2026-10-26, cloud sandbox with several agents.** Every agent re-sourced `html_utils/cloud_setup.sh`, whose `npm ci` deletes `node_modules`, so other agents' checks failed with "Cannot find package puppeteer" or a bare "Node.js v22" line. `cloud_setup.sh` now skips `npm ci` when `node_modules` is current. The sandbox also lacks `en_US.UTF-8`, so a build in the C locale can glob parts in another order; compare against HEAD before trusting a rebuilt page whose parts are globbed. Some page privacy checks fail only because the sandbox login is `root`: run them with a neutral `USER`/`HOME`. Never chain `checkpage.sh ... | tail -1 && commit`: the pipe hides the exit status, and one broken issue went live for two minutes that way (the 2026-10-26 issue, an unescaped quote in a script part; fixed in 8ecc48e4).
+- **2026-10-26, clip checks in the cloud sandbox.** 22 pages failed `clipped` only in the sandbox, so their quoted reading times were left stale and the run still said Current. The likely cause is the fallback font (no Helvetica or Arial, so a wider DejaVu). Rule: `cloud_setup.sh` installs metric-compatible Liberation fonts, and update-kb treats a clip already present on main as pre-existing (commit when the count does not rise, report it), not as a failure.
 - **2026-10-17, page size.** Five labs with rich data pushed a root to 1.42 MB. Rule: set a per-lab data budget once the first labs land; keep fuller data in `src/<lab>/out/` for children to reuse.
 
 ## Detached queues
@@ -68,8 +69,3 @@ Each lesson says what happened and the rule it produced. The rules are already f
 2. Write it as: bold short name, date, what happened in one or two sentences with the real numbers, then "Rule:" and the rule. No em-dashes.
 3. Put the rule where it acts: the brief templates in `orchestration/briefs/`, `evidence/resource-safety.md`, `build/checks.md` or `orchestration/topic-pipeline.md`. A lesson that lives only here is a lesson agents will not read.
 4. If a running topic is affected, append the rule to its filled brief and message the running agents once.
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Memory logs of the inference, RAG, data curation, JAX, ML infra and generative topics (2026-10-11 to 2026-10-17); feedback memories gpu-runs-one-agent, no-usage-caps, cheap-runs-over-expensive, manage-mac-resources, check-coverage-before-leaving-old, scratch-wiped-reboot, completeness-over-disk, teach-dont-ask-scope; the kb_briefs `lock.sh` and `guard.sh` headers; html_utils/BRIEF_page_agent.md "Rules learned on the training topic"; the papers method's Mamba lesson.

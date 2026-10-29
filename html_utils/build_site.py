@@ -1,7 +1,8 @@
-"""Build the private reading site from the repo: every page's index.html (and img/), a home page with the whole tree,
+"""Build the public reading site from the repo: every page's index.html (and img/), a home page with the whole tree,
 links between pages rewritten from Notion URLs to site paths, and a small bar on each page (home, breadcrumb, search).
 The home page opens with What's new (the tech-news issues and papers, html_utils/whats_new.py), then the learning map
-(html_utils/learning_map.py): the build fails when the prerequisite graph has an error.
+(html_utils/learning_map.py): the build fails when the prerequisite graph has an error, or when an issue or paper lacks
+the data its What's new card needs (whats_new.check).
 
 usage: python3 html_utils/build_site.py [out dir, default site/] [base path, default /]
        the GitHub Pages site lives under /technical_knowledge_base/, so CI passes that as the base path
@@ -208,6 +209,10 @@ def main():
     err, _, _ = learning_map.check(KB)
     if err:
         sys.exit(f"build stopped: {len(err)} learning map error(s) in technical_knowledge_base/pages.json (see above)")
+    wn = whats_new.check(pages)
+    if wn:
+        print(*wn, sep="\n")
+        sys.exit(f"build stopped: {len(wn)} What's new data problem(s) (see above; python3 html_utils/whats_new.py check)")
     if OUT.exists():
         shutil.rmtree(OUT)
     OUT.mkdir(parents=True)
@@ -232,7 +237,12 @@ def main():
         if (src / "img").is_dir():
             shutil.copytree(src / "img", dst / "img")
     redirects()
-    # the section was "Reference" (folder reference/) until 2026-10-27: old links land on the moved page
+    # the section was "Reference" (folder reference/) until 2026-10-27: old links land on the moved page; the bare
+    # section folders (no page of their own) land on the home page's What's new block
+    for d in (OUT / "reference", OUT / "whats_new"):
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><title>Redirect</title><meta name="robots" content="noindex">'
+                                      f'<script>location.replace({json.dumps(BASE + "#new")})</script><a href="{BASE}#new">What\'s new</a>')
     for p in pages:
         if p["path"].startswith("technical_knowledge_base/whats_new/"):
             d = OUT / ("reference" + p["path"].removeprefix("technical_knowledge_base/whats_new"))

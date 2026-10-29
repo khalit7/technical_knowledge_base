@@ -81,5 +81,3 @@ Then build the root first. Children are built after he approves the root unless 
 
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Sources distilled: html_utils/methods/topic_pages.md (who owns what, folding, shapes); html_utils/interactive-html-ideas.md section 2 (central question, placement); memory teach-dont-ask-scope, cheap-runs-over-expensive and the rl, swe, databases, math, os, protocols, proglang, evaluation, benchmarks, rag, dc, jax, mi, gm, gpu and agents topic logs; kb_briefs gm/mi/jx/dc common, tabs and child briefs (running example, labs, child lists).

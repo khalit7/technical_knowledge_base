@@ -51,7 +51,11 @@ def init(page):
 
 
 def check(page):
-    units = json.loads((KB / page / "src" / "ledger.json").read_text())
+    f = KB / page / "src" / "ledger.json"
+    if not f.exists():  # tech-news issues have none (page-kinds/tech-news.md); nothing to check is not a failure
+        print(f"{page}: no ledger (src/ledger.json), nothing to check")
+        sys.exit(0)
+    units = json.loads(f.read_text())
     cache, bad, counts = {}, 0, {}
     for u in units:
         lab = u.get("label", "")

@@ -54,5 +54,3 @@ Publishing is the `sync-kb-github` skill: commit and push; the old Notion page's
 
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Sources distilled: html_utils/BRIEF_page_agent.md (Step 0, the model); html_utils/methods/topic_pages.md Part A (folding, publishing a root with children); memory check-coverage-before-leaving-old, teach-dont-ask-scope and the rl, benchmarks, evaluation, ml-fundamentals, swe, rag, protocols, proglang, os, pytorch, jax, mi and gm topic logs; .claude/skills/sync-kb-github/SKILL.md; CLAUDE.md (Notion facts).

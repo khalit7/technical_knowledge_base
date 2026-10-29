@@ -60,8 +60,3 @@ The HTML is the only content of the page, so every number in a visual is treated
 
 ## Where ideas come from (in this order)
 Primary papers and reports (arXiv HTML, their tables and figures: the quantity the authors chose to plot is a hint); model cards and config files; official code repositories (diagrams of system behaviour, formula tables, small algorithms that port exactly); changelogs and pricing pages; visual explainers (to avoid copying them and to see which ideas readers find hard); interactive explainers and playbooks (interaction patterns that work: calculators, schedule tables, transformer explainers); analysts and trackers for independent series (Epoch AI, Artificial Analysis, METR, LMArena); videos last, for metaphors. Always search for critiques of the topic's best-known claims: a widespread misconception makes a good visual.
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-`html_utils/interactive-html-ideas.md` section 2 (Methodology, all its rules) and section 1 rejection reasons; `html_utils/methods/topic_pages.md` (root against child scope, axis sections, Go deeper); `html_utils/methods/papers.md`; `html_utils/BRIEF_page_agent.md` (Steps, viz_ideas.md).

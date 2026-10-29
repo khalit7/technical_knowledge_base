@@ -45,8 +45,3 @@ uv run --project "$N/voice_mac" python "$N/narrate.py" narration_lines.tsv asset
 python3 "$N/check_takes.py" narration_lines.tsv assets/voice [--fix "heard=meant"] [--write]
 ```
 `check_takes.py` is stdlib only (it needs `npx` and `ffprobe` on PATH), so plain `python3` runs it.
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-`video_utils/README.md` (install, notes, project layout); `video_utils/narrate.py`, `check_takes.py`; `video_utils/voice_mac/pyproject.toml` and `voice_cuda/pyproject.toml`; `.claude/skills/create-explainer-video/SKILL.md` (Setup).

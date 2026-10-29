@@ -65,8 +65,3 @@ Report to Khalid:
 - anything `check` flagged and why it was accepted (known false positives) or fixed;
 - every fact you added to the page first, and any fact you dropped because the page did not support it;
 - where the video sits in Notion (fetched and confirmed under the link line), the `pages.json` change, and the commit.
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-`.claude/skills/create-explainer-video/SKILL.md`; `video_utils/README.md`, `narrate.py`, `check_takes.py`, `vendor_skills.sh`, both voice `pyproject.toml`; `CLAUDE.md` (Notion and video notes, writing rules, agent limits); `.claude/skills/sync-kb-github/SKILL.md` (Videos, stable `file://` form); the worked example at `topic_llm_landscape/video/`; the vendored `hyperframes`, `faceless-explainer` and `general-video` skills; memory notes on old videos and one GPU agent at a time.

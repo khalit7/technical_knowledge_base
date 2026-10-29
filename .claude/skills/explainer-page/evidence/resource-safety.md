@@ -55,8 +55,3 @@ On the Mac, distributed training is taught with the gloo backend on CPU: several
 
 ## Paths
 Agents call the scripts through `{{TOOLS}}` in their briefs: the lead copies `scripts/guard.sh` and `scripts/lock.sh` into that scratch folder at topic start so every agent shares one lock folder. Calling them from the skill folder directly is the same script.
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Memory: manage-mac-resources, gpu-runs-one-agent, cheap-runs-over-expensive, completeness-over-disk, no-usage-caps, scratch-wiped-reboot, dc-topic-in-progress (thread and pkill incidents, fp16 lesson), gm-topic-in-progress (no_grad incident, lock fairness). Briefs: gm_common (RESOURCE SAFETY, HARD MEMORY CAP), gm_child_common (peak memory on one item), mi_common (CONTAINERS, CLUSTER SHARING), dc_common and jx_common (disk budgets, download lock). Scripts: `guard.sh` and `lock.sh` (now in this skill's `scripts/`).

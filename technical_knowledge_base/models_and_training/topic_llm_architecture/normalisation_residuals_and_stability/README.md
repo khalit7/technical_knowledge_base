@@ -1,6 +1,7 @@
 # Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d8163b50dc5e9d9240e89
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_llm_architecture/normalisation_residuals_and_stability/
 
 Child page of Topic: llm-architecture. One interactive HTML file (`index.html`), built from `src/` (see `src/README.md`).
 

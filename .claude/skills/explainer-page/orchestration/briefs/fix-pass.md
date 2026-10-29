@@ -28,8 +28,3 @@ G. Consistency: where two children disagree on the same measurement, state both 
 Then rebuild (`sh src/build.sh`), run each touched tab's own checks (each `src/<tab>/` has its check scripts; the Reading has its own), and `sh html_utils/checkpage.sh {{ROOT_FOLDER}}` (fail=0, emdash 0, errbox 1, clipped 0); privacy grep; no `__pycache__` or `.shots`. CPU only, light; no GPU or cluster runs. Do not commit, do not write to Notion, do not edit child folders. Report (once): each lettered item done or not and why, the numbers changed with their sources, check results, the final reading time, and anything you could not verify.
 
 ---
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-The lead's prompts "ML infra root: fix pass" (A to G, 2026-10-16), "ML infra root: last small fixes" (2026-10-16) and "Generative: wire links and root fixes" item 2 (2026-10-17); the ROOT FIX LIST entries in the JAX, ML infra and generative memory logs.

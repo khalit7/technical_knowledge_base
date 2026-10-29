@@ -1,6 +1,7 @@
 # The transformer from zero: one block, every shape, a GPT you train
 
 Notion: https://app.notion.com/p/3fd5c17b0d0d8174980ddde4a20c7b3c
+Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_llm_architecture/the_transformer_from_zero/
 
 Child page of Topic: llm-architecture. `index.html` is the whole Notion page, built from `src/` with `sh src/build.sh`.
 

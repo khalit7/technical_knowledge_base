@@ -52,5 +52,3 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 
 ---
 (History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Sources distilled: kb_briefs PAGE QUALITY and THE READER sections (gm, mi, jx, dc common and child briefs); html_utils/BRIEF_page_agent.md (page model, animations, removed tab kinds); html_utils/methods/topic_pages.md (2026-10-04 teaching lesson, child shape); html_utils/methods/papers.md (predict-then-reveal, verdict, details blocks); memory teach-dont-ask-scope.

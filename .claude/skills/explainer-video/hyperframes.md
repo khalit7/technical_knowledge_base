@@ -37,8 +37,3 @@ Not used: `audio.mjs --script ...` (TTS with HeyGen or Kokoro; replaced by `narr
 2. Then `sh .claude/skills/explainer-video/scripts/vendor_skills.sh`: it copies the seven kept skills (and any you name as arguments, for example `general-video`) as real folders into `vendor/`, removes the symlinks the CLI left in `.claude/skills/` and removes `.agents/` (symlinks break on Windows checkouts and through some script launchers). `.agents/` is gitignored in any case.
 3. Review the diff (`git diff --stat .claude/skills skills-lock.json`; `.claude/skills/` must again hold only explainer-page, explainer-video, sync-kb-github and update-kb; `skills-lock.json` must list exactly the folders in `vendor/`, so delete the entries the CLI added for skills you did not keep), skim the faceless-explainer SKILL for changed steps or script flags, and update `workflow.md` here if they moved.
 4. Existing projects keep their pinned CLI version in `package.json`; bump it only when you rebuild that video (`npx hyperframes@latest upgrade --project . --check`).
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-The vendored `.claude/skills/explainer-video/vendor/hyperframes/SKILL.md` (routing, CLI pin) and `references/routes/faceless-explainer.md`; `faceless-explainer/SKILL.md` and its `scripts/` listing; `general-video/SKILL.md`; `.claude/skills/create-explainer-video/SKILL.md`; `video_utils/vendor_skills.sh` and `README.md`; `skills-lock.json`; the worked example's `hyperframes.json` and `package.json`.

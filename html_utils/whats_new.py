@@ -2,7 +2,8 @@
 and the two index pages under it (Tech news, Papers). Called by build_site.py; reads pages.json, each issue's
 src/issue.md (or live.md for the older issues) and each paper's src/paper.json.
 
-usage: python3 html_utils/whats_new.py    prints the latest issue, its top stories and the newest papers it would show
+usage: python3 html_utils/whats_new.py          prints the latest issue, its top stories and the newest papers it would show
+       python3 html_utils/whats_new.py check    the data each card needs (also run by build_site.py, which stops on a problem)
 """
 import datetime as dt, html, json, re
 from pathlib import Path
@@ -92,7 +93,7 @@ def papers(pages, url, by_id, latest=None):
         key, when = _when(j)
         tops = []
         for t in j.get("topics", []):
-            q = by_id.get(t.get("id", "").replace("-", ""))
+            q = by_id.get(t.get("id", "").split("#")[0].replace("-", ""))
             if q:
                 r = q
                 while r and not r.get("section"):  # the topic root carries the section
@@ -103,6 +104,35 @@ def papers(pages, url, by_id, latest=None):
                     "new": p["id"].replace("-", "") in issue_src})
     out.sort(key=lambda r: r["key"], reverse=True)
     return out
+
+
+def check(pages=None):
+    """problems that would leave a card thin: every issue needs top stories (bold leads under "# Top stories"), the
+    newest needs its intro line; every paper needs a date (arxiv, or a month in paper.json), lab, takeaway and topics
+    that resolve to pages"""
+    pages = pages or json.loads((ROOT / "technical_knowledge_base/pages.json").read_text())["pages"]
+    by_id = {p["id"].replace("-", ""): p for p in pages}
+    u = lambda p: p["path"]
+    bad = []
+    iss = issues(pages, u)
+    for i, r in enumerate(iss):
+        if not r["top"]:
+            bad.append(f'{r["p"]["path"]}: no top stories (src/issue.md "# Top stories", each story opening with a **bold** sentence)')
+    if iss and not iss[0]["intro"]:
+        bad.append(f'{iss[0]["p"]["path"]}: no intro (first line of src/issue.md, "One week, A to B: <what the week was about>")')
+    for p in pages:
+        f = ROOT / p["path"] / "src/paper.json"
+        if PAPERS not in "/" + p["path"] + "/" or not f.exists():
+            continue
+        j = json.loads(f.read_text())
+        miss = [k for k in ("lab", "takeaway") if not j.get(k)] + ([] if _when(j)[1] else ["arxiv (or a dated month)"])
+        ids = [t.get("id", "").split("#")[0].replace("-", "") for t in j.get("topics", [])]
+        if not ids:
+            miss.append("topics")
+        miss += [f"topic id {t} not in pages.json" for t in ids if t not in by_id]
+        if miss:
+            bad.append(f'{p["path"]}/src/paper.json: ' + ", ".join(miss))
+    return bad
 
 
 def _paper_card(r, tag="li"):
@@ -248,6 +278,11 @@ CSS = """.wn{margin:28px 0 8px}
 
 if __name__ == "__main__":
     import sys
+    if sys.argv[1:2] == ["check"]:
+        probs = check()
+        print(*probs, sep="\n") if probs else None
+        print(f"what's new: {len(probs)} problem(s)")
+        sys.exit(1 if probs else 0)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     pages = json.loads((ROOT / "technical_knowledge_base/pages.json").read_text())["pages"]
     by_id = {p["id"].replace("-", ""): p for p in pages}

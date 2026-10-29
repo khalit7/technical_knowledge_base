@@ -15,5 +15,5 @@ for a in paths:
     files += [f for f in (a + '/index.html', a + '/README.md', a + '/src') if subprocess.run(['git', 'ls-files', '--error-unmatch', f], capture_output=True).returncode == 0 or __import__('os').path.exists(f)]
 subprocess.run(['git', 'add', '-A', '--'] + files, check=True)
 titles = [byp[a]['title'] for a in paths]
-subprocess.run(['git', 'commit', '-qm', 'publish: ' + ', '.join(titles) + '\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>'], check=True)
+subprocess.run(['git', 'commit', '-qm', 'publish: ' + ', '.join(titles) + '\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'], check=True)
 print('committed', len(paths), 'pages; now git push (the site deploys from main)')

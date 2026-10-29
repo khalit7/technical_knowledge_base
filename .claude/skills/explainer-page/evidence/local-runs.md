@@ -46,8 +46,3 @@ When a run is worth doing but cannot happen now (the GPU queue is busy, the agen
 - Everything a page needs to rebuild goes in the page's `src/` in the repo: recorded outputs as small JSON, small inputs (`src/inputs/`), sample images as small thumbnails, the scripts that made them, and a manifest of every download (URL, revision, sha256).
 - Models live in `~/.cache/huggingface` (durable; leave `HF_HOME` unset). Large downloads and intermediates stay in scratch.
 - Commit nothing over about 1 MB, no MP4s, no PDFs.
-
-## Sources distilled
-(History: the files named here were removed on 2026-10-17 when this skill replaced them; they remain in git history before commit 1d6d9d18, and the per-topic briefs were in a folder outside the repo. Do not look for them; this skill is the current source.)
-
-Memory: cheap-runs-over-expensive, completeness-over-disk, no-usage-caps, scratch-wiped-reboot, dc-topic-in-progress (the 2026-10-15 GPU queue cut), gm-topic-in-progress. Briefs: dc_common (pending boxes, timings against deterministic results), mi_common (timing labels), gm_common and jx_common (measured-on labels, what transfers, durability), dc_child_common (unfilled facts). `html_utils/methods/topic_pages.md` Part B (real data over illustrative, toys that complete something published).

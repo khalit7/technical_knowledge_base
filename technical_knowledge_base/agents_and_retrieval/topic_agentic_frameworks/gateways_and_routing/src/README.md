@@ -1,6 +1,6 @@
 # Gateways and routing: source
 
-Child of Topic: agentic-frameworks. A new page (the Notion page held only a "being built" line, so there is no `live.md` or `coverage.json`). It extends the parent's Production stack tab (its gateway section) and links it rather than repeating it.
+Child of Topic: agentic-frameworks. A new page (the Notion page held only an empty placeholder line, so there is no `live.md` or `coverage.json`). It extends the parent's Production stack tab (its gateway section) and links it rather than repeating it.
 
 ## Build and check
 - `sh build.sh` writes `../index.html` from `parts/` (Reading `20_read_a..f`; `39` Further reading). JS: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (storage key `fgw-tab`; nothing moves before the reader acts), `22_js_fgw_data.js` (generated), `23`/`24` Reading figures, `26_js_fgw_fail.js`, `26_js_fgw_lim.js`, `26_js_fgw_route.js` (the former lab tabs, now inside Reading).
