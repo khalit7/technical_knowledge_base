@@ -101,7 +101,7 @@ def main():
                             "bill": [["transformer block (MLA + MoE, like layer 60)", block], ["embedding and output head copies", copies],
                                      ["eh_proj (2d to d)", eh], ["three RMSNorms", norms]]}}
     # DeepSeek-V3 Table 4 (MTP ablation), as printed, from the DeepSeek-V3 paper page (read-only)
-    t4 = json.load(open(HERE.parents[4] / "reference" / "papers" / "deepseek_v3_technical_report" / "src" / "tables.json"))["T4"]
+    t4 = json.load(open(HERE.parents[4] / "whats_new" / "papers" / "deepseek_v3_technical_report" / "src" / "tables.json"))["T4"]
     fod["dsab"] = {"models": t4["models"], "meta": t4["meta"], "rows": [[r["bench"], r["metric"], r["v"], r["lower"]] for r in t4["rows"]]}
     # derived
     sw = masks["swap"]; lk = masks["leak"]
