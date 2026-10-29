@@ -33,6 +33,7 @@ No knowledge-base skills live in Notion any more (deleted 2026-10-19); Notion's 
 ## Khalid's preferences
 - **Ask, don't assume**, when a decision is his.
 - **The goal of every page: understand the subject deeply in the least time** (`explainer-page/teaching/teaching-contract.md`, agreed 2026-10-23). A visual beside every core idea, chosen by what the concept is (static diagram, stepper, animation only when the change is the point, before/after like the DeepSeek MLA explainer, real image); nothing decorative; never autoplay. Length is judged per page and condensing never loses important information (knowledge ledger). He reads to understand, not to memorise: no quizzes or flashcards.
+- **Looks matter** (2026-10-29): a page that looks visually good is easier to read. The template theme and the "How a visual should look" rules carry it; real images are never forced, but are always included when they show something new.
 - Root `Topic: *` pages are short comparisons plus definitions; details live on child pages; one page owns each concept and the others link to it.
 - Do not launch a multi-agent Workflow without his explicit opt-in; plain subagents are fine, about four at a time.
 

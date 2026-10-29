@@ -25,11 +25,20 @@ The technical rules every chart, lab and animation follows so it renders correct
 - Below about 520 px, charts switch to fewer ticks, shorter labels, wrapped legends, smaller row heights; comparison tables can become cards (the generative root's `rd-cmp` tables do).
 - **Text at least 11 px** on screen, SVG labels included (the paper pages' `check_page.mjs` enforces it). Tick labels 10.5 to 11 px are the floor, not the norm.
 
+## How a visual should look (2026-10-29, the Attention variants look trial)
+Correct is not enough; a visual that looks good is easier to read. Before reporting, look at each visual at its first step, mid-step and last step.
+- **Fill the frame from the first step.** A stepper whose content grows (a cache filling, tokens arriving) draws the empty slots still to come (dashed outlines in `var(--line)`), and a pipeline draws its later boxes faintly (opacity about .14), so the reader sees the whole layout before pressing play, and the card never sits mostly empty.
+- **Size to the card.** Marks and squares grow to use the measured width (cap the cell size generously, not at a tiny value); a drawing in one corner of a wide card is a bug.
+- **Labels 12 px or more** in SVG (`RD.t` defaults to 12); 11 px is the floor for tick labels only.
+- **A calm palette.** Few colours, each with a meaning; when a series needs many categorical colours (one per head), use a muted, evenly weighted set such as Tableau 10 (`#4e79a7 #f28e2b #59a14f #b07aa1 #d4a72c #76b7b2 #e15759 #9c755f`), not full-saturation hues around the wheel.
+- **Ease every forward step.** `RD.anim` adds `rd-fwd` to the card when the reader steps or plays forward: give the marks that appear at that step `class="rd-new"` (they slide and fade in) and marks that leave `class="rd-gone"`, and the `.an-cap` caption fades in by itself. A custom `requestAnimationFrame` animation plays a step's motion once when the reader presses the forward button, instead of jumping to the step's end (the MLA explainer, `24_js_rd_mlx.js` on Attention variants: `st.stop`). Back and the scrubber jump; reduced motion jumps.
+- **No ambient motion** (drifting, twinkling): decoration, and the teaching contract forbids autoplay.
+
 ## Captions in HTML, not SVG
 Step captions, explanations, legends with more than a word or two, and long axis notes go in HTML beside or under the SVG, where they wrap. SVG text does not wrap and clips at phone width. Keep SVG text to short labels and numbers.
 
 ## Light and dark through CSS variables
-- Colours are CSS variables defined on `:root` and redefined under `@media (prefers-color-scheme: dark)` ([../build/templates/01_head.html](../build/templates/01_head.html): `--bg --ink --mute --line --soft --acc --acc2 --good --bad --dim --hl` and series colours `--c1` to `--c6`).
+- Colours are CSS variables defined on `:root` and redefined under `@media (prefers-color-scheme: dark)` ([../build/templates/01_head.html](../build/templates/01_head.html): `--bg --card --ink --mute --line --soft --acc --acc2 --good --bad --dim --hl --shadow` and series colours `--c1` to `--c6`). Cards use `--card` on the tinted `--bg`.
 - SVG uses `fill="var(--ink)"`, `stroke="var(--line)"`; never a hard-coded black or white. Canvas reads the computed variables at draw time and redraws when the scheme changes.
 - Status colours carry meaning consistently: measured, published by the vendor, independent, derived, unconfirmed (the generative root uses classes `.meas`, `.vend`, `.indep`, `.der`, `.unc`).
 

@@ -13,6 +13,7 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 - **A picture for every core idea, chosen by what the concept is** ([teaching-contract.md](teaching-contract.md)): a static diagram for structure, a stepper for a process, an animation only when the change is the point, a before/after when a method replaced another ([../visuals/animation-types.md](../visuals/animation-types.md)). Visuals sit inline, beside the claim they prove.
 - **Real code that ran.** Code shown on the page is the script that produced the numbers (kept in `src/`), with its real output pasted and scrubbed.
 - **Map to what he knows**: the PyTorch counterpart, the Python reference, the training job ([../understand/reader.md](../understand/reader.md)).
+- **It looks good** (Khalid, 2026-10-29: "a page that looks visually good is easier to read"). Looks are part of teaching, not polish: a clear heading scale, comfortable line length, cards that separate a visual from the prose, visuals that fill their frame. The template's theme gives the page; [../visuals/mechanics.md](../visuals/mechanics.md) ("How a visual should look") gives the visuals.
 
 ## Evidence on the page
 - **Every specific fact is sourced inline** and dated; derived numbers show their formula; illustrative inputs are labelled ([../evidence/sourcing.md](../evidence/sourcing.md)).
@@ -43,7 +44,7 @@ What every page must do to teach, whatever its kind, and the questions to ask of
 
 ## Before reporting a page, ask
 1. Could Khalid, starting at his stated level, follow every section without looking anything up?
-2. Does the top give the core idea and a hero figure within two minutes, and does every core idea have a picture beside it?
+2. Does the top give the core idea and a hero figure within two minutes, and does every core idea have a picture beside it? Would a real image show something new that no diagram on the page shows?
 3. Could any paragraph be cut, collapsed or replaced by a caption without losing understanding? Does every number have a source and a date?
 4. Does `html_utils/ledger.py check` pass (an existing page), and is every correction visible?
 5. Do the numbers agree with the root's labs, the siblings and the topic's `FACTS.md`, and is each concept drawn only on the page that owns it?

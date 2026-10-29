@@ -17,16 +17,18 @@ window.RD=(function(){
       '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
       '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
     const $=s=>document.getElementById(pid+s);
-    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    // fwd: the step moved forward by one, so marks drawn with class rd-new ease in (CSS) and the caption fades in
+    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
+      if(fwd&&!RM)card.querySelectorAll('.an-cap').forEach(c=>{c.classList.remove('rd-fade');void c.offsetWidth;c.classList.add('rd-fade')})}
     const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
     function tick(){st.timer=0;if(!st.play||!live())return;
-      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      if(st.i>=st.n-1){setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){setPlay(false);return}
       st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
     function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
     function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
       if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
     $('p').addEventListener('click',()=>setPlay(!st.play));
-    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    $('f').addEventListener('click',()=>{setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
     $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
     $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
@@ -39,7 +41,7 @@ window.RD=(function(){
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
       reset(n){setPlay(false);st.n=n;st.i=0;show()},
       go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
-      redraw(){o.draw(st.i)},
+      redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},
       play(){if(!RM)setPlay(true)},
       get i(){return st.i}, get n(){return st.n}
     };
@@ -53,7 +55,7 @@ window.RD=(function(){
 })();
 RD.onResize=f=>{let t=0;addEventListener('resize',()=>{const r=document.getElementById('t-read');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(f,60)})};
 RD.svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'">'+body+'</svg>';
-RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
+RD.t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||12)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
 // segmented buttons: el contains <button data-m>; calls f(value)
 RD.seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
 // section nav highlight
