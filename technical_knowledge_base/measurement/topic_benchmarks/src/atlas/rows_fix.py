@@ -62,6 +62,7 @@ S('aagdppdf', 'Artificial Analysis, GDP.pdf evaluation page', 'https://artificia
 S('surgeblog', 'Surge AI, GDP.pdf launch post', 'https://surgehq.ai/blog/gdp-pdf-can-100b-ai-models-master-the-documents-that-run-the-world', '2026-04-14', 'blog')
 AX('2607.11192')
 S('aav43', 'Artificial Analysis, Intelligence Index v4.3 article', 'https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-3', '2026-09-07', 'blog')
+S('aav5', 'Artificial Analysis, Intelligence Index v5 article', 'https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v5', '2026-10-27', 'blog')
 S('aachangelog', 'Artificial Analysis changelog', 'https://artificialanalysis.ai/changelog', R4, 'page', read=R4)
 S('aabrieflaunch', 'Artificial Analysis, AA-Briefcase launch article', 'https://artificialanalysis.ai/articles/aa-briefcase', '2026-06-18', 'blog')
 S('aammlupro', 'Artificial Analysis, MMLU-Pro evaluation page (legacy)', 'https://artificialanalysis.ai/evaluations/mmlu-pro', R4, 'leaderboard', read=R4)
@@ -191,9 +192,11 @@ CORR('gdp_pdf', C('"GPT-6 Astra 33.2%, GPT-5.6 Sol 28.2%, Claude Fable 5.1 26.2%
 
 U('aa_briefcase', it=I('91 private tasks in 4 multi-week project scenarios (about 2,000 source files); a fifth, public scenario is demonstrative', 'aabrief', n=91), yr=2026)
 ISS('aa_briefcase', X('Elo is relative and re-anchored between versions; deliverables are judged by an LLM panel (Claude Opus 5, GPT-5.6 Sol, Gemini 3.8 Flash since v4.3.1) that includes models from the labs being ranked.', 'aaidx'))
-U('aa_index', it=I('10 evaluations in v4.3.2: AA-Briefcase 15%, AA-Omniscience 15%, GDPval-AA 10%, Terminal-Bench 4.0 10%, SciCode 10%, GDP.pdf 10%, HLE 10%, CritPt 10%, AutomationBench-AA 5%, AA-LCR 5%', 'aaidx', n=10))
+U('aa_index', it=I('9 evaluations in v5 (27 October 2026), four categories at 25% each: AA-Briefcase 15%, AutomationBench-AA 5%, GDP.pdf 5% (knowledge work); FrontierCode 2.0 15%, Terminal-Bench 4.0 10% (coding); Terminal-Bench-Science 15%, CritPt v2 hard subset 10% (science); AA-Omniscience v1.1 15%, HLE-Diamond 10% (general)', 'aav5', n=9))
+EV('aa_index', E(58, 'index points', 'Claude Opus 5.5 (max)', '2026-10-27', 'Intelligence Index v5 launch article', 'ind', 'aav5', note='GPT-6 Astra (max) 57, GPT-6.1 Sol (max) 55, Gemini 4 Argon (high) 50. A new scale: not comparable with v4.3.x readings.'), first=True)
 EV('aa_index', E(53, 'index points', 'Claude Fable 5.1 and GPT-6 Astra, tied', '2026-09-07', 'Intelligence Index v4.3 launch article', 'ind', 'aav43'))
 ISS('aa_index', X('Versions so far: v4.0 (January 2026: removed MMLU-Pro, LiveCodeBench, AIME 2025), v4.1 (June), v4.1.1 (August), v4.2 (4 September), v4.3 (7 September), v4.3.1 (judge panel), v4.3.2 (19 September, Elo re-anchoring).', 'aaidx'),
+    X('v5 (27 October 2026) removed GDPval-AA, SciCode and AA-LCR and puts 60% of the weight on evaluations with private test sets or held-out answers (AA\'s count); its scale is new, so v5 and v4.3.x numbers do not compare.', 'aav5'),
     X('GPT-6 Astra\'s launch page quotes Index v4.1.1 scores (Astra 61.2), not comparable with v4.3 (53).', 'oaiastra'))
 CORR('aa_index', C('Model cards and the old page quote index scores without a version', 'A v4.1.1 score of 61.2 and a v4.3 score of 53 can be the same model. Every index figure needs its version.', 'aaidx'))
 
