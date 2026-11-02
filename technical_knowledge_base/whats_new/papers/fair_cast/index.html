@@ -1,0 +1,871 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)</title>
+<style>
+:root{--bg:#fff;--ink:#2f3437;--mute:#787774;--line:#e9e9e7;--soft:#f7f6f3;--acc:#2f6fb5;--acc2:#dbe7f5;--good:#3f7f56;--bad:#c2703a;--dim:#d3d3d0;--hl:#fff3c4;--open:#1a7f37;--open2:#dcefe0;--closed:#8250df;--closed2:#ece3fb;--c1:#2f6fb5;--c2:#c2703a;--c3:#3f7f56;--c4:#8a5cb8;--c5:#b8983a;--c6:#3a9aa8}
+@media (prefers-color-scheme:dark){:root{--bg:#191919;--ink:#e6e5e3;--mute:#9b9a97;--line:#2f2f2f;--soft:#222;--acc:#6ea8e6;--acc2:#233a52;--good:#5fae7b;--bad:#e8915c;--dim:#3a3a3a;--hl:#4a4020;--open:#4fbf6a;--open2:#1d3324;--closed:#b48ce0;--closed2:#2e2440;--c1:#6ea8e6;--c2:#e8915c;--c3:#5fae7b;--c4:#b48ce0;--c5:#d9bb5f;--c6:#5fc3d1;color-scheme:dark}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+.w{max-width:920px;margin:0 auto;padding:18px 16px 40px}
+h1{font-size:23px;line-height:1.25;margin:0;letter-spacing:-.01em}.sub{color:var(--mute);font-size:13px;margin:3px 0 12px}
+h2{font-size:19px;margin:34px 0 6px;line-height:1.3}h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}code,.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em}
+b,strong{font-weight:600}.mute{color:var(--mute)}.small{font-size:12.5px}
+ul,ol{margin:6px 0;padding-left:22px}li{margin:3px 0}
+button,select,input{font:inherit;color:inherit;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 10px}
+button{cursor:pointer}button:hover{border-color:var(--mute)}button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+input[type=range]{padding:0;border:0;background:none;accent-color:var(--acc);width:100%}
+input[type=checkbox]{accent-color:var(--acc)}
+.nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px 0;margin:0 0 6px}
+.nav::-webkit-scrollbar{display:none}
+.nav a{font-size:12.5px;text-decoration:none;color:var(--ink);background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.nav a.cur{border-color:var(--acc);color:var(--acc)}
+section{scroll-margin-top:48px}
+.lead{font-size:16px}
+.try{font-size:13px;color:var(--mute);border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0 10px}
+.try b{color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
+.co{border-left:3px solid var(--acc);background:var(--soft);padding:9px 12px;border-radius:0 6px 6px 0;margin:12px 0}
+.co.warn{border-left-color:var(--bad)}.co.key{border-left-color:var(--good)}
+.co .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:10px 0}
+.grid>div{min-width:0}
+.sp{border:1px solid var(--line);border-radius:8px;padding:9px 12px;background:var(--bg)}
+.sp .n{font-size:11.5px;color:var(--mute);font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.sp p{margin:3px 0 0;font-size:13.5px}.sp a{color:var(--acc);text-decoration:none}.sp a:hover{text-decoration:underline}.sp .n a{text-transform:none;font-size:13.5px;letter-spacing:0}.sp .rt{color:var(--mute);font-size:12.5px}#t-more h3{font-size:14px;margin:14px 0 4px}
+.bets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--soft)}
+.bet h4{margin:0 0 4px;font-size:14.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chips button{font-size:12.5px;padding:2px 10px;border-radius:99px}
+.band{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+.labs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:6px}
+.lab{text-align:left;border-radius:8px;padding:6px 9px;border:1px solid var(--line);background:var(--bg);line-height:1.3;min-width:0}
+.lab .nm{font-weight:600;font-size:13.5px;display:block}.lab .fl{font-size:12px;color:var(--mute);display:block;overflow-wrap:anywhere}
+.lab.o{border-left:4px solid var(--open)}.lab.c{border-left:4px solid var(--closed)}
+.lab.sel{outline:2px solid var(--acc);outline-offset:1px}.lab.dim{opacity:.28}
+.detail{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;background:var(--soft)}
+.detail h3{margin:0 0 2px}.tag{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;margin:2px 4px 2px 0;border:1px solid var(--line);background:var(--bg)}
+.tag.o{color:var(--open);border-color:var(--open)}.tag.c{color:var(--closed);border-color:var(--closed)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.tw{overflow-x:auto;max-width:100%;margin:8px 0}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th{text-align:left;color:var(--mute);font-weight:500;border-bottom:1px solid var(--line);padding:5px 6px;vertical-align:bottom}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;white-space:nowrap}
+.fm{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;overflow-x:auto}
+.fm .eq{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:18px;text-align:center;white-space:nowrap;padding:4px 0 6px}
+.fm dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:4px 0 0;font-size:13px}
+.fm dt{font-family:"Cambria Math",Cambria,Georgia,serif;font-style:italic;text-align:right}.fm dd{margin:0}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:8px 16px;margin:8px 0}
+.ctl label{font-size:13px;display:block;min-width:0}.ctl label b{font-variant-numeric:tabular-nums}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:10px 0}
+.stat{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--bg);min-width:0}
+.stat .k{font-size:12px;color:var(--mute)}.stat .v{font-size:19px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.stat .d{font-size:12px;color:var(--mute)}
+svg{display:block;max-width:100%;height:auto}
+svg text{font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}svg text:not([fill]){fill:var(--ink)}
+.ill{font-size:11.5px;color:var(--bad);font-weight:600}
+.bars .row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.bars .row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bars .track{height:14px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.bars .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.bars .val{text-align:right;font-variant-numeric:tabular-nums}
+.bars .row.hl .nm{font-weight:600}
+.mist{border:1px solid var(--line);border-radius:8px;margin:6px 0;overflow:hidden}
+.mist summary{cursor:pointer;padding:7px 12px;font-size:14px;list-style:none}
+.mist summary::-webkit-details-marker{display:none}
+.mist summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
+.mist[open] summary:before{content:"\2212"}
+.mist .b{padding:0 12px 9px 30px;font-size:13.5px}
+.split{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 10px;align-items:center;margin:8px 0;font-size:13px}.sb{display:flex;height:24px;border-radius:4px;overflow:hidden}.sb span{display:flex;align-items:center;padding:0 6px;color:var(--bg);font-size:12.5px;white-space:nowrap;overflow:hidden}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:14px 0 4px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);padding:7px 11px;cursor:pointer;white-space:nowrap;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc);font-weight:600}
+.tabs button:hover{color:var(--ink)}
+.tab[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;margin:6px 0}.seg button{font:inherit;font-size:13px;background:var(--bg);color:var(--mute);border:0;padding:5px 11px;cursor:pointer}.seg button.on{background:var(--acc2);color:var(--ink);font-weight:600}
+.hmwrap{overflow-x:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px}
+table.hm{border-collapse:collapse;font-size:12.5px;min-width:720px;width:100%}
+table.hm th,table.hm td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:center}
+table.hm thead th{font-weight:600;vertical-align:bottom;background:var(--soft)}table.hm thead th small,table.hm th.mh small{display:block;font-weight:400;color:var(--mute);font-size:11px}
+table.hm th.mh{text-align:left;position:sticky;left:0;background:var(--bg);z-index:1;min-width:9.5em}table.hm thead th.mh{background:var(--soft)}
+table.hm td.v{cursor:pointer;font-variant-numeric:tabular-nums;font-weight:600}table.hm td.v.on{outline:2px solid var(--ink);outline-offset:-2px}
+table.hm td.na{color:var(--dim)}table.hm sup{font-size:9px;margin-left:1px}
+.hmleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute)}
+.q{color:var(--mute);font-size:12.5px}.mute{color:var(--mute)}ul.tight{margin:4px 0;padding-left:20px}ul.tight li{margin:3px 0;font-size:14px}
+.chk{font-size:13px;margin:0 10px 0 4px;white-space:nowrap}.plot{margin:8px 0;overflow:hidden}.small{font-size:13px}.hmleg span{display:inline-flex;align-items:center}.hmleg svg{display:inline-block;margin-right:4px}
+.foot{margin-top:30px;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:10px}
+
+
+a{color:var(--acc)}a:visited{color:var(--acc)}
+@media (max-width:520px){h1{font-size:21px}.fm .eq{font-size:15px}.bars .row{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 4.4em;font-size:12px}.bars .row .nm{white-space:normal;line-height:1.2}}
+
+/* additions */
+math{font-family:"Cambria Math","STIX Two Math",math}
+.fm math[display=block]{font-size:17px;margin:4px 0 6px}
+.m{font-family:"Cambria Math","STIX Two Math",Cambria,Georgia,serif;font-size:1.06em;white-space:nowrap}
+.m b{font-weight:700}
+.fm .wh{font-size:13px;margin:4px 0 0}
+.lt td:first-child{white-space:nowrap;font-weight:600}
+.lt a{color:var(--acc);text-decoration:none}
+.box{fill:var(--soft);stroke:var(--line)}.boxa{fill:var(--acc2);stroke:var(--acc)}.boxc{fill:var(--open2);stroke:var(--open)}.boxo{fill:var(--bg);stroke:var(--line);stroke-dasharray:3 3}
+.lbl{font-size:12px}.lbls{font-size:10.5px;fill:var(--mute)}
+.eg{display:grid;gap:3px;margin:8px 0}
+.eg span{aspect-ratio:1;border-radius:2px;background:var(--soft);border:1px solid var(--line)}
+.eg span.on{background:var(--acc);border-color:var(--acc)}
+.eg span.sh{background:var(--good);border-color:var(--good)}
+.mx{border-collapse:collapse;font-size:12.5px;margin:6px 0;width:auto}
+.mx td{width:56px;height:30px;text-align:center;border:1px solid var(--bg);padding:0;font-variant-numeric:tabular-nums}
+.mx td.s{background:none;color:var(--mute);font-size:11.5px;border:0}
+.gr{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.gr button{min-width:44px;font-weight:600}
+.gr button.r1{background:var(--open2);border-color:var(--open)}
+.tl-item{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0;scroll-margin-top:10px}
+.tl-item.sel{outline:2px solid var(--acc);outline-offset:1px}
+.tl-item h3{margin:0 0 2px;font-size:15px}.tl-item .dt{font-size:12.5px;color:var(--mute)}
+.tl-item ul{margin:6px 0 0}.tl-item li{font-size:14px}
+.pbar{display:grid;grid-template-columns:5.5em minmax(0,1fr) 7.5em;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.pbar .track{height:12px;background:var(--soft);border-radius:3px;position:relative;overflow:hidden}
+.pbar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+.leg i{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+@media (max-width:520px){.lt td:first-child{white-space:normal;min-width:6.5em}.fm math[display=block]{font-size:14.5px}.mx td{width:44px;height:26px;font-size:11.5px}}
+
+.strip .cells{display:grid;gap:2px;margin:8px 0 2px}.strip .cells span{height:24px;border-radius:2px}.strip .g{background:var(--acc)}.strip .l{background:var(--acc2)}
+table.thm{width:auto;min-width:520px}table.thm td,table.thm th{padding:4px 8px}table.thm .pk{background:var(--acc2)}
+.thm .dot{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--acc);vertical-align:middle}.thm .dot.df{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ink)}
+.thm tr.rej td:first-child{text-decoration:line-through;color:var(--bad)}
+.tl-item.o{border-left:4px solid var(--open)}.tl-item.c{border-left:4px solid var(--closed)}
+.fm .wh{font-size:13px}.wh{margin:6px 0 0}
+#gmRep,#gmTok{min-width:600px}#mdBar svg{min-width:0}
+
+/* animation frame (shared with the lab pages) */
+.seg{flex-wrap:wrap;max-width:100%}.chk{white-space:normal;display:inline-block;max-width:100%}
+.an-top{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px}
+.an-svg{margin:4px 0;min-height:60px}
+.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:6px 0}
+.an-ctl input[type=range]{flex:1 1 150px;width:auto;min-width:0}.an-ctl select{padding:3px 6px}
+.an-play{min-width:6.6em}
+.an-cap{min-height:5.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
+.an-cap .t{font-weight:600;font-size:14px}.an-cap p{margin:2px 0;font-size:13.5px}
+.an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:6px}
+/* paper page */
+.crumb{font-size:12.5px;color:var(--mute);margin:0 0 2px}
+.hero{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0 6px;background:var(--soft)}
+.hero-k{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;font-weight:600}.hero-k a{text-transform:none}
+.hero h1{margin:4px 0 4px}.hero .au{font-size:13px;line-height:1.45}
+.hero .tk{font-size:15.5px;margin:10px 0}
+.hn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px;margin:8px 0}
+.hn .stat .v{font-size:24px}.hn .stat .u{font-size:13px;font-weight:500;color:var(--mute)}
+.hero-l{font-size:13px;margin-top:6px}
+.where{float:right;clear:right;margin:3px 0 6px 12px;font-size:11.5px;line-height:1.3;color:var(--mute);border:1px solid var(--line);border-radius:5px;padding:1px 6px;text-decoration:none;background:var(--bg);max-width:15em;text-align:right}
+.where.nolink:before{content:""}
+a.where{color:var(--mute)}a.where:hover{color:var(--acc);border-color:var(--acc)}
+.where:before{content:"in the paper: ";opacity:.75}
+h2 .where{margin-top:4px}
+.pred{border:1px dashed var(--acc);border-radius:10px;padding:10px 14px;margin:12px 0;background:var(--bg)}
+.pred .q{font-weight:600;font-size:14px;color:var(--ink);margin-bottom:6px}.pred .q:before{content:"Predict first: ";color:var(--acc)}
+.pred .opts{display:flex;flex-wrap:wrap;gap:6px}.pred .opts button{font-size:13px;text-align:left}
+.pred .opts button.right{background:var(--open2);border-color:var(--open)}.pred .opts button.wrong{background:var(--hl);border-color:var(--bad)}
+.pred .fb{font-size:13.5px;margin-top:6px}
+.reveal[hidden]{display:none}
+.chipbar{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+.chipbar button{font-size:13px;padding:2px 10px;border-radius:99px}
+.chipbar button.k-det{border-color:var(--dim)}.chipbar button.k-adj{border-color:var(--c5)}.chipbar button.k-noun,.chipbar button.k-place{border-color:var(--c1)}.chipbar button.k-verb{border-color:var(--c2)}.chipbar button.k-prep{border-color:var(--c3)}
+.sent{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:34px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:14.5px}
+.sent .w{padding:1px 7px;border-radius:5px;background:var(--soft);border:1px solid var(--line)}
+.sent .w.bad{background:var(--hl);border-color:var(--bad)}.sent .w.cur{outline:2px solid var(--acc)}
+.sent .w small{display:block;font-size:11px;color:var(--mute);line-height:1.1}
+.sent .ph{color:var(--mute);font-size:13px}
+.vtag{display:inline-block;font-size:12px;border-radius:99px;padding:0 8px;border:1px solid var(--line)}
+.hm2 text{font-size:11px}
+.ok{color:var(--good);font-weight:600}.no{color:var(--bad);font-weight:600}
+.cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px}
+.cols2>div{min-width:0}
+.blk text{font-size:11.5px}
+table.t3 td,table.t3 th{white-space:nowrap}table.t3 td.chg{white-space:normal;min-width:9em}
+table.t3 tr.basec td{font-weight:600;background:var(--soft)}
+.dbar{display:inline-block;height:10px;border-radius:2px;vertical-align:middle}
+.lst li b{font-weight:600}
+@media (max-width:520px){.where{float:none;display:inline-block;margin:0 0 4px;max-width:none;text-align:left}.hn .stat .v{font-size:21px}}
+.pred .skip{margin-top:6px;font-size:12px;background:none;border:0;color:var(--mute);text-decoration:underline;padding:2px 0}
+
+.res{font-size:13.5px;line-height:1.5;margin:8px 0;padding:8px 10px;background:var(--soft);border:1px solid var(--line);border-radius:8px}
+.chips label{font-size:13px;display:inline-flex;align-items:center;gap:3px;margin-right:4px}
+/* DPO page */
+:root{--mw:#2f6fb5;--ml:#c2703a;--mr:#8a5cb8;--mp:#3f7f56;--mg:#b8983a;--mu:#9b9a97}
+@media (prefers-color-scheme:dark){:root{--mw:#6ea8e6;--ml:#e8915c;--mr:#b48ce0;--mp:#5fae7b;--mg:#d9bb5f;--mu:#77756f}}
+select{max-width:100%}.ctl label{min-width:0}
+.samp{display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;gap:2px 10px;font-size:13px;align-items:center}
+.samp .h{color:var(--mute);font-size:12px}.samp .t{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;overflow-wrap:anywhere}
+.samp .bad{color:var(--bad)}
+.pairbox{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.pr{border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--bg);font-size:13px}
+.pr .y{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.kvs{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px}.kvs b{font-variant-numeric:tabular-nums}
+.chk{font-size:13.5px}.chk li{margin:4px 0}
+.vd{display:inline-block;font-size:11.5px;font-weight:600;border-radius:99px;padding:0 8px;margin-right:6px}
+.vd.ok{background:var(--open2);color:var(--open)}.vd.no{background:var(--closed2);color:var(--closed)}.vd.mid{background:var(--hl);color:var(--ink)}
+.lossf{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;overflow-wrap:anywhere;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:4px 8px;margin:4px 0}
+.tl2{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 12px;font-size:13.5px}.tl2 dt{color:var(--mute);white-space:nowrap}.tl2 dd{margin:0}
+</style>
+<style id="kb-look">
+/* Reading-site look (2026-10-29), from html_utils/apply_look.py; the template's 01_head.html carries the same */
+:root{--bg:#f4f5f7;--card:#fff;--soft:#f0f2f5;--line:#e1e4e9;--ink:#1d2733;--mute:#5f6b7a;--acc:#2a62a8;--acc2:#dde8f6;
+--shadow:0 1px 2px rgba(20,35,60,.06),0 8px 24px rgba(20,35,60,.07);--serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif}
+@media (prefers-color-scheme:dark){:root{--bg:#121519;--card:#1a1e24;--soft:#20252c;--line:#2c323b;--ink:#e6e9ee;--mute:#9aa4b2;--acc:#7aaee8;--acc2:#1f334b;
+--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3)}}
+body{background:var(--bg);font-size:16px;line-height:1.65}
+.w{max-width:980px;padding:28px 20px 56px}
+h1{font-family:var(--serif);font-size:clamp(28px,4.2vw,40px);line-height:1.12;letter-spacing:-.005em;font-weight:700}
+.sub{font-size:15px;line-height:1.55;max-width:46em;margin:12px 0 18px}
+h2{font-family:var(--serif);font-size:clamp(23px,3vw,29px);line-height:1.2;margin-top:56px;margin-bottom:12px;font-weight:700}
+h3{font-size:16px}sub,sup{line-height:0}
+section>p,section>ul,section>ol{max-width:46em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:18px 20px;margin:20px 0}
+.card .card{box-shadow:none;margin:12px 0}.card h4{font-size:15.5px;line-height:1.35}
+.co{background:var(--acc2);border-left-width:4px;border-radius:0 12px 12px 0;padding:12px 16px;margin:18px 0}
+.co.warn{background:color-mix(in srgb,var(--bad) 12%,var(--bg))}.co.key{background:color-mix(in srgb,var(--good) 12%,var(--bg))}
+button,select{background:var(--card);border-radius:8px}button:hover{border-color:var(--acc)}
+.an-ctl button,.an-ctl select{border-radius:999px;padding:5px 14px}
+.an-play{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600}
+.seg{border-radius:20px;background:var(--soft);padding:3px;gap:2px;border-color:var(--line);flex-wrap:wrap;max-width:100%}
+.seg button{border-radius:999px;background:transparent;padding:5px 13px}
+.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(20,35,60,.15)}
+.tabs button{font-size:15px;padding:9px 14px;border-radius:0;background:none}
+.nav{background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:8px 0;gap:6px}
+.nav a{font-size:13px;padding:4px 12px;background:var(--card)}
+.nav a.cur{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+.stat{background:var(--soft);border-color:transparent;border-radius:10px;padding:10px 12px}.stat .v{font-size:21px}
+.an-cap:is(*,#kb){background:var(--soft);border-left-width:4px;border-radius:0 10px 10px 0;padding:10px 14px}
+details.dp{background:var(--card);border-radius:12px}
+.pr,.dr,.detail,.bet,.fm{background:var(--card);border-radius:12px}
+@media (max-width:520px){body{font-size:15px}h1{font-size:26px}h2{margin-top:44px}.w{padding:20px 14px 40px}.card{padding:14px;border-radius:12px}.seg button{padding:5px 10px}
+code{overflow-wrap:anywhere}math[display=block]{display:block math;max-width:100%;overflow-x:auto;overflow-y:hidden}}
+</style><!--/kb-look--></head><body><div class="w">
+<div class="crumb"><a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> · 2026 · <span id="rt">Reading: 20 min, plus 4 in closed details. +3h 20m of resources. Data as of 2 November 2026.</span></div>
+<div class="tabs" role="tablist" id="tabs">
+<button role="tab" data-t="t-read" aria-selected="true">The paper</button><button role="tab" data-t="t-sim" aria-selected="false">Round a weight</button><button role="tab" data-t="t-tables" aria-selected="false">The paper's numbers, rebuilt</button><button role="tab" data-t="t-more" aria-selected="false">Further reading</button>
+</div>
+<section class="tab" id="t-read" role="tabpanel">
+<style>.kn{color:var(--c2);font-weight:600}.ks{color:var(--c1);font-weight:600}.ke{color:var(--c3);font-weight:600}.km{color:var(--ink);font-weight:600}.fch{color:var(--bad);font-weight:600}.fcv{color:var(--good);font-weight:600}
+.fc-terms{display:grid;grid-template-columns:minmax(0,10em) minmax(0,1fr);gap:2px 12px;font-size:14px}.fc-terms dt{font-weight:600}.fc-terms dd{margin:0}
+@media (max-width:520px){.fc-terms{grid-template-columns:minmax(0,1fr)}.fc-terms dd{margin-bottom:6px}}
+.fc-img{background:#fff;border-radius:8px;padding:6px;margin:6px 0}.fc-img img{display:block;width:100%;height:auto}
+table.fc-t td,table.fc-t th{padding:3px 8px}.fc-cap{min-height:3.2em}
+.fc-sum{font-size:14px;margin:6px 0 0}.fc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}.fc-row label{font-size:14px}</style>
+<div class="hero" id="hero">
+<div class="hero-k">Paper · arXiv preprint · <a href="https://arxiv.org/abs/2610.41073" target="_blank" rel="noopener noreferrer">arXiv 2610.41073</a></div>
+<h1>bf16 Rounding Silently Discards Most RL Policy Updates: A Hidden Training-Inference Mismatch and an Unbiased One-Line Fix <span class="mute">(Fair Cast)</span></h1>
+<div class="au">Andrew Gao, William Gao</div>
+<div class="au mute">Stanford · 29 October 2026 (arXiv v1, the only version as of 2 November 2026)</div>
+<p class="tk"><b>In one line:</b> On single-GPU GRPO runs with Qwen3-0.6B to 4B, exporting the fp32 master to the bf16 sampler with stochastic rounding and computing the loss on that served copy, instead of round-to-nearest, ended more than one point ahead in held-out accuracy on 18 of 25 matched seed-pairs, within one point on 6 and behind on 1 (mean +6.1 points, median +3.1, much of it from three zebra-puzzle pairs).</p>
+<div class="hn">
+<div class="stat"><div class="v">0.4 to 0.5% <span class="u">of served weights change</span></div><div class="k">per optimizer step on Qwen3-1.7B at learning rate 10⁻⁶ under round-to-nearest export; under Fair Cast 2 to 15% change</div><div class="d">measured over a full run · <a href="https://arxiv.org/html/2610.41073v1#S3.F4" target="_blank" rel="noopener noreferrer">§3, Figure 4b</a></div></div>
+<div class="stat"><div class="v">18 / 6 / 1 <span class="u">of 25 seed-pairs</span></div><div class="k">Fair Cast ahead by more than one point / within one point / behind, final held-out accuracy after 150 steps; mean +6.1 points, without the three zebra pairs +2.5</div><div class="d">recomputed from the released per-pair table · <a href="https://arxiv.org/html/2610.41073v1#S7.T2" target="_blank" rel="noopener noreferrer">Table 2</a></div></div>
+<div class="stat"><div class="v">0.57 vs 0.33 <span class="u">zebra accuracy</span></div><div class="k">Fair Cast (4 runs, ± 0.16) against round-to-nearest (3 runs, ± 0.10), Qwen3-1.7B; round-to-nearest collapsed on every seed, an fp32 sampler reached 0.69</div><div class="d">one Fair Cast run also fell, to 0.34 · <a href="https://arxiv.org/html/2610.41073v1#S7.F5" target="_blank" rel="noopener noreferrer">§7.2, Figure 5</a></div></div>
+</div>
+<p class="tk" style="margin-top:10px"><b>How far to trust it:</b> Believe the mechanism: the dead-zone arithmetic is exact, the fix is a few lines of released code, and the paper measures the lag directly (one optimizer step moves an fp32 sampler from 0.17 to 0.84 while the bf16 export stays at 0.19). Treat the size of the gain as provisional: one training implementation, models up to 4B, mostly single seeds, 14 of the 25 differences smaller than one standard error, a mean carried by three zebra pairs, and one task (list functions) where removing the lag cost 14.5 points until an explicit EMA lag was added back. <a href="#" data-tab="t-read" data-to="s-trust">The evidence, judged</a>.</p>
+<div class="hero-l"><a href="https://arxiv.org/html/2610.41073v1" target="_blank" rel="noopener noreferrer">read it (arXiv HTML)</a> · <a href="https://arxiv.org/pdf/2610.41073v1" target="_blank" rel="noopener noreferrer">PDF</a> · <a href="https://github.com/andrewgcodes/faircast" target="_blank" rel="noopener noreferrer">code (andrewgcodes/faircast)</a> · <a href="#" data-tab="t-sim">round a weight yourself</a></div>
+</div>
+
+<nav class="nav" id="nav"><a href="#s-core">Core idea</a><a href="#s-prob">Dead zone</a><a href="#s-lag">Hidden lag</a><a href="#s-method">Fair Cast</a><a href="#s-cause">Both halves</a><a href="#s-long">Long rollouts</a><a href="#s-breadth">25 pairs</a><a href="#s-ckpt">Checkpoint</a><a href="#s-reg">Lag as regularizer</a><a href="#s-abl">Cost</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
+
+<section id="s-core"><h2>The idea in one sentence</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§1</a>
+<p class="lead">RL trainers keep fp32 master weights but sample from a bf16 copy made by <span class="kn">round-to-nearest</span>, which throws away every update smaller than half a bf16 gap, so the sampler serves a policy tens to hundreds of steps old; exporting with <span class="ks">stochastic rounding</span> (unbiased: the copy equals the master on average) and computing the loss on that exact served copy removes the lag (<a href="https://arxiv.org/html/2610.41073v1#S1" target="_blank" rel="noopener noreferrer">abstract and §1</a>).</p>
+<div class="card" id="fcHero"><div class="t">Where the two ratios live: what frameworks check, and what they never form</div>
+<div class="seg" id="fcHeroM"><button data-m="rtn" class="on" aria-pressed="true">Round-to-nearest (today)</button><button data-m="fc" aria-pressed="false">Fair Cast</button></div>
+<div id="fcHeroSvg"></div><p class="small fc-cap" id="fcHeroCap"></p>
+<p class="small mute" style="margin:0">Redrawn from <a href="https://arxiv.org/html/2610.41073v1#S1.F2" target="_blank" rel="noopener noreferrer">Figure 2</a>. The loop runs clockwise: the optimizer updates the fp32 master, the export rounds it to bf16, the inference engine samples rollouts from the copy, the trainer computes the loss and the update lands on the master. Shaded: the two boxes Fair Cast changes.</p></div>
+<p><b>You need</b>: the GRPO loop and the importance ratio π<sub>new</sub>/π<sub>old</sub> that PPO clips and TIS reweights (<a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>); how bf16 stores a number, the gap between neighbouring values, round-to-nearest and stochastic rounding, and why mixed-precision training keeps fp32 master weights (<a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing, sections 2, 3 and 9</a>); the straight-through estimator of quantisation-aware training (<a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision, section 5</a>).</p>
+<details class="mist" open><summary>New terms on this page</summary><div class="b"><dl class="fc-terms">
+<dt><span class="km">Master</span> θ</dt><dd>the fp32 weights the optimizer updates; they hold the optimizer's view of the policy.</dd>
+<dt>Served copy <i>q</i></dt><dd>the bf16 weights the inference engine (vLLM here) samples rollouts from; <i>q</i> = R(θ), made by the export rule R after every optimizer step.</dd>
+<dt>Gap <i>u</i></dt><dd>the spacing between neighbouring bf16 values near a weight <i>w</i>: <i>u</i> = 2<sup>⌊log₂|w|⌋ − 7</sup>, between |w|/256 and |w|/128 (<a href="https://arxiv.org/html/2610.41073v1#S3" target="_blank" rel="noopener noreferrer">§3</a>).</dd>
+<dt>Dead zone</dt><dd>round-to-nearest leaves the copy unchanged until the master has moved more than <i>u</i>/2 from it, so smaller accumulated updates never reach the sampler.</dd>
+<dt><span class="fcv">Visible ratio</span></dt><dd>π<sub>trainer</sub>/π<sub>sampler</sub>, the trainer's and the engine's probability of the same token (<a href="https://arxiv.org/html/2610.41073v1#S2.E3" target="_blank" rel="noopener noreferrer">Eq. 3</a>); what PPO clipping, TIS and IcePop look at.</dd>
+<dt><span class="fch">Hidden ratio</span></dt><dd>π<sub>θ</sub>/π<sub>q</sub>, the master policy against the served policy (<a href="https://arxiv.org/html/2610.41073v1#S2.E4" target="_blank" rel="noopener noreferrer">Eq. 4</a>); no framework computes it.</dd>
+<dt>Lag</dt><dd>how many optimizer steps of motion the served copy is missing.</dd>
+<dt><span class="ks">Stochastic rounding</span> (SR)</dt><dd>round up with probability equal to the fractional position between the two neighbours, so the expected copy equals the master.</dd>
+<dt><span class="ke">Error feedback</span> (EF)</dt><dd>carry each weight's rounding error into the next export, so errors cancel over time.</dd>
+<dt>Training on the served copy</dt><dd>the trainer's forward pass uses exactly <i>q</i>; the gradient is passed to θ unchanged (straight-through).</dd>
+<dt>EMA export</dt><dd>export an exponential moving average of the master instead of the master: a chosen lag of about 1/α steps.</dd>
+</dl></div></details>
+</section>
+
+<section id="s-prob"><h2>Problem: round-to-nearest discards almost every update</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S3" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§3</a>
+<p>Modern RL stacks separate the optimizer from the sampler. Every open-source framework the authors examined (verl, TRL, OpenRLHF, slime, prime-rl, AReaL) makes the sampler's bf16 copy from the fp32 master by round-to-nearest (<a href="https://arxiv.org/html/2610.41073v1#S1" target="_blank" rel="noopener noreferrer">§1</a>). bf16 keeps 7 significand bits, so near a weight <i>w</i> its values are <i>u</i> ≈ |w|/128 apart, and round-to-nearest maps an update Δ to zero whenever |Δ| &lt; <i>u</i>/2 ≈ |w|/256 (<a href="https://arxiv.org/html/2610.41073v1#S3" target="_blank" rel="noopener noreferrer">§3</a>). The master starts exactly on the bf16 grid, so this bites from the first step. (How the formats store numbers is owned by <a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing</a>, which runs the same nearest-against-stochastic comparison on one weight.)</p>
+<p>At the learning rates RL post-training uses (η ≈ 10<sup>−6</sup> with Adam), almost every per-step update is that small. The paper's estimate from the measured distribution of Adam's normalized update is 0.3 to 0.7% of served weights changing per step on Qwen3-1.7B; measured, it is <b>0.4 to 0.5%</b>. A weight drifting at mean speed |Δ̄| crosses a rounding boundary only every τ ≈ <i>u</i>/(2|Δ̄|) steps, 50 to 200 steps at these values, and with a decaying learning rate τ grows without bound (<a href="https://arxiv.org/html/2610.41073v1#S3" target="_blank" rel="noopener noreferrer">§3</a>).</p>
+<div class="pred" id="fcPr1" data-ans="2"><div class="q">A weight of 0.02 receives a steady update of 5 × 10<sup>−7</sup> per step (learning rate 10<sup>−6</sup>, a normalized Adam update of 0.5). The bf16 copy is made by round-to-nearest after every step. When does the copy first change?</div>
+<div class="opts"><button>After the first step</button><button>After about 12 steps</button><button>After about 120 steps</button><button>Never, the update is below bf16 precision</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Computed by this page's rounding engine, which matches torch's bf16 cast bit for bit: <span id="fcPr1Out"></span> Try other weights and learning rates in <a href="#" data-tab="t-sim">the simulator</a>.</p></div></div>
+<p>Muon makes it worse: its per-element updates are nearly uniform in size, so at η = 10<sup>−6</sup> almost none cross a boundary. A controlled test isolates the mechanism (<a href="https://arxiv.org/html/2610.41073v1#S3.F4" target="_blank" rel="noopener noreferrer">Figure 4a</a>): on 64 knights-and-knaves problems, one optimizer step moved an <b>fp32 sampler from 0.17 to 0.84</b>, while the round-to-nearest bf16 sampler stayed at about 0.19 across three steps. In a full run, round-to-nearest left the sampler nearly frozen for about 20 steps (0.12, 0.15, 0.22 at steps 0, 9, 19) while Fair Cast moved at once (0.12, 0.51, 0.79).</p>
+<figure class="card" id="fcFig4" style="margin:12px 0"><div class="t">The paper's Figure 4: one step moves the fp32 policy, the bf16 export does not, and the checked ratio does not notice</div>
+<div class="fc-img"><img src="img/fig4_problem.webp" width="1955" height="561" alt="Three panels: bar chart of held-out accuracy before and after one to three optimizer steps, fp32 sampler against bf16 nearest export; percentage of served weights changed per step, round-to-nearest low and flat against Fair Cast rising, on a log scale; mean per-token absolute log ratio, the hidden ratio under round-to-nearest rising while the visible ratio and Fair Cast stay flat near zero" loading="lazy"></div>
+<figcaption class="small mute">Notice (b): the red line (round-to-nearest, 0.4 to 0.5% of weights per step in the text) stays flat for the whole run, an order of magnitude below Fair Cast's blue line (2 to 15%, <a href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer">§9</a>); and (c): the red hidden ratio climbs while the dashed visible ratio, the one frameworks check, stays flat near 0.01. Figure 4 of Gao and Gao (2026), <a href="https://arxiv.org/html/2610.41073v1#S3.F4" target="_blank" rel="noopener noreferrer">arXiv 2610.41073</a>, CC BY 4.0, unchanged except converted to WebP. In panel (a) the bf16 bar after step 1 is visibly lower than the other three, while the text says the sampler stayed at 0.19.</figcaption></figure>
+</section>
+
+<section id="s-lag"><h2>The hidden lag: the ratio frameworks check stays at one</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S4" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§2, §4</a>
+<p>The sampler draws from <i>q</i>, the trainer evaluates the loss at a bf16 version of θ, and the update lands on θ. Frameworks guard against the trainer and the engine disagreeing by computing the <span class="fcv">visible ratio</span> π<sub>trainer</sub>/π<sub>sampler</sub> and clipping (PPO), reweighting (TIS) or masking (IcePop) tokens where it strays (<a href="https://arxiv.org/html/2610.41073v1#S2" target="_blank" rel="noopener noreferrer">§2</a>; the <a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a> page owns these corrections). But when the trainer's forward pass runs in bf16, by autocast or by evaluating the copy, both numerator and denominator are functions of <i>q</i> alone, so the ratio is about one however far θ has moved. The ratio that matters for the policy gradient, the <span class="fch">hidden ratio</span> π<sub>θ</sub>/π<sub>q</sub>, is never formed (<a href="https://arxiv.org/html/2610.41073v1#S2.E4" target="_blank" rel="noopener noreferrer">Eq. 4</a>).</p>
+<p>The authors log both (<a href="https://arxiv.org/html/2610.41073v1#S4" target="_blank" rel="noopener noreferrer">§4</a>, Figure 4c). On Qwen3-1.7B at η = 10<sup>−6</sup> the mean per-token |log ρ<sub>visible</sub>| stays near <b>0.01</b> for the whole run, while the hidden one grows from 0 to <b>0.10 to 0.16 on MATH and about 0.45 on knights-and-knaves</b>; under Fair Cast it stays near 0.01. The per-token effective sample size between master and served policy (<a href="https://arxiv.org/html/2610.41073v1#S4.E5" target="_blank" rel="noopener noreferrer">Eq. 5</a>) falls to 0.2 to 0.35 on tasks with 2,000-token responses and is about 0.9 with 500-token responses. The authors use it as a gauge of how far the served policy has fallen behind, not as a correction: a gradient at <i>q</i> with samples from <i>q</i> needs none.</p>
+<p>This reconciles an earlier finding: lower learning rates were reported to reduce the training-inference mismatch (<a href="https://arxiv.org/abs/2602.01826" target="_blank" rel="noopener noreferrer">Zhang et al.</a>). They reduce the visible ratio and increase the hidden one, because fewer updates clear the dead zone (<a href="https://arxiv.org/html/2610.41073v1#S4" target="_blank" rel="noopener noreferrer">§4</a>). Prior work on the same threshold (the <a href="https://aminedirohf-trainer-generator-bf16-mismatch.hf.space" target="_blank" rel="noopener noreferrer">TRL team's analysis</a>, PULSE) treated it as a communication artefact and made the trainer agree with the stale sampler; TRL now ships only the roughly 1% of bf16 elements that change each step as a sparse delta (<a href="https://arxiv.org/html/2610.41073v1#S1" target="_blank" rel="noopener noreferrer">§1</a>).</p>
+</section>
+<section id="s-method"><h2>Method: Fair Cast, two changes at the export</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S5" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§5</a>
+<p><b>1. Export with an unbiased rounding rule.</b> For a master θ between neighbouring bf16 values ⌊θ⌋ and ⌊θ⌋ + <i>u</i>, <span class="ks">stochastic rounding</span> exports the upper value with probability <i>p</i> = (θ − ⌊θ⌋)/<i>u</i>. Then E[<i>q</i>] = θ exactly, and an update Δ raises the probability by Δ/<i>u</i>, so the served weight moves by Δ on average at any learning rate. The released kernel adds 16 uniformly random bits to the fp32 bit pattern and truncates the low 16 (<code>sr_cast_bf16</code>). The deterministic alternative, <span class="ke">error feedback</span>, keeps one fp32 residual per weight: <i>q<sub>t</sub></i> = round(θ<sub>t</sub> + <i>r</i><sub>t−1</sub>), <i>r<sub>t</sub></i> = θ<sub>t</sub> + <i>r</i><sub>t−1</sub> − <i>q<sub>t</sub></i>. The export errors telescope, so their sum stays within <i>u</i> forever (<a href="https://arxiv.org/html/2610.41073v1#S5.E6" target="_blank" rel="noopener noreferrer">Eq. 6</a>): unbiased over time rather than per export.</p>
+<div class="card" id="fcSR"><div class="t">One weight between two bf16 neighbours: where each rule sends it</div>
+<div class="fc-row"><label for="fcSRx">master's position between the neighbours</label><input type="range" id="fcSRx" min="0" max="100" value="30" style="flex:1;min-width:140px"><span class="small" id="fcSRv"></span></div>
+<div id="fcSRSvg"></div><p class="small fc-cap" id="fcSRCap"></p></div>
+<p><b>2. Compute the loss on the served copy.</b> The trainer's forward pass uses the exact bf16 <i>q<sub>t</sub></i> that generated the rollouts, and the gradient reaches the fp32 master through a straight-through estimator (the standard trick of quantisation-aware training, owned by <a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>). The sampled and the differentiated policy are then the same object. The change sits in the weight-export call, adds no hyperparameters and leaves the optimizer, loss, sampler kernels and framework alone (<a href="https://arxiv.org/html/2610.41073v1#S5" target="_blank" rel="noopener noreferrer">§5</a>).</p>
+<p>Why does a perturbation of at most |w|/256, harmless in a forward pass, matter in training? Round-to-nearest holds the same weights back in the same direction for 50 to 150 steps, so the served policy is a <b>stale</b> copy rather than a noisy one; and the optimizer never learns of it, because its gradient is computed on a copy that shares the rounding. Stochastic rounding makes the perturbation zero-mean and independent across steps (<a href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer">§9</a>). Its single-export error is larger (up to <i>u</i>, against <i>u</i>/2), so the gain comes from removing the correlation, not from shrinking the error (<a href="https://arxiv.org/html/2610.41073v1#S5" target="_blank" rel="noopener noreferrer">§5</a>).</p>
+<details class="mist"><summary>What is and is not guaranteed (§5), and the two ways to train on the copy</summary><div class="b">
+<p>Unbiasedness is about weights, not the policy: E[<i>q</i>] = θ does not give E[π<sub>q</sub>] = π<sub>θ</sub>, because the network is nonlinear. The paper's precise statements (<a href="https://arxiv.org/html/2610.41073v1#S5" target="_blank" rel="noopener noreferrer">§5</a>): (i) rollouts are exactly on-policy for <i>q<sub>t</sub></i>, whose log-probabilities enter the loss, so the policy-gradient estimate at <i>q<sub>t</sub></i> has no importance-weighting error; (ii) π<sub>q</sub> differs from π<sub>θ</sub> by a rounding of each weight by less than <i>u</i>. Under round-to-nearest that error has the same sign step after step, so its first-order effect ∇π·(<i>q</i> − θ) accumulates over the lag; under stochastic rounding it is zero-mean and independent, the first-order term vanishes in expectation and a second-order term ½ tr(HΣ) with Σ ⪯ (<i>u</i>²/4)I remains; (iii) the straight-through gradient is the gradient at <i>q<sub>t</sub></i>, not at θ<sub>t</sub>, with bias bounded by the same rounding width. The residual is measured: |log(π<sub>θ</sub>/π<sub>q</sub>)| stays near 0.01 under Fair Cast. The objective becomes the expected reward of the exported model, E<sub>q</sub>[J(<i>q</i>)], the model that samples and the model that is deployed.</p>
+<p>Two implementations are equal in value: substitute <i>q<sub>t</sub></i> for the parameters in the forward call, or write <i>q<sub>t</sub></i> into the parameter storage for the step and restore the master before the optimizer update. With activation checkpointing only the second is exact, since the recomputed backward pass then also sees <i>q<sub>t</sub></i>. The main runs used the first; the second gave the same results on Qwen3-0.6B (knights-and-knaves 0.977 against 0.967, GSM8K 0.756 against 0.742, seed 0; <a href="https://arxiv.org/html/2610.41073v1#A1.T1" target="_blank" rel="noopener noreferrer">Table A1</a>). The code README calls the second "the verified form".</p>
+<p>Variants (<a href="https://arxiv.org/html/2610.41073v1#S5" target="_blank" rel="noopener noreferrer">§5</a>): dithered error feedback (stochastic rounding of the error-fed value, residual still carried) and the EMA export of section 7.5.</p>
+</div></details>
+</section>
+
+<section id="s-setup"><h2>Setup</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S6" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§6</a>
+<p>GRPO-style clipped policy gradient, group size 8, 24 prompts per step, 150 optimizer steps (500 for long runs), rollouts up to 2,048 tokens. Each arm runs on <b>one H100</b>, a vLLM sampler and a Hugging Face trainer sharing the device. Models: Qwen3-0.6B, 1.7B (default) and 4B, plus OLMoE-1B-7B and Qwen2.5-1.5B-Instruct; AdamW at η = 10<sup>−6</sup> by default, Muon where stated. Tasks: Reasoning Gym logic puzzles (knights-and-knaves, zebra puzzles, list functions, string manipulation, Countdown), MBPP+ and HumanEval+, MATH, GSM8K and games with exact solvers (Nim). Evaluation: greedy decoding of the <b>served copy</b> on a held-out set every 10 steps, 512 problems where available. <b>One seed per arm unless stated</b>; a seed changes the trainer and sampler randomness, never the order of training prompts (<a href="https://arxiv.org/html/2610.41073v1#S6" target="_blank" rel="noopener noreferrer">§6</a>).</p>
+<details class="mist"><summary>All settings (Table A1) and the MBPP+ overlap</summary><div class="b">
+<p>Clip 0.2; AdamW β = (0.9, 0.999), weight decay 0.01; Muon at 10<sup>−6</sup> with momentum 0.95 and RMS-matched updates (0.2·√max(m, n)) on 2-D hidden weights, AdamW for embeddings, norms and the output head; temperature 1.0; 6,144 tokens for Nim; the 1.7B MATH levels 3 to 5 pair ran 300 steps with cosine decay to 10<sup>−7</sup>; lag 1 between sampler and trainer (<a href="https://arxiv.org/html/2610.41073v1#A1.T1" target="_blank" rel="noopener noreferrer">Table A1</a>). The harness multiplies Muon's learning rate by a default factor of 20, but every Muon configuration in the repository sets it to 1.0, matching the text. MBPP+ shares 154 of its 378 task ids with the MBPP split used for training, so MBPP+ is scored on the other 224 (121 of the first 128 for the seed-0 pair); HumanEval+ has 164 problems; the 1.7B MATH and Countdown runs used 128 (<a href="https://arxiv.org/html/2610.41073v1#S6" target="_blank" rel="noopener noreferrer">§6</a>). Appendix B prints one held-out prompt each for zebra, knights-and-knaves and Nim.</p>
+</div></details>
+</section>
+
+<section id="s-cause"><h2>Result 1: both halves are needed</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S7.SS1" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§7.1, Table 1</a>
+<div class="pred" id="fcPr2" data-ans="2"><div class="q">Keep the trainer's forward pass on the fp32 master (as frameworks do now) but switch only the export to an unbiased rule. What happens?</div>
+<div class="opts"><button>It learns like full Fair Cast: the sampler is no longer stale</button><button>Nothing changes</button><button>Training collapses</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>It collapses (<a href="https://arxiv.org/html/2610.41073v1#S7.SS1" target="_blank" rel="noopener noreferrer">§7.1</a>). Error feedback without the served-copy forward fell to 0.00 held-out accuracy in 4 of 4 long runs; stochastic rounding without it degenerated on Qwen3-0.6B into token loops on GSM8K (0.61 to 0.13 by step 19) and unterminated reasoning on MATH (0.002). Each export now flips many weights at random, the trainer never sees those flips, so the rounding noise enters the visible ratio: the clip fraction rose in step with the flip fraction, and the gradient vanished once every group was uniformly wrong.</p></div></div>
+<div class="tw"><table class="fc-t" id="fcT1"><thead><tr><th></th><th>Trainer forward on the fp32 master</th><th>Trainer forward on the served copy</th></tr></thead><tbody>
+<tr><th>Round-to-nearest export</th><td>today's default: the hidden lag</td><td>the same policy: both copies sit downstream of the same rounding (0.6B: knights-and-knaves 0.889 against 0.865, GSM8K 0.705 against 0.742)</td></tr>
+<tr><th>Unbiased export (SR or EF)</th><td class="fch">collapse: EF 0.00 in 4 of 4 runs; SR 0.6B GSM8K 0.13, MATH 0.002</td><td class="fcv">Fair Cast: stable, learns faster</td></tr></tbody></table></div>
+<p class="small mute"><a href="https://arxiv.org/html/2610.41073v1#S7.T1" target="_blank" rel="noopener noreferrer">Table 1</a>, held-out accuracy of the served copy. The two aligned cells are stable, the two crossed ones are not. The "same policy" pair differs by +2.4 and −3.7 points, inside the 3-point noise of one comparison at 512 problems.</p>
+</section>
+
+<section id="s-long"><h2>Result 2: long-rollout tasks, where the lag does the most damage</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S7.SS2" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§7.2, Figure 5</a>
+<p><b>Zebra puzzles</b> (Qwen3-1.7B). Round-to-nearest learns for about twenty steps, then collapses on every seed, from a peak of 0.57 ± 0.01 to <b>0.33 ± 0.10</b> (3 runs). Between steps 30 and 60 its responses lengthen into the 2,048-token cap (held-out truncation 0.47 to 0.89) while training reward falls: a policy pushed toward longer derivations by rewards computed on a model it no longer matches. A DAPO-style truncation penalty on the round-to-nearest arm did not prevent the collapse (final 0.45). Three of four Fair Cast runs ended at 0.62 to 0.70 and tracked an fp32-sampler oracle (0.69); the fourth, a repeat of seed 0, held 0.53 to 0.63 for 130 steps and then fell to 0.34 in its last fifteen, so the four-run mean is <b>0.57 ± 0.16</b> (<a href="https://arxiv.org/html/2610.41073v1#S7.SS2" target="_blank" rel="noopener noreferrer">§7.2</a>, <a href="https://arxiv.org/html/2610.41073v1#S7.F5" target="_blank" rel="noopener noreferrer">Figure 5</a>).</p>
+<figure class="card" id="fcFig5" style="margin:12px 0"><div class="t">The paper's Figure 5: round-to-nearest runs lengthen into the token cap and collapse; Fair Cast tracks the fp32 sampler</div>
+<div class="fc-img" style="max-width:520px"><img src="img/fig5_zebra.webp" width="1088" height="1224" alt="Three stacked panels against optimizer step for zebra puzzles: held-out accuracy, training reward and response length, for round-to-nearest, Fair Cast and an fp32-sampler oracle" loading="lazy"></div>
+<figcaption class="small mute">Notice the bottom panel: round-to-nearest's responses climb to the dashed 2,048-token cap between steps 30 and 60, exactly when its accuracy (top) falls. Bands are ± 1 s.d. over three round-to-nearest and four Fair Cast runs (seed 0 twice), so the Fair Cast band includes the repeated seed-0 run that fell to 0.34 in its last fifteen steps. Figure 5 of Gao and Gao (2026), <a href="https://arxiv.org/html/2610.41073v1#S7.F5" target="_blank" rel="noopener noreferrer">arXiv 2610.41073</a>, CC BY 4.0, converted to WebP.</figcaption></figure>
+<p><b>Knights-and-knaves.</b> Here the lag costs speed. With AdamW at 1.7B, Fair Cast reached 0.88 at step 9 and about 0.97 by step 40; round-to-nearest needed about 40 more steps and ended 3.7 points lower. With Muon, whose updates almost all fall below <i>u</i>/2, Fair Cast led at all 15 checkpoints on both seeds (0.988 ± 0.003 against 0.907 ± 0.016). At 0.6B the gain is 10.2 points; at 4B both reach the ceiling (0.992 against 0.988).</p>
+<p><b>Nim</b> (6,144-token cap). Both arms gain about 38 points; Fair Cast leads by 10 to 30 points through step 100 and peaks at 0.736 against 0.596, then the two converge (0.580 against 0.570 at step 150). The lag is a delay here, not a different destination.</p>
+</section>
+<section id="s-breadth"><h2>Result 3: across sizes, optimizers and benchmarks, 25 matched pairs</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S7.SS3" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§7.3, Table 2</a>
+<p><a href="https://arxiv.org/html/2610.41073v1#S7.T2" target="_blank" rel="noopener noreferrer">Table 2</a> gives endpoints after 150 steps for thirteen configurations; Fair Cast is ahead at nearly every checkpoint, by the most on long-rollout logic and by a few points on the standard benchmarks (<a href="https://arxiv.org/html/2610.41073v1#S7.F7" target="_blank" rel="noopener noreferrer">Figure 7</a>). On Qwen3-0.6B, with three seeds each, it gains 2.7 points on MATH levels 3 to 5 and 5.1 on GSM8K, and the curves separate in the first 30 steps, where the dead zone withholds the largest share of the optimizer's motion. Counting each seed separately, plus the list-functions pair of section 7.5, gives 25 matched pairs: ahead by more than one point on 18, within one point on 6, behind on 1, mean +6.1 points (<a href="https://arxiv.org/html/2610.41073v1#S7.SS3" target="_blank" rel="noopener noreferrer">§7.3</a>). The authors released the per-pair table, so every pair is plotted below.</p>
+<div class="card" id="fcPairs"><div class="t">Each matched pair: final held-out accuracy, Fair Cast minus round-to-nearest</div>
+<div class="fc-row"><div class="seg" id="fcPairsM"><button data-m="gain" class="on" aria-pressed="true">Sort by gain</button><button data-m="task" aria-pressed="false">Group by task</button></div>
+<label><input type="checkbox" id="fcPairsAlt"> use the repeated zebra seed-0 run (0.34)</label></div>
+<div id="fcPairsSvg"></div>
+<p class="fc-sum" id="fcPairsSum"></p>
+<p class="small mute" style="margin:0">From the code repository's results/TABLE2_PAIRS.md; MBPP+ endpoints also checked against its released held-out curves. Grey band: one standard error of a difference between two evaluations, √(2·0.25/n), for the problems each pair was scored on (3.1 points at 512, 4.7 at the 224 held-out MBPP+ problems, 5.5 at HumanEval+'s 164, 6.2 at 128). The paper gives the 3 and 6 point figures itself (<a href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer">§9</a>).</p></div>
+<p>Two things the plot makes plain. The gain is real in direction: 20 pairs positive, 4 negative, 1 zero (two-sided sign test p = 0.0015 if the pairs were independent, which they are not quite). But <b>14 of the 25 differences are smaller than one standard error</b>, the three zebra pairs supply 96.9 of the 152.5 summed points, and without them the mean is <b>+2.5</b>. The released zebra seed-0 pair uses the first Fair Cast run (0.623), not the repeat that fell to 0.34; with the repeat the mean is +5.0.</p>
+</section>
+
+<section id="s-ckpt"><h2>Result 4: under round-to-nearest, the checkpoint is not the model</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S7.SS4" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§7.4, Table 3</a>
+<p>The fp32 master you save and the bf16 copy that was trained and evaluated are different objects. Under round-to-nearest they agree at step 0 and then drift apart, by up to 50 points on HumanEval+ (served 59.8, master 9.1 at step 99) and 20 to 30 on MBPP+. The gap is not monotone: the withheld residual is flushed into the copy only when weights cross boundaries, so the master can be 30 points below its export at one checkpoint and level 50 steps later. Of 9 round-to-nearest runs with master evaluations, 5 showed a gap of at least 12 points at some checkpoint and 2 at the final one; under Fair Cast master and export agreed within 3 points at every checkpoint of 12 runs (<a href="https://arxiv.org/html/2610.41073v1#S7.SS4" target="_blank" rel="noopener noreferrer">§7.4</a>, <a href="https://arxiv.org/html/2610.41073v1#S7.F8" target="_blank" rel="noopener noreferrer">Figure 8</a>).</p>
+<div class="tw"><table class="fc-t" id="fcT3"><thead><tr><th>Saved fp32 master</th><th class="num">bf16</th><th class="num">fp16</th><th class="num">FP8 via bf16</th><th class="num">FP8 via fp16</th></tr></thead><tbody id="fcT3b"></tbody></table></div>
+<p class="small mute"><a href="https://arxiv.org/html/2610.41073v1#S7.T3" target="_blank" rel="noopener noreferrer">Table 3</a>, held-out accuracy (%) of one saved master exported four ways. Formats at or coarser than bf16 discard the same residual the sampler never saw and reproduce the training score; finer formats (fp16, fp32 evaluation, continued training) inherit it. The fp16 export of the HumanEval+ master wrote responses of 1,679 tokens on average against 344 for bf16: a different model.</p>
+<p>The practical rule: evaluate and ship the served copy; deploy from bf16, or FP8 calibrated on bf16; do not ship fp16 or resume training from the fp32 master after round-to-nearest training without re-evaluating. The text says such a pipeline "can deploy a model 30 to 40 points worse" than its curve; in Table 3 that holds for HumanEval+ (42.0 and 30.4 points lost), while Countdown loses 11.7.</p>
+</section>
+
+<section id="s-reg"><h2>Result 5: the lag was also a regularizer, and can be put back on purpose</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S7.SS5" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§7.5, Figure 9</a>
+<p>Round-to-nearest passes a weight's motion on only once it has built up past a boundary, so the served policy is a low-pass-filtered master: fast, small changes are suppressed and only sustained drift gets through. That is a bias (the lag) and also a regularizer (the sampler cannot commit to whatever the current step's reward favours). Fair Cast removes both. The filter can be restored explicitly by exporting an exponential moving average <i>m<sub>t</sub></i> = (1 − α)<i>m</i><sub>t−1</sub> + αθ<sub>t</sub> with the same unbiased rounding and served-copy training; α sets a lag of about 1/α steps in place of an accidental one that depends on each weight's magnitude (<a href="https://arxiv.org/html/2610.41073v1#S7.SS5" target="_blank" rel="noopener noreferrer">§7.5</a>).</p>
+<div class="pred" id="fcPr3" data-ans="0"><div class="q">List functions (Qwen3-1.7B, 512 held-out problems): which ends higher, round-to-nearest with its accidental lag, or Fair Cast with no lag at all?</div>
+<div class="opts"><button>Round-to-nearest</button><button>Fair Cast</button><button>They tie</button></div>
+<div class="fb"></div>
+<div class="reveal" hidden><p>Round-to-nearest, by 14.5 points: 0.668 against 0.523. Fair Cast committed to answer-only outputs by step 29 (median response 13 characters, every sample a bare boxed answer), while round-to-nearest kept writing derivations of about 600 tokens. With the EMA export at α = 0.05 Fair Cast reached 0.707 and 0.709 on two seeds, above round-to-nearest, with full derivations; α = 0.01 gave 0.666 (<a href="https://arxiv.org/html/2610.41073v1#S7.SS5" target="_blank" rel="noopener noreferrer">§7.5</a>, <a href="https://arxiv.org/html/2610.41073v1#S7.F9" target="_blank" rel="noopener noreferrer">Figure 9</a>). This is the one pair of the 25 where Fair Cast is behind.</p></div></div>
+<p>The authors have not characterised in advance which tasks need the explicit lag (<a href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer">§9</a>), and the conclusion speaks of "two configurations" where removing the lag is harmful while section 7.5 reports one.</p>
+<figure class="card" id="fcFig9" style="margin:12px 0"><div class="t">The paper's Figure 9: without any lag, Fair Cast's answers shrink to a bare boxed answer; an EMA lag restores the derivations</div>
+<div class="fc-img"><img src="img/fig9_list_functions.webp" width="1400" height="507" alt="Two panels against optimizer step for list functions: held-out accuracy and training response length, for round-to-nearest, Fair Cast with no lag, and Fair Cast with EMA lag at two settings" loading="lazy"></div>
+<figcaption class="small mute">Notice the right panel: the blue line (Fair Cast, no lag) drops to near zero tokens within about 20 steps and stays there, while every lagged run keeps writing hundreds of tokens. Single runs except the two EMA α = 0.05 seeds. Figure 9 of Gao and Gao (2026), <a href="https://arxiv.org/html/2610.41073v1#S7.F9" target="_blank" rel="noopener noreferrer">arXiv 2610.41073</a>, CC BY 4.0, resized to 1,400 px and converted to WebP.</figcaption></figure>
+</section>
+
+<section id="s-abl"><h2>Transfer, ablations and cost</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S7.SS7" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§7.6, §7.7</a>
+<p><b>Transfer.</b> MATH-trained 1.7B checkpoints evaluated on competition problems (8,192 tokens, temperature 1, avg@16): on the cosine-schedule pair Fair Cast scored 0.204 against 0.152 on AIME24, 0.548 against 0.495 on AMC23, 0.790 against 0.754 on MATH-500, and GSM8K was unchanged at 0.83; on the level-5 pair the two were within noise (AIME24 0.163 against 0.165) (<a href="https://arxiv.org/html/2610.41073v1#S7.SS6" target="_blank" rel="noopener noreferrer">§7.6</a>).</p>
+<p><b>Ablations</b> (<a href="https://arxiv.org/html/2610.41073v1#S7.SS7" target="_blank" rel="noopener noreferrer">§7.7</a>). Stochastic rounding and error feedback tie on knights-and-knaves and HumanEval+; error feedback is stronger only on the 500-step Countdown run. Fair Cast composes with TIS, which corrects version lag, and the effects add. An FP16 sampler shrinks the dead zone eightfold but does not remove it and risks overflow. Raising round-to-nearest's learning rate closes part of the speed gap but at 3 × 10<sup>−6</sup> and 10<sup>−5</sup> produced two MATH collapses. On OLMoE-1B-7B and Qwen2.5-1.5B-Instruct (MATH, 128 problems) the two rules were within noise, Fair Cast never worse.</p>
+<p><b>Cost.</b> One full export of Qwen3-1.7B on an H100: round-to-nearest 4.3 ms, stochastic rounding 21.7 ms with the bit-trick kernel (136.6 ms for a naive seven-operation one), error feedback 37.2 ms plus 6.9 GB of fp32 residuals. Against optimizer steps of 31 to 130 s that is under 0.1% for stochastic rounding (error feedback reaches 0.12% at the fastest step). Time per step is identical when output lengths match (knights-and-knaves 56.2 against 56.0 s). One real cost: Fair Cast changes 2 to 15% of served weights per step instead of 0.4 to 0.5%, so delta-sync schemes that ship only changed elements compress several times less (<a href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer">§9</a>).</p>
+</section>
+<section id="s-trust"><h2>How much of this to believe</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§9 Limitations</a>
+<p><b>What holds up.</b> The mechanism is arithmetic, not a fitted claim: round-to-nearest provably holds back any accumulated update below <i>u</i>/2, and this page's engine (bit-identical to torch's cast on 1,993 test values) reproduces the dead zone from the definition. The paper then measures the consequence three independent ways: the single-step test (an fp32 sampler moves from 0.17 to 0.84, the bf16 export does not), the per-step fraction of changed weights, and the hidden ratio against the visible one (<a href="https://arxiv.org/html/2610.41073v1#S3.F4" target="_blank" rel="noopener noreferrer">Figure 4</a>). The crossed cells of Table 1 are the right controls: training on the served copy alone changes nothing, unbiased export alone collapses, which separates the two halves. The fix is a few lines of released, MIT-licensed code, and every Table 2 mean and standard deviation recomputes from the released per-pair table (all 13 rows; <a href="#" data-tab="t-tables">tables tab</a>).</p>
+<p><b>What to discount.</b></p>
+<ul>
+<li><b>Most comparisons are single runs inside the noise.</b> Eight of the 25 pairs come from configurations run with one seed, and 14 of the 25 differences are smaller than one standard error of a difference (3.1 points at 512 problems, 4.7 at the 224 MBPP+ problems actually scored). The authors state the 3 and 6 point figures themselves (<a href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer">§9</a>), which counts in their favour.</li>
+<li><b>The mean is carried by one task.</b> The three zebra pairs give 96.9 of 152.5 summed points; the other 22 average +2.5, the median of all 25 is +3.1. The zebra pair for seed 0 uses the first of two Fair Cast runs; the repeat collapsed to 0.34, like round-to-nearest.</li>
+<li><b>Removing the lag can hurt.</b> On list functions Fair Cast lost 14.5 points until an EMA lag was added back, and which tasks need it is not known in advance; the paper's own sections disagree on whether this happened in one configuration or two (<a href="https://arxiv.org/html/2610.41073v1#S7.SS5" target="_blank" rel="noopener noreferrer">§7.5</a>, <a href="https://arxiv.org/html/2610.41073v1#S10" target="_blank" rel="noopener noreferrer">§10</a>).</li>
+<li><b>Narrow setting.</b> One training implementation, one GPU per arm with lag 1, models up to 4B, 150-step runs at η = 10<sup>−6</sup>. The lag scales roughly as |w|/η, so larger learning rates (or LoRA) should shrink the effect, and the paper notes Fair Cast is inert once updates clear the dead zone unaided; larger models and multi-node asynchronous setups are untested.</li>
+<li><b>Small wording slips.</b> "Tied on 6" in the abstract means within one point (three of the six are slightly negative); "30 to 40 points worse" holds for HumanEval+ only; "below 0.1%" cost holds for stochastic rounding, error feedback reaches 0.12%; panel (a) of Figure 4 shows a lower bf16 bar after step 1 than the text's 0.19.</li>
+</ul>
+<p><b>Verdict.</b> The diagnosis is solid and cheap to check in any stack: count how many served weights change per step. The fix costs milliseconds and is the right default on correctness grounds alone, since it makes the trained, sampled and deployed model the same one. How much accuracy it buys is less settled: large on the long-rollout zebra and knights-and-knaves runs, a few points or nothing on short-answer benchmarks, negative where the accidental lag was doing useful smoothing.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+<a class="where" href="https://arxiv.org/html/2610.41073v1#S9" target="_blank" rel="noopener noreferrer" title="Where this is in the paper (arXiv HTML)">§9 What to change</a>
+<p>Replace the weight-sync cast (<code>master.to(torch.bfloat16)</code>) with <code>sr_cast_bf16</code>, and make the trainer's forward pass use the exact served values with a straight-through gradient (<code>served_forward</code> or <code>ste_params</code>); both come in the torch-only <code>faircast</code> package with a 60-line GRPO example (<a href="https://github.com/andrewgcodes/faircast" target="_blank" rel="noopener noreferrer">README</a>). It pays off when the learning rate is small relative to weight magnitudes (full-parameter RL at about 10<sup>−6</sup>, Muon, decaying schedules) and on long rollouts; it buys little when updates already clear the dead zone. Watch for tasks where answers collapse to short outputs, and try the EMA export there.</p>
+<details class="mist"><summary>The details: release, hardware, checks to run</summary><div class="b"><ul>
+<li><b>Code and licence</b>: MIT. The package, the example, the Modal harness used for every run (<code>harness/drift_rl.py</code>: <code>sync_mode</code> "cast", "sr", "ef", "efsr"; <code>forward_mode</code> "autocast", "ste", "ste_swap"; Fair Cast is "sr" with "ste_swap"; <code>ema_export: 0.05</code> for the explicit lag), the 87 per-arm configurations, the pair table and the MBPP+ curves.</li>
+<li><b>Hardware</b>: the paper's runs used one H100 per arm with the vLLM sampler in sleep mode beside a Hugging Face trainer; the export itself costs 22 to 38 ms per 1.7B parameters, error feedback adds 4 bytes per parameter.</li>
+<li><b>A one-minute check on your own stack</b>: log the fraction of served bf16 weights that change per step, and evaluate the fp32 master against its served export at a checkpoint. A fraction well under 1% and a gap of many points mean you have the lag.</li>
+<li><b>Deployment</b>: ship and resume from what was served (bf16, or FP8 calibrated on bf16), not an fp16 cast of the master.</li>
+</ul></div></details>
+<details class="mist"><summary>Since the paper (checked 2026-11-02)</summary><div class="b">
+<p>arXiv v1 of 29 October 2026 is the only version. The repository's last commit is 7c213b2 (29 October 2026). It holds the package, harness, configurations, the 25-pair table and the MBPP+ held-out curves; the per-step training logs and held-out evaluations the figure scripts read (<code>results/logs</code>, <code>results/evals.json</code>) are not in it, and the paper's promised checkpoints and held-out responses were not found. No follow-up paper, framework adoption or independent replication was found by this date. Two unmerged prime-rl pull requests had proposed stochastic rounding for FP8 export before the paper, with no learning results (<a href="https://arxiv.org/html/2610.41073v1#S8" target="_blank" rel="noopener noreferrer">§8</a>).</p>
+</div></details>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
+<p>The training-inference mismatch has been one of 2025 and 2026's busiest RL-infrastructure topics: TIS (<a href="https://fengyao.notion.site/off-policy-rl" target="_blank" rel="noopener noreferrer">Yao et al.</a>), IcePop, the FP16 proposal (<a href="https://arxiv.org/abs/2510.26788" target="_blank" rel="noopener noreferrer">Qi et al.</a>), learning-rate schedules (<a href="https://arxiv.org/abs/2602.01826" target="_blank" rel="noopener noreferrer">Zhang et al.</a>) and rounding-location alignment (<a href="https://arxiv.org/abs/2610.32951" target="_blank" rel="noopener noreferrer">Ke et al.</a>) all target the visible ratio. This paper's point is that a second mismatch sits upstream of all of them, at the export, and that the same bf16 arithmetic has now been reported in ternary quantisation-aware fine-tuning (<a href="https://arxiv.org/abs/2610.07853" target="_blank" rel="noopener noreferrer">Sahai et al.</a>) and in multi-teacher on-policy distillation (<a href="https://arxiv.org/abs/2610.02179" target="_blank" rel="noopener noreferrer">Zhu et al.</a>). Whether it matters at frontier scale is open: the lag depends on the ratio of learning rate to weight size, and frontier runs differ in learning rates, asynchronous samplers and FP8 exports.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs</a>: GRPO, the importance ratio and the engine-trainer mismatch corrections this paper argues cannot see the export lag.</li>
+<li><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a>: bf16's bits and gaps, round-to-nearest against stochastic rounding, fp32 master weights.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a>: low-precision formats, FP8 recipes, and the straight-through estimator used to train on the served copy.</li>
+<li><a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath</a> (GRPO), <a href="https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b" target="_blank" rel="noopener noreferrer">Qwen3 Technical Report</a> (the models), <a href="https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a" target="_blank" rel="noopener noreferrer">LoRA</a> (predicted, untested, to escape the dead zone).</li>
+</ul>
+</section>
+</section>
+<section class="tab" id="t-sim" role="tabpanel" hidden>
+<style>.fc-ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0}.fc-ctl label{font-size:14px;display:flex;gap:6px;align-items:center}
+table.fc-cnt{font-size:13.5px;margin-top:6px}table.fc-cnt td,table.fc-cnt th{padding:2px 8px}.fc-play{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}.fc-play input[type=range]{flex:1;min-width:140px}</style>
+<h2>Round a weight: one fp32 master, three export rules</h2>
+<p>One weight of the fp32 master receives a small update every optimizer step, and after every step the export makes its bf16 copy. Round-to-nearest, stochastic rounding and error feedback are computed on the actual float32 bit patterns, exactly as the paper's code does (this page's round-to-nearest matches torch's bf16 cast bit for bit). Change the weight's size, the learning rate and how steady the update is, then press Play to watch the copies follow, or fail to follow, the master.</p>
+<div class="card" id="fcSim"><div class="t">The master (black) and its served bf16 copy under each rule, in units of the bf16 gap <i>u</i></div>
+<div class="fc-ctl">
+<label>weight <select id="fcW"><option value="0.005">0.005</option><option value="0.02" selected>0.02</option><option value="0.08">0.08</option></select></label>
+<label>learning rate <select id="fcEta"><option value="3e-7">3 × 10⁻⁷</option><option value="1e-6" selected>10⁻⁶</option><option value="3e-6">3 × 10⁻⁶</option><option value="1e-5">10⁻⁵</option></select></label>
+<label>mean update <select id="fcDrift"><option value="0.25">0.25 η</option><option value="0.5" selected>0.5 η</option><option value="1">1 η</option></select></label>
+<label>step-to-step noise <select id="fcNoise"><option value="0">none</option><option value="0.5" selected>0.5 η</option><option value="1">1 η</option></select></label>
+<label>seed <select id="fcSeed"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select></label>
+</div>
+<div class="fc-ctl"><div class="seg" id="fcSimM"><button data-m="all" class="on" aria-pressed="true">All three</button><button data-m="rtn" aria-pressed="false">Round-to-nearest</button><button data-m="sr" aria-pressed="false">Stochastic</button><button data-m="ef" aria-pressed="false">Error feedback</button></div>
+<label><input type="checkbox" id="fcMean" checked> average of 256 stochastic-rounding runs</label></div>
+<div class="fc-play"><button id="fcPlay" aria-label="Play">▶ Play the 300 steps</button><input type="range" id="fcStep" min="0" max="300" value="300" aria-label="optimizer step"><span class="small" id="fcStepL"></span></div>
+<div id="fcSimSvg"></div>
+<div id="fcSimCnt"></div>
+<p class="small mute" id="fcSimCap" style="margin:6px 0 0"></p></div>
+
+<h3>What to try</h3>
+<ul>
+<li><b>Defaults</b> (weight 0.02, η = 10<sup>−6</sup>, mean update 0.5η): the round-to-nearest copy (orange) sits still while the master climbs for about a hundred steps, then jumps a whole gap once the master passes the midpoint and sits still again, now ahead: its error keeps one sign for over a hundred steps at a time. The stochastic copy (blue) flickers between neighbours, and the average of 256 runs (dotted) lies on the master: E[<i>q</i>] = θ.</li>
+<li><b>Learning rate 10<sup>−5</sup></b>: updates clear the dead zone in a dozen steps and the three rules nearly agree. The paper says the same: Fair Cast is inert once updates clear the dead zone unaided (<a href="https://arxiv.org/html/2610.41073v1#S5" target="_blank" rel="noopener noreferrer">§5</a>).</li>
+<li><b>Weight 0.08</b>: the gap grows with the weight, so large weights freeze longest; <b>weight 0.005</b> at 10<sup>−5</sup> shows the copy tracking within a gap.</li>
+<li><b>Noise 1η</b>: Adam's per-step direction wobbles; the mean drift, not the step size, decides when round-to-nearest moves (<a href="https://arxiv.org/html/2610.41073v1#S3" target="_blank" rel="noopener noreferrer">§3</a>, τ ≈ <i>u</i>/(2|Δ̄|)).</li>
+</ul>
+<div class="co"><b>What this reproduces, and what it cannot.</b> The dead-zone arithmetic is exact: at the defaults the first round-to-nearest change comes at step <span id="fcRepFirst"></span> (steady update: step <span id="fcRepSteady"></span>), inside the paper's 50 to 200 step range for τ, and the copy changes on <span id="fcRepPct"></span> of steps, close to the measured 0.4 to 0.5%. Both agree <b>by construction</b>: the update size and noise are illustrative choices, because the paper does not publish the distribution of Adam's normalized update or of weight sizes. One weight is not a model: the stochastic copy here changes on about a third of steps, while the paper measures 2 to 15% of all weights changing per step under Fair Cast, since most weights sit near a grid point where the flip probability is small. The simulator cannot show the effect on learning; that needs the paper's GPU runs.</div>
+<details class="mist"><summary>How the engine was checked</summary><div class="b"><p>The engine (<code>src/parts/20_js_sim.js</code>, the same file in the page and in the checks) implements round-to-nearest as round half to even on the low 16 bits of the fp32 pattern, stochastic rounding as "add 16 random bits, truncate" (the paper's <code>sr_cast_bf16</code>) and error feedback as the paper's recursion. <code>check_sim.mjs</code> and <code>check_sim.py</code>: 1,993 fp32 values (random bit patterns and exact midpoints) cast identically to ml_dtypes' bfloat16, which rounds like torch; for 300 values, enumerating all 65,536 noise patterns gives a probability of rounding up equal to the fractional position with zero error, so the expected copy equals the master exactly; the gap function equals 2<sup>⌊log₂|w|⌋ − 7</sup>. The master is accumulated in fp32, as a trainer does. The 256-run average uses independent noise per run.</p></div></details>
+</section>
+<section class="tab" id="t-tables" role="tabpanel" hidden>
+<h2>The paper's numbers, rebuilt</h2>
+<p>Every table that carries the argument, transcribed with the printed precision (<code>src/mk_tables.py</code> from the arXiv HTML and the code repository), and every derived number recomputed (<code>src/recompute.py</code>). <span id="fcRcSum"></span></p>
+<h3>Table 2: endpoints after 150 steps</h3>
+<div class="fc-ctl"><div class="seg" id="fcT2M"><button data-m="paper" class="on" aria-pressed="true">Paper order</button><button data-m="delta" aria-pressed="false">Sort by Δ</button></div></div>
+<div class="tw"><table class="fc-t" id="fcT2"><thead><tr><th>Task</th><th>Model</th><th class="num">n</th><th class="num">Nearest</th><th class="num">Fair Cast</th><th class="num">Δ</th><th class="num">SE of Δ</th></tr></thead><tbody id="fcT2b"></tbody></table></div>
+<p class="small mute"><a href="https://arxiv.org/html/2610.41073v1#S7.T2" target="_blank" rel="noopener noreferrer">Table 2</a>: mean ± standard deviation over n seeds, Δ in points. The last column, added here, is one standard error of a single difference at that task's evaluation size, divided by √n for multi-seed rows; zebra uses 3 and 4 runs. Every mean and standard deviation recomputes from the per-pair table below (zebra's Fair Cast mean includes the repeated seed-0 run).</p>
+<h3>The 25 matched pairs</h3>
+<div class="tw"><table class="fc-t" id="fcPT"><thead><tr><th>Task</th><th>Model</th><th class="num">Seed</th><th>Optimizer</th><th class="num">Scored on</th><th class="num">Nearest</th><th class="num">Fair Cast</th><th class="num">Δ</th></tr></thead><tbody id="fcPTb"></tbody></table></div>
+<p class="small mute">results/TABLE2_PAIRS.md of <a href="https://github.com/andrewgcodes/faircast" target="_blank" rel="noopener noreferrer">the code repository</a> at commit 7c213b2. "Scored on" is the number of problems actually scored: the repository's n_eval column says 512 for MBPP+ seeds 1 to 3, but MBPP+ is scored on its 224 held-out problems (121 for seed 0), as the released curves confirm.</p>
+<h3>Table 3: one saved master, four export formats</h3>
+<div class="tw"><table class="fc-t" id="fcT3x"><thead><tr><th>Arm</th><th class="num">bf16</th><th class="num">fp16</th><th class="num">FP8 via bf16</th><th class="num">FP8 via fp16</th></tr></thead><tbody id="fcT3xb"></tbody></table></div>
+<p class="small mute"><a href="https://arxiv.org/html/2610.41073v1#S7.T3" target="_blank" rel="noopener noreferrer">Table 3</a>, held-out accuracy (%).</p>
+<h3>Every check</h3>
+<div class="tw"><table class="fc-t" id="fcRC"><thead><tr><th>Check</th><th>Where</th><th>Paper</th><th>Recomputed</th><th></th></tr></thead><tbody id="fcRCb"></tbody></table></div>
+<div class="co warn"><b>Does not reproduce as printed.</b> <span id="fcRcBad"></span></div>
+</section>
+<section class="tab" id="t-more" hidden>
+<h2>Further reading</h2>
+<p class="small mute">Every link opens in a new tab. Reading time of the resources below: 3h 20m.</p>
+<h3>The paper</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://arxiv.org/html/2610.41073v1" target="_blank" rel="noopener noreferrer">bf16 Rounding Silently Discards Most RL Policy Updates: A Hidden Training-Inference Mismatch and an Unbiased One-Line Fix (arXiv HTML v1)</a></div><p>arXiv preprint, the paper itself; the HTML version has the anchors this page links to. <a href="https://arxiv.org/abs/2610.41073" target="_blank" rel="noopener noreferrer">abstract page</a>, <a href="https://arxiv.org/pdf/2610.41073v1" target="_blank" rel="noopener noreferrer">PDF</a>.</p><p class="rt">(45 min)</p></div>
+<div class="sp"><div class="n"><a href="https://github.com/andrewgcodes/faircast" target="_blank" rel="noopener noreferrer">andrewgcodes/faircast</a></div><p>The faircast package (sr_cast_bf16, ef_cast_bf16, the straight-through served-copy forward; torch only), a 60-line GRPO example on GSM8K, the Modal training harness with the 87 per-arm configurations, the 25 matched pairs behind Table 2 and the MBPP+ held-out curves (MIT; read at commit 7c213b2 of 29 October 2026). The per-step logs the figure scripts read are not in the repository.</p><p class="rt">(30 min)</p></div>
+</div><h3>Best resources</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://aminedirohf-trainer-generator-bf16-mismatch.hf.space" target="_blank" rel="noopener noreferrer">Defeating the trainer-generator precision mismatch in TRL</a></div><p><span class="mute">Hugging Face TRL team (Dirhoussi, Gallouédec et al.), April 2026:</span> the paper&#x27;s reference [1]: the same |w|/(256η) threshold and the &quot;nearly static model&quot;, with bf16-autocast training as the remedy (the trainer is made to agree with the stale sampler).</p><p class="rt">(20 min)</p></div>
+<div class="sp"><div class="n"><a href="https://huggingface.co/blog/delta-weight-sync" target="_blank" rel="noopener noreferrer">Shipping a trillion parameters with a Hub bucket: delta weight sync in TRL</a></div><p><span class="mute">Hugging Face TRL team, May 2026:</span> the infrastructure built on the same sparsity: ship only the roughly 1% of bf16 elements that change each step (reference [25]).</p><p class="rt">(15 min)</p></div>
+<div class="sp"><div class="n"><a href="https://fengyao.notion.site/off-policy-rl" target="_blank" rel="noopener noreferrer">Your efficient RL framework secretly brings you off-policy RL training</a></div><p><span class="mute">Feng Yao et al., 2025:</span> truncated importance sampling (TIS) for the engine-trainer mismatch: the visible ratio this paper says cannot see the export lag.</p><p class="rt">(20 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2510.26788" target="_blank" rel="noopener noreferrer">Defeating the training-inference mismatch via FP16</a></div><p><span class="mute">Qi et al., arXiv 2510.26788, 2025:</span> the FP16 alternative; this paper&#x27;s Table 3 argues that an fp16 export of a round-to-nearest-trained master inherits the drift.</p><p class="rt">(40 min)</p></div>
+<div class="sp"><div class="n"><a href="https://arxiv.org/abs/2610.07853" target="_blank" rel="noopener noreferrer">Lost in the bf16 cast: exporting ternary language models can revert most low-learning-rate code changes</a></div><p><span class="mute">Sahai, Raj and Srivastava, arXiv 2610.07853, 2026:</span> the same arithmetic in quantisation-aware fine-tuning, where it hypothesised the RL exposure this paper tests (reference [26]).</p><p class="rt">(30 min)</p></div>
+</div><h3>Connected papers in this knowledge base</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817f9fc5cb9a9fbcbee5" target="_blank" rel="noopener noreferrer">DeepSeekMath</a></div><p>GRPO&#x27;s paper; every run here is a GRPO-style clipped policy gradient.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d815fb8dac9ba1e35ab81" target="_blank" rel="noopener noreferrer">DeepSeek-V3 Technical Report</a></div><p>low-precision numerics at scale (FP8 training with fp32 master weights), the other side of the same master-and-copy split.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81a19006e6b096a6e14b" target="_blank" rel="noopener noreferrer">Qwen3 Technical Report</a></div><p>the Qwen3-0.6B, 1.7B and 4B models every main result uses.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d81018f15edd19fa5c28a" target="_blank" rel="noopener noreferrer">LoRA</a></div><p>the paper predicts (untested) that separately served LoRA adapters, trained at about ten times the learning rate, would largely escape the dead zone.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3fe5c17b0d0d8136888ff145ba3a7bbb" target="_blank" rel="noopener noreferrer">On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics</a></div><p>how far off-policy data hurts; the export lag makes nominally on-policy RL slightly off-policy.</p></div>
+</div><h3>Topics</h3><div class="grid">
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d818c9bcff7177325fe56" target="_blank" rel="noopener noreferrer">RL for LLMs: RLHF, GRPO, RLVR</a></div><p>owns GRPO, the importance ratio and its clip, and the engine-trainer mismatch corrections (TIS, MIS, IcePop) that this paper says cannot see the export lag.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3c65c17b0d0d817b8f41ff66fba4cd0e" target="_blank" rel="noopener noreferrer">Quantization and Precision</a></div><p>low-precision formats and training recipes, quantisation-aware training and its straight-through estimator, used here to train on the served copy.</p></div>
+<div class="sp"><div class="n"><a href="https://app.notion.com/p/3f05c17b0d0d81d6af0be4a9a2edba8d" target="_blank" rel="noopener noreferrer">Numerical computing for ML</a></div><p>owns how bf16 encodes a number, the gap between neighbours, round-to-nearest and stochastic rounding, and fp32 master weights in mixed precision.</p></div>
+</div><p class="small mute">This page is one row of the <a href="https://app.notion.com/p/3c65c17b0d0d81549dbedb27e8f2a26f" target="_blank" rel="noopener noreferrer">Papers</a> database; its properties (Paper, Takeaway, Topics, Year) live there.</p>
+</section>
+<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>
+<script>window.__jsErr=function(m){try{var d=document.getElementById("jsErr");d.hidden=false;d.textContent+=(d.textContent?"\n":"Something on this page failed to load. Please send this message:\n")+m}catch(e){}};window.addEventListener("error",function(e){window.__jsErr((e.message||"error")+" (line "+e.lineno+")")});window.addEventListener("unhandledrejection",function(e){window.__jsErr("promise: "+(e.reason&&e.reason.message||e.reason))});</script>
+<script>/* 10_js_common.js */
+// ---- Shared helpers ----
+const $=id=>document.getElementById(id);
+window.TAB_RENDER=window.TAB_RENDER||{};
+const onTab=(id,f)=>{(TAB_RENDER[id]=TAB_RENDER[id]||[]).push(f)};
+const fmt=(v,d)=>v.toLocaleString('en-GB',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
+const GiB=2**30, MiB=2**20, KiB=1024;
+function fmtBytes(b){if(b>=GiB)return (b/GiB).toFixed(b/GiB>=100?0:(b/GiB>=10?1:2))+' GiB';if(b>=MiB)return (b/MiB).toFixed(b/MiB>=100?0:1)+' MiB';if(b>=KiB)return (b/KiB).toFixed(1)+' KiB';return fmt(b,b%1?1:0)+' B'}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function segBind(id,cb){const el=$(id);el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.m)}))}
+const svgEl=(w,h,inner,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="100%" role="img" aria-label="'+(label||'')+'"><defs><marker id="ah'+w+h+'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>'+inner.replace(/MARK/g,'url(#ah'+w+h+')')+'</svg>';
+const bx=(x,y,w,h,cls,lines,fs)=>{let s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" class="'+cls+'"/>';const n=lines.length,lh=(fs||12)+3;lines.forEach((t,i)=>{s+='<text x="'+(x+w/2)+'" y="'+(y+h/2+(i-(n-1)/2)*lh+4)+'" text-anchor="middle" font-size="'+(fs||12)+'"'+(i>0?' fill="var(--mute)"':'')+'>'+t+'</text>'});return s};
+const ar=(x1,y1,x2,y2,dash)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.4" marker-end="MARK"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
+const sup=n=>String(n).replace(/[-0-9]/g,c=>'⁻⁰¹²³⁴⁵⁶⁷⁸⁹'['-0123456789'.indexOf(c)]);
+const sci=(v,d)=>{if(!v)return '0';const e=Math.floor(Math.log10(Math.abs(v))+1e-9);return (v/10**e).toFixed(d==null?2:d)+' × 10'+sup(e)};
+const usd=(v,d)=>'$'+fmt(v,d==null?(v<0.1?3:v<100?2:0):d);
+const flp=v=>v>=1e12?(v/1e12).toFixed(2)+' TFLOP':(v/1e9).toFixed(v<1e10?2:v<1e11?1:0)+' GFLOP';
+const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
+const A=(u,t)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+t+'</a>';
+// log-log (or log-y) frame: returns the SVG so far and the two scale functions
+function logFrame(o){const {W,H,pl,pr,pt,pb}=o,lg=Math.log10;
+  const lx=o.xlin?(v=>pl+(W-pl-pr)*(v-o.x[0])/(o.x[1]-o.x[0])):(v=>pl+(W-pl-pr)*(lg(v)-lg(o.x[0]))/(lg(o.x[1])-lg(o.x[0])));
+  const ly=v=>pt+(H-pt-pb)*(1-(lg(v)-lg(o.y[0]))/(lg(o.y[1])-lg(o.y[0])));
+  let s='';o.yt.forEach(([v,l])=>{s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+ly(v)+'" y2="'+ly(v)+'" stroke="var(--line)"/><text x="'+(pl-6)+'" y="'+(ly(v)+4)+'" font-size="11" text-anchor="end" fill="var(--mute)">'+l+'</text>'});
+  o.xt.forEach(([v,l])=>{s+='<line x1="'+lx(v)+'" x2="'+lx(v)+'" y1="'+(H-pb)+'" y2="'+(H-pb+4)+'" stroke="var(--mute)"/><text x="'+lx(v)+'" y="'+(H-pb+16)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+l+'</text>'});
+  if(o.xl)s+='<text x="'+((pl+W-pr)/2)+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--mute)">'+o.xl+'</text>';
+  if(o.yl)s+='<text x="12" y="'+((pt+H-pb)/2)+'" font-size="11" text-anchor="middle" fill="var(--mute)" transform="rotate(-90 12 '+((pt+H-pb)/2)+')">'+o.yl+'</text>';
+  return {s,lx,ly}}
+// end labels for lines, pushed apart so they do not overlap
+function endLabels(ends,x,gap){ends.sort((a,b)=>a.y-b.y);let last=-99,s='';ends.forEach(e=>{e.ly=Math.max(e.y,last+(gap||14));last=e.ly});ends.forEach(e=>{s+='<text x="'+x+'" y="'+(e.ly+4)+'" font-size="11" fill="'+e.c+'" style="cursor:help"><title>'+e.how+'</title>'+e.n+'</text>'});return s}
+
+</script>
+<script>/* _gen_data.js */
+// Generated by mk_paper.py from paper.json, tables.json and inputs/recompute.json.
+window.PAPER={"meta":{"title":"bf16 Rounding Silently Discards Most RL Policy Updates: A Hidden Training-Inference Mismatch and an Unbiased One-Line Fix","short":"Fair Cast","arxiv":"2610.41073","arxiv_v":"v1","ax":"https://arxiv.org/html/2610.41073v1"},"tables":{"_doc":"Generated by mk_tables.py from inputs/; do not edit by hand.","table2":[{"task":"Zebra puzzles","model":"1.7B","n":"3 / 4","nearest":"0.33 ± 0.10","faircast":"0.57 ± 0.16","delta":"+24","nm":0.33,"nsd":0.1,"fm":0.57,"fsd":0.16,"d":24.0},{"task":"Knights-and-knaves","model":"0.6B","n":"1","nearest":"0.865","faircast":"0.967","delta":"+10.2","nm":0.865,"nsd":null,"fm":0.967,"fsd":null,"d":10.2},{"task":"Knights-and-knaves","model":"1.7B","n":"1","nearest":"0.959","faircast":"0.996","delta":"+3.7","nm":0.959,"nsd":null,"fm":0.996,"fsd":null,"d":3.7},{"task":"Knights-and-knaves, Muon","model":"1.7B","n":"2","nearest":"0.907 ± 0.016","faircast":"0.988 ± 0.003","delta":"+8.2","nm":0.907,"nsd":0.016,"fm":0.988,"fsd":0.003,"d":8.2},{"task":"Knights-and-knaves","model":"4B","n":"1","nearest":"0.988","faircast":"0.992","delta":"+0.4","nm":0.988,"nsd":null,"fm":0.992,"fsd":null,"d":0.4},{"task":"Nim","model":"1.7B","n":"1","nearest":"0.570","faircast":"0.580","delta":"+1.0","nm":0.57,"nsd":null,"fm":0.58,"fsd":null,"d":1.0},{"task":"MBPP+ (held-out 224)","model":"1.7B","n":"4","nearest":"0.595 ± 0.007","faircast":"0.618 ± 0.017","delta":"+2.3","nm":0.595,"nsd":0.007,"fm":0.618,"fsd":0.017,"d":2.3},{"task":"HumanEval+","model":"1.7B","n":"2","nearest":"0.613 ± 0.039","faircast":"0.625 ± 0.013","delta":"+1.2","nm":0.613,"nsd":0.039,"fm":0.625,"fsd":0.013,"d":1.2},{"task":"String manipulation","model":"1.7B","n":"1","nearest":"0.352","faircast":"0.363","delta":"+1.2","nm":0.352,"nsd":null,"fm":0.363,"fsd":null,"d":1.2},{"task":"MATH, level 5","model":"1.7B","n":"1","nearest":"0.492","faircast":"0.523","delta":"+3.1","nm":0.492,"nsd":null,"fm":0.523,"fsd":null,"d":3.1},{"task":"MATH, levels 3–5","model":"1.7B","n":"1","nearest":"0.664","faircast":"0.656","delta":"−0.8","nm":0.664,"nsd":null,"fm":0.656,"fsd":null,"d":-0.8},{"task":"MATH, levels 3–5","model":"0.6B","n":"3","nearest":"0.506 ± 0.025","faircast":"0.533 ± 0.015","delta":"+2.7","nm":0.506,"nsd":0.025,"fm":0.533,"fsd":0.015,"d":2.7},{"task":"GSM8K","model":"0.6B","n":"3","nearest":"0.713 ± 0.025","faircast":"0.764 ± 0.024","delta":"+5.1","nm":0.713,"nsd":0.025,"fm":0.764,"fsd":0.024,"d":5.1}],"table3":{"cols":["bf16","fp16","FP8 via bf16","FP8 via fp16"],"rows":[{"arm":"HumanEval+, round-to-nearest","vals":[58.5,16.5,60.4,28.1]},{"arm":"Countdown (500 steps), round-to-nearest","vals":[21.9,10.2,20.3,10.2]},{"arm":"HumanEval+, Fair Cast","vals":[64.6,62.2,61.0,61.0]}]},"pairs":[{"task":"games:nim","model":"1.7B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.57,"faircast":0.58,"delta":1.0},{"task":"gsm8k","model":"0.6B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.742,"faircast":0.742,"delta":0.0},{"task":"gsm8k","model":"0.6B","seed":1,"opt":"adamw","n_eval":512,"nearest":0.697,"faircast":0.762,"delta":6.4},{"task":"gsm8k","model":"0.6B","seed":2,"opt":"adamw","n_eval":512,"nearest":0.699,"faircast":0.789,"delta":9.0},{"task":"humanevalplus","model":"1.7B","seed":0,"opt":"adamw","n_eval":164,"nearest":0.585,"faircast":0.616,"delta":3.0},{"task":"humanevalplus","model":"1.7B","seed":1,"opt":"adamw","n_eval":164,"nearest":0.64,"faircast":0.634,"delta":-0.6},{"task":"math","model":"0.6B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.521,"faircast":0.541,"delta":2.0},{"task":"math","model":"0.6B","seed":1,"opt":"adamw","n_eval":512,"nearest":0.521,"faircast":0.543,"delta":2.1},{"task":"math","model":"0.6B","seed":2,"opt":"adamw","n_eval":512,"nearest":0.477,"faircast":0.516,"delta":3.9},{"task":"math","model":"1.7B","seed":0,"opt":"adamw","n_eval":128,"nearest":0.664,"faircast":0.656,"delta":-0.8},{"task":"math_l5","model":"1.7B","seed":0,"opt":"adamw","n_eval":128,"nearest":0.492,"faircast":0.523,"delta":3.1},{"task":"mbppplus","model":"1.7B","seed":0,"opt":"adamw","n_eval":128,"nearest":0.587,"faircast":0.612,"delta":2.5},{"task":"mbppplus","model":"1.7B","seed":1,"opt":"adamw","n_eval":512,"nearest":0.603,"faircast":0.598,"delta":-0.5},{"task":"mbppplus","model":"1.7B","seed":2,"opt":"adamw","n_eval":512,"nearest":0.598,"faircast":0.629,"delta":3.1},{"task":"mbppplus","model":"1.7B","seed":3,"opt":"adamw","n_eval":512,"nearest":0.594,"faircast":0.634,"delta":4.0},{"task":"rg:knights_knaves","model":"0.6B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.865,"faircast":0.967,"delta":10.2},{"task":"rg:knights_knaves","model":"1.7B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.959,"faircast":0.996,"delta":3.7},{"task":"rg:knights_knaves","model":"1.7B","seed":0,"opt":"muon","n_eval":512,"nearest":0.895,"faircast":0.986,"delta":9.2},{"task":"rg:knights_knaves","model":"1.7B","seed":1,"opt":"muon","n_eval":512,"nearest":0.918,"faircast":0.99,"delta":7.2},{"task":"rg:knights_knaves","model":"4B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.988,"faircast":0.992,"delta":0.4},{"task":"rg:list_functions","model":"1.7B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.668,"faircast":0.523,"delta":-14.5},{"task":"rg:string_manipulation","model":"1.7B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.352,"faircast":0.363,"delta":1.2},{"task":"rg:zebra_puzzles","model":"1.7B","seed":0,"opt":"adamw","n_eval":512,"nearest":0.268,"faircast":0.623,"delta":35.5},{"task":"rg:zebra_puzzles","model":"1.7B","seed":1,"opt":"adamw","n_eval":512,"nearest":0.447,"faircast":0.625,"delta":17.8},{"task":"rg:zebra_puzzles","model":"1.7B","seed":2,"opt":"adamw","n_eval":512,"nearest":0.268,"faircast":0.703,"delta":43.6}],"table1":{"at":"S7.T1","rows":["Round-to-nearest export","Unbiased export (SR or EF)"],"cols":["Trainer forward on fp32 master","Trainer forward on served copy"],"cells":[["Current default; hidden lag (§4)","Same policy as the default (0.6B: knights-and-knaves 0.889 against 0.865, GSM8K 0.705 against 0.742)"],["Collapse: EF 0.00 (4/4 runs); SR 0.6B GSM8K 0.13, MATH 0.002","Fair Cast (§7.2 to §7.3)"]]},"cost":{"at":"S7.SS7","params_b":1.72,"nearest_ms":4.3,"sr_ms":21.7,"ef_ms":37.2,"sr_naive_ms":136.6,"ef_resid_gb":6.9,"step_s":[31,130],"kk_step_s":[56.2,56.0]},"transfer":{"at":"S7.SS6","rows":[["AIME24 (cosine pair)",0.152,0.204],["AMC23 (cosine pair)",0.495,0.548],["MATH-500 (cosine pair)",0.754,0.79],["GSM8K (cosine pair)",0.83,0.83],["AIME24 (level-5 pair)",0.165,0.163]]},"master_gap":{"at":"S7.SS4","he_served":59.8,"he_master":9.1,"rtn_runs":9,"rtn_gap12_any":5,"rtn_gap12_final":2,"fc_runs":12,"fc_max_gap":3},"zebra_fc_runs":{"at":"S7.SS2","vals":[0.623,0.625,0.703,0.34],"note":"three seeds from inputs/table2_pairs.md plus the repeat of seed 0, which \"fell to 0.34\" (§7.2)"},"list_functions":{"at":"S7.SS5","nearest":0.668,"faircast":0.523,"ema005":[0.707,0.709],"ema001":0.666}},"rc":{"checks":[{"name":"Table 2, Zebra puzzles 1.7B: mean ± sample s.d. (nearest / Fair Cast)","at":"S7.T2","paper":"0.33 ± 0.10 / 0.57 ± 0.16","ours":"0.33 ± 0.1 / 0.57 ± 0.16","agree":true,"how":"from the per-seed endpoints in the code repository (results/TABLE2_PAIRS.md); sample standard deviation (n - 1)"},{"name":"Table 2, Knights-and-knaves, Muon 1.7B: mean ± sample s.d. (nearest / Fair Cast)","at":"S7.T2","paper":"0.907 ± 0.016 / 0.988 ± 0.003","ours":"0.907 ± 0.016 / 0.988 ± 0.003","agree":true,"how":"from the per-seed endpoints in the code repository (results/TABLE2_PAIRS.md); sample standard deviation (n - 1)"},{"name":"Table 2, MBPP+ (held-out 224) 1.7B: mean ± sample s.d. (nearest / Fair Cast)","at":"S7.T2","paper":"0.595 ± 0.007 / 0.618 ± 0.017","ours":"0.596 ± 0.007 / 0.618 ± 0.016","agree":true,"how":"from the per-seed endpoints in the code repository (results/TABLE2_PAIRS.md); sample standard deviation (n - 1)"},{"name":"Table 2, HumanEval+ 1.7B: mean ± sample s.d. (nearest / Fair Cast)","at":"S7.T2","paper":"0.613 ± 0.039 / 0.625 ± 0.013","ours":"0.613 ± 0.039 / 0.625 ± 0.013","agree":true,"how":"from the per-seed endpoints in the code repository (results/TABLE2_PAIRS.md); sample standard deviation (n - 1)"},{"name":"Table 2, MATH, levels 3–5 0.6B: mean ± sample s.d. (nearest / Fair Cast)","at":"S7.T2","paper":"0.506 ± 0.025 / 0.533 ± 0.015","ours":"0.506 ± 0.025 / 0.533 ± 0.015","agree":true,"how":"from the per-seed endpoints in the code repository (results/TABLE2_PAIRS.md); sample standard deviation (n - 1)"},{"name":"Table 2, GSM8K 0.6B: mean ± sample s.d. (nearest / Fair Cast)","at":"S7.T2","paper":"0.713 ± 0.025 / 0.764 ± 0.024","ours":"0.713 ± 0.025 / 0.764 ± 0.024","agree":true,"how":"from the per-seed endpoints in the code repository (results/TABLE2_PAIRS.md); sample standard deviation (n - 1)"},{"name":"Table 2, Knights-and-knaves 0.6B: the single pair","at":"S7.T2","paper":"0.865 / 0.967 (+10.2)","ours":"0.865 / 0.967 (+10.2)","agree":true,"how":"same run in both tables"},{"name":"Table 2, Knights-and-knaves 1.7B: the single pair","at":"S7.T2","paper":"0.959 / 0.996 (+3.7)","ours":"0.959 / 0.996 (+3.7)","agree":true,"how":"same run in both tables"},{"name":"Table 2, Knights-and-knaves 4B: the single pair","at":"S7.T2","paper":"0.988 / 0.992 (+0.4)","ours":"0.988 / 0.992 (+0.4)","agree":true,"how":"same run in both tables"},{"name":"Table 2, Nim 1.7B: the single pair","at":"S7.T2","paper":"0.570 / 0.580 (+1.0)","ours":"0.570 / 0.580 (+1.0)","agree":true,"how":"same run in both tables"},{"name":"Table 2, String manipulation 1.7B: the single pair","at":"S7.T2","paper":"0.352 / 0.363 (+1.2)","ours":"0.352 / 0.363 (+1.2)","agree":true,"how":"same run in both tables"},{"name":"Table 2, MATH, level 5 1.7B: the single pair","at":"S7.T2","paper":"0.492 / 0.523 (+3.1)","ours":"0.492 / 0.523 (+3.1)","agree":true,"how":"same run in both tables"},{"name":"Table 2, MATH, levels 3–5 1.7B: the single pair","at":"S7.T2","paper":"0.664 / 0.656 (−0.8)","ours":"0.664 / 0.656 (-0.8)","agree":true,"how":"same run in both tables"},{"name":"Matched seed-pairs: ahead by more than 1 point / within 1 / behind","at":"S7.SS3","paper":"18 / 6 / 1 of 25","ours":"18 / 6 / 1 of 25","agree":true,"how":"counted from the 25 released pairs; +1.0 (Nim) counts as within one point"},{"name":"Mean endpoint difference over the 25 pairs","at":"S7.SS3","paper":"+6.1 points","ours":"+6.1 points","agree":true,"how":"mean of the Delta column"},{"name":"Median endpoint difference","at":"S7.SS3","paper":"not printed (repository: +3.1)","ours":"+3.1 points","agree":true,"how":"derived"},{"name":"Mean without the three zebra pairs","at":"S7.SS3","paper":"not printed","ours":"+2.5 points (22 pairs)","agree":true,"how":"derived: the three zebra pairs contribute 96.9 of the 152.5 summed points"},{"name":"Mean if the zebra seed-0 pair used the repeated Fair Cast run (0.34)","at":"S7.SS2","paper":"not printed","ours":"+5.0 points","agree":true,"how":"derived: the released pair uses the first seed-0 run (0.623); the repeat ended at 0.34"},{"name":"Sign test over the pairs (two-sided)","at":"S7.SS3","paper":"not printed","ours":"20 positive, 4 negative, 1 zero; p = 0.0015","agree":true,"how":"derived; treats pairs as independent, which they are not quite (same training-prompt sequence within a configuration, several seeds per task)"},{"name":"Standard error of one endpoint difference at 512 / 128 problems","at":"S9","paper":"about 3 / 6 points","ours":"3.1 / 6.2 points","agree":true,"how":"sqrt(2 p (1 - p) / n) at p = 0.5, two independent evaluations; the paper does not say how it computed its figure"},{"name":"Same, at the 224 held-out MBPP+ problems and 164 HumanEval+ problems","at":"S6","paper":"not printed","ours":"4.7 / 5.5 points","agree":true,"how":"derived as above"},{"name":"Pairs whose difference is smaller than one standard error of a difference","at":"S9","paper":"not printed","ours":"14 of 25","agree":true,"how":"derived; MBPP+ pairs use the 224 (or 121) held-out problems actually scored, not the 512 in the n_eval column"},{"name":"MBPP+ pair endpoints against the released held-out curves (8 runs)","at":"S7.T2","paper":"the 8 MBPP+ endpoints","ours":"largest difference 0.000","agree":true,"how":"results/mbppplus_heldout_curves.json, last checkpoint, held-out subset (121 problems for seed 0, 224 otherwise)"},{"name":"bf16 gap u at |w| = 0.02 and the round-to-nearest threshold u/2","at":"S3","paper":"u = 2^(floor(log2|w|) - 7) ≈ |w|/128","ours":"u = 0.000122, u/2 = 6.1e-05 (|w|/u = 164)","agree":true,"how":"definition; |w|/u lies between 128 and 256 within each power of two, so \"u ≈ |w|/128\" is the upper end"},{"name":"Average u / |w| for weights spread evenly in log scale","at":"S3","paper":"≈ 1/128","ours":"1/177","agree":true,"how":"derived: the mean of 2^-f over f uniform in [0, 1) is 1/(2 ln 2) = 0.72, so the average gap is about |w|/177"},{"name":"Steps for a steady update to cross the dead zone, |w| = 0.02, update 5e-7 per step","at":"S3","paper":"τ ≈ u/(2|Δ|): 50 to 200 steps","ours":"122 steps","agree":true,"how":"tau formula of section 3 at illustrative values (the paper does not print the update distribution)"},{"name":"FP16 sampler: dead zone shrinks","at":"S7.SS7","paper":"eightfold","ours":"8 times","agree":true,"how":"fp16 keeps 10 significand bits, bf16 7"},{"name":"Stochastic-rounding export as a share of one optimizer step","at":"S7.SS7","paper":"below 0.1%","ours":"0.070% to 0.017%","agree":true,"how":"21.7 ms against 31 to 130 s"},{"name":"Error-feedback export as a share of one optimizer step","at":"S7.SS7","paper":"below 0.1%","ours":"0.120% to 0.029%","agree":false,"how":"37.2 ms against 31 to 130 s: just above 0.1% at the fastest step; negligible either way"},{"name":"Error-feedback residual memory at 1.72B parameters","at":"S7.SS7","paper":"6.9 GB","ours":"6.88 GB","agree":true,"how":"one fp32 (4-byte) residual per parameter, decimal GB"},{"name":"Delta-sync compression lost: changed weights per step 2 to 15% (Fair Cast) against 0.4 to 0.5% (nearest)","at":"S9","paper":"5 to 30 times less","ours":"4 to 37.5 times","agree":true,"how":"the ratio of the printed ranges spans 4 to 37.5; the paper rounds it to 5 to 30"},{"name":"Finer-than-bf16 exports of round-to-nearest masters: points lost against bf16","at":"S7.T3","paper":"\"30 to 40 points worse\" (text)","ours":"HumanEval+: fp16 42.0, FP8 via fp16 30.4; Countdown: fp16 11.7, FP8 via fp16 11.7","agree":false,"how":"only HumanEval+ reaches the range (42.0 and 30.4); Countdown loses 11.7 in both, from a lower base"},{"name":"Fair Cast master: spread across the four formats","at":"S7.T3","paper":"same model in every format","ours":"3.6 points (64.6 to 61.0)","agree":true,"how":"max minus min of the row"},{"name":"Largest master-against-served gap (HumanEval+, step 99)","at":"S7.SS4","paper":"up to 50 points","ours":"50.7 points","agree":true,"how":"59.8 minus 9.1"},{"name":"Zebra: Table 2 delta","at":"S7.T2","paper":"+24","ours":"+24.5","agree":true,"how":"difference of the means of 4 and 3 runs"},{"name":"MATH levels 3 to 5 at 1.7B, step 150 of the 300-step run","at":"S7.T2","paper":"+5.5","ours":"+5.5","agree":true,"how":"0.727 minus 0.672"},{"name":"List functions: EMA export against round-to-nearest","at":"S7.SS5","paper":"above round-to-nearest on both seeds","ours":"+3.9 and +4.1 points","agree":true,"how":"0.707 and 0.709 against 0.668"},{"name":"Contributions say the lag helps on \"the one task\"; the conclusion says \"two configurations\"","at":"S10","paper":"one (§1, §7.5) / two (§10)","ours":"one reported (list functions)","agree":false,"how":"section 7.5 reports only list functions; the second configuration is not named"}],"n":38,"agree":35,"pairs":{"ahead":18,"within":6,"behind":1,"mean":6.1,"median":3.1,"mean_no_zebra":2.53,"mean_alt":4.97,"zebra_sum":96.9,"sum":152.5,"pos":20,"neg":4,"sign_p":0.001543879508972168,"small":14}}};
+
+</script>
+<script>/* 11_js_ui.js */
+// ---- Paper-page helpers (reusable): width-measured drawing, the step animation controller, predict-then-reveal ----
+const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
+// fit(el, draw): call draw(width) now if visible and again whenever the element's width changes.
+// Charts are laid out in CSS pixels at the measured width, so an 11 px font is 11 px on screen.
+function fit(el,draw){if(!el)return;el.__draw=draw;el.__lw=-1;
+  const go=()=>{const w=Math.floor(el.clientWidth);if(w>0&&w!==el.__lw){el.__lw=w;el.__draw(w)}};
+  if(!el.__obs){el.__obs=1;let q=0;const later=()=>{if(!q){q=1;requestAnimationFrame(()=>{q=0;go()})}};if('ResizeObserver' in window)new ResizeObserver(later).observe(el);else addEventListener('resize',later)}go()}
+const refit=el=>{if(el&&el.__draw){el.__lw=-1;const w=Math.floor(el.clientWidth);if(w>0){el.__lw=w;el.__draw(w)}}};
+const svgW=(w,h,inner,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+(label||'')+'" style="max-width:100%;height:auto">'+inner+'</svg>';
+const tx=(x,y,t,o)=>{o=o||{};return '<text x="'+(+x).toFixed(1)+'" y="'+(+y).toFixed(1)+'" font-size="'+(o.fs||12)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+(o.c?' fill="'+o.c+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+t+'</text>'};
+const rc=(x,y,w,h,f,o)=>{o=o||{};return '<rect x="'+(+x).toFixed(1)+'" y="'+(+y).toFixed(1)+'" width="'+Math.max(0,w).toFixed(1)+'" height="'+Math.max(0,h).toFixed(1)+'" rx="'+(o.r==null?4:o.r)+'" fill="'+f+'"'+(o.s?' stroke="'+o.s+'" stroke-width="'+(o.sw||1)+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+'/>'};
+const ln2=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+(+x1).toFixed(1)+'" y1="'+(+y1).toFixed(1)+'" x2="'+(+x2).toFixed(1)+'" y2="'+(+y2).toFixed(1)+'" stroke="'+c+'" stroke-width="'+(o.sw||1.2)+'"'+(o.op!=null?' opacity="'+o.op+'"':'')+(o.da?' stroke-dasharray="'+o.da+'"':'')+'/>'};
+const G=(op,s)=>op<=0?'':op>=1?s:'<g opacity="'+op.toFixed(3)+'">'+s+'</g>';
+const cl01=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
+
+// makeAnim: one input animated step by step, with modes (old method and new) sharing one scale.
+// o = {id, modes:{m:[{t,c}...]}, mode, draw(svgHost, mode, k, e, width), counters(mode,k,e) -> html, dur}
+// Expects #<id>Svg, #<id>Play, #<id>Back, #<id>Fwd, #<id>Scrub, #<id>Spd, #<id>Step, #<id>Cap, #<id>Cnt and a .seg #<id>M.
+function makeAnim(o){const id=o.id,card=$(id);if(!card)return null;const DUR=o.dur||3000,MOVE=.65;
+  const st={m:o.mode,k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',w:0};
+  const steps=()=>o.modes[st.m];
+  function draw(){const host=$(id+'Svg'),w=host.clientWidth;if(!w)return;st.w=w;const e=RM?1:ease(cl01(st.t/MOVE));
+    host.innerHTML=o.draw(st.m,st.k,e,w);
+    if(st.lk!==st.k||st.lm!==st.m){const S=steps()[st.k];$(id+'Step').innerHTML='Step '+(st.k+1)+' of '+steps().length+': '+S.t;$(id+'Cap').innerHTML=S.c;st.lk=st.k;st.lm=st.m}
+    $(id+'Cnt').innerHTML=o.counters(st.m,st.k,e);
+    const n=steps().length,sc=$(id+'Scrub');sc.max=n*100;sc.value=Math.round((st.k+Math.min(1,st.t))*100);
+    const pb=$(id+'Play'),end=st.k===n-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play')}
+  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
+    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
+    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
+  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
+  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+  $(id+'Play').addEventListener('click',()=>{if(st.play)pause();else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
+  $(id+'Fwd').addEventListener('click',()=>{pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
+  $(id+'Back').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $(id+'Scrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl01(v/100-st.k);if(st.k===n-1&&v>=n*100)st.t=1;draw()});
+  $(id+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
+  const seg=$(id+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
+    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
+  document.addEventListener('visibilitychange',kick);
+  fit($(id+'Svg'),()=>draw());
+  return {draw,st,kick}}
+
+// Predict, then reveal: <div class="pred" data-ans="i"> with .opts buttons, .fb and a hidden .reveal.
+// The reveal (the details and the live demo) opens after any answer; window.PRED_REVEAL[id] runs then.
+window.PRED_REVEAL=window.PRED_REVEAL||{};
+document.querySelectorAll('.pred').forEach(p=>{const bs=[...p.querySelectorAll('.opts button')],ans=+p.dataset.ans;
+  const sk=document.createElement('button');sk.className='skip small';sk.textContent='Skip: just show me';p.querySelector('.opts').after(sk);
+  sk.addEventListener('click',()=>{const r=p.querySelector('.reveal');const was=r.hidden;r.hidden=false;sk.remove();if(was&&PRED_REVEAL[p.id])try{PRED_REVEAL[p.id]()}catch(e){__jsErr(e.message)}});
+  bs.forEach((b,i)=>b.addEventListener('click',()=>{bs.forEach((x,j)=>{x.classList.toggle('right',j===ans);x.classList.toggle('wrong',j===i&&i!==ans)});
+    p.querySelector('.fb').innerHTML=i===ans?'<span class="ok">Right.</span> Here is why, live:':'<span class="no">Not quite:</span> the answer is <b>'+bs[ans].textContent+'</b>. See it live:';
+    sk.remove();const r=p.querySelector('.reveal');const was=r.hidden;r.hidden=false;if(was&&PRED_REVEAL[p.id])try{PRED_REVEAL[p.id]()}catch(e){__jsErr(e.message)}}))});
+// placeLabels: put each point's label beside it without overlapping other labels or points.
+// pts: [{x,y,t,fs}] -> each gets lx, ly, la (text-anchor). Width is estimated at 0.58 em per character.
+function placeLabels(pts,W,H){const boxes=[],dots=pts.map(p=>({x:p.x-6,y:p.y-6,w:12,h:12}));
+  const hit=(b)=>b.x<0||b.x+b.w>W||b.y<0||b.y+b.h>H||boxes.concat(dots).some(o=>b.x<o.x+o.w&&o.x<b.x+b.w&&b.y<o.y+o.h&&o.y<b.y+b.h);
+  pts.forEach(p=>{const fs=p.fs||11,w=p.t.replace(/<[^>]+>/g,'').length*fs*.64,h=fs+2;
+    const C=[[p.x+8,p.y-h/2,'start'],[p.x-8-w,p.y-h/2,'end'],[p.x-w/2,p.y-8-h,'middle'],[p.x-w/2,p.y+8,'middle'],[p.x+8,p.y-h-4,'start'],[p.x+8,p.y+4,'start'],[p.x-8-w,p.y-h-4,'end'],[p.x-8-w,p.y+4,'end']];
+    let c=C.find(([x,y])=>!hit({x,y,w,h}))||C[0];boxes.push({x:c[0],y:c[1],w,h});
+    p.la=c[2];p.lx=c[2]==='start'?c[0]:c[2]==='end'?c[0]+w:c[0]+w/2;p.ly=c[1]+h-3});return pts}
+const exp10=e=>'10<tspan dy="-5" font-size="11">'+e+'</tspan>';
+const legend=(items,x,y,w)=>{let s='',cx=x,cy=y;items.forEach(([n,c,da])=>{const lw=n.length*6.4+30;if(cx+lw>x+w&&cx>x){cx=x;cy+=16}s+=ln2(cx,cy-4,cx+16,cy-4,c,{sw:2.2,da})+tx(cx+20,cy,n,{fs:11});cx+=lw});return {s,h:cy-y+16}};
+
+</script>
+<script>/* 14_js_charts.js */
+function niceTicks(a,b,n){const span=b-a,raw=span/(n||5),p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,st=(m<1.5?1:m<3?2:m<7?5:10)*p;const t=[];for(let v=Math.ceil(a/st-1e-9)*st;v<=b+1e-9;v+=st)t.push(+v.toFixed(10));return t}
+function linFrame(o){const {W,H,pl,pr,pt,pb}=o;const X=v=>pl+(W-pl-pr)*(v-o.x[0])/(o.x[1]-o.x[0]),Y=v=>pt+(H-pt-pb)*(1-(v-o.y[0])/(o.y[1]-o.y[0]));
+  let s='';const fx=o.fx||(v=>String(v)),fy=o.fy||(v=>String(v));
+  (o.yt||niceTicks(o.y[0],o.y[1],o.ny||5)).forEach(v=>{s+=ln2(pl,Y(v),W-pr,Y(v),'var(--line)',{sw:1})+tx(pl-5,Y(v)+4,fy(v),{fs:11,a:'end',c:'var(--mute)'})});
+  (o.xt||niceTicks(o.x[0],o.x[1],o.nx||(W<420?4:6))).forEach(v=>{s+=ln2(X(v),H-pb,X(v),H-pb+4,'var(--mute)',{sw:1})+tx(X(v),H-pb+15,fx(v),{fs:11,a:'middle',c:'var(--mute)'})});
+  s+=ln2(pl,H-pb,W-pr,H-pb,'var(--mute)',{sw:1});
+  if(o.xl)s+=tx((pl+W-pr)/2,H-3,o.xl,{fs:11,a:'middle',c:'var(--mute)'});
+  if(o.yl)s+='<text x="11" y="'+((pt+H-pb)/2)+'" font-size="11" text-anchor="middle" fill="var(--mute)" transform="rotate(-90 11 '+((pt+H-pb)/2)+')">'+o.yl+'</text>';
+  return {s,X,Y}}
+const pathOf=(pts,X,Y)=>pts.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join('');
+const lineS=(pts,X,Y,c,o)=>{o=o||{};return pts.length?'<path d="'+pathOf(pts,X,Y)+'" fill="none" stroke="'+c+'" stroke-width="'+(o.sw||1.8)+'"'+(o.da?' stroke-dasharray="'+o.da+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>':''};
+const dotS=(x,y,r,c,o)=>{o=o||{};return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'" fill="'+(o.hollow?'none':c)+'" stroke="'+c+'" stroke-width="'+(o.sw||1)+'"'+(o.op!=null?' opacity="'+o.op+'"':'')+'>'+(o.t?'<title>'+o.t+'</title>':'')+'</circle>'};
+const clampv=(v,a,b)=>v<a?a:v>b?b:v;
+// horizontal bars, labels left, values right; rows [{n, v, c, hl, hatch, note}], scale [0, vmax]
+function hbars(w,rows,o){o=o||{};const rh=o.rh||20,lw=Math.min(o.lw||170,Math.max(90,w*0.38)),vw=46,bw=Math.max(40,w-lw-vw-8),vmax=o.vmax||Math.max(...rows.map(r=>r.v||0));let s='',y=4;
+  s+='<defs><pattern id="hatch'+(o.id||'')+'" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--soft)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--mute)" stroke-width="2.4"/></pattern></defs>';
+  rows.forEach(r=>{const L=r.n.length*6.4>lw-6?r.n.slice(0,Math.floor((lw-6)/6.4)-1)+'…':r.n;s+=tx(lw-6,y+rh*0.68,L,{fs:11.5,a:'end',w:r.hl?'700':null,c:r.hl?'var(--ink)':'var(--mute)'})+(r.n!==L?'<title>'+r.n+'</title>':'');
+    if(r.v!=null){const bwid=bw*r.v/vmax;s+=rc(lw,y+3,bwid,rh-6,r.hatch?'url(#hatch'+(o.id||'')+')':(r.c||'var(--acc)'),{r:2,op:r.hl?1:0.75});s+=tx(lw+bwid+4,y+rh*0.68,(o.fmt||(v=>v.toFixed(1)))(r.v),{fs:11,c:'var(--ink)'})}
+    else s+=tx(lw+4,y+rh*0.68,'not reported',{fs:11,c:'var(--mute)'});y+=rh});
+  return svgW(w,y+4,s,o.label||'bar chart')}
+// legend that wraps to the width; items [name, colour, kind('l' line, 'd' dot, 'da' dashed)]
+function legendW(items,x,y,w){let s='',cx=x,cy=y;items.forEach(([n,c,k])=>{const lw=n.length*7+30;if(cx+lw>x+w&&cx>x){cx=x;cy+=16}
+  s+=(k==='d'?dotS(cx+7,cy-4,3.5,c):ln2(cx,cy-4,cx+16,cy-4,c,{sw:2.2,da:k==='da'?'5 3':null}))+tx(cx+20,cy,n,{fs:11});cx+=lw});return {s,h:cy-y+14}}
+
+</script>
+<script>/* 20_js_sim.js */
+// ---- The rounding engine: one fp32 master weight, its bf16 export after every step, three export rules ----
+// Real arithmetic on float32 bit patterns, the same operations as the paper's code (faircast/cast.py):
+//   round-to-nearest  = torch's .to(bfloat16): round half to even on the low 16 bits;
+//   stochastic        = add 16 uniformly random bits to the fp32 pattern, then truncate (sr_cast_bf16);
+//   error feedback    = q_t = round(theta_t + r_{t-1}), r_t = theta_t + r_{t-1} - q_t (ef_cast_bf16).
+// The same file runs in the page and in node (src/check_sim.mjs), so the page and the checks share one engine.
+(function(root){
+  const f32=new Float32Array(1),u32=new Uint32Array(f32.buffer);
+  const fr=Math.fround;
+  function rtn(x){f32[0]=x;const b=u32[0];if((b&0x7f800000)===0x7f800000)return f32[0];u32[0]=((b+0x7fff+((b>>>16)&1))>>>0)&0xffff0000;return f32[0]}
+  function sr(x,r16){f32[0]=x;u32[0]=((u32[0]+r16)>>>0)&0xffff0000;return f32[0]}
+  // the bf16 grid spacing at w: 2^(floor(log2|w|) - 7)
+  function gap(w){f32[0]=Math.abs(w);const e=((u32[0]>>>23)&0xff)-127;return Math.pow(2,e-7)}
+  function rng(seed){let a=seed>>>0;return function(){a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+  // o = {w0, eta, drift, noise, T, seed, reps}: the per-step update is eta * (drift + noise * z_t), z_t standard normal
+  function run(o){
+    const T=o.T,R=o.reps||256,g=rng(o.seed||1),gs=rng((o.seed||1)*7919+13);
+    const w0=rtn(o.w0),u=gap(w0);
+    const th=new Float64Array(T+1),qn=new Float64Array(T+1),qs=new Float64Array(T+1),qe=new Float64Array(T+1),qm=new Float64Array(T+1);
+    let t32=w0,res=0;const reps=new Float32Array(R);
+    th[0]=qn[0]=qs[0]=qe[0]=qm[0]=w0;
+    const ch={n:0,s:0,e:0},first={n:-1,s:-1,e:-1};
+    for(let t=1;t<=T;t++){
+      let z=0;if(o.noise){const a=g()||1e-12,b=g();z=Math.sqrt(-2*Math.log(a))*Math.cos(2*Math.PI*b)}
+      t32=fr(t32+fr(o.eta*(o.drift+o.noise*z)));th[t]=t32;
+      qn[t]=rtn(t32);
+      qs[t]=sr(t32,Math.floor(gs()*65536));
+      const v=fr(t32+res);qe[t]=rtn(v);res=fr(v-qe[t]);
+      let m=0;for(let i=0;i<R;i++)m+=sr(t32,Math.floor(gs()*65536));qm[t]=m/R;
+      for(const [k,a] of [['n',qn],['s',qs],['e',qe]])if(a[t]!==a[t-1]){ch[k]++;if(first[k]<0)first[k]=t}
+    }
+    return {w0,u,th,qn,qs,qe,qm,ch,first,T,meanStep:o.eta*o.drift};
+  }
+  root.FCSIM={rtn,sr,gap,run,rng};
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+<script>/* 13_js_read.js */
+// ---- The paper tab: hero diagram, predict 1, the 25 pairs, Table 3 ----
+(function(){
+const T=PAPER.tables;
+// ---------- hero: the training loop and its two ratios ----------
+const HERO={
+ rtn:{exp:['export: round to nearest','drops updates under u/2'],tr:['trainer forward','bf16 of θ, the same as q'],
+  red:'hidden ratio, master against served policy: never computed; |log ρ| grows to 0.10 to 0.45',green:'visible ratio, trainer against sampler ≈ 1 (|log ρ| ≈ 0.01): what PPO clip, TIS and IcePop check',
+  cap:'<span class="fch">Red</span>: the master and the served copy drift apart for 50 to 150 steps, and nothing measures it. <span class="fcv">Green</span>: the trainer and the sampler both read the same rounded weights, so the ratio every framework checks stays at one.'},
+ fc:{exp:['export: stochastic rounding','E[q] = θ, nothing withheld'],tr:['trainer forward on q','gradient to θ straight through'],
+  red:'master against served: |log ρ| stays ≈ 0.01, the noise floor',green:'visible ratio still ≈ 1, and now the sampled policy is the trained one',
+  cap:'Fair Cast changes the two shaded boxes. The export is unbiased, so updates reach the sampler on average at once; the loss is computed on the exact copy that generated the rollouts, so the policy being differentiated is the policy that sampled.'}};
+let heroM='rtn';
+function heroDraw(w){const M=HERO[heroM],host=$('fcHeroSvg');const shade=heroM==='fc'?'var(--acc2)':'var(--soft)',sc=heroM==='fc'?'var(--acc)':'var(--c2)';
+  const lab=[['fp32 master θ','optimizer state'],M.exp,['served copy q (bf16)','vLLM samples here'],['rollouts sampled from q','rewards, advantages'],M.tr,['policy-gradient update','lands on θ']];
+  const box=(x,y,bw,bh,i)=>{const sh=i===1||i===4;return rc(x,y,bw,bh,sh?shade:'var(--bg)',{s:sh?sc:'var(--mute)',sw:sh?1.6:1,r:8})+tx(x+bw/2,y+bh/2-3,lab[i][0],{fs:12.5,a:'middle',w:'600'})+tx(x+bw/2,y+bh/2+13,lab[i][1],{fs:11.5,a:'middle',c:'var(--mute)'})};
+  const arr=(x1,y1,x2,y2,c,da)=>{const a=Math.atan2(y2-y1,x2-x1),h=7;return ln2(x1,y1,x2,y2,c||'var(--mute)',{sw:1.5,da})+'<path d="M'+x2.toFixed(1)+' '+y2.toFixed(1)+'L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+' '+(y2-h*Math.sin(a-0.45)).toFixed(1)+'L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+' '+(y2-h*Math.sin(a+0.45)).toFixed(1)+'z" fill="'+(c||'var(--mute)')+'"/>'};
+  let s='',H;
+  if(w>=640){const gx=46,bw=(w-2*gx-8)/3,bh=50,y1=40,y2=y1+bh+64;H=y2+bh+34;const X=i=>4+i*(bw+gx);
+    s+=box(X(0),y1,bw,bh,0)+box(X(1),y1,bw,bh,1)+box(X(2),y1,bw,bh,2)+box(X(2),y2,bw,bh,3)+box(X(1),y2,bw,bh,4)+box(X(0),y2,bw,bh,5);
+    s+=arr(X(0)+bw,y1+bh/2,X(1)-2,y1+bh/2)+arr(X(1)+bw,y1+bh/2,X(2)-2,y1+bh/2)+arr(X(2)+bw/2,y1+bh,X(2)+bw/2,y2-2)+arr(X(2),y2+bh/2,X(1)+bw+2,y2+bh/2)+arr(X(1),y2+bh/2,X(0)+bw+2,y2+bh/2)+arr(X(0)+bw/2,y2,X(0)+bw/2,y1+bh+2);
+    const red=heroM==='fc'?'var(--good)':'var(--bad)';
+    s+='<path d="M'+(X(0)+bw/2)+' '+(y1-2)+'C'+(X(0)+bw/2)+' '+(y1-22)+' '+(X(2)+bw/2)+' '+(y1-22)+' '+(X(2)+bw/2)+' '+(y1-2)+'" fill="none" stroke="'+red+'" stroke-width="1.8" stroke-dasharray="6 4"/>'+tx(w/2,14,M.red,{fs:12,a:'middle',c:red,w:'600'});
+    s+=ln2(X(1)+bw*0.75,y2,X(2)+bw*0.25,y1+bh,'var(--good)',{sw:1.8,da:'6 4'})+tx(w/2,H-8,M.green,{fs:12,a:'middle',c:'var(--good)',w:'600'});
+  }else{const bw=w-58,bh=44,g=20,x=30;H=6*bh+5*g+10;const Y=i=>4+i*(bh+g);
+    for(let i=0;i<6;i++){s+=box(x,Y(i),bw,bh,i);if(i<5)s+=arr(x+bw/2,Y(i)+bh,x+bw/2,Y(i+1)-2)}
+    s+='<path d="M'+(x+bw)+' '+(Y(5)+bh/2)+'H'+(w-8)+'V'+(Y(0)+bh/2)+'H'+(x+bw+9)+'" fill="none" stroke="var(--mute)" stroke-width="1.5"/>'+arr(x+bw+12,Y(0)+bh/2,x+bw+2,Y(0)+bh/2);
+    const red=heroM==='fc'?'var(--good)':'var(--bad)';
+    s+='<path d="M'+(x-2)+' '+(Y(0)+bh/2)+'H8V'+(Y(2)+bh/2)+'H'+(x-2)+'" fill="none" stroke="'+red+'" stroke-width="1.8" stroke-dasharray="5 3"/>';
+    s+='<path d="M'+(x-2)+' '+(Y(2)+bh*0.75)+'H19V'+(Y(4)+bh/2)+'H'+(x-2)+'" fill="none" stroke="var(--good)" stroke-width="1.8" stroke-dasharray="5 3"/>';
+  }
+  host.innerHTML=svgW(w,H,s,'The RL loop: fp32 master, export, served copy, rollouts, trainer, update; and the hidden and visible ratios');
+  $('fcHeroCap').innerHTML=(w<640?'<span style="color:'+(heroM==='fc'?'var(--good)':'var(--bad)')+';font-weight:600">Outer bracket: '+M.red+'.</span> <span class="fcv">Inner bracket: '+M.green+'.</span> ':'')+M.cap}
+const hm=$('fcHeroM');hm.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{hm.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});heroM=b.dataset.m;refit($('fcHeroSvg'))}));
+fit($('fcHeroSvg'),heroDraw);onTab('t-read',()=>refit($('fcHeroSvg')));
+
+// ---------- predict 1: when does the copy first move ----------
+PRED_REVEAL.fcPr1=function(){const r=FCSIM.run({w0:0.02,eta:1e-6,drift:0.5,noise:0,T:400,seed:1,reps:8});
+  const nxt=[];for(let t=1;t<=r.T;t++)if(r.qn[t]!==r.qn[t-1])nxt.push(t);
+  $('fcPr1Out').innerHTML='the copy first changes after step <b>'+r.first.n+'</b>. Near 0.02 the bf16 gap is <i>u</i> = '+sci(r.u)+', so the master must move <i>u</i>/2 = '+sci(r.u/2)+' from its starting grid point, '+(r.u/2/5e-7).toFixed(0)+' steps of 5 × 10⁻⁷; the next change needs a whole gap, at step '+(nxt[1]||'beyond 400')+'. Until then the sampler serves the starting weight while the optimizer has moved on.'};
+
+// ---------- the 25 pairs ----------
+const FAM={'rg:zebra_puzzles':['zebra','var(--c1)'],'rg:knights_knaves':['knights','var(--c1)'],'rg:list_functions':['list functions','var(--c1)'],'rg:string_manipulation':['strings','var(--c1)'],
+  'games:nim':['Nim','var(--c5)'],'math':['MATH 3-5','var(--c3)'],'math_l5':['MATH L5','var(--c3)'],'gsm8k':['GSM8K','var(--c3)'],'mbppplus':['MBPP+','var(--c4)'],'humanevalplus':['HumanEval+','var(--c4)']};
+const ORDER=Object.keys(FAM);
+const scored=p=>p.task==='mbppplus'?(p.seed===0?121:224):p.n_eval;
+const seOf=p=>100*Math.sqrt(0.5/scored(p));
+let pairM='gain';
+function pairRows(){const alt=$('fcPairsAlt').checked;return T.pairs.map(p=>{const q=Object.assign({},p);if(alt&&p.task==='rg:zebra_puzzles'&&p.seed===0){q.faircast=0.34;q.delta=Math.round(1000*(0.34-p.nearest))/10;q.alt=1}return q})}
+function pairsDraw(w){const rows=pairRows();
+  if(pairM==='gain')rows.sort((a,b)=>b.delta-a.delta);else rows.sort((a,b)=>ORDER.indexOf(a.task)-ORDER.indexOf(b.task)||a.model.localeCompare(b.model)||a.opt.localeCompare(b.opt)||a.seed-b.seed);
+  const lbl=p=>FAM[p.task][0]+' '+p.model+(p.opt==='muon'?' Muon':'')+' s'+p.seed,lw=Math.min(w*0.42,10+6.6*Math.max(...rows.map(p=>lbl(p).length))),rw=44,rh=17,top=34,H=top+rows.length*rh+38,x0=-20,x1=48,X=v=>lw+(w-lw-rw)*(v-x0)/(x1-x0);
+  let s='';const lg=legendW([['logic','var(--c1)','d'],['games','var(--c5)','d'],['maths','var(--c3)','d'],['code','var(--c4)','d'],['±1 SE','var(--dim)']],lw,12,w-lw);s+=lg.s;
+  (w-lw<380?[-20,0,20,40]:[-20,-10,0,10,20,30,40]).forEach(v=>{s+=ln2(X(v),top-4,X(v),H-34,v===0?'var(--mute)':'var(--line)',{sw:v===0?1.2:1})+tx(X(v),H-20,(v>0?'+':'')+v,{fs:11,a:'middle',c:'var(--mute)'})});
+  rows.forEach((p,i)=>{const y=top+i*rh+rh/2,se=seOf(p),f=FAM[p.task];
+    s+=rc(X(-se),y-5,X(se)-X(-se),10,'var(--dim)',{r:2,op:0.55});
+    s+=tx(lw-6,y+4,lbl(p),{fs:11,a:'end',c:'var(--ink)'});
+    s+=dotS(X(p.delta),y,4.2,f[1],{t:f[0]+' '+p.model+' seed '+p.seed+': '+p.nearest.toFixed(3)+' to '+p.faircast.toFixed(3)+(p.alt?' (repeat run)':'')});
+    s+=tx(w-2,y+4,(p.delta>0?'+':'')+p.delta.toFixed(1),{fs:11,a:'end',c:Math.abs(p.delta)<se?'var(--mute)':'var(--ink)',w:Math.abs(p.delta)<se?null:'600'})});
+  s+=tx(lw+(w-lw-rw)/2,H,'Fair Cast minus round-to-nearest (points)',{fs:11,a:'middle',c:'var(--mute)'});
+  $('fcPairsSvg').innerHTML=svgW(w,H+4,s,'Dot plot of the 25 matched seed-pairs');
+  const D=rows.map(p=>p.delta),n=D.length,mean=D.reduce((a,b)=>a+b,0)/n,sd=[...D].sort((a,b)=>a-b),med=sd[12];
+  const nz=rows.filter(p=>p.task!=='rg:zebra_puzzles').map(p=>p.delta),mnz=nz.reduce((a,b)=>a+b,0)/nz.length;
+  const inside=rows.filter(p=>Math.abs(p.delta)<seOf(p)).length;
+  $('fcPairsSum').innerHTML='Ahead by more than one point <b>'+D.filter(d=>d>1).length+'</b>, within one point <b>'+D.filter(d=>Math.abs(d)<=1).length+'</b>, behind <b>'+D.filter(d=>d<-1).length+'</b>; mean <b>'+(mean>0?'+':'')+mean.toFixed(1)+'</b>, median <b>+'+med.toFixed(1)+'</b>, mean without zebra <b>+'+mnz.toFixed(1)+'</b>; <b>'+inside+'</b> of 25 inside one standard error (grey values).'}
+const pm=$('fcPairsM');pm.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{pm.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});pairM=b.dataset.m;refit($('fcPairsSvg'))}));
+$('fcPairsAlt').addEventListener('change',()=>refit($('fcPairsSvg')));
+fit($('fcPairsSvg'),pairsDraw);onTab('t-read',()=>refit($('fcPairsSvg')));
+
+// ---------- Table 3 in the reading ----------
+$('fcT3b').innerHTML=T.table3.rows.map(r=>'<tr><td>'+r.arm+'</td>'+r.vals.map((v,i)=>'<td class="num"'+(i===1||i===3?(r.arm.indexOf('Fair')<0?' style="color:var(--bad);font-weight:600"':''):'')+'>'+v.toFixed(1)+'</td>').join('')+'</tr>').join('');
+})();
+// ---------- one weight between two neighbours: round-to-nearest against stochastic rounding ----------
+(function(){const sl=$('fcSRx');if(!sl)return;
+function draw(w){const p=+sl.value/100,H=150,x0=40,x1=w-40,X=v=>x0+(x1-x0)*v,y=58;let s='';
+  s+=ln2(x0,y,x1,y,'var(--mute)',{sw:1.5});
+  [[0,'lower bf16 value'],[1,'upper bf16 value (+u)']].forEach(([v,l])=>{s+=ln2(X(v),y-8,X(v),y+8,'var(--ink)',{sw:2})+tx(X(v),y+24,l,{fs:11.5,a:v?'end':'start',c:'var(--mute)'})});
+  s+=rc(X(0.5)-1,y-14,2,28,'var(--c2)',{r:0,op:0.6})+tx(X(0.5),y-18,'midpoint',{fs:11,a:'middle',c:'var(--c2)'});
+  s+=dotS(X(p),y,6,'var(--ink)')+tx(X(p),y-36,'master θ',{fs:12,a:'middle',w:'600'});
+  const near=p<0.5?0:p>0.5?1:0;
+  s+=tx(x0,y+50,'round-to-nearest:',{fs:12,c:'var(--c2)',w:'600'})+tx(x0+122,y+50,'always the '+(near?'upper':'lower')+' value',{fs:12});
+  const bw=x1-x0-122;s+=tx(x0,y+76,'stochastic:',{fs:12,c:'var(--c1)',w:'600'})+rc(x0+122,y+66,bw*(1-p),13,'var(--dim)',{r:2})+rc(x0+122+bw*(1-p),y+66,bw*p,13,'var(--c1)',{r:2});
+  if(bw*(1-p)>70)s+=tx(x0+126,y+76,'lower '+Math.round(100*(1-p))+'%',{fs:11});
+  if(bw*p>70)s+=tx(x1-4,y+76,'upper '+Math.round(100*p)+'%',{fs:11,a:'end',c:'#fff'});
+  $('fcSRSvg').innerHTML=svgW(w,H,s,'A master weight between two bf16 values');
+  $('fcSRv').textContent=(100*p).toFixed(0)+'% of a gap';
+  $('fcSRCap').innerHTML='Round-to-nearest puts the copy '+Math.abs(near-p).toFixed(2)+' u '+(near>p?'above':'below')+' the master, the same error every step until θ passes the midpoint. Stochastic rounding gives E[<i>q</i>] = '+(1-p).toFixed(2)+' × lower + '+p.toFixed(2)+' × upper = lower + '+p.toFixed(2)+' u = θ exactly; moving θ by Δ moves the chance of "upper" by Δ/<i>u</i>.'}
+sl.addEventListener('input',()=>refit($('fcSRSvg')));fit($('fcSRSvg'),draw);onTab('t-read',()=>refit($('fcSRSvg')))})();
+
+</script>
+<script>/* 23_js_sim.js */
+// ---- Round a weight: the simulator tab (engine in 20_js_sim.js). Static until the reader clicks Play or moves a control. ----
+(function(){
+const card=$('fcSim');if(!card)return;
+const st={r:null,k:300,m:'all',play:false,raf:0,last:0};
+const P=()=>({w0:+$('fcW').value,eta:+$('fcEta').value,drift:+$('fcDrift').value,noise:+$('fcNoise').value,T:300,seed:+$('fcSeed').value,reps:256});
+const C={n:'var(--c2)',s:'var(--c1)',e:'var(--c3)'},NM={n:'round-to-nearest',s:'stochastic',e:'error feedback'};
+function compute(){st.r=FCSIM.run(P())}
+function draw(){const host=$('fcSimSvg'),w=host.clientWidth;if(!w||!st.r)return;const r=st.r,k=st.k,u=r.u,w0=r.w0;
+  const yv=v=>(v-w0)/u;let ymax=0;for(let t=0;t<=r.T;t++)ymax=Math.max(ymax,yv(r.th[t]),yv(r.qs[t]),yv(r.qe[t]));
+  const show=x=>st.m==='all'||st.m===x;
+  const items=[['master θ (fp32)','var(--ink)']];if(show('rtn'))items.push(['nearest',C.n]);if(show('sr'))items.push(['stochastic',C.s]);if(show('sr')&&$('fcMean').checked)items.push(['mean of 256','var(--c1)','da']);if(show('ef'))items.push(['error feedback',C.e]);
+  const LG=legendW(items,44,14,w-54),pt=LG.h+16,H=(w<480?230:280)+pt,pl=44,pr=10,pb=34,ytop=Math.max(1.5,Math.ceil(ymax+0.6));
+  const F=linFrame({W:w,H,pl,pr,pt,pb,x:[0,r.T],y:[-0.7,ytop],xt:w<480?[0,100,200,300]:[0,50,100,150,200,250,300],yt:niceTicks(0,ytop,w<480?4:6).filter(v=>Number.isInteger(v)),fy:v=>v===0?'w₀':'+'+v+'u',xl:'optimizer step'});
+  let s=F.s;
+  s+=rc(pl,F.Y(0.5),w-pl-pr,F.Y(-0.5)-F.Y(0.5),'var(--hl)',{r:0,op:0.5})+tx(w-pr-4,F.Y(0.5)+13,'dead zone around w₀: ±u/2',{fs:11,a:'end',c:'var(--mute)'});
+  if(ytop<=30)for(let g=1;g<=ytop;g++)s+=ln2(pl,F.Y(g),w-pr,F.Y(g),'var(--line)',{sw:1,da:'2 3'});
+  const pts=(a,stp)=>{const o=[];for(let t=0;t<=k;t++){if(stp&&t>0)o.push([t,yv(a[t-1])]);o.push([t,yv(a[t])])}return o};
+  if(show('sr')&&$('fcMean').checked)s+=lineS(pts(r.qm),F.X,F.Y,C.s,{sw:2.2,da:'2 3'});
+  if(show('sr'))s+=lineS(pts(r.qs,1),F.X,F.Y,C.s,{sw:1.1,op:st.m==='all'?0.35:0.9});
+  if(show('ef'))s+=lineS(pts(r.qe,1),F.X,F.Y,C.e,{sw:1.4,op:st.m==='all'?0.35:0.9});
+  s+=lineS(pts(r.th),F.X,F.Y,'var(--ink)',{sw:2});
+  if(show('rtn'))s+=lineS(pts(r.qn,1),F.X,F.Y,C.n,{sw:2.4});
+  if(k<r.T)s+=ln2(F.X(k),pt,F.X(k),H-pb,'var(--mute)',{sw:1,da:'3 3'});
+  s+=LG.s;
+  host.innerHTML=svgW(w,H,s,'Master weight and its bf16 copies over 300 optimizer steps');
+  counters();
+  const pb2=$('fcPlay');pb2.innerHTML=st.play?'❚❚ Pause':(k>=r.T?'▶ Play the 300 steps':'▶ Resume');pb2.setAttribute('aria-label',st.play?'Pause':'Play');
+  $('fcStep').value=k;$('fcStepL').textContent='step '+k+' of '+r.T}
+function counters(){const r=st.r,k=st.k,ms=r.meanStep;
+  const row=(key,a)=>{let ch=0,first=-1,run=0,best=0,sg=0;for(let t=1;t<=k;t++){if(a[t]!==a[t-1]){ch++;if(first<0)first=t}const d=Math.sign(r.th[t]-a[t]);if(d&&d===sg)run++;else{run=d?1:0;sg=d}best=Math.max(best,run)}const gapU=(r.th[k]-a[k])/r.u;
+    return '<tr><td style="color:'+C[key]+';font-weight:600">'+NM[key]+'</td><td class="num">'+(first<0?'not yet':first)+'</td><td class="num">'+ch+(k?' ('+(100*ch/k).toFixed(1)+'%)':'')+'</td><td class="num">'+(gapU<0?'−':'')+Math.abs(gapU).toFixed(2)+' u</td><td class="num">'+best+'</td></tr>'};
+  let h='<div class="tw"><table class="fc-cnt"><thead><tr><th>At step '+k+'</th><th class="num">first change</th><th class="num">changes so far</th><th class="num">master minus copy now</th><th class="num">longest stretch on one side (steps)</th></tr></thead><tbody>'+row('n',r.qn)+row('s',r.qs)+row('e',r.qe)+'</tbody></table></div>';
+  h+='<p class="small" style="margin:4px 0 0">bf16 gap at this weight <i>u</i> = '+sci(r.u)+'; round-to-nearest needs the master to move <i>u</i>/2 = '+sci(r.u/2)+', <b>'+(r.u/2/ms).toFixed(0)+' steps</b> of the mean update ('+sci(ms)+'). Average of 256 stochastic copies minus master: '+((r.qm[k]-r.th[k])/r.u).toFixed(3)+' u. The last column counts the longest run of consecutive steps in which the copy stayed on the same side of the master: round-to-nearest\'s error keeps its sign for about a hundred steps at a time, the unbiased rules\' error changes sign every few steps, so it averages out instead of accumulating.</p>';
+  $('fcSimCnt').innerHTML=h;
+  $('fcSimCap').innerHTML='The weight starts on the bf16 grid at w₀ = '+r.w0.toPrecision(6)+'. Each step adds η × (mean update + noise × a standard normal draw), accumulated in fp32. Values are the copy\'s distance from w₀ in gaps <i>u</i>; a step line jumps when the copy moves to a neighbouring bf16 value.'}
+function tick(now){st.raf=0;if(!st.play)return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;st.acc=(st.acc||0)+dt*300/6000;const n=Math.floor(st.acc);if(n){st.acc-=n;st.k=Math.min(st.r.T,st.k+n)}
+  card.dataset.frames=(+card.dataset.frames||0)+1;if(st.k>=st.r.T){st.play=false}draw();if(st.play)st.raf=requestAnimationFrame(tick)}
+const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+$('fcPlay').addEventListener('click',()=>{if(st.play){pause();draw();return}if(st.k>=st.r.T)st.k=0;st.play=true;st.last=0;st.acc=0;st.raf=requestAnimationFrame(tick);draw()});
+$('fcStep').addEventListener('input',e=>{pause();st.k=+e.target.value;draw()});
+['fcW','fcEta','fcDrift','fcNoise','fcSeed'].forEach(id=>$(id).addEventListener('change',()=>{pause();compute();st.k=st.r.T;draw()}));
+$('fcMean').addEventListener('change',draw);
+const seg=$('fcSimM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});st.m=b.dataset.m;draw()}));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});
+compute();fit($('fcSimSvg'),draw);onTab('t-sim',()=>refit($('fcSimSvg')));
+// the reproduction box quotes the engine's own default run (also in inputs/sim.json, checked by check_page.mjs)
+const d=FCSIM.run({w0:0.02,eta:1e-6,drift:0.5,noise:0.5,T:300,seed:1,reps:256}),sd=FCSIM.run({w0:0.02,eta:1e-6,drift:0.5,noise:0,T:300,seed:1,reps:8});
+$('fcRepFirst').textContent=d.first.n;$('fcRepSteady').textContent=sd.first.n;$('fcRepPct').textContent=(100*d.ch.n/d.T).toFixed(2)+'%';
+window.FCSIMUI=st;
+})();
+
+</script>
+<script>/* 24_js_tables.js */
+// ---- The tables tab: Table 2 (sortable), the 25 pairs, Table 3, every recomputed check ----
+(function(){
+const T=PAPER.tables,RC=PAPER.rc;
+const NE={'Zebra puzzles':512,'Knights-and-knaves':512,'Knights-and-knaves, Muon':512,'Nim':512,'MBPP+ (held-out 224)':224,'HumanEval+':164,'String manipulation':512,'MATH, level 5':128,'GSM8K':512};
+const neOf=r=>r.task.indexOf('MATH, levels')===0?(r.model==='1.7B'?128:512):NE[r.task];
+const nOf=r=>r.n.indexOf('/')>=0?r.n.split('/').map(Number):[+r.n,+r.n];
+const seOf=r=>{const n=nOf(r),p=0.25/neOf(r);return 100*Math.sqrt(p/n[0]+p/n[1])};
+let m2='paper';
+function t2(){const rows=T.table2.map((r,i)=>Object.assign({i},r));if(m2==='delta')rows.sort((a,b)=>b.d-a.d);
+  $('fcT2b').innerHTML=rows.map(r=>{const se=seOf(r);return '<tr><td>'+r.task+'</td><td>'+r.model+'</td><td class="num">'+r.n+'</td><td class="num">'+r.nearest+'</td><td class="num">'+r.faircast+'</td><td class="num" style="font-weight:600;color:'+(r.d<0?'var(--bad)':Math.abs(r.d)<se?'var(--mute)':'var(--good)')+'">'+r.delta+'</td><td class="num">'+se.toFixed(1)+'</td></tr>'}).join('')}
+const sg=$('fcT2M');sg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{sg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});m2=b.dataset.m;t2()}));
+t2();
+$('fcPTb').innerHTML=T.pairs.map(p=>'<tr><td>'+p.task+'</td><td>'+p.model+'</td><td class="num">'+p.seed+'</td><td>'+(p.opt==='muon'?'Muon':'AdamW')+'</td><td class="num">'+(p.task==='mbppplus'?(p.seed===0?121:224):p.n_eval)+'</td><td class="num">'+p.nearest.toFixed(3)+'</td><td class="num">'+p.faircast.toFixed(3)+'</td><td class="num" style="font-weight:600;color:'+(p.delta<0?'var(--bad)':'var(--ink)')+'">'+(p.delta>0?'+':'')+p.delta.toFixed(1)+'</td></tr>').join('');
+$('fcT3xb').innerHTML=T.table3.rows.map(r=>'<tr><td>'+r.arm+'</td>'+r.vals.map(v=>'<td class="num">'+v.toFixed(1)+'</td>').join('')+'</tr>').join('');
+const ax=a=>A(PAPER.meta.ax+'#'+a,a.replace(/^S(\d+)\.T(\d+)$/,'Table $2').replace(/^S(\d+)\.SS(\d+)$/,'§$1.$2').replace(/^S(\d+)$/,'§$1'));
+$('fcRCb').innerHTML=RC.checks.map(c=>'<tr><td>'+c.name+'<div class="small mute">'+c.how+'</div></td><td>'+ax(c.at)+'</td><td>'+c.paper+'</td><td>'+c.ours+'</td><td style="font-weight:600;color:'+(c.agree?'var(--good)':'var(--bad)')+'">'+(c.agree?'agrees':'differs')+'</td></tr>').join('');
+$('fcRcSum').innerHTML='<b>'+RC.agree+' of '+RC.n+'</b> checks agree; the defaults reproduce every Table 2 mean and standard deviation independently, from the released per-pair table.';
+$('fcRcBad').innerHTML=RC.checks.filter(c=>!c.agree).map(c=>c.name+': paper '+c.paper+', recomputed '+c.ours+'.').join(' ');
+})();
+
+</script>
+<script>/* 99_js_tabs.js */
+// ---- Tabs ---- (skill template 99_js_tabs.js, 2026-10-25; storage key fc-tab)
+(function(){
+  const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
+  const shown={};
+  function show(id,save){
+    btns.forEach(b=>b.setAttribute('aria-selected',b.dataset.t===id?'true':'false'));
+    document.querySelectorAll('.tab').forEach(t=>{t.hidden=t.id!==id});
+    // charts in a newly shown tab measure their width now
+    (window.TAB_RENDER&&window.TAB_RENDER[id]||[]).forEach(f=>{try{f()}catch(e){}});
+    shown[id]=1;dispatchEvent(new Event('resize'));
+    if(save){try{localStorage.setItem('fc-tab',id)}catch(e){}}
+  }
+  btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
+  bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
+  // links inside the reading tab that point at other tabs (data-to: scroll to that element, kept from this page's own tab script)
+  document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
+  let start='t-read';try{const v=localStorage.getItem('fc-tab');if(v&&document.getElementById(v))start=v}catch(e){}
+  // a link may name a tab in the URL (page/#t-kv): open it
+  try{const h=decodeURIComponent(location.hash.slice(1));if(h.startsWith('t-')&&document.getElementById(h))start=h}catch(e){}
+  show(start,false);
+})();
+
+</script>
+</div></body></html>

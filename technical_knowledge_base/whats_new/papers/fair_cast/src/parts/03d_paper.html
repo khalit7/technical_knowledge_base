@@ -1,0 +1,41 @@
+<section id="s-trust"><h2>How much of this to believe</h2>
+[[S9|§9 Limitations]]
+<p><b>What holds up.</b> The mechanism is arithmetic, not a fitted claim: round-to-nearest provably holds back any accumulated update below <i>u</i>/2, and this page's engine (bit-identical to torch's cast on 1,993 test values) reproduces the dead zone from the definition. The paper then measures the consequence three independent ways: the single-step test (an fp32 sampler moves from 0.17 to 0.84, the bf16 export does not), the per-step fraction of changed weights, and the hidden ratio against the visible one ({{Figure 4|ax:S3.F4}}). The crossed cells of Table 1 are the right controls: training on the served copy alone changes nothing, unbiased export alone collapses, which separates the two halves. The fix is a few lines of released, MIT-licensed code, and every Table 2 mean and standard deviation recomputes from the released per-pair table (all 13 rows; {{tables tab|tab:t-tables}}).</p>
+<p><b>What to discount.</b></p>
+<ul>
+<li><b>Most comparisons are single runs inside the noise.</b> Eight of the 25 pairs come from configurations run with one seed, and 14 of the 25 differences are smaller than one standard error of a difference (3.1 points at 512 problems, 4.7 at the 224 MBPP+ problems actually scored). The authors state the 3 and 6 point figures themselves ({{§9|ax:S9}}), which counts in their favour.</li>
+<li><b>The mean is carried by one task.</b> The three zebra pairs give 96.9 of 152.5 summed points; the other 22 average +2.5, the median of all 25 is +3.1. The zebra pair for seed 0 uses the first of two Fair Cast runs; the repeat collapsed to 0.34, like round-to-nearest.</li>
+<li><b>Removing the lag can hurt.</b> On list functions Fair Cast lost 14.5 points until an EMA lag was added back, and which tasks need it is not known in advance; the paper's own sections disagree on whether this happened in one configuration or two ({{§7.5|ax:S7.SS5}}, {{§10|ax:S10}}).</li>
+<li><b>Narrow setting.</b> One training implementation, one GPU per arm with lag 1, models up to 4B, 150-step runs at η = 10<sup>−6</sup>. The lag scales roughly as |w|/η, so larger learning rates (or LoRA) should shrink the effect, and the paper notes Fair Cast is inert once updates clear the dead zone unaided; larger models and multi-node asynchronous setups are untested.</li>
+<li><b>Small wording slips.</b> "Tied on 6" in the abstract means within one point (three of the six are slightly negative); "30 to 40 points worse" holds for HumanEval+ only; "below 0.1%" cost holds for stochastic rounding, error feedback reaches 0.12%; panel (a) of Figure 4 shows a lower bf16 bar after step 1 than the text's 0.19.</li>
+</ul>
+<p><b>Verdict.</b> The diagnosis is solid and cheap to check in any stack: count how many served weights change per step. The fix costs milliseconds and is the right default on correctness grounds alone, since it makes the trained, sampled and deployed model the same one. How much accuracy it buys is less settled: large on the long-rollout zebra and knights-and-knaves runs, a few points or nothing on short-answer benchmarks, negative where the accidental lag was doing useful smoothing.</p>
+</section>
+
+<section id="s-use"><h2>What it takes to use this</h2>
+[[S9|§9 What to change]]
+<p>Replace the weight-sync cast (<code>master.to(torch.bfloat16)</code>) with <code>sr_cast_bf16</code>, and make the trainer's forward pass use the exact served values with a straight-through gradient (<code>served_forward</code> or <code>ste_params</code>); both come in the torch-only <code>faircast</code> package with a 60-line GRPO example ({{README|https://github.com/andrewgcodes/faircast}}). It pays off when the learning rate is small relative to weight magnitudes (full-parameter RL at about 10<sup>−6</sup>, Muon, decaying schedules) and on long rollouts; it buys little when updates already clear the dead zone. Watch for tasks where answers collapse to short outputs, and try the EMA export there.</p>
+<details class="mist"><summary>The details: release, hardware, checks to run</summary><div class="b"><ul>
+<li><b>Code and licence</b>: MIT. The package, the example, the Modal harness used for every run (<code>harness/drift_rl.py</code>: <code>sync_mode</code> "cast", "sr", "ef", "efsr"; <code>forward_mode</code> "autocast", "ste", "ste_swap"; Fair Cast is "sr" with "ste_swap"; <code>ema_export: 0.05</code> for the explicit lag), the 87 per-arm configurations, the pair table and the MBPP+ curves.</li>
+<li><b>Hardware</b>: the paper's runs used one H100 per arm with the vLLM sampler in sleep mode beside a Hugging Face trainer; the export itself costs 22 to 38 ms per 1.7B parameters, error feedback adds 4 bytes per parameter.</li>
+<li><b>A one-minute check on your own stack</b>: log the fraction of served bf16 weights that change per step, and evaluate the fp32 master against its served export at a checkpoint. A fraction well under 1% and a gap of many points mean you have the lag.</li>
+<li><b>Deployment</b>: ship and resume from what was served (bf16, or FP8 calibrated on bf16), not an fp16 cast of the master.</li>
+</ul></div></details>
+<details class="mist"><summary>Since the paper (checked 2026-11-02)</summary><div class="b">
+<p>arXiv v1 of 29 October 2026 is the only version. The repository's last commit is 7c213b2 (29 October 2026). It holds the package, harness, configurations, the 25-pair table and the MBPP+ held-out curves; the per-step training logs and held-out evaluations the figure scripts read (<code>results/logs</code>, <code>results/evals.json</code>) are not in it, and the paper's promised checkpoints and held-out responses were not found. No follow-up paper, framework adoption or independent replication was found by this date. Two unmerged prime-rl pull requests had proposed stochastic rounding for FP8 export before the paper, with no learning results ({{§8|ax:S8}}).</p>
+</div></details>
+</section>
+
+<section id="s-why"><h2>Why it matters <span class="small mute">(beyond the paper)</span></h2>
+<p>The training-inference mismatch has been one of 2025 and 2026's busiest RL-infrastructure topics: TIS ({{Yao et al.|https://fengyao.notion.site/off-policy-rl}}), IcePop, the FP16 proposal ({{Qi et al.|https://arxiv.org/abs/2510.26788}}), learning-rate schedules ({{Zhang et al.|https://arxiv.org/abs/2602.01826}}) and rounding-location alignment ({{Ke et al.|https://arxiv.org/abs/2610.32951}}) all target the visible ratio. This paper's point is that a second mismatch sits upstream of all of them, at the export, and that the same bf16 arithmetic has now been reported in ternary quantisation-aware fine-tuning ({{Sahai et al.|https://arxiv.org/abs/2610.07853}}) and in multi-teacher on-policy distillation ({{Zhu et al.|https://arxiv.org/abs/2610.02179}}). Whether it matters at frontier scale is open: the lag depends on the ratio of learning rate to weight size, and frontier runs differ in learning rates, asynchronous samplers and FP8 exports.</p>
+</section>
+
+<section id="s-conn"><h2>Connections</h2>
+<ul>
+<li>{{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}: GRPO, the importance ratio and the engine-trainer mismatch corrections this paper argues cannot see the export lag.</li>
+<li>{{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}: bf16's bits and gaps, round-to-nearest against stochastic rounding, fp32 master weights.</li>
+<li>{{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}: low-precision formats, FP8 recipes, and the straight-through estimator used to train on the served copy.</li>
+<li>{{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} (GRPO), {{Qwen3 Technical Report|n:3c65c17b0d0d81a19006e6b096a6e14b}} (the models), {{LoRA|n:3c65c17b0d0d81018f15edd19fa5c28a}} (predicted, untested, to escape the dead zone).</li>
+</ul>
+</section>
+</section>
