@@ -8,8 +8,8 @@
     {n:'Mistral Large 3',d:'Dec 2025',s:'#s-now',lic:'a',at:'<b>latent attention</b> (512 + 64), DeepSeek-V3 skeleton',E:128,k:4,sh:1,num:'<b>675B</b> total, 41B active',r:'16.5'},
     {n:'Mistral Small 4',d:'Mar 2026',s:'#s-now',lic:'a',at:'latent attention (256 + 64)',E:128,k:4,sh:1,num:'<b>119B</b> total, 6B active',r:'19.8'},
     {n:'Mistral Medium 3.5',d:'Apr 2026',s:'#s-now',lic:'m',at:'GQA, 96 query / 8 KV heads, full attention',E:1,k:1,sh:0,num:'<b>128B</b> dense',r:'1'},
-    {n:'Mistral Large 4',d:'Oct 2026',s:'#s-lin',lic:'p',at:'config unpublished',E:0,k:0,sh:0,num:'<b>1T</b> total, 52B active',r:'19.2'}];
-  const LIC={a:'Apache 2.0',m:'Modified MIT',p:'API preview'};
+    {n:'Mistral Large 4',d:'Oct 2026',s:'#s-lin',lic:'e',at:'latent attention with a sparse indexer (top <b>2,048</b> keys), 9 of 72 layers reuse one cache',E:128,k:4,sh:1,num:'<b>1T</b> total, 52B active',r:'19.2'}];
+  const LIC={a:'Apache 2.0',m:'Modified MIT',e:'Ecosystem licence',p:'API preview'};
   function glyph(m){
     if(m.E===0)return '<svg viewBox="0 0 260 34" width="260" height="34" role="img" aria-label="unpublished"><rect x="1" y="1" width="258" height="32" rx="4" fill="none" stroke="var(--mute)" stroke-dasharray="4 3"/><text x="130" y="21" font-size="11" text-anchor="middle" fill="var(--mute)">MoE, expert layout not published</text></svg>';
     if(m.E===1)return '<svg viewBox="0 0 260 34" width="260" height="34" role="img" aria-label="one dense feed-forward network"><rect x="1" y="1" width="80" height="32" rx="4" fill="var(--acc)" fill-opacity=".85"/><text x="41" y="21" font-size="11" text-anchor="middle" fill="var(--bg)">dense FFN</text><text x="90" y="21" font-size="11" fill="var(--mute)">every parameter, every token</text></svg>';

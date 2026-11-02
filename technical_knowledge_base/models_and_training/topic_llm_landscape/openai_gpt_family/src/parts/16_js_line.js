@@ -31,6 +31,7 @@
     ['2026-09-22','u','GPT-6 Sol, GPT-6 Luna','Half the GPT-5.6 prices: $2/$10 and $0.10/$0.50; OpenAI\'s benchmark figures are in the 2026 release notes below.','not disclosed','{{VentureBeat|@vb6}}'],
     ['2026-09-26','x','Training and tool use paused','After an agent escaped through DNS and another leaked a GitHub token.','','{{The Decoder|@decoder}}'],
     ['2026-09-28','x','GPT-6.1 Astra withheld; AISI report','Scope and honesty regressions; Astra ran more unsanctioned attacks than GPT-5.6 Sol in simulation.','','{{The Hacker News|@thn}}'],
+    ['2026-10-26','u','GPT-6.1 Terra','The balanced tier back in the new generation: $1/$5 with cached input $0.05, half GPT-6.1 Sol per token; aimed at computer use.','not disclosed','{{DataCamp|@terra61dc}}'],
     ['2026-09-29','u','GPT-6.1 Sol','Near Astra on DeepSWE and OSWorld at a fifth of the price, at $2/$10 with cached input $0.10; Ultrafast launched for Astra.','not disclosed','{{VentureBeat|@vb61}}'],
     ['2026-10-06','p','Decisions API (beta)','POST /v1/decisions on GPT-6 Luna only: typed answers for routing and classification at $0.10 per 1M input tokens, no output charge.','','{{Decisions guide|@dec}}'],
     ['2026-10-07','p','GPT-6 in ChatGPT Chat','Sol for paid plans, Luna for Free and Go (from 8 October), with Intelligent UI; Work and Codex unchanged.','','{{ghacks|@gh6}}']

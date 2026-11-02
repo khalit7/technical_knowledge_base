@@ -33,12 +33,13 @@
     $('grOut').innerHTML=stat('Group mean μ',mu.toFixed(3),'baseline instead of a critic')+stat('Rewards range',Math.min(...r).toFixed(2)+' to '+Math.max(...r).toFixed(2),'0 (bad format) to 1.1')+stat('In the batch?',zero?'Dropped':'Kept',zero?'every reward equal: zero advantage, no signal':'answers differ, so the group carries signal');
     $('grTab').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{const a=G[+x.dataset.i],k=x.dataset.k;if(k==='l')a.l=(a.l+1)%3;else a[k]=a[k]?0:1;drawGR()}))}
   // licence chooser
-  const LM=[['Large 3','a',1],['Small 4','a',1],['Ministral 3','a',1],['Shieldstral','a',1],['Voxtral Small','a',1],['Voxtral Realtime','a',1],['Devstral Small 2','a',0],['Medium 3.5','m',1],['Devstral 2','m',0],['Voxtral TTS','n',1],['Codestral 25.08','p',1],['OCR 4.1','p',1],['Codestral Embed','p',1],['Mistral Embed','p',1],['Moderation 2','p',1],['Voxtral Transcribe 2','p',1]];
-  const RUNG={a:'Apache 2.0',m:'Modified MIT',n:'CC BY-NC 4.0',p:'API only'};
+  const LM=[['Large 3','a',1],['Small 4','a',1],['Ministral 3','a',1],['Shieldstral','a',1],['Voxtral Small','a',1],['Voxtral Realtime','a',1],['Devstral Small 2','a',0],['Medium 3.5','m',1],['Devstral 2','m',0],['Large 4','e',1],['Voxtral TTS','n',1],['Codestral 25.08','p',1],['OCR 4.1','p',1],['Codestral Embed','p',1],['Mistral Embed','p',1],['Moderation 2','p',1],['Voxtral Transcribe 2','p',1]];
+  const RUNG={a:'Apache 2.0',m:'Modified MIT',e:'Ecosystem licence',n:'CC BY-NC 4.0',p:'API only'};
   function drawLC(){if(!$('lcGrid'))return;const W=$('lcW').checked,Cm=$('lcC').checked,R=$('lcR').checked;let ok=0;
     $('lcGrid').innerHTML=LM.map(([n,k,api])=>{let v,good;
       if(k==='a'){v=W?'yes: download and use':api?'yes: weights or API':'yes: weights (retired from the API)';good=1}
       else if(k==='m'){if(R){v=W?'no: over the $20M line; ask Mistral for a licence':api?'API only for you':'no: over the $20M line';good=!W&&api}else{v=W?'yes: download and use':api?'yes: weights or API':'yes: weights';good=1}}
+      else if(k==='e'){v=W?'yes: download and use; a model-as-a-service offering needs a commercial licence':'yes: weights or API';good=1}
       else if(k==='n'){if(Cm){v=W?'no: non-commercial weights':'API, on Mistral\'s commercial terms';good=!W}else{v='yes: research and personal use';good=1}}
       else{v=W?'no weights':'yes, through the API';good=!W}
       if(good)ok++;return '<div class="lab '+(good?'o':'c')+'"><span class="nm">'+n+'</span><span class="fl">'+RUNG[k]+' · '+v+'</span></div>'}).join('');

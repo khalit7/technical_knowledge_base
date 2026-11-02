@@ -36,7 +36,8 @@
    ['2026-07-08','x','Robostral Navigate','u','8B camera-and-language navigation model, trained in simulation; 76.6% success on unseen R2R-CE environments, by Mistral\'s report. No licence named.','{{Mistral|@robo}}'],
    ['2026-07-15','g','Next flagship (early access)','u','Partner early access to an open-weight model expected to be considerably larger than Large 3; released as Large 4 in October. Date shown is mid-July: the month is sourced, the day is not.','{{Tech Times|@tt}}'],
    ['2026-08-04','x','Shieldstral 1.0','a','Policy-adaptive guard model, text and image, 32k context, public preview.','{{Mistral|@shieldn}}'],
-   ['2026-10-06','g','Mistral Large 4','p','"Le Chonk": 1T total, 52B active MoE, multimodal; public API preview at $1.36 / $4.18; weights promised, licence not named. 38 on Intelligence Index v4.3.','{{Mistral|@l4}}']
+   ['2026-10-06','g','Mistral Large 4','p','"Le Chonk": 1T total, 52B active MoE, multimodal; public API preview at $1.36 / $4.18. 38 on Intelligence Index v4.3.','{{Mistral|@l4}}'],
+   ['2026-10-29','g','Large 4 open weights','m','Weights on Hugging Face under the Mistral Ecosystem Open-Weight License (modified MIT; model-as-a-service needs a commercial licence); 128 routed experts, 4 active plus 1 shared, 1M context, embedded DSpark draft head.','{{model card|@l4hf}}']
   ].map(([d,k,n,l,t,src],i)=>({d:new Date(d+'T00:00:00Z'),k,n,l,t,src,id:'ln'+i}));
   const ABS=[['Magistral','Mistral Small 4'],['Devstral','Mistral Small 4'],['Magistral','Mistral Medium 3.5'],['Devstral 2','Mistral Medium 3.5'],['Pixtral 12B','Mistral Large 3']];
   let range='all',filt='all';const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
