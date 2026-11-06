@@ -45,6 +45,9 @@ ok(E["pool"] == d("pooling.json")["models"], "pooling table = data/pooling.json"
 ok(E["anim"] == d("anim.json"), "animation = data/anim.json")
 ok(E["ln"]["evidence"] == d("long.json")["evidence"], "evidence positions = data/long.json")
 ok(E["lab"] is None or not E["lab"].get("dev"), "no development lab data embedded")
+_ct = json.load(open(os.path.join(H, "..", "..", "src", "vec", "out", "contrastive.json")))
+ok(E["batch"]["cos"] == _ct["models"]["bge-small"]["cos"] and [h["cos"] for h in E["batch"]["hard"]] == [h["cos"] for h in _ct["models"]["bge-small"]["hard"]]
+   and E["batch"]["claims"] == [b["claim"] for b in _ct["batch"]], "Fig. 3 batch = parent contrastive.json (bge-small cosines, hard negatives, claims)")
 
 F = d("..", "facts.json") if False else D(H, "facts.json")
 keys = set()
@@ -54,7 +57,7 @@ for f in os.listdir(os.path.join(H, "parts")):
 ok(not [k for k in keys if k not in F], "every @@key@@ has a fact (missing: %s)" % [k for k in keys if k not in F])
 html = open(os.path.join(P, "index.html")).read()
 ok("@@" not in html, "no unfilled fact in index.html")
-ok("—" not in html and "&mdash;" not in html, "no em-dash in index.html")
+ok("\u2014" not in html and "&mdash;" not in html, "no em-dash in index.html")
 print("pending keys:", F["_pending"])
 txt = re.sub(r"<[^>]+>", " ", html)
 
@@ -118,7 +121,7 @@ for dp, dn, fn in os.walk(P):
 ok(not hits, "privacy grep over the page folder %s" % hits[:6])
 pyc = [dp for dp, dn, fn in os.walk(P) if "__pycache__" in dp]
 ok(not pyc, "no __pycache__")
-big = [(f, os.path.getsize(os.path.join(dp, f))) for dp, dn, fn in os.walk(P) for f in fn if os.path.getsize(os.path.join(dp, f)) > 4e6]
+big = [(f, os.path.getsize(os.path.join(dp, f))) for dp, dn, fn in os.walk(P) if ".shots" not in dp for f in fn if os.path.getsize(os.path.join(dp, f)) > 4e6]  # .shots is git-ignored
 ok(not big, "no file over 4 MB %s" % big)
 print("FAIL" if bad else "ALL OK", len(bad))
 sys.exit(1 if bad else 0)

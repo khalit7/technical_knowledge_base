@@ -25,7 +25,7 @@
     if(!allowed.length)msg='No system meets these limits.';
     else if(!allowed.includes(S.best))msg='The best system on this set ('+EL.NM[S.best]+') is outside your limits. Within them, the highest is '+EL.NM[top]+' ('+S.systems[top].ndcg10.toFixed(3)+'), '+(S.vs_best[top].hi>=0?'still statistically tied with the best.':'clearly below the best (paired interval '+S.vs_best[top].lo.toFixed(3)+' to '+S.vs_best[top].hi.toFixed(3)+').');
     else msg='Statistically tied group within your limits: '+tied.map(k=>EL.NM[k]).join(', ')+'. '+(tied.length>1?'Choose on cost: the cheapest query among them is '+EL.NM[cheapest]+'.':'One clear winner.');
-    document.getElementById('emb-ch-verdict').innerHTML='<div class="t">Verdict on '+EL.SET[set]+' ('+S.n+' queries)</div>'+esc(msg)+' Confirm on held-out queries that look like your traffic: on SciFact the train claims and the test claims disagree (section 10).';
+    document.getElementById('emb-ch-verdict').innerHTML='<div class="t">Verdict on '+EL.SET[set]+' ('+S.n+' queries)</div>'+esc(msg)+' Confirm on held-out queries that look like your traffic: on SciFact the train claims and the test claims disagree (section 9).';
   }
   RD.seg(document.getElementById('emb-ch-set'),v=>{set=v;draw()});
   [latEl,bytEl].forEach(e=>e.addEventListener('input',draw));

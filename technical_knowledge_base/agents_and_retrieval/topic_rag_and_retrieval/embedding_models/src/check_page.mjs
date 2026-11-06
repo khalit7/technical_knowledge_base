@@ -1,5 +1,5 @@
 // Browser check of every tab (since 2026-10-24: Reading and Further reading; the two labs moved into Reading) at 390 dark and 920 light: every segmented button, chip, checkbox, select option,
-// animation step (in each mode) and predict button. Fails on script errors, NaN/undefined/Infinity in text,
+// 3D stage step (in each mode) and predict button. Autoplay and reduced motion are checked by check_stages.mjs. Fails on script errors, NaN/undefined/Infinity in text,
 // sideways scroll or a visible error box.
 // usage: node check_page.mjs <index.html> <shots dir>   (puppeteer from html_utils via createRequire)
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
@@ -10,7 +10,7 @@ const [file, shots] = process.argv.slice(2); fs.mkdirSync(shots, { recursive: tr
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
 const TABS = ['t-read', 't-more'];
-const PIECES = ['emb-hero-card', 'emb-sim-svg', 'emb-batch-svg', 'emb-mq-card', 'emb-tl-card', 'emb-ch-card', 'emb-pa-card', 'emb-fn-bars', 'emb-fn-ex', 'emb-ft-card', 'emb-pf-svg', 'emb-ln-svg', 'emb-ds-svg', 'emb-mt-svg', 'emb-sub-svg', 'emb-pool-tab', 'emb-code-pool', 'emb-tl-body', 'emb-ch-svg', 'emb-ch-tab', 'emb-ch-verdict'];
+const PIECES = ['stg-hero', 'emb-sim-svg', 'stg-bt', 'emb-mq-card', 'stg-tl', 'emb-ch-card', 'stg-pa', 'emb-fn-bars', 'emb-fn-ex', 'emb-ft-card', 'emb-pf-svg', 'emb-ln-svg', 'emb-ds-svg', 'emb-mt-svg', 'emb-sub-svg', 'emb-pool-tab', 'emb-code-pool', 'emb-tl-body', 'emb-ch-svg', 'emb-ch-tab', 'emb-ch-verdict'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -23,8 +23,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       const root = document.getElementById(tab);
       const scan = where => { const t = root.innerText; for (const w of ['NaN', 'undefined', 'Infinity', '[object']) if (t.includes(w)) out.issues.push(w + ' after ' + where) };
       const side = where => { if (document.documentElement.scrollWidth > innerWidth + 1) out.issues.push('sideways after ' + where) };
-      for (const ctl of root.querySelectorAll('[id$="-ctl"]')) {
-        const card = ctl.parentElement; const segs = [...card.querySelectorAll('.seg button')]; const modes = segs.length ? segs : [null];
+      // every 3D stage (since 2026-11-06 the animations are S3 stages: controls <id>-f and <id>-b), stepped to the end in every mode of its section's switches
+      for (const ctl of root.querySelectorAll('[id$="-ctl"], .stg')) {
+        const card = ctl.classList.contains('stg') ? ctl.closest('.s3sp') : ctl.parentElement; const segs = [...card.querySelectorAll('.seg button')]; const modes = segs.length ? segs : [null];
         for (const s of modes) {
           if (s) { s.click(); out.clicks++; await sleep(40) }
           const f = document.getElementById(ctl.id + '-f');

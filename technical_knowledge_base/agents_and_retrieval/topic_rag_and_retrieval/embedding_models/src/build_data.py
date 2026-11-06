@@ -3,9 +3,9 @@ written in the prose as @@key@@, filled in by build.sh), so prose and data canno
 A result whose GPU run has not been made yet is written as a visible "pending run" marker, never guessed; the list of
 pending keys is printed and stored in facts.json under _pending.
 Also reads committed outputs of the parent page: ../../src/vec/out/models.json (cost records of the setup's models) and
-mrl_quant.json (truncation x precision x rescoring on SciFact, drawn in Reading section 8 since 2026-10-24).
-(The parent's contrastive.json fed the "who gets pushed" widget, removed 2026-10-19: the Contrastive and
-self-supervised learning page owns InfoNCE's gradient split; check_data.py still checks its batch-size sweep.)
+mrl_quant.json (truncation x precision x rescoring on SciFact, drawn in Reading section 7 since 2026-10-24), and
+contrastive.json (its real batch of 8 train claims with bge-small cosines and hard negatives: Fig. 3, the batch stage, since 2026-11-06;
+the Contrastive and self-supervised learning page owns InfoNCE's gradient split).
 usage: python3 build_data.py"""
 import json
 import os
@@ -290,6 +290,51 @@ def mqrows(m, precs):
 EMB["mq"] = dict(asof=mq["asof"], full={m: mq[m]["full"]["ndcg10"] for m in ("qwen3", "bge", "gte")},
                  dim={m: mq[m]["full_dim"] for m in ("qwen3", "bge", "gte")},
                  qwen3=mqrows("qwen3", ("float32", "int8", "binary")), bge=mqrows("bge", ("float32",)), gte=mqrows("gte", ("float32",)))
+# ---------------------------------------------------------------- the real batch (parent's contrastive.json), Reading section 3, Fig. 3 (2026-11-06)
+# 8 SciFact train claims drawn by the parent (seed 0), bge-small cosines claim x labelled abstract, and each claim's own dense-mined hard
+# negative (the highest-scoring unlabelled abstract of the corpus). Probabilities and losses are derived here at tau = 0.05 (scale 20),
+# the same construction as the parent's batch-size sweep (one hard-negative column per row).
+import math
+_ct = R("contrastive.json")
+_cb = _ct["models"]["bge-small"]
+EMB["batch"] = dict(claims=[b["claim"] for b in _ct["batch"]], pos=[b["pos_title"] for b in _ct["batch"]], cos=_cb["cos"],
+                    hard=[dict(title=h["title"], cos=h["cos"]) for h in _cb["hard"]])
+def _sm(r):
+    m = max(r); e = [math.exp(20 * (x - m)) for x in r]; z = sum(e); return [x / z for x in e]
+_C, _Hc = _cb["cos"], [h["cos"] for h in _cb["hard"]]
+_pd = [_sm(r)[i] for i, r in enumerate(_C)]; _pdh = [_sm(r + [_Hc[i]])[i] for i, r in enumerate(_C)]
+_flat = [x for r in _C for x in r]
+F["bt_pos1"] = f3(_C[0][0]); F["bt_cmin"] = "%.2f" % min(_flat); F["bt_cmax"] = "%.2f" % max(_flat)
+F["bt_diagmax"] = str(sum(1 for i, r in enumerate(_C) if max(r) == r[i]))
+F["bt_p_lo"] = str(round(100 * min(_pd))); F["bt_p_hi"] = str(round(100 * max(_pd)))
+F["bt_ph_lo"] = str(round(100 * min(_pdh))); F["bt_ph_hi"] = str(round(100 * max(_pdh)))
+F["bt_loss"] = f3(sum(-math.log(x) for x in _pd) / 8); F["bt_loss_h"] = f3(sum(-math.log(x) for x in _pdh) / 8)
+F["bt_beats"] = str(sum(1 for i, r in enumerate(_C) if _Hc[i] > r[i]))
+_sw8 = [x for x in _cb["sweep"] if x["B"] == 8][0]
+F["bt_sw_loss"] = f3(_sw8["loss_tau005"]); F["bt_sw_loss_h"] = f3(_sw8["loss_hard_tau005"]); F["bt_sw_n"] = comma(_sw8["samples"])
+F["bt_ntrain"] = comma(_ct["n_train_pairs"]); F["bt_hbp"] = pts(_cb["hard_beats_pos"])
+F["bt_claim1"] = _ct["batch"][0]["claim"]; F["bt_hard1"] = _cb["hard"][0]["title"]; F["bt_hard1_cos"] = f3(_cb["hard"][0]["cos"])
+# ---------------------------------------------------------------- the pooling stage (Fig. 2) and the training stage (Fig. 4): numbers its step lists quote
+_am = anim["models"]
+F["pa_tok_bge"] = str(len(_am["bge-small"]["tokens"])); F["pa_pre_bge"] = str(_am["bge-small"]["n_prompt"])
+F["pa_tok_mini"] = str(len(_am["minilm-l6"]["tokens"])); F["pa_tok_qw"] = str(len(_am["qwen3-emb-0.6b"]["tokens"])); F["pa_pre_qw"] = str(_am["qwen3-emb-0.6b"]["n_prompt"])
+F["pa_len_bge"] = "%.1f" % _am["bge-small"]["length"]; F["pa_len_mini"] = "%.1f" % _am["minilm-l6"]["length"]; F["pa_len_qw"] = "%.0f" % _am["qwen3-emb-0.6b"]["length"]
+F["hero_claim"] = anim["claim"]
+F["pa_cos_bge"] = f3(_am["bge-small"]["cos"]["cls"]); F["pa_doc_bge"] = str(_am["bge-small"]["n_doc_tokens"])
+if lab:
+    def _means(arm, f):
+        s = {}
+        for g, c in zip(lab["groups"], lab["arms"][arm]["frames"][f]):
+            for k, x in zip(g["kinds"], c):
+                s.setdefault(k, []).append(x)
+        return {k: sum(v) / len(v) for k, v in s.items()}
+    _ab = lab["arms"]["inbatch"]; _n = len(_ab["frames"])
+    _m0, _m4, _mE = _means("inbatch", 0), _means("inbatch", 4), _means("inbatch", _n - 1)
+    for nm, m in (("0", _m0), ("4", _m4), ("e", _mE)):
+        for k in ("pos", "neg", "rand"):
+            F["tl_%s_%s" % (k, nm)] = f3(m[k])
+    F["tl_gap0"] = f3(_m0["pos"] - _m0["neg"]); F["tl_gape"] = f3(_mE["pos"] - _mE["neg"])
+    F["tl_step4"] = str(_ab["steps"][4]); F["tl_step5"] = str(_ab["steps"][5]); F["tl_stepe"] = str(_ab["steps"][-1])
 # ---------------------------------------------------------------- the one dated roster table (Reading section 12)
 _mods = {r["key"]: r for r in R("models.json")["rows"]}
 _mt = D("mteb.json")["setup"]

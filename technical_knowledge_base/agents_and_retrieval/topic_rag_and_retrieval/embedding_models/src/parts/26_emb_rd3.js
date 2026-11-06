@@ -1,33 +1,7 @@
-// ---- Reading tab, part 3 (2026-10-24 rebuild): hero figure, similarity example, batch matrix, smaller-vectors slider ----
+// ---- Reading tab, part 3 (2026-10-24 rebuild): similarity example, smaller-vectors slider (the hero and the batch matrix became the 3D stages Fig. 1 and Fig. 3, 2026-11-06) ----
 (function(){
   const E=window.EMB,esc=RD.esc;
   const draws=[];const reg=f=>{draws.push(f);RD.onRender(f)};RD.onResize(()=>draws.forEach(f=>{try{f()}catch(e){}}));
-  // word wrap to a character budget
-  function wrap(s,n){const out=[];let cur='';s.split(' ').forEach(w=>{if((cur+' '+w).trim().length>n&&cur){out.push(cur);cur=w}else cur=(cur+' '+w).trim()});if(cur)out.push(cur);return out}
-  // a box with wrapped lines; returns [svg, height]
-  function box(x,y,w,lines,o){o=o||{};const n=Math.max(6,Math.floor((w-14)/6.3));const L=[];lines.forEach((l,i)=>wrap(l,n).forEach(t=>L.push([t,i])));
-    const h=10+L.length*15;let s='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" class="'+(o.acc?'boxa':'box')+'"'+(o.dash?' stroke-dasharray="4 3"':'')+'/>';
-    L.forEach((t,k)=>{s+=RD.t(x+w/2,y+17+k*15,esc(t[0]),{a:'middle',fs:11.5,w:t[1]===0?600:undefined,fill:t[1]===0?'var(--ink)':'var(--mute)'})});return [s,h]}
-  function arrow(x,y1,y2){return '<line x1="'+x+'" y1="'+y1+'" x2="'+x+'" y2="'+(y2-5)+'" stroke="var(--mute)" stroke-width="1.3"/><path d="M'+(x-4)+','+(y2-6)+' L'+(x+4)+','+(y2-6)+' L'+x+','+y2+' Z" fill="var(--mute)"/>'}
-  // ---------- hero
-  reg(function(){const el=document.getElementById('emb-hero');if(!el)return;
-    const W=Math.max(300,Math.min(RD.width(el),680)),g=12,cw=(W-3*g)/2,xq=g,xd=2*g+cw,span=W-2*g;let y=6,s='';
-    const claim=E.anim?E.anim.claim:'a claim',doc=E.anim?E.anim.doc_title.split(' ').slice(0,5).join(' ')+' ...':'its labelled abstract';
-    const two=(a,b,o)=>{const A=box(xq,y,cw,a,o),B=box(xd,y,cw,b,o);const h=Math.max(A[1],B[1]);s+=box(xq,y,cw,a,o)[0].replace(/height="\d+"/,'height="'+h+'"')+box(xd,y,cw,b,o)[0].replace(/height="\d+"/,'height="'+h+'"');y+=h;return h};
-    const one=(a,o)=>{const A=box(g,y,span,a,o);s+=A[0];y+=A[1]};
-    const gap=(both)=>{const y0=y;y+=20;s+=both?arrow(xq+cw/2,y0,y)+arrow(xd+cw/2,y0,y):arrow(W/2,y0,y)};
-    two(['query, per search','"'+claim+'"'],['document, once at indexing','"'+doc+'"']);gap(1);
-    two(['+ query prompt (§6)','an instruction or prefix'],['document prompt (§6)','none for bge and Qwen3; "passage: " for e5']);
-    const y0=y;y+=20;s+=arrow(xq+cw/2,y0,y)+arrow(xd+cw/2,y0,y);
-    one(['one transformer, shared weights','one vector per token; reads at most its maximum length (§8)']);gap(0);
-    one(['pooling (§1), then normalise (§2)','CLS, mean or last token; divide by the length'],{acc:1});
-    const y1=y;y+=20;s+=arrow(xq+cw/2,y1,y)+arrow(xd+cw/2,y1,y);
-    two(['q: one vector','384 to 1,024 numbers'],['d: one stored vector','cut or quantised to save memory (§7)'],{acc:1});
-    const y2=y;y+=20;s+=arrow(xq+cw/2,y2,y)+arrow(xd+cw/2,y2,y);
-    one(['score = cos(q, d) = q · d','rank every document, keep the top k, rerank them']);y+=12;
-    one(['training (§3 to §5)','pull each query towards its labelled document; push in-batch and mined negatives away; mask the false ones'],{dash:1});y+=8;
-    one(['choosing (§9 to §11)','MTEB gives a shortlist; your labelled queries decide, compared paired'],{dash:1});
-    el.innerHTML=RD.svg(W,y+4,s,'bi-encoder: query and document encoded separately, compared by cosine')});
   // ---------- similarity worked example
   reg(function(){const el=document.getElementById('emb-sim-svg');if(!el)return;
     const W=Math.max(280,Math.min(RD.width(el),520)),pad=30,sx=(W-2*pad)/2.3,H=Math.round(1.12*sx+pad+24);
@@ -43,22 +17,6 @@
     s+=RD.t(X(1),Y(0)+16,'d₁: dot 0.6, cos 0.6',{fs:11.5,a:'middle',fill:'var(--c3)'});
     s+=RD.t(X(2),Y(0)-8,'d₃: dot 1.2, cos 0.6',{fs:11.5,a:'end',fill:'var(--c2)'});
     el.innerHTML=RD.svg(W,H,s,'dot product against cosine on three documents')});
-  // ---------- batch matrix
-  reg(function(){const el=document.getElementById('emb-batch-svg');if(!el)return;
-    const W=Math.max(300,Math.min(RD.width(el),620)),lab=34,cw=Math.min(56,Math.floor((W-lab-8)/8)),ch=Math.min(34,cw*0.8),top=40;let s='';
-    const cols=['d₁⁺','d₂⁺','d₃⁺','d₄⁺','h₁','h₂','h₃','h₄'];
-    s+=RD.t(lab+2*cw,13,"the batch's positives",{a:'middle',fs:11,fill:'var(--mute)'})+RD.t(lab+6*cw,13,'mined hard negatives',{a:'middle',fs:11,fill:'var(--mute)'});
-    cols.forEach((c,j)=>{s+=RD.t(lab+j*cw+cw/2,top-8,c,{a:'middle',fs:11.5})});
-    for(let i=0;i<4;i++){const y=top+i*ch;s+=RD.t(lab-6,y+ch/2+4,'q'+['₁','₂','₃','₄'][i],{a:'end',fs:11.5,w:600});
-      for(let j=0;j<8;j++){const x=lab+j*cw;let f='var(--acc2)',op=1;
-        if(j===i)f='var(--good)';else if(j===4+i)f='var(--bad)';else if(j>=4){f='var(--bad)';op=0.25}
-        const masked=(i===2&&j===1);if(masked){f='var(--soft)'}
-        s+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(ch-2)+'" rx="3" fill="'+f+'" fill-opacity="'+op+'" stroke="var(--line)"/>';
-        if(masked)s+='<line x1="'+(x+4)+'" y1="'+(y+4)+'" x2="'+(x+cw-4)+'" y2="'+(y+ch-4)+'" stroke="var(--ink)" stroke-width="1.5"/><line x1="'+(x+cw-4)+'" y1="'+(y+4)+'" x2="'+(x+4)+'" y2="'+(y+ch-4)+'" stroke="var(--ink)" stroke-width="1.5"/>'}}
-    s+='<line x1="'+(lab+4*cw)+'" y1="'+(top-2)+'" x2="'+(lab+4*cw)+'" y2="'+(top+4*ch+2)+'" stroke="var(--mute)" stroke-dasharray="3 3"/>';
-    let y=top+4*ch+20;const key=[['var(--good)',1,'positive: the cell each row must win'],['var(--acc2)',1,'in-batch negative: another query\'s positive'],['var(--bad)',1,'its own mined hard negative'],['var(--bad)',0.25,"another query's hard negative (also in the line-up)"],['var(--soft)',1,'masked: a labelled positive of this row too']];
-    key.forEach(k=>{s+='<rect x="'+lab+'" y="'+(y-10)+'" width="14" height="12" rx="2" fill="'+k[0]+'" fill-opacity="'+k[1]+'" stroke="var(--line)"/>'+RD.t(lab+20,y,esc(k[2]),{fs:11});y+=17});
-    el.innerHTML=RD.svg(W,y,s,'one training batch as a similarity matrix')});
   // ---------- smaller vectors: dimensions slider, precision switch
   (function(){const el=document.getElementById('emb-mq-svg');if(!el||!E.mq)return;const M=E.mq;
     const SH=[1/32,1/16,1/8,1/4,1/2,1],SN=['1/32','1/16','1/8','1/4','1/2','all'];let prec='float32';const dEl=document.getElementById('emb-mq-d');

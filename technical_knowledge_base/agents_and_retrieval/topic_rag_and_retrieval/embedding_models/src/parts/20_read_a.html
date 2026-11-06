@@ -40,16 +40,25 @@
 #t-read .emb-it i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
 #t-read td.emb-tie{color:var(--good);font-weight:600}#t-read td.emb-worse{color:var(--mute)}#t-read td.emb-best{color:var(--acc);font-weight:600}
 #t-read tr.emb-off td{opacity:.35}
+#t-read .emb-rd{font-size:13px;border-left:3px solid var(--acc);padding:4px 0 4px 10px;margin:6px 0 10px;color:var(--mute)}#t-read .emb-rd b{color:var(--ink)}
+#t-read .s3L .seg{margin:6px 0}
 #t-read .box{fill:var(--soft);stroke:var(--line)}#t-read .boxa{fill:var(--acc2);stroke:var(--acc)}
 </style>
 <nav class="nav" id="rd-nav"><a href="#emb-s0">The idea</a><a href="#emb-s1">One vector</a><a href="#emb-s2">Similarity</a><a href="#emb-s3">Training</a><a href="#emb-s4">Negatives</a><a href="#emb-s5">A fine-tune</a><a href="#emb-s6">Prompts</a><a href="#emb-s7">Smaller vectors</a><a href="#emb-s8">Long inputs</a><a href="#emb-s9">Domains, languages</a><a href="#emb-s10">MTEB</a><a href="#emb-s11">Choosing</a><a href="#emb-s12">Fine-tuning for real</a><a href="#emb-s13">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="emb-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">An embedding model is <b>a transformer plus a pooling step</b> that maps any text to <span class="hl">one vector of fixed length</span>, trained with a contrastive loss so that a query and the passage that answers it point the same way; which model works <i>for you</i> is decided on your own labelled queries with paired statistics, not by a leaderboard.</p>
-<div class="hero" id="emb-hero-card"><h4>The query and the document go through the same model separately and meet only at the cosine</h4>
-<div class="emb-chart" id="emb-hero"></div>
-<p class="small">The section that owns each part is marked on the figure. Query: the shortest SciFact test claim; document: its labelled abstract (both real, from section 1's stepper). The document side runs once, at indexing; the query side runs per search.</p></div>
+<p class="small">Fig. 1 follows one real pair through bge-small: the shortest SciFact test claim and its labelled abstract. The section that owns each part is named in its step.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The query, per search.</b> The claim "@@hero_claim@@" plus bge-small's query prefix (&sect;6) is @@pa_tok_bge@@ tokens. One transformer reads them; pooling (&sect;1) and normalisation (&sect;2) turn its @@pa_tok_bge@@ token vectors into one vector of 384 numbers (the first 16 drawn, real values).</li>
+<li><b>The document, once at indexing.</b> Its labelled abstract (@@pa_doc_bge@@ tokens) goes through the same weights: one glass plate spans both lanes. A model reads at most its maximum length and drops the rest silently (&sect;8); the stored vector can be cut or quantised to save memory (&sect;7).</li>
+<li><b>They meet only at the cosine.</b> cos(q, d) = q &middot; d = @@pa_cos_bge@@ for this pair. Training (&sect;3 to &sect;5) is what makes a query and the passage that answers it point the same way.</li>
+<li><b>Search is one query against every stored vector.</b> Encoding the query takes 10.0 ms here; 5,183 exact dot products take 0.5 ms; the top k go on to a reranker. Which model puts the right abstract first on <i>your</i> queries is decided on your own labelled set (&sect;9 to &sect;11).</li>
+</ol>
+</section></div></div>
+<div id="emb-s0b">
 <p><b>You need:</b> InfoNCE as a softmax over a line-up of candidates ({{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}, section "InfoNCE, the workhorse loss"), nDCG@10 and bootstrap intervals ({{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}}), and the parent {{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}} for where retrieval sits in a pipeline. The running example: SciFact ({{5,183 scientific abstracts and 300 test claims|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}) and NFCorpus (3,633 medical documents and 323 test queries).</p>
 <dl class="terms">
 <dt>Bi-encoder</dt><dd>query and document encoded separately by one model, compared by one dot product; this page's subject.</dd>
@@ -63,7 +72,7 @@
 <dt>Paired bootstrap</dt><dd>resampling the same queries for two models to get an interval for their <i>difference</i>.</dd>
 </dl>
 <div class="co"><div class="t">How to read the numbers</div><span class="meas">measured here</span>: run on an Apple M1 Pro (16 GB, shared with other jobs) on the running example with a script in this page's <code>src/scripts</code>; relevance numbers (nDCG@10, recall) are deterministic and do not depend on the machine. <span class="pub">published</span>: a paper, model card or results repository, with its date. <span class="der">derived</span>: computed from numbers shown, with the formula. <dfn>nDCG@10</dfn> scores how high the relevant documents sit in the top 10 (1 is perfect); <dfn>recall@100</dfn> is the share of relevant documents anywhere in the top 100.</div>
-</section>
+</div>
 
 <section id="emb-s1">
 <h2>1. One vector per text: a transformer, a pooling step, a normalisation</h2>
@@ -75,19 +84,23 @@
 <tr><td>rerank only the top 30</td><td class="num">not needed</td><td class="num">155 ms (MiniLM) to 6.6 s (Qwen3-Reranker-0.6B)</td></tr>
 </table></div>
 <p class="small mute">The all-documents cell is <span class="der">derived</span>: 5,183 / 236.8 pairs per second. The others: the setup's timings and the root's latency run (its <code>src/pipe</code>) (p50 over 40 claims, 2026-10-14). So every pipeline uses both: the bi-encoder (with BM25) narrows millions to tens, the cross-encoder orders the tens.</p>
-<p><b>The two steps after the transformer.</b> The transformer returns one vector per token. <dfn>Pooling</dfn> keeps one: <b>CLS</b> (the first token; bge-small, gte-modernbert), <b>mean</b> (average of the real tokens, padding ignored; all-MiniLM-L6, e5-small-v2) or <b>last token</b> (Qwen3-Embedding: in a decoder only the last token has seen the whole text). <dfn>Normalisation</dfn> divides by the length, so a dot product <i>is</i> a cosine (section 2; gte-modernbert ships without this step). The pooling is fixed by training, written in the model's <code>1_Pooling/config.json</code> and <code>modules.json</code>: read them before writing your own inference. Step through one real claim:</p>
-<div class="card" id="emb-pa-card">
-<h4>A wrong pooling still returns a vector and a cosine: nothing fails</h4>
-<div class="small">"<span id="emb-pa-claim"></span>" through each model's real weights (CPU, float32): tokens, the first 16 numbers of each token's output (blue positive, orange negative), the pooled vector, its length, normalisation, the cosine to the labelled abstract. The second switch runs the <i>same hidden states</i> through a different pooling. <span class="meas">measured here</span></div>
+<div class="s3sp"><div class="s3R"><div id="stg-pa"></div></div><div class="s3L">
+<p><b>The two steps after the transformer.</b> The transformer returns one vector per token. <dfn>Pooling</dfn> keeps one: <b>CLS</b> (the first token; bge-small, gte-modernbert), <b>mean</b> (average of the real tokens, padding ignored; all-MiniLM-L6, e5-small-v2) or <b>last token</b> (Qwen3-Embedding: in a decoder only the last token has seen the whole text). <dfn>Normalisation</dfn> divides by the length, so a dot product <i>is</i> a cosine (section 2; gte-modernbert ships without this step). The pooling is fixed by training, written in the model's <code>1_Pooling/config.json</code> and <code>modules.json</code>: read them before writing your own inference.</p>
+<p class="small">Fig. 2: the claim "<span id="emb-pa-claim"></span>" through each model's real weights (CPU, float32). The second switch runs the <i>same hidden states</i> through a different pooling. <span class="meas">measured here</span></p>
 <div class="seg" id="emb-pa-model"><button data-m="bge-small" class="on">bge-small (CLS)</button><button data-m="minilm-l6">MiniLM-L6 (mean)</button><button data-m="qwen3-emb-0.6b">Qwen3-Emb (last token)</button></div>
 <div class="seg" id="emb-pa-pool"><button data-m="own" class="on">the model's own pooling</button><button data-m="other">a wrong pooling</button></div>
-<div class="emb-chart" id="emb-pa-svg"></div>
-<div class="emb-cap" id="emb-pa-cap"></div>
-<div class="emb-ctr" id="emb-pa-ctr"></div>
-<div class="an-ctl" id="emb-pa-ctl"></div>
-</div>
+<ol class="sx" id="sx-pa">
+<li><b>Tokens.</b> The model's own tokenizer cuts the claim: @@pa_tok_bge@@ tokens for bge-small (the first @@pa_pre_bge@@ after [CLS] are its query prefix, drawn grey), @@pa_tok_mini@@ for MiniLM-L6, @@pa_tok_qw@@ for Qwen3-Embedding (@@pa_pre_qw@@ of instruction). The model reads the prompt too.</li>
+<li><b>One vector per token.</b> Each row is one token's output; its first 16 numbers (of 384, or 1,024 for Qwen3) stand as bars, positive up and negative down. Each depends on every token it could attend to (in Qwen3, a decoder, only the tokens before it).</li>
+<li><b>Pooling keeps one row.</b> The dots show which rows feed the pooled vector: the first (CLS), all of them averaged number by number (mean) or the final one (last token); the rest fade.</li>
+<li><b>The pooled vector has its own scale.</b> On this claim its length (the bar on the right) is @@pa_len_bge@@ for bge-small, @@pa_len_mini@@ for MiniLM-L6 and @@pa_len_qw@@ for Qwen3.</li>
+<li><b>Normalise.</b> Dividing by the length keeps the direction (the bars keep their shape and shrink) and makes the length 1 (the length bar), so the dot product of two such vectors is their cosine.</li>
+<li><b>The cosine to the labelled abstract.</b> The abstract goes through the same steps; for bge-small with its own pooling the cosine is @@pa_cos_bge@@. Switch to a wrong pooling: nothing fails, a vector and a cosine still come out.</li>
+</ol>
+<div class="emb-rd" id="emb-pa-ctr"></div>
 <div class="emb-prd"><div class="q">Predict: read all-MiniLM-L6 (trained with mean pooling) with CLS pooling instead. The cosine between the claim and its labelled abstract will be...</div><div class="opts"><button data-r="0">much lower</button><button data-r="0">about the same</button><button data-r="1">much higher</button></div><div class="ans" hidden>Much higher: @@pa_mini_own@@ with the trained mean pooling, @@pa_mini_cls@@ with CLS. A higher cosine is not a better match: the untrained first token looks alike for every text, so every pair looks alike.</div></div>
-<p>@@wrongpool_sentence@@ Each model also lives at its own scale before normalising (MiniLM's pooled vectors have length about 2 to 5, Qwen3's about 100), so cosines from different models are never comparable.</p>
+<p>@@wrongpool_sentence@@ Each model also lives at its own scale before normalising (on the six texts of the table below, MiniLM's pooled vectors have length about 2 to 5, Qwen3's about 100), so cosines from different models are never comparable.</p>
+</div></div>
 <details class="dp"><summary>The pooling code, and five models rebuilt by hand <span class="mute">(sentence-transformers @@st_version@@ source; 2 min)</span></summary><div class="b">
 <p class="emb-srch"><code>@@code_pool_file@@</code>, lines @@code_cls_lines@@ (CLS), @@code_mean_lines@@ (mean) and @@code_last_lines@@ (last token), read in the installed package</p>
 <pre class="emb-src" id="emb-code-pool"></pre>

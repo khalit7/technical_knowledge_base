@@ -30,7 +30,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval` Agentic retrieval, long context and memory
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/document_ingestion_and_multimodal` Document ingestion and multimodal retrieval: PDFs, tables, images
-- [ ] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning
+- [x] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/graphrag_and_structured_retrieval` GraphRAG and structured retrieval
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production` RAG in production: freshness, access control, latency and cost
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
