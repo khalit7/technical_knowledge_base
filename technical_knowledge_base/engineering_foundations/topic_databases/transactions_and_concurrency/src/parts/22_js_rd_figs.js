@@ -1,4 +1,4 @@
-// ---- Reading tab: static figures drawn at the measured width (hero, SSI pivot, snapshot visibility, lock queue, deadlock, outbox, long transaction) ----
+// ---- Reading tab: static figures drawn at the measured width (SSI pivot, snapshot visibility, outbox, long transaction; the hero, lock queue and deadlock became 3D stages on 2026-11-06) ----
 // Values are the recorded ones (src/inputs/*.json, via TXD) or labels; nothing moves until the reader acts.
 window.TXF=(function(){
   const esc=RD.esc;
@@ -24,31 +24,7 @@ window.TXF=(function(){
       y+=4});
     el.innerHTML=svg(w,y,b,opts.label);
   }
-  // a two-lane session diagram: spec {n, A:[[s,e,text,kind]], B:[...], res, good}; kind: '' normal, h highlight, w wait, e error
-  function lanes(el,spec){const w=Math.max(260,RD.width(el)),lx=20,top=4,lh=26,gap=8,sw=(w-lx)/spec.n;let b='';
-    ['A','B'].forEach((s,j)=>{const y=top+j*(lh+gap);b+=T(0,y+17,s,{w:600,fill:'var(--mute)'});
-      b+='<line x1="'+lx+'" y1="'+(y+lh/2)+'" x2="'+w+'" y2="'+(y+lh/2)+'" stroke="var(--line)"/>';
-      spec[s].forEach(([s0,e0,t,k])=>{const x=lx+s0*sw+2,bw=(e0-s0)*sw-4;
-        const st=k==='h'?{fill:'var(--acc2)',stroke:'var(--acc)',sw:1.5}:k==='w'?{fill:'var(--bg)',stroke:'var(--bad)',dash:1}:k==='e'?{fill:'var(--bg)',stroke:'var(--bad)',sw:1.5}:{fill:'var(--soft)',stroke:'var(--line)'};
-        b+=R(x,y,bw,lh,st)+T(x+bw/2,y+17,t,{a:'middle',fs:11.5,fill:k==='e'||k==='w'?'var(--bad)':undefined,w:k==='h'||k==='e'?600:400})})});
-    const y2=top+2*(lh+gap);
-    b+=A(lx,y2+4,Math.min(w-4,lx+90),y2+4,{sw:1})+T(lx+96,y2+8,'time',{fill:'var(--mute)',fs:11});
-    b+=T(w,y2+8,spec.res,{a:'end',w:600,fill:spec.good?'var(--good)':'var(--bad)',fs:11.5});
-    el.innerHTML=svg(w,y2+14,b,spec.label);
-  }
-  return {T,R,A,svg,hbars,lanes};
-})();
-// ---- the hero: the lost update and its three fixes, from the recorded runs ----
-(function(){
-  const box=document.getElementById('tx-hero');if(!box)return;
-  const P=[
-    {t:'The collision: read, compute in Python, write back',n:6,A:[[0,1,'read 30'],[2,3,'set 20'],[3,4,'commit']],B:[[1,2,'read 30'],[4,5,'set 25','h'],[5,6,'commit']],res:'25: A’s 10 lost',good:0},
-    {t:'Fix 1: fold the check into one UPDATE (balance - 5)',n:6,A:[[0,2,'-10 → 20'],[2,3,'commit']],B:[[1,3,'-5 waits','w'],[3,5,'-5 → 15','h'],[5,6,'commit']],res:'15: B waited briefly',good:1},
-    {t:'Fix 2: lock what you read (SELECT ... FOR UPDATE)',n:7,A:[[0,2,'lock, read 30'],[2,3,'set 20'],[3,4,'commit']],B:[[1,4,'waits for A','w'],[4,5,'read 20'],[5,6,'set 15','h'],[6,7,'commit']],res:'15: B waited for A',good:1},
-    {t:'Fix 3: serializable refuses B, the app retries',n:7,A:[[0,1,'read 30'],[2,3,'set 20'],[3,4,'commit']],B:[[1,2,'read 30'],[4,5,'40001','e'],[5,6,'read 20'],[6,7,'set 15','h']],res:'15: B ran twice',good:1}];
-  box.innerHTML=P.map((p,i)=>'<div><div class="pt">'+RD.esc(p.t)+'</div><div class="svgw" id="tx-hero-'+i+'"></div></div>').join('');
-  const draw=()=>P.forEach((p,i)=>TXF.lanes(document.getElementById('tx-hero-'+i),Object.assign({label:p.t},p)));
-  draw();RD.onRender(draw);RD.onResize(draw);
+  return {T,R,A,svg,hbars};
 })();
 // ---- section 4: SSI's dangerous structure on the read-only anomaly ----
 (function(){
@@ -98,41 +74,6 @@ window.TXF=(function(){
     });
     const h=short?y0+vs.length*(bh+10):y0+bh+6;
     el.innerHTML=svg(w,h,b,'Snapshot '+snap+' on the transaction id axis and the two row versions');
-  }
-  draw();RD.onRender(draw);RD.onResize(draw);
-})();
-// ---- section 6: the lock queue ----
-(function(){
-  const el=document.getElementById('tx-lq');if(!el)return;
-  function draw(){const w=Math.max(280,RD.width(el)),{T,R,A,svg}=TXF;const bw=Math.min(w,560),x=0,bh=40,g=30;
-    const rows=[['A: SELECT count(*), transaction left open','holds ACCESS SHARE','var(--good)',''],
-      ['B: ALTER TABLE messages ADD COLUMN','wants ACCESS EXCLUSIVE: waits for A','var(--bad)','w'],
-      ['C: SELECT ... WHERE user_id = 7','wants ACCESS SHARE: waits behind B','var(--bad)','w']];
-    let b=T(0,13,'Lock on table messages',{w:600,fill:'var(--mute)'}),y=22;
-    rows.forEach(([q,s,c,k],i)=>{b+=R(x,y,bw,bh,k?{fill:'var(--bg)',stroke:'var(--bad)',dash:1}:{fill:'var(--open2)',stroke:'var(--good)'})+
-      T(x+8,y+16,q,{fs:11.5,mono:1})+T(x+8,y+32,(i?'queued: ':'granted: ')+s,{fs:11.5,fill:c,w:600});
-      if(i)b+=A(x+bw-30,y-1,x+bw-30,y-g+1,{col:'var(--bad)'})+T(x+bw-38,y-g/2+4,'waits for',{a:'end',fs:11,fill:'var(--bad)'});
-      y+=bh+g});
-    el.innerHTML=svg(w,y-g+4,b,'Lock queue: A granted, B waiting for A, C waiting behind B');
-  }
-  draw();RD.onRender(draw);RD.onResize(draw);
-})();
-// ---- section 7: the wait-for graph, opposite order against the same order ----
-(function(){
-  const el=document.getElementById('tx-dl');if(!el)return;
-  function panel(x,w,title,cyc,{T,R,A}){let b=T(x,13,title,{w:600,fill:cyc?'var(--bad)':'var(--good)'});
-    const nw=Math.min(120,w*0.36),nh=40,y=40,xa=x,xb=x+w-nw;
-    b+=R(xa,y,nw,nh,{})+T(xa+nw/2,y+16,'A',{a:'middle',w:600})+T(xa+nw/2,y+32,cyc?'holds row 7':'holds 7 and 12',{a:'middle',fs:11});
-    b+=R(xb,y,nw,nh,{})+T(xb+nw/2,y+16,'B',{a:'middle',w:600})+T(xb+nw/2,y+32,cyc?'holds row 12':'holds nothing',{a:'middle',fs:11});
-    if(cyc){b+=A(xa+nw,y+10,xb,y+10,{c:-14,col:'var(--bad)'})+T(x+w/2,y-8,'A waits for 12',{a:'middle',fs:11,fill:'var(--bad)'});
-      b+=A(xb,y+nh-10,xa+nw,y+nh-10,{c:-14,col:'var(--bad)'})+T(x+w/2,y+nh+22,'B waits for 7',{a:'middle',fs:11,fill:'var(--bad)'});
-      b+=T(x+w/2,y+nh+40,'cycle: B killed after 1 s (40P01)',{a:'middle',fs:11.5,w:600})}
-    else{b+=A(xb,y+nh/2,xa+nw,y+nh/2,{col:'var(--mute)'})+T(x+w/2,y+nh/2-6,'B waits for 7',{a:'middle',fs:11,fill:'var(--mute)'});
-      b+=T(x+w/2,y+nh+40,'no cycle: B runs after A commits',{a:'middle',fs:11.5,w:600})}
-    return b}
-  function draw(){const w=Math.max(280,RD.width(el)),F=TXF;
-    if(w>=600){const pw=(w-30)/2;el.innerHTML=F.svg(w,130,panel(0,pw,'Opposite order',1,F)+panel(pw+30,pw,'Same order, lowest id first',0,F),'Deadlock wait-for graphs')}
-    else{el.innerHTML=F.svg(w,265,panel(0,w,'Opposite order',1,F)+'<g transform="translate(0,135)">'+panel(0,w,'Same order, lowest id first',0,F)+'</g>','Deadlock wait-for graphs')}
   }
   draw();RD.onRender(draw);RD.onResize(draw);
 })();

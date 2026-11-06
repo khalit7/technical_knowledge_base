@@ -44,18 +44,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   // anomaly cards: every chip
   const nchips = await clickAll('#t-read .anx button.ch');
   await bad('anomaly chips ' + nchips);
-  // mvcc animation: every mode, every step
+  // Fig. 3 (the MVCC stage): every mode, every step through its step list (the stages themselves are checked by check_stages.mjs)
   for (const m of ['naive', 'for_update', 'serializable']) {
     await p.evaluate(m => document.querySelector(`#rd-mv-mode button[data-m=${m}]`).click(), m); clicks++;
-    const n = await p.$eval('#rd-mv-ctl-s', e => +e.max + 1);
-    for (let i = 0; i < n; i++) {
-      await p.evaluate(i => { const s = document.getElementById('rd-mv-ctl-s'); s.value = i; s.dispatchEvent(new Event('input')); }, i); clicks++;
-      if (i === n - 1) { const el = await p.$('#rd-mv-card'); await el.screenshot({ path: `${out}/mvcc-${m}-end-${scheme}-${width}.png` }); }
-      if (i === 3 && m === 'for_update') { const el = await p.$('#rd-mv-card'); await el.screenshot({ path: `${out}/mvcc-${m}-3-${scheme}-${width}.png` }); }
-    }
+    const n = await p.$eval(`#sx-mv-${m}`, e => e.children.length);
+    for (let i = 0; i < n; i++) { await p.evaluate((m, i) => document.getElementById(`sx-mv-${m}`).children[i].click(), m, i); clicks++; }
+    const st = await p.$eval('#stg-mv .stg-st', e => e.textContent);
+    if (st !== `step ${n} of ${n}`) { problems++; console.log('PROBLEM mvcc', m, st); }
     await bad('mvcc ' + m);
   }
-  await clickAll('#rd-mv-ctl button'); await clickAll('#rd-mv-ctl button');
   // segmented controls of the measured visuals
   for (const seg of ['#rd-jobs-mode', '#rd-lq-mode', '#rd-dl-mode', '#rd-bench-pool', '#rd-bench-met']) {
     await clickAll(seg + ' button', async i => { if (seg === '#rd-bench-met') { const el = await p.$('#rd-bench'); await el.screenshot({ path: `${out}/bench-${i}-${scheme}-${width}.png` }); } });

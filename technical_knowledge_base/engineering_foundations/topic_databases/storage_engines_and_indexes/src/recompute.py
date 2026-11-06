@@ -83,5 +83,22 @@ check('rocks_space', [round(lv['phases'][1]['sst_bytes'] / base, 2), round(un['p
 check('rocks_absent', [round(lv['reads'][1]['data_blocks_per_get'], 2), round(nb['reads'][1]['data_blocks_per_get'], 2)], f"read {lv['reads'][1]['data_blocks_per_get']:.2f} data blocks on average with them and {nb['reads'][1]['data_blocks_per_get']:.2f} without")
 rr = lv['reads'][1]; check('rocks_fp', round(100 * rr['bloom_full_positive'] / (rr['bloom_full_positive'] + rr['bloom_useful']), 2), f"{100 * rr['bloom_full_positive'] / (rr['bloom_full_positive'] + rr['bloom_useful']):.2f}% per filter checked")
 check('wc_wal', [fb(w[0]['median_wal']), fb(w[6]['median_wal'])], f"WAL grew from {fb(w[0]['median_wal'])} with no index to {fb(w[6]['median_wal'])} with six")
+# the step lists of the 3D figures (2026-11-06)
+ld = lv['phases'][0]; MBr = lambda v: f"{round(v / 1e6):,} MB"
+check('fig7_bytes', [MBr(ld['user_bytes']), MBr(ld['flush_bytes']), MBr(ld['compact_write_bytes'])], f"The application wrote {MBr(ld['user_bytes'])}; RocksDB wrote {MBr(ld['wal_bytes'])} of log, {MBr(ld['flush_bytes'])} of flushes and {MBr(ld['compact_write_bytes'])} of compaction")
+assert abs((ld['flush_bytes'] + ld['compact_write_bytes']) / ld['user_bytes'] - ld['write_amp']) < 0.01
+check('fig7_wa', [ld['write_amp'], ld['write_amp_with_wal'], lv['phases'][1]['write_amp']], f"write amplification of {ld['write_amp']}, or {ld['write_amp_with_wal']} with the log. The 4,000,000 overwrites that followed: {lv['phases'][1]['write_amp']}")
+check('fig7_files', ld['files_per_level'][5:], f"{ld['files_per_level'][5]} files in L5 and {ld['files_per_level'][6]} in L6")
+uf = un['phases'][1]['files_per_level']; check('fig7_universal', [x for x in uf if x], f"({', '.join(str(x) for x in uf if x)[:-4]} and {[x for x in uf if x][-1]} files)")
+own = lambda x: [r['len'] for r in x if r['rm'] != 'Heap2']
+on = own(m2['one_insert']['on']['first']); off = own(m2['one_insert']['off']['first'])
+check('fig4_fpi', on, ' + '.join(f"{v:,}" for v in on) + f" = {sum(on):,} bytes, {round(sum(on) / sum(off))} times as much")
+sp = {x['order']: x for x in m3['splits']}
+check('fig6_fill', [sp['ascending']['leaf_pages'], sp['random']['leaf_pages']], f"{sp['ascending']['leaf_pages']:,} leaf pages, {round(sp['ascending']['avg_leaf_density'])}% full, when inserted in order, and {sp['random']['leaf_pages']:,} pages, {round(sp['random']['avg_leaf_density'])}% full")
+REQ = ['R','I','T1','R','I','T2','R','T3','I','R','T4','T5','R','I','T6','T7','R','T8','I','T9','R','T10']; seen = []; hits = 0
+for q in REQ:
+    if q in seen: hits += 1
+    else: seen.append(q)
+check('fig3_hits', [hits, len(REQ) - hits], f"{hits} hits and {len(REQ) - hits} disk reads")
 json.dump(out, open(os.path.join(H, 'recompute_out.json'), 'w'), indent=1)
 print(json.dumps(out)); print('MISMATCHES:', len(bad)); [print(' ', x) for x in bad]

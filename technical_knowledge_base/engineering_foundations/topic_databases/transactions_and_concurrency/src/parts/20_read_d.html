@@ -16,16 +16,24 @@
 <p>On MySQL, Jepsen's analysis of 8.0.34 (2023-12-19) found lost updates, read skew and non-repeatable reads at repeatable read and concluded "it isn't clear what MySQL Repeatable Read actually <i>is</i>" (<a href="https://jepsen.io/analyses/mysql-8.0.34" target="_blank" rel="noopener noreferrer">Jepsen, MySQL 8.0.34</a>). Our read skew run was prevented because B only read; Hermitage records MySQL's repeatable read as preventing read skew in read-only transactions only.</p>
 <p>These results agree with Hermitage's published table for both databases. Other databases, from the same table: Oracle's default is read committed and its "serializable" is snapshot isolation, so it allows write skew; SQL Server defaults to a locking read committed; CockroachDB and FoundationDB default to serializable (<a href="https://github.com/ept/hermitage" target="_blank" rel="noopener noreferrer">Hermitage</a>; <a href="https://docs.cockroachlabs.com/docs/stable/read-committed" target="_blank" rel="noopener noreferrer">CockroachDB docs</a>).</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s4-ssi">
 <h3>How Postgres's serializable works without locking everything</h3>
 <p>Since PostgreSQL 9.1 (2011), serializable is <dfn id="g-ssi">serializable snapshot isolation</dfn> (SSI). Transactions still read snapshots and never wait for readers; in addition, Postgres records what each one read (in "SIREAD" locks, which block nobody) and watches for <i>read-write dependencies</i>: T1 read something T2 then wrote, so T1 must come first in any serial order. One such edge is harmless; two in a row, into and out of one transaction, is the "dangerous structure" every serialization anomaly under snapshot isolation contains (Cahill, Röhm and Fekete, SIGMOD 2008), and Postgres aborts a transaction in it.</p>
-<div class="fig"><h4>Section 3's read-only anomaly as SSI sees it: purchase A has a read-write edge in and a read-write edge out, so A is the pivot and is aborted</h4>
-<div class="svgw" id="tx-ssi"></div>
-<p class="cap">An arrow X to Y means "X must come before Y". C (the report) did not see A's purchase, so C before A; A read "batch 1 open" before B closed it, so A before B; C saw B's close, so B before C. The three arrows form a cycle: no serial order exists. Postgres's recorded error for A was "Canceled on identification as a pivot". Write skew (the rota) is the two-transaction case: each read the row the other wrote, an edge each way.</p></div>
+
 <p>Postgres can abort when no real anomaly would have followed (a false positive). Ports and Grittner, who built it, report that it performs "only slightly below that of snapshot isolation" and "significantly outperforms" classic two-phase locking on read-heavy workloads (<a href="https://arxiv.org/abs/1208.4179" target="_blank" rel="noopener noreferrer">Ports and Grittner, VLDB 2012</a>).</p>
 <details class="dp"><summary>Reading the error messages, read-tracking granularity and a Jepsen bug <span class="mute">(depth)</span></summary><div class="b">
 <p>The error messages in the recordings say which case fired: "could not serialize access due to <b>concurrent update</b>" is the simple first-updater-wins rule (you tried to change a row changed since your snapshot); "due to <b>read/write dependencies</b> among transactions", with "Reason code: Canceled on identification as a pivot", is SSI's dangerous structure. Reads are tracked by row, by page or by whole table, coarser when memory runs short, and "a sequential scan will always necessitate a relation-level predicate lock", so a missing index raises the failure rate (<a href="https://www.postgresql.org/docs/16/transaction-iso.html" target="_blank" rel="noopener noreferrer">Postgres 16, transaction isolation</a>).</p>
 <p>Guarantees are only as good as the code: Jepsen's 2020 analysis found a bug that let a write skew through Postgres's serializable in 9.5 to 13 under normal operation, with a fix scheduled for the 13 August 2020 minor releases (same Jepsen report).</p>
 </div></details>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="card fig"><h4>Section 3's read-only anomaly as SSI sees it: purchase A has a read-write edge in and a read-write edge out, so A is the pivot and is aborted</h4>
+<div class="svgw" id="tx-ssi"></div>
+<p class="cap">An arrow X to Y means "X must come before Y". C (the report) did not see A's purchase, so C before A; A read "batch 1 open" before B closed it, so A before B; C saw B's close, so B before C. The three arrows form a cycle: no serial order exists. Postgres's recorded error for A was "Canceled on identification as a pivot". Write skew (the rota) is the two-transaction case: each read the row the other wrote, an edge each way.</p></div>
+</div></div></div>
+<section id="rd-s4-use">
 <div class="fix"><div class="t">Which level to use</div>
 <ul>
 <li><b>Read committed</b> (Postgres's default) is right for most single-statement work and for transactions whose every check is folded into its writes (atomic <code>UPDATE ... WHERE</code>, constraints, <code>FOR UPDATE</code> where needed).</li>

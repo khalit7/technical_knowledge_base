@@ -102,12 +102,23 @@ pre.py{background:var(--soft);border:1px solid var(--line);border-radius:8px;pad
 <nav class="nav" id="rd-nav">
 <a href="#rd-one">The idea</a><a href="#rd-s1">1 Transactions</a><a href="#rd-s2">2 ACID</a><a href="#rd-s3">3 Anomalies</a><a href="#rd-s4">4 Levels</a><a href="#rd-s5">5 MVCC</a><a href="#rd-s6">6 Locks</a><a href="#rd-s7">7 Deadlocks</a><a href="#rd-s8">8 Optimistic</a><a href="#rd-s9">9 Retries</a><a href="#rd-s10">10 Long transactions</a><a href="#rd-s11">11 Beyond one database</a><a href="#rd-pro">In production</a>
 </nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A transaction is all or nothing against <b>failures</b>, but against <b>other transactions</b> it protects you only as far as its <span class="hl">isolation level</span>: each level still lets through a known set of bad interleavings, and you close the rest by folding the check into the write, by locking what you read, or by running serializable and retrying.</p>
-<div class="hero" id="tx-hero-card"><h4>One balance, two requests: the interleaving that loses an update, and the three ways out</h4>
-<div class="hgrid" id="tx-hero"></div>
-<p class="small" id="tx-hero-cap">Ines (user 7) has 30 credits; tab A spends 10 and tab B spends 5 at the same moment. Every panel is a real run on PostgreSQL 16.2 (sections 1, 3 and 5). <span class="hl">Blue</span> is the statement that decides the outcome; a dashed box is a wait for a lock; red is an error. Correct ends at 15; the collision ends at 25.</p></div>
+<p class="sxh">Fig. 1: one balance, two requests: the interleaving that loses an update, and the three ways out</p>
+<ol class="sx" id="sx-hero">
+<li><b>Ines has 30 credits and two tabs open.</b> Tab A spends 10 and tab B spends 5 at the same moment, so the correct end is 15. Time runs left to right: tab A's statements sit on the front lane, tab B's on the back one, and the strip between them is the committed balance, its height the value.</li>
+<li><b>The collision: read, compute in Python, write back.</b> At read committed both tabs read 30; A writes 20 and commits; B writes 30 - 5 = 25 over it. Final <b>25</b>: A's 10 credits are lost, and every statement succeeded.</li>
+<li><b>Fix 1: fold the check into one UPDATE.</b> With <code>SET balance = balance - 5</code>, B's update waits on A's row lock (the gold bar) until A commits, then subtracts from 20. Final 15: B waited briefly.</li>
+<li><b>Fix 2: lock what you read.</b> With <code>SELECT ... FOR UPDATE</code>, B's read waits for A's whole transaction, then returns 20, and B writes 15.</li>
+<li><b>Fix 3: serializable refuses B, the application retries.</b> B's write is refused with SQLSTATE 40001, because the row changed after B's snapshot; the application rolls back and runs B again, which reads 20 and writes 15. Final 15: B ran twice.</li>
+</ol>
+<p class="small mute">Every lane is a real run on PostgreSQL (sections 1, 3 and 5): the first three on 16.2, the retry on 16.15 (section 5's trace). Blue is a read, orange a write, green a commit, a red box a wait for a lock or an error. Correct ends at 15; the collision ends at 25.</p>
+<p><b>You need:</b> SQL, rows and the write-ahead log at the level of the root {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} (Reading sections 3 and 4, where Ben's last credit is spent from two tabs). Results marked <span class="meas">measured</span> were recorded for this page on a laptop (an Apple M1 Pro) with two or three live sessions; scripts are in <code>src/measure/</code>.</p>
+</section>
+</div></div>
+<section id="rd-one-b">
 <div class="co key"><div class="t">The five habits of a professional</div>
 <ol>
 <li>Write a check and the change it guards as <b>one statement</b> where you can: <code>UPDATE credits SET balance = balance - 10 WHERE user_id = 7 AND balance &gt;= 10</code>, then read how many rows changed.</li>
@@ -116,7 +127,7 @@ pre.py{background:var(--soft);border:1px solid var(--line);border-radius:8px;pad
 <li>Keep transactions <b>short</b>: never hold one open across a call to a language model, a payment provider or a user's think time.</li>
 <li>Make every retried operation <b>idempotent</b>, so running it twice does no harm.</li>
 </ol></div>
-<p><b>You need:</b> SQL, rows and the write-ahead log at the level of the root {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} (Reading sections 3 and 4, where Ben's last credit is spent from two tabs). Results marked <span class="meas">measured</span> were recorded for this page on a laptop (an Apple M1 Pro) with two or three live sessions; scripts are in <code>src/measure/</code>.</p>
+
 <dl class="terms">
 <dt>Session</dt><dd>one connection to the database; its statements run in order, but statements of different sessions interleave.</dd>
 <dt>Transaction</dt><dd><code>BEGIN</code> ... <code>COMMIT</code> or <code>ROLLBACK</code>: statements treated as one unit.</dd>

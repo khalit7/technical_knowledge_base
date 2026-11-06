@@ -1,25 +1,30 @@
+<div class="s3sp"><div class="s3R"><div id="stg-bt"></div></div><div class="s3L">
 <section id="rd-s5">
 <h2>5. B-trees: the default index</h2>
 <p>Chat 42000's 6 messages are scattered over 19,235 pages; without an index the database reads every page (the root measured 19,349 page reads and 28 ms). A <dfn id="g-btree">B-tree</dfn> (strictly a B+tree, the variant relational databases use) reaches them in a handful of reads, stays correct under concurrent inserts, and also answers "between" and "in order". Its nodes are pages: <b>leaf pages</b> hold the keys in sorted order, each with its row's ctid, linked to their right neighbour so a range scan walks sideways; <b>internal pages</b> hold separator keys and downlinks ("keys below 25,047 are under page 3"); the <b>root</b> is the page at the top, and page 0, the <b>metapage</b>, says where it is.</p>
-<details class="dp"><summary>Concurrency: high keys and right links (Lehman and Yao) <span class="mute">(depth)</span></summary><div class="b"><p>Postgres follows Lehman and Yao's 1981 design: each page also stores a <b>high key</b> (an upper bound for its contents) and a right-sibling link, so a reader that arrives at a page just split can step right instead of waiting for a lock ({{nbtree README|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/access/nbtree/README}}).</p></div></details>
-<div class="card" id="pg-path-card"><h4 class="vt">Three index pages lead to chat 42000; its 6 rows then sit on 6 different table pages</h4>
-<div class="rd-svg" id="pg-path-svg"></div>
-<ol class="steps">
-<li><b>Metapage</b> (page 0): root is page 289, at level 2, so the tree has 3 levels.</li>
-<li><b>Root</b> (page 289): 4 entries. Separators 25,047, 50,199 and 75,331 split the key space in four; 42000 falls in the second range, so go to page 288.</li>
-<li><b>Internal page</b> (page 288): 285 entries, each a separator and a downlink; binary search leads to leaf page 478.</li>
-<li><b>Leaf page</b> (page 478): 92 entries. Key 42000 appears once, followed by a list of 6 ctids: (7973,10), (8004,13), (8077,46), (8146,16), (8202,45), (8240,8).</li>
-<li><b>Table pages</b>: 6 different pages, one per message, because the chat's messages arrived at different times.</li>
+<p class="sxh">Fig. 5: finding chat 42000, then a split</p>
+<ol class="sx" id="sx-bt">
+<li><b>Three levels.</b> The chat_id index on the million messages. The <b>metapage</b> (page 0) says the root is page 289, at level 2, so the tree has 3 levels: the root, 4 internal pages and 1,130 leaf pages (one tile here stands for about 28).</li>
+<li><b>Root (page 289): 4 entries.</b> Separators 25,047, 50,199 and 75,331 split the key space in four; 42000 falls in the second range, so go to page 288.</li>
+<li><b>Internal page (page 288): 285 entries,</b> each a separator and a downlink; binary search leads to leaf page 478.</li>
+<li><b>Leaf page (page 478): 92 entries.</b> Key 42000 appears once, followed by a list of 6 ctids: (7973,10), (8004,13), (8077,46), (8146,16), (8202,45), (8240,8).</li>
+<li><b>Table pages: 6 different pages,</b> one per message, because the chat's messages arrived at different times: 3 index pages and 6 table pages instead of 19,235 (drawn by page number, 140 pages to a row).</li>
+<li><b>A full leaf splits.</b> <span class="ill">illustrative</span> A new page takes the upper half of a full leaf and the parent gets a separator for it; a full parent splits too, and a root split adds a level, so every leaf stays at the same depth.</li>
+<li><b>Key order decides how full the leaves are.</b> The same million bigint keys made a primary key of 2,733 leaf pages, 90% full, when inserted in order, and 3,760 pages, 66% full, in random order (measured, below).</li>
 </ol>
-<p class="small mute"><span class="meas">measured</span> the 1M-row chat_id index, from pageinspect (<code>bt_metap</code>, <code>bt_page_stats</code>, <code>bt_page_items</code>). One tick per entry; the highlighted tick is the one followed: 3 index pages and 6 table pages instead of 19,235. The real entries of each page are listed below (keys are stored little-endian: bytes <code>d7 61 00 00 00 00 00 00</code> are 0x61d7 = 25,047).</p>
+<p class="small mute"><span class="meas">measured</span> the 1M-row chat_id index, from pageinspect (<code>bt_metap</code>, <code>bt_page_stats</code>, <code>bt_page_items</code>); keys are stored little-endian: bytes <code>d7 61 00 00 00 00 00 00</code> are 0x61d7 = 25,047.</p>
 <details class="dp"><summary>List the real entries of each page on the path <span class="mute">(pageinspect rows)</span></summary><div class="b"><div class="chain" id="pg-chain"></div>
 <div id="pg-path-out"></div></div></details>
-</div>
+<details class="dp"><summary>Concurrency: high keys and right links (Lehman and Yao) <span class="mute">(depth)</span></summary><div class="b"><p>Postgres follows Lehman and Yao's 1981 design: each page also stores a <b>high key</b> (an upper bound for its contents) and a right-sibling link, so a reader that arrives at a page just split can step right instead of waiting for a lock ({{nbtree README|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/access/nbtree/README}}).</p></div></details>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s5f">
 <h3>Fan-out: why a billion rows need about four levels</h3>
 <p>The children per internal page, the <dfn id="g-fanout">fan-out</dfn>, keeps the tree shallow. A <code>bigint</code> entry is an 8-byte header plus the key, rounded up to 8 bytes, plus a 4-byte line pointer: 20 bytes. A page has 8,152 usable bytes (8,192 minus a 24-byte header and a 16-byte trailer), so about 407 entries fit; Postgres fills leaves to 90% when it builds an index or appends at the right edge (367 entries) and internal pages to 70% (about 285) ({{B-tree fillfactor|https://www.postgresql.org/docs/18/sql-createindex.html}}, {{nbtree.h|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/access/nbtree.h}}):</p>
 <div class="fm"><div class="eq">levels = 1 + &#8968;log<sub>f</sub>(N / l)&#8969;</div>
 <dl><dt>N</dt><dd>number of keys</dd><dt>l</dt><dd>keys per leaf page (367 for bigint at 90% fill)</dd><dt>f</dt><dd>fan-out of internal pages (about 285 for bigint at 70% fill)</dd></dl></div>
-<div class="card"><h4 class="vt">Predict the levels for a billion bigint keys, then drag; wider keys cost levels sooner</h4>
+<p>The top one or two levels are touched by every lookup, so they stay cached: a lookup on a big table costs one or two physical reads, not four (the old page's "3 to 4 page reads for a large table plus one heap fetch, mostly cached" holds; the root measured 12 page touches, all cache hits, for the 6-row chat).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="vt">Predict the levels for a billion bigint keys, then drag; wider keys cost levels sooner</h4>
 <div class="calc">
 <label>Rows: <b id="rd-fo-nv"></b><input type="range" id="rd-fo-n" min="3" max="12" step="0.5" value="9"></label>
 <label>Key type <select id="rd-fo-k"><option value="4">integer (4 bytes)</option><option value="8" selected>bigint (8 bytes)</option><option value="16">uuid (16 bytes)</option><option value="37">text, 36 characters (37 bytes)</option><option value="101">text, 100 characters (101 bytes)</option></select></label>
@@ -27,10 +32,10 @@
 <div class="out" id="rd-fo-out"></div>
 <p class="small mute">Defaults reproduce the measurement independently: 367 keys per leaf and 3 levels at 1M bigint rows, as Postgres reported. At 100 million rows Postgres built 4 levels with a root of only 4 entries, room for about 71 times more keys, so a billion rows need 4 levels <span class="ill">derived</span>. A 36-character text key (a UUID stored as text) fits 141 entries per leaf instead of 367: 59.1 MB at 1M rows against 22.5 MB for bigint (text counted as 1 length byte plus the characters; collation and compression also matter).</p>
 <details class="dp"><summary>Measured depth at 1,000 to 100 million rows <span class="mute">(table)</span></summary><div class="b"><div class="tw"><table id="rd-depth"></table></div><p class="small mute">PostgreSQL 16.2, one bigint column, index built after loading; the last column is the formula's prediction.</p></div></details>
-</div>
-<p>The top one or two levels are touched by every lookup, so they stay cached: a lookup on a big table costs one or two physical reads, not four (the old page's "3 to 4 page reads for a large table plus one heap fetch, mostly cached" holds; the root measured 12 page touches, all cache hits, for the 6-row chat).</p>
+</div></div></div></div>
+<section id="rd-s5i">
 <h3>Inserting: splits, and why random keys waste space</h3>
-<p>An insert walks down to its leaf and adds the entry in order. A full leaf <b>splits</b>: a new page takes the upper half and the parent gets a separator for it; a full parent splits too, and a root split adds a level (the tree grows at the top, so every leaf stays at the same depth). Section 6 steps through one split; the {{B-tree and LSM lab|#t-lab}} runs thousands. When the new key is the largest, Postgres keeps the left page at the fillfactor (90%) instead of half, because an increasing key never inserts there again ({{nbtree.h|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/access/nbtree.h}}: "The fillfactor is applied during index build and when splitting a rightmost page"). Random keys split pages in the middle and half-empty pages fill only partly before splitting again: the classic result is about 69% average fill (ln 2).</p>
+<p>An insert walks down to its leaf and adds the entry in order. A full leaf <b>splits</b>: a new page takes the upper half and the parent gets a separator for it; a full parent splits too, and a root split adds a level (the tree grows at the top, so every leaf stays at the same depth). Fig. 5 (step 6) shows one split; the {{B-tree and LSM lab|#t-lab}} runs thousands. When the new key is the largest, Postgres keeps the left page at the fillfactor (90%) instead of half, because an increasing key never inserts there again ({{nbtree.h|https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/access/nbtree.h}}: "The fillfactor is applied during index build and when splitting a rightmost page"). Random keys split pages in the middle and half-empty pages fill only partly before splitting again: the classic result is about 69% average fill (ln 2).</p>
 <div class="card"><h4 class="vt">The same million keys in random order need 38% more leaf pages</h4>
 <div class="tw"><table id="rd-splits"></table></div>
 <p class="small mute"><span class="meas">measured</span> PostgreSQL 16.2, 1M bigint keys. Random order ended 66% full on average (close to the textbook 69%) and took 1.6 times as long, with everything still in memory.</p></div>

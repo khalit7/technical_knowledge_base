@@ -38,3 +38,14 @@ Nothing structural. One addition worth recording: when the subject is concurrenc
 | Long transaction: pages and read latency as bars | bars | section 10 |
 | Durability and contention bars redrawn as SVG at the measured width | bars | sections 2, 9 |
 Still rejected: the Adya dependency graph per anomaly (the SSI figure shows the one cycle that matters), an InnoDB undo-chain animation (no InnoDB page dumps were recorded).
+
+## Added 2026-11-06 (split layout, five 3D stages, renderer v2)
+| Idea | Kind | Placement | Data |
+|---|---|---|---|
+| Fig. 1 hero: the lost update and its three fixes as two session timelines with the balance between them (height = committed value), statements as blocks, reads and writes as flowing dots, row locks as gold bars | 3D stage, 5 steps (replaces the 2D two-lane panels) | top | TXD.engines.pg lost runs (16.2) and TXD.mvcc serializable (16.15, with the retry), parsed by `27a_js_sc_tl.js` |
+| Fig. 2 write skew on the rota: the same timelines with two rows (Ana, Raj); repeatable read, serializable with the two rw dependencies as arcs, FOR UPDATE | 3D stage, 5 steps (new) | section 3 | TXD.engines.pg writeskew runs |
+| Fig. 3 MVCC: every version of Ines's row standing on a glass heap page (height = balance, xmin and xmax under it), the two sessions with their real snapshots and xids, reads and writes as flows; three modes | 3D stage, 8, 8 and 12 steps, three step lists (replaces the 2D RD.anim and its generated captions) | section 5 | TXD.mvcc (pageinspect dumps) |
+| Fig. 4 lock queue: table, a glass lock gate, A granted, B and C queued; the drain and the lock_timeout run | 3D stage, 5 steps (replaces the static queue diagram) | section 6 | TXD.extras.traces lock_queue, lock_queue_timeout |
+| Fig. 5 deadlock: two rows, two transfers, held locks as slabs, waits as red flows forming the cycle; then one lock order | 3D stage, 6 steps (replaces the static wait-for graph) | section 7 | TXD.extras.traces deadlock, deadlock_ordered |
+Kept 2D, and why: durability, contention-benchmark and long-transaction bars (numbers on an axis), the snapshot on the xid axis (an axis reads best flat), the SSI dependency cycle (three nodes and three arrows; depth adds nothing), the outbox (a three-box structure). The recorded traces, the matrix and the SQL stay text. The Isolation lab stays a widget the reader steps (no autoplay, no step list): it is a tool over all 88 recordings, not one explained animation.
+Rejected: a 3D long-transaction scene with 109 page tiles (Running Postgres in production owns vacuum and draws chat_state's pages in 3D; here the two numbers, 1 page against 109, are the point and bars say it); a 3D SSI graph.

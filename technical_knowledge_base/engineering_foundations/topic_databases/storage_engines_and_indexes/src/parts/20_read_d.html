@@ -1,20 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-lsm"></div></div><div class="s3L">
 <section id="rd-s6">
 <h2>6. LSM-trees: write first, sort later</h2>
 <p>Suppose the chat product logs every token-usage event, hundreds of thousands a second, keyed by a random request id. A B-tree turns each into a random leaf read and write plus a page image after each checkpoint, while flash and disks are far faster at long sequential writes. The <dfn id="g-lsm">LSM-tree</dfn> (log-structured merge-tree, {{O'Neil, Cheng, Gawlick and O'Neil, Acta Informatica, 1996|https://doi.org/10.1007/s002360050048}}; memtable and SSTable are names from Google's {{Bigtable paper, OSDI 2006|https://research.google/pubs/bigtable-a-distributed-storage-system-for-structured-data/}}) maintains an index with sequential writes only:</p>
-<ol class="steps">
-<li><b>Log it.</b> Append the change to a write-ahead log, exactly as Postgres does, so a crash loses nothing.</li>
-<li><b>Memtable.</b> Insert it into a sorted structure in memory (RocksDB uses a skip list). Nothing on disk is read or changed.</li>
-<li><b>Flush.</b> When the memtable is full (64 MB by default in RocksDB) it is written in one sequential pass as an immutable sorted file, an <dfn id="g-sst">SSTable</dfn> (sorted string table): key-value blocks, an index of the blocks, and a bloom filter. A new memtable takes over.</li>
-<li><b>Compact.</b> Background threads merge-sort files together, keeping only the newest version of each key and dropping deleted ones, so the number of files stays bounded.</li>
-<li><b>Read.</b> Look in the memtable, then in the files from newest to oldest, stopping at the first hit; per-file bloom filters and block indexes avoid most disk reads.</li>
+<p class="sxh">Fig. 6: the LSM-tree's write path, then the measured RocksDB run</p>
+<ol class="sx" id="sx-lsm">
+<li><b>Log it, then the memtable.</b> Append the change to a write-ahead log, exactly as Postgres does, so a crash loses nothing; then insert it into a sorted structure in memory (RocksDB uses a skip list). Nothing on disk is read or changed.</li>
+<li><b>Flush.</b> When the memtable is full (64 MB by default in RocksDB, 8 MB in the run below) it is written in one sequential pass as an immutable sorted file, an <dfn id="g-sst">SSTable</dfn> (sorted string table): key-value blocks, an index of the blocks, and a bloom filter. A new memtable takes over.</li>
+<li><b>Compact.</b> Background threads merge-sort files together, keeping only the newest version of each key and dropping deleted ones, so the number of files stays bounded. Here level 0 reaches 4 files and is merged into the level below, whose overlapping files are rewritten.</li>
+<li><b>The levels, measured.</b> After loading 4,000,000 keys into RocksDB (section 7 has the setup): 5 files in L5 and 63 in L6, each level about 10 times the one above; levels 1 to 4 stayed empty at this size (dynamic level sizes, the default since RocksDB 8.4). One box is one file.</li>
+<li><b>The bill.</b> The application wrote 476 MB; RocksDB wrote 476 MB of log, 512 MB of flushes and 1,890 MB of compaction: a write amplification of 5.05, or 6.05 with the log. The 4,000,000 overwrites that followed: 6.21.</li>
+<li><b>Read.</b> Look in the memtable, then in the files from newest to oldest, stopping at the first hit; per-file bloom filters and block indexes avoid most disk reads. A lookup of an absent key read 0.01 data blocks with the filters and 4.43 without.</li>
+<li><b>Tiered instead.</b> Universal (tiered) compaction on the same workload left its files in levels 0, 1, 4 and 6 (1, 12, 23 and 60 files) and held 1.71x the space, against 1.10x for leveled; the next subsection compares the two.</li>
 </ol>
-<div class="card" id="rd-ins-card"><h4 class="vt">The same key into both engines: the B-tree pays three random page writes now, the LSM-tree pays a rewrite later</h4>
-<div class="seg" id="rd-ins-mode"><button data-m="bt" class="on">Before: B-tree (page split)</button><button data-m="lsm">After: LSM-tree (memtable, flush, compaction)</button></div>
-<div class="an-ctl" id="rd-ins-ctl"></div>
-<div class="an-cnt" id="rd-ins-cnt"></div>
-<div class="rd-svg" id="rd-ins-svg"></div>
-<div class="an-cap" id="rd-ins-cap"></div>
-<p class="small mute"><span class="ill">illustrative</span> Four keys per page or file (a real leaf holds about 367 bigint keys). B-tree: key 42 splits a full leaf, the parent gains separator 40, three dirty pages are written back at the checkpoint. LSM: one log append and a memtable insert; the flush writes 4 keys sequentially; compaction later rewrites 16 keys to place 4 new ones.</p></div>
+</section></div></div>
+<section id="rd-s6c">
 <h3>Compaction is the real design choice</h3>
 <p>Files on disk are grouped in <b>levels</b>: level 0 holds freshly flushed files, which may overlap in key range; deeper levels are larger. How files move down is the <b>compaction strategy</b>:</p>
 <div class="two">
@@ -22,22 +21,28 @@
 <div><h4>Tiered (RocksDB "universal", Cassandra STCS)</h4><p class="small">Runs of similar size accumulate; when there are enough, they merge into one bigger run ("waits for several sorted runs with similar size and merge them together", {{universal compaction|https://github.com/facebook/rocksdb/wiki/Universal-Compaction}}). <b>Each key is rewritten fewer times, but a read may search many runs and old versions take space until merged.</b> Size-tiered is still Cassandra's default (cassandra.yaml); Cassandra 5.0 added a Unified Compaction Strategy that can behave like either ({{Cassandra compaction|https://cassandra.apache.org/doc/latest/cassandra/managing/operating/compaction/index.html}}).</p></div>
 </div>
 <details class="dp"><summary>The textbook costs of leveling and tiering <span class="mute">(formulas)</span></summary><div class="b"><p>With size ratio T between levels, L levels and B entries per page, Luo and Carey give the textbook costs: writing an entry costs O(T&#183;L/B) I/O under leveling and O(L/B) under tiering; a point lookup without bloom filters searches O(L) runs under leveling and O(T&#183;L) under tiering ({{LSM survey, VLDB Journal 2020|https://arxiv.org/abs/1812.07527}}, section 2.3). Section 7 measures both on RocksDB.</p></div></details>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s6b">
 <h3>Bloom filters: skipping files that cannot hold the key</h3>
 <p>A <dfn id="g-bloom">bloom filter</dfn> is a bit array plus k hash functions. Adding a key sets k bits; asking "is x here?" checks x's k bits: any 0 is a certain <b>no</b>; all 1 is <b>maybe</b> (other keys may have set them). With m bits for n keys the false-positive rate is about</p>
 <div class="fm"><div class="eq">p &#8776; (1 &#8722; e<sup>&#8722;k n / m</sup>)<sup>k</sup>, best at k = (m/n) ln 2</div></div>
 <p>At 10 bits per key the best k is 6.9; with k = 7, p = 0.82% <span class="ill">derived</span> (RocksDB's wiki: "9.9 bits per key (1% false positive rate)", {{RocksDB bloom filter|https://github.com/facebook/rocksdb/wiki/RocksDB-Bloom-Filter}}). A lookup for a key that does not exist then costs under 0.01 file reads per level instead of one. Bloom filters cannot help a range scan ("all keys between a and b" must visit every run), the LSM-tree's weak spot.</p>
-<div class="card"><h4 class="vt">Each extra bit per key cuts false positives by about 38% (p &#8776; 0.62 to the power of the bits per key, at the best k), for 125 kB more memory per million keys</h4><div class="calc"><label>Bits per key: <b id="rd-bf-bv"></b><input type="range" id="rd-bf-b" min="2" max="20" step="1" value="10"></label></div><div class="out" id="rd-bf-out"></div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="vt">Each extra bit per key cuts false positives by about 38% (p &#8776; 0.62 to the power of the bits per key, at the best k), for 125 kB more memory per million keys</h4><div class="calc"><label>Bits per key: <b id="rd-bf-bv"></b><input type="range" id="rd-bf-b" min="2" max="20" step="1" value="10"></label></div><div class="out" id="rd-bf-out"></div></div></div></div></div>
+<section id="rd-s6t">
 <h3>Deletes are writes: tombstones</h3>
 <p>Files are immutable, so a delete writes a <dfn id="g-tomb">tombstone</dfn>, a marker saying "this key is gone". The old value stays on disk until a compaction carrying the tombstone reaches its level, and until then every read of that range steps over the tombstones. RocksDB's <code>DeleteRange</code> writes one range tombstone for a whole key range ({{DeleteRange|https://github.com/facebook/rocksdb/wiki/DeleteRange}}). That is why using a Cassandra table as a queue (insert, read, delete, repeat) is a classic failure: the live rows are few, the tombstones many, and reads slow down before compaction catches up.</p>
 <details class="dp"><summary>Cassandra's tombstone settings <span class="mute">(depth)</span></summary><div class="b"><p>Cassandra keeps tombstones for <code>gc_grace_seconds</code>, 864,000 (10 days) by default, so a replica that was down can still learn about the delete ({{CREATE TABLE|https://cassandra.apache.org/doc/latest/cassandra/reference/cql-commands/create-table.html}}); it warns when a query reads 1,000 tombstones and aborts at 100,000 (cassandra.yaml). {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}} covers Cassandra in use.</p></div></details>
 <div class="cost"><div class="t">What an LSM-tree costs</div>Compaction rewrites data many times (section 7) and competes with queries for disk and CPU; reads may search several runs and range scans cannot use bloom filters; old versions and tombstones take space until merged. The characteristic failure: compaction falls behind a write burst, level 0 piles up, reads slow, and the engine throttles or stops writes ({{RocksDB write stalls|https://github.com/facebook/rocksdb/wiki/Write-Stalls}}); alert on pending compaction bytes, not just disk space. Its home is ingest-heavy key-value and time-series streams (Cassandra, ScyllaDB, RocksDB inside many systems; the root's {{Database atlas|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab lists the products), not read-mostly data with range queries or small data.</div>
 </section>
-<section id="rd-s7">
+<div class="s3sp"><div class="s3L"><section id="rd-s7">
 <h2>7. The RUM trade-off, measured</h2>
 <p>Every way of storing and indexing data pays three overheads: extra <b>R</b>eads beyond the data asked for, extra <b>U</b>pdate work beyond the bytes changed, and extra <b>M</b>emory or space beyond the data itself. The <dfn id="g-rum">RUM conjecture</dfn>: "designing access methods that set an upper bound for two of the RUM overheads, leads to a hard lower bound for the third overhead which cannot be further reduced" ({{Athanassoulis et al., EDBT 2016|https://openproceedings.org/2016/conf/edbt/paper-12.pdf}}). They are measured as amplification factors: <dfn id="g-wamp">write amplification</dfn>, bytes written to storage per byte the application wrote (log, pages, compaction rewrites); <b>read amplification</b>, pages or files read per lookup; <b>space amplification</b>, bytes on disk per byte of live data.</p>
-<div class="card"><h4 class="vt">Each design sits near the corner it optimises and pays on the far side</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="vt">Each design sits near the corner it optimises and pays on the far side</h4>
 <div class="rd-svg" id="rd-rum-svg"></div>
-<p class="small mute">Placement is qualitative, from this page's measurements: a B-tree bounds reads (3 pages) and space and pays on updates (up to 307x for scattered updates after a checkpoint); leveled LSM bounds space (1.10x) and pays rewrites; tiered LSM rewrites less at scale but needed 1.71x the space and searches more runs; BRIN is tiny (73.7 kB for 10M rows) and reads whole 128-page ranges. An index pays space and update cost to cut reads; compression pays CPU to cut space.</p></div>
+<p class="small mute">Placement is qualitative, from this page's measurements: a B-tree bounds reads (3 pages) and space and pays on updates (up to 307x for scattered updates after a checkpoint); leveled LSM bounds space (1.10x) and pays rewrites; tiered LSM rewrites less at scale but needed 1.71x the space and searches more runs; BRIN is tiny (73.7 kB for 10M rows) and reads whole 128-page ranges. An index pays space and update cost to cut reads; compression pays CPU to cut space.</p></div></div></div></div>
+<section id="rd-s7m">
 <h3>Measured on two real engines</h3>
 <p><b>RocksDB</b> through the rocksdict Python binding, statistics on <span class="meas">measured</span>: 4,000,000 unique random 16-byte keys with 100-byte values (464 MB of data), then 4,000,000 overwrites of random existing keys; memtable 8 MB, level 1 32 MB, ratio 10, no compression, bloom filters 10 bits per key; 100,000 lookups of present and of absent keys.</p>
 <div class="tw"><table id="rd-rocks"></table></div>

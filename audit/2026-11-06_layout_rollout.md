@@ -45,8 +45,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_databases/scaling_a_database` Scaling a database: read replicas, sharding Postgres, distributed SQL
 - [x] `engineering_foundations/topic_databases/search_and_vector_databases` Search and vector databases: inverted indexes, BM25, ANN, pgvector
 - [x] `engineering_foundations/topic_databases/sql_and_data_modelling` SQL and data modelling: queries, joins, schema design, normalisation, migrations
-- [ ] `engineering_foundations/topic_databases/storage_engines_and_indexes` Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types
-- [ ] `engineering_foundations/topic_databases/transactions_and_concurrency` Transactions and concurrency: ACID, MVCC, isolation anomalies, locks
+- [x] `engineering_foundations/topic_databases/storage_engines_and_indexes` Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types
+- [x] `engineering_foundations/topic_databases/transactions_and_concurrency` Transactions and concurrency: ACID, MVCC, isolation anomalies, locks
 - [ ] `engineering_foundations/topic_databases` Topic: databases
 - [ ] `engineering_foundations/topic_math/calculus_and_optimisation` Calculus and optimisation for ML: derivatives to convexity, Hessians, Newton, Lagrange
 - [ ] `engineering_foundations/topic_math/information_theory` Information theory for ML: entropy, cross-entropy, KL, mutual information
@@ -338,3 +338,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_databases/query_planning_and_performance`: Fig. 2 B-tree leaves stand in a row into depth and read like stairs; Fig. 3 faded node labels are faint.
 - `engineering_foundations/topic_databases/running_postgres_in_production`: Fig. 1 step 4 and Fig. 2 step 5 are mostly faded, little at full strength.
 - `engineering_foundations/topic_databases/sql_and_data_modelling`: Fig. 5 step 4 crops the "no row" box and a label at the right edge; page is 1.40 MB (the embedded sql.js engine, 1.35 MB before).
+- transactions_and_concurrency: Fig. 1 step 3 "waits" label crowds the "-5 -> 15" label on tab B; Fig. 2 rw arcs busy.
+- storage_engines_and_indexes: Fig. 4 page labels close at 1400; Figs 2 and 6 leave empty card space at full view.

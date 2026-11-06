@@ -17,24 +17,44 @@
 <div id="rd-jobs"></div>
 <p class="small mute" id="rd-jobs-note">Recorded 2026-10-04 on PostgreSQL 16.2. Durations of waits are set by the script's pace (it waits about 2 s per step while something is blocked), not by the database.</p>
 <p>With plain <code>FOR UPDATE</code> worker B waited for A's whole job, then got job 2: the workers run one at a time. With <code>SKIP LOCKED</code> B took job 2 at once. The documentation's warning is the reason it is for queues only: "skipping locked rows provides an inconsistent view of the data, so this is not suitable for general purpose work" (<a href="https://www.postgresql.org/docs/16/sql-select.html#SQL-FOR-UPDATE-SHARE" target="_blank" rel="noopener noreferrer">Postgres 16, the locking clause</a>). Job queues for Python built this way, their retries and dead letters are on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</p>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-lq"></div></div><div class="s3L">
+<section id="rd-s6-lq">
 <h3>Table locks and the lock queue</h3>
-<p>Every statement also takes a lock on each table it touches, in one of eight modes. Ordinary reads and writes take weak modes that never conflict with each other. Many <code>ALTER TABLE</code> forms, <code>DROP</code>, <code>TRUNCATE</code> and <code>VACUUM FULL</code> take <code>ACCESS EXCLUSIVE</code>, and "only an ACCESS EXCLUSIVE lock blocks a SELECT" (same explicit-locking page). The trap is the <i>queue</i>: a lock request that must wait queues, and every later request that conflicts with it queues behind it, even if it would not have conflicted with the holder. Recorded with three sessions <span class="meas">measured</span>:</p>
-<div class="fig"><h4>The lock queue: C needs only the weakest lock, which A's lock allows, but it queues behind the migration that is waiting for A</h4>
-<div class="svgw" id="tx-lq"></div>
-<p class="cap">The table lock queue on <code>messages</code> in the recording below. ACCESS SHARE (every plain <code>SELECT</code>) conflicts only with ACCESS EXCLUSIVE; the migration's request conflicts with everything. With <code>lock_timeout = 200ms</code> the migration leaves the queue after 200 ms and C is granted at once.</p></div>
+<p>Every statement also takes a lock on each table it touches, in one of eight modes. Ordinary reads and writes take weak modes that never conflict with each other. Many <code>ALTER TABLE</code> forms, <code>DROP</code>, <code>TRUNCATE</code> and <code>VACUUM FULL</code> take <code>ACCESS EXCLUSIVE</code>, and "only an ACCESS EXCLUSIVE lock blocks a SELECT" (same explicit-locking page). The trap is the <i>queue</i>: a lock request that must wait queues, and every later request that conflicts with it queues behind it, even if it would not have conflicted with the holder. Recorded with three sessions <span class="meas">measured</span>; the recording itself is below the steps.</p>
+<p class="sxh">Fig. 4: the lock queue on one table, two recordings</p>
+<ol class="sx" id="sx-lq">
+<li><b>A holds a weak lock and stays open.</b> An analytics query, <code>SELECT count(*) FROM messages</code>, left in an open transaction: it holds ACCESS SHARE on the table until it commits.</li>
+<li><b>The migration queues.</b> B's <code>ALTER TABLE messages ADD COLUMN flagged boolean</code> needs ACCESS EXCLUSIVE, which conflicts with every mode, so it waits for A.</li>
+<li><b>An ordinary read queues behind the migration.</b> C's <code>SELECT count(*) FROM messages WHERE user_id = 7</code> needs only ACCESS SHARE, which conflicts only with ACCESS EXCLUSIVE and so with nothing A holds; but a conflicting request is already waiting, so C waits behind B.</li>
+<li><b>A commits; the queue drains in order.</b> B is granted and the ALTER runs, then C is granted and returns 2.</li>
+<li><b>With <code>lock_timeout = 200ms</code> the migration gives up instead.</b> B waits 203 ms, fails with SQLSTATE 55P03 and leaves the queue, and C is granted at once.</li>
+</ol>
+
 <div class="seg" id="rd-lq-mode"><button data-m="lock_queue" class="on">Migration with no timeout</button><button data-m="lock_queue_timeout">Migration with lock_timeout = 200ms</button></div>
 <div id="rd-lq"></div>
 <p>In production, C is every request of your API. This is how GoCardless had about 15 seconds of API downtime from a migration that should have been instant: "Set <code>lock_timeout</code> in your migration scripts to a pause your app can tolerate. It's better to abort a deploy than take your application down" (<a href="https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/" target="_blank" rel="noopener noreferrer">GoCardless engineering blog, Chris Sinjakli</a>). In the second recording the migration gave up with SQLSTATE 55P03. Running migrations safely is on {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}.</p>
+</section>
+</div></div>
+<section id="rd-s6-adv">
 <h3>Advisory locks: a lock on a number</h3>
 <p>When the thing to protect is not a row ("only one summariser per user at a time"), Postgres lets you lock any 64-bit number whose meaning only your application knows: <code>pg_advisory_xact_lock(7)</code> waits for and holds the lock until the transaction ends, <code>pg_try_advisory_lock(7)</code> returns false at once if someone holds it. Session-level advisory locks survive <code>ROLLBACK</code> and must be released explicitly. Recorded: A's try returned true, B's returned false until A released it <span class="meas">measured</span>. A common production use is making sure only one instance of a scheduled job or migration runs.</p>
 <div class="cost"><div class="t">What locks cost</div>Waiting. Every lock turns a conflict into latency for someone, and the lock is held until <code>COMMIT</code>, not until the statement ends: whatever your code does between the locking statement and the commit (a model call, a network request) is time everyone else waits. And two transactions can each wait for the other, which is the next section.</div>
 </section>
+<div class="s3sp"><div class="s3R"><div id="stg-dl"></div></div><div class="s3L">
 <section id="rd-s7">
 <h2>7. Deadlocks: waiting for each other forever</h2>
 <p>A <dfn id="g-deadlock">deadlock</dfn> is a cycle of waits: A holds a lock B needs while waiting for a lock B holds. Neither can move. It needs nothing unusual, just two transactions touching the same rows in opposite orders: A transfers 5 credits from Ines (7) to Quinn (12), B transfers 3 from Quinn to Ines, at the same time <span class="meas">measured</span>:</p>
-<div class="fig"><h4>A deadlock is a cycle in the wait-for graph; locking rows in one order makes the cycle impossible</h4>
-<div class="svgw" id="tx-dl"></div>
-<p class="cap">Left: A locked Ines's row (7) and waits for Quinn's (12); B locked 12 and waits for 7. Right: both lock the lower id first, so B waits for A on row 7 and never holds 12 while A needs it.</p></div>
+<p class="sxh">Fig. 5: a deadlock, then the same transfers in one lock order</p>
+<ol class="sx" id="sx-dl">
+<li><b>Each transfer takes its first row.</b> A runs <code>UPDATE credits SET balance = balance - 5 WHERE user_id = 7</code> and holds row 7's lock (blue); B runs <code>... balance - 3 WHERE user_id = 12</code> and holds row 12's (purple).</li>
+<li><b>A needs row 12: it waits for B.</b> A's second update, <code>... balance + 5 WHERE user_id = 12</code>, waits on B's transaction.</li>
+<li><b>B needs row 7: it waits for A. A cycle.</b> A locked Ines's row (7) and waits for Quinn's (12); B locked 12 and waits for 7. Each holds what the other needs, so neither can move.</li>
+<li><b>Postgres breaks the cycle.</b> B was killed after 1.0 s with SQLSTATE 40P01, its lock on row 12 released; A's update went through and A committed. Rows 7 and 12 end at 25 and 25: only A's transfer happened, and B must retry.</li>
+<li><b>Same order: lowest id first.</b> Both transfers start with <code>SELECT user_id FROM credits WHERE user_id IN (7, 12) ORDER BY user_id FOR UPDATE</code>. A locks 7, then 12; B asks for 7 first and simply waits, holding nothing, so B waits for A on row 7 and never holds 12 while A needs it: no cycle.</li>
+<li><b>A commits; B runs.</b> B gets both rows, and both transfers complete: 28 and 22.</li>
+</ol>
+
 <div class="seg" id="rd-dl-mode"><button data-m="deadlock" class="on">Opposite order</button><button data-m="deadlock_ordered">Same order (lowest id first)</button></div>
 <div id="rd-dl"></div>
 <p>Postgres checks for a cycle only after a lock wait has lasted <code>deadlock_timeout</code> (1 second by default), because the check is expensive and most waits end on their own. It then aborts one transaction with SQLSTATE 40P01 and a detail that names both processes; which one is chosen "is difficult to predict and should not be relied upon" (<a href="https://www.postgresql.org/docs/16/explicit-locking.html#LOCKING-DEADLOCKS" target="_blank" rel="noopener noreferrer">Postgres 16, deadlocks</a>). In the recording B was killed after 1.0 s and A's update went through. MySQL detects deadlocks immediately by default (<code>innodb_deadlock_detect</code>) and returns error 1213, as in its serializable runs in section 4.</p>
@@ -46,3 +66,4 @@
 <li><b>Watch for them:</b> <code>log_lock_waits = on</code> logs every wait longer than <code>deadlock_timeout</code>, and <code>pg_stat_database.deadlocks</code> counts them.</li>
 </ul></div>
 </section>
+</div></div>

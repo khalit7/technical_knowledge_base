@@ -10,7 +10,6 @@
     const C=SE.m1.crash,lines=C.log.filter(l=>!/listening on|starting PostgreSQL/.test(l)).map(l=>l.replace(/^LOG:\s+/,''));
     const redo=(lines.find(l=>/redo starts at/.test(l))||'').replace(/.*redo starts at /,''),end=(lines.find(l=>/invalid record length at/.test(l))||'').replace(/.*invalid record length at ([0-9A-F/]+).*/,'$1');
     const HL=[/interrupted|not properly shut down/,/redo starts/,/redo starts|redo done/,/invalid record|redo done/,/checkpoint starting|checkpoint complete|ready to accept/];
-    const lis=[...$('rd-crash-steps').children];
     const N=40,fpi=i=>(i*7)%5!==0; // illustrative mix: most records here carried page images
     function draw(k){const el=$('rd-crash-svg'),W=RD.width(el),H=150,x0=8,x1=W-8,bw=x1-x0;let b='<defs>'+mark('rd-cr-a',A)+'</defs>';
       b+=T(x0,16,k===0?'pg_control: "in production", not shut down cleanly':'WAL, '+FMTK(C.wal_bytes)+' after the checkpoint',{fs:11.5,w:600,fill:k===0?'var(--bad)':'var(--ink)'});
@@ -26,10 +25,9 @@
       for(let i=0;i<np;i++){const px=x0+70+i*((bw-70)/np);b+=rect(px,py,(bw-70)/np-3,14,{rx:2,fill:i<rebuilt?(k===4?'var(--good)':A):'var(--bg)'})}
       b+=T(x0,py+34,k===4?'end-of-recovery checkpoint wrote 1,015 pages; open for connections':k>=2?'pages rebuilt in the buffer pool from page images and deltas':'pages on disk may be stale or torn',{fs:11,fill:k===4?'var(--good)':M});
       el.innerHTML=RD.svg(W,H,b,'The WAL from the redo point to the end of the log, with the replay cursor and the data pages being rebuilt');
-      lis.forEach((li,i)=>li.classList.toggle('on',i===k));
       $('rd-crashlog').innerHTML=lines.map(l=>{const e=RD.esc(l);return HL[k].test(l)?'<span class="on">'+e+'</span>':e}).join('\n')}
     const FMTK=v=>FMT.n(Math.round(v/1024))+' kB';
-    const A1=RD.anim({card:'rd-crash-card',ctl:'rd-crash-ctl',n:5,draw,ms:2600,label:'Recovery step'});
+    const A1=RD.anim({card:'rd-crash-card',ctl:'rd-crash-ctl',n:5,draw,ms:4200,label:'Recovery step',list:'rd-crash-steps'});
     RD.onResize(()=>A1.redraw());
   }
 

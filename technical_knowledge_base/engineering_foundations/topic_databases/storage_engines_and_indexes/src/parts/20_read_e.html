@@ -1,14 +1,16 @@
-<section id="rd-s8">
+<div class="s3sp"><div class="s3L"><section id="rd-s8">
 <h2>8. Heap tables and clustered tables: where the row itself lives</h2>
 <p>Opening chat 42000 read 6 table pages for 6 messages because rows sit in arrival order. If the table itself were sorted by chat, those messages would share one page. Two designs decide this:</p>
-<div class="card"><h4 class="vt">In a heap every index points at row addresses; in a clustered table the primary-key tree holds the rows and other indexes point at the key</h4>
-<div class="rd-svg" id="rd-clu-svg"></div>
-<p class="small mute"><span class="ill">illustrative</span> Two indexes on the same few messages. Left: Postgres, where any index costs one descent plus one table page per row. Right: InnoDB, where a primary-key range is one walk along the leaves, but a secondary lookup descends two trees.</p></div>
 <div class="two">
 <div><h4>Heap plus indexes (Postgres)</h4><p class="small">The table is a <dfn id="g-heap">heap</dfn>: rows go wherever there is room, in no particular order. Every index, the primary key included, is a separate B-tree whose leaves point to ctids. All indexes are equal, and a row's address changes only when a non-HOT update moves it (then every index gets a new entry, section 1). <code>CLUSTER</code> can sort the table once by an index, but new rows are not kept in order.</p></div>
 <div><h4>Index-organised (InnoDB, SQLite)</h4><p class="small">The table <i>is</i> the primary-key B-tree: its leaves hold whole rows in key order, a <dfn id="g-clustered">clustered index</dfn>. InnoDB clusters on the primary key, or the first unique non-null index, or a hidden 6-byte row id; every secondary index stores the primary key, not a page address, so a secondary lookup walks two B-trees ({{InnoDB index types|https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html}}). SQLite tables are B-trees keyed by rowid; <code>WITHOUT ROWID</code> tables cluster on the primary key ({{SQLite docs|https://www.sqlite.org/withoutrowid.html}}).</p></div>
 </div>
 <p>In InnoDB a primary key of (chat_id, id) puts each chat's messages together, so reading a chat is one or two leaf pages, which Postgres lacks; but a random primary key (UUID v4) scatters every insert across the whole table, and every secondary index carries the full 16-byte key. In Postgres the key's order barely affects the table and a secondary lookup costs the same as a primary-key one; it can approximate clustering for a read-heavy path with a covering index (section 10) or partitioning.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="vt">In a heap every index points at row addresses; in a clustered table the primary-key tree holds the rows and other indexes point at the key</h4>
+<div class="rd-svg" id="rd-clu-svg"></div>
+<p class="small mute"><span class="ill">illustrative</span> Two indexes on the same few messages. Left: Postgres, where any index costs one descent plus one table page per row. Right: InnoDB, where a primary-key range is one walk along the leaves, but a secondary lookup descends two trees.</p></div></div></div></div>
+<section id="rd-s8c">
 <div class="cost"><div class="t">What clustering costs</div>Primary-key range reads get cheap and secondary lookups dearer (two descents), and the primary key now decides physical layout: changing it rewrites the table. Heap tables pay one table-page read per matching row unless the index covers the query.</div>
 </section>
 <section id="rd-s9">
@@ -34,17 +36,19 @@
 <details class="dp"><summary>Bitmap scans: how two single-column indexes combine <span class="mute">(depth)</span></summary><div class="b"><p>Postgres has no stored bitmap index, but it builds bitmaps on the fly: a <b>bitmap index scan</b> collects the matching ctids from an index into a bitmap of pages, two such bitmaps can be combined with AND or OR, and a <b>bitmap heap scan</b> then reads each needed page once, in file order. That is why two single-column indexes can still answer <code>WHERE a = 1 AND b = 2</code> reasonably, and why the plans in the root's {{Query plans|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab often show "Bitmap Heap Scan". Analytical stores do keep bitmap indexes (one bitmap per distinct value of a low-cardinality column).</p></div></details>
 </section>
 
-<section id="rd-s10">
+<div class="s3sp"><div class="s3L"><section id="rd-s10">
 <h2>10. Index shapes: multicolumn, partial, expression, covering</h2>
 <p>Beyond the type, the shape of an index decides which queries it serves ({{Use The Index, Luke|https://use-the-index-luke.com/}} is the best practical guide). <b>Multicolumn</b> (composite): <code>CREATE INDEX ON messages (chat_id, created_at)</code> sorts by chat, then by time within a chat. The rule is <b>equality columns first, then the range or sort column</b>, because after the first range condition the rest of the index is not ordered by the later columns ({{multicolumn indexes|https://www.postgresql.org/docs/18/indexes-multicolumn.html}}, {{concatenated keys|https://use-the-index-luke.com/sql/where-clause/the-equals-operator/concatenated-keys}}). Predict which order reads fewer entries for "chat 42000, after 10:00":</p>
-<div class="card" id="rd-cmp-card"><h4 class="vt">Equality first: the matching entries are one contiguous run; range first: they are scattered through the range</h4>
-<div class="seg" id="rd-cmp-mode"><button data-m="good" class="on">(chat_id, created_at)</button><button data-m="bad">(created_at, chat_id)</button></div>
-<div class="rd-svg" id="rd-cmp-svg"></div>
-<p class="small mute"><span class="ill">illustrative</span> 24 index entries of four chats, sorted as each index sorts them. Highlighted: entries the scan must read; outlined: the 3 it returns. (chat_id, created_at) also serves <code>WHERE chat_id = 42000 ORDER BY created_at</code> and <code>WHERE chat_id = 42000</code> alone; before Postgres 18 it barely served <code>WHERE created_at &gt; ...</code> alone (skip scan, section 5, now helps when the first column has few distinct values).</p></div>
 <ul>
 <li><b>Partial</b>: <code>CREATE INDEX ON messages (tokens) WHERE role = 'assistant' AND tokens &gt; 1000</code> indexes only the rows a known query looks for (long answers, unprocessed jobs, active users). Measured: 95,287 of 1M rows qualify; the partial index is 680 kB against 7.1 MB for an index on tokens over all rows ({{partial indexes|https://www.postgresql.org/docs/18/indexes-partial.html}}).</li>
 <li><b>Expression</b>: <code>CREATE INDEX ON users (lower(email))</code> indexes a computed value, so <code>WHERE lower(email) = ...</code> can use it; wrapping a column in a function hides it from an ordinary index ({{expression indexes|https://www.postgresql.org/docs/18/indexes-expressional.html}}). Why a predicate can or cannot use an index is the planner's story, owned by {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}.</li>
 <li><b>Covering</b> (<code>INCLUDE</code>, Postgres 11): <code>CREATE INDEX ON messages (chat_id) INCLUDE (role, tokens)</code> stores extra columns in the leaves without sorting by them, so a query that needs only those columns is an index-only scan, skipping the table pages (if the visibility map allows, section 1). Measured: fetching role and tokens of chat 42000 touched 12 pages with the plain index and 7 with the covering one, at the price of a 40.6 MB index instead of 9.3 MB.</li>
 </ul>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-cmp-card"><h4 class="vt">Equality first: the matching entries are one contiguous run; range first: they are scattered through the range</h4>
+<div class="seg" id="rd-cmp-mode"><button data-m="good" class="on">(chat_id, created_at)</button><button data-m="bad">(created_at, chat_id)</button></div>
+<div class="rd-svg" id="rd-cmp-svg"></div>
+<p class="small mute"><span class="ill">illustrative</span> 24 index entries of four chats, sorted as each index sorts them. Highlighted: entries the scan must read; outlined: the 3 it returns. (chat_id, created_at) also serves <code>WHERE chat_id = 42000 ORDER BY created_at</code> and <code>WHERE chat_id = 42000</code> alone; before Postgres 18 it barely served <code>WHERE created_at &gt; ...</code> alone (skip scan, section 5, now helps when the first column has few distinct values).</p></div></div></div></div>
+<section id="rd-s10c">
 <div class="cost"><div class="t">What shapes cost</div>Each is one more index to maintain on every write. Wider entries (INCLUDE, long expressions) mean fewer entries per page and a deeper, bigger index. A partial index is used only when the query's WHERE clause implies the index's condition, so a query written differently silently misses it.</div>
 </section>

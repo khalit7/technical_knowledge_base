@@ -1,10 +1,7 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s10">
 <h2>10. Long transactions and what they cost</h2>
 <p>A transaction that stays open costs the whole database, not just its own session, in three ways: it holds its locks (section 6), it holds back clean-up of old row versions, and in Postgres it can hold back transaction-id freezing. The second is invisible until it is large, so it was measured: one session opened a repeatable read transaction, read one row and then did nothing (a forgotten <code>BEGIN</code>, a notebook left open, a request stuck on a model call), while another session updated Ines's balance 20,000 times. Then the same 20,000 updates with no transaction left open, as the control <span class="meas">measured</span>:</p>
-<div class="fig"><h4>One idle transaction kept all 20,000 dead versions alive: 109 pages instead of 1, and every read of Ines's row walked the chain</h4>
-<div class="svgw" id="tx-long"></div>
-<div class="out" id="rd-long"></div>
-<p class="cap mute" id="rd-long-note">Measured 2026-10-04 on PostgreSQL 16.2 with autovacuum turned off for the table so that only the effect of the open transaction shows. Table size 8,192 B (1 page) with nothing held open against 892,928 B (109 pages) with one idle transaction; VACUUM while it was open removed 0 and reported 20,000 dead but not yet removable; after it ended VACUUM removed 20,000 and the file stayed 892,928 B. The 20,000 updates took 4.91 s against 2.05 s; reading Ines's one row took a median 351 µs against 51 µs, and 89 µs after VACUUM (300 primary-key reads from Python over TCP loopback). Script: src/measure/extras.py.</p></div>
 <p>With nothing held open, each old version was pruned on the spot (section 5's HOT updates). With one idle transaction holding an old snapshot, not one of the 20,000 dead versions could be removed (<code>VACUUM VERBOSE</code>: "dead but not yet removable"), the same updates took more than twice as long, and every read of Ines's row walked a chain of dead versions. After it ended, <code>VACUUM</code> removed all 20,000, but the file stayed the same size: the space is reusable, not returned. The same thing on a live server, with autovacuum on: {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}} (section 5) ran 1,500 updates a second against a 100,000-row table and left one session idle in a transaction; autovacuum kept firing every time its trigger was passed and removed nothing, so dead rows and table size climbed in a straight line until the session ended <span class="meas">measured there</span>.</p>
 <div class="fix"><div class="t">What professionals set (Postgres)</div>
 <ul>
@@ -15,12 +12,16 @@
 </ul></div>
 <details class="dp"><summary>Long queries on read replicas <span class="mute">(depth)</span></summary><div class="b"><p>Replicas add a twist: a long query on a read replica either gets cancelled ("canceling statement due to conflict with recovery") or, with <code>hot_standby_feedback = on</code>, holds back clean-up on the primary as if it ran there. That trade-off is on {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}} and {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}.</p></div></details>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="card fig"><h4>One idle transaction kept all 20,000 dead versions alive: 109 pages instead of 1, and every read of Ines's row walked the chain</h4>
+<div class="svgw" id="tx-long"></div>
+<div class="out" id="rd-long"></div>
+<p class="cap mute" id="rd-long-note">Measured 2026-10-04 on PostgreSQL 16.2 with autovacuum turned off for the table so that only the effect of the open transaction shows. Table size 8,192 B (1 page) with nothing held open against 892,928 B (109 pages) with one idle transaction; VACUUM while it was open removed 0 and reported 20,000 dead but not yet removable; after it ended VACUUM removed 20,000 and the file stayed 892,928 B. The 20,000 updates took 4.91 s against 2.05 s; reading Ines's one row took a median 351 µs against 51 µs, and 89 µs after VACUUM (300 primary-key reads from Python over TCP loopback). Script: src/measure/extras.py.</p></div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <section id="rd-s11">
 <h2>11. Transactions across more than one database</h2>
 <p>The chat product soon writes to more than one place: Postgres for credits, a search index for messages, a queue for background jobs, a payment provider. No single <code>COMMIT</code> covers them. The answer at the database level is the <dfn id="g-outbox">transactional outbox</dfn>: write the business change and a row in an <code>outbox</code> table in <i>one</i> local transaction; a separate process publishes the outbox rows to the queue afterwards, at least once. "Write to two systems" becomes "write to one database".</p>
-<div class="fig"><h4>The outbox: one local COMMIT covers the credit, the message and the event; delivery to the queue happens afterwards, at least once</h4>
-<div class="svgw" id="tx-outbox"></div>
-<p class="cap">The relay claims unsent rows with <code>FOR UPDATE SKIP LOCKED</code> (section 6), publishes them and marks them sent. A crash between publishing and marking sends the event again, so consumers must be idempotent. If the transaction rolls back, no event exists: nothing to undo.</p></div>
 <details class="dp"><summary>Two-phase commit and sagas <span class="mute">(the other two answers)</span></summary><div class="b">
 <div class="fam">
 <div style="--sc:var(--c1)"><h4>Two-phase commit (2PC)</h4><p>A coordinator asks every participant to <i>prepare</i> (do everything but the final commit, and promise to be able to commit), then tells all of them to commit. Postgres supports it with <code>PREPARE TRANSACTION</code> and <code>COMMIT PREPARED</code>, off by default (<code>max_prepared_transactions = 0</code>) (<a href="https://www.postgresql.org/docs/16/sql-prepare-transaction.html" target="_blank" rel="noopener noreferrer">Postgres 16, PREPARE TRANSACTION</a>). Its cost is blocking: a participant that has prepared holds its locks until it hears from the coordinator, and if the coordinator dies, it waits. A forgotten prepared transaction also holds back <code>VACUUM</code> like section 10's idle session.</p></div>
@@ -28,6 +29,11 @@
 </div></div></details>
 <p>All three, with measured crash and redelivery behaviour on a real Postgres, are taught on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}} (sections on the outbox and on sagas against two-phase commit). Databases that spread one logical database over many machines and still offer serializable transactions (Spanner, CockroachDB) use consensus and careful clocks under the hood: see {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}} and {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}.</p>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="card fig"><h4>The outbox: one local COMMIT covers the credit, the message and the event; delivery to the queue happens afterwards, at least once</h4>
+<div class="svgw" id="tx-outbox"></div>
+<p class="cap">The relay claims unsent rows with <code>FOR UPDATE SKIP LOCKED</code> (section 6), publishes them and marks them sent. A crash between publishing and marking sends the event again, so consumers must be idempotent. If the transaction rolls back, no event exists: nothing to undo.</p></div>
+</div></div></div>
 <section id="rd-pro">
 <h2>In production (as of October 2026)</h2>
 <p>Most Postgres applications run the default, read committed, with the five habits at the top: checks folded into writes, constraints for every declarable rule, <code>FOR UPDATE</code> where a read must not go stale, and serializable for the few transactions that guard multi-row rules. Teams that choose serializable everywhere (CockroachDB's default, for instance) accept the retry loop as part of every data access path; many MySQL shops run read committed for its simpler locking, with atomic updates or <code>FOR UPDATE</code> because MySQL's repeatable read does not stop lost updates. Short transactions are enforced by settings (<code>idle_in_transaction_session_timeout</code> on application roles, <code>lock_timeout</code> on migrations, a statement timeout per endpoint, an alert on the oldest open transaction); migrations go in small steps and it is the migration that retries, not the app. One retry helper for 40001 and 40P01 serves every transaction, idempotency keys guard the API edge, and job queues live in the database with <code>FOR UPDATE SKIP LOCKED</code> until throughput says otherwise, with an advisory lock for a job that must run once at a time.</p>

@@ -1,4 +1,5 @@
 // Click every control on every tab at 390 px dark and 920 px light; report page errors, NaN/undefined/Infinity in visible text,
+// (the 3D stages and autoplay: check_stages.mjs)
 // sideways page scroll; step every Reading animation in every mode to its end; compare the page's numbers with recompute_out.json.
 // Screenshots in ../.shots/check/. Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_databases/storage_engines_and_indexes/src/check_page.mjs
@@ -27,12 +28,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const scan = async tag => { const t = await p.evaluate(() => { const v = [...document.querySelectorAll('.tab')].find(x => !x.hidden); return v ? v.innerText : '' });
     if (bad(t)) probs.push(tag + ': bad text ' + (t.match(/.{0,40}(NaN|undefined|Infinity|\[object).{0,40}/) || [''])[0]);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); if (sw) probs.push(tag + ': sideways scroll') };
-  // Nothing may move before the reader acts: wait, then every step slider must still be at 0
-  for (const id of await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id))) { await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(900) }
-  await sleep(1500); const moved = await p.$$eval('#t-read .an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
-  if (moved.length) probs.push('autoplay: ' + moved.join(' '));
+  // Motion (since 2026-11-06 animations and stages play by themselves once in view, and never under reduced motion) is checked by check_stages.mjs.
     // Reading: animations
-  const cards = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id.replace(/-ctl$/, '')));
+  const cards = await p.$$eval('#t-read .an-ctl[id$="-ctl"]', es => es.map(e => e.id.replace(/-ctl$/, '')));
   for (const c of cards) {
     const modes = await p.$$eval('#' + c + '-mode button', es => es.map(e => e.dataset.m)).catch(() => []);
     for (const m of (modes.length ? modes : [null])) {

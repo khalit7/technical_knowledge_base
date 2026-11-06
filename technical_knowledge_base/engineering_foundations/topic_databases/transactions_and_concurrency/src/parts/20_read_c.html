@@ -30,11 +30,23 @@
 <p>A moves 10 credits from Ines (user 7) to Quinn (user 12), the transfer from the root's SQL playground lesson 10; the total is always 50. B, an audit job, reads Ines's balance before the transfer and Quinn's after it, and adds them up to 60. Every row B read was committed; the mix is from two moments. Backups, exports and reports that run for minutes at read committed are exposed to exactly this.</p>
 <div class="anx" data-k="readskew" data-def="pg|read committed"></div>
 </div>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-skew"></div></div><div class="s3L">
+<section id="rd-s3-skew">
 <div class="card" id="an-writeskew">
 <h3>6. Write skew: two valid decisions, one broken rule</h3>
-<p>The chat product's incident rota needs at least one engineer on call. Ana and Raj are both on call and both feel ill. Each runs "if someone else is on call, take me off": each counts 2, each updates <i>their own</i> row. No row is written twice, so no lock conflicts and no update is lost, yet nobody is on call. This is the on-call doctors example from Kleppmann's <i>Designing Data-Intensive Applications</i>; Berenson et al. named the pattern A5B.</p>
+<p>The chat product's incident rota needs at least one engineer on call. Ana and Raj are both on call and both feel ill. Each runs "if someone else is on call, take me off". This is the on-call doctors example from Kleppmann's <i>Designing Data-Intensive Applications</i>; Berenson et al. named the pattern A5B.</p>
+<p class="sxh">Fig. 2: write skew on the rota, three recorded runs</p>
+<ol class="sx" id="sx-skew">
+<li><b>The rule and the rows.</b> Ana and Raj are both on call (the green strips). The rule, at least one engineer on call, is not declared in the schema, so only the code enforces it.</li>
+<li><b>Both count 2.</b> At repeatable read, A (Ana) and B (Raj) each run <code>SELECT count(*) FROM oncall WHERE on_call</code>: both snapshots honestly show 2.</li>
+<li><b>Each signs off their own row.</b> A sets Ana off, B sets Raj off, and both commit. No row was written twice, so nothing waited and no update was lost, yet 0 engineers are on call.</li>
+<li><b>Serializable refuses B's COMMIT.</b> The same statements: Postgres records a read-write dependency each way (each read the row the other then wrote: the red arcs) and refuses B at <code>COMMIT</code> with SQLSTATE 40001. Raj stays on call.</li>
+<li><b>Or lock the rows you read.</b> At read committed with <code>SELECT engineer FROM oncall WHERE on_call FOR UPDATE</code>, A locks both rows; B's same read waits until A commits, then returns only raj, so Raj stays on call.</li>
+</ol>
+
 <div class="anx" data-k="writeskew" data-def="pg|repeatable read"></div>
-<p>Repeatable read does not help: both snapshots honestly showed 2. Only serializable caught it on Postgres, at B's <code>COMMIT</code>, with "could not serialize access due to read/write dependencies among transactions" (SQLSTATE 40001). Or lock the rows you read: <code>SELECT ... FROM oncall WHERE on_call FOR UPDATE</code> makes the second engineer wait, then see 1 <span class="meas">measured</span>.</p>
+<p>Postgres's error for B was "could not serialize access due to read/write dependencies among transactions" (SQLSTATE 40001); with <code>FOR UPDATE</code> the second engineer waits, then sees 1 <span class="meas">measured</span>. The chips below the recording are every level on both databases.</p>
 </div>
 <div class="card" id="an-quota">
 <h3>7. Write skew on a quota: the row that does not exist yet</h3>
@@ -42,6 +54,9 @@
 <div class="anx" data-k="quota" data-def="pg|repeatable read"></div>
 <p>Three fixes, best first. <b>Materialise the conflict</b> (Kleppmann's term): keep a <code>daily_usage(user_id, day, n)</code> row and make the check and the increment one statement, <code>UPDATE daily_usage SET n = n + 1 WHERE user_id = 7 AND day = ... AND n &lt; 3</code>; zero rows changed means over quota, and two tabs now collide on one row, which read committed handles (section 1's atomic update). <b>Lock a row both must touch</b>: <code>SELECT ... FROM users WHERE id = 7 FOR UPDATE</code> first (the chip marked <i>fix</i>). <b>Use serializable</b> and retry, which caught it on Postgres <span class="meas">measured</span>. MySQL's gap locks, its answer to phantoms, protect only <i>locking</i> reads; the plain <code>SELECT count(*)</code> took none, so MySQL's repeatable read let the fourth message through too.</p>
 </div>
+</section>
+</div></div>
+<section id="rd-s3-ro">
 <div class="card" id="an-readonly">
 <h3>8. A serialization anomaly with a read-only transaction</h3>
 <p>The subtlest one, found by Fekete, O'Neil and O'Neil in 2004 (<a href="https://www.cs.umb.edu/~poneil/ROAnom.pdf" target="_blank" rel="noopener noreferrer">"A Read-Only Transaction Anomaly Under Snapshot Isolation"</a>) and used on the PostgreSQL wiki as the "deposit report" (<a href="https://wiki.postgresql.org/wiki/SSI" target="_blank" rel="noopener noreferrer">PostgreSQL wiki, SSI</a>). Credit purchases are filed under the open billing batch. A, a purchase, reads "batch 1 is open". B closes batch 1 and commits. C, a report, sees batch 1 closed and totals it: 100. A then files its purchase in batch 1 and commits: batch 1 now totals 150, after a report on the closed batch said 100. Remove the report and the history is fine; the read-only transaction is what makes it impossible.</p>

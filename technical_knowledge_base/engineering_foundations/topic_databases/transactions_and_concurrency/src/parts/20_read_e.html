@@ -1,25 +1,59 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s5">
 <h2>5. MVCC: how a database isolates without stopping everyone</h2>
 <p>The simplest isolation locks everything a transaction reads or writes until it commits (two-phase locking), so a long report blocks every writer it touches. Postgres, MySQL's InnoDB, Oracle and most modern databases instead keep several versions of a row, so a reader sees an older version while a writer prepares a newer one: <dfn id="g-mvcc">multi-version concurrency control</dfn> (MVCC). In the Postgres documentation's words, "reading never blocks writing and writing never blocks reading" (<a href="https://www.postgresql.org/docs/16/mvcc-intro.html" target="_blank" rel="noopener noreferrer">Postgres 16, MVCC introduction</a>).</p>
 <h3>Row versions and snapshots in Postgres</h3>
 <p>Every transaction that writes gets a <dfn id="g-xid">transaction id</dfn> (xid) from a counter. Every row version (a <i>tuple</i>) carries two hidden fields: <dfn id="g-xmin">xmin</dfn>, the xid that created it, and <dfn id="g-xmax">xmax</dfn>, the xid that deleted or replaced it (0 if none). An <code>UPDATE</code> sets xmax on the old version and writes a new one with xmin = its own xid; <code>SELECT xmin, xmax, * FROM credits</code> shows them. A <dfn id="g-snapshot">snapshot</dfn>, written <code>xmin:xmax:list</code>, says which transactions had finished at one moment: every xid below the first number had finished, every xid from the second on had not started, and the list names those in between still running. <b>A version is visible if its creator had committed by the snapshot and its deleter had not.</b></p>
-<div class="fig"><h4>B's snapshot 744:744: sees the version of 30 and not the version of 20, because transaction 744 had not started when the snapshot was taken</h4>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="card fig"><h4>B's snapshot 744:744: sees the version of 30 and not the version of 20, because transaction 744 had not started when the snapshot was taken</h4>
 <div class="svgw" id="tx-snap"></div>
 <p class="cap">Real values from the serializable run below (PostgreSQL 16.15, pageinspect): after A (xid 744) committed, the page holds balance 30 (xmin 743, xmax 744) and balance 20 (xmin 744). For B's snapshot, 743 is in the past and committed, 744 is in the future, so the deleter of 30 and the creator of 20 are both invisible: B reads 30. At read committed each statement takes a new snapshot; at repeatable read and serializable the first statement's snapshot serves the whole transaction.</p></div>
-<p>The animation replays the lost update of section 1 three ways, with the real heap page read after every step (the <code>pageinspect</code> extension) and each session's real snapshot (<code>pg_current_snapshot()</code> inside the same statement).</p>
-<div class="card" id="rd-mv-card">
-<h4>The lost update three ways on a real heap page: predict where B's write reads its 30 or its 20 from, then step</h4>
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-mv"></div></div><div class="s3L">
+<section id="rd-s5-mv">
+<h3>The lost update three ways, on a real heap page</h3>
+<p>Fig. 3 replays the lost update of section 1 three ways, with the real heap page read after every step (the <code>pageinspect</code> extension) and each session's real snapshot (<code>pg_current_snapshot()</code> inside the same statement). Each box is one version of Ines's row, its height the balance, with its xmin and xmax under it; green is current, gold is not yet committed, faded is dead. Predict where B's write reads its 30 or its 20 from, then watch.</p>
 <div class="seg" id="rd-mv-mode"><button data-m="naive" class="on">Read committed, read then write</button><button data-m="for_update">SELECT ... FOR UPDATE</button><button data-m="serializable">Serializable, with a retry</button></div>
-<div class="an-ctl" id="rd-mv-ctl"></div>
-<div class="an-cnt" id="rd-mv-cnt"></div>
-<div id="rd-mv-lanes"></div>
-<div class="small mute" style="margin-top:6px"><b>Heap page 0 of credits</b>: every version of Ines's row; green border = the latest committed version, faded = dead (replaced by a committed transaction).</div>
-<div class="pg" id="rd-mv-page"></div>
-<div class="snaps" id="rd-mv-snaps"></div>
-<div class="an-cap" id="rd-mv-cap"></div>
-<p class="small mute" id="rd-mv-note"></p>
-</div>
+<ol class="sx" id="sx-mv-naive">
+<li><b>Start.</b> Ines's row is one version on the page: balance 30, created by transaction 733 long ago. Both tabs run at read committed, Postgres's default.</li>
+<li><b>A reads 30.</b> <code>SELECT balance FROM credits WHERE user_id = 7</code>. A's snapshot is <code>734:734:</code>: every transaction below 734 has finished and none is running. A has no transaction id yet, because it has not written anything.</li>
+<li><b>B begins.</b> B opens its transaction.</li>
+<li><b>B reads 30.</b> B takes its own snapshot, the same one: it sees the same version, 30. Nothing blocks a read.</li>
+<li><b>A writes 20.</b> <code>UPDATE credits SET balance = 20 WHERE user_id = 7</code>. A gets transaction id 734. It does not overwrite: it stamps xmax = 734 on the old version and writes a new version with xmin = 734. Until A commits, everyone else still sees 30.</li>
+<li><b>A commits.</b> One bit in the commit log flips: 734 is committed. The old version is now dead and the new one is current.</li>
+<li><b>B writes 25.</b> B's <code>UPDATE</code> takes a fresh snapshot (<code>735:735:</code>), finds the current version (20), and replaces it with the number B computed from its old read: 30 - 5 = 25. The database did what it was told.</li>
+<li><b>Result: an update lost.</b> Three versions on the page; the current one says 25. Both spends committed; Ines was charged for one of them. Nothing in the database was wrong; the read and the write were simply two separate statements.</li>
+</ol>
+<ol class="sx" id="sx-mv-for_update" hidden>
+<li><b>Start.</b> The same row (created by transaction 738), the same two spends. This time each tab reads with <code>SELECT ... FOR UPDATE</code>.</li>
+<li><b>A reads 30 and locks it.</b> The lock is written into the row itself: xmax = 739 with a "lock only" flag (the gold block). A now has a transaction id, because taking a row lock needs one.</li>
+<li><b>B begins.</b> B opens its transaction.</li>
+<li><b>B waits.</b> B asks for the same row lock and waits. Postgres reports B as waiting on a lock of type transactionid: B is waiting for A's whole transaction to end.</li>
+<li><b>A writes 20.</b> A writes a new version (xmin = 739); it carries A's lock forward.</li>
+<li><b>A commits; B wakes up.</b> A's commit releases the lock. B's read finally returns, and at read committed it re-reads the latest version: 20, not 30. B's own lock (transaction 740) now sits on that version.</li>
+<li><b>B writes 15.</b> B computes 20 - 5 = 15 and writes it.</li>
+<li><b>Result: correct.</b> Final balance 15: both spends counted. The price was B's wait while A held the lock, which in real code includes whatever A does between its read and its commit.</li>
+</ol>
+<ol class="sx" id="sx-mv-serializable" hidden>
+<li><b>Start.</b> The same row (created by transaction 743) and spends, both transactions at serializable.</li>
+<li><b>A reads 30.</b> A takes its snapshot <code>744:744:</code>; at serializable it keeps it for the whole transaction.</li>
+<li><b>B begins.</b> B opens its transaction.</li>
+<li><b>B reads 30.</b> B takes its snapshot, also <code>744:744:</code>, and keeps it.</li>
+<li><b>A writes 20.</b> A writes a new version, xmin = 744.</li>
+<li><b>A commits.</b> The version 20 is current; B's snapshot still cannot see it, because 744 was not finished when B's snapshot was taken.</li>
+<li><b>B is refused.</b> B tries to update the version it can see (30), but that version was replaced by a transaction B cannot see. Postgres answers "ERROR 40001: could not serialize access due to concurrent update" and the transaction is dead. No new version was written.</li>
+<li><b>B rolls back.</b> B's <code>COMMIT</code> is answered with <code>ROLLBACK</code>.</li>
+<li><b>B retries.</b> The application catches SQLSTATE 40001 and runs the whole transaction again (section 9).</li>
+<li><b>B reads 20.</b> A new snapshot, <code>746:746:</code>, sees A's commit.</li>
+<li><b>B writes 15.</b> 20 - 5 = 15, as transaction 746.</li>
+<li><b>Result: correct, one retry.</b> Final balance 15. No one waited for a lock; B did its work twice instead.</li>
+</ol>
 <p>What to take from it: at read committed B's <code>UPDATE</code> took a <i>fresh</i> snapshot and wrote a value computed from an old read; with <code>FOR UPDATE</code> A's lock is written into the row itself (xmax = A's xid, marked lock-only) and B waits on A's transaction; under serializable B's fixed snapshot sees a version already replaced by a transaction it cannot see, and Postgres refuses.</p>
+<p class="small mute" id="rd-mv-note">Recorded 2026-10-04 on PostgreSQL 16.15 (the conda-forge build, used here because it ships pageinspect; every other run on this page used 16.2 from the pgserver wheel). Transaction ids differ between the three runs because each run is a new transaction on the same server. Script: src/measure/mvcc_trace.py.</p>
+</section>
+</div></div>
+<section id="rd-s5-vac">
 <h3>Why VACUUM exists</h3>
 <p>Old versions are not removed when they stop being current, because a transaction with an old snapshot might still need them. Once no running transaction can see a dead version, <code>VACUUM</code> makes its space reusable (run automatically by <dfn id="g-autovacuum">autovacuum</dfn>), but does not give it back to the operating system: the table stays large, which is called <dfn id="g-bloat">bloat</dfn>. VACUUM also freezes very old versions so the 32-bit transaction counter can wrap around safely; skipping that for about 2 billion transactions makes Postgres refuse writes, which took Sentry's writes down for hours in July 2015 (<a href="https://www.postgresql.org/docs/16/routine-vacuuming.html" target="_blank" rel="noopener noreferrer">Postgres 16, routine vacuuming</a>; <a href="https://blog.sentry.io/transaction-id-wraparound-in-postgres/" target="_blank" rel="noopener noreferrer">Sentry, 2015</a>). Tuning autovacuum, freezing and fixing bloat belong to {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}; the part about transactions, a long transaction stopping clean-up, is measured in section 10.</p>
 <p>An update that stays within its page and changes no indexed column is a <dfn id="g-hot">HOT update</dfn> (heap-only tuple): no index entry is added, and later readers prune the dead versions on that page without waiting for <code>VACUUM</code>. That is why section 10's control run updated one row 20,000 times and the table never grew past one page.</p>
