@@ -18,7 +18,7 @@
     $('sq-bars').innerHTML=COND.map(([c,n],j)=>{const v=c==='retrieved'?(D.schema_ret.systems['bge-small'].tokens_at['5']):toks[c];const lab=c==='retrieved'?'about '+GRL.fmt(v)+' (mean)':GRL.fmt(v);
       return '<div class="sq-row'+(j===Math.min(i,3)?' on':'')+'"><span class="nm">'+n.split(':')[0]+'</span><div class="sq-bar" style="width:'+(100*Math.max(v,1)/max).toFixed(1)+'%;opacity:'+(j<=i?1:.15)+'"></div><span class="v">'+lab+' tok</span></div>'}).join('');
     const c=COND[Math.min(i,3)][0];
-    $('sq-cap').textContent=COND[Math.min(i,3)][1]+'. '+({none:'The model must guess every table and column name.',all20:'Everything is there, including '+GRL.fmt(S.meta.tables)+' tables the question does not need; the model must also pick the database.',retrieved:'Only the top 5 tables of the pooled 81; green ones are read by the gold SQL. The model must still pick the database.',oracle:'The standard Spider setting: the right database, all of its tables.'})[c];
+    // the step list on the left (sx-sq) explains each prompt condition; the live counters and the model's query stay under the card
     let body='';
     if(c==='retrieved')body+='<div class="sq-tabs">'+top.map(([db,t])=>'<span class="sq-tb'+(gold.has(db+'.'+t)?' g':'')+'">'+E(db)+'.'+E(t)+'</span>').join('')+'</div><div class="small mute">'+r.tables.filter(t=>top.some(([d,x])=>d===r.db&&x===t)).length+' of '+r.tables.length+' gold tables retrieved</div>';
     if(c==='oracle'||c==='retrieved'){const s=D.schema[r.db];body+='<div class="gr-src sq-schema">'+Object.values(s).filter(x=>c==='oracle'||top.some(([d,t])=>d===r.db&&x.toLowerCase().includes('"'+t+'"'))).map(E).join('\n')+'</div>'}
@@ -31,7 +31,7 @@
     const K=D.kuzu;const C=D.cypher_runs&&(D.cypher_runs['1.7b']||D.cypher_runs['4b']);
     $('sq-cy').innerHTML='<div class="gr-src">'+E(K.schema)+'</div>'+K.examples.map(e=>'<p class="small"><b>'+E(e.q)+'</b></p><div class="gr-src">'+E(e.sql)+'\n'+E(e.cypher)+'</div><div class="small">'+(e.equal?'same rows from SQLite and Kùzu':'different rows')+': '+E(e.cypher_rows.slice(0,3).map(x=>x.join(', ')).join(' | '))+'</div>').join('')+
       (C?'<p class="small">Generated, 45 questions: SQL '+C.sql.ex+' of 45 match, Cypher '+C.cypher.ex+' of 45 <span class="meas">measured</span>.</p>':'<div class="gr-pbox"><b>Pending run.</b> The same 45 questions written as SQL and as Cypher by the local model (s_cypher_run.py run 1.7b, about 3 min).</div>')}
-  const A=RD.anim({card:'sq-card',ctl:'sq-ctl',n:4,draw,ms:2000,label:'Prompt condition'});
+  const A=RD.anim({card:'sq-card',ctl:'sq-ctl',n:4,draw,ms:4200,label:'Prompt condition',list:'sx-sq'});
   $('sq-db').addEventListener('change',qs);$('sq-q').addEventListener('change',e=>{ri=+e.target.value;draw2()});
   qs();
   RD.onRender(()=>A.redraw());

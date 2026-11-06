@@ -183,6 +183,11 @@ def main():
                   t + "_s": f0(av("cost_global", "s")), t + "_ns": f1(av("cost_naive", "s")), t + "_ratio": f0(av("cost_global", "in") / av("cost_naive", "in")),
                   t + "_paras": f0(sum(x["paragraphs_behind_points"] for x in a) / n), t + "_repin": f0(g["report_cost"]["report_in"]),
                   t + "_reps": f0(g["report_cost"]["report_s"])})
+        if t == "g4":  # the map step's scores over every (question, report) pair: the 0-score filter, the stage's step 3 (2026-11-06)
+            ms = [m_[1] for y in a for m_ in y["map"]]
+            F.update(g4_map_n=f0(len(ms)), g4_map_zero=f0(sum(1 for s in ms if s == 0)), g4_map_ge85=f0(sum(1 for s in ms if s >= 85)),
+                     g4_q1_in=f0(a[0]["cost_global"]["in"]), g4_q1_nin=f0(a[0]["cost_naive"]["in"]), g4_q1_paras=f0(a[0]["paragraphs_behind_points"]),
+                     g4_q1_pts=f0(a[0]["points"]))
     x = G["extract_1_7b"]
     if x:
         m_ = x["meta"]

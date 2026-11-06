@@ -48,17 +48,20 @@ missing = [k for k, v in F.items() if k != "pending_runs" and str(v) not in html
 ok(not missing or all(k.startswith(("pt_", "ptq_", "ent_subset", "sr_bm25_tok", "sr_bm25_all", "sr_bgesmall_tok", "sr_bgesmall_all", "ppr_", "root_", "kz_", "lr_", "nlp_", "sub_", "full_", "sql_", "ex_", "lab_", "ent_", "g17_", "g4_", "x17_", "x4_", "qa", "sql4", "cy4", "lr4", "e40", "e150", "agt_")) for k in missing),
    "facts not quoted in prose are only derived variants (%d unquoted)" % len(missing))
 # 3. independent recomputation
-from grlib import L, hotpot, both_at  # noqa: E402
-qs, corpus, by = hotpot()
-hops = json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "hops.json")))
-ok(all(GR["ppr"]["systems"]["dense"]["both"][k] == hops["systems"]["bge-small"]["both"][k] for k in ("2", "5", "10", "20")),
-   "dense both@k equals the root Agentic lab's hops.json (bge-small)")
-ok(all(GR["ppr"]["systems"]["bm25"]["both"][k] == hops["systems"]["bm25"]["both"][k] for k in ("2", "5", "10", "20")), "BM25 both@k equals hops.json")
-run = L.run("hotpotqa", "bge-small")
-n5 = sum(both_at(list(run[q["qid"]].keys()), q["gold_pids"], (5,))[5] for q in qs)
-ok(n5 == GR["ppr"]["systems"]["dense"]["both"]["5"], "dense both@5 recomputed from the setup's bge-small run file: %d" % n5)
-ph = json.load(open(L.path("gr", "nlp_phrases.json")))["phrases"]
-ok(len({x for v in ph.values() for x in v}) == GR["nlp"]["distinct"] and sum(len(v) for v in ph.values()) == GR["nlp"]["phrases"], "noun-phrase counts recomputed from the raw extraction")
+if os.environ.get("RAG_SCRATCH"):  # the shared setup folder; without it (another machine) the recomputation from raw artefacts is skipped and said so
+    from grlib import L, hotpot, both_at  # noqa: E402
+    qs, corpus, by = hotpot()
+    hops = json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "hops.json")))
+    ok(all(GR["ppr"]["systems"]["dense"]["both"][k] == hops["systems"]["bge-small"]["both"][k] for k in ("2", "5", "10", "20")),
+       "dense both@k equals the root Agentic lab's hops.json (bge-small)")
+    ok(all(GR["ppr"]["systems"]["bm25"]["both"][k] == hops["systems"]["bm25"]["both"][k] for k in ("2", "5", "10", "20")), "BM25 both@k equals hops.json")
+    run = L.run("hotpotqa", "bge-small")
+    n5 = sum(both_at(list(run[q["qid"]].keys()), q["gold_pids"], (5,))[5] for q in qs)
+    ok(n5 == GR["ppr"]["systems"]["dense"]["both"]["5"], "dense both@5 recomputed from the setup's bge-small run file: %d" % n5)
+    ph = json.load(open(L.path("gr", "nlp_phrases.json")))["phrases"]
+    ok(len({x for v in ph.values() for x in v}) == GR["nlp"]["distinct"] and sum(len(v) for v in ph.values()) == GR["nlp"]["phrases"], "noun-phrase counts recomputed from the raw extraction")
+else:
+    print("skip dense, BM25 and noun-phrase recomputation: RAG_SCRATCH is not set (the shared setup folder is absent on this machine)")
 rows = GR["sql"]["rows"]
 ok(sum(1 for r in rows if r["support_rows"] is not None) == GR["sql"]["meta"]["aggregate_q"] and sum(1 for r in rows if (r["support_rows"] or 0) > 10) == GR["sql"]["meta"]["aggregate_over_10_rows"], "aggregate counts recomputed from rows")
 st = json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "strategies.json")))["1.7b"]
@@ -71,6 +74,11 @@ for m in ("1.7b", "4b"):
            "%s dense and agent F1 read from the root's run files equal its committed strategies.json" % m)
 for k in ("expand_title", "hybrid"):  # the top 5 the answers used are the top 5 of ppr_perq (both gold counts agree)
     ok(qa["1.7b"]["agg"][k]["both_gold"] == GR["ppr"]["systems"][k]["both"]["5"], "QA prompts held the same top 5 as the retrieval table (%s)" % k)
+g4 = D("global_4b.json")  # the global-search stage's step list (2026-11-06): map scores and the first question's totals, from the raw run
+ms = [m[1] for a in g4["answers"] for m in a["map"]]
+ok(F["g4_map_n"] == "%d" % len(ms) and F["g4_map_zero"] == "%d" % ms.count(0) and F["g4_map_ge85"] == "%d" % sum(1 for x in ms if x >= 85), "map scores quoted as recorded (%d answers, %d at 0)" % (len(ms), ms.count(0)))
+a0 = g4["answers"][0]
+ok(F["g4_q1_in"] == "{:,}".format(a0["cost_global"]["in"]) and F["g4_q1_nin"] == "{:,}".format(a0["cost_naive"]["in"]) and F["g4_q1_paras"] == str(a0["paragraphs_behind_points"]) and F["g4_q1_pts"] == str(a0["points"]), "the themes question's totals quoted as recorded")
 lab = json.load(open(os.path.join(HERE, "inputs", "merge_labels.json")))
 ok(all(F["lab_" + h] == "%d of 30" % sum(x["correct"] for x in lab["items"][h]) for h in ("norm", "subset", "embed")), "hand-label counts quoted as recorded")
 # 4. privacy

@@ -8,7 +8,7 @@
   $('ba-a').innerHTML=B.systems.map(k=>'<option value="'+k+'"'+(k==='dense'?' selected':'')+'>'+E(NAME[k]||k)+'</option>').join('');
   $('ba-b').innerHTML=B.systems.map(k=>'<option value="'+k+'"'+(k==='expand_title'?' selected':'')+'>'+E(NAME[k]||k)+'</option>').join('');
   let a='dense',b='expand_title',list=[],cur=0,pos=0;
-  function setPos(p){pos=p;cur=list.length?list[pos]:-1;$('ba-pos').textContent=list.length?'question '+(pos+1)+' of '+list.length:'no question';$('ba-prev').disabled=pos<=0;$('ba-next').disabled=pos>=list.length-1;A.reset(7)}
+  function setPos(p){pos=p;cur=list.length?list[pos]:-1;$('ba-pos').textContent=list.length?'question '+(pos+1)+' of '+list.length:'no question';$('ba-prev').disabled=pos<=0;$('ba-next').disabled=pos>=list.length-1;A.reset(7);A.go(6,true)}
   const both=(r,k)=>r.g.every(g=>r.top[si(k)].includes(g));
   function filt(){const f=$('ba-f').value;
     list=B.rows.map((r,i)=>i).filter(i=>{const r=B.rows[i];return f==='all'||(f==='win'&&both(r,b)&&!both(r,a))||(f==='loss'&&both(r,a)&&!both(r,b))||(f===r.t)});
@@ -27,7 +27,8 @@
     $('ba-cap').textContent=i===0?'The question. Both systems rank the same 9,760 paragraphs; nothing is generated at retrieval time.':i<=5?'Rank '+i+' of 5 on both sides.':
       (both(r,b)&&!both(r,a)?'B has both gold paragraphs and A does not: the second hop came '+(b==='expand_title'?'through a title mention.':'from the graph.'):both(r,a)&&!both(r,b)?'A has both and B does not: B traded a gold paragraph for a linked one.':both(r,a)?'Both systems have both gold paragraphs.':'Neither system has both gold paragraphs in its top 5.');
     $('ba-ctr').innerHTML='<span>gold found by A <b>'+ga+'</b> of 2</span><span>gold found by B <b>'+gb+'</b> of 2</span>'}
-  const A=RD.anim({card:'ba-card',ctl:'ba-ctl',n:7,draw,ms:1200,label:'Rank'});
+  // a widget the reader drives (the question, the filter, the two systems): it opens on the last step and never plays by itself
+  const A=RD.anim({card:'ba-card',ctl:'ba-ctl',n:7,draw,ms:1200,label:'Rank',auto:false,start:6});
   $('ba-f').addEventListener('change',filt);
   $('ba-prev').addEventListener('click',()=>{if(pos>0)setPos(pos-1)});
   $('ba-next').addEventListener('click',()=>{if(pos<list.length-1)setPos(pos+1)});

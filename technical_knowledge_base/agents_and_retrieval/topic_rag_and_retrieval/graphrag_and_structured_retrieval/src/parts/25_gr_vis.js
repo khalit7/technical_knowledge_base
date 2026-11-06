@@ -11,18 +11,6 @@
     s.split(' ').forEach(w=>{if((cur+' '+w).trim().length>n&&cur){out.push(cur);cur=w}else cur=(cur+' '+w).trim()});if(cur)out.push(cur);return out};
   const draws=[];const reg=f=>{draws.push(f)};
 
-  // ---- hero: four questions, four structures ----
-  (function(){const el=$('gr-hero');if(!el)return;
-    const G={chunks:'<svg width="120" height="80" viewBox="0 0 120 80" role="img" aria-label="a ranked list of chunks">'+[0,1,2,3].map(i=>R(20,8+i*17,80-i*12,12,{fill:i<2?'var(--mute)':'var(--soft)',stroke:'var(--line)'})).join('')+'</svg>',
-      graph:'<svg width="120" height="80" viewBox="0 0 120 80" role="img" aria-label="paragraph A, a shared entity node and paragraph B">'+L(30,40,58,40,{stroke:'var(--acc)',sw:2})+L(62,40,90,40,{stroke:'var(--acc)',sw:2})+R(6,28,26,24,{fill:'var(--soft)',stroke:'var(--line)'})+T(19,44,'A',{a:'middle',fs:12})+'<circle cx="60" cy="40" r="9" fill="var(--acc)"/>'+R(88,28,26,24,{fill:'var(--soft)',stroke:'var(--line)'})+T(101,44,'B',{a:'middle',fs:12})+T(60,70,'shared entity',{a:'middle',fs:11,fill:'var(--mute)'})+'</svg>',
-      comm:'<svg width="120" height="80" viewBox="0 0 120 80" role="img" aria-label="three clusters of nodes, each summarised">'+[[28,30,'var(--c1)'],[78,24,'var(--c3)'],[58,58,'var(--c5)']].map(([x,y,c])=>[[0,0],[9,5],[-8,6],[3,-9],[-5,-6]].map(([dx,dy])=>'<circle cx="'+(x+dx)+'" cy="'+(y+dy)+'" r="3.6" fill="'+c+'"/>').join('')+'<circle cx="'+x+'" cy="'+y+'" r="15" fill="none" stroke="'+c+'" stroke-dasharray="3 2"/>').join('')+'</svg>',
-      table:'<svg width="120" height="80" viewBox="0 0 120 80" role="img" aria-label="a table where every row is counted">'+[0,1,2,3,4].map(i=>R(18,6+i*13,84,11,{fill:i?'var(--acc)':'var(--soft)',op:i?0.35:1,stroke:'var(--line)',rx:1})).join('')+T(60,77,'COUNT(*) over every row',{a:'middle',fs:10.5,fill:'var(--mute)'})+'</svg>'};
-    const C=[['Local','"What year was Goldfinger released?"','chunks','top-k chunks','one passage resembles the question','index: embeddings','query: 1 search, 1 call',0],
-      ['Multi-hop','"What post did the actress who played Corliss Archer hold?"','graph','an entity graph','walk from A through a shared entity to B','index: 2 LLM calls per chunk, plus entity resolution','query: a walk or PageRank, no LLM',1],
-      ['Global','"What are the main themes of this corpus?"','comm','community summaries','map the question over every report, then reduce','index: + 1 LLM call per community','query: 1 call per community',1],
-      ['Aggregate','"How many singers are from France?"','table','SQL over every row','retrieve the schema, write the query','index: none, the data is already tables','query: 1 call, then the database counts',1]];
-    el.innerHTML='<div class="h4g">'+C.map(c=>'<div'+(c[7]?' class="on"':'')+'><div class="k">'+c[0]+'</div><div class="q">'+E(c[1])+'</div><div class="ar">&darr;</div>'+G[c[2]]+'<div class="s">'+c[3]+'</div><div>'+c[4]+'</div><div class="c">'+c[5]+'</div><div class="c">'+c[6]+'</div></div>').join('')+'</div>'})();
-
   // ---- extraction cost per text token as the chunk size moves ----
   (function(){const el=$('gr-xc');if(!el)return;const P=D.prompts.graphrag_extract_graph.o200k,CT=D.prompts.graphrag_continue.o200k,O1=400;
     const sl=$('gr-xc-c');
@@ -92,34 +80,6 @@
         if(i<B.length-1){s+=L(W/2,y+1,W/2,y+13,{m:1});y+=16}});
       el.innerHTML=RD.svg(W,y+4,s,'DRIFT search in five stages')}
     reg(draw)})();
-
-  // ---- personalised PageRank on a toy phrase graph ----
-  (function(){const el=$('gr-ppr');if(!el)return;
-    const NODES={'Kiss and Tell':[.24,.30],'Corliss Archer':[.52,.10],'Shirley Temple':[.52,.55],'Chief of Protocol':[.80,.80],'diplomat':[.84,.45],'1945':[.06,.10],'Broadway':[.05,.55],'F. Hugh Herbert':[.20,.88],'radio':[.86,.10]};
-    const Ed=[['Kiss and Tell','Shirley Temple'],['Shirley Temple','Corliss Archer'],['Kiss and Tell','1945'],['Shirley Temple','Chief of Protocol'],['Shirley Temple','diplomat'],['Kiss and Tell','F. Hugh Herbert'],['Kiss and Tell','Broadway'],['Corliss Archer','radio'],['Kiss and Tell','Corliss Archer']];
-    const PAS=[['A','Kiss and Tell (1945 film)',['Kiss and Tell','Corliss Archer','Shirley Temple','1945']],['B','Shirley Temple',['Shirley Temple','Chief of Protocol','diplomat']],['C','Kiss and Tell (play)',['Kiss and Tell','Broadway','F. Hugh Herbert']],['D','Meet Corliss Archer (radio)',['Corliss Archer','radio']]];
-    const Q=['Kiss and Tell','Corliss Archer'],d=0.5,names=Object.keys(NODES),adj={};names.forEach(n=>adj[n]=[]);Ed.forEach(([a,b])=>{adj[a].push(b);adj[b].push(a)});
-    const spec=n=>1/PAS.filter(p=>p[2].includes(n)).length;const r={};names.forEach(n=>r[n]=0);Q.forEach(n=>r[n]=spec(n));const rs=Q.reduce((s,n)=>s+r[n],0);names.forEach(n=>r[n]/=rs);
-    const IT=[0,1,2,3,30],hist=[];let p=Object.assign({},r);for(let it=0;it<=30;it++){if(it){const nw={};names.forEach(n=>nw[n]=(1-d)*r[n]);names.forEach(n=>adj[n].forEach(m=>{nw[m]+=d*p[n]/adj[n].length}));p=nw}if(IT.includes(it))hist.push(Object.assign({},p))}
-    const score=(pp,P)=>P[2].reduce((s,n)=>s+pp[n],0);
-    const CAP=i=>{const pp=hist[i],sc=PAS.map(P=>score(pp,P));const b=sc[1].toFixed(3);
-      return ['Reset: all mass on the question\'s two entities, weighted by specificity (Kiss and Tell is in '+(1/spec('Kiss and Tell'))+' passages, Corliss Archer in '+(1/spec('Corliss Archer'))+', so '+r['Kiss and Tell'].toFixed(2)+' and '+r['Corliss Archer'].toFixed(2)+'). B scores '+b+': it shares no word with the question.',
-        'One step: half the mass stays on the reset nodes, half follows an edge. Shirley Temple, linked to both question entities, picks some up, and B scores '+b+' for the first time.',
-        'Two steps: mass reaches Chief of Protocol and diplomat, B\'s own phrases; B scores '+b+'.',
-        'Three steps: each step moves less; B scores '+b+'.',
-        'Converged (30 iterations): B scores '+b+' against 0 at the start, still below C ('+sc[2].toFixed(3)+') and D ('+sc[3].toFixed(3)+'), which repeat the question\'s names. In a real index thousands of passages score 0, so B now enters the top 5: that is the hop. It does not reach the top 2.'][i]};
-    function draw(i){const pp=hist[i],W=RD.width(el),narrow=W<520,GH=narrow?230:250,P=narrow?40:56;const X=v=>P+(W-2*P)*v,Y=v=>20+(GH-40)*v;let s='';
-      Ed.forEach(([a,b])=>{s+=L(X(NODES[a][0]),Y(NODES[a][1]),X(NODES[b][0]),Y(NODES[b][1]),{stroke:'var(--line)',sw:1.4})});
-      names.forEach(n=>{const [x,y]=NODES[n],rad=4+Math.sqrt(pp[n])*(narrow?34:42),q=Q.includes(n);
-        s+='<circle cx="'+X(x).toFixed(1)+'" cy="'+Y(y).toFixed(1)+'" r="'+rad.toFixed(1)+'" fill="'+(q?'var(--acc)':'var(--c3)')+'" fill-opacity="'+(q?0.75:0.6)+'" stroke="var(--line)"/>';
-        s+=T(X(x),Y(y)+rad+12,E(n),{a:'middle',fs:11,fill:'var(--ink)'})});
-      const by=GH+8,lab=narrow?120:200,bw=W-lab-56;const sc=PAS.map(Pp=>score(pp,Pp)),mx=Math.max(...hist.map(h=>Math.max(...PAS.map(Pp=>score(h,Pp)))));
-      PAS.forEach((Pp,j)=>{const y=by+j*22;s+=T(lab-6,y+13,E(Pp[0]+' '+(narrow?Pp[1].replace(/ \(.*\)/,''):Pp[1])),{a:'end',fs:11.5,w:Pp[0]==='B'?700:400});
-        s+=R(lab,y+2,bw,14,{fill:'var(--soft)'})+R(lab,y+2,bw*sc[j]/mx,14,{fill:Pp[0]==='B'?'var(--acc)':'var(--mute)'})+T(lab+bw*sc[j]/mx+4,y+13,sc[j].toFixed(3),{fs:11.5})});
-      el.innerHTML=RD.svg(W,by+4*22+6,s,'personalised PageRank mass on a toy phrase graph and passage scores');
-      $('gr-ppr-cap').textContent='Iteration '+IT[i]+'. '+CAP(i)}
-    const A=RD.anim({card:'gr-ppr-card',ctl:'gr-ppr-ctl',n:IT.length,draw,ms:1600,label:'PageRank iteration'});
-    reg(()=>A.redraw())})();
 
   // ---- published indexing bill ----
   (function(){const el=$('gr-bill');if(!el)return;

@@ -34,7 +34,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
         if (segs[0]) segs[0].click();
       }
       for (const s of root.querySelectorAll('.seg')) for (const btn of s.querySelectorAll('button')) { btn.click(); out.clicks++; await sleep(40); scan('seg ' + btn.textContent); side('seg ' + btn.textContent) }
-      for (const c of root.querySelectorAll('.chips')) for (const btn of c.querySelectorAll('button')) { btn.click(); out.clicks++; await sleep(25); scan('chip ' + btn.textContent); side('chip ' + btn.textContent) }
+      for (const c of root.querySelectorAll('.chips, .s3chips')) for (const btn of c.querySelectorAll('button')) { btn.click(); out.clicks++; await sleep(25); scan('chip ' + btn.textContent); side('chip ' + btn.textContent) }
       for (const c of root.querySelectorAll('input[type=checkbox]')) { c.click(); out.clicks++; await sleep(30); scan('checkbox ' + c.id); side('checkbox'); c.click(); await sleep(10) }
       for (const sel of root.querySelectorAll('select')) { if (sel.id.endsWith('-v')) continue; for (const o of sel.options) { sel.value = o.value; sel.dispatchEvent(new Event('change')); out.clicks++; await sleep(25); scan('select ' + sel.id + '=' + o.value); side(sel.id) } sel.selectedIndex = 0; sel.dispatchEvent(new Event('change')) }
       for (const pb of root.querySelectorAll('.gr-prd button')) { pb.click(); out.clicks++; await sleep(20) }
