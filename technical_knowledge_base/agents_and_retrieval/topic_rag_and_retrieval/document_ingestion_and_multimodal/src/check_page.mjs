@@ -1,5 +1,5 @@
-// Browser check of every tab at 390 dark and 920 light: every segmented button, chip, checkbox, select option,
-// animation step (in each mode) and predict button. Fails on script errors, NaN/undefined/Infinity in text,
+// Browser check of every tab at 390 dark and 920 light: every segmented button, chip, checkbox, select option
+// and predict button, and that the hero stage plays once in view (the stages themselves: check_stages.mjs). Fails on script errors, NaN/undefined/Infinity in text,
 // sideways scroll or a visible error box.
 // usage: node check_page.mjs <index.html> <shots dir>   (puppeteer from html_utils via createRequire)
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
@@ -15,10 +15,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + path.resolve(file));
-  { // nothing moves before the reader acts: every step controller keeps its value for 1.5 s after load
-    const v0 = await p.$$eval('[id$="-ctl-s"]', es => es.map(e => e.value)); await new Promise(r => setTimeout(r, 1500));
-    const v1 = await p.$$eval('[id$="-ctl-s"]', es => es.map(e => e.value));
-    console.log(scheme, width, 'no autoplay', JSON.stringify(v0) === JSON.stringify(v1) ? 'ok' : 'MOVED'); if (JSON.stringify(v0) !== JSON.stringify(v1)) bad = 1 }
+  { // autoplay on view (2026-11-06; replaces the never-autoplay assertion): the hero stage plays its steps once scrolled into view
+    await p.click('button[data-t=t-read]'); await new Promise(r => setTimeout(r, 300)); // the last run may have left another tab open (localStorage)
+    await p.$eval('#stg-hero', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2200));
+    const fr = await p.$eval('#stg-hero', e => +e.dataset.frames || 0);
+    console.log(scheme, width, 'autoplay on view', fr > 0 ? 'ok' : 'DID NOT PLAY'); if (!(fr > 0)) bad = 1; await p.evaluate(() => scrollTo(0, 0)) }
   for (const tab of TABS) {
     await p.click(`button[data-t=${tab}]`); await new Promise(r => setTimeout(r, 250));
     const res = await p.evaluate(async (tab) => {

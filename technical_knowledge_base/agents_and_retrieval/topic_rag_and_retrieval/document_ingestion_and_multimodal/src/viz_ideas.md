@@ -36,3 +36,15 @@ What the methodology lacked for this page: a rule for a page whose "published fi
 | 19 | Docling pipeline figure (the report's Figure 1, CC BY 4.0) | Reading s3 | built (real image) |
 | 5, 6, 7 | Table lab, Re-indexing lab, Page-image retrieval moved from their tabs into Reading s6, s9 and s11 beside the claims they prove | Reading | moved |
 | 20 | DocLayNet example pages with layout boxes | none | rejected: arXiv non-exclusive licence |
+
+## The 2026-11-06 pass (split layout, 3D stages on renderer v2)
+
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 21 | **Fig. 1 hero as a 3D stage** (`28a_sc_hero.js`, 5 steps): the real page 1 of 1909.00175 lying on the floor with its 90 text lines lifting off as the text layer; the parse route as four stations and an index of one vector per chunk, flows between them; the page-image route in front (the page squeezed square, a 32 by 32 glass grid, a glass block of patch vectors, a multi-vector index) | Reading top | built; replaces #14 (its numbers are in the step list, each step links to its section) |
+| 22 | **Fig. 2 reading orders as a 3D stage** (`28b_sc_anat.js`, 4 steps): the page image flat, each of the 90 lines a slab at its PDF coordinates, the order path drawn as it is built with dots streaming along it; stream order (camera in close on the stamp), pdfplumber's 60 merged lines (34 cross the gutter, in orange), Docling's columns and the dropped stamp | Reading s1 | built; replaces #1 (a 60 to 90 frame replay with a mode toggle; now one explained step per reader) |
+| 23 | **Fig. 6 re-indexing as a 3D stage** (`28c_sc_cd.js`, 6 steps): the new version's words to scale with pins on the changed words, the chunks of each strategy as slabs (green reused, orange through a glass embedding-model plate into the vector store), then the ten-paper shares against the floor; a paper picker replays it | Reading s9 | built; replaces #6 (17 to 130 per-chunk frames per mode, now one step per chunker) |
+| 24 | **Fig. 7 ColPali as a 3D stage** (`28d_sc_cp.js`, 7 steps): page, squeeze to 448, patch grid, one patch's vector, the block of 1,030 vectors, MaxSim from five query tokens (positions illustrative, said on the page), pooling at factor 3, storage and indexing time to scale | Reading s10 | built; replaces #18 |
+| 15, 16, 17, 19, 3, 5, 7 | Kept 2D in the right column: rule thresholds and OCR routing are flat flow diagrams; evidence bars and nDCG bars are numbers on an axis; the table lab and the per-query browser are tables and thumbnails; the record is code beside a real page; the Docling figure is a real image | Reading | split, kept |
+| 25 | A 3D table (cells as a grid in depth, header rows lifted) | none | rejected: a table reads best flat, and the lab already shows the grid each parser implies |
+| 26 | MaxSim with real per-patch similarities from colSmol-256M on one page | none | proposal: needs a colpali-engine run on one page and one query (about a minute on CPU, model download about 0.5 GB); not run under the no-heavy-compute rule |

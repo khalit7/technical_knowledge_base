@@ -96,5 +96,24 @@ extra = os.path.join(H, "check_claims.json")
 if os.path.exists(extra):
     for text in json.load(open(extra)):
         ok(text in html, "prose: " + text)
+# 4 privacy: nothing private in the built page or src/ (the login name is looked up at run time and matched case-sensitively, so ordinary words are not flagged)
+import getpass
+login = getpass.getuser()
+pats = [re.compile(r"/Users/|/home/[a-z]|scratchpad|glpat|sk-ant", re.I)] + ([re.compile(r"\b" + re.escape(login) + r"\b")] if len(login) > 2 else [])
+hits = []
+for root, _, files in os.walk(os.path.join(H, "..")):
+    if ".shots" in root or "__pycache__" in root:
+        continue
+    for fn in files:
+        if not fn.endswith((".html", ".js", ".py", ".mjs", ".md", ".json", ".sh")):
+            continue
+        fp = os.path.join(root, fn)
+        t = open(fp, errors="ignore").read()
+        for pat in pats:
+            if fn == "check_data.py" and pat is pats[0]:
+                continue
+            for m in pat.finditer(t):
+                hits.append("%s: %s" % (os.path.relpath(fp, H), t[max(0, m.start() - 20):m.end() + 20].replace("\n", " ")))
+ok(not hits, "privacy: no home or scratch paths, tokens or the login name" + ("" if not hits else " -- " + " | ".join(hits[:5])))
 print("FAIL" if bad else "ALL OK", bad)
 sys.exit(1 if bad else 0)
