@@ -74,7 +74,7 @@ Every paper was brought to the [teaching contract](../teaching/teaching-contract
 - **Closed `<details>`**: proofs and derivations, provenance and "how the replay was checked" boxes, per-item and per-figure lists, hyperparameters, bookkeeping slips, version-to-version changes, related work, the bullets of What it takes (one open summary paragraph stays). The argument in the paper's order, the verdict and How much to believe stay open. A page with no closed block is a defect.
 - **Volatile**: release status, code availability, later versions sit in one dated closed block, "Since the paper (checked <date>)", never in open prose.
 - **Tabs**: a tab stays only when it is a tool used across the page (a replay, a toy, the tables); a tab explaining one mechanism moves into the Reading flow.
-- **Nothing moves before a click**: `makeAnim` waits on step 1 and a mode switch pauses on step 1; `check_page.mjs` fails if an animation draws a frame before a click and opens every closed block. Tabs use the template `99_js_tabs.js` from [../build/templates/](../build/templates/) (storage key `<prefix>-tab`, keeping the page's `data-to` scroll), never the old `90_js_tabs.js`.
+- **Motion** (2026-11-06): animations and 3D stages play by themselves once half in view and stop for good on any reader control or at the last step ([../visuals/mechanics.md](../visuals/mechanics.md)); `check_page.mjs` confirms each plays when scrolled into view, none moves under reduced motion, and opens every closed block. **Layout:** the split ([../teaching/teaching-contract.md](../teaching/teaching-contract.md)), 3D stages when reasonable ([../visuals/three-d.md](../visuals/three-d.md)). Tabs use the template `99_js_tabs.js` from [../build/templates/](../build/templates/) (storage key `<prefix>-tab`, keeping the page's `data-to` scroll), never the old `90_js_tabs.js`.
 - **Header**: "Reading: N min, plus M in closed details.", both numbers measured (`html_utils/audit_pages.mjs`, 230 words a minute; several pages write them to `src/reading.json` and `build.sh` fills the header from it).
 - **The site's What's new block and Papers page read `paper.json`** (`html_utils/whats_new.py`): `arxiv` (orders papers newest first), `lab`, `takeaway`, `topics` (chips in their section colour). Keep them filled on a new paper, with topic ids that are pages in `pages.json`; `python3 html_utils/whats_new.py check` (run by the site build, which stops on a problem) fails a paper without them.
 - **Takeaway scoped to the paper's own evidence**: the model and size it was shown on, single runs or seeds, the metric, matched comparisons rather than each side's best point (a headline that compares different settings is the flaw the trust section names, so it cannot lead), a theorem's conditions, no "first", "proves", "beats" or "consistently" without support. One text in `paper.json` (plus `takeaway_note` when it needs a qualifier), the card, `live.md` where the page has one, `mk_coverage.py` and the row's Takeaway property.
@@ -100,7 +100,7 @@ Choose it by what the paper is, and only if it teaches more than reading.
 From the reference folder's `src/` (ddpm and clip have later versions of some):
 - `build.sh`: macros `ax:`, `tab:`, `n:`, margin labels, `@@CARD@@`; clip's version counts closed `<details>` apart and checks every `ax:` link against `inputs/anchors.txt`;
 - `mk_paper.py`: card, Further reading, data;
-- `11_js_ui.js`: `fit` for width-measured charts, `makeAnim` for step animations, the predict widget, `placeLabels`, `legend`;
+- `11_js_ui.js`: `fit` for width-measured charts, `makeAnim` for step animations (give it the autoplay rules of `RD.anim` in the templates), the predict widget, `placeLabels`, `legend`;
 - `check_page.mjs`: every control, both themes and widths, text at least 11 px, animations stepped;
 - `mk_coverage.py`, `save_live.py`, `extract_paper.py`, and the CSS.
 
@@ -131,11 +131,11 @@ When you copy `mk_coverage.py` from another paper, **replace its item list entir
 
 ## Checks
 - `sh html_utils/checkpage.sh <folder>` ends `fail=0`, `emdash 0`, `errbox 1`, `clipped 0`.
-- `node src/check_page.mjs` passes, with no animation frame before a click.
+- `node src/check_page.mjs` passes: every animation plays when scrolled into view; none moves under reduced motion.
 - `python3 html_utils/ledger.py check <folder>` prints problems 0; the header matches the measured minutes.
 - `check_forward.py` passes, and `mk_coverage.py` accounts for every item.
 - Look at screenshots of every tab (cropped) and mid-animation frames.
-- Exercise every control by DOM clicks (a sticky nav swallows coordinate clicks) at 390 dark and 920 light: no errors, NaN, undefined, sideways scroll, text under 11 px or overlap.
+- Exercise every control by DOM clicks (a sticky nav swallows coordinate clicks) at 390 dark, 920 light and 1400 light: no errors, NaN, undefined, sideways scroll, text under 11 px or overlap.
 - Rebuild the page as the very last step ([../build/checks.md](../build/checks.md)).
 
 ## Report back

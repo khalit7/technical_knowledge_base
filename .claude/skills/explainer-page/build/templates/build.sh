@@ -16,7 +16,9 @@ P=parts
 reads=$(ls $P/20_read_*.html 2>/dev/null | LC_ALL=C sort)
 tabs=$(ls $P/3*_tab_*.html 2>/dev/null | LC_ALL=C sort)
 js=$(ls $P/*.js 2>/dev/null | LC_ALL=C sort)
-{ cat $P/01_head.html $P/10_header.html
+{ cat $P/01_head.html
+  [ -f $P/02_split.html ] && cat $P/02_split.html
+  cat $P/10_header.html
   [ -f $P/20_read.html ] && cat $P/20_read.html
   for f in $reads; do cat "$f"; done
   for f in $tabs; do cat "$f"; done

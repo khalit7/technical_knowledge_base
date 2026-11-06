@@ -1,15 +1,15 @@
 // ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates ----
-// Every Reading animation uses RD.anim. It animates only while its card is on screen in the visible tab,
-// never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
+// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (Khalid, 2026-11-06),
+// pauses off screen and resumes on return, stops for good when the reader takes a control or it reaches its last step, and never moves by itself under reduced motion.
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
   const onRender=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
-  // o: {card, ctl (element id), n (number of steps), draw(i), ms (base delay per step), label}
+  // o: {card, ctl (element id), n (number of steps), draw(i), ms (time on each step, default 3600 so its caption can be read), label, list (id of the ol.sx step list on the left)}
   function anim(o){
     const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
-    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
     const pid=o.ctl+'-';
     ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
       '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
@@ -18,29 +18,37 @@ window.RD=(function(){
       '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
     const $=s=>document.getElementById(pid+s);
     // fwd: the step moved forward by one, so marks drawn with class rd-new ease in (CSS) and the caption fades in
-    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
+    // the step list on the left: one item per step, the current one marked, a click jumps to it (and stops autoplay)
+    function bindList(id){const L=id&&document.getElementById(id);st.lis=L?[...L.children]:[];
+      st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;show()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+    function show(fwd){const sc=$('s');sc.max=st.n-1;sc.value=st.i;(st.lis||[]).forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});card.classList.toggle('rd-fwd',!!fwd);o.draw(st.i);
       if(fwd&&!RM)card.querySelectorAll('.an-cap').forEach(c=>{c.classList.remove('rd-fade');void c.offsetWidth;c.classList.add('rd-fade')})}
     const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
     function tick(){st.timer=0;if(!st.play||!live())return;
-      if(st.i>=st.n-1){setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){setPlay(false);return}
-      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show(true);if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
+      st.timer=setTimeout(tick,(o.ms||3600)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||3600)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
     function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
       if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
-    $('p').addEventListener('click',()=>setPlay(!st.play));
-    $('f').addEventListener('click',()=>{setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
-    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    $('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    $('f').addEventListener('click',()=>{st.user=true;setPlay(false);const m=st.i<st.n-1;st.i=Math.min(st.n-1,st.i+1);show(m)});
+    $('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    $('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished
+    function auto(){if(!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+    bindList(o.list);
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
     return {
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
-      reset(n){setPlay(false);st.n=n;st.i=0;show()},
-      go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      // a mode toggle: restart from step 0 with a new step count (and optionally a new step list) and replay, the one exception to "stops for good"
+      reset(n,list){setPlay(false);st.n=n;st.i=0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      // jump to a step; pass byCode=true when page code (not the reader) moves it, so autoplay is not switched off
+      go(i,byCode){if(!byCode)st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
       redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},
       play(){if(!RM)setPlay(true)},
       get i(){return st.i}, get n(){return st.n}

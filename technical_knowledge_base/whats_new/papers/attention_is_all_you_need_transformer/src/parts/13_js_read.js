@@ -19,43 +19,6 @@ const sm=l=>{const m=Math.max(...l),e=l.map(v=>Math.exp(v-m)),z=e.reduce((a,b)=>
   $('scD').addEventListener('input',run);$('scR').addEventListener('click',()=>{seed++;run()});
   PRED_REVEAL['pr-scale']=run;})();
 
-// 2. The base model's block layout (Figure 1)
-(function(){const el=$('blkSvg');if(!el)return;fit(el,w=>{const cw=Math.min(230,(w-34)/2),gap=w-2*cw-8,xE=4,xD=4+cw+gap,bh=24,p=30;
-  const col=(x,items,top)=>{let s='';items.forEach((it,i)=>{const y=top+i*p;s+=rc(x+8,y,cw-16,bh,it[1],{s:it[2]||'var(--line)'})+tx(x+cw/2,y+16,it[0],{fs:11.5,a:'middle'})});return s};
-  const E=[['Add & Norm','var(--soft)'],['Feed-forward (ReLU)','var(--open2)','var(--open)'],['Add & Norm','var(--soft)'],['Self-attention, 8 heads','var(--acc2)','var(--acc)']];
-  const Dd=[['Add & Norm','var(--soft)'],['Feed-forward (ReLU)','var(--open2)','var(--open)'],['Add & Norm','var(--soft)'],['Cross-attention','var(--closed2)','var(--closed)'],['Add & Norm','var(--soft)'],['Masked self-attention','var(--acc2)','var(--acc)']];
-  const top=74,H=top+Dd.length*p+112;let s='';
-  s+=tx(xE+cw/2,14,'Encoder',{fs:12.5,w:600,a:'middle'})+tx(xD+cw/2,14,'Decoder',{fs:12.5,w:600,a:'middle'});
-  // output head above the decoder
-  s+=rc(xD+8,24,cw-16,bh,'var(--soft)',{s:'var(--line)'})+tx(xD+cw/2,40,'Linear (tied) + softmax',{fs:11.5,a:'middle'});
-  const eTop=top+(Dd.length-E.length)*p;
-  s+=rc(xE+2,eTop-6,cw-4,E.length*p+6,'none',{s:'var(--mute)',da:'4 3'})+rc(xD+2,top-6,cw-4,Dd.length*p+6,'none',{s:'var(--mute)',da:'4 3'});
-  s+=col(xE,E,eTop)+col(xD,Dd,top);
-  s+=tx(xE+cw-6,eTop+E.length*p+12,'× 6',{fs:11.5,a:'end',c:'var(--mute)'})+tx(xD+cw-6,top+Dd.length*p+12,'× 6',{fs:11.5,a:'end',c:'var(--mute)'});
-  const yb=top+Dd.length*p+22;
-  [[xE,'Input embedding × √d'],[xD,'Output embedding × √d']].forEach(([x,t])=>{s+=rc(x+8,yb+30,cw-16,bh,'var(--soft)',{s:'var(--line)'})+tx(x+cw/2,yb+46,t,{fs:11.5,a:'middle'})+tx(x+cw/2,yb+20,'+ sinusoidal positions',{fs:11,a:'middle',c:'var(--mute)'})});
-  s+=tx(xD+cw/2,yb+68,'(shifted right by one)',{fs:11,a:'middle',c:'var(--mute)'});
-  // encoder output into the decoder's cross-attention
-  const yC=top+3*p+bh/2;s+='<path d="M'+(xE+cw/2)+' '+(eTop-6)+' V'+(eTop-20)+' H'+(xE+cw+gap/2)+' V'+yC+' H'+(xD+8)+'" fill="none" stroke="var(--closed)" stroke-width="1.6"/>';
-  s+=tx(xE+cw/2,eTop-24,w<560?'K and V to the decoder':'keys and values to every decoder layer',{fs:11,a:'middle',c:'var(--closed)'});
-  el.innerHTML=svgW(w,H,s,'The Transformer base model: a six-layer encoder and a six-layer decoder')})})();
-
-// 2b. Multi-head attention to scale (Section 3.2.2): 512 = 8 heads of 64, concatenated back and mixed by W^O
-(function(){const el=$('mhSvg');if(!el)return;fit(el,w=>{const pl=4,pr=4,bw=w-pl-pr,u=bw/512,h=26,cols=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--acc)','var(--good)'],nar=w<520;
-  let s='',y=16;
-  s+=tx(pl,y,'One position: 512 numbers',{fs:11.5,w:600});y+=6;
-  s+=rc(pl,y,bw,h,'var(--soft)',{s:'var(--line)'})+tx(pl+bw/2,y+17,'x (512)',{fs:11.5,a:'middle'});y+=h+22;
-  s+=tx(pl,y,nar?'Projected into 8 heads of 64':'Projected by learned matrices into 8 heads of d\u2096 = d\u1d65 = 64',{fs:11.5,w:600});y+=6;
-  for(let i=0;i<8;i++){const x=pl+i*64*u;s+=rc(x+1,y,64*u-2,h,cols[i],{op:.35,s:cols[i]})+tx(x+32*u,y+17,(nar?'':'head ')+(i+1),{fs:11,a:'middle'})}
-  y+=h+14;for(let i=0;i<8;i++){const x=pl+i*64*u;s+=ln2(x+32*u,y-12,x+32*u,y+4,cols[i],{sw:1.4})}
-  s+=tx(pl+bw/2,y+18,nar?'8 attention patterns, in parallel':'8 separate softmax(QK\u1d40/\u221a64)V in parallel: 8 attention patterns',{fs:11,a:'middle',c:'var(--mute)'});y+=44;
-  s+=tx(pl,y,'Concat 8 \u00d7 64 = 512, then W\u1d3c',{fs:11.5,w:600});y+=6;
-  for(let i=0;i<8;i++){const x=pl+i*64*u;s+=rc(x,y,64*u,h,cols[i],{op:.35,r:0})}
-  s+=rc(pl,y,bw,h,'none',{s:'var(--ink)'})+tx(pl+bw/2,y+17,'MultiHead output (512)',{fs:11.5,a:'middle'});y+=h+22;
-  s+=tx(pl,y,nar?'One 512-wide head: one pattern':'One 512-wide head instead: same weights, one pattern',{fs:11.5,w:600,c:'var(--mute)'});y+=6;
-  s+=rc(pl,y,bw,h,'none',{s:'var(--mute)',da:'4 3'})+tx(pl+bw/2,y+17,'one softmax over 512 dims',{fs:11,a:'middle',c:'var(--mute)'});y+=h+6;
-  el.innerHTML=svgW(w,y,s,'Multi-head attention drawn to scale: eight heads of 64 dimensions make up the 512 of the model')})})();
-
 // 3. Positional encoding: the pattern, and why the dot product depends only on the offset
 (function(){const el=$('peSvg');if(!el)return;const d=512,P=64,DM=512;const pe=(p,j)=>{const dv=Math.pow(10000,(j-(j%2))/d);return j%2?Math.cos(p/dv):Math.sin(p/dv)};
   fit(el,w=>{const two=w>=600,pw=two?(w-16)/2:w,ph=200;el.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:16px"><div style="width:'+pw+'px"><canvas id="peC" width="'+Math.round(pw*2)+'" height="'+(ph*2)+'" style="width:'+pw+'px;height:'+ph+'px;display:block" aria-label="Positional encoding heatmap"></canvas><div class="small mute" style="display:flex;justify-content:space-between"><span>dimension 0</span><span>dimension 511 →</span></div></div><div id="peK" style="width:'+pw+'px"></div></div>';

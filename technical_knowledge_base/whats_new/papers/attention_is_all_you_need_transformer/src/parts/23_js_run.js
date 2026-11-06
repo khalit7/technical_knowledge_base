@@ -70,15 +70,17 @@
     const sc=$('decScrub');sc.max=m-1;sc.value=k;const pb=$('decPlay'),end=k>=m-1;pb.innerHTML=S.dplay?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',S.dplay?'Pause':end?'Replay':'Play')}
   const dlive=()=>S.dvis&&!document.hidden&&$('dec').offsetParent!==null;
   function dtick(now){S.draf=0;if(!S.dplay||!dlive())return;const dt=S.dlast?Math.min(100,now-S.dlast):16;S.dlast=now;const spd=+$('decSpd').value;S.dt+=dt*spd/1500;
-    const m=run(S.v,S.w).out.length;if(S.dt>=1){if(S.dk<m-1){S.dk++;S.dt=0}else{S.dt=1;S.dplay=false}}$('dec').dataset.frames=(+$('dec').dataset.frames||0)+1;drawDec();if(S.dplay)S.draf=requestAnimationFrame(dtick)}
+    const m=run(S.v,S.w).out.length;if(S.dt>=1){if(S.dk<m-1){S.dk++;S.dt=0}else{S.dt=1;S.dplay=false;S.dend=true}}$('dec').dataset.frames=(+$('dec').dataset.frames||0)+1;drawDec();if(S.dplay)S.draf=requestAnimationFrame(dtick)}
   function dkick(){if(S.dplay&&dlive()&&!S.draf){S.dlast=0;S.draf=requestAnimationFrame(dtick)}}
   const dpause=()=>{S.dplay=false;if(S.draf){cancelAnimationFrame(S.draf);S.draf=0}};
-  $('decPlay').addEventListener('click',()=>{if(!done())return;if(S.dplay)dpause();else{const m=run(S.v,S.w).out.length;if(S.dk>=m-1){S.dk=0;S.dt=RM?1:0}S.dplay=!RM||true;dkick()}drawDec()});
-  $('decFwd').addEventListener('click',()=>{dpause();if(!done())return;S.dk=Math.min(run(S.v,S.w).out.length-1,S.dk+1);S.dt=1;drawDec()});
-  $('decBack').addEventListener('click',()=>{dpause();S.dk=Math.max(0,S.dk-1);S.dt=1;drawDec()});
-  $('decScrub').addEventListener('input',e=>{dpause();S.dk=+e.target.value;S.dt=1;drawDec()});
+  $('decPlay').addEventListener('click',()=>{S.duser=true;if(!done())return;if(S.dplay)dpause();else{const m=run(S.v,S.w).out.length;if(S.dk>=m-1){S.dk=0;S.dt=RM?1:0}S.dplay=!RM||true;dkick()}drawDec()});
+  $('decFwd').addEventListener('click',()=>{S.duser=true;dpause();if(!done())return;S.dk=Math.min(run(S.v,S.w).out.length-1,S.dk+1);S.dt=1;drawDec()});
+  $('decBack').addEventListener('click',()=>{S.duser=true;dpause();S.dk=Math.max(0,S.dk-1);S.dt=1;drawDec()});
+  $('decScrub').addEventListener('input',e=>{S.duser=true;dpause();S.dk=+e.target.value;S.dt=1;drawDec()});
   $('decL').addEventListener('change',drawDec);$('decH').addEventListener('change',drawDec);
-  if('IntersectionObserver' in window)new IntersectionObserver(es=>{S.dvis=es[es.length-1].isIntersecting;dkick()},{threshold:.15}).observe($('dec'));else S.dvis=true;
+  // plays by itself once half in view (2026-11-06), until the reader takes a control or it ends; never under reduced motion
+  function dauto(){if(RM||S.duser||S.dend||S.dplay||!dlive()||!done())return;if(S.dk===0&&S.dt>=1)S.dt=0;S.dplay=true;dkick()}
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{const x=es[es.length-1];S.dvis=x.isIntersecting&&x.intersectionRatio>=.5;if(S.dvis)dauto();dkick()},{threshold:[0,.5]}).observe($('dec'));else S.dvis=true;
   document.addEventListener('visibilitychange',dkick);fit($('decSvg'),()=>drawDec());
   // ---- attention maps ----
   function buildHeads(){const h=TM.variants[S.v].h,el=$('attH');if(S.att.h>=h)S.att.h=-1;

@@ -28,11 +28,13 @@ Never commit `__pycache__`, `.shots/` (screenshots), MP4s, PDFs or files over ab
 | Part | What |
 |---|---|
 | `01_head.html` | doctype, `<title>` (exact Notion title), theme CSS, opens `<body><div class="w">` |
+| `02_split.html` | the split layout CSS (text left, visual right; template, unchanged) |
 | `10_header.html` | `<h1>`, the subtitle (`.sub`), the tab bar |
 | `20_read.html` (optional) or `20_read_a.html` | opens the Reading tab `<div class="tab" id="t-read" role="tabpanel">`, its `<style>` scoped under `#t-read` |
 | `20_read_b.html` ... | Reading sections in order |
 | `20_read_z.html` | closes the Reading tab `</div>` |
-| `21_js_rd_common.js` | `window.RD` helpers and the step-animation controller |
+| `21_js_rd_common.js` | `window.RD` helpers and the step-animation controller (autoplay on view) |
+| `25_js_s3.js` | `window.S3`, the 3D renderer and stage (template, unchanged; only when the page has a 3D stage) |
 | `22_js_rd_<name>.js` ... | Reading tab scripts (data part first, for example `22_js_rd_data.js`) |
 | `3N_tab_<name>_a.html` ... | one group per tab, N from 1; `_a` opens `<div class="tab" id="t-<name>" role="tabpanel" hidden>` with its scoped `<style>`, the last closes it |
 | `3N_js_<p>_0data.js`, `_1core.js`, `_2<what>.js` ... | that tab's scripts: data (written by a script, never by hand), core helpers under the tab's namespace, then one file per section |

@@ -30,11 +30,11 @@ The reader's question: **"how does this work, exactly, and what is the evidence?
 ## Shape that worked
 - **Reading tab** organised by the subject's own logic:
   - the core idea, the hero figure, then an "in one screen" summary or comparison table;
-  - the mechanisms in order, from zero for this subject, each with its visual inline;
+  - the mechanisms in order, from zero for this subject, each with its visual in the right column of its section (split layout);
   - what is in production now (real configs and recipes);
   - common mistakes with real errors, when they teach;
   - optional interview rehearsal in a closed block.
-- **One tab per standalone visual that deserves room** (a tool used across the page, not the explanation of one mechanism, which goes inline), named for what the reader does:
+- **One tab per standalone visual that deserves room** (a tool used across the page, not the explanation of one mechanism, which goes in the Reading flow, in the right column of its section), named for what the reader does:
   - a calculator (Layout calculator, Trainable parameters);
   - a lab or workbench (Sampler workbench, Sampler lab, Alert lab);
   - a dataset view (Twelve decoders, One real layer, Case gallery);

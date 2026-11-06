@@ -35,12 +35,12 @@ The reader's questions: **"what happened, what connects it, and did it hold?"** 
 - **`mk_items.py`** parses it into `data/items.json`.
 - **`data/annotations.json`** holds:
   - the issue window and strip axis, glance texts, and section leads;
-  - per item: dates, short label, tags, feeds, Hacker News counts, notes, follow-ups and `viz_after` (where a visual goes);
+  - per item: dates, short label, tags, feeds, Hacker News counts, notes, follow-ups and `viz_after` (which item a visual belongs to; it sits in that item's right column);
   - the dated `followups`.
 - **`mk_issue.py`** generates the tabs; `relink()` restores the issue's own inline links.
 - **`mk_coverage.py`** proves every item, number and inline link survived (`all_found`).
 - **`recompute.py`** asserts every derived number.
-- **`10b_js_anim.js`** is a shared step-animation controller (modes, play, pause, step, scrub, speed, visibility, reduced motion), reusable by later issues.
+- **`10b_js_anim.js`** is a shared step-animation controller (modes, play, pause, step, scrub, speed, visibility, reduced motion), reusable by later issues; it must follow the motion rules of `RD.anim` in the templates (plays once half in view, stops on any control or at the last step, never under reduced motion), or use `RD.anim` itself. An item with a visual is a split: its text left, the visual right ([../visuals/mechanics.md](../visuals/mechanics.md)).
 
 A new issue copies the machinery and writes new annotations.
 

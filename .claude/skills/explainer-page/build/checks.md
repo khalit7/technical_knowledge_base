@@ -42,7 +42,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
 }
 await b.close();
 ```
-Also emulate `prefers-reduced-motion: reduce` once and confirm no animation autoplays.
+Animations and 3D stages (Khalid, 2026-11-06): scroll each into view and confirm it plays by itself (within about 2 s its play button reads Pause for `RD.anim`, or its `data-frames` rises for `S3.stage`); emulate `prefers-reduced-motion: reduce` once and confirm none moves by itself; step each to its last step and confirm its step list has one item per step. Check the split layout at 1400 px (two columns where a section has a visual, full width where it has none) as well as 920 and 390 px. The Attention Is All You Need paper page's `src/check_page.mjs` has code to copy.
 
 ## 3. Data and prose numbers
 - A script proves the page embeds exactly the recorded data: parse the built `index.html`'s data globals and compare them with `src/<tab>/out/*.json` (or the recompute script's output), field by field.

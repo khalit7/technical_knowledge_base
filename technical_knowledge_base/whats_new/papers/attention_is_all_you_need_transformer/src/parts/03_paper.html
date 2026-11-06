@@ -2,10 +2,25 @@
 @@CARD@@
 <div class="co key" id="core"><div class="t">The idea in one sentence</div><p class="lead" style="margin:2px 0 0">Drop recurrence and let every position attend to every other position in one parallel step: the path between any two words falls from <i>n</i> steps to 1, training parallelises across the sequence, and an encoder-decoder built only from attention, a per-position feed-forward layer and Add &amp; Norm beat every earlier translation model at a fraction of the training cost.</p>
 <p class="small" style="margin:6px 0 0"><b>How far to trust it:</b> the idea held up completely; the BLEU margins are single runs with no error bars, and two printed numbers disagree with each other or with a recount ({{Results|tab:t-read:s-res}}).</p></div>
-<div class="card" id="hero-fig"><div class="t" style="font-weight:600;margin-bottom:4px">The whole model is attention, a feed-forward layer and Add &amp; Norm: no recurrence, no convolution</div><div id="blkSvg"></div><p class="small mute" style="margin:4px 0 0">The base model, redrawn from {{Figure 1|ax:S3.F1}}: <i>N</i> = 6 of each layer, <i>d</i><sub>model</sub> = 512, <i>h</i> = 8, <i>d</i><sub>ff</sub> = 2048. Add &amp; Norm is LayerNorm(<i>x</i> + Dropout(Sublayer(<i>x</i>))). Notice the three kinds of attention: the encoder's self-attention, the decoder's masked self-attention, and cross-attention carrying the encoder's keys and values into every decoder layer.</p></div>
+<nav class="nav" id="nav"><a href="#s-model">The model</a><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-att">Attention</a><a href="#s-mh">Heads</a><a href="#s-block">The block</a><a href="#s-pe">Positions</a><a href="#s-train">Training</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a></nav>
+<div class="s3sp"><div class="s3R"><div id="stg-model"></div></div><div class="s3L">
+<section id="s-model"><h2>The model at a glance</h2>
+[[S3.F1|§3, Figure 1]]
+<p id="hero-fig"><b>The whole model is attention, a feed-forward layer and Add &amp; Norm: no recurrence, no convolution.</b> The figure is the base model of {{Figure 1|ax:S3.F1}} in 3D: <i>N</i> = 6 of each layer, <i>d</i><sub>model</sub> = 512, <i>h</i> = 8, <i>d</i><sub>ff</sub> = 2048. Step through it in the order data flows; drag it to turn it.</p>
+<ol class="sx" id="sx-model">
+<li><b>Two stacks.</b> The encoder (left) reads the source sentence; the decoder (right) writes the translation one word at a time. Each is <i>N</i> = 6 identical layers, and every layer outputs <i>d</i><sub>model</sub> = 512 numbers per word so the residual sums line up.</li>
+<li><b>Words in.</b> Each source word becomes a 512-number embedding (multiplied by √<i>d</i><sub>model</sub>) plus a fixed sinusoidal positional encoding, at the bottom of the encoder.</li>
+<li><b>Up through the encoder.</b> Every layer runs multi-head self-attention (<span class="m"><i>h</i> = 8</span> heads), each word looking at every other word, then a position-wise feed-forward network, 512 → 2048 → 512, the same at every position.</li>
+<li><b>Into every decoder layer.</b> The encoder's last output becomes the keys and values of <b>cross-attention</b> in all six decoder layers, so every output position can look at every input position.</li>
+<li><b>The decoder's own words.</b> The translation so far, shifted right by one, enters the decoder. Its first sub-layer is <b>masked self-attention</b>: position <i>i</i> sees only positions up to <i>i</i>.</li>
+<li><b>Add &amp; Norm around every sub-layer.</b> Each is wrapped as LayerNorm(<i>x</i> + Dropout(Sublayer(<i>x</i>))): the residual path (the lines up the sides) lets the signal skip each block, and the norm comes after the sum ("post-LN").</li>
+<li><b>The next word.</b> A linear layer (the embedding matrix, shared) and a softmax turn the decoder's top output into a probability for every token of the vocabulary; the chosen word is appended and the decoder runs again.</li>
+</ol>
+<p class="small mute">The sentence is an illustration; the layout and sizes are the paper's ({{§3.1|ax:S3.SS1}}). Notice the three kinds of attention: the encoder's self-attention, the decoder's masked self-attention, and cross-attention carrying the encoder's keys and values into every decoder layer.</p>
 <p class="small"><b>New terms.</b> <i>Sequence transduction</i>: mapping one sequence to another (translation, parsing). <i>Post-LN</i>: the norm applied after the residual sum, LayerNorm(<i>x</i> + Sublayer(<i>x</i>)). Background the page assumes: RNN encoder-decoders with Bahdanau attention ({{Sequence models before the transformer|n:3c65c17b0d0d818da4ded61ace6847ce}}).</p>
-<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-att">Attention</a><a href="#s-block">The block</a><a href="#s-pe">Positions</a><a href="#s-train">Training</a><a href="#s-res">Results</a><a href="#s-why">Why it matters</a></nav>
+</section></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-rnx"></div></div><div class="s3L">
 <section id="s-prob"><h2>Problem</h2>
 [[S1|§1 Introduction, §2 Background]]
 <p>In 2017 sequence transduction, translation above all, was dominated by recurrent encoder-decoders (LSTMs and GRUs), usually with an attention mechanism between encoder and decoder, and by convolutional alternatives such as ByteNet and ConvS2S ({{§1|ax:S1}}, {{§2|ax:S2}}). A recurrent network computes its hidden state <span class="m"><i>h<sub>t</sub></i></span> from <span class="m"><i>h</i><sub><i>t</i>−1</sub></span> and the input at position <i>t</i>, so training cannot be parallelised along the sequence: that caps how much of a GPU a batch can use, and memory limits batching across examples as sentences get longer. Convolutional models do compute all positions in parallel, but connecting two distant positions takes a stack of layers, <span class="m">O(<i>n</i>/<i>k</i>)</span> for contiguous kernels (ConvS2S) or <span class="m">O(log<sub><i>k</i></sub> <i>n</i>)</span> for dilated ones (ByteNet), so long-range dependency paths stay long ({{§4|ax:S4}}).</p>
@@ -21,24 +36,31 @@
 <tr><td>Convolutional</td><td>O(<i>k</i>·<i>n</i>·<i>d</i>²)</td><td>O(1)</td><td>O(log<sub><i>k</i></sub>(<i>n</i>))</td></tr>
 <tr><td>Self-attention, restricted to <i>r</i> neighbours</td><td>O(<i>r</i>·<i>n</i>·<i>d</i>)</td><td>O(1)</td><td>O(<i>n</i>/<i>r</i>)</td></tr></tbody></table></div>
 <p class="small mute"><i>n</i> is the sequence length, <i>d</i> the representation size, <i>k</i> the kernel width, <i>r</i> the neighbourhood size ({{Table 1|ax:S4.T1}}).</p>
-<p>When <i>n</i> &lt; <i>d</i>, as with sentence-level word-piece and byte-pair tokens, self-attention is also cheaper per layer than recurrence: <span class="m"><i>n</i>²<i>d</i> &lt; <i>nd</i>²</span> exactly when <span class="m"><i>n</i> &lt; <i>d</i></span>, so with the base model's <i>d</i> = 512 the crossover is at 512 tokens; for longer sequences the paper suggests the restricted row ({{§4|ax:S4}}). The animation runs one sentence through both layer types; the {{Table 1 calculator|tab:t-tables:tb1}} moves <i>n</i> and <i>d</i>.</p>
-<div class="card" id="rnx">
-<div class="an-top"><div class="seg" id="rnxM" role="group" aria-label="Layer type"><button class="on" data-m="sa" aria-pressed="true">Self-attention</button><button data-m="rnn" aria-pressed="false">Recurrent (RNN)</button></div>
+<p>When <i>n</i> &lt; <i>d</i>, as with sentence-level word-piece and byte-pair tokens, self-attention is also cheaper per layer than recurrence: <span class="m"><i>n</i>²<i>d</i> &lt; <i>nd</i>²</span> exactly when <span class="m"><i>n</i> &lt; <i>d</i></span>, so with the base model's <i>d</i> = 512 the crossover is at 512 tokens; for longer sequences the paper suggests the restricted row ({{§4|ax:S4}}). The figure runs one sentence through both layer types, step by step below; the {{Table 1 calculator|tab:t-tables:tb1}} moves <i>n</i> and <i>d</i>.</p>
+<div class="an-top" id="rnx"><div class="seg" id="rnxM" role="group" aria-label="Layer type"><button class="on" data-m="sa" aria-pressed="true">Self-attention</button><button data-m="rnn" aria-pressed="false">Recurrent (RNN)</button></div>
 <span class="small mute">Same 11-word sentence; costs at the paper's <i>d</i> = 512.</span></div>
-<div id="rnxSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="rnxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="rnxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="rnxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="rnxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="rnxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="rnxStep"></div><p id="rnxCap"></p></div>
+<ol class="sx" id="sx-sa"></ol><ol class="sx" id="sx-rnn" hidden></ol>
 <div class="an-cnt" id="rnxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Counts follow {{Table 1|ax:S4.T1}}: <i>n</i> sequential steps of <i>d</i>² multiply-adds against all <i>n</i>² dot products of length <i>d</i> at once (the 4<i>nd</i>² projections are left out, as in the table). It starts paused: press play or step.</p>
-</div>
+<p class="small mute" style="margin:6px 0 0">Counts follow {{Table 1|ax:S4.T1}}: <i>n</i> sequential steps of <i>d</i>² multiply-adds against all <i>n</i>² dot products of length <i>d</i> at once (the 4<i>nd</i>² projections are left out, as in the table).</p>
 </section>
 
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-att"></div></div><div class="s3L">
 <section id="s-att"><h2>Method: scaled dot-product attention</h2>
 [[S3.SS2.SSS1|§3.2.1, Eq. 1]]
 <p>The Transformer is an encoder-decoder built only from attention, position-wise feed-forward layers, residual connections and layer normalisation ({{§3|ax:S3}}). Attention maps a query and a set of key-value pairs to a weighted sum of the values, the weights coming from how well the query matches each key. With queries and keys of size <i>d<sub>k</sub></i> and values of size <i>d<sub>v</sub></i>, packed as matrices:</p>
 <div class="fm"><div class="eq">Attention(<i>Q</i>, <i>K</i>, <i>V</i>) = softmax(<i>QK</i><sup>⊤</sup> / √<i>d<sub>k</sub></i>) <i>V</i></div><div class="wh">Equation 1 ({{§3.2.1|ax:S3.SS2.SSS1}}). Dot-product rather than additive (Bahdanau) attention, because it is a single matrix multiply: similar in theory, much faster and more memory-efficient in practice.</div></div>
+<p>The figure runs Equation 1 with real numbers: the first encoder layer of this page's trained toy Transformer ({{Run a Transformer|tab:t-run}}; <i>d</i><sub>model</sub> = 24, <i>h</i> = 4, so <i>d<sub>k</sub></i> = 6), head 4, on one sentence. The paper's base model does the same with <i>d<sub>k</sub></i> = 64.</p>
+<ol class="sx" id="sx-att">
+<li><b>Each word is a vector.</b> The word's embedding plus its position: 24 numbers here (the bars), 512 in the paper.</li>
+<li><b>Three learned matrices make three vectors.</b> <i>W<sup>Q</sup></i>, <i>W<sup>K</sup></i> and <i>W<sup>V</sup></i> turn every word into a <span class="rq">query</span> (what it is looking for), a <span class="rk">key</span> (what it offers) and a <span class="rv">value</span> (what it hands over), 6 numbers each for this head.</li>
+<li><b>The query meets every key.</b> The chosen word's query is dotted with all seven keys: a large score means a good match.</li>
+<li><b>Divide by √<i>d<sub>k</sub></i>.</b> Every score shrinks by √6 ≈ 2.45 (by √64 = 8 in the paper), the scaling the paragraph below explains.</li>
+<li><b>Softmax turns scores into weights.</b> Exponentiate and normalise: the weights are positive and sum to 1.</li>
+<li><b>The output is the weighted sum of the values.</b> <span class="m"><i>z</i> = Σ<i><sub>j</sub></i> <i>a<sub>j</sub></i> <i>v<sub>j</sub></i></span>: each value flows in with its weight. Every word does this at once, which is the matrix form softmax(<i>QK</i><sup>⊤</sup>/√<i>d<sub>k</sub></i>)<i>V</i>.</li>
+</ol>
+<p class="sxh">Query word</p><div class="chips" id="attQ"></div><div class="out small mono" id="attOut"></div>
 <p>The <span class="m">1/√<i>d<sub>k</sub></i></span> is the load-bearing detail. If the components of <i>q</i> and <i>k</i> are independent with mean 0 and variance 1, then <span class="m"><i>q</i>·<i>k</i> = Σ<i>q<sub>i</sub>k<sub>i</sub></i></span> has mean 0 and variance <i>d<sub>k</sub></i> (the paper's footnote 1). Unscaled, the logits spread out as <i>d<sub>k</sub></i> grows and push the softmax into regions with tiny gradients; the paper notes that additive attention beats unscaled dot-product attention at large <i>d<sub>k</sub></i> ({{§3.2.1|ax:S3.SS2.SSS1}}).</p>
 <div class="pred" id="pr-scale" data-ans="1"><div class="q">without the 1/√d<sub>k</sub>, what happens to the largest attention weight over 10 keys as d<sub>k</sub> grows from 4 to 512?</div>
 <div class="opts"><button>It stays about the same</button><button>It heads towards 1: one key takes all the weight</button><button>It falls towards 1/10: the weights flatten out</button></div>
@@ -52,27 +74,56 @@
 </div></div>
 </section>
 
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-mh"></div></div><div class="s3L">
 <section id="s-mh"><h2>Method: multi-head attention</h2>
 [[S3.SS2.SSS2|§3.2.2]]
 <p>Instead of one attention over <i>d</i><sub>model</sub> = 512 dimensions, the queries, keys and values are projected <i>h</i> = 8 times with learned matrices <span class="m"><i>W<sub>i</sub><sup>Q</sup></i>, <i>W<sub>i</sub><sup>K</sup></i></span> (<i>d</i><sub>model</sub> × <i>d<sub>k</sub></i>) and <span class="m"><i>W<sub>i</sub><sup>V</sup></i></span> (<i>d</i><sub>model</sub> × <i>d<sub>v</sub></i>), with <span class="m"><i>d<sub>k</sub></i> = <i>d<sub>v</sub></i> = <i>d</i><sub>model</sub>/<i>h</i> = 64</span>. Each head runs attention in parallel; the <i>h</i> outputs are concatenated and projected back by <span class="m"><i>W<sup>O</sup></i></span> (<i>hd<sub>v</sub></i> × <i>d</i><sub>model</sub>) ({{§3.2.2|ax:S3.SS2.SSS2}}).</p>
 <div class="fm"><div class="eq">MultiHead(<i>Q</i>, <i>K</i>, <i>V</i>) = Concat(head<sub>1</sub>, …, head<sub><i>h</i></sub>) <i>W<sup>O</sup></i>, &nbsp; head<sub><i>i</i></sub> = Attention(<i>QW<sub>i</sub><sup>Q</sup></i>, <i>KW<sub>i</sub><sup>K</sup></i>, <i>VW<sub>i</sub><sup>V</sup></i>)</div></div>
-<div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Eight 64-wide heads cost what one 512-wide head costs, but give eight attention patterns</div><div id="mhSvg"></div><p class="small mute" style="margin:4px 0 0">To scale at the base model's sizes ({{§3.2.2|ax:S3.SS2.SSS2}}); the projections hold 4 × 512 × 512 weights either way.</p></div>
+<ol class="sx" id="sx-mh">
+<li><b>One word's vector: 512 numbers.</b> Drawn to scale, one unit of width per 64 dimensions.</li>
+<li><b>Eight projections of 64.</b> Each head has its own <i>W<sub>i</sub><sup>Q</sup></i>, <i>W<sub>i</sub><sup>K</sup></i>, <i>W<sub>i</sub><sup>V</sup></i> (512 × 64), giving it a 64-number query, key and value: 8 × 64 = 512, so the eight heads together cost what one full-width head costs.</li>
+<li><b>Each head attends on its own.</b> Eight independent <i>n</i> × <i>n</i> weight patterns, computed in parallel, each in its own 64-dimensional subspace.</li>
+<li><b>Concatenate, then project.</b> The eight 64-wide outputs side by side make 512 again; <i>W<sup>O</sup></i> (512 × 512) mixes them. The projections hold 4 × 512 × 512 weights either way.</li>
+<li><b>What heads learn: real patterns.</b> The toy model's four heads in its second encoder layer on one sentence (rows: queries, columns: keys, height: weight). Each head has learned a different pattern, which a single head would have to average.</li>
+</ol>
+
 <p>Because each head is <i>h</i> times narrower, the total cost is about that of one full-width head. What it buys: heads can attend to different subspaces and positions at once, where a single head has to average them. In the ablation one head costs 0.9 BLEU against the best setting (24.9 against 25.8), and too many heads hurt as well: 32 heads of 16 score 25.4 ({{Table 3 rows (A)|ax:S6.T3}}). The {{Run a Transformer|tab:t-run}} tab shows every head of a trained toy model, and a one-head version of it.</p>
 </section>
 
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-blk"></div></div><div class="s3L">
 <section id="s-block"><h2>Method: the block (post-LN)</h2>
 [[S3.SS1|§3.1, §3.2.3, §3.3, §3.4]]
 <p>The <b>encoder</b> is a stack of <i>N</i> = 6 identical layers with two sub-layers each: multi-head self-attention, then a position-wise feed-forward network. Every sub-layer is wrapped as <span class="m">LayerNorm(<i>x</i> + Sublayer(<i>x</i>))</span>, normalisation after the residual sum ("post-LN"), with dropout on the sub-layer output before it is added. Every sub-layer and the embeddings produce outputs of size <i>d</i><sub>model</sub> = 512 so the residuals line up ({{§3.1|ax:S3.SS1}}, {{§5.4|ax:S5.SS4}}).</p>
 <p>The <b>decoder</b> is also <i>N</i> = 6 layers, with three sub-layers: <b>masked self-attention</b>, where every illegal connection is set to −∞ before the softmax so position <i>i</i> sees only positions up to <i>i</i> (combined with the outputs being shifted right by one, a prediction depends only on earlier words); <b>cross-attention</b>, whose queries come from the decoder and whose keys and values come from the encoder's output, so every output position can look at every input position; and the same feed-forward network ({{§3.1|ax:S3.SS1}}, {{§3.2.3|ax:S3.SS2.SSS3}}).</p>
-<p class="small">The {{layout figure at the top|tab:t-read:hero-fig}} shows the whole stack.</p>
+<ol class="sx" id="sx-blk">
+<li><b>One encoder layer, five positions.</b> From the bottom: the input vectors, multi-head self-attention, Add &amp; Norm, the feed-forward network, Add &amp; Norm. The {{model at the top|tab:t-read:s-model}} stacks six of these.</li>
+<li><b>Only attention mixes positions.</b> Self-attention is the one sub-layer where a position reads from the others; everything above it works on each position alone.</li>
+<li><b>Residual, then norm.</b> The input skips the sub-layer and is added to its output; LayerNorm comes after the sum: LayerNorm(<i>x</i> + Sublayer(<i>x</i>)), post-LN.</li>
+<li><b>The FFN, position by position.</b> 512 → 2048 (ReLU) → 512, the 4× expansion drawn in depth; the same weights at every position, never mixing them (Equation 2 below).</li>
+<li><b>The decoder's mask.</b> Masked self-attention of the toy model's decoder (second layer, first head) as it translates: query <i>i</i> (rows) uses keys up to <i>i</i>; later positions are set to −∞ before the softmax, so their weight is exactly 0 and training can predict every position of a sentence in one pass.</li>
+</ol>
 <div class="fm"><div class="eq">FFN(<i>x</i>) = max(0, <i>xW</i><sub>1</sub> + <i>b</i><sub>1</sub>) <i>W</i><sub>2</sub> + <i>b</i><sub>2</sub></div><div class="wh">Equation 2 ({{§3.3|ax:S3.SS3}}): the same two linear maps with a ReLU between them at every position (two convolutions of kernel size 1), different from layer to layer; inner size <i>d</i><sub>ff</sub> = 2048, a 4× expansion.</div></div>
 <p><b>Embeddings.</b> One weight matrix is shared by the input embedding, the output embedding and the pre-softmax projection, and in the embedding layers it is multiplied by <span class="m">√<i>d</i><sub>model</sub></span> ({{§3.4|ax:S3.SS4}}); with the shared English-German vocabulary of about 37,000 tokens, that one matrix is 18.9 million of the base model's parameters (37,000 × 512, {{counted in the tables tab|tab:t-tables:tbP}}).</p>
 </section>
 
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-pe"></div></div><div class="s3L">
 <section id="s-pe"><h2>Method: positional encoding</h2>
 [[S3.SS5|§3.5]]
 <p>With no recurrence and no convolution nothing in the model knows word order, so it has to be injected. The paper adds fixed sinusoids to the embeddings at the bottom of both stacks:</p>
 <div class="fm"><div class="eq"><i>PE</i><sub>(<i>pos</i>, 2<i>i</i>)</sub> = sin(<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i><sub>model</sub></sup>), &nbsp; <i>PE</i><sub>(<i>pos</i>, 2<i>i</i>+1)</sub> = cos(<i>pos</i> / 10000<sup>2<i>i</i>/<i>d</i><sub>model</sub></sup>)</div><div class="wh">Each dimension is a sinusoid; the wavelengths form a geometric progression from 2π to 10000 · 2π ({{§3.5|ax:S3.SS5}}).</div></div>
+<ol class="sx" id="sx-pe">
+<li><b>Each pair of dimensions is a clock.</b> Dimensions 2<i>i</i> and 2<i>i</i>+1 hold sin and cos of the same angle, so together they are a hand on a dial (sin across, cos up). Eight of the 256 pairs are drawn; at position 0 every hand points up.</li>
+<li><b>Positions 0 to 6.</b> At position <i>pos</i> hand <i>i</i> has turned by <i>pos</i> / 10000<sup>2<i>i</i>/512</sup>: the first clock a full radian per word (wavelength 2π ≈ 6.3), later clocks ever more slowly.</li>
+<li><b>Positions 6 to 50.</b> Fast hands spin round many times and repeat; slow hands have barely moved. Read together, the hands give every position a different reading, from wavelength 2π up to 10000 · 2π.</li>
+<li><b>An offset is a fixed turn.</b> Moving from position 10 to 15 (<i>k</i> = 5) turns each hand by <i>k</i> / 10000<sup>2<i>i</i>/512</sup>, an angle that depends only on <i>k</i>.</li>
+<li><b>The same turn from anywhere.</b> From 40 to 45 every hand turns by exactly the same angles as from 10 to 15. A turn is a rotation, a linear map, which is why <span class="m"><i>PE</i><sub><i>pos</i>+<i>k</i></sub></span> is a linear function of <span class="m"><i>PE</i><sub><i>pos</i></sub></span>.</li>
+</ol>
 <p>Why sinusoids: for any fixed offset <i>k</i>, <span class="m"><i>PE</i><sub><i>pos</i>+<i>k</i></sub></span> is a linear function of <span class="m"><i>PE</i><sub><i>pos</i></sub></span> (each sine and cosine pair is rotated by an angle that depends only on <i>k</i>), which the authors hoped would make attending by relative position easy to learn. Learned absolute embeddings gave nearly identical results (25.7 BLEU against 25.8, {{Table 3 row (E)|ax:S6.T3}}); the sinusoids were kept because they might extrapolate to sequences longer than any seen in training ({{§3.5|ax:S3.SS5}}). What later models use instead (relative biases, ALiBi, RoPE and its scaling) is taught on {{Positional encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}.</p>
 <div class="card"><div id="peSvg"></div><p class="small mute" style="margin:4px 0 0">Left: the encoding of positions 0 (top) to 63 (bottom) across all 512 dimensions at <i>d</i><sub>model</sub> = 512 (blue negative, orange positive): fast sinusoids on the left, wavelengths up to 10000 · 2π on the right. Right: <span class="m"><i>PE<sub>p</sub></i> · <i>PE</i><sub><i>p</i>+<i>k</i></sub></span> against the offset <i>k</i> for three starting positions <i>p</i>: the curves coincide, because the dot product depends only on the offset. Computed from the formula above.</p></div>
 <div class="pred" id="pr-pe" data-ans="0"><div class="q">train the same toy model without positional encoding. What does it output for "the dog chased the cat" and for "the cat chased the dog"?</div>
@@ -81,6 +132,9 @@
 <div class="reveal" hidden><p>Exactly the same, and not by luck. Without positions the encoder is permutation-equivariant (shuffle the input words and its outputs shuffle the same way) and cross-attention sums over the encoder's outputs, which ignores their order; so any reordering of the source gives the same translation. The trained no-position model shows it word for word: <span id="prPeOut" class="mono"></span>. <a href="#" data-tab="t-run" data-to="runTop" data-ex="swap">Try it with the real weights</a> in the Run a Transformer tab, where this model gets <b id="prPeAcc"></b> of held-out sentences right against <b id="prPeAccF"></b> for the full model.</p></div></div>
 </section>
 
+</div></div>
+
+<div class="s3sp"><div class="s3L">
 <section id="s-train"><h2>Method: training and decoding</h2>
 [[S5|§5 Training, §6.1]]
 <ul class="lst">
@@ -91,21 +145,19 @@
 <li><b>Decoding</b> ({{§6.1|ax:S6.SS1}}): beam search with beam 4 and length penalty α = 0.6, on an average of the last checkpoints.</li></ul>
 <details class="mist"><summary>The rest of the recipe, and two small gaps in it</summary><div class="b"><p>Batches held about 25,000 source and 25,000 target tokens, sentences grouped by length ({{§5.1|ax:S5.SS1}}). Dropout is applied to every sub-layer output and to the sums of embeddings and positional encodings ({{§5.4|ax:S5.SS4}}). Decoding stops at input length + 50; the final model averages the last 5 checkpoints, written every 10 minutes, for base models and the last 20 for big ones ({{§6.1|ax:S6.SS1}}).</p><p>§5.4 announces "three types of regularization" and lists two (residual dropout and label smoothing). §5.2 gives the base model as 65M parameters; recounting from the stated configuration gives 63.1M (the {{recount|tab:t-tables:tbP}} in the tables tab).</p></div></details>
 <div class="fm"><div class="eq"><i>lrate</i> = <i>d</i><sub>model</sub><sup>−0.5</sup> · min(<i>step</i><sup>−0.5</sup>, <i>step</i> · <i>warmup</i><sup>−1.5</sup>)</div><div class="wh">Equation 3 ({{§5.3|ax:S5.SS3}}). The two branches meet at <i>step</i> = <i>warmup</i>, so the peak is <span class="m">(<i>d</i><sub>model</sub> · <i>warmup</i>)<sup>−0.5</sup></span>.</div></div>
-<div class="card"><div class="ctl"><label>warmup steps <b id="lrWv">4,000</b><input type="range" id="lrW" min="500" max="16000" step="500" value="4000"></label><label><i>d</i><sub>model</sub> <select id="lrD"><option value="512" selected>512 (base)</option><option value="1024">1024 (big)</option><option value="24">24 (this page's toy model)</option></select></label></div>
-<div id="lrSvg"></div><div class="out" id="lrO"></div>
-<p class="small mute" id="lrRep"></p></div>
-</section>
 
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">Warmup, then an inverse-square-root decay: the peak is (d<sub>model</sub> · warmup)<sup>−0.5</sup></div><div class="ctl"><label>warmup steps <b id="lrWv">4,000</b><input type="range" id="lrW" min="500" max="16000" step="500" value="4000"></label><label><i>d</i><sub>model</sub> <select id="lrD"><option value="512" selected>512 (base)</option><option value="1024">1024 (big)</option><option value="24">24 (this page's toy model)</option></select></label></div>
+<div id="lrSvg"></div><div class="out" id="lrO"></div>
+<p class="small mute" id="lrRep"></p></div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
 <section id="s-res"><h2>Results</h2>
 [[S6|§6 Results, Tables 2 to 4]]
 <ul class="lst">
 <li><b>English to German</b> (WMT 2014 newstest2014): the big model scores <b>28.4 BLEU</b>, more than 2.0 above the best earlier result including ensembles (ConvS2S Ensemble, 26.36; the gap is 2.04). Even the base model, 27.3, beats every earlier model and ensemble at a fraction of their training cost: 3.3 × 10<sup>18</sup> FLOPs against 9.6 × 10<sup>18</sup> to 1.8 × 10<sup>20</sup> for the others ({{§6.1|ax:S6.SS1}}, {{Table 2|ax:S6.T2}}).</li>
 <li><b>English to French</b>: <b>41.8 BLEU</b> for the big model in Table 2 and the abstract, a new single-model state of the art, at 2.3 × 10<sup>19</sup> FLOPs, under a quarter of the earlier single models' 1.2 to 1.5 × 10<sup>20</sup> (0.15 to 0.19 of them). This model used dropout 0.1 instead of 0.3 ({{§6.1|ax:S6.SS1}}). <span class="ill">Two printed figures:</span> the v7 text of §6.1 still says 41.0; this page uses 41.8, the later and tabulated figure (details below).</li></ul>
-<div class="card" id="tb2"><div class="t" style="font-weight:600;margin-bottom:4px">Better and cheaper at once: the Transformers sit above every earlier model, at a fraction of their training cost</div>
-<div class="seg" id="t2L" role="group" aria-label="Language pair"><button class="on" data-m="de" aria-pressed="true">English to German</button><button data-m="fr" aria-pressed="false">English to French</button></div>
-<div id="t2Svg"></div>
-<p class="small mute">{{Table 2|ax:S6.T2}} rebuilt: BLEU on newstest2014 against training FLOPs (log scale). Filled: single models; rings: ensembles; Transformers in blue. The paper prints one cost per Transformer model for both pairs; ByteNet (EN-DE 23.75) and Deep-Att + PosUnk have no cost and are listed under the chart. The Transformer costs reproduce independently (details below).</p>
-<div id="t2Miss" class="small"></div></div>
+
 <details class="mist"><summary>How the FLOPs were counted, and the two English-French scores</summary><div class="b">
 <p><b>FLOPs</b> (Table 2, footnote 2): training time × number of GPUs × an estimate of each GPU's sustained single-precision rate (2.8, 3.7, 6.0 and 9.5 TFLOPS for K80, K40, M40 and P100). <span class="ill">Defaults reproduce Table 2 independently:</span> 12 h × 3,600 s × 8 × 9.5 × 10<sup>12</sup> = 3.28 × 10<sup>18</sup> (3.3 × 10<sup>18</sup>), and 3.5 days gives 2.30 × 10<sup>19</sup> (2.3 × 10<sup>19</sup>); see recompute.py. These are estimates of what the hardware could do, not measured operations.</p>
 <p><b>41.0 against 41.8.</b> The two primary figures disagree: the v7 text of §6.1 still says 41.0, the figure the {{v1|https://arxiv.org/abs/1706.03762v1}} and {{v2|https://arxiv.org/abs/1706.03762v2}} abstracts reported, while Table 2 and the abstract from {{v5|https://arxiv.org/abs/1706.03762v5}} on say 41.8.</p></div></details>
@@ -118,6 +170,11 @@
 <div class="fb"></div>
 <div class="reveal" hidden><div class="bars" id="prT3"></div><p class="small">From {{Table 3|ax:S6.T3}}. Depth matters most at this scale: 2 layers lose 2.1 BLEU; no dropout loses 1.2, a quarter-size <i>d</i><sub>model</sub> 1.3, one head 0.9, learned positions 0.1. Every row, with perplexity and parameters, is in {{The paper's tables, rebuilt|tab:t-tables:tb3}}.</p></div></div>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="tb2"><div class="t" style="font-weight:600;margin-bottom:4px">Better and cheaper at once: the Transformers sit above every earlier model, at a fraction of their training cost</div>
+<div class="seg" id="t2L" role="group" aria-label="Language pair"><button class="on" data-m="de" aria-pressed="true">English to German</button><button data-m="fr" aria-pressed="false">English to French</button></div>
+<div id="t2Svg"></div>
+<p class="small mute">{{Table 2|ax:S6.T2}} rebuilt: BLEU on newstest2014 against training FLOPs (log scale). Filled: single models; rings: ensembles; Transformers in blue. The paper prints one cost per Transformer model for both pairs; ByteNet (EN-DE 23.75) and Deep-Att + PosUnk have no cost and are listed under the chart. The Transformer costs reproduce independently (details below).</p>
+<div id="t2Miss" class="small"></div></div></div></div></div>
 
 <section id="s-why"><h2>Why it matters</h2>
 <span class="where nolink">beyond the paper: later work, each claim linked</span>

@@ -17,9 +17,9 @@ python3 - <<'PY'
 import html, json, re
 P = json.load(open('paper.json'))
 AX = 'https://arxiv.org/html/%s%s' % (P['arxiv'], P['arxiv_v'])
-HTML = ['00_top.html', '01_css.html', '02_header.html', '03_paper.html', '04_run.html', '05_tables.html', '06_then.html', '_gen_more.html']
-JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '12_js_rnn.js', '13_js_read.js', '20_model_data.js', '21_js_lang.js',
-      '22_js_model.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js', '90_js_tabs.js']
+HTML = ['00_top.html', '01b_css_split.html', '01_css.html', '02_header.html', '03_paper.html', '04_run.html', '05_tables.html', '06_then.html', '_gen_more.html']
+JS = ['10_js_common.js', '_gen_data.js', '11_js_ui.js', '13_js_read.js', '20_model_data.js', '21_js_lang.js',
+      '22_js_model.js', '23_js_run.js', '24_js_tables.js', '25_js_then.js', '30_js_s3.js', '31_js_sc_model.js', '32_js_sc_rnx.js', '33_js_sc_att.js', '34_js_sc_mh.js', '35_js_sc_blk.js', '36_js_sc_pe.js', '90_js_tabs.js']
 rd = lambda f: open('parts/' + f, encoding='utf-8').read()
 body = ''.join(rd(f) for f in HTML).replace('@@CARD@@', rd('_gen_card.html'))
 A = lambda u, t: '<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>' % (u, t)

@@ -7,6 +7,8 @@ How to decide which visuals a page gets, where each goes, and how their numbers 
 - Write down, in one sentence, the question the subject keeps returning to (for Topic: llm-landscape: where the test-time budget goes and what a model costs to serve; for DeepSeek: what it costs to train and serve). A visual is worth building when it makes that question measurable.
 - List the page's existing visuals and outbound links first (and the root's, the siblings' and the paper pages' when building a child), so new ideas do not repeat what exists and the page's own sources become the first places to look.
 - Only then open [animation-types.md](animation-types.md) to pick a form.
+- **Ask whether it should be 3D** ([three-d.md](three-d.md)): when the concept has spatial structure, prefer a 3D stage to a flat drawing or to none; when it is a curve, scatter, heatmap or table, keep it 2D. Reasonable, never forced.
+- **Every visual goes in the right column of its section** (the split layout, [../teaching/teaching-contract.md](../teaching/teaching-contract.md)); a section without one is full width.
 
 ## 2. The two most valuable kinds
 1. **Recompute a published figure with one movable parameter.** Rebuild a number the source reports from its formula and configuration, let the reader move one input, and land the defaults on the published value (DeepSeek's Cache tab rebuilds KV memory for every attention design; the Compute tab does FLOPs per token).
@@ -32,7 +34,7 @@ Subtract build cost. Ties go to the visual that links to more of the page's othe
 Pages that are not about mechanisms fit the scoring poorly: categorical facts (licences per checkpoint) become a checker or matrix read verbatim; on a data page the table is the main visual and keeps every field; a breadth page puts many small subjects on the same axes with an evidence column; a news issue earns one index visual (the week strip) plus a visual only where a headline hides a mechanism.
 
 ## 4. Placement follows scope
-Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last. **The default is inline**: a visual that proves a claim sits beside that claim. The audit of 2026-10-23 found the strongest animations of most pages one click away in lab tabs while the Reading tab described them in words.
+Every page has the same frame: **Reading** first (the explanation interleaved with the visuals needed to follow it), **one tab per visual that deserves room**, **Further reading** last. **The default is the Reading flow**: a visual that proves a claim sits beside that claim, in the right column of its section (split layout). The audit of 2026-10-23 found the strongest animations of most pages one click away in lab tabs while the Reading tab described them in words.
 - **Own tab** when the visual answers "across all of X, how does Y change" (every model, every release, every config), or is a lab with several sections and controls.
 - **Inside Reading** when it explains one mechanism at the moment the text introduces it.
 - **Inside an existing tab** when it shares that tab's axis (the DeepSeek config diff shares the Lineage tab's set of models).

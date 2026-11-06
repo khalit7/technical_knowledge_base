@@ -18,7 +18,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 - **A caption for every step** (in HTML beside the drawing): what happens and why it matters, with the formula and the number at that step. Seven steps each way.
 - **Running counters** that tie the picture to the numbers the text quotes (numbers cached, bytes per token over 61 layers, read per decoded token).
 - **Controls:** play and pause, step back and forward, a scrubber over the steps, and a speed control (0.5x, 1x, 2x), so a reader can stop on the step they are thinking about.
-- **Good manners:** it animates only while its card is on screen and its tab is visible, never plays by itself (the reader presses play or steps; changed 2026-10-23, learner pacing is what makes animation teach), and under `prefers-reduced-motion` moves one step at a time without tweening.
+- **Good manners:** it plays by itself once in view, pauses off screen, stops for good when the reader takes a control or reaches the last step ([mechanics.md](mechanics.md), Khalid 2026-11-06), and under `prefers-reduced-motion` never moves by itself and steps without tweening.
 
 **What makes it good.** The static switch shows two end states; the animation shows how one becomes the other. The earlier rejection of this animation as duplicating the static mode switch was wrong, and the log says so.
 
@@ -213,7 +213,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 ## 15. Stepper (a static sequence the reader advances)
 
-**What it is.** A process shown as numbered frames: Next and Back buttons (and arrow keys), one caption per frame, the changed part highlighted in each frame. Unlike type 1 there is no tweening and no play button: each frame is a still.
+**What it is.** A process shown as numbered frames: Next and Back buttons (and arrow keys), one caption per frame, the changed part highlighted in each frame. Unlike type 1 there is no tweening: each frame is a still. Built with `RD.anim` it plays its frames by itself once in view like any animation (Khalid, 2026-11-06), and its frames are written out as the `ol.sx` step list on the left.
 
 **When to use it.** A process whose steps matter more than the motion between them: a handshake, an OAuth flow, a request through a serving stack, a training step through a parallelism scheme. Evidence: a fair sequence of stills does about as well as animation, and learner-paced segments help most (Tversky et al. 2002; Rey et al. 2019).
 
@@ -227,8 +227,13 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **What makes it good.** Small WebP in the page's `img/` folder, alt text saying what it shows, the source and licence named under it ([../teaching/teaching-contract.md](../teaching/teaching-contract.md) Images).
 
+## 17. 3D stage (stacks, shapes, many matrices, spatial systems)
+**Reference:** the Attention Is All You Need paper page, every section of The paper tab (2026-11-06).
+**When to use it.** When the concept has real spatial structure or depth separates what a flat drawing overlaps: the model's two stacks, a vector splitting into heads, an FFN's expansion, attention weights of four heads as bar fields, a causal mask as walls. Reasonable, never forced; Khalid prefers one to none.
+**What makes it good.** A step list on the left explains each step; real numbers from the page's toy model or recomputation; upright labels; the rest fades while a step highlights its part; drag to turn. How to build: [three-d.md](three-d.md).
+
 ## Patterns that were rejected (do not rebuild)
-- Autoplaying loops: the reader cannot stop on the step they are thinking about.
+- Endless loops and idle motion (a model spinning, a pulse that never stops): autoplay plays the explained steps once and stops; the reader can always stop on a step.
 - The same concept drawn again on a second page (link the owner's visual).
 - A visual of a single number with nothing to move.
 - Data that exists only as figure images (read printed labels or decode vector figures; never read curves by eye).

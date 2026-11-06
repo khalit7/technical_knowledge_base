@@ -42,10 +42,14 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // never autoplay (2026-10-24): each animation on screen for 1.5 s before any click draws no frame
-    for (const id of ['rnx', 'thx', 'dec']) { if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500);
-      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`${scheme} ${width}: ${id} autoplayed`) }
+    // 2D animations play by themselves once scrolled into view (2026-11-06)
+    for (const id of ['thx', 'dec']) { if (!(await p.$(`#${t} #${id}`))) continue;
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2500);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
+    // the 3D stages play by themselves once scrolled into view (Khalid, 2026-11-06), and not under reduced motion (checked below)
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1800);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);
     for (const pr of preds) { const bs = await pr.$$('.opts button'); if (bs.length) { await bs[bs.length - 1].evaluate(b => b.click()); await bs[0].evaluate(b => b.click()); actions += 2 } }
@@ -87,8 +91,28 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       const el = await p.$('#dec'); await el.screenshot({ path: `${shots}/x-decode-${scheme}-${width}.png` });
       const tst = await p.$eval('#tstOut', e => e.innerText); if (!/%/.test(tst)) problems.push('browser test produced no result'); else console.log(scheme, width, 'browser test:', tst.replace(/\s+/g, ' '));
     }
+    // the 3D stages: every step by the forward button and by its list item, a screenshot mid-way, then play for a second
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) {
+      const modes = id === 'stg-rnx' ? ['sa', 'rnn'] : [null];
+      for (const m of modes) {
+        if (m) await clk(`#rnxM button[data-m=${m}]`);
+        const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+        await p.evaluate(id => { const e = document.getElementById(id + '-r'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
+        for (let k = 1; k < n; k++) { await clk(`#${id}-f`); await wait(60); actions++;
+          if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1500); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
+        const shown = await p.$eval(`#${id} .stg-st`, e => e.textContent); if (shown !== `step ${n} of ${n}`) problems.push(`${scheme} ${width}: ${id} ${m || ''} ended on "${shown}"`);
+        const lis = await p.$$eval(`#${id}`, ([h]) => { const l = h.closest('.s3sp').querySelector('ol.sx:not([hidden])'); return l ? l.children.length : 0 });
+        if (lis !== n) problems.push(`${scheme} ${width}: ${id} has ${n} steps but ${lis} explained`);
+        for (let k = 0; k < n; k++) { await p.evaluate((id, k) => document.getElementById(id).closest('.s3sp').querySelector('ol.sx:not([hidden])').children[k].click(), id, k); actions++ }
+        await audit(`${t} ${id} ${m || ''} stepped`);
+      }
+      await p.$eval('#' + id, e => e.scrollIntoView()); await p.evaluate(id => { const e = document.getElementById(id + '-r'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
+      const f0 = await p.$eval('#' + id, e => +e.dataset.frames || 0); await clk(`#${id}-p`); await wait(1200);
+      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) <= f0) problems.push(`${scheme} ${width}: ${id} did not animate`);
+      await clk(`#${id}-p`);
+    }
     // step the animations through every step and screenshot the middle
-    for (const id of ['rnx', 'thx']) {
+    for (const id of ['thx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {
@@ -109,6 +133,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
   await p.close();
 }
+{ // reduced motion: no stage moves by itself
+  const p = await b.newPage(); await p.setViewport({ width: 1400, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file);
+  for (const id of await p.$$eval('#t-read .stg', xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200));
+    if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`reduced motion: ${id} moved by itself`) }
+  await p.close() }
 await b.close();
 console.log('actions', actions, 'problems', problems.length); problems.forEach(x => console.log(' -', x));
 process.exit(problems.length ? 1 : 0);

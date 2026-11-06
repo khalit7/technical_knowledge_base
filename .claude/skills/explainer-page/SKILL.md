@@ -26,7 +26,7 @@ The repository is the source of truth. Every page is one interactive `index.html
 2. **Learn it.** [understand/research.md](understand/research.md): primary sources and their tables, pinned source code at file:line, independent measurements, every old claim verified, shared `FACTS.md`.
 3. **Plan the teaching.** [understand/curriculum.md](understand/curriculum.md): one running example, the comparison axes for the root, depth for the children, labs, what to measure. Present it to Khalid as a teaching plan with reasons and the proposed children (approve, reword, drop).
 4. **Choose the evidence.** [evidence/sourcing.md](evidence/sourcing.md) for published numbers; [evidence/local-runs.md](evidence/local-runs.md) for when running locally is genuinely useful; [evidence/resource-safety.md](evidence/resource-safety.md) before any heavy run on the Mac.
-5. **Choose the visuals.** [visuals/choosing.md](visuals/choosing.md), the catalogue [visuals/animation-types.md](visuals/animation-types.md) (before/after on the same input first), and [visuals/mechanics.md](visuals/mechanics.md).
+5. **Choose the visuals.** [visuals/choosing.md](visuals/choosing.md), the catalogue [visuals/animation-types.md](visuals/animation-types.md) (before/after on the same input first), [visuals/three-d.md](visuals/three-d.md) (3D stages) and [visuals/mechanics.md](visuals/mechanics.md) (including the split layout).
 6. **Write to teach.** [teaching/teaching-contract.md](teaching/teaching-contract.md), [teaching/page-quality.md](teaching/page-quality.md) and [teaching/writing-style.md](teaching/writing-style.md).
 7. **Build and check.** [build/scaffold.md](build/scaffold.md), [build/templates/](build/templates/), [build/checks.md](build/checks.md).
 8. **Publish.** The `sync-kb-github` skill: `python3 html_utils/page_finalize.py <folder>` (papers: `paper_finalize.py <slug>`) commits, `git push` deploys the site, a new page gets its Notion link page, and `python3 html_utils/sync_status.py --no-build` ends "Published". Concept owners: add a row to `technical_knowledge_base/OWNERS.md` when the page owns something new. Present pages to Khalid before publishing unless he has said to publish.
@@ -38,7 +38,8 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 - **The shapes in page-kinds are suggestions, not templates.** Take what fits the content, depart where it needs and say why in `src/README.md`. Never force content into a shape.
 - One self-contained `index.html` per page: no network, no CDN, no web fonts; images as small WebP files in `img/` ([visuals/mechanics.md](visuals/mechanics.md)).
 - Tabs: Reading first and open by default, one tab per standalone lab or tool that deserves room, Further reading last.
-- Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll, animations pause off screen and under reduced motion.
+- **Split layout everywhere** (Khalid, 2026-11-06): a section with a visual is text on the left, the visual on the right (sticky); a section without one is full width ([teaching/teaching-contract.md](teaching/teaching-contract.md), [visuals/mechanics.md](visuals/mechanics.md)). **3D stages when reasonable, never forced** ([visuals/three-d.md](visuals/three-d.md)). Every animation is explained step by step on the left.
+- Fail-safe JS (one `<script>` per JS part, the `#jsErr` box), light and dark, 390 px with no sideways scroll; animations play by themselves once in view, pause off screen, stop on any reader control, and never move by themselves under reduced motion.
 - Every specific fact sourced inline and dated; measured results labelled with the machine; anything not run says "not run here" and why.
 - No em-dashes anywhere (prose, HTML, captions, commits).
 - Privacy: never write the home path, the scratchpad path, hostnames, network addresses, git identity, emails or tokens into the repo or a page.
@@ -47,6 +48,7 @@ Many pages at once (a topic, a batch of papers): [orchestration/topic-pipeline.m
 - Never leave an old page without a new equivalent unchecked: grep coverage, report, ask (rebuild, fold, or retitle "TO DELETE: ...").
 
 ## Reference pages in this repo
+- Split layout, 3D stages, step lists and autoplay (the 2026-11-06 standard): `technical_knowledge_base/whats_new/papers/attention_is_all_you_need_transformer/`.
 - Root built by a team with labs and children: `technical_knowledge_base/models_and_training/topic_generative_and_multimodal/` (children inside it).
 - Before/after animation Khalid likes most: `technical_knowledge_base/models_and_training/topic_llm_landscape/deepseek/` (the MLA explainer).
 - Paper: `technical_knowledge_base/whats_new/papers/ddpm/`, `.../clip/`.

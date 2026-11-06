@@ -54,6 +54,7 @@ Each lesson says what happened and the rule it produced. The rules are already f
 - **2026-10-17, units.** A setup reported 2.43 "GB" that was MiB (2.55 GB). Rule: say GiB or GB explicitly and convert once.
 
 ## Building and checks
+- **2026-11-06, the split layout and 3D trial.** On the Attention Is All You Need paper page, three class names collided with older page CSS (`.sp` gave the prose 13.5 px and a border, `.split` turned the layout into a two-column grid at 390 px and 636 clipped texts, `.kv` pushed a word onto its own line). Rule: layout classes carry the `s3` prefix, and an agent greps the page's CSS before adding any class. Also: a scene with a low camera drew in a thin band of a tall card (raise `phi`, set `aspect`); side labels piled up on phones (group them; they hide under 520 px); WebGL was avoided because headless checks and some browsers have it off.
 - **2026-10-03, headless shell.** Puppeteer's default headless mode timed out on screenshots. Rule: `headless: 'shell'`.
 - **2026-10-03, glob order.** `20_read_b.html` sorted before `20_read.html` in this locale. Rule: first Reading part is `20_read_a.html`, or list parts explicitly.
 - **2026-10-14, zsh loops.** A scaffold loop over `$list` in zsh did not split words and created one wrongly named file. Rule: scaffold loops in `sh` or with explicit names.
