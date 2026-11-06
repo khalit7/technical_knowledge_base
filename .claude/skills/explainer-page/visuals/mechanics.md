@@ -61,6 +61,7 @@ Every section that has a visual is two columns; a section without one is full wi
 ```
 - At 1100 px and wider `.s3sp` is a grid (left `minmax(0,1fr)`, right `minmax(0,1.15fr)`), the page widens to 1380 px while the open tab holds a split, and the right column's content is sticky under the section nav (`top:58px`; the stage's height follows the scene's shape, capped by the window).
 - **A 2D animation in a split** uses `RD.anim({..., list:'sx-x'})`: the `ol.sx` on the left gets the same marking, clicks and `aria-current` as a 3D stage's list; `reset(n,'sx-other')` swaps the list on a mode toggle and replays. Put the card first in `.s3R` (so on a phone it sits at the top of its section) and, when it is compact (about 320 px tall or less at 390 px), give it the class `s3stick` so it stays under the nav while its steps are read.
+- Text outside a split (full-width sections) is capped at 52em on the widened page, so lines stay readable; the rule is in `02_split.html` (2026-11-06: before it, full-width paragraphs ran to about 1,340 px).
 - Sticky offsets are 50 px on phones and 58 px from 1100 px up (under the section nav, which is about 48 px tall).
 - Several sections can share one split when one visual serves them (Problem and Idea share the recurrence-against-attention stage on the trial page); a section with two visuals stacks them in the right column or splits into two sections.
 - Size charts in the right column from its measured width as usual; they redraw when the tab opens.

@@ -1,6 +1,11 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s6">
 <h2>6. What a hit is worth: hit-rate arithmetic and the cost of a miss</h2>
 <p>With &lambda; reads a second and hit ratio h, the database sees (1 &minus; h) &times; &lambda;. So going from 90% to 99% hits looks like a 9-point gain but divides the database's read load by ten (1,000 reads a second become 100, then 10). Mean latency is h &times; t<sub>cache</sub> + (1 &minus; h) &times; (t<sub>cache</sub> + t<sub>db</sub>). Predict: at the defaults the database is comfortable; what happens to it if the cache restarts empty? Then drag.</p>
+
+<p>Three consequences. <b>The tail is the miss path</b>: at a 95% hit rate the p99 is a database read however fast the cache is, so a cache improves the median far more than the p99. <b>The cache has become capacity</b>: when it empties (a restart, a failover, a deploy that changes every key) the full load lands on a database sized for a fraction of it; Facebook keeps spare "Gutter" servers, about 1% of the memcached fleet, to take a failed server's keys rather than let its misses reach the databases (Nishtala et al.). <b>Warm up before taking traffic</b>: fill a new cache from the old one, or ramp traffic (section 8 measures the same cold start inside Postgres). The queueing behind "more than it can take" is on {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="rd-hit-card">
 <h4>The database is sized for the misses, so an empty cache sends it more than it can take</h4>
 <div class="calc"><label>Hit ratio: <b id="rd-hit-hv"></b><input type="range" id="rd-hit-h" min="0" max="100" step="1" value="90" aria-label="Hit ratio"></label></div>
@@ -8,7 +13,8 @@
 <div class="rd-svg" id="rd-hit-svg"></div>
 <p class="small mute">Demand 1,000 reads a second against a database that answers about 600 (<span class="ill">illustrative</span>, the {{system design root's Step 2|n:3c65c17b0d0d81048ae0dd14ac399b4d}} example); t<sub>cache</sub> = <span class="nv" data-n="pg.costs.redis_get.median_ms" data-f="x3"></span> ms (Redis GET) and t<sub>db</sub> = <span class="nv" data-n="pg.costs.usage_aggregate.median_ms" data-f="x1"></span> ms (the usage aggregate below), both <span class="meas">measured</span> here on loopback. Formulas checked in <code>recompute.py</code>.</p>
 </div>
-<p>Three consequences. <b>The tail is the miss path</b>: at a 95% hit rate the p99 is a database read however fast the cache is, so a cache improves the median far more than the p99. <b>The cache has become capacity</b>: when it empties (a restart, a failover, a deploy that changes every key) the full load lands on a database sized for a fraction of it; Facebook keeps spare "Gutter" servers, about 1% of the memcached fleet, to take a failed server's keys rather than let its misses reach the databases (Nishtala et al.). <b>Warm up before taking traffic</b>: fill a new cache from the old one, or ramp traffic (section 8 measures the same cold start inside Postgres). The queueing behind "more than it can take" is on {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
+</div></div></div>
+<section id="rd-s6b">
 <h3>Not every miss costs the same</h3>
 <p>A miss on "chat 42 by its id" costs Postgres <span class="nv" data-n="pg.costs.pk_lookup.median_ms" data-f="x3"></span> ms; a miss on "this user's token usage by model" costs <span class="nv" data-n="pg.costs.usage_aggregate.median_ms" data-f="x1"></span> ms (medians over random keys on the root's 10-million-message database, client round trips over a local connection) <span class="meas">measured</span>; a Redis GET took <span class="nv" data-n="pg.costs.redis_get.median_ms" data-f="x3"></span> ms on the same machine. Caching the first saves almost nothing (a Redis round trip costs about as much as the query); caching the second saves <span class="nv" data-n="pg_note.agg_over_get" data-f="raw"></span> times the cost of the lookup. A cache that hits 95% of cheap requests and misses every expensive one has a beautiful hit ratio and saves the database almost nothing. So count work saved:</p>
 <div class="fm"><div class="eq">CWHR = &Sigma;<sub>hits</sub> cost(miss avoided) / &Sigma;<sub>all requests</sub> cost(miss)</div>
@@ -18,11 +24,14 @@
 <p>Redis has no such policy, so production systems get the same effect by hand: <b>separate pools</b> (Facebook: "a small pool for keys that are accessed frequently but for which a cache miss is inexpensive", and "a large pool for infrequently accessed keys for which cache misses are prohibitively expensive"; in Redis terms, two instances, so cheap churn cannot evict expensive results); <b>longer TTLs for expensive results</b>, or caching only results above a cost threshold (do not cache a 0.07 ms lookup at all); and <b>precomputing the expensive ones</b> (a materialised view, section 8). For an LLM cache the cost has an exact money form (section 11).</p>
 <details class="dp"><summary>What to put on the cache dashboard <span class="mute">(reference)</span></summary><div class="b"><p><b>What to put on the dashboard</b> (Redis's <code>INFO stats</code> exposes the first three): hits and misses (<code>keyspace_hits</code>, <code>keyspace_misses</code>); <code>evicted_keys</code> next to <code>expired_keys</code> (many evictions: memory too small or wrong policy; many expiries: TTL too short); latency split by hit and miss; database load with and without the cache; and the number of distinct keys, whose unbounded growth means a timestamp or request id got into a key.</p></div></details>
 </section>
-
+<div class="s3sp"><div class="s3L">
 <section id="rd-s7">
 <h2>7. TTLs, jitter and stampedes: when a popular copy expires</h2>
 <p><b>Choosing a TTL.</b> A TTL is the staleness you accept, stated in seconds: the bound on how long a forgotten invalidation can last and on how long an un-invalidated copy can lie. Short TTLs cost misses; long ones cost staleness. Per-user data that is hot only during a session fits minutes; shared reference data that is invalidated explicitly can carry hours, with the TTL as the backstop.</p>
 <p><b>Jitter.</b> Entries written together with the same TTL expire together: a deploy that refills 10,000 hot keys in the same second sends their next reads to the database in the same second, 300 s later. Adding a random extra 0 to j% to each TTL spreads those expiries over 300 &times; j seconds. Drag the jitter:</p>
+
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="rd-jit-card">
 <h4>Ten per cent of jitter turns one spike of 10,000 expiries into a plateau the database can absorb</h4>
 <div class="calc"><label>Jitter on a 300 s TTL: <b id="rd-jit-v"></b><input type="range" id="rd-jit-j" min="0" max="5" step="1" value="0" aria-label="Jitter"></label></div>
@@ -30,16 +39,11 @@
 <div class="rd-svg" id="rd-jit-svg"></div>
 <p class="small mute">10,000 keys filled at t = 0, TTL 300 s plus a uniform random 0 to j% <span class="ill">illustrative</span>. Peak expiries per second = keys / (300 &times; j), derived; each becomes a database query on its key's next read. The 600 a second line is the same illustrative database as in section 6. TTL jitter is common advice (a random 0 to 10%), not from a single source.</p>
 </div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s7b">
 <p><b>Stampedes.</b> A <a href="#g-stampede">stampede</a> (dog-piling, a thundering herd) is one hot key expiring: every request that arrives before someone has rebuilt it misses and rebuilds it too. If the rebuild takes 300 ms and the key is read 200 times a second, 60 requests run the same expensive query at once, which makes the query slower, which widens the window. Facebook measured it: "Without leases, all of the cache misses resulted in a peak database query rate of 17K/s. With leases, the peak database query rate was 1.3K/s" (Nishtala et al.). Predict: which defence sends the database one query and makes no request wait?</p>
-<div class="fig" id="rd-st-card">
-<h4>One expiry, four defences: only the unprotected cache sends 60 queries for one key</h4>
-<div class="seg" id="rd-st-mode"><button data-m="none" class="on">No protection</button><button data-m="coalesce">Coalescing or a lease</button><button data-m="swr">Serve stale, refresh</button><button data-m="xfetch">XFetch early refresh</button></div>
-<div class="an-cnt" id="rd-st-out"></div>
-<div class="rd-svg" id="rd-st-svg"></div>
-<div class="leg"><span style="--sw:var(--dim)">served fresh from cache</span><span style="--sw:var(--bad)">missed and queried the database</span><span style="--sw:var(--c5)">waited for another request's rebuild</span><span style="--sw:var(--c4)">served the old value</span></div>
-<div class="an-cap" id="rd-st-cap"></div>
-<p class="small mute">The model (ported from {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}'s <code>model.py</code>, <code>stampede</code>, plus a serve-stale mode): one key read 200 times a second, expiring at t = 1 s, rebuilt by a 300 ms database query; XFetch with &beta; = 1 and &Delta; = 300 ms on a seeded random draw (seed 5) <span class="ill">illustrative rates</span>. The counts (60, 1, 1, 1 database queries) are checked in <code>recompute.py</code>.</p>
-</div>
+
 <ol>
 <li><b>Request coalescing</b> (single-flight): the first miss rebuilds; the others wait for its answer (Go's <code>singleflight</code>, nginx's <code>proxy_cache_lock on</code>; Facebook's leases across servers, "a token only once every 10 seconds per key"). Cost: the waiters still wait for the rebuild.</li>
 <li><b>Serve stale while revalidating</b>: keep the old value a little past its TTL and refresh in the background (<code>Cache-Control: stale-while-revalidate=30</code>, {{RFC 5861|https://datatracker.ietf.org/doc/html/rfc5861}}). Cost: a few seconds of staleness.</li>
@@ -67,3 +71,14 @@ async def get_coalesced(key, load):
 <p class="small mute">Per process only: 8 servers can still send 8 queries. Route each key to one server (consistent hashing) or coalesce in the shared cache (a short lock key with <code>SET key NX PX 3000</code>, as the lease of section 3 does) to go further.</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="fig" id="rd-st-card">
+<h4>One expiry, four defences: only the unprotected cache sends 60 queries for one key</h4>
+<div class="seg" id="rd-st-mode"><button data-m="none" class="on">No protection</button><button data-m="coalesce">Coalescing or a lease</button><button data-m="swr">Serve stale, refresh</button><button data-m="xfetch">XFetch early refresh</button></div>
+<div class="an-cnt" id="rd-st-out"></div>
+<div class="rd-svg" id="rd-st-svg"></div>
+<div class="leg"><span style="--sw:var(--dim)">served fresh from cache</span><span style="--sw:var(--bad)">missed and queried the database</span><span style="--sw:var(--c5)">waited for another request's rebuild</span><span style="--sw:var(--c4)">served the old value</span></div>
+<div class="an-cap" id="rd-st-cap"></div>
+<p class="small mute">The model (ported from {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}'s <code>model.py</code>, <code>stampede</code>, plus a serve-stale mode): one key read 200 times a second, expiring at t = 1 s, rebuilt by a 300 ms database query; XFetch with &beta; = 1 and &Delta; = 300 ms on a seeded random draw (seed 5) <span class="ill">illustrative rates</span>. The counts (60, 1, 1, 1 database queries) are checked in <code>recompute.py</code>.</p>
+</div>
+</div></div></div>

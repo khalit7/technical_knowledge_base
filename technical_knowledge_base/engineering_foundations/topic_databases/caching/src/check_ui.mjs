@@ -42,15 +42,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   // section 1
   for (const m of ['rank', 'lorenz']) { await clickSeg('#rd-skew-mode', m); await shot('#rd-skew-card', 'skew-' + m); }
   await bad('skew');
-  // section 3: race animation, every mode, every step
+  // section 3: the race stage (Fig. 2), every mode, every step
   for (const m of ['delete', 'lease', 'version', 'double_delete']) {
     await clickSeg('#rd-race-mode', m);
-    const n = await p.$eval('#rd-race-ctl-s', e => +e.max + 1);
-    for (let i = 0; i < n; i++) { await setV('rd-race-ctl-s', i); if (i === n - 1 || i === 2) await shot('#rd-race-card', `race-${m}-${i}`); }
+    const n = await p.$eval('#stg-race-r', e => +e.max + 1);
+    for (let i = 0; i < n; i++) { await setV('stg-race-r', i); if (i === n - 1 || i === 2) await shot('#stg-race', `race-${m}-${i}`); }
     await bad('race ' + m);
   }
-  for (const id of ['rd-race-ctl-p', 'rd-race-ctl-f', 'rd-race-ctl-b', 'rd-race-ctl-p']) { await p.click('#' + id); clicks++; await sleep(40); }
-  await setV('rd-race-ctl-v', '2');
+  for (const id of ['stg-race-p', 'stg-race-f', 'stg-race-b', 'stg-race-p']) { await p.click('#' + id); clicks++; await sleep(40); }
+  await setV('stg-race-s', '2');
   if (width === 920) nums.race_tbl = await txt('#rd-race-tbl');
   // section 5: eviction chart per workload
   for (const w of ['wiki6h', 'zipf0.7', 'zipf0.9', 'zipf1.1', 'wiki']) { await clickSeg('#rd-ev-work', w); await shot('#rd-ev-card', 'ev-' + w); }
@@ -62,7 +62,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (let m = 0; m < pm; m++) for (const t of [0, 3, 6]) for (const n of [1, 2, 10, 50]) { await setV('rd-be-model', m); await setV('rd-be-tok', t); await setV('rd-be-n', n); if (width === 920 && n === 2 && t === 3) nums['be_' + m] = await txt('#rd-be-out'); }
   await setV('rd-be-model', 0); await setV('rd-be-tok', 3); await setV('rd-be-n', 10); await shot('#rd-be-card', 'be'); await bad('be');
   // section 3: patterns; section 6: hit-rate slider; section 7: jitter slider and stampede modes
-  await shot('#rd-hero-card', 'hero');
+  await shot('#stg-hero', 'hero'); await shot('#stg-ev', 'ev-stage');
   for (const m of ['through', 'wthrough', 'behind', 'around', 'aside']) { await clickSeg('#rd-pat-mode', m); await shot('#rd-pat-card', 'pat-' + m); }
   for (const h of [0, 40, 95, 90]) { await setV('rd-hit-h', h); if (width === 920) nums['hit_' + h] = await txt('#rd-hit-out'); }
   await shot('#rd-hit-card', 'hit');

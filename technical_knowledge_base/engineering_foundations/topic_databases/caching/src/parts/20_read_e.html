@@ -15,9 +15,21 @@
 <details class="dp"><summary>Facebook's remote markers and hold-off, in their words <span class="mute">(depth)</span></summary><div class="b"><p>Facebook's regions read from local replica databases while writes go to one master region, so a cache miss right after a write could fill from a replica that lags. Their fix, the <dfn id="g-remote">remote marker</dfn>: the writer "(1) sets a remote marker r<sub>k</sub> in the region, (2) performs the write to the master embedding k and r<sub>k</sub> to be invalidated in the SQL statement, and (3) deletes k in the local cluster"; a later miss that finds the marker reads from the master instead (Nishtala et al., "Across Regions: Consistency"). They also delete with a two-second "hold-off" when warming a cold cluster from a warm one, refusing fills for that time, for the same reason.</p></div></details>
 <div class="co warn"><div class="t">The rule that ties it together</div>A cache is an optimisation: the system must stay correct with it empty. If deleting every key would lose data or break behaviour, it is not a cache but a database with no durability, and it needs the treatment of one (the {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}} page measured how many acknowledged writes a Redis failover loses).</div>
 </section>
+<div class="s3sp"><div class="s3R"><div id="stg-ev"></div></div><div class="s3L">
 <section id="rd-s5">
 <h2>5. Redis as a cache: what it throws away when memory is full, measured</h2>
 <p>A cache is smaller than the data behind it, so when it is full something must go: the <a href="#g-evict">eviction policy</a> picks the victim. <b>LRU</b> evicts the entry used longest ago (cheap, good for most workloads); <b>LFU</b> the one used least often, with counts that decay (better when a few keys are steadily popular and a scan of one-off keys would flush them out of an LRU); <b>TinyLFU</b> is an admission policy: a newcomer only gets in if a compact frequency sketch says it is read more often than the entry it would evict ({{Einziger, Friedman and Manes, ACM ToS 2017|https://arxiv.org/abs/1512.00727}}; Caffeine, the standard Java cache, uses W-TinyLFU, "a small admission LRU that evicts to a large Segmented LRU if accepted by the TinyLfu admission policy", {{Caffeine wiki|https://github.com/ben-manes/caffeine/wiki/Efficiency}}).</p>
+<p class="sxh">Fig. 3: the same 17 requests through LRU and LFU, four keys each</p>
+<ol class="sx" id="sx-ev">
+<li><b>Two caches of four keys, the same requests.</b> Front: LRU, ordered by last use (newest on the left; the next victim on the right, underlined). Back: LFU, each box as tall as its uses. A is Main_Page, B Special:Search, C Featured_pictures, three of the real hour's most viewed pages (section 1); s1 to s4 are pages read once, as <span class="nv" data-n="skew.once_share" data-f="pct"></span> of that hour's pages were. The order of requests is <span class="ill">illustrative</span>.</li>
+<li><b>Warm-up: nine requests for the popular three.</b> A four times, B three, C twice: three first-time misses, then six hits in both caches. LRU reorders on every hit; LFU's boxes grow.</li>
+<li><b>A scan of four one-off pages.</b> Each misses in both. LRU makes room by evicting its least recently used key, and after four newcomers A, B and C are all gone. LFU evicts the key with the fewest uses: each newcomer (one use) evicts the previous one, and the popular three stay.</li>
+<li><b>The popular pages return.</b> A, B, C, A: LRU misses three and hits one; LFU hits all four. Over the 17 requests LRU hit 7 and LFU 10: recency forgets steady favourites after one scan.</li>
+<li><b>What Redis does instead.</b> Neither queue exists in Redis: it samples a few keys (<code>maxmemory-samples</code>, default 5) and evicts the best candidate among them, and its LFU counts are 8-bit counters that decay, so yesterday's favourite can leave. Measured below on the real hour, LFU still beat LRU by <span class="nv" data-n="ev_note.lfu_gain_50k" data-f="raw"></span> points at 50,000 keys, and sampled LRU stayed within 2.0 points of exact LRU.</li>
+</ol>
+</section>
+</div></div>
+<section id="rd-s5b">
 <h3>Two settings, and the default that bites</h3>
 <p><code>maxmemory</code> caps the memory Redis uses for data; <code>maxmemory-policy</code> chooses the victim. Out of the box, <code>maxmemory</code> is 0 (no limit on 64-bit systems, so Redis grows until the machine runs out of memory) and the policy is <code>noeviction</code>: "The default is: maxmemory-policy noeviction" ({{redis.conf, 8.8|https://github.com/redis/redis/blob/8.8/redis.conf}}). With a limit and that policy, a full Redis returns an error on every write that needs memory. For a cache, set both:</p>
 <pre class="sql"><span class="c"># redis.conf for a pure cache (Redis 8.8). Leave room for replication and persistence buffers,
@@ -40,8 +52,18 @@ appendonly no</pre>
 <tr><td><code>volatile-lru</code>, <code>volatile-lfu</code>, <code>volatile-lrm</code> (8.6), <code>volatile-random</code></td><td>As above, but only among keys that have a TTL</td><td>One Redis holding both cache keys (with TTLs) and keys that must stay; the docs suggest two instances instead</td></tr>
 <tr><td><code>volatile-ttl</code></td><td>The key whose TTL ends soonest</td><td>Your code sets short TTLs on keys that are good victims</td></tr>
 </table></div></div></details>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s5c">
 <h3>Measured: hit ratio by policy and memory, on real traffic</h3>
 <p>Redis 8.8 on the laptop; a client replays 2,000,000 requests as cache-aside (GET; on a miss, SET a 100-byte value); hit ratio counted after the first 500,000 have warmed the cache <span class="meas">measured</span>. Memory is set to hold about 20,000 to 200,000 keys. Five workloads: the real Wikipedia hour, six real hours with drifting popularity, and Zipf at &alpha; 0.7, 0.9 and 1.1. Each also shows exact LRU and Belady's <dfn id="g-opt">OPT</dfn> (evict the key whose next use is furthest in the future: the best any policy could do, knowable only offline), simulated on the same requests. Predict first: on the real hour, does LFU or LRU win, and by how much?</p>
+
+<p><b>What the runs show.</b> LFU beat LRU in 19 of 20 workload and size pairs (on the real hour by 10.1 points at 50k keys), because these traces have steady popularity. The 8.6 <code>allkeys-lrm</code> policy behaved like random eviction, as it must for cache-aside: a key is written once, at fill, so "least recently modified" means "filled longest ago". Redis's sampled LRU stayed within 2.0 points of exact LRU. The offline optimum hits 55.1% at 50k keys against 39.4% for the best Redis policy, and 36.5% of all requests were first-ever requests no policy can serve. <code>noeviction</code> looked fine on hit ratio while 781,318 SETs failed with an out-of-memory error.</p>
+<details class="dp"><summary>Every finding with its numbers, computed from the runs <span class="mute">(depth)</span></summary><div class="b"><p>The findings, written by script from the run data so prose cannot drift (the {{Cache lab|#t-lab}} adds FIFO, which evicts the oldest entry regardless of use; it is the one classic policy where more memory can give fewer hits, Belady's anomaly, {{Belady, Nelson and Shedler, CACM 1969|https://doi.org/10.1145/363011.363155}}):</p>
+<ul id="rd-ev-find"></ul></div></details>
+<p class="small mute">Caveat on the real traces: inside each hour the order is random (the source has hourly counts, not timestamps), so the short-term bursts that favour LRU in live traffic are missing; the six-hour trace keeps the slower drift. On live traffic with strong bursts, LRU can close the gap or overtake, which is why the advice is to try both on a replay of your own traffic. Every run at every memory size, with the cost-weighted view of section 6, is in the {{Cache lab|#t-lab}}.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="rd-ev-card">
 <h4 style="margin:0 0 6px">LFU beat LRU on real traffic, and both sit far below the offline optimum</h4>
 <div class="seg" id="rd-ev-work"></div>
@@ -49,10 +71,8 @@ appendonly no</pre>
 <div class="leg" id="rd-ev-leg"></div>
 <p class="small mute">Hit ratio over requests 500,001 to 2,000,000; x axis: keys the memory limit holds. Every point is one real run (<code>measure/m_evict.py</code>); dashed lines are exact simulations (<code>measure/m_sim.py</code>). At 50,000 keys on the real hour, LFU led LRU by <span class="nv" data-n="ev_note.lfu_gain_50k" data-f="raw"></span> points.</p>
 </div>
-<p><b>What the runs show.</b> LFU beat LRU in 19 of 20 workload and size pairs (on the real hour by 10.1 points at 50k keys), because these traces have steady popularity. The 8.6 <code>allkeys-lrm</code> policy behaved like random eviction, as it must for cache-aside: a key is written once, at fill, so "least recently modified" means "filled longest ago". Redis's sampled LRU stayed within 2.0 points of exact LRU. The offline optimum hits 55.1% at 50k keys against 39.4% for the best Redis policy, and 36.5% of all requests were first-ever requests no policy can serve. <code>noeviction</code> looked fine on hit ratio while 781,318 SETs failed with an out-of-memory error.</p>
-<details class="dp"><summary>Every finding with its numbers, computed from the runs <span class="mute">(depth)</span></summary><div class="b"><p>The findings, written by script from the run data so prose cannot drift (the {{Cache lab|#t-lab}} adds FIFO, which evicts the oldest entry regardless of use; it is the one classic policy where more memory can give fewer hits, Belady's anomaly, {{Belady, Nelson and Shedler, CACM 1969|https://doi.org/10.1145/363011.363155}}):</p>
-<ul id="rd-ev-find"></ul></div></details>
-<p class="small mute">Caveat on the real traces: inside each hour the order is random (the source has hourly counts, not timestamps), so the short-term bursts that favour LRU in live traffic are missing; the six-hour trace keeps the slower drift. On live traffic with strong bursts, LRU can close the gap or overtake, which is why the advice is to try both on a replay of your own traffic. Every run at every memory size, with the cost-weighted view of section 6, is in the {{Cache lab|#t-lab}}.</p>
+</div></div></div>
+<section id="rd-s5d">
 <details class="dp"><summary>Redis, Valkey or Memcached <span class="mute">(comparison)</span></summary><div class="b">
 <p>All three hold keys and values in memory behind a network protocol, and any of them is a fine cache. They differ in what else they do:</p>
 <div class="tw"><table>

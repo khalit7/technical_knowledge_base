@@ -28,7 +28,7 @@
     const seen={},count={};list.forEach(a=>{if(a[0]!==a[1]){const p=[a[0],a[1]].sort().join('');count[p]=(count[p]||0)+1}});
     list.forEach(a=>{const [f,t,n,lab,dash]=a;
       if(f===t){g+=RD.t(ox+X[f]+bw/2,Y[f]+bh+15,lab,{a:'middle',fs:11,fill:'var(--mute)'});return}
-      const p=[f,t].sort().join(''),k=(seen[p]=(seen[p]||0)+1),c=count[p],off=(k-(c+1)/2)*28;
+      const p=[f,t].sort().join(''),k=(seen[p]=(seen[p]||0)+1),c=count[p],off=(k-(c+1)/2)*36;
       // offset along the normal of the canonical direction, so opposite arrows between one pair do not overlap
       const a0=p[0],a1=p[1];let [u1,v1]=anchor(a0,a1),[u2,v2]=anchor(a1,a0);
       const cl=Math.hypot(u2-u1,v2-v1),nx=-(v2-v1)/cl,ny=(u2-u1)/cl;u1+=ox+nx*off;v1+=ny*off;u2+=ox+nx*off;v2+=ny*off;
@@ -42,7 +42,7 @@
     return g;
   }
   function draw(){
-    const W=Math.min(RD.width(box),760),narrow=W<560,p=P[mode],ph=170;
+    const W=Math.min(RD.width(box),760),narrow=W<560,p=P[mode],ph=190;
     let g='<defs><marker id="pm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs>',H;
     if(narrow){g+=panel(p.r,'On a read',0,W,ph,true);g+='<g transform="translate(0,'+(ph+16)+')">'+panel(p.w,'On a write',0,W,ph,true)+'</g>';H=2*ph+20}
     else{const pw=(W-40)/2;g+=panel(p.r,'On a read',0,pw,ph,false)+'<line x1="'+(pw+20)+'" x2="'+(pw+20)+'" y1="4" y2="'+ph+'" stroke="var(--line)"/>'+panel(p.w,'On a write',pw+40,pw,ph,false);H=ph+6}
