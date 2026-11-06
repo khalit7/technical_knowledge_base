@@ -6,9 +6,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [~] `models_and_training/topic_rl/dynamic_programming` Dynamic programming: planning with a known model
 - [x] `models_and_training/topic_rl/model_based_rl_and_planning` Model-based RL and planning
 - [~] `models_and_training/topic_rl/model_free_prediction_and_control` Model-free prediction and control: Monte Carlo, TD, SARSA, Q-learning
-- [ ] `models_and_training/topic_rl/offline_rl_and_imitation` Offline RL and imitation
+- [x] `models_and_training/topic_rl/offline_rl_and_imitation` Offline RL and imitation
 - [x] `models_and_training/topic_rl/policy_gradients_and_actor_critic` Policy gradients and actor-critic: from REINFORCE to PPO and SAC
-- [ ] `models_and_training/topic_rl/rl_for_llms` RL for LLMs: RLHF, GRPO, RLVR
+- [x] `models_and_training/topic_rl/rl_for_llms` RL for LLMs: RLHF, GRPO, RLVR
 - [~] `models_and_training/topic_rl/value_based_deep_rl` Value-based deep RL: from DQN to Rainbow
 - [ ] `models_and_training/topic_rl` Topic: rl
 - [ ] `whats_new/papers/attention_is_all_you_need_transformer` Attention Is All You Need (Transformer)
@@ -316,3 +316,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [ ] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
 - [ ] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
 - [ ] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news
+
+## Polish notes (cosmetic, for a pass at the end)
+- `topic_rl/rl_for_llms`: Fig. 3 close-up steps crop the inference engine labels at the left edge; Fig. 2 step 5 critic plate large in front.
+- `topic_rl/policy_gradients_and_actor_critic`: Fig. 1 action labels touch at step 4.
+- `topic_rl/model_free_prediction_and_control`: hero last step crowded at 1400 px.

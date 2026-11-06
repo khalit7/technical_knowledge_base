@@ -1,43 +1,8 @@
-// ---- Reading: static figures (hero, the IRL/GAIL loop, Decision Transformer tokens) and the expectile slider (section 9) ----
+// ---- Reading: static figures (the IRL/GAIL loop, Decision Transformer tokens) and the expectile slider (section 9); the hero is the 3D Fig. 1 (27_js_sc_hero.js) since 2026-11-06 ----
 (function(){
   const $=id=>document.getElementById(id);
   const T=(x,y,s,o)=>RD.t(x.toFixed(1),y.toFixed(1),s,o);
   const arrowDef=(id,col)=>'<defs><marker id="'+id+'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="'+col+'"/></marker></defs>';
-  // clicking a label with data-go jumps to that section
-  function jumps(el){el.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(!g)return;const s=$(g.dataset.go);if(s)s.scrollIntoView({behavior:RD.RM?'auto':'smooth',block:'start'})})}
-
-  // hero: the state-action plane, the data band, and the two ways off it
-  const hero=$('rd-hero');
-  function drawHero(){if(!hero)return;const W=RD.width(hero),H=300,l=26,r=8,t=10,b=24,pw=W-l-r,ph=H-t-b;
-    const X=f=>l+pw*f,Y=f=>t+ph*f,x1=0.52,yc=f=>0.55-0.10*Math.sin(Math.PI*Math.min(f,x1)/x1),hw=0.08;
-    let s=arrowDef('rd-hA','var(--bad)')+arrowDef('rd-hB','var(--c4)');
-    s+='<line x1="'+l+'" y1="'+(H-b)+'" x2="'+(W-r)+'" y2="'+(H-b)+'" stroke="var(--mute)"/><line x1="'+l+'" y1="'+t+'" x2="'+l+'" y2="'+(H-b)+'" stroke="var(--mute)"/>';
-    s+=T(W-r,H-6,'state →',{a:'end',fs:11,fill:'var(--mute)'})+'<text transform="translate('+(l-8)+','+(t+ph/2)+') rotate(-90)" text-anchor="middle" font-size="11" fill="var(--mute)">action →</text>';
-    // DAgger's extension: dashed band around the drift path
-    const dr=f=>{const u=(f-x1)/(0.96-x1);return yc(x1)+(0.86-yc(x1))*u*u};
-    let up='',dn='';for(let f=x1;f<=0.9601;f+=0.02){up+=(up?'L':'M')+X(f).toFixed(1)+','+Y(dr(f)-0.07).toFixed(1);dn='L'+X(f).toFixed(1)+','+Y(dr(f)+0.07).toFixed(1)+dn}
-    s+='<path d="'+up+dn+'Z" fill="none" stroke="var(--c3)" stroke-dasharray="4 3"/>';
-    // the data band
-    let bu='',bd='';for(let f=0.05;f<=x1+1e-9;f+=0.01){bu+=(bu?'L':'M')+X(f).toFixed(1)+','+Y(yc(f)-hw).toFixed(1);bd='L'+X(f).toFixed(1)+','+Y(yc(f)+hw).toFixed(1)+bd}
-    s+='<path d="'+bu+bd+'Z" fill="var(--acc)" fill-opacity=".16" stroke="var(--acc)"/>';
-    const r0=RD.width(hero)<520?2.2:2.6;let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
-    for(let i=0;i<26;i++){const f=0.07+0.44*rnd(),dy=(rnd()-0.5)*1.4*hw;s+='<circle cx="'+X(f).toFixed(1)+'" cy="'+Y(yc(f)+dy).toFixed(1)+'" r="'+r0+'" fill="var(--acc)"/>'}
-    s+=T(X(0.07),Y(yc(0.07)+hw)+14,'the data',{fs:11.5,w:600,fill:'var(--acc)'});
-    // 1: the learner's states drift off the data
-    let p='';for(let f=0.30;f<=x1;f+=0.02)p+=(p?'L':'M')+X(f).toFixed(1)+','+Y(yc(f)).toFixed(1);for(let f=x1+0.02;f<=0.9601;f+=0.02)p+='L'+X(f).toFixed(1)+','+Y(dr(f)).toFixed(1);
-    s+='<path d="'+p+'" fill="none" stroke="var(--bad)" stroke-width="2.2" marker-end="url(#rd-hA)"/>';
-    s+='<g data-go="rd-bc">'+T(W-r,Y(0.99),'① the learner\'s states drift off the data',{a:'end',fs:11.5,w:600,fill:'var(--bad)'})+'</g>';
-    s+='<g data-go="rd-dag">'+T(W-r,Y(0.40),'DAgger: label these states',{a:'end',fs:11,fill:'var(--c3)'})+'</g>';
-    // 2: the max picks an action never tried
-    const xa=0.25;s+='<line x1="'+X(xa).toFixed(1)+'" y1="'+Y(yc(xa)).toFixed(1)+'" x2="'+X(xa).toFixed(1)+'" y2="'+Y(0.04).toFixed(1)+'" stroke="var(--c4)" stroke-width="2.2" marker-end="url(#rd-hB)"/>';
-    s+='<circle cx="'+X(xa).toFixed(1)+'" cy="'+Y(yc(xa)).toFixed(1)+'" r="4" fill="var(--c4)"/>';
-    s+='<g data-go="rd-shift">'+T(X(xa)+8,Y(0.07),'② max Q picks an action never tried',{fs:11.5,w:600,fill:'var(--c4)'})+'</g>';
-    s+='<g data-go="rd-cql">'+T(X(xa)+8,Y(0.19),'CQL: push Q down up here',{fs:11,fill:'var(--c4)'})+'</g>';
-    s+='<g data-go="rd-cons">'+T(X(0.02),Y(0.80),'BCQ, TD3+BC: stay in the band',{fs:11,fill:'var(--ink)'})+'</g>';
-    s+='<g data-go="rd-iql">'+T(X(0.02),Y(0.89),'IQL: query only the data\'s actions',{fs:11,fill:'var(--ink)'})+'</g>';
-    hero.innerHTML=RD.svg(W,H,s,'State-action plane: the data band, a learner drifting off it in state, and a max over actions leaving it in action')}
-  if(hero){jumps(hero);RD.onRender(drawHero);RD.onResize(drawHero);drawHero()}
-
   // the IRL / GAIL outer loop with an RL problem inside
   const loop=$('rd-loop');
   function drawLoop(){if(!loop)return;const W=RD.width(loop),wide=W>=600;

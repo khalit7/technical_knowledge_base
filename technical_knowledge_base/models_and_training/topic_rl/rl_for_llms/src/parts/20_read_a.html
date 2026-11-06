@@ -15,14 +15,20 @@
 <a href="#rd-over">The idea</a><a href="#rd-mdp">Tokens as an MDP</a><a href="#rd-ppo">PPO for RLHF</a><a href="#rd-grpo">GRPO and RLOO</a><a href="#rd-one">One response, three updates</a><a href="#rd-rlvr">Verifiable rewards</a><a href="#rd-r1">R1</a><a href="#rd-fix">GRPO's fixes</a><a href="#rd-off">Off-policy</a><a href="#rd-eli">pass@k</a><a href="#rd-hack">Reward hacking</a><a href="#rd-agent">Agents</a><a href="#rd-infra">Infrastructure</a><a href="#rd-when">Which when</a><a href="#rd-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-over">
 <h2>The idea in one screen</h2>
 <p class="core">RL post-trains a language model by sampling its answers, scoring each whole answer with one number, and raising the probability of every token in proportion to how much better than expected its answer scored; the algorithms differ in how they estimate "expected": a learned critic at every token (PPO), or the mean of a group of answers to the same prompt (GRPO, RLOO).</p>
-<div class="hero card" id="rd-hero">
-<div class="rd-ph">One wrong answer, one score at its end: PPO's critic blames the tokens where the answer went wrong; GRPO blames every token equally</div>
-<div class="rd-svg" id="rd-heroP"></div>
-<p class="small mute">Real data: Qwen2.5-0.5B-Instruct's answer 7 to GSM8K test problem 3 (242 tokens, wrong; 6 of the 16 answers to this prompt pass the verifier). PPO's critic is measured here, not learned: 16 continuations sampled from each of 10 prefixes give the chance of passing from that prefix (VinePPO's method). It starts at 0.5, falls from 0.56 to 0.19 over the shaded stretch (tokens 48 to 73, where the working goes wrong) and reaches 0 by token 97, so PPO's advantage, the score minus the critic's estimate, blames the early tokens and nothing after the critic knew the answer was lost. GRPO gives all 242 tokens (0 − 0.375) / 0.484 = −0.775; Dr. GRPO gives 0 − 0.375 = −0.375. The KL penalty is left out (β = 0) and GAE's λ = 1, to show the credit alone; section 4 steps through the full computation.</p>
-</div>
+<p class="sxh">Fig. 1, step by step: one real group of answers, scored and credited</p>
+<ol class="sx" id="sx-hero">
+<li><b>Sample a group.</b> The policy (the glass plate) answers GSM8K test problem 3 sixteen times at temperature 1. Each bar is one answer, drawn to its length: 141 to 355 tokens.</li>
+<li><b>Score each whole answer with one number.</b> A verifier checks the boxed answer: 6 of 16 pass and score 1 (raised), 10 fail and score 0. The score lands on the last token; every other token's reward is 0.</li>
+<li><b>Estimate what was expected.</b> GRPO's estimate is the group itself: mean score 0.375 (the glass sheet), spread (standard deviation) 0.484. No network predicts it; sixteen samples measure it.</li>
+<li><b>Advantage: better or worse than expected.</b> Each answer rises or sinks by (score − mean) / spread, the same on every token: (1 − 0.375) / 0.484 = +1.291 on a passing answer, (0 − 0.375) / 0.484 = −0.775 on a failing one. Dr. GRPO skips the division: +0.625 and −0.375.</li>
+<li><b>PPO's critic instead: credit token by token.</b> The camera moves to answer 7 (242 tokens, wrong). Its critic, the chance of passing from each prefix, is measured here from 16 continuations at each of 10 prefixes (VinePPO's method): 0.5 at the start, falling from 0.56 to 0.19 over tokens 48 to 73, where the working goes wrong, and 0 by token 97. PPO's advantage, 0 minus that estimate (KL left out, β = 0; GAE's λ = 1), blames the early tokens and nothing after the answer was lost; GRPO's flat −0.775 is the sheet behind.</li>
+<li><b>Update the policy.</b> Each token's log-probability gradient, weighted by its advantage, flows back into the policy: passing answers are pulled up, failing ones pushed down, harder the larger |Â|. Then the next prompt's group is sampled. Section 4 steps through every number on one answer.</li>
+</ol>
+<p class="small mute">Real data: Qwen2.5-0.5B-Instruct on GSM8K test problem 3, this page's rollouts (the {{Real rollouts|#t-roll}} tab lists all 16 answers).</p>
 <p><b>You need:</b> the policy-gradient theorem, baselines, GAE and PPO's clip from {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}} (sections 4, 6 and 9); where RL sits in post-training from {{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}} (section 4 draws the PPO and GRPO loops, section 7 the swap of a reward model for a verifier).</p>
 <dl class="terms">
 <dt>policy π<sub>θ</sub></dt><dd>the LLM being trained; it starts as the SFT model</dd>
@@ -36,6 +42,10 @@
 <dt>engine, trainer</dt><dd>the inference server that samples rollouts (vLLM, SGLang) and the training stack that computes gradients; their probabilities differ slightly</dd>
 <dt>pass@k</dt><dd>the chance that at least one of k samples solves a problem</dd>
 </dl>
+</section>
+</div></div>
+
+<section id="rd-why">
 <p>Why RL at all: supervised fine-tuning (SFT) can only imitate demonstrations; RL can improve on them, because it needs a way to <b>score</b> an answer, not a way to <b>write</b> one. That makes RL the engine behind instruction-following chat models (RL from human feedback, RLHF) and behind reasoning models such as DeepSeek-R1 (RL with verifiable rewards, RLVR). Three methods carry most of the field, and each removes one component from the one before it:</p>
 <div class="tw"><table class="rd-t">
 <thead><tr><th>Method</th><th>Where the score comes from</th><th>How a token gets its credit</th><th>Where the KL to the reference goes</th><th>Large models in memory</th><th>Rollouts per prompt</th></tr></thead>
@@ -60,6 +70,7 @@
 <p><b>How the advantage is estimated is exactly what separates the algorithms on this page:</b> PPO learns a value model to predict it token by token; GRPO and RLOO estimate it from a group of samples for the same prompt. Three consequences: <b>credit assignment</b> is severe (one scalar for hundreds or thousands of tokens); the environment model is trivially known, so model-based planning buys nothing (the reward model does not make RLHF model-based, the root's common mistakes); and <b>rollouts are expensive</b>, because generating at inference speed dominates wall-clock time (section 12).</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-ppo"></div></div><div class="s3L">
 <section id="rd-ppo">
 <h2><span class="num">2</span>RLHF with PPO: four models, a shaped reward and a critic</h2>
 <p>The standard recipe since {{InstructGPT|https://arxiv.org/abs/2203.02155}} (verified on the {{InstructGPT page|n:3c65c17b0d0d8180b958d8299996a063}}, which trains the three-step pipeline live in its "Run the three steps" tab) runs four models:</p>
@@ -68,7 +79,15 @@
 <li><b>Reward model</b> <i>r</i><sub>φ</sub>: frozen, trained beforehand on human preference pairs, one scalar per full response. InstructGPT's was 6B parameters, trained on rankings of 4 to 9 answers per prompt with the Bradley-Terry pairwise loss (on Alignment, section 3).</li>
 <li><b>Value model</b> <i>V</i><sub>ψ</sub> (the critic): trained alongside the policy (InstructGPT initialised it from the RM); it predicts the expected final reward from each prefix, which gives per-token advantages through GAE.</li>
 </ol>
-<p><b>The loop:</b> sample prompts; generate one response each; score it with the RM; subtract a per-token KL penalty so the reward the policy sees already contains it; compute advantages with <i>V</i><sub>ψ</sub> and GAE; update the policy with PPO's clipped objective and the value model by regression; repeat.</p>
+<p class="sxh">Fig. 2, step by step: one RLHF step on a real answer</p>
+<ol class="sx" id="sx-ppo">
+<li><b>The policy writes one answer.</b> A prompt goes in and one response comes out (PPO for RLHF usually samples one per prompt): here answer 7 to GSM8K problem 3, 242 tokens, from Qwen2.5-0.5B-Instruct.</li>
+<li><b>The reward model scores the whole answer.</b> Frozen, it reads all 242 tokens and returns one scalar, 8.46 (Skywork-Reward-V2-Qwen3-0.6B, a real model), which lands on the last token only. The answer is wrong, which the reward model is not told; it scores the group's first correct answer 7.10 (section 4).</li>
+<li><b>The reference taxes every token.</b> The frozen reference reads the same tokens, and the per-token KL penalty is subtracted so the reward the policy sees already contains it: −β log(π<sub>θ</sub>/π<sub>ref</sub>) with β = 0.02, so tokens the policy now likes more than the reference are taxed. The orange line is the running sum: −0.86 over this answer (the base model stands in for the reference).</li>
+<li><b>The critic values every prefix.</b> The value model predicts, from each prefix, the score the finished answer will get. Here it is measured from 16 real continuations per prefix: 4.00 at the start, about 8.7 from token 169 on.</li>
+<li><b>GAE turns rewards and values into per-token advantages.</b> With γ = λ = 1, Â<sub><i>t</i></sub> is the shaped return minus V(prefix): the early tokens get about +3.6 (the critic expected 4.0; the answer earned 8.46 less its tax), the last ones about −0.8 (the critic already expected more than the answer got).</li>
+<li><b>Update two of the four.</b> The advantages flow into the policy through PPO's clipped objective (ε = 0.2); the returns Â<sub><i>t</i></sub> + V(<i>s<sub>t</sub></i>) flow into the critic, which is regressed onto them. The reward model and the reference stay frozen: four large models in memory, two trained. Then the next batch of prompts.</li>
+</ol>
 <div class="fm"><div class="eq"><i>r<sub>t</sub></i> = 1[<i>t</i> = <i>T</i>] · <i>r</i><sub>φ</sub>(<i>q</i>, <i>o</i>) − β log( π<sub>θ</sub>(<i>o<sub>t</sub></i> | <i>q</i>, <i>o</i><sub>&lt;<i>t</i></sub>) / π<sub>ref</sub>(<i>o<sub>t</sub></i> | <i>q</i>, <i>o</i><sub>&lt;<i>t</i></sub>) )</div>
 <dl><dt>T</dt><dd>= |<i>o</i>|, the last token; 1[<i>t</i> = <i>T</i>] puts the RM score there only</dd><dt>β</dt><dd>the KL coefficient (0.02 in InstructGPT); the log-ratio is a one-sample estimate of KL(π<sub>θ</sub> ‖ π<sub>ref</sub>) at that token. Summed over a response it is InstructGPT's sequence-level term β log(π<sup>RL</sup>(<i>y</i> | <i>x</i>) / π<sup>SFT</sup>(<i>y</i> | <i>x</i>)) ({{Eq. 2|https://arxiv.org/abs/2203.02155}})</dd></dl></div>
 <p><b>Why the KL penalty:</b> it keeps the policy where the reward model is trustworthy, near the data it was trained on (the leash against over-optimisation, drawn on {{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}} section 2); it preserves general capabilities and fluency; and it ties the policy to a fixed anchor, a trust region relative to the start rather than to last iteration's policy.</p>
@@ -76,6 +95,9 @@
 <div class="fm"><div class="eq">δ<sub><i>t</i></sub> = <i>r<sub>t</sub></i> + γ<i>V</i><sub>ψ</sub>(<i>s</i><sub><i>t</i>+1</sub>) − <i>V</i><sub>ψ</sub>(<i>s<sub>t</sub></i>), &nbsp;&nbsp; <i>Â<sub>t</sub></i> = Σ<sub><i>l</i>=0</sub><sup><i>T</i>−<i>t</i></sup> (γλ)<sup><i>l</i></sup> δ<sub><i>t</i>+<i>l</i></sub></div>
 <dl><dt>δ<sub>t</sub></dt><dd>the temporal-difference (TD) error at token <i>t</i>; <i>V</i><sub>ψ</sub>(<i>s<sub>t</sub></i>) is zero after the last token; γ = 1 here</dd><dt>λ</dt><dd>in [0, 1]: λ = 0 trusts the critic completely (low variance, biased when it is wrong); λ = 1 uses the actual final reward minus the baseline (unbiased, high variance). The critic is regressed onto the returns <i>Â<sub>t</sub></i> + <i>V</i><sub>ψ</sub>(<i>s<sub>t</sub></i>).</dd></dl></div>
 <p>With γ = λ = 1 the sum telescopes: <i>Â<sub>t</sub></i> = (final score − β × the sum of the remaining log-ratios) − <i>V</i>(<i>s<sub>t</sub></i>), and the critic serves only as a per-prefix baseline (the hero's PPO row). With λ &lt; 1 a token's credit is mostly the <b>jump in predicted value</b> it caused: the point of a critic, and its weakness, because it must be right about every prefix of every response.</p>
+</section>
+</div></div>
+<section id="rd-ppo2">
 <p><b>The clipped update</b> is PPO's, unchanged: maximise min(ρ<sub><i>t</i></sub><i>Â<sub>t</sub></i>, clip(ρ<sub><i>t</i></sub>, 1 − ε, 1 + ε) <i>Â<sub>t</sub></i>) with the per-token ratio ρ<sub><i>t</i></sub> = π<sub>θ</sub>(<i>o<sub>t</sub></i> | <i>s<sub>t</sub></i>) / π<sub>θ<sub>old</sub></sub>(<i>o<sub>t</sub></i> | <i>s<sub>t</sub></i>) and ε typically 0.2 ({{Schulman et al. 2017|https://arxiv.org/abs/1707.06347}}). Once a token's ratio has moved more than ε the way its advantage wants, its gradient is zero; a wrong-way move keeps its gradient, which makes several minibatch epochs on one batch of rollouts safe. The four cases, the derivation from TRPO and the clip animated over epochs are on {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}, section 9; what the clip does to rare tokens in an LLM is section 7 here.</p>
 <p><b>Pain points:</b> four large models in memory; a value model as big as the policy, trained from scratch during RL, asked to value every prefix when the true reward is one scalar at the end. How hard that is was measured: on MATH and GSM8K, PPO's value networks "often produce poor estimate of expected return and barely outperform a random baseline when comparing alternative steps"; replacing them with Monte Carlo estimates from extra rollouts at intermediate states (VinePPO, the method this page's hero uses) beat PPO in up to 3.0 times less wall-clock time ({{Kazemnejad et al., ICML 2025|https://arxiv.org/abs/2410.01679}}). GRPO removes the pain differently: it gives up per-token credit altogether.</p>
 <details class="dp"><summary>Where RLHF came from, and what InstructGPT achieved and cost <span class="mute">(closed)</span></summary><div class="b">
@@ -85,6 +107,17 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-gr">
+<div class="rd-ph">One group, step by step: a lone correct answer in a hard group gets a far bigger push under GRPO than under Dr. GRPO or RLOO</div>
+<div class="rd-btns" id="rd-grG" role="group" aria-label="Group"></div>
+<div class="seg" id="rd-grK" role="group" aria-label="Advantage"><button data-k="grpo" class="on">GRPO</button><button data-k="drgrpo">Dr. GRPO</button><button data-k="rloo">RLOO</button></div>
+<div class="rd-svg" id="rd-grP"></div>
+<div class="an-ctl" id="rd-grC"></div>
+<div class="rd-ro" id="rd-grX" aria-live="polite"></div>
+<div class="an-cnt" id="rd-grN"></div>
+<p class="small mute">Click a response to flip its score. The "real" groups are this page's Qwen2.5-0.5B-Instruct samples on GSM8K, with their real lengths in tokens and the strict verifier's verdicts; the others are worked examples with <i class="nl i">illustrative</i> lengths. Dr. GRPO removes the division by the standard deviation and replaces 1/|<i>o<sub>i</sub></i>| by a constant (here the longest length in the group); RLOO subtracts the mean of the other responses.</p>
+</div>
+</div><div class="s3L">
 <section id="rd-grpo">
 <h2><span class="num">3</span>GRPO and RLOO: a group of samples instead of a critic</h2>
 <p><b>Group Relative Policy Optimization</b> is PPO minus the value model ({{DeepSeekMath, Shao et al. 2024|https://arxiv.org/abs/2402.03300}}; the {{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} animates PPO against GRPO on one question and trains six methods live). For each prompt, sample a <b>group</b> of <i>G</i> responses, score each, and give every token of a response the same advantage: its score's distance from the group mean, in units of the group's spread.</p>
@@ -95,24 +128,30 @@
 <li><b>Advantages:</b> the correct response gets 0.75 / 0.433 = <span data-v="ex4.A_pos">+1.732</span> on every one of its tokens; each wrong response gets −0.25 / 0.433 = <span data-v="ex4.A_neg">−0.577</span>. They sum to zero: the correct answer is pushed up by as much as the three wrong ones together are pushed down.</li>
 </ol>
 <p>If all four had been correct, or all wrong, every advantage would be zero and the group would teach nothing but cost four rollouts; DAPO's dynamic sampling (section 7) filters such groups. On this page's real data, 4 of 10 GSM8K groups of 16 from the 0.5B model are uniform under the strict verifier (all four all-wrong).</p>
-<div class="card" id="rd-gr">
-<div class="rd-ph">One group, step by step: a lone correct answer in a hard group gets a far bigger push under GRPO than under Dr. GRPO or RLOO</div>
-<div class="rd-btns" id="rd-grG" role="group" aria-label="Group"></div>
-<div class="seg" id="rd-grK" role="group" aria-label="Advantage"><button data-k="grpo" class="on">GRPO</button><button data-k="drgrpo">Dr. GRPO</button><button data-k="rloo">RLOO</button></div>
-<div class="rd-svg" id="rd-grP"></div>
-<div class="an-ctl" id="rd-grC"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="rd-grT"></div><p id="rd-grX"></p></div>
-<div class="an-cnt" id="rd-grN"></div>
-<p class="small mute" id="rd-grNote">Predict first: in a group of 16 with one correct answer, is that answer's advantage larger or smaller than a correct answer's in a half-right group? Then pick "1 of 16" and step. Click a response to flip its score. The "real" groups are this page's Qwen2.5-0.5B-Instruct samples on GSM8K, with their real lengths in tokens and the strict verifier's verdicts; the others are worked examples with <i class="nl i">illustrative</i> lengths. Dr. GRPO removes the division by the standard deviation and replaces 1/|<i>o<sub>i</sub></i>| by a constant (here the longest length in the group); RLOO subtracts the mean of the other responses.</p>
-</div>
+<p class="small mute">Predict first: in a group of 16 with one correct answer, is that answer's advantage larger or smaller than a correct answer's in a half-right group? Then pick "1 of 16" and watch.</p>
+<p class="sxh">The group widget, step by step</p>
+<ol class="sx" id="sx-gr">
+<li><b>Sample a group.</b> The policy samples <i>G</i> responses to one prompt at temperature 1; each bar is drawn to the response's length in tokens.</li>
+<li><b>Score with the verifier.</b> Each response passes (1) or fails (0). No reward model and no critic read it.</li>
+<li><b>Group statistics.</b> The group mean is the baseline, the role <i>V</i>(<i>s</i>) plays in actor-critic; GRPO also divides by the standard deviation. If every response scored the same, the spread is 0 and the group carries no signal at all (dividing by a zero standard deviation is also a classic bug).</li>
+<li><b>Advantages.</b> GRPO: <i>Â</i> = (<i>r</i> − mean) / std, so a lone correct answer in a hard group gets a large push (1 of 16: +3.873) while each correct answer in a half-right group gets +1.000: Dr. GRPO's difficulty bias. Dr. GRPO: <i>Â</i> = <i>r</i> − mean (+0.938 and +0.500). RLOO: one minus the others' pass rate, <i>G</i>/(<i>G</i> − 1) times Dr. GRPO's.</li>
+<li><b>Spread over tokens.</b> GRPO divides each response's advantage by its own length (the bars at the right), so a long wrong answer is penalised less per token than a short one, and wrong answers drift longer: Dr. GRPO's length bias. Dr. GRPO divides every response by the same constant, so each token weighs the same, short answer or long.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="rd-grpo2">
 <p>In symbols, with rewards <i>r</i><sub>1</sub>, ..., <i>r<sub>G</sub></i> for the group of prompt <i>q</i>, the advantage and the objective (the clip as in PPO, the KL <b>added to the loss</b> rather than folded into the reward, so it does not contaminate the advantages) are:</p>
 <div class="fm"><div class="eq"><i>Â</i><sub><i>i</i>,<i>t</i></sub> = ( <i>r<sub>i</sub></i> − mean(<i>r</i><sub>1</sub>, ..., <i>r<sub>G</sub></i>) ) / std(<i>r</i><sub>1</sub>, ..., <i>r<sub>G</sub></i>)</div>
 <div class="eq">𝒥<sub>GRPO</sub>(θ) = 𝔼 [ (1/<i>G</i>) Σ<sub><i>i</i></sub> (1/|<i>o<sub>i</sub></i>|) Σ<sub><i>t</i></sub> { min( ρ<sub><i>i</i>,<i>t</i></sub> <i>Â</i><sub><i>i</i>,<i>t</i></sub>, clip(ρ<sub><i>i</i>,<i>t</i></sub>, 1 − ε, 1 + ε) <i>Â</i><sub><i>i</i>,<i>t</i></sub> ) − β 𝔻<sub>KL</sub>[π<sub>θ</sub> ‖ π<sub>ref</sub>] } ]</div>
 <dl><dt>mean, std</dt><dd>over this prompt's group only. The empirical mean is a Monte Carlo estimate of the prompt's value <i>V</i>(<i>q</i>), computed from samples instead of predicted by a network; dividing by the standard deviation rescales each prompt to unit spread</dd><dt>ρ<sub>i,t</sub></dt><dd>π<sub>θ</sub>(<i>o</i><sub><i>i</i>,<i>t</i></sub> | <i>q</i>, <i>o</i><sub><i>i</i>,&lt;<i>t</i></sub>) / π<sub>θ<sub>old</sub></sub>(<i>o</i><sub><i>i</i>,<i>t</i></sub> | <i>q</i>, <i>o</i><sub><i>i</i>,&lt;<i>t</i></sub>), the per-token importance ratio</dd><dt>|o<sub>i</sub>|</dt><dd>the length of response <i>i</i> in tokens: each response's tokens are averaged first, then the <i>G</i> responses (section 7 shows why this is biased)</dd></dl></div>
 <p>The KL is estimated per token with Schulman's <b>k3 estimator</b> ({{Approximating KL divergence|http://joschu.net/blog/kl-approx.html}}): 𝔻<sub>KL</sub> ≈ <i>x</i> − log <i>x</i> − 1 with <i>x</i> = π<sub>ref</sub>(token) / π<sub>θ</sub>(token). It is never negative (<i>x</i> − log <i>x</i> − 1 ≥ 0 for every <i>x</i> &gt; 0, zero only at 1) and unbiased for KL(π<sub>θ</sub> ‖ π<sub>ref</sub>) when tokens are sampled from π<sub>θ</sub>, because the expectation of <i>x</i> under π<sub>θ</sub> is exactly 1. On a token the reference gives half the policy's probability, <i>x</i> = 0.5 and k3 = 0.5 + 0.693 − 1 = <span data-v="k3_half">0.193</span>.</p>
-<div class="card" id="rd-k3"><div class="rd-ph">k3 is never negative, but on a few tokens it is far larger than the plain log-ratio</div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-k3"><div class="rd-ph">k3 is never negative, but on a few tokens it is far larger than the plain log-ratio</div>
 <div class="rd-svg" id="rd-k3P"></div>
-<p class="small mute" id="rd-k3T"></p></div>
+<p class="small mute" id="rd-k3T"></p></div></div></div></div>
+<section id="rd-grpo3">
 <div class="co corr"><div class="t">Corrections carried from the DeepSeekMath page</div>The paper never trains PPO: GRPO's memory saving is asserted, not measured, and the first head-to-head is in DeepSeek-R1's supplementary material. And differentiating k3 in the loss gives, in expectation, the gradient of KL(π<sub>ref</sub> ‖ π<sub>θ</sub>), not of KL(π<sub>θ</sub> ‖ π<sub>ref</sub>): the value is an unbiased estimate of one divergence, its gradient pushes on the other ({{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}, "k3 gradient" widget).</div>
 <p><b>RLOO</b>, REINFORCE leave-one-out, is the older member of the family: response <i>i</i>'s baseline is the mean of the <i>other</i> <i>G</i> − 1 rewards ({{Kool et al. 2019|https://openreview.net/forum?id=r1lgTGL5DE}}). That baseline does not use <i>r<sub>i</sub></i>, so the estimator is exactly unbiased, and algebra shows it is the mean-centred reward scaled by <i>G</i>/(<i>G</i> − 1): <i>r<sub>i</sub></i> − (Σ<sub><i>j</i>≠<i>i</i></sub> <i>r<sub>j</sub></i>)/(<i>G</i> − 1) = (<i>G</i>/(<i>G</i> − 1)) (<i>r<sub>i</sub></i> − mean). For (1, 0, 0, 0) that is +1.000 and −0.333. GRPO's mean-centring includes <i>r<sub>i</sub></i> in its own baseline, which only shrinks the advantage by (<i>G</i> − 1)/<i>G</i>; the bias that matters is the standard-deviation division (section 7). {{Ahmadian et al. 2024|https://arxiv.org/abs/2402.14740}} ("Back to Basics") argued that such "simpler REINFORCE-style optimization variants outperform both PPO and newly proposed 'RL-free' methods such as DPO and RAFT" for RLHF.</p>
 <p><b>What GRPO gains and loses.</b> No value model: roughly half the memory and no critic warm-up. The DeepSeek-R1 team report that PPO can match GRPO, but only with careful GAE tuning (λ = 1.0; "the default value in most open-source PPO implementations", 0.95, is much worse), and still at the cost of a full value model ({{DeepSeek-R1 page|n:3c65c17b0d0d813faca4f7a51eaa0c65}}). GRPO is group-baselined REINFORCE with PPO-style clipping, policy-based rather than actor-critic because nothing bootstraps from the baseline (the root's common mistakes). It pays with equal credit for every token, noisier on long agentic tasks, and with <i>G</i> rollouts per prompt (typically 8 to 64), shifting cost from memory to inference compute.</p>

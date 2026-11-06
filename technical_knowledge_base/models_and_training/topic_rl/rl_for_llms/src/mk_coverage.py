@@ -33,7 +33,7 @@ c('Consequences: credit assignment severe; model trivially known; rollouts expen
 # PPO
 c('Four models: policy from SFT, frozen reference, frozen RM, value model initialised from RM', S + '2', 'InstructGPT initialised it from the RM')
 c('RM Bradley-Terry training lives on Alignment', S + '2', 'Bradley-Terry pairwise loss')
-c('The loop: sample, generate, score, per-token KL, GAE, clipped update, value regression', S + '2', 'The loop:')
+c('The loop: sample, generate, score, per-token KL, GAE, clipped update, value regression', S + '2', 'one RLHF step on a real answer')
 c('Shaped reward formula r_t = 1[t=T] r_phi - beta log ratio', S + '2', '1[<i>t</i> = <i>T</i>] · <i>r</i><sub>φ</sub>')
 c('Summed penalties give InstructGPT\'s sequence-level term (arXiv 2203.02155)', S + '2', '>Eq. 2<')
 c('GAE formula; lambda 0 trusts value, 1 is unbiased; value regressed on returns', S + '2', 'regressed onto the returns')

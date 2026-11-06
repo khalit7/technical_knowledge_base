@@ -39,3 +39,7 @@ Data principle: real where possible. 160 responses sampled for this page from Qw
 ## 2026-10-24 rebuild
 - Lab tabs that each explained one mechanism (Verifier gallery, Rollout mismatch) moved into the Reading sections that explain it; the Real rollouts tab stays as the dataset view used across the page.
 - Considered and rejected: a static chart of the clip's headroom p(1 + ε) against p (a sentence with 0.01 to 0.012 and 0.9 says it, and the rare-token toy shows the consequence); a fitted entropy-collapse curve R = −a e^H + b (no published coefficients read here, so it would be illustrative only); real images (a mechanism page: no photo or paper figure teaches more than the diagrams).
+
+## 2026-11-06 (split layout and 3D pass)
+- Built: Fig. 1 hero stage (a real group of 16, scored, baselined, credited; PPO's critic on answer 7), Fig. 2 four-model PPO stage, Fig. 3 engine/trainer stage. Sync/async timeline turned into a static before/after widget.
+- Rejected: per-token KL as bars in Fig. 2 (one token's term dwarfs the rest, so the bars were invisible; a running sum shows where the tax accrues honestly); the group and before/after widgets in 3D (bar charts over tokens with many toggles; the hero already gives the group in depth); 3D for the curves and scatters.

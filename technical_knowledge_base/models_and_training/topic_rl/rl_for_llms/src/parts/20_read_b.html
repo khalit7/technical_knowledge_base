@@ -1,20 +1,39 @@
 
-<section id="rd-one">
-<h2><span class="num">4</span>Before and after: one real response, three updates</h2>
-<p>The same response, run through everything each method computes for each of its tokens. <b>Before</b>: RLHF with PPO, a reward model's score at the end, a KL penalty on every token, a critic's value at every prefix, GAE. <b>After</b>: GRPO with a verifier, the recipe that replaced it for reasoning: a pass or fail, the group's mean and spread, one number for every token. <b>Dr. GRPO</b> is the 2025 fix of GRPO's two normalisations (section 7). Predict before stepping: on the wrong answer, does the reward model score it above or below the correct one?</p>
-<div class="card" id="rd-on">
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-on">
 <div class="rd-ph">PPO's credit varies token by token and needs four models; GRPO's is flat and needs a group of 16 rollouts</div>
 <div class="seg" id="rd-onM" role="group" aria-label="Method"><button data-m="ppo" class="on">Before: RLHF with PPO</button><button data-m="grpo">After: GRPO with a verifier</button><button data-m="dr">Dr. GRPO</button></div>
 <div class="rd-btns" id="rd-onR" role="group" aria-label="Response and options"></div>
 <div class="rd-svg" id="rd-onP"></div>
 <div class="an-ctl" id="rd-onC"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="rd-onT"></div><p id="rd-onX"></p></div>
+<div class="rd-ro" id="rd-onX" aria-live="polite"></div>
 <div class="an-cnt" id="rd-onN"></div>
 <div class="leg" id="rd-onL"></div>
 <p class="small mute" id="rd-onNote"></p>
 </div>
-<p>What it shows: on GSM8K problem 3 the real reward model scores the wrong answer (8.46) above the correct one (7.10), so PPO against it would push the wrong answer up; switch PPO's reward to the verifier and the critic's value collapses exactly where the working goes wrong. The critic places credit where the predicted outcome changed and pays with a second network that must be right about every prefix (here measured with real continuations, as VinePPO does); GRPO gives every token the same push and pays with a group of rollouts per prompt; Dr. GRPO keeps that and stops long responses being let off lightly.</p>
+</div><div class="s3L">
+<section id="rd-one">
+<h2><span class="num">4</span>Before and after: one real response, three updates</h2>
+<p>The same response, run through everything each method computes for each of its tokens. <b>Before</b>: RLHF with PPO, a reward model's score at the end, a KL penalty on every token, a critic's value at every prefix, GAE. <b>After</b>: GRPO with a verifier, the recipe that replaced it for reasoning: a pass or fail, the group's mean and spread, one number for every token. <b>Dr. GRPO</b> is the 2025 fix of GRPO's two normalisations (section 7). Predict before stepping: on the wrong answer, does the reward model score it above or below the correct one?</p>
+<p class="sxh">The animation, step by step: <span id="rd-onH">before, RLHF with PPO</span></p>
+<ol class="sx" id="sx-on-ppo">
+<li><b>The response.</b> Fig. 2's answer 7 (242 tokens, wrong) or the group's first correct one (202 tokens): the buttons switch. PPO samples one response per prompt.</li>
+<li><b>The score.</b> The reward model's one number on the last token: 8.46 for the wrong answer, 7.10 for the correct one, so PPO against it would push the wrong answer up. "PPO reward: verifier" scores 1 or 0 instead, as Tülu 3 ran PPO.</li>
+<li><b>The KL to the reference.</b> −β log(π<sub>θ</sub>/π<sub>ref</sub>) on every token's reward (β = 0.02): taxed where the policy now prefers a token more than the reference (orange), subsidised where less (green).</li>
+<li><b>The baseline.</b> The critic's value of every prefix, measured from 16 continuations at each of 10 prefixes (dots), as VinePPO does. Under the verifier, the chance of passing collapses exactly where the working goes wrong.</li>
+<li><b>The advantage, token by token.</b> GAE: with λ = 1, shaped return minus the prefix's value; with λ = 0.95 (the toggle), mostly the change in value a token caused. DeepSeek found PPO matched GRPO only at λ = 1.</li>
+<li><b>The weight each token gets in the loss.</b> Its own advantage (PPO averages over the batch's tokens): pushed hardest where the value jumped up, pushed down where it fell, even inside a good answer.</li>
+</ol>
+<ol class="sx" id="sx-on-grpo" hidden>
+<li><b>The response.</b> The same answer, now one of 16 sampled for the prompt. No critic and no reward model read it.</li>
+<li><b>The score.</b> A program checks the boxed answer: pass 1 or fail 0; 6 of the 16 pass. Cheap, exact here, blind to everything but the final number.</li>
+<li><b>The KL to the reference.</b> Not in the reward: β · k3 per token is added to the loss (β = 0.04, as in DeepSeekMath), so no advantage changes.</li>
+<li><b>The baseline.</b> The group: mean 0.375; GRPO also divides by the spread, 0.484; Dr. GRPO does not.</li>
+<li><b>The advantage, token by token.</b> One number on every token: −0.775 (wrong) or +1.291 (correct) under GRPO, −0.375 or +0.625 under Dr. GRPO. Deciding tokens and boilerplate are credited alike.</li>
+<li><b>The weight each token gets in the loss.</b> GRPO divides by the response's own length and <i>G</i>, so a longer answer with the same score weighs less per token (section 7); Dr. GRPO divides by a constant, the group's longest length (355), so every token weighs the same.</li>
+</ol>
+<p>What it shows: the critic places credit where the predicted outcome changed, and pays with a second network that must be right about every prefix (here measured with real continuations, as VinePPO does); GRPO gives every token the same push and pays with a group of rollouts per prompt; Dr. GRPO keeps that and stops long responses being let off lightly.</p>
 </section>
+</div></div>
 
 <section id="rd-rlvr">
 <h2><span class="num">5</span>RLVR: a program as the reward, and what it gets wrong</h2>
@@ -27,8 +46,13 @@
 <tr><td>Format or constraint check</td><td>Tags, length, an instruction's constraints (IFEval)</td><td>Satisfied in form, not in substance: a <code>&lt;think&gt;</code> block can be empty or decorative</td></tr>
 <tr><td>Model-based verifier or LLM judge</td><td>An LLM decides whether an answer matches or is good; covers open-ended tasks and rubrics</td><td>They "substantially improve static accuracy" but are "highly susceptible to reward hacking during RL, where they misclassify certain patterns in responses as correct, particularly after fine-tuning" (Huang et al.); "master keys", a lone ":" or "." or an opener such as "Thought process:" or "Let's solve this step by step", "can consistently elicit false positive rewards without any substantive reasoning"; the authors' fix trains the judge on truncated answers as negatives ({{Zhao et al. 2025|https://arxiv.org/abs/2507.08794}})</td></tr>
 </tbody></table></div>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-ver3">
 <p><b>Three checkers on the same 160 real answers.</b> <b>Strict</b> takes the last <code>\boxed{...}</code>, strips "$" and commas and compares its last number with the reference (no box, no reward; the reward used everywhere else on this page). <b>Last number</b> takes the last number anywhere, forgiving a missing box and rewarding a stray trailing number. <b>Lenient</b> passes if the reference number appears anywhere, the buggy extractor that rewards listing many numbers. Of 160 answers the strict checker passes 37, last-number 43 and lenient 66: the lenient checker passes 29 answers the strict one fails, most of them wrong answers that merely mention the reference number on the way. Where two checkers disagree, one is wrong, and a policy trained against it learns the wrong thing.</p>
-<div class="card"><div class="rd-ph">How often the three checkers agree, on 160 answers</div><div class="tw"><table class="rd-t nar" id="ve-agree"></table></div></div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><div class="rd-ph">How often the three checkers agree, on 160 answers</div><div class="tw"><table class="rd-t nar" id="ve-agree"></table></div></div></div></div></div>
+<section id="rd-rlvr2">
 <details class="dp"><summary>The real disagreements, answer by answer <span class="mute">(closed)</span></summary><div class="b"><div class="vg" id="ve-cases"></div></div></details>
 <p>Beyond maths and code, rubric-based and generative verifiers are a main 2026 research front; rubric-based rewards gave up to 31% relative improvement on HealthBench over Likert-style judge rewards ({{Rubrics as Rewards, Scale AI|https://arxiv.org/abs/2507.17746}}, authors' measurement).</p>
 </section>
@@ -55,6 +79,9 @@
 <li><b>Difficulty bias from std.</b> Prompts whose rewards barely vary (nearly all right or nearly all wrong) have a small standard deviation, so dividing by it inflates their advantages. In a group of 16 with a single correct answer the mean is 0.0625 and the standard deviation 0.242, so the correct answer gets +3.873; in a group of 16 with 8 correct, the standard deviation is 0.5 and a correct answer gets +1.0 (the group widget in section 3).</li>
 </ul>
 <p>The fix drops both: <i>Â</i><sub><i>i</i>,<i>t</i></sub> = <i>r<sub>i</sub></i> − mean(<i>r</i><sub>1</sub>, ..., <i>r<sub>G</sub></i>), and token losses are summed and divided by a constant (the maximum generation length in the authors' code) instead of each response's own length. What is left is an unbiased REINFORCE-style estimator with a group-mean baseline (1 of 16 now gets +0.9375 and 8 of 16 gets +0.5: the push reflects how surprising the success was, not the group's spread). The paper reports less length inflation, especially on wrong answers, at equal reasoning performance, and its minimalist recipe reaches 43.3% on AIME 2024 from a 7B base model.</p>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-dapo">
 <h3>DAPO: four fixes for long chain-of-thought RL</h3>
 <p>DAPO (Decoupled Clip and Dynamic sAmpling Policy Optimization; ByteDance Seed with Tsinghua University's Institute for AI Industry Research, {{Yu et al. 2025|https://arxiv.org/abs/2503.14476}}), an open, widely adopted recipe, reports 50 points on AIME 2024 from the Qwen2.5-32B base model, above DeepSeek-R1-Zero-Qwen-32B's 47 with 50% of its training steps:</p>
 <ol>
@@ -65,25 +92,39 @@
 </ol>
 <div class="fm"><div class="eq"><i>R</i><sub>length</sub>(<i>y</i>) = 0 if |<i>y</i>| ≤ <i>L</i><sub>max</sub> − <i>L</i><sub>cache</sub>; &nbsp; ((<i>L</i><sub>max</sub> − <i>L</i><sub>cache</sub>) − |<i>y</i>|) / <i>L</i><sub>cache</sub> if <i>L</i><sub>max</sub> − <i>L</i><sub>cache</sub> &lt; |<i>y</i>| ≤ <i>L</i><sub>max</sub>; &nbsp; −1 if |<i>y</i>| &gt; <i>L</i><sub>max</sub></div>
 <dl><dt>|y|</dt><dd>the response length in tokens; <i>L</i><sub>max</sub> the maximum length (16,384 in the paper) and <i>L</i><sub>cache</sub> the width of the soft zone before it (4,096). A 14,336-token response sits halfway into the zone: (12,288 − 14,336) / 4,096 = −0.5.</dd></dl></div>
-<div class="card" id="rd-ol"><div class="rd-ph">The overlong penalty ramps from 0 to −1 across the last 4,096 tokens instead of jumping</div>
+
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-ol"><div class="rd-ph">The overlong penalty ramps from 0 to −1 across the last 4,096 tokens instead of jumping</div>
 <label class="small" style="display:block;max-width:460px">Response length <b id="rd-olV">14,336</b> tokens<input type="range" id="rd-olS" min="0" max="20000" step="64" value="14336" aria-label="Response length"></label>
-<div class="rd-svg" id="rd-olP"></div><p class="small mute" id="rd-olT"></p></div>
-<h3>Entropy collapse, and the clip that causes it: clip-higher and CISPO</h3>
-<p>The symmetric clip treats rare tokens unfairly. With ε = 0.2, a token the policy gives probability 0.01 can rise only to 0.012 in one update, while a token at 0.9 is effectively unconstrained (0.9 × 1.2 &gt; 1). Low-probability exploratory tokens can barely grow, the distribution sharpens, and <b>entropy collapses</b>; with ε<sub>high</sub> = 0.28 the same rare token can reach 0.0128. The collapse has a fitted law: in long runs, performance follows R = &minus;a e<sup>H</sup> + b in the policy's entropy H, so it is capped at &minus;a + b once entropy reaches 0; clip-higher and covariance-based clipping (Clip-Cov and KL-Cov, which restrict updates on the few tokens whose log-probability and advantage covary most) keep entropy alive ({{Cui et al. 2025|https://arxiv.org/abs/2505.22617}}).</p>
-<p>MiniMax-M1's <b>CISPO</b> ({{MiniMax 2025|https://arxiv.org/abs/2506.13585}}) names the tokens this hurts: reflective tokens such as "However", "Recheck", "Wait" and "Aha" have low probability under the base model, so their ratios grow fast, they are clipped after the first update, and they stop contributing gradient. CISPO "clips importance sampling weights rather than token updates": every token keeps its gradient, and only the importance weight is clipped, under a stop-gradient:</p>
-<div class="fm"><div class="eq">𝒥<sub>CISPO</sub>(θ) = 𝔼 [ (1/Σ<sub><i>i</i></sub>|<i>o<sub>i</sub></i>|) Σ<sub><i>i</i></sub> Σ<sub><i>t</i></sub> sg( <i>r̂</i><sub><i>i</i>,<i>t</i></sub>(θ) ) <i>Â</i><sub><i>i</i>,<i>t</i></sub> log π<sub>θ</sub>(<i>o</i><sub><i>i</i>,<i>t</i></sub> | <i>q</i>, <i>o</i><sub><i>i</i>,&lt;<i>t</i></sub>) ], &nbsp; <i>r̂</i> = clip(ρ, 1 − ε<sup>IS</sup><sub>low</sub>, 1 + ε<sup>IS</sup><sub>high</sub>)</div>
-<dl><dt>sg</dt><dd>stop-gradient: the clipped ratio only scales the REINFORCE term, it is never differentiated; "we did not impose a lower bound on the IS weight by setting ε<sup>IS</sup><sub>low</sub> to a large value; instead, we only tuned ε<sup>IS</sup><sub>high</sub>"</dd></dl></div>
-<div class="card" id="rd-cz">
+<div class="rd-svg" id="rd-olP"></div><p class="small mute" id="rd-olT"></p></div></div></div></div>
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-cz">
 <div class="rd-ph">One rare token, sixteen updates: the clip freezes it after a few steps; CISPO keeps pushing</div>
 <div class="seg" id="rd-czM" role="group" aria-label="Objective"><button data-m="ppo" class="on">Before: PPO / GRPO clip 0.2</button><button data-m="dapo">Clip-higher 0.28</button><button data-m="cispo">CISPO</button><button data-m="none">No clip</button></div>
 <div class="rd-sl"><label>Starting probability of the sampled token <b id="rd-czPv">0.010</b><input type="range" id="rd-czP" min="0" max="100" value="0" aria-label="Starting probability"></label><label>Step size η <b id="rd-czHv">0.05</b><input type="range" id="rd-czH" min="1" max="60" value="5" aria-label="Step size"></label></div>
 <div class="rd-two"><div><div class="rd-ph">Probability of the token, step by step (log scale)</div><div class="rd-svg" id="rd-czA"></div></div><div><div class="rd-ph">Gradient weight on the token at each step</div><div class="rd-svg" id="rd-czB"></div></div></div>
 <div class="an-ctl" id="rd-czC"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="rd-czT"></div><p id="rd-czX"></p></div>
+<div class="rd-ro" id="rd-czX" aria-live="polite"></div>
 <div class="an-cnt" id="rd-czN"></div>
 <p class="small mute">At the defaults (start 0.010, η = 0.05), after 16 steps the token reaches 0.0124 under the 0.2 clip (gradient on 4 of 16 steps), 0.0131 under clip-higher (5 of 16), 0.0259 under CISPO and 0.0385 with no clip (16 of 16). <i class="nl i">illustrative</i> One sampled token with advantage +1, a softmax over its logit and the rest of the vocabulary, sixteen gradient steps on the same rollout (R1-Zero used 16 minibatches per rollout), exact gradients of each objective. In a real model the same token appears in many contexts; the toy isolates one. CISPO's cap is set to the same 1.28 as clip-higher so the two are comparable; MiniMax does not publish its value. Checked against <code>src/recompute.py</code>.</p>
 </div>
+</div><div class="s3L">
+<section id="rd-ent">
+<h3>Entropy collapse, and the clip that causes it: clip-higher and CISPO</h3>
+<p>The symmetric clip treats rare tokens unfairly. With ε = 0.2, a token the policy gives probability 0.01 can rise only to 0.012 in one update, while a token at 0.9 is effectively unconstrained (0.9 × 1.2 &gt; 1). Low-probability exploratory tokens can barely grow, the distribution sharpens, and <b>entropy collapses</b>; with ε<sub>high</sub> = 0.28 the same rare token can reach 0.0128. The collapse has a fitted law: in long runs, performance follows R = &minus;a e<sup>H</sup> + b in the policy's entropy H, so it is capped at &minus;a + b once entropy reaches 0; clip-higher and covariance-based clipping (Clip-Cov and KL-Cov, which restrict updates on the few tokens whose log-probability and advantage covary most) keep entropy alive ({{Cui et al. 2025|https://arxiv.org/abs/2505.22617}}).</p>
+<p>MiniMax-M1's <b>CISPO</b> ({{MiniMax 2025|https://arxiv.org/abs/2506.13585}}) names the tokens this hurts: reflective tokens such as "However", "Recheck", "Wait" and "Aha" have low probability under the base model, so their ratios grow fast, they are clipped after the first update, and they stop contributing gradient. CISPO "clips importance sampling weights rather than token updates": every token keeps its gradient, and only the importance weight is clipped, under a stop-gradient:</p>
+<div class="fm"><div class="eq">𝒥<sub>CISPO</sub>(θ) = 𝔼 [ (1/Σ<sub><i>i</i></sub>|<i>o<sub>i</sub></i>|) Σ<sub><i>i</i></sub> Σ<sub><i>t</i></sub> sg( <i>r̂</i><sub><i>i</i>,<i>t</i></sub>(θ) ) <i>Â</i><sub><i>i</i>,<i>t</i></sub> log π<sub>θ</sub>(<i>o</i><sub><i>i</i>,<i>t</i></sub> | <i>q</i>, <i>o</i><sub><i>i</i>,&lt;<i>t</i></sub>) ], &nbsp; <i>r̂</i> = clip(ρ, 1 − ε<sup>IS</sup><sub>low</sub>, 1 + ε<sup>IS</sup><sub>high</sub>)</div>
+<dl><dt>sg</dt><dd>stop-gradient: the clipped ratio only scales the REINFORCE term, it is never differentiated; "we did not impose a lower bound on the IS weight by setting ε<sup>IS</sup><sub>low</sub> to a large value; instead, we only tuned ε<sup>IS</sup><sub>high</sub>"</dd></dl></div>
+<p class="sxh">The rare-token toy, in four stretches</p>
+<ol class="sx" id="sx-cz">
+<li><b>Update 0: one rare token, advantage +1.</b> The rollout sampled a token the policy gives probability 0.010, in a response that scored above its group. Every objective starts with weight 1: ratio 1, nothing clipped yet.</li>
+<li><b>Updates 1 to 3: every objective pushes.</b> Sixteen gradient steps are taken on the same rollout (R1-Zero used 16 minibatches per rollout). Inside the clip range the token's weight is its ratio, so all four curves rise together.</li>
+<li><b>Updates 4 to 6: the clip binds.</b> Once the ratio passes 1 + ε the clipped objective is flat: weight 0, and the token stops learning from this rollout. At the defaults that happens after 4 updates under the 0.2 clip and 5 under clip-higher, near p<sub>0</sub> × 1.2 and p<sub>0</sub> × 1.28 (the dashed lines).</li>
+<li><b>Updates 7 to 16: CISPO keeps pushing.</b> CISPO never zeroes the gradient: it caps the weight at 1.28, and a rare reflective token keeps learning from every minibatch. With no clip the weight is the raw ratio and grows with every step, on the strength of one advantage estimate: what the clip exists to stop.</li>
+</ol>
 <p>On Qwen2.5-32B and AIME 2024, "CISPO achieves a 2x speedup compared to DAPO", matching DAPO's results in 50% of the training steps. It gives up the clip's trust region and relies on the weight cap and small steps. CISPO is a component of ScaleRL, the recipe from a 400,000-GPU-hour study of how RL scales (section 12).</p>
+</section>
+</div></div>
+<section id="rd-gspo">
 <h3>GSPO: the ratio at the sequence level</h3>
 <p>GSPO (Group Sequence Policy Optimization; Qwen Team, Alibaba, {{Zheng et al. 2025|https://arxiv.org/abs/2507.18071}}) argues that token-level ratios are noisy and misaligned with a reward given to the whole sequence, which destabilises long sequences and mixture-of-experts (MoE) training. A 3-token response with per-token ratios 1.1, 0.9 and 1.0 gets one ratio, exp((ln 1.1 + ln 0.9 + ln 1.0)/3) = exp(−0.00335) = 0.99666, in place of three noisy ones:</p>
 <div class="fm"><div class="eq"><i>s<sub>i</sub></i>(θ) = ( π<sub>θ</sub>(<i>o<sub>i</sub></i> | <i>q</i>) / π<sub>θ<sub>old</sub></sub>(<i>o<sub>i</sub></i> | <i>q</i>) )<sup>1/|<i>o<sub>i</sub></i>|</sup> = exp( (1/|<i>o<sub>i</sub></i>|) Σ<sub><i>t</i></sub> log ρ<sub><i>i</i>,<i>t</i></sub> ), &nbsp; 𝒥<sub>GSPO</sub>(θ) = 𝔼 [ (1/<i>G</i>) Σ<sub><i>i</i></sub> min( <i>s<sub>i</sub></i> <i>Â<sub>i</sub></i>, clip(<i>s<sub>i</sub></i>, 1 − ε, 1 + ε) <i>Â<sub>i</sub></i> ) ]</div>
@@ -91,27 +132,33 @@
 <p>Because the sequence ratio sits so close to 1, the clip ranges are tiny: 3e-4 below and 4e-4 above (against 0.2 and 0.27 for the paper's GRPO runs), with "a difference of two orders of magnitude in the fractions of clipped tokens between GSPO and GRPO", GSPO clipping more and still training more efficiently. The price is the per-token view: one outlier token is no longer clipped on its own. For MoE models it removes the need for "Routing Replay" (caching which experts were active during rollout so token ratios stay comparable). The paper credits GSPO with contributing to the RL of the Qwen3 models; a GSPO-token variant restores per-token advantages for multi-turn settings. Section 8 computes <i>s<sub>i</sub></i> on all 160 real responses.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-off">
 <h2><span class="num">8</span>Off-policy corrections: the rollout engine is not the trainer</h2>
 <p>Real systems are off-policy in two ways: <b>minibatch updates</b> make later steps off-policy within a batch (the ratio and the clip handle this), and <b>training/inference mismatch</b>: the vLLM or SGLang engine computes slightly different probabilities than the training stack (kernels, precision, KV cache, batch shapes), so an implementation gap quietly turns on-policy RL into off-policy RL ({{Yao et al. 2025, "Your Efficient RL Framework Secretly Brings You Off-Policy RL Training"|https://fengyao.notion.site/off-policy-rl}}). How large is it? Below, the same weights computed three ways on this page's rollouts.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card">
 <div class="seg" id="mi-M" role="group" aria-label="Set-up"><button data-m="f16" class="on">float16 engine, float32 trainer</button><button data-m="bf">bfloat16 against float32</button><button data-m="rp">Stray repetition penalty</button></div>
-<div class="card">
 <div class="rd-ph">A precision gap moves almost no token past a TIS cap; a sampler the trainer does not know about moves many</div>
 <div class="rd-svg" id="mi-h"></div>
 <div class="rd-sl"><label>TIS cap C = <b id="mi-Cv">2.0</b><input type="range" id="mi-C" min="100" max="500" value="200" aria-label="TIS cap"></label><label>MIS keeps ratios within 1 ± <b id="mi-Bv">0.10</b><input type="range" id="mi-B" min="1" max="100" value="10" aria-label="MIS band"></label></div>
 <div class="out" id="mi-st"></div>
 <p class="small mute" id="mi-T"></p>
 <p class="small mute">Per-token log(π<sub>train</sub> / π<sub>rollout</sub>) for every sampled token. Real, on this page's rollouts: float16 with a KV cache (generation, Apple MPS) against float32 in one pass (CPU), mean |log-ratio| 0.0015 nats per token over 55,718 tokens; bfloat16 in one pass against float32, 0.0112; and an engine left with the model's shipped repetition penalty 1.1 against the plain model, 0.298 over 32 responses (9,397 tokens). The trainer here is the same weights in float32; a real trainer (FSDP, Megatron) and engine differ in more ways (kernels, batch-dependent reductions, FP8 rollouts), so production gaps can be larger. Histograms are binned (0.0005 nats for float16, 0.004 for bfloat16, 0.05 for the penalty); fractions are read from the bins.</p>
-</div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-tis">
 <p>The fix that spread is <b>truncated importance sampling</b> (TIS), introduced in that post, against the probabilities the engine actually sampled with:</p>
 <div class="fm"><div class="eq"><i>w<sub>t</sub></i> = min( π<sub>train</sub>(<i>o<sub>t</sub></i> | <i>s<sub>t</sub></i>) / π<sub>rollout</sub>(<i>o<sub>t</sub></i> | <i>s<sub>t</sub></i>), <i>C</i> )</div>
 <dl><dt>π<sub>train</sub>, π<sub>rollout</sub></dt><dd>the probability the training stack computes for the sampled token under the old policy; the probability the engine sampled it with</dd><dt>C</dt><dd>the truncation threshold; verl suggests "typical threshold 1.5-5.0" for token-level weights and starts from <code>decoupled_token_is(threshold=2.0)</code> ({{verl, Rollout Correction|https://verl.readthedocs.io/en/latest/algo/rollout_corr.html}})</dd></dl></div>
 <p>A token the engine sampled at 0.20 that the trainer scores at 0.25 gets weight 1.25; one sampled at 0.05 and scored at 0.25 has ratio 5, truncated to 2. Unlike PPO's two-sided clip the cap is one-sided: weights below 1 pass through. The sequence-level variant multiplies the per-token ratios over the response (∏ρ<sub><i>t</i></sub>), which compounds every token's gap, so its thresholds are higher ("typical threshold 2.0-10.0" in verl); <b>rejection sampling</b> (masked importance sampling, MIS) instead drops tokens or sequences whose ratio falls outside set bounds; CISPO's clipped weight (section 7) is the same idea applied to the policy ratio. verl distinguishes a "decoupled" mode with three policies (rollout, old, current) from a "bypass" mode that sets π<sub>old</sub> = π<sub>rollout</sub> to skip a forward pass.</p>
-<div class="card">
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card">
 <div class="rd-ph">The sequence ratio compounds every token's gap; GSPO's geometric mean stays within a hair of 1</div>
 <div class="rd-svg" id="mi-s"></div>
 <p class="small mute" id="mi-sT"></p>
-</div>
+</div></div></div></div>
+<section id="rd-off2">
 <p><b>In production the gap matters.</b> ScaleRL found that computing the language-model head in FP32 for both generator and trainer "dramatically improves the asymptotic performance A from 0.52 to 0.61" ({{Khatri et al. 2025|https://arxiv.org/abs/2510.13786}}); the Qwen team's study of a 30B MoE model over "hundreds of thousands of GPU hours" argues that a token-level objective is a valid surrogate for the sequence reward "only when both the training-inference discrepancy and policy staleness are minimized" ({{Zheng et al. 2025|https://arxiv.org/abs/2512.01374}}). The weight export opens a quieter gap: casting the fp32 master to bf16 with round-to-nearest drops every update smaller than half a bf16 step, so on Qwen3-1.7B (AdamW, learning rate 10<sup>-6</sup>) only 0.4 to 0.5% of served weights change per step and the sampler serves a policy 50 to 150 optimizer steps stale, a staleness that importance ratios computed on the trainer's fp32 copy cannot see. Fair Cast exports with stochastic rounding and computes the loss on the served copy, so rollouts are on-policy for the weights that produced them; in GRPO runs on one H100 each with models up to 4B parameters (Qwen3-0.6B to 4B, OLMoE-1B-7B), it ended more than a point ahead on 18 of 25 matched seed-pairs and within a point on 6 ({{Fair Cast|n:40c5c17b0d0d81c39641d49880e39f73}}). MoE models add a discrete version, <b>router drift</b>: a tiny probability difference can flip which experts a token is routed to. And <b>low-precision rollouts</b> widen the gap on purpose, to buy speed: the recipes that work treat the mismatch, not the quantisation error, as the thing to engineer, and reach BF16-level RL with FP4 rollouts (TRACE, up to 5.4x faster rollouts). Both in detail:</p>
 <details class="dp"><summary>Router drift in MoE models, and low-precision rollouts (TRACE, TRIAGE, KV4-RL) <span class="mute">(closed)</span></summary><div class="b"><p>The trainer computes the gradient through different experts than the engine sampled with (router drift). Routing replay (R3) reuses the rollout's expert choices during training; Router Drift Control argues that replay biases the gradient, because it drops the experts the training router would have picked, and instead rejects whole responses whose routing disagreement is high. In asynchronous RL, Router Drift Control plus TIS raised the average peak validation accuracy on AIME 2024 and 2025 by 5.5 points over TIS alone and 4.5 over R3 ({{Router Drift Control (arXiv 2610.21682)|https://arxiv.org/abs/2610.21682}}).</p>
 <p>TRACE guides the trainer's FP4 rounding by the rollout's and reaches RL "comparable to BF16 rollout" with FP4 weights, activations and KV cache on four large MoE models, with up to 5.4x faster rollouts ({{TRACE (arXiv 2610.07767)|https://arxiv.org/abs/2610.07767}}); TRIAGE repairs mismatched updates by their gradient direction and keeps native NVFP4 W4A4 on both sampler and learner, reaching full-precision scores on five math benchmarks with Qwen3-4B and Qwen3-30B-A3B at up to 2.3x BF16 rollout throughput ({{TRIAGE (arXiv 2610.07043)|https://arxiv.org/abs/2610.07043}}); KV4-RL found that plain INT4 KV rollouts "can degrade learning even with token-level truncated importance sampling" and fixed it by keeping attention sinks and recent tokens in INT8 ({{KV4-RL (arXiv 2610.14448)|https://arxiv.org/abs/2610.14448}}). The formats themselves are on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
