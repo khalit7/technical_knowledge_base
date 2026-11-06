@@ -1,7 +1,7 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
@@ -50,7 +50,7 @@
 #t-read .hl{background:var(--hl);border-radius:3px;padding:0 2px}
 #t-read .jn{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:10px;margin:8px 0}
 #t-read .jn>div{min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-#t-read .jn h5{margin:0 0 2px;font-size:14px}#t-read .jn p{margin:4px 0;font-size:13px}
+#t-read .jn h5,#t-read h5.jn-h{margin:10px 0 2px;font-size:14px}#t-read .jn p{margin:4px 0;font-size:13px}
 #t-read .pred{font-size:13.5px;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .stp pre.pl{max-height:none}#t-read .stp pre.pl .on{background:var(--hl);display:inline-block;min-width:100%;font-weight:600}
 #t-read .stp pre.pl .dim{opacity:.55}
@@ -59,12 +59,18 @@
 <a href="#rd-one">The idea</a><a href="#rd-s1">1 Planner</a><a href="#rd-s2">2 Cost</a><a href="#rd-s3">3 Statistics</a><a href="#rd-s4">4 Estimates fail</a><a href="#rd-s5">5 Joins</a><a href="#rd-s6">6 EXPLAIN</a><a href="#rd-s7">7 Workflow</a><a href="#rd-s8">8 Fixes</a><a href="#rd-s9">9 Settings</a><a href="#rd-s10">10 Prepared</a><a href="#rd-s11">11 Regressions</a><a href="#rd-pro">In production</a><a href="#rd-deep">Learned optimizers</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">The planner never runs the alternatives: it <b>predicts</b> how many rows each step will produce from a sampled summary of your data, prices each candidate plan from those <span class="hl">row estimates</span>, and runs the cheapest. So a slow query is almost always a wrong estimate, a missing access path, or an application asking the wrong way, and the diagnosis starts by putting the estimated rows next to the actual rows.</p>
-<div class="hero" id="rd-hero-card"><h4>One slow search: where the prediction is made, and where EXPLAIN ANALYZE shows it broke</h4>
-<div id="rd-hero"></div>
-<p class="small">The chat product's title search from section 7, a real plan on PostgreSQL 16.2. The planner believed <b>100</b> titles match <code>'Chat 123456%'</code>, so walking the primary key in id order and stopping after 10 matches looked cheap. <b>1</b> title matched, so it read all 1,000,000 chats: 999,999 rows removed by the filter, 12,053 pages, 91.6 ms. Every section below elaborates one box: statistics (3, 4), costs (2), joins (5), reading the plan (6), the routine and the fixes (7, 8).</p></div>
+<p>Fig. 1 follows one slow search from the chat product (section 7), a real plan on PostgreSQL 16.2: <code>SELECT id, title FROM chats WHERE title LIKE 'Chat 123456%' ORDER BY id LIMIT 10</code>. Titles are <code>'Chat '</code> plus the chat's id, so exactly one chat matches, and it sits about an eighth of the way through the table.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Statistics.</b> <code>ANALYZE</code> keeps a summary of a sample of 30,000 rows (most common values, a histogram). From it the planner estimates that <b>100</b> titles match <code>'Chat 123456%'</code>.</li>
+<li><b>Cost: the Limit makes walking the key look cheap.</b> With 100 matches spread through the table, walking the primary key in id order should find the first 10 after about a tenth of it: cost 3,780 for the Limit, out of 37,801 for the whole walk. Sorting every match looked dearer, so this plan won.</li>
+<li><b>Execution: 1 title matched.</b> The walk found chat 123,456 early, then never collected 10 rows, so it read all 1,000,000 chats through the index: 999,999 rows removed by the filter, 12,053 pages (all found in memory), 91.6 ms.</li>
+<li><b>EXPLAIN ANALYZE shows where it broke.</b> At the scan node, estimated <code>rows=100</code> against <code>actual rows=1</code>: compare 100 with 1. The lowest node where the two disagree is where the plan went wrong; every section below elaborates one part of this path: statistics (3, 4), costs (2), joins (5), reading the plan (6), the routine and the fixes (7, 8).</li>
+<li><b>The fix: an index on the column you filter.</b> <code>CREATE INDEX ON chats (title)</code> turns the prefix into a range: one descent of the new B-tree straight to the match, 7 pages and 0.078 ms instead of 12,053 pages and 91.6 ms.</li>
+</ol>
 <p><b>You need:</b> SQL joins and <code>GROUP BY</code> ({{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}) and what a B-tree index is ({{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}). <b>Running example:</b> the chat product of {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}, 100,000 <code>users</code>, 1,000,000 <code>chats</code> and 10,000,000 <code>messages</code> in one PostgreSQL ("Postgres") database of about 4 GB, plus a billing table in section 10. <span class="meas">measured</span>: on PostgreSQL 16.2, Apple M1 Pro laptop (10 cores, 16 GB), best of three on a shared machine, so trust page counts over milliseconds; <span class="ill">illustrative</span>: an input made up to show a shape.</p>
 <dl class="terms">
 <dt>Planner (optimizer)</dt><dd>the part of the database that turns SQL into a plan by estimated cost.</dd>
@@ -76,6 +82,9 @@
 <dt>Custom and generic plan</dt><dd>for a prepared statement, a plan for the actual parameter values, or one plan reused for all.</dd>
 <dt>Spill</dt><dd>a sort or hash that outgrows <code>work_mem</code> and writes temporary files.</dd>
 </dl>
+</section>
+</div></div>
+<section id="rd-one-ref">
 <details class="dp"><summary>Every section in one table, with what was measured <span class="mute">(reference)</span></summary><div class="b"><div class="tw"><table>
 <thead><tr><th>Section</th><th>The idea</th><th>Measured here</th></tr></thead>
 <tbody>
@@ -93,16 +102,20 @@
 </tbody></table></div>
 <p class="small mute">The parent's {{Query plans|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab holds seven more measured cases on the same data (sequential against index scan, column order in an index, functions that hide a column, a misestimate fixed by extended statistics, Postgres against DuckDB, index-only scans and VACUUM, cold against warm cache); this page links them where they apply.</p></div></details>
 </section>
+<div class="s3sp"><div class="s3L">
 <section id="rd-s1">
 <h2>1. What a planner does</h2>
-<p><code>SELECT * FROM messages WHERE chat_id = 42 ORDER BY created_at</code> says nothing about which file to open, whether to use an index, or in what order to work. SQL is <dfn>declarative</dfn>: it describes the result. A chain of components turns it into steps, the same in every relational database ({{The Path of a Query|https://www.postgresql.org/docs/current/query-path.html}}):</p>
+<p><code>SELECT * FROM messages WHERE chat_id = 42 ORDER BY created_at</code> says nothing about which file to open, whether to use an index, or in what order to work. SQL is <dfn>declarative</dfn>: it describes the result. A chain of components turns it into steps, the same in every relational database ({{The Path of a Query|https://www.postgresql.org/docs/current/query-path.html}}), five steps from text to rows.</p>
+
+
+<p>The plan is a tree of nodes. The leaves read data: a <b>Seq Scan</b> reads every page of a table in order; an <b>Index Scan</b> walks an index and fetches each matching row; a <b>Bitmap Heap Scan</b> collects matching row addresses from an index, then reads their pages in physical order; an <b>Index Only Scan</b> answers from the index without touching the table. Nodes above combine rows: the three join algorithms (section 5), Sort, Aggregate, Limit. Each node asks its child for the next row, so a Limit at the top can stop the whole tree early.</p>
+<p>The planner cannot try the plans; running them would cost more than the query. For each candidate it estimates each node's cardinality and the cost that follows (section 2), from statistics about the data (section 3), and for joins it searches the explosion of orders cleverly (section 5). Planning takes about a millisecond for the queries on this page, and 1.6 seconds for one 16-table join <span class="meas">measured</span>. Every bad plan on this page is a correct choice made on a wrong estimate, or on a cost model that does not match the machine.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>The path of every query: five components, the same in every relational database</h4>
 <div class="pipe">
 <div><b>Parse</b>Check the grammar and build a tree of the statement.</div>
 <div><b>Analyse</b>Look up every name: which table is <code>messages</code>, which type is <code>chat_id</code>.</div>
 <div><b>Rewrite</b>Replace views by the queries that define them and apply rules.</div>
 <div><b>Plan</b>Enumerate ways to run it, estimate the cost of each, keep the cheapest.</div>
 <div><b>Execute</b>Run the chosen plan and stream rows back.</div>
-</div>
-<p>The plan is a tree of nodes. The leaves read data: a <b>Seq Scan</b> reads every page of a table in order; an <b>Index Scan</b> walks an index and fetches each matching row; a <b>Bitmap Heap Scan</b> collects matching row addresses from an index, then reads their pages in physical order; an <b>Index Only Scan</b> answers from the index without touching the table. Nodes above combine rows: the three join algorithms (section 5), Sort, Aggregate, Limit. Each node asks its child for the next row, so a Limit at the top can stop the whole tree early.</p>
-<p>The planner cannot try the plans; running them would cost more than the query. For each candidate it estimates each node's cardinality and the cost that follows (section 2), from statistics about the data (section 3), and for joins it searches the explosion of orders cleverly (section 5). Planning takes about a millisecond for the queries on this page, and 1.6 seconds for one 16-table join <span class="meas">measured</span>. Every bad plan on this page is a correct choice made on a wrong estimate, or on a cost model that does not match the machine.</p>
-</section>
+</div><p class="small mute">The planner (step 4) is the subject of this page; the plan it hands to the executor is a tree of nodes, read in section 6.</p></div></div></div></div>

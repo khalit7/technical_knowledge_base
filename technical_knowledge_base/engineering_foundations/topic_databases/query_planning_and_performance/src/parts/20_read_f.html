@@ -13,16 +13,33 @@ FROM pg_stat_statements ORDER BY total_exec_time DESC LIMIT 10;</pre>
 <p>The logged plan is the one that actually ran when it was slow, which matters for problems that come and go (section 10). The price: with <code>auto_explain.log_analyze</code> on, every statement is timed per node whether or not it is logged, which the documentation warns "can have an extremely negative impact on performance"; turn <code>log_timing</code> off (as here) and sample with <code>auto_explain.sample_rate</code>.</p>
 <h3>Fix one thing, then verify under the same load</h3>
 <p>Change one thing (section 8), <code>SELECT pg_stat_statements_reset();</code>, replay the same load, compare. Load catches what one EXPLAIN cannot: a new index slows every write, and removing the top query moves the bottleneck to the next.</p>
-<h3>The whole routine on one workload</h3>
-<p>The replay below: <code>pgbench</code>, Postgres's benchmarking tool, runs six of the chat product's queries with random parameters from 4 concurrent clients, 1,000 transactions each, weighted like a day of traffic (opening a chat 40, the sidebar 25, login 20, title search 8, usage totals 6, the weekly report 1). The stepper follows it through the four steps; the toggle runs the same replay through the method it replaces, fixing the query someone complained about. Predict first: which of the six uses the most database time?</p>
-<div class="fig" id="rd-wf-card"><h4>Sorting by total time finds the query nobody complained about</h4>
+<div class="s3sp"><div class="s3R"><div class="fig" id="rd-wf-card"><h4>Sorting by total time finds the query nobody complained about</h4>
 <div class="seg" id="rd-wf-mode"><button data-m="flow" class="on">The workflow: sort by total time</button><button data-m="hunch">The hunch: fix the slow report someone noticed</button></div>
 <div class="wf" id="rd-wf-strip"><div>1 Find</div><div>2 Explain</div><div>3 Fix</div><div>4 Verify</div></div>
 <div class="an-cnt" id="rd-wf-cnt"></div>
-<div class="an-cap" id="rd-wf-cap"></div>
 <div class="an-ctl" id="rd-wf-ctl"></div>
 <div id="rd-wf-panel" style="min-height:180px"></div>
-</div>
-<p class="small mute">Measured with pg_stat_statements, auto_explain and pgbench from the same PostgreSQL 16.2 build (all three compiled from the 16.2 source for this page, since the Python wheel used for the database ships without them). Times on a shared laptop vary; the other queries' means moved between the two replays because the title search had been holding pages and CPU. The hunch's "at most 2.4%" is derived: the report's share of database time, the most that making it free could save.</p>
+</div></div><div class="s3L">
+<h3>The whole routine on one workload</h3>
+<p>The replay: <code>pgbench</code>, Postgres's benchmarking tool, runs six of the chat product's queries with random parameters from 4 concurrent clients, 1,000 transactions each, weighted like a day of traffic (opening a chat 40, the sidebar 25, login 20, title search 8, usage totals 6, the weekly report 1). Fig. 4 follows it through the four steps; the toggle runs the same replay through the method it replaces, fixing the query someone complained about. Predict first: which of the six uses the most database time?</p>
+<ol class="sx" id="sx-wf-flow">
+<li><b>The replay.</b> pgbench runs the six queries from 4 clients, 1,000 transactions each, with random parameters: 285 transactions a second, 14.0 ms average latency. Something is slow; nobody knows what.</li>
+<li><b>Find: rank statements by total time.</b> pg_stat_statements after the replay, sorted by <code>total_exec_time</code>: one statement, the title search, used 78.6% of all database time.</li>
+<li><b>Find: why total time, not the slowest call.</b> The search ran 331 times at 112.9 ms: 37,380 ms of the 47,575 ms total. Opening a chat ran 4.7 times more often but cost 28 times less per call.</li>
+<li><b>Explain: get a real value from the log.</b> pg_stat_statements shows <code>LIKE $1 || $2 || $3</code>, with no values; <code>log_min_duration_statement</code> (20 ms here) logged real calls, such as the one in the panel, which took 367.7 ms under load.</li>
+<li><b>Explain: EXPLAIN (ANALYZE, BUFFERS).</b> Estimated rows=100, actual rows=1, and 999,999 rows removed by the filter: the planner walked the primary key expecting to find 10 matches early. The Limit trap (Fig. 1).</li>
+<li><b>Fix: one index.</b> <code>CREATE INDEX chats_title ON chats (title)</code>, built in 1.4 s, 31.6 MB. With the C collation a B-tree serves <code>LIKE 'prefix%'</code> as a range.</li>
+<li><b>Fix: the new plan.</b> An Index Cond turns the prefix into a range on <code>title</code>, 7 pages instead of 12,053: 0.078 ms for the same search.</li>
+<li><b>Verify: same replay, statistics reset.</b> Throughput 285 to 1,181 transactions a second (4.1 times), average latency 14.0 to 3.39 ms. The search fell to 0.7% of database time.</li>
+<li><b>And again.</b> The top of the list is now opening a chat (32.2%), a 2 ms query run 1,554 times. The routine repeats until the top entry is something you accept.</li>
+</ol>
+<ol class="sx" id="sx-wf-hunch" hidden>
+<li><b>The replay.</b> The same replay: 285 transactions a second.</li>
+<li><b>A colleague: "the weekly report is slow".</b> It is: 32.0 ms per call, 73 ms at worst, against 4 ms for opening a chat. The team starts tuning it.</li>
+<li><b>Even a perfect fix buys little.</b> The report is 2.4% of database time. Making it free would raise throughput by at most 2.5%, to about 292 transactions a second (derived, assuming the clients wait only on the database).</li>
+<li><b>The real cost was elsewhere.</b> The title search, which nobody complained about because each call is a fraction of a keystroke, is still 78.6% of the time. Step 2 of the workflow finds it in one query.</li>
+</ol>
+<p class="small mute">Measured with pg_stat_statements, auto_explain and pgbench from the same PostgreSQL 16.2 build (all three compiled from the 16.2 source for this page, since the Python wheel used for the database ships without them). Times on a shared laptop vary; the other queries' means moved between the two replays because the title search had been holding pages and CPU. The hunch's "at most 2.5%" is derived: the report's share of database time (2.4%) is the most that making it free could remove, which raises throughput by 1 / (1 &minus; 0.024) &minus; 1.</p>
+</div></div>
 <div class="fix"><div class="t">Why this query was slow, and the two fixes</div>The search <code>WHERE title LIKE 'Chat 123456%' ORDER BY id LIMIT 10</code> fell into the <b>Limit trap</b>: estimating 100 matching titles, the planner walked the primary key in id order to stop after 10 (cost 3,780 against sorting all matches). With one match, every search read the whole table through the index: 12,053 pages, 91.6 ms in EXPLAIN, 112.9 ms on average under load. An index on <code>title</code> turns <code>LIKE 'prefix%'</code> into a range scan (this database uses the C collation; otherwise create it with <code>text_pattern_ops</code>, {{Operator Classes|https://www.postgresql.org/docs/current/indexes-opclass.html}}): 0.078 ms, about 1,170 times faster, for 31.6 MB and slower inserts into <code>chats</code>. Without an index, ordering by <code>title</code> removes the temptation to walk the primary key: a parallel scan and a sort of the one match, 33 ms instead of 84 ms <span class="meas">measured</span>, still a full scan per keystroke. A substring <code>LIKE '%123456%'</code> cannot use a B-tree at all; it needs a trigram index ({{pg_trgm|https://www.postgresql.org/docs/current/pgtrgm.html}}, on {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}).</div>
 </section>

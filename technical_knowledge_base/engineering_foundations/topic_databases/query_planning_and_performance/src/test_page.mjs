@@ -1,4 +1,4 @@
-// Click every control of the page at 390 dark and 920 light; report errors, NaN/undefined, sideways scroll; screenshot key cards.
+// Click every control of the page at 390 dark and 920 light (2026-11-06: the workflow autoplays on view; the plan walk is the Fig. 3 stage); report errors, NaN/undefined, sideways scroll; screenshot key cards.
 // Run from html_utils/: node ../technical_knowledge_base/engineering_foundations/topic_databases/query_planning_and_performance/src/test_page.mjs <shots dir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -19,9 +19,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       return { nan: /\bNaN\b/.test(t), und: /\bundefined\b/.test(t), side: document.documentElement.scrollWidth > innerWidth, box: !document.getElementById('jsErr').hidden } });
     if (r.nan || r.und || r.side || r.box) { bad++; console.log('PROBLEM', scheme, width, tag, JSON.stringify(r)) } };
   // reading: segments and animation controls
-  // nothing moves before the reader acts: scroll both steppers into view, wait, check they are still on step 0
-  for (const id of ['rd-walk', 'rd-wf']) { await (await p.$('#' + id + '-card')).scrollIntoView(); await sleep(1200);
-    const v = await p.$eval('#' + id + '-ctl-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY', id, v) } }
+  // autoplay on view (2026-11-06, replaces never-autoplay): the workflow plays once scrolled into view; the 3D stages are checked by check_stages.mjs
+  { await p.$eval('#rd-wf-card', e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+    const t = await p.$eval('#rd-wf-ctl-p', e => e.textContent); if (!/Pause/.test(t)) { bad++; console.log('NO AUTOPLAY rd-wf', t) } }
   for (const seg of ['rd-mcv-seg', 'rd-app-seg', 'rd-spill-seg', 'rd-gen-seg', 'rd-wf-mode']) {
     const n = await p.$$eval('#' + seg + ' button', x => x.length);
     for (let i = 0; i < n; i++) { await p.$eval('#' + seg, (e, i) => e.querySelectorAll('button')[i].click(), i); await sleep(80); await check(seg + i) } }
@@ -32,12 +32,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (let i = 0; i < 4; i++) await p.$eval('#rd-wf-ctl-f', e => e.click());
   await p.$eval('#rd-wf-ctl-p', e => e.click()); await sleep(300); await p.$eval('#rd-wf-ctl-p', e => e.click());
   await p.select('#rd-wf-ctl-v', '2');
-  for (let i = 0; i < 8; i++) { await p.$eval('#rd-walk-ctl-f', e => e.click()); await sleep(30); await check('walk' + i) }
-  for (let i = 0; i < 8; i++) await p.$eval('#rd-walk-ctl-b', e => e.click());
-  await p.$eval('#rd-wf-mode', e => e.querySelectorAll('button')[1].click()); await (await p.$('#rd-wf-card')).scrollIntoView(); await sleep(1500);
-  if (await p.$eval('#rd-wf-ctl-s', e => +e.value) !== 0) { bad++; console.log('AUTOPLAY after mode switch') }
+  for (let i = 0; i < 8; i++) { await p.$eval('#stg-plan-f', e => e.click()); await sleep(30); await check('plan' + i) }
+  for (let i = 0; i < 8; i++) await p.$eval('#stg-plan-b', e => e.click());
+  // a mode switch replays the other sequence from step 1 (the one exception to stopping for good)
+  await p.$eval('#rd-wf-mode', e => e.querySelectorAll('button')[1].click()); await (await p.$('#rd-wf-card')).scrollIntoView(); await sleep(400);
+  if (await p.$eval('#sx-wf-hunch', e => e.hidden || e.children.length !== 4)) { bad++; console.log('hunch list not shown') }
   await p.$eval('#rd-wf-mode', e => e.querySelectorAll('button')[0].click());
-  for (const id of ['rd-hero-card', 'rd-err-card', 'rd-join-card', 'rd-walk-card', 'rd-page-card', 'rd-wf-card', 'rd-gen-card', 'rd-geqo-card', 'rd-par-card', 'rd-spill-card', 'rd-mcv-card']) { const el = await p.$('#' + id); await el.scrollIntoView(); await el.screenshot({ path: `${out}/${id}-${scheme}-${width}.png` }) }
+  for (const id of ['stg-hero', 'rd-err-card', 'rd-join-card', 'stg-plan', 'rd-walk-card', 'rd-page-card', 'rd-wf-card', 'rd-gen-card', 'rd-geqo-card', 'rd-par-card', 'rd-spill-card', 'rd-mcv-card']) { const el = await p.$('#' + id); await el.scrollIntoView(); await el.screenshot({ path: `${out}/${id}-${scheme}-${width}.png` }) }
   // cost model calculator (Reading, section 2; moved from its own tab on 2026-10-24)
   await p.$$eval('#cm-wrap details', ds => ds.forEach(d => d.open = true));
   for (const pre of [0, 1]) {

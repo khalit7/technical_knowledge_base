@@ -18,14 +18,22 @@
 <dt><code>Buffers: shared hit=12053</code></dt><dd>8 KB pages found in Postgres's buffer pool (<b>hit</b>), asked from the operating system (<b>read</b>, which may still come from its memory), modified (<b>dirtied</b>) or written out to make room (<b>written</b>); <b>temp</b> pages are sorts and hashes that spilled (section 9).</dd>
 </dl>
 <p>This is the hero's node: the planner expected 100 matching titles and, walking the primary key in id order, expected to find the first 10 after about a tenth of the table (cost 3,780 at the Limit above it). There was 1 match, so it read all 1,000,000 rows. The estimate (100) against the actual (1) is the whole diagnosis.</p>
+<div class="s3sp"><div class="s3R"><div id="stg-plan"></div></div><div class="s3L">
 <h3>Reading a whole plan</h3>
-<p>Start at the bottom (the most indented lines) and go up; at each node compare estimated rows with actual rows &times; loops; the lowest big mismatch is the cause. Step through a real plan from this database: the five London users with the most chats.</p>
-<div class="fig stp" id="rd-walk-card"><h4>Bottom up: the first wrong estimate is the cause, and every node above it inherits the error</h4>
-<div class="an-cap" id="rd-walk-cap"></div>
-<div class="an-ctl" id="rd-walk-ctl"></div>
-<div id="rd-walk"></div>
+<p>Start at the bottom (the most indented lines) and go up; at each node compare estimated rows with actual rows &times; loops; the lowest big mismatch is the cause. Fig. 3 steps through a real plan from this database, the five London users with the most chats; the plan text under the steps is what EXPLAIN printed, with each step's lines marked.</p>
+<ol class="sx" id="sx-plan">
+<li><b>A real plan, as EXPLAIN prints it.</b> The most indented lines run first and pass rows up, so read it from the bottom. In the figure each node carries two bars on a log scale: glass for the rows it estimated, solid for the rows it produced (actual rows &times; loops).</li>
+<li><b>The bottom: Seq Scan on lab_users.</b> Estimated rows=158, actual rows=2,294: 14.5 times under. The planner multiplied the share of GB users by the share of London users as if the two were independent (section 4). This is the lowest big mismatch, so it is the cause.</li>
+<li><b>The inner side: Index Only Scan on chats.</b> Estimated 13 rows per loop, actual 10 per loop: fine for each lookup. But loops=2,294 where the plan expected 158: a nested loop was chosen for a small outer side that was not small.</li>
+<li><b>Nested Loop: inherited, not new.</b> rows=1,580 estimated, 22,364 actual: about 158 &times; 10 against 2,294 &times; 10. The error came up from the scan below.</li>
+<li><b>HashAggregate: inherited again.</b> 158 groups expected, 2,291 found (one per London user with chats). It still fitted in memory: Batches 1.</li>
+<li><b>Sort and Limit: the answer, and the bill.</b> 5 rows, as asked, in 14.364 ms. Fast here, because 2,294 lookups are cheap; the same underestimate on a bigger table sends a nested loop into millions of lookups.</li>
+<li><b>The fix, and the plan it produces.</b> <code>CREATE STATISTICS ... (dependencies, mcv) ON country, city FROM lab_users; ANALYZE lab_users;</code> Now the scan estimates 1,335 rows per process against 1,147 actual (two processes), every bar above it matches, the planner adds a parallel worker (a Gather node), and the query takes 10.566 ms.</li>
+</ol>
+<div class="stp" id="rd-walk-card"><div id="rd-walk"></div></div>
 <p class="small mute">Real <code>EXPLAIN (ANALYZE, BUFFERS)</code> output on a copy of <code>users</code> (<code>lab_users</code>) joined to <code>chats</code>, PostgreSQL 16.2, 2026-10-04. Before the fix: Seq Scan on lab_users estimated rows=158 against actual rows=2294; the Nested Loop rows=1580 against 22364; Execution Time 14.364 ms. After <code>CREATE STATISTICS</code> on (country, city): 1,335 estimated per process against 1,147 actual, a parallel plan, 10.566 ms. The same plan is exercise 3 of the {{Plan reading lab|#t-lab}}.</p>
-</div>
+</div></div>
+
 <p>Two more things to read: <b>time and pages</b> (a node's time includes its children, so subtract them, and multiply by <code>loops</code>; pages, unlike milliseconds, do not change between a cold and a warm run, the parent's Query plans case 8), and <b>waste</b>: Rows Removed by Filter in the millions, <code>Heap Fetches</code> on an Index Only Scan (the table was visited after all), <code>Sort Method: external merge</code> or <code>Batches</code> above 1 (spilled), <code>Workers Launched</code> below <code>Workers Planned</code> (no free parallel workers), and Planning Time against Execution Time (for short queries run thousands of times, planning can be most of the cost; section 10).</p>
 <details class="dp"><summary>Every common node in one table <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>

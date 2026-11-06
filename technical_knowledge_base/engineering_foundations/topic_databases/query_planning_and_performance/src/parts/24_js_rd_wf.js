@@ -1,4 +1,4 @@
-// ---- Reading tab, section 7: the slow-query workflow on the replayed workload (stepper, two modes; waits for the reader) ----
+// ---- Reading tab, section 7: the slow-query workflow on the replayed workload (RD.anim, two modes, each with its step list on the left; plays when scrolled into view) ----
 (function(){
 const Q=window.QPD,W=Q.workload,E=RD.esc,$=id=>document.getElementById(id),F=window.QPF;
 const short=q=>q.replace(/\s+/g,' ').replace(/^SELECT /,'').slice(0,74)+(q.length>80?'...':'');
@@ -32,7 +32,9 @@ const cnt=$('rd-wf-cnt');
 function draw(i){const s=S[mode][Math.min(i,S[mode].length-1)];
   [...$('rd-wf-strip').children].forEach((d,k)=>d.classList.toggle('on',k===s.st));
   cnt.innerHTML=RD.stat('Throughput',F.f(s.c[0])+'<small> tx/s</small>')+RD.stat('Average latency',F.ms(s.c[1])+'<small> ms</small>')+RD.stat('Search, mean',F.ms(s.c[2])+'<small> ms</small>')+RD.stat('Search, share of DB time',s.c[3].toFixed(1)+'%');
-  $('rd-wf-panel').innerHTML=s.panel();$('rd-wf-cap').innerHTML='<div class="t">'+E(s.t)+'</div><p>'+E(s.p)+'</p>'}
-const an=RD.anim({card:'rd-wf-card',ctl:'rd-wf-ctl',n:S.flow.length,draw,ms:3200,label:'Workflow step'});
-RD.seg($('rd-wf-mode'),m=>{mode=m;an.reset(S[m].length)});
+  $('rd-wf-panel').innerHTML=s.panel()}
+const an=RD.anim({card:'rd-wf-card',ctl:'rd-wf-ctl',n:S.flow.length,draw,ms:4800,label:'Workflow step',list:'sx-wf-flow'});
+// the toggle swaps the step list on the left and replays from step 1
+RD.seg($('rd-wf-mode'),m=>{mode=m;$('sx-wf-flow').hidden=m!=='flow';$('sx-wf-hunch').hidden=m!=='hunch';an.reset(S[m].length,'sx-wf-'+m)});
+window.CHK=Object.assign(window.CHK||{},{wf:{flow:S.flow.length,hunch:S.hunch.length,tpsB:Math.round(B.tps),tpsA:Math.round(A.tps),pct:sB.pct.toFixed(1),pctA:sA.pct.toFixed(1),hunchTps:Math.round(hunchTps),gain:(100*(1/(1-rep.pct/100)-1)).toFixed(1)}});
 })();

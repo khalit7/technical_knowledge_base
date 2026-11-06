@@ -39,3 +39,13 @@ Scores: teaching value (T), real data (D), not done elsewhere (N), each 1 to 3.
 | Cost model calculator moved inline | Section 2 | One slider plus closed settings | Was the Cost model tab. |
 
 Rejected in this pass: a throughput-against-active-connections curve (no measurement exists on this machine, and an illustrative curve would teach a shape we cannot source; the wiki rule is quoted instead); photographs (a mechanism page, nothing physical to show); schematic drawings of the three join algorithms (the measured bars plus one sentence each carry it).
+
+## 2026-11-06 rollout: split layout and 3D stages
+| Idea | Where | Kind | Notes |
+|---|---|---|---|
+| Fig. 1: the title search predicted and run (pg_stats plate, the predicted tenth, the full walk with the one match rising, estimated against actual bars, the title B-tree) | Top | 3D stage, 5 steps | Replaces the 2D hero; numbers parsed from the workload's two plans. |
+| Fig. 2: Seq Scan, Index Scan and Bitmap Heap Scan on the same 20,000 users, then messages with correlation 1.00 | Section 2 | 3D stage, 5 steps, new | Pages, costs and times from the cost-model recordings; tile positions illustrative and labelled so. |
+| Fig. 3: the London-users plan as a tree, estimated against actual bars at every node, rows flowing up, then the fix | Section 6 | 3D stage, 7 steps | Replaces the 2D bottom-up stepper; the plan text stays beside it, marked per step. |
+| The workflow | Section 7 | 2D animation with two step lists | Tables and plans read best flat. |
+
+Rejected in this pass: 3D join algorithms (two measured bars per algorithm say it; a drawing of a hash table or a zipper would be illustrative only); a 3D join-order search tree (rejected before for the same reason); 3D for the curves (calculator, GEQO, pagination, parallel, spills, generic plans: numbers on log axes read best flat).

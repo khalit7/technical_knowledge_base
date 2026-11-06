@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-scan"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. How the planner prices a plan</h2>
 <p>A <dfn>cost</dfn> is a number in arbitrary units, not milliseconds: reading one 8 KB page as part of a sequential run costs <b>1.0</b> (<code>seq_page_cost</code>), a page reached by jumping to it <b>4.0</b> (<code>random_page_cost</code>), handling a row 0.01, an index entry 0.005, evaluating one operator such as <code>&lt;=</code> 0.0025 ({{Planner cost constants|https://www.postgresql.org/docs/current/runtime-config-query.html#RUNTIME-CONFIG-QUERY-CONSTANTS}}). Random is only 4 times sequential, when on a spinning disk it is closer to 100, because the default assumes most random reads come from memory: random access "is normally much more expensive than four times sequential access", says the documentation (section 9 comes back to this).</p>
@@ -19,7 +20,36 @@
 <p>EXPLAIN prints exactly <code>Seq Scan on users (cost=0.00..2780.00 ...)</code>: startup cost 0, total cost 2,780. Startup cost matters when a Limit only wants the first few rows; the hero's slow search turns on exactly that.</p>
 <h3>An index scan: pages depend on physical order</h3>
 <p>An index scan pays for the index pages and entries it reads, then one table page fetch per matching row, unless consecutive matches sit on the same page. How often they do depends on the column's <dfn>correlation</dfn>, measured by <code>ANALYZE</code>: <code>messages.id</code> has 1.00 (messages were inserted in id order), <code>users.id</code> -0.03 (no useful order) <span class="meas">measured</span>. The planner estimates heap pages two ways and interpolates by correlation squared: with no correlation, the Mackert and Lohman approximation of how many distinct pages <i>N</i> random fetches touch in a table of <i>T</i> pages, about 2<i>TN</i>/(2<i>T</i>+<i>N</i>) when the table fits in cache, each at <code>random_page_cost</code>; with perfect correlation, the matching fraction of the table read nearly sequentially ({{costsize.c, cost_index|https://github.com/postgres/postgres/blob/REL_16_2/src/backend/optimizer/path/costsize.c}}). A <b>bitmap scan</b> sits between the two: it sorts the matching row addresses by page and visits each page once, priced between random and sequential by how much of the table it touches.</p>
-<style>
+<p>Fig. 2 runs the three paths on the same range, <code>id BETWEEN 5001 AND 25000</code> on <code>users</code>, with the costs EXPLAIN printed and the pages and times measured (each path forced in turn).</p>
+<ol class="sx" id="sx-scan">
+<li><b>The table and its index.</b> <code>users</code>: 100,000 rows in 1,280 pages of 8 KB (each tile in the figure is 4 pages). Its primary-key index <code>users_pkey</code> is a root page over 276 leaf pages, ids in order. The query wants 20,000 rows.</li>
+<li><b>Seq Scan: every page once, in order.</b> 1,280 sequential pages at 1.0 plus 100,000 rows checked: cost 2,780. Measured: 1,280 pages, 5.4 ms, whatever the range.</li>
+<li><b>Index Scan: descend, then jump for every row.</b> From the root to the leaves that hold the range (about a fifth of the 276), then one table fetch per matching row. With correlation -0.03 the planner expected consecutive ids on scattered pages; in fact these rows sit on 315 pages in long runs (where they sit, and where each jump lands, is drawn for illustration), so the scan fetches the same pages again and again: 19,460 page visits, cost 5,733, 3.4 ms.</li>
+<li><b>Bitmap Heap Scan: collect, sort by page, read each page once.</b> The index hands over 20,000 row addresses; a bitmap sorts them by page; each of the 315 pages is read once in physical order. 375 pages with the index's, cost 2,003, 2.4 ms: the cheapest by both measures, and the planner's choice.</li>
+<li><b>Correlation 1.00: the index scan wins.</b> <code>messages</code> was inserted in id order, so 1,000,000 of its 10,000,000 rows by id sit together, one tenth of the table read as one run: the index scan touched 25,294 pages in 137 ms against 192,356 pages and 659 ms for the Seq Scan.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s2b">
+<h3>The calculator: where the winner changes</h3>
+<p>The figure shows one size; the calculator beside this prices all three paths at any size with the formulas Postgres uses, so the crossovers become visible. Predict first: on <code>users</code>, at how many rows does the bitmap scan stop beating the sequential scan, and does the plain index scan ever win? Then switch to <code>messages</code>, whose rows sit in id order.</p>
+<p>What the three paths cost and took at the two default sizes:</p>
+<div class="tw"><table>
+<thead><tr><th>Query</th><th>Path</th><th class="num">Planner cost</th><th class="num">Pages touched</th><th class="num">Time</th></tr></thead>
+<tbody>
+<tr><td rowspan="3">20,000 <code>users</code> by id (correlation -0.03)</td><td>Seq Scan</td><td class="num">2,780</td><td class="num">1,280</td><td class="num">5.4 ms</td></tr>
+<tr><td>Index Scan</td><td class="num">5,733</td><td class="num">19,460</td><td class="num">3.4 ms</td></tr>
+<tr><td><b>Bitmap Heap Scan</b> (chosen)</td><td class="num">2,003</td><td class="num">375</td><td class="num">2.4 ms</td></tr>
+<tr><td rowspan="3">1,000,000 <code>messages</code> by id (correlation 1.00)</td><td>Seq Scan</td><td class="num">342,345</td><td class="num">192,356</td><td class="num">659 ms</td></tr>
+<tr><td><b>Index Scan</b> (chosen)</td><td class="num">51,384</td><td class="num">25,294</td><td class="num">137 ms</td></tr>
+<tr><td>Bitmap Heap Scan</td><td class="num">341,127</td><td class="num">21,977</td><td class="num">139 ms</td></tr>
+</tbody></table></div>
+<p class="small mute">Measured: each path forced in turn, serial plans, warm cache, best of three. "Pages touched" counts buffer hits plus reads, so the index scan pays one visit per row fetched even when the next row is on the page it just read. These 20,000 users happen to sit on just 315 of the table's 1,280 pages (it was rewritten earlier in its life), which one correlation number cannot tell the planner, and why the bitmap touched so few. The planner's ranking matched the stopwatch in both cases, and it chose an index scan for up to 6,000,000 of the 10,000,000 messages because the rows it needs sit together.</p>
+<div class="co"><div class="t">Defaults reproduce Postgres's own costs, independently</div>The calculator's formulas, transcribed from the PostgreSQL 16.2 source (<code>cost_seqscan</code>, <code>cost_index</code>, <code>index_pages_fetched</code>, <code>cost_bitmap_heap_scan</code>, <code>genericcostestimate</code>, <code>btcostestimate</code> and the histogram code), reproduce <b>150 of 150</b> figures that EXPLAIN printed (row estimates, sequential, index and bitmap costs) across 25 ranges on the two tables, to the cent (checked in <code>src/recompute.py</code>).</div>
+<div class="wall"><div class="t">What the cost model does not know</div>Whether a page is already in memory (except through <code>effective_cache_size</code>), how fast your disk is, what else is running, and anything about the data beyond its statistics. It is deliberately crude. Leis and colleagues found on real join queries that the cost model "has much less influence on query performance than the cardinality estimates" ({{How Good Are Query Optimizers, Really?, PVLDB 2015|https://www.vldb.org/pvldb/vol9/p204-leis.pdf}}): get the row counts right and a crude cost model is enough.</div>
+</section>
+</div><div class="s3R"><div class="s3side"><style>
 #cm-wrap .cm-q{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;overflow-wrap:anywhere}
 #cm-wrap .cm-paths{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px;margin:10px 0}
 #cm-wrap .cm-p{border:1px solid var(--line);border-radius:10px;padding:8px 11px;min-width:0;background:var(--bg)}
@@ -41,7 +71,6 @@
 #cm-wrap .kv{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr)}#cm-wrap .kv dt,#cm-wrap .kv dd{overflow-wrap:anywhere}
 #cm-wrap .cm-ctl.one{grid-template-columns:minmax(0,1fr)}
 </style><div class="fig" id="cm-wrap"><h4>Three prices for one range query: the cheapest line wins, and the winner changes at a crossover</h4>
-<p class="pred"><b>Predict, then drag:</b> on <code>users</code>, at how many rows does the bitmap scan stop beating the sequential scan, and does the plain index scan ever win? Then switch to <code>messages</code>, whose rows sit in id order.</p>
 <div class="seg" id="cm-preset"><button data-m="users" class="on">users by id: 100,000 rows, correlation -0.03</button><button data-m="messages">messages by id: 10,000,000 rows, correlation 1.00</button></div>
 <div class="cm-q" id="cm-sql"></div>
 <div class="cm-ctl one"><label>Rows wanted: <b id="cm-n-v"></b><input type="range" id="cm-n" min="0" max="1000" step="1" value="560" aria-label="Rows wanted"></label></div>
@@ -68,18 +97,4 @@
 <p class="small mute">Simplifications, all of which also hold for the measured queries: one table, one range condition on an indexed bigint column, no NULLs, both ends of the range inside the histogram (the planner looks up the real minimum and maximum through the index when a bound falls in the first or last bucket, which this calculator does not), serial plans. Parallel plans divide CPU costs among workers and add <code>parallel_setup_cost</code> and <code>parallel_tuple_cost</code>.</p>
 </div></details>
 </div>
-<p>What the three paths cost and took at the two default sizes:</p>
-<div class="tw"><table>
-<thead><tr><th>Query</th><th>Path</th><th class="num">Planner cost</th><th class="num">Pages touched</th><th class="num">Time</th></tr></thead>
-<tbody>
-<tr><td rowspan="3">20,000 <code>users</code> by id (correlation -0.03)</td><td>Seq Scan</td><td class="num">2,780</td><td class="num">1,280</td><td class="num">5.4 ms</td></tr>
-<tr><td>Index Scan</td><td class="num">5,733</td><td class="num">19,460</td><td class="num">3.4 ms</td></tr>
-<tr><td><b>Bitmap Heap Scan</b> (chosen)</td><td class="num">2,003</td><td class="num">375</td><td class="num">2.4 ms</td></tr>
-<tr><td rowspan="3">1,000,000 <code>messages</code> by id (correlation 1.00)</td><td>Seq Scan</td><td class="num">342,345</td><td class="num">192,356</td><td class="num">659 ms</td></tr>
-<tr><td><b>Index Scan</b> (chosen)</td><td class="num">51,384</td><td class="num">25,294</td><td class="num">137 ms</td></tr>
-<tr><td>Bitmap Heap Scan</td><td class="num">341,127</td><td class="num">21,977</td><td class="num">139 ms</td></tr>
-</tbody></table></div>
-<p class="small mute">Measured: each path forced in turn, serial plans, warm cache, best of three. "Pages touched" counts buffer hits plus reads, so the index scan pays one visit per row fetched even when the next row is on the page it just read. These 20,000 users happen to sit on just 315 of the table's 1,280 pages (it was rewritten earlier in its life), which one correlation number cannot tell the planner, and why the bitmap touched so few. The planner's ranking matched the stopwatch in both cases, and it chose an index scan for up to 6,000,000 of the 10,000,000 messages because the rows it needs sit together.</p>
-<div class="co"><div class="t">Defaults reproduce Postgres's own costs, independently</div>The calculator's formulas, transcribed from the PostgreSQL 16.2 source (<code>cost_seqscan</code>, <code>cost_index</code>, <code>index_pages_fetched</code>, <code>cost_bitmap_heap_scan</code>, <code>genericcostestimate</code>, <code>btcostestimate</code> and the histogram code), reproduce <b>150 of 150</b> figures that EXPLAIN printed (row estimates, sequential, index and bitmap costs) across 25 ranges on the two tables, to the cent (checked in <code>src/recompute.py</code>).</div>
-<div class="wall"><div class="t">What the cost model does not know</div>Whether a page is already in memory (except through <code>effective_cache_size</code>), how fast your disk is, what else is running, and anything about the data beyond its statistics. It is deliberately crude. Leis and colleagues found on real join queries that the cost model "has much less influence on query performance than the cardinality estimates" ({{How Good Are Query Optimizers, Really?, PVLDB 2015|https://www.vldb.org/pvldb/vol9/p204-leis.pdf}}): get the row counts right and a crude cost model is enough.</div>
-</section>
+</div></div></div>
