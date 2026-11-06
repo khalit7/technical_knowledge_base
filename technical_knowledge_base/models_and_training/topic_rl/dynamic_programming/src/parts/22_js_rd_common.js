@@ -1,5 +1,5 @@
 // ---- Reading tab: shared helpers and the step-animation controller (play, pause, step, scrub, speed). Copied from the explainer-page skill templates; this page's only change: onRender and anim take an optional tab id (o.tab), for the Sweep lab ----
-// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (Khalid, 2026-11-06),
+// Every 2D animation uses RD.anim. It plays by itself once at least half of its card is on screen in the visible tab (2026-11-06),
 // pauses off screen and resumes on return, stops for good when the reader takes a control or it reaches its last step, and never moves by itself under reduced motion.
 window.RD=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);

@@ -165,7 +165,7 @@
     cvs.addEventListener('pointermove',e=>{if(!drag)return;st.dth=drag.t-(e.clientX-drag.x)*.008;if(e.pointerType==='mouse')st.dph=cl(drag.p+(e.clientY-drag.y)*.006,-1.2,1.2);st.moved=true;q('.stg-rv').hidden=false;q('.stg-hint').hidden=true;draw()});
     const up=()=>{drag=null;cvs.classList.remove('dr')};cvs.addEventListener('pointerup',up);cvs.addEventListener('pointercancel',up);
     q('.stg-rv').onclick=()=>{st.dth=0;st.dph=0;st.moved=false;q('.stg-rv').hidden=true;draw()};
-    // autoplay (Khalid, 2026-11-06): a stage plays its steps by itself once it is well in view, from where it stands; leaving pauses it, coming back resumes.
+    // autoplay (2026-11-06): a stage plays its steps by itself once it is well in view, from where it stands; leaving pauses it, coming back resumes.
     // It stops for good once the reader takes a control (a step, back, forward, the scrubber, play or pause), after it has reached its last step, and never under reduced motion.
     function auto(){if(RM||st.user||st.ended||st.play||!visible())return;st.play=true;if(!st.started)go(0,true);st.started=true;ui();kick()}
     // in view: at least half of it, or half the window's height for a stage taller than the window

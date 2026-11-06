@@ -1,38 +1,30 @@
+<div class="s3sp"><div class="s3R"><div id="stg-route"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. Choosing a deployment: what each strategy really measures</h2>
-<p>When a group has several deployments (the same model in two regions, or at two providers), something picks one per call, and the pick decides latency, cost and how evenly load spreads. Each LiteLLM <code>routing_strategy</code> is a small file in <code>litellm/router_strategy/</code>, and what it measures is easy to get wrong from its name. <span class="srcl">SOURCE</span> One level down, inside a self-hosted pool, a second router picks the replica by queue and prefix cache: that layer is {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 1.</p>
-<div class="tw"><table>
-<thead><tr><th>Strategy</th><th>What the code does (1.104.0)</th></tr></thead>
-<tbody>
-<tr><td><code>simple-shuffle</code> (default)</td><td>Random choice, weighted by <code>weight</code> if set (or else <code>rpm</code>, or else <code>tpm</code>) (<code>simple_shuffle.py</code>).</td></tr>
-<tr><td><code>least-busy</code></td><td>Fewest requests in flight right now (<code>least_busy.py</code>).</td></tr>
-<tr><td><code>latency-based-routing</code></td><td>Lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). No history counts as 0, so a new deployment is tried first; a timeout adds a 1,000-second penalty sample; <code>lowest_latency_buffer</code> (default 0) picks at random within that fraction of the best; history lives 1 hour (<code>lowest_latency.py</code>).</td></tr>
-<tr><td><code>usage-based-routing-v2</code></td><td>Fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>).</td></tr>
-<tr><td><code>cost-based-routing</code></td><td>Cheapest by input plus output price per token, read from <code>litellm_params</code>, else LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>).</td></tr>
-<tr><td>Auto routers</td><td><code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others choose between <i>different</i> models from the prompt (section 10).</td></tr>
-</tbody></table></div>
-<p><b>The recording.</b> One group, two copies of the same fake model: <b>A</b> answers in 0.2 s, <b>B</b> in 1.0 s. Forty requests, four at a time, through <code>litellm.Router</code> under each strategy. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e1card">
-<div class="t" style="font-weight:600;font-size:14px">Cost-based routing sends everything to the expensive copy when prices sit in the wrong field</div>
-<div id="fgw-e1"></div>
-<p class="small mute">Bars: share of the 40 requests each copy answered (A fast, B slow); right: counts and wall time for all 40. In the cost rows B is the cheaper copy ($1 against $2 per million input tokens).</p></div>
-<ul>
-<li><b>Latency-based routing found the fast copy</b> but still sent it only 34 of 40: both copies start at "no history = 0" and B is tried until its own samples push its average up. That exploration is the price of measuring.</li>
-<li><b>Least-busy</b> sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives. <b>Usage-based</b> balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower.</li>
-<li><b>Cost-based with prices in <code>model_info</code></b> sent all 40 to A, the expensive copy: the strategy reads prices only from <code>litellm_params</code>, so both copies cost the default and the first wins every tie. Moving the same two numbers into <code>litellm_params</code> sent all 40 to B. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake is invisible on the bill.</li>
-</ul>
+<p>When a group has several deployments (the same model in two regions, or at two providers), something picks one per call, and the pick decides latency, cost and how evenly load spreads. Each LiteLLM <code>routing_strategy</code> is a small file in <code>litellm/router_strategy/</code>, and what it measures is easy to get wrong from its name. <span class="srcl">SOURCE</span> One level down, inside a self-hosted pool, a second router picks the replica by queue and prefix cache: that layer is {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 1. The auto routers (<code>auto_router/complexity_router</code>, <code>adaptive_router</code> and others) choose between <i>different</i> models from the prompt (section 10).</p>
+<p><b>The recording.</b> One group, two copies of the same fake model: <b style="color:var(--c1)">A</b> answers in 0.2 s, <b style="color:var(--c2)">B</b> in 1.0 s. Forty requests, four at a time, through <code>litellm.Router</code> under each strategy; Fig. 2 piles up the requests each copy answered and says what the strategy read. In the cost rows B is the cheaper copy ($1 against $2 per million input tokens). <span class="meas">MEASURED</span></p>
+<ol class="sx" id="sx-route">
+<li><b><code>simple-shuffle</code> (default).</b> Random choice, weighted by <code>weight</code> if set (or else <code>rpm</code>, or else <code>tpm</code>) (<code>simple_shuffle.py</code>). Recorded: 19 to A, 21 to B, all 40 in 6.5 s.</li>
+<li><b><code>simple-shuffle</code>, weight A 3 : B 1.</b> The same coin, loaded: 29 to A, 11 to B, 4.9 s.</li>
+<li><b><code>least-busy</code>.</b> Fewest requests in flight right now (<code>least_busy.py</code>). It sent 26 to A without measuring anything: A finishes sooner, so it is idle more often when the next request arrives.</li>
+<li><b><code>latency-based-routing</code>.</b> Lowest average of the last 10 latencies, where a latency is the response time <i>divided by the output tokens</i> (time to first token when streaming). No history counts as 0, so a new deployment is tried first; a timeout adds a 1,000-second penalty sample; <code>lowest_latency_buffer</code> (default 0) picks at random within that fraction of the best; history lives 1 hour (<code>lowest_latency.py</code>). Latency-based routing found the fast copy but still sent it only 34 of 40: both copies start at "no history = 0" and B is tried until its own samples push its average up. That exploration is the price of measuring.</li>
+<li><b><code>usage-based-routing-v2</code>.</b> Fewest tokens used in the current calendar minute, skipping any over its own <code>tpm</code>/<code>rpm</code> (<code>lowest_tpm_rpm_v2.py</code>; counters keyed by <code>%H-%M</code>). Usage-based balanced tokens per minute (18 to 22), which is what it is for, and ignored that B is five times slower: the slowest run, 7.4 s.</li>
+<li><b><code>cost-based-routing</code>, prices in <code>model_info</code>.</b> Cheapest by input plus output price per token, read from <code>litellm_params</code>, else LiteLLM's price map for the model name, else <b>$5.00 per token</b> each (<code>lowest_cost.py</code>). Cost-based with prices in <code>model_info</code> sent all 40 to A, the expensive copy: the strategy reads prices only from <code>litellm_params</code>, so both copies cost the default and the first wins every tie.</li>
+<li><b>The same prices in <code>litellm_params</code>.</b> Moving the same two numbers into <code>litellm_params</code> sent all 40 to B: cheap, and at 11.0 s the slowest by far. The proxy's spend tracking does read <code>model_info</code> prices, so the mistake in step 6 is invisible on the bill.</li>
+</ol>
 <div class="co warn"><div class="t">Check what your strategy reads</div>A strategy that cannot find its input does not fail; it falls back to random or to the first deployment. After changing a routing setting, send a few dozen requests and count which deployment answered (the proxy returns it in the <code>x-litellm-model-id</code> response header).</div>
 <details class="dp" id="fgw-rodet"><summary>Replay the forty requests per strategy on a time axis <span class="mute">(widget)</span></summary><div class="b">
-<p class="small">Each bar is one request, placed at the time it was sent and coloured by the copy that answered (blue A, orange B). Step to watch the strategy decide; switch strategy to compare on the same workload.</p>
+<p class="small">Each bar is one request, placed at the time it was sent and coloured by the copy that answered (blue A, orange B). It opens on all 40; drag back to watch the strategy decide, and switch strategy to compare on the same workload.</p>
 <div class="card" id="ro-card" style="margin:6px 0">
 <div class="chips" id="ro-pick" role="group" aria-label="Strategy"></div>
 <div id="ro-svg" class="plot"></div>
 <div class="an-ctl" id="ro-ctl"></div>
-<div class="an-cap" id="ro-cap" aria-live="polite"></div>
+<p class="small mute" id="ro-cap" aria-live="polite"></p>
 </div>
 <p class="small mute">Load balancing in general (layer 4 against layer 7, round robin in the client) is on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}, section 13; this section is only what LiteLLM implements.</p>
 </div></details>
 </section>
+</div></div>
 
 <section id="rd-s3">
 <h2>3. When a call fails: retry, cool down, or fall back</h2>
@@ -50,11 +42,8 @@
 </tbody></table></div>
 <p class="small mute">From <code>litellm/utils.py</code> (<code>_should_retry</code>: 408, 409, 429 and 5xx), <code>router.py</code> (<code>should_retry_this_error</code>) and <code>router_utils/cooldown_handlers.py</code> (<code>_is_cooldown_required</code>, <code>_should_cooldown_deployment</code>) in 1.104.0. Defaults: <code>num_retries</code> 2, <code>cooldown_time</code> 5 s, at most 5 fallbacks per request; an error whose text contains "APIConnectionError" never triggers a cooldown.</p>
 <p><b>Two cooldown regimes, and a trap.</b> Without <code>allowed_fails</code>, the rules in the table apply: a 429 benches a deployment at once, other errors only once more than 50% of its calls this minute failed and there were at least 5 (<code>DEFAULT_FAILURE_THRESHOLD_PERCENT</code> 0.5, <code>DEFAULT_FAILURE_THRESHOLD_MINIMUM_REQUESTS</code> 5). With <code>allowed_fails</code>, a simpler counter: cool down once failures within <code>cooldown_time</code> exceed it. But the code decides whether you "set" it by comparing with the library default, 3 (<code>_is_allowed_fails_set_on_router</code>). <b>Writing <code>allowed_fails: 3</code> in a config therefore changes nothing</b>; the parent page's Production stack config contains exactly that line.</p>
+<div class="s3sp"><div class="s3L">
 <p><b>The recording.</b> A group of two: A healthy (0.2 s), C scripted to fail every call. Thirty requests one after another, 0.3 s apart, <code>num_retries: 2</code>. Each mark is one call that reached C; a red mark is a request whose user got an error. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e2card">
-<div class="t" style="font-weight:600;font-size:14px">A 429 benches C at once; a 503 keeps being tried until five failures; allowed_fails 3 behaves like the default</div>
-<div id="fgw-e2"></div>
-<p class="small mute">Grey bands: more than 4 s in which no call reached C although requests kept coming, which the rules attribute to a cooldown. Seconds from the first request. Every attempt, including those to A, is replayed at the end of section 4.</p></div>
 <ul>
 <li><b>429:</b> C was benched after its first 429 and came back every 5 to 6 seconds (calls at 0.1, 5.7, 11.8 and 17.8 s). Users never saw an error.</li>
 <li><b>503, default settings:</b> C was picked about one time in three until its fifth failure in the minute (at 7.3 s), then benched until 14.7 s; after that each new failure benched it again.</li>
@@ -66,29 +55,35 @@
 <li><b>Context window error:</b> never retried; with no fallbacks the user got <code>ContextWindowExceededError</code> in 0.1 s; with either <code>fallbacks</code> or <code>context_window_fallbacks</code> the request went straight to the long-context group.</li>
 </ul></div></details>
 <div class="drill"><details><summary><b>Predict, then open.</b> A group has two deployments and the bad one returns 500 on every call. You set <code>allowed_fails: 3</code> and <code>cooldown_time: 60</code>, expecting it to be benched after three failures for a minute. What happens?</summary><div>It is benched only after more than half of its calls in the current minute failed and there were at least five (the default regime), and the bench lasts 60 s because <code>cooldown_time</code> is honoured. Write <code>allowed_fails: 2</code> or use <code>allowed_fails_policy</code> (per error type, for example <code>InternalServerErrorAllowedFails</code>) to get a counter that applies.</div></details></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="fgw-e2card">
+<div class="t" style="font-weight:600;font-size:14px">A 429 benches C at once; a 503 keeps being tried until five failures; allowed_fails 3 behaves like the default</div>
+<div id="fgw-e2"></div>
+<p class="small mute">Grey bands: more than 4 s in which no call reached C although requests kept coming, which the rules attribute to a cooldown. Seconds from the first request. Every attempt, including those to A, is replayed at the end of section 4.</p></div>
+</div></div></div>
 <p><b>Outages: plan the fallback, do not just configure it.</b> A fallback is another deployment of the same model, the same model at another provider (Claude is also sold through AWS Bedrock and Google Vertex AI, and OpenAI's models through Azure, AWS Bedrock and, in private preview since October 2026, Vertex AI; open models through many, section 9), or a different model. Check it like a backup generator: is its quota big enough to take all the traffic at once; does it accept the same prompt and tool-call format; does it behave the same on safety; has it been evaluated on your task? It starts with a cold prompt cache, so requests cost more and first tokens come later until it warms. A fallback that has never carried full traffic is untested; fail over on a schedule.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-retry"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Timeouts and retries across layers</h2>
 <p>An agent's model call passes through several programs that each retry: the provider SDK in your agent, your own loop, the gateway, sometimes a second gateway. Each layer's retries run once for <i>every</i> attempt of the layer above. With the SDK's 2 retries and the gateway's 2, one request can reach the provider 3 &times; 3 = 9 times:</p>
 <div class="fm"><div class="eq">attempts reaching the provider = (1 + r<sub>1</sub>) &times; (1 + r<sub>2</sub>) &times; &hellip; &times; (1 + r<sub>n</sub>)</div>
 <dl><dt>r<sub>i</sub></dt><dd>retries at layer i (OpenAI and Anthropic Python SDKs: 2 by default, with a 600-second timeout; LiteLLM: <code>num_retries</code>, 2 in this config, and a default request timeout of 6,000 seconds)</dd></dl></div>
 <p class="small mute">Defaults read from <code>openai/_constants.py</code> (openai 2.54.0), <code>anthropic/_constants.py</code> (anthropic 1.11.0) and <code>litellm/constants.py</code> (<code>DEFAULT_REQUEST_TIMEOUT_SECONDS = 6000.0</code>), 6 October 2026. <span class="srcl">SOURCE</span></p>
-<p><b>The recording.</b> Provider C hangs for 30 seconds on every call. The gateway gives each attempt 5 seconds and retries twice. The client is the OpenAI Python SDK, run three ways. <span class="meas">MEASURED</span></p>
-<div class="card" id="fgw-e3card">
-<div class="t" style="font-weight:600;font-size:14px">Nine provider calls for one request, the last one sent after the user was told it failed</div>
-<div id="fgw-e3"></div>
-<p class="small mute">Each grey bar is one call the provider received and worked on for its full 30 s (it cannot tell the caller gave up until it writes the answer). Blue ticks: the SDK sending; red line: when the user got an error.</p></div>
-<ul>
-<li><b>SDK defaults with a 10-second timeout:</b> the user got <code>APITimeoutError</code> after 32.8 s and three sends; the provider received <b>9 calls</b>, the last one starting at 36.9 s, four seconds <i>after</i> the user had been told it failed. 270 seconds of provider work for one failed request. The gateway does not stop its retry chain when the client hangs up.</li>
-<li><b>The same with <code>max_retries=0</code>:</b> 3 calls, error after 10.2 s.</li>
-<li><b>SDK timeout 60 s:</b> the gateway's own chain finished first (about 20 s), returned 408, and the SDK retried it, twice: 9 calls, error after 61.9 s.</li>
-</ul>
+<p><b>The recording.</b> Provider C hangs for 30 seconds on every call. The gateway gives each attempt 5 seconds and retries twice. The client is the OpenAI Python SDK, run three ways. In Fig. 3 time runs left to right; the three rows are the SDK, the gateway and the provider, and each provider bar is one call it worked on. <span class="meas">MEASURED</span></p>
+<ol class="sx" id="sx-retry">
+<li><b>One send, three gateway attempts.</b> The SDK sends at 1.4 s with a 10-second timeout. The gateway gives each provider attempt 5 s, then backs off and tries again: calls at 1.6, 7.8 and 13.9 s, each of which the provider works on for its full 30 s (it cannot tell the caller gave up until it writes the answer).</li>
+<li><b>The SDK times out and sends again.</b> At 11.8 s the SDK's timeout fires and its first retry starts a second gateway chain: three more calls (12.0, 18.1, 24.3 s), while the first chain is still running.</li>
+<li><b>The second SDK retry: nine calls.</b> At 22.7 s the SDK's last retry starts a third chain (24.4, 30.4, 36.9 s): 3 &times; 3 = 9, the formula with r<sub>1</sub> = r<sub>2</sub> = 2.</li>
+<li><b>The user hears; the provider keeps working.</b> SDK defaults with a 10-second timeout: the user got <code>APITimeoutError</code> after 32.8 s and three sends; the provider received 9 calls, the last one starting at 36.9 s, four seconds <i>after</i> the user had been told it failed. 270 seconds of provider work for one failed request. The gateway does not stop its retry chain when the client hangs up.</li>
+<li><b>One layer retries.</b> The same with <code>max_retries=0</code> in the SDK: 3 calls, error after 10.2 s (the gateway still sent the third, grey, after the user's error).</li>
+<li><b>Outer timeout longer than the inner chain.</b> SDK timeout 60 s: the gateway's own chain finished first (about 20 s), returned 408, and the SDK retried it, twice: 9 calls, error after 61.9 s.</li>
+</ol>
 <p>{{Other coding harnesses|n:3c65c17b0d0d819fa3cefdcd2ccff2f7}} hit the same from the other side: Gemini CLI 0.62.0 waits 60 s for headers and retries up to 10 times, so against a slow local server its retries overlapped and multiplied the load until the server ran out of memory. <span class="meas">MEASURED there</span></p>
 <div class="co key"><div class="t">The rule</div>Retry at one layer only, the one that knows the most (usually the gateway, which can switch deployments); set the others to 0. Give each layer a timeout shorter than the layer above it, so the inner one gives up first and reports why. A request retried 9 times is a capacity problem, not bad luck. Retry budgets and retry storms are measured on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}} (its section 14 counts the SDK's own retries, "twice by default", inside yours); which hop's timeout ends a long generation is on {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}, section 9.</div>
 <details class="dp" id="fgw-fldet"><summary>Replay every recorded attempt of sections 3 and 4, event by event <span class="mute">(widget, 11 cases)</span></summary><div class="b">
-<p class="small">Pick a case and step: the cursor walks through the attempts in the order they happened, lane by lane (the caller's requests, healthy provider A, failing provider C), with a caption and running counts. Pairs worth comparing: 429 against 503; allowed_fails 3 against 1; context error with and without fallbacks; SDK 2 retries against 0.</p>
+<p class="small">Pick a case; it opens on the end of the run, and the scrubber walks back through the attempts in the order they happened, lane by lane (the caller's requests, healthy provider A, failing provider C), with a line saying what happened and running counts. Pairs worth comparing: 429 against 503; allowed_fails 3 against 1; context error with and without fallbacks; SDK 2 retries against 0.</p>
 <div class="card" id="fl-card" style="margin:6px 0">
 <div class="band">Router cases (litellm.Router, two deployments A and C, num_retries 2)</div>
 <div class="chips" id="fl-pick2" role="group" aria-label="Router case"></div>
@@ -97,10 +92,11 @@
 <div id="fl-svg" class="plot"></div>
 <div class="fl-leg"><span><i style="background:var(--c1)"></i>request (caller waiting)</span><span><i style="background:var(--good)"></i>answered</span><span><i style="background:var(--bad)"></i>error</span><span><i style="background:var(--c5)"></i>provider working on a call</span><span><i style="background:var(--dim)"></i>provider busy on a call nobody will read</span></div>
 <div class="an-ctl" id="fl-ctl"></div>
-<div class="an-cap" id="fl-cap" aria-live="polite"></div>
+<p class="small mute" id="fl-cap" aria-live="polite"></p>
 <div class="out" id="fl-cnt"></div>
 </div>
 <details class="mist"><summary>Every request of this case</summary><div class="b"><div class="tw"><table id="fl-tab"></table></div></div></details>
 <p class="small mute">How it was recorded: each fake provider is one small Python HTTP server (<code>src/code/fake_provider.py</code>), scripted per case to answer, fail with a status or hang; it logs every call with its start and end time and the request's text, which names the case and request number, so every attempt is matched to its request. Router cases: <code>src/code/e2_failures.py</code> (sequential requests 0.3 s apart, a warm-up first because the first failing call in a fresh process paid about 10 s of one-off set-up in a trial run). Retry layers: <code>src/code/e3_amplify.py</code> (openai 2.54.0 against the proxy).</p>
 </div></details>
 </section>
+</div></div>

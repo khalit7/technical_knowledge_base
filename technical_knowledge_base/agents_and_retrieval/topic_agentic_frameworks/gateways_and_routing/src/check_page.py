@@ -35,6 +35,11 @@ checks = [
     ("sent all 40 to A, the expensive copy", c1["cost-based-routing, prices in model_info (B cheaper)"]["count"]["A"] == 40),
     ("sent 26 to A", c1["least-busy"]["count"]["A"] == 26),
     ("(18 to 22)", c1["usage-based-routing-v2"]["count"]["A"] == 18),
+    # Fig. 2 step list (2026-11-06): counts and wall times per strategy
+    ("19 to A, 21 to B, all 40 in 6.5 s", c1["simple-shuffle"]["count"]["A"] == 19 and f'{c1["simple-shuffle"]["wall"]:.1f}' == "6.5"),
+    ("29 to A, 11 to B, 4.9 s", c1["simple-shuffle, weight A 3 : B 1"]["count"]["A"] == 29 and f'{c1["simple-shuffle, weight A 3 : B 1"]["wall"]:.1f}' == "4.9"),
+    ("the slowest run, 7.4 s", f'{c1["usage-based-routing-v2"]["wall"]:.1f}' == "7.4"),
+    ("at 11.0 s the slowest by far", f'{c1["cost-based-routing, prices in litellm_params (B cheaper)"]["wall"]:.1f}' == "11.0"),
     ("the provider received 9 calls", len(e3["sdk_default_t10"]["att"]) == 9),
     ("after 32.8 s and three sends", f'{e3["sdk_default_t10"]["done"]:.1f}' == "32.8"),
     ("starting at 36.9 s", f'{max(a[0] for a in e3["sdk_default_t10"]["att"]):.1f}' == "36.9"),

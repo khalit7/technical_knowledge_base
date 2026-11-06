@@ -7,6 +7,7 @@
   function calendar(ts,limit,phi){let cur=null,n=0;return ts.map(t=>{const w=Math.floor((t+phi)/60);if(w!==cur){cur=w;n=0}if(n<limit){n++;return 200}return 429})}
   function slog(ts,limit){let acc=[];return ts.map(t=>{acc=acc.filter(a=>t-a<60);if(acc.length<limit){acc.push(t);return 200}return 429})}
   function bucket(ts,cap){let tok=cap,last=null;return ts.map(t=>{if(last!==null)tok=Math.min(cap,tok+(t-last)*cap/60);last=t;if(tok>=1-1e-9){tok-=1;return 200}return 429})}
+  window.FGWLIM={anchored,calendar,slog,bucket}; // the stage of Fig. 4 (43_js_sc_lim.js) replays the same rules
   function rows(){const tr=F.e4[mode],ts=tr.map(x=>x[0]),phi=F.phi[mode];
     const R=[['LiteLLM, recorded',tr.map(x=>x[1]),lim===10],['LiteLLM rule (replayed)',anchored(ts,lim,phi),true],['Calendar minute',calendar(ts,lim,phi),true],['Sliding log',slog(ts,lim),true],['Token bucket',bucket(ts,lim),true]];
     return {ts,R}}
@@ -21,12 +22,12 @@
     s+='<line x1="'+X(now)+'" x2="'+X(now)+'" y1="8" y2="'+(H-14)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>';
     svg.innerHTML=RD.svg(W,H,s,'Accepted and refused requests under four limiters');
     const upto=ts.filter(t=>t<=now).length;
-    cap.innerHTML='<div class="t">'+now.toFixed(1)+' s: request '+upto+' of '+ts.length+'</div><p>'+R.filter(x=>x[2]).map(([n,r])=>E(n)+' '+r.slice(0,upto).filter(v=>v===200).length+' accepted').join('; ')+'.</p>';
+    cap.innerHTML='<b>'+now.toFixed(1)+' s, request '+upto+' of '+ts.length+':</b> '+R.filter(x=>x[2]).map(([n,r])=>E(n)+' '+r.slice(0,upto).filter(v=>v===200).length+' accepted').join('; ')+'.';
     document.getElementById('lm-tab').innerHTML='<thead><tr><th>Limiter</th><th class="num">accepted</th><th class="num">most accepted in any 15 s</th><th class="num">matches the recording</th></tr></thead><tbody>'+R.filter(x=>x[2]).map(([n,r])=>'<tr><td>'+E(n)+'</td><td class="num">'+r.filter(v=>v===200).length+' of '+ts.length+'</td><td class="num">'+best15(ts,r)+'</td><td class="num">'+(lim===10?r.filter((v,k)=>v===R[0][1][k]).length+' of '+ts.length:'')+'</td></tr>').join('')+'</tbody>';
     document.getElementById('lm-note').textContent=lim===10?'At the recorded limit (10) the replayed LiteLLM rule matches all '+ts.length+' recorded decisions.':'The recording was made at limit 10; other limits show only the replayed rules.'}
   const ts0=F.e4[mode].length;
-  const an=RD.anim({card:'lm-card',ctl:'lm-ctl',n:ts0,draw,ms:220,label:'Request',start:ts0-1});
-  RD.seg(document.getElementById('lm-mode'),m=>{mode=m;an.reset(F.e4[m].length);an.go(F.e4[m].length-1)});
+  const an=RD.scrub({ctl:'lm-ctl',n:ts0,draw,label:'Request'});
+  RD.seg(document.getElementById('lm-mode'),m=>{mode=m;an.reset(F.e4[m].length)});
   document.getElementById('lm-lim').addEventListener('input',e=>{lim=+e.target.value;document.getElementById('lm-limv').textContent=lim;an.redraw()});
 
   // budget runs

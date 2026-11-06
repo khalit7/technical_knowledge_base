@@ -53,7 +53,7 @@ U.legend=function(el,items,on,cb){el.innerHTML=items.map(it=>'<button data-k="'+
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>{const k=b.dataset.k;on[k]=on[k]===false;cb()})};
 U.checks=function(el,rows){el.innerHTML=rows.map(r=>'<li><span class="'+(r[0]===true?'lb-ok':r[0]===false?'lb-no':'lb-in')+'">'+(r[0]===true?'✓':r[0]===false?'✗':'•')+'</span><span>'+r[1]+'</span></li>').join('')};
 // transport: play, back, step, speed, frame counter and scrubber. These are frame replays of hundreds of steps, so under the long-replay rule
-// (Khalid, 2026-11-06) they are widgets the reader drives: no autoplay; each opens on an informative frame chosen by its experiment and
+// (2026-11-06) they are widgets the reader drives: no autoplay; each opens on an informative frame chosen by its experiment and
 // explained by the paragraph on its left. A play the reader pressed pauses while the card is off screen (under half of it, or of the window) and resumes on return
 U.anim=function(o){const tr=$(o.p+'-tr'),sec=o.sec;
   tr.innerHTML='<button class="lb-pl" id="'+o.p+'-play" aria-pressed="false">Play</button><button id="'+o.p+'-back" aria-label="Step back">&#9664; Back</button><button id="'+o.p+'-fwd" aria-label="Step forward">Step &#9654;</button>'+

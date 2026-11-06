@@ -13,7 +13,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_rl` Topic: rl
 - [x] `whats_new/papers/attention_is_all_you_need_transformer` Attention Is All You Need (Transformer)
 - [x] `agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk` Claude Agent SDK: the Claude Code loop as a library
-- [ ] `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing` Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits
+- [x] `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing` Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
@@ -321,3 +321,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `topic_rl/rl_for_llms`: Fig. 3 close-up steps crop the inference engine labels at the left edge; Fig. 2 step 5 critic plate large in front.
 - `topic_rl/policy_gradients_and_actor_critic`: Fig. 1 action labels touch at step 4.
 - `topic_rl/model_free_prediction_and_control`: hero last step crowded at 1400 px.
+- `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing`: Fig. 5 crops the request piles at the left edge; Fig. 4 limiter labels overlap ("10 of 10 used").
+- template: the stage control bar wraps the speed selector at 390 px.

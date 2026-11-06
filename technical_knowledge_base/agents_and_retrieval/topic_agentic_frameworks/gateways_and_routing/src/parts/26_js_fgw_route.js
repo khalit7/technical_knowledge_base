@@ -10,8 +10,8 @@
     r.forEach((q,j)=>{if(j>k)return;s+='<rect x="'+X(q[0])+'" y="'+(4+j*rowH)+'" width="'+Math.max(2,X(q[1])-X(q[0]))+'" height="'+(rowH-1.5)+'" fill="'+(q[2]==='A'?'var(--c1)':'var(--c2)')+'"><title>'+q[2]+': '+q[0].toFixed(2)+' to '+q[1].toFixed(2)+' s</title></rect>'});
     svg.innerHTML=RD.svg(W,H,s,'Forty requests under '+E(c.s));
     const a=r.slice(0,k+1).filter(q=>q[2]==='A').length;
-    cap.innerHTML='<div class="t">'+E(c.s)+': request '+(k+1)+' of 40 sent at '+now.toFixed(2)+' s</div><p>So far '+a+' to A (blue, fast), '+(k+1-a)+' to B (orange, slow). All 40 done in '+c.wall.toFixed(2)+' s.</p>'}
-  const an=RD.anim({card:'ro-card',ctl:'ro-ctl',n:40,draw,ms:260,label:'Request'});
+    cap.innerHTML='<b>'+E(c.s)+': request '+(k+1)+' of 40 sent at '+now.toFixed(2)+' s.</b> So far '+a+' to A (blue, fast), '+(k+1-a)+' to B (orange, slow). All 40 done in '+c.wall.toFixed(2)+' s.'}
+  const an=RD.scrub({ctl:'ro-ctl',n:40,draw,label:'Request'});
   pick.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pick.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));si=+b.dataset.i;an.reset(40)});
 
   // 2. OpenRouter filters
