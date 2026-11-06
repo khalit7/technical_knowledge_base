@@ -63,5 +63,7 @@
     return '<p class="small"><b>Time travel, run:</b> reading version 0 returned '+DL.tt.rows.toLocaleString()+' rows and columns '+DL.tt.columns.join(', ')+'.</p>';
   }
   RD.onRender(draw);RD.onResize(draw);
+  // the explorer sits in a closed details block (2026-11-06): draw it at its real width when the block opens
+  const dt=$('iceCard').closest('details');if(dt)dt.addEventListener('toggle',()=>{if(dt.open)draw()});
   draw();
 })();

@@ -33,13 +33,18 @@
 <nav class="nav" id="rd-nav" aria-label="Sections">
 <a href="#s-one">The idea</a><a href="#s-olap">1. OLTP and OLAP</a><a href="#s-col">2. Columns</a><a href="#s-skip">3. Skipping</a><a href="#s-exec">4. Executing</a><a href="#s-pq">5. Parquet</a><a href="#s-duck">6. DuckDB</a><a href="#s-ch">7. ClickHouse</a><a href="#s-wh">8. Warehouses</a><a href="#s-lake">9. Lakehouse</a><a href="#s-elt">10. Pipelines</a><a href="#s-ml">11. ML</a><a href="#s-pro">12. Dated facts</a>
 </nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <h2>The idea in one screen</h2>
 <p class="core"><b>An analytic query is cheap when it touches few bytes and spends little CPU per value: store each column apart, encode it small, keep the <span class="hl">min and max of every block</span> so blocks that cannot match are skipped, and process values in batches.</b> Parquet, DuckDB, ClickHouse, the cloud warehouses and the lakehouse formats are different ways of arranging data so those four tricks apply, and the order the rows were written in decides how well they work.</p>
-<div class="hero" id="heroCard"><h4>One day out of 10 million messages: the reader touches 1.2 MB of a 534 MB file</h4>
-<div class="rd-svg" id="heroSvg"></div>
-<div class="leg"><span style="--sw:var(--dim)">columns the query does not name: never read</span><span style="--sw:var(--acc2)">created_at and tokens in row groups ruled out by min/max: skipped</span><span style="--sw:var(--c2)">the 2 chunks actually read</span></div>
-<p class="small mute">The real Parquet file of the parent page's 10 million chat messages, written by DuckDB 1.5.6: 82 row groups (columns of the drawing, 122,880 rows each), each holding one column chunk per column (bands, heights to scale from row group 0's footer: <code>content</code> is 4.79 of its 6.53 MB). Area is bytes. For <code>SELECT count(*), sum(tokens) WHERE created_at</code> on 2026-03-01, the reader first reads the 76,648-byte footer at the end of the file (the orange line, drawn wider than its bytes so it can be seen), compares each row group's min and max of <code>created_at</code> with the day, and reads two chunks of the one row group that can match: 1,197,073 bytes <span class="meas">measured</span>, 446 times less than the file <span class="der">derived</span>. Reading the two columns in every row group would be 76 MB; reading rows would be all 534 MB.</p></div>
+<p>Fig. 1 is the whole page in one picture: one day out of 10 million messages, where the reader touches 1.2 MB of a 534 MB file. It is the real Parquet file of the parent page's 10 million chat messages, written by DuckDB 1.5.6, and the query <code>SELECT count(*), sum(tokens) WHERE created_at</code> on 2026-03-01.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The file.</b> 82 row groups of 122,880 rows each (left to right), each holding one column chunk per column (front to back, depth to scale from the footer: <code>content</code> is 4.79 of row group 0's 6.53 MB). Area is bytes. Reading rows would mean all 534 MB.</li>
+<li><b>Name two columns.</b> The query needs only <code>created_at</code> and <code>tokens</code>; the other five columns are never read. Reading the two columns in every row group would be 76 MB.</li>
+<li><b>Read the footer first.</b> The reader fetches the 76,648-byte footer at the end of the file (drawn far wider than its bytes so it can be seen): it says where every chunk starts and holds each row group's min and max of every column.</li>
+<li><b>Skip by min and max.</b> Each row group's range of <code>created_at</code> is compared with the day; 81 ranges exclude it, and only row group 42 (27 February to 3 March) can hold a match.</li>
+<li><b>Read two chunks.</b> The reader fetches that row group's <code>created_at</code> and <code>tokens</code> chunks: 1,197,073 bytes <span class="meas">measured</span>, 446 times less than the file <span class="der">derived</span>.</li>
+</ol>
 <p><b>You need:</b> the root {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}, Reading sections 1 to 5 (tables, SQL, why a disk read is slow, rows against columns in one picture). Pages, B-trees and LSM-trees are on {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}; the SQL used here (joins, GROUP BY, window functions) is {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}; EXPLAIN on the row-store side is {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}.</p>
 <dl class="terms">
 <dt>OLTP / OLAP</dt><dd>many small reads and writes of whole rows (the app) / few large reads of a few columns of many rows (analytics).</dd>
@@ -56,6 +61,8 @@
 <dt>ETL / ELT / CDC</dt><dd>transform before loading / load raw then transform in place / streaming every row change from the database's log.</dd>
 <dt>Point-in-time join</dt><dd>joining each example to feature values as of its own timestamp (an ASOF join).</dd>
 </dl>
+</section></div></div>
+<section id="s-one-b">
 <div class="tw"><table>
 <thead><tr><th>Idea</th><th>What it buys, measured here</th><th>Section</th></tr></thead>
 <tbody>

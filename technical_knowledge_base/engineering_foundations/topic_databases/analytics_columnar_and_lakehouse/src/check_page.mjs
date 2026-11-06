@@ -1,5 +1,5 @@
 // Click every control on every tab at 390 px dark and 920 px light; report page errors, NaN/undefined/Infinity in visible text and
-// sideways page scroll; check that no animation moves before the reader acts; step the pruning and commit steppers in every mode
+// sideways page scroll; check that each 2D animation plays by itself once in view (2026-11-06; 3D stages and reduced motion: check_stages.mjs); step the pruning and commit steppers in every mode
 // to their end; compare the page's numbers with recompute_out.json.
 // Card screenshots in ../.shots/check/. Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_databases/analytics_columnar_and_lakehouse/src/check_page.mjs
@@ -30,11 +30,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); if (sw) probs.push(tag + ': sideways scroll') };
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await sleep(60); await el.screenshot({ path: `${shots}/${name}-${scheme}-${width}.png` }) } };
   const clickAll = async (sel, tag) => { const n = await p.$$eval(sel, es => es.length); for (let i = 0; i < n; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), sel, i); await sleep(30); await scan(tag + ' ' + i) } };
-  // Reading: nothing may move before the reader acts (scroll each stepper into view, wait, check it is still on step 0)
-  for (const c of ['prCard', 'occCard']) { await p.evaluate(c => document.getElementById(c).scrollIntoView(), c); await sleep(2600);
-    const v = await p.evaluate(c => document.querySelector('#' + c + ' input[type=range]').value, c); if (v !== '0') probs.push(c + ' moved on its own to step ' + v) }
-  await shot('#heroCard', 'hero'); await shot('#encDiagCard', 'encdiag'); await shot('#lateCard', 'late'); await shot('#whdCard', 'whd'); await shot('#eltCard', 'elt'); await shot('#asofCard', 'asof');
-  await clickAll('#vdMode button', 'vd'); await shot('#vdCard', 'vd-vec'); await clickAll('#grMode button', 'gr'); await shot('#grCard', 'gr-time');
+  // Reading: each animation plays by itself once scrolled into view (autoplay rule, 2026-11-06; inverted from the old never-autoplay check)
+  for (const c of ['prCard', 'occCard']) { await p.evaluate(c => document.getElementById(c).scrollIntoView({ block: 'center' }), c); await sleep(1500);
+    const t = await p.evaluate(c => document.querySelector('#' + c + ' .an-play').textContent, c); if (!/Pause/.test(t)) probs.push(c + ' did not play when scrolled into view') }
+  await shot('#encDiagCard', 'encdiag'); await shot('#lateCard', 'late'); await shot('#whdCard', 'whd'); await shot('#eltCard', 'elt'); await shot('#asofCard', 'asof');
   { const n = await p.evaluate(() => +document.getElementById('occCtl-s').max); for (let i = 0; i < n; i++) { await p.click('#occCtl-f'); await scan('occ ' + i); if (i === 2) await shot('#occCard', 'occ-3') } await shot('#occCard', 'occ-end') }
   await clickAll('#encCols button', 'enc col'); await clickAll('#encOrder button', 'enc order');
   await p.evaluate(() => document.querySelector('#encCols button[data-c=role]').click()); await p.evaluate(() => document.querySelectorAll('#encOrder button')[1].click());
@@ -62,6 +61,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const nr = await p.$$eval('#byMap rect[data-i]', es => [...new Set(es.map(e => e.dataset.i))].length);
   for (let i = 0; i < nr; i++) { await p.evaluate(i => { const r = [...document.querySelectorAll('#byMap rect[data-i]')].find(e => +e.dataset.i === i); r.dispatchEvent(new MouseEvent('click', { bubbles: true })) }, i); await scan('bytes region ' + i) }
   await shot('#byCard', 'bytes');
+  await p.evaluate(() => { document.getElementById('iceCard').closest('details').open = true }); await sleep(100);
   for (const f of ['ice', 'delta']) {
     await p.evaluate(f => document.querySelector('#iceFmt button[data-m=' + f + ']').click(), f);
     const ns = await p.$$eval('#iceSteps button', es => es.length);

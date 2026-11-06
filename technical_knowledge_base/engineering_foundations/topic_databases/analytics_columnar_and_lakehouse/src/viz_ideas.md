@@ -42,3 +42,7 @@ What the methodology lacked here: a rule for "measured on a shared machine". Tim
 | A11 | Sort order bars | moved from Reading 5 to Reading 3 | moved |
 | R6 | Parquet layout schematic | | removed: the hero and the real byte map show the same structure |
 | R7 | Iceberg mini tree | | removed: the explorer, now inline, shows the same files |
+
+## 2026-11-06 (split layout and 3D stages)
+- Built: Fig. 1 the real file and the one-day query (3D); Fig. 2 row against vector, then late materialisation (3D); Fig. 3 MergeTree parts, merge and granules (3D); Fig. 4 Iceberg and Delta commit by commit (3D, the file explorer kept in a closed block).
+- Considered and not built: a row-store against column-store stage for section 2 (the root page owns rows against columns; the hero already shows column chunks); a 3D commit race (illustrative versions, the stepper says it all); 3D warehouse storage and compute (a block diagram, no depth to show); towers for the vectorised timings (1.1 s against 7.9 ms needs a log axis, kept as bars).

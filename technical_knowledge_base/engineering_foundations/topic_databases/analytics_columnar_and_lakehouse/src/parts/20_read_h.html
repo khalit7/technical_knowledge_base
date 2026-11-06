@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-ch"></div></div><div class="s3L">
 <section id="s-ch">
 <h2>7. ClickHouse: a column store server for fresh events</h2>
 <p><b>The problem it solves.</b> DuckDB on Parquet is ideal for files that change once a night. A product dashboard wants something else: events arriving every second (messages, token counts, latencies), queried by many people at once, answered in well under a second, over billions of rows. That needs a server that ingests continuously and stays columnar. ClickHouse is the most widely used open-source one (Apache 2.0).</p>
@@ -11,13 +12,18 @@ ENGINE = MergeTree ORDER BY (chat_id, created_at)</pre>
 <li><b>Background merges combine parts</b>, like an LSM-tree's compaction ({{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}): read sorted parts, write one bigger sorted part, drop the old ones. <code>OPTIMIZE TABLE ... FINAL</code> forced it: one part, <code>all_1_10_2</code> (blocks 1 to 10, merge level 2), 10,000,000 rows, 476 MiB, in 3.9 s.</li>
 <li><b>ORDER BY is the primary index, and it is sparse.</b> Within a part, rows are cut into <b>granules</b> of 8,192 rows (<code>index_granularity</code>, default 8192) and the index stores the key of the first row of each granule, not of every row ({{sparse primary indexes|https://clickhouse.com/docs/guides/best-practices/sparse-primary-indexes}}).</li>
 </ul>
-<div class="card" id="grCard"><h4 class="vt">The sparse index finds one chat in one granule of 1,221; a filter on time reads them all</h4>
-<div class="seg" id="grMode"><button data-m="chat" class="on">WHERE chat_id = 424242</button><button data-m="time">WHERE created_at on one day</button></div>
-<div class="rd-svg" id="grSvg"></div>
-<p class="small mute" id="grCap"></p>
-<p class="small mute">The merged part, from <code>EXPLAIN indexes = 1</code> <span class="meas">measured</span>: <b>Granules: 1/1221</b> by binary search for the chat (before the merge, Parts: 1/10, Granules: 1/1230); <b>Granules: 1221/1221</b> by generic exclusion search for one day of <code>created_at</code>. One tick per 8 index entries; a granule is 8,192 rows.</p>
-</div>
+<ol class="sx" id="sx-ch">
+<li><b>Ten inserts, ten parts.</b> Each batch of 1,000,000 rows becomes its own immutable part of 47.6 MiB, sorted by <code>(chat_id, created_at)</code>; merges were paused so the parts could be seen.</li>
+<li><b>One merge.</b> <code>OPTIMIZE TABLE ... FINAL</code> streams the ten sorted parts into one, <code>all_1_10_2</code>: 10,000,000 rows, 476 MiB, in 3.9 s. The old parts are dropped.</li>
+<li><b>Granules and the sparse index.</b> The merged part is cut into 1,221 granules of 8,192 rows; the index (the glass strip) keeps only the first key of each granule, 1,221 keys for 10 million rows.</li>
+<li><b>WHERE chat_id = 424242.</b> Binary search over the index halves the range until one granule is left, the one whose first key is at or below the chat: <b>Granules: 1/1221</b> <span class="meas">measured</span> (before the merge, Parts: 1/10, Granules: 1/1230). Chat 424242 sits near the 42% point of the <code>chat_id</code> order.</li>
+<li><b>WHERE created_at on one day.</b> <code>created_at</code> is second in <code>ORDER BY</code>: within a chat the rows are in time order, but across the part every chat spans the year, so no granule can be excluded by time: <b>Granules: 1221/1221</b> by generic exclusion search <span class="meas">measured</span>.</li>
+</ol>
+<p class="small mute">The numbers are from <code>EXPLAIN indexes = 1</code> on the merged part; a seam is drawn every 32 granules.</p>
+
 <p>The order chosen for the table decides which questions are cheap; a second order needs a <i>projection</i> or a second table. That is section 3's rule again, made explicit in the schema. <b>Sorting also compresses:</b> with the default LZ4 codec, <code>chat_id</code> (sorted first) shrank from 80 MB to 8.0 MB on disk, while <code>id</code>, unsorted in this order, only halved (80 to 40 MB) and <code>created_at</code> did not shrink at all.</p>
+</section></div></div>
+<section id="s-ch-b">
 <p><b>Materialised views as insert triggers.</b> An <b>incremental materialised view</b> in ClickHouse runs its query on every inserted block and writes the result into a target table ({{docs|https://clickhouse.com/docs/materialized-view/incremental-materialized-view}}). Here a view kept tokens per model per day in a SummingMergeTree table: after the 10 inserts it held 1,408 partial rows, to be summed by later merges; summed at query time, 1 March 2026 came to 28,800 messages and 9,134,325 tokens, the same as every other engine on this page. Dashboards read the small table, not the 10 million rows. <b>Refreshable</b> materialised views instead re-run a full query on a schedule.</p>
 <p><b>The defaults that bite.</b> Inserts are not fsynced by default (<code>fsync_after_insert</code> = 0, confirmed in the embedded server too): an acknowledged insert can be lost if the machine loses power before the OS flushes it; replication covers this in practice. Each insert makes a part, so thousands of tiny inserts outrun merging: above 1,000 active parts in a partition inserts are delayed, above 3,000 they fail with "Too many parts" (<code>parts_to_delay_insert</code>, <code>parts_to_throw_insert</code>); batch inserts (thousands of rows each) or use async inserts, which buffer on the server. Updates and deletes are expensive by design (below).</p>
 <details class="dp"><summary>More defaults, a correction to the docs, and scaling <span class="mute">(26.9 source, 2026-10-04)</span></summary><div class="b">

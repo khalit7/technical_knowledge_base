@@ -12,14 +12,19 @@ con.sql("""
 """).df()                                   # a pandas DataFrame; .pl() gives Polars, .arrow() Arrow
 con.sql("COPY (SELECT * FROM read_csv('events.csv')) TO 'events.parquet' (FORMAT parquet, COMPRESSION zstd)")</pre>
 <p>Results move to pandas, Polars and Arrow without copying the data value by value, and DuckDB can query a pandas or Polars DataFrame in scope by its variable name. The same SQL runs over a 10 KB CSV or a folder of 500 GB of Parquet.</p>
+</section>
+<div class="s3sp"><div class="s3L"><section id="s-duck-h">
 <h3>Reading from object storage, measured</h3>
 <p>The <code>httpfs</code> extension reads files over HTTP(S) and S3 and, for Parquet, uses the footer plus HTTP <b>range requests</b> to download only the parts a query needs ({{httpfs docs|https://duckdb.org/docs/current/core_extensions/httpfs/https.html}}). To see exactly which bytes, the 534 MB file was served by a small local HTTP server that logs every request (<code>src/measure/remote_small.py</code>):</p>
-<div class="card" id="httpCard"><h4 class="vt">Over HTTP, one day costs a footer request and two chunk requests: 0.22% of the file</h4>
+
+<p>On S3 every request costs time (tens of milliseconds of latency) and a small fee, so the shape of the file shows up on the bill: few, large row groups sorted by the main filter mean few requests. DuckDB issues them from many threads at once; since 2.0 these reads are asynchronous, many requests in flight, with I/O scaled separately from query processing (the measurements here are 1.5.6).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="httpCard"><h4 class="vt">Over HTTP, one day costs a footer request and two chunk requests: 0.22% of the file</h4>
 <div class="seg" id="httpQ"><button data-m="one_day" class="on">One day</button><button data-m="case6">Tokens per model</button><button data-m="one_row">One message by id</button></div>
 <div id="httpSvg" class="plot"></div>
 <div class="small" id="httpNote"></div>
-</div>
-<p>On S3 every request costs time (tens of milliseconds of latency) and a small fee, so the shape of the file shows up on the bill: few, large row groups sorted by the main filter mean few requests. DuckDB issues them from many threads at once; since 2.0 these reads are asynchronous, many requests in flight, with I/O scaled separately from query processing (the measurements here are 1.5.6).</p>
+</div></div></div></div>
+<section id="s-duck-b">
 <h3>Bigger than memory, measured</h3>
 <p>Operators that must see all their input before producing output (sorting, grouping, joining, window functions) <b>spill</b> to a temporary directory when they exceed <code>memory_limit</code>, which defaults to 80% of RAM ({{tuning guide|https://duckdb.org/docs/current/guides/performance/how_to_tune_workloads.html}}). Sorting all 10 million messages by their text (about 1 GB of strings) with the limit set to 300 MB took 3.6 s and wrote up to 790 MB of temporary files; with the default limit (12.7 GiB on this laptop) it took 2.6 s and spilled nothing (<code>vec_ooc.py</code>). Slower, but it finishes: this is what lets one laptop chew through data several times its memory.</p>
 <h3>When DuckDB beats Spark, and when it does not</h3>

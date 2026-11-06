@@ -33,26 +33,7 @@
     el.innerHTML=RD.svg(W,y+2,s,'Four encodings applied to real values of the chat messages')}
   enc();RD.onRender(enc);RD.onResize(enc);
 
-  // 2. row at a time against a vector at a time (section 4)
-  let vm='row';
-  function vd(){const el=$('vdSvg');if(!el)return;const W=RD.width(el),narrow=W<560;let s='';
-    const bw=narrow?(W-30)/3:150,gap=(W-3*bw)/2,H=narrow?150:140,by=46,bh=40;
-    const xs=[0,bw+gap,2*(bw+gap)];
-    s+=box(xs[0],by,bw,bh,narrow?['pages of','tokens']:['pages of tokens','(10,000,000 values)'],{fill:'var(--soft)'});
-    s+=box(xs[1],by,bw,bh,['Scan',narrow?'decode':'decode values'],{bold:1});
-    s+=box(xs[2],by,bw,bh,['Aggregate','sum(tokens)'],{bold:1});
-    s+=arrow(xs[0]+bw,by+bh/2,xs[1]-2,by+bh/2);
-    const ax1=xs[1]+bw,ax2=xs[2]-2;s+=arrow(ax1,by+bh/2,ax2,by+bh/2,'var(--c2)');
-    const mid=(ax1+ax2)/2;
-    if(vm==='row'){s+='<rect x="'+(mid-6)+'" y="'+(by-26)+'" width="12" height="18" fill="var(--c2)"/>';
-      s+=RD.t(mid,by-32,'1 value per call',{a:'middle',fs:11,fill:'var(--c2)'});}
-    else{const vw=narrow?Math.min(130,W*0.4):Math.min(ax2-ax1-8,110);let cells='';for(let i=0;i<16;i++)cells+='<rect x="'+(mid-vw/2+i*vw/16).toFixed(1)+'" y="'+(by-26)+'" width="'+(vw/16-1).toFixed(1)+'" height="18" fill="var(--c2)"/>';
-      s+=cells+RD.t(mid,by-32,'2,048 values per call',{a:'middle',fs:11,fill:'var(--c2)'});}
-    const calls=vm==='row'?'10,000,000':'4,883';
-    s+=RD.t(W/2,by+bh+30,'calls from Aggregate to Scan: '+calls,{a:'middle',fs:12.5,w:600});
-    el.innerHTML=RD.svg(W,H+14,s,'Operators passing one row or one vector per call');
-    $('vdCap').innerHTML=vm==='row'?'Row at a time: the aggregate pulls one row per call, so the per-call overhead is paid 10,000,000 times for 10,000,000 additions.':'A vector at a time: 10,000,000 / 2,048, rounded up, is 4,883 calls <span class="der">derived</span>; the overhead is paid 4,883 times and the additions run in a loop the compiler turns into SIMD instructions.'}
-  if($('vdMode'))RD.seg($('vdMode'),v=>{vm=v;vd()});vd();RD.onRender(vd);RD.onResize(vd);
+  // 2. row at a time against a vector at a time (section 4): now the 3D stage Fig. 2, 31_js_sc_vec.js
 
   // 3. late materialisation bars (section 4)
   if($('lateBars')){const f=D.lab.files.find(x=>x.sort==='random'&&x.rg===100000&&x.comp==='snappy').q.chat,C=D.full.counted;
@@ -62,26 +43,7 @@
       {nm:'content, all 10M rows',v:C.content_all.bytes_read,txt:FMT.mb(C.content_all.bytes_read),col:'var(--dim)'},
       {nm:'content, 6,950 rows over 1,495 tokens',v:C.content_selective.bytes_read,txt:FMT.mb(C.content_selective.bytes_read),col:'var(--c2)',hl:true}]);}
 
-  // 4. ClickHouse granules (section 7)
-  let gm='chat';
-  function gr(){const el=$('grSvg');if(!el)return;const W=RD.width(el),G=1221,H=118;let s='';
-    const x0=4,pw=W-8,gw=pw/G,ty=34,by=58,bh=30;
-    const tgt=Math.round(424242/1e6*G); // chat_id is the first sort key; chats are numbered up to 1,000,000
-    // index entries: one tick per granule would be 1,221 ticks; drawn every 8th for legibility
-    for(let g=0;g<G;g+=8){const x=x0+g*gw;s+='<line x1="'+x.toFixed(1)+'" x2="'+x.toFixed(1)+'" y1="'+(ty)+'" y2="'+(ty+10)+'" stroke="var(--mute)" stroke-width="0.6"/>'}
-    const nar=W<560;s+=RD.t(x0,ty-6,nar?'sparse index: 1,221 entries':'sparse primary index: 1,221 entries (first key of each granule)',{fs:11,fill:'var(--mute)'});
-    if(gm==='chat'){s+='<rect x="'+x0+'" y="'+by+'" width="'+pw+'" height="'+bh+'" fill="var(--dim)" fill-opacity="0.5"/>';
-      const hx=x0+tgt*gw;s+='<rect x="'+(hx-2).toFixed(1)+'" y="'+by+'" width="4" height="'+bh+'" fill="var(--c2)"/>';
-      // binary search brackets
-      let lo=0,hi=G,k=0;while(hi-lo>80&&k<4){const m=(lo+hi)>>1;const yy=ty+14+k*3;s+='<line x1="'+(x0+lo*gw).toFixed(1)+'" x2="'+(x0+hi*gw).toFixed(1)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--c2)" stroke-width="1.2" opacity="'+(0.4+k*0.15)+'"/>';if(tgt<m)hi=m;else lo=m;k++}
-      s+=arrow(hx,ty+12,hx,by-2,'var(--c2)');
-      s+=RD.t(Math.min(Math.max(hx,110),W-110),by+bh+20,'1 granule of 1,221 read',{a:'middle',fs:11.5,fill:'var(--c2)',w:600});}
-    else{s+='<rect x="'+x0+'" y="'+by+'" width="'+pw+'" height="'+bh+'" fill="var(--c2)" fill-opacity="0.85"/>';
-      s+=RD.t(W/2,by+bh+20,'1,221 of 1,221 granules read',{a:'middle',fs:11.5,fill:'var(--c2)',w:600});}
-    s+=RD.t(x0,by-4,nar?'the merged part: 1,221 granules':'the merged part, 10,000,000 rows in 1,221 granules, sorted by (chat_id, created_at)',{fs:11,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,H,s,'ClickHouse granules read for two filters');
-    $('grCap').textContent=gm==='chat'?'Binary search over the index: chat 424242 sits near the 42% point of the chat_id order; the range is halved until one granule (8,192 rows) is left, the one whose first key is at or below the chat.':'created_at is second in ORDER BY: within a chat the rows are in time order, but across the part every chat spans the year, so no granule can be excluded by time.'}
-  if($('grMode'))RD.seg($('grMode'),v=>{gm=v;gr()});gr();RD.onRender(gr);RD.onResize(gr);
+  // 4. ClickHouse granules (section 7): now the 3D stage Fig. 3, 32_js_sc_ch.js
 
   // 5. storage apart from compute (section 8)
   function whd(){const el=$('whdSvg');if(!el)return;const W=RD.width(el),narrow=W<560;let s='';
@@ -98,11 +60,11 @@
 
   // 6. two writers, one catalog pointer (section 9): a stepper
   const OCC=[
-    {p:'v42',a:['reads v42'],b:['reads v42'],files:{v42:1},cap:'<b>Step 1.</b> The catalog points at metadata v42. Writers A and B both start from it; neither takes a lock.'},
-    {p:'v42',a:['writes data','and v43a'],b:['writes data','and v43b'],files:{v42:1,v43a:2,v43b:2},cap:'<b>Step 2.</b> Each writes its new data files and a new metadata file built on v42. Nothing is visible yet: readers still follow the pointer to v42.'},
-    {p:'v43a',a:['swap 42 to 43a','succeeds'],b:['waiting'],files:{v42:3,v43a:1,v43b:2},win:'a',cap:'<b>Step 3.</b> A asks the catalog to swap the pointer from v42 to v43a only if it still points at v42. It does, so the swap succeeds: A\'s commit is visible, whole, to every reader that starts now.'},
-    {p:'v43a',a:['done'],b:['swap 42 to 43b','refused'],files:{v42:3,v43a:1,v43b:4},lose:'b',cap:'<b>Step 4.</b> B asks for the same swap from v42. The pointer is now v43a, so the catalog refuses. v43b is never visible; its files become orphans for clean-up.'},
-    {p:'v44',a:['done'],b:['rebuilds on 43a','swap 43a to 44: ok'],files:{v42:3,v43a:3,v43b:4,v44:1},win:'b',cap:'<b>Step 5.</b> B re-reads v43a, checks that A\'s change does not conflict with its own (two appends never do; two rewrites of the same file would), writes v44 on top of v43a and swaps again. Both commits are in the table, in order.'}];
+    {p:'v42',a:['reads v42'],b:['reads v42'],files:{v42:1}},
+    {p:'v42',a:['writes data','and v43a'],b:['writes data','and v43b'],files:{v42:1,v43a:2,v43b:2}},
+    {p:'v43a',a:['swap 42 to 43a','succeeds'],b:['waiting'],files:{v42:3,v43a:1,v43b:2},win:'a'},
+    {p:'v43a',a:['done'],b:['swap 42 to 43b','refused'],files:{v42:3,v43a:1,v43b:4},lose:'b'},
+    {p:'v44',a:['done'],b:['rebuilds on 43a','swap 43a to 44: ok'],files:{v42:3,v43a:3,v43b:4,v44:1},win:'b'}];
   let occA=null;
   function occ(i){const el=$('occSvg');if(!el)return;const W=RD.width(el),narrow=W<560,st=OCC[i];let s='';
     const cw=Math.min(230,W*0.6),cx=(W-cw)/2;
@@ -114,8 +76,8 @@
     fs.forEach((f,k)=>{const x=k*(fw+8),state=st.files[f],lab=narrow?f:'metadata '+f;if(!state){s+=box(x,fy,fw,28,lab,{op:0.15,dash:1});return}
       const cur=f===st.p;s+=box(x,fy,fw,28,lab,{fill:cur?'var(--c2)':'var(--bg)',ink:cur?'var(--bg)':null,dash:state===2||state===4,op:state===4?0.4:state===3?0.7:1,stroke:cur?'var(--c2)':'var(--line)'})});
     const pk=fs.indexOf(st.p),px=pk*(fw+8)+fw/2;s+=arrow(W/2,38,px,fy-2,'var(--c2)');
-    el.innerHTML=RD.svg(W,fy+32,s,'Two writers committing to one Iceberg table');$('occCap').innerHTML=st.cap}
-  if($('occCtl'))occA=RD.anim({card:'occCard',ctl:'occCtl',n:OCC.length,ms:2200,draw:occ,label:'Commit step'});
+    el.innerHTML=RD.svg(W,fy+32,s,'Two writers committing to one Iceberg table')}
+  if($('occCtl'))occA=RD.anim({card:'occCard',ctl:'occCtl',n:OCC.length,ms:4200,draw:occ,label:'Commit step',list:'sx-occ'});
   RD.onResize(()=>occA&&occA.redraw());
 
   // 7. ETL against ELT (section 10)
