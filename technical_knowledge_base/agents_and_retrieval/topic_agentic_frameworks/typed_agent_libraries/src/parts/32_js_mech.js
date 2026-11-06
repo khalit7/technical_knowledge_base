@@ -25,7 +25,8 @@ function draw(i){const d=M[sel.value]||{wire:[]},w=d.wire||[];
   if(i>0&&w[i-1]&&who(w[i-1].sys)!==who(x.sys))t+='The speaker changed from '+E(who(w[i-1].sys))+' to '+E(who(x.sys))+', and the history came along ('+x.msgs+' messages).';
   cap.innerHTML=t+'</p>';
   const el=document.getElementById('ftyped-x-r'+i);if(el&&el.scrollIntoView&&box.contains(el)){const b=box.getBoundingClientRect(),r=el.getBoundingClientRect();if(r.top<b.top||r.bottom>b.bottom)box.scrollTop+=r.top-b.top-20}}
-const an=RD.anim({card:'ftyped-x-card',ctl:'ftyped-x-ctl',n:1,draw,ms:1800,label:'Request',tab:'t-mech'});
+// a run browser over up to 15 requests: a widget the reader drives (long-replay rule), never plays by itself
+const an=RD.anim({card:'ftyped-x-card',ctl:'ftyped-x-ctl',n:1,draw,ms:1800,label:'Request',auto:false});
 sel.addEventListener('change',render);render();
 // session
 (function(){const s=M.oai_session_greedy,el=document.getElementById('ftyped-x-sess');if(!s){el.innerHTML='<p class="small mute">not recorded</p>';return}

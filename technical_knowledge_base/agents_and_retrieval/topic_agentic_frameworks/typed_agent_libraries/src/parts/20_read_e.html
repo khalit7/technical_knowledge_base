@@ -1,10 +1,25 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ho"></div></div><div class="s3L">
 <section id="rd-5">
 <h2>5. Handoffs and transfers are tools</h2>
 <p>A <dfn>handoff</dfn> passes the whole conversation to another agent, which then owns it. Neither library adds new machinery for it. In the Agents SDK each agent in <code>handoffs=[...]</code> becomes a tool named <code>transfer_to_</code> plus the agent's name, described as "Handoff to the <i>name</i> agent to handle the request." plus its <code>handoff_description</code> (<code>handoffs/__init__.py</code>, line 214); its output is <code>{"assistant": "fixer"}</code>, and the next request goes out with the new agent's instructions and tools and, by default, "the entire previous conversation history" ({{handoffs docs|https://openai.github.io/openai-agents-python/handoffs/}}). In ADK an agent with <code>sub_agents</code> gets one <code>transfer_to_agent(agent_name, transfer_reason)</code> tool whose <code>agent_name</code> is an enum of the valid names, so the model cannot invent one (<code>tools/transfer_to_agent_tool.py</code>): one tool instead of one per target.</p>
-<figure class="fx"><div class="ttl">After the transfer call the speaker changes, the tools change, and the whole history comes along</div>
+<p>Fig. 4 replays the recorded run, request by request, on the running example (local model, greedy <span class="meas">MEASURED</span>): a triage agent with two handoffs (a fixer with the four tools, an explainer with read-only tools), or ADK's coordinator with the same two as <code>sub_agents</code>.</p>
 <div class="seg" id="ftyped-ho-seg"><button data-m="oai_handoff_greedy" class="on">Agents SDK handoff</button><button data-m="adk_transfer_greedy">ADK transfer</button></div>
-<div id="ftyped-hofig"></div>
-<figcaption>Recorded on the running example, local model, greedy <span class="meas">MEASURED</span>. One row per request the library sent: who was speaking, the tools offered (transfer tools highlighted), one square per message in the request, and what the model replied.</figcaption></figure>
-<p><b>Recorded.</b> Agents SDK: a triage agent with two handoffs (a fixer with the four tools, an explainer with read-only tools); greedy and sampled runs both took 6 requests, request 1 called <code>transfer_to_fixer</code>, and the next request carried the fixer's instructions and tools with all 4 messages so far; last agent fixer, tests still fail. ADK: the coordinator's first request offered only <code>transfer_to_agent</code>; request 1 called <code>transfer_to_agent({"agent_name": "fixer"})</code>, and later requests carried the fixer's tools; tests still fail.</p>
+<ol class="sx" id="sx-ho-oai">
+<li><b>Request 1: the triage agent speaks.</b> It is offered only two tools, <code>transfer_to_fixer</code> and <code>transfer_to_explainer</code>; the system and user messages go to the model.</li>
+<li><b>The model calls <code>transfer_to_fixer({})</code>.</b> To the model a handoff is one more function; the tool's output is <code>{"assistant": "fixer"}</code>.</li>
+<li><b>The speaker changes and the history comes along.</b> Request 2 carries the fixer's instructions and tools with all 4 messages so far (system, user, the transfer call, its result).</li>
+<li><b>The fixer works.</b> Requests 2 to 5 call <code>list_files</code>, <code>read_file</code> twice and <code>edit_file</code>; each round adds two messages to the history the model is sent.</li>
+<li><b>A reply with no tool call ends the run.</b> Request 6 is text: last agent fixer, 6 requests (the sampled run took 6 as well), tests still fail.</li>
+</ol>
+<ol class="sx" id="sx-ho-adk" hidden>
+<li><b>Request 1: the coordinator speaks.</b> Its first request offered only <code>transfer_to_agent</code>, whose <code>agent_name</code> is an enum of the valid sub-agent names.</li>
+<li><b>The model calls <code>transfer_to_agent({"agent_name": "fixer"})</code>.</b> One tool for every target instead of one tool per target.</li>
+<li><b>The fixer takes over.</b> Later requests carried the fixer's instructions and tools (and <code>transfer_to_agent</code>, so it could pass the conversation on again), with the history so far.</li>
+<li><b>The fixer works.</b> Requests 2 to 5 call <code>list_files</code>, <code>read_file</code> twice and <code>edit_file</code>, the history growing two messages a round.</li>
+<li><b>A reply with no function call ends the run.</b> Request 6 is text; 6 requests, tests still fail.</li>
+</ol>
+
+
 <p>Two source details matter once a reply can hand off to more than one agent: if the model calls several handoff tools in one reply, only the first runs and the others get "Multiple handoffs detected, ignoring this one." (<code>run_internal/turn_resolution.py</code>); an <code>input_filter</code> can cut the history, and the opt-in <code>nest_handoff_history</code> (off by default, "Opt-in beta") summarises it, with the warning that "Nesting does not redact sensitive data" (<code>run_config.py</code>, line 378). What handing off costs against calling an agent as a tool (a two-problem message lost its second problem after a handoff) is measured in section 6 of {{Multi-agent patterns|n:3c65c17b0d0d8194a306c37803387bf3}}, which owns when several agents help.</p>
 </section>
+</div></div>

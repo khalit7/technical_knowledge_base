@@ -42,7 +42,7 @@ function soTable(el,opt){opt=opt||{};
 }
 window.FTU.soTable=soTable;
 const st=document.getElementById('ftyped-so-tbl');if(st)soTable(st,{run:'all'});
-// ---------- the output-route animation ----------
+// ---------- the output-route animation: plays once in view, explained by the step list sx-route ----------
 (function(){const card=document.getElementById('ftyped-an-card');if(!card)return;
   const MODES=[['pai_tool','Tool (Pydantic AI)'],['pai_native','Native (Pydantic AI)'],['pai_prompted','Prompted (Pydantic AI)'],['oai','Agents SDK'],['adk','ADK'],['constrained','Constrained decoding'],['claude_haiku_schema','Claude: --json-schema'],['claude_haiku_prompt','Claude: in prompt']];
   const CODE={pai_tool:"agent = Agent(model, output_type=Triage)        # ToolOutput is the default",
@@ -65,9 +65,15 @@ const st=document.getElementById('ftyped-so-tbl');if(st)soTable(st,{run:'all'});
   seg.innerHTML=MODES.map((m,i)=>'<button data-m="'+m[0]+'"'+(i===0?' class="on"':'')+'>'+m[1]+'</button>').join('');
   sel.innerHTML=F.cases.map(c=>'<option value="'+c.id+'">'+c.id+' ('+c.category.replace('_',' ')+')</option>').join('');
   let mode='pai_tool';
-  const P=[0,1,2].map(i=>document.getElementById('ftyped-an-p'+i)),cap=document.getElementById('ftyped-an-cap');
+  const P=[0,1,2].map(i=>document.getElementById('ftyped-an-p'+i)),SX=i=>document.getElementById('ftyped-sx'+i);
   const STEPS=['code','request','server','reply','verdict'];
   function data(){const w=F.wire[mode]||{cases:{}};return {w,c:w.cases[sel.value]||null}}
+  // the step list on the left carries the explanation of each step for the chosen route and case (no caption under the panes)
+  function texts(){const {c}=data(),cs=F.cases.find(x=>x.id===sel.value);
+    SX(0).innerHTML='<code>'+E(CODE[mode])+'</code>. Same input on every route: <code>'+E(cs.function)+'</code> with a failing <code>'+E(cs.failing_test)+'</code>.';
+    SX(2).textContent=SERVER[mode];
+    SX(3).textContent=c?(c.reply.startsWith('TOOL CALL')?'A tool call whose arguments are the result.':(/^\s*[{`]/.test(c.reply)?'Text that is meant to be JSON.':'Prose: the model was not told what shape to use.')):'Not recorded for this case.';
+    SX(4).textContent=c?(c.valid?(c.retry?'Rejected the first reply, sent the error back, and accepted the second.':'Parsed and validated it: done.'):'Gave up: '+(c.err||'no valid result')+'.'+(c.lenient?' A parser that strips a Markdown fence first would have recovered a valid object.':'')):''}
   function draw(i){const {w,c}=data();
     P.forEach((p,k)=>{p.classList.toggle('dim',i<k+1||(i===2&&k>0));p.classList.toggle('on',(i===1&&k===0)||(i===2&&k===0)||(i===3&&k===1)||(i===4&&k===2))});
     P[0].querySelector('pre').textContent=i>=1?(w.req||'(not recorded)'):'';
@@ -77,17 +83,11 @@ const st=document.getElementById('ftyped-so-tbl');if(st)soTable(st,{run:'all'});
       t+=c.valid?'RESULT: '+JSON.stringify(c.obj,null,1):'NO RESULT. '+(c.err||'');P[2].querySelector('pre').textContent=t;
       vd.className='verdict '+(c.valid?'ok':'bad');vd.textContent=(c.valid?'Valid Triage':'Failed')+' after '+c.calls+' model call'+(c.calls===1?'':'s')+(c.fenced?' (reply was fenced)':'');}
     else{P[2].querySelector('pre').textContent='';vd.textContent='';vd.className='verdict'}
-    const cs=F.cases.find(x=>x.id===sel.value);
-    const caps=['<div class="t">1. What you write</div><p><code>'+E(CODE[mode])+'</code></p><p>Same input every route: <code>'+E(cs.function)+'</code> with a failing <code>'+E(cs.failing_test)+'</code>.</p>',
-      '<div class="t">2. What the library puts in the request</div><p>Look for the line marked SCHEMA: that is where this route puts the Triage schema.</p>',
-      '<div class="t">3. What the server does with it</div><p>'+E(SERVER[mode])+'</p>',
-      '<div class="t">4. What the model wrote</div><p>'+(c?(c.reply.startsWith('TOOL CALL')?'A tool call whose arguments are the result.':(/^\s*[{`]/.test(c.reply)?'Text that is meant to be JSON.':'Prose: the model was not told what shape to use.')):'not recorded')+'</p>',
-      '<div class="t">5. What the library did</div><p>'+(c?(c.valid?(c.retry?'Rejected the first reply, sent the error back, and accepted the second.':'Parsed and validated it: done.'):'Gave up: '+E(c.err||'no valid result')+'.'+(c.lenient?' A parser that strips a Markdown fence first would have recovered a valid object.':'')):'')+'</p>'];
-    cap.innerHTML=caps[i];
   }
-  const an=RD.anim({card:'ftyped-an-card',ctl:'ftyped-an-ctl',n:STEPS.length,draw,ms:2200,label:'Step'});
-  RD.seg(seg,m=>{mode=m;an.reset(STEPS.length)});   // a mode switch resets to step 1 and waits: never autoplays
-  sel.addEventListener('change',()=>an.redraw());
+  texts();
+  const an=RD.anim({card:'ftyped-an-card',ctl:'ftyped-an-ctl',n:STEPS.length,draw,ms:4200,label:'Step',list:'sx-route'});
+  RD.seg(seg,m=>{mode=m;texts();an.reset(STEPS.length)});   // a mode switch restarts from step 1 and replays (the one exception to stopping for good)
+  sel.addEventListener('change',()=>{texts();an.redraw()});
 })();
 
 // ---------- smolagents executor table ----------

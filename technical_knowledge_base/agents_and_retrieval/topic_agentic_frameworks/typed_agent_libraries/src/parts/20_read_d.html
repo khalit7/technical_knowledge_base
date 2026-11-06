@@ -1,9 +1,16 @@
+<div class="s3sp"><div class="s3R"><div id="stg-loop"></div></div><div class="s3L">
 <section id="rd-4">
 <h2>4. How each library runs the loop</h2>
 <p>All four run the same loop (call the model, run what it asked for, append, repeat; owned by {{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}}). What differs is the stopping rule, the default cap, and what an action is.</p>
-<figure class="fx"><div class="ttl">One loop, four stopping rules: the default caps run from 10 turns to 500 model calls</div>
-<div id="ftyped-loopfig"></div>
-<figcaption>Each lane is one library's loop as its source runs it. The diamond is the test that ends a run; the number on the right is the default cap (Pydantic AI <code>usage.py</code>, line 482; Agents SDK <code>run_config.py</code>, line 45; smolagents <code>agents.py</code>; ADK <code>agents/run_config.py</code>, overridable with <code>ADK_MAX_LLM_CALLS</code>). Set your own: a coding task that reads a few files, edits and tests can need more than 10 turns, and 500 is the highest of the four.</figcaption></figure>
+<p>The default caps are in the source (Pydantic AI <code>usage.py</code>, line 482; Agents SDK <code>run_config.py</code>, line 45; smolagents <code>agents.py</code>; ADK <code>agents/run_config.py</code>, overridable with <code>ADK_MAX_LLM_CALLS</code>). Set your own: a coding task that reads a few files, edits and tests can need more than 10 turns, and 500 is the highest of the four. Fig. 3 puts the four loops side by side, one lane each:</p>
+<ol class="sx" id="sx-loop">
+<li><b>One loop, four stopping rules.</b> Each lane is call the model, act, test whether the run is over, else go round again; every round counts toward the cap: 50 requests, 10 turns, 20 steps, 500 model calls.</li>
+<li><b>Pydantic AI ends on a tool.</b> The result type travels as the hidden <code>final_result</code> tool; the run ends when the model calls it and the value validates (else a retry prompt goes round).</li>
+<li><b>The Agents SDK ends on silence.</b> The first reply with no tool call ends the run; a handoff tool switches the agent and keeps looping.</li>
+<li><b>smolagents acts in code.</b> The model writes a Python block; generation stops at <code>&lt;/code&gt;</code>; the local executor runs it and the printed output comes back as the observation; <code>final_answer(...)</code> ends the run.</li>
+<li><b>ADK is a runtime that logs events.</b> Every reply, call and result is an event appended to the session; the run ends on an event with no function call. On the running example (section below) its four runs took 5, 7, 11 and 9 requests and 1 passed the tests.</li>
+</ol>
+
 
 <h3>Pydantic AI: a hidden result tool and a graph underneath</h3>
 <p>By default the output type travels as an extra tool named <code>final_result</code> (<code>_output.py</code>, line 73), described by the output class's docstring (ours: "Triage of one failing test.") or else as "The final response which ends this conversation" (line 74), and the request sets <code>tool_choice</code> to <code>"required"</code>. A model that ignores <code>tool_choice</code>, or a server that drops it (this one does), can answer in prose; Pydantic AI then parses the prose as JSON and sends back "Invalid JSON" plus "Fix the errors and try again", which does not say "call <code>final_result</code>". That is how the parent's Same agent tab lost 3 of 4 Pydantic AI runs after the code was already fixed. If <code>final_result</code> comes alongside other tool calls in one reply, the <dfn>end strategy</dfn> decides: <code>'graceful'</code> (the default since 2.0) runs the function tools before it, <code>'early'</code> stops at once, <code>'exhaustive'</code> runs everything (<code>_agent_graph.py</code>, line 128).</p>
@@ -38,3 +45,4 @@ print(run_tests())
 <details><summary>ADK with a non-Gemini model: LiteLLM and the provider prefix</summary><p>Every ADK run here used <code>LiteLlm(model="openai/" + name, api_base=...)</code>. The provider prefix decides the wire format: section 8 of {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}} sent an Anthropic <code>/v1/messages</code> request through the LiteLLM proxy, and an <code>openai/</code> deployment forwarded it as the Responses API (<code>/v1/responses</code>, which the local server does not serve) while an <code>lm_studio/</code> deployment sent <code>/v1/chat/completions</code> and worked.</p></details>
 <p><b>The seventh way.</b> The parent's Same agent tab ran six ways but not ADK. Same task, same four tool bodies, same system prompt, local model, a 15-call cap: <b>tests passed after 1 of 4 runs</b> (1 greedy, 3 sampled at 0.7; tests file untouched in 4), with 5, 7, 11 and 9 model requests; first request 455 prompt tokens, against 385 to 507 for the plain loop, LangGraph, the Agents SDK and Pydantic AI <span class="meas">MEASURED</span>. Per-run requests on the {{Mechanisms, recorded|#t-mech}} tab.</p>
 </section>
+</div></div>

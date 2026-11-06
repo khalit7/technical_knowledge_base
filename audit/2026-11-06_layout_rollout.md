@@ -17,7 +17,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
 - [x] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
 - [x] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
-- [ ] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
+- [x] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
 - [ ] `agents_and_retrieval/topic_agentic_frameworks` Topic: agentic-frameworks
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/agent_security` Agent security: permissions, sandboxes, prompt injection, egress
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/building_a_harness` Building a harness: the loop, tool calling, edit formats, stop conditions
@@ -325,3 +325,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - template: the stage control bar wraps the speed selector at 390 px.
 - `agents_and_retrieval/topic_agentic_frameworks/llm_observability`: Fig. 3 close-up step crops the trace store at the top and right; Fig. 1 small at its wide steps.
 - `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph`: both stages wide with small objects and dense labels (Fig. 1 step 4, Fig. 2 failed-update step); consider closer views.
+- `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries`: Fig. 2 step 3 crops the results tray at the bottom right; Fig. 3 faded lanes in front stay large.

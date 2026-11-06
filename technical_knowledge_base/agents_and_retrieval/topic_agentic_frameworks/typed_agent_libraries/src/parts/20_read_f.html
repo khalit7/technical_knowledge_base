@@ -1,18 +1,24 @@
 <section id="rd-6">
 <h2>6. Guardrails, sessions and state</h2>
+<div class="s3sp"><div class="s3L">
 <h3>A parallel guardrail is a latency optimisation, not a gate</h3>
 <p>A <dfn>guardrail</dfn> checks the input (before the agent) or the output (after it) and can trip a <dfn>tripwire</dfn>, an exception that ends the run. In the Agents SDK input guardrails default to <code>run_in_parallel=True</code> (<code>guardrail.py</code>, line 100): the check and the agent's first model call start together. The docs: "if the guardrail's tripwire is triggered, the agent may have already consumed tokens and executed tools before being cancelled"; with <code>run_in_parallel=False</code> "the agent never executes" ({{guardrails docs|https://openai.github.io/openai-agents-python/guardrails/}}).</p>
-<figure class="fx"><div class="ttl">Same off-topic request, same checker: in parallel the agent's own call was made and paid for before the tripwire</div>
-<div id="ftyped-grfig"></div>
-<figcaption>"Write a short poem about the sea." sent to the fixer agent guarded by a topic checker (a small agent told to answer YES or NO), local model, greedy <span class="meas">MEASURED</span>. Bar length is each request's prompt tokens; wall times are not shown (shared server). Parallel: tripped after 2 model requests; blocking: tripped after 1. The on-topic task passed both guards.</figcaption></figure>
+
 <p>One more lesson came free: told to answer only YES or NO, the small checker model wrote the poem instead ("TIDES WHISPER SECRETS TO THE SHORE ..."); the guard tripped only because its parser treated anything but YES as NO. A guardrail model reads the same input it is guarding against, so <b>parse its answer fail-closed</b>. (A first version gave the checker a typed output, which failed on every request on this server for the reason in section 2.) Anything with side effects belongs behind a blocking check or a tool guardrail, which runs before each tool call. A blocking guardrail costs one extra model call of latency on every request that passes, plus its tokens.</p>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fx"><div class="ttl">Same off-topic request, same checker: in parallel the agent's own call was made and paid for before the tripwire</div>
+<div id="ftyped-grfig"></div>
+<figcaption>"Write a short poem about the sea." sent to the fixer agent guarded by a topic checker (a small agent told to answer YES or NO), local model, greedy <span class="meas">MEASURED</span>. Bar length is each request's prompt tokens; wall times are not shown (shared server). Parallel: tripped after 2 model requests; blocking: tripped after 1. The on-topic task passed both guards.</figcaption></figure></div></div></div>
 <h3>Sessions are history, not durable execution</h3>
 <p>A <dfn>session</dfn> stores a conversation's items so the next <code>Runner.run</code> with the same session sends them again. Recorded with <code>SQLiteSession</code>: two turns, 1 row in <code>agent_sessions</code>, 4 rows in <code>agent_messages</code>; the second request carried 4 messages (system, the stored first exchange, the new question) and answered "Kestrel" <span class="meas">MEASURED</span>. A run that crashes between two tool calls is not resumed.</p>
+<div class="s3sp"><div class="s3L">
 <h3>ADK: state as a ledger of events, with scopes</h3>
-<figure class="fx"><div class="ttl">A state change is never assigned: it rides on an event, and its key prefix decides who sees it</div>
-<div id="ftyped-statefig"></div>
-<figcaption>A tool, callback or agent puts a change in an event's <code>state_delta</code>; the session service applies it when the event is appended, so every change is logged next to what caused it ({{state docs|https://adk.dev/sessions/state/}}). <code>temp:</code> lives for one invocation and is "Not Persistent".</figcaption></figure>
+
 <p><code>output_key="triage"</code> writes the agent's final reply into <code>state["triage"]</code>, and another agent's instruction reads it with <code>{triage}</code> (or <code>{triage?}</code> when it may be absent): that is how a <code>SequentialAgent</code> passes data from one step to the next. Memory that outlives a session is owned by {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}.</p>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fx"><div class="ttl">A state change is never assigned: it rides on an event, and its key prefix decides who sees it</div>
+<div id="ftyped-statefig"></div>
+<figcaption>A tool, callback or agent puts a change in an event's <code>state_delta</code>; the session service applies it when the event is appended, so every change is logged next to what caused it ({{state docs|https://adk.dev/sessions/state/}}). <code>temp:</code> lives for one invocation and is "Not Persistent".</figcaption></figure></div></div></div>
 <h3>ADK: A2A in one call</h3>
 <p><code>to_a2a(agent)</code> wraps any ADK agent as an A2A server (the agent-to-agent protocol, on the wire on {{Agent-to-agent and beyond|n:3f05c17b0d0d81199373d4d0b18706d8}}), a Starlette web app whose <dfn>agent card</dfn> (the JSON document other agents fetch to learn what this one does) is built automatically. Fetched in-process, no model call <span class="meas">MEASURED</span>: <code>/.well-known/agent-card.json</code> returned the name and description, a JSON-RPC interface at protocol version 1.0, and <b>5 skills: <code>model</code>, <code>list_files</code>, <code>read_file</code>, <code>edit_file</code>, <code>run_tests</code></b>. The card lists every tool as a public "skill", names and descriptions included, so review it before exposing an agent.</p>
 <details><summary>A2A status and deployment</summary><p>ADK's A2A classes print "[EXPERIMENTAL] ... subject to breaking changes" warnings in 2.11.0, while "A2A protocol and SDK are themselves not experimental". Deployment targets in the docs: Google Cloud's Agent Runtime, Cloud Run and GKE, or any container (not run here).</p></details>

@@ -84,15 +84,24 @@ ok(f"all {M['oai_handoff_greedy']['wire'][1]['msgs']} messages so far" in TXT, "
 at = [k for k in M if k.startswith("adk_task")]
 ok(f"tests passed after {sum(M[k]['tests']['pass'] for k in at)} of {len(at)} runs" in TXT and ", ".join(str(len(M[k]['wire'])) for k in sorted(at)) in TXT.replace(" and ", ", "), "ADK seventh way")
 ok(f"{len(FT['card']['/.well-known/agent-card.json']['body']['skills'])} skills" in TXT, "agent card skills")
+# the Fig. 2 step list (2026-11-06): attempt by attempt, from the validator runs
+na = [len(x["retries"]) for x in val]
+gate1 = sum(1 for x in val if len(x["retries"]) >= 2 and not any(w in x["retries"][1] for w in ("not valid Python", "identical")))
+ok(f"First attempt: {na.count(0)} of {len(val)} pass" in TXT and f"the validator refuses {sum(1 for n in na if n >= 1)}" in TXT, "Fig. 2 first attempt")
+ok(f"Second attempt: {na.count(1)} more pass" in TXT and f"{sum(1 for n in na if n >= 2) - gate1} are refused by the validator again and {gate1} fail the type check" in TXT.replace("four are", "4 are").replace("and two fail", "and 2 fail"), "Fig. 2 second attempt")
+ok(f"Third attempt: the last {na.count(2)} pass" in TXT and max(na) == 2, "Fig. 2 third attempt")
+
 
 # 3. em-dashes and private strings
 ok(chr(0x2014) not in PAGE, "no em-dash in index.html")
-bad = re.compile("/" + "Users" + "/|" + "Users" + "-|gl" + "pat|sk" + "-ant|" + re.escape(getpass.getuser()), re.I)
+# the login name is matched case-sensitively: the skill templates name the page owner by his capitalised first name in normal prose
+bad = re.compile("/" + "Users" + "/|" + "Users" + "-|gl" + "pat|sk" + "-ant", re.I)
+login = re.compile(re.escape(getpass.getuser()))
 hits = []
 for p in [os.path.join(HERE, "..", "index.html"), os.path.join(HERE, "..", "README.md")] + glob.glob(os.path.join(HERE, "**", "*"), recursive=True):
     if os.path.isfile(p) and not p.endswith((".png", ".sqlite")):
         t = open(p, errors="replace").read()
-        if bad.search(t) or chr(0x2014) in t:
+        if bad.search(t) or login.search(t) or chr(0x2014) in t:
             hits.append(os.path.relpath(p, HERE))
 ok(not hits, "no private string or em-dash in src/ or the page: " + ", ".join(hits))
 ok(not glob.glob(os.path.join(HERE, "**", "__pycache__"), recursive=True), "no __pycache__ folders")

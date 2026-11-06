@@ -1,7 +1,7 @@
 // node src/check_controls.mjs <page index.html>   (run from the repository root)
 // Clicks every button, sets every select and range in every tab at 390 px dark and 920 px light; fails on page or
-// console errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity in the tab text. Then checks that no
-// stepper advances by itself (never autoplay), after load and after a mode switch.
+// console errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity in the tab text. Then checks the motion rules:
+// the route stepper plays once in view (2026-11-06), the Mechanisms replay widget never moves by itself.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -31,19 +31,17 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-// never autoplay: load, scroll the stepper into view, wait; then switch route and wait
+// motion (2026-11-06): the route stepper plays by itself once scrolled into view; the Mechanisms tab's request replay is a widget and never does
 {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.goto('file://' + path.resolve(process.argv[2]));
   await p.click('button[data-t=t-read]');
-  await p.$eval('#ftyped-an-card', el => el.scrollIntoView()); await sleep(3000);
+  await p.$eval('#ftyped-an-card', el => el.scrollIntoView({ block: 'center' })); await sleep(5000);
   const s1 = await p.$eval('#ftyped-an-ctl-s', el => el.value);
-  await p.evaluate(() => document.querySelectorAll('#ftyped-an-mode button')[2].click()); await sleep(3000);
-  const s2 = await p.$eval('#ftyped-an-ctl-s', el => el.value);
   await p.click('button[data-t=t-mech]'); await p.$eval('#ftyped-x-card', el => el.scrollIntoView()); await sleep(3000);
   const s3 = await p.$eval('#ftyped-x-ctl-s', el => el.value);
-  const still = s1 === '0' && s2 === '0' && s3 === '0';
-  console.log('no autoplay:', still ? 'ok' : `moved (${s1}, ${s2}, ${s3})`); if (!still) bad++;
+  const good = s1 !== '0' && s3 === '0';
+  console.log('motion:', good ? 'ok' : `wrong (route stepper at ${s1}, replay widget at ${s3})`); if (!good) bad++;
   await p.close();
 }
 await b.close(); process.exit(bad ? 1 : 0);

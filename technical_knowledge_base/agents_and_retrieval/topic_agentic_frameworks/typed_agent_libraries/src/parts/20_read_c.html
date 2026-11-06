@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-retry"></div></div><div class="s3L">
 <section id="rd-3">
 <h2>3. Validate, then retry; dependencies injected</h2>
 <p>A schema checks shape. Whether <code>Triage.function</code> names a function that exists needs the inputs, and that is what <dfn>dependency injection</dfn> gives a validator. Pydantic AI makes the agent generic in two types, <code>Agent[Deps, Output]</code>: <code>Deps</code> is any object tools and validators receive at run time through <code>RunContext</code>, <code>Output</code> the type the run must return, so a type checker catches a tool that expects the wrong deps, or code that treats the result as the wrong type, before anything runs.</p>
@@ -18,11 +19,20 @@ def check(ctx: RunContext[Case], out: Triage) -&gt; Triage:
 
 result = agent.run_sync(prompt, deps=Case(code, test_output))   # result.output is a Triage</pre>
 <p class="small mute">Excerpt of this page's validator run (full script in the page's source folder).</p>
-<figure class="fx"><div class="ttl">A failed check does not fail the run: it becomes a message, and the model tries again until the budget runs out</div>
-<div id="ftyped-retryfig"></div>
-<figcaption>Pydantic AI's retry loop. Three things send a retry prompt: arguments that do not fit a tool's types, a tool or output validator raising <code>ModelRetry</code>, and an output that fails validation. Every retry message ends "Fix the errors and try again." (<code>messages.py</code>, line 1854).</figcaption></figure>
+<p>Three things send a retry prompt: arguments that do not fit a tool's types, a tool or output validator raising <code>ModelRetry</code>, and an output that fails validation. Every retry message ends "Fix the errors and try again." (<code>messages.py</code>, line 1854). Fig. 2 runs the validator above on the 30 recorded runs (ten cases, local model, three passes), one ball per run, attempt by attempt:</p>
+<ol class="sx" id="sx-retry">
+<li><b>Two checks between the model and your code.</b> Gate 1 is Pydantic's type check of the reply; gate 2 is your <code>output_validator</code>, the only one that sees the inputs (<code>ctx.deps</code>, the case's code and test output).</li>
+<li><b>First attempt: 22 of 30 pass.</b> All 30 replies fit the types; the validator refuses 8, each for a fixed line that does not parse or one already in the file.</li>
+<li><b>The refusals go back as messages.</b> Each refused run gets its error as a retry prompt ("fixed_line is not valid Python on its own ...") and the model answers again; the run does not fail.</li>
+<li><b>Second attempt: 2 more pass.</b> Of the 8, two now pass; four are refused by the validator again and two fail the type check itself (a schema error).</li>
+<li><b>Third attempt: the last 6 pass.</b> With <code>retries=2</code> every run ends valid: 30 of 30, after 14 retry prompts in 8 runs. Those 6 needed two retries, one more than the default budget, which would have raised instead.</li>
+</ol>
+
 <p><b>The budget is small by default: one retry</b> for tools and one for output (<code>agent/__init__.py</code>, line 432; <code>retries=2</code> above raises both), then <code>UnexpectedModelBehavior: Exceeded maximum output retries</code>. Argument validation was probed with a scripted fake model: it received an <code>int_parsing</code> error and the function never ran <span class="meas">MEASURED</span>.</p>
-<p><b>Measured.</b> The validator above on the ten triage cases, local model, three passes: 30 runs, 30 returned a valid result; <b>14 retry prompts went back in 8 runs</b> (10 for a fixed line that does not parse, 2 for a "fix" identical to the buggy line, 2 for a schema error), and 8 of those runs then returned a result that passed <span class="meas">MEASURED</span>. A validator with access to deps checks content against the world (the function exists, the line is new), which is where most real failures are.</p>
+<p><b>Measured.</b> The validator above on the ten triage cases, local model, three passes: 30 runs, 30 returned a valid result; <b>14 retry prompts went back in 8 runs</b> (10 for a fixed line that does not parse, 2 for a "fix" identical to the buggy line, 2 for a schema error) <span class="meas">MEASURED</span>. A validator with access to deps checks content against the world (the function exists, the line is new), which is where most real failures are.</p>
+</section>
+</div></div>
+<div>
 <p><b>The other three on a failed result.</b></p>
 <div class="tw"><table><thead><tr><th>Library</th><th>When the result does not validate</th></tr></thead><tbody>
 <tr><td>OpenAI Agents SDK</td><td>raises <code>ModelBehaviorError</code>, no automatic retry, unless you register an error handler for <code>invalid_final_output</code> (<code>run_internal/turn_resolution.py</code>, lines 1010 to 1060)</td></tr>
@@ -30,4 +40,4 @@ result = agent.run_sync(prompt, deps=Case(code, test_output))   # result.output 
 <tr><td>smolagents</td><td>no output schema: <code>final_answer</code> takes any object, and <code>final_answer_checks</code> (functions that may reject it) is the hook</td></tr>
 <tr><td>Mastra</td><td><code>errorStrategy: 'strict'</code> throws; <code>fallback</code> returns <code>fallbackValue</code> and reports <code>usedFallbackValue: true</code> (docs, not run)</td></tr>
 </tbody></table></div>
-</section>
+</div>
