@@ -37,6 +37,10 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
     const N = V.nz, tn = await txt('sx-nz');
     if (N.fac !== 10 || N.ind !== 28 || N.dqnFac !== 3648 || N.dqnInd !== 1606144) problems.push('noisy counts ' + JSON.stringify(N));
     ['10 random numbers', '28 random numbers', '3,648', '1,606,144'].forEach(s => { if (!tn.includes(s)) problems.push('noisy list lacks ' + s) });
+    const X = V.ax, ta = await txt('sx-ax'), em = Math.pow(0.4, 8);
+    if (X.N !== 360 || X.R2 !== 256 || X.SEQ !== 80 || X.BURN !== 40 || X.train !== 40 || Math.abs(X.eMin - em) > 1e-15 || em.toFixed(4) !== '0.0007') problems.push('Ape-X numbers ' + JSON.stringify(X));
+    ['360 actors', '0.4', 'about 0.0007', '434%', '22.8 billion', '256 actors', '80 steps', 'first 40', 'other 40', '1920.6%'].forEach(s => { if (!ta.includes(s)) problems.push('Ape-X list lacks ' + s) });
+    const t11 = await txt('rd-scale'); ['360 actors', '434%', '22.8 billion', '256 actors', 'sequences of 80 steps', 'burn-in of 40 steps', '1920.6%'].forEach(s => { if (!t11.includes(s)) problems.push('section 11 lacks ' + s) });
   }
   for (const id of await p.$$eval('#t-read .stg', xs => xs.map(x => x.id))) {
     await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2200);

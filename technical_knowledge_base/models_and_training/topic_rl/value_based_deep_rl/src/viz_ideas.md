@@ -38,4 +38,4 @@ What the methodology lacked for this page: a rule for figures that are drawn as 
 ## 2026-11-06 pass (split layout and 3D)
 - Built: 3D hero (the DQN loop in space, one update, where each fix acts); 3D dueling head; 3D NoisyNet noise field (rank one against independent). The 2D hero diagram, dueling toggle and noise matrix were retired.
 - Considered and kept 2D: van Hasselt et al.'s ten fits as ten plates in depth (depth would separate the fits but hide the sign of the error curve, which is the point); Rainbow's 6 × 55 ablation as a bar field (a heatmap reads better flat, and the summary is a ranking); C51's projection with the next-state plate behind the target plate (one return axis is enough); Extended Data Table 3 as a 5 × 4 bar field (a comparison along one axis).
-- Proposed, not built (no visual today, and none invented to fill a column): Ape-X's 360 actors, one shared replay and one learner (section 11, mostly in a closed block) would suit a 3D stage if that section grows.
+- Built 2026-11-06 (v2 pass): Ape-X's 360 actors, one shared replay and one learner, then R2D2's sequences (section 11, `43_js_sc_ax.js`).
