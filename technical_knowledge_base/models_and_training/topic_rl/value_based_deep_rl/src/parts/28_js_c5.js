@@ -1,7 +1,7 @@
 // ---- Section 9: the C51 target, step by step: shrink by gamma, shift by r, clip, split onto the atoms ----
 (function(){
   const E=window.VBE;const VMIN=-10,VMAX=10;
-  const P=document.getElementById('vb-c5P'),Tt=document.getElementById('vb-c5T'),Xp=document.getElementById('vb-c5X'),K=document.getElementById('vb-c5K'),
+  const P=document.getElementById('vb-c5P'),K=document.getElementById('vb-c5K'),
     Ns=document.getElementById('vb-c5N'),Rs=document.getElementById('vb-c5R'),Gs=document.getElementById('vb-c5G');
   let mode='eq7';const N_STEPS=6;
   function draw(i){const N=+Ns.value,r=+Rs.value/10,g=+Gs.value/100;document.getElementById('vb-c5Rv').textContent=RD.n(r,1);document.getElementById('vb-c5Gv').textContent=g.toFixed(2);
@@ -30,10 +30,10 @@
       ['Clip to [−10, 10]',clipN?clipN+' atom'+(clipN>1?'s':'')+' fell outside the support and are pushed to the edge: the returns C51 can represent are bounded, which is also why Rainbow suspects clipping tempers overestimation.':'Nothing falls outside the support at these settings; with larger r or γ near 1 some atoms would be pushed to the edge.'],
       ['Split each atom between its two neighbours',mode==='eq7'?'Equation 7: an atom at distance d from grid point z<sub>i</sub> gives it the fraction 1 − d/Δz of its probability (Δz = '+RD.n(dz,2)+'). Nothing is lost: total mass '+RD.n(kept,4)+'.':'Algorithm 1 as printed: atoms that land exactly on a grid point (b<sub>j</sub> a whole number) give their probability to nobody. Total mass kept: '+RD.n(kept,4)+'.'],
       ['The target against DQN\'s scalar target','The blue bars are the training target for the cross-entropy loss. Their mean is '+RD.n(meanProj,3)+'; DQN\'s target r + γ𝔼[Z] is '+RD.n(scalar,3)+(Math.abs(meanProj-scalar)<1e-9?': identical, but the distribution keeps the two outcomes apart.':' (they differ because of clipping'+(mode==='alg1'?' or lost mass':'')+').')]];
-    Tt.textContent=(i+1)+'. '+CAP[i][0];Xp.innerHTML=CAP[i][1];
+    const L=document.getElementById('sx-c5');if(L)[...L.children].forEach((li,j)=>{li.innerHTML='<b>'+CAP[j][0]+'.</b> '+CAP[j][1]});
     K.innerHTML=RD.stat('Scalar target r + γ𝔼[Z]',RD.n(scalar,3),'what DQN regresses on')+RD.stat('Mean of projected target',i>=4?RD.n(meanProj,3):'…',mode==='eq7'?'equation 7':'Algorithm 1 as printed')+RD.stat('Probability kept',i>=4?RD.n(100*kept,2)+'%':'…',kept<0.99999&&i>=4?'mass lost on exact grid hits':'')}
-  const an=RD.anim({card:'vb-c5',ctl:'vb-c5C',n:N_STEPS,ms:1500,draw,label:'Step'});
+  const an=RD.anim({card:'vb-c5',ctl:'vb-c5C',n:N_STEPS,ms:4400,draw,label:'Step',list:'sx-c5'});
   document.getElementById('vb-c5M').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.go(4)});
   document.getElementById('vb-c5Z').addEventListener('click',()=>{Rs.value=0;Gs.value=100;an.go(4)});
-  [Ns,Rs,Gs].forEach(el=>el.addEventListener('input',()=>an.redraw()));Ns.addEventListener('change',()=>an.redraw());RD.onResize(()=>an.redraw());
+  [Ns,Rs,Gs].forEach(el=>el.addEventListener('input',()=>an.go(an.i)));Ns.addEventListener('change',()=>an.go(an.i));RD.onResize(()=>an.redraw());
 })();

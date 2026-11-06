@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const file = path.resolve(here, '../index.html');
 const shots = path.resolve(here, '../.shots');
-const b = await puppeteer.launch({ headless: 'shell' });
+const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let bad = 0, checks = 0;
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const p = await b.newPage();
@@ -46,11 +46,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   for (const g of [50, 75, 90, 95, 99, 100]) { await p.$eval('#dp-ctG', (e, g) => { e.value = g; e.dispatchEvent(new Event('input')) }, g); await scan('#dp-ct', 'contraction ' + g) }
   if (true) { const el = await p.$('#dp-ct'); await el.screenshot({ path: path.join(shots, `contr-${scheme}-${width}.png`) }) }
   for (const [d, v, m] of [[1, 2, 2], [10, 10, 4], [20, 20, 20], [3, 5, 2]]) { for (const [k, x] of [['D', d], ['V', v], ['M', m]]) await p.$eval('#dp-cu' + k, (e, x) => { e.value = x; e.dispatchEvent(new Event('input')) }, x); await scan('#dp-cu', 'curse ' + d + ' ' + v + ' ' + m) }
-  // VI against Q-learning
-  for (const m of ['vi', 'ql']) { await p.$eval('#rd-gwM button[data-m="' + m + '"]', e => e.click()); await scrub('rd-gwC', 'rd-gw', 'gw ' + m) }
-  // hero, the value-iteration stepper, the gambler (closed block), the depth blocks
-  await scan('#dp-hero', 'hero');
-  await scrub('dp-swC', 'dp-sw', 'sweep stepper');
+  // the 3D stages: step each through every step (and every mode), reading the text beside it
+  const stage = async (id, sel, tag) => { const n = await p.$eval('#' + id + '-r', e => +e.max + 1);
+    for (let i = 0; i < n; i++) { await p.$eval('#' + id + '-f', e => e.click()); await scan(sel, tag + ' ' + i) } await p.$eval('#' + id + '-b', e => e.click()); return n };
+  for (const m of ['vi', 'ql']) { await p.$eval('#rd-gwM button[data-m="' + m + '"]', e => e.click()); await stage('stg-gw', '#rd-gwN', 'gw ' + m) }
+  await stage('stg-hero', '#dp-top', 'hero'); await stage('stg-pe', '#dp-eval', 'policy evaluation'); await stage('stg-sw', '#dp-swE', 'sweep stage');
+  // the gambler (closed block), the depth blocks
   await p.$eval('#dp-gm', d => { d.open = true; d.dispatchEvent(new Event('toggle')) });
   for (const ph of ['0.25', '0.4', '0.45', '0.5', '0.55']) { await p.select('#dp-gmS', ph); await scan('#dp-gm', 'gambler ' + ph) }
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true)); await scan('#t-read', 'reading, all details open');
@@ -76,16 +77,19 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (side) { bad++; console.log('SIDEWAYS SCROLL', scheme, width) }
   await p.close();
 }
-// nothing may move before the reader acts: normal motion, scroll every animation into view, wait, check every scrubber is still at 0
+// autoplay (Khalid, 2026-11-06): under normal motion every animation and stage plays by itself once scrolled into view, and a mode switch replays it
 { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
   await p.goto('file://' + file);
+  const plays = async c => (await p.$eval('#' + c + '-p', e => e.getAttribute('aria-label'))) === 'Pause' || (await p.$eval('#' + c + '-s', e => +e.value)) > 0;
   for (const t of ['t-read', 't-lab']) { await p.$eval('button[data-t=' + t + ']', e => e.click());
-    for (const c of await p.$$eval('#' + t + ' .an-ctl', es => es.map(e => e.id))) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
-      checks++; const v = await p.$eval('#' + c + '-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY', c, v) } } }
-  // a mode switch must not start playback either
-  for (const [seg, c] of [['#dp-coM button[data-m="cba"]', 'dp-coC'], ['#rd-gwM button[data-m="ql"]', 'rd-gwC']]) { await p.$eval('button[data-t=t-read]', e => e.click()); await p.$eval(seg, e => { e.scrollIntoView({ block: 'center' }); e.click() }); await new Promise(r => setTimeout(r, 2500));
-    checks++; const v = await p.$eval('#' + c + '-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY after mode switch', c, v) } }
+    for (const c of await p.$$eval('#' + t + ' .an-ctl[id]', es => es.map(e => e.id))) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+      checks++; if (!(await plays(c))) { bad++; console.log('DID NOT PLAY', c) } }
+    for (const id of await p.$$eval('#' + t + ' .stg', es => es.map(e => e.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2000));
+      checks++; if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0))) { bad++; console.log('DID NOT PLAY', id) } } }
+  await p.$eval('button[data-t=t-read]', e => e.click());
+  await p.$eval('#dp-coC-f', e => { e.scrollIntoView({ block: 'center' }); e.click() }); await p.$eval('#dp-coM button[data-m="cba"]', e => e.click()); await new Promise(r => setTimeout(r, 2500));
+  checks++; if (!(await plays('dp-coC'))) { bad++; console.log('DID NOT REPLAY after mode switch', 'dp-coC') }
   await p.close(); }
 await b.close();
 console.log(`controls check: ${checks} scans, ${bad} problems`);

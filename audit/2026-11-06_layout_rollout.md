@@ -1,0 +1,318 @@
+# Layout rollout, started 2026-11-06
+
+Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained and autoplaying animations (`.claude/skills/explainer-page/orchestration/briefs/layout-rollout.md`). One agent per page, at most two at a time; the lead verifies each page (checkpage, ledger, layout and motion verifier) before ticking it. Status: `[ ]` to do, `[~]` built on renderer v1 (needs the v2 upgrade), `[x]` done and verified.
+
+- [~] `models_and_training/topic_rl/bandits_and_exploration` Bandits and exploration
+- [~] `models_and_training/topic_rl/dynamic_programming` Dynamic programming: planning with a known model
+- [ ] `models_and_training/topic_rl/model_based_rl_and_planning` Model-based RL and planning
+- [~] `models_and_training/topic_rl/model_free_prediction_and_control` Model-free prediction and control: Monte Carlo, TD, SARSA, Q-learning
+- [ ] `models_and_training/topic_rl/offline_rl_and_imitation` Offline RL and imitation
+- [ ] `models_and_training/topic_rl/policy_gradients_and_actor_critic` Policy gradients and actor-critic: from REINFORCE to PPO and SAC
+- [ ] `models_and_training/topic_rl/rl_for_llms` RL for LLMs: RLHF, GRPO, RLVR
+- [~] `models_and_training/topic_rl/value_based_deep_rl` Value-based deep RL: from DQN to Rainbow
+- [ ] `models_and_training/topic_rl` Topic: rl
+- [ ] `whats_new/papers/attention_is_all_you_need_transformer` Attention Is All You Need (Transformer)
+- [ ] `agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk` Claude Agent SDK: the Claude Code loop as a library
+- [ ] `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing` Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits
+- [ ] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
+- [ ] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
+- [ ] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
+- [ ] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
+- [ ] `agents_and_retrieval/topic_agentic_frameworks` Topic: agentic-frameworks
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/agent_security` Agent security: permissions, sandboxes, prompt injection, egress
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/building_a_harness` Building a harness: the loop, tool calling, edit formats, stop conditions
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/claude_code` Claude Code, taken apart: loop, tools, permissions, hooks, memory, subagents, headless runs
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/context_engineering` Context engineering: window budgets, caching, compaction, memory files, subagents
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/guardrails` Guardrails: staged runtime safety for LLM systems
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training` Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses` Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent
+- [ ] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
+- [ ] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval` Agentic retrieval, long context and memory
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/document_ingestion_and_multimodal` Document ingestion and multimodal retrieval: PDFs, tables, images
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/graphrag_and_structured_retrieval` GraphRAG and structured retrieval
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production` RAG in production: freshness, access control, latency and cost
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline` The retrieval pipeline: chunking, query rewriting, hybrid search, filtering
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes` Vector indexes from the inside: flat, IVF, PQ, HNSW, DiskANN, filtered search
+- [ ] `agents_and_retrieval/topic_rag_and_retrieval` Topic: rag-and-retrieval
+- [ ] `engineering_foundations/topic_databases/analytics_columnar_and_lakehouse` Analytics: columnar engines, DuckDB and the lakehouse
+- [ ] `engineering_foundations/topic_databases/caching` Caching: every layer, eviction, invalidation, and the LLM caches
+- [ ] `engineering_foundations/topic_databases/nosql_in_practice` NoSQL in practice: key-value, document, wide-column, time-series, graph
+- [ ] `engineering_foundations/topic_databases/query_planning_and_performance` Query planning and performance: EXPLAIN, statistics, slow queries, tuning
+- [ ] `engineering_foundations/topic_databases/running_postgres_in_production` Running Postgres in production: backups, replication, vacuum, upgrades, pooling
+- [ ] `engineering_foundations/topic_databases/scaling_a_database` Scaling a database: read replicas, sharding Postgres, distributed SQL
+- [ ] `engineering_foundations/topic_databases/search_and_vector_databases` Search and vector databases: inverted indexes, BM25, ANN, pgvector
+- [ ] `engineering_foundations/topic_databases/sql_and_data_modelling` SQL and data modelling: queries, joins, schema design, normalisation, migrations
+- [ ] `engineering_foundations/topic_databases/storage_engines_and_indexes` Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types
+- [ ] `engineering_foundations/topic_databases/transactions_and_concurrency` Transactions and concurrency: ACID, MVCC, isolation anomalies, locks
+- [ ] `engineering_foundations/topic_databases` Topic: databases
+- [ ] `engineering_foundations/topic_math/calculus_and_optimisation` Calculus and optimisation for ML: derivatives to convexity, Hessians, Newton, Lagrange
+- [ ] `engineering_foundations/topic_math/information_theory` Information theory for ML: entropy, cross-entropy, KL, mutual information
+- [ ] `engineering_foundations/topic_math/linear_algebra` Linear algebra for ML: vectors to SVD, rank, conditioning, low-rank methods
+- [ ] `engineering_foundations/topic_math/matrix_calculus_and_backprop` Matrix calculus and backprop: Jacobians, layouts, vector-Jacobian products, autodiff
+- [ ] `engineering_foundations/topic_math/numerical_computing` Numerical computing for ML: floating point, precision formats, stable softmax
+- [ ] `engineering_foundations/topic_math/probability` Probability for ML: random variables, distributions to losses, MLE, MAP, Bayes
+- [ ] `engineering_foundations/topic_math/statistics` Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests
+- [ ] `engineering_foundations/topic_math/variational_inference_and_generative_models` Variational inference and generative-model maths: ELBO, VAEs, diffusion
+- [ ] `engineering_foundations/topic_math` Topic: math
+- [ ] `engineering_foundations/topic_operating_systems/concurrency` Concurrency: threads, locks, futexes, deadlock, and event-driven I/O
+- [ ] `engineering_foundations/topic_operating_systems/containers_and_isolation` Containers and isolation: namespaces, cgroups v2, seccomp, sandboxes
+- [ ] `engineering_foundations/topic_operating_systems/memory_allocators` Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator
+- [ ] `engineering_foundations/topic_operating_systems/processes_and_syscalls` Processes and the system-call API: fork, exec, signals, file descriptors
+- [ ] `engineering_foundations/topic_operating_systems/scheduling_and_cpu_time` Scheduling and CPU time: context switches, CFS and EEVDF, affinity, cgroup limits
+- [ ] `engineering_foundations/topic_operating_systems/storage_and_file_systems` Storage and file systems: the page cache, fsync, journaling, and checkpoints
+- [ ] `engineering_foundations/topic_operating_systems/virtual_memory` Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer
+- [ ] `engineering_foundations/topic_operating_systems/virtualization_and_gpu_driver_stack` Virtualization and the GPU driver stack: hypervisors, IOMMU, MIG, one CUDA call down
+- [ ] `engineering_foundations/topic_operating_systems` Topic: operating-systems
+- [ ] `engineering_foundations/topic_programming_languages/cpp/classes_templates_and_the_standard_library` C++: classes, templates and the standard library
+- [ ] `engineering_foundations/topic_programming_languages/cpp/ownership_moves_and_lifetimes` C++: ownership, moves and object lifetimes
+- [ ] `engineering_foundations/topic_programming_languages/cpp/reading_llama_cpp` C++: reading llama.cpp, one token through the code
+- [ ] `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath` C++: the machine underneath: caches, layout, SIMD and the memory model
+- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams` JavaScript: the event loop, promises and streams
+- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents` TypeScript: LLM apps and agents
+- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers` JavaScript: values, objects, functions and modules for Python programmers
+- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript` TypeScript: the type system, narrowing and runtime validation
+- [ ] `engineering_foundations/topic_programming_languages/python/concurrency_asyncio_and_the_gil` Python: concurrency, asyncio and the GIL
+- [ ] `engineering_foundations/topic_programming_languages/python/cpython_internals_and_performance` Python: CPython internals and performance
+- [ ] `engineering_foundations/topic_programming_languages/python/data_model_and_protocols` Python: the data model and protocols
+- [ ] `engineering_foundations/topic_programming_languages/python/typing_packaging_and_toolchain` Python: typing, uv, packaging and the toolchain
+- [ ] `engineering_foundations/topic_programming_languages/rust/async_services_and_clis` Rust: async with tokio, services with axum, and CLIs
+- [ ] `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors` Rust: enums, traits, errors and iterators
+- [ ] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
+- [ ] `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions` Rust: speeding up Python with PyO3 and maturin
+- [ ] `engineering_foundations/topic_programming_languages/cpp` C++: the essentials
+- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
+- [ ] `engineering_foundations/topic_programming_languages/python` Python: the essentials
+- [ ] `engineering_foundations/topic_programming_languages/rust` Rust: the essentials
+- [ ] `engineering_foundations/topic_programming_languages` Topic: programming-languages
+- [ ] `engineering_foundations/topic_protocols/agent_to_agent_and_beyond` Agent-to-agent and beyond: A2A, agent commerce, agents driving devices
+- [ ] `engineering_foundations/topic_protocols/auth` Auth: API keys, OAuth 2.1, OIDC, JWTs, mTLS and agent-era auth
+- [ ] `engineering_foundations/topic_protocols/dns` DNS: resolution, caching and the failure modes
+- [ ] `engineering_foundations/topic_protocols/http` HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs
+- [ ] `engineering_foundations/topic_protocols/mcp` MCP: building servers and clients, transports, auth and security
+- [ ] `engineering_foundations/topic_protocols/networking_foundations` Networking foundations: IP, TCP, UDP and QUIC
+- [ ] `engineering_foundations/topic_protocols/service_apis` Service APIs: REST, gRPC, GraphQL and load balancing
+- [ ] `engineering_foundations/topic_protocols/ssh` SSH: keys, certificates, jump hosts and tunnels for cluster work
+- [ ] `engineering_foundations/topic_protocols/streaming_and_real_time` Streaming and real-time: SSE, WebSockets, webhooks, long polling
+- [ ] `engineering_foundations/topic_protocols/tls_and_certificates` TLS and certificates: the handshake, PKI, mTLS and post-quantum
+- [ ] `engineering_foundations/topic_protocols` Topic: protocols
+- [ ] `engineering_foundations/topic_swe_and_system_design/building_a_backend_api` Building a backend API: request lifecycle, data layer, async and workers, shutdown
+- [ ] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
+- [ ] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
+- [ ] `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals` Distributed systems fundamentals: replication, partitioning, consistency, consensus
+- [ ] `engineering_foundations/topic_swe_and_system_design/ml_system_design` ML system design: LLM and ML services
+- [ ] `engineering_foundations/topic_swe_and_system_design/observability` Observability: logs, metrics, traces, alerting
+- [ ] `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work` Queues, streams and async work: delivery semantics, Kafka, the outbox pattern
+- [ ] `engineering_foundations/topic_swe_and_system_design/reliability_engineering` Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents
+- [ ] `engineering_foundations/topic_swe_and_system_design/system_design_case_studies` System design case studies: worked designs from requirements to bottlenecks
+- [ ] `engineering_foundations/topic_swe_and_system_design/testing_and_quality` Testing and quality: unit, property-based, data and model tests, CI
+- [ ] `engineering_foundations/topic_swe_and_system_design` Topic: swe-and-system-design
+- [ ] `measurement/topic_benchmarks/agentic` Agentic benchmarks: GAIA, OSWorld, WebArena, tau2, Terminal-Bench, MCP evals
+- [ ] `measurement/topic_benchmarks/coding` Coding benchmarks: HumanEval to SWE-bench Pro
+- [ ] `measurement/topic_benchmarks/human_preference_and_arenas` Human preference and arenas
+- [ ] `measurement/topic_benchmarks/knowledge_and_reasoning` Knowledge and reasoning benchmarks: MMLU family, GPQA, HLE, ARC-AGI
+- [ ] `measurement/topic_benchmarks/long_context_and_multimodal` Long-context and multimodal benchmarks
+- [ ] `measurement/topic_benchmarks/math` Math benchmarks: GSM8K to FrontierMath
+- [ ] `measurement/topic_benchmarks/safety_and_honesty` Safety and honesty benchmarks
+- [ ] `measurement/topic_benchmarks` Topic: benchmarks
+- [ ] `measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation` Agent and trajectory evaluation: grading actions, not messages
+- [ ] `measurement/topic_evaluation_and_llm_judges/eval_harnesses` Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools
+- [ ] `measurement/topic_evaluation_and_llm_judges/eval_statistics` Eval statistics: error bars, paired tests, how many items you need
+- [ ] `measurement/topic_evaluation_and_llm_judges/human_evaluation_and_annotation` Human evaluation and annotation: rubrics, agreement, gold-label auditing
+- [ ] `measurement/topic_evaluation_and_llm_judges/llm_as_judge` LLM-as-judge: design, biases, calibration, reliability
+- [ ] `measurement/topic_evaluation_and_llm_judges/production_eval_engineering` Production eval engineering: gates, golden sets, shadow and A/B tests
+- [ ] `measurement/topic_evaluation_and_llm_judges/rag_and_retrieval_evaluation` RAG and retrieval evaluation: faithfulness, groundedness, retrieval metrics
+- [ ] `measurement/topic_evaluation_and_llm_judges` Topic: evaluation-and-llm-judges
+- [ ] `models_and_training/topic_data_curation_and_datasets/data_mixing` Data mixing, curricula and continued-pretraining ratios
+- [ ] `models_and_training/topic_data_curation_and_datasets/decontamination_pii_and_governance` Decontamination, PII and data governance
+- [ ] `models_and_training/topic_data_curation_and_datasets/deduplication` Deduplication: exact, MinHash, suffix arrays, semantic
+- [ ] `models_and_training/topic_data_curation_and_datasets/extraction_and_filtering` Extraction and filtering: from WARC to clean text
+- [ ] `models_and_training/topic_data_curation_and_datasets/post_training_data` Post-training data: SFT, preference, verifiable-reward and environments
+- [ ] `models_and_training/topic_data_curation_and_datasets/pretraining_corpora` Pretraining corpora: lineage, licences and what to use
+- [ ] `models_and_training/topic_data_curation_and_datasets/quality_classifiers_and_data_selection` Quality classifiers and data selection
+- [ ] `models_and_training/topic_data_curation_and_datasets/storage_and_loading` Storage and loading at scale: formats, shards, streaming
+- [ ] `models_and_training/topic_data_curation_and_datasets/synthetic_data` Synthetic data: rephrasing, textbooks and model collapse
+- [ ] `models_and_training/topic_data_curation_and_datasets` Topic: data-curation-and-datasets
+- [ ] `models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes` Autoencoders and VAEs: latents and image tokenizers
+- [ ] `models_and_training/topic_generative_and_multimodal/diffusion_from_zero` Diffusion from zero: DDPM, samplers and guidance
+- [ ] `models_and_training/topic_generative_and_multimodal/evaluating_generative_models` Evaluating generative models: FID, CLIPScore, preference and VLM benchmarks
+- [ ] `models_and_training/topic_generative_and_multimodal/flow_matching` Flow matching and rectified flow
+- [ ] `models_and_training/topic_generative_and_multimodal/latent_diffusion_and_dits` Latent diffusion and diffusion transformers
+- [ ] `models_and_training/topic_generative_and_multimodal/native_multimodal_models` Native multimodal and any-to-any models
+- [ ] `models_and_training/topic_generative_and_multimodal/video_and_audio_generation` Video and audio generation
+- [ ] `models_and_training/topic_generative_and_multimodal/vision_encoders` Vision encoders: ViT, CLIP and SigLIP
+- [ ] `models_and_training/topic_generative_and_multimodal/vision_language_models` Vision-language models: how images become tokens
+- [ ] `models_and_training/topic_generative_and_multimodal` Topic: generative-and-multimodal
+- [ ] `models_and_training/topic_llm_architecture/attention_variants` Attention variants: MHA, MQA, GQA, MLA, sliding window, sparse attention and sinks
+- [ ] `models_and_training/topic_llm_architecture/beyond_attention` Beyond attention: SSMs, Mamba, linear attention, RWKV and hybrids
+- [ ] `models_and_training/topic_llm_architecture/families_and_objectives` Families and objectives: decoder-only, encoders, encoder-decoder, multi-token prediction, diffusion LMs
+- [ ] `models_and_training/topic_llm_architecture/llm_architecture_gallery` LLM Architecture Gallery (rasbt) and the architectural deltas that matter
+- [ ] `models_and_training/topic_llm_architecture/long_context` Long context: KV cache growth and compression, local and global attention, effective context
+- [ ] `models_and_training/topic_llm_architecture/mixture_of_experts` Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism
+- [ ] `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability` Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
+- [ ] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
+- [ ] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
+- [ ] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
+- [ ] `models_and_training/topic_llm_architecture` Topic: llm-architecture
+- [ ] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
+- [ ] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
+- [ ] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
+- [ ] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
+- [ ] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
+- [ ] `models_and_training/topic_llm_landscape/minimax` MiniMax
+- [ ] `models_and_training/topic_llm_landscape/mistral_ai` Mistral AI
+- [ ] `models_and_training/topic_llm_landscape/moonshot_ai_kimi` Moonshot AI: Kimi
+- [ ] `models_and_training/topic_llm_landscape/openai_gpt_family` OpenAI: GPT family
+- [ ] `models_and_training/topic_llm_landscape/other_notable_providers` Other notable providers
+- [ ] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
+- [ ] `models_and_training/topic_llm_landscape/xai_spacexai_grok` xAI / SpaceXAI: Grok
+- [ ] `models_and_training/topic_llm_landscape/zhipu_glm` Zhipu: GLM
+- [ ] `models_and_training/topic_llm_landscape` Topic: llm-landscape
+- [ ] `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` Alignment: SFT, RLHF, DPO Family, RLVR
+- [ ] `models_and_training/topic_llm_training_and_post_training/distillation_and_small_language_models` Distillation and Small Language Models
+- [ ] `models_and_training/topic_llm_training_and_post_training/distributed_training` Distributed Training
+- [ ] `models_and_training/topic_llm_training_and_post_training/peft` Parameter-Efficient Fine-Tuning (PEFT)
+- [ ] `models_and_training/topic_llm_training_and_post_training/pretraining` Pretraining
+- [ ] `models_and_training/topic_llm_training_and_post_training/quantization_and_precision` Quantization and Precision
+- [ ] `models_and_training/topic_llm_training_and_post_training/reward_hacking` Reward Hacking
+- [ ] `models_and_training/topic_llm_training_and_post_training` Topic: llm-training-and-post-training
+- [ ] `models_and_training/topic_ml_fundamentals/activation_functions` Activation functions
+- [ ] `models_and_training/topic_ml_fundamentals/classical_ml` Classical ML
+- [ ] `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning` Contrastive and self-supervised learning
+- [ ] `models_and_training/topic_ml_fundamentals/evaluation_metrics` Evaluation metrics
+- [ ] `models_and_training/topic_ml_fundamentals/loss_functions` Loss functions
+- [ ] `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` Normalisation and initialisation
+- [ ] `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` Optimisers and learning-rate schedulers
+- [ ] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
+- [ ] `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer` Sequence models: the pre-transformer lineage
+- [ ] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack` The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores` Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy` GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness` Profiling, benchmarking and correctness: Nsight, honest timing, numerical checks
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/programming_model` The CUDA programming model: threads, warps, blocks, launches, occupancy
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu` Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/triton_and_gluon` Triton and Gluon: block-level kernels, autotuning, what the compiler does
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels` Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention
+- [ ] `systems_and_performance/topic_cuda_and_gpu_programming` Topic: cuda-and-gpu-programming
+- [ ] `systems_and_performance/topic_hardware/gpu_architecture` GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin
+- [ ] `systems_and_performance/topic_hardware/interconnects_and_scaling` Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism
+- [ ] `systems_and_performance/topic_hardware/memory_technology` Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache
+- [ ] `systems_and_performance/topic_hardware/performance_math` Performance math: FLOPs, memory, MFU, tokens per second, costing a run
+- [ ] `systems_and_performance/topic_hardware/power_cooling_and_reliability` Power, cooling, reliability and the data centre: failures at scale, the per-gigawatt view
+- [ ] `systems_and_performance/topic_hardware/tpus_and_other_accelerators` TPUs and other accelerators: systolic arrays, TPU pods, AMD, Trainium, Groq, Cerebras
+- [ ] `systems_and_performance/topic_hardware` Topic: hardware
+- [ ] `systems_and_performance/topic_inference_and_serving/batching_kv_cache_and_scheduling` Batching, KV cache and scheduling in depth
+- [ ] `systems_and_performance/topic_inference_and_serving/distributed_and_disaggregated_serving` Distributed and disaggregated serving: Dynamo, llm-d, TensorRT-LLM, Triton
+- [ ] `systems_and_performance/topic_inference_and_serving/llm_serving_in_production` LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing
+- [ ] `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference` Local and on-device inference: llama.cpp, Ollama, MLX
+- [ ] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
+- [ ] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
+- [ ] `systems_and_performance/topic_inference_and_serving/speculative_decoding` Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover
+- [ ] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
+- [ ] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
+- [ ] `systems_and_performance/topic_jax_and_tpu/jax_core` JAX core: arrays, tracing, jit, grad, vmap and pytrees
+- [ ] `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases` JAX LLM codebases: MaxText, Tunix, levanter
+- [ ] `systems_and_performance/topic_jax_and_tpu/pallas_kernels` Pallas kernels
+- [ ] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
+- [ ] `systems_and_performance/topic_jax_and_tpu/sharding_and_scale` Sharding and scale: Mesh, GSPMD, shard_map and multi-host
+- [ ] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
+- [ ] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
+- [ ] `systems_and_performance/topic_jax_and_tpu/xla_and_compilation` XLA and compilation: jaxprs, StableHLO, fusion and recompiles
+- [ ] `systems_and_performance/topic_jax_and_tpu` Topic: jax-and-tpu
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy` Cluster anatomy: nodes, GPUs, networks and storage tiers
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale` Fault tolerance at scale: failures, checkpoint/restart and elastic training
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml` Kubernetes for ML: scheduling, device plugins, gang scheduling and operators
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training` Launching distributed training: torchrun, rendezvous, NCCL and hangs
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows` ML platforms and workflows: pipelines, experiment tracking and model registry
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost` Observability and cost: GPU metrics, goodput, utilisation and capacity planning
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/ray` Ray: tasks, actors, the object store and Ray Train
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/slurm` Slurm from zero: allocation, gang scheduling, fairshare and preemption
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement` Storage and data movement: parallel file systems, object storage and checkpoint I/O
+- [ ] `systems_and_performance/topic_ml_infra_and_orchestration` Topic: ml-infra-and-orchestration
+- [ ] `systems_and_performance/topic_pytorch_ecosystem/distributed_pytorch` Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP
+- [ ] `systems_and_performance/topic_pytorch_ecosystem/extending_pytorch` Extending PyTorch: custom ops, tensor subclasses, kernels
+- [ ] `systems_and_performance/topic_pytorch_ecosystem/libraries_on_top_of_pytorch` Libraries on top of PyTorch: HF stack, torchtitan, Lightning, Axolotl, DeepSpeed
+- [ ] `systems_and_performance/topic_pytorch_ecosystem/making_training_fast` Making training fast: profiling, memory, attention, torchao
+- [ ] `systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd` Tensors, the dispatcher and autograd
+- [ ] `systems_and_performance/topic_pytorch_ecosystem/torch_compile` torch.compile from the user's side
+- [ ] `systems_and_performance/topic_pytorch_ecosystem` Topic: pytorch-ecosystem
+- [ ] `whats_new/papers/agora` Agora: Git as Shared Memory for Collective AutoResearch
+- [ ] `whats_new/papers/bert` BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding
+- [ ] `whats_new/papers/bitune` Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
+- [ ] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
+- [ ] `whats_new/papers/clip` Learning Transferable Visual Models From Natural Language Supervision (CLIP)
+- [ ] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
+- [ ] `whats_new/papers/context_language_models` Context Language Models
+- [ ] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
+- [ ] `whats_new/papers/deepseek_r1` DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
+- [ ] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
+- [ ] `whats_new/papers/deepseekmath` DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
+- [ ] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
+- [ ] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
+- [ ] `whats_new/papers/dpo` Direct Preference Optimization: Your Language Model is Secretly a Reward Model
+- [ ] `whats_new/papers/dream_rsi` Dream-RSI: Recursive Self-Improvement through Evolving Worlds
+- [ ] `whats_new/papers/dsec` DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale
+- [ ] `whats_new/papers/emergence_world` Emergence World: Adversarial Stress-Testing of Long-Horizon Multi-Agent Systems
+- [ ] `whats_new/papers/encoder_decoder_gemma_and_t5gemma_2` Encoder-Decoder Gemma and T5Gemma 2
+- [ ] `whats_new/papers/envharness` EnvHarness: Awakening Static Worlds for Agent Learning
+- [ ] `whats_new/papers/fair_cast` bf16 Rounding Silently Discards Most RL Policy Updates (Fair Cast)
+- [ ] `whats_new/papers/flashattention` FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
+- [ ] `whats_new/papers/gpt_3` Language Models are Few-Shot Learners (GPT-3)
+- [ ] `whats_new/papers/graft` GRAFT: Gradient Routing Localizes and Removes Unintended Behaviors in RL
+- [ ] `whats_new/papers/harnessdev` HarnessDev: Can LLMs Create and Evolve Their Own Agent Harness?
+- [ ] `whats_new/papers/instructgpt` Training language models to follow instructions with human feedback (InstructGPT)
+- [ ] `whats_new/papers/jit_agent` JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
+- [ ] `whats_new/papers/just_in_time_memory` Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
+- [ ] `whats_new/papers/latent_context_language_models` End-to-End Context Compression at Scale (Latent Context Language Models)
+- [ ] `whats_new/papers/ldm_stable_diffusion` High-Resolution Image Synthesis with Latent Diffusion Models (LDM / Stable Diffusion)
+- [ ] `whats_new/papers/learn_whats_left_not_whats_mastered` Learn What's Left, Not What's Mastered: Saturation Aware Advantage Reweighting for Multi-Reward Policy Optimization
+- [ ] `whats_new/papers/llama_3_herd` The Llama 3 Herd of Models
+- [ ] `whats_new/papers/llm_modules` LLM Modules: Knowledge Transfer from a Large to a Small Model using Enhanced Cross-Attention
+- [ ] `whats_new/papers/lora` LoRA: Low-Rank Adaptation of Large Language Models
+- [ ] `whats_new/papers/mamba` Mamba: Linear-Time Sequence Modeling with Selective State Spaces
+- [ ] `whats_new/papers/megatron_lm` Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism
+- [ ] `whats_new/papers/mixtral_of_experts` Mixtral of Experts
+- [ ] `whats_new/papers/moe_training_memory_bottlenecks` Bounding the memory bottlenecks of large mixture-of-experts training
+- [ ] `whats_new/papers/mole` MOLE: Detecting Insider Threats in AI Agents
+- [ ] `whats_new/papers/neohorse_1` NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness
+- [ ] `whats_new/papers/olmo_2` 2 OLMo 2 Furious (OLMo 2)
+- [ ] `whats_new/papers/on_policy_or_off_policy_learning` On-Policy or Off-Policy Learning? A Systematic Study of Distillation Dynamics
+- [ ] `whats_new/papers/pagedattention` Efficient Memory Management for Large Language Model Serving with PagedAttention
+- [ ] `whats_new/papers/phi_bench` Φ-Bench: Can Large Language Models Engineer the Infrastructure That Powers Them?
+- [ ] `whats_new/papers/prime_agent` Prime Agent: A Self-Improving RLM Harness
+- [ ] `whats_new/papers/proactive_memory_agent` Proactive Memory Agent: selective reminding for long-horizon agents
+- [ ] `whats_new/papers/qlora` QLoRA: Efficient Finetuning of Quantized LLMs
+- [ ] `whats_new/papers/qwen3_technical_report` Qwen3 Technical Report
+- [ ] `whats_new/papers/rag` Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks
+- [ ] `whats_new/papers/re_grading_six_physics_benchmarks` Re-grading six physics benchmarks: most model failures were the test's fault
+- [ ] `whats_new/papers/react` ReAct: Synergizing Reasoning and Acting in Language Models
+- [ ] `whats_new/papers/repo_to_skill` Repo-To-Skill: Distilling GitHub Repositories Into AI4AI Skills
+- [ ] `whats_new/papers/rocketeval` RocketEval: Efficient Automated LLM Evaluation via Grading Checklist
+- [ ] `whats_new/papers/roformer` RoFormer: Enhanced Transformer with Rotary Position Embedding
+- [ ] `whats_new/papers/rrsi` RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
+- [ ] `whats_new/papers/scaffold_computational_separations` Understanding the Benefits of Scaffolds through Computational Separations
+- [ ] `whats_new/papers/scaling_laws_for_neural_language_models` Scaling Laws for Neural Language Models
+- [ ] `whats_new/papers/schrodingers_code_repository` Schrödinger's Code Repository: Have LLMs Learned SWE-bench or Memorized It?
+- [ ] `whats_new/papers/seq_vs_seq` Seq vs Seq: An Open Suite of Paired Encoders and Decoders (Ettin)
+- [ ] `whats_new/papers/sharpening_tax` Sharpening Tax in Post-Training
+- [ ] `whats_new/papers/sol_pi` SoL-Pi: Recursively Scaling Auto-Research Loops for Efficient Agent Harness
+- [ ] `whats_new/papers/statem` StateM: Reaching 95.3% Raw Accuracy, or a $15 Frontier Run, on Terminal-Bench 2.1 via Harness Scaling
+- [ ] `whats_new/papers/switch_transformers` Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity
+- [ ] `whats_new/papers/t5` Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer (T5)
+- [ ] `whats_new/papers/terminal_universe` Terminal-Universe: Turning Agent Trajectories into Scalable Terminal Environments
+- [ ] `whats_new/papers/trained_persistent_memory` Trained Persistent Memory for Frozen Encoder-Decoder LLMs: Six Architectural Methods
+- [ ] `whats_new/papers/vit` An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale (ViT)
+- [ ] `whats_new/papers/wsm` WSM: Decay-Free Learning Rate Schedule via Checkpoint Merging for LLM Pre-training
+- [ ] `whats_new/papers/zero` ZeRO: Memory Optimizations Toward Training Trillion Parameter Models
+- [ ] `whats_new/tech_news/2026_08_24_tech_news` 2026-08-24: tech news
+- [ ] `whats_new/tech_news/2026_08_31_tech_news` 2026-08-31: tech news
+- [ ] `whats_new/tech_news/2026_09_07_tech_news` 2026-09-07: tech news
+- [ ] `whats_new/tech_news/2026_09_14_tech_news` 2026-09-14: tech news
+- [ ] `whats_new/tech_news/2026_09_21_tech_news` 2026-09-21: tech news
+- [ ] `whats_new/tech_news/2026_09_28_tech_news` 2026-09-28: tech news
+- [ ] `whats_new/tech_news/2026_10_19_tech_news` 2026-10-19: tech news
+- [ ] `whats_new/tech_news/2026_10_26_tech_news` 2026-10-26: tech news
+- [ ] `whats_new/tech_news/2026_11_02_tech_news` 2026-11-02: tech news

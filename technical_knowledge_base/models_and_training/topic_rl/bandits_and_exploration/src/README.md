@@ -2,7 +2,7 @@ Source of the interactive HTML on the Notion page "Bandits and exploration" (chi
 
 Build: `sh build.sh` writes `../index.html` (part order in the comment at the top of build.sh; the reading times replace RT_CORE and RT_DEPTH).
 Data: `node make_data.mjs` writes `parts/22_js_bx_0data.js` (the hero, the regret chart's 200-run view and the A/B card, from the page's own engine, about 10 s); `node make_data.mjs --check` confirms the committed part equals a fresh run.
-Checks: `python3 recompute.py && node check_engine.mjs` (Python reference against the page's engine; 48,927 values, 0 mismatches); `node check_page.mjs [light|dark] [width]` from the page folder drives every control in headless Chrome (and checks that no animation moves before the reader acts) and screenshots into `../.shots/`; `sh html_utils/checkpage.sh <page folder>`. `recompute_output.txt` is the output of `python3 recompute.py --full` (2,000 testbed tasks in Python).
+Checks: `python3 recompute.py && node check_engine.mjs` (Python reference against the page's engine; 48,927 values, 0 mismatches); `node src/check_page.mjs [light|dark] [width] [--testbed]` from the page folder drives every control in headless Chrome at 1400 light, 920 light and 390 dark (no arguments), checks that every 3D stage plays by itself once scrolled into view, reaches its last step, has one list item per step and does not move under reduced motion, checks the step lists' numbers against the engine, and screenshots into `../.shots/` (`--testbed` also runs all seven testbed figures); `sh html_utils/checkpage.sh <page folder>`. `recompute_output.txt` is the output of `python3 recompute.py --full` (2,000 testbed tasks in Python).
 
 Old text: none. The Notion page was new, with only a placeholder line, so there is no `live.md` and no `coverage.json`.
 
@@ -47,3 +47,30 @@ Why about 23 minutes is right: the page owns the whole of exploration, from the 
 None. This is a mechanism page; no physical object would teach anything here, and the canonical figures (Sutton and Barto 2.2 to 2.6) are reproduced live on the testbed tab rather than embedded.
 
 2026-10-24 (topic close of Topic: rl): Further reading quotes the root as "17 min, plus 2" and siblings and neighbours as their headers; section 2's gradient bandit block links Policy gradients sections 2 and 4; ledger keys that quoted old times re-keyed.
+
+## The 2026-11-06 pass: split layout, 3D stages, explained step lists, autoplay
+Khalid's standing rules of 2026-11-06 (`teaching/teaching-contract.md` "Page layout", `visuals/mechanics.md`, `visuals/three-d.md`), with the Attention Is All You Need paper page as the reference.
+- **Split layout everywhere a section has a visual** (`parts/02_split.html`, the skill template, unchanged): text left, visual right and sticky from 1100 px. Full width: section 1 (no visual), "You need", new terms and the one-screen table, "Where bandits are used", the families table and its details, sections 7 and Mistakes, and the testbed tab's notes.
+- **Three 3D stages** (`parts/25_js_s3.js`, the template, unchanged; one scene per file):
+  - `32_js_sc_hr.js`, the hero (replaces the 2D `23_js_hero.js`): the three arms' evidence as piles of pulls (wins green), estimates as bars on a value scale, UCB's bonus as translucent blocks, Thompson's Beta(1 + wins, 1 + losses) posteriors as shapes with their 83 / 17 / 0.7% shares, then the bill as four regret walls over 10,000 pulls. Data: `BXD.hero` (unchanged `make_data.mjs` output).
+  - `33_js_sc_bd.js`, section 3 (new): five strategies by five arms as a bar field (height: share of the row's pulls on that arm; a regret block per row), stepping through pulls 0, 5, 30, 100, 300 of seed 3 and animating pull by pull between them. Data: `BX.banditRun` on `BX.banditTable(3)`.
+  - `34_js_sc_gx.js`, section 6 (replaces the 2D `26_js_gx.js` animation): the 14 x 7 gridworld with visits per cell as bars (log scale, fixed to the run's final maximum) and the episode's path walking over them, episodes 0, 1, 10, 50, 200, 500 of seed 1, one step list per mode (the chips swap the list and replay). Data: `BX.gxRun`. The 20-seed table moved into this file.
+- **Step lists** (`ol.sx`) on the left of each stage, one item per step; the numbers they quote (pull counts, regrets, cells, episodes) are recomputed from the engine by `check_page.mjs` and fail it if they drift. The old caption carousels (script-drawn captions of the two animations) became these lists.
+- **The 2D strategies animation became a pull-by-pull explorer** (`24_js_bd.js`, beside UCB and Thompson): it kept its estimates, UCB whiskers, sideways posteriors, regret curves, seeds and counters, but a scrubber and back and forward buttons replace `RD.anim` (300 one-pull steps cannot each have an explained list item; the overview now plays in the 3D stage). It opens on UCB at pull 40.
+- **Motion:** `21_js_rd_common.js` and `99_js_tabs.js` are the current templates (storage key `rlband-tab`; this page's number helpers appended). The stages play when at least half in view, pause off screen, stop for good on any control or at the last step, never move under reduced motion. `RD.anim` is no longer used on this page.
+- **Kept 2D**: the weights slider (a parameter against bar weights), the regret chart (log axis), the A/B before/after (two curves over visitors), the bandit/contextual/MDP ladder and the replay table (structure and a table), the testbed charts (learning curves). None has spatial structure that depth would show.
+- **Predict prompts** moved out of the cards into the left column; the testbed tab is a split (controls and charts right, its notes and reproduction box left).
+- `05z_errbox.js.html` ignores the browser's benign "ResizeObserver loop" notice: the template stage's ResizeObserver redraws and resizes its card in the same frame at some widths, which Chrome reports as an error event (seen at 1400 px).
+
+### Length judgement
+| | Before (2026-11-06 audit) | After |
+|---|---|---|
+| Reading, core (230 words a minute) | 23.5 min (5,413 words) | 27.9 min (6,428) |
+| Reading, closed details | 8.8 min (2,018) | 8.8 min (2,018) |
+| 10-armed testbed tab | 2.8 min (641) | 2.8 min (641) |
+| Visuals drawn in Reading | 9 | 9 (3 of them 3D stages) |
+
+The growth is the step lists: about 330 words for the hero, 390 for the strategies stage and 3 x 230 for the gridworld's three modes (a reader follows one mode at a time, so about 26 minutes is what one pass costs). What they say was partly script-drawn caption text before; the rest is the reading of each stage that the rules now require on the page. Nothing was re-condensed beyond removing what the lists duplicated (the hero's caption paragraph, the gridworld caption's per-mode settings).
+
+### Ledger
+`python3 html_utils/ledger.py check`: 284 units (core 209, depth 61, owned 3, fat 11), problems 0. No unit changed label; the key "set every Q to 1" now sits in the optimistic step list.

@@ -15,7 +15,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 **Anatomy of the reference (the DeepSeek MLA explainer, Khalid's favourite).** `models_and_training/topic_llm_landscape/deepseek/src/parts/18_js_mlx.js`, in the Reading tab's MLA section.
 - **One input, two methods.** One token through one attention layer under MLA (compress to a 512-number latent, add the 64-number decoupled RoPE key, cache 576 numbers, rebuild heads in prefill, absorb in decode), and a toggle that runs the same token through standard multi-head attention.
 - **Drawn to scale.** One square is 64 numbers, so 576 against 32,768 numbers cached per token per layer is visible as area, not just stated. The scale is printed on the card.
-- **A caption for every step** (in HTML beside the drawing): what happens and why it matters, with the formula and the number at that step. Seven steps each way.
+- **An explanation for every step** (now a step-list item on the left, in HTML): what happens and why it matters, with the formula and the number at that step. Seven steps each way.
 - **Running counters** that tie the picture to the numbers the text quotes (numbers cached, bytes per token over 61 layers, read per decoded token).
 - **Controls:** play and pause, step back and forward, a scrubber over the steps, and a speed control (0.5x, 1x, 2x), so a reader can stop on the step they are thinking about.
 - **Good manners:** it plays by itself once in view, pauses off screen, stops for good when the reader takes a control or reaches the last step ([mechanics.md](mechanics.md), Khalid 2026-11-06), and under `prefers-reduced-motion` never moves by itself and steps without tweening.
@@ -38,7 +38,7 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **When to use it.** A process with a clear order whose intermediate states matter (encode, quantise, decode; patchify, project, merge into the language model; gather, compute, reduce-scatter). If there is an earlier method, make it type 1 instead.
 
-**What makes it good.** Real intermediate values (real vectors, real token counts, real shapes) instead of decorative ones; a caption per stage with the shape and the number; counters that end on a number the text quotes.
+**What makes it good.** Real intermediate values (real vectors, real token counts, real shapes) instead of decorative ones; a step-list item per stage with the shape and the number; counters that end on a number the text quotes.
 
 **Reference folders.**
 - `models_and_training/topic_generative_and_multimodal/src/parts/31_js_lt_2walk.js`: one image through each autoencoder model, five stages.
@@ -219,6 +219,8 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 
 **What makes it good.** Same layout in every frame so only the change moves; the caption says what changed and why; the frame count is shown ("step 3 of 8"). `RD.anim` with tweening off does this.
 
+**Long replays.** **More than about 12 frames: an episode walked state by state, hundreds of pulls or episodes) are never one step per frame** (2026-11-06). Either (a) the motion is the point: group it into at most about 8 explained stretches, one `ol.sx` item per stretch, each stretch playing its frames during its step, with the normal autoplay rules (the four-learner stage on Model-free prediction and control); or (b) the outcome of a run the reader drives is the point (seeds, a learning rate, a 500-episode curve): it is a widget, with no autoplay and no step list, opening on an informative frame and explained by the paragraph on its left. A live per-frame caption may sit under either, but is never the only explanation.
+
 ## 16. Real image
 
 **What it is.** A photo or a source's own figure: a GPU die, an HBM stack, a rack, a paper's architecture figure that people cite, a real dashboard or log.
@@ -230,10 +232,10 @@ Most pages need two or three of these, not ten. Every type below still has to pa
 ## 17. 3D stage (stacks, shapes, many matrices, spatial systems)
 **Reference:** the Attention Is All You Need paper page, every section of The paper tab (2026-11-06).
 **When to use it.** When the concept has real spatial structure or depth separates what a flat drawing overlaps: the model's two stacks, a vector splitting into heads, an FFN's expansion, attention weights of four heads as bar fields, a causal mask as walls. Reasonable, never forced; Khalid prefers one to none.
-**What makes it good.** A step list on the left explains each step; real numbers from the page's toy model or recomputation; upright labels; the rest fades while a step highlights its part; drag to turn. How to build: [three-d.md](three-d.md).
+**What makes it good.** A step list on the left explains each step; real numbers from the page's toy model or recomputation; a few large objects per step (the camera glides in close when a step is about one item); glass plates for matrices and flowing dots where data moves; upright labels; drag to turn. Reference: Fig. 3 on that page. How to build: [three-d.md](three-d.md).
 
 ## Patterns that were rejected (do not rebuild)
-- Endless loops and idle motion (a model spinning, a pulse that never stops): autoplay plays the explained steps once and stops; the reader can always stop on a step.
+- Endless loops and idle motion (a model spinning, a pulse that never stops): autoplay plays the explained steps once and stops; the reader can always stop on a step. The one exception is a flow (dots streaming along the path data takes in a 3D stage), which shows something real moving.
 - The same concept drawn again on a second page (link the owner's visual).
 - A visual of a single number with nothing to move.
 - Data that exists only as figure images (read printed labels or decode vector figures; never read curves by eye).

@@ -52,25 +52,34 @@ U.chart=function(el,o){const W=Math.max(260,Math.round(el.clientWidth||300)),H=o
 U.legend=function(el,items,on,cb){el.innerHTML=items.map(it=>'<button data-k="'+it.k+'" class="'+(on[it.k]===false?'off':'')+'" aria-pressed="'+(on[it.k]!==false)+'"><i class="'+(it.dash?'d':'')+'" style="border-color:'+it.c+'"></i>'+it.lab+'</button>').join('');
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>{const k=b.dataset.k;on[k]=on[k]===false;cb()})};
 U.checks=function(el,rows){el.innerHTML=rows.map(r=>'<li><span class="'+(r[0]===true?'lb-ok':r[0]===false?'lb-no':'lb-in')+'">'+(r[0]===true?'✓':r[0]===false?'✗':'•')+'</span><span>'+r[1]+'</span></li>').join('')};
-// transport: play, back, step, speed, frame counter and scrubber; animates only while its section is on screen and the tab is visible, and never by itself
+// transport: play, back, step, speed, frame counter and scrubber. Motion rules (Khalid, 2026-11-06): it plays by itself once at least half of its card
+// (or half the window, for a card taller than the window) is on screen in the visible tab, pauses off screen and resumes on return, stops for good
+// once the reader takes any control in the card (except the speed) or it reaches its last frame, and never moves by itself under reduced motion
 U.anim=function(o){const tr=$(o.p+'-tr'),sec=o.sec;
   tr.innerHTML='<button class="lb-pl" id="'+o.p+'-play" aria-pressed="false">Play</button><button id="'+o.p+'-back" aria-label="Step back">&#9664; Back</button><button id="'+o.p+'-fwd" aria-label="Step forward">Step &#9654;</button>'+
     '<label>Speed <select id="'+o.p+'-spd">'+o.speeds.map((s,i)=>'<option value="'+i+'"'+(i===(o.def||0)?' selected':'')+'>'+s[0]+'</option>').join('')+'</select></label><span class="fn" id="'+o.p+'-fn"></span>';
   const sc=document.createElement('div');sc.className='lb-scr';sc.innerHTML='<span>'+(o.scrubLabel||'Scrub')+'</span><input type="range" id="'+o.p+'-scr" min="0" max="0" value="0" aria-label="'+(o.scrubLabel||'Frame shown')+'">';tr.after(sc);
-  const A={i:0,playing:false,acc:0,raf:0,last:0},play=$(o.p+'-play'),scr=$(o.p+'-scr'),spd=$(o.p+'-spd');
+  const A={i:0,playing:false,acc:0,raf:0,last:0,user:false,ended:false,half:false},play=$(o.p+'-play'),scr=$(o.p+'-scr'),spd=$(o.p+'-spd');
   function show(){const n=o.n();A.i=Math.max(0,Math.min(n-1,A.i));scr.max=String(o.scrubMax?o.scrubMax():n-1);scr.value=String(o.toScrub?o.toScrub(A.i):A.i);$(o.p+'-fn').textContent=o.label(A.i);o.draw(A.i)}
   function setPlay(on){A.playing=on;play.textContent=on?'Pause':(A.i>=o.n()-1?'Replay':'Play');play.setAttribute('aria-pressed',String(on));if(on){if(A.i>=o.n()-1){A.i=0;show()}kick()}}
   function kick(){if(!A.raf&&A.playing){A.last=0;A.raf=requestAnimationFrame(frame)}}
-  function frame(ts){A.raf=0;if(!A.playing)return;if(!U.vis(sec)||(sec&&!sec._iv))return;
+  function frame(ts){A.raf=0;if(!A.playing)return;if(!U.vis(sec)||(sec&&!A.half))return;
     if(!A.last)A.last=ts;const dt=Math.min(0.25,(ts-A.last)/1000);A.last=ts;const sp=o.speeds[+spd.value];A.acc+=dt*sp[1];
-    if(A.acc>=1){const k=Math.floor(A.acc);A.acc-=k;A.i=o.adv?o.adv(A.i,k,+spd.value):Math.min(o.n()-1,A.i+k);show();if(A.i>=o.n()-1){setPlay(false);return}}
+    if(A.acc>=1){const k=Math.floor(A.acc);A.acc-=k;A.i=o.adv?o.adv(A.i,k,+spd.value):Math.min(o.n()-1,A.i+k);show();if(A.i>=o.n()-1){A.ended=true;setPlay(false);return}}
     A.raf=requestAnimationFrame(frame)}
-  play.onclick=()=>setPlay(!A.playing);
+  play.onclick=()=>{A.user=true;setPlay(!A.playing)};
   $(o.p+'-fwd').onclick=()=>{setPlay(false);A.i=o.adv?o.adv(A.i,1,+spd.value):A.i+1;show()};
   $(o.p+'-back').onclick=()=>{setPlay(false);A.i=o.back?o.back(A.i):Math.max(0,A.i-1);show()};
   scr.oninput=()=>{setPlay(false);A.i=o.fromScrub?o.fromScrub(+scr.value):+scr.value;show()};
   A.show=show;A.setPlay=setPlay;A.kick=kick;A.set=i=>{A.i=i;show()};
-  if(sec)U.watch(sec,()=>kick());// never autoplays: it waits until the reader presses Play or steps
+  // a reader control anywhere in the card (a step, the scrubber, a jump, a select, a legend) stops autoplay for good; the speed does not
+  if(sec){const stop=e=>{const t=e.target;if(!t.closest||!t.closest('button,select,input')||t===play||t===spd)return;A.user=true;if(A.playing)setPlay(false)};
+    sec.addEventListener('click',stop,true);sec.addEventListener('change',stop,true);sec.addEventListener('input',stop,true)}
+  function auto(){if(U.RM||A.user||A.ended||A.playing||!U.vis(sec)||(sec&&sec.offsetParent===null))return;setPlay(true)}
+  if(sec&&'IntersectionObserver' in window)new IntersectionObserver(es=>{const e=es[es.length-1];A.half=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+    if(A.half)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(sec);else A.half=true;
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick()});
+  A.auto=auto;
   return A};
 U.seg=function(el,cb){el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b))});cb(b)})};
 

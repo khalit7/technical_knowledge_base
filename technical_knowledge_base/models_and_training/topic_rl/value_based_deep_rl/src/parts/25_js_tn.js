@@ -2,7 +2,7 @@
 (function(){
   const E=window.VBE;const CS=[1,2,3,5,10,20,40,0];// 0 = fitted Q iteration (C = infinity)
   const Cs=document.getElementById('vb-tnC'),Ds=document.getElementById('vb-tnD'),As=document.getElementById('vb-tnA'),Vp=document.getElementById('vb-tnV'),Ep=document.getElementById('vb-tnE'),
-    Tt=document.getElementById('vb-tnT'),Xp=document.getElementById('vb-tnX'),Nc=document.getElementById('vb-tnN');
+    Nc=document.getElementById('vb-tnN');
   const G=0.9,STEPS=120;let mode='on';
   const par=()=>({C:CS[+Cs.value],d1:+Ds.value/100,a:+As.value/100});
   const cName=C=>C===0?'∞ (fitted Q iteration)':String(C);
@@ -10,7 +10,30 @@
   let cache=null,key='';
   function get(){const p=par(),k=p.C+'|'+p.d1+'|'+p.a;if(k!==key){key=k;cache=runs()}return cache}
   const tv=E.tnetTrue(G);const err=o=>Math.max(Math.abs(o[0]-tv[0]),Math.abs(o[1]-tv[1]));
-  function draw(i){const R=get(),p=R.p;document.getElementById('vb-tnCv').textContent=cName(p.C);document.getElementById('vb-tnDv').textContent=p.d1.toFixed(2);document.getElementById('vb-tnAv').textContent=p.a.toFixed(2);
+  // six key frames per run; the step list on the left (ol#sx-tn) is written from the same run, so its numbers are the drawn ones
+  const KON=[1,3,10,30,60,120];
+  function keys(){if(mode==='on')return KON;const C=par().C;if(C===0)return [1,2,3,10,60,120];
+    let k=[...new Set([1,C,C+1,2*C+1,60,120].filter(x=>x>=1&&x<=STEPS))].sort((a,b)=>a-b);[30,90,20,40].forEach(x=>{if(k.length<6&&!k.includes(x))k.push(x)});return k.sort((a,b)=>a-b).slice(0,6)}
+  const pair=v=>'('+RD.n(v[0],2)+', '+RD.n(v[1],2)+')';
+  function writeList(){const L=document.getElementById('sx-tn');if(!L)return;const R=get(),p=R.p,K=keys(),run=mode==='on'?R.on:R.tn,C=mode==='on'?1:p.C,eOn=err(R.on[STEPS-1]),eTn=err(R.tn[STEPS-1]);
+    [...L.children].forEach((li,j)=>{const k=K[j],o=run[k-1],e=RD.n(err(o),3),y=pair([o[2],o[3]]),v=pair([o[0],o[1]]);let h;
+      if(j===K.length-1)h=mode==='on'?'<b>After '+STEPS+' updates: '+(eOn>err(R.on[0])?'diverged':'caught')+'.</b> With s<sub>1</sub> replayed '+Math.round(p.d1*100)+'% of the time, '+(eOn>err(R.on[0])?'the estimate never catches the target: the error grows to '+RD.n(eOn,1)+'.':'the estimate still catches the target here; raise the share of s<sub>1</sub> and the online run diverges.'):
+        '<b>After '+STEPS+' updates: error '+RD.n(eTn,3)+'</b>, against '+RD.n(eOn,1)+' for the online target. '+(C===0?'With features that represent the true values, fitted Q iteration is value iteration: the error shrinks by γ = 0.9 per refresh.':'The estimate converges to the true values (9, 10); a frozen target turned divergence into regression.');
+      else if(mode==='on')h=j===0?'<b>Update 1: the target is read from the weights being trained.</b> For each state <i>y</i> = <i>r</i> + γ<i>V</i>(<i>s</i><sub>2</sub>) comes from the same <b>w</b> that the update changes: target '+y+'.':
+        '<b>Update '+k+': the target has moved with the estimate.</b> '+(j===1?'Every step that raises <i>V</i>(<i>s</i><sub>1</sub>) also raises <i>V</i>(<i>s</i><sub>2</sub>) twice as much (its features are twice as large), and drags the target along. ':'')+'Estimate '+v+', target '+y+', error '+e+'.';
+      else{const since=C===0?0:(k-1)%C,fresh=C===0||since===0,nref=C===0?k:Math.floor((k-1)/C)+1;
+        h=C===0?'<b>Update '+k+': one exact regression.</b> Fitted Q iteration solves the regression onto the frozen target, so the estimate lands on it and the target then jumps. Target '+y+', error '+e+'.':
+          fresh?'<b>Update '+k+': refresh '+nref+', the target jumps.</b> The target network copies the online weights, and the target becomes <i>r</i> + γ<i>V</i><sup>−</sup>(<i>s</i><sub>2</sub>) from that copy: '+y+'. Error '+e+'.':
+          '<b>Update '+k+': the target stands still.</b> Copied '+since+' update'+(since===1?'':'s')+' ago; the estimate regresses onto it like ordinary supervised learning: estimate '+v+', target '+y+', error '+e+'.'}
+      li.innerHTML=h})}
+  // a forward step eases through the updates in between, so the chase is seen; reduced motion jumps
+  let shown=0,lastI=-1,tw=0;
+  function draw(i){const K=keys(),to=K[i]-1;if(tw){cancelAnimationFrame(tw);tw=0}
+    const fwd=i===lastI+1&&lastI>=0;lastI=i;writeList();
+    if(fwd&&!RD.RM&&to-shown>1){const from=shown,t0=performance.now(),dur=Math.min(1800,45*(to-from));
+      const f=now=>{const u=Math.min(1,(now-t0)/dur);shown=Math.round(from+(to-from)*u);paint(shown);tw=u<1?requestAnimationFrame(f):0};tw=requestAnimationFrame(f)}
+    else{shown=to;paint(to)}}
+  function paint(i){const R=get(),p=R.p;document.getElementById('vb-tnCv').textContent=cName(p.C);document.getElementById('vb-tnDv').textContent=p.d1.toFixed(2);document.getElementById('vb-tnAv').textContent=p.a.toFixed(2);
     const run=mode==='on'?R.on:R.tn,cur=run[i],C=mode==='on'?1:p.C;
     // value-space panel, clipped view around the true values
     const W=RD.width(Vp),H=230,l=34,r=10,t=10,b=26;const span=Math.max(14,Math.min(40,1.15*Math.max(...run.slice(0,i+1).map(o=>Math.max(Math.abs(o[0]),Math.abs(o[1]),Math.abs(o[2]),Math.abs(o[3]))))));
@@ -34,15 +57,11 @@
       const j=sh.length-1;c+=RD.t(X2(j)>W2-110?X2(j)-4:X2(j)+4,Y2(lg(sh[j]))+(m==='on'?-6:13),lab,{fs:10,fill:col,a:X2(j)>W2-110?'end':'start'})});
     c+=RD.t(l2,H2-8,'update 1',{fs:10,fill:'var(--mute)'})+RD.t(W2-r2,H2-8,'update '+STEPS,{a:'end',fs:10,fill:'var(--mute)'});
     Ep.innerHTML=RD.svg(W2,H2,c,'Error over updates');
-    const k=i+1,fresh=(C===0)||((k-1)%C===0);
-    Tt.textContent=(mode==='on'?'Online target':'Target network, C = '+cName(p.C))+', update '+k+' of '+STEPS+': error '+RD.n(err(cur),3);
-    Xp.innerHTML=mode==='on'?'The target (r + γV(s₂) for each state) is recomputed from the weights being trained, so every step that raises V(s₁) also raises V(s₂) twice as much and drags the target along. With s₁ replayed '+Math.round(p.d1*100)+'% of the time, the estimate '+(err(R.on[STEPS-1])>err(R.on[0])?'never catches it: the error grows to '+RD.n(err(R.on[STEPS-1]),1)+' after '+STEPS+' updates.':'still catches it here: lower the share of s₁ and the online run is stable.'):
-      (C===0?'Fitted Q iteration: each step solves the regression onto the frozen target exactly, so the estimate lands on the target and the target then jumps. With features that represent the true values, this is value iteration and the error shrinks by γ = 0.9 per refresh.':
-      (fresh?'Refresh: the target network copies the online weights, and the target jumps to r + γV<sup>−</sup>(s₂) computed from that copy. ':'The target stands still (copied '+((k-1)%C)+' update'+((k-1)%C===1?'':'s')+' ago); the estimate regresses onto it like ordinary supervised learning. ')+'Error after '+STEPS+' updates: '+RD.n(err(R.tn[STEPS-1]),3)+' against '+RD.n(err(R.on[STEPS-1]),1)+' online.');
+    const k=i+1;
     Nc.innerHTML=RD.stat('Estimate (V(s₁), V(s₂))','('+RD.n(cur[0],2)+', '+RD.n(cur[1],2)+')','true (9, 10)')+RD.stat('Target (y₁, y₂)','('+RD.n(cur[2],2)+', '+RD.n(cur[3],2)+')',mode==='on'?'moves every update':'frozen between refreshes')+RD.stat('Target refreshes',mode==='on'?k:(C===0?k:Math.floor((k-1)/C)+1),'C = '+(mode==='on'?1:cName(p.C)))}
-  const an=RD.anim({card:'vb-tn',ctl:'vb-tnK',n:STEPS,ms:220,draw,label:'Update'});
-  document.getElementById('vb-tnM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.reset(STEPS)});
-  [Cs,Ds,As].forEach(s=>s.addEventListener('input',()=>an.redraw()));RD.onResize(()=>an.redraw());
+  const an=RD.anim({card:'vb-tn',ctl:'vb-tnK',n:6,ms:4200,draw,label:'Step',list:'sx-tn'});
+  document.getElementById('vb-tnM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));lastI=-1;an.reset(6)});
+  [Cs,Ds,As].forEach(s=>s.addEventListener('input',()=>{lastI=-1;an.go(an.i)}));RD.onResize(()=>an.redraw());
   // Extended Data Table 3 of the Nature paper (transcribed from the image): replay x target network, 5 games, 10M frames
   const ED=[['Breakout',316.8,240.7,10.2,3.2],['Enduro',1006.3,831.4,141.9,29.1],['River Raid',7446.6,4102.8,2867.7,1453.0],['Seaquest',2894.4,822.6,1003.0,275.8],['Space Invaders',1088.9,826.3,373.2,302.0]];
   const LAB=['replay + target','replay only','target only','neither'],COL=['var(--c1)','var(--c6)','var(--c5)','var(--c2)'];let edm='rel';

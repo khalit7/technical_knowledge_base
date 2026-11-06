@@ -72,7 +72,7 @@
     backup(oa);chart(fi)}
   function rebuild(play){compute();$('sw-rep').innerHTML=REP[st.w].map(x=>'<li>'+x+'</li>').join('');if(an)an.reset(C.nF);else draw(0)}
   compute();
-  an=RD.anim({card:'sw-cards',ctl:'sw-ctl',n:C.nF,ms:700,draw,label:'Frame',tab:'t-lab'});
+  an=RD.anim({card:'sw-cards',ctl:'sw-ctl',n:C.nF,ms:1200,draw,label:'Frame',tab:'t-lab'});
   $('sw-rep').innerHTML=REP[st.w].map(x=>'<li>'+x+'</li>').join('');
   $('sw-w').addEventListener('change',e=>{st.w=e.target.value;st.g=D.W[st.w].g;$('sw-g').value=Math.round(st.g*100);$('sw-gv').textContent=st.g.toFixed(2);st.sel=-1;rebuild(true)});
   $('sw-g').addEventListener('change',e=>{st.g=+e.target.value/100;rebuild(true)});

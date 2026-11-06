@@ -47,3 +47,6 @@ A fair unit of cost across algorithms whose steps differ in kind (an evaluation 
 | Gambler's problem | **moved** from the Sweep lab to a closed block in section 7: one example of one method, not a cross-page tool |
 | Sweep lab | **kept as a tab**: the one tool sections 4 to 12 all use |
 | Real images | **none**: a mechanism page; Sutton and Barto's figures are CC BY-NC-ND |
+
+## 2026-11-06 (split layout and 3D)
+Built: 3D hero (backup stack, then the grid as a bar field), Figure 4.1 policy evaluation as a bar field, value iteration on Silver's grid as a bar field with the worked backup's arcs, the 4 × 3 world as a bar field with the Q-learning path. Kept 2D: sampler, student graph, contraction (log axis), curse calculator, gambler curves, corridor (three cells in a row), Sweep lab (two panels and a log chart). Rejected: a 3D corridor (no spatial structure), a 3D contraction surface (a log curve reads better flat), a 3D Sweep lab (two grids side by side already compare well, and the lab is a tool).

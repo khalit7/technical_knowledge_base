@@ -1,0 +1,32 @@
+// ---- Scene, section 7: synchronous value iteration on Silver's 4 x 4 shortest-path grid (-1 per move, gamma 1), one sweep per step,
+// computed by the page's engine. Bar height is -V; orange bars changed in this sweep; the ringed cell is the worked backup, its arcs reach the cells it reads ----
+(function(){
+  if(!document.getElementById('stg-sw')||!window.DPS)return;const {lerp,mix}=S3,D=window.DPE,G=window.DPS;
+  const w=D.W.silver,g=1,F=[D.init(w)];for(let k=0;k<20;k++){const r=D.sweep(w,F[F.length-1],g,'vi',null,false);F.push(r.V);if(r.d<1e-12)break}
+  const GR=F.map(v=>D.greedy(w,v,g)),HS=.28,NM=['up','right','down','left'];
+  const X=c=>(w.cells[c][0]-1.5)*1.0,Z=c=>(w.cells[c][1]-1.5)*1.0;
+  const changed=i=>i?[...Array(w.n).keys()].filter(s=>!w.term[s]&&Math.abs(F[i][s]-F[i-1][s])>1e-12):[];
+  // the worked backup: the changed cell farthest from the goal, else the far corner
+  const ex=i=>{const ch=changed(i);return ch.length?ch.reduce((a,b)=>(w.cells[b][0]+w.cells[b][1]>w.cells[a][0]+w.cells[a][1]?b:a)):w.id['3,3']};
+  const f=v=>{const r=Math.round(v*100)/100;return (Object.is(r,-0)?0:r).toString().replace('-','−')};
+  const nb=(s,d)=>{const [x,y]=w.cells[s],k=(x+G.DIR[d][0])+','+(y+G.DIR[d][1]);return k in w.id?w.id[k]:s};
+  function draw(R,k,e){const P=R.P;R.grid(-2.5,2.5,-2.5,2.5,.5);
+    const cur=F[k],prev=F[Math.max(0,k-1)],ch=changed(k),x0=ex(k);
+    for(let c=0;c<w.n;c++){const x=X(c),z=Z(c);
+      if(w.term[c]){G.bar(R,x,z,.03,{fill:mix(P.paper,P.c3,.6)});R.label([x,.05,z],'goal',{fs:12,b:1});continue}
+      const v=lerp(-prev[c],-cur[c],e),h=v*HS,on=ch.indexOf(c)>=0;
+      G.bar(R,x,z,h,{fill:on?mix(P.paper,P.c2,.3+.4*e):G.tint(P,P.c1,v/6),ec:k>0&&c===x0?P.ink:null,lw:k>0&&c===x0?2.4:1});
+      const acts=GR[k][c];if(acts.length<4)acts.forEach(d=>G.arrow(R,x,Math.max(.03,h),z,d,{c:P.ink,a:.75}));
+      R.label([x,Math.max(.03,h),z],f(-v),{fs:12.5,mono:1,dy:0,wide:1})}
+    // the worked backup reads its four neighbours (a move off the grid stays put)
+    if(k>0){const top=[X(x0),-prev[x0]*HS+.05,Z(x0)];R.glow(top,.55,{c:P.c2,a:.6*e});
+      for(let d=0;d<4;d++){const n=nb(x0,d);if(n===x0)continue;const to=[X(n),(w.term[n]?.05:-prev[n]*HS+.05),Z(n)];R.arc(top,to,.45,{c:P.c2,w:1.6,a:.85,t:e,top:1})}}
+    R.label([2.1,0,1.7],k===0?'start':'sweep '+k,{fs:14,b:1,al:'left',dx:8})}
+  const E=document.getElementById('dp-swE'),rc=s=>'row '+(w.cells[s][1]+1)+', column '+(w.cells[s][0]+1);
+  function readout(k){if(!E)return;if(k===0){E.innerHTML='<b>The backup:</b> <i>V</i><sub>0</sub>(<i>s</i>) = 0 everywhere; the goal is terminal and stays 0.';return}
+    const s=ex(k),q=D.qs(w,F[k-1],g,s);
+    E.innerHTML='<b>The ringed backup:</b> <i>V</i><sub>'+k+'</sub>('+rc(s)+') ← max( '+NM.map((n,a)=>n+' '+f(q[a])).join(', ')+' ) = '+f(Math.max(...q))+'<span class="mute">; each move: −1 + <i>V</i><sub>'+(k-1)+'</sub>(where it lands)</span>'}
+  const st=S3.stage({id:'stg-sw',list:'sx-sw',fig:'Fig. 3 · value iteration, one sweep per step',cam:[.38,.82],bounds:[[-2.2,0,-2.2],[2.6,1.8,2.2]],aspect:.8,draw,dur:1300,hold:4600,onStep:readout});
+  // size the card now, so the first ResizeObserver notification finds its final height
+  if(st)st.draw();
+})();

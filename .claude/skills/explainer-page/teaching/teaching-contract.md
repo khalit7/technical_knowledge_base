@@ -48,7 +48,7 @@ There is no word or minute budget. Each page is as long as its subject needs, an
 | Kind of concept | Visual |
 |---|---|
 | Structure or layout (an architecture, a memory hierarchy, a protocol's parties) | Static annotated diagram, labels on the figure |
-| A process (a request's path, a training step, a handshake) | A step sequence the reader advances, a caption per step |
+| A process (a request's path, a training step, a handshake) | A step sequence that plays when in view, its steps written out as a step list on the left |
 | A change over time that is itself the point (a cache filling, weights moving, a schedule unrolling) | Animation that plays when scrolled into view, with step and scrub controls and its steps written out on the left |
 | Spatial structure (stacked layers, tensor shapes, heads, a GPU grid, a weight matrix as heights) | A 3D stage, when reasonable ([../visuals/three-d.md](../visuals/three-d.md)) |
 | How a result depends on a parameter | One slider, defaults landing on a published figure |

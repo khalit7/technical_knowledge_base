@@ -18,12 +18,25 @@
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections"><a href="#rd-one">The idea</a><a href="#rd-mc">1 MC and TD</a><a href="#rd-dial">2 The dial</a><a href="#rd-ctl">3 Control</a><a href="#rd-sarsa">4 SARSA and Q-learning</a><a href="#rd-mx">5 Max bias</a><a href="#rd-off">6 Off-policy</a><a href="#rd-fa">7 Deadly triad</a><a href="#rd-map">8 The map</a><a href="#rd-depth">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="core">Without a model you cannot compute dynamic programming's expectation over next states, so you <b>replace it with a sample</b>: the whole return (Monte Carlo), or one real reward plus <span class="hl">your own estimate of where you landed</span> (TD). Every method on this page is one choice of that target: how many real rewards before it trusts an estimate (a bias-variance dial), and which next action it assumes (the one taken: on-policy; the best one: off-policy).</p>
-<div class="hero" id="rd-heroC"><h4>Two choices define every target: how far it looks, and which next action it trusts</h4>
-<div class="rd-two"><div class="rd-svg" id="rd-heroA"></div><div class="rd-svg" id="rd-heroB"></div></div>
-<p class="small">Left: one trajectory; each bracket is a target for <i>V</i>(<i>S<sub>t</sub></i>). Real rewards (solid) are unbiased and noisy; the <span class="hl">bootstrapped estimate</span> at the bracket's end is low-noise and possibly wrong. Right: at the next state <i>S&prime;</i>, SARSA trusts the action the agent actually takes, Expected SARSA the policy's average, Q-learning the best action, whatever the agent does.</p></div>
+<p class="sxh">Two choices define every target: how far it looks, and which next action it trusts</p>
+<ol class="sx" id="sx-hero">
+<li><b>One episode of the walk.</b> States A to E run across and time runs towards you: the episode of section 1 goes C, D, E, then off the right end, with rewards 0, 0 and 1. Every estimate starts at 0.5 (the bars).</li>
+<li><b>Dynamic programming: every successor, one step deep.</b> From C the model says B or D, each with probability 0.5, so the target 0.5 &times; V(B) + 0.5 &times; V(D) = 0.5 averages them. It needs those probabilities, which a model-free learner does not have.</li>
+<li><b>Monte Carlo: the whole sampled return.</b> Wait for the end and use what actually happened, <i>G</i> = 1. Real rewards are unbiased but carry every coin flip of the walk. With &alpha; = 0.1, V(C), V(D) and V(E) each move from 0.5 to 0.55.</li>
+<li><b>TD(0): one real reward, then trust V(D).</b> The target is 0 + V(D) = 0.5, so the TD error is 0 and V(C) stays at 0.5. The <span class="hl">bootstrapped estimate</span> at the end of the bracket is low-noise and possibly wrong.</li>
+<li><b>Two real rewards, then V(E).</b> <i>G</i><sup>(2)</sup> = 0 + 0 + V(E) = 0.5. Each extra real reward moves the target towards Monte Carlo's.</li>
+<li><b>TD(&lambda;) blends them.</b> With &lambda; = 0.5 the weights are 0.5, 0.25 and 0.25 on <i>G</i><sup>(1)</sup>, <i>G</i><sup>(2)</sup> and the full return, so <i>G</i><sup>&lambda;</sup> = 0.625, between TD's 0.5 and Monte Carlo's 1: the dial of section 2.</li>
+<li><b>The second choice: which next action.</b> A different transition, the one of section 4: beside a cliff the agent moved right, <i>R</i> = &minus;1, into <i>S&prime;</i>. The bars are now costs (&minus;<i>Q</i>): at <i>S&prime;</i>, right is worth &minus;4, up &minus;5, left &minus;6 and down, into the cliff, &minus;100. Exploration happened to pick down.</li>
+<li><b>Three targets for <i>Q</i>(S, right).</b> SARSA trusts the action actually taken: &minus;1 + (&minus;100) = &minus;101. Expected SARSA averages over the &epsilon;-greedy policy (&epsilon; = 0.1): &minus;7.475. Q-learning trusts the best action, whatever the agent does: &minus;1 + (&minus;4) = &minus;5.</li>
+</ol>
+</section>
+</div></div>
+
+<section id="rd-one-b">
 <p><b>You need:</b> the Bellman expectation backup and policy evaluation from {{Dynamic programming|n:3c65c17b0d0d81baada7e1c05ce69d01}} (this page samples its backups), and the loop, return and value vocabulary of {{Topic: rl|n:3c65c17b0d0d8195a6c6c11ad093c16e}} (its <b>Method atlas</b> tab dates every method here). &epsilon;-greedy and other exploration rules are on {{Bandits and exploration|n:3ee5c17b0d0d81acba54d70ac51c601c}}.</p>
 <dl class="terms">
 <dt>Target, step size &alpha;</dt><dd>every update is estimate &larr; estimate + &alpha;(target &minus; estimate); the methods differ only in the target.</dd>
@@ -50,6 +63,7 @@
 <p class="small mute">Rows jump to their section. The modern targets are these ones: DQN regresses a network onto the Q-learning target, PPO's critic learns a TD target and its advantage is a TD(&lambda;) average, and GRPO's end-of-sequence reward is a Monte Carlo return (section 8). Every chart below reruns a figure of Sutton and Barto's book live and seeded; numbers are published with the source linked, unless marked <i class="nl d">derived</i> (computed here, formula shown) or <i class="nl i">illustrative</i>.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-mc">
 <h2><span class="num">1</span>Monte Carlo and TD prediction: wait for the return, or trust the next estimate</h2>
 <p>The test problem is the five-state random walk ({{Sutton and Barto, Example 6.2|https://incompleteideas.net/book/RLbook2020.pdf#page=147}}): states A to E in a row, every episode starts in C and steps left or right with probability 0.5 until it falls off an end; falling off the right pays 1, every other reward is 0, &gamma; = 1. So the true value of a state is its chance of ending on the right, <i>V</i><sub>&pi;</sub> = (1/6, 2/6, 3/6, 4/6, 5/6). Estimates start at 0.5; &alpha; = 0.1. One episode: C &rarr; D &rarr; E &rarr; off the right end, rewards 0, 0, 1.</p>
@@ -68,6 +82,8 @@
 <p>TD is DP's policy-evaluation backup, <i>V</i>(<i>s</i>) &larr; E<sub>&pi;</sub>[<i>R</i> + &gamma;<i>V</i>(<i>S&prime;</i>) | <i>s</i>], with the expectation replaced by one sample and a step of size &alpha; towards it: it "updates a guess towards a guess" ({{Silver, Lecture 4|https://davidstarsilver.wordpress.com/wp-content/uploads/2025/04/lecture-4-model-free-prediction-.pdf}}).</p>
 <p class="pred">Predict, then play: over 100 walks, does any Monte Carlo step size end below the worst TD one?</p>
 
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card lbx" id="lb-rw">
 <h4>The same walks through TD(0) and Monte Carlo: TD's error stays lower at every step size</h4>
 <div class="lb-tr" id="lb-rw-tr"></div>
@@ -86,7 +102,9 @@
 <ul class="lb-chk" id="lb-rw-chk"></ul>
 <p class="small">Example 6.2 (right graph) and Figure 6.2 reproduce in shape: the book gives its curves only as images, so values are not read off them. After one episode both batch methods give 0.412, above the top of the book's axis (0.25), so the book's plot must be cut off there; it does not say.</p></div></details>
 </div>
+</div></div></div>
 
+<section id="rd-mc-b">
 <div class="tw"><table class="rd-t">
 <tr><th></th><th>Monte Carlo</th><th>TD</th></tr>
 <tr><td>Target</td><td>Actual return <i>G<sub>t</sub></i></td><td><i>R</i> + &gamma;<i>V</i>(<i>S&prime;</i>), bootstrapped</td></tr>

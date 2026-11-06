@@ -1,22 +1,24 @@
 <section id="rd-ctx">
+<div class="s3sp"><div class="s3L">
 <h2><span class="num">5</span>Contextual bandits, A/B tests, and where bandits run in production</h2>
 <p>A <b>contextual bandit</b> sees a context first (a user's features, the page being viewed), picks an action, and sees the reward of that action only; the goal is a policy from contexts to actions. Sutton and Barto call it <b>associative search</b> and place it exactly between the bandit and full RL ({{§2.9|http://incompleteideas.net/book/RLbook2020.pdf#page=63}}). It is the most deployed form of RL, because many products face exactly this loop: show something, see a click or not, never see what the other options would have earned.</p>
-<div class="card">
+<div class="co warn"><div class="t">What a bandit does not do</div>A bandit's action does not change the next context. If showing an article changes what the user does next week, or a treatment changes the patient's later state, the problem is full RL with delayed consequences, and a bandit optimising the immediate click can be confidently wrong about the long run.</div>
+</div><div class="s3R"><div class="s3side"><div class="card">
 <h4>What each step up adds: a situation to recognise, then consequences that last</h4>
 <div class="cx-grid">
 <div><div class="nm">Bandit</div><div class="cx-flow"><span>pull arm a</span><i>→</i><span>reward of a</span><i>↺ same situation</i></div><p>One situation, repeated. Only exploration is left.</p></div>
 <div><div class="nm">Contextual bandit</div><div class="cx-flow"><span class="new">context x<sub>t</sub></span><i>→</i><span>action a</span><i>→</i><span>reward of a only</span></div><p>The next context arrives whatever the agent did. Learn which action suits which context.</p></div>
 <div><div class="nm">Full RL (an MDP)</div><div class="cx-flow"><span>state s<sub>t</sub></span><i>→</i><span>action a</span><i>→</i><span>reward</span><i>+</i><span class="new">next state depends on a</span></div><p>Actions have delayed consequences: credit assignment and planning ({{Dynamic programming|n:3c65c17b0d0d81baada7e1c05ce69d01}}).</p></div>
 </div>
-</div>
-<div class="co warn"><div class="t">What a bandit does not do</div>A bandit's action does not change the next context. If showing an article changes what the user does next week, or a treatment changes the patient's later state, the problem is full RL with delayed consequences, and a bandit optimising the immediate click can be confidently wrong about the long run.</div>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>LinUCB, and evaluating a policy offline</h3>
 <p>{{Li, Chu, Langford and Schapire (2010)|https://arxiv.org/abs/1003.0146}} model each article's click probability as linear in a feature vector x<sub>t,a</sub> of user and article, fit by ridge regression, and add an upper-confidence width (their eq. 5):</p>
 <div class="fm"><div class="eq">a<sub>t</sub> = argmax<sub>a</sub> ( x<sub>t,a</sub><sup>⊤</sup> θ̂<sub>a</sub> + α √( x<sub>t,a</sub><sup>⊤</sup> A<sub>a</sub><sup>−1</sup> x<sub>t,a</sub> ) )</div>
 <dl><dt>A<sub>a</sub></dt><dd>= I + Σ x x<sup>⊤</sup> over the contexts where a was shown: how much evidence there is in each feature direction</dd><dt>θ̂<sub>a</sub></dt><dd>= A<sub>a</sub><sup>−1</sup> b<sub>a</sub>, with b<sub>a</sub> = Σ (reward) x: the ridge-regression estimate</dd><dt>√(x<sup>⊤</sup>A<sup>−1</sup>x)</dt><dd>the standard deviation of the prediction in this context's direction; it plays the part of √(ln t / N) in UCB</dd></dl></div>
 <p>On the Yahoo! Front Page Today Module, with "over 33 million events", LinUCB gave "a 12.5% click lift compared to a standard context-free bandit algorithm, and the advantage becomes even greater when data gets more scarce". Their second contribution is still the standard way to test a policy without shipping it: replay logged traffic in which articles were chosen <i>uniformly at random</i>, keep only the events where the logged article matches the one the new policy would choose, and average their clicks; because the logging was random, this "can provide provably unbiased evaluations" ({{Li, Chu, Langford and Wang 2011|https://arxiv.org/abs/1003.5956}}).</p>
-<div class="card">
+</div><div class="s3R"><div class="s3side"><div class="card">
 <h4>Replay evaluation keeps about one logged event in k, and those are an unbiased sample</h4>
 <div class="tw"><table class="rp nar">
 <thead><tr><th>#</th><th>Context</th><th>Logged article (uniform)</th><th class="num">Click</th><th>New policy picks</th><th>Kept?</th></tr></thead>
@@ -32,20 +34,22 @@
 <tr class="drop"><td>9</td><td>sport, mobile</td><td>B</td><td class="num">1</td><td>A</td><td>no</td></tr>
 </tbody></table></div>
 <p class="small mute">Nine logged events with three articles shown uniformly at random (<i class="nl i">illustrative</i>). The new policy agrees with the log on 3 events (one in k = 3), with 2 clicks: its estimated click rate is 2/3. Clicks on events it would not have shown (event 6) say nothing about it, and with a non-random logging policy you would need its propensities (inverse propensity weighting) instead.</p>
-</div>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>A/B tests are a bandit strategy, and usually not the cheapest</h3>
 <p>The classic product experiment splits users into two groups (Lattimore and Szepesvári's example: two groups of 10,000), shows each a version, and ships the winner. In bandit terms that is <b>explore-then-commit</b> (ETC): pull each arm <i>m</i> times, then commit to the one that looked best. Its regret has exactly two parts, the test's cost and the risk of shipping the wrong version ({{Lattimore and Szepesvári, Theorem 6.1 and eq. 6.4|https://tor-lattimore.com/downloads/book/book.pdf#page=101}}):</p>
 <div class="fm"><div class="eq">R<sub>n</sub> ≤ m Δ + (n − 2m) Δ · P(wrong winner),&nbsp;&nbsp; P(wrong winner) ≤ exp(−m Δ<sup>2</sup> / 4)</div>
 <dl><dt>m Δ</dt><dd>the visitors sent to the worse version during the test, times the gap: paid in full however obvious the difference becomes</dd><dt>(n − 2m) Δ P(wrong)</dt><dd>everyone after the test, if the test picked the worse version; a longer test lowers this and raises the first term</dd><dt>tuning m</dt><dd>needs the gap Δ, "seldom reasonable to assume" known; with m tuned the regret is at most Δ + C√n, and with m chosen from n alone it is O(n<sup>2/3</sup>) (the book's eqs. 6.5 to 6.7 and Exercise 6.5)</dd></dl></div>
-<div class="card" id="ab">
-<h4>The same 20,000 visitors under an A/B test and under Thompson sampling</h4>
 <p class="small"><b>Predict:</b> conversion rates 10% and 12%, the test runs 2,000 visitors per version. Which design loses fewer conversions, and which knows the difference more precisely when the test ends?</p>
+<p>Lattimore and Szepesvári put the difference in purpose plainly: "In traditional A/B testing, the objective of the statistician is to decide which website is better. When using a bandit algorithm, there is no need to end the trial" (§1.2). The same tension is sharpest in clinical trials, below.</p>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ab">
+<h4>The same 20,000 visitors under an A/B test and under Thompson sampling</h4>
+
 <div class="rd-two"><div><div class="rd-ph">Share of each 500 visitors sent to the worse version</div><div class="rd-svg" id="ab-S"></div></div><div><div class="rd-ph">Conversions lost against always showing the better one</div><div class="rd-svg" id="ab-R"></div></div></div>
 <div class="an-cnt" id="ab-N"></div>
 <p class="small mute">Rates 10% and 12% and the test length are <i class="nl i">illustrative</i>; 1,000 runs, each A/B run and Thompson run seeing the same visitors (visitor t converts on a version when one shared uniform draw falls below its rate). The A/B test loses 45 conversions, 40 of them (2,000 × 0.02) during the test, and ships the worse version with probability 2.15% (exact, from two binomials; simulated 1.7%; the formula above then gives 46.9). Thompson sampling with Beta(1, 1) priors loses 29, because it shifts traffic as soon as the evidence leans. The price: at 4,000 visitors it has shown the worse version 828 times instead of 2,000, so its 95% interval on the difference is ±2.3 points against ±1.9. A bandit maximises reward during the experiment; an A/B test maximises what you learn at its end (src/make_data.mjs).</p>
-</div>
-<p>Lattimore and Szepesvári put the difference in purpose plainly: "In traditional A/B testing, the objective of the statistician is to decide which website is better. When using a bandit algorithm, there is no need to end the trial" (§1.2). The same tension is sharpest in clinical trials, below.</p>
+</div></div></div></div>
 
 <h3>Where bandits are used</h3>
 <ul>
@@ -57,6 +61,7 @@
 </section>
 
 <section id="rd-deep">
+<div class="s3sp"><div class="s3R"><div id="stg-gx"></div></div><div class="s3L">
 <h2><span class="num">6</span>Exploration in full RL, in brief</h2>
 <p>With states, an exploratory action's payoff may only show up many steps later, after a specific sequence of further actions. Three things get harder:</p>
 <ul>
@@ -64,19 +69,36 @@
 <li><b>Sparse rewards give no gradient.</b> If almost every episode returns 0, every action looks the same until something succeeds by chance.</li>
 <li><b>Distractors trap exploiters.</b> A small nearby reward is found first, and a greedy-ish learner stops looking for the larger one far away: greedy on the testbed, scaled up.</li>
 </ul>
-<p>The animation puts all three in one small world: a 14 × 7 grid, a 0.1 reward four steps from the start, a +1 reward thirteen steps away, 60 steps per episode, tabular Q-learning, run three ways. <b>Predict:</b> which of the three reaches the +1 in all 20 seeds?</p>
-
-<div class="card" id="gx">
-<div class="rd-ph">One sparse-reward world, three ways to explore, 500 episodes each</div>
-<div class="seg" id="gx-M" role="group" aria-label="Exploration"><button data-m="eps" class="on">ε-greedy</button><button data-m="cnt">+ count bonus</button><button data-m="opt">Optimistic starts</button></div>
-<label class="small">Seed <select id="gx-S"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
-<div class="rd-svg" id="gx-P"></div>
-<div class="an-ctl" id="gx-C"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="gx-T"></div><p id="gx-X"></p></div>
-<div class="an-cnt" id="gx-N"></div>
+<p>The stage puts all three in one small world: a 14 × 7 grid, a 0.1 reward four steps from the start, a +1 reward thirteen steps away, 60 steps per episode, tabular Q-learning, run three ways. <b>Predict:</b> which of the three reaches the +1 in all 20 seeds?</p>
+<div class="s3chips" id="gx-M" role="group" aria-label="Exploration"><button data-m="eps" class="on" aria-pressed="true">ε-greedy</button><button data-m="cnt" aria-pressed="false">+ count bonus</button><button data-m="opt" aria-pressed="false">Optimistic starts</button></div>
+<p class="sxh">One sparse-reward world, three ways to explore, 500 episodes each (seed 1)</p>
+<ol class="sx" id="sx-gx-eps">
+<li><b>The world.</b> Start S on the left edge, a 0.1 reward four steps away, the +1 thirteen steps away on the far right; both end the episode, and an episode stops after 60 steps. Q starts at 0 everywhere and ties are broken at random, so the first episodes are random walks; ε = 0.1.</li>
+<li><b>Episode 1.</b> A 39-step random walk over 11 cells that ends on the 0.1. Whichever reward a walk hits first starts to pull the greedy policy towards it.</li>
+<li><b>Episode 10.</b> The 0.1 has won: the episode goes straight to it in four steps. 16 cells visited so far; the bars near the start grow and nothing else does.</li>
+<li><b>Episode 50.</b> Still 31 of 98 cells. Hitting the +1 needs at least 13 steps in the right direction, and exploration that is random at each step is shallow: one random action in ten only wobbles around the path to the 0.1.</li>
+<li><b>Episode 200.</b> 37 cells, the +1 never seen. The agent is not wrong about anything it has tried; it has simply stopped trying anything far away.</li>
+<li><b>Episode 500.</b> It found the +1 once, by chance, in episode 493 (64 cells visited). Whether one discovery wins depends on how far the value has to propagate before the small reward's pull takes over.</li>
+</ol>
+<ol class="sx" id="sx-gx-cnt" hidden>
+<li><b>The world, plus a bonus.</b> The same agent, plus an intrinsic reward β/√N(s′) for entering a state visited N times so far (β = 0.2), N counting visits over all episodes: a tabular stand-in for the pseudo-count and RND bonuses below. New states pay more than familiar ones, so the agent is drawn towards the edge of what it has seen.</li>
+<li><b>Episode 1.</b> 56 steps among only 6 cells before it stumbles onto the 0.1: Q starts at 0, so untried actions are not attractive in themselves; the bonus has to be collected and propagated back first.</li>
+<li><b>Episode 10.</b> 19 cells, and this episode runs out of its 60 steps instead of taking the 0.1: the bonus now pays more than the small reward does.</li>
+<li><b>Episode 50.</b> 48 of 98 cells; still timing out, spreading the visits further east every episode.</li>
+<li><b>Episode 200.</b> The +1 was first reached in episode 65 and has been reached 83 times; this episode goes there in 19 steps. 85 cells visited.</li>
+<li><b>Episode 500.</b> 95 of 98 cells, the +1 in 367 of 500 episodes. The bonus fades as 1/√N, so once the map is familiar the agent exploits the +1.</li>
+</ol>
+<ol class="sx" id="sx-gx-opt" hidden>
+<li><b>The world, optimistic.</b> Optimistic starts set every Q to 1, the largest reward there is, and act greedily (no ε). Any action not yet tried looks as good as the best possible outcome, so it tries them systematically: R-MAX's "optimism in the face of uncertainty" in its simplest tabular form.</li>
+<li><b>Episode 1.</b> 42 steps over 26 cells, ending on the 0.1. Each step lowers the value of what it just tried, so the next episode heads somewhere else.</li>
+<li><b>Episode 10.</b> 66 cells already, and the +1 was first reached in episode 8. Optimism decays only where the agent has been, so it sweeps the map.</li>
+<li><b>Episode 50.</b> All 98 cells visited and the +1 reached 10 times; this episode reaches it in 53 steps.</li>
+<li><b>Episode 200.</b> The +1 in 153 of 200 episodes, now by the shortest path, 13 steps.</li>
+<li><b>Episode 500.</b> The +1 in 453 of 500 episodes, first reached in episode 8, against episode 65 with the bonus.</li>
+</ol>
 <div class="tw" id="gx-Y"></div>
-<p class="small mute">Cell shade: how often each cell has been entered so far (log scale); orange line: this episode's path. Q-learning with step 0.5, γ = 0.95, ties broken at random; ε = 0.1 in the first two modes. The count bonus adds β/√N(s′) with β = 0.2 for entering s′, N counting visits over all episodes (a tabular stand-in for the pseudo-count and RND bonuses below). Optimistic starts set every Q to 1 and act greedily. All settings <i class="nl i">illustrative</i>, chosen so the small reward is a real trap. Over 20 seeds, 2 of 20 ε-greedy runs reach +1, against 20 of 20 with the count bonus and 20 of 20 with optimistic starts (table above; the page's Python reference src/recompute.py agrees). Optimism is faster than the bonus because the bonus agent's Q starts at 0, so the bonus has to be collected before it can pull the agent onwards.</p>
-</div>
+<p class="small mute">Bar height: how often each cell has been entered so far (log scale); orange line: that episode's path. Q-learning with step 0.5, γ = 0.95, ties broken at random; ε = 0.1 in the first two modes. All settings <i class="nl i">illustrative</i>, chosen so the small reward is a real trap. Over 20 seeds, 2 of 20 ε-greedy runs reach +1, against 20 of 20 with the count bonus and 20 of 20 with optimistic starts (table above; the page's Python reference src/recompute.py agrees). Optimism is faster than the bonus because the bonus agent's Q starts at 0, so the bonus has to be collected before it can pull the agent onwards.</p>
+</div></div>
 
 <p>The answers since then form families. Every one either adds a bonus where knowledge is thin, starts optimistic and lets evidence correct it, or acts on a plausible guess drawn from its uncertainty:</p>
 <div class="tw"><table class="rd-t">

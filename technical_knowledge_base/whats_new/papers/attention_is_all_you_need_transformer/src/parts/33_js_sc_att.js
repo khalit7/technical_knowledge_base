@@ -1,7 +1,7 @@
-// ---- Scene: scaled dot-product attention (Equation 1) with the trained toy model's real numbers ----
+// ---- Scene: scaled dot-product attention (Equation 1) with the trained toy model's real numbers (renderer v2: glass plates, flowing dots, camera per step) ----
 // Encoder layer 1, head 4 of the page's toy Transformer (d_model = 24, h = 4, d_k = 6) on one sentence: x, then q k v, scores, ÷√d_k, softmax, weighted sum.
 (function(){
-  if(!$('stg-att'))return;const {at,lerp,mix}=S3;
+  if(!document.getElementById('stg-att'))return;const {at,off,lerp,mix}=S3;
   const S='the big dog chased the small cat'.split(' '),n=S.length,HEAD=3;
   let A=null,qi=3;
   function compute(){if(A)return A;const M=TM.load('full'),P=M.P,d=TM.cfg.d,h=M.h,dk=d/h,o=HEAD*dk,idx=w=>TM.vocab.indexOf(w);
@@ -15,37 +15,52 @@
     const Z=W.map(w=>V[0].map((_,c)=>w.reduce((s,a,j)=>s+a*V[j][c],0)));
     const mx=a=>Math.max(...a.flat().map(Math.abs));
     return A={X,Q,K,V,sc,W,Z,dk,d,mX:mx(X),mQ:Math.max(mx(Q),mx(K),mx(V)),mS:mx(sc)}}
-  const XW=1.32,x=i=>(i-(n-1)/2)*XW,ZW=2.4,ZQ=1.05,ZK=0,ZV=-1.05,ZS=-2.4;
-  // a comb: one thin bar per number, height by value; positive and negative in two tones of the role's colour
-  function comb(R,c,vals,m,col,a,hmax,wd){const nb=vals.length,bw=wd/nb;vals.forEach((v,i)=>{const hgt=Math.max(.012,Math.abs(v)/m*hmax);
-    R.box([c[0]-wd/2+bw*(i+.5),c[1],c[2]],[bw*.78,hgt,.16],{fill:v>=0?col:mix(R.P.paper,col,.45),a,edge:false})})}
-  function draw(R,k,e){const P=R.P,T=compute(),nar=R.W<620;R.grid(-6.2,5,-3.1,3.1,.5);
-    // words and their 24-number vectors
-    S.forEach((w,i)=>{const isq=i===qi&&k>=2;R.box([x(i),0,ZW],[1.05,.22,.62],{fill:isq?mix(P.paper,P.q,.35):P.paper});R.label([x(i),0,ZW+.31],w,{serif:true,fs:12.5,dy:12+(nar&&i%2?14:0),b:isq,c:isq?P.q:P.ink});
-      comb(R,[x(i),.22,ZW],T.X[i],T.mX,P.c1,1,.55,.98)});
-    R.label([x(0)-.6,.3,ZW],'x · 24 numbers',{al:'right',dx:-6,mono:true,fs:12,c:P.c1,grp:'row'});
-    // q, k, v: six numbers each for this head, made by three learned matrices
-    const a1=at(k,e,1);if(a1>0){S.forEach((_,i)=>{[[T.Q,ZQ,P.q],[T.K,ZK,P.k],[T.V,ZV,P.v]].forEach(([M,z,c],r)=>{const lift=r===0&&i===qi&&k>=2?.35*at(k,e,2):0;
-        R.box([x(i),0,z],[.62,.05,.36],{a:a1*.9});comb(R,[x(i),.05+lift,z],M[i],T.mQ,c,a1,.5*a1,.58)})});
-      [['query · Wq',ZQ,P.q],['key · Wk',ZK,P.k],['value · Wv',ZV,P.v]].forEach(([t,z,c])=>R.label([x(0)-.6,.15,z],t,{al:'right',dx:-6,mono:true,fs:12,c,a:a1,grp:'row'}));
-      if(k===1)S.forEach((_,i)=>R.line([[x(i),.5,ZW-.3],[x(i),.5,ZQ+.25]],{c:P.mute,w:1,a:.5*(1-Math.abs(e-.5)*1.2),head:5}))}
-    // scores: q of the query word against every key
-    if(k>=2){const a2=at(k,e,2),qp=[x(qi),.65,ZQ];S.forEach((_,j)=>R.line([qp,[x(j),.55,ZK]],{c:P.q,w:1.4,a:a2*.55}));
-      const sc=T.sc[qi],sq=Math.sqrt(T.dk),w=T.W[qi];
-      S.forEach((_,j)=>{let v,hgt,col,lab;
-        if(k===2){v=sc[j];hgt=Math.abs(v)/T.mS*1.6*a2;col=v>=0?P.c5:mix(P.paper,P.c5,.4);lab=v.toFixed(1)}
-        else if(k===3){const f=lerp(1,1/sq,e);v=sc[j]*f;hgt=Math.abs(v)/T.mS*1.6;col=v>=0?P.c5:mix(P.paper,P.c5,.4);lab=v.toFixed(2)}
-        else{const s0=Math.abs(sc[j]/sq)/T.mS*1.6,s1=w[j]*2.4,t=k===4?e:1;hgt=lerp(s0,s1,t);col=mix(P.c5,P.acc,t);lab=Math.round(w[j]*100)+'%'}
-        R.box([x(j),0,ZS],[.62,Math.max(.015,hgt),.42],{fill:col});R.label([x(j),hgt,ZS],lab,{mono:true,fs:12,dy:-10,c:k>=4?P.acc:P.ink})});
-      R.label([x(0)-.6,.2,ZS],k>=4?'weights · sum to 1':k===3?'scores ÷ √6':'scores q·k',{al:'right',dx:-6,mono:true,fs:12,c:k>=4?P.acc:P.c5,grp:'row'})}
-    // the weighted sum of the values
-    if(k>=5){const w=T.W[qi],zp=[x(qi),2.05,ZV];S.forEach((_,j)=>{const t=Math.min(1,e*1.2),p=[lerp(x(j),zp[0],t),lerp(.5,zp[1],t),ZV];R.arc([x(j),.5,ZV],zp,.6,{c:P.v,w:.6+6*w[j],a:.25+.75*w[j],t})});
-      R.box([zp[0],zp[1],ZV],[.7,.05,.4],{a:e});comb(R,[zp[0],zp[1]+.05,ZV],T.Z[qi],T.mQ,P.v,e,.5,.62);R.label([zp[0],zp[1]+.6,ZV],'z = Σ aⱼ vⱼ',{mono:true,fs:12.5,c:P.v,a:e,dy:-6})}
+  const XS=1.6,x=i=>(i-(n-1)/2)*XS,ZW=2.7,ZQ=.5,ZK=-.6,ZV=-1.7,ZS=-2.9,YP=.2;
+  // a vector as signed bars on a white plinth: positive bars stand on it, negative ones hang below (the every-joule look)
+  function comb(R,c,vals,m,col,a,hmax,wd){if(a<=.01)return;const P=R.P,nb=vals.length,bw=wd/nb;
+    R.box([c[0],c[1]-.045,c[2]],[wd+.14,.045,.34],{a,shadow:false});
+    if(c[1]>.12)[-1,1].forEach(sx=>R.box([c[0]+sx*(wd/2),0,c[2]],[.03,c[1]-.05,.03],{a:a*.9}));
+    vals.forEach((v,i)=>{const hgt=Math.max(.014,Math.abs(v)/m*hmax),bx=c[0]-wd/2+bw*(i+.5),fill=col?col:P.paper;
+      R.box([bx,v>=0?c[1]:c[1]-.045-hgt,c[2]],[bw*.7,hgt,.11],{fill,a,shadow:false,lw:.7})})}
+  function draw(R,k,e){const P=R.P,T=compute(),f=qi;R.grid(-7,7,-4,4,.5);
+    // composition: each step shows what it is about; the rest recedes (x row once the vectors exist, values until they are used, queries and keys once the weights are known)
+    const others=k===1?1-.8*e:k===2?.2+.05*e:.25;
+    const rq=k>=5?.3:1,rv=k>=2&&k<=4?.3:1;
+    // 1. words and their 24-number vectors
+    S.forEach((w,i)=>{const a=i===f?(k>=2?.55:1):others;comb(R,[x(i),YP,ZW],T.X[i],T.mX,null,a,.6,1.2);
+      R.label([x(i),0,ZW+.35],w,{serif:true,fs:13.5,dy:12,b:i===f&&k>=1,c:i===f&&k>=1?P.q:P.ink,a:Math.max(.5,a)})});
+    if(k!==1)R.label([x(0)-.75,YP,ZW],'x · 24 numbers',{al:'right',dx:-6,mono:true,fs:12,c:P.mute,grp:'row'});else R.label([x(f)-.7,YP+.3,ZW],'x · 24 numbers',{al:'right',dx:-6,mono:true,fs:12,c:P.mute,a:e,wide:1});
+    // 2. three learned matrices as glass plates, then q, k and v for every word (six numbers each for this head)
+    const ga=k===1?Math.min(1,e*1.6):k===2?off(k,e,2):0;
+    const plates=[['Wᵠ',P.q,-1.05,ZQ],['Wᴷ',P.k,0,ZK],['Wⱽ',P.v,1.05,ZV]];
+    if(ga>0)plates.forEach(([nm,c,dx,zr])=>{const px=x(f)+dx,o0=[px-.38,.12,1.45];R.glass(o0,[.76,0,0],[0,.82,0],{c,a:ga,nu:6,nv:6});
+      R.label([px,.98,1.45],nm,{serif:true,fs:15,b:1,c,a:ga,dy:-8});
+      if(k===1){const a0=[x(f),.75,ZW],m=[px,.53,1.47],b0=[x(f),.62,zr],pts=[];for(let i=0;i<=14;i++)pts.push(R.arcPt(a0,m,.12,i/14));for(let i=1;i<=18;i++)pts.push(R.arcPt(m,b0,.25,i/18));
+        R.flow(pts,{c,a:ga,r:.075,speed:1.3})}});
+    const qa=k===0?0:k===1?e:1;
+    S.forEach((_,i)=>{const ai=k===0?0:i===f?qa:k===1?0:k===2?e:1,lift=i===f&&k>=2?.32*at(k,e,2):0;
+      comb(R,[x(i),YP+lift,ZQ],T.Q[i],T.mQ,P.q,ai*(i===f&&k<5?1:rq),.5,.78);comb(R,[x(i),YP,ZK],T.K[i],T.mQ,P.k,ai*rq,.5,.78);comb(R,[x(i),YP,ZV],T.V[i],T.mQ,P.v,ai*rv,.5,.78)});
+    if(k>=2)[['query · what it looks for',ZQ,P.q],['key · what it offers',ZK,P.k],['value · what it hands over',ZV,P.v]].forEach(([t,z,c])=>R.label([x(0)-.75,YP,z],t,{al:'right',dx:-6,mono:true,fs:12,c,grp:'row'}));
+    // 3. the query meets every key: dots stream from the query to each key while the scores rise
+    const sc=T.sc[f],sq=Math.sqrt(T.dk),w=T.W[f];
+    if(k>=2&&k<=3){const a=k===2?Math.min(1,e*1.5):1;S.forEach((_,j)=>R.flowArc([x(f),YP+.45,ZQ],[x(j),YP+.3,ZK],.35+.05*Math.abs(j-f),{c:P.q,a:a*.8,r:.05,speed:1.6,n:6}))}
+    if(k>=2){S.forEach((_,j)=>{let v,hgt,c,lab;
+        if(k===2){v=sc[j];hgt=Math.abs(v)/T.mS*1.7*e;c=v>=0?P.c5:mix(P.paper,P.c5,.45);lab=v.toFixed(1)}
+        else if(k===3){const t=lerp(1,1/sq,e);v=sc[j]*t;hgt=Math.abs(v)/T.mS*1.7;c=v>=0?P.c5:mix(P.paper,P.c5,.45);lab=v.toFixed(2)}
+        else{const s0=Math.abs(sc[j]/sq)/T.mS*1.7,s1=w[j]*2.6,t=k===4?e:1;hgt=lerp(s0,s1,t);c=mix(P.c5,P.c1,t);lab=Math.round(w[j]*100)+'%'}
+        R.box([x(j),0,ZS],[.66,Math.max(.015,hgt),.44],{fill:c});R.label([x(j),hgt,ZS],lab,{mono:true,fs:12.5,dy:-11,b:k>=4&&w[j]>.2,c:k>=4?P.c1:P.ink})});
+      R.label([x(0)-.75,.2,ZS],k>=4?'weights · sum to 1':k===3?'scores ÷ √6':'scores q·k',{al:'right',dx:-6,mono:true,fs:12,c:k>=4?P.c1:P.c5,grp:'row'})}
+    // 4. the output: every value streams into z, in proportion to its weight
+    if(k>=5){const zp=[x(f),1.05,1.35];S.forEach((_,j)=>{if(w[j]<.005)return;R.flowArc([x(j),YP+.45,ZV],zp,.55,{c:P.v,a:.25+.75*Math.min(1,w[j]*2.5),r:.045+.07*w[j],n:Math.max(2,Math.round(3+w[j]*16)),speed:1.2})});
+      comb(R,[zp[0],zp[1],ZV],T.Z[f],T.mQ,P.v,e,.42,.66);R.label([zp[0]+.5,zp[1]+.2,zp[2]],'z = Σ aⱼ vⱼ',{al:'left',dx:6,mono:true,fs:13,b:1,c:P.v,a:e})}
   }
   function readout(){const T=compute(),w=T.W[qi],ord=w.map((v,j)=>[v,j]).sort((a,b)=>b[0]-a[0]).slice(0,3);
-    $('attOut').innerHTML='"'+S[qi]+'" → '+ord.map(([v,j])=>S[j]+' '+Math.round(v*100)+'%').join(' · ')+' (all '+n+' weights sum to 100%)'}
-  $('attQ').innerHTML=S.map((w,i)=>'<button data-i="'+i+'"'+(i===qi?' class="on"':'')+'>'+w+'</button>').join('');
-  $('attQ').querySelectorAll('button').forEach(b=>b.onclick=()=>{qi=+b.dataset.i;$('attQ').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));readout();st.draw()});
-  const st=S3.stage({id:'stg-att',list:'sx-att',fig:'Fig. 3 · one head of a trained toy model',cam:[.3,.8],bounds:[[-6.2,0,-2.9],[5,2.2,3]],draw,dur:1300,hold:2600,aspect:.72,
+    document.getElementById('attOut').innerHTML='"'+S[qi]+'" → '+ord.map(([v,j])=>S[j]+' '+Math.round(v*100)+'%').join(' · ')+' (all '+n+' weights sum to 100%)'}
+  const Q=document.getElementById('attQ');Q.innerHTML=S.map((w,i)=>'<button data-i="'+i+'"'+(i===qi?' class="on"':'')+'>'+w+'</button>').join('');
+  Q.querySelectorAll('button').forEach(b=>b.onclick=()=>{qi=+b.dataset.i;Q.querySelectorAll('button').forEach(y=>y.classList.toggle('on',y===b));readout();st.draw()});
+  const full={cam:[.3,.78],bounds:[[-5.4,0,-3.3],[5.4,1.6,3.3]]};
+  const st=S3.stage({id:'stg-att',list:'sx-att',fig:'Fig. 3 · one head of a trained toy model',cam:full.cam,bounds:full.bounds,aspect:.62,margin:w=>w<520?[14,10,14,10]:[16,14,14,200],dur:1500,hold:4600,draw,
+    // step 2 moves in close on the chosen word while its vector is projected; every other step shows the whole sentence
+    view:k=>k===1?{cam:[.55,.5],bounds:[[x(qi)-1.6,0,-2.1],[x(qi)+1.6,1.3,3.1]]}:k>=2?{cam:[.3,.62],bounds:[[-5.4,0,-3.3],[5.4,1.4,1.7]]}:full,
     onStep:()=>{try{readout()}catch(e){}}});
 })();

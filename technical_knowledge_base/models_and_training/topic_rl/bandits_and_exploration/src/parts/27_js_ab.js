@@ -8,7 +8,7 @@
   function draw(){
     RD.chart($('ab-S'),[{col:'var(--c2)',w:2.4,xs:xs.map(v=>v-A.block/2),ys:A.shareE},{col:'var(--c4)',w:2.4,xs:xs.map(v=>v-A.block/2),ys:A.shareT}],
       {x0:0,x1:A.n,y0:0,y1:0.55,xt,yt:[[0,'0%'],[0.25,'25%'],[0.5,'50%']],xlab:'visitors',ylab:'share sent to the worse variant',H:220,label:'Traffic to the worse variant',
-       extra:(X,Yf)=>mark(X,Yf,30,190)+RD.t(X(2*A.m)-6,Yf(0.5)+14,'A/B: 50%',{a:'end',fs:10.5,fill:'var(--c2)',w:600})+RD.t(X(A.n*0.55),Yf(A.shareT[Math.floor(nb*0.55)])-8,'Thompson',{fs:10.5,fill:'var(--c4)',w:600})});
+       extra:(X,Yf)=>mark(X,Yf,30,190)+RD.t(X(2*A.m)+6,Yf(0.5)+14,'A/B: 50%',{fs:10.5,fill:'var(--c2)',w:600})+RD.t(X(A.n*0.55),Yf(A.shareT[Math.floor(nb*0.55)])-8,'Thompson',{fs:10.5,fill:'var(--c4)',w:600})});
     const ymax=Math.ceil(Math.max(A.regE.at(-1),A.regT.at(-1))/10)*10+5;
     RD.chart($('ab-R'),[{col:'var(--c2)',w:2.4,xs:[0].concat(xs),ys:[0].concat(A.regE)},{col:'var(--c4)',w:2.4,xs:[0].concat(xs),ys:[0].concat(A.regT)}],
       {x0:0,x1:A.n,y0:0,y1:ymax,xt,yt:[[0,'0'],[20,'20'],[40,'40']],xlab:'visitors',ylab:'conversions lost (regret)',H:220,label:'Conversions lost',

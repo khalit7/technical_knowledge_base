@@ -30,3 +30,12 @@ What the methodology lacked: guidance for a figure whose free parameter the book
 | MF-15 | Baird's counterexample with the three legs of the deadly triad as switches, largest |value| over 1,000 expected sweeps on a log axis | Reading, section 7 | built; defaults reproduce Figure 11.2 (right) in shape (w8 335, w1..w6 114, w7 6.85), checked by recompute.py |
 | MF-16 | The w, 2w two-state divergence animated | section 7 | rejected: Value-based deep RL already draws it; the numbers (10, 11, 12.1) are one sentence here |
 | MF-17 | A paper or book figure as an image | any | rejected: every canonical figure is rerun live; no physical object to photograph |
+
+## 2026-11-06 pass (split layout, 3D stages, autoplay)
+| # | Idea | Placement | Decision |
+|---|---|---|---|
+| MF-14b | Hero as a 3D stage: the walk as a lattice of states by time with value bars, each target a bar on a shelf behind V(C), then the cliff transition's three targets | Reading, top | built (`37_js_sc_hero.js`), replaces the static hero |
+| MF-1b | One episode, four learners as four grids side by side in depth, four action-value bars per cell, seven explained stretches | section 4 | built (`38_js_sc_four.js`), replaces the 2D animation and its learner toggle |
+| MF-18 | On phones, stack the four grids in one column | section 4 | rejected: the stage is height-limited on a phone, so each grid came out smaller than in the 2 x 2 layout |
+| MF-19 | Baird's counterexample as a 3D star of seven states with growing value bars | section 7 | rejected: the message is growth on a log axis, which the 2D chart shows; the switches stay |
+| MF-20 | Cliff lab's 4 x 12 grid in 3D | section 4 | rejected: the four-learner stage already shows the cliff in 3D; the lab's job is the 500-episode learning curve |

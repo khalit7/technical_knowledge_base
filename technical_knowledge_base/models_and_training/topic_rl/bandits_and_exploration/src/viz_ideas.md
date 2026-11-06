@@ -22,5 +22,9 @@ Scores follow `.claude/skills/explainer-page/visuals/choosing.md` (0 to 2 per qu
 | BE14 | Bandit, contextual bandit, MDP ladder (static HTML) | What each step adds | Sutton and Barto §2.9 | 8 | Reading, section 5 | built 2026-10-24 |
 | BE15 | Replay evaluation table (illustrative) | One event in k kept, unbiased under uniform logging | Li et al. 2011's method | 8 | Reading, section 5 | built 2026-10-24 |
 | BE16 | pass@k crossover or entropy-law sketch for section 7 | | | | none | rejected: owned and drawn by RL for LLMs |
+| BE17 | **Hero as a 3D stage** (5 steps): piles of pulls per arm, estimates on a value scale, UCB bonus blocks, Thompson's Beta posteriors, then four regret walls | The same evidence read three ways, then the bill | BXD.hero (engine) | 14 | Reading, top | built 2026-11-06 (replaces BE11's 2D panels) |
+| BE18 | **Five strategies by five arms as a 3D bar field** (seed 3, pulls 0, 5, 30, 100, 300) | Where each strategy sends its pulls, all five at once, and the regret each pays | BX.banditRun | 13 | Reading, section 3 | built 2026-11-06; BE2 kept as a pull-by-pull explorer (scrubber, no autoplay) |
+| BE19 | **Gridworld in 3D**: visits as bars over the grid, the episode path walking over them, one step list per mode | Shallow dithering against directed exploration, as terrain | BX.gxRun | 13 | Reading, section 6 | built 2026-11-06 (replaces BE4's 2D animation) |
+| BE20 | Regret chart, A/B card, weights slider or testbed curves in 3D | | | | none | rejected 2026-11-06: curves over a log or linear axis read best flat |
 
 What the methodology lacked for this page: a rule for asymptotic bounds drawn next to finite-time simulations (the page draws the bound and states plainly that it constrains a slope, not a level), and a rule for runs computed in the browser (the page shows progress, computes only when the tab or card is visible, and checks its engine value for value against Python).

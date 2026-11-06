@@ -34,3 +34,8 @@ What the methodology lacked for this page: a rule for figures that are drawn as 
 | VB-5 | Rainbow ablation moved from its own tab into Reading §10 (summary bars and table, one game across six removals, the predict; every game per component in a closed block) | It explains one mechanism (the ablation) at the moment the text discusses it. Moved |
 | VB-2 | Triad widget (w, 2w and Baird) **removed**: Model-free prediction and control's Reading section 7 now owns the deadly triad with Baird's counterexample and each leg switchable | One owner per concept. The engine functions (`VBE.triad`, `VBE.baird`) stay in `21_js_vb_engine.js` and its checks, no longer drawn. Removed |
 | | Real images | None: the canonical figures (Nature DQN Figure 1, Rainbow figures) are not openly licensed, and an Atari console photo would not teach the mechanism. |
+
+## 2026-11-06 pass (split layout and 3D)
+- Built: 3D hero (the DQN loop in space, one update, where each fix acts); 3D dueling head; 3D NoisyNet noise field (rank one against independent). The 2D hero diagram, dueling toggle and noise matrix were retired.
+- Considered and kept 2D: van Hasselt et al.'s ten fits as ten plates in depth (depth would separate the fits but hide the sign of the error curve, which is the point); Rainbow's 6 × 55 ablation as a bar field (a heatmap reads better flat, and the summary is a ranking); C51's projection with the next-state plate behind the target plate (one return axis is enough); Extended Data Table 3 as a 5 × 4 bar field (a comparison along one axis).
+- Proposed, not built (no visual today, and none invented to fill a column): Ape-X's 360 actors, one shared replay and one learner (section 11, mostly in a closed block) would suit a 3D stage if that section grows.

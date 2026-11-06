@@ -6,7 +6,7 @@ The checks every page passes before an agent reports it done and before the lead
 ```sh
 sh html_utils/checkpage.sh <page folder>
 ```
-It opens every tab in light at 920 px and dark at 390 px (`tabshot.mjs`), screenshots each into `<page folder>/.shots/`, reports script errors, a visible error box or sideways scroll, then runs `clipcheck.mjs` at 390 px dark for text cut off without a scrollbar. The last line must read:
+It opens every tab in light at 920 and 1400 px and dark at 390 px (`tabshot.mjs`), screenshots each into `<page folder>/.shots/`, reports script errors, a visible error box or sideways scroll, then runs `clipcheck.mjs` at 390 px dark for text cut off without a scrollbar. The last line must read:
 ```
 <folder>: tabs N, bytes ..., emdash 0, errbox 1, scripts ..., clipped 0, fail=0
 ```
@@ -25,7 +25,7 @@ Setup once per machine: `cd html_utils && npm ci`, run with an empty user config
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
+for (const [scheme, width] of [['dark', 390], ['light', 920], ['light', 1400]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
@@ -42,7 +42,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
 }
 await b.close();
 ```
-Animations and 3D stages (Khalid, 2026-11-06): scroll each into view and confirm it plays by itself (within about 2 s its play button reads Pause for `RD.anim`, or its `data-frames` rises for `S3.stage`); emulate `prefers-reduced-motion: reduce` once and confirm none moves by itself; step each to its last step and confirm its step list has one item per step. Check the split layout at 1400 px (two columns where a section has a visual, full width where it has none) as well as 920 and 390 px. The Attention Is All You Need paper page's `src/check_page.mjs` has code to copy.
+Animations and 3D stages (Khalid, 2026-11-06): scroll each into view and confirm it plays by itself (within about 2 s its play button reads Pause for `RD.anim`, or its `data-frames` rises for `S3.stage`; `data-draws` counts every redraw, including flows, which must stop off screen and under reduced motion); emulate `prefers-reduced-motion: reduce` once and confirm none moves by itself; step each to its last step and confirm its step list has one item per step. Check the split layout at 1400 px (two columns where a section has a visual, full width where it has none) as well as 920 and 390 px. The Attention Is All You Need paper page's `src/check_page.mjs` has code to copy.
 
 ## 3. Data and prose numbers
 - A script proves the page embeds exactly the recorded data: parse the built `index.html`'s data globals and compare them with `src/<tab>/out/*.json` (or the recompute script's output), field by field.
