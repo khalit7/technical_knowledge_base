@@ -17,12 +17,20 @@
 <nav class="nav" id="rd-nav">
 <a href="#rd-s0">The idea</a><a href="#rd-s1">1 Server and memory</a><a href="#rd-s2">2 Backups</a><a href="#rd-s3">3 Replication</a><a href="#rd-s4">4 Failover</a><a href="#rd-s5">5 Vacuum</a><a href="#rd-s6">6 Wraparound</a><a href="#rd-s7">7 Connections</a><a href="#rd-s8">8 Schema changes</a><a href="#rd-s9">9 Monitoring</a><a href="#rd-s10">10 Upgrades</a><a href="#rd-s11">11 Security</a><a href="#rd-s12">12 Managed</a>
 </nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-s0">
 <h2>The idea in one screen</h2>
 <p class="core">A Postgres server is one process per connection writing every change first to the <span class="hl">write-ahead log (WAL)</span> and leaving old row versions behind. Running it in production is three jobs: <b>ship the WAL somewhere safe</b> (backups, replicas, failover), <b>clean up what it leaves behind</b> (vacuum, freezing), and <b>never let anything pin either in place</b>: an open transaction, an abandoned replication slot, a flood of connections.</p>
-<div class="hero"><h4 class="vt">Everything on this page touches one box of this picture; the orange pins are what pages you</h4>
-<div class="rd-svg" id="rd-hero"></div>
-<p class="small">One server, drawn, not to scale. Section numbers on the figure. <span class="hl">Orange</span> marks the two things that hold the system in place: an open transaction stops vacuum and ages transaction IDs; an inactive replication slot keeps WAL until the disk is full. A fresh install has none of the blue additions on the right: no backups, no replica, no pooler and no alerts.</p></div>
+<p class="sxh">Fig. 1, step by step: one server, and the orange pins that page you</p>
+<ol class="sx" id="sx-hero">
+<li><b>One process per connection.</b> The postmaster starts a backend process for every client that connects, and it serves only that client until it disconnects. That is why connections are expensive and poolers exist (sections 1 and 7).</li>
+<li><b>Every change goes to the WAL first.</b> A backend changes 8 KB pages in shared buffers and appends a record of the change to the WAL in <code>pg_wal/</code>. A checkpoint later writes the pages to the table files, and only then is the old WAL recycled (section 1).</li>
+<li><b>Ship the WAL.</b> The WAL is a complete history of every change: archived next to a base backup it is point-in-time recovery (section 2); streamed to another server it is a replica that can take over (sections 3 and 4).</li>
+<li><b>Clean up what it leaves.</b> An update or delete leaves the old row version behind in the table files. VACUUM reclaims the dead versions and freezes old rows so the 32-bit transaction counter can wrap safely (sections 5 and 6).</li>
+<li><b>The two pins.</b> An open transaction stops vacuum and ages transaction IDs; an inactive replication slot keeps WAL until the disk is full. These two, plus a flood of connections, are what pages you.</li>
+<li><b>What a fresh install lacks.</b> No archive, no replica, no pooler and no alerts: a fresh install has none of the blue additions, and adding them is most of this page (sections 2, 3, 7 and 9).</li>
+</ol>
+<p class="small mute">One server, drawn, not to scale; drag to turn it.</p>
 <p><b>You need:</b> what MVCC row versions and snapshots are ({{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}}) and what the WAL, pages and checkpoints do inside the engine ({{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}). Slow queries and EXPLAIN are {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}; read replicas for load and sharding are {{Scaling a database|n:3ef5c17b0d0d81f0aaceee1e21b972be}}; migrations as schema design are {{SQL and data modelling|n:3ef5c17b0d0d813980dcd474e19f6c3f}}; replication theory and consensus are {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}.</p>
 <dl class="terms">
 <dt>Backend</dt><dd>the operating-system process the postmaster starts for each client connection.</dd>
@@ -35,6 +43,10 @@
 <dt>XID, freezing</dt><dd>the 32-bit transaction ID; freezing marks old rows so the counter can wrap safely.</dd>
 <dt>Transaction pooling</dt><dd>a pooler lends a server connection for one transaction at a time.</dd>
 </dl>
+</section>
+</div></div>
+
+<section id="rd-s0t">
 <h3>What pages you, and the first thing to look at</h3>
 <div class="tw"><table>
 <thead><tr><th>Failure</th><th>How it shows</th><th>First thing to look at</th><th>What prevents it</th></tr></thead>
@@ -65,15 +77,20 @@
 <section id="rd-s1">
 <h2>1. The server: processes, memory, WAL and checkpoints</h2>
 <p><b>One process per connection.</b> The <dfn>postmaster</dfn> is the parent process; for every client that connects it starts a new operating-system process, a backend, which serves that one connection until it closes ({{how connections are established|https://www.postgresql.org/docs/18/connect-estab.html}}). Background processes do the housekeeping: the checkpointer, the WAL writer, the autovacuum launcher and its workers, and WAL senders if you replicate. This one design decision is why connections are expensive and poolers exist (section 7). Everything served by one postmaster from one data directory (often <code>/var/lib/postgresql/18/main</code>, holding every table and index as files, <code>postgresql.conf</code>, <code>pg_hba.conf</code> and the log) is a <dfn>cluster</dfn> in Postgres's words: one server, possibly many databases, not a cluster of machines.</p>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s1m">
 <h3>Memory: one shared cache, and memory per operation</h3>
 <p>Two kinds of memory matter ({{resource settings|https://www.postgresql.org/docs/18/runtime-config-resource.html}}). <code>shared_buffers</code> is the cache of 8 KB table and index pages shared by every backend: 128 MB by default, about 25% of RAM on a dedicated server is the documented starting point (the operating system's file cache holds much of the rest). <code>work_mem</code> (default 4 MB) is the budget of <b>each sort or hash operation in each running query</b>, and a hash may use <code>hash_mem_multiplier</code> (2.0) times more; past it the operation spills to temporary files. So the server-wide setting multiplies: a query with one sort and one hash join can take three times <code>work_mem</code>, in every active backend at once. Predict: with 100 active connections, what server-wide <code>work_mem</code> takes this 64 GB host past its RAM? Then drag.</p>
-<div class="card" id="rd-mem-card"><h4 class="vt">work_mem is per operation, per backend: the server-wide value multiplies</h4>
+
+<p>The usual answer is a modest server default and a larger <code>work_mem</code> set per role or per session for reports and batch jobs (<code>ALTER ROLE reports SET work_mem = '256MB'</code>; <span class="ill">illustrative</span>); how a spill changes a plan, and the <code>temp_files</code> it leaves, is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}. Two more settings round out the memory picture: <code>maintenance_work_mem</code> (default 64 MB) is what VACUUM and <code>CREATE INDEX</code> use, once per autovacuum worker, and <code>effective_cache_size</code> allocates nothing at all: it only tells the planner how much data is likely cached.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-mem-card"><h4 class="vt">work_mem is per operation, per backend: the server-wide value multiplies</h4>
 <div class="ctl"><label>work_mem: <b id="rd-mem-wv"></b><input type="range" id="rd-mem-w" min="0" max="6" step="1" value="1" aria-label="work_mem"></label></div>
 <div class="seg" id="rd-mem-mode"><button data-m="direct" class="on">100 active connections, direct</button><button data-m="pool">20 server connections behind a pooler</button></div>
 <div class="rd-svg" id="rd-mem"></div>
 <div class="out" id="rd-mem-out"></div>
-<p class="small mute">Worst case = shared_buffers + active backends &times; (one sort + one hash &times; 2.0) &times; work_mem, from the documented per-operation rule. The 64 GB host, shared_buffers at 25% and the query shape are <span class="ill">illustrative</span>; real queries rarely all peak at once, which is why this is the ceiling, not the expectation. Measured here: one backend kept <span data-v="connections.x.memory.sort" data-d="1"></span> MB after a single 64 MB sort, until it exited.</p></div>
-<p>The usual answer is a modest server default and a larger <code>work_mem</code> set per role or per session for reports and batch jobs (<code>ALTER ROLE reports SET work_mem = '256MB'</code>; <span class="ill">illustrative</span>); how a spill changes a plan, and the <code>temp_files</code> it leaves, is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}. Two more settings round out the memory picture: <code>maintenance_work_mem</code> (default 64 MB) is what VACUUM and <code>CREATE INDEX</code> use, once per autovacuum worker, and <code>effective_cache_size</code> allocates nothing at all: it only tells the planner how much data is likely cached.</p>
+<p class="small mute">Worst case = shared_buffers + active backends &times; (one sort + one hash &times; 2.0) &times; work_mem, from the documented per-operation rule. The 64 GB host, shared_buffers at 25% and the query shape are <span class="ill">illustrative</span>; real queries rarely all peak at once, which is why this is the ceiling, not the expectation. Measured here: one backend kept <span data-v="connections.x.memory.sort" data-d="1"></span> MB after a single 64 MB sort, until it exited.</p></div></div></div></div>
+<section id="rd-s1w">
 <h3>WAL and checkpoints: why <code>pg_wal/</code> grows</h3>
 <p>Before any change touches a table file, a record describing it is appended to the WAL and flushed; after a crash, Postgres replays the WAL to redo what the table files missed. A <dfn>checkpoint</dfn> writes every changed page in memory to the table files; it starts every <code>checkpoint_timeout</code> (5 minutes) or after <code>max_wal_size</code> (1 GB) of WAL, whichever comes first ({{WAL settings|https://www.postgresql.org/docs/18/runtime-config-wal.html}}), and after it the WAL before that point is no longer needed for crash recovery, so its segments are recycled. On a healthy server <code>pg_wal/</code> therefore stays near <code>max_wal_size</code>. For operations, the point is: <b>the WAL is a complete history of every change, so shipping it elsewhere gives you both backups (section 2) and replicas (section 3)</b>, and anything that still needs old WAL (a failing archive command, a replica that is behind, a slot) stops the recycling, which is the mechanism behind most disk-full pages. Why the first change to a page after a checkpoint writes the whole page, and what longer checkpoint intervals cost in recovery time, is on {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}.</p>
 </section>

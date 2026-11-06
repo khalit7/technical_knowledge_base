@@ -10,7 +10,7 @@ def clean(s):
         return s
     s = re.sub(r'(?:/(?:private/)?(?:tmp|var|Users)/|<scratch>/)\S*?/rp_data/', '', s)
     s = re.sub(r'/Users/\S+/(pgserver|cenv)/\S*', r'\1', s)
-    s = s.replace('—', ', ')
+    s = s.replace('\u2014', ', ')
     return s
 
 out = {}

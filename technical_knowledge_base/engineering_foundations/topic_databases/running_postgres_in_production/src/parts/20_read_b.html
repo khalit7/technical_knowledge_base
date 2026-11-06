@@ -13,16 +13,32 @@
 <tr><td>Good for</td><td>Copying data elsewhere, upgrades, a second safety net</td><td>Disaster recovery and point-in-time recovery</td></tr>
 </tbody></table></div>
 <details class="dp"><summary>Real run: last night's dump and a base backup of the same database <span class="mute">(measured output)</span></summary><div class="b"><div class="tr" data-run="pitr" data-steps="dump,basebackup,verify" data-title="pg_dump, pg_basebackup and pg_verifybackup"></div></div></details>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-pitr"></div></div><div class="s3L"><section id="rd-s2p">
 <h3>Point-in-time recovery: the most important picture on this page</h3>
-<p>Because the WAL records every change, a base backup plus every WAL segment written since lets Postgres rebuild the database at any moment you choose. You switch it on with three settings: <code>wal_level = replica</code> (the default), <code>archive_mode = on</code>, and an <code>archive_command</code> that copies each finished 16 MB segment somewhere safe and returns success only once the file is stored ({{WAL settings|https://www.postgresql.org/docs/18/runtime-config-wal.html}}). To recover, restore the base backup, tell Postgres where the archive is (<code>restore_command</code>) and when to stop (<code>recovery_target_time</code>), and start it. Below, a nightly backup at midnight, a normal day of messages, and at 14:03 a cleanup that lost its <code>WHERE</code> clause, recovered both ways. Predict how many of the day's messages each method keeps, then step through.</p>
-<div class="card" id="rd-pitr-card">
+<p>Because the WAL records every change, a base backup plus every WAL segment written since lets Postgres rebuild the database at any moment you choose. You switch it on with three settings: <code>wal_level = replica</code> (the default), <code>archive_mode = on</code>, and an <code>archive_command</code> that copies each finished 16 MB segment somewhere safe and returns success only once the file is stored ({{WAL settings|https://www.postgresql.org/docs/18/runtime-config-wal.html}}). To recover, restore the base backup, tell Postgres where the archive is (<code>restore_command</code>) and when to stop (<code>recovery_target_time</code>), and start it. Below, a nightly backup at midnight, a normal day of messages, and at 14:03 a cleanup that lost its <code>WHERE</code> clause, recovered both ways. Predict how many of the day's messages each method keeps, then watch both (the toggle swaps the method).</p>
 <div class="seg" id="rd-pitr-mode"><button data-m="dump" class="on">Restore last night's dump</button><button data-m="pitr">Point-in-time recovery to 14:02:59</button></div>
-<div class="rd-svg" id="rd-pitr"></div>
-<div class="an-cnt" id="rd-pitr-cnt"></div>
-<div class="an-cap" id="rd-pitr-cap"></div>
-<div class="an-ctl" id="rd-pitr-ctl"></div>
-<p class="small mute">Row counts, the recovery log line and the recovery times are from the real run; the clock times are <span class="ill">illustrative</span> (the run compressed "the day" into ten seconds: six batches of 2,000 messages, then the <code>DELETE</code>).</p>
-</div>
+<ol class="sx" id="sx-pitr-dump">
+<li><b>00:00 Nightly backup.</b> <code>pg_dump</code> writes the whole database to one file (33.9 MB here). That file is the database <b>as of midnight</b>, and nothing after.</li>
+<li><b>Morning: messages arrive.</b> Users write messages all morning. None of them is in last night's file, and no WAL is kept.</li>
+<li><b>14:02:59 The last good moment.</b> 1,012,000 messages: 12,000 of them written today.</li>
+<li><b>14:03:00 <code>DELETE FROM messages;</code></b> A cleanup meant for one chat runs without its <code>WHERE</code> clause. Every message is gone, and the replica deleted them too, milliseconds later.</li>
+<li><b>14:05 Alert; two more messages arrive.</b> Users notice. Two new messages are written to the now empty table.</li>
+<li><b>Restore into a new server.</b> <code>pg_restore</code> loads the midnight file into a fresh server: 1,000,000 messages (2.18 s here, measured).</li>
+<li><b>Replay.</b> Nothing to replay: a dump is one moment. The recovered server stays at midnight.</li>
+<li><b>Result: 12,000 messages lost.</b> Everything written since midnight; the RPO was 14 hours.</li>
+</ol>
+<ol class="sx" id="sx-pitr-pitr" hidden>
+<li><b>00:00 Base backup.</b> <code>pg_basebackup</code> copies the data files (WAL start point <code>0/14000028</code>), and from now on every finished 16 MB WAL segment is copied to the archive by <code>archive_command</code>.</li>
+<li><b>Morning: messages arrive.</b> Each change is in the WAL, and full segments go to the archive within seconds.</li>
+<li><b>14:02:59 The last good moment.</b> 1,012,000 messages; the archive holds every change since midnight.</li>
+<li><b>14:03:00 <code>DELETE FROM messages;</code></b> The same mistake. Its 1,012,000 delete records and its <code>COMMIT</code> record (transaction 738, LSN <code>0/2209DC60</code>, in segment <code>...22</code>) are now in the WAL like any other change.</li>
+<li><b>14:05 Alert; two more messages arrive.</b> Users notice. Two new messages are written to the now empty table.</li>
+<li><b>Restore the base backup into a new server.</b> 1,000,000 messages: the state at 00:00.</li>
+<li><b>Replay the archive to 14:02:59.</b> Postgres fetches the archived segments <code>...14</code> to <code>...22</code> one by one (<code>restore_command</code>), redoes every change, and stops just before the <code>DELETE</code>'s commit: <code>recovery stopping before commit of transaction 738</code>.</li>
+<li><b>Result: nothing written before the mistake is lost.</b> All 1,012,000 messages are back (recovery took 1.64 s here). The 2 messages written after 14:03 exist only on the old server; copy them across, or recover to a side server and copy the deleted rows back.</li>
+</ol>
+<p class="small mute">Row counts, segment names, the recovery log line and the recovery times are from the real run; the clock times are <span class="ill">illustrative</span> (the run compressed "the day" into ten seconds: six batches of 2,000 messages, then the <code>DELETE</code>).</p>
 <div id="rd-pitr-sum"></div>
 <p>The recovered server stops replaying just before the <code>DELETE</code>'s commit record (<code>recovery stopping before commit of transaction</code>), so the delete simply never happened. Three details decide a real incident:</p>
 <ul>
@@ -32,6 +48,8 @@
 </ul>
 <p>A replica is no help here: it applied the <code>DELETE</code> milliseconds later. A delayed replica (<code>recovery_min_apply_delay = '1h'</code>) gives you an hour to stop it, a useful extra, never a substitute for archived WAL.</p>
 <details class="dp"><summary>Real run: the bad DELETE, pg_waldump, then both recoveries <span class="mute">(measured output)</span></summary><div class="b"><div class="tr" data-run="pitr" data-steps="bad_delete,after,waldump,restore_dump,restore_pitr,pitr_count" data-title="The bad DELETE, then both recoveries"></div></div></details>
+</section></div></div>
+<section id="rd-s2t">
 <h3>Tools, and what managed services do</h3>
 <p>Nobody writes <code>cp</code> archive commands in production. Three open-source tools take base backups, archive WAL, keep retention, compress, encrypt and restore against object storage such as S3: <b>pgBackRest</b> (the common choice for self-managed Postgres: full, differential and incremental backups, parallel compression, asynchronous archiving, verification; {{user guide|https://pgbackrest.org/user-guide.html}}), <b>WAL-G</b> (one Go binary, popular in Kubernetes and cloud setups, delta backups to S3, GCS or Azure) and <b>Barman</b> (EDB's backup server, pulling from many Postgres servers). Amazon RDS keeps automated backups for up to 35 days and uploads transaction logs to S3 every five minutes, so its point-in-time restore can lose up to about five minutes ({{RDS PITR docs|https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIT.html}}).</p>
 <details class="dp"><summary>A minimal pgBackRest setup, and the tool versions <span class="mute">(reference, versions dated)</span></summary><div class="b">

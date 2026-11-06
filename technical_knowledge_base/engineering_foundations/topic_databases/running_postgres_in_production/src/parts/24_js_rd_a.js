@@ -1,4 +1,4 @@
-// ---- Reading sections 2 and 3: PITR animation, lag chart, slot and sync bars ----
+// ---- Reading sections 2 and 3: PITR summary tiles, lag chart, slot and sync bars ----
 (function(){
   const D=window.RPG,t=RD.t,esc=RD.esc;
   const fmt=n=>Math.round(n).toLocaleString('en-US');
@@ -7,56 +7,11 @@
   const arrow=(x1,y1,x2,y2,col)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(col||'var(--mute)')+'" stroke-width="1.3" marker-end="url(#rpa)"/>';
   const defs='<defs><marker id="rpa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
 
-  // 3. PITR animation
-  const P=D.pitr||{},base=P.count_dump||1000000,good=P.before_delete||1012000,today=good-base;
+  // 3. PITR: the 3D stage (29b_js_sc_pitr.js) replaced the 2D animation (2026-11-06); the summary tiles stay here
+  const P=D.pitr||{},good=P.before_delete||1012000;
   const secDump=(P.steps&&P.steps.restore_dump&&P.steps.restore_dump.secs)||0,secPitr=(P.steps&&P.steps.restore_pitr&&P.steps.restore_pitr.secs)||0;
-  const stopLine=((P.steps&&P.steps.restore_pitr&&P.steps.restore_pitr.log)||[]).find(l=>/recovery stopping/.test(l))||'';
-  let mode='dump';
-  // per step: clock (hours), production rows, recovered rows (null = no recovered server yet), archived fraction
-  const ST=[
-    {h:0,prod:base,rec:null,arc:0,t:'00:00 Nightly backup',d:{dump:'pg_dump writes the whole database to one file. That file is the database <b>as of midnight</b>, and nothing after.',pitr:'pg_basebackup copies the data files, and from now on every finished 16 MB WAL segment is copied to the archive (archive_command).'}},
-    {h:9,prod:base+today/3,rec:null,arc:.33,t:'Morning: messages arrive',d:{dump:'Users write messages all morning. None of them is in last night\'s file.',pitr:'Users write messages all morning. Each change is in the WAL, and full segments go to the archive within seconds.'}},
-    {h:14.05,prod:good,rec:null,arc:.98,t:'14:02:59 The last good moment',d:{dump:fmt(good)+' messages: '+fmt(today)+' of them written today.',pitr:fmt(good)+' messages; the archive holds every change since midnight.'}},
-    {h:14.05,prod:0,rec:null,arc:1,del:1,t:'14:03:00 DELETE FROM messages;',d:{dump:'A cleanup meant for one chat runs without its WHERE clause. Every message is gone, and the replica deleted them too, milliseconds later.',pitr:'The same mistake. Its million delete records and its COMMIT record are now in the WAL like any other change.'}},
-    {h:14.3,prod:2,rec:null,arc:1,del:1,t:'14:05 Alert; two more messages arrive',d:{dump:'Users notice. Two new messages are written to the now empty table.',pitr:'Users notice. Two new messages are written to the now empty table.'}},
-    {h:14.3,prod:2,rec:base,arc:1,del:1,rcv:1,t:'Restore into a new server',d:{dump:'pg_restore loads the midnight file into a fresh server: '+fmt(base)+' messages ('+secDump+' s here, measured).',pitr:'The midnight base backup is copied into a fresh server: '+fmt(base)+' messages, the state at 00:00.'}},
-    {h:14.3,prod:2,rec:null,arc:1,del:1,rcv:2,t:'Replay',d:{dump:'Nothing to replay: a dump is one moment. The recovered server stays at midnight.',pitr:'Postgres fetches archived WAL and redoes every change up to 14:02:59, then stops just before the DELETE\'s commit:<br><code>'+esc(stopLine.replace(/^LOG:\s+/,''))+'</code>'}},
-    {h:14.3,prod:2,rec:null,arc:1,del:1,rcv:3,t:'Result',d:{dump:'<b>'+fmt(today)+' messages lost</b>: everything written since midnight. RPO was 14 hours.',pitr:'<b>Nothing written before the mistake is lost</b> (recovery took '+secPitr+' s here). The 2 messages written after 14:03 exist only on the old server; copy them across, or recover to a side server and copy the deleted rows back.'}}
-  ];
-  function recRows(i){const s=ST[i];if(!s.rcv)return null;if(mode==='dump')return base;return s.rcv>=2?good:base}
-  function drawPitr(i){
-    const el=document.getElementById('rd-pitr');const W=Math.min(820,RD.width(el)),H=200,x0=14,x1=W-14,s0=ST[i];
-    const X=h=>x0+(x1-x0)*h/15;let s=defs;
-    s+='<line x1="'+x0+'" y1="34" x2="'+x1+'" y2="34" stroke="var(--line)" stroke-width="2"/>';
-    [0,3,6,9,12,15].forEach(h=>{s+='<line x1="'+X(h)+'" y1="30" x2="'+X(h)+'" y2="38" stroke="var(--mute)"/>'+t(X(h),24,String(h).padStart(2,'0')+':00',{a:h===0?'start':h===15?'end':'middle',fs:10,fill:'var(--mute)'})});
-    s+='<rect x="'+(X(0)-3)+'" y="40" width="6" height="12" fill="var(--c3)"/>';
-    s+=t(X(0)+6,51,mode==='dump'?'dump':'base backup',{fs:10,fill:'var(--c3)'});
-    const now=X(Math.min(s0.h,15));s+='<line x1="'+now+'" y1="28" x2="'+now+'" y2="40" stroke="var(--acc)" stroke-width="3"/>';
-    if(s0.del){s+='<line x1="'+X(14.05)+'" y1="40" x2="'+X(14.05)+'" y2="'+(H-6)+'" stroke="var(--bad)" stroke-dasharray="4 3"/>'+t(X(14.05)-4,51,'DELETE 14:03',{a:'end',fs:10,fill:'var(--bad)',w:600})}
-    // WAL archive strip
-    const n=28,sw=(X(14.05)-X(0))/n;
-    for(let k=0;k<n;k++){const on=mode==='pitr'&&k/n<s0.arc;s+='<rect x="'+(X(0)+k*sw+1)+'" y="62" width="'+Math.max(1,sw-2)+'" height="10" rx="1.5" fill="'+(on?'var(--c5)':'var(--soft)')+'" stroke="var(--line)" stroke-width=".5"/>'}
-    s+=t(x0,86,mode==='pitr'?'archived WAL segments (16 MB each)':'no WAL archive: only the nightly file exists',{fs:10,fill:'var(--mute)'});
-    // bars
-    const bw=x1-x0-150,bx=x0+150,Y=[106,150],rows=[['production',s0.prod],['recovered server',recRows(i)]];
-    rows.forEach(([lab,v],k)=>{s+=t(x0,Y[k]+13,lab,{fs:11,w:600});s+='<rect x="'+bx+'" y="'+Y[k]+'" width="'+bw+'" height="18" rx="3" fill="var(--soft)" stroke="var(--line)"/>';
-      if(v!=null){const f=v/good;s+='<rect x="'+bx+'" y="'+Y[k]+'" width="'+Math.max(v>0?2:0,bw*f)+'" height="18" rx="3" fill="'+(k?'var(--c3)':'var(--acc)')+'"/>';
-        s+=t(bx+bw-4,Y[k]+13,fmt(v)+' rows',{a:'end',fs:10.5,w:600,fill:v/good>.8?'var(--bg)':'var(--ink)'})}
-      else s+=t(bx+6,Y[k]+13,k?'(not started)':'',{fs:10,fill:'var(--mute)'});});
-    if(recRows(i)!=null){const f=base/good;s+='<line x1="'+(bx+bw*f)+'" y1="'+(Y[1]-4)+'" x2="'+(bx+bw*f)+'" y2="'+(Y[1]+22)+'" stroke="var(--ink)" stroke-dasharray="2 2"/>'}
-    s+=t(x1,H-6,'dashed: the midnight state',{a:'end',fs:9.5,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,H,s,'Point-in-time recovery timeline');
-    const r=recRows(i),lost=s0.rcv===3?(mode==='dump'?today:0):null;
-    document.getElementById('rd-pitr-cnt').innerHTML=RD.stat('Production rows',fmt(s0.prod),'')+RD.stat('Recovered rows',r==null?'none yet':fmt(r),'')+
-      RD.stat('Lost (written before 14:03)',lost==null?'?':fmt(lost),mode==='dump'?'RPO: since the last dump':'RPO: seconds')+
-      RD.stat('Recovery time here',s0.rcv?(mode==='dump'?secDump:secPitr)+' s':'','measured, 221 MB');
-    document.getElementById('rd-pitr-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+ST.length+': '+esc(s0.t)+'</div><p>'+s0.d[mode]+'</p>';
-  }
-  let A;
   RD.onRender(()=>{lag();slot();sync();sum()});
-  RD.onResize(()=>{A&&A.redraw();lag();slot()});
-  A=RD.anim({card:'rd-pitr-card',ctl:'rd-pitr-ctl',n:ST.length,draw:drawPitr,ms:2200,label:'Recovery step'});
-  RD.seg(document.getElementById('rd-pitr-mode'),m=>{mode=m;A.reset(ST.length)});  // a mode switch resets to step 1; nothing moves until the reader steps or presses play
+  RD.onResize(()=>{lag();slot()});
   function sum(){const el=document.getElementById('rd-pitr-sum');if(!el||!P.count_pitr)return;
     el.innerHTML='<div class="out">'+RD.stat('Before the DELETE',fmt(good),'messages')+RD.stat('Restored from the dump',fmt(P.count_dump),'lost '+fmt(good-P.count_dump)+', restore '+secDump+' s')+
       RD.stat('Point-in-time recovery',fmt(P.count_pitr),'lost '+fmt(good-P.count_pitr)+', recovery '+secPitr+' s')+'</div>'}

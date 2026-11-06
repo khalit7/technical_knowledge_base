@@ -1,5 +1,5 @@
-// ---- Reading (rebuilt 2026-10-24): hero, memory calculator, replication pipeline, failover stepper, XID-age slider,
-// SET-leak stepper, lock-queue diagram. Every figure is drawn at the measured width; nothing moves until the reader acts.
+// ---- Reading (rebuilt 2026-10-24; 2026-11-06: the hero, the replication pipeline and the XID-age slider became 3D stages, 29a to 29f):
+// memory calculator, failover stepper, SET-leak stepper (both RD.anim with step lists), lock-queue diagram. Every figure is drawn at the measured width.
 (function(){
   const D=window.RPG||{},t=RD.t,esc=RD.esc,fmt=n=>Math.round(n).toLocaleString('en-US');
   const mk='<defs><marker id="rpn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker>'+
@@ -12,30 +12,6 @@
   }
   const ar=(x1,y1,x2,y2,o)=>{o=o||{};return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(o.c||'var(--mute)')+'" stroke-width="'+(o.w||1.3)+'"'+(o.d?' stroke-dasharray="'+o.d+'"':'')+(o.no?'':' marker-end="url(#'+(o.c==='var(--bad)'?'rpo':'rpn')+')"')+'/>'};
   const W=el=>Math.min(820,RD.width(el));
-
-  // ---- hero ----
-  function hero(){
-    const el=document.getElementById('rd-hero');if(!el)return;const w=W(el),n=w<520,g=10,col=(w-g)/2;
-    let s=mk,y=4;
-    s+=box(0,y,col,40,'application','many clients, pools','')+box(col+g,y,col,40,'PgBouncer  §7','few server connections','add');
-    s+=ar(col,y+20,col+g-1,y+20);y+=40;s+=ar(col+g+col/2,y,col+g+col/2,y+20);s+=ar(col/2,y,col/2,y+20,{d:'3 3'});y+=22;
-    // backends
-    const bw=(w-2*g)/3;
-    for(let i=0;i<3;i++)s+=box(i*(bw+g),y,bw,40,'backend','one process each','');
-    // pin: open transaction, held by backend 1
-    const py=y+52;s+=box(0,py,bw*1.55,40,'open transaction','holds old rows §5 §6','pin');s+=ar(bw/2,py,bw/2,y+41,{c:'var(--bad)',no:1,d:'2 2'});
-    const B=y;y=py+44;for(let i=0;i<3;i++){const x=i*(bw+g)+(i?bw*0.75:bw/2);s+=ar(x,i?B+41:y-4,x,y+10)}
-    y+=12;s+=box(0,y,w,36,'shared buffers  §1','8 KB pages cached for every backend','');y+=36;
-    s+=ar(col/2,y,col/2,y+18);s+=ar(col+g+col/2,y,col+g+col/2,y+18,{c:'var(--acc)'});y+=20;
-    s+=box(0,y,col,46,'table files','dead rows: VACUUM §5','')+box(col+g,y,col,46,'WAL  pg_wal/','every change, first §1','hl');
-    y+=46;const qx=col+g;
-    s+=ar(qx+col*0.25,y,col*0.5,y+30,{c:'var(--acc)'});s+=ar(qx+col*0.75,y,qx+col*0.5,y+30,{c:'var(--acc)'});
-    // slot pin on the replica path
-    y+=32;s+=box(0,y,col,42,'archive  §2','base backup + WAL: PITR','add')+box(col+g,y,col,42,'replica  §3 §4','replays the WAL','add');
-    y+=48;s+=box(col+g,y,col,36,'inactive slot','keeps WAL, fills disk §3','pin');s+=ar(qx+col/2,y,qx+col/2,y-6,{c:'var(--bad)',no:1,d:'2 2'});
-    s+=t(0,y+14,n?'checkpoints recycle old WAL':'checkpoints recycle old WAL (§1),',{fs:11,fill:'var(--mute)'})+t(0,y+29,n?'unless something needs it':'unless an archive or slot still needs it',{fs:11,fill:'var(--mute)'});
-    y+=40;el.innerHTML=RD.svg(w,y,s,'A Postgres server: processes, shared buffers, table files, WAL, archive and replica, with the two pins');
-  }
 
   // ---- memory calculator ----
   const WM=[1,4,16,64,128,256,1024],RAM=64,SB=16;
@@ -55,21 +31,6 @@
       RD.stat('Total, worst case',r.total.toFixed(1)+' GB',over?'<b style="color:var(--bad)">more than RAM: the kernel kills a backend</b>':(100*r.total/RAM).toFixed(0)+'% of RAM');
   }
   const mw=document.getElementById('rd-mem-w');if(mw){mw.addEventListener('input',mem);RD.seg(document.getElementById('rd-mem-mode'),m=>{memMode=m;mem()})}
-
-  // ---- replication pipeline ----
-  function rep(){
-    const el=document.getElementById('rd-rep');if(!el)return;const w=W(el),n=w<520,bx=40,bw=w-bx,rh=30,gp=8;
-    const rows=[['primary: commit, WAL flushed locally','','var(--line)'],['WAL sender streams the record','network',null],['replica: WAL receiver writes it','write_lag ends','var(--c1)'],['... and flushes it to disk','flush_lag ends','var(--c3)'],['startup process replays it','replay_lag ends: visible','var(--bad)']];
-    let s=mk;rows.forEach((r,k)=>{const y=4+k*(rh+gp);
-      s+='<rect x="'+bx+'" y="'+y+'" width="'+bw+'" height="'+rh+'" rx="6" fill="'+(k===0?'var(--acc2)':'var(--soft)')+'" stroke="'+(r[2]||'var(--line)')+'"/>';
-      s+=t(bx+8,y+19,n?r[0].replace('replica: WAL receiver','receiver').replace('startup process replays it','replay applies it').replace('primary: commit, WAL flushed locally','primary: commit flushed').replace('WAL sender streams the record','WAL sender streams it'):r[0],{fs:11.5,w:k===0?600:400});
-      if(r[1])s+=t(bx+bw-8,y+19,n?r[1].replace(': visible',''):r[1],{a:'end',fs:11,w:600,fill:r[2]||'var(--mute)'});
-      if(k<rows.length-1)s+=ar(bx+bw/2,y+rh,bx+bw/2,y+rh+gp-1)});
-    [[2,'var(--c1)',8],[3,'var(--c3)',20],[4,'var(--bad)',32]].forEach(([k,c,x])=>{const y0=4+rh/2,y1=4+k*(rh+gp)+rh/2;
-      s+='<line x1="'+x+'" x2="'+x+'" y1="'+y0+'" y2="'+y1+'" stroke="'+c+'" stroke-width="2.5"/><line x1="'+x+'" x2="'+bx+'" y1="'+y1+'" y2="'+y1+'" stroke="'+c+'" stroke-width="1.5"/>'});
-    const H=4+rows.length*(rh+gp)+4;
-    el.innerHTML=RD.svg(w,H,s,'Streaming replication: where write, flush and replay lag end');
-  }
 
   // ---- failover stepper ----
   const FO={hand:[
@@ -104,39 +65,10 @@
     if(st.rows){s+=t(ax,y,n?'2150968: OLD':'row 2150968: "written to the OLD primary"',{fs:11,w:600,fill:'var(--bad)'})+t(bx+nw,y,n?'2150968: NEW':'row 2150968: "written to the NEW primary"',{a:'end',fs:11,w:600,fill:'var(--bad)'});y+=8}
     if(st.lost){s+=t(ax,y,n?'OLD write discarded':'the OLD write is discarded by pg_rewind',{fs:11,fill:'var(--bad)'});y+=8}
     el.innerHTML=RD.svg(w,y+6,s,'Failover: two servers, clients and a partition');
-    document.getElementById('rd-fo-cap').innerHTML='<div class="t">Step '+(i+1)+' of 5: '+f[0]+'</div><p>'+f[1]+'</p>';
   }
-  if(document.getElementById('rd-fo-card')){FA=RD.anim({card:'rd-fo-card',ctl:'rd-fo-ctl',n:5,draw:foDraw,ms:2600,label:'Failover step'});
-    RD.seg(document.getElementById('rd-fo-mode'),m=>{foMode=m;FA.reset(5)})}
-
-  // ---- XID age slider ----
-  const L31=2147483648,TH=[[200e6,'freeze_max_age 200M','var(--c5)'],[500e6,'alert: warn','var(--mute)'],[1e9,'alert: page','var(--mute)'],[1.6e9,'failsafe 1.6B','var(--c2)'],[L31-40e6,'warnings','var(--bad)'],[L31-3e6,'refuses writes','var(--bad)']];
-  window.RPG_XID=age=>age>=L31-3e6?'stop':age>=L31-40e6?'warn':age>=1.6e9?'failsafe':age>=200e6?'aggressive':'normal';
-  function xid(){
-    const el=document.getElementById('rd-xid-svg');if(!el)return;const v=+document.getElementById('rd-xid').value,age=Math.round(v/1000*L31),w=W(el),n=w<520;
-    const short=a=>a>=1e9?(a/1e9).toFixed(3).replace(/0+$/,'').replace(/\.$/,'')+' billion':(a/1e6).toFixed(a<1e7?1:0)+' million';
-    document.getElementById('rd-xid-v').textContent=short(age);
-    const X=a=>4+(w-8)*a/L31;let s='';
-    const zones=[[0,200e6,'var(--c3)'],[200e6,1.6e9,'var(--c5)'],[1.6e9,L31-40e6,'var(--c2)'],[L31-40e6,L31,'var(--bad)']];
-    zones.forEach(z=>s+='<rect x="'+X(z[0])+'" y="34" width="'+(X(z[1])-X(z[0]))+'" height="18" fill="'+z[2]+'" opacity=".55"/>');
-    TH.forEach((h,k)=>{const x=X(h[0]),up=k%2===0;if(k===5)return;s+='<line x1="'+x+'" x2="'+x+'" y1="'+(up?24:34)+'" y2="'+(up?52:62)+'" stroke="'+h[2]+'"/>';
-      const lb=n?h[1].replace('freeze_max_age ','').replace('alert: ','').replace('failsafe ','fs '):h[1];s+=t(Math.max(2,Math.min(x,w-2)),up?20:74,lb,{a:x>w-40?'end':x<40?'start':'middle',fs:11,fill:h[2]})});
-    s+='<line x1="'+X(age)+'" x2="'+X(age)+'" y1="28" y2="58" stroke="var(--ink)" stroke-width="3"/>';
-    // zoom on the last 50 million
-    const z0=L31-50e6,Z=a=>4+(w-8)*(a-z0)/50e6,y2=100;
-    s+=t(4,y2-6,'the last 50 million, zoomed',{fs:11,fill:'var(--mute)'});
-    s+='<rect x="'+Z(z0)+'" y="'+y2+'" width="'+(Z(L31-40e6)-Z(z0))+'" height="16" fill="var(--c2)" opacity=".55"/><rect x="'+Z(L31-40e6)+'" y="'+y2+'" width="'+(Z(L31)-Z(L31-40e6))+'" height="16" fill="var(--bad)" opacity=".55"/>';
-    [[L31-40e6,'warnings: 40M left'],[L31-3e6,'refuses: 3M left']].forEach(([a,lb],k)=>{const x=Z(a);s+='<line x1="'+x+'" x2="'+x+'" y1="'+(y2-2)+'" y2="'+(y2+20)+'" stroke="var(--bad)"/>'+t(k?Math.min(x,w-2):x,y2+34,n?lb.replace(': ',' '):lb,{a:k?'end':'middle',fs:11,fill:'var(--bad)'})});
-    if(age>=z0)s+='<line x1="'+Z(age)+'" x2="'+Z(age)+'" y1="'+(y2-4)+'" y2="'+(y2+20)+'" stroke="var(--ink)" stroke-width="3"/>';
-    el.innerHTML=RD.svg(w,y2+42,s,'Transaction ID age against the safety thresholds');
-    const c={normal:['Normal','Ordinary autovacuum freezes rows as it goes. A healthy database saws between 0 and 200 million.'],
-      aggressive:['Aggressive autovacuum','Past autovacuum_freeze_max_age every table this old gets an anti-wraparound vacuum that scans every unfrozen page, even with autovacuum off. If the age keeps rising here, something is holding the oldest XID: an open or prepared transaction, or a slot.'],
-      failsafe:['Failsafe vacuum','Past vacuum_failsafe_age the vacuum drops its cost limits and skips index cleanup to finish sooner. Still silent in the log: only your alert has fired.'],
-      warn:['Warnings','Every command logs "database must be vacuumed within N transactions" (N was 3,000,299 in the run, which then refused writes 308 inserts later because it started just short of the limit). Find the holder now.'],
-      stop:['Writes refused','Postgres stops assigning XIDs: "database is not accepting commands to avoid wraparound data loss". Reads still work. Remove the holder, then VACUUM.']}[RPG_XID(age)];
-    document.getElementById('rd-xid-cap').innerHTML='<div class="t">'+c[0]+'</div><p>'+esc(c[1])+'</p>';
-  }
-  const xs=document.getElementById('rd-xid');if(xs)xs.addEventListener('input',xid);
+  if(document.getElementById('rd-fo-card')){FA=RD.anim({card:'rd-fo-card',ctl:'rd-fo-ctl',n:5,draw:foDraw,ms:4200,label:'Failover step',list:'sx-fo-hand'});
+    // a mode switch swaps the step list and replays from step 1 (the one exception to 'stops for good')
+    RD.seg(document.getElementById('rd-fo-mode'),m=>{foMode=m;['hand','patroni'].forEach(x=>document.getElementById('sx-fo-'+x).hidden=x!==m);FA.reset(5,'sx-fo-'+m)})}
 
   // ---- SET leak stepper ----
   const LK=[['A borrows server connection 1','Client A starts a transaction; PgBouncer lends it server connection 1. Both server connections have the default statement_timeout (0, off).',{a:1,set:0,b:0}],
@@ -152,9 +84,8 @@
     if(st.a){s+=ar(cw,28,px-2,58,{c:'var(--acc)',w:1.8});s+=ar(px+pw,58,sx-2,28,{c:'var(--acc)',w:1.8})}
     if(st.b){s+=ar(cw,100,px-2,72,{c:'var(--acc)',w:1.8});s+=ar(px+pw,62,sx-2,30,{c:'var(--bad)',w:1.8})}
     el.innerHTML=RD.svg(w,128,s,'Two clients, PgBouncer and two server connections');
-    document.getElementById('rd-leak-cap').innerHTML='<div class="t">Step '+(i+1)+' of 4: '+esc(LK[i][0])+'</div><p>'+LK[i][1]+'</p>';
   }
-  let LA=null;if(document.getElementById('rd-leak-card'))LA=RD.anim({card:'rd-leak-card',ctl:'rd-leak-ctl',n:LK.length,draw:leak,ms:2400,label:'Pooling step'});
+  let LA=null;if(document.getElementById('rd-leak-card'))LA=RD.anim({card:'rd-leak-card',ctl:'rd-leak-ctl',n:LK.length,draw:leak,ms:4000,label:'Pooling step',list:'sx-leak'});
 
   // ---- lock queue, from the real pg_stat_activity snapshot ----
   function lockq(){
@@ -173,6 +104,6 @@
     el.innerHTML=RD.svg(w,y+50,s,'Lock queue: an idle transaction, a waiting ALTER and three blocked reads');
   }
 
-  function all(){hero();mem();rep();xid();lockq()}
+  function all(){mem();lockq()}
   all();RD.onRender(()=>{all();FA&&FA.redraw();LA&&LA.redraw()});RD.onResize(()=>{all();FA&&FA.redraw();LA&&LA.redraw()});
 })();

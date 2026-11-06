@@ -41,7 +41,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_databases/caching` Caching: every layer, eviction, invalidation, and the LLM caches
 - [x] `engineering_foundations/topic_databases/nosql_in_practice` NoSQL in practice: key-value, document, wide-column, time-series, graph
 - [x] `engineering_foundations/topic_databases/query_planning_and_performance` Query planning and performance: EXPLAIN, statistics, slow queries, tuning
-- [ ] `engineering_foundations/topic_databases/running_postgres_in_production` Running Postgres in production: backups, replication, vacuum, upgrades, pooling
+- [x] `engineering_foundations/topic_databases/running_postgres_in_production` Running Postgres in production: backups, replication, vacuum, upgrades, pooling
 - [ ] `engineering_foundations/topic_databases/scaling_a_database` Scaling a database: read replicas, sharding Postgres, distributed SQL
 - [ ] `engineering_foundations/topic_databases/search_and_vector_databases` Search and vector databases: inverted indexes, BM25, ANN, pgvector
 - [ ] `engineering_foundations/topic_databases/sql_and_data_modelling` SQL and data modelling: queries, joins, schema design, normalisation, migrations
@@ -336,3 +336,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline`: Fig. 2 mid steps show the two splitters without labels on the rows; Fig. 4 sits low in its card.
 - `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes`: Fig. 2 step 4 is mostly faded, little at full strength; Fig. 4 QASPER mode step 3 text describes the random case.
 - `engineering_foundations/topic_databases/query_planning_and_performance`: Fig. 2 B-tree leaves stand in a row into depth and read like stairs; Fig. 3 faded node labels are faint.
+- `engineering_foundations/topic_databases/running_postgres_in_production`: Fig. 1 step 4 and Fig. 2 step 5 are mostly faded, little at full strength.

@@ -39,3 +39,14 @@ Built (all inline in Reading, all drawn at the measured width, none moves before
 - **Lock-queue diagram** parsed from the real `pg_stat_activity` snapshot (new section 8, safe schema changes).
 Moved: every real transcript (22 boxes, about 2,700 words) into closed "Real run" blocks; the line each section relies on is quoted in the prose. Removed: the "What pages you" card grid (it restated the failure table, which is now at the top) and the Common mistakes section (each mistake restated a section; the one new fact, recovery_min_apply_delay, moved into section 2).
 Rejected: a real photo (the page is about software; no physical object teaches here), a pooling animation of 1,000 dots (still decoration), a pg_wal/ checkpoint animation (Storage engines and indexes owns checkpoints as a mechanism; here the hero and the slot chart carry the operational point).
+
+## 2026-11-06 rollout: split layout and 3D stages (renderer v2)
+Built as 3D stages (each replaces a 2D figure or adds a missing mechanism picture):
+- Fig. 1 hero (`29a_js_sc_hero.js`): the server in six steps (backends, WAL first, shipping the WAL, dead rows and VACUUM, the two pins, the missing additions). Replaces the static 2D hero; its caption became the step list.
+- Fig. 2 PITR (`29b_js_sc_pitr.js`): dump against base backup plus archive on the same DELETE; the archived segments are the ones recovery replayed (...14 to ...22, parsed from its log). Replaces the 2D RD.anim; the per-step captions became two step lists swapped by the toggle.
+- Fig. 3 replication (`29c_js_sc_rep.js`): one WAL record from commit to replay, the three lags with the run's values, then the replay pause (79 MB behind). Replaces the 2D pipeline diagram.
+- Fig. 5 vacuum heap (`29d_js_sc_vac.js`): new; the table's pages (879, 1,552, 1,615 from the logs), HOT, full updates and an index, the sawtooth, the pinned snapshot, the final VACUUM, the visibility map.
+- Fig. 6 XID circle (`29e_js_sc_xid.js`): the counter to scale as a circle; replaces the linear XID-age slider (its zones are the steps; `RPG_XID` kept for the check).
+- Fig. 7 pooler (`29f_js_sc_pool.js`): new; max_connections slots and the refused 98th client, then 1,000 clients onto 20 server connections and SHOW POOLS.
+Kept 2D, and why: the work_mem calculator and the autovacuum threshold calculator (one parameter each, numbers on an axis); the lag chart, the vacuum run (now one static chart with phase bands, the long per-second replay retired under the long-replay rule), slot, sync, connection and VACUUM FULL bars, support windows (curves, bars and timelines read flat); the failover and SET-leak steppers (two or four boxes and arrows: depth adds nothing; now RD.anim with step lists); the lock-queue diagram (a tree of five processes, static).
+Rejected: a 3D slot/pg_wal tower (the measured slot bars already show it and Fig. 1 step 5 draws the pin); a 3D failover (two servers and a partition read flat).

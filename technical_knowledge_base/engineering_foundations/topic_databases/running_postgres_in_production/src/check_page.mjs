@@ -10,7 +10,8 @@ const RC = fs.existsSync(path.join(here, 'recompute_out.json')) ? JSON.parse(fs.
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let bad = 0; const say = (ok, m) => { if (!ok) bad++; console.log((ok ? 'ok   ' : 'FAIL ') + m) };
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-const CARDS = ['rd-hero', 'rd-mem-card', 'rd-rep', 'rd-fo-card', 'rd-xid-card', 'rd-leak-card', 'rd-lock', 'rd-pitr-card', 'rd-lag-card', 'rd-slot', 'rd-sync', 'rd-thr-card', 'rd-vac-card', 'rd-full', 'rd-conn', 'rd-eol', 'rd-up-out', 'rd-mcost'];
+// (2026-11-06: the hero, PITR, replication pipeline, XID slider became 3D stages, checked by check_stages.mjs)
+const CARDS = ['rd-mem-card', 'rd-fo-card', 'rd-leak-card', 'rd-lock', 'rd-pitr-sum', 'rd-lag-card', 'rd-slot', 'rd-sync', 'rd-thr-card', 'rd-vac-card', 'rd-full', 'rd-conn', 'rd-eol', 'rd-up-out', 'rd-mcost'];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()) });
@@ -24,17 +25,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (const c of document.querySelectorAll('#t-read .an-ctl')) { for (const s of ['f', 'f', 'b', 'p', 'p']) { const e = document.getElementById(c.id + '-' + s); if (e) { click(e); await sleep(30) } }
       const r = document.getElementById(c.id + '-s'); if (r) { r.value = r.max; r.dispatchEvent(new Event('input')); await sleep(30); r.value = 0; r.dispatchEvent(new Event('input')); await sleep(30); r.value = r.max; r.dispatchEvent(new Event('input')) }
       const v = document.getElementById(c.id + '-v'); if (v) { v.value = '2'; v.dispatchEvent(new Event('change')) } }
-    for (const id of ['rd-thr-n', 'rd-thr-s', 'rd-mem-w', 'rd-xid']) { const r = document.getElementById(id); for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); k++ } }
+    for (const id of ['rd-thr-n', 'rd-thr-s', 'rd-mem-w']) { const r = document.getElementById(id); for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); k++ } }
     for (const el of document.querySelectorAll('details')) el.open = true;
     return k });
   say(n > 15, `${scheme} ${width}: clicked ${n} Reading controls`);
-  // PITR animation in both modes: final step numbers
-  const pitr = await p.evaluate(async () => { const out = {}; const sleep = ms => new Promise(r => setTimeout(r, ms));
-    for (const m of ['dump', 'pitr']) { document.querySelector('#rd-pitr-mode button[data-m=' + m + ']').click(); await sleep(30);
-      const r = document.getElementById('rd-pitr-ctl-s'); r.value = r.max; r.dispatchEvent(new Event('input')); await sleep(30);
-      out[m] = document.getElementById('rd-pitr-cnt').innerText.replace(/\s+/g, ' ') }
-    return out });
-  console.log('     pitr final:', JSON.stringify(pitr));
+  // PITR: the summary tiles carry the run's counts (the stage is checked by check_stages.mjs)
+  const pitr = await p.$eval('#rd-pitr-sum', e => e.innerText.replace(/\s+/g, ' '));
+  say(/1,012,000/.test(pitr) && /1,000,000/.test(pitr), `${scheme}: PITR summary ${pitr}`);
   for (const id of CARDS) { const el = await p.$('#' + id); if (el) { await el.evaluate(e => e.scrollIntoView({ block: 'center' })); await sleep(60); await el.screenshot({ path: path.join(shots, `my-${id}-${scheme}-${width}.png`) }) } else say(false, 'missing #' + id) }
   // incident lab: every alert, every step
   await p.click('button[data-t=t-lab]'); await sleep(100);
