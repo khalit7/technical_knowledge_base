@@ -7,7 +7,7 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Source links: {{text|cx:path#L1-L2}} (cx codex, gm gemini-cli, oc opencode, ai aider, oh openhands sdk, ms mini-swe-agent) expand to GitHub at the pinned commit.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/10_header.html parts/20_read.html parts/20_read_*.html
+{ cat parts/01_head.html parts/02_split.html parts/10_header.html parts/20_read.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html

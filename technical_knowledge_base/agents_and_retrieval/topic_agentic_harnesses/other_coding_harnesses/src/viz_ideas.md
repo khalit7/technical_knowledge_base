@@ -29,3 +29,8 @@ Moved inline: first-request anatomy and the repository map (now SVG); the run ba
 
 ## What the methodology lacked
 A rule for runs on a weak model whose purpose is to expose harness behaviour rather than to rank: label them as demonstrations, show the mechanism that failed (refused reply, repeated call, prose instead of a tool call), and never aggregate them into a score.
+
+## 2026-11-06 (split layout, renderer v2)
+- Built: Fig. 1 runs as rows of call blocks (height prompt tokens); Fig. 2 matcher ladders as glass plates in depth; Fig. 3 approval plates and sandbox walls per harness, default against headless; Fig. 4 harness parts gliding between your side and the provider.
+- First try of Fig. 2 ran the ladders left to right with plates facing sideways: seen from the front the plates were slivers. Turned 90 degrees so each tool is a column of plates facing the camera.
+- Rejected as 3D: the first-request anatomy as towers of characters (one axis reads better flat), compaction (schematic), the run cost bars and the run-ending strips (the hero already shows calls in depth; the strips carry the end reasons and open a run on click).

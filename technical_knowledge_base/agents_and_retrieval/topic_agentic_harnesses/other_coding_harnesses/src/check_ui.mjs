@@ -1,4 +1,4 @@
-// Click every control on every tab at 390 dark and 920 light; report errors, NaN/undefined, sideways scroll;
+// Click every control on every tab at 390 dark and 920 light (stage steps and autoplay: check_stages.mjs); report errors, NaN/undefined, sideways scroll;
 // save element screenshots of the main visuals. Usage: node src/check_ui.mjs <abs path to index.html> <shots dir>
 import { createRequire } from 'module';
 const require = createRequire(new URL('../../../../../html_utils/package.json', import.meta.url));
@@ -18,7 +18,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await page.evaluate(() => { try { localStorage.clear() } catch (e) {} });
   await page.reload();
   const counts = {};
-  await sleep(1500); counts.still = await page.evaluate(() => [document.getElementById('rd-ab-ctl-s').value, document.getElementById('hm-anim-s').value].join(','));
+  // (motion: animations now play once scrolled into view and never under reduced motion; check_stages.mjs checks both)
+  await sleep(800);
   const shot = async (sel, name) => { const el = await page.$(sel); if (el) { await el.scrollIntoView(); await sleep(150); await el.screenshot({ path: `${OUT}/${name}-${scheme}-${w}.png` }) } };
   // Reading: boundary animation, every step
   counts.ab = await page.evaluate(() => { const f = document.getElementById('rd-ab-ctl-f'); let n = 0; for (let i = 0; i < 12; i++) { f.click(); n++ } document.getElementById('rd-ab-ctl-b').click(); const s = document.getElementById('rd-ab-ctl-s'); s.value = 1; s.dispatchEvent(new Event('input')); return n });
@@ -26,8 +27,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await page.evaluate(() => { const s = document.getElementById('rd-ab-ctl-s'); s.value = 3; s.dispatchEvent(new Event('input')) });
   await shot('#rd-ab-card', 'boundary');
   counts.details = await page.evaluate(() => { const d = document.querySelectorAll('#t-read details'); d.forEach(x => x.open = true); return d.length });
-  for (const id of ['rd-hero','rd-ends','rd-ladder','rd-anat','rd-compact','rd-box','rd-where','rd-runs-fig']) await shot('#' + id, id);
-  await shot('#rd-0 .tw', 'onescreen');
+  for (const id of ['rd-ends','rd-anat','rd-compact','rd-runs-fig','stg-hero','stg-edit','stg-box','stg-where']) await shot('#' + id, id);
+  await shot('#rd-one .tw', 'onescreen');
   // repository map (Reading section 5)
   counts.map = await page.evaluate(() => { let n = 0; const f = document.getElementById('hm-anim-f'); for (let k = 0; k < 3; k++) { for (const v of ['256', '512', '1024', '2048']) { const s = document.getElementById('hm-bud'); s.value = v; s.dispatchEvent(new Event('change')); n++ } f.click() } document.getElementById('hm-all').click(); document.getElementById('hm-all').click(); document.getElementById('hm-anim-b').click(); return n });
   await shot('#hm-card', 'repomap');

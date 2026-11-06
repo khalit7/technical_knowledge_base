@@ -88,6 +88,16 @@ check("docker and retry top three", "environments/docker.py" in top3 and "models
 check("pers 1.69 and 3.39", abs(sc["chat"]["pers"]["agents/default.py"] - 1.6949) < 1e-3 and abs(sc["chat_ident"]["pers"]["environments/docker.py"] - 3.3898) < 1e-3)
 check("59 files", M["n_files"] == 59 and has("59 Python files"))
 check("47 ranked", sum(1 for x in sc["cold"]["rank"] if x > 0) == 47)
+# step lists beside the stages and animations (2026-11-06)
+E = json.loads(re.search(r"window\.HR_ENDS=(\{.*?\});", html, re.S).group(1))
+check("hero: aider whole 3,384 and ohs 322,241", aw["totals"]["in"] == 3384 and has("3,384 tokens for Aider's whole-file run, 322,241 for OpenHands"))
+check("hero: ohs seven red calls, five str_replace", E["ohs_1"]["cats"].count("E") == 7 and has("five of its seven orange calls"))
+check("hero: codex four refused then prose", E["codex_1"]["cats"] == "EEEEP" and has("Four refused calls in a row"))
+found = [re.search(r"found (\d+)", c.get("obs") or "") for c in fr["calls"]]
+found = [int(m.group(1)) for m in found if m]
+check("boundary: parser counts 2, 9, 3, 11, 7", found == [2, 9, 3, 11, 7] and has("counts 9 blocks") and has("counts 11 action blocks") and has("7 blocks") and has("up to 11 action blocks"), found)
+check("boundary: 10 steps for 10 calls", len(re.findall(r"<li><b>Call \d+", html)) == fr["totals"]["calls"])
+check("map steps: 1.69 and 3.39", has("100/59 = 1.69") and has("restart weight 3.39 each"))
 # hygiene
 for bad in ("/" + "Us" + "ers/", "Us" + "ers-", Path.home().name, "glp" + "at", "sk-" + "ant", "\u2014", "claude" + "-502"):
     check("no " + bad, bad not in html)

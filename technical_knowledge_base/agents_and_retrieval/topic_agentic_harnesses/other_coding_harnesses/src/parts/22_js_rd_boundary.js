@@ -31,9 +31,8 @@
     $(cnt).innerHTML='After call <b>'+k+'</b>: action blocks the model wrote <b>'+blocks+'</b>, replies refused <b>'+fes+'</b>, output tokens <b>'+fmt(out)+'</b>';
   }
   const N=Math.max(L.calls.length,Rr.calls.length);
-  const caps=['The first reply is fine in both runs: one thought, one action. The harness runs it.',
-    'Call 2. Left: one action, then an invented exchange and a second copy of the action; two blocks, so the parser refuses the reply. Right: the same kind of reply, cut after the first block, so it runs.'];
-  RD.anim({card:'rd-ab-card',ctl:'rd-ab-ctl',n:N,ms:3200,label:'Model call',draw:i=>{
+  // each model call is explained by the step list ol#sx-ab on the left (one item per call)
+  RD.anim({card:'rd-ab-card',ctl:'rd-ab-ctl',n:N,ms:4200,label:'Model call',list:'sx-ab',draw:i=>{
     side(L,i,'rd-ab-l','rd-ab-lr','rd-ab-lc');side(Rr,i,'rd-ab-r','rd-ab-rr','rd-ab-rc');
-    $('rd-ab-cap').innerHTML='<div class="t">Model call '+(i+1)+' of '+N+'</div><p>'+(caps[i]||(i>=Rr.calls.length?'The cut run has already submitted (no file changed). The uncut run keeps going: every multi-block reply is refused, and it ends only when a reply holds the submit command alone.':'Both keep going. Watch the highlighted stretches: the model is writing the harness\'s side of the conversation.'))+'</p>'}});
+    document.getElementById('rd-ab-cap').textContent='Model call '+(i+1)+' of '+N}});
 })();
