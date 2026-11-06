@@ -37,7 +37,8 @@
     const sp=r=>{const t=r.turns[Math.min(k,r.turns.length)-1];return t?t.spent:0};
     st.innerHTML=[a,b].map(r=>RD.stat(esc(r.rule)+' tokens so far',fmt(sp(r)),'turns '+Math.min(k,r.turns.length)+' of '+r.turns.length)).join('');
   }
-  const an=RD.anim({card:'hbs-pair',ctl:'hbs-pair-ctl',n:nturns(),draw,ms:1700,label:'Turn'});
+  // a widget the reader drives (the long-replay rule, case b: up to 13 turns): it never plays by itself; Fig. 3 tells the story in five steps
+  const an=RD.anim({card:'hbs-pair',ctl:'hbs-pair-ctl',n:nturns(),draw,ms:1700,label:'Turn',auto:false});
   sel.addEventListener('change',()=>{P=pairs[+sel.value];an.reset(nturns())});
   // ---------- replay
   const budgets=[2000,3000,4000,5000,6000,8000,10000,12000,15000,20000,25000,30000,Infinity];

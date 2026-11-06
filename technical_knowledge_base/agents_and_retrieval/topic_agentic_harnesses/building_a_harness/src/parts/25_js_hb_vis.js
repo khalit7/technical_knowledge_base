@@ -1,40 +1,10 @@
-// ---- Reading figures drawn at the measured width: hero loop, SWE-agent ablation, planning, environment, cost per call, measuring ----
+// ---- Reading figures drawn at the measured width: SWE-agent ablation, planning, environment, cost per call, measuring ----
 (function(){
   const esc=RD.esc, T=RD.t, H=window.HB||{};
   const reg=(el,f)=>{if(!el)return;const d=()=>{try{f(el,RD.width(el))}catch(e){el.textContent='(figure failed: '+e.message+')'}};HBV.draws.push(d);d()};
   const arrow=(x1,y1,x2,y2,c)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(c||'var(--mute)')+'" stroke-width="1.5" marker-end="url(#hbv-ah)"/>';
   const defs='<defs><marker id="hbv-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker></defs>';
   const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(o.fill||'var(--bg)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1.2)+'"'+(o.dash?' stroke-dasharray="5 4"':'')+'/>'};
-
-  // ---------- hero: one turn of the loop
-  reg(document.getElementById('hb-hero-svg'),(el,w)=>{
-    const S=[
-      ['Send the request','system + tools + history: 486 to 1,531 tokens a call','1, 11','hb-s1'],
-      ['Model writes text or a tool call','a call is tokens between special tokens','1','hb-s1'],
-      ['The turn ends at the action','let past it: 5 of 18 wrote the user’s turn','2','hb-s2',1],
-      ['Parse and validate the calls','a malformed call can vanish in the server','1, 7','hb-s1'],
-      ['Gate, then run the calls','in order, or in parallel if read-only; cwd, 60 s timeout','3, 4, 9','hb-s3'],
-      ['Return results it can act on','"Edit failed." fixed 1 of 13; a diagnosis 4','5, 6, 7','hb-s5'],
-      ['Stop? Done and verified, or a cap','naive stops left a test failing in 4 of 16 runs','10','hb-s10']];
-    const narrow=w<560, bw=Math.min(narrow?w-46:620,w-46), bh=narrow?44:42, gap=14, x0=0;
-    let g=defs,y=4;
-    S.forEach((s,i)=>{
-      const hot=s[4];
-      g+='<a href="#'+s[3]+'">'+box(x0,y,bw,bh,{fill:hot?'var(--acc2)':'var(--bg)',stroke:hot?'var(--acc)':'var(--line)',sw:hot?2:1.2})+
-        T(x0+10,y+17,esc(s[0]),{fs:13,w:600,fill:'var(--ink)'})+T(x0+10,y+34,esc(s[1]),{fs:11,fill:'var(--mute)'})+
-        T(x0+bw-8,y+17,'§'+s[2],{a:'end',fs:11,fill:hot?'var(--acc)':'var(--mute)'})+'</a>';
-      if(i<S.length-1)g+=arrow(x0+bw/2,y+bh,x0+bw/2,y+bh+gap-1);
-      y+=bh+gap;
-    });
-    // loop back on the right
-    const xr=bw+22, yTop=4+bh/2, yBot=y-gap-bh/2;
-    g+='<path d="M'+bw+' '+yBot+' H'+xr+' V'+yTop+' H'+(bw+3)+'" fill="none" stroke="var(--acc)" stroke-width="1.6" marker-end="url(#hbv-ah)"/>';
-    g+='<text x="'+(xr+12)+'" y="'+((yTop+yBot)/2)+'" font-size="11" fill="var(--acc)" text-anchor="middle" transform="rotate(-90 '+(xr+12)+' '+((yTop+yBot)/2)+')">not done: append the results, call again</text>';
-    // exit
-    g+=arrow(bw/2,y-gap,bw/2,y+10);
-    g+=box(bw/2-Math.min(150,bw/2-4),y+12,2*Math.min(150,bw/2-4),26,{fill:'var(--soft)'})+T(bw/2,y+29,'done: return the reason as data',{a:'middle',fs:11.5,fill:'var(--ink)'});
-    el.innerHTML=RD.svg(w,y+42,g,'The agent loop: request, generation, boundary, parse, gate and run, results, stop check');
-  });
 
   // ---------- SWE-agent Table 3
   const aci=document.getElementById('hb-aci-paper');

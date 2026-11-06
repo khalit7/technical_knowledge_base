@@ -43,15 +43,16 @@
       {t:'6. It writes the user\'s turn, with calls inside',p:fake?esc(fake.caption):'',tok:()=>fake?'<pre class="hb-code">'+esc(fake.text)+'</pre>':'',st:fake?[['wrote a user turn',fake.n_fab+' of '+fake.n,'samples after this call']]:[]},
       {t:'7. Why it matters',p:'A harness that read past the boundary would treat words the model wrote for the user as the user\'s, and run calls the model made while playing the user. In the parent page\'s Loop lab the same failure took the other form: Claude Haiku, on a text protocol with no stop, wrote a fake tool result (a fake core.py), and then said the code "appears correct". The end-of-turn token, a stop sequence, or an API\'s stop_reason is what keeps observations honest (section 2).',tok:()=>'',st:[]}]);
   };
-  const stage=document.getElementById('hb-wire-stage'),cap=document.getElementById('hb-wire-cap'),tk=document.getElementById('hb-wire-tok'),sts=document.getElementById('hb-wire-stats');
+  const stage=document.getElementById('hb-wire-stage'),tk=document.getElementById('hb-wire-tok'),sts=document.getElementById('hb-wire-stats');
   let S=steps();
   function draw(i){
     const names=mode.m==='ok'?stagesOk:stagesBad;
     stage.innerHTML=names.map((n,k)=>'<div class="'+(k===i?'on':'')+(mode.m==='bad'&&k>=4&&k<=i?' bad':'')+'">'+n+'</div>').join('');
-    const s=S[i];cap.innerHTML='<div class="t">'+esc(s.t)+'</div><p>'+s.p+'</p>';
+    const s=S[i];
     tk.innerHTML=s.tok();tk.scrollTop=tk.scrollHeight*(i===2?1:0);
     sts.innerHTML=s.st.map(x=>stat(x[0],x[1],x[2])).join('');
   }
-  const an=RD.anim({card:'hb-wire',ctl:'hb-wire-ctl',n:S.length,draw,ms:2600,label:'Step of the tool call'});
-  RD.seg(document.getElementById('hb-wire-mode'),m=>{mode.m=m;S=steps();an.reset(S.length)});
+  // the steps are explained by the step lists on the left (sx-wire-ok, sx-wire-bad), one per mode; the toggle swaps them and replays
+  const an=RD.anim({card:'hb-wire',ctl:'hb-wire-ctl',n:S.length,draw,ms:4200,label:'Step of the tool call',list:'sx-wire-ok'});
+  RD.seg(document.getElementById('hb-wire-mode'),m=>{mode.m=m;S=steps();['ok','bad'].forEach(x=>{document.getElementById('sx-wire-'+x).hidden=x!==m});an.reset(S.length,'sx-wire-'+m)});
 })();

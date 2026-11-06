@@ -34,7 +34,8 @@
   }
   const N=B.tasks.length*F.length;
   const cap=document.getElementById('hbe-cap');
-  const an=RD.anim({card:'hbe-card',ctl:'hbe-ctl',n:N+1,ms:260,label:'Cells shown',tab:'t-edit',start:N,
+  // a widget the reader drives (the long-replay rule, case b: 66 cells): opens on the full matrix and never plays by itself
+  const an=RD.anim({card:'hbe-card',ctl:'hbe-ctl',n:N+1,ms:260,label:'Cells shown',tab:'t-edit',start:N,auto:false,
     draw:i=>{drawMatrix(i>=N?null:i);const t=B.tasks[Math.floor(Math.max(0,i-1)/F.length)],f=F[Math.max(0,i-1)%F.length];
       cap.innerHTML=i>=N?'All '+N+' cells, '+(st.when==='1'?'first attempt':'after one retry')+'. Switch "Show" to see which refusals the error message repaired.':
         (i===0?'Replay: one cell per step, edit by edit.':'<b>'+esc(t.id)+', '+FN[f]+'</b>: '+esc(t.ask))}});

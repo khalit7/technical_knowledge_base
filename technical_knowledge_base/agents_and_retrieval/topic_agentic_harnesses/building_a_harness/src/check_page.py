@@ -6,7 +6,7 @@ Usage: check_page.py   (run after build_data.py and build.sh)"""
 import glob, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "topic_protocols", "src"))
+sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "engineering_foundations", "topic_protocols", "src"))  # Protocols moved to Engineering foundations
 import private_patterns as PP
 
 page = open(os.path.join(HERE, "..", "index.html"), encoding="utf-8").read()
@@ -92,6 +92,27 @@ src = open(os.path.join(HERE, "harness", "native.py")).read().splitlines()
 code = [l for l in src if l.strip() and not l.strip().startswith("#")]
 says(f"{len(src)} lines of standard-library Python ({len(code)} without comments and blank lines)", "section 9, native.py size")
 
+# 2b. the numbers in the step lists beside the animations and stages (2026-11-06)
+toks = H["tok"]["toks"]
+sys_end = next(i for i, t in enumerate(toks) if t[0] == 151645) + 1
+says(f": {sys_end} tokens, tools included", "wire step 2, system turn")
+says(f"The prompt is {H['tok']['usage1']['prompt_tokens']} tokens, exactly what the server reported", "wire step 3")
+says(f"{H['tok']['usage1']['completion_tokens']} generated tokens by the server's count", "wire step 4")
+says(f"the next request is {cuts[1]} tokens", "wire step 7")
+ex = H["boundary"]["example"]
+says(f"It did this in {ex['n_fab']} of {ex['n']} samples after this first call", "wire bad step 6")
+T_ = sum(1 for r in H["tok"]["reg"][:cuts[0]] if r == "T")
+says(f"486 tokens on call 1 of the recorded run, of which {T_} are the four tool definitions", "hero step 1")
+says(f"Calls 3 to 5 read {cuts[2]:,}, {cuts[3]:,} and {cuts[4]:,} tokens", "hero step 7")
+says(f"the next prompt is {cuts[1]} tokens", "hero step 6")
+cap5 = sum(1 for r in H["stop"] if r["turns"][min(5, len(r["turns"])) - 1]["pass"])
+says(f"{cap5} of the 16 still pass, against {sum(r['passed'] for r in H['stop'])} with no cap", "stop step 5")
+says(f"up to {max(t['pt'] for r in H['stop'] for t in r['turns']):,} on the longest run's last", "stop step 1")
+says(f"Haiku {first_ok(hn, 'exact')} of 13, Sonnet {first_ok(sn, 'exact')} of 13", "edit step 1")
+for sx, n in (("sx-hero", 7), ("sx-wire-ok", 7), ("sx-wire-bad", 7), ("sx-edit", 5), ("sx-stop", 5)):
+    m = re.search(r'<ol class="sx" id="%s"[^>]*>(.*?)</ol>' % sx, prose, re.S)
+    ok(m and m.group(1).count("<li>") == n, f"step list {sx} has {n} items")
+
 # 3. em-dash and private strings
 EM = chr(0x2014)
 files = [os.path.join(HERE, "..", "index.html"), os.path.join(HERE, "..", "README.md")]
@@ -99,7 +120,8 @@ for root, _, fs in os.walk(HERE):
     if "__pycache__" in root:
         continue
     files += [os.path.join(root, f) for f in fs if not f.startswith(".")]
-bad = re.compile(r"/Users/|Users-|glpat|sk-ant|" + re.escape(__import__("getpass").getuser()) + "|" + PP.alternation(), re.I)
+# the login name is matched case-sensitively: the skill templates name the page owner by his capitalised first name
+bad = re.compile(r"(?i:/Users/|Users-|glpat|sk-ant|" + PP.alternation() + ")|" + re.escape(__import__("getpass").getuser()))
 for f in files:
     s = open(f, encoding="utf-8", errors="replace").read()
     if EM in s:

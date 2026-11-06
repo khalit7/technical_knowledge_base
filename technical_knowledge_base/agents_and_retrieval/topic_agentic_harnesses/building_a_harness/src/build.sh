@@ -3,7 +3,7 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Assemble ../index.html from parts/. Copy this file to <page folder>/src/build.sh; it needs no edits for the standard layout.
 # What to change for a new page: nothing here unless the layout differs. Set the <title> in parts/01_head.html,
 # the storage key in parts/99_js_tabs.js, and add a tex2mathml pass (below, commented) only if the page has LaTeX.
-# HTML order: 01_head, 10_header (title and tab bar), 20_read.html if present, then 20_read_*.html (Reading tab, byte order:
+# HTML order: 01_head, 02_split (the split layout, skill template), 10_header (title and tab bar), 20_read.html if present, then 20_read_*.html (Reading tab, byte order:
 #   name the first part 20_read_a.html and the closing part 20_read_z.html), then 3*_tab_*.html (one group per tab, file-name order).
 # A part may carry its own <style>; a tab's CSS is scoped under its tab id (#t-<tab> ...).
 # JS: every *.js in parts/ in file-name order, each in its own <script> so one failing part cannot stop the others;
@@ -16,7 +16,7 @@ P=parts
 reads=$(ls $P/20_read_*.html 2>/dev/null | LC_ALL=C sort)
 tabs=$(ls $P/3*_tab_*.html 2>/dev/null | LC_ALL=C sort)
 js=$(ls $P/*.js 2>/dev/null | LC_ALL=C sort)
-{ cat $P/01_head.html $P/10_header.html
+{ cat $P/01_head.html $P/02_split.html $P/10_header.html
   [ -f $P/20_read.html ] && cat $P/20_read.html
   for f in $reads; do cat "$f"; done
   for f in $tabs; do cat "$f"; done

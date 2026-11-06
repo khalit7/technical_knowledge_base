@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-stop"></div></div><div class="s3L">
 <section id="hb-s10">
 <h2>10. Stop conditions and budgets</h2>
 <p>The textbook loop stops when the model replies without a tool call. That means "the model thinks it is done", which is not "the task is done", and it is not even always the model's signal: a reply cut off by the output limit or emptied by a parser failure also has no tool call. The opposite failure, never stopping, needs limits the model cannot argue with.</p>
@@ -9,33 +10,42 @@
 </div>
 <p><b>The experiment.</b> Sixteen runs of native.py on the running example with the local model, under three stop rules: <b>naive</b> (any reply without a tool call ends the run: the parent page's loop and most tutorials), <b>careful</b> (a reply cut at the output limit, <code>finish_reason: "length"</code>, or an empty reply is not a stop: the harness says so and calls again) and <b>verify</b> (careful, and before accepting a stop the harness runs the tests itself; if they fail it shows the output and continues, at most three times). Five seeds at temperature 0.7 per rule, plus one run at temperature 0; each logged after every turn whether the tests passed, so any rule can be replayed <span class="meas">MEASURED</span>.</p>
 <div class="out" id="hb-stop-stats"></div>
+<p class="sxh">Fig. 3, step by step</p>
+<ol class="sx" id="sx-stop">
+<li><b>Sixteen runs, turn by turn.</b> One row per run, grouped by rule, one block per turn. A block's height is the prompt the model read on that turn (486 tokens on turn 1, up to 4,471 on the longest run's last), green when the tests passed after that turn, red when they failed. 11 of the 16 runs end with the tests passing.</li>
+<li><b>The naive rule ends runs that are not done.</b> The model said it was done with a test still failing in 4 runs; in a 5th (temperature 0) its reply hit the 1,024-token output limit before any tool call, and the naive rule read the truncation as completion. The careful rule treats that truncation, and an empty reply, as an error to report back, not a stop.</li>
+<li><b>A verifier rescues some runs.</b> Under the verify rule the harness runs the tests itself before accepting a stop; each glow is a nudge, the failing output shown to the model, after which the run goes on. Seed 4 was told the tests still failed and fixed the remaining bug by turn 7; seed 2 used all three nudges and still failed after 13 turns.</li>
+<li><b>... and costs on others.</b> Seed 2 under the verify rule ran 13 turns, spending 36,177 tokens against 9,544 for the same seed under the naive rule, and still failed. A cap on nudges is what ended it.</li>
+<li><b>A turn cap of 5, replayed on the record.</b> Cut every run after turn 5 and read the tests at the cut: 10 of the 16 still pass, against 11 with no cap. The passing runs had fixed both bugs by turn 4 or 5, so the cap loses only the run that needed the verifier's extra turns. Caps lose exactly the runs still making progress, which is why a cap should be generous and the verifier strict, not the other way round.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<h3>Two runs of the same seed, side by side</h3>
+<p>The same seed was sent with each rule so the runs would be identical until the rule mattered. Pick a pair and step through it yourself: each box is a turn, with its tool calls or the reply that ended the run, a green edge when the tests passed after that turn and red when they failed. "Seed 4" shows the verifier rescue a run, "Seed 2" shows it spend three nudges and still fail, and "Temperature 0" shows the naive rule stopping on a truncated reply.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="hbs-pair">
-<h3 style="margin-top:0">Same seed, two rules: step through the turns</h3>
 <label class="small">Pair<br><select id="hbs-pairsel"></select></label>
 <div class="an-ctl" id="hbs-pair-ctl"></div>
 <div class="an-cap" id="hbs-pair-cap"></div>
 <div class="hbs-lanes" id="hbs-lanes"></div>
 <div class="out" id="hbs-pair-stats"></div>
-<p class="cap">Each box is a turn: its tool calls, or the reply that ended the run; green edge when the tests passed after that turn, red when they failed. Pick "Seed 4" to see the verifier rescue a run, "Seed 2" to see it spend three nudges and still fail.</p>
-</div>
-<ul class="tight">
-<li><b>The naive rule ends runs that are not done.</b> The model said it was done with a test still failing in 4 runs; in a 5th (temperature 0) its reply hit the 1,024-token output limit before any tool call, and the naive rule read the truncation as completion.</li>
-<li><b>A verifier rescues some and costs on others.</b> With the verify rule, seed 4 was told the tests still failed and fixed the remaining bug by turn 7; seed 2 used all three nudges and still failed after 13 turns, spending 36,177 tokens against 9,544 for the same seed under the naive rule. A cap on nudges is what ended it.</li>
+</div></div></div></div>
 
-</ul>
+<div class="s3sp"><div class="s3L">
+<h3>Replay a stricter rule on the record</h3>
+<p>Fig. 3 replayed one rule, a cap of 5 turns. Try the others: a token budget for the whole run, or a detector that stops a run when the same call (same tool, same arguments) is asked for a third time. A stricter rule can only cut a run earlier, so its outcome is read from the record at the cut; rules that would let a run go on longer cannot be replayed. Each box on the right is one run and each cell one turn: green when the tests passed after that turn, red when they failed, dashed where the replayed rule cut the run.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="hbs-replay">
-<h3 style="margin-top:0">Replay a stricter rule on the record: predict first</h3>
-<p class="small">Set the turn cap to 5. How many of the 16 runs still end with passing tests? A stricter rule can only cut a run earlier, so its outcome is read from the record at the cut (rules that would let a run go on longer cannot be replayed).</p>
 <div class="hbv-ctl">
 <label>Turn cap: <b id="hbs-cap-v"></b><br><input type="range" id="hbs-cap" min="1" max="15" value="15"></label>
 <label>Token budget (input + output, whole run): <b id="hbs-bud-v"></b><br><input type="range" id="hbs-bud" min="0" max="12" value="12"></label>
-<label><input type="checkbox" id="hbs-rep"> Stop when the same call (same tool, same arguments) is asked for a 3rd time</label>
+<label><input type="checkbox" id="hbs-rep"> Stop when the same call is asked for a 3rd time</label>
 </div>
 <div class="out" id="hbs-rep-stats"></div>
 <div class="hbs-grid" id="hbs-rep-grid"></div>
-<p class="cap">Each box is one run; each cell one turn: green when the tests passed after that turn, red when they failed, dashed where the replayed rule cut the run.</p>
-<details class="depth"><summary>Reveal: a cap of 5</summary><div><p>With a cap of 5, 10 of the 16 still pass (against 11 with no cap): the passing runs had fixed both bugs by turn 4 or 5, so the cap loses only the run that needed the verifier's extra turns. Caps lose exactly the runs still making progress, which is why a cap should be generous and the verifier strict, not the other way round.</p></div></details>
-</div>
+</div></div></div></div>
 
 <div class="co key"><div class="t">A stop policy that holds up</div>Stop when the model says it is done <i>and</i> the verifier agrees, or when a hard cap is reached, whichever comes first. Treat truncated and empty replies as errors, not stops. Check budgets before each model call (so a cap is never overshot by a whole call) and cap the number of verifier nudges. Return the reason as data (<code>finished</code>, <code>max_turns</code>, <code>budget</code>, <code>stuck</code>), and keep the transcript so a capped run can be resumed rather than restarted. Replay your own logs under candidate rules, as above, before choosing the numbers.</div>
 <p><b>A product reports why it stopped.</b> Claude Code ended a <code>--max-budget-usd 0.01</code> run at $0.0118, because the budget is checked after a call has been paid for (details below).</p>
@@ -48,4 +58,4 @@
 <p class="small"><b>Per-rule counts are fragile.</b> With five seeds each, one run moves a rule by a fifth, and careful's seed 4 failed for a reason unrelated to its rule: it diverged from the naive run at turn 3, before any rule acted, because the shared server batched our requests with other clients' and batched arithmetic is not bit-identical. Compare tokens, not seconds: the machine was swapping under other work.</p>
 <p class="small mute">The same seed was sent with each rule so the runs would be identical until the rule mattered; seed 4 shows they were not always. Local model: Qwen3 4B Instruct 2507, 4-bit, mlx-lm 0.32.0 on an Apple M1 Pro; output limit 1,024 tokens per reply.</p>
 </div></details>
-</section>
+

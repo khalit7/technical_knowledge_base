@@ -20,7 +20,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
 - [ ] `agents_and_retrieval/topic_agentic_frameworks` Topic: agentic-frameworks
 - [x] `agents_and_retrieval/topic_agentic_harnesses/agent_security` Agent security: permissions, sandboxes, prompt injection, egress
-- [ ] `agents_and_retrieval/topic_agentic_harnesses/building_a_harness` Building a harness: the loop, tool calling, edit formats, stop conditions
+- [x] `agents_and_retrieval/topic_agentic_harnesses/building_a_harness` Building a harness: the loop, tool calling, edit formats, stop conditions
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/claude_code` Claude Code, taken apart: loop, tools, permissions, hooks, memory, subagents, headless runs
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/context_engineering` Context engineering: window budgets, caching, compaction, memory files, subagents
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/guardrails` Guardrails: staged runtime safety for LLM systems
@@ -326,3 +326,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_frameworks/llm_observability`: Fig. 3 close-up step crops the trace store at the top and right; Fig. 1 small at its wide steps.
 - `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph`: both stages wide with small objects and dense labels (Fig. 1 step 4, Fig. 2 failed-update step); consider closer views.
 - `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries`: Fig. 2 step 3 crops the results tray at the bottom right; Fig. 3 faded lanes in front stay large.
+- `agents_and_retrieval/topic_agentic_harnesses/building_a_harness`: Fig. 3 (stop rules) sits small in the middle of its card; its close view barely moves in.

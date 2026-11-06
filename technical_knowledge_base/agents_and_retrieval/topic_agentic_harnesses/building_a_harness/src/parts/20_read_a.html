@@ -1,21 +1,41 @@
 
+<div class="s3sp"><div class="s3R">
+<div class="card" id="hb-wire">
+<h3 style="margin-top:0">One tool call, end to end, in tokens</h3>
+<div class="seg" id="hb-wire-mode"><button data-m="ok" class="on">Boundary enforced (normal)</button><button data-m="bad">Boundary ignored</button></div>
+<div class="hb-stage" id="hb-wire-stage"></div>
+<div class="an-ctl" id="hb-wire-ctl"></div>
+<div class="hb-tok" id="hb-wire-tok" aria-live="polite"></div>
+<div class="out" id="hb-wire-stats"></div>
+<p class="small mute">Real tokens from turn 1 of a recorded run (local model, temperature 0.7, seed 1; the parent page's running example). Token ids come from the model's own tokenizer; blue tokens are special tokens (one id each), green ones are what the model generated. "Boundary ignored" replays a recorded continuation: the same prompt and reply sent as raw text with generation allowed to run past the end-of-turn token (section 2).</p>
+</div>
+</div><div class="s3L">
 <section id="hb-s1">
 <h2>1. A tool call on the wire</h2>
 <p>The parent page's {{Loop lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} built a harness whose model could only return text: tools described in prose, an <code>ACTION</code> line parsed by the harness. This page moves the same loop onto <dfn>native tool calling</dfn> and opens the layer the APIs hide. A tool call has three layers. The <i>contract</i>: the request carries tool definitions (name, description, JSON Schema of the arguments) and the reply a typed call (name, arguments, an id). The <i>rendering</i>: the provider turns definitions, messages and earlier calls into the text the model reads; Anthropic says "the API constructs a special system prompt from the tool definitions", a prompt that tells the model "The output is not expected to be valid XML and is parsed with regular expressions" ({{Define tools|https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools}}, read 6 Oct 2026) <span class="src">SOURCE</span>, and OpenAI's functions are "injected into the system message" (parent page). The <i>generation</i>: the model writes the call as tokens it was trained to write and ends its turn with an end-of-turn token. With a closed model you see only the contract; with an open model all three, because the rendering is a published chat template.</p>
 <p><b>The experiment.</b> <code>src/harness/native.py</code> is the Loop lab's loop on native calls (the same four tools, <code>read_file</code>, <code>run_tests</code>, <code>edit_file</code> with exact replacement and <code>run_command</code>, and the same permission gate), sent to <code>mlx_lm.server</code>, which renders the request with the model's own template (a Jinja file shipped with the weights), generates, and parses the reply back into <code>tool_calls</code>. The key fact the stepper shows: <b>to the model, a tool result is something the user said</b>, rendered as a user turn of <code>&lt;tool_response&gt;</code> blocks without the call ids, matched to its call by order alone. Rendering the recorded conversation with the model's own template and tokenizer gives exactly the prompt sizes the server reported on every call: 486, 865, 926, 1,252 and 1,531 tokens <span class="meas">MEASURED</span>. So the tokens below are the model's real input.</p>
 
-<div class="card" id="hb-wire">
-<h3 style="margin-top:0">One tool call, end to end, in tokens: step through it</h3>
-<div class="seg" id="hb-wire-mode"><button data-m="ok" class="on">Boundary enforced (normal)</button><button data-m="bad">Boundary ignored</button></div>
-<div class="hb-stage" id="hb-wire-stage"></div>
-<div class="an-ctl" id="hb-wire-ctl"></div>
-<div class="an-cap" id="hb-wire-cap"></div>
-<div class="hb-tok" id="hb-wire-tok" aria-live="polite"></div>
-<div class="out" id="hb-wire-stats"></div>
-<p class="small mute">Real tokens from turn 1 of a recorded run (local model, temperature 0.7, seed 1; the parent page's running example). Token ids come from the model's own tokenizer; blue tokens are special tokens (one id each), green ones are what the model generated. "Boundary ignored" replays a recorded continuation: the same prompt and reply sent as raw text with generation allowed to run past the end-of-turn token (section 2).</p>
-</div>
-<details class="depth"><summary>What the server does with the tokens, step by step</summary><div><p>The tools arrive as JSON lines inside <code>&lt;tools&gt;&lt;/tools&gt;</code> in the system turn. The reply is two <code>&lt;tool_call&gt;{"name": ..., "arguments": ...}&lt;/tool_call&gt;</code> blocks (two files at once: section 3), then <code>&lt;|im_end|&gt;</code>. <code>&lt;tool_call&gt;</code> (id 151657), <code>&lt;/tool_call&gt;</code> (151658), <code>&lt;tool_response&gt;</code> (151665) and <code>&lt;|im_end|&gt;</code> (151645) are single added tokens, and <code>&lt;|im_end|&gt;</code> is an end-of-sequence id in <code>generation_config.json</code>, so sampling stops there. The server cuts the text between the tags, runs <code>json.loads</code> and returns <code>finish_reason: "tool_calls"</code> with an id per call. Results go back as role <code>tool</code>, which the template renders as a <i>user</i> turn of <code>&lt;tool_response&gt;</code> blocks, without the ids: to the model, a tool result is something the user said, matched to its call by order alone.</p></div></details>
-
+<p class="sxh">The animation, step by step</p>
+<ol class="sx" id="sx-wire-ok">
+<li><b>The harness sends JSON.</b> Two messages (system, task) and four tool definitions, each a name, a description and a JSON Schema: <code>read_file</code>, <code>run_tests</code>, <code>edit_file</code>, <code>run_command</code>. Nothing here is text the model reads yet.</li>
+<li><b>The server renders the system turn.</b> The chat template writes the system prompt, then "# Tools", the four definitions as JSON lines inside <code>&lt;tools&gt;&lt;/tools&gt;</code>, and the instruction to answer with <code>&lt;tool_call&gt;{...}&lt;/tool_call&gt;</code>: 428 tokens, tools included. Blue tokens are special tokens (one id each).</li>
+<li><b>Then the task, and an open assistant turn.</b> The user turn holds the task and the file list; the prompt ends with <code>&lt;|im_start|&gt;assistant</code> and a newline, inviting the model to speak. The prompt is 486 tokens, exactly what the server reported.</li>
+<li><b>The model generates two tool calls.</b> Token by token: a newline, <code>&lt;tool_call&gt;</code>, a JSON object naming <code>read_file</code> and its path, <code>&lt;/tool_call&gt;</code>, and a second call for the test file; 46 generated tokens by the server's count.</li>
+<li><b><code>&lt;|im_end|&gt;</code>: the boundary.</b> Like <code>&lt;tool_call&gt;</code> (id 151657), <code>&lt;/tool_call&gt;</code> (151658) and <code>&lt;tool_response&gt;</code> (151665), it is a single added token. Token 151645 is one of the model's end-of-sequence ids (<code>generation_config.json</code>), so sampling stops here and the server reports <code>finish_reason: "tool_calls"</code>. Nothing after the call is generated: the result can only come from the harness.</li>
+<li><b>The server parses the calls.</b> mlx-lm cuts the text between the tags, runs <code>json.loads</code> on it and returns OpenAI-style <code>tool_calls</code>, 2 of them, with an id each. The harness never sees the tags.</li>
+<li><b>Results come back as a user turn.</b> The harness runs both reads and appends two role <code>tool</code> messages. The template renders them inside one user turn, as <code>&lt;tool_response&gt;</code> blocks, without the ids; with the assistant turn and a new generation prompt, the next request is 865 tokens.</li>
+</ol>
+<ol class="sx" id="sx-wire-bad" hidden>
+<li><b>The harness sends JSON.</b> The same request as in the normal run: two messages and four tool definitions.</li>
+<li><b>The server renders the system turn.</b> The same 428 tokens of system prompt and tools.</li>
+<li><b>Then the task, and an open assistant turn.</b> The same 486-token prompt.</li>
+<li><b>The model generates two tool calls.</b> The same 46 generated tokens, ending in <code>&lt;|im_end|&gt;</code>.</li>
+<li><b>Generation continues past <code>&lt;|im_end|&gt;</code>.</b> The same prompt and reply, sent as raw text to <code>/v1/completions</code> so nothing stops at the end-of-turn token. The model goes straight on and opens the next turn itself with <code>&lt;|im_start|&gt;user</code> (red tokens are the continuation).</li>
+<li><b>It writes the user's turn, with calls inside.</b> It rephrased the task as the user and asked for tool calls inside that user turn; the server parsed those as <code>tool_calls</code> and returned <code>finish_reason "tool_calls"</code>. A harness reading this reply would execute calls the model wrote while pretending to be the user. It did this in 5 of 5 samples after this first call.</li>
+<li><b>Why it matters.</b> A harness that read past the boundary would treat words the model wrote for the user as the user's. In the parent page's Loop lab the same failure took the other form: Claude Haiku, on a text protocol with no stop, wrote a fake tool result (a fake <code>core.py</code>) and then said the code "appears correct". The end-of-turn token, a stop sequence, or an API's <code>stop_reason</code> is what keeps observations honest (section 2).</li>
+</ol>
+</section>
+</div></div>
 <div class="co warn"><div class="t">A failure the client cannot see</div>mlx-lm 0.32.0 picks its tool parser from the template (here a plain <code>json.loads</code>). If the text between the tags is not valid JSON, <code>server.py</code> logs "Failed to parse tool call ... tool text was likely truncated mid-generation" and <i>drops</i> the call. The client receives an empty reply with <code>finish_reason: "stop"</code>, which a naive harness reads as "the model is done". The sibling page {{Harnesses for training and evaluation|n:3f15c17b0d0d815ea579d6c80065aa36}} measured the cost: its loop ended an episode on any reply without a tool call, and 9 of its local rollouts ended on a dropped malformed call, none of them passing. Read your server's parser before trusting its finish reasons; native.py treats an empty reply as an error to report back (section 7).</div>
 
 <details class="depth"><summary>The same call in three protocols: Anthropic, OpenAI, an open model's template</summary><div>
@@ -40,4 +60,3 @@
 <div class="out" id="hbt-info"></div>
 <div class="co"><div class="t">Re-rendering history is not always token-identical</div>Call 1 ended with <code>&lt;|im_start|&gt;assistant</code> and a newline token. On call 2 the template rendered the model's reply after it (its text was a single newline, and the template puts another newline before a tool call), and the tokenizer merged the three newlines into one token, <code id="hbt-nl"></code>. So call 2's tokens are not call 1's tokens plus new ones: the 486th token changed. Any cache keyed on token prefixes (a local server's prompt cache, a provider's prompt cache) has to cope with that; keeping the rendered history byte-stable from call to call is the harness's job.</div>
 </div></details>
-</section>
