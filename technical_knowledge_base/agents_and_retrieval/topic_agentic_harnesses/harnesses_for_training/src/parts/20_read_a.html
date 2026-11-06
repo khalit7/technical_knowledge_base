@@ -52,20 +52,23 @@ table.ht-t td,table.ht-t th{font-size:12.5px;vertical-align:top}
 </style>
 <nav class="nav" id="rd-nav"><a href="#rs0">The idea</a><a href="#rs1">1. Score belongs to the pair</a><a href="#rs2">2. An environment</a><a href="#rs3">3. Rewards</a><a href="#rs4">4. Groups</a><a href="#rs5">5. Tokens that get loss</a><a href="#rs6">6. Trajectories as data</a><a href="#rs7">7. Self-improving harnesses</a><a href="#rs8">8. At scale</a><a href="#rs9">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rs0">
 <h2>The idea in one screen</h2>
 <p class="ht-core"><b>The harness that runs an agent is also the ruler that scores it and the gym that trains it, so every harness choice (its tools, how it shows results, when it stops, which checks it trusts) becomes part of the score in evaluation and part of the skill in training.</b></p>
-<figure class="card" id="ht-hero" style="margin:10px 0">
-<div class="t"><b>One rollout, four uses: the <span class="hl">harness</span> sits inside every one of them</b></div>
-<div class="ht-svg" id="ht-herosvg"></div>
-<div class="ht-uses">
-<div><b>Ruler (evaluation)</b>The reward, averaged over tasks, is a score of the model <i>and</i> the harness. Our 4B model: <span data-ht="loc_bash"></span> with bash only, <span data-ht="loc_tools"></span> with file tools. <span class="sec">Sections 1, 3</span></div>
-<div><b>Gym (RL)</b>Rewards in a group become advantages; only the tokens the model sampled get loss; new weights go back to the policy. <span class="sec">Sections 2, 4, 5</span></div>
-<div><b>Dataset (fine-tuning)</b>The trajectory is redacted, converted and kept if it passed: whichever verifier filters it decides what is imitated. <span class="sec">Section 6</span></div>
-<div><b>Search (self-improvement)</b>Edit the harness, re-score, keep the best: on a noisy ruler the measured gain runs ahead of the true one. <span class="sec">Section 7</span></div>
-</div>
-<figcaption class="small mute">Top: one episode of textstats-gym, the environment built for this page; the policy, the harness and the sandbox exchange calls and results until the harness stops, and every exchange is recorded as the <dfn>trajectory</dfn>. Bottom: what that one record is used for. A <dfn>harness</dfn> is the program around a model that turns its text into actions: it sends the request, runs the tool calls the model asks for, feeds the results back and decides when to stop (the parent, {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, builds one in its Loop lab). As a product it is the agent you use (Claude Code, Codex); this page is about its other jobs.</figcaption>
-</figure>
+<p>A <dfn>harness</dfn> is the program around a model that turns its text into actions: it sends the request, runs the tool calls the model asks for, feeds the results back and decides when to stop (the parent, {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}, builds one in its Loop lab). As a product it is the agent you use (Claude Code, Codex); this page is about its other jobs. Fig. 1 is one episode of textstats-gym, the environment built for this page, and what its record is used for.</p>
+<p class="sxh">Fig. 1, step by step: one recorded rollout (Haiku 4.5, bash only, task T01)</p>
+<ol class="sx" id="sx-hero">
+<li><b>Reset.</b> A fresh copy of the library gets the planted bug for task T01 (contractions split into two words), and a new <code>python:3.13-slim</code> container starts with no network, the workspace mounted at <code>/work</code>. The <span class="hl">harness</span> sends the model its system prompt, its one <code>bash</code> tool and the issue: <code>word_count("don't stop")</code> returns 3 but should return 2.</li>
+<li><b>Act, observe (calls 1 to 5).</b> The policy writes a tool call; the harness runs it in the container and returns the clipped output as the next observation: <code>ls -la /work</code>, <code>find</code>, <code>cat tests/test_core.py</code>, <code>cat textstats/core.py</code>, then the tests, which print <code>FAIL test_apostrophes_kept</code>. Each call re-reads the whole conversation: 1,290 input tokens on call 1, 3,022 on call 5.</li>
+<li><b>Edit and re-test (calls 6 to 8).</b> A <code>sed</code> command changes the word pattern from <code>[a-z]+</code> to <code>[a-z']+</code>, a <code>cat</code> confirms it, and the visible tests all pass.</li>
+<li><b>Stop.</b> Call 9 has no tool call, so the harness ends the episode. What it kept is the <dfn>trajectory</dfn>: 17 events (9 calls, 8 observations), 25,604 input tokens read in all.</li>
+<li><b>Verify.</b> The verifier copies only <code>textstats/</code> out of the workspace, ignores its tests and runs 20 checks in a fresh read-only container: 19 pass, and the held-out <code>h_apos_quotes</code> fails (<code>'quoted'</code> keeps its quotation marks). Binary reward 0, partial 0.95; the agent's own tests would have paid 1 (section 3).</li>
+<li><b>Four uses of one record.</b> <b>Ruler</b>: the reward, averaged over tasks, scores the model <i>and</i> the harness (sections 1, 3). <b>Gym</b>: rewards in a group become advantages; only the tokens the model sampled get loss; new weights go back to the policy (sections 2, 4, 5). <b>Dataset</b>: the trajectory is redacted, converted and kept if it passed, so whichever verifier filters it decides what is imitated (section 6). <b>Search</b>: edit the harness, re-score, keep the best; on a noisy ruler the measured gain runs ahead of the true one (section 7).</li>
+</ol>
+</section>
+</div></div>
+<section id="rs0b">
 <p><b>The setup, used on every section.</b> <b>textstats-gym</b>: ten bug-fixing tasks on a 60-line Python library, each with a hidden verifier that runs in a fresh container with no network. Two models: Qwen3-4B-Instruct-2507 (4-bit, local on an Apple M1 Pro) and Claude Haiku 4.5 (subscription). Four harnesses: <b>bash only</b> (one shell tool), <b>file tools</b> (list, read with line numbers, replace exact text, run tests), the same <b>file tools without line numbers</b> (one detail changed), and <b>Claude Code</b> itself. Harnesses are compared within each model; the two models are never compared as if they were the same thing.</p>
 <div class="co key"><div class="t">What the <span data-ht="n_runs"></span> rollouts showed</div>
 <ul class="tight">

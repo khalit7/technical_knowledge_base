@@ -1,4 +1,4 @@
-// ---- Reading: two static annotated flow diagrams (the hero at the top, the fleet in section 8) ----
+// ---- Reading: the static annotated fleet diagram in section 8 (the hero at the top is now the Fig. 1 stage, 40_js_sc_hero.js) ----
 // Boxes laid out in a snake at the measured width: one row when wide, three or two columns when narrow.
 // Each box: title, short lines (wrapped to the box), hl = the page's highlight (the harness). Links: '>' one way, '<>' both ways.
 (function(){
@@ -23,13 +23,6 @@
       L[i].forEach((ln,j)=>{g+=RD.t(p.x+8,p.y+36+15*j,esc(ln),{fs:11,fill:'var(--ink)'})})});
     el.innerHTML=RD.svg(w,4+rows*(bh+gy)-gy+4,g,label);
   }
-  const HERO=[
-    {t:'1 Task',sub:['A repo with a planted bug and an issue; reset gives a fresh copy']},
-    {t:'2 Policy',sub:['The model; samples token ids with their log-probs']},
-    {t:'3 Harness',hl:1,sub:['Its tools are the action space; it formats results and decides when to stop']},
-    {t:'4 Sandbox',sub:['A container with no network runs each tool call']},
-    {t:'5 Verifier',sub:['Hidden checks in a fresh container, outside the workspace']},
-    {t:'6 Reward',sub:['1 or 0, or the share of 20 checks passed']}];
   const HL=[[0,1,'>'],[1,2,'<>'],[2,3,'<>'],[3,4,'>'],[4,5,'>']];
   const PROD=[
     {t:'1 Task store',sub:['Real issues (SWE-Gym: 2,438) or injected bugs; DeepSWE: 4,500 R2E-Gym problems']},
@@ -39,7 +32,6 @@
     {t:'5 Verifier service',sub:['Hidden tests in a fresh container per rollout']},
     {t:'6 Trainer',sub:['DeepSWE: 64 problems x 8 = 512 rollouts a step, 64 H100s for 6 days; new weights go to 2']}];
   function draw(){
-    if($('ht-herosvg'))flow($('ht-herosvg'),HERO,HL,'One episode: task, policy, harness, sandbox, verifier, reward');
     if($('ht-prodsvg'))flow($('ht-prodsvg'),PROD,HL,'The same loop as services at scale');
   }
   draw();RD.onRender(draw);RD.onResize(draw);

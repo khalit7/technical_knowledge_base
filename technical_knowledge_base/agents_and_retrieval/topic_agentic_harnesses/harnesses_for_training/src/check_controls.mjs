@@ -1,8 +1,8 @@
 // node technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training/src/check_controls.mjs <page index.html>
 // Run from the repository root. Opens every tab in 390 px dark and 920 px light, opens every closed block, clicks every
 // button, sets every select and range to each end, steps every animation to its last step, and fails on page or console
-// errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Then checks that nothing
-// plays by itself (normal motion and reduced motion).
+// errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Then checks motion: every animation
+// plays by itself once in view, and under reduced motion nothing moves by itself.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const page = path.resolve(process.argv[2]);
@@ -46,15 +46,18 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-// nothing autoplays: load, scroll every animation card into view, wait, and check every scrubber is still on step 0
+// motion (2026-11-06 rule): every stage and the Fig. 5 animation play by themselves once scrolled into view; under reduced motion nothing moves
 for (const rm of ['no-preference', 'reduce']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
-  await p.goto('file://' + page); await wait(300);
-  const cards = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.map(r => r.id));
-  for (const id of cards) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await wait(2500); }
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
-  console.log('motion', rm, moved.length ? 'AUTOPLAYED ' + moved : 'nothing plays by itself'); bad += moved.length; await p.close();
+  await p.goto('file://' + page); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + page); await wait(300); // the page remembers its last tab
+  const ids = await p.$$eval('#t-read .stg', xs => xs.map(x => x.id));
+  const still = [];
+  for (const id of ids) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await wait(2200);
+    const f = await p.$eval('#' + id, el => +el.dataset.frames || 0); if ((rm === 'reduce') !== (f === 0)) still.push(id) }
+  await p.$eval('#ht-curcard', el => el.scrollIntoView({ block: 'center' })); await wait(1500);
+  const pl = await p.$eval('#ht-curctl-p', el => /Pause/.test(el.textContent)); if ((rm === 'reduce') === pl) still.push('ht-curcard');
+  console.log('motion', rm, still.length ? (rm === 'reduce' ? 'MOVED BY ITSELF ' : 'DID NOT PLAY ') + still : (rm === 'reduce' ? 'nothing moves by itself' : 'every animation plays in view')); bad += still.length; await p.close();
 }
 await b.close();
 process.exit(bad ? 1 : 0);

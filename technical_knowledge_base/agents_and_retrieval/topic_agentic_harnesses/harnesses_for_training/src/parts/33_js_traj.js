@@ -1,4 +1,4 @@
-// ---- Reading sections 4 and 6 (was the Rollout to dataset tab): redaction counts, format conversion, SFT filter funnel, group advantages ----
+// ---- Reading sections 4 and 6 (was the Rollout to dataset tab): redaction counts, format conversion, the table of every group's advantages ----
 (function(){
   const HT=window.HT,esc=RD.esc,$=id=>document.getElementById(id);
   const HN=HT.harness,MN={local:'Qwen3-4B (local)',haiku:'Claude Haiku 4.5'};
@@ -48,16 +48,7 @@
     $('tj-out').textContent=txt;$('tj-cap').textContent=cap;
   }
   sel.addEventListener('change',render);RD.seg($('tj-fmt'),v=>{HTX.tjFmt=v;render()});
-  // funnel
-  function funnel(){
-    const m=HTX.tjM||'local';const rs=HT.runs.filter(r=>r.m===m);
-    const ok=rs.filter(r=>r.stop!=='infra_error'),vis=ok.filter(r=>r.vis),hid=ok.filter(r=>r.bin);
-    const seen={},dist=[];hid.forEach(r=>{const k=r.t+'|'+r.d;if(!seen[k]){seen[k]=1;dist.push(r)}});
-    const per={},cap=[];hid.forEach(r=>{per[r.t]=(per[r.t]||0)+1;if(per[r.t]<=3)cap.push(r)});
-    const rows=[['Rollouts recorded',rs.length],['Filter A: passed the visible tests',vis.length],['Filter B: passed the hidden verifier',hid.length],['B, then one per distinct final code per task',dist.length],['B, then at most 3 per task',cap.length]];
-    $('tj-fun').innerHTML=rows.map(x=>'<div class="row"><div>'+x[0]+'</div><div class="tr"><span style="width:'+(100*x[1]/rows[0][1])+'%"></span></div><div class="ht-num">'+x[1]+'</div></div>').join('');
-  }
-  RD.seg($('tj-fm'),v=>{HTX.tjM=v;funnel()});
+  // the SFT filter funnel is the Fig. 4 stage (43_js_sc_ds.js)
   function groups(){
     const k=HTX.tjK||'bin';
     let h='<table class="ht-t"><thead><tr><th>Model</th><th>Harness</th><th>Task</th><th>Rewards</th><th>Mean</th><th>Advantages</th></tr></thead><tbody>';
@@ -66,5 +57,5 @@
     $('tj-groups').innerHTML=h+'</tbody></table>';
   }
   RD.seg($('tj-gk'),v=>{HTX.tjK=v;groups()});
-  render();funnel();groups();
+  render();groups();
 })();

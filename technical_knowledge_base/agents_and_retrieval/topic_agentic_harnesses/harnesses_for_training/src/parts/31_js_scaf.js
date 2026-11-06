@@ -3,7 +3,9 @@
   const HT=window.HT,esc=RD.esc,$=id=>document.getElementById(id);
   const HN=HT.harness,MN={local:'Qwen3-4B (local)',haiku:'Claude Haiku 4.5'};
   const HORD=['bash','tools','plain','ccfull'];
-  const pct=x=>x==null?'n/a':Math.round(x*100)+'%';
+  // half to even, as Python's round() in extract.py, so this tab and the Reading prose print the same percentage (0.525: 52%)
+  const r2e=v=>{const f=Math.floor(v),d=v-f;return Math.abs(d-.5)<1e-9?(f%2===0?f:f+1):Math.round(v)};
+  const pct=x=>x==null?'n/a':r2e(x*100)+'%';
   const sgn=x=>(x>0?'+':x<0?'−':'')+Math.abs(Math.round(x*100));
   window.HTX=window.HTX||{};
   // a rollout card: header, then calls and observations, then the diff

@@ -41,19 +41,20 @@
     res.accPerSearch=res.acc/S;res.meanTrueGainPerAccept=res.acc?res.accTrueGain/res.acc:0;
     return res;
   }
-  function chart(el,res,upto,w){
+  // tag: the rule shown in the legend; span: [lo,hi] to keep one axis across rules (Fig. 5 draws both rules on the greedy search's axis)
+  function chart(el,res,upto,w,tag,span){
     const R=res.vis.length-1,h=230,L=40,B=26,T=10,Rt=10;
-    const all=res.vhi.concat(res.tlo,res.vlo,res.thi);const lo=Math.min(...all)-0.01,hi=Math.max(...all)+0.01;
+    const all=res.vhi.concat(res.tlo,res.vlo,res.thi);const lo=span?span[0]:Math.min(...all)-0.01,hi=span?span[1]:Math.max(...all)+0.01;
     const x=k=>L+(w-L-Rt)*k/R,y=v=>T+(h-T-B)*(1-(v-lo)/(hi-lo));
     const n=upto==null?R:upto;
     const line=(a,c,dash)=>'<polyline fill="none" stroke="'+c+'" stroke-width="2.2"'+(dash?' stroke-dasharray="5 4"':'')+' points="'+a.slice(0,n+1).map((v,k)=>x(k).toFixed(1)+','+y(v).toFixed(1)).join(' ')+'"/>';
     const band=(l,u,c)=>'<polygon fill="'+c+'" opacity=".15" points="'+l.slice(0,n+1).map((v,k)=>x(k)+','+y(v)).concat(u.slice(0,n+1).map((v,k)=>x(k)+','+y(v)).reverse()).join(' ')+'"/>';
     const dot=(a,c)=>'<circle cx="'+x(n)+'" cy="'+y(a[n])+'" r="4.5" fill="'+c+'"/>';
-    let g='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;g+='<line x1="'+L+'" x2="'+(w-Rt)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,Math.round(v*100)+'%',{a:'end',fs:10,fill:'var(--mute)'})}
-    for(let k=0;k<=R;k+=Math.max(1,Math.round(R/6)))g+=RD.t(x(k),h-8,k,{a:'middle',fs:10,fill:'var(--mute)'});
-    g+=RD.t((L+w)/2,h-0,'round',{a:'middle',fs:10,fill:'var(--mute)'});
+    let g='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;g+='<line x1="'+L+'" x2="'+(w-Rt)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(L-4,y(v)+4,Math.round(v*100)+'%',{a:'end',fs:11,fill:'var(--mute)'})}
+    for(let k=0;k<=R;k+=Math.max(1,Math.round(R/6)))g+=RD.t(x(k),h-8,k,{a:'middle',fs:11,fill:'var(--mute)'});
+    g+=RD.t((L+w)/2,h-0,'round',{a:'middle',fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(w,h,g+band(res.vlo,res.vhi,'var(--c2)')+band(res.tlo,res.thi,'var(--c3)')+line(res.vis,'var(--c2)')+line(res.tru,'var(--c3)')+line(res.ho,'var(--c1)',1)+dot(res.vis,'var(--c2)')+dot(res.tru,'var(--c3)')+dot(res.ho,'var(--c1)'),'Measured, true and held-out success over rounds of a simulated harness search')+
-      '<div class="ht-legend"><span><i style="background:var(--c2)"></i>score the loop saw (kept candidates)</span><span><i style="background:var(--c3)"></i>true success rate</span><span><i style="background:var(--c1)"></i>a fresh held-out measurement</span></div>';
+      '<div class="ht-legend">'+(tag?'<span><b>'+esc(tag)+'</b></span>':'')+'<span><i style="background:var(--c2)"></i>score the loop saw (kept candidates)</span><span><i style="background:var(--c3)"></i>true success rate</span><span><i style="background:var(--c1)"></i>a fresh held-out measurement</span></div>';
   }
   HTX.sim=sim;HTX.simChart=chart;
   function run(){

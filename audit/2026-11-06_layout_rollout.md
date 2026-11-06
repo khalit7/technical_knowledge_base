@@ -24,7 +24,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_harnesses/claude_code` Claude Code, taken apart: loop, tools, permissions, hooks, memory, subagents, headless runs
 - [x] `agents_and_retrieval/topic_agentic_harnesses/context_engineering` Context engineering: window budgets, caching, compaction, memory files, subagents
 - [x] `agents_and_retrieval/topic_agentic_harnesses/guardrails` Guardrails: staged runtime safety for LLM systems
-- [ ] `agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training` Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses
+- [x] `agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training` Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses` Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
 - [ ] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses

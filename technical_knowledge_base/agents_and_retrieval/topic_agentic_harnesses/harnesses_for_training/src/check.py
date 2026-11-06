@@ -69,7 +69,8 @@ for g in page_data["groups"]:
 user = getpass.getuser()
 def git(k):
     return subprocess.run(["git", "config", "--global", k], capture_output=True, text=True).stdout.strip()
-forbid = ["/Us" + "ers/", "Us" + "ers-", user, "gl" + "pat", "sk-" + "ant", os.path.expanduser("~")] + [x for x in (git("user.name"), git("user.email")) if x]
+# the login name is matched case-sensitively (a capitalised first name in prose is not the account name); the rest ignore case
+forbid = ["/Us" + "ers/", "Us" + "ers-", "gl" + "pat", "sk-" + "ant", os.path.expanduser("~")] + [x for x in (git("user.name"), git("user.email")) if x]
 email = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 files = [PAGE] + glob.glob(os.path.join(HERE, "**", "*"), recursive=True)
 for p in files:
@@ -79,10 +80,42 @@ for p in files:
     for x in forbid:
         if x and x.lower() in t.lower():
             fail.append(f"forbidden string in {os.path.relpath(p, HERE)}")
+    if user and user in t:
+        fail.append(f"login name in {os.path.relpath(p, HERE)}")
     for e in email.findall(t):
         if not e.endswith(("example.com", "anthropic.com")) and "@" in e and not re.match(r"^[\w.-]+@\d", e):
             fail.append(f"e-mail-like string in {os.path.relpath(p, HERE)}: {e[:3]}...")
     if chr(0x2014) in t:
         fail.append(f"em-dash in {os.path.relpath(p, HERE)}")
+# 5. the numbers written into the Fig. 1, 3 and 4 step lists (static text) equal the data
+def steplist(i):
+    m = re.search(r'<ol class="sx" id="%s">(.*?)</ol>' % i, html, re.S)
+    return re.sub(r"<[^>]+>", "", m.group(1)) if m else ""
+R = {r["id"]: r for r in page_data["runs"]}
+hero = next(r for r in page_data["runs"] if r["m"] == "haiku" and r["h"] == "bash" and r["vis"] and not r["bin"] and r["id"] in page_data["traj"])
+tr = page_data["traj"][hero["id"]]
+inp = [e[1] for e in tr if e[0] == "c"]
+want = {"sx-hero": [f"{inp[0]:,}", f"{inp[4]:,}", f"{sum(inp):,}", f"{len(tr)} events", f"{len(inp)} calls", f"Call {len(inp)}", f"{hero['res'].count('1')} pass", f"partial {hero['part']:.2f}"]}
+g = next(x for x in page_data["groups"] if x["m"] == "local" and sum(x["bin"]) == 1)
+gen = {m["id"]: m["counts"]["gen"] for m in page_data["mask"] if m.get("counts")}
+mu = st.mean(g["bin"])
+want["sx-grp"] = [g["t"], ", ".join(str(x) for x in g["bin"]), f"{mu:.2f}", f"+{max(g['bin_adv']):.2f}", f"{min(g['bin_adv']):.2f}".replace("-", "\u2212")] + [f"{gen[i]:,}" for i in g["ids"]]
+fun = []
+for m_ in ("local", "haiku"):
+    rs = [r for r in page_data["runs"] if r["m"] == m_ and r["stop"] != "infra_error"]
+    hid = [r for r in rs if r["bin"]]
+    seen, dist, per, cap = set(), 0, {}, 0
+    for r in hid:
+        if (r["t"], r["d"]) not in seen:
+            seen.add((r["t"], r["d"])); dist += 1
+        per[r["t"]] = per.get(r["t"], 0) + 1; cap += per[r["t"]] <= 3
+    vis = sum(1 for r in rs if r["vis"])
+    fun.append((vis, len(hid), vis - len(hid), dist, cap))
+want["sx-ds"] = [f"Keeps {fun[0][0]} of", f"all {fun[1][0]}", f"Keeps {fun[0][1]} and {fun[1][1]}", f"The {fun[0][2]} and {fun[1][2]}", f"{fun[0][3]} (local) and {fun[1][3]} (Haiku)", f"{fun[0][4]} and {fun[1][4]}"]
+for lid, xs in want.items():
+    t = steplist(lid).replace("&minus;", "\u2212")
+    for x in xs:
+        if x not in t:
+            fail.append(f"{lid} lacks {x!r}")
 print("\n".join(sorted(set(fail))) if fail else f"OK: {len(runs)} recordings embedded, {len(keys)} bound facts, {len(page_data['groups'])} groups re-derived, no private strings")
 sys.exit(1 if fail else 0)
