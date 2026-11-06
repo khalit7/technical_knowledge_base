@@ -19,3 +19,8 @@ Central question: what happens between pressing Enter and the tests passing, and
 
 ## What the methodology lacked
 A rule for a root that shares a page with lab tabs built in parallel: the Reading tab should replay one recording at intuition level and leave every second view of the same mechanism to the lab that owns it.
+
+## 2026-11-06 (layout rollout)
+- Built: Fig. 1 hero as a 3D stage (`26_js_sc_hero.js`, replacing the 2D seven-box SVG); Fig. 2 what fills the window (`27_js_sc_ctx.js`, from the recordings: six one-call runs and the replayed run's 12 calls, tokens then billed units); Fig. 3 the layers of control (`28_js_sc_safe.js`, a map); the Harness atlas's harness tax as a 3D stage (`34_js_sc_tax.js`, replacing `33_js_atl_d_anim.js`).
+- Kept 2D: the section 1 replay (a feed of text events with counters; it now plays in seven stretches with a step list); the parts table and the measured table (tables); the Loop lab's stack chart (a widget of 50 to 90 frames, case b of the long-replay rule); the Trace lab's bars (per-call bars on a token axis, the caching before and after, the run-to-run dots, the startup bars, the budget curve); the atlas score chart (a log-free dot plot of success and cost) and the edit-format text.
+- Rejected: a 3D version of the section 7 measured comparisons (four table rows; a picture adds nothing); a 3D product map for section 6 (the five questions are categorical; the Harness atlas is the dataset view).

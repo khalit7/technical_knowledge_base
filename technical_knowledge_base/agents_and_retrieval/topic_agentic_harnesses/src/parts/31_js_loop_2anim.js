@@ -59,7 +59,8 @@
   function load(a,b){A=LP.run(a);B=b?LP.run(b):null;FA=fit(A);FB=B?fit(B):null;selA.value=a;selB.value=b||'';
     const n=7*Math.max(mains(A).length,B?mains(B).length:0);if(an)an.reset(n);return n}
   const n0=load(PRESETS[0][0],PRESETS[0][1]);
-  an=LP.anim({card:'loop-acard',ctl:'loop-actl',n:n0,draw:draw,ms:900,label:'Animation step'});
+  // a widget (the long-replay rule, case b): seven stages per call make 50 to 90 frames, so it never plays by itself and opens on its last frame, both runs drawn whole
+  an=LP.anim({card:'loop-acard',ctl:'loop-actl',n:n0,draw:draw,ms:900,label:'Animation step',auto:false,open:'last'});
   LP.seg(pre,m=>load(PRESETS[+m][0],PRESETS[+m][1]));
   selA.addEventListener('change',()=>load(selA.value,selB.value));selB.addEventListener('change',()=>load(selA.value,selB.value));
   LP.onRender(()=>an.redraw());

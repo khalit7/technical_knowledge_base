@@ -1,11 +1,11 @@
-// Click every control of the Harness atlas tab at 390 dark and 920 light; report errors, NaN/undefined, sideways scroll.
+// Click every control of the Harness atlas tab at 390 dark, 920 light and 1400 light; report errors, NaN/undefined, sideways scroll.
 import { createRequire } from 'module';
 const require = createRequire(new URL('../../../../../html_utils/package.json', import.meta.url));
 const puppeteer = require('puppeteer');
 const FILE = 'file://' + process.argv[2];
 const OUT = process.argv[3];
 const browser = await puppeteer.launch({ headless: 'shell' });
-for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
+for (const [scheme, w] of [['dark', 390], ['light', 920], ['light', 1400]]) {
   const page = await browser.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
@@ -30,8 +30,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   counts.sets = await page.evaluate(() => { const s = document.getElementById('atl-sset'), m = document.getElementById('atl-smet'); let n = 0;
     for (const o of s.options) { s.value = o.value; s.dispatchEvent(new Event('change')); for (const mm of ['v', 'c']) { m.value = mm; m.dispatchEvent(new Event('change')); document.querySelectorAll('#atl-schart .atl-hit').forEach(h => { h.dispatchEvent(new MouseEvent('click', { bubbles: true })); n++ }) } }
     s.value = 'htswe'; s.dispatchEvent(new Event('change')); return n });
-  counts.anim = await page.evaluate(() => { const f = document.getElementById('atl-afwd'); for (let i = 0; i < 14; i++) f.click(); document.getElementById('atl-aback').click(); const r = document.getElementById('atl-ascrub'); r.value = 5; r.dispatchEvent(new Event('input')); return 16 });
-  await page.click('#atl-aplay'); await new Promise(r => setTimeout(r, 1200)); await page.click('#atl-aplay');
+  // Fig. 1 (the 3D stage stg-tax, 2026-11-06): step through it with its own controls and its step list
+  counts.anim = await page.evaluate(() => { const f = document.getElementById('stg-tax-f'); for (let i = 0; i < 6; i++) f.click(); document.getElementById('stg-tax-b').click(); [...document.querySelectorAll('#sx-tax li')].forEach(li => li.click()); return 7 + document.querySelectorAll('#sx-tax li').length });
   counts.iq = await page.evaluate(() => { document.querySelectorAll('#t-atlas details').forEach(d => d.open = true); return document.querySelectorAll('#atl-iq p').length });
   const r = await page.evaluate((w) => {
     const t = document.getElementById('t-atlas'); const txt = t.innerText;

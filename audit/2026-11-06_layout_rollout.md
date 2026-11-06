@@ -27,7 +27,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training` Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses
 - [x] `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses` Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent
 - [x] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
-- [ ] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses
+- [x] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval` Agentic retrieval, long context and memory
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/document_ingestion_and_multimodal` Document ingestion and multimodal retrieval: PDFs, tables, images
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning

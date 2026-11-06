@@ -30,21 +30,24 @@
   }
 
   // ---------- caching before/after ----------
-  const C={run:'std_haiku_2',mode:'both',ctl:null};
-  function cdraw(i){
+  const C={run:'std_haiku_2',mode:'both',ctl:null,prev:0};
+  // four explained steps (the step list sx-cache): the outline, call 1, the next three calls, the rest up to call 8
+  const VIS=n=>[0,1,Math.min(4,n),n];
+  function cdraw(k){
     const el=$('trc-csvg'),r=by[C.run];if(!el||!r)return;
-    const cs=main(r).slice(0,8),n=cs.length,p=P(r.model);
+    const cs=main(r).slice(0,8),n=cs.length,p=P(r.model);const i=VIS(n)[k],from=i>C.prev?C.prev:i;C.prev=i;
     const on=c=>c[0]+c[1]*(c[8]?1.25:2)+c[2]*0.1, off=c=>ctxOf(c);
     const modes=C.mode==='both'?['on','off']:[C.mode];
     let mxv=0;cs.forEach(c=>{mxv=Math.max(mxv,off(c),on(c))});
     const W=Math.min(860,X.width(el)),lw=58,rowH=modes.length*15+9,H=n*rowH+28;let b='';
     const sc=v=>(W-lw-60)*v/mxv;
-    b+=X.T(lw,12,'billed input per call, base-input-token units',{fs:10.5,fill:'var(--mute)'});
-    cs.forEach((c,j)=>{const y=20+j*rowH;const vis=j<i;b+=X.T(lw-6,y+11,'call '+(j+1),{a:'end',fs:10.5,fill:vis?'var(--ink)':'var(--dim)'});
+    b+=X.T(lw,12,'billed input per call, base-input-token units',{fs:11,fill:'var(--mute)'});
+    cs.forEach((c,j)=>{const y=20+j*rowH;const vis=j<i;b+=X.T(lw-6,y+11,'call '+(j+1),{a:'end',fs:11,fill:vis?'var(--ink)':'var(--dim)'});
       modes.forEach((m,k)=>{const yy=y+k*15;if(!vis){b+='<rect x="'+lw+'" y="'+yy+'" width="'+sc(off(c)).toFixed(1)+'" height="12" fill="none" stroke="var(--line)" stroke-dasharray="2 2"/>';return}
-        if(m==='off'){b+='<rect x="'+lw+'" y="'+yy+'" width="'+sc(off(c)).toFixed(1)+'" height="12" fill="var(--trc-in)"/>'+X.T(lw+sc(off(c))+4,yy+10,k1(off(c))+(C.mode==='both'?' without':''),{fs:10,fill:'var(--mute)'})}
-        else{let x=lw;[[c[2]*0.1,'var(--trc-cr)'],[c[1]*(c[8]?1.25:2),'var(--trc-cw)'],[c[0],'var(--trc-in)']].forEach(s=>{const w=sc(s[0]);if(w>0){b+='<rect x="'+x.toFixed(1)+'" y="'+yy+'" width="'+Math.max(.8,w).toFixed(1)+'" height="12" fill="'+s[1]+'"/>';x+=w}});
-          b+=X.T(x+4,yy+10,k1(on(c))+(C.mode==='both'?' with':''),{fs:10,fill:'var(--mute)'})}});
+        const nw=j>=from?' class="trc-new" style="animation-delay:'+((j-from)*0.45).toFixed(2)+'s"':'';
+        if(m==='off'){b+='<rect'+nw+' x="'+lw+'" y="'+yy+'" width="'+sc(off(c)).toFixed(1)+'" height="12" fill="var(--trc-in)"/>'+X.T(lw+sc(off(c))+4,yy+10,k1(off(c))+(C.mode==='both'?' without':''),{fs:11,fill:'var(--mute)'})}
+        else{let x=lw;[[c[2]*0.1,'var(--trc-cr)'],[c[1]*(c[8]?1.25:2),'var(--trc-cw)'],[c[0],'var(--trc-in)']].forEach(s=>{const w=sc(s[0]);if(w>0){b+='<rect'+nw+' x="'+x.toFixed(1)+'" y="'+yy+'" width="'+Math.max(.8,w).toFixed(1)+'" height="12" fill="'+s[1]+'"/>';x+=w}});
+          b+=X.T(x+4,yy+10,k1(on(c))+(C.mode==='both'?' with':''),{fs:11,fill:'var(--mute)'})}});
     });
     el.innerHTML=X.svg(W,H,b,'Billed input per call with and without caching');
     const vis=cs.slice(0,i);
@@ -52,18 +55,13 @@
     const usdOn=sum(c=>X.callCost(c,r.model)),usdOff=sum(c=>X.callCostNoCache(c,r.model));
     const st=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
     $('trc-cstats').innerHTML=st('Input processed',n0(sum(ctxOf)),'same in both: the model reads it all')+st('Billed, with caching',n0(sum(on)),usd(usdOn)+' with output')+st('Billed, without',n0(sum(off)),usd(usdOff)+' with output')+st('Saving so far',vis.length?Math.round((1-usdOn/usdOff)*100)+'%':'none yet','on the dollar figure');
-    const c=cs[i-1];
-    const cap=i===0?'Eight calls of <i>'+esc(r.title)+'</i>. Press play: each step adds the next call. Dashed outlines show the full input each call will read.':
-      i===1?'Call 1 reads '+n0(ctxOf(c))+' tokens: the startup context plus the prompt. '+n0(c[2])+' were already cached by an earlier session with the same prefix; '+n0(c[1])+' are written to the cache at '+(c[8]?'1.25x':'2x')+'. Without caching all of it is fresh input.':
-      'Call '+i+' re-reads everything so far ('+n0(ctxOf(c))+' tokens) but only '+n0(c[1]+c[0])+' are new since call '+(i-1)+' (the previous output and tool result). The rest, '+n0(c[2])+' tokens, is a cache read at 0.1x: the blue sliver. Without caching the whole bar is paid again.';
-    $('trc-ccap').innerHTML=cap;
   }
   function cinit(){
     const s=$('trc-crun');if(!s||s.options.length)return;
     ['std_haiku_2','std_haiku_1','ttl5m_haiku_1','std_sonnet_1','log_haiku_1'].filter(k=>by[k]).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=by[k].title;s.appendChild(o)});
-    s.value=C.run;s.addEventListener('change',()=>{C.run=s.value;C.ctl.reset(Math.min(8,main(by[C.run]).length)+1)});
+    s.value=C.run;s.addEventListener('change',()=>{C.run=s.value;C.prev=0;C.ctl.reset(4,'sx-cache')});
     $('trc-cmode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;C.mode=b.dataset.m;$('trc-cmode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));C.ctl.redraw()});
-    C.ctl=X.anim({card:'trc-ccard',ctl:'trc-cctl',n:Math.min(8,main(by[C.run]).length)+1,draw:cdraw,label:'Call'});
+    C.ctl=X.anim({card:'trc-ccard',ctl:'trc-cctl',n:4,draw:cdraw,ms:5000,list:'sx-cache',label:'Step'});
   }
 
   // ---------- budget model ----------
@@ -92,13 +90,13 @@
     const cc=[],co=[];for(let i=1;i<=N;i++){const one=model(Object.assign({},o,{N:i}));cc.push(one.cost);co.push(one.costOff)}
     const mxu=Math.max(co[N-1],cc[N-1],1e-9);
     const x=i=>L+(W-L-R)*(N===1?0.5:(i)/(N-1)),y=v=>T0+(H-T0-B)*(1-v/mxc),yu=v=>T0+(H-T0-B)*(1-v/mxu);
-    let b='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(o.W)+'" y2="'+y(o.W)+'" stroke="var(--bad)" stroke-dasharray="5 3"/>'+X.T(L+4,y(o.W)-4,'window '+k1(o.W),{fs:10,fill:'var(--bad)'});
-    for(let gi=0;gi<=4;gi++){const v=mxc*gi/4;b+=X.T(L-4,y(v)+4,k1(v),{a:'end',fs:10,fill:'var(--mute)'});const u=mxu*gi/4;b+=X.T(W-R+4,yu(u)+4,'$'+u.toFixed(u<0.1?3:2),{fs:10,fill:'var(--mute)'})}
+    let b='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(o.W)+'" y2="'+y(o.W)+'" stroke="var(--bad)" stroke-dasharray="5 3"/>'+X.T(L+4,y(o.W)-4,'window '+k1(o.W),{fs:11,fill:'var(--bad)'});
+    for(let gi=0;gi<=4;gi++){const v=mxc*gi/4;b+=X.T(L-4,y(v)+4,k1(v),{a:'end',fs:11,fill:'var(--mute)'});const u=mxu*gi/4;b+=X.T(W-R+4,yu(u)+4,'$'+u.toFixed(u<0.1?3:2),{fs:11,fill:'var(--mute)'})}
     const path=(arr,f)=>arr.map((v,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+f(v).toFixed(1)).join('');
     b+='<path d="'+path(r.ctx,y)+'" fill="none" stroke="var(--c1)" stroke-width="2"/>';
     b+='<path d="'+path(co,yu)+'" fill="none" stroke="var(--trc-in)" stroke-width="1.5" stroke-dasharray="4 3"/>';
     if(o.cache!=='off')b+='<path d="'+path(cc,yu)+'" fill="none" stroke="var(--good)" stroke-width="1.5"/>';
-    b+=X.T(L,H-6,'call 1',{fs:10,fill:'var(--mute)'})+X.T(W-R,H-6,'call '+N,{a:'end',fs:10,fill:'var(--mute)'});
+    b+=X.T(L,H-6,'call 1',{fs:11,fill:'var(--mute)'})+X.T(W-R,H-6,'call '+N,{a:'end',fs:11,fill:'var(--mute)'});
     el.innerHTML=X.svg(W,H,b,'Context per call and cumulative cost')+'<div class="trc-leg"><span><i style="background:var(--c1)"></i>context per call (left axis)</span><span><i style="background:var(--good)"></i>cumulative cost with caching (right)</span><span><i style="background:var(--trc-in)"></i>cumulative cost without caching (right)</span></div>';
   }
   function bmVal(){

@@ -1,3 +1,14 @@
+<div class="s3sp"><div class="s3R"><div class="s3side">
+<div class="card" id="ahread-c1">
+<h3 style="margin-top:0">Same task, same model: one call fixed one bug, the loop fixed both</h3>
+<div class="seg" id="ahread-c1-seg"><button data-m="cc" class="on">Claude Code, the loop</button><button data-m="s0">Step 0, one call</button></div>
+<div class="an-ctl" id="ahread-c1-ctl"></div>
+<div class="out" id="ahread-c1-cnt"></div>
+<div class="ahread-win" id="ahread-c1-win"></div>
+<div class="ahread-run" id="ahread-c1-run"></div>
+<p class="small mute">Real recordings, Claude Haiku 4.5 (<code>claude-haiku-4-5-20251001</code>) both times. Loop: Claude Code 2.1.289, <code>claude -p</code>, tools Read, Edit, Write, Bash, Grep, Glob, permission mode acceptEdits (trace <code>std_haiku_1</code>). One call: the Loop lab's step 0 (<code>s0_haiku</code>). The window bar shows each call's input: the part read from the prompt cache, the part newly written to it, and fresh input. Tool results are cut to a few lines here; the full trace is in the {{Trace and context lab|#t-trace}}.</p>
+</div>
+</div></div><div class="s3L">
 <section id="rd-s1">
 <h2>1. The loop: a model call, a tool call, repeat</h2>
 <p><b>A model call.</b> A language model is a function from text to text. The text goes in as <dfn>tokens</dfn> (word pieces, about four characters of English each), and the model generates new tokens one at a time until it decides to stop. It keeps no memory between calls: to "continue a conversation", the caller sends the whole conversation again every time. The maximum it can read in one call is its <dfn>context window</dfn> (200,000 tokens for Claude Haiku 4.5, as the CLI's own result record reports <span class="meas">MEASURED</span>).</p>
@@ -5,17 +16,24 @@
 <div class="fm"><code>messages = [system prompt, task]<br>while True:<br>&nbsp;&nbsp;reply = model(messages, tools)<br>&nbsp;&nbsp;if reply has no tool call: break &nbsp;&nbsp;<span class="mute"># the model says it is done</span><br>&nbsp;&nbsp;result = run(reply.tool_call) &nbsp;&nbsp;<span class="mute"># after a permission check</span><br>&nbsp;&nbsp;messages += [reply, result]</code></div>
 <p>That is the whole core; what makes a harness good is everything around those six lines. The one rule the loop cannot do without is the <dfn>action boundary</dfn>: the model's turn must end at its action, or the model writes the tool's result itself, as Haiku did in the {{Loop lab|#t-loop}} when nothing stopped it. A provider's tool-calling API enforces the boundary; a text protocol must enforce it with a stop sequence ({{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}} section 2).</p>
 
-<div class="card" id="ahread-c1">
-<h3 style="margin-top:0">Same task, same model: one call fixed one bug, the loop fixed both</h3>
-<div class="seg" id="ahread-c1-seg"><button data-m="cc" class="on">Claude Code, the loop</button><button data-m="s0">Step 0, one call</button></div>
-<div class="an-ctl" id="ahread-c1-ctl"></div>
-<div class="an-cap" id="ahread-c1-cap" aria-live="polite"></div>
-<div class="out" id="ahread-c1-cnt"></div>
-<div class="ahread-win" id="ahread-c1-win"></div>
-<div class="ahread-run" id="ahread-c1-run"></div>
-<p class="small mute">Predict before you step: which of the two bugs can a model fix without ever running the tests? Real recordings, Claude Haiku 4.5 (<code>claude-haiku-4-5-20251001</code>) both times. Loop: Claude Code 2.1.289, <code>claude -p</code>, tools Read, Edit, Write, Bash, Grep, Glob, permission mode acceptEdits (trace <code>std_haiku_1</code>). One call: the Loop lab's step 0 (<code>s0_haiku</code>). The window bar shows each call's input: the part read from the prompt cache, the part newly written to it, and fresh input. Tool results are cut to a few lines here; the full trace is in the {{Trace and context lab|#t-trace}}.</p>
-</div>
-<p><b>What the replay shows.</b> Step 0 pasted the source file into one prompt: Haiku read 635 input tokens, answered in 7.9 seconds, and fixed <code>top_words</code>; it never saw the tests, so it never learned that apostrophes were supposed to survive, and one test still failed <span class="meas">MEASURED</span>. Nothing was wrong with the model: it was missing information that only running the code could give it. The loop spent six calls finding its way around, recovered from one error (call 7 typed <code>python</code>, got <code>command not found: python</code> back as an ordinary error result, and typed <code>python3</code> on call 8), fixed both bugs in two edits, ran the tests again and stopped. Twelve model calls, 31 seconds, about $0.039 at list prices <span class="meas">MEASURED</span>. The first call already read 13,242 tokens before the model had seen a single file: the system prompt and six tool definitions, the fixed cost of this harness (section 3).</p>
+<p><b>The replay</b> (right). Predict before it plays: which of the two bugs can a model fix without ever running the tests? The buttons switch between the loop and one call; the step list follows the run.</p>
+<p class="sxh">Claude Code's loop, 12 model calls in seven stretches</p>
+<ol class="sx" id="sx-c1">
+<li><b>Enter.</b> The harness sends the system prompt, six tool definitions and the task. The window already holds 13,242 tokens on the first call, before the model has read a single file: the fixed cost of this harness (section 3).</li>
+<li><b>Calls 1 to 6: looking around.</b> <code>find</code>, <code>ls</code>, the test file, the package, <code>__init__.py</code>, <code>core.py</code>. Reading a file puts its whole text into the history: by call 6 the request is 14,775 tokens.</li>
+<li><b>Call 7: an error, returned as is.</b> <code>python tests/test_core.py</code> gets <code>command not found: python</code> back as an ordinary error result, and the model reads it like any other result.</li>
+<li><b>Call 8: the tests run.</b> <code>python3</code> shows both failures, <code>2 failed</code>: the information the single call never had.</li>
+<li><b>Calls 9 and 10: two exact-string edits</b> to the library: one keeps apostrophes inside words, one breaks ties alphabetically.</li>
+<li><b>Call 11: the tests again.</b> <code>0 failed</code>.</li>
+<li><b>Call 12: done.</b> No tool call: the model answers in text, so the loop ends. Twelve model calls, 31 seconds, about $0.039 at list prices; both bugs fixed, verified by the tests <span class="meas">MEASURED</span>.</li>
+</ol>
+<ol class="sx" id="sx-c1b" hidden>
+<li><b>Step 0: no loop.</b> The source file is pasted into one prompt: 635 input tokens. The model never sees the tests.</li>
+<li><b>One answer.</b> Haiku 4.5 replies in 7.9 seconds with 731 output tokens (475 of them thinking) and fixes the tie-breaking in <code>top_words</code>.</li>
+<li><b>Graded afterwards.</b> One test still fails <span class="meas">MEASURED</span>: nothing in the prompt said apostrophes must survive, and the model had no way to run anything and find out.</li>
+</ol>
+<p>Nothing was wrong with the model: it was missing information that only running the code could give it. The loop spent six calls finding its way around, recovered from one error and fixed both bugs in two edits.</p>
 <details class="qa"><summary>Where the loop and tool calling came from</summary><div><dfn>ReAct</dfn> (Yao et al., October 2022) interleaved free-text thoughts with actions and observations in one prompted loop, and beat reasoning-only and acting-only baselines; every modern agent loop descends from it ({{ReAct paper page|n:3c65c17b0d0d816b9a24c28de8f08ea8}}). <a href="https://arxiv.org/abs/2302.04761" target="_blank" rel="noopener noreferrer">Toolformer</a> (Schick et al., February 2023) showed a model teaching itself API calls from a few demonstrations, and OpenAI announced on 13 June 2023 (<a href="https://web.archive.org/web/20230615222354/https://openai.com/blog/function-calling-and-other-api-updates" target="_blank" rel="noopener noreferrer">archived post</a>) that its 0613 models "have been fine-tuned" to detect when a function should be called and to answer with JSON matching its signature <span class="src">SOURCE</span>. Models call tools reliably because they are trained to. Both request shapes, Anthropic Messages and OpenAI Responses, are laid side by side in the {{Loop lab|#t-loop}}'s API section.</div></details>
 <div class="deepnote"><b>Go deeper:</b> the {{Loop lab|#t-loop}} builds this loop from zero in seven recorded steps (its final step is 240 lines of Python, 190 of them code <span class="meas">MEASURED</span>); {{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}} goes one layer down: a tool call on the wire token by token, the action boundary measured, parallel calls, streaming and interrupts (its sections 1 to 4).</div>
 </section>
+</div></div>

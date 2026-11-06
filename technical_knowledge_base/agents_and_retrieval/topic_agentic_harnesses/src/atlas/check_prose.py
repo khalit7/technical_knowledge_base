@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 HERE = Path(__file__).resolve().parent; P = HERE.parent / "parts"
 html = (P / "33_tab_atlas.html").read_text()
-js = "".join((P / f).read_text() for f in ["33_js_atl_b_core.js", "33_js_atl_c_scores.js", "33_js_atl_d_anim.js", "33_js_atl_e_more.js"])
+js = "".join((P / f).read_text() for f in ["33_js_atl_b_core.js", "33_js_atl_c_scores.js", "34_js_sc_tax.js", "33_js_atl_e_more.js"])
 A = json.loads(re.search(r"window\.ATL=(.*);\s*$", (P / "33_js_atl_a_data.js").read_text(), re.S).group(1))
 ok = 0
 def check(cond, what):
@@ -24,6 +24,11 @@ pr = lambda c: (c[0] * 1 + c[1] * 2 + c[2] * 0.1 + c[3] * 5) / 1e6
 lc, cc = sum(map(pr, L)), sum(map(pr, C))
 check(abs(cc - an["cc"]["cost"]) < 1e-6, "Claude Code cost reproduces CLI: %.6f vs %.6f" % (cc, an["cc"]["cost"]))
 check(abs(lc - cc) / cc < 0.1, "two land close in dollars: %.4f vs %.4f" % (lc, cc))
+# Fig. 1's step list (sx-tax, 2026-11-06) quotes these
+H = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+for v in ["{:,}".format(cin(C[0])), "{:,}".format(cin(L[0])), "{:,}".format(cin(L[-1])), "{:,}".format(cin(C[-1])), "{:,}".format(sum(map(cin, C))), "{:,}".format(sum(map(cin, L))), "all {} calls".format(len(L)), "all {} calls".format(len(C)), "about {} times as many".format(round(sum(map(cin, C)) / sum(map(cin, L)))), "${:.4f} against ${:.4f}".format(cc, lc)]:
+    check(v in H, "step list says " + v)
+check(H.count("<li>") >= 0 and len(re.findall(r"<li>", html[html.index('id="sx-tax"'):html.index("</ol>", html.index('id="sx-tax"'))])) == 5, "five steps in sx-tax")
 o = A["sets"]["tb20"]["rows"]; opus = [r for r in o if r["m"] == "Claude Opus 4.6"]
 check(len(opus) == 9 and "across nine agents" in html, "Opus 4.6 nine agents (caption pointing to Agentic benchmarks)")
 check(min(opus, key=lambda r: r["v"])["h"] == "Claude Code" and max(opus, key=lambda r: r["v"])["h"] == "Meta-Harness", "Opus 4.6 ends")
@@ -46,7 +51,7 @@ for p, nums in [("harnessdev", ["67.8 vs 86.2", "34 of 64", "69.3 to 33.0"]), ("
     for n in nums: check(n in t, p + " page says " + n)
 x = A["x"]["totals"]; check(x["calls"] == 11, "experiment calls")
 check(A["x"] == json.load(open(HERE / "inputs/mswe_attempt_2026-10-05.json")), "page embeds exactly the redacted experiment summary")
-files = [P / f for f in ["33_tab_atlas.html", "33_js_atl_a_data.js", "33_js_atl_b_core.js", "33_js_atl_c_scores.js", "33_js_atl_d_anim.js", "33_js_atl_e_more.js"]] + list(HERE.rglob("*.*"))
+files = [P / f for f in ["33_tab_atlas.html", "33_js_atl_a_data.js", "33_js_atl_b_core.js", "33_js_atl_c_scores.js", "34_js_sc_tax.js", "33_js_atl_e_more.js"]] + list(HERE.rglob("*.*"))
 for f in files:
     if f.suffix in (".py",) : continue
     t = f.read_text(errors="ignore")

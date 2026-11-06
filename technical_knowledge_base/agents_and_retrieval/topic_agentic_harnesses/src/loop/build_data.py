@@ -51,7 +51,7 @@ def red(s, label=""):
     s = re.sub(r"/private/tmp/claude-\d+/[^\s\"']*", "/scratch", s)
     s = re.sub("(?i)" + re.escape(ME), "user", s)
     s = s.replace(HOMES + "/", "/home/").replace(HOMES.strip("/") + "-", "home-")
-    return s.replace("—", ", ")
+    return s.replace("\u2014", ", ")
 
 
 def R(o):

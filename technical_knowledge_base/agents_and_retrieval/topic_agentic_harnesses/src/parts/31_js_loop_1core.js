@@ -26,34 +26,8 @@ window.LP=(function(){
   const PRICE={'claude-haiku-4-5-20251001':{i:1,w:2,r:0.1,o:5},'claude-sonnet-5-5':{i:2,w:4,r:0.2,o:10}};
   function cost(model,u){const p=PRICE[model]||null;if(!p)return null;
     return (u[0]*p.i+u[1]*p.w+u[2]*p.r+u[3]*p.o)/1e6}
-  // the animation controller (play, pause, step, scrub, speed); animates only on screen in the visible tab; paused under reduced motion
-  function anim(o){
-    const card=$(o.card),ctl=$(o.ctl);const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const p=o.ctl+'-';
-    ctl.innerHTML='<button id="'+p+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
-      '<button id="'+p+'p" aria-label="Play">&#9654; Play</button>'+
-      '<button id="'+p+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
-      '<input type="range" id="'+p+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
-      '<label>Speed <select id="'+p+'v"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label>';
-    const g=s=>$(p+s);
-    function show(){const sc=g('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
-    const live=()=>st.vis&&!document.hidden&&visible();
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=st.n-1){setPlay(false);return}st.i++;show();
-      if(st.i>=st.n-1){setPlay(false);return}st.timer=setTimeout(tick,(o.ms||1100)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1100)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(v){st.play=v;g('p').innerHTML=v?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',v?'Pause':'Play');
-      if(!v&&st.timer){clearTimeout(st.timer);st.timer=0}if(v&&st.i>=st.n-1){st.i=0;show()}kick()}
-    g('p').addEventListener('click',()=>setPlay(!st.play));
-    g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    g('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      kick()},{threshold:.2})  /* never autoplays (2026-10-23): waits on step 0 until the reader acts */.observe(card)}else st.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();setTimeout(kick,50)});
-    show();
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i}};
-  }
+  // the step controller: LABANIM (24_js_labanim.js), RD.anim with the lab additions and the 2026-11-06 motion rules
+  const anim=o=>window.LABANIM('t-loop',o);
   const seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;el.querySelectorAll('button[data-m]').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
   // packed prompt blocks ('x627|r150|R*795') to [[label, characters], ...]
   const NAMES={x:'task',r:'reply',e:'error',R:'result:read_file',T:'result:run_tests',E:'result:edit_file',C:'result:run_command',D:'result:delegate',U:'result:unknown tool'};
