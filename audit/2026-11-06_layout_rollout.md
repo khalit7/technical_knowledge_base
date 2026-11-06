@@ -28,7 +28,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses` Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent
 - [x] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
 - [ ] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses
-- [ ] `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval` Agentic retrieval, long context and memory
+- [x] `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval` Agentic retrieval, long context and memory
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/document_ingestion_and_multimodal` Document ingestion and multimodal retrieval: PDFs, tables, images
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/graphrag_and_structured_retrieval` GraphRAG and structured retrieval
@@ -331,3 +331,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_harnesses/guardrails`: mk_coverage.py reports 66 of 73; the 7 strings were already missing before the rollout (checked against HEAD by the agent). Worth a look.
 - `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses`: Fig. 1 close-up steps overlap faded row labels at the bottom left ("Aider (whole)", "both fixed").
 - `agents_and_retrieval/topic_agentic_harnesses/personal_agents`: Figs. 1 and 7 close-up steps leave large faded blocks cropped at the card edges.
+- `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval`: the Trajectory comparer still shows a "Pending generator run" box though check_data reports 0 pending (pre-existing); Long-context tab table scrolls sideways in the right column at 1400.

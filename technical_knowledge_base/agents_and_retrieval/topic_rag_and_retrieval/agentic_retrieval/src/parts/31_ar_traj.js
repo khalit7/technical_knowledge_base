@@ -38,8 +38,9 @@
     qEl.innerHTML='<b>'+(qi+1)+'.</b> '+esc(C.q[qi])+' <span class="mute">('+C.type[qi]+'; gold answer: <b>'+esc(C.gold[qi])+'</b>; gold paragraphs: '+C.rows[qi].g.map(p=>esc(TT[p])).join(', ')+')</span>';
     clock.innerHTML='Clock: <b>'+t.toFixed(1)+' s</b> of '+T.toFixed(1)+' s (recorded wall time, slowest lane)';tb.style.width=(100*k/(STEPS-1)).toFixed(1)+'%';
     lanesEl.innerHTML=LANES.map(s=>laneHTML(qi,s,t)).join('')}
-  const an=RD.anim({card:'tj-card',ctl:'tj-ctl',n:STEPS,ms:250,label:'Clock',start:STEPS-1,draw});
-  function pick(){qi=+sel.value;if(qi>=0)T=Math.max(...LANES.map(s=>cum(C.rows[qi][s].c,99)));an.go(STEPS-1)}
+  // a widget (the long-replay rule, case b: 41 clock frames of a run the reader picks): it never plays by itself and opens on the last frame
+  const an=RD.anim({card:'tj-card',ctl:'tj-ctl',n:STEPS,ms:250,label:'Clock',start:STEPS-1,auto:false,draw});
+  function pick(){qi=+sel.value;if(qi>=0)T=Math.max(...LANES.map(s=>cum(C.rows[qi][s].c,99)));an.go(STEPS-1,true)}
   flt.addEventListener('change',()=>{list();pick()});sel.addEventListener('change',pick);
   list();pick();
   (window.TAB_RENDER=window.TAB_RENDER||{})['t-artraj']=[()=>an.redraw()];

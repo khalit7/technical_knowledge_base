@@ -11,7 +11,8 @@ P="$RAG_SCRATCH/venv/bin/python -I -B"
 $P scripts/s_hops.py; $P scripts/s_outcomes.py; $P scripts/s_router.py; $P scripts/s_traj.py
 $P scripts/s_longctx.py; $P scripts/s_tool.py; $P scripts/s_post.py
 python3 build_data.py && sh build.sh && $P check_data.py
-node check_page.mjs ../index.html <screenshot folder>     # every control at 390 dark and 920 light, figure screenshots, no autoplay
+node check_page.mjs ../index.html <screenshot folder>     # every control at 390 dark and 920 light, figure screenshots; the failure-bin animation autoplays, the two lab replays never do
+node check_stages.mjs <screenshot folder>                 # the four 3D stages and the failure-bin animation: autoplay on view, last step, list lengths, reduced motion, splits
 # from the repo root: sh html_utils/checkpage.sh <this page folder>
 ```
 
@@ -57,3 +58,28 @@ New closed block at the end of Reading ("The root page's agentic runs in detail"
 
 ## 2026-10-26 absorbs
 Section 8 absorbed Jin et al. (2410.05983) and LaRA (2502.09977) from RAG and retrieval evaluation, checked against both abstracts; section 9's Mem0 figures moved to Context engineering section 8 (one sentence plus a link remains; ledger 266 re-keyed). Reading 31 to 32 min.
+
+## The 2026-11-06 pass: split layout, 3D stages (renderer v2), explained and autoplaying animations
+- **Templates**: `02_split.html` (added to `build.sh` after `01_head.html`), `21_js_rd_common.js`, `99_js_tabs.js` (key `ar-tab`) and `05z_errbox.js.html` from the skill; the renderer `25_js_s3.js` copied unchanged as `27_js_s3.js` (after the data and `23_ar_lib.js`, before the scenes `28a` to `28d`).
+- **Split layout** (Reading): top (Fig. 1 beside the core sentence and its six steps; then the scatter beside You need, terms and the running example; the comparison table full width); 1 three times (Fig. 2 beside the formula and its five steps; formats; budgets); 2 twice (Fig. 3 beside the predict block, the question chips, five steps and a readout of the current query and its top 3; the second-hop bars); 3 (the dumbbell beside the method cards); 4 (AUROC dots); 5 (the router lab beside its text); 6 (the failure-bin animation beside its step lists); 7 (Fig. 4 beside five steps); 8 three times (accuracy bars; lost in the middle, its long caption now the left paragraph; prefill validation); 9 (memory curation). Full width: closed blocks, the metrics table, the deep-research systems table, "When each wins", head-to-heads, Depth. Lab tabs: notes left, controls and output right.
+- **Four 3D stages**, one scene each, every number from `window.AR` (nothing typed):
+  - Fig. 1 (`28a_sc_hero.js`, 6 steps): the McFarland bridge question (also section 2's first example) from the comparer's recorded runs: top 5 (one call, 753 prompt tokens, wrong), ReAct (171, 580, 1,061: each call's grey part is the previous prompt plus its output; right), long context (1,933, F1 0.57); then the 200-question means. New facts `hq_*` (`build_data.py`) fill the step list.
+  - Fig. 2 (`28b_sc_stair.js`, 5 steps): `AR.tool` s_mean and r_mean, calls 1 to 5 to scale, re-read flows, the n = 4 recorded billed and computed tokens (`by_n`), the prompt cache as glass. New facts `stair_pred4` (5s + 10r) and `stair_last4` (s + 4r).
+  - Fig. 3 (`28c_sc_hop.js`, 5 steps, 8 questions): `AR.hops.examples`, distance = recorded rank on a log scale, the top 3 as a disc, hop 2 gliding between the four searches. Replaces the lanes stepper; its captions became the step list and a live readout of the query and results.
+  - Fig. 4 (`28d_sc_dr.js`, 5 steps): open_deep_research's shape at its source defaults (5 researchers, 10 tool calls, pages kept at about 25-30 percent, 6 rounds); sizes illustrative, said on the page. Replaces the SVG shape diagram.
+- **Kept 2D, and why**: every other figure is a number on an axis, a curve or a scatter (see `viz_ideas.md`). The failure-bin animation is `RD.anim` with one `ol.sx` list per comparison (its caption carousel removed). The Trajectory comparer replay (41 frames) and the Long-context race (31 frames) are widgets (`auto:false`), opening on their last frame; the race's seconds moved out of the bars into the row names (they clipped at 390 px once the race opened finished).
+- **Removed**: the stair slider and SVG, the deep-research SVG, the second-hop lanes and its caption, the taxonomy caption, the sentence "Billed tokens grow with the square of n..." (step 3 carries it). Fixed: the methods dumbbell's value labels ran off the right edge in a narrow column.
+- **Checks**: `check_page.mjs` now drives the stage controls, checks the hop readout and that one taxonomy list shows per mode, and its never-autoplay assertion is inverted (the taxonomy animation must advance once in view; the two widgets must not move). `check_stages.mjs` new (from Context engineering). `check_data.py`: the login-name scan is case-sensitive (other private strings still case-insensitive). Quoted sibling times in Further reading updated by `check_times.py --fix`.
+
+## Length judgement, 2026-11-06
+| | Before (2026-11-06 audit) | After |
+|---|---|---|
+| Reading core | 7,325 words, 31.8 min | 8,194 words, 35.6 min (header 36) |
+| Reading in closed blocks | 4,559 words, 19.8 min | 4,559 words, 19.8 min |
+| Other tabs (core) | Trajectory comparer 1,077, calculator 444, Further reading 530 | 1,077, 476, 530 |
+| Visuals inline in Reading (audit count) | 13 | 15 (four stages; the stair, hop lanes and deep-research SVGs replaced) |
+
+The core grew by about four minutes, all of it step lists: Fig. 1's six steps carry one recorded question's numbers, Fig. 2's five the loop formula's, Fig. 3's five the second hop's medians, Fig. 4's five open_deep_research's defaults, and the failure bins' three lists the numbers the caption carousel used to show only one at a time. The paragraphs they explain were not cut, because each still carries ledger units the steps do not (the formula's fit, the agent's stopping counts, the vendor claims). What could go next: the failure-bin "All strategies" list (eight short items) and the deep-research step 3, which overlaps the closed block's file-and-line account.
+
+## Ledger, 2026-11-06
+394 units: core 296, depth 48, owned 9, fat 41; `python3 html_utils/ledger.py check` problems 0. No unit relabelled or re-keyed.

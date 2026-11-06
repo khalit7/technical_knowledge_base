@@ -30,11 +30,12 @@
     $('lc-tab').innerHTML='<thead><tr><th></th><th class="num">Input tokens</th><th class="num">$ per query</th><th class="num">$ per day</th><th class="num">Seconds to first token ('+x.m+')</th><th class="num">Generation s</th><th class="num">KV cache GiB</th></tr></thead><tbody>'+
       rows.map(r=>'<tr><td>'+r.nm+'</td><td class="num">'+fi(r.tin)+(r.cached?' ('+fi(r.cached)+' cached)':'')+'</td><td class="num">'+(r.pmax?'n/a (over the preset\'s 100k)':'$'+r.cost.toPrecision(3))+'</td><td class="num">'+(r.pmax?'n/a':'$'+r.day.toPrecision(3))+'</td><td class="num">'+r.ttft.toFixed(r.ttft<10?2:0)+fl(r)+'</td><td class="num">'+r.gen.toFixed(2)+'</td><td class="num">'+r.kv.toFixed(2)+'</td></tr>').join('')+
       '</tbody>';$('lc-cap2').innerHTML='Cached row: the corpus is a cached prefix (the corpus is written to the cache '+(x.p.write?'at $'+x.p.write+'/M':'at the full input price, OpenAI\'s first request')+' at most once per 5-minute window, so '+Math.min(x.D,288)+' writes per day assumed); its seconds assume the prefix is already in the KV cache, so only the question is computed. RAG ratio, uncached long context against RAG: '+(rows[1].cost/rows[0].cost).toFixed(0)+' times per query.';
-    race.reset(STEPS)}
+    race.reset(STEPS);race.go(STEPS-1,true)}
   // time-to-first-token race, to scale
   const STEPS=31,raceEl=$('lc-race'),cap=$('lc-cap');
-  const race=RD.anim({card:'lc-anim',ctl:'lc-ctl',n:STEPS,ms:160,label:'Time',draw:i=>{const {rows}=calc(),T=Math.max(...rows.map(r=>r.ttft)),t=T*i/(STEPS-1);
-    raceEl.innerHTML='<div class="split">'+rows.map(r=>'<div class="small">'+esc(r.nm)+'</div><div class="sb" style="background:var(--soft)"><span style="width:'+(100*Math.min(t,r.ttft)/T).toFixed(1)+'%;background:'+(t>=r.ttft?'var(--c3)':'var(--c2)')+'">'+(t>=r.ttft?r.ttft.toFixed(1)+' s':'')+'</span></div>').join('')+'</div>';
+  // a widget (31 frames of a race the reader configures): never plays by itself, opens on the finished race
+  const race=RD.anim({card:'lc-anim',ctl:'lc-ctl',n:STEPS,ms:160,label:'Time',auto:false,start:STEPS-1,draw:i=>{const {rows}=calc(),T=Math.max(...rows.map(r=>r.ttft)),t=T*i/(STEPS-1);
+    raceEl.innerHTML='<div class="split">'+rows.map(r=>'<div class="small">'+esc(r.nm)+(t>=r.ttft?': <b>'+r.ttft.toFixed(1)+' s</b>':'')+'</div><div class="sb" style="background:var(--soft)"><span style="width:'+(100*Math.min(t,r.ttft)/T).toFixed(1)+'%;background:'+(t>=r.ttft?'var(--c3)':'var(--c2)')+'"></span></div>').join('')+'</div>';
     const done=rows.filter(r=>t>=r.ttft).map(r=>r.nm);cap.textContent='t = '+t.toFixed(1)+' s. '+(done.length?'First token reached: '+done.join(', ')+'.':'All three are still reading their prompt (prefill).')+(i===STEPS-1?' The uncached window pays for every corpus token on every query; the cached one pays once, then only for the question.':'')}});
   ['lc-N','lc-k','lc-c','lc-q','lc-a','lc-d'].forEach(id=>$(id).addEventListener('input',table));[ps,$('lc-model')].forEach(e=>e.addEventListener('change',table));
   // validation scatter: recorded prompt ms against the model

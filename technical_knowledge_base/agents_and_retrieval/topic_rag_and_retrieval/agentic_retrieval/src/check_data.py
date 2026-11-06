@@ -89,8 +89,9 @@ walk(pend)
 print("PENDING (%d): %s" % (len(nulls), ", ".join(nulls)))
 # 5. privacy
 import getpass  # noqa: E402
-_terms = ["/" + "Us" + "ers/", "Us" + "ers-", "gl" + "pat", "sk" + "-ant", re.escape(getpass.getuser())]
+_terms = ["/" + "Us" + "ers/", "Us" + "ers-", "gl" + "pat", "sk" + "-ant"]
 pat = re.compile("|".join(_terms) + r"|[\w.-]+@[\w-]+\.(com|ai|io|org)\b", re.I)
+login = re.compile(re.escape(getpass.getuser()))  # case-sensitive: the login name as written, not every word that contains it
 hits = []
 for dp, dn, fns in os.walk(PAGE):
     if ".shots" in dp or "__pycache__" in dp:
@@ -101,7 +102,7 @@ for dp, dn, fns in os.walk(PAGE):
             t = open(pth, encoding="utf-8").read()
         except Exception:
             continue
-        for mm in pat.finditer(t):
+        for mm in list(pat.finditer(t)) + list(login.finditer(t)):
             hits.append("%s: %s" % (os.path.relpath(pth, PAGE), mm.group(0)))
 ok(not hits, "privacy grep clean %s" % hits[:5])
 big = [f for dp, dn, fns in os.walk(PAGE) for f in fns if ".shots" not in dp and os.path.getsize(os.path.join(dp, f)) > 4e6]

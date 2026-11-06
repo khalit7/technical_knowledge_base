@@ -1,5 +1,5 @@
-// ---- Reading tab figures (SVG at the measured width): hero, loop staircase, formats, second-hop bars, budgets,
-// methods at two sizes, evaluator AUROC, deep-research shape, accuracy against tokens read, lost in the middle by
+// ---- Reading tab figures (SVG at the measured width): hero chart, formats, second-hop bars, budgets,
+// methods at two sizes, evaluator AUROC, accuracy against tokens read, lost in the middle by
 // length, memory curation. All numbers come from window.AR (data/*.json via build_data.py); nothing is typed here.
 (function(){
   const A=ARL.A, esc=ARL.esc, f3=ARL.f3, fi=ARL.fmtInt, T=RD.t;
@@ -39,21 +39,6 @@
       g+=T(x+dx,y+dy,esc(nm),{a:an,fill:'var(--ink)'})});
     el.innerHTML=RD.svg(W,H,g,'F1 against tokens per question for twelve strategies')}
 
-  // ---- staircase: each call re-reads everything before it ----
-  const TB=A.tool.by_n;
-  function stair(){const el=$('ar-stair');if(!el)return;const n=+$('ar-stairn').value;$('ar-stairv').textContent=n;
-    const W=RD.width(el),H=210,ml=44,mr=8,mt=16,mb=28,top=SM+4*RM,Y=v=>mt+(H-mt-mb)*(1-v/top);
-    const cols=5,gap=W<520?8:16,bw=Math.min(90,(W-ml-mr-gap*(cols+1))/cols);let g='';
-    [0,500,1000,1500,2000].forEach(v=>{g+=line(ml,Y(v),W-mr,Y(v))+T(ml-5,Y(v)+4,fi(v),{a:'end',fill:'var(--mute)'})});
-    let tot=0;for(let j=0;j<=n;j++){const x=ml+gap+j*(bw+gap),p=Math.round(SM+j*RM),old=j?SM+(j-1)*RM:0;tot+=p;
-      g+=rect(x,Y(p),bw,Y(0)-Y(p),j?'var(--c2)':'var(--acc)',' rx="2"')+rect(x,Y(old),bw,Y(0)-Y(old),'var(--dim)');
-      g+=T(x+bw/2,Y(p)-4,fi(p),{a:'middle',fill:'var(--ink)'})+T(x+bw/2,H-mb+14,j<n?'call '+(j+1):'answer',{a:'middle',fill:'var(--mute)'})}
-    el.innerHTML=RD.svg(W,H,g,'prompt tokens of each model call');
-    const b=TB[n],last=SM+n*RM;
-    $('ar-stairout').innerHTML=RD.stat('Questions with n = '+n,b.q,'of 200, recorded')+RD.stat('Formula',fi(b.pred),'per-question s and r')+RD.stat('Billed',fi(b.billed),'recorded')+RD.stat('Computed',fi(b.prefilled),'prompt cache on')+
-      RD.stat('Last call alone',fi(Math.round(last)),(last/(SM+RM)).toFixed(1)+' times the second call (mean s, r)')}
-  const SM=A.tool.s_mean, RM=A.tool.r_mean;
-
   // ---- result formats and second-hop bars ----
   function fmt(){const F=A.tool.formats;hbar($('ar-fmt'),[['full paragraphs with titles (root)','full'],['as JSON objects','json'],['title + first sentence','first'],['titles only','titles']].map(([nm,k])=>({nm,v:F[k],max:F.json,txt:Math.round(F[k])+' tok',col:k==='full'?'var(--acc)':'var(--c6)',hl:k==='full'})),{label:'tokens per search result by format'})}
   function hops(){const H=A.hops.all;hbar($('ar-hopbars'),[['same question again','same'],['the 1.7B agent\'s 2nd query','agent'],['decomposition, 2nd sub-question','decomp'],['hop-1 sentence (IRCoT oracle)','sent'],['question + hop-1 sentence','q_sent'],['bridge entity\'s exact name','title']].map(([nm,k])=>({nm,v:H[k].top3/H[k].n,max:1,txt:H[k].top3+' / '+H[k].n,col:(k==='agent'||k==='decomp')?'var(--c2)':k==='same'?'var(--mute)':'var(--c3)',hl:k==='agent'})),{label:'second-hop recall by query'})}
@@ -77,7 +62,7 @@
     const rows=[['long context, own 10',st('longctx').f1,F4('longctx'),'var(--c4)'],['ReAct',st('react').f1,F4('react'),'var(--c2)'],['IRCoT + reader',P.ircot.f1,P.ircot_4b.f1,'var(--c2)'],
       ['FLARE',P.flare.f1,P.flare_4b.f1,'var(--c2)'],['pipeline, top 5',st('single_k5').f1,F4('single_k5'),'var(--acc)'],['decompose',st('decomp').f1,F4('decomp'),'var(--c5)'],
       ['long context, 8k',st('longctx_tokens8000').f1,F4('longctx_tokens8000'),'var(--c4)'],['CRAG-style',P.crag.f1,P.crag_4b.f1,'var(--c6)'],['Self-Ask',P.selfask.f1,P.selfask_4b.f1,'var(--c2)']];
-    const W=RD.width(el),nar=W<520,lw=nar?0:150,rh=nar?36:26,mt=18,H=mt+rows.length*rh+22,x0=lw+8,x1=W-12,X=v=>x0+(x1-x0)*(v-.25)/(.62-.25);
+    const W=RD.width(el),nar=W<520,lw=nar?0:150,rh=nar?36:26,mt=18,H=mt+rows.length*rh+22,x0=lw+8,x1=W-(nar?12:96),X=v=>x0+(x1-x0)*(v-.25)/(.62-.25);
     let g='';[.3,.4,.5,.6].forEach(v=>{g+=line(X(v),mt-4,X(v),H-20)+T(X(v),H-6,v.toFixed(1),{a:'middle',fill:'var(--mute)'})});
     g+=dot(x0+4,8,4,'var(--bg)','',' stroke="var(--ink)" stroke-width="1.5"')+T(x0+12,12,'Qwen3-1.7B',{fill:'var(--mute)'})+dot(x0+100,8,4,'var(--ink)')+T(x0+108,12,'Qwen3-4B',{fill:'var(--mute)'});
     rows.forEach(([nm,a,b,c],i)=>{const y=mt+i*rh+(nar?22:13);
@@ -100,26 +85,6 @@
       g+=dot(X(u.both5),y,5,'var(--c1)',nm+', both gold in top 5: '+u.both5.toFixed(2));
       if(k==='ce1')g+=T(X(u.both5)-8,y+4,u.both5.toFixed(2),{a:'end',fill:'var(--c1)',w:600})});
     el.innerHTML=RD.svg(W,H,g,'AUROC of six query-time signals')}
-
-  // ---- deep-research shape (static, from open_deep_research's source) ----
-  function dr(){const el=$('ar-dr');if(!el)return;const W=RD.width(el),nar=W<520,cx=W/2;
-    const box=(x,y,w,h,l1,l2,c)=>rect(x,y,w,h,'var(--soft)',' rx="6" stroke="'+(c||'var(--line)')+'"')+T(x+w/2,y+(l2?16:h/2+4),l1,{a:'middle',fill:'var(--ink)',w:600})+(l2?T(x+w/2,y+31,l2,{a:'middle',fill:'var(--mute)'}):'');
-    const arr=(x1,y1,x2,y2)=>line(x1,y1,x2,y2,'var(--mute)',' marker-end="url(#ar-drm)"');
-    let g='<defs><marker id="ar-drm" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="var(--mute)"/></marker></defs>';
-    const bw=Math.min(300,W-20),bx=cx-bw/2;
-    g+=box(bx,4,bw,40,'question','clarify, then write a research brief');
-    g+=arr(cx,44,cx,60);
-    g+=box(bx,60,bw,40,'lead (supervisor)','plans; up to 6 rounds of ConductResearch','var(--c2)');
-    const n=3,gw=nar?6:14,cw=Math.min(180,(W-20-gw*(n-1))/n),x0=cx-(n*cw+(n-1)*gw)/2,y2=128;
-    for(let i=0;i<n;i++){const x=x0+i*(cw+gw);g+=arr(cx,100,x+cw/2,y2);
-      g+=rect(x,y2,cw,96,'var(--bg)',' rx="6" stroke="var(--c2)" stroke-dasharray="4 3"');
-      g+=T(x+cw/2,y2+15,'researcher '+(i+1),{a:'middle',fill:'var(--ink)',w:600})+T(x+cw/2,y2+31,'own window',{a:'middle',fill:'var(--mute)'})+T(x+cw/2,y2+47,nar?'search, read':'search and read pages',{a:'middle',fill:'var(--mute)'})+T(x+cw/2,y2+63,'up to 10 calls',{a:'middle',fill:'var(--mute)'});
-      g+=rect(x+4,y2+70,cw-8,20,'var(--c6)',' rx="4" opacity=".25"')+T(x+cw/2,y2+84,'compress',{a:'middle',fill:'var(--ink)'});
-      g+=arr(x+cw/2,y2+96,cx,y2+124)}
-    g+=box(bx,y2+124,bw,40,'lead sees compressed findings only','up to 5 researchers in parallel','var(--c2)');
-    g+=arr(cx,y2+164,cx,y2+180);
-    g+=box(bx,y2+180,bw,32,'report with citations','');
-    el.innerHTML=RD.svg(W,y2+216,g,'deep research: lead, parallel researchers with their own windows, compression, report')}
 
   // ---- accuracy against tokens read ----
   function lcacc(){const AC=A.lc.acc,NM={single_k2:'pipeline, top 2',single_k5:'pipeline, top 5',single_k10:'pipeline, top 10',longctx:'long context, own 10',longctx_tokens8000:'long context, 8k tokens'};
@@ -153,7 +118,6 @@
     g+=dot(X(C.tok_last),Y(C.last_obs),5,'var(--bad)','last observation only')+T(X(C.tok_last)+8,Y(C.last_obs)-4,(W<520?'last observation only':'last observation only (sliding window)'),{fill:'var(--ink)'});
     el.innerHTML=RD.svg(W,H,g,'both gold paragraphs kept against tokens for memory policies')}
 
-  const all=()=>{hero();stair();fmt();hops();budget();meth();auroc();dr();lcacc();lim();mem()};
-  const sn=$('ar-stairn');if(sn)sn.addEventListener('input',stair);
+  const all=()=>{hero();fmt();hops();budget();meth();auroc();lcacc();lim();mem()};
   RD.onRender(all);RD.onResize(all);
 })();

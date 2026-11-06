@@ -175,6 +175,24 @@ SJ = json.load(open(os.path.join(HERE, "..", "..", "src", "agent", "out", "strat
 for s_, v in SJ.get("4b", {}).items():
     f["f1_4b_" + s_] = "%.3f" % v["f1"]
 
+# Fig. 1 (2026-11-06): one recorded question (the Billy McFarland bridge question, also section 2's first example) under three strategies.
+# Each call is [prompt tokens billed, prompt tokens computed, output tokens, seconds]; "re-read" is the previous call's prompt plus its output.
+HQ = next(i for i in range(NCOMP) if "Billy McFarland" in out["q"][i])
+hr = tr["comp"][HQ]
+fx("hq_k5_p", hr["single_k5"]["c"][0][0]); fx("hq_k5_a", hr["single_k5"]["a"])
+for j, c in enumerate(hr["react"]["c"]):
+    fx("hq_r_p%d" % (j + 1), c[0])
+    if j:
+        p = hr["react"]["c"][j - 1]
+        fx("hq_r_re%d" % (j + 1), p[0] + p[2]); fx("hq_r_new%d" % (j + 1), c[0] - p[0] - p[2])
+fx("hq_r_sum", sum(c[0] for c in hr["react"]["c"])); fx("hq_r_a", hr["react"]["a"])
+fx("hq_r_q1", [s for s in hr["react"]["st"] if s[0] == "s"][0][1]); fx("hq_r_q2", [s for s in hr["react"]["st"] if s[0] == "s"][1][1])
+fx("hq_lc_p", hr["longctx"]["c"][0][0]); fx("hq_lc_n", hr["longctx"]["np"]); fx("hq_lc_a", hr["longctx"]["a"])
+fx("hq_lc_f1", R["longctx"]["f1"][HQ], 2); fx("hq_gold", out["gold"][HQ])
+# Fig. 2 (2026-11-06): the loop formula with the mean s and r, n = 4 searches (5 calls): 5 s + 10 r
+fx("stair_pred4", round(5 * tool["s_mean"] + 10 * tool["r_mean"]))
+fx("stair_last4", round(tool["s_mean"] + 4 * tool["r_mean"]))
+
 json.dump(f, open(os.path.join(HERE, "facts.json"), "w"), indent=0, sort_keys=True)
 
 # ---------------------------------------------------------------- the embedded object

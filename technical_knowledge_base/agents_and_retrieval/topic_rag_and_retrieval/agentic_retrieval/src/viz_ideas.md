@@ -53,3 +53,16 @@ Scores 0 to 2 on the Methodology's questions (moves with a parameter, reproduces
 ## What the methodology lacked for this page
 
 A rule for pages whose evidence arrives after the page is built: numbers as keyed facts, pending numbers as a data file whose nulls render as dashed boxes and are listed by the check script, so filling them is rerunning a script, never editing prose.
+
+## 2026-11-06: split layout and 3D stages (renderer v2)
+
+| Visual | Decision |
+|---|---|
+| Fig. 1, one question through three deciders (3D, `28a_sc_hero.js`) | built: the McFarland bridge question from the comparer's recorded runs (`AR.comp`), each call a slab to scale with its re-read part grey, flows from the corpus tiles each search returned, then the 200-question means. The F1-against-tokens scatter stays 2D beside the running example (a log axis) |
+| Fig. 2, every call re-reads everything (3D, `28b_sc_stair.js`) | built: replaces the n slider and its SVG staircase; calls 1 to 5 with the mean s and r, re-read flows, the prompt cache as glass plates. The slider was one variable stepped 1 to 4; the steps now do that |
+| Fig. 3, the query's neighbourhood (3D, `28c_sc_hop.js`) | built: replaces the HTML lanes stepper; distance from the query is the recorded rank (log), the top 3 a shaded disc, hop 2 gliding between searches; eight questions as chips. Angles are layout only (said on the page): no embedding projection was computed, because a 2D projection of 384-dimensional vectors would invent distances the ranks do not have |
+| Fig. 4, deep research as windows (3D, `28d_sc_dr.js`) | built, reversing the October rejection of "an animated deep-research diagram": the point the figure makes (each sub-agent reads in its own window and the lead sees only compressed findings) is spatial, the counts are open_deep_research's defaults read in source, and the sizes are labelled illustrative. The source table and the closed block stay |
+| Failure bins (2D, `RD.anim`) | kept 2D: stacked bars of four counts; its caption carousel became three step lists (one per comparison) |
+| Formats, budgets, second-hop bars, methods dumbbell, AUROC dots, router plane, accuracy bars, lost in the middle, prefill validation, memory curation | kept 2D: each is a number on an axis (log axes for tokens and prefill), a curve or a scatter |
+| Lost in the middle as a 4 x 5 bar field | rejected: four curves on one axis read better than heights in depth; the U deepening is a slope comparison |
+| Trajectory comparer replay, Long-context race | widgets (the long-replay rule, case b: 41 and 31 frames of a run the reader picks): no autoplay, open on the last frame |
