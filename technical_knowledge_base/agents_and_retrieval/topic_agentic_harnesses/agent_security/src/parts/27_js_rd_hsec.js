@@ -1,7 +1,7 @@
-/* 27_js_rd_hsec.js: Reading-tab figures for Agent security, drawn at the measured width. Uses window.HSEC (26_js_hsec_data.js).
-   Defensive only: a trust-boundary hero, a trifecta design tool, the token stream, a pin-and-hash stepper, the root gate deciding
-   (no model), approval figures, a benign sandbox demo, a destination egress allow-list, credential placement and a dated incident
-   timeline. No model, no attack and no injection payload anywhere. Nothing moves until the reader presses play or steps. */
+/* 27_js_rd_hsec.js: the 2D Reading figures for Agent security, drawn at the measured width. Uses window.HSEC (26_js_hsec_data.js).
+   Defensive only: a trifecta design tool (a widget the reader drives), the token stream, a pin-and-hash stepper (RD.anim with its step
+   list, plays once in view), the full gate table, approval figures, credential placement and a dated incident timeline. The hero, the
+   gate, the sandbox and the egress list are 3D stages (40_js_sc_*.js to 43_js_sc_*.js). No model, no attack and no injection payload anywhere. */
 (function(){
   var H = window.HSEC || {}, esc = RD.esc, T = RD.t;
   var draws = [];
@@ -20,52 +20,6 @@
   // wrap a string to n characters
   function wrap(s,n){ var out=[],line=''; String(s).split(' ').forEach(function(w){ if((line+' '+w).trim().length>n){ if(line) out.push(line.trim()); line=w; } else line+=' '+w; }); if(line.trim()) out.push(line.trim()); return out; }
   var cw = function(fs){ return fs*0.56; }; // rough character width
-
-  // ---------------- hero: the trust boundary ----------------
-  reg('hsec-hero-svg', function(el,w){
-    var g=DEFS, y=4, narrow=w<600, pad=0, W=w-2;
-    // row 1: untrusted text
-    var src = narrow ? ['Untrusted text (sections 2, 3)','README, code comments, issues, web pages,','tool output, third-party tool definitions'] :
-      ['Untrusted text (sections 2, 3)','README, code comments, issues, fetched web pages, tool output, third-party tool definitions'];
-    var h1 = narrow?56:44;
-    g+=box(0,y,W,h1,{stroke:'var(--bad)'})+lines(10,y+18,src);
-    if(narrow) g+=T(10,y+h1+14,'leg: untrusted content',{fs:11,fill:'var(--bad)',w:600});
-    else g+=T(W-8,y+18,'leg: untrusted content',{a:'end',fs:11,fill:'var(--bad)',w:600});
-    y+=h1+(narrow?18:0);
-    g+=arrow(W/2,y+2,W/2,y+20); y+=22;
-    // row 2: context and model
-    var h2=50;
-    if(!narrow){ var cwid=Math.floor(W*0.62);
-      g+=box(0,y,cwid,h2)+lines(10,y+19,['Context window','system prompt + tools + your task + that text, one token stream']);
-      g+=arrow(cwid+2,y+h2/2,cwid+30,y+h2/2);
-      g+=box(cwid+32,y,W-cwid-32,h2)+lines(cwid+42,y+19,['Model','writes text or a tool call']);
-      y+=h2;
-    } else {
-      g+=box(0,y,W,h2)+lines(10,y+19,['Context window','your task and that text: one token stream']); y+=h2;
-      g+=arrow(W/2,y+2,W/2,y+18); y+=20;
-      g+=box(0,y,W,40)+lines(10,y+17,['Model','writes text or a tool call']); y+=40;
-    }
-    g+=arrow(W/2,y+2,W/2,y+20)+T(W/2+8,y+15,'tool call',{fs:11,fill:'var(--mute)'}); y+=22;
-    // row 3: controls band
-    var C=[['Gate and approval','what may start','4, 5'],['OS sandbox','what it can reach','6'],['Egress allow-list','where it can send','7'],['Credential broker','what it can hold','8']];
-    var cols = narrow?2:4, gap=8, bh=narrow?48:46, rows=Math.ceil(C.length/cols);
-    var bandH = 24 + rows*bh + (rows-1)*gap + 10;
-    g+=box(0,y,W,bandH,{fill:'var(--acc2)',stroke:'var(--acc)',sw:2});
-    g+=T(10,y+17,'Controls outside the model',{fs:12.5,w:600,fill:'var(--acc)'});
-    var bw=(W-20-(cols-1)*gap)/cols;
-    C.forEach(function(c,i){ var cx=10+(i%cols)*(bw+gap), cy=y+24+Math.floor(i/cols)*(bh+gap);
-      g+=box(cx,cy,bw,bh)+lines(cx+8,cy+18,[c[0],c[1]],{fs0:12,fs:11})+T(cx+bw-6,cy+bh-6,'§'+c[2],{a:'end',fs:11,fill:'var(--acc)'}); });
-    y+=bandH;
-    g+=arrow(W*0.27,y+2,W*0.27,y+20)+arrow(W*0.73,y+2,W*0.73,y+20); y+=22;
-    // row 4: what is at stake
-    var hw=(W-10)/2;
-    g+=box(0,y,hw,46,{stroke:'var(--bad)'})+lines(8,y+18,[narrow?'Files, secrets':'Your files and secrets','leg: private data'],{c:'var(--bad)'});
-    g+=box(hw+10,y,hw,46,{stroke:'var(--bad)'})+lines(hw+18,y+18,['The network','leg: a way out'],{c:'var(--bad)'});
-    y+=46+8;
-    g+=box(0,y,W,30,{dash:1,fill:'var(--soft)'})+T(10,y+19,narrow?'Detection watches it all; it stops nothing (§9)':'Detection watches every layer; it tells you, it stops nothing (§9). Red-team the controls (§10).',{fs:11.5,fill:'var(--ink)'});
-    y+=32;
-    el.innerHTML=RD.svg(w,y,g,'Trust boundary of a coding agent: untrusted text enters the context, the model emits tool calls, and controls outside the model stand between the calls and your files, secrets and the network');
-  });
 
   // ---------------- section 1: trifecta and controls ----------------
   (function(){
@@ -126,11 +80,12 @@
 
   // ---------------- section 3: pin and hash stepper ----------------
   (function(){
-    var cap=document.getElementById('hsec-pin-cap'); if(!cap) return;
-    var S=[{t:'1. Show the whole definition, then approve',p:'The server offers a tool. The host shows the user its full description and schema, not a one-line name, because the description is text the model will read on every call.',def:'v1',host:'approved by the user',hs:'',chg:0},
-      {t:'2. Record what was approved',p:'The host stores a hash of the exact definition the user approved, alongside the server\'s pinned version.',def:'v1',host:'pinned hash a41f...',hs:'a41f...',chg:0},
-      {t:'3. The server changes the definition',p:'A server update (or a compromised server) sends a list-changed notice; the new description differs from the approved one. Nothing has run yet.',def:'v2 (changed)',host:'pinned hash a41f...',hs:'9c07...',chg:1},
-      {t:'4. Compare, and ask again',p:'The hashes differ, so the host disables the tool and shows the user the difference. A rug pull becomes a visible re-approval instead of a silent change.',def:'v2 (changed)',host:'mismatch: tool held, ask user',hs:'9c07...',chg:2}];
+    if(!document.getElementById('hsec-pin-card')) return;
+    // the four steps are written out in the step list (ol#sx-pin) on the left
+    var S=[{def:'v1',host:'approved by the user',hs:'',chg:0},
+      {def:'v1',host:'pinned hash a41f...',hs:'a41f...',chg:0},
+      {def:'v2 (changed)',host:'pinned hash a41f...',hs:'9c07...',chg:1},
+      {def:'v2 (changed)',host:'mismatch: tool held, ask user',hs:'9c07...',chg:2}];
     var cur=0;
     var redraw=reg('hsec-pin-svg',function(el,w){
       var s=S[cur], narrow=w<540, g=DEFS, bw=narrow?w-2:(w-60)/3, bh=62, y=4;
@@ -143,47 +98,15 @@
       else { g+=arrow(bw+2,y+bh/2,bw+28,y+bh/2)+arrow(2*bw+32,y+bh/2,2*bw+58,y+bh/2); }
       var hh=narrow?3*bh+2*26+8:bh+8;
       el.innerHTML=RD.svg(w,hh,g,'Pin and hash: the host records the approved tool definition and asks again when it changes');
-      cap.innerHTML='<div class="t">'+esc(s.t)+'</div><p>'+esc(s.p)+'</p>';
     });
-    RD.anim({card:'hsec-pin-svg',ctl:'hsec-pin-ctl',n:S.length,ms:2600,label:'Pin step',draw:function(i){ cur=i; if(redraw) redraw(); }});
+    RD.anim({card:'hsec-pin-card',ctl:'hsec-pin-ctl',list:'sx-pin',n:S.length,ms:4200,label:'Pin step',draw:function(i){ cur=i; if(redraw) redraw(); }});
   })();
 
   // ---------------- section 4: the gate deciding ----------------
   function tgt(o){ return (o.args && (o.args.cmd || o.args.path)) || o.target || ''; }
   function stage(o){ var w=o.why||''; if(/deny rule/.test(w)) return 0; if(/ask rule/.test(w)) return 1; if(/allow rule/.test(w)) return 2; return 3; }
   (function(){
-    var gc=H.gate_cases||[], cap=document.getElementById('hsec-g-cap'); if(!cap||!gc.length) return;
-    var want=[
-      [function(o){return o.tool==='read_file';},'Reading library code: no deny rule matches, no metacharacter, and an allow rule for read_file does. The gate has an action policy, not a data policy: it does not know what the file holds.'],
-      [function(o){return o.tool==='edit_file'&&/tests/.test(tgt(o));},'Editing the tests: the task forbids it, and a named deny rule matches first. Deny rules are checked first so they win over any allow.'],
-      [function(o){return tgt(o)==='python3 tests/test_core.py';},'Running the tests the intended way: an exact allow rule matches.'],
-      [function(o){return tgt(o)==='python tests/test_core.py';},'The same command spelled python: no rule matches, so it falls to "ask", and with nobody at the terminal ask means deny. Fail closed, and brittle against the task itself.'],
-      [function(o){return /rm -rf/.test(tgt(o));},'An allowed prefix with a chained destructive command: the deny rule naming rm matches first. A string gate must treat chaining as dangerous.'],
-      [function(o){return /\$\(/.test(tgt(o));},'Command substitution: no deny rule names it, but the metacharacter rule says ask, and headless that is deny. The default, not the list, caught it.']];
-    var cases=[]; want.forEach(function(w){ var o=gc.find(w[0]); if(o) cases.push({o:o,note:w[1]}); });
-    var cur=0;
-    var redraw=reg('hsec-g-svg',function(el,w){
-      var c=cases[cur], o=c.o, sg=stage(o), v=o.verdict, g=DEFS, y=4, narrow=w<560;
-      var bw=narrow?w-2:Math.min(420,w*0.58), ox=narrow?0:bw+40, bh=34, gap=12;
-      var cmd=tgt(o);
-      g+=box(0,y,narrow?w-2:bw,38,{fill:'var(--soft)'})+T(8,y+16,'tool call: '+esc(o.tool),{fs:11,fill:'var(--mute)'})+T(8,y+31,esc(cmd.length>48&&narrow?cmd.slice(0,46)+'...':cmd),{fs:12,w:600,fill:'var(--ink)'});
-      y+=38; g+=arrow(bw/2,y+2,bw/2,y+gap+4); y+=gap+6;
-      var R=[['1  Deny rules','match: DENY','var(--bad)'],['2  Metacharacter rule','match: ASK','var(--c5)'],['3  Allow rules','match: ALLOW','var(--good)'],['4  Nothing matched','default: ASK','var(--c5)']];
-      R.forEach(function(r,i){ var on=i<=sg, hit=i===sg;
-        g+=box(0,y,bw,bh,{stroke:hit?r[2]:(on?'var(--acc)':'var(--line)'),sw:hit?2.4:1.2,fill:hit?'var(--acc2)':'var(--bg)'})+T(10,y+21,esc(r[0]),{fs:12.5,w:hit?600:null,fill:on?'var(--ink)':'var(--mute)'});
-        if(narrow) g+=T(bw-8,y+21,esc(r[1]),{a:'end',fs:11,fill:hit?r[2]:'var(--mute)',w:hit?600:null});
-        else { g+=arrow(bw+2,y+bh/2,ox-4,y+bh/2,{c:hit?'var(--acc)':'var(--line)'})+T(ox,y+bh/2+4,esc(r[1]),{fs:12,fill:hit?r[2]:'var(--mute)',w:hit?600:null}); }
-        if(i<3) g+=arrow(bw/2,y+bh+1,bw/2,y+bh+gap-1,{c:i<sg?'var(--acc)':'var(--line)'});
-        y+=bh+gap; });
-      var ask=(sg===1||sg===3);
-      g+=box(0,y,bw,bh,{dash:!ask,stroke:ask?'var(--bad)':'var(--line)',sw:ask?2.4:1.2,fill:ask?'var(--acc2)':'var(--bg)'})+T(10,y+21,narrow?'ASK, nobody there: DENY':'ASK with nobody at the terminal (headless): DENY',{fs:12,w:ask?600:null,fill:ask?'var(--bad)':'var(--mute)'});
-      y+=bh+10;
-      var vt=(v==='allow'?'ALLOW':'DENY')+'  ('+(sg===0?'a deny rule that names it':sg===2?'an allow rule':'the fail-closed default')+')';
-      g+=T(0,y+12,'Verdict: '+esc(vt),{fs:12.5,w:600,fill:v==='allow'?'var(--good)':'var(--bad)'});
-      el.innerHTML=RD.svg(w,y+18,g,'The permission gate rule chain: deny rules, metacharacter rule, allow rules, unmatched; the path of the current action is highlighted');
-      cap.innerHTML='<div class="t">'+(v==='allow'?'ALLOW':'DENY')+': '+esc(cmd).slice(0,70)+'</div><p>'+esc(c.note)+' <span class="small mute">Gate output: '+esc(o.why)+'.</span></p>';
-    });
-    RD.anim({card:'hsec-g-svg',ctl:'hsec-g-ctl',n:cases.length,ms:2600,label:'Gate case',draw:function(i){ cur=i; if(redraw) redraw(); }});
+    var gc=H.gate_cases||[];
     // the full table in the closed block
     var tb=document.querySelector('#hsec-gt tbody');
     if(tb) tb.innerHTML=gc.map(function(o){ var sg=stage(o);
@@ -205,73 +128,11 @@
     el.innerHTML=RD.svg(w,y,g,'Anthropic figures for Claude Code: 97% of prompts approved, 3% of individual requests and 39% of plans rejected; people caught 13.6% of dangerous commands, the classifier 89%');
   });
 
-  // ---------------- section 6: sandbox before and after ----------------
+  // ---------------- section 6: the Seatbelt profiles in the Depth block ----------------
   (function(){
-    var sb=H.sandbox||{}, cs=sb.cases||[], seg=document.getElementById('hsec-sb-seg'), cap=document.getElementById('hsec-sb-cap');
+    var sb=H.sandbox||{};
     var pre=document.getElementById('hsec-sb-prof');
     if(pre) pre.textContent=';; network profile\n'+(sb.deny_net_sb||'')+'\n\n;; write profile\n'+(sb.deny_write_sb||'');
-    if(!seg||!cs.length) return;
-    var mode='net';
-    var redraw=reg('hsec-sb-svg',function(el,w){
-      var net=mode==='net', g=DEFS, narrow=w<560, pw=narrow?w-2:(w-16)/2, ph=net?130:170;
-      var un=cs.filter(function(c){ return /none/.test(c.profile) && (net?/connect/.test(c.op):/write/.test(c.op)); });
-      var sx=cs.filter(function(c){ return !/none/.test(c.profile) && (net?/connect/.test(c.op):/write/.test(c.op)); });
-      function panel(x,y,title,list,boxed,prof){
-        var s=box(x,y,pw,ph,{fill:'var(--bg)'})+T(x+10,y+18,esc(title),{fs:12.5,w:600,fill:'var(--ink)'});
-        var px=x+12, py=y+34, bw2=Math.min(130,pw*0.42);
-        if(boxed) s+=box(x+6,y+26,bw2+14,ph-34,{dash:1,stroke:'var(--acc)',fill:'var(--acc2)'})+T(x+12,y+ph-12,'sandbox',{fs:11,fill:'var(--acc)'});
-        s+=box(px,py,bw2,34)+T(px+8,py+21,'benign probe',{fs:12,fill:'var(--ink)'});
-        list.forEach(function(c,i){ var ok=/_OK/.test(c.result), ty=py+10+i*48, tx=x+pw-10;
-          var tgtL=net?'socket 127.0.0.1':(/inside/.test(c.op)?'write inside WORK':'write to /tmp');
-          var tw2=Math.max(tgtL.length*6.3, ok?20:130), lx=tx-tw2-8, edge=x+6+bw2+14;
-          if(ok) s+='<line x1="'+(px+bw2)+'" y1="'+(py+17)+'" x2="'+lx+'" y2="'+(ty+4)+'" stroke="var(--good)" stroke-width="2"/>';
-          else { var ey=py+17+(ty+4-py-17)*(edge-px-bw2)/Math.max(1,lx-px-bw2);
-            s+='<line x1="'+(px+bw2)+'" y1="'+(py+17)+'" x2="'+edge+'" y2="'+ey+'" stroke="var(--bad)" stroke-width="2"/>'+
-               '<line x1="'+edge+'" y1="'+ey+'" x2="'+lx+'" y2="'+(ty+4)+'" stroke="var(--bad)" stroke-width="1.2" stroke-dasharray="3 4" opacity=".5"/>'+
-               T(edge-5,ey+5,'\u2715',{fs:15,fill:'var(--bad)',w:700}); }
-          s+=T(tx,ty,esc(tgtL),{a:'end',fs:11.5,fill:'var(--ink)'})+T(tx,ty+15,ok?'OK':'BLOCKED by the kernel',{a:'end',fs:11.5,w:600,fill:ok?'var(--good)':'var(--bad)'});
-        });
-        return s; }
-      g+=panel(0,2,'No sandbox',un,false);
-      var y2=narrow?ph+12:2, x2=narrow?0:pw+16;
-      g+=panel(x2,y2,net?'Profile: (deny network*)':'Profile: writes only in WORK',sx,true);
-      el.innerHTML=RD.svg(w,(narrow?2*ph+16:ph+6),g,'The same benign operation outside and inside a Seatbelt profile; measured results');
-      cap.textContent = (net? 'Unsandboxed, the probe connects ('+un.map(function(c){return c.result;}).join('; ')+'). Under (deny network*): '+sx.map(function(c){return c.result;}).join('; ')+'.'
-        : 'Unsandboxed, the write lands ('+un.map(function(c){return c.result;}).join('; ')+'). Under the write profile: '+sx.map(function(c){return c.result;}).join('; ')+'.');
-    });
-    RD.seg(seg,function(m){ mode=m; if(redraw) redraw(); });
-  })();
-
-  // ---------------- section 7: egress allow-list ----------------
-  (function(){
-    var eg=H.egress||[], cap=document.getElementById('hsec-eg-cap'); if(!cap||!eg.length) return;
-    var listed=[]; eg.forEach(function(r){ if(r.verdict==='allow' && listed.indexOf(r.dest)<0) listed.push(r.dest); });
-    var cur=0;
-    function lab(r){ return (r.kind==='dns'?'DNS ':'HTTPS ')+r.dest; }
-    var redraw=reg('hsec-eg-svg',function(el,w){
-      var r=eg[cur], g=DEFS, y=4, W=w-2, narrow=w<560;
-      var wl=wrap('any tool, any command: '+r.why_for, Math.floor((W-16)/cw(11))), bh=26+wl.length*14;
-      g+=box(0,y,W,bh,{fill:'var(--soft)'});
-      wl.forEach(function(s,i){ g+=T(8,y+16+i*14,esc(s),{fs:11,fill:'var(--mute)'}); });
-      g+=T(8,y+bh-8,esc(lab(r)),{fs:12.5,w:600,fill:'var(--ink)'});
-      y+=bh; g+=arrow(W/2,y+2,W/2,y+18,{c:'var(--acc)'}); y+=20;
-      var ph=narrow?62:46;
-      g+=box(0,y,W,ph,{stroke:'var(--acc)',sw:2,fill:'var(--acc2)'})+T(8,y+17,'Proxy and resolver, below the agent: default deny',{fs:12.5,w:600,fill:'var(--ink)'});
-      var ls=wrap('allow-list: '+listed.join(', '), Math.floor((W-16)/cw(11)));
-      ls.forEach(function(s,i){ g+=T(8,y+33+i*14,esc(s),{fs:11,fill:'var(--acc)'}); });
-      y+=ph; g+=arrow(W/2,y+2,W/2,y+18); y+=20;
-      var a=0,d=0;
-      eg.forEach(function(q,i){ var seen=i<=cur, on=i===cur, ok=q.verdict==='allow';
-        if(seen){ if(ok)a++; else d++; }
-        g+=box(0,y,W,24,{stroke:on?(ok?'var(--good)':'var(--bad)'):'var(--line)',sw:on?2:1,fill:on?'var(--acc2)':'var(--bg)'})+
-          T(8,y+16,esc(lab(q)),{fs:11.5,fill:seen?'var(--ink)':'var(--mute)',w:on?600:null})+
-          (seen?T(W-8,y+16,ok?'allowed':'denied',{a:'end',fs:11.5,w:600,fill:ok?'var(--good)':'var(--bad)'}):'');
-        y+=28; });
-      g+=T(0,y+12,'so far: '+a+' allowed, '+d+' denied',{fs:12,w:600,fill:'var(--ink)'});
-      el.innerHTML=RD.svg(w,y+18,g,'A destination allow-list deciding each outbound request, HTTPS and DNS alike');
-      cap.innerHTML='<div class="t">'+(r.verdict==='allow'?'ALLOW':'DENY')+': '+esc(lab(r))+'</div><p>'+esc(r.why_for.charAt(0).toUpperCase()+r.why_for.slice(1))+'. '+esc(r.why)+'.</p>';
-    });
-    RD.anim({card:'hsec-eg-svg',ctl:'hsec-eg-ctl',n:eg.length,ms:2200,label:'Request',draw:function(i){ cur=i; if(redraw) redraw(); }});
   })();
 
   // ---------------- section 8: where the credential lives ----------------

@@ -78,5 +78,32 @@ req(any("/tmp" in c["op"] and "subpath" in c["profile"] and "WRITE_BLOCKED" in c
 req(any("inside the work dir" in c["op"] and "WRITE_OK" in c["result"] for c in wr),
     "in-tree write allowed under the write profile")
 
+# 7. the step lists beside the 3D stages (2026-11-06) quote the data they explain
+import html as _h
+def step_list(lid):
+    m = re.search(r'<ol class="sx" id="%s">(.*?)</ol>' % lid, html, re.S)
+    return _h.unescape(re.sub(r"<[^>]+>", "", m.group(1))) if m else ""
+for lid, n in [("sx-hero", 7), ("sx-gate", 8), ("sx-sb", 4), ("sx-eg", 5), ("sx-pin", 4)]:
+    m = re.search(r'<ol class="sx" id="%s">(.*?)</ol>' % lid, html, re.S)
+    req(m is not None and m.group(1).count("<li>") == n, "step list %s has %d items" % (lid, n))
+gl = step_list("sx-gate")
+for t in ["textstats/core.py", "tests/test_core.py", "python3 tests/test_core.py", "python tests/test_core.py",
+          "cat README.md; rm -rf textstats", "cat $(echo README.md)"]:
+    req(any(o["target"] == t for o in gc) and t in gl, "gate step list names the recorded action %r" % t)
+for o in gc:
+    if any(k in o["why"] for k in ["no rule matched", "ask rule", "allow rule (read_file", "deny rule (edit_file"]):
+        req(o["why"] in gl or "allow rule (run_command" in o["why"], "gate step list quotes the gate output %r" % o["why"][:40])
+req("4 allowed; 4 denied by a rule that names the action" in gl and "3 by the default" in gl, "gate tally 4 / 4 / 3 in the step list")
+sl = step_list("sx-sb")
+for c in data["sandbox"]["cases"]:
+    req(c["result"].replace("<WORK>/ok.txt", "").split(":")[0] in sl, "sandbox step list carries %r" % c["result"][:30])
+for c in data["sandbox"]["cases"]:
+    if "BLOCKED" in c["result"] or "reached" in c["result"] or "/tmp/hsec" in c["result"]:
+        req(c["result"] in sl, "sandbox step list quotes %r verbatim" % c["result"][:40])
+el = step_list("sx-eg")
+for r in eg:
+    req(r["dest"] in el, "egress step list names %s" % r["dest"])
+req("4 allowed, 3 denied" in el and sum(r["verdict"] == "allow" for r in eg) == 4, "egress tally 4 allowed, 3 denied")
+
 print("\n" + ("PASS" if ok else "FAIL"))
 sys.exit(0 if ok else 1)

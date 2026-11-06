@@ -62,3 +62,12 @@ the HTML list; the full table is a closed block); approval bars (Anthropic's ven
 Rejected: a drawing of an injection or exfiltration route step by step (the skill's rejected-patterns list, and out of the
 defensive scope); a photo or product screenshot (nothing physical to show; volatile, licence unclear); a red-team results
 chart (no measured data here; AgentDojo's tables are the Guardrails page's).
+
+## 2026-11-06 pass (split layout, 3D stages v2)
+Built as 3D stages: the hero (trust boundary: untrusted text flowing into the context, tool calls passing the gate, sandbox walls,
+the egress proxy in the wall, the secret moved to a broker), the gate on the 11 recorded actions (glass gates, balls piling up by the
+check that settled them), the Seatbelt demonstration (glass walls, refused operations stopping at the wall) and the egress allow-list
+(lanes through a proxy plate and a resolver plate). Kept 2D: trifecta tool, token stream, pin-and-hash stepper, approval bars,
+credential placement, DNS timeline (flat structure or numbers on an axis). Considered and rejected: a 3D credential stage (Fig. 1's
+last step already shows the broker in depth; three rows compare best flat); any stage that walks a leak or a bypass step by step
+(the skill's rejected patterns: the text and dated incident reports carry it).

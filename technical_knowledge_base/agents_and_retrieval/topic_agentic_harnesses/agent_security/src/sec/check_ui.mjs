@@ -1,4 +1,4 @@
-// Click every control of the Agent security page at 390 dark and 920 light; report page errors,
+// Click every control of the Agent security page at 390 dark, 920 light and 1400 light; report page errors,
 // NaN/undefined text, sideways scroll, and the error box; screenshot each tab. Run from the repo root:
 //   node technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/agent_security/src/sec/check_ui.mjs <outdir>
 import { createRequire } from 'node:module';
@@ -10,7 +10,7 @@ const out = process.argv[2] || '.';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });
 let bad = 0;
-for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
+for (const [scheme, width] of [['dark', 390], ['light', 920], ['light', 1400]]) {
   const p = await b.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
@@ -36,17 +36,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.$eval('#' + c + '-v', e => { e.value = '2'; e.dispatchEvent(new Event('change')); });
     await p.$eval('#' + c + '-p', e => e.click()); await sleep(120); await p.$eval('#' + c + '-p', e => e.click());
   };
-  const clickSeg = async (segId, after) => {
-    const n = await p.$$eval('#' + segId + ' button', bs => bs.length);
-    for (let i = 0; i < n; i++) { await p.$$eval('#' + segId + ' button', (bs, i) => bs[i].click(), i); await sleep(80); if (after) await after(); }
-  };
 
-  // Reading: nothing may move before the reader acts
+  // Reading: since 2026-11-06 an animation plays by itself once at least half of it is in view (src/sec/check_stages.mjs checks
+  // the 3D stages); here the pin-and-hash stepper must play when scrolled into view, then every control is clicked
   await p.click('button[data-t=t-read]'); await sleep(200);
-  const playing = await p.$$eval('#t-read .an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
-  if (playing) errs.push(scheme + ': an animation is playing before any input');
-  for (const c of ['hsec-pin-ctl', 'hsec-g-ctl', 'hsec-eg-ctl']) { await anim(c); await check('t-read', scheme + ' ' + c); }
-  await clickSeg('hsec-sb-seg', () => check('t-read', scheme + ' sandbox seg'));
+  await p.$eval('#hsec-pin-card', e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+  if (!/Pause/.test(await p.$eval('#hsec-pin-ctl-p', e => e.textContent))) errs.push(scheme + ' ' + width + ': the pin stepper did not play when scrolled into view');
+  for (const c of ['hsec-pin-ctl']) { await anim(c); await check('t-read', scheme + ' ' + c); }
+  for (const id of ['stg-hero', 'stg-gate', 'stg-sb', 'stg-eg']) {
+    for (let k = 0; k < 10; k++) await p.$eval('#' + id + '-f', e => e.click());
+    await p.$eval('#' + id + '-b', e => e.click()); await sleep(60); await check('t-read', scheme + ' ' + id); }
   const cbs = await p.$$('#hsec-tri-tog input[type=checkbox]');
   for (const cb of cbs) { await cb.click(); await sleep(40); await check('t-read', scheme + ' trifecta'); }
   for (const cb of cbs) { await cb.click(); await sleep(40); }

@@ -14,16 +14,19 @@ benign or clearly-dangerous action, with no model and no attack: see `sec/`.
 
 ## Parts (since the 2026-10-24 rebuild)
 - `10_header.html` title, subtitle with the measured reading time, tabs (Reading, Further reading).
-- `20_read.html` styles, the top (core idea, hero, You need, New terms, legend, nav); `20_read_a.html` sections 1 to 3
+- `02_split.html` the split layout (skill template, unchanged). `20_read.html` styles, the top (core idea beside the Fig. 1 stage and its step list, then You need, New terms, legend, nav); `20_read_a.html` sections 1 to 3
   (threat model and trifecta, injection, supply chain); `20_read_b.html` 4 and 5 (gate, human approval);
   `20_read_c.html` 6 to 8 (sandbox, egress, credentials); `20_read_d.html` 9 to 11 (detection, red-teaming, what works)
   and the closed Depth blocks; `20_read_z.html` the footer.
-- `26_js_hsec_data.js` the defensive data (generated, see below); `27_js_rd_hsec.js` every Reading figure (SVG at the
-  measured width): hero, trifecta design tool, token stream, pin-and-hash stepper, gate stepper and the full gate table,
-  approval bars, sandbox before/after, egress stepper, credential placement, DNS incident timeline.
+- `26_js_hsec_data.js` the defensive data (generated, see below); `27_js_rd_hsec.js` the 2D Reading figures (SVG at the
+  measured width): trifecta design tool, token stream, pin-and-hash stepper, the full gate table, approval bars, credential
+  placement, DNS incident timeline, and the Seatbelt profiles in the Depth block.
+- `25_js_s3.js` the 3D renderer v2 (skill template, unchanged); scenes `40_js_sc_hero.js` (Fig. 1 trust boundary),
+  `41_js_sc_gate.js` (Fig. 2 the gate on 11 actions), `42_js_sc_sb.js` (Fig. 3 the Seatbelt demo), `43_js_sc_eg.js` (Fig. 4 egress).
 - `39_tab_more.html` Further reading (t-more).
-- `21_js_rd_common.js` and `99_js_tabs.js` are the explainer-page skill templates (storage key `hsec-tab`): nothing
-  moves until the reader presses play or steps. `05z_errbox.js.html`, `01_head.html` from the parent root.
+- `21_js_rd_common.js` and `99_js_tabs.js` are the explainer-page skill templates (storage key `hsec-tab`), recopied
+  2026-11-06: animations and stages play once at least half in view, pause off screen, stop on any control or at the last
+  step, never move under reduced motion. `05z_errbox.js.html`, `01_head.html` from the parent root.
 
 ## Data and evidence (`sec/`), all benign
 - `build_data.py` writes `parts/26_js_hsec_data.js` from three defensive sources: (1) the root Loop lab's real gate
@@ -37,14 +40,21 @@ benign or clearly-dangerous action, with no model and no attack: see `sec/`.
 - `check_embed.py` proves the page embeds the data verbatim, carries no forbidden token, email, git identity, em-dash
   or offensive artefact, and that the prose numbers (11-action gate table: 4 allow, 7 deny, 4 named / 3 fail-closed;
   7 egress requests covering DNS; the benign sandbox results) match the data.
-- `check_ui.mjs` checks nothing plays before input, then steps every stepper, toggles the sandbox switch and every
-  trifecta control, opens the closed blocks and counts the 11 gate rows, at 390 dark and 920 light (puppeteer headless
-  'shell'): no page error, NaN, undefined or sideways scroll.
+- `check_embed.py` also checks (2026-11-06) that the step lists beside the stages have one item per step and quote the
+  data they explain (the six gate actions and their gate output, the 4 / 4 / 3 tally, every sandbox result, every egress
+  destination and the 4 allowed, 3 denied tally).
+- `check_ui.mjs` checks the pin stepper plays when scrolled into view (the old never-autoplay assertion, inverted), steps
+  it and every stage, toggles every trifecta control, opens the closed blocks and counts the 11 gate rows, at 390 dark,
+  920 light and 1400 light (puppeteer headless 'shell'): no page error, NaN, undefined or sideways scroll.
+- `check_stages.mjs` (2026-11-06, adapted from the Claude Agent SDK page): every stage and the pin stepper plays when
+  scrolled into view at 1400, 920 and 390 px, steps to its end with one list item per step, flows stop off screen,
+  nothing moves under reduced motion, the splits are two columns at 1400; mid-step screenshots to `.shots/x-*.png`.
 
 ## Pipeline
     cd sec && python3 build_data.py && cd .. && sh build.sh && cd sec && python3 check_embed.py
     (from the repo root) sh html_utils/checkpage.sh technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/agent_security
     node technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/agent_security/src/sec/check_ui.mjs <outdir>
+    node technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/agent_security/src/sec/check_stages.mjs
 
 ## Reconciliation with the root and siblings
 - Reuses the root's Loop lab `check()` and its `gate_cases.json` verdicts unchanged; does not rebuild the gate.
@@ -107,3 +117,40 @@ the diagrams; a product screenshot (a permission prompt) would be volatile and o
 2026-10-26 (final follow-up sweep): section 2 adds Task Shield and IPIGuard (action-boundary defences, from Emergence World; abstracts read 26 Oct 2026); section 6 adds 'a sandboxed interpreter is an injection decoder' (absorbed from the Grok page, which links here for it); section 9 adds MOLE's detection limit (best monitor 24 of 45 completed harms at 10 reviews a day). The Meta Muse links were already in place.
 
 2026-10-26 (final follow-up sweep): section 8 adds two sentences with links: a database tool's role and checking generated SQL (SQL and data modelling section 12), and agent forwarding as a broker the wrong way round (SSH section 6); section 6's mechanics link names Containers and isolation section 10. Two ledger units added.
+
+## The 2026-11-06 pass: split layout, 3D stages (renderer v2), explained and autoplaying animations
+- **Split layout** (`parts/02_split.html`, template, after `01_head.html` in `build.sh`). Split: the top (core idea and the Fig. 1
+  step list beside the stage; You need, terms, legend and nav full width after it), 1 (beside the trifecta tool), 2 (beside the token
+  stream), 3 (pin-and-hash card first, its four steps on the left), 4 (Fig. 2), 5 (beside the approval bars), 6 (Fig. 3), 7 (Fig. 4),
+  8 (beside the credential placement), 9's opening and its three lessons (beside the DNS timeline; the monitor paragraphs, the two closed
+  blocks and the lesson after them are full width). Full width: 10 (no visual), 11 (a table), Depth, Further reading (unchanged).
+- **Four 3D stages** (`25_js_s3.js` v2 unchanged; one scene per stage), each explained by an `ol.sx` step list, one item per step:
+  - Fig. 1 (`40_js_sc_hero.js`, replaces the SVG hero, 7 steps): the trust boundary built up. Your task into the context; untrusted
+    sources streaming into the same context (camera close); tool calls reaching files, secrets and the network with the three legs in red;
+    then the gate as glass (close), the sandbox as glass walls, the egress proxy in the wall (close; listed hosts pass, any other host is
+    denied), and the secret sliding out to a broker with a monitor watching. Schematic: no data drives it, and it draws no attack route
+    (the flows show where data goes and which control stops it).
+  - Fig. 2 (`41_js_sc_gate.js`, replaces the SVG gate stepper, 8 steps): `HSEC.gate_cases`, the root's 11 recorded verdicts, as balls;
+    the four checks as glass gates; six actions travel one per step to the check that settled them (read from the gate's own `why`
+    string), then the other five; piles of 4 allowed, 4 denied by a named rule, 3 by the fail-closed default.
+  - Fig. 3 (`42_js_sc_sb.js`, replaces the SVG before/after and its Network / Filesystem toggle, 4 steps): `HSEC.sandbox.cases`, the
+    five real `sandbox-exec` runs; no profile, `(deny network*)`, the write profile, then what Claude Code's sandbox leaves outside its walls
+    (documented, not measured). Result strings drawn from the data.
+  - Fig. 4 (`43_js_sc_eg.js`, replaces the SVG egress stepper, 5 steps): `HSEC.egress`, the seven `egress_policy.decide()` verdicts as
+    lanes through a proxy plate (HTTPS) and a resolver plate (DNS); grouped into listed hosts, unlisted host and raw IP, the lookups, tally.
+- **2D kept, and why**: the trifecta tool (a triangle with checkboxes: a widget the reader drives, flat reads fully, no autoplay); the token
+  stream (one sequence of text blocks: a list is what it is); the pin-and-hash stepper (three boxes in a row; now `RD.anim` with the
+  `sx-pin` step list, its caption carousel removed); the approval bars and the DNS timeline (numbers on an axis); the credential
+  placement (three rows compared side by side; Fig. 1 step 7 shows the broker in depth). Code, policies, profiles and tables stay text.
+- **Captions into steps**: the per-step captions of the gate, egress and pin steppers and the sandbox caption are now the step lists
+  (no caption repeats them); the hero caption became Fig. 1's seven steps; section 6's "What it does not cover" paragraph lost its first
+  sentence to step 4 of Fig. 3. The figure titles that carried ledger keys ("most of the protection comes from the default", "the kernel
+  refuses whatever the intent", "decide what those calls can start, reach, send and hold") moved into the step lists or prose.
+- **Motion**: template `21_js_rd_common.js` and `99_js_tabs.js` recopied (key `hsec-tab`); `#t-read .an-ctl` now excludes `.stg-bar`.
+- **Checks** (last run): `checkpage.sh` fail=0, emdash 0, errbox 1, clipped 0; `check_stages.mjs` problems 0; `check_ui.mjs` PASS at 390
+  dark, 920 and 1400 light; `check_embed.py` PASS (the new step-list checks included); `ledger.py check` problems 0 (329 units: core 221,
+  depth 32, fat 76; no unit relabelled). `build.sh`'s em-dash guard now builds the character with `printf` instead of spelling it.
+- **Length**: Reading core 28.2 min before (6,484 words), 31.3 after (7,201); closed details 6.0, unchanged; Further reading 3.4,
+  unchanged. Header now 31 min. The growth is the 28 step-list items of the four stages and the pin stepper, which carry the numbers and
+  verdicts each step draws; the captions they replaced were cut, and the hero's step text and the gate's rule paragraph were trimmed
+  against them.
