@@ -1,34 +1,48 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="core"><b>Every non-relational family stores together, in the order wanted, what one <span class="hl2">planned question</span> reads, so that question stays one cheap read at any scale; the price is that a question you did not plan becomes a scan, a new table or impossible. That is why Postgres stays the default until a measurement says otherwise.</b></p>
+<p>Fig. 1 puts the six families side by side; in each, the part one planned question reads turns orange and streams to the app. The shapes are drawn to explain (<span class="ill">illustrative</span>); the numbers are this page's measurements.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Six layouts.</b> Key-value in memory, key-value partitioned, document, wide-column, time series, graph: each lays its data out around the questions it expects.</li>
+<li><b>Redis.</b> A key points at a data structure in memory (a hash, a sorted set, a stream); one atomic command reads or changes it, here a rank from a sorted set.</li>
+<li><b>DynamoDB.</b> The partition key is hashed to pick a partition; the items of <code>CHAT#7</code> sit there together in sort-key order, so a Query returns the newest ones in one request.</li>
+<li><b>Document.</b> The chat is one document read whole: its metadata and a bounded subset of messages embedded, the unbounded messages referenced as documents of their own.</li>
+<li><b>Wide-column.</b> The partition key (chat 7, bucket 3) is hashed to a token on a ring of nodes, copied to three replicas, and its rows are stored sorted newest first.</li>
+<li><b>Time series.</b> Data is cut into one chunk per day: the last hour reads today's chunk, and retention drops whole old chunks instead of deleting rows.</li>
+<li><b>Graph.</b> Users are nodes joined by FRIEND relationships; a path query follows pointers hop by hop: the measured shortest path from user 24204 to user 24891 took 4 hops.</li>
+</ol>
+</section>
+</div></div>
+<div id="rd-one-b">
 <div class="card" id="rd-hero-card"><h4 class="vt">Each family makes one shape of question cheap by how it lays data out, and pays for every other shape</h4>
 <div class="herog" id="rd-hero">
-<div><h4>Key-value in memory</h4><div class="sys">Redis 8.8, Valkey</div><div class="hs" data-h="kv"></div>
+<div><h4>Key-value in memory</h4><div class="sys">Redis 8.8, Valkey</div>
 <p class="ok"><b>Cheap:</b> counters, rate limits, leaderboards, queues hit thousands of times a second; pick the data structure that answers the question (a sorted set for ranks); every command is atomic.</p>
 <p class="no"><b>Hard:</b> data must fit in memory; replication is asynchronous, so a failover lost <span id="one-repl"></span> acknowledged writes here.</p>
 <p class="pg"><b>Postgres still does it:</b> a counter row with <code>UPDATE ... SET n = n + 1</code>, a job queue with <code>SKIP LOCKED</code>, at low rates.</p></div>
-<div><h4>Key-value, managed and partitioned</h4><div class="sys">DynamoDB</div><div class="hs" data-h="ddb"></div>
+<div><h4>Key-value, managed and partitioned</h4><div class="sys">DynamoDB</div>
 <p class="ok"><b>Cheap:</b> any planned question is one request at any scale, with no servers to run; list the access patterns first, then choose partition and sort keys (often one table for everything).</p>
 <p class="no"><b>Hard:</b> a question you did not plan becomes a scan of the whole table; one busy key is capped at 1,000 writes a second.</p>
 <p class="pg"><b>Postgres still does it:</b> you are not on AWS at that scale, or your questions still change every week.</p></div>
-<div><h4>Document</h4><div class="sys">MongoDB 8.0</div><div class="hs" data-h="doc"></div>
+<div><h4>Document</h4><div class="sys">MongoDB 8.0</div>
 <p class="ok"><b>Cheap:</b> records whose shape varies, read and written as one unit; embed what is read together, reference what grows without bound.</p>
 <p class="no"><b>Hard:</b> a document is capped at 16 MB; appends grow the document; cross-document invariants need transactions.</p>
 <p class="pg"><b>Postgres still does it:</b> almost always: a <code>jsonb</code> column next to normal columns (measured in section 5).</p></div>
-<div><h4>Wide-column</h4><div class="sys">Cassandra 5.0, ScyllaDB</div><div class="hs" data-h="wide"></div>
+<div><h4>Wide-column</h4><div class="sys">Cassandra 5.0, ScyllaDB</div>
 <p class="ok"><b>Cheap:</b> writes beyond one machine, many regions, no single point of failure; one table per query, the partition key groups what it reads, the clustering key sorts it.</p>
 <p class="no"><b>Hard:</b> no joins, no ad hoc queries; deletes leave tombstones that later reads must skip.</p>
 <p class="pg"><b>Postgres still does it:</b> while one server keeps up with the writes: the root measured 2,133 to 9,212 small write transactions a second on this laptop, depending on whether each commit is really flushed to disk.</p></div>
-<div><h4>Time series</h4><div class="sys">Postgres partitions, Prometheus, TimescaleDB, ClickHouse</div><div class="hs" data-h="ts"></div>
+<div><h4>Time series</h4><div class="sys">Postgres partitions, Prometheus, TimescaleDB, ClickHouse</div>
 <p class="ok"><b>Cheap:</b> appends in time order, recent time ranges, rollups, dropping whole partitions for retention.</p>
 <p class="no"><b>Hard:</b> anything that is not a time range; high cardinality (a label per user) explodes memory.</p>
 <p class="pg"><b>Postgres still does it:</b> native partitioning plus a rollup table, measured in section 7.</p></div>
-<div><h4>Graph</h4><div class="sys">Neo4j 2026.09, Kuzu 0.11</div><div class="hs" data-h="graph"></div>
+<div><h4>Graph</h4><div class="sys">Neo4j 2026.09, Kuzu 0.11</div>
 <p class="ok"><b>Cheap:</b> questions of unknown or large depth over connected data: paths, fraud rings, patterns written in Cypher.</p>
 <p class="no"><b>Hard:</b> another system to run; a fixed one or two hops is no faster than Postgres.</p>
 <p class="pg"><b>Postgres still does it:</b> fixed one or two hops: a join per hop is fast (measured in section 8).</p></div>
 </div>
-<p class="small mute">The highlighted part of each drawing is what one planned question reads. Systems named are the ones run for this page; their versions and licences are in one dated table in <a href="#rd-depth">Depth</a>.</p>
+<p class="small mute">Fig. 1 above draws the layout of each family. Systems named are the ones run for this page; their versions and licences are in one dated table in <a href="#rd-depth">Depth</a>.</p>
 </div>
 <p><b>You need:</b> the root {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}, Reading sections 1 to 6 (the chat product, indexes, transactions, the families in one card each); its <b>Database atlas</b> tab compares about 60 systems on licence, consistency and scaling, with sources, and is cited here as "root atlas". Consistency models and quorums in general are {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}; LSM-trees and compaction internals are {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}; Redis as a cache is {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}; search and vector stores are {{Search and vector databases|n:3ef5c17b0d0d815eb4caef9b4cd4d732}}; graphs as a retrieval method for LLMs (GraphRAG) are {{GraphRAG and structured retrieval|n:3f85c17b0d0d81e2bb4cdbb749e48a5a}}.</p>
 <dl class="terms">
@@ -49,7 +63,7 @@
 <li><b>Know the durability and replication defaults</b>: Redis acknowledges before the replica has the write; Cassandra flushes its commit log every 10 seconds; MongoDB reads at "local" by default.</li>
 <li><b>Keep Postgres as the source of truth until a measurement says otherwise</b>, and treat every other store as a copy you can rebuild.</li>
 </ol></div>
-</section>
+</div>
 
 <section id="rd-s1">
 <h2>1. Queries first: the one idea behind every family</h2>

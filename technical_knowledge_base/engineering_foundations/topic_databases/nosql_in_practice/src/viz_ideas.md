@@ -24,3 +24,7 @@ What the methodology lacked for this page: guidance for comparing timings across
 ## 2026-10-24 rebuild
 Built: hero (six static drawings, what one planned question reads); leaderboard rank cost against rank (measured, static); Redis failover stepper (measured run); embedded against referenced documents drawn to scale with the 16 MiB ruler; Cassandra write path stepper at QUORUM with one replica down (hinted handoff); time-series toggle (last hour, 30-day chart, retention). The single-table lab moved inline into section 4.
 Rejected: a read-path stepper for Cassandra (the quorum calculator and the section 2 trace already carry it); an index-free adjacency drawing (one sentence says it; the measured chart is the point of section 8); a persistence animation for Redis (the measured table and kill -9 counts say it).
+
+## 2026-11-06
+- Built: five 3D stages (renderer v2): the six families (Fig. 1), Redis failover (Fig. 2), Cassandra write path on a ring (Fig. 3), time-series chunks (Fig. 4), a graph traversal with measured counts (Fig. 5).
+- Considered, not built: a DynamoDB partitions stage (Fig. 1's DynamoDB step and the inline lab already carry it); the latest-50 page strip in 3D (a 1D file layout reads better flat); embedded against referenced documents in 3D (sizes to scale on an axis); tombstones in a partition (a measured table says it).

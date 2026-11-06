@@ -3,8 +3,8 @@
 `sh build.sh` writes `../index.html` from `parts/` (HTML parts in name order, each JS part in its own `<script>`, the tab wiring last; `{{text|url}}` links expand, `n:<id>` to Notion). `python3 build_data.py` regenerates `parts/22_js_data.js` from `inputs/*.json`.
 
 ## Parts (rebuilt 2026-10-24)
-- `01_head.html`, `05z_errbox.js.html`: the root's look. `21_js_rd_common.js` and `99_js_tabs.js`: the explainer-page skill templates (never autoplay; storage key `nq-tab`).
-- `10_header.html`: title, subtitle with "Reading: 42 min, plus 16 in closed details.", tabs (Reading, Further reading).
+- `01_head.html` (the root's look, plus the eased-step CSS since 2026-11-06), `02_split.html` (split layout, skill template), `05z_errbox.js.html`, `21_js_rd_common.js` and `99_js_tabs.js` (storage key `nq-tab`): the explainer-page skill templates; since 2026-11-06 animations play once in view.
+- `10_header.html`: title, subtitle with "Reading: 48 min, plus 16 in closed details.", tabs (Reading, Further reading).
 - `20_read_a.html` (styles, section nav), `b` (the idea: core sentence, hero, You need, new terms, habits; section 1), `c` section 2, `d` Redis, `e` DynamoDB (with the single-table lab and hot-partition calculator inline, their CSS scoped under `#rd-lab`), `f` documents, `g` wide-column, `h` time series, `i` graph, `j` choosing and the closed Depth blocks (production settings, mistakes, embedded engines, the dated versions/licences/prices table, glossary), footer.
 - `22_js_data.js`: generated (`window.NQ`), do not edit. `23` the section 2 before/after animation; `24` Redis tables; `25` DynamoDB; `26` prose numbers (`.nv` spans); `27` documents; `28` wide-column (quorum calculator, tombstones); `29` time series (cardinality); `30` graph; `31_js_lab.js` the single-table lab (now drawn with the Reading tab); `32` glossary.
 - New visuals: `35_js_rd_hero.js` (hero, six small static drawings), `36_js_rd_lb.js` (rank cost against rank, measured), `37_js_rd_fo.js` (Redis failover stepper, measured), `38_js_rd_docfig.js` (embedded against referenced, to scale, and the 16 MiB ruler), `40_js_rd_wp.js` (Cassandra write path stepper, illustrative layout, documented rules), `41_js_rd_tsd.js` (time-series toggle: last hour, 30-day chart, retention).
@@ -59,3 +59,30 @@ Why about 42 minutes: the page owns six families (Redis, DynamoDB, documents, wi
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 411 units: core 328, depth 57, volatile 8, fat 18. 400 drafted by `ledger.py init`; 11 added by hand for script-drawn tables and the new visuals (their keys sit in static captions and titles). Keys were proposed automatically (the longest phrase of each unit found in the rebuilt page, numbers first) and the generic or failing ones were set by hand; fat units carry a `note`. Volatile units stay on this page, in the dated table, as the brief asked.
+
+## The 2026-11-06 pass: split layout, five 3D stages (renderer v2), explained and autoplaying animations
+- **Templates**: `02_split.html` (in `build.sh` after `01_head.html`; `.w` now closed), `21_js_rd_common.js`, `99_js_tabs.js` (key `nq-tab`), `05z_errbox.js.html`; the renderer `25_js_s3.js` copied unchanged as `45_js_s3.js` (after the data and 2D scripts, before the scenes `50` to `54`). `20_read_a.html` keeps the stage bar on one line (the page's own `.an-ctl` wraps).
+- **Split layout** (Reading): top (Fig. 1 beside the core sentence and its step list; the six family cards, You need, terms and habits full width); 2 (the latest-50 animation beside its four step lists); 3 three times (leaderboard chart, rate-limit chart, Fig. 2); 4 twice (single-table lab beside the key design, its two panes stacked in the column; hot-partition calculator); 5 (embedded against referenced); 6 twice (Fig. 3; quorum calculator); 7 twice (Fig. 4; cardinality calculator); 8 twice (Fig. 5; the k-hop chart and table). Full width: section 1, tables, code, persistence, streams, the measured tables, Choosing and Depth.
+- **Five 3D stages**, one scene each:
+  - Fig. 1 (`50_js_sc_hero.js`, 7 steps): the six families side by side, then one per step with the camera in close: Redis keys and structures (GET median from `NQ.redis.get_us`), DynamoDB partitions and the `CHAT#7` item collection, a chat document with nested fields and referenced messages, a Cassandra ring with token and three replicas, daily chunks with retention, a graph with the measured shortest path (`NQ.graph.neo4j.shortest`). Shapes illustrative and labelled so. Replaces the six small SVG drawings (`35_js_rd_hero.js`, deleted); the family cards stay as text.
+  - Fig. 2 (`51_js_sc_fo.js`, 5 steps): the measured failover (`NQ.redis.replication`): one slab per 1,000 acknowledged 10 KB writes, flows for writes, OKs and copies, the 53 that slipped through, 4,947 lost. Replaces the 2D stepper (`37_js_rd_fo.js`, deleted).
+  - Fig. 3 (`52_js_sc_wp.js`, 6 steps): a write at QUORUM on a six-node ring, RF 3, C down: coordinator, token, commit log and memtable on A and B, acks, the hint for C, flush to an SSTable (`commitlog_sync` from `NQ.wide.cass_defaults`). Layout illustrative. Replaces `40_js_rd_wp.js` (deleted).
+  - Fig. 4 (`53_js_sc_ts.js`, 6 steps): one big table against 30 daily partitions with every measured cost from `NQ.ts.pg` (last hour, raw chart, rollup to scale, DROP, DELETE). Replaces the three-way toggle (`41_js_rd_tsd.js`, deleted); its captions became the step list.
+  - Fig. 5 (`54_js_sc_graph.js`, 5 steps): new. A traversal from user 24204 with the measured within-k-hop counts (`NQ.graph.neo4j.counts`, sample 0): 27 friends as dots, 891 as dots (one per 10), 29,933 and 99,898 as floor area to scale on the 100,000-user disc, then the measured shortest path. Positions illustrative.
+- **2D animation, now explained and autoplaying**: section 2's latest-50 animation keeps its four modes; its per-step captions became four step lists (`sx-lat-*`, filled from the same data at load, swapped by `reset(n,list)`), the caption box is gone.
+- **Kept 2D, and why**: the latest-50 page strip (a 1D file layout with lit pages, four measured modes), leaderboard rank cost, rate-limit race, embedded against referenced (numbers to scale on an axis), the k-hop timing chart (log axis); the lab, the hot-partition, quorum and cardinality calculators (widgets the reader drives). No DynamoDB-only stage: Fig. 1's DynamoDB step and the lab carry the partition picture.
+- **Text**: card titles of the replaced figures became step-list items or intro sentences (the time-series one opens section 7's list, ledger unit 411); SVG labels under 11 px in the latest-50 figure raised to 11.
+- **Checks**: `check_stages.mjs` new (from the analytics sibling: autoplay in view for the five stages and the latest-50 animation in all four modes, one list item per step, flows stop off screen, nothing moves under reduced motion, splits are two columns at 1400 px); `check_ui.mjs` no longer steps the removed steppers and toggle (it ran them under reduced motion, which is still how it runs).
+
+## Length judgement, 2026-11-06
+| | Before (audit 2026-11-06) | After |
+|---|---|---|
+| Reading core | 9,629 words, 41.9 min | 11,003 words, 47.8 min (header 48) |
+| Reading in closed blocks | 3,679 words, 16.0 min | 3,679 words, 16.0 min |
+| Further reading | 753 | 753 |
+| Visuals inline (audit count, SVG only) | 14 | 10 (five stages are canvases; the six hero drawings, failover, write path and time-series SVGs replaced) |
+
+The core grew by about six minutes, all of it step lists: Fig. 1's seven steps (new: the hero had only drawings), Fig. 5's five (new), and the lists of Figs. 2 to 4 and the latest-50 animation, which carry the captions that used to show one at a time inside each card. The step lists hold about 1,340 words; about 510 of them are the latest-50 captions in four lists, of which a reader sees one at a time (about 390 hidden words are counted). Nothing was cut.
+
+## Ledger, 2026-11-06
+411 units: core 325, depth 57, volatile 8, fat 21; `python3 html_utils/ledger.py check` problems 0. Unit 411's key now sits in section 7's intro sentence; unit 370's key follows the Further reading tab's quoted time for Analytics (47 minutes; that line was already changed in the working tree before this pass).

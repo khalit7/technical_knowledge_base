@@ -1,17 +1,27 @@
 <section id="rd-s7">
+<div class="s3sp"><div class="s3R"><div id="stg-ts"></div></div><div class="s3L">
 <h2>7. Time series: metrics, events and what makes them special</h2>
 <p>The operations dashboard wants requests per minute, median latency and tokens per model for the last hour, refreshed every few seconds, and a 30-day trend; every chat request produces one measurement. That data is <b>append-only in time order</b>, <b>read by time range</b>, and <b>matters less as it ages</b>: last hour in full, last month per minute (<dfn id="g-downsample">downsampling</dfn>), then deleted (<dfn id="g-retention">retention</dfn>). Every time-series database exploits the same three facts: <b>time-sliced chunks</b> so a range touches few chunks, <b>precomputed rollups</b>, and expiry by <b>dropping whole chunks</b> instead of deleting rows. All three exist in plain Postgres, which is what was measured (5,184,000 request rows over 30 days: 4 models, 8 servers, about 2 a second).</p>
-<div class="card" id="rd-tsd-card"><h4 class="vt">Chunks by time turn a range into a few chunks, a chart into a rollup, and retention into a drop</h4>
-<div class="seg" id="rd-tsd-mode"><button data-m="hour" class="on">Last hour</button><button data-m="chart">30-day chart</button><button data-m="ret">Delete 7 oldest days</button></div>
-<div class="rd-svg" id="rd-tsd-svg"></div>
-<p class="small mute" id="rd-tsd-cap"></p>
+<p>Chunks by time turn a range into a few chunks, a chart into a rollup, and retention into a drop; Fig. 4 runs the three questions on the same rows in two layouts:</p>
+<ol class="sx" id="sx-ts">
+<li><b>Two layouts, same rows.</b> 5,184,000 request rows stored as one big table (pages in arrival order, 317 MB) and as 30 daily partitions.</li>
+<li><b>The last hour.</b> The partitioned table reads only today's partition: 81 page reads, 2.48 ms. The big table's B-tree on <code>ts</code> is just as quick here (79 pages, 2.6 ms); partitions pay off for retention and for scans of a few days.</li>
+<li><b>A 30-day chart from raw rows.</b> Every page of every day is read: 40,560 page reads, 1,405 ms.</li>
+<li><b>The same chart from a rollup.</b> A one-minute rollup table (172,800 rows, one per minute and model, 14 MB against 317 MB raw) answers it in 1,728 page reads, 45.6 ms.</li>
+<li><b>Retention by DROP.</b> Dropping the 7 oldest daily partitions is a metadata change: 0.06 s and 29,816 bytes of log.</li>
+<li><b>Retention by DELETE.</b> Deleting the same rows from the big table rewrites pages and logs every row: 1.9 s and 65 MB of log, and the file keeps its size.</li>
+</ol>
 <p class="small mute"><span class="meas">measured</span> PostgreSQL 16.2, one big table against 30 daily partitions. A one-minute rollup table of 172,800 rows drew the 30-day hourly chart in 45.6 ms instead of 1,405 ms from the raw rows, with the same answer (checked with <code>EXCEPT</code>). Dropping 7 daily partitions took 0.06 s and 29,816 bytes of log; a <code>DELETE</code> of the same rows from one table took 1.9 s and 65 MB of log, and the table stayed 317 MB on disk even after <code>VACUUM</code> (the space is reused, not returned).</p>
-</div>
+</div></div>
 <div class="tw" id="rd-ts"></div>
 <p>Because rows arrive in time order, a <dfn id="g-brin">BRIN</dfn> index (the minimum and maximum timestamp per block range) on <code>ts</code> is <span class="nv" data-n="ts.pg.size.brin_ts" data-f="kb"></span> KB against <span class="nv" data-n="ts.pg.size.btree_ts" data-f="mb"></span> MB for a B-tree. The same rows as compressed Parquet are about a tenth of the size, and DuckDB drew the 30-day chart straight from the file in <span class="nv" data-n="ts.duckdb.chart_ms" data-f="x1"></span> ms: column stores are very good at this ({{Analytics|n:3ef5c17b0d0d8157814ec5dd8a0d4fb5}} owns them).</p>
 <details class="raw"><summary>The partitioned table's plan for "the last hour" (only one day's partition is read)</summary><pre id="rd-ts-plan"></pre></details>
+<div class="s3sp"><div class="s3L">
 <h3>Cardinality: the number that breaks metrics systems</h3>
 <p>In Prometheus-style systems a <b>series</b> is one metric name plus one combination of label values, and every series costs memory and an index entry. "Every unique combination of key-value label pairs represents a new time series ... Do not use labels to store dimensions with high cardinality (many different label values), such as user IDs, email addresses, or other unbounded sets of values" ({{Prometheus naming|https://prometheus.io/docs/practices/naming/}}). Series multiply. Predict what one <code>user_id</code> label does, then tick it:</p>
+<p>Per-user and per-request detail belongs in logs, traces or an events table in a column store, where a row per request is normal; metrics stay aggregate. Instrumenting in practice is {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}'s.</p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="rd-card-card"><h4 class="vt">Series are the product of label counts: one unbounded label multiplies everything</h4>
 <div class="calc">
 <label>Servers <b id="rd-c-h-v"></b><input type="range" id="rd-c-h" min="1" max="200" value="8"></label>
@@ -23,7 +33,7 @@
 <div class="out" id="rd-c-out"></div>
 <p class="small mute">Series = product of the label value counts (an upper bound: only combinations that occur create series). Samples per day = series x 86,400 / scrape interval of 15 s. Disk per day uses Prometheus's "1-2 bytes per sample" ({{Prometheus storage|https://prometheus.io/docs/prometheus/latest/storage/}}; 2 used here); head memory per series is not documented as a fixed figure, so none is shown.</p>
 </div>
-<p>Per-user and per-request detail belongs in logs, traces or an events table in a column store, where a row per request is normal; metrics stay aggregate. Instrumenting in practice is {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}'s.</p>
+</div></div></div>
 <details class="dp"><summary>The dedicated systems compared <span class="mute">(depth; versions in the dated table)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>System</th><th>How it stores data</th><th>Query language</th><th>Reach for it when</th></tr>

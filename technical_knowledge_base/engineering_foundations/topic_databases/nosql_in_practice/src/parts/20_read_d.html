@@ -15,20 +15,20 @@
 <div class="nums" id="rd-redis-nums"></div>
 <p class="small">50 clients with one request in flight each did about 33,000 to 35,000 operations a second (<code>redis-benchmark</code>, the tool that ships with Redis). Redis 8 also ships JSON documents, vector sets, time series and a query engine in the main server; HyperLogLog (approximate counts of unique items), bitmaps and geo indexes have existed for years. Each is a reason to keep more state in a store whose durability is weaker than your database's (below).</p></div></details>
 
+<div class="s3sp"><div class="s3L">
 <h3>A leaderboard: a sorted set against a count in SQL</h3>
 <p>A <dfn id="g-zset">sorted set</dfn> is a hash table (member to score) plus a <dfn id="g-skiplist">skip list</dfn>, a sorted linked list with "express lane" links, so a member's position takes about log<sub>2</sub>(N) steps ({{Redis sorted sets|https://redis.io/docs/latest/develop/data-types/sorted-sets/}}: "most sorted set operations are O(log(n))"). In Postgres a rank is a count of the players above you, and the index visits one entry per player above. Measured with 100,000 players:</p>
+<div class="pg-when"><div class="t">When Postgres would still do</div>Top-N lists are an index read in Postgres. Exact ranks for everyone on every page view are what the sorted set is for; with a few thousand players, or ranks shown as "top 5%", Postgres (or a rank recomputed every minute) is fine.</div>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="rd-lb-card"><h4 class="vt">A rank in SQL costs more the lower the player stands; in a sorted set it costs the same everywhere</h4>
 <div class="rd-svg" id="rd-lb-svg"></div>
 <p class="small mute"><span class="meas">measured</span> Postgres 16.2, index on (score DESC), <code>SELECT count(*) FROM scores WHERE score &gt; (SELECT score FROM scores WHERE user_id = $1)</code>: rank 3 took 6 page reads, rank 50,000 took 142 page reads, 4.67 ms; rank 95,359 took 266 page reads, 8.98 ms (server time). Redis <code>ZREVRANK</code>: median 91 µs wherever the player stands, from the client, so it includes the round trip. The top 10 is cheap in both: 3 page reads, 0.059 ms in Postgres, median 99 µs for <code>ZRANGE lb 0 9 REV WITHSCORES</code>. The set holds 100,000 members in 8.9 MB (about 93 bytes each, <code>MEMORY USAGE</code>) and takes score updates (<code>ZINCRBY</code>) at about 10,500 a second from one client.</p></div>
-<div class="pg-when"><div class="t">When Postgres would still do</div>Top-N lists are an index read in Postgres. Exact ranks for everyone on every page view are what the sorted set is for; with a few thousand players, or ranks shown as "top 5%", Postgres (or a rank recomputed every minute) is fine.</div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>Rate limiting, and why it needs atomicity</h3>
 <p>A <dfn id="g-ratelimit">rate limiter</dfn> decides, on every request, whether a user may make another one. The obvious code reads the remaining allowance, decides in the application and writes back; run by many servers at once, two requests read the same allowance before either writes, and both pass. Predict: 16 processes each make 50 attempts against an allowance of 20; how many get through?</p>
-<div class="card" id="rd-rl-card"><h4 class="vt">Read, decide, write lets nine times the limit through; one atomic script lets exactly the limit through</h4>
-<div class="nums" id="rd-rl-nums"></div>
-<div class="rd-svg" id="rd-rl-svg"></div>
-<p class="small mute">"Read, decide, write" in the application let 188 of 800 attempts through a limit of 20. The same limit as one Lua script inside Redis let exactly <b>20</b> through, because "while executing the script, all server activities are blocked during its entire runtime" ({{Redis docs, scripting with Lua|https://redis.io/docs/latest/develop/programmability/eval-intro/}}).</p>
-</div>
 <p>The script is a <dfn id="g-tokenbucket">token bucket</dfn>: up to <i>capacity</i> tokens, refilled at a steady rate, one taken per request, so bursts up to the capacity and a long-run average equal to the refill rate. It uses the server's clock (<code>TIME</code>) so every app server agrees on "now", and passes the bucket's name in <code>KEYS</code>, which Redis Cluster needs to route the script to the server that owns the key. Choosing among limiter algorithms and where limits sit in a system is {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}'s and {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}'s.</p>
 <details class="dp"><summary>The script verbatim, and three limiter algorithms measured on Redis <span class="mute">(depth)</span></summary><div class="b">
 <pre class="sql" id="rd-rl-script"></pre>
@@ -39,21 +39,33 @@
 <tr><td>Token bucket</td><td>the Lua script above, one hash per user</td><td>8,155 checks/s (21,147 with 8 clients)</td><td>smooth; bursts up to the capacity; two numbers per user</td></tr>
 </table></div>
 <p class="small mute">All three are round-trip bound on this laptop (one check per round trip).</p></div></details>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card" id="rd-rl-card"><h4 class="vt">Read, decide, write lets nine times the limit through; one atomic script lets exactly the limit through</h4>
+<div class="nums" id="rd-rl-nums"></div>
+<div class="rd-svg" id="rd-rl-svg"></div>
+<p class="small mute">"Read, decide, write" in the application let 188 of 800 attempts through a limit of 20. The same limit as one Lua script inside Redis let exactly <b>20</b> through, because "while executing the script, all server activities are blocked during its entire runtime" ({{Redis docs, scripting with Lua|https://redis.io/docs/latest/develop/programmability/eval-intro/}}).</p>
+</div>
+</div></div></div>
 
 <h3>Durability: what survives a crash</h3>
 <p>Redis writes to disk in two optional ways ({{Redis persistence|https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/}}). An <dfn id="g-rdb">RDB snapshot</dfn> is a point-in-time copy written by a forked child every so often ("you should be prepared to lose the latest minutes of data"). The <dfn id="g-aof">append-only file</dfn> (AOF) logs every write; with <code>appendfsync everysec</code>, the default when AOF is on, it is flushed once a second, so a power cut loses about a second of writes; with <code>always</code> it is flushed before each reply. Measured (SET throughput from <code>redis-benchmark</code>, then a writer incrementing a counter for 3 seconds before <code>kill -9</code>):</p>
 <div class="tw" id="rd-persist"></div>
 <p class="small mute">RDB only: 40,255 acknowledged, all lost (no snapshot had been taken yet); AOF everysec: 50,324 acknowledged, 0 lost. A <code>kill -9</code> is a process crash, not a power cut: the operating system still holds what Redis wrote, which is why AOF lost nothing. On macOS a flush does not force the drive's own cache, so <code>always</code> is cheaper here than on a Linux server with a real flush.</p>
 
+<div class="s3sp"><div class="s3R"><div id="stg-fo"></div></div><div class="s3L">
 <h3>Replication: acknowledged writes that vanish</h3>
-<p>Redis copies writes to its replicas <i>after</i> replying to the client: replication is <b>asynchronous</b>. Step through the measured run: a primary and a replica on this laptop, the replica paused (as a long garbage-collection pause or a network problem would), 10 KB writes, the primary killed, the replica promoted.</p>
-<div class="card" id="rd-fo-card"><h4 class="vt">"OK" from the primary is not "on the replica": a failover lost 4,947 of 5,000 acknowledged writes</h4>
-<div class="an-ctl" id="rd-fo-ctl"></div>
-<div class="rd-svg" id="rd-fo-svg"></div>
-<div class="an-cap" id="rd-fo-cap"></div>
+<p>Redis copies writes to its replicas <i>after</i> replying to the client: replication is <b>asynchronous</b>. Fig. 2 replays the measured run: a primary and a replica on this laptop, the replica paused (as a long garbage-collection pause or a network problem would), 10 KB writes, the primary killed, the replica promoted.</p>
+<ol class="sx" id="sx-fo">
+<li><b>In sync.</b> 1,000 writes of 10 KB acknowledged; every one reached the replica, and <code>WAIT</code> returned 1.</li>
+<li><b>The replica stalls.</b> It is paused, as a long garbage-collection pause or a network problem would stop it. The primary does not know or care.</li>
+<li><b>The primary keeps saying OK.</b> 5,000 more writes, each acknowledged to the client before it is copied; <code>WAIT 1 500</code> returned 0: no replica confirmed, and asking does not make the writes safer.</li>
+<li><b>The primary dies.</b> <code>kill -9</code> on the primary: its memory, holding every acknowledged write, is gone.</li>
+<li><b>The replica is promoted.</b> It resumes and becomes the primary with only 53 of the 5,000 acknowledged writes: 4,947 are lost although every client was told OK.</li>
+</ol>
 <div class="nums" id="rd-repl-nums"></div>
-</div>
 <p>The <code>WAIT 1 500</code> call after the writes returned 0: it reports how many replicas confirmed, it does not make the writes safe ("WAIT does not make Redis a strongly consistent store", {{Redis WAIT|https://redis.io/docs/latest/commands/wait/}}). Jepsen measured the same with Sentinel failover in 2013 (56% of acknowledged writes lost; root atlas). So Redis must not be the only copy of anything you cannot rebuild.</p>
+</div></div>
 
 <h3>Streams: a job queue that survives a crashed worker</h3>
 <p>A list makes a queue, but a worker that pops a job and crashes loses it. A <dfn id="g-stream">stream</dfn> is an append-only log; a <b>consumer group</b> hands each entry to one consumer and keeps it in a <b>pending entries list</b> until the consumer acknowledges it with <code>XACK</code>; another worker can claim an idle pending entry with <code>XAUTOCLAIM</code>. That is <dfn id="g-alo">at-least-once delivery</dfn>: a job can run twice, so it must be safe to repeat. Durable logs, the outbox pattern and Kafka are {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}'s; a Redis stream is the small version, with Redis's durability.</p>

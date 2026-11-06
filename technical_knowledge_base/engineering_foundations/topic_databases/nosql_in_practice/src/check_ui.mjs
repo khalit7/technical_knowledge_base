@@ -1,5 +1,5 @@
 // Clicks every control on every tab at 390 dark and 920 light; reports errors, NaN/undefined/(missing) text, sideways scroll;
-// screenshots every Reading section and every visual. Also prints the page's computed numbers for recompute.py to compare.
+// screenshots every Reading section and every visual (run with reduced motion, so no animation moves while it clicks). Also prints the page's computed numbers for recompute.py to compare.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_databases/nosql_in_practice/src/check_ui.mjs [shots dir]
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -69,15 +69,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       o['#lab-hot-out'] = ''; return o;
     }));
   }
-  // new steppers and toggles (no autoplay: step 0 must still show after a wait)
-  for (const id of ['rd-fo-ctl', 'rd-wp-ctl']) {
-    await sleep(1500); const v0 = await p.$eval('#' + id + '-s', e => +e.value); if (v0 !== 0) { problems++; console.log('PROBLEM autoplay', id); }
-    const n = await p.$eval('#' + id + '-s', e => +e.max + 1);
-    for (let i = 0; i < n; i++) { await setRange(id + '-s', i); await shot('#' + id.replace('-ctl', '-card'), id + '-' + i); }
-    await bad(id);
-  }
-  for (const m of ['hour', 'chart', 'ret']) { await p.evaluate(m => document.querySelector(`#rd-tsd-mode button[data-m=${m}]`).click(), m); clicks++; await shot('#rd-tsd-card', 'tsd-' + m); }
-  await bad('tsd');
+  // the steppers and toggles of sections 3, 6 and 7 are 3D stages now: check_stages.mjs plays and steps them (autoplay on view, never under reduced motion)
   for (const id of ['rd-hero-card', 'rd-lb-card', 'rd-doc-card']) await shot('#' + id, id);
   // the single-table lab, now inline in section 4
   for (const pr of ['rel', 'bad', 'st']) {

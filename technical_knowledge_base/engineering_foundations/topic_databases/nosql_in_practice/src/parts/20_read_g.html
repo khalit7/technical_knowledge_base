@@ -11,15 +11,24 @@
 <p>The table measured in section 2, as created on Cassandra <span class="nv" data-n="wide.cass_version"></span>:</p>
 <pre class="sql" id="rd-cass-ddl"></pre>
 <p>Why <code>bucket</code>? A partition that grows forever lives on the same few nodes, and reading, repairing or compacting it gets slower; the modelling guide says to keep partitions "below 100,000" values and "below 100MB". Discord's January 2017 design is exactly this table: <code>((channel_id, bucket), message_id)</code> with "about 10 days of messages within a bucket" ({{Discord, How Discord Stores Billions of Messages|https://discord.com/blog/how-discord-stores-billions-of-messages}}). Here the bucket is a 10-day window too: chat 7's <span class="nv" data-n="wide.pg.long_chat_rows" data-f="int"></span> messages fall into <span class="nv" data-n="wide.cass.long_chat_partitions.length"></span> partitions, the newest holding <span class="nv" data-n="wide.cass.rows_in_latest_partition" data-f="int"></span> rows. Opening the chat reads the newest bucket, and the one before if it holds fewer than 50. Any other question is refused rather than run slowly: asking for one message by id returned <code id="rd-cass-err"></code> (<code>ALLOW FILTERING</code> forces it through by scanning, on a real cluster every node).</p>
+<div class="s3sp"><div class="s3R"><div id="stg-wp"></div></div><div class="s3L">
 <h3>The write path and tunable consistency</h3>
-<p>Each request chooses how many of the <i>RF</i> replicas must answer: <code>ONE</code>, <code>QUORUM</code> (a majority: floor(<i>RF</i>/2) + 1), <code>LOCAL_QUORUM</code> (a majority inside the local data centre) or <code>ALL</code> ({{Cassandra, Dynamo architecture|https://cassandra.apache.org/doc/5.0/cassandra/architecture/dynamo.html}}). Step one write at <code>QUORUM</code> with one replica down:</p>
-<div class="card" id="rd-wp-card"><h4 class="vt">A write is acknowledged once enough replicas have it in their commit log and memtable; a down replica gets a hint, not a failure</h4>
-<div class="an-ctl" id="rd-wp-ctl"></div>
-<div class="rd-svg" id="rd-wp-svg"></div>
-<div class="an-cap" id="rd-wp-cap"></div>
+<p>Each request chooses how many of the <i>RF</i> replicas must answer: <code>ONE</code>, <code>QUORUM</code> (a majority: floor(<i>RF</i>/2) + 1), <code>LOCAL_QUORUM</code> (a majority inside the local data centre) or <code>ALL</code> ({{Cassandra, Dynamo architecture|https://cassandra.apache.org/doc/5.0/cassandra/architecture/dynamo.html}}). Fig. 3 steps one write at <code>QUORUM</code> with one replica down:</p>
+<ol class="sx" id="sx-wp">
+<li><b>The client sends one write to any node.</b> An <code>INSERT</code> of a message into partition (7, 3). Whichever node receives it becomes the <b>coordinator</b> for this request; there is no primary to find.</li>
+<li><b>Hash the partition key.</b> The coordinator hashes (7, 3) to a token; the ring says replicas A, B and C own it. C is down.</li>
+<li><b>Each live replica logs, then buffers.</b> A and B append the write to their <b>commit log</b> and insert it into their <b>memtable</b> (sorted, in memory). The default <code>commitlog_sync: periodic</code> flushes the log every 10 seconds, so the write is not yet on disk on either node.</li>
+<li><b>Two of three is a QUORUM: reply OK.</b> RF = 3, so QUORUM = floor(3/2) + 1 = 2. A and B answered, the coordinator replies OK. At <code>ONE</code> it would reply after the first answer; at <code>ALL</code> this write would fail, because C is down.</li>
+<li><b>C gets a hint, not a failure.</b> The coordinator stores a <b>hint</b> for C on its own disk and replays it when C comes back, if that is within <code>max_hint_window</code> (3 hours by default). After longer, C stays out of sync until read repair or a full repair copies the write.</li>
+<li><b>Later: flush and compaction.</b> Each memtable is flushed to an immutable SSTable and compaction merges files in the background ({{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}} owns how). A read at QUORUM asks two replicas and keeps the newest timestamp.</li>
+</ol>
 <p class="small mute"><span class="ill">illustrative</span> layout, RF = 3. Sources: the Dynamo architecture page above; commit log defaults from <code>cassandra.yaml</code> as measured here (<code>commitlog_sync: <span class="nv" data-n="wide.cass_defaults.commitlog_sync"></span></code>, period <span class="nv" data-n="wide.cass_defaults.commitlog_sync_period"></span>); hints from {{Cassandra 5.0, hints|https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/hints.html}} (<code>max_hint_window</code> "defaults to 3 h").</p>
-</div>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p>If the replicas a write waited for (<i>W</i>) and the replicas a read asks (<i>R</i>) must overlap, <i>W</i> + <i>R</i> &gt; <i>RF</i>, every read meets at least one replica with the latest acknowledged write. The default level is <code>ONE</code>, so by default a read can be stale (root atlas). Predict, then try: at RF 3 with one replica down, do QUORUM writes and reads still succeed and agree? Knock out a second.</p>
+<p>What the arithmetic does not say: conflicting writes are resolved by timestamp, last write wins, so two clients updating the same cell lose one update silently (Jepsen showed acknowledged writes lost this way in 2013; root atlas). The theory of quorums and consistency models is {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}'s.</p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="rd-q-card"><h4 class="vt">W + R &gt; RF guarantees overlap; each node down eats into how many failures a level survives</h4>
 <div class="calc">
 <label>Replication factor RF <b id="rd-q-rf-v"></b><input type="range" id="rd-q-rf" min="1" max="7" value="3"></label>
@@ -30,7 +39,7 @@
 <div class="rd-svg" id="rd-q-svg"></div>
 <div class="out" id="rd-q-out"></div>
 </div>
-<p>What the arithmetic does not say: conflicting writes are resolved by timestamp, last write wins, so two clients updating the same cell lose one update silently (Jepsen showed acknowledged writes lost this way in 2013; root atlas). The theory of quorums and consistency models is {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}'s.</p>
+</div></div></div>
 <details class="dp"><summary>Compare-and-set and multi-partition transactions <span class="mute">(depth)</span></summary><div class="b"><p>For compare-and-set ("insert only if absent") Cassandra has lightweight transactions, which run a Paxos consensus round among the replicas for each operation and so cost extra round trips. Multi-partition ACID transactions (Accord) arrive only with Cassandra 6.0, still in alpha (root atlas). Durability: the default periodic commit log acknowledges writes before they are flushed, so one node can lose up to 10 seconds of writes in a power cut; replicas on other machines are what make the write safe.</p></div></details>
 <h3>Tombstones: why deleting slows reads</h3>
 <p>An LSM-tree cannot erase a row in place: the row may sit in several immutable files on several replicas. So a delete writes a <dfn id="g-tombstone">tombstone</dfn>, a marker that hides older data, kept for <code>gc_grace_seconds</code> (default 864,000 seconds, 10 days) so every replica learns of it; a replica that misses the delete for longer can bring the data back ("zombie" rows) ({{Cassandra, tombstones|https://cassandra.apache.org/doc/5.0/cassandra/managing/operating/compaction/tombstones.html}}). Until compaction drops them, a read steps over every tombstone in its way. Measured: a partition of 130,000 messages, the newest deleted one by one, then "the latest 50":</p>

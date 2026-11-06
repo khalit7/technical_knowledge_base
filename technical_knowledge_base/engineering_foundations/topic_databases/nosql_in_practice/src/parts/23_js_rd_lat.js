@@ -26,8 +26,8 @@
     clu:[
       {cap:['Same index, rows stored together','<code>CLUSTER messages USING messages_chat_created</code> rewrote the table in index order, so a chat\'s rows are now neighbours on disk.'],c:[0,0,0,null],tree:0},
       {cap:['Descend the index','The same few index pages as before.'],c:[cluIdx,0,0,null],tree:1},
-      {cap:['Walk the leaf backwards','The same 50 entries...'],c:[cluIdx,50,0,null],tree:2},
-      {fetch:1,cap:['...now point into one page','All 50 rows sit on '+R[2].heap_pages_holding_rows+' page'+(R[2].heap_pages_holding_rows>1?'s':'')+' (lit): one read instead of '+R[1].heap_pages_holding_rows+'.'],c:[R[2].buffers,50,50,null],tree:2},
+      {cap:['Walk the leaf backwards','The same 50 entries as before.'],c:[cluIdx,50,0,null],tree:2},
+      {fetch:1,cap:['Now they point into one page','All 50 rows sit on '+R[2].heap_pages_holding_rows+' page'+(R[2].heap_pages_holding_rows>1?'s':'')+' (lit): one read instead of '+R[1].heap_pages_holding_rows+'.'],c:[R[2].buffers,50,50,null],tree:2},
       {fetch:1,cap:['Done','Measured: '+R[2].buffers+' page reads, '+R[2].ms_p50+' ms. This is the layout a partitioned store keeps all the time.'],c:[R[2].buffers,50,50,R[2].ms_p50],tree:2}],
     cas:[
       {cap:['A request for partition (7, '+(C.latest_bucket!=null?C.latest_bucket:'b')+')','The Cassandra table\'s partition key is <code>(chat_id, bucket)</code>, where a bucket is a 10-day window: chat 7\'s newest messages live in partition (7, '+(C.latest_bucket!=null?C.latest_bucket:'b')+'). Its clustering key sorts rows newest first.'],c:[0,0,0,null],ring:0},
@@ -39,7 +39,9 @@
   const wrap=(txt,maxw,fs)=>{const per=Math.max(20,Math.floor(maxw/(fs*0.56)));const out=[];let line='';
     txt.split(' ').forEach(wd=>{if((line+' '+wd).trim().length>per){out.push(line.trim());line=wd}else line+=' '+wd});if(line.trim())out.push(line.trim());return out};
   let mode='seq';
-  const cntEl=el('rd-lat-cnt'), svgEl=el('rd-lat-svg'), capEl=el('rd-lat-cap');
+  const cntEl=el('rd-lat-cnt'), svgEl=el('rd-lat-svg');
+  // the step lists on the left, one per mode (the captions of each step, with the measured numbers)
+  Object.keys(M).forEach(m=>{const L=el('sx-lat-'+m);if(L)L.innerHTML=M[m].map(st=>'<li><b>'+st.cap[0]+'.</b> '+st.cap[1]+'</li>').join('')});
   function draw(i){
     const st=M[mode][i]; const w=RD.width(svgEl); const cw=(w-20)/COLS, ch=Math.max(6,Math.min(12,cw*1.6));
     const top=mode==='cas'?96:70, H=top+ROWS*(ch+2)+34;
@@ -47,7 +49,7 @@
     // top area: index tree or ring
     if(mode==='idx'||mode==='clu'){
       const lv=st.tree||0, cx=w/2, sp=Math.min(64,(w-30)/6), bw=Math.min(56,sp-4), isp=Math.min(90,sp*1.6);
-      const box=(x,y,on,t)=>'<rect x="'+(x-bw/2)+'" y="'+y+'" width="'+bw+'" height="16" rx="3" fill="'+(on?'var(--acc2)':'var(--soft)')+'" stroke="'+(on?'var(--acc)':'var(--line)')+'"/>'+RD.t(x,y+12,t,{a:'middle',fs:bw<46?9:10});
+      const box=(x,y,on,t)=>'<rect x="'+(x-bw/2)+'" y="'+y+'" width="'+bw+'" height="16" rx="3" fill="'+(on?'var(--acc2)':'var(--soft)')+'" stroke="'+(on?'var(--acc)':'var(--line)')+'"/>'+RD.t(x,y+12,t,{a:'middle',fs:11});
       s+=box(cx,4,lv>=1,'root');
       [-1,0,1].forEach(k=>{s+='<line x1="'+cx+'" y1="20" x2="'+(cx+k*isp)+'" y2="30" stroke="var(--line)"/>'+box(cx+k*isp,30,lv>=1&&k===1,'inner')});
       for(let k=0;k<6;k++){const x=cx+(k-2.5)*sp;s+=box(x,54,lv>=2&&k===4,k===4?'chat 7':'leaf')}
@@ -57,8 +59,8 @@
       s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="2"/>';
       for(let k=0;k<n;k++){const a=-Math.PI/2+k*2*Math.PI/n, hit=on&&(k===1||k===2||k===3);
         s+='<circle cx="'+(cx+r*Math.cos(a))+'" cy="'+(cy+r*Math.sin(a))+'" r="8" fill="'+(hit?'var(--c4)':'var(--soft)')+'" stroke="var(--mute)"/>'}
-      const tx=cx+r+16;wrap(on?'token(7, '+C.latest_bucket+'): 3 replicas':'token ring',w-tx-6,10.5).forEach((l,j)=>{s+=RD.t(tx,cy-6+j*13,l,{fs:10.5})});
-      wrap('(one node on this laptop; ring illustrative)',w-tx-6,9.5).forEach((l,j)=>{s+=RD.t(tx,cy+22+j*12,l,{fs:9.5,fill:'var(--mute)'})});
+      const tx=cx+r+16;wrap(on?'token(7, '+C.latest_bucket+'): 3 replicas':'token ring',w-tx-6,11).forEach((l,j)=>{s+=RD.t(tx,cy-6+j*13,l,{fs:10.5})});
+      wrap('(one node on this laptop; ring illustrative)',w-tx-6,11).forEach((l,j)=>{s+=RD.t(tx,cy+22+j*12,l,{fs:11,fill:'var(--mute)'})});
       s+=RD.t(10,14,'Cassandra',{fs:10.5,fill:'var(--mute)'});
     } else s+=RD.t(10,14,'No index: the only path is the table itself',{fs:10.5,fill:'var(--mute)'});
     // the strip
@@ -79,10 +81,9 @@
     svgEl.innerHTML=RD.svg(w,H+extra+(mode==='seq'&&st.sort?14:0),s,'Pages read for the latest 50 messages of chat 7');
     const c=st.c;
     cntEl.innerHTML=RD.stat(mode==='cas'?'Partitions read':'Page reads',f0(c[0]),mode==='cas'?'one partition':'8 KB each, cached or from disk')+RD.stat('Rows looked at',f0(c[1]),'')+RD.stat('Rows returned',f0(c[2]),'')+RD.stat(mode==='cas'?'Round trip':'Server time',c[3]==null?'...':c[3]+' ms',mode==='cas'?'median, from the client':'median, measured');
-    capEl.innerHTML='<div class="t">'+(i+1)+'/'+M[mode].length+'. '+st.cap[0]+'</div><p>'+st.cap[1]+'</p>';
   }
-  const A=RD.anim({card:'rd-lat-card',ctl:'rd-lat-ctl',n:M.seq.length,draw,ms:1700,label:'Step'});
-  RD.seg(el('rd-lat-mode'),m=>{mode=m;A.reset(M[m].length);raw()});
+  const A=RD.anim({card:'rd-lat-card',ctl:'rd-lat-ctl',n:M.seq.length,draw,ms:4200,label:'Step',list:'sx-lat-seq'});
+  RD.seg(el('rd-lat-mode'),m=>{mode=m;Object.keys(M).forEach(k=>{const L=el('sx-lat-'+k);if(L)L.hidden=k!==m});A.reset(M[m].length,'sx-lat-'+m);raw()});
   function raw(){
     const t=mode==='cas'?('-- CQL\n'+(W.cass_ddl||'')+'\n\nSELECT message_id, role, tokens, content, created_at FROM messages_by_chat\n WHERE chat_id = 7 AND bucket = '+C.latest_bucket+' LIMIT 50;\n\n-- trace (Cassandra '+(W.cass_version||'')+')\n'+tr.join('\n')):
       ('-- PostgreSQL '+W.pg_version+'\nSELECT id, role, tokens, content, created_at FROM messages\n WHERE chat_id = 7 ORDER BY created_at DESC LIMIT 50;\n\n'+R[{seq:0,idx:1,clu:2}[mode]].explain);

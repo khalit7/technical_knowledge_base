@@ -1,13 +1,27 @@
 <section id="rd-s8">
+<div class="s3sp"><div class="s3R"><div id="stg-gr"></div></div><div class="s3L">
 <h2>8. Graph: Neo4j, Kuzu, and the recursive query</h2>
 <p>Some questions are about connections: "people you may know" (friends of friends), "is this account linked to a known fraud ring within four steps", "how is user A connected to user B". In tables each step is a join, and the number of steps is not known when you write the query. A <dfn id="g-propgraph">property graph</dfn> has <b>nodes</b> (a user, a chat) and <b>relationships</b> (FRIEND, OWNS), each with a type, a direction and properties. Queries are patterns in <dfn id="g-cypher">Cypher</dfn> (Neo4j also accepts GQL, the ISO graph query language that grew out of it): <code>MATCH (u:User {uid: $u})-[:FRIEND*1..3]-(v) RETURN count(DISTINCT v)</code> reads "from user u, follow one to three FRIEND relationships in either direction". Neo4j stores each relationship as a record pointing directly at its two nodes and at the next relationship of each, so following one is a pointer lookup rather than an index search: <dfn id="g-ifa">index-free adjacency</dfn> (root atlas; Robinson, Webber and Eifrem, {{Graph Databases, 2nd edition, O'Reilly 2015, chapter 6|https://neo4j.com/graph-databases-book/}}).</p>
+<p>Fig. 5 follows one of the ten sampled users, user 24204, outward on the measured graph:</p>
+<ol class="sx" id="sx-gr">
+<li><b>Within one hop: 27 friends.</b> Each FRIEND relationship points straight at the node on its other end, so finding the friends is following 27 pointers.</li>
+<li><b>Within two hops: 891 users.</b> Friends of friends: each friend's own relationships are followed, and users already seen are dropped.</li>
+<li><b>Within three hops: 29,933 users.</b> About 30% of the 100,000: the few very connected users pull the frontier across the graph (area to scale on the floor).</li>
+<li><b>Within four hops: 99,898 users.</b> Nearly the whole graph; every engine must touch those rows, which is why the timings converge below.</li>
+<li><b>The path instead of a count.</b> Neo4j's <code>shortestPath</code> found user 24204 to user 24891 in 4 hops (24204, 6190, 116, 4989, 24891) in 5.0 ms.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Measured: friends of friends, on the same graph</h3>
 <p>A synthetic social graph grown the way real ones grow (each new user befriends 10 existing users, chosen in proportion to how many friends they already have): <span class="nv" data-n="graph.graph.users" data-f="int"></span> users, <span class="nv" data-n="graph.graph.friendships" data-f="int"></span> friendships, a median of <span class="nv" data-n="graph.graph.degree_median" data-f="int"></span> friends but a most-connected user with <span class="nv" data-n="graph.graph.degree_max" data-f="int"></span>. For 10 random users, count everyone within <i>k</i> hops on PostgreSQL 16.2 (two ways), Neo4j Community <span class="nv" data-n="graph.neo4j_version"></span> and Kuzu <span class="nv" data-n="graph.kuzu.version"></span>, an embedded graph engine (a library, like DuckDB). Predict which engine wins at two hops.</p>
+<p>All four engines agree on every count. At four hops, where every engine touches nearly the whole graph, Neo4j was only <span id="rd-g-4"></span> than Postgres's better query. Times are measured from the client (Neo4j and Postgres over a local connection, Kuzu in process). The work is set by the answer: by 3 hops a typical user reaches about a third of the graph, by 4 nearly all of it, and every engine must touch those rows. In SQL, write one <code>DISTINCT</code> join per hop to keep each frontier small; a naive recursive query (whose <code>UNION</code> removes only exact duplicate (user, depth) rows) finished here but revisits users along many paths on denser graphs. Neo4j's planner made the same move by itself: <code>VarLengthExpand(Pruning,BFS,All)</code>, a breadth-first expansion that drops nodes already seen.</p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="rd-g-card"><h4 class="vt">For counting neighbours, the graph engines did not win: Postgres was fastest up to three hops</h4>
 <div class="rd-svg" id="rd-g-svg"></div>
 <div class="tw" id="rd-g-tab"></div>
 </div>
-<p>All four engines agree on every count. At four hops, where every engine touches nearly the whole graph, Neo4j was only <span id="rd-g-4"></span> than Postgres's better query. Times are measured from the client (Neo4j and Postgres over a local connection, Kuzu in process). The work is set by the answer: by 3 hops a typical user reaches about a third of the graph, by 4 nearly all of it, and every engine must touch those rows. In SQL, write one <code>DISTINCT</code> join per hop to keep each frontier small; a naive recursive query (whose <code>UNION</code> removes only exact duplicate (user, depth) rows) finished here but revisits users along many paths on denser graphs. Neo4j's planner made the same move by itself: <code>VarLengthExpand(Pruning,BFS,All)</code>, a breadth-first expansion that drops nodes already seen.</p>
+</div></div></div>
 <details class="raw"><summary>The SQL and Cypher that ran, and the plans</summary><pre id="rd-g-raw"></pre></details>
 <h3>Where a graph database wins: paths and patterns</h3>
 <p>Ask for the <i>path</i> instead of a count. Neo4j's <code>shortestPath</code> connected user <span class="nv" data-n="graph.neo4j.shortest.a"></span> to user <span class="nv" data-n="graph.neo4j.shortest.b"></span> in <span class="nv" data-n="graph.neo4j.shortest.hops"></span> hops in <span class="nv" data-n="graph.neo4j.shortest.ms" data-f="x1"></span> ms with one line of Cypher. In Postgres:</p>
