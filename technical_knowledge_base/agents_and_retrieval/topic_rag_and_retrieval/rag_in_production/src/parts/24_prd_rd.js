@@ -32,8 +32,10 @@ document.querySelectorAll('#t-read .prd').forEach(p=>p.querySelectorAll('.opts b
   // fixed random order of the 100 cells (1% of abstracts each), same seed idea as the script: deterministic shuffle
   const order=[...Array(100).keys()];let s=7;for(let i=99;i>0;i--){s=(s*1103515245+12345)%2147483648;const j=s%(i+1);[order[i],order[j]]=[order[j],order[i]]}
   const rank=[];order.forEach((c,i)=>rank[c]=i);
-  function draw(i){
-    const W=RD.width(host),f=rows[i].f,r=rows[i],narrow=W<560;
+  // the steps the list explains: in place 0, 10, 50 and 100%; dual 0, 50 and 100% (the curve still runs through every 10% measured)
+  const STEPS={inplace:[0,1,5,10],dual:[0,5,10]};
+  function draw(si){
+    const i=STEPS[mode][si],W=RD.width(host),f=rows[i].f,r=rows[i],narrow=W<560;
     const cO=css('--c1'),cN=css('--c2'),ink=css('--ink'),mute=css('--mute'),line=css('--line');
     const gw=narrow?W:Math.min(mode==='dual'?380:200,W*0.45),cell=Math.min(15,Math.floor((gw-24)/(mode==='dual'?20:10))-2);
     let g='';const nNew=Math.round(f*100);
@@ -45,36 +47,31 @@ document.querySelectorAll('#t-read .prd').forEach(p=>p.querySelectorAll('.opts b
     // chart
     const cx0=narrow?36:gw+46,cy0=narrow?gh+30:18,cw=(narrow?W-48:W-cx0-12),ch=narrow?150:Math.max(130,gh-26);
     const X=v=>cx0+v*cw,Y=v=>cy0+ch-(v/0.8)*ch;let c='';
-    [0,0.2,0.4,0.6,0.8].forEach(v=>{c+='<line x1="'+cx0+'" x2="'+(cx0+cw)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+line+'"/>'+RD.t(cx0-4,Y(v)+4,v.toFixed(1),{a:'end',fs:10,fill:mute})});
-    c+=RD.t(cx0+cw/2,cy0+ch+28,'share re-embedded',{a:'middle',fs:10.5,fill:mute})+RD.t(cx0,cy0+ch+14,'0%',{fs:10,fill:mute})+RD.t(cx0+cw,cy0+ch+14,'100%',{a:'end',fs:10,fill:mute});
+    [0,0.2,0.4,0.6,0.8].forEach(v=>{c+='<line x1="'+cx0+'" x2="'+(cx0+cw)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+line+'"/>'+RD.t(cx0-4,Y(v)+4,v.toFixed(1),{a:'end',fs:11,fill:mute})});
+    c+=RD.t(cx0+cw/2,cy0+ch+28,'share re-embedded',{a:'middle',fs:11.5,fill:mute})+RD.t(cx0,cy0+ch+14,'0%',{fs:11,fill:mute})+RD.t(cx0+cw,cy0+ch+14,'100%',{a:'end',fs:11,fill:mute});
     const path=(k,col,dash)=>{let d='';for(let j=0;j<=i;j++)d+=(j?'L':'M')+X(rows[j].f).toFixed(1)+','+Y(k(rows[j])).toFixed(1);return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="2.2"'+(dash?' stroke-dasharray="5 4"':'')+'/>'};
     if(mode==='inplace'){c+=path(x=>x.ndcg_old_query,cO)+path(x=>x.ndcg_new_query,cN)}
     else{c+=path(x=>x.f<1?rows[0].ndcg_old_query:rows[10].ndcg_new_query,ink)}
     const lg=mode==='inplace'?[[cO,'old-model (MiniLM) queries'],[cN,'new-model (bge-small) queries']]:[[ink,'what users get (old index until the switch)']];
-    lg.forEach((l,k)=>{c+='<rect x="'+(cx0+4)+'" y="'+(cy0+4+k*15)+'" width="10" height="3" fill="'+l[0]+'"/>'+RD.t(cx0+18,cy0+9+k*15,l[1],{fs:10.5})});
+    lg.forEach((l,k)=>{c+='<rect x="'+(cx0+4)+'" y="'+(cy0+4+k*15)+'" width="10" height="3" fill="'+l[0]+'"/>'+RD.t(cx0+18,cy0+9+k*15,l[1],{fs:11.5})});
     const H=narrow?cy0+ch+36:Math.max(gh,cy0+ch+34)+4;
     host.innerHTML=RD.svg(W,H,g+c,'Backfill animation');
-    const cap=document.getElementById('prd-bf-cap'),out=document.getElementById('prd-bf-out');
+    const out=document.getElementById('prd-bf-out');
     if(mode==='inplace'){
-      cap.textContent=f===0?'Start: every abstract has a MiniLM vector; MiniLM queries score '+r.ndcg_old_query.toFixed(3)+'.':
-        f<1?nNew+'% overwritten with bge-small vectors. bge-small queries only ever retrieve the re-embedded abstracts (their scores are on a higher scale), MiniLM queries only the old ones: each searches part of the corpus.':
-        'Done: bge-small queries score '+r.ndcg_new_query.toFixed(3)+'. Every step in between served worse results than either end.';
       out.innerHTML=RD.stat('Re-embedded',nNew+'%','')+RD.stat('nDCG@10, MiniLM queries',r.ndcg_old_query.toFixed(3),'')+RD.stat('nDCG@10, bge-small queries',r.ndcg_new_query.toFixed(3),'')+RD.stat('top 10 from new vectors (bge-small queries)',Math.round(100*r.top10_new_share_new_query)+'%','');
     }else{
-      cap.textContent=f<1?'The old index keeps serving with MiniLM queries ('+rows[0].ndcg_old_query.toFixed(3)+') while the new index fills; nobody queries it except the evaluation.':
-        'The new index is complete and evaluated; one atomic switch moves traffic to it ('+rows[10].ndcg_new_query.toFixed(3)+'). The old one stays for rollback. Cost: twice the storage during the backfill.';
       out.innerHTML=RD.stat('New index filled',nNew+'%','')+RD.stat('Serving nDCG@10',(f<1?rows[0].ndcg_old_query:rows[10].ndcg_new_query).toFixed(3),f<1?'old index, MiniLM':'new index, bge-small')+RD.stat('Storage',f<1?'2 indexes':'2 until the old is dropped','');
     }
   }
-  const a=RD.anim({card:'prd-bf-card',ctl:'prd-bf-ctl',n:rows.length,draw,ms:1300,label:'Backfill step'});
-  RD.seg(document.getElementById('prd-bf-mode'),m=>{mode=m;a.reset(rows.length)});
+  const a=RD.anim({card:'prd-bf-card',ctl:'prd-bf-ctl',n:STEPS.inplace.length,draw,ms:4200,label:'Backfill step',list:'sx-bf-a'});
+  RD.seg(document.getElementById('prd-bf-mode'),m=>{mode=m;document.getElementById('sx-bf-a').hidden=m!=='inplace';document.getElementById('sx-bf-b').hidden=m==='inplace';a.reset(STEPS[m].length,m==='inplace'?'sx-bf-a':'sx-bf-b')});
   RD.onResize(()=>a.redraw());
 })();
 
 // purge table
 (function(){
   const el=document.getElementById('prd-purge');if(!el)return;
-  const ok=v=>v?'<b style="color:var(--bad)">present ('+v+')</b>':'<span style="color:var(--good)">gone</span>';
+  const ok=v=>v?'<b style="color:var(--bad);white-space:nowrap">present ('+v+')</b>':'<span style="color:var(--good)">gone</span>';
   let h='<table><thead><tr><th>Step</th><th>Search finds it</th><th>Text in table file</th><th>Vector in table file</th><th>Vector in HNSW index file</th><th>Text in WAL</th></tr></thead><tbody>';
   P.purge.steps.forEach(s=>{h+='<tr><td>'+esc(s.step)+'</td><td>'+(s.found_by_search?'yes':'no')+'</td><td>'+ok(s.heap_marker)+'</td><td>'+ok(s.heap_vector)+'</td><td>'+ok(s.index_vector)+'</td><td>'+ok(s.wal_marker)+'</td></tr>'});
   el.innerHTML=h+'</tbody></table><p class="small mute">Counts are occurrences of the marker text, or of the row\'s first 8 float32 numbers, in the files after CHECKPOINT. WAL settings: wal_keep_size '+esc(P.purge.wal_settings.wal_keep_size)+', max_wal_size '+esc(P.purge.wal_settings.max_wal_size)+', archive_mode '+esc(P.purge.wal_settings.archive_mode)+'.</p>';
@@ -104,10 +101,10 @@ function scHist(){
   for(let i=0;i<bins;i++){const ho=(M.opposite_hist[i]/so)/mx*(y1-y0),hs=(M.same_hist[i]/ss)/mx*(y1-y0);
     g+='<rect x="'+(x0+i*bw+1)+'" y="'+(y1-hs)+'" width="'+(bw/2-1)+'" height="'+hs+'" fill="'+cS+'"/><rect x="'+(x0+i*bw+bw/2)+'" y="'+(y1-ho)+'" width="'+(bw/2-1)+'" height="'+ho+'" fill="'+cO+'"/>'}
   g+='<line x1="'+x0+'" x2="'+x1+'" y1="'+y1+'" y2="'+y1+'" stroke="'+line+'"/>';
-  [0.5,0.6,0.7,0.8,0.9,1.0].forEach(v=>{const x=x0+(v-0.5)/0.5*(x1-x0);g+=RD.t(x,y1+13,v.toFixed(1),{a:'middle',fs:10,fill:mute})});
-  g+=RD.t((x0+x1)/2,y1+26,'cosine of the two claims (Qwen3-Embedding)',{a:'middle',fs:10.5,fill:mute});
-  g+='<rect x="'+(x0+4)+'" y="'+(y0)+'" width="10" height="8" fill="'+cO+'"/>'+RD.t(x0+18,y0+8,'opposite verdicts, same abstract ('+M.opposite_n+' pairs)',{fs:10.5});
-  g+='<rect x="'+(x0+4)+'" y="'+(y0+14)+'" width="10" height="8" fill="'+cS+'"/>'+RD.t(x0+18,y0+22,'same verdict, same abstract ('+M.same_n+' pairs)',{fs:10.5});
+  [0.5,0.6,0.7,0.8,0.9,1.0].forEach(v=>{const x=x0+(v-0.5)/0.5*(x1-x0);g+=RD.t(x,y1+13,v.toFixed(1),{a:'middle',fs:11,fill:mute})});
+  g+=RD.t((x0+x1)/2,y1+26,'cosine of the two claims (Qwen3-Embedding)',{a:'middle',fs:11.5,fill:mute});
+  g+='<rect x="'+(x0+4)+'" y="'+(y0)+'" width="10" height="8" fill="'+cO+'"/>'+RD.t(x0+18,y0+8,'opposite verdicts, same abstract ('+M.opposite_n+' pairs)',{fs:11.5});
+  g+='<rect x="'+(x0+4)+'" y="'+(y0+14)+'" width="10" height="8" fill="'+cS+'"/>'+RD.t(x0+18,y0+22,'same verdict, same abstract ('+M.same_n+' pairs)',{fs:11.5});
   host.innerHTML=RD.svg(W,H,g,'Similarity of claim pairs');
   document.getElementById('prd-sc-hist-cap').textContent='Share of each kind of pair per similarity bin (pairs below 0.5 not drawn). Medians: opposite '+M.opposite_sim_pct[2].toFixed(3)+', same '+M.same_sim_pct[2].toFixed(3)+'. Measured here on the 1,101 labelled SciFact claims.';
 }
@@ -119,9 +116,9 @@ function drift(){
   let g='',mx=0;const y0d=y0+46;Object.values(D).forEach(d=>{const s=d.hist.reduce((a,b)=>a+b,0);d.hist.forEach(v=>mx=Math.max(mx,v/s))});
   Object.entries(D).forEach(([k,d],j)=>{const s=d.hist.reduce((a,b)=>a+b,0),n=d.hist.length;let p='';
     d.hist.forEach((v,i)=>{const x=x0+(i+0.5)/n*(x1-x0),y=y1-(v/s)/mx*(y1-y0d);p+=(i?'L':'M')+x.toFixed(1)+','+y.toFixed(1)});
-    g+='<path d="'+p+'" fill="none" stroke="'+cols[k]+'" stroke-width="2"/>'+'<rect x="'+(x1-250)+'" y="'+(y0+j*14)+'" width="10" height="3" fill="'+cols[k]+'"/>'+RD.t(x1-236,y0+5+j*14,names[k]+', median '+d.pct[2].toFixed(3),{fs:10.5})});
-  [0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0].forEach(v=>{const x=x0+(v-0.3)/0.7*(x1-x0);g+=RD.t(x,y1+13,v.toFixed(1),{a:'middle',fs:10,fill:css('--mute')})});
-  g+=RD.t((x0+x1)/2,y1+26,'best-match cosine in the SciFact index (bge-small)',{a:'middle',fs:10.5,fill:css('--mute')});
+    g+='<path d="'+p+'" fill="none" stroke="'+cols[k]+'" stroke-width="2"/>'+'<rect x="'+(x1-250)+'" y="'+(y0+j*14)+'" width="10" height="3" fill="'+cols[k]+'"/>'+RD.t(x1-236,y0+5+j*14,names[k]+', median '+d.pct[2].toFixed(3),{fs:11.5})});
+  [0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0].forEach(v=>{const x=x0+(v-0.3)/0.7*(x1-x0);g+=RD.t(x,y1+13,v.toFixed(1),{a:'middle',fs:11,fill:css('--mute')})});
+  g+=RD.t((x0+x1)/2,y1+26,'best-match cosine in the SciFact index (bge-small)',{a:'middle',fs:11.5,fill:css('--mute')});
   host.innerHTML=RD.svg(W,H,g,'Best-match similarity per query set');
 }
 // golden-set power chart
@@ -130,9 +127,9 @@ function power(){
   const M=P.monitor,ns=M.ns,W=RD.width(host),H=190,x0=36,x1=W-12,y0=10,y1=H-30;
   const names=['IVF nprobe 1','backfill half done','IVF nprobe 8','HNSW efSearch 16'],cols=[css('--c2'),css('--c4'),css('--c1'),css('--c5')];
   const X=i=>x0+i/(ns.length-1)*(x1-x0),Y=v=>y1-v*(y1-y0);let g='';
-  [0,0.5,1].forEach(v=>{g+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+css('--line')+'"/>'+RD.t(x0-4,Y(v)+4,Math.round(v*100)+'%',{a:'end',fs:10,fill:css('--mute')})});
-  ns.forEach((n,i)=>g+=RD.t(X(i),y1+13,n,{a:'middle',fs:10,fill:css('--mute')}));
-  g+=RD.t((x0+x1)/2,y1+26,'golden-set size (claims)',{a:'middle',fs:10.5,fill:css('--mute')});
+  [0,0.5,1].forEach(v=>{g+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+css('--line')+'"/>'+RD.t(x0-4,Y(v)+4,Math.round(v*100)+'%',{a:'end',fs:11,fill:css('--mute')})});
+  ns.forEach((n,i)=>g+=RD.t(X(i),y1+13,n,{a:'middle',fs:11,fill:css('--mute')}));
+  g+=RD.t((x0+x1)/2,y1+26,'golden-set size (claims)',{a:'middle',fs:11.5,fill:css('--mute')});
   let leg='';
   names.forEach((nm,k)=>{const c=M.ci[nm];let p='';ns.forEach((n,i)=>p+=(i?'L':'M')+X(i).toFixed(1)+','+Y(c.power[n]).toFixed(1));
     g+='<path d="'+p+'" fill="none" stroke="'+cols[k]+'" stroke-width="2"/>';ns.forEach((n,i)=>g+='<circle cx="'+X(i)+'" cy="'+Y(c.power[n])+'" r="2.6" fill="'+cols[k]+'"/>');

@@ -36,8 +36,8 @@ function draw(){
   const lw=Math.min(150,W*0.36),x0=lw+6,x1=W-56,rowh=26,H=st.length*rowh+30,X=v=>x0+(total>0?v/total:0)*(x1-x0);let g='',t=0;
   st.forEach((x,i)=>{const y=6+i*rowh,w=Math.max(x[1]>0?1.5:0,X(t+x[1])-X(t));
     g+=RD.t(lw,y+15,x[0],{a:'end',fs:11})+'<rect x="'+X(t)+'" y="'+(y+3)+'" width="'+w+'" height="'+(rowh-9)+'" rx="2" fill="'+css(x[2])+'"/>'+
-      RD.t(Math.min(X(t)+w+4,x1+4),y+15,(x[1]<10?x[1].toFixed(1):Math.round(x[1]).toLocaleString('en-US'))+' ms',{fs:10.5,fill:css('--mute')});t+=x[1]});
-  g+='<line x1="'+X(first)+'" x2="'+X(first)+'" y1="2" y2="'+(H-22)+'" stroke="'+css('--ink')+'" stroke-dasharray="3 3"/>'+RD.t(X(first),H-8,'first token',{a:'middle',fs:10.5});
+      RD.t(Math.min(X(t)+w+4,x1+4),y+15,(x[1]<10?x[1].toFixed(1):Math.round(x[1]).toLocaleString('en-US'))+' ms',{fs:11.5,fill:css('--mute')});t+=x[1]});
+  g+='<line x1="'+X(first)+'" x2="'+X(first)+'" y1="2" y2="'+(H-22)+'" stroke="'+css('--ink')+'" stroke-dasharray="3 3"/>'+RD.t(X(first),H-8,'first token',{a:'middle',fs:11.5});
   host.innerHTML=RD.svg(W,H,g,'Latency waterfall');
   const e=$('pla-e').value,r=$('pla-r').value;
   $('pla-check').textContent='Load averages of the recorded runs: embedding '+LT.embed_load[e]+(r!=='none'?'; reranker '+LT.rerank_load[r]:'')+'; generator '+(P.ttft?P.ttft.loadavg_start[0]+' to '+P.ttft.loadavg_end[0]+' (this page\'s ttft.py sweep)':PG.run.loadavg_before[0]+' to '+PG.run.loadavg_after[0]+' (root pipeline run of '+PG.run.when+', '+PG.run.answers+' answers)')+'. Search on SciFact is derived from the Vector indexes page\'s measured scan rate ('+LT.scan_gbps+' GB/s per core); reranking from pairs per second; prefill and decode from llama-server\'s own timings.';
@@ -48,15 +48,15 @@ function draw(){
 function ttChart(){
   const host=$('pla-tt'),W=RD.width(host),H=190,x0=48,x1=W-12,y0=12,y1=H-32,mxn=4000,mxt=Math.max(ttftPip(mxn),...['qwen3-1.7b','qwen3-4b'].map(m=>{const c=curve(m);return c?Math.max(...c.pts.filter(q=>q.n<=mxn*1.02).map(q=>q.ms)):0}))*1.05;
   const X=v=>x0+v/mxn*(x1-x0),Y=v=>y1-v/mxt*(y1-y0);let g='';
-  [0,0.5,1].forEach(f=>{const v=f*mxt;g+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+css('--line')+'"/>'+RD.t(x0-4,Y(v)+4,Math.round(v).toLocaleString('en-US'),{a:'end',fs:10,fill:css('--mute')})});
-  [0,1000,2000,3000,4000].forEach(v=>g+=RD.t(X(v),y1+13,v.toLocaleString('en-US'),{a:'middle',fs:10,fill:css('--mute')}));
-  g+=RD.t((x0+x1)/2,y1+27,'prompt tokens (ms to first token on the y axis)',{a:'middle',fs:10.5,fill:css('--mute')});
+  [0,0.5,1].forEach(f=>{const v=f*mxt;g+='<line x1="'+x0+'" x2="'+x1+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+css('--line')+'"/>'+RD.t(x0-4,Y(v)+4,Math.round(v).toLocaleString('en-US'),{a:'end',fs:11,fill:css('--mute')})});
+  [0,1000,2000,3000,4000].forEach(v=>g+=RD.t(X(v),y1+13,v.toLocaleString('en-US'),{a:v===4000?'end':'middle',fs:11,fill:css('--mute')}));
+  g+=RD.t((x0+x1)/2,y1+27,'prompt tokens (ms to first token on the y axis)',{a:'middle',fs:11.5,fill:css('--mute')});
   let d='';for(let n=50;n<=mxn;n+=50)d+=(n>50?'L':'M')+X(n).toFixed(1)+','+Y(ttftPip(n)).toFixed(1);
   g+='<path d="'+d+'" fill="none" stroke="'+css('--dim')+'" stroke-width="2" stroke-dasharray="4 3"/>';
   [['qwen3-1.7b','--c1'],['qwen3-4b','--c2']].forEach(([m,col],j)=>{const c=curve(m);if(!c)return;let p='';c.pts.filter(q=>q.n<=mxn*1.02).forEach((q,i)=>p+=(i?'L':'M')+X(q.n).toFixed(1)+','+Y(q.ms).toFixed(1));
     g+='<path d="'+p+'" fill="none" stroke="'+css(col)+'" stroke-width="2"/>'+c.pts.filter(q=>q.n<=mxn*1.02).map(q=>'<circle cx="'+X(q.n)+'" cy="'+Y(q.ms)+'" r="3" fill="'+css(col)+'"/>').join('')+
-      '<rect x="'+(x0+6)+'" y="'+(y0+j*14)+'" width="10" height="3" fill="'+css(col)+'"/>'+RD.t(x0+20,y0+5+j*14,(m==='qwen3-4b'?'Qwen3-4B':'Qwen3-1.7B')+' measured, decode '+c.dec.toFixed(0)+' tokens/s',{fs:10.5})});
-  if(P.ttft)g+='<rect x="'+(x0+6)+'" y="'+(y0+28)+'" width="10" height="3" fill="'+css('--dim')+'"/>'+RD.t(x0+20,y0+33,'1.7B derived from the root pipeline records',{fs:10.5});
+      '<rect x="'+(x0+6)+'" y="'+(y0+j*14)+'" width="10" height="3" fill="'+css(col)+'"/>'+RD.t(x0+20,y0+5+j*14,(m==='qwen3-4b'?'Qwen3-4B':'Qwen3-1.7B')+' measured, decode '+c.dec.toFixed(0)+' tokens/s',{fs:11.5})});
+  if(P.ttft)g+='<rect x="'+(x0+6)+'" y="'+(y0+28)+'" width="10" height="3" fill="'+css('--dim')+'"/>'+RD.t(x0+20,y0+33,'1.7B derived from the root pipeline records',{fs:11.5});
   const pn=BASE+(+$('pla-k2').value)*AT;if(pn<=mxn)g+='<line x1="'+X(pn)+'" x2="'+X(pn)+'" y1="'+y0+'" y2="'+y1+'" stroke="'+css('--ink')+'" stroke-dasharray="3 3"/>';
   host.innerHTML=RD.svg(W,H,g,'Time to first token by prompt length');
   $('pla-tt-cap').textContent=(P.ttft?'Solid lines: measured here with ttft.py (median of 3 streamed requests per length, cache_prompt off; load '+P.ttft.loadavg_start.join('/')+' to '+P.ttft.loadavg_end.join('/')+'). Dashed: ':'')+'Qwen3-1.7B Q4_K_M: prompt tokens divided by the median prefill rate of each prompt-length band in the root pipeline runs\' records ('+PG.rows.map(b=>b.tokens[0]+' to '+b.tokens[1]+' tokens: '+b.prefill_tps_p50+' tokens/s over '+b.n+' calls').join('; ')+'); dots at each band\'s median prompt length. The band above 2,000 tokens rests on '+PG.rows[PG.rows.length-1].n+' calls.'+(P.ttft?'':' Not recorded yet: prompt caching, Qwen3-4B prefill, a single end-to-end timing.');

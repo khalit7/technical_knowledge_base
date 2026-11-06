@@ -32,7 +32,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/document_ingestion_and_multimodal` Document ingestion and multimodal retrieval: PDFs, tables, images
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/graphrag_and_structured_retrieval` GraphRAG and structured retrieval
-- [ ] `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production` RAG in production: freshness, access control, latency and cost
+- [x] `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production` RAG in production: freshness, access control, latency and cost
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline` The retrieval pipeline: chunking, query rewriting, hybrid search, filtering
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes` Vector indexes from the inside: flat, IVF, PQ, HNSW, DiskANN, filtered search
@@ -332,3 +332,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses`: Fig. 1 close-up steps overlap faded row labels at the bottom left ("Aider (whole)", "both fixed").
 - `agents_and_retrieval/topic_agentic_harnesses/personal_agents`: Figs. 1 and 7 close-up steps leave large faded blocks cropped at the card edges.
 - `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval`: the Trajectory comparer still shows a "Pending generator run" box though check_data reports 0 pending (pre-existing); Long-context tab table scrolls sideways in the right column at 1400.
+- `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production`: Fig. 2 close-up crops the source and index at the edges; Fig. 3 small in its card.

@@ -36,3 +36,13 @@ What the methodology lacked for this page: operational failures have no publishe
 | moved | Access stepper (2, 3), latency waterfall and TTFT chart (6, 7), semantic-cache replay (4) | Reading, sections 5, 7, 8 | moved | Each explains one mechanism, so it sits beside its claim; tables of every case are in closed blocks. Animations no longer start on a mode or question switch. |
 | kept | Cost calculator (8) | own tab | kept | A tool for the reader's own system, used by sections 7 and 9. |
 | R6 | A real image (dashboard or hardware photo) | | rejected | The page is about operations and mechanisms; no physical object or canonical figure would teach more than the diagrams. |
+
+## 2026-11-06 rollout (split layout, renderer v2)
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| S1 | Fig. 1: write and read paths on one index, time and cost towers per stage | Reading, top | built | Replaces the static hero SVG; real p50s and worked-example costs. |
+| S2 | Fig. 2: one edit travelling to the index, stale answers until visible, lag terms to scale | Reading, section 2 | built | Driven by the freshness calculator. |
+| S3 | Fig. 3: rule in the prompt against filter at retrieval on the constructed corpus | Reading, section 5 | built | Replaces the HTML access stepper; real top 4s and real answers. |
+| S4 | Fig. 4: an RLS policy filtering after an HNSW scan, then iterative scans | Reading, section 5 | built | Measured rows and recalls; candidate groups illustrative at measured shares. |
+| R7 | 3D backfill (index cells flipping, query flows only to own-model cells) | | rejected | The point is the nDCG curve over the backfill; the 2D grid plus curve shows it. |
+| R8 | 3D latency waterfall or cost bars | | rejected | Numbers on one axis; Fig. 1's towers already give the shape, the waterfall stays a 2D calculator. |

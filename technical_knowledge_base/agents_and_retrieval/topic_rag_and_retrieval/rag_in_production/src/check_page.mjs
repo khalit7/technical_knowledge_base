@@ -1,6 +1,6 @@
 // Browser check of every tab at 390 dark and 920 light: every segmented button, chip, checkbox, select option,
 // animation step (in each mode) and predict button. Fails on script errors, NaN/undefined/Infinity in text,
-// sideways scroll or a visible error box.
+// sideways scroll or a visible error box. Then the autoplay rule (plays in view, never under reduced motion).
 // usage: node check_page.mjs <index.html> <shots dir>   (puppeteer from html_utils via createRequire)
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -54,13 +54,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const links = await p.$$eval('#t-more a', as => as.length); console.log('further reading links', links);
   await p.close();
 }
-// never autoplay: under normal and reduced motion, every step animation is still on step 0 after 4 s on screen
+// autoplay (2026-11-06): with normal motion every 2D step animation plays by itself once scrolled into view (its button reads Pause or
+// it has advanced); under reduced motion it stays on its first step. The 3D stages are checked the same way by check_stages.mjs.
 for (const rm of ['no-preference', 'reduce']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
-  await p.goto('file://' + path.resolve(file));
+  await p.goto('file://' + path.resolve(file)); await p.click('button[data-t=t-read]'); // the earlier pass left another tab remembered
   const ids = await p.$$eval('[id$="-ctl-s"]', es => es.map(e => e.id));
-  for (const id of ids) { await p.$eval('#' + id, e => e.closest('.card').scrollIntoView()); await new Promise(r => setTimeout(r, 4000));
-    const v = await p.$eval('#' + id, e => e.value); console.log('autoplay check', rm, id, 'step', v); if (v !== '0') bad = 1 }
+  for (const id of ids) { await p.$eval('#' + id, e => e.closest('.card').scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+    const v = await p.$eval('#' + id, e => e.value), pl = await p.$eval('#' + id.replace(/-s$/, '-p'), e => e.textContent);
+    const moving = v !== '0' || /Pause/.test(pl); console.log('autoplay check', rm, id, 'step', v, pl.trim());
+    if (rm === 'reduce' ? moving : !moving) bad = 1 }
   await p.close();
 }
 await b.close();

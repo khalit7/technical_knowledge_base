@@ -9,13 +9,29 @@
 <tr><td>Prefix (KV) at the model server</td><td>exact token prefix</td><td>prefill of the shared beginning</td><td>no</td></tr>
 </tbody></table></div>
 <p><b>Invalidation.</b> Put the index version into every result and answer key, so a re-index or model switch invalidates everything at once; tag entries with the source document ids, so a change or deletion (section 4) evicts exactly the entries built from it; add a time-to-live so nothing outlives the freshness target. Put the user's access groups (or tenant) into the key: an answer built from HR documents and served to a contractor is a leak through the cache. Semantic caches offered inside model gateways (LiteLLM's Redis, Valkey and Qdrant backends) are configured on {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}; caches in general and natural false-hit rates on Quora and PAWS pairs on {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}, section 12.</p>
+</section>
+
+<div class="s3sp"><div class="s3L">
+<section id="prd-s8b">
 <p><b>A semantic cache on a RAG workload.</b> SciFact is a hard, realistic test: its annotators wrote many claims in pairs from one cited abstract, one the abstract supports and one it contradicts, often by changing a single word. Among the @@c_n@@ labelled claims (of the 1,109 train and test claims, those whose text matches exactly one query in BEIR's query file; @@rc_n@@ are test claims) there are @@c_opp_pairs@@ opposite-verdict pairs and @@c_same_pairs@@ same-verdict pairs. The claims arrive one by one in id order; each is looked up in a cache holding every earlier claim, keyed on the setup's precomputed query embeddings, and the cached answer is right only if the cached claim has the same verdict on the same abstract <span class="meas">measured here</span>, deterministic.</p>
-<div class="card"><h4>Claims with opposite verdicts are more similar than claims that agree</h4><div id="prd-sc-hist" class="plot"></div><p class="small mute" id="prd-sc-hist-cap"></p>
-<p class="small">Median cosine @@c_opp_med@@ for opposite-verdict pairs, @@c_same_med@@ for same-verdict pairs (Qwen3-Embedding): "positively correlated" and "negatively correlated" differ by one word, two claims with the same verdict usually by many. No threshold separates them.</p></div>
 <div class="prd"><div class="q">Predict: raise the threshold from 0.90 to 0.95. Does the share of hits that return the opposite verdict fall?</div>
 <div class="opts"><button data-a="0">yes, sharply</button><button data-a="1">a little</button><button data-a="2" data-right>no, it rises</button></div>
 <div class="ans" hidden><span class="verdict"></span>It rises, from @@c_oppshare_90@@% to @@c_oppshare_95@@%: a stricter threshold drops the same-verdict hits, which differ in many words, faster than the near-identical negations (Qwen3-Embedding: same-verdict hits 27 to 9, opposite-verdict 168 to 144). At 0.95, @@c_hits_95@@ of @@c_n@@ claims were served from the cache; @@c_opp_95@@ of those hits returned the opposite verdict and only @@c_same_95@@ the same verdict on the same abstract (the rest cite the same abstract without a verdict, or a different one).</div></div>
-<div class="card" id="prc-card"><h4>Raising the threshold cuts hits, not the share that is wrong</h4>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Claims with opposite verdicts are more similar than claims that agree</h4><div id="prd-sc-hist" class="plot"></div><p class="small mute" id="prd-sc-hist-cap"></p>
+<p class="small">Median cosine @@c_opp_med@@ for opposite-verdict pairs, @@c_same_med@@ for same-verdict pairs (Qwen3-Embedding): "positively correlated" and "negatively correlated" differ by one word, two claims with the same verdict usually by many. No threshold separates them.</p></div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="prd-s8c">
+<p><b>Kinds of hit</b> in the replay: <b>same verdict</b>: the cached claim shares an evidence abstract with the same label (right); <b>opposite verdict</b>: same abstract, opposite label (wrong); <b>no verdict, same abstract</b>: both cite the same abstract and neither has evidence (arguably right); <b>unrelated</b>: no abstract in common (wrong). At 0.90 the opposite share was @@c_oppshare_90@@% with Qwen3-Embedding, @@c_oppshare_90_mini@@% with MiniLM, @@c_oppshare_90_bge@@% with bge-small, @@c_oppshare_90_gte@@% with gte-modernbert.</p>
+<p><b>Reuse the retrieved list instead of the answer.</b> Same replay, but a hit reuses the cached claim's top 10 abstracts and the generator still reads them (nDCG@10 over the @@rc_n@@ test claims, under the chart).</p>
+<p class="small">At 0.90 the semantic <i>result</i> cache kept nDCG@10 at @@rc_ndcg_90@@ against @@rc_none@@ without a cache (@@rc_hits_90@@ of @@rc_n@@ served from cache; @@rc_worse_90@@ got a worse list, @@rc_better_90@@ a better one): a claim and its negation need the same evidence, and the generator still reads it and decides. A result cache is far safer than an answer cache.</p>
+<details class="dp"><summary>The most similar wrong hits for the selected model <span class="mute">(claims verbatim from SciFact)</span></summary><div class="b" id="prc-ex"></div></details>
+<p class="small mute">SciFact over-represents near-negations because it was built that way; natural traffic has fewer, so the rates are far above what a help desk would see. What transfers: no threshold separates "the same question" from "the same words with the opposite meaning". Script: src/scripts/cache_scifact.py.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="prc-card"><h4>Raising the threshold cuts hits, not the share that is wrong</h4>
 <div class="ctl">
 <label>Similarity threshold: <b id="prc-tv"></b><input type="range" id="prc-t" min="0.5" max="1" step="0.01" value="0.9"></label>
 <label>Embedding model <select id="prc-m"><option value="qwen3-emb-0.6b">Qwen3-Embedding-0.6B</option><option value="gte-modernbert">gte-modernbert-base</option><option value="bge-small">bge-small-en-v1.5</option><option value="minilm-l6">all-MiniLM-L6-v2</option></select></label>
@@ -24,15 +40,15 @@
 <div class="prc-bar" id="prc-bar"></div>
 <div class="hmleg" id="prc-leg"></div>
 <div id="prc-curve" class="plot"></div>
-<p class="small mute">Kinds of hit: <b>same verdict</b>: the cached claim shares an evidence abstract with the same label (right); <b>opposite verdict</b>: same abstract, opposite label (wrong); <b>no verdict, same abstract</b>: both cite the same abstract and neither has evidence (arguably right); <b>unrelated</b>: no abstract in common (wrong). At 0.90 the opposite share was @@c_oppshare_90@@% with Qwen3-Embedding, @@c_oppshare_90_mini@@% with MiniLM, @@c_oppshare_90_bge@@% with bge-small, @@c_oppshare_90_gte@@% with gte-modernbert.</p>
-<p><b>Reuse the retrieved list instead of the answer.</b> Same replay, but a hit reuses the cached claim's top 10 abstracts and the generator still reads them; nDCG@10 over the @@rc_n@@ test claims at this threshold:</p>
-<div class="out" id="prc-rc"></div>
-<p class="small">At 0.90 the semantic <i>result</i> cache kept nDCG@10 at @@rc_ndcg_90@@ against @@rc_none@@ without a cache (@@rc_hits_90@@ of @@rc_n@@ served from cache; @@rc_worse_90@@ got a worse list, @@rc_better_90@@ a better one): a claim and its negation need the same evidence, and the generator still reads it and decides. A result cache is far safer than an answer cache.</p>
-<details class="dp"><summary>The most similar wrong hits for the selected model <span class="mute">(claims verbatim from SciFact)</span></summary><div class="b" id="prc-ex"></div></details>
-</div>
-<p class="small mute">SciFact over-represents near-negations because it was built that way; natural traffic has fewer, so the rates are far above what a help desk would see. What transfers: no threshold separates "the same question" from "the same words with the opposite meaning". Script: src/scripts/cache_scifact.py.</p>
-</section>
 
+<p class="small" style="margin:10px 0 0"><b>Result cache instead:</b> nDCG@10 over the @@rc_n@@ test claims at this threshold</p>
+
+<div class="out" id="prc-rc"></div>
+
+
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
 <section id="prd-s9">
 <h2>9. Cost per query</h2>
 <p>A request pays for each stage it uses; the corpus pays once to be embedded, then for what changes, and for storage every month. Spread the monthly costs over the month's queries:</p>
@@ -41,9 +57,13 @@
 <dt>rerank</dt><dd>(query tokens &times; K + K &times; chunk tokens) &times; price, Voyage's counting rule (the query is billed once per candidate), or a price per request</dd>
 <dt>generate</dt><dd>uncached input tokens &times; input price + cached prefix tokens &times; cached price + output tokens &times; output price</dd></dl></div>
 <p><b>A worked example</b> (<span class="pub">published</span> list prices, table below): 1 million queries a month over 10 million chunks of 256 tokens; text-embedding-3-small (1,536 dimensions); Voyage rerank-3 on K = 30 candidates (@@rerank_tok@@ tokens per query); gpt-5-mini reading k = 5 chunks plus a cached 300-token system prompt (@@gen_in_tok@@ input tokens, 200 output); vectors at Pinecone's storage price (@@co_gb@@ GB of float32 vectors).</p>
-<div class="card"><h4>The hosted reranker costs more than half as much as the model, because it reads 30 passages where the model reads 5</h4>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>The hosted reranker costs more than half as much as the model, because it reads 30 passages where the model reads 5</h4>
 <div class="prd-hbar" id="prd-cost-bar"></div><div class="hmleg" id="prd-cost-leg"></div>
-<p class="small">Total <b>@@co_total@@ per query</b>, @@co_month@@ a month: generation @@co_gen@@ (@@co_gen_share@@%), reranking @@co_rerank@@ (@@co_rerank_share@@%), storage @@co_storage_month@@ a month, the first full embedding @@co_init@@ once. The vector database's bill is mostly not in this formula (read units, replicas and minimums are billed separately and depend on the store). Every knob, other models and the self-hosting break-even are in the {{Cost calculator|#t-prdcost}}.</p></div>
+<p class="small">Total <b>@@co_total@@ per query</b>, @@co_month@@ a month: generation @@co_gen@@ (@@co_gen_share@@%), reranking @@co_rerank@@ (@@co_rerank_share@@%), storage @@co_storage_month@@ a month, the first full embedding @@co_init@@ once. The vector database's bill is mostly not in this formula (read units, replicas and minimums are billed separately and depend on the store). Every knob, other models and the self-hosting break-even are in the {{Cost calculator|#t-prdcost}}.</p></div></div></div></div>
+
+<section id="prd-s9b">
 <h4 style="margin:10px 0 0">Prices used, read on 2026-10-14 (vendor list prices; they change)</h4>
 <div class="tw"><table><thead><tr><th>Item</th><th>Price (USD)</th><th>Source</th></tr></thead><tbody>
 <tr><td>OpenAI text-embedding-3-small</td><td>$0.02 per million tokens</td><td><a href="https://developers.openai.com/api/docs/pricing" target="_blank" rel="noopener noreferrer">OpenAI pricing</a></td></tr>

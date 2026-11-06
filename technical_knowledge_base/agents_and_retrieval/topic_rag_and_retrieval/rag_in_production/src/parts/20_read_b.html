@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fresh"></div></div><div class="s3L">
 <section id="prd-s2">
 <h2>2. Freshness: how long until a change is searchable</h2>
 <p>A policy page is edited at 09:00; at 09:20 the assistant still quotes the old text, with a citation, and a stale answer looks exactly like a correct one. Two designs move changes into the index. <b>Batch</b>: a job runs every hour or night, lists the source, finds what changed by modification time or a <dfn>content hash</dfn> (a fingerprint such as SHA-256 that changes whenever the bytes do), and re-processes only that; simple to rerun, with a lag of up to a full interval. <b>Streaming</b>: the source pushes each change (a webhook from a wiki, or <dfn>change data capture</dfn>, CDC, reading a database's own log of committed changes as Debezium does for PostgreSQL and MySQL) into a queue that indexing workers drain; seconds of lag, at the price of a queue, retries and ordering to operate. Either way the lag is a sum, and the slowest term is usually not the one people tune:</p>
@@ -13,23 +14,45 @@
 <label>Store visibility delay: <select id="prd-fr-v"><option value="0">PostgreSQL / pgvector: at commit</option><option value="1" selected>Elasticsearch refresh: 1 s</option><option value="5">Elasticsearch Serverless: 5 s</option></select></label>
 </div><div class="prd-hbar" id="prd-fr-bar"></div><div class="out" id="prd-fr-out"></div>
 <p class="small mute">Expected lag for one edited SciFact-sized document arriving behind the queue, one embedding worker on this laptop. Parse time is left out (it depends on the format; the ingestion page measures parsers). Detection is half the interval; 0 means webhooks or CDC. Try Qwen3-Embedding with 20,000 documents queued: the queue, not the interval, sets the lag.</p></div>
+<p class="sxh">Fig. 2, step by step, at the calculator's settings</p>
+<ol class="sx" id="sx-fresh">
+<li><b>An edit at the source.</b> At 09:00 the policy page changes (v2). The index still holds v1, so every answer until the lag has passed quotes the old text, with a citation.</li>
+<li><b>Detect.</b> The change waits at the plate for the next poll; set the interval to 0 for a webhook or CDC.</li>
+<li><b>Queue.</b> One slab per 500 documents ahead of the edit, draining at the model's measured throughput. Move the queue slider: a bulk import ahead of an edit soon costs more than the polling interval.</li>
+<li><b>Embed and write.</b> The new vector replaces the old one in the index: written, not yet searchable.</li>
+<li><b>Visible, and the lag to scale.</b> After the store's visibility delay the answer quotes v2. The column on the left stacks the four terms to scale: the largest term sets the lag.</li>
+</ol>
 <p><b>Re-embed only what changed.</b> Hash every chunk, compare with the stored hashes, embed only new ones and delete the ones that disappeared. The trap is that chunk boundaries move: on the ingestion page's ten revised QASPER papers, revisions changed 15.0% of the words but fixed 200-word windows re-embedded 75.8% of them, structure-aware chunks 49.2% (measured there, in its {{section 9|n:3f85c17b0d0d81279079f614f382f2e7}}, which owns the hashing). <b>Check it</b> the way users feel it: a <dfn>freshness probe</dfn> writes a sentinel document carrying the current time to the source every few minutes and searches for it through the production read path; the difference is the end-to-end lag, graphed and alerted like latency. A reconciliation job compares, per document, the chunk hashes in the index with those computed from the source: anything extra is a stale chunk, anything missing an unindexed one. Permission changes travel the same path, so ACLs (section 5) have a freshness lag too.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="prd-bf-card"><h4>Every step of an in-place backfill serves worse results than either end</h4>
+<div class="seg" id="prd-bf-mode"><button data-m="inplace" class="on">Backfill in place (one index)</button><button data-m="dual">Dual index, atomic switch</button></div>
+<div id="prd-bf-svg" class="plot"></div>
+<div class="out" id="prd-bf-out"></div>
+<div class="prd-ctl" id="prd-bf-ctl"></div>
+</div></div></div><div class="s3L">
 <section id="prd-s3">
 <h2>3. Changing the embedding model: dual indexes and the backfill trap</h2>
-<p>A vector from one embedding model means nothing to another (each position is learned separately), so a model upgrade means re-embedding the whole corpus, a <dfn>backfill</dfn>, and the question is what the index serves meanwhile. If both models output the same number of dimensions, nothing stops you overwriting vectors in place: all-MiniLM-L6-v2 and bge-small-en-v1.5 both output 384. The figure replays a backfill from the first to the second on SciFact, 10% of the abstracts at a time, against the dual-index pattern; every nDCG is <span class="meas">measured here</span> (exact search, 300 test claims).</p>
+<p>A vector from one embedding model means nothing to another (each position is learned separately), so a model upgrade means re-embedding the whole corpus, a <dfn>backfill</dfn>, and the question is what the index serves meanwhile. If both models output the same number of dimensions, nothing stops you overwriting vectors in place: all-MiniLM-L6-v2 and bge-small-en-v1.5 both output 384. The figure replays a backfill from the first to the second on SciFact, measured at every 10% of the abstracts, against the dual-index pattern; every nDCG is <span class="meas">measured here</span> (exact search, 300 test claims).</p>
 <div class="prd"><div class="q">Predict, then step through: halfway through the in-place backfill (50% re-embedded), which query model scores higher?</div>
 <div class="opts"><button data-a="0">the old model (MiniLM)</button><button data-a="1">the new model (bge-small)</button><button data-a="2" data-right>about the same, both very low</button></div>
 <div class="ans" hidden><span class="verdict"></span>At 50%, MiniLM queries score @@bf_half_old@@ and bge-small queries @@bf_half_new@@, against @@bf_old@@ and @@bf_new@@ on clean indexes. Each query model only ever retrieves the abstracts embedded by itself, so each searches half the corpus.</div></div>
-<div class="card" id="prd-bf-card"><h4>Every step of an in-place backfill serves worse results than either end</h4>
-<div class="seg" id="prd-bf-mode"><button data-m="inplace" class="on">Backfill in place (one index)</button><button data-m="dual">Dual index, atomic switch</button></div>
-<div id="prd-bf-svg" class="plot"></div>
-<div class="prd-cap" id="prd-bf-cap"></div>
-<div class="out" id="prd-bf-out"></div>
-<div class="prd-ctl" id="prd-bf-ctl"></div>
-</div>
+<p class="sxh">The figure, step by step</p>
+<ol class="sx" id="sx-bf-a">
+<li><b>Start.</b> Every abstract has a MiniLM vector; MiniLM queries score @@bf_old@@ nDCG@10.</li>
+<li><b>10% overwritten.</b> bge-small queries retrieve only the re-embedded tenth, because their cosines run on a higher scale, and score @@bf_10_new@@; MiniLM queries have lost that tenth.</li>
+<li><b>Halfway.</b> Each query model searches its own half of the corpus: MiniLM @@bf_half_old@@, bge-small @@bf_half_new@@.</li>
+<li><b>Done.</b> bge-small queries score @@bf_new@@. Every step in between served worse results than either end.</li>
+</ol>
+<ol class="sx" id="sx-bf-b" hidden>
+<li><b>Build beside.</b> The old index keeps serving MiniLM queries (@@bf_old@@) while the new one fills; nobody queries the new one except the evaluation.</li>
+<li><b>Halfway.</b> Users still get @@bf_old@@. The price is twice the storage while the backfill runs.</li>
+<li><b>Evaluate, then switch.</b> The new index is complete and evaluated; one atomic switch moves traffic to it (@@bf_new@@). The old one stays for rollback.</li>
+</ol>
+
 <p><b>Why it fails so badly.</b> Not because the new vectors are worse: the two models use different similarity scales. bge-small's cosine between a claim and a random abstract has a median of @@bf_scale_bge@@, MiniLM's @@bf_scale_mini@@. A bge-small query against a mixed index scores every re-embedded abstract above every old one, so its top 10 comes only from the re-embedded share; with 10% done its nDCG@10 is @@bf_10_new@@, because it is searching a tenth of the corpus. The ends show the same: a bge-small query against an all-MiniLM index scores @@bf_cross_no@@, a MiniLM query against an all-bge index @@bf_cross_on@@. Different dimensions would at least raise an error; equal dimensions fail silently.</p>
 <p><b>The dual-index pattern.</b> Build the new index beside the old one (a new column, table or collection), backfill it while the old index keeps serving with old-model query vectors, evaluate it on the golden set (section 10) and a shadow copy of live traffic, then switch in one atomic step (an alias in Elasticsearch or OpenSearch, a view or a configuration flag), keep the old index for rollback and drop it later. It costs twice the storage during the backfill and a second query embedding while shadowing. Store the model name and version with every vector so a query can never be compared with another model's vectors.</p>
 <p><b>What a backfill takes.</b> Embedding time scales with tokens: Qwen3-Embedding-0.6B embedded SciFact's 1.70 million tokens in 816 s on MPS (about 2,100 tokens per second; the root's running example), so a 1-billion-token corpus would take about 5.5 days on this laptop. A hosted API at $0.02 per million tokens (OpenAI text-embedding-3-small, published 2026-10-14) charges $20 for the same billion tokens; the binding limits then are rate limits and the time to write and index the vectors.</p>
 </section>
+</div></div>

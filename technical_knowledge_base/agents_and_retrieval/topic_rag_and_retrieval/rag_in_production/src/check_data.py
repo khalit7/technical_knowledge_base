@@ -84,7 +84,8 @@ if "aclllm" in emb:
         n = sum(1 for r in rows if r["cond"] == "prompt_rule" and any(x.lower() in r["text"].lower() and x.lower() not in r["q"].lower() for x in mk[r["q"]]))
         ok(F["pl_" + k] == str(n), "prompt-rule leaks " + m)
 # privacy
-priv = ["/Us" + "ers/", "Us" + "ers-", "glp" + "at", "sk-" + "ant", "/private/" + "tmp", "claude-" + "502"] + ([os.environ["USER"]] if os.environ.get("USER") else [])
+import getpass  # noqa: E402
+priv = ["/Us" + "ers/", "Us" + "ers-", "glp" + "at", "sk-" + "ant", "/private/" + "tmp", "claude-" + "502", getpass.getuser()]  # plain substring tests: case-sensitive, the login name as written
 files = [os.path.join(H, "..", "index.html")] + [os.path.join(dp, f) for dp, _, fs in os.walk(H) for f in fs]
 leaks = [(f, k) for f in files for k in priv if k in open(f, errors="ignore").read()]
 ok(not leaks, "privacy: no private pattern in index.html or src/" + (" " + str(leaks[:3]) if leaks else ""))
