@@ -37,7 +37,7 @@ function draw(i){$('mx-sa').innerHTML=panel($('mx-va'),S.ra,i,false);$('mx-sb').
     if(i<5)t+=' Early on, untried actions in B still sit at 0, so the max over B cannot go below 0.'}
   $('mx-cap').innerHTML=t}
 let A=null;
-function initAnim(){rec();A=U.anim({p:'mx',sec,n:()=>EP+1,speeds:[['slow',3],['normal',10],['fast',40]],def:1,draw,label:i=>'episode '+i+' of '+EP,scrubLabel:'Episode'});A.show()}
+function initAnim(){rec();A=U.anim({p:'mx',sec,n:()=>EP+1,speeds:[['slow',3],['normal',10],['fast',40]],def:1,draw,label:i=>'episode '+i+' of '+EP,scrubLabel:'Episode'});A.i=100;A.show()}   // opens after episode 100
 // ---------- averaged over runs ----------
 let job=null;
 function key(){return S.nb+'|'+S.runs+'|'+S.seed}

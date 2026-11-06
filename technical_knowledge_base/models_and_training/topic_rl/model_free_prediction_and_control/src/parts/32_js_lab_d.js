@@ -50,7 +50,7 @@ function init(){rec();
         else{if(P.k>=0)P.k=-1,P.e=Math.min(EP-1,P.e+(sp===1?0:24));else P.e=Math.min(EP-1,P.e+(sp===1?1:25))}}return enc()},
     back:i=>{dec(i);const sp=+$('lb-cl-spd').value;if(sp===0){if(P.k>0)P.k--;else if(P.k<0)P.k=Math.max(0,maxK(P.e)-1);else if(P.e>0){P.e--;P.k=-1}}else{if(P.k<0&&P.e>0)P.e--;P.k=-1}return enc()},
     scrubMax:()=>EP,toScrub:i=>{dec(i);return P.k<0?P.e+1:P.e},fromScrub:v=>{if(v===0){P.e=0;P.k=0}else{P.e=v-1;P.k=-1}return enc()}});
-  A.show();
+  A.i=(EP-1)*M+M-1;A.show();   // opens on the table after the last episode: the two learned paths
   ['a','b'].forEach(w=>$('lb-cl-m'+w).onchange=e=>{S[w]=e.target.value;rec();A.show();run()});
   $('lb-cl-eps').onchange=e=>{S.eps=+e.target.value;rec();A.show();run()};$('lb-cl-al').onchange=e=>{S.al=+e.target.value;rec();A.show();run()};
   $('lb-cl-seed').onchange=e=>{S.seed=+e.target.value;rec();A.show();run()};

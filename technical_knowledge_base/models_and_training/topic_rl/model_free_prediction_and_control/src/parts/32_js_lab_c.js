@@ -34,7 +34,7 @@ function initAnim(){trace();A=U.anim({p:'lb-rw',sec,n:()=>S.F.length,speeds:[['a
   // the scrubber moves in episodes
   const scr=$('lb-rw-scr');A.show=(function(old){return function(){old();scr.max='100';scr.value=String(S.F[A.i].t===S.F[A.i].T-1?S.F[A.i].e:Math.max(0,S.F[A.i].e-1))}})(A.show);
   scr.oninput=()=>{A.setPlay(false);A.i=S.last[+scr.value];A.show()};
-  A.show();
+  A.i=S.last[10];A.show();   // opens after 10 walks, one of the points of the book's left graph
   document.querySelectorAll('#lb-rw .lb-jb button').forEach(b=>b.onclick=()=>{A.setPlay(false);A.i=S.last[+b.dataset.e];A.show()});
   $('lb-rw-at').onchange=e=>{S.at=+e.target.value;const k=S.F[A.i].e;trace();A.i=S.last[k]||0;A.show()};
   $('lb-rw-am').onchange=e=>{S.am=+e.target.value;const k=S.F[A.i].e;trace();A.i=S.last[k]||0;A.show()}}
@@ -95,8 +95,10 @@ function draw3(i){const tr=T3.tr,fr=tr.F[i];strip19($('lb-nl-va'),fr,fr.Vn,'n');
     if(fr.dl!==null)t+='<b>TD(λ)</b>: TD error '+U.f(fr.dl,3)+(Math.abs(fr.dl)<1e-12?', so nothing moves.':', shared out to every state in proportion to its trace (bars below).');}
   $('lb-nl-cap').innerHTML=t}
 let A3=null;
-function initAnim3(){trace3();A3=U.anim({p:'lb-nl',sec:sec3,n:()=>T3.tr.F.length,speeds:[['slow',4],['normal',10],['fast',30]],def:1,draw:draw3,label:i=>'time step '+(i)+' of '+(T3.tr.F.length-1)});A3.show();
-  const re=()=>{trace3();A3.i=0;A3.show()};
+function initAnim3(){trace3();A3=U.anim({p:'lb-nl',sec:sec3,n:()=>T3.tr.F.length,speeds:[['slow',4],['normal',10],['fast',30]],def:1,draw:draw3,label:i=>'time step '+(i)+' of '+(T3.tr.F.length-1)});
+  // opens on the walk's last step, where the final reward arrives and TD(lambda) shares it out along the traces
+  const endF=()=>Math.max(0,T3.tr.F.findIndex(f=>f.t===T3.tr.T-1));A3.i=endF();A3.show();
+  const re=()=>{trace3();A3.i=endF();A3.show()};
   $('lb-nl-n').onchange=e=>{T3.n=+e.target.value;re()};$('lb-nl-l').onchange=e=>{T3.l=+e.target.value;re()};$('lb-nl-ep').onchange=e=>{T3.ep=+e.target.value;re()}}
 const PAIR={nstep:null,lret:'nstep',tdl:'lret'};
 let job3=null,queue=[];

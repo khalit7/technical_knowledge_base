@@ -1,6 +1,7 @@
 // Exercises every control on the page in headless Chrome, at 390 px dark, 920 px light and 1400 px light: no console errors, no NaN or undefined in the visible tab's text,
-// no sideways scroll, error box hidden. Motion (2026-11-06 rules): both 3D stages and the five lab transports play by themselves once scrolled into view,
-// each stage steps to its last step with one list item per step, and with prefers-reduced-motion nothing moves by itself. The numbers the two step lists
+// no sideways scroll, error box hidden. Motion (2026-11-06 rules): both 3D stages play by themselves once scrolled into view, each steps to its last step
+// with one list item per step, and with prefers-reduced-motion nothing moves by itself. The five lab transports are long replays the reader drives
+// (the long-replay rule, case b): they never play by themselves, open on their informative frame, and play when the reader presses Play. The numbers the two step lists
 // quote are recomputed from the page's engine. At 1400 px every .s3sp is two columns and section 3 is full width.
 // Screenshots of each visual land in ../../.shots/el-*.png.
 // usage (from src/checks): node check_page.mjs [quick]
@@ -58,12 +59,18 @@ for(const [scheme,width] of (quick?[['dark',390]]:[['dark',390],['light',920],['
   for(const f of ['linear','table'])for(const t of ['td','mc'])for(const d of ['off','on']){await click('#rd-triF button[data-m="'+f+'"]');await click('#rd-triT button[data-m="'+t+'"]');await click('#rd-triD button[data-m="'+d+'"]');await probe('triad '+f+' '+t+' '+d)}
   await click('#rd-triF button[data-m="linear"]');await click('#rd-triT button[data-m="td"]');await click('#rd-triD button[data-m="off"]');await shot('#rd-triad','triad');
   await click('#rd-triT button[data-m="mc"]');await shot('#rd-triad','triad-mc');await click('#rd-triT button[data-m="td"]');
-  // every lab transport plays by itself once at least half of it is in view (2026-11-06)
+  // the lab transports are widgets (long-replay rule, case b): no autoplay, an informative opening frame, Play plays and a step stops it
   await p.$$eval('#t-read details',ds=>ds.forEach(d=>d.open=true));await probe('details open');
+  const OPEN={'lb-rw':'episode 10 of 100','mx':'episode 100 of 300','is':'episode 200 of 200','lb-cl':'episode 500 of 500'};
   for(const [card,pid] of [['lb-rw','lb-rw'],['lb-nl','lb-nl'],['lb-cl','lb-cl'],['mx-run','mx'],['is-bj','is']]){
-    await p.$eval('#'+card,e=>e.scrollIntoView({block:'start'}));await sleep(1200);
-    const on=await p.$eval('#'+pid+'-play',b=>b.getAttribute('aria-pressed')==='true'&&/Pause/.test(b.textContent));
-    if(!on){fails++;say('FAIL',scheme,width,card,'transport does not play by itself')}
+    await p.$eval('#'+card,e=>e.scrollIntoView({block:'start'}));await sleep(1500);
+    const r=await p.evaluate(pid=>{const b=document.getElementById(pid+'-play');return{on:b.getAttribute('aria-pressed')==='true',fn:document.getElementById(pid+'-fn').textContent,cap:(document.getElementById(pid+'-cap')||{}).textContent||''}},pid);
+    if(r.on){fails++;say('FAIL',scheme,width,card,'transport plays by itself')}
+    if(OPEN[pid]&&r.fn!==OPEN[pid]){fails++;say('FAIL',scheme,width,card,'opening frame',r.fn,'expected',OPEN[pid])}
+    if(pid==='lb-nl'&&!/TD\(λ\)/.test(r.cap)){fails++;say('FAIL',scheme,width,card,'does not open on the last step of the walk',r.cap)}
+    if(pid!=='lb-cl'&&pid!=='is'){await p.$eval('#'+pid+'-play',e=>e.click());await sleep(500);
+      const on=await p.evaluate((pid,fn)=>{const b=document.getElementById(pid+'-play');return(b.getAttribute('aria-pressed')==='true'&&/Pause/.test(b.textContent))||document.getElementById(pid+'-fn').textContent!==fn},pid,r.fn);   // playing, or already played its few remaining frames
+      if(!on){fails++;say('FAIL',scheme,width,card,'Play does not play')}}
     await p.$eval('#'+pid+'-fwd',e=>e.click());await sleep(300);
     const off=await p.$eval('#'+pid+'-play',b=>b.getAttribute('aria-pressed')==='false');if(!off){fails++;say('FAIL',scheme,width,card,'a step does not stop it')}}
   // the split layout at 1400 px: two columns where a section has a visual, full width where it has none

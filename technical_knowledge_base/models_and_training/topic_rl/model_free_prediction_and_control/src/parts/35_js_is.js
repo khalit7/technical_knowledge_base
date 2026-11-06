@@ -21,7 +21,7 @@ function draw(i){const F=S.F;if(i===0){$('is-ep').innerHTML='No episodes yet. Bo
   else{const e=F[i-1];t=e.rho===0?'This episode contains a decision &pi; would never make, so it counts for nothing in either sum; ordinary importance sampling still divides by one more episode.':'Every decision matched &pi;, so this return enters both sums with weight '+e.rho+'. Ordinary importance sampling can overshoot (a weight of '+e.rho+' on one return); weighted importance sampling is a weighted average of returns, so it always stays between '+MI+'1 and 1.'}
   $('is-cap').innerHTML=t}
 let A=null;
-function initAnim(){S.F=M.bjTrace(S.seed,TE);A=U.anim({p:'is',sec,n:()=>TE+1,speeds:[['slow',2],['normal',6],['fast',25]],def:1,draw,label:i=>'episode '+i+' of '+TE,scrubLabel:'Episode'});A.show()}
+function initAnim(){S.F=M.bjTrace(S.seed,TE);A=U.anim({p:'is',sec,n:()=>TE+1,speeds:[['slow',2],['normal',6],['fast',25]],def:1,draw,label:i=>'episode '+i+' of '+TE,scrubLabel:'Episode'});A.i=TE;A.show()}   // opens on the whole run of 200 episodes
 // ---------- Figure 5.3 ----------
 let job=null;const key=()=>S.runs+'|'+S.seed;
 function run(){const k=key();if(S.res[k]){plot();checks();return}if(job)job.cancel=true;$('is-chk').innerHTML='<li><span class="lb-in">•</span><span>running '+S.runs+' runs of 10,000 episodes...</span></li>';
