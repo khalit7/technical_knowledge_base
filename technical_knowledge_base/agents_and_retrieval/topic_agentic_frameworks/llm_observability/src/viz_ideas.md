@@ -30,3 +30,8 @@ A pattern for "replay one recorded run through N instrumentations": recording mo
 - Built: hero (trace tree plus span path, static, structure); token accounting to scale (static, the misconception "input_tokens is the input"); Langfuse stack (static, structure); eval loop (static, process with a cycle, a stepper would add nothing); real image of Langfuse's trace view (a real UI the reader may not have seen).
 - Moved inline: the Pipeline lab's simulator, cost table and configs (closed blocks in sections 7, 6, 8).
 - Rejected: an animated span-arrival hero (the change over time is not the point at the top); a separate instrumentation diagram in section 3 (the "Auto spans" against "Agent trace" toggle in section 1 already shows it).
+
+## 2026-11-06 rollout
+- Built (3D, renderer v2): Fig. 1 the trace in depth and its path to collector, backend and evaluator (replaces the static hero; the span-arrival hero rejected on 2026-10-24 is not this: the steps are the structure, built one kind of span at a time, then the path); Fig. 2 the Langfuse stack with memory as height; Fig. 3 the eval loop with the real scores as bars.
+- Changed: the three-views stepper became a widget (15 operations, long-replay rule case b); the sampling timeline became four explained stretches per setup.
+- Considered and kept 2D: the three-process trace as processes stacked in depth (a waterfall reads its 49 spans better flat); the redaction policies as a gate the span passes (the point is which attribute text survives, which is text); tail sampling as a buffer filling (arrival time against decision time is an axis).

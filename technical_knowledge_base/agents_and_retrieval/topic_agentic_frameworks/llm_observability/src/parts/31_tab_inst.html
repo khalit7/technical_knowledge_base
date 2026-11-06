@@ -11,8 +11,19 @@
 #t-inst .y{color:var(--good);font-weight:700}#t-inst .n{color:var(--mute)}
 #t-inst td.av{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;overflow-wrap:anywhere}
 </style>
+<div class="s3sp"><div class="s3L">
 <h2>One run, eight instrumentations</h2>
-<p>The recorded local-model run of the running example (<span class="fobs-v" data-v="run.n"></span> model calls, 7 tool calls), replayed byte for byte from a small server that answers with the recorded responses, through the same Python loop instrumented eight ways. Tools ran for real on a fresh copy of the repository each time, so results were identical. Every span was written to a file by an extra exporter and sent to the self-hosted Langfuse. Pick a variant, then a span. How this fits together is in the {{Reading|#t-read}} tab, sections 2 to 4.</p>
+<p>The recorded local-model run of the running example (<span class="fobs-v" data-v="run.n"></span> model calls, 7 tool calls), replayed byte for byte from a small server that answers with the recorded responses, through the same Python loop instrumented eight ways. Tools ran for real on a fresh copy of the repository each time, so results were identical. Every span was written to a file by an extra exporter and sent to the self-hosted Langfuse. Pick a variant beside this text to see its spans on one time axis, then a span below. How this fits together is in the {{Reading|#t-read}} tab, sections 2 to 4.</p>
+<h3>Findings</h3>
+<ul>
+<li>Only the hand-written version and Pydantic AI produced one trace with an <code>invoke_agent</code> root and <code>execute_tool</code> children; Langfuse then typed them as agent, generation and tool observations.</li>
+<li>openai-v2 2.4b0 misses the required <code>gen_ai.provider.name</code> (it writes the older <code>gen_ai.system</code>) and has no content by default; with its content switch on, the messages went to log events rather than span attributes, which a traces-only backend never receives.</li>
+<li>OpenLLMetry wrote the newer GenAI names, including <code>gen_ai.usage.cache_read.input_tokens</code>, plus its own extras (<code>gen_ai.openai.api_base</code>, the server's <code>system_fingerprint</code>, which here named the server's OS version).</li>
+<li>Pydantic AI put run totals on its agent span as <code>gen_ai.aggregated_usage.*</code>, so a backend summing <code>gen_ai.usage.*</code> over all spans does not double count, and records the full message history on the agent span (<code>pydantic_ai.all_messages</code>).</li>
+</ul>
+<div class="deepnote"><b>Reproduce.</b> <code>src/code/agent.py MODE</code> and <code>agent_pai.py</code> against <code>replay.py</code> serving the recorded exchanges (redacted copy in <code>recordings/local_run_exchanges.jsonl</code>); <code>run_variants.sh</code> runs them all; <code>compare.py</code> classifies the spans; <code>lf_fetch.py</code> reads Langfuse back.</div>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="fobs-vb" id="fobs-i-pick" role="group" aria-label="Variant"></div>
 <div class="out" id="fobs-i-stats"></div>
 <div class="card">
@@ -20,6 +31,7 @@
 <div id="fobs-i-wf"></div>
 <div class="small mute" id="fobs-i-wfnote"></div>
 </div>
+</div></div></div>
 <div class="fobs-two">
 <div><h3>Spans</h3><div class="fobs-sp" id="fobs-i-list"></div></div>
 <div><h3>Attributes of the selected span</h3><div class="small" id="fobs-i-head"></div><div class="tw"><table id="fobs-i-attrs"></table></div></div>
@@ -31,12 +43,4 @@
 <p class="small mute">First model-call span of each variant. OpenInference and Langfuse's client use their own names for the same facts (<code>llm.model_name</code>, <code>llm.token_count.prompt</code>; <code>langfuse.observation.model.name</code>, <code>langfuse.observation.usage_details</code>), which Langfuse and Phoenix both read; a backend that only knows the GenAI names would see nothing.</p>
 <h3>Where openai-v2 put content</h3>
 <div id="fobs-i-logs"></div>
-<h3>Findings</h3>
-<ul>
-<li>Only the hand-written version and Pydantic AI produced one trace with an <code>invoke_agent</code> root and <code>execute_tool</code> children; Langfuse then typed them as agent, generation and tool observations.</li>
-<li>openai-v2 2.4b0 misses the required <code>gen_ai.provider.name</code> (it writes the older <code>gen_ai.system</code>) and has no content by default; with its content switch on, the messages went to log events rather than span attributes, which a traces-only backend never receives.</li>
-<li>OpenLLMetry wrote the newer GenAI names, including <code>gen_ai.usage.cache_read.input_tokens</code>, plus its own extras (<code>gen_ai.openai.api_base</code>, the server's <code>system_fingerprint</code>, which here named the server's OS version).</li>
-<li>Pydantic AI put run totals on its agent span as <code>gen_ai.aggregated_usage.*</code>, so a backend summing <code>gen_ai.usage.*</code> over all spans does not double count, and records the full message history on the agent span (<code>pydantic_ai.all_messages</code>).</li>
-</ul>
-<div class="deepnote"><b>Reproduce.</b> <code>src/code/agent.py MODE</code> and <code>agent_pai.py</code> against <code>replay.py</code> serving the recorded exchanges (redacted copy in <code>recordings/local_run_exchanges.jsonl</code>); <code>run_variants.sh</code> runs them all; <code>compare.py</code> classifies the spans; <code>lf_fetch.py</code> reads Langfuse back.</div>
 </div>

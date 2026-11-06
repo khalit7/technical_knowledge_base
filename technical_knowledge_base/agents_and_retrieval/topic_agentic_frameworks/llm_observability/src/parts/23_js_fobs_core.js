@@ -20,6 +20,8 @@ window.FOBSU=(function(){
     'cost.result':'$'+D.cost.result,'cost.turns':D.cost.turns,'cost.exports':D.cost.metric.exports,
     'cost.in':fmt(D.cost.usage.input_tokens),'cost.cw':fmt(D.cost.usage.cache_creation_input_tokens),
     'cost.cr':fmt(D.cost.usage.cache_read_input_tokens),'cost.out':fmt(D.cost.usage.output_tokens),
+    'cost.mapped':'$'+D.cost.ways.mapped.total.toFixed(8),'cost.ttl':'$'+D.cost.ways.ttl.total.toFixed(7),'cost.metric':'$'+D.cost.metric.sum_usd,
+    'cost.gap':fmt(100*(1-D.cost.ways.mapped.total/D.cost.result),1),
     'cost.recomp':((D.cost.usage.input_tokens*1+D.cost.usage.cache_creation_input_tokens*2+D.cost.usage.cache_read_input_tokens*0.1+D.cost.usage.output_tokens*5)/1e6).toFixed(7),
     'red.loginBefore':Object.entries(lb).filter(([k])=>k!=='attr:user.email').reduce((a,[,v])=>a+v,0),
     'red.allowRemovedCC':D.red.allowlist.claude_code.summary_attrs['redaction.redacted.count'],
@@ -38,7 +40,8 @@ window.FOBSU=(function(){
   return {D,V,fill,fmt,wf,esc};
 })();
 
-// Section 1: one run, three views (logs, auto spans, agent trace)
+// Section 1: one run, three views (logs, auto spans, agent trace). A widget the reader drives (15 operations, the long-replay rule, case b):
+// it never plays by itself and opens on the finished run; the paragraph beside it explains it, the caption under it follows the step.
 (function(){
   const {D,fmt,wf,esc}=FOBSU;
   // operations in order with real model durations; tools drawn tiny
@@ -72,7 +75,7 @@ window.FOBSU=(function(){
       tree:'In the agent trace every call hangs under the run, in order, with its parent: cost and time add up per run.'}[mode];
     cap.innerHTML='<p class="t">Step '+(i+1)+' of '+ops.length+'</p><p>'+what+'</p><p class="small mute">'+lens+'</p>';
   }
-  const A=RD.anim({card:'fobs-a1',ctl:'fobs-a1-ctl',n:ops.length,draw,ms:1100,label:'Operation'});
+  const A=RD.anim({card:'fobs-a1',ctl:'fobs-a1-ctl',n:ops.length,draw,ms:1100,label:'Operation',auto:false,start:ops.length-1});
   RD.seg(document.getElementById('fobs-a1-mode'),m=>{mode=m;A.redraw()});
   RD.onResize(()=>A.redraw());
 })();

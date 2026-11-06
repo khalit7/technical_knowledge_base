@@ -44,6 +44,21 @@ for phrase in ["16% gap", "6.35 s into the replay", "only emitted 61 s", "33 s i
                "18 recorded runs", "two of the eight variants", "12 times in its log"]:
     ok(phrase in text, "prose phrase missing: " + phrase)
 
+# numbers written into the step lists of the 2026-11-06 stages and stretches
+run = D["run"]; c4 = [c for c in run if c["call"] == 4][0]
+ok(round(c4["secs"]) == 78 and c4["in"] == 859 and c4["cached"] == 739 and c4["out"] == 228, "call 4 numbers in Fig. 1")
+ok(min(c["in"] for c in run) == 424 and max(c["in"] for c in run) == 1545, "prompt growth 424 to 1,545 in Fig. 1")
+ok([len(c["tools"]) for c in run].count(0) == 1 and sum(len(c["tools"]) for c in run) == 7, "8 calls, 7 tools")
+first = D["samp"]["sent"][0][1]
+ok(first == 0.1 and sum(1 for x in D["samp"]["sent"] if x[1] <= first + 5) == 4, "four spans buffered by the 5 s decision")
+ok(round(samp["root_span_sent_at"]) == 29, "root arrives at 29 s")
+sc = {r["key"]: r["scores"] for r in D["scores"]["runs"]}
+ok([sc[k]["turns"] for k in ("manual", "pydantic_ai", "cc_default")] == [8, 8, 13] and round(sc["cc_default"]["cost_usd"], 4) == 0.0421, "scores in Fig. 3")
+for phrase in ["Four spans are buffered", "424 to 1,545 tokens", "859 in, 739 of them", "(8, 8 and 13)", "$0.0421 for the Claude run",
+               "web 1.11 GiB, worker 1.09 GiB, ClickHouse 25.12 1.20 GiB, Postgres 17 105 MiB, MinIO 183 MiB, Redis 7 16 MiB"]:
+    ok(phrase in text, "prose phrase missing: " + phrase)
+ok(D["stack"]["containers"]["redis 7"] == "16 MiB" and D["stack"]["containers"]["clickhouse 25.12"] == "1.20 GiB", "container memory")
+
 # private strings and em-dashes anywhere in the folder
 folder = os.path.dirname(H)
 for root, dirs, files in os.walk(folder):
@@ -61,6 +76,9 @@ for root, dirs, files in os.walk(folder):
         if chr(0x2014) in t:
             fails.append("em-dash in " + os.path.relpath(p, folder))
         found = [x for x in R.leaks(t) if not x.endswith("@mycompany.com")]  # a regex example quoted from the redaction README
+        # the login name and git identity are matched case-sensitively here: the skill templates (21_js_rd_common.js, 25_js_s3.js)
+        # cite the page owner by his capitalised first name, which is neither a path nor a login
+        found = [x for x in found if not (x in [R.LOGIN] + R.GIT and x not in t)]
         if found:
             fails.append(f"private string in {os.path.relpath(p, folder)} ({len(found)})")
 print("FAIL" if fails else "ok", *fails, sep="\n")

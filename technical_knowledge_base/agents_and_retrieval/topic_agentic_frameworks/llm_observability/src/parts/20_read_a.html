@@ -64,18 +64,29 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 #fobs-sim-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;margin:8px 0}
 #t-read .ok{color:var(--good);font-weight:600}#t-read .no{color:var(--bad);font-weight:600}
 #t-read select{max-width:100%}
+#fobs-sem .tw{max-height:min(60vh,520px);overflow-y:auto}
 </style>
 <nav class="nav" id="rd-nav"><a href="#rs0">The idea</a><a href="#rs1">1. Traces</a><a href="#rs2">2. GenAI conventions</a><a href="#rs3">3. Instrumenting</a><a href="#rs4">4. Langfuse</a><a href="#rs5">5. The tools</a><a href="#rs6">6. Cost</a><a href="#rs7">7. Sampling</a><a href="#rs8">8. Privacy</a><a href="#rs9">9. Evals in the loop</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rs0">
 <h2>The idea in one screen</h2>
 <p class="core">Record every agent run as <span class="hl">one trace</span>: a tree of timed spans, one for the run, one for each model call and one for each tool call. Everything else on this page (cost, sampling, redaction, scores) reads the attributes on those spans, so what you put on them decides what you can answer later.</p>
 <p>Why: a run's final answer does not say which step failed, cost too much or took too long. Observability means recording enough about every step, while it runs, to answer questions you did not think to ask beforehand.</p>
-<div class="hero" id="fobs-hero">
-<h4>One run, one tree; every later question reads its attributes</h4>
-<div class="fobs-svg" id="fobs-hero-svg"></div>
-<div class="cap">Top: the local run of the running example as an agent trace (8 model calls, 7 tool calls; four spans shown), with what each kind of span must carry and the section that uses it. Bottom: the path the spans take, and the question each stage answers: what happened (sections 1 to 3), what it cost (section 6), what we keep and what leaks (sections 7 and 8), whether it was good (section 9).</div>
-</div>
+<p class="sxh">Fig. 1, step by step: the local run of the running example (8 model calls, 7 tool calls), then the path its spans take</p>
+<ol class="sx" id="sx-hero">
+<li><b>One root span for the run.</b> <code>invoke_agent textstats-fixer</code> opens first and closes last; every span of the run hangs under it and shares its 128-bit trace id.</li>
+<li><b>A child span per model call.</b> Eight <code>chat</code> spans, each as long as the call took on the shared local server (call 4 waited 78 s) and as tall as its prompt: the context grows from 424 to 1,545 tokens as tool results pile up.</li>
+<li><b>A child span per tool call.</b> Seven <code>execute_tool</code> spans (list_files, read_file twice, edit_file twice, run_tests twice), each after the call that asked for it; milliseconds long, drawn at a minimum width. What happened: sections 1 to 3.</li>
+<li><b>Attributes carry the answers.</b> Up close, call 4's span: the model, its tokens by kind (859 in, 739 of them from the server's prompt cache, 228 out) and its 78 s. The root carries user, session and outcome. Content (prompts, tool arguments) is opt-in (sections 2 and 8).</li>
+<li><b>The exporter ships finished spans.</b> Batched over OTLP, to a collector or straight to a backend; who opens which spans is section 3.</li>
+<li><b>The collector samples and redacts.</b> A process you control keeps or drops whole traces and masks personal data before anything leaves your network: sections 7 and 8.</li>
+<li><b>The backend stores and prices.</b> Langfuse here: tokens and cost on every span, rolled up to the root; $0 for this run, correctly, as a local model has no price. What it cost: sections 4 to 6.</li>
+<li><b>Evaluators read traces back and write scores.</b> A rule wrote <code>tests_pass = 1</code> onto this trace; low scores feed a dataset that gates the next change (section 9).</li>
+</ol>
+</section>
+</div></div>
+<div id="rs0-more">
 <p><b>You need</b> spans, context propagation and head against tail sampling in general: {{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}} owns them. The parent root's section 7 and its {{Production stack|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab give the overview (one trace rendered and priced, a small eval gate). This page is the agent- and LLM-specific layer.</p>
 <dl class="terms">
 <dt>span</dt><dd>one timed operation: name, start and end, parent, status, attributes, events</dd>
@@ -95,25 +106,34 @@ pre.fobs-pre .cm{color:var(--mute)}pre.fobs-pre .hl{background:var(--hl)}pre.fob
 <li>Versions: Langfuse Python SDK 4.17.0, opentelemetry-sdk 1.45.1, opentelemetry-instrumentation-openai-v2 2.4b0 with opentelemetry-util-genai 0.4b0 (1.2b0 breaks its import), OpenLLMetry's opentelemetry-instrumentation-openai 0.62.4, openinference-instrumentation-openai 0.1.63, pydantic-ai-slim 2.54.0, openai 3.25.0, Claude Code 2.1.291 (Claude subscription, <code>--setting-sources project --strict-mcp-config --no-session-persistence</code>), mlx-community/Qwen3-4B-Instruct-2507-4bit on mlx-lm 0.32.0. Scripts, collector configurations, redacted recordings and data are in this page's <code>src/</code>.</li>
 </ul></div></details>
 <p class="small mute">Neighbours that own what this page only names: GPU counters, goodput and GPU-hour chargeback are on {{Observability and cost|n:3c65c17b0d0d818ebf79d1af4532f3ee}}; how to grade agent runs is on {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}}; gates, golden sets and online scoring budgets are on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}; judge design on {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}.</p>
-</section>
+</div>
 
+<div class="s3sp"><div class="s3L">
 <section id="rs1">
 <h2>1. Traces and spans</h2>
 <p><b>The problem.</b> The local run made <span class="fobs-v" data-v="run.n"></span> model calls and 7 tool calls in a loop. A log line per call gives a list that cannot say which model call asked for which tool, which calls belonged to which run when two runs interleave, or how long the run waited on the model against running tools.</p>
-<p><b>How a trace answers it.</b> Each span has a name, a start and end time, a <dfn>parent</dfn> span (none for the root), a <dfn>status</dfn> (unset, ok or error), <dfn>attributes</dfn> (key-value pairs such as the model name and token counts) and optional <dfn>events</dfn> (timestamped notes inside the span). The program creates spans through the OpenTelemetry API; an <dfn>exporter</dfn> ships finished spans over <dfn>OTLP</dfn> (the OpenTelemetry protocol) to a collector or straight to a <dfn>backend</dfn> that stores and draws them (Langfuse, Jaeger, Datadog and many others). Predict before stepping: what does a popular client auto-instrumentation give you for this run? Then step through the same recorded run three ways.</p>
-<div class="card" id="fobs-a1">
+<p><b>How a trace answers it.</b> Each span has a name, a start and end time, a <dfn>parent</dfn> span (none for the root), a <dfn>status</dfn> (unset, ok or error), <dfn>attributes</dfn> (key-value pairs such as the model name and token counts) and optional <dfn>events</dfn> (timestamped notes inside the span). The program creates spans through the OpenTelemetry API; an <dfn>exporter</dfn> ships finished spans over <dfn>OTLP</dfn> (the OpenTelemetry protocol) to a collector or straight to a <dfn>backend</dfn> that stores and draws them (Langfuse, Jaeger, Datadog and many others).</p>
+<p><b>The same recorded run, three ways</b> (beside this text). Predict first: what does a popular client auto-instrumentation give you for this run? The card opens on the finished run; switch the view, then step through the same recorded run three ways, operation by operation. <b>Logs</b>: print statements. <b>Auto spans</b>: one span per model call, each in a trace of its own. <b>Agent trace</b>: one root span for the run, a child for each model call and each tool call.</p>
+<p class="small mute">Timings are the real run's: each model call's bar is how long the shared local server took to answer it (other agents' load varied, so call 4 took 78 s). Tool calls took milliseconds and are drawn at a minimum width. Token counts are the server's.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="fobs-a1">
 <div class="seg" id="fobs-a1-mode" role="group" aria-label="View"><button data-m="logs">Logs</button><button data-m="flat">Auto spans</button><button data-m="tree" class="on">Agent trace</button></div>
 <div id="fobs-a1-view"></div>
 <div class="an-ctl" id="fobs-a1-ctl"></div>
 <div class="an-cap" id="fobs-a1-cap"></div>
-</div>
-<p class="small mute">Logs: print statements. Auto spans: one span per model call, each in a trace of its own. Agent trace: one root span for the run, a child for each model call and each tool call. Timings are the real run's: each model call's bar is how long the shared local server took to answer it (other agents' load varied, so call 4 took 78 s). Tool calls took milliseconds and are drawn at a minimum width. Token counts are the server's.</p>
-<p><b>Across processes.</b> W3C Trace Context carries the trace id and the parent span id from one process to the next in a header, <code>traceparent</code>. Claude Code reads it from a <code>TRACEPARENT</code> environment variable in <code>claude -p</code> and Agent SDK sessions, and hands its own context to every Bash subprocess in the same variable ({{Claude Code monitoring docs|https://code.claude.com/docs/en/monitoring-usage}}). A small "application" opened a span for a ticket and started Claude Code under it; a python3 wrapper on the PATH turned the inherited <code>TRACEPARENT</code> into a span for the test runner <span class="meas">MEASURED</span>:</p>
-<div class="card" id="fobs-x3">
-<div class="fobs-legend" id="fobs-x3-leg"></div>
-<div id="fobs-x3-wf"></div>
-<div class="small mute" id="fobs-x3-note"></div>
-</div>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="rs1x">
+<p><b>Across processes.</b> W3C Trace Context carries the trace id and the parent span id from one process to the next in a header, <code>traceparent</code>. Claude Code reads it from a <code>TRACEPARENT</code> environment variable in <code>claude -p</code> and Agent SDK sessions, and hands its own context to every Bash subprocess in the same variable ({{Claude Code monitoring docs|https://code.claude.com/docs/en/monitoring-usage}}). A small "application" opened a span for a ticket and started Claude Code under it; a python3 wrapper on the PATH turned the inherited <code>TRACEPARENT</code> into a span for the test runner <span class="meas">MEASURED</span> (beside this text).</p>
 <p>One trace id, three services, <span class="fobs-v" data-v="cc.nspans"></span> spans: the ticket and the agent invocation from the application, Claude Code's interaction, model requests and tool spans, and two <code>process tests/test_core.py</code> spans from the test runner, each under the <code>claude_code.tool.execution</code> span of the Bash call that started it. No shared database or request id; the context travelled in an environment variable. The header byte by byte, and what goes wrong when a hop drops it: {{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}.</p>
 <details class="drill"><summary><b>Predict, then open.</b> The Claude Code run fixed both bugs and its result says success. Yet two of its spans have status ERROR. What were they?</summary><div>A <code>Read</code> of a directory (<code>EISDIR</code>, at 10.6 s) and a test run that exited non-zero (<code>ShellError</code>, at 19.0 s). Both are normal in an agent: a failed test run is how the agent learns what is wrong. Span status describes one operation, not the run's outcome. Section 7 shows what this does to error-based sampling. When everything fails, put a typed error on the root span, with the same trace id the user's request had, so the incident is one query away.</div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="fobs-x3">
+<h4 style="margin:0 0 4px;font-size:14.5px">One trace id across three processes; the test runner hangs under the Bash call that started it</h4>
+<div class="fobs-legend" id="fobs-x3-leg"></div>
+<div id="fobs-x3-wf"></div>
+<div class="small mute" id="fobs-x3-note"></div>
+</div></div></div></div>

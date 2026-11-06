@@ -1,15 +1,35 @@
 
 <section id="rs7">
-<h2>7. Sampling agent traces</h2>
-<p><b>The problem.</b> Keeping every trace costs storage and money, and with content on a single run of our small task was 30 to 100 KB of attributes. <dfn>Sampling</dfn> keeps a subset. <dfn>Head sampling</dfn> decides when the root span starts (usually "keep 10% of trace ids") and is cheap, but cannot know whether the run will fail. <dfn>Tail sampling</dfn> decides after seeing the spans, so it can keep every failure; in OpenTelemetry it is the collector's <code>tail_sampling</code> processor, which holds a trace's spans in memory for <code>decision_wait</code> (30 s by default) after the first one arrives, evaluates its policies once, and then forwards or drops ({{processor README at v0.162.0|https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.162.0/processor/tailsamplingprocessor}}). The general mechanics are on {{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}; here is what is different about agents.</p>
-<p><b>Agent traces break three assumptions.</b> They are long (minutes, hours for some harnesses), so a fixed wait decides before the run ends. Their root span ends last, so the outcome arrives last. And their spans fail routinely: our successful Claude Code run already had two ERROR spans (section 1). We replayed that run's 49 spans into a real collector at their recorded end times (29 s from first to last), after marking its final tool execution and its root as failed, through four tail-sampling setups that all keep "any trace with an ERROR span" <span class="meas">MEASURED</span>:</p>
-<div class="card" id="fobs-a7">
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="fobs-a7">
+<h4 style="margin:0 0 6px;font-size:14.5px">The same 49 spans, four collector setups: only waiting for the root keeps the failure without holding it for a minute</h4>
 <div class="seg" id="fobs-a7-mode" role="group" aria-label="Setup"><button data-m="short" class="on">decision_wait 5 s</button><button data-m="short_cached">5 s + decision cache</button><button data-m="long">60 s</button><button data-m="root">wait for the root</button></div>
 <div id="fobs-a7-view"></div>
 <div class="an-ctl" id="fobs-a7-ctl"></div>
-<div class="an-cap" id="fobs-a7-cap"></div>
-</div>
-<p>With a 5-second wait the collector decided before the first error span arrived (6.35 s into the replay) and dropped the trace; every later span, the failures included, followed that decision. With a 60-second wait the whole trace was kept, but only emitted 61 s after it started, and every trace in flight sits in memory that long. The setting made for this case is <code>decision_wait_after_root_received</code>: wait as long as you like (300 s here), but decide shortly (2 s) after the root span arrives. It kept the trace and emitted it 33 s in, 4 s after the root.</p>
+</div></div><div class="s3L">
+<h2>7. Sampling agent traces</h2>
+<p><b>The problem.</b> Keeping every trace costs storage and money, and with content on a single run of our small task was 30 to 100 KB of attributes. <dfn>Sampling</dfn> keeps a subset. <dfn>Head sampling</dfn> decides when the root span starts (usually "keep 10% of trace ids") and is cheap, but cannot know whether the run will fail. <dfn>Tail sampling</dfn> decides after seeing the spans, so it can keep every failure; in OpenTelemetry it is the collector's <code>tail_sampling</code> processor, which holds a trace's spans in memory for <code>decision_wait</code> (30 s by default) after the first one arrives, evaluates its policies once, and then forwards or drops ({{processor README at v0.162.0|https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.162.0/processor/tailsamplingprocessor}}). The general mechanics are on {{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}; here is what is different about agents.</p>
+<p><b>Agent traces break three assumptions.</b> They are long (minutes, hours for some harnesses), so a fixed wait decides before the run ends. Their root span ends last, so the outcome arrives last. And their spans fail routinely: our successful Claude Code run already had two ERROR spans (section 1). We replayed that run's 49 spans into a real collector at their recorded end times (29 s from first to last), after marking its final tool execution and its root as failed, through four tail-sampling setups that all keep "any trace with an ERROR span" <span class="meas">MEASURED</span>:</p>
+<ol class="sx" id="sx-samp-short">
+<li><b>The first span arrives (0.1 s).</b> The collector starts this trace's clock: with <code>decision_wait</code> at 5 s it will decide at 5.1 s, on whatever has arrived by then.</li>
+<li><b>Decision at 5 s, with no error in view.</b> Four spans are buffered, all OK, so "any span ERROR" says drop. A decision cache (1,000 sampled and 1,000 non-sampled trace ids remembered) changes nothing here.</li>
+<li><b>The first ERROR arrives too late.</b> With a 5-second wait the collector decided before the first error span arrived (6.35 s into the replay) and dropped the trace.</li>
+<li><b>The failed root is dropped too.</b> Every later span, the failures included, followed that decision: 0 of 49 kept.</li>
+</ol>
+<ol class="sx" id="sx-samp-long" hidden>
+<li><b>First span (0.1 s).</b> With a 60-second wait the decision is due at 60.1 s.</li>
+<li><b>First ERROR buffered (6.35 s).</b> Nothing decided; every span held in memory.</li>
+<li><b>Failed root arrives (29 s).</b> The run is over; the trace is held half a minute more.</li>
+<li><b>Decision at 60 s: kept.</b> With a 60-second wait the whole trace was kept, but only emitted 61 s after it started, and every trace in flight sits in memory that long.</li>
+</ol>
+<ol class="sx" id="sx-samp-root" hidden>
+<li><b>First span (0.1 s).</b> <code>decision_wait</code> is 300 s, so the wait itself never decides.</li>
+<li><b>First ERROR buffered (6.35 s).</b> Held, as with the 60 s wait.</li>
+<li><b>Root arrives (29 s).</b> It starts a 2 s timer (<code>decision_wait_after_root_received</code>).</li>
+<li><b>Decision 2 s after the root: kept.</b> It kept the trace and emitted it 33 s in, 4 s after the root.</li>
+</ol>
+<p class="small mute">Ticks on the timeline: spans as they arrive (red: status ERROR; the last two were marked failed by us). Measured on otelcol-contrib 0.162.0.</p>
+<p>The setting made for this case is <code>decision_wait_after_root_received</code>: wait as long as you like (300 s here), but decide shortly (2 s) after the root span arrives.</p>
+</div></div>
 <p><b>And the policy must look at the run, not at any span.</b> We replayed the same trace twice more, once marked failed and once exactly as recorded (a success with two recoverable errors), through two policies that both wait for the root <span class="meas">MEASURED</span>:</p>
 <div class="tw"><table>
 <thead><tr><th>Policy</th><th>Failed run</th><th>Successful run</th></tr></thead>
@@ -38,6 +58,7 @@
 </section>
 
 <section id="rs8">
+<div class="s3sp"><div class="s3L">
 <h2>8. Personal data and secrets in traces</h2>
 <p><b>The problem.</b> A trace with content holds every prompt, every tool argument and every tool result. In an agent that means customer messages, file contents, shell output and the paths of the machine it ran on, copied to a second system with its own access rules and retention. Prompts were opt-in in the conventions for exactly this reason.</p>
 <p><b>What leaked in our runs</b> <span class="meas">MEASURED</span>:</p>
@@ -46,12 +67,14 @@
 <li><b>Claude Code by default</b> redacts the prompt (<code>user_prompt</code> = <code>&lt;REDACTED&gt;</code>), tool inputs and tool output, but puts the account identity on every span: <code>user.email</code>, <code>user.account_uuid</code>, <code>user.id</code> and <code>organization.id</code> were on all <span class="fobs-v" data-v="cc.ccspans"></span> of its spans. The docs say <code>user.email</code> and <code>organization.id</code> are "always included when available"; the <code>OTEL_METRICS_INCLUDE_*</code> switches cover only session id, account uuid, version, entrypoint and repository (see <code>src/inputs/research.md</code>). If a trace leaves the developer's machine, that is personal data in every span.</li>
 <li><b>With Claude Code's content switches on</b> (<code>OTEL_LOG_USER_PROMPTS=1</code>, <code>OTEL_LOG_TOOL_DETAILS=1</code>, <code>OTEL_LOG_TOOL_CONTENT=1</code>), the prompt with the customer's e-mail appeared on the interaction span, file paths on tool spans, and <span class="fobs-v" data-v="cc.contentEvents"></span> <code>tool.output</code> span events held file contents, diffs and shell output. The operating-system login name appeared <span class="fobs-v" data-v="red.loginBefore"></span> times outside the identity attributes: in absolute file paths (the working folder sits under the home folder) and in the output of an <code>ls -la</code> the agent ran, where the file-owner column is the login name. The content-on trace carried <span class="fobs-v" data-v="cc.contentGrowth"></span>% more attribute bytes than the default run's (52 spans against 49).</li>
 </ul>
-<p><b>Where to remove it, in order of preference.</b> (1) Do not capture it: leave content off in production and turn it on per environment. (2) Mask in the SDK before export (Langfuse's <code>mask_otel_spans</code>, a custom span processor), which only covers that SDK's spans. (3) Redact in a collector you control, before data leaves your network, which covers every service at once. We measured three collector policies with the <code>redaction</code> processor (beta for traces) on the content-on Claude Code trace and on the content-on hand-instrumented trace:</p>
-<div class="card" id="fobs-a8">
+<p><b>Where to remove it, in order of preference.</b> (1) Do not capture it: leave content off in production and turn it on per environment. (2) Mask in the SDK before export (Langfuse's <code>mask_otel_spans</code>, a custom span processor), which only covers that SDK's spans. (3) Redact in a collector you control, before data leaves your network, which covers every service at once. We measured three collector policies with the <code>redaction</code> processor (beta for traces) on the content-on Claude Code trace and on the content-on hand-instrumented trace (beside this text; pick a policy):</p>
+<p><b>What the measurement says.</b> Masking by pattern caught every e-mail, the account ids and every path, in span attributes and in span event attributes alike, and still missed the login name in <code>ls -la</code> output, because no pattern described it. A keyed hash (<code>hmac-sha256</code>) does the same job while keeping values joinable: the same e-mail always becomes the same digest, so you can still count one customer's runs. The allow-list of keys removed everything not on the list (<span class="fobs-v" data-v="red.allowRemovedCC"></span> attributes on the Claude Code trace) and left nothing to leak, at the price of the content you wanted to debug with. A deny-list fails open on whatever you did not think of; an allow-list fails closed. In production, use the allow-list and keep full content only where access is controlled and retention is short. The attack side of the same problem (prompt injection, exfiltration through tools) is on {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="fobs-a8">
+<h4 style="margin:0 0 6px;font-size:14.5px">Two content-on spans through three collector policies: only the allow-list leaves nothing</h4>
 <div class="seg" id="fobs-a8-mode" role="group" aria-label="Policy"><button data-m="before" class="on">No redaction</button><button data-m="mask">Mask patterns</button><button data-m="hash">Keyed hash</button><button data-m="allowlist">Allow-list of keys</button></div>
 <div id="fobs-a8-view"></div>
-</div>
-<p><b>What the measurement says.</b> Masking by pattern caught every e-mail, the account ids and every path, in span attributes and in span event attributes alike, and still missed the login name in <code>ls -la</code> output, because no pattern described it. A keyed hash (<code>hmac-sha256</code>) does the same job while keeping values joinable: the same e-mail always becomes the same digest, so you can still count one customer's runs. The allow-list of keys removed everything not on the list (<span class="fobs-v" data-v="red.allowRemovedCC"></span> attributes on the Claude Code trace) and left nothing to leak, at the price of the content you wanted to debug with. A deny-list fails open on whatever you did not think of; an allow-list fails closed. In production, use the allow-list and keep full content only where access is controlled and retention is short. The attack side of the same problem (prompt injection, exfiltration through tools) is on {{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}.</p>
+</div></div></div></div>
 <details class="dp"><summary>The collector configurations used (cost mapping, redaction, tail sampling), to copy</summary><div class="b">
 <p>Collector <code>otel/opentelemetry-collector-contrib:0.162.0</code> in Docker. Each configuration passed <code>otelcol-contrib validate</code> before use. Two lessons from writing them: an <code>hmac_key</code> shorter than 32 bytes is rejected for <code>hmac-sha256</code>; and an OTTL condition that matches nothing does not fail, so test policies with a trace you know should match.</p>
 <div class="seg" id="fobs-cfg-pick" role="group" aria-label="Configuration"><button data-m="to_langfuse" class="on">Cost mapping</button><button data-m="redact">Redaction</button><button data-m="sampling">Four waits</button><button data-m="sampling2">Two policies</button></div>
@@ -60,13 +83,23 @@
 </section>
 
 <section id="rs9">
+<div class="s3sp"><div class="s3R"><div id="stg-loop"></div></div><div class="s3L">
 <h2>9. Evals in the loop</h2>
 <p><b>The idea.</b> Traces are the raw material for evaluation. <dfn>Online evaluation</dfn> scores a sample of production traces as they arrive, with code checks where they can decide and a model judge where they cannot, and writes the result back onto the trace as a <dfn>score</dfn>. <dfn>Offline evaluation</dfn> reruns a fixed <dfn>dataset</dfn> of tasks before every change; interesting production traces get promoted into that dataset. The same trace store serves debugging, monitoring and regression testing, which is the main argument for an integrated platform over plain OpenTelemetry.</p>
-<div class="fig" id="fobs-loop"><h4>One trace store serves debugging, monitoring and the regression gate</h4><div class="fobs-svg" id="fobs-loop-svg"></div><div class="cap small mute">Online: a sample of production traces is scored as it arrives and the score is written back onto the trace. Offline: failures are promoted into a dataset that every prompt, model, tool or harness change must pass before it ships, which produces new traces.</div></div>
 <p><b>What we ran.</b> A 55-line scorer read each run's outcome and wrote four rule-based scores to Langfuse through its API (<code>tests_pass</code>, <code>summary_complete</code>, <code>turns</code>, and <code>cost_usd</code> for the Claude run), then read <span class="fobs-v" data-v="scores.n"></span> scores back from <code>/api/public/v3/scores</code>. We also created a dataset and promoted the local run's trace into it as an item with <code>sourceTraceId</code> set and an expected output <span class="meas">MEASURED</span>.</p>
+<p class="sxh">Fig. 3, step by step: one trace store serves debugging, monitoring and the regression gate</p>
+<ol class="sx" id="sx-loop">
+<li><b>Traces in one store.</b> The three runs we scored: the hand-instrumented local run, the same run through Pydantic AI, and the Claude Code run, each a trace under its root span.</li>
+<li><b>The evaluator reads each run.</b> Online, a sample of production traces is scored as it arrives; here a rule-based scorer read every run's outcome: test result, final message, turns and cost.</li>
+<li><b>Scores are written back onto the traces.</b> Four per run, drawn as bars: <code>tests_pass</code> and <code>summary_complete</code> (0 or 1), <code>turns</code> (8, 8 and 13) and <code>cost_usd</code> ($0.0421 for the Claude run; none for the local model). Eleven scores, read back from the API.</li>
+<li><b>A pass that should have been a fail.</b> The local run's <code>summary_complete</code> is 1, yet its summary names only one of its two fixes (the box below). A score is only as good as the check behind it.</li>
+<li><b>Failures are promoted into a dataset.</b> The local run's trace became a dataset item, with <code>sourceTraceId</code> pointing back at it and an expected output.</li>
+<li><b>Every change passes the gate.</b> Offline: every prompt, model, tool or harness change must pass the dataset before it ships, which produces new traces, which are sampled and scored again.</li>
+</ol>
 <div class="tw"><table id="fobs-sc-tab"></table></div>
 <div class="co warn"><div class="t">A rule that passed a summary it should have failed</div>The local model fixed both bugs but its final message describes only the <code>tokenize</code> change; it mentions the second one only as a test name ("including the apostrophes test, ties handling"). Our keyword rule looked for "tie" and scored the summary complete. Cheap checks drift from what they mean; check them against labelled cases (here: the diff contains two changes, the summary names one), and use a judge or a stricter structured check where a keyword cannot decide.</div>
 <p><b>Making it a loop.</b> Sample live traces for scoring (vendor docs suggest 1 to 10% for high volume, more for critical paths, and the judge bill is a budget line: figures on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}); alert on score rates and on the agent metrics from section 2 (model calls and tool calls per run, cost per run, p95 duration); promote failures to the dataset; gate every prompt, model, tool or harness change on that dataset. The parent's {{Production stack|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} tab runs a small gate over 18 recorded runs. How to grade a trajectory rather than a final answer: {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}}; judge design and biases: {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}; alert design: {{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}. Version prompts outside code and promote them by label after the gate; with <code>gen_ai.prompt.name</code> and <code>gen_ai.prompt.version</code> on every model span, a regression can be traced to a prompt version (Langfuse's labels in section 4; gates on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</p>
+</div></div>
 </section>
 
 

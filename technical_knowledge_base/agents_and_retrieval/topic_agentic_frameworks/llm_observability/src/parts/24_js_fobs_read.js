@@ -50,7 +50,7 @@
     {t:'2. Renamed to the GenAI conventions',d:'A collector transform (OTTL) wrote gen_ai.usage.input_tokens as the sum of all three input kinds, plus cache_read and cache_write. Langfuse split them into buckets and priced them: $'+C.ways.mapped.total.toFixed(8)+', '+fmt(100*(1-C.ways.mapped.total/C.result),1)+'% short. The cache writes were priced at the 5-minute rate.',rows:['ref','raw','mapped']},
     {t:'3. Cache lifetime made explicit',d:'A second transform passed the counts in Langfuse\'s own usage_details attribute with the key input_cache_creation_1h. Langfuse now prices the writes at 2x: $'+C.ways.ttl.total.toFixed(7)+', equal to the reference.',rows:['ref','raw','mapped','ttl']},
     {t:'4. A third source agrees',d:'Claude Code\'s own claude_code.cost.usage metric, summed over its '+C.metric.exports+' delta exports, is $'+C.metric.sum_usd+'. Three independent totals, one number.',rows:['ref','raw','mapped','ttl','metric']}];
-  const view=document.getElementById('fobs-a6-view'),cap=document.getElementById('fobs-a6-cap');
+  const view=document.getElementById('fobs-a6-view');
   function bar(label,segs,total,note){const w=s=>(s/max*100).toFixed(2)+'%';
     return '<div class="fobs-cost"><div>'+label+'</div><div class="tk">'+segs.map(([k,v])=>'<span style="width:'+w(v)+';background:'+(KC[k]||'var(--mute)')+'" title="'+(KN[k]||k)+': $'+v.toFixed(6)+'"></span>').join('')+'</div><div class="v">$'+total.toFixed(total?5:0)+'</div></div>'+(note?'<div class="small mute" style="margin:-2px 0 6px">'+note+'</div>':'')}
   function draw(i){const st=steps[i];let h='';
@@ -60,37 +60,42 @@
       else if(r==='metric')h+=bar('Cost metric',[['output',C.metric.sum_usd]],C.metric.sum_usd,'one total, no breakdown by kind');
       else{const p=parts(r),ord=['input','input_cached_tokens','input_cache_creation','input_cache_creation_1h','output'];h+=bar({raw:'Langfuse, raw',mapped:'Langfuse, GenAI names',ttl:'Langfuse, 1 h key'}[r],ord.filter(k=>k in p).map(k=>[k,p[k]]),C.ways[r].total)}});
     h+='<div class="fobs-legend">'+Object.entries({input:1,input_cached_tokens:1,input_cache_creation:1,input_cache_creation_1h:1,output:1}).map(([k])=>'<span><i style="background:'+KC[k]+'"></i>'+KN[k]+'</span>').join('')+'</div>';
-    view.innerHTML=h;cap.innerHTML='<p class="t">'+st.t+'</p><p>'+st.d+'</p>'}
-  const A=RD.anim({card:'fobs-a6',ctl:'fobs-a6-ctl',n:steps.length,draw,ms:2600,label:'Step'});
+    view.innerHTML=h}
+  // the step list on the left (sx-cost) explains each step; steps[].t and .d are kept as the bars' reference
+  RD.anim({card:'fobs-a6',ctl:'fobs-a6-ctl',n:steps.length,draw,ms:4800,label:'Step',list:'sx-cost'});
 })();
 
-// Section 7: tail sampling on a timeline
+// Section 7: tail sampling on a timeline, in four explained stretches per setup (step lists sx-samp-*); each stretch plays the
+// spans arriving between its start and end time, unless motion is reduced or the reader jumped
 (function(){
-  const {D,esc}=FOBSU;const S=D.samp.sent,E=D.samp.emitted_seconds_after_replay_start;
-  const first=S[0][1],rootAt=S[S.length-1][1];
-  const CF={short:{dec:first+5,kept:D.samp.configs.short.kept,emit:null,lab:'decision_wait 5 s, no decision cache'},
-    short_cached:{dec:first+5,kept:D.samp.configs.short_cached.kept,emit:null,lab:'decision_wait 5 s, decision cache 1,000 / 1,000'},
-    long:{dec:first+60,kept:D.samp.configs.long.kept,emit:E.long,lab:'decision_wait 60 s'},
-    root:{dec:rootAt+2,kept:D.samp.configs.root.kept,emit:E.root,lab:'decision_wait 300 s, decision 2 s after the root arrives'}};
-  let mode='short';const TMAX=64,STEP=2,N=Math.ceil(TMAX/STEP)+1;
-  const view=document.getElementById('fobs-a7-view'),cap=document.getElementById('fobs-a7-cap');
-  function draw(i){const now=i*STEP,c=CF[mode],w=RD.width(view),h=120,pl=8,pr=8,x=t=>pl+(w-pl-pr)*t/TMAX;
+  const {D}=FOBSU;const S=D.samp.sent,E=D.samp.emitted_seconds_after_replay_start;
+  const first=S[0][1],rootAt=E.root_span_sent_at,err1=E.first_error_span_sent_at;
+  const CF={short:{dec:first+5,kept:D.samp.configs.short.kept,emit:null,list:'sx-samp-short',ts:[first,first+5,err1,rootAt]},
+    short_cached:{dec:first+5,kept:D.samp.configs.short_cached.kept,emit:null,list:'sx-samp-short',ts:[first,first+5,err1,rootAt]},
+    long:{dec:first+60,kept:D.samp.configs.long.kept,emit:E.long,list:'sx-samp-long',ts:[first,err1,rootAt,first+60]},
+    root:{dec:rootAt+2,kept:D.samp.configs.root.kept,emit:E.root,list:'sx-samp-root',ts:[first,err1,rootAt,rootAt+2]}};
+  let mode='short',raf=0,shown=0;const TMAX=64;
+  const card=document.getElementById('fobs-a7'),view=document.getElementById('fobs-a7-view');
+  function frame(now){const c=CF[mode],w=RD.width(view),h=132,pl=8,pr=8,x=t=>pl+(w-pl-pr)*t/TMAX;
     let b='<rect x="'+pl+'" y="20" width="'+(w-pl-pr)+'" height="60" fill="var(--soft)"/>';
-    const decided=now>=c.dec,keep=c.kept>0;
-    S.forEach(s=>{if(s[1]>now)return;const after=s[1]>c.dec;
+    const decided=now>=c.dec-1e-9,keep=c.kept>0;
+    S.forEach(s=>{if(s[1]>now)return;
       const colr=s[2]?'var(--bad)':(decided?(keep?'var(--good)':'var(--mute)'):'var(--acc)');
       b+='<line x1="'+x(s[1]).toFixed(1)+'" x2="'+x(s[1]).toFixed(1)+'" y1="'+(s[2]?24:40)+'" y2="76" stroke="'+colr+'" stroke-width="'+(s[2]?2.5:1.5)+'" opacity="'+(decided&&!keep?0.45:1)+'"/>'});
     b+='<line x1="'+x(Math.min(now,TMAX))+'" x2="'+x(Math.min(now,TMAX))+'" y1="14" y2="86" stroke="var(--ink)" stroke-dasharray="2 2"/>';
-    if(c.dec<=TMAX)b+='<line x1="'+x(c.dec)+'" x2="'+x(c.dec)+'" y1="10" y2="90" stroke="'+(keep?'var(--good)':'var(--bad)')+'" stroke-width="2"/>'+RD.t(Math.min(x(c.dec)+4,w-80),12,'decision',{fs:11,fill:keep?'var(--good)':'var(--bad)'});
-    for(let s=0;s<=60;s+=10)b+=RD.t(x(s),104,s+' s',{a:'middle',fs:10.5,fill:'var(--mute)'});
-    view.innerHTML=RD.svg(w,h,b,'Spans arriving at the collector over time');
-    let msg;
-    if(!decided)msg='t = '+now+' s: '+S.filter(s=>s[1]<=now).length+' spans buffered'+(S.some(s=>s[1]<=now&&s[2])?', including an ERROR span':'')+'; no decision yet (decision at '+c.dec.toFixed(1)+' s).';
-    else if(!keep)msg='Decided at '+c.dec.toFixed(1)+' s, before the first ERROR span arrived ('+S.find(s=>s[2])[1]+' s): dropped. Later spans follow the stored decision. Kept: '+c.kept+' of 49.';
-    else msg='Decided at '+c.dec.toFixed(1)+' s with the failure in view: kept '+c.kept+' of 49 spans, written out '+c.emit+' s after the replay began.';
-    cap.innerHTML='<p class="t">'+esc(c.lab)+'</p><p>'+msg+'</p><p class="small mute">Ticks: spans as they arrive (red: status ERROR; the last two were marked failed by us). Measured on otelcol-contrib 0.162.0.</p>'}
-  const A=RD.anim({card:'fobs-a7',ctl:'fobs-a7-ctl',n:N,draw,ms:450,label:'Time'});
-  RD.seg(document.getElementById('fobs-a7-mode'),m=>{mode=m;A.reset(N)});
+    if(c.dec<=TMAX)b+='<line x1="'+x(c.dec)+'" x2="'+x(c.dec)+'" y1="10" y2="90" stroke="'+(decided?(keep?'var(--good)':'var(--bad)'):'var(--mute)')+'" stroke-width="2"'+(decided?'':' stroke-dasharray="4 3"')+'/>'+RD.t(Math.min(x(c.dec)+4,w-92),12,decided?(keep?'decision: keep':'decision: drop'):'decision due',{fs:12,fill:decided?(keep?'var(--good)':'var(--bad)'):'var(--mute)'});
+    for(let s=0;s<=60;s+=10)b+=RD.t(x(s),108,s+' s',{a:'middle',fs:11,fill:'var(--mute)'});
+    const n=S.filter(s=>s[1]<=now).length;
+    b+=RD.t(pl+2,128,'t = '+now.toFixed(1)+' s · '+n+' of '+S.length+' spans arrived'+(decided?(keep?' · kept '+c.kept:' · dropped'):''),{fs:12,fill:'var(--ink)'});
+    view.innerHTML=RD.svg(w,h+2,b,'Spans arriving at the collector over time, and when the sampling decision is made');shown=now}
+  function draw(i){const c=CF[mode],to=c.ts[i];cancelAnimationFrame(raf);
+    const from=i>0?c.ts[i-1]:0;
+    if(RD.RM||!card.classList.contains('rd-fwd')||to<=from){frame(to);return}
+    const t0=performance.now(),dur=Math.min(2600,400+(to-from)*90);
+    const go=now=>{const u=Math.min(1,(now-t0)/dur);frame(from+(to-from)*u);if(u<1)raf=requestAnimationFrame(go)};raf=requestAnimationFrame(go)}
+  const A=RD.anim({card:'fobs-a7',ctl:'fobs-a7-ctl',n:4,draw,ms:5200,label:'Stretch',list:'sx-samp-short'});
+  RD.seg(document.getElementById('fobs-a7-mode'),m=>{const was=CF[mode].list;mode=m;const l=CF[m].list;
+    ['sx-samp-short','sx-samp-long','sx-samp-root'].forEach(id=>document.getElementById(id).hidden=id!==l);A.reset(4,l)});
   RD.onResize(()=>A.redraw());
 })();
 

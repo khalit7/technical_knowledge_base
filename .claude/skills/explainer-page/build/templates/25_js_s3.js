@@ -159,7 +159,7 @@
     function pause(){if(st.play){st.play=false;ui()}}
     q('.stg-p').onclick=()=>{st.user=true;if(st.play){pause();return}st.play=true;if(st.k>=st.n-1)go(0,false);else if(st.e>=1)go(st.k+1,true);ui();kick()};
     q('.stg-f').onclick=()=>{st.user=true;pause();go(st.k+1,true)};q('.stg-b').onclick=()=>{st.user=true;pause();go(st.k-1,false)};
-    q('.stg-r').oninput=e=>{const v=+e.target.value;st.user=true;pause();go(v,false)}; // read the value before pause() redraws the controlsq('.stg-s').onchange=e=>{st.spd=+e.target.value};
+    q('.stg-r').oninput=e=>{const v=+e.target.value;st.user=true;pause();go(v,false)}; /* read the value before pause() redraws the controls */ q('.stg-s').onchange=e=>{st.spd=+e.target.value};
     // drag to turn the model; vertical touch drags still scroll the page (touch-action: pan-y)
     let drag=null;cvs.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,t:st.dth,p:st.dph};cvs.setPointerCapture(e.pointerId);cvs.classList.add('dr')});
     cvs.addEventListener('pointermove',e=>{if(!drag)return;st.dth=drag.t-(e.clientX-drag.x)*.008;if(e.pointerType==='mouse')st.dph=cl(drag.p+(e.clientY-drag.y)*.006,-1.2,1.2);st.moved=true;q('.stg-rv').hidden=false;q('.stg-hint').hidden=true;draw()});
