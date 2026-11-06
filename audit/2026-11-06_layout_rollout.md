@@ -23,7 +23,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_harnesses/building_a_harness` Building a harness: the loop, tool calling, edit formats, stop conditions
 - [x] `agents_and_retrieval/topic_agentic_harnesses/claude_code` Claude Code, taken apart: loop, tools, permissions, hooks, memory, subagents, headless runs
 - [x] `agents_and_retrieval/topic_agentic_harnesses/context_engineering` Context engineering: window budgets, caching, compaction, memory files, subagents
-- [ ] `agents_and_retrieval/topic_agentic_harnesses/guardrails` Guardrails: staged runtime safety for LLM systems
+- [x] `agents_and_retrieval/topic_agentic_harnesses/guardrails` Guardrails: staged runtime safety for LLM systems
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training` Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses` Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
@@ -328,3 +328,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries`: Fig. 2 step 3 crops the results tray at the bottom right; Fig. 3 faded lanes in front stay large.
 - `agents_and_retrieval/topic_agentic_harnesses/building_a_harness`: Fig. 3 (stop rules) sits small in the middle of its card; its close view barely moves in.
 - `agents_and_retrieval/topic_agentic_harnesses/claude_code`: Recordings tab keeps its per-call chart inside the full-width dataset viewer (accepted as a dataset view).
+- `agents_and_retrieval/topic_agentic_harnesses/guardrails`: mk_coverage.py reports 66 of 73; the 7 strings were already missing before the rollout (checked against HEAD by the agent). Worth a look.

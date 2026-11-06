@@ -16,6 +16,7 @@
   const keys=[];R.forEach(r=>{const k=r[1]+' | '+r[2]+' | '+r[3];if(!keys.includes(k))keys.push(k)});
   const st={k:'ToxicChat | prompt | F1',m:'ShieldGemma 9B',sort:'v'};
   const ctl=document.getElementById('sc-ctl');
+  RD.tabLinks(document.getElementById('sc-src')); // its source links to the Reading tab are written by script
   ctl.innerHTML='<label>Benchmark, task and metric<br><select id="sc-k">'+keys.map(k=>'<option'+(k===st.k?' selected':'')+'>'+esc(k)+'</option>').join('')+'</select></label><div><span class="small">Order</span><br><div class="seg" id="sc-sort"><button data-s="v">By value</button><button data-s="m">By model</button></div></div>';
   document.getElementById('sc-sort').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.sort=b.dataset.s;chart()});
   document.getElementById('sc-k').addEventListener('change',e=>{st.k=e.target.value;chart()});

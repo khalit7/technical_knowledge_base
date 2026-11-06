@@ -1,4 +1,4 @@
-// Exercise every control at 390 px dark and 920 px light; fail on errors, NaN, undefined, null text or sideways scroll.
+// Exercise every control at 390 px dark and 920 px light (with reduced motion, so the stages stay where the clicks put them; autoplay is checked by check_stages.mjs); fail on errors, NaN, undefined, null text or sideways scroll.
 // Takes element screenshots into ../.shots/el-*.png and dumps the page's computations to checks/js_out.json for recompute.py.
 // usage (from src/): node checks/check_page.mjs
 import { createRequire } from 'node:module';
@@ -69,12 +69,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.goto(page); await wait(300);
   }
   // element screenshots
-  for (const [t, ids] of [['t-read', ['rd-hero-card', 'pl-cvcard', 'rd-br', 'pl-dpcard', 'rd-qp', 'rd-pii', 'rd-adcard', 'rd-st', 'rd-qr', 'rd-pa', 'pl-cfg', 'rd-ros', 'rd-spread', 'rd-lc', 'pl-ref', 'pl-crc']], ['t-card', ['sc-chart', 'sc-spread', 'sc-mtab']]]) {
+  for (const [t, ids] of [['t-read', ['stg-hero', 'pl-cvcard', 'rd-br', 'pl-dpcard', 'rd-qp', 'rd-pii', 'rd-adcard', 'rd-st', 'rd-qr', 'stg-pa', 'pl-cfg', 'rd-ros', 'rd-spread', 'rd-lc', 'pl-ref', 'pl-crc']], ['t-card', ['sc-chart', 'sc-spread', 'sc-mtab']]]) {
     await p.click(`#tabs button[data-t="${t}"]`); await wait(200);
     for (const id of ids) {
       const el = await p.$('#' + id); if (!el) { problems.push('missing #' + id); continue }
       await el.evaluate(e => e.scrollIntoView()); await wait(250);
-      if (id === 'rd-pa') { for (let k = 0; k < 3; k++) await p.click('#rd-pa-ctl-f'); await wait(600) }
+      if (id === 'stg-pa') { for (let k = 0; k < 3; k++) await p.click('#stg-pa-f'); await wait(600) }
       await el.screenshot({ path: `${shots}/el-${id}-${scheme}${width}.png` });
     }
   }
