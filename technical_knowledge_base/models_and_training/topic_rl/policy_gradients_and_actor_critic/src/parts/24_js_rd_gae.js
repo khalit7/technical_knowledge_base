@@ -1,7 +1,7 @@
 // ---- Reading section 6: GAE computed backwards on one episode, A_t = delta_t + gamma lambda A_{t+1} (new on this page) ----
 (function(){
   const E=window.PGE,$=id=>document.getElementById(id);
-  const P=$('rd-gaP'),Q=$('rd-gaQ'),Tt=$('rd-gaT'),Xp=$('rd-gaX'),N=$('rd-gaN');if(!P)return;
+  const P=$('rd-gaP'),Q=$('rd-gaQ'),Xp=$('rd-gaX'),N=$('rd-gaN');if(!P)return;
   const Ls=$('rd-gaL'),Gs=$('rd-gaG'),Es=$('rd-gaE');
   const PRE={ex:{R:[0,0,1],V:[0.5,0.6,0.8],g:1,lam:0.95,err:0,name:'the worked example'},
     long:{R:[0,0,0,0,0,0,0,1],V:null,g:0.99,lam:0.95,err:0.3,name:'eight steps, one reward at the end'}};
@@ -31,15 +31,18 @@
     q+=RD.t(l2-4,Y2(hi2)+8,RD.n(hi2,2),{a:'end',fs:11,fill:'var(--mute)'})+RD.t(l2-4,Y2(lo2),RD.n(lo2,2),{a:'end',fs:11,fill:'var(--mute)'});
     Q.innerHTML=RD.svg(W2,H2,q,'First advantage against lambda');
     const gl=res.g*res.lam;
-    if(i===0){Tt.textContent='Step 0: one TD error per step';Xp.innerHTML='δ<sub>t</sub> = r<sub>t</sub> + γV(s<sub>t+1</sub>) − V(s<sub>t</sub>), with V = 0 after the last step: '+res.d.map((d,k)=>'δ<sub>'+k+'</sub> = '+RD.n(d,3)).join(', ')+'. Each one needs only one real reward and the critic.'}
-    else{const k=T-i,nx=k+1<T?res.A[k+1]:0;Tt.textContent='Step '+i+': Â'+String.fromCharCode(8320+Math.min(9,k))+' from the step after it';
-      Xp.innerHTML='Â<sub>'+k+'</sub> = δ<sub>'+k+'</sub> + γλ Â<sub>'+(k+1)+'</sub> = '+RD.n(res.d[k],3)+' + '+RD.n(gl,4)+' × '+RD.n(nx,4)+' = <b>'+RD.n(res.A[k],4)+'</b>'+(k+1<T?'':' (nothing follows the last step)')+'. One backward pass gives every advantage; the green dashes are the λ = 1 values, return minus V'+(k===0?'. Unrolled: Â<sub>0</sub> = Σ (γλ)<sup>l</sup> δ<sub>l</sub> = '+res.parts0.map(x=>RD.n(x,3)).join(' + ')+'.':'.')}
+    // one-line readout: the arithmetic at the current sliders (the step list carries the explanation)
+    if(i===0)Xp.innerHTML=res.d.map((d,k)=>'δ<sub>'+k+'</sub> = '+RD.n(d,3)).join(', ');
+    else{const k=T-i,nx=k+1<T?res.A[k+1]:0;Xp.innerHTML='Â<sub>'+k+'</sub> = '+RD.n(res.d[k],3)+' + '+RD.n(gl,4)+' × '+RD.n(nx,4)+' = <b>'+RD.n(res.A[k],4)+'</b>'}
     N.innerHTML=RD.stat('Â₀ at this λ',RD.n(res.A[0],4),'γλ = '+RD.n(gl,4))+RD.stat('Â₀ at λ = 0',RD.n(res.d[0],4),'one TD error')+RD.stat('Â₀ at λ = 1',RD.n(res.mcA[0],4),'return '+RD.n(res.G[0],3)+' minus V '+RD.n(V[0],3))+
       RD.stat('Critic error',RD.sg(res.err,2),pk==='long'?'true advantage is 0 here':'added to every V')}
-  const an=RD.anim({card:'rd-ga',ctl:'rd-gaC',n:4,ms:1300,draw,label:'Step'});
-  function setPre(k){pk=k;const p=PRE[k];Ls.value=Math.round(p.lam*100);Gs.value=Math.round(p.g*100);Es.value=Math.round(p.err*100);
-    [...$('rd-gaM').children].forEach(x=>x.classList.toggle('on',x.dataset.p===k));compute();an.reset(T+1)}
+  // four explained steps for either episode: the TD errors, the last advantage, the backward stretch, the first advantage
+  // (frame f = how many advantages are computed; the 8-step chain fills A6 down to A1 during step 3)
+  const cpsOf=T=>[0,1,T-1,T];
+  const an=RD.stretch({card:'rd-ga',ctl:'rd-gaC',list:'sx-ga',cps:cpsOf(3),frame:draw,per:350,ms:4800,label:'Step'});
+  function setPre(k,first){pk=k;const p=PRE[k];Ls.value=Math.round(p.lam*100);Gs.value=Math.round(p.g*100);Es.value=Math.round(p.err*100);
+    [...$('rd-gaM').children].forEach(x=>x.classList.toggle('on',x.dataset.p===k));compute();if(!first)an.reset(cpsOf(T));else an.redraw()}
   $('rd-gaM').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setPre(b.dataset.p)});
   [Ls,Gs,Es].forEach(x=>x.addEventListener('input',()=>an.redraw()));RD.onResize(()=>an.redraw());
-  setPre('ex');
+  setPre('ex',true);
 })();

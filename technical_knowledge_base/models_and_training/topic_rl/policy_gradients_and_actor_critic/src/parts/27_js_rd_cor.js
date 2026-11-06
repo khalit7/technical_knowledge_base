@@ -6,7 +6,7 @@
   const EPS=1000,FLOOR=0.05,MAXT=5000;
   // ---- 1. J(p) with three learners moving on it ----
   (function(){
-    const P=$('co-exP'),Tt=$('co-exT'),Xp=$('co-exX'),N=$('co-exN'),S=$('co-exS');let mode='ac',runs;
+    const P=$('co-exP'),Xp=$('co-exX'),N=$('co-exN'),S=$('co-exS');const mode='ac';let runs;
     const L=[{k:'rf',at:Math.pow(2,-13),aw:0,lab:'REINFORCE',col:'var(--c2)'},{k:'rfb',at:Math.pow(2,-9),aw:Math.pow(2,-6),lab:'with baseline',col:'var(--c1)'},{k:'ac',at:Math.pow(2,-9),aw:Math.pow(2,-6),lab:'actor-critic',col:'var(--c4)'}];
     function compute(){runs=L.map(o=>E.corRun(o.k,o.at,o.aw,EPS,+S.value,FLOOR,MAXT))}
     function avg(a,i0,i1){let s=0;for(let i=i0;i<i1;i++)s+=a[i];return s/(i1-i0)}
@@ -20,15 +20,15 @@
       const show=mode==='ac'?L:L.slice(0,2);
       show.forEach((o,j)=>{const ru=runs[j],p=ru.ps[ep];s+='<circle cx="'+X(p)+'" cy="'+Y(E.corV(p)[0])+'" r="6.5" fill="'+o.col+'" stroke="var(--bg)" stroke-width="1.5"/>'});
       P.innerHTML=RD.svg(W,H,s,'Value of the start state against the probability of right')+'<div class="leg">'+show.map(o=>'<span><i style="background:'+o.col+'"></i>'+o.lab+'</span>').join('')+'</div>';
-      Tt.textContent=ep===0?'Episode 0: all learners start at p(right) = 0.05':'After '+ep+' episodes';
-      const f=j=>RD.n(runs[j].ps[ep],3);
-      Xp.innerHTML=ep===0?'All start near the ε-greedy-left policy (value −82.1). Every learner sees the same random numbers; press play.':
-        'p(right): REINFORCE '+f(0)+', with baseline '+f(1)+(mode==='ac'?', actor-critic '+f(2):'')+' (optimum 0.586). '+(ep>=100&&Math.abs(runs[1].ps[ep]-E.COR.pStar)<0.06?'The baselined learner has found the stochastic optimum; ':'')+'Mean total reward over the last 10 episodes: '+show.map((o,j)=>o.lab+' '+RD.n(avg(runs[j].tot,Math.max(0,ep-10),Math.max(1,ep)),1)).join(', ')+'.';
+      // one-line readout: this seed's mean reward per learner (p(right) is in the stats below)
+      Xp.textContent=ep===0?'Episode 0.':'Episode '+ep+'; mean total reward over the last 10 episodes: '+show.map((o,j)=>o.lab+' '+RD.n(avg(runs[j].tot,Math.max(0,ep-10),Math.max(1,ep)),1)).join(', ')+'.';
       N.innerHTML=show.map((o,j)=>RD.stat(o.lab,RD.n(runs[j].ps[ep],3),'p(right); value '+RD.n(E.corV(runs[j].ps[ep])[0],1))).join('')}
-    compute();
-    const an=RD.anim({card:'co-ex',ctl:'co-exC',n:EPS/10+1,ms:220,draw,label:'Episode'});
-    $('co-exM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.k;[...b.parentNode.children].forEach(x=>x.classList.toggle('on',x===b));an.redraw()});
-    S.addEventListener('change',()=>{compute();an.redraw()});reg(()=>an.redraw());onRes(()=>an.redraw());
+    // the step list's numbers for this seed: p(right) of the three learners at the end of each stretch
+    function fill(){$('co-exSd').textContent=S.value;document.querySelectorAll('#sx-ex .co-exV').forEach(sp=>{const e=+sp.dataset.e;sp.textContent='After '+e+': '+runs.map(r=>RD.n(r.ps[e],2)).join(', ')+'.'})}
+    compute();fill();
+    // 100 frames (one every 10 episodes) in eight explained stretches (2026-11-06: a long replay is never one step per frame)
+    const an=RD.stretch({card:'co-ex',ctl:'co-exC',list:'sx-ex',cps:[0,1,5,10,20,40,70,100],frame:draw,per:60,label:'Stretch'});
+    S.addEventListener('change',()=>{compute();fill();an.redraw()});reg(()=>an.redraw());onRes(()=>an.redraw());
   })();
   // ---- 2. Figures 13.1 and 13.2: averages over runs, computed in chunks so the page stays responsive ----
   (function(){

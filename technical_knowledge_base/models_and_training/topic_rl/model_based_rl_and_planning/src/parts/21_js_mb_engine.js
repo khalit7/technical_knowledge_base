@@ -49,8 +49,9 @@
   function dynaEpisode2(n,run,p,maxFrames){const mz=MAZES.dyna,walls=wallset(mz),st=startOf(mz);
     const ag=DynaAgent(mz,n,p.alpha,p.eps,p.gamma,rng(1000+run),rng(2000+run));let s=st,k1=0;
     for(;;){s=ag.realStep(s,walls)[1];k1++;if(s===ag.goal)break}
-    const frames=[{pos:st,pol:ag.policy(),k:0,upd:ag.updates,vS:ag.qmax(st)}];s=st;let k=0;
-    for(;;){s=ag.realStep(s,walls)[1];k++;frames.push({pos:s,pol:ag.policy(),k,upd:ag.updates,vS:ag.qmax(st)});if(s===ag.goal||k>=(maxFrames||1e9))break}
+    const vals=()=>{const v=[];for(let x=0;x<ag.S;x++)v.push(ag.qmax(x));return v}; // max_a Q per cell, for the value bars of the 3D stages
+    const frames=[{pos:st,pol:ag.policy(),k:0,upd:ag.updates,vS:ag.qmax(st),v:vals()}];s=st;let k=0;
+    for(;;){s=ag.realStep(s,walls)[1];k++;frames.push({pos:s,pol:ag.policy(),k,upd:ag.updates,vS:ag.qmax(st),v:vals()});if(s===ag.goal||k>=(maxFrames||1e9))break}
     return {ep1:k1,frames}}
   function dynaSnapshot(n,run,p){const e=dynaEpisode2(n,run,p),len=e.frames.length-1,half=Math.floor(len/2),f=e.frames[half];
     return {lens:[e.ep1,len],half,pos:f.pos,policy:f.pol,arrows:f.pol.filter(x=>x>=0).length}}

@@ -1,4 +1,4 @@
-// ---- Reading section 4: the baseline. Variance against b (new), and 60 updates with and without a baseline (from Topic: rl) ----
+// ---- Reading section 4: the baseline. Variance against b (new), and 60 updates with and without a baseline (from Topic: rl; five explained stretches since 2026-11-06) ----
 (function(){
   const E=window.PGE;
   // ---- Any constant baseline: the mean gradient stays put, the variance is a parabola in b (new on this page) ----
@@ -25,7 +25,7 @@
     Bs.addEventListener('input',draw);Ls.addEventListener('input',draw);RD.onRender(draw);RD.onResize(draw);draw();
   })();
   (function(){
-    const STEPS=60,ETA=0.1,Os=document.getElementById('rd-pgO'),Sd=document.getElementById('rd-pgS'),PA=document.getElementById('rd-pgA'),PB=document.getElementById('rd-pgB'),PL=document.getElementById('rd-pgL'),Tt=document.getElementById('rd-pgT'),Xp=document.getElementById('rd-pgX'),N=document.getElementById('rd-pgN');
+    const STEPS=60,ETA=0.1,Os=document.getElementById('rd-pgO'),Sd=document.getElementById('rd-pgS'),PA=document.getElementById('rd-pgA'),PB=document.getElementById('rd-pgB'),PL=document.getElementById('rd-pgL'),Xp=document.getElementById('rd-pgX'),N=document.getElementById('rd-pgN');
     let rew,h0,hB,sp0,spB;
     function compute(){const c=+Os.value;document.getElementById('rd-pgOv').textContent=c;rew=[1+c,2+c,6+c];h0=E.pgRun(rew,ETA,STEPS,+Sd.value,false);hB=E.pgRun(rew,ETA,STEPS,+Sd.value,true);sp0=E.pgSpread(rew,ETA,STEPS,false,100,200);spB=E.pgSpread(rew,ETA,STEPS,true,100,200)}
     function panel(el,h,i,useB){const W=RD.width(el),H=150,l=8,r=8,cw=(W-l-r)/3,st=h[i],nx=h[i];let s='';const gmax=Math.max(1.5,...h0.concat(hB).slice(0,STEPS).map(x=>Math.max(...x.g.map(Math.abs))));
@@ -46,13 +46,16 @@
       s+=RD.t(l-4,Y(hi)+10,RD.n(hi,1),{a:'end',fs:11,fill:'var(--mute)'})+RD.t(l-4,Y(lo),RD.n(lo,1),{a:'end',fs:11,fill:'var(--mute)'})+RD.t(l,H-5,'expected reward, update 0 to '+STEPS,{fs:11,fill:'var(--mute)'});
       PL.innerHTML=RD.svg(W,H,s,'Expected reward over updates')+'<div class="leg"><span><i class="ln" style="background:var(--c2)"></i>no baseline, this run</span><span><i class="ln" style="background:var(--c1)"></i>baseline, this run</span><span><i style="background:var(--mute);opacity:.4"></i>10th to 90th percentile of 200 runs</span></div>';
       const a0=h0[i].a,aB=hB[i].a;
-      Tt.textContent=i>=STEPS?'After '+STEPS+' updates':'Update '+(i+1)+': both runs sample from their own policy with the same random number';
-      Xp.innerHTML=i>=STEPS?'Expected reward '+RD.n(h0[i].V,2)+' without a baseline against '+RD.n(hB[i].V,2)+' with it (best possible '+(6+c)+'). Both estimators point the right way on average; the baseline run gets there with far less noise.':
-        'Without a baseline: sampled action '+(a0+1)+' (reward '+rew[a0]+'), so its logit goes <b>up</b> by '+RD.n(ETA*h0[i].g[a0],3)+(rew[a0]<6+c?', even though it is not the best action':'')+'. With the baseline (V = '+RD.n(hB[i].V,2)+'): sampled action '+(aB+1)+', advantage '+RD.sg(rew[aB]-hB[i].V,2)+', so it goes '+(rew[aB]>=hB[i].V?'<b>up</b>':'<b>down</b>')+'. Purple: this sample\'s update per action; grey: the exact expected gradient.';
+      // one-line readout: what this seed drew at this update (the step list carries the explanation)
+      Xp.innerHTML=i>=STEPS?'After '+STEPS+' updates: expected reward '+RD.n(h0[i].V,2)+' without a baseline, '+RD.n(hB[i].V,2)+' with it (best '+(6+c)+').':
+        'Update '+(i+1)+': no baseline drew action '+(a0+1)+' (logit '+RD.sg(ETA*h0[i].g[a0],3)+'); baseline drew action '+(aB+1)+' (advantage '+RD.sg(rew[aB]-hB[i].V,2)+').';
       N.innerHTML=RD.stat('Variance, no baseline',RD.n(h0[i].var0,2),'of the one-sample gradient')+RD.stat('Variance, baseline',RD.n(hB[i].varB,2),'at its own policy')+RD.stat('Runs stuck on a worse action',sp0.finals.filter(v=>v<3+c).length+' / 200 → '+spB.finals.filter(v=>v<3+c).length+' / 200','after 60 updates: no baseline → baseline')+RD.stat('Reward offset',String(c),'added to all rewards')}
-    compute();
-    const an=RD.anim({card:'rd-pgc',ctl:'rd-pgC',n:STEPS+1,ms:450,draw,label:'Update'});
-    Os.addEventListener('input',()=>{compute();an.redraw()});Sd.addEventListener('change',()=>{compute();an.redraw()});RD.onResize(()=>an.redraw());
+    // the step list's numbers for this offset and seed (expected reward of each learner at the end of a stretch)
+    function fill(){const c=+Os.value;document.querySelectorAll('#sx-pgc .rd-pgV').forEach(sp=>{const i=+sp.dataset.i;sp.textContent='no baseline '+RD.n(h0[i].V,2)+', baseline '+RD.n(hB[i].V,2)+' (best '+(6+c)+')'})}
+    compute();fill();
+    // 60 updates in five explained stretches (2026-11-06: a long replay is never one step per frame)
+    const an=RD.stretch({card:'rd-pgc',ctl:'rd-pgC',list:'sx-pgc',cps:[0,1,10,30,STEPS],frame:i=>draw(i),per:90,label:'Stretch'});
+    Os.addEventListener('input',()=>{compute();fill();an.redraw()});Sd.addEventListener('change',()=>{compute();fill();an.redraw()});RD.onResize(()=>an.redraw());
   })();
 
 })();

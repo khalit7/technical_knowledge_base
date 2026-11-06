@@ -4,10 +4,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 
 - [~] `models_and_training/topic_rl/bandits_and_exploration` Bandits and exploration
 - [~] `models_and_training/topic_rl/dynamic_programming` Dynamic programming: planning with a known model
-- [ ] `models_and_training/topic_rl/model_based_rl_and_planning` Model-based RL and planning
+- [x] `models_and_training/topic_rl/model_based_rl_and_planning` Model-based RL and planning
 - [~] `models_and_training/topic_rl/model_free_prediction_and_control` Model-free prediction and control: Monte Carlo, TD, SARSA, Q-learning
 - [ ] `models_and_training/topic_rl/offline_rl_and_imitation` Offline RL and imitation
-- [ ] `models_and_training/topic_rl/policy_gradients_and_actor_critic` Policy gradients and actor-critic: from REINFORCE to PPO and SAC
+- [x] `models_and_training/topic_rl/policy_gradients_and_actor_critic` Policy gradients and actor-critic: from REINFORCE to PPO and SAC
 - [ ] `models_and_training/topic_rl/rl_for_llms` RL for LLMs: RLHF, GRPO, RLVR
 - [~] `models_and_training/topic_rl/value_based_deep_rl` Value-based deep RL: from DQN to Rainbow
 - [ ] `models_and_training/topic_rl` Topic: rl

@@ -1,6 +1,6 @@
-// ---- Static figures added in the 2026-10-24 rebuild: the hero (two dials), the short corridor and J(p) (section 1),
-// reward-to-go (section 2), A3C against A2C (section 7), the natural-gradient slider (section 8) and the
-// off-policy actor-critic loop (section 11). Nothing here moves by itself. ----
+// ---- Static 2D figures: the two-dial map (top, beside New terms; the hero until 2026-11-06), the short corridor and J(p) (section 1),
+// A3C against A2C (section 7) and the natural-gradient slider (section 8). Nothing here moves by itself.
+// The reward-to-go grid and the off-policy loop became 3D stages on 2026-11-06 (31_js_sc_rtg.js, 32_js_sc_oac.js). ----
 (function(){
   const $=id=>document.getElementById(id),E=window.PGE;if(!$('rd-hero'))return;
   const T=RD.t,esc=RD.esc;
@@ -9,7 +9,7 @@
   const arr=(x1,y1,x2,y2,id,o)=>{o=o||{};return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+(o.c||'var(--mute)')+'" stroke-width="'+(o.w||1.4)+'"'+(o.dash?' stroke-dasharray="4 3"':'')+' marker-end="url(#'+id+')"/>'};
   const jump=el=>el.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(!g)return;const s=$(g.getAttribute('data-go'));if(s)s.scrollIntoView({behavior:RD.RM?'auto':'smooth',block:'start'})});
 
-  // ---------- Hero: the two dials ----------
+  // ---------- The two-dial map ----------
   const D1={title:'What weights the score ∇ log π(a | s)',items:[['Gₜ','REINFORCE','rd-rf'],['Gₜ − b(s)','baseline, RLOO, GRPO','rd-base'],['GAE(γ, λ)','A2C, PPO','rd-gae'],['TD error δₜ','one-step actor-critic','rd-ac'],['∇ₐ Q(s, a)','DDPG, TD3, SAC','rd-dpg']],
     ends:['sampled returns: unbiased, noisy','learned critic: low variance, biased']};
   const D2={title:'How far one batch may move the policy',items:[['step size α','REINFORCE, A2C','rd-a2c'],['KL ≤ δ','natural gradient, TRPO','rd-trpo'],['clip 1 ± ε','PPO','rd-ppo'],['replay + target nets','DDPG, TD3','rd-dpg'],['+ entropy α·ℋ','SAC','rd-sac']],
@@ -54,23 +54,6 @@
     s+=T(X(0.5),H-b-8,'J(p), the value of the start state',{a:'middle',fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'Value of the start state against the probability of right, with the optimum at 0.586')}
 
-  // ---------- Section 2: whole return against reward-to-go ----------
-  const RW=[1,0,2,-1];
-  function rtg(){const el=$('rd-rtg'),W=RD.width(el),two=W>=540,c=Math.min(40,Math.floor(((two?W/2:W)-100)/4)),pw=34+4*c+56,H1=26+20+4*c+6;let s='';
-    const panel=(x0,y0,togo)=>{let q=T(x0,y0+12,togo?'Reward-to-go Gₜ':'Whole return G(τ)',{fs:12.5,w:600,fill:togo?'var(--acc)':'var(--ink)'});const yh=y0+26;
-      RW.forEach((r,k)=>q+=T(x0+34+k*c+c/2,yh+12,'r<tspan dy="3">'+(k+1)+'</tspan>',{a:'middle',fs:12,fill:'var(--mute)'}));
-      q+=T(x0+34+4*c+50,yh+12,'weight',{a:'end',fs:11,fill:'var(--mute)'});
-      for(let t=0;t<4;t++){const y=yh+20+t*c;q+=T(x0+28,y+c/2+2,'a<tspan dy="3" font-size="11">'+t+'</tspan>',{a:'end',fs:13});let w=0;
-        for(let k=0;k<4;k++){const on=!togo||k>=t;if(on)w+=RW[k];const x=x0+34+k*c;
-          q+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(c-2)+'" height="'+(c-2)+'" rx="3" fill="'+(on?'var(--acc2)':'var(--bg)')+'" stroke="'+(on?'var(--acc)':'var(--line)')+'"/>'+
-            T(x+c/2,y+c/2+4,String(RW[k]).replace('-','−'),{a:'middle',fs:12,fill:on?'var(--ink)':'var(--dim)'});
-          if(!on)q+='<line x1="'+(x+5)+'" y1="'+(y+c-5)+'" x2="'+(x+c-5)+'" y2="'+(y+5)+'" stroke="var(--dim)"/>'}
-        q+=T(x0+34+4*c+50,y+c/2+4,String(w).replace('-','−'),{a:'end',fs:13,w:600,fill:togo?'var(--acc)':'var(--ink)'})}
-      return q};
-    let H;if(two){const gap=Math.max(16,(W-2*pw)/3);s+=panel(gap,0,false)+panel(2*gap+pw,0,true);H=H1}
-    else{const x=Math.max(0,(W-pw)/2);s+=panel(x,0,false)+panel(x,H1+8,true);H=2*H1+8}
-    el.innerHTML=RD.svg(W,H,s,'Two four by four grids: every action weighted by every reward, against only the rewards after it')}
-
   // ---------- Section 7: A3C against A2C on one clock (illustrative timings) ----------
   const DUR=[2.0,2.6,3.4,2.3],TEND=7.2,GAP=0.2;
   function a3cEvents(){const seg=[];DUR.forEach((d,w)=>{let t=0;while(t+d<=TEND){seg.push({w,t0:t,t1:t+d});t+=d+GAP}});
@@ -108,45 +91,6 @@
       RD.stat('Natural step for δ = '+d.toFixed(3),'Δz = '+RD.n(o.dzN,3),RD.n(p,3)+' → '+RD.n(o.qN,4)+', exact KL '+o.klN.toFixed(5))}
   if($('rd-ng')){['rd-ngP','rd-ngD'].forEach(id=>$(id).addEventListener('input',ng))}
 
-  // ---------- Section 11: the off-policy actor-critic loop ----------
-  const OAC={ddpg:{actor:['actor μθ(s)','deterministic; noise added to act'],critic:['critic Q(s, a)','regresses onto y'],targ:['target copies Q′, μ′','slow: τ = 0.001'],
-      y:'y = r + γ Q′(s′, μ′(s′))',grad:'∇ₐQ(s, μ(s))',hi:[],
-      cap:'DDPG: the critic regresses onto y = r + γQ′(s′, μ′(s′)); the actor climbs the critic\'s slope ∇ₐQ through the chain rule; exploration is noise added to the action; the targets follow the learned networks slowly (τ = 0.001).'},
-    td3:{actor:['actor μθ(s)','updated every d = 2 critic steps'],critic:['twin critics Q₁, Q₂','both regress onto y'],targ:['target copies Q′₁, Q′₂, μ′','slow: τ = 0.005'],
-      y:'y = r + γ min Q′ᵢ(s′, μ′(s′) + ε)',grad:'∇ₐQ₁(s, μ(s))',hi:['actor','critic','targ'],
-      cap:'TD3 (changes in orange): two critics and the smaller target value; clipped noise ε ~ clip(𝒩(0, 0.2), −0.5, 0.5) on the target action; the actor and the targets update once every two critic steps.'},
-    sac:{actor:['actor π(a | s)','tanh Gaussian, reparameterised'],critic:['twin critics Q₁, Q₂','both regress onto y'],targ:['target critics Q′₁, Q′₂','slow: τ = 0.005; α learned'],
-      y:'y = r + γ(min Q′ᵢ(s′, a′) − α log π(a′ | s′))',grad:'∇ through a = tanh(μ + σξ)',hi:['actor','critic','targ'],
-      cap:'SAC (changes in orange): a stochastic tanh-Gaussian actor sampled with the reparameterisation trick, so the gradient of α log π − Q flows through the sampled action; the target subtracts α log π of the next action a′ ~ π; twin critics as in TD3; α itself is learned toward the target entropy −dim(A).'}};
-  let oacM='ddpg';
-  function oac(){const el=$('rd-oac');if(!el)return;const M=OAC[oacM],W=RD.width(el),nar=W<620;let s=mk('rd-oA');
-    const B={env:['environment','returns r, s′'],buf:['replay buffer','10⁶ transitions (s, a, r, s′)'],actor:M.actor,critic:M.critic,targ:M.targ};
-    const bx=(k,x,y,w,h)=>{const hi=M.hi.indexOf(k)>=0;return box(x,y,w,h,{stroke:hi?'var(--bad)':'var(--mute)',sw:hi?2:1.1,fill:'var(--bg)'})+T(x+w/2,y+20,B[k][0],{a:'middle',fs:12.5,w:600,fill:hi?'var(--bad)':'var(--ink)'})+T(x+w/2,y+37,B[k][1],{a:'middle',fs:11,fill:'var(--mute)'})};
-    const lab=(x,y,txt,a,col)=>T(x,y,txt,{a:a||'middle',fs:11,fill:col||'var(--mute)'});
-    let H;
-    if(!nar){const g=Math.max(50,W*0.09),bw=(W-2*g-8)/3,bh=48,x=[4,4+bw+g,4+2*(bw+g)],y1=18,y2=y1+bh+70;
-      s+=bx('actor',x[0],y1,bw,bh)+bx('env',x[1],y1,bw,bh)+bx('buf',x[2],y1,bw,bh)+bx('targ',x[0],y2,bw,bh)+bx('critic',x[1],y2,bw,bh);
-      s+=arr(x[0]+bw+2,y1+bh/2,x[1]-3,y1+bh/2,'rd-oA')+lab(x[0]+bw+g/2,y1+bh/2-6,'act');
-      s+=arr(x[1]+bw+2,y1+bh/2,x[2]-3,y1+bh/2,'rd-oA')+lab(x[1]+bw+g/2,y1+bh/2-6,'store');
-      s+=arr(x[2]+bw/2,y1+bh+2,x[1]+bw-10,y2-3,'rd-oA')+lab((x[2]+bw/2+x[1]+bw-10)/2+10,(y1+bh+y2)/2+4,'minibatch','start');
-      s+=arr(x[1]+12,y2-3,x[0]+bw/2+10,y1+bh+3,'rd-oA',{c:'var(--acc)',w:2})+lab((x[1]+x[0]+bw/2+22)/2-8,(y1+bh+y2)/2+18,M.grad,'end','var(--acc)');
-      s+=arr(x[0]+bw+2,y2+bh/2-8,x[1]-3,y2+bh/2-8,'rd-oA')+lab(x[0]+bw+g/2,y2+bh/2-14,'target y');
-      s+=arr(x[1]-3,y2+bh/2+10,x[0]+bw+2,y2+bh/2+10,'rd-oA',{dash:true})+lab(x[0]+bw+g/2,y2+bh/2+24,'slow copy');
-      s+=lab(W/2,y2+bh+24,'critic target: '+M.y,'middle',M.hi.length?'var(--bad)':'var(--ink)');
-      H=y2+bh+32}
-    else{const bw=W-60,bh=48,x=46,gy=40;let y=4;const pos={};['actor','env','buf','critic','targ'].forEach(k=>{pos[k]=y;s+=bx(k,x,y,bw,bh);y+=bh+gy});
-      const cx=x+bw/2;s+=arr(cx,pos.actor+bh+2,cx,pos.env-3,'rd-oA')+lab(cx+8,pos.actor+bh+gy/2+4,'act','start');
-      s+=arr(cx,pos.env+bh+2,cx,pos.buf-3,'rd-oA')+lab(cx+8,pos.env+bh+gy/2+4,'store','start');
-      s+=arr(cx,pos.buf+bh+2,cx,pos.critic-3,'rd-oA')+lab(cx+8,pos.buf+bh+gy/2+4,'minibatch','start');
-      s+=arr(cx-40,pos.targ-3,cx-40,pos.critic+bh+2,'rd-oA')+lab(cx-46,pos.critic+bh+gy/2+4,'target y','end');
-      s+=arr(cx+40,pos.critic+bh+2,cx+40,pos.targ-3,'rd-oA',{dash:true})+lab(cx+46,pos.critic+bh+gy/2+4,'slow copy','start');
-      s+='<path d="M'+x+','+(pos.critic+bh/2)+' H18 V'+(pos.actor+bh/2)+' H'+(x-3)+'" fill="none" stroke="var(--acc)" stroke-width="2" marker-end="url(#rd-oA)"/>';
-      s+=T(12,(pos.actor+pos.critic+bh)/2,'∇ to actor',{a:'middle',fs:11,fill:'var(--acc)'}).replace('<text','<text transform="rotate(-90 12 '+((pos.actor+pos.critic+bh)/2)+')"');
-      s+=lab(x+bw/2,y-gy+22,M.y,'middle',M.hi.length?'var(--bad)':'var(--ink)');H=y-gy+30}
-    el.innerHTML=RD.svg(W,H,s,'The off-policy actor-critic loop: actor, environment, replay buffer, critic and target networks');
-    $('rd-oacX').textContent=M.cap}
-  if($('rd-oacM'))RD.seg($('rd-oacM'),m=>{oacM=m;oac()});
-
-  function all(){hero();corridor();jcurve();rtg();a3c();ng();oac()}
+  function all(){hero();corridor();jcurve();a3c();ng()}
   RD.onRender(all);RD.onResize(all);all();
 })();

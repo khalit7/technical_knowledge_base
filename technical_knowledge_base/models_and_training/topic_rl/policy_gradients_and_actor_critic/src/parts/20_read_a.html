@@ -18,12 +18,22 @@
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections"><a href="#rd-one">The idea</a><a href="#rd-why">1 Why</a><a href="#rd-thm">2 The theorem</a><a href="#rd-rf">3 REINFORCE</a><a href="#rd-base">4 Baselines</a><a href="#rd-ac">5 Actor-critic</a><a href="#rd-gae">6 GAE</a><a href="#rd-a2c">7 A2C, A3C</a><a href="#rd-trpo">8 Natural gradient, TRPO</a><a href="#rd-ppo">9 PPO</a><a href="#rd-impl">10 Implementation</a><a href="#rd-dpg">11 DPG, DDPG</a><a href="#rd-td3">12 TD3</a><a href="#rd-sac">13 SAC</a><a href="#rd-cc">14 Continuous control</a><a href="#rd-when">15 Which when</a><a href="#rd-depth">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="core"><b>Push up the log-probability of each action in proportion to how good it turned out.</b> Every method on this page uses that one gradient, ∇<sub>θ</sub> log π<sub>θ</sub>(<i>a</i> | <i>s</i>) × <span class="hl">weight</span>, and differs in only two places: <b>what number the weight is</b> (the return, the return minus a baseline, a critic's estimate) and <b>how far one batch of data may move the policy</b> (a step size, a KL limit, a clip, an entropy bonus).</p>
-<div class="hero" id="rd-heroC"><h4>Two dials define every method: what weights the score, and how far one batch may move the policy</h4>
-<div class="rd-svg" id="rd-hero"></div>
-<p class="small">First dial: from the first box to the last, the weight relies less on sampled rewards and more on a learned critic, so variance falls and the critic's bias enters. Second dial: on-policy methods limit the step on fresh data (step size, KL, clip); off-policy ones reuse a replay buffer and need target networks, and SAC adds entropy to the objective. Tap a box to jump to its section.</p></div>
+<p class="sxh">Fig. 1 · one update of a softmax policy, step by step</p>
+<ol class="sx" id="sx-hero">
+<li><b>A policy over three actions.</b> One state, three actions with rewards 1, 2 and 6, and a softmax with every logit at 0: each action has probability 1/3, so <i>V</i> = 3. This is section 4's worked example <i class="nl i">illustrative</i>.</li>
+<li><b>Sample an action and take its score.</b> Action 1 is drawn. Its score with respect to the logits is <i>e</i><sub>1</sub> − π = (+0.67, −0.33, −0.33): the direction that makes action 1 more likely.</li>
+<li><b>Weight it by the return.</b> With no baseline the weight is the reward itself, 1, so the update is (+0.67, −0.33, −0.33): the worst action is pushed up, because every reward is positive.</li>
+<li><b>Dial 1: subtract a baseline.</b> With <i>b</i> = <i>V</i> = 3 the weight is 1 − 3 = −2 and the update is (−1.33, +0.67, +0.67): the same sample now pushes action 1 down.</li>
+<li><b>On average, the same gradient.</b> Over the three possible samples both rows average to the exact gradient (−0.67, −0.33, +1); the glass shows how far single samples scatter. The total variance falls from 7.56 to 1.56 <i class="nl d">derived</i>.</li>
+<li><b>Dial 2: how far one step may move the policy.</b> A step of η = 0.5 along that gradient gives (0.22, 0.26, 0.51) <i class="nl i">illustrative</i>, so action 3's probability is 1.54 times its old value. A step size, a KL limit (TRPO) or PPO's clip at 1 ± ε (the two glass plates, ε = 0.2) decides how far one batch may go.</li>
+</ol>
+</section></div></div>
+
+<div class="s3sp"><div class="s3L">
 <p><b>You need:</b> TD errors, TD(λ) and importance sampling from {{Model-free prediction and control|n:3c65c17b0d0d81898a0cd4c05c744969}} (the critics here learn those targets); replay buffers and target networks from {{Value-based deep RL|n:3ee5c17b0d0d818689b2c0dbce434ece}} (DDPG, TD3 and SAC borrow them). The one-state version of the policy gradient is the gradient bandit on {{Bandits and exploration|n:3ee5c17b0d0d81acba54d70ac51c601c}}.</p>
 <dl class="terms">
 <dt>Score function</dt><dd>∇<sub>θ</sub> log π<sub>θ</sub>(<i>a</i> | <i>s</i>): the direction in parameter space that makes the action taken more likely (Sutton and Barto: the eligibility vector).</dd>
@@ -34,6 +44,11 @@
 <dt>Trust region, clip</dt><dd>a KL limit on how far the action distribution may move per update (TRPO); PPO's clip removes the incentive to move the ratio past 1 ± ε.</dd>
 <dt>Temperature α</dt><dd>the price of randomness in maximum-entropy RL: reward plus α × entropy is maximised.</dd>
 </dl>
+</div><div class="s3R"><div class="s3side">
+<div class="card" id="rd-heroC"><h4>Two dials define every method: what weights the score, and how far one batch may move the policy</h4>
+<div class="rd-svg" id="rd-hero"></div>
+<p class="small">First dial: from the first box to the last, the weight relies less on sampled rewards and more on a learned critic, so variance falls and the critic's bias enters. Second dial: on-policy methods limit the step on fresh data (step size, KL, clip); off-policy ones reuse a replay buffer and need target networks, and SAC adds entropy to the objective. Tap a box to jump to its section.</p></div>
+</div></div></div>
 <div class="tw"><table class="rd-t spine" id="rd-spine">
 <tr><th>Method</th><th>What weights ∇ log π(<i>a</i> | <i>s</i>)</th><th>How far a step may go</th><th>Data</th><th>Actions</th></tr>
 <tr class="lnk" data-go="rd-rf"><td>REINFORCE (1992)</td><td>The sampled return <i>G<sub>t</sub></i></td><td>Step size only</td><td>On-policy, whole episodes</td><td>Any</td></tr>
@@ -48,40 +63,50 @@
 <tr class="lnk" data-go="rd-sac"><td>SAC (2018)</td><td>The soft <i>Q</i>, minus α log π, through a reparameterised stochastic actor</td><td>The entropy bonus keeps the policy wide</td><td>Off-policy, replay</td><td>Continuous</td></tr>
 </table></div>
 <p class="small mute">Rows jump to their section. Dates and first papers match the parent's {{Method atlas|n:3c65c17b0d0d8195a6c6c11ad093c16e}} tab, which places these among the other 47 methods. Widgets are computed exactly in the page and checked against Python; numbers are published (source linked) unless marked <i class="nl d">derived</i> or <i class="nl i">illustrative</i>. PPO for RLHF with its four models, GRPO, RLOO and their corrections on language models are on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}.</p>
-</section>
 
+
+<div class="s3sp"><div class="s3L">
 <section id="rd-why">
 <h2><span class="num">1</span>Why optimise the policy directly</h2>
 <p>A value-based agent acts by arg max<sub><i>a</i></sub> <i>Q</i>(<i>s</i>, <i>a</i>): a maximisation over actions at every step, awkward when the action is a vector of joint torques and expensive when it is one of 100,000 tokens, and it only yields a deterministic policy plus bolted-on exploration noise. A parameterised policy has four advantages ({{Sutton and Barto §13.1|http://incompleteideas.net/book/RLbook2020.pdf#page=343}}): <b>continuous and huge action spaces</b> are natural (a Gaussian over torques, a softmax over tokens); <b>the optimal policy may be stochastic</b> (card games with hidden information, or states the agent cannot tell apart: an ε-greedy action-value method cannot represent specific probabilities; a softmax policy can); <b>smooth change</b>, since probabilities move continuously with θ while an arbitrarily small change in estimated values can flip an ε-greedy choice ("Largely because of this, stronger convergence guarantees are available for policy-gradient methods than for action-value methods", {{§13.2|http://incompleteideas.net/book/RLbook2020.pdf#page=346}}); and <b>prior knowledge</b> goes into the form of the policy, "often the most important reason for using a policy-based learning method".</p>
 <p><b>The short corridor</b> ({{Example 13.1|http://incompleteideas.net/book/RLbook2020.pdf#page=345}}) is the smallest problem on which a policy-gradient method beats every action-value method that uses the same features, and it runs through sections 3 to 5. Three states, reward −1 per step, actions right and left, switched in the second state; every state has the same features, so a policy is one number, <i>p</i> = probability of right.</p>
+<details class="dp"><summary>Where <i>J</i>(<i>p</i>) and the optimum come from (Exercise 13.1) <span class="mute">1 min</span></summary><div class="b">
+<p>In the first and third states <i>right</i> moves right and <i>left</i> moves left (left in the first state bumps the wall). Write <i>v</i><sub>1</sub>, <i>v</i><sub>2</sub>, <i>v</i><sub>3</sub> for the three states under "right with probability <i>p</i>". The Bellman equations are <i>v</i><sub>1</sub> = −1 + <i>p v</i><sub>2</sub> + (1 − <i>p</i>) <i>v</i><sub>1</sub>; <i>v</i><sub>2</sub> = −1 + <i>p v</i><sub>1</sub> + (1 − <i>p</i>) <i>v</i><sub>3</sub> (switched); <i>v</i><sub>3</sub> = −1 + (1 − <i>p</i>) <i>v</i><sub>2</sub>. Solving gives <i>J</i>(<i>p</i>) = <i>v</i><sub>1</sub> = 2(2 − <i>p</i>) / (<i>p</i>(<i>p</i> − 1)). Setting d<i>J</i>/d<i>p</i> = 0 gives <i>p</i>* = 2 − √2 ≈ 0.5858 and <i>J</i>* ≈ −11.657 <i class="nl d">derived</i>. The ε-greedy policies with ε = 0.1 choose their greedy action with probability 1 − ε/2 = 0.95: <i>J</i>(0.95) = −44.21 and <i>J</i>(0.05) = −82.11, the book's "less than −44 and −82" <i class="nl d">derived</i>.</p>
+</div></details>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="rd-jpC"><h4>No deterministic policy can do well here; the best one flips a biased coin</h4>
 <div class="rd-svg" id="rd-jpW"></div>
 <div class="rd-svg" id="rd-jp"></div>
 <p class="small">The value of the start state is <i>J</i>(<i>p</i>) = 2(2 − <i>p</i>) / (<i>p</i>(<i>p</i> − 1)), maximised at <i>p</i>* = 2 − √2 ≈ 0.586 with <i>J</i>* = −(6 + 4√2) ≈ −11.66 <i class="nl d">derived</i>. The two policies an ε-greedy method can reach (ε = 0.1) choose right with probability 0.95 or 0.05 and score −44.2 and −82.1. The book: "The best probability is about 0.59, which achieves a value of about −11.6."</p>
 </div>
-<details class="dp"><summary>Where <i>J</i>(<i>p</i>) and the optimum come from (Exercise 13.1) <span class="mute">1 min</span></summary><div class="b">
-<p>In the first and third states <i>right</i> moves right and <i>left</i> moves left (left in the first state bumps the wall). Write <i>v</i><sub>1</sub>, <i>v</i><sub>2</sub>, <i>v</i><sub>3</sub> for the three states under "right with probability <i>p</i>". The Bellman equations are <i>v</i><sub>1</sub> = −1 + <i>p v</i><sub>2</sub> + (1 − <i>p</i>) <i>v</i><sub>1</sub>; <i>v</i><sub>2</sub> = −1 + <i>p v</i><sub>1</sub> + (1 − <i>p</i>) <i>v</i><sub>3</sub> (switched); <i>v</i><sub>3</sub> = −1 + (1 − <i>p</i>) <i>v</i><sub>2</sub>. Solving gives <i>J</i>(<i>p</i>) = <i>v</i><sub>1</sub> = 2(2 − <i>p</i>) / (<i>p</i>(<i>p</i> − 1)). Setting d<i>J</i>/d<i>p</i> = 0 gives <i>p</i>* = 2 − √2 ≈ 0.5858 and <i>J</i>* ≈ −11.657 <i class="nl d">derived</i>. The ε-greedy policies with ε = 0.1 choose their greedy action with probability 1 − ε/2 = 0.95: <i>J</i>(0.95) = −44.21 and <i>J</i>(0.05) = −82.11, the book's "less than −44 and −82" <i class="nl d">derived</i>.</p>
-</div></details>
+</div></div></div>
+<div>
 <h3>The two policy parameterisations and their score functions</h3>
 <p>Everything below needs only the score ∇<sub>θ</sub> log π(<i>a</i> | <i>s</i>, θ). Nearly every implementation uses one of two:</p>
 <div class="fm"><div class="eq">Softmax: π(<i>a</i> | <i>s</i>) = exp(θ<sup>⊤</sup><i>x</i>(<i>s</i>, <i>a</i>)) / Σ<sub><i>b</i></sub> exp(θ<sup>⊤</sup><i>x</i>(<i>s</i>, <i>b</i>)), &nbsp; ∇ log π(<i>a</i> | <i>s</i>) = <i>x</i>(<i>s</i>, <i>a</i>) − Σ<sub><i>b</i></sub> π(<i>b</i> | <i>s</i>) <i>x</i>(<i>s</i>, <i>b</i>)</div>
 <div class="eq">Gaussian: <i>a</i> ~ 𝒩(μ<sub>θ</sub>(<i>s</i>), σ<sub>θ</sub>(<i>s</i>)<sup>2</sup>), &nbsp; ∂ log π / ∂μ = (<i>a</i> − μ) / σ<sup>2</sup>, &nbsp; ∂ log π / ∂ log σ = (<i>a</i> − μ)<sup>2</sup> / σ<sup>2</sup> − 1</div>
 <dl><dt>x(s, a)</dt><dd>a feature vector of the pair; with a network the logits play the role of θ<sup>⊤</sup>x, and the score with respect to the logits is the one-hot vector of <i>a</i> minus the probabilities</dd><dt>μ, σ</dt><dd>the mean and standard deviation the network outputs ({{§13.7|http://incompleteideas.net/book/RLbook2020.pdf#page=357}}); a sample above the mean pushes μ up if it turned out well, a sample far from the mean pushes σ up</dd></dl></div>
-</section>
+</div>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-rtg"></div></div><div class="s3L">
 <section id="rd-thm">
 <h2><span class="num">2</span>The policy gradient theorem, derived</h2>
 <p>The objective is the expected return of trajectories τ = (<i>s</i><sub>0</sub>, <i>a</i><sub>0</sub>, <i>r</i><sub>1</sub>, <i>s</i><sub>1</sub>, ...) sampled by running the policy, <i>J</i>(θ) = 𝔼<sub>τ~π<sub>θ</sub></sub>[<i>G</i>(τ)]. The difficulty: θ changes <b>which trajectories happen</b>, through a state distribution that depends on unknown dynamics. Four steps remove it.</p>
 <ol>
 <li><b>The log-derivative trick.</b> ∇<sub>θ</sub> 𝔼<sub><i>x</i>~<i>p</i><sub>θ</sub></sub>[<i>f</i>(<i>x</i>)] = Σ<sub><i>x</i></sub> <i>f</i>(<i>x</i>) ∇<i>p</i><sub>θ</sub>(<i>x</i>) = 𝔼<sub><i>x</i>~<i>p</i><sub>θ</sub></sub>[<i>f</i>(<i>x</i>) ∇ log <i>p</i><sub>θ</sub>(<i>x</i>)], because ∇<i>p</i> = <i>p</i> ∇ log <i>p</i>. A gradient of an expectation becomes an expectation of something we can sample.</li>
 <li><b>The dynamics drop out.</b> log <i>p</i><sub>θ</sub>(τ) = log <i>p</i>(<i>s</i><sub>0</sub>) + Σ<sub><i>t</i></sub> [log π<sub>θ</sub>(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>) + log <i>p</i>(<i>s</i><sub><i>t</i>+1</sub>, <i>r</i><sub><i>t</i>+1</sub> | <i>s<sub>t</sub></i>, <i>a<sub>t</sub></i>)]. Only the policy terms depend on θ, so ∇ log <i>p</i><sub>θ</sub>(τ) = Σ<sub><i>t</i></sub> ∇ log π<sub>θ</sub>(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>): no model of the environment is ever needed, only samples and a differentiable policy.</li>
-<li><b>Causality.</b> That gives ∇<i>J</i> = 𝔼[<i>G</i>(τ) Σ<sub><i>t</i></sub> ∇ log π(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>)]. A reward received before time <i>t</i> does not depend on <i>a<sub>t</sub></i>, and 𝔼<sub><i>a</i>~π</sub>[∇ log π(<i>a</i> | <i>s</i>)] = ∇ Σ<sub><i>a</i></sub> π(<i>a</i> | <i>s</i>) = ∇1 = 0, so those rewards contribute nothing in expectation: each score is weighted only by the <b>reward-to-go</b> <i>G<sub>t</sub></i> = Σ<sub><i>k</i>≥0</sub> γ<sup><i>k</i></sup> <i>r</i><sub><i>t</i>+<i>k</i>+1</sub>. Same expectation, less variance (the figure).</li>
+<li><b>Causality.</b> That gives ∇<i>J</i> = 𝔼[<i>G</i>(τ) Σ<sub><i>t</i></sub> ∇ log π(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>)]. A reward received before time <i>t</i> does not depend on <i>a<sub>t</sub></i>, and 𝔼<sub><i>a</i>~π</sub>[∇ log π(<i>a</i> | <i>s</i>)] = ∇ Σ<sub><i>a</i></sub> π(<i>a</i> | <i>s</i>) = ∇1 = 0, so those rewards contribute nothing in expectation: each score is weighted only by the <b>reward-to-go</b> <i>G<sub>t</sub></i> = Σ<sub><i>k</i>≥0</sub> γ<sup><i>k</i></sup> <i>r</i><sub><i>t</i>+<i>k</i>+1</sub>. Same expectation, less variance (Fig. 2).</li>
 <li><b>From returns to action values.</b> 𝔼[<i>G<sub>t</sub></i> | <i>s<sub>t</sub></i>, <i>a<sub>t</sub></i>] = <i>Q</i><sub>π</sub>(<i>s<sub>t</sub></i>, <i>a<sub>t</sub></i>), which gives the theorem.</li>
 </ol>
-<div class="card" id="rd-rtgC"><h4>Causality deletes the lower triangle: an action is weighted only by the rewards that come after it</h4>
-<div class="rd-svg" id="rd-rtg"></div>
-<p class="small">One four-step episode with rewards 1, 0, 2, −1 (γ = 1) <i class="nl i">illustrative</i>. Each row is one action's weight; each column one reward. Left, the whole return weights every action by 2. Right, the reward-to-go weights them 2, 1, 1, −1: the greyed cells are rewards earned before the action was taken, which average to zero against its score and only add noise.</p>
-</div>
+<p class="sxh">Fig. 2 · causality deletes the lower triangle</p>
+<ol class="sx" id="sx-rtg">
+<li><b>One episode.</b> Four actions <i>a</i><sub>0</sub> to <i>a</i><sub>3</sub>, then the rewards that followed them, 1, 0, 2, −1 (γ = 1) <i class="nl i">illustrative</i>; reward <i>r</i><sub><i>k</i></sub> arrives after action <i>a</i><sub><i>k</i>−1</sub>.</li>
+<li><b>The whole return weights every action.</b> Each row is one action's weight, made of all four rewards, so every action is weighted by <i>G</i>(τ) = 2.</li>
+<li><b>Causality deletes the lower triangle.</b> The rewards earned before an action (the glass cells) do not depend on it, and its score averages to zero against them, so they add only noise.</li>
+<li><b>The reward-to-go.</b> What is left weights the four actions 2, 1, 1, −1: the same expected gradient as the whole return, with less variance.</li>
+</ol>
 <div class="fm"><div class="eq">∇<sub>θ</sub> <i>J</i>(θ) = 𝔼<sub>π<sub>θ</sub></sub> [ Σ<sub><i>t</i></sub> ∇<sub>θ</sub> log π<sub>θ</sub>(<i>a<sub>t</sub></i> | <i>s<sub>t</sub></i>) · <i>Q</i><sub>π</sub>(<i>s<sub>t</sub></i>, <i>a<sub>t</sub></i>) ] &nbsp; ∝ &nbsp; Σ<sub><i>s</i></sub> μ(<i>s</i>) Σ<sub><i>a</i></sub> <i>q</i><sub>π</sub>(<i>s</i>, <i>a</i>) ∇<sub>θ</sub> π(<i>a</i> | <i>s</i>, θ)</div>
 <dl><dt>∇ log π(a<sub>t</sub> | s<sub>t</sub>)</dt><dd>the direction that makes the action actually taken more likely in that state</dd><dt>Q<sub>π</sub>(s<sub>t</sub>, a<sub>t</sub>)</dt><dd>how good that action turned out to be, in expectation, if the policy is followed afterwards</dd><dt>μ(s)</dt><dd>the on-policy state distribution; in the episodic case the constant of proportionality is the average episode length, in the continuing case it is 1 ({{Sutton and Barto, Eq. 13.5|http://incompleteideas.net/book/RLbook2020.pdf#page=348}})</dd></dl></div>
 <p>The second form is the statement in {{Sutton et al. (1999)|https://proceedings.neurips.cc/paper_files/paper/1999/file/464d828b85b0bed98e80ade0a5c43b0f-Paper.pdf}} and in the book, which proves it by unrolling ∇<i>v</i><sub>π</sub>(<i>s</i>) = Σ<sub><i>a</i></sub> [∇π(<i>a</i> | <i>s</i>) <i>q</i><sub>π</sub>(<i>s</i>, <i>a</i>) + π(<i>a</i> | <i>s</i>) ∇<i>q</i><sub>π</sub>(<i>s</i>, <i>a</i>)] through the Bellman equation ({{the box on p. 325|http://incompleteideas.net/book/RLbook2020.pdf#page=347}}). Its point: the gradient <b>does not involve the derivative of the state distribution</b>, which depends on the unknown environment.</p>
@@ -89,6 +114,7 @@
 <p>The same paper's Theorem 2 says when a learned <i>f<sub>w</sub></i>(<i>s</i>, <i>a</i>) can replace <i>Q</i><sub>π</sub> without biasing the gradient: if <i>f<sub>w</sub></i> is a local optimum of the squared error to <i>Q</i><sub>π</sub> under π, and its gradient in <i>w</i> equals the policy's score, ∂<i>f<sub>w</sub></i>/∂<i>w</i> = ∇<sub>θ</sub> π(<i>s</i>, <i>a</i>) / π(<i>s</i>, <i>a</i>). Its Theorem 3 then shows that "a form of policy iteration with function approximation is convergent to a locally optimal policy" under standard step-size conditions. Practical critics are not compatible in this sense; the theorem is why "a critic that is exactly right gives the exact gradient" holds and an arbitrary one does not.</p>
 </div></details>
 </section>
+</div></div>
 
 <section id="rd-rf">
 <h2><span class="num">3</span>REINFORCE: the Monte Carlo policy gradient</h2>
