@@ -8,6 +8,7 @@
 </div>
 <h3>Natural or surrogate key</h3>
 <p>A <b>natural key</b> is a real-world value that already identifies the row (an email address); a <b>surrogate key</b> is an id the database invents, with no meaning. Natural keys age badly: people change emails, case and whitespace make two spellings of one address, and a key copied into every foreign key must change everywhere when it changes. <b>The production default: a surrogate primary key, plus a UNIQUE constraint on the natural key</b> so duplicates are still refused. Join tables are the exception: the pair is the right primary key.</p>
+<div class="s3sp"><div class="s3L">
 <h3>bigint, UUID v4 or UUID v7</h3>
 <ul>
 <li><b>bigint identity</b> (<code>bigint GENERATED ALWAYS AS IDENTITY</code>, the SQL-standard spelling Postgres has supported since version 10; the older <code>serial</code> is on the wiki's {{Don't Do This|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_serial}} list): 8 bytes, sequential, compact. Use bigint, not <code>integer</code>: a 4-byte integer runs out at 2,147,483,647, and changing a key's type later rewrites the table and every index ({{ALTER TABLE, measured|#t-alter}}).</li>
@@ -15,14 +16,14 @@
 <li><b>UUID version 7</b> ({{RFC 9562, May 2024|https://www.rfc-editor.org/rfc/rfc9562.html#name-uuid-version-7}}): the Unix time in milliseconds in the first 48 bits, random bits after. Generated anywhere like v4, but new keys sort after old ones like bigint; it reveals when a row was created. PostgreSQL 18 (released {{2025-09-25|https://www.postgresql.org/docs/18/release-18.html}}) has a built-in <code>uuidv7()</code>; on 16 and 17 generate it in the application or with a small function (the measurement below used one).</li>
 </ul>
 <p>Why order matters is a B-tree mechanism: sequential keys append to the last leaf page, random keys split pages all over the index, leave them about 69% full and write more whole pages to the WAL (the write-ahead log, the record of every change written before the data, which replicas and backups also consume). {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}} owns it: section 5 draws and measures it, and its B-tree and LSM lab lets you insert ascending against random keys. What it means for choosing a key, measured here:</p>
-<div class="card" id="rd-keys-card">
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-keys-card">
 <h4 class="vt">Random UUID v4 keys cost a bigger index and more WAL than v7 for the same rows <span class="meas">measured</span></h4>
 <p class="small">PostgreSQL 16.2 on a laptop, default settings (128 MB of shared buffers). Keys generated first into a temporary table (generation timed apart: <code>gen_random_uuid</code> took 12.9 s per 1M here, more than the insert), then inserted in generation order with one <code>INSERT ... SELECT</code> into a table of the key plus two integers. 1M figures are medians of 3 runs, 10M single runs.</p>
 <div class="seg" id="rd-keys-n"><button data-m="1000000" class="on">1M rows</button><button data-m="10000000">10M rows</button></div>
 <div class="seg" id="rd-keys-m"><button data-m="seconds" class="on">insert time</button><button data-m="index_bytes">primary-key index size</button><button data-m="wal_bytes">WAL written</button></div>
 <div class="bars" id="rd-keys-bars"></div>
 <p class="small" id="rd-keys-note"></p>
-</div>
+</div></div></div></div>
 <details class="dp"><summary>Reading the measurement: two effects are mixed in it <span class="mute">(depth)</span></summary><div class="b"><p>A UUID is twice as wide as a bigint, so its index is bigger whatever the order. Random order adds half-empty pages after splits and writes scattered over the whole index, which stops fitting in memory as the table grows, and a larger WAL, because after each checkpoint the first change to a page writes the whole 8 KB page ({{full_page_writes|https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-FULL-PAGE-WRITES}}). Version 7 removes the second cost and keeps the first.</p></div></details>
 <p><b>The choice:</b> bigint identity for internal keys; UUID v7 when ids must be generated outside the database or merged across databases; UUID v4 only when unguessable, time-free ids matter more than write cost. If a public id must not reveal volume or creation time, keep a bigint primary key and add a separate random public id with a UNIQUE index.</p>
 </section>

@@ -1,16 +1,18 @@
 <section id="rd-s8">
+<div class="s3sp"><div class="s3L">
 <h2>8. Modelling common shapes</h2>
 <p>Most schemas are built from a handful of shapes. Each has a standard layout whose keys and constraints carry the rules; pick a shape to see its tables.</p>
-<div class="card" id="rd-shape-card"><h4 class="vt">Where the keys go decides what the database can enforce</h4>
-<div class="seg" id="rd-shape-mode"><button data-m="m2m" class="on">many to many</button><button data-m="adj">tree: parent_id</button><button data-m="path">tree: path</button><button data-m="closure">tree: closure table</button><button data-m="ts">time series</button><button data-m="soft">soft delete</button><button data-m="json">JSON column</button><button data-m="tenant">many tenants</button></div>
-<div class="rd-svg" id="rd-shape"></div>
-<div class="an-cap" id="rd-shape-cap"></div></div>
+
 <ul>
 <li><b>Many to many</b>: a join table whose primary key is the pair; facts about the relationship live on it (section 7).</li>
 <li><b>Trees</b>: an <b>adjacency list</b> (<code>parent_id</code>, as the chat data does) is cheap to write and to move a subtree, and is walked with a recursive CTE (section 5). Trees read far more than written are often stored as a <b>materialised path</b> (<code>'1/7/12'</code>: a subtree is a prefix match, a move rewrites the subtree) or a <b>closure table</b> (one row per ancestor and descendant pair: a subtree is one join, an insert writes one row per ancestor).</li>
 <li><b>Time series</b> (usage per minute, model latency, token counts): append-only rows keyed by <code>(series_id, ts)</code>, usually range-partitioned on time with Postgres {{declarative partitioning|https://www.postgresql.org/docs/current/ddl-partitioning.html}}, so old data leaves by dropping or detaching a whole partition, which the documentation calls far faster than a bulk DELETE. Columnar engines for large-scale analytics are {{Analytics: columnar engines, DuckDB and the lakehouse|n:3ef5c17b0d0d8157814ec5dd8a0d4fb5}}; time-ordered indexes such as BRIN are {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}.</li>
 <li><b>Soft deletes and JSON columns</b> have costs that are easy to miss; they follow.</li>
 </ul>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-shape-card"><h4 class="vt">Where the keys go decides what the database can enforce</h4>
+<div class="seg" id="rd-shape-mode"><button data-m="m2m" class="on">many to many</button><button data-m="adj">tree: parent_id</button><button data-m="path">tree: path</button><button data-m="closure">tree: closure table</button><button data-m="ts">time series</button><button data-m="soft">soft delete</button><button data-m="json">JSON column</button><button data-m="tenant">many tenants</button></div>
+<div class="rd-svg" id="rd-shape"></div>
+<div class="an-cap" id="rd-shape-cap"></div></div></div></div></div>
 <h3>Soft deletes and their cost</h3>
 <p>Instead of <code>DELETE</code>, set <code>deleted_at = now()</code> and hide those rows, so a deletion can be undone and audited. The costs, as Brandur Leach catalogued in {{"Soft deletion probably isn't worth it" (2022)|https://brandur.org/soft-deletion}}: every query, report and join must remember <code>WHERE deleted_at IS NULL</code> (one that forgets shows deleted data); foreign keys stop meaning much (a live chat can point at a "deleted" user, and <code>ON DELETE CASCADE</code> never fires); UNIQUE constraints break (a user who deletes their account and signs up again collides with their own deleted row) unless the unique index is partial; and nothing is deleted, while privacy law's right to erasure (GDPR Article 17) requires real deletion of personal data, so you still need a purge job.</p>
 <div class="rq" data-ex="m_soft" data-title="Soft delete with a partial unique index"></div>
@@ -38,18 +40,19 @@
 </section>
 
 <section id="rd-s9">
+<div class="s3sp"><div class="s3R"><div id="stg-norm"></div></div><div class="s3L">
 <h2>9. Normalisation: one fact in one place</h2>
-<p>The tempting first design is one wide table: every message row also carries its chat's title and its user's name, email and plan, so any screen is one query with no joins. It works until a fact changes. Column B <b>depends on</b> column A (a <i>functional dependency</i>, A &rarr; B) if knowing A fixes B: <code>user_id &rarr; email</code>. A <b>candidate key</b> is a minimal set of columns that fixes all the others. Storing a dependent fact beside something other than its key causes <b>anomalies</b>: an <b>update anomaly</b> (one fact in many rows; miss one and there are two versions), an <b>insert anomaly</b> (a fact cannot be stored without an unrelated one: a user who has sent no message has no row) and a <b>delete anomaly</b> (removing one fact removes another: delete a user's last message and their email is gone). Predict how many rows a rename must write in each design, then play both:</p>
-<div class="card" id="rd-norm-card">
-<h4 class="vt">One rename: 59 rows to write in the wide table, 1 in the normalised schema</h4>
-<p class="small">The real messages of Ines Novak (user 7), one square per message row. In the wide table every square stores her name; normalised, her name is stored once in <code>users</code> and each message reaches it through its chat. Same rename, same buggy code path that only updates the chat she is in, same question afterwards.</p>
-<div class="seg" id="rd-norm-mode"><button data-m="wide" class="on">One wide table</button><button data-m="norm">Normalised: users, chats, messages</button></div>
-<div class="an-ctl" id="rd-norm-ctl"></div>
-<div class="rd-svg" id="rd-norm-svg"></div>
-<div class="leg"><span style="--sw:var(--c1)">row stores "Ines Novak"</span><span style="--sw:var(--c2)">row stores "Ines Novak-Reyes"</span><span style="--sw:var(--dim)">row stores no name</span></div>
-<div class="an-cnt" id="rd-norm-cnt"></div>
-<div class="an-cap" id="rd-norm-cap"></div>
-</div>
+<p>The tempting first design is one wide table: every message row also carries its chat's title and its user's name, email and plan, so any screen is one query with no joins. It works until a fact changes. Column B <b>depends on</b> column A (a <i>functional dependency</i>, A &rarr; B) if knowing A fixes B: <code>user_id &rarr; email</code>. A <b>candidate key</b> is a minimal set of columns that fixes all the others. Storing a dependent fact beside something other than its key causes <b>anomalies</b>: an <b>update anomaly</b> (one fact in many rows; miss one and there are two versions), an <b>insert anomaly</b> (a fact cannot be stored without an unrelated one: a user who has sent no message has no row) and a <b>delete anomaly</b> (removing one fact removes another: delete a user's last message and their email is gone). Predict how many rows a rename must write in each design before Fig. 5 plays it on the real messages of Ines Novak (user 7): <b>one rename, 59 rows to write in the wide table, 1 in the normalised schema</b>.</p>
+<ol class="sx" id="sx-norm">
+<li><b>The wide table.</b> <code>chat_log</code>: each of user 7's 59 message rows, grouped by her 7 chats, carries her name, email and plan; the cap on each row is her name.</li>
+<li><b>A correct rename writes 59 rows.</b> To stay correct, the UPDATE must find and rewrite every one of them, in every chat, in one transaction.</li>
+<li><b>A buggy path writes 5.</b> Code that updates "the current chat's rows" (chat 22) rewrites 5 rows; the other 54 still say "Ines Novak". Nothing failed and nothing warned.</li>
+<li><b>Two answers, and two more anomalies.</b> Ask "what is user 7's name?" and the data gives two answers: the update anomaly, one fact stored 59 times disagreeing with itself. A user who has not sent a message has no row at all (insert anomaly), and deleting Ines's messages would delete her email too (delete anomaly).</li>
+<li><b>Normalise.</b> Her name moves into one row of <code>users</code>; each chat is one row of <code>chats</code>; a message row stores only <code>chat_id</code> and reaches the name by a join through <code>chats.user_id</code>.</li>
+<li><b>The same rename writes 1 row.</b> <code>UPDATE users SET name = ... WHERE id = 7</code>: one row, whatever the number of messages, and every message shows the new name through the join. The careless code path has nothing left to miss.</li>
+<li><b>A user exists without messages.</b> Six of the 50 users in this data have never opened a chat, and they are stored perfectly well, as rows of <code>users</code> like any other.</li>
+</ol>
+</div></div>
 <div class="rq" data-ex="n_anomaly" data-title="The update anomaly, in the page's database"></div>
 <h3>The normal forms, by the anomaly each removes</h3>
 <p>Each form adds one rule (William Kent's {{four-page guide, CACM 1983|https://doi.org/10.1145/358024.358054}} is still the best short explanation). A schema designed from entities and relationships (section 7) is usually in BCNF already; the forms are most useful as a checklist when reviewing a table that "has everything in it".</p>

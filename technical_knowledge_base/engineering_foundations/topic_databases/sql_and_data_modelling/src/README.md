@@ -50,3 +50,31 @@ Why about 42 minutes is right: the page owns a whole language plus schema design
 
 ## Tabs kept and why
 Exercises lab (a tool used across the whole page) and ALTER TABLE, measured (a 21-row dataset with a row-count slider, referenced from sections 7 and 11) stay as tabs; neither explains one mechanism.
+
+## The 2026-11-06 pass: split layout, six 3D stages (renderer v2), explained and autoplaying animations
+- **Templates**: `02_split.html` (in `build.sh` after `01_head.html`), `21_js_rd_common.js`, `99_js_tabs.js` (key `sqlm-tab`) and `05z_errbox.js.html` from the skill; the renderer `25_js_s3.js` copied unchanged as `56_js_s3.js` (after the data and 2D figures, before the scenes 57 to 62). `RD.t` now defaults to 12 px; the lock queue's 9.5 px labels became 11 px.
+- **Six 3D stages**, every number from the page's data (`SM_DATA`, the root's chat data) and checked in `check_stages.mjs` (via `window.CHK`) and `recompute.py`:
+  - Fig. 1 (`57_js_sc_hero.js`, 5 steps, new hero): `SELECT u.plan, COUNT(*) ... WHERE c.model = 'mini' GROUP BY u.plan`: 50 users by 200 chats as 10,000 cells of a glass plate, the 200 true pairs, 90 kept, folded into free 47, pro 37, team 6; then a chat for user 7 passes the foreign key and one for user 999 is refused. The 2D schema figure stays beside "You need" and the terms.
+  - Fig. 2 (`58_js_sc_join.js`, 9 steps): the join grid of pairs (illustrative five users and three markets) for CROSS, INNER, LEFT, RIGHT, FULL, semi, anti, NOT IN and NOT IN with a NULL market; the SQL and the result table on the left follow the step. Replaces `35_js_join.js` and its eight mode buttons and checkbox; the old bullet list became the step list.
+  - Fig. 3 (`59_js_sc_grp.js`, 5 steps): chat 11's 16 rows at one scale, split by role, folded into two stacks (477 and 3,826 tokens), kept with the partition total, then the running total. Replaces `49_js_grp.js`.
+  - Fig. 4 (`60_js_sc_win.js`, 7 steps): the frame as a glass box over the 16 rows, one step per function (SUM, AVG of 3, LAG, RANK, LAST_VALUE twice), the current row sweeping across during its step. Replaces `37_js_win.js` (16 frames, six mode buttons; the long-replay rule). Exposes `RD_WIN` as before.
+  - Fig. 5 (`61_js_sc_norm.js`, 7 steps): user 7's 59 message rows with her name as a cap on each; the correct rename (59), the buggy one (5), two answers, then the caps lifted into one users row; the rename writes 1; the 6 users with no chat. Replaces `42_js_norm.js` (two modes of five steps). Exposes `RD_NORM`.
+  - Fig. 6 (`62_js_sc_ec.js`, 7 steps): chats.title and chats.name as two columns of cells, the running code versions in front, reads and writes as flows, the backfill in batches. Schematic. Replaces `54_js_ec.js`.
+- **2D animations, now explained stretches with step lists** (`RD.anim` with `list`): the recursion stepper (17 frames became 5 stretches, the third replaying iterations 2 to 14) and the lock queue (46 frames became 4, 5 and 3 stretches per run, each replaying its part of the measured timeline; the mode buttons swap the lists). Their generated captions were deleted; the counters stay.
+- **Split layout** (Reading): the top twice (hero; schema beside You need and terms); 1 twice (evaluation order, three-valued logic); 2 twice (Fig. 2, fan-out); 3, 4 (stages); 5 (recursion); 6 (upsert race); 7 (key bars beside the key choice); 8 (shapes beside the list of shapes); 9 (Fig. 5); 10 (constraint refusals beside the list of constraints); 11 three times (lock queue, Fig. 6; the ALTER stats stay full width); 12 three times (N+1, injection, checks). Full width: the runnable boxes, the normal-forms table, callouts and closed blocks. Exercises lab and ALTER TABLE, measured stay full width (a grading card and a wide table); Further reading unchanged.
+- **Kept 2D, and why**: see `viz_ideas.md` (tables, timelines, bars on an axis, mini schemas and SQL read best flat).
+- **Checks**: `check_noautoplay.mjs` deleted (the rule is inverted); `check_stages.mjs` (from Query planning and performance) checks autoplay on view, last step, one list item per step, reduced motion, no redraw off screen, two columns at 1400 px, and the scenes' and lists' numbers. `check_page.mjs` unchanged and passing. `recompute.py` gained 6 checks for the scenes (60 of 60).
+- **No real images**: a language and modelling page; nothing physical to show.
+
+## Length judgement, 2026-11-06
+| | Before (audit 2026-11-06) | After |
+|---|---|---|
+| Reading core | 9,742 words, 42.4 min | 11,127 words, 48.4 min (header 48) |
+| Reading in closed blocks | 5,482 words, 23.8 min | 5,482 words, 23.8 min |
+| Exercises lab, ALTER TABLE, Further reading | 1.0, 4.7, 3.9 min | unchanged |
+| Visuals inline in Reading (audit count) | 13 | 14 (six stages replace four 2D visuals; the hero added) |
+
+The core grew by six minutes, all of it step lists: five lists carry what the old generated captions and mode-button captions said (now static, so the audit counts them), and the hero's five steps and the lock queue's twelve stretches are new explanation. Nothing was cut; the per-step captions that the lists now carry were deleted rather than kept twice.
+
+## Ledger, 2026-11-06
+523 units: core 396, depth 73, fat 51, owned 3; `python3 html_utils/ledger.py check` problems 0. 17 keys re-pointed to the step lists that now carry their sentences; 4 units became fat (the join and window mode buttons, the normalisation buttons and legend, and "computed from the real rows", restated by Fig. 4's first step).

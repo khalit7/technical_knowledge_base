@@ -35,3 +35,14 @@ Question the page keeps returning to: "will this query, schema or schema change 
 Built: evaluation-order figure; three-valued logic tables; join grid of pairs (added to the join explorer); fan-out on user 1; GROUP BY against OVER before/after; recursive CTE stepper; upsert race before/after (illustrative timing); eight modelling shapes; constraint refusals with Postgres errors; expand and contract stepper; checks on generated SQL.
 Removed: the B-tree page-split animation (owned by Storage engines and indexes, which draws and measures it and has a lab); linked instead.
 Rejected: an isolation-level view of the upsert race (Transactions and concurrency owns it); a time-zone timeline (the runnable boxes and one rule cover it; moved to a closed block).
+
+## 2026-11-06 rollout: split layout, six 3D stages (renderer v2), explained and autoplaying animations
+Built in 3D (each the spatial form of a relational idea, driven by the page's own data):
+- Fig. 1 hero: one real query as a pipeline (10,000 pairs on a glass plate, the 200 true pairs as a staircase, WHERE keeps 90, GROUP BY folds them into free 47, pro 37, team 6), then one write meeting the foreign key.
+- Fig. 2 joins: the grid of pairs as tiles, true pairs raised, unknown pairs marked U, what each of nine joins keeps streaming into a result stack (replaces the 2D grid and its mode buttons).
+- Fig. 3 grouping: chat 11's 16 rows as bars at one scale, folded into two stacks (the sums) and then kept with the partition total behind each row, then the running total (replaces the 2D before/after).
+- Fig. 4 windows: the frame as a glass box sliding over the 16 rows, results in a front row; one step per function, the row sweep played inside the step (replaces the 16-frame 2D stepper with six mode buttons).
+- Fig. 5 normalisation: user 7's 59 message rows with the name as a cap on each; the rename, the buggy path, then the caps lifted into one users row (replaces the 2D two-mode animation).
+- Fig. 6 expand and contract: the two columns of chats and the running code versions, reads and writes as flows (replaces the 2D stepper).
+Kept 2D, and why: the evaluation-order matrix and the three-valued truth tables (tables read flat); the schema (text: columns and keys); fan-out (a small tree with counts, flat is clearer); the upsert race (two timelines); key-type bars, N+1 bars (numbers on an axis); the eight shapes (mini schemas are text); constraint refusals (SQL and error text); the lock queue (a timeline: time on an axis), now in explained stretches; the recursion stepper (a chain, depth adds nothing), now in explained stretches; the checks diagram (a flow chart of text boxes).
+Rejected: a 3D lock queue (sessions as lanes over time reads best flat); a 3D schema hero (columns are text; the query pipeline makes a better first picture).

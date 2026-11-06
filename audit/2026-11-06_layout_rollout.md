@@ -44,7 +44,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_databases/running_postgres_in_production` Running Postgres in production: backups, replication, vacuum, upgrades, pooling
 - [x] `engineering_foundations/topic_databases/scaling_a_database` Scaling a database: read replicas, sharding Postgres, distributed SQL
 - [x] `engineering_foundations/topic_databases/search_and_vector_databases` Search and vector databases: inverted indexes, BM25, ANN, pgvector
-- [ ] `engineering_foundations/topic_databases/sql_and_data_modelling` SQL and data modelling: queries, joins, schema design, normalisation, migrations
+- [x] `engineering_foundations/topic_databases/sql_and_data_modelling` SQL and data modelling: queries, joins, schema design, normalisation, migrations
 - [ ] `engineering_foundations/topic_databases/storage_engines_and_indexes` Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types
 - [ ] `engineering_foundations/topic_databases/transactions_and_concurrency` Transactions and concurrency: ACID, MVCC, isolation anomalies, locks
 - [ ] `engineering_foundations/topic_databases` Topic: databases
@@ -337,3 +337,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes`: Fig. 2 step 4 is mostly faded, little at full strength; Fig. 4 QASPER mode step 3 text describes the random case.
 - `engineering_foundations/topic_databases/query_planning_and_performance`: Fig. 2 B-tree leaves stand in a row into depth and read like stairs; Fig. 3 faded node labels are faint.
 - `engineering_foundations/topic_databases/running_postgres_in_production`: Fig. 1 step 4 and Fig. 2 step 5 are mostly faded, little at full strength.
+- `engineering_foundations/topic_databases/sql_and_data_modelling`: Fig. 5 step 4 crops the "no row" box and a label at the right edge; page is 1.40 MB (the embedded sql.js engine, 1.35 MB before).

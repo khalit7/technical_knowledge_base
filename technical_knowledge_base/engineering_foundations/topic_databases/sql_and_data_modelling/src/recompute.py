@@ -108,6 +108,20 @@ def sim(keys, C=6):
     return {'leaves': len(leaves), 'splits': splits, 'fill': round(100 * sum(map(len, leaves)) / (len(leaves) * C))}
 bt = {'seq': sim(list(range(1, 37))), 'rand': sim(lcg_keys(36))}
 check('B-tree model: sequential pages full, random pages emptier', bt['seq']['fill'] == 100 and bt['rand']['fill'] < 90)
+
+# ---- the 3D scenes of 2026-11-06 (Fig. 1 to 5): the numbers they draw and their step lists quote, from the root's data ----
+PLANS = {u[0]: u[3] for u in D['users']}
+mini = [c for c in D['chats'] if c[3] == 'mini']
+hero = {'pairs': len(D['users']) * len(D['chats']), 'on': sum(1 for c in D['chats'] if c[1] in PLANS), 'kept': len(mini),
+        'groups': [[p, sum(1 for c in mini if PLANS[c[1]] == p)] for p in ('free', 'pro', 'team')]}
+check('Fig. 1: 10,000 pairs, 200 true, 90 mini, free 47 pro 37 team 6', hero == {'pairs': 10000, 'on': 200, 'kept': 90, 'groups': [['free', 47], ['pro', 37], ['team', 6]]})
+check('Fig. 1 and 5: six users have no chat', len(set(PLANS) - {c[1] for c in D['chats']}) == 6)
+c11r = sorted([m for m in D['messages'] if m[1] == 11])
+grp = {r: (sum(1 for m in c11r if m[2] == r), sum(m[4] for m in c11r if m[2] == r)) for r in ('user', 'assistant')}
+check('Fig. 3: chat 11 groups user 8 rows 477 tokens, assistant 8 rows 3,826', grp == {'user': (8, 477), 'assistant': (8, 3826)})
+check('Fig. 3: the user rows\' running total 103, 204, 223 ... 477', [sum(m[4] for m in [x for x in c11r if x[2] == 'user'][:i + 1]) for i in range(8)] == [103, 204, 223, 239, 283, 310, 400, 477])
+check('Fig. 4: RANK 1 is the 889-token reply, 16 the 16-token message', max(m[4] for m in c11r) == 889 and min(m[4] for m in c11r) == 16)
+check('the recursion stepper: chat 11 is ids 1665 to 1682 without 1666 and 1668', [m[0] for m in c11r] == [1665, 1667] + list(range(1669, 1683)))
 def mb(b): return f'{b / 2**20:.1f} MB'
 M = {'alter_rows': f"{A['table']['rows']:,}", 'alter_size': A['table']['table_size'],
      'add_const_ms': f"{o['add_const']['median_s'] * 1000:.1f}", 'add_volatile_s': f"{o['add_volatile']['median_s']:.1f}",
@@ -118,6 +132,6 @@ M = {'alter_rows': f"{A['table']['rows']:,}", 'alter_size': A['table']['table_si
 js = open(os.path.join(HERE, 'parts', '32_js_data.js')).read()
 Mjs = json.loads(re.search(r'"M":(\{[^}]*\})', js).group(1))
 check('numbers filled into the text equal the independent recomputation', Mjs == M)
-json.dump({'win': win, 'win_ids': [m[0] for m in c11], 'norm': norm, 'bt': bt, 'M': M}, open(os.path.join(HERE, 'recompute_out.json'), 'w'), indent=1)
+json.dump({'win': win, 'win_ids': [m[0] for m in c11], 'norm': norm, 'bt': bt, 'M': M, 'hero': hero}, open(os.path.join(HERE, 'recompute_out.json'), 'w'), indent=1)
 bad = [n for n, c in ok if not c]
 print(f'{len(ok) - len(bad)} of {len(ok)} checks pass'); sys.exit(1 if bad else 0)

@@ -11,27 +11,51 @@
 </ul>
 <p>Each slow form has a safe recipe: <b>CREATE INDEX CONCURRENTLY</b> (builds without blocking writes, slower, cannot run in a transaction); <b>ADD CONSTRAINT ... NOT VALID</b> (instant, checks only new rows) then <b>VALIDATE CONSTRAINT</b> (checks old rows under a lock that blocks neither reads nor writes); for NOT NULL, a validated <code>CHECK (col IS NOT NULL)</code> lets SET NOT NULL skip its scan (PostgreSQL 12 and later; PostgreSQL 18 also accepts NOT VALID on not-null constraints directly); for a volatile default, add the column nullable, backfill in batches, then set the default.</p>
 <div class="corr"><div class="t">Older guides are out of date on two points</div>Many guides still say adding a column with a default rewrites the table; that stopped being true for constant defaults in PostgreSQL 11 (2018), and the measurement agrees (<span data-num="add_const_ms"></span> ms on 2,000,000 rows). GoCardless's widely shared {{"Zero-downtime Postgres migrations: the hard parts"|https://gocardless.com/blog/zero-downtime-postgres-migrations-the-hard-parts/}} was written against PostgreSQL 9.4 (its footnotes say so) and says adding a foreign key takes ACCESS EXCLUSIVE locks on both tables; {{PostgreSQL 9.5|https://www.postgresql.org/docs/release/9.5.0/}} reduced the lock level of foreign key commands, and current Postgres takes {{SHARE ROW EXCLUSIVE|https://www.postgresql.org/docs/current/sql-altertable.html}} on both, which was measured here: reads continue, writes wait. Its central lesson, the lock queue below, is still exactly right.</div>
-<h3>The lock queue: how a 1 ms change causes an outage</h3>
-<p>Locks are granted in order. If a long transaction holds even the weakest lock on a table (a slow report, or a request that opened a transaction and is waiting on a model call), an ALTER TABLE asking for ACCESS EXCLUSIVE must wait for it, and <b>every query that arrives after the ALTER queues behind it</b>, because granting them would starve the ALTER. A change that takes a millisecond blocks all traffic to the table for as long as the oldest transaction lasts. Three real runs on the 2,000,000-row table: one long transaction holding the table for 4 seconds, one <code>ADD COLUMN ... DEFAULT 0</code> (metadata only), and seven ordinary point reads arriving every half second. Predict the worst read's wait in each before you play it. (Finding the blocker on a live server and making schema changes safe in production are {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}'s section 8.)</p>
-<div class="card" id="rd-q-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-q-card">
 <h4 class="vt">Without lock_timeout, reads wait behind the waiting ALTER for up to 3.26 s; with it, at most 0.27 s</h4>
 <div class="seg" id="rd-q-mode"><button data-m="long" class="on">Long transaction, no lock_timeout</button><button data-m="timeout">Long transaction, lock_timeout 500 ms and retry</button><button data-m="quick">No long transaction</button></div>
 <div class="an-ctl" id="rd-q-ctl"></div>
 <div class="rd-svg" id="rd-q-svg"></div>
 <div class="leg"><span style="--sw:var(--dim)">long transaction</span><span style="--sw:var(--c4)">ALTER waiting, then done</span><span style="--sw:var(--c5)">ALTER attempt that gave up</span><span style="--sw:var(--bad)">read that waited over 100 ms</span><span style="--sw:var(--good)">read served at once</span></div>
 <div class="an-cnt" id="rd-q-cnt"></div>
-<div class="an-cap" id="rd-q-cap"></div>
 <p class="small mute" id="rd-q-note"></p>
-</div>
+</div></div></div><div class="s3L">
+<h3>The lock queue: how a 1 ms change causes an outage</h3>
+<p>Locks are granted in order. If a long transaction holds even the weakest lock on a table (a slow report, or a request that opened a transaction and is waiting on a model call), an ALTER TABLE asking for ACCESS EXCLUSIVE must wait for it, and <b>every query that arrives after the ALTER queues behind it</b>, because granting them would starve the ALTER. A change that takes a millisecond blocks all traffic to the table for as long as the oldest transaction lasts. Three real runs on the 2,000,000-row table: one long transaction holding the table for 4 seconds, one <code>ADD COLUMN ... DEFAULT 0</code> (metadata only), and seven ordinary point reads arriving every half second. Predict the worst read's wait in each before you play it. (Finding the blocker on a live server and making schema changes safe in production are {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}'s section 8.)</p>
+<p class="sxh">The run, in stretches</p>
+<ol class="sx" id="sx-q-long">
+<li><b>A long transaction holds the table.</b> It has read <code>messages_big</code> and stays open for 4 s (a slow report, or a request waiting on a model call), holding the weak ACCESS SHARE lock.</li>
+<li><b>The ALTER asks and waits.</b> At 0.5 s the migration asks for ACCESS EXCLUSIVE, which conflicts with every lock, so it waits for the long transaction.</li>
+<li><b>Every read queues behind the ALTER.</b> Each new read needs only ACCESS SHARE, compatible with the long transaction, but it is queued behind the waiting ALTER: reads that normally take 1 ms wait. The <code>pg_locks</code> snapshot at 2.2 s (under the chart) shows them waiting.</li>
+<li><b>The commit releases everything at once.</b> At 4.0 s the long transaction commits; the ALTER gets its lock and finishes in a millisecond; the queued reads run. All 7 reads were delayed, the first by 3.26 s, for a 1 ms change.</li>
+</ol>
+<ol class="sx" id="sx-q-timeout" hidden>
+<li><b>The same long transaction.</b> This time the migration session first runs <code>SET lock_timeout = '500ms'</code>.</li>
+<li><b>Attempt 1 gives up.</b> The ALTER waits, and the read behind it waits too, but only until the timeout: at about 1.0 s the ALTER gives up and the read proceeds after 0.26 s.</li>
+<li><b>Between attempts, reads run normally.</b> About 1 ms each; the migration sleeps 1 s and retries.</li>
+<li><b>Attempt 2 also times out.</b> The read that arrived during it waited 0.27 s, at most the timeout.</li>
+<li><b>Attempt 3 succeeds.</b> It is waiting when the long transaction commits at 4.0 s, so it gets the lock and finishes. Worst read wait: 0.27 s instead of 3.26 s.</li>
+</ol>
+<ol class="sx" id="sx-q-quick" hidden>
+<li><b>No other transaction.</b> Nothing else is using the table.</li>
+<li><b>The lock is granted at once.</b> At 0.5 s the ALTER gets ACCESS EXCLUSIVE and finishes in about 1 ms: the default is stored in the catalog, not written to 2,000,000 rows.</li>
+<li><b>Every read runs in about a millisecond.</b> This is the run people test in development, and why the outage in the first scenario surprises them.</li>
+</ol>
+</div></div>
 <p><b>Bound the wait, do not hope.</b> Set <code>lock_timeout</code> in every migration session (<code>SET lock_timeout = '500ms'</code>): the ALTER gives up instead of queueing indefinitely ({{documentation|https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-LOCK-TIMEOUT}}) and the migration retries after a pause, so readers wait at most the timeout. Set <code>statement_timeout</code> on backfills, keep application transactions short, and set <code>idle_in_transaction_session_timeout</code> so a forgotten open transaction cannot hold locks forever. (Lock modes in general are {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}}.)</p>
+<div class="s3sp"><div class="s3R"><div id="stg-ec"></div></div><div class="s3L">
 <h3>Expand and contract: changes that never break running code</h3>
 <p>During a rolling deploy old and new versions run together, so every intermediate schema must work with both. <b>Expand and contract</b> (also called parallel change) splits a breaking change into backward-compatible steps, each deployed on its own. <code>RENAME COLUMN</code> itself is instant, but it breaks every running instance that still uses the old name; that, not the lock, is why a rename takes six steps:</p>
-<div class="card" id="rd-ec-card"><h4 class="vt">Renaming chats.title to chats.name: at every step, both running versions of the code still work</h4>
-<div class="an-ctl" id="rd-ec-ctl"></div>
-<div class="rd-svg" id="rd-ec"></div>
-<div class="an-cap" id="rd-ec-cap"></div></div>
-<p class="small mute">The six steps: expand (add the column), write both, backfill in batches, read the new column, stop writing the old one, contract (drop it).</p>
-<p>Each step can be rolled back by redeploying the previous code. The backfill is <code>UPDATE chats SET name = title WHERE id BETWEEN $1 AND $2 AND name IS NULL</code>, a few thousand rows per transaction with a pause between batches, so no lock or replication lag builds up.</p>
+<ol class="sx" id="sx-ec">
+<li><b>Start.</b> <code>chats.title</code> exists and every running copy of the application (v1) reads and writes it.</li>
+<li><b>Expand: add the column.</b> <code>ALTER TABLE chats ADD COLUMN name text;</code> is metadata only, so ACCESS EXCLUSIVE is held for milliseconds (with lock_timeout set). v1 does not know the column exists and keeps working.</li>
+<li><b>Write both.</b> Deploy v2, which writes title and name (or add a trigger that copies one to the other). During the rolling deploy v1 and v2 run together; both still read title, so both are correct. Only new rows have a name.</li>
+<li><b>Backfill in batches.</b> Once no v1 is left writing title alone, copy the old rows a few thousand per transaction with a pause between batches, so no lock or replication lag builds up: <code>UPDATE chats SET name = title WHERE id BETWEEN $1 AND $2 AND name IS NULL</code>. Now every row has name.</li>
+<li><b>Read the new column.</b> Deploy v3, which reads name and still writes both, so the v2 copies running beside it stay correct.</li>
+<li><b>Stop writing the old column</b> once no running version reads it: v4 uses name only.</li>
+<li><b>Contract: drop it.</b> <code>ALTER TABLE chats DROP COLUMN title;</code> a release or more later. Each step can be rolled back by redeploying the previous code; RENAME COLUMN in one step would have broken every running v1 at once.</li>
+</ol>
+</div></div>
 <div class="co key"><div class="t">What professionals do</div>Migrations in the repository, applied by CI/CD (automated testing and deployment) before the code that needs them; reviewed as SQL, not just as model diffs; linted (Squawk, strong_migrations); timed on a production-sized copy; run with lock_timeout and retries; one risky operation per migration; roll forward with a new migration rather than run "down" migrations in production, with backups and point-in-time recovery as the real safety net ({{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}}).</div>
 <details class="dp"><summary>What Alembic actually generated, and what a reviewer must catch <span class="mute">(real output)</span></summary><div class="b">
 <p>The models gained a <code>chats.pinned</code> flag and the foreign-key index from section 2; this is the script Alembic drafted and the SQL it would run (<code>alembic upgrade head --sql</code> prints instead of executing, the way to review a migration):</p>

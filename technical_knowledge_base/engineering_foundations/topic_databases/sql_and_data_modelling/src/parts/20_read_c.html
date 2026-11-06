@@ -1,11 +1,15 @@
 <section id="rd-s3">
+<div class="s3sp"><div class="s3R"><div id="stg-grp"></div></div><div class="s3L">
 <h2>3. Grouping: many rows become one per group</h2>
-<p><b>GROUP BY</b> collapses all rows sharing the grouping values into one row, and <b>aggregate functions</b> (<code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>) summarise each group. Every column in the SELECT list must then be grouped or aggregated; SQLite's leniency here (it picks an arbitrary row) is a lesson in the root's playground. A <b>window function</b> (section 4) computes the same aggregate but keeps every row. Same 16 rows, both ways:</p>
-<div class="card" id="rd-grp-card"><h4 class="vt">GROUP BY collapses the rows; OVER keeps them and writes the group's value on each</h4>
-<div class="seg" id="rd-grp-mode"><button data-m="group" class="on">GROUP BY role</button><button data-m="over">SUM(tokens) OVER (PARTITION BY role)</button></div>
-<pre class="code" id="rd-grp-sql"></pre>
-<div class="rd-svg" id="rd-grp"></div>
-<p class="small mute" id="rd-grp-cap"></p></div>
+<p><b>GROUP BY</b> collapses all rows sharing the grouping values into one row, and <b>aggregate functions</b> (<code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code>) summarise each group. Every column in the SELECT list must then be grouped or aggregated; SQLite's leniency here (it picks an arbitrary row) is a lesson in the root's playground. A <b>window function</b> (section 4) computes the same aggregate but keeps every row. Same 16 rows, both ways, at one scale, so a stack is literally its sum:</p>
+<ol class="sx" id="sx-grp">
+<li><b>Sixteen rows.</b> The real messages of chat 11, 8 from the user and 8 from the assistant, each bar as tall as its tokens.</li>
+<li><b>GROUP BY role splits them.</b> The user rows go to one group, the assistant rows to the other (<code>PARTITION BY role</code> splits a window the same way).</li>
+<li><b>Each group folds into one row.</b> <code>SELECT role, COUNT(*), SUM(tokens) FROM messages WHERE chat_id = 11 GROUP BY role</code>: user 8 rows and 477 tokens, assistant 8 rows and 3,826. 16 rows in, 2 rows out; the ids are gone, so a column such as id can no longer be selected unless it is grouped or aggregated.</li>
+<li><b>A window keeps every row.</b> <code>SUM(tokens) OVER (PARTITION BY role)</code> writes its partition's total on each row: 477 on every user row, 3,826 on every assistant row. 16 rows in, 16 rows out.</li>
+<li><b>ORDER BY inside OVER: a running total.</b> <code>OVER (PARTITION BY role ORDER BY id)</code> sums from the partition's first row to the current one: the user rows read 103, 204, 223 ... 477. Which rows the sum sees is the frame, section 4.</li>
+</ol>
+</div></div>
 <p><b>Several counts in one pass.</b> "Per model: messages, replies, reply tokens, distinct users" is conditional aggregation. The standard spelling is <code>FILTER (WHERE ...)</code>, supported by Postgres and SQLite ({{modern-sql.com's support table|https://modern-sql.com/feature/filter}}); without it, write <code>SUM(CASE WHEN ... THEN 1 ELSE 0 END)</code>. One scan replaces four queries:</p>
 <div class="rq" data-ex="a_filter" data-title="Conditional aggregation with FILTER"></div>
 <p><b>The NULL cells of aggregation:</b> <code>COUNT(column)</code> skips NULLs, so after a LEFT JOIN count the right table's key, not <code>*</code>, or every empty group counts as 1; <code>SUM</code> over zero rows is NULL, not 0 (wrap it in <code>COALESCE(SUM(x), 0)</code>); and an average of averages is wrong when groups differ in size (average the raw rows, or weight by count).</p>
@@ -16,17 +20,19 @@
 </section>
 
 <section id="rd-s4">
+<div class="s3sp"><div class="s3R"><div id="stg-win"></div></div><div class="s3L">
 <h2>4. Window functions: a value per row from its neighbours</h2>
 <p>Many questions need every row <i>and</i> something about its neighbours: rank each user by tokens, the time since the previous message, a running total, the latest message per chat (before window functions, slow self joins or correlated subqueries). A window function's <code>OVER (...)</code> has three parts: <code>PARTITION BY</code> splits rows into independent groups (all rows if absent); <code>ORDER BY</code> orders rows inside each partition (ranking and LAG/LEAD need it); the <b>frame</b> says which rows around the current one an aggregate sees (<code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code>: this row and the two before). <b>With an ORDER BY and no frame, the default is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code></b>: from the start of the partition to the current row <i>and every row tied with it</i> ({{SQLite window functions|https://www.sqlite.org/windowfunctions.html}}; Postgres {{documents the same default|https://www.postgresql.org/docs/current/sql-expressions.html#SYNTAX-WINDOW-FUNCTIONS}}).</p>
-<div class="card" id="rd-win-card">
-<h4 class="vt">The frame (outlined) is all the function sees for the current row</h4>
-<p class="small">The 16 messages of chat 11, in id order, values computed from the real rows. Pick a function, then step through the rows; predict LAST_VALUE with the default frame before you step it.</p>
-<div class="seg" id="rd-win-fn"><button data-m="sum" class="on">SUM(tokens)</button><button data-m="avg3">AVG, last 3 rows</button><button data-m="lag">LAG(tokens)</button><button data-m="rank">RANK() by tokens</button><button data-m="last">LAST_VALUE, default frame</button><button data-m="lastall">LAST_VALUE, whole partition</button></div>
-<pre class="code" id="rd-win-sql"></pre>
-<div class="an-ctl" id="rd-win-ctl"></div>
-<div class="rd-svg" id="rd-win-svg"></div>
-<div class="an-cap" id="rd-win-cap"></div>
-</div>
+<ol class="sx" id="sx-win">
+<li><b>The rows, in window order.</b> The 16 messages of chat 11 ordered by id (back row): one partition here. Each function below is computed for every row in turn; the glass box is the frame it sees for the current row, the front row its results.</li>
+<li><b>SUM(tokens) OVER (ORDER BY id).</b> The default frame runs from the first row to the current one, so the sum is a running total: 103, 548, 649 ... 4,303.</li>
+<li><b>AVG over ROWS BETWEEN 2 PRECEDING AND CURRENT ROW.</b> A three-row frame slides along: 103.0, 274.0, 216.3 ... 261.0. Near the start the frame is shorter, which is why the first values are noisier.</li>
+<li><b>LAG(tokens) reads the previous row.</b> The first row has none, so it gets NULL. Subtracting timestamps the same way gives the gap between messages.</li>
+<li><b>RANK() OVER (ORDER BY tokens DESC).</b> No frame: the rank counts the rows that sort before this one (lit), plus one. The 889-token reply ranks 1, the 16-token message 16; ties would share a rank and leave a gap.</li>
+<li><b>LAST_VALUE(tokens) with the default frame.</b> The frame ends at the current row, so the "last value" is always the current row's own tokens: the front row copies the back row. Almost never what was meant.</li>
+<li><b>LAST_VALUE over the whole partition.</b> <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code>: every row sees the chat's last message, 338 tokens.</li>
+</ol>
+</div></div>
 <p><b>Two frame traps.</b> <code>LAST_VALUE</code> with the default frame returns the <i>current</i> row's value, because the frame ends at the current row; ask for the whole partition. And the default frame is RANGE, so rows tied on the ORDER BY value enter together: two chats opened on the same day get the same running count. Say <code>ROWS</code> when you mean rows.</p>
 <div class="rq" data-ex="w_range" data-title="RANGE (the default) against ROWS on tied days"></div>
 <p><b>Rankings.</b> <code>ROW_NUMBER()</code> numbers 1, 2, 3 even through ties (add a tie-breaker to its ORDER BY, or two runs can number tied rows differently); <code>RANK()</code> gives ties one number and leaves a gap (1, 1, 3); <code>DENSE_RANK()</code> leaves none (1, 1, 2). <b>Top N per group</b>, the most common production use: number the rows per partition in a subquery and keep <code>rn &lt;= N</code> outside (a window result cannot be filtered in the same SELECT's WHERE, section 1). Postgres also has <code>DISTINCT ON (user_id) ... ORDER BY user_id, ...</code> for N = 1.</p>
@@ -43,13 +49,20 @@
 <section id="rd-s5">
 <h2>5. CTEs and recursive queries</h2>
 <p>A <b>common table expression</b>, <code>WITH name AS (SELECT ...)</code>, names a step of a query so later steps use it like a table (the fan-out fix in section 2 used two). <b>It usually costs nothing:</b> since PostgreSQL 12, a CTE that is referenced once, is not recursive and has no side effects is inlined into the main query and optimised with it; <code>MATERIALIZED</code> forces it to be computed once on its own, <code>NOT MATERIALIZED</code> forces inlining ({{PostgreSQL 12 release notes|https://www.postgresql.org/docs/release/12.0/}}; {{WITH queries|https://www.postgresql.org/docs/current/queries-with.html}}). Advice that "CTEs are an optimisation fence" describes Postgres 11 and earlier.</p>
-<p><b>Recursion.</b> <code>WITH RECURSIVE</code> is an anchor query, <code>UNION ALL</code>, and a step that joins the CTE's previous rows to find the next ones, repeated until a step adds no rows. It is how SQL walks a tree or graph of unknown depth: a reply thread, an org chart, a bill of materials, a category tree.</p>
-<div class="card" id="rd-rec-card"><h4 class="vt">Each iteration joins only the rows the last one added, and stops when it adds none</h4>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-rec-card"><h4 class="vt">Each iteration joins only the rows the last one added, and stops when it adds none</h4>
 <pre class="code" id="rd-rec-sql"></pre>
 <div class="an-ctl" id="rd-rec-ctl"></div>
 <div class="rd-svg" id="rd-rec"></div>
-<div class="an-cnt" id="rd-rec-cnt"></div>
-<div class="an-cap" id="rd-rec-cap"></div></div>
+<div class="an-cnt" id="rd-rec-cnt"></div></div></div></div><div class="s3L">
+<p><b>Recursion.</b> <code>WITH RECURSIVE</code> is an anchor query, <code>UNION ALL</code>, and a step that joins the CTE's previous rows to find the next ones, repeated until a step adds no rows. It is how SQL walks a tree or graph of unknown depth: a reply thread, an org chart, a bill of materials, a category tree.</p>
+<ol class="sx" id="sx-rec">
+<li><b>The anchor runs once.</b> Message 1682, the last of chat 11, enters the result and becomes the working table (outlined).</li>
+<li><b>Iteration 1 joins only the working table.</b> <code>m.id = up.parent_id</code> with 1682 as the only row finds its parent, 1681: one row, which replaces the working table. Earlier rows are never joined again.</li>
+<li><b>Iterations 2 to 14, one parent each.</b> 1680 back to 1667 (1666 and 1668 belong to other chats); each iteration adds exactly the row the last one pointed at.</li>
+<li><b>Iteration 15 reaches the first message.</b> 1665 enters the result at depth 15; its <code>parent_id</code> is NULL.</li>
+<li><b>Iteration 16 adds nothing, so it stops.</b> The join is on <code>m.id = NULL</code>, never true (section 1): 16 rows in all. A cycle in <code>parent_id</code> would never reach this step, hence the depth limit or CYCLE clause below.</li>
+</ol>
+</div></div>
 <div class="rq" data-ex="c_up" data-title="Walk a thread upwards through parent_id"></div>
 <p>A second use: generating rows no table holds, such as every day in a range, so days with no messages show as zero instead of vanishing from a chart (Postgres has <code>generate_series</code>; in SQLite a recursive CTE does it).</p>
 <div class="co warn"><div class="t">When recursion goes wrong</div>A recursive query on a cycle (a message that is its own ancestor through bad data) never ends: guard with a depth limit (<code>WHERE depth &lt; 100</code>) or, in Postgres 14 and later, the <code>CYCLE</code> clause. Trees read far more than written are often stored differently (section 8); traversals many hops deep across large graphs are the graph section of {{NoSQL in practice|n:3ef5c17b0d0d81ec8456c41e4e8f5f6b}}.</div>

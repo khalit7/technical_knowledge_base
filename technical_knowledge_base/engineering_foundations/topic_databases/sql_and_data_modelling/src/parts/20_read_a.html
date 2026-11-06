@@ -28,11 +28,23 @@
 </nav>
 
 <section id="rd-one">
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <h2>The idea in one screen</h2>
 <p class="core"><b>A query is a pipeline over tables (pair rows, keep the true ones, group, compute, order), and most SQL bugs are queries that run and return <span class="hl">plausible wrong numbers</span>; a schema is the rules every write must pass, so put each fact in one place, every rule in a constraint, and change the schema only in small, backward-compatible steps.</b></p>
-<div class="hero" id="rd-schema-card"><h4>The whole page happens on these four tables: joins follow the arrows, rules sit on the columns</h4>
-<div class="rd-svg" id="rd-schema"></div>
-<p class="small mute">The root's chat data: 50 <code>users</code>, 200 <code>chats</code>, 2,000 <code>messages</code>, one <code>credits</code> balance per user. <b style="color:var(--acc)">PK</b> is a primary key (a column whose value names exactly one row), <b style="color:var(--c2)">FK</b> a foreign key (a column holding another table's primary key). This page adds one column, <code>messages.parent_id</code> (the previous message in its chat; empty for the first), the arrow back into <code>messages</code> that makes a thread a tree.</p></div>
+<p>Fig. 1 runs one real query over the page's data, then one write:</p>
+<pre class="code">SELECT u.plan, COUNT(*) AS chats
+FROM users u JOIN chats c ON c.user_id = u.id
+WHERE c.model = 'mini'
+GROUP BY u.plan ORDER BY chats DESC;</pre>
+<ol class="sx" id="sx-hero">
+<li><b>FROM: every pair.</b> 50 users down one edge, 200 chats along the other: logically a join starts from all 10,000 pairs, one cell each of the glass plate.</li>
+<li><b>ON keeps the true pairs.</b> <code>c.user_id = u.id</code> is true for exactly one user per chat: 200 dots, a staircase because both edges are sorted by user. The six users with no chat have no dot, so an inner join drops them (section 2).</li>
+<li><b>WHERE keeps 90.</b> Only the pairs where <code>c.model = 'mini'</code> is true pass (section 1): 90 of the 200; the other 110 vanish.</li>
+<li><b>GROUP BY folds, ORDER BY sorts.</b> Each plan's pairs collapse into one row with its count: free 47, pro 37, team 6, sorted by the count. Three rows out (section 3).</li>
+<li><b>A write meets the rules.</b> The foreign key on <code>chats.user_id</code> looks the user up on every insert: a chat for user 7 goes in; one for user 999 is refused, <code>violates foreign key constraint "chats_user_id_fkey"</code> (section 10).</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>You need:</b> the first six clauses (SELECT, FROM, WHERE, GROUP BY, ORDER BY, LIMIT) on this data, taught in the {{root page|n:3cd5c17b0d0d815d8841ec845f5f3324}} (Reading section 2 and its SQL playground). How the database runs a query is {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}; transactions and isolation are {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}}; how rows and indexes sit on disk is {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}; analytics engines are {{Analytics: columnar engines, DuckDB and the lakehouse|n:3ef5c17b0d0d8157814ec5dd8a0d4fb5}}. This page is what the query means and what the schema promises.</p>
 <dl class="terms">
 <dt>Three-valued logic</dt><dd>a comparison with NULL is neither true nor false but unknown; WHERE keeps only true.</dd>
@@ -45,24 +57,30 @@
 <dt>Expand and contract</dt><dd>a breaking schema change split into backward-compatible steps.</dd>
 </dl>
 <p><b>Every grey box with a Run button is a real database:</b> SQLite ({{the most widely deployed|https://www.sqlite.org/mostdeployed.html}} database engine, by its authors' count) compiled to WebAssembly inside this page, the root playground's engine, with the same query's result on a real PostgreSQL server (Postgres: the free relational database the root recommends as the default) recorded offline. Where the two agree the Postgres result is folded away; where they disagree both show, and those differences are where real teams get bitten. Numbers marked <span class="meas">measured</span> were measured for this page on a laptop (Apple M1 Pro, PostgreSQL 16.2 from the {{pgserver|https://pypi.org/project/pgserver/}} wheel); <span class="ill">illustrative</span> marks anything made up to show a shape. Two tabs sit beside this one: {{Exercises lab|#t-ex}} (28 graded exercises on this data, checked by the page's own database) and {{ALTER TABLE, measured|#t-alter}} (21 schema changes with the lock each took on a 2,000,000-row table).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-schema-card"><h4 class="vt">The whole page happens on these four tables: joins follow the arrows, rules sit on the columns</h4>
+<div class="rd-svg" id="rd-schema"></div>
+<p class="small mute">The root's chat data: 50 <code>users</code>, 200 <code>chats</code>, 2,000 <code>messages</code>, one <code>credits</code> balance per user. <b style="color:var(--acc)">PK</b> is a primary key (a column whose value names exactly one row), <b style="color:var(--c2)">FK</b> a foreign key (a column holding another table's primary key). This page adds one column, <code>messages.parent_id</code> (the previous message in its chat; empty for the first), the arrow back into <code>messages</code> that makes a thread a tree.</p></div></div></div></div>
 </section>
 
 <section id="rd-s1">
 <h2>1. Written in one order, evaluated in another; NULL is unknown</h2>
-<p>A SELECT is defined as a pipeline of steps, each producing a table for the next, in an order that is not the order you write it (the {{PostgreSQL SELECT reference|https://www.postgresql.org/docs/current/sql-select.html}} lists it; every SQL database follows the same logical order). The order explains most "why is this an error" moments:</p>
-<div class="card" id="rd-pipe-card"><h4 class="vt">A name exists only from the step that makes it: aliases from SELECT, aggregates from GROUP BY</h4>
+<div class="s3sp"><div class="s3L">
+<p>A SELECT is defined as a pipeline of steps, each producing a table for the next, in an order that is not the order you write it (the {{PostgreSQL SELECT reference|https://www.postgresql.org/docs/current/sql-select.html}} lists it; every SQL database follows the same logical order). The order explains most "why is this an error" moments.</p>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-pipe-card"><h4 class="vt">A name exists only from the step that makes it: aliases from SELECT, aggregates from GROUP BY</h4>
 <div class="rd-svg" id="rd-pipe"></div>
-<p class="small mute">Read top to bottom: the evaluation order. A dot means the step can use it. Hence <b>WHERE cannot use a SELECT alias</b> (SELECT has not run) but ORDER BY can; <b>WHERE cannot use an aggregate</b> such as <code>COUNT(*)</code> (filter groups with HAVING); <b>WHERE cannot use a window function</b> (compute it in a subquery, filter outside); and <b>LIMIT without ORDER BY returns whichever rows the engine found first</b>, an order that can change when the data or the plan changes. The root animates the same pipeline on nine rows.</p></div>
+<p class="small mute">Read top to bottom: the evaluation order. A dot means the step can use it. Hence <b>WHERE cannot use a SELECT alias</b> (SELECT has not run) but ORDER BY can; <b>WHERE cannot use an aggregate</b> such as <code>COUNT(*)</code> (filter groups with HAVING); <b>WHERE cannot use a window function</b> (compute it in a subquery, filter outside); and <b>LIMIT without ORDER BY returns whichever rows the engine found first</b>, an order that can change when the data or the plan changes. The root animates the same pipeline on nine rows.</p></div></div></div></div>
 <div class="rq" data-ex="q_alias" data-title="An alias used in WHERE: SQLite allows it, Postgres refuses" data-why="SQLite resolves the alias as an extension; Postgres follows the standard and refuses. Code that works in a SQLite test can fail in production."></div>
 <p>SQLite accepts the alias, Postgres reports <code>column "doubled" does not exist</code>; write <code>WHERE tokens * 2 &gt; 1780</code> and both agree. <b>Test against the database you run in production:</b> SQLite's dialect is more permissive (aliases in WHERE, loose GROUP BY, foreign keys off by default, loose typing); run Postgres in a container or with pgserver in CI.</p>
 <div class="rq" data-ex="q_where_having" data-title="WHERE before grouping, HAVING after"></div>
+<div class="s3sp"><div class="s3L">
 <p><b>NULL means "unknown", not zero or empty,</b> and SQL computes with three truth values. Any comparison with NULL (<code>= NULL</code>, <code>&lt;&gt; 'US'</code> when the country is NULL) is <i>unknown</i>, and <b>WHERE, ON and HAVING keep only rows where the condition is true</b>, so unknown rows silently vanish. The tables below are the whole of the logic; every NULL trap on this page (the LEFT JOIN filtered in WHERE, NOT IN with a NULL, <code>COUNT(column)</code> skipping NULLs) is one of their cells.</p>
-<div class="card" id="rd-3vl"><h4 class="vt">Unknown spreads through AND and OR, and only TRUE passes a filter</h4>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-3vl"><h4 class="vt">Unknown spreads through AND and OR, and only TRUE passes a filter</h4>
 <div class="tv">
 <div><table class="tvl"><tr><th>AND</th><th>T</th><th>F</th><th>U</th></tr><tr><th>T</th><td class="T">T</td><td class="F">F</td><td class="U">U</td></tr><tr><th>F</th><td class="F">F</td><td class="F">F</td><td class="F">F</td></tr><tr><th>U</th><td class="U">U</td><td class="F">F</td><td class="U">U</td></tr></table></div>
 <div><table class="tvl"><tr><th>OR</th><th>T</th><th>F</th><th>U</th></tr><tr><th>T</th><td class="T">T</td><td class="T">T</td><td class="T">T</td></tr><tr><th>F</th><td class="T">T</td><td class="F">F</td><td class="U">U</td></tr><tr><th>U</th><td class="T">T</td><td class="U">U</td><td class="U">U</td></tr></table></div>
 <div><table class="tvl"><tr><th>x</th><th>NOT x</th><th>x = NULL</th><th>x IS NULL</th></tr><tr><td class="T">T</td><td class="F">F</td><td class="U">U</td><td class="F">F</td></tr><tr><td class="F">F</td><td class="T">T</td><td class="U">U</td><td class="F">F</td></tr><tr><td class="U">U</td><td class="U">U</td><td class="U">U</td><td class="T">T</td></tr></table></div>
 </div>
-<p class="small mute">T true, F false, U unknown. <code>IS NULL</code>, <code>IS DISTINCT FROM</code> and <code>COALESCE</code> are the operators that turn unknown into a definite answer. Aggregates skip NULLs: <code>COUNT(*)</code> counts rows, <code>COUNT(column)</code> counts non-NULL values (the root's playground has a NULL lesson, including where NULLs sort). Set operations and GROUP BY are the exceptions that treat two NULLs as equal (section 6).</p></div>
+<p class="small mute">T true, F false, U unknown. <code>IS NULL</code>, <code>IS DISTINCT FROM</code> and <code>COALESCE</code> are the operators that turn unknown into a definite answer. Aggregates skip NULLs: <code>COUNT(*)</code> counts rows, <code>COUNT(column)</code> counts non-NULL values (the root's playground has a NULL lesson, including where NULLs sort). Set operations and GROUP BY are the exceptions that treat two NULLs as equal (section 6).</p></div></div></div></div>
 <div class="co"><div class="t">The logical order is not the execution order</div>The pipeline defines what the answer must be, not how it is computed. The planner (the part of the database that chooses how to run a query) may filter before joining, use an index instead of reading everything, or stop early under a LIMIT, as long as the result is the same. How it chooses, and how to read its plan, is {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}} and the root's Query plans tab.</div>
 </section>

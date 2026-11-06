@@ -1,22 +1,21 @@
 <section id="rd-s2">
+<div class="s3sp"><div class="s3R"><div id="stg-join"></div></div><div class="s3L">
 <h2>2. Joins: every pair, filtered</h2>
-<p>A <b>join</b> pairs every row of a left table with every row of a right table and keeps the pairs for which the <code>ON</code> condition is <i>true</i>. Read it that way and every kind of join follows. It is not a set intersection, which is why Venn-diagram pictures mislead: a left row appears once per matching right row, so zero, one or many times ({{Lukas Eder, "Say NO to Venn diagrams when explaining JOINs", jOOQ blog, 2016|https://blog.jooq.org/say-no-to-venn-diagrams-when-explaining-joins/}}). So draw the pairs:</p>
-<div class="card" id="rd-join-card">
-<h4 class="vt">Every join is the same grid of pairs; the kinds differ only in what they keep</h4>
-<p class="small">Five users (one with no country) against a list of markets (one market has no users). Each cell is one pair: <b style="color:var(--good)">filled</b> where <code>ON m.code = u.country</code> is true, blank where false, <b style="color:var(--c5)">U</b> where it is unknown because a NULL is involved. Predict which rows each join returns, then pick it; then add a market whose code is NULL and watch NOT IN.</p>
-<div class="seg" id="rd-join-mode"><button data-m="inner" class="on">INNER</button><button data-m="left">LEFT</button><button data-m="right">RIGHT</button><button data-m="full">FULL</button><button data-m="cross">CROSS</button><button data-m="semi">semi (EXISTS)</button><button data-m="anti">anti (NOT EXISTS)</button><button data-m="notin">NOT IN</button></div>
-<label class="small" style="display:block;margin:4px 0"><input type="checkbox" id="rd-join-null"> add a market whose code is NULL</label>
-<div class="rd-svg" id="rd-join-grid"></div>
+<p>A <b>join</b> pairs every row of a left table with every row of a right table and keeps the pairs for which the <code>ON</code> condition is <i>true</i>. Read it that way and every kind of join follows. It is not a set intersection, which is why Venn-diagram pictures mislead: a left row appears once per matching right row, so zero, one or many times ({{Lukas Eder, "Say NO to Venn diagrams when explaining JOINs", jOOQ blog, 2016|https://blog.jooq.org/say-no-to-venn-diagrams-when-explaining-joins/}}). So draw the pairs: in Fig. 2 every cell is one pair of a user and a market, <b style="color:var(--good)">raised</b> where <code>ON m.code = u.country</code> is true, flat where false, <b style="color:var(--c5)">U</b> where it is unknown because a NULL is involved. Predict each join's rows before its step.</p>
+<ol class="sx" id="sx-join">
+<li><b>CROSS keeps every pair.</b> No condition: 5 &times; 3 = 15 rows. On the chat data, 50 users and 200 chats make 10,000. Useful on purpose for a grid of every combination (report empty combinations as zero); a forgotten join condition does the same by accident.</li>
+<li><b>INNER keeps the true cells.</b> 3 rows. Chen (IN is not a market) and Dara (no country) vanish; US appears twice because two users match it. A user with no chats disappears; a user with seven chats appears seven times.</li>
+<li><b>LEFT also keeps unmatched left rows.</b> Every user, with NULLs for the market columns where no market matches: 5 rows ("every user, with their chats if any").</li>
+<li><b>RIGHT is the mirror image.</b> Every market: Germany has no users and comes back with NULL user columns; Chen and Dara are gone again. 4 rows. Usually rewritten as a LEFT with the tables swapped.</li>
+<li><b>FULL keeps both sides.</b> The unmatched users and the unmatched market: 6 rows, the join for reconciling two lists. SQLite gained RIGHT and FULL only in {{version 3.39.0, 2022-06-25|https://www.sqlite.org/releaselog/3_39_0.html}}.</li>
+<li><b>Semi join (EXISTS) keeps a row, once.</b> <code>EXISTS</code> or <code>IN (subquery)</code> keeps a user once if any cell in the row is true, however many match: 3 rows. Writing it as a plain JOIN repeats rows, the classic source of "why do I have duplicates?" and of a <code>DISTINCT</code> added to hide it: 42 joined rows against 27 users in the box below.</li>
+<li><b>Anti join (NOT EXISTS) keeps rows with no match.</b> Chen and Dara, 2 rows (also written as a LEFT JOIN keeping rows where the right key IS NULL). NOT EXISTS asks "is there a matching row?", so a NULL anywhere does not change its answer.</li>
+<li><b>NOT IN looks like the anti join, but is not.</b> Dara is missing: her country is NULL, and <code>NULL NOT IN (...)</code> is unknown, not true. 1 row.</li>
+<li><b>Add one NULL market and NOT IN returns nothing.</b> Every comparison against the NULL code is unknown, so no row can pass: 0 rows. NOT EXISTS still returns Chen and Dara.</li>
+</ol>
 <pre class="code" id="rd-join-sql"></pre>
 <div id="rd-join-out"></div>
-<p class="small mute" id="rd-join-cap"></p>
-</div>
-<ul>
-<li><b>INNER</b> keeps the filled cells. A user with no chats disappears; a user with seven chats appears seven times.</li>
-<li><b>LEFT</b> also keeps each left row that has no filled cell, with NULLs for the right side ("every user, with their chats if any"); <b>RIGHT</b> is the mirror image (usually rewritten as a LEFT with the tables swapped); <b>FULL</b> keeps unmatched rows from both sides, the join for reconciling two lists. SQLite gained RIGHT and FULL only in {{version 3.39.0, 2022-06-25|https://www.sqlite.org/releaselog/3_39_0.html}}.</li>
-<li><b>CROSS</b> keeps every cell: 50 users and 200 chats make 10,000 rows. Useful on purpose for a grid of every combination (report empty combinations as zero); a forgotten join condition does the same by accident.</li>
-<li><b>Semi</b> (<code>EXISTS</code> or <code>IN (subquery)</code>) keeps a left row once if its row has any filled cell; <b>anti</b> (<code>NOT EXISTS</code>, or LEFT JOIN keeping rows where the right key IS NULL) keeps it if none. Writing a semi join as a plain JOIN repeats rows, the classic source of "why do I have duplicates?" and of a <code>DISTINCT</code> added to hide it: 42 joined rows against 27 users below.</li>
-</ul>
+</div></div>
 <div class="rq" data-ex="j_semi" data-title="JOIN repeats rows; EXISTS does not"></div>
 <details class="dp"><summary>Three more runnable joins: FULL, CROSS for empty combinations, a self join, anti join three ways <span class="mute">(examples)</span></summary><div class="b">
 <div class="rq" data-ex="j_full" data-title="FULL OUTER JOIN: reconcile two lists"></div>
@@ -30,11 +29,12 @@
 <div class="rq" data-ex="j_left_trap" data-title="Same LEFT JOIN, filter in WHERE against filter in ON"></div>
 <div class="pr" id="rd-pr-notin"></div>
 <div class="rq" data-ex="j_notin_null" data-title="The NOT IN trap, on real data"></div>
-<p><b>NOT IN with a NULL returns nothing.</b> <code>x NOT IN (a, b, NULL)</code> means <code>x &lt;&gt; a AND x &lt;&gt; b AND x &lt;&gt; NULL</code>; the last term is unknown for every x, so by the AND table the whole condition is never true (the U column in the grid above). Two of the five team-plan users have no country, so the subquery holds a NULL: 0 rows against NOT EXISTS's 31. NOT EXISTS asks a different question ("is there a matching row?") and is not affected. The Postgres project's advice is blunt, {{"Don't use NOT IN"|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_NOT_IN}} (PostgreSQL wiki), and it also tends to plan badly on large subqueries. Use NOT EXISTS.</p>
-<div class="card" id="rd-fan-card"><h4 class="vt">Fan-out: joining down two levels repeats each chat once per message</h4>
-<div class="rd-svg" id="rd-fan"></div>
-<p class="small mute" id="rd-fan-cap"></p></div>
+<p><b>NOT IN with a NULL returns nothing.</b> <code>x NOT IN (a, b, NULL)</code> means <code>x &lt;&gt; a AND x &lt;&gt; b AND x &lt;&gt; NULL</code>; the last term is unknown for every x, so by the AND table the whole condition is never true (the last step of Fig. 2). Two of the five team-plan users have no country, so the subquery holds a NULL: 0 rows against NOT EXISTS's 31. NOT EXISTS asks a different question ("is there a matching row?") and is not affected. The Postgres project's advice is blunt, {{"Don't use NOT IN"|https://wiki.postgresql.org/wiki/Don't_Do_This#Don.27t_use_NOT_IN}} (PostgreSQL wiki), and it also tends to plan badly on large subqueries. Use NOT EXISTS.</p>
+<div class="s3sp"><div class="s3L">
 <p><b>Fan-out doubles your totals.</b> Join a parent to a child and a grandchild (or to two child tables) and aggregate, and each parent and child row is repeated once per grandchild row before the aggregate runs. Nothing errors. The rule: <b>aggregate each child table on its own, then join the results</b> (CTEs make this readable, section 5). <code>COUNT(DISTINCT c.id)</code> fixes a count but not a sum.</p>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-fan-card"><h4 class="vt">Fan-out: joining down two levels repeats each chat once per message</h4>
+<div class="rd-svg" id="rd-fan"></div>
+<p class="small mute" id="rd-fan-cap"></p></div></div></div></div>
 <div class="rq" data-ex="j_fanout" data-title="Counting chats through messages: wrong, then right"></div>
 <div class="co"><div class="t">What a join costs, and the index this page owns</div>How the database finds matching pairs (a loop, a hash table, or two sorted inputs) is on {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}}. One modelling consequence belongs here: <b>Postgres indexes primary keys and UNIQUE columns automatically, but not foreign key columns</b>; the {{documentation on foreign keys|https://www.postgresql.org/docs/current/ddl-constraints.html#DDL-CONSTRAINTS-FK}} recommends indexing the referencing column yourself, because joins and deletes of the parent need it.</div>
 </section>
