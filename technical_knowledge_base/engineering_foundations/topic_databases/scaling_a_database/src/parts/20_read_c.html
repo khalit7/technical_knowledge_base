@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ryw"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Read replicas in practice</h2>
 <p>The queries are fixed, the box is big, but reads (opening chats, listing chats, search) are 90% of the traffic and still growing. Reads do not change data, so any exact copy of the database could answer them.</p>
@@ -18,15 +19,35 @@
     replica = pick(r <span class="k">for</span> r <span class="k">in</span> replicas <span class="k">if</span> r.lag_seconds &lt; MAX_LAG)   <span class="c"># skip lagging replicas</span>
     <span class="k">return</span> replica <span class="k">or</span> primary_pool</pre>
 <h3>Read-your-writes in the application</h3>
-<p class="pred"><b>Predict:</b> a user sends a message and the chat reloads straight away from a replica. On Distributed systems fundamentals' real Postgres replica, how many of 2,000 such immediate reads saw the write? Step through the naive route first.</p>
-<div class="card" id="rwCard"><h4 class="vt">The same reload under three routes: the replica is behind the write, so only a route that knows it shows the message</h4>
+<p class="pred"><b>Predict:</b> a user sends a message and the chat reloads straight away from a replica. On Distributed systems fundamentals' real Postgres replica, how many of 2,000 such immediate reads saw the write? It plays the naive route first.</p>
+<p class="sxh">Fig. 2: the same reload under three routes; the replica is behind the write, so only a route that knows it shows the message</p>
 <div class="seg" id="rwM"><button data-m="naive" class="on">Any replica (naive)</button><button data-m="sticky">Sticky primary</button><button data-m="lsn">Wait for the write's log position</button></div>
-<div class="rd-svg" id="rwSvg"></div>
-<div class="an-ctl" id="rwCtl"></div>
-<div class="an-cap" id="rwCap" aria-live="polite"></div>
+<ol class="sx" id="sx-ryw-naive">
+<li><b>The user sends a message.</b> The write goes through the router to the primary, which commits it at log position 0/3000060.</li>
+<li><b>The log streams to the replica.</b> The replica has replayed up to 0/3000020: a fraction of a millisecond behind, which is normal.</li>
+<li><b>The chat reloads from any replica.</b> The router sees a read and picks a replica. Nothing tells it that this user just wrote.</li>
+<li><b>The message is missing.</b> The replica answers from 0/3000020, before the write. To the user the message looks lost.</li>
+<li><b>How often, measured.</b> On Distributed systems fundamentals' real Postgres replica, 1,993 of 2,000 immediate reads missed the write. Lag is short, but a reload is shorter.</li>
+</ol>
+<ol class="sx" id="sx-ryw-sticky" hidden>
+<li><b>The user sends a message.</b> The primary commits it at 0/3000060; the app records <code>last_write_at</code> for this user.</li>
+<li><b>The log streams to the replica.</b> The replica is at 0/3000020, behind the write.</li>
+<li><b>The chat reloads: this user wrote recently.</b> <code>now() - last_write_at</code> is under <code>STICKY_SECONDS</code>, so the router sends this user's reads to the primary.</li>
+<li><b>The message is there.</b> The primary has every write, so the reload shows it.</li>
+<li><b>What it costs.</b> Every recent writer reads from the primary for a few seconds: simple, but it spends the primary capacity replicas were meant to save.</li>
+</ol>
+<ol class="sx" id="sx-ryw-lsn" hidden>
+<li><b>The user sends a message.</b> The primary commits at 0/3000060; the app keeps that position, from <code>pg_current_wal_insert_lsn()</code>.</li>
+<li><b>The log streams to the replica.</b> The replica is at 0/3000020, behind the write.</li>
+<li><b>The chat reloads: is the replica past the write?</b> The router compares <code>pg_last_wal_replay_lsn()</code> on the replica (0/3000020) with the user's 0/3000060: not yet, so the read waits (or tries another replica, or the primary).</li>
+<li><b>The replica catches up, the read runs.</b> Replay passes 0/3000080, beyond the write, and the read runs on the replica with the message in it.</li>
+<li><b>What it costs.</b> A short wait: median 0.105 ms on loopback, measured on Distributed systems fundamentals. PostgreSQL 19 adds <code>WAIT FOR LSN</code> for exactly this.</li>
+</ol>
 <p class="small mute">Log positions are <span class="ill">illustrative</span>; the 1,993 of 2,000 misses and the 0.105 ms wait are measured on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}} (section 3).</p>
-</div>
-<p>A user sends a message and the chat reloads from a replica that has not replayed it yet: the message seems lost. Two fixes are standard. <b>Sticky primary:</b> after a user writes, send that user's reads to the primary for a few seconds (simple; costs primary capacity). <b>Wait for position:</b> remember the log position of the user's last commit (<code>pg_current_wal_insert_lsn()</code>) and read from a replica only once <code>pg_last_wal_replay_lsn()</code> there has passed it (<a href="https://www.postgresql.org/docs/current/functions-admin.html" target="_blank" rel="noopener noreferrer">docs</a>). PostgreSQL 19 (Release Candidate 1 on 15 October 2026, general availability targeted for 19 November) adds a <code>WAIT FOR LSN</code> command for the second pattern (<a href="https://www.postgresql.org/docs/19/release-19.html" target="_blank" rel="noopener noreferrer">release notes</a>); version 18 has nothing built in. The measured cost of the wait (median 0.105 ms on loopback) is on Distributed systems fundamentals.</p>
+<p>Two fixes are standard, the second and third modes of Fig. 2. <b>Sticky primary:</b> after a user writes, send that user's reads to the primary for a few seconds (simple; costs primary capacity). <b>Wait for position:</b> remember the log position of the user's last commit (<code>pg_current_wal_insert_lsn()</code>) and read from a replica only once <code>pg_last_wal_replay_lsn()</code> there has passed it (<a href="https://www.postgresql.org/docs/current/functions-admin.html" target="_blank" rel="noopener noreferrer">docs</a>). PostgreSQL 19 (Release Candidate 1 on 15 October 2026, general availability targeted for 19 November) adds a <code>WAIT FOR LSN</code> command for the second pattern (<a href="https://www.postgresql.org/docs/19/release-19.html" target="_blank" rel="noopener noreferrer">release notes</a>); version 18 has nothing built in. The measured cost of the wait (median 0.105 ms on loopback) is on Distributed systems fundamentals.</p>
+</section>
+</div></div>
+<section id="rd-s3-lag">
 <h3>Lag: monitor it, and route around it</h3>
 <p>On the primary, <code>pg_stat_replication</code> shows <code>write_lag</code>, <code>flush_lag</code> and <code>replay_lag</code> per replica (<a href="https://www.postgresql.org/docs/current/monitoring-stats.html" target="_blank" rel="noopener noreferrer">docs</a>); alert on replay lag, and have the router stop sending reads to a replica past a threshold. Lag is normally milliseconds (AWS says Aurora replica lag is "usually much less than 100 milliseconds"), but a write spike makes it minutes: OpenAI's PGConf.dev 2025 talk lists an incident with replica lag above 10 minutes after a write spike drove the primary past 90% CPU (<a href="https://www.pgevents.ca/events/pgconfdev2025/schedule/session/433/" target="_blank" rel="noopener noreferrer">slides</a>). A replica also replays every write, in one process, so a primary that writes too fast for one replay process leaves every replica behind.</p>
 <p><b>A correctness surprise:</b> reads on replicas can also violate snapshot isolation (Jepsen's <dfn>Long Fork</dfn>, 29 April 2025), so a read that combines several rows to make a decision (a balance check, an invariant across rows) belongs on the primary.</p>

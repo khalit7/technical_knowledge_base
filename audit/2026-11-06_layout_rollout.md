@@ -42,7 +42,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_databases/nosql_in_practice` NoSQL in practice: key-value, document, wide-column, time-series, graph
 - [x] `engineering_foundations/topic_databases/query_planning_and_performance` Query planning and performance: EXPLAIN, statistics, slow queries, tuning
 - [x] `engineering_foundations/topic_databases/running_postgres_in_production` Running Postgres in production: backups, replication, vacuum, upgrades, pooling
-- [ ] `engineering_foundations/topic_databases/scaling_a_database` Scaling a database: read replicas, sharding Postgres, distributed SQL
+- [x] `engineering_foundations/topic_databases/scaling_a_database` Scaling a database: read replicas, sharding Postgres, distributed SQL
 - [ ] `engineering_foundations/topic_databases/search_and_vector_databases` Search and vector databases: inverted indexes, BM25, ANN, pgvector
 - [ ] `engineering_foundations/topic_databases/sql_and_data_modelling` SQL and data modelling: queries, joins, schema design, normalisation, migrations
 - [ ] `engineering_foundations/topic_databases/storage_engines_and_indexes` Storage engines and indexes: pages, B-trees, LSM-trees, the WAL, index types

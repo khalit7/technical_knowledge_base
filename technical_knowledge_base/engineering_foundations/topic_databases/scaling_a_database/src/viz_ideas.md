@@ -38,3 +38,15 @@ What the methodology lacked: guidance for systems measured on one laptop where t
 | Multi-region patterns: a Singapore user's read and write | static toggle | section 12 | CloudPing 218 ms; CockroachDB docs quotes | built (`34_js_rd_geo.js`) |
 | Real photos (servers, data centre) | image | | | rejected: nothing physical teaches here; every mechanism is drawn better |
 | Spanner paper figure | image | | | rejected: TrueTime is one depth paragraph; the paper's licence for reuse is unclear |
+
+## 2026-11-06: split layout and 3D stages (renderer v2)
+| Visual | Kind | Where | Data | Status |
+|---|---|---|---|---|
+| Fig. 1, three ways to grow (one box, primary and replicas with the log streaming, four shards behind a router, keyed against scatter) | 3D stage, 4 steps | top | schematic | built (`41_js_sc_hero.js`), replaces the three 2D hero drawings (`27_js_rd_hero.js`, deleted) |
+| Fig. 2, read-your-writes under three routes, logs as rows of records on each server's roof | 3D stage, 5 steps x 3 lists | section 3 | 1,993 of 2,000 and 0.105 ms (Distributed systems fundamentals); log positions illustrative | built (`42_js_sc_ryw.js`), replaces the 2D stepper (`29_js_rd_ryw.js`) |
+| Fig. 3, one node against 32 shards: index lookup, full scan, keyed to one shard, scatter to all, keyed spread against scatter | 3D stage, 6 steps | section 6 | `SC.citus` placement, shard sizes, medians | built (`43_js_sc_fan.js`), replaces the 2D before/after animation with four caption sets (`25_js_fan.js`) |
+| Fig. 4, two-phase commit across two workers | 3D stage, 6 steps | section 8 | `SC.citus.tx` | built (`44_js_sc_2pc.js`), new: the mechanism had only a bar pair |
+| Fig. 5, a live rebalance from 3 to 4 workers | 3D stage, 5 steps | section 9 | `SC.citus.rebalance`, shard sizes | built (`45_js_sc_rebal.js`), new; replaces the five stat tiles the steps now carry |
+| Fig. 6, four ranges on three nodes through the kill sequence, Raft flows | 3D stage, 6 steps | section 11 | `SC.crdb` ranges, events, per-second counts | built (`46_js_sc_rg.js`), replaces the 2D toggle (`33_js_rd_ranges.js`) |
+| Kept 2D | | | | pool slider, partition boxes, retention tiles and planning bars, functional split toggle, shard-key lab, crossing-shards bars, id bits, resharding bars, the CockroachDB per-second strip, commit floor bars, multi-region toggle: numbers on an axis, flat maps or parameter widgets |
+| Multi-region as a 3D globe or three region plinths | 3D | section 12 | | rejected: three routes on a flat map read at a glance; depth would add nothing |

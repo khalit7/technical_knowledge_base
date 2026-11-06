@@ -6,12 +6,21 @@
 <thead><tr><th>Shard key</th><th>Single-shard</th><th>Must scatter</th><th class="num">Biggest shard, stored</th><th class="num">Biggest shard, last week's writes</th></tr></thead>
 <tbody id="skTable"></tbody></table></div>
 <p class="small mute">Counted from the data (<code>src/measure/labdata.py</code>): "stored" is the share of all 10M messages on the fullest of 8 shards (even would be 12.5%); "last week" is the share of the 208,001 messages written in the data's final 7 days. Hash shards use the page's hash function; range by user splits user ids 1 to 100,000 into 8 equal ranges; time puts consecutive months on consecutive shards; country hashes each country code to a shard.</p>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s7-keys">
 <div class="vs">
 <div><h4>By user (hash): the usual answer</h4><p>Everything a user does (open a chat, list chats, send a message, delete my account) names the user, so it is single-shard, and the user's chats and messages live together, so joins between them stay on one server. Load is even: the busiest user here has 7,586 messages, 0.076% of the total. Scatters: anything across users (admin search, global dashboards) and login by email, which does not know the user id yet (section 8).</p></div>
 <div><h4>By chat (hash)</h4><p>Even too, and "open a chat" is single-shard, but a user's chat list touches every shard holding one of their chats, and deleting a user scatters. Better only if chats are shared between many users (Discord partitions messages by channel for this reason: <a href="https://discord.com/blog/how-discord-stores-billions-of-messages" target="_blank" rel="noopener noreferrer">Discord, 2017</a>).</p></div>
 <div><h4>By tenant (workspace, team, shop)</h4><p>For a business product the tenant is the natural key: Notion shards by workspace, Slack sharded by workspace before Vitess, Shopify by shop (section 13). Everything inside a tenant stays together, and one tenant can be moved or isolated. The risk is the giant tenant: one customer bigger than a shard. The chat product's consumers are each their own tenant, which is why "by user" wins here; the closest coarse key in this data is country, and the US alone is 22% of all messages.</p></div>
 <div><h4>By time, or by a range of ids: the trap</h4><p>Range by user id puts the oldest, most active users on shard 1 (27% of messages on 8 shards). Range by time puts every new write on the newest shard: 100% of last week's writes on one server while seven sit idle. Spanner warns about exactly this: monotonically increasing keys create a write hotspot (<a href="https://docs.cloud.google.com/spanner/docs/schema-and-data-model" target="_blank" rel="noopener noreferrer">Spanner docs</a>).</p></div>
 </div>
+
+
+<h3>Hot shards and hot keys</h3>
+<p>A <dfn>hot shard</dfn> gets far more than its share of load. Two causes: a bad key (range or time, above), fixed by a better key; and a <dfn>hot key</dfn>, one key so busy that even alone it overloads its shard (a celebrity, a giant tenant, one viral channel). Hashing cannot split a single key. Fixes, from cheapest: cache its reads; coalesce identical concurrent requests (Discord: {{Case files: discord-2023|n:3c65c17b0d0d81048ae0dd14ac399b4d}}); give the giant tenant its own shard; or split the key with a suffix (<code>tenant:42#0</code> to <code>#7</code>) and pay a small scatter for its reads.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="rd-lab"><h4 class="vt">Shard-key lab: choose a key and a shard count, and see which shard runs hot and which requests fan out</h4>
 <p class="small">Load per shard counted on the same 10,000,000 messages for every key and every shard count from 2 to 16; which requests become single-shard follows from the key.</p>
 <div class="try"><b>Try:</b> "By user id range" at 8 shards (the oldest users are the busiest), then "By month" with "last week's writes" (one shard takes everything), then "By user (hash)" with the giant-tenant slider at 10%.</div>
@@ -28,8 +37,4 @@
 <div class="pat" id="lbPat"></div>
 <p class="small mute">"One shard": the request carries the key, so the router sends it to one server. "Every shard": it must fan out to all N. "One shard, hot": single-shard but every such request hits the same shard. The giant tenant is not in the data: it adds one key with the chosen share of all load to show that no key choice can spread a single key.</p>
 </div>
-
-<h3>Hot shards and hot keys</h3>
-<p>A <dfn>hot shard</dfn> gets far more than its share of load. Two causes: a bad key (range or time, above), fixed by a better key; and a <dfn>hot key</dfn>, one key so busy that even alone it overloads its shard (a celebrity, a giant tenant, one viral channel). Hashing cannot split a single key. Fixes, from cheapest: cache its reads; coalesce identical concurrent requests (Discord: {{Case files: discord-2023|n:3c65c17b0d0d81048ae0dd14ac399b4d}}); give the giant tenant its own shard; or split the key with a suffix (<code>tenant:42#0</code> to <code>#7</code>) and pay a small scatter for its reads.</p>
-</section>
-
+</div></div></div>

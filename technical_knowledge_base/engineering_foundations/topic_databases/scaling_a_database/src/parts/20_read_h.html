@@ -12,15 +12,11 @@
 </div>
 <div class="co"><div class="t">How a pro chooses among them</div>If you are on Postgres and need sharding now, Citus (self-run or managed on Azure) is the most proven; if you are on AWS and want it managed, Limitless; if you need full control or your access pattern is simple and tenant-shaped, application-level logical shards, as Notion and Figma did. On MySQL, Vitess (or PlanetScale). Whatever you choose, the shard key, co-location and the ban on cross-shard transactions are your design work; no tool does them for you.</div>
 </section>
+<div class="s3sp"><div class="s3R"><div id="stg-rg"></div></div><div class="s3L">
 <section id="rd-s11">
 <h2>11. Distributed SQL: a database that shards itself</h2>
 <p>Sections 6 to 10 left a lot of machinery to the team: the router, resharding, cross-shard transactions, failover of every shard. A family of databases does all of it inside the database and still speaks SQL with real transactions: Google Spanner (2012 paper), CockroachDB, YugabyteDB, TiDB, and Amazon Aurora DSQL.</p>
 <h3>The idea, in three parts</h3>
-<div class="card" id="rgCard"><h4 class="vt">Every range lives on three nodes; a range keeps taking writes while a majority of its copies is alive</h4>
-<div class="seg" id="rgM"><button data-m="0" class="on">All three nodes up</button><button data-m="1">Node 3 killed</button><button data-m="2">Nodes 3 and 2 killed</button><button data-m="3">Node 2 restarted</button><button data-m="4">Node 3 restarted</button></div>
-<div class="rd-svg" id="rgSvg"></div>
-<p class="small mute" id="rgCap"></p>
-</div>
 <ol>
 <li><b>Ranges.</b> All rows, sorted by primary key, are cut into contiguous pieces: CockroachDB calls them <dfn>ranges</dfn> (split when they pass 512 MiB by default), TiDB regions (256 MiB since v8.4), YugabyteDB tablets, Spanner splits. The database splits and moves them by size and load, so resharding is automatic.</li>
 <li><b>Consensus per range.</b> Each range is kept on three (or five) servers, which agree on every write with a consensus protocol, Raft in CockroachDB, TiDB and YugabyteDB, Paxos in Spanner (how Raft works, step by step: {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}, section 7, "Consensus: Raft step by step"). A write commits once a majority has it, so losing one of three copies loses nothing and the range keeps working.</li>
@@ -28,14 +24,34 @@
 </ol>
 <h3>Measured: CockroachDB, three nodes, then two, then one</h3>
 <p>CockroachDB v26.3.0, three nodes on this laptop, a table of 200,000 messages split into four ranges, each range replicated to all three nodes; one replica per range, the <dfn>leaseholder</dfn>, serves its reads and proposes its writes. A client kept inserting through node 1 while nodes were killed with <code>kill -9</code> (no warning, like a power cut).</p>
-<p class="small"><b>The measured run: inserts per second while nodes were killed</b> (<span class="meas">measured</span>)</p>
+<p class="sxh">Fig. 6: four ranges on three nodes through the measured kill sequence; a range takes writes while a majority of its copies is alive</p>
+<ol class="sx" id="sx-rg">
+<li><b>Four ranges, three copies each.</b> The 200,000 messages sit in four ranges (88 to 91, from <code>SHOW RANGES</code> at the end of the run), each with a copy on every node. Every lease sat on node 1, the node the client was connected to.</li>
+<li><b>A write commits at a majority.</b> The insert goes to its range's leaseholder, which sends it to the two other copies through Raft; once one of them has it, two of three, the write commits. With all three nodes up the client managed about 47 inserts a second.</li>
+<li><b>kill -9 node 3 at 10 s: writes continue.</b> Every range still has two of its three copies, a majority, so writes simply continue (about 56 a second). No lease was on node 3, so there was not even a pause; had node 3 held leases, the ranges it led would have paused until their leases moved to a survivor.</li>
+<li><b>kill -9 node 2 at 35 s: no majority, writes stop.</b> One copy of three cannot commit anything: each insert timed out after 3 s, rather than risk two divergent histories. That is the "consistency over availability" choice that Distributed systems fundamentals explains (section 6, "CAP read correctly, and PACELC").</li>
+<li><b>Restart node 2 at 50 s: writes resume by themselves.</b> Two of three copies again: inserts came back about 3 s later, and nobody ran a failover.</li>
+<li><b>Restart node 3 at 65 s: back to three copies.</b> Node 3 catches up from the others, and every range can lose a node again.</li>
+</ol>
+
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s11-run">
+<h3>The same run, second by second</h3>
+<p>The strip beside counts the successful inserts in every second of the run that Fig. 6 walks through: steady with three nodes and with two, nothing while only one was alive, and back without anyone acting once a majority returned. The numbers under it are averages over each stretch; the latency tiles compare one insert with plain Postgres (the price of consensus is below).</p>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="card"><p class="small"><b>The measured run: inserts per second while nodes were killed</b> (<span class="meas">measured</span>)</p>
 <div class="tl" id="crTl" role="img" aria-label="Inserts per second over time"></div>
 <div class="leg"><span style="--sw:var(--good)">successful inserts per second</span><span style="--sw:var(--bad)">seconds with no successful insert (each attempt timed out after 3 s)</span></div>
 <div id="crEv" class="small"></div>
 <div class="nums" id="crNums"></div>
 <p class="small mute" id="crNote"></p>
-<details class="raw"><summary>The four ranges at the end of the run (SHOW RANGES ... WITH DETAILS)</summary><pre id="crRanges"></pre></details>
-<p><b>How to read it.</b> With one node of three gone, every range still has two of its three copies, a majority, so writes simply continue. In this run every lease sat on node 1, the node the client was connected to, so killing node 3 caused no pause at all; had node 3 held leases, the ranges it led would have paused until their leases moved to a survivor. With two nodes gone no range has a majority: writes stop (each insert timed out after 3 s) rather than risk two divergent histories, which is the "consistency over availability" choice that Distributed systems fundamentals explains (section 6, "CAP read correctly, and PACELC"). Restarting node 2 restored a majority and writes resumed by themselves about 3 s later; nobody ran a failover.</p>
+<details class="raw"><summary>The four ranges at the end of the run (SHOW RANGES ... WITH DETAILS)</summary><pre id="crRanges"></pre></details></div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s11-floor">
 <h3>The latency floor, and where it comes from</h3>
 <p>Every write waits for a majority of a range's replicas. Inside one data centre that is one fast round trip; across regions it is physics. Median round trips between AWS regions, measured by CloudPing (5 Oct 2026): us-east-1 (Virginia) to us-east-2 (Ohio) about 13 ms, to us-west-2 (Oregon) about 70 ms, to eu-west-1 (Ireland) about 68 ms, to ap-southeast-1 (Singapore) about 218 ms (<a href="https://www.cloudping.co/" target="_blank" rel="noopener noreferrer">cloudping.co</a>).</p>
 <div class="tw"><table>
@@ -46,16 +62,22 @@
 <tr><td>Virginia, Ireland, Singapore (leaseholder in Virginia)</td><td>a region, on another continent</td><td class="num">Virginia to Ireland, about 68 ms</td></tr>
 <tr><td>Same, client in Singapore writing a row led from Virginia</td><td></td><td class="num">about 218 + 68 = 286 ms</td></tr>
 </tbody></table></div>
+
+<details class="dep"><summary>Spanner's extra wait: TrueTime and commit wait <span>(depth)</span></summary>
+<p>Spanner adds one more wait. Its clocks (TrueTime) report an interval of uncertainty, epsilon, "typically a sawtooth function of time, varying from about 1 to 7 ms"; to make commit order match real time, a commit waits out that uncertainty ("commit wait", about twice epsilon) before becoming visible, which overlaps with the Paxos round (<a href="https://static.googleusercontent.com/media/research.google.com/en//archive/spanner-osdi2012.pdf" target="_blank" rel="noopener noreferrer">Spanner paper, OSDI 2012</a>).</p>
+</details>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="card"><h4 class="vt">Each commit waits for the nearest other replica: one region, three regions, a far client</h4>
 <div class="bars" aria-label="Commit floor drawn to scale">
 <div class="row"><span class="nm">three zones, one region</span><span class="track"><span class="fill" style="width:0.7%;background:var(--c3)"></span></span><span class="val">1 to 2 ms</span></div>
 <div class="row"><span class="nm">Virginia, Ohio, Oregon</span><span class="track"><span class="fill" style="width:4.5%;background:var(--c1)"></span></span><span class="val">13 ms</span></div>
 <div class="row"><span class="nm">Virginia, Ireland, Singapore</span><span class="track"><span class="fill" style="width:23.8%;background:var(--c2)"></span></span><span class="val">68 ms</span></div>
 <div class="row"><span class="nm">same, client in Singapore</span><span class="track"><span class="fill" style="width:100%;background:var(--bad)"></span></span><span class="val">286 ms</span></div>
 </div>
-<p class="small mute">Commit at least = round trip from the leaseholder to the nearest other replica (a majority of three is the leader plus one), plus the client's round trip to the leaseholder if it is far away. The intra-region figure is the one cited on Distributed systems fundamentals; the rest are CloudPing medians.</p>
-<details class="dep"><summary>Spanner's extra wait: TrueTime and commit wait <span>(depth)</span></summary>
-<p>Spanner adds one more wait. Its clocks (TrueTime) report an interval of uncertainty, epsilon, "typically a sawtooth function of time, varying from about 1 to 7 ms"; to make commit order match real time, a commit waits out that uncertainty ("commit wait", about twice epsilon) before becoming visible, which overlaps with the Paxos round (<a href="https://static.googleusercontent.com/media/research.google.com/en//archive/spanner-osdi2012.pdf" target="_blank" rel="noopener noreferrer">Spanner paper, OSDI 2012</a>).</p>
-</details>
+<p class="small mute">Commit at least = round trip from the leaseholder to the nearest other replica (a majority of three is the leader plus one), plus the client's round trip to the leaseholder if it is far away. The intra-region figure is the one cited on Distributed systems fundamentals; the rest are CloudPing medians.</p></div>
+</div></div></div>
+<section id="rd-s11-more">
 <h3>Cheaper reads: follower reads</h3>
 <p>Reading from the leaseholder means crossing the ocean too. A <dfn>follower read</dfn> reads a nearby replica at a timestamp slightly in the past, so it never waits: <code>SELECT ... AS OF SYSTEM TIME follower_read_timestamp()</code>. Measured on this cluster, the timestamp was <span class="m" data-k="crStale"></span> s in the past, matching the follower-reads page's "at least 4.2 seconds" (<a href="https://docs.cockroachlabs.com/docs/stable/follower-reads" target="_blank" rel="noopener noreferrer">docs</a>; the function reference says 4.8 s without a licence key, which this unlicensed cluster did not show). It is a read replica's trade, made explicit per query.</p>
 <h3>The systems, briefly (5 Oct 2026)</h3>
@@ -71,14 +93,10 @@
 <div class="cost"><div class="t">What you give up</div><p><b>Latency:</b> every write pays a consensus round trip: a median insert took <span class="m" data-k="crP50"></span> ms on this three-node loopback cluster against <span class="m" data-k="pgP50"></span> ms on plain Postgres with macOS's default flush and <span class="m" data-k="pgFlush"></span> ms with a real SSD flush per commit, as CockroachDB does, and tens of milliseconds across regions. <b>Compatibility:</b> "Postgres-compatible" means the wire protocol and much of the SQL, not every extension, isolation level or planner behaviour. <b>Hotspots</b> still exist: a sequential key sends all inserts to the last range. <b>Retries:</b> serializable and optimistic systems abort conflicting transactions, so the application must retry. <b>Cost and skills:</b> more nodes per byte, a new system to learn, and for some, licence terms. <b>Worth it when</b> you need writes beyond one machine, or must survive a zone or region without a failover runbook, and you would otherwise build sections 6 to 10 yourself.</p></div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s12">
 <h2>12. Multi-region: putting data near users, and where the law says</h2>
 <p>Users in Singapore pay about 218 ms per round trip to a database in Virginia. Three patterns, from simplest:</p>
-<div class="card" id="geCard"><h4 class="vt">Where a Singapore user's read and write go under each pattern</h4>
-<div class="seg" id="geM"><button data-m="rep" class="on">One primary, replicas everywhere</button><button data-m="geo">Geo-partitioned rows</button><button data-m="glob">Global table</button></div>
-<div class="rd-svg" id="geSvg"></div>
-<p class="small mute" id="geCap"></p>
-</div>
 <div class="vs">
 <div><h4>One primary, replicas everywhere</h4><p>Reads are local, writes cross the world. OpenAI's "nearly 50 read replicas across multiple geographic regions" with one primary is this pattern. Simple; writes from far away are slow, and failover to another region risks the split brain GitHub hit in 2018 ({{Case files: gh-2018-10|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</p></div>
 <div><h4>Geo-partitioning (each row lives near its owner)</h4><p>Rows carry a region, and each region's rows are stored and led there: a European user's messages commit in Europe. CockroachDB calls this a <code>REGIONAL BY ROW</code> table; with sharding you get it by making region part of the shard key (one cell or pod per region, as Shopify does per pod). It is also how <dfn>data residency</dfn> is done, keeping some users' data inside a jurisdiction, which some laws and many enterprise contracts require.</p></div>
@@ -86,3 +104,11 @@
 </div>
 <p>Surviving a whole region failing needs replicas in at least three regions, and then every write waits for a second region: CockroachDB's REGION survival goal "adds at least one inter-region round trip to writes", while the default ZONE goal keeps writes inside a region (<a href="https://docs.cockroachlabs.com/docs/stable/multiregion-survival-goals" target="_blank" rel="noopener noreferrer">survival goals</a>). Decide which failure you must survive, then pay for exactly that.</p>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="card" id="geCard"><h4 class="vt">Where a Singapore user's read and write go under each pattern</h4>
+<div class="seg" id="geM"><button data-m="rep" class="on">One primary, replicas everywhere</button><button data-m="geo">Geo-partitioned rows</button><button data-m="glob">Global table</button></div>
+<div class="rd-svg" id="geSvg"></div>
+<p class="small mute" id="geCap"></p>
+</div>
+</div></div></div>
+

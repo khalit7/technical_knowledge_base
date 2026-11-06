@@ -5,7 +5,7 @@
   const pct=x=>f(100*x,1);
   const ring=S.reshard.balance.ring4,rt=ring.reduce((a,b)=>a+b,0);
   const K={emailCitus:f(C.point.login_email.citus.p50,2),emailBig:f(C.point.login_email.big.p50,3),emailX:f(C.point.login_email.citus.p50/C.point.login_email.big.p50,0),
-    repart:f(C.repart,0),joinBig:f(C.joinBig,0),tx1:f(C.tx.one_shard.p50,2),tx2:f(C.tx.two_nodes_2pc.p50,2),tx2p99:f(C.tx.two_nodes_2pc.p99,1),
+    repart:f(C.repart,0),joinBig:f(C.joinBig,0),tx1:f(C.tx.one_shard.p50,2),tx2:f(C.tx.two_nodes_2pc.p50,2),tx2p99:f(C.tx.two_nodes_2pc.p99,1),txBig:f(C.tx.big_two_users.p50,2),
     rsMod:pct(S.reshard.mod.msgs_pct),rsRing:pct(S.reshard.ring64.msgs_pct),rsRingMin:pct(Math.min(...ring)/rt),rsRingMax:pct(Math.max(...ring)/rt),
     rsLog:pct(S.reshard.logical48.msgs_pct),kc:pct(S.keyChange.pct)};
   if(S.crdb){K.crStale=f(S.crdb.stale,1);K.crP50=f(S.crdb.lat.crdb.p50,1);K.pgP50=f(S.crdb.lat.postgres.p50,2);if(S.crdb.lat.postgres_flush)K.pgFlush=f(S.crdb.lat.postgres_flush.p50,1)}
@@ -22,12 +22,12 @@
     return '<tr><td><b>'+r[0]+'</b></td><td>'+r[2]+'</td><td>'+r[3]+'</td><td class="num"'+bad(s)+'>'+pct(s)+'%</td><td class="num"'+bad(w)+'>'+pct(w)+'%</td></tr>'}).join('');
   // resharding bars
   const rb=document.getElementById('rsBars');
-  if(rb){const it=[['hash mod N',S.reshard.mod],['consistent hashing (64 points)',S.reshard.ring64],['48 logical shards, 12 moved',S.reshard.logical48]];
+  if(rb){const it=[['hash mod N',S.reshard.mod],['hash ring, 64 points',S.reshard.ring64],['48 logical shards',S.reshard.logical48]];
     rb.innerHTML=it.map(([n,v])=>'<div class="row"><span class="nm">'+n+'</span><span class="track"><span class="fill" style="width:'+(100*v.msgs_pct)+'%;background:var(--c2)"></span></span><span class="val">'+pct(v.msgs_pct)+'%</span></div>').join('')+
       '<p class="small mute">Share of the 10,000,000 messages whose shard changes going from 3 to 4 shards (users: '+it.map(([n,v])=>f(v.users,0)).join(', ')+' of 100,000). Counted by <code>src/measure/labdata.py</code>.</p>'}
   // rebalance
   const R=C.rebalance,D=C.drain;const rn=document.getElementById('rbNums');
-  if(rn&&R){rn.innerHTML=RD.stat('Rebalance time',f(R.seconds,1)+' s','3 to 4 workers')+RD.stat('Shard groups moved',String(R.moved_shards_messages),'of 32; now 8 per worker')+
+  if(R){if(rn)rn.innerHTML=RD.stat('Rebalance time',f(R.seconds,1)+' s','3 to 4 workers')+RD.stat('Shard groups moved',String(R.moved_shards_messages),'of 32; now 8 per worker')+
       RD.stat('Data moved (messages)',f(R.moved_mb_messages,0)+' MB','of '+f(R.total_mb_messages,0)+' MB, '+pct(R.moved_mb_messages/R.total_mb_messages)+'%')+
       RD.stat('Inserts during the move',f(R.writes_ok,0),R.writes_err+' errors')+RD.stat('Insert latency',f(R.write_p50,2)+' ms','median; p99 '+f(R.write_p99,2)+' ms, worst '+f(R.write_max,0)+' ms');
     document.getElementById('rbNote').textContent='Shard sizes include indexes. To time a clean run, the fourth worker was first drained back to three ('+(D?f(D.seconds,1)+' s, '+f(D.writes_ok,0)+' inserts during it':'')+'), then the rebalance above was run; the one error during the drain was a duplicate id left over from an earlier aborted test run, not the move. All five servers on one laptop: on real machines the copy is limited by network and disk instead.'}

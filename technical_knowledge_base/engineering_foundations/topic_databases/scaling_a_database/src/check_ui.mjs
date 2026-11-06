@@ -27,17 +27,20 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const setRange = async (id, v) => { await p.evaluate((id, v) => { const s = document.getElementById(id); s.value = v; s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); }, id, v); clicks++; };
   const clickAll = async sel => { const n = await p.$$eval(sel, es => es.length); for (let i = 0; i < n; i++) { await p.evaluate((sel, i) => document.querySelectorAll(sel)[i].click(), sel, i); clicks++; } return n; };
   await p.click('button[data-t=t-read]'); await sleep(200);
-  // nothing may move before the reader acts: every step animation must still be on step 1
+  // reduced motion is emulated here, so no stage may move by itself (autoplay in view is checked by check_stages.mjs)
   await sleep(2500);
-  const still = await p.evaluate(() => ['fanCtl-s', 'rwCtl-s'].map(id => document.getElementById(id).value));
-  if (still.some(v => v !== '0')) { problems++; console.log('PROBLEM autoplay', still); }
-  await clickAll('#ldr button'); await shot('#rd-hero-card', 'hero'); await shot('#rd-one', 'one'); await bad('ladder');
+  const still = await p.evaluate(() => [...document.querySelectorAll('.stg')].map(s => +s.dataset.frames || 0));
+  if (still.some(v => v > 0)) { problems++; console.log('PROBLEM moved under reduced motion', still); }
+  await clickAll('#ldr button'); await shot('#stg-hero', 'hero'); await shot('#rd-one', 'one'); await bad('ladder');
   for (const n of [1, 6, 7, 20, 100]) { await setRange('cnP', n); for (const m of ['direct', 'pool']) { await p.evaluate(m => document.querySelector(`#cnM button[data-m=${m}]`).click(), m); clicks++; if (n === 20) await shot('#cnCard', `pool-${m}`); } }
   await bad('pool');
-  for (const m of ['naive', 'sticky', 'lsn']) { await p.evaluate(m => document.querySelector(`#rwM button[data-m=${m}]`).click(), m); clicks++;
-    for (let i = 0; i < 5; i++) { await setRange('rwCtl-s', i); if (i === 2 || i === 3) await shot('#rwCard', `ryw-${m}-${i}`); } await bad('ryw ' + m); }
+  // every stage, every step (and every mode of the replica stage)
+  const stepAll = async (id, tag) => { const n = await p.$eval(`#${id}-r`, e => +e.max + 1); for (let i = 0; i < n; i++) { await setRange(`${id}-r`, i); if (i === Math.floor(n / 2)) await shot('#' + id, `${tag}-${i}`); } await bad(tag); };
+  for (const m of ['naive', 'sticky', 'lsn']) { await p.evaluate(m => document.querySelector(`#rwM button[data-m=${m}]`).click(), m); clicks++; await stepAll('stg-ryw', 'ryw-' + m); }
+  for (const id of ['stg-hero', 'stg-fan', 'stg-2pc', 'stg-rebal', 'stg-rg']) await stepAll(id, id.slice(4));
+  for (const id of ['stg-fan-p', 'stg-fan-f', 'stg-fan-b', 'stg-fan-p']) { await p.click('#' + id); clicks++; await sleep(40); }
+  await p.evaluate(() => { const s = document.getElementById('stg-fan-s'); s.value = '2'; s.dispatchEvent(new Event('change')); }); clicks++;
   for (const m of ['before', 'after']) { await p.evaluate(m => document.querySelector(`#fsM button[data-m="${m}"]`).click(), m); clicks++; await shot('#fsCard', `split-${m}`); }
-  for (const m of ['0', '1', '2', '3', '4']) { await p.evaluate(m => document.querySelector(`#rgM button[data-m="${m}"]`).click(), m); clicks++; if (m === '0' || m === '2') await shot('#rgCard', `ranges-${m}`); }
   for (const m of ['rep', 'geo', 'glob']) { await p.evaluate(m => document.querySelector(`#geM button[data-m="${m}"]`).click(), m); clicks++; await shot('#geCard', `geo-${m}`); }
   await shot('#xsCard', 'cross'); await bad('new figures');
   for (const q of ['dash', 'chat', 'chat_week']) for (const l of ['messages', 'messages_month', 'messages_hash']) {
@@ -45,13 +48,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (l === 'messages_month') await shot('#ptCard', `pt-${q}`);
   }
   await bad('partitions');
-  for (const q of ['user', 'mention']) for (const m of ['big', 'shard']) {
-    await p.evaluate((q, m) => { document.querySelector(`#fanQ button[data-m=${q}]`).click(); document.querySelector(`#fanM button[data-m=${m}]`).click(); }, q, m); clicks += 2;
-    for (let i = 0; i < 6; i++) { await setRange('fanCtl-s', i); if (i === 3 || i === 5) await shot('#fanCard', `fan-${q}-${m}-${i}`); }
-    await bad('fan ' + q + m);
-  }
-  for (const id of ['fanCtl-p', 'fanCtl-f', 'fanCtl-b', 'fanCtl-p']) { await p.click('#' + id); clicks++; await sleep(40); }
-  await p.evaluate(() => { const s = document.getElementById('fanCtl-v'); s.value = '2'; s.dispatchEvent(new Event('change')); }); clicks++;
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true));
   const secs = await p.$$eval('#t-read section', es => es.map(e => e.id));
   for (const id of secs) await shot('#' + id, 'sec-' + id);
