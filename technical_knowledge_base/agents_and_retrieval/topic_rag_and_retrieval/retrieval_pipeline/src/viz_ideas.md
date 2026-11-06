@@ -41,3 +41,9 @@ Most visuals are measurements of a pipeline knob rather than reproductions of a 
 - **Moved inline:** the Fusion lab (A to B animation into section 4 as the before/after of fusion; its sweep chart replaces the family table, which went to a closed block), the Query-rewrite lab (into section 5), the Chunking workbench (into a closed interactive block in section 1, because its long paper text is exploration, not reading). The three lab tabs are gone.
 - **No autoplay:** the fixed-vs-recursive animation no longer starts on a mode switch; `21_js_rd_common.js` is the skill template.
 - **Real images:** none. This is a mechanism page; the only candidate (Lost in the Middle's U-curve figure) is replaced by the page's own measured position chart.
+
+## 2026-11-06: 3D stages (renderer v2)
+- **Built:** Fig. 1 the pipeline (index and query lanes, glass indexes and filter, flows, the 188 claims as towers); Fig. 2 one section cut by two splitters (paragraph slabs, glass chunk plates, red walls at cuts inside a paragraph); Fig. 3 RRF on one query's real lists (scores morphing to 1/(60 + rank), stacked contributions); Fig. 4 one claim through four rewrites (rows of top 10s, the generator as a glass plate); Fig. 5 post-filter against pre-filter on a constructed floor with the root's measured means.
+- **Replaced:** the static SVG hero, and the 2D fixed-vs-recursive text animation (now a static text view that follows Fig. 2).
+- **Kept 2D:** every chart whose message is a number on an axis (K x s, MMR, fusion sweep, margin bars, small-to-big, positions), the k1 x b heatmap, the 188-claim waffle, and the two reader-driven list widgets.
+- **Rejected:** a 3D waffle (Fig. 1's last step already stacks the counts); a 3D BM25 term table (a table reads better flat); a hybrid-filter step in Fig. 5 (two grids would crowd the stage; the predict box and section 6.3 carry it).

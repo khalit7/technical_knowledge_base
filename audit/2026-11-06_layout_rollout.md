@@ -34,7 +34,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/graphrag_and_structured_retrieval` GraphRAG and structured retrieval
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production` RAG in production: freshness, access control, latency and cost
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
-- [ ] `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline` The retrieval pipeline: chunking, query rewriting, hybrid search, filtering
+- [x] `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline` The retrieval pipeline: chunking, query rewriting, hybrid search, filtering
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes` Vector indexes from the inside: flat, IVF, PQ, HNSW, DiskANN, filtered search
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval` Topic: rag-and-retrieval
 - [ ] `engineering_foundations/topic_databases/analytics_columnar_and_lakehouse` Analytics: columnar engines, DuckDB and the lakehouse
@@ -333,3 +333,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_harnesses/personal_agents`: Figs. 1 and 7 close-up steps leave large faded blocks cropped at the card edges.
 - `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval`: the Trajectory comparer still shows a "Pending generator run" box though check_data reports 0 pending (pre-existing); Long-context tab table scrolls sideways in the right column at 1400.
 - `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production`: Fig. 2 close-up crops the source and index at the edges; Fig. 3 small in its card.
+- `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline`: Fig. 2 mid steps show the two splitters without labels on the rows; Fig. 4 sits low in its card.

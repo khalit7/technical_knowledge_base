@@ -1,5 +1,5 @@
 // Browser check of every tab at 390 dark and 920 light: every segmented button, chip, checkbox, select option,
-// animation step (in each mode) and predict button. Fails on script errors, NaN/undefined/Infinity in text,
+// and predict button (the 3D stages are stepped by check_stages.mjs). Fails on script errors, NaN/undefined/Infinity in text,
 // sideways scroll or a visible error box.
 // usage: node check_page.mjs <index.html> <shots dir>   (puppeteer from html_utils via createRequire)
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';

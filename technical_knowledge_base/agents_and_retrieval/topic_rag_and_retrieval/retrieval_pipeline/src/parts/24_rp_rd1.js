@@ -1,4 +1,4 @@
-// ---- Reading tab, part 1: predictions, chunking (tables, the fixed-vs-recursive animation, small-to-big bars, mixed index)
+// ---- Reading tab, part 1: predictions, chunking (tables, the section cut by fixed windows and the recursive splitter, shared with Fig. 2; small-to-big bars, mixed index)
 (function(){
   const $=id=>document.getElementById(id),D=RP.D,E=RP.esc,f3=RP.f3,pct=RP.pct;
   // predict-then-reveal
@@ -24,29 +24,26 @@
     const sub={id:P.id,title:P.title,text:full.text.slice(A,B),ts:[],te:[],paras:full.paras.filter(p=>p[0]>=A&&p[1]<=B).map(p=>[p[0]-A,p[1]-A,p[2]]),qs:[]};
     let pv=0;for(let i=i0;i<i1;i++){sub.ts.push(full.starts[i]-A-pv);pv=full.starts[i]-A}pv=0;for(let i=i0;i<i1;i++){sub.te.push(Math.min(full.ends[i],B)-A-pv);pv=Math.min(full.ends[i],B)-A}
     const doc=RP.Doc(sub);
-    const evs=[];full.qs.forEach(q=>q.ev.forEach(([x,y])=>{if(x>=A&&y<=B)evs.push([x-A,y-A])}));
+    const evs=[],seen={};full.qs.forEach(q=>q.ev.forEach(([x,y])=>{if(x>=A&&y<=B&&!seen[x+':'+y]){seen[x+':'+y]=1;evs.push([x-A,y-A])}})); // each evidence paragraph once (several questions share one)
     const SIZE=128,OVER=16;
     const cut={fixed:RP.fixed(doc,SIZE,OVER),recursive:RP.recursive(doc,SIZE,OVER,["\n\n","\n",". "," "])};
-    const st={m:'fixed'};
-    function draw(i){const sp=cut[st.m].slice(0,i+1),all=cut[st.m];
-      const cuts=new Set([0,doc.text.length]);sp.forEach(([a,b])=>{cuts.add(a);cuts.add(b)});evs.forEach(([a,b])=>{cuts.add(a);cuts.add(b)});
-      const pts=[...cuts].sort((a,b)=>a-b);let h='';
-      const ends=new Set(sp.map(x=>x[1]));
-      for(let k=0;k<pts.length-1;k++){const a=pts[k],b=pts[k+1];const inn=[];sp.forEach(([x,y],j)=>{if(x<=a&&b<=y)inn.push(j)});
-        const cls=[];if(inn.length>1)cls.push('ov');else if(inn.length===1)cls.push('c'+(inn[0]%2));if(inn.includes(i))cls.push('new');
+    // shared with Fig. 2 (28b_sc_chunk.js), which draws the same section and cuts in 3D
+    RP.sec={doc,evs,cut,secName,SIZE,OVER,paper:P.id};
+    // the same cuts on the real text: a static view of one mode (the stage's step or the reader's switch picks it)
+    function show(m){const all=cut[m];
+      const cuts=new Set([0,doc.text.length]);all.forEach(([a,b])=>{cuts.add(a);cuts.add(b)});evs.forEach(([a,b])=>{cuts.add(a);cuts.add(b)});
+      const pts=[...cuts].sort((a,b)=>a-b);let h='';const ends=new Set(all.map(x=>x[1]));
+      for(let k=0;k<pts.length-1;k++){const a=pts[k],b=pts[k+1];const inn=[];all.forEach(([x,y],j)=>{if(x<=a&&b<=y)inn.push(j)});
+        const cls=[];if(inn.length>1)cls.push('ov');else if(inn.length===1)cls.push('c'+(inn[0]%2));
         if(evs.some(([x,y])=>x<=a&&b<=y))cls.push('ev');
         h+='<span class="'+cls.join(' ')+'">'+E(doc.text.slice(a,b))+'</span>';if(ends.has(b)&&b<doc.text.length)h+='<span class="cut"></span>'}
       $('rp-an-split-doc').innerHTML=h;
-      const intactN=evs.filter(ev=>sp.some(([x,y])=>x<=ev[0]&&ev[1]<=y)).length,finalN=evs.filter(ev=>all.some(([x,y])=>x<=ev[0]&&ev[1]<=y)).length;
-      const midPara=sp.filter(([x,y])=>!doc.paras.some(p=>Math.abs(p[1]-y)<3||y>=doc.text.length-1)).length;
-      const c=sp[i],n=doc.ntok(c[0],c[1]);
-      $('rp-an-split-cap').innerHTML=(st.m==='fixed'?'Fixed windows: chunk '+(i+1)+' takes the next '+SIZE+' tokens wherever they end ('+n+' tokens), then steps back '+OVER+' tokens for the overlap.':
-        'Recursive: chunk '+(i+1)+' ('+n+' tokens) is built from whole paragraphs while they fit; a paragraph longer than '+SIZE+' tokens is split at sentence ends, then at spaces.')+
-        (i===all.length-1?' <b>Done:</b> '+finalN+' of '+evs.length+' evidence paragraphs in this section sit whole inside one chunk.':'');
-      $('rp-an-split-ctr').innerHTML='<span>section <b>'+E(secName)+'</b> ('+doc.starts.length+' tokens)</span><span>chunks <b>'+(i+1)+' / '+all.length+'</b></span><span>chunks ending inside a paragraph <b>'+midPara+'</b></span><span>evidence paragraphs intact so far <b>'+intactN+' / '+evs.length+'</b></span>';
-    }
-    const an=RD.anim({card:'rp-an-split',ctl:'rp-an-split-c',n:cut.fixed.length,draw,ms:1300,label:'Chunk'});
-    RD.seg($('rp-an-split-m'),m=>{st.m=m;an.reset(cut[m].length)});
+      const intactN=evs.filter(ev=>all.some(([x,y])=>x<=ev[0]&&ev[1]<=y)).length;
+      const midPara=all.filter(([x,y])=>!doc.paras.some(p=>Math.abs(p[1]-y)<3||y>=doc.text.length-1)).length;
+      $('rp-an-split-ctr').innerHTML='<span>section <b>'+E(secName)+'</b> ('+doc.starts.length+' tokens)</span><span>'+(m==='fixed'?'fixed windows':'recursive splitter')+': <b>'+all.length+'</b> chunks</span><span>ending inside a paragraph <b>'+midPara+'</b></span><span>evidence paragraphs intact <b>'+intactN+' / '+evs.length+'</b></span>';
+      $('rp-an-split-m').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===m))}
+    RP.secShow=show;
+    RD.seg($('rp-an-split-m'),show);show('fixed');
   })();
   // 1.5 small to big
   function pcChart(){const el=$('rp-pc-chart');const S=(D.parent_child||{}).strategies;if(!S)return;

@@ -66,6 +66,6 @@
   $('rp-fu-go').addEventListener('click',()=>{st.showB=!st.showB;render()});
   $('rp-fu-am').addEventListener('change',e=>{st.am=e.target.value;plot()});
   RP.seg($('rp-fu-ads'),m=>{st.ads=m;plot()});
-  setSlider('a');setSlider('b');fillQ();
+  setSlider('a');setSlider('b');fillQ();st.q=4;$('rp-fu-q').value='4'; // opens on the claim Fig. 3 explains: five documents in both top 10s, the relevant one only in the dense list
   RP.onTab('t-read',()=>{render();plot()});RP.resizeFor('t-read',plot);
 })();
