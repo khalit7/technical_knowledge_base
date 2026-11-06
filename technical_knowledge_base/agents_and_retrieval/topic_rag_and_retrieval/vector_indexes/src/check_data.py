@@ -3,6 +3,7 @@ usage: python3 check_data.py   (after build_data.py and build.sh)
 1. parts/22_vix_data.js parsed back equals data/results.json, data/hnsw_anim.json and data/ivfpq_anim.json.
 2. index.html carries that data line verbatim, and no @@key@@ is left unfilled.
 3. Every fact in facts.json appears in index.html, and a set of facts is recomputed here by separate code."""
+import getpass
 import json
 import os
 import re
@@ -52,7 +53,7 @@ ok(F["var_simple_gap"] == str(round(100 * (g("hnsw") - g("simple")))), "heuristi
 qs = [r for r in R["bench"]["quora"]["exact_scaling"] if r["n"] == 522931][0]
 ok(F["exact_quora_ms"] == str(round(sorted(qs["ms_per_query_passes"])[1])), "Quora exact search ms")
 ok(all(r["load"] for b in R["bench"].values() for r in b["rows"]), "every timed row records its load average")
-priv = ["/Us" + "ers/", "Us" + "ers-", "glp" + "at", "sk-" + "ant", "/private/" + "tmp"] + ([os.environ["USER"]] if os.environ.get("USER") else [])
+priv = ["/Us" + "ers/", "Us" + "ers-", "glp" + "at", "sk-" + "ant", "/private/" + "tmp"] + [getpass.getuser()]  # the login name, looked up at run time (case-sensitive)
 for k in priv:
     ok(k not in html, "privacy: a private pattern is absent from index.html")
 ok(not re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z.]{2,}", html), "privacy: no e-mail address in index.html")

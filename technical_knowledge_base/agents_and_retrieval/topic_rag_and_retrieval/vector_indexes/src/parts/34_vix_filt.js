@@ -15,6 +15,12 @@
       s_own:['all4','source_own',F.all4.n,'the query\'s own collection (about '+(F.all4.source_own_share*100).toFixed(0)+'% of vectors, correlated), 400 queries'],
       s_other:['all4','source_other',F.all4.n,'the next collection, not the query\'s (about '+(F.all4.source_other_share*100).toFixed(0)+'%, anti-correlated), 400 queries']}[st.sc];
     const ac=(A[m[0]]&&A[m[0]][m[1]])||[];return {rows:F[m[0]][m[1]].concat(ac),n:m[2],label:m[3]}}
+  // the step list: one item per selectivity (random attribute), or one item for each other filter; what the old caption said, per step
+  function summary(S){const pre=S.rows.find(r=>r.strategy.startsWith('pre'));const ig=S.rows.filter(r=>r.strategy==='in-graph (hnswlib rule)').find(r=>r.recall10>=0.99);
+    const post=S.rows.filter(r=>r.strategy==='post-filter').find(r=>r.setting==="k'=100");
+    return 'Pre-filter: '+Math.round(pre.ndis).toLocaleString('en-US')+' distances, exact. In-graph: '+(ig?'0.99 at '+Math.round(ig.ndis).toLocaleString('en-US')+' ('+ig.setting+')':'never 0.99')+'. Post-filter, 100 neighbours: recall '+(post?post.recall10.toFixed(2):'?')+(post&&post.empty!==undefined&&post.empty>0?', nothing back for '+post.empty+' queries':'')+'.'+(st.sc==='rand'&&ig&&ig.ndis<pre.ndis?' <b>Walking the graph is now cheaper than pre-filtering.</b>':'')}
+  {const sc0=st.sc;$('sx-l-rand').innerHTML=SEL.map((s,i)=>{st.sc='rand';st.i=i;const S=scenario();return '<li><b>Keep '+(s*100)+'% of rows ('+F.all4.selectivity[i].rows_kept.toLocaleString('en-US')+').</b> '+summary(S)+'</li>'}).join('');st.sc=sc0;st.i=0}
+  function oneList(){const S=scenario();$('sx-l-one').innerHTML='<li><b>Filter: '+esc(S.label)+'.</b> '+summary(S)+'</li>'}
   function draw(i){if(st.sc==='rand')st.i=i;const S=scenario();const W=Math.max(280,Math.min(RD.width($('vix-l-plot')),820)),H=Math.round(Math.min(420,W*0.6));const L=44,Rm=10,T=10,Bm=34;
     const nds=S.rows.map(r=>Math.max(1,r.ndis));const x0=0,x1=Math.log10(Math.max(S.n*1.1,...nds));
     const X=v=>L+(Math.log10(Math.max(1,v))-x0)/(x1-x0)*(W-L-Rm),Y=v=>T+(1-v)*(H-T-Bm);let s='';
@@ -27,12 +33,9 @@
       g.forEach(r=>{s+='<circle cx="'+X(r.ndis).toFixed(1)+'" cy="'+Y(r.recall10).toFixed(1)+'" r="'+(k.startsWith('pre')?6:3.5)+'" fill="'+c+'"><title>'+esc(NAME[k]+' '+r.setting+': recall '+r.recall10.toFixed(3)+', '+Math.round(r.ndis)+' distances')+'</title></circle>'})});
     $('vix-l-plot').innerHTML=RD.svg(W,H,s,'Recall against work per query under a filter');
     $('vix-l-leg').innerHTML=STR.filter(([k])=>S.rows.some(r=>r.strategy===k)).map(([k,c])=>'<span><i style="background:'+c+'"></i>'+esc(NAME[k])+'</span>').join('');
-    const pre=S.rows.find(r=>r.strategy.startsWith('pre'));const ig=S.rows.filter(r=>r.strategy==='in-graph (hnswlib rule)').find(r=>r.recall10>=0.99);
-    const post=S.rows.filter(r=>r.strategy==='post-filter').find(r=>r.setting==="k'=100");
-    $('vix-l-cap').innerHTML='<b>Filter:</b> '+esc(S.label)+'. Pre-filtering computes '+Math.round(pre.ndis).toLocaleString('en-US')+' distances and is exact; '+(ig?'hnswlib\'s in-graph filter reaches 0.99 at '+Math.round(ig.ndis).toLocaleString('en-US')+' ('+ig.setting+')':'hnswlib\'s in-graph filter never reaches 0.99 here')+'; post-filtering 100 neighbours keeps '+(post?post.recall10.toFixed(2):'?')+' recall'+(post&&post.empty!==undefined?' and returns nothing for '+post.empty+' queries':'')+'.'+(st.sc==='rand'&&ig&&ig.ndis<pre.ndis?' <b>Here walking the graph is cheaper than pre-filtering.</b>':'');
     $('vix-l-tab').innerHTML='<details class="mist"><summary>Every setting ('+S.rows.length+' rows)</summary><div class="b" style="padding-left:8px"><table><tr><th>Strategy</th><th>setting</th><th class="num">recall@10</th><th class="num">distances</th><th class="num">results returned</th></tr>'+S.rows.map(r=>'<tr><td><span style="color:'+COL[r.strategy]+'">&#9632;</span> '+esc(NAME[r.strategy]||r.strategy)+'</td><td>'+esc(r.setting.replace("k'","k′"))+'</td><td class="num">'+r.recall10.toFixed(3)+'</td><td class="num">'+Math.round(r.ndis).toLocaleString('en-US')+'</td><td class="num">'+(r.returned!==undefined?r.returned.toFixed(1):'')+'</td></tr>').join('')+'</table></div></details>'}
-  const A1=RD.anim({card:'vix-l-card',ctl:'vix-l-ctl',n:SEL.length,draw,ms:1600,label:'Selectivity'});
-  RD.seg($('vix-l-sc'),v=>{st.sc=v;A1.reset(v==='rand'?SEL.length:1)});
+  const A1=RD.anim({card:'vix-l-card',ctl:'vix-l-ctl',n:SEL.length,draw,ms:3800,label:'Selectivity',list:'sx-l-rand'});
+  RD.seg($('vix-l-sc'),v=>{st.sc=v;const r=v==='rand';if(!r)oneList();$('sx-l-rand').hidden=!r;$('sx-l-one').hidden=r;A1.reset(r?SEL.length:1,r?'sx-l-rand':'sx-l-one')});
   const qd=Qd.rows||[];
   const keys=[...new Set(qd.map(r=>r.collection+'|'+r.filter))],efs=[...new Set(qd.map(r=>r.hnsw_ef))].sort((a,b)=>a-b);
   $('vix-l-qd').innerHTML='<table><tr><th>Collection, filter (share kept)</th>'+efs.map(e=>'<th class="num">ef '+e+'</th>').join('')+'</tr>'+keys.map(k=>{const rs=qd.filter(r=>r.collection+'|'+r.filter===k);const r0=rs[0];
