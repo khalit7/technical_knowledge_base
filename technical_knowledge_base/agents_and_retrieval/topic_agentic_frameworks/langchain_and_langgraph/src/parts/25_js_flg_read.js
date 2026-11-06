@@ -66,9 +66,11 @@
     $('flg-i-code').innerHTML=CODE[im].map((l,k)=>'<span'+(k===f[0]?' class="hl"':'')+'>'+esc(l)+'</span>').join('\n');
     const r=rec(im);
     $('flg-i-cnt').innerHTML=RD.stat('review started',f[2].r,'recorded total: '+r.review)+RD.stat('e-mails sent',f[2].e,'recorded total: '+(r.email_sent||0));
-    $('flg-i-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+FR[im].length+'</div><p>'+esc(f[1])+'</p>'};
-  const ia=RD.anim({card:'flg-i-card',ctl:'flg-i-ctl',n:FR[im].length,draw:drawI,ms:1500,label:'Step through the interrupt'});
-  RD.seg($('flg-i-mode'),m=>{im=m;ia.reset(FR[im].length)});
+  };
+  // the step list on the left (sx-int-b / sx-int-a) explains each frame; FR's second field is its short form, kept for reference
+  const LID={side_effect_before:'sx-int-b',side_effect_after:'sx-int-a'};
+  const ia=RD.anim({card:'flg-i-card',ctl:'flg-i-ctl',n:FR[im].length,draw:drawI,ms:3800,label:'Step through the interrupt',list:LID[im]});
+  RD.seg($('flg-i-mode'),m=>{im=m;Object.entries(LID).forEach(([k,id])=>{$(id).hidden=k!==m});ia.reset(FR[im].length,LID[m])});
 
   // s6 rules table
   const C=n=>D.e4.cases.find(x=>x.name===n);

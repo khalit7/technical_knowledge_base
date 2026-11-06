@@ -1,7 +1,9 @@
 <style>
 code{overflow-wrap:anywhere}
 #t-read dfn{font-style:normal;font-weight:600;border-bottom:1px dotted var(--mute)}
-.an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+.an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+@media (min-width:1100px){#t-read .s3R>.s3stick{position:sticky;top:58px;margin-top:20px}}
+#flg-s-lists ol.sx code{font-size:12.5px}
 .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 .an-ctl select{padding:3px 6px}.an-play{min-width:6.4em}
 .an-cap{min-height:4.8em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
@@ -36,12 +38,24 @@ tr.flg-chg td{background:var(--hl)}
 </style>
 <nav class="nav" id="rd-nav"><a href="#rs0">The idea</a><a href="#rs1">1. LangChain</a><a href="#rs2">2. A graph</a><a href="#rs3">3. Super-steps</a><a href="#rs4">4. Checkpointers</a><a href="#rs5">5. Crashes</a><a href="#rs6">6. Interrupts</a><a href="#rs7">7. Streaming</a><a href="#rs8">8. Subgraphs</a><a href="#rs9">9. create_agent</a><a href="#rs10">10. Store</a><a href="#rs11">11. Deployment</a><a href="#rs12">12. When to use it</a><a href="#rs13">Versions and depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rs0">
 <h2>The idea in one picture</h2>
 <p class="flg-core"><b>LangGraph runs your program as rounds of parallel steps over one shared state and saves a <span class="flg-ck">checkpoint</span> of that state at the barrier after every round; surviving a crash, waiting days for a person and rewinding are all that checkpoint. LangChain 1.x is the thin layer above: one interface for models, tools and retrievers, and a ready agent loop that compiles to a LangGraph graph.</b></p>
-<div class="card"><p class="flg-vt">Everything durable happens at the barrier between super-steps</p>
-<div id="flg-hero"></div>
-<p class="small">Read top to bottom. LangChain's <code>create_agent</code> builds a <code>StateGraph</code>; <code>compile()</code> turns any graph into a Pregel runtime that loops <b>plan</b> (which nodes are triggered), <b>execute</b> (all of them in parallel, each against the state as of the step start) and <b>update</b> (merge their writes through the reducers). Each finished task's output is saved as a pending write, and each update saves a <span class="flg-ck">checkpoint</span> under the run's <code>thread_id</code>. Resume, whether after a SIGKILL or after a person answers an <code>interrupt()</code>, is just loading the last checkpoint and planning again.</p></div>
+<p class="small">LangChain's <code>create_agent</code> builds a <code>StateGraph</code>; <code>compile()</code> turns any graph into a Pregel runtime that loops <b>plan</b> (which nodes are triggered), <b>execute</b> (all of them in parallel, each against the state as of the step start) and <b>update</b> (merge their writes through the reducers). Each finished task's output is saved as a pending write, and each update saves a <span class="flg-ck">checkpoint</span> under the run's <code>thread_id</code>. Resume, whether after a SIGKILL or after a person answers an <code>interrupt()</code>, is just loading the last checkpoint and planning again. Fig. 1 is the page's running example, run for real with Claude Haiku 4.5 and killed halfway (section 5 has the timings and the run without checkpoints):</p>
+<ol class="sx" id="sx-hero">
+<li><b>One graph, one state, one checkpointer.</b> The graph of section 2 compiled with a <code>SqliteSaver</code>: the nodes on the floor, the shared state behind them, the database on the right. Process 1 calls <code>invoke({})</code> on a fresh thread; the input is saved as the first checkpoints.</li>
+<li><b>Super-step 1: read_and_test.</b> One node runs and returns <code>core</code> and <code>test_output</code>; at the barrier the update is applied to the state and a checkpoint is written.</li>
+<li><b>Super-step 2: both diagnoses at once.</b> The two nodes run in parallel, each a model call. <code>diagnose_top_words</code> returns after 6.6 s and its output is saved at once as a pending write, before the step ends.</li>
+<li><b>SIGKILL at 6.6 s.</b> The driver kills the process while <code>diagnose_word_count</code>'s call is in flight. Memory is gone and that call returns nothing; the database still holds the checkpoints and the pending write.</li>
+<li><b>Process 2: invoke(None) on the same thread.</b> A fresh process loads the last checkpoint and its pending write and plans again: only <code>diagnose_word_count</code> runs (6.3 s). At the barrier the <code>operator.add</code> reducer joins both diagnoses into one list; a checkpoint is written.</li>
+<li><b>propose_fix, then interrupt().</b> <code>propose_fix</code> makes the third returned call (7.8 s); <code>human_review</code> calls <code>interrupt()</code>: the pause is saved, <code>invoke</code> returns the diff at 21.0 s and process 2 exits. Nothing runs while the person decides, for seconds or for days.</li>
+<li><b>Process 3: Command(resume="approve").</b> Another process loads the thread; <code>human_review</code> runs again from its first line, <code>interrupt()</code> now returns "approve", <code>apply_and_test</code> applies the patch and the tests pass. SQLite holds 7 checkpoints and 19 writes; 4 model calls started for 3 that returned ($0.0132 at list prices).</li>
+</ol>
+</section>
+</div></div>
+
+<section id="rs0b">
 <p class="small"><b>You need</b> the agent loop itself, written by hand in {{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}}, and the root's workflows against agents ({{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}, Reading). Nothing else.</p>
 <h3>New terms, and the problem each solves</h3>
 <div class="tw"><table class="flg-terms">
@@ -66,13 +80,17 @@ tr.flg-chg td{background:var(--hl)}
 <p class="small mute">Labels: <span class="meas">MEASURED</span> run for this page (Apple M1 Pro; langgraph 1.2.14 and langchain 1.4.3 on 6 October 2026; section 1 on langchain-core 1.6.7, 24 October 2026); <span class="docd">DOCS</span> read from official docs or source; <span class="unc">UNCONFIRMED</span> no primary source found. The graphs of sections 3 to 8 have no model: every node is a plain function over the running example (the <code>textstats</code> repository with two planted bugs, shared across the agents topics), so their traces are exact. Real model calls appear in sections 5 and 9.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rs1">
 <h2>1. LangChain 1.x: one interface for every building block</h2>
 <p>Since 1.0 (October 2025) the <code>langchain</code> package is an agent library, <code>create_agent</code> plus middleware (section 9), built on the interfaces in <code>langchain-core</code>. The pre-1.0 chains, retrievers and indexes moved to <code>langchain-classic</code>; on 1.4.3, <code>import langchain.chains</code> raises <code>ModuleNotFoundError</code> and <code>from langchain_classic.chains import RetrievalQA</code> works <span class="meas">MEASURED</span>. LangGraph does not need LangChain at all: its README says it "can be used without LangChain", and every graph in sections 2 to 8 imports only <code>langgraph</code>.</p>
 <p><b>Everything is a Runnable.</b> A prompt template, a chat model, an output parser, a retriever, a tool, and any chain built from them implement one interface, <code>Runnable</code>: <code>invoke</code> (one input), <code>batch</code> (a list, run concurrently), <code>stream</code>, the async <code>ainvoke</code>, and wrappers such as <code>with_retry</code> and <code>with_fallbacks</code>. <dfn>LCEL</dfn>, the LangChain Expression Language (August 2023, "a declarative way to truly compose chains", {{LangChain|https://www.langchain.com/blog/langchain-expression-language}}), is the <code>|</code> operator over Runnables: <code>prompt | model | parser</code> builds a <code>RunnableSequence</code> whose <code>invoke</code> feeds each step's output to the next. One call on the running example, with a fake model so that every value shown is exact <span class="meas">MEASURED</span>:</p>
-<div class="card"><p class="flg-vt">One invoke() through prompt | model | parser: what each Runnable receives and returns</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><p class="flg-vt">One invoke() through prompt | model | parser: what each Runnable receives and returns</p>
 <div class="flg-pipe" id="flg-lc-pipe"></div>
-<p class="small mute">Real values from <code>src/code/e8_lcel.py</code> (langchain-core 1.6.7). The model is <code>FakeListChatModel</code> returning a fixed answer, so nothing here depends on a provider. The same six methods exist on every block: <span id="flg-lc-rn" class="mono"></span>.</p></div>
+<p class="small mute">Real values from <code>src/code/e8_lcel.py</code> (langchain-core 1.6.7). The model is <code>FakeListChatModel</code> returning a fixed answer, so nothing here depends on a provider. The same six methods exist on every block: <span id="flg-lc-rn" class="mono"></span>.</p></div></div></div></div>
+
+<section id="rs1b">
 <p><b>Models, tools, retrievers.</b> <code>init_chat_model("provider:model")</code> (or a class such as <code>ChatOpenAI</code>) gives every provider the same message types and the same <code>invoke</code>. <code>@tool</code> turns a typed, documented function into the JSON schema the model sees; a <dfn>retriever</dfn> is a Runnable from a query string to a list of <code>Document</code>s, and <code>vector_store.as_retriever(search_kwargs={"k": 2})</code> makes one. Both on the running example:</p>
 <div class="flg-two"><div><p class="small"><b><code>@tool</code> on <code>run_tests(path: str, verbose: bool = False)</code></b> becomes:</p><pre class="flg-pre" id="flg-lc-tool"></pre></div>
 <div><p class="small"><b><code>retriever.invoke("why does word_count miscount contractions?")</code></b> over the three functions of <code>textstats/core.py</code>:</p><pre class="flg-pre" id="flg-lc-ret"></pre><p class="small mute">The embeddings are LangChain's <code>DeterministicFakeEmbedding</code> (hash-seeded random vectors), so the ranking shows the interface, not retrieval quality; how to retrieve well is the {{retrieval pipeline|n:3c65c17b0d0d819899fde889e1e8b782}}'s subject.</p></div></div>

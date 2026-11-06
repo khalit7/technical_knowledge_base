@@ -1,4 +1,4 @@
-// ---- Graph drawing and the super-step player, shared by the Reading tab and the Super-step lab ----
+// ---- Graph drawing (2D SVG), for section 2 (the running example) and section 9 (create_agent); the super-step player became the 3D stage 42_js_sc_steps.js (2026-11-06) ----
 // Layouts are rows from top to bottom; nodes in a row sit side by side (works at phone width).
 window.FLG_UID=window.FLG_UID||0;
 window.FLGG=(function(){
@@ -41,84 +41,4 @@ window.FLGG=(function(){
     return RD.svg(W,H,b,'Graph '+name);
   }
   return {svg,LAYOUT};
-})();
-
-// The super-step player: frames built from one recorded graph run (E1)
-window.FLGS=(function(){
-  const esc=RD.esc;
-  const fmtv=v=>{const s=typeof v==='string'?v:JSON.stringify(v);return s===undefined?'':s};
-  const hiddenCh=k=>/^(branch:|join:|__)/.test(k);
-  function frames(g){
-    const F=[];const S=g.steps;
-    const s0=S[0];
-    F.push({j:0,ph:'input',title:'Input: invoke({}) on a fresh thread',
-      text:'The input is written into the special __start__ channel and checkpoint '+s0.step+' (source "input") is saved. Nothing has run yet.'});
-    for(let j=1;j<S.length;j++){
-      const st=S[j];const prev=S[j-1];
-      if(!st.tasks.length){F.push({j,ph:'done',title:'Checkpoint '+st.step+': nothing is triggered, the run ends',
-        text:'No node listens to a channel with a version newer than the one it last saw, so the loop stops. Final state: '+fmtv(g.final)+'.'});break}
-      const names=st.tasks.map(t=>t.name);
-      const trig=st.tasks.map(t=>t.name+' (listens to '+t.triggers.join(', ')+')');
-      const uniq=[...new Set(trig)];
-      F.push({j,ph:'plan',title:'Super-step '+(st.step+1)+', plan: which nodes run?',
-        text:'LangGraph compares each node’s trigger channels with the versions that node saw last time. Triggered: '+uniq.join('; ')+'. '+(names.length>1?names.length+' tasks will run in parallel.':'One task.')});
-      F.push({j,ph:'exec',title:'Super-step '+(st.step+1)+', execute: '+names.join(', '),
-        text:(names.length>1?'The tasks run in parallel and each reads the state as of the start of the step; none sees another’s output. ':'The task reads the state as of the start of the step. ')+'Their returned updates are held as pending writes, saved against checkpoint '+st.step+': '+
-          st.writes.filter(w=>!hiddenCh(w.channel)).map(w=>w.task+' → '+w.channel+' = '+fmtv(w.value)).join('; ')+'.'});
-      const nx=S[j+1];
-      if(!nx){F.push({j,ph:'err',title:'Super-step '+(st.step+1)+', update: the writes cannot be applied',
-        text:(g.error||'error').replace(/\s+$/,'').replace(/([^.])$/,'$1.')+(g.get_state_error?' Afterwards even get_state() on this thread raises the same error: the two pending writes are saved, and every read re-applies them.':'')});break}
-      const upd=(nx.updated||[]).filter(k=>!hiddenCh(k));
-      F.push({j:j+1,ph:'update',title:'Super-step '+(st.step+1)+', update: apply the writes, save checkpoint '+nx.step,
-        text:'All pending writes are applied together, in a fixed order, through each channel’s reducer'+(upd.length?' (changed: '+upd.join(', ')+')':'')+'. Every channel written gets the next version number, and checkpoint '+nx.step+' is saved.'});
-    }
-    return F;
-  }
-  function stateFor(g,f){
-    const S=g.steps;const st=S[f.j];const cls={},badge={};
-    if(f.ph==='plan'||f.ph==='exec'||f.ph==='err'){st.tasks.forEach(t=>{cls[t.name]=f.ph==='plan'?'next':f.ph==='err'?'err':'run'})}
-    for(let k=1;k<=f.j;k++){const s=S[k-1];if(k<f.j||f.ph==='update'||f.ph==='done')(s.tasks||[]).forEach(t=>{if(!cls[t.name])cls[t.name]='done'})}
-    if(f.ph==='update'){(S[f.j-1].tasks||[]).forEach(t=>cls[t.name]='done')}
-    const copies={};if(g.name==='send')copies.review=3;
-    // run counts
-    const runs={};for(let k=0;k<S.length;k++){if(k<f.j||(k===f.j&&(f.ph==='exec'||f.ph==='err')))(S[k].tasks||[]).forEach(t=>runs[t.name]=(runs[t.name]||0)+1)}
-    Object.keys(runs).forEach(n=>{if(runs[n]>1)badge[n]='ran '+runs[n]+'×'});
-    return {cls,badge,copies,runs};
-  }
-  function chanTable(g,f,showHidden){
-    const S=g.steps;const cur=S[Math.min(f.j,S.length-1)];
-    const prevSt=f.ph==='update'?S[f.j-1]:null;
-    const keys=Object.keys(cur.versions).filter(k=>showHidden||!hiddenCh(k));
-    Object.keys(cur.values).forEach(k=>{if(!keys.includes(k)&&(showHidden||!hiddenCh(k)))keys.push(k)});
-    if(!keys.length)return '<p class="small mute">No state key holds a value yet: only the hidden <code>__start__</code> channel has been written.</p>';
-    let h='<div class="tw"><table class="flg-ct"><thead><tr><th>Channel</th><th class="num">Version</th><th>Value</th></tr></thead><tbody>';
-    keys.forEach(k=>{const ch=prevSt&&(cur.versions[k]!==(prevSt.versions||{})[k]);
-      h+='<tr'+(ch?' class="flg-chg"':'')+(hiddenCh(k)?' style="color:var(--mute)"':'')+'><td class="mono">'+esc(k)+'</td><td class="num">'+esc(cur.versions[k]||'')+'</td><td class="mono">'+esc(fmtv((cur.values[k]===undefined||cur.values[k]===null)?(hiddenCh(k)?'(trigger)':''):cur.values[k]))+'</td></tr>'});
-    h+='</tbody></table></div>';
-    if(f.ph==='exec'||f.ph==='err'){h+='<div class="small"><b>Pending writes</b> (saved against checkpoint '+cur.step+', not yet applied):</div><ul class="tight">'+
-      cur.writes.filter(w=>showHidden||!hiddenCh(w.channel)).map(w=>'<li class="small mono">'+esc(w.task)+' → '+esc(w.channel)+(w.value!==null&&w.value!==undefined?' = '+esc(fmtv(w.value)):'')+'</li>').join('')+'</ul>'}
-    return h;
-  }
-  function seenTable(g,f){
-    const S=g.steps;const cur=S[Math.min(f.j,S.length-1)];
-    const rows=Object.keys(cur.seen).filter(n=>!n.startsWith('__'));
-    if(!rows.length)return '<p class="small mute">No node has run yet, so versions_seen is empty apart from the input.</p>';
-    return '<div class="tw"><table class="flg-ct"><thead><tr><th>Node</th><th>Channel versions it has seen</th></tr></thead><tbody>'+
-      rows.map(n=>'<tr><td class="mono">'+esc(n)+'</td><td class="mono">'+esc(Object.entries(cur.seen[n]).map(([k,v])=>k+': '+v).join(', '))+'</td></tr>').join('')+'</tbody></table></div>';
-  }
-  // o: {card, ctl, svgEl, capEl, tableEl, seenEl, counterEl, tab, getGraph(), hidden()}
-  function mount(o){
-    let g=o.getGraph(),F=frames(g);
-    const draw=i=>{const f=F[Math.min(i,F.length-1)];const st=stateFor(g,f);
-      const W=RD.width(o.svgEl);o.svgEl.innerHTML=FLGG.svg(g.name,g.edges,Math.min(W,520),st);
-      o.capEl.innerHTML='<div class="t">'+esc(f.title)+'</div><p>'+esc(f.text)+'</p>';
-      if(o.tableEl)o.tableEl.innerHTML=chanTable(g,f,o.hidden&&o.hidden());
-      if(o.seenEl)o.seenEl.innerHTML=seenTable(g,f);
-      if(o.counterEl){const S=g.steps;const ck=f.ph==='err'?f.j:(f.ph==='update'||f.ph==='done'?f.j:f.j);const saved=S.slice(0,ck+1).length;
-        const tasks=Object.values(st.runs).reduce((a,b)=>a+b,0);
-        o.counterEl.innerHTML=RD.stat('Super-step',f.ph==='input'?'0':String(S[Math.min(f.j,S.length-1)].step+(f.ph==='update'||f.ph==='done'?0:1)),'')+RD.stat('Tasks run',tasks,'node executions so far')+RD.stat('Checkpoints saved',saved,f.ph==='err'?'no new checkpoint: the step failed':'one per super-step, plus the input')}};
-    const a=RD.anim({card:o.card,ctl:o.ctl,n:F.length,draw,ms:1700,label:'Step through the run',tab:o.tab});
-    return {reload(){g=o.getGraph();F=frames(g);a.reset(F.length)},redraw(){a.redraw()}};
-  }
-  return {mount,frames};
 })();

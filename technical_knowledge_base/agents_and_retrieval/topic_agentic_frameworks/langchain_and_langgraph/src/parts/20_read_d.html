@@ -1,13 +1,38 @@
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="flg-i-card"><p class="flg-vt">Fig. 4 · Resume re-runs the node from its first line, so a side effect before interrupt() happens twice</p>
+<div class="seg flg-seg" id="flg-i-mode"><button class="on" data-m="side_effect_before">e-mail before interrupt()</button><button data-m="side_effect_after">e-mail after interrupt()</button></div>
+<div class="flg-two"><div><pre class="flg-pre" id="flg-i-code" style="max-height:none"></pre></div><div><div class="out" id="flg-i-cnt" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr))"></div></div></div>
+<div class="an-ctl" id="flg-i-ctl"></div>
+<p class="small mute"><span class="meas">MEASURED</span> counters end on the recorded counts of each line's executions in <code>src/code/e4_interrupts.py</code> (no model); the highlighted line is the one running; the steps are listed on the left.</p></div></div><div class="s3L">
 <section id="rs6">
 <h2>6. Interrupts and Command: pausing for a person, routing from inside a node</h2>
 <p>An agent about to apply a patch, pay a refund or send an e-mail should sometimes ask first, and the answer may come tomorrow. Holding a process open for a day is fragile, so LangGraph pauses through the checkpoint: inside a node, <code>interrupt(payload)</code> raises a special exception, the runtime saves the state, and <code>invoke</code> returns with the payload (with 1.1's <code>version="v2"</code>, in <code>result.interrupts</code>). Later, from any process, <code>invoke(Command(resume=answer), config)</code> loads the thread and runs the node again, and this time <code>interrupt()</code> returns the answer instead of raising. "The <code>thread_id</code> you choose is effectively your persistent cursor" ({{docs|https://docs.langchain.com/oss/python/langgraph/interrupts}}).</p>
-<p>The trap is <em>runs the node again</em>, from its first line ("The graph resumes from the start of the node, re-executing all logic", <code>interrupt</code>'s docstring). <b>Predict:</b> a node sends a notification e-mail, then asks for approval; after one approval, how many e-mails went out? Step through it, then move the e-mail after the question:</p>
-<div class="card" id="flg-i-card"><p class="flg-vt">Resume re-runs the node from its first line, so a side effect before interrupt() happens twice</p>
-<div class="seg flg-seg" id="flg-i-mode"><button class="on" data-m="side_effect_before">e-mail before interrupt()</button><button data-m="side_effect_after">e-mail after interrupt()</button></div>
-<div class="flg-two"><div><pre class="flg-pre" id="flg-i-code" style="max-height:none"></pre></div><div><div class="out" id="flg-i-cnt" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr))"></div></div></div>
-<div class="an-cap" id="flg-i-cap"></div>
-<div class="an-ctl" id="flg-i-ctl"></div>
-<p class="small mute"><span class="meas">MEASURED</span> counters end on the recorded counts of each line's executions in <code>src/code/e4_interrupts.py</code> (no model); the highlighted line is the one running.</p></div>
+<p>The trap is <em>runs the node again</em>, from its first line ("The graph resumes from the start of the node, re-executing all logic", <code>interrupt</code>'s docstring). <b>Predict:</b> a node sends a notification e-mail, then asks for approval; after one approval, how many e-mails went out? Fig. 4 steps through it; then move the e-mail after the question:</p>
+<ol class="sx" id="sx-int-b">
+<li><b>invoke({}, config).</b> <code>propose</code> runs, then <code>review</code> starts.</li>
+<li><b>review runs from its first line.</b> It has started once.</li>
+<li><b>The e-mail goes out.</b> One e-mail sent.</li>
+<li><b>interrupt() raises.</b> The state is saved and <code>invoke</code> returns the question; the process may now exit.</li>
+<li><b>Later, maybe in another process:</b> <code>invoke(Command(resume="approve"), config)</code>.</li>
+<li><b>review runs again from its first line.</b> Started twice now.</li>
+<li><b>The e-mail goes out a second time.</b> Two e-mails for one approval.</li>
+<li><b>interrupt() now returns "approve"</b> instead of raising.</li>
+<li><b>The node returns</b> and <code>apply</code> runs next. Recorded: <code>review</code> started 2 times, 2 e-mails.</li>
+</ol>
+<ol class="sx" id="sx-int-a" hidden>
+<li><b>invoke({}, config).</b> <code>propose</code> runs, then <code>review</code> starts.</li>
+<li><b>review runs from its first line.</b> It has started once.</li>
+<li><b>interrupt() raises.</b> The state is saved and <code>invoke</code> returns the question; nothing has been sent.</li>
+<li><b>Later, maybe in another process:</b> <code>invoke(Command(resume="approve"), config)</code>.</li>
+<li><b>review runs again from its first line.</b> Started twice now.</li>
+<li><b>interrupt() now returns "approve".</b></li>
+<li><b>The decision is approve.</b></li>
+<li><b>The e-mail goes out once,</b> after the decision.</li>
+<li><b>The node returns.</b> Recorded: <code>review</code> started 2 times, 1 e-mail.</li>
+</ol>
+</section>
+</div></div>
+
+<section id="rs6b">
 <p>Every rule in the docs follows from that one fact, and each was checked here <span class="meas">MEASURED</span>:</p>
 <div class="tw"><table id="flg-int-t"></table></div>
 <p class="small mute">Rules checked: two interrupts in one node are matched by order ("Matching is strictly index-based"); parallel interrupts are resumed together by interrupt id; a single plain value fails when several are pending; a bare <code>try/except Exception</code> swallows the interrupt and the node carries on; without a checkpointer the resume fails ("Cannot use Command(resume=...) without checkpointer"); <code>response_schema</code> (1.2.12) validates the resume value; <code>interrupt_before</code> is a breakpoint, not an approval.</p>
@@ -15,12 +40,13 @@
 <p><b>Static breakpoints</b>, <code>compile(interrupt_before=["apply"])</code>, stop before a node with no code in it; resume with <code>invoke(None, config)</code>. The docs keep them for debugging: "Static interrupts are <b>not</b> recommended for human-in-the-loop workflows." <b>Time travel</b> is the same machinery: <code>get_state_history(config)</code> lists every checkpoint; <code>update_state(old_config, values, as_node=...)</code> writes a new checkpoint whose parent is an old one (a fork); <code>invoke(None, new_config)</code> runs forward from it. The parent's {{Orchestration lab|n:3c65c17b0d0d81ab8432c54d65b7f8c7}} forks a recorded run with an edited diagnosis.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rs7">
 <h2>7. Streaming: seven modes, one run</h2>
 <p>A run that takes minutes must show progress. <code>stream(..., stream_mode=...)</code> yields events as the graph runs, and the mode decides what an event is. The two-check graph of section 3, one run per mode, events counted <span class="meas">MEASURED</span>:</p>
-<div class="card"><p class="flg-vt">One run, as each stream mode emits it (the count is events per run)</p><div class="chips" id="flg-sm-pick"></div><div id="flg-sm-desc" class="small"></div><pre class="flg-pre" id="flg-sm-ev" style="max-height:18em"></pre></div>
 <p><code>messages</code>, the mode for chat interfaces, yields each model token with the node and step that produced it; it needs a model, so it was measured on the create_agent run of section 9. Modes combine (<code>stream_mode=["updates", "custom"]</code> yields <code>(mode, data)</code> pairs), and <code>subgraphs=True</code> adds events from inside subgraphs with their namespace. Since 1.1, <code>version="v2"</code> makes every event a typed <code>{"type", "ns", "data"}</code> dictionary; since 1.2 the docs recommend event streaming (<code>stream_events(..., version="v3")</code>, beta) for new applications, one typed stream per model call ({{docs|https://docs.langchain.com/oss/python/langgraph/streaming}}; not run here).</p>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card"><p class="flg-vt">One run, as each stream mode emits it (the count is events per run)</p><div class="chips" id="flg-sm-pick"></div><div id="flg-sm-desc" class="small"></div><pre class="flg-pre" id="flg-sm-ev" style="max-height:18em"></pre></div></div></div></div>
 
 <section id="rs8">
 <h2>8. Subgraphs and handoffs</h2>

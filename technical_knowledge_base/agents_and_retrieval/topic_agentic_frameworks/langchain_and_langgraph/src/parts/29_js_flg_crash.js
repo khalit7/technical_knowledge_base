@@ -32,7 +32,8 @@
       RD.stat('Tokens of returned calls',fmt(s.inp+s.out),fmt(s.inp)+' in, '+fmt(s.out)+' out')+RD.stat('Cost equivalent','$'+s.cost.toFixed(4),'returned calls only');
     let txt=CAP[f.k]?CAP[f.k](f.e):f.k;if(f.e2)txt='Two model calls start in parallel: '+f.e.node+' and '+f.e2.node+'.';
     $('flg-c-cap').innerHTML='<div class="t">'+esc(f.e.process==='driver'?'driver':('process '+({start:1,resume:2,approve:3}[f.e.process])))+', t = '+f.t.toFixed(2)+' s</div><p>'+esc(txt)+'</p>'};
-  const a=RD.anim({card:'flg-c-card',ctl:'flg-c-ctl',n:F.length,draw,ms:1300,label:'Replay the run'});
+  // a widget (the long-replay rule, 2026-11-06: 14 and 17 events): it never plays by itself and opens on the end of the run; Fig. 1 plays the sync run in seven explained steps
+  const a=RD.anim({card:'flg-c-card',ctl:'flg-c-ctl',n:F.length,draw,ms:1300,label:'Replay the run',auto:false,start:F.length-1});
   const calls=()=>{const r=run();
     $('flg-c-calls').innerHTML='<thead><tr><th>Process</th><th>Node</th><th class="num">Start</th><th class="num">Seconds</th><th class="num">In</th><th class="num">Out (thinking)</th><th class="num">Cost</th></tr></thead><tbody>'+
       r.calls.map((c,i)=>'<tr data-i="'+i+'" style="cursor:pointer"><td>'+({start:1,resume:2,approve:3}[c.process])+'</td><td class="mono small">'+esc(c.node)+'</td><td class="num">'+c.t0.toFixed(1)+'</td><td class="num">'+(c.t1===null?'killed':(c.t1-c.t0).toFixed(1))+'</td><td class="num">'+(c.t1===null?'':fmt(c.input))+'</td><td class="num">'+(c.t1===null?'':fmt(c.output)+' ('+fmt(c.thinking)+')')+'</td><td class="num">'+(c.t1===null?'':'$'+c.cost.toFixed(4))+'</td></tr>').join('')+'</tbody>';
@@ -40,7 +41,7 @@
   $('flg-c-calls').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]');if(!tr)return;const c=run().calls[+tr.dataset.i];
     [...$('flg-c-calls').querySelectorAll('tr')].forEach(x=>x.classList.toggle('on',x===tr));
     $('flg-c-text').textContent=c.t1===null?'This call was cut by the SIGKILL: no result record exists.':c.text});
-  RD.seg($('flg-c-mode'),m=>{sc=m;F=frames(run());a.reset(F.length);calls()});
+  RD.seg($('flg-c-mode'),m=>{sc=m;F=frames(run());a.reset(F.length);a.go(F.length-1,true);calls()});
   RD.onResize(()=>a.redraw());calls();
   // no-model database after the kill
   const cases=D.e2.scenarios;

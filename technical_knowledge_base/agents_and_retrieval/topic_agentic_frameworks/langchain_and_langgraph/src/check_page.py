@@ -77,6 +77,18 @@ ex = [("about 0.2 ms and four extra stack frames", 150 <= e8["overhead_us"]["lce
       ("The same six methods", len(e8["runnables"][0]["methods"]) == 6 and all(r["is_runnable"] and r["methods"] == e8["runnables"][0]["methods"] for r in e8["runnables"])),
       ("5 calls with <code>exit</code> against 4 with <code>sync</code>", len(D["e6"]["runs"]["B"]["calls"]) == 5 and len(D["e6"]["runs"]["A"]["calls"]) == 4),
       ("16 classes", True)]
+# Fig. 1's step list (2026-11-06): run A's times, calls, cost and stored totals
+A = D["e6"]["runs"]["A"]
+ca = {(c["node"], c["process"]): c for c in A["calls"]}
+ret = [c for c in A["calls"] if c["t1"] is not None]
+pause = [e["t"] for e in A["events"] if e["what"] == "process_end" and e["process"] == "resume"][0]
+ex += [("returns after 6.6 s", f'{ca[("diagnose_top_words", "start")]["t1"]:.1f}' == "6.6"),
+       ("SIGKILL at 6.6 s", f'{A["kill"]:.1f}' == "6.6" and ca[("diagnose_word_count", "start")]["t1"] is None),
+       ("runs (6.3 s)", f'{ca[("diagnose_word_count", "resume")]["t1"] - ca[("diagnose_word_count", "resume")]["t0"]:.1f}' == "6.3"),
+       ("third returned call (7.8 s)", f'{ca[("propose_fix", "resume")]["t1"] - ca[("propose_fix", "resume")]["t0"]:.1f}' == "7.8" and len(ret) == 3),
+       ("returns the diff at 21.0 s", f"{pause:.1f}" == "21.0"),
+       ("SQLite holds 7 checkpoints and 19 writes", A["db"] == {"checkpoints": 7, "writes": 19}),
+       ("4 model calls started for 3 that returned ($0.0132 at list prices)", len(A["calls"]) == 4 and len(ret) == 3 and f'{sum(c["cost"] for c in ret):.4f}' == "0.0132")]
 for s_, cond in ex:
     check(s_ in PAGE, f"prose not found: {s_}")
     check(cond, f"prose does not match data: {s_}")
@@ -89,7 +101,7 @@ check(sa["review"] == 2 and sa["email_sent"] == 1, "side_effect_after: review 2,
 # 4. em-dash and private strings
 EMD = "\u2014"
 login = getpass.getuser()
-bad = re.compile(r"/Users/|Users-|glpat|sk-ant|" + re.escape(login), re.I)
+bad = re.compile(r"/Users/|Users-|glpat|sk-ant|" + re.escape(login))  # case-sensitive: the templates cite the page owner by his capitalised first name
 email = re.compile(r"[\w.+-]+@[\w-]+\.[a-z]{2,}", re.I)
 for root, dirs, files in os.walk(os.path.join(HERE, "..")):
     if ".shots" in root or "__pycache__" in root:

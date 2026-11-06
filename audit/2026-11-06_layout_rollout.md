@@ -14,7 +14,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/attention_is_all_you_need_transformer` Attention Is All You Need (Transformer)
 - [x] `agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk` Claude Agent SDK: the Claude Code loop as a library
 - [x] `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing` Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits
-- [ ] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
+- [x] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
 - [x] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
@@ -324,3 +324,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing`: Fig. 5 crops the request piles at the left edge; Fig. 4 limiter labels overlap ("10 of 10 used").
 - template: the stage control bar wraps the speed selector at 390 px.
 - `agents_and_retrieval/topic_agentic_frameworks/llm_observability`: Fig. 3 close-up step crops the trace store at the top and right; Fig. 1 small at its wide steps.
+- `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph`: both stages wide with small objects and dense labels (Fig. 1 step 4, Fig. 2 failed-update step); consider closer views.

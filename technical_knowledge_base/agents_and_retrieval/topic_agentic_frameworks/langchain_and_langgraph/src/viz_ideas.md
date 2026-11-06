@@ -31,3 +31,9 @@ Nothing published to reproduce; the "defaults reproduce" rule became: the page's
 - Moved inline: the Super-step lab player (section 3) and the Crash lab replay (section 5); the old static two-run lanes and the two-graph reducer card were removed as duplicates of them.
 - Added: section 12's comparison table (need, plain loop, LangGraph).
 - Rejected: an LCEL overhead slider (one number with nothing worth moving; a stat says it); a photo or paper figure (no physical object; Pregel's paper figure would add nothing the hero does not show).
+
+## 2026-11-06 rollout (split layout, renderer v2)
+- Built: Fig. 1, a 3D hero stage of run A (graph, state, model plate, checkpoint stack, pending write and interrupt chips, process plates), replacing the static SVG hero; Fig. 2, a 3D super-step stage over the seven recorded graphs (plan, execute, update inside each step; channel columns by version; checkpoint slabs), replacing the 2D player.
+- Turned into a widget: the crash replay (14 and 17 events; opens on the end of the run).
+- Kept 2D: the drawn graphs of sections 2 and 9, the storage curve, the crash lanes (a timeline), the LCEL card, the checkpoint JSON and stream viewers.
+- Rejected: a 3D interrupt stage for section 6 (its point is which code line re-runs, which is text; Fig. 1 already shows the pause and resume through the checkpoint); a 3D storage chart (a curve on axes reads better flat); a near-camera view on Fig. 1's kill step (it cropped the checkpoint stack the step is about).
