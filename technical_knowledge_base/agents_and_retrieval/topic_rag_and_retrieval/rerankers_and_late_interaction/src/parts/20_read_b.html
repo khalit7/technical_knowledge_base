@@ -1,9 +1,13 @@
+<div class="s3sp"><div class="s3L">
 <section id="rr-s2">
 <h2>2. Cross-encoders</h2>
 <p>A BERT-style cross-encoder takes one sequence, <code>[CLS] query [SEP] document [SEP]</code>, with a <dfn>segment id</dfn> of 0 on the query and 1 on the document, runs the encoder (6 layers for MiniLM-L6, 24 for bge-reranker-v2-m3), and maps the final <code>[CLS]</code> vector through dense, tanh and one linear layer to one number, the relevance <dfn>logit</dfn> (unbounded; higher is more relevant). This is the 2019 recipe of <a href="https://arxiv.org/abs/1901.04085" target="_blank" rel="noopener noreferrer">Nogueira and Cho</a> ("the [CLS] vector as input to a single layer neural network", query cut to 64 tokens, pair to 512). Reranking BM25's top 1,000 on MS MARCO, it moved dev MRR@10 from 16.7 (BM25) to 36.5 (BERT Large) (Table 1; <span class="pub">published, independent academic</span>, 2019).</p>
-<div class="card"><h4>What MiniLM reads for claim 1180: one sequence, the claim in segment 0</h4><div id="rr-tokview"></div>
-<p class="small mute">The first 60 of @@be_ntok@@ tokens; segment 0 in blue. SciFact pairs average @@tok_ce@@ tokens, and <b>@@trunc_ce@@% hit the 512 cap and silently lose the end of the abstract</b>; Qwen3-Reranker's 1,024 cap cuts @@trunc_qw@@%. With long chunks, rerank shorter chunks or use a long-context reranker.</p></div>
+
 <p><b>Same call, different numbers.</b> sentence-transformers' <code>CrossEncoder.predict</code> applies the activation the model's config names: ms-marco-MiniLM-L6-v2 sets <code>Identity</code>, so it returns raw logits (here from @@raw_ce_lo@@ to @@raw_ce_hi@@); bge-reranker-v2-m3 names none and has one label, so the library applies <code>Sigmoid</code> and returns 0 to 1; a decoder LLM such as Qwen3-Reranker returns <code>logit("yes") - logit("no")</code> at the last position (section 7). Three scales from one function: never compare raw scores across models (section 6). <code>predict</code> also sorts pairs by length before batching, so measured pairs per second depend on it.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>What MiniLM reads for claim 1180: one sequence, the claim in segment 0</h4><div id="rr-tokview"></div>
+<p class="small mute">The first 60 of @@be_ntok@@ tokens; segment 0 in orange. SciFact pairs average @@tok_ce@@ tokens, and <b>@@trunc_ce@@% hit the 512 cap and silently lose the end of the abstract</b>; Qwen3-Reranker's 1,024 cap cuts @@trunc_qw@@%. With long chunks, rerank shorter chunks or use a long-context reranker.</p></div></div></div></div>
+<section id="rr-s2b">
 <details class="dp"><summary>Read it in the code <span class="mute">(transformers 5.19.0, sentence-transformers 6.1.0; and the four-way check)</span></summary><div class="b">
 <p class="rr-srch">transformers 5.19.0, <code>models/bert/modeling_bert.py</code>, lines 457-463 (BertPooler) and 1104-1107 (BertForSequenceClassification.forward)</p>
 <div class="rr-src">    def forward(self, hidden_states):
@@ -38,6 +42,7 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rr-s3">
 <h2>3. How rerankers are trained: labels, hard negatives, distillation</h2>
 <p>Almost every open English reranker starts from <dfn>MS MARCO</dfn> passage ranking (8.8 M Bing passages, about one marked relevant passage per question), so many "negatives" are relevant passages nobody marked (<dfn>false negatives</dfn>). Three training signals, in the order they appeared:</p>
@@ -49,8 +54,11 @@
 <div class="fm"><div class="eq">L<sub>Margin-MSE</sub> = ( [s<sub>student</sub>(q, d<sup>+</sup>) &minus; s<sub>student</sub>(q, d<sup>&minus;</sup>)] &minus; [s<sub>teacher</sub>(q, d<sup>+</sup>) &minus; s<sub>teacher</sub>(q, d<sup>&minus;</sup>)] )<sup>2</sup></div></div>
 <h3>A tiny real run: in-domain training helps, and mined hard negatives can hurt</h3>
 <p>Fine-tuning the MS MARCO MiniLM cross-encoder on SciFact's @@tr_claims@@ <i>training</i> claims, one epoch, binary cross-entropy, 1 relevant : 7 negatives per claim, then reranking the 300 <i>test</i> claims' top 30. Predict before reading the table: do BM25-mined hard negatives beat random ones?</p>
-<div class="card"><h4>Three minutes of in-domain training lift the hybrid top 30 from @@hy_ce_k30@@ to 0.74 to 0.75; BM25 hard negatives did worse than random</h4><div id="rr-train"></div>
-<p class="small mute" id="rr-train-note">@@tr_note@@ In practice: filter mined negatives with a stronger model, or distil from its scores. <span class="meas">measured here</span> on MPS, 2 seeds each (<code>e_train.py</code>); tiny: one learning rate, one epoch.</p></div>
+
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Three minutes of in-domain training lift the hybrid top 30 from @@hy_ce_k30@@ to 0.74 to 0.75; BM25 hard negatives did worse than random</h4><div id="rr-train"></div>
+<p class="small mute" id="rr-train-note">@@tr_note@@ In practice: filter mined negatives with a stronger model, or distil from its scores. <span class="meas">measured here</span> on MPS, 2 seeds each (<code>e_train.py</code>); tiny: one learning rate, one epoch.</p></div></div></div></div>
+<section id="rr-s3b">
 <details class="dp"><summary>Who distilled from whom, with the reported results <span class="mute">(published; none of these trainings run here)</span></summary><div class="b">
 <p>MS MARCO in numbers: 8,841,823 passages and 1,010,916 anonymised questions (<a href="https://arxiv.org/abs/1611.09268" target="_blank" rel="noopener noreferrer">Bajaj et al., v3</a>), 532,761 training relevance labels and 39,780,811 training triples in the small file (<a href="https://microsoft.github.io/msmarco/Datasets.html" target="_blank" rel="noopener noreferrer">dataset page</a>, read 2026-10-14). Hard negatives in 2019 were BM25's top 1,000; later ones come from dense retrievers.</p>
 <div class="tw"><table>

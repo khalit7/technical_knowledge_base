@@ -93,7 +93,8 @@ else:
     print("skip independent recomputation (set RAG_SCRATCH)")
 
 # ---- privacy over every file that would be committed
-priv = ["/Us" + "ers/", "Us" + "ers-", "glp" + "at", "sk-" + "ant", "/private/" + "tmp", "claude-" + "502"] + ([os.environ["USER"]] if os.environ.get("USER") else [])
+import getpass
+priv = ["/Us" + "ers/", "Us" + "ers-", "/ho" + "me/", "glp" + "at", "sk-" + "ant", "/private/" + "tmp", "claude-" + "502", "claude-" + "1000"] + [getpass.getuser()]  # the login name is looked up at run time and matched case-sensitively
 page = os.path.normpath(os.path.join(H, ".."))
 hits = []
 for a, dirs, fs in os.walk(page):

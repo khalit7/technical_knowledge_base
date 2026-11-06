@@ -43,3 +43,8 @@ A rule for **scores that live on different scales**: the three rerankers' defaul
 - **Moved inline**: the Before/after lab (idea 2) into section 4, the MaxSim lab (idea 3) into section 8, beside the claims they prove; both wait for the reader (no auto-flip to After, no play on mode switch).
 - **Kept as a tab**: the Depth chooser (idea 5), a tool used by sections 1, 4, 5 and 11.
 - **Rejected**: an embedded copy of the ColBERT paradigm figure (the redrawn hero carries it with the page's own numbers); a SPLADE expansion stepper (a static vector says it; no change over time is the point); a photo (nothing physical to show).
+
+## 2026-11-06 (split layout, renderer v2)
+- Built as 3D stages: the four scorers (hero), bi-encoder against cross-encoder on claim 1180, a candidate list reranked (replaces the 2D list), MaxSim as a token-by-token similarity field (replaces the 2D stepper).
+- Considered and kept 2D: cost against rerank depth (log-scale milliseconds: the Depth chooser scatter says it better), the PLAID knob grid as bars (a heatmap reads better), the listwise sliding window (three calls over a list).
+- Proposal: record the abstract-side ColBERT vectors' norms per token to show the skiplist's dropped punctuation in Fig. 4 (not recorded now).

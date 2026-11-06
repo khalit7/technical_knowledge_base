@@ -33,7 +33,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/embedding_models` Embedding models: training, choosing and fine-tuning
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/graphrag_and_structured_retrieval` GraphRAG and structured retrieval
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/rag_in_production` RAG in production: freshness, access control, latency and cost
-- [ ] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
+- [x] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline` The retrieval pipeline: chunking, query rewriting, hybrid search, filtering
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes` Vector indexes from the inside: flat, IVF, PQ, HNSW, DiskANN, filtered search
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval` Topic: rag-and-retrieval

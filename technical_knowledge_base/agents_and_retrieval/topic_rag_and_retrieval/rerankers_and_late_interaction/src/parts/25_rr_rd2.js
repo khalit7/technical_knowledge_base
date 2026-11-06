@@ -27,19 +27,20 @@
   reg(()=>{const el=$('rr-llm-tab'),L=R.llm;if(!L){el.innerHTML='<span class="small mute">Runs pending.</span>';return}
     el.innerHTML='<div class="tw"><table><thead><tr><th>Reranker (BM25 candidates, '+L.n_claims+' claims)</th><th class="num">nDCG@10</th><th class="num">Model calls per claim</th><th class="num">Prompt tokens per claim</th><th class="num">Seconds per claim here</th></tr></thead><tbody>'+
       L.rows.map(r=>'<tr'+(r.hl?' style="background:var(--soft)"':'')+'><td>'+esc(r.name)+'</td><td class="num">'+r.ndcg10.toFixed(3)+'</td><td class="num">'+r.calls+'</td><td class="num">'+r.tokens+'</td><td class="num">'+r.secs+'</td></tr>').join('')+'</tbody></table></div>'});
-  // ---------- listwise sliding window animation
-  (function(){const L=R.llm;if(!L||!L.sw){$('rr-sw-cap').textContent='Runs pending.';return}
-    const S=L.sw,steps=S.windows.length+1;
+  // ---------- listwise sliding window animation (Fig. 5): one step per call, explained by the step list sx-sw (its details are written here from the run)
+  (function(){const L=R.llm;if(!L||!L.sw)return;
+    const S=L.sw,steps=S.windows.length+1,rk=o=>1+o.findIndex(d=>S.rel.includes(d));
+    const sx=document.querySelectorAll('#sx-sw [data-sw]');
+    if(sx[0])sx[0].textContent='Claim '+S.qid+': "'+S.claim+'". BM25 put the relevant abstract (green) at rank '+rk(S.start)+' of '+S.start.length+'.';
+    S.windows.forEach((w,i)=>{const e=sx[i+1];if(!e)return;e.textContent='The model sees ranks '+(w.start+1)+' to '+(w.start+w.size)+' (the shaded band) and returns "'+w.text+'"'+(w.missing?' (it skipped '+w.missing+' identifiers; appended in input order)':'')+'. The relevant abstract is now at rank '+rk(w.after)+'.'});
     function draw(st){const el=$('rr-sw-svg'),W=Math.max(270,Math.min(RD.width(el),760));const n=S.start.length,rh=17,top=18,Hh=top+n*rh+6;
       const order=st===0?S.start:S.windows[st-1].after;const win=st===0?null:S.windows[st-1];
       let s='';if(win){const y0=top+win.start*rh-2;s+='<rect x="2" y="'+y0+'" width="'+(W-4)+'" height="'+(win.size*rh+2)+'" fill="var(--acc2)" rx="4"/>';}
       order.forEach((d,i)=>{const y=top+i*rh;const r=S.rel.includes(d);
-        s+=RD.t(6,y+12,String(i+1),{fs:10.5,fill:'var(--mute)'})+'<rect x="30" y="'+(y+3)+'" width="'+Math.max(10,(W-160)*(1-i/n))+'" height="11" rx="3" fill="'+(r?'var(--good)':'var(--dim)')+'"/>'+RD.t(W-124,y+12,esc((S.titles[d]||d).slice(0,20)),{fs:10,fill:r?'var(--good)':'var(--mute)'})});
-      s+=RD.t(6,12,st===0?'BM25 order (input)':'after call '+st+' of '+S.windows.length,{fs:11,fill:'var(--ink)'});
-      el.innerHTML=RD.svg(W,Hh,s,'sliding window');
-      $('rr-sw-cap').textContent=st===0?'Claim '+S.qid+': "'+S.claim+'". BM25 put the relevant abstract at rank '+(1+S.start.findIndex(d=>S.rel.includes(d)))+'.':
-        'Window over ranks '+(win.start+1)+' to '+(win.start+win.size)+': the model returned "'+win.text.slice(0,90)+(win.text.length>90?'...':'')+'"'+(win.missing?' (it skipped '+win.missing+' identifiers; appended in input order)':'')+'. The relevant abstract is now at rank '+(1+order.findIndex(d=>S.rel.includes(d)))+'.'}
-    const a=RD.anim({card:'rr-sw-card',ctl:'rr-sw-ctl',n:steps,ms:2400,draw});RD.onResize(()=>a.redraw())})();
+        s+=RD.t(6,y+12,String(i+1),{fs:11,fill:'var(--mute)'})+'<rect x="30" y="'+(y+3)+'" width="'+Math.max(10,(W-160)*(1-i/n))+'" height="11" rx="3" fill="'+(r?'var(--good)':'var(--dim)')+'"/>'+RD.t(W-124,y+12,esc((S.titles[d]||d).slice(0,18)),{fs:11,fill:r?'var(--good)':'var(--mute)'})});
+      s+=RD.t(6,12,st===0?'BM25 order (input)':'after call '+st+' of '+S.windows.length,{fs:12,fill:'var(--ink)'});
+      el.innerHTML=RD.svg(W,Hh,s,'sliding window')}
+    const a=RD.anim({card:'rr-sw-card',ctl:'rr-sw-ctl',n:steps,ms:4600,draw,list:'sx-sw'});RD.onResize(()=>a.redraw())})();
   // ---------- ColBERT as first stage or reranker
   function cbc(){const el=$('rr-cb-svg'),C=R.colbert_rerank;const col={bm25:'var(--c2)',dense:'var(--c1)',hybrid:'var(--c3)'};
     const ser=Object.keys(C).map(fs=>({name:'rerank '+RRL.FS[fs],color:col[fs],pts:[[1,C[fs].first_ndcg10,RRL.FS[fs]+' alone']].concat(Object.entries(C[fs].sweep).map(([k,v])=>[+k,v.ndcg10,'MaxSim over '+RRL.FS[fs]+' top '+k+': '+v.ndcg10.toFixed(3)]))}));
