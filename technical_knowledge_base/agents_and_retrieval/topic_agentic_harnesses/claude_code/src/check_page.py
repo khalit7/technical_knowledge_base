@@ -101,6 +101,19 @@ claim("parallel A", vals[0], "A from %.2f to %.2f seconds" % (float(vals[0][1]),
 p2 = [e["t"] for e in R["parallel2"]["ev"] if e["k"] == "res"][:3]
 claim("parallel2 spread", round(max(p2) - min(p2), 2), "within %.2f s of each other" % (max(p2) - min(p2)))
 
+# 2b. numbers in the 2026-11-06 step lists (Fig. 3 memory, Fig. 4 subagent)
+m1, m2 = R["memory"]["calls"][0], R["memory"]["calls"][1]
+claim("memory call 1 input", callin(m1), "That first request was {:,} tokens".format(callin(m1)))
+claim("memory call 2 cache write", m2[1], "the call wrote {:,} tokens to the cache".format(m2[1]))
+tk = [e for e in sub["ev"] if e["k"] == "task"]
+starts = [e["t"] for e in tk if e["sub"] == "task_started"]
+i1 = [e for e in tk if starts[0] <= e["t"] < starts[1]]; i2 = [e for e in tk if e["t"] >= starts[1]]
+p1 = [e["tok"] for e in i1 if e["sub"] == "task_progress"]; p2 = [e["tok"] for e in i2 if e["sub"] == "task_progress"]
+claim("subagent 1 calls", len(p1), "the first instance made %s tool calls" % {8: "eight"}.get(len(p1), len(p1)))
+claim("subagent 1 last window", p1[-1], "its window grew to {:,} tokens".format(p1[-1]))
+claim("subagent 1 report", next(e["tok"] for e in i1 if e["sub"] == "task_notification"), "The report ({:,} tokens".format(next(e["tok"] for e in i1 if e["sub"] == "task_notification")))
+claim("subagent 2 start", p2[0], "a fresh window from {:,} tokens, {} calls".format(p2[0], "two" if len(p2) == 2 else len(p2)))
+
 # 3. private strings and em-dashes
 user = getpass.getuser(); home = os.path.expanduser("~")
 forbid = ["/Us" + "ers/", "Us" + "ers-", user, "gl" + "pat", "sk-" + "ant", home]

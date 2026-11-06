@@ -1,4 +1,4 @@
-// ---- Reading visuals: hero, budget, cache placement, tool-output policies, skills, subagents (numbers from window.HCTX, built by src/extract.py) ----
+// ---- Reading visuals: budget, cache placement, tool-output policies, skills, subagents (numbers from window.HCTX, built by src/extract.py) ----
 window.HCV=(function(){
 const H=window.HCTX,S=H.sessions,E=RD.esc;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
@@ -25,44 +25,6 @@ function bars(el,rows,o){
     g+=RD.t(W-4,narrow?by+11:ty,r.val,{fs:11.5,a:'end'});
     y+=rh});
   el.innerHTML=RD.svg(W,y+4,g,o.label||'');
-}
-// circle with a section number
-const num=(x,y,n)=>'<circle cx="'+x+'" cy="'+y+'" r="8.5" fill="var(--acc)"/>'+RD.t(x,y+4,n,{fs:11,a:'middle',fill:'var(--bg)',w:600});
-// 0. hero: the request in assembly order, and what lives outside the window
-function hero(){
-  const el=document.getElementById('hc-hero');if(!el)return;
-  const c=S.c1_control.ctx[0].cats,W=RD.width(el),wide=W>=600;
-  const fw=wide?Math.round(W*0.6):W-2,x0=1,pad=10,rx=x0+pad+22,rw=fw-pad*2-22-36;
-  const rows=[['System tools','Tool definitions: what the model may call',22,'var(--c1)',['2']],['System prompt','System prompt: who the agent is, rules',22,'var(--c4)',['2']],['Memory files','Memory files: CLAUDE.md, skill descriptions',22,'var(--c3)',['5']],
-    ['Messages','History: task, replies, tool calls and results',40,'var(--c2)',['3','4']],[null,'Newest message: anything volatile goes here',22,'var(--c2)',[]],['Free space','Free: the reply and every later call',34,'var(--soft)',['9']]];
-  let y=30,g='';
-  g+=RD.t(x0+pad,18,'One request, in order ('+fmt(S.c1_control.ctx[0].window)+'-token window)',{fs:12,w:600});
-  const top=y;
-  rows.forEach((r,i)=>{const v=r[0]?c[r[0]]:null,col=r[3];
-    g+='<rect x="'+rx+'" y="'+y+'" width="'+rw+'" height="'+r[2]+'" rx="4" fill="'+col+'"'+(i===4?' stroke="var(--bad)" stroke-width="2"':'')+(i===5?' stroke="var(--line)" stroke-dasharray="4 3"':'')+'/>';
-    const lab=wide||W>=430?r[1]:r[1].split(':')[0];
-    g+=RD.t(rx+8,y+r[2]/2+4,E(lab),{fs:11.5,fill:i===5?'var(--mute)':'var(--bg)',w:600});
-    if(v!=null)g+=RD.t(rx+rw-6,y+r[2]/2+4,fmt(v),{fs:11,a:'end',fill:i===5?'var(--mute)':'var(--bg)'});
-    r[4].forEach((n,j)=>{g+=num(rx+rw+14+j*20,y+r[2]/2,n)});
-    y+=r[2]+4});
-  // cached prefix bracket on the left of rows 0..3
-  const by1=top,by2=top+22*3+40+12;
-  g+='<path d="M'+(rx-6)+' '+by1+' h-8 V'+by2+' h8" fill="none" stroke="var(--c1)" stroke-width="2"/>';
-  g+='<text x="'+(rx-17)+'" y="'+((by1+by2)/2)+'" font-size="11" fill="var(--c1)" font-weight="600" text-anchor="middle" transform="rotate(-90 '+(rx-17)+' '+((by1+by2)/2)+')">cached prefix</text>';
-  g+='<rect x="'+x0+'" y="'+(top-6)+'" width="'+fw+'" height="'+(y-top+8)+'" rx="8" fill="none" stroke="var(--line)"/>';
-  // outside the window
-  const outs=[['6','Subagent window','reads wide, returns about 1K'],['7','Notes on disk','progress file, todo, CLAUDE.md'],['8','Memory layer','facts, graph or archive, searched']];
-  let gh;
-  if(wide){const ox=fw+28,ow=W-ox-2,oh=46;let oy=top;
-    g+=RD.t(ox,18,'Outside the window',{fs:12,w:600});
-    outs.forEach((o,i)=>{g+='<rect x="'+ox+'" y="'+oy+'" width="'+ow+'" height="'+oh+'" rx="6" fill="var(--bg)" stroke="var(--line)"/>'+num(ox+14,oy+16,o[0])+RD.t(ox+28,oy+20,E(o[1]),{fs:12,w:600})+RD.t(ox+10,oy+37,E(o[2]),{fs:11,fill:'var(--mute)'});
-      const ay=oy+oh/2,ty=top+22*3+12+20;g+='<path d="M'+ox+' '+ay+' L'+(fw-4)+' '+ty+'" stroke="var(--mute)" fill="none" stroke-dasharray="3 3" marker-end="url(#hc-ar)"/>';oy+=oh+10});
-    gh=Math.max(y,oy)+4;
-  }else{let oy=y+16;g+=RD.t(x0+pad,oy,'Outside the window, brought in on demand',{fs:12,w:600});oy+=8;
-    outs.forEach(o=>{g+='<rect x="'+x0+'" y="'+oy+'" width="'+fw+'" height="40" rx="6" fill="var(--bg)" stroke="var(--line)"/>'+num(x0+14,oy+20,o[0])+RD.t(x0+28,oy+17,E(o[1]),{fs:12,w:600})+RD.t(x0+28,oy+32,E(o[2]),{fs:11,fill:'var(--mute)'});oy+=46});
-    gh=oy+2}
-  const defs='<defs><marker id="hc-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--mute)"/></marker></defs>';
-  el.innerHTML=RD.svg(W,gh,defs+g,'The request a harness sends on one call, in assembly order, and the stores outside the window');
 }
 // 1. budget
 let budgetI=0;
@@ -119,8 +81,10 @@ function sa(){
     [['main window at the end',r.main,'var(--c2)'],['subagent window at its end',r.sub,'var(--c6)'],['all input processed',r.tot,'var(--dim)']].forEach(([nm,v,col])=>rows.push({n:nm,segs:[[v,col,nm]],val:v?fmt(v):'none'}))});
   bars(el,rows,{max,label:'Main window, subagent window and total input processed, four runs'});
 }
-function all(){hero();budget();cx();pol();sk();sa()}
+function all(){budget();cx();pol();sk();sa()}
 (function(){const seg=document.getElementById('hc-budget-seg');if(seg){seg.innerHTML=BV().map((v,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+v[0]+'</button>').join('');RD.seg(seg,m=>{budgetI=+m;budget()})}})();
 all();RD.onRender(all);RD.onResize(all);
+// charts inside closed blocks are drawn at the fallback width; redraw them when their block opens
+document.querySelectorAll('#t-read details').forEach(d=>{if(d.querySelector('#hc-cx,#hc-sa'))d.addEventListener('toggle',()=>{if(d.open)all()})});
 return {bars,fmt};
 })();

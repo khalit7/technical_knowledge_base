@@ -11,15 +11,21 @@
 <li><b>Auto memory</b> is the other half: notes Claude writes itself under <code>~/.claude/projects/&lt;project&gt;/memory/</code>, whose index <code>MEMORY.md</code> loads at every start up to 200 lines or 25 KB. Subagents do not get it.</li>
 <li><b>Size advice:</b> under 200 lines per file; a file over 4 MiB is skipped.</li>
 </ul>
+<div class="s3sp"><div class="s3R"><div id="stg-mem"></div></div><div class="s3L">
 <h3>Eight canaries</h3>
-<p>To check the order rather than trust it, one recording planted eight files, each containing one unique word ("Canary: ALPHA-ROOT" and so on), then asked Haiku, with only the Read tool, to list every canary in its context, read <code>textstats/core.py</code>, and list them again (run <code>memory</code>). Step through what happened.</p>
-<div class="card" id="hcc-mem-card">
-<div class="an-ctl" id="hcc-mem-ctl"></div>
-<div class="an-cap" id="hcc-mem-cap"></div>
-<div class="hcc-stack" id="hcc-mem-stack"></div>
-<div class="out" id="hcc-mem-stats"></div>
-</div>
-<p>Every outcome matched the documentation <span class="meas">MEASURED</span>: four files at launch (the parent directory's CLAUDE.md, the project CLAUDE.md, its import and the rule without <code>paths</code>), two after the Read (the subdirectory's CLAUDE.md and the path-scoped rule), and two never. CLAUDE.local.md stayed out because these runs pass <code>--setting-sources project</code>, and "CLAUDE.local.md is skipped if you exclude local from --setting-sources"; AGENTS.md stayed out because a CLAUDE.md existed. The parent-directory canary is the one to remember: a CLAUDE.md anywhere above your project, in a home directory or a monorepo root, is in every session started below it.</p>
+<p>To check the order rather than trust it, one recording planted eight files, each containing one unique word ("Canary: ALPHA-ROOT" and so on), then asked Haiku, with only the Read tool, to list every canary in its context, read <code>textstats/core.py</code>, and list them again (run <code>memory</code>).</p>
+<ol class="sx" id="sx-mem">
+<li><b>Launch: walk from the filesystem root down.</b> CLAUDE.md files above the working directory load first. The parent directory's file (HOTEL-PARENT) is in the session although nobody opened that folder.</li>
+<li><b>The project CLAUDE.md and its import.</b> ALPHA-ROOT, and BRAVO-IMPORT from <code>@docs/style.md</code>: the import is expanded at launch, so it costs the same as writing its text inline.</li>
+<li><b>CLAUDE.local.md is skipped.</b> These runs pass <code>--setting-sources project</code>, and local is not in it (the docs' rule is quoted below the steps).</li>
+<li><b>Rules without paths load like CLAUDE.md.</b> <code>.claude/rules/general.md</code> (DELTA-RULE) is in; <code>python.md</code>, with <code>paths: textstats/**</code>, waits for a matching file.</li>
+<li><b>AGENTS.md is skipped.</b> A CLAUDE.md exists, so by default Claude Code reads only that (2.1.277 and later).</li>
+<li><b>Model call 1: four canaries.</b> Haiku listed HOTEL-PARENT, ALPHA-ROOT, BRAVO-IMPORT and DELTA-RULE, each with its file. That first request was 8,644 tokens, memory files included.</li>
+<li><b>Read <code>textstats/core.py</code>.</b> Reading a file under <code>textstats/</code> attaches that folder's CLAUDE.md (FOXTROT-SUBDIR) and the rule whose paths match (ECHO-PATHRULE).</li>
+<li><b>Model call 2: six canaries.</b> The two new ones were marked NEW; the call wrote 1,272 tokens to the cache, the file and the two memory files it brought. CHARLIE-LOCAL and GOLF-AGENTS never appeared.</li>
+</ol>
+<p>Every outcome matched the documentation <span class="meas">MEASURED</span>: four files at launch (steps 1 to 4), two after the Read (step 7), and two never. CLAUDE.local.md stayed out because these runs pass <code>--setting-sources project</code>, and "CLAUDE.local.md is skipped if you exclude local from --setting-sources"; AGENTS.md stayed out because a CLAUDE.md existed. The parent-directory canary is the one to remember: a CLAUDE.md anywhere above your project, in a home directory or a monorepo root, is in every session started below it.</p>
+</div></div>
 <div class="co warn"><div class="t">A memory file is context, not configuration</div>The parent's trace lab measured a four-line CLAUDE.md stating the test command: 184 more tokens per call, and two of three Haiku runs used it while the third explored anyway ({{Trace and context lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}) <span class="meas">MEASURED</span>. Instructions there are followed most of the time; anything that must hold every time is a hook or a permission rule (sections 3 and 4).</div>
 </section>
 
@@ -30,10 +36,11 @@
 <li><b>Budget:</b> each description is cut at 1,536 characters in the listing, and the whole listing gets 1% of the context window; past that, descriptions of the least-used skills are dropped (names stay) <span class="docs">DOCS</span>.</li>
 <li><b>Control:</b> <code>disable-model-invocation: true</code> keeps a skill out of Claude's view (you invoke it); <code>user-invocable: false</code> the opposite; <code>allowed-tools</code> pre-approves tools for the turn that invokes it; <code>context: fork</code> runs it in a fresh subagent; <code>paths</code> loads it only near matching files; <code>!`command`</code> in the body runs a shell command first and inlines its output.</li>
 </ul>
-<p>Two one-call recordings measure the startup cost, identical except for one project skill (<code>.claude/skills/run-tests/</code>, a two-sentence description and a body containing the canary KILO-SKILLBODY), and a third gives the running example with the skill available <span class="meas">MEASURED</span>:</p>
-<div class="card" id="hcc-sk-card"><div class="bars hcc-bars" id="hcc-sk-bars"></div><p class="small mute" id="hcc-sk-note"></p></div>
+<div class="s3sp"><div class="s3L">
+<p>Two one-call recordings measure the startup cost, identical except for one project skill (<code>.claude/skills/run-tests/</code>, a two-sentence description and a body containing the canary KILO-SKILLBODY), and a third gives the running example with the skill available, in the figure <span class="meas">MEASURED</span>.</p>
 <p>The skill's description cost 29 tokens at launch. In the task run Haiku listed the files, saw the skill, and called it before anything else: the Skill tool returned "Launching skill: run-tests", and the body arrived as a separate user message ("Base directory for this skill: ... Canary: KILO-SKILLBODY ..."), 329 tokens written to the cache on the next call. The skill told it to run <code>python3 tests/test_core.py</code>, and it did, first time; the run fixed both bugs in 9 model calls. Compare the hooks run without a SessionStart hint, which reached for <code>python</code>: the same fact, delivered three ways (a CLAUDE.md line, a SessionStart hook, a skill), and all three worked here because each put the right command in front of the model before it guessed.</p>
 <p class="small mute">For when skills help and when they misfire, see {{Demystifying Agent Skills|n:3c65c17b0d0d81249a3cf5fda4de5d92}}; the budget arithmetic of what loads when is on {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}.</p>
+</div><div class="s3R"><div class="s3side"><div class="card" id="hcc-sk-card"><div class="bars hcc-bars" id="hcc-sk-bars"></div><p class="small mute" id="hcc-sk-note"></p></div></div></div></div>
 
 <details class="dp"><summary>Plugins and mods <span class="mute">(depth)</span></summary><div class="b"><p>Plugins bundle skills, subagents, hooks and MCP servers as one installable unit; their skill and agent descriptions are also in context on every turn ({{plugins|https://code.claude.com/docs/en/plugins}}). A plugin may also ship a JavaScript hooks module, which makes it a <dfn>mod</dfn>: its hooks (<code>tool.check</code>, <code>agent.spawn</code>, <code>turn.step</code> and others) change deeper behaviour, such as refusing a tool call or rewriting a subagent's prompt, and can add parts to the interface ({{changelog|https://code.claude.com/docs/en/changelog}}). </p></div></details>
 </section>

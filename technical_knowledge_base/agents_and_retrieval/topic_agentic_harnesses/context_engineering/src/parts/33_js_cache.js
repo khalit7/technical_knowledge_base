@@ -87,7 +87,7 @@ const PRE={
 $('hcc-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=PRE[b.dataset.p];
   $('hcc-vol').value=p.vol;$('hcc-bp').value=p.bp;$('hcc-model').value=p.model;$('hcc-ttl').value=p.ttl;$('hcc-gap').value=p.gap;$('hcc-xb').value=p.xb;$('hcc-rs').value=p.rs;$('hcc-n').value=p.n;st.extra=p.extra;run()});
 labels();st.o=opts();st.calls=simulate(st.o);
-A=RD.anim({card:'hcc-card',ctl:'hcc-ctl',n:st.calls.length,ms:1100,label:'Call',draw});
+A=RD.anim({card:'hcc-card',ctl:'hcc-ctl',n:st.calls.length,ms:1100,label:'Call',draw,auto:false,start:st.calls.length-1});
 RD.onResize(()=>A.redraw());
 // check table: where the cached read stops, predicted by the rules against the recordings (first two calls of each variant)
 (function(){

@@ -14,20 +14,27 @@
 <p class="small mute">"Asks in Manual mode" is the docs' Permission required column: whether the tool prompts in Manual mode for paths inside the working directory. Bash is marked yes but runs a built-in set of read-only commands without asking.</p>
 </div></details>
 
-<h3>Eighteen calls, one per behaviour</h3>
-<p>One recording gave Haiku a script of eighteen tool calls, one per message, each probing one rule, with "do not retry, just move on" (run <code>tools</code>). Before step 2, predict: a 3,001-line file of 104 KB, under the 256 KB cap; does Read return all of it, and if not, does it say so? The bar under each step is the size of the next request, to scale.</p>
-<div class="card" id="hcc-probe-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="hcc-probe-card">
 <div class="an-ctl" id="hcc-probe-ctl"></div>
-<div class="hcc-probe">
-<div class="an-cap" id="hcc-probe-cap"></div>
-<div><code id="hcc-probe-call" style="font-size:12px;overflow-wrap:anywhere"></code></div>
-<div class="hcc-res" id="hcc-probe-res"></div>
-<div class="hcc-win" id="hcc-probe-win"></div>
+<div class="hcc-probe" id="hcc-probe-box"></div>
 <div class="leg" id="hcc-probe-leg"></div>
-</div>
+<div class="hcc-win" id="hcc-probe-win"></div>
 <div class="out" id="hcc-probe-stats"></div>
-</div>
+</div></div></div><div class="s3L">
+<h3>Eighteen calls, one per behaviour</h3>
+<p>One recording gave Haiku a script of eighteen tool calls, one per message, each probing one rule, with "do not retry, just move on" (run <code>tools</code>). Before step 2, predict: a 3,001-line file of 104 KB, under the 256 KB cap; does Read return all of it, and if not, does it say so? The figure shows each stretch's calls with the result the model got; the bar under them is the size of the next request, to scale.</p>
+<ol class="sx" id="sx-probe">
+<li><b>Read returns numbered lines</b> (call 1). Each line comes back as "number, tab, text"; the numbers are for the model, since Edit and offset/limit refer to them.</li>
+<li><b>A long but small file is cut without a word</b> (call 2). 3,001 lines, 104 KB, under the 256 KB cap: the harness stopped at line 1,821 by its token cap and told the model nothing. The next request jumps by about 25,700 tokens.</li>
+<li><b>Too big, a slice, a missing file</b> (calls 3 to 5). 322 KB is refused outright, with an error that names the way out (offset and limit, or search): an error the model can act on. Offset and limit return exactly three lines from line 100, the cheap way to look inside a large file. A missing file's error adds the working directory, which helps a model that guessed a relative path.</li>
+<li><b>Edit's rules</b> (calls 6 to 9). Edit before Read is refused: Haiku 4.5 must read a file first, newer models may skip the read when reading would need no prompt. After the Read, an edit whose string "x = 1" appears twice is refused, and the message says how to fix it (more context, or replace_all). Write creates a new file with no prior read.</li>
+<li><b>Large outputs</b> (calls 10 and 11). 40,000 characters of output pass the roughly 30,000-character inline ceiling: the harness saves them to a file and returns its path plus a 2 KB preview, so the model can read on. 15,000 characters of stderr with exit 3 keep at most about 10,000 inline, and no path.</li>
+<li><b>Shell state</b> (calls 12 to 15). <code>cd</code> carries over to later Bash calls inside the project (<code>pwd</code> prints <code>/work/textstats</code>); <code>export</code> runs, but each call is a new process; and <code>echo "PROBE=$PROBE"</code> is refused by the permission layer although <code>echo</code> is allowed, because the harness cannot check what the variable expands to.</li>
+<li><b>A 2 s timeout</b> (call 16). The model may set a timeout per call: <code>sleep 5</code> is killed with exit 143.</li>
+<li><b>Grep and Glob</b> (calls 17 and 18). Grep is ripgrep under the hood: content mode returns <code>file:line:text</code>, relative to the search path. Glob returns file names matching a pattern, capped at 100, newest first.</li>
+</ol>
 <div class="co warn"><div class="t">Two lessons for any harness</div>Every cap is a decision about what the model will never see, so the cap must say so. Claude Code does it well for Bash (a file path and a preview, so the model can read on) and for the oversized Read (an error that names the way out), and in this recording did not do it for the token-capped Read, where the model got 61% of a file and believed it had all of it (ask for line ranges, or grep first, on long files). Second, the harness knows more than it tells: the <code>tool_use_result</code> metadata in the stream (line counts, truncation flags, structured patches) never reaches the model. When you build your own, decide which of those facts belong in the text.</div>
+</div></div>
 <details class="dp"><summary>Documentation against recording, behaviour by behaviour <span class="mute">(the probe's evidence)</span></summary><div class="b">
 <div class="tw"><table class="hcc-t"><thead><tr><th>Behaviour</th><th>Documentation</th><th>Recording</th></tr></thead><tbody>
 <tr><td>Read, whole file over the size cap</td><td>Not stated as a byte limit; a whole-file read over the token limit returns a first page with a "PARTIAL view" notice</td><td>A 322.3 KB file: error "exceeds maximum allowed size (256KB). Use offset and limit parameters ..." <span class="meas">MEASURED</span></td></tr>

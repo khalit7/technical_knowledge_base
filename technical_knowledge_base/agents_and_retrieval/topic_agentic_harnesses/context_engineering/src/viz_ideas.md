@@ -33,3 +33,9 @@ What the text needs to be understood: what fills one request and in what order; 
 
 ## What the methodology lacked here
 Recorded agent sessions are paths, not samples: a before/after on "the same input" means the same task, not the same trajectory. Every pairing here says so on the chart.
+
+## The 2026-11-06 pass (3D stages, renderer v2)
+- **Built in 3D**: Fig. 1 the window as a tray of layers (the hero), Fig. 2 the cached prefix and what invalidates it, Fig. 3 compaction call by call, Fig. 4 a subagent's separate window. Each is spatial in the sense the skill means: segments of one request in order, rows of calls against a cache, windows side by side.
+- **Tried and changed**: the hero first stood the request up as a column against a 200K-tall window; at to-scale heights the first three steps were flat slabs and the full window a thin pole in a wide card. Laid flat as a tray, the 200K window runs across the card and the close view shows the startup layers.
+- **Kept 2D**: budget switcher, policy bars (log), skills bars, needle grid, memory timeline, the two widgets (cache simulator, session replay): numbers on axes or reader-driven runs.
+- **Not built**: a 3D memory-layer stage (four stores as lanes over twelve sessions): the content is a timeline of validity windows, which reads best flat.

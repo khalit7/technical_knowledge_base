@@ -1,5 +1,6 @@
 // node src/check_controls.mjs <page index.html>: click every button, move every slider and select, in 390 dark and 920 light,
-// with reduced motion once; fails on page errors, a visible #jsErr, sideways scroll, NaN/undefined/Infinity, or an animation that moves by itself.
+// with reduced motion once; fails on page errors, a visible #jsErr, sideways scroll, NaN/undefined/Infinity, or an animation that moves by itself
+// under reduced motion (2026-11-06: without it, animations and stages play once scrolled into view; check_stages.mjs checks that).
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -10,10 +11,10 @@ for (const [scheme, width, rm] of [['dark', 390, 'no-preference'], ['light', 920
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: rm }]);
   await p.goto('file://' + path.resolve(process.argv[2]));
-  // nothing may move before the reader acts: every scrubber stays at 0 after scrolling through the page
+  // under reduced motion nothing may move before the reader acts: every scrubber stays at 0 after scrolling through the page
   const moved = await p.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 120)); }
     await new Promise(r => setTimeout(r, 3000)); return [...document.querySelectorAll('#t-read .an-ctl input[type=range]')].filter(x => +x.value !== 0).map(x => x.id); });
-  if (moved.length) errs.push('autoplay: ' + moved.join(','));
+  if (rm === 'reduce' && moved.length) errs.push('moved under reduced motion: ' + moved.join(','));
   for (const t of await p.$$eval('button[data-t]', bs => bs.map(b => b.dataset.t))) {
     await p.click(`button[data-t=${t}]`);
     await p.evaluate(async (t) => {

@@ -55,21 +55,21 @@ function draw(i){
   g+='<line x1="'+x(cut)+'" x2="'+x(cut)+'" y1="14" y2="'+y+'" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="3 2"/>';
   el.innerHTML=RD.svg(W,y,g.replace(/y2="9999"/g,'y2="'+y+'"'),'What four memory stores held about the gateway after each session');
   // caption and verbatim store
-  const cap=$('hc-mem-cap'),st=$('hc-mem-store');
+  // the step list on the left says what each step shows; the box under the chart holds the stored text verbatim
+  const st=$('hc-mem-store');
   if(i<M.steps.length){const s=M.steps[i];
-    cap.innerHTML='<div class="t">Session '+(s.s+1)+' of 12, '+s.d+'</div><p>Sam: "'+E(s.u)+'"</p>';
-    let h='';const p=M.paper[s.s];
+    let h='<div><b>After session '+(s.s+1)+' of 12, '+s.d+':</b></div>';
+    const p=M.paper[s.s];
     h+='<div><b>Paper loop:</b> '+Object.values(p.st).map(E).join(' | ')+(p.ops.filter(o=>o.op==='UPDATE').map(o=>' <span class="x">'+E(o.old)+'</span>').join(''))+'</div>';
     h+='<div><b>Mem0 2.2.1:</b> '+M.mem0.filter(m=>m.s<=s.s).map(m=>E(m.t)).join(' | ')+'</div>';
     h+='<div><b>Graphiti:</b> '+M.graph.filter(e=>e.s0<=s.s).map(e=>{const c=e.sc!==null&&e.sc<=s.s;return c?'<span class="x">'+E(e.f)+'</span> (invalid_at '+e.ia+(e.v==='wrong'?', wrong':'')+')':E(e.f)}).join(' | ')+'</div>';
     h+='<div><b>Letta:</b> '+(M.letta[s.s].notes.map(E).join(' | ')||'(nothing filed)')+'</div>';
     st.innerHTML=h;
   }else{
-    cap.innerHTML='<div class="t">Asked on 6 Oct: "'+E(M.q)+'"</div><p>Reference answer: '+E(M.gold)+'.</p>';
     const A=[['Paper loop (Haiku reads)','paper_haiku|haiku'],['Mem0 2.2.1 (Haiku reads)','mem0|haiku'],['Graphiti (Haiku reads)','graphiti_haiku|haiku'],['Letta, its own loop (local 4B)','letta|local'],['Full history (Haiku reads)','full|haiku']];
     st.innerHTML=A.map(([n,k])=>{const a=M.ans[k];return '<div><span class="pill '+(a[1]?'ok':'bad')+'">'+(a[1]?'right':'wrong')+'</span><b>'+n+':</b> '+E(a[0].length>260?a[0].slice(0,260)+'...':a[0])+'</div>'}).join('');
   }
 }
-const A=RD.anim({card:'hc-mem-card',ctl:'hc-mem-ctl',n:N,ms:2200,label:'Session',draw});
+const A=RD.anim({card:'hc-mem-card',ctl:'hc-mem-ctl',n:N,ms:5200,label:'Step',draw,list:'sx-mem'});
 RD.onResize(()=>A.redraw());
 })();

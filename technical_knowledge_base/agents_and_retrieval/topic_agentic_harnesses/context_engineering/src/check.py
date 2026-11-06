@@ -91,7 +91,8 @@ for dp, dn, fn in os.walk(os.path.join(HERE, "..")):
             t = t  # these two name the forbidden strings only by construction (split literals)
         low = t.lower()
         for s in FORBID:
-            if s and s.lower() in low:
+            # the login name is matched case-sensitively (a capitalised first name in prose is not the login); the rest ignore case
+            if s and ((s in t) if s == user else (s.lower() in low)):
                 fails.append(f"private string in {os.path.relpath(p, HERE)}")
         if EM in t:
             fails.append(f"em-dash in {os.path.relpath(p, HERE)}")

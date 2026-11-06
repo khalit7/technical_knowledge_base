@@ -1,41 +1,4 @@
-// ---- Reading tab, part 3: memory canaries, skills and subagent costs, headless limits, the changelog check ----
-(function(){
-  const {run,esc,fmt,callIn}=HCCR;const r=run('memory');if(!r||!document.getElementById('hcc-mem-card'))return;
-  // The eight planted files, in load order, and what the recording showed for each (run memory).
-  const F=[
-    {f:'../CLAUDE.md (parent directory)',c:'HOTEL-PARENT',when:1},
-    {f:'CLAUDE.md (project root)',c:'ALPHA-ROOT',when:2},
-    {f:'docs/style.md (imported with @docs/style.md)',c:'BRAVO-IMPORT',when:2},
-    {f:'CLAUDE.local.md',c:'CHARLIE-LOCAL',when:-3},
-    {f:'.claude/rules/general.md (no paths)',c:'DELTA-RULE',when:4},
-    {f:'.claude/rules/python.md (paths: textstats/**)',c:'ECHO-PATHRULE',when:7},
-    {f:'textstats/CLAUDE.md (subdirectory)',c:'FOXTROT-SUBDIR',when:7},
-    {f:'AGENTS.md',c:'GOLF-AGENTS',when:-5}];
-  const STEP=[
-    ['Launch: walk from the filesystem root down','CLAUDE.md files above the working directory load first. The parent directory\'s file is in the session although nobody opened that folder.'],
-    ['The project CLAUDE.md and its import','The import is expanded at launch, so it costs the same as writing its text inline.'],
-    ['CLAUDE.local.md is skipped','These runs pass --setting-sources project; the docs: "CLAUDE.local.md is skipped if you exclude local from --setting-sources".'],
-    ['Rules without paths load like CLAUDE.md','.claude/rules/general.md is in; python.md waits for a matching file.'],
-    ['AGENTS.md is skipped','A CLAUDE.md exists, so by default Claude Code reads only that (2.1.277 and later).'],
-    ['Model call 1: four canaries','Haiku listed HOTEL-PARENT, ALPHA-ROOT, BRAVO-IMPORT and DELTA-RULE, each with its file.'],
-    ['Read textstats/core.py','Reading a file under textstats/ attaches that folder\'s CLAUDE.md and the rule whose paths match.'],
-    ['Model call 2: six canaries','The two new ones were marked NEW. CHARLIE-LOCAL and GOLF-AGENTS never appeared.']];
-  const st=document.getElementById('hcc-mem-stack'),cap=document.getElementById('hcc-mem-cap'),stats=document.getElementById('hcc-mem-stats');
-  const c1=r.calls[0],c2=r.calls[1];
-  function draw(i){
-    cap.innerHTML='<div class="t">'+esc(STEP[i][0])+'</div><p>'+esc(STEP[i][1])+'</p>';
-    const s1=i+1;
-    st.innerHTML=F.map(x=>{let cls='',tag='';
-      if(x.when>0&&s1>=x.when){cls=s1===x.when||(x.when===7&&s1===7)?' new':'';tag=x.when===7?'loaded on demand':'loaded at launch'}
-      else if(x.when<0&&s1>=-x.when){cls=' off';tag='not loaded'}
-      else{cls=' off';tag=x.when===7?'waiting for a matching file':'not reached yet'}
-      return '<div class="hcc-blk'+cls+'"><span><code>'+esc(x.f)+'</code> <b>'+esc(x.c)+'</b></span><span class="w">'+tag+'</span></div>'}).join('');
-    const vis=F.filter(x=>x.when>0&&s1>=x.when).length;
-    stats.innerHTML=RD.stat('Canaries in context',String(vis),'of 8 planted')+RD.stat('Call 1 input',fmt(callIn(c1))+' tok','Read tool only, memory files included')+RD.stat('Call 2 cache write',fmt(c2[1])+' tok','core.py result plus the two new files');
-  }
-  RD.anim({card:'hcc-mem-card',ctl:'hcc-mem-ctl',n:STEP.length,draw,ms:2200,label:'Memory step'});
-})();
-
+// ---- Reading tab, part 3: skill startup cost, headless limits, the changelog check (memory canaries and the subagent run are the scenes 42 and 43) ----
 (function(){
   const {run,fmt,usd,bar,callIn}=HCCR;
   const sk=document.getElementById('hcc-sk-bars');
@@ -45,13 +8,6 @@
       const inv=task.ev.find(e=>e.k==='tool'&&e.n==='Skill');const ci=inv?inv.c:2;
       document.getElementById('hcc-sk-note').innerHTML='First-request input with tools Read, Bash and Skill, Haiku 4.5, prompt "Reply with the single word OK." Difference: '+fmt(b-a)+' tokens, the skill\'s name and description. In the task run, the call after the Skill tool wrote '+fmt(task.calls[ci+1][1])+' tokens to the cache: the body. <span class="meas">MEASURED</span>'};
     draw();}
-  const sb=document.getElementById('hcc-sub-bars');
-  if(sb){const r=run('subagent');const P={in:1,cw:2,cr:.1,out:5};
-    const main=r.calls.reduce((s,c)=>s+(c[0]*P.in+c[1]*P.cw+c[2]*P.cr+c[3]*P.out)/1e6,0),sub=r.cost-main;
-    const first=r.ev.find(e=>e.k==='task'&&e.tok);const pin=callIn(r.calls[0]);
-    sb.innerHTML='<div class="small mute" style="margin:2px 0">Context, tokens</div>'+bar('Parent, 1st request',pin,pin,'var(--c1)',fmt(pin))+bar('Subagent, 1st tool call',first.tok,pin,'var(--c3)',fmt(first.tok))+
-      '<div class="small mute" style="margin:8px 0 2px">Cost at list prices</div>'+bar('Parent, 8 calls',main,r.cost,'var(--c1)',usd(main,3))+bar('Subagents, 2 runs',sub,r.cost,'var(--c3)',usd(sub,3))+bar('total_cost_usd',r.cost,r.cost,'var(--mute)',usd(r.cost,3),true);
-    document.getElementById('hcc-sub-note').innerHTML='Parent cost recomputed from its per-call usage at Haiku 4.5 list prices ($1 input, $2 one-hour cache write, $0.10 cache read, $5 output per million tokens); the subagents\' share is the rest of <code>total_cost_usd</code>. The subagent figure is the <code>total_tokens</code> of its first progress record. <span class="meas">MEASURED</span>'}
   const hd=document.querySelector('#hcc-hd-table tbody');
   if(hd){const rows=[['maxturns','--max-turns 2'],['budget','--max-budget-usd 0.02'],['stream','--input-format stream-json, 2 messages'],['resume1','--session-id (persisted)'],['resume2','--resume']];
     hd.innerHTML=rows.map(([id,f])=>{const r=run(id);return '<tr><td><code>'+id+'</code></td><td><code>'+f+'</code></td><td class="num">'+r.calls.length+'</td><td class="num">'+r.turns+'</td><td><code>'+r.stop+'</code>'+(r.pass?' (tests pass)':'')+'</td><td class="num">'+usd(r.cost,4)+'</td></tr>'}).join('')}

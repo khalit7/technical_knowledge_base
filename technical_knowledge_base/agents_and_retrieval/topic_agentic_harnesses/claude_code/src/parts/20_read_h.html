@@ -1,20 +1,21 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-cmp"></div></div><div class="s3L">
 <section id="s-ctx">
 <h2>9. Context: what fills the window, and what survives compaction</h2>
 <p>Everything in sections 2 to 7 lands in one window: the system prompt and tool definitions, the memory files, the skill listing, MCP tool names, and then the conversation with every tool result. <code>claude -p "/context"</code> prints the window by category without calling the model (cost 0) <span class="meas">MEASURED</span>; the parent's {{Trace and context lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} measures what each part costs at startup. Two design choices keep that window cheap and stable. <code>--system-prompt-snapshot</code> (on by default) records the system prompt on the first request and resends it verbatim until the conversation is compacted <span class="docs">DOCS</span>, so the cached prefix does not change under the session. And the large, rarely needed parts load on demand: skill bodies (section 6), nested memory files (section 5), MCP tool definitions (section 10).</p>
-<p>When the window fills, <dfn>auto-compaction</dfn> replaces the conversation: "It clears older tool outputs first, then summarizes the conversation if needed" ({{how Claude Code works|https://code.claude.com/docs/en/how-claude-code-works}}) <span class="docs">DOCS</span>. What comes back afterwards is decided by where each piece lives:</p>
-<div class="hero" id="hcc-cmp-card"><h4>What lives on disk is re-read; what lived only in the conversation survives as a summary</h4>
-<div class="rd-svg" id="hcc-cmp"></div>
-<p class="small">Before and after a compaction, blocks not to scale. Green: survives intact (re-read from disk, re-attached or kept verbatim); amber: survives only as the summary; grey dashed: gone until something loads it again.</p></div>
-<ul>
-<li><b>Re-read from disk:</b> after <code>/compact</code> the project-root CLAUDE.md is re-read from disk; nested files and path rules load again on demand ({{memory|https://code.claude.com/docs/en/memory}}) <span class="docs">DOCS</span>.</li>
-<li><b>Re-attached:</b> the most recent invocation of each skill, up to 5,000 tokens each and 25,000 in total ({{skills|https://code.claude.com/docs/en/skills}}) <span class="docs">DOCS</span>.</li>
-<li><b>Kept verbatim:</b> <code>/compact</code> also runs inside a <code>--input-format stream-json</code> session, emitting a <code>compact_boundary</code> record whose preserved segment keeps the last 5 messages verbatim <span class="meas">MEASURED</span>; forced compactions are recorded on {{Context engineering: window budgets, caching, compaction, memory files, subagents|n:3f15c17b0d0d811292cee46514370431}}, its section 4.</li>
-<li><b>Re-read files and the threshold:</b> the context window explorer adds that up to five of the most recently modified files are re-read (a file over 5,000 tokens comes back only as a path), and the model configuration page that compaction runs by default when the conversation reaches the model's context limit, at about 967K tokens for models with a native 1M window such as Sonnet 5.5 (both read 5 Oct 2026 for the parent page's Trace and context lab) <span class="docs">DOCS</span>.</li>
-<li><b>Idle compaction:</b> the terminal also compacts a conversation over 200K tokens left for about 54 minutes, before its one-hour prompt cache expires, so the next message does not reprocess it all (<code>"idleCompaction": false</code> turns it off; {{changelog|https://code.claude.com/docs/en/changelog}}) <span class="docs">DOCS</span>.</li>
-</ul>
+<p>When the window fills, <dfn>auto-compaction</dfn> replaces the conversation: "It clears older tool outputs first, then summarizes the conversation if needed" ({{how Claude Code works|https://code.claude.com/docs/en/how-claude-code-works}}) <span class="docs">DOCS</span>. What comes back afterwards is decided by where each piece lives (Fig. 5; sizes illustrative, parts and rules documented):</p>
+<ol class="sx" id="sx-cmp">
+<li><b>The window, part by part.</b> At the bottom the parts that load at launch: the system prompt and tool definitions (resent from the snapshot), the project-root CLAUDE.md, the skill listing and MCP tool names. Above them what the session added: nested CLAUDE.md files and path rules loaded on demand, invoked skill bodies, and the conversation with every tool result.</li>
+<li><b>The conversation fills it.</b> Tool results dominate. Compaction runs by default when the conversation reaches the model's context limit, at about 967K tokens for models with a native 1M window such as Sonnet 5.5 (the model configuration page, read 5 Oct 2026 for the parent page's Trace and context lab) <span class="docs">DOCS</span>.</li>
+<li><b>Older tool outputs are cleared first.</b> They are the bulk of the window and the cheapest to lose: a file can be read again.</li>
+<li><b>Then the older turns become a summary.</b> What lived only in the conversation survives only as the summary (amber); nested CLAUDE.md files and path rules are gone until a matching file is read again (grey).</li>
+<li><b>Re-read from disk.</b> After <code>/compact</code> the project-root CLAUDE.md is re-read from disk; nested files and path rules load again on demand ({{memory|https://code.claude.com/docs/en/memory}}) <span class="docs">DOCS</span>. The context window explorer adds that up to five of the most recently modified files are re-read (a file over 5,000 tokens comes back only as a path) <span class="docs">DOCS</span>.</li>
+<li><b>Re-attached and kept verbatim.</b> The most recent invocation of each skill, up to 5,000 tokens each and 25,000 in total ({{skills|https://code.claude.com/docs/en/skills}}) <span class="docs">DOCS</span>. <code>/compact</code> also runs inside a <code>--input-format stream-json</code> session, emitting a <code>compact_boundary</code> record whose preserved segment keeps the last 5 messages verbatim <span class="meas">MEASURED</span>; forced compactions are recorded on {{Context engineering: window budgets, caching, compaction, memory files, subagents|n:3f15c17b0d0d811292cee46514370431}}, its section 4.</li>
+</ol>
+<p><b>Idle compaction:</b> the terminal also compacts a conversation over 200K tokens left for about 54 minutes, before its one-hour prompt cache expires, so the next message does not reprocess it all (<code>"idleCompaction": false</code> turns it off; {{changelog|https://code.claude.com/docs/en/changelog}}) <span class="docs">DOCS</span>.</p>
 <p>The design consequence, in the docs' words: "Put persistent rules in CLAUDE.md rather than relying on conversation history"; a "Compact Instructions" section in CLAUDE.md, or <code>/compact</code> with a focus, steers what the summary keeps <span class="docs">DOCS</span>. Why compaction, caching and subagents are the three levers of any agent's window, and their arithmetic, is owned by {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}.</p>
 </section>
+</div></div>
 
 <section id="s-mcp">
 <h2>10. MCP servers: where they are configured and how their tools arrive</h2>
@@ -62,12 +63,10 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-set">
 <h2>12. Settings: five files, one merge rule</h2>
 <p><b>Precedence</b>, highest first: managed settings (set by an organisation), command-line flags, <code>.claude/settings.local.json</code>, <code>.claude/settings.json</code>, <code>~/.claude/settings.json</code>. Lists such as <code>permissions.allow</code> merge across files rather than replace; a deny anywhere beats an allow anywhere; settings edits, hooks included, are picked up live and fire a ConfigChange hook ({{settings|https://code.claude.com/docs/en/settings}}) <span class="docs">DOCS</span>.</p>
-<div class="hero" id="hcc-set-card"><h4>A scalar comes from the highest file that sets it; lists merge, and a deny anywhere wins</h4>
-<div class="rd-svg" id="hcc-set"></div>
-<p class="small">The five settings sources, highest first. The example shows one <code>model</code> value and the <code>permissions</code> lists from three of them; <span class="ill">illustrative</span> values, documented rules.</p></div>
 <details class="dp"><summary>The keys a harness deployer reaches for <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="hcc-t"><thead><tr><th>Key</th><th>What it does</th></tr></thead><tbody>
 <tr><td><code>permissions</code></td><td><code>allow</code>, <code>ask</code>, <code>deny</code>, <code>defaultMode</code>, <code>additionalDirectories</code>, <code>disableBypassPermissionsMode</code>, <code>disableAutoMode</code> (section 3)</td></tr>
@@ -83,6 +82,9 @@
 </tbody></table></div>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="hcc-set-card"><h4>A scalar comes from the highest file that sets it; lists merge, and a deny anywhere wins</h4>
+<div class="rd-svg" id="hcc-set"></div>
+<p class="small">The five settings sources, highest first. The example shows one <code>model</code> value and the <code>permissions</code> lists from three of them; <span class="ill">illustrative</span> values, documented rules.</p></div></div></div></div>
 
 <section id="s-sdk">
 <h2>13. Where the SDK begins</h2>

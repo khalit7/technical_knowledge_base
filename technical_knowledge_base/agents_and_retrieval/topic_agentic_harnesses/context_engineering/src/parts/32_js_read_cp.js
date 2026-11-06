@@ -47,8 +47,8 @@ function probeTable(el,labels){
   const V=[['c1_manual','Manual /compact'],['c1_control','No compaction'],['c4_auto','Automatic, 100K window'],['c3_big_nocompact','Big task, no compaction']];
   let cur=0,M=mainCalls(S[V[0][0]]);
   seg.innerHTML=V.map((v,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+v[1]+'</button>').join('');
-  const A=RD.anim({card:'hc-cp-card',ctl:'hc-cp-ctl',n:M.length,ms:1500,label:'Model call',draw:i=>{const s=S[V[cur][0]];chart(el,s,i,RD.width(el));cap.innerHTML=captionFor(s,i,M)}});
-  RD.seg(seg,m=>{cur=+m;M=mainCalls(S[V[cur][0]]);A.reset(M.length)});
+  const A=RD.anim({card:'hc-cp-card',ctl:'hc-cp-ctl',n:M.length,ms:1500,label:'Model call',auto:false,start:M.length-1,draw:i=>{const s=S[V[cur][0]];chart(el,s,i,RD.width(el));cap.innerHTML=captionFor(s,i,M)}});
+  RD.seg(seg,m=>{cur=+m;M=mainCalls(S[V[cur][0]]);A.reset(M.length);A.go(M.length-1,true)}); // a widget: opens each session on its last call
   RD.onResize(()=>A.redraw());
   probeTable(document.getElementById('hc-cp-tab'),['c1_manual','c1_manual_r2','c1_manual_r3','c1_control','c1_control_r2','c1_control_r3','c4_auto','c3_big_nocompact']);
 })();

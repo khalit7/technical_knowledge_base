@@ -1,26 +1,41 @@
+<div class="s3sp"><div class="s3L">
 <section id="rs1">
 <h2>1. The window is a budget</h2>
 <p>Models read and write <dfn>tokens</dfn>, about four characters of English prose each and fewer for code and logs. The window is 200,000 tokens for Claude Haiku 4.5 and 1,000,000 for Sonnet 5.5 as Claude Code configures them (<a href="https://code.claude.com/docs/en/model-config" target="_blank" rel="noopener noreferrer">model configuration</a>, read 5 Oct 2026). A request that does not fit is refused: "Prompt is too long" came back when this page sent Haiku a 491 KB log in one piece <span class="meas">MEASURED</span>.</p>
 <p><b>Four numbers make the budget:</b> the <dfn>startup context</dfn> S, the <dfn>growth per call</dfn> g (the model's last reply plus the tool result it triggered), a <dfn>reply reserve</dfn> (Claude Code reports a 32,000-token output cap for Haiku 4.5), and a <dfn>buffer</dfn> before the harness acts. Claude Code's <code>/context</code> prints the window by category without calling the model. In a fresh session with six tools it reported 12.6k tokens, 6.3k of system prompt and 6.3k of tool definitions; the first real call read 13,320, so its figures are estimates within about 6% <span class="meas">MEASURED</span> (the parent's lab measured 13,242 on 2.1.289). With the auto-compact window set to 100K, a 33k "Autocompact buffer", a third of the window, was held free <span class="meas">MEASURED</span>.</p>
+<div class="drill"><details><summary><b>Predict, then reveal.</b> A session read five log files of 75 KB each in one turn (five parallel Read calls). The window is 200K. Did the next call fit?</summary><div>Yes: the next call held 126,544 tokens, 112,953 of them new, and at the end <code>/context</code> said 130.7k of 200k <span class="meas">MEASURED</span>. A sixth file would have taken it near the limit in one step: harnesses check the budget between calls, and one turn of parallel tool calls can add more than the whole buffer.</div></details></div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="hc-budget-card">
 <h4>Startup costs little; one turn of big reads fills two thirds of the window</h4>
 <div class="seg" id="hc-budget-seg"></div>
 <div class="hc-fig" id="hc-budget"></div>
 <div class="small mute" id="hc-budget-cap"></div>
 </div>
-<div class="drill"><details><summary><b>Predict, then reveal.</b> A session read five log files of 75 KB each in one turn (five parallel Read calls). The window is 200K. Did the next call fit?</summary><div>Yes: the next call held 126,544 tokens, 112,953 of them new, and at the end <code>/context</code> said 130.7k of 200k <span class="meas">MEASURED</span>. A sixth file would have taken it near the limit in one step: harnesses check the budget between calls, and one turn of parallel tool calls can add more than the whole buffer.</div></details></div>
-</section>
+</div></div></div>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-cache"></div></div><div class="s3L">
 <section id="rs2">
 <h2>2. Assembly order decides the cache bill</h2>
 <p>Call 12 of an agent is call 11 plus one reply and one tool result. To read a prompt the model computes a key and a value vector per token per layer (the KV cache; how big it is per model is {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}'s subject), and those vectors depend only on the tokens before them. A <dfn>prompt cache</dfn> keeps the computed prefix, keyed by a hash of its content, and a later request that starts with exactly the same tokens reads it back instead of recomputing. Two consequences, both about order: a match must be exact from the first token, so one changed byte early invalidates everything after it; and whatever changes most often must come last.</p>
+<ol class="sx" id="sx-cache">
+<li><b>One request, in prefix order.</b> In the static run the request held 13,320 tokens: the tools and the fixed part of the system prompt (8,344), the rest of the system prompt (3,855), the first user message (1,111), and 10 fresh. A cache match runs from the first token and stops at the first difference.</li>
+<li><b>Nothing volatile: from the second call, everything is read.</b> The first call found 8,344 tokens already cached by earlier sessions on the account (the tools and the fixed part of the system prompt) and wrote 4,966; the second and third read all 13,310 tokens from cache, about $0.0013 each.</li>
+<li><b>A timestamp in the system prompt.</b> Every call matches only up to the timestamp, so each one reads 8,344 and rewrites the same 4,973 tokens at the 1-hour price: about 8x the static input cost, on every call.</li>
+<li><b>The same timestamp in the newest user message.</b> Only the last 1,124 tokens are rewritten and 12,199 are read: moving one line from the system prompt into the user message made each call 3.1x cheaper.</li>
+<li><b>One tool fewer.</b> Dropping one tool (Glob) changed the very first block. That session's first call found nothing cached and wrote 13,056 tokens, the most of any run: tools come first, so nothing after them matched. Its second call read them all.</li>
+</ol>
+<details class="qa"><summary>The eleven calls as bars, with their input-side cost</summary><div>
 <div class="card" id="hc-cx-card">
 <h4>One volatile line, three places: in the system prompt it rewrites 4,973 tokens on every call</h4>
 <div class="hc-fig" id="hc-cx"></div>
 <div class="hc-legend"><span><i style="background:var(--c1)"></i>cache read (0.1x)</span><span><i style="background:var(--c5)"></i>cache write, 1 hour (2x)</span><span><i style="background:var(--c2)"></i>fresh input (1x)</span></div>
 <div class="small mute">Eleven one-call Claude Code sessions (Haiku 4.5, six tools, "Reply with the single word OK."), a few seconds apart; only where a per-run value sits changes. Bar: the call's input tokens as the API split them; right: input-side cost at Haiku 4.5 list prices. Recorded 6 Oct 2026.</div>
 </div>
-<p><b>What the bars say.</b> Every first call found 8,344 tokens already cached by earlier sessions on the account (the tools and the fixed part of the system prompt). With nothing volatile ("static"), the second and third calls read all 13,310 tokens from cache. With the time in the system prompt every call rewrote the same 4,973 tokens at the 1-hour price: about 8x the static input cost. With the time in the user message only the last 1,124 tokens were rewritten. Dropping one tool (Glob) cost most on its first call, 13,056 tokens written and none read: tools come first, so nothing after them matched.</p>
+</div></details>
+</section>
+</div></div>
 <p><b>The same rule at production scale.</b> Cloudflare's AI code reviewer gave every review the same long system prompt followed by review-specific text, with one breakpoint after both, so each review's first request missed. Splitting the prompt at a marker so the shared part got its own breakpoint raised the first-request cache hit rate from 14 to 26% to 91 to 99.5%; cache writes had been 43% of spend, and with this and other changes the cost per review fell from $2.43 to $0.77, 68% (<a href="https://blog.cloudflare.com/obsessive-inference-optimization" target="_blank" rel="noopener noreferrer">Cloudflare, 19 Oct 2026</a>; the company's own figures). Whatever many requests share needs a breakpoint of its own, placed before the first byte that differs.</p>
 <h3>Anthropic's rules, which Claude Code inherits</h3>
 <ul class="tight">
@@ -32,7 +47,14 @@
 <p>A prefix shorter than the model's minimum is silently not cached: 4,096 tokens for Haiku 4.5 (and Opus 4.6 and 4.5), 1,024 for Sonnet 4.5, 4.6 and 5, 512 for Sonnet 5.5 and Opus 5.5. An entry can be read only after the response that wrote it has started, so parallel requests sent at once all pay to write; caches are never shared between organisations, and on the Claude API not between workspaces <span class="docd">DOCUMENTED</span>. Usage fields: <code>cache_read_input_tokens</code>, <code>cache_creation_input_tokens</code>, and <code>input_tokens</code>, which counts only what comes after the last breakpoint. Source: {{prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}} and {{pricing|https://platform.claude.com/docs/en/about-claude/pricing}}, read 5 and 6 Oct 2026.</p>
 <p>OpenAI caches automatically from 1,024 tokens; for GPT-5.6 and later it bills reads at 0.1x and writes at 1.25x and keeps entries at least 30 minutes after last use, and a <code>prompt_cache_key</code> helps route related requests to the same cache on earlier models (<a href="https://developers.openai.com/api/docs/guides/prompt-caching" target="_blank" rel="noopener noreferrer">OpenAI prompt caching</a>, read 6 Oct 2026). Gemini caches implicitly on 2.5 and newer models with "no cost saving guarantee", and offers explicit caches with a default one-hour lifetime billed for storage time; minimums are 4,096 tokens on the 3.x models and 2,048 on 2.5 (<a href="https://ai.google.dev/gemini-api/docs/generate-content/caching" target="_blank" rel="noopener noreferrer">Gemini caching</a>, read 6 Oct 2026; its discount rate not checked here). Local servers do the same in memory: <code>mlx_lm.server</code> keeps a prompt cache bounded by <code>--prompt-cache-bytes</code>.</p>
 </div></details>
-<p><b>The rules, simulated.</b> The card below applies them block by block to a session you configure: a request is a row of blocks in the order tools, system, messages; an entry is written at each breakpoint and keyed on the exact prefix; a read looks back at most 20 positions; prefixes below the minimum are not cached; entries expire. Predict before you press a preset: with 25 blocks per turn and one automatic breakpoint, what share of input is read from cache by call 12?</p>
+<div class="s3sp"><div class="s3L">
+<p><b>The rules, simulated.</b> The simulator applies them block by block to a session you configure: a request is a row of blocks in the order tools, system, messages; an entry is written at each breakpoint and keyed on the exact prefix; a read looks back at most 20 positions; prefixes below the minimum are not cached; entries expire. Predict before you press a preset: with 25 blocks per turn and one automatic breakpoint, what share of input is read from cache by call 12?</p>
+<p class="small">What the presets show: <b>one growing text block</b> (the parent's Loop lab resent the transcript as one block) never matches past the system prompt, so it is written in full at 2x every call and nothing is read (one block per message, in order, fixes it); <b>25 blocks per turn</b> falls outside the 20-position lookback, so nothing is read (a breakpoint at the start of each turn fixes it); <b>pauses longer than the lifetime</b> rewrite everything, so the 1-hour lifetime wins once a session pauses.</p>
+<details class="qa"><summary>Check: the simulator against the eleven recorded calls</summary><div>
+<p>With the block sizes measured in the static run (tools plus the fixed system prompt 8,344 tokens, already cached by other sessions; the rest of the system prompt 3,855; the first user message 1,111, plus a 13-token timestamp when present) the rules give these reads. This reproduces the recordings by construction for the static run (its sizes are the inputs) and independently for the other three.</p>
+<div class="tw"><table class="hc-t" id="hcc-check"></table></div>
+</div></details>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="hcc-card">
 <div class="chips" id="hcc-pre"><button data-p="cc">Claude Code start (recorded sizes)</button><button data-p="loop">One growing text block</button><button data-p="lookback">25 blocks per turn</button><button data-p="pause">6-minute pauses, 5-minute lifetime</button></div>
 <div class="ctl">
@@ -54,10 +76,5 @@
 <div class="small mute">Bars: tokens per call split into read, written and fresh (left axis). Lines: cumulative cost with caching (solid) and without (dashed), right axis. A model of the documented rules, not of Anthropic's servers; not modelled: the delay before a new entry is readable, thinking blocks, images, tool-choice changes.</div>
 <div class="out" id="hcc-out"></div>
 </div>
-<p class="small">What the presets show: <b>one growing text block</b> (the parent's Loop lab resent the transcript as one block) never matches past the system prompt, so it is written in full at 2x every call and nothing is read (one block per message, in order, fixes it); <b>25 blocks per turn</b> falls outside the 20-position lookback, so nothing is read (a breakpoint at the start of each turn fixes it); <b>pauses longer than the lifetime</b> rewrite everything, so the 1-hour lifetime wins once a session pauses.</p>
-<details class="qa"><summary>Check: the simulator against the eleven recorded calls</summary><div>
-<p>With the block sizes measured in the static run (tools plus the fixed system prompt 8,344 tokens, already cached by other sessions; the rest of the system prompt 3,855; the first user message 1,111, plus a 13-token timestamp when present) the rules give these reads. This reproduces the recordings by construction for the static run (its sizes are the inputs) and independently for the other three.</p>
-<div class="tw"><table class="hc-t" id="hcc-check"></table></div>
-</div></details>
+</div></div></div>
 <div class="co warn"><div class="t">Rules that follow</div>Stable content first, volatile last; no timestamp, request id or random order in the system prompt or tool list; append only, never edit earlier messages; a fixed tool set for the whole session (Manus's "mask, don't remove": keep every tool defined and constrain which may be chosen, <a href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus" target="_blank" rel="noopener noreferrer">18 Jul 2025</a>); and when the prefix must change, change it once, together with compaction, so the rewrite is paid once. Claude Code 2.1.290's <code>--system-prompt-snapshot on</code> (the default) resends the first system prompt verbatim "until the conversation is compacted" (<code>claude --help</code>).</div>
-</section>

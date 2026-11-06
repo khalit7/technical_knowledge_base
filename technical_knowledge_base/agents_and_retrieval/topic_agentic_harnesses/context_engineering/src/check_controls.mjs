@@ -1,7 +1,7 @@
 // node technical_knowledge_base/agents_and_retrieval/topic_agentic_harnesses/context_engineering/src/check_controls.mjs <page index.html>  (run from the repository root)
 // Clicks every button, moves every slider and select, steps every animation to its end, opens every details block,
 // in 390 px dark and 920 px light; fails on page or console errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity in the text.
-// Then, under reduced motion and normal motion, checks that no animation has moved before the reader acts.
+// Then the motion rules: nothing moves by itself under reduced motion; the memory stepper autoplays once in view; the two widgets never do.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const page = path.resolve(process.argv[2]);
@@ -44,14 +44,22 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
+// Motion (2026-11-06 rule): under reduced motion nothing moves by itself (no slider leaves where it opened, no stage draws a step tween);
+// with motion allowed the memory stepper plays once in view, while the two widgets (cache simulator, compaction replay) stay where they opened.
+// The 3D stages are checked in check_stages.mjs.
 for (const rm of ['reduce', 'no-preference']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
-  await p.goto('file://' + page);
-  // scroll every animation card into view and wait: nothing may move by itself
-  for (const id of await p.$$eval('input[type=range][id$="-s"]', xs => xs.map(x => x.id))) { await p.$eval('#' + id, x => x.scrollIntoView()); await wait(1600) }
-  const moved = await p.$$eval('input[type=range][id$="-s"]', xs => xs.filter(x => +x.value !== 0).map(x => x.id));
-  console.log('motion', rm, moved.length ? 'MOVED ' + moved : 'all on step 0'); bad += moved.length; await p.close();
+  await p.goto('file://' + page); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + page); await wait(300); // the first pass left Further reading as the remembered tab
+  const v0 = await p.$$eval('input[type=range][id$="-s"]', xs => Object.fromEntries(xs.map(x => [x.id, x.value])));
+  for (const id of Object.keys(v0)) { await p.$eval('#' + id, x => x.scrollIntoView({ block: 'center' })); await wait(rm === 'reduce' ? 1600 : 8000) }
+  const v1 = await p.$$eval('input[type=range][id$="-s"]', xs => Object.fromEntries(xs.map(x => [x.id, x.value])));
+  const moved = Object.keys(v0).filter(id => v0[id] !== v1[id]);
+  const frames = await p.$$eval('.stg', xs => xs.filter(x => +x.dataset.frames > 0).map(x => x.id));
+  const exp = rm === 'reduce' ? [] : ['hc-mem-ctl-s'];
+  const ok = JSON.stringify(moved) === JSON.stringify(exp) && (rm !== 'reduce' || !frames.length);
+  console.log('motion', rm, ok ? 'as expected' : 'UNEXPECTED', 'moved:', moved.join(',') || 'none', rm === 'reduce' ? 'stages with frames: ' + (frames.join(',') || 'none') : '');
+  bad += ok ? 0 : 1; await p.close();
 }
 await b.close();
 process.exit(bad ? 1 : 0);

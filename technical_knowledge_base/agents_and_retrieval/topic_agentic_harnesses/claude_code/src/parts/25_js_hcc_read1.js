@@ -49,41 +49,24 @@ window.HCCR=(function(){
   RD.seg(seg,m=>{mode=m;draw()});RD.onRender(draw);RD.onResize(draw);draw();
 })();
 
-// -- the tool probe: eighteen recorded calls, one per behaviour --
+// -- the tool probe: eighteen recorded calls, one per behaviour, in eight stretches (the step list #sx-probe explains each) --
 (function(){
   const {run,esc,fmt,cut,callIn}=HCCR;const r=run('tools');if(!r||!document.getElementById('hcc-probe-card'))return;
   const uses=r.ev.filter(e=>e.k==='tool'),res=r.ev.filter(e=>e.k==='res');
-  const CAP=[
-    ['Read returns numbered lines','Each line comes back as "number, tab, text". The numbers are for the model: Edit and offset/limit refer to them.'],
-    ['A long but small file is cut without a word','3,001 lines, 104 KB, under the 256 KB cap. The harness stopped at line 1,821 by its token cap and told the model nothing: watch the next request jump by about 25,700 tokens.'],
-    ['Over 256 KB: a hard error that names the way out','322 KB is refused outright, with instructions to use offset and limit or to search. An error the model can act on.'],
-    ['offset and limit read a slice','Exactly three lines from line 100: the cheap way to look inside a large file.'],
-    ['A missing file','The error adds the working directory, which helps a model that guessed a relative path.'],
-    ['Edit before Read is refused','Haiku 4.5 must read a file before editing it; newer models may skip the read when reading would need no prompt.'],
-    ['Read the file','Now the harness knows the model has seen dup.txt.'],
-    ['Edit needs a unique match','"x = 1" appears twice; the edit is refused and the message says how to fix it: more context, or replace_all.'],
-    ['Write creates a file','A new file needs no prior read.'],
-    ['40,000 characters of output','Over the roughly 30,000-character inline ceiling: the harness saves the output to a file and returns its path plus a 2 KB preview, so the model can read on.'],
-    ['15,000 characters of stderr, exit 3','A failure keeps at most about 10,000 characters inline and gives no file path.'],
-    ['cd','The working directory change is kept for later Bash calls, inside the project.'],
-    ['pwd','Shows the cd carried over: /work/textstats.'],
-    ['export','Runs, but each Bash call is a new process.'],
-    ['A variable in the command','Refused by the permission layer even though echo is allowed: the harness cannot check what $PROBE expands to.'],
-    ['A 2 s timeout','The model may set a timeout per call; sleep 5 is killed with exit 143.'],
-    ['Grep, content mode','ripgrep under the hood; results as file:line:text, relative to the search path.'],
-    ['Glob','File names matching a pattern; capped at 100, newest first.']];
+  // the calls (0-based) each stretch holds, matching the eight items of the step list
+  const ST=[[0],[1],[2,3,4],[5,6,7,8],[9,10],[11,12,13,14],[15],[16,17]];
   const box=id=>document.getElementById(id);
   const maxIn=Math.max(...r.calls.map(callIn));
-  box('hcc-probe-leg').innerHTML='<span style="--sw:var(--c1)">read from cache</span><span style="--sw:var(--c5)">written to cache</span><span style="--sw:var(--c2)">fresh input</span><span>width: the next request, to the scale of the largest ('+fmt(maxIn)+' tokens)</span>';
-  function draw(i){
-    const u=uses[i],x=res[i],nx=r.calls[i+1]||r.calls[i],cur=r.calls[i];
-    box('hcc-probe-cap').innerHTML='<div class="t">Step '+(i+1)+' of 18: '+CAP[i][0]+'</div><p>'+CAP[i][1]+'</p>';
-    box('hcc-probe-call').textContent=u.n+': '+cut(u.s,160);
-    const rb=box('hcc-probe-res');rb.className='hcc-res'+(x.e?' err':'');rb.textContent=(x.e?'[is_error] ':'')+cut(x.s,700)+(x.len>700?'\n['+fmt(x.len)+' characters in the real result]':'');
+  box('hcc-probe-leg').innerHTML='<span style="--sw:var(--c1)">read from cache</span><span style="--sw:var(--c5)">written to cache</span><span style="--sw:var(--c2)">fresh input</span><span>the request after this stretch, to the scale of the largest ('+fmt(maxIn)+' tokens)</span>';
+  function draw(k){
+    const ids=ST[k],last=ids[ids.length-1],first=ids[0];
+    box('hcc-probe-box').innerHTML=ids.map(i=>{const u=uses[i],x=res[i];
+      return '<div><code style="font-size:12px;overflow-wrap:anywhere">'+(i+1)+'. '+esc(u.n+': '+cut(u.s,120))+'</code><div class="hcc-res'+(x.e?' err':'')+'">'+esc((x.e?'[is_error] ':'')+cut(x.s,ids.length>2?220:420)+(x.len>420?'\n['+fmt(x.len)+' characters in the real result]':''))+'</div></div>'}).join('');
+    const nx=r.calls[last+1]||r.calls[last],cur=r.calls[first];
     const w=v=>(100*v/maxIn).toFixed(2)+'%';
     box('hcc-probe-win').innerHTML='<span style="width:'+w(nx[2])+';background:var(--c1)"></span><span style="width:'+w(nx[1])+';background:var(--c5)"></span><span style="width:'+w(nx[0])+';background:var(--c2)"></span>';
-    const errs=res.slice(0,i+1).filter(e=>e.e).length;
-    box('hcc-probe-stats').innerHTML=RD.stat('Next request',fmt(callIn(nx))+' tok','input of model call '+(i+2))+RD.stat('Added by this step',fmt(callIn(nx)-callIn(cur))+' tok','tool call plus result')+RD.stat('Error results so far',errs+' of '+(i+1),'all sent back to the model');
+    const errs=res.slice(0,last+1).filter(e=>e.e).length;
+    box('hcc-probe-stats').innerHTML=RD.stat('Next request',fmt(callIn(nx))+' tok','input of model call '+(last+2))+RD.stat('Added by this stretch',fmt(callIn(nx)-callIn(cur))+' tok','tool calls plus results')+RD.stat('Error results so far',errs+' of '+(last+1),'all sent back to the model');
   }
-  RD.anim({card:'hcc-probe-card',ctl:'hcc-probe-ctl',n:uses.length,draw,ms:2600,label:'Probe step'});
+  RD.anim({card:'hcc-probe-card',ctl:'hcc-probe-ctl',n:ST.length,draw,ms:5200,label:'Probe stretch',list:'sx-probe'});
 })();

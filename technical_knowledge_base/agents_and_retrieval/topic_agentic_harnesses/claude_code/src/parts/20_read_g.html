@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-sub"></div></div><div class="s3L">
 <section id="s-sub">
 <h2>7. Subagents: a second loop with its own window</h2>
 <p>A <dfn>subagent</dfn> is another run of the loop that the main agent starts with the Agent tool: it gets a task message, works in its own context window, and only its final answer comes back. "The parent doesn't see the subagent's intermediate tool calls or outputs, only that final result" ({{tools reference|https://code.claude.com/docs/en/tools-reference}}) <span class="docs">DOCS</span>. What it starts with, per the {{subagents page|https://code.claude.com/docs/en/sub-agents}} <span class="docs">DOCS</span>:</p>
@@ -6,15 +7,16 @@
 <li><b>Its own system prompt</b> (the definition's Markdown body plus environment details), "not the Claude Code system prompt"; the delegation message Claude writes; the CLAUDE.md hierarchy and git status (the built-in Explore and Plan skip both); any skills listed in its definition, injected in full.</li>
 <li><b>Not:</b> the parent's conversation, the files it has read, the skills it invoked, its output style or its auto memory. "If a rule must [reach the subagent] ... restate it in the prompt you give Claude when delegating."</li>
 </ul>
-<p>The recording (run <code>subagent</code>) defined a <code>test-runner</code> subagent (tools Bash and Read, model haiku, a five-line prompt: run the tests, report failures, edit nothing) and asked for the running example, "use the test-runner subagent to run the tests, once before your fix and once after it" <span class="meas">MEASURED</span>:</p>
-<div class="card" id="hcc-sub-card"><div class="bars hcc-bars" id="hcc-sub-bars"></div><p class="small mute" id="hcc-sub-note"></p></div>
-<ul>
-<li><b>Background by default, even in <code>-p</code>.</b> The Agent call returned at once ("Async agent launched successfully" with an id); the parent, rather than wait, went on reading the test file and the code itself, so the exploration was done twice. Say in the delegation what the parent should do meanwhile, or ask for a foreground run. The final report arrived as a new turn, and the run ended with three result records, one per wake-up; the last one's totals are cumulative.</li>
+<p>The recording (run <code>subagent</code>) defined a <code>test-runner</code> subagent (tools Bash and Read, model haiku, a five-line prompt: run the tests, report failures, edit nothing) and asked for the running example, "use the test-runner subagent to run the tests, once before your fix and once after it". Fig. 4 draws each context window to scale from the run's own records <span class="meas">MEASURED</span>:</p>
+<ol class="sx" id="sx-sub">
+<li><b>Background by default, even in <code>-p</code>.</b> The Agent call returned at once ("Async agent launched successfully" with an id) and a second window opened beside the parent's. Say in the delegation what the parent should do meanwhile, or ask for a foreground run.</li>
 <li><b>A smaller, separate window.</b> Progress records put the subagent at 5,666 tokens after its first tool call, against 14,620 for the parent's first request: its own short system prompt instead of Claude Code's.</li>
-<li><b>It did more than asked.</b> Told to run the tests and report, the first instance made eight tool calls, including reading the source. A subagent's prompt is a request, like any other; its <code>tools</code> list is the enforcement (it had no Edit).</li>
+<li><b>It did more than asked.</b> Told to run the tests and report, the first instance made eight tool calls, including reading the source, and its window grew to 7,863 tokens. A subagent's prompt is a request, like any other; its <code>tools</code> list is the enforcement (it had no Edit).</li>
+<li><b>Only the final answer comes back.</b> The report (9,176 tokens on the subagent's side when it finished) arrived in the parent as a new turn; nothing of the eight calls did. The parent, rather than wait, had gone on reading the test file and the code itself, so the exploration was done twice.</li>
+<li><b>A second instance, after the fix.</b> The parent edited the code and started the subagent again: a fresh window from 5,746 tokens, two calls, all three tests pass. The run ended with three result records, one per wake-up; the last one's totals are cumulative. The final report arrived as a new turn, as before.</li>
 <li><b>Its cost is visible only in the totals.</b> The stream carries no usage records for subagent calls; the parent's eight calls add up to $0.062 at list prices, the result's <code>modelUsage</code> says $0.097, so the two subagent instances cost about $0.035, 36% of the run. That difference reproduces exactly only if the subagent's 9,884 cache-write tokens are 5-minute writes (1.25 times the input price) while the parent's were 1-hour writes (2 times): derived, since no record states the subagent's TTL. The parent's trace lab found the same with Explore: read cost from <code>modelUsage</code>, never from <code>usage</code>.</li>
-<li><b>Naming.</b> The init record lists the tool as <code>Task</code>; the call itself is named <code>Agent</code>.</li>
-</ul>
+</ol>
+<p><b>Naming.</b> The init record lists the tool as <code>Task</code>; the call itself is named <code>Agent</code>.</p>
 <details class="dp"><summary>Definitions, built-ins, forks and agent teams <span class="mute">(depth)</span></summary><div class="b"><ul>
 <li><b>Definition:</b> a Markdown file in <code>.claude/agents/</code> (or <code>~/.claude/agents/</code>, a plugin, or <code>--agents</code> JSON) with frontmatter: <code>name</code>, <code>description</code> (when to use it), <code>tools</code> or <code>disallowedTools</code>, <code>model</code>, <code>permissionMode</code>, <code>maxTurns</code>, <code>skills</code>, <code>hooks</code>, <code>memory</code>, <code>isolation: worktree</code>, <code>omitClaudeMd</code> (2.1.271).</li>
 <li><b>Built-ins:</b> Explore (read-only search), Plan (research during plan mode), general-purpose, <code>claude</code>, statusline-setup and claude-code-guide. Up to 20 run at once; by default a subagent may start its own, three levels deep; they run in the background by default and can be resumed with SendMessage. A <dfn>fork</dfn> (<code>/subtask</code>) is the exception that inherits the whole conversation and shares its prompt cache. Claude can also start one itself through the Agent tool's <code>fork</code> subagent type (<code>CLAUDE_CODE_FORK_SUBAGENT=0</code> turns it off); the recording below used a defined, non-fork subagent.</li>
@@ -22,6 +24,7 @@
 <p>Agent teams are different: separate Claude Code sessions with a shared task list and messages between them, experimental and off by default (<code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>) ({{agent teams|https://code.claude.com/docs/en/agent-teams}}) <span class="docs">DOCS</span>. When several agents help or hurt is the subject of {{Multi-agent patterns|n:3c65c17b0d0d8194a306c37803387bf3}}; subagents as a context tool are on {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}.</p>
 </div></details>
 </section>
+</div></div>
 
 <section id="s-plan">
 <h2>8. Plan mode, and the model that answers it</h2>
