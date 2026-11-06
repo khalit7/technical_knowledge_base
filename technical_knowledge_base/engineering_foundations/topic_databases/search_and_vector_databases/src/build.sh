@@ -1,13 +1,13 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (same scheme as the root Topic: databases and the sibling pages).
-# HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
-# JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last.
+# HTML: 01_head, 02_split (the split layout CSS, skill template), 10_header (title and tab bar), 20_read_*.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
+# JS: every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js (the tab wiring) last; 30_js_s3.js (the 3D renderer, skill template 25_js_s3.js, renamed so it loads after the page's own 25_js_rd_bm25.js and before the scenes 31 to 3x).
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 # Measured numbers in the prose are written @@key@@ and filled from facts.json (written by build_data.py from inputs/).
 cd "$(dirname "$0")"
 python3 build_data.py || exit 1
-{ cat parts/01_head.html parts/10_header.html parts/20_read_*.html
+{ cat parts/01_head.html parts/02_split.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html

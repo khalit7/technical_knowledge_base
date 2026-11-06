@@ -1,9 +1,9 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
 #t-read .deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:12px 0;font-size:13px;color:var(--mute)}#t-read .deepnote b{color:var(--ink)}
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar) select{padding:3px 6px}#t-read .an-ctl:not(.stg-bar) .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:6.4em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:6px;margin:6px 0}
@@ -85,17 +85,27 @@
 #t-read select{max-width:100%}
 #t-read .plot{border:1px solid var(--line);border-radius:8px;padding:4px}
 #t-read .lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--mute);margin:4px 0}
+#t-read .s3side figure.fig{background:var(--card);box-shadow:var(--shadow);border-radius:14px;padding:14px 16px;margin-top:6px}
+#t-read .s3side .card{margin-top:6px}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#rd-one">The idea</a><a href="#rd-s1">1 Two ways</a><a href="#rd-s2">2 Text to terms</a><a href="#rd-s3">3 Inverted index</a><a href="#rd-s4">4 BM25</a><a href="#rd-s5">5 Phrases and typos</a><a href="#rd-s6">6 Search engines</a><a href="#rd-s7">7 Vectors in Postgres</a><a href="#rd-s8">8 pgvector indexes</a><a href="#rd-s9">9 Smaller vectors</a><a href="#rd-s10">10 Filters</a><a href="#rd-s11">11 Hybrid</a><a href="#rd-s12">12 Postgres or a vector DB</a><a href="#rd-s13">13 Operating an index</a><a href="#rd-ref">Reference</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="core1"><b>A search index is a precomputed shortcut from a question to its few best rows: an inverted index maps each word to the rows that contain it, a vector index maps a point in meaning-space to its neighbours, and every design on this page is a trade between how fresh, how exact and how cheap that shortcut is.</b></p>
-<figure class="fig"><p class="ft">One question, two shortcuts, one SQL statement: the whole page on one picture</p>
-<div class="rd-svg" id="svHero"></div>
-<figcaption>Every number was measured for this page on PostgreSQL 18.6 with pgvector 0.8.7 over 522,931 real Quora questions (Apple M1 Pro, 2026-10-04): the GIN lookup took 0.25 ms against 258 ms for <code>LIKE</code>, HNSW 0.76 ms against 91 ms exact at recall 0.989, and fusion helped on SciFact (0.714) but not on Quora (0.825 against 0.839 for vectors alone) <span class="meas">measured</span>. Times are plus or minus 30%: other jobs shared the machine.</figcaption></figure>
+<p>One question, two shortcuts, one SQL statement: the whole page on one picture. It searches the six stored questions that section 3 indexes (Q1 "What is the step by step guide to invest in share market?", Q2 "How do I invest in share market?", Q3 "... in stock market?", Q4 "How can I get started in stock market?", Q5 "What is the share market?", Q6 "What is the story of Kohinoor (Koh-i-Noor) Diamond?"); the timings are from the whole table.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The question.</b> "How do I start investing in shares?" Find the earlier questions that ask the same thing, among 522,931 stored ones. Postgres can search it two ways at once.</li>
+<li><b>By words: analyse, then look up.</b> Tokenise, drop stop words, stem: <code>invest</code>, <code>share</code>, <code>start</code>. The inverted index (GIN) reads 3 postings lists, never the texts: the GIN lookup took @@fts_ms@@ ms against @@like_ms@@ ms for <code>LIKE</code>.</li>
+<li><b>By words: rank by BM25.</b> Rare words count more, so Q2 (two matches in a short text) and Q4 (one match, but on the rare "start") tie at 1.54; Q6 shares no word and scores 0. On 1,000 Quora questions BM25 scored nDCG@10 @@q_bm25@@ (ts_rank, no idf: @@q_fts_or@@).</li>
+<li><b>By meaning: embed, then find neighbours.</b> all-MiniLM-L6-v2 turns the text into 384 numbers (the first 8 drawn); each stored question sits at its measured cosine distance from it. HNSW @@hnsw40_p50@@ ms against @@exact_p50@@ ms exact at recall @@hnsw40_rec@@.</li>
+<li><b>By meaning: rank by cosine.</b> Q2 0.84, Q1 0.78, Q3 0.76, Q4 0.74, Q5 0.53, Q6 0.02: "stock market" questions are close in meaning though they share almost no words.</li>
+<li><b>Fuse in one SQL statement.</b> Reciprocal rank fusion gives each question the sum of 1 / (60 + rank) over the two lists: Q2, Q1, Q4, Q3, Q5, Q6. On the whole sets, fusion helped on SciFact (@@s_hyb@@, above BM25 @@s_bm25@@ and vectors @@s_vec@@) but not on Quora (@@hyb_q@@ against @@vec_q@@ for vectors alone).</li>
+</ol>
+<p class="small mute">Every timing and score was measured for this page on PostgreSQL 18.6 with pgvector 0.8.7 over 522,931 real Quora questions (Apple M1 Pro, 2026-10-04) <span class="meas">measured</span>; times are plus or minus 30%: other jobs shared the machine. The six-question BM25, cosine and fusion values are computed from the same measured lexemes and embeddings. The faint points around the question are other stored questions, placed for illustration.</p>
 <p class="need"><b>You need</b>: tables, indexes and query plans from the parent {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}; what an embedding is from {{Embedding models|n:3c65c17b0d0d81508f99e1fa78c2bb41}}. How ANN indexes work inside (IVF, PQ, HNSW, DiskANN, filtered ANN) is {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}'s; this page uses them as Postgres and the vector databases ship them. Retrieval metrics (recall@k, nDCG) are defined on {{RAG and retrieval evaluation|n:3ef5c17b0d0d8194a914d1843ee26f13}}.</p>
 <p class="small"><b>New terms</b>, each defined where it first appears:</p>
 <div class="terms">
@@ -108,6 +118,9 @@
 <div><b>iterative scan</b>: pgvector resuming an index scan until enough rows pass the filter</div>
 <div><b>RRF</b>: reciprocal rank fusion, merging ranked lists by 1 / (60 + rank)</div>
 </div>
+</section>
+</div></div>
+<section id="rd-one-ex">
 <p><b>The running example.</b> The parent page's chat product wants, when a user types a question, the earlier questions that ask the same thing (reuse an answer, merge duplicates, suggest help articles). The real stand-in is the public {{BEIR|https://github.com/beir-cellar/beir}} copy of Quora duplicate questions: <b>522,931 real questions</b> plus 10,000 test questions whose true duplicates people labelled, so every method can be scored. Each question was embedded with {{all-MiniLM-L6-v2|https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2}} (384 numbers, @@embed_s@@ seconds for the whole set on the laptop's GPU) and loaded into one table, <code>q(id, body, embedding vector(384))</code> <span class="meas">measured</span>. The {{Retrievers side by side|#t-side}} tab shows real test questions answered five ways, with the labelled duplicates marked.</p>
 <details class="depth"><summary>Each piece in one table: problem, mechanism, cost (reference)</summary>
 <div class="tw"><table class="sum">

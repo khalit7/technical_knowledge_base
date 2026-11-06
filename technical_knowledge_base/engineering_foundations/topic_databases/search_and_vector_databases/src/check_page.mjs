@@ -1,5 +1,5 @@
 // Click every control on every tab at 390 px dark and 920 px light; report page errors, NaN/undefined/Infinity in visible text,
-// sideways page scroll; step every Reading animation in every mode to its end; compare the page's BM25, RRF and memory
+// sideways page scroll; compare the page's BM25, RRF and memory
 // arithmetic with recompute_out.json. Screenshots in ../.shots/check/. Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_databases/search_and_vector_databases/src/check_page.mjs
 import { createRequire } from 'node:module';
@@ -28,21 +28,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (bad(t)) probs.push(tag + ': bad text ' + (t.match(/.{0,40}(NaN|undefined|Infinity|\[object|@@[a-z0-9_]+@@).{0,40}/) || [''])[0]);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1); if (sw) probs.push(tag + ': sideways scroll') };
   await scan('read initial');
-  // never autoplay: scroll each animation into view, wait, and expect it still on step 0
-  for (const c of ['invCard', 'esCard']) { await p.evaluate(c => document.getElementById(c).scrollIntoView({ block: 'center' }), c); await sleep(3500);
-    const v = await p.evaluate(c => document.getElementById(c.replace('Card', 'Ctl') + '-s').value, c); if (v !== '0') probs.push(c + ' moved by itself to step ' + v) }
-  for (const [card, ctl, seg] of [['invCard', 'invCtl', 'invSeg'], ['esCard', 'esCtl', null]]) {
-    const modes = seg ? await p.$$eval('#' + seg + ' button', es => es.map(e => e.dataset.m)) : ['only'];
-    for (const m of modes) {
-      if (seg) await p.evaluate((seg, m) => document.querySelector('#' + seg + ' button[data-m="' + m + '"]').click(), seg, m); await sleep(60);
-      await p.evaluate(card => document.getElementById(card).scrollIntoView({ block: 'center' }), card); await sleep(80);
-      const n = await p.evaluate(ctl => +document.getElementById(ctl + '-s').max, ctl);
-      await p.evaluate(ctl => { const s = document.getElementById(ctl + '-s'); s.value = 0; s.dispatchEvent(new Event('input')) }, ctl);
-      for (let i = 0; i < n; i++) { await p.click('#' + ctl + '-f'); if (i % 4 === 0 || i === n - 1) await scan(`${card} ${m} step ${i + 1}`) }
-      const el = await p.$('#' + card); await el.screenshot({ path: `${shots}/${card}-${m}-${scheme}-${width}.png` });
-    }
-    await p.click('#' + ctl + '-b'); await p.click('#' + ctl + '-p'); await sleep(150); await p.click('#' + ctl + '-p'); await p.select('#' + ctl + '-v', '2');
-  }
+  // the four 3D stages (hero, inverted index, BM25, write path) are checked by check_stages.mjs: they play when scrolled into view (2026-11-06)
   // sliders
   for (const [id, vals] of [['bmK1', [0, 0.5, 3, 1.2]], ['bmB', [0, 1, 0.75]]]) {
     for (const v of vals) { await p.evaluate((id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input')) }, id, v); await scan(id + '=' + v) } }
@@ -69,8 +55,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       const mm = await p.evaluate(() => document.getElementById('memOut').innerText); if (!mm.includes('GB') && !mm.includes('MB')) probs.push('memory calc empty');
     }
   // figures drawn at every width
-  for (const id of ['svHero','svAnal','svLike','esFig','annPlot','svFilt','svHyb','svTiers','svRebuild']) { const n = await p.$$eval('#' + id + ' svg', e => e.length); if (!n) probs.push('figure missing ' + id) }
-  // no animation may move before the reader acts
+  for (const id of ['svAnal','svLike','annPlot','svFilt','svHyb','svTiers','svRebuild']) { const n = await p.$$eval('#' + id + ' svg', e => e.length); if (!n) probs.push('figure missing ' + id) }
   // tabs
   for (const t of ['t-side', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), t); await sleep(150); await scan(t);

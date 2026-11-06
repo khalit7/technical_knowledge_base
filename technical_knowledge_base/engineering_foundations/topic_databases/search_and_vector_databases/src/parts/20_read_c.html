@@ -1,14 +1,18 @@
+<div class="s3sp"><div class="s3R"><div id="stg-bm"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Ranking with BM25</h2>
-<p>The index finds the matches; it does not order them. Three intuitions, each fixing the flaw of the one before: <b>term frequency</b> (a text using the word more is more about it, but "the" would win and ten mentions are not ten times better); <b>inverse document frequency</b> (a word in few documents tells more: "start" in 1 of 6 questions beats "invest" in 3 of 6; tf times idf is TF-IDF); and <b>saturation with length normalisation</b> (repeats level off, and a long text that mentions a word once counts less than a short one). <dfn id="g-bm25">BM25</dfn> puts all three in one formula and is the default ranking in Lucene, Elasticsearch (since 5.0, {{docs|https://www.elastic.co/docs/reference/elasticsearch/index-settings/similarity}}) and OpenSearch. Work it on the six questions first: move k<sub>1</sub> and b.</p>
-<div class="card" id="bmCard">
-<p><b>BM25 on the six questions.</b> Query <i>"How do I start investing in shares?"</i>, lexemes from Postgres. Predict before you drag: with b at 0, does the long "step by step guide" question rise or fall?</p>
-<div class="calc"><label>k<sub>1</sub> = <b id="bmK1v"></b><input type="range" id="bmK1" min="0" max="3" step="0.1" value="1.2"></label><label>b = <b id="bmBv"></b><input type="range" id="bmB" min="0" max="1" step="0.05" value="0.75"></label><div><button id="bmReset">Lucene defaults</button></div></div>
-<div class="tbls"><div id="bmIdf"></div></div>
-<div class="tw nomin" id="bmTab"></div>
-<div class="rd-svg" id="bmSat"></div><p class="small mute" id="bmSatCap"></p>
-<p class="small mute">At b = 0 the long question rises, because its length no longer counts against it; at k<sub>1</sub> = 0 every match of a term scores just its idf. "start" (in one question) carries the largest idf, which is why "How can I get started in stock market?" ranks high on one word.</p>
-</div>
+<p>The index finds the matches; it does not order them. Three intuitions, each fixing the flaw of the one before: <b>term frequency</b> (a text using the word more is more about it, but "the" would win and ten mentions are not ten times better); <b>inverse document frequency</b> (a word in few documents tells more: "start" in 1 of 6 questions beats "invest" in 3 of 6; tf times idf is TF-IDF); and <b>saturation with length normalisation</b> (repeats level off, and a long text that mentions a word once counts less than a short one). <dfn id="g-bm25">BM25</dfn> puts all three in one formula and is the default ranking in Lucene, Elasticsearch (since 5.0, {{docs|https://www.elastic.co/docs/reference/elasticsearch/index-settings/similarity}}) and OpenSearch. The figure draws the part of BM25 that depends on a document: how it grows with repeats and shrinks with length.</p>
+<ol class="sx" id="sx-bm">
+<li><b>Term frequency alone.</b> Columns are term frequency (1 to 8 mentions), rows are document length against the average. Raw tf grows in a straight line: a text that says "share" 8 times scores 8 times as much as one that says it once, whatever its length.</li>
+<li><b>Saturation (k<sub>1</sub> = 1.2).</b> tf&middot;(k<sub>1</sub>+1) / (tf + k<sub>1</sub>) levels off under a ceiling of k<sub>1</sub> + 1 = 2.2: 8 mentions are worth about 1.9 times one. A small k<sub>1</sub> saturates almost at once; k<sub>1</sub> = 0 ignores tf entirely.</li>
+<li><b>Length normalisation (b = 0.75).</b> k<sub>1</sub> is scaled by (1 &minus; b + b&middot;|D| / avgdl), so for the same 2 mentions a text a quarter of the average length scores 1.74 and one three times the average 0.88. b = 0 ignores length; b = 1 normalises fully.</li>
+<li><b>The six questions on the surface.</b> Every match here has tf 1, so only length moves them: Q5 (2 lexemes, 0.5&times; the average of 4) gets 1.26, Q4 at the average 1.00, Q2 and Q3 1.11, the long Q1 (1.5&times;) 0.83. idf then multiplies: "start" (in one question) 1.54, "invest" and "share" (in three) 0.69.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s4b">
+<p>The whole formula, with the six questions worked in the card beside it (move k<sub>1</sub> and b):</p>
 <div class="fm"><div class="eq">score(D, Q) = &Sigma;<sub>t in Q</sub> idf(t) &middot; tf(t,D)&middot;(k<sub>1</sub>+1) / ( tf(t,D) + k<sub>1</sub>&middot;(1 &minus; b + b&middot;|D| / avgdl) )</div>
 <div class="eq" style="font-size:16px">idf(t) = ln( 1 + (N &minus; n(t) + 0.5) / (n(t) + 0.5) )</div>
 <dl><dt>tf(t,D)</dt><dd>times term t occurs in document D</dd><dt>|D|, avgdl</dt><dd>D's length in terms, and the collection's average</dd><dt>N, n(t)</dt><dd>documents in all, and how many contain t</dd><dt>k<sub>1</sub></dt><dd>how fast repeats saturate (Lucene default 1.2); 0 ignores tf</dd><dt>b</dt><dd>how much length matters (default 0.75); 0 ignores length, 1 fully normalises</dd></dl></div>
@@ -18,6 +22,15 @@
 <p>BM25 ("Best Match 25") comes from the Okapi system at City University London, first run at {{TREC-3 in 1994|https://trec.nist.gov/pubs/trec3/papers/city.ps.gz}}; theory in {{Robertson and Zaragoza 2009|https://doi.org/10.1561/1500000019}}. Lucene's {{BM25Similarity|https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/search/similarities/BM25Similarity.java}} uses this idf and these defaults. Since Lucene 8.0 it drops the (k<sub>1</sub>+1) factor from the numerator, which multiplies every score by the same constant and so "doesn't affect ordering" ({{CHANGES.txt, LUCENE-8563|https://github.com/apache/lucene/blob/main/lucene/CHANGES.txt}}); this page keeps the textbook form. Lucene also stores each document's length in one byte, so its lengths are slightly rounded.</p>
 </details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="bmCard">
+<p><b>BM25 on the six questions.</b> Query <i>"How do I start investing in shares?"</i>, lexemes from Postgres. Predict before you drag: with b at 0, does the long "step by step guide" question rise or fall?</p>
+<div class="calc"><label>k<sub>1</sub> = <b id="bmK1v"></b><input type="range" id="bmK1" min="0" max="3" step="0.1" value="1.2"></label><label>b = <b id="bmBv"></b><input type="range" id="bmB" min="0" max="1" step="0.05" value="0.75"></label><div><button id="bmReset">Lucene defaults</button></div></div>
+<div class="tbls"><div id="bmIdf"></div></div>
+<div class="tw nomin" id="bmTab"></div>
+<div class="rd-svg" id="bmSat"></div><p class="small mute" id="bmSatCap"></p>
+<p class="small mute">At b = 0 the long question rises, because its length no longer counts against it; at k<sub>1</sub> = 0 every match of a term scores just its idf. "start" (in one question) carries the largest idf, which is why "How can I get started in stock market?" ranks high on one word.</p>
+</div></div></div></div>
 
 <section id="rd-s5">
 <h2>5. Phrases, prefixes and typos</h2>

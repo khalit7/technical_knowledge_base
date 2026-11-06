@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-filt"></div></div><div class="s3L">
 <section id="rd-s10">
 <h2>10. Filtered search in pgvector</h2>
 <p>Real queries carry conditions: "nearest questions <b>from this workspace</b>". An ANN index orders by distance only and knows nothing of <code>tenant_id</code>. The general strategies (post-filter, pre-filter, filter-aware graphs such as ACORN) and where each breaks are {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}}'s section 9; in pgvector they come down to three choices:</p>
@@ -6,23 +7,41 @@
 <li><b>Pre-filter</b>: a B-tree finds the matching rows, then exact distances over just those; exact and fast when the filter is selective, a scan of most of the table when it is not.</li>
 <li><b>Filter during the search</b>: pgvector 0.8.0 (2024-10-30) added <dfn id="g-iter">iterative index scans</dfn>: <code>hnsw.iterative_scan = strict_order</code> or <code>relaxed_order</code> resumes the scan until enough rows pass, up to <code>hnsw.max_scan_tuples</code> (20,000 by default).</li>
 </ul>
-<p><b>Predict</b> before you look: with a filter that keeps 1% of rows and iterative scans off, how many of the 10 requested rows come back?</p>
-<figure class="fig"><p class="ft">Post-filtering a 1% filter returns almost nothing; iterative scans and pre-filtering fix it at different prices</p>
-<div class="rd-svg" id="svFilt"></div>
-<figcaption>1,000 test queries over the 522,931 questions, each filtered on a synthetic <code>tenant</code> column (row id modulo 100 keeps 1%, modulo 10 keeps 10%), HNSW at defaults, recall against the exact filtered top 10 <span class="meas">measured</span>. Bar length is recall; the label adds rows returned of 10 and median latency. Pre-filtering wins when the filter is selective (exact search over about 5,230 rows is cheap) and loses at 10% (about 52,300 distances per query).</figcaption></figure>
+<p><b>Predict</b> before you look: with a filter that keeps 1% of rows and iterative scans off, how many of the 10 requested rows come back? The figure lays out the 1,000 stored vectors nearest one query in the order an HNSW scan meets them, 40 to a row; the tenant's rows are green (their positions are illustrative, every number is measured over 1,000 test queries, as in the chart further down).</p>
+<ol class="sx" id="sx-filt">
+<li><b>Post-filter: one batch of 40, then WHERE.</b> At the default <code>ef_search</code> of 40 the scan hands over its 40 nearest candidates and the filter keeps the tenant's: 0.38 rows on average instead of 10, none at all for 68% of queries, recall 0.04, in 0.99 ms. Fast and wrong.</li>
+<li><b>Iterative scan: resume until 10 pass.</b> With <code>hnsw.iterative_scan</code> on, the scan resumes batch after batch until 10 rows pass, about 1,000 candidates at a 1% filter (capped by <code>hnsw.max_scan_tuples</code>, 20,000). <code>strict_order</code> returned 10 rows at recall 0.935 in 22.7 ms; <code>relaxed_order</code> at recall 0.975 in 15.6 ms.</li>
+<li><b>Pre-filter: B-tree, then exact distances.</b> A B-tree on the tenant column finds its 5,230 rows and Postgres computes the exact distance to each: always right (recall 1.000) and the fastest at 1%, 6.6 ms. The HNSW index is not used at all.</li>
+<li><b>At 10% the prices flip.</b> Now the first batch of 40 already holds 3.97 tenant rows on average (recall 0.40), and an iterative scan finds 10 after about 100 candidates: 1.6 ms. The pre-filter must compute about 52,300 distances: 154 ms.</li>
+<li><b>The planner does not know this.</b> With both indexes present and iterative scans off, the planner chose the HNSW scan for the 1% filter on every query (<code>EXPLAIN ANALYZE</code>: <i>Rows Removed by Filter: 41</i>, <i>rows=0</i>): it assumes the index scan can return as many rows as it needs, while it stops at ef_search candidates.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s10b">
 <div class="co"><div class="t">What to do in pgvector</div><ul class="tight"><li>Turn on iterative scans for any filtered vector query: <code>SET hnsw.iterative_scan = relaxed_order;</code> (wrap in a materialised CTE and re-sort if exact order matters, as the README shows).</li><li>Keep a B-tree on the filter column, but do not trust the planner to use it: with both indexes present and iterative scans off, it chose HNSW for the 1% filter on every query and returned @@plan_rows@@ rows on average (<code>EXPLAIN ANALYZE</code>: <i>Rows Removed by Filter: 41</i>, <i>rows=0</i>) <span class="meas">measured</span>. The planner does not know the index scan stops at ef_search candidates. Check the plan, and force the pre-filter with a materialised CTE when you know the filter is selective.</li><li>For a few large tenants, a <b>partial index</b> per tenant (<code>CREATE INDEX ... WHERE tenant_id = 7</code>); for many, <b>list partitioning</b> by tenant so each partition has its own small index. The README notes that a shared index lets one tenant's vectors affect another's recall and speed.</li></ul></div>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fig"><p class="ft">Post-filtering a 1% filter returns almost nothing; iterative scans and pre-filtering fix it at different prices</p>
+<div class="rd-svg" id="svFilt"></div>
+<figcaption>1,000 test queries over the 522,931 questions, each filtered on a synthetic <code>tenant</code> column (row id modulo 100 keeps 1%, modulo 10 keeps 10%), HNSW at defaults, recall against the exact filtered top 10 <span class="meas">measured</span>. Bar length is recall; the label adds rows returned of 10 and median latency. Pre-filtering wins when the filter is selective (exact search over about 5,230 rows is cheap) and loses at 10% (about 52,300 distances per query).</figcaption></figure></div></div></div>
+<section id="rd-s10c">
 <details class="depth"><summary>The measured filter table, every method</summary>
 <div class="tw" id="filtTab"></div>
 <p class="small">@@filt_text@@</p>
 </details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s11">
 <h2>11. Hybrid search inside one database</h2>
 <p>BM25 misses paraphrases ("stock" for "share"); vectors miss exact identifiers and rare names. The two scores cannot be added (a BM25 of 12.3 and a cosine of 0.81 are on unrelated scales), so the usual merge is <dfn id="g-rrf">reciprocal rank fusion (RRF)</dfn> ({{Cormack, Clarke and Buettcher, SIGIR 2009|http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf}}): each document scores &Sigma; 1 / (k + rank) over the lists it appears in, with k = 60. Why that works, what it throws away and the score-fusion family it competes with are {{The retrieval pipeline|n:3c65c17b0d0d819899fde889e1e8b782}}'s (section 4). This section measures it in Postgres, on 1,000 Quora test questions and all 300 SciFact claims over 5,183 scientific abstracts (the set the evaluation page uses), top 100 from each retriever. <b>Predict</b>: does fusion beat the better single retriever on both?</p>
-<figure class="fig"><p class="ft">Fusion wins when both retrievers are comparably strong (SciFact), and costs a little when one is much stronger (Quora)</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fig"><p class="ft">Fusion wins when both retrievers are comparably strong (SciFact), and costs a little when one is much stronger (Quora)</p>
 <div class="rd-svg" id="svHyb"></div>
-<figcaption>nDCG@10 <span class="meas">measured</span>. On Quora vectors beat BM25 (@@vec_q@@ against @@bm25_q@@) and fusion landed between them (@@hyb_q@@); on SciFact BM25 beat vectors (@@s_bm25@@ against @@s_vec@@) and fusion beat both (@@s_hyb@@). Requiring every word left @@q_and_empty@@% of Quora questions with no lexical match at all. Measure on your own labelled set before adopting hybrid.</figcaption></figure>
+<figcaption>nDCG@10 <span class="meas">measured</span>. On Quora vectors beat BM25 (@@vec_q@@ against @@bm25_q@@) and fusion landed between them (@@hyb_q@@); on SciFact BM25 beat vectors (@@s_bm25@@ against @@s_vec@@) and fusion beat both (@@s_hyb@@). Requiring every word left @@q_and_empty@@% of Quora questions with no lexical match at all. Measure on your own labelled set before adopting hybrid.</figcaption></figure></div></div></div>
+<section id="rd-s11b">
 <p><b>The SQL you would deploy</b> is one statement (the pattern of {{pgvector-python's RRF example|https://github.com/pgvector/pgvector-python/blob/master/examples/hybrid_search/rrf.py}}). Its lexical half ranks by <code>ts_rank</code>, so it inherits section 4's weakness; it scored @@q_rrf_sql@@ on Quora at @@rrf_sql_p50@@ ms median <span class="meas">measured</span>:</p>
 <pre class="sql"><span class="k">WITH</span> lex <span class="k">AS</span> (
   <span class="k">SELECT</span> id, row_number() <span class="k">OVER</span> (<span class="k">ORDER BY</span> ts_rank(tsv, query) <span class="k">DESC</span>) <span class="k">AS</span> r

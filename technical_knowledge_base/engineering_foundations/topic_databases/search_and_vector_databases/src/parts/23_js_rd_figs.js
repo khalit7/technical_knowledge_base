@@ -1,23 +1,10 @@
-// ---- Reading figures: hero, analysis, LIKE against GIN, the Elasticsearch write path (stepper), filters, hybrid scores,
-// where each vector store keeps its data, and the zero-downtime rebuild. Numbers come from SV.facts and SV.* (build_data.py). ----
+// ---- Reading figures (2D): analysis, LIKE against GIN, filters, hybrid scores,
+// where each vector store keeps its data, and the zero-downtime rebuild. Numbers come from SV.facts and SV.* (build_data.py).
+// The hero and the write-path stepper became 3D stages on 2026-11-06 (31_js_sc_hero.js, 34_js_sc_es.js). ----
 (function(){
   if(!window.SV||!SV.facts||!document.getElementById('t-read'))return;
   const F=SV.facts,$=id=>document.getElementById(id);
   const draws=[];const reg=f=>{draws.push(f)};
-
-  // ---- hero: one question, two paths inside one Postgres, fused ----
-  reg(function hero(){const el=$('svHero');if(!el)return;const W=Math.min(860,RD.width(el)),g=12,cw=(W-g)/2,fs=W<520?11.5:12.5;let s=FG.defs('svHa'),y=0;
-    const q=FG.box(0,y,W,'The question: "How do I start investing in shares?"','Find the earlier questions that ask the same thing, among 522,931 stored ones.',{fs,stroke:'var(--acc)',sw:1.6});s+=q.s;y+=q.h+22;
-    s+=FG.text(cw/2,y-6,['Words (lexical)'],{fs:12,a:'middle',w:700,fill:'var(--c1)'})+FG.text(cw+g+cw/2,y-6,['Meaning (semantic)'],{fs:12,a:'middle',w:700,fill:'var(--c2)'});
-    s+=FG.arrow('svHa',cw/2,q.h,cw/2,y-20)+FG.arrow('svHa',cw+g+cw/2,q.h,cw+g+cw/2,y-20);y+=4;
-    const L=[['Analyse','tokenise, drop stop words, stem: invest, share, start'],['Inverted index (GIN)','read 3 postings lists, not every text: '+F.fts_ms+' ms against '+F.like_ms+' ms for LIKE'],['Rank by BM25','rare words count more; nDCG@10 '+F.q_bm25+' (ts_rank, no idf: '+F.q_fts_or+')']];
-    const R=[['Embed','all-MiniLM-L6-v2 turns the text into 384 numbers'],['ANN index (HNSW)','walk a graph of neighbours: '+F.hnsw40_p50+' ms against '+F.exact_p50+' ms exact, recall '+F.hnsw40_rec],['Rank by cosine','nearest meaning first; nDCG@10 '+F.vec_q]];
-    for(let i=0;i<3;i++){const a=FG.box(0,y,cw,L[i][0],L[i][1],{fs,bar:'var(--c1)'}),b=FG.box(cw+g,y,cw,R[i][0],R[i][1],{fs,bar:'var(--c2)'});const h=Math.max(a.h,b.h);
-      s+=FG.box(0,y,cw,L[i][0],L[i][1],{fs,bar:'var(--c1)'}).s.replace('height="'+a.h+'"','height="'+h+'"')+FG.box(cw+g,y,cw,R[i][0],R[i][1],{fs,bar:'var(--c2)'}).s.replace('height="'+b.h+'"','height="'+h+'"');
-      y+=h;if(i<2){s+=FG.arrow('svHa',cw/2,y,cw/2,y+16)+FG.arrow('svHa',cw+g+cw/2,y,cw+g+cw/2,y+16);y+=18}}
-    s+=FG.arrow('svHa',cw/2,y,W/2-30,y+20)+FG.arrow('svHa',cw+g+cw/2,y,W/2+30,y+20);y+=22;
-    const m=FG.box(0,y,W,'Fuse in one SQL statement: reciprocal rank fusion, score = sum of 1 / (60 + rank)','Quora: '+F.hyb_q+', below vectors alone; SciFact: '+F.s_hyb+', above both ('+F.s_bm25+' and '+F.s_vec+'). Fusion helps when both retrievers are comparably strong.',{fs,stroke:'var(--acc)',sw:1.6,fill:'var(--hl)'});
-    s+=m.s;y+=m.h;el.innerHTML=RD.svg(W,y+2,s,'One question searched by words and by meaning inside one Postgres, then fused')});
 
   // ---- analysis of the running question, from Postgres ts_debug ----
   reg(function analysis(){const el=$('svAnal');if(!el||!SV.tiny.query_ts_debug)return;const W=Math.min(760,RD.width(el));
@@ -87,35 +74,4 @@
 
   function all(){draws.forEach(f=>{try{f()}catch(e){console.error(e)}})}
   RD.onRender(all);RD.onResize(all);all();
-})();
-
-// ---- stepper: one document through an Elasticsearch (Lucene) shard ----
-(function(){
-  if(!document.getElementById('esCard'))return;const $=id=>document.getElementById(id);
-  // state per step: buf (docs in memory buffer), tl (operations in translog), segs [{n, docs:[[id, deleted]]}], t (seconds), searchable
-  const S=[
-    {t:0,buf:[],tl:[],segs:[],cap:['An empty shard','Three places matter: an in-memory buffer, the translog on disk, and immutable segments, each a small complete inverted index. Only segments are searched.']},
-    {t:0,buf:['d1'],tl:['d1'],segs:[],cap:['Index d1: buffered and logged','The document is analysed into the buffer and appended to the translog, which is fsynced before the write is acknowledged (index.translog.durability: request). It is durable now, but no search can find it.']},
-    {t:0.4,buf:['d1','d2','d3'],tl:['d1','d2','d3'],segs:[],cap:['More writes, still invisible','d2 and d3 arrive. A search sent now returns none of the three: they are not in any segment yet.']},
-    {t:1.0,buf:[],tl:['d1','d2','d3'],segs:[{n:'S1',docs:[['d1'],['d2'],['d3']]}],cap:['Refresh (every 1 s by default): a new segment','The buffer is written as segment S1 and opened for search. This is near real-time: a write appears about a second after it was acknowledged. Refresh runs only on shards searched in the last 30 s.']},
-    {t:1.6,buf:["d2'"],tl:['d1','d2','d3',"d2'"],segs:[{n:'S1',docs:[['d1'],['d2',1],['d3']]}],cap:['Update d2: a delete mark plus a new document','Segments are never edited. The old d2 is marked dead in S1\'s deletion bitset and the new version goes to the buffer. The dead d2 still counts in the idf statistics, so scores drift a little.']},
-    {t:2.0,buf:[],tl:['d1','d2','d3',"d2'"],segs:[{n:'S1',docs:[['d1'],['d2',1],['d3']]},{n:'S2',docs:[["d2'"]]}],cap:['Next refresh: a second segment','A search now reads S1 and S2 and merges their results. Many small segments mean many lookups per query.']},
-    {t:9,buf:[],tl:['d1','d2','d3',"d2'"],segs:[{n:'S3',docs:[['d1'],['d3'],["d2'"]]}],cap:['Background merge drops the dead document','The merge policy (TieredMergePolicy) combines small segments into a bigger one and only now removes the deleted d2. The LSM-tree write pattern: write new files, merge later.']},
-    {t:30,buf:[],tl:[],segs:[{n:'S3',docs:[['d1'],['d3'],["d2'"]]}],cap:['Flush: a Lucene commit, the translog trimmed','Segments are fsynced in a Lucene commit and the translog, no longer needed for recovery, starts again empty. After a crash, the shard replays only the translog written since the last commit.']}];
-  function draw(i){const st=S[i],el=$('esFig'),W=Math.min(760,RD.width(el)),fs=12;let s='',y=0;
-    const lane=(title,sub,items,kind)=>{const ll=FG.wrap(title+': '+sub,W-16,fs);s+=FG.text(0,y+fs,ll,{fs,fill:'var(--mute)'});y+=ll.length*16+4;
-      const h=kind==='seg'?64:34;s+='<rect x="0" y="'+y+'" width="'+W+'" height="'+h+'" rx="8" fill="var(--soft)" stroke="var(--line)"/>';let x=8;
-      if(kind==='seg'){items.forEach(sg=>{const w=sg.docs.length*40+18;s+='<rect x="'+x+'" y="'+(y+6)+'" width="'+w+'" height="'+(h-12)+'" rx="6" fill="var(--bg)" stroke="var(--c1)" stroke-width="1.4"/>'+RD.t(x+6,y+19,sg.n,{fs:11,w:700,fill:'var(--c1)'});
-          sg.docs.forEach((d,j)=>{const dx=x+9+j*40;s+='<rect x="'+dx+'" y="'+(y+26)+'" width="34" height="22" rx="4" fill="'+(d[1]?'var(--bg)':'var(--hl)')+'" stroke="'+(d[1]?'var(--bad)':'var(--line)')+'"/>'+RD.t(dx+17,y+41,FG.esc(d[0]),{a:'middle',fs:11.5,fill:d[1]?'var(--mute)':'var(--ink)'});
-            if(d[1])s+='<line x1="'+(dx+3)+'" x2="'+(dx+31)+'" y1="'+(y+37)+'" y2="'+(y+37)+'" stroke="var(--bad)" stroke-width="1.4"/>'});x+=w+8});
-        if(!items.length)s+=RD.t(12,y+37,'no segments yet',{fs:11.5,fill:'var(--mute)'})}
-      else{items.forEach(d=>{s+='<rect x="'+x+'" y="'+(y+6)+'" width="34" height="22" rx="4" fill="var(--bg)" stroke="var(--line)"/>'+RD.t(x+17,y+21,FG.esc(d),{a:'middle',fs:11.5});x+=40});if(!items.length)s+=RD.t(12,y+22,'empty',{fs:11.5,fill:'var(--mute)'})}
-      y+=h+10};
-    lane('In-memory buffer','analysed, not searchable',st.buf,'doc');lane('Translog on disk','durable, replayed after a crash',st.tl,'doc');lane('Segments','immutable, searchable',st.segs,'seg');
-    el.innerHTML=RD.svg(W,y,s,'Elasticsearch shard: buffer, translog and segments');
-    $('esCap').innerHTML='<div class="t">'+st.cap[0]+'</div><p>'+st.cap[1]+'</p>';
-    const live=new Set();st.segs.forEach(sg=>sg.docs.forEach(d=>{if(!d[1])live.add(d[0])}));
-    $('esCnt').innerHTML=RD.stat('Clock','t = '+st.t+' s','illustrative')+RD.stat('Searchable documents',live.size?[...live].join(', '):'none','')+RD.stat('Segments a search reads',st.segs.length,'')}
-  const A=RD.anim({card:'esCard',ctl:'esCtl',n:S.length,draw,ms:2200,label:'Write path step'});
-  RD.onResize(()=>A.redraw());
 })();

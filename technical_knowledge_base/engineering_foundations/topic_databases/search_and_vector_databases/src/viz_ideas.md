@@ -35,3 +35,13 @@ What the methodology lacked: guidance for toys whose algorithm is real but whose
 | 23 | Zero-downtime rebuild (v1 and v2 side by side, switch, drop), shared by Elasticsearch reindex and pgvector re-embedding | static diagram (process with states) | section 13 | built (`svRebuild`) |
 | 24 | Vector column's share of the table as a stacked bar | | | rejected: one sentence ("78% of the table") says it |
 | 25 | Real photograph or screenshot | | | rejected: nothing physical to show; a mechanism page |
+
+## 2026-11-06 (split layout, renderer v2)
+| # | Idea | Status |
+|---|---|---|
+| 14 | Hero as a 3D stage: the running question down a words lane (lexemes, GIN postings, BM25 bars) and a meaning lane (embedding comb, points at their measured cosine distance, cosine bars), fused by RRF at the back | built (`31_js_sc_hero.js`), replaces the 2D hero |
+| 15 | Inverted index in 3D: lexeme rows by question columns, block height = tf; query lookup, BM25 bars, then the LIKE scan | built (`32_js_sc_inv.js`), replaces the 2D stepper (`24_js_rd_inv.js`, deleted); its table kept as text in a closed block |
+| 16 | BM25 tf-part as a bar field over tf and length: raw tf, saturation, length normalisation, the six questions on it | built (`33_js_sc_bm25.js`); the slider card stays 2D beside the formula |
+| 17 | Lucene write path in 3D: buffer tray, translog strip, segments, delete marks, merge, flush | built (`34_js_sc_es.js`), replaces the 2D stepper |
+| 18 | Filtered pgvector query: 1,000 nearest candidates in scan order, 40 a row; post-filter, iterative scan, B-tree pre-filter, the 10% case, the planner | built (`35_js_sc_filt.js`); tenant positions illustrative, numbers measured; the 2D bars stay beside "What to do" |
+| 19 | Storage tiers (RAM, SSD, object storage) as stacked floors per store | not built: a static comparison of five products reads well as the 2D grid; candidate for a later pass |

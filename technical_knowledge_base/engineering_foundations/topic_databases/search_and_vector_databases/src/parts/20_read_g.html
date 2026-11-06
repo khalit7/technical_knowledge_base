@@ -1,9 +1,13 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s12">
 <h2>12. Postgres or a dedicated vector database?</h2>
 <p>A "vector database" is an ANN index plus storage, filtering and an API, run as its own system; pgvector adds the same index types to the Postgres you may already run. Most of them run HNSW, so the comparison is about <b>where the data lives, how filters and tenants are handled, and what you pay for</b>, not about the algorithm.</p>
-<figure class="fig"><p class="ft">Where the data lives sets the cost: memory-resident designs pay for RAM per vector, object-storage designs pay with a slow first query</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fig"><p class="ft">Where the data lives sets the cost: memory-resident designs pay for RAM per vector, object-storage designs pay with a slow first query</p>
 <div class="rd-svg" id="svTiers"></div>
-<figcaption>From each vendor's architecture docs (2026-10): {{Qdrant storage|https://qdrant.tech/documentation/concepts/storage/}}, {{Weaviate storage|https://docs.weaviate.io/weaviate/concepts/storage}}, {{Milvus architecture|https://milvus.io/docs/architecture_overview.md}}, {{Turbopuffer architecture|https://turbopuffer.com/docs/architecture}}. Turbopuffer's vendor figures on 1M documents: p50 14 ms warm, 874 ms cold, when a query must read object storage.</figcaption></figure>
+<figcaption>From each vendor's architecture docs (2026-10): {{Qdrant storage|https://qdrant.tech/documentation/concepts/storage/}}, {{Weaviate storage|https://docs.weaviate.io/weaviate/concepts/storage}}, {{Milvus architecture|https://milvus.io/docs/architecture_overview.md}}, {{Turbopuffer architecture|https://turbopuffer.com/docs/architecture}}. Turbopuffer's vendor figures on 1M documents: p50 14 ms warm, 874 ms cold, when a query must read object storage.</figcaption></figure></div></div></div>
+<section id="rd-s12b">
 <div class="tw"><table>
 <thead><tr><th>System</th><th>Index and filtering</th><th>Multi-tenancy</th><th>Consistency</th><th>You pay mostly for</th></tr></thead>
 <tbody>
@@ -17,7 +21,11 @@
 <div><h4>Stay in Postgres (pgvector) when</h4><ul class="tight"><li>the vectors describe rows you already keep there, and queries join or filter on them (tenant, permissions, dates);</li><li>the vector, its text and its metadata must change in <b>one transaction</b>, deletes must take effect at once (a deleted document's embedding must stop being found), and you want one backup and failover story;</li><li>the index fits comfortably in the server's memory (the calculator below).</li></ul></div>
 <div><h4>Consider a dedicated store when</h4><ul class="tight"><li>the index no longer fits one server's memory, or vector load would crowd out the transactional workload;</li><li>most queries are heavily filtered and need in-graph filtering, or there are thousands of isolated tenants;</li><li>you want disk-based or quantised indexes Postgres lacks (DiskANN, PQ, int8), GPU builds, or object-storage economics;</li><li>a separate team owns search and wants to scale and rebuild it independently.</li></ul></div>
 </div>
-<div class="card" id="memCard">
+
+<div class="s3sp"><div class="s3L">
+<div class="co warn"><div class="t">"Under 10M vectors pgvector wins": unconfirmed</div>The often-quoted thresholds (pgvector below about 10 million vectors, a dedicated store above about 100 million) have no primary measurement behind them; the parent's atlas marks them unconfirmed. They are where to start measuring, not a crossover. The evidence that exists is vendor-run: Tiger Data reported Postgres with pgvector <b>plus their pgvectorscale extension</b> (not plain pgvector) on 50M 768-dimension vectors at 99% recall with 28 times lower p95 latency than Pinecone's s1 pods ({{vendor blog, 2024-06-11|https://www.tigerdata.com/blog/pgvector-vs-pinecone}}); Zilliz, the company behind Milvus, publishes {{VectorDBBench|https://github.com/zilliztech/VectorDBBench}}. Neither is independent; no dedicated store was run for this page. Measure your own data at your own recall target.</div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="memCard">
 <p><b>Will the index fit?</b> Using the measured HNSW size at 384 dimensions (@@hnsw_bpv@@ bytes per vector, 1,544 of them the vector), the links cost about @@link_bytes@@ bytes per vector, so 10 million 1,536-dimension vectors need about @@mem10m@@ GB of index (plus the same again in the table) and 100 million about @@mem100m@@ GB. Predict 10 million at halfvec, then set it. <span id="memLinkNote" class="small mute"></span> <span class="ill">derived, an estimate</span></p>
 <div class="ctl">
 <label>Vectors: <b id="memNv"></b><input type="range" id="memN" min="0" max="40" step="1" value="20"></label>
@@ -26,8 +34,7 @@
 </div>
 <div class="out" id="memOut"></div>
 <p class="small mute" id="memNote"></p>
-</div>
-<div class="co warn"><div class="t">"Under 10M vectors pgvector wins": unconfirmed</div>The often-quoted thresholds (pgvector below about 10 million vectors, a dedicated store above about 100 million) have no primary measurement behind them; the parent's atlas marks them unconfirmed. They are where to start measuring, not a crossover. The evidence that exists is vendor-run: Tiger Data reported Postgres with pgvector <b>plus their pgvectorscale extension</b> (not plain pgvector) on 50M 768-dimension vectors at 99% recall with 28 times lower p95 latency than Pinecone's s1 pods ({{vendor blog, 2024-06-11|https://www.tigerdata.com/blog/pgvector-vs-pinecone}}); Zilliz, the company behind Milvus, publishes {{VectorDBBench|https://github.com/zilliztech/VectorDBBench}}. Neither is independent; no dedicated store was run for this page. Measure your own data at your own recall target.</div>
+</div></div></div></div>
 <details class="depth"><summary>Versions, licences and the other stores (dated table, checked 2026-10-04)</summary>
 <div class="tw"><table>
 <thead><tr><th>System</th><th>Version (date)</th><th>What it is, licence</th><th>Notes</th></tr></thead>
@@ -50,12 +57,16 @@
 </details>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s13">
 <h2>13. Operating a search index: rebuilds, writes and recall</h2>
 <p>Both kinds of index get rebuilt: a search engine when a mapping or analyser changes, a vector index when the embedding model changes (vectors from two models are not comparable). The safe pattern is the same in both: build the new one beside the old, compare, switch, drop.</p>
-<figure class="fig"><p class="ft">Never rebuild in place: run old and new side by side and switch in one step</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fig"><p class="ft">Never rebuild in place: run old and new side by side and switch in one step</p>
 <div class="rd-svg" id="svRebuild"></div>
-<figcaption>Store the model name and version beside every vector, so a mixed table cannot happen silently. The Elasticsearch alias swap is atomic; in Postgres, the switch is a deploy that changes the queried column.</figcaption></figure>
+<figcaption>Store the model name and version beside every vector, so a mixed table cannot happen silently. The Elasticsearch alias swap is atomic; in Postgres, the switch is a deploy that changes the queried column.</figcaption></figure></div></div></div>
+<section id="rd-s13b">
 <div class="two">
 <div><h4>Building</h4><ul class="tight">
 <li><b>Load first, index after</b>: indexes build faster after the data is in, and IVFFlat must be built after. <code>COPY</code> loaded the 522,931 rows in @@copy_s@@ s <span class="meas">measured</span>.</li>

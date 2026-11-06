@@ -1,9 +1,7 @@
-<section id="rd-s2">
+<div class="s3sp"><div class="s3L"><section id="rd-s2">
 <h2>2. From text to terms</h2>
-<p>Before text can be indexed it is cut into the units a search compares: <dfn id="g-analysis">analysis</dfn> (Lucene's word; Postgres says a parser plus dictionaries). It runs twice, when a document is stored and when a query arrives, and if the two runs differ nothing matches. Here is the running question through PostgreSQL 18.6's English configuration, read from its <code>ts_debug</code> output <span class="meas">measured</span>:</p>
-<figure class="fig"><p class="ft">Seven words become three lexemes: stop words vanish, endings are cut</p>
-<div class="rd-svg" id="svAnal"></div>
-<figcaption><dfn id="g-stop">Stop words</dfn> ("how", "do", "i", "in") appear in almost every text and are dropped: Postgres's <code>english.stop</code> list has 127. A <dfn id="g-stem">stemmer</dfn> cuts endings by rule so "investing" and "invests" become one <dfn id="g-lexeme">lexeme</dfn>, <code>invest</code> (the classic is {{Porter (1980)|https://tartarus.org/martin/PorterStemmer/}}, now its successor Snowball); it can produce non-words ("stori" for "story").</figcaption></figure>
+<p>Before text can be indexed it is cut into the units a search compares: <dfn id="g-analysis">analysis</dfn> (Lucene's word; Postgres says a parser plus dictionaries). It runs twice, when a document is stored and when a query arrives, and if the two runs differ nothing matches. The figure beside this text puts the running question through PostgreSQL 18.6's English configuration, read from its <code>ts_debug</code> output <span class="meas">measured</span>.</p>
+
 <p>Postgres stores the result as a <dfn id="g-tsvector">tsvector</dfn>, sorted lexemes with word positions, and turns a query into a <dfn id="g-tsquery">tsquery</dfn> by the same rules, with <code>&amp;</code> (and), <code>|</code> (or), <code>!</code> (not) and <code>&lt;-&gt;</code> (followed by): <code>plainto_tsquery('english', 'how do I invest in the share market')</code> gives <code class="fx" id="tsPlain"></code>, every remaining word required.</p>
 <div class="co warn"><div class="t">The language setting is a silent default</div>Postgres picks the configuration from <code>default_text_search_config</code>, which initdb sets from the server's locale; the built-in fallback is <code>simple</code>, which lower-cases but neither stems nor drops stop words ({{PostgreSQL docs, 12.1 and 19.11|https://www.postgresql.org/docs/18/textsearch-intro.html}}). Name the configuration in both index and query (<code>to_tsvector('english', body)</code>): an index built under one configuration is not used by a query written under another.</div>
 <details class="depth"><summary>Tokens, normalising, lemmatisation, and a full ts_debug table</summary>
@@ -11,26 +9,41 @@
 <div class="tw" id="tsDebug"></div>
 <p>Stored as <code class="fx" id="tsVec"></code>.</p>
 </details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="fig card"><p class="ft">Seven words become three lexemes: stop words vanish, endings are cut</p>
+<div class="rd-svg" id="svAnal"></div>
+<figcaption><dfn id="g-stop">Stop words</dfn> ("how", "do", "i", "in") appear in almost every text and are dropped: Postgres's <code>english.stop</code> list has 127. A <dfn id="g-stem">stemmer</dfn> cuts endings by rule so "investing" and "invests" become one <dfn id="g-lexeme">lexeme</dfn>, <code>invest</code> (the classic is {{Porter (1980)|https://tartarus.org/martin/PorterStemmer/}}, now its successor Snowball); it can produce non-words ("stori" for "story").</figcaption></figure></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-inv"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. The inverted index, built step by step</h2>
-<p>An <dfn id="g-inv">inverted index</dfn> is the index at the back of a book: a <b>dictionary</b> of every term and, for each, a <dfn id="g-postings">postings list</dfn>, the sorted ids of the documents that contain it, usually with how often (term frequency) and where (positions). "Inverted" because a document maps to its words and the index maps each word back. Step through it on six real questions, then toggle <b>LIKE scan</b> for the same query without an index.</p>
-<div class="card" id="invCard">
-<div class="seg" id="invSeg"><button data-m="index" class="on">Inverted index</button><button data-m="like">LIKE scan, no index</button></div>
-<div id="invBox"></div>
-<div class="an-cap" id="invCap"></div>
-<div class="an-cnt" id="invCnt"></div>
-<div class="an-ctl" id="invCtl"></div>
-<p class="small mute">Lexemes and positions printed by Postgres <code>to_tsvector('english', ...)</code> for six real Quora questions <span class="meas">measured</span>; the last step ranks with the BM25 formula of section 4.</p>
-</div>
+<p>An <dfn id="g-inv">inverted index</dfn> is the index at the back of a book: a <b>dictionary</b> of every term and, for each, a <dfn id="g-postings">postings list</dfn>, the sorted ids of the documents that contain it, usually with how often (term frequency) and where (positions). "Inverted" because a document maps to its words and the index maps each word back. The figure builds one for six real questions (rows are lexemes, columns are questions, a block's height is the term frequency), answers the running query, then runs the same query without an index.</p>
+<ol class="sx" id="sx-inv">
+<li><b>Six stored questions, an empty index.</b> The questions stand at the back; the index in front will map every word to the list of questions that contain it, its postings list. On the whole table that dictionary held @@lexemes@@ distinct lexemes.</li>
+<li><b>Add question 1.</b> Postgres turns the text into lexemes (lower case, stop words such as "how", "do", "i", "in", "the" dropped, endings stemmed). Each lexeme gets this question's number appended to its postings list, with the word positions (for phrase queries): "step" occurs twice, so its block is twice as tall.</li>
+<li><b>Add questions 2 to 6.</b> Each question appends one entry per lexeme. "market" is in five questions, the Kohinoor question adds six lexemes no other question has; the postings lists stay sorted by question number.</li>
+<li><b>The query is tokenised the same way.</b> "How do I start investing in shares?" becomes the lexemes <code>invest</code>, <code>share</code> and <code>start</code>. The same tokeniser must run at index time and at query time, or nothing matches.</li>
+<li><b>Look up three postings lists, never the texts.</b> Each query lexeme is one lookup in the sorted dictionary; its postings list names the matching questions directly (questions 1 to 5). Question 6 is in no list and is never read.</li>
+<li><b>Rank the matches.</b> A question can match one lexeme or several. Ranking (BM25, next section, with k<sub>1</sub> 1.2 and b 0.75) orders them: questions 2 and 4 at 1.54, then 1 at 1.15, 5 at 0.87, 3 at 0.77.</li>
+<li><b>No index: <code>LIKE '%invest%'</code>.</b> Without an inverted index the database must read every stored text and look for the substring, character by character. A substring test also knows nothing about words: "invest" matches "investing" only because it is a prefix; "shares" would not match "share".</li>
+</ol>
+<p class="small mute">Lexemes and positions printed by Postgres <code>to_tsvector('english', ...)</code> for six real Quora questions <span class="meas">measured</span>; the last step but one ranks with the BM25 formula of section 4.</p>
+<details class="depth"><summary>The same index as text: lexeme, then postings (question:positions)</summary>
+<div class="tw nomin" id="invTab"></div>
+</details>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s3b">
 <p><b>Predict, then look:</b> on the whole table, how much faster is the GIN lookup for "diamond" than a scan with <code>ILIKE '%diamond%'</code>: ten times, a hundred, a thousand?</p>
-<figure class="fig"><p class="ft">The index reads a few postings; the scan reads all 522,931 texts (about a thousand times slower)</p>
-<div class="rd-svg" id="svLike"></div>
-<figcaption>Counting questions that mention "diamond" <span class="meas">measured</span>. The answers differ by one row because a substring is not a word: <code>ILIKE</code> (@@like_rows@@ rows) also matched "TheDiamondMinecart", a channel name the tokeniser keeps as one word; full-text (@@fts_rows@@) matches "diamonds" too, by stemming. A trigram index (section 5) is how to make arbitrary <code>LIKE '%...%'</code> fast when you truly need substrings.</figcaption></figure>
+
 <p>Postgres keeps postings in a <dfn id="g-gin">GIN</dfn> (generalized inverted) index, "the preferred text search index type" ({{PostgreSQL docs, 12.9|https://www.postgresql.org/docs/18/textsearch-indexes.html}}). On the 522,931 rows, the stored <code>tsvector</code> column took @@add_tsv_s@@ s and @@tsv_mb@@ MB to add, and the GIN index @@gin_s@@ s and @@gin_mb@@ MB for @@lexemes@@ distinct lexemes <span class="meas">measured</span>. The cost moves to writes: every insert adds an entry to the postings list of each of its words, which GIN softens with a pending list merged later ({{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}} owns GIN's pending list and fastupdate).</p>
 <details class="depth"><summary>How engines store postings: gaps, skip data, GIN's posting trees, GiST, and why Lucene looks like an LSM-tree</summary>
 <p>Ids in a postings list are sorted, so engines store the gaps between them (5, 9, 12 becomes 5, 4, 3) in as few bits as each gap needs; common words compress best. Lucene adds skip data so an AND query can jump through a long list instead of reading it all ({{Lucene postings format|https://lucene.apache.org/core/10_5_0/core/org/apache/lucene/codecs/lucene104/package-summary.html}}). Postgres's GIN is a B-tree over the terms whose leaf entries hold the posting list, or a pointer to a posting tree when the list is long. GiST can also index a <code>tsvector</code>, but it stores a fixed-size signature per document, so it is lossy and every hit must be rechecked.</p>
 <p>Lucene never edits an index file in place: new documents go to a new small segment, deletes are marks, and segments are merged in the background, the write pattern of the LSM-trees taught on {{Storage engines and indexes|n:3cd5c17b0d0d8102bc1fd11b22606e1a}}. Section 6 steps through it.</p>
 </details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><figure class="fig card"><p class="ft">The index reads a few postings; the scan reads all 522,931 texts (about a thousand times slower)</p>
+<div class="rd-svg" id="svLike"></div>
+<figcaption>Counting questions that mention "diamond" <span class="meas">measured</span>. The answers differ by one row because a substring is not a word: <code>ILIKE</code> (@@like_rows@@ rows) also matched "TheDiamondMinecart", a channel name the tokeniser keeps as one word; full-text (@@fts_rows@@) matches "diamonds" too, by stemming. A trigram index (section 5) is how to make arbitrary <code>LIKE '%...%'</code> fast when you truly need substrings.</figcaption></figure></div></div></div>

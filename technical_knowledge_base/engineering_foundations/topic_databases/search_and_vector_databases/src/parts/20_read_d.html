@@ -1,13 +1,21 @@
+<div class="s3sp"><div class="s3R"><div id="stg-es"></div></div><div class="s3L">
 <section id="rd-s6">
 <h2>6. Search engines: freshness, segments and reindexing</h2>
-<p>Most large search deployments use a separate <b>search engine</b> built on Apache Lucene, a Java library of inverted indexes, BM25 and, since 9.0 (2021-12-07), HNSW vector search. <b>Elasticsearch</b> and its fork <b>OpenSearch</b> wrap it in a distributed JSON server. What surprises people coming from Postgres is the write path: a write is durable at once but searchable only later. Step one document through a shard.</p>
-<div class="card" id="esCard">
-<div class="rd-svg" id="esFig"></div>
-<div class="an-cap" id="esCap"></div>
-<div class="an-cnt" id="esCnt"></div>
-<div class="an-ctl" id="esCtl"></div>
-<p class="small mute">The clock is <span class="ill">illustrative</span>; the defaults are Elastic's: {{index.refresh_interval|https://www.elastic.co/docs/reference/elasticsearch/index-settings/index-modules}}, {{near real-time search|https://www.elastic.co/docs/manage-data/data-store/near-real-time-search}}, {{translog|https://www.elastic.co/docs/reference/elasticsearch/index-settings/translog}}.</p>
-</div>
+<p>Most large search deployments use a separate <b>search engine</b> built on Apache Lucene, a Java library of inverted indexes, BM25 and, since 9.0 (2021-12-07), HNSW vector search. <b>Elasticsearch</b> and its fork <b>OpenSearch</b> wrap it in a distributed JSON server. What surprises people coming from Postgres is the write path: a write is durable at once but searchable only later. The figure steps one document through a shard.</p>
+<ol class="sx" id="sx-es">
+<li><b>An empty shard.</b> Three places matter: an in-memory buffer, the translog on disk, and immutable segments, each a small complete inverted index. Only segments are searched.</li>
+<li><b>Index d1: buffered and logged.</b> The document is analysed into the buffer and appended to the translog, which is fsynced before the write is acknowledged (<code>index.translog.durability: request</code>), the same idea as Postgres's write-ahead log. It is durable now, but no search can find it.</li>
+<li><b>More writes, still invisible.</b> d2 and d3 arrive. A search sent now returns none of the three: they are not in any segment yet.</li>
+<li><b>Refresh (every 1 s by default): a new segment.</b> The buffer is written as a new immutable segment, S1, and opened for search. This is near real-time: a write appears about a second after it was acknowledged. Refresh runs only on shards searched in the last 30 seconds.</li>
+<li><b>Update d2: a delete mark plus a new document.</b> Segments are never edited. A delete only marks the document as dead in a per-segment bitset; an update is a delete plus a new document, so the old d2 is marked in S1 and the new version goes to the buffer. Until a merge, deleted documents still count in the idf statistics, so scores drift a little.</li>
+<li><b>Next refresh: a second segment.</b> A search reads every segment and merges the results: now S1 and S2. Many small segments mean many lookups per query.</li>
+<li><b>Background merge drops the dead document.</b> The merge policy (Lucene's default is the TieredMergePolicy) combines small segments into a bigger one, S3, and only now removes the deleted d2. The LSM-tree write pattern: write new files, merge later.</li>
+<li><b>Flush: a Lucene commit, the translog trimmed.</b> A flush fsyncs the segments in a Lucene commit, and the translog, no longer needed for recovery, starts again empty. After a crash, the shard replays only the translog written since the last commit.</li>
+</ol>
+<p class="small mute">The clock in the figure is <span class="ill">illustrative</span>; the defaults are Elastic's: {{index.refresh_interval|https://www.elastic.co/docs/reference/elasticsearch/index-settings/index-modules}}, {{near real-time search|https://www.elastic.co/docs/manage-data/data-store/near-real-time-search}}, {{translog|https://www.elastic.co/docs/reference/elasticsearch/index-settings/translog}}.</p>
+</section>
+</div></div>
+<section id="rd-s6b">
 <p>Three consequences follow. A write acknowledged now may not appear in a search for about a second: <b>near real-time</b>, where Postgres full-text is consistent with the last commit. An index is split into a fixed number of primary <b>shards</b> at creation (changing it needs the split or shrink APIs, {{docs|https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-split}}), each copied to replicas that refresh independently, so two identical searches can briefly disagree: reads are <b>eventually consistent</b>. And <b>reindexing is routine</b>: an existing field's type or analyser cannot change in place, so you create a new index, copy every document with the Reindex API, and switch an alias ({{docs|https://www.elastic.co/docs/manage-data/data-store/mapping/update-mappings-examples}}; section 13 draws it).</p>
 <div class="co warn"><div class="t">Not a system of record</div>Elasticsearch has no multi-document transactions, and Jepsen's tests (2014 and 2015) lost acknowledged documents under network partitions; the advice that followed was to keep a separate primary database (the parent's {{Database atlas|n:3cd5c17b0d0d815d8841ec845f5f3324}} tab lists those findings). The normal design: Postgres holds the truth, changes flow to the engine by an outbox or change data capture ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}), and the search index can always be rebuilt from Postgres.</div>
 <div class="tw"><table>
@@ -25,6 +33,6 @@
 <li><b>ParadeDB pg_search</b>: a Postgres extension (not a fork) adding a real BM25 index, built on Tantivy, a Rust library modelled on Lucene; AGPL-3.0, Postgres 15 to 18 ({{GitHub|https://github.com/paradedb/paradedb}}). The way to get BM25 without a second system; check its maturity against your write load.</li>
 <li><b>Licences</b>: Elastic moved Elasticsearch from Apache 2.0 to SSPL and the Elastic License in January 2021; AWS forked 7.10.2 as OpenSearch (Apache 2.0, announced 2021-04-12); Elastic added AGPL as a third option on 2024-08-29 ({{Elastic blog|https://www.elastic.co/blog/elasticsearch-is-open-source-again}}).</li>
 </ul>
-<p><b>The stepper as text.</b> New documents are buffered in memory, then written as a new immutable segment: a small complete inverted index. A search reads every segment and merges the results. A delete only marks the document as dead in a per-segment bitset; an update is a delete plus a new document. Background merges combine small segments into bigger ones and finally drop the dead documents (Lucene's default is the TieredMergePolicy); until then, deleted documents still count in the idf statistics. The translog is fsynced before each write is acknowledged (index.translog.durability: request), the same idea as Postgres's write-ahead log. A refresh, every second by default and only on shards searched in the last 30 seconds, turns the buffer into a searchable segment. A flush is a Lucene commit that fsyncs the segments and trims the translog. Versions are in the one dated table of section 12.</p>
+<p>Versions are in the one dated table of section 12.</p>
 </details>
 </section>

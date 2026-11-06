@@ -12,11 +12,24 @@
 <p><b>What a vector costs.</b> pgvector stores a <code>vector(n)</code> as 4 bytes per number plus 8 of header: 384 &times; 4 + 8 = <b>1,544 bytes</b> (confirmed by <code>pg_column_size</code> <span class="meas">measured</span>), and 6,152 for the common 1,536-dimension models ({{README|https://github.com/pgvector/pgvector#vector-type}}). The 522,931 vectors take @@vec_mb@@ MB, @@vec_share@@% of the whole @@heap_mb@@ MB table: the texts are tiny next to them. At 100 million 1,536-dimension vectors that is 615 GB before any index.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s8">
 <h2>8. pgvector's indexes, measured: recall against latency</h2>
 <p>Exact <dfn id="g-knn">k-nearest-neighbour (kNN)</dfn> search computes the distance to every stored vector: 522,931 &times; 384 = about 201 million multiply-adds per query. Postgres ran <code>ORDER BY embedding &lt;=&gt; $1 LIMIT 10</code> as a parallel sequential scan with a top-N heap sort, reading @@exact_buf@@ pages of 8 KB from memory, in <b>@@exact_p50@@ ms</b> median (@@exact_p95@@ ms p95) <span class="meas">measured</span>: fine for a nightly job, too slow for a search box, and linear in the table. An <dfn id="g-ann">approximate nearest-neighbour (ANN)</dfn> index looks at a small part of the data and sometimes misses a true neighbour; its quality is <dfn id="g-recall">recall@k</dfn>, the share of the true k nearest it returns. Quote recall and latency together: any index is fast at low enough recall.</p>
 <p>pgvector offers two ANN indexes and you choose one (there is no default). <dfn id="g-hnsw">HNSW</dfn> is a layered graph of near neighbours walked greedily; <code>hnsw.ef_search</code> (default 40) is the number of candidates a query keeps, its recall dial. <dfn id="g-ivfflat">IVFFlat</dfn> files each vector under its nearest of <code>lists</code> k-means centroids and scans the closest <code>ivfflat.probes</code> lists (default 1). How both work inside is taught on {{Vector indexes from the inside|n:3f85c17b0d0d81f29707c130b2ebcfb1}} (IVF in section 3, HNSW in section 6, on the same 522,931 Quora vectors). Here is what they buy in Postgres. <b>Predict</b>: at the defaults, how many times faster than exact is HNSW, and what share of the true top 10 does it return?</p>
-<div class="card" id="annCard">
+
+<ul class="tight">
+<li><b>ef_search is the dial.</b> HNSW m 16 at the defaults: @@hnsw40_p50@@ ms against @@exact_p50@@ ms, recall @@hnsw40_rec@@, @@hnsw_buf@@ pages read against @@exact_buf@@. From ef_search 10 to 640 recall rose from @@hnsw10_rec@@ to @@hnsw640_rec@@ while latency grew about @@ef_growth@@ times; past about 0.99 each extra point costs more than the last.</li>
+<li><b>m changes the curve, not just a point.</b> m 8 builds in @@m8_build@@ s but tops out lower (@@m8_640@@ at ef_search 640); m 32 with ef_construction 128 took @@m32_build@@ s and reached @@m32_40@@ already at ef_search 40.</li>
+<li><b>IVFFlat needs many probes.</b> With 523 lists (rows / 1000), 1 probe gave recall @@ivf1_rec@@; @@ivf23_rec@@ took 23 probes (&radic;lists) at @@ivf23_p50@@ ms, slower than HNSW at higher recall, though it built in @@ivf_build@@ s against @@hnsw_build@@ s.</li>
+<li><b>Size.</b> HNSW was @@hnsw_mb@@ MB, about @@hnsw_bpv@@ bytes per vector (the 1,544-byte vector is copied into the index, plus its links); IVFFlat @@ivf_mb@@ MB.</li>
+</ul>
+<pre class="sql"><span class="k">CREATE INDEX</span> q_hnsw <span class="k">ON</span> q <span class="k">USING</span> hnsw (embedding vector_cosine_ops);   <span class="c">-- m 16, ef_construction 64</span>
+<span class="k">SET</span> hnsw.ef_search = 40;                                          <span class="c">-- per session, or SET LOCAL per transaction</span>
+<span class="k">SELECT</span> id <span class="k">FROM</span> q <span class="k">ORDER BY</span> embedding &lt;=&gt; $1 <span class="k">LIMIT</span> 10;</pre>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="annCard">
 <p class="ft" style="font-weight:600;margin:0 0 6px">HNSW at its defaults is about @@speedup@@ times faster than exact and finds @@hnsw40_rec_pct@@% of the true top 10</p>
 <div class="ctl">
 <label>Index <select id="annIdx"></select></label>
@@ -28,16 +41,8 @@
 <div class="lg" id="annLeg"></div>
 <p class="small mute" id="annNote"></p>
 <p class="small mute">Every point measured on PostgreSQL 18.6 with pgvector 0.8.7: 1,000 test queries, recall@10 against exact search computed outside the database, latency of the whole SQL query from a client on the same machine (second pass, warm; <code>shared_buffers</code> 4 GB holds the table and every index) <span class="meas">measured</span>. Slide HNSW m 16 from ef_search 10 to 640, then pick IVFFlat and the binary index.</p>
-</div>
-<ul class="tight">
-<li><b>ef_search is the dial.</b> HNSW m 16 at the defaults: @@hnsw40_p50@@ ms against @@exact_p50@@ ms, recall @@hnsw40_rec@@, @@hnsw_buf@@ pages read against @@exact_buf@@. From ef_search 10 to 640 recall rose from @@hnsw10_rec@@ to @@hnsw640_rec@@ while latency grew about @@ef_growth@@ times; past about 0.99 each extra point costs more than the last.</li>
-<li><b>m changes the curve, not just a point.</b> m 8 builds in @@m8_build@@ s but tops out lower (@@m8_640@@ at ef_search 640); m 32 with ef_construction 128 took @@m32_build@@ s and reached @@m32_40@@ already at ef_search 40.</li>
-<li><b>IVFFlat needs many probes.</b> With 523 lists (rows / 1000), 1 probe gave recall @@ivf1_rec@@; @@ivf23_rec@@ took 23 probes (&radic;lists) at @@ivf23_p50@@ ms, slower than HNSW at higher recall, though it built in @@ivf_build@@ s against @@hnsw_build@@ s.</li>
-<li><b>Size.</b> HNSW was @@hnsw_mb@@ MB, about @@hnsw_bpv@@ bytes per vector (the 1,544-byte vector is copied into the index, plus its links); IVFFlat @@ivf_mb@@ MB.</li>
-</ul>
-<pre class="sql"><span class="k">CREATE INDEX</span> q_hnsw <span class="k">ON</span> q <span class="k">USING</span> hnsw (embedding vector_cosine_ops);   <span class="c">-- m 16, ef_construction 64</span>
-<span class="k">SET</span> hnsw.ef_search = 40;                                          <span class="c">-- per session, or SET LOCAL per transaction</span>
-<span class="k">SELECT</span> id <span class="k">FROM</span> q <span class="k">ORDER BY</span> embedding &lt;=&gt; $1 <span class="k">LIMIT</span> 10;</pre>
+</div></div></div></div>
+<section id="rd-s8b">
 <details class="depth"><summary>The knobs, the measured table, when exact is right, and what pgvector lacks</summary>
 <div class="tw nomin"><table>
 <thead><tr><th>Knob (pgvector name)</th><th>Default</th><th>What it does</th><th>Raising it costs</th></tr></thead>
