@@ -54,9 +54,17 @@
 <div class="co warn"><div class="t">Read every number here as one recording, not a benchmark</div>Each pattern ran once. Model calls vary from run to run by several seconds and thousands of thinking tokens; one specialist call in the routing run took 35 s where a similar call took 8 s. The comparisons that hold up are the structural ones: how many calls, which run at the same time, who saw what. Costs are the "API-price equivalent" that Claude Code reports (<code>total_cost_usd</code>); the runs were paid by a subscription.</div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="orch-s-replay">
 <h2>Watch each pattern run</h2>
 <p>Pick a pattern. The graph shows its shape (blue boxes are model calls, grey boxes are plain code), the lanes underneath show when each step actually ran, to scale in seconds, and the counters add up tokens and cost as the replay moves. Choose a second pattern under "compare with" to run both on the same clock: that is the before/after, the same input through two designs.</p>
+<p class="small mute">The replay is a tool to drive: it opens on the end of the run, with every step drawn, and does not play by itself; press play to watch it on the recording's clock, or step through it, and read each step's caption under the lanes.</p>
+<div id="orch-note"></div>
+<h3>Every model call in this run</h3>
+<p class="small mute">The instruction each call ended with (the pasted files and test output above it are left out) and the start of its reply. Full prompts and replies are in the redacted recordings in <code>src/orch/recordings/</code>.</p>
+<div class="orch-calls" id="orch-calls"></div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="orch-fig" id="orch-rp">
 <div class="orch-pick" id="orch-pa" role="group" aria-label="Pattern"></div>
 <label class="small">Compare with <select id="orch-pb"></select></label>
@@ -67,26 +75,26 @@
 <div class="orch-cap" id="orch-cap" aria-live="polite"></div>
 <div class="out" id="orch-cnt"></div>
 </div>
-<div id="orch-note"></div>
-<h3>Every model call in this run</h3>
-<p class="small mute">The instruction each call ended with (the pasted files and test output above it are left out) and the start of its reply. Full prompts and replies are in the redacted recordings in <code>src/orch/recordings/</code>.</p>
-<div class="orch-calls" id="orch-calls"></div>
-</section>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="orch-s-res">
 <h2>Same input, six results</h2>
 <div class="orch-pred done" id="orch-pr1"><b>Predict first.</b> All six fixed the visible tests. Which one took the longest wall-clock time? <span class="mute">(The free agent (it chooses its own steps); Orchestrator-workers (most moving parts); Evaluator-optimizer; Prompt chaining?)</span>
 <details><summary>Open the answer</summary><div class="ans" id="orch-pr1a"></div></details></div>
+<h3>What the recordings show</h3>
+<ul id="orch-find"></ul>
+<div class="co key"><div class="t">The rule this lab supports</div>Anthropic's advice is to find "the simplest solution possible, and only increasing complexity when needed". Here a two-call chain and a free agent cost cents and seconds and fixed what the tests check. The two designs that also got the hidden checks right did so because something in them carried <b>more knowledge of what "correct" means</b>: a specialist prompt (routing) or a reviewer that hunted for edge cases (evaluator-optimizer). Orchestration did not add correctness by itself; information and verification did.</div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="orch-fig">
 <div class="seg" id="orch-mx" role="group" aria-label="Metric"><button data-m="wall" class="on">Wall time</button><button data-m="tok">Tokens processed</button><button data-m="out">Tokens written</button><button data-m="cost">Cost equivalent</button><button data-m="hid">Hidden checks</button></div>
 <div id="orch-bars" class="bars"></div>
 <p class="small mute" id="orch-barnote"></p>
 </div>
+</div></div></div>
 <div class="tw"><table class="orch-t" id="orch-tab"></table></div>
 <p class="small mute">* For the agent, model calls are distinct API messages in the stream; Claude Code itself reports this run as 11 turns. The agent also paid for tool definitions and its built-in system prompt on every call, which the workflow calls did not carry.</p>
-<h3>What the recordings show</h3>
-<ul id="orch-find"></ul>
-<div class="co key"><div class="t">The rule this lab supports</div>Anthropic's advice is to find "the simplest solution possible, and only increasing complexity when needed". Here a two-call chain and a free agent cost cents and seconds and fixed what the tests check. The two designs that also got the hidden checks right did so because something in them carried <b>more knowledge of what "correct" means</b>: a specialist prompt (routing) or a reviewer that hunted for edge cases (evaluator-optimizer). Orchestration did not add correctness by itself; information and verification did.</div>
 <div class="tw"><table class="orch-t">
 <thead><tr><th>Pattern</th><th>What it is (Anthropic, 2024)</th><th>Use it when (Anthropic)</th><th>In this lab</th></tr></thead>
 <tbody>
@@ -98,13 +106,19 @@
 <tr><td><b>Agent</b></td><td>the model directs its own steps and tool use</td><td>open-ended problems where the number of steps cannot be predicted</td><td>Claude Code with tools, no plan given</td></tr>
 </tbody></table></div>
 <p class="small mute">Quotes from {{Building effective agents (Erik Schluntz and Barry Zhang, Anthropic, 19 December 2024)|https://www.anthropic.com/engineering/building-effective-agents}}, checked 5 October 2026. The same post warns that frameworks "often create extra layers of abstraction that can obscure the underlying prompts and responses, making them harder to debug": each workflow here is 20 to 31 lines of plain Python (counted in <code>src/orch/code/patterns.py</code>), which is the point. The {{Same agent, six ways|#t-same}} tab shows what the frameworks add on top.</p>
-</section>
 
+<div class="s3sp"><div class="s3L">
 <section id="orch-s-dur">
 <h2>Durable execution: kill it, resume it, rewind it</h2>
 <p><b>The problem.</b> A workflow lives in the memory of one process. If that process dies halfway (a deploy, an out-of-memory kill, a laptop lid), a plain script has lost everything: the model calls already paid for, the decisions already made. It starts again from zero and pays again. Long agent runs, and runs that wait hours for a human, make this the normal case rather than the rare one.</p>
 <p><b>The idea.</b> After every step, write the whole state of the run to a database. Each saved snapshot is a <b>checkpoint</b>; all the checkpoints of one run share a <b>thread id</b>. To recover, load the newest checkpoint of that thread and carry on from the step after it. The same mechanism gives two more features for free: <b>pausing for a human</b> (save, exit, and resume days later with the human's answer) and <b>time travel</b> (load an older checkpoint, optionally edit it, and run forward again on a new branch).</p>
 <p><b>The recording.</b> The prompt-chaining workflow above, rebuilt as a {{LangGraph|https://github.com/langchain-ai/langgraph}} <code>StateGraph</code> with five nodes and a SQLite checkpointer (langgraph <span class="orch-v" data-v="lgver"></span>, langgraph-checkpoint-sqlite <span class="orch-v" data-v="lgsqlver"></span>), run with <code>durability="sync"</code>. A driver script started it, waited until the fix step's model call was in flight, and sent <code>SIGKILL</code> to the whole process group. Then it ran four more separate processes: resume, approve, rewind, approve. Every process is a fresh Python interpreter: the only thing that survives between them is the SQLite file.</p>
+<p class="small mute">The replay on the right opens on the end of the recording; play it or step through its 30 events (the caption under it names each one), and switch to "without one" for the same durations restarted from zero. The Reading tab's Fig. 3 walks the same recording in six explained stretches.</p>
+<h3>What the recording proves, line by line from the event log</h3>
+<ul id="orch-dfind"></ul>
+<p><b>What bites in production</b>, each measured on {{LangChain and LangGraph|n:3c65c17b0d0d81529358c996382224ac}}: when the checkpoint is written (the three durability modes, and that <code>"exit"</code> would have lost the diagnosis too, section 5); that a resumed node runs again from its first line, as the event log here shows with <code>human_review</code> starting twice, so a side effect before an interrupt must be idempotent (section 6); and that nothing restarts the process for you: something has to notice the crash and call <code>invoke</code> again with the same thread id (here, the driver script).</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="orch-fig" id="orch-df">
 <div class="seg" id="orch-dm" role="group" aria-label="Checkpointer"><button data-m="with" class="on">With a checkpointer (recorded)</button><button data-m="without">Without one (derived)</button></div>
 <div id="orch-dsvg" class="plot"></div>
@@ -113,13 +127,11 @@
 <div class="out" id="orch-dcnt"></div>
 <p class="small mute" id="orch-dnote"></p>
 </div>
-<div class="orch-two">
-<div><h3>The checkpoint tree after the last process</h3><div id="orch-tree" class="plot"></div><p class="small mute">Each dot is one row in the <code>checkpoints</code> table, read back with <code>get_state_history</code>. Click one to see what it holds.</p></div>
-<div><h3 id="orch-ckh">Checkpoint</h3><div id="orch-ck" class="small"></div></div>
-</div>
-<h3>What the recording proves, line by line from the event log</h3>
-<ul id="orch-dfind"></ul>
-<p><b>What bites in production</b>, each measured on {{LangChain and LangGraph|n:3c65c17b0d0d81529358c996382224ac}}: when the checkpoint is written (the three durability modes, and that <code>"exit"</code> would have lost the diagnosis too, section 5); that a resumed node runs again from its first line, as the event log here shows with <code>human_review</code> starting twice, so a side effect before an interrupt must be idempotent (section 6); and that nothing restarts the process for you: something has to notice the crash and call <code>invoke</code> again with the same thread id (here, the driver script).</p>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<h3>The checkpoint tree after the last process</h3><p class="small mute">Each dot on the right is one row in the <code>checkpoints</code> table, read back with <code>get_state_history</code>. Click one to see what it holds:</p>
+<h3 id="orch-ckh">Checkpoint</h3><div id="orch-ck" class="small"></div>
+</div><div class="s3R"><div class="s3side"><div class="card"><div id="orch-tree" class="plot"></div></div></div></div></div>
 <h3>What Temporal-style durable workflows add</h3>
 <p>{{Temporal|https://docs.temporal.io/workflows}} is a workflow engine that predates LLM agents and is now often used to run them. It takes a different route to the same goal:</p>
 <div class="tw"><table class="orch-t"><thead><tr><th></th><th>LangGraph checkpointer</th><th>Temporal</th></tr></thead><tbody>
@@ -130,12 +142,17 @@
 <tr><td>Who restarts it</td><td>you, or the LangGraph platform</td><td>the Temporal service hands the workflow to another worker; workflows "can run, and keep running, for years, even if the underlying infrastructure fails"</td></tr>
 </tbody></table></div>
 <p class="small mute">Temporal quotes from the {{Workflows page of the Temporal docs|https://docs.temporal.io/workflows}}, checked 5 October 2026. Temporal was not run here. When you need durable, retried, long-running work across machines, the Temporal model is the stronger guarantee; when you need a graph with human pauses and rewinds inside one service, a checkpointer is usually enough.</p>
-</section>
 
+<div class="s3sp"><div class="s3L">
 <section id="orch-s-multi">
 <h2>One agent or several</h2>
 <p><b>The question.</b> A <b>multi-agent</b> system splits a job across several model loops. The usual shape is orchestrator-workers with agents in place of single calls: a <b>lead agent</b> hands pieces of the job to <b>subagents</b>, each running its own loop in its own fresh context window, and reads back only their final reports. That separation is called <b>context isolation</b>: whatever a subagent reads (files, search results, dead ends) never enters the lead's context.</p>
 <p><b>The recording.</b> The free agent from above, against the same model told by an appended system prompt to run the tests, launch one subagent per failing test with Claude Code's subagent tool, wait for their reports, and apply the fixes itself.</p>
+<p class="small mute">The replay on the right opens on the end of the run; play it or step through the transcript (each line below marks where it is).</p>
+<ul id="orch-mfind"></ul>
+<div class="orch-steps" id="orch-msteps" aria-label="Transcript"></div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="orch-fig" id="orch-mf">
 <div class="seg" id="orch-mm" role="group" aria-label="Run"><button data-m="agent" class="on">Single agent</button><button data-m="multi">Lead and two subagents</button></div>
 <div id="orch-msvg" class="plot"></div>
@@ -143,9 +160,8 @@
 <div class="orch-cap" id="orch-mcap" aria-live="polite"></div>
 <div class="out" id="orch-mcnt"></div>
 </div>
-<div class="orch-steps" id="orch-msteps" aria-label="Transcript"></div>
 <p class="small mute">Top: when each agent was thinking (pale bars) and running tools (orange). Bottom: how many tokens each agent sent on its most recent model call, the size of its context, drawn to one scale in both runs.</p>
-<ul id="orch-mfind"></ul>
+</div></div></div>
 <h3>Two published arguments, and where each applies</h3>
 <p>Anthropic (13 June 2025, {{How we built our multi-agent research system|https://www.anthropic.com/engineering/multi-agent-research-system}}) reports a lead with parallel subagents beating single-agent Claude Opus 4 by 90.2% on its internal research evaluation, at about 15 times the tokens of a chat, and says "most coding tasks involve fewer truly parallelizable tasks than research". Cognition (12 June 2025, {{Don't Build Multi-Agents|https://cognition.com/blog/dont-build-multi-agents}}) argues "Actions carry implicit decisions, and conflicting decisions carry bad results": two subagents building parts of a Flappy Bird clone each guess a different style, and the parts do not fit. Both posts, quoted in full and read against the other evidence: {{Multi-agent patterns|n:3c65c17b0d0d8194a306c37803387bf3}}, section 10. Where each applies to a task:</p>
 <div class="tw"><table class="orch-t"><thead><tr><th>Property of the task</th><th>Which argument wins</th><th>Why</th></tr></thead><tbody>
@@ -156,7 +172,6 @@
 <tr><td>A run longer than one context window</td><td>both offer an answer</td><td>Anthropic splits the work across windows; Cognition compresses history in one thread. Compare compaction on the {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} page</td></tr>
 </tbody></table></div>
 <p class="small mute">Both posts checked 5 October 2026. Both are vendor posts arguing from their own products; neither publishes its evaluation set. The 90.2% is Anthropic's internal measurement, not an independent one.</p>
-</section>
 
 <section id="orch-s-iq">
 <h2>Interview questions</h2>

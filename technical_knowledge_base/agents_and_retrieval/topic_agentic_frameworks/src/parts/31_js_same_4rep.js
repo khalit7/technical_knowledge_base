@@ -52,6 +52,6 @@
   }
   function load(){X=runs[+sel.value];S=steps(X);
     document.getElementById('same-repDiff').textContent=X.r.diff||'(no change)';
-    if(!an)an=anim({card:'same-repCard',ctl:'same-repCtl',n:S.length,draw,ms:1600,autoplay:false});else an.reset(S.length)}
+    if(!an)an=anim({card:'same-repCard',ctl:'same-repCtl',n:S.length,draw,ms:1600,auto:false});else an.reset(S.length)}
   sel.onchange=load;sel.value=String(Math.max(0,runs.findIndex(x=>x.k==='a1_1')));load();
 })();

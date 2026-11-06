@@ -18,7 +18,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
 - [x] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
 - [x] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
-- [ ] `agents_and_retrieval/topic_agentic_frameworks` Topic: agentic-frameworks
+- [x] `agents_and_retrieval/topic_agentic_frameworks` Topic: agentic-frameworks
 - [x] `agents_and_retrieval/topic_agentic_harnesses/agent_security` Agent security: permissions, sandboxes, prompt injection, egress
 - [x] `agents_and_retrieval/topic_agentic_harnesses/building_a_harness` Building a harness: the loop, tool calling, edit formats, stop conditions
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/claude_code` Claude Code, taken apart: loop, tools, permissions, hooks, memory, subagents, headless runs

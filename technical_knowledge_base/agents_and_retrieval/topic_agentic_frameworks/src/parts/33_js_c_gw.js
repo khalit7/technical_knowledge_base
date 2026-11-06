@@ -76,7 +76,7 @@
     if(mode==='direct'&&!cur.d){R=null}
     E=R?evs(R):[{t:0,x:'Not recorded without a gateway: four direct requests would each fail at once with a 503.'}];
     TT=R?Math.max(...R.req.map(q=>q.t1),...R.up.map(u=>u.t1),...R.bk.map(b=>b.t1),0.5):1;
-    an.reset(E.length);an.go(E.length-1);an.go(0);
+    an.reset(E.length);
   }
   function draw(i){
     const el=document.getElementById('ops-gwsvg');const W=U.width(el),lw=W<480?64:96,pw=W-lw-12;
@@ -90,7 +90,7 @@
     if(R){
       const L=n=>lanes.indexOf(n);
       R.req.forEach(q=>{s+=bar(0,q.t0,q.t1,'var(--c1)',0.85,'client waiting '+(q.t1-q.t0).toFixed(2)+' s');
-        if(q.t1<=now)s+='<rect x="'+(x(q.t1)-3)+'" y="'+(top+6)+'" width="6" height="'+(lh-14)+'" fill="'+(q.status===200?'var(--good)':'var(--bad)')+'"/>'});
+        if(q.t1<=now+0.021)s+='<rect x="'+(x(q.t1)-3)+'" y="'+(top+6)+'" width="6" height="'+(lh-14)+'" fill="'+(q.status===200?'var(--good)':'var(--bad)')+'"/>'});
       R.up.forEach((u,k)=>{const lane=L('Primary');const fail=isHang(u)?Math.min(u.t1,mode==='gw'?u.t0+TIMEOUT:u.t1):u.t1;
         if(isHang(u)){s+=bar(lane,u.t0,u.t1,'var(--c5)',mode==='gw'?0.45:0.8,'hanging attempt');if(mode==='gw')s+=bar(lane,u.t0,fail,'var(--c5)',1,'')}
         else s+=bar(lane,u.t0,Math.max(u.t1,u.t0+TT*0.004),u.status>=400?'var(--bad)':'var(--good)',1,String(u.status));
@@ -106,7 +106,7 @@
     const e=E[Math.min(i,E.length-1)];
     document.getElementById('ops-gwcap').innerHTML='<b>'+(+now.toFixed(2))+' s.</b> '+(e?e.x:'');
     // counters (to the current time)
-    if(R){const at=R.up.filter(u=>u.t0<=now).length,bk=R.bk.filter(b=>b.t0<=now).length,done=R.req.filter(q=>q.t1<=now);
+    if(R){const at=R.up.filter(u=>u.t0<=now).length,bk=R.bk.filter(b=>b.t0<=now).length,done=R.req.filter(q=>q.t1<=now+0.021);
       const last=R.req[R.req.length-1],h=last.hdr||{};
       document.getElementById('ops-gwcnt').innerHTML=U.stat('Client has waited',U.sec(Math.min(now,last.t1)),R.req.length>1?R.req.length+' requests in a row':'')+
         U.stat('Attempts at the primary',at,mode==='gw'?'2 retries allowed per request':'one call, no retries')+

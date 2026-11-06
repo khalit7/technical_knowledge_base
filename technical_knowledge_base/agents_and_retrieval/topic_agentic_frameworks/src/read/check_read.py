@@ -37,8 +37,23 @@ for k in ("a6_haiku_1", "a6b_haiku_1", "a6c_haiku_1"):
 chk("s5 same hidden score", R["agent"]["hidden"] == R["multi"]["hidden"] == 5)
 chk("s5 multi costs more", R["multi"]["tokens"] > 3 * R["agent"]["tokens"] and R["multi"]["wall"] > 2 * R["agent"]["wall"])
 chk("s1 two designs 6/6", sorted(k for k in ["chain", "route", "parallel", "orch", "evalopt", "agent"] if R[k]["hidden"] == 6) == ["evalopt", "route"])
+# Fig. 3's step list (2026-11-06) against the Orchestration lab's recording of the LangGraph run (window.ORCH.lg in 32_js_a_data.js)
+_od = open(os.path.join(SRC, "parts", "32_js_a_data.js")).read()
+LG = json.loads(_od[_od.index("{"):_od.rstrip().rstrip(";").rindex("}") + 1])["lg"]
+_ev = LG["events"]; _dg = next(e for e in _ev if e["what"] == "llm_done" and e["node"].startswith("diag"))
+_pr = [e for e in _ev if e["what"] == "llm_done" and e["node"].startswith("propose")]
+_kill = next(e for e in _ev if e["what"] == "SIGKILL"); _ps = next(e for e in _ev if e["node"] == "propose_fix" and e["what"] == "start")
+chk("fig 3 diagnose 12.6 s, $0.0072", f"after {_dg['secs']:.1f} s (${_dg['cost']:.4f})" in read)
+chk("fig 3 killed 3.1 s into the fix call", f"SIGKILL, {_kill['t'] - _ps['t']:.1f} s into the fix call" in read)
+chk("fig 3 resumed fix call 10.8 s", f"runs it ({_pr[0]['secs']:.1f} s)" in read)
+chk("fig 3 four rows by the kill", sum(1 for c in LG["final"] if c["t"] <= _kill["t"]) == 4 and "four rows" in read)
+chk("fig 3 eleven rows in all", len(LG["final"]) == 11 and "eleven rows in all" in read)
+chk("fig 3 five runner processes", sum(1 for e in _ev if e["what"] == "process_start" and e["cmd"] != "dump") == 5)
+# the workflow-against-agent step list
+chk("s1 step list: 10 tool calls over 11 turns", len(D["agent"]) == 10 and R["agent"]["turns"] == 11 and "10 tool calls over 11 turns" in read)
+chk("s1 step list: one item per replay step", read.count('<ol class="sx" id="sx-who">') == 1 and read.split('id="sx-who">')[1].split("</ol>")[0].count("<li>") == max(len(D["chain"]), len(D["agent"])) + 1)
 # em-dashes and private strings in everything this tab owns
-own = [os.path.join(SRC, "parts", f) for f in os.listdir(os.path.join(SRC, "parts")) if f.startswith(("20_read", "22_js_afread", "23_js_afread", "39_"))]
+own = [os.path.join(SRC, "parts", f) for f in os.listdir(os.path.join(SRC, "parts")) if f.startswith(("20_read", "22_js_afread", "23_js_afread", "24_js_labanim", "26_js_sc", "27_js_sc", "28_js_sc", "39_"))]
 own += [os.path.join(r, f) for r, _, fs in os.walk(HERE) for f in fs if not f.endswith(".pyc")]
 acct = os.path.basename(os.path.expanduser("~"))
 for p in own:

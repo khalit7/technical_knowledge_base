@@ -53,10 +53,10 @@
 </style>
 <nav class="nav" id="ops-nav"><a href="#ops-s-intro">Around the loop</a><a href="#ops-s-gw">Gateways</a><a href="#ops-s-sim">Gateway simulator</a><a href="#ops-s-tr">Tracing</a><a href="#ops-s-ev">Evals in the loop</a><a href="#ops-s-host">Hosted runtimes</a><a href="#ops-s-iq">Interview</a><a href="#ops-s-how">How it was recorded</a></nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="ops-s-intro">
 <h2>Everything around the loop, once it runs</h2>
 <p class="lead">The agent loop on your laptop calls one model with one key and prints what happened. A loop that serves real users needs three more things, and each one exists because something specific goes wrong without it: providers fail, so a <b>gateway</b> retries and falls back; nobody can see inside a run, so you record a <b>trace</b>; a prompt change quietly breaks things, so an <b>eval</b> gate checks every change. The last question is whether to run the loop at all, or rent one (a <b>hosted runtime</b>). This tab puts all of them around one running agent; each piece is taught on its own page ({{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}, {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}), and memory across sessions on {{Context engineering|n:3f15c17b0d0d811292cee46514370431}}, section 8.</p>
-<div id="ops-arch" class="plot" role="img" aria-label="Diagram: your agent loop sends model calls through a gateway to a primary and a backup provider; every step emits spans to a trace collector; evals read stored runs."></div>
 <div class="grid">
 <div class="sp"><div class="n">Gateway</div><p>A proxy between your code and the model providers. Your code speaks one API to it (usually OpenAI's chat format); it forwards each call to a provider and adds retries, fallbacks, timeouts, keys, budgets and a log of every call.</p></div>
 <div class="sp"><div class="n">Trace and span</div><p>A <b>span</b> is one timed operation with a name and attributes (a model call, a tool call). A <b>trace</b> is the tree of spans for one request. OpenTelemetry (OTel) is the vendor-neutral standard for producing and shipping them.</p></div>
@@ -65,7 +65,11 @@
 </div>
 <div class="co"><div class="t">What is real on this tab</div>Every gateway request and trace below was recorded on <span class="ops-v" data-v="date"></span> on one laptop: a real LiteLLM proxy (<span class="ops-v" data-v="litellm"></span>) in front of a deliberately broken fake provider and a <b>local model on Apple M1 Pro</b> (<code>mlx-community/Qwen3-4B-Instruct-2507-4bit</code> served by mlx-lm 0.32.0), a real OpenTelemetry Collector, and one real Claude Code run (Haiku 4.5) with its tracing switched on. The local model is a 4-billion-parameter model; never read its answers as a statement about Claude. The evals reuse the recorded Claude Code runs of the sibling root's {{Trace and context lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} and this page's {{Orchestration lab|#t-orch}}.</div>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div id="ops-arch" class="plot" role="img" aria-label="Diagram: your agent loop sends model calls through a gateway to a primary and a backup provider; every step emits spans to a trace collector; evals read stored runs."></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="ops-s-gw">
 <h2>Gateways: one front door for every provider</h2>
 <p><b>The problem.</b> A model provider is a remote service, and remote services fail in three ordinary ways: they refuse you because you sent too much (HTTP <code>429 Too Many Requests</code>, often with a <code>Retry-After</code> header saying how many seconds to wait), they break (<code>500</code>, <code>503</code>), or they stop answering (a hang, which only a timeout ends). An agent makes ten or fifty calls per task, so a 1% failure rate per call becomes a failed task surprisingly often. Every provider also has its own SDK, keys, prices and limits.</p>
@@ -73,9 +77,14 @@
 <div class="fm"><div class="eq">wait<sub>k</sub> = min(8, max(r, 0.5 &middot; 2<sup>k</sup>)) + jitter,&nbsp; jitter &sim; U(0, 0.75) s</div>
 <dl><dt>k</dt><dd>retries already made (0 for the first retry)</dd><dt>r</dt><dd>the router's minimum wait (<code>retry_after</code>, 0 by default)</dd><dt>Retry-After</dt><dd>if the provider sent one between 0 and 60 seconds, the gateway waits exactly that plus jitter instead</dd></dl>
 <p class="small mute" style="margin:4px 0 0">LiteLLM <span class="ops-v" data-v="litellm"></span>, read from its source: <code>_calculate_retry_after</code> in <code>litellm/utils.py</code> and the constants <code>INITIAL_RETRY_DELAY = 0.5</code>, <code>MAX_RETRY_DELAY = 8.0</code>, <code>JITTER = 0.75</code> in <code>litellm/constants.py</code>. When other healthy deployments exist in the same group, the router retries at once instead (<code>_time_to_sleep_before_retry</code> in <code>router.py</code>).</p></div>
-
 <h3>Watch the same failure with and without a gateway</h3>
 <p>Pick a failure. The fake provider is scripted to fail exactly that way; the request is sent once straight to it ("no gateway") and once through LiteLLM configured with 2 retries, an 8-second timeout on the primary, and a fallback from <code>primary</code> to <code>backup</code> (the local model). The lanes are to scale in seconds, and every bar is a recorded request.</p>
+<p class="small mute">The replay is a tool to drive: it opens on the end of the request, with every attempt drawn, and does not play by itself; play it or step through it, and the caption under the lanes names each event.</p>
+<div class="ops-pred done" id="ops-pr1"><b>Predict first.</b> The provider hangs on every call. The gateway has an 8-second timeout, 2 retries and a working fallback that answers in about 3 seconds. How long does the user wait? <span class="mute">(About 8 s; About 11 s; About 20 s; More than 30 s?)</span>
+<details><summary>Open the answer</summary><div class="ans" id="ops-pr1a"></div></details></div>
+<div id="ops-gwfind"></div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="ops-fig" id="ops-gwf">
 <div class="ops-pick" id="ops-gwpick" role="group" aria-label="Failure"></div>
 <div class="seg" id="ops-gwmode" role="group" aria-label="With or without a gateway"><button data-m="direct">No gateway</button><button data-m="gw" class="on">Through the gateway</button></div>
@@ -85,9 +94,7 @@
 <div class="ops-cap" id="ops-gwcap" aria-live="polite"></div>
 <div class="out" id="ops-gwcnt"></div>
 </div>
-<div class="ops-pred done" id="ops-pr1"><b>Predict first.</b> The provider hangs on every call. The gateway has an 8-second timeout, 2 retries and a working fallback that answers in about 3 seconds. How long does the user wait? <span class="mute">(About 8 s; About 11 s; About 20 s; More than 30 s?)</span>
-<details><summary>Open the answer</summary><div class="ans" id="ops-pr1a"></div></details></div>
-<div id="ops-gwfind"></div>
+</div></div></div>
 
 <h3>Keys, budgets and rate limits</h3>
 <p>A <b>virtual key</b> is issued by the gateway and stored in its database (LiteLLM needs Postgres for this; it ran in Docker here). Each key can be limited to some model names, a spending cap in dollars and a number of requests per minute. The gateway prices every call with its own price table (here an illustrative $1 per million input tokens and $5 per million output tokens, set in the config because the local model has no price) and adds it to the key's spend.</p>
@@ -97,11 +104,14 @@
 <p><b>OpenRouter</b> is the same idea hosted: one OpenAI-compatible endpoint and one bill for models from many providers, with model fallbacks from a list, provider routing weighted by price, and fees on credit purchases; it was not run here, and its documented rules and its provider market are on {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}, section 9.</p>
 <div class="co key"><div class="t">When a gateway earns its place</div>More than one provider or model; more than one team or app sharing keys and budgets; a need to log every call in one place; or failures you cannot afford to surface. It costs a network hop (the recorded overhead of the local proxy is in the counters above), one more service to run and secure, and a translation layer: provider features the common API does not express (Anthropic's cache breakpoints, for example) depend on the gateway passing them through.</div>
 <div class="deepnote"><b>Go deeper.</b> {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}} reads LiteLLM 1.104.0's source and records every attempt: which errors are retried and which go straight to fallbacks, when cooldowns really trigger, how client, gateway and provider retries multiply (9 provider calls for one user request), the rate limiter's fixed window, budget reservation, what the response cache keys on, and the <code>x-litellm-model-id</code> header that names the deployment that answered, the tag the fallback warning above asks for.</div>
-</section>
 
+<div class="s3sp"><div class="s3L">
 <section id="ops-s-sim">
 <h2>Gateway simulator: a hundred requests through a bad afternoon</h2>
 <p>The recordings show one request at a time. Real traffic is many requests sharing one provider, and retries change that provider's load. The simulator below replays the same seeded trace of requests against a simulated provider that has a background error rate, occasional hangs, an outage window and a rate limit, first with no gateway and then through a gateway using LiteLLM's backoff formula. Both rows see exactly the same provider, so the difference is the policy.</p>
+<div class="co warn"><div class="t">What the simulator is and is not</div>An illustrative model, not a measurement: the provider's behaviour is invented (the defaults are round numbers), latencies are fixed per request type, and the rate limit counts every attempt in a sliding 60-second window. What is taken from the recordings and the source is the gateway's policy: the backoff formula, Retry-After handling, the per-attempt timeout, one extra backoff before the fallback, and no cooldown for a single deployment.</div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="ops-fig" id="ops-simf">
 <div class="ctl" id="ops-simctl"></div>
 <div id="ops-simsvg" class="plot"></div>
@@ -109,43 +119,53 @@
 <div class="tw"><table class="ops-t" id="ops-simtab"></table></div>
 <p class="small mute" id="ops-simrep"></p>
 </div>
-<div class="co warn"><div class="t">What the simulator is and is not</div>An illustrative model, not a measurement: the provider's behaviour is invented (the defaults are round numbers), latencies are fixed per request type, and the rate limit counts every attempt in a sliding 60-second window. What is taken from the recordings and the source is the gateway's policy: the backoff formula, Retry-After handling, the per-attempt timeout, one extra backoff before the fallback, and no cooldown for a single deployment.</div>
-</section>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="ops-s-tr">
 <h2>Tracing: seeing inside a run</h2>
 <p><b>The problem.</b> An agent run is dozens of model calls and tool calls deciding each other. When it fails, costs too much or takes too long, the final answer does not tell you which step did it. Logging every call to a file helps until two runs interleave or a call is retried inside a gateway.</p>
 <p><b>How tracing works</b>, in one sentence: each operation opens a <b>span</b> (name, start, end, parent, attributes such as the model and token counts), the spans of one task share a trace id and form a tree, and an exporter ships them over OTLP to a collector or a backend; the OpenTelemetry GenAI conventions agree on the names (<code>chat {model}</code>, <code>execute_tool {tool}</code>, <code>invoke_agent {agent}</code>, <code>gen_ai.usage.input_tokens</code>), all still marked "Development". The conventions attribute by attribute, and why message content is opt-in: {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}, sections 1, 2 and 8.</p>
 <p>Three real traces, all collected by an OpenTelemetry Collector (0.139.0, in Docker) writing OTLP JSON to a file. The first two are the same plain agent loop as the {{Same agent, six ways|#t-same}} tab, run on the running example through the gateway above (its primary provider scripted to fail, so every model call fell back to the local model): once with spans written by hand following the conventions, once with only the official <code>opentelemetry-instrumentation-openai-v2</code> package switched on. The third is Claude Code's own beta tracing on the same task.</p>
+<div id="ops-trfind"></div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="ops-fig" id="ops-trf">
 <div class="ops-pick" id="ops-trpick" role="group" aria-label="Trace"></div>
 <div class="out" id="ops-trcnt"></div>
 <div class="ops-tree" id="ops-tree"></div>
 <div id="ops-trattr"></div>
 </div>
-<div id="ops-trfind"></div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Cost attribution: which step spent the money</h3>
 <p>Tracing turns a bill into a breakdown. Claude Code's <code>llm_request</code> spans carry four token counts each; priced at Haiku 4.5's list prices ($1 per million input tokens, $2 per million 1-hour cache-write tokens, $0.10 per million cache-read tokens, $5 per million output tokens; Claude Code writes its cache with the 1-hour TTL on these runs, see the shared facts of the {{Trace and context lab|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}), they should add up to what the run reported.</p>
-<div id="ops-cost" class="plot"></div>
 <div id="ops-costnote"></div>
 <p><b>Whether a backend gets the same total depends on names.</b> {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}} sent one Claude Code run to a self-hosted Langfuse: as-is, its spans (Claude Code's own token names) were priced at $0; renamed to the GenAI names, the cost came out 16% short of <code>total_cost_usd</code>, because the conventions have no field for 1-hour cache writes and Langfuse priced them as 5-minute writes; with Langfuse's explicit 1-hour cache key it matched exactly <span class="meas">MEASURED</span>. The same page instrumented one agent run eight ways: automatic instrumentation of the model client alone gave 8 separate flat traces, one per model call, with no tool spans, which is what the <code>auto</code> trace above shows too. Its sections 7 and 8 measure tail sampling and redaction on a real collector.</p>
 <p class="small mute">Where to send the spans (Langfuse, LangSmith, Braintrust, Arize Phoenix, all accepting OTLP) is compared by design on {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}, section 5, and Langfuse is run self-hosted there (section 4). Instrument with OpenTelemetry and keep the backend a configuration choice, as the collector here does. Tracing as a general engineering tool: {{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}.</p>
-</section>
+</div><div class="s3R"><div class="s3side">
+<div class="card">
+<div id="ops-cost" class="plot"></div>
+</div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="ops-s-ev">
 <h2>Evals in the loop: a gate on every change</h2>
 <p><b>The problem.</b> You change the system prompt, swap the model, add a tool or upgrade the harness. The demo still works. Did anything get worse? One run cannot tell you, because the same agent on the same task varies run to run in turns, cost and even in what it fixes.</p>
 <p><b>How it works.</b> Keep a fixed set of tasks. For each change, run the agent on them (several times each), keep the recordings, and score each recording with <b>checks</b>: deterministic code where possible (do the tests pass, were the tests edited, how much did it cost), a model judge only where code cannot decide. A <b>gate</b> compares the candidate with the baseline and blocks the change if it regresses. The suite below has no model in it: it scores <span class="ops-v" data-v="ev.n"></span> recorded Claude Code runs of the running example from this page and the sibling root, rebuilding each run's final code from its recorded diff and rerunning the visible tests and the six hidden checks from the {{Orchestration lab|#t-orch}} (derived from the docstrings; no run saw them).</p>
 <div class="ops-pred done" id="ops-pr2"><b>Predict first.</b> One run made all three visible tests pass, never edited the tests, and stayed under budget. Yet it should not ship. Which check catches it? <span class="mute">(Hidden checks; Ran the tests after its last edit; Cost; Turns?)</span>
 <details><summary>Open the answer</summary><div class="ans" id="ops-pr2a"></div></details></div>
+<div id="ops-evfind"></div>
+<div class="deepnote"><b>Go deeper.</b> How to grade trajectories rather than final answers, judges for open-ended tasks, and how many runs a comparison needs: {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}} and {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}. Why the same model scores differently in different harnesses: the sibling root, {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}.</div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="ops-fig" id="ops-evf">
 <div class="ctl" id="ops-evctl"></div>
 <div class="tw"><table class="ops-t" id="ops-evgrp"></table></div>
 <details class="mist"><summary>Every run and every check</summary><div class="b"><div class="tw"><table class="ops-t" id="ops-evrun"></table></div></div></details>
 </div>
-<div id="ops-evfind"></div>
-<div class="deepnote"><b>Go deeper.</b> How to grade trajectories rather than final answers, judges for open-ended tasks, and how many runs a comparison needs: {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2}} and {{Topic: evaluation-and-llm-judges|n:3c65c17b0d0d8181b351e1b8fc6a1546}}. Why the same model scores differently in different harnesses: the sibling root, {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}.</div>
-</section>
+</div></div></div>
 
 
 <section id="ops-s-host">

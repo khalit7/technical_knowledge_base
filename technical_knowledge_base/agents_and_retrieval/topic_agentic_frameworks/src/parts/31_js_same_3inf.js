@@ -1,4 +1,4 @@
-// ---- Same agent, six ways: prompt inflation, before/after on the same intent ----
+// ---- Same agent, six ways: prompt inflation, before/after on the same intent; the PARTS texts are written out as the step list sx-inf in 31_tab_same.html ----
 (function(){
   const {D,esc,fmt,anim}=SAMEUI;
   const FT=D.first_tokens,PER=10;
@@ -23,12 +23,13 @@
     document.getElementById('same-infAn').textContent=fmt(sum(A,upto))+' of '+fmt(A.full)+' prompt tokens';
     document.getElementById('same-infBn').textContent=fmt(sum(B,upto))+' of '+fmt(B.full)+' prompt tokens';
     document.getElementById('same-infBt').textContent='What '+FW.find(a=>a.id===sel.value).name+' sent';
-    const cap=i===0?'Same intent on both sides: our system prompt, the task and four tools. Press play to build each first request.':
-      PARTS[i-1][3]+(i===PARTS.length?' <b>Total: '+fmt(B.full)+' against '+fmt(A.full)+' tokens, '+(B.full/A.full).toFixed(2)+' times ours, on every one of the run\'s calls before any history is added.</b>':'');
+    // the step list on the left explains each block (sx-inf); this line carries the chosen framework's total
+    const nm=FW.find(a=>a.id===sel.value).name;
+    const cap='Totals for '+esc(nm)+': <b>'+fmt(B.full)+' against '+fmt(A.full)+' prompt tokens, '+(B.full/A.full).toFixed(2)+' times ours</b>, on every one of the run\'s calls before any history is added.';
     document.getElementById('same-infCap').innerHTML=cap;
   }
   document.getElementById('same-infLeg').innerHTML=PARTS.map(p=>'<span><i style="background:'+p[2]+'"></i>'+p[1]+'</span>').join('')+'<span>one square = '+PER+' tokens</span>';
-  const an=anim({card:'same-infCard',ctl:'same-infCtl',n:PARTS.length+1,draw,ms:1300});
+  const an=anim({card:'same-infCard',ctl:'same-infCtl',n:PARTS.length+1,draw,ms:4200,list:'sx-inf',label:'Block of the request'});
   function raw(){const f=r=>JSON.stringify({params:r.first.params,messages:r.first.messages,tools:r.first.tools},null,1);
     document.getElementById('same-rawA').textContent='// plain loop\n'+f(D.local['a1_1']);
     document.getElementById('same-rawB').textContent='// '+sel.options[sel.selectedIndex].text+'\n'+f(D.local[sel.value+'_1'])}

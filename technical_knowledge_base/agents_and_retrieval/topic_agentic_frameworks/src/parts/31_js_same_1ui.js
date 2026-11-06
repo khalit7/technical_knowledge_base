@@ -6,25 +6,8 @@ window.SAMEUI=(function(){
   const fmt=n=>n==null?'n/a':Number(n).toLocaleString('en-US');
   const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
   const reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-same']=window.TAB_RENDER['t-same']||[]).push(f)};
-  // Step animation: play, pause, step, scrub, speed. Animates only while on screen in the visible tab;
-  // it never autoplays: it waits on step 0 until the reader presses play or steps.
-  function anim(o){
-    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl),p=o.ctl+'-';
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,spd:1,auto:false};
-    ctl.innerHTML='<button id="'+p+'b" aria-label="Previous step">&#9664;&#9664;</button><button id="'+p+'p" aria-label="Play">&#9654; Play</button><button id="'+p+'f" aria-label="Next step">&#9654;&#9654;</button><input type="range" id="'+p+'s" min="0" max="'+(st.n-1)+'" value="0" aria-label="Step"><label>speed <select id="'+p+'v" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label><span class="small mute" id="'+p+'c"></span>';
-    const q=s=>document.getElementById(p+s);
-    function go(i){st.i=Math.max(0,Math.min(st.n-1,i));q('s').value=st.i;q('c').textContent='step '+(st.i+1)+' of '+st.n;o.draw(st.i)}
-    function shown(){return st.vis&&card.offsetParent!==null&&!document.hidden}
-    function tick(){clearTimeout(st.timer);if(!st.play)return;if(!shown()){st.timer=setTimeout(tick,400);return}
-      if(st.i>=st.n-1){setPlay(false);return}go(st.i+1);st.timer=setTimeout(tick,(o.ms||900)/st.spd)}
-    function setPlay(v){st.play=v;q('p').innerHTML=v?'&#10074;&#10074; Pause':'&#9654; Play';q('p').setAttribute('aria-label',v?'Pause':'Play');if(v){if(st.i>=st.n-1)go(0);st.timer=setTimeout(tick,(o.ms||900)/st.spd)}else clearTimeout(st.timer)}
-    q('p').onclick=()=>setPlay(!st.play);q('b').onclick=()=>{setPlay(false);go(st.i-1)};q('f').onclick=()=>{setPlay(false);go(st.i+1)};
-    q('s').oninput=e=>{setPlay(false);go(+e.target.value)};q('v').onchange=e=>{st.spd=+e.target.value};
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{st.vis=e.isIntersecting;
-      })}).observe(card)}else st.vis=true;   // never autoplays (2026-10-23): it waits for the reader
-    go(o.start||0);
-    return {go,reset(n){setPlay(false);st.n=n;q('s').max=n-1;st.auto=RM;go(0)},get i(){return st.i},play:setPlay};
-  }
+  // Step animation: the labs' shared controller (24_js_labanim.js): autoplay on view with a step list, or a widget with auto:false
+  const anim=o=>LABANIM('t-same',o);
   // Predict-then-reveal questions
   document.querySelectorAll('#t-same .same-q').forEach(box=>{
     box.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
