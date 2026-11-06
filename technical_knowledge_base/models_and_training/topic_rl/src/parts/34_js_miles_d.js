@@ -4,7 +4,7 @@
   const {$,esc,A}=U;
   const host=$('ms-an');
   const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const st={mode:'climb',i:0,playing:false,speed:1,shown:0,anim:null,onScreen:true};
+  const st={mode:'climb',i:0,playing:false,speed:1,shown:0,anim:null,onScreen:false,user:false,ended:false};
   const C=D.CLIMB,PG=D.PG,RC=D.RC;
   const AG=[['apex','Ape-X','2018',RC.apex_a57,434.1,'22.8B frames','Distributed prioritized replay: 376 cores feed one learner on one GPU.'],
             ['r2d2','R2D2','2018',RC.r2d2_a57,1920.6,'37.5B frames','Recurrent replay: an LSTM agent learning from stored sequences, 256 actors.'],
@@ -57,19 +57,23 @@
       s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(h?3.6:2.8)+'" fill="'+(h?'var(--bad)':v>=100?'var(--c6)':'var(--mute)')+'" opacity="'+(h?1:0.8)+'"><title>'+esc(nice(g.g))+': '+fmt(v)+'</title></circle>'});
     s+='</svg>';host.innerHTML=s;
   }
+  // the step list on the left: one item per step of the current view, a click jumps to it (and stops autoplay); it replaces the old per-step caption
+  function buildList(){const ol=$('ms-sx');
+    if(st.mode==='climb')ol.innerHTML=C.map(c=>{const T=D.T[c.tab];return '<li><b>'+esc(c.a)+' ('+c.d+'): '+fmt(c.med)+'.</b> '+esc(c.fix)+' <span class="small">Median printed in '+A(T.u,esc(T.n))+'.</span></li>'}).join('');
+    else ol.innerHTML=AG.map(a=>{const below=PG.filter(g=>g[a[0]]<100).sort((x,y)=>x[a[0]]-y[a[0]]);
+      return '<li><b>'+a[1]+' ('+a[2]+'), '+esc(a[5])+'.</b> '+esc(a[6])+' <span class="small">'+(below.length?'Below human: '+below.map(g=>esc(nice(g.g))+' '+fmt(g[a[0]])).join(', ')+'.':'No game below human.')+'</span></li>'}).join('');
+    [...ol.children].forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);go(i,true)};li.onclick=e=>{if(e.target.closest('a'))return;j()};li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
   function caption(){
-    const cap=$('ms-cap'),cnt=$('ms-acnt'),note=$('ms-annote');
+    const cnt=$('ms-acnt'),note=$('ms-annote');
+    [...$('ms-sx').children].forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
     const stat=(k,v,d)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
     if(st.mode==='climb'){const c=C[st.i],T=D.T[c.tab];
-      cap.innerHTML='<div class="t">'+(st.i+1)+' of '+C.length+': '+esc(c.a)+' ('+c.d+')</div><p>'+esc(c.fix)+'</p><p class="small mute">Median printed in '+A(T.u,esc(T.n))+'.</p>';
       const x=c.fr?c.fr/2e8:null;
       cnt.innerHTML=stat('Median, 57 games, no-op starts',fmt(c.med),st.i?((c.med>=C[st.i-1].med?'+':'')+(c.med-C[st.i-1].med).toFixed(1)+' points on the step before'):'the starting point')+
         stat('Training frames',esc(c.frl),x?(x===1?'the 200M-frame standard':(Math.round(x)+' times the 200M standard')):'no single budget stated')+
         stat('Games at or above human',c.ah==null?'not printed':c.ah+' of 57',c.a==='C51'?'printed ("> H.B.")':c.a==='Agent57'?'printed':c.ah==null?'':'derived from per-game scores');
       note.innerHTML='Each value is the first 57-game no-op median printed for that agent, from its own or the next paper\'s table (the bars view above shows each table whole). Same protocol, but seeds, snapshot rules and budgets differ, so the step from Rainbow to Ape-X also carries 114 times more experience, not only a better algorithm.';
     }else{const a=AG[st.i],r=a[3];
-      const below=PG.filter(g=>g[a[0]]<100).sort((x,y)=>x[a[0]]-y[a[0]]);
-      cap.innerHTML='<div class="t">'+(st.i+1)+' of '+AG.length+': '+a[1]+' ('+a[2]+'), '+esc(a[5])+'</div><p>'+esc(a[6])+'</p><p class="small">'+(below.length?'Below human: '+below.map(g=>esc(nice(g.g))+' '+fmt(g[a[0]])).join(', ')+'.':'No game below human.')+'</p>';
       cnt.innerHTML=stat('Median (derived)',fmt(r.median),'printed: '+fmt(a[4]))+stat('Mean (derived)',fmt(r.mean),'')+stat('Games at or above human',r.above_human+' of 57','orange dots: below human for Ape-X, R2D2 and MuZero alike')+stat('Capped mean (derived)',r.capped_mean.toFixed(1)+'%','each game capped at 100%; Agent57 prints 100.00');
       note.innerHTML='Per-game scores: Ape-X, R2D2 and MuZero as printed in '+A('https://arxiv.org/abs/1911.08265','MuZero Table S1')+', Agent57 from '+A('https://arxiv.org/abs/2003.13350','Agent57 App. H.4')+'; all normalised with Agent57\'s random and human scores. The derived medians reproduce the printed ones for Ape-X, MuZero and Agent57; R2D2 comes out '+(RC.r2d2_a57.median-1920.6).toFixed(1)+' points above its printed 1,920.6%.';
     }
@@ -84,23 +88,27 @@
     const tick=now=>{const t=Math.min(1,(now-t0)/dur);render(1-Math.pow(1-t,3));if(t<1)st.anim=requestAnimationFrame(tick);else st.anim=null};
     st.anim=requestAnimationFrame(tick);
   }
-  let timer=null;
-  function setPlay(p){st.playing=p;$('ms-play').textContent=p?'Pause':'Play';clearTimeout(timer);if(p)loop()}
-  function loop(){clearTimeout(timer);if(!st.playing)return;
-    timer=setTimeout(()=>{if(!st.playing)return;
-      if(!host.offsetParent||!st.onScreen){loop();return}
-      if(st.i>=nSteps()-1){setPlay(false);return}
-      go(st.i+1,true);loop()},2400/st.speed)}
-  $('ms-play').addEventListener('click',()=>{if(!st.playing&&st.i>=nSteps()-1)go(0,false);setPlay(!st.playing)});
-  $('ms-fwd').addEventListener('click',()=>{setPlay(false);go(st.i+1,true)});
-  $('ms-back').addEventListener('click',()=>{setPlay(false);go(st.i-1,true)});
-  $('ms-scrub').addEventListener('input',e=>{setPlay(false);go(+e.target.value,false)});
+  // motion rules (2026-11-06): plays by itself once at least half the card is on screen in the visible tab, about 4 s a step,
+  // pauses off screen and resumes, stops for good on any reader control or at the last step, never moves by itself under reduced motion
+  let timer=null;const card=$('ms-an-card');
+  const live=()=>st.onScreen&&!!host.offsetParent&&!document.hidden;
+  function setPlay(p){st.playing=p;card.toggleAttribute('data-playing',p);$('ms-play').textContent=p?'Pause':'Play';clearTimeout(timer);timer=null;if(p)loop()}
+  function loop(){clearTimeout(timer);timer=null;if(!st.playing||!live())return;
+    timer=setTimeout(()=>{timer=null;if(!st.playing||!live())return;
+      if(st.i>=nSteps()-1){st.ended=true;setPlay(false);return}
+      go(st.i+1,true);if(st.i>=nSteps()-1){st.ended=true;setPlay(false);return}loop()},4200/st.speed)}
+  function auto(){if(!reduce&&!st.user&&!st.ended&&!st.playing&&live())setPlay(true)}
+  $('ms-play').addEventListener('click',()=>{st.user=true;if(!st.playing&&st.i>=nSteps()-1)go(0,false);setPlay(!st.playing)});
+  $('ms-fwd').addEventListener('click',()=>{st.user=true;setPlay(false);go(st.i+1,true)});
+  $('ms-back').addEventListener('click',()=>{st.user=true;setPlay(false);go(st.i-1,true)});
+  $('ms-scrub').addEventListener('input',e=>{st.user=true;setPlay(false);go(+e.target.value,false)});
   $('ms-speed').addEventListener('change',e=>{st.speed=+e.target.value});
   document.querySelectorAll('#ms-mode button').forEach(b=>b.addEventListener('click',()=>{
-    if(st.mode===b.dataset.v)return;st.mode=b.dataset.v;cur=null;setPlay(false);
-    document.querySelectorAll('#ms-mode button').forEach(x=>x.classList.toggle('on',x===b));go(0,false)}));
-  if('IntersectionObserver' in window)new IntersectionObserver(es=>es.forEach(e=>{st.onScreen=e.isIntersecting})).observe(host);
+    if(st.mode===b.dataset.v)return;st.mode=b.dataset.v;cur=null;setPlay(false);st.user=false;st.ended=false;
+    document.querySelectorAll('#ms-mode button').forEach(x=>x.classList.toggle('on',x===b));buildList();go(0,false);auto()}));
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{const e=es[es.length-1];st.onScreen=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);if(st.onScreen)auto();loop()},{threshold:[0,.25,.5,.75]}).observe(card);else st.onScreen=true;
+  document.addEventListener('visibilitychange',loop);
   (window.TAB_RENDER=window.TAB_RENDER||{})['t-miles']=(window.TAB_RENDER['t-miles']||[]).concat([()=>render(1)]);
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(st.mode==='games')cur=null;render(1)},120)});
-  go(0,false);
+  buildList();go(0,false);
 })();

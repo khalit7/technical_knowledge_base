@@ -1,4 +1,4 @@
-// Exercise every control of the Reading tab at 390 px dark and 920 px light: the one-episode animation (every
+// Exercise every control of the Reading tab at 390 px dark and 920 px light: the one-episode stage (every
 // step, play, pause, speed, every slider at many positions, reset), the decision tree (every path), the
 // mistakes table toggle, every link to another tab (Reading and Further reading) and every in-page link; also
 // clicks through every other tab and back. Fails on console errors, NaN, undefined or Infinity in the tab text,
@@ -38,15 +38,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const setRange = async (id, v) => p.$eval('#' + id, (s, v) => { s.value = v; s.dispatchEvent(new Event('input')) }, v);
   const sweep = async (id, label) => { const [mn, mx] = await p.$eval('#' + id, s => [+s.min, +s.max]); let k = 0; for (let j = 0; j <= 10; j++) { await setRange(id, Math.round(mn + (mx - mn) * j / 10)); await check(label + ' ' + j); k++ } return k };
   const tally = {};
-  await p.$eval('#rd-one', e => e.scrollIntoView()); await wait(400);
-  const n = await p.$eval('#rd-oneC-s', s => +s.max + 1);
+  await p.$eval('#stg-one', e => e.scrollIntoView()); await wait(400);
+  const n = await p.$eval('#stg-one-r', s => +s.max + 1);
   const ids = await p.$$eval('#rd-oneS input', a => a.map(x => x.id));
   tally.sliders = 0;
-  for (let i = 0; i < n; i++) { await setRange('rd-oneC-s', i); await check('one step ' + i); for (const id of ids) tally.sliders += await sweep(id, `one ${i} ${id}`); await p.click('#rd-oneR'); await check('reset ' + i) }
+  for (let i = 0; i < n; i++) { await setRange('stg-one-r', i); await check('one step ' + i); for (const id of ids) tally.sliders += await sweep(id, `one ${i} ${id}`); await p.click('#rd-oneR'); await check('reset ' + i) }
   tally.steps = n;
   const ck = id => p.$eval(id, b => b.click());
-  await ck('#rd-oneC-b'); await ck('#rd-oneC-f'); await p.select('#rd-oneC-v', '2'); await ck('#rd-oneC-p'); await wait(400); await p.$eval('#rd-oneC-p', b => { if (/Pause/.test(b.textContent)) b.click() }); await p.select('#rd-oneC-v', '1'); await check('one play');
-  for (const i of [0, 1, 4, 6, 7]) { await setRange('rd-oneC-s', i); await shot('#rd-one', 'one-' + i) }
+  await ck('#stg-one-b'); await ck('#stg-one-f'); await p.select('#stg-one-s', '2'); await ck('#stg-one-p'); await wait(400); await p.$eval('#stg-one-p', b => { if (/Pause/.test(b.textContent)) b.click() }); await p.select('#stg-one-s', '1'); await check('one play');
+  for (const i of [0, 1, 4, 6, 7]) { await setRange('stg-one-r', i); await wait(300); await shot('#stg-one', 'one-' + i) }
   tally.leaves = await p.evaluate(async () => {
     const el = document.getElementById('rd-tree'); let leaves = 0;
     const click = b => b.dispatchEvent(new MouseEvent('click', { bubbles: true }));

@@ -29,33 +29,43 @@ const CH={
   counters:[['nets','Large networks in memory'],['rew','Reward from'],['g','Samples per prompt']]}};
 const NOTE={value:'Networks counted from each paper\'s method: DQN 2015 adds the target copy; DDPG-style actor networks are not in this chain.',
  llm:'Network counts: PPO for RLHF holds a value model, a reward model and a reference model besides the policy, and GRPO drops the value model (DeepSeekMath, Figure 4); Dr. GRPO and DAPO remove the KL term and so the reference. A verifier is a program, not a network.'};
-const st={chain:'value',i:0,play:false,t:null};
+const st={chain:'value',i:0,play:false,t:null,user:false,ended:false,vis:false};
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function steps(){return A.chains[st.chain].steps}
+// the step list on the left: one item per paper, built when the chain changes; a click jumps to it and stops autoplay
+function list(){const ss=steps();const ol=document.getElementById('at-steps');
+  ol.innerHTML=ss.map((id,i)=>{const r=AT.byId[id],x=r.cells.fixed;return '<li><b>'+esc(r.name)+', '+AT.year(r)+'.</b> '+(i?'What it fixed: ':'Starting point: ')+esc(x.v)+'.'+(x.q?' <i>"'+esc(x.q)+'"</i>':'')+' <span class="small">'+AT.srcLink(x.s,x.l)+'</span></li>'}).join('');
+  [...ol.children].forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;draw()};li.onclick=e=>{if(e.target.closest('a'))return;j()};li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}});
+  document.getElementById('at-note').textContent=NOTE[st.chain]}
 function draw(){
   const ch=CH[st.chain],ss=steps(),id=ss[st.i],r=AT.byId[id],S=ch.steps[id],prev=st.i?ch.steps[ss[st.i-1]]:null;
   document.getElementById('at-chain').innerHTML=Object.keys(A.chains).map(k=>'<button data-c="'+k+'" class="'+(st.chain===k?'on':'')+'">'+esc(A.chains[k].name)+'</button>').join('');
-  document.getElementById('at-steps').innerHTML=ss.map((s,i)=>'<button data-i="'+i+'" class="'+(i===st.i?'on':'')+'">'+(i+1)+'. '+esc(AT.byId[s].short)+'</button>').join('');
+  [...document.getElementById('at-steps').children].forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
   const sc=document.getElementById('at-scrub');sc.max=ss.length-1;sc.value=st.i;
   document.getElementById('at-play').textContent=st.play?'Pause':'Play';
   document.getElementById('at-recipe').innerHTML=ch.comp.map(c=>{const on=S.on.includes(c[0]),was=prev&&prev.on.includes(c[0]);
     const cls=on?(prev&&!was?'new':''):(was?'gone':'off');return '<div class="cp '+cls+'"><b>'+c[1]+'</b><small>'+c[2]+(cls==='new'?' (added here)':cls==='gone'?' (removed here)':'')+'</small></div>'}).join('');
-  document.getElementById('at-tgt').innerHTML='<span class="small mute" style="font-family:inherit">'+esc(r.name)+', '+AT.year(r)+': </span>'+S.tgt;
-  document.getElementById('at-cnts').innerHTML=ch.counters.map(c=>'<div class="stat"><div class="k">'+esc(c[1])+'</div><div class="v">'+esc(S.c[c[0]])+'</div></div>').join('');
-  const x=r.cells.fixed;
-  document.getElementById('at-acap').innerHTML='<b>Step '+(st.i+1)+' of '+ss.length+': '+esc(r.name)+'.</b> '+(st.i?'What it fixed: ':'Starting point: ')+esc(x.v)+'.'+(x.q?' <i>"'+esc(x.q)+'"</i>':'')+' <span class="small">'+AT.srcLink(x.s,x.l)+'</span><br><span class="small mute">'+esc(NOTE[st.chain])+'</span>'}
-function visible(){const t=document.getElementById('t-atlas');if(!t||t.hidden||document.hidden)return false;const b=document.getElementById('at-anim-s').getBoundingClientRect();return b.bottom>0&&b.top<innerHeight}
-function tick(){clearTimeout(st.t);if(!st.play)return;st.t=setTimeout(()=>{if(visible()){st.i=(st.i+1)%steps().length;draw()}tick()},+document.getElementById('at-speed').value)}
+  document.getElementById('at-tgt').innerHTML='<span class="small mute" style="font-family:inherit">'+(st.i+1)+' of '+ss.length+' · '+esc(r.name)+', '+AT.year(r)+': </span>'+S.tgt;
+  document.getElementById('at-cnts').innerHTML=ch.counters.map(c=>'<div class="stat"><div class="k">'+esc(c[1])+'</div><div class="v">'+esc(S.c[c[0]])+'</div></div>').join('')}
+// motion rules (2026-11-06): plays by itself once at least half the card is on screen in the visible tab, pauses off screen and resumes,
+// stops for good on any reader control or at the last step, never moves by itself under reduced motion
+function live(){const t=document.getElementById('t-atlas');return st.vis&&t&&!t.hidden&&!document.hidden}
+function setPlay(p){st.play=p;clearTimeout(st.t);st.t=null;document.getElementById('at-anim-card').toggleAttribute('data-playing',p);document.getElementById('at-play').textContent=p?'Pause':'Play';if(p)kick()}
+function kick(){clearTimeout(st.t);st.t=null;if(!st.play||!live())return;st.t=setTimeout(()=>{st.t=null;if(!st.play)return;if(!live())return;
+  if(st.i>=steps().length-1){st.ended=true;setPlay(false);return}st.i++;draw();if(st.i>=steps().length-1){st.ended=true;setPlay(false);return}kick()},+document.getElementById('at-speed').value)}
+function auto(){if(!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+function user(){st.user=true;setPlay(false)}
 function wire(){
-  document.getElementById('at-chain').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.chain=b.dataset.c;st.i=0;draw()});
-  document.getElementById('at-steps').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.i=+b.dataset.i;draw()});
-  document.getElementById('at-prev').addEventListener('click',()=>{st.i=Math.max(0,st.i-1);draw()});
-  document.getElementById('at-next').addEventListener('click',()=>{st.i=Math.min(steps().length-1,st.i+1);draw()});
-  document.getElementById('at-scrub').addEventListener('input',e=>{st.i=+e.target.value;draw()});
-  document.getElementById('at-play').addEventListener('click',()=>{st.play=!st.play;if(st.play&&st.i===steps().length-1)st.i=0;draw();tick()});
-  document.getElementById('at-speed').addEventListener('change',tick)}
+  document.getElementById('at-chain').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.chain=b.dataset.c;st.i=0;setPlay(false);st.user=false;st.ended=false;list();draw();auto()});
+  document.getElementById('at-prev').addEventListener('click',()=>{user();st.i=Math.max(0,st.i-1);draw()});
+  document.getElementById('at-next').addEventListener('click',()=>{user();st.i=Math.min(steps().length-1,st.i+1);draw()});
+  document.getElementById('at-scrub').addEventListener('input',e=>{user();st.i=+e.target.value;draw()});
+  document.getElementById('at-play').addEventListener('click',()=>{st.user=true;if(st.play){setPlay(false);return}if(st.i===steps().length-1)st.i=0;draw();setPlay(true)});
+  document.getElementById('at-speed').addEventListener('change',kick);
+  const card=document.getElementById('at-anim-card');
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card);else st.vis=true;
+  document.addEventListener('visibilitychange',kick)}
 let done=false;
-function render(){if(!done){done=true;wire();
-  // starts paused always; under reduced motion it also stays paused until the reader presses Play
-  st.play=false}draw()}
+function render(){if(!done){done=true;wire();list()}draw();auto()}
 window.TAB_RENDER['t-atlas'].push(render);
 })();

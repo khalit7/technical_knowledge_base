@@ -102,7 +102,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.screenshot({ path: `${shots}/at-lin-${scheme}-${width}.png`, fullPage: false });
   for (const ch of ['value', 'llm']) {
     await p.evaluate(ch => document.querySelector(`#at-chain button[data-c=${ch}]`).click(), ch);
-    await clickAll('#at-steps button', 'steps ' + ch, 't-atlas');
+    await clickAll('#at-steps li', 'steps ' + ch, 't-atlas');
     await clickAll('#at-prev', 'prev', 't-atlas'); await clickAll('#at-next', 'next', 't-atlas');
     for (let i = 0; i < 9; i++) await p.click('#at-next');
     await p.evaluate(() => { const s = document.getElementById('at-scrub'); s.value = 2; s.dispatchEvent(new Event('input', { bubbles: true })) });
@@ -110,7 +110,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.$eval('#at-anim-s', e => e.scrollIntoView());
     await p.screenshot({ path: `${shots}/at-anim-${ch}-${scheme}-${width}.png` });
   }
-  await p.select('#at-speed', '1400');
+  await p.select('#at-speed', '2000');
   await p.click('#at-play'); await wait(3200); await p.click('#at-play');
   const moved = await p.$eval('#at-scrub', s => +s.value);
   if (moved === 2) probs.push('play did not advance');

@@ -73,7 +73,7 @@ for (const [scheme, width, motion] of [['dark', 390, 'reduce'], ['light', 920, '
     await click(`#ms-mode button[data-v=${mode}]`, 'mode');
     const max = await p.$eval('#ms-scrub', e => +e.max);
     for (let i = 0; i < max; i++) { await click('#ms-fwd', 'fwd ' + mode); await wait(motion === 'reduce' ? 20 : 750) }
-    problems.push('INFO ' + scheme + ' ' + mode + ' last: ' + (await p.$eval('#ms-cap', e => e.innerText)).replace(/\n/g, ' | ').slice(0, 300));
+    problems.push('INFO ' + scheme + ' ' + mode + ' last: ' + (await p.$eval('#ms-sx li.on', e => e.innerText)).replace(/\n/g, ' | ').slice(0, 300));
     problems.push('INFO ' + scheme + ' ' + mode + ' counters: ' + (await p.$eval('#ms-acnt', e => e.innerText)).replace(/\n/g, ' | ').slice(0, 300));
     await shotRange('#ms-h-an', '#ms-annote', 'anim-' + mode + '-end');
     await click('#ms-back', 'back'); await wait(motion === 'reduce' ? 20 : 750);
