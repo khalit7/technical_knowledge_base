@@ -34,16 +34,18 @@
     $('map-tl-leg').innerHTML=M.LAYERS.map(l=>'<span><i style="background:'+l[3]+'"></i>'+esc(l[1])+'</span>').join('')+'<span><i style="border:1px solid var(--mute)"></i>hosted API: docs read date</span><span style="color:var(--bad)">red name: quiet</span>';
   }
   function draw(){if(view==='ev')evPlot();else agePlot()}
-  function cap(i){yi=i;const y=YEARS[i];const ev=D.timeline.filter(e=>+e.d.slice(0,4)===y);
-    $('map-tl-cap').innerHTML='<b>'+y+'</b> . '+(ev.length?ev.map(e=>esc(e.t)).join('; '):'no event recorded')+'.';if(view==='ev')evPlot()}
+  function cap(i){yi=i;if(view==='ev')evPlot()}
+  // the step list on the left: one item per year with that year's events (from the same dated records as the dots)
+  function list(){$('sx-tl').innerHTML=YEARS.map(y=>{const ev=D.timeline.filter(e=>+e.d.slice(0,4)===y);
+    return '<li><b>'+y+'.</b> '+(ev.length?ev.map(e=>esc(e.t)).join('; ')+'.':'No event recorded.')+'</li>'}).join('')}
   function init(){
     $('map-tl-view').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('map-tl-view').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));view=b.dataset.m;
-      $('map-tl-evctl').hidden=view!=='ev';draw()});
+      $('map-tl-evctl').hidden=view!=='ev';$('map-tl-steps').hidden=view!=='ev';if(view!=='ev')A.go(A.i,true);draw()});
     $('map-tl-plot').addEventListener('click',e=>{const c=e.target.closest('[data-j],[data-id]');if(!c)return;
       if(c.dataset.j!=null){const ev=D.timeline[+c.dataset.j];$('map-tl-tip').innerHTML='<b>'+esc(ev.d)+'</b> . '+esc(ev.t)+' <span class="mute">('+esc(KIND[ev.k][0])+')</span> '+M.link('source',ev.src)}
       else{const a=M.byId[c.dataset.id];$('map-tl-tip').innerHTML='<b>'+esc(a.name)+'</b>: latest '+esc(a.ver==='docs'?'(docs read)':a.ver)+' on '+esc(a.date)+' . '+M.st(a.status)+' <a href="#" data-tool="'+a.id+'">open in the atlas</a>'}});
-    A=M.anim({n:YEARS.length,draw:cap,ms:1500,play:'map-tl-play',back:'map-tl-back',fwd:'map-tl-fwd',scrub:'map-tl-scrub',speed:'map-tl-speed',card:'map-tl-card',autoplay:false});
-    A.reset(YEARS.length,YEARS.length-1);
+    list();
+    A=M.anim({n:YEARS.length,draw:cap,ms:4200,ctl:'map-tl-ctl',card:'map-tl-card',list:'sx-tl',label:'Year'});
     M.onRender(draw);
   }
   init();

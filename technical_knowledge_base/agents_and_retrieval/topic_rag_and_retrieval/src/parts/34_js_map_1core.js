@@ -1,4 +1,4 @@
-// ---- Tool map (t-map): shared helpers, predict-then-reveal, step animation, render registry ----
+// ---- Tool map (t-map): shared helpers, predict-then-reveal, step animation (LABANIM), render registry ----
 window.MAP=(function(){
   const D=window.MAPD;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -36,24 +36,9 @@ window.MAP=(function(){
       el.querySelector('.map-opts button[data-k="'+right+'"]').classList.add('map-right');
       out.hidden=false;out.innerHTML=(b.dataset.k===right?'<b>Right.</b> ':'<b>Not quite.</b> ')+(typeof ans==='function'?ans():ans)}));
   }
-  // step animation: {n, draw(i), ms, play, back, fwd, scrub, speed, card}; animates only on screen in the visible tab
-  function anim(o){
-    const s={i:o.start||0,n:o.n,play:false,timer:0,vis:false,spd:1,seen:false};
-    const P=$(o.play),B=$(o.back),F=$(o.fwd),S=$(o.scrub),V=o.speed?$(o.speed):null,card=$(o.card);
-    const live=()=>s.vis&&visible();
-    function show(){S.max=Math.max(0,s.n-1);S.value=s.i;o.draw(s.i)}
-    function tick(){s.timer=0;if(!s.play||!live())return;if(s.i>=s.n-1){setPlay(false);return}s.i++;show();if(s.i>=s.n-1){setPlay(false);return}s.timer=setTimeout(tick,(o.ms||1200)/s.spd)}
-    function kick(){if(s.play&&live()&&!s.timer)s.timer=setTimeout(tick,(o.ms||1200)/s.spd);else if(!live()&&s.timer){clearTimeout(s.timer);s.timer=0}}
-    function setPlay(p){s.play=p;P.textContent=p?'Pause':'Play';P.setAttribute('aria-pressed',p?'true':'false');if(!p&&s.timer){clearTimeout(s.timer);s.timer=0}if(p){if(s.i>=s.n-1){s.i=0;show()}kick()}}
-    P.addEventListener('click',()=>setPlay(!s.play));
-    B.addEventListener('click',()=>{setPlay(false);s.i=Math.max(0,s.i-1);show()});
-    F.addEventListener('click',()=>{setPlay(false);s.i=Math.min(s.n-1,s.i+1);show()});
-    S.addEventListener('input',()=>{setPlay(false);s.i=+S.value;show()});
-    if(V)V.addEventListener('change',()=>{s.spd=+V.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{s.vis=e.isIntersecting;
-      kick()})},{threshold:0.15}).observe(card)}else s.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    return {reset(n,i){s.n=n;s.i=(i==null?0:i);show()},show,setPlay,get i(){return s.i},kick};
-  }
+  // step animation (2026-11-06): the page's lab controller LABANIM (24_js_labanim.js, RD.anim's motion rules) in this tab:
+  // o {card, ctl (controls are written into it), n, draw(i), ms, list (the ol.sx step list on the left), label}. It plays by itself once at least
+  // half of its card is on screen in the visible tab, pauses off screen, stops for good on any reader control or at its last step, never moves under reduced motion.
+  function anim(o){return window.LABANIM('t-map',{card:o.card,ctl:o.ctl,n:o.n,draw:o.draw,ms:o.ms||4200,list:o.list,label:o.label})}
   return {D,RM,esc,$,onRender,width,byId,LAYERS,LC,DEP,STATUS,layerOf,st,nf,link,fmtP,predict,anim,visible};
 })();

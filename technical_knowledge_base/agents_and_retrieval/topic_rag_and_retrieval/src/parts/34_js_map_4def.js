@@ -28,8 +28,9 @@
     $('map-def-c1').textContent=L.filter(x=>ex.has(x)).length+' of 10';
     $('map-def-c2').textContent=f3(run.ann_recall10);$('map-def-c2d').textContent=r[1]+(mode==='tun'&&r[2]!==r[3]?' (tuned)':'');
     $('map-def-c3').textContent=f3(run.ndcg10);$('map-def-c3d').textContent='exact search: '+f3(X.exact_ndcg10);
-    $('map-def-cap').innerHTML='<b>'+esc(r[1])+'.</b> '+esc(mode==='def'?r[4]:r[5]);
   }
+  // the step list on the left: one item per tool, its default (or its one knob) explained; rewritten when the mode changes
+  function list(){$('sx-def').innerHTML=ROWS.map(r=>'<li><b>'+esc(r[1])+(mode==='tun'&&r[2]!==r[3]?' (tuned)':'')+'.</b> '+esc(mode==='def'?r[4]:r[5])+'</li>').join('')}
   function setQ(){const S=X.show[qi];$('map-def-qt').innerHTML='<b>Question '+esc(S.qid)+':</b> '+esc(S.text)+' <span class="mute">('+S.rel.length+' abstract'+(S.rel.length>1?'s':'')+' labelled relevant)</span>';draw(step)}
   function table(){
     const tb=$('map-def-tab').querySelector('tbody');
@@ -43,13 +44,14 @@
   function init(){
     $('map-def-q').innerHTML=X.show.map((s,i)=>'<option value="'+i+'">'+esc(s.qid+': '+(s.text.length>70?s.text.slice(0,s.text.lastIndexOf(' ',66))+' ...':s.text))+'</option>').join('');
     $('map-def-q').addEventListener('change',e=>{qi=+e.target.value;setQ()});
-    $('map-def-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('map-def-mode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;draw(step)});
+    $('map-def-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('map-def-mode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;list();A.reset(ROWS.length,'sx-def')});
     $('map-def-rows').addEventListener('click',e=>{const c=e.target.closest('i[data-d]');if(!c)return;const d=c.dataset.d,S=X.show[qi];
       $('map-def-tip').innerHTML='Rank '+c.dataset.r+': <b>'+esc(X.docs[d]||'')+'</b> '+(S.exact.indexOf(+d)>=0?'(exact rank '+(S.exact.indexOf(+d)+1)+')':'(not in the exact top 10)')+(S.rel.indexOf(+d)>=0?', labelled relevant':'')});
     $('map-def-ver').textContent=Object.entries(X.versions).filter(([k,v])=>v&&k!=='numpy').map(([k,v])=>k+' '+v).join(', ');
-    A=M.anim({n:ROWS.length,draw:i=>draw(i),ms:1700,play:'map-def-play',back:'map-def-back',fwd:'map-def-fwd',scrub:'map-def-scrub',speed:'map-def-speed',card:'map-def-card'});
-    A.reset(ROWS.length,M.RM?ROWS.length-1:0);setQ();table();
-    M.predict('map-pr1','c',()=>'FAISS IVF at nprobe 1 returned '+f3(R.faiss_ivf_def.ann_recall10)+' of the exact top 10 on average, then LanceDB IVF_PQ '+f3(R.lance_ivfpq_def.ann_recall10)+', hnswlib '+f3(R.hnswlib_def.ann_recall10)+' and Chroma '+f3(R.chroma_def.ann_recall10)+'. Play the animation below for one question at a time.');
+    list();
+    A=M.anim({n:ROWS.length,draw:i=>draw(i),ms:4200,ctl:'map-def-ctl',card:'map-def-card',list:'sx-def',label:'Tool'});
+    setQ();table();
+    M.predict('map-pr1','c',()=>'FAISS IVF at nprobe 1 returned '+f3(R.faiss_ivf_def.ann_recall10)+' of the exact top 10 on average, then LanceDB IVF_PQ '+f3(R.lance_ivfpq_def.ann_recall10)+', hnswlib '+f3(R.hnswlib_def.ann_recall10)+' and Chroma '+f3(R.chroma_def.ann_recall10)+'. The animation beside this section shows one question at a time.');
   }
   init();
 })();

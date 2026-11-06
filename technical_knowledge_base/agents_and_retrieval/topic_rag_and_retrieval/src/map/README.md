@@ -1,6 +1,6 @@
 # Tool map tab (t-map): source
 
-Parts: `../parts/34_tab_map_a.html` (styles, intro, the stack, atlas), `_b` (same query, the defaults you get), `_c` (which store), `_d` (timeline, MTEB and BEIR, checks, interview questions; closes the tab div). JS: `34_js_map_0data.js` (generated, do not edit), `1core` (helpers, animation controller), `3atlas`, `4def` (before/after animation), `5time`, `6choose`, `7lb`. Ids, classes and data attributes carry the `map-` prefix; CSS is scoped under `#t-map`.
+Parts: `../parts/34_tab_map_a.html` (styles, intro, the stack, atlas), `_b` (same query, the defaults you get), `_c` (which store), `_d` (timeline, MTEB and BEIR, checks, interview questions; closes the tab div). JS: `34_js_map_0data.js` (generated, do not edit), `1core` (helpers; its `anim` now calls `../parts/24_js_labanim.js`, the lab controller with the 2026-11-06 motion rules), `3atlas`, `4def` (before/after animation; writes its step list `sx-def`), `5time` (writes its step list `sx-tl`), `6choose`, `7lb`. Ids, classes and data attributes carry the `map-` prefix; CSS is scoped under `#t-map`.
 
 ## Data flow
 1. `fetch_meta.py pypi|gh|rel|hf` writes `inputs/pypi.json`, `github_repos.json`, `github_releases.json` (Atom feeds; not used for dates), `hf_models.json`. GitHub release dates come from the REST API (`inputs/github_release_api.json`, fetched inline in the session; the API allows 60 calls an hour without a token). `inputs/hf_st_configs.json` holds the sentence-transformers configs; `inputs/arxiv_meta.json` comes from the arXiv API.

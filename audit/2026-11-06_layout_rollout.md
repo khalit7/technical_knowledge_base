@@ -36,7 +36,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/rerankers_and_late_interaction` Rerankers and late interaction: cross-encoders, ColBERT, LLM rerankers
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/retrieval_pipeline` The retrieval pipeline: chunking, query rewriting, hybrid search, filtering
 - [x] `agents_and_retrieval/topic_rag_and_retrieval/vector_indexes` Vector indexes from the inside: flat, IVF, PQ, HNSW, DiskANN, filtered search
-- [ ] `agents_and_retrieval/topic_rag_and_retrieval` Topic: rag-and-retrieval
+- [x] `agents_and_retrieval/topic_rag_and_retrieval` Topic: rag-and-retrieval
 - [x] `engineering_foundations/topic_databases/analytics_columnar_and_lakehouse` Analytics: columnar engines, DuckDB and the lakehouse
 - [ ] `engineering_foundations/topic_databases/caching` Caching: every layer, eviction, invalidation, and the LLM caches
 - [ ] `engineering_foundations/topic_databases/nosql_in_practice` NoSQL in practice: key-value, document, wide-column, time-series, graph
