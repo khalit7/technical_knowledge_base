@@ -40,3 +40,14 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`, and `.claude/skills
 - **MAST failure modes to scale** (`30_js_mast.js`, Reading 10): 14 modes in 3 categories, bar length = prevalence over 1,642 traces as printed in arXiv 2503.13657 v3 Figure 1 (redrawn, not embedded: the paper is CC BY-NC-ND), category totals derived; the nearest case among this page's runs outlined.
 - **Debate lab tab removed**: its content (methods table, vote-of-k bars, transitions, puzzle grid) explains one mechanism, so it moved into a closed block under the section 8 chart.
 - Rejected again: a real image. Nothing physical to show; the papers' figures are either under NC-ND licences or diagrams this page already draws from its own data.
+
+## 2026-11-06 rollout (split layout, renderer v2 stages)
+| Visual | Kind now | Why |
+|---|---|---|
+| Fig. 1, every pattern on one floor (`40_js_sc_map.js`) | 3D stage, 10 steps | Replaces the 2D hero map and the pattern picker (#5): the map's two questions become the floor (columns who decides, rows what each loop sees) and each pattern stands in its cell as a small machine; the camera moves in on one per step and dots flow where work goes out and results come back; the last step colours each cell by its measured result. |
+| Fig. 2, the audit on one token scale (`41_js_sc_aud.js`) | 3D stage, 6 steps | Context is a height: the 48-module pile against the 200,000-token window, then each loop's largest context for run 1 of one agent, Sonnet, lead + 6, fan-out and blackboard. All heights recorded. |
+| Fig. 3, the support message request by request (`42_js_sc_ho.js`) | 3D stage, 3 / 3 / 6 steps with a mode toggle | Replaces the stepper (#2) as the driver: the message stack moves with a handoff and stays behind with agents as tools; the stepper's text viewer stays beside the step list. |
+| Fig. 4, thirty puzzles as a field (`43_js_sc_deb.js`) | 3D stage, 5 steps | Every recorded answer as a tile (tall green right, flat red wrong): samples, votes, debate round with the changed answers lit, the debate majority, the judge. |
+| Lanes replay (#1) | 2D widget, no autoplay | A 48-frame replay: the reader drives it (long-replay rule); a timeline reads best flat. |
+| Check-round bars, two halves, accuracy against tokens, cost bars, MAST bars, Audit lab | 2D, right column | Numbers on an axis, code and text: flat is clearer. |
+Rejected this pass: a 3D cost-column chart for section 9 (numbers on an axis; the bars already say it), a 3D version of the lanes (a timeline).

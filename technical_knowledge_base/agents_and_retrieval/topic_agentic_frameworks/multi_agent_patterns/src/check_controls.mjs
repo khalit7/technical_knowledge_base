@@ -1,7 +1,7 @@
 // node <this page>/src/check_controls.mjs <page index.html>   (run from the repository root)
 // Clicks every button, moves every slider and select, opens every closed block, in 390 px dark and 920 px light;
 // fails on page errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text.
-// Also checks that nothing animates before the reader acts (every step slider still at its first value).
+// Also checks (2026-11-06) that the stages play when scrolled into view and the lanes widget never moves by itself.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -11,13 +11,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + path.resolve(process.argv[2]));
-  // autoplay: scroll the Reading tab through and wait; step sliders must not move by themselves
-  await p.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 60)); } });
-  await new Promise(r => setTimeout(r, 3000));
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.map(r => [r.id, r.value, r.max]));
-  // the lanes replay starts on its last step by design (a still of the whole run); every other slider starts at 0
-  for (const [id, v, max] of moved) { const want = id.startsWith('fm-lanectl') ? max : '0'; if (v !== want) errs.push(`autoplay? ${id} at ${v}`); }
-  if (await p.$$eval('.an-play', bs => bs.some(x => /Pause/.test(x.textContent)))) errs.push('an animation is playing without input');
+  await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + path.resolve(process.argv[2])); // the previous width's tab clicks are remembered
+  // autoplay (2026-11-06): stages play once scrolled into view; the lanes replay is a widget the reader drives and must stay still on its last frame
+  await p.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 300)); } });
+  await new Promise(r => setTimeout(r, 1500));
+  const lanes = await p.$eval('#fm-lanectl-s', r => [r.value, r.max]); if (lanes[0] !== lanes[1]) errs.push(`lanes widget moved by itself (${lanes})`);
+  if (/Pause/.test(await p.$eval('#fm-lanectl-p', x => x.textContent))) errs.push('lanes widget is playing without input');
+  const played = await p.$$eval('.stg', xs => xs.filter(x => +x.dataset.frames > 0).length); if (!played) errs.push('no stage played when scrolled into view');
   for (const t of await p.$$eval('button[data-t]', bs => bs.map(b => b.dataset.t))) {
     await p.$eval(`button[data-t=${t}]`, x => x.click()); await new Promise(r => setTimeout(r, 200));
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true));

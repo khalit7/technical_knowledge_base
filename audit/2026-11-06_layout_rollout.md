@@ -16,7 +16,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing` Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits
 - [x] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
 - [x] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
-- [ ] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
+- [x] `agents_and_retrieval/topic_agentic_frameworks/multi_agent_patterns` Multi-agent patterns: orchestrator-workers, handoffs, debate, when several agents help or hurt
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/typed_agent_libraries` Typed agent libraries: Pydantic AI, OpenAI Agents SDK, smolagents, Google ADK
 - [ ] `agents_and_retrieval/topic_agentic_frameworks` Topic: agentic-frameworks
 - [ ] `agents_and_retrieval/topic_agentic_harnesses/agent_security` Agent security: permissions, sandboxes, prompt injection, egress

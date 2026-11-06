@@ -55,8 +55,9 @@ window.FMLanes=(function(){
     document.getElementById('fm-lanecap').innerHTML='<div class="t">'+p[2]+', '+U.nf(Math.min(t,run.wall),0)+' s'+(done?' (finished at '+U.nf(run.wall,0)+' s)':'')+'</div><p>'+(p[1]==='sonnet'?'Same prompt as the single Haiku agent, on a model with a 1,000,000-token window: it reads every module in full, and its calls pass Haiku\'s 200,000-token line (red bars).':note[p[0]])+(done?' Result: '+run.tp+' of 16 planted bugs found, '+run.fp+' other reports, '+U.usd(run.tot.cost)+'.':'')+'</p>';
     document.getElementById('fm-lanecnt').innerHTML=RD.stat('Model calls so far',u.calls,'all rows')+RD.stat('Files read so far',u.reads,'Read tool calls')+RD.stat('Largest context so far',u.peak.toLocaleString('en-US'),'tokens in one call')+RD.stat('Tokens sent so far',U.tok(u.sent),'sum over calls');
   }
-  const A=RD.anim({card:'fm-lanecard',ctl:'fm-lanectl',n:N,draw,ms:260,label:'Time',start:N-1});
-  RD.seg(seg,m=>{cur=+m;A.reset(N);A.go(N-1)});
+  // a widget the reader drives (the long-replay rule: 48 frames are never autoplayed); it opens on the finished run
+  const A=RD.anim({card:'fm-lanecard',ctl:'fm-lanectl',n:N,draw,ms:260,label:'Time',start:N-1,auto:false});
+  RD.seg(seg,m=>{cur=+m;A.go(N-1,true);});
   RD.onResize(()=>A.redraw());
   // results table
   const tb=document.querySelector('#fm-audtab tbody');
