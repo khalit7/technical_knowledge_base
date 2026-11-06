@@ -30,7 +30,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.click('button[data-t=t-read]');
   await sleep(300);
   const run = { scheme, width, cards: {} };
-  const cards = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id.replace(/-ctl$/, '')));
+  const cards = await p.$$eval('#t-read .an-ctl[id]', es => es.map(e => e.id.replace(/-ctl$/, '')));
   for (const c of cards) {
     const modes = await p.$$eval('#' + c + '-mode button', es => es.map(e => e.dataset.m)).catch(() => []);
     for (const m of (modes.length ? modes : [null])) {

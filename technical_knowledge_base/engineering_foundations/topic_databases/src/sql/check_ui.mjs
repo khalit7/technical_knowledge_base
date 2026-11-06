@@ -51,7 +51,7 @@ async function joinAnim(f, tag) {
   for (const m of ['inner', 'left']) {
     await f.evaluate(m => document.querySelector('#sq-jmode button[data-m="' + m + '"]').click(), m); await sleep(50);
     for (let s = 0; s < 12; s++) { await f.evaluate(() => document.getElementById('sq-jctl-f').click()); await sleep(30) }
-    const cap = await f.evaluate(() => document.getElementById('sq-jcap').innerText);
+    const cap = await f.evaluate(() => { const l = document.getElementById('sq-jsx'), on = l.querySelector('li.on'); return (l.children.length === 10 ? '' : 'list has ' + l.children.length + ' items; ') + (on ? on.innerText : 'no step marked') });
     const want = m === 'inner' ? 'Done: 5 rows' : 'Done: 6 rows';
     if (cap.indexOf(want) < 0) fail(`${tag} join ${m} final caption: ${cap}`);
   }

@@ -52,19 +52,22 @@ window.SQJ=(function(){
         s+=r.map((v,c)=>col(cx[c]+6,y+14,v===null?'NULL':trunc(v,(c<3?cx[c+1]-cx[c]:W-cx[c])-10,fs),v===null?' fill="var(--mute)" font-style="italic"':(fresh?' fill="var(--good)" font-weight="600"':''))).join('')}}
     const H=oy+rh*7+4;
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Two tables being joined row by row">'+s+'</svg>';
-    // caption
-    let cap;
-    if(phase==='')cap='Two tables. The query: <code>SELECT ... FROM users u '+(mode==='inner'?'INNER':'LEFT')+' JOIN chats c ON c.user_id = u.id</code> for users 2, 4, 5 and 9. Press Play or step through.';
-    else if(phase==='end')cap=mode==='inner'?'Done: 5 rows. Mo Garcia (user 4) is missing because an INNER JOIN writes only matched pairs. Switch to LEFT JOIN to keep him.':'Done: 6 rows. Every user appears at least once; Mo Garcia (user 4) has NULL where a chat would be. Same 4 users, one more row than INNER JOIN.';
-    else{const m=chats.filter(c=>c[1]===cur[0]).length;
-      cap=phase==='look'?'User '+cur[0]+' ('+esc(cur[2])+'): compare id '+cur[0]+' with every chat\'s user_id. '+(m?m+' chat'+(m>1?'s match':' matches')+'.':'No chat matches.'):
-        (m?'Write '+m+' output row'+(m>1?'s':'')+', one per matching chat: the user\'s columns are repeated on each.':(mode==='inner'?'No match, so INNER JOIN writes nothing for this user.':'No match, but LEFT JOIN still writes the user once, with NULL in the chat columns.'))}
-    $('sq-jcap').innerHTML=cap;
   }
+  // the step list on the left (one item per step, rebuilt when the mode changes): what each step of the drawing shows
+  function stepText(i){
+    const k=i<=0?-1:Math.min(users.length-1,Math.floor((i-1)/2)),phase=i<=0?'':(i>=N-1?'end':((i-1)%2===0?'look':'write')),cur=phase&&phase!=='end'?users[k]:null;
+    if(phase==='')return ['Two tables.','The query: <code>SELECT ... FROM users u '+(mode==='inner'?'INNER':'LEFT')+' JOIN chats c ON c.user_id = u.id</code> for users 2, 4, 5 and 9.'];
+    if(phase==='end')return mode==='inner'?['Done: 5 rows.','Mo Garcia (user 4) is missing because an INNER JOIN writes only matched pairs. Switch to LEFT JOIN to keep him.']:['Done: 6 rows.','Every user appears at least once; Mo Garcia (user 4) has NULL where a chat would be. Same 4 users, one more row than INNER JOIN.'];
+    const m=chats.filter(c=>c[1]===cur[0]).length;
+    if(phase==='look')return ['User '+cur[0]+': look.','Compare id '+cur[0]+' ('+esc(cur[2])+') with every chat\'s user_id. '+(m?m+' chat'+(m>1?'s match':' matches')+'.':'No chat matches.')];
+    return ['User '+cur[0]+': write.',m?'Write '+m+' output row'+(m>1?'s':'')+', one per matching chat: the user\'s columns are repeated on each.':(mode==='inner'?'No match, so INNER JOIN writes nothing for this user.':'No match, but LEFT JOIN still writes the user once, with NULL in the chat columns.')];
+  }
+  function list(){$('sq-jsx').innerHTML=Array.from({length:N},(_,i)=>{const t=stepText(i);return '<li><b>'+t[0]+'</b> '+t[1]+'</li>'}).join('')}
   function init(){
-    if(!window.RD||!RD.anim){draw(N-1);return}
-    anim=RD.anim({card:'sq-joincard',ctl:'sq-jctl',n:N,draw:draw,ms:1500,label:'JOIN step'});
-    RD.seg($('sq-jmode'),m=>{mode=m;anim.reset(N)});
+    if(!window.RD||!RD.anim){list();draw(N-1);return}
+    list();
+    anim=RD.anim({card:'sq-joincard',ctl:'sq-jctl',n:N,draw:draw,ms:3600,label:'JOIN step',list:'sq-jsx'});
+    RD.seg($('sq-jmode'),m=>{mode=m;list();anim.reset(N,'sq-jsx')});
     let t=0;addEventListener('resize',()=>{const c=$('sq-joincard');if(!c||c.hidden||c.offsetParent===null)return;clearTimeout(t);t=setTimeout(()=>anim.redraw(),80)});
   }
   init();

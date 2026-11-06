@@ -28,3 +28,7 @@ Scores 0 to 2 on: parameter the reader controls / reproduces a measured or publi
 
 ## What the methodology lacked here
 A teaching root for a reader new to the subject needs a "problem appears, idea, cost" rhythm per section; the scoring rewards measurement but not ordering. Measuring the problem (the lost update, the full scan, the bytes read) on the running example was the strongest ingredient: each "before" is a real run, not a story.
+
+## 2026-11-06 (layout rollout)
+- **Built**: hero stage `stg-one` (three moments plus owners), write stage `stg-write` (eleven steps through app, Postgres layers, disk, copies, shards), the section 5 bytes-read chart (2D, log axis), the JOIN animation's step list.
+- **Rejected**: a 3D stage of the eleven families on shared axes (the map is a comparison table and the brief keeps tables as text; a 3D grid would repeat it); a 3D row-against-column store in section 5 (Analytics owns that mechanism and its figure); redrawing the lost update in section 3 (Transactions and concurrency owns Fig. 1 and Fig. 3); a 3D stage in Query plans (the race is a measured replay a reader drives, a widget by the long-replay rule).

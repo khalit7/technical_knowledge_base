@@ -1,4 +1,4 @@
-// Exercise every control of the page at 390 px dark and 920 px light (reduced motion), compare the page's numbers with numbers.json,
+// Exercise every control of the page at 390 px dark and 920 px light (reduced motion), compare the page's numbers (text and scene computations) with numbers.json,
 // and take element screenshots into ../.shots/check/.
 // usage (from the repo root): node technical_knowledge_base/engineering_foundations/topic_math/calculus_and_optimisation/src/check_page.mjs
 import { createRequire } from 'node:module';
@@ -35,10 +35,25 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const rt = await p.$eval('#t-read', e => e.innerText);
   for (const s of ['11.213', '0.974', '10.02', '1,790', '2,411', '0.519', '34.4', '0.493', '0.857', '1001.313', '6.0025', '1.768', '0.283', '0.471', '85.9', '1,855', '3.551', '2.539'])
     ok(rt.includes(s), tag + ' reading text has ' + s);
-  // hero: the two local models at w0 = 1.5
-  near(await txt('#rd-hero-g'), N.hero_g, 1e-3, 'hero slope'); near(await txt('#rd-hero-h'), N.hero_h, 1e-3, 'hero curvature');
-  near(await txt('#rd-hero-gd'), N.hero_gd, 1e-3, 'hero gd lands'); near(await txt('#rd-hero-nt'), N.hero_nt, 1e-3, 'hero newton lands');
-  await shot('#rd-hero-card', 'hero');
+  // hero (Fig. 1): the step list's numbers against recompute.py and against the scene's own computation
+  const hero = await p.evaluate(() => CO_HERO), pr = v => '(' + v.map(x => x.toFixed(2)).join(', ') + ')';
+  near(await txt('#rd-hero-f0'), N.hero2_f0, 1e-3, 'hero loss'); near(await txt('#rd-hero-gn'), N.hero2_gnorm, 1e-3, 'hero |g|'); near(await txt('#rd-hero-b'), N.hero2_beta, 1e-3, 'hero beta');
+  ok((await txt('#rd-hero-eig')) === N.hero2_eigs.map(v => v.toFixed(3)).join(' and '), 'hero eigenvalues');
+  ok((await txt('#rd-hero-gd')) === pr(N.hero2_gd1) && pr(hero.gd1) === pr(N.hero2_gd1), 'hero gd step ' + pr(hero.gd1));
+  ok((await txt('#rd-hero-nt')) === pr(N.hero2_nt1) && pr(hero.nt1) === pr(N.hero2_nt1), 'hero newton step ' + pr(hero.nt1));
+  ok((await txt('#rd-hero-ws')) === pr(N.hero2_wstar) && pr(hero.wstar) === pr(N.hero2_wstar), 'hero optimum');
+  ok(+(await txt('#rd-hero-gn2')) === N.hero2_gd_steps && hero.gdSteps === N.hero2_gd_steps, 'hero gd steps ' + hero.gdSteps);
+  ok(+(await txt('#rd-hero-nn')) === N.hero2_nt_steps && hero.ntSteps === N.hero2_nt_steps, 'hero newton steps ' + hero.ntSteps);
+  near(hero.eig[0], N.hero2_eigs[0], 1e-3, 'hero eig js'); near(hero.beta, N.hero2_beta, 1e-3, 'hero beta js');
+  // Fig. 4 (stretched bowl) and Fig. 8 (chord) step-list numbers
+  const gdS = await p.evaluate(() => CO_GD.steps);
+  ok(gdS[1] === N.gd_steps_eta01 && +(await txt('#rd-gd-n1')) === N.gd_steps_eta01, 'gd eta 0.1 steps ' + gdS[1]);
+  ok(gdS[2] === N.gd_steps_best && +(await txt('#rd-gd-n2')) === N.gd_steps_best, 'gd best steps ' + gdS[2]);
+  ok(gdS[4] === N.hb_steps_best && +(await txt('#rd-gd-n4')) === N.hb_steps_best, 'momentum steps ' + gdS[4]);
+  const cvx = await p.evaluate(() => CO_CVX);
+  near(await txt('#rd-cvx-ch'), N.cvx_chord_mid, 1e-3, 'chord mid'); near(cvx.chordMid, N.cvx_chord_mid, 1e-3, 'chord mid js');
+  near(await txt('#rd-cvx-lm'), N.cvx_loss_mid, 1e-3, 'loss mid'); near(cvx.lossMid, N.cvx_loss_mid, 1e-3, 'loss mid js');
+  near(await p.evaluate(() => CO_LAG.fstar), N.lag_f, 1e-3, 'lagrange f*');
   // secant
   const H = [1, 0.1, 0.01, 0.001];
   for (let i = 0; i < 4; i++) { await setRange('#rd-sec-h', i); near(await txt('#rd-sec-slope'), N['sec_' + H[i]], 1e-6, 'secant ' + H[i]); near(await txt('#rd-sec-err'), N['linerr_' + H[i]], 1e-9, 'line error ' + H[i]) }
@@ -47,7 +62,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await setRange('#rd-dir-a', 45); near(await txt('#rd-dir-d'), N.bowl_dir_45, 1e-3, 'dir 45'); await shot('#rd-dir-card', 'dir');
   await setRange('#rd-tay-a', 0); near(await txt('#rd-tay-o1'), N.exp_first, 1e-4, 'taylor 1'); near(await txt('#rd-tay-o2'), N.exp_second, 1e-4, 'taylor 2'); near(await txt('#rd-tay-true'), N.exp_true, 1e-4, 'taylor true');
   await setRange('#rd-tay-a', 1.2); await shot('#rd-tay-card', 'tay');
-  await shot('#rd-hg-card', 'hess');
   await setRange('#rd-rate-k', 10); near(await txt('#rd-rate-b'), N.q_best_eta, 1e-4, 'best eta'); near(await txt('#rd-rate-r'), N.q_rate, 1e-3, 'rate at best'); ok((await txt('#rd-rate-n')) === '35', 'steps 35');
   await setRange('#rd-rate-e', 1050); ok((await txt('#rd-rate-out')).includes('diverges'), 'rate diverges above limit');
   await setRange('#rd-rate-e', 500); near(await txt('#rd-rate-r'), N.q_rate_1overL, 1e-3, 'rate at 1/L');
@@ -55,21 +69,14 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const m of ['sq', 'abs', 'lse', 'sin']) { await clk('#rd-chord-f button[data-m=' + m + ']'); for (const t of [0, 0.3, 0.5, 0.8, 1]) { await setRange('#rd-chord-t', t); await bad('chord ' + m) } }
   await clk('#rd-chord-f button[data-m=sq]'); await setRange('#rd-chord-t', 0.5); near(await txt('#rd-chord-fv'), N.chord_lhs, 1e-3, 'chord f'); near(await txt('#rd-chord-c'), N.chord_rhs, 1e-3, 'chord c');
   await clk('#rd-chord-f button[data-m=sin]'); await setRange('#rd-chord-t', 0.35); await shot('#rd-chord-card', 'chord-sin');
-  await setRange('#rd-lag-a', 45); near(await txt('#rd-lag-f'), N.lag_f, 1e-3, 'lagrange f*'); await shot('#rd-lagfig-card', 'lag');
   near(await txt('#rd-xgb-w'), N.xgb_w, 1e-3, 'xgb w'); near(await txt('#rd-xgb-gain'), N.xgb_gain, 1e-3, 'xgb gain'); near(await txt('#rd-xgb-wl'), N.xgb_wL, 1e-3, 'xgb wL'); near(await txt('#rd-xgb-wr'), N.xgb_wR, 1e-3, 'xgb wR');
   await clk('#rd-xgb-ui button[data-i="3"]'); await bad('xgb flip'); await clk('#rd-xgb-ui button[data-s="1"]'); await bad('xgb split'); await shot('#rd-xgb-card', 'xgb');
-  // GD vs Newton animation: sequences against recompute, then step through every frame
-  for (const [m, s0] of [['gd', 0], ['nt', 0], ['gd', 8], ['nt', 8]]) {
-    const seq = await p.evaluate((m, s0) => { CO_NW.set(m, s0); return CO_NW.seq() }, m, s0);
-    const ref = N[(m === 'gd' ? 'od_gd_' : 'od_newton_') + s0];
-    for (let i = 0; i < Math.min(seq.length, ref.length, 7); i++) near(seq[i], ref[i], 2e-3, 'anim ' + m + ' start ' + s0 + ' iterate ' + i);
-    await clk('#rd-nw-seg button[data-m=' + m + ']'); await clk('#rd-nw-start button[data-m="' + s0 + '"]'); await sleep(50);
-    await clk('#rd-nw-ctl-p'); await clk('#rd-nw-ctl-p'); // play then pause (reduced motion: play is allowed by click)
-    const n = await p.$eval('#rd-nw-ctl-s', e => +e.max + 1);
-    for (let i = 0; i < n; i++) { await setRange('#rd-nw-ctl-s', i); if (i % 4 === 0) await bad('anim ' + m + s0 + ' frame ' + i); if (width === 390 && m === 'nt' && i < 6) await shot('#rd-nw-card', 'nw-' + m + s0 + '-' + i) }
-    if (m === 'nt' && s0 === 0) near(await txt('#rd-nw-w'), N.od_wstar, 2e-3, 'newton lands on w*');
-    if (width === 920) await shot('#rd-nw-card', 'nw-' + m + s0 + '-end');
-  }
+  // GD against Newton (section 5): the sequences against recompute, then every step of the six-step list
+  const Q = await p.evaluate(() => CO_NW.Q);
+  for (const [k, ref] of [['gd0', N.od_gd_0], ['nt0', N.od_newton_0], ['gd8', N.od_gd_8], ['nt8', N.od_newton_8]])
+    for (let i = 0; i < Math.min(Q[k].length, ref.length, 7); i++) near(Q[k][i], ref[i], 2e-3, 'anim ' + k + ' iterate ' + i);
+  const nS = await p.$eval('#rd-nw-ctl-s', e => +e.max + 1); ok(nS === (await p.$$eval('#sx-nw > li', l => l.length)), 'newton steps match the list');
+  for (let i = 0; i < nS; i++) { await setRange('#rd-nw-ctl-s', i); await bad('anim step ' + i); if (i === 2) near(await txt('#rd-nw-nw'), N.od_wstar, 2e-3, 'newton lands on w*'); if (width === 390 || i === 4) await shot('#rd-nw-card', 'nw-' + i) }
   // real runs
   for (const x of ['it', 'fe']) { await clk('#rd-lrc-x button[data-m=' + x + ']'); await shot('#rd-lrc-card', 'lrc-' + x) }
   const tab = await p.$$eval('#rd-lrc-tab td[data-k]', t => t.map(e => [e.dataset.k, e.textContent]));
@@ -87,7 +94,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (const me of ['gd', 'hb', 'nag', 'adam', 'newton', 'dnewton', 'sfn', 'bfgs']) {
       await clk('#lab-me button[data-m=' + me + ']'); await sleep(20);
       const mx = await p.$eval('#lab-k', e => +e.max); await setRange('#lab-k', Math.min(3, mx)); await bad('lab ' + fn + ' ' + me);
-      if (width === 390 || ['newton', 'gd', 'sfn'].includes(me)) await shot('#t-lab .labgrid', 'lab-' + fn + '-' + me);
+      if (width === 390 || ['newton', 'gd', 'sfn'].includes(me)) await shot('#t-lab .s3sp', 'lab-' + fn + '-' + me);
     }
   }
   // Newton on the quadratic: one step to the origin
@@ -112,9 +119,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   ok(await p.$eval('#jsErr', e => e.hidden), tag + ' error box hidden');
   await p.close();
 }
-// normal motion: nothing may move before the reader acts
-{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await sleep(300);
-  await p.$eval('#rd-nw-card', e => e.scrollIntoView()); await sleep(3000);
-  ok((await p.$eval('#rd-nw-ctl-s', e => e.value)) === '0', 'Newton animation does not autoplay'); await p.close(); }
+// normal motion (2026-11-06): the 2D animation plays by itself once scrolled into view (the 3D stages: check_stages.mjs)
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await sleep(300); await p.$eval('#tabs button[data-t=t-read]', b => b.click()); await sleep(200);
+  await p.$eval('#rd-nw-card', e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+  ok(/Pause/.test(await p.$eval('#rd-nw-ctl-p', e => e.textContent)), 'Newton animation plays when scrolled into view'); await p.close(); }
 await browser.close();
 console.log('checks', checks, 'fails', fails);

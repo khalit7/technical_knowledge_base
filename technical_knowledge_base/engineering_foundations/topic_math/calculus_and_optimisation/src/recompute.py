@@ -134,9 +134,6 @@ w = 0.0
 for _ in range(60): w -= g1(w) / h1(w)
 put('od_wstar', w, 3); put('od_fstar', f1(w), 4); put('od_hstar', h1(w), 4)
 put('od_gd_rate', 1 - h1(w) / Lb, 3)
-# hero figure: the two local models at w0 = 1.5 (gradient descent at eta = 1/beta, Newton with the true curvature)
-w0 = 1.5; put('hero_f', f1(w0), 3); put('hero_g', g1(w0), 3); put('hero_h', h1(w0), 3)
-put('hero_gd', w0 - g1(w0) / Lb, 3); put('hero_nt', w0 - g1(w0) / h1(w0), 3)
 
 # 2D slice for the lab (mean radius, mean texture; no intercept)
 X2 = np.array(D1['X2'])
@@ -147,6 +144,31 @@ def H2(w):
 w2 = np.zeros(2)
 for _ in range(40): w2 = w2 - np.linalg.solve(H2(w2), g2(w2))
 put('lab_logit_wstar', w2, 4); put('lab_logit_Hstar_eigs', np.linalg.eigvalsh(H2(w2)), 4)
+def _figs_2026_11_06():
+    # hero (Fig. 1): the two-weight loss at w0 = 0, its gradient and Hessian, one gradient-descent step at 1/beta and one Newton step,
+    # and how many steps each needs to a loss gap under 1e-6 (beta: the top eigenvalue of X'X/(4n) + lam, the largest curvature the loss can have)
+    def f2(w): return float(np.mean(np.logaddexp(0, -s1 * (X2 @ w))) + 0.5 * lam * w @ w)
+    B2 = float(np.linalg.eigvalsh(X2.T @ X2 / len(X2) / 4 + lam * np.eye(2))[-1]); f2s = f2(w2); z2 = np.zeros(2)
+    put('hero2_f0', f2(z2), 3); put('hero2_gnorm', np.linalg.norm(g2(z2)), 3); put('hero2_eigs', np.linalg.eigvalsh(H2(z2)), 3); put('hero2_beta', B2, 3)
+    put('hero2_gd1', -g2(z2) / B2, 2); put('hero2_nt1', -np.linalg.solve(H2(z2), g2(z2)), 2); put('hero2_wstar', w2, 2)
+    w = z2.copy(); k = 0
+    while f2(w) - f2s > 1e-6: w = w - g2(w) / B2; k += 1
+    N['hero2_gd_steps'] = k
+    w = z2.copy(); k = 0
+    while f2(w) - f2s > 1e-6: w = w - np.linalg.solve(H2(w), g2(w)); k += 1
+    N['hero2_nt_steps'] = k
+    # Fig. 8: the chord between a = (0.2, 2.6) and b = (6.3, -1) against the loss at the midpoint
+    a8, b8 = np.array([0.2, 2.6]), np.array([6.3, -1.0]); put('cvx_chord_mid', (f2(a8) + f2(b8)) / 2, 3); put('cvx_loss_mid', f2((a8 + b8) / 2), 3)
+    # Fig. 4: steps from (1, 1) on diag(1, 10) until both coordinates are under 1e-3: eta 0.1, eta 2/11, heavy ball with Goh's best settings
+    Hq = np.diag([1.0, 10.0]); done = lambda q: np.max(np.abs(q)) <= 1e-3
+    for nm, eta in (('gd_steps_eta01', 0.1), ('gd_steps_best', 2 / 11)):
+        q = np.ones(2); k = 0
+        while not done(q): q = q - eta * Hq @ q; k += 1
+        N[nm] = k
+    al, be = (2 / (1 + math.sqrt(10))) ** 2, ((math.sqrt(10) - 1) / (math.sqrt(10) + 1)) ** 2; q = np.ones(2); v = np.zeros(2); k = 0
+    while not done(q): v = be * v + Hq @ q; q = q - al * v; k += 1
+    N['hb_steps_best'] = k
+_figs_2026_11_06()
 put('hb_kappa100', 9 / 11, 4); put('gd_kappa100', 99 / 101, 4); put('gd_steps_kappa100', math.log(1000) / math.log(101 / 99), 1)
 # ---- 10/14. real logistic regression runs (inputs/lr_out.json, made by inputs/lr_real.py) ----
 R = json.load(open('inputs/lr_out.json')); S = R['summary']

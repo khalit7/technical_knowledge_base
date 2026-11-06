@@ -1,4 +1,4 @@
-// ---- Reading tab: small interactive figures (secant, directional derivative, Taylor, Hessian gallery, rate, chord, Lagrange, XGBoost, noise, SGD) ----
+// ---- Reading tab: small interactive figures (secant, directional derivative, Taylor, rate, chord, XGBoost, noise, SGD; the Hessian gallery and the Lagrange picture became 3D stages on 2026-11-06) ----
 (function(){
   const T=CO.T,$=id=>document.getElementById(id);
   const reg=f=>{RD.onRender(f);RD.onResize(f);try{f()}catch(e){window.__jsErr&&__jsErr(e.message)}};
@@ -48,17 +48,6 @@
   $('rd-tay-a').addEventListener('input',tay);reg(tay);
 
   // 6. Hessian gallery
-  function hg(){const el=$('rd-hg-svg');if(!el)return;const W=RD.width(el);const per=W<520?2:4;const cw=Math.floor(W/per)-6,ch=cw+26;
-    const fs=[['x² + y², minimum',(x,y)=>x*x+y*y,[2,2]],['−x² − y², maximum',(x,y)=>-x*x-y*y,[-2,-2]],['x² − y², saddle',(x,y)=>x*x-y*y,[2,-2]],['x² + y⁴, flat floor',(x,y)=>x*x+y*y*y*y,[2,0]]];
-    let s='';fs.forEach((F,k)=>{const ox=(k%per)*(cw+6),oy=Math.floor(k/per)*(ch+6);const r=cw/2.4,cx=ox+cw/2,cy=oy+ch/2+8;
-      const map=(x,y)=>[cx+x*r,cy-y*r];const lv=[-2,-1.5,-1,-0.5,-0.2,0.2,0.5,1,1.5,2];
-      s+='<rect x="'+ox+'" y="'+oy+'" width="'+cw+'" height="'+ch+'" rx="6" style="fill:none;stroke:var(--line)"/>'+T(ox+cw/2,oy+15,F[0],'middle',11.5,'var(--ink)',600);
-      s+=CO.contours(F[1],-1.15,1.15,-1.15,1.15,40,40,lv,map).map((d,i)=>'<path d="'+d+'" style="fill:none;stroke:'+(lv[i]>0?'var(--c1)':'var(--c2)')+';stroke-opacity:.45"/>').join('');
-      F[2].forEach((ev,i)=>{const col=ev>0?'var(--c1)':ev<0?'var(--c2)':'var(--mute)';const L=ev===0?0.35*r:Math.abs(ev)/2*0.85*r;const dx=i===0?L:0,dy=i===1?L:0;s+=arrow(cx,cy,cx+dx,cy-dy,col,2.2)});
-      s+=T(ox+cw/2,oy+ch-6,'eigenvalues '+F[2].map(v=>M(String(v))).join(' and '),'middle',10.5,'var(--mute)');
-      s+='<circle cx="'+cx+'" cy="'+cy+'" r="3" style="fill:var(--ink)"/>'});
-    const rows=Math.ceil(fs.length/per);el.innerHTML=RD.svg(per*(cw+6),rows*(ch+6),s,'four critical points')}
-  reg(hg);
 
   // 8. rate against step for a quadratic with lambda_min = 1, lambda_max = kappa
   function rate(){const el=$('rd-rate-svg');if(!el)return;const k=+$('rd-rate-k').value;$('rd-rate-kv').textContent=k;
@@ -88,18 +77,6 @@
   RD.seg($('rd-chord-f'),m=>{cf=m;chord()});$('rd-chord-t').addEventListener('input',chord);reg(chord);
 
   // 14. Lagrange on the circle
-  function lag(){const el=$('rd-lag-svg');if(!el)return;const deg=+$('rd-lag-a').value;$('rd-lag-av').textContent=deg+'°';
-    const W=Math.min(380,RD.width(el)),Hh=W,r=W/3.2,cx=W/2,cy=Hh/2;const map=(x,y)=>[cx+x*r,cy-y*r];
-    let s=CO.contours((x,y)=>x+y,-1.6,1.6,-1.6,1.6,30,30,[-2,-1.5,-1,-0.5,0,0.5,1,1.414,2],map).map(d=>'<path d="'+d+'" style="fill:none;stroke:var(--dim)"/>').join('');
-    s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" style="fill:none;stroke:var(--ink);stroke-width:1.6"/>';
-    const a=deg*Math.PI/180,x=Math.cos(a),y=Math.sin(a);const [px,py]=map(x,y);
-    s+=arrow(px,py,px+0.5*r,py-0.5*r,'var(--c1)',2.2)+arrow(px,py,px+2*x*0.35*r,py-2*y*0.35*r,'var(--c2)',2.2)+'<circle cx="'+px+'" cy="'+py+'" r="4.5" style="fill:var(--ink)"/>';
-    const lab=(X,Y,t,col)=>{const a=X>W-22?'end':'start';return T(Math.max(4,Math.min(W-4,X)),Math.max(12,Math.min(W-4,Y)),t,a,12,col,600)};
-    s+=lab(px+0.5*r+3,py-0.5*r-3,'∇f','var(--c1)')+lab(px+0.7*x*r+3,py-0.7*y*r+12,'∇g','var(--c2)');
-    el.innerHTML=RD.svg(W,Hh,s,'Lagrange picture');
-    const lamx=1/(2*x),lamy=1/(2*y),cos=(x+y)/Math.SQRT2;
-    $('rd-lag-out').innerHTML=stat('f = x + y here','<span id="rd-lag-f">'+M(CO.fx(x+y,3))+'</span>','maximum √2 = 1.414')+stat('angle between ∇f and ∇g',(Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI).toFixed(0)+'°','0° only at the optimum')+stat('λ needed per coordinate',M(CO.fx(lamx,3))+' and '+M(CO.fx(lamy,3)),'1/(2x), 1/(2y): equal (0.707) only at 45°')}
-  $('rd-lag-a').addEventListener('input',lag);reg(lag);
 
   // 12. XGBoost leaf: four examples
   const xg={y:[1,1,1,0],split:3};

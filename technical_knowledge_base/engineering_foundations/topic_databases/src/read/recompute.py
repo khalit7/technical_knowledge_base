@@ -41,6 +41,8 @@ check('70 ms', round(m['agg_row']['ms']) == 70 and '70 ms' in read)
 check('19,349 / 28 ms', m['lookup_seq']['pages'] == 19349 and round(m['lookup_seq']['ms']) == 28 and '19,349 pages and took 28 ms' in read)
 check('19,235 pages 157 MB', m['heap_pages'] == 19235 and '19,235 pages (157 MB)' in read)
 check('14,435 / 4,914', '14,435' in read and '4,914' in read and m['lookup_seq']['hit'] == 14435)
+check('section 5 chart caption: content 83.5 MB, 22.4 MB', f"{m['parquet_cols']['content']['uncompressed'] / 1e6:.1f}" == '83.5' and f"{m['parquet_cols']['content']['compressed'] / 1e6:.1f}" == '22.4' and '83.5 MB before compression, 22.4 MB in Parquet' in read)
+check('section 5 chart: content is the largest column', max(m['parquet_cols'], key=lambda c: m['parquet_cols'][c]['uncompressed']) == 'content')
 check('role 254,530 to 862', m['parquet_cols']['role']['uncompressed'] == 254530 and m['parquet_cols']['role']['compressed'] == 862 and '254,530 bytes to 862' in read)
 mini = dict(m['agg_col']['result'])['mini']
 check('mini total', mini == 80277256 and '80,277,256' in read and str(mini) in m['agg_result'])
@@ -53,15 +55,16 @@ check('1.68 MB', f"{colb / 1e6:.2f}" == '1.68' and '1.68 MB' in read, colb)
 tps = json.load(open(os.path.join(H, '..', 'atlas', 'inputs', 'pg_tps.json')))
 wt = {r['clients']: r['tps'] for r in tps['writethrough']['runs']}
 check('148 / 2,133 tps', wt[1] == 148 and wt[32] == 2133 and '148 write transactions' in read and '2,133' in read)
-# 3. the write stepper (2026-10-24: the six old animations were retired to read/retired/parts; their numbers stay in the prose above)
-steps = re.findall(r'<li><b>', re.search(r'id="rd-w-list">(.*?)</ol>', read, re.S).group(1))
-check('write stepper 11 steps', len(steps) == 11, len(steps))
+# 3. the write stage (2026-10-24: the six old animations were retired to read/retired/parts; their numbers stay in the prose above;
+#    2026-11-06: the write stepper became the 3D stage stg-write, its step list sx-write; check_stages.mjs checks it plays and has one item per step)
+steps = re.findall(r'<li><b>', re.search(r'id="sx-write">(.*?)</ol>', read, re.S).group(1))
+check('write stage 11 steps', len(steps) == 11, len(steps))
+check('hero stage 4 steps', len(re.findall(r'<li><b>', re.search(r'id="sx-one">(.*?)</ol>', read, re.S).group(1))) == 4)
 co = os.path.join(H, 'check_out.json')
 expect = None
 if os.path.exists(co):
     out = json.load(open(co))
     for run in out['runs']:
-        check('stepper card ' + run['scheme'], 'rd-w' in run['cards'], list(run['cards']))
         check('no errors ' + run['scheme'], not run['errors'] and not run['problems'] and not run['sideways'])
 else:
     print('check_out.json missing: run check_read.mjs first')
