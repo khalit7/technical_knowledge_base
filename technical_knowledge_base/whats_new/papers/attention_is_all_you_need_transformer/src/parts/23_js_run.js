@@ -33,7 +33,7 @@
     $('runChips').innerHTML=st.allowed.map(x=>'<button class="'+KC[LANG.kind(x)]+'" data-w="'+x+'">'+x+'</button>').join('')+(st.done&&st.allowed.length?'<span class="small mute" style="align-self:center">complete; add a place phrase or stop here</span>':'');
     $('runChips').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{S.w.push(b.dataset.w);S.shuf=null;update()}))}
   const done=()=>LANG.state(S.w).done;
-  function update(){drawSrc();S.dk=0;S.dt=1;out();refit($('decSvg'));drawDec();refit($('attSvg'));cmp()}
+  function update(){drawSrc();S.dk=0;S.dt=1;S.dstop=-1;out();decList();refit($('decSvg'));drawDec();refit($('attSvg'));cmp()}
   function out(){const host=$('runOut');if(!done()){host.innerHTML='<p class="small mute">Finish the sentence (subject, verb, object; a place phrase is optional) and the model translates it.</p>';return}
     const r=run(S.v,S.w),ref=LANG.translate(S.w),o=clean(r.out),ok=o.join(' ')===ref.join(' ');
     host.innerHTML='<div class="sent">'+o.map((x,j)=>'<span class="w'+(x===ref[j]?'':' bad')+'">'+x+'<small>'+(LANG.GLOSS[x]||'?')+'</small></span>').join('')+'</div>'+
@@ -47,9 +47,24 @@
   const vseg=$('runV');function setV(v){S.v=v;vseg.querySelectorAll('button').forEach(b=>{b.classList.toggle('on',b.dataset.m===v);b.setAttribute('aria-pressed',b.dataset.m===v?'true':'false')});
     $('runVacc').textContent=VN[v]+': '+pct(TM.variants[v].acc)+' of held-out sentences exactly right ('+pct(TM.variants[v].tacc)+' of words)';buildHeads();update()}
   vseg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setV(b.dataset.m)));
-  // ---- step-by-step decoding ----
+  // ---- step-by-step decoding, grouped by phrase (long-replay rule, 2026-11-06): one item of the list #sx-dec per phrase of the Lindu sentence, its words played in turn ----
+  function decGroups(){if(!done())return [];const w=S.w,m=run(S.v,w).out.length,o=run(S.v,w).out,iv=w.findIndex(x=>x in LANG.VERB),ip=w.findIndex(x=>x in LANG.PREP);
+    const lo=(ip<0?w.length:ip)-iv-1,lp=ip<0?0:w.length-ip-1,q=t=>'"'+t.join(' ')+'"',G=[];let a=0;
+    const add=(n,t,c)=>{const b=Math.min(m,a+n);if(b>a)G.push({a,b,t,c});a=b};
+    add(iv,'The subject, noun first.','Lindu puts the noun first, its adjectives in mirrored order and the article last, so cross-attention walks backwards through '+q(w.slice(0,iv))+'.');
+    if(ip>=0)add(lp+1,'The place phrase, from the end of the English.','The place phrase comes before the object in Lindu, so the decoder jumps to the last English words, '+q(w.slice(ip))+', and writes them back to front with the postposition last.');
+    add(lo+1,'The object, then su.','Back to the middle of the English for '+q(w.slice(iv+1,ip<0?w.length:ip))+', mirrored the same way, then <span class="mono">su</span>, the object marker, which translates no single English word.');
+    add(m-a,'The verb, chosen last, then the end.','Lindu is verb-final: "'+w[iv]+'", the second phrase of the English, is written last, and the end symbol stops decoding.');
+    G.forEach(g=>g.w=o.slice(g.a,g.b).map(esc).join(' '));return G}
+  let DG=[];
+  function decList(){DG=decGroups();const ol=$('sx-dec');ol.innerHTML=DG.map(g=>'<li><b>'+g.t+'</b> '+g.c+' <span class="mono small">'+(g.b-g.a>1?'Words '+(g.a+1)+' to '+g.b:'Word '+g.b)+': '+g.w+'</span></li>').join('');
+    [...ol.children].forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const go=()=>decStretch(i);li.onclick=go;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}})}
+  // a click on a phrase plays just that phrase's words, then stops (under reduced motion it shows its last word)
+  function decStretch(i){const g=DG[i];if(!g)return;S.duser=true;dpause();if(RM){S.dk=g.b-1;S.dt=1;S.dstop=-1}else{S.dk=g.a;S.dt=0;S.dstop=g.b-1;S.dplay=true;dkick()}drawDec()}
+  function decMark(k){const ol=$('sx-dec');[...ol.children].forEach((li,i)=>{const g=DG[i],on=g&&k>=g.a&&k<g.b;li.classList.toggle('on',on);li.classList.toggle('done',!!g&&k>=g.b);if(on)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
+    $('dec').toggleAttribute('data-playing',!!S.dplay)}
   function decSel(){const r=run(S.v,S.w),L=+$('decL').value,h=+$('decH').value,M=r.crs[L];return {r,row:j=>S.w.map((_,i)=>h<0?M.reduce((s,hh)=>s+hh[j][i],0)/M.length:M[h][j][i])}}
-  function drawDec(){const host=$('decSvg');if(!done()){host.innerHTML='';$('decStep').textContent='';$('decCap').textContent='Finish the sentence first.';return}
+  function drawDec(){const host=$('decSvg');decMark(S.dk);if(!done()){host.innerHTML='';$('decStep').textContent='';$('decCap').textContent='Finish the sentence first.';return}
     const {r,row}=decSel(),m=r.out.length,k=Math.min(S.dk,m-1),e=RM?1:ease(cl01(S.dt/.6)),w=host.clientWidth;if(!w)return;
     const a=row(k),p=r.probs[k],top=[...p.keys()].sort((x,y)=>p[y]-p[x]).slice(0,5);
     const n=S.w.length,pad=6,nar=w<560;let s='',y=12;
@@ -70,9 +85,9 @@
     const sc=$('decScrub');sc.max=m-1;sc.value=k;const pb=$('decPlay'),end=k>=m-1;pb.innerHTML=S.dplay?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',S.dplay?'Pause':end?'Replay':'Play')}
   const dlive=()=>S.dvis&&!document.hidden&&$('dec').offsetParent!==null;
   function dtick(now){S.draf=0;if(!S.dplay||!dlive())return;const dt=S.dlast?Math.min(100,now-S.dlast):16;S.dlast=now;const spd=+$('decSpd').value;S.dt+=dt*spd/1500;
-    const m=run(S.v,S.w).out.length;if(S.dt>=1){if(S.dk<m-1){S.dk++;S.dt=0}else{S.dt=1;S.dplay=false;S.dend=true}}$('dec').dataset.frames=(+$('dec').dataset.frames||0)+1;drawDec();if(S.dplay)S.draf=requestAnimationFrame(dtick)}
+    const m=run(S.v,S.w).out.length;if(S.dt>=1){if(S.dstop>=0&&S.dk>=S.dstop){S.dt=1;S.dplay=false;S.dstop=-1}else if(S.dk<m-1){S.dk++;S.dt=0}else{S.dt=1;S.dplay=false;S.dend=true}}$('dec').dataset.frames=(+$('dec').dataset.frames||0)+1;drawDec();if(S.dplay)S.draf=requestAnimationFrame(dtick)}
   function dkick(){if(S.dplay&&dlive()&&!S.draf){S.dlast=0;S.draf=requestAnimationFrame(dtick)}}
-  const dpause=()=>{S.dplay=false;if(S.draf){cancelAnimationFrame(S.draf);S.draf=0}};
+  const dpause=()=>{S.dplay=false;S.dstop=-1;if(S.draf){cancelAnimationFrame(S.draf);S.draf=0}};
   $('decPlay').addEventListener('click',()=>{S.duser=true;if(!done())return;if(S.dplay)dpause();else{const m=run(S.v,S.w).out.length;if(S.dk>=m-1){S.dk=0;S.dt=RM?1:0}S.dplay=!RM||true;dkick()}drawDec()});
   $('decFwd').addEventListener('click',()=>{S.duser=true;dpause();if(!done())return;S.dk=Math.min(run(S.v,S.w).out.length-1,S.dk+1);S.dt=1;drawDec()});
   $('decBack').addEventListener('click',()=>{S.duser=true;dpause();S.dk=Math.max(0,S.dk-1);S.dt=1;drawDec()});

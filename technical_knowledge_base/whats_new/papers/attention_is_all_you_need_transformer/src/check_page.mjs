@@ -43,7 +43,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
     // 2D animations play by themselves once scrolled into view (2026-11-06)
-    for (const id of ['thx', 'dec']) { if (!(await p.$(`#${t} #${id}`))) continue;
+    for (const id of ['dec']) { if (!(await p.$(`#${t} #${id}`))) continue;
       await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2500);
       if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     // the 3D stages play by themselves once scrolled into view (Khalid, 2026-11-06), and not under reduced motion (checked below)
@@ -111,23 +111,20 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) <= f0) problems.push(`${scheme} ${width}: ${id} did not animate`);
       await clk(`#${id}-p`);
     }
-    // step the animations through every step and screenshot the middle
-    for (const id of ['thx']) {
-      if (!(await p.$(`#${t} #${id}`))) continue;
-      const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
-      for (const m of (modes.length ? modes : [null])) {
-        if (m) await clk(`#${id}M button[data-m=${m}]`);
-        await clk(`#${id}Play`); await clk(`#${id}Play`);
-        await p.evaluate(id => { const e = document.getElementById(id + 'Scrub'); e.value = 0; e.dispatchEvent(new Event('input')) }, id);
-        const n = await p.$eval(`#${id}Scrub`, e => e.max / 100);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Fwd`); actions++; if (k === Math.floor(n / 2)) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${m || 'x'}-${scheme}-${width}.png` }) } }
-        await audit(`${t} ${id} ${m} stepped`);
-        for (let k = 0; k < n; k++) { await clk(`#${id}Back`); actions++ }
+    // the decoder: grouped by phrase (long-replay rule), one list item per stretch; a click on a stretch plays its words and stops at its last
+    if (t === 't-run') {
+      const G = await p.$$eval('#sx-dec > li', ls => ls.length);
+      if (G < 3 || G > 8) problems.push(`${scheme} ${width}: decoder has ${G} stretches explained (expected 3 to 8)`);
+      for (let i = 0; i < G; i++) {
+        await p.evaluate(i => document.querySelectorAll('#sx-dec > li')[i].click(), i); actions++;
+        const playing = await p.$eval('#dec', e => e.hasAttribute('data-playing'));
+        await p.waitForFunction(() => !document.getElementById('dec').hasAttribute('data-playing'), { timeout: 15000 }).catch(() => problems.push(`${scheme} ${width}: decoder stretch ${i + 1} did not stop`));
+        const on = await p.$$eval('#sx-dec > li', ls => ls.findIndex(l => l.classList.contains('on')));
+        if (on !== i) problems.push(`${scheme} ${width}: decoder stretch ${i + 1} marked ${on + 1}`);
+        if (!playing) problems.push(`${scheme} ${width}: decoder stretch ${i + 1} did not play`);
       }
-      // let it play for a second
-      await clk(`#${id}Play`); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not animate`);
-      await clk(`#${id}Play`);
+      const last = await p.$eval('#decStep', e => e.textContent); if (!/Word (\d+) of \1:/.test(last)) problems.push(`${scheme} ${width}: decoder last stretch ended on "${last}"`);
+      await audit('t-run decoder stretches');
     }
   }
   if (errs.length) problems.push(`${scheme} ${width}: errors ${errs.join(' | ')}`);
@@ -136,8 +133,9 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
 { // reduced motion: no stage moves by itself
   const p = await b.newPage(); await p.setViewport({ width: 1400, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(file);
-  for (const id of await p.$$eval('#t-read .stg', xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200));
-    if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`reduced motion: ${id} moved by itself`) }
+  for (const t of ['t-read', 't-run', 't-then']) { await p.click(`#tabs button[data-t=${t}]`); await new Promise(r => setTimeout(r, 300));
+    for (const id of await p.$$eval(`#${t} .stg, #${t} #dec`, xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200));
+      if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0) problems.push(`reduced motion: ${id} moved by itself`) } }
   await p.close() }
 await b.close();
 console.log('actions', actions, 'problems', problems.length); problems.forEach(x => console.log(' -', x));
