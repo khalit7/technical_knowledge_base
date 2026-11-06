@@ -1,6 +1,6 @@
 // Click every control on every tab at 390 px dark and 920 px light, step every animation to its end, and fail on page errors,
 // a visible #jsErr, sideways scroll, or NaN/undefined/Infinity in the tab text. Then confirm nothing moves on its own under
-// reduced motion. usage, from the repo root: node <page>/src/check_controls.mjs <page>/index.html
+// reduced motion (the A day replay opens on a later step by design). usage, from the repo root: node <page>/src/check_controls.mjs <page>/index.html
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -30,14 +30,14 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-// reduced motion and normal: every stepper stays on step 0 after load and scroll
-for (const rm of ['reduce', 'no-preference']) {
+// reduced motion: every stepper and stage stays on step 0 after load and scroll (2026-11-06: without reduced motion they play once in view; check_stages.mjs checks that)
+for (const rm of ['reduce']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
   await p.goto('file://' + path.resolve(process.argv[2]));
   await p.evaluate(async () => { for (const c of document.querySelectorAll('[id$="-card"]')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 300)); } });
   await new Promise(r => setTimeout(r, 3000));
-  const moved = await p.$$eval('input[type=range][id$="-s"]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
+  const moved = await p.$$eval('input[type=range][id$="-s"], input[type=range].stg-r', rs => rs.filter(r => +r.value !== 0 && r.id !== 'dy-ctl-s').map(r => r.id));
   console.log('motion', rm, moved.length ? 'MOVED ' + moved : 'nothing autoplays'); bad += moved.length; await p.close();
 }
 await b.close();

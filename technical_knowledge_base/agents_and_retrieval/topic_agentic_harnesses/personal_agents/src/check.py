@@ -4,10 +4,11 @@
 2. Every hand-written number in the Reading tab about the recordings matches the data.
 3. The Gate designer's "This page's gate" preset re-decides every gate-on action exactly as the recorded gate did.
 4. Privacy grep over src/ and index.html."""
-import glob, json, os, re, subprocess, sys
+import getpass, glob, html, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.dont_write_bytecode = True  # no __pycache__ (it would hold this machine's paths)
 import build_data
 
 fails = []
@@ -76,6 +77,31 @@ ok(all(v.get("claude_code_version") == "2.1.290" for line in [] for v in []) or 
 vers = set(re.findall(r'"claude_code_version": "([^"]+)"', "".join(open(p).read() for p in glob.glob(os.path.join(HERE, "recordings", "*.jsonl")))))
 ok(vers == {"2.1.290"}, f"claude_code_version in recordings: {vers}")
 
+
+# 2026-11-06 step lists: numbers written into the static step lists of Fig. 3 (screen) and Fig. 7 (gate)
+sx = lambda i: re.sub(r"<[^>]+>", "", html.unescape(re.search(r'<ol class="sx" id="' + i + r'">(.*?)</ol>', page, re.S).group(1)))
+cu = json.loads(re.search(r"window\.HPCU=(\{.*?\});", page).group(1))
+t = sx("sx-cu"); W, Hh = cu["viewport"]; tok = -(-W // 28) * -(-Hh // 28)
+ok(f"{W} x {Hh} px" in t and f"{-(-W // 28)} x {-(-Hh // 28)} = {tok} visual tokens" in t and f"{len(cu['ax'])} lines" in t, f"Fig. 3 steps: {W} x {Hh} px, {tok} visual tokens, {len(cu['ax'])} tree lines")
+ok(f"({cu['click'][0]}, {cu['click'][1]})" in t and f"down {cu['shift']} px" in t and cu["under"] in t, "Fig. 3 steps: click point, shift and the slot under it")
+ok(any("ref=e8]" in l and "Thu 8 Oct, 10:00" in l for l in cu["ax"]) and "<code>e8</code>" in page, "Fig. 3 steps: the tree reference e8 is the 10:00 button")
+G = {}
+for rec in D.values():
+    if rec["cfg"].get("gate") != "on":
+        continue
+    for run in rec["runs"]:
+        for s_ in run["steps"]:
+            if s_.get("tool"):
+                k_ = (s_["cls"], "owner" if run["origin"] == "owner" else "unattended", s_["dec"]); G[k_] = G.get(k_, 0) + 1
+g = sx("sx-gate"); n_ = lambda c, o: sum(v for (cc, oo, _), v in G.items() if cc == c and oo == o)
+ok(f"{n_('read','owner')+n_('read','unattended')} reads ({n_('read','owner')} on Sam's runs, {n_('read','unattended')} unattended)" in g, "Fig. 7 steps: reads")
+ok(f": {n_('reversible','owner')} on Sam's runs" in g and f"pass ({n_('reversible','unattended')})" in g, "Fig. 7 steps: reversible changes")
+ok(f"{n_('staged','owner')}, all on Sam's runs" in g and n_('staged', 'unattended') == 0, "Fig. 7 steps: staged memory writes")
+ok(f"{G.get(('irreversible','owner','hold'),0)} sends waited" in g and n_('irreversible', 'owner') == G.get(('irreversible', 'owner', 'hold'), 0), "Fig. 7 steps: held sends")
+ok(n_('irreversible', 'unattended') == 0 and "None was proposed" in g, "Fig. 7 steps: no irreversible action proposed on an unattended run")
+m_ = sx("sx-mem")
+ok("0 of 3 runs searched" in m_ and "(3 of 3)" in m_ and "1 of 3 right" in m_, "Fig. 6 steps: memory scores")
+
 # 3. gate preset vs recorded decisions (mirror of 35_js_gate.js decide() with the page preset)
 PAGE = {"reversible": {"owner": "allow", "unattended": "hold"}, "staged": {"owner": "hold", "unattended": "hold"},
         "irreversible": {"owner": "hold", "unattended": "deny"}}
@@ -95,7 +121,8 @@ for k, rec in D.items():
 ok(mism == 0, f"Gate designer preset reproduces all {n} recorded gate-on decisions")
 
 # 4. privacy
-pat = re.compile(r"/Users/|Users-|glpat|sk-ant|" + re.escape(os.environ.get("USER", "x" * 40)), re.I)
+pat = re.compile(r"/Users/|/home/|Users-|glpat|sk-ant", re.I)
+login = getpass.getuser()  # the login name, looked up at run time and matched case-sensitively (a capitalised first name is not a leak)
 email = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
 ident = [v for v in (subprocess.run(["git", "config", "--get", k], capture_output=True, text=True).stdout.strip() for k in ("user.name", "user.email")) if v]
 leaks = []
@@ -103,7 +130,7 @@ for p in glob.glob(os.path.join(HERE, "**", "*"), recursive=True) + [os.path.joi
     if os.path.isdir(p) or p.endswith(".py") and os.path.basename(p) in ("redact.py", "check.py"):
         continue
     t = open(p, errors="ignore").read()
-    if pat.search(t) or any(v.lower() in t.lower() for v in ident) or "\u2014" in t:
+    if pat.search(t) or re.search(r"\b" + re.escape(login) + r"\b", t) or any(v in t for v in ident) or "\u2014" in t:
         leaks.append(os.path.relpath(p, HERE))
     for e in email.findall(t):
         pass

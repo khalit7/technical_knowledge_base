@@ -1,4 +1,4 @@
-// ---- Reading 1: one day, invoked vs resident (illustrative schedule, not a recording) ----
+// ---- Reading 1: one day, invoked vs resident (illustrative schedule, not a recording); the step list ol#sx-day explains each event ----
 (function(){
   const box=document.getElementById('hp-day-svg');if(!box)return;
   const H=(h,m)=>h+m/60;
@@ -12,7 +12,7 @@
     {t:H(21,0),lab:'21:00 heartbeat',who:'t',res:'Heartbeat run: reminds Sam of the two held approvals',inv:null,unatt:1},
     {t:H(21,30),lab:'21:30 Sam opens a terminal',who:'s',res:'(nothing new for the resident agent)',inv:'Session starts: Sam pastes the two requests; the digest and the email triage never happen',late:1}
   ];
-  const cap=document.getElementById('hp-day-cap'),stats=document.getElementById('hp-day-stats');
+  const stats=document.getElementById('hp-day-stats');
   function draw(i){
     const W=RD.width(box),pad=12,x0=pad+4,x1=W-pad-4,T0=6.5,T1=22;
     const X=t=>x0+(x1-x0)*(t-T0)/(T1-T0);
@@ -42,12 +42,11 @@
     const e=EV[i];
     const lbl=RD.t(Math.min(Math.max(X(e.t),x0+60),x1-60),22+hL+14,RD.esc(e.lab),{a:'middle',fs:11,w:600});
     box.innerHTML=RD.svg(W,h,b+lbl,'Two lanes, one day of events');
-    cap.innerHTML='<div class="t">'+RD.esc(e.lab)+'</div><p><b>Resident:</b> '+RD.esc(e.res)+'</p><p><b>Invoked:</b> '+RD.esc(e.inv||'(no event for it: a timer only exists inside a resident process)')+'</p>';
     stats.innerHTML=RD.stat('Resident: handled when they arrived',onTime,'of '+Math.min(i+1,6)+' events so far')+
       RD.stat('Resident: runs with nobody watching',unatt,'heartbeats, email triage, the job')+
       RD.stat('Invoked: waiting for a session',i>=6?0:waiting,'')+
       RD.stat('Invoked: never handled',never,i>=6?'the email triage and the job':'known only at 21:30');
   }
-  RD.anim({card:'hp-day-card',ctl:'hp-day-ctl',n:EV.length,draw,ms:2200,label:'Event'});
+  RD.anim({card:'hp-day-card',ctl:'hp-day-ctl',n:EV.length,draw,ms:4200,label:'Event',list:'sx-day'});
   RD.onResize(()=>{const s=document.getElementById('hp-day-ctl-s');draw(s?+s.value:0)});
 })();

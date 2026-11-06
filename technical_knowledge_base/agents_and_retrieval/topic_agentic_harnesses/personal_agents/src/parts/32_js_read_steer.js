@@ -1,4 +1,4 @@
-// ---- Reading 4: the same correction, four ways (recorded runs from window.HPD) ----
+// ---- Reading 4: the same correction, four ways (recorded runs from window.HPD): an explorer that shows every run as it ended (Fig. 5 replays three of them) ----
 window.HP=window.HP||{};
 // one chip per step of a recording: tool, class, decision; plus the incoming message
 HP.chips=function(rec,upto){
@@ -26,7 +26,6 @@ HP.outcome=function(rec){
 };
 (function(){
   const host=document.getElementById('hp-st-grid');if(!host||!window.HPD)return;
-  const cap=document.getElementById('hp-st-cap');
   let model='haiku',rep='';
   const cells=[['steer','off','Steer, no gate'],['followup','off','Follow-up, no gate'],['steer','on','Steer, gate on'],['followup','on','Follow-up, gate on']];
   function rec(st,g){
@@ -46,13 +45,11 @@ HP.outcome=function(rec){
         (i>=maxStep()?'<ul class="tight small">'+HP.outcome(r).map(([c,t])=>'<li><span class="pill '+c+'">'+(c==='bad'?'irreversible':c==='mid'?'pending':'safe')+'</span>'+RD.esc(t)+'</li>').join('')+'</ul>':'')+'</div>';
     });
     host.innerHTML=html;
-    cap.innerHTML=i===0?'<div class="t">The request</div><p>Sam asks the agent to book the garage. After the agent\'s first tool call, a correction arrives: the car was already serviced.</p>':
-      i>=maxStep()?'<div class="t">Outcomes</div><p>Steer: the correction is read before the next model call. Follow-up: it waits until the run ends, by which time the booking reply has been sent (no gate) or held (gate on).</p>':
-      '<div class="t">Model call '+i+'</div><p>Each chip is one action; a yellow chip is the incoming message, placed where the harness delivered it. Hover a chip for the model\'s words.</p>';
   }
   function maxStep(){let m=1;cells.forEach(([st,g])=>{const r=rec(st,g);if(r)HP.chips(r).forEach(c=>{m=Math.max(m,c.k)})});return m}
-  const A=RD.anim({card:'hp-st-card',ctl:'hp-st-ctl',n:maxStep()+1,draw,ms:1600,label:'Model call'});
+  const show=()=>draw(maxStep());
   const ms=document.getElementById('hp-st-model'),rp=document.getElementById('hp-st-rep');
-  if(ms)RD.seg(ms,v=>{model=v;rp.disabled=v!=='haiku';if(v!=='haiku'){rep='';rp.value=''}A.reset(maxStep()+1)});
-  if(rp)rp.addEventListener('change',()=>{rep=rp.value;A.reset(maxStep()+1)});
+  if(ms)RD.seg(ms,v=>{model=v;rp.disabled=v!=='haiku';if(v!=='haiku'){rep='';rp.value=''}show()});
+  if(rp)rp.addEventListener('change',()=>{rep=rp.value;show()});
+  show();
 })();

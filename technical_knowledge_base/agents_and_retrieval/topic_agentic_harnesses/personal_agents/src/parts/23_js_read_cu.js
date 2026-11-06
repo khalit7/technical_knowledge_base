@@ -1,9 +1,9 @@
-// ---- Reading 2: one real page seen as a screenshot and as an accessibility tree; a banner shifts the layout (data: HPCU, measured in headless Chrome) ----
+// ---- Reading 2: one real page seen as a screenshot and as an accessibility tree; a banner shifts the layout (data: HPCU, measured in headless Chrome); the steps are explained in ol#sx-cu, whose numbers check.py compares with HPCU ----
 (function(){
   const card=document.getElementById('hp-cu-card');if(!card||!window.HPCU)return;
   const C=HPCU,[W,H]=C.viewport,T='Thu 8 Oct, 10:00';
   const img=document.getElementById('hp-cu-img'),ov=document.getElementById('hp-cu-ov'),ax=document.getElementById('hp-cu-ax'),
-    act=document.getElementById('hp-cu-act'),cap=document.getElementById('hp-cu-cap'),fc=document.getElementById('hp-cu-figcap');
+    act=document.getElementById('hp-cu-act'),fc=document.getElementById('hp-cu-figcap');
   const tok=Math.ceil(W/28)*Math.ceil(H/28);
   const sh=document.getElementById('hp-cu-shift');if(sh)sh.textContent=C.shift;
   const box=(b,col,dash)=>b?'<rect x="'+b[0]+'" y="'+b[1]+'" width="'+b[2]+'" height="'+b[3]+'" rx="6" fill="none" stroke="'+col+'" stroke-width="3" vector-effect="non-scaling-stroke"'+(dash?' stroke-dasharray="6 4"':'')+'/>':'';
@@ -23,7 +23,6 @@
     fc.textContent=s.img==='plain'?'Screenshot, '+W+' x '+H+' px, as the model receives it. Captured for this page in headless Chrome.':'The same page after a cookie banner loaded ('+C.shift+' px taller at the top). Captured for this page in headless Chrome.';
     ax.innerHTML=C.ax.map(l=>{const on=s.hl&&l.indexOf('ref='+s.hl+']')>=0;return '<span class="'+(on?'on':(i===1?'dim':''))+'">'+RD.esc(l)+'</span>'}).join('\n');
     act.textContent=s.act;
-    cap.innerHTML='<div class="t">'+(i+1)+'. '+RD.esc(s.t)+'</div><p>'+RD.esc(s.p)+'</p>';
   }
-  RD.anim({card:'hp-cu-card',ctl:'hp-cu-ctl',n:S.length,draw,ms:2600,label:'Step'});
+  RD.anim({card:'hp-cu-card',ctl:'hp-cu-ctl',n:S.length,draw,ms:4600,label:'Step',list:'sx-cu'});
 })();

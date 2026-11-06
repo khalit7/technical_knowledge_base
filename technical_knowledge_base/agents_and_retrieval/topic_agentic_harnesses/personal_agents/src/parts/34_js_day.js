@@ -1,4 +1,5 @@
-// ---- Tab: A day, replayed (s3 recordings) ----
+// ---- Tab: A day, replayed (s3 recordings). A long replay (one frame per model call), so a widget the reader drives (the long-replay rule, case b):
+// it never plays by itself, has no step list and opens on the first action the gate held; the paragraph and notes on its left explain it. ----
 (function(){
   const card=document.getElementById('dy-card');if(!card||!window.HPD)return;
   let model='sonnet',A=null,flat=[];
@@ -58,10 +59,11 @@
     n.push('Runs that hit the 8-call limit: '+(r.runs.filter(x=>x.end==='step limit').map(x=>x.at+' '+x.kind).join(', ')||'none')+'.');
     n.push('Still waiting for Sam at the end: '+((r.final.approvals||[]).map(a=>a.tool+' ('+a.run+')').join(', ')||'nothing')+'.');
     document.getElementById('dy-notes').innerHTML=n.map(x=>'<li>'+RD.esc(x)+'</li>').join('');
-    if(A)A.reset(flat.length);
+    if(A){A.reset(flat.length);A.go(first(),true)}
   }
+  function first(){const k=flat.findIndex(f=>f.s.dec==='hold');return k>=0?k:0}
   setup();
-  A=RD.anim({card:'dy-card',ctl:'dy-ctl',n:flat.length,draw,ms:1700,label:'Step',tab:'t-day'});
+  A=RD.anim({card:'dy-card',ctl:'dy-ctl',n:flat.length,draw,ms:2600,label:'Step',auto:false,start:first()});
   RD.seg(document.getElementById('dy-model'),v=>{model=v;setup()});
   document.getElementById('dy-tl').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=flat.findIndex(f=>f.ri===+b.dataset.r);if(k>=0)A.go(k)});
 })();

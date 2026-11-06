@@ -26,7 +26,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `agents_and_retrieval/topic_agentic_harnesses/guardrails` Guardrails: staged runtime safety for LLM systems
 - [x] `agents_and_retrieval/topic_agentic_harnesses/harnesses_for_training` Harnesses for training and evaluation: scaffold sensitivity, RL environments, trajectories, self-improving harnesses
 - [x] `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses` Other coding harnesses: Codex, Gemini CLI, opencode, Aider, OpenHands, mini-SWE-agent
-- [ ] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
+- [x] `agents_and_retrieval/topic_agentic_harnesses/personal_agents` Personal agents: OpenClaw, Hermes Agent, and how they differ from coding harnesses
 - [ ] `agents_and_retrieval/topic_agentic_harnesses` Topic: agentic-harnesses
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/agentic_retrieval` Agentic retrieval, long context and memory
 - [ ] `agents_and_retrieval/topic_rag_and_retrieval/document_ingestion_and_multimodal` Document ingestion and multimodal retrieval: PDFs, tables, images
@@ -330,3 +330,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `agents_and_retrieval/topic_agentic_harnesses/claude_code`: Recordings tab keeps its per-call chart inside the full-width dataset viewer (accepted as a dataset view).
 - `agents_and_retrieval/topic_agentic_harnesses/guardrails`: mk_coverage.py reports 66 of 73; the 7 strings were already missing before the rollout (checked against HEAD by the agent). Worth a look.
 - `agents_and_retrieval/topic_agentic_harnesses/other_coding_harnesses`: Fig. 1 close-up steps overlap faded row labels at the bottom left ("Aider (whole)", "both fixed").
+- `agents_and_retrieval/topic_agentic_harnesses/personal_agents`: Figs. 1 and 7 close-up steps leave large faded blocks cropped at the card edges.
