@@ -74,3 +74,12 @@ The growth is the step lists: about 330 words for the hero, 390 for the strategi
 
 ### Ledger
 `python3 html_utils/ledger.py check`: 284 units (core 209, depth 61, owned 3, fat 11), problems 0. No unit changed label; the key "set every Q to 1" now sits in the optimistic step list.
+
+## The 2026-11-06 v2 pass: renderer v2 scenes
+`25_js_s3.js` recopied from the template (renderer v2: glass, flows, contact shadows, camera per step); `02_split.html` and `05z_errbox.js.html` were already identical to the templates (the template errbox now carries the ResizeObserver filter).
+- `32_js_sc_hr.js`: an agent ball in front; pulls stream from it onto the piles (step 1, dots in proportion to each arm's pulls) and the wins flow back into the estimates; greedy's and UCB's picks are single streams to A and B while the other arms recede; Thompson's posteriors are drawn on glass plates and the agent's pulls go to each arm in proportion to its share of draws; the bill glides in closer on the four walls. Estimate labels moved to the right of the bars (they collided with the value scale). 65 pile cubes without shadows.
+- `33_js_sc_bd.js`: each stretch's pulls fall as dots onto the arms they went to (density by the stretch's share); the 30-box field has no shadows; at the bills the other arms recede so the best arm's column and the regret blocks stand out; camera lowered and bounds tightened (less empty card).
+- `34_js_sc_gx.js`: the episode's path is a stream of dots walking it over a thin line; step 1 shows the starting Q table as a glass plate (at height 1 for optimistic starts); episode 1 is seen up close on the cells it visited (`view`); the 98-cell field has no shadows; the readout moved above the back of the grid (it overlapped the front bars).
+- Step lists: one sentence each where the flows or the plate are new (hero step 1 and 4, strategies step 1, optimistic step 1); the gridworld note says orange dots. All quoted numbers unchanged (`check_page.mjs` recomputes them).
+- The pull-by-pull explorer (`24_js_bd.js`) already follows the long-replay rule (a widget: no autoplay, no step list, opens on UCB at pull 40); its live caption explains the current pull and repeats no step list. The testbed tab has no replay.
+- Reading, core: 6,485 words (28.2 min, header still 28); closed details unchanged (9). Ledger: problems 0.
