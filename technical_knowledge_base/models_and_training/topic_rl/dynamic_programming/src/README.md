@@ -2,6 +2,19 @@
 
 Source of the interactive HTML on the Notion page "Dynamic programming: planning with a known model" (child of Topic: rl; page prefix `dp`, storage key `dp-tab`). `sh build.sh` writes `../index.html` from `parts/` (all `20_read_*.html` in name order) and fills in the best-resources total; the header's reading time is set by hand from `html_utils/audit_pages.mjs`.
 
+## The 2026-11-06 v2 pass: renderer v2 scenes, the Sweep lab as a widget
+
+Same day, after the v1 pass below. `25_js_s3.js` recopied from the template (v2: glass, flows, contact shadows, camera per step); `02_split.html` and `05z_errbox.js.html` already matched the templates (the errbox's ResizeObserver filter is now the template's own). Each scene moved to the v2 style:
+- **Hero** (`41`): the camera is close on the backup for steps 1 to 4 and glides to the grid for 5 to 7 (`view`), so the backup's labels no longer crowd; the successors stand behind the Pub, and the model P(s′ | Pub) is a glass plate (0.2, 0.4, 0.4) that their values stream through into the Pub (dot size and count by probability); the sum 1 + 0.2×6 + 0.4×8 + 0.4×10 = 9.4 is written under the Pub at step 3; at step 4 Study's 10 streams into Class 3 and the Pub's 9.4 faintly; the backup fades out fully before the grid, where the cells that just became exact (the front, orange) are fed by streams from their neighbour one move closer.
+- **Figure 4.1** (`42`): at k = 2 the camera moves in close on the cell right of the top-left corner; the rest recede, and the four moves' values stream in a quarter each (the bump into the top edge as a loop on the cell itself), with −1 + ¼ (0 − 1 − 1 − 1) = −1.75 written over it; the step text carries the arithmetic.
+- **Value iteration** (`43`): during each step a glass plane crosses the grid and each column takes its new value as it passes (all from the previous sweep's array); the ringed backup is fed by streams from the four cells it reads (they replace the static arcs); step tween 2 s.
+- **The 4 × 3 world** (`44`): at sweep 1 the camera moves in close on the cell beside the +1; the model for "right" is a glass table (+1 · 0.8, up · 0.1, down · 0.1) and each outcome's value streams in with its probability, −0.04 + 0.8 × 1 = 0.760 above it; Q-learning's latest episode is a stream of dots along its path (no plate: it has no model).
+- All scenes: value labels switch from the old to the new value halfway through a step instead of showing interpolated numbers (−2.41 between −2 and −3). No field has more than 16 boxes, so shadows stay on.
+- **Long-replay rule**: the Sweep lab (up to 251 frames, the outcome of the reader's choice is the point) is now a widget: no autoplay (`RD.anim` takes `auto:false` and `start`), it opens on frame 3 (Figure 4.1's k = 3 on the left, arrows already optimal), a changed setting opens on its last frame, Play replays from 0; the "Try" text says so. The corridor (13 steps at most, each one backup with its arithmetic) stays one step per backup. No per-step caption repeats a step list (the value-iteration readout gives the ringed backup's arithmetic, which the list does not).
+- Checks updated: `check_stages.mjs` and `check_controls.mjs` expect the lab not to move by itself and to open on frame 3.
+
+Length: Reading core 9,025 to 9,183 words (39.2 to 39.9 min; header 40 min, plus 11): the step texts now name the plate, the front and the two worked backups. Sweep lab core 506 to 536 words. Ledger 389 units, problems 0.
+
 ## The 2026-11-06 pass: split layout, 3D stages, explained steps, autoplay
 
 What changed and why:

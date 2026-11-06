@@ -35,8 +35,9 @@ window.RD=(function(){
     $('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
     $('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
     $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished
-    function auto(){if(!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    // autoplay on view: once at least half the card is visible, unless the reader has taken a control or it has finished;
+    // o.auto false makes it a widget the reader drives (long replays whose outcome is the point, 2026-11-06 rule)
+    function auto(){if(o.auto!==false&&!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
     if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
       if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
     bindList(o.list);
@@ -46,7 +47,7 @@ window.RD=(function(){
     return {
       // restart from step 0 with a new step count (used when a mode toggle changes the sequence)
       // a mode toggle: restart from step 0 with a new step count (and optionally a new step list) and replay, the one exception to "stops for good"
-      reset(n,list){setPlay(false);st.n=n;st.i=0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      reset(n,list,start){setPlay(false);st.n=n;st.i=Math.max(0,Math.min(n-1,start||0));st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
       // jump to a step; pass byCode=true when page code (not the reader) moves it, so autoplay is not switched off
       go(i,byCode){if(!byCode)st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
       redraw(){card.classList.remove('rd-fwd');o.draw(st.i)},

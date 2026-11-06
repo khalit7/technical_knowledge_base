@@ -3,7 +3,7 @@
 Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained and autoplaying animations (`.claude/skills/explainer-page/orchestration/briefs/layout-rollout.md`). One agent per page, at most two at a time; the lead verifies each page (checkpage, ledger, layout and motion verifier) before ticking it. Status: `[ ]` to do, `[~]` built on renderer v1 (needs the v2 upgrade), `[x]` done and verified.
 
 - [x] `models_and_training/topic_rl/bandits_and_exploration` Bandits and exploration
-- [~] `models_and_training/topic_rl/dynamic_programming` Dynamic programming: planning with a known model
+- [x] `models_and_training/topic_rl/dynamic_programming` Dynamic programming: planning with a known model
 - [x] `models_and_training/topic_rl/model_based_rl_and_planning` Model-based RL and planning
 - [~] `models_and_training/topic_rl/model_free_prediction_and_control` Model-free prediction and control: Monte Carlo, TD, SARSA, Q-learning
 - [x] `models_and_training/topic_rl/offline_rl_and_imitation` Offline RL and imitation

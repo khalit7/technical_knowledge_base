@@ -77,14 +77,16 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (side) { bad++; console.log('SIDEWAYS SCROLL', scheme, width) }
   await p.close();
 }
-// autoplay (Khalid, 2026-11-06): under normal motion every animation and stage plays by itself once scrolled into view, and a mode switch replays it
+// autoplay (Khalid, 2026-11-06): under normal motion every animation and stage plays by itself once scrolled into view, and a mode switch replays it; the Sweep lab, a long replay the reader drives, never does
 { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
   await p.goto('file://' + file);
   const plays = async c => (await p.$eval('#' + c + '-p', e => e.getAttribute('aria-label'))) === 'Pause' || (await p.$eval('#' + c + '-s', e => +e.value)) > 0;
   for (const t of ['t-read', 't-lab']) { await p.$eval('button[data-t=' + t + ']', e => e.click());
     for (const c of await p.$$eval('#' + t + ' .an-ctl[id]', es => es.map(e => e.id))) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
-      checks++; if (!(await plays(c))) { bad++; console.log('DID NOT PLAY', c) } }
+      checks++; if (c === 'sw-ctl') { // the Sweep lab is a widget (long replay, outcome the point): it opens on frame 3 and never plays by itself
+        if ((await p.$eval('#sw-ctl-p', e => e.getAttribute('aria-label'))) !== 'Play' || (await p.$eval('#sw-ctl-s', e => +e.value)) !== 3) { bad++; console.log('LAB MOVED BY ITSELF') } continue }
+      if (!(await plays(c))) { bad++; console.log('DID NOT PLAY', c) } }
     for (const id of await p.$$eval('#' + t + ' .stg', es => es.map(e => e.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2000));
       checks++; if (!(await p.$eval('#' + id, e => +e.dataset.frames || 0))) { bad++; console.log('DID NOT PLAY', id) } } }
   await p.$eval('button[data-t=t-read]', e => e.click());

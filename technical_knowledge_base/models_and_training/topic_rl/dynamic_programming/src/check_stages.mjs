@@ -11,8 +11,8 @@ if (shots) fs.mkdirSync(shots, { recursive: true });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 const problems = []; let actions = 0;
-// the 2D animations (RD.anim) and their step lists, per mode
-const ANIMS = [{ tab: 't-read', card: 'dp-co', ctl: 'dp-coC', list: 'sx-co', seg: '#dp-coM', modes: ['sync', 'cba', 'abc', 'pe'] }, { tab: 't-lab', card: 'sw-cards', ctl: 'sw-ctl', list: null }];
+// the 2D animations (RD.anim) and their step lists, per mode; widget: a long replay the reader drives (no autoplay), opening on that frame
+const ANIMS = [{ tab: 't-read', card: 'dp-co', ctl: 'dp-coC', list: 'sx-co', seg: '#dp-coM', modes: ['sync', 'cba', 'abc', 'pe'] }, { tab: 't-lab', card: 'sw-cards', ctl: 'sw-ctl', list: null, widget: 3 }];
 const MODES = { 'stg-gw': { seg: '#rd-gwM', modes: ['vi', 'ql'] } };
 for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) {
   const p = await b.newPage(); const errs = [];
@@ -39,7 +39,9 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   for (const a of ANIMS) {
     await p.$eval(`button[data-t=${a.tab}]`, e => e.click()); await wait(300);
     await p.$eval('#' + a.card, e => e.scrollIntoView({ block: 'center' })); await wait(2500);
-    const pl = await p.$eval(`#${a.ctl}-p`, e => e.getAttribute('aria-label')); if (pl !== 'Pause' && !(await p.$eval(`#${a.ctl}-s`, e => +e.value > 0))) problems.push(`${scheme} ${width}: ${a.card} did not play when scrolled into view`);
+    const pl = await p.$eval(`#${a.ctl}-p`, e => e.getAttribute('aria-label')), sv = await p.$eval(`#${a.ctl}-s`, e => +e.value);
+    if (a.widget != null) { if (pl !== 'Play' || sv !== a.widget) problems.push(`${scheme} ${width}: ${a.card} is a widget but moved by itself (or did not open on frame ${a.widget})`) }
+    else if (pl !== 'Pause' && !(sv > 0)) problems.push(`${scheme} ${width}: ${a.card} did not play when scrolled into view`);
     for (const m of a.modes || [null]) {
       if (m) { await p.$eval(`${a.seg} button[data-m="${m}"]`, e => e.click()); await wait(200) }
       const n = +(await p.$eval(`#${a.ctl}-s`, e => e.max)) + 1;
@@ -64,7 +66,7 @@ for (const [scheme, width] of [['light', 1400], ['light', 920], ['dark', 390]]) 
   for (const id of await p.$$eval('#t-read .stg', xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
     if ((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0 || (await p.$eval(`#${id} .stg-st`, e => e.textContent)) !== `step 1 of ${+(await p.$eval(`#${id}-r`, e => e.max)) + 1}`) problems.push(`reduced motion: ${id} moved by itself`) }
   for (const a of ANIMS) { await p.$eval(`button[data-t=${a.tab}]`, e => e.click()); await p.$eval('#' + a.card, e => e.scrollIntoView({ block: 'center' })); await wait(2500);
-    if ((await p.$eval(`#${a.ctl}-s`, e => +e.value)) !== 0) problems.push(`reduced motion: ${a.card} moved by itself`) }
+    if ((await p.$eval(`#${a.ctl}-s`, e => +e.value)) !== (a.widget || 0)) problems.push(`reduced motion: ${a.card} moved by itself`) }
   await p.close();
 }
 await b.close();

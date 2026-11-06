@@ -70,9 +70,11 @@
     $('sw-cap').innerHTML='<b>Frame '+fi+'</b>: each side has had '+fi+' value-iteration sweep'+(fi===1?'':'s')+'\' worth of look-ups ('+bud.toLocaleString('en-US')+'; one sweep here is '+C.sc+').'+
       (fa&&fb?' Both methods have stopped.':fa?' The left method has stopped.':fb?' The right method has stopped.':'');
     backup(oa);chart(fi)}
-  function rebuild(play){compute();$('sw-rep').innerHTML=REP[st.w].map(x=>'<li>'+x+'</li>').join('');if(an)an.reset(C.nF);else draw(0)}
+  function rebuild(play){compute();$('sw-rep').innerHTML=REP[st.w].map(x=>'<li>'+x+'</li>').join('');if(an)an.reset(C.nF,null,C.nF-1);else draw(0)}
   compute();
-  an=RD.anim({card:'sw-cards',ctl:'sw-ctl',n:C.nF,ms:1200,draw,label:'Frame',tab:'t-lab'});
+  // a widget, not an autoplay (2026-11-06 rule for long replays: up to 251 frames, and the outcome of the reader's choice is the point):
+  // it opens on frame 3 (Figure 4.1's k = 3 on the left, arrows already optimal), a changed setting opens on its last frame (both runs finished), Play replays from 0
+  an=RD.anim({card:'sw-cards',ctl:'sw-ctl',n:C.nF,ms:1200,draw,label:'Frame',tab:'t-lab',auto:false,start:Math.min(3,C.nF-1)});
   $('sw-rep').innerHTML=REP[st.w].map(x=>'<li>'+x+'</li>').join('');
   $('sw-w').addEventListener('change',e=>{st.w=e.target.value;st.g=D.W[st.w].g;$('sw-g').value=Math.round(st.g*100);$('sw-gv').textContent=st.g.toFixed(2);st.sel=-1;rebuild(true)});
   $('sw-g').addEventListener('change',e=>{st.g=+e.target.value/100;rebuild(true)});
