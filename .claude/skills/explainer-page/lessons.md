@@ -77,3 +77,5 @@ Each lesson says what happened and the rule it produced. The rules are already f
 2. Write it as: bold short name, date, what happened in one or two sentences with the real numbers, then "Rule:" and the rule. No em-dashes.
 3. Put the rule where it acts: the brief templates in `orchestration/briefs/`, `evidence/resource-safety.md`, `build/checks.md` or `orchestration/topic-pipeline.md`. A lesson that lives only here is a lesson agents will not read.
 4. If a running topic is affected, append the rule to its filled brief and message the running agents once.
+
+- 2026-11-06, ledger keys and quoted times: a ledger unit for a "child page, about N minutes" line must not put the number in its key (key on "Child page, about" or the title). `check_times.py --fix` rewrites those numbers whenever a sibling is rebuilt, and a key holding the number then reads as LOST.
