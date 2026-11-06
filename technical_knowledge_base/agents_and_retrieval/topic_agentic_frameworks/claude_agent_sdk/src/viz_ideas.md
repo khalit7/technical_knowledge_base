@@ -27,3 +27,10 @@ Nothing structural. One addition worth keeping: for a library that wraps a proce
 - **Where tools run** (section 4): static diagram of built-in, in-process and outside MCP tools, with the names the model sees; the table it replaces became its caption.
 - **Run s5 on two lanes** (section 6): every tool call of the main agent and the subagent at its recorded time, refusals as crosses, the subagents' lifetimes shaded; shows the stalled first delegation at a glance.
 - Rejected: a photo or screenshot (nothing physical to show; the recorded wire is the real artefact); an animation of the session phases (the change is not the point, a static figure carries it).
+
+## Added 2026-11-06 (split layout and renderer v2)
+- **Fig. 1, run s1 on the pipe** (3D, the hero): three processes, stdin and stdout lanes, the 83 wire lines as flows in seven stretches. Replaces the SVG architecture drawing.
+- **Fig. 2, the permission gates** (3D, section 5): six glass gates, every tool call of s1, s2 and s3 as a ball stopping at the stage that settled it. Replaces the per-call HTML stepper (16 steps for s3, too long for one step per frame).
+- **Fig. 3, run s4's sessions** (3D, section 7): processes, session files, the context column and stacked cost columns. Replaces the SVG of four phases.
+- The wire replay became a reader-driven widget (no autoplay).
+- Rejected for 3D: run s5's two lanes (a timeline reads best flat), the cost and connector bars, s1 against s3 (numbers on an axis), where tools run (static structure; Fig. 1 already shows the in-process server on the pipe).

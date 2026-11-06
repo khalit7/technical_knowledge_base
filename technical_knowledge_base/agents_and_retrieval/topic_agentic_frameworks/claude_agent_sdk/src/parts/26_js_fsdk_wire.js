@@ -1,4 +1,4 @@
-// ---- Reading tab, section 1: replay of the recorded stdin/stdout lines of runs s1 and s3 ----
+// ---- Reading tab, section 1: replay of the recorded stdin/stdout lines of runs s1 and s3 (a reader-driven widget) ----
 (function(){
   if(!document.getElementById('fw-card'))return;
   const F=window.FSDK,esc=RD.esc;
@@ -58,8 +58,13 @@
       RD.stat('Your answers',n(r=>r[2]==='control_response'&&r[1]==='in'),'')+RD.stat('Model messages relayed',n(r=>r[2]==='assistant'),'one per content block')+
       RD.stat('Refusals',n(r=>r[2]==='system'&&r[3]==='permission_denied'),L==='s3_bare'?'nobody to ask':'');
   }
+  // a widget, not an animation (2026-11-06 rule for long replays): 83 and 64 lines are read, not watched (Fig. 1 plays the run in seven stretches),
+  // so it opens on an informative line (s1: the first permission question; s3: the first refusal) and moves only when the reader moves it.
+  // go(i) without byCode counts as a reader action in RD.anim, which keeps autoplay off.
+  const first=()=>{const i=rows.findIndex(w=>L==='s3_bare'?(w[2]==='system'&&w[3]==='permission_denied'):w[3]==='can_use_tool');return i<0?0:i};
   build();
-  const A=RD.anim({card:'fw-card',ctl:'fw-ctl',n:rows.length,draw,ms:900,label:'Wire line'});
-  RD.seg(document.getElementById('fw-mode'),m=>{L=m;build();A.reset(rows.length);});
-  document.getElementById('fw-ctl-only').addEventListener('change',e=>{only=e.target.checked;build();A.reset(rows.length);});
+  const A=RD.anim({card:'fw-card',ctl:'fw-ctl',n:rows.length,draw,ms:900,label:'Wire line'});A.go(first());
+  const redo=()=>{build();A.reset(rows.length);A.go(first())};
+  RD.seg(document.getElementById('fw-mode'),m=>{L=m;redo()});
+  document.getElementById('fw-ctl-only').addEventListener('change',e=>{only=e.target.checked;redo()});
 })();

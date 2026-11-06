@@ -1,5 +1,5 @@
 // node <this file>   (from the repo root) Click every control of every tab at 390 px dark and 920 px light; fail on page errors,
-// a visible #jsErr, sideways scroll or NaN/undefined/Infinity in a tab's text; then check that no animation moves before the reader acts.
+// a visible #jsErr, sideways scroll or NaN/undefined/Infinity in a tab's text; first check that every 3D stage plays when scrolled into view and the wire replay (a widget) does not.
 import { createRequire } from 'node:module'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const page = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html');
@@ -12,11 +12,14 @@ try {
     p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
     await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
     await p.goto('file://' + page); await sleep(300);
-    // no autoplay: every scrubber still at 0 after two seconds of scrolling past
-    await p.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .fig')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 120)); } });
-    await sleep(2000);
-    const moved = await p.$$eval('#t-read input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
-    if (moved.length) errs.push('moved before the reader acted: ' + moved.join(', '));
+    // autoplay (2026-11-06): every 3D stage plays by itself once scrolled into view; the wire replay (a reader-driven widget) does not
+    await p.click('button[data-t=t-read]'); await sleep(300); // the last run left another tab open in localStorage
+    for (const id of await p.$$eval('#t-read .stg', xs => xs.map(x => x.id))) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await sleep(2200);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) errs.push(`${id} did not play when scrolled into view`);
+    }
+    await p.$eval('#fw-card', e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+    if (/Pause/.test(await p.$eval('#fw-ctl-p', e => e.textContent))) errs.push('the wire replay played by itself');
     for (const t of await p.$$eval('button[data-t]', bs => bs.map(x => x.dataset.t))) {
       await p.click(`button[data-t=${t}]`); await sleep(200);
       const n = await p.evaluate(async (t) => {

@@ -14,8 +14,8 @@
 #t-read details.dp>summary:before{content:"+";display:inline-block;width:1.2em;color:var(--acc);font-weight:600}
 #t-read details.dp[open]>summary:before{content:"\2212"}
 #t-read details.dp>.b{padding:0 12px 9px 12px;font-size:13.5px}
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:4.8em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
@@ -66,12 +66,24 @@
 </style>
 <nav class="nav" id="rd-nav"><a href="#s-top">The idea</a><a href="#s-what">1. The pipe</a><a href="#s-entry">2. query and the client</a><a href="#s-opts">3. Defaults</a><a href="#s-tools">4. Tools</a><a href="#s-perm">5. Permissions and hooks</a><a href="#s-sub">6. Subagents</a><a href="#s-sess">7. Sessions</a><a href="#s-struct">8. Structured output</a><a href="#s-cost">9. Cost</a><a href="#s-deploy">10. A product on it</a><a href="#s-dated">11. Dated facts</a><a href="#s-depth">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-top">
 <h2>The SDK in one screen</h2>
 <p class="core">The <dfn>Claude Agent SDK</dfn> does not reimplement Claude Code: <b>your program starts the Claude Code binary as a child process</b>, turns your options into its command-line flags, and <span class="hl">answers its questions (permission checks, hooks, your own tools) as JSON lines on the same pipe</span>. Everything else, the loop, the context, compaction, the built-in tools and the session file, stays in the child.</p>
-<div class="hero" id="fsdk-arch-card"><h4>Three processes, one pipe: Claude Code does the work, your code is called back</h4>
-<div class="fsdk-svg" id="fsdk-arch"></div>
-<p class="small" style="margin:4px 0 0">Run s1 (Haiku 4.5, our four tools, a hook and a permission callback), counted from its recorded wire: 30 lines down stdin, 53 up stdout, of which 28 were <span class="hl">questions to your process</span>. Section 1 replays all 83 lines.</p></div>
+<p>Fig. 1 replays run s1 (Haiku 4.5, our four tools, a hook and a permission callback) from its recorded wire, in seven stretches. Green dots are lines your process writes down stdin, purple ones are <span class="hl">questions to your process</span> coming up stdout, blue ones are conversation messages relayed up, orange ones are model calls over HTTPS.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Three processes.</b> Your program (the Python SDK) starts the Claude Code binary with <code>--output-format stream-json --input-format stream-json</code> plus one flag per option; the child alone talks to the Anthropic API. One session is one child process.</li>
+<li><b>Opening, 0.0 to 0.6 s.</b> Your process sends <code>initialize</code> with the ids of its hook callbacks; Claude Code opens your in-process MCP server with three questions (initialize, initialized, tools/list); your answers and the prompt go down (5 lines), the init record comes up.</li>
+<li><b>The model is called.</b> Over HTTPS, not the pipe. Its thinking, text and first tool call come up the pipe as three lines, one per content block.</li>
+<li><b>A read: your hook settles it.</b> Claude Code calls your PreToolUse hook (<code>hook_callback</code>), which answers allow, so <code>can_use_tool</code> is never asked; <code>tools/call list_files</code> runs your function in your process; the PostToolUse hook runs; the result is relayed. Three questions, three answers, 14 ms.</li>
+<li><b>A test run: your callback decides.</b> The hook answers <code>{}</code> (no objection) and nothing else settles the call, so Claude Code asks your <code>can_use_tool</code>; you allow; <code>tools/call run_tests</code> returns two FAILs. Four questions, four answers.</li>
+<li><b>Five more calls, 4.1 to 13.5 s.</b> Two reads settled by the hook, two edits and the final test run allowed by your callback: 18 questions and 18 answers in bursts between model calls, which are where the time goes.</li>
+<li><b>The result.</b> <code>result: success</code> after 5 model calls, $0.0215 at list prices. In all, 30 lines went down stdin and 53 came up stdout, of which 28 were questions to your process; section 1 counts them by kind and lets you read every line.</li>
+</ol>
+</section>
+</div></div>
+
+<section id="s-need">
 <p><b>You need:</b> the agent loop itself (model call, tool call, tool result, repeat), taught from zero on {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} (tab Loop lab); what the Claude Code process does with its tools, permission rules, hook events, memory files and headless runs, on {{Claude Code, taken apart|n:3c65c17b0d0d81db9c7fc54987c1ab65}}; and, for in-process tools, what an MCP server is ({{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}}). This page owns the library: what your code controls, what it costs, and how it compares with writing the loop yourself or with the frameworks on {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}.</p>
 <dl class="terms">
 <dt>Control message</dt><dd>a side-channel line on the pipe: a <code>control_request</code> with a request id, answered by a <code>control_response</code> that echoes it.</dd>
@@ -96,23 +108,14 @@
 <p class="small mute">The running example, used by every run: the <code>textstats</code> repository with two planted bugs (<code>tokenize</code> drops apostrophes, <code>top_words</code> ignores ties), fixed by Haiku 4.5 unless stated; all runs recorded on 6 October 2026 and listed in the {{Recordings|#t-runs}} tab. Two lessons carry the page: <b>defaults are not safe defaults</b> (section 3), and <b>"success" is not "done"</b>: our bare run ended with <code>subtype: "success"</code>, six refused tool calls and both tests still failing.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-what">
 <h2>1. What the SDK is: your program starting Claude Code</h2>
 <p><b>The problem.</b> Claude Code is a terminal program. To put its agent inside your own service (a support bot, a code-review job, a research agent) you either rebuild the loop, tools, permissions and context management yourself ({{Building a harness|n:3c65c17b0d0d817ca14fc32338707c2f}} shows what that takes) or drive Claude Code from code. Anthropic shipped the second option as the Claude Code SDK and renamed it the Claude Agent SDK on 29 September 2025, because "the agent harness that powers Claude Code ... can power many other types of agents, too" ({{Anthropic, Thariq Shihipar, 29 Sep 2025|https://claude.com/resources/articles/building-agents-with-the-claude-agent-sdk}}) <span class="docs">DOCS</span>.</p>
 <p><b>How it works.</b> The Python wheel carries a whole Claude Code binary (<code>_bundled/claude</code>, 225,167,728 bytes on macOS arm64 for 0.2.163, which pins Claude Code 2.1.286); the TypeScript package pulls a platform package with its own binary (233,211,568 bytes, Claude Code 2.1.291 for SDK 0.3.291: the TypeScript version 0.3.N ships Claude Code 2.1.N) <span class="meas">MEASURED</span>. The SDK starts it with <code>--output-format stream-json --verbose --input-format stream-json</code> plus one flag per option you set, and sets <code>CLAUDE_CODE_ENTRYPOINT=sdk-py</code> and <code>CLAUDE_AGENT_SDK_VERSION</code> in its environment; from then on both sides write one JSON object per line. The docs: "One agent session maps to one subprocess" ({{Hosting the Agent SDK|https://code.claude.com/docs/en/agent-sdk/hosting}}) <span class="docs">DOCS</span>.</p>
 <p>Two kinds of lines share the pipe. <b>Messages</b> are the conversation: the <code>system/init</code> record, assistant messages, tool results and the final <code>result</code>. <b>Control messages</b> are the side channel: your process sends <code>initialize</code> (your hook callback ids and subagent definitions), <code>interrupt</code>, <code>set_permission_mode</code> and a few more; the Claude Code process sends <code>can_use_tool</code>, <code>hook_callback</code> and <code>mcp_message</code> (a JSON-RPC message for an MCP server inside your process) <span class="srcl">SOURCE</span>. In run s1 the Claude Code process asked our process 28 questions in 15.8 seconds: 14 hook calls, 4 permission questions and 10 MCP messages (initialize, the initialized notification, the tool list, 7 tool calls) <span class="meas">MEASURED</span>.</p>
-<div class="fig" id="fw-card"><h4>The same task twice: with callbacks the pipe is a conversation; with defaults it flows one way</h4>
-<p class="small" style="margin:0 0 6px"><b>Predict first:</b> in s3 nobody registered a hook, a callback or a tool. After <code>initialize</code>, how many lines will your process send? Then switch to s3 and step through.</p>
-<div class="seg" id="fw-mode"><button data-m="s1_wire" class="on">s1: hooks, callback, own tools</button><button data-m="s3_bare">s3: defaults, nobody answers</button></div>
-<label class="chk"><input type="checkbox" id="fw-ctl-only"> control messages only</label>
-<div class="an-ctl" id="fw-ctl"></div>
-<div class="an-cap" id="fw-cap"></div>
-<div class="fw-head"><span>s</span><span>Your process (SDK)</span><span></span><span>Claude Code</span></div>
-<div class="fw-rows" id="fw-rows"></div>
-<div class="out" id="fw-stats"></div>
-<pre class="fw-body" id="fw-body"></pre>
-<p class="small mute" style="margin:2px 0 0">Every line that crossed the pipe, captured by a stand-in for the binary that copies each line to a log before passing it on (<code>src/code/wire.py</code>), then redacted. s1: 83 lines; s3: 64 lines, only 2 of them from your process (the prompt and <code>initialize</code>), so every question Claude Code would have asked became a refusal. Times are seconds since the stand-in started (what was left out: the depth block below).</p>
-</div>
+
+<p>The replay beside this text holds every line of s1 and of s3. <b>Predict first:</b> in s3 nobody registered a hook, a callback or a tool. After <code>initialize</code>, how many lines will your process send? Then switch to s3 and step through. The replay opens on s1's first permission question and does not play by itself: reading the lines is the point, and Fig. 1 already plays the run.</p>
 <p><b>What follows.</b> Your callbacks are in the critical path of every tool call: a slow <code>can_use_tool</code> or hook slows the agent, and an exception in one comes back to Claude Code as an error response. The model, the context window, compaction, the tool implementations of Read, Edit and Bash, and the session file all live in the child; your process sees them only as messages. So the answer to "how does the SDK do X" is almost always "Claude Code does X; the SDK passes a flag".</p>
 <div class="drill"><details><summary><b>Predict:</b> you run 50 agents at once with the SDK on one machine. How many Claude Code processes are running?</summary><div>Fifty: one per session. (We did not check whether a subagent starts a further process; the session files show each subagent writing its own transcript inside the parent session's folder, section 6.) The hosting docs suggest planning "1 GiB RAM, 5 GiB disk, and 1 CPU per agent" as "a floor, not the ceiling" ({{hosting|https://code.claude.com/docs/en/agent-sdk/hosting}}) <span class="docs">DOCS</span>. This is the main operational difference from a library such as Pydantic AI, where an agent is an object in your process.</div></details></div>
 <details class="dp"><summary>Depth: how the binary is found, every control message, and the old page's analogy</summary><div class="b">
@@ -131,3 +134,15 @@
 <p>An infrastructure analogy from the old version of this page still helps: Claude Code is a managed runtime in which hooks are middleware, subagents are worker processes with private memory, MCP is the driver interface, permissions are the security policy and skills are lazy-loaded configuration.</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="fig" id="fw-card"><h4>The same task twice: with callbacks the pipe is a conversation; with defaults it flows one way</h4>
+<div class="seg" id="fw-mode"><button data-m="s1_wire" class="on">s1: hooks, callback, own tools</button><button data-m="s3_bare">s3: defaults, nobody answers</button></div>
+<label class="chk"><input type="checkbox" id="fw-ctl-only"> control messages only</label>
+<div class="an-ctl" id="fw-ctl"></div>
+<div class="an-cap" id="fw-cap"></div>
+<div class="fw-head"><span>s</span><span>Your process (SDK)</span><span></span><span>Claude Code</span></div>
+<div class="fw-rows" id="fw-rows"></div>
+<div class="out" id="fw-stats"></div>
+<pre class="fw-body" id="fw-body"></pre>
+<p class="small mute" style="margin:2px 0 0">Every line that crossed the pipe, captured by a stand-in for the binary that copies each line to a log before passing it on (<code>src/code/wire.py</code>), then redacted. s1: 83 lines; s3: 64 lines, only 2 of them from your process (the prompt and <code>initialize</code>), so every question Claude Code would have asked became a refusal. Times are seconds since the stand-in started (what was left out: the depth block below).</p>
+</div></div></div></div>
+

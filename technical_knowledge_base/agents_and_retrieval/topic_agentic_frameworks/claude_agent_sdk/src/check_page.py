@@ -54,7 +54,7 @@ CHECKS = [
     (f"{res('s3_bare')['denials']} of its {len(R['s3_bare']['tool_calls'])} tool calls were refused", True),
     (f"{f(res('s3_bare')['usage_in'])} input tokens processed, ${res('s3_bare')['cost']:.4f}", True),
     (f"${res('s1_wire')['cost']:.4f} for run s1", True),
-    (f"split {f(ctxu['totalTokens'])} tokens into system prompt {cat['System prompt']}, MCP tools {cat['MCP tools']} (list_files {mt['list_files']}, read_file {mt['read_file']}, edit_file {mt['edit_file']}, run_tests {mt['run_tests']}) and messages {f(cat['Messages'])}", True),
+    (f"{f(ctxu['totalTokens'])} tokens in use, split into system prompt {cat['System prompt']}, MCP tools {cat['MCP tools']} (list_files {mt['list_files']}, read_file {mt['read_file']}, edit_file {mt['edit_file']}, run_tests {mt['run_tests']}) and messages {f(cat['Messages'])}", True),
     (f"autocompaction set for {f(ctxu['autoCompactThreshold'])}", True),
     (f"Haiku ${s5mu['claude-haiku-4-5-20251001']['costUSD']:.4f}, Sonnet ${s5mu['claude-sonnet-5-5']['costUSD']:.4f}, total ${res('s5_subagent')['cost']:.4f}", True),
     (f"counted {f(res('s5_subagent')['usage_in'])} input tokens, <code>model_usage</code> {f(res('s5_subagent')['model_usage_in'])}", True),
@@ -90,7 +90,8 @@ for root, dirs, files in os.walk(os.path.dirname(HERE)):
         try: t = open(p, encoding="utf-8").read()
         except Exception: continue
         for b in bad:
-            if re.search(re.escape(b), t, re.I): fail.append(f"private string in {os.path.relpath(p, HERE)}")
+            # the login name is matched case-sensitively: the skill templates (21_js_rd_common.js, 25_js_s3.js) cite the owner by his capitalised first name, which is not a path or a login
+            if re.search(re.escape(b), t, 0 if b == user else re.I): fail.append(f"private string in {os.path.relpath(p, HERE)}")
         for m in email.findall(t):
             if m not in ("user@example", "support@anthropic.com") and not m.endswith(("@anthropic.com",)):
                 fail.append(f"e-mail-like string {m} in {os.path.relpath(p, HERE)}")

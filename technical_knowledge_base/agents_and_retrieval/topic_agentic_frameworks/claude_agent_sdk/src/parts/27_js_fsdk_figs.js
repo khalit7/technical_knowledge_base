@@ -1,4 +1,4 @@
-// ---- Reading tab figures drawn from the recordings: s1 against s3 (section 3), where tools run (section 4), run s5 on two lanes (section 6), run s4's sessions (section 7) ----
+// ---- Reading tab figures drawn from the recordings: s1 against s3 (section 3), where tools run (section 4), run s5 on two lanes (section 6); run s4's sessions are the 3D stage in 42_js_sc_sess.js ----
 (function(){
   if(!document.getElementById('fsdk-ba'))return;
   const F=window.FSDK,R=F.runs,T=RD.t;
@@ -89,29 +89,6 @@
     el.innerHTML=RD.svg(W,yA+22,s,'Run s5: tool calls of the main agent and its subagent over time');
   }
 
-  // 4. run s4: three processes, one history
-  function sess(){
-    const el=document.getElementById('fsdk-sess');const W=Math.min(860,RD.width(el));const narrow=W<560;
-    const rs=R.s4_session.results,n=rs.length,g=narrow?6:14,cw=(W-g*(n-1))/n,mx=Math.max(...rs.map(r=>r.cost));
-    const PH={turn1:['Turn 1','run tests, change nothing'],turn2:['Turn 2','fix the first failure'],resume:['Resume','fix the rest'],fork:['Fork','what is fixed?']};
-    const proc=[[0,1,'process 1: ClaudeSDKClient'],[2,2,'process 2: resume'],[3,3,'process 3: fork']];
-    let s='';const y0=8;
-    proc.forEach(p=>{const x0=p[0]*(cw+g),x1=p[1]*(cw+g)+cw;
-      s+='<rect x="'+x0.toFixed(1)+'" y="'+y0+'" width="'+(x1-x0).toFixed(1)+'" height="22" rx="5" fill="var(--soft)" stroke="var(--acc)"/>'+
-        T((x0+x1)/2,y0+15,narrow?p[2].split(':')[0]:p[2],{fs:11,a:'middle'});});
-    const bh=narrow?96:110,yb=y0+(narrow?92:104);
-    rs.forEach((r,i)=>{const x0=i*(cw+g),ph=PH[r.phase]||[r.phase,''];
-      s+=T(x0,y0+46,ph[0],{fs:12.5,w:600})+T(x0,y0+62,narrow?r.session.replace('session-','id '):r.session,{fs:11,fill:r.session==='session-1'?'var(--ink)':'var(--bad)'});
-      if(!narrow)s+=T(x0,y0+78,ph[1],{fs:11,fill:'var(--mute)'});
-      const hT=bh*r.cost/mx,hO=bh*r.own_cost/mx,bw=Math.min(54,cw*0.5);
-      s+='<rect x="'+x0+'" y="'+(yb+bh-hT).toFixed(1)+'" width="'+bw+'" height="'+(hT-hO).toFixed(1)+'" fill="var(--dim)"/>';
-      s+='<rect x="'+x0+'" y="'+(yb+bh-hO).toFixed(1)+'" width="'+bw+'" height="'+Math.max(1,hO).toFixed(1)+'" fill="var(--acc)"/>';
-      s+=T(x0,yb+bh-hT-6,usd(r.cost),{fs:11});
-      s+=T(x0,yb+bh+16,'own '+usd(r.own_cost),{fs:11,fill:'var(--acc)'});
-    });
-    s+='<line x1="0" y1="'+(yb+bh)+'" x2="'+W+'" y2="'+(yb+bh)+'" stroke="var(--mute)"/>';
-    el.innerHTML=RD.svg(W,yb+bh+26,s,'Run s4: four phases in three processes, reported cumulative cost and the cost each phase added');
-  }
-  const all=()=>{ba();tk();s5();sess();};
+  const all=()=>{ba();tk();s5();};
   all();RD.onRender(all);RD.onResize(all);
 })();

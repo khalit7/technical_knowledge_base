@@ -12,7 +12,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_rl/value_based_deep_rl` Value-based deep RL: from DQN to Rainbow
 - [x] `models_and_training/topic_rl` Topic: rl
 - [x] `whats_new/papers/attention_is_all_you_need_transformer` Attention Is All You Need (Transformer)
-- [ ] `agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk` Claude Agent SDK: the Claude Code loop as a library
+- [x] `agents_and_retrieval/topic_agentic_frameworks/claude_agent_sdk` Claude Agent SDK: the Claude Code loop as a library
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/gateways_and_routing` Gateways and routing: LiteLLM, OpenRouter, fallbacks, budgets, rate limits
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/langchain_and_langgraph` LangChain and LangGraph: graphs, state, checkpointers, interrupts, durable execution
 - [ ] `agents_and_retrieval/topic_agentic_frameworks/llm_observability` LLM observability: traces, OpenTelemetry GenAI, Langfuse and peers, evals in the loop
