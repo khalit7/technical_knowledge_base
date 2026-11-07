@@ -73,9 +73,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams` JavaScript: the event loop, promises and streams
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents` TypeScript: LLM apps and agents
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers` JavaScript: values, objects, functions and modules for Python programmers
-- [~] `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript` TypeScript: the type system, narrowing and runtime validation
+- [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript` TypeScript: the type system, narrowing and runtime validation
 - [x] `engineering_foundations/topic_programming_languages/python/concurrency_asyncio_and_the_gil` Python: concurrency, asyncio and the GIL
-- [ ] `engineering_foundations/topic_programming_languages/python/cpython_internals_and_performance` Python: CPython internals and performance
+- [~] `engineering_foundations/topic_programming_languages/python/cpython_internals_and_performance` Python: CPython internals and performance
 - [ ] `engineering_foundations/topic_programming_languages/python/data_model_and_protocols` Python: the data model and protocols
 - [ ] `engineering_foundations/topic_programming_languages/python/typing_packaging_and_toolchain` Python: typing, uv, packaging and the toolchain
 - [ ] `engineering_foundations/topic_programming_languages/rust/async_services_and_clis` Rust: async with tokio, services with axum, and CLIs
@@ -368,3 +368,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers`: on desktop the UTF-16 units figure sits beside its predict box (b3) and gives the answer away; Figs 2 and 4 small in a tall card on phones.
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents`: loop close-up shows tool edges at the right; run table and Fig. 3 show the runs twice; stages small at 390.
 - `engineering_foundations/topic_programming_languages/python/concurrency_asyncio_and_the_gil`: hero running thread pale in dark mode; hero empty space at 1400; loop stage timers slab close to "due" labels.
+- `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript`: both stages small and width-limited at 390.

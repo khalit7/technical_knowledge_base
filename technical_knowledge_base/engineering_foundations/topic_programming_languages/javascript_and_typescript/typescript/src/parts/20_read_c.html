@@ -13,16 +13,46 @@
 <tr><td><code>isCat(x)</code> where <code>isCat(a): a is Cat</code></td><td>whatever your own predicate says (unchecked: it can lie)</td></tr>
 </tbody></table></div>
 <div data-tb-s="30_narrow_basic" data-tb-fold="typeof and == null narrowing one value"></div>
-<div class="card" id="tbn-card">
-<h4>Watch the type shrink, line by line, and see what loses it</h4>
-<p class="small">One function at a time. Each type is TypeScript 7.0.2's own answer, read by inserting <code>expr satisfies never;</code> at that line and recording the error message (<code>src/tb/gen_narrow.mjs</code>). Predict, for the "before" version of each program, which line will stop narrowing; then step. The other version's type at the same line is shown underneath.</p>
-<div class="chips" id="tbn-prog"></div>
-<div class="seg" id="tbn-var"></div>
-<div class="tb-ctl" id="tbn-ctl"></div>
-<div class="tb-cap" id="tbn-cap"></div>
-<div class="tbn-grid"><div class="tb-er" id="tbn-code"></div><div class="tbn-panel" id="tbn-types"></div></div>
-<p class="small mute">Struck-through members were possible at the previous step and are ruled out now. The last step shows what <code>tsc</code> says about the whole program (and what Node printed, when it type-checks).</p>
-</div>
+<div class="s3sp"><div class="s3R"><div id="stg-nr"></div></div><div class="s3L">
+<p><b>A type is a set of values, and every check cuts the set down.</b> <code>string | number | null</code> is every string, every number and <code>null</code>: a union is the combined set, and at each line <code>tsc</code> keeps the members that can still reach it. In Fig. 2 a member a check has ruled out sinks to a ghost. The front plate is the version that narrows, the back plate the "before" version of the same program at the same line; the last step is <code>tsc</code>'s verdict (and what Node printed, when it type-checks). Each type is TypeScript 7.0.2's own answer, read by inserting <code>expr satisfies never;</code> at that line (<code>src/tb/gen_narrow.mjs</code>). Predict, for the back plate, which line will stop narrowing.</p>
+<div class="s3chips" id="tbn-prog"><button data-m="p1" class="on">typeof, == null and a helper</button><button data-m="p2">Stream events</button><button data-m="p3">in, truthiness, equality</button><button data-m="p4">Inside a callback</button></div>
+<div class="tbn-codes" id="tbn-code"></div>
+<ol class="sx" id="sx-nr-p1">
+<li><b>Line 3.</b> The declared type: five possibilities. <code>x</code> is <code>string | number | string[] | null | undefined</code>.</li>
+<li><b>Line 4: <code>if (x == null) { return &quot;-&quot;; }</code>.</b> Inside: == null matches both null and undefined. <code>x</code> is <code>null | undefined</code>.</li>
+<li><b>Line 5.</b> After the early return, null and undefined are gone. <code>x</code> is <code>string | number | string[]</code>.</li>
+<li><b>Line 6: <code>if (isText(x)) { return x.toUpperCase(); }</code>.</b> The predicate &quot;v is string&quot; narrows x to string. <code>x</code> is <code>string</code>. Before: isText returns a plain boolean: tsc learns nothing, x is not narrowed. <code>x</code> is <code>string | number | string[]</code>.</li>
+<li><b>Line 7.</b> Outside the if, string is removed too. <code>x</code> is <code>number | string[]</code>. Before: string is still here, so the next lines fail. <code>x</code> is <code>string | number | string[]</code>.</li>
+<li><b>Line 8: <code>if (Array.isArray(x)) { return x.join(&quot;+&quot;); }</code>.</b> Array.isArray is itself a type predicate. <code>x</code> is <code>string[]</code>.</li>
+<li><b>Line 9.</b> Only number is left, so toFixed is allowed. <code>x</code> is <code>number</code>. Before: number or string remain: toFixed is an error. <code>x</code> is <code>string | number</code>.</li>
+<li><b>The verdict.</b> After: tsc accepts it and Node prints <code>- HI a+b 2.0</code>. Before: tsc fails: <code>narrow.ts(6,29): error TS2339: Property 'toUpperCase' does not exist on type 'string | number | string[]'.&lt;/code&gt; and &lt;code&gt;narrow.ts(10,12): error TS2339: Property 'toFixed' does not exist on type 'string | number'.</code></li>
+</ol>
+<ol class="sx" id="sx-nr-p2" hidden>
+<li><b>Line 6.</b> A union of three object types that share a literal &quot;type&quot; field. <code>e</code> is <code>Event</code>.</li>
+<li><b>Line 8: <code>case &quot;text&quot;: return e.delta;</code>.</b> Checking the literal tag picks one member: e.delta is a string. <code>e</code> is <code>{ type: &quot;text&quot;; delta: string; }</code>. Before: the tag is checked, but delta stays optional: string | undefined. <code>e.delta</code> is <code>string | undefined</code>.</li>
+<li><b>Line 9: <code>case &quot;tool_call&quot;: return `[${e.name}]`;</code>.</b> Only the tool_call member here. <code>e</code> is <code>{ type: &quot;tool_call&quot;; name: string; }</code>. Before: name is still possibly undefined; a template string accepts it and would print &quot;undefined&quot;. <code>e.name</code> is <code>string | undefined</code>.</li>
+<li><b>Line 10: <code>case &quot;done&quot;: return ` &lt;${e.stopReason}&gt;`;</code>.</b> Only the done member here. <code>e</code> is <code>{ type: &quot;done&quot;; stopReason: &quot;end&quot; | &quot;max_tokens&quot;; }</code>. Before: same for stopReason: no error, but no guarantee either. <code>e.stopReason</code> is <code>&quot;end&quot; | &quot;max_tokens&quot; | undefined</code>.</li>
+<li><b>Line 11: <code>default: { const gone: never = e; return gone; }</code>.</b> Every member handled: nothing is left, so e is never. <code>e</code> is <code>never</code>. Before: tsc cannot prove the switch is complete: e is still Event. <code>e</code> is <code>Event</code>.</li>
+<li><b>The verdict.</b> After: tsc accepts it and Node prints <code>hi  &lt;end&gt;</code>. Before: tsc fails: <code>narrow.ts(8,18): error TS2322: Type 'string | undefined' is not assignable to type 'string'.&lt;/code&gt; and &lt;code&gt;narrow.ts(11,22): error TS2322: Type 'Event' is not assignable to type 'never'.</code></li>
+</ol>
+<ol class="sx" id="sx-nr-p3" hidden>
+<li><b>Line 3.</b> Three object kinds plus null. <code>r</code> is <code>Reply</code>.</li>
+<li><b>Line 4: <code>if (!r) { return &quot;no reply&quot;; }</code>.</b> Falsy: only null can be falsy here (objects are always truthy). <code>r</code> is <code>null</code>.</li>
+<li><b>Line 5.</b> null is gone. <code>r</code> is <code>{ kind: &quot;ok&quot;; text: string; } | { kind: &quot;refused&quot;; reason: string; } | { kind: &quot;error&quot;; status: number; }</code>.</li>
+<li><b>Line 6: <code>if (&quot;text&quot; in r) { return r.text; }</code>.</b> The in operator keeps the members that have a text property. <code>r</code> is <code>{ kind: &quot;ok&quot;; text: string; }</code>.</li>
+<li><b>Line 7.</b> ok is gone. <code>r</code> is <code>{ kind: &quot;refused&quot;; reason: string; } | { kind: &quot;error&quot;; status: number; }</code>.</li>
+<li><b>Line 8: <code>if (r.kind === &quot;refused&quot;) { return `refused: ${r.reason}`; }</code>.</b> An equality check on the tag. <code>r</code> is <code>{ kind: &quot;refused&quot;; reason: string; }</code>.</li>
+<li><b>Line 9.</b> Only the error member is left. <code>r</code> is <code>{ kind: &quot;error&quot;; status: number; }</code>.</li>
+<li><b>The verdict.</b> After: tsc accepts it and Node prints <code>no reply hi error 529</code>.</li>
+</ol>
+<ol class="sx" id="sx-nr-p4" hidden>
+<li><b>Line 2.</b> A parameter that may be undefined. <code>name</code> is <code>string | undefined</code>.</li>
+<li><b>Line 3: <code>if (!name) { return []; }</code>.</b> Falsy: undefined, or the empty string &quot;&quot;. <code>name</code> is <code>string | undefined</code>.</li>
+<li><b>Line 4.</b> After the early return: string. <code>name</code> is <code>string</code>.</li>
+<li><b>Line 5: <code>const out = [1, 2].map(i =&gt; { return name.repeat(i); });</code>.</b> Inside a callback that runs later: still string, because name is never assigned again. <code>name</code> is <code>string</code>. Before: the same callback, but name is assigned again below: tsc cannot trust the narrowing inside it. <code>name</code> is <code>string | undefined</code>.</li>
+<li><b>The verdict.</b> After: tsc accepts it and Node prints <code>[ 'ab', 'abab' ] []</code>. Before: tsc fails: <code>narrow.ts(5,40): error TS18048: 'name' is possibly 'undefined'.</code></li>
+</ol>
+</div></div>
 <h3>Discriminated unions: the pattern for LLM events, tool calls and states</h3>
 <p>A <dfn>discriminated union</dfn> is a union of object types that share one literal field (the <dfn>tag</dfn>, here <code>type</code>). Checking the tag narrows to exactly one member, with its own fields. This is how every LLM SDK types its streaming events, and how you should model anything with states. A <code>default</code> branch that assigns the value to a variable of type <code>never</code> (the empty type: no value has it) compiles only if every member was handled. Add a member to the union and forget to handle it:</p>
 <div data-tb-s="32_discriminated" data-tb-fold="The four-member Event union and its switch, before the new member"></div>

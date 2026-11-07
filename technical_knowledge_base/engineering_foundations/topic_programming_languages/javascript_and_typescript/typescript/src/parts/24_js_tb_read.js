@@ -29,27 +29,22 @@
   const masks=src.map((l,i)=>{const s=stripped[i]||'';return [...l].map((c,k)=>c!==' '&&s[k]===' ')});
   const typeChars=masks.reduce((a,m)=>a+m.filter(Boolean).length,0);
   let mode='strip';
-  const codeEl=document.getElementById('tb-erase-code'),cap=document.getElementById('tb-erase-cap');
+  const codeEl=document.getElementById('tb-erase-code');
   function lineHTML(n,l,mask,cls){
     let h='',inT=false;
     for(let k=0;k<l.length;k++){const t=mask&&mask[k];if(t&&!inT){h+='<span class="ty-p'+(cls||'')+'">';inT=true}if(!t&&inT){h+='</span>';inT=false}h+=esc(l[k])}
     if(inT)h+='</span>';
     return '<span class="ln"><i>'+n+'</i>'+(h||' ')+'</span>'}
-  const CAP={
-    strip:['<b>1/3 The source.</b> demo.ts: an interface, annotations on parameters, variables and the return type, and an <code>as</code>.',
-      '<b>2/3 Find the type syntax.</b> '+typeChars+' characters are types: they mean something to tsc and nothing to JavaScript.',
-      '<b>3/3 Replace them with spaces.</b> What remains is plain JavaScript that V8 runs. Every line and column is where it was, so an error message points at the same line and column of your source. This is <code>node file.ts</code> (real output of <code>stripTypeScriptTypes</code>).'],
-    emit:['<b>1/3 The source.</b> The same demo.ts.',
-      '<b>2/3 Find the type syntax.</b> tsc removes the same '+typeChars+' characters.',
-      '<b>3/3 Write a new file.</b> tsc prints fresh JavaScript: the interface line is gone, the loop is reformatted onto two lines and <code>export {};</code> is added (the file is a module), so line numbers no longer match the source. That is why <code>tsc --init</code> turns on <code>sourceMap</code>: a map from output positions back to the .ts file. Highlighted lines are not in the source.']};
   function draw(i){
     let h='';
     if(i<2)h=src.map((l,k)=>lineHTML(k+1,l,i===1?masks[k]:null)).join('');
     else if(mode==='strip')h=src.map((l,k)=>lineHTML(k+1,l,masks[k],' gone')).join('');
     else{const set=new Set(src.map(x=>x.trim()));h=emitted.map((l,k)=>{const raw=lineHTML(k+1,l,null);return set.has(l.trim())?raw:raw.replace('class="ln"','class="ln new"')}).join('')}
-    codeEl.innerHTML=h;cap.innerHTML=CAP[mode][i];
+    codeEl.innerHTML=h;
   }
-  const an=RD.anim({card:'tb-erase-card',ctl:'tb-erase-ctl',n:3,ms:2200,draw,label:'Erasure step'});
-  RD.seg(document.getElementById('tb-erase-mode'),m=>{mode=m;an.reset(3)});  // a mode switch goes back to step 1; nothing plays by itself
+  const an=RD.anim({card:'tb-erase-card',ctl:'tb-erase-ctl',n:3,ms:4200,draw,label:'Erasure step',list:'sx-er-strip'});
+  // the step lists on the left explain each step (sx-er-strip, sx-er-emit); a mode switch swaps the list, goes back to step 1 and replays
+  RD.seg(document.getElementById('tb-erase-mode'),m=>{mode=m;['strip','emit'].forEach(x=>{const l=document.getElementById('sx-er-'+x);if(l)l.hidden=x!==m});an.reset(3,'sx-er-'+m)});
+  window.TB_ERASE={typeChars};
   TBX.onTab('t-read',()=>an.redraw());
 })();
