@@ -1,7 +1,7 @@
 // Every control of the page at 390 px dark and 920 px light, plus data and prose checks.
 // Usage (from the repository root): node <page>/src/check_controls.mjs [shots dir]
 // Fails on page errors, a visible #jsErr, sideways scroll, NaN/undefined/Infinity in the text,
-// autoplay under reduced motion, an embedded output that differs from its out/ file, or a prose number
+// any motion under reduced motion (animations autoplay once in view otherwise: 2026-11-07, check_stages.mjs), an embedded output that differs from its out/ file, or a prose number
 // that differs from src/ca/summary.json.
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
@@ -34,11 +34,12 @@ let nNum = 0;
 for (const m of tpl.matchAll(/\[\[m:([^\]]+)\]\]/g)) { if (!(m[1] in S)) errs.push('missing summary key ' + m[1]); else if (!html.includes(S[m[1]])) errs.push('number not on page: ' + m[1]); nNum++; }
 
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
-// 3. no autoplay under reduced motion
+// 3. under reduced motion nothing moves by itself (autoplay on view is checked in check_stages.mjs)
 {
   const p = await b.newPage();
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.goto('file://' + PAGE);
+  await p.$eval('#ct-rng-card', e => e.scrollIntoView({ block: 'center' }));
   await new Promise(r => setTimeout(r, 2500));
   const step = await p.$eval('#ct-rng-ctl-s', s => s.value);
   if (step !== '0') errs.push('ranges stepper moved on its own');
@@ -58,15 +59,18 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
       for (const m of ['s', 'o']) await p.click(`#ct-disp-seg button[data-m=${m}]`);
       for (let i = 0; i < 12; i++) await p.click('#ct-rng-ctl-f');
-      const last = await p.$eval('#ct-rng-cap', e => e.textContent);
-      if (!/filtered 4 counts, squared 2, never touched 3/.test(last)) errs.push('ranges stepper end state: ' + last);
+      // the end state drawn by the stepper must match what the last step-list item says
+      const last = await p.$eval('#ct-rng-pipe', e => [...e.querySelectorAll('.el small')].map(x => x.textContent));
+      const said = await p.$eval('#sx-rng li:last-child', e => e.textContent);
+      const cnt = t => last.filter(x => x === t).length;
+      if (!(cnt('kept') + cnt('squared') + cnt('filtered out') === 4 && cnt('squared') === 2 && cnt('never touched') === 3) || !/filtered 4 counts, squared 2, never touched 3/.test(said)) errs.push('ranges stepper end state: ' + last.join(',') + ' / ' + said);
       await p.click('#ct-rng-ctl-b');
       await p.select('#ct-rng-ctl-v', '2');
       await p.$eval('#ct-rng-ctl-s', s => { s.value = '3'; s.dispatchEvent(new Event('input')); });
       for (let v = 0; v <= 5; v++) await p.$eval('#ct-exc-r', (s, v) => { s.value = String(v); s.dispatchEvent(new Event('input')); }, v);
       if (SHOTS) {
         fs.mkdirSync(SHOTS, { recursive: true });
-        for (const id of ['ct-hero', 'ct-disp-card', 'ct-grow', 'ct-rng-card', 'ct-exc-card', 'ct-depth', 'ct-s0']) {
+        for (const id of ['ct-hero', 'ct-disp-card', 'ct-rng-card', 'ct-exc-card', 'ct-depth', 'ct-s0']) {
           const el = await p.$('#' + id); if (el) await el.screenshot({ path: path.join(SHOTS, `${id}-${scheme}-${width}.png`) });
         }
       }

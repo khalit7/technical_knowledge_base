@@ -82,18 +82,14 @@ pre.ct-log{max-height:220px;overflow:auto}.ct-log mark{background:var(--hl);colo
 @media (max-width:560px){.ct-tpl{grid-template-columns:minmax(0,1fr)}.ct-tpl .ar{transform:rotate(90deg);line-height:1}}
 @media (max-width:520px){#t-read pre.ca-code,#t-read pre.ca-out{font-size:11px}#t-read .bars .row,#t-read .bars .axis{grid-template-columns:minmax(0,8.8em) minmax(0,1fr) 4.6em;font-size:12px}
 #ct-s0 thead{display:none}#ct-s0 tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}#ct-s0 td{display:block;border:0;padding:1px 4px}#ct-s0 td:first-child{font-weight:600}}
+/* 2026-11-07: split layout; the hero and figures sit in the right column (.s3side) */
+#t-read .s3side .fig{margin-top:0;background:var(--card)}
+#t-read .sx code{font-size:.86em}
 </style>
 
 <section id="ct-top">
 <div class="core"><b class="k">The idea in one sentence</b>C++ resolves an abstraction at compile time whenever the compiler can see the type (templates, overloads, lambdas, <code>final</code> classes), so it costs nothing; only when you ask for <span class="rt">run-time dispatch</span> (virtual functions, <code>std::function</code>, <code>std::variant</code>) does a call wait to learn the type, and the measured cost of that is about 1 ns when the type is predictable and about 6 ns when it is not, while an exception costs nothing until it is thrown and then about 5 µs.</div>
-<div class="fig" id="ct-hero"><h4>Where each kind of call is decided, and what it cost on this M1 Pro</h4>
-<div class="ct-lane"><div class="who"><span class="h">Decided at compile time</span><code>total&lt;int&gt;(xs)</code>, an overload, a lambda passed to a template, a call on a <code>final</code> class</div><div class="ar" aria-hidden="true">&#8594;</div>
-<div class="res"><div>a direct call, usually inlined: <b class="n">0.32 ns</b> per element over a flat vector</div></div></div>
-<div class="ct-lane rt-lane"><div class="who"><span class="h">Decided at <span class="rt">run time</span></span><code>shape-&gt;area()</code> (virtual), a <code>std::function</code>, <code>std::visit</code> on a variant</div><div class="ar" aria-hidden="true">&#8594;</div>
-<div class="res"><div>same type every time, the branch predictor guesses right: <b class="n">0.98 ns</b></div><div class="bad">the type changes at random: <b class="n">6.31 ns</b> (variant 5.56, std::function 6.01)</div></div></div>
-<div class="ct-lane"><div class="who"><span class="h">Errors</span><code>return std::unexpected(e)</code> against <code>throw</code></div><div class="ar" aria-hidden="true">&#8594;</div>
-<div class="res"><div>an <code>expected</code> is a returned value: <b class="n">0.96 ns</b>, success or failure</div><div class="bad">an exception is free until thrown, then <b class="n">5.8 µs</b>, plus about 712 ns per stack frame it crosses</div></div></div>
-<p class="cap"><b>Read it as:</b> each lane starts with a choice you make in the source; after the arrow is what the CPU then does. Every number is the median of three runs of this page's two benchmarks (sections 2 and 6), 10 million objects or calls each, Apple clang 17, <code>-O2</code>. The lesson is not "avoid virtual": it is that dispatch costs a few nanoseconds, which only matters inside a loop over millions of elements, and that what makes it expensive is an unpredictable type, not the vtable.</p></div>
+<div class="s3sp"><div class="s3L">
 <p class="small"><b>You need</b>: how C++ builds and what undefined behaviour means ({{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}); owners, <code>unique_ptr</code> and moves ({{C++: ownership, moves and object lifetimes|n:4055c17b0d0d81819d74fa010e68ac2a}}). Python is the bridge throughout.</p>
 <div class="terms">
 <div><dfn>Virtual function</dfn>: a member function chosen at run time by the object's actual class.</div>
@@ -107,6 +103,15 @@ pre.ct-log{max-height:220px;overflow:auto}.ct-log mark{background:var(--hl);colo
 <div><dfn>Closure</dfn>: the object a lambda creates; its members are the captured variables.</div>
 <div><dfn>std::expected&lt;T, E&gt;</dfn>: a value or an error, returned like any value (C++23).</div>
 </div>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" id="ct-hero"><h4>Where each kind of call is decided, and what it cost on this M1 Pro</h4>
+<div class="ct-lane"><div class="who"><span class="h">Decided at compile time</span><code>total&lt;int&gt;(xs)</code>, an overload, a lambda passed to a template, a call on a <code>final</code> class</div><div class="ar" aria-hidden="true">&#8594;</div>
+<div class="res"><div>a direct call, usually inlined: <b class="n">0.32 ns</b> per element over a flat vector</div></div></div>
+<div class="ct-lane rt-lane"><div class="who"><span class="h">Decided at <span class="rt">run time</span></span><code>shape-&gt;area()</code> (virtual), a <code>std::function</code>, <code>std::visit</code> on a variant</div><div class="ar" aria-hidden="true">&#8594;</div>
+<div class="res"><div>same type every time, the branch predictor guesses right: <b class="n">0.98 ns</b></div><div class="bad">the type changes at random: <b class="n">6.31 ns</b> (variant 5.56, std::function 6.01)</div></div></div>
+<div class="ct-lane"><div class="who"><span class="h">Errors</span><code>return std::unexpected(e)</code> against <code>throw</code></div><div class="ar" aria-hidden="true">&#8594;</div>
+<div class="res"><div>an <code>expected</code> is a returned value: <b class="n">0.96 ns</b>, success or failure</div><div class="bad">an exception is free until thrown, then <b class="n">5.8 µs</b>, plus about 712 ns per stack frame it crosses</div></div></div>
+<p class="cap"><b>Read it as:</b> each lane starts with a choice you make in the source; after the arrow is what the CPU then does. Every number is the median of three runs of this page's two benchmarks (sections 2 and 6), 10 million objects or calls each, Apple clang 17, <code>-O2</code>. The lesson is not "avoid virtual": it is that dispatch costs a few nanoseconds, which only matters inside a loop over millions of elements, and that what makes it expensive is an unpredictable type, not the vtable.</p></div></div></div></div>
 <nav class="nav" id="rd-nav" aria-label="Sections">
 <a href="#ct-s0">In one screen</a><a href="#ct-s1">1 Classes</a><a href="#ct-s2">2 Virtual calls</a><a href="#ct-s3">3 Templates</a><a href="#ct-s4">4 Library</a><a href="#ct-s5">5 Lambdas</a><a href="#ct-s6">6 Errors</a>
 </nav>
@@ -181,16 +186,20 @@ explicit_err.cpp:8:6: note: candidate function not viable: no known conversion f
 
 <section id="ct-s2">
 <h2>2. Virtual functions, and what dispatch really costs</h2>
-<p>A <b>virtual</b> function is chosen at run time by the object's actual class, like every method call in Python. A non-virtual one is chosen at compile time by the declared type, and can be inlined. <code>= 0</code> makes a function <b>pure virtual</b>: the class is abstract, like a Python ABC, and <code>override</code> makes the compiler check that you really override something. The price is visible in the object itself:</p>
-<div class="fig"><h4>A virtual function adds one hidden pointer to every object</h4>
-<div class="ct-objs">
-<div class="ct-obj"><div class="nm">Plain { double; f() }: 8 bytes</div><div class="ct-cells"><div class="ct-cell">double<small>8 B</small></div></div><div class="ct-arrow"><code>p.f()</code> is a direct call to <code>Plain::f</code>, known when compiling</div></div>
-<div class="ct-obj"><div class="nm">Virtual { double; virtual f() }: 16 bytes</div><div class="ct-cells"><div class="ct-cell v">vptr<small>8 B, set by the constructor</small></div><div class="ct-cell">double<small>8 B</small></div></div>
-<div class="ct-arrow">&#8595; vptr points at the class's vtable (one per class, shared)</div>
-<div class="ct-cells"><div class="ct-cell h">vtable for Virtual: [ destructor | <b>f</b> ]</div></div>
-<div class="ct-arrow"><code>p-&gt;f()</code>: load the vptr from the object, load the address of <code>f</code> from the table, jump there</div></div>
-</div>
-<p class="cap">Sizes printed by <code>sizeof</code> on this Mac. The vtable layout is simplified (it also holds type information for <code>dynamic_cast</code>); the real loads are read in the assembly on {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, section 5.</p></div>
+<div class="s3sp"><div class="s3R"><div id="stg-vt"></div></div><div class="s3L">
+<p>A <b>virtual</b> function is chosen at run time by the object's actual class, like every method call in Python. A non-virtual one is chosen at compile time by the declared type, and can be inlined. <code>= 0</code> makes a function <b>pure virtual</b>: the class is abstract, like a Python ABC, and <code>override</code> makes the compiler check that you really override something. The price is visible in the object itself, and in the path a call takes:</p>
+<p>A virtual call is two loads and an indirect jump (steps 1 to 4), which sounds slow. Whether it is depends on something else: a modern CPU does not wait to learn where a jump goes; its branch predictor guesses and runs ahead, and only a wrong guess costs (the mechanism, and about 6 ns per mispredicted <code>if</code> on this M1, are on {{the machine page|n:4055c17b0d0d811fa947ee576a97a516}}, section 7). So the benchmark sums the areas of 10 million shapes eight ways, with the same arithmetic in each, and varies two things: whether the class changes unpredictably from one object to the next, and whether the objects sit next to each other in memory.</p>
+<ol class="sx" id="sx-vt">
+<li><b>A plain object: 8 bytes.</b> <code>Plain</code> holds one <code>double</code>, so <code>sizeof</code> printed 8 (one cube per byte). <code>p.f()</code> is a direct call to <code>Plain::f</code>, known when compiling: the call never reads the object.</li>
+<li><b>Add one virtual function: 16 bytes.</b> <code>Virtual</code> holds the same <code>double</code> and printed 16 bytes: the extra 8 are the hidden <span class="rt">vptr</span>, set by the constructor.</li>
+<li><b>The vtable: one per class, shared.</b> Every <code>Virtual</code> object's vptr points at the same table of function addresses; a second object adds another vptr, not another table.</li>
+<li><b>The call: two loads and a jump.</b> <code>p-&gt;f()</code>: load the vptr from the object, load the address of <code>f</code> from the table, jump there. The compiler cannot name the target, so it cannot inline it.</li>
+<li><b>The benchmark, one class.</b> A <code>vector&lt;unique_ptr&lt;Shape&gt;&gt;</code> of 10 million <code>Sq</code> objects, visited in order: every call goes through the same vtable to the same <code>Sq::area</code>, so the branch predictor guesses the jump right every time.</li>
+<li><b>Three classes in random order.</b> These are the benchmark's first eight objects (<code>Sq</code>, <code>Rect</code>, <code>Rect</code>, <code>Tri</code>, ...: the same generator and seed, reprinted by <code>first_shapes.cpp</code>). The red marks are where the call target changes from one object to the next: 5 times in these 7 calls, and 6,666,558 times in all 10 million (66.7%, about two in three).</li>
+<li><b>The same objects, sorted by class.</b> The targets now change twice in the whole vector, so the predictor is right almost every time again.</li>
+<li><b>Scattered in memory.</b> The same mixed objects allocated in a shuffled order: the pointers in the vector now lead all over the heap, and every object is a cache miss before its vptr can even be read.</li>
+</ol>
+<p class="small mute">Sizes printed by <code>sizeof</code> on this Mac (steps 1 to 4, to scale). The vtable layout is simplified (it also holds type information for <code>dynamic_cast</code>); the real loads are read in the assembly on {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}, section 5. Steps 5 to 8 are drawn smaller and their heap positions are illustrative; the nanoseconds on the figure are the medians measured below.</p>
 <details class="dp"><summary>A base class with a virtual function, two implementations, one loop</summary><div><div class="ca-src"><div class="ca-fn">virtual.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;cstdio&gt;</span>
 <span class="ca-pp">#include &lt;memory&gt;</span>
 <span class="ca-pp">#include &lt;string&gt;</span>
@@ -220,16 +229,11 @@ explicit_err.cpp:8:6: note: candidate function not viable: no known conversion f
 &#125;</pre></div><pre class="ca-out" data-ca-out="l_virtual"><span class="ca-cmd">$ clang++ -std=c++23 -O2 -Wall -Wextra virtual.cpp -o virtual &amp;&amp; ./virtual</span>
 3
 17</pre></div></details>
+</div></div>
 
 <h3>Measured: one sum, eight ways of calling</h3>
-<p>Two loads and an indirect jump sound slow. Whether they are depends on something else: a modern CPU does not wait to learn where a jump goes; its branch predictor guesses and runs ahead, and only a wrong guess costs (the mechanism, and about 6 ns per mispredicted <code>if</code> on this M1, are on {{the machine page|n:4055c17b0d0d811fa947ee576a97a516}}, section 7). So the benchmark sums the areas of 10 million shapes eight ways, with the same arithmetic in each, and varies two things: whether the class changes unpredictably from one object to the next, and whether the objects sit next to each other in memory.</p>
+<div class="s3sp"><div class="s3L">
 <p class="pred"><b>Predict, then switch:</b> which is slower, a virtual call when every object has the same class, or a <code>std::variant</code> visit (no pointers, no vtable) over three classes in random order? Then switch to scattered objects: does the virtual call still matter?</p>
-<div class="card" id="ct-disp-card">
-<div class="ct-seg" id="ct-disp-seg" role="group" aria-label="Where the objects are"><button data-m="o" class="on">Objects in allocation order</button><button data-m="s">Objects scattered in memory</button></div>
-<div class="bars" id="ct-disp"></div>
-<p class="ct-read" id="ct-disp-read"></p>
-<p class="small mute">ns per object, log scale; the median of three runs, with the range of the three under each label. Rows marked "flat" store the objects inside the vector, so they have no scattered version. 10 million objects, each pass visits every object once, best of 7 passes; Apple M1 Pro, Apple clang 17, <code>-O2</code>.</p>
-</div>
 <p>Three things show, and they are the practical rules:</p>
 <ol>
 <li><b>A predictable virtual call is cheap.</b> One class: 0.98 ns per object, against 0.61 for a plain inlinable call through the same kind of pointer and 0.32 for plain structs stored flat. Much of the gap is probably not the jump itself but what it forbids: the compiler cannot inline a function it cannot name, so it cannot vectorise the loop or keep values in registers across the call.</li>
@@ -238,6 +242,13 @@ explicit_err.cpp:8:6: note: candidate function not viable: no known conversion f
 </ol>
 <p>A few nanoseconds per call is nothing for a call per request and a lot for a call per element of a tensor. That is why performance code uses templates (section 3) instead of virtual functions in hot loops, keeps data in flat arrays, and keeps virtual interfaces for coarse-grained choices. llama.cpp does exactly this: its KV cache is a class hierarchy with virtual functions, called a few times per token, while its kernels are templates and plain functions ({{C++: reading llama.cpp|n:4055c17b0d0d8150a5effbb5a667dd9d}}).</p>
 <p><b><code>final</code></b> tells the compiler no class derives from this one, so a call through a <code>SqFinal*</code> needs no vtable: it measured 0.44 ns, an inlined call. The compiler devirtualises on its own whenever it can prove the exact class (a local object, a <code>final</code> class, link-time optimisation that sees every derived class).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="ct-disp-card">
+<div class="ct-seg" id="ct-disp-seg" role="group" aria-label="Where the objects are"><button data-m="o" class="on">Objects in allocation order</button><button data-m="s">Objects scattered in memory</button></div>
+<div class="bars" id="ct-disp"></div>
+<p class="ct-read" id="ct-disp-read"></p>
+<p class="small mute">ns per object, log scale; the median of three runs, with the range of the three under each label. Rows marked "flat" store the objects inside the vector, so they have no scattered version. 10 million objects, each pass visits every object once, best of 7 passes; Apple M1 Pro, Apple clang 17, <code>-O2</code>.</p>
+</div></div></div></div>
 <details class="dp"><summary>The benchmark (dispatch.cpp), all three runs, and the C++ page's original measurement reproduced</summary><div>
 <p>Each row builds its own vector of 10 million objects, sums their areas seven times and keeps the fastest pass. "Scattered" allocates the same objects in a shuffled order, so the visiting order (and so the sequence of classes) is identical and only the addresses differ. The in-order rows through pointers (0.4 to 1.0 ns) vary from run to run by as much as they differ from each other: read them as "about a nanosecond", not as a ranking.</p>
 <div class="ca-src"><div class="ca-fn">dispatch.cpp</div><pre class="ca-code"><span class="ca-cm">// What a call costs, by how it is dispatched: the same "sum of areas" over 10 million shapes,</span>
