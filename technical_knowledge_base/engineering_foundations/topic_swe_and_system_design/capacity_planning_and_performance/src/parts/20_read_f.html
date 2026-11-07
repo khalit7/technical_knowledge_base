@@ -5,15 +5,11 @@
 <h3 id="s-openclosed">Trap 1: the workload model</h3>
 <p>A <dfn id="g-closed">closed</dfn> workload has a fixed number of virtual users; each sends a request, waits for the answer, and only then sends the next. An <dfn id="g-open">open</dfn> workload has requests arriving at a rate, whatever the system is doing. Schroeder, Wierman and Harchol-Balter ({{"Open Versus Closed: A Cautionary Tale", NSDI 2006|https://www.usenix.org/legacy/event/nsdi06/tech/full_papers/schroeder/schroeder.pdf}}): "for a fixed load, the mean response time for an open system model can exceed that for a closed system model by an order of magnitude or more", and request-size variability "has a huge impact on response times in open systems" but "much less of an effect in closed models". A closed test is self-limiting: when the server slows, the users slow with it, so the queue never builds as it would in production. Users on the internet do not wait for each other, so a public API is close to open (strictly "partly open": sessions arrive independently, and inside a session a user waits for each reply).</p>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="s-co">Trap 2: coordinated omission</h3>
 <p>Gil Tene named the measurement version ({{"How NOT to Measure Latency", Strange Loop 2015|https://www.youtube.com/watch?v=lJ8ydIuPFeU}}). A closed-loop tool measures each request from when it was actually sent. During a stall it sends nothing, so the requests real users would have sent during the stall, and that would have waited, are never measured: the tool has coordinated with the server to omit the bad moments. That is <dfn id="g-co">coordinated omission</dfn>. wrk2's README: wrk "exhibits a strong Coordinated Omission effect, through which most of the high latency artifacts exhibited by the measured server will be ignored"; wrk2 instead "measures response latency from the time the transmission should have occurred according to the constant throughput configured for the run" ({{wrk2|https://github.com/giltene/wrk2}}). Its example with a 1.4 second pause: corrected p99 1.27 s, uncorrected 6.04 ms.</p>
 <p>Experiment 2 reproduces it: the same server, set to freeze for 1.5 s every 15 s, measured closed-loop and open-loop at the same rate. Predict how far apart the two p99s will be, then switch between the three readings.</p>
-<div class="card" id="co-card">
-<div class="seg" id="co-seg"><button class="on" data-m="closed">Closed loop, as the tool reports</button><button data-m="corr">Closed loop, corrected</button><button data-m="open">Open loop</button></div>
-<div class="chart" id="co-chart"></div>
-<div class="tw"><table id="co-table"></table></div>
-<p class="small mute" id="co-note"></p>
-</div>
+
 <details class="dp"><summary>What the three readings show <span class="mute">(depth)</span></summary><div class="b"><p id="co-text"></p></div></details>
 <p class="small mute">The point in numbers: closed-loop p99 89 ms, against 1,400 ms for the same server measured open-loop.</p>
 <details class="dp" id="s-meas-co"><summary>How Experiment 2 was run <span class="mute">(provenance)</span></summary><div class="b">
@@ -21,6 +17,14 @@
 <p>Experiment 1's server (one request at a time, exponential service, mean 10 ms nominal), set to freeze for 1.5 s every 15 s, as a stop-the-world garbage-collection pause or a slow disk flush would. 30 requests a second for 60 s, twice: a closed-loop generator (3 users, each sending at most 10 a second, waiting for each answer, catching up immediately when late: what wrk, Locust users and k6's <code>constant-vus</code> do), and an open-loop one (evenly spaced sends at the same rate, never waiting). The closed run also logged when each request should have been sent, which gives the corrected reading.</p></div>
 <p>During each stall the 3 closed-loop users sent 3 requests and stopped, so only 3 slow requests per stall were recorded; real users would have sent 45. The corrected reading (from the schedule) recovers a p99 of 1.43 s.</p>
 </div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="card" id="co-card">
+<div class="seg" id="co-seg"><button class="on" data-m="closed">Closed loop, as the tool reports</button><button data-m="corr">Closed loop, corrected</button><button data-m="open">Open loop</button></div>
+<div class="chart" id="co-chart"></div>
+<div class="tw"><table id="co-table"></table></div>
+<p class="small mute" id="co-note"></p>
+</div>
+</div></div></div>
 
 <h3 id="s-design">Designing a realistic test</h3>
 <ol>

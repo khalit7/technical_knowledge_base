@@ -21,12 +21,18 @@
 <a href="#s-one">The idea</a><a href="#s-perf">Percentiles and the tail</a><a href="#s-queue">Queueing</a><a href="#s-lb">Load balancing</a><a href="#s-cache">Caching</a><a href="#s-pool">Pools</a><a href="#s-prof">Profiling</a><a href="#s-lt">Load testing</a><a href="#s-cap">Capacity planning</a><a href="#s-llm">LLM-backed</a><a href="#s-ref">Reference</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
-<h2 style="margin-top:14px">The idea in one screen</h2>
+<h2>The idea in one screen</h2>
 <p class="core">A request's latency is its work plus its <span class="hl">waiting</span>, and waiting grows like 1 / (1 &minus; utilisation): gently at first, then violently. Capacity planning keeps every resource left of that knee at the peak, with spares for failure, and checks it with load tests that send traffic the way users do.</p>
-<div class="hero" id="hero-card"><h4>The same work, more and more waiting: one server, mean time in the system at four utilisations</h4>
-<div class="rd-svg" id="hero-svg"></div>
-<p class="small">Blue: the work itself (service time S). <span class="hl">Orange: waiting in the queue.</span> M/M/1 (random arrivals, exponential work): W = S / (1 &minus; &rho;), so 2S at 50% busy, 5S at 80%, 10S at 90%, 20S at 95%; the p99 is 4.6 times the mean. Measured on a real service below: the same 11 ms of work took a median of 12 ms at 11% busy and 142 ms at 95% busy.</p></div>
+<p>Fig. 1 is that sentence on one server with random arrivals and exponential work (the <a href="#s-hockey">M/M/1 queue</a>): the same work, more and more waiting, mean time in the system W = S / (1 &minus; &rho;). Cubes in front of the server are the mean number of requests waiting; the bar is W, blue the work itself (service time S), <span class="hl">orange the waiting</span>.</p>
+<ol class="sx" id="sx-hero">
+<li><b>50% busy: W = 2S.</b> Half the time the server is busy; on average 0.5 requests wait (L<sub>q</sub> = &rho;<sup>2</sup> / (1 &minus; &rho;)), and a request spends 2S in the system, half of it waiting.</li>
+<li><b>80% busy: 5S.</b> 60% more traffic than step 1, but 3.2 requests wait on average and the time in the system is 5S: four parts waiting to one part work.</li>
+<li><b>90% busy: 10S.</b> 8.1 waiting, 10S in the system. The time in the system is exponential, so the p99 is 4.6 times the mean: 10 ms of work, a p99 of 460 ms.</li>
+<li><b>95% busy: 20S.</b> 18 waiting, 20S: the last five points of load doubled the time. At 100% the queue grows without limit.</li>
+<li><b>Measured: a real server at 94.7% busy.</b> Experiment 1 (<a href="#s-meas-h">below</a>) at its busiest stable rate: 85.5 requests a second &times; a mean of 186 ms = 15.9 requests inside by Little's law, about 15 of them waiting. The mean, 186 ms for 11.1 ms of work (16.7S), sits a little under the model's 20S; the same 11 ms of work took a median of 12 ms at 11% busy and 142 ms at 95% busy.</li>
+</ol>
 <p>Our running example is the parent topic's chat assistant: a phone app sends a message to <b>our chat API</b>, which reads the conversation from a database, calls a model, and streams the reply back. At the root's scale (1 million people a day, 10 messages each, 5 requests per message) that is about 579 requests a second on average and 1,157 in the busy hour; 1 in 5 of those requests (the message itself) calls the model, about 231 a second at the busy hour. Three questions organise the page: <b>how fast is it</b> (latency, and especially the tail), <b>how much can it carry</b> (throughput, and the queueing maths that decides where "falls over" begins), and <b>how much hardware does it need</b> (capacity planning).</p>
 <p><b>You need:</b> the root's Steps 1 to 3 (load balancer, cache, queue) give the five-minute version; nothing else is assumed.</p>
 <dl class="terms">
@@ -37,6 +43,9 @@
 <dt>Little's law</dt><dd>requests inside = arrival rate &times; time each stays (L = &lambda;W).</dd>
 <dt>Open, closed workload</dt><dd>requests arrive at a rate whatever happens, or a fixed set of users each waits for an answer before sending again.</dd>
 </dl>
+</section>
+</div></div>
+<div class="s1x">
 <details class="dp"><summary>Every technique on this page in one table <span class="mute">(problem, cost, when not)</span></summary><div class="b">
 <div class="tw"><table class="onescreen">
 <thead><tr><th>Problem</th><th>Technique</th><th>What it costs</th><th>When not to use it</th></tr></thead>
@@ -52,15 +61,19 @@
 <tr><td>How many servers next quarter?</td><td><a href="#s-cap">Capacity planning</a>: forecast, peak factor, headroom, N+1 or N+2</td><td>Idle hardware; forecasting effort</td><td>Over-planning things that autoscale in minutes</td></tr>
 </tbody></table></div></div></details>
 <div class="deepnote"><b>Who owns what.</b> Load shedding, retry budgets, hedging, timeouts and circuit breakers live on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; the LLM serving engine's own capacity (KV cache, batching, goodput per replica, GPU autoscaling) on {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}} and {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}}; token rate limits and budgets at a gateway on {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}; queues as infrastructure on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}; measuring all of this in production on {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}; invalidation, Redis eviction measured and the LLM caches on {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}; database tuning on {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}; the service's own shape on {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}. Typical latencies (a Redis read, a Postgres query, a round trip) are the root's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab, used here unchanged.</div>
-</section>
+</div>
 
 <section id="s-perf">
 <h2>What performance means: percentiles and the tail</h2>
 <p><dfn id="g-lat">Latency</dfn> is how long one request takes; <dfn id="g-thr">throughput</dfn> is how many requests the whole system finishes per second; <dfn id="g-util">utilisation</dfn> (&rho;) is the share of time a resource is busy; <dfn id="g-sat">saturation</dfn> is work waiting because the resource is busy. Latency is <b>service time</b> plus <b>waiting time</b>. Throughput rises with load until a resource saturates; past that, only latency grows. That bend is the <dfn id="g-knee">knee</dfn>. Brendan Gregg's {{USE method|https://www.brendangregg.com/usemethod.html}} checks every resource for Utilisation, Saturation and Errors, in that order: the fastest way to find a bottleneck you did not expect.</p>
 <p>Latency is a distribution, so read it with <dfn id="g-pct">percentiles</dfn>: the <b>p50</b> (median) is the time half the requests beat, the <b>p99</b> the time 99 in 100 beat, the <b>p99.9</b> 1 in 1,000. The slow end is the <dfn id="g-tail">tail</dfn>. Google's SRE book: "Using percentiles for indicators allows you to consider the shape of the distribution" ({{SRE book, ch. 4|https://sre.google/sre-book/service-level-objectives/}}). The mean hides the tail: in our hockey-stick measurement at 89% busy, the mean was 87 ms while 1 request in 100 took more than 321 ms. Two rules: <b>you cannot average percentiles</b> (merge the raw data or histograms, HdrHistogram or Prometheus and OpenTelemetry histograms, then read the percentile), and <b>you need enough samples</b> (a p99 from 200 requests rests on the 2 slowest; a p99.9 needs tens of thousands).</p>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="s-tail">The tail at scale: fan-out turns rare into common</h3>
 <p>Our chat API calls the database, the cache, the user service, the rate limiter and the model; if any one is slow, the user waits. Dean and Barroso ({{"The Tail at Scale", CACM 2013|https://www.barroso.org/publications/TheTailAtScale.pdf}}): with servers that are slow 1 time in 100, "If a user request must collect responses from 100 such servers in parallel, then 63% of user requests will take more than one second." Predict before you drag: with 1 slow call in 10,000, how many of 2,000 parallel calls make one user request in five slow?</p>
+
+<p>So <b>the more calls a request fans out to, the further into the tail each dependency's target must reach</b>: if a screen makes 100 calls and you want 99 in 100 screens fast, each call needs roughly a p99.99 target. This is the rule for a latency budget: split the end-to-end target across the calls on the critical path, each share stated at the percentile the fan-out demands.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="fo-card">
 <div class="ctl">
 <label>Chance one call is slow: <b id="fo-pv"></b><input type="range" id="fo-p" min="0" max="5" step="1" value="2" aria-label="Chance one call is slow"></label>
@@ -70,7 +83,7 @@
 <div class="chart" id="fo-chart"></div>
 <p class="small mute">P(user request is slow) = 1 &minus; (1 &minus; p)<sup>n</sup>, assuming the calls are slow independently: 1 &minus; 0.99<sup>100</sup> = 63.4%; 1 &minus; 0.9999<sup>2000</sup> = 18.1%, Dean and Barroso's "almost one in five". Defaults reproduce their 63% independently; checked in src/recompute.py.</p>
 </div>
-<p>So <b>the more calls a request fans out to, the further into the tail each dependency's target must reach</b>: if a screen makes 100 calls and you want 99 in 100 screens fast, each call needs roughly a p99.99 target. This is the rule for a latency budget: split the end-to-end target across the calls on the critical path, each share stated at the percentile the fan-out demands.</p>
+</div></div></div>
 <details class="dp"><summary>Google's measured fan-out, hedged requests, and when percentiles mislead <span class="mute">(depth)</span></summary><div class="b">
 <p>Their measured Google service: "The 99th-percentile latency for a single random request to finish, measured at the root, is 10ms. However, the 99th-percentile latency for all requests to finish is 140ms, and the 99th-percentile latency for 95% of the requests finishing is 70ms, meaning that waiting for the slowest 5% of the requests to complete is responsible for half of the total 99%-percentile latency." Two cures from the same paper: reduce the variability itself (most of this page), or send a backup copy of a slow call (a <dfn id="g-hedge">hedged request</dfn>): "sending a hedging request after a 10ms delay reduces the 99.9th-percentile latency for retrieving all 1,000 values from 1,800ms to 74ms while sending just 2% more requests." Hedging is load added by the client, so it belongs with retries on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}} (section 4).</p>
 <p><b>When percentiles mislead:</b> the p99 of a service that sheds load looks great because the rejected requests are not in it; always read latency next to the error and rejection rate. And a percentile computed by a closed-loop load tester can be wrong by a factor of 16 (<a href="#s-meas-co">measured below</a>).</p>

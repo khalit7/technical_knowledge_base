@@ -7,7 +7,7 @@ m = j('inputs', 'measured.json')
 w = j('inputs', 'wiki_hourly.json')
 r = j('recompute_out.json')['out']
 d = dict(
-    hockey=[{k: h[k] for k in ('util', 'rate', 'n', 'mean_service_ms', 'p50', 'p90', 'p99', 'mean', 'duration_s', 'late_send_p99')} for h in m['hockey']],
+    hockey=[{k: h[k] for k in ('util', 'rate', 'achieved_rate', 'n', 'mean_service_ms', 'p50', 'p90', 'p99', 'mean', 'duration_s', 'late_send_p99')} for h in m['hockey']],
     co={k: dict(n=v['n'], send=v['measured_from_send'], sched=v['measured_from_schedule'], pts=v['points']) for k, v in m['co'].items()},
     lb=[{k: x[k] for k in ('tag', 'policy', 'rate', 'slow_server', 'util', 'typical_service_ms', 'n', 'p50', 'p90', 'p99', 'p999', 'mean', 'share_slowest', 'mean_service_ms')} for x in m['lb']],
     wiki={p: dict(shape=v['shape_utc'], month=v['peak_over_mean_month'], daily=v['peak_over_mean_daily_median'],

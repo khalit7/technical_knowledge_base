@@ -99,7 +99,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_protocols/tls_and_certificates` TLS and certificates: the handshake, PKI, mTLS and post-quantum
 - [x] `engineering_foundations/topic_protocols` Topic: protocols
 - [x] `engineering_foundations/topic_swe_and_system_design/building_a_backend_api` Building a backend API: request lifecycle, data layer, async and workers, shutdown
-- [ ] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
+- [x] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
 - [ ] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
 - [ ] `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals` Distributed systems fundamentals: replication, partitioning, consistency, consensus
 - [ ] `engineering_foundations/topic_swe_and_system_design/ml_system_design` ML system design: LLM and ML services
@@ -392,3 +392,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_protocols/tls_and_certificates`: Fig. 1 hero leaf 478 B and intermediate 421 B labels close at 1400; Fig. 2 step 4 CertificateVerify and Finished labels close; empty space above scene objects at 1400; stages small below 520 px.
 - `engineering_foundations/topic_protocols` (root): hero close-up steps leave empty canvas below the lower plates; On the wire section 4 table shows 1140 without a thousands comma; verify_layout flags the Protocol atlas svg outside a split (accepted: reader-driven explorer); an older environment note on the page mentions a session scratchpad build of OpenSSL (wording only, no path).
 - `engineering_foundations/topic_swe_and_system_design/building_a_backend_api`: Fig. 2 last step plate labels close at 1400 (middleware, router); phone stages carry few labels (grouped labels hide at 390).
+- `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance`: Fig. 3 step 4 "17K/s, no leases" label close to "database" at 1400; Fig. 1 "W = 10S" label sits on the output block; measured bar labels hidden at 390 in Figs. 2 and 4; verify_layout flags the Load-test lab svg outside a split (accepted: reader-driven tool).

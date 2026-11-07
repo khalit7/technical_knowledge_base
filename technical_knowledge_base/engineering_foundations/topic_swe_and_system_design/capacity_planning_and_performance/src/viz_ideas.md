@@ -47,3 +47,13 @@ Scores: teaching value (T), uses real data (R), interaction adds over a static v
 | Real images: Wikipedia production flame graph (CC BY-SA 4.0), one request in time order (CC0) | Reading, Profiling | A real profile teaches what to look for; the pair shows x is not time against x is time |
 
 Rejected 2026-10-24: a latency-budget waterfall for the chat request (no sourced per-hop numbers for the model call; the fan-out widget carries the budget rule); moving the Load-test lab inline (a workbench used by three sections). The illustrative 640 px SVG flame graph became HTML bars in a closed block (legible at phone width).
+
+## 2026-11-07: the split-layout rollout (renderer v2 stages)
+
+Built as 3D stages (`parts/29_js_sc_*.js`, renderer `28_js_s3.js`, shared pieces `28b_js_sc_kit.js`), each with an `ol.sx` step list:
+- **Fig. 1, one server under load** (replaces the 2D hero bars): the mean queue (Lq = rho^2 / (1 - rho)) as cubes in front of the server and W = S / (1 - rho) as a bar, at 50, 80, 90 and 95% busy, then Experiment 1's measured run at 94.7% (Little's law from the achieved rate and mean latency).
+- **Fig. 2, four balancing policies** (replaces idea 1's 2D animation, 81 frames): the same CP.lbSim run grouped into four explained stretches of 10 S (the long-replay rule), every request a dot flying to the server it was sent to, then Experiment 3's measured p99 at 96% busy as bars. A copy of the simulation keeps each request's server; `check_stages.mjs` proves it returns CP.lbSim's latencies.
+- **Fig. 3, what a cache does to the database** (new): the hit-rate widget's defaults at 90% and 99% hits and an empty cache, then Facebook's stampede peaks without and with leases. The hit-rate widget stays 2D beside the consequences.
+- **Fig. 4, sizing a connection pool** (new): Little's law's 3.47 connections busy, then Erlang C's waiting share at 6, 8 and 10 connections. Holding against borrowing is linked to Building a backend API's Fig. 3, not redrawn.
+
+Kept 2D, because each is a number on an axis or a table: the fan-out curve, the measured hockey stick (log axis), Little's law's three holders (log bars), the Kingman explorer, the supermarket and Erlang tables, the coordinated-omission scatter, the Wikipedia peak curves, the planner, the LLM demand-against-limit bars, the GIL table, and the Load-test lab (a reader-driven tool, full width). Rejected for 3D: the LLM section (GPU batch slots and the KV cache are owned by the serving pages; the client-side question is three numbers against three limits), and M/M/c against eight separate queues (Fig. 2's random mode already shows the eight separate queues).

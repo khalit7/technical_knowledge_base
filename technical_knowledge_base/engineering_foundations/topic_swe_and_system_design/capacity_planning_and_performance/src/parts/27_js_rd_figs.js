@@ -1,22 +1,9 @@
-// ---- Reading: the static figures added in the 2026-10-24 rebuild (hero, Little's law, LLM limits), drawn at the measured width ----
+// ---- Reading: the static figures added in the 2026-10-24 rebuild (Little's law, LLM limits; the hero became the 3D stage 29_js_sc_hero.js on 2026-11-07), drawn at the measured width ----
 // Numbers are the page's own (M/M/1 formula; root estimate inputs; Anthropic rate limits read 2026-10-24); the captions in the HTML carry them as text.
 (function(){
   const $=id=>document.getElementById(id);
   const num=v=>Math.round(v).toLocaleString('en-US');
   const draws=[];const reg=f=>{draws.push(f);RD.onRender(f)};RD.onResize(()=>draws.forEach(f=>{try{f()}catch(e){}}));
-
-  // hero: mean time in system W = S/(1-rho), split into work (S) and waiting
-  if($('hero-svg'))reg(function(){const el=$('hero-svg');const W=Math.max(300,Math.min(860,RD.width(el)));
-    const rows=[0.5,0.8,0.9,0.95];const lab=W<480?58:80,val=W<480?44:60,x0=lab,bw=W-lab-val-6;const unit=bw/20;const rh=W<480?26:30,T=6;
-    let b='';
-    rows.forEach((r,i)=>{const w=1/(1-r);const y=T+i*rh;
-      b+=RD.t(0,y+15,Math.round(r*100)+'% busy',{fs:11.5,w:600});
-      b+='<rect x="'+x0+'" y="'+(y+3)+'" width="'+unit+'" height="'+(rh-10)+'" fill="var(--c1)"/>';
-      b+='<rect x="'+(x0+unit)+'" y="'+(y+3)+'" width="'+(unit*(w-1))+'" height="'+(rh-10)+'" fill="var(--bad)" opacity=".8"/>';
-      b+=RD.t(x0+unit*w+5,y+15,(Math.round(w*10)/10)+'S',{fs:11.5,w:600});});
-    const yb=T+rows.length*rh+4;
-    for(let k=0;k<=20;k+=5){const x=x0+k*unit;b+='<line x1="'+x+'" x2="'+x+'" y1="'+(T)+'" y2="'+yb+'" stroke="var(--line)"/>'+RD.t(x,yb+12,k+'S',{fs:10.5,a:'middle',fill:'var(--mute)'})}
-    el.innerHTML=RD.svg(W,yb+18,b,'Mean time in the system at 50, 80, 90 and 95 percent utilisation: 2, 5, 10 and 20 service times, almost all of it waiting');});
 
   // Little's law: three holders, log-scaled bars
   if($('lt-svg'))reg(function(){const el=$('lt-svg');const W=Math.max(300,Math.min(860,RD.width(el)));

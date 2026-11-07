@@ -44,14 +44,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await clickAll('#mh-seg button', 'mh'); await p.evaluate(() => document.querySelector('#mh-seg button').click()); await shot('#mh-card', 'hockey');
   await slide('hx-c', [0, 1, 2, 3, 4, 5, 0]); await slide('hx-s', [0, 1, 2, 3, 4, 5, 6, 2]); await slide('hx-ms', [1, 50, 200, 11]); await shot('#hx-card', 'explorer');
   await shot('#sm-table', 'supermarket');
-  // LB animation: each policy, step through
-  for (let i = 0; i < 4; i++) {
-    await p.evaluate(i => document.querySelectorAll('#la-seg button')[i].click(), i); clicks++;
-    await p.evaluate(() => { const s = document.getElementById('la-ctl-s'); s.value = 40; s.dispatchEvent(new Event('input')) }); await sleep(60); await bad('la ' + i);
-    await p.evaluate(() => { const s = document.getElementById('la-ctl-s'); s.value = 80; s.dispatchEvent(new Event('input')) }); await sleep(60); await bad('la end ' + i);
-    if (i === 0 || i === 2) await shot('#la-card', 'lbanim' + i);
+  // the 3D stages (2026-11-07): every mode and every step from its list (src/check_stages.mjs checks autoplay, step counts and the numbers)
+  for (const [id, chips] of [['stg-hero', null], ['stg-lb', '#lb-mode'], ['stg-cache', null], ['stg-pool', null]]) {
+    const modes = chips ? await p.$$eval(chips + ' button', x => x.length) : 1;
+    for (let i = 0; i < modes; i++) {
+      if (chips) { await p.evaluate((c, i) => document.querySelectorAll(c + ' button')[i].click(), chips, i); clicks++; }
+      const n = await p.$eval('#' + id, e => e.closest('.s3sp').querySelectorAll('ol.sx:not([hidden])>li').length);
+      for (let k = 0; k < n; k++) { await p.evaluate((id, k) => document.getElementById(id).closest('.s3sp').querySelectorAll('ol.sx:not([hidden])>li')[k].click(), id, k); clicks++; await sleep(40); await bad(id + ' ' + i + ' step ' + k); }
+    }
+    await shot('#' + id, id);
   }
-  await clickAll('#la-ctl button', 'la ctl', 80); await p.evaluate(() => { const b = document.getElementById('la-ctl-p'); if (b.textContent.includes('Pause')) b.click() });
   await shot('#lbm-table', 'lbmeas');
   await slide('hr-l', [100, 20000, 1000]); await slide('hr-h', [0, 990, 1000, 900]); await slide('hr-c', [100, 20000, 600]); await shot('#hr-card', 'hitrate');
   await shot('#pool-table', 'pool'); await shot('#gil-table', 'gil');

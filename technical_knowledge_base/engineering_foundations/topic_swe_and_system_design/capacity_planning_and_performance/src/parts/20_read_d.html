@@ -1,5 +1,6 @@
 <section id="s-cache">
 <h2>Caching strategy</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-cache"></div></div><div class="s3L">
 <p>A <dfn id="g-cache">cache</dfn> keeps a copy of an answer somewhere faster than where it came from (the root's Step 2). It is the cheapest capacity you will ever buy: a Redis read takes about 0.14 ms (root's Numbers to know) while the query it replaces takes milliseconds and, more importantly, uses up the database, the component hardest to scale. It also brings stale answers, a dependency that can empty itself, and stampedes. Invalidation races, Redis's eviction measured on real traffic, and the LLM caches are on {{Caching|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}; this section is the capacity view.</p>
 
 <h3 id="s-cache-where">Where caches live, and who fills them</h3>
@@ -7,7 +8,25 @@
 
 <h3 id="s-hit">Hit-rate maths: what the cache does to the database</h3>
 <p class="small mute">The hit-rate arithmetic and the cost of a miss in general are on {{Caching, section 6|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}; here they are read as capacity.</p>
-<p>The <dfn id="g-hit">hit rate</dfn> h is the share of reads the cache answers. With &lambda; reads a second, the database sees (1 &minus; h) &times; &lambda;. Going from 90% to 99% hits looks like a 9-point gain but divides the database's read load by ten (1,000 reads a second become 100, then 10). Mean latency is h &times; t<sub>cache</sub> + (1 &minus; h) &times; (t<sub>cache</sub> + t<sub>db</sub>). Predict: at the defaults, what happens to the database if the cache restarts empty?</p>
+<p>The <dfn id="g-hit">hit rate</dfn> h is the share of reads the cache answers. With &lambda; reads a second, the database sees (1 &minus; h) &times; &lambda;. Mean latency is h &times; t<sub>cache</sub> + (1 &minus; h) &times; (t<sub>cache</sub> + t<sub>db</sub>). Fig. 3 plays the widget's defaults (the root's Step 2 example: 1,000 reads a second, a database that serves 600 at 100%); predict step 3 before it plays: what happens to the database if the cache restarts empty?</p>
+<ol class="sx" id="sx-cache">
+<li><b>90% hits: the database sees 100 reads a second.</b> 1,000 reads a second reach the cache and 900 come straight back; only the misses, (1 &minus; h) &times; &lambda; = 100 a second, reach a database that can serve 600: 17% busy.</li>
+<li><b>99% hits: 10 a second.</b> Going from 90% to 99% hits looks like a 9-point gain but divides the database's read load by ten (1,000 reads a second become 100, then 10): 2% busy.</li>
+<li><b>The cache restarts empty: 167%.</b> Every read is a miss: 1,000 a second against a capacity of 600, and the line in front of the database grows without limit. The database was sized for the misses; the cache had become part of its capacity.</li>
+<li><b>A hot key expires: a stampede.</b> Every request for it that arrives before it is rebuilt runs the same expensive query, which slows the query and widens the window. Facebook measured the peak: 17K database queries a second without leases.</li>
+<li><b>One rebuild, the rest wait.</b> With leases (one request rebuilds the entry, the others wait for it or take the stale copy), the peak was 1.3K a second (Nishtala et al., quoted on {{Caching, section 7|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}).</li>
+</ol>
+
+
+
+<h3 id="s-cache-st">Thundering herds and cache stampedes</h3>
+<p>A <dfn id="g-stampede">cache stampede</dfn>: a popular entry expires and every request that arrives before it is rebuilt runs the same expensive query (Fig. 3, steps 4 and 5). The defences are <dfn id="g-coalesce">request coalescing</dfn> (one rebuild, the rest wait for it), serving stale while revalidating, probabilistic early refresh (XFetch) and TTL jitter; each is animated on one hot key, with its cost, on {{Caching, section 7|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}, and CDNs, which coalesce misses for the same URL in the same way, on {{Caching, section 9|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}. For capacity the lesson is the same as for a cold cache: plan the database for the moment the cache is not there.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<h3 id="s-hit-cap">The cache is now part of your capacity</h3>
+<p>Three consequences, to try on the widget. <b>The tail is the miss path</b>: at a 95% hit rate the p99 is a database read however fast the cache is; a cache improves the median far more than the p99. <b>The database is now sized for the misses</b>, so the cache has become part of your capacity: when it empties (a restart, a failover, a deploy that changes every key) the full load lands on a database sized for a tenth of it (the root's Scale simulator calls this "cold cache"; Facebook keeps spare "Gutter" servers, about 1% of the memcached fleet, to take a failed server's keys rather than let its misses reach the databases). <b>Warm up before taking traffic</b>: fill a new cache from the old one, or ramp traffic with slow start.</p>
+<p class="small mute">The good side of the dependency, root Case files: "DNS failed in one data center; caches kept most of GitHub up". The hit rate itself is set by how often a key is read again within its TTL (a conversation is re-read on every message; a unique search never is), how skewed popularity is, and whether the hot set fits in memory (measured on real traffic on {{Caching, section 1|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}).</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="hr-card">
 <div class="ctl">
 <label>Reads per second: <b id="hr-lv"></b><input type="range" id="hr-l" min="100" max="20000" step="100" value="1000" aria-label="Reads per second"></label>
@@ -17,10 +36,6 @@
 <div class="out" id="hr-out"></div>
 <p class="small mute">Cache read 0.143 ms (Redis GET, root's Numbers to know); a miss adds 5 ms for the database query (illustrative: an indexed primary-key lookup measured 0.067 ms there, a chat history with joins and sorting is slower). Default database capacity 600 reads a second and 1,000 reads a second of demand are the root's Step 2 example; empty, the cache sends the database 167% of its capacity. Formulas checked in src/recompute.py.</p>
 </div>
-<p>Three consequences. <b>The tail is the miss path</b>: at a 95% hit rate the p99 is a database read however fast the cache is; a cache improves the median far more than the p99. <b>The database is now sized for the misses</b>, so the cache has become part of your capacity: when it empties (a restart, a failover, a deploy that changes every key) the full load lands on a database sized for a tenth of it (the root's Scale simulator calls this "cold cache"; Facebook keeps spare "Gutter" servers, about 1% of the memcached fleet, to take a failed server's keys rather than let its misses reach the databases). <b>Warm up before taking traffic</b>: fill a new cache from the old one, or ramp traffic with slow start.</p>
-<p class="small mute">The good side of the dependency, root Case files: "DNS failed in one data center; caches kept most of GitHub up". The hit rate itself is set by how often a key is read again within its TTL (a conversation is re-read on every message; a unique search never is), how skewed popularity is, and whether the hot set fits in memory (measured on real traffic on {{Caching, section 1|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}).</p>
-
-<h3 id="s-cache-st">Thundering herds and cache stampedes</h3>
-<p>A <dfn id="g-stampede">cache stampede</dfn>: a popular entry expires and every request that arrives before it is rebuilt runs the same expensive query, which slows the query and widens the window; Facebook measured a peak of 17K database queries a second without leases and 1.3K with them. The defences are <dfn id="g-coalesce">request coalescing</dfn> (one rebuild, the rest wait for it), serving stale while revalidating, probabilistic early refresh (XFetch) and TTL jitter; each is animated on one hot key, with its cost, on {{Caching, section 7|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}, and CDNs, which coalesce misses for the same URL in the same way, on {{Caching, section 9|n:3cd5c17b0d0d817ebd6ccadd4750c23a}}. For capacity the lesson is the same as for a cold cache: plan the database for the moment the cache is not there.</p>
+</div></div></div>
 <div class="when"><b>When not to cache:</b> data that must be exactly current (a credit balance, a permission just revoked), data read once (a unique search), or anything you cannot invalidate and would be harmed by serving late. And do not add a cache to hide a missing index: fix the query first (root Step 2).</div>
 </section>
