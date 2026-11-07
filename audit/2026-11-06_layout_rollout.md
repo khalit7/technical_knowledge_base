@@ -76,8 +76,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript` TypeScript: the type system, narrowing and runtime validation
 - [x] `engineering_foundations/topic_programming_languages/python/concurrency_asyncio_and_the_gil` Python: concurrency, asyncio and the GIL
 - [x] `engineering_foundations/topic_programming_languages/python/cpython_internals_and_performance` Python: CPython internals and performance
-- [~] `engineering_foundations/topic_programming_languages/python/data_model_and_protocols` Python: the data model and protocols
-- [ ] `engineering_foundations/topic_programming_languages/python/typing_packaging_and_toolchain` Python: typing, uv, packaging and the toolchain
+- [x] `engineering_foundations/topic_programming_languages/python/data_model_and_protocols` Python: the data model and protocols
+- [~] `engineering_foundations/topic_programming_languages/python/typing_packaging_and_toolchain` Python: typing, uv, packaging and the toolchain
 - [ ] `engineering_foundations/topic_programming_languages/rust/async_services_and_clis` Rust: async with tokio, services with axum, and CLIs
 - [ ] `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors` Rust: enums, traits, errors and iterators
 - [ ] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
@@ -371,3 +371,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript`: both stages small and width-limited at 390.
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript`: map step small at 390; left plate edge crops at step 5 at 1400.
 - `engineering_foundations/topic_programming_languages/python/cpython_internals_and_performance`: Fig. 3 stack effects measured on 3.12 while listings are 3.14.8 (now stated on the page); Fig. 10 not sticky on phones.
+- `engineering_foundations/topic_programming_languages/python/data_model_and_protocols`: Fig. 5 scene sits left of centre; Fig. 7 last step error labels clamp at the edge and "temperature" touches plate 2 name; Fig. 8 exception tree beside its prediction; lookup step list partly repeats the following paragraph.

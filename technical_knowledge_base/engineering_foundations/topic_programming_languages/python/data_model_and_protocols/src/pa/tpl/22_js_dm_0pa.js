@@ -3,3 +3,4 @@ window.PA=window.PA||{};
 PA.names=[[json:n7_graph]];
 PA.lazy=[[json:g2_order]];
 PA.dm=[[json:d2_dispatch]];
+PA.out=[[json:out]];

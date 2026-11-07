@@ -1,5 +1,7 @@
 // ---- Reading tab, section 1: the Data model explorer. Real dispatch traces from d2_dispatch.py, with the steps C code takes.
-// Adapted from the language page's src/pa/tpl/37_js_pa_dm.js (2026-10-26): inline in t-read, ids dm-ex-*, picking a scenario resets to step 1 without playing.
+// Adapted from the language page's src/pa/tpl/37_js_pa_dm.js (2026-10-26): inline in t-read, ids dm-ex-*.
+// 2026-11-07 (split layout): the why of each step is the ol.sx step list on the left (#sx-ex, rewritten per scenario); the card on the right (Fig. 2)
+// shows only what the run logged, step by step, and the rule at the last step. RD.anim plays it once in view; picking a scenario swaps the list and replays.
 (function(){
   const $=id=>document.getElementById(id),esc=RD.esc;
   if(!window.PA||!PA.dm||!$('dm-ex-card'))return;
@@ -50,14 +52,15 @@
   $('dm-ex-pick').innerHTML=groups.map(g=>'<div class="dm-ex-grp">'+esc(g)+'</div><div class="chips">'+keys.filter(k=>S[k].g===g).map(k=>'<button data-k="'+k+'"'+(k===cur?' class="on"':'')+'><code>'+esc(S[k].t)+'</code></button>').join('')+'</div>').join('');
   function rows(k){const tr=PA.dm[k];return S[k].s.map(([n,why])=>{if(n==='i')return {cls:'impl',tag:'inside C, not logged',line:'',why};
     const l=tr[n]||'';const cls=/^raises/.test(l)?'err':/^result/.test(l)?'res':'';return {cls,tag:/^#/.test(l)?'setup (printed by the script)':'logged by the real run',line:l,why}})}
+  function list(){const rs=rows(cur);$('sx-ex').innerHTML=rs.map(r=>'<li><b>'+esc(r.tag[0].toUpperCase()+r.tag.slice(1))+'.</b> '+esc(r.why)+'</li>').join('');return rs.length}
   function draw(i){
     const rs=rows(cur);
     $('dm-ex-expr').innerHTML=esc(S[cur].t)+'<span class="d">'+esc(S[cur].d)+'</span>';
-    $('dm-ex-steps').innerHTML=rs.map((r,k)=>'<li class="'+r.cls+(k>i?' fut':'')+(k===i?' cur':'')+'"><span class="tg">'+(k+1)+'. '+r.tag+'</span>'+(r.line?'<code class="l">'+esc(r.line)+'</code>':'')+'<div>'+esc(r.why)+'</div></li>').join('');
-    $('dm-ex-rule').innerHTML=i===rs.length-1?S[cur].rule:'<span class="mute">Step '+(i+1)+' of '+rs.length+'. The rule appears at the last step.</span>';
+    $('dm-ex-steps').innerHTML=rs.map((r,k)=>'<li class="'+r.cls+(k>i?' fut':'')+(k===i?' cur':'')+(k===i&&k>0?' rd-new':'')+'"><span class="tg">'+(k+1)+'. '+r.tag+'</span>'+(r.line?'<code class="l">'+esc(r.line)+'</code>':'<span class="mute">(no log line)</span>')+'</li>').join('');
+    $('dm-ex-rule').innerHTML=i===rs.length-1?S[cur].rule:'';
   }
-  an=RD.anim({card:'dm-ex-card',ctl:'dm-ex-ctl',n:rows(cur).length,draw,ms:1600,label:'Step'});
+  an=RD.anim({card:'dm-ex-card',ctl:'dm-ex-ctl',n:list(),draw,ms:3800,label:'Step',list:'sx-ex'});
   $('dm-ex-pick').addEventListener('click',e=>{const b=e.target.closest('button[data-k]');if(!b)return;
-    $('dm-ex-pick').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cur=b.dataset.k;an.reset(rows(cur).length)});
+    $('dm-ex-pick').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cur=b.dataset.k;an.reset(list(),'sx-ex')});
   RD.onResize(()=>an.redraw());
 })();

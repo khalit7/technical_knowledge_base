@@ -6,7 +6,6 @@ from pathlib import Path
 H = Path(__file__).resolve().parent
 O = lambda n: (H / "pa" / "outputs" / f"{n}.txt").read_text()
 T = "".join(p.read_text() for p in sorted((H / "pa" / "tpl").glob("*.html"))) + (H / "parts" / "20_read_a.html").read_text()
-JS = (H / "parts" / "23_js_dm_read.js").read_text()
 
 g3 = O("g3_memory")
 eager_kib = float(re.search(r"eager.*peak=\s*([\d,.]+) KiB", g3).group(1).replace(",", ""))
@@ -19,8 +18,6 @@ nocache = int(re.search(r"makes (\d+) calls", f4).group(1))
 want = [
     (f"about {lazy_kib} KiB", T),
     (f"about {round(eager_kib / 1024)} MiB", T),
-    (f"about {round(eager_kib / 1024)} MiB", JS),
-    (f"about {lazy_kib} KiB", JS),
     (f"{calls} calls instead of {nocache:,}", T),
     (f"({sizes['class']:.0f} against {sizes['class + __slots__']:.0f})", T),
     (f"Slots save {sizes['class'] - sizes['class + __slots__']:.0f} bytes", T),

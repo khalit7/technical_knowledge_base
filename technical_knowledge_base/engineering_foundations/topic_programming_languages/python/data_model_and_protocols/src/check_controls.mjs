@@ -1,6 +1,7 @@
 // node <page>/src/check_controls.mjs   (run from the repo root or anywhere: paths are resolved from this file)
 // Clicks every button, sets every range and select, opens every <details>, steps every animation to its end, at 390 px dark
-// and 920 px light, plus once under reduced motion to confirm nothing plays by itself. Fails on any page or console error,
+// and 920 px light, plus once under reduced motion to confirm nothing plays by itself (2026-11-07: animations now play by themselves
+// once in view, which check_stages.mjs tests; under reduced motion they still never move). Fails on any page or console error,
 // a visible #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text.
 import { createRequire } from 'node:module'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -17,9 +18,9 @@ for (const [scheme, width, motion] of [['dark', 390, 'no-preference'], ['light',
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: motion }]);
   await p.goto('file://' + PAGE);
   if (motion === 'reduce') {
-    // nothing may move before the reader acts: scroll every animation into view, wait, and check each is still on step 0
-    for (const id of ['dm-ex-card', 'dm-names-card', 'dm-lazy-card']) { await p.$eval('#' + id, el => el.scrollIntoView()); await new Promise(r => setTimeout(r, 1800)); }
-    const moved = await p.$$eval('.dm-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).length);
+    // under reduced motion nothing may move by itself: scroll every animation into view, wait, and check each is still on step 0
+    for (const id of ['dm-ex-card', 'dm-names-card', 'stg-hero', 'stg-pipe', 'stg-mro', 'stg-look']) { await p.$eval('#' + id, el => el.scrollIntoView()); await new Promise(r => setTimeout(r, 1800)); }
+    const moved = await p.$$eval('.dm-ctl input[type=range], .stg input.stg-r', rs => rs.filter(r => +r.value !== 0).length);
     if (moved) errs.push(moved + ' animation(s) moved without the reader');
   } else for (const t of await p.$$eval('button[data-t]', bs => bs.map(x => x.dataset.t))) {
     await p.click(`button[data-t=${t}]`);
@@ -28,8 +29,8 @@ for (const [scheme, width, motion] of [['dark', 390, 'no-preference'], ['light',
     for (let i = 0; i < n; i++) await p.evaluate((t, i) => { const x = document.querySelectorAll(`#${t} button`)[i]; x && x.click(); }, t, i);
     // each segmented mode, then step its animation to the end
     await p.evaluate(t => {
-      document.querySelectorAll(`#${t} .seg button`).forEach(sb => { sb.click();
-        const card = sb.closest('.dm-anim'); if (!card) return;
+      document.querySelectorAll(`#${t} .seg button, #${t} .s3chips button`).forEach(sb => { sb.click();
+        const card = sb.closest('.dm-anim') || document.getElementById(sb.closest('.seg,.s3chips').id === 'dm-names-mode' ? 'dm-names-card' : 'x'); if (!card) return;
         const f = card.querySelector('.dm-ctl button[aria-label="Next step"]'); const r = card.querySelector('.dm-ctl input[type=range]');
         for (let k = 0; k <= +(r ? r.max : 0); k++) f && f.click(); });
       document.querySelectorAll(`#${t} input[type=range]`).forEach(r => { r.value = r.max; r.dispatchEvent(new Event('input')); r.value = 0; r.dispatchEvent(new Event('input')); });

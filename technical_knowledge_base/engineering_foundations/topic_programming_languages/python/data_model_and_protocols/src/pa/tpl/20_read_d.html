@@ -3,17 +3,26 @@
 [[predict:g1_protocol]]
 [[drill:A generator used twice]]
 <p>Calling a <dfn>generator function</dfn> (one containing <code>yield</code>) runs none of its body; it returns a generator, an iterator whose <code>__next__</code> runs the body until the next <code>yield</code>, hands that value out, and freezes the function's local variables until it is asked again. <code>(f(x) for x in xs)</code> is the one-line form.</p>
+<div class="s3sp"><div class="s3R"><div id="stg-pipe"></div></div><div class="s3L">
 <h3>Lazy pipelines: one item at a time through every stage</h3>
-<p>Chain generator stages and items flow through the whole chain one at a time; chain list-returning stages and each finishes before the next begins, holding every intermediate result. The program below does both on three lines of a chat log (the root page's running example: count tokens per user). Predict in which order the lazy version prints "read", "parse" and "count", then step its real printed trace.</p>
-<div class="dm-anim" id="dm-lazy-card">
-<h4>Eager stages each finish before the next starts; lazy stages pass one line all the way through</h4>
-<div class="seg" id="dm-lazy-mode"><button data-m="eager" class="on">Eager: lists</button><button data-m="lazy">Lazy: generators</button></div>
-<div class="dm-ctl" id="dm-lazy-ctl"></div>
-<div class="dm-svg" id="dm-lazy-svg"></div>
-<div class="dm-cap" id="dm-lazy-cap"></div>
-<div class="dm-cnt" id="dm-lazy-cnt"></div>
-<div class="dm-src">Steps are the lines printed by <code>code/g2_order.py</code> (in the closed block below), in order. "Held" counts items stored in the lists that exist at that moment: the eager version keeps each stage's whole list until the next stage has consumed it.</div>
-</div>
+<p>Chain generator stages and items flow through the whole chain one at a time; chain list-returning stages and each finishes before the next begins, holding every intermediate result. The program below does both on three lines of a chat log (the root page's running example: count tokens per user). Predict in which order the lazy version prints "read", "parse" and "count", then play Fig. 4 in each mode: every step is a stretch of the lines <code>g2_order.py</code> printed, in order.</p>
+<p class="sxh">Eager stages each finish before the next starts; lazy stages pass one line all the way through</p>
+<div class="s3chips" id="dm-pipe-mode"><button data-m="eager" class="on">Eager: lists</button><button data-m="lazy">Lazy: generators</button></div>
+<ol class="sx" id="sx-pipe-eager">
+<li data-n="3"><b>read_list reads every line first.</b> Printed <code>read {"user": "a"</code>, <code>read oops</code>, <code>read {"user": "b"</code>: all three lines go into one list before anything downstream starts. Held: 3 items.</li>
+<li data-n="6"><b>Then parse_list parses them all.</b> Printed <code>parse a</code>, <code>parse skip</code>, <code>parse b</code>: the bad line is dropped, and the read list stays alive until parsing returns. Held: 5 items (3 lines, 2 messages).</li>
+<li data-n="8"><b>Then count_list counts.</b> Printed <code>count a 2</code>, <code>count b 1</code>; the read list is gone, the parsed one is still held. Held: 4 items (2 messages, 2 counts).</li>
+<li data-n="8"><b><code>sum</code> adds the last list: total 3.</b> Every stage ran to the end before the next began, so each intermediate list existed in full.</li>
+</ol>
+<ol class="sx" id="sx-pipe-lazy" hidden>
+<li data-n="1"><b><code>sum()</code> pulls; nothing ran before.</b> <code>sum</code> asks <code>count_gen</code> for a value, which asks <code>parse_gen</code>, which asks <code>read_gen</code> (the grey dots, flowing backwards); only then is one line read. Printed <code>read {"user": "a"</code>.</li>
+<li data-n="3"><b>That line goes all the way through.</b> Printed <code>parse a</code>, then <code>count a 2</code>: <code>sum</code> holds 2 before the second line has been read.</li>
+<li data-n="5"><b>The bad line stops at parse.</b> Printed <code>read oops</code>, <code>parse skip</code>: <code>parse_gen</code> drops it and at once asks <code>read_gen</code> for the next line; nothing reaches <code>count_gen</code>.</li>
+<li data-n="8"><b>The last line.</b> Printed <code>read {"user": "b"</code>, <code>parse b</code>, <code>count b 1</code>: the sum is 3.</li>
+<li data-n="8"><b>StopIteration ends the chain: total 3.</b> <code>read_gen</code> runs out of lines and returns, which ends the <code>for</code> loop inside <code>parse_gen</code> with StopIteration; it returns in turn, and so on up to <code>sum</code>. At most one line was ever in flight, and no list was built.</li>
+</ol>
+<p class="small mute">"Held" counts items stored in the lists that exist at that moment: the eager version keeps each stage's whole list until the next stage has consumed it.</p>
+</div></div>
 <details class="dp"><summary>The program and its printed trace <span class="mute">(g2_order.py)</span></summary><div class="b">
 [[run:g2_order]]
 </div></details>

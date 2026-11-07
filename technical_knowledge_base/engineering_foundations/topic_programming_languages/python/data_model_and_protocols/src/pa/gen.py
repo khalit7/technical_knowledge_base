@@ -111,6 +111,8 @@ DATA = {
     "n7_graph": json.loads((OUT / "n7_graph.json").read_text()),
     "d2_dispatch": json.loads((OUT / "d2_dispatch.json").read_text()),
     "g2_order": parse_g2(),
+    # recorded outputs the 3D stages print from (2026-11-07): the MRO run, the descriptor run, the class-attribute run
+    "out": {n: (OUT / f"{n}.txt").read_text().rstrip("\n") for n in ("c1_mro", "c4_descriptor", "c5_classattr")},
 }
 
 written = []

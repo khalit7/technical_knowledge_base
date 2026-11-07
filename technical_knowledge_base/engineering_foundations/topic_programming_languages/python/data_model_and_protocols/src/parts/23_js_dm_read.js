@@ -1,22 +1,12 @@
-// ---- Reading tab: the shallow/deep copy stepper (section 2) and the eager/lazy pipeline stepper (section 3).
-// Adapted from the language page's src/pa/tpl/35_js_pa_read.js (2026-10-26): ids carry this page's prefix, the tab is t-read,
-// and a mode switch resets to step 1 instead of playing (nothing moves before the reader acts).
+// ---- Reading tab: the shallow/deep copy stepper (section 2, Fig. 3).
+// Adapted from the language page's src/pa/tpl/35_js_pa_read.js (2026-10-26). 2026-11-07: the steps are explained by the ol.sx lists on the left
+// (sx-names-shallow, sx-names-deep), which replace the per-step caption; RD.anim plays it once in view; a mode switch swaps the list and replays.
+// The eager/lazy pipeline stepper of section 3 became the 3D stage in 31_js_sc_pipe.js.
 (function(){
   const $=id=>document.getElementById(id), esc=RD.esc;
   if(!window.PA)return;
   // ---------- 1. names -> objects, shallow vs deep copy ----------
   (function(){
-    const CAP={
-      shallow:['<code>row = [1, 2]</code>: one list object, L1, and one name pointing at it.',
-        '<code>grid = [row, row]</code>: a new list L2 whose two slots both point at L1. Nothing was copied; L1 now has three references (row and two slots).',
-        '<code>copy1 = grid.copy()</code>: a new outer list L3, but its slots point at the <b>same</b> L1. A shallow copy copies one level.',
-        '<code>grid[0].append(3)</code>: mutates L1. Every path to L1 sees it: <code>row</code>, both slots of <code>grid</code> and both slots of <code>copy1</code>.',
-        '<code>grid.append([9])</code>: changes only the outer list L2. L3 is a different outer list, so <code>copy1</code> still has two slots.'],
-      deep:['<code>row = [1, 2]</code>: one list object, L1.',
-        '<code>grid = [row, row]</code>: L2 with two slots pointing at L1.',
-        '<code>copy1 = copy.deepcopy(grid)</code>: new lists all the way down: L3 and a new inner list L4. Note both slots of L3 point at the <b>one</b> L4: deepcopy keeps a memo, so sharing inside the original is reproduced, not multiplied.',
-        '<code>grid[0].append(3)</code>: mutates L1. <code>copy1</code> is untouched: L4 is a separate object.',
-        '<code>grid.append([9])</code>: changes L2 only.']};
     let mode='shallow';
     const card=$('dm-names-card');if(!card)return;
     function draw(i){
@@ -33,7 +23,7 @@
       const prevItems={};if(prev)prev.objs.forEach(o=>prevItems[o.id]=o.items.join(','));
       objs.forEach(o=>{const p=pos[o.id],n=o.items.length,chg=prev&&(prevItems[o.id]===undefined||prevItems[o.id]!==o.items.join(','));
         b+='<rect x="'+p.x+'" y="'+p.y+'" width="'+(Math.max(1,n)*cw)+'" height="'+bh+'" rx="3" fill="'+(chg?'var(--hl)':'var(--soft)')+'" stroke="var(--mute)"/>';
-        b+=RD.t(p.x,p.y-3,o.id+' (list)',{fs:10.5,fill:'var(--mute)'});
+        b+=RD.t(p.x,p.y-3,o.id+' (list)',{fs:11.5,fill:'var(--mute)'});
         o.items.forEach((it,k)=>{const cx=p.x+k*cw;if(k)b+='<line x1="'+cx+'" y1="'+p.y+'" x2="'+cx+'" y2="'+(p.y+bh)+'" stroke="var(--mute)"/>';
           if(/^L\d+$/.test(it)){const q=pos[it],sx=cx+cw/2,sy=p.y+bh/2;b+='<circle cx="'+sx+'" cy="'+sy+'" r="3" fill="var(--acc)"/>';
             const tx=q.x,ty=q.y+bh/2;b+='<path d="M'+sx+','+sy+' C'+(sx+40)+','+(sy+30)+' '+(tx-50)+','+ty+' '+(tx-2)+','+ty+'" fill="none" stroke="var(--acc)" stroke-width="1.3" marker-end="url(#dm-arn)"/>'}
@@ -43,50 +33,14 @@
         b+='<rect x="2" y="'+y+'" width="52" height="'+bh+'" rx="12" fill="var(--acc2)" stroke="var(--acc)"/>'+RD.t(28,y+16,n,{a:'middle',fs:12,w:600});
         const ty=t.y+bh/2;b+='<path d="M54,'+(y+bh/2)+' C'+(70)+','+(y+bh/2)+' '+(t.x-30)+','+ty+' '+(t.x-2)+','+ty+'" fill="none" stroke="var(--ink)" stroke-width="1.2" marker-end="url(#dm-arn)"/>'});
       $('dm-names-svg').innerHTML=RD.svg(W,H,b,'Names and list objects after: '+st.line);
-      $('dm-names-cap').innerHTML='<b>Step '+(i+1)+' of '+steps.length+'.</b> '+CAP[mode][i];
       const g=st.names.grid&&objs.find(o=>o.id===st.names.grid),c=st.names.copy1&&objs.find(o=>o.id===st.names.copy1);
       const shared=g&&c?c.items.filter(x=>g.items.includes(x)&&/^L/.test(x)).length:0;
       $('dm-names-cnt').innerHTML='<span>list objects alive: <b>'+objs.length+'</b></span><span>slots of copy1 pointing into the original: <b>'+(c?shared+' of '+c.items.length:'n/a')+'</b></span><span>copy1 prints: <b>'+(c?esc(JSON.stringify(c.items.map(x=>/^L/.test(x)?objs.find(o=>o.id===x).items.map(Number):Number(x))).replace(/,/g,', ')):'n/a')+'</b></span>';
     }
-    const an=RD.anim({card:'dm-names-card',ctl:'dm-names-ctl',n:5,draw,ms:2200,label:'Line of the program'});
-    RD.seg($('dm-names-mode'),m=>{mode=m;an.reset(5)});
+    const an=RD.anim({card:'dm-names-card',ctl:'dm-names-ctl',n:5,draw,ms:4200,label:'Line of the program',list:'sx-names-shallow'});
+    RD.seg($('dm-names-mode'),m=>{mode=m;['shallow','deep'].forEach(x=>$('sx-names-'+x).hidden=x!==m);an.reset(PA.names[m].length,'sx-names-'+m)});
     RD.onResize(()=>an.redraw());
   })();
 
-  // ---------- 3. eager lists vs lazy generators on the same three lines ----------
-  (function(){
-    if(!$('dm-lazy-card'))return;
-    let mode='eager';
-    const ST=['read','parse','count'];
-    function draw(i){
-      const tr=PA.lazy[mode],W=Math.min(640,RD.width($('dm-lazy-svg'))),cw=(W-10)/3,H=150;
-      const done={read:[],parse:[],count:[]};
-      for(let k=0;k<=i;k++){const [s,v]=tr[k];done[s].push(v)}
-      const [cs,cv]=tr[i];
-      let b='';
-      ST.forEach((s,j)=>{const x=5+j*cw;
-        b+='<rect x="'+(x+2)+'" y="2" width="'+(cw-4)+'" height="'+(H-4)+'" rx="8" fill="var(--soft)" stroke="'+(s===cs?'var(--acc)':'var(--line)')+'" stroke-width="'+(s===cs?2:1)+'"/>';
-        b+=RD.t(x+cw/2,20,s+(mode==='eager'?'_list':'_gen'),{a:'middle',fs:12,w:600});
-        done[s].forEach((v,k)=>{const y=34+k*26,cur=(s===cs&&k===done[s].length-1);
-          b+='<rect x="'+(x+8)+'" y="'+y+'" width="'+(cw-16)+'" height="20" rx="4" fill="'+(cur?'var(--hl)':'var(--bg)')+'" stroke="var(--line)"/>';
-          let lab=v.replace(/^\{"user": /,'{');if(lab.length>Math.floor((cw-22)/6.6))lab=lab.slice(0,Math.max(3,Math.floor((cw-22)/6.6)-1))+'…';
-          b+=RD.t(x+cw/2,y+14,esc(lab),{a:'middle',fs:11})});
-      });
-      $('dm-lazy-svg').innerHTML=RD.svg(W,H,b,'Pipeline stages, '+mode);
-      // items stored in lists at this moment (eager: the stage being built plus the list it consumes)
-      let held=0;
-      if(mode==='eager'){const j=ST.indexOf(cs);held=done[cs].length+(j>0?done[ST[j-1]].length:0)}
-      const tot=tr.length;
-      let cap='<b>Step '+(i+1)+' of '+tot+'.</b> <code>'+esc(cs+'  '+cv)+'</code>: ';
-      if(mode==='eager'){cap+=cs==='read'?'the read stage loops over every line and appends each to its list; nothing downstream has started.':cs==='parse'?'parsing starts only after the whole read list exists. The bad line is skipped.':'counting starts only after the whole parse list exists.'}
-      else {cap+=cs==='read'?'<code>sum()</code> asks <code>count_gen</code> for a value, which asks <code>parse_gen</code>, which asks <code>read_gen</code>: one line is read.':cs==='parse'?(cv==='skip'?'the bad line is skipped and <code>parse_gen</code> immediately asks for the next line.':'that one line is parsed and handed on at once.'):'counted and added to the sum; then the chain pulls the next line.'}
-      if(i===tot-1)cap+=' Total 3 tokens either way; at a million lines the eager version peaked at about 106 MiB and the lazy one at about 1.1 KiB (measured below).';
-      $('dm-lazy-cap').innerHTML=cap;
-      $('dm-lazy-cnt').innerHTML='<span>items stored in lists now: <b>'+held+'</b></span><span>stage now: <b>'+cs+'</b></span><span>lines read so far: <b>'+done.read.length+' of 3</b></span>';
-    }
-    const an=RD.anim({card:'dm-lazy-card',ctl:'dm-lazy-ctl',n:PA.lazy.eager.length,draw,ms:1300,label:'Printed line'});
-    RD.seg($('dm-lazy-mode'),m=>{mode=m;an.reset(PA.lazy[m].length)});
-    RD.onResize(()=>an.redraw());
-  })();
 
 })();
