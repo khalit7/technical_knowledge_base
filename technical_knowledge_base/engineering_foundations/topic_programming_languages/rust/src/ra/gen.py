@@ -6,6 +6,7 @@ Template directives (all replaced by HTML):
   [[out:NAME]]                          recorded output out/NAME.txt (long ones folded after 22 lines)
   [[pr:NAME|QUESTION]]                  predict, then reveal: the output hidden in a <details>
   [[g:NAME|REGEX]]                      the first regex group found in out/NAME.txt (inline value)
+  [[lines:PATH]]                        the number of lines of a source file under code/ (Fig. 1 and its step list)
   [[drill:ID]]                          a Python-to-Rust prediction prompt: the Python, three Rust candidates,
                                         and their recorded results in a closed block (notes from content.py)
 Also writes parts/34_js_ra_data.js (the ownership stepper's two runs, the borrow timeline's three programs, the
@@ -148,11 +149,15 @@ def drill(k):
     return "".join(h)
 
 
-DIRECT = re.compile(r"\[\[(code|out|pr|g|drill):(.+?)\]\]", re.S)
+DIRECT = re.compile(r"\[\[(code|out|pr|g|lines|drill):(.+?)\]\]", re.S)
+
+
+def lines(path):
+    return str(len(src(path).split("\n")))
 
 
 def render(text):
-    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab, "drill": drill}[m.group(1)](m.group(2)), text)
+    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab, "lines": lines, "drill": drill}[m.group(1)](m.group(2)), text)
 
 
 def data():
@@ -160,6 +165,9 @@ def data():
                  "rs_log": read_out("l_own_anim"), "py_log": read_out("l_own_anim_py")},
          "gate": {k: {"src": src(f"lang/{f}.rs"), "out": read_out(o)} for k, f, o in
                   [("err", "gate_err", "l_gate_err"), ("fix", "gate_fix", "l_gate_fix"), ("reorder", "gate_reorder", "l_gate_reorder")]}}
+    # Fig. 1 (the map): the crate's files and their line counts, and the run of the finished program
+    d["map"] = {"files": {f: int(lines("tokstat/" + f)) for f in ["Cargo.toml", "src/lib.rs", "src/tokenize.rs", "src/tally.rs", "src/main.rs"]},
+                "run": read_out("l_tokstat_run")}
     bc = []
     for s in content.BC:
         k = s["id"]

@@ -1,6 +1,104 @@
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="hero" id="ra-own-card"><h4>Fig. 2 · One Vec, at its real addresses: a borrow copies nothing, growth moves the buffer, a move copies 24 bytes, drop frees at a known line</h4>
+<div class="seg" id="ra-own-seg"><button data-m="rs" class="on">Rust</button><button data-m="py">The same steps in Python</button></div>
+<div class="ra-ctl" id="ra-own-ctl"></div>
+<div class="ra-og"><div class="ra-lc" id="ra-own-code"></div><div class="ra-mem" id="ra-own-svg"></div></div>
+<div class="ra-cnt" id="ra-own-cnt"></div>
+<details class="dp"><summary>The source and the two recorded runs</summary>
+<div class="ra-src"><div class="ra-fn">own_anim.rs</div><pre class="ra-code"><span class="ra-cm">// Prints the real addresses behind the ownership animation: a Vec is three</span>
+<span class="ra-cm">// machine words on the stack (pointer, capacity, length) and a buffer on the heap.</span>
+<span class="ra-kw">fn</span> show(step: &amp;str, name: &amp;str, v: &amp;Vec&lt;u32&gt;) &#123;
+    <span class="ra-mac">println!</span>(
+        <span class="ra-st">"&#123;step&#125; &#123;name&#125; stack=&#123;:p&#125; heap=&#123;:p&#125; len=&#123;&#125; cap=&#123;&#125; data=&#123;:?&#125;"</span>,
+        v <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Vec&lt;u32&gt;, v.as_ptr(), v.len(), v.capacity(), v
+    );
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"size_of::&lt;Vec&lt;u32&gt;&gt;() = &#123;&#125;"</span>, std::mem::size_of::&lt;Vec&lt;u32&gt;&gt;());
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> v: Vec&lt;u32&gt; = Vec::with_capacity(3);
+    v.extend([10, 20, 30]);
+    show(<span class="ra-st">"1"</span>, <span class="ra-st">"v"</span>, &amp;v);
+    <span class="ra-kw">let</span> r = &amp;v; <span class="ra-cm">// a shared borrow: a pointer to v's stack slot</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"2 r points to &#123;:p&#125; (v's stack slot), r.len()=&#123;&#125;"</span>, r <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Vec&lt;u32&gt;, r.len());
+    v.push(40); <span class="ra-cm">// r is no longer used, so v may be mutated: the buffer is full, so it grows</span>
+    show(<span class="ra-st">"3"</span>, <span class="ra-st">"v"</span>, &amp;v);
+    <span class="ra-kw">let</span> m = &amp;<span class="ra-kw">mut</span> v; <span class="ra-cm">// one exclusive borrow</span>
+    m[0] = 11;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"4 m points to &#123;:p&#125;, wrote m[0]=11"</span>, m <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Vec&lt;u32&gt;);
+    <span class="ra-kw">let</span> w = v; <span class="ra-cm">// move: the three words are copied to w's slot, the heap buffer is not touched</span>
+    show(<span class="ra-st">"5"</span>, <span class="ra-st">"w"</span>, &amp;w);
+    <span class="ra-kw">let</span> c = w.clone(); <span class="ra-cm">// clone: a new heap buffer with a copy of the elements</span>
+    show(<span class="ra-st">"6"</span>, <span class="ra-st">"c"</span>, &amp;c);
+    drop(w); <span class="ra-cm">// w's buffer is freed now</span>
+    <span class="ra-mac">println!</span>(<span class="ra-st">"7 dropped w"</span>);
+    show(<span class="ra-st">"8"</span>, <span class="ra-st">"c"</span>, &amp;c);
+&#125;</pre></div>
+<pre class="ra-out" data-ra-out="l_own_anim">
+<span class="ra-cmd">$ rustc --edition 2024 own_anim.rs &amp;&amp; ./own_anim</span>
+size_of::&lt;Vec&lt;u32&gt;&gt;() = 24
+1 v stack=0x16da0a2a8 heap=0x102d3d4a0 len=3 cap=3 data=[10, 20, 30]
+2 r points to 0x16da0a2a8 (v's stack slot), r.len()=3
+3 v stack=0x16da0a2a8 heap=0x102d3d510 len=4 cap=6 data=[10, 20, 30, 40]
+4 m points to 0x16da0a2a8, wrote m[0]=11
+5 w stack=0x16da0a350 heap=0x102d3d510 len=4 cap=6 data=[11, 20, 30, 40]
+6 c stack=0x16da0a368 heap=0x102d3d4a0 len=4 cap=4 data=[11, 20, 30, 40]
+7 dropped w
+8 c stack=0x16da0a368 heap=0x102d3d4a0 len=4 cap=4 data=[11, 20, 30, 40]</pre>
+<div class="ra-src"><div class="ra-fn">own_anim.py</div><pre class="ra-code"><span class="ra-cm"># The same steps in Python: names point at objects; nothing is moved.</span>
+<span class="ra-kw">import</span> sys
+v = [10, 20, 30]
+<span class="ra-kw">print</span>(<span class="ra-st">"1 v id=%#x refcount=%d len=%d"</span> % (id(v), sys.getrefcount(v) - 1, len(v)))
+r = v
+<span class="ra-kw">print</span>(<span class="ra-st">"2 r id=%#x (same object) refcount=%d"</span> % (id(r), sys.getrefcount(v) - 1))
+v.append(40)
+<span class="ra-kw">print</span>(<span class="ra-st">"3 v id=%#x r sees %s"</span> % (id(v), r))
+m = v
+m[0] = 11
+<span class="ra-kw">print</span>(<span class="ra-st">"4 m id=%#x refcount=%d v=%s"</span> % (id(m), sys.getrefcount(v) - 1, v))
+w = v
+<span class="ra-kw">print</span>(<span class="ra-st">"5 w id=%#x refcount=%d (v still usable: %s)"</span> % (id(w), sys.getrefcount(v) - 1, v))
+c = w.copy()
+<span class="ra-kw">print</span>(<span class="ra-st">"6 c id=%#x (new object) refcount=%d"</span> % (id(c), sys.getrefcount(c) - 1))
+del w
+<span class="ra-kw">print</span>(<span class="ra-st">"7 del w: object still alive, refcount=%d (v, r, m remain)"</span> % (sys.getrefcount(v) - 1))
+<span class="ra-kw">print</span>(<span class="ra-st">"8 c=%s v=%s"</span> % (c, v))</pre></div>
+<pre class="ra-out" data-ra-out="l_own_anim_py">
+<span class="ra-cmd">$ python3.14 own_anim.py</span>
+1 v id=0x105e26140 refcount=1 len=3
+2 r id=0x105e26140 (same object) refcount=2
+3 v id=0x105e26140 r sees [10, 20, 30, 40]
+4 m id=0x105e26140 refcount=3 v=[11, 20, 30, 40]
+5 w id=0x105e26140 refcount=4 (v still usable: [11, 20, 30, 40])
+6 c id=0x10a8842c0 (new object) refcount=1
+7 del w: object still alive, refcount=3 (v, r, m remain)
+8 c=[11, 20, 30, 40] v=[11, 20, 30, 40]</pre>
+</details>
+</div></div></div><div class="s3L">
 <section id="ra-own">
 <h2>4. Ownership and moves</h2>
-<p>First, where values live. Each function call gets a <dfn>stack frame</dfn>, a block of memory for its local variables, released automatically when the function returns. Data whose size is only known at run time (a growing vector, a string read from a file) goes on the <dfn>heap</dfn>, which someone must release explicitly. A Rust <code>String</code> or <code>Vec</code> is a small fixed-size <b>header on the stack</b> (three machine words: a pointer to the heap buffer, the capacity, the length; 24 bytes) plus <b>a buffer on the heap</b>, as the hero at the top draws. Python hides all of this: every object is on the heap and names are references to it.</p>
+<p>First, where values live. Each function call gets a <dfn>stack frame</dfn>, a block of memory for its local variables, released automatically when the function returns. Data whose size is only known at run time (a growing vector, a string read from a file) goes on the <dfn>heap</dfn>, which someone must release explicitly. A Rust <code>String</code> or <code>Vec</code> is a small fixed-size <b>header on the stack</b> (three machine words: a pointer to the heap buffer, the capacity, the length; 24 bytes) plus <b>a buffer on the heap</b>. Python hides all of this: every object is on the heap and names are references to it.</p>
+<p>Fig. 2 is one small program, stepped line by line; every address and number in it was printed by the program itself when it ran (rustc 1.99.0), and the counters under it keep the score: allocations, live blocks, bytes copied by moves, elements copied. <b>Predict first:</b> after <code>let w = v;</code>, which address changes, the stack slot or the heap block? Switch the figure to <b>Python</b> for the same steps in Python's model: names pointing at one object, and a reference count.</p>
+<ol class="sx" id="sx-own-rs">
+<li><b>One owner, two places.</b> A <code>Vec</code> with capacity 3 holds 10, 20, 30. Its header is on the stack at 0x16da0a2a8; the elements are in one heap block at 0x102d3d4a0.</li>
+<li><b>Borrowing never copies.</b> <code>r = &amp;v</code> is just an 8-byte pointer to <code>v</code>'s stack slot (the run printed 0x16da0a2a8, the same address as <code>v</code>).</li>
+<li><b>Growth moves the buffer.</b> <code>push(40)</code> on a full vector allocated a new block (capacity 3 to 6) at 0x102d3d510, copied the elements and freed the old one. <code>r</code> pointed at the header and is not used again, so this was allowed; a reference into the buffer (like <code>&amp;v[0]</code>) would now point at freed memory, which is exactly why the borrow checker refuses a reference into the buffer across a <code>push</code> (section 5).</li>
+<li><b>One writer.</b> <code>m = &amp;mut v</code> is an exclusive borrow: while <code>m</code> is in use nobody else may read or write <code>v</code>. <code>m[0] = 11</code> writes into the heap block through it.</li>
+<li><b>A move copies 24 bytes, not the data.</b> <code>let w = v</code> copies the header to <code>w</code>'s slot (0x16da0a350); the heap block is untouched and still at 0x102d3d510. <code>v</code> is now unusable: any use is a compile error.</li>
+<li><b>Clone allocates.</b> <code>c = w.clone()</code> is a deep copy with its own block (4 slots, at 0x102d3d4a0). On this run the allocator handed it the block freed at step 3. Reusing freed memory is normal, and is why a dangling pointer can read someone else's data in C++.</li>
+<li><b>Drop frees at a known line.</b> <code>drop(w)</code> releases the second block now, at a line you can point to. No garbage collector, no reference count.</li>
+<li><b>The clone lives on.</b> <code>c</code> is still valid and owns its own block.</li>
+<li><b>The closing brace.</b> <code>c</code> goes out of scope at the end of <code>main</code> and its block is freed: not printed, because this is the drop the compiler inserts.</li>
+</ol>
+<ol class="sx" id="sx-own-py" hidden>
+<li><b>One object, one name.</b> <code>v = [10, 20, 30]</code>: the name <code>v</code> points at one list object on the heap (id 0x105e26140), reference count 1.</li>
+<li><b>A second name.</b> <code>r = v</code> names the <b>same object</b>; the count becomes 2. Python never copies on assignment.</li>
+<li><b>Growth in place.</b> <code>v.append(40)</code>: the list grows in place (its internal pointer array may move, the object does not), and <code>r</code> sees the change.</li>
+<li><b>A change through any name.</b> <code>m = v; m[0] = 11</code>: a third name; a change through any of them is visible through all. Count 3.</li>
+<li><b>No such thing as a move.</b> <code>w = v</code>: a fourth name, and the count rises to 4; <code>v</code> stays usable.</li>
+<li><b>The only new object.</b> <code>c = w.copy()</code> is the only allocation after the first (id 0x10a8842c0).</li>
+<li><b>del removes a name.</b> <code>del w</code> removes a name, not the object: the count drops to 3 and the list lives on.</li>
+<li><b>Freed when the count reaches zero.</b> Both objects are alive; each is freed when its count reaches zero (here, when the program ends).</li>
+</ol>
 <p>The ownership rules ({{Rust Book 4.1|https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html}}): each value has one <dfn>owner</dfn> (a variable, a field, a vector slot); when the owner goes out of scope the value is <dfn>dropped</dfn> (its heap memory freed); assigning or passing a value <b>moves</b> ownership.</p>
 <div class="ra-src"><div class="ra-fn">move.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> shout(s: String) -&gt; String &#123;
     <span class="ra-cm">// takes ownership of s; returns ownership of a new String</span>
@@ -135,7 +233,16 @@ For more information about this error, try `rustc --explain E0382`.
 <span class="ra-cmd">$ rustc --edition 2024 d02_c.rs &amp;&amp; ./d02_c</span>
 [1, 2, 3]</pre></details></div>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="ra-fig" id="ra-nll-card"><h4>Fig. 3 · A borrow lives until its last use: the checker refuses only when a shared bar and the push overlap</h4>
+<div class="seg" id="ra-nll-seg"><button data-m="err" class="on">As written (refused)</button><button data-m="reorder">Last use moved up</button><button data-m="fix">Copy the value</button></div>
+<div class="ra-ctl" id="ra-nll-ctl"></div>
+<div class="ra-tl" id="ra-nll-code"></div>
+<div class="ra-leg"><span><i style="background:var(--c1)"></i>shared borrow <code>&amp;v</code> alive</span><span><i style="background:var(--c2)"></i>exclusive borrow <code>&amp;mut v</code> (push)</span><span><i style="background:var(--ra-red)"></i>conflict</span></div>
+<pre class="ra-out" id="ra-nll-out"></pre>
+</div></div>
+</div><div class="s3L">
 <section id="ra-borrow">
 <h2>5. Borrowing: many readers or one writer</h2>
 <p>Moving everything everywhere would be unbearable, so you lend a value instead: a <dfn>reference</dfn> <code>&amp;v</code> borrows it without taking ownership. Two kinds:</p>
@@ -190,17 +297,41 @@ error: aborting due to 1 previous error
 
 For more information about this error, try `rustc --explain E0502`.
 [exit code 1]</pre>
-<p><code>first</code> points <i>into</i> the vector's heap buffer. <code>push</code> may find the buffer full, allocate a bigger one, copy the elements and free the old one (step 3 of the hero); <code>first</code> would then point at freed memory. In C++ the same code compiles and reads freed memory (the root page runs it: Reading section 5).</p>
-<div class="ra-fig" id="ra-nll-card"><h4>A borrow lives until its last use: the checker refuses only when a shared bar and the push overlap</h4>
-<p class="small"><b>Predict first:</b> which of the three versions compile? Then step through each; every bar runs from a borrow's creation to its last use, and red is an overlap.</p>
-<div class="seg" id="ra-nll-seg"><button data-m="err" class="on">As written (refused)</button><button data-m="reorder">Last use moved up</button><button data-m="fix">Copy the value</button></div>
-<div class="ra-ctl" id="ra-nll-ctl"></div>
-<div class="ra-tl" id="ra-nll-code"></div>
-<div class="ra-leg"><span><i style="background:var(--c1)"></i>shared borrow <code>&amp;v</code> alive</span><span><i style="background:var(--c2)"></i>exclusive borrow <code>&amp;mut v</code> (push)</span><span><i style="background:var(--ra-red)"></i>conflict</span></div>
-<div class="ra-cap" id="ra-nll-cap"></div>
-<pre class="ra-out" id="ra-nll-out"></pre>
-</div>
-<p>Two fixes, both recorded: use the reference before mutating (its last use moves up, so the bars no longer overlap), or copy the <code>i32</code> out (no borrow at all). Both are what you would do in Python if you knew the list might move.</p>
+<p><code>first</code> points <i>into</i> the vector's heap buffer. <code>push</code> may find the buffer full, allocate a bigger one, copy the elements and free the old one (step 3 of Fig. 2); <code>first</code> would then point at freed memory. In C++ the same code compiles and reads freed memory (the root page runs it: Reading section 5).</p>
+<p><b>Predict first:</b> which of the three versions in Fig. 3 compile? Each bar runs from a borrow's creation to its last use, and red is an overlap; the steps walk the program one line at a time and end with what the compiler said.</p>
+<ol class="sx" id="sx-nll-err">
+<li><b>Start.</b> <code>main</code> starts.</li>
+<li><b>One owner.</b> <code>v</code> owns a vector with one element.</li>
+<li><b>A shared borrow.</b> <code>first</code> borrows <code>v</code> (shared, blue). The borrow lives until <code>first</code> is last used.</li>
+<li><b>Conflict.</b> <code>push</code> needs <code>&amp;mut v</code> (orange) while the blue borrow is still alive (it is used on line 5): the bars overlap.</li>
+<li><b>The later use.</b> Line 5 is why the blue borrow was alive at line 4. Remove this use and the conflict disappears.</li>
+<li><b>The closing brace.</b> <code>v</code> goes out of scope and its buffer is freed.</li>
+<li><b>Refused.</b> The compiler refuses the program, with the three labels you just saw: borrow, conflicting use, later use.</li>
+</ol>
+<ol class="sx" id="sx-nll-reorder" hidden>
+<li><b>Start.</b> <code>main</code> starts.</li>
+<li><b>One owner.</b> <code>v</code> owns a vector with one element.</li>
+<li><b>A shared borrow.</b> <code>first</code> borrows <code>v</code> (shared, blue).</li>
+<li><b>Its last use.</b> <code>first</code> is used for the last time: the blue borrow ends here.</li>
+<li><b>No overlap.</b> <code>push</code> takes <code>&amp;mut v</code>; no other borrow is alive, so it is allowed.</li>
+<li><b>A brief borrow.</b> Printing <code>v</code> borrows it again briefly.</li>
+<li><b>The closing brace.</b> <code>v</code> goes out of scope and its buffer is freed.</li>
+<li><b>Accepted.</b> Compiles and runs: the bars do not overlap.</li>
+</ol>
+<ol class="sx" id="sx-nll-fix" hidden>
+<li><b>Start.</b> <code>main</code> starts.</li>
+<li><b>One owner.</b> <code>v</code> owns a vector with one element.</li>
+<li><b>A copy, not a borrow.</b> <code>v[0]</code> is an <code>i32</code>, which is <code>Copy</code>: <code>first</code> is a copy of the number, not a borrow.</li>
+<li><b>Nothing else borrows.</b> <code>push</code> takes <code>&amp;mut v</code>; nothing else borrows <code>v</code>.</li>
+<li><b>Independent.</b> <code>first</code> is an independent number; the vector may have moved, it does not matter.</li>
+<li><b>The closing brace.</b> <code>v</code> goes out of scope and its buffer is freed.</li>
+<li><b>Accepted.</b> Compiles and runs.</li>
+</ol>
+<p>Two fixes, both recorded: use the reference before mutating (its last use moves up, so the bars no longer overlap), or copy the <code>i32</code> out (no borrow at all). Both are what you would do in Python if you knew the list might move. When a borrow must outlive one function, the span becomes a lifetime: the {{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}} draws it in its {{lifetimes figure|n:4055c17b0d0d8160aa32df9cda0aef03#stg-life}}.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="ra-read">
 <h3>How to read a borrow error</h3>
 <ol>
 <li><b>The code and headline</b> (<code>error[E0502]</code>, "cannot borrow <code>v</code> as mutable because it is also borrowed as immutable") say which rule broke; <code>--&gt; gate_err.rs:4:5</code> is the file, line and column of the main conflict.</li>
@@ -208,11 +339,12 @@ For more information about this error, try `rustc --explain E0502`.
 <li><b>The fix is nearly always one of four:</b> end the first borrow earlier (move its last use up), copy or clone the small value out, restructure into "read first, then write", or give the data a different owner. <code>help:</code> lines often propose one, as a concrete edit (<code>+++</code> marks inserted text, <code>~</code> changed lines); they are usually right for the code as written, and not always right for your design.</li>
 <li><code>rustc --explain E0502</code> prints a full explanation with examples (also online in the {{error code index|https://doc.rust-lang.org/error_codes/error-index.html}}).</li>
 </ol>
-<div class="ra-fig" id="ra-bc-card"><h4>Borrow-checker lab: fifteen first-week mistakes, each with the compiler's real answer and a fix that ran</h4>
-<p class="small">Pick a scenario, decide what you think happens, then reveal the real rustc 1.99.0 output, how to read it, and the fix. Fourteen are refused at compile time (one of them wrongly: the code is safe), and one compiles and fails at run time. The lifetime, thread and <code>RefCell</code> scenarios are taught in depth on the {{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}.</p>
+<p>Fig. 4 is the practice ground: pick a scenario, decide what you think happens, then reveal the real rustc 1.99.0 output, how to read it, and the fix. Fourteen are refused at compile time (one of them wrongly: the code is safe), and one compiles and fails at run time. The lifetime, thread and <code>RefCell</code> scenarios are taught in depth on the {{lifetimes child|n:4055c17b0d0d8160aa32df9cda0aef03}}.</p>
+<div class="ra-cost"><div><b>Solves</b>Dangling references, iterator invalidation, and (on the lifetimes child) data races, all before the program runs.</div><div><b>Costs</b>Some correct programs are refused (scenario 8 in Fig. 4), and graph-shaped data (doubly linked lists, object graphs with back pointers) needs indexes or <code>Rc</code> and <code>RefCell</code>.</div><div><b>When it fights you</b>Fighting usually means two parts of the code both want to own or change the same data. Make one the owner and have the other ask it, or store indexes instead of references.</div></div>
+</section>
+</div><div class="s3R"><div class="ra-fig" id="ra-bc-card"><h4>Fig. 4 · Borrow-checker lab: fifteen first-week mistakes, each with the compiler's real answer and a fix that ran</h4>
 <div class="ra-pick" id="ra-bc-pick"></div>
 <div id="ra-bc-body"></div>
 <p class="small mute">Score: <span id="ra-bc-score">0 of 0</span> predicted right in this visit. Sources: every file is in <code>src/ra/code/bc/</code> and every output in <code>src/ra/out/</code>, recorded by <code>src/ra/run_all.sh</code>.</p>
 </div>
-<div class="ra-cost"><div><b>Solves</b>Dangling references, iterator invalidation, and (on the lifetimes child) data races, all before the program runs.</div><div><b>Costs</b>Some correct programs are refused (scenario 8 above), and graph-shaped data (doubly linked lists, object graphs with back pointers) needs indexes or <code>Rc</code> and <code>RefCell</code>.</div><div><b>When it fights you</b>Fighting usually means two parts of the code both want to own or change the same data. Make one the owner and have the other ask it, or store indexes instead of references.</div></div>
-</section>
+</div></div>

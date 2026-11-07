@@ -1,6 +1,6 @@
 // Checks for "Rust: the essentials": click every control of the Reading tab (the hero, the borrow timeline, the
 // Borrow-checker lab, the prediction prompts) at 390 dark and
-// 920 light (reduced motion); report script errors, NaN/undefined and sideways scroll; confirm the page embeds exactly
+// 920 light (reduced motion, so nothing autoplays; check_stages.mjs checks autoplay); report script errors, NaN/undefined and sideways scroll; confirm the page embeds exactly
 // the recorded outputs and that the JS data equals the files; confirm each prediction prompt has exactly one candidate
 // whose recorded output equals Python's, and that it is the marked answer.
 // usage: node src/ra/check.mjs [shots dir]   (puppeteer from html_utils/node_modules)

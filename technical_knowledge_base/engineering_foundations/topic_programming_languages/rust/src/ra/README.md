@@ -3,9 +3,9 @@
 The trimmed Part 1 folder of the old three-part Rust page: what this page shows and nothing else. The children hold their own copies (`cp -R`) of what they show.
 
 Generated parts in `../parts/`: `20_read_a.html` to `20_read_d.html` and `20_read_z.html` (the Reading tab, from `tpl/`), `34_js_ra_data.js` (the hero's two runs, the borrow timeline's three programs, the Borrow-checker lab's fifteen scenarios with `content.py`'s notes). Never edit them by hand.
-Hand-written scripts in `../parts/`: `35_js_ra_util.js` (highlighting, output blocks, run verdicts), `36_js_ra_read.js` (borrow timeline, prediction prompts), `37_js_ra_own.js` (the hero), `38_js_ra_bc.js` (the lab).
+Hand-written scripts in `../parts/`: `35_js_ra_util.js` (highlighting, output blocks, run verdicts), `36_js_ra_read.js` (borrow timeline, Fig. 3, prediction prompts), `37_js_ra_own.js` (one Vec, Fig. 2), `38_js_ra_bc.js` (the lab, Fig. 4), `39_js_sc_ra.js` (the 3D map, Fig. 1). `gen.py` also writes `RA_DATA.map` (the tokstat crate's line counts and its recorded run) and expands `[[lines:PATH]]` (a source file's line count).
 
-Reading section anchors: `ra-top`, `ra-one`, `ra-cargo`, `ra-num`, `ra-own`, `ra-borrow`, `ra-mod`, `ra-mist`, `ra-cpp`, `ra-kids`.
+Reading section anchors: `ra-top`, `ra-one`, `ra-cargo`, `ra-num`, `ra-own`, `ra-borrow`, `ra-read` (new 2026-11-07: How to read a borrow error and the lab), `ra-mod`, `ra-mist`, `ra-cpp`, `ra-kids`.
 
 ## Pipeline
 1. `sh src/ra/run_all.sh` copies `code/` (and the root's `src/rosetta/data/chat.jsonl`) to the scratch folder `pl/ra_es/work`, compiles and runs every example there, and records each command and its combined output in `out/NAME.txt` (paths shortened). Steps: `steps/10_basics.sh` (cargo, variables, numbers), `20_lang.sh` (ownership, borrowing, modules, the tokstat run), `40_bc.sh` (the 15 borrow-checker scenarios, their fixes, the Polonius run, and the three drill items d02, d03, d12 with three candidates each). About two minutes; `sh src/ra/run_all.sh 40` reruns one step.

@@ -15,25 +15,7 @@
   function lineOf(src,needle){const L=src.split('\n');const i=L.findIndex(x=>x.includes(needle));return i+1}
   const RS_LN=['v.extend','let r = &v','v.push(40)','m[0] = 11','let w = v','let c = w.clone()','drop(w)','show("8"'].map(n=>lineOf(D.rs_src,n));RS_LN.push(D.rs_src.split('\n').length);
   const PY_LN=['v = [10','r = v','v.append','m[0] = 11','w = v','c = w.copy()','del w','print("8'].map(n=>lineOf(D.py_src,n));
-  const CAP={rs:[
-    'A <code>Vec</code> with capacity 3 holds 10, 20, 30. Its header (pointer, capacity, length: 24 bytes) is on the stack at '+S_V+'; the elements are in one heap block at '+H1+'.',
-    '<code>r = &amp;v</code>: a shared borrow is just an 8-byte pointer to <code>v</code>\'s stack slot (the run printed '+R[2].to+'). Nothing is copied.',
-    '<code>push(40)</code>: the block is full, so <code>Vec</code> allocates a bigger one (capacity '+R[3].cap+') at '+H2+', copies the elements and frees the old block. <code>r</code> is not used again, so the checker allowed this. <code>r</code> pointed at the header, but a reference into the buffer (like <code>&amp;v[0]</code>) would now point at freed memory, which is why such a borrow across <code>push</code> is refused.',
-    '<code>m = &amp;mut v</code>: an exclusive borrow. While <code>m</code> is in use nobody else may read or write <code>v</code>. <code>m[0] = 11</code> writes into the heap block through it.',
-    '<code>let w = v</code>: a <b>move</b>. The 24-byte header is copied to <code>w</code>\'s slot ('+S_W+'); the heap block is untouched and still at '+H2+'. <code>v</code> is now unusable: any use is a compile error.',
-    '<code>c = w.clone()</code>: a deep copy, so a new heap block ('+R[6].cap+' slots, at '+HC+')'+(reuse?'. The allocator reused the block freed at step 3: same address.':'.'),
-    '<code>drop(w)</code>: <code>w</code>\'s block is freed now, at a line you can point to. No garbage collector, no reference count.',
-    '<code>c</code> is still valid and owns its own block.',
-    'The closing brace of <code>main</code>: <code>c</code> goes out of scope and its block is freed (not printed: this is the drop the compiler inserts).'],
-   py:[
-    '<code>v = [10, 20, 30]</code>: the name <code>v</code> points at one list object on the heap (id '+P[1]+'), reference count 1.',
-    '<code>r = v</code>: a second name for the <b>same object</b>; the count becomes '+P.rc2+'. Python never copies on assignment.',
-    '<code>v.append(40)</code>: the list grows in place (its internal pointer array may move, the object does not), and <code>r</code> sees the change.',
-    '<code>m = v; m[0] = 11</code>: a third name; a change through any name is visible through all of them. Count '+P.rc4+'.',
-    '<code>w = v</code>: a fourth name, count '+P.rc5+'. Nothing like a move exists: <code>v</code> stays usable.',
-    '<code>c = w.copy()</code>: the only new object in the program (id '+P[6]+').',
-    '<code>del w</code> removes a name, not the object: the count drops to '+P.rc7+' and the list lives on.',
-    'Both objects are alive; they are freed when their counts reach zero (here, when the program ends).']};
+  // the explanation of each step is the step list on the left (ol#sx-own-rs and #sx-own-py in the template)
   // Rust scene per step k (0-based): slots and blocks with states
   function rsScene(k){const s=k+1,S=[],B=[];
     const vState=s>=5?'moved':'live';
@@ -55,7 +37,7 @@
     if(s>=6)B.push({id:'C',addr:P[6],cap:4,data:['11','20','30','40'],st:'new',rc:1,obj:1});
     return {S,B}}
   let mode='rs';
-  const svgEl=document.getElementById('ra-own-svg'),cap=document.getElementById('ra-own-cap'),codeEl=document.getElementById('ra-own-code'),cnt=document.getElementById('ra-own-cnt');
+  const svgEl=document.getElementById('ra-own-svg'),codeEl=document.getElementById('ra-own-code'),cnt=document.getElementById('ra-own-cnt');
   function codeHtml(src,py,ln){return '<pre class="ra-lcp">'+src.split('\n').map((t,i)=>'<span class="ra-ln'+(i+1===ln?' on':'')+'"><span class="ra-no">'+(i+1)+'</span>'+RA.hl(t,py)+'</span>').join('')+'</pre>'}
   function T(x,y,s,o){o=o||{};return '<text x="'+x+'" y="'+y+'" font-size="'+(o.fs||11)+'"'+(o.a?' text-anchor="'+o.a+'"':'')+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+(o.dec?' text-decoration="line-through"':'')+'>'+s+'</text>'}
   function draw(k){
@@ -104,12 +86,11 @@
       svg+='<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.6" marker-end="url(#ra-own-ah)" opacity="'+(ended?0.5:1)+'"/>'});
     const H=Math.max(...Object.values(pos).map(p=>p.y+p.h))+6;
     svgEl.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Stack and heap at this step"><defs><marker id="ra-own-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--mute)"/></marker></defs>'+svg+'</svg>';
-    cap.innerHTML='<b>Step '+(k+1)+' of '+(py?8:9)+'.</b> '+CAP[mode][k];
     if(py){cnt.innerHTML='<span>objects allocated: <b>'+(k>=5?2:1)+'</b></span><span>names for the first list: <b>'+(sc.S.filter(o=>o.to==='L'&&o.st!=='dropped').length)+'</b></span><span>bytes copied by assignment: <b>0</b></span>'}
     else{const s=k+1;cnt.innerHTML='<span>heap allocations so far: <b>'+(s>=6?3:s>=3?2:1)+'</b></span><span>live heap blocks: <b>'+sc.B.filter(b=>b.st!=='freed').length+'</b></span><span>bytes copied by moves: <b>'+(s>=5?24:0)+'</b></span><span>elements copied: <b>'+(s>=6?7:s>=3?3:0)+'</b> (growth 3, clone 4)</span>'}
   }
-  const A=RD.anim({card:'ra-own-card',ctl:'ra-own-ctl',n:9,draw,ms:2600,label:'Step'});
-  // a mode switch shows the other language at step 1; nothing moves until the reader presses play or steps
-  RD.seg(document.getElementById('ra-own-seg'),v=>{mode=v;A.reset(v==='py'?8:9)});
+  const A=RD.anim({card:'ra-own-card',ctl:'ra-own-ctl',n:9,draw,ms:4200,label:'Step',list:'sx-own-rs'});
+  // a mode switch shows the other language's step list at step 1 and replays it
+  RD.seg(document.getElementById('ra-own-seg'),v=>{mode=v;['rs','py'].forEach(k=>{const l=document.getElementById('sx-own-'+k);if(l)l.hidden=k!==v});A.reset(v==='py'?8:9,'sx-own-'+v)});
   RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
 })();
