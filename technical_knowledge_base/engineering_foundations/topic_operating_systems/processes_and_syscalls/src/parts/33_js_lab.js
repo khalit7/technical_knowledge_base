@@ -54,7 +54,7 @@ window.TREESIM=(function(){
     tcnt.innerHTML=RD.stat('Live processes',live,'')+RD.stat('Zombies',nz,mode==='linux'?'exited, not yet waited for':'fork.py has no zombies');
     tcap.innerHTML='<div class="t">Step '+(i+1)+' of '+tst.length+(s.act?': <code>'+RD.esc(s.act)+'</code>':'')+'</div><p'+(s.ok?'':' class="bad"')+'>'+RD.esc(s.say)+'</p>'}
   compute();
-  const T=RD.anim({card:'rd-tree-card',ctl:'rd-tree-ctl',n:tst.length,draw:tdraw,ms:1500,label:'Step of the process tree'});
+  const T=RD.anim({card:'rd-tree-card',ctl:'rd-tree-ctl',n:tst.length,draw:tdraw,ms:1500,label:'Step of the process tree',auto:false}); // a widget: the reader runs it (never plays by itself)
   const rerun=()=>{compute();T.reset(tst.length);T.go(tst.length-1)};
   RD.seg($('rd-tree-mode'),m=>{mode=m;rerun()});
   ['rd-tree-reap','rd-tree-sub'].forEach(id=>$(id).addEventListener('change',rerun));

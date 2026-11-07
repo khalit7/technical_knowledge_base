@@ -30,11 +30,14 @@
 <p>When a process exits, the kernel frees its memory and descriptors but keeps its <code>task_struct</code>, its PID and its exit status, and sends SIGCHLD to the parent. The entry stays until the parent waits ({{wait_task_zombie|https://github.com/torvalds/linux/blob/v6.12/kernel/exit.c#L1143}} releases it). Measured (<code>src/runs/c/lifecycle.c</code>): the exited child shows state <code>Z</code> with its parent's PID until <code>waitpid</code> returns its status (<code>WEXITSTATUS 7</code>), and then <code>/proc/&lt;pid&gt;</code> is gone; an orphaned grandchild's <code>getppid()</code> becomes 1, or the subreaper's PID when the parent marked itself one.</p>
 <details class="dp"><summary>The zombie, before and after wait <span class="mute">(raw output)</span></summary><div class="b"><pre class="cd out" id="rd-life-out"></pre></div></details>
 <p>A zombie costs no CPU and almost no memory, but it holds a PID, and PIDs are limited: per container by the cgroup's <code>pids.max</code>, which counts threads too (the root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} case "BlockingIOError on fork: the pids limit counts threads too"). A parent that never waits, in a long run that starts many short-lived children, eventually cannot fork.</p>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s5-orphan">
 <h3>Orphans: who adopts a child whose parent died</h3>
 <p>When a process exits, {{forget_original_parent|https://github.com/torvalds/linux/blob/v6.12/kernel/exit.c#L692}} gives each of its children a new parent chosen by {{find_new_reaper|https://github.com/torvalds/linux/blob/v6.12/kernel/exit.c#L625}}: the nearest ancestor that marked itself a <dfn id="g-subreaper">subreaper</dfn> with <code>prctl(PR_SET_CHILD_SUBREAPER)</code>, otherwise PID 1 of the PID namespace. Only the direct children move; grandchildren keep their own parents. Measured with a chain me, b, c, d in which b exits:</p>
 <details class="dp"><summary>Reparenting to PID 1, to a subreaper, and the chain <span class="mute">(raw output)</span></summary><div class="b"><pre class="cd out" id="rd-reparent-out"></pre></div></details>
 <p>c (pid 14) moved to PID 1, while d (pid 15) stayed c's child. OSTEP's homework simulator <code>fork.py</code> by default moves every descendant of an exiting process to the root, a simplification; its <code>-R</code> flag moves orphans to their grandparent instead. Run Linux's rule and OSTEP's on the same actions:</p>
-<div class="card" id="rd-tree-card"><h4>A zombie stays until its parent waits; orphans move to the nearest subreaper or PID 1</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-tree-card"><h4>A zombie stays until its parent waits; orphans move to the nearest subreaper or PID 1</h4>
 <p class="small">Actions, comma-separated, in OSTEP's <code>fork.py</code> notation: <code>a+b</code> means a forks b, <code>b-</code> means b exits. Added for Linux mode: <code>a*</code> means a calls <code>wait</code> and reaps its exited children. Process <code>a</code> is PID 1. Predict before you press Run: with nothing ticked, how many zombies does <code>a+b,b+c,c+d,b-,c-,d-</code> leave?</p>
 <div class="row"><input type="text" id="rd-tree-in" value="a+b,b+c,c+d,b-,c-,a*,d-" spellcheck="false" aria-label="Action list"></div>
 <div class="seg" id="rd-tree-mode"><button data-m="linux" class="on">Linux</button><button data-m="ostep">OSTEP fork.py (default)</button><button data-m="ostepR">fork.py -R</button><button data-m="ostepL">fork.py -L</button></div>
@@ -45,7 +48,8 @@
 <p class="small">The rules. <b>Linux</b>: an exiting process becomes a zombie (Z) until its parent waits; its direct children move to the nearest subreaper ancestor, or to PID 1; grandchildren stay where they are; a zombie whose parent is PID 1 stays until PID 1 waits, unless PID 1 reaps (tini does). <b>fork.py default</b>: every descendant of the exiting process moves directly under the root. <b>fork.py -R</b>: the exiting process's children move to its parent. <b>fork.py -L</b>: only leaves may exit. A model of the rules this page states, not a kernel; the real reparenting run above shows Linux's rule. The answer to the prediction: 3 zombies under PID 1 (b's, then c's after a adopted c, then d's after a adopted d), which never waits: exactly the training-script-as-PID-1 problem. Tick "PID 1 reaps" and run again. Checked: the model reproduces all 36 recorded <code>fork.py</code> final trees (seeds 1 to 12; default, <code>-R</code> and <code>-L</code>) and the real reparenting run.</p>
 <div class="row"><button id="rd-tree-check">Check against OSTEP's fork.py</button><span class="small" id="rd-tree-checkout"></span></div>
 <pre class="log" id="rd-tree-checklog" hidden></pre>
-</div>
+</div></div></div></div>
+<section id="rd-s5-pid1">
 <h3>PID 1 is special, twice</h3>
 <p>Inside a container, the first process gets PID 1 of its PID namespace, and it inherits two duties it may not know about.</p>
 <ul>

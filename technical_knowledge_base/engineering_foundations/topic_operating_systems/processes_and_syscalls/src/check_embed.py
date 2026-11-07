@@ -3,7 +3,7 @@
 2. Every number the HTML parts state about these runs is recomputed from the data and must appear in the text.
 3. No private paths or tokens in src/ or the page.
 Run from src/: python3 check_embed.py"""
-import glob, os, re, statistics, sys
+import getpass, glob, os, re, statistics, sys
 import build_data
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -80,10 +80,11 @@ for v, cond in [("v1_exec", lambda r: r["ckpt"] and r["code"] == 0), ("v2_sh_c",
         fail("shutdown variant %s does not match what the page says" % v)
 # privacy
 for p in glob.glob(os.path.join(HERE, "**", "*"), recursive=True) + [os.path.join(HERE, "..", "index.html")]:
-    if os.path.isfile(p) and not p.endswith(".png") and os.path.basename(p) != "check_embed.py":
+    if os.path.isfile(p) and not p.endswith(".png") and os.path.basename(p) != "check_embed.py" and "__pycache__" not in p:
         with open(p, errors="ignore") as f:
             t = f.read()
-        for pat in ("/" + "Users/", "gl" + "pat", "sk-" + "ant", "kha" + "lid"):
+        # the login name is looked up at run time (never spelled here) and matched case-sensitively
+        for pat in ("/" + "Users/", "gl" + "pat", "sk-" + "ant", "/home/" + getpass.getuser(), getpass.getuser()):
             if pat in t:
                 fail("%s contains %r" % (os.path.relpath(p, HERE), pat))
 print("check_embed:", "ok" if not bad else "%d problem(s)" % bad, "| %d prose numbers checked, %d shutdown variants" % (len(expect), len(sd)))

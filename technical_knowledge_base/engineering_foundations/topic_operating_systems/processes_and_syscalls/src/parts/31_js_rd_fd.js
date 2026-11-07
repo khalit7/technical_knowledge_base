@@ -1,10 +1,11 @@
 // ---- Reading 7: descriptor tables step by step on the FDSIM model (leak and fix measured; shell examples; your own script) ----
-// Merged from the old Reading animation and the old Process lab tab (2026-10-24). Nothing moves until the reader steps or plays.
+// Merged from the old Reading animation and the old Process lab tab (2026-10-24). A widget (the long-replay rule, case b, 2026-11-07): it never plays
+// by itself and opens on the last frame of the shell pipeline; Fig. 7 (36f_js_sc_fd.js) is the explained replay of the leak and the fix.
 (function(){
   const card=document.getElementById('rd-fd-card');if(!card||!window.FDSIM||!window.RD)return;
   const $=id=>document.getElementById(id);
   const sv=$('rd-fd-svg'),cap=$('rd-fd-cap'),cnt=$('rd-fd-cnt'),pick=$('rd-fd-pick'),err=$('rd-fd-err');
-  let key='leak',states=FDSIM.run(FDSCRIPTS.leak.steps);
+  let key='shell',states=FDSIM.run(FDSCRIPTS.shell.steps);
   const meas={leak:PD.cloexec.leak_s.toFixed(3)+' s to EOF',cloexec:PD.cloexec.cloexec_s.toFixed(3)+' s to EOF',share:'39 bytes, lines intact'};
   function writers(s){let n=0;s.procs.forEach(p=>{if(p.alive)Object.values(p.fds).forEach(e=>{const D=s.desc[e.d];if(D&&s.objs[D.obj]&&s.objs[D.obj].kind==='pipe'&&D.mode==='w')n++})});return n}
   function parseOwn(){return $('rd-fd-own').value.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#')).map(l=>({op:l,say:''}))}
@@ -15,12 +16,12 @@
       RD.stat('Measured',meas[key]||'not a timed run',key in meas?'real program, this example':'model only');
     cap.innerHTML='<div class="t">Step '+(i+1)+' of '+states.length+': <code>'+RD.esc(s.op)+'</code></div><p><b>'+RD.esc(s.res)+'</b>'+(s.say?'<br>'+s.say:'')+'</p>';
   }
-  const A=RD.anim({card:'rd-fd-card',ctl:'rd-fd-ctl',n:states.length,draw,ms:2200,label:'Step of the descriptor example'});
+  const A=RD.anim({card:'rd-fd-card',ctl:'rd-fd-ctl',n:states.length,draw,ms:2200,label:'Step of the descriptor example',auto:false,start:states.length-1});
   function load(k){
     key=k;
     try{states=k==='own'?FDSIM.run(parseOwn()):FDSIM.run(FDSCRIPTS[k].steps);if(err)err.textContent=''}
     catch(e){if(err){err.textContent='Stopped: '+e.message;err.className='small bad'}states=FDSIM.run([{op:'proc 1 sh',say:'(script error)'}])}
-    A.reset(states.length);
+    A.reset(states.length);A.go(states.length-1,true);
   }
   pick.addEventListener('change',()=>load(pick.value));
   $('rd-fd-run').addEventListener('click',()=>{pick.value='own';load('own')});

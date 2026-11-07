@@ -1,4 +1,4 @@
-// ---- Reading 6: handler latency table, signal-mask decoder, "one SIGTERM, three endings" animation ----
+// ---- Reading 6: handler latency table, signal-mask decoder, "one SIGTERM, three endings" animation (Fig. 6; plays once in view, step lists on the left) ----
 window.SIGNAMES=(function(){const n=['','SIGHUP','SIGINT','SIGQUIT','SIGILL','SIGTRAP','SIGABRT','SIGBUS','SIGFPE','SIGKILL','SIGUSR1','SIGSEGV','SIGUSR2','SIGPIPE','SIGALRM','SIGTERM','SIGSTKFLT','SIGCHLD','SIGCONT','SIGSTOP','SIGTSTP','SIGTTIN','SIGTTOU','SIGURG','SIGXCPU','SIGXFSZ','SIGVTALRM','SIGPROF','SIGWINCH','SIGIO','SIGPWR','SIGSYS','32 (glibc)','33 (glibc)'];
   for(let i=34;i<=64;i++)n.push(i===34?'SIGRTMIN':(i===64?'SIGRTMAX':'SIGRTMIN+'+(i-34)));return n})();
 (function(){
@@ -58,12 +58,12 @@ window.SIGNAMES=(function(){const n=['','SIGHUP','SIGINT','SIGQUIT','SIGILL','SI
     {l:0,e:'exit 137',t:f2(v2[0])+' to '+f2(v2[1])+' s',c:'Exit 137 (128 + 9) after '+f2(v2[0])+' to '+f2(v2[1])+' s, no checkpoint, in all three runs (Shutdown lab, variant "sh -c"). The fix is one word: <code>sh -c "exec python ..."</code>, or the exec form in the Dockerfile.',done:{ck:'no',code:'137'}}
   ];
   const seqs={ok,busy,pid1};let mode='ok';
-  const sv=document.getElementById('rd-term-svg'),cap=document.getElementById('rd-term-cap'),cnt=document.getElementById('rd-term-cnt');
+  const sv=document.getElementById('rd-term-svg'),cnt=document.getElementById('rd-term-cnt');
   function draw(i){
     if(!sv)return;
     const s=seqs[mode],W=RD.width(sv),lw=W<520?84:150,n=s.length,lh=30,h=LANES.length*lh+12,dx=(W-lw-16)/Math.max(1,n-1);
     let b='';
-    LANES.forEach((L,k)=>{const y=6+k*lh;b+='<rect x="0" y="'+y+'" width="'+W+'" height="'+(lh-4)+'" rx="4" fill="var(--soft)"/>'+RD.t(6,y+17,W<520?L.replace('trainer, main thread','main thread').replace('DataLoader workers','workers').replace('docker / kubelet','runtime'):L,{fs:11,fill:'var(--mute)'})});
+    LANES.forEach((L,k)=>{const y=6+k*lh;b+='<rect x="0" y="'+y+'" width="'+W+'" height="'+(lh-4)+'" rx="4" fill="var(--soft)"/>'+RD.t(6,y+17,W<520?L.replace('trainer, main thread','main thread').replace('DataLoader workers','workers').replace('docker / kubelet','runtime'):L,{fs:12,fill:'var(--mute)'})});
     let px=null,py=null;
     s.forEach((st,k)=>{const x=lw+k*dx,y=6+st.l*lh+(lh-4)/2,on=k<=i;
       if(px!==null&&k<=i)b+='<line x1="'+px+'" y1="'+py+'" x2="'+x+'" y2="'+y+'" stroke="var(--acc)" stroke-width="1.5" opacity=".7"/>';
@@ -72,11 +72,11 @@ window.SIGNAMES=(function(){const n=['','SIGHUP','SIGINT','SIGQUIT','SIGILL','SI
     sv.innerHTML=RD.svg(W,h,b,'Timeline of a SIGTERM through runtime, kernel, trainer and workers');
     const st=s[i];let done=null;for(let k=0;k<=i;k++)if(s[k].done)done=s[k].done;
     cnt.innerHTML=RD.stat('Time since SIGTERM',st.t||'','this step')+RD.stat('Checkpoint written',done?done.ck:'not yet','')+RD.stat('Exit code',done?done.code:'running','');
-    cap.innerHTML='<div class="t">Step '+(i+1)+' of '+s.length+': '+st.e+'</div><p>'+st.c+'</p>';
   }
   if(document.getElementById('rd-term-card')){
-    const A=RD.anim({card:'rd-term-card',ctl:'rd-term-ctl',n:ok.length,draw,ms:2300,label:'Step of the SIGTERM path'});
-    RD.seg(document.getElementById('rd-term-mode'),m=>{mode=m;A.reset(seqs[m].length)});
+    // the step lists on the left (sx-term-ok, -busy, -pid1) carry each step's explanation; st.c stays as the source the lists were written from
+    const A=RD.anim({card:'rd-term-card',ctl:'rd-term-ctl',n:ok.length,draw,ms:4200,label:'Step of the SIGTERM path',list:'sx-term-ok'});
+    RD.seg(document.getElementById('rd-term-mode'),m=>{mode=m;['ok','busy','pid1'].forEach(x=>{document.getElementById('sx-term-'+x).hidden=x!==m});A.reset(seqs[m].length,'sx-term-'+m)});
     RD.onResize(()=>A.redraw());
   }
 })();

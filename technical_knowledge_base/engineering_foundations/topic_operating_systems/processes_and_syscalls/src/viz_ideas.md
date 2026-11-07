@@ -50,3 +50,17 @@ Real images: none. The page is about mechanisms (kernel records, calls, signals,
 
 ## What the methodology lacked for this page
 A rule for experiments whose instrument changes the result: the first exec-survival run exec'd /bin/sh, and dash's own startup (clearing the mask, installing handlers) hid what execve keeps. The page now says so, and the rerun uses a program that changes nothing. Proposed rule: when measuring inherited state, observe it from a process that does not touch that state.
+
+## 2026-11-07: split layout and six 3D stages (the 2026-11-06 rollout)
+| # | Idea | Kind | Data | Placement |
+|---|---|---|---|---|
+| PROC.20 | **Fig. 1 hero**: the recorded job (sh, python 13 with 8 threads, workers 27 and 29 with 4) on a user-space glass plate; under it each process's record (one task per thread, shared mm, files, sighand); a crossing; fork's copied records sharing the same pipes; SIGTERM and SIGCHLD arriving | 3D stage, 5 steps | `PD.proc` (ps tree, pipe inodes), `PD.sysc` | top, replaces PROC.15 |
+| PROC.21 | **Fig. 2**: one `os.read` from Python to `sys_read` and back, three modes (open fd, EBADF, under strace), registers as plinths, counters for mode switches, tracer stops and strace's calls | 3D stage, 8 steps per mode (the old 12/12/17-frame stepper grouped) | glibc disassembly, v6.12 entry code, `PD.strace_meta`, `PD.sysc` | section 2, replaces PROC.1 |
+| PROC.22 | **Fig. 3**: fork copies the page tables (VmPTE 2,100 KiB for 1 GiB), not the pages; a write copies one page; a thread copies nothing; vfork and posix_spawn borrow | 3D stage, 5 steps | `PD.spawn` (VmPTE), `PD.clones` | section 3, replaces PROC.16 |
+| PROC.23 | **Fig. 4**: execve drops the memory image and maps the new one; fd 6 (close-on-exec) closes, 0 1 2 5 stay; the handler resets, ignored and blocked stay; PID 17 stays | 3D stage, 6 steps | `PD.execkeep` | section 4, new |
+| PROC.24 | **Fig. 5**: a signal's life: kill, the ignored check, one pending bit for 1,000 SIGUSR1, a queue for 1,000 SIGRTMIN, the mask, delivery with a frame on the user stack, rt_sigreturn | 3D stage, 7 steps | `PD.sigq` | section 6, replaces PROC.17 |
+| PROC.25 | **Fig. 7**: the three tables drawn from any FDSIM state, three modes (open/fork/second open/dup2; the measured leak; the measured fix) | 3D stage, 6 or 7 steps per mode (FDSIM frames grouped) | `FDSIM`, `FDSCRIPTS` (new script `tables`), `PD.cloexec` | section 7, replaces PROC.18 and the leak/fix replay of PROC.10 |
+| changed | PROC.8 one SIGTERM, three endings: plays once in view, its captions moved into three step lists (`sx-term-*`); now Fig. 6 | 2D animation | as before | section 6 |
+| changed | PROC.11 descriptor tool and PROC.12 tree simulator: widgets (long-replay rule, case b), never play by themselves; the tool opens on the shell pipeline's last frame | 2D widgets | as before | sections 7, 5 |
+
+Kept 2D, now in the right column of their sections: the cost ladder (log axis), the fork-cost chart (numbers on an axis), the Python spawn table, the handler-latency table, the mask decoder, the DataLoader diagram (a structure that reads flat; 3D would add nothing), the ten start-up variants (dot chart and table). Rejected: a 3D DataLoader (the five stages are a list of mechanisms already drawn in Figs. 1, 3, 5 and 7); bars of fork time inside Fig. 3 (they would answer the predict-then-reveal drill before the reader is asked; the 2D chart after the drill shows them).

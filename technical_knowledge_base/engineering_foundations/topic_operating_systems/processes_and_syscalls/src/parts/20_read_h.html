@@ -1,24 +1,57 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fd"></div></div><div class="s3L">
 <section id="rd-s7">
 <h2>7. File descriptors: three tables, pipes and sockets</h2>
 <span class="ostep">ch. 39 Files and Directories (open file table, fork and dup)</span>
 <p>A process uses files, pipes, sockets, terminals and devices, and the kernel must not hand it raw pointers to any of them. So it hands out small integers, <dfn id="g-fd">file descriptors</dfn>, that index a table the kernel keeps for that process. "Everything is a file" in Unix really means "everything is reached through a descriptor": the same <code>read</code>, <code>write</code>, <code>close</code> and <code>poll</code> work on all of them.</p>
 <h3>Three tables, not one</h3>
-<div class="card" id="rd-fdt-card"><h4>The offset lives in the description, so fork and dup share it and a second open does not</h4>
-<div class="rd-svg" id="rd-fdt-svg"></div>
-<p class="fig-cap"><b>1. Per process: the fd table</b>, an array of pointers indexed by fd number plus a close-on-exec bit per fd. <b>2. System-wide: open file descriptions</b>, one per <code>open()</code> call, holding a reference count, the open flags and <b>the current offset</b>. <b>3. The object</b>: the inode of a file on disk, a pipe's buffer, a socket, a terminal. The figure is this page's model of the tables after a parent opened <code>train.log</code> as fd 3, forked, the child opened the same file again as fd 4, and the parent wrote 7 bytes: the child's fd 3 sees offset 7 too, its fd 4 is still at 0.</p>
+<p><b>1. Per process: the fd table</b>, an array of pointers indexed by fd number plus a close-on-exec bit per fd. <b>2. System-wide: open file descriptions</b>, one per <code>open()</code> call, holding a reference count, the open flags and <b>the current offset</b>. <b>3. The object</b>: the inode of a file on disk, a pipe's buffer, a socket, a terminal. Fig. 7 draws every state from this page's model of the kernel's rules (lowest free fd, fork copies the table, exec closes close-on-exec fds, EOF when no write end remains):</p>
+<div class="seg" id="rd-fdx-mode"><button data-m="tables" class="on">open, fork, dup: the offset</button><button data-m="leak">a leaked write end (measured)</button><button data-m="fix">the fix: O_CLOEXEC (measured)</button></div>
+<p class="sxh">Fig. 7, step by step: the offset lives in the description, so fork and dup share it and a second open does not</p>
+<ol class="sx" id="sx-fd-tables">
+<li><b>fds 0, 1, 2: one description of the terminal.</b> Every process starts with three descriptors that point at one open file description of the terminal.</li>
+<li><b><code>open("train.log")</code>: a new description, the lowest free fd.</b> The kernel makes a description with offset 0 that points at the file's inode, and gives it fd 3, the lowest free number.</li>
+<li><b>fork copies the table, not the descriptions.</b> The child's fds 0 to 3 point at the same descriptions as the parent's: the reference counts go up (refs 2 on train.log).</li>
+<li><b>A write moves the shared offset.</b> The parent writes "PARENT\n", 7 bytes, through fd 3: the description's offset becomes 7, and the child's fd 3 is at 7 too.</li>
+<li><b>A second <code>open()</code>: its own offset.</b> The child opens the same file again and gets fd 4: a new description, offset 0, pointing at the same inode. Two offsets on one file.</li>
+<li><b><code>dup2(3, 5)</code>: a second fd, the same description.</b> fd 5 in the child now refers to fd 3's description (refs 3): dup and fork share the offset; only <code>open()</code> makes a new one.</li>
+</ol>
+<ol class="sx" id="sx-fd-leak" hidden>
+<li><b><code>pipe()</code>: fd 3 reads, fd 4 writes.</b> One pipe object and two descriptions; neither end is close-on-exec.</li>
+<li><b>fork the reader; it closes its write end.</b> The reader child gets a copy of the table, so it holds both ends, and closes its copy of the write end, as it should.</li>
+<li><b>fork an unrelated helper.</b> The fork copies fds 3 and 4 into it; the helper closes the read end it knows about.</li>
+<li><b>The helper execs <code>sleep 2</code>.</b> fd 4 was not close-on-exec, so the sleeping program still holds the pipe's write end without knowing it exists.</li>
+<li><b>The parent writes and closes both ends.</b> It writes its 6 bytes and closes fds 3 and 4: it has done everything right.</li>
+<li><b>The reader gets the bytes, then blocks.</b> Its next read should return 0 (end of file); it blocks instead, because one write end is still open, in the helper.</li>
+<li><b>EOF only when the helper exits.</b> The last write end closes when the helper exits, 2.011 s after the start (measured), and the reader finally sees end of file. Every process that inherited a write end and forgot to close it keeps the reader waiting, for hours if it lives for hours.</li>
+</ol>
+<ol class="sx" id="sx-fd-fix" hidden>
+<li><b><code>pipe2(O_CLOEXEC)</code>.</b> The same program, but both ends are marked close-on-exec (red cells).</li>
+<li><b>fork the reader; it closes its write end.</b> fork copies the table, flags included.</li>
+<li><b>fork the helper; it closes the read end.</b> For a moment it holds both ends.</li>
+<li><b>exec closes fd 4 for it.</b> At <code>execve</code> the kernel closes every close-on-exec descriptor, so the sleeping program holds nothing.</li>
+<li><b>The parent writes and closes both ends.</b> Now no write end is open anywhere.</li>
+<li><b>The reader gets the bytes and EOF at once.</b> Measured 0.015 s after the start, against 2.011 s. Python does this for you: since 3.4 new descriptors are non-inheritable (PEP 446).</li>
+</ol>
 <details class="dp"><summary>The three structures in the kernel source (v6.12) <span class="mute">(reference)</span></summary><div class="b"><p>The fd table is {{struct files_struct|https://github.com/torvalds/linux/blob/v6.12/include/linux/fdtable.h#L38}}; the first 64 slots are built in (<code>NR_OPEN_DEFAULT</code> is the word size, line 24) and it grows as needed. A description is {{struct file|https://github.com/torvalds/linux/blob/v6.12/include/linux/fs.h#L1032}}: the reference count <code>f_count</code> (line 1033), the flags you opened with <code>f_flags</code> (1040) and the offset <code>f_pos</code> (1051).</p></div></details>
-</div>
-<p>Everything that confuses people about descriptors follows from where each piece of state lives. <code>open()</code> creates a new description and gives it the <dfn id="g-lowest">lowest free fd</dfn> number; that rule is what makes <code>close(1); open("log")</code> redirect stdout, and it is why fd numbers in the listings below are reused. <code>dup(fd)</code> and <code>dup2(old, new)</code> create a second fd pointing to the <i>same</i> description. <code>fork</code> copies table 1 (<code>dup_fd</code>, section 3), so parent and child point to the same descriptions too, and share the offset. Measured (<code>src/runs/c/fdshare.c</code>, parent writes "PARENT", child writes "child", three times each):</p>
+<p>The <dfn id="g-lowest">lowest free fd</dfn> rule is what makes <code>close(1); open("log")</code> redirect stdout, and why fd numbers in the listings below are reused; <code>fork</code> copies the table with <code>dup_fd</code> (section 3). Measured (<code>src/runs/c/fdshare.c</code>, parent writes "PARENT", child writes "child", three times each):</p>
 <pre class="cd out" id="rd-fdshare-out"></pre>
 <p>Case 1 is why a parent and its workers can all write to an inherited log file without destroying each other's lines (with <code>O_APPEND</code> each write also lands at the current end, atomically). Case 2 is two descriptions with two offsets: each process writes from offset 0 and they overwrite each other, leaving "NT" from a "PARENT" line at the end.</p>
+</section>
+</div></div>
+<section id="rd-s7-pipe">
 <h3>Pipes: a 64 KiB buffer, and EOF that needs every writer gone</h3>
 <p>A <dfn id="g-pipe">pipe</dfn> is a kernel buffer with a read end and a write end, each a description. A writer that fills the 65,536-byte buffer blocks (or gets <code>EAGAIN</code> if non-blocking) until the reader drains it; that is how a slow consumer slows the producer, the back-pressure every pipeline relies on. Writes of up to <code>PIPE_BUF</code> (4,096) bytes are atomic: they never interleave with another writer's ({{pipe(7)|https://man7.org/linux/man-pages/man7/pipe.7.html}}); bigger writes can. The default size comes from <code>PIPE_DEF_BUFFERS</code> = 16 pages ({{pipe_fs_i.h line 5|https://github.com/torvalds/linux/blob/v6.12/include/linux/pipe_fs_i.h#L5}}) and can be raised per pipe to <code>pipe-max-size</code> (1 MiB here) with <code>F_SETPIPE_SZ</code>. Writing to a pipe whose read ends are all closed raises SIGPIPE, or <code>EPIPE</code> where SIGPIPE is ignored, as in Python, where it becomes <code>BrokenPipeError</code> (<code>python train.py | head</code>).</p>
 <details class="dp"><summary>Pipe capacity and atomicity on this kernel <span class="mute">(raw output of pipes.c)</span></summary><div class="b"><pre class="cd out" id="rd-pipe-out"></pre></div></details>
 
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s7-rewire">
 <h3>Rewiring descriptors, step by step</h3>
-<p>pipe, fork, dup2, close and exec on the three tables. Redirections apply left to right, so <code>2&gt;&amp;1 &gt; log</code> copies stderr from the terminal before stdout moves to the log, and tracebacks still go to the terminal; <code>&gt; log 2&gt;&amp;1</code> is the right order. Pick an example and step:</p>
-<div class="card" id="rd-fd-card"><h4>A reader sees end of file only when no descriptor anywhere still refers to a write end</h4>
-<div class="row"><label>Example <select id="rd-fd-pick"><option value="leak">leaked write end: pipe() (measured)</option><option value="cloexec">the fix: pipe2(O_CLOEXEC) (measured)</option><option value="shell">python train.py 2&gt;&amp;1 | tee log</option><option value="redir1">&gt; log 2&gt;&amp;1 (right order)</option><option value="redir2">2&gt;&amp;1 &gt; log (wrong order)</option><option value="share">fork shares the file offset</option><option value="own">your own script (below)</option></select></label></div>
+<p>pipe, fork, dup2, close and exec on the three tables. Redirections apply left to right, so <code>2&gt;&amp;1 &gt; log</code> copies stderr from the terminal before stdout moves to the log, and tracebacks still go to the terminal; <code>&gt; log 2&gt;&amp;1</code> is the right order. The tool beside this text runs the same model on any script and never plays by itself: it opens on the last frame of <code>python train.py 2&gt;&amp;1 | tee log</code>; pick another example (both orders of <code>2&gt;&amp;1</code>, the leak, the shared offset) and step, or write your own.</p>
+<details class="dp"><summary>The leak and the fix, timed <span class="mute">(raw output of cloexec.c)</span></summary><div class="b"><pre class="cd out" id="rd-cloexec-out"></pre></div></details>
+<p>Python made the fix the default: since 3.4 "newly created file descriptors are non-inheritable" ({{PEP 446|https://peps.python.org/pep-0446/}}), and <code>subprocess</code> closes everything except 0, 1 and 2 in the child (<code>close_fds=True</code>). C, C++ and Rust code, and libraries that call <code>fork</code> and <code>exec</code> themselves, still need <code>O_CLOEXEC</code>, <code>pipe2(O_CLOEXEC)</code>, <code>SOCK_CLOEXEC</code> and <code>accept4(SOCK_CLOEXEC)</code>. Rust's standard library sets close-on-exec on everything it opens.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-fd-card"><h4>A reader sees end of file only when no descriptor anywhere still refers to a write end</h4>
+<div class="row"><label>Example <select id="rd-fd-pick"><option value="shell">python train.py 2&gt;&amp;1 | tee log</option><option value="leak">leaked write end: pipe() (measured)</option><option value="cloexec">the fix: pipe2(O_CLOEXEC) (measured)</option><option value="redir1">&gt; log 2&gt;&amp;1 (right order)</option><option value="redir2">2&gt;&amp;1 &gt; log (wrong order)</option><option value="share">fork shares the file offset</option><option value="tables">open, fork, a second open, dup2 (Fig. 7)</option><option value="own">your own script (below)</option></select></label></div>
 <div class="rd-svg" id="rd-fd-svg"></div>
 <div class="an-cnt" id="rd-fd-cnt"></div>
 <div class="an-cap" id="rd-fd-cap"></div>
@@ -47,10 +80,8 @@ exit 2
 read 3 0</textarea>
 <div class="row"><button id="rd-fd-run">Run my script</button><span class="small" id="rd-fd-err"></span></div>
 </div></details>
-</div>
-<details class="dp"><summary>The leak and the fix, timed <span class="mute">(raw output of cloexec.c)</span></summary><div class="b"><pre class="cd out" id="rd-cloexec-out"></pre></div></details>
-<p>The leak, measured: the reader waited 2.0 s for EOF, until the forked process that inherited the write end exited; with <code>pipe2(O_CLOEXEC)</code> it saw EOF at once. Every process that inherited a write end and forgot to close it keeps the reader waiting.</p>
-<p>Python made the fix the default: since 3.4 "newly created file descriptors are non-inheritable" ({{PEP 446|https://peps.python.org/pep-0446/}}), and <code>subprocess</code> closes everything except 0, 1 and 2 in the child (<code>close_fds=True</code>). C, C++ and Rust code, and libraries that call <code>fork</code> and <code>exec</code> themselves, still need <code>O_CLOEXEC</code>, <code>pipe2(O_CLOEXEC)</code>, <code>SOCK_CLOEXEC</code> and <code>accept4(SOCK_CLOEXEC)</code>. Rust's standard library sets close-on-exec on everything it opens.</p>
+</div></div></div></div>
+<section id="rd-s7-travel">
 <h3>Descriptors that travel: how batches reach the trainer</h3>
 <p>A DataLoader worker does not copy a batch to the main process. It creates a file in <code>/dev/shm</code>, maps it, deletes its name at once, and sends the <i>descriptor</i> over a Unix domain socket; the main process maps the same memory. The job's real tables below show the result: files named <code>torch_29_...</code> open in the main process, created by worker PID 29.</p>
 <p>Passing a descriptor between processes uses <code>sendmsg</code> with an <code>SCM_RIGHTS</code> control message on a Unix socket: the kernel installs a new fd in the receiver pointing to the same description ({{unix(7)|https://man7.org/linux/man-pages/man7/unix.7.html}}). PyTorch calls this the <code>file_descriptor</code> sharing strategy, the default on Linux, and it warns that it keeps one descriptor open per shared tensor, so code that keeps many batches alive can hit the open-file limit; the alternative <code>file_system</code> strategy names files instead and can leak them if a process dies ({{torch.multiprocessing, sharing strategies|https://docs.pytorch.org/docs/stable/multiprocessing.html#sharing-strategies}}). The root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} reproduces "OSError: [Errno 24] Too many open files".</p>

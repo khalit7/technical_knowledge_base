@@ -144,6 +144,13 @@ window.FDSCRIPTS={
     {op:'exec 2 python',say:'exec python.'},
     {op:'write 2 1 step 0\\n',say:'stdout goes to log...'},
     {op:'write 2 2 Traceback\\n',say:'...but the traceback goes to the terminal, and is lost when the job runs detached. Redirections are applied left to right.'}]},
+  tables:{title:'open, fork, a second open, dup2: who shares the offset (Fig. 7)',steps:[
+    {op:'proc 1 parent',say:'A process...'},{op:'tty 1',say:'...with fds 0, 1, 2 on the terminal.'},
+    {op:'open 1 train.log O_WRONLY|O_CREAT|O_TRUNC',say:'open() makes a description with offset 0 and gives it the lowest free fd, 3.'},
+    {op:'fork 1 2 child',say:'fork copies the table: the child\'s fds point at the same descriptions.'},
+    {op:'write 1 3 PARENT\\n',say:'The parent writes 7 bytes: the shared offset is 7 for the child too.'},
+    {op:'open 2 train.log O_WRONLY',say:'A second open() of the same file: a new description, its own offset 0.'},
+    {op:'dup2 2 3 5',say:'dup2(3, 5): a second fd for the first description; the offset is still shared.'}]},
   share:{title:'fork shares the file offset',measured:'share',steps:[
     {op:'proc 1 parent',say:'A parent...'},{op:'tty 1',say:'...with fds 0, 1, 2.'},
     {op:'open 1 out.txt O_WRONLY|O_CREAT|O_TRUNC',say:'open() once: one description, offset 0.'},
