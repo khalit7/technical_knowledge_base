@@ -31,7 +31,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await sleep(300);
   // text that legitimately contains "undefined" or "NaN" (real program output and prose about them) is inside pre.cd or code
   const visibleBad = async (sel) => p.$$eval(sel, (es) => es.map(e => { const c = e.cloneNode(true); c.querySelectorAll('pre,code').forEach(x => x.remove()); return c.textContent }).join(' '));
-  const cards = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id.replace(/-ctl$/, '')));
+  // the 3D stage's bar has no id and is driven by src/check_stages.mjs
+  const cards = await p.$$eval('#t-read .an-ctl[id]:not(.stg-bar)', es => es.map(e => e.id.replace(/-ctl$/, '')));
   for (const c of cards) {
     const modes = await p.$$eval('#' + c + '-seg button', es => es.map(e => e.dataset.m)).catch(() => []);
     for (const m of (modes.length ? modes : [null])) {

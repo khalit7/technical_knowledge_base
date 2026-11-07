@@ -2,7 +2,7 @@
 (function(){
   const C=window.RDD&&window.RDD.conc;if(!C||!document.getElementById('rd-conc-card'))return;
   const esc=RD.esc,pre=RDH.pre,hl=RDH.hl,out=RDH.outHtml;
-  const viz=document.getElementById('rd-conc-viz'),cap=document.getElementById('rd-conc-cap'),panes=document.getElementById('rd-conc-panes');
+  const viz=document.getElementById('rd-conc-viz'),panes=document.getElementById('rd-conc-panes');
   const nums=(t,re)=>[...t.matchAll(re)].map(m=>+m[1]);
   const fmt=n=>n.toLocaleString('en-US');
   const pyG=nums(C.py,/GIL enabled: True\s+expected \d+\s+got (\d+)/g),pyT=nums(C.py,/GIL enabled: False\s+expected \d+\s+got (\d+)/g);
@@ -47,8 +47,9 @@
   };
   let mode='py';
   function draw(i){const s=S[mode][i];
-    cap.innerHTML='<div class="t">'+(i+1)+'/'+S[mode].length+'. '+esc(s.t)+'</div><p>'+esc(s.p)+'</p>';
     viz.innerHTML=s.viz||'';panes.innerHTML=s.pane?'<div><h5>'+esc(s.pane[0])+'</h5>'+s.pane[1]+'</div>':''}
-  const A=RD.anim({card:'rd-conc-card',ctl:'rd-conc-ctl',n:S.py.length,draw,ms:4600,label:'Step of the shared-counter experiment'});
-  RD.seg(document.getElementById('rd-conc-seg'),m=>{mode=m;A.reset(S[m].length)});
+  // the step list on the left (one item per step) is written from the same steps, and rewritten when the view changes
+  const sx=m=>{document.getElementById('sx-conc').innerHTML=S[m].map(s=>'<li><b>'+esc(s.t)+'.</b> '+esc(s.p)+'</li>').join('')};sx('py');
+  const A=RD.anim({card:'rd-conc-card',ctl:'rd-conc-ctl',n:S.py.length,draw,ms:5200,label:'Step of the shared-counter experiment',list:'sx-conc'});
+  RD.seg(document.getElementById('rd-conc-seg'),m=>{mode=m;sx(m);A.reset(S[m].length,'sx-conc')});
 })();

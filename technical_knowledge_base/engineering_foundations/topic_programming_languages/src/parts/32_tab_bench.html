@@ -42,6 +42,15 @@
 <div class="out" id="bm-head"></div>
 <p class="small mute">Input: the Rosetta generator with <code>--lines 200000 --seed 7</code>: <span data-bm="input.lines" data-f="int"></span> lines, <span data-bm="input.bytes" data-f="mb"></span> MB, <span data-bm="input.messages" data-f="int"></span> valid messages holding <span data-bm="input.text_chars" data-f="int"></span> characters of text and <span data-bm="input.tokens" data-f="int"></span> tokens, plus 8 malformed lines. Every variant printed exactly the expected output before it was timed. Machine and versions are under {{Method and caveats|#bm-method}}.</p>
 
+<div class="s3sp"><div class="s3L">
+<div class="co key"><div class="t">What the numbers say, in four lines</div>
+<ul class="tight">
+<li><b>Compiled code is several times to an order of magnitude faster on this job:</b> Rust took <span data-bm="variants.rust.t_med" data-f="s"></span> and C++ <span data-bm="variants.cpp_O2.t_med" data-f="s"></span> (Apple clang 14, with the hand-written JSON parser the C++ version must carry because its standard library has none; box 4 shows the same program with a newer compiler and with simdjson), against <span data-bm="variants.py314_loop.t_med" data-f="s"></span> for the plain Python loop on 3.14 (<span data-bmr="variants.py314_loop.t_med/variants.rust.t_med"></span> and <span data-bmr="variants.py314_loop.t_med/variants.cpp_O2.t_med"></span> faster).</li>
+<li><b>Idiomatic Python closes much of the gap without leaving Python:</b> one regex instead of a character loop took <span data-bm="variants.py314_re.t_med" data-f="s"></span> (<span data-bmr="variants.py314_loop.t_med/variants.py314_re.t_med"></span> faster than the loop), because the loop then runs in C inside the <code>re</code> module.</li>
+<li><b>Calling Rust from Python only pays off as far as you move the work:</b> moving the token count to Rust gave <span data-bm="variants.pyrs_percall.t_med" data-f="s"></span>, because Python's <code>json.loads</code> still runs; moving the whole file into one Rust call gave <span data-bm="variants.pyrs_file.t_med" data-f="s"></span>, of which about <span data-bm="startup_extra.python -c pass.s_med" data-f="ms"></span> is just starting Python, and with four Rust threads <span data-bm="variants.pyrs_file4.t_med" data-f="s"></span>, faster than the single-threaded Rust program.</li>
+<li><b>TypeScript on Node is in between:</b> <span data-bm="variants.node_js.t_med" data-f="s"></span>; V8 compiles the hot loop to machine code while it runs, but every string is a JavaScript string and every parsed line a JavaScript object.</li>
+</ul></div>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="bm-main">
 <div class="bm-ctl">
 <div class="seg" id="bm-view" role="group" aria-label="What to compare">
@@ -55,14 +64,7 @@
 <div class="bm-chart" id="bm-chart"></div>
 <div class="bm-det" id="bm-det"></div>
 </div>
-
-<div class="co key"><div class="t">What the numbers say, in four lines</div>
-<ul class="tight">
-<li><b>Compiled code is several times to an order of magnitude faster on this job:</b> Rust took <span data-bm="variants.rust.t_med" data-f="s"></span> and C++ <span data-bm="variants.cpp_O2.t_med" data-f="s"></span> (Apple clang 14, with the hand-written JSON parser the C++ version must carry because its standard library has none; box 4 shows the same program with a newer compiler and with simdjson), against <span data-bm="variants.py314_loop.t_med" data-f="s"></span> for the plain Python loop on 3.14 (<span data-bmr="variants.py314_loop.t_med/variants.rust.t_med"></span> and <span data-bmr="variants.py314_loop.t_med/variants.cpp_O2.t_med"></span> faster).</li>
-<li><b>Idiomatic Python closes much of the gap without leaving Python:</b> one regex instead of a character loop took <span data-bm="variants.py314_re.t_med" data-f="s"></span> (<span data-bmr="variants.py314_loop.t_med/variants.py314_re.t_med"></span> faster than the loop), because the loop then runs in C inside the <code>re</code> module.</li>
-<li><b>Calling Rust from Python only pays off as far as you move the work:</b> moving the token count to Rust gave <span data-bm="variants.pyrs_percall.t_med" data-f="s"></span>, because Python's <code>json.loads</code> still runs; moving the whole file into one Rust call gave <span data-bm="variants.pyrs_file.t_med" data-f="s"></span>, of which about <span data-bm="startup_extra.python -c pass.s_med" data-f="ms"></span> is just starting Python, and with four Rust threads <span data-bm="variants.pyrs_file4.t_med" data-f="s"></span>, faster than the single-threaded Rust program.</li>
-<li><b>TypeScript on Node is in between:</b> <span data-bm="variants.node_js.t_med" data-f="s"></span>; V8 compiles the hot loop to machine code while it runs, but every string is a JavaScript string and every parsed line a JavaScript object.</li>
-</ul></div>
+</div></div></div>
 
 <h2>Why each gap exists</h2>
 <p>A speed difference is only useful if you know where it comes from, because that tells you what a rewrite would buy. Each box below takes one cause, shows it measured on this program, and says what it costs.</p>
@@ -74,39 +76,59 @@
 
 <div class="bm-why">
 <h3>2. Where the Python program's time goes</h3>
+<div class="s3sp"><div class="s3L">
 <p>Before rewriting anything, measure which part is slow. <code>src/bench/py/breakdown.py</code> times each stage of the reference program as its own pass over the 200,000 lines:</p>
-<div id="bm-brk"></div>
+
 <p>The character loop is the biggest stage, so it is the first target; the regex version replaces it with C code and saves most of it. But <code>json.loads</code> stays: it is already written in C, and what it costs is building Python objects, a <code>dict</code> and several <code>str</code> objects per line, each a heap allocation with a header and a reference count. That is why the Python + Rust "one call per message" variant cannot go below the cost of parsing in Python.</p>
+</div><div class="s3R"><div class="s3side">
+<div id="bm-brk"></div>
+</div></div></div>
 </div>
 
 <div class="bm-why">
 <h3>3. Boxing and allocation: what the memory column shows</h3>
+<div class="s3sp"><div class="s3L">
 <p>Python stores every value as a <b>boxed</b> object on the heap (a header with a reference count and a type pointer, then the value), even a small integer or a one-character string. Rust and C++ keep a count in a register or an 8-byte slot. Peak memory (maximum resident set size, from <code>/usr/bin/time -l</code>) on the full input:</p>
-<div id="bm-membars"></div>
+
 <p>Most programs here stream the file line by line and stay small. Three kinds hold more: the threaded Python variants read every line first so they can split them (200,000 <code>str</code> objects at once, <span data-bm="variants.py314_thr4.rss_mb" data-f="mbv"></span> MB), the "one call for all messages" variants keep every message in a list before the call (<span data-bm="variants.pyrs_batch.rss_mb" data-f="mbv"></span> MB), and the Rust extension's whole-file call reads the 39 MB file into one buffer (<span data-bm="variants.pyrs_file.rss_mb" data-f="mbv"></span> MB). Node and Bun carry a JIT compiler and a garbage-collected heap (<span data-bm="variants.node_js.rss_mb" data-f="mbv"></span> and <span data-bm="variants.bun_ts.rss_mb" data-f="mbv"></span> MB); the Rust and C++ binaries need <span data-bm="variants.rust.rss_mb" data-f="mbv"></span> and <span data-bm="variants.cpp_O2.rss_mb" data-f="mbv"></span> MB. The interpreter itself has a floor: CPython <span data-bm="variants.py314_loop.rss_mb" data-f="mbv"></span> MB for the plain loop; on the empty file it starts in <span data-bm="variants.py314_loop.s_med" data-f="ms"></span>, and most of that memory is the interpreter and its imported modules rather than the data.</p>
+</div><div class="s3R"><div class="s3side">
+<div id="bm-membars"></div>
+</div></div></div>
 </div>
 
 <div class="bm-why">
 <h3>4. The compiled loop is not one number: compilers differ</h3>
+<div class="s3sp"><div class="s3L">
 <p>The same token loop, timed alone on a 120-byte string (<code>src/bench/loop_probe.sh</code>):</p>
-<div id="bm-probe"></div>
+
 <p>Same algorithm, different machine code. Apple clang 14 (the compiler this Mac ships, from 2022) vectorises the loop but fills its vector registers one byte at a time (<span data-bm="loop_probe.cpp_vec_lane_loads"></span> single-byte loads per iteration); rustc 1.99 (LLVM <span data-bm="env.rustc_llvm"></span>) loads <span data-bm="loop_probe.rust_vec_bytes"></span> bytes per iteration in two 16-byte registers; LLVM clang 23 compiling the very same C++ source runs at <span data-bm="loop_probe.cpp23_v0" data-f="ns"></span> per byte, faster than the Rust loop. Writing the test as <code>(c | 32) - 'a' &lt; 26 || c - '0' &lt; 10</code> (fold upper to lower case, one range check each) brings Apple clang 14 to <span data-bm="loop_probe.cpp_v1" data-f="ns"></span>. Lesson: "C++ vs Rust" on a tight loop is mostly "which compiler version, which idiom"; both languages reach the same machine code, because both are compiled by LLVM.</p>
 <p><b>But the loop is not why the whole C++ program is slower than the Rust one.</b> At the measured speed, counting the <span data-bm="input.text_chars" data-f="int"></span> characters of text costs about <span data-bmd="input.text_chars*loop_probe.cpp_v0" data-f="ns2s"></span> in C++ (characters times nanoseconds per byte; slightly more bytes than characters, so a slight underestimate) out of <span data-bm="variants.cpp_O2.t_med" data-f="s"></span>. The rest is reading lines with <code>std::getline</code> into a <code>std::string</code>, the Rosetta tab's small hand-written JSON parser (which builds a new <code>std::string</code> for each field), and the hash map. The Rust version uses serde_json, a parser tuned over years, deserialising straight into a typed <code>struct</code>. Two more C++ builds separate the causes. The same Rosetta source compiled by LLVM clang 23 (2026) against the same standard library took <span data-bm="variants.cpp23_O2.t_med" data-f="s"></span>: the newer compiler alone changes little. Swapping the hand-written parser for <a href="https://github.com/simdjson/simdjson" target="_blank" rel="noopener noreferrer">simdjson</a> 3.13.0 (a widely used parser that checks many bytes at once with SIMD instructions), same Apple clang 14, took <span data-bm="variants.cpp_simdjson.t_med" data-f="s"></span> (a benchmark-only variant in <code>src/bench/cpp_simdjson/</code>), against Rust's <span data-bm="variants.rust.t_med" data-f="s"></span>. The gap that is left is mostly <code>std::getline</code> copying every line and <code>std::unordered_map</code> keyed by freshly built strings. So "C++ is slower than Rust" on this page means "this C++ program, with a small teaching parser"; the language does not force it.</p>
+</div><div class="s3R"><div class="s3side">
+<div id="bm-probe"></div>
+</div></div></div>
 </div>
 
 <div class="bm-why">
 <h3>5. Crossing from Python into native code has a price per call</h3>
+<div class="s3sp"><div class="s3L">
 <p>Every call into an extension converts its arguments from Python objects and boxes its result back. Measured in-process with <code>timeit</code> (median of 7 repeats of <span data-bm="crossing.n_calls" data-f="int"></span> calls), the empty call and the cost per message (average <span data-bm="crossing.avg_message_chars"></span> characters, <span data-bm="crossing.n_messages" data-f="int"></span> messages):</p>
+
+<p>The call is cheap next to a Python loop over the characters (tens of nanoseconds against microseconds), and the batched call is cheaper per message because the loop over messages moves into native code too; the differences between PyO3, pybind11 and nanobind in the batched rows are mostly the token loop's machine code (box 4), not the binding. Borrowing a <code>str</code> instead of copying it, batching, and releasing the GIL are taught step by step in {{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}}.</p>
+</div><div class="s3R"><div class="s3side">
 <div id="bm-cross"></div>
 <div id="bm-permsg"></div>
-<p>The call is cheap next to a Python loop over the characters (tens of nanoseconds against microseconds), and the batched call is cheaper per message because the loop over messages moves into native code too; the differences between PyO3, pybind11 and nanobind in the batched rows are mostly the token loop's machine code (box 4), not the binding. Borrowing a <code>str</code> instead of copying it, batching, and releasing the GIL are taught step by step in {{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}}.</p>
+</div></div></div>
 </div>
 
 <div class="bm-why">
 <h3>6. Threads: the GIL, and the free-threaded build</h3>
+<div class="s3sp"><div class="s3L">
 <p>The same threaded program on the full input, in the standard build (with the <b>GIL</b>) and the free-threaded <code>python3.14t</code> (PEP 703 and PEP 779):</p>
-<div id="bm-thr"></div>
+
 <p>With the GIL, four threads are no faster than one. Without it, four threads were <span data-bmr="variants.py314t_thr1.t_med/variants.py314t_thr4.t_med"></span> faster than one and eight threads <span data-bmr="variants.py314t_thr1.t_med/variants.py314t_thr8.t_med"></span>, not 4 and 8: reading the file and merging the per-thread counts still run on one thread, and the machine had other work running (see {{Method and caveats|#bm-method}}). The plain loop took <span data-bm="variants.py314t_loop.t_med" data-f="s"></span> on 3.14t against <span data-bm="variants.py314_loop.t_med" data-f="s"></span> on 3.14, within the run-to-run spread; the build pays for thread-safe reference counting and per-object locking (PEP 703), which the CPython team puts at roughly 5 to 10% on single-threaded code (external box below). Rust threads inside the extension (<code>py.detach</code> releases the GIL) took <span data-bm="variants.pyrs_file4.t_med" data-f="s"></span> against <span data-bm="variants.pyrs_file.t_med" data-f="s"></span> on one thread. What the GIL guarantees, what the free-threaded build costs and when to use processes or subinterpreters instead are {{Python: concurrency, asyncio and the GIL|n:4055c17b0d0d81bdbee8c37d80b55a0e}}'s subject; the {{capacity planning page|n:3ef5c17b0d0d81458291d55d7443700c}} measured the same effect on a different workload.</p>
+</div><div class="s3R"><div class="s3side">
+<div id="bm-thr"></div>
+</div></div></div>
 </div>
 
 <div class="bm-why">

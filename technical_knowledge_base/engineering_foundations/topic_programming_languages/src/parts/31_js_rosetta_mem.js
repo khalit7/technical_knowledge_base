@@ -98,8 +98,10 @@
     if(R.phase==='obj')return 'Follow it to the int object at '+hx(d.objs[k])+' (reference count, type pointer, size tag, digits) and read the value '+d.vals[k].toLocaleString('en-US')+'.';
     return 'Read element '+k+' at '+hx(d.slots[k])+': the value '+d.vals[k].toLocaleString('en-US')+' itself.';
   }
-  const A=RD.anim({card:'ro-memcard',ctl:'ro-memctl',n:nSteps(mode),ms:900,label:'Memory step',draw});
-  RD.seg($('ro-memmode'),m=>{mode=m;try{localStorage.setItem('ro-mem',m)}catch(e){}A.reset(nSteps(m))});
+  // a widget the reader drives (rollout rule 3b: 9 to 17 reads, one per frame, whose outcome is the point): it never plays by itself
+  // and opens on the finished walk; the paragraph on its left explains it, the live caption names each read
+  const A=RD.anim({card:'ro-memcard',ctl:'ro-memctl',n:nSteps(mode),ms:900,label:'Memory step',draw,auto:false,start:nSteps(mode)-1});
+  RD.seg($('ro-memmode'),m=>{mode=m;try{localStorage.setItem('ro-mem',m)}catch(e){}A.reset(nSteps(m));A.go(nSteps(m)-1,true)});
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-rosetta']=window.TAB_RENDER['t-rosetta']||[]).push(()=>A.redraw());
   let rt=0;addEventListener('resize',()=>{const t=document.getElementById('t-rosetta');if(!t||t.hidden)return;clearTimeout(rt);rt=setTimeout(()=>A.redraw(),80)});
 })();

@@ -14,6 +14,8 @@
   function step(asm){const a=loop(asm,'LBB0_5');const s=a.find(l=>/subs\s+x\d+, x\d+, #\d+/.test(l));return s?+s.match(/#(\d+)/)[1]:0}
   const cS=loop(D.cpp_asm,'LBB0_9'),rS=loop(D.rs_asm,'LBB0_9'),cV=loop(D.cpp_asm,'LBB0_5'),rV=loop(D.rs_asm,'LBB0_5');
   const cStep=step(D.cpp_asm),rStep=step(D.rs_asm);
+  // the counts the hero stage (Fig. 1) quotes, from the same disassembly
+  window.RD_RUN={py:pyLoopN,cpp:cS.length-1,rs:rS.length-1,cStep,rStep,cppV:+((cV.length-1)/cStep).toFixed(1),rsV:+((rV.length-1)/rStep).toFixed(1)};
   const short=a=>a.length>22?a.slice(0,14).concat(['        ... '+(a.length-20)+' more vector instructions ...'],a.slice(-6)):a;
   const v8bc=L(D.v8_bytecode).filter(l=>{const m=l.match(/@\s+(\d+) :/);return m&&+m[1]>=26&&+m[1]<=77}).map(l=>l.replace(/^\s*(\d+ [SE]>)?\s*0x[0-9a-f]+ /,'').replace(/^\s+/,'')).join('\n');
   const tr=L(D.v8_trace).map(l=>l.replace(/0x[0-9a-f]+ /g,'').replace(/ \(sfi = [^)]*\)/g,''));
@@ -26,7 +28,7 @@
       {t:'Compiled to bytecode when the file is loaded',p:'CPython turns the function into bytecode for a stack machine: LOAD_FAST_BORROW pushes a variable, TO_BOOL turns it into True or False, POP_JUMP_IF_FALSE jumps if it is false, BINARY_OP adds. These two source lines became '+disLines(D.py_before,[5,6]).split('\n').filter(l=>/[A-Z_]{3,}/.test(l)).length+' instructions. Output of dis.dis(count_tokens), Python '+esc(D.py_version)+'.',panes:[['bytecode for lines 5 and 6',pre(esc(disLines(D.py_before,[5,6])))]]},
       {t:'Interpreted, one instruction at a time',p:'A loop in C reads each instruction, jumps to the code that handles it, and repeats. The whole loop body, one pass per character, is '+pyLoopN+' bytecode instructions; each one costs many machine instructions (fetch, dispatch, type checks, reference counts). Nothing here knows that ch is always a one-character string.',panes:[['the whole loop body (lines 3 to 7)',pre(esc(disLoop(D.py_before).join('\n')))]]},
       {t:'Specialised while it runs (PEP 659)',p:'After 1,000 calls the interpreter has rewritten instructions it saw always receive the same types: BINARY_OP became BINARY_OP_ADD_INT, TO_BOOL became TO_BOOL_BOOL, the method calls became CALL_METHOD_DESCRIPTOR_NOARGS. Highlighted lines changed. Same bytecode count; each specialised instruction skips work. Shown by dis.dis(count_tokens, adaptive=True).',panes:[['after 1,000 calls',pre(diffDis(disLoop(D.py_before).join('\n'),disLoop(D.py_after).join('\n')))]]},
-      {t:'Still an interpreter',p:'JUMP_BACKWARD_NO_JIT: in Python 3.14 the experimental JIT is compiled into the official macOS and Windows builds but switched off unless PYTHON_JIT=1 is set. So every character still costs '+pyLoopN+' trips through the interpreter loop, which is why the plain Python version of our program is the slowest in section 13.',panes:[['the last instruction of the loop',pre(esc(disLoop(D.py_after).slice(-1)[0]))]]}],
+      {t:'Still an interpreter',p:'JUMP_BACKWARD_NO_JIT: in Python 3.14 the experimental JIT is compiled into the official macOS and Windows builds but switched off unless PYTHON_JIT=1 is set. So every character still costs '+pyLoopN+' trips through the interpreter loop, which is why the plain Python version of our program is the slowest in section 12.',panes:[['the last instruction of the loop',pre(esc(disLoop(D.py_after).slice(-1)[0]))]]}],
       cnt:[['Translated','at start-up, to bytecode'],['By','CPython\'s compiler'],['Runs on','the CPython interpreter'],['Per character',pyLoopN+' bytecode instructions']]},
     cpp:{stages:['Source','Machine code','Vectorised','Done before running'],steps:[
       {t:'The line, in C++',p:'The same loop over the bytes of a std::string_view (a pointer and a length, no copy). Types are declared: n is a 64-bit unsigned integer, c a byte.',panes:[['tokens.cpp',pre(hl(D.cpp_src,'cpp',[9]))]]},
@@ -54,12 +56,13 @@
       cnt:[['Translated','tsc before; V8 while running'],['By','tsc, then V8'],['Runs on','V8, as JavaScript'],['Types at run time','none']]}
   };
   let mode='py';
-  const stg=document.getElementById('rd-run-stage'),cap=document.getElementById('rd-run-cap'),panes=document.getElementById('rd-run-panes'),cnt=document.getElementById('rd-run-cnt');
+  const stg=document.getElementById('rd-run-stage'),panes=document.getElementById('rd-run-panes'),cnt=document.getElementById('rd-run-cnt');
   function draw(i){const m=M[mode],s=m.steps[i];
     stg.innerHTML=m.stages.map((n,k)=>'<span class="'+(k===i?'on':k<i?'done':'')+'">'+n+'</span>').join('');
-    cap.innerHTML='<div class="t">'+(i+1)+'/'+m.steps.length+'. '+s.t+'</div><p>'+s.p+'</p>';
     panes.innerHTML=s.panes.map(([h,b])=>'<div><h5>'+esc(h)+'</h5>'+b+'</div>').join('');
     cnt.innerHTML=m.cnt.map(([k,v])=>RD.stat(k,esc(v))).join('')}
-  const A=RD.anim({card:'rd-run-card',ctl:'rd-run-ctl',n:M.py.steps.length,draw,ms:4200,label:'Step of the compilation route'});
-  RD.seg(document.getElementById('rd-run-seg'),m=>{mode=m;A.reset(M[m].steps.length)});
+  // the step list on the left (one item per step) is written from the same steps, and rewritten when the language changes
+  const sx=m=>{document.getElementById('sx-run').innerHTML=M[m].steps.map(s=>'<li><b>'+s.t+'.</b> '+s.p+'</li>').join('')};sx('py');
+  const A=RD.anim({card:'rd-run-card',ctl:'rd-run-ctl',n:M.py.steps.length,draw,ms:5200,label:'Step of the compilation route',list:'sx-run'});
+  RD.seg(document.getElementById('rd-run-seg'),m=>{mode=m;sx(m);A.reset(M[m].steps.length,'sx-run')});
 })();

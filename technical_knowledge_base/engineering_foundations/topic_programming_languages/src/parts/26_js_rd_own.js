@@ -2,7 +2,7 @@
 (function(){
   const R=window.RDD&&window.RDD.own;if(!R||!document.getElementById('rd-own-card'))return;
   const esc=RD.esc,pre=RDH.pre,hl=RDH.hl,out=RDH.outHtml;
-  const svgEl=document.getElementById('rd-own-svg'),cap=document.getElementById('rd-own-cap'),panes=document.getElementById('rd-own-panes');
+  const svgEl=document.getElementById('rd-own-svg'),panes=document.getElementById('rd-own-panes');
   // scene: boxes {x,y,w,h,t (label), s (sub), st: '' | 'freed' | 'new' | 'err'} in a 600 x 210 space (wide) or 340 x 300 (narrow); arrows [x1,y1,x2,y2,st]
   function scene(mode,k,nar){
     // two columns: stack on the left, heap on the right; in the narrow layout the heap's second column goes below
@@ -61,9 +61,10 @@
   let mode='cpp';
   function draw(i){const s=S[mode][i];const nar=RD.width(svgEl)<520;
     render(scene(mode,i,nar));
-    cap.innerHTML='<div class="t">'+(i+1)+'/'+S[mode].length+'. '+esc(s.t)+'</div><p>'+esc(s.p)+'</p>';
     panes.innerHTML='<div><h5>'+esc(s.pane[0])+'</h5>'+s.pane[1]+'</div>'}
-  const A=RD.anim({card:'rd-own-card',ctl:'rd-own-ctl',n:S.cpp.length,draw,ms:4800,label:'Step of the dangling-reference story'});
-  RD.seg(document.getElementById('rd-own-seg'),m=>{mode=m;A.reset(S[m].length)});
+  // the step list on the left (one item per step) is written from the same steps, and rewritten when the view changes
+  const sx=m=>{document.getElementById('sx-own').innerHTML=S[m].map(s=>'<li><b>'+esc(s.t)+'.</b> '+esc(s.p)+'</li>').join('')};sx('cpp');
+  const A=RD.anim({card:'rd-own-card',ctl:'rd-own-ctl',n:S.cpp.length,draw,ms:5200,label:'Step of the dangling-reference story',list:'sx-own'});
+  RD.seg(document.getElementById('rd-own-seg'),m=>{mode=m;sx(m);A.reset(S[m].length,'sx-own')});
   RD.onResize(()=>A.redraw());
 })();

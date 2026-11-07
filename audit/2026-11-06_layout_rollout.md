@@ -86,10 +86,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
 - [x] `engineering_foundations/topic_programming_languages/python` Python: the essentials
 - [x] `engineering_foundations/topic_programming_languages/rust` Rust: the essentials
-- [~] `engineering_foundations/topic_programming_languages` Topic: programming-languages
+- [x] `engineering_foundations/topic_programming_languages` Topic: programming-languages
 - [x] `engineering_foundations/topic_protocols/agent_to_agent_and_beyond` Agent-to-agent and beyond: A2A, agent commerce, agents driving devices
 - [x] `engineering_foundations/topic_protocols/auth` Auth: API keys, OAuth 2.1, OIDC, JWTs, mTLS and agent-era auth
-- [ ] `engineering_foundations/topic_protocols/dns` DNS: resolution, caching and the failure modes
+- [~] `engineering_foundations/topic_protocols/dns` DNS: resolution, caching and the failure modes
 - [ ] `engineering_foundations/topic_protocols/http` HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs
 - [ ] `engineering_foundations/topic_protocols/mcp` MCP: building servers and clients, transports, auth and security
 - [ ] `engineering_foundations/topic_protocols/networking_foundations` Networking foundations: IP, TCP, UDP and QUIC
@@ -381,3 +381,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_protocols/agent_to_agent_and_beyond`: hero and Fig. 4 busy at 390; device layers (accessibility tree, input events) not built for lack of a cited source.
 - `engineering_foundations/topic_programming_languages/rust`: Fig. 1 "u64" label close to the vtable plate at some angles; on phones the section nav highlights the previous section while Figs 2 and 3 are in view; unused `d` variable and stray "the value" label in 39_js_sc_ra.js.
 - `engineering_foundations/topic_protocols/auth`: Fig. 5 small at 390 (wide scene); recompute.py needs PyJWT 2.15.1 (`uv run --no-project --with pyjwt==2.15.1`), system 2.3.0 orders header keys differently.
+- `engineering_foundations/topic_programming_languages`: hero small at 390; some sticky code panels taller than the window; Python traceback indentation odd in code panels (interleaved stdout/stderr, predates); page 825 KB.

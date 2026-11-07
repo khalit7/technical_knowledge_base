@@ -62,19 +62,20 @@
       {t:'The records sit side by side on the heap',p:'size_of::<Record>() is '+rs.size+', with the same padding as C++. Rust may reorder a struct\'s fields to reduce padding (only #[repr(C)] fixes the C order); with one u32 and one u64 there is nothing to gain, so it still pads.',k:1},
       {t:'Same layout as C++',p:'Consecutive addresses '+rs.size+' bytes apart; the four counts sit in '+natTouched(rs)+' cache line'+(natTouched(rs)>1?'s':'')+'. Everything said about the C++ scan applies (the measurement on this page was done in C++).',k:1}]
   };
-  const cnt=document.getElementById('rd-mem-cnt'),cap=document.getElementById('rd-mem-cap'),leg=document.getElementById('rd-mem-leg');
+  const cnt=document.getElementById('rd-mem-cnt'),leg=document.getElementById('rd-mem-leg');
   let mode='py';
   function render(i){const s=S[mode][i];
     const objs=mode==='py'?pyObjs(s.k):natObjs(mode==='cpp'?cpp:rs,s.k),arrows=mode==='py'?pyArrows(s.k):natArrows(mode==='cpp'?cpp:rs,s.k);
     const rows=draw(objs,arrows);
-    cap.innerHTML='<div class="t">'+(i+1)+'/'+S[mode].length+'. '+esc(s.t)+'</div><p>'+esc(s.p)+'</p>';
     leg.innerHTML=(mode==='py'?[['list header',C.hdr],['pointer array',C.arr],['tuple',C.tup],['int',C.int]]:[['vector / Vec header',C.hdr],['record field',C.rec],['padding',C.pad]]).map(([n,c])=>'<span style="--sw:'+c+'">'+n+'</span>').join('')+'<span style="--sw:var(--soft)">one row = '+LINE+'-byte cache line</span>';
     const x=mode==='py'?null:(mode==='cpp'?cpp:rs);
     cnt.innerHTML=[RD.stat('Bytes per record',mode==='py'?py.per:x.size,'data: 12'),RD.stat('Cache lines for 4 counts',mode==='py'?pyTouched:natTouched(x),'rows drawn: '+rows),
       RD.stat('ns per record, in order',f2(mode==='py'?ns.py0:ns.cpp0),'<span class="meas">measured</span>'+(mode==='rs'?' in C++':'')),
       RD.stat('ns per record, scattered',f2(mode==='py'?ns.py1:ns.cpp2),mode==='py'?'shuffled list':'C++ via shuffled pointers')].join('')}
-  const A=RD.anim({card:'rd-mem-card',ctl:'rd-mem-ctl',n:S.py.length,draw:render,ms:4200,label:'Step of the memory layout'});
-  RD.seg(document.getElementById('rd-mem-seg'),m=>{mode=m;A.reset(S[m].length)});
+  // the step list on the left (one item per step) is written from the same steps, and rewritten when the view changes
+  const sx=m=>{document.getElementById('sx-mem').innerHTML=S[m].map(s=>'<li><b>'+esc(s.t)+'.</b> '+esc(s.p)+'</li>').join('')};sx('py');
+  const A=RD.anim({card:'rd-mem-card',ctl:'rd-mem-ctl',n:S.py.length,draw:render,ms:5200,label:'Step of the memory layout',list:'sx-mem'});
+  RD.seg(document.getElementById('rd-mem-seg'),m=>{mode=m;sx(m);A.reset(S[m].length,'sx-mem')});
   RD.onResize(()=>A.redraw());
   // ---- llama.cpp excerpts
   const L=R.llama||{};

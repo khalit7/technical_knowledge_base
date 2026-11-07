@@ -2,18 +2,21 @@
 <section id="rd-s5">
 <h2>5. Memory and lifetimes</h2>
 <p>The axis where the four differ most, and the one Python hides most completely. A value lives at an <dfn data-g="The number of a byte in memory; printed in hexadecimal, such as 0x10081d4f0.">address</dfn>, the number of its first byte, printed in hexadecimal (<code>0x10081d500</code> is 16 bytes after <code>0x10081d4f0</code>), and a <dfn data-g="A value that holds the address of another value; following it to the value is called dereferencing.">pointer</dfn> (8 bytes) holds one. A function call's locals sit in its <dfn data-g="The memory for a function call's local variables, reserved on entry and released on return, automatically and almost for free.">stack</dfn> frame, freed on return; anything that outlives the call or grows goes on the <dfn data-g="Memory requested and released explicitly (malloc/new, or a runtime on your behalf), for data whose size or lifetime is not tied to one function call.">heap</dfn>, and "who releases heap memory, and when" is this section's question. The processor reads memory through <dfn data-g="Small, fast memory inside the processor that keeps copies of recently used memory; it is filled one cache line at a time.">caches</dfn> one <dfn data-g="The unit in which memory moves into the cache: 64 bytes on most x86 processors, 128 on this Apple M1 (sysctl hw.cachelinesize).">cache line</dfn> at a time (128 bytes on this M1 Pro, <code>sysctl hw.cachelinesize</code>; 64 on most Intel and AMD processors), so data that sits together is read almost for free. And a record of a 4-byte user id and an 8-byte count takes 16 bytes in C++ and Rust, not 12: 4 bytes of <dfn data-g="Unused bytes the compiler inserts so that each field starts at an address its type requires (its alignment).">padding</dfn> align the 8-byte field (<code>offsetof(Record, tokens)</code> printed 8).</p>
-<h3>The same four records, in Python and in C++ or Rust</h3>
-<p>A list of four <code>(user_id, tokens)</code> records drawn at its <b>real addresses</b>, read from the running programs: CPython's object headers through <code>ctypes</code>, C++'s and Rust's with <code>&amp;records[i]</code>. Each row is one 128-byte cache line; rows far apart in memory are separated by a gap. Predict how many cache lines Python touches for four records before you step.</p>
+<div class="s3sp"><div class="s3R">
 <div class="card" id="rd-mem-card">
 <div class="seg" id="rd-mem-seg"><button data-m="py" class="on">Python list of tuples</button><button data-m="cpp">C++ vector&lt;Record&gt;</button><button data-m="rs">Rust Vec&lt;Record&gt;</button></div>
 <div class="an-ctl" id="rd-mem-ctl"></div>
-<div class="an-cap" id="rd-mem-cap"></div>
 <div class="rd-svg" id="rd-mem-svg"></div>
 <div class="leg" id="rd-mem-leg"></div>
 <div class="an-cnt" id="rd-mem-cnt"></div>
 </div>
+</div><div class="s3L">
+<h3>The same four records, in Python and in C++ or Rust</h3>
+<p>A list of four <code>(user_id, tokens)</code> records drawn at its <b>real addresses</b>, read from the running programs: CPython's object headers through <code>ctypes</code>, C++'s and Rust's with <code>&amp;records[i]</code>. Each row is one 128-byte cache line; rows far apart in memory are separated by a gap. Predict how many cache lines Python touches for four records before you step.</p>
+<ol class="sx" id="sx-mem"></ol>
 <p>The last step of each view is the consequence, <span class="meas">measured</span> on 10 million records (best of several runs, <code>read/code/memory/scan.*</code>): summing the token counts takes <b><span class="ms" data-k="cpp0"></span> ns per record</b> from a contiguous C++ vector and <b><span class="ms" data-k="py0"></span> ns</b> from a Python list of tuples. Part of the Python cost is the interpreter (section 2), part the layout: the <i>same compiled C++ loop</i> over one heap object per record, reached through pointers, takes <span class="ms" data-k="cpp1"></span> ns per record when the objects happen to sit in allocation order and <span class="ms" data-k="cpp2"></span> ns when the pointers are shuffled, about <span class="ms" data-k="ratio"></span> times slower than contiguous: the processor is waiting for cache lines. Shuffling the Python list costs it the same kind of factor (<span class="ms" data-k="py1"></span> ns). JavaScript arrays of objects are laid out like Python's (pointers to heap objects), except that V8 stores small integers inside the pointer itself ("Smis", {{V8 blog|https://v8.dev/blog/pointer-compression}}).</p>
 <div class="co"><div class="t">Why NumPy and PyTorch are fast from Python</div>A NumPy array or a PyTorch tensor is one Python object that owns a contiguous C buffer, laid out like the C++ vector above. The loop over it runs in C or C++, so neither the interpreter nor the pointer-chasing is paid per element. That is the whole trick behind "vectorise your Python".</div>
+</div></div>
 
 <h3>Who frees memory, and when</h3>
 <div class="tw"><table class="four">
@@ -24,15 +27,18 @@
 <tr><th>Mistake possible</th><td>Leaks through lingering references</td><td>Use after free, double free, leaks</td><td>Leaks (rare); the rest refused at compile time</td><td>Leaks through lingering references</td></tr>
 <tr><th>Price</th><td>A count update on almost every assignment; 16+ bytes of header per object</td><td>Your attention</td><td>The borrow checker's rules</td><td>Pauses and extra memory</td></tr>
 </tbody></table></div>
-<p>The strategies differ most on one classic bug: keep a reference to the first user's name, then keep adding users, so the list moves to a bigger buffer and frees the old one. Predict what each language does with the reference.</p>
+<div class="s3sp"><div class="s3R">
 <div class="card" id="rd-own-card">
 <div class="seg" id="rd-own-seg"><button data-m="cpp" class="on">C++</button><button data-m="rs">Rust</button><button data-m="py">Python</button></div>
 <div class="an-ctl" id="rd-own-ctl"></div>
-<div class="an-cap" id="rd-own-cap"></div>
 <div class="rd-svg" id="rd-own-svg"></div>
 <div class="panes" id="rd-own-panes"></div>
 </div>
+</div><div class="s3L">
+<p>The strategies differ most on one classic bug: keep a reference to the first user's name, then keep adding users, so the list moves to a bigger buffer and frees the old one. Predict what each language does with the reference.</p>
+<ol class="sx" id="sx-own"></ol>
 <p>The C++ program compiles without a warning and printed <code>first user: </code> followed by nothing: it read freed memory and carried on (next time it could print garbage or crash). Only AddressSanitizer (<code>-fsanitize=address</code>, compiled in for testing) turns it into a report. Rust refuses the program at the moment of the <code>push</code>, with error E0502: you may not change <code>users</code> while <code>first</code> borrows from it. Python never has the bug: <code>first</code> holds its own reference to the string object, not to the list's slot, and CPython frees the object only when the last reference goes.</p>
+</div></div>
 <details class="xc"><summary><b>Read it in llama.cpp:</b> three real excerpts that use exactly these ideas (optional, 4 minutes)</summary><div>
 <p>Pinned to llama.cpp commit <span class="lc"></span> (October 2026). What the code computes (quantisation, attention) belongs to {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} and the {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} page; here we only read the C and C++. One token's whole path through this code is {{C++: reading llama.cpp, one token through the code|n:4055c17b0d0d8150a5effbb5a667dd9d}}.</p>
 <p><b>1. A struct laid out byte by byte.</b> A 4-bit quantised block of weights: one 2-byte scale and 16 bytes holding 32 four-bit values. The <code>static_assert</code> makes the build fail if the compiler ever added padding. Compiled here, <code>sizeof(block_q4_0)</code> printed: <span class="lq"></span>. A weight matrix is a contiguous array of these blocks, so the CPU reads them exactly like the C++ vector above.</p>
