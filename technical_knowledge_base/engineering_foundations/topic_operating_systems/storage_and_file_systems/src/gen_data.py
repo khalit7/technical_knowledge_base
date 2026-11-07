@@ -36,8 +36,10 @@ for p in sorted(R.glob("wb_*.txt")):
         if len(f) == 6 and re.match(r"^[\d.]+$", f[0]):
             rows.append([float(f[0]), float(f[1]), float(f[2]), float(f[3]), int(f[4]), f[5]])
     last = max([r[0] for r in rows if r[1] > 1] or [0])
-    keep = [r for i, r in enumerate(rows) if r[0] < 3 or i % 5 == 0 or abs(r[0] - last) < 0.11]
-    wb[name] = dict(head=hdr, fsync_s=float(fs[1]) if fs else None, last_dirty_s=last, rows=keep,
+    keep = [r for i, r in enumerate(rows) if r[0] < 3 or i % 5 == 0 or abs(r[0] - last) < 0.15]  # keeps the last dirty sample and the first clean one after it
+    # t_write: the first 100 ms sample that saw the program's bytes; dirty_for_s: how long after it dirty data stayed above 1 MiB
+    tw = min(r[0] for r in rows if r[4] > 0)
+    wb[name] = dict(head=hdr, fsync_s=float(fs[1]) if fs else None, last_dirty_s=last, t_write=tw, dirty_for_s=round(last - tw, 2), rows=keep,
                     wchans=sorted(set(r[5] for r in rows)))
 D["wb"] = wb
 # fio

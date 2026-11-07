@@ -34,6 +34,7 @@ C = {r['label']: r for r in D['ckpt']}
 n, sf = C['torch.save straight to ckpt.pt'], C['tmp + fsync + rename + fsync(dir)']
 P(f"safe - naive = {sf['med'] - n['med']:.1f} ms; fsync variant - naive = {C['torch.save + flush + fsync']['med'] - n['med']:.1f} ms")
 pr = [D['wb'][k]['last_dirty_s'] for k in ('primed', 'primed2', 'primed3', 'primed4')]
-P(f"writeback: fresh small {D['wb']['small']['last_dirty_s']} s, mid {D['wb']['mid']['last_dirty_s']} s, primed {pr}")
+P(f"writeback (run clock, last sample above 1 MiB dirty): fresh small {D['wb']['small']['last_dirty_s']} s, mid {D['wb']['mid']['last_dirty_s']} s, primed {pr}")
+P("writeback, seconds dirty after the first sample that saw the write: " + ", ".join(f"{k} {D['wb'][k]['last_dirty_s']} - {D['wb'][k]['t_write']} = {D['wb'][k]['dirty_for_s']}" for k in ('small', 'mid', 'primed', 'primed2', 'primed3', 'primed4', 'fsync', 'big')))
 P(f"root checkpoint state 276,813 bytes = {276813 / 1e6:.2f} MB")
 pathlib.Path("recompute.txt").write_text("\n".join(out) + "\n"); print("\n".join(out))

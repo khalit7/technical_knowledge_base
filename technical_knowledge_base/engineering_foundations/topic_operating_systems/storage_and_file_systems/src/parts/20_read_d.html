@@ -1,16 +1,22 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ra"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Reading: the page cache and readahead</h2>
 <p>A device request has a large fixed cost; programs often read 4 KiB at a time, and often read the same file again (every epoch). Two answers: keep what was read in memory, the <dfn id="g-pagecache">page cache</dfn>, and when a program reads sequentially, fetch the next pages before it asks, <dfn id="g-readahead">readahead</dfn>. How the page cache competes for memory and is reclaimed is {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}'s; this section is how data gets into it.</p>
-<p><span class="meas">measured</span> A cold 8 MiB file read 4 KiB at a time; after every <code>read()</code> the script read the container's <code>io.stat</code>, so each device request and its size is visible. Predict first: with a 128 KiB (32-page) maximum window, how many device requests do 512 sequential 4 KiB reads cost? Then step through it, and switch to random offsets.</p>
-<div class="card" id="rd-ra-card">
-<div class="fig-t">Sequential reads cost few requests because each window is fetched one window ahead</div>
-<div class="seg" id="rd-ra-mode"></div>
-<div class="rd-chart" id="rd-ra-svg"></div>
-<div class="an-cap" id="rd-ra-cap"></div>
-<div class="an-ctl" id="rd-ra-ctl"></div>
-<div class="an-cnt" id="rd-ra-cnt"></div>
-<p class="small mute">Blue: pages in the page cache; orange: the window fetched by the latest request; outlined: the page this read() asked for. Measured: 512 sequential reads cost 20 requests (572 pages) by default and 13 requests (636 pages) with <code>POSIX_FADV_SEQUENTIAL</code>; readahead off and random offsets cost one request per read. Defaults reproduce the measurement independently: the two source rules below predict every request of both sequential runs. Times are this VM's: the "device" is macOS's cache of the disk file.</p>
-</div>
+<p><span class="meas">measured</span> A cold 8 MiB file read 4 KiB at a time; after every <code>read()</code> the script read the container's <code>io.stat</code>, so each device request and its size is visible. Predict first: with a 128 KiB (32-page) maximum window, how many device requests do 512 sequential 4 KiB reads cost? Then watch Fig. 2.</p>
+<ol class="sx" id="sx-ra">
+<li><b>A cold file.</b> It was just evicted from the page cache with <code>posix_fadvise(DONTNEED)</code>: nothing is cached. The maximum window is 32 pages (128 KiB).</li>
+<li><b>read() 1 misses: a synchronous readahead of 4 pages.</b> <code>get_init_ra_size(1)</code> = 4: pages 0 to 3 in one request, the program waits for it. Page 1 carries the readahead mark.</li>
+<li><b>read() 2 hits the mark: 8 pages, fetched ahead.</b> The next window (pages 4 to 11) is requested asynchronously while the program keeps reading pages already in memory.</li>
+<li><b>Reads 3 to 5: the window doubles to 16 pages.</b> Reading page 4, the first page of the last window, fetches pages 12 to 27.</li>
+<li><b>Reads 6 to 13: 32 pages, the maximum.</b> Page 12 triggers pages 28 to 59; from now on every window is 32 pages.</li>
+<li><b>Reads 14 to 29: one window ahead, always.</b> Page 28 triggers pages 60 to 91. Most reads are memory copies; the device works ahead of the program.</li>
+<li><b>Reads 30 to 128: steady state.</b> Windows of 32 pages at reads 61, 93 and 125: 128 reads cost 8 device requests (188 pages).</li>
+<li><b>The whole run: 512 reads, 20 requests.</b> 572 pages fetched; with <code>POSIX_FADV_SEQUENTIAL</code> the window doubles to 64 pages and the same reads cost 13 requests. With readahead off, or at random offsets, every read is its own request: 64 reads, 64 requests.</li>
+</ol>
+<p class="small mute">Fig. 2: sequential reads cost few requests because each window is fetched one window ahead. Page 0 is front left, 16 pages to a row. Blue tiles are pages in the page cache, orange the windows fetched in the current step (streaming up from the device in front), dashed outlines pages not yet read; the dark glow is the page the latest read() asked for. Measured: 512 sequential reads cost 20 requests (572 pages) by default and 13 requests (636 pages) with <code>POSIX_FADV_SEQUENTIAL</code>; readahead off and random offsets cost one request per read. Defaults reproduce the measurement independently: the two source rules below predict every request of both sequential runs. Times are this VM's: the "device" is macOS's cache of the disk file.</p>
+</section>
+</div></div>
+<section id="rd-s3b">
 <p>With readahead on, the window grew 4, 8, 16, 32 pages and then stayed at the 32-page maximum, each requested one window ahead of the reader, so most reads never waited for the device. With readahead off the same reads cost one request each. Random reads get no readahead: the kernel only predicts sequential access, and the measured random case fetched exactly one page per read.</p>
 <p><b>The rule, from mm/readahead.c</b> <span class="src">source</span> (v5.10). First window, <code>get_init_ra_size</code> (line 311): round the request up to a power of two, then x4 if it is at most 1/32 of the maximum, x2 if at most 1/4, else the maximum. Each later window, <code>get_next_ra_size</code> (line 329): x4 while under 1/16 of the maximum, then x2, capped at the maximum. The maximum is <code>read_ahead_kb</code> (128 KiB here, 32 pages); <code>posix_fadvise(POSIX_FADV_SEQUENTIAL)</code> doubles it for that open file (mm/fadvise.c line 92) and <code>POSIX_FADV_RANDOM</code> turns readahead off (line 88).</p>
 <div class="drill"><div class="q">A DataLoader reads samples at random offsets from one big uncompressed file of fixed-size records, 4 KiB each, cold. How many device requests do 1,000 samples cost, roughly?</div>

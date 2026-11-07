@@ -1,32 +1,73 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fs"></div></div><div class="s3L">
 <section id="rd-s5">
 <h2>5. Durability: fsync, fdatasync, and when fsync fails</h2>
 <p>A checkpoint, a database log or a "this checkpoint is complete" marker must survive a crash, so the program needs a call that returns only when the data is on stable storage, and it must know exactly what that call covers. <code>fsync(fd)</code> covers the file's data and all its metadata, then a device cache flush ("This includes writing through or flushing a disk cache if present", {{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}); not the directory entry that names the file. <code>fdatasync(fd)</code> covers the data plus only the metadata "needed in order to allow a subsequent data retrieval to be correctly handled": size and block map yes, modification time no. <code>sync_file_range</code> only starts or waits for writeback of a byte range; the kernel's own comment: "there are no guarantees here that the data will be available on disk after a crash" (fs/sync.c lines 351 to 355, v5.10).</p>
-<p><span class="src">source</span> <code>ext4_sync_file</code> (fs/ext4/fsync.c line 129, v5.10) does three things in order: write the file's dirty pages and wait; wait for the journal transaction that last changed what this call covers; flush the device cache. Step through one 4 KiB overwrite under each call, then compare the measured costs below.</p>
-<div class="card" id="rd-fs-card">
-<div class="fig-t">fsync pays for a journal commit that fdatasync skips on an overwrite; sync_file_range never reaches the media</div>
-<div class="seg" id="rd-fs-mode"></div>
-<div class="rd-chart" id="rd-fs-svg"></div>
-<div class="an-cap" id="rd-fs-cap"></div>
-<div class="an-ctl" id="rd-fs-ctl"></div>
-<div class="an-cnt" id="rd-fs-cnt"></div>
-</div>
-<div class="cost"><div class="t">What each call costs per 4 KiB record <span class="meas">measured</span></div>
+<p><span class="src">source</span> <code>ext4_sync_file</code> (fs/ext4/fsync.c line 129, v5.10) does three things in order: write the file's dirty pages and wait; wait for the journal transaction that last changed what this call covers; flush the device cache. Fig. 4 follows one 4 KiB overwrite through each call; pick a call, then compare the measured costs.</p>
+<div class="s3chips" id="rd-fs-mode"><button data-m="fsync" class="on">fsync</button><button data-m="fdatasync">fdatasync</button><button data-m="sfr">sync_file_range</button></div>
+<ol class="sx" id="sx-fs-fsync">
+<li><b>pwrite() of 4 KiB.</b> The call starts in your program with the 4 KiB record.</li>
+<li><b>pwrite() returns: 1.4 us.</b> The bytes are copied into the cached page, which is marked dirty; the inode's new modification time joins the running journal transaction, in memory.</li>
+<li><b>Write the page and wait.</b> <code>file_write_and_wait_range</code> (called from <code>ext4_sync_file</code>): the dirty page becomes a bio and goes through blk-mq to the driver.</li>
+<li><b>The device acknowledges.</b> It reports the write complete as soon as it is in its volatile cache (<code>write_cache: write back</code>). A power cut now still loses it.</li>
+<li><b>Commit the journal transaction.</b> <code>ext4_fsync_journal</code> (line 104): this inode last changed in the running transaction (<code>i_sync_tid</code>), so jbd2 must commit it: journal blocks, then the commit block.</li>
+<li><b>Commit block with PREFLUSH and FUA.</b> jbd2 writes the commit block with <code>REQ_PREFLUSH | REQ_FUA</code> (fs/jbd2/commit.c line 157): the device flushes its cache, so the data page and the journal reach stable media.</li>
+<li><b>fsync returns: 1,305 us.</b> Data and all metadata are durable.</li>
+</ol>
+<ol class="sx" id="sx-fs-fdatasync" hidden>
+<li><b>pwrite() of 4 KiB.</b> As for fsync.</li>
+<li><b>pwrite() returns.</b> The page is dirty; the mtime change is in the running transaction.</li>
+<li><b>Write the page and wait.</b> The same first step as fsync.</li>
+<li><b>The device acknowledges</b> from its volatile cache.</li>
+<li><b>No commit needed.</b> For fdatasync the journal wait uses <code>i_datasync_tid</code> (line 109): an overwrite changed nothing data retrieval needs (size and block map unchanged), and that transaction committed long ago, so there is nothing to wait for. The mtime change stays in the running transaction.</li>
+<li><b>blkdev_issue_flush.</b> <code>needs_barrier</code> is set, so <code>ext4_sync_file</code> sends a cache flush (line 177): the data page reaches stable media.</li>
+<li><b>fdatasync returns: 393 us.</b> The data is durable; the new mtime will be committed within about 5 s by the journal timer. Losing that on a crash is harmless.</li>
+</ol>
+<ol class="sx" id="sx-fs-sfr" hidden>
+<li><b>pwrite() of 4 KiB.</b> As for fsync.</li>
+<li><b>pwrite() returns.</b> The page is dirty.</li>
+<li><b>Write the page and wait.</b> <code>SYNC_FILE_RANGE_WRITE</code> starts writeback of the range.</li>
+<li><b>The device acknowledges</b> from its volatile cache.</li>
+<li><b>sync_file_range returns: 161 us.</b> <code>WAIT_BEFORE | WRITE | WAIT_AFTER</code> waited for writeback only: no journal commit, no cache flush. The kernel's own comment says there are "no guarantees here that the data will be available on disk after a crash" (fs/sync.c line 355).</li>
+</ol>
+<p class="small mute">Fig. 4: fsync pays for a journal commit that fdatasync skips on an overwrite; sync_file_range never reaches the media. Orange is the data page, purple the inode change; only what reaches the bottom block survives a power cut. Order from fs/ext4/fsync.c (v5.10), whole-call times measured.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s5b">
+<div class="drill"><div class="q">On an overwrite, fdatasync cost about a third of fsync here. Why, given that both wrote the same 4 KiB?</div>
+<div class="ch"><button>fdatasync skips the device cache flush</button><button data-ok="1">fsync must also commit the inode's new modification time through the journal; fdatasync does not need to</button><button>fdatasync writes less data</button></div>
+<div class="ans" hidden>An overwrite changes no size and no block map, only the data and the inode's times. fdatasync's required metadata is unchanged, so it writes the page and flushes; fsync must also log the time change in a journal transaction and wait for its commit, which is a second ordered write and flush. On append the size changes, so fdatasync needs the journal too and costs nearly as much as fsync: preallocating a log file (<code>fallocate</code>) and overwriting it is how databases make fdatasync cheap.</div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card cost"><div class="t">What each call costs per 4 KiB record <span class="meas">measured</span></div>
 <p class="small" style="margin:2px 0 6px">1,000 records each; median and 99th percentile in microseconds. "Append" grows the file (size changes every time); "overwrite" rewrites a preallocated, already-synced file (only data and times change). tmpfs keeps files only in memory, so it has nothing to flush.</p>
 <div class="seg" id="rd-sc-mode"><button data-m="ext4" class="on">ext4 (/data)</button><button data-m="tmpfs">tmpfs (/dev/shm)</button></div>
 <div class="rd-chart" id="rd-sc"></div>
 <p class="small">Log scale. On an overwrite, fdatasync cost 3.3x less than fsync (393 against 1,305 us); on an append only 1.3x less (997 against 1,265 us). sync_file_range is cheaper because it flushes nothing and commits nothing: it is not a durability call. On tmpfs every call costs about a microsecond.</p>
 </div>
-<div class="drill"><div class="q">On an overwrite, fdatasync cost about a third of fsync here. Why, given that both wrote the same 4 KiB?</div>
-<div class="ch"><button>fdatasync skips the device cache flush</button><button data-ok="1">fsync must also commit the inode's new modification time through the journal; fdatasync does not need to</button><button>fdatasync writes less data</button></div>
-<div class="ans" hidden>An overwrite changes no size and no block map, only the data and the inode's times. fdatasync's required metadata is unchanged, so it writes the page and flushes; fsync must also log the time change in a journal transaction and wait for its commit, which is a second ordered write and flush. On append the size changes, so fdatasync needs the journal too and costs nearly as much as fsync: preallocating a log file (<code>fallocate</code>) and overwriting it is how databases make fdatasync cheap.</div></div>
-<h3>When fsync fails</h3>
-<p>A device error during writeback is reported to the next <code>fsync</code>. Before Linux 4.13 the error could reach one caller only and the failed pages were marked clean, so a second <code>fsync</code> returned success with the data lost: the PostgreSQL "fsyncgate" story in the root's section 7. Since 4.13 the kernel records writeback errors in an <code>errseq_t</code>, a counter plus error code that "allow[s] any number of 'subscribers' to tell whether it has changed since a previous point where it was sampled" (lib/errseq.c lines 8 to 10, v5.10), so every file descriptor open at the time sees the error once ({{LWN, Improved block-layer error handling|https://lwn.net/Articles/724307/}}). The pages may still be gone.</p>
-<div class="card" id="rd-fe-card"><div class="fig-t">The error now reaches everyone, but the data is still lost</div>
-<div class="seg" id="rd-fe-mode"><button data-m="old" class="on">Before Linux 4.13</button><button data-m="new">Since 4.13 (errseq_t)</button></div>
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="rd-fe-card"><div class="fig-t">The error now reaches everyone, but the data is still lost</div>
 <div id="rd-fe"></div>
-<div class="an-cap" id="rd-fe-cap"></div>
 <div class="an-ctl" id="rd-fe-ctl"></div>
 <p class="small mute">Two descriptors on one file: A (the checkpoint writer) and B (another process, say a log shipper). Sequence from the LWN article and lib/errseq.c; simplified to one page.</p></div>
+</div><div class="s3L"><section id="rd-s5c">
+<h3>When fsync fails</h3>
+<p>A device error during writeback is reported to the next <code>fsync</code>. Before Linux 4.13 the error could reach one caller only and the failed pages were marked clean, so a second <code>fsync</code> returned success with the data lost: the PostgreSQL "fsyncgate" story in the root's section 7. Since 4.13 the kernel records writeback errors in an <code>errseq_t</code>, a counter plus error code that "allow[s] any number of 'subscribers' to tell whether it has changed since a previous point where it was sampled" (lib/errseq.c lines 8 to 10, v5.10), so every file descriptor open at the time sees the error once ({{LWN, Improved block-layer error handling|https://lwn.net/Articles/724307/}}). The pages may still be gone.</p>
+<div class="s3chips" id="rd-fe-mode"><button data-m="old" class="on">Before Linux 4.13</button><button data-m="new">Since 4.13 (errseq_t)</button></div>
+<ol class="sx" id="sx-fe-old">
+<li><b>write() on A returns.</b> The new checkpoint bytes are only in the page cache, dirty. No error is recorded.</li>
+<li><b>Writeback fails: the device returns EIO.</b> The failed page is marked clean (so nothing will try to write it again, and it may be dropped), and an error flag (<code>AS_EIO</code>) is set on the file's mapping.</li>
+<li><b>B calls fsync first.</b> B gets EIO. The flag is now cleared.</li>
+<li><b>A calls fsync.</b> A, the writer that cares, gets 0: success. It believes the checkpoint is durable. This is the fsyncgate failure PostgreSQL hit.</li>
+<li><b>A calls fsync again.</b> 0 again: retrying fsync cannot bring the bytes back, and does not even report the loss.</li>
+</ol>
+<ol class="sx" id="sx-fe-new" hidden>
+<li><b>write() on A returns.</b> Each open file descriptor remembers the <code>errseq_t</code> value it last saw: A and B both sampled counter 0 at open.</li>
+<li><b>Writeback fails: the device returns EIO.</b> The write failed and the page may be dropped; the error is recorded once in the mapping, with a counter (now 1, EIO).</li>
+<li><b>B calls fsync first.</b> B sees that the counter moved since its sample: EIO; B's sample moves to 1.</li>
+<li><b>A calls fsync.</b> A sees it too: EIO. Every descriptor open at the time gets the error once, so A knows to rewrite from memory.</li>
+<li><b>A calls fsync again.</b> Nothing new since A's sample: 0. A retry looks like success; the data is still gone. Rewrite the checkpoint; do not retry the fsync and carry on.</li>
+</ol>
+</section></div></div>
+<section id="rd-s5d">
 <p>The rule: <b>a failed fsync means that file's recent writes are lost; rewrite it from memory, or abort.</b> With delayed allocation, running out of space can also surface only at <code>fsync</code> or <code>close</code> rather than at <code>write</code>, so check both: Python's <code>f.close()</code> raises <code>OSError</code> if the underlying close fails.</p>
 <details class="dp"><summary>The rest of the family, and how to count calls in a running job <span class="mute">(depth)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm">

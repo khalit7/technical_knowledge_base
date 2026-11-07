@@ -31,3 +31,6 @@ What the methodology lacked: guidance for measured-replay visuals (a time series
 | Commit accounting: RAM, CommitLimit, Committed_AS before and after one mmap(64 GiB), RSS | bars | Reading s10 | built (`28_js_rd_misc.js`) |
 | Real photo (a DRAM module, a TLB die shot) | real image | - | rejected: the page is about mechanisms, not an object the reader has not seen; hardware memory is Memory technology's |
 | Unified memory page-migration stepper | stepper | - | rejected: the virtualization sibling (section 11) owns the driver's side and the CUDA memory hierarchy page owns the programmer's; linked |
+
+## 2026-11-07 (renderer v2 rollout)
+Built: 3D stages for the hero, the walk, the fault path, mmap shared by two processes, copy-on-write, and 512 entries against one huge page. Kept 2D: bar charts with numbers on an axis, the cgroup replay (memory over time), the watermark and pinned-copy diagrams (flat). Considered and rejected: a 3D TLB-reach curve (a curve on a log axis reads best flat), a 3D shootdown across CPUs (only arm64 was measured, and the bars are flat).

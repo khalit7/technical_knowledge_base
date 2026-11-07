@@ -1,18 +1,39 @@
 <section id="rd-s12">
-<h2>12. Memory cgroups and the OOM killer: why a container dies</h2>
-<p>On a shared host each job (container, pod, Slurm step) gets a memory budget. A cgroup v2 memory controller charges every page a process in the group allocates to the group, and reclaims within the group when it reaches its limit. What is charged: "userland memory - page cache and anonymous memory", kernel structures such as dentries and inodes, and TCP socket buffers ({{cgroup-v2 docs, Memory|https://docs.kernel.org/admin-guide/cgroup-v2.html#memory}}). Four files carry most of it, in each cgroup's directory (<code>/sys/fs/cgroup/</code> inside a container): <code>memory.current</code> (bytes charged now, page cache included), <code>memory.max</code> (the hard limit: reclaim, then the OOM killer inside the group; <code>docker --memory</code>, a Kubernetes memory limit), <code>memory.events</code> (counters <code>high</code>, <code>max</code>, <code>oom</code>, <code>oom_kill</code>) and <code>memory.stat</code> (the breakdown: <code>anon</code>, <code>file</code>, <code>shmem</code>, ...).</p>
-<div class="card" id="cg-card"><p class="ftitle">Four real runs at a 512 MiB limit: page cache is given back at the line, anonymous memory and /dev/shm are not</p>
+<div class="s3sp"><div class="s3R"><div class="card" id="cg-card"><p class="ftitle">Four real runs at a 512 MiB limit: page cache is given back at the line, anonymous memory and /dev/shm are not</p>
 <div class="seg" id="cg-mode"></div>
 <div class="leg" id="cg-leg"></div>
 <div id="cg-svg" style="width:100%;overflow:hidden"></div>
-<div class="an-cap" id="cg-cap"></div>
 <div class="an-ctl" id="cg-ctl"></div>
 <div class="an-cnt" id="cg-cnt"></div>
-<ol class="marks" id="cg-marks"></ol>
 <p class="cmd" id="cg-cmd"></p>
-<p class="small mute"><span class="meas">measured</span>: sampled every 25 ms from inside the container, replayed at the real pace; each scenario starts from the same empty container (<code>src/exp/cg_replay.sh</code>, raw <code>src/raw/cg_*.txt</code>). Predict first: "Page cache only" and "Grow until killed" both reach the line; which one dies? Then play "/dev/shm counts" to the end: the shmem area outlives the killed process.</p></div>
+<p class="small mute"><span class="meas">measured</span>: sampled every 25 ms from inside the container; each step replays one stretch of the run between two events, its samples in order; each scenario starts from the same empty container (<code>src/exp/cg_replay.sh</code>, raw <code>src/raw/cg_*.txt</code>). Predict first: "Page cache only" and "Grow until killed" both reach the line; which one dies? Then play "/dev/shm counts" to the end: the shmem area outlives the killed process.</p></div>
+</div><div class="s3L">
+<h2>12. Memory cgroups and the OOM killer: why a container dies</h2>
+<p>On a shared host each job (container, pod, Slurm step) gets a memory budget. A cgroup v2 memory controller charges every page a process in the group allocates to the group, and reclaims within the group when it reaches its limit. What is charged: "userland memory - page cache and anonymous memory", kernel structures such as dentries and inodes, and TCP socket buffers ({{cgroup-v2 docs, Memory|https://docs.kernel.org/admin-guide/cgroup-v2.html#memory}}). Four files carry most of it, in each cgroup's directory (<code>/sys/fs/cgroup/</code> inside a container): <code>memory.current</code> (bytes charged now, page cache included), <code>memory.max</code> (the hard limit: reclaim, then the OOM killer inside the group; <code>docker --memory</code>, a Kubernetes memory limit), <code>memory.events</code> (counters <code>high</code>, <code>max</code>, <code>oom</code>, <code>oom_kill</code>) and <code>memory.stat</code> (the breakdown: <code>anon</code>, <code>file</code>, <code>shmem</code>, ...).</p>
+<p class="sxh">Four real runs at a 512 MiB limit, one stretch per step</p>
+<ol class="sx" id="sx-cg-pagecache">
+<li><b>Write a 768 MiB file.</b> The written pages are page cache charged to the container: file climbs to 493 MiB and <code>memory.current</code> reaches the 512 MiB line, where the kernel reclaims inside the group (1,196 <code>max</code> events by the end of the write).</li>
+<li><b>Read it back once.</b> Reading 768 MiB through a 512 MiB budget: older cache pages are dropped to make room for newer ones; file stays at about 506 MiB, events reach 4,335.</li>
+<li><b>Read it again.</b> The cache is recycled again: 7,406 <code>max</code> events in all, anonymous memory never above 3 MiB.</li>
+<li><b>Done: no OOM.</b> The limit capped the cache; no process was killed (<code>oom_kill</code> 0). Clean page cache is given back at the line.</li>
+</ol>
+<ol class="sx" id="sx-cg-anon_oom" hidden>
+<li><b>Write and read a 256 MiB file.</b> Page cache: file rises to 255 MiB, half the budget.</li>
+<li><b>A process grows by 32 MiB every 0.15 s, no swap allowed.</b> Anonymous memory climbs to 508 MiB; the page cache is dropped first to make room; then nothing reclaimable is left and the cgroup OOM killer sends SIGKILL (162 <code>max</code> events, <code>oom</code> 2, <code>oom_kill</code> 1).</li>
+<li><b>The process is gone.</b> <code>grow exit code 137</code> after 480 MiB touched; <code>memory.current</code> falls back to 3 MiB.</li>
+</ol>
+<ol class="sx" id="sx-cg-swap" hidden>
+<li><b>A process grows to 640 MiB against a 512 MiB limit, swap allowed.</b> Anonymous memory is held at the line and the rest goes to swap (it peaks at 357 MiB); each pass over the 640 MiB took 4.03, 4.94 and 4.08 s, with 14,252 <code>max</code> events.</li>
+<li><b>Done: alive, but every pass ran at disk speed.</b> <code>grow exit code 0</code>: nothing was killed, and nothing was fast.</li>
+</ol>
+<ol class="sx" id="sx-cg-shm" hidden>
+<li><b>Write 320 MiB into <code>/dev/shm</code>.</b> Shared memory, as DataLoader workers use: shmem (counted inside file) rises to 319 MiB, and no process holds it.</li>
+<li><b>A process grows to 320 MiB of its own.</b> At 511 MiB charged the group cannot reclaim: shmem has no file to drop to and there is no swap. The cgroup OOM killer kills the process after 160 MiB touched (exit code 137).</li>
+<li><b>Killed although no process ever held more than 320 MiB.</b> The 319 MiB of shmem stays charged after the kill: <code>memory.current</code> is still 324 MiB.</li>
+</ol>
 <div class="tw"><table class="tbl-sm" id="vm-cgsum"></table></div>
 <p>The fourth run is the one to remember for data loading: files in <code>/dev/shm</code> are shared memory charged to the cgroup, they survive the process that wrote them, and no process's RSS shows them. DataLoader workers hand batches to the main process through such files; the root's Debug lab case "DataLoader workers run out of /dev/shm" shows the other way it fails (Docker's default 64 MiB <code>/dev/shm</code>), and PyTorch's own README says to raise it "either with <code>--ipc=host</code> or <code>--shm-size</code>" ({{PyTorch README|https://github.com/pytorch/pytorch#docker-image}}).</p>
+</div></div>
 <details class="dp"><summary><b>The other memory files</b>: memory.high, low, min, swap.max, oom.group</summary><div>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>File</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>memory.high</code></td><td>"Memory usage throttle limit... Going over the high limit never invokes the OOM killer": the group's tasks are made to reclaim and are put to sleep, up to 2 s per return to user space in 5.10 ({{MEMCG_MAX_HIGH_DELAY_JIFFIES, mm/memcontrol.c line 2466|https://github.com/torvalds/linux/blob/v5.10/mm/memcontrol.c#L2466}}) (not run on this page: Docker 20.10 has no flag for it and the container cannot write its own cgroup; {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} ran it from the host, with and without swap)</td></tr>
@@ -44,11 +65,13 @@
 <p class="cmd">cat /sys/fs/cgroup/memory.{current,max,events}; grep -E '^(anon|file|shmem) ' /sys/fs/cgroup/memory.stat; cat /proc/PID/oom_score{,_adj}</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s13">
 <h2>13. VSZ, RSS, PSS, USS: four answers to "how much memory does it use?"</h2>
 <p>Shared pages (libraries, the page cache of a mapped file, copy-on-write pages after fork) are resident for several processes at once, so adding up per-process numbers counts them several times. Four measures, from <code>/proc/PID/status</code> and <code>/proc/PID/smaps_rollup</code>:</p>
 <div class="mech"><div><b>VSZ</b>virtual size: every mapped range, touched or not (section 1). Says nothing about memory.</div><div><b>RSS</b>resident set: every resident page mapped by the process, shared or not. Sums overcount.</div><div><b>PSS</b>proportional set: each page divided by the number of processes mapping it. Sums are right.</div><div><b>USS</b>unique set: Private_Clean + Private_Dirty, what you would get back by killing this one process.</div></div>
-<div class="card"><p class="ftitle">Three processes show 815 MiB of RSS but own 104 MiB: the workers' RSS is almost all inherited Shared_Dirty</p><div class="rd-chart" id="vm-pss"></div><p class="small mute" id="vm-pss-note"></p></div>
 <p>The running job, measured while training (main process and its two fork-started DataLoader workers): the workers' RSS of about 250 MiB each is nearly all <i>Shared_Dirty</i>, the parent's heap and the imported torch, inherited by fork and not yet written. Their USS, what each really adds, is under 9 MiB. Over an epoch, copy-on-write (section 7) turns Shared_Dirty into Private_Dirty, so watch USS per worker, not RSS. Which number a tool reports: <code>ps</code> and <code>top</code> show VSZ and RSS; <code>smem</code> shows PSS and USS; container tools and Kubernetes read the cgroup (<code>memory.current</code>, which also includes page cache), a fifth answer.</p>
 <p class="cmd">for p in $(pgrep -f train.py); do grep -E '^(Rss|Pss|Private)' /proc/$p/smaps_rollup; done; smem -P train.py</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">Three processes show 815 MiB of RSS but own 104 MiB: the workers' RSS is almost all inherited Shared_Dirty</p><div class="rd-chart" id="vm-pss"></div><p class="small mute" id="vm-pss-note"></p></div>
+</div></div></div>

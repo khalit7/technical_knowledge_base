@@ -97,8 +97,9 @@ function grid(){const pr=P[cur],n=pr.ops.length;let bad={weak:0,ext4:0};
   $('cr-sum').innerHTML='<b>'+esc(pr.name)+'</b>: a crash can leave no usable checkpoint at '+bad.weak+' of '+(n+1)+' crash points under POSIX-only guarantees, and at '+bad.ext4+' of '+(n+1)+' on this VM\'s ext4.'+
    (cur==='safe'||cur==='dcpnew'?' Every crash point leaves a loadable checkpoint under both models.':'')}
 RD.crashModel={P,outcomes};
-let an=RD.anim({card:'cr-card',ctl:'cr-ctl',n:P[cur].ops.length+1,draw,ms:1500,label:'Crash point'});
+// a widget the reader drives (2026-11-06 rule for reader-driven runs): it never plays by itself and opens on crash point 2, just after the first call
+let an=RD.anim({card:'cr-card',ctl:'cr-ctl',n:P[cur].ops.length+1,draw,ms:1500,label:'Crash point',auto:false,start:1});
 const seg=$('cr-proto');seg.innerHTML=Object.keys(P).map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+esc(P[k].name)+'</button>').join('');
-seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cur=b.dataset.m;grid();an.reset(P[cur].ops.length+1)});
+seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cur=b.dataset.m;grid();an.reset(P[cur].ops.length+1);an.go(1,true)});
 grid();an.redraw();
 })();

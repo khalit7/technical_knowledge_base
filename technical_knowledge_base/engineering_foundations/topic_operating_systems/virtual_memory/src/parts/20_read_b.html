@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s3">
 <h2>3. The TLB: why translation is usually free, and when it is not</h2>
 <p>A four-level walk is four extra memory reads for every load and store, so the CPU keeps recent translations in a <dfn id="g-tlb">translation lookaside buffer</dfn> (TLB), a small cache from virtual page number to frame and permissions. A hit adds nothing; a miss triggers the hardware walk of section 2 (its reads are themselves cached in the data caches, so a miss costs nanoseconds, not four trips to DRAM). The root page measured it on this machine: one access costs 1.1 ns while the touched pages fit in the TLB and 7.6 ns once they do not, with the knee between 2,048 and 4,096 pages (8 to 16 MiB of <dfn id="g-reach">TLB reach</dfn>, entries times page size); with 2 MiB pages the same walk stays at 1.1 ns ({{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}}, section 4 and the OS simulators tab, which also replays OSTEP's TLB homework). The {{Address translator|#t-addr}} tab sizes the reach for any footprint.</p>
@@ -6,22 +7,35 @@
 <p>When a process changes or removes a mapping (<code>munmap</code>, <code>mprotect</code>, <code>madvise(MADV_DONTNEED)</code>, page migration, swapping a page out), every CPU that may have cached the old translation must drop it, or a thread there would keep using a page that is no longer its own. That is a <dfn id="g-shoot">TLB shootdown</dfn>, and the two architectures do it very differently <span class="src">source</span>:</p>
 <div class="panes"><div><h5>x86-64: interrupt the other CPUs</h5><p class="small">The kernel sends an inter-processor interrupt to each CPU running the address space and waits for all to flush ({{arch/x86/mm/tlb.c lines 798 to 825|https://github.com/torvalds/linux/blob/v5.10/arch/x86/mm/tlb.c#L798}}, <code>smp_call_function_many</code>); over 33 pages it flushes everything instead ({{line 842|https://github.com/torvalds/linux/blob/v5.10/arch/x86/mm/tlb.c#L842}}). Cost grows with the number of CPUs the process has run on.</p></div>
 <div><h5>arm64: one broadcast instruction</h5><p class="small">The kernel issues <code>TLBI VALE1IS</code> ("inner shareable"), which the hardware broadcasts to every CPU, then waits with a barrier ({{arch/arm64/include/asm/tlbflush.h lines 255 to 272|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/tlbflush.h#L255}}). No interrupt, no other CPU's code runs.</p></div></div>
-<div class="card"><p class="ftitle">On arm64 a shootdown costs the same with 0 or 3 other threads running</p><div class="rd-chart" id="vm-shoot"></div><p class="small mute" id="vm-shoot-note"></p></div>
 <p><b>When it bites in ML.</b> A CPU-heavy process with many threads (PyTorch's intra-op pool, a data loader with threads) whose allocator keeps returning memory to the kernel and asking for it again triggers a shootdown each time; on large x86 servers each costs interrupts on every CPU that ran the process. Symptom: high system time with no obvious system calls in your code. Fix: keep memory cached in the allocator instead of returning it (the {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} page covers the knobs), fewer threads, huge pages.</p>
 <p class="cmd">perf stat -e dTLB-load-misses,dTLB-loads -p PID   # not available in this VM (no hardware counters)</p>
 <p class="cmd">grep -E 'TLB' /proc/interrupts   # x86: "TLB shootdowns" per CPU</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">On arm64 a shootdown costs the same with 0 or 3 other threads running</p><div class="rd-chart" id="vm-shoot"></div><p class="small mute" id="vm-shoot-note"></p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-flt"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Page faults: memory is filled in on first touch</h2>
 <p><code>mmap</code> and <code>malloc</code> only add a VMA; no frame is allocated and no table entry written (<b>demand paging</b>). The first access finds an invalid (or read-only) entry and the CPU raises a <dfn id="g-fault">page fault</dfn>: the kernel looks up the VMA, decides what the page should contain, fills the entry and re-runs the instruction. The program never notices, except in time. A <dfn id="g-minor">minor fault</dfn> needs no I/O; a <dfn id="g-major">major fault</dfn> waited for a device ({{getrusage(2)|https://man7.org/linux/man-pages/man2/getrusage.2.html}}; in 5.10 a fault that had to be retried also counts as major, {{mm/memory.c lines 4548 to 4557|https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4548}}).</p>
-<div class="card" id="vm-flt-card"><p class="ftitle">One access followed through the real 5.10 code path: the case decides the handler, the handler decides the cost</p>
-<div class="seg" id="vm-flt-mode"></div>
-<div class="rd-chart" id="vm-flt-svg"></div>
-<div class="an-cap" id="vm-flt-cap"></div>
-<div class="an-ctl" id="vm-flt-ctl"></div>
-<div class="an-cnt" id="vm-flt-cnt"></div>
-</div>
+<p class="sxh">Pick a case, then follow one access</p>
+<div class="s3chips" id="vm-flt-mode"><button data-m="anon_w" class="on">First write, fresh memory</button><button data-m="anon_r">First read, fresh memory</button><button data-m="file_w">Read a cached file page</button><button data-m="file_c">Read an uncached file page</button><button data-m="cow">Write after fork</button><button data-m="swap">Page that was swapped out</button><button data-m="segv">Address with no mapping</button></div>
+<ol class="sx" id="sx-flt">
+<li><b>TLB lookup.</b> The CPU issues the <span data-f="acc">store</span>. The TLB has no translation for this page.</li>
+<li><b>Hardware walk.</b> The MMU walks the tables from <code>TTBR0_EL1</code>. The last entry is <span data-f="pte0">none (never touched)</span>: the walk stops with a fault.</li>
+<li><b>Exception.</b> The CPU enters the kernel (a data abort). The fault-status code says translation fault (no entry) or permission fault (read-only entry): {{do_translation_fault|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/mm/fault.c#L599}} or {{do_page_fault|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/mm/fault.c#L451}}.</li>
+<li><b>Find the VMA.</b> <code>__do_page_fault</code> ({{line 408|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/mm/fault.c#L408}}) looks the address up among the mappings. VMA: <span data-f="vma">anonymous, private, rw-</span>.</li>
+<li><b>handle_mm_fault.</b> Allocate any missing upper tables, then <code>handle_pte_fault</code> ({{mm/memory.c line 4330|https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L4330}}) chooses the handler from the entry and the VMA.</li>
+<li><b>Handler.</b> <span data-f="h">do_anonymous_page ({{mm/memory.c line 3469|https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L3469}}): take a free frame, zero it, map it writable.</span></li>
+<li><b>Return and retry.</b> The entry now points at <span data-f="fr">a new zeroed 4 KiB frame</span>. The CPU re-executes the <span data-f="acc">store</span>, the walk succeeds and the TLB caches it; the next access to this page costs nothing extra.</li>
+</ol>
+<ol class="sx" id="sx-flt-segv" hidden>
+<li><b>TLB lookup.</b> The CPU issues the load. The TLB has no translation for this page.</li>
+<li><b>Hardware walk.</b> The MMU walks the tables from <code>TTBR0_EL1</code> and finds no entry: the walk stops with a fault.</li>
+<li><b>Exception.</b> The CPU enters the kernel (a data abort, a translation fault).</li>
+<li><b>SIGSEGV.</b> <code>find_vma</code> finds no mapping: the kernel sends SIGSEGV; Python dies with "Segmentation fault". Nothing is filled and nothing is retried.</li>
+</ol>
+<p class="small" id="vm-flt-cost"></p>
 <div class="tw"><table class="tbl-sm" id="vm-flt-tbl"></table></div>
 <p><b>Three details that matter.</b> (1) <b>The zero page:</b> a read of never-written anonymous memory maps one shared, read-only page of zeros ({{mm/memory.c lines 3496 to 3500|https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L3496}}): measured, reading 64 MiB took <span id="vm-zr"></span> faults and added <b>0 KiB</b> of RSS; writing it afterwards took the same number of faults again. So "I allocated and read it, but RSS did not grow" is expected. (2) <b>Fault-around:</b> a read fault on a cached file page maps up to 16 neighbouring cached pages at once (<code>fault_around_bytes</code> = 64 KiB, {{line 3875|https://github.com/torvalds/linux/blob/v5.10/mm/memory.c#L3875}}). The root's warm read of the 2,056-page dataset took exactly 129 minor faults, which is 2,056 / 16 rounded up. (3) <b><code>MAP_POPULATE</code></b> (or <code>madvise(MADV_POPULATE_WRITE)</code> since 5.14) pays all faults inside the <code>mmap</code> call: 64 MiB took <span id="vm-pop"></span> ms in the call against <span id="vm-pop2"></span> ms by touching page by page, because one call avoids 16,384 trips into the kernel.</p>
 <div class="drill" data-k="fault"><p class="q">You <code>np.empty(10**9, dtype=np.uint8)</code> and immediately call <code>.sum()</code>. Memory use (RSS) afterwards?</p>
@@ -30,3 +44,4 @@
 <p><b>When it bites in ML.</b> The first epoch is slower than the rest (major faults on the dataset; the root's Debug lab case "The first epoch is slower than the rest: cold and warm page cache"); the first iteration of a step that allocates a big new buffer pays one fault per 4 KiB (1 GiB = 262,144 faults, about 0.27 s at the 1 us measured here, per process); a latency-sensitive server sees spikes when pages are first touched. Fixes: pre-touch (<code>MAP_POPULATE</code>, a warm-up step), huge pages (section 8), keep buffers alive across steps instead of reallocating.</p>
 <p class="cmd">ps -o pid,min_flt,maj_flt,rss,cmd -p PID; /usr/bin/time -v python train.py   # "Major/Minor page faults"</p>
 </section>
+</div></div>

@@ -1,7 +1,7 @@
 // node src/check_controls.mjs <page index.html>   (run from the repository root)
 // Clicks every button, moves every slider, select and number input in every tab, steps every animation to its end,
 // in 390 px dark and 920 px light; fails on page errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity.
-// Then, under prefers-reduced-motion and under normal motion, confirms that no animation moves before the reader acts.
+// Autoplay, reduced motion and the step lists of the stages and the cgroup replay are checked by check_stages.mjs (2026-11-07).
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const file = 'file://' + path.resolve(process.argv[2]);
@@ -35,19 +35,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push('jsErr: ' + box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
-}
-for (const motion of ['reduce', 'no-preference']) {
-  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: motion }]);
-  await p.goto(file);
-  const moved = [];
-  for (const id of ['vm-walk-card', 'vm-flt-card', 'vm-cow-card', 'vm-hp-card', 'cg-card']) {
-    await p.$eval('#' + id, e => e.scrollIntoView());
-    await new Promise(r => setTimeout(r, 2500));
-    const v = await p.$eval('#' + id + ' .an-ctl input[type=range]', s => +s.value);
-    if (v !== 0) moved.push(id + ' at step ' + v);
-  }
-  console.log('motion', motion, moved.length ? 'MOVED: ' + moved.join(', ') : 'nothing plays by itself'); bad += moved.length; await p.close();
 }
 await b.close();
 console.log(bad ? `check_controls: ${bad} problems` : 'check_controls: PASS'); process.exit(bad ? 1 : 0);

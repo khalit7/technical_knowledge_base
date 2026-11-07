@@ -1,5 +1,5 @@
 // Click every control of the storage page at 390 dark and 920 light; report page errors, NaN/undefined text,
-// sideways scroll; screenshot each tab. Run from the repo root:
+// sideways scroll; screenshot each tab. The 3D stages and their step lists: check_stages.mjs. Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_operating_systems/storage_and_file_systems/src/check_ui.mjs <outdir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -18,6 +18,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + page);
+  await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + page); // the last run's tab is remembered: start on Reading
   await sleep(300);
   const check = async (tab, label) => {
     const t = await p.$eval('#' + tab, e => e.innerText);
@@ -43,22 +44,21 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       await check(tab, label + ' ' + segId + '[' + i + ']');
     }
   };
-  // Nothing moves before the reader acts: scroll each animated card into view, wait, and check it is still on step 0
-  const CTL = ['rd-ftl-ctl', 'rd-ra-ctl', 'rd-fs-ctl', 'rd-fe-ctl', 'cr-ctl', 'rd-jb-ctl'];
-  for (const c of CTL) {
+  // Motion (2026-11-06 rule): the 2D steppers play by themselves once in view; the crash lab is a widget and never does. check_stages.mjs covers the 3D stages and reduced motion.
+  for (const c of ['rd-ftl-ctl', 'rd-fe-ctl']) {
     await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await sleep(1600);
-    const v = await p.$eval('#' + c + '-s', e => e.value);
-    if (v !== '0') errs.push(scheme + ': ' + c + ' moved by itself to step ' + v);
+    if (!/Pause/.test(await p.$eval('#' + c + '-p', e => e.textContent))) errs.push(scheme + ': ' + c + ' did not play when scrolled into view');
   }
+  await p.$eval('#cr-ctl', e => e.scrollIntoView({ block: 'center' })); await sleep(1600);
+  if (/Pause/.test(await p.$eval('#cr-ctl-p', e => e.textContent))) errs.push(scheme + ': the crash lab played by itself');
   // Reading
   await check('t-read', scheme + ' read');
   for (const c of ['rd-ftl-ctl']) await ctl(c);
-  await segs('t-read', 'rd-ra-mode', ['rd-ra-ctl'], scheme);
   await segs('t-read', 'rd-wb-mode', [], scheme);
-  await segs('t-read', 'rd-fs-mode', ['rd-fs-ctl'], scheme);
+  await segs('t-read', 'rd-fs-mode', [], scheme);
   await segs('t-read', 'rd-sc-mode', [], scheme);
   await segs('t-read', 'rd-fe-mode', ['rd-fe-ctl'], scheme);
-  await segs('t-read', 'rd-jb-mode', ['rd-jb-ctl'], scheme);
+  await segs('t-read', 'rd-jb-mode', [], scheme);
   await segs('t-read', 'cr-proto', ['cr-ctl'], scheme);
   if (scheme === 'light') { const n = await p.$$eval('#cr-proto button', bs => bs.length);
     for (let i = 0; i < n; i++) { await p.$$eval('#cr-proto button', (bs, i) => bs[i].click(), i); console.log('  crash lab: ' + await p.$eval('#cr-sum', e => e.textContent)); } }

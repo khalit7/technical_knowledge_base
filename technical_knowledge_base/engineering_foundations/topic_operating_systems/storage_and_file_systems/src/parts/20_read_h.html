@@ -1,13 +1,34 @@
+<div class="s3sp"><div class="s3R"><div id="stg-jb"></div></div><div class="s3L">
 <section id="rd-s7">
 <h2>7. Journaling: how ext4 keeps its own structures consistent</h2>
-<p>Creating, growing or renaming a file changes several blocks (the inode, a free-block bitmap, the directory). A crash between them leaves the file system's own structures inconsistent. ext4 hands the fix to a generic journaling layer, <dfn id="g-jbd2">jbd2</dfn>: every operation that changes metadata opens a <dfn id="g-handle">handle</dfn> on the current running <dfn id="g-transaction">transaction</dfn>, many operations share one transaction, and the transaction is <dfn id="g-commit">committed</dfn> (its blocks written to the journal, then a commit block) when it is 5 seconds old (<code>JBD2_DEFAULT_MAX_COMMIT_AGE</code>, include/linux/jbd2.h line 48, v5.10; the <code>commit=5</code> mount option), when the journal fills, or when someone's <code>fsync</code> needs it. After a crash, mount replays committed transactions and discards incomplete ones: seconds, not the full scan of fsck. The root's {{OS simulators|n:3f05c17b0d0d81c5a97ce991644af140}} tab crashes such an update at every block write; here is the order ext4 really uses.</p>
-<div class="card" id="rd-jb-card">
-<div class="fig-t">One commit, step by step: in ordered mode the data reaches home before the metadata that points to it is committed</div>
-<div class="seg" id="rd-jb-mode"><button data-m="ordered" class="on">data=ordered (default, this VM)</button><button data-m="journal">data=journal</button><button data-m="writeback">data=writeback</button></div>
-<div id="rd-jb"></div>
-<div class="an-cap" id="rd-jb-cap"></div>
-<div class="an-ctl" id="rd-jb-ctl"></div>
-<p class="small mute">One transaction holding a new file's inode, its directory entry and a bitmap block, plus the file's 4 data blocks. Order from fs/jbd2/commit.c and the ext4 documentation; the crash note under each step is what replay finds.</p></div>
+<p>Creating, growing or renaming a file changes several blocks (the inode, a free-block bitmap, the directory). A crash between them leaves the file system's own structures inconsistent. ext4 hands the fix to a generic journaling layer, <dfn id="g-jbd2">jbd2</dfn>: every operation that changes metadata opens a <dfn id="g-handle">handle</dfn> on the current running <dfn id="g-transaction">transaction</dfn>, many operations share one transaction, and the transaction is <dfn id="g-commit">committed</dfn> (its blocks written to the journal, then a commit block) when it is 5 seconds old (<code>JBD2_DEFAULT_MAX_COMMIT_AGE</code>, include/linux/jbd2.h line 48, v5.10; the <code>commit=5</code> mount option), when the journal fills, or when someone's <code>fsync</code> needs it. After a crash, mount replays committed transactions and discards incomplete ones: seconds, not the full scan of fsck. The root's {{OS simulators|n:3f05c17b0d0d81c5a97ce991644af140}} tab crashes such an update at every block write; Fig. 6 is the order ext4 really uses; pick a data mode.</p>
+<div class="s3chips" id="rd-jb-mode"><button data-m="ordered" class="on">data=ordered (default, this VM)</button><button data-m="journal">data=journal</button><button data-m="writeback">data=writeback</button></div>
+<ol class="sx" id="sx-jb-ordered">
+<li><b>Handles join the running transaction.</b> The rename or create changed the inode, a directory block and a bitmap, in memory; the file's data is dirty in the page cache. <i>Crash now:</i> nothing new is on disk. Old state.</li>
+<li><b>Commit starts (5 s old, or an fsync): data first.</b> Ordered mode writes the data blocks to their home locations before any metadata that points at them is logged. <i>Crash now:</i> new data sits in blocks nothing points to. Old state, no harm.</li>
+<li><b>Metadata blocks to the journal.</b> The changed metadata blocks are copied into the journal area, the next slots of its ring. <i>Crash now:</i> no commit block, so replay discards the transaction. Old state.</li>
+<li><b>Commit block, with PREFLUSH and FUA.</b> The device cache is flushed and the commit block written through to stable media: the transaction is committed. <i>Crash now:</i> replay copies the metadata home. The new file, with its data.</li>
+<li><b>Checkpoint: metadata written home, later.</b> In the background the metadata blocks are written to their real places. <i>Crash now:</i> replay is harmless (it writes the same blocks again).</li>
+<li><b>Journal space freed.</b> That part of the journal is reused by later transactions. <i>Crash now:</i> the new state, nothing to replay.</li>
+</ol>
+<ol class="sx" id="sx-jb-journal" hidden>
+<li><b>Handles join the running transaction.</b> As in ordered mode: metadata and data are changed in memory. <i>Crash now:</i> old state.</li>
+<li><b>Data and metadata to the journal.</b> In data=journal mode the file's data is logged too: every byte is written twice. <i>Crash now:</i> no commit block, replay discards both. Old state.</li>
+<li><b>Commit block, with PREFLUSH and FUA.</b> Data and metadata are committed together. <i>Crash now:</i> replay writes both home. Consistent data and metadata.</li>
+<li><b>Checkpoint: both written home.</b> The second write of every byte. <i>Crash now:</i> replay is harmless.</li>
+<li><b>Journal space freed.</b> Reused by later transactions. <i>Crash now:</i> the new state.</li>
+</ol>
+<ol class="sx" id="sx-jb-writeback" hidden>
+<li><b>Handles join the running transaction.</b> As in the other modes. <i>Crash now:</i> old state.</li>
+<li><b>Metadata to the journal; data not waited for.</b> data=writeback does not order data before metadata: the data may still be dirty in memory. <i>Crash now:</i> no commit block. Old state.</li>
+<li><b>Commit block, with PREFLUSH and FUA.</b> The metadata is committed while the data has not reached its blocks. <i>Crash now:</i> replay installs an inode that points at blocks whose new data never arrived, so their stale contents appear in the file.</li>
+<li><b>Data written later by ordinary writeback.</b> Whenever the flusher gets to it. <i>Crash now:</i> replay gives the new file with its data.</li>
+<li><b>Checkpoint and journal space freed.</b> As in the other modes. <i>Crash now:</i> the new state.</li>
+</ol>
+<p class="small mute">Fig. 6: one commit, step by step: in ordered mode the data reaches home before the metadata that points to it is committed. One transaction holding a new file's inode, its directory entry and a bitmap block (orange), plus the file's 4 data blocks (blue; grey with a red edge where a block still holds stale contents). Order from fs/jbd2/commit.c and the ext4 documentation; "Crash now" is what replay finds.</p>
+</section>
+</div></div>
+<section id="rd-s7b">
 <p>The journal always covers metadata; the <code>data=</code> mount option decides what happens to file data:</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Mode</th><th>File data</th><th>After a crash ({{ext4 docs|https://docs.kernel.org/admin-guide/ext4.html}})</th></tr></thead><tbody>
 <tr><td><code>data=journal</code></td><td>written to the journal too, then in place</td><td>"bringing both data and metadata into a consistent state"; slowest for most workloads (every byte written twice)</td></tr>

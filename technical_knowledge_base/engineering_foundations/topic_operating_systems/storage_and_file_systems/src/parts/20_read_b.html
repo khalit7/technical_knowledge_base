@@ -1,30 +1,45 @@
-<section id="rd-s1">
+<div class="s3sp"><div class="s3L"><section id="rd-s1">
 <h2>1. Devices and the block layer: what is at the bottom</h2>
 <p>A <dfn id="g-device">storage device</dfn> keeps data without power, but it is thousands of times slower than memory, works in blocks rather than bytes, and usually has its own volatile cache. Everything above it exists to hide those three facts; every durability bug forgets one of them.</p>
 <h3>Latency is not one number: it depends on how many requests are in flight</h3>
-<div class="cost"><div class="t">4 KiB random reads at four queue depths <span class="meas">measured</span></div>
-<p class="small" style="margin:2px 0 6px">fio, <code>O_DIRECT</code> (no page cache, <a href="#rd-s8">section 8</a>) on a 1 GiB file, 5 s per point. Queue depth (QD) is how many requests are in flight at once.</p>
-<div class="rd-chart" id="rd-qd"></div>
-<p class="small">QD 1 to 64: throughput x5.1, mean latency x14.4. Little's law (requests in flight = throughput x latency) at QD 64: 64 / 1,152.6 us = 55,527 per second, against 54,723 measured (+1.5%). The virtual disk reports itself as <code>rotational: 1</code>, which it is not; read the shape, not the absolute numbers.</p>
-</div>
 <p>A device serves many requests in parallel, so more in flight buys throughput until it saturates; after that, each extra request only waits longer. A DataLoader that reads one sample at a time from one thread runs at QD 1, the top bar. More workers, prefetching or asynchronous I/O move it down the chart.</p>
 <div class="drill"><div class="q">At queue depth 64, fio measured about 54,700 reads per second at a mean latency near 1.15 ms. What throughput does Little's law predict for 64 requests in flight at 1.15 ms each?</div>
 <div class="ch"><button>about 870 per second</button><button data-ok="1">about 55,500 per second</button><button>about 3.5 million per second</button></div>
 <div class="ans" hidden>Throughput = requests in flight / latency = 64 / 0.0011526 s = about 55,500 per second, within 2% of what fio measured: the device was busy all the time, and each extra request in flight only waited longer. At queue depth 1 the same law gives 1 / 80 us = 12,500 per second; fio saw 10,741 because fio's own per-request work adds to the device's time.</div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card cost"><div class="t">4 KiB random reads at four queue depths <span class="meas">measured</span></div>
+<p class="small" style="margin:2px 0 6px">fio, <code>O_DIRECT</code> (no page cache, <a href="#rd-s8">section 8</a>) on a 1 GiB file, 5 s per point. Queue depth (QD) is how many requests are in flight at once.</p>
+<div class="rd-chart" id="rd-qd"></div>
+<p class="small">QD 1 to 64: throughput x5.1, mean latency x14.4. Little's law (requests in flight = throughput x latency) at QD 64: 64 / 1,152.6 us = 55,527 per second, against 54,723 measured (+1.5%). The virtual disk reports itself as <code>rotational: 1</code>, which it is not; read the shape, not the absolute numbers.</p>
+</div>
+</div></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s1b">
 <h3>How a request reaches the device: per-CPU queues all the way down</h3>
-<div class="card" id="rd-mq-card"><div class="fig-t">Each CPU has its own path to the drive, so no shared lock</div>
+<p>A file system describes an I/O as a <dfn id="g-bio">bio</dfn> (direction, starting sector, list of memory pages); bios that touch neighbouring sectors merge into a <dfn id="g-request">request</dfn>. Since Linux 3.13 the <dfn id="g-blocklayer">block layer</dfn> is <dfn id="g-blkmq">blk-mq</dfn>: each CPU puts requests in its own software queue, which feeds one of the device's hardware queues ({{kernel docs: blk-mq|https://docs.kernel.org/block/blk-mq.html}}). On <dfn id="g-nvme">NVMe</dfn>, the interface modern SSDs speak over PCIe, each hardware queue is a <dfn id="g-sqcq">submission and completion queue</dfn> pair in host memory: the driver writes a command and rings a <dfn id="g-doorbell">doorbell</dfn> register; the drive fetches it by DMA, does the work, posts a completion and raises an interrupt. The specification allows up to 65,535 I/O queue pairs of up to 65,536 entries each ({{NVM Express base specification|https://nvmexpress.org/specifications/}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-mq-card"><div class="fig-t">Each CPU has its own path to the drive, so no shared lock</div>
 <div class="rd-svg" id="rd-mq"></div>
 <p class="small">This VM's disk as the kernel reports it: 5 CPUs, scheduler <code>none</code>, 5 hardware queues (one per CPU), up to 256 requests per queue, at most 1,280 KiB per request <span class="meas">measured</span>. The NVMe part is from the specification <span class="nrh">not run here</span> (this disk is virtio).</p></div>
-<p>A file system describes an I/O as a <dfn id="g-bio">bio</dfn> (direction, starting sector, list of memory pages); bios that touch neighbouring sectors merge into a <dfn id="g-request">request</dfn>. Since Linux 3.13 the <dfn id="g-blocklayer">block layer</dfn> is <dfn id="g-blkmq">blk-mq</dfn>: each CPU puts requests in its own software queue, which feeds one of the device's hardware queues ({{kernel docs: blk-mq|https://docs.kernel.org/block/blk-mq.html}}). On <dfn id="g-nvme">NVMe</dfn>, the interface modern SSDs speak over PCIe, each hardware queue is a <dfn id="g-sqcq">submission and completion queue</dfn> pair in host memory: the driver writes a command and rings a <dfn id="g-doorbell">doorbell</dfn> register; the drive fetches it by DMA, does the work, posts a completion and raises an interrupt. The specification allows up to 65,535 I/O queue pairs of up to 65,536 entries each ({{NVM Express base specification|https://nvmexpress.org/specifications/}}).</p>
-<h3>Inside a flash drive: every overwrite goes to a fresh page</h3>
-<div class="card" id="rd-ftl-card"><div class="fig-t">Why an SSD writes more than you asked: remapping and garbage collection</div>
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="rd-ftl-card"><div class="fig-t">Why an SSD writes more than you asked: remapping and garbage collection</div>
 <div id="rd-ftl"></div>
-<div class="an-cap" id="rd-ftl-cap"></div>
 <div class="an-ctl" id="rd-ftl-ctl"></div>
 <div class="an-cnt" id="rd-ftl-cnt"></div>
 <p class="small mute">Two erase blocks of four pages each <span class="ill">illustrative</span>; real blocks hold hundreds of pages. Mechanism and typical times from OSTEP ch. 44.</p></div>
+</div><div class="s3L"><section id="rd-s1c">
+<h3>Inside a flash drive: every overwrite goes to a fresh page</h3>
 <p>Flash is read and written in <dfn id="g-flashpage">pages</dfn> of a few KiB but erased only in much larger <dfn id="g-eraseblock">erase blocks</dfn>, and a page cannot be rewritten before its block is erased. The <dfn id="g-ftl">flash translation layer</dfn> (FTL) inside the drive therefore writes every update to a fresh page, remaps it, and garbage-collects old blocks in the background; the extra internal writes are <dfn id="g-wa">write amplification</dfn>. Typical times for SLC flash: read about 25 us, program (write) 200 to 300 us, erase 1.5 to 2 ms ({{OSTEP ch. 44|https://pages.cs.wisc.edu/~remzi/OSTEP/file-ssd.pdf}}).</p>
+<ol class="sx" id="sx-ftl">
+<li><b>A new drive: every page is erased.</b> Two erase blocks of four pages. A page can be programmed (written) once after its block is erased.</li>
+<li><b>Write A, B and C.</b> The FTL places them in free pages of block 0 and records logical page to physical page in its map.</li>
+<li><b>Overwrite A: it goes to a fresh page.</b> Flash cannot rewrite page 0 in place, so the new A goes to page 3, the map now points there, and the old copy is marked invalid. One host write, one flash write.</li>
+<li><b>Overwrite B: block 0 is full, so block 1.</b> Block 0 now holds two dead pages that cannot be reused until the whole block is erased.</li>
+<li><b>Garbage collection copies the live pages out.</b> To free block 0 the FTL copies its valid pages (C and A&prime;) to block 1: two flash writes the host never asked for. This is write amplification.</li>
+<li><b>Erase block 0.</b> An erase takes 1.5 to 2 ms against 200 to 300 us to program a page (SLC, OSTEP ch. 44). A discard (TRIM) of dead data would have spared the copies. Write amplification here: 7 flash writes / 5 host writes = 1.4.</li>
+</ol>
 <p><b>The device's cache.</b> Most drives acknowledge a write once it is in their internal DRAM. If power fails before it reaches flash or platter, the write is lost although the drive said "done". The kernel has two tools for this ({{kernel docs: writeback cache control|https://docs.kernel.org/block/writeback_cache_control.html}}): a <dfn id="g-flush">cache flush</dfn> (REQ_PREFLUSH: "flush the volatile cache before this I/O") and <dfn id="g-fua">FUA</dfn>, Force Unit Access (REQ_FUA: "this write completes only once it is on stable storage"). A file system's <code>fsync</code> ends with one of them: that, not the write, is the red line in the hero figure.</p>
+</section></div></div>
+<section id="rd-s1d">
 <details class="dp"><summary>Disks, schedulers, TRIM on this VM, and the commands that show the block layer <span class="mute">(depth)</span></summary><div class="b">
 <p><b>Hard disks.</b> A spinning platter and a moving arm: a random read waits for the arm to move (seek) and the platter to turn (rotation), several milliseconds, so a few hundred random reads per second; sequential reads are fast because nothing moves. OSTEP ch. 37 works the numbers.</p>
 <p><b>Plugging and schedulers.</b> A thread may <dfn id="g-plug">plug</dfn> its queue while it submits a batch, so the batch is merged before it is sent. An optional <dfn id="g-iosched">I/O scheduler</dfn> may reorder requests: <code>none</code>, <code>mq-deadline</code> (bounds how long a request waits), <code>kyber</code> (latency targets) or <code>bfq</code> (fair shares between processes). For fast NVMe drives <code>none</code> is the usual choice because reordering costs more than it saves.</p>

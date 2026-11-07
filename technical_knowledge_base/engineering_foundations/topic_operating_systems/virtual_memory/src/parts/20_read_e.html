@@ -1,8 +1,7 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s9">
 <h2>9. Locked and pinned memory, and GPU memory mapping</h2>
 <p>Normally the kernel may move a page (compaction, NUMA migration, THP collapse) or write it to swap, because only the page table knows where it is and the table is updated. A device that copies memory by itself (<dfn id="g-dma">DMA</dfn>: a GPU, a network card doing RDMA) holds a <i>physical</i> address and does not consult the page table; if the page moves mid-copy, the device reads someone else's data. Two mechanisms stop that. <code>mlock(addr, len)</code> faults the range in and keeps it resident, never swapped ({{mlock(2)|https://man7.org/linux/man-pages/man2/mlock.2.html}}). <dfn id="g-pin">Pinning</dfn> is stronger and kernel-internal: a driver calls <code>pin_user_pages</code> (the <code>FOLL_PIN</code> flavour of get_user_pages, {{pin_user_pages docs|https://docs.kernel.org/core-api/pin_user_pages.html}}) and the pages may not be moved or freed until it unpins them. Both take memory out of what reclaim can use.</p>
-<div class="card"><p class="ftitle">Pageable memory needs a staging copy before the GPU can DMA it; pinned memory is copied directly, and asynchronously</p><div class="rd-chart" id="vm-pin"></div>
-<p class="small mute">Static before/after diagram of one host-to-GPU copy, from the CUDA and PyTorch documentation quoted below <span class="nrh">not run here</span> (no GPU in this VM).</p></div>
 <p><b>Pinned memory for GPU copies</b> <span class="nrh">not run here</span>. <code>cudaHostAlloc</code> / <code>cudaMallocHost</code> "Allocates size bytes of host memory that is page-locked and accessible to the device", with the warning that "allocating excessive amounts of pinned memory may degrade system performance, since it reduces the amount of memory available to the system for paging"; <code>cudaHostRegister</code> page-locks an existing range ({{CUDA runtime API, memory management|https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__MEMORY.html}}). Why it matters: "when CUDA sends pageable data from CPU to GPU, it must first create a page-locked copy of that data before making the transfer" ({{PyTorch pinned memory tutorial|https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html}}), an extra copy through a staging buffer. In PyTorch:</p>
 <ul class="tight">
 <li><code>DataLoader(pin_memory=True)</code> runs a thread that copies each batch into pinned memory, so <code>x.to("cuda", non_blocking=True)</code> can be an asynchronous DMA that overlaps compute.</li>
@@ -18,8 +17,12 @@
 <p>That ENOMEM ("Cannot allocate memory") is the error an RDMA library or a pinned-memory allocator reports inside a container whose limit was never raised, and it does not mention the limit. Raise it with <code>docker run --ulimit memlock=-1</code>, <code>LimitMEMLOCK=infinity</code> in a systemd unit, or <code>/etc/security/limits.conf</code>; <code>CAP_IPC_LOCK</code> bypasses it.</p>
 <p><b>Unified (managed) memory: page faults that cross to the GPU.</b> <code>cudaMallocManaged</code> gives one pointer valid on CPU and GPU; its pages live on one side at a time and migrate on a page fault from the other side, the same demand paging as section 4 with a device on the far end. The fault is serviced by NVIDIA's <code>nvidia-uvm</code> kernel module, and on systems with Linux's HMM or hardware coherence (Grace Hopper) the GPU uses the process's own page tables. The sibling {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}} (section 11, "GPU memory and the driver, from the operating system's side") follows the driver's side; the CUDA programmer's view of pinned, mapped and managed memory, with prefetching, is {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}} (section 8).</p>
 <p class="cmd">ulimit -l; grep VmLck /proc/PID/status; grep -E 'Mlocked|Unevictable' /proc/meminfo</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">Pageable memory needs a staging copy before the GPU can DMA it; pinned memory is copied directly, and asynchronously</p><div class="rd-chart" id="vm-pin"></div>
+<p class="small mute">Static before/after diagram of one host-to-GPU copy, from the CUDA and PyTorch documentation quoted below <span class="nrh">not run here</span> (no GPU in this VM).</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s10">
 <h2>10. Overcommit: promising more memory than exists</h2>
 <p>Programs reserve far more than they touch (allocator arenas, thread stacks, sparse arrays, a 1 GiB reservation by PyTorch's allocator). Refusing every reservation that exceeds RAM would waste memory; accepting all means some promise may not be kept. The kernel's choice is <code>vm.overcommit_memory</code> <span class="src">source</span> ({{overcommit-accounting|https://docs.kernel.org/mm/overcommit-accounting.html}}; {{mm/util.c lines 860 to 876|https://github.com/torvalds/linux/blob/v5.10/mm/util.c#L860}}):</p>
@@ -28,12 +31,13 @@
 <tr><td>1, always (this VM)</td><td>accept everything</td><td>sparse arrays work; the 64 GiB request below succeeded</td></tr>
 <tr><td>2, never</td><td>total commitments (<code>Committed_AS</code>) may not exceed <code>CommitLimit</code> = RAM &times; <code>overcommit_ratio</code>% + swap; "In mode 2 the MAP_NORESERVE flag is ignored"</td><td>allocations fail with ENOMEM instead of later OOM kills; programs that reserve big address ranges fail to start</td></tr>
 </tbody></table></div>
-<div class="card"><p class="ftitle">Allocating is not using: one 64 GiB mapping on a 10 GB machine succeeded and pushed commitments to 11.6 times the commit limit</p><div class="rd-chart" id="vm-cmt"></div><p class="small mute">Measured on this VM (mode 1, ratio 50), KiB from <code>/proc/meminfo</code>.</p></div>
 <p><b>Measured.</b> <code>CommitLimit</code> = 10,189,980 &times; 50% + 1,048,572 = 6,143,562 KiB against <span id="vm-cl"></span> KiB reported (the same, to page rounding; {{vm_commit_limit, mm/util.c line 805|https://github.com/torvalds/linux/blob/v5.10/mm/util.c#L805}}). With <code>MAP_NORESERVE</code> the 64 GiB mapping was not counted at all; <code>malloc(32 GiB)</code> returned a pointer:</p>
 <pre class="cd out" id="vm-commit"></pre>
 <p>Under mode 0 the 64 GiB request would have failed (larger than RAM + swap, 10.7 GiB); under mode 2 so would anything that took commitments past 5.9 GiB. Containers cannot change this setting: it is one value for the whole kernel. <b>When it bites:</b> a cluster that sets mode 2 for safety makes large virtual reservations (CUDA's and allocators' address-space reservations, big <code>np.empty</code> scratch buffers) fail at allocation time; read <code>CommitLimit</code> and <code>Committed_AS</code> before blaming the framework.</p>
 <p class="cmd">cat /proc/sys/vm/overcommit_memory /proc/sys/vm/overcommit_ratio; grep -i commit /proc/meminfo</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">Allocating is not using: one 64 GiB mapping on a 10 GB machine succeeded and pushed commitments to 11.6 times the commit limit</p><div class="rd-chart" id="vm-cmt"></div><p class="small mute">Measured on this VM (mode 1, ratio 50), KiB from <code>/proc/meminfo</code>.</p></div>
+</div></div></div>
 
 <section id="rd-s11">
 <h2>11. Swap: anonymous pages written to disk</h2>

@@ -34,7 +34,7 @@ const mode=$('rd-wb-mode');mode.innerHTML=WB.map((w,i)=>'<button data-m="'+w[0]+
 const SER=[['dirty (memory.stat file_dirty)',1,'var(--c2)'],['under writeback',2,'var(--c5)'],['received by the device (io.stat)',3,'var(--c3)'],['written by the program',4,'var(--c1)']];
 $('rd-wb-leg').innerHTML=SER.map(s=>'<span style="--sw:'+s[2]+'">'+s[0]+'</span>').join('');
 let cur='small';
-function drawWB(){const el=$('rd-wb-svg'),W=Math.min(860,RD.width(el)),H=230,L=46,R=10,T=10,B=30,w=D.wb[cur],rows=w.rows;
+function drawWB(){const el=$('rd-wb-svg'),W=Math.min(860,RD.width(el)),H=230,L=46,R=10,T=10,B=30,w=D.wb[cur],o=w.t_write-.1,rows=w.rows.map(r=>[Math.max(0,r[0]-o)].concat(r.slice(1))); // time from the sample before the write (a primed run's clock also counts its 1 GiB priming)
   const tmax=Math.max(...rows.map(r=>r[0])),ymax=Math.max(1,...rows.map(r=>Math.max(r[1],r[2],r[3],r[4])))*1.08;
   const x=t=>L+(W-L-R)*t/tmax,y=v=>T+(H-T-B)*(1-v/ymax);
   let g='';const step=ymax>800?400:ymax>200?100:ymax>40?20:5;
@@ -44,7 +44,7 @@ function drawWB(){const el=$('rd-wb-svg'),W=Math.min(860,RD.width(el)),H=230,L=4
   SER.forEach(s=>{g+='<polyline fill="none" stroke="'+s[2]+'" stroke-width="2" points="'+rows.map(r=>x(r[0]).toFixed(1)+','+y(r[s[1]]).toFixed(1)).join(' ')+'"/>'});
   el.innerHTML=RD.svg(W,H,g,'Dirty and written MiB over time');
   const ws=w.wchans.filter(c=>c!=='0'&&c!=='-'&&c!=='hrtimer_nanosleep');
-  $('rd-wb-cap').innerHTML=esc(w.head)+(w.fsync_s!=null?'; fsync took '+f1(w.fsync_s*1000)+' ms':'')+'. Dirty data last above 1 MiB at '+f1(w.last_dirty_s)+' s.'+(ws.length?' Writer seen sleeping in: <code>'+ws.map(esc).join('</code>, <code>')+'</code>.':'')+(cur.indexOf('primed')===0?' Primed: the same container first wrote and fsynced 1 GiB.':'')}
+  $('rd-wb-cap').innerHTML=esc(w.head)+(w.fsync_s!=null?'; fsync took '+f1(w.fsync_s*1000)+' ms':'')+'. Dirty data stayed above 1 MiB for '+f1(w.dirty_for_s)+' s after the first sample that saw the write.'+(ws.length?' Writer seen sleeping in: <code>'+ws.map(esc).join('</code>, <code>')+'</code>.':'')+(cur.indexOf('primed')===0?' Primed: the same container first wrote and fsynced 1 GiB.':'')}
 RD.seg(mode,m=>{cur=m;drawWB()});RD.onRender(drawWB);RD.onResize(drawWB);drawWB();
 // ---- section 5: durability costs ----
 const ML={none:'write only',fsync:'+ fsync',fdatasync:'+ fdatasync',odsync:'O_DSYNC',sfr:'+ sync_file_range'};

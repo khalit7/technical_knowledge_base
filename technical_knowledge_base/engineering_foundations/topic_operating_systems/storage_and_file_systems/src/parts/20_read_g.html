@@ -1,15 +1,32 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ar"></div></div><div class="s3L">
 <section id="rd-s6">
 <h2>6. Atomic replace: a crash sees old or new, never half</h2>
 <p><code>fsync</code> makes data durable, not an update <b>atomic</b>: a crash in the middle of rewriting <code>ckpt.pt</code> leaves a file that is partly new, partly old or partly missing, and the previous good checkpoint is already destroyed. The fix is to build the new version under another name and switch in one step. <code>rename</code>: "If newpath already exists, it will be atomically replaced, so that there is no point at which another process attempting to access newpath will find it missing" ({{rename(2)|https://man7.org/linux/man-pages/man2/rename.2.html}}). Atomic for readers now; durable only once the directory change is committed, which is what an fsync of the directory forces: "Calling fsync() does not necessarily ensure that the entry in the directory containing the file has also reached disk. For that an explicit fsync() on a file descriptor for the directory is also needed" ({{fsync(2)|https://man7.org/linux/man-pages/man2/fsync.2.html}}).</p>
+<ol class="sx" id="sx-ar">
+<li><b>Before: the last good checkpoint is on disk.</b> The directory maps <code>ckpt.pt</code> to inode A, on disk and in its cached copy.</li>
+<li><b>torch.save into <code>ckpt.pt.tmp</code>.</b> A new inode B under a new name, only in memory: its 256 MiB is dirty in the page cache. <code>ckpt.pt</code> is untouched.</li>
+<li><b><code>fsync</code> the temporary file: 111 ms.</b> B's data and inode reach the disk. A crash now still finds A under <code>ckpt.pt</code>; B may be left without a name, which is litter, not damage.</li>
+<li><b><code>rename</code> over <code>ckpt.pt</code>.</b> In memory the name now points at B, at once for every reader. The directory on disk still says A: a crash now brings back the old checkpoint, which is still a good one.</li>
+<li><b><code>fsync</code> the directory: 2.3 ms.</b> The new entry reaches the disk and A's space is freed. Old or new at every point, and now new for good. The whole protocol took 365 ms against 263 ms for the plain save.</li>
+</ol>
+<p class="small mute">Fig. 5: the safe save of the running job's checkpoint, from its trace (below); POSIX guarantees only, ext4 adds ordering (the crash lab). Times are the 256 MiB runs of <a href="#rd-s10">section 10</a> <span class="meas">measured</span>.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s6b">
 <p><span class="meas">measured</span> The running job's checkpoint written two ways, under <code>strace -f -y</code>, keeping only calls on the checkpoint directory (shown as DIR), with runs of writes folded into one line:</p>
-<div class="panes">
+<p>The plain save opens the existing <code>ckpt.pt</code> with <code>O_TRUNC</code>: the old checkpoint is thrown away at the first system call, and the new one exists only in the page cache until writeback. The safe version never touches <code>ckpt.pt</code> until a complete, durable new file exists; <code>renameat</code> is the single switch; the directory <code>fsync</code> makes the switch durable.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="panes">
 <div><h5>torch.save(obj, "ckpt.pt")</h5><pre class="cd out" id="rd-tr-naive"></pre></div>
 <div><h5>tmp, fsync, rename, fsync the directory</h5><pre class="cd out" id="rd-tr-safe"></pre></div>
 </div>
-<p>The plain save opens the existing <code>ckpt.pt</code> with <code>O_TRUNC</code>: the old checkpoint is thrown away at the first system call, and the new one exists only in the page cache until writeback. The safe version never touches <code>ckpt.pt</code> until a complete, durable new file exists; <code>renameat</code> is the single switch; the directory <code>fsync</code> makes the switch durable.</p>
-<div class="card" id="rd-crash"><div id="cr-wrap">
+</div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s6c">
+<p><b>The crash lab</b> runs every protocol on this page through a crash at each point. Pick a protocol, then step the crash point: the left pane is what every file system promises, the right what this VM's ext4 adds. Call sequences from the real traces above and in <a href="#rd-s10">section 10</a>; the last protocol is our fix (DCP into a new directory plus the two directory fsyncs DCP does not make). A <b>model</b> with the rules in the closed block below, not a crash test: no power was cut. ALICE ({{Pillai et al., OSDI 2014|https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai}}) checks real applications the same way.</p>
+<p>Across all protocols: plain <code>torch.save</code> loses the checkpoint at 3 of 4 crash points; fsync in place at 2 of 5; tmp then rename without fsync at 1 of 5 under POSIX only (0 on this ext4); <b>tmp, fsync, rename, fsync(dir)</b> at 0 of 7; DCP saving into the same directory at 10 of 11; DCP into a new step directory plus parent fsync at 0 of 13.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-crash"><div id="cr-wrap">
 <div class="fig-t">Crash the machine after any call and see what a restarted job finds</div>
-<p class="small">Pick a protocol, then step the crash point. Call sequences from the real traces above and in <a href="#rd-s10">section 10</a>; the last protocol is our fix (DCP into a new directory plus the two directory fsyncs DCP does not make). A <b>model</b> with the rules in the closed block below, not a crash test: no power was cut. ALICE ({{Pillai et al., OSDI 2014|https://www.usenix.org/conference/osdi14/technical-sessions/presentation/pillai}}) checks real applications the same way.</p>
 <div class="seg" id="cr-proto"></div>
 <div id="cr-card">
 <div class="ops" id="cr-ops"></div>
@@ -21,7 +38,6 @@
 </div>
 </div>
 <p class="small" id="cr-sum"></p>
-<p class="small">Across all protocols: plain <code>torch.save</code> loses the checkpoint at 3 of 4 crash points; fsync in place at 2 of 5; tmp then rename without fsync at 1 of 5 under POSIX only (0 on this ext4); <b>tmp, fsync, rename, fsync(dir)</b> at 0 of 7; DCP saving into the same directory at 10 of 11; DCP into a new step directory plus parent fsync at 0 of 13.</p>
 <details class="dp"><summary>Every crash point at once, and the two models exactly <span class="mute">(depth)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm grid" id="cr-grid"></table></div>
 <div class="small">
@@ -30,6 +46,8 @@
 <p>Simplifications: the crash happens at some moment after the listed step and before the next; device caches honour flushes; one writer; a DCP checkpoint "loads" if its <code>.metadata</code> and shard come from the same save.</p>
 </div></div></details>
 </div></div>
+</div></div></div>
+<section id="rd-s6d">
 <div class="fix"><div class="t">The checkpoint rules</div>
 <ol class="tight small">
 <li>Write to a <b>new name</b> (<code>ckpt.pt.tmp</code>, or a new <code>step_000200/</code> directory). Never open the last good checkpoint for writing.</li>

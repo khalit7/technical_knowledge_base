@@ -1,6 +1,6 @@
 """Check that ../index.html embeds exactly what gen_data.py derives from raw/, that numbers written into the prose
 agree with that data, and that nothing private is in the page or raw/. Run after build.sh. Exit 1 on any mismatch."""
-import json, re, subprocess, sys, pathlib
+import getpass, json, re, subprocess, sys, pathlib
 html = pathlib.Path("../index.html").read_text()
 m = re.search(r"window\.ST_DATA=(\{.*?\});\n", html, re.S); emb = json.loads(m.group(1))
 subprocess.run([sys.executable, "gen_data.py"], check=True, capture_output=True)
@@ -12,6 +12,9 @@ text = re.sub(r"<[^>]+>", " ", html)
 F = D["fio"]; S = {(r["fs"], r["shape"], r["mode"]): r["med"] for r in D["sync"]}
 pr = [D["wb"][k]["last_dirty_s"] for k in ("primed", "primed2", "primed3", "primed4")]
 fresh = [D["wb"][k]["last_dirty_s"] for k in ("small", "mid")]
+prd = [D["wb"][k]["dirty_for_s"] for k in ("primed", "primed2", "primed3", "primed4")]  # seconds after the first sample that saw the write
+frd = [D["wb"][k]["dirty_for_s"] for k in ("small", "mid")]
+EV = D["ra"][0]["ev"]; W0 = [sum(e[2] for e in EV[:i]) for i in range(len(EV))]  # readahead windows are contiguous
 img = D["fsimage_txt"]
 CK = lambda l: next(r for r in D["ckpt"] if r["label"].startswith(l)); MT = lambda l: next(r for r in D["meta"] if r["label"].startswith(l))["ms"]
 checks = [
@@ -24,7 +27,8 @@ checks = [
   ("physical blocks 2066 to 2798", "2066 -  2798" in img and "733" in img),
   ("Blockcount: 5864", "Blockcount: 5864" in img),
   ("4 MiB here", "Total journal size:       4096k" in img),
-  ("between 2 and 32 s", 2 <= min(pr) < 3 and 31 < max(pr) <= 32),
+  ("0.4 to 30 seconds after the write", round(min(prd), 1) == 0.4 and round(max(prd)) == 30),
+  ("between 0.4 and 30 s as that share decayed", round(min(prd), 1) == 0.4 and round(max(prd)) == 30),
   ("next 5-second wake-up (fresh runs)", all(x <= 5.5 for x in fresh)),
   ("about 0.39 ms against 1.3 ms", round(S["ext4", "overwrite", "fdatasync"] / 1000, 2) == 0.39 and round(S["ext4", "overwrite", "fsync"] / 1000, 1) == 1.3),
   ("about a third of fsync", 0.25 < S["ext4", "overwrite", "fdatasync"] / S["ext4", "overwrite", "fsync"] < 0.36),
@@ -49,7 +53,23 @@ checks = [
   ("throughput x5.1, mean latency x14.4", round(F["randread_4k_qd64"]["iops"] / F["randread_4k_qd1"]["iops"], 1) == 5.1 and round(F["randread_4k_qd64"]["mean"] / F["randread_4k_qd1"]["mean"], 1) == 14.4),
   ("64 / 1,152.6 us = 55,527 per second, against 54,723 measured (+1.5%)", F["randread_4k_qd64"]["mean"] == 1152.6 and round(64 / (F["randread_4k_qd64"]["mean"] * 1e-6)) == 55527 and round(F["randread_4k_qd64"]["iops"]) == 54723),
   ("7.2x as long, reading them warm 10.6x, cold 56x", round(MT("create + write")/MT("write one 40"), 1) == 7.2 and round(MT("read 10,240 small files, warm")/MT("read the big file, warm"), 1) == 10.6 and round(MT("read 10,240 small files, data cold")/MT("read the big file, cold")) == 56),
-  ("4.6 s (16 MiB) and 5.3 s (256 MiB); in the four primed runs 9.7, 31.9, 20.2 and 2.3 s", [round(x, 1) for x in fresh] == [4.6, 5.3] and [round(x, 1) for x in pr] == [9.7, 31.9, 20.2, 2.3]),
+  ("4.5 s (16 MiB) and 5.3 s (256 MiB); in the four primed runs 7.7, 30.2, 18.0 and 0.4 s", [round(x, 1) for x in frd] == [4.5, 5.3] and [round(x, 1) for x in prd] == [7.7, 30.2, 18.0, 0.4]),
+  # Fig. 3 (writeback) step list, 2026-11-07
+  ("16 MiB written in 0.01 or 0.02 s, 256 MiB in 0.29 s", D["wb"]["small"]["head"].endswith("0.01 s") and D["wb"]["primed2"]["head"].endswith("0.02 s") and D["wb"]["fsync"]["head"] == "wrote 256 MiB in 0.29 s"),
+  ("fsync forces the 256 MiB out: 110 ms", D["wb"]["fsync"]["fsync_s"] == 0.11),
+  ("16 MiB leaves 4.5 s after the write", round(D["wb"]["small"]["dirty_for_s"], 1) == 4.5),
+  ("30.2 s after the write, it leaves", round(D["wb"]["primed2"]["dirty_for_s"], 1) == 30.2),
+  ("left after 7.7, 18.0 and 0.4 s", [round(D["wb"][k]["dirty_for_s"], 1) for k in ("primed", "primed3", "primed4")] == [7.7, 18.0, 0.4]),
+  # Fig. 2 (readahead) step list
+  ("pages 0 to 3 in one request", EV[0][:3] == [0, 0, 4]),
+  ("(pages 4 to 11)", EV[1][0] == 1 and W0[1] == 4 and EV[1][2] == 8),
+  ("fetches pages 12 to 27", EV[2][0] == 4 and W0[2] == 12 and EV[2][2] == 16),
+  ("Page 12 triggers pages 28 to 59", EV[3][0] == 12 and W0[3] == 28 and EV[3][2] == 32),
+  ("Page 28 triggers pages 60 to 91", EV[4][0] == 28 and W0[4] == 60 and EV[4][2] == 32),
+  ("at reads 61, 93 and 125: 128 reads cost 8 device requests (188 pages)", [e[0] for e in EV if 28 < e[0] < 128] == [60, 92, 124] and len([e for e in EV if e[0] < 128]) == 8 and sum(e[2] for e in EV if e[0] < 128) == 188),
+  ("64 reads, 64 requests", D["ra"][2]["reads"] == 64 and D["ra"][2]["reqs"] == 64 and D["ra"][3]["reqs"] == 64),
+  # Fig. 5 (the safe save) step list
+  ("the temporary file: 111 ms", "file fsync 111 ms" in CK("tmp + fsync")["note"]),
   ("3.3x less than fsync (393 against 1,305 us)", round(S["ext4", "overwrite", "fsync"] / S["ext4", "overwrite", "fdatasync"], 1) == 3.3),
   ("1.3x less (997 against 1,265 us)", round(S["ext4", "append", "fsync"] / S["ext4", "append", "fdatasync"], 1) == 1.3 and round(S["ext4", "append", "fdatasync"]) == 997 and round(S["ext4", "append", "fsync"]) == 1265),
   ("ran 158 ms on average", "158ms running transaction" in D["jbd2"]),
@@ -70,8 +90,8 @@ for lit, ok in checks:
     present = probe is None or probe in text
     if not ok or not present: bad += 1
     print(("ok   " if ok and present else "FAIL ") + lit + ("" if present else "  (literal not found in page)"))
-# privacy
-for pat in ["/Users/", "glpat", "sk-ant"]:
-    hits = [p for p in [pathlib.Path("../index.html"), *pathlib.Path(".").rglob("*") ] if p.is_file() and p.suffix in (".html", ".txt", ".py", ".sh", ".js", ".md", ".mjs", ".c", "") and pat in p.read_text(errors="ignore") and p.name != "check_embed.py"]
+# privacy (the login name is looked up at run time and matched case-sensitively, never spelled here)
+for pat in ["/Users/", "glpat", "sk-ant", getpass.getuser()]:
+    hits = [p for p in [pathlib.Path("../index.html"), *pathlib.Path(".").rglob("*") ] if p.is_file() and "__pycache__" not in p.parts and p.suffix in (".html", ".txt", ".py", ".sh", ".js", ".md", ".mjs", ".c", "") and pat in p.read_text(errors="ignore") and p.name != "check_embed.py"]
     if hits: bad += 1; print("FAIL private pattern", pat, [str(h) for h in hits])
 print("check_embed:", "PASS" if not bad else f"{bad} FAIL"); sys.exit(1 if bad else 0)

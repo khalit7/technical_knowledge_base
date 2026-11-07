@@ -49,4 +49,10 @@ for oom in D["oom"]["procs"]:
     b = oom["rss_pages"] + oom["vmswap_kb"] // 4 + oom["vmpte_kb"] // 4 + oom["oom_score_adj"] * (tot // 1000)
     ok = (1000 + b * 1000 // tot) * 2 // 3 == oom["oom_score"]; bad += not ok
     print(("ok   " if ok else "FAIL ") + f"oom_score {oom['oom_score']} reproduced by the formula")
+# privacy: the login name (looked up at run time, never spelled; case-sensitive) and home paths, in the built page and src/
+import getpass
+me = getpass.getuser()
+for f in [pathlib.Path("../index.html")] + [x for x in pathlib.Path(".").rglob("*") if x.is_file() and "__pycache__" not in x.parts]:
+    t = f.read_text(errors="ignore")
+    if (me and me in t) or "/Us" + "ers/" in t or "/ho" + "me/" in t: bad += 1; print("FAIL privacy:", f)
 print("check_embed:", "PASS" if not bad else f"{bad} FAIL"); sys.exit(1 if bad else 0)

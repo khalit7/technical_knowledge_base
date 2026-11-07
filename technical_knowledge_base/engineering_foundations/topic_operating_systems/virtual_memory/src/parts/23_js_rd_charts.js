@@ -17,8 +17,6 @@
   set('vm-as-note',D.root_maps.n+' VMAs in the main process, '+fmt(as.reduce((s,r)=>s+r.kb,0)/1024)+' MiB of address space in total.');{const e=$('vm-as-cnt');if(e)e.textContent='VMAs per kind: '+as.map(r=>r.k+' '+r.cnt).join(', ')+'.';}
   { const e=$('vm-maps');if(e)e.textContent=D.root_maps.sample.filter((l,i)=>i<10||/stack|vvar/.test(l)).join('\n'); }
 
-  // section 2: the bit split of the dataset address, arm64 4 KiB
-  if(window.VMADDR){ const e=$('vm-split');if(e)VMADDR.splitSvg(e,'ffff81fd2000','arm64-4k'); }
   set('vm-macpg',fmt(D.macos_pagesize));set('vm-pte4k',fmt(D.pte['4k']));
 
   // section 3: shootdowns

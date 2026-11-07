@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-wb"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Writing: dirty pages, writeback and throttling</h2>
 <p>If every <code>write()</code> waited for the device, a checkpoint written in 4 KiB pieces would pay a device round trip for each. So <code>write()</code> copies the bytes into the cached page, marks it <dfn id="g-dirty">dirty</dfn> (changed in memory, not yet on the device) and returns. Per-device flusher threads (kernel workers named <code>kworker/u*:*-flush-*</code>) write dirty pages back for one of three reasons ({{vm sysctl docs|https://docs.kernel.org/admin-guide/sysctl/vm.html}}; mm/page-writeback.c lines 74 to 109):</p>
@@ -6,23 +7,37 @@
 <li><b>Background threshold:</b> when dirty data passes <code>dirty_background_ratio</code> (10%) of <dfn id="g-dirtyable">dirtyable memory</dfn> (free memory plus file pages that could be reclaimed, not total RAM: <code>global_dirtyable_memory</code>, line 362), the flusher writes everything, whatever its age.</li>
 <li><b>Hard threshold:</b> near <code>dirty_ratio</code> (20%) the writing process itself is paused in <code>balance_dirty_pages</code> (line 1555, the pause at line 1795) so it cannot dirty memory faster than the device drains it. This is <dfn id="g-throttle">dirty throttling</dfn>: <code>write()</code> becomes slow without any error.</li>
 </ol>
-<p>With cgroup v2 each memory cgroup is also its own <dfn id="g-wbdomain">writeback domain</dfn>, with thresholds scaled to its memory, so a container with a 1.5 GB limit is throttled long before the machine is ({{cgroup v2 docs, Writeback|https://docs.kernel.org/admin-guide/cgroup-v2.html#writeback}}). <span class="meas">measured</span> Each run below wrote a file into a fresh container (limit 1,500 MB) and sampled its <code>memory.stat</code> (dirty and under-writeback page cache) and <code>io.stat</code> (bytes the device received) every 100 ms.</p>
-<div class="card" id="rd-wb-card">
-<div class="fig-t">The same 16 MiB left memory after 2 s in one run and 32 s in another</div>
-<div class="seg" id="rd-wb-mode"></div>
-<div class="rd-chart" id="rd-wb-svg"></div>
-<div class="leg" id="rd-wb-leg"></div>
-<p class="small" id="rd-wb-cap"></p>
-</div>
+<p>With cgroup v2 each memory cgroup is also its own <dfn id="g-wbdomain">writeback domain</dfn>, with thresholds scaled to its memory, so a container with a 1.5 GB limit is throttled long before the machine is ({{cgroup v2 docs, Writeback|https://docs.kernel.org/admin-guide/cgroup-v2.html#writeback}}). <span class="meas">measured</span> Each run in Fig. 3 and the chart below it wrote a file into a fresh container (limit 1,500 MB) and sampled its <code>memory.stat</code> (dirty and under-writeback page cache) and <code>io.stat</code> (bytes the device received) every 100 ms.</p>
+<ol class="sx" id="sx-wb">
+<li><b>The write returns; all of it is dirty.</b> Each lane is one run in its own fresh container: 16 MiB written in 0.01 or 0.02 s, 256 MiB in 0.29 s. Nothing has reached the device yet.</li>
+<li><b>fsync forces the 256 MiB out: 110 ms.</b> The right lane calls fsync after its write: the dirty pages go under writeback and the device receives all 256 MiB before fsync returns.</li>
+<li><b>A fresh container's 16 MiB leaves 4.5 s after the write,</b> at the flusher's next 5-second wake-up, long before it is 30 s old. Likely because a brand-new writeback domain has almost no share of the background threshold, so even 16 MiB counts as over it (our reading of <code>wb_over_bg_thresh</code>, not traced; see the question below).</li>
+<li><b>A primed container's 16 MiB stays dirty.</b> This container had just written and synced 1 GiB, so it has a share and 16 MiB is under its threshold: the flusher wakes every 5 s and leaves the data alone.</li>
+<li><b>30.2 s after the write, it leaves.</b> That is when the age rule (dirty longer than <code>dirty_expire_centisecs</code>, 30 s, found at a 5-second wake-up) would send it. The other three primed runs left after 7.7, 18.0 and 0.4 s: when is not a promise.</li>
+</ol>
+<p class="small mute">Fig. 3: each lane's 16 tiles are sixteenths of what that run wrote: orange dirty in the page cache, blue received by the device (memory.stat and io.stat every 100 ms) <span class="meas">measured</span>. Time is seconds after the first sample that saw the write.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s4b">
 <div class="drill"><div class="q">Six runs wrote 16 MiB (or 256 MiB) and then waited, with nothing calling fsync. The textbook rule is "written back once it is 30 s old". How long did the 16 MiB actually stay dirty?</div>
-<div class="ch"><button>always 30 to 35 s</button><button>always under 1 s</button><button data-ok="1">anywhere from about 2 to 32 s</button></div>
-<div class="ans" hidden>Measured: in fresh containers the data stayed dirty 4.6 s (16 MiB) and 5.3 s (256 MiB); in the four primed runs 9.7, 31.9, 20.2 and 2.3 s. In a fresh container the data left at the flusher's next 5-second wake-up, long before it was 30 s old. Our reading of the source: <code>wb_over_bg_thresh</code> (mm/page-writeback.c line 1960) also compares this writeback domain's dirty pages with <b>its share</b> of the background threshold, a share proportional to how much it recently wrote back. A brand-new container has almost no share, so even 16 MiB counts as "over its threshold" and is written in the background. After the container had just written and synced 1 GiB (the "primed" runs), it had a share, and the same 16 MiB waited between 2 and 32 s as that share decayed. We could not trace the flusher here (that needs privileges), so treat the explanation as the likely one, not a proven one. The lesson does not depend on it: <b>when dirty data reaches the device is not a promise you can use.</b> Only fsync is.</div></div>
+<div class="ch"><button>always 30 to 35 s</button><button>always under 1 s</button><button data-ok="1">anywhere from under half a second to about 30 s</button></div>
+<div class="ans" hidden>Measured, from the first 100 ms sample that saw the write: in fresh containers the data stayed dirty 4.5 s (16 MiB) and 5.3 s (256 MiB); in the four primed runs 7.7, 30.2, 18.0 and 0.4 s. In a fresh container the data left at the flusher's next 5-second wake-up, long before it was 30 s old. Our reading of the source: <code>wb_over_bg_thresh</code> (mm/page-writeback.c line 1960) also compares this writeback domain's dirty pages with <b>its share</b> of the background threshold, a share proportional to how much it recently wrote back. A brand-new container has almost no share, so even 16 MiB counts as "over its threshold" and is written in the background. After the container had just written and synced 1 GiB (the "primed" runs), it had a share, and the same 16 MiB waited between 0.4 and 30 s as that share decayed. We could not trace the flusher here (that needs privileges), so treat the explanation as the likely one, not a proven one. The lesson does not depend on it: <b>when dirty data reaches the device is not a promise you can use.</b> Only fsync is.</div></div>
 <div class="cost"><div class="t">When it bites in ML</div>
 <ul class="tight small">
 <li><b>A crash in the window loses data that every call said was written.</b> The 256 MiB checkpoint of <a href="#rd-s10">section 10</a> left 256 MiB dirty when <code>torch.save</code> returned. Killing the process does <b>not</b> lose it (the dirty pages belong to the kernel); only a kernel crash, a power loss or a VM or node being killed does.</li>
 <li><b>Dirty throttling stalls training.</b> In the "1.5 GiB, as fast as possible" run the writer was caught sleeping in <code>balance_dirty_pages</code> while the container's dirty data hovered at the domain's limits. A loop that saves a large checkpoint synchronously stalls the same way; a background writer thread moves the stall off the training thread but does not remove it.</li>
 <li><b>Dirty pages count toward your container's memory</b> and cannot be dropped until written, so a memory-limited container that writes faster than its device can be pushed toward the OOM killer by its own page cache ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}).</li>
 </ul></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-wb-card">
+<div class="fig-t">The same 16 MiB left memory 0.4 s after the write in one run and 30 s in another</div>
+<div class="seg" id="rd-wb-mode"></div>
+<div class="rd-chart" id="rd-wb-svg"></div>
+<div class="leg" id="rd-wb-leg"></div>
+<p class="small" id="rd-wb-cap"></p>
+</div>
+</div></div></div>
+<section id="rd-s4c">
 <details class="dp"><summary>The write path in the source, this VM's thresholds, commands and fixes <span class="mute">(depth)</span></summary><div class="b">
 <p><span class="src">source</span> <code>write()</code> on ext4 runs <code>generic_perform_write</code> (mm/filemap.c line 3288, v5.10): for each page, <code>ext4_da_write_begin</code> (fs/ext4/inode.c line 2934) finds or creates the page in the cache and <b>reserves</b> space without choosing disk blocks (delayed allocation, <a href="#rd-s7">section 7</a>), the bytes are copied in, the page is marked dirty, and <code>balance_dirty_pages_ratelimited</code> (line 3365) checks whether this writer has dirtied too much. Then <code>write()</code> returns. Nothing has touched the device.</p>
 <p>On this VM the kernel computed a background threshold of <span id="rd-wb-bg"></span> MiB and a hard threshold of <span id="rd-wb-hard"></span> MiB VM-wide (<code>/proc/vmstat</code>) <span class="meas">measured</span>.</p>

@@ -1,9 +1,16 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core"><b>Returned is not durable.</b> <code>write()</code> and <code>torch.save</code> return once the bytes are in kernel memory, the <span class="hl">page cache</span>; the kernel moves them to the device later, in its own order and on its own schedule. What a crash can leave is decided only by <code>fsync</code> (of the file, and of its directory) and <code>rename</code>; what a read costs is decided by whether the page cache and readahead can serve it.</p>
-<div class="hero" id="rd-hero-card"><h4>How far each call pushes one 4 KiB write before it returns</h4>
-<div class="rd-svg" id="rd-hero"></div>
-<p class="small" id="rd-hero-cap">Rows are the layers your bytes cross, top to bottom (section numbers in brackets). Each column is one call: the <span class="hl">solid bar</span> is how far the data has got when the call returns, the dashed bar how far the file's metadata (size, block map, times) has got. Only what is below the red line survives a power cut. Medians of 1,000 overwrites of one 4 KiB record on ext4 <span class="meas">measured</span>; fsync needs a journal commit, fdatasync on an overwrite does not (section 5).</p></div>
+<ol class="sx" id="sx-hero">
+<li><b><code>write()</code> returns at the page cache: 1.4 us.</b> The 4 KiB is copied into a cached page, which is marked dirty. The device has received nothing.</li>
+<li><b><code>sync_file_range</code> returns when the device acknowledges: 161 us.</b> The page went through the block layer to the drive, which acknowledges from its volatile cache. No metadata, no cache flush.</li>
+<li><b><code>fdatasync</code> pushes the data to stable media: 393 us.</b> A cache flush gets it past the device cache. An overwrite changes neither the size nor the block map, so there is no journal commit; the new modification time stays in memory.</li>
+<li><b><code>fsync</code> also commits the metadata: 1,305 us.</b> The inode's change (the new time) goes through a journal commit as well, a second ordered write and flush (<a href="#rd-s5">section 5</a>).</li>
+<li><b>Power cut: only what is below the red line survives.</b> The bytes of <code>write</code> and <code>sync_file_range</code> are lost although both calls returned; <code>fdatasync</code> keeps the data and loses only the time stamp; <code>fsync</code> keeps everything.</li>
+</ol>
+<p class="small mute" id="rd-hero-cap">Fig. 1: the layers your bytes cross, top to bottom (the page cache is sections 3 and 4, the block layer and the device cache section 1, the media section 5); orange is the data, purple the file's metadata change. Medians of 1,000 overwrites of one 4 KiB record on ext4 <span class="meas">measured</span>; fsync needs a journal commit, fdatasync on an overwrite does not (section 5).</p>
+
 <div class="tw"><table class="tbl-sm">
 <thead><tr><th>Call</th><th>When it returns, what is guaranteed</th><th>Cost here <span class="meas">measured</span></th></tr></thead>
 <tbody>
@@ -26,10 +33,13 @@
 <dt>Readahead</dt><dd>the kernel fetching the next pages of a file before a sequential reader asks.</dd>
 <dt>O_DIRECT</dt><dd>an open flag that moves data between your buffer and the device without the page cache.</dd>
 </dl>
+</section>
+</div></div>
+<section id="rd-oneb">
 <div class="co key"><div class="t">The page in six claims</div>
 <ol class="tight">
 <li><b>Returned is not durable.</b> The 256 MiB checkpoint of section 10 left 256 MiB of dirty data in memory when <code>torch.save</code> returned (<a href="#rd-s4">section 4</a>).</li>
-<li><b>When the kernel writes is not a promise.</b> The textbook says "within 30 seconds"; here the same 16 MiB stayed dirty anywhere from 2 to 32 seconds, depending on what else the machine was doing (<a href="#rd-s4">section 4</a>).</li>
+<li><b>When the kernel writes is not a promise.</b> The textbook says "within 30 seconds"; here the same 16 MiB stayed dirty anywhere from 0.4 to 30 seconds after the write, depending on what else the machine was doing (<a href="#rd-s4">section 4</a>).</li>
 <li><b>The safe checkpoint is five calls:</b> write to <code>ckpt.pt.tmp</code>, <code>fsync</code> it, <code>rename</code> it over <code>ckpt.pt</code>, <code>fsync</code> the directory; and never overwrite the last good checkpoint in place. It cost 365 ms against 263 ms for the plain save (<a href="#rd-s6">section 6</a>).</li>
 <li><b>Libraries differ.</b> PyTorch's distributed checkpoint fsyncs every file but deletes the old <code>.metadata</code> before renaming the new one in, and never fsyncs the directory: save each step to a new directory (<a href="#rd-s10">section 10</a>).</li>
 <li><b>Sequential beats random,</b> because the kernel reads ahead: 512 small reads of a cold file became 20 device requests (<a href="#rd-s3">section 3</a>). Shards, not millions of small files.</li>

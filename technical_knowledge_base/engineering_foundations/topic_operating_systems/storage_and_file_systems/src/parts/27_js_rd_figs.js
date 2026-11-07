@@ -1,6 +1,6 @@
 // ---- Reading tab figures added in the 2026-10-24 rebuild: hero, blk-mq and NVMe queues, FTL stepper, VFS objects,
 // fsync error before/after, jbd2 commit stepper, data paths, NFS close-to-open. Static figures are drawn at the measured
-// width; the steppers use RD.anim and never move before the reader acts. ----
+// width; the steppers use RD.anim (play once in view, step lists on the left). The hero is now a 3D stage (31_js_sc_hero.js). ----
 (function(){
 const D=window.ST_DATA,$=id=>document.getElementById(id),esc=RD.esc,T=RD.t;
 const med=(sh,m)=>D.sync.find(r=>r.fs==='ext4'&&r.shape===sh&&r.mode===m).med;
@@ -11,24 +11,6 @@ const box=(x,y,w,h,cls,dash)=>'<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" w
 const line=(x1,y1,x2,y2,id,o)=>{o=o||{};return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+(o.c||'var(--mute)')+'" stroke-width="'+(o.w||1.5)+'"'+(o.d?' stroke-dasharray="'+o.d+'"':'')+(id?' marker-end="url(#'+id+')"':'')+'/>'};
 const draws=[];const reg=f=>{draws.push(f);f()};
 RD.onRender(()=>draws.forEach(f=>f()));RD.onResize(()=>draws.forEach(f=>f()));
-
-// ---- hero: how far each call pushes one 4 KiB overwrite ----
-function hero(){const el=$('rd-hero');if(!el)return;const W=Math.min(860,RD.width(el)),nar=W<520;
-  const L=[['Your program','your 4 KiB buffer'],['Page cache','kernel memory, dirty (3, 4)'],['Block layer, driver','bios in flight (1)'],['Device cache','acked, lost on power cut (1)'],['Stable media','flash or platter (5)']];
-  const C=[['write()','write',1,1,med('overwrite','none')],['sync_file_range','sfr',3,1,med('overwrite','sfr')],['fdatasync','fdatasync',4,1,med('overwrite','fdatasync')],['fsync','fsync',4,4,med('overwrite','fsync')]];
-  const HH=nar?36:26,RH=nar?44:40,FH=nar?36:24,LW=Math.min(330,Math.round(W*(nar?0.44:0.40))),H=HH+RH*L.length+FH,cw=(W-LW-6)/C.length;
-  let g=marker('rdHa')+'<defs><marker id="rdHb" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--acc)"/></marker><marker id="rdHc" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--c4)"/></marker></defs>';
-  L.forEach((l,i)=>{const y=HH+i*RH;if(i%2===0)g+='<rect x="0" y="'+y+'" width="'+W+'" height="'+RH+'" fill="var(--soft)"/>';
-    g+=T(8,y+16,l[0],{w:600,fs:12})+T(8,y+31,l[1],{fill:'var(--mute)'})});
-  const yl=HH+4*RH;g+=line(0,yl,W,yl,null,{c:'var(--bad)',w:2,d:'6 4'});
-  const yc=i=>HH+i*RH+RH/2;
-  C.forEach((c,k)=>{const cx=LW+cw*k+cw/2;
-    g+=T(cx,nar?(k%2?30:14):17,nar?c[1]:c[0],{a:'middle',w:600,fill:'var(--acc)'});
-    g+=line(cx-5,HH+6,cx-5,yc(c[2])+(c[2]===0?0:4),'rdHb',{c:'var(--acc)',w:5});
-    g+=line(cx+5,HH+6,cx+5,yc(c[3])+4,'rdHc',{c:'var(--c4)',w:2.5,d:'4 3'});
-    g+=T(cx,H-(nar?(k%2?6:21):8),us(c[4]),{a:'middle',fill:'var(--ink)'})});
-  el.innerHTML=RD.svg(W,H,g,'Layers from program to stable media; how far write, sync_file_range, fdatasync and fsync push data and metadata')}
-reg(hero);
 
 // ---- section 1: blk-mq software queues feeding NVMe queue pairs ----
 function mq(){const el=$('rd-mq');if(!el)return;const W=Math.min(860,RD.width(el)),n=5,gap=W<520?4:10,bw=(W-gap*(n-1))/n,nar=W<520;
@@ -58,9 +40,8 @@ if($('rd-ftl-card')){
    {b:[E,E,E,E,['B′','v'],['C','v'],['A′','v'],E],n:[],h:5,f:7,t:'Erase block 0',p:'An erase takes 1.5 to 2 ms against 200 to 300 us to program a page (SLC, OSTEP ch. 44). A discard (TRIM) of dead data would have spared the copies. Write amplification here: 7 flash writes / 5 host writes = 1.4.'}];
   const draw=i=>{const s=S[i];const cell=(c,k)=>'<i class="'+c[1]+(s.n.indexOf(k)>=0?' nw':'')+'">'+c[0]+'</i>';
     $('rd-ftl').innerHTML='<div class="fblk">Erase block 0</div><div class="fl8">'+s.b.slice(0,4).map(cell).join('')+'</div><div class="fblk">Erase block 1</div><div class="fl8">'+s.b.slice(4).map((c,k)=>cell(c,k+4)).join('')+'</div><div class="leg"><span style="--sw:var(--acc2)">valid</span><span style="--sw:var(--soft)">invalid (struck through)</span><span style="--sw:var(--bg)">erased (.)</span></div>';
-    $('rd-ftl-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+s.t+'</div><p>'+s.p+'</p>';
     $('rd-ftl-cnt').innerHTML=RD.stat('host writes',s.h)+RD.stat('flash writes',s.f)+RD.stat('write amplification',s.h?(s.f/s.h).toFixed(2):'n/a','flash / host')};
-  RD.anim({card:'rd-ftl-card',ctl:'rd-ftl-ctl',n:S.length,draw,ms:1800,label:'Step'});
+  RD.anim({card:'rd-ftl-card',ctl:'rd-ftl-ctl',n:S.length,draw,ms:4200,label:'Step',list:'sx-ftl'});
 }
 
 // ---- section 2: VFS objects over the real ext4 image ----
@@ -98,44 +79,12 @@ if($('rd-fe-card')){
     ['B calls fsync first','unchanged','B\'s sample moves to 1','','<span class="pill bad">EIO</span>'],
     ['A calls fsync','unchanged','A\'s sample moves to 1','<span class="pill bad">EIO</span> A knows: rewrite from memory','<span class="pill bad">EIO</span>'],
     ['A calls fsync again','unchanged','nothing new since A\'s sample','<span class="pill ok">0</span> a retry looks like success; the data is still gone','<span class="pill bad">EIO</span>']]};
-  const CAP={old:['The bytes are only in the page cache.','The failed page is marked clean, so nothing will try to write it again.','B is told. The flag is now cleared.','A, the writer that cares, is told nothing. This is the fsyncgate failure PostgreSQL hit.','Retrying fsync cannot bring the bytes back, and does not even report the loss.'],
-   new:['Each open file descriptor remembers the errseq_t value it last saw.','The error is recorded once in the mapping, with a counter.','B sees that the counter moved since its sample: EIO.','A sees it too: every descriptor open at the time gets the error once.','The error was reported to A once. Rewrite the checkpoint; do not retry the fsync and carry on.']};
   let mode='old';
   const draw=i=>{const s=S[mode][i];let a='',b='';for(let k=0;k<=i;k++){if(S[mode][k][3])a=S[mode][k][3];if(S[mode][k][4])b=S[mode][k][4]}
-    $('rd-fe').innerHTML='<div class="tw"><table class="tbl-sm nar"><tbody><tr><td><b>page in the cache</b></td><td>'+s[1]+'</td></tr><tr><td><b>error record</b></td><td>'+s[2]+'</td></tr><tr><td><b>fsync on A</b></td><td>'+(a||'not called yet')+'</td></tr><tr><td><b>fsync on B</b></td><td>'+(b||'not called yet')+'</td></tr></tbody></table></div>';
-    $('rd-fe-cap').innerHTML='<div class="t">Step '+(i+1)+' of 5: '+esc(s[0])+'</div><p>'+CAP[mode][i]+'</p>'};
-  const an=RD.anim({card:'rd-fe-card',ctl:'rd-fe-ctl',n:5,draw,ms:1800,label:'Step'});
-  RD.seg($('rd-fe-mode'),m=>{mode=m;an.reset(5)});
-}
-
-// ---- section 7: one jbd2 commit under the three data modes ----
-if($('rd-jb-card')){
-  const M='<span class="pill acc">metadata: inode, dir entry, bitmap</span>',Dd='<span class="pill mid">data: 4 blocks (dirty)</span>',Dk='<span class="pill ok">data: 4 blocks</span>',Mk='<span class="pill acc">metadata</span>',C='<span class="pill ok">commit block</span>',O='<span class="pill inv">old metadata</span>';
-  const S={ordered:[
-    [M+Dd,'',O,'Handles join the running transaction','The rename or create changed the inode, a directory block and a bitmap, in memory; the file\'s data is dirty in the page cache.','Crash now: nothing new is on disk. Old state.'],
-    [M,'',O+Dk,'Commit starts (5 s old, or an fsync): data first','Ordered mode writes the data blocks to their home locations before any metadata that points at them is logged.','Crash now: new data sits in blocks nothing points to. Old state, no harm.'],
-    [M,Mk,O+Dk,'Metadata blocks to the journal','The changed metadata blocks are copied into the journal area.','Crash now: no commit block, so replay discards the transaction. Old state.'],
-    ['',Mk+C,O+Dk,'Commit block, with PREFLUSH and FUA','The device cache is flushed and the commit block written through to stable media: the transaction is committed.','Crash now: replay copies the metadata home. The new file, with its data.'],
-    ['',Mk+C,Mk+Dk,'Checkpoint: metadata written home, later','In the background the metadata blocks are written to their real places.','Crash now: replay is harmless (it writes the same blocks again).'],
-    ['','',Mk+Dk,'Journal space freed','That part of the journal is reused by later transactions.','Crash now: the new state, nothing to replay.']],
-   journal:[
-    [M+Dd,'',O,'Handles join the running transaction','As in ordered mode: metadata and data are changed in memory.','Crash now: old state.'],
-    [M,Mk+'<span class="pill ok">data</span>',O,'Data and metadata to the journal','In data=journal mode the file\'s data is logged too: every byte is written twice.','Crash now: no commit block, replay discards both. Old state.'],
-    ['',Mk+'<span class="pill ok">data</span>'+C,O,'Commit block, with PREFLUSH and FUA','Data and metadata are committed together.','Crash now: replay writes both home. Consistent data and metadata.'],
-    ['',Mk+'<span class="pill ok">data</span>'+C,Mk+Dk,'Checkpoint: both written home','The second write of every byte.','Crash now: replay is harmless.'],
-    ['','',Mk+Dk,'Journal space freed','Reused by later transactions.','Crash now: the new state.']],
-   writeback:[
-    [M+Dd,'',O,'Handles join the running transaction','As before.','Crash now: old state.'],
-    [M+Dd,Mk,O,'Metadata to the journal; data not waited for','data=writeback does not order data before metadata: the data may still be dirty in memory.','Crash now: no commit block. Old state.'],
-    [Dd,Mk+C,O,'Commit block, with PREFLUSH and FUA','The metadata is committed while the data has not reached its blocks.','Crash now: replay installs an inode that points at blocks whose new data never arrived, so their stale contents appear in the file.'],
-    ['',Mk+C,O+Dk,'Data written later by ordinary writeback','Whenever the flusher gets to it.','Crash now: replay gives the new file with its data.'],
-    ['','',Mk+Dk,'Checkpoint and journal space freed','As in the other modes.','Crash now: the new state.']]};
-  let mode='ordered';
-  const draw=i=>{const s=S[mode][i];
-    $('rd-jb').innerHTML='<div class="tri"><div><h5>Memory</h5>'+(s[0]||'<span class="small mute">nothing pending</span>')+'</div><div><h5>Journal (on disk)</h5>'+(s[1]||'<span class="small mute">empty</span>')+'</div><div><h5>Home locations (on disk)</h5>'+s[2]+'</div></div><div class="crashnote">'+s[5]+'</div>';
-    $('rd-jb-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S[mode].length+': '+s[3]+'</div><p>'+s[4]+'</p>'};
-  const an=RD.anim({card:'rd-jb-card',ctl:'rd-jb-ctl',n:S.ordered.length,draw,ms:1800,label:'Step'});
-  RD.seg($('rd-jb-mode'),m=>{mode=m;an.reset(S[m].length)});
+    $('rd-fe').innerHTML='<p class="small" style="margin:4px 0"><b>'+esc(s[0])+'</b></p><div class="tw"><table class="tbl-sm nar"><tbody><tr><td><b>page in the cache</b></td><td>'+s[1]+'</td></tr><tr><td><b>error record</b></td><td>'+s[2]+'</td></tr><tr><td><b>fsync on A</b></td><td>'+(a||'not called yet')+'</td></tr><tr><td><b>fsync on B</b></td><td>'+(b||'not called yet')+'</td></tr></tbody></table></div>';
+};
+  const an=RD.anim({card:'rd-fe-card',ctl:'rd-fe-ctl',n:5,draw,ms:4200,label:'Step',list:'sx-fe-old'});
+  RD.seg($('rd-fe-mode'),m=>{mode=m;['old','new'].forEach(x=>$('sx-fe-'+x).hidden=x!==m);an.reset(5,'sx-fe-'+m)});
 }
 
 // ---- section 8: where the bytes are copied ----
@@ -167,7 +116,7 @@ function nfs(){const el=$('rd-nfs');if(!el)return;const W=Math.min(760,RD.width(
     if(mm[0]===mm[1]){const left=mm[0]===3;const tx=left?x(3)-6:x(0)+6;
       g+='<circle cx="'+x(mm[0])+'" cy="'+y+'" r="4" fill="'+(k===6?'var(--good)':'var(--c5)')+'"/>'+T(tx,y+4,mm[2],{a:left?'end':'start',fill:k===6?'var(--good)':'var(--mute)'});return}
     const x1=x(mm[0]),x2=x(mm[1]);g+=line(x1,y+6,x2+(x2>x1?-3:3),y+6,'rdNa',{c:'var(--acc)',w:1.6});
-    g+=T((x1+x2)/2,y,mm[2],{a:'middle'})});
+    g+=(nar&&mm[2].length>22?T(Math.max(x1,x2)-4,y,mm[2],{a:'end'}):T((x1+x2)/2,y,mm[2],{a:'middle'}))});
   el.innerHTML=RD.svg(W,H,g,'Sequence: rank 7 closes its shard to the server, rank 0 writes the marker after a barrier, node B opens marker then shard')}
 reg(nfs);
 })();

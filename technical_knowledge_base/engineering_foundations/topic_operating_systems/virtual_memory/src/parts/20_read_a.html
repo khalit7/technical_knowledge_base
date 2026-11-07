@@ -1,9 +1,14 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea</h2>
 <p class="core">Every address a program uses is <b>virtual</b>: the hardware translates it page by page through a per-process tree of tables, and the kernel fills that tree lazily, one page at a time, at first touch. Everything else (mmap, copy-on-write, huge pages, swap, the OOM killer) is a way of <b>filling, sharing, enlarging or taking back pages</b>.</p>
-<div class="card"><p class="ftitle">One process, one picture: virtual ranges point through the tables at frames, and frames come from three places</p>
-<div class="rd-chart" id="vm-hero"></div>
-<p class="small mute">Static diagram. Every load and store goes through the TLB and the tables; the section numbers are where each arrow is taught. The ranges are the kinds of mapping the running job really has (section 1); the dashed box is what its container's <code>memory.max</code> counts (section 12).</p></div>
+<ol class="sx" id="sx-hero">
+<li><b>One process, one address space.</b> The running job's main process as the root recorded it in <code>/proc/PID/maps</code> (section 1): the code of its <code>.so</code> files, the memory-mapped dataset, <code>/dev/shm</code>, the heap, the stack and anonymous memory that is mostly one 1 GiB allocator reservation. Widths follow the address space each kind takes, on a square-root scale.</li>
+<li><b>Every access is translated.</b> Every load and store goes through the TLB and, on a miss, the page tables (sections 2 and 3) before it reaches a physical frame.</li>
+<li><b>Frames come from three places.</b> Written anonymous memory (heap, tensors) gets its own zeroed frames (section 4); file mappings are the page cache's frames, shared by every process that maps the file (sections 5 and 6); anonymous memory that was only read maps the one shared zero page. The untouched reservation maps nothing.</li>
+<li><b>Below memory: files and swap.</b> Clean page-cache frames can be dropped and read again from their file; anonymous frames have no file, so reclaim can only write them to swap (sections 6 and 11).</li>
+<li><b>The container's budget.</b> The dashed box is what the container's <code>memory.max</code> counts: anonymous frames, page cache and <code>/dev/shm</code> alike (section 12). Copy-on-write, huge pages and the OOM killer are ways of sharing, enlarging or taking back these frames.</li>
+</ol>
 <p><b>You need</b>: what a process and <code>fork</code> are, from sections 2 and 4 of {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} (section 4 is the intuition this page goes under) and {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}. Everything else is defined here.</p>
 <p class="small"><b>New terms</b> (each defined again where it is taught):</p>
 <div class="terms">
@@ -47,29 +52,36 @@
 <tr><td>23 Complete Virtual Memory Systems (VAX/VMS, Linux)</td><td>4, 5, 7, 8 (this page is chapter 23 extended to Linux 5.10 and to ML)</td></tr>
 </tbody></table></div></div></details>
 </section>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <section id="rd-s1">
 <h2>1. The address space: what one process sees</h2>
 <p>Every process gets its own <dfn id="g-as">address space</dfn>: a private range of addresses that the hardware translates to real memory on every access, so processes cannot see each other's data yet can share what is identical (the code of <code>libtorch_cpu.so</code>, the dataset file). On 64-bit Linux the user part is 2<sup>48</sup> bytes (256 TiB) on arm64 with 4 KiB pages and 2<sup>47</sup> bytes (128 TiB) on x86-64 with four-level tables ({{arm64 memory layout|https://docs.kernel.org/arch/arm64/memory.html}}; {{x86-64 memory map|https://docs.kernel.org/arch/x86/x86_64/mm.html}}). Almost all of it is empty. What exists is a list of <dfn id="g-vma">mappings</dfn> (virtual memory areas, VMAs): contiguous ranges with one set of permissions and one source, a file or anonymous zero-filled memory. Threads of one process share one address space; that is all "sharing memory" means for threads.</p>
-<div class="card"><p class="ftitle">The running job reserves 2 GiB of addresses; most of it is one allocator reservation, not memory</p><div class="rd-chart" id="vm-as"></div><p class="small mute" id="vm-as-note"></p>
-<p class="small">That total is what <code>ps</code> and <code>top</code> report as <b>VSZ</b> (virtual size): address space, not memory (section 13). <span class="meas">measured</span>: the root's recording of the main process just after its DataLoader workers were forked.</p>
-<details class="xc"><summary>Selected lines of the real <code>/proc/PID/maps</code></summary><div><p class="small">One line per VMA: start-end, permissions (r, w, x, and <code>p</code> private or <code>s</code> shared), file offset, device, inode, path. <span id="vm-as-cnt"></span></p><pre class="cd out" id="vm-maps"></pre></div></details></div>
 <p>The 54 anonymous mappings add up to 1.5 GiB mainly because of one 1 GiB reservation by the allocator inside <code>libc10.so</code> (the sibling {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} owns that story). Pages are only spent when touched (section 4).</p>
 <div class="cost"><div class="t">A limit you can hit</div><code>vm.max_map_count</code> caps the number of VMAs per process (default 65,530 in the {{kernel docs|https://docs.kernel.org/admin-guide/sysctl/vm.html#max-map-count}}; Docker Desktop's VM sets 262,144, read here). The job uses about 456. A process that maps thousands of files or shards, or an allocator that splits its arena into many protected pieces, gets <code>ENOMEM</code> from <code>mmap</code> long before memory is short, and the error says nothing about VMAs.</div>
 <p class="cmd">cat /proc/PID/maps | wc -l; pmap -x PID | tail -1; cat /proc/sys/vm/max_map_count</p>
 <details class="dp"><summary><b>In the kernel</b>: mm_struct and vm_area_struct</summary><div><p class="small"><span class="src">source</span>: one <code>struct mm_struct</code> per address space holds <code>pgd</code>, the root of its page-table tree, and the set of VMAs ({{include/linux/mm_types.h line 388|https://github.com/torvalds/linux/blob/v5.10/include/linux/mm_types.h#L388}}; a red-black tree in 5.10, a maple tree since 6.1); each VMA is a <code>struct vm_area_struct</code> with <code>vm_start</code>, <code>vm_end</code>, flags, an optional <code>vm_file</code> and a table of operations <code>vm_ops</code> that says how to fill a page when it is first touched ({{line 305|https://github.com/torvalds/linux/blob/v5.10/include/linux/mm_types.h#L305}}). Threads of one process share one <code>mm_struct</code>.</p></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">The running job reserves 2 GiB of addresses; most of it is one allocator reservation, not memory</p><div class="rd-chart" id="vm-as"></div><p class="small mute" id="vm-as-note"></p>
+<p class="small">That total is what <code>ps</code> and <code>top</code> report as <b>VSZ</b> (virtual size): address space, not memory (section 13). <span class="meas">measured</span>: the root's recording of the main process just after its DataLoader workers were forked.</p>
+<details class="xc"><summary>Selected lines of the real <code>/proc/PID/maps</code></summary><div><p class="small">One line per VMA: start-end, permissions (r, w, x, and <code>p</code> private or <code>s</code> shared), file offset, device, inode, path. <span id="vm-as-cnt"></span></p><pre class="cd out" id="vm-maps"></pre></div></details></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-walk"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. Page tables: the tree that translates every address</h2>
 <p>Memory is managed in fixed-size <dfn id="g-page">pages</dfn>: 4 KiB here (<code>getconf PAGESIZE</code> prints 4096). A <dfn id="g-va">virtual address</dfn> splits into a virtual page number (high bits) and an offset inside the page (low 12 bits, passed through unchanged). The <dfn id="g-pt">page table</dfn> maps each virtual page to a physical <dfn id="g-frame">page frame</dfn>, plus permission bits.</p>
 <p><b>Why a tree.</b> One flat table for 2<sup>36</sup> virtual pages at 8 bytes an entry would be 512 GiB per process. Instead the 36 bits are cut into four 9-bit pieces; each indexes a 4 KiB table of 512 eight-byte entries, which points to the next table. Only the tables on the path to a mapped page exist, so a sparse address space costs almost nothing. The arm64 kernel computes the number of levels as <code>(VA_BITS - 4) / (PAGE_SHIFT - 3)</code> ({{pgtable-hwdef.h line 26|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/pgtable-hwdef.h#L26}}): (48 - 4) / (12 - 3) = 4 levels for 4 KiB pages.</p>
-<div class="card"><div class="rd-chart" id="vm-split"></div><p class="small mute">The first byte of the job's memory-mapped dataset, <code>0xffff81fd2000</code> (from the maps lines above), cut into its four table indices and offset. The {{Address translator|#t-addr}} tab does this for any address, on arm64 with 4, 16 or 64 KiB pages and on x86-64 with four or five levels.</p></div>
-<div class="card" id="vm-walk-card"><p class="ftitle">The walk: four dependent reads, one per level, then the TLB remembers the answer</p>
-<div class="rd-chart" id="vm-walk-svg"></div>
-<div class="an-cap" id="vm-walk-cap"></div>
-<div class="an-ctl" id="vm-walk-ctl"></div>
-<div class="an-cnt" id="vm-walk-cnt"></div>
-<p class="small mute">Stepper on the same dataset address, arm64, 4 KiB pages. Indices are computed from the address; table and frame numbers are <span class="ill">illustrative</span> (reading real frame numbers from <code>/proc/PID/pagemap</code> needs privileges).</p></div>
+<ol class="sx" id="sx-walk">
+<li><b>The address.</b> <code>0xffff81fd2000</code>, the first byte of the job's memory-mapped dataset (from the maps lines in section 1), splits into four 9-bit indices (511, 510, 15, 466) and a 12-bit offset (0x0). Each index picks one of 512 entries in a 4 KiB table. The {{Address translator|#t-addr}} tab does this for any address, on arm64 with 4, 16 or 64 KiB pages and on x86-64 with four or five levels.</li>
+<li><b>TLB miss.</b> The CPU looks for virtual page <code>0xffff81fd2</code> in the TLB and misses. The walk starts at <code>TTBR0_EL1</code>, the register holding the physical address of this process's level 0 table (CR3 on x86-64); a process switch reloads it.</li>
+<li><b>Level 0.</b> Memory read 1: entry 511 of the level 0 table holds the frame of a level 1 table. Each level 0 entry covers 512 GiB of addresses.</li>
+<li><b>Level 1.</b> Memory read 2: entry 510 of the level 1 table points at a level 2 table. A level 1 entry covers 1 GiB; a 1 GiB huge page would end the walk here.</li>
+<li><b>Level 2.</b> Memory read 3: entry 15 points at a level 3 table. A level 2 entry covers 2 MiB; a 2 MiB huge page (section 8) ends the walk here, one level shorter.</li>
+<li><b>Level 3.</b> Memory read 4: entry 466 holds the frame number of the data page and its permission bits. Physical address = frame x 4096 + offset.</li>
+<li><b>TLB fill.</b> The translation is cached in the TLB: every later access to this 4 KiB page skips all four reads. The root measured 1.1 ns per access while the pages fit in the TLB and 7.6 ns once they do not.</li>
+</ol>
+<p class="small mute">The indices are computed from the address (arm64, 4 KiB pages); table and frame numbers are <span class="ill">illustrative</span> (reading real frame numbers from <code>/proc/PID/pagemap</code> needs privileges).</p>
 <p><b>The bits do work.</b> <i>Accessed</i> is set by hardware on use: page reclaim reads and clears it to find cold pages (section 6). <i>Dirty</i> says a file page must be written back before reuse. <i>Read-only</i> on a writable mapping is how copy-on-write traps the first write (section 7). <i>Not present</i> is how swap and lazy allocation trap the first access (section 4).</p>
 <div class="cost"><div class="t">What the tables cost <span class="meas">measured</span></div>One last-level table (4 KiB) maps 512 pages = 2 MiB, so touching 1 GiB needs 512 tables = 2,048 KiB, plus a few upper-level tables. Measured: <code>VmPTE</code> grew by <b id="vm-pte4k"></b> KiB after touching 1 GiB. That is 0.2% of the memory mapped, per process: 64 workers each touching the same 10 GiB shared dataset carry 64 copies of its tables (1.3 GiB). With huge pages the kernel still sets aside one table per 2 MiB (section 8), so the measured <code>VmPTE</code> did not shrink.</div>
 <div class="drill" data-k="pt"><p class="q">A process maps a 64 GiB file but only ever reads 1 MiB of it at one spot. Roughly how much page-table memory does that cost?</p>
@@ -85,3 +97,4 @@
 <tr><td>Key entry bits</td><td>Present, R/W, U/S, Accessed, Dirty, NX</td><td>valid, AP (user, read-only), AF (accessed), nG (not global), DBM (dirty), PXN/UXN (no execute) ({{lines 135 to 148|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/include/asm/pgtable-hwdef.h#L135}})</td></tr>
 </tbody></table></div></div></details>
 </section>
+</div></div>

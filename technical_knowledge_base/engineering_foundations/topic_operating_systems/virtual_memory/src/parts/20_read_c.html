@@ -1,6 +1,15 @@
 <section id="rd-s5">
+<div class="s3sp"><div class="s3R"><div id="stg-mmap"></div></div><div class="s3L">
 <h2>5. mmap: files and memory as one thing</h2>
 <p><code>read()</code> copies bytes from the kernel's cache of the file (the page cache, section 6) into your buffer: two copies of the data in memory, a system call per read, and a buffer you must manage. <code>mmap(addr, length, prot, flags, fd, offset)</code> instead adds a VMA whose pages <i>are</i> the page-cache pages of the file ({{mmap(2)|https://man7.org/linux/man-pages/man2/mmap.2.html}}). The first touch of each page faults (section 4) and maps the cached page directly; nothing is copied. Two choices make four kinds of mapping:</p>
+<ol class="sx" id="sx-mmap">
+<li><b>The file and the page cache.</b> The first read of a file fills the kernel's page cache: one copy of each 4 KiB page in RAM, kept after the read (section 6).</li>
+<li><b><code>read()</code>: a second copy.</b> <code>read()</code> copies those bytes into the process's own buffer: two copies of the data in memory, a system call per read, and anonymous memory that counts against the process.</li>
+<li><b><code>mmap</code>: the mapping is the cache.</b> Instead, the page-table entries of the mapping point at the page-cache pages themselves. Each first touch faults (section 4) and maps the cached page; nothing is copied.</li>
+<li><b>A second process maps the same file.</b> Its entries point at the same frames, so RAM holds one copy however many processes map it; each process's RSS still counts all of it (section 13).</li>
+<li><b>A write to a private mapping copies one page.</b> With <code>MAP_PRIVATE</code> the first write copies that page into anonymous memory for the writer only (copy-on-write, section 7); the file and the other process are untouched.</li>
+<li><b>A cold fault reads around.</b> A fault on a page not yet cached reads its neighbours too (<code>read_ahead_kb</code>, 128 KiB by default): good for a sequential pass, wasted on random rows. <code>madvise(MADV_RANDOM)</code> reads one page per fault. Measured below.</li>
+</ol>
 <div class="tw"><table class="tbl-sm"><thead><tr><th></th><th>MAP_PRIVATE</th><th>MAP_SHARED</th></tr></thead><tbody>
 <tr><td><b>File</b></td><td>Reads see the file; a write copies that page into private anonymous memory (copy-on-write), the file never changes. <i>Used by:</i> the loader for code and data of every <code>.so</code>; <code>np.memmap(mode="c")</code>.</td><td>Reads and writes go to the page cache, other mappers see them at once, writeback puts them in the file (<code>msync</code> to force it). <i>Used by:</i> <code>np.memmap(mode="r+")</code>, databases, the job's dataset (read-only, <code>r--s</code> in its maps).</td></tr>
 <tr><td><b>Anonymous</b></td><td>Private zero-filled memory. After <code>fork</code>, copy-on-write. <i>Used by:</i> <code>malloc</code> of large blocks, thread stacks, every allocator's arenas, all your tensors.</td><td>Memory shared with children after <code>fork</code> (backed by an invisible shmem file). <i>Used by:</i> <code>multiprocessing</code> shared values. Named shared memory is a file in <code>/dev/shm</code>, which is how DataLoader workers pass batches.</td></tr>
@@ -13,10 +22,13 @@
 <div class="sp"><div class="n">MAP_FIXED</div><p>place exactly here, silently replacing whatever was mapped; use <code>MAP_FIXED_NOREPLACE</code>.</p></div>
 <div class="sp"><div class="n">MAP_HUGETLB</div><p>back with pre-reserved huge pages (section 8).</p></div>
 </div></div></details>
-<h3>Random rows from a dataset: read() against mmap <span class="meas">measured</span></h3>
+</div></div>
+<div class="s3sp"><div class="s3L"><h3>Random rows from a dataset: read() against mmap <span class="meas">measured</span></h3>
 <p>20,000 random rows of 1,028 bytes (the job's row format) from a 256 MiB file, warm (in the page cache) and cold (evicted with <code>posix_fadvise(POSIX_FADV_DONTNEED)</code>, which any process may do for clean pages). The rows are 19.6 MiB of useful data; "read from storage" is <code>read_bytes</code> in <code>/proc/self/io</code>.</p>
-<div class="card"><p class="ftitle">Cold, a plain mapping read the whole file to serve 20,000 rows; MADV_RANDOM read a quarter of it but paid a device trip per row</p><div class="rd-chart" id="vm-rows"></div><p class="small mute" id="vm-rows-note"></p></div>
 <p>Warm, all three cost 1 to 2 microseconds a row (Python dominates). Cold, a fault on a mapping reads around the faulting page (<code>read_ahead_kb</code>, 128 KiB by default): on this small file that pulled in the whole file (13x the useful bytes) and then served the rest from memory, the fastest here; on a dataset much larger than RAM the same bet reads 32 pages to use one and fills the cache with neighbours you will not touch. <code>madvise(MADV_RANDOM)</code> turns read-around off: one page per fault, 3.4x amplification, one device round trip per row. So a shuffled index over a huge file wants MADV_RANDOM or explicit <code>pread</code>; a sequential pass or a small hot file wants the default (or <code>MADV_SEQUENTIAL</code>, <code>MADV_WILLNEED</code>).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">Cold, a plain mapping read the whole file to serve 20,000 rows; MADV_RANDOM read a quarter of it but paid a device trip per row</p><div class="rd-chart" id="vm-rows"></div><p class="small mute" id="vm-rows-note"></p></div>
+</div></div></div>
 <h3>Loading weights: copy or map <span class="meas">measured</span></h3>
 <p>A 256 MiB state dict (eight 32 MiB float32 tensors) saved with <code>torch.save</code> and with safetensors, loaded cold four ways. "Return" is the time until the call returns; then every tensor is summed once.</p>
 <div class="tw"><table class="tbl-sm" id="vm-load"></table></div>
@@ -27,14 +39,16 @@
 <p class="cmd">grep -A3 train.bin /proc/PID/smaps   # Rss, Pss and Shared_Clean of one mapping</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s6">
 <h2>6. The page cache and reclaim: where "free" memory went</h2>
 <p>Linux keeps file data that was read or written in otherwise unused RAM, the <dfn id="g-pagecache">page cache</dfn>, because RAM that holds nothing is wasted. <code>free</code> shows it as "buff/cache"; "available" estimates what could be handed to programs if they asked, mostly by dropping clean cache. Writing, flushing and <code>fsync</code> of cached data belong to the sibling {{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}; here the question is how memory is taken back.</p>
-<div class="card"><p class="ftitle">Three watermarks decide who reclaims: kswapd in the background, or the allocating process itself</p><div class="rd-chart" id="vm-wm"></div>
-<p class="small mute">Free memory on this VM, to scale, summed over zones. min is the measured <code>min_free_kbytes</code>; low and high are derived from the 5.10 formula below.</p></div>
 <p><b>Reclaim.</b> Each memory zone has three <dfn id="g-wmark">watermarks</dfn> of free pages. Below <i>low</i>, the kernel thread <code>kswapd</code> wakes and reclaims in the background until <i>high</i>; below <i>min</i>, an allocating process must reclaim by itself before it gets memory (<dfn id="g-direct">direct reclaim</dfn>), which shows up as stalls in that process. In 5.10, low = min + max(min / 4, managed &times; <code>watermark_scale_factor</code> / 10,000) and high = min + 2 &times; that ({{mm/page_alloc.c lines 7874 to 7880|https://github.com/torvalds/linux/blob/v5.10/mm/page_alloc.c#L7874}}). Here <code>min_free_kbytes</code> is <span id="vm-minfree"></span> KiB and the scale factor is 10, so low and high sit about 11 MiB and 22 MiB above min. Raising <code>watermark_scale_factor</code> starts background reclaim earlier, a common fix for allocation stalls on big-memory hosts.</p>
 <p><b>Which pages go.</b> Linux 5.10 keeps two lists per type (anonymous and file), <i>active</i> and <i>inactive</i>, an approximation of least-recently-used built on the hardware accessed bit (section 2): pages are scanned from the inactive tail, and one referenced since gets another chance. Clean file pages are cheapest to drop (re-read later); dirty ones must be written first; anonymous pages can only go to swap. <code>vm.swappiness</code> (60 here, the default, {{mm/vmscan.c line 172|https://github.com/torvalds/linux/blob/v5.10/mm/vmscan.c#L172}}) weighs anonymous against file reclaim.</p>
 <p><b>Inside a container</b> the same reclaim runs against the cgroup's limit instead of the machine's: reading a 768 MiB file in a 512 MiB container filled the cache up to the limit and recycled it, with thousands of "max" events and no OOM kill (the replay in section 12, scenario "Page cache only").</p>
 <details class="dp"><summary><b>Since 6.1</b>: the multi-generational LRU <span class="nrh">not run here</span></summary><div><p class="small">Linux 6.1 added the multi-generational LRU, which replaces the two lists with several age generations and scans page tables instead of reverse mappings ({{multigen_lru docs|https://docs.kernel.org/admin-guide/mm/multigen_lru.html}}).</p></div></details>
 <p class="cmd">free -m; grep -E 'Active|Inactive|Dirty|Writeback' /proc/meminfo; vmstat 1   # si/so swap, bi/bo block I/O</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="ftitle">Three watermarks decide who reclaims: kswapd in the background, or the allocating process itself</p><div class="rd-chart" id="vm-wm"></div>
+<p class="small mute">Free memory on this VM, to scale, summed over zones. min is the measured <code>min_free_kbytes</code>; low and high are derived from the 5.10 formula below.</p></div>
+</div></div></div>
