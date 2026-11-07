@@ -39,3 +39,8 @@ without ids; (4) what a WebSocket frame is and why clients mask; (5) why webhook
 
 ## What the methodology lacked
 Nothing for this page; the "predict, then reveal" drills and the per-case parser predictions came from the reader brief (interviews and debugging), not from the visualisation scoring.
+
+## 2026-11-07: the split-layout rollout (renderer v2 stages)
+Built: five 3D stages, each driven by the recorded runs, each with an `ol.sx` step list: Fig. 1 hero (one answer four ways plus the webhook lane, `fw['100']` and the careful webhook run), Fig. 4 token stream over one held response (`fw['50'].SSE`, a to-scale ruler with TTFT and the gaps), Fig. 5 cut and resume (three modes from `rc.scenarios`), Fig. 6 WebSocket upgrade to close (`wsb.frames`, envelopes to scale), Fig. 9 webhooks, two receivers side by side (`hooks.delivery`, `hooks.signatures`). They replace the static five-panel hero, the LLM stream anatomy, the reconnect stepper and the webhook stepper (its full log stays in a closed block).
+Kept 2D: the four-ways timeline (a time axis; a widget opening on its last frame, never autoplaying: 61 frames is a long replay), the SSE byte annotation, the six-connection panels, the resumable-log diagram, the cancellation bars, the frame header bits, the recorded session explorer and its unmasking stepper (a widget the reader drives), the deflate bars, the proxy path, the gRPC frame list, every table: each is a layout, a value on an axis or a byte layout.
+Rejected: a 3D six-connection scene (the point is a count, six of eight, which the flat panel shows at a glance); a 3D debugging map (a table).

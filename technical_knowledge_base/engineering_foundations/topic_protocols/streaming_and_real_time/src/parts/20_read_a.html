@@ -39,13 +39,19 @@
 <a href="#rd-top">Idea</a><a href="#rd-s1">1 Four ways</a><a href="#rd-s2">2 SSE format</a><a href="#rd-s3">3 SSE clients</a><a href="#rd-s4">4 LLM streams</a><a href="#rd-s5">5 Cut, resume, stop</a><a href="#rd-s6">6 WebSocket handshake</a><a href="#rd-s7">7 Frames</a><a href="#rd-s8">8 WebSockets in production</a><a href="#rd-s9">9 Webhooks</a><a href="#rd-s10">10 Voice, gRPC, WebTransport</a><a href="#rd-s11">11 Choosing</a><a href="#rd-s12">12 Debugging</a><a href="#rd-deep">Depth</a>
 </nav>
 <section id="rd-top">
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <h2>The idea in one screen</h2>
 <p class="core"><b>Real-time means the server has news before the client knows to ask. Every way of delivering it is a choice of who opens the connection, which way bytes flow and how long it lives; and anything that lives long is cut by something on the path. So choose by direction (SSE when only the server talks, a WebSocket when both do, a webhook when the wait is hours), then design the heartbeat, the reconnect and the cancel.</b></p>
-<div class="card" id="hero-card">
-<div class="fig-t">Five ways to get news from server to client: who opens, which way bytes flow, how long it lives</div>
-<div class="hero-grid" id="hero-grid"></div>
-<p class="small mute">Time runs down. Grey arrows are requests and acknowledgements; blue arrows carry the news. <span class="ill">illustrative</span> shapes; section 1 measures the first four on one real answer.</p>
-</div>
+<p><b>Fig. 1</b> runs one real answer (below) through the four ways, then shows the fifth, which reverses the roles. <span class="meas">measured</span> Every request and event sits where the 100 ms round-trip run recorded it (section 1), slowed about seven times; orange travels from the client, blue from the server.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Polling: you open, every tick.</b> The client asks on a timer (here 100 ms after each answer) and each answer carries whatever has piled up: 3 requests brought 1, 2 and 4 events, and the last token landed at <span data-k="fw100_sp_last" data-f="ms">530</span> ms. The timer, not the model, sets the latency.</li>
+<li><b>Long polling: you open; the server holds it until news.</b> The held request is the gold box; the client asks again the moment an answer lands. Tokens 50 ms apart outrun a 100 ms round trip, so they bunch: <span data-k="fw100_lp_req">4</span> requests for 7 events, last token <span data-k="fw100_lp_last" data-f="ms">446</span> ms.</li>
+<li><b>SSE: you open once; then server to you only.</b> One POST, and its response stays open (blue glass): each event travels back the moment it exists, one one-way trip per token, last token <span data-k="fw100_sse_last" data-f="ms">428</span> ms. It lives for the answer and stays plain HTTP.</li>
+<li><b>WebSocket: you open once; then both ways.</b> A GET asking to upgrade, a 101, and the connection becomes a pipe either side can send on at any moment: last token <span data-k="fw100_ws_last" data-f="ms">431</span> ms, the same as SSE once open. It lives until something cuts it.</li>
+<li><b>Webhook: the provider opens.</b> Hours later, when the job ends, the provider POSTs a signed event to your public URL and retries until you answer 2xx. <span class="meas">measured</span> In section 9's run the first delivery got HTTP 503 (a deploy in progress), the retry HTTP 200.</li>
+<li><b>Side by side.</b> The bars are each lane's last token: the open streams track the model, long polling falls behind when tokens outpace round trips, polling delivers in clumps.</li>
+</ol>
+</div></div>
 <p><b>The running example.</b> The parent topic's chat app asks "What colour is the sky?" with one 117-byte <code>POST /v1/messages</code>; the answer is five tokens (<code>The</code>, <code>&nbsp;sky</code>, <code>&nbsp;is</code>, <code>&nbsp;blue</code>, <code>.</code>) framed by <code>message_start</code> and <code>message_stop</code>: seven events in the shapes of Anthropic's Messages API. A stand-in model (no real model runs) waits 120 ms before the first token, standing in for prefill, then produces one every 50 ms. This page delivers that answer four ways, cuts it, resumes it, cancels it, and sends a webhook when a job ends. Everything marked <span class="meas">measured</span> was run on 5 October 2026 on an Apple M1 Pro (macOS, Python 3.13, aiohttp 3.14.3, websockets 17.2, nginx 1.31.6, Chrome 148, Node 22) against local servers, so every byte could be recorded.</p>
 <p><b>You need</b> HTTP requests, responses, headers, status codes and proxies ({{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}), and TCP connections ({{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}). This page owns the push layer on top of them.</p>
 <div class="terms">

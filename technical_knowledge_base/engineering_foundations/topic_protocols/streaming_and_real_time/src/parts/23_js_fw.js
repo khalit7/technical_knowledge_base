@@ -45,7 +45,8 @@
     document.getElementById('fw-cnt').innerHTML=M.map(m=>{const d=D.fw[rtt][m];const s=textAt(m,t);
       return RD.stat(LBL[m],'"'+esc(s)+'"',reqAt(m,t)+' request'+(reqAt(m,t)===1?'':'s')+' so far; whole run '+d.up+' B up, '+d.down+' B down')}).join('');
   }
-  const A=RD.anim({card:'fw-card',ctl:'fw-ctl',n:N,draw,ms:140,label:'Time step'});
-  RD.seg(document.getElementById('fw-rtt'),v=>{rtt=v;A.reset(N)});
+  // a widget (the long-replay rule, case b): 61 frames of 10 ms; it opens on the last frame, the whole run, and never plays by itself
+  const A=RD.anim({card:'fw-card',ctl:'fw-ctl',n:N,draw,ms:140,label:'Time step',auto:false,start:N-1});
+  RD.seg(document.getElementById('fw-rtt'),v=>{rtt=v;A.reset(N);A.go&&A.go(N-1)});
   RD.onResize(()=>A.redraw());
 })();

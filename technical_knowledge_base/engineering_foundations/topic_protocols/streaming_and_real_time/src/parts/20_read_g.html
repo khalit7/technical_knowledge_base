@@ -1,15 +1,19 @@
 <section id="rd-s8">
+<div class="s3sp"><div class="s3L">
 <h2>8. WebSockets in production: proxies, heartbeats, scale, security</h2>
 <p>A WebSocket is a long-lived, stateful connection running through infrastructure built for short requests. Three things were broken on purpose here, through nginx 1.31.6 in front of the lab's <code>websockets</code> server, each seen by three clients.</p>
-<div class="card" id="px-card">
-<div class="fig-t">Three places a socket breaks, and what each client is told</div>
-<div class="svgbox" id="px-svg"></div>
-<ol class="pxl">
+<ol class="pxl tight">
 <li><b>The proxy drops the upgrade.</b> Even with <code>proxy_http_version 1.1</code> (the default since nginx 1.29.7), nginx does not pass the hop-by-hop <code>Upgrade</code> and <code>Connection</code> unless told; the server sees a plain GET and answers <code>426 Upgrade Required</code>. Fix: <code>proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";</code> ({{nginx: WebSocket proxying|https://nginx.org/en/docs/http/websocket.html}}). JavaScript never sees the 426, only close code 1006: debug with the network panel or curl.</li>
 <li><b>An idle timeout.</b> No bytes from upstream for <code>proxy_read_timeout</code> (60 s by default; 2 s here) and nginx closes both sides with no close frame: every client reports <b>1006</b>, and nginx logs it only at <code>info</code> level, which the default <code>error</code> level hides. With the client pinging every second (the pong comes back from the server, so the proxy sees upstream bytes) the same quiet 6 s survived and all seven messages arrived.</li>
 <li><b>Cross-site WebSocket hijacking (CSWSH).</b> Browsers apply neither the same-origin policy nor CORS to WebSockets and attach cookies, so any site's page can talk to a cookie-authenticated socket as the logged-in user. Without an origin list the server accepted <code>Origin: https://evil.example</code> and sent all seven messages; with <code>origins=["https://chat.example"]</code> it answered 403.</li>
 </ol>
 </div>
+<div class="s3R"><div class="s3side"><div class="card" id="px-card">
+<div class="fig-t">Three places a socket breaks, and what each client is told</div>
+<div class="svgbox" id="px-svg"></div>
+<p class="small mute">Numbers match the list on the left. <span class="meas">measured</span> through nginx 1.31.6.</p>
+</div>
+</div></div></div>
 <details class="xc"><summary>The measured run: what each of three clients reported, the curl replay and the nginx log</summary><div>
 <div class="tw"><table>
 <thead><tr><th>Failure</th><th>Python <code>websockets</code> 17.2</th><th>Node <code>ws</code></th><th>Chrome 148</th></tr></thead>

@@ -1,11 +1,18 @@
 <section id="rd-s2">
+<div class="s3sp"><div class="s3L">
 <h2>2. Server-Sent Events: the format, byte by byte</h2>
-<p>SSE is an agreed text format for a response that does not end, defined in the HTML standard ({{WHATWG HTML, section 9.2|https://html.spec.whatwg.org/multipage/server-sent-events.html}}, a living standard, last updated 5 October 2026), plus a small browser API, <code>EventSource</code>, that reads it. Here is one token event of the running answer, exactly as sent:</p>
+<p>SSE is an agreed text format for a response that does not end, defined in the HTML standard ({{WHATWG HTML, section 9.2|https://html.spec.whatwg.org/multipage/server-sent-events.html}}, a living standard, last updated 5 October 2026), plus a small browser API, <code>EventSource</code>, that reads it. Fig. 2 is one token event of the running answer, exactly as sent.</p>
+
+<p><b>The response head.</b> <code>Content-Type: text/event-stream</code> is the only thing that makes it SSE (EventSource refuses any other type, and any status other than 200). <code>Cache-Control: no-cache</code>, because an event stream is not a document. <code>X-Accel-Buffering: no</code> is not in the standard; it tells nginx-style proxies not to buffer (the parent topic's Failure lab, "A buffering proxy delays tokens"); the standard way is now the <code>Incremental</code> header field ({{RFC 10036|https://www.rfc-editor.org/rfc/rfc10036}}, August 2026). There is no <code>Content-Length</code>: on HTTP/1.1 the body travels in chunked encoding, on HTTP/2 and 3 in DATA frames, and the SSE parser sees neither, only text.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="sse-card">
+<div class="fig-t">One token event, byte for byte: two lines and a blank line</div>
 <div class="ann" id="sse-ann"><span data-p="ev">event: content_block_delta</span><span class="cr">&#9226;</span>
 <span data-p="data">data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The"}}</span><span class="cr">&#9226;</span>
 <span data-p="blank"><span class="cr">&#9226;</span></span></div>
 <div class="anninfo" id="sse-info">Click a line. <span class="meas">measured</span> This event is 118 bytes: 27 for the event line, 90 for the data line (6 for <code>data: </code>, 83 of JSON, 1 newline), 1 for the blank line. The token itself is 3 of them.</div>
-<p><b>The response head.</b> <code>Content-Type: text/event-stream</code> is the only thing that makes it SSE (EventSource refuses any other type, and any status other than 200). <code>Cache-Control: no-cache</code>, because an event stream is not a document. <code>X-Accel-Buffering: no</code> is not in the standard; it tells nginx-style proxies not to buffer (the parent topic's Failure lab, "A buffering proxy delays tokens"); the standard way is now the <code>Incremental</code> header field ({{RFC 10036|https://www.rfc-editor.org/rfc/rfc10036}}, August 2026). There is no <code>Content-Length</code>: on HTTP/1.1 the body travels in chunked encoding, on HTTP/2 and 3 in DATA frames, and the SSE parser sees neither, only text.</p>
+</div>
+</div></div></div>
 <div class="tw"><table>
 <thead><tr><th>Line</th><th>What the parser does</th><th>Used for</th></tr></thead>
 <tbody>
@@ -27,15 +34,18 @@
 </div></details>
 </section>
 <section id="rd-s3">
+<div class="s3sp"><div class="s3L">
 <h2>3. SSE clients: EventSource, fetch, and the six-connection trap</h2>
 <p><b>EventSource</b> (<code>new EventSource('/events')</code>) opens, parses, delivers and reconnects on its own, and three limits decide when you can use it. <b>GET only, no body</b>: an LLM request carries the conversation as JSON, so it cannot be an EventSource request. <b>No custom headers</b>: no <code>Authorization</code> or <code>x-api-key</code>, only cookies (with <code>withCredentials</code> plus CORS for another origin), one more reason browser apps never hold an LLM key ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}). <b>Strict</b>: a non-200 status or another content type "fails the connection" with no retry, while a network error or a stream that simply ends makes it reconnect. So LLM apps use <code>fetch()</code> with a POST, read <code>response.body</code> as a stream and run an SSE parser over the bytes ({{JavaScript: the event loop, promises and streams, section 5|n:4055c17b0d0d81fe857de8b34db109ea#s5}} builds it); in Python, <code>httpx</code> streaming plus <code>httpx-sse</code>, or the official SDKs with their own parser. Reconnection is then yours to write.</p>
-<div class="card" id="six-card">
+<p>Every request to that host queues behind the streams. MDN notes the limit is per browser and host, across tabs, and that Chrome and Firefox marked the bug "Won't fix" ({{MDN: EventSource|https://developer.mozilla.org/en-US/docs/Web/API/EventSource}}). <b>The fix is HTTP/2 or HTTP/3</b>, where each stream is one of many on a single connection; the server's <code>SETTINGS_MAX_CONCURRENT_STREAMS</code> sets how many, unlimited until it says otherwise, with a recommendation of at least 100 ({{RFC 9113 section 6.5.2|https://www.rfc-editor.org/rfc/rfc9113#section-6.5.2}}).</p>
+<div class="corr"><div class="t">Correction to a common reading of MDN</div><p>MDN says the HTTP/2 limit "defaults to 100". The protocol has no default: until the server's SETTINGS arrive the number of streams is unlimited, and RFC 9113 only recommends that servers not set it below 100. Most servers announce 100 or more, so in practice the advice holds.</p></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="six-card">
 <div class="fig-t">On HTTP/1.1 each open stream holds one of six connections per host; on HTTP/2 they share one</div>
 <div class="svgbox" id="six-svg"></div>
 <p class="small mute"><span class="meas">measured</span> Chrome 148 against this page's HTTP/1.1 lab server: a page opened eight EventSource streams to one host; <span data-k="six_opened">6</span> opened within 10 ms and the other two never opened in the 3.5 s observed; a plain <code>fetch()</code> to the same host, started 0.3 s in, had not finished either. The HTTP/2 panel is <span class="ill">illustrative</span> (not run here: EventSource over h2 needs the browser to trust the lab's certificate).</p>
 </div>
-<p>Every request to that host queues behind the streams. MDN notes the limit is per browser and host, across tabs, and that Chrome and Firefox marked the bug "Won't fix" ({{MDN: EventSource|https://developer.mozilla.org/en-US/docs/Web/API/EventSource}}). <b>The fix is HTTP/2 or HTTP/3</b>, where each stream is one of many on a single connection; the server's <code>SETTINGS_MAX_CONCURRENT_STREAMS</code> sets how many, unlimited until it says otherwise, with a recommendation of at least 100 ({{RFC 9113 section 6.5.2|https://www.rfc-editor.org/rfc/rfc9113#section-6.5.2}}).</p>
-<div class="corr"><div class="t">Correction to a common reading of MDN</div><p>MDN says the HTTP/2 limit "defaults to 100". The protocol has no default: until the server's SETTINGS arrive the number of streams is unlimited, and RFC 9113 only recommends that servers not set it below 100. Most servers announce 100 or more, so in practice the advice holds.</p></div>
+</div></div></div>
 <details class="xc"><summary>A real public stream: four seconds of Wikimedia's EventStreams</summary><div>
 <p><span class="meas">measured</span> Wikimedia publishes every edit to its wikis as an SSE stream. Four seconds of <code>curl -N https://stream.wikimedia.org/v2/stream/recentchange</code> on 5 October 2026: HTTP/2, <code>content-type: text/event-stream; charset=utf-8</code>, a first line <code>:ok</code> (a comment, sent at once so every proxy sees bytes), then <span data-k="wm_events">150</span> events and <span data-k="wm_bytes" data-f="c">228,771</span> bytes. Each event's <code>id</code> is a JSON array naming Kafka topics, partitions and timestamps or offsets: send it back as <code>Last-Event-ID</code> and the service resumes from that point in its log. Its documentation says the connection is cut after 15 minutes regardless, and that "a good SSE / EventSource client should be able to automatically reconnect and begin consuming at the right location" ({{EventStreams docs|https://wikitech.wikimedia.org/wiki/Event_Platform/EventStreams_HTTP_Service}}). Field values were not kept.</p>
 <pre class="cd out" id="wm-pre"></pre>

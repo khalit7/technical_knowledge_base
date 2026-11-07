@@ -1,4 +1,4 @@
-// ---- Reading: SSE anatomy, Wikimedia extract, reconnect replay (section 6), cancellation table ----
+// ---- Reading: SSE anatomy (section 2), Wikimedia extract (section 3) ----
 (function(){
   const D=window.SDATA,esc=RD.esc;
   // SSE event anatomy
@@ -11,45 +11,4 @@
   // Wikimedia extract
   const wm=document.getElementById('wm-pre');
   if(wm)wm.textContent='$ '+D.wm.cmd+'\n'+D.wm.headers.join('\n')+'\n\n'+D.wm.first_line+'\n\nevent: '+D.wm.event_type_line+'\nid: '+D.wm.ids[0]+'\ndata: {'+D.wm.data_keys.map(k=>'"'+k+'":...').join(',')+'}\n\n(field values not kept; '+D.wm.complete_events_in_4s+' events in 4 s)';
-  // cancellation table
-  const cr=document.getElementById('cancel-rows');
-  if(cr){const L={think_careful0:['Naive','during a 3 s think'],think_careful1:['Careful','during a 3 s think'],tokens_careful0:['Naive','while tokens flow'],tokens_careful1:['Careful','while tokens flow']};
-    cr.innerHTML=['think_careful0','think_careful1','tokens_careful0','tokens_careful1'].map(k=>{const c=D.cancel.find(x=>x.tag===k);const s=c.server;
-      return '<tr><td>'+L[k][0]+'</td><td>'+L[k][1]+' (client read '+c.events_client_read+' event'+(c.events_client_read===1?'':'s')+')</td><td class="num">'+s.work_seconds.toFixed(2)+' s, '+s.events_written+' event'+(s.events_written===1?'':'s')+' written</td><td>'+esc(s.stopped_by)+'</td></tr>'}).join('')}
-  // reconnect replay
-  const card=document.getElementById('rc-card');if(!card)return;
-  let mode='no_ids';
-  const TXT=e=>e[2].replace(/ #\d+$/,'');
-  function steps(){const sc=D.rc.scenarios[mode];return sc.client}
-  function draw(i){
-    const sc=D.rc.scenarios[mode],cl=sc.client.slice(0,i+1);
-    // timeline strip: connections as bars, tokens as dots (red when repeated), up to this step
-    (function(){const el=document.getElementById('rc-svg');if(!el)return;const W=RD.width(el),all=sc.client,TM=Math.max(...all.map(e=>e[0]))*1.04+0.1;
-      const x=t=>8+t/TM*(W-16),H=64;let b='',open=null,seen={};const T=RD.t;
-      for(let g=0;g<=TM;g+=TM>8?2:1)b+='<line x1="'+x(g)+'" x2="'+x(g)+'" y1="8" y2="'+(H-18)+'" stroke="var(--line)"/>'+T(x(g),H-4,g+(g===0?' s':''),{a:'middle',fs:11,fill:'var(--mute)'});
-      cl.forEach(e=>{if(e[1]==='open')open=e[0];else if(e[1]==='error'&&open!==null){b+='<rect x="'+x(open)+'" y="14" width="'+Math.max(2,x(e[0])-x(open))+'" height="26" rx="3" fill="var(--acc2)" stroke="var(--acc)"/>';open=null}});
-      if(open!==null)b+='<rect x="'+x(open)+'" y="14" width="'+Math.max(2,x(cl[cl.length-1][0])-x(open))+'" height="26" rx="3" fill="var(--acc2)" stroke="var(--acc)"/>';
-      cl.forEach(e=>{if(e[1]==='content_block_delta'){const k=TXT(e),d=seen[k];seen[k]=1;b+='<circle cx="'+x(e[0])+'" cy="27" r="4" fill="'+(d?'var(--bad)':'var(--c1)')+'"/>'}
-        if(e[1]==='error')b+='<line x1="'+x(e[0])+'" x2="'+x(e[0])+'" y1="10" y2="44" stroke="var(--bad)" stroke-width="2"/>'});
-      el.innerHTML=RD.svg(W,H,b,'Connections and tokens over time')})();
-    let shown='',seen={},n=0;const toks=[];
-    cl.forEach(e=>{if(e[1]==='content_block_delta'){const t=TXT(e);const key=t;const dup=seen[key];seen[key]=1;toks.push('<span'+(dup?' class="dup"':'')+'>'+esc(t).replace(/ /g,'&nbsp;')+'</span>')}});
-    document.getElementById('rc-shot').innerHTML=toks.length?toks.join(''):'<span class="mute">(nothing yet)</span>';
-    const e=sc.client[i];
-    // server-side reconnects with Last-Event-ID up to this time
-    const opens=sc.client.slice(0,i+1).filter(x=>x[1]==='open').length;
-    const srv=sc.server.filter(r=>r.work===null);const thisOpen=srv[opens-1];
-    let what='';
-    if(e[1]==='open')what='Connection '+opens+' open'+(opens>1?'; the request carried Last-Event-ID: '+(thisOpen&&thisOpen.last_event_id!==null?thisOpen.last_event_id:'(none)'):'')+'.';
-    else if(e[1]==='error')what=e[2]==='CLOSED'?'The server answered 204: EventSource fails the connection and stops for good (readyState CLOSED).':'The connection dropped; EventSource reports an error and will reconnect (readyState CONNECTING).';
-    else if(e[1]==='message_start')what='message_start'+(e[2]?' (id '+e[2].replace(/^ #/,'')+')':'')+': the answer begins'+(opens>1?' again from the top':'')+'.';
-    else if(e[1]==='message_stop')what='message_stop'+(e[2]?' (id '+e[2].replace(/^ #/,'')+')':'')+': the answer is complete.';
-    else what='Token "'+esc(TXT(e).trim())+'"'+(e[2].match(/#\d+/)?' with id '+e[2].match(/#(\d+)/)[1]:'')+'.';
-    document.getElementById('rc-cap').innerHTML='<div class="t">'+e[0].toFixed(3)+' s</div><p>'+what+'</p>';
-    const reps=toks.filter(t=>t.indexOf('dup')>0).length;
-    document.getElementById('rc-cnt').innerHTML=RD.stat('Connections opened',String(opens),'')+RD.stat('Tokens shown',String(toks.length),reps?reps+' of them repeats':'no repeats')+RD.stat('Last-Event-ID sent',String(srv.filter((r,k)=>k<opens&&r.last_event_id!==null).length),'reconnects that could resume');
-  }
-  RD.onResize(()=>A.redraw());
-  const A=RD.anim({card:'rc-card',ctl:'rc-ctl',n:steps().length,draw,ms:900,label:'Step'});
-  RD.seg(document.getElementById('rc-mode'),v=>{mode=v;A.reset(steps().length)});
 })();

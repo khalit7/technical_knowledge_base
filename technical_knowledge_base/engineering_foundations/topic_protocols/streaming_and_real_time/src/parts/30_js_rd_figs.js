@@ -1,4 +1,4 @@
-// ---- Reading: static figures (hero, six connections, LLM stream anatomy, resumable log, cancellation, frame header, deflate, proxy path, gRPC stream) ----
+// ---- Reading: static figures (six connections, resumable log, cancellation, frame header, deflate, proxy path, gRPC stream) ----
 // Every figure is drawn at its container's measured width and redrawn on resize. Numbers come from window.SDATA (measured) or are labelled.
 (function(){
   const D=window.SDATA,T=RD.t,esc=RD.esc;
@@ -8,29 +8,6 @@
   const line=(x1,y1,x2,y2,c,o)=>{o=o||{};return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+(o.w||1.6)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+(o.m?' marker-end="url(#'+o.m+')"':'')+'/>'};
   const rect=(x,y,w,h,f,s,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+Math.max(0,w)+'" height="'+Math.max(0,h)+'" rx="'+(o.rx==null?4:o.rx)+'" fill="'+f+'" stroke="'+(s||'none')+'"'+(o.op?' opacity="'+o.op+'"':'')+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>'};
   const fig=[];const reg=f=>{fig.push(f)};
-
-  // 1. Hero: five mini sequence diagrams
-  const HERO=[
-    ['Polling','server','<b>You open</b>, every tick. One answer each, mostly "nothing". Latency is the tick.'],
-    ['Long polling','server','<b>You open</b>; the server holds it until news. One request per batch of events.'],
-    ['SSE','server','<b>You open once</b>; then <b>server to you only</b>. Lives for the answer; plain HTTP.'],
-    ['WebSocket','server','<b>You open once</b> (HTTP upgrade); then <b>both ways</b>. Lives until something cuts it.'],
-    ['Webhook','provider','<b>The provider opens</b> a POST to your public URL per event, retried until you answer 2xx.']];
-  reg(function(){const g=document.getElementById('hero-grid');if(!g)return;
-    if(!g.children.length)g.innerHTML=HERO.map((h,i)=>'<div><div class="hp" id="hp'+i+'"></div><p class="hc">'+h[2]+'</p></div>').join('');
-    HERO.forEach((h,i)=>{const el=document.getElementById('hp'+i),w=Math.max(140,RD.width(el)),H=184,p='hr'+i,xa=16,xb=w-16;
-      // an arrow from y1 to y2 (slightly sloped); its label sits above the arrow's higher end
-      const L=(y1,y2,dir,c,lab,o)=>{o=o||{};const f=dir>0?xa:xb,t=dir>0?xb:xa;const m=c===ACC?p+'a':c===BAD?p+'b':p+'m';
-        return line(f,y1,t-(dir>0?3:-3),y2,c,{m,dash:o.dash})+(lab?T((xa+xb)/2,Math.min(y1,y2)-3,lab,{a:'middle',fs:11,fill:c===ACC?INK:MUT}):'')};
-      let b=defs(p)+T(4,13,h[0],{fs:12.5,w:'600'})+T(2,28,'you',{fs:11,fill:MUT})+T(w-2,28,h[1],{a:'end',fs:11,fill:MUT});
-      b+=line(xa,32,xa,H-4,LIN,{w:1})+line(xb,32,xb,H-4,LIN,{w:1});
-      if(i===0){for(let k=0;k<4;k++){const y=48+k*35;b+=L(y,y+6,1,MUT,k?'':'GET')+L(y+19,y+25,-1,k<3?MUT:ACC,k<3?'nothing':'news')}}
-      if(i===1){b+=L(48,54,1,MUT,'GET')+rect(xb-4,54,8,36,'var(--acc2)',ACC)+L(98,104,-1,ACC,'news')+L(110,116,1,MUT,'')+rect(xb-4,116,8,26,'var(--acc2)',ACC)+L(154,160,-1,ACC,'news')+L(166,172,1,MUT,'')}
-      if(i===2){b+=L(48,54,1,MUT,'POST')+rect(xb-4,54,8,H-60,'var(--acc2)',ACC);for(let k=0;k<5;k++){const y=78+k*22;b+=L(y,y+6,-1,ACC,k===0?'events':'')}}
-      if(i===3){b+=L(48,54,1,MUT,'GET Upgrade')+L(72,78,-1,MUT,'101');for(let k=0;k<5;k++){const y=100+k*16;b+=L(y,y+5,k%2?1:-1,ACC,k===0?'messages':'')}}
-      if(i===4){b+=T((xa+xb)/2,58,'hours later',{a:'middle',fs:11,fill:MUT})+line((xa+xb)/2,64,(xa+xb)/2,76,LIN,{dash:'3 3'})+L(96,102,-1,ACC,'POST event')+L(118,124,1,BAD,'500')+L(144,150,-1,ACC,'retry')+L(166,172,1,MUT,'200')}
-      el.innerHTML=RD.svg(w,H,b,h[0]+': '+h[2].replace(/<[^>]+>/g,''))});
-  });
 
   // 2. Six connections per host on HTTP/1.1 against one HTTP/2 connection
   reg(function(){const el=document.getElementById('six-svg');if(!el)return;const W=RD.width(el),two=W>=560,pw=two?(W-16)/2:W,ph=210,H=two?ph:ph*2+12;
@@ -46,25 +23,6 @@
         items.forEach((s,k)=>{const y=top+54+k*13.5;b+=line(bx+60,y,hx-8,y,ACC,{w:1.6})+T(bx+64,y-2,s==='fetch'?'fetch':'stream '+s,{fs:11})})}}
     panel(0,0,false);panel(two?pw+16:0,two?0:ph+12,true);
     el.innerHTML=RD.svg(W,H,b,'Eight SSE streams and a fetch: on HTTP/1.1 six connect and the rest wait; on HTTP/2 all share one connection')});
-
-  // 3. LLM stream anatomy on the measured SSE run
-  reg(function(){const el=document.getElementById('llm-svg');if(!el)return;const W=RD.width(el),r=D.fw['50'].SSE,arr=r.arr,TM=0.42,narrow=W<520;
-    const l=8,pw=W-16,x=t=>l+t/TM*pw,H=196;let b=defs('lm');
-    for(let g=0;g<=0.4001;g+=0.1)b+=line(x(g),26,x(g),H-20,LIN,{w:1})+T(x(g),H-4,Math.round(g*1000)+(g===0?' ms':''),{a:g===0?'start':'middle',fs:11,fill:MUT});
-    // request up, head and message_start back
-    const head=arr[0][1],first=arr[1][1],last=arr[arr.length-1][1];
-    b+=T(x(0)+2,20,'POST sent',{fs:11,fill:MUT});
-    b+=rect(x(head),40,x(last)-x(head),18,'var(--acc2)',ACC)+T(x(head)+4,53,'one response: 200 + text/event-stream',{fs:11});
-    b+=line(x(head),62,x(head),76,MUT,{w:1})+T(x(head)+3,74,'status 200 fixed here',{fs:11,fill:MUT});
-    const TOK=['The','sky','is','blue','.'];let k=0;
-    arr.forEach(([e,t])=>{const tok=e==='content_block_delta';b+='<circle cx="'+x(t)+'" cy="104" r="5" fill="'+(tok?ACC:MUT)+'"/>';
-      if(tok){if(!narrow||k===0||k===4)b+=T(x(t),124,TOK[k],{a:'middle',fs:11});k++}});
-    if(!narrow)b+=T(x(head),94,'message_start',{a:'middle',fs:11,fill:MUT});
-    if(!narrow)b+=T(x(last),96,'message_stop',{a:'end',fs:11,fill:MUT});
-    // TTFT bracket
-    const y=152,ft=r.med_first_token;b+=line(x(0),y,x(first)-2,y,ACC,{w:2,m:'lma'})+T(x(0)+2,y+16,'TTFT '+Math.round(ft*1000)+' ms',{fs:11.5,w:'600'});
-    b+=line(x(first),y,x(last)-2,y,MUT,{w:1.4,m:'lmm'})+T(x(last),y+16,(narrow?'':'tokens every 50 ms, last at ')+Math.round(last*1000)+' ms',{a:'end',fs:11,fill:MUT});
-    el.innerHTML=RD.svg(W,H,b,'The running answer over SSE: the status is sent first, TTFT '+Math.round(ft*1000)+' ms')});
 
   // 4. Resumable stream: job, log, any handler
   reg(function(){const el=document.getElementById('res-svg');if(!el)return;const W=RD.width(el),n=W<520,H=n?250:190;let b=defs('rs');

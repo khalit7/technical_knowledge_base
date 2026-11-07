@@ -1,4 +1,5 @@
 <section id="rd-s6">
+<div class="s3sp"><div class="s3R"><div id="stg-ws"></div></div><div class="s3L">
 <h2>6. WebSockets: an HTTP request that becomes a two-way pipe</h2>
 <p>SSE flows one way. A voice agent must hear the user while it speaks (barge-in), a shared document sends each keystroke while receiving everyone else's, a game sends moves while receiving the world. With HTTP that means a POST per client message beside a stream: two channels, two sets of ordering and failure, a request's headers on every keystroke. A <b>WebSocket</b> gives one connection on which either side sends a message at any moment, with 2 to 14 bytes of framing. It is {{RFC 6455|https://www.rfc-editor.org/rfc/rfc6455}} (December 2011, a Proposed Standard, updated by RFC 7936, 8307 and 8441), with the browser API in the {{WHATWG WebSockets standard|https://websockets.spec.whatwg.org/}}.</p>
 <p><b>The opening handshake</b> is an ordinary HTTP/1.1 GET asking to switch protocols. <span class="meas">measured</span> The exact bytes this page's client sent to the lab's <code>websockets</code> 17.2 server, and its answer:</p>
@@ -9,17 +10,29 @@
 <li><code>101 Switching Protocols</code> ends HTTP on this connection; from the next byte both sides speak frames. <code>Sec-WebSocket-Version: 13</code> is the only version; there is no WebSocket 2.</li>
 <li><code>Origin</code> is sent by browsers and is the server's only defence against other sites opening sockets in the user's name (section 8).</li>
 </ul>
+<p class="small"><span class="meas">measured</span> Fig. 6 replays the recorded session frame by frame, each envelope as long as its bytes on the wire (src/lab/ws_bytes.py, a client on a bare TCP socket).</p>
+<ol class="sx" id="sx-ws">
+<li><b>The upgrade request.</b> An ordinary HTTP/1.1 GET of 190 bytes asking to switch protocols, with a fresh <code>Sec-WebSocket-Key</code>.</li>
+<li><b>101, and HTTP is over.</b> The server's 203-byte answer carries <code>Sec-WebSocket-Accept</code>; the client checks it against its own computation (it matches). From the next byte both sides speak frames.</li>
+<li><b>The answer, as frames.</b> The seven messages of the running answer arrive as 102, 85, 86, 85, 87, 83 and 25 bytes: 539 bytes of JSON plus 14 bytes of headers (2 per message), against SSE's labels and chunk sizes per event.</li>
+<li><b>The client talks at the same time.</b> On the same connection, while it could still be receiving: "Stop" goes up as 10 masked bytes and is echoed in 6; a ping "hb" (8 bytes) comes back as a 4-byte pong; a message sent in two fragments (9 + 8 bytes) is echoed as one 7-byte frame.</li>
+<li><b>The close handshake.</b> The client sends close with code 1000 and the reason "bye" (11 bytes), the server echoes it (7 bytes), then TCP closes.</li>
+</ol>
+</div></div>
 <p><b>Two negotiations people confuse.</b> <code>Sec-WebSocket-Protocol</code> names the <i>application</i> protocol inside (<dfn>subprotocol</dfn>; the client offers a list, the server picks one): <code>graphql-transport-ws</code>, MQTT, your own <code>chat.v2</code>; version your messages this way. <code>Sec-WebSocket-Extensions</code> changes the <i>framing</i>; in practice the one extension is <code>permessage-deflate</code> (section 7).</p>
 <p><b>Authentication is awkward by design.</b> The handshake is the only moment HTTP headers exist, and the browser's <code>new WebSocket(url)</code> cannot set any. The options: a cookie (then check <code>Origin</code>); a short-lived single-use ticket fetched over HTTPS and passed in the URL (keep URLs out of logs, expire in seconds); or an authentication message as the first frame. Realtime LLM APIs use tickets: OpenAI's browser clients get an ephemeral client secret from your server, which created it with <code>POST /v1/realtime/client_secrets</code> ({{OpenAI Realtime guide|https://developers.openai.com/api/docs/guides/realtime}}), and Google recommends ephemeral tokens for client-side Gemini Live connections ({{Gemini Live API|https://ai.google.dev/gemini-api/docs/live}}). Server-side clients send the API key in the handshake header as usual ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}} covers token audience and lifetime).</p>
 </section>
 <section id="rd-s7">
+<div class="s3sp"><div class="s3L">
 <h2>7. Frames: what travels after the 101</h2>
-<div class="card" id="fr-card">
+<p><span class="meas">measured</span> The client's message "Stop" went out as 10 bytes: <code>81 84</code> (FIN, text; MASK = 1, length 4), four bytes of masking key, and four XORed bytes. Seven messages of the running answer: 539 bytes of JSON plus 14 bytes of headers (2 per message). Pick any frame of the recorded session below.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="fr-card">
 <div class="fig-t">Every frame starts with two bytes; length and mask decide how many more</div>
 <div class="svgbox" id="fr-svg"></div>
 <p class="small mute"><span class="meas">measured</span> The bits are the server's token "The": <code>81 53</code> then 83 bytes of JSON. Opcodes: 0 continuation, 1 text (UTF-8), 2 binary, 8 close, 9 ping, 10 pong; the rest unassigned ({{IANA registry|https://www.iana.org/assignments/websocket/websocket.xhtml}}). Length 0 to 125 fits in the 7 bits; 126 means the next 2 bytes hold it, 127 the next 8. RSV1 is set by permessage-deflate on compressed messages. A message may be split into fragments: the first carries the type, the rest are continuations, and only the last has FIN = 1.</p>
 </div>
-<p><span class="meas">measured</span> The client's message "Stop" went out as 10 bytes: <code>81 84</code> (FIN, text; MASK = 1, length 4), four bytes of masking key, and four XORed bytes. Seven messages of the running answer: 539 bytes of JSON plus 14 bytes of headers (2 per message). Pick any frame of the recorded session below.</p>
+</div></div></div>
 <div id="wb-wrap">
 <div class="card" id="wb-card">
 <div class="fig-t">One recorded session, every byte: handshake, seven messages, a masked message, a ping, two fragments, the close</div>
@@ -44,12 +57,15 @@
 <p><b>Why clients mask.</b> Not for secrecy: the key travels in clear beside the data. In 2011, researchers showed that some proxies, seeing an upgraded connection they did not understand, could be fed attacker-chosen bytes that looked like a second HTTP request and would cache the "response", poisoning the cache for everyone behind them. A fresh random key per frame means a script in a browser cannot choose the bytes on the wire (RFC 6455 section 10.3). It costs one XOR pass over every byte a client sends; servers never mask, every client frame must be masked, and a wrong MASK bit must fail the connection.</p>
 <p><b>Control frames.</b> Ping, pong and close carry at most 125 bytes and are never fragmented, so they slip between the fragments of a long message. A <dfn>ping</dfn> is answered by a <dfn>pong</dfn> with the same bytes, the built-in heartbeat (<span class="meas">measured</span>: the client's ping "hb" came back as <code>8a 02 68 62</code>). Browsers answer pings automatically, but JavaScript can neither send nor see one, so browser apps send their own heartbeat messages.</p>
 <p><b>Closing.</b> Each side sends a close frame with an optional 2-byte code and reason, the other echoes it, then TCP closes (<span class="meas">measured</span>: <code>1000</code> "bye", echoed). The code to know is <b>1006 Abnormal Closure: never sent, only reported locally when the connection died without a close frame</b>: idle timeouts, crashes, network loss and, in browsers, every failed handshake whatever the reason. 1000 is the intended end, 1001 Going Away a server shutting down or a page left, 1008 and 1011 "not allowed" and "we broke", and 4000 to 4999 are yours.</p>
-<div class="card" id="df-card">
+<div class="s3sp"><div class="s3L">
+<p><b>Compression</b> ({{RFC 7692|https://www.rfc-editor.org/rfc/rfc7692}}, December 2015) deflates each payload and sets RSV1. By default the compressor's state carries from message to message (<dfn>context takeover</dfn>), ideal for near-identical JSON (the figure: about eight times smaller). The price is memory per connection, 64 KiB to 316 KiB, so about 6 GiB against 30 GiB at 100,000 connections; and compressing a secret beside attacker-controlled text re-opens CRIME-style attacks, where the compressed size leaks the secret. Do not compress audio or images.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="df-card">
 <div class="fig-t">permessage-deflate shrinks a token stream about eight times, but only if the compressor remembers earlier messages</div>
 <div class="svgbox" id="df-svg"></div>
 <p class="small mute"><span class="meas">measured</span> The <code>websockets</code> library's own encoder on a long answer: the <span data-k="defl_words">357</span> words of RFC 6455 section 1.1 sent one word per message in the running answer's JSON shape. Memory per connection is the library's documented measurement ({{websockets: compression|https://websockets.readthedocs.io/en/stable/topics/compression.html}}).</p>
 </div>
-<p><b>Compression</b> ({{RFC 7692|https://www.rfc-editor.org/rfc/rfc7692}}, December 2015) deflates each payload and sets RSV1. By default the compressor's state carries from message to message (<dfn>context takeover</dfn>), ideal for near-identical JSON (the figure: about eight times smaller). The price is memory per connection, 64 KiB to 316 KiB, so about 6 GiB against 30 GiB at 100,000 connections; and compressing a secret beside attacker-controlled text re-opens CRIME-style attacks, where the compressed size leaks the secret. Do not compress audio or images.</p>
+</div></div></div>
 <details class="xc"><summary>Compression numbers, frame field reference, all close codes, and WebSockets over HTTP/2 and HTTP/3</summary><div>
 <p><b>Compression, the numbers.</b> <span class="meas">measured</span> the short running answer took <span data-k="defl_short_none">553</span> bytes uncompressed and <span data-k="defl_short_ctx">198</span> compressed; the long one <span data-k="defl_long_none" data-f="c">31,759</span>, <span data-k="defl_long_ctx" data-f="c">3,937</span> with zlib's defaults, <span data-k="defl_long_ws" data-f="c">4,250</span> with the library's smaller defaults and <span data-k="defl_long_nct" data-f="c">25,278</span> with no context takeover. The price is memory per connection: about 14 KiB without compression, 64 KiB with the library's defaults (window 2<sup>12</sup>, memLevel 5), 316 KiB with zlib's (window 2<sup>15</sup>, memLevel 8), from zlib's formula of 2<sup>windowBits+2</sup> + 2<sup>memLevel+9</sup> bytes to compress and 2<sup>windowBits</sup> to decompress. At 100,000 connections that is about 6 GiB against 30 GiB (derived: 100,000 &times; 64 KiB and &times; 316 KiB). Compressing a secret beside attacker-controlled text in one context re-opens CRIME-style attacks, where the compressed size leaks the secret; and compressing audio or images wastes CPU.</p>
 <div class="tw"><table>
