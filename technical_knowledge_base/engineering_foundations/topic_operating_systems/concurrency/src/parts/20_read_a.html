@@ -41,12 +41,22 @@
 <nav class="nav" id="rd-nav">
 <a href="#rd-one">The idea</a><a href="#rd-s1">1 Threads</a><a href="#rd-s2">2 Races</a><a href="#rd-s3">3 Locks</a><a href="#rd-s4">4 The futex</a><a href="#rd-s5">5 Waiting</a><a href="#rd-s6">6 Deadlock</a><a href="#rd-s7">7 The GIL</a><a href="#rd-s8">8 Event-driven I/O</a><a href="#rd-s9">9 Choosing</a><a href="#rd-s10">10 A training job</a><a href="#rd-s11">Depth</a>
 </nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Threads share one address space, so <b>every shared update needs an atomic instruction that orders it</b>, and <b>a wait should cost nothing until it is real</b>: an uncontended lock is one atomic instruction (about 10 ns), and only a thread that truly has to wait asks the kernel to put it to sleep, on a <span class="hl">futex</span> when it waits for another thread, on <span class="hl">epoll</span> or <span class="hl">io_uring</span> when it waits for I/O.</p>
-<div class="hero" id="rd-hero-card"><h4>Every wait on Linux ends in one of two kernel queues</h4>
-<div class="rd-svg" id="rd-hero"></div>
-<p class="small">Threads: a lock, condition variable, queue, barrier or the GIL is a word in your memory; the kernel is involved only when the word says someone must sleep. I/O: an event loop registers its sockets once and is woken only with the ready ones. In the root's training job (section 10), the main thread, PyTorch's OpenMP pool and the queue feeder threads sleep on futexes; the DataLoader workers sleep in <code>poll</code>. Numbers <span class="meas">measured here</span> (sections 3, 4, 8).</p></div>
+<p><b>Every wait on Linux ends in one of two kernel queues.</b> The figure plays both, with the costs <span class="meas">measured here</span> (sections 3, 4, 8):</p>
+<ol class="sx" id="sx-hero">
+<li><b>Two places to wait.</b> Above, user space: threads and the memory they share. Below, the kernel, which can take a thread off its CPU and keep it in a queue. A lock, condition variable, queue, barrier or the GIL is a word in user memory; the kernel is involved only when the word says someone must sleep.</li>
+<li><b>Fast path: a lock is a word.</b> Thread A takes the lock word <code>w</code> from 0 to 1 with one compare-and-swap: <b data-k="lk.S1.mutex.wall">10.1</b> ns for a <code>pthread_mutex_t</code> here, no system call.</li>
+<li><b>A real wait parks in the kernel.</b> B and C find <code>w</code> taken, set it to 2 ("someone waits") and call <code>futex_wait(w, 2)</code>: the kernel checks that <code>w</code> is still 2 and puts them in the futex queue for <code>w</code>. Asleep, they use no CPU.</li>
+<li><b>Unlock wakes one.</b> A unlocks, sees 2, and calls <code>futex_wake(w, 1)</code>: B leaves the queue and runs again, <b data-k="pp.1cpu.futex.half">1.7</b> µs later on the same CPU, <b data-k="pp.2cpu.futex.half">23.5</b> µs across CPUs in this VM.</li>
+<li><b>Waiting for I/O: register once.</b> An event loop registers its sockets once with epoll (<code>epoll_ctl</code> ADD); the kernel keeps them in an interest list, and the loop's one thread sleeps in <code>epoll_wait</code>.</li>
+<li><b>Only the ready one comes back.</b> Data arrives on socket 5; the socket's callback puts it on the ready list, and <code>epoll_wait</code> returns just that one: <b data-k="ev.10000.epoll">352</b> ns per wait with 10,000 sockets watched, where <code>poll</code> pays <b data-k="ev.10000.poll_us">650</b> µs to check them all.</li>
+</ol>
+<p class="small">In the root's training job (section 10), the main thread, PyTorch's OpenMP pool and the queue feeder threads sleep on futexes; the DataLoader workers sleep in <code>poll</code>.</p>
+</section>
+</div></div>
 <p><b>You need:</b> what a process, a system call and a file descriptor are ({{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}) and what a context switch and a time slice are ({{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}). Language-level async (asyncio's API, the JavaScript event loop's phases) is on the {{programming-languages pages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}; database concurrency control on {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}}; GPU streams on {{Streams, CUDA graphs and multi-GPU programming|n:3f05c17b0d0d81b19a6acab65c370b75}}.</p>
 <dl class="terms">
 <dt>Thread</dt><dd>a flow of control (registers, stack) that shares its process's memory and files.</dd>
@@ -83,4 +93,4 @@
 </tbody></table></div>
 <p class="small mute">All numbers on this page were measured in Docker Desktop's Linux VM on an Apple M1 Pro (Linux 5.10.104, arm64, 5 CPUs, glibc 2.36, Python 3.11.2, torch 2.14.1 CPU), 2026-10-05, with other experiments sharing the VM: <span class="meas">measured here</span> marks them, <span class="src">from source</span> marks what is read from code at a pinned tag, <span class="nrh">not run here</span> marks what needs a GPU or a newer kernel. Raw outputs are in the page's <code>src/runs/out/</code>. Sections 1 to 6 follow OSTEP's concurrency chapters (26 to 32) and add the Linux interfaces; the reading map is in the depth section.</p>
 </div></details>
-</section>
+

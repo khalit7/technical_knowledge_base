@@ -1,9 +1,9 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s1">
 <h2>1. Threads: several flows of control, one address space</h2>
 <p><span class="ostep">ch. 26 Concurrency: an introduction, ch. 27 Thread API</span></p>
 <p>A process (owned by {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}) has one flow of control: one <dfn>program counter</dfn> and one <dfn>stack</dfn>. To use several cores on one shared data structure, a program needs several flows of control that see the same memory. That is a <dfn>thread</dfn>: its own registers, program counter and stack; everything else (heap, globals, open files, signal handlers) shared with the other threads of its process. <dfn>Concurrency</dfn> is several activities in progress at once; <dfn>parallelism</dfn> is some of them running at the same instant on different cores.</p>
-<div class="rd-svg" id="rd-thr-svg" role="img" aria-label="One process with three threads: shared code, globals, heap and files; each thread has its own registers, stack and thread-local storage"></div>
 <p><b>How Linux makes one.</b> The kernel has no separate thread object: a thread is a <dfn>task</dfn> (a <code>task_struct</code>, the kernel's schedulable unit) created with flags that make it share its parent's memory and tables. <code>pthread_create</code> in glibc 2.36 asks for exactly this sharing ({{nptl/pthread_create.c L277-281|https://github.com/bminor/glibc/blob/glibc-2.36/nptl/pthread_create.c#L277-L281}}); strace shows the recipe <span class="meas">measured here</span>:</p>
 <pre class="cd res" id="rd-clone"></pre>
 <div class="mech">
@@ -13,6 +13,11 @@
 <div><b>CLONE_CHILD_CLEARTID</b>when the thread exits, the kernel writes 0 to its id word and does a futex wake on it: that is how <code>pthread_join</code> learns it ended</div>
 </div>
 <div class="cost"><span class="t">Cost</span> <span class="meas">measured here</span>: creating and joining an empty thread took <b data-k="thr.create_us">136.0</b> µs with 4 CPUs available and <b data-k="thr.create1_us">12.0</b> µs pinned to one CPU (best of 5 × 2000); the difference is the cross-CPU wake-up, unusually expensive in this VM (section 4). Each thread's stack reserves <b data-k="thr.stack_mib">8</b> MiB (from <code>ulimit -s</code> = 8192 KiB) of address space, not memory: 2,000 idle threads in section 8 reserved <b data-k="cn.threads.vsz">18683</b> MiB of virtual memory but added only <b data-k="cn.threads.rss_added">13</b> MiB of resident memory, because untouched stack pages are never allocated (demand paging: {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}). On Linux threads and processes are both tasks, so a container's <code>pids.max</code> counts threads too (the root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}}, "BlockingIOError on fork: the pids limit counts threads too").</div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>One address space, shared; each thread keeps its own registers, stack and thread-local storage</h4>
+<div class="rd-svg" id="rd-thr-svg" role="img" aria-label="One process with three threads: shared code, globals, heap and files; each thread has its own registers, stack and thread-local storage"></div>
+<p class="small mute">What <code>clone</code>'s flags (left) share, and what each thread keeps for itself.</p></div></div></div></div>
+<section id="rd-s1b">
 <details class="dp"><summary>Stack guard, clone3, thread-local storage, and what exit() does <span class="mute">(depth)</span></summary><div class="b">
 <p>Before the <code>clone</code>, glibc maps the stack plus a guard region mapped <code>PROT_NONE</code>, so that a stack overflow faults instead of silently overwriting a neighbour. The guard is 64 KiB here although <code>pthread_attr_getguardsize</code> reports 4096 bytes: glibc rounds it up to the architecture minimum on arm64 ({{sysdeps/aarch64/nptl/pthreaddef.h L23|https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/aarch64/nptl/pthreaddef.h#L23}}, {{nptl/allocatestack.c L345-346|https://github.com/bminor/glibc/blob/glibc-2.36/nptl/allocatestack.c#L345-L346}}). Newer glibc versions try <code>clone3</code> first and fall back to <code>clone</code> ({{clone-internal.c L52-55|https://github.com/bminor/glibc/blob/glibc-2.36/sysdeps/unix/sysv/linux/clone-internal.c#L52-L55}}); glibc 2.36 on arm64 has no <code>clone3</code> wrapper, so the trace shows plain <code>clone</code>.</p>
 <p><b>Thread-local storage</b> (TLS) is a variable declared <code>__thread</code> (C) or <code>thread_local</code> (C++): one copy per thread, found through the thread pointer. <code>errno</code> is one, which is why two threads can make failing system calls at once without overwriting each other's error code. The same program printed its variables' addresses from three threads:</p>
@@ -22,17 +27,33 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-race"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. Races, atomic instructions and memory order</h2>
 <p><span class="ostep">ch. 26.3 to 26.5, ch. 28.6 to 28.11</span></p>
-<p>When two threads update the same memory and nothing orders them, the result depends on timing: a <dfn>race condition</dfn>. Two unordered accesses to one location, at least one a write, are a <dfn>data race</dfn>; in C, C++ and Rust's unsafe code that is undefined behaviour, not merely a wrong number. The classic one, <code>count = count + 1</code> on two threads, is three instructions (load, add, store). Predict the final count after two increments from 41, then step it:</p>
-<div class="card" id="rd-race-card">
-<h4>Two increments, one lost: the interleaving is the bug</h4>
-<div class="segb" id="rd-race-mode"><button data-m="plain" class="on">Plain count = count + 1</button><button data-m="atomic">Atomic fetch-and-add</button></div>
-<div class="rd-svg" id="rd-race-svg"></div>
-<div class="an-cap" id="rd-race-cap"></div>
-<div class="an-ctl" id="rd-race-ctl"></div>
-</div>
+<p>When two threads update the same memory and nothing orders them, the result depends on timing: a <dfn>race condition</dfn>. Two unordered accesses to one location, at least one a write, are a <dfn>data race</dfn>; in C, C++ and Rust's unsafe code that is undefined behaviour, not merely a wrong number. The classic one, <code>count = count + 1</code> on two threads, is three instructions (load, add, store). Predict the final count after two increments from 41, then watch the two threads as lanes in time, with the shared counter between them:</p>
+<div class="segb" id="rd-race-mode"><button data-m="plain" class="on">Plain count = count + 1</button><button data-m="lock">With a mutex</button><button data-m="atomic">Atomic fetch-and-add</button></div>
+<ol class="sx" id="sx-race-plain">
+<li><b>Start: count = 41.</b> T1 and T2 each run <code>count = count + 1</code>: load into a register, add 1, store back. The values are illustrative.</li>
+<li><b>T1 loads 41.</b> The value travels from memory into T1's register.</li>
+<li><b>T2 loads before T1 stores.</b> On another core, or after the scheduler switched threads, T2 also reads 41.</li>
+<li><b>T1 adds 1 in its register.</b> Its register says 42; memory still says 41.</li>
+<li><b>T1 stores 42.</b></li>
+<li><b>T2 adds 1 to the 41 it loaded.</b> Its register says 42 as well.</li>
+<li><b>T2 stores 42 over T1's 42: a lost update.</b> Two increments, and count rose by one. It needs exactly this interleaving, so it happens rarely and never on demand.</li>
+</ol>
+<ol class="sx" id="sx-race-lock" hidden>
+<li><b>Both call lock(m).</b> Same start, count = 41; the three instructions now sit inside a critical section guarded by a mutex <code>m</code>.</li>
+<li><b>T1 wins; T2 sleeps.</b> T1 takes <code>m</code> with one compare-and-swap; T2 finds it taken and parks in the kernel on <code>m</code>'s futex (section 4).</li>
+<li><b>T1 runs the critical section alone.</b> Load 41, add, store 42: nothing can run between them on <code>count</code>.</li>
+<li><b>T1 unlocks and wakes T2.</b> The unlock sees a waiter and makes one <code>futex_wake</code>; T2 takes <code>m</code>.</li>
+<li><b>T2 reads 42 and stores 43.</b> Correct in every order. Uncontended, lock plus unlock cost <b data-k="lk.S1.mutex.wall">10.1</b> ns here; contention costs T2 a sleep and a wake-up (<b data-k="pp.1cpu.futex.half">1.7</b> µs on one CPU).</li>
+</ol>
+<ol class="sx" id="sx-race-atomic" hidden>
+<li><b>Start: count = 41.</b> Each thread now runs one atomic fetch-and-add (<code>ldadd</code> on arm64, <code>lock xadd</code> on x86-64).</li>
+<li><b>T1's ldadd: 41 becomes 42 in one step.</b> No other core can touch the word in between; T1's register receives the old value, 41.</li>
+<li><b>T2's ldadd: 42 becomes 43.</b> It waits for the cache line, then does the same. Correct in every order, at <b data-k="lk.S1.atomic.wall">8.3</b> ns per update here, uncontended.</li>
+</ol>
 <p>The root page measured the same race at full speed (two threads, 10 million increments each, about half lost) and its {{OS simulators|n:3f05c17b0d0d81c5a97ce991644af140}} tab runs OSTEP's <code>x86.py</code> programs. A concurrency bug needs a particular order of steps, which is why it passes tests and fails in production. Code that touches shared data and must not run in two threads at once is a <dfn>critical section</dfn>.</p>
 <p><b>Atomic instructions</b> are the hardware fix: one read-modify-write of one word as one indivisible step. Three families matter:</p>
 <div class="mech">
@@ -41,6 +62,9 @@
 <div><b>Compare-and-swap (CAS)</b>if <code>*p == expected</code> then <code>*p = new</code>, and say whether it did. Everything lock-free is built on it. arm64 v8.1 <code>cas</code>; x86-64 <code>lock cmpxchg</code>.</div>
 </div>
 <p>An atomic update is not free: on one thread it cost <b data-k="lk.S1.atomic.wall">8.3</b> ns here against well under a nanosecond for a plain add, and with four threads updating one counter the cache line holding it bounces between cores ({{C++: the machine underneath, section 8|n:4055c17b0d0d811fa947ee576a97a516#cb-s8}} measures false sharing and shows the same effect for neighbouring variables).</p>
+</section>
+</div></div>
+<section id="rd-s2b">
 <p><b>Memory order.</b> Cores also do not make their writes visible to each other in program order: each core puts stores in a private <dfn>store buffer</dfn> and lets later loads run ahead of them. x86-64 allows only that one reordering (a later load passing an earlier store); arm64 allows more. {{C++: the machine underneath, section 8|n:4055c17b0d0d811fa947ee576a97a516#cb-s8}} measures the message-passing reordering on this chip and explains acquire, release and sequentially consistent orders; here is what it does to a lock. <b>Peterson's algorithm</b> (OSTEP 28.6) is a correct two-thread lock using only loads and stores, proved in 1981 on the assumption that memory is sequentially consistent:</p>
 <pre class="cd"><span class="k">void</span> lock(<span class="k">int</span> me) {  <span class="k">int</span> other = 1 - me;
     flag[me] = 1;                         <span class="c">// I want in</span>

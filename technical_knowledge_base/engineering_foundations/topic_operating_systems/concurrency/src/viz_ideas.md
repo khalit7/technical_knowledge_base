@@ -25,3 +25,14 @@ What the methodology lacked: guidance for timings on a shared VM. Medians of sev
 | Choosing tree (I/O or CPU, Python or native) with three cost cards | Reading s9 | built |
 | Thread picture at the measured width (was a fixed 640 px SVG) | Reading s1 | rebuilt |
 | Photo or paper figure | | rejected: a mechanism page; nothing physical to show |
+
+## 2026-11-07: split layout and 3D stages (renderer v2)
+| Idea | Placement | Status |
+|---|---|---|
+| Hero as a 3D stage: user space as a glass plate above the kernel floor; contended threads drop into the futex queue and rise when woken; one event loop, eight sockets, the interest list and the ready list; measured costs on the figure | top, Fig. 1 | built (replaces the 2D hero) |
+| Two threads as lanes in time with the counter between them: plain lost update, with a mutex (T2 asleep on the futex), atomic fetch-and-add | s2, Fig. 2 | built (replaces the 2D stepper) |
+| glibc's 0/1/2 word and the kernel's hash-bucket queue, three threads, compare under the bucket lock | s4, Fig. 3 | built (the futex hash-table picture rejected in October now earns its place as motion: threads parking and waking) |
+| The recorded deadlock.py as a cycle: locks on the plate, each sleeper under the lock it waits for, py-spy lines from the recording, then --ordered | s6, Fig. 4 | built (replaces the static wait-for cycle) |
+| Eight connections through four designs in 3D (thread per connection, select / poll merged, epoll, io_uring rings straddling the plate), counters on the figure | s8, Fig. 5 | built (replaces the 2D animation; select and poll had identical frames, so one mode) |
+| Four lock designs on one timeline | s4 | kept 2D: a timeline reads best flat; now a widget that opens on the finished run (one frame per kernel event, more than 12 per design, too many for explained steps) |
+| Lock costs, GIL delay, readiness cost against N, free-threaded before/after, choosing tree, thread picture | s1, s3, s7, s8, s9 | kept 2D: bars, a log-log curve, a timeline, a tree and a structure diagram read best flat |

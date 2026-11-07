@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-ev"></div></div><div class="s3L">
 <section id="rd-s8">
 <h2>8. Event-driven I/O: one thread, thousands of waits</h2>
 <p><span class="ostep">ch. 33 Event-based concurrency</span> <span class="src">from source</span> <span class="meas">measured here</span></p>
@@ -10,24 +11,52 @@
 <div><b>epoll: the list lives in the kernel</b>(Linux 2.6, 2002) <code>epoll_ctl(ADD)</code> registers a descriptor once into an interest list (a red-black tree) with a separate <dfn>ready list</dfn> ({{fs/eventpoll.c L195-204|https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L195-L204}}). When data arrives, the socket's wait-queue callback <code>ep_poll_callback</code> appends that one item to the ready list ({{L1244-1248|https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L1240-L1248}}); <code>epoll_wait</code> just takes items off it. Cost follows the number ready.</div>
 <div><b>io_uring: completions, not readiness</b>(Linux 5.1, 2019) "do these operations and tell me when they are done": the program writes <dfn>submission queue entries</dfn> (SQEs) into a ring shared with the kernel, the kernel does the I/O and writes <dfn>completion queue entries</dfn> (CQEs) into another ({{io_uring(7)|https://man7.org/linux/man-pages/man7/io_uring.7.html}}).</div>
 </div>
-<p>Step one input through all five designs: eight connections, data arriving on connection 2, then 5, then 2 again, then 7. Predict which design makes the fewest system calls before you switch to it.</p>
-<div class="card" id="ev-card">
-<h4>select and poll check every connection on every event; epoll touches only the ready one; io_uring does the read itself</h4>
-<div class="segb" id="ev-mode"><button data-m="threads" class="on">Thread per connection</button><button data-m="select">select</button><button data-m="poll">poll</button><button data-m="epoll">epoll</button><button data-m="uring">io_uring</button></div>
-<div class="chart" id="ev-svg"></div>
-<div class="an-cap" id="ev-cap"></div>
-<div class="an-cnt" id="ev-cnt"></div>
-<div class="an-ctl" id="ev-ctl"></div>
-</div>
+<p>Step one input through the designs: eight connections, data arriving on connection 2, then 5, then 2 again, then 7. Predict which design makes the fewest system calls before you switch to it; the counters at the top of the figure keep the totals.</p>
+<p class="small"><b>select and poll check every connection on every event; epoll touches only the ready one; io_uring does the read itself.</b></p>
+<div class="segb" id="ev-mode"><button data-m="threads" class="on">Thread per connection</button><button data-m="poll">select / poll</button><button data-m="epoll">epoll</button><button data-m="uring">io_uring</button></div>
+<ol class="sx" id="sx-ev-threads">
+<li><b>One thread per connection.</b> Eight threads, each blocked in <code>recv()</code> on its own socket: eight system calls, eight stacks of 8 MiB address space.</li>
+<li><b>Data arrives on connection 2.</b> The kernel puts it in the socket buffer and wakes the one thread sleeping on it: a context switch.</li>
+<li><b>Thread 2 handles it and sleeps again.</b> Its <code>recv()</code> returns the data; it calls <code>recv()</code> once more. The other seven never woke.</li>
+<li><b>Connections 5, 2 and 7.</b> The same each time: the thread that owns the connection wakes, handles it and calls <code>recv()</code> again.</li>
+<li><b>At 2,000 connections.</b> Measured (table above): 2,001 threads and <b data-k="cn.threads.vsz">18683</b> MiB of address space, but only <b data-k="cn.threads.rss_added">13</b> MiB more resident memory; idle threads are cheap, each wake-up is a context switch.</li>
+</ol>
+<ol class="sx" id="sx-ev-poll" hidden>
+<li><b>One thread, eight non-blocking descriptors.</b></li>
+<li><b>Ask about all eight.</b> <code>select()</code> or <code>poll()</code> passes the whole list: the kernel copies it in, checks each descriptor (none ready), registers a wait on each and sleeps.</li>
+<li><b>Data on 2: check all eight again.</b> The wait wakes the thread; the kernel re-checks all eight to build the answer and returns "1 ready"; the program scans its own list of eight to find which.</li>
+<li><b>read() on 2.</b> A second system call, then handle it.</li>
+<li><b>Connections 5, 2 and 7: the whole list every time.</b> Eight checks per call and eight scanned per message, however few are ready. With 10,000 descriptors one <code>poll</code> took <b data-k="ev.10000.poll_us">650</b> µs here; <code>select</code> cannot watch descriptor 1024 or higher at all.</li>
+</ol>
+<ol class="sx" id="sx-ev-epoll" hidden>
+<li><b>Register once.</b> <code>epoll_create1</code>, then <code>epoll_ctl(ADD)</code> once per descriptor: the interest list lives in the kernel, as a red-black tree.</li>
+<li><b>epoll_wait sleeps.</b> The ready list is empty.</li>
+<li><b>Data on 2: one item on the ready list.</b> The socket's wait-queue callback, <code>ep_poll_callback</code>, appends it, whatever N is; <code>epoll_wait</code> returns exactly [2]. Level-triggered, it stays listed until the data is read.</li>
+<li><b>read() on 2.</b> A second system call, then handle it.</li>
+<li><b>Connections 5, 2 and 7: cost follows the ready ones.</b> One item per message; with 10,000 watched one <code>epoll_wait</code> took <b data-k="ev.10000.epoll">352</b> ns here.</li>
+</ol>
+<ol class="sx" id="sx-ev-uring" hidden>
+<li><b>Two shared rings.</b> <code>io_uring_setup</code> maps a submission ring and a completion ring into both program and kernel; the program writes eight read requests (SQEs) and submits them with one <code>io_uring_enter</code>.</li>
+<li><b>Wait for a completion.</b> <code>io_uring_enter</code> waits for at least one (with SQPOLL and busy rings even this call is not needed).</li>
+<li><b>Data on 2: the kernel does the read.</b> It copies the data into the program's buffer and writes a completion (CQE) into the completion ring.</li>
+<li><b>Read the CQE, resubmit.</b> The program reads the CQE from shared memory (no system call, no <code>read()</code>) and writes a fresh read SQE for connection 2.</li>
+<li><b>Connections 5, 2 and 7.</b> One <code>io_uring_enter</code> per wait and none per read; on cached file blocks it made <b data-k="ur.enter">512</b> calls instead of <b data-k="ur.pread_calls">16384</b> (below).</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s8b">
 <p><b>The same difference at scale</b>, with N pipes watched and exactly one readable (<code>evloop.c</code>, one call returning one ready descriptor):</p>
-<div class="card"><h4>poll's cost grows with every descriptor watched; epoll_wait's stays flat</h4>
+<p>The chart shows the measured cost of one readiness question against the number of descriptors watched; the sliders below it scale the same measurements to a server: the connections watched and the message rate give each design's cost as a share of one CPU.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>poll's cost grows with every descriptor watched; epoll_wait's stays flat</h4>
 <div class="chart" id="rd-ev-chart"></div>
 <p class="small mute" id="rd-ev-cap"></p>
 <p class="small"><b>Scale it.</b> Move the connections watched, and the message rate, to see each design's cost per readiness question as a share of one CPU (log-log interpolation between the measured points 1, 10, 100, 300, 500, 1,000, 3,000 and 10,000; thread memory from the measured 2,000-thread run). At 10,000 idle clients, <code>epoll_wait</code> costs <b data-k="ev.10000.epoll">352</b> ns against <b data-k="ev.100.epoll">393</b> ns at 100; <code>poll</code> <b data-k="ev.10000.poll_us">650</b> µs: from 100 to 10,000 watched, poll grows about a hundredfold, and select cannot go past descriptor 1023 at all.</p>
 <div class="ctl"><label>Connections watched: <b id="ev-n-l">1,000</b><input type="range" id="ev-n" min="0" max="4" step="0.01" value="3"></label>
 <label>Messages per second (one ready connection each): <b id="ev-r-l">10,000</b><input type="range" id="ev-r" min="2" max="5" step="0.01" value="4"></label></div>
 <div class="out" id="ev-out"></div>
-<p class="small mute" id="ev-note"></p></div>
+<p class="small mute" id="ev-note"></p></div></div></div></div>
+<section id="rd-s8c">
 <h3>Level-triggered and edge-triggered</h3>
 <p>By default epoll is <dfn>level-triggered</dfn>: a descriptor is reported on every <code>epoll_wait</code> while data remains, because after reporting it the kernel puts it back on the ready list ({{L1758-1771|https://github.com/torvalds/linux/blob/v5.10/fs/eventpoll.c#L1756-L1772}}). With <code>EPOLLET</code> it is <dfn>edge-triggered</dfn>: reported once per change (new data arriving), and not put back. Write 10 bytes to a pipe, read only 4, and ask again <span class="meas">measured here</span>:</p>
 <pre class="cd res" id="rd-el"></pre>

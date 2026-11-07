@@ -78,8 +78,9 @@ window.FXSIM=function(mode,wakeUs){
     cnt.innerHTML=RD.stat('futex system calls',String(sysN),'so far')+RD.stat('CPU time spent spinning',(sp/10).toFixed(1)+' µs','so far')+
       RD.stat('C (no lock) finishes at',fin?(sim.doneC/10).toFixed(1)+' µs':'...','8 µs of work')+RD.stat('A and B finish at',fin?(sim.doneAB/10).toFixed(1)+' µs':'...','both lock holders');}
   build();
-  const A=RD.anim({card:'rd-fx-card',ctl:'rd-fx-ctl',n:frames.length,ms:1300,label:'Step through the timeline',draw});
-  RD.seg(document.getElementById('rd-fx-mode'),m=>{mode=m;build();A.reset(frames.length)});
-  RD.seg(document.getElementById('rd-fx-wake'),m=>{wk=WK[m];build();A.reset(frames.length)});
+  // a widget (the long-replay rule, case b): the outcome of the design the reader picks is the point, so it opens on the finished run and never plays by itself
+  const A=RD.anim({card:'rd-fx-card',ctl:'rd-fx-ctl',n:frames.length,ms:1300,label:'Step through the timeline',draw,auto:false,start:frames.length-1});
+  RD.seg(document.getElementById('rd-fx-mode'),m=>{mode=m;build();A.reset(frames.length);A.go(frames.length-1,true)});
+  RD.seg(document.getElementById('rd-fx-wake'),m=>{wk=WK[m];build();A.reset(frames.length);A.go(frames.length-1,true)});
   RD.onResize(()=>A.redraw());
 })();

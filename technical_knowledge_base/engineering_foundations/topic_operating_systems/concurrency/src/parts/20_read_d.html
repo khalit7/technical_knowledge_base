@@ -13,22 +13,31 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-dl"></div></div><div class="s3L">
 <section id="rd-s6">
 <h2>6. Deadlock, and the other concurrency bugs</h2>
 <p><span class="ostep">ch. 32 Common concurrency problems</span></p>
 <p>A <dfn>deadlock</dfn> is a set of threads each waiting for something another member holds, so none can move. It needs four conditions at once (Coffman, 1971): <b>mutual exclusion</b>, <b>hold and wait</b>, <b>no preemption</b> (nobody can take a held lock away), and a <b>circular wait</b>. Remove any one and deadlock is impossible.</p>
-<div class="card"><h4>Two threads, two locks, opposite orders: a cycle in the wait-for graph</h4>
-<div class="rd-svg" id="rd-dl-svg"></div>
-<p class="small">T1 holds A and waits for B; T2 holds B and waits for A. Each arrow is one of the four conditions doing its part. Taking locks in one global order (A before B, everywhere) removes the arrow that closes the cycle; this is the program below run with <code>--ordered</code>, which finishes.</p></div>
+<p><b>Seeing one.</b> Two Python threads take two locks in opposite orders (<code>deadlock.py</code>: a <code>logger</code> takes <code>metrics_lock</code> then <code>ckpt_lock</code>, a <code>saver</code> the reverse), then are inspected from outside <span class="meas">measured here</span>. The figure replays the recording:</p>
+<ol class="sx" id="sx-dl">
+<li><b>logger takes metrics_lock.</b> Line 11, <code>with metrics_lock:</code>; it then sleeps 0.1 s holding it.</li>
+<li><b>saver takes ckpt_lock.</b> Line 19, the opposite order. Each thread now holds one lock: mutual exclusion, and hold and wait.</li>
+<li><b>logger asks for ckpt_lock and parks.</b> Line 13: the lock is held, so logger sleeps on its futex, still holding <code>metrics_lock</code>.</li>
+<li><b>saver asks for metrics_lock: a cycle.</b> Line 21: saver parks too. Each waits for the other and nobody can take a held lock away: a circular wait in the wait-for graph. The main thread waits in <code>join()</code> for logger.</li>
+<li><b>What the recording shows.</b> py-spy finds logger at <code>deadlock.py:13</code>, saver at <code>deadlock.py:21</code> and the main thread in <code>join</code>; <code>/proc</code> shows all three threads in state S, wait channel <code>futex_wait_queue_me</code>.</li>
+<li><b>One lock order removes the cycle.</b> Run with <code>--ordered</code>, saver takes <code>metrics_lock</code> first, so it waits holding nothing; logger finishes, then saver, and the run prints "finished".</li>
+</ol>
+<pre class="cd res" id="rd-dl"></pre>
+<p>The signature of a deadlock: every thread in state S (sleeping), every wait channel <code>futex_wait_queue_me</code>, 0% CPU, and py-spy pointing at the two <code>with</code> lines. A busy-looping bug looks the opposite (state R, 100% CPU).</p>
+</section>
+</div></div>
+<section id="rd-s6b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Break</th><th>How</th><th>Cost</th></tr></thead><tbody>
 <tr><td>Circular wait</td><td>A global lock order: every thread takes locks in the same order (by level, or by address). The standard cure. The Linux kernel checks it at run time with <dfn>lockdep</dfn>, which records the order every lock class was ever taken in and warns at the first inversion, before any deadlock happens ({{lockdep design|https://docs.kernel.org/locking/lockdep-design.html}})</td><td>Discipline; hard across libraries and callbacks</td></tr>
 <tr><td>Hold and wait</td><td>Take all locks at once (behind one outer lock), or hold none while calling out</td><td>Less concurrency</td></tr>
 <tr><td>No preemption</td><td><code>trylock</code>, and on failure release everything and retry, with random backoff</td><td>Can <dfn>livelock</dfn>: threads keep backing off and retrying without progress</td></tr>
 <tr><td>Mutual exclusion</td><td>Lock-free data structures (section 2, depth)</td><td>Much harder to write</td></tr>
 </tbody></table></div>
-<p><b>Seeing one.</b> Two Python threads take two locks in opposite orders (<code>deadlock.py</code>), then are inspected from outside <span class="meas">measured here</span>:</p>
-<pre class="cd res" id="rd-dl"></pre>
-<p>The signature of a deadlock: every thread in state S (sleeping), every wait channel <code>futex_wait_queue_me</code>, 0% CPU, and py-spy pointing at the two <code>with</code> lines. A busy-looping bug looks the opposite (state R, 100% CPU).</p>
 <div class="fix"><span class="t">Fixes and tools</span> One lock order per program, written down; never call unknown code (callbacks, logging handlers, <code>__del__</code>) while holding a lock (copy what you need, release, then call): thread A holding L and calling <code>logging.info()</code> while a handler thread holds the handler's lock and wants L is a circular wait, although logging is "thread-safe" (each call is safe on its own); <code>lock.acquire(timeout=...)</code> in Python turns a silent hang into an error you can log; <code>faulthandler.dump_traceback_later(timeout)</code> prints every thread's stack if the job stops progressing; glibc's <code>PTHREAD_MUTEX_ERRORCHECK</code> returns <code>EDEADLK</code> when a thread re-locks a mutex it holds; ThreadSanitizer (<code>-fsanitize=thread</code>) reports lock-order inversions as well as data races.</div>
 <p><b>The training-job deadlock everyone meets</b> is not two locks but <code>fork</code> while another thread holds one: the child gets a copy of the locked lock and no thread to release it. The root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} reproduces it ("A worker hangs forever: fork while another thread holds a lock") and {{Processes|n:3f05c17b0d0d811e99f7cb8c15d12697}} covers start methods (spawn or forkserver, or fork before starting threads); it is why Python 3.14 made <code>forkserver</code> the default on Linux. Databases face the same four conditions with a different cure (detect the cycle and abort a victim): {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}}.</p>
 <details class="dp"><summary>Most concurrency bugs are not deadlocks <span class="mute">(depth)</span></summary><div class="b"><p>Lu et al. studied 105 concurrency bugs in MySQL, Apache, Mozilla and OpenOffice: 74 were not deadlocks and 31 were; 97% of the non-deadlock bugs were of two kinds (as summarised in OSTEP ch. 32, from {{Learning from Mistakes, ASPLOS 2008|https://dl.acm.org/doi/10.1145/1346281.1346323}}):</p>

@@ -1,7 +1,7 @@
 // node src/check_controls.mjs <page index.html>  (run from the repository root)
 // Clicks every button, moves every range and select, steps every animation to its end, in 390 px dark and 920 px light;
 // fails on page or console errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity in the text.
-// Then checks with reduced motion and with normal motion that nothing moves before the reader acts.
+// Autoplay and reduced motion are checked by check_stages.mjs.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const file = 'file://' + path.resolve(process.argv[2]);
@@ -37,14 +37,5 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-// nothing moves before the reader acts (normal motion and reduced motion)
-for (const rm of ['no-preference', 'reduce']) {
-  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
-  await p.goto(file);
-  const ids = await p.$$eval('.an-ctl input[type=range]', rs => rs.map(r => r.id));
-  for (const id of ids) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await sleep(2600); }
-  const moved = await p.$$eval('.an-ctl input[type=range]', rs => rs.filter(r => r.value !== '0').map(r => r.id));
-  console.log('motion', rm, ids.length, 'animations;', moved.length ? 'MOVED ' + moved : 'none moved'); bad += moved.length; await p.close();
-}
+// (2026-11-07: the never-autoplay assertion that stood here is inverted by the rollout; check_stages.mjs confirms every stage plays when scrolled into view and never moves under reduced motion, and that the four-designs widget never plays by itself.)
 await b.close(); process.exit(bad ? 1 : 0);
