@@ -11,12 +11,29 @@
 <tr><td><b>Total (deadline)</b></td><td>Request sent</td><td>nothing: the whole response must finish</td><td>curl <code>--max-time</code>, Envoy route timeout, Google Cloud backend service timeout, API Gateway integration timeout</td></tr>
 <tr><td><b>Keep-alive idle</b></td><td>A connection goes unused</td><td>the next request</td><td>nginx <code>keepalive_timeout</code>, pool idle timeouts</td></tr>
 </tbody></table></div>
-<p>The distinction that matters most is <b>idle against total</b>: streaming defeats idle timeouts, because every token resets them, and does nothing against a total timeout. <span class="meas">measured</span> The running request through nginx with <code>proxy_read_timeout 2s</code> (idle), and with client-side limits (<code>src/lab/proxy_runs.py</code>, <code>raw/timeouts.json</code>):</p>
-<div class="tw"><table id="rd-tmeas"></table></div>
-<p>A 3 s think with no bytes is cut at exactly 2 s, and curl reports a broken body (exit 18) under a <code>200</code>, because nginx had already passed the head on. The same think with an SSE comment (<code>: ping</code>) every second survives: the comment is a byte, and SSE clients ignore it. Eight tokens 1.5 s apart, 11.5 s in all, pass a 2 s idle timeout untouched but die at a 5 s total limit. A non-streamed answer gets a clean <code>504 Gateway Time-out</code>, because no head had been sent.</p>
-<div class="card" id="ch-box">
+<div class="s3sp"><div class="s3R"><div id="stg-to"></div></div><div class="s3L">
+<p>The distinction that matters most is <b>idle against total</b>: streaming defeats idle timeouts, because every token resets them, and does nothing against a total timeout. <span class="meas">measured</span> The running request through nginx 1.31.6 with <code>proxy_read_timeout 2s</code> (idle), and with client-side limits (<code>src/lab/proxy_runs.py</code>, <code>raw/timeouts.json</code>); each step replays one run over its measured time:</p>
+<p class="sxh">Fig. 6 · Six measured runs through nginx's 2 s idle timeout</p>
+<ol class="sx" id="sx-to">
+<li><b>Bytes keep the idle timer down.</b> A 1 s think, then five tokens: nginx's timer climbs halfway during the think, then every byte empties it. Complete in 1.22 s.</li>
+<li><b>3 s of silence: cut at 2 s, under a 200.</b> nginx gives up at 2.01 s. It had already passed on the 200 head, so curl sees a broken body: exit 18, "transfer closed with outstanding read data remaining", 0 tokens. httpx with a 2 s read timeout, straight to the server, raises ReadTimeout at 2.02 s.</li>
+<li><b>A ping every second keeps it open.</b> The same 3 s think with an SSE comment (<code>: ping</code>) each second: the comment is a byte, SSE clients ignore it, and the two pings reset the timer. Complete in 3.22 s.</li>
+<li><b>Idle timers do not count length.</b> Eight tokens 1.5 s apart, 11.5 s in all, pass the 2 s idle timeout untouched: complete in 11.52 s (httpx with a 2 s read timeout: 11.6 s).</li>
+<li><b>A total limit counts everything.</b> The same stream with <code>curl --max-time 5</code>: cut at 5.02 s after three tokens, exit 28. Streaming does nothing against a total timeout.</li>
+<li><b>Not streamed: a clean 504.</b> An answer sent only at the end, after 3 s: no head had passed, so nginx answers <code>504 Gateway Time-out</code> at 2.01 s.</li>
+</ol>
+<details class="dp"><summary>The eight runs as a table <span class="mute">(curl through nginx, and httpx direct)</span></summary><div class="b"><div class="tw"><table id="rd-tmeas"></table></div></div></details>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p><b>Build your own path.</b> The lab beside this text replays one generation, byte by byte, against every timer on a path you choose, each at the hop's documented default (the closed table below lists them with sources). The first timer to reach its limit ends the request. Predict first: a 90 s think behind nginx's defaults. Then add pings; switch the load balancer to Google Cloud's and watch pings stop helping; pick httpx's 5 s default.</p>
+<details class="dp"><summary>Does the model match reality? <span class="mute">(8 measured runs, and its assumptions)</span></summary><div class="b">
+<div class="tw"><table id="ch-val"></table></div>
+<p class="small mute">Assumptions: the server sends the response head the moment it accepts a streamed request (the lab server does; most streaming APIs do) and nothing else until the first token, unless pings are on; an idle timer starts when the request is sent and restarts on every byte; a first-byte timer stops when the head arrives; a total timer never restarts. Real hops add what this leaves out: connect and TLS timeouts, keep-alive races, proxies that buffer and so delay bytes to the next hop, and retries by intermediaries. Python check: <code>src/recompute.py</code> runs the same model on the same cases.</p>
+</div></details>
+<div class="co warn"><div class="t">The trap: two hops count total time</div>Google Cloud's 30 s backend service timeout and API Gateway's 29 s count the whole response. Behind either, a generation longer than 30 s fails even when it streams perfectly, and no amount of pings helps: raise the limit, or switch to the async shape (submit, get a job id, poll or receive a webhook). Envoy's 15 s route timeout is total too, and is usually the first thing to bite a streaming service behind Istio.</div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="ch-box">
 <h4>Build a path and replay one generation against every hop's timer: the first to fire ends it</h4>
-<p class="small">Predict first: a 90 s think behind nginx's defaults. Then add pings; switch the load balancer to Google Cloud's and watch pings stop helping; pick httpx's 5 s default.</p>
 <div class="hops" id="ch-hops"></div>
 <div class="ctl" id="ch-req"></div>
 <div class="seg" id="ch-pre"><span class="small mute" style="align-self:center">Before / after:</span><button data-m="noping">No pings</button><button data-m="ping">Ping every 15 s</button><button data-m="nostream">Not streamed</button></div>
@@ -26,12 +43,7 @@
 <div class="an-cap" id="ch-cap"></div>
 <div class="an-cnt" id="ch-cnt"></div>
 <p class="small mute"><span class="ill">model</span> Each default is the documented one (table below). Run on the eight measured cases above, the model reproduces all eight independently: the measurement is not an input (closed block below).</p>
-</div>
-<details class="dp"><summary>Does the model match reality? <span class="mute">(8 measured runs, and its assumptions)</span></summary><div class="b">
-<div class="tw"><table id="ch-val"></table></div>
-<p class="small mute">Assumptions: the server sends the response head the moment it accepts a streamed request (the lab server does; most streaming APIs do) and nothing else until the first token, unless pings are on; an idle timer starts when the request is sent and restarts on every byte; a first-byte timer stops when the head arrives; a total timer never restarts. Real hops add what this leaves out: connect and TLS timeouts, keep-alive races, proxies that buffer and so delay bytes to the next hop, and retries by intermediaries. Python check: <code>src/recompute.py</code> runs the same model on the same cases.</p>
-</div></details>
-<div class="co warn"><div class="t">The trap: two hops count total time</div>Google Cloud's 30 s backend service timeout and API Gateway's 29 s count the whole response. Behind either, a generation longer than 30 s fails even when it streams perfectly, and no amount of pings helps: raise the limit, or switch to the async shape (submit, get a job id, poll or receive a webhook). Envoy's 15 s route timeout is total too, and is usually the first thing to bite a streaming service behind Istio.</div>
+</div></div></div></div>
 <details class="dp"><summary>Defaults you will meet, with sources <span class="mute">(checked 5 October 2026)</span></summary><div class="b"><div class="tw"><table>
 <thead><tr><th>Hop</th><th>Setting</th><th>Default</th><th>Kind</th></tr></thead>
 <tbody>
@@ -56,21 +68,25 @@
 
 <section id="rd-s10">
 <h2>10. Retries and idempotency, at the protocol level</h2>
+<div class="s3sp"><div class="s3L">
 <p>A request failed. If the server never started, send it again; if it finished but the answer was lost, a retry does the work twice: two generations billed, two tool calls executed. The protocol question is always: <b>can the client prove the server did not start?</b></p>
-<div class="card" id="rs-card">
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rs-card">
 <h4>Where the failure happened decides whether a POST may be retried</h4>
 <div class="rd-svg" id="rs-svg"></div>
 <p class="small mute">Static diagram of one POST's life. Safe: the request never reached HTTP, or the server guarantees it did not act (RFC 9113 section 8.7 for REFUSED_STREAM and GOAWAY; RFC 8470 for 425; 429 and 503 with Retry-After refuse before the work by contract). Unknown: anything after the request bytes left, unless it carries an idempotency key the server honours. 500 and 529 probably failed, not guaranteed; the Claude docs say to retry 500 with backoff. An error event mid-stream: the partial output is not resumable, start a new request.</p>
-</div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3>What the official SDKs actually do (measured)</h3>
 <p>The Anthropic (1.11.0) and OpenAI (3.24.0) Python SDKs share one generated base client. Its source retries on connection errors, timeouts, 408, 409, 429 and every 5xx, twice by default; waits 0.5 s, then 1 s, up to 8 s, each multiplied by a random factor between 0.75 and 1 ("jitter"); and obeys <code>retry-after-ms</code>, <code>Retry-After</code> and a non-standard <code>x-should-retry: true|false</code> header from the server. Predict how many POSTs the server sees after a read timeout; then look at the read-timeout row.</p>
-<div class="card" id="rd-retry-card">
+<div class="co warn"><div class="t">What this means</div>On a <b>read timeout</b> (1 s client timeout, a server that takes 2.5 s) and on a <b>connection dropped after the request was sent</b>, both SDKs sent the same POST three times, and no attempt carried an idempotency key: the base client has an idempotency header slot, but neither SDK sets it. Against a real API each attempt may run a full generation, so a client timeout shorter than the model's real latency multiplies load and cost by up to three: fail fast on connect, not on read; set the read timeout above the longest generation, or stream. The server has a say too: api.anthropic.com answered our credential-free request with <code>x-should-retry: false</code> on its 401 (section 11).</div>
+<p><b>Making a POST safe to retry.</b> The client sends a unique <dfn id="g-idemkey">idempotency key</dfn> header; the server stores the key with the result and, on a retry with the same key, returns the stored result instead of working again (Stripe's design). The IETF draft that would standardise an <code>Idempotency-Key</code> header reached revision 07 and expired without becoming an RFC ({{Datatracker|https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/}}), so each API defines its own. The server side, including work outside your database, is on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (section 4); retry budgets, backoff and the retry storms they prevent are on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-retry-card">
 <h4>A read timeout or a dropped connection: the same POST arrives three times, with no idempotency key</h4>
 <div class="rd-svg" id="rd-retry"></div>
 <p class="small mute"><span class="meas">measured</span> <code>src/lab/sdk_retries.py</code>, <code>raw/sdk_retries.json</code>, errors injected by the lab server. Each dot is one request the server received, at its time after the first; gaps include the random jitter, so they vary run to run. No real API was called.</p>
-</div>
-<div class="co warn"><div class="t">What this means</div>On a <b>read timeout</b> (1 s client timeout, a server that takes 2.5 s) and on a <b>connection dropped after the request was sent</b>, both SDKs sent the same POST three times, and no attempt carried an idempotency key: the base client has an idempotency header slot, but neither SDK sets it. Against a real API each attempt may run a full generation, so a client timeout shorter than the model's real latency multiplies load and cost by up to three: fail fast on connect, not on read; set the read timeout above the longest generation, or stream. The server has a say too: api.anthropic.com answered our credential-free request with <code>x-should-retry: false</code> on its 401 (section 11).</div>
-<p><b>Making a POST safe to retry.</b> The client sends a unique <dfn id="g-idemkey">idempotency key</dfn> header; the server stores the key with the result and, on a retry with the same key, returns the stored result instead of working again (Stripe's design). The IETF draft that would standardise an <code>Idempotency-Key</code> header reached revision 07 and expired without becoming an RFC ({{Datatracker|https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/}}), so each API defines its own. The server side, including work outside your database, is on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (section 4); retry budgets, backoff and the retry storms they prevent are on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
+</div></div></div></div>
 <div class="drill" data-ans="a"><div class="t">Predict, then reveal</div>
 <p>A deployment sends GOAWAY with last stream id 41 on an HTTP/2 connection where your client had streams 39, 41 and 43 in flight, all POSTs. Which may it retry automatically?</p>
 <div class="opts"><button data-o="a">Only 43</button><button data-o="b">41 and 43</button><button data-o="c">None: they are POSTs</button></div>

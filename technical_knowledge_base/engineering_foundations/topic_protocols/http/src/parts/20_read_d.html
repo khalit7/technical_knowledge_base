@@ -29,22 +29,35 @@
 <div class="tw"><table id="rd-settings"></table></div>
 <p class="small mute">Both advertise a 65,535-byte initial window, 16,384-byte frames and a 4,096-byte header table, the protocol's initial values (RFC 9113 section 6.5.2), and 100 concurrent streams. The server turns server push off (ENABLE_PUSH 0) and offers extended CONNECT (for WebSockets over HTTP/2, {{RFC 8441|https://www.rfc-editor.org/rfc/rfc8441}}).</p>
 </div></details>
-<h3>HPACK: why the second request's headers cost 7 bytes</h3>
-<p>Requests to one API repeat the same fields: host, path, content type, key, user agent. <dfn id="g-hpack">HPACK</dfn> ({{RFC 7541, May 2015|https://www.rfc-editor.org/rfc/rfc7541}}) compresses them with three tools: a <b>static table</b> of 61 common fields (index 2 is <code>:method: GET</code>, 3 is <code>:method: POST</code>), a <b>dynamic table</b> (4,096 bytes by default) to which each side adds fields as it sends them, so a repeat becomes a one-byte index, and a fixed <b>Huffman code</b> for literal text (26% smaller on the SDK header values below: 164 bytes of values became 121). Predict the second request's size before you step.</p>
-<div class="card" id="rd-hp">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-hp">
 <h4>The same headers sent twice: text every time on HTTP/1.1, one-byte indexes the second time on HTTP/2</h4>
 <div class="seg" id="rd-hp-set"><button class="on" data-m="running">The running request</button><button data-m="bearer">With authorization: Bearer</button><button data-m="sdk">The Anthropic SDK's real headers</button></div>
 <div class="seg" id="rd-hp-mode"><button class="on" data-m="h2">HPACK (HTTP/2)</button><button data-m="h1">HTTP/1.1 text</button><button data-m="h3">QPACK (HTTP/3)</button></div>
 <div id="rd-hp-rows"></div>
 <div class="an-ctl" id="rd-hp-ctl"></div>
-<div class="an-cap" id="rd-hp-cap"></div>
 <div class="an-cnt" id="rd-hp-cnt"></div>
 <p class="small mute"><span class="meas">measured</span> The running request's HPACK bytes are the HEADERS frames of a real HTTP/2 connection (<code>raw/h2_frames.json</code>); the other two header sets were encoded by the same h2 library on a fresh connection and parsed field by field (<code>src/lab/hpack_sizes.py</code>, <code>hpack_parse.py</code>). QPACK sizes are pylsqpack's (aioquic's encoder). Bars to scale within each set. "HTTP/1.1 text" is the same fields as HTTP/1.1 lines (141 bytes; the root's recording is 160 because it also sends <code>connection: close</code>).</p>
-</div>
+</div></div></div><div class="s3L">
+<h3>HPACK: why the second request's headers cost 7 bytes</h3>
+<p>Requests to one API repeat the same fields: host, path, content type, key, user agent. <dfn id="g-hpack">HPACK</dfn> ({{RFC 7541, May 2015|https://www.rfc-editor.org/rfc/rfc7541}}) compresses them with three tools: a <b>static table</b> of 61 common fields (index 2 is <code>:method: GET</code>, 3 is <code>:method: POST</code>), a <b>dynamic table</b> (4,096 bytes by default) to which each side adds fields as it sends them, so a repeat becomes a one-byte index, and a fixed <b>Huffman code</b> for literal text (26% smaller on the SDK header values below: 164 bytes of values became 121). Predict the second request's size before the figure gets there.</p>
+<p class="sxh">Fig. 3 · The same headers sent twice</p>
+<ol class="sx" id="sx-hp">
+<li><b>Request 1: the table starts empty.</b> HPACK finds <code>:method: POST</code> and a few more fields in the static table (one byte each) and spells out the rest, adding each to the dynamic table as it goes; a credential marked never-indexed is spelled out and kept out of every table. On HTTP/1.1 every field is plain text.</li>
+<li><b>Request 2: the same fields again.</b> On the same connection, every field now in the dynamic table is a one-byte index: the running request's header block falls from 69 to 7 bytes. HTTP/1.1 keeps no memory between requests and sends every byte again.</li>
+</ol>
+<ol class="sx" id="sx-hp3" hidden>
+<li><b>Request 1: static table only.</b> QPACK's encoder will not refer to entries the decoder may not have received yet, so the first request uses the static table alone (59 bytes for the running request).</li>
+<li><b>Request 2: insertions on the encoder stream.</b> The encoder inserts the fields on its own stream (53 bytes, once) and refers to them: the request's own block is 9 bytes. Had the encoder stream's packet been lost, this request would wait: a blocked stream.</li>
+<li><b>Request 3: reuse.</b> Later requests refer to the same entries (9 bytes) and add nothing to the encoder stream.</li>
+</ol>
 <p><b>Secrets in a compression table.</b> Compression leaks when an attacker can mix guesses with a secret and watch the size (the CRIME and BREACH attacks). HPACK lets a literal be marked <b>never indexed</b>, sent in full every time and never added to any table ({{RFC 7541 section 7.1.3|https://www.rfc-editor.org/rfc/rfc7541#section-7.1.3}}). <span class="meas">measured</span> The h2 library marks <code>authorization</code> never-indexed automatically (the "Bearer" set costs 32 bytes on every request instead of 7), but not <code>x-api-key</code>, which it added to the dynamic table. HPACK's per-connection table and fixed Huffman code make the attack far harder than with gzip, so this is defence in depth, not an open hole; but know your library's list of sensitive headers when the key travels in a custom one.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Flow control: a window, and credit returned by WINDOW_UPDATE</h3>
-<p>Many streams share one connection, so a receiver needs to say "slow down on this one" without stopping the others (TCP can only throttle the whole connection). Each stream, and the connection, has a <dfn id="g-window">window</dfn>: the DATA bytes the sender may send before it must wait. The receiver returns credit with WINDOW_UPDATE frames as it consumes data. So a stream moves at most one window per round trip: <b>throughput &#8804; window / RTT</b>, whatever the link. Predict the stalls for a 200,000-byte body with a 64 KB window, then compare the three.</p>
-<div class="card" id="rd-fc">
+<p>Many streams share one connection, so a receiver needs to say "slow down on this one" without stopping the others (TCP can only throttle the whole connection). Each stream, and the connection, has a <dfn id="g-window">window</dfn>: the DATA bytes the sender may send before it must wait. The receiver returns credit with WINDOW_UPDATE frames as it consumes data. So a stream moves at most one window per round trip: <b>throughput &#8804; window / RTT</b>, whatever the link. Predict the stalls for a 200,000-byte body with a 64 KB window, then pick the three windows in turn: the figure opens on the whole recorded download, and the scrubber walks it frame by frame.</p>
+<p>The default 65,535-byte window caps one stream at about 0.65 MB/s at 100 ms round trip (65,535 / 0.1 s). Servers that move large bodies raise it (SETTINGS_INITIAL_WINDOW_SIZE for streams, a WINDOW_UPDATE on stream 0 for the connection, which always starts at 65,535); the root's Failure lab measures the cap on a real path ("One stream's throughput is capped at window / round trip"). Token streams of a few KB never notice.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-fc">
 <h4>A small window makes the server stop and wait for credit, once per round trip</h4>
 <div class="seg" id="rd-fc-seg"><button class="on" data-m="0">16 KB window</button><button data-m="1">64 KB window (the default)</button><button data-m="2">1 MB window</button></div>
 <div class="rd-svg" id="rd-fc-svg"></div>
@@ -52,12 +65,11 @@
 <div class="an-cap" id="rd-fc-cap"></div>
 <div class="an-cnt" id="rd-fc-cnt"></div>
 <p class="small mute"><span class="meas">measured</span> A 200,000-byte <code>GET /big</code> over HTTP/2 (<code>src/lab/flow_h2.py</code>, <code>raw/flow_h2.json</code>): every DATA frame and WINDOW_UPDATE with its time. <span class="ill">simulated</span> Loopback has almost no round trip, so the client holds each WINDOW_UPDATE for 50 ms, standing in for one; the server's behaviour is real. <span class="ill">derived</span> Expected time is about ceil(200,000 / window) &#215; 50 ms when the window is the limit.</p>
-</div>
-<p>The default 65,535-byte window caps one stream at about 0.65 MB/s at 100 ms round trip (65,535 / 0.1 s). Servers that move large bodies raise it (SETTINGS_INITIAL_WINDOW_SIZE for streams, a WINDOW_UPDATE on stream 0 for the connection, which always starts at 65,535); the root's Failure lab measures the cap on a real path ("One stream's throughput is capped at window / round trip"). Token streams of a few KB never notice.</p>
+</div></div></div></div>
 <h3>Ending streams safely, and how HTTP/2 still fails</h3>
 <p><b>RST_STREAM</b> cancels one stream (a user pressed stop). <b>GOAWAY</b> starts a graceful shutdown and carries the highest stream id the server may have processed: requests on higher-numbered streams "are therefore guaranteed to be safe to retry", and so is any request reset with REFUSED_STREAM, "even those with non-idempotent methods" ({{RFC 9113 section 8.7|https://www.rfc-editor.org/rfc/rfc9113#section-8.7}}). A server being deployed should send GOAWAY and let in-flight streams finish; the client retries what was never started (section 10).</p>
 <ul class="tight">
-<li><b>One lost TCP packet stalls every stream</b>: all streams share one ordered byte stream; the root's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab measured one lost packet delaying all three concurrent streams by 43 to 68 ms. HTTP/3 fixes this.</li>
+<li><b>One lost TCP packet stalls every stream</b>: all streams share one ordered byte stream, so one loss delayed all three concurrent streams by 43 to 68 ms in the root's recording (<a href="#rd-s7">Fig. 4</a>). HTTP/3 fixes this.</li>
 <li><b>Streams queue</b> beyond SETTINGS_MAX_CONCURRENT_STREAMS (100 here); the root's Failure lab shows it ("Max concurrent streams").</li>
 <li><b>One connection, one backend</b>: a long-lived HTTP/2 connection through a connection-level (L4) load balancer pins every request to one backend ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}; Failure lab "gRPC behind an L4 load balancer").</li>
 </ul>
@@ -72,15 +84,28 @@
 
 <section id="rd-s7">
 <h2>7. HTTP/3: the same streams on QUIC</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-loss"></div></div><div class="s3L">
 <p>HTTP/2 removed the queue between requests but kept one underneath: TCP delivers one ordered byte stream, so a single lost packet holds every stream until it is resent. HTTP/3 ({{RFC 9114, June 2022|https://www.rfc-editor.org/rfc/rfc9114}}) moves HTTP/2's idea onto <dfn id="g-quic">QUIC</dfn>, a transport over UDP with TLS 1.3 built in and many independently ordered streams ({{RFC 9000|https://www.rfc-editor.org/rfc/rfc9000}}; the transport is on {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}). A lost packet stalls only its own stream, and setup takes one round trip instead of two.</p>
-<div class="card" id="qs-card">
-<h4>Each request on its own QUIC stream; settings and the QPACK tables on six one-way streams</h4>
-<div class="rd-svg" id="qs-svg"></div>
-<p class="small mute"><span class="meas">measured</span> Every HTTP/3 frame and QPACK instruction of the recorded connection, by QUIC stream and time (<code>raw/h3_frames.json</code>, aioquic 1.3.0): the request alone, again on the same connection, then two at once. A loss on stream 0 would delay only stream 0's row.</p>
-</div>
+<p class="sxh">Fig. 4 · One lost packet: HTTP/2 against HTTP/3</p>
+<ol class="sx" id="sx-loss">
+<li><b>HTTP/2: three streams, one ordered byte stream.</b> Three copies of the running request go 10 ms apart on one TCP connection (25 ms each way). Their tokens come back interleaved in one file, and each lands in its stream's row when it arrives.</li>
+<li><b>One packet lost: every stream waits.</b> The packet carrying stream 1's second token is lost. TCP hands nothing after a gap to the application, so the tokens of streams 3 and 5 that arrived behind it wait too: the second tokens land 68, 56 and 43 ms late, all at once.</li>
+<li><b>HTTP/3: each stream ordered on its own.</b> The same three requests on one QUIC connection over UDP. QUIC numbers the bytes of each stream separately, so each row only waits for its own bytes.</li>
+<li><b>One packet lost: only its stream waits.</b> One QUIC packet is really dropped and resent. Stream 0's second token lands 66 ms late; streams 4 and 8 carry on as if nothing had happened.</li>
+<li><b>The cost per token.</b> Every token's extra delay in the loss run against the run without loss, as bars: on HTTP/2 the stall spreads across all three streams; on HTTP/3 it stays in one row. Both runs finish at about the same time: a loss costs a stall mid-answer, not a slower total.</li>
+</ol>
+<p class="small mute"><span class="meas">measured</span> by the root page: three requests 10 ms apart through its network emulator, 25 ms each way (<code>topic_protocols/src/wire/hol.sh</code>, <code>raw/hol/</code>). For QUIC one packet was really dropped; for TCP, whose kernels would resend a dropped segment invisibly, one server-to-client chunk was held 67 ms, the QUIC stall measured first, standing in for detection and retransmission. Times are when each token reached the application.</p>
+<p><b>What it costs.</b> QUIC runs in user space and encrypts nearly every header, so it costs more CPU per byte than kernel TCP and packet tools see little. UDP 443 is blocked or throttled on some corporate networks, forcing a fallback to TCP after a delay. Inside a data centre, where loss is rare, HTTP/2 over TCP is simpler and as fast; HTTP/3 pays on lossy, mobile and long-distance client links. The loss runs in Fig. 4 are the root's, from its {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab, which also times HTTP/1.1 and the handshakes.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>How it works.</b> Each request is one client-opened bidirectional stream (ids 0, 4, 8, ...), carrying HTTP/3 HEADERS and DATA frames whose type and length are QUIC variable-length integers rather than HTTP/2's fixed 9-byte header; the stream id lives in QUIC, not in the frame. Connection business moves to <b>unidirectional streams</b> each side opens once: <span class="meas">measured</span> the client opened its control stream (id 2, carrying SETTINGS), a QPACK encoder stream (6) and a QPACK decoder stream (10); the server opened the same three as 3, 7 and 11.</p>
 <p><b>QPACK, and why HPACK could not be reused.</b> HPACK assumes both sides see header blocks in the order they were sent; QUIC streams arrive in any order, so a block could refer to a table entry the decoder has not received yet. <dfn id="g-qpack">QPACK</dfn> ({{RFC 9204|https://www.rfc-editor.org/rfc/rfc9204}}) puts table insertions on the encoder stream and lets the encoder choose, per request, between entries the decoder has acknowledged (never blocks) and newer ones (smaller, but the request waits if the insertion has not arrived: a <b>blocked stream</b>, capped by QPACK_BLOCKED_STREAMS). <span class="meas">measured</span> aioquic's encoder sent request 1 with the static table only (59 bytes, plus 3 bytes on the encoder stream to set the table size), then inserted the fields on the encoder stream (53 bytes) and sent request 2's headers in 9 bytes that referred to those not-yet-acknowledged entries. Toggle QPACK in the <a href="#rd-hp">header animation</a> to compare.</p>
 <p><b>How a client finds HTTP/3.</b> It cannot know a server speaks QUIC before trying, so servers advertise it: <code>Alt-Svc: h3=":443"; ma=86400</code> ("HTTP/3 on UDP 443; remember for a day", {{RFC 7838|https://www.rfc-editor.org/rfc/rfc7838}}) or an HTTPS record in DNS ({{RFC 9460|https://www.rfc-editor.org/rfc/rfc9460}}; {{DNS|n:3c65c17b0d0d812387d8f92b546f07af}}). Browsers then race QUIC against TCP and keep the winner. <span class="meas">measured</span> 5 October 2026: api.openai.com and generativelanguage.googleapis.com advertised h3; api.anthropic.com did not; curl negotiated HTTP/2 with all three (section 11).</p>
 <p><b>0-RTT and 425.</b> A client that has talked to a server before can send its first request inside the first packet (TLS early data). An attacker who copies that packet can replay it, so the request must be safe to repeat; a server that will not take the risk answers <code>425 Too Early</code> and the client resends after the handshake ({{RFC 8470|https://www.rfc-editor.org/rfc/rfc8470}}). Never let a POST that starts a generation be accepted as early data.</p>
-<p><b>What it costs.</b> QUIC runs in user space and encrypts nearly every header, so it costs more CPU per byte than kernel TCP and packet tools see little. UDP 443 is blocked or throttled on some corporate networks, forcing a fallback to TCP after a delay. Inside a data centre, where loss is rare, HTTP/2 over TCP is simpler and as fast; HTTP/3 pays on lossy, mobile and long-distance client links. One lost packet on all three versions, measured and animated: the root's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="qs-card">
+<h4>Each request on its own QUIC stream; settings and the QPACK tables on six one-way streams</h4>
+<div class="rd-svg" id="qs-svg"></div>
+<p class="small mute"><span class="meas">measured</span> Every HTTP/3 frame and QPACK instruction of the recorded connection, by QUIC stream and time (<code>raw/h3_frames.json</code>, aioquic 1.3.0): the request alone, again on the same connection, then two at once. A loss on stream 0 would delay only stream 0's row.</p>
+</div></div></div></div>
 </section>

@@ -30,6 +30,10 @@ data = {
     "h2": h2, "h3": h3,
     "hol": J("hol_app.json"), "hpack": J("hpack_sizes.json"), "flow": J("flow_h2.json"),
     "proxy": J("proxy_rewrite.json"), "amb": J("ambiguous.json"), "timeouts": J("timeouts.json"), "sdk": sdk, "sdk_version": J("sdk_version.json"),
+    # the root's head-of-line runs (On the wire tab): three requests 10 ms apart, 25 ms each way, base and one loss, per-token arrival times (section 7's stage)
+    "wirehol": {"stall_ms": int(open(os.path.join(ROOT_RAW, "hol", "quic_stall_ms.txt")).read().strip()),
+                **{"%s_%s" % (t, p): {k: json.load(open(os.path.join(ROOT_RAW, "hol", "%s_%s.json" % (t, p))))[k] for k in ("sent_ms", "token_ms")}
+                   for t in ("base", "loss") for p in ("h2", "h3")}},
     "public": T("public_headers.txt"), "conditional": T("conditional.txt"), "sdk_request": T("sdk_request_anthropic.txt"),
 }
 s = json.dumps(data, separators=(",", ":"), ensure_ascii=False)

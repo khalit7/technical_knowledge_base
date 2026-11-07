@@ -38,3 +38,12 @@ The scoring has no slot for "found a behaviour the docs do not state" (nginx 1.2
 ## 2026-10-24 rebuild (teaching contract)
 Built: hero path (static annotated diagram: hops, wire version, timer, errors written); cache freshness and validation timeline (static, measured headers, illustrative timing); CORS preflight before/after (toggle-compare on the 24 Oct 2026 recording); the Set-Cookie line with attributes marked (annotated text); HTTP/3 stream map (static, from `raw/h3_frames.json`); retry-safety diagram (static, replaces the retry table). Moved inline: the frame viewer (section 6) and the timeout chain (section 9).
 Rejected: a status-code-per-hop figure (the hero already places 413, 502, 504 and 524 on their hops); a separate GOAWAY diagram (the drill and the retry-safety figure carry it); a lost-packet animation (owned by the root's On the wire tab, linked); photos (no physical object teaches HTTP).
+
+## 2026-11-07: the split layout and 3D stages (renderer v2)
+Built:
+- **Fig. 1, hero stage**: five HTTP participants on one path; the request plate, per-link connections, the answer streaming back, then each hop's documented timer as a glass column filling during a 90 s think (cut at 60 s), with pings (complete at 210 s), and with Google Cloud's 30 s total timeout (cut at 30 s). Outcomes from the section 9 model on its documented defaults. Replaces the static path SVG.
+- **Fig. 2, HOL stage**: H4 above as a 3D stage (connections as glass strips, requests and answers as blocks), measured medians. Replaces the 2D animation.
+- **Fig. 4, loss stage**: the root's base and loss runs on HTTP/2 and HTTP/3 (per-token arrival times), tokens crossing the wire, the late ones waiting at the client's edge; last step: the per-token extra delay as two bar fields. New: section 7 only linked the root's animation before.
+- **Fig. 6, timeout runs stage**: the six measured nginx runs replayed over their measured durations, with nginx's idle timer and curl's total limit as columns. Replaces a paragraph narrating the runs.
+Changed: H1 (compression) is now one step per request with a step list; H3 (frame viewer), H5 (flow control) and H2 (timeout chain) are widgets that never autoplay (the long-replay rule).
+Rejected: a 3D frame viewer (the detail pane is text; flat reads better); a 3D flow-control replay (a time axis is the message); a 3D smuggling picture (the point is the bytes as text); 3D CORS and cache figures (two-party exchanges on a time axis).

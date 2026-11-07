@@ -35,17 +35,20 @@ checks = [
     ("164 bytes of values became 121", True),
     ("costs 32 bytes on every request", J("hpack_sizes.json")["sets"]["bearer"]["hpack"][1]["block"] == 32),
     ("Eight tokens 1.5 s apart, 11.5 s in all", T[3]["curl"]["exit"] == 0),
-    ("cut at exactly 2 s", abs(T[1]["curl"]["seconds"] - 2) < 0.05),
-    ("die at a 5 s total limit", T[4]["curl"]["exit"] == 28),
+    ("Complete in 1.22 s", T[0]["curl"]["seconds"] == 1.22),
+    ("nginx gives up at 2.01 s", T[1]["curl"]["seconds"] == 2.01 and T[1]["curl"]["exit"] == 18),
+    ("cut at 5.02 s after three tokens, exit 28", T[4]["curl"]["exit"] == 28 and T[4]["curl"]["tokens"] == 3),
     ("Gateway Time-out", T[5]["curl"]["http"] == "504"),
     ("sent the same POST three times", all(len(c["server_saw"]) == 3 for c in J("sdk_retries.json")["cases"] if c["case"] in ("read_timeout", "connection_dropped"))),
     ("spoke HTTP/1.1 to the lab server over TLS", all(r["http_version"] == ("2" if r["client"] == "http2=True" else "1.1") for r in J("sdk_version.json")["runs"])),
     ("43 to 68 ms", True),  # root's On the wire measurement, quoted from the root (src/read/coverage.md)
+    ("land 68, 56 and 43 ms late", True),  # the same runs, embedded as HD.wirehol; check_stages.mjs compares the list with them
 ]
 for s, cond in checks:
     ok(s in txt and cond, "prose: " + s)
 hol = J("hol_app.json")["runs"]
-ok(statistics.median([r["B_last"] for r in hol["h1_pipelined"]]) > 1100, "HOL: pipelined B waits over 1.1 s (animation computes the medians from the data)")
+ok(statistics.median([r["B_last"] for r in hol["h1_pipelined"]]) > 1100, "HOL: pipelined B waits over 1.1 s (the stage computes the medians from the data)")
+ok("a 1,197.1 ms wait for a 1 ms job" in txt and abs(statistics.median([r["B_last"] for r in hol["h1_pipelined"]]) - 10 - 1197.1) < 1e-6, "HOL: the step list's wait is the median")
 pub = open(os.path.join(HERE, "raw/public_headers.txt")).read()
 ok("x-should-retry: false" in pub and pub.count("server accepted h2") == 3 and pub.count("alt-svc: h3") == 2, "public hosts: three h2, two alt-svc h3, Anthropic x-should-retry false")
 

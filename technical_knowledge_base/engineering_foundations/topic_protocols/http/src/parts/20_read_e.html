@@ -10,27 +10,31 @@
 <tr><td><b>CDN edge</b></td><td>A reverse proxy run by a CDN close to users</td><td>All three public LLM APIs answered through one (section 11)</td></tr>
 <tr><td><b>Load balancer</b></td><td>L7 parses HTTP and routes each request; L4 forwards TCP connections unread</td><td>AWS ALB (L7) vs NLB (L4); depth on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}</td></tr>
 </tbody></table></div>
+<div class="s3sp"><div class="s3L">
 <h3>What a proxy changes in your request</h3>
 <p>A proxy does not pass bytes through: it parses the message and writes a new one. Predict what the backend receives when curl sends the running request over HTTP/2 to nginx with nothing but <code>proxy_pass</code> configured.</p>
-<div class="card" id="rd-px">
-<h4>The backend gets a different message: new version, rewritten Host, the client's address gone</h4>
-<div class="seg" id="rd-px-seg"></div>
-<div class="panes"><div><h5>Client sent</h5><pre class="diff" id="rd-px-a"></pre></div><div><h5>Backend received</h5><pre class="diff" id="rd-px-b"></pre></div></div>
-<div class="anninfo" id="rd-px-note"></div>
-</div>
 <p><b>The version changed</b> (HTTP/2 in, HTTP/1.1 out), because the proxy terminates one connection and opens another. <b>Host was rewritten</b> to the upstream's address unless configured (<code>proxy_set_header Host $host</code>; <code>$host</code> drops the port). <b>The client's address is gone</b> unless the proxy adds <code>X-Forwarded-For</code> (or the standard <code>Forwarded</code>, {{RFC 7239|https://www.rfc-editor.org/rfc/rfc7239}}); any client can send those, so take the address appended by your own outermost proxy and trust the header only from proxies you run. <b>Header order and case changed</b>, harmless except to anything that signs raw header bytes.</p>
 <p><b>Hop-by-hop headers.</b> <code>Connection</code> and every field it names, <code>Keep-Alive</code>, <code>Transfer-Encoding</code>, <code>TE</code>, <code>Upgrade</code> and <code>Proxy-Authorization</code> describe one connection; a proxy must not forward them ({{RFC 9110 section 7.6.1|https://www.rfc-editor.org/rfc/rfc9110#section-7.6.1}}), and HTTP/2 and 3 forbid them outright: <span class="meas">measured</span> nginx 1.31.6 answered 400 to an HTTP/2 request carrying <code>transfer-encoding</code>, a rule added in nginx 1.31.0 (13 May 2026).</p>
 <div class="corr"><div class="t">Docs disagree with the software: nginx's upstream defaults changed in 2026</div>nginx's proxy module page still lists <code>proxy_set_header Connection close</code> as a default, and older guides say nginx talks HTTP/1.0 to the backend. Since nginx 1.29.7 (24 March 2026) "the default value for proxy_http_version is 1.1; the Connection proxy header is not sent by default anymore", and upstream keep-alive is on by default (nginx CHANGES, kept in <code>src/inputs/nginx_changes_excerpt.txt</code>). <span class="meas">measured</span> The capture above shows HTTP/1.1 and no Connection header; configurations that add <code>proxy_set_header Connection ""</code> are now harmless but redundant.</div>
 <p><b>Buffering.</b> By default nginx reads the upstream's response into buffers before sending it on (<code>proxy_buffering on</code>): for a token stream the user sees nothing, then everything. Turn it off for streaming locations, or let the app send <code>X-Accel-Buffering: no</code> ({{nginx proxy module|https://nginx.org/en/docs/http/ngx_http_proxy_module.html}}); ingress-nginx defaults to <code>proxy-buffering: off</code> ({{ConfigMap docs|https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/}}). The root's Failure lab measures the delay ("A buffering proxy delays tokens") and reproduces 502 and 504 with real error text.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-px">
+<h4>The backend gets a different message: new version, rewritten Host, the client's address gone</h4>
+<div class="seg" id="rd-px-seg"></div>
+<div class="panes"><div><h5>Client sent</h5><pre class="diff" id="rd-px-a"></pre></div><div><h5>Backend received</h5><pre class="diff" id="rd-px-b"></pre></div></div>
+<div class="anninfo" id="rd-px-note"></div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3 id="rd-smug">Request smuggling: two parsers, two answers</h3>
 <p>A front proxy and a backend share one keep-alive connection for many users' requests. If they disagree about where a request ends, an attacker can send bytes the proxy sees as one message and the backend as two; the hidden second request is glued to the front of the next user's request on that connection, bypassing the proxy's checks and possibly capturing that user's request. The classic disagreement is a message with both <code>Content-Length</code> and <code>Transfer-Encoding: chunked</code>.</p>
-<div class="card" id="rd-sm">
-<h4>The same bytes are one request to a Content-Length parser and two to a chunked parser</h4>
-<div class="rd-svg" id="rd-sm-svg"></div>
-<p class="small mute"><span class="ill">illustrative</span> drawing of the first probe below: a parser that trusts Content-Length (4) reads 4 bytes of body and leaves the rest on the connection; one that follows chunked coding reads the empty chunk <code>0</code> and sees a second request, <code>GET /smuggled</code>.</p>
-</div>
 <p>The rule: a server receiving both "MAY reject" the request or use Transfer-Encoding alone, and "Regardless, the server MUST close the connection after responding" ({{RFC 9112 section 6.3|https://www.rfc-editor.org/rfc/rfc9112#section-6.3}}). <span class="meas">measured</span> Eight ambiguous HTTP/1.1 messages and three HTTP/2 ones, sent raw to nginx 1.31.6 and to hypercorn 0.18.0 (parser h11 0.16.0): nginx refused every one with 400 or 501 and forwarded nothing. hypercorn followed Transfer-Encoding, answered 400 to the empty POST, and then answered the hidden <code>GET /smuggled</code> as a second request on the same connection, where RFC 9112 section 6.3 says it MUST close it.</p>
 <div class="co warn"><div class="t">A finding, not a vulnerability report</div>Behind nginx this cannot be exploited, because nginx rejects such messages first; behind a front proxy that trusted Content-Length it would be the textbook desync. Run a strict proxy in front, keep the same parser behaviour on every hop, and prefer HTTP/2 end to end where you can. AWS's ALB ships a "desync mitigation mode" for exactly this, defensive by default ({{ALB attributes|https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-load-balancer-attributes.html}}).</div>
 <p>HTTP/2 at the front does not remove the problem when the back hop is HTTP/1.1: a header value containing CR LF, or a <code>content-length</code> that disagrees with the DATA frames, can become two requests after the downgrade ({{James Kettle, "HTTP/2: The Sequel is Always Worse", PortSwigger, 5 Aug 2021|https://portswigger.net/research/http2}}). <span class="meas">measured</span> nginx rejected all three HTTP/2 probes with 400 and passed nothing on.</p>
 <details class="dp"><summary>Every probe and each server's answer</summary><div class="b"><div class="tw"><table id="rd-amb"></table></div></div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-sm">
+<h4>The same bytes are one request to a Content-Length parser and two to a chunked parser</h4>
+<div class="rd-svg" id="rd-sm-svg"></div>
+<p class="small mute"><span class="ill">illustrative</span> drawing of the first probe below: a parser that trusts Content-Length (4) reads 4 bytes of body and leaves the rest on the connection; one that follows chunked coding reads the empty chunk <code>0</code> and sees a second request, <code>GET /smuggled</code>.</p>
+</div></div></div></div>
 </section>

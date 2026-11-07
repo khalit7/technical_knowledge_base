@@ -1,4 +1,4 @@
-// ---- Reading: static figures added on 2026-10-24 (hero path, cache timeline, CORS preflight before/after, the cookie line,
+// ---- Reading: static figures added on 2026-10-24 (cache timeline, CORS preflight before/after, the cookie line,
 // QUIC stream map, retry safety). Drawn at the measured width; nothing moves. ----
 (function(){
   const D=window.HD,esc=RD.esc,T=RD.t;
@@ -7,55 +7,6 @@
     return '<line x1="'+x1+'" y1="'+y1+'" x2="'+(x2-Math.cos(a)*4)+'" y2="'+(y2-Math.sin(a)*4)+'" stroke="'+(col||'var(--mute)')+'" stroke-width="1.4"'+(dash?' stroke-dasharray="4 3"':'')+'/>'+
       '<path d="M'+x2+' '+y2+' L'+(x2-L*Math.cos(a-0.45))+' '+(y2-L*Math.sin(a-0.45))+' L'+(x2-L*Math.cos(a+0.45))+' '+(y2-L*Math.sin(a+0.45))+' z" fill="'+(col||'var(--mute)')+'"/>'};
   const set=(id,f)=>{const el=document.getElementById(id);if(!el)return null;const draw=()=>{el.innerHTML=f(RD.width(el))};draw();RD.onRender(draw);RD.onResize(draw);return draw};
-
-  // ---------- hero: the path ----------
-  const HOPS=[
-    {n:'Your code + SDK',w:'speaks HTTP/1.1 by default',t:'read (idle) 600 s',e:'retries twice'},
-    {n:'CDN edge',w:'Cloudflare, in front of two of three APIs',t:'origin wait 125 s',e:'413, 524'},
-    {n:'Load balancer',w:'AWS ALB (L7)',t:'idle 60 s',e:'502 keep-alive race'},
-    {n:'Reverse proxy',w:'nginx: buffers by default',t:'idle 60 s',e:'504 before the head'},
-    {n:'Model server',w:'the origin',t:'',e:'200 text/event-stream, then tokens'}];
-  const LINKS=['HTTP/1.1 or 2 (ALPN)','new connection','new connection','HTTP/1.1 (nginx default)'];
-  set('hr-svg',w=>{
-    const P=6,narrow=w<640;let b='';
-    const mh=narrow?56:36;
-    b+=box(P,4,w-2*P,mh,{fill:'var(--acc2)',stroke:'var(--acc)',sw:1.4});
-    b+=T(P+10,20,'Meaning (RFC 9110), the same on every hop:',{fs:11.5,w:600});
-    b+=T(P+10,narrow?36:33,narrow?'POST /v1/messages, fields, 117-byte body':'POST /v1/messages, content-type, x-api-key, 117-byte JSON body, then 200 text/event-stream',{fs:11});
-    if(narrow)b+=T(P+10,50,'then 200 text/event-stream',{fs:11});
-    const y0=4+mh+14;
-    if(!narrow){
-      const n=HOPS.length,g=22,bw=(w-2*P-g*(n-1))/n,bh=96;
-      HOPS.forEach((h,i)=>{const x=P+i*(bw+g);const last=i===n-1;
-        b+=box(x,y0,bw,bh,{stroke:last?'var(--good)':'var(--line)'});
-        b+=T(x+6,y0+16,esc(h.n),{fs:11.5,w:600});
-        const words=h.w.split(' ');let l1='',l2='';words.forEach(wd=>{if((l1+' '+wd).trim().length*6<bw-10&&!l2)l1=(l1+' '+wd).trim();else l2=(l2+' '+wd).trim()});
-        b+=T(x+6,y0+32,esc(l1),{fs:10.5,fill:'var(--mute)'});if(l2)b+=T(x+6,y0+45,esc(l2),{fs:10.5,fill:'var(--mute)'});
-        if(h.t)b+=T(x+6,y0+66,esc(h.t),{fs:11,fill:'var(--acc)',w:600});
-        const ew=h.e.split(' ');let e1='',e2='';ew.forEach(wd=>{if((e1+' '+wd).trim().length*6<bw-10&&!e2)e1=(e1+' '+wd).trim();else e2=(e2+' '+wd).trim()});
-        b+=T(x+6,y0+(h.t?82:66),esc(e1),{fs:10.5,fill:last?'var(--good)':'var(--bad)'});if(e2)b+=T(x+6,y0+(h.t?94:78),esc(e2),{fs:10.5,fill:last?'var(--good)':'var(--bad)'});
-        if(i<n-1){b+=arrow(x+bw+2,y0+bh/2,x+bw+g-2,y0+bh/2,'var(--ink)')}
-        b+='<line x1="'+(x+bw/2)+'" y1="'+(4+mh)+'" x2="'+(x+bw/2)+'" y2="'+y0+'" stroke="var(--acc)" stroke-dasharray="2 3"/>';
-      });
-      const yl=y0+bh+16;
-      LINKS.forEach((l,i)=>{const x=P+(i+1)*(bw+g)-g/2;b+=T(x,yl+(i%2)*13,esc(l),{a:'middle',fs:10.5,fill:'var(--mute)'})});
-      b+=T(P,yl+34,'Wire format and timers: chosen per hop. Each box re-parses, may rewrite, buffer, re-frame, and time out. Smallest timer wins.',{fs:11,fill:'var(--ink)'});
-      return RD.svg(w,yl+42,b,'Path of an LLM request through five HTTP participants');
-    }
-    // narrow: stacked
-    let y=y0;const bw=w-2*P,bh=62,gap=30;
-    HOPS.forEach((h,i)=>{const last=i===HOPS.length-1;
-      b+=box(P,y,bw,bh,{stroke:last?'var(--good)':'var(--line)'});
-      b+=T(P+8,y+16,esc(h.n),{fs:11.5,w:600});if(h.t)b+=T(w-P-8,y+16,esc(h.t),{a:'end',fs:11,fill:'var(--acc)',w:600});
-      b+=T(P+8,y+33,esc(h.w),{fs:10.5,fill:'var(--mute)'});
-      b+=T(P+8,y+50,esc(h.e),{fs:10.5,fill:last?'var(--good)':'var(--bad)'});
-      if(i<HOPS.length-1){b+=arrow(P+22,y+bh+2,P+22,y+bh+gap-2,'var(--ink)');b+=T(P+34,y+bh+gap/2+4,esc(LINKS[i]),{fs:10.5,fill:'var(--mute)'})}
-      y+=bh+gap});
-    y-=gap;
-    b+=T(P,y+18,'Each box re-parses, rewrites, buffers, times out;',{fs:11});
-    b+=T(P,y+33,'the smallest timer on the path wins.',{fs:11});
-    return RD.svg(w,y+40,b,'Path of an LLM request through five HTTP participants');
-  });
 
   // ---------- caching: fresh, stale, validate, 304 ----------
   set('cc-svg',w=>{

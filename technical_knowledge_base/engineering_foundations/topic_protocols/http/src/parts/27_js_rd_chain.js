@@ -32,6 +32,7 @@ window.TCHAIN=(function(){
     cdn:[{n:'none',timers:[]},{n:'Cloudflare: 125 s for the origin to answer',timers:[['first',125]]}],
     lb:[{n:'none',timers:[]},{n:'AWS ALB: 60 s idle',timers:[['idle',60]]},{n:'Google Cloud ALB: 30 s backend timeout (total)',timers:[['total',30]]},{n:'AWS API Gateway REST: 29 s (total)',timers:[['total',29]]}],
     ing:[{n:'none',timers:[]},{n:'nginx: proxy_read_timeout 60 s',timers:[['idle',60]]},{n:'Envoy: route 15 s total, stream idle 300 s',timers:[['total',15],['idle',300]]},{n:'nginx raised to 600 s idle',timers:[['idle',600]]}]};
+  window.TCHAIN_OPT=OPT;   // the documented defaults, also used by the hero stage (31_js_sc_hero.js)
   const HOPN={client:'Client library',corp:'Forward proxy',cdn:'CDN',lb:'Load balancer or gateway',ing:'Ingress or reverse proxy'};
   const sel={client:0,corp:0,cdn:0,lb:1,ing:1};
   const R={stream:true,think:90,ntok:61,gap:2,ping:0};
@@ -63,7 +64,7 @@ window.TCHAIN=(function(){
       if(res.best.kind==='total')msg+=' A total timer: pings and streaming cannot help; raise it or make the work asynchronous.';
       else if(res.best.kind==='idle'&&R.stream&&!R.ping)msg+=' An idle timer: keep-alive pings shorter than '+res.best.L+' s would keep it open.';
       v.innerHTML=msg}
-    A.reset(NSTEP);
+    A.reset(NSTEP);A.go(NSTEP-1,true);
   }
   function maxGap(b){let p=0,m=0;b.times.forEach(t=>{m=Math.max(m,t-p);p=t});return m}
   const svg=document.getElementById('ch-svg');
@@ -89,7 +90,8 @@ window.TCHAIN=(function(){
     const got=res.b.tokens.filter(t=>t<=now+1e-9&&(!res.best||t<res.at-1e-9)).length;
     document.getElementById('ch-cnt').innerHTML=RD.stat('Tokens received',got+' / '+R.ntok,'')+RD.stat('Longest silence',fmt(maxGap(res.b)),'between bytes')+RD.stat('Generation would end at',fmt(res.end),'think + gaps');
   }
-  const A=RD.anim({card:'ch-svg',ctl:'ch-ctl',n:NSTEP,draw,ms:250,label:'Time'});
+  // a widget (the long-replay rule, case b): the reader builds the path and the outcome is the point, so it never plays by itself and opens on its last frame
+  const A=RD.anim({card:'ch-svg',ctl:'ch-ctl',n:NSTEP,draw,ms:250,label:'Time',auto:false});
   // validation against the measured runs (raw/timeouts.json)
   const NG=[{key:'ing',role:'proxy',n:'nginx idle 2 s',timers:[['idle',2]]}];
   const V=[
@@ -99,6 +101,7 @@ window.TCHAIN=(function(){
     [5,NG,{stream:false,think:3,ntok:5,gap:0.05,ping:0}],
     [6,[{key:'client',role:'client',n:'httpx read 2 s',timers:[['idle',2]]}],{stream:true,think:1,ntok:8,gap:1.5,ping:0}],
     [7,[{key:'client',role:'client',n:'httpx read 2 s',timers:[['idle',2]]}],{stream:true,think:3,ntok:5,gap:0.05,ping:0}]];
+  window.TCHAIN_V=V;   // the measured cases as model inputs, also used by the section 9 stage (34_js_sc_to.js)
   const meas=c=>{if(c.httpx)return {ok:!c.httpx.error,s:c.httpx.seconds,tok:c.httpx.tokens,txt:c.httpx.error||'complete'};const r=c.curl;const ok=r.exit===0&&r.http==='200';
     return {ok,s:r.seconds,tok:r.tokens,txt:ok?'complete':(r.http!=='200'?'HTTP '+r.http:'curl exit '+r.exit)}};
   let match=0;

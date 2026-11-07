@@ -1,4 +1,4 @@
-// Click every control of the HTTP page at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
+// Click every control of the HTTP page (2026-11-07: the stage controls too) at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
 // sideways scroll or the error box. Screenshots of each interactive card go to <out dir>.
 // Usage (from the repo root): node technical_knowledge_base/engineering_foundations/topic_protocols/http/src/check_ui.mjs <out dir>
 import { createRequire } from 'module';
@@ -55,9 +55,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     await check('hpack ' + s + ' ' + m);
   }
   for (const k of ['0', '1', '2']) { await p.evaluate(k => { document.querySelector('#rd-fc-seg [data-m="' + k + '"]').click(); const r = document.querySelector('#rd-fc-ctl input[type=range]'); for (let v = 0; v <= +r.max; v++) { r.value = v; r.dispatchEvent(new Event('input')); } }, k); await check('flow ' + k); }
-  for (const k of ['h1_pipelined', 'h1_two_conns', 'h2_one_conn']) { await p.evaluate(k => { document.querySelector('#rd-hol-seg [data-m="' + k + '"]').click(); const r = document.querySelector('#rd-hol-ctl input[type=range]'); r.value = r.max; r.dispatchEvent(new Event('input')); }, k); await check('hol ' + k); }
   await check('reading');
-  for (const id of ['hr-card', 'rd-anat', 'cc-card', 'co-card', 'ck-line', 'rd-hol', 'rd-hp', 'rd-fc', 'qs-card', 'rd-px', 'rd-sm', 'rd-tmeas', 'rs-card', 'rd-retry-card', 'rd-pub']) await shot(id, id);
+  for (const id of ['stg-hero', 'rd-anat', 'cc-card', 'co-card', 'ck-line', 'stg-hol', 'rd-hp', 'stg-loss', 'stg-to', 'rd-fc', 'qs-card', 'rd-px', 'rd-sm', 'rd-tmeas', 'rs-card', 'rd-retry-card', 'rd-pub']) await shot(id, id);
   await p.evaluate(() => document.querySelector('#co-seg [data-m="1"]').click()); await shot('co-card', 'co-card-after');
   // Frame viewer (Reading section 6)
   for (const v of ['h2', 'h3', 'h1']) {
@@ -90,17 +89,17 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   console.log(scheme, w, 'controls clicked', total);
   await p.close();
 }
-// normal motion: nothing may move before the reader acts
+// normal motion (2026-11-07): the three widgets (frame viewer, flow control, timeout chain) never play by themselves, even after a mode switch;
+// the stages and the compression animation do play when scrolled into view (src/check_stages.mjs checks that)
 { const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.goto(page_url); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload();
-  const read = () => p.evaluate(() => [...document.querySelectorAll('#t-read .an-ctl input[type=range]')].map(r => r.value).join(','));
-  const ids = await p.$$eval('#t-read .card', cs => cs.map(c => c.id).filter(Boolean));
-  for (const id of ids) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await new Promise(r => setTimeout(r, 120)); }
+  const read = () => p.evaluate(() => ['fr-ctl', 'rd-fc-ctl', 'ch-ctl'].map(id => document.getElementById(id + '-s').value + (/Pause/.test(document.getElementById(id + '-p').textContent) ? 'P' : '')).join(','));
+  for (const id of ['fr-card', 'rd-fc', 'ch-box']) { await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await new Promise(r => setTimeout(r, 800)); }
   const a = await read(); await new Promise(r => setTimeout(r, 2500)); const b2 = await read();
-  for (const sel of ['#rd-hol-seg button', '#rd-fc-seg button', '#rd-hp-mode button', '#fr-ver button', '#ch-pre button']) await p.$$eval(sel, bs => bs.forEach(b => b.click()));
+  for (const sel of ['#rd-fc-seg button', '#fr-ver button', '#ch-pre button']) await p.$$eval(sel, bs => bs.forEach(b => b.click()));
   const c = await read(); await new Promise(r => setTimeout(r, 2500)); const d = await read();
-  const still = a === b2 && c === d && /^(0,?)*$/.test(a);
-  console.log('normal motion: nothing plays before the reader acts', still ? 'ok' : 'FAIL ' + a + ' | ' + b2 + ' | ' + c + ' | ' + d);
+  const still = a === b2 && c === d && !/P/.test(a + c);
+  console.log('normal motion: the widgets never play by themselves', still ? 'ok' : 'FAIL ' + a + ' | ' + b2 + ' | ' + c + ' | ' + d);
   if (!still) bad++; await p.close(); }
 await browser.close();
 console.log(bad ? 'FAIL ' + bad : 'OK');

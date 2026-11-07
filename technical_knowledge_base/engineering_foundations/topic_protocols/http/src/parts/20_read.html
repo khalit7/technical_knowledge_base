@@ -1,8 +1,8 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
 #t-read .deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:12px 0;font-size:13px;color:var(--mute)}#t-read .deepnote b{color:var(--ink)}
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
@@ -138,19 +138,33 @@
 #t-read details.dp>summary{cursor:pointer;padding:6px 12px;font-size:13.5px;font-weight:600}
 #t-read details.dp>.b{padding:0 12px 8px}
 #t-read .ann .att{border-radius:3px;padding:0 1px;background:var(--acc2)}
+/* eased steps: RD.anim adds rd-fwd to the card when the step moves forward; marks drawn with class rd-new ease in, rd-gone fade out, and the caption fades in */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#rd-one">The idea</a><a href="#rd-s1">1 Messages</a><a href="#rd-s2">2 Meaning</a><a href="#rd-s3">3 Caching</a><a href="#rd-s4">4 CORS, cookies</a><a href="#rd-s5">5 HTTP/1.1</a><a href="#rd-s6">6 HTTP/2</a><a href="#rd-s7">7 HTTP/3</a><a href="#rd-s8">8 Proxies</a><a href="#rd-s9">9 Timeouts</a><a href="#rd-s10">10 Retries</a><a href="#rd-s11">11 LLM APIs</a><a href="#rd-s12">12 Debugging</a><a href="#rd-ref">Reference</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="core"><b>HTTP is one fixed meaning (a method on a resource, header fields, a body, a status) carried by three wire formats, and re-sent by every proxy on the path: HTTP/1.1, 2 and 3 differ only in how they stop one slow or lost thing from holding up the rest, and whether a long LLM answer arrives is decided by the <span class="ac">smallest timer on the path</span> and by whether a failed request was provably never started.</b></p>
-<div class="hero" id="hr-card">
-<h4>One request, one meaning, re-framed and re-timed on every hop</h4>
-<div class="rd-svg" id="hr-svg"></div>
-<p class="small mute"><span class="ill">illustrative</span> path, with each hop's documented default (sources in <a href="#rd-s9">section 9</a>). The meaning at the top is identical on every hop; the wire format is chosen per connection (<a href="#rd-s5">5</a> to <a href="#rd-s7">7</a>); every box is a full HTTP participant that re-parses, rewrites, buffers and can answer with its own error (<a href="#rd-s8">8</a>). Here the first <span class="ac">timer</span> to fire on 60 s of silence is nginx's or the load balancer's, whatever the SDK allows.</p>
-</div>
+<p class="sxh">Fig. 1 · One request, one meaning, re-sent and re-timed on every hop</p>
+<ol class="sx" id="sx-hero">
+<li><b>One meaning.</b> Your code asks the SDK for a streamed answer, and it sends <code>POST /v1/messages</code> with a 117-byte JSON body. Every box on the path receives this same request: method, target, header fields, body (<a href="#rd-s2">section 2</a>).</li>
+<li><b>Re-sent on every hop.</b> Each link is its own connection with its own wire format: HTTP/1.1 or 2 from the SDK to the CDN edge (chosen by ALPN; the SDKs default to 1.1, <a href="#rd-s5">section 5</a>), new connections behind the edge and the load balancer, HTTP/1.1 from nginx to the model server (its default). Every box re-parses, may rewrite, buffer, and answer with its own error (<a href="#rd-s8">section 8</a>).</li>
+<li><b>The answer streams back.</b> The model server sends <code>200 text/event-stream</code> at once, then one event per token; each hop passes the bytes on as they come, unless it buffers.</li>
+<li><b>90 s of silence: the first timer to fire ends it.</b> The model thinks 90 s before its first token, against each hop's documented default (<a href="#rd-s9">section 9</a>). The SDK's 600 s, the load balancer's 60 s and nginx's 60 s count silence; Cloudflare's 125 s only waits for the head, which came at once. At 60 s the load balancer's timer fires (nginx's at the same moment) and the stream is cut under a 200, whatever the SDK allows.</li>
+<li><b>A ping every 15 s keeps every idle timer down.</b> An SSE comment is a byte, so each one empties the idle columns; the answer (61 tokens, 2 s apart) completes at 210 s.</li>
+<li><b>A total timer ignores pings.</b> Swap the load balancer for Google Cloud's, whose 30 s backend timeout counts the whole response: the same pinged stream is cut at 30 s.</li>
+</ol>
+<p class="small mute"><span class="ill">illustrative</span> path; each timer is the hop's documented default, and the outcomes are computed by the timeout model of section 9, which reproduces eight measured runs.</p>
 <p><b>You need</b> TCP and QUIC as transports ({{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}) and, for <code>https</code>, the TLS handshake that picks the HTTP version (ALPN, {{TLS and certificates|n:3c65c17b0d0d8105a37ff2d2f602a421}}). The whole stack on one request is {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}; this page owns HTTP in depth. <b>The running example</b>: a chat app sends "What colour is the sky?" as one streaming <code>POST /v1/messages</code> with a 117-byte JSON body; five tokens come back, one every 50 ms after a 120 ms wait standing in for the model. The server is the root page's stand-in LLM API (its {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab built it), with extra knobs: think time, keep-alive pings, injected errors. Labels: <span class="meas">measured</span> here, <span class="ill">illustrative</span>, derived (with its formula).</p>
 <dl class="terms">
 <dt>Message</dt><dd>start line (or pseudo-headers), header fields, empty line, optional body</dd>
@@ -174,3 +188,4 @@
 <p class="small mute">Not here: SSE parsing, WebSockets and chunked streaming in depth ({{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}); REST and gRPC design, L4 and L7 load balancing ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}); the credentials in the headers and OAuth ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}); QUIC as a transport ({{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}); API design and server-side idempotency ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}, sections 2 and 4); retry policy as a system ({{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}).</p>
 <details class="dp"><summary>Where and how this page measured <span class="mute">(provenance)</span></summary><div class="b"><p>Everything marked <span class="meas">measured</span> was run for this page on 5 October 2026 on an Apple M1 Pro laptop (macOS, Python 3.13, curl 8.7.1, nginx 1.31.6, hypercorn 0.18.0, h2 4.4.1, aioquic 1.3.0) against the local stand-in API on loopback, so every byte could be recorded (<code>src/raw/</code>, rerun with <code>src/run_all.sh</code>). No model runs and no real API is called, except one read-only, credential-free request to each of three public LLM hosts (5 October 2026, section 11) and three CORS preflights (24 October 2026, section 4). <span class="ill">illustrative</span> marks a picture of a shape, not data.</p></div></details>
 </section>
+</div></div>
