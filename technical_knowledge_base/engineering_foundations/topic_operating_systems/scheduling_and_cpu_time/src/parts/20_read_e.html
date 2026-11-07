@@ -1,3 +1,9 @@
+<div class="s3sp"><div class="s3R"><div class="card" id="sc-ee-card"><h4>EEVDF makes latency a request: the loader waits until it asks for a short slice</h4>
+<div class="seg" id="sc-ee-mode"><button data-m="cfs" class="on">CFS (5.10)</button><button data-m="eevdf">EEVDF (6.12)</button><button data-m="short">EEVDF, loader slice 0.1 ms</button></div>
+<div class="an-ctl" id="sc-ee-ctl"></div>
+<div class="rd-svg" id="sc-ee-svg"></div>
+<div class="an-cnt" id="sc-ee-cnt"></div>
+</div></div><div class="s3L">
 <section id="rd-s5">
 <h2>5. EEVDF: the same fairness, with deadlines (Linux 6.6 and later) <span class="nrh">not run here</span></h2>
 <p class="ostep">ch. 9 extended; {{EEVDF doc|https://docs.kernel.org/scheduler/sched-eevdf.html}}; {{LWN, 2023-03-09|https://lwn.net/Articles/925371/}}; {{LWN, Completing the EEVDF scheduler, 2024|https://lwn.net/Articles/969062/}}</p>
@@ -13,15 +19,31 @@
 <p><b>The slice</b> is 0.75 ms (<code>sysctl_sched_base_slice</code>) times the CPU factor: 2.25 ms on this VM's 5 CPUs, 3 ms on machines with 8 or more. Since 6.12 an ordinary thread can ask for its own with <code>sched_setattr()</code> and a <code>sched_runtime</code>, clamped to 0.1 to 100 ms ({{kernel/sched/syscalls.c line 306, v6.12|https://github.com/torvalds/linux/blob/v6.12/kernel/sched/syscalls.c#L306}}); a woken thread with a shorter slice may then cut the current one's slice short (PREEMPT_SHORT). CFS's <code>sched_latency_ns</code>, <code>sched_min_granularity_ns</code> and <code>sched_wakeup_granularity_ns</code> are gone.</p>
 <h3>One CPU, three threads, two schedulers <span class="ill">model</span></h3>
 <p>A <b>trainer</b> and a <b>preproc</b> thread are busy loops at nice 0; a <b>loader</b> wakes every 4 ms, needs 0.4 ms of CPU and sleeps (a thread that receives a batch and queues the next prefetch). One CPU, 1 ms tick, this VM's tunables, under 5.10's CFS rules and 6.12's EEVDF rules as this page's simulator implements them (the {{Fair-share stepper|#t-fair}} tab lists each rule's source line and what it leaves out). Predict: under which scheduler does the loader wait longest after waking?</p>
-<div class="card" id="sc-ee-card"><h4>EEVDF makes latency a request: the loader waits until it asks for a short slice</h4>
-<div class="seg" id="sc-ee-mode"><button data-m="cfs" class="on">CFS (5.10)</button><button data-m="eevdf">EEVDF (6.12)</button><button data-m="short">EEVDF, loader slice 0.1 ms</button></div>
-<div class="an-ctl" id="sc-ee-ctl"></div>
-<div class="an-cap" id="sc-ee-cap" aria-live="polite"></div>
-<div class="rd-svg" id="sc-ee-svg"></div>
-<div class="an-cnt" id="sc-ee-cnt"></div>
-</div>
+<p class="sxh">The 40 ms, stretch by stretch</p>
+<ol class="sx" id="sx-ee-cfs">
+<li><b>The two loops share the CPU.</b> All three threads start at 0; CFS picks the trainer, and the loader is asleep until 1.5 ms.</li>
+<li><b>The loader wakes and preempts at once.</b> At 1.5 ms it wakes 9 ms behind min_vruntime, more than the 3 ms wake-up granularity, so it takes the CPU immediately: zero wait. It runs 0.4 ms, sleeps, and preproc runs.</li>
+<li><b>Every 4 ms, the same.</b> Wake-ups at 5.5, 9.5, 13.5 and 17.5 ms are each served at once; the trainer and preproc take turns between them.</li>
+<li><b>Forty milliseconds, no wait at all.</b> 10 wake-ups served with a mean wait of 0; trainer and preproc 18.0 ms of CPU each, the loader 4.0 ms; 10 involuntary switches.</li>
+</ol>
+<ol class="sx" id="sx-ee-eevdf" hidden>
+<li><b>The two loops share the CPU.</b> All three threads start at 0; EEVDF picks the trainer, and the loader is asleep until 1.5 ms.</li>
+<li><b>The first wake-up waits 1.5 ms.</b> At 1.5 ms the loader wakes with the lag it left with (about zero): eligible, but preproc's deadline is earlier, so preproc runs; the loader gets the CPU at the 3 ms tick.</li>
+<li><b>Run to parity: 2 ms waits.</b> It wakes at 7.0 and 13.0 ms while a loop is inside its slice; the running loop keeps the CPU until its slice ends (RUN_TO_PARITY), at 9.0 and 15.0 ms.</li>
+<li><b>Earliest deadline: no wait.</b> The wake-ups at 19, 23 and 27 ms land when the loader is the eligible thread with the earliest deadline, so it preempts at once.</li>
+<li><b>The waits come back.</b> At 31 and 37 ms it waits 2 ms again. Over 40 ms: 8 wake-ups served (10 under CFS), mean wait 1.19 ms, the loader 3.2 ms of CPU; 16 involuntary switches.</li>
+</ol>
+<ol class="sx" id="sx-ee-short" hidden>
+<li><b>The two loops share the CPU.</b> The same start; the loader now asks for a 0.1 ms slice with <code>sched_setattr()</code>.</li>
+<li><b>A short slice preempts.</b> At 1.5 and 5.5 ms its deadline (0.1 ms ahead) is the earliest, and PREEMPT_SHORT lets it cut the running loop's slice short: zero wait. When it sleeps it stays queued until it is eligible (delayed dequeue), then leaves.</li>
+<li><b>One wait of 0.5 ms.</b> At 9.5 ms the running loop keeps the CPU until the 10 ms tick: the only non-zero wait of the run.</li>
+<li><b>Latency asked for, not bought.</b> Every later wake-up is served at once. Over 40 ms: 10 wake-ups, mean wait 0.05 ms, the loader 4.0 ms of CPU as under CFS, its weight unchanged; 20 involuntary switches.</li>
+</ol>
 <div class="tw" id="sc-ee-sum"></div>
-<p>Under CFS the loader wakes 9 ms behind min_vruntime, more than the 3 ms wake-up granularity, and preempts at once: zero wait. Under EEVDF it wakes with the lag it left with (about zero), eligible but with a deadline 2.25 ms ahead, and the running loop keeps its slice (run to parity): it waits up to the end of that slice. With a 0.1 ms slice its deadline comes first and PREEMPT_SHORT lets it in: the wait nearly vanishes, its CPU share unchanged. Total CPU per thread is the same in all three; EEVDF switches more often because its slices are shorter.</p>
+<p>The rule behind each: CFS's sleeper credit puts the woken loader 9 ms behind min_vruntime, beyond the 3 ms wake-up granularity. EEVDF gives it back only the lag it left with (about zero): eligible, but with a deadline 2.25 ms ahead, so a running loop inside its slice keeps the CPU (run to parity). With a 0.1 ms slice its deadline comes first and PREEMPT_SHORT lets it in: the wait nearly vanishes, its CPU share unchanged. EEVDF switches more often because its slices are shorter; the loader gets less CPU under plain EEVDF only because its waits delay each next cycle (8 cycles in 40 ms instead of 10).</p>
+</section>
+</div></div>
+<section id="rd-s5b">
 <div class="co warn"><div class="t">How far to trust this</div>A one-CPU model checked line by line against the source, not against a 6.6+ kernel (this VM runs 5.10). With an idle CPU the loader would simply be woken there (section 7); the difference matters when every CPU is busy, as on an oversubscribed training node. Custom slices (6.12) were added as "a new feature intended to help latency-sensitive tasks" ({{LWN, Completing the EEVDF scheduler|https://lwn.net/Articles/969062/}}).</div>
 <div class="drill"><p class="q">On a 6.12 kernel, a serving process's request thread wakes, runs 200 us and sleeps, next to batch jobs on every core. Which change cuts its wake-up delay without giving it more CPU?</p>
 <div class="ch"><button>nice -10</button><button data-ok="1">sched_setattr with sched_runtime = 0.2 ms</button><button>SCHED_BATCH for the request thread</button></div>

@@ -45,10 +45,11 @@
       return '<tr><td>'+esc(t.name)+'</td><td class="num">'+F.WEIGHT[t.nice||0]+'</td><td class="num">'+(t.run==null?f(F.WEIGHT[t.nice||0]/tw*100,1)+'%':'')+'</td><td class="num">'+f((c.cpu[t.name]||0)/hz*100,1)+'%</td><td class="num">'+f((e.cpu[t.name]||0)/hz*100,1)+'%</td><td class="num">'+(t.run==null?'':mean(wc)+' / '+mx(wc))+'</td><td class="num">'+(t.run==null?'':mean(we)+' / '+mx(we))+'</td></tr>'});
     $('sc-f-sum').innerHTML='<table class="tbl-sm"><thead><tr><th>thread</th><th class="num">weight</th><th class="num">weight share (if all busy)</th><th class="num">CPU, CFS</th><th class="num">CPU, EEVDF</th><th class="num">wake wait, CFS: mean / max ms</th><th class="num">wake wait, EEVDF: mean / max ms</th></tr></thead><tbody>'+rows.join('')+'</tbody></table>';
     $('sc-f-sumnote').textContent='Involuntary switches in '+f(hz/1000)+' ms: CFS '+res.cfs.switches+', EEVDF '+res.eevdf.switches+'. Shares over a short window differ from the weight share by up to a slice; lengthen the run to see them converge.';
-    if(an){an.reset(res[pol].snaps.length)}}
+    if(an){an.reset(res[pol].snaps.length);an.go(res[pol].snaps.length-1,true)}}
   table();rerun();
-  an=RD.anim({card:'sc-f-card',ctl:'sc-f-ctl',n:res.cfs.snaps.length,draw,ms:800,label:'Scheduling step'});
-  RD.seg($('sc-f-pol'),m=>{pol=m;an.reset(res[m].snaps.length)});
+  an=RD.anim({card:'sc-f-card',ctl:'sc-f-ctl',n:res.cfs.snaps.length,draw,ms:800,label:'Scheduling step',auto:false}); // a widget the reader drives (long-replay rule, case b): never plays by itself
+  RD.seg($('sc-f-pol'),m=>{pol=m;an.reset(res[m].snaps.length);an.go(res[m].snaps.length-1,true)});
+  an.go(res.cfs.snaps.length-1,true); // open on the whole run: the informative frame of a widget
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-fair']=window.TAB_RENDER['t-fair']||[]).push(()=>an.redraw());
   addEventListener('resize',()=>{const t=$('t-fair');if(t&&!t.hidden)an.redraw()});
 })();

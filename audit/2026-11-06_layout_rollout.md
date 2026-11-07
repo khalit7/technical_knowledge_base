@@ -60,9 +60,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_operating_systems/concurrency` Concurrency: threads, locks, futexes, deadlock, and event-driven I/O
 - [x] `engineering_foundations/topic_operating_systems/containers_and_isolation` Containers and isolation: namespaces, cgroups v2, seccomp, sandboxes
 - [x] `engineering_foundations/topic_operating_systems/memory_allocators` Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator
-- [ ] `engineering_foundations/topic_operating_systems/processes_and_syscalls` Processes and the system-call API: fork, exec, signals, file descriptors
-- [ ] `engineering_foundations/topic_operating_systems/scheduling_and_cpu_time` Scheduling and CPU time: context switches, CFS and EEVDF, affinity, cgroup limits
-- [ ] `engineering_foundations/topic_operating_systems/storage_and_file_systems` Storage and file systems: the page cache, fsync, journaling, and checkpoints
+- [~] `engineering_foundations/topic_operating_systems/processes_and_syscalls` Processes and the system-call API: fork, exec, signals, file descriptors
+- [x] `engineering_foundations/topic_operating_systems/scheduling_and_cpu_time` Scheduling and CPU time: context switches, CFS and EEVDF, affinity, cgroup limits
+- [~] `engineering_foundations/topic_operating_systems/storage_and_file_systems` Storage and file systems: the page cache, fsync, journaling, and checkpoints
 - [ ] `engineering_foundations/topic_operating_systems/virtual_memory` Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer
 - [ ] `engineering_foundations/topic_operating_systems/virtualization_and_gpu_driver_stack` Virtualization and the GPU driver stack: hypervisors, IOMMU, MIG, one CUDA call down
 - [ ] `engineering_foundations/topic_operating_systems` Topic: operating-systems
@@ -354,3 +354,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_math`: hero step 5 crops the left plate and leaves the top third empty at 1400; step 7 busy; hero small at 390. Open question for Khalid: drop Gradient lab panel 3 (Calculus and optimisation lab covers it)?
 - `engineering_foundations/topic_operating_systems/containers_and_isolation`: Fig. 4 step 4, "pids.max 16 · 15 tasks" overlaps "ctr7 (limited)" and the parent plate crops at the left; namespace stage small on phones.
 - `engineering_foundations/topic_operating_systems/memory_allocators`: Figs 4 and 6 sit in a wide shallow band with empty card space at 1400.
+- `engineering_foundations/topic_operating_systems/scheduling_and_cpu_time`: scenes small in their cards; Fig. 3 "1,254 ms CPU" label crosses its bar; some label overlaps at 390; six predict-then-reveal drills (contract suggests two or three).

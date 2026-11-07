@@ -6,12 +6,18 @@
 <p>Four threads finished the same matmuls in 1.46 s instead of 2.39 s, with about the same CPU time (user 2.52 s against 2.40 s): parallelism shortens wall time, not CPU time. "CPU 182%" means 1.82 CPUs busy on average, not 4.</p>
 <h3>Waiting for a CPU, per thread <span class="meas">measured</span></h3>
 <p>Utilisation says how busy a CPU was, not how long threads queued for it; the second field of <code>/proc/PID/task/TID/schedstat</code> does ({{sched-stats doc|https://docs.kernel.org/scheduler/sched-stats.html}}). For the 4-thread matmul, 4 CPUs allowed, on the shared VM, the main thread and the three pool threads each ran 2.7 to 3.3 s and waited 0.11 to 0.31 s for a CPU (raw output in the closed block). In section 1, the training job's main thread had waited <span id="sc-job-wait"></span> for a CPU in 7 s. Kernels with pressure stall information expose the same idea per cgroup as <code>cpu.pressure</code> ("some" = share of time at least one task waited, {{PSI doc|https://docs.kernel.org/accounting/psi.html}}); this kernel is built without it <span class="nrh">not run here</span>.</p>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s10b">
 <h3>Load average: runnable plus uninterruptible, machine-wide <span class="meas">measured</span></h3>
 <p>The three numbers of <code>/proc/loadavg</code> are decaying averages (about 1, 5 and 15 minutes) of the tasks runnable <b>or in uninterruptible sleep</b> (D state), over all CPUs: a Linux change from classic Unix, so that load reflects demand for disks too ({{Brendan Gregg, Linux Load Averages: Solving the Mystery, 2017|https://www.brendangregg.com/blog/2017-08-08/linux-load-averages.html}}). Here three processes sit in D state for 60 s using no CPU (a <code>vfork</code> parent waits for its child). Predict how far the 1-minute load rises:</p>
-<div class="card"><h4>Three tasks using no CPU still raise the load</h4><div class="rd-chart" id="sc-load"></div><p class="small mute" id="sc-load-note"></p></div>
+
 <p>The 1-minute load rose by about one over the minute although the container used almost no CPU. The dashed line is the kernel's formula fed with the three tasks alone; the measured line sits above it because other agents' work counts too (load is machine-wide, not per container). Every 5 seconds, in fixed point with 11 fractional bits:</p>
 <div class="fm"><div class="eq">load = load × e + n × (1 - e),   e = exp(-5 s / 1 min) = 1884 / 2048</div><dl><dt>n</dt><dd>runnable tasks + tasks in uninterruptible sleep</dd><dt>e</dt><dd>EXP_1 = 1884; EXP_5 = 2014 and EXP_15 = 2037 for the other two</dd></dl></div>
 <p>Three tasks held for a full minute would add 1.9 (3 × (1 - 1/e)), not 3: the average needs about 5 minutes to settle.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>Three tasks using no CPU still raise the load</h4><div class="rd-chart" id="sc-load"></div><p class="small mute" id="sc-load-note"></p></div></div></div></div>
+<section id="rd-s10c">
 <div class="co"><div class="t">For a training node</div>"Load 40" on a node whose CPUs show idle almost always means tasks stuck in D state: a hung NFS, Lustre or FUSE mount, or a dying disk. Check <code>ps -eo pid,stat,wchan:30,comm | awk '$2 ~ /D/'</code> before blaming the scheduler. To ask "are my threads short of CPU", read run-queue waiting (schedstat, or <code>cpu.pressure</code> where it exists) and <code>nr_throttled</code>, not load.</div>
 <p class="cmd">cat /proc/loadavg; vmstat 1   # r = runnable, b = blocked (D), us sy id wa st</p>
 <p class="cmd">cat /proc/PID/task/*/schedstat   # on-CPU ns, waiting ns, timeslices, per thread</p>

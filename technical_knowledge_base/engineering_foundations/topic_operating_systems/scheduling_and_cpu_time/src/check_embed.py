@@ -43,4 +43,7 @@ for lit, cond in checks:
     print(("ok   " if p and cond else "FAIL ") + lit + ("" if p else "  (literal not found in page)"))
 for pat in ["/" + "Users/", "gl" + "pat", "sk" + "-ant"]:
     ok(f"no '{pat}' in the page or src", pat not in html and not any(pat in p.read_text(errors="ignore") for p in pathlib.Path(".").rglob("*") if p.is_file() and "__pycache__" not in p.parts))  # skip bytecode (absolute paths; never committed)
+import getpass  # the login name, looked up at run time and never written here; case-sensitive (a lower-case word in prose is not the name)
+me = getpass.getuser()
+ok("no login name in the page, README or src", me not in html and not any(me in p.read_text(errors="ignore") for p in [pathlib.Path("../README.md"), *pathlib.Path(".").rglob("*")] if p.is_file() and "__pycache__" not in p.parts))
 print("check_embed:", "PASS" if not bad else f"{bad} FAIL"); sys.exit(1 if bad else 0)

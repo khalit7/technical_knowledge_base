@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s9">
 <h2>9. cgroup CPU control: cpu.weight, cpu.max and throttling</h2>
 <p class="ostep">{{cgroup v2: CPU interface files|https://docs.kernel.org/admin-guide/cgroup-v2.html#cpu-interface-files}}; {{CFS bandwidth control doc|https://docs.kernel.org/scheduler/sched-bwc.html}}</p>
@@ -6,8 +7,12 @@
 <p><code>cpu.weight</code> runs from 1 to 10,000, default 100, and becomes the group's CFS weight as weight × 1024 / 100: a default group weighs one nice-0 thread in its parent's queue. <b>The trap is the translation.</b> Docker's <code>--cpu-shares</code> and Kubernetes' <code>requests.cpu</code> speak cgroup v1 "shares" (default 1024), which the runtime converts to a weight: runc 1.1's linear map, 1 + (shares - 2) × 9,999 / 262,142, sends the default 1024 shares to weight 39, not 100; the newer quadratic map in the opencontainers/cgroups library sends 1024 to 100 (sources in the closed block).</p>
 <div class="tw" id="sc-conv"></div>
 <p><b>Measured</b> with this VM's Docker 20.10 (the old map): busy containers with <code>--cpu-shares 1024</code> and <code>512</code> on one CPU got weights <span id="sc-w-ab"></span> and split it <span id="sc-w-split"></span> (predicted 39 / 59 = 66.1%). Then a one-thread training step (eight 512 × 512 matmuls) at weight 100 beside a neighbour:</p>
-<div class="card"><h4>A "default" neighbour at weight 39 still takes a third of your CPU</h4><div class="rd-chart" id="sc-nb"></div><p class="small mute" id="sc-nb-note"></p></div>
+
 <p>A neighbour started with Docker's "default" <code>--cpu-shares 1024</code> got weight 39 and still took <span id="sc-nb-pct"></span> of the shared CPU, slowing the step from <span id="sc-nb-alone"></span> to <span id="sc-nb-39"></span> ms (the weights predict × 139 / 100 = <span id="sc-nb-p39"></span> ms); a neighbour at <code>--cpu-shares 128</code> (weight 5) cost <span id="sc-nb-5"></span> ms (predicted <span id="sc-nb-p5"></span>). Weight protects you only in proportion to everyone else's, and only when you are actually competing for the same CPUs.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>A "default" neighbour at weight 39 still takes a third of your CPU</h4><div class="rd-chart" id="sc-nb"></div><p class="small mute" id="sc-nb-note"></p></div></div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-thr"></div></div><div class="s3L">
+<section id="rd-s9b">
 <h3>cpu.max: the quota, and why it stalls</h3>
 <p><code>cpu.max</code> holds "$MAX $PERIOD": $MAX microseconds of CPU per $PERIOD (default 100,000 us); <code>--cpus 2</code> writes <code>200000 100000</code>. CFS bandwidth control enforces it in three steps:</p>
 <ol class="tight">
@@ -15,15 +20,19 @@
 <li>Each CPU running the group's threads borrows from the pool in slices of <code>sched_cfs_bandwidth_slice_us</code> = 5,000 us and charges the time its threads run.</li>
 <li>When a CPU's slice runs out and the pool is empty, <code>throttle_cfs_rq()</code> removes the whole group from that CPU's run queue: every thread of the container stops, runnable or not, until the next refill.</li>
 </ol>
-<p>So the quota is spent at the speed of however many threads are running. Five threads on a 1-CPU quota burn 100 ms of CPU in 20 ms of wall time and then all stop for 80 ms. Predict what one thread, two and five threads look like on the same quota, then step through:</p>
-<div class="card" id="sc-thr-card"><h4>Threads beyond the quota do not wait politely: they all stop together</h4>
-<div class="seg" id="sc-thr-run"></div>
-<div class="an-ctl" id="sc-thr-ctl"></div>
-<div class="an-cap" id="sc-thr-cap" aria-live="polite"></div>
-<div class="rd-svg" id="sc-thr-svg"></div>
-<div class="an-cnt" id="sc-thr-cnt"></div>
-<p class="small mute">Measured: inside a container with a CPU limit, N threads spin for 1 s, and each records every gap of more than 300 us in its own progress (time it was not running). One lane per thread, dark where it ran, light where it was stopped; 100 ms per step. <span class="meas">measured</span></p>
-</div>
+<p>So the quota is spent at the speed of however many threads are running. Five threads on a 1-CPU quota burn 100 ms of CPU in 20 ms of wall time and then all stop for 80 ms. Predict what one thread and five threads look like on the same quota, then step through the measured runs (inside a container with a CPU limit, N threads spin for 1 s, and each records every gap of more than 300 us in its own progress, the time it was not running):</p>
+<p class="sxh">Threads beyond the quota do not wait politely: they all stop together</p>
+<ol class="sx" id="sx-thr">
+<li><b>One thread, a 1-CPU quota.</b> It runs throughout: one busy thread cannot use more than the quota, so nothing is throttled (0 of 10 periods); its few short gaps, at most <span id="sc-thr-1">2.2</span> ms, are the VM's own interruptions.</li>
+<li><b>Five threads: a burst after each refill.</b> At about 66 ms the timer refills the quota and all five run at once, each for <span id="sc-thr-burst">23 to 32</span> ms: they spend the quota at five times the speed of one thread.</li>
+<li><b>The quota is spent: the whole group stops.</b> Every thread leaves its CPU together, runnable or not, until the next refill: the red stretch, with no thread running.</li>
+<li><b>And again, every period.</b> Burst, stop, refill: each thread's longest stop was 77 to 83 ms against a predicted 100 - 100 / 5 = 80 ms, and all 11 periods of the run were throttled.</li>
+<li><b>A 10 ms period: shorter stops, ten times as many.</b> Five threads on <code>--cpu-period 10000 --cpu-quota 10000</code>: each runs in short bursts and stops for the rest of every period; the stall is capped near 10 - 10 / 5 = 8 ms (measured up to <span id="sc-thr-10b">20.3</span> ms on the shared VM), but 103 of 103 periods were throttled.</li>
+</ol>
+<p class="small mute">One lane per thread, blocks where it ran, gaps where it was stopped; glass panes where the quota was refilled (the end of each stretch with every thread stopped). <span class="meas">measured</span>: <code>src/exp/schedlab.c</code> mode throttle, <code>raw/throttle.txt</code>.</p>
+</section>
+</div></div>
+<section id="rd-s9c">
 <div class="tw" id="sc-thr-sum"></div>
 <p>With as many threads as the quota allows, nothing stops. With five, every thread stops for <span id="sc-thr-5"></span> ms in each 100 ms period (predicted: 100 - 100 / 5 = 80 ms). The CPU used is the same in every run: throttling costs not work but <i>latency</i>, which a training step, a request or a GPU waiting for its next batch feels. A 10 ms period caps the stall near 8 ms (measured up to <span id="sc-thr-10"></span> ms) for ten times as many throttling events. <code>throttled_usec</code> sums over every CPU the group was on, so it can exceed the run's wall time.</p>
 <div class="co warn"><div class="t">Measured on the root page</div>The root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}}: a matmul step at 138 ms with 2 CPUs and 701 ms with half a CPU (2 threads), throttled in every period ("Step time quadruples under a CPU limit"); 5 threads on 1 CPU at 496 ms per step against 210 ms with 1 thread ("Too many threads for the CPUs you have"). Section 11 measures the whole grid.</div>

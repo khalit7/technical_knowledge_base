@@ -12,10 +12,15 @@
 </tbody></table></div>
 <p><b>Real-time is capped, and refused in containers.</b> A SCHED_FIFO thread in an infinite loop would own its CPU forever, so all real-time threads together get at most <code>sched_rt_runtime_us</code> per <code>sched_rt_period_us</code>: 950,000 us of every 1,000,000 here, leaving 50 ms a second for everything else. This kernel is built with RT group scheduling, which gives each cgroup its own real-time budget, zero by default, and rejects real-time policies in a group with no budget ({{core.c line 5370|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L5370}}), even with <code>CAP_SYS_NICE</code> (the recorded refusal is in the closed block).</p>
 <p><b>SCHED_DEADLINE</b> is the opposite design: declare runtime per period, be admitted only if all reservations fit, run earliest deadline first, be stopped at the reservation. A busy loop got exactly its 2 ms per 10 ms, 20% of a CPU, although its container's quota allowed a whole CPU (cpu.max limits only the fair class).</p>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s6b">
 <h3>Wake-up delay by policy and neighbour <span class="meas">measured</span></h3>
 <p>A thread sleeps 1 ms 3,000 times on one CPU and records how late each wake-up ran, beside busy loops of different classes and niceness. Predict: does a CPU crowded with four busy loops wake the sleeper later or sooner than an idle one?</p>
-<div class="card"><h4>Batch threads wait for the tick; normal ones preempt at once</h4><div class="rd-chart" id="sc-wake"></div><p class="small mute" id="sc-wake-note"></p></div>
 <p>Alone, the median wake-up was <span id="sc-wk-alone"></span> us late: the idle CPU had to wake (in a VM, through the hypervisor). With four busy loops it was <i>lower</i>, <span id="sc-wk-4"></span> us: the CPU never sleeps and the sleeper credit lets the woken thread preempt at once. As SCHED_BATCH it waited <span id="sc-wk-batch"></span> us: no wake-up preemption, so it waits for a tick to end the running loop's slice. SCHED_IDLE loops (<span id="sc-wk-idle"></span> us) and nice-19 ones (<span id="sc-wk-n19"></span> us) are nearly invisible. The multi-millisecond maxima are the shared VM's.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>Batch threads wait for the tick; normal ones preempt at once</h4><div class="rd-chart" id="sc-wake"></div><p class="small mute" id="sc-wake-note"></p></div></div></div></div>
+<section id="rd-s6c">
 <div class="co"><div class="t">For a training job</div>Never real-time: it starves kernel threads and the DataLoader, hits the 950 ms per second cap, and containers forbid it. Work that should yield to training: <code>nice -n 10</code> or SCHED_BATCH (preprocessing, evaluation), SCHED_IDLE for background jobs (log compaction, uploads). SCHED_DEADLINE is for periodic control loops (robotics, audio), not ML throughput.</div>
 <p class="cmd">chrt -p PID; chrt -m   # a thread's policy and priority; the ranges per policy</p>
 <details class="dp"><summary>The recorded refusal, and SCHED_DEADLINE in the source <span class="mute">(depth)</span></summary><div class="b">

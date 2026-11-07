@@ -1,13 +1,13 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A CPU runs one thread at a time. Linux keeps <b>a run queue per CPU</b>; ordinary threads share it <b>in proportion to their weight</b> (the one with the least weighted CPU time, its <i>virtual runtime</i>, runs next), and a container's CPU limit is <b>a quota per 100 ms period</b> that, once spent, stops every thread of the container until the next period.</p>
-<div class="hero" id="sc-hero-card"><h4>Who runs next is a sort by virtual runtime; a CPU limit is a stop, not fewer CPUs</h4>
-<h5>One CPU's run queue <span class="meas">measured</span></h5>
-<div class="rd-svg" id="sc-hero-rq"></div>
-<p class="small">The fair class opened out: three threads on one CPU placed by their <code>se.vruntime</code> from <code>/proc/PID/sched</code>, 1 s into section 4's run. The nice-5 loop keeps pace with the nice-0 loop on a third of the CPU because its virtual runtime grows 3.06 times faster; the sleeper is always behind and runs as soon as it wakes.</p>
-<h5>A container with a 1-CPU quota and 5 busy threads <span class="meas">measured</span></h5>
-<div class="rd-svg" id="sc-hero-q"></div>
-<p class="small">The first 300 ms of section 9's run: five threads spend the 100 ms quota in a burst (100 / 5 = 20 ms of wall time if each has a CPU), then all of them stop (here <span id="sc-hero-qn"></span> ms at a stretch) until the period timer refills it. The CPU work done is the same as with one thread; the stall is the cost.</p></div>
+<p class="sxh">Who runs next is a sort by virtual runtime; a CPU limit is a stop, not fewer CPUs</p>
+<ol class="sx" id="sx-hero">
+<li><b>One run queue per CPU, tried class by class.</b> Each of this VM's 5 CPUs has its own queue, split by scheduling class: deadline, real-time, fair, idle, tried in that order; the first class with a runnable thread wins. Nearly every thread is in the fair class.</li>
+<li><b>Inside the fair class, the least virtual runtime runs next.</b> Three threads on one CPU placed by their <code>se.vruntime</code> from <code>/proc/PID/sched</code>, 1 s into section 4's run; each block's height is the CPU time it has received <span class="meas">measured</span>. The nice-5 loop keeps pace with the nice-0 loop on a third of the CPU because its virtual runtime grows 3.06 times faster; the sleeper is always behind and runs as soon as it wakes.</li>
+<li><b>A CPU limit is a stop, not fewer CPUs.</b> The first 300 ms of section 9's run: five threads spend the 100 ms quota in a burst (100 / 5 = 20 ms of wall time if each has a CPU), then all of them stop (here <span id="sc-hero-qn"></span> ms at a stretch) until the period timer refills it <span class="meas">measured</span>. The CPU work done is the same as with one thread; the stall is the cost.</li>
+</ol>
 <p><b>You need:</b> what a process and a thread are ({{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}) and that a container is a cgroup ({{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} owns cgroups v2 in full). The intuition and OSTEP's classic policies are in the root, {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} section 3, and its OS simulators tab.</p>
 <dl class="terms">
 <dt>Task</dt><dd>what Linux schedules: every thread is one.</dd>
@@ -46,10 +46,11 @@
 <tr><td>26 Concurrency: An Introduction; 27 Thread API</td><td>1, 11 (threads are what gets scheduled; locks and futexes: the sibling {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}})</td></tr>
 </tbody></table></div></div></details>
 </section>
+</div></div>
 <section id="rd-s1">
 <h2>1. What gets scheduled: threads, states, run queues</h2>
 <p><b>The unit is the thread.</b> Every thread is its own task (<code>task_struct</code>); a process is a group of tasks sharing one address space, so a PyTorch process with 5 compute threads competes as 5 tasks. The STAT letter of <code>ps</code> gives the state: <b>R</b> running or <dfn id="g-runnable">runnable</dfn> (waiting only for a CPU), <b>S</b> sleeping until an event, <b>D</b> sleeping <i>uninterruptibly</i> (usually on I/O in the kernel), <b>T</b> stopped, <b>Z</b> exited, not yet reaped. Only R tasks need the scheduler.</p>
-<p><b>Run queues.</b> Each CPU has its own, split by <dfn id="g-class">scheduling class</dfn> and tried highest first: stop (a per-CPU kernel helper), deadline, real-time, fair, idle (the hero's top row). Almost everything you run is fair. The CPU changes thread at four kinds of moment:</p>
+<p><b>Run queues.</b> Each CPU has its own, split by <dfn id="g-class">scheduling class</dfn> and tried highest first: stop (a per-CPU kernel helper), deadline, real-time, fair, idle (the hero, step 1). Almost everything you run is fair. The CPU changes thread at four kinds of moment:</p>
 <div class="mech">
 <div><b>1. it blocks</b>A read, a lock, <code>sleep</code>: it leaves the run queue. A <i>voluntary</i> switch.</div>
 <div><b>2. the timer tick</b>Every 1 ms here (CONFIG_HZ=1000) an interrupt charges the running thread and may take the CPU away. An <i>involuntary</i> switch. Without it a spinning thread would keep the CPU forever (OSTEP's <i>limited direct execution</i>).</div>

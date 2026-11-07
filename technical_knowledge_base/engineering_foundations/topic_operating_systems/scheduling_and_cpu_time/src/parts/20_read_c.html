@@ -1,17 +1,28 @@
+<div class="s3sp"><div class="s3R"><div id="stg-sw"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. The context switch: what is saved and what it costs</h2>
 <p class="ostep">ch. 6 Limited Direct Execution (6.3 Saving and Restoring Context); ch. 10 (cache affinity)</p>
-<p>To run another thread, the CPU's state for the current one must be put away and the other's brought back, so that each resumes as if it had never stopped. On Linux v5.10 (arm64) that is <code>context_switch()</code> ({{kernel/sched/core.c line 3728|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L3728}}); step through what moves where:</p>
-<div class="card" id="sc-sw-card"><h4>A switch is a pick, a page-table pointer and about twenty instructions of register swap</h4>
-<div class="an-ctl" id="sc-sw-ctl"></div>
-<div class="rd-svg" id="sc-sw-svg"></div>
-<div class="an-cap" id="sc-sw-cap" aria-live="polite"></div>
-<p class="small mute">Thread A blue, thread B green; the lit box is what changes at each step. <span class="src">source</span>: v5.10 <code>__schedule</code>, <code>switch_mm_irqs_off</code> (core.c line 3765), <code>switch_to</code> (line 3779), <code>cpu_switch_to</code> ({{arch/arm64/kernel/entry.S line 892|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/kernel/entry.S#L892}}). The address-space step is skipped between threads of one process; on arm64 the ASID means no TLB flush (the sibling {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} page, section 3).</p></div>
+<p>To run another thread, the CPU's state for the current one must be put away and the other's brought back, so that each resumes as if it had never stopped. On Linux v5.10 (arm64) that is <code>context_switch()</code> ({{kernel/sched/core.c line 3728|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/core.c#L3728}}). A switch is a pick, a page-table pointer and about twenty instructions of register swap; thread A is blue, thread B green:</p>
+<ol class="sx" id="sx-sw">
+<li><b>Thread A runs in user mode.</b> Its registers are in the CPU and the MMU walks A's page tables. The kernel is not running at all: it gets the CPU back only through a system call, an interrupt (the 1 ms timer tick here) or a fault.</li>
+<li><b>A enters the kernel.</b> A blocks in a read or a lock (voluntary), or the tick finds its slice used up (involuntary). The entry code saves A's user registers on A's own kernel stack. This happens on every system call, switch or not.</li>
+<li><b>Pick the next thread.</b> <code>__schedule()</code> asks each class in order (deadline, real-time, fair, idle). The fair class returns the thread with the least virtual runtime: B.</li>
+<li><b>Switch the address space.</b> <code>switch_mm_irqs_off()</code> (core.c line 3765) points the MMU at B's page tables. Each address space has an ASID tag in the TLB, so nothing is flushed. If B is a thread of the same process this step is skipped.</li>
+<li><b>Swap registers and stack.</b> <code>switch_to</code> (line 3779) ends in <code>cpu_switch_to</code> ({{arch/arm64/kernel/entry.S line 892|https://github.com/torvalds/linux/blob/v5.10/arch/arm64/kernel/entry.S#L892}}), about twenty instructions: store A's callee-saved registers x19 to x28, frame pointer, stack pointer and return address in A's task_struct, load B's. Its final <code>ret</code> lands on B's kernel stack.</li>
+<li><b>B resumes.</b> B finishes the kernel path it slept in and returns to user mode with the registers it saved on its own kernel stack. Measured here: <span id="sc-sw-meas">1.30 to 1.56</span> us for a switch between processes, sleep and wake path included (chart below).</li>
+</ol>
+<p class="small mute"><span class="src">source</span>: v5.10 <code>__schedule</code>, <code>switch_mm_irqs_off</code>, <code>switch_to</code>, <code>cpu_switch_to</code>. On arm64 the ASID means no TLB flush (the sibling {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} page, section 3).</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s2b">
 <h3>What it costs here <span class="meas">measured</span></h3>
 <p>Two processes on one CPU pass a byte through two pipes 200,000 times (lmbench's method, as on the root); then two threads with a futex (the wait-and-wake primitive under every lock); then hand-offs across two CPUs. Five runs each, VM load about 5.</p>
-<div class="card"><h4>A switch on one CPU is microseconds; waking a thread on another CPU is tens</h4><div class="rd-chart" id="sc-ctx"></div><p class="small mute" id="sc-ctx-note"></p></div>
 <p>A switch between two processes on one CPU costs <span id="sc-ctx-pipe"></span> us (the root measured 1.33 us), between two threads no less (<span id="sc-ctx-futex"></span> us): with ASIDs the address space is nearly free, and the cost is the kernel's sleep-and-wake path. A cache line crosses CPUs in <span id="sc-ctx-spin"></span> ns, but waking a <i>sleeping</i> thread on another CPU took <span id="sc-ctx-xidle"></span> us when that CPU was idle, 29 times longer than a switch (<span id="sc-ctx-xbusy"></span> us when a low-priority loop kept it awake): an inter-processor interrupt, and an idle virtual CPU woken by the hypervisor. That is this VM, not bare metal (why: section 5 of {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}).</p>
 <p><b>The indirect cost is cold caches</b> (the new thread finds them full of someone else's data). Long slices keep it small: refilling 4 MiB at an illustrative 50 GB/s takes about 84 us, under 1% of a 9 ms slice (section 4: 9 ms each for two tasks). Our measurement in this VM was inconclusive (closed block below).</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>A switch on one CPU is microseconds; waking a thread on another CPU is tens</h4><div class="rd-chart" id="sc-ctx"></div><p class="small mute" id="sc-ctx-note"></p></div></div></div></div>
+<section id="rd-s2c">
 <div class="drill"><p class="q">The Debug lab's "Too many threads" case ran 5 PyTorch threads on a 1-CPU quota. Which counter should explode?</p>
 <div class="ch"><button>voluntary switches</button><button data-ok="1">involuntary switches</button><button>page faults</button></div>
 <div class="ans" hidden>A <dfn id="g-vol">voluntary</dfn> switch happens when the thread blocks; an <dfn id="g-invol">involuntary</dfn> one when the kernel takes the CPU away (tick or wake-up preemption, or throttling). Five busy threads fighting for one CPU's worth of quota are preempted constantly: the root's {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} case "Too many threads for the CPUs you have" recorded 3,571 involuntary switches with 5 threads against 16 with one, for the same arithmetic.</div></div>

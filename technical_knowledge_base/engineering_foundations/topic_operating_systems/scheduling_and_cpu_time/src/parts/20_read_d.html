@@ -9,6 +9,7 @@
 </div>
 <p>OSTEP's stride example: A, B and C hold 100, 50 and 250 tickets, so with a big number of 10,000 their strides are <span id="sc-stride-v"></span>. Starting from zero (ties to A, then B), the first eight picks are <b id="sc-stride-o"></b>: C runs five times in eight, A twice, B once, and over any long window the shares are exactly 250 : 100 : 50. Replace "tickets" by "weight" and "stride" by "1024 / weight per unit of CPU time" and you have the core of CFS; the rest of the kernel code handles what the toy leaves out: sleepers, new threads, many CPUs (section 7) and groups (section 9).</p>
 </section>
+<div class="s3sp"><div class="s3R"><div id="stg-vr"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. CFS: weights, virtual runtime, slices (Linux 2.6.23 to 6.5; the kernel measured here)</h2>
 <p class="ostep">ch. 9.7 The Linux Completely Fair Scheduler; {{CFS design doc|https://docs.kernel.org/scheduler/sched-design-CFS.html}}</p>
@@ -19,11 +20,23 @@
 <div class="ch"><button>33%</button><button data-ok="1">43%</button><button>50%</button></div>
 <div class="ans" hidden>1024 / (1024 + 1024 + 335) = 42.97% each, and 14.06% for the nice-5 thread. Shares depend on who else is runnable: nice 5 means "a third of a nice-0 thread's weight", not "75%".</div></div>
 <h3>Virtual runtime: the one number CFS sorts by <span class="meas">measured</span></h3>
-<p>Three tasks on one CPU: busy loops at nice 0 and nice 5, and a "sleeper" (runs about 1 ms, sleeps 5 ms); every 50 ms for 2 s we read <code>se.vruntime</code> and <code>se.sum_exec_runtime</code> from <code>/proc/PID/sched</code>. Predict: which lines stay together, virtual runtime or CPU time?</p>
-<div class="card"><h4>Equal virtual time, unequal real time</h4><div class="seg" id="sc-vr-mode"><button data-m="vr" class="on">virtual runtime</button><button data-m="ex">CPU time received</button></div><div class="rd-chart" id="sc-vr"></div><p class="small mute" id="sc-vr-note"></p></div>
-<p>The two busy loops' vruntimes advance together (never more than <span id="sc-vr-gap"></span> ms apart, under one slice) while their CPU time diverges <span id="sc-vr-ratio"></span> times, the weight ratio 1024 / 335 = 3.057. That is the whole invariant of CFS, and the rule that produces it is charged at every tick and whenever the thread stops (<code>update_curr()</code>, {{fair.c line 842|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L842}}):</p>
+<p>Three tasks on one CPU: busy loops at nice 0 and nice 5, and a "sleeper" (runs about 1 ms, sleeps 5 ms); every 50 ms for 2 s we read <code>se.vruntime</code> and <code>se.sum_exec_runtime</code> from <code>/proc/PID/sched</code>. Predict: which stay together, virtual runtime or CPU time? The stage replays the readings: position on the rail is virtual runtime, height is CPU time received since the first reading.</p>
+<ol class="sx" id="sx-vr">
+<li><b>Three tasks, one queue.</b> The first reading: the two loops and the sleeper on the rail, ordered by <code>se.vruntime</code>. The rail moves with the queue (its ticks are 5 ms of virtual runtime), so the positions are relative; what matters is who is leftmost.</li>
+<li><b>The leftmost runs, and its virtual runtime grows.</b> The first second of readings: whichever task is leftmost gets the CPU and moves right, until another is further left. The two loops leapfrog and stay within a few milliseconds of each other on the rail.</li>
+<li><b>Equal virtual time, unequal real time.</b> The second second: on the rail the loops are still together, but the nice-0 loop's block has grown <span id="sc-vr-ratio2"></span> times as tall as the nice-5 loop's, the weight ratio 1024 / 335 = 3.057. A heavier task's virtual runtime grows more slowly, so it is leftmost more often.</li>
+<li><b>The sleeper trails, but never far.</b> Close in on the sleeper: it is always behind the loops (median <span id="sc-vr-lag2"></span> ms) and runs as soon as it wakes; it cannot fall further behind than half a latency period, 9 ms, below <code>min_vruntime</code> (below), so a long sleep banks no extra credit.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s4b">
+<p>The readings as curves: the two busy loops' vruntimes advance together (never more than <span id="sc-vr-gap"></span> ms apart, under one slice) while their CPU time diverges <span id="sc-vr-ratio"></span> times, the weight ratio 1024 / 335 = 3.057. That is the whole invariant of CFS, and the rule that produces it is charged at every tick and whenever the thread stops (<code>update_curr()</code>, {{fair.c line 842|https://github.com/torvalds/linux/blob/v5.10/kernel/sched/fair.c#L842}}):</p>
 <div class="fm"><div class="eq">vruntime += Δexec × 1024 / weight</div><dl><dt>Δexec</dt><dd>nanoseconds of CPU just used</dd><dt>weight</dt><dd>from the nice table; 1024 at nice 0, so a nice-0 thread's vruntime is its CPU time</dd></dl></div>
-<p>Runnable threads sit in a red-black tree ordered by vruntime and the leftmost runs next (the hero's axis): exactly stride scheduling. The queue keeps <code>min_vruntime</code>, a floor that only moves forward. The sleeper trails by a median <span id="sc-vr-lag"></span> ms: on each wake-up it is placed at most half a latency period (9 ms here) behind <code>min_vruntime</code>, so it runs at once but cannot bank more than 9 ms of credit however long it slept.</p>
+<p>Runnable threads sit in a red-black tree ordered by vruntime and the leftmost runs next (the rail of Fig. 3): exactly stride scheduling. The queue keeps <code>min_vruntime</code>, a floor that only moves forward. The sleeper trails by a median <span id="sc-vr-lag"></span> ms: on each wake-up it is placed at most half a latency period (9 ms here) behind <code>min_vruntime</code>, so it runs at once but cannot bank more than 9 ms of credit however long it slept.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>Equal virtual time, unequal real time</h4><div class="seg" id="sc-vr-mode"><button data-m="vr" class="on">virtual runtime</button><button data-m="ex">CPU time received</button></div><div class="rd-chart" id="sc-vr"></div><p class="small mute" id="sc-vr-note"></p></div></div></div></div>
+<section id="rd-s4c">
 <h3>How long a thread runs: period and slice</h3>
 <p>No fixed time slice: CFS aims to run every runnable thread once per <dfn id="g-period">scheduling period</dfn> and gives each a share of it by weight. On this VM: <span id="sc-tun"></span>.</p>
 <div class="tw" id="sc-slices"></div>
