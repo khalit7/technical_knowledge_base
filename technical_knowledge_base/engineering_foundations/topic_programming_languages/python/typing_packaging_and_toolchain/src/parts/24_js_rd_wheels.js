@@ -1,4 +1,4 @@
-// ---- Reading: wheel names (section 7) and install speed (section 4); copied from the Python essentials page's 42_js_pb_read_b.js, runtime summary cells removed ----
+// ---- Reading: wheel names (section 7); copied from the Python essentials page's 42_js_pb_read_b.js, runtime summary cells removed ----
 (function(){
   const $=id=>document.getElementById(id),E=PBU.esc,W=PB.wheels.pkgs;
   // ---------- wheel name decoder ----------
@@ -33,10 +33,6 @@
   const ab=Object.entries(W).filter(([k,v])=>v.abi3t).map(([k,v])=>k+' '+v.version);
   $('pb-abi3t-count').textContent='Survey on '+PB.wheels.fetched.slice(0,10)+': '+ab.length+' of '+Object.keys(W).length+' popular compiled packages ship an abi3t wheel'+(ab.length?' ('+ab.join(', ')+')':'')+'.';
 
-  // ---------- install speed ----------
-  const I=PB.install_speed;
-  if(I){const col=['var(--c2)','var(--c1)','var(--c3)'];
-    PBU.bars($('pb-inst-bars'),I.runs.map((r,k)=>({name:r.name,v:r.median_s,label:PBU.fmt(r.median_s,2)+' s',col:col[k]})));
-  }
+  // (the install timings are Fig. 3, parts/32_js_sc_inst.js)
 
 })();

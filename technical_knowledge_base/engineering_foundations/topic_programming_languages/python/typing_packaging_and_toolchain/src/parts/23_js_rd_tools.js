@@ -1,43 +1,7 @@
-// ---- Reading: transcripts, the uv sync stepper, ruff and pytest drills, type checkers; copied from the Python essentials page's 42_js_pb_read_a.js ----
+// ---- Reading: transcripts, ruff and pytest drills, type checkers; copied from the Python essentials page's 42_js_pb_read_a.js ----
 (function(){
   const $=id=>document.getElementById(id),E=PBU.esc;
   PBU.fillTerms(document.getElementById('t-read'));
-
-  // ---------- the three files that must agree (uv sync stepper) ----------
-  const U=PB.uv;const find=(p,rc)=>U.find(b=>b.cmd&&b.cmd.startsWith(p)&&(rc==null||b.rc===rc));
-  const S=[
-    {b:find('uv init tokcount'),st:['ok','ok','ok'],tx:['httpx>=0.28; group dev: pytest; extra fast: orjson','15 packages, matches pyproject','httpx, pytest, orjson installed'],
-     c:'<b>uv add</b> did three things per call: wrote the range into <code>pyproject.toml</code>, resolved and wrote <code>uv.lock</code>, and installed into <code>.venv</code>. All three agree.'},
-    {b:find("uv run python -c 'import httpx"),st:['ok','ok','ok'],tx:null,
-     c:'<b>uv run</b> checks that the lock and the environment are up to date (installing anything missing), then runs the command inside <code>.venv</code>: <code>sys.prefix</code> ends in <code>.venv</code>.'},
-    {b:find("python3 -c 'import httpx'"),st:['ok','ok','na'],tx:[null,null,'not used: this is the system python'],
-     c:'The system <code>python3</code> does not see the project environment, so the same import fails. Nothing was activated, and nothing needs to be when you use <code>uv run</code>.'},
-    {b:find('uv sync --locked && echo in sync'),st:['ok','ok','ok'],tx:[null,null,'orjson removed (extra not requested)'],
-     c:'<b>uv sync</b> makes <code>.venv</code> match the lock <i>exactly</i> for what this sync asked for: the optional <code>fast</code> extra was not requested, so <code>orjson</code> was uninstalled. <code>--locked</code> also checked that the lock still matches <code>pyproject.toml</code>.'},
-    {b:{cmd:'(edit pyproject.toml by hand: add "rich" to dependencies, no uv command)',out:'',rc:null},st:['ok','bad','ok'],tx:['+ rich (edited by hand)','15 packages, now stale',null],
-     c:'Someone edits <code>pyproject.toml</code> directly, as a pull request might. The lock no longer describes it.'},
-    {b:find('uv sync --locked',1),st:['ok','bad','ok'],tx:null,
-     c:'<b>--locked refuses</b> to install from a stale lock and exits with code 1. In CI this is the point: the build fails instead of silently resolving whatever versions exist today.'},
-    {b:find('uv lock && uv sync --locked'),st:['ok','ok','ok'],tx:[null,'18 packages, matches pyproject','+ rich, markdown-it-py, mdurl'],
-     c:'<b>uv lock</b> re-resolves (adding rich and its two dependencies), and the locked sync now passes and installs them.'},
-    {b:find('uv sync --extra fast'),st:['ok','ok','ok'],tx:[null,null,'+ orjson (extra fast requested)'],
-     c:'Ask for the extra and it is installed; the lock already contained it, because a lock covers every extra, group and platform at once.'},
-    {b:find('uv sync && uv run'),st:['ok','ok','ok'],tx:[null,null,'orjson removed again'],
-     c:'A plain <code>uv sync</code> removes it again. If a package keeps disappearing, it is not requested by the sync you ran.'}
-  ];
-  let TX=['','',''];
-  function drawSync(i){
-    const s=S[i];if(s.tx)s.tx.forEach((t,k)=>{if(t!=null)TX[k]=t});
-    // recompute text up to step i so scrubbing backwards is right
-    TX=['','',''];for(let k=0;k<=i;k++){if(S[k].tx)S[k].tx.forEach((t,j)=>{if(t!=null)TX[j]=t})}
-    const name=['pyproject.toml','uv.lock','.venv'],lab={ok:'in agreement',bad:'out of date',na:'not involved'};
-    const hl=[i===4,i===4||i===6,[0,3,6,7,8].includes(i)];
-    $('pb-sync-box').innerHTML=name.map((n,k)=>'<div class="'+(hl[k]?'hl':'')+'"><div class="h">'+n+'</div><div class="small">'+E(TX[k])+'</div><span class="st '+s.st[k]+'">'+lab[s.st[k]]+'</span></div>').join('');
-    $('pb-sync-cap').innerHTML='<b>Step '+(i+1)+' of '+S.length+'.</b> '+s.c;
-    $('pb-sync-term').innerHTML=s.b?PBU.block(s.b):'(missing)';
-  }
-  if(S.every(s=>s.b))RD.anim({card:'pb-sync-card',ctl:'pb-sync-ctl',n:S.length,draw:drawSync,ms:3200,label:'uv session step'});
-  else $('pb-sync-cap').textContent='(transcript step missing)';
 
   // ---------- ruff ----------
   $('pb-ruff-src').textContent=PB.ruff_src;

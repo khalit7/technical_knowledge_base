@@ -86,3 +86,24 @@ for f in sorted(TPL.iterdir()):
     (PARTS / f.name).write_text(expand(f.read_text()))
     written.append(f.name)
 print("wrote", len(written), "parts:", " ".join(written))
+
+# window.T1 for the hero scene (Fig. 1): the five deliberate mistakes (lines 43 to 47 of t1_types.py, each numbered in its comment)
+# and what each of the three recorded runs said about each line. Parsed from the outputs, never typed in.
+def t1_data():
+    src = (CODE / "t1_types.py").read_text().split("\n")
+    rows = []
+    for i, l in enumerate(src, 1):
+        m = re.search(r"#\s*(\d)\.\s*(.+)$", l)
+        if m: rows.append({"n": int(m.group(1)), "line": i, "code": l[:l.index("#")].rstrip(), "note": m.group(2).strip()})
+    my = {int(m.group(1)): m.group(2) for m in re.finditer(r"^t1_types\.py:(\d+): error: .*?\s\s(\[[\w-]+\])$", (OUT / "t1_mypy.txt").read_text(), re.M)}
+    ty = {int(m.group(1)): m.group(2) for m in re.finditer(r"^t1_types\.py:(\d+):\d+: (error\[[\w-]+\])", (OUT / "t1_ty.txt").read_text(), re.M)}
+    py = (OUT / "t1_types.txt").read_text()
+    crash = int(re.search(r'File "t1_types\.py", line (\d+), in <module>', py).group(1))
+    err = [l for l in py.strip().split("\n") if re.match(r"^\w+Error:", l)][-1]
+    printed = py.split("Traceback")[0].strip().split("\n")
+    summ = {"mypy": (OUT / "t1_mypy.txt").read_text().strip().split("\n")[-1], "ty": (OUT / "t1_ty.txt").read_text().strip().split("\n")[-1]}
+    return {"rows": rows, "mypy": my, "ty": ty, "crash": crash, "err": err, "printed": printed, "summary": summ}
+
+(PARTS / "22_js_rd_0t1.js").write_text("// written by src/pa/gen.py from pa/code/t1_types.py and pa/outputs/t1_*.txt; do not edit by hand\nwindow.T1="
+    + json.dumps(t1_data(), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/").replace("{{", "{\\u007b") + ";\n")
+print("wrote 22_js_rd_0t1.js")

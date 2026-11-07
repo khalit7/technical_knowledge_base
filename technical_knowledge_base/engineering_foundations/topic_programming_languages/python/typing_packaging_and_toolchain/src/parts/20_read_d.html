@@ -1,6 +1,6 @@
 
 <section id="s3"><h2>3. Packaging is four layers</h2>
-<p>You have used <code>pip install</code> for years; it still surprises you because "packaging" is four separate jobs (the hero's right panel), and each older tool bundles a different subset: pyenv does layer 1, venv layer 2, pip half of layer 3 (it resolves but does not lock), Poetry layers 2 and 3, setuptools layer 4. Name the layer and every tool is easy to place. Two rules follow from the layers:</p>
+<p>You have used <code>pip install</code> for years; it still surprises you because "packaging" is four separate jobs (Fig. 1, steps 5 and 6), and each older tool bundles a different subset: pyenv does layer 1, venv layer 2, pip half of layer 3 (it resolves but does not lock), Poetry layers 2 and 3, setuptools layer 4. Name the layer and every tool is easy to place. Two rules follow from the layers:</p>
 <ul class="tight">
 <li><b>Applications commit a lock file; libraries publish ranges</b> (<code>httpx&gt;=0.28</code>) and test against their lower bounds. A lock is the exact versions and hashes one resolution picked; <code>pip freeze &gt; requirements.txt</code> snapshots what happens to be installed, which is not a lock of a project definition.</li>
 <li><b>conda is a different ecosystem</b> (with mamba, micromamba and pixi): it ships non-Python binaries such as CUDA toolkits, MKL and compilers from channels like conda-forge, which is why some scientific and GPU stacks still use it. If you must mix, install conda packages first and pip packages last, or the two overwrite each other's files.</li>
@@ -28,21 +28,31 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-uv"></div></div><div class="s3L">
 <section id="s4"><h2>4. uv: three files that must agree</h2>
-<p>A uv project is three things: <code>pyproject.toml</code> (what you asked for: ranges), <code>uv.lock</code> (what one resolution picked: exact versions and hashes for every platform at once, which is what "universal lock" means) and <code>.venv</code> (what is installed). <code>uv add</code>, <code>uv lock</code> and <code>uv sync</code> move them back into agreement, and <code>uv run</code> syncs before it runs. Predict before you step: when the extra <code>orjson</code> was installed and you then run a plain <code>uv sync</code>, does it stay? Step through a real session:</p>
-<div class="card" id="pb-sync-card">
-<div class="pb-box three" id="pb-sync-box"></div>
-<div class="pb-cap" id="pb-sync-cap"></div>
+<p>A uv project is three things: <code>pyproject.toml</code> (what you asked for: ranges), <code>uv.lock</code> (what one resolution picked: exact versions and hashes for every platform at once, which is what "universal lock" means) and <code>.venv</code> (what is installed). <code>uv add</code>, <code>uv lock</code> and <code>uv sync</code> move them back into agreement, and <code>uv run</code> syncs before it runs. Predict before you step: when the extra <code>orjson</code> was installed and you then run a plain <code>uv sync</code>, does it stay? Fig. 2 steps through a real session, one recorded command per step:</p>
+<ol class="sx" id="sx-uv">
+<li><b><code>uv add</code>, three times.</b> <code>httpx&gt;=0.28</code> as a dependency, <code>pytest</code> in the dev group, <code>orjson</code> as the extra <code>fast</code>. Each call wrote the range into <code>pyproject.toml</code>, resolved and wrote <code>uv.lock</code> (15 packages) and installed into <code>.venv</code>. All three agree.</li>
+<li><b><code>uv run</code>.</b> It checks that the lock and the environment are up to date (installing anything missing), then runs the command inside <code>.venv</code>: httpx 0.28.1, and <code>sys.prefix</code> ends in <code>.venv</code> (True).</li>
+<li><b>The system <code>python3</code>.</b> It does not see the project environment, so the same import fails with <code>ModuleNotFoundError: No module named 'httpx'</code>. Nothing was activated, and nothing needs to be when you use <code>uv run</code>.</li>
+<li><b><code>uv sync --locked</code> is exact.</b> It makes <code>.venv</code> match the lock for what this sync asked for: the extra <code>fast</code> was not requested, so <code>orjson</code> was uninstalled. <code>--locked</code> also checked that the lock still matches <code>pyproject.toml</code>.</li>
+<li><b>An edit by hand.</b> Someone adds <code>rich</code> to the dependencies in <code>pyproject.toml</code> directly, as a pull request might. The lock (15 packages) no longer describes it.</li>
+<li><b><code>--locked</code> refuses.</b> Resolving now gives 18 packages against the lock's 15, so <code>uv sync --locked</code> exits with code 1 instead of installing. In CI this is the point: the build fails instead of silently resolving whatever versions exist today.</li>
+<li><b><code>uv lock</code>.</b> It re-resolves (18 packages: rich, markdown-it-py and mdurl added), and the locked sync now passes and installs them.</li>
+<li><b><code>uv sync --extra fast</code>.</b> Ask for the extra and <code>orjson</code> is installed; the lock already contained it, because a lock covers every extra, group and platform at once.</li>
+<li><b>A plain <code>uv sync</code>.</b> It removes <code>orjson</code> again. If a package keeps disappearing, it is not requested by the sync you ran.</li>
+</ol>
 <div class="pb-term" id="pb-sync-term"></div>
-<div class="pb-ctl" id="pb-sync-ctl"></div>
-<div class="pb-src">Every command and output is the real one from <code>src/pb/uvwalk/walk_uv.sh</code>, run with uv 0.12.23 on 2026-10-05.</div>
-</div>
+<div class="pb-src">The command and real output of the current step: every one is from <code>src/pb/uvwalk/walk_uv.sh</code>, run with uv 0.12.23 on 2026-10-05. In <code>.venv</code> the figure draws only the packages the transcript names, not their dependencies.</div>
 <ul class="tight">
-<li><b><code>uv sync</code> is exact</b>: it removes anything the lock does not ask for in this sync, which is why <code>orjson</code> (an extra) disappeared until <code>--extra fast</code> was given. Use <code>--inexact</code> to keep extra packages. <code>uv run</code> is the opposite: it installs what is missing but removes nothing unless you pass <code>--exact</code> (<a href="https://docs.astral.sh/uv/concepts/projects/sync/" target="_blank" rel="noopener noreferrer">uv docs: locking and syncing</a>).</li>
-<li><b><code>--locked</code> refuses a stale lock</b>: the build fails instead of silently resolving new versions. Use it in CI. <code>--frozen</code> goes further and installs from the lock without checking <code>pyproject.toml</code> at all.</li>
+<li><b><code>uv sync</code> is exact</b>: it removes anything the lock does not ask for in this sync. Use <code>--inexact</code> to keep extra packages. <code>uv run</code> is the opposite: it installs what is missing but removes nothing unless you pass <code>--exact</code> (<a href="https://docs.astral.sh/uv/concepts/projects/sync/" target="_blank" rel="noopener noreferrer">uv docs: locking and syncing</a>).</li>
+<li><b><code>--locked</code> refuses a stale lock</b>; use it in CI. <code>--frozen</code> goes further and installs from the lock without checking <code>pyproject.toml</code> at all.</li>
 <li><b>Dependency groups</b> (<code>[dependency-groups]</code>, PEP 735, here <code>dev</code>) are for you, never published; <b>extras</b> (<code>[project.optional-dependencies]</code>) are for your users (<code>pip install tokcount[fast]</code>). The dev group is installed by default; <code>--no-dev</code> leaves it out.</li>
 <li>The system <code>python3</code> cannot import <code>httpx</code>: the project's packages live in <code>.venv</code>. That is what <code>uv run</code> does that bare <code>python</code> does not: sync, then run inside the project environment, no activation needed.</li>
 </ul>
+</section>
+</div></div>
+<section id="s4b">
 <p><b>Beyond the basics</b>, uv also replaces pyenv (<code>uv python install</code>, and since uv 0.13.0 the default interpreter is 3.15), pipx (<code>uvx tool@version</code>), the throwaway venv for a one-file script (PEP 723 dependencies inside the script, <code>uv run script.py</code>), and pip itself (<code>uv pip</code>); a workspace gives several packages one lock, like a Cargo workspace. The table and the real transcripts are in the closed block.</p>
 <details class="dp"><summary>Beyond the basics: one line each, with the real transcripts <span class="mute">(uv 0.12.23, 2026-10-05)</span></summary><div class="b">
 <div class="pb-tbl pb-wide"><table>
@@ -72,10 +82,20 @@
 <p class="small">The pip interface:</p>
 <div class="pb-term" data-pb-tr="uv" data-pb-cmd="uv venv old-style"></div>
 </div></details>
-<h3>How much faster, measured</h3>
-<p>The same three packages (httpx, pydantic, rich and their dependencies) into a fresh Python 3.14 environment, three runs each with hyperfine (network included, so treat these as rough):</p>
-<div class="bars" id="pb-inst-bars"></div>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-inst"></div></div><div class="s3L">
+<section id="s4c"><h3>How much faster, measured, and where the time goes</h3>
+<p>The same three packages (httpx, pydantic, rich and their dependencies) into a fresh Python 3.14 environment, three runs each with hyperfine (network included, so treat these as rough). Fig. 3 follows the files in each run:</p>
+<ol class="sx" id="sx-inst">
+<li><b>pip, no cache.</b> pip downloads every wheel from PyPI and unpacks it into the new environment, every time (<code>--no-cache-dir</code>): 5.45 s.</li>
+<li><b>uv, empty cache.</b> uv downloads the same wheels, unpacks each once into its own cache, then puts the files into the environment: 2.07 s, already 2.6x faster than pip.</li>
+<li><b>uv, warm cache.</b> Nothing is downloaded or unpacked: uv puts already unpacked files from its cache into the fresh environment, 0.24 s (23x). This run forced plain copies (<code>UV_LINK_MODE=copy</code> in <code>install_speed.sh</code>); uv's default link mode is <code>clone</code> (copy-on-write) on macOS and Linux and <code>hardlink</code> on Windows ({{uv settings: link-mode|https://docs.astral.sh/uv/reference/settings/#link-mode}}, read 2026-11-07), so a second environment need not even copy the bytes.</li>
+<li><b>The three medians side by side.</b> The slabs are the measured times to scale.</li>
+</ol>
 <p class="small">Python 3.14.8, pip 26.2.1, uv 0.12.23; medians of 3 runs: pip 5.45 s, uv with an empty cache 2.07 s (2.6x faster), uv with a warm cache 0.24 s (23x), because it then copies already unpacked files from its cache instead of downloading and unpacking wheels. All runs: pip (no cache) 5.45, 5.5, 4.35 s; uv (cold cache) 1.97, 2.07, 2.2 s; uv (warm cache) 0.74, 0.24, 0.21 s; load average 17.2 / 16.1 / 12.2.</p>
+</section>
+</div></div>
+<section id="s4d">
 <div class="pb-cost"><div class="t">What uv costs, and when not to use it</div>uv is one company's tool (Astral, which announced on 2026-03-19 that it is joining OpenAI, per the <a href="https://astral.sh/blog" target="_blank" rel="noopener noreferrer">Astral blog</a>); the code is open source under MIT and Apache-2.0. Its lock format is its own, though it can export the standard <code>pylock.toml</code>. Where a project needs non-Python binaries (a specific CUDA toolkit, MKL, GDAL), conda or pixi still solve a problem uv does not. And in a repository that already uses Poetry, switching tools is a team decision, not a drive-by change.</div>
 <details class="dp"><summary>Common mistakes with uv</summary><div class="b"><ul class="tight">
 <li>Running <code>python script.py</code> instead of <code>uv run script.py</code> and wondering why imports fail: the project environment is not active.</li>
