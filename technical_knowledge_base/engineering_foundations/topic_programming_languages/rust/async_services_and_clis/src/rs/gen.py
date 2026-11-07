@@ -7,6 +7,7 @@ Template directives (replaced by HTML):
   [[pr:NAME|QUESTION]]                  predict, then reveal: the output hidden in a <details>
   [[g:NAME|REGEX]]                      first regex group found in out/NAME.txt (inline value)
   [[b:KEY]]                             a number from the benchmark summary (see bench_value)
+  [[x:KEY]]                             a number derived from the recordings (see derived)
 Also writes parts/22_js_rs_0data.js (async traces, benchmark summary, CLI sessions).
 Run: python3 src/rs/gen.py   (then sh src/build.sh)
 """
@@ -137,11 +138,33 @@ def bench_value(key):
     return format(rows[0][field], fmt)
 
 
-DIRECT = re.compile(r"\[\[(code|out|pr|g|b):(.+?)\]\]", re.S)
+def derived(key):
+    """[[x:KEY]]: a number derived from the recordings with its formula, for the step lists (the scripts compute the same)."""
+    import statistics
+    _, b = bench_summary()
+    inl = statistics.median(r["bg_rps"] for r in b["runs"] if r["mode"] == "inline")
+    fan = fanout()
+    vals = {
+        "life_C": f"{2000 / inl:.1f}",          # one 3.9 MB count: 2 workers busy all the time, so C = 2 / throughput
+        "life_rps": f"{inl:,.0f}",
+        "fan_seq": f"{fan['seq']:.3f}", "fan_all": f"{fan['all']:.3f}", "fan_five": f"{fan['five']:.3f}",
+    }
+    return vals[key]
+
+
+def fanout():
+    """a4_fanout.txt: total seconds of 20 calls one after another, all at once, and at most 5 at a time."""
+    t = read_out("a4_fanout")
+    g = lambda rx: float(re.search(rx, t, re.M).group(1))
+    return {"seq": g(r"^sequential, 20 calls\s+([\d.]+) s"), "all": g(r"^JoinSet, 20 at once\s+([\d.]+) s"),
+            "five": g(r"^JoinSet, at most 5\s+([\d.]+) s"), "n": 20, "permits": 5, "call_ms": 100}
+
+
+DIRECT = re.compile(r"\[\[(code|out|pr|g|b|x):(.+?)\]\]", re.S)
 
 
 def render(text):
-    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab, "b": bench_value}[m.group(1)](m.group(2)), text)
+    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab, "b": bench_value, "x": derived}[m.group(1)](m.group(2)), text)
 
 
 def data():
@@ -153,6 +176,14 @@ def data():
     d["benchB"] = {"env": b["env"], "summary": b["summary"], "runs": b["runs"]}
     import cli_sessions
     d["cli"] = cli_sessions.sessions(read_out)
+    # the axum stage's recorded responses: status line and body of each curl -i recording
+    d["svc"] = {}
+    for n in ("svc_count", "svc_toolarge", "svc_missing", "svc_ctype", "svc_empty", "svc_timeout"):
+        t = read_out(n).split("\n")
+        st = next(l for l in t if l.startswith("HTTP/"))
+        body = t[t.index("") + 1] if "" in t and t.index("") + 1 < len(t) else ""
+        d["svc"][n] = {"status": st.split(" ", 1)[1], "body": body}
+    d["fanout"] = {k: (round(v * 1000) if k in ("seq", "all", "five") else v) for k, v in fanout().items()}  # ms, so slim() keeps every digit
     return d
 
 
