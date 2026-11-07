@@ -19,7 +19,7 @@
     const c=cmp==='prev'?p:cmp;const ids=c&&c!==cur?[c,cur]:[cur];
     const P=RB.phases;const tot=id=>Object.values(P[id]).reduce((a,b)=>a+b,0);
     X.phaseBars(document.getElementById('rb-ld-ph'),ids,{max:Math.max(...ids.map(tot))});
-    root.querySelectorAll('[data-rb-step]').forEach(d=>{d.hidden=d.dataset.rbStep!==cur})}
+    document.getElementById('rb-ld-code').querySelectorAll('[data-rb-step]').forEach(d=>{d.hidden=d.dataset.rbStep!==cur})}
   RD.seg(document.getElementById('rb-ld-seg'),v=>{cur=v;draw()});
   document.getElementById('rb-ld-cmp').addEventListener('change',e=>{cmp=e.target.value;draw()});
   document.getElementById('rb-ld-log').addEventListener('change',draw);

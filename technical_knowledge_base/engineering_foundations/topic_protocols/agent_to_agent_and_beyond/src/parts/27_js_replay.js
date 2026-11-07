@@ -1,4 +1,6 @@
-// ---- Reading: the recordings replayed step by step as a sequence diagram (a stepper; nothing moves until the reader acts). Three instances: s5 delivery modes, s8 in-task auth, s10 MCP against A2A ----
+// ---- Reading: every recorded frame as a sequence diagram, one instance in a closed block of section 5 (rpw). A widget (the long-replay rule, case b, 2026-11-06):
+// no autoplay and no step list; it opens on the input-required event of the running example and its live per-frame caption explains each frame.
+// Fig. 2 to Fig. 4 (31_js_sc_job.js, 32_js_sc_mcp.js) are the explained, grouped versions of the same recordings ----
 (function(){
   const D=window.A2AD,esc=RD.esc,$=id=>document.getElementById(id);
   const LBL={mcp:'Before: MCP, Team A drives the tools',main:'After: A2A, Team A delegates',resub:'Stream dropped',push:'Push to a webhook',auth:'In-task auth',cancel:'Cancel'};
@@ -52,16 +54,16 @@
       b+=RD.t(2,y+4,(q.t>=1000?(q.t/1000).toFixed(2)+'s':Math.round(q.t)+''),{fs:11,fill:'var(--mute)'});});
     el.innerHTML=RD.svg(W,H,b,'Sequence of recorded messages');
     const c=caption(mode,s,i,S.length);
-    $(P+'-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+esc(c[0])+'</div><p>'+esc(c[1])+'</p>';
+    $(P+'-cap').innerHTML='<div class="t">Frame '+(i+1)+' of '+S.length+': '+esc(c[0])+'</div><p>'+esc(c[1])+'</p>';
     $(P+'-cnt').innerHTML=counters(mode,i);
     $(P+'-hdr').textContent=(s.dir==='up'?'Team A to Team B':s.dir==='hook'?'Team B to Team A\'s webhook':'Team B to Team A')+', '+s.bytes.toLocaleString('en-US')+' bytes, at '+s.t+' ms';
     $(P+'-raw').textContent=s.raw}
-  const A=RD.anim({card:P+'-card',ctl:P+'-ctl',n:D.scen[mode].steps.length,draw,ms:1500,label:'Step'});
+  const OPEN={main:6,resub:10,push:4,cancel:9,auth:7,mcp:1}; // an informative first frame per recording
+  const A=RD.anim({card:P+'-card',ctl:P+'-ctl',n:D.scen[mode].steps.length,draw,ms:1500,label:'Frame',auto:false,start:OPEN[mode]||0});
   $(P+'-seg').innerHTML=ORDER.map(k=>'<button data-m="'+k+'"'+(k===mode?' class="on"':'')+'>'+esc((lbl||LBL)[k])+'</button>').join('');
-  RD.seg($(P+'-seg'),m=>{mode=m;A.reset(D.scen[m].steps.length)});
+  RD.seg($(P+'-seg'),m=>{mode=m;A.reset(D.scen[m].steps.length);A.go(OPEN[m]||0,true)});
   RD.onResize(()=>A.redraw());
+  const det=document.getElementById(P+'-det');if(det)det.addEventListener('toggle',()=>{if(det.open)A.redraw()});
   }
-  make('rpd',['main','resub','push','cancel'],{main:'Stream (the running example)',resub:'Stream dropped',push:'Push to a webhook',cancel:'Cancel'});
-  make('rpa',['auth'],{auth:'In-task auth (auth-required)'});
-  make('rpm',['mcp','main']);
+  make('rpw',['main','resub','push','cancel','auth','mcp'],{main:'Stream (running example)',resub:'Stream dropped',push:'Push to a webhook',cancel:'Cancel',auth:'In-task auth',mcp:'The same job over MCP'});
 })();

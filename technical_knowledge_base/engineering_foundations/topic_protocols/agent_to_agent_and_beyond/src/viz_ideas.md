@@ -32,3 +32,17 @@ What the methodology lacked: as on the MCP page, the measurable object is a mess
 | B8 | x402 sequence: 402, signed retry, verify, settle, receipt | Reading s13 | built (static) |
 | B9 | Real photo of a lab instrument for MHS | none | rejected: the page is about protocols; a photo would not teach the device layer, and the contract keeps diagrams for mechanisms |
 | B10 | Live x402 run on a testnet | none | rejected: needs a funded wallet and a facilitator; the spec's own example is shown |
+
+## 2026-11-07 rollout (split layout, renderer v2 stages, explained and autoplaying animations)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| C1 | Hero as a 3D stage: Team A's agent at the centre, its tools (MCP), Team B's opaque agent (A2A), the person and the out-of-band grant, a merchant (UCP), payment (AP2 or x402), a lab device (MHS); orange glass gates; one link per step, the last step all | Reading top, Fig. 1 | built (replaces B1, the static two-layout diagram) |
+| C2 | One job as a 3D stage: Team A, Team B's agent, the task on Team B's side changing state and collecting artifact pieces, requests and stream events as flowing dots; four recordings as modes, each grouped into its stretches (7, 5, 5, 4 steps) | Reading s5, Fig. 2 | built (replaces the s5 stepper instance of B4) |
+| C3 | In-task auth on the same scene: the person and the grant straight to Team B, the stream staying open (7 stretches) | Reading s8, Fig. 3 | built (replaces the s8 stepper) |
+| C4 | MCP against A2A on one stage: MCP in front (three tools), A2A behind (Team B's tools behind glass), glass columns filling to scale with the characters Team A's model reads | Reading s10, Fig. 4 | built (replaces the s10 stepper; before/after on one stage) |
+| C5 | AP2 as parties with the signed objects travelling: checkout plate, mandate plates, present and not present as modes | Reading s13, Fig. 5 | built (replaces B7, the 2D chain) |
+| C6 | MHS as layers: instruments, the standard driver with its reference file, the safety-limit plate below the model, MCP/CLI/code, the agent; the lessons as steps | Reading s14, Fig. 6 | built (new; the device section had no visual) |
+| C7 | The three steppers merged into one raw-message widget (all six recordings, no autoplay, opens on an informative frame) in a closed block of s5 | Reading s5 | built (long-replay rule, case b: the raw frames are reference) |
+| C8 | Kept 2D: what-contains-what (nesting reads flat), the two state diagrams (graphs), the dropped-stream timeline (a time axis), the error table, the x402 sequence diagram, the UCP labs (tables with controls) | Reading | kept, now each in the right column of its section |
+| C9 | Agent driving a computer (screenshots or an accessibility tree, input events) as layers | none | rejected: the page covers MHS lab devices only and cites no computer-use source; adding it would be a fact from memory |
+| C10 | Photo of a lab instrument beside MHS | none | rejected again (see B9): the layers figure carries what the section teaches; a photo of one vendor's instrument adds nothing about the protocol |

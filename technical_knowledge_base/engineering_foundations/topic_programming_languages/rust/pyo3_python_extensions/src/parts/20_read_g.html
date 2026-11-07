@@ -103,9 +103,18 @@ Found 4 diagnostics</pre></div>
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-wheel"></div></div><div class="s3L">
 <section id="rb-s12">
 <h2>12. Wheels: abi3, abi3t, CI and publishing</h2>
 <p>Users should never need Rust to install your package: they need a wheel built for their Python and their machine, which pip or uv picks from PyPI by the tags in its file name ({{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}} owns wheel tags, platform tags such as <code>manylinux</code>, and the four packaging layers). <code>maturin build --release</code> wrote <code>tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</code>: CPython 3.14's full C ABI (it loads on 3.14 only; a free-threaded build would say <code>cp314t</code>), macOS 11 or later on Apple silicon. Inside: the compiled library, the stub and <code>py.typed</code>, metadata, and a software bill of materials (<code>sboms/</code>, the Rust crates compiled in, written by maturin). <code>otool -L</code> (macOS's <code>ldd</code>) shows the library does not link to <code>libpython</code>: it finds Python's C API symbols in the process that loads it, which is what lets one wheel work with any CPython 3.14 binary.</p>
+<p>The stage (Fig. 4) carries three wheels built from the same crate to the interpreters they were installed into, in fresh virtual environments (<code>outputs/b3_wheel.txt</code> and <code>b5</code> to <code>b8</code>):</p>
+<ol class="sx" id="sx-wheel">
+<li><b>A <code>cp314</code> wheel: one interpreter.</b> The wheel above is built against CPython 3.14's full C ABI, so it is for 3.14 alone; every other version, and the free-threaded 3.14t, needs a wheel of its own.</li>
+<li><b>An <code>abi3</code> wheel: one file, three versions.</b> Built with <code>--features pyo3/abi3-py310</code>, the file is <code>tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl</code>. The same file loaded on Python 3.12.15, 3.13.16 and 3.14.8, each printing <code>loads tokrs.abi3.so -&gt; 3</code>.</li>
+<li><b>Refused by 3.14t.</b> uv would not install it on free-threaded 3.14: "the wheel was built for the stable ABI (<code>abi3</code>), which requires a GIL-enabled interpreter". <code>abi3</code> assumes the GIL build's object layout.</li>
+<li><b>An <code>abi3t</code> wheel: both 3.15 builds.</b> Built with <code>--features pyo3/abi3t-py315</code> against 3.15.0rc3: <code>tokrs-0.1.0-cp315-abi3.abi3t-macosx_11_0_arm64.whl</code>. The tag <code>abi3.abi3t</code> means one file for both builds, and it loaded with the GIL disabled and with it enabled.</li>
+<li><b>What to ship today.</b> Until you can require 3.15: the <code>abi3</code> wheel for every GIL build from 3.10 on, plus a <code>cp314t</code> wheel (dashed: not built here) for the free-threaded build, per platform.</li>
+</ol>
 <details class="dp"><summary>The build output and the wheel's contents</summary><div>
 <div class="rb-snip"><div class="rb-olab">$ maturin build --release -o dist</div><pre class="rb-out" data-rb-out="b3_wheel.txt">🐍 Found CPython 3.14 at &lt;pl&gt;/rb/venv314/bin/python
 🔗 Found pyo3 bindings
@@ -149,7 +158,7 @@ error: Failed to determine installation plan
   cause: A path (dist_abi3/tokrs-0.1.0-cp310-abi3-macosx_11_0_arm64.whl) dependency is incompatible with the current platform
 
 hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was built for the stable ABI (`abi3`), which requires a GIL-enabled interpreter</pre></div>
-<p>The same file loaded on three versions and was refused by the free-threaded build: <code>abi3</code> assumes the GIL build's object layout. At run time abi3 can cost a little: under the limited API, PyO3 must call real C functions where the full API uses inline macros (list item access, string data).</p>
+<p>At run time abi3 can cost a little: under the limited API, PyO3 must call real C functions where the full API uses inline macros (list item access, string data).</p>
 <details class="dp"><summary>What abi3 cost here, call by call (noisy; read with the caveat)</summary><div>
 <p>The same calls against both builds on 3.14 (ns per item, medians; <code>code/c9_abi_cost.py</code>):</p>
 <div class="tw"><table class="rb-t"><thead><tr><th>Call</th><th class="num"><code>cp314</code> build</th><th class="num"><code>abi3</code> build</th></tr></thead><tbody id="rb-abi-tb"></tbody></table></div>
@@ -164,7 +173,11 @@ hint: You're using free-threaded CPython 3.14 (`cp314t`), but the wheel was buil
 📦 Built wheel for abi3t Python ≥ 3.15 to &lt;pl&gt;/rb/dist_abi3t/tokrs-0.1.0-cp315-abi3.abi3t-macosx_11_0_arm64.whl</pre></div>
 <div class="rb-snip"><div class="rb-olab">the abi3t wheel on CPython 3.15.0rc3, free-threaded and with the GIL</div><pre class="rb-out" data-rb-out="b8_abi3t_install.txt">Python 3.15.0rc3 GIL enabled: False loads tokrs.abi3t.so -&gt; 3
 Python 3.15.0rc3 GIL enabled: True loads tokrs.abi3t.so -&gt; 3</pre></div>
-<p>The tag <code>abi3.abi3t</code> means one file for both 3.15 builds. Until you can require 3.15, ship an <code>abi3</code> wheel plus a <code>cp314t</code> wheel per platform (tokenizers, safetensors and polars build <code>abi3-py310</code> today); shipping only an abi3 wheel leaves free-threaded users unable to install.</p>
+<p>Until you can require 3.15, ship an <code>abi3</code> wheel plus a <code>cp314t</code> wheel per platform (tokenizers, safetensors and polars build <code>abi3-py310</code> today); shipping only an abi3 wheel leaves free-threaded users unable to install.</p>
+</section>
+</div></div>
+
+<section id="rb-s12b">
 <h3>Building for every platform in CI</h3>
 <p>You cannot build Windows or Linux wheels on a Mac without cross-compilers, so CI builds them on each platform. <code>maturin generate-ci github</code> writes a complete GitHub Actions workflow (186 lines; <a href="https://github.com/PyO3/maturin-action" target="_blank" rel="noopener noreferrer">PyO3/maturin-action</a> does the builds): every build job runs <code>maturin build --release --out dist --find-interpreter</code>, one wheel per Python found (one in total with abi3), and a release job uploads everything to PyPI on a git tag.</p>
 <details class="dp"><summary>What the generated workflow builds, and its release job verbatim</summary><div>

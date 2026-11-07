@@ -9,23 +9,61 @@
 <tr><td><b>Stream</b></td><td><code>SendStreamingMessage</code> or <code>SubscribeToTask</code>: one response carrying Server-Sent Events</td><td>interactive use, progress</td><td>a long-lived connection that can drop; needs <code>capabilities.streaming</code></td></tr>
 <tr><td><b>Push</b></td><td>register a webhook; the agent POSTs each update</td><td>server to server, hours-long tasks</td><td>you run a reachable, authenticated endpoint; at-least-once, so duplicates</td></tr>
 </tbody></table></div>
-<p>Each streamed update is one SSE event, <code>data: {"result": {...}}</code>, in one <code>text/event-stream</code> response (the format is {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}'s). It starts with the Task, then status and artifact updates, and the server closes it when the task is terminal. Step through four recordings of the same job:</p>
-<div class="card rp" id="rpd-card"><div class="t1">The stream is a view of the task, not the task: drop it, push instead, or cancel, and the task carries on by its own rules</div>
-<div class="seg" id="rpd-seg"></div><div class="an-ctl" id="rpd-ctl"></div><div class="an-cnt" id="rpd-cnt"></div><div class="an-cap" id="rpd-cap"></div>
-<div class="lanes3"><div>Team A (client)</div><div>on the wire</div><div>Team B (agent)</div></div><div class="rsvg" id="rpd-svg"></div><div class="small mute" id="rpd-hdr"></div><pre class="raw" id="rpd-raw"></pre>
-<p class="small mute"><span class="meas">measured</span> 5 October 2026: a2a-sdk 1.2.2 client and server, JSON-RPC binding, through a TCP tap on loopback; times as recorded, the agent's shards sleep 0.15 s (0.5 s in the slow modes). <span class="scr">scripted</span> both agents and the user's answer follow fixed rules. In the running example the first stream closes at <code>input-required</code> and Team A's answer opens a second one; in "cancel" the cancel reply and a final <code>canceled</code> event arrive on the still-open stream.</p></div>
+<div class="s3sp"><div class="s3R"><div id="stg-job"></div></div><div class="s3L">
+<h3>One job, followed four ways</h3>
+<p>Each streamed update is one SSE event, <code>data: {"result": {...}}</code>, in one <code>text/event-stream</code> response (the format is {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}'s). It starts with the Task, then status and artifact updates, and the server closes it when the task is terminal. The stage on the right plays four recordings of the same job, each grouped into its stretches; pick one:</p>
+<p class="sxh">Fig. 2 · The stream is a view of the task, not the task: drop it, push instead, or cancel, and the task carries on by its own rules</p>
+<div class="s3chips" id="jb-mode"><button data-m="main" class="on">Stream (the running example)</button><button data-m="resub">Stream dropped</button><button data-m="push">Push to a webhook</button><button data-m="cancel">Cancel</button></div>
+<ol class="sx" id="sx-jb-main">
+<li><b>Discovery.</b> Team A GETs the Agent Card with no credential (170 bytes up); the 1,298-byte answer carries the card, and Team A picks JSON-RPC, the first interface it supports.</li>
+<li><b>The job goes in; the task exists.</b> One <code>SendStreamingMessage</code> (576 bytes) at 14.68 ms: "Evaluate checkpoint step-4000 of our 1B run." The response is a <code>text/event-stream</code> that stays open, and its first event, at 19.05 ms, is the Task: a server-made id and contextId, state submitted.</li>
+<li><b>Working, then input-required.</b> Two status events within a millisecond: working ("Loading checkpoint step-4000 (scripted)."), then at 19.67 ms input-required: "Which suite should I run: gsm-mini or mmlu-mini?" The SDK closes this stream, because the next move is Team A's.</li>
+<li><b>Team A answers in the same task.</b> A second <code>SendStreamingMessage</code> (648 bytes) at 22.23 ms, "gsm-mini, please.", carries the taskId and contextId of the waiting task; a new stream opens and the task is working again.</li>
+<li><b>The progress log streams in pieces.</b> Three artifact updates of one artifact, 173.83 to 475.38 ms, one per shard: later pieces carry <code>append: true</code>, the last <code>lastChunk: true</code>.</li>
+<li><b>The scores, then completed.</b> <code>scores.json</code> arrives as a data part (406 bytes), then completed at 476.22 ms, and the server closes the stream.</li>
+<li><b>Read back by id.</b> <code>GetTask</code> (401 bytes up) returns the finished task in 2,161 bytes: state, every artifact and the history. Whatever a client missed, the task still holds.</li>
+</ol>
+<ol class="sx" id="sx-jb-resub" hidden>
+<li><b>Job, stream, working.</b> A six-shard job in slow mode at 0 ms; the stream delivers the Task (submitted) and working by 2.55 ms.</li>
+<li><b>Two progress pieces, then Team A hangs up.</b> Artifact pieces at 501.89 and 1,007.65 ms; after these four events Team A closes the stream. The task does not notice.</li>
+<li><b>Nobody listening; the task keeps working.</b> A <code>GetTask</code> at 2,223.52 ms comes back working (810 bytes): no client was connected for over a second, and the agent carried on.</li>
+<li><b>Resubscribe: the first event is the whole task.</b> <code>SubscribeToTask</code> at 2,238.96 ms; its first event (1,027 bytes, the largest of this recording) is the Task as it is now, with every artifact so far, including the shards finished while nobody listened.</li>
+<li><b>Live again to completion.</b> The last two progress pieces, the scores and completed by 3,009.55 ms, on the new stream. Status messages sent during the gap may be gone; results in artifacts are not.</li>
+</ol>
+<ol class="sx" id="sx-jb-push" hidden>
+<li><b>Discovery.</b> The card (1,298 bytes), with <code>pushNotifications: true</code> in its capabilities.</li>
+<li><b>Send, register a webhook, return at once.</b> <code>SendMessage</code> (720 bytes) with <code>returnImmediately: true</code> and a <code>taskPushNotificationConfig</code> naming Team A's webhook, its token and credentials; the reply at 20.97 ms is the task, submitted. No connection stays open.</li>
+<li><b>Team B POSTs: the task, then working.</b> At 22 and 23 ms Team B's agent POSTs the Task and a working update to the webhook, each the same <code>StreamResponse</code> a stream event would carry.</li>
+<li><b>Four artifact POSTs.</b> From 171 to 480 ms: the three progress pieces and the scores, each its own HTTP request into Team A.</li>
+<li><b>Completed: the seventh POST.</b> The completed update at 481 ms; Team A's handler must check the token, accept only its own task ids and deduplicate.</li>
+</ol>
+<ol class="sx" id="sx-jb-cancel" hidden>
+<li><b>Discovery.</b> The card (1,298 bytes), as in every recording.</li>
+<li><b>Job, stream, working.</b> The job at 16.26 ms; the stream carries submitted and working by 18.74 ms.</li>
+<li><b>Two progress pieces.</b> At 534.19 and 1,032.53 ms (slow shards).</li>
+<li><b>Cancel, on the side.</b> <code>CancelTask</code> (404 bytes) at 1,044.22 ms is a request of its own; its reply is the task, canceled (1,258 bytes), and the final canceled event still arrives on the open stream at 1,045.35 ms. Canceled is terminal.</li>
+</ol>
+<p class="small mute"><span class="meas">measured</span> 5 October 2026: a2a-sdk 1.2.2 client and server, JSON-RPC binding, through a TCP tap on loopback; times as recorded, the agent's shards sleep 0.15 s (0.5 s in the slow modes). <span class="scr">scripted</span> both agents and the user's answer follow fixed rules. The stage draws each stretch of frames; byte counts and times in the steps are the recording's.</p>
+<details class="mist" id="rpw-det"><summary>Every recorded message, one at a time (all six recordings, raw)</summary><div class="b">
+<p class="small">The recordings behind Fig. 2, Fig. 3 and Fig. 4 frame by frame: pick a recording and step through it; each frame shows its raw HTTP message and the running counters. Nothing moves until you do.</p>
+<div class="card rp" id="rpw-card"><div class="t1">The stream is a view of the task, not the task: every frame as it crossed the tap</div>
+<div class="seg" id="rpw-seg"></div><div class="an-ctl" id="rpw-ctl"></div><div class="an-cnt" id="rpw-cnt"></div><div class="an-cap" id="rpw-cap"></div>
+<div class="lanes3"><div>Team A (client)</div><div>on the wire</div><div>Team B (agent or server)</div></div><div class="rsvg" id="rpw-svg"></div><div class="small mute" id="rpw-hdr"></div><pre class="raw" id="rpw-raw"></pre></div>
+</div></details>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>When the stream drops, the task does not care</h3>
-<p>The most common A2A bug is treating the stream as the task. The lab started a six-shard job, read four events, hung up, waited and came back:</p>
-<div class="card" id="rd-resub"><div class="t1">Nobody listened for a second; the task kept working, and the resubscription's first event already held the missed shards</div><div id="rd-resub-svg"></div><div class="small" id="rd-resub-txt"></div>
-<p class="small mute"><span class="meas">measured</span> scenario <code>resubscribe</code>: raw httpx streams through the tap. Times from the first request.</p></div>
+<p>The most common A2A bug is treating the stream as the task. The lab started a six-shard job, read four events, hung up, waited and came back (the "Stream dropped" recording above, on a time axis here):</p>
 <ul class="tight">
 <li>While nobody was listening the task kept <code>working</code> (a <code>GetTask</code> in between said so). <code>SubscribeToTask</code> "MUST return a Task object as the first event", the current state with every artifact so far (spec section 3.1.6). The snapshot held all four shards finished by then; live events continued from there. Status <i>messages</i> sent while you were away may be gone, which is why results belong in artifacts. So persist task ids and resubscribe or poll on reconnect.</li>
 </ul>
 <div class="pr" data-right="b"><div class="q">Predict: Team B's agent restarts while Team A is streaming a task. Does the task survive?</div>
 <div class="opts"><button data-k="a">Yes, the stream reconnects itself</button><button data-k="b">Only if B's task store survives the restart</button><button data-k="c">Yes, A keeps a copy</button></div>
 <div class="ans" hidden>The task lives on the server, in whatever task store Team B configured. The recording uses the SDK's in-memory store, so a restart would lose it; the SDK also ships a database task store (<code>DatabaseTaskStore</code>, <code>a2a-sdk[sql]</code>). The client can only find the task again by id, which works only if the server kept it.</div></div>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-resub"><div class="t1">Nobody listened for a second; the task kept working, and the resubscription's first event already held the missed shards</div><div id="rd-resub-svg"></div><div class="small" id="rd-resub-txt"></div>
+<p class="small mute"><span class="meas">measured</span> scenario <code>resubscribe</code>: raw httpx streams through the tap. Times from the first request.</p></div></div></div></div>
 <h3>Push notifications</h3>
-<p>For an hours-long job Team A registers a webhook (<code>taskPushNotificationConfig</code>) and asks for an immediate return; the agent then POSTs every update: seven POSTs for one task (the task, working, four artifact pieces, completed), the "push" mode above.</p>
+<p>For an hours-long job Team A registers a webhook (<code>taskPushNotificationConfig</code>) and asks for an immediate return; the agent then POSTs every update: seven POSTs for one task (the task, working, four artifact pieces, completed), the "Push to a webhook" recording above.</p>
 <ul class="tight">
 <li><b>Receiving:</b> the payload is the same <code>StreamResponse</code> as a stream event (section 4.3.3; the SDK sent <code>application/json</code>, the spec's example shows <code>application/a2a+json</code>: accept both). The SDK sent your per-task <code>token</code> as <code>X-A2A-Notification-Token</code> and your registered credentials as <code>Authorization: Bearer ...</code>. Check them on every POST, accept only task ids you created, answer 2xx, and deduplicate: delivery is "at least once" ({{webhook discipline|n:3c65c17b0d0d812daa9fdb38719fc82b}}).</li>
 <li><b>Sending is an SSRF risk:</b> a webhook URL is a URL your agent fetches for a stranger, who may register a cloud metadata address such as <code>169.254.169.254</code> or an internal host. The spec says agents "SHOULD" reject private, loopback and link-local addresses (section 13.2). The SDK ships <code>validate_push_notification_url</code> but its default is <b>no screening</b>: the lab's first agent accepted a loopback webhook, and a second agent with the validator on refused it with <code>InvalidParamsError: Invalid push notification URL</code> (recorded). Turn it on, or send through an egress proxy.</li>

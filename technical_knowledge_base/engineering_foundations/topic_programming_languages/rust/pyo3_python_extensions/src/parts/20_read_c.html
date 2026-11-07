@@ -1,17 +1,20 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-cross"></div></div><div class="s3L">
 <section id="rb-s4">
 <h2>4. Crossing the boundary: what each conversion costs</h2>
 <p>A Python <code>str</code> is an object on Python's heap with a refcount, a length and its characters in one fixed width (1, 2 or 4 bytes each, whichever fits the widest character; <a href="https://peps.python.org/pep-0393/" target="_blank" rel="noopener noreferrer">PEP 393</a>). A Rust <code>&amp;str</code> is just a pointer and a length into UTF-8 bytes. So every argument crosses in one of two ways:</p>
 <ul class="tight"><li><b>Borrowed (a view):</b> Rust gets a pointer into memory Python owns: <code>&amp;str</code> from a <code>str</code>, <code>&amp;[u8]</code> from <code>bytes</code>, a NumPy array view. No allocation, no copy, but the view only lives for the call.</li>
 <li><b>Owned (a copy):</b> Rust builds its own value: <code>String</code>, <code>Vec&lt;T&gt;</code>, <code>HashMap&lt;K, V&gt;</code>, one allocation per string and one conversion per element. The value can then outlive the call, move to another thread, be stored in a struct.</li></ul>
-<div class="card" id="rb-cx-card"><h4>The same three items cross by copy or by view: copies cost an allocation each, views cost a pointer</h4>
-<div class="seg" id="rb-cx-mode" role="group" aria-label="Signature"><button data-m="sown" class="on">list[str] to Vec&lt;String&gt;</button><button data-m="sref">list[str] to &amp;str views</button><button data-m="fvec">list[float] to Vec&lt;f64&gt;</button><button data-m="fnp">NumPy array to slice</button></div>
-<div id="rb-cx-sig" class="small mono" style="margin:4px 0 6px"></div>
-<div id="rb-cx-svg"></div>
-<div class="out" id="rb-cx-stats"></div>
-<div class="an-cap" id="rb-cx-cap" aria-live="polite"></div>
-<div class="an-ctl" id="rb-cx-ctl"></div>
-<p class="small mute">Predict before you step: which signature touches each Python object, and which only looks at a buffer? One call, three items, eight steps. The objects follow what PyO3 0.29 and CPython 3.14 do (the UTF-8 cache is filled by <code>PyUnicode_AsUTF8AndSize</code>); the nanosecond figure under the picture is the measurement in the table below, not these three items.</p></div>
+<p>The stage (Fig. 2) sends one call across the boundary in each of four signatures, with three illustrative items: the strings of rule 3 and three small floats. The objects follow what PyO3 0.29 and CPython 3.14 do (the UTF-8 cache is filled by <code>PyUnicode_AsUTF8AndSize</code>); the towers on the boundary are the measured cost per item from the table below, not the cost of these three items.</p>
+<ol class="sx" id="sx-cross">
+<li><b>Two heaps and a boundary.</b> Python's objects sit on the left plate: a <code>list</code> holding three <code>str</code> objects (<code>"café"</code>, <code>"x86_64"</code>, <code>"v2.1 C++"</code>). Rust works on the right plate, inside the call. Crossing costs something even with nothing to convert: an empty call, <code>noop()</code>, took 25.9 ns.</li>
+<li><b>Copied: <code>Vec&lt;String&gt;</code>.</b> <code>count_many_owned(texts: Vec&lt;String&gt;)</code>: PyO3 visits each <code>str</code>, asks CPython for its UTF-8 bytes (ASCII text already is UTF-8; <code>"café"</code> is encoded once, 5 bytes, and the copy cached inside the object), allocates a Rust <code>String</code> and copies the bytes in: three allocations, 19 bytes. Measured: 72.7 ns per string.</li>
+<li><b>Borrowed: <code>&amp;str</code> views.</b> <code>count_many(texts: &amp;Bound&lt;PyList&gt;)</code>: Rust gets a pointer and a length into each string's UTF-8 bytes, inside the Python objects. No allocation, no copy: 9.4 ns per string, 8x less than the copy. The views end with the call, and the compiler will not let one escape.</li>
+<li><b>A list of floats: unbox every object.</b> <code>sum_sq_list(xs: Vec&lt;f64&gt;)</code>: a list of floats is an array of pointers to separate 24-byte objects (a refcount, a type pointer, the 8-byte double). PyO3 visits each object and copies its double into one new <code>Vec</code>: 6.70 ns per float.</li>
+<li><b>A NumPy array: one buffer, one pointer.</b> <code>sum_sq_array(xs: PyReadonlyArray1&lt;f64&gt;)</code>: the array is a small header plus one contiguous buffer of raw <code>f64</code> values. rust-numpy checks the dtype once and <code>as_slice()</code> hands Rust a pointer and a length; nothing crosses per element. 0.97 ns per float, and most of that is the sum itself.</li>
+<li><b>The result crosses back.</b> Rust's answer becomes new Python objects on the left: the <code>Vec&lt;u64&gt;</code> of token counts (1, 2, 3) a new list of ints (small ints come from CPython's cache, so no new int objects), the sum of squares (8.75) one new float.</li>
+<li><b>The copies are freed.</b> When the call returns, Rust drops the <code>String</code>s and the <code>Vec</code> it built for this call; the views simply end. Python's objects are untouched either way.</li>
+</ol>
 <p>Measured with <code>timeit</code> on the first 20,000 messages of the log (<code>code/c3_convert.py</code>; nanoseconds per item, medians of 7):</p>
 <div class="tw"><table class="rb-t"><thead><tr><th>Python to Rust</th><th class="num">ns per item</th><th>What happens</th></tr></thead><tbody>
 <tr><td>an empty call, <code>noop()</code></td><td class="num"><span data-rbv="convert.call_noop.med" data-d="1"></span></td><td>The crossing alone: argument parsing, the call, returning <code>None</code></td></tr>
@@ -106,3 +109,4 @@ int64 array to Vec&lt;f64&gt; -&gt; 5.0</pre></div></div>
 <p>The <code>float32</code> message (<code>'ndarray' object is not an instance of 'ndarray'</code>) is confusing: it means "not an <code>ndarray</code> of the dtype I asked for". A strided view (<code>a[::2]</code>) is refused by <code>as_slice</code>; either copy it with <code>np.ascontiguousarray</code> on the Python side or use <code>xs.as_array()</code>, an <code>ndarray</code> view that handles strides. <code>Vec&lt;f64&gt;</code> accepted an <code>int64</code> array because it converts element by element, at list speed. The array returned by <code>into_pyarray</code> has <code>OWNDATA</code> <code>False</code>: it points at Rust's allocation, and its <code>base</code> is a small Python object (<code>PySliceContainer</code>) that owns the buffer and frees it when the array is collected.</p>
 </div></details>
 </section>
+</div></div>

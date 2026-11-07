@@ -81,13 +81,13 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/rust/async_services_and_clis` Rust: async with tokio, services with axum, and CLIs
 - [x] `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors` Rust: enums, traits, errors and iterators
 - [x] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
-- [ ] `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions` Rust: speeding up Python with PyO3 and maturin
+- [x] `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions` Rust: speeding up Python with PyO3 and maturin
 - [x] `engineering_foundations/topic_programming_languages/cpp` C++: the essentials
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
 - [x] `engineering_foundations/topic_programming_languages/python` Python: the essentials
 - [ ] `engineering_foundations/topic_programming_languages/rust` Rust: the essentials
 - [ ] `engineering_foundations/topic_programming_languages` Topic: programming-languages
-- [ ] `engineering_foundations/topic_protocols/agent_to_agent_and_beyond` Agent-to-agent and beyond: A2A, agent commerce, agents driving devices
+- [x] `engineering_foundations/topic_protocols/agent_to_agent_and_beyond` Agent-to-agent and beyond: A2A, agent commerce, agents driving devices
 - [ ] `engineering_foundations/topic_protocols/auth` Auth: API keys, OAuth 2.1, OIDC, JWTs, mTLS and agent-era auth
 - [ ] `engineering_foundations/topic_protocols/dns` DNS: resolution, caching and the failure modes
 - [ ] `engineering_foundations/topic_protocols/http` HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs
@@ -377,3 +377,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/rust/async_services_and_clis`: Fig. 1 workers 3 and 4 crop at the right edge at 1400 and 390; axum step 7 "its future is dropped" is an inference from tower-http "will be aborted" (check wording).
 - `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors`: nine predict-then-reveal prompts (contract suggests two or three); lazy and dispatch stages dense at 390; `?` card not sticky on phones. Two new recordings (layout.rs, lazy.rs) ran on Linux x86-64 rustc 1.94.0, not the M1 (stated on the page).
 - `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe`: hero SVG scrolls sideways inside its box at 390 (predates); two framing sentences unsourced ("dropping e frees the whole tree", "the hardware makes each add indivisible").
+- `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions`: wheel stage leaves empty floor at 390; cross stage labels close to box edges; GIL token position is an inference (stated); rayon strands unmeasured (stated).
+- `engineering_foundations/topic_protocols/agent_to_agent_and_beyond`: hero and Fig. 4 busy at 390; device layers (accessibility tree, input events) not built for lack of a cited source.

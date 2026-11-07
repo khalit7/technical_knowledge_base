@@ -3,17 +3,25 @@
 <p><b>Identity lives in HTTP, not in A2A messages:</b> "Identity information is handled at the protocol layer, not within A2A semantics" (section 7). The card declares the schemes ({{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}'s: API keys, HTTP bearer, OAuth 2.0 flows, OpenID Connect, mutual TLS), the client gets a credential out of band and sends it on every request, and the server authenticates every request (sections 7.3, 7.4). Recorded: without a token the SDK client got <code>HTTP 401 Unauthorized</code> with <code>WWW-Authenticate: Bearer realm="eval-agent"</code> and raised <code>A2AClientError: HTTP Error 401</code>. Discovery carried no credential on purpose: a token sent to every URL you fetch is a token you may leak.</p>
 <div class="co warn"><div class="t">The SDK does not authenticate anyone for you</div>The official Python SDK takes the caller's identity from the web framework (Starlette's <code>request.user</code>) and scopes tasks by its name (<code>resolve_user_scope</code> returns <code>user_name</code>; {{owner_resolver.py|https://github.com/a2aproject/a2a-python/blob/v1.2.2/src/a2a/server/owner_resolver.py}}). With no authentication middleware every caller is the same unauthenticated user, whose name is the empty string ({{auth/user.py|https://github.com/a2aproject/a2a-python/blob/v1.2.2/src/a2a/auth/user.py}}), so all callers share one scope. The lab adds a bearer-token middleware; in production use your gateway or framework, and test that one caller cannot read another's task (the recorded Team C check).</div>
 <p><b>Calling onward: never forward the token.</b> Team A's orchestrator acts for a person; that person's token was issued for Team A's service, and forwarding it to Team B breaks <b>audience binding</b>. Team A instead trades it at the authorization server for a token whose audience is Team B and whose scope is only this call: <b>token exchange</b> ({{RFC 8693|https://www.rfc-editor.org/rfc/rfc8693}}; both ideas with recorded flows on {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}; MCP states the same rule as "no token passthrough").</p>
+<div class="s3sp"><div class="s3R"><div id="stg-auth"></div></div><div class="s3L">
 <h3>In-task authorization: <code>auth-required</code></h3>
-<p>When the agent learns mid-task that it needs a permission the caller cannot give in a message ("read access to your bucket", "a human must approve this destructive step": the spec's examples, section 7.6), it moves the task to <code>auth-required</code> and gets the credential <b>out of band</b>, directly, not through the chain of agents. In the lab the evaluation needed <code>gs://team-a-private/</code>; a person on Team A's side granted it at the agent's own grant page about a second later:</p>
-<div class="card rp" id="rpa-card"><div class="t1">The grant is a separate request to the agent, not a message in the task, and the stream stays open while the task waits</div>
-<div class="seg" id="rpa-seg"></div><div class="an-ctl" id="rpa-ctl"></div><div class="an-cnt" id="rpa-cnt"></div><div class="an-cap" id="rpa-cap"></div>
-<div class="lanes3"><div>Team A (client)</div><div>on the wire</div><div>Team B (agent)</div></div><div class="rsvg" id="rpa-svg"></div><div class="small mute" id="rpa-hdr"></div><pre class="raw" id="rpa-raw"></pre>
-<div class="out" id="rd-auth-stats"></div>
-<p class="small mute"><span class="meas">measured</span> scenario <code>in_task_auth</code>. The "grant page" is a scripted POST standing in for a person clicking "allow"; no real bucket or credential exists.</p></div>
+<p>When the agent learns mid-task that it needs a permission the caller cannot give in a message ("read access to your bucket", "a human must approve this destructive step": the spec's examples, section 7.6), it moves the task to <code>auth-required</code> and gets the credential <b>out of band</b>, directly, not through the chain of agents. In the lab the evaluation needed <code>gs://team-a-private/</code>; a person on Team A's side granted it at the agent's own grant page about a second later (right):</p>
+<p class="sxh">Fig. 3 · The grant is a separate request to the agent, not a message in the task, and the stream stays open while the task waits</p>
+<ol class="sx" id="sx-au">
+<li><b>Discovery.</b> Team A fetches the card (1,298 bytes) without a credential, as in every recording.</li>
+<li><b>Job, stream, working.</b> The job at 14.93 ms; submitted and working arrive on the stream by 17.03 ms.</li>
+<li><b>auth-required, and the stream stays open.</b> At 17.57 ms the task moves to <code>auth-required</code> (721 bytes): "I need read access to gs://team-a-private/. A person on your side must grant it at /oob/grant?task=...; the credential comes to me directly, never through this chat."</li>
+<li><b>The grant, out of band.</b> At 1,089.41 ms the scripted person POSTs to the agent's grant page (214 bytes) and gets a 200 at 1,090.17 ms: a separate request straight to Team B's agent, not a message in the task.</li>
+<li><b>Working again, on the same stream.</b> At 1,091.81 ms working arrives on the stream opened at the start; Team A sent nothing new.</li>
+<li><b>Results and completed.</b> Three progress pieces, the scores, then completed at 1,545.11 ms, still on that first stream.</li>
+<li><b>Read back by id.</b> <code>GetTask</code> returns the completed task (991 bytes).</li>
+</ol>
+<p class="small mute"><span class="meas">measured</span> scenario <code>in_task_auth</code>. The "grant page" is a scripted POST standing in for a person clicking "allow"; no real bucket or credential exists.</p>
 <ul class="tight">
 <li><b>The stream stayed open</b> while the task waited (the agent "SHOULD maintain any active response streams"); in <code>input-required</code> the SDK closed it and Team A answered with a new request, because there the next move is the client's.</li>
 <li><b>Chains:</b> an orchestrator serving someone else's task can put its own task into <code>auth-required</code>, passing the request up (section 7.6.2). <b>Never pass the credential through the chat:</b> every agent in the chain would see it; if you must, bind it to the requesting agent and encrypt it for that agent only (section 7.6.3).</li>
 </ul>
+</div></div>
 </section>
 <section id="s9">
 <h2>9. Security: the other agent is not on your side</h2>

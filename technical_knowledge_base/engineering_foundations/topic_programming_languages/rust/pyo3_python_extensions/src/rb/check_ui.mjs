@@ -1,5 +1,6 @@
-// Puppeteer check of every control on this page at 390 px dark and 920 px light, plus reduced motion:
-// no errors, NaN, undefined or '?' numbers, no sideways scroll, nothing moves before the reader acts.
+// Puppeteer check of every control on this page at 390 px dark (reduced motion) and 920 px light:
+// no errors, NaN, undefined or '?' numbers, no sideways scroll; under reduced motion no stage moves by itself, and the ladder widget never does.
+// (Since 2026-11-07 the four 3D stages play by themselves once scrolled into view: ../check_stages.mjs checks that, step lists and numbers.)
 // usage (from anywhere in the repository): OUT=<dir for screenshots> node <this page>/src/rb/check_ui.mjs
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
@@ -39,23 +40,17 @@ for (const [scheme, width, motion] of [['dark', 390, 'reduce'], ['light', 920, '
   };
   const shot = async (sel, name) => { if (!OUT) return; const el = await p.$(sel); if (el) { await el.scrollIntoView(); await sleep(80); await el.screenshot({ path: `${OUT}/pyo3-${name}-${scheme}-${width}.png` }) } };
   await sleep(300); await scan('load');
-  // nothing moves before the reader acts: both step widgets sit on step 0 after scrolling them into view
-  for (const id of ['rb-gil-card', 'rb-cx-card']) { await p.$eval('#' + id, e => e.scrollIntoView()); }
-  await sleep(1500);
-  const still = await p.evaluate(() => ['rb-gil-ctl-s', 'rb-cx-ctl-s'].map(i => +document.getElementById(i).value));
-  if (still.some(v => v !== 0)) { bad++; console.log('FAIL autoplay', scheme, still) }
+  // under reduced motion nothing moves by itself; the ladder is a widget and never plays at all
+  for (const id of ['stg-build', 'stg-cross', 'stg-gil', 'stg-wheel', 'rb-ld-card']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await sleep(1200); }
+  const still = await p.evaluate(() => [['stg-build', 'stg-cross', 'stg-gil', 'stg-wheel'].map(i => +document.getElementById(i).dataset.frames || 0), document.querySelector('#rb-ld-seg button.on').dataset.m]);
+  if (motion === 'reduce' && still[0].some(v => v !== 0)) { bad++; console.log('FAIL moved under reduced motion', scheme, still[0]) }
+  if (still[1] !== 'python') { bad++; console.log('FAIL ladder moved by itself', scheme, still[1]) }
   await shot('#rb-hero-card', 'hero'); await shot('#rb-s0', 's0');
-  for (const m of ['serial', 'held', 'detached', 'ft']) {
-    await p.click(`#rb-gil-mode button[data-m="${m}"]`); await sleep(100);
-    for (const s of [0, 20, 48]) { await p.evaluate(v => { const r = document.getElementById('rb-gil-ctl-s'); r.value = v; r.dispatchEvent(new Event('input')) }, s); await sleep(40); await scan('gil ' + m + ' ' + s) }
-    await p.click('#rb-gil-ctl-b'); await p.click('#rb-gil-ctl-f'); await scan('gil step ' + m);
-    if (m === 'held' || m === 'detached') await shot('#rb-gil-card', 'gil-' + m);
-  }
-  await p.select('#rb-gil-ctl-v', '2');
-  for (const m of ['sown', 'sref', 'fvec', 'fnp']) {
-    await p.click(`#rb-cx-mode button[data-m="${m}"]`); await sleep(60);
-    for (let s = 0; s < 8; s++) { await p.evaluate(v => { const r = document.getElementById('rb-cx-ctl-s'); r.value = v; r.dispatchEvent(new Event('input')) }, s); await sleep(25); await scan('cross ' + m + ' ' + s); if (s === 3 && (m === 'sown' || m === 'sref' || m === 'fnp')) await shot('#rb-cx-card', `cross-${m}-${s}`) }
-    await p.click('#rb-cx-ctl-p'); await sleep(150); await p.click('#rb-cx-ctl-p'); await scan('cross play ' + m);
+  // every stage: through all its steps with the forward button, then back with the list
+  for (const id of ['stg-build', 'stg-cross', 'stg-gil', 'stg-wheel']) {
+    const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+    for (let k = 1; k < n; k++) { await p.$eval(`#${id}-f`, e => e.click()); await sleep(60); await scan(id + ' step ' + (k + 1)) }
+    await p.$eval(`#${id}-b`, e => e.click()); await p.select(`#${id}-s`, '2'); await p.$eval(`#${id}-p`, e => e.click()); await sleep(150); await p.$eval(`#${id}-p`, e => e.click()); await scan(id + ' play and pause');
   }
   for (const s of ['python', 'percall', 'owned', 'borrowed', 'bytes', 'parallel']) {
     await p.click(`#rb-ld-seg button[data-m="${s}"]`); await sleep(50); await scan('ladder ' + s);
@@ -73,5 +68,5 @@ for (const [scheme, width, motion] of [['dark', 390, 'reduce'], ['light', 920, '
   await p.close();
 }
 await b.close();
-console.log(bad ? `check_ui: ${bad} failures` : 'check_ui: all controls ok at 390 dark (reduced motion) and 920 light; nothing autoplays');
+console.log(bad ? `check_ui: ${bad} failures` : 'check_ui: all controls ok at 390 dark (reduced motion) and 920 light; nothing moves under reduced motion; the ladder widget never plays');
 process.exit(bad ? 1 : 0);

@@ -1,6 +1,7 @@
 // Click every control on every tab at 390 px dark and 920 px light, then once with reduced motion.
 // Fails on page errors, a visible #jsErr, NaN/undefined/Infinity in visible text outside <pre> and <code>,
-// sideways page scroll, and any animation that moves before the reader acts.
+// sideways page scroll, and the raw-message widget (rpw) moving by itself: it is a widget (no autoplay, 2026-11-06 long-replay rule, case b).
+// The 3D stages and their autoplay are checked by check_stages.mjs.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_protocols/agent_to_agent_and_beyond/src/check_ui.mjs [shots dir]
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -17,7 +18,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let problems = 0, clicks = 0;
 const report = (...a) => { console.log(...a); problems++; };
-const REPLAYERS = ['rpd', 'rpa', 'rpm'];
+const REPLAYERS = ['rpw'];
 for (const [scheme, width, motion] of [['dark', 390, 'no-preference'], ['light', 920, 'no-preference'], ['light', 920, 'reduce']]) {
   const p = await b.newPage();
   const errs = [];
@@ -44,11 +45,15 @@ for (const [scheme, width, motion] of [['dark', 390, 'no-preference'], ['light',
     }
     return n;
   }
-  // nothing moves before the reader acts: scroll every replayer into view and wait
+  // the widget never moves by itself: open its block, scroll it into view and wait
   for (const r of REPLAYERS) {
+    await p.$eval('#' + r + '-det', d => d.open = true);
+    const i0 = await p.$eval('#' + r + '-ctl-s', e => +e.value);
     await p.$eval('#' + r + '-card', e => e.scrollIntoView({ block: 'center' })); await sleep(2200);
-    const i = await p.$eval('#' + r + '-ctl-s', e => +e.value);
-    if (i !== 0) report(scheme, width, motion, r, 'MOVED BY ITSELF to step', i);
+    const i = await p.$eval('#' + r + '-ctl-s', e => +e.value), pl = await p.$eval('#' + r + '-ctl-p', e => e.textContent);
+    if (i !== i0 || /Pause/.test(pl)) report(scheme, width, motion, r, 'MOVED BY ITSELF to frame', i, 'from', i0);
+    if (i0 === 0) report(scheme, width, r, 'opens on frame 1, not on an informative frame');
+    await p.$eval('#' + r + '-det', d => d.open = false);
   }
   if (motion === 'reduce') { await p.close(); continue; }
   for (const tab of ['t-read', 't-more']) {
@@ -56,7 +61,7 @@ for (const [scheme, width, motion] of [['dark', 390, 'no-preference'], ['light',
     await checkTab(tab, 'open');
     if (tab !== 't-read') continue;
     await clickAll('#t-read .pr .opts button', tab);
-    await clickAll('#rd-card-seg button, #rd-anat-seg button, #rd-ap2-seg button', tab);
+    await clickAll('#rd-card-seg button, #rd-anat-seg button', tab);
     await clickAll('#rd-st-svg .gnode', tab);
     await clickAll('#rd-co-svg .gnode', tab);
     await clickAll('#rd-err-t tr[data-i]', tab);
@@ -89,7 +94,7 @@ for (const [scheme, width, motion] of [['dark', 390, 'no-preference'], ['light',
         await el.screenshot({ path: path.join(shots, `${r}_${m}_${width}_${scheme}.png`) });
       }
     }
-    for (const id of ['rd-hero-card', 'rd-nest-card', 'rd-card', 'rd-st', 'rd-resub', 'rd-err', 'uc-card', 'rd-co', 'uh-card', 'rd-ap2-card', 'rd-x402-card']) {
+    for (const id of ['rd-nest-card', 'rd-card', 'rd-st', 'rd-resub', 'rd-err', 'uc-card', 'rd-co', 'uh-card', 'rd-x402-card']) {
       const el = await p.$('#' + id); await el.scrollIntoView(); await sleep(80);
       await el.screenshot({ path: path.join(shots, `${id}_${width}_${scheme}.png`) });
     }

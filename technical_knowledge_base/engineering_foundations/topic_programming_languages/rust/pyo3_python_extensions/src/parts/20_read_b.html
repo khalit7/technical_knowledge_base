@@ -6,9 +6,19 @@
 <div class="rb-cost"><div><div class="t">Worth it when</div>a profile shows one hot path you own, it is not array arithmetic NumPy already does, it runs often (a tokenizer, a parser, a sampler, a graph walk), and you can pass it big batches.</div><div><div class="t">Not worth it when</div>the time is in I/O or the network, a library already does it (orjson, polars, pyarrow), or the hot code calls back into Python objects on every step.</div><div><div class="t">What it costs</div>A Rust toolchain in your build (about 10 s for a clean build here), wheels per platform, and a team that can read Rust.</div></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-build"></div></div><div class="s3L">
 <section id="rb-s2">
 <h2>2. Your first extension: PyO3 and maturin</h2>
 <p>PyO3's <b>macros</b> (code generators run by the compiler, written <code>#[...]</code>) turn an ordinary Rust function into a Python-callable one; maturin compiles the crate and packs the library into a <b>wheel</b> (the <code>.whl</code> zip pip installs). The root page's {{Toolchain atlas|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab has the first run recorded: <code>maturin new --bindings pyo3 tokrs</code> writes <code>Cargo.toml</code>, <code>pyproject.toml</code>, <code>src/lib.rs</code> and a GitHub Actions workflow. This page's project, <code>tokrs</code>, grew from that skeleton.</p>
+<p>The stage (Fig. 1) follows <code>tokrs</code> from its source files to <code>import tokrs</code>; every name and number in the steps is from the recorded build (<code>outputs/b1_develop.txt</code>, <code>b3_wheel.txt</code>, <code>b4_wheel_files.txt</code>).</p>
+<ol class="sx" id="sx-build">
+<li><b>The crate.</b> Three files: <code>Cargo.toml</code> (the Rust package: <code>crate-type = ["cdylib"]</code> and its five dependencies), <code>pyproject.toml</code> (names maturin as the build backend) and <code>src/lib.rs</code>, the code. The hand-written stub <code>tokrs.pyi</code> sits beside them (section 11).</li>
+<li><b>cargo compiles everything once.</b> maturin runs cargo, which compiles PyO3, the NumPy bindings, rayon, serde and <code>lib.rs</code> in release mode: <code>Finished `release` profile [optimized] target(s) in 9.25s</code> on a clean build, 10.32 s for the whole command. After that an edit to <code>lib.rs</code> rebuilds in a few seconds.</li>
+<li><b>One shared library.</b> The result is <code>tokrs.cpython-314-darwin.so</code>, 1,012,496 bytes of machine code. <code>otool -L</code> lists only <code>libiconv</code> and <code>libSystem</code>: it does not link to <code>libpython</code>, and finds Python's C API in the process that loads it.</li>
+<li><b>maturin packs a wheel.</b> A zip of 8 files: the library, <code>__init__.py</code>, the stub as <code>__init__.pyi</code>, <code>py.typed</code>, and the metadata (<code>METADATA</code>, <code>WHEEL</code>, <code>RECORD</code> and a software bill of materials). Its name carries the tags pip matches: <code>tokrs-0.1.0-cp314-cp314-macosx_11_0_arm64.whl</code> (section 12).</li>
+<li><b>Installed into the venv.</b> <code>maturin develop</code> installs that wheel into the active virtual environment as <b>editable</b> (<code>Installed tokrs-0.1.0</code>); <code>maturin build --release</code> writes it to <code>dist/</code> instead, which is what you ship.</li>
+<li><b><code>import tokrs</code>.</b> CPython finds the library in <code>site-packages/tokrs/</code> and calls its <code>PyInit_tokrs</code>, which returns a module whose functions are machine code. After each Rust change, rerun <code>maturin develop</code> and restart the interpreter or notebook kernel: a process cannot unload a shared library it has loaded, so <code>importlib.reload</code> will not pick up the new build.</li>
+</ol>
 <details class="dp"><summary>The two configuration files, and what each line is for</summary><div>
 <div class="rb-snip"><div class="rb-file">Cargo.toml</div><pre class="rb-code">[package]
 name = <span class="rb-st">"tokrs"</span>
@@ -56,10 +66,10 @@ Checked 1 package in 12ms
 real 10.32
 user 34.79
 sys 4.22</pre></div>
-<p>The 10 s is mostly compiling PyO3, the NumPy bindings, rayon and serde once; after that an edit to <code>lib.rs</code> rebuilds in a few seconds. <code>maturin develop</code> installs the wheel as <b>editable</b>, so you rerun it after each Rust change and then restart the interpreter or notebook kernel: a process cannot unload a shared library it has loaded, so <code>importlib.reload</code> will not pick up the new build.</p>
 <div class="co warn"><div class="t">Correction to older guides (and to the root's benchmark crate)</div>Older tutorials add <code>features = ["pyo3/extension-module"]</code> under <code>[tool.maturin]</code>. PyO3 now marks that feature deprecated: maturin 1.9.4 and later set the environment variable <code>PYO3_BUILD_EXTENSION_MODULE</code>, which does the same job (stop linking to <code>libpython</code>) (<a href="https://pyo3.rs/v0.29.3/features.html#extension-module" target="_blank" rel="noopener noreferrer">PyO3 features guide</a>). <code>tokrs</code> leaves it out; the root's <code>src/bench/ext_rust/</code> still has it, which is harmless.</div>
 <div class="rb-cost"><div><div class="t">maturin develop</div>Build and install into the current venv: your edit, compile, test loop.</div><div><div class="t">maturin build --release</div>Write a wheel into <code>target/wheels/</code> (or <code>-o dir</code>): what you ship (section 12).</div><div><div class="t">pip / uv</div><code>uv pip install .</code> calls maturin as the build backend, so users with a Rust toolchain can build from source.</div></div>
 </section>
+</div></div>
 
 <section id="rb-s3">
 <h2>3. Functions and modules: <code>#[pyfunction]</code>, <code>#[pymodule]</code></h2>

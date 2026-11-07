@@ -26,3 +26,8 @@ What the methodology lacked: guidance for timing on a shared, loaded machine; he
 - The hero is the phase-bar chart widened to four steps on one scale, because it carries the page's one sentence (the whole path must move).
 - The ladder summary table and mini chart were dropped: the explorer's end-to-end bars show the same numbers.
 - Neither step widget plays on a mode switch; nothing moves before the reader acts.
+
+## 2026-11-07: the split layout and 3D stages
+- Built as 3D stages (renderer v2): the build path from crate to `import` (section 2, Fig. 1), the crossing (sections 4 and 5, Fig. 2: replaces the 2D crossing stepper and its four-mode toggle; copy against view against unboxing against a NumPy buffer, with the measured ns per item as towers on the boundary), the GIL (section 8, Fig. 3: replaces the 49-frame 2D timeline; five explained stretches, each replaying its real spans), the wheels (section 12, Fig. 4: which interpreters each wheel loaded into).
+- Kept 2D in splits: the hero phase bars (timings on one scale), the ladder explorer (a widget, Fig. 5), the alternatives chart (log scale, Fig. 6).
+- Not built, possible later: the `Already borrowed` failure of section 9 (eight threads on one `&mut self` object, 20,836 of 160,000 calls refused on 3.14t) as a stage; it reads well as the recorded output for now.

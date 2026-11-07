@@ -1,4 +1,4 @@
-// ---- Reading tab: static figures (hero, what contains what, x402 sequence, AP2 chain) and the clickable state-graph helper ----
+// ---- Reading tab: static figures (what contains what, x402 sequence) and the clickable state-graph helper; the hero and AP2 are 3D stages (30_js_sc_hero.js, 33_js_sc_ap2.js) ----
 // Every figure is drawn at the measured width of its container (RD.width) and redrawn on resize; labels on the figure, 11 px or more.
 window.RDF=(function(){
   const esc=RD.esc;
@@ -12,41 +12,6 @@ window.RDF=(function(){
     if(o.end!==false)b+=arrowHead(x1,y1,x2,y2,c);if(o.both)b+=arrowHead(x2,y2,x1,y1,c);return b}
   // clip a centre-to-centre segment to the borders of two w x h boxes
   function clip(ax,ay,bx,by,hw,hh){const dx=bx-ax,dy=by-ay;const t=Math.min(dx?hw/Math.abs(dx):1e9,dy?hh/Math.abs(dy):1e9);return [ax+dx*t,ay+dy*t]}
-  // ---------- the hero ----------
-  function hero(){const el=document.getElementById('rd-hero');if(!el)return;const W=RD.width(el);let b='',H;
-    const P=['A person on Team A',[{s:'asks for the job; approves',c:'var(--mute)'}]];
-    const A=['Team A orchestrator agent',[{s:'MCP client to its own tools'},{s:'A2A client to other agents'}]];
-    const B=['Team B eval agent (opaque)',[{s:'prompts, tools and model hidden'},{s:'auth-required: asks for a grant',c:GATE,w:600}]];
-    const TB=["Team B's tools over MCP",[{s:'list_suites, load_checkpoint, run_shard'}]];
-    const BOT=[['Merchant (UCP business)',[{s:'checkout session, six statuses'},{s:'requires_escalation:',c:GATE,w:600},{s:'buyer finishes on continue_url',c:GATE,w:600}],'UCP'],
-      ['Payment',[{s:'AP2: mandates signed by the user'},{s:'on a non-agentic trusted surface',c:GATE,w:600},{s:'x402: HTTP 402, then a signed payment'}],'AP2 or x402'],
-      ['Lab device (MHS driver)',[{s:'read and write primitives'},{s:'via MCP, a CLI or code'},{s:'safety limits below the model',c:GATE,w:600}],'MHS']];
-    const lines=(t,l)=>[{s:t,w:600,fs:12.5}].concat(l);
-    if(W>=720){const cw=W*.40,bx=W*.60;
-      b+=box(0,0,cw,40,{lines:lines(P[0],P[1])});
-      b+=box(0,78,cw,58,{lines:lines(A[0],A[1]),stroke:'var(--acc)',sw:2});
-      b+=box(bx,78,cw,58,{lines:lines(B[0],B[1]),dash:true,stroke:'var(--ink)'});
-      b+=box(bx,182,cw,40,{lines:lines(TB[0],TB[1])});
-      b+=line(cw*.5,40,cw*.5,78);
-      b+=line(cw,104,bx,104,{c:'var(--acc)',sw:2.2});b+=RD.t((cw+bx)/2,97,'A2A',{a:'middle',fs:12,w:600,fill:'var(--acc)'});b+=RD.t((cw+bx)/2,123,'task, states,',{a:'middle',fs:11,fill:'var(--mute)'});b+=RD.t((cw+bx)/2,136,'artifacts',{a:'middle',fs:11,fill:'var(--mute)'});
-      b+=line(cw,20,bx+cw*.5,78,{c:GATE,dash:true,sw:1.8});b+=RD.t((cw+bx+cw*.5)/2+8,38,'grant out of band',{a:'middle',fs:11,w:600,fill:GATE});
-      b+=line(bx+cw*.5,136,bx+cw*.5,182);b+=RD.t(bx+cw*.5+6,163,'MCP',{fs:11,w:600});
-      const bw=W*.31,gap=(W-3*bw)/2,by=292;
-      BOT.forEach((q,i)=>{const x=i*(bw+gap);b+=box(x,by,bw,74,{lines:lines(q[0],q[1])});
-        const tx=x+bw/2;b+=line(cw*.5,136,tx,by,{sw:1.3});b+=RD.t(tx+(i===0?8:i===1?6:4),by-8,q[2],{fs:11,w:600,a:i===2?'end':null})});
-      H=by+80}
-    else{const w=W-30;let y=0;
-      b+=box(0,y,w,40,{lines:lines(P[0],P[1])});b+=line(w*.5,40,w*.5,64);y=64;
-      b+=box(0,y,w,58,{lines:lines(A[0],A[1]),stroke:'var(--acc)',sw:2});
-      b+=line(w*.5,122,w*.5,166,{c:'var(--acc)',sw:2.2});b+=RD.t(w*.5+8,140,'A2A',{fs:12,w:600,fill:'var(--acc)'});b+=RD.t(w*.5+8,155,'task, states, artifacts',{fs:11,fill:'var(--mute)'});
-      b+=box(0,166,w,58,{lines:lines(B[0],B[1]),dash:true,stroke:'var(--ink)'});
-      b+='<polyline points="'+w+',20 '+(W-8)+',20 '+(W-8)+',195 '+(w+6)+',195" fill="none" stroke="'+GATE+'" stroke-width="1.8" stroke-dasharray="5 4"/>'+arrowHead(W-8,195,w+1,195,GATE);
-      b+=line(w*.5,224,w*.5,250);b+=RD.t(w*.5+8,241,'MCP',{fs:11,w:600});
-      b+=box(0,250,w,40,{lines:lines(TB[0],TB[1])});
-      y=316;b+=RD.t(0,y,"Team A's agent also talks to:",{fs:11.5,w:600,fill:'var(--mute)'});y+=10;
-      BOT.forEach(q=>{b+=box(0,y,w,74,{lines:[{s:q[2]+': '+q[0],w:600,fs:12.5}].concat(q[1])});y+=84});
-      H=y}
-    el.innerHTML=RD.svg(W,H,b,'Team A agent uses MCP and A2A to reach Team B, UCP to a merchant, AP2 or x402 to pay, MHS to a device; orange marks approvals outside the model')}
   // ---------- what contains what ----------
   function nest(){const el=document.getElementById('rd-nest');if(!el)return;const W=RD.width(el);let b='';
     const narrow=W<600;
@@ -97,17 +62,7 @@ window.RDF=(function(){
       b+=RD.t((x1+x2)/2,y-6,m[2],{a:'middle',fs:11,w:m[3]?600:400,fill:m[3]===2?GATE:null})});
     b+=RD.t(X[0]+4,H-8,narrow?'orange: the wallet key signs':'orange: the wallet key signs; any spending cap is the client\'s own',{fs:11,fill:GATE});
     el.innerHTML=RD.svg(W,H,b,'x402: request, 402 with price, retry with signed payment, facilitator verifies and settles, 200 with receipt')}
-  // ---------- AP2: human present against not present ----------
-  let ap2m='present';
-  function ap2(){const el=document.getElementById('rd-ap2');if(!el)return;const W=RD.width(el),w=Math.min(W,560),x=(W-w)/2;
-    const S={present:[['Merchant signs the checkout','cart, price, terms'],['Trusted surface shows it','non-agentic code renders it; no model',1],['User signs the mandates','Checkout Mandate (hash of the checkout) and Payment Mandate',1],['Agent carries them','it cannot change what was signed'],['Verified in deterministic code','merchant and payment side; receipts for disputes']],
-      absent:[['Earlier: user signs open mandates','allowed merchants, line items, amount range, budget',1],['User leaves','no person in the loop from here'],['Agent builds a checkout','merchant signs it as usual'],['Agent signs closed mandates','within the open mandates\' constraints'],['Verified in deterministic code','held to the open mandates\' limits; receipts for disputes']]}[ap2m];
-    let b='',y=0;S.forEach((s,i)=>{b+=box(x,y,w,44,{lines:[{s:s[0],w:600,fs:12.5,c:s[2]?GATE:null},{s:s[1],c:'var(--mute)'}],stroke:s[2]?GATE:'var(--line)',sw:s[2]?2:1.3});
-      if(i<S.length-1)b+=line(x+w/2,y+44,x+w/2,y+58);y+=58});
-    el.innerHTML=RD.svg(W,y-10,b,'AP2 mandate chain, '+ap2m)}
-  function all(){hero();nest();x402();ap2()}
-  const seg=document.getElementById('rd-ap2-seg');
-  if(seg)RD.seg(seg,m=>{ap2m=m;document.querySelectorAll('[data-ap2]').forEach(p=>p.hidden=p.dataset.ap2!==m);ap2()});
+  function all(){nest();x402()}
   RD.onRender(all);RD.onResize(all);all();
   return {graph,GATE};
 })();

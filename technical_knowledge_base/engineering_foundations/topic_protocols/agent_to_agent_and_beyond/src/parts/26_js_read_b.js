@@ -55,9 +55,6 @@
     D.errors.map((e,i)=>'<tr data-i="'+i+'" style="cursor:pointer'+(i===eSel?';background:var(--acc2)':'')+'"><td>'+esc(NAMES[e.name]||e.name)+'</td><td class="num">'+e.status+'</td><td class="num">'+(e.code==null?'':e.code)+'</td><td><code>'+esc(e.reason||'')+'</code> '+esc((e.message||'').slice(0,70))+'</td></tr>').join('')+'</tbody>';
     const e=D.errors[eSel];$('rd-err-raw').textContent=e.req+'\n\n'+e.resp}
   $('rd-err-t').addEventListener('click',ev=>{const tr=ev.target.closest('tr[data-i]');if(!tr)return;eSel=+tr.dataset.i;errs()});errs();
-  // ---------- in-task auth ----------
-  const au=D.inauth,ar=find('auth',s=>s.state==='TASK_STATE_AUTH_REQUIRED');
-  $('rd-auth-stats').innerHTML=RD.stat('Stream open while waiting',au.open?'yes':'no','checked about 1 s after auth-required')+RD.stat('Grant arrived at',au.grant_ms.toLocaleString('en-US')+' ms','scripted "person" clicking allow')+RD.stat('Final state',au.final.replace('TASK_STATE_','').toLowerCase(),'same stream, no new request');
   // ---------- UCP profile ----------
   const U=D.ucp,caps=Object.keys(U.capabilities),svc=U.services['dev.ucp.shopping']||[];
   $('rd-ucp-stats').innerHTML=RD.stat('Version',U.version,'older: '+Object.keys(U.supported_versions||{}).join(', '))+RD.stat('Shopping transports',svc.map(s=>s.transport).join(', '),'no REST or A2A at this store')+

@@ -5,6 +5,10 @@ Markers:
   [[out:NAME|label]]      outputs/NAME (whole file name), under a caption
   [[predict:PATH|NAME]]   code, then outputs/NAME hidden behind "Predict, then reveal"
   [[data]]                (in .js templates) window.RB: every JSON result plus the root's numbers
+  [[x:PATH|D]]            a value of window.RB printed with D decimals (PATH as in data-rbv: dots, or slashes when a key has dots);
+                          the step lists beside the 3D stages use it, so their numbers are static text drawn from the same data
+  [[xr:A|B|D]]            the ratio A / B of two such values, D decimals
+  [[g:NAME|REGEX]]        group 1 of REGEX matched in outputs/NAME (a recorded line quoted in a step list)
 Run with any Python 3.10+: python3 gen.py"""
 import html
 import json
@@ -119,11 +123,38 @@ def expand(text):
                     f'<div class="rb-pq"><b>Predict, then reveal:</b> what does it print? Decide before you click.</div>'
                     f'<button class="rb-rv" data-for="{pid}" aria-expanded="false">Reveal the real output</button>'
                     f'<div id="{pid}" hidden>{out_block(name, "real output, CPython 3.14.8")}</div></div>')
+        if kind == "x":
+            path, _, d = arg.partition("|")
+            return fmt(rb_get(path), d or 0)
+        if kind == "xr":
+            a, b, d = arg.split("|")
+            return fmt(rb_get(a) / rb_get(b), d)
+        if kind == "g":
+            name, _, rx = arg.partition("|")
+            m = re.search(rx, (OUT / name).read_text(), re.M)
+            if not m:
+                raise SystemExit(f"[[g:{arg}]] not found")
+            return esc(m.group(1))
         raise SystemExit(f"unknown marker {kind}")
-    return re.sub(r"\[\[(rs|file|out|predict):([^\]]+)\]\]", rep, text)
+    return re.sub(r"\[\[(rs|file|out|predict|x|xr|g):([^\]]+)\]\]", rep, text)
 
 
 def data():
+    return "window.RB=" + json.dumps(data_dict(), separators=(",", ":")) + ";"
+
+
+def rb_get(path):
+    d = data_dict()
+    for k in path.split("/" if "/" in path else "."):
+        d = d[int(k)] if isinstance(d, list) else d[k]
+    return d
+
+
+def fmt(v, d):
+    return f"{v:,.{int(d)}f}"
+
+
+def data_dict():
     j = lambda n: json.loads((OUT / n).read_text())
     rs = json.loads((ROOT / "src/bench/results/summary.json").read_text())
     by = {v["id"]: v for v in rs["variants"]}
@@ -142,7 +173,30 @@ def data():
          "startup": j("startup.json")}
     for r in d["ladder"]:
         r.pop("times", None)
-    return "window.RB=" + json.dumps(d, separators=(",", ":")) + ";"
+    d["build"], d["wheels"] = build_facts()
+    return d
+
+
+def build_facts():
+    """What the build and wheel stages draw, read from the recorded outputs (b1, b3 to b8)."""
+    t = lambda n: (OUT / n).read_text()
+    one = lambda rx, txt: re.search(rx, txt, re.M).group(1)
+    b4 = t("b4_wheel_files.txt")
+    files = re.findall(r"^[ \t]*(\d+)[ \t]+\S+[ \t]+\S+[ \t]+(tokrs\S*)$", b4, re.M)
+    build = {"compile_s": float(one(r"target\(s\) in ([\d.]+)s", t("b1_develop.txt"))),
+             "real_s": float(one(r"^real ([\d.]+)", t("b1_develop.txt"))),
+             "wheel": one(r"(tokrs-0\.1\.0-\S+\.whl)", t("b3_wheel.txt")),
+             "files": [[name, int(size)] for size, name in files],
+             "deps": re.findall(r"^(\w+) = ", re.search(r"^\[dependencies\]\n(.*?)(?=^\[)", (HERE / "ext/Cargo.toml").read_text(), re.M | re.S).group(1), re.M)}
+    build["so_bytes"] = next(sz for nm, sz in build["files"] if nm.endswith(".so"))
+    b6, b8 = t("b6_abi3_install.txt"), t("b8_abi3t_install.txt")
+    wheels = {"cp314": build["wheel"],
+              "abi3": one(r"(tokrs-0\.1\.0-cp310-abi3-\S+\.whl)", t("b5_abi3.txt")),
+              "abi3_loaded": re.findall(r"^Python (\S+) loads tokrs\.abi3\.so -> 3$", b6, re.M),
+              "abi3_refused_314t": "requires a GIL-enabled interpreter" in b6,
+              "abi3t": one(r"(tokrs-0\.1\.0-cp315-\S+\.whl)", t("b7_abi3t.txt")),
+              "abi3t_loaded": [[v, g == "True"] for v, g in re.findall(r"^Python (\S+) GIL enabled: (\w+) loads tokrs\.abi3t\.so -> 3$", b8, re.M)]}
+    return build, wheels
 
 
 def main():
