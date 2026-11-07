@@ -1,49 +1,7 @@
-// ---- Reading visuals, part A: CAVI animation, estimator variances, schedules ----
+// ---- Reading visuals, part A: estimator variances, schedules (the CAVI animation became the 3D stage 27_js_sc_2cavi.js, 2026-11-07) ----
 (function(){
   const $=id=>document.getElementById(id),f=(v,d)=>Number(v).toFixed(d==null?3:d);
   const N=window.VIN;
-  // ===== CAVI =====
-  (function(){
-    const C=N.cavi,res=VI.cavi(C.data,0,1,1,1,12);const E=res.exact;
-    // grid for the exact Normal-Gamma posterior over (mu, tau)
-    const MU=[0.35,1.3],TA=[0,8.5];
-    const lpost=(mu,tau)=>tau<=0?-1e300:(E.a-0.5)*Math.log(tau)-E.b*tau-0.5*E.lam*tau*(mu-E.mu)*(mu-E.mu);
-    // steps: 0 exact only; then q(mu), q(tau) alternating for 4 rounds; last: compare
-    const steps=[{k:-1}];for(let i=0;i<4;i++){steps.push({k:i,part:'mu'});steps.push({k:i,part:'tau'})}steps.push({k:3,part:'end'});
-    function draw(si){
-      const el=$('vi-cavi-svg'),W=Math.min(RD.width(el),620),H=Math.round(W*0.62),L=44,R=12,T=10,B=34;
-      const X=m=>L+(m-MU[0])/(MU[1]-MU[0])*(W-L-R),Y=t=>T+(1-(t-TA[0])/(TA[1]-TA[0]))*(H-T-B);
-      let s='';const nx=46,ny=34;let mx=-1e300;const g=[];
-      for(let i=0;i<nx;i++)for(let j=0;j<ny;j++){const mu=MU[0]+(i+0.5)/nx*(MU[1]-MU[0]),ta=TA[0]+(j+0.5)/ny*(TA[1]-TA[0]);const v=lpost(mu,ta);g.push([i,j,v]);if(v>mx)mx=v}
-      const cw=(W-L-R)/nx,ch=(H-T-B)/ny;
-      g.forEach(([i,j,v])=>{const o=Math.exp(v-mx);if(o>0.02)s+='<rect x="'+(L+i*cw).toFixed(1)+'" y="'+(T+(ny-1-j)*ch).toFixed(1)+'" width="'+(cw+0.5).toFixed(1)+'" height="'+(ch+0.5).toFixed(1)+'" fill="var(--c4)" fill-opacity="'+(0.85*o).toFixed(3)+'"/>'});
-      // axes
-      s+='<line x1="'+L+'" y1="'+(H-B)+'" x2="'+(W-R)+'" y2="'+(H-B)+'" stroke="var(--mute)"/><line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="var(--mute)"/>';
-      [0.4,0.6,0.8,1.0,1.2].forEach(m=>{s+=RD.t(X(m),H-B+14,m.toFixed(1),{a:'middle',fs:10.5})});
-      [0,2,4,6,8].forEach(t=>{s+=RD.t(L-5,Y(t)+4,t,{a:'end',fs:10.5})});
-      s+=RD.t((L+W-R)/2,H-4,'mean μ',{a:'middle',fs:11})+RD.t(12,T+8,'τ',{fs:12});
-      const st=steps[si];let cap,cnt=[];
-      if(st.k<0){cap=['The exact posterior','Shaded: the true posterior of (μ, τ) given the ten points. It leans: when the precision τ is low, μ is less certain, so the shape widens towards the bottom. Mean field will fit it with a product q(μ) q(τ), an axis-aligned shape.'];
-        cnt=[['E[τ] (start)','1'],['exact Var(μ)',f(E.varMu,4)],['exact E[τ]',f(E.Et,3)]]}
-      else{const h=res.h[st.k],lam=h.lamN,mu=res.muN,sdm=1/Math.sqrt(lam);
-        const haveTau=st.part!=='mu'||st.k>0;const hb=st.part==='mu'?res.h[st.k-1]:h;
-        // vertical band for q(mu)
-        if(st.part==='mu'&&!haveTau){s+='<rect x="'+X(mu-2*sdm)+'" y="'+T+'" width="'+(X(mu+2*sdm)-X(mu-2*sdm))+'" height="'+(H-T-B)+'" fill="var(--c1)" fill-opacity="0.12" stroke="var(--c1)" stroke-dasharray="4 3"/>'}
-        if(haveTau){const a=res.aN,b=hb.bN,Et=a/b,sdt=Math.sqrt(a)/b;const lamU=st.part==='mu'?lam:h.lamN,sdu=1/Math.sqrt(lamU);
-          [1,2].forEach(k=>{s+='<ellipse cx="'+X(mu)+'" cy="'+Y(Et)+'" rx="'+(X(mu+k*sdu)-X(mu)).toFixed(1)+'" ry="'+(Y(Et-k*sdt)-Y(Et)).toFixed(1)+'" fill="none" stroke="var(--c1)" stroke-width="'+(k===1?2:1.2)+'"'+(k===2?' stroke-dasharray="5 3"':'')+'/>'});
-          s+='<circle cx="'+X(mu)+'" cy="'+Y(Et)+'" r="3" fill="var(--c1)"/>'}
-        const r=st.k+1;
-        if(st.part==='mu')cap=['Round '+r+': update q(μ)','q(μ) = N('+f(mu,4)+', 1/'+f(lam,2)+'): the mean never changes (it does not depend on τ here); the precision is (λ₀ + N) E[τ] = 11 × '+f(h.EtPrev,3)+'.'+(r===1?' With E[τ] = 1 the first guess is far too wide (dashed band: ±2 sd).':'')];
-        else if(st.part==='tau')cap=['Round '+r+': update q(τ)','q(τ) = Gamma(6.5, '+f(h.bN,4)+'), so E[τ] = '+f(h.Et,4)+'. A larger E[τ] makes the next q(μ) narrower, which lowers b, which raises E[τ]: the two updates feed each other until nothing moves.'];
-        else cap=['Converged: right centre, too narrow','The ellipses sit on the posterior’s centre (E[τ] '+f(h.Et,4)+' against '+f(E.Et,4)+' exact) but are axis-aligned and tighter: Var(μ) '+f(1/h.lamN,4)+' against '+f(E.varMu,4)+' exact, Var(τ) '+f(res.aN/(h.bN*h.bN),3)+' against '+f(E.varT,3)+'. Mean field cannot lean, and reverse KL prefers too narrow to too wide.'];
-        cnt=[['round',String(r)],['λ_N (precision of q(μ))',f(st.part==='mu'?lam:h.lamN,3)],['b_N',st.part==='mu'&&r===1?'not yet':f(hb.bN,4)],['E[τ]',st.part==='mu'&&r===1?'1 (start)':f(hb.Et,4)]]}
-      el.innerHTML=RD.svg(W,H,s,'CAVI on a Normal-Gamma posterior');
-      $('vi-cavi-cap').innerHTML='<div class="t">'+cap[0]+'</div><p>'+cap[1]+'</p>';
-      $('vi-cavi-cnt').innerHTML=cnt.map(c=>RD.stat(c[0],c[1])).join('');
-    }
-    RD.anim({card:'vi-cavi-card',ctl:'vi-cavi-ctl',n:steps.length,draw,ms:2200,label:'CAVI step'});
-    RD.onResize(()=>draw(0));
-  })();
   // ===== estimator variances =====
   function est(){const el=$('vi-est-svg');if(!el)return;const W=Math.min(RD.width(el),640),rows=['1','10','100'];
     const ser=[['pathwise (reparameterisation)','rep_var','var(--c3)'],['score function','sf_var','var(--c2)'],['score function with baseline','sfb_var','var(--c5)']];

@@ -308,6 +308,10 @@ window.VIN={
  "tweedie": {
   "slope_mc": 0.5843,
   "slope_closed": 0.5839
+ },
+ "stages": {
+  "hero_gap_mean_matched": 0.0134,
+  "hero_elbo_mean_matched": -1.9439
  }
 };
 window.VIVAE={"gap":{"n":100,"logpx_quadrature":-136.215,"elbo_encoder":-144.459,"elbo_optimised":-136.31,"total_gap":8.244,"approximation_gap":0.095,"amortisation_gap":8.149,"min_per_image_gap_opt":-0.012}};

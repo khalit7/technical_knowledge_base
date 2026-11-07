@@ -133,5 +133,7 @@ N['w12'] = wts
 zz0 = rng.standard_normal(1_000_000); ee = rng.standard_normal(1_000_000); xt1 = math.sqrt(a200) * zz0 + math.sqrt(1 - a200) * ee
 bslope = float((xt1 * ee).mean() / (xt1 * xt1).mean())
 N['tweedie'] = {'slope_mc': r(bslope), 'slope_closed': r(math.sqrt(1 - a200))}
+# ---------- 7. Numbers the 3D stages quote (2026-11-07): model A's gap with q's mean on the posterior's but its width still 0.5 ----------
+N['stages'] = {'hero_gap_mean_matched': r(kl_gauss(pm, 0.25, pm, pv)), 'hero_elbo_mean_matched': r(logpx - kl_gauss(pm, 0.25, pm, pv))}
 json.dump(N, open(os.path.join(HERE, 'inputs', 'numbers.json'), 'w'), indent=1)
 print(json.dumps(N, indent=1)[:6000])

@@ -55,9 +55,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_math/numerical_computing` Numerical computing for ML: floating point, precision formats, stable softmax
 - [x] `engineering_foundations/topic_math/probability` Probability for ML: random variables, distributions to losses, MLE, MAP, Bayes
 - [x] `engineering_foundations/topic_math/statistics` Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests
-- [~] `engineering_foundations/topic_math/variational_inference_and_generative_models` Variational inference and generative-model maths: ELBO, VAEs, diffusion
+- [x] `engineering_foundations/topic_math/variational_inference_and_generative_models` Variational inference and generative-model maths: ELBO, VAEs, diffusion
 - [ ] `engineering_foundations/topic_math` Topic: math
-- [ ] `engineering_foundations/topic_operating_systems/concurrency` Concurrency: threads, locks, futexes, deadlock, and event-driven I/O
+- [~] `engineering_foundations/topic_operating_systems/concurrency` Concurrency: threads, locks, futexes, deadlock, and event-driven I/O
 - [ ] `engineering_foundations/topic_operating_systems/containers_and_isolation` Containers and isolation: namespaces, cgroups v2, seccomp, sandboxes
 - [ ] `engineering_foundations/topic_operating_systems/memory_allocators` Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator
 - [ ] `engineering_foundations/topic_operating_systems/processes_and_syscalls` Processes and the system-call API: fork, exec, signals, file descriptors
@@ -349,3 +349,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_math/numerical_computing`: softmax stage sparse at mid steps; softmax bit readout long and wraps; NaN stage small at 1400.
 - `engineering_foundations/topic_math/statistics`: Fig. 6 mid steps busy (resample rows dense) and the "resample 1 · mean" label clips at the right edge at 1400; both stages small at 390.
 - `engineering_foundations/topic_math/probability`: hero step 1 barely zooms (score row as wide as the scene); some labels close at 390.
+- `engineering_foundations/topic_math/variational_inference_and_generative_models`: Fig. 3 low-density edge stepped; Fig. 5 opening step leaves empty space above.

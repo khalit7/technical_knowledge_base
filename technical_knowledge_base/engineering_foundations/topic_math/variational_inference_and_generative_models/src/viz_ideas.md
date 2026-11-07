@@ -34,3 +34,13 @@ What the methodology lacked here: a rule for toy models whose measurements contr
 | **VAE against diffusion**: the same bound with a learned one-step \(q\) and a fixed many-step \(q\) | Reading 6 | built (static diagram; the reappearance paragraph had no picture) |
 | Diffusion lab, VAE tab, forward-then-back animation, schedules, straightness | closed blocks M1, M3, D3 | moved out of the core: they show the generative models, owned by Topic: generative-and-multimodal's children; kept until an owner absorbs them |
 | Real images | none | rejected: a mathematics page; every figure is a mechanism drawn from the page's numbers |
+
+## 2026-11-07 (split layout, renderer v2)
+| Idea | Placement | Status |
+|---|---|---|
+| Hero as 3D: densities as curtains, -ELBO column split into -log p(x) and the gap, q moving onto the posterior, then model B | top | built (replaces the 2D hero) |
+| CAVI as 3D: posterior surface over (mu, tau), marginals on walls, flows for the two updates, q's mesh | section 4 | built (replaces the 2D stepper) |
+| VAE as 3D: glass encoder and decoder, eps from the side, latent plane with samples, KL bars, gradients back | section 6 | built |
+| Diffusion as 3D: plates per noise level, one jump, reverse chain, eq. 12 weights against L_simple | section 6 | built (with the VAE stage replaces the static diagram) |
+| Mode-seeking on a new 2-D two-humped posterior | rejected | model B (hero step 5) and Information theory's forward-against-reverse animation already show it; a new example would need new numbers |
+| ELBO widget, optimiser, IWAE, gap split, estimator variances, schedules in 3D | rejected | curves, one axis, log axis or reader-driven widgets: read best flat |
