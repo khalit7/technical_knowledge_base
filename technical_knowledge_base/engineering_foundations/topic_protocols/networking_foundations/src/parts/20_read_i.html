@@ -1,8 +1,20 @@
+<div class="s3sp"><div class="s3R"><div id="stg-queue"></div></div><div class="s3L">
 
 <section id="rd-srv">
 <h2>8. The server side: accept queues, shared ports, file descriptors</h2>
 <p>The kernel completes the handshake on its own; <code>accept()</code> only hands your program a connection that is already established. Finished connections wait in an <b>accept queue</b> as long as the <code>backlog</code> passed to <code>listen()</code>, capped by <code>somaxconn</code>: 4,096 on Linux since 5.4 and 128 before ({{ip-sysctl|https://docs.kernel.org/networking/ip-sysctl.html}}; many tuning guides predate the change), and 128 on this Mac (<span class="meas">measured</span> <code>kern.ipc.somaxconn</code>). A server that accepts more slowly than clients arrive (a single process busy loading a model, a rendezvous rank before it calls <code>accept</code>) fills it.</p>
 <p>When it is full, Linux drops new SYNs (<code>tcp_conn_request</code> in {{tcp_input.c|https://github.com/torvalds/linux/blob/master/net/ipv4/tcp_input.c}} counts a ListenOverflow and drops), so the client resends its SYN after its 1 s initial timeout, then 2 s later: connects that take 1 s or 3 s instead of a millisecond. A handshake that completes while the queue is full has its final ACK ignored, unless <code>tcp_abort_on_overflow</code> is on, which sends the client a reset instead ({{tcp_minisocks.c|https://github.com/torvalds/linux/blob/master/net/ipv4/tcp_minisocks.c}}; off by default).</p>
+<ol class="sx" id="sx-queue">
+<li><b>listen(2).</b> The server's kernel will complete handshakes by itself and keep at most 2 finished connections waiting for <code>accept()</code>: this experiment's backlog, far below the caps above.</li>
+<li><b>Clients 0 and 1 connect.</b> Their handshakes complete in 0.3 to 0.4 ms and the connections wait in the queue; the server is busy and has not called <code>accept()</code>.</li>
+<li><b>Clients 2 to 7 connect too.</b> On this Mac five more <code>connect()</code> calls return success in 0.3 to 0.4 ms and client 4's is reset at once: seven of eight connects succeeded, though only two connections fit the queue.</li>
+<li><b>Every connected client sends its request.</b> Clients 0 and 1 send theirs; the other five get BrokenPipeError: at the server, their connection no longer exists.</li>
+<li><b>The server finally accepts.</b> It gets exactly two connections, reads "hello 0" and "hello 1" and answers both; the five others read "Connection reset by peer".</li>
+<li><b>On Linux a full queue drops the SYN instead.</b> The client resends after 1 s, then 2 s more: connects of 1 s or 3 s (the kernel source above, not measured here).</li>
+<li><b>Many workers, one port.</b> With <code>SO_REUSEPORT</code> each worker process binds the same port with its own queue and the kernel spreads new connections across them, so they accept in parallel (<span class="ill">illustrative</span>: four workers).</li>
+</ol>
+</section></div></div>
+<section>
 <div class="card">
 <h4>Seven of eight connects succeeded; only two clients were ever served</h4>
 <p class="small"><span class="meas">measured</span> on this Mac with <code>listen(2)</code> and a server that does not call <code>accept()</code> until all eight clients have tried.</p>

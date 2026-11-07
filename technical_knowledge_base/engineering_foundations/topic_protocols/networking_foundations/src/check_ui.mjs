@@ -1,6 +1,6 @@
 // Click every control of the page at 390 px dark and 920 px light: tabs, segmented buttons, animation controls,
 // sliders, selects, drills, prefix inputs. Fails on script errors, the error box, NaN/undefined/Infinity in visible
-// text, or sideways scroll. Screenshots of each card go to <out dir>.
+// text, or sideways scroll. Screenshots of each card go to <out dir>. Runs under reduced motion: nothing may move by itself.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_protocols/networking_foundations/src/check_ui.mjs <out dir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -38,7 +38,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const e = await p.$(sel); if (e) await e.screenshot({ path: `${out}/${name}-${w}.png` }) };
   // Reading
   await p.click('button[data-t=t-read]'); await sleep(200);
-  for (const [seg, ctl, card] of [[null, 'rd-fsm-ctl', 'rd-fsm-card'], [null, 'rd-tr-ctl', 'rd-tr-card'], ['#rd-cc-seg button', 'rd-cc-ctl', 'rd-cc-card'], ['#rd-nat-seg button', 'rd-nat-ctl', 'rd-nat-card'], ['#rd-mig-seg button', 'rd-mig-ctl', 'rd-mig-card']]) {
+  for (const [seg, ctl, card] of [[null, 'rd-tr-ctl', 'rd-tr-card'], ['#rd-cc-seg button', 'rd-cc-ctl', 'rd-cc-card'], ['#rd-nat-seg button', 'rd-nat-ctl', 'rd-nat-card'], ['#rd-mig-seg button', 'rd-mig-ctl', 'rd-mig-card']]) {
     if (seg) { const k = await p.$$eval(seg, es => es.length);
       for (let i = 0; i < k; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), seg, i); await sleep(50); const n = await stepAll(ctl); await bad(card + ' mode ' + i + ' (' + n + ' steps)'); await p.click('#' + ctl + '-f'); await shot('#' + card, card + '-m' + i) } }
     else { const n = await stepAll(ctl); await bad(card + ' (' + n + ' steps)'); await shot('#' + card, card) }
@@ -49,10 +49,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const nd = await clickAll('#rd-drills button[data-j]'); await bad('drills (' + nd + ' answers)');
   await clickAll('#t-read details > summary'); await bad('details');
   for (const id of ['rd-nums', 'rd-winbars', 'rd-wintab', 'rd-wndplot', 'rd-loadplot', 'rd-nodelay', 'rd-backlog', 'rd-mtuplot', 'rd-udpdrop', 'rd-drills']) await shot('#' + id, id);
-  // nothing may move before the reader acts: every animation is still on step 0 after scrolling past it
+  // under reduced motion (emulated throughout this script) nothing moves by itself: every animation is still on its opening step after scrolling past it
+  // (autoplay at normal motion is checked by check_stages.mjs; the timeline widget opens on its last event and never plays)
   await p.reload(); await sleep(300);
-  for (const c of ['rd-fsm-card','rd-tr-card','rd-cc-card','rd-nat-card','rd-mig-card','rd-tc-card']) { await p.evaluate(c => document.getElementById(c).scrollIntoView(), c); await sleep(1600) }
-  const moved = await p.$$eval('.an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
+  for (const c of ['rd-tr-card','rd-cc-card','rd-nat-card','rd-mig-card','rd-tc-card']) { await p.evaluate(c => document.getElementById(c).scrollIntoView(), c); await sleep(1600) }
+  const moved = await p.$$eval('.an-ctl:not(.stg-bar) input[type=range]', es => es.filter(e => e.id !== 'tc-ctl-s' && +e.value !== 0).map(e => e.id));
+  if (await p.$eval('#tc-ctl-s', e => +e.value !== +e.max)) moved.push('tc-ctl-s (not on its last event)');
+  moved.push(...await p.$$eval('.stg', xs => xs.filter(x => (+x.dataset.frames || 0) > 0).map(x => x.id)));
   if (moved.length) { fails++; console.log(`${w} ${scheme} autoplay: ${moved.join(' ')}`) }
   // round-trip budget
   await clickAll('#rd-rtt-pre button'); for (const v of [1, 100, 200]) { await p.evaluate(v => { const s = document.getElementById('rd-rtt'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await sleep(20); await bad('rtt ' + v) }

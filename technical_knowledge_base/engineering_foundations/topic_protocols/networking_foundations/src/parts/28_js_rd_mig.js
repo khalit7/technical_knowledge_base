@@ -34,14 +34,17 @@
     {a:'c2s',lab:'SYN (new connection)',title:'Start again',text:'A new TCP handshake: one round trip.'},{a:'s2c',lab:'SYN-ACK'},{a:'c2s',lab:'ACK + ClientHello'},{a:'s2c',lab:'ServerHello ... Finished',title:'And a new TLS handshake',text:'Another round trip (TLS 1.3; resumption can save some work but not the round trip).'},
     {a:'c2s',lab:'Finished + request "after"',title:'Retry',text:'Two round trips after the move, plus whatever time the application took to notice the reset and decide that retrying is safe.'},{a:'s2c',lab:'reply'}];
   TCP.forEach((s,k)=>{if(!s.title){s.title=k<6?'TCP: handshake and first request':'TCP: reconnect';s.text=s.text||'Illustrative: the order of messages, not recorded timing.'}});
+  // six explained stretches per mode (the long-replay rule): the last row of each stretch, in the row lists below
+  const GQ=[0,1,5,8,11,12],GT=[2,5,6,8,12,14];window.MIG_GROUPS={GQ,GT};
   let S=quicSteps();
-  function draw(i){
+  function draw(j){
+    const G=mode==='quic'?GQ:GT,i=G[j],i0=j?G[j-1]+1:0;
     const el=$('rd-mig-svg');const W=Math.max(280,Math.min(760,RD.width(el)));const isQ=mode==='quic';
     const rows=S.length,rowH=22,T=38,H=T+rows*rowH+10,xc=Math.min(80,W*0.18),xs=W-Math.min(80,W*0.18);let s='';
     s+=RD.t(xc,14,'Client',{a:'middle',w:600,fs:12})+RD.t(xs,14,'Server :30020',{a:'middle',w:600,fs:12});
     s+=RD.t(xc,28,'port '+p0,{a:'middle',fs:10,fill:'var(--mute)'});
     s+='<line x1="'+xc+'" x2="'+xc+'" y1="32" y2="'+(H-4)+'" stroke="var(--line)" stroke-width="2"/><line x1="'+xs+'" x2="'+xs+'" y1="32" y2="'+(H-4)+'" stroke="var(--line)" stroke-width="2"/>';
-    for(let k=0;k<=i;k++){const st=S[k];const y=T+k*rowH+6;const cur=k===i;
+    for(let k=0;k<=i;k++){const st=S[k];const y=T+k*rowH+6;const cur=k>=i0;
       if(st.move){s+='<line x1="'+(xc-30)+'" x2="'+(xs+30)+'" y1="'+y+'" y2="'+y+'" stroke="var(--c5)" stroke-dasharray="4 3"/>'+RD.t(W/2,y-3,'client now on port '+p1,{a:'middle',fs:10.5,fill:'var(--c5)',w:600});continue}
       const c2s=isQ?st.e.frm==='client':st.a==='c2s';const x0=c2s?xc:xs,x1=c2s?xs:xc;const bad=!isQ&&st.bad;
       const col=bad?'var(--bad)':(cur?'var(--acc)':'var(--mute)');
@@ -49,12 +52,11 @@
       const lab=isQ?F(st.e.bytes)+' B: '+st.e.packets.map(p=>TY[p.type]||p.type).join('+'):st.lab;
       s+=RD.t((x0+x1)/2,y-1,esc(lab),{a:'middle',fs:W<420?9:10.5,fill:cur?'var(--ink)':'var(--mute)',w:cur?600:400})}
     el.innerHTML=RD.svg(W,H,s,'Connection migration ladder');
-    const st=S[i];let extra='';
-    if(isQ&&st.e)extra=' <span class="mute">(sent at '+F(st.e.t_send,2)+' ms, received at '+F(st.e.t_recv,2)+' ms after the first datagram)</span>';
-    $('rd-mig-cap').innerHTML='<div class="t">'+(i+1)+' of '+S.length+'. '+esc(st.title)+'</div><p>'+esc(st.text)+extra+'</p>';
+    const cr=S.slice(i0,i+1).filter(r=>isQ&&r.e);
+    $('rd-mig-t').textContent=cr.length?cr.map(r=>(r.e.frm==='client'?'client':'server')+' '+F(r.e.bytes)+' B sent at '+F(r.e.t_send,2)+' ms, received at '+F(r.e.t_recv,2)+' ms').join('; '):(isQ?'':'Order of messages, not recorded timing.');
   }
-  function note(){$('rd-mig-note').innerHTML=mode==='quic'?'<span class="meas">measured</span> aioquic '+esc(Q.aioquic)+', loopback, '+esc(Q.recorded)+': '+L.length+' datagrams, both replies received ("'+esc(Q.steps[1].reply)+'", "'+esc(Q.steps[3].reply)+'") on one connection. Rows are in time order; spacing is not to scale (each datagram\'s times are in its caption).':'<span class="ill">illustrative</span> the same move on TCP over TLS 1.3, drawn from RFC 9293 and RFC 9846; message order, not timing.'}
-  const h=RD.anim({card:'rd-mig-card',ctl:'rd-mig-ctl',n:S.length,draw,ms:1700,label:'Datagram'});
-  RD.seg($('rd-mig-seg'),m=>{mode=m;S=m==='quic'?quicSteps():TCP;note();h.reset(S.length)});
+  function note(){$('rd-mig-note').innerHTML=mode==='quic'?'<span class="meas">measured</span> aioquic '+esc(Q.aioquic)+', loopback, '+esc(Q.recorded)+': '+L.length+' datagrams, both replies received ("'+esc(Q.steps[1].reply)+'", "'+esc(Q.steps[3].reply)+'") on one connection. Rows are in time order; spacing is not to scale (the times of the current stretch are under the ladder).':'<span class="ill">illustrative</span> the same move on TCP over TLS 1.3, drawn from RFC 9293 and RFC 9846; message order, not timing.'}
+  const h=RD.anim({card:'rd-mig-card',ctl:'rd-mig-ctl',n:GQ.length,draw,ms:4800,label:'Stretch',list:'sx-mig-quic'});
+  RD.seg($('rd-mig-seg'),m=>{mode=m;S=m==='quic'?quicSteps():TCP;note();$('sx-mig-quic').hidden=m!=='quic';$('sx-mig-tcp').hidden=m!=='tcp';h.reset((m==='quic'?GQ:GT).length,'sx-mig-'+m)});
   note();RD.onResize(()=>h.redraw());
 })();

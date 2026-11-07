@@ -1,30 +1,8 @@
-// ---- Reading tab, figures added in the 2026-10-24 rebuild: the hero (headers to scale), the 5-tuple, traceroute stepper, round-trip budget ----
+// ---- Reading tab, 2D figures: the 5-tuple, traceroute stepper (step list sx-tr), round-trip budget (a slider widget). The hero is the 3D stage in 41_js_sc_hero.js ----
 (function(){
-  const $=id=>document.getElementById(id);if(!$('rd-hero'))return;
+  const $=id=>document.getElementById(id);if(!$('rd-tuple'))return;
   const F=NFC.fmt,T=RD.t;
   const CI='var(--c2)',CT='var(--acc)',CP='var(--c3)';
-  // hero: one full segment and one token packet, drawn to the same byte scale
-  function hero(){
-    const el=$('rd-hero');const W=Math.max(280,Math.min(880,RD.width(el)));const L=4,R=4,sc=(W-L-R)/1500;
-    const fs=W<480?11:12;let s='';
-    const ipw=20*sc,tcw=32*sc,y1=58,bh=28;
-    // full segment
-    s+='<rect x="'+L+'" y="'+y1+'" width="'+ipw+'" height="'+bh+'" fill="'+CI+'"/>';
-    s+='<rect x="'+(L+ipw)+'" y="'+y1+'" width="'+tcw+'" height="'+bh+'" fill="'+CT+'"/>';
-    s+='<rect x="'+(L+ipw+tcw)+'" y="'+y1+'" width="'+(1448*sc)+'" height="'+bh+'" fill="'+CP+'" opacity=".8"/>';
-    s+=T(L+ipw+tcw+1448*sc/2,y1+18,'1,448 B of data (one MSS)',{a:'middle',fs,fill:'var(--bg)',w:600});
-    // callouts with leader lines
-    s+='<line x1="'+(L+ipw/2)+'" x2="'+(L+ipw/2)+'" y1="20" y2="'+y1+'" stroke="'+CI+'"/>'+T(L+ipw/2+5,16,'IP 20 B: two addresses, TTL (section 1)',{fs,fill:CI,w:600});
-    s+='<line x1="'+(L+ipw+tcw/2)+'" x2="'+(L+ipw+tcw/2)+'" y1="40" y2="'+y1+'" stroke="'+CT+'"/>'+T(L+ipw+tcw/2+5,36,'TCP 32 B: two ports, byte numbers, ACK, window (2 to 7)',{fs:W<480?10.5:12,fill:CT,w:600});
-    // MTU bracket
-    const yb=y1+bh+6;s+='<path d="M'+L+' '+yb+'v6H'+(W-R)+'v-6" fill="none" stroke="var(--mute)"/>'+T(W/2,yb+20,'MTU: 1,500 bytes per IP packet on Ethernet (section 10)',{a:'middle',fs:11,fill:'var(--mute)'});
-    // token packet
-    const y2=yb+52;
-    s+=T(L,y2-8,W<560?'Token 1: 124 B data + 52 B headers = 176 B':'Token 1 of the stream: 124 B of data + 52 B of headers = 176 B, 30% header',{fs,w:600});
-    s+='<rect x="'+L+'" y="'+y2+'" width="'+ipw+'" height="'+bh+'" fill="'+CI+'"/><rect x="'+(L+ipw)+'" y="'+y2+'" width="'+tcw+'" height="'+bh+'" fill="'+CT+'"/><rect x="'+(L+ipw+tcw)+'" y="'+y2+'" width="'+(124*sc)+'" height="'+bh+'" fill="'+CP+'" opacity=".8"/>';
-    s+='<rect x="'+(L+176*sc)+'" y="'+y2+'" width="'+(W-R-L-176*sc)+'" height="'+bh+'" fill="none" stroke="var(--line)" stroke-dasharray="4 4"/>'+T(L+176*sc+(W-R-L-176*sc)/2,y2+18,'room for 1,324 B more, unused',{a:'middle',fs:11,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,y2+bh+6,s,'A 1,500-byte packet and a 176-byte token packet drawn to scale, with the IP and TCP headers labelled');
-  }
   // the 5-tuple: three connections from one client to one server port
   function tuple(){
     const el=$('rd-tuple');const W=Math.max(280,Math.min(760,RD.width(el)));const bw=Math.min(150,W*0.27),H=168;let s='';
@@ -54,9 +32,9 @@
       const up=k%2===0;s+=T(x,up?y-28:y+42,nd[0],{a:'middle',fs:11,w:600})+T(x,up?y-28+(-13):y+55,nd[1],{a:'middle',fs:11,fill:'var(--mute)'})});
     el.innerHTML=RD.svg(W,H,s,'traceroute step '+(i+1));
     const out=TR.slice(1,i+1).map((t,k)=>' '+(k+1)+'  '+NODES[k+1][1]).join('\n');
-    $('rd-tr-cap').innerHTML='<div class="t">'+(i+1)+' of '+TR.length+'. '+TR[i][0]+'</div><p>'+TR[i][1]+'</p>'+(out?'<pre class="rec" style="margin:4px 0">$ traceroute 203.0.113.5\n'+out+'</pre>':'');
+    $('rd-tr-out').textContent='$ traceroute 203.0.113.5\n'+(out||' (waiting for the first reply)');
   }
-  const tr=RD.anim({card:'rd-tr-card',ctl:'rd-tr-ctl',n:TR.length,draw:trDraw,ms:2000,label:'traceroute step'});
+  const tr=RD.anim({card:'rd-tr-card',ctl:'rd-tr-ctl',n:TR.length,draw:trDraw,ms:4200,label:'traceroute step',list:'sx-tr'});
   // round-trip budget before the first response byte
   const CASES=[['New TCP + TLS 1.3 connection',[['TCP',CI],['TLS',CT],['request',CP]]],['Pooled (reused) connection',[['request',CP]]],['New QUIC connection',[['QUIC + TLS',CT],['request',CP]]],['QUIC 0-RTT (returning client)',[['request',CP]]]];
   function rtt(){
@@ -70,6 +48,6 @@
   }
   $('rd-rtt').addEventListener('input',()=>{$('rd-rtt-pre').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.v===+$('rd-rtt').value));rtt()});
   $('rd-rtt-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$('rd-rtt').value=b.dataset.v;$('rd-rtt').dispatchEvent(new Event('input'))});
-  const all=()=>{hero();tuple();rtt();tr.redraw()};
+  const all=()=>{tuple();rtt();tr.redraw()};
   RD.onRender(all);RD.onResize(all);all();
 })();

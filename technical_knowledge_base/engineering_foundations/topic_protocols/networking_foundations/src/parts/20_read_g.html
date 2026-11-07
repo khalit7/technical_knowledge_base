@@ -1,20 +1,46 @@
-
-<section id="rd-cc">
-<h2>6. Congestion control: sharing a link nobody owns</h2>
-<p>The receive window protects the receiver; nothing in it protects the routers between. If every sender sent as fast as its window allowed, router queues would overflow and throughput would collapse, as the internet did in October 1986 ({{Jacobson and Karels, 1988|https://ee.lbl.gov/papers/congavoid.pdf}}). So each sender also keeps a <b>congestion window</b> (cwnd), its own estimate of what the path can carry, and probes for more while watching for overload.</p>
-<p><b>Slow start.</b> A new connection starts at 10 segments ({{RFC 6928|https://www.rfc-editor.org/rfc/rfc6928}}; <code>TCP_INIT_CWND 10</code> in Linux) and adds one per ACK, doubling every round trip, until a loss or the slow-start threshold. Reaching a 125 MB window from 14.6 KB takes about log<sub>2</sub>(125 MB / 14.6 KB) &asymp; 13 round trips, 1.3 s on a 100 ms path (derived); this page's 100 KB home-line BDP fills in about 3. A 2 KB API response finishes inside slow start, so for it latency, not bandwidth, is everything. Linux also returns to slow start after a connection has been idle for one RTO (<code>tcp_slow_start_after_idle</code>, default on), so a burst after a pause starts small again.</p>
-<p><b>Reno</b>: after slow start, add one segment per round trip and halve on loss, <b>additive increase, multiplicative decrease</b> ({{RFC 5681|https://www.rfc-editor.org/rfc/rfc5681}}). Fair and stable, and hopeless on long fat paths: after one loss at a 10,000-segment window, one segment per 100 ms round trip needs 5,000 round trips, over 8 minutes, to get back (derived). <b>CUBIC</b>, the default in the Linux, Windows and Apple stacks ({{RFC 9438 s1|https://www.rfc-editor.org/rfc/rfc9438#section-1}}; this Mac reports <code>net.inet.tcp.use_newreno: 0</code> and 209 sockets on CUBIC), grows as a cubic in <i>time</i> since the last loss, W(t) = C (t &minus; K)<sup>3</sup> + W<sub>max</sub> with C = 0.4, cuts to 0.7 instead of 0.5, and K is the time to climb back to the window where the loss happened: back fast, careful past the old level, then accelerating. Because it runs on time, not round trips, long-RTT flows recover as fast as short ones.</p>
-<div class="card" id="rd-cc-card">
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-cc-card">
 <h4>After each loss CUBIC is back near the old window in about 9 s (K, derived); Reno needs tens of seconds</h4>
 <div class="seg" id="rd-cc-seg"><button data-m="reno" class="on">Reno (before)</button><button data-m="cubic">CUBIC (after)</button><button data-m="both">Both on one axis</button></div>
 <div class="small"><span class="ill">illustrative, computed from the RFC formulas</span> One flow, one step per 100 ms round trip, on a path that holds 1,000 segments in flight (about 117 Mbit/s with 1,460-byte segments): a window above that overflows the bottleneck buffer and loses a packet, and both flows also lose one packet the queue did not cause, at 25 s. Reno follows {{RFC 5681|https://www.rfc-editor.org/rfc/rfc5681#section-3.1}}; CUBIC follows {{RFC 9438 s4|https://www.rfc-editor.org/rfc/rfc9438#section-4}} (C = 0.4, &beta; = 0.7, with its Reno-friendly floor; fast convergence not modelled). Both start in slow start; queueing delay and timeouts are left out.</div>
 <div class="an-ctl" id="rd-cc-ctl"></div>
 <div id="rd-cc-svg"></div>
 <div class="an-cnt" id="rd-cc-cnt"></div>
-<div class="an-cap" id="rd-cc-cap"></div>
 </div>
+</div><div class="s3L">
+
+<section id="rd-cc">
+<h2>6. Congestion control: sharing a link nobody owns</h2>
+<p>The receive window protects the receiver; nothing in it protects the routers between. If every sender sent as fast as its window allowed, router queues would overflow and throughput would collapse, as the internet did in October 1986 ({{Jacobson and Karels, 1988|https://ee.lbl.gov/papers/congavoid.pdf}}). So each sender also keeps a <b>congestion window</b> (cwnd), its own estimate of what the path can carry, and probes for more while watching for overload.</p>
+<p><b>Slow start.</b> A new connection starts at 10 segments ({{RFC 6928|https://www.rfc-editor.org/rfc/rfc6928}}; <code>TCP_INIT_CWND 10</code> in Linux) and adds one per ACK, doubling every round trip, until a loss or the slow-start threshold. Reaching a 125 MB window from 14.6 KB takes about log<sub>2</sub>(125 MB / 14.6 KB) &asymp; 13 round trips, 1.3 s on a 100 ms path (derived); this page's home line (about 115 KB, Fig. 4) fills in about 3. A 2 KB API response finishes inside slow start, so for it latency, not bandwidth, is everything. Linux also returns to slow start after a connection has been idle for one RTO (<code>tcp_slow_start_after_idle</code>, default on), so a burst after a pause starts small again.</p>
+<p><b>Reno</b>: after slow start, add one segment per round trip and halve on loss, <b>additive increase, multiplicative decrease</b> ({{RFC 5681|https://www.rfc-editor.org/rfc/rfc5681}}). Fair and stable, and hopeless on long fat paths: after one loss at a 10,000-segment window, one segment per 100 ms round trip needs 5,000 round trips, over 8 minutes, to get back (derived). <b>CUBIC</b>, the default in the Linux, Windows and Apple stacks ({{RFC 9438 s1|https://www.rfc-editor.org/rfc/rfc9438#section-1}}; this Mac reports <code>net.inet.tcp.use_newreno: 0</code> and 209 sockets on CUBIC), grows as a cubic in <i>time</i> since the last loss, W(t) = C (t &minus; K)<sup>3</sup> + W<sub>max</sub> with C = 0.4, cuts to 0.7 instead of 0.5, and K is the time to climb back to the window where the loss happened: back fast, careful past the old level, then accelerating. Because it runs on time, not round trips, long-RTT flows recover as fast as short ones.</p>
+<ol class="sx" id="sx-cc-reno">
+<li><b>Slow start overshoots.</b> From 10 segments the window doubles every round trip and passes the path's 1,000 segments within a second; at 1,280 the queue overflows (0.7 s) and Reno halves to 640.</li>
+<li><b>One segment per round trip.</b> Additive increase: from 640 the window has crept only to 732 by 10 s.</li>
+<li><b>Still climbing.</b> At 24 s it is at 872, still below the capacity it lost at the start.</li>
+<li><b>A loss the queue did not cause.</b> At 25 s one packet is lost anyway, and 882 halves to 441.</li>
+<li><b>After 60 s.</b> The window is back to 790 and the path was 67% used on average: Reno spends tens of seconds climbing back after every loss.</li>
+</ol>
+<ol class="sx" id="sx-cc-cubic" hidden>
+<li><b>Slow start overshoots.</b> The same doubling to 1,280 at 0.7 s, but CUBIC cuts only to 0.7 of the window, 896, and overflows once more at 1.8 s (1,001 to 701).</li>
+<li><b>Back in K = 9.1 s.</b> The curve climbs fast, flattens near the old window and overflows again at 9.5 s: back at the old level in K seconds, as the formula says.</li>
+<li><b>Steady cycles.</b> One overflow about every 9 s (the next at 18.4 s), the window swinging between 700 and 1,000.</li>
+<li><b>A loss the queue did not cause.</b> At 25 s: 993 to 695, and back at the old level K = 9.1 s later, whatever the round trip.</li>
+<li><b>After 60 s.</b> The path was 91% used on average, against Reno's 67%. Neither avoids filling the buffer, which is the queueing delay measured below.</li>
+</ol>
+<ol class="sx" id="sx-cc-both" hidden>
+<li><b>Both overshoot in slow start.</b> 1,280 segments at 0.7 s; Reno halves to 640, CUBIC cuts to 896.</li>
+<li><b>Different climbs.</b> By 10 s Reno has crept to 732, while CUBIC was back at the capacity and overflowed again at 9.5 s.</li>
+<li><b>CUBIC cycles, Reno creeps.</b> CUBIC swings between 700 and 1,000; Reno reaches 872 at 24 s.</li>
+<li><b>The same random loss at 25 s.</b> Reno 882 to 441; CUBIC 993 to 695.</li>
+<li><b>After 60 s.</b> Reno used 67% of the path on average, CUBIC 91%.</li>
+</ol>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section>
 <p><b>The cost of filling the pipe: queues.</b> Reno and CUBIC learn they went too fast only when a queue overflows, so they keep the bottleneck's buffer full. <span class="meas">measured</span> on this page's home line, ping every 100 ms with one 25 MB download in the middle: the download ran at 44.1 Mbit/s and the round trip went from a 14.4 ms median at idle to 37.0 ms while it ran: about 23 ms of queue, roughly 125 KB waiting at the bottleneck (44.1 Mbit/s &times; 22.6 ms, derived). Section 5's runs show it too: the window-limited downloads ended with a current RTT of 17 to 22 ms, the ones that filled the link 35 to 49 ms. Interactive traffic on that link (a video call, the next streamed token) waits in the same queue: <b>bufferbloat</b>.</p>
-<div class="plot" id="rd-loadplot"></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>During one download the median round trip on the line more than doubles</h4><div class="plot" id="rd-loadplot"></div></div></div></div></div>
+<section>
+
 <p><b>BBR</b> (Bottleneck Bandwidth and Round-trip propagation time, from Google) models the path instead of reacting to loss: it estimates bottleneck bandwidth and minimum RTT and paces at that rate, keeping the queue near empty. It shines on long paths with random, non-congestive loss, where CUBIC would back off for nothing, and is in Linux since 4.9 ({{commit 0f8782ea1497|https://github.com/torvalds/linux/commit/0f8782ea14974ce992618b55f0c041ef43ed0b78}}). Its current version is still an IETF draft, {{draft-ietf-ccwg-bbr-06|https://datatracker.ietf.org/doc/draft-ietf-ccwg-bbr/}} (6 July 2026), not an RFC; check what a kernel ships with <code>sysctl net.ipv4.tcp_available_congestion_control</code>. <b>Only the sender chooses</b>: on a download, the server's algorithm decides, not yours.</p>
 <details class="dp"><summary>Signals other than loss, and when not to touch it <span class="mute">(depth)</span></summary><div class="b">
 <p><b>ECN</b> ({{RFC 3168|https://www.rfc-editor.org/rfc/rfc3168}}) lets a router mark a packet "congestion experienced" instead of dropping it, and the receiver echoes the mark; this Mac negotiated it on every connection recorded here. <b>L4S</b> ({{RFC 9330|https://www.rfc-editor.org/rfc/rfc9330}}, 2023) builds on it for very low queueing delay; ISPs deploy it, you do not tune it on a cluster.</p>

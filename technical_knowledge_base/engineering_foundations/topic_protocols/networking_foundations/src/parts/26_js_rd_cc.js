@@ -24,29 +24,27 @@ window.NFCC=(function(){
 })();
 (function(){
   const $=id=>document.getElementById(id);if(!$('rd-cc-card'))return;
-  const M=NFCC,F=NFC.fmt;let mode='reno';const N=31; // frames: t = 0, 2, ..., 60 s
+  // five explained stretches (the long-replay rule): each step plays the round trips from the end of the last stretch to the end of its own
+  const M=NFCC,F=NFC.fmt;let mode='reno';const E=[2,10,24,26,60];window.NFCC_STRETCH=E;
   const rate=w=>Math.min(w,M.CAP)*M.MSS*8/M.RTT/1e6;
-  function evText(e,name){return name+(e.kind==='random'?' loses a packet that the queue did not cause, at '+e.t+' s':' overflows the path at '+F(e.before)+' segments ('+e.t+' s)')+' and drops to '+F(e.after)+(name==='CUBIC'?'; it will be back at '+F(e.before)+' in K = '+F(e.K,1)+' s':'')}
-  function draw(i){
-    const t=i*2,el=$('rd-cc-svg');const show=mode==='both'?['reno','cubic']:[mode];
+  let shown=E[0],raf=0;
+  function frame(t){
+    const el=$('rd-cc-svg');const show=mode==='both'?['reno','cubic']:[mode];
     const cols={reno:'var(--c2)',cubic:'var(--c1)'},nm={reno:'Reno',cubic:'CUBIC'};
-    const series=show.map(k=>({pts:M[k].pts.filter(p=>p[0]<=t),col:cols[k],w:1.8,dash:mode==='both'&&k==='reno'?'5 3':null,label:nm[k]}));
-    const marks=[];show.forEach(k=>M[k].ev.filter(e=>e.t<=t).forEach(e=>marks.push({x:e.t,y:Math.min(e.before,1350),col:cols[k],shape:'x'})));
-    NFC.plot({el,h:240,x:[0,M.T],y:[0,1400],xl:'seconds (one step per 100 ms round trip)',yl:'congestion window (segments)',
+    const series=show.map(k=>({pts:M[k].pts.filter(p=>p[0]<=t+1e-9),col:cols[k],w:1.8,dash:mode==='both'&&k==='reno'?'5 3':null,label:nm[k]}));
+    const marks=[];show.forEach(k=>M[k].ev.filter(e=>e.t<=t+1e-9).forEach(e=>marks.push({x:e.t,y:Math.min(e.before,1350),col:cols[k],shape:'x'})));
+    NFC.plot({el,h:240,x:[0,M.T],y:[0,1400],xl:'seconds (one round trip = 100 ms)',yl:'congestion window (segments)',
       hlines:[{y:M.CAP,col:'var(--c3)',label:'path capacity: 1,000 segments in flight'}],vlines:[{x:M.EXTRA,col:'var(--mute)',label:'random loss'}],series,marks});
-    const cnt=show.map(k=>{const p=M[k].pts.filter(q=>q[0]<=t);const w=p[p.length-1][1];const avg=p.reduce((a,q)=>a+Math.min(q[1],M.CAP),0)/(p.length*M.CAP);const L=M[k].ev.filter(e=>e.t<=t).length;
-      return RD.stat(nm[k]+': window now',F(w)+' segments',F(rate(w),0)+' Mbit/s')+RD.stat(nm[k]+': average so far',F(100*avg,0)+'% of capacity',L+' loss'+(L===1?'':'es')+' so far')}).join('');
-    $('rd-cc-cnt').innerHTML=cnt;
-    const evs=[];show.forEach(k=>M[k].ev.filter(e=>e.t>t-2&&e.t<=t).forEach(e=>evs.push(evText(e,nm[k]))));
-    let txt;
-    if(t===0)txt='Both start in slow start with 10 segments (14.6 KB) and double every round trip.';
-    else if(evs.length)txt=evs.join('. ')+'.';
-    else if(t<=2)txt='Slow start overshoots: the window doubled past the path capacity within a second.';
-    else{const parts=show.map(k=>{const p=M[k].pts.filter(q=>q[0]<=t);const w=p[p.length-1][1];return nm[k]+' is at '+F(w)+' segments, '+(k==='reno'?'climbing one segment per round trip':'following its cubic curve: fast below the last loss point, flat near it, then probing beyond')});txt=parts.join('; ')+'.'}
-    if(i===N-1)txt='After 60 s: Reno used '+F(100*M.reno.util,0)+'% of the path on average, CUBIC '+F(100*M.cubic.util,0)+'%. Reno spends tens of seconds climbing back after each loss; CUBIC returns to the old level in K seconds whatever the round-trip time. Neither avoids filling the buffer, which is the queueing delay measured below.';
-    $('rd-cc-cap').innerHTML='<div class="t">t = '+t+' s ('+(mode==='both'?'both':nm[mode])+')</div><p>'+txt+'</p>';
+    $('rd-cc-cnt').innerHTML=show.map(k=>{const p=M[k].pts.filter(q=>q[0]<=t+1e-9);const w=p[p.length-1][1];const avg=p.reduce((a,q)=>a+Math.min(q[1],M.CAP),0)/(p.length*M.CAP);const L=M[k].ev.filter(e=>e.t<=t+1e-9).length;
+      return RD.stat(nm[k]+' at '+F(t,1)+' s',F(w)+' segments',F(rate(w),0)+' Mbit/s')+RD.stat(nm[k]+': average so far',F(100*avg,0)+'% of capacity',L+' loss'+(L===1?'':'es')+' so far')}).join('');
   }
-  const h=RD.anim({card:'rd-cc-card',ctl:'rd-cc-ctl',n:N,draw,ms:900,label:'Time step'});
-  RD.seg($('rd-cc-seg'),m=>{mode=m;h.reset(N)});
-  RD.onResize(()=>h.redraw());
+  function draw(i){
+    const to=E[i],fwd=$('rd-cc-card').classList.contains('rd-fwd')&&!RD.RM&&to>shown;cancelAnimationFrame(raf);
+    if(!fwd){shown=to;frame(to);return}
+    const from=shown,t0=performance.now(),dur=Math.min(2600,700+(to-from)*60);
+    const go=now=>{const u=Math.min(1,(now-t0)/dur);shown=from+(to-from)*u;frame(Math.round(shown*10)/10);if(u<1)raf=requestAnimationFrame(go);else{shown=to;frame(to)}};raf=requestAnimationFrame(go);
+  }
+  const h=RD.anim({card:'rd-cc-card',ctl:'rd-cc-ctl',n:E.length,draw,ms:5200,label:'Stretch',list:'sx-cc-reno'});
+  RD.seg($('rd-cc-seg'),m=>{mode=m;['reno','cubic','both'].forEach(k=>{$('sx-cc-'+k).hidden=k!==m});shown=E[0];h.reset(E.length,'sx-cc-'+m)});
+  RD.onResize(()=>{cancelAnimationFrame(raf);frame(shown)});
 })();

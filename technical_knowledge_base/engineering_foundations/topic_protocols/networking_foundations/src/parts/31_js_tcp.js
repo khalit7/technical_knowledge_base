@@ -106,8 +106,9 @@ window.TCPSIM=(function(){
       R.tok.map(k=>{const ex=k.td-(k.tw+R.R/2);return '<tr><td>'+esc(k.lab)+'</td><td class="num">'+F(k.tw,1)+' ms</td><td class="num">'+F(k.td,1)+' ms</td><td class="num'+(ex>1?' late':'')+'">'+(ex>0.05?'+'+F(ex,1)+' ms':'none')+'</td></tr>'}).join('')+
       '</tbody></table><div class="small mute">Extra wait = arrival at the client application minus (write time + one-way delay). Times from the client\'s SYN.</div>';
   }
-  const h=RD.anim({card:'rd-tc-card',ctl:'tc-ctl',n:R.ev.length,draw,ms:1100,label:'Event'});
-  function rerun(){R=TCPSIM.sim(cfg);table();h.reset(R.ev.length)}
+  // a widget (the long-replay rule, case b: the outcome of the reader's settings is the point): it never plays by itself and opens on its last event
+  const h=RD.anim({card:'rd-tc-card',ctl:'tc-ctl',n:R.ev.length,draw,ms:1100,label:'Event',auto:false,start:R.ev.length-1});
+  function rerun(){R=TCPSIM.sim(cfg);table();h.reset(R.ev.length);h.go(R.ev.length-1,true)}
   RD.seg($('tc-scn'),m=>{cfg.scn=m;rerun()});RD.seg($('tc-rec'),m=>{cfg.rec=m;rerun()});
   RD.seg($('tc-nag'),m=>{cfg.nagle=m==='on';rerun()});RD.seg($('tc-dack'),m=>{cfg.dack=m==='on';rerun()});
   $('tc-rtt').addEventListener('input',e=>{cfg.rtt=+e.target.value;$('tc-rtt-v').textContent=cfg.rtt+' ms';rerun()});

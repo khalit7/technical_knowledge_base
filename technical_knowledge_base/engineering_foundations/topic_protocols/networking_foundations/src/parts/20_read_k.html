@@ -1,15 +1,18 @@
+<div class="s3sp"><div class="s3L">
 
 <section id="rd-mtu">
 <h2>10. MTU: the largest packet, and the hang it causes</h2>
 <p>Every link has a <b>maximum transmission unit</b> (MTU), the largest IP packet it carries: 1,500 bytes on standard Ethernet, less on links that wrap packets in extra headers. A bigger packet must be <b>fragmented</b> or dropped, and fragmentation is fragile (lose one fragment, lose the packet), so TCP avoids it: each side announces an <b>MSS</b> in its SYN, the MTU minus IP and TCP headers (1,500 &minus; 20 &minus; 20 = 1,460 for IPv4; 1,440 for IPv6), and the timestamp option then takes 12 bytes of every segment (the hero's 1,448).</p>
 <p><b>Path MTU discovery.</b> A link further on may be smaller than yours. So TCP sends with the Don't Fragment bit set, and a router that cannot forward a packet drops it and returns ICMP "fragmentation needed" with the next link's MTU (IPv4, {{RFC 1191|https://www.rfc-editor.org/rfc/rfc1191}}) or "packet too big" (IPv6, {{RFC 8201|https://www.rfc-editor.org/rfc/rfc8201}}); the sender shrinks its packets for that destination.</p>
-<div class="card">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card">
 <h4>One byte over 1,492 and the home router sends back "frag needed"</h4>
 <p class="small"><span class="meas">measured</span> from this laptop (interface MTU 1,500) with don't-fragment pings to Cloudflare's resolver: the router answered the oversized probes with exactly that message, naming an MTU of 1,492, and a binary search found the largest payload that gets through, 1,464 bytes (+ 28 bytes of IP and ICMP headers = 1,492).</p>
 <div class="plot" id="rd-mtuplot"></div>
 <pre class="rec" id="rd-mtuicmp"></pre>
 </div>
-
+</div></div></div>
+<section>
 <h3>The black hole</h3>
 <p>Path MTU discovery depends on that ICMP message coming back. A firewall or security group that drops all ICMP breaks it, with a signature worth memorising: <b>the handshake and small requests work, then the first full-size packet vanishes and the transfer hangs</b>. A TLS handshake whose certificate chain needs a full-size packet, a large POST, a model download or an allreduce over a VPN all stall while <code>curl</code> to a health endpoint passes. Fixes: allow ICMP "fragmentation needed" / "packet too big" through; clamp the MSS on the tunnel or router; or let TCP find the size by probing (<b>packetization-layer PMTUD</b>, {{RFC 4821|https://www.rfc-editor.org/rfc/rfc4821}}; Linux <code>net.ipv4.tcp_mtu_probing=1</code> turns it on when a black hole is detected, 2 always, default 0, {{ip-sysctl|https://docs.kernel.org/networking/ip-sysctl.html}}). QUIC and other datagram protocols probe the same way ({{RFC 8899|https://www.rfc-editor.org/rfc/rfc8899}}).</p>
 <h3>Jumbo frames and the mixed-MTU trap</h3>

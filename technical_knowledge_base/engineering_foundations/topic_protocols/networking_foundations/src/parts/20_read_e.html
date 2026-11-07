@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-loss"></div></div><div class="s3L">
 
 <section id="rd-rel">
 <h2>4. Loss: acknowledgements, timers and head-of-line blocking</h2>
@@ -7,10 +8,34 @@
 <li><b>Retransmission timeout (RTO).</b> It keeps a smoothed RTT and a variance and sets RTO = smoothed RTT + 4 &times; variance ({{RFC 6298|https://www.rfc-editor.org/rfc/rfc6298}}); nothing acknowledged before the timer fires means resend, and double the timer for the next try. RFC 6298 says the RTO should never go below 1 second; Linux uses a 200 ms floor (<code>TCP_RTO_MIN (HZ / 5)</code>), a 1 s initial value and a 120 s ceiling ({{tcp.h|https://github.com/torvalds/linux/blob/master/include/net/tcp.h}}). A timeout is expensive: at least 200 ms idle, and the congestion window collapses to one segment (section 6).</li>
 <li><b>Fast retransmit.</b> Three duplicate ACKs mean later segments are arriving, so the missing one is probably lost: resend at once, one round trip after the loss instead of a timer later ({{RFC 5681 s3.2|https://www.rfc-editor.org/rfc/rfc5681#section-3.2}}). <b>SACK</b> (selective acknowledgement, {{RFC 2018|https://www.rfc-editor.org/rfc/rfc2018}}) also reports which later blocks arrived, so several holes are repaired in one round trip.</li>
 </ul>
+<div class="s3chips" id="loss-mode" role="group" aria-label="Recovery"><button data-m="rto" class="on">Timer only (before)</button><button data-m="fast">Fast retransmit (after)</button></div>
+<ol class="sx" id="sx-loss-rto">
+<li><b>Token 1 arrives and is read at once.</b> Written at 273.8 ms (times from the client's SYN, on a 100 ms round trip), it lands 50 ms later, at 323.8 ms, and goes straight to the program.</li>
+<li><b>Token 2 is lost.</b> It leaves at 325.1 ms and never arrives. Nothing tells the server yet.</li>
+<li><b>Tokens 3 to 5 arrive and wait.</b> They land between 426.5 and 530.1 ms, but bytes are handed over only in order, so they sit in the receive buffer behind the hole: head-of-line blocking. Each triggers a duplicate ACK 503, "I still have everything up to byte 503".</li>
+<li><b>Timer only: the duplicates are ignored.</b> The retransmission timer, 300 ms here (the round trip plus Linux's 200 ms floor) and restarted by the last new ACK at 413.8 ms, fires at 713.8 ms, and token 2 is sent again.</li>
+<li><b>The hole fills: four tokens in one read.</b> The copy lands at 763.8 ms and the receiver hands tokens 2 to 5 to the program together.</li>
+<li><b>The cost.</b> Token 2 reaches the program 388.6 ms later than its one-way trip, and token 5, which arrived intact, 234.7 ms late. Switch to fast retransmit to see 134.7 ms of that disappear.</li>
+</ol>
+<ol class="sx" id="sx-loss-fast" hidden>
+<li><b>Token 1 arrives and is read at once.</b> Written at 273.8 ms, it lands at 323.8 ms and goes straight to the program.</li>
+<li><b>Token 2 is lost.</b> It leaves at 325.1 ms and never arrives.</li>
+<li><b>Tokens 3 to 5 arrive and wait.</b> They land between 426.5 and 530.1 ms behind the hole, each triggering a duplicate ACK 503.</li>
+<li><b>Fast retransmit on the third duplicate.</b> The third duplicate ACK reaches the server at 579.1 ms: later segments are getting through, so token 2 must be lost. It is resent at once, without waiting for the timer.</li>
+<li><b>The hole fills: four tokens in one read.</b> The copy lands at 629.1 ms and tokens 2 to 5 reach the program together.</li>
+<li><b>The cost: one round trip, not a timer.</b> Token 2 is 253.9 ms late and token 5 100.0 ms late. On QUIC each stream keeps its own order, so a lost packet stalls only the stream it carried; {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}'s Fig. 4 replays that measured on three streams.</li>
+</ol>
+<p class="small mute"><span class="ill">illustrative model with recorded inputs</span>: the root's streaming request replayed by the model of the timeline below (delayed ACKs on, TCP_NODELAY on).</p>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section>
+<h3>The timeline: the same request, every segment</h3>
 <p><b>A token stream breaks fast retransmit.</b> It needs later segments to generate duplicate ACKs, and a stream sends one small segment every 50 ms or so; if the <i>last</i> segment is lost there is nothing behind it. Linux's answer is <b>RACK-TLP</b> ({{RFC 8985|https://www.rfc-editor.org/rfc/rfc8985}}): call a segment lost when one sent after it has been acknowledged and a reordering window has passed, and when the tail goes quiet, send a <b>tail loss probe</b> after about two round trips to provoke an ACK that reveals the hole.</p>
-<div class="card" id="rd-tc-card">
+<p>The root's streaming request (277 bytes up; a 244-byte response head, then seven Server-Sent Events written at the times the root recorded: 2.4, 123.8, 175.1, 226.5, 278.0, 329.1 and 330.1 ms after the request arrived), replayed over one TCP connection. Time runs down, to scale. Predict first: with "Token 2 lost", which tokens does the client application see late, and why do tokens 3 to 5 wait too? Then flip Recovery.</p>
+<details class="dp"><summary>The model's rules <span class="mute">(what is simplified)</span></summary><div class="b"><p>One-way delay is half the round trip; segments up to 1,448 bytes; the receiver ACKs every second segment or after 40 ms (Linux's minimum delayed ACK) and at once for out-of-order data ({{RFC 5681 s4.2|https://www.rfc-editor.org/rfc/rfc5681#section-4.2}}); the sender retransmits on three duplicate ACKs ({{s3.2|https://www.rfc-editor.org/rfc/rfc5681#section-3.2}}), after a tail-loss probe at two round trips ({{RFC 8985 s7|https://www.rfc-editor.org/rfc/rfc8985#section-7}}), or when its timer fires at RTT + 200 ms, doubling after each expiry; Nagle holds a small write while data is unacknowledged ({{RFC 9293 s3.7.4|https://www.rfc-editor.org/rfc/rfc9293#section-3.7.4}}). No TLS (as on the root's plain port), no congestion window limit (seven small segments never reach the initial window of 10), no queueing. Real stacks differ in detail (RACK time-based detection, SACK); the order of events and the size of each wait are the point.</p></div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-tc-card">
 <h4>The same request, the same lost token: the timer costs hundreds of milliseconds, fast retransmit one round trip</h4>
-<p class="small">The root's streaming request (277 bytes up; a 244-byte response head, then seven Server-Sent Events written at the times the root recorded: 2.4, 123.8, 175.1, 226.5, 278.0, 329.1 and 330.1 ms after the request arrived), replayed over one TCP connection. Time runs down, to scale. Predict first: with "Token 2 lost", which tokens does the client application see late, and why do tokens 3 to 5 wait too? Then flip Recovery.</p>
+
 <div class="opts">
 <div><div class="olab">Scenario</div><div class="seg" id="tc-scn"><button data-m="clean">Clean</button><button data-m="mid" class="on">Token 2 lost</button><button data-m="tail">Last token lost</button></div></div>
 <div><div class="olab">Recovery</div><div class="seg" id="tc-rec"><button data-m="rto" class="on">Timer only (before)</button><button data-m="fast">Fast retransmit + tail probe (after)</button></div></div>
@@ -24,8 +49,10 @@
 <div class="an-cap" id="tc-cap"></div>
 <div class="tw" id="tc-tab"></div>
 <p class="small mute"><span class="ill">illustrative model with recorded inputs</span> "Last token lost" has no later segments and no duplicate ACKs, so only the probe or the timer can notice.</p>
-<details class="dp"><summary>The model's rules <span class="mute">(what is simplified)</span></summary><div class="b"><p>One-way delay is half the round trip; segments up to 1,448 bytes; the receiver ACKs every second segment or after 40 ms (Linux's minimum delayed ACK) and at once for out-of-order data ({{RFC 5681 s4.2|https://www.rfc-editor.org/rfc/rfc5681#section-4.2}}); the sender retransmits on three duplicate ACKs ({{s3.2|https://www.rfc-editor.org/rfc/rfc5681#section-3.2}}), after a tail-loss probe at two round trips ({{RFC 8985 s7|https://www.rfc-editor.org/rfc/rfc8985#section-7}}), or when its timer fires at RTT + 200 ms, doubling after each expiry; Nagle holds a small write while data is unacknowledged ({{RFC 9293 s3.7.4|https://www.rfc-editor.org/rfc/rfc9293#section-3.7.4}}). No TLS (as on the root's plain port), no congestion window limit (seven small segments never reach the initial window of 10), no queueing. Real stacks differ in detail (RACK time-based detection, SACK); the order of events and the size of each wait are the point.</p></div></details>
+
 </div>
+</div></div></div>
+<section>
 <details class="dp"><summary>Loss on a real path, and the counters that show it <span class="mute">(depth)</span></summary><div class="b">
 <p>In two of this page's twelve downloads the receiver held out-of-order bytes for repair (36,608 and 254,880 bytes, <code>tcpi_rxoutoforderbytes</code>, <span class="meas">measured</span>); the other ten saw none. The application never noticed: TCP repaired the holes and delivered in order, and the cost (about a round trip, a smaller window) is invisible unless you read the per-connection counters.</p>
 <p>Retransmissions inside a data centre should be near zero; growth there is a real fabric or NIC problem. Linux: <code>nstat -az TcpRetransSegs</code> before and after a test, and <code>ss -ti</code> per connection (<code>retrans:</code> current/total, <code>lost:</code>, <code>rto:</code>). macOS: <code>netstat -s -p tcp | grep -i retrans</code>. A connection whose RTO has backed off to tens of seconds looks hung; it is waiting for its timer.</p>

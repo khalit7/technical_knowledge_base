@@ -92,7 +92,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_protocols/dns` DNS: resolution, caching and the failure modes
 - [x] `engineering_foundations/topic_protocols/http` HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs
 - [x] `engineering_foundations/topic_protocols/mcp` MCP: building servers and clients, transports, auth and security
-- [ ] `engineering_foundations/topic_protocols/networking_foundations` Networking foundations: IP, TCP, UDP and QUIC
+- [x] `engineering_foundations/topic_protocols/networking_foundations` Networking foundations: IP, TCP, UDP and QUIC
 - [ ] `engineering_foundations/topic_protocols/service_apis` Service APIs: REST, gRPC, GraphQL and load balancing
 - [ ] `engineering_foundations/topic_protocols/ssh` SSH: keys, certificates, jump hosts and tunnels for cluster work
 - [ ] `engineering_foundations/topic_protocols/streaming_and_real_time` Streaming and real-time: SSE, WebSockets, webhooks, long polling
@@ -385,3 +385,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_protocols/dns`: Fig. 4 NSEC label partly covers `llm.test.` at 1400; some clamped labels at the phone edge; check_embed.py needs the git-ignored topic_protocols/src/.private_patterns file (absent on this machine). Data-centre code lhr18 removed from the page; it remains in git history.
 - `engineering_foundations/topic_protocols/http`: Fig. 4 (one lost packet) redraws the root On the wire tab measurement: when the protocols root is rebuilt, link the root to http Fig. 4 or drop one (decide then); Fig. 2 client/server blocks look like deep slabs.
 - `engineering_foundations/topic_protocols/mcp`: Fig. 5 (auth) step 4 labels overlap at 1400 (authorization server name, AS fetches client.json, client.json label); auth and replica scenes sparse at 390; core 38 min (about 36 reading one mode per figure).
+- `engineering_foundations/topic_protocols/networking_foundations`: core 52 min (about 49 one mode per figure), over 50: consider condensing; Fig. 3 (loss) "timer 300 ms" label clipped at the stage's right edge at 1400 and close to "fires at 713.8 ms"; Fig. 5 per-client labels close to the client blocks; scenes small at 390.

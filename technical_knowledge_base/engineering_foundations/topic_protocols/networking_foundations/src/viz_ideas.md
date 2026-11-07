@@ -45,3 +45,8 @@ Rejected in this rebuild: a separate bandwidth-delay-product slider (the through
 ## What the methodology lacked
 
 A rule for measurements on the author's own network: they are real but describe one home line, so every measured number here says where it came from, and the presets in the Throughput lab separate "measured" from "typical shape".
+
+## 2026-11-07 rollout (split layout, renderer v2)
+Built as 3D stages: the layers (Fig. 1; stacks of plates are spatial), a connection's life (Fig. 2; two parties and the segments between them), one lost token (Fig. 3; the receive buffer as slots makes head-of-line blocking visible, driven by the page's TCPSIM), the path as a pipe (Fig. 4; the BDP as a volume, measured runs), the accept queue (Fig. 5; a queue of two places and eight clients, recorded).
+Considered for 3D and kept 2D: the NAT idle timeout (three boxes and a table; the timer, not the geometry, is the point), QUIC migration (a ladder of recorded datagrams in time order reads best flat), the congestion windows, the TCP timeline and every measured series (curves and time axes), traceroute (a line of hops), the round-trip budget (bars on a time axis).
+Rejected: a 3D HTTP/2 against HTTP/3 stream stage in section 4 (the HTTP page's Fig. 4 owns it with the root's measured runs; Fig. 3's last step links there).

@@ -4,7 +4,7 @@
   const $=id=>document.getElementById(id);if(!$('rd-nat-card'))return;const esc=RD.esc;
   let mode='off';
   const POD='10.0.1.23:41000',PUB='198.51.100.7:1024',API='203.0.113.10:443';
-  // step: {t, title, text, arrows:[{a,b,lab,col}], entry: 'new'|'live'|'gone'|null, last}
+  // step: {t, title, text, arrows:[{a,b,lab,col}], entry: 'new'|'live'|'gone'|null, last}; title and text are written out in the step lists sx-nat-off and sx-nat-on
   function steps(){
     const ka=mode==='on';const S=[];
     S.push({t:0,title:'The pod opens a connection',text:'The SYN leaves the pod from '+POD+'. The NAT gateway rewrites the source to its public address and a free port, '+PUB+', and writes the mapping into its table.',arrows:[['pod','nat','SYN from '+POD],['nat','api','SYN from '+PUB]],entry:'new',last:0});
@@ -32,9 +32,8 @@
     const row=st.entry==='gone'?'<tr><td colspan="4" class="no">(no entry: deleted after 350 s idle)</td></tr>':
       '<tr'+(st.entry==='new'?' style="background:var(--hl)"':'')+'><td>'+POD+'</td><td>'+PUB+'</td><td>'+API+'</td><td class="num">'+idle+' s</td></tr>';
     el.innerHTML=RD.svg(W,H,s,'NAT gateway step')+'<div class="tw"><table><thead><tr><th>Inside (pod)</th><th>Outside (public)</th><th>Destination</th><th class="num">Idle</th></tr></thead><tbody>'+row+'</tbody></table></div>';
-    $('rd-nat-cap').innerHTML='<div class="t">'+(i+1)+' of '+S.length+'. '+esc(st.title)+'</div><p>'+esc(st.text)+'</p>';
   }
-  const h=RD.anim({card:'rd-nat-card',ctl:'rd-nat-ctl',n:S.length,draw,ms:2600,label:'NAT step'});
-  RD.seg($('rd-nat-seg'),m=>{mode=m;S=steps();h.reset(S.length)});
+  const h=RD.anim({card:'rd-nat-card',ctl:'rd-nat-ctl',n:S.length,draw,ms:4600,label:'NAT step',list:'sx-nat-off'});
+  RD.seg($('rd-nat-seg'),m=>{mode=m;S=steps();$('sx-nat-off').hidden=m!=='off';$('sx-nat-on').hidden=m!=='on';h.reset(S.length,'sx-nat-'+m)});
   RD.onResize(()=>h.redraw());
 })();

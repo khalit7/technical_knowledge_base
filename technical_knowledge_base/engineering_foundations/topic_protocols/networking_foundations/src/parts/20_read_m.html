@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 
 <section id="rd-big">
 <h2>13. Moving big things: checkpoints, datasets, weights</h2>
@@ -8,7 +9,8 @@
 <li><b>Per-flow policy</b>: AWS limits one flow (one 5-tuple) to 5 Gbit/s between instances outside a cluster placement group, up to 10 Gbit/s inside one, and up to 25 Gbit/s between instances in one Availability Zone with ENA Express ({{EC2 instance network bandwidth|https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-network-bandwidth.html}}).</li>
 <li><b>The NIC and the instance's own bandwidth</b>, shared by all flows.</li>
 </ol>
-<div class="card" id="rd-thru-card">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-thru-card">
 <h4>The first three ceilings are per connection, so parallel connections multiply them until the link is full</h4>
 <p class="small">Pick a path, then predict how many connections the cross-region preset needs to fill 10 Gbit/s before dragging Parallel connections. Formulas: window / RTT; (MSS / RTT) &times; &radic;(3/2) / &radic;p; the per-flow cap; the link. <span class="ill">illustrative inputs</span> The path presets are typical shapes, not measurements, except the home line, which is this page's measured one.</p>
 <div class="chips" id="th-pre"><button data-p="home">Home line (measured)</button><button data-p="az">Same AZ, no placement group</button><button data-p="pg">Cluster placement group</button><button data-p="xr" class="on">Cross-region, lossy</button></div>
@@ -26,6 +28,8 @@
 <div class="plot" id="th-plot"></div>
 <p class="small mute" id="th-note"></p>
 </div>
+</div></div></div>
+<section>
 <p><b>So the fix is always parallel streams.</b> That is what S3 multipart upload is for (an object split into up to 10,000 parts of 5 MiB to 5 GiB, uploaded concurrently, {{S3 multipart limits|https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html}}); what PyTorch's Distributed Checkpoint does by having every rank write its own shard ("saving models from multiple ranks in parallel", {{DCP docs|https://docs.pytorch.org/docs/stable/distributed.checkpoint.html}}); what s5cmd and rclone do with many concurrent transfers; and why NCCL opens several sockets per peer (section 14). AWS's documentation also lists Multipath TCP and ENA Express as ways past the single-flow cap.</p>
 <p><b>Request rates, not bytes, bound small objects.</b> S3 supports at least 3,500 PUT/COPY/POST/DELETE and 5,500 GET/HEAD requests per second per partitioned prefix ({{S3 performance|https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html}}). Ten million small image files are a request-rate and latency problem (each GET pays at least a round trip, plus a handshake if the connection is not reused), not a bandwidth one. Pack them into large sequential shards (WebDataset tar files, Parquet, MosaicML's MDS) so each request moves megabytes, spread keys across prefixes, keep connections alive, and prefetch with several workers: the parallel-streams trick again.</p>
 <details class="dp"><summary>A checklist for a slow transfer <span class="mute">(five questions, with commands)</span></summary><div class="b"><div class="co key"><div class="t">A checklist for a slow transfer</div><ol class="tight"><li>Is it one connection? Count with <code>ss -tn dst HOST</code> (Linux) or <code>lsof -nP -iTCP</code>.</li><li>Divide the observed rate into window / RTT: if they match, the window binds; raise buffers (and do not set <code>SO_RCVBUF</code> by hand) or add streams.</li><li>Retransmissions growing (<code>nstat</code>, <code>ss -ti</code>)? Loss binds: find it (<code>mtr</code>, NIC counters with <code>ethtool -S</code>) or use more streams.</li><li>Does it stop at a round number (5, 10, 25 Gbit/s)? A per-flow policy cap.</li><li>Is it going through a NAT gateway or out of the region? Use a gateway endpoint for S3, and keep data in the region where it is used.</li></ol></div></div></details>

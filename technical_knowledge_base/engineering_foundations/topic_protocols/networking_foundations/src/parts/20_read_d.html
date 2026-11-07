@@ -1,24 +1,37 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-life"></div></div><div class="s3L">
 <section id="rd-life">
 <h2>3. A connection's life, and why round trips are the unit of latency</h2>
 <p><b>Opening: the three-way handshake.</b> TCP numbers every byte. Each side picks a random initial sequence number (random so an attacker off the path cannot guess it and inject data, {{RFC 9293 s3.4.1|https://www.rfc-editor.org/rfc/rfc9293#section-3.4.1}}): the client sends <b>SYN</b> ("my bytes start at x"), the server <b>SYN-ACK</b> ("mine start at y; I expect x+1"), the client <b>ACK</b>, with data allowed on that third segment. So a new connection costs exactly one round trip before the request leaves. <span class="meas">measured</span>: <code>connect()</code> to Cloudflare's speed-test host took 14.1 to 19.4 ms over twelve connections, against a ping round trip of 14.0 to 18.4 ms to Cloudflare's resolver: one round trip, as predicted.</p>
+<h3>Closing, and the states in between</h3>
+<p>Each direction closes separately: the side that has finished sending sends <b>FIN</b>, the other acknowledges, and a <b>half-close</b> is allowed (send the whole request, shut the sending side, keep reading). <b>RST</b> (reset) is the abrupt alternative, "this connection does not exist for me": a kernel sends it for a segment that matches no socket (a refused connection, a NAT that forgot the mapping), and an application forces one by closing with unread data.</p>
+<p>Two of these states cause most production tickets; <code>ss -tan</code> (Linux) or <code>netstat -an -p tcp</code> (macOS) prints their names. <b>CLOSE_WAIT</b> piling up means your program received the peer's FIN but never called <code>close()</code> (a leak in your code, not the network); <b>TIME_WAIT</b> piling up means you open and close connections faster than you should. Fig. 2 walks the running request through both kernels:</p>
+<ol class="sx" id="sx-life">
+<li><b>Before anything.</b> The server has called <code>socket()</code>, <code>bind()</code> and <code>listen()</code>: its kernel now answers SYNs on port 443. The client has no socket yet.</li>
+<li><b>connect(): SYN.</b> The client kernel picks an ephemeral port and a random initial sequence number x, and offers its options (MSS, window scale, SACK, timestamps). They can only be agreed now.</li>
+<li><b>SYN-ACK.</b> The server picks its own sequence number y, acknowledges x+1 and answers with its options. The half-open connection waits in the SYN queue.</li>
+<li><b>ACK, and the request rides along.</b> One round trip after <code>connect()</code> started, both ends are ESTABLISHED and the 277-byte request is on its way. The connection moves to the accept queue until the server calls <code>accept()</code> (section 8). Over HTTPS, the TLS handshake comes first.</li>
+<li><b>The response streams.</b> A 244-byte head, then one small write per token, each segment acknowledged. Sections 4 to 7 are everything that can go wrong here.</li>
+<li><b>Server closes first.</b> The running request asked for <code>Connection: close</code>, so after the last event the server calls <code>close()</code>: its kernel sends FIN, "no more data from me", and enters FIN_WAIT_1.</li>
+<li><b>The client acknowledges; its program has not closed yet.</b> The client kernel acknowledges and the socket enters CLOSE_WAIT: the peer is done, and it is now up to the client program to call <code>close()</code>. A socket stuck here forever is a bug in the program, not the network.</li>
+<li><b>The client closes.</b> The program reads the end of the stream and closes: its FIN goes out and it waits in LAST_ACK for the final acknowledgement.</li>
+<li><b>The last ACK.</b> The client is done. The server, which closed first, enters TIME_WAIT: it keeps the 5-tuple reserved for 2 MSL so a delayed old segment cannot leak into a new connection, and it can resend this ACK if it is lost.</li>
+<li><b>TIME_WAIT expires.</b> After 60 s on Linux (30 s on this Mac) the entry is gone. The eleventh state, CLOSING, happens only when both sides send FIN at the same moment.</li>
+</ol>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section>
 <h3>The round-trip budget of one request</h3>
 <p>Light in fibre covers about 200,000 km per second (refractive index about 1.5), so New York to London, 5,585 km, can never take less than a 56 ms round trip ({{High Performance Browser Networking, chapter 1|https://hpbn.co/primer-on-latency-and-bandwidth/}}, table 1-1). Every protocol step that waits for an answer costs one of those.</p>
-<div class="card" id="rd-rtt-card">
+<p>That is why connection reuse matters more the farther away the API is, and why the root's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab measures cold, resumed and reused connections.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-rtt-card">
 <div class="small"><b>A fresh HTTPS connection pays three round trips before the first response byte; a pooled one pays one.</b> Predict how much a connection pool saves on a 160 ms path, then move the round trip. <span class="ill">derived</span>: TCP 1 RTT, TLS 1.3 1 RTT ({{TLS|n:3c65c17b0d0d8105a37ff2d2f602a421}}), request and first byte 1 RTT; QUIC combines transport and TLS in one (section 12). Server time and DNS are left out.</div>
 <div class="chips" id="rd-rtt-pre"><button data-v="16">This page's path, about 16 ms (measured)</button><button data-v="56" class="on">New York to London, 56 ms (fibre floor)</button><button data-v="160">New York to Sydney, 160 ms (fibre floor)</button></div>
 <label class="small">Round-trip time <b id="rd-rtt-v"></b> <input type="range" id="rd-rtt" min="1" max="200" step="1" value="56" aria-label="Round-trip time" style="width:100%"></label>
 <div class="rd-svg" id="rd-rtt-svg"></div>
 </div>
-<p>That is why connection reuse matters more the farther away the API is, and why the root's {{On the wire|n:3c65c17b0d0d81ec9355f4eecd6eed02}} tab measures cold, resumed and reused connections.</p>
-<h3>Closing, and the states in between</h3>
-<p>Each direction closes separately: the side that has finished sending sends <b>FIN</b>, the other acknowledges, and a <b>half-close</b> is allowed (send the whole request, shut the sending side, keep reading). <b>RST</b> (reset) is the abrupt alternative, "this connection does not exist for me": a kernel sends it for a segment that matches no socket (a refused connection, a NAT that forgot the mapping), and an application forces one by closing with unread data.</p>
-<div class="card" id="rd-fsm-card">
-<div class="small"><b>Two of these states cause most production tickets.</b> Step through what the two kernels pass through for the running request; <code>ss -tan</code> (Linux) or <code>netstat -an -p tcp</code> (macOS) prints these names. <b>CLOSE_WAIT</b> piling up means your program received the peer's FIN but never called <code>close()</code> (a leak in your code, not the network); <b>TIME_WAIT</b> piling up means you open and close connections faster than you should.</div>
-<div class="an-ctl" id="rd-fsm-ctl"></div>
-<div id="rd-fsm-svg"></div>
-<div class="an-cap" id="rd-fsm-cap"></div>
-</div>
+</div></div></div>
+<section>
 <h3>TIME_WAIT, and why closing fast runs out of ports</h3>
 <p>The side that closes first holds the connection in <b>TIME_WAIT</b> for twice the maximum segment lifetime (2 MSL), so a delayed duplicate of an old segment cannot be mistaken for data in a new connection on the same 5-tuple, and so it can resend a lost final ACK ({{RFC 9293 s3.6|https://www.rfc-editor.org/rfc/rfc9293#section-3.6}}). Linux fixes it at 60 seconds (<code>TCP_TIMEWAIT_LEN (60*HZ)</code> in {{include/net/tcp.h|https://github.com/torvalds/linux/blob/master/include/net/tcp.h}}; not a sysctl).</p>
 <div class="fm"><div class="eq">new connections per second to one destination &le; ephemeral ports / TIME_WAIT = 28,232 / 60 s &asymp; 470 per second</div>

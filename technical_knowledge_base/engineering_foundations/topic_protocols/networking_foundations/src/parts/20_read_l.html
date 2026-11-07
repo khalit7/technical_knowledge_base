@@ -1,13 +1,17 @@
+<div class="s3sp"><div class="s3L">
 
 <section id="rd-udp">
 <h2>11. UDP: a thin wrapper, and everything else is your problem</h2>
 <p>UDP adds an 8-byte header to IP: source port, destination port, length, checksum ({{RFC 768|https://www.rfc-editor.org/rfc/rfc768}}). No connection, handshake, acknowledgement, retransmission, ordering, flow or congestion control; what it keeps is <b>message boundaries</b>: each <code>sendto</code> is one datagram, delivered whole or not at all (section 2's recording shows three sends arriving as three reads). Use it when a late packet is worthless (voice, video, game state), when a question and its answer each fit in one packet (DNS), or to build your own transport in user space (QUIC). The price includes congestion control: an application that blasts UDP at a fixed rate harms everyone on the link, which is why the {{UDP usage guidelines|https://www.rfc-editor.org/rfc/rfc8085}} ask UDP applications to control their rate.</p>
-<div class="card">
+<p>A QUIC implementation treats those drops as network loss and slows down, so an undersized UDP buffer silently caps HTTP/3 throughput. quic-go's documentation recommends raising the Linux limits to about 7.5 MB (<code>net.core.rmem_max</code> and <code>wmem_max</code> = 7,500,000, {{quic-go wiki|https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes}}); Linux's default limit was 212,992 bytes until 6.18 raised it to 4 MB (section 5). HTTP/3 is not niche: W3Techs counted it on 40.8 percent of websites on 5 October 2026 ({{W3Techs|https://w3techs.com/technologies/details/ce-http3}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card">
 <h4>No window to push back: a busy reader with a 64 KB buffer kept 53 of 5,000 datagrams</h4>
 <p class="small"><span class="meas">measured</span> on loopback: 5,000 datagrams of 1,200 bytes sent in one burst at a socket that reads only after the burst. TCP's buffer grows and its window slows the sender; a UDP socket has a fixed buffer, and datagrams that arrive while it is full are discarded with only a counter to record it.</p>
 <div class="plot" id="rd-udpdrop"></div>
 </div>
-<p>A QUIC implementation treats those drops as network loss and slows down, so an undersized UDP buffer silently caps HTTP/3 throughput. quic-go's documentation recommends raising the Linux limits to about 7.5 MB (<code>net.core.rmem_max</code> and <code>wmem_max</code> = 7,500,000, {{quic-go wiki|https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes}}); Linux's default limit was 212,992 bytes until 6.18 raised it to 4 MB (section 5). HTTP/3 is not niche: W3Techs counted it on 40.8 percent of websites on 5 October 2026 ({{W3Techs|https://w3techs.com/technologies/details/ce-http3}}).</p>
+</div></div></div>
+<section>
 <details class="dp"><summary>Datagram sizes that matter, and the drop counters <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Size (UDP payload)</th><th>Where it comes from</th></tr></thead>
@@ -21,6 +25,16 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-mig-card">
+<h4>The client's port changes mid-connection: TCP's 5-tuple matches no socket, QUIC's connection ID still matches</h4>
+<div class="seg" id="rd-mig-seg"><button data-m="tcp">TCP: the address changes (before)</button><button data-m="quic" class="on">QUIC: the same move, recorded (after)</button></div>
+<div class="small" id="rd-mig-note"></div>
+<div class="an-ctl" id="rd-mig-ctl"></div>
+<div id="rd-mig-svg"></div>
+<div class="small mute" id="rd-mig-t" style="min-height:2.6em"></div>
+<p class="small mute">The QUIC run is real: aioquic 1.3.0 on loopback, a client and a small echo server, every UDP datagram logged with its size and source port, and both endpoints' qlog (QUIC's standard event log) recording the packet types and frames inside (<code>src/meas/quic_migrate.py</code>). Midway the client moves to a new UDP socket, which is what a NAT rebinding or a switch from Wi-Fi to mobile looks like to the server. The TCP side is drawn from the specification, not recorded.</p>
+</div>
+</div><div class="s3L">
 <section id="rd-quic">
 <h2>12. QUIC: TCP's job, rebuilt on UDP</h2>
 <p>TCP plus TLS has three costs that could not be fixed inside TCP: a round trip for TCP and another for TLS 1.3 before the request leaves (section 3); one ordered byte stream under all of HTTP/2's streams, so one loss stalls them all (section 4); and <b>ossification</b>: firewalls, NATs and load balancers parse TCP's headers and drop what they do not recognise, and TCP lives in kernels that update slowly, so new TCP features take a decade to deploy, if ever. QUIC ({{RFC 9000|https://www.rfc-editor.org/rfc/rfc9000}}, May 2021, started at Google) moves the transport into a library on UDP and encrypts almost everything so middleboxes cannot ossify it again.</p>
@@ -31,15 +45,24 @@
 <li><b>Connections are named by connection IDs, not addresses</b>, so they survive a change of address or port (<b>connection migration</b>, {{RFC 9000 s9|https://www.rfc-editor.org/rfc/rfc9000#section-9}}); the peer checks the new path with PATH_CHALLENGE and PATH_RESPONSE before trusting it.</li>
 <li><b>No amplification.</b> Until it has validated the client's address, a server may send at most three times the bytes it received ({{RFC 9000 s8.1|https://www.rfc-editor.org/rfc/rfc9000#section-8.1}}), one reason the client pads its first datagram to 1,200 bytes: it buys the server room for its certificate.</li>
 </ul>
-<div class="card" id="rd-mig-card">
-<h4>The client's port changes mid-connection: TCP's 5-tuple matches no socket, QUIC's connection ID still matches</h4>
-<div class="seg" id="rd-mig-seg"><button data-m="tcp">TCP: the address changes (before)</button><button data-m="quic" class="on">QUIC: the same move, recorded (after)</button></div>
-<div class="small" id="rd-mig-note"></div>
-<div class="an-ctl" id="rd-mig-ctl"></div>
-<div id="rd-mig-svg"></div>
-<div class="an-cap" id="rd-mig-cap"></div>
-<p class="small mute">The QUIC run is real: aioquic 1.3.0 on loopback, a client and a small echo server, every UDP datagram logged with its size and source port, and both endpoints' qlog (QUIC's standard event log) recording the packet types and frames inside (<code>src/meas/quic_migrate.py</code>). Midway the client moves to a new UDP socket, which is what a NAT rebinding or a switch from Wi-Fi to mobile looks like to the server. The TCP side is drawn from the specification, not recorded.</p>
-</div>
+<ol class="sx" id="sx-mig-quic">
+<li><b>The client's first datagram.</b> An Initial packet carrying the TLS ClientHello, padded to 1,200 bytes, as RFC 9000 requires of a client's first flight.</li>
+<li><b>The server's flight.</b> An Initial (ServerHello) and a Handshake packet (certificate and Finished) coalesced in one 1,200-byte datagram: within the three-times limit, since it has received 1,200 bytes.</li>
+<li><b>Ready after one round trip.</b> The client finishes the handshake and already sends 1-RTT packets, then the first request ("before") on stream 0 (37 bytes); the server confirms with HANDSHAKE_DONE, hands out spare connection IDs (224 bytes) and echoes the request.</li>
+<li><b>The client moves to a new UDP socket.</b> Source port 63726 becomes 63057, which is what a NAT rebinding or a Wi-Fi to mobile switch looks like to the server. The second request ("after") goes out from the new port on the same connection, with no handshake, under a fresh connection ID the server issued earlier, so an observer cannot link the two paths.</li>
+<li><b>The server checks the new path.</b> Its connection ID arrives from a new port; the server sends the echo there and a PATH_CHALLENGE (8 random bytes) with it, in an 80-byte datagram. The client's PATH_RESPONSE echoes the challenge: the path is validated, and the connection never stopped.</li>
+<li><b>The client closes.</b> A CONNECTION_CLOSE in a 30-byte datagram: 12 datagrams in all, both replies received on one connection.</li>
+</ol>
+<ol class="sx" id="sx-mig-tcp" hidden>
+<li><b>TCP: handshake.</b> SYN, SYN-ACK, ACK: TCP names the connection by its 5-tuple, including the client port 63726.</li>
+<li><b>TLS, then the first request.</b> A second round trip for TLS 1.3, then the request "before" and its reply.</li>
+<li><b>The client's address changes.</b> Port 63726 becomes 63057. For TCP this is a different connection: the 5-tuple no longer matches any socket at the server.</li>
+<li><b>Old connection, new port: reset.</b> The request "after" matches no connection at the server, whose kernel answers with a reset (RFC 9293 s3.5.2). The program gets ECONNRESET.</li>
+<li><b>Start again.</b> A new TCP handshake (one round trip), then a new TLS handshake (another; resumption can save some work but not the round trip).</li>
+<li><b>Retry.</b> The request "after" goes out two round trips after the move, plus whatever time the program took to notice the reset and decide that retrying is safe.</li>
+</ol>
+</section></div></div>
+<section>
 <p><b>Costs.</b> QUIC runs in user space, encrypting and acknowledging every packet itself, so it spends more CPU per byte than kernel TCP with its offloads. Some networks block or throttle UDP 443, so every client keeps a TCP fallback: it learns a server speaks HTTP/3 from an <code>alt-svc</code> header or a DNS HTTPS record, then races or falls back. Inside a data centre on a clean network, kernel TCP is usually cheaper and simpler; between your own services gRPC and most inference servers still use HTTP/2 over TCP.</p>
 <details class="dp"><summary>Visibility, versions, datagrams, debugging QUIC <span class="mute">(depth)</span></summary><div class="b"><p>QUIC hides its headers from network operators who used to read TCP's to debug ({{RFC 9312|https://www.rfc-editor.org/rfc/rfc9312}} discusses what remains visible). QUIC v2 ({{RFC 9369|https://www.rfc-editor.org/rfc/rfc9369}}, 2023) changes nothing functional; it exists so that middleboxes do not hard-code version 1. {{RFC 9221|https://www.rfc-editor.org/rfc/rfc9221}} adds unreliable datagrams inside a QUIC connection, for media and tunnels. Packet captures show only encrypted payloads; use the endpoints' qlog files (aioquic, quic-go, Chrome's <code>chrome://net-export</code>) or <code>SSLKEYLOGFILE</code> to decrypt a capture in Wireshark. "HTTP/3 fast at home, slow or falling back in the office": UDP 443 blocked. This laptop's curl 8.7.1 has no HTTP/3 support at all, which the root page also notes; the root's On the wire tab measured cold, resumed and 0-RTT connections.</p></div></details>
 </section>
