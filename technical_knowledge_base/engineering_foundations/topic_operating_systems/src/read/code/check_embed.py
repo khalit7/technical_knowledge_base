@@ -81,6 +81,20 @@ cnt = re.search(r"none final=(\d+) expected=(\d+)", D["counter"]).groups()
 checks += ["ended at {:,} instead of {:,} here".format(int(cnt[0]), int(cnt[1]))]
 T = {r["lines"]: r for r in D["tlb"]}
 checks += ["%.2f, %.2f and %.2f at 4,096" % (T[4096]["packed"], T[4096]["spread"], T[4096]["thp"])]
+# Fig. 1's step list (2026-11-07): PIDs and threads after the workers start, RSS against PSS, the getppid cost, the futex calls
+pr = {p["role"]: p for p in D["maps"]["procs"]["after_fork"]}
+th = lambda r: int(pr[r]["status"]["Threads"])
+checks += ["(PID %s, %d threads) and its two worker processes (PIDs %s and %s, %d threads each)" % (
+    pr["main"]["pid"], th("main"), pr["worker0"]["pid"], pr["worker1"]["pid"], th("worker0"))]
+if th("worker0") != th("worker1"):
+    fail("workers' thread counts differ: 'each' is wrong")
+nthr = th("main") + th("worker0") + th("worker1")
+ncpu = int(D["env"].split("\n")[4])
+words2 = {13: "Thirteen", 5: "five"}
+checks += ["%s threads, %s CPUs" % (words2.get(nthr, nthr), words2.get(ncpu, ncpu))]
+checks += ["RSS adds up to %d MiB while their PSS is %d MiB" % (round(rss), round(pss))]
+checks += ["%d ns for <code>getppid</code> here, against %.1f ns for a function call" % (round(S["getppid_syscall_ns"]), S["function_call_ns"])]
+checks += ["({:,} futex calls for 20 million lock and unlock pairs here)".format(int(fx))]
 for s in checks:
     if s.replace("&micro;", "µ") in html or s in html:
         print("ok", s)

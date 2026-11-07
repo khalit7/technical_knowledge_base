@@ -1,36 +1,24 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-s0">
 <h2>The idea</h2>
 <p class="core"><b>The core idea.</b> An <dfn id="g-os">operating system</dfn> turns one machine into many private ones: every program gets its own memory, a share of the CPUs and handles on files and devices, all owned by one <dfn id="g-kernel">kernel</dfn> that the program can reach only through a <dfn id="g-syscall">system call</dfn>. A training job runs at full speed between those crossings and pays at each one: a system call, a page fault, a context switch, a CPU-quota stall, an fsync, a VM exit.</p>
 
-<div class="fig" id="rd-hero">
-<h4>Between your Python call and the hardware: every layer is one child page, and the blue line is the only door into the kernel</h4>
-<div class="stk">
-<div class="lv">Your program</div>
-<div class="row"><div class="bx"><b>python train.py</b>model, DataLoader workers, optimiser step, torch.save; the running job of this topic, a tiny CPU-only PyTorch run</div></div>
-<div class="lv">In your process</div>
-<div class="row">
-<div class="bx"><b>Threads and locks</b>PyTorch's operator pool, the GIL, queues, asyncio<span class="pg">{{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}</span></div>
-<div class="bx"><b>Allocators</b>pymalloc, glibc malloc, mimalloc, the CUDA caching allocator<span class="pg">{{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}</span></div>
-<div class="bx"><b>Runtimes</b>CPython, libtorch, glibc, libcudart, libcuda: each ends in system calls<span class="pg">{{Syscall tracer|#t-trace}}</span></div>
-</div>
-<div class="gate"><b>System call</b>: one trapping instruction (<code>svc #0</code>, <code>syscall</code>); 281 ns for <code>getppid</code> here, against 1.3 ns for a function call</div>
-<div class="lv">Kernel</div>
-<div class="row">
-<div class="bx"><b>Processes, signals, descriptors</b>fork, exec, wait, PID 1<span class="pg">{{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}</span></div>
-<div class="bx"><b>Scheduler</b>run queues, CFS and EEVDF, CPU quotas<span class="pg">{{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}</span></div>
-<div class="bx"><b>Virtual memory</b>page tables, faults, copy-on-write, page cache, OOM killer<span class="pg">{{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}</span></div>
-<div class="bx"><b>File systems and block layer</b>VFS, writeback, fsync, journal, NVMe queues<span class="pg">{{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}</span></div>
-<div class="bx"><b>Namespaces and cgroups</b>what a container sees and may use<span class="pg">{{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}</span></div>
-<div class="bx"><b>Drivers</b>nvidia.ko, NVMe, virtio<span class="pg">{{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}</span></div>
-</div>
-<div class="lv">Hypervisor</div>
-<div class="row"><div class="bx"><b>In a cloud VM</b>KVM, Nitro or (here) Apple's Hypervisor.framework: a second layer of page tables, VM exits, the IOMMU<span class="pg">{{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}</span></div></div>
-<div class="lv">Hardware</div>
-<div class="row"><div class="bx hw"><b>CPU cores</b>and the timer interrupt</div><div class="bx hw"><b>MMU and TLB</b>translate every address</div><div class="bx hw"><b>RAM</b>4 KiB frames</div><div class="bx hw"><b>NVMe SSD</b>queues read by DMA</div><div class="bx hw"><b>GPU</b>command buffers and a doorbell</div></div>
-</div>
-<p class="cap">Static diagram. A program runs on the CPU directly, in user mode; it crosses the blue line only with a system call, a fault or an interrupt (OSTEP's <i>limited direct execution</i>). Each box names the page that owns it; section 1 prices every crossing.</p>
-</div>
+<ol class="sx" id="sx-hero">
+<li><b>One job, three layers.</b> The running job of this topic, a tiny CPU-only PyTorch run, once its DataLoader has started: the trainer <code>python train.py</code> (PID 13, 5 threads) and its two worker processes (PIDs 19 and 21, 4 threads each), on the glass plate of user space. Below it the kernel, which alone touches the hardware: the CPUs, RAM, the drive and the GPU. A program runs on the CPU directly, in user mode, and the kernel regains control only at a system call, a fault or an interrupt (OSTEP's <i>limited direct execution</i>). Owner: {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}, whose {{Fig. 1|n:3f05c17b0d0d811e99f7cb8c15d12697#stg-hero}} draws these processes over their kernel records.</li>
+<li><b>One door: the system call.</b> Whatever the job needs from the kernel goes down through one trapping instruction (<code>svc #0</code>, <code>syscall</code>) and comes back as a number: 281 ns for <code>getppid</code> here, against 1.3 ns for a function call. CPython, libtorch and glibc all end in the same few hundred calls (the {{Syscall tracer|#t-trace}} records them). Section 1 prices every crossing; {{Fig. 2 on Processes|n:3f05c17b0d0d811e99f7cb8c15d12697#stg-sc}} follows one <code>os.read()</code> down and back.</li>
+<li><b>CPU time: the scheduler.</b> Thirteen threads, five CPUs. Each CPU has a run queue; the scheduler, woken by the timer interrupt, decides which thread runs next, and a container's CPU limit is a quota that stops the whole group once spent (section 3). Owner: {{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}, {{Fig. 1|n:3f05c17b0d0d81ed9c18cc47c6bfdf76#stg-hero}}.</li>
+<li><b>Memory: the page tables.</b> Every address a thread uses goes through its process's page tables to a 4 KiB frame of RAM. Fork shares frames copy-on-write, so the three processes' RSS adds up to 815 MiB while their PSS is 345 MiB (section 4). Owner: {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}, {{Fig. 1|n:3f05c17b0d0d81a48892cea154ce950b#stg-hero}}; fork's sharing is its {{Fig. 6|n:3f05c17b0d0d81a48892cea154ce950b#stg-cow}}.</li>
+<li><b>Inside the process: the allocator.</b> Allocators get large regions from the kernel rarely and hand out small pieces often; what your code frees stays with them, which is why RSS rarely drops after <code>del</code> (section 5). Owner: {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}, {{Fig. 1|n:3f05c17b0d0d81209ae9d856695dc958#stg-hero}}.</li>
+<li><b>Waiting: two kernel queues.</b> A thread waiting for another thread sleeps on a futex, and enters the kernel only when the lock is contended (8,382 futex calls for 20 million lock and unlock pairs here); a thread waiting for I/O sleeps in epoll (section 6). Owner: {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}, {{Fig. 1|n:3f05c17b0d0d8112ad1af99308fa913f#stg-hero}}.</li>
+<li><b>A checkpoint: the page cache, then the drive.</b> <code>torch.save</code>'s <code>write()</code> returns once the bytes are in the page cache (1.4 µs for 4 KiB); only <code>fsync</code> waits for the drive (1,305 µs), and only fsync and rename decide what a crash leaves (section 7). Owner: {{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}, {{Fig. 1|n:3f05c17b0d0d8141be7acc1313570cbf#stg-hero}}; the safe save is its {{Fig. 5|n:3f05c17b0d0d8141be7acc1313570cbf#stg-ar}}.</li>
+<li><b>A container: a fence, not a second kernel.</b> The same processes, started with namespaces (what they see) and a cgroup (what they may use; this topic's containers ran with <code>--cpus 2 --memory 3g</code>), on the one shared kernel (section 8). Owner: {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}, {{Fig. 1|n:3f05c17b0d0d8156a841e4bf28f11293#stg-hero}}.</li>
+<li><b>The GPU: the hot path skips the kernel.</b> libcuda, in the trainer, writes commands into memory the GPU reads and rings a doorbell; the kernel driver <code>nvidia.ko</code> is entered by <code>ioctl</code> only for setup, allocation and errors. In a cloud VM a hypervisor sits under the kernel, and this lab runs in one too (section 9). Owner: {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}, whose {{Fig. 10|n:3f05c17b0d0d8158b029e9b2ba2e161b#stg-cuda}} takes one CUDA call down.</li>
+</ol>
+<p class="small mute">A map, not a mechanism: each step lights the part one child page owns. PIDs, threads, RSS, PSS, the CPU count, the system-call cost and the futex count are this page's own runs (<code>src/read/code/out/</code>); the write and fsync costs are the ladder's, from Storage and file systems.</p>
+</section>
+</div></div>
 
+<section id="rd-need">
 <p class="small"><b>You need</b> nothing beyond Python: this root starts from zero. Caches and the machine under the OS, from the programmer's side, are {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}.</p>
 <div class="small"><b>New terms on this page</b> (each used in the comparisons below):</div>
 <div class="terms">

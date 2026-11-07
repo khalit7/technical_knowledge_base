@@ -46,8 +46,6 @@
       s+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="18" fill="'+col+'" opacity="'+(g.kind==='storm'?.75:1)+'"'+(last?' stroke="var(--ink)" stroke-width="1.5"':'')+'><title>'+esc(g.label)+': '+fmt(g.n)+'</title></rect>'});
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Worker start-up with '+mode+', to scale in system calls">'+s+'</svg><div class="tr-cap">Bar length: system calls, same scale for all three methods (full width = '+fmt(scaleMax)+'). Orange: import storms; blue: other calls.</div>';
     const tot=shown.reduce((a,g)=>a+g.n,0),all=m.segs.reduce((a,g)=>a+g.n,0);
-    $('tr-sm-step').innerHTML=i===0?'<b>'+LBL[mode]+':</b> the main process calls <code>iter(dl)</code>. Step through to see who makes which calls until the first batch arrives.':
-      (i<m.segs.length?caption(m.segs[i-1]):caption(m.segs[i-1])+' <b>The first batch reaches the main process.</b>');
     const fb=D.first_batch[mode],ep=D.epochs[mode];
     $('tr-sm-stats').innerHTML=stat('System calls so far',fmt(tot),'of '+fmt(all)+' until the first batch (processes only)')+
       stat('Processes created',String(m.lanes.length-1),m.lanes.filter(l=>l.role!=='main').map(l=>l.label).join(', '))+
@@ -55,8 +53,13 @@
       stat('Under strace',sec(m.t1-m.t0),'same window, traced: inflated');
   }
   function stat(k,v,d){return '<div class="tr-stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>'}
-  const A=anim({card:'tr-s-sm',ctl:'tr-sm-ctl',n:M.fork.segs.length+1,draw,ms:1500,label:'Start-up step'});
-  seg($('tr-sm-mode'),v=>{mode=v;A.reset(M[mode].segs.length+1)});
+  // the step list: one item per step, written from the same segments the drawing uses (it replaces the old per-step caption)
+  function list(){const m=M[mode],n=m.segs.length;
+    $('tr-sm-sx').innerHTML='<li><b>'+LBL[mode]+': <code>iter(dl)</code>.</b> The main process asks for the first batch; the bars on the right fill with the system calls each process makes until it arrives.</li>'+
+      m.segs.map((g,j)=>'<li><b>'+esc(g.label)+(g.kind==='storm'?': an import storm.':': '+fmt(g.n)+' calls.')+'</b> '+caption(g).replace(/^<b>[^<]*<\/b> /,'')+(j===n-1?' <b>The first batch reaches the main process.</b>':'')+'</li>').join('')}
+  list();
+  const A=anim({card:'tr-sm-card',ctl:'tr-sm-ctl',list:'tr-sm-sx',n:M.fork.segs.length+1,draw,ms:4200,label:'Start-up step'});
+  seg($('tr-sm-mode'),v=>{mode=v;list();A.reset(M[mode].segs.length+1)});
   onResize(()=>A.redraw());
   // epochs table
   const E=D.epochs,rows=[['fork','fork'],['spawn','spawn'],['forkserver','forkserver'],['forkserver --preload torch,numpy','forkserver + set_forkserver_preload(["torch", "numpy"])']];
@@ -73,7 +76,7 @@
   let mode='buffered';
   function per(){return mode==='buffered'?(W5.buffered.write_sizes[0][0]/256):1}
   function draw(i){
-    const k=STEPS[i],el=$('tr-wr-svg'),Wd=Math.min(width(el),900),cols=64,cell=Math.max(3,Math.floor((Wd-8)/cols)),gw=cols*cell,rowsN=64,H=rowsN*cell+8;
+    const k=STEPS[i],el=$('tr-wr-svg'),Wd=Math.min(width(el),440),cols=64,cell=Math.max(3,Math.floor((Wd-8)/cols)),gw=cols*cell,rowsN=64,H=rowsN*cell+8;
     const g=per(),done=Math.min(k,4096),sys=Math.floor(done/g)+(k>4096&&done%g?1:0),flushed=sys*g;
     let s='';
     for(let j=0;j<4096;j++){const x=4+(j%cols)*cell,y=4+Math.floor(j/cols)*cell;
@@ -81,16 +84,22 @@
       s+='<rect x="'+x+'" y="'+y+'" width="'+(cell-1)+'" height="'+(cell-1)+'" fill="'+(st===2?color('file'):st===1?'var(--c5)':'var(--soft)')+'"/>'}
     if(g>1&&cell>=4)for(let j=0;j<4096;j+=g){const x=4+(j%cols)*cell,y=4+Math.floor(j/cols)*cell;s+='<rect x="'+(x-.5)+'" y="'+(y-.5)+'" width="'+(g*cell)+'" height="'+cell+'" fill="none" stroke="var(--line)"/>'}
     el.innerHTML='<svg viewBox="0 0 '+(gw+8)+' '+H+'" width="'+(gw+8)+'" height="'+H+'" role="img" aria-label="4096 Python writes and the write system calls they become, '+mode+'">'+s+'</svg><div class="tr-cap">One square = one f.write() of 256 bytes. Yellow: waiting in Python\'s buffer; orange: handed to the kernel by write(2).</div>';
-    const w=W5[mode];
-    $('tr-wr-step').innerHTML=k===0?'The file is open: <code>'+esc(w.names.filter(n=>n[0]!=='write').map(n=>n[0]).join(', '))+'</code> (the trace\'s calls besides the writes). Now 4,096 calls to <code>f.write(256 bytes)</code>.':
+  }
+  // the caption of step i, now the step list's item (the old per-step caption under the grid is gone)
+  function cap(i){const k=STEPS[i],w=W5[mode],g=per(),done=Math.min(k,4096),sys=Math.floor(done/g)+(k>4096&&done%g?1:0);
+    return k===0?'The file is open: <code>'+esc(w.names.filter(n=>n[0]!=='write').map(n=>n[0]).join(', '))+'</code> (the trace\'s calls besides the writes). Now 4,096 calls to <code>f.write(256 bytes)</code>.':
       k>4096?'<code>close()</code> flushes what is left. Total: '+fmt(w.writes)+' <code>write(2)</code> calls of '+fmt(w.write_sizes[0][0])+' bytes each, from the trace.':
       fmt(done)+' Python writes so far; '+fmt(sys)+' <code>write(2)</code> system calls'+(g>1?(done%g?', '+fmt((done%g)*256)+' bytes waiting in the buffer':', the buffer just emptied into the kernel'):', one per Python write')+'.';
+  }
+  function stats(){const w=W5[mode];
     $('tr-wr-stats').innerHTML=st('write(2) calls',fmt(w.writes),mode+', counted in the trace')+st('Time, untraced',ms(w.untraced_best_ms/1000),'best of '+w.untraced_reps+' runs; the other mode: '+ms(W5[mode==='buffered'?'unbuffered':'buffered'].untraced_best_ms/1000))+
       st('Per extra system call',((W5.unbuffered.untraced_best_ms-W5.buffered.untraced_best_ms)*1000/(W5.unbuffered.writes-W5.buffered.writes)).toFixed(2)+' &micro;s','(unbuffered minus buffered time) / (extra calls)')+st('Under strace',ms(w.traced_ms/1000),'the same writes, traced');
   }
   function st(k,v,d){return '<div class="tr-stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>'}
-  const A=anim({card:'tr-s-wr',ctl:'tr-wr-ctl',n:STEPS.length,draw,ms:1100,label:'Writes step'});
-  seg($('tr-wr-mode'),v=>{mode=v;A.reset(STEPS.length)});
+  function list(){$('tr-wr-sx').innerHTML=STEPS.map((k,i)=>'<li><b>'+(k===0?'Open the file.':k>4096?'close().':k===1?'1 write.':fmt(k)+' writes.')+'</b> '+cap(i)+'</li>').join('');stats()}
+  list();
+  const A=anim({card:'tr-wr-card',ctl:'tr-wr-ctl',list:'tr-wr-sx',n:STEPS.length,draw,ms:3600,label:'Writes step'});
+  seg($('tr-wr-mode'),v=>{mode=v;list();A.reset(STEPS.length)});
   onResize(()=>A.redraw());
 })();
 
@@ -106,7 +115,7 @@
       let why='';
       if(r.name==='openat'&&/O_TRUNC/.test(r.args)&&!/\.tmp/.test(r.args)){s.old='gone';s.neu='partial';why='O_TRUNC empties the existing ckpt.pt at once: the old checkpoint is destroyed before a byte of the new one exists.'}
       else if(r.name==='openat'&&/\.tmp/.test(r.args)){s.tmp='partial';why='A new file ckpt.pt.tmp is created; ckpt.pt is untouched.'}
-      else if(r.name==='write'||r.name==='writev'){why=fmt(r.bytes||0)+' bytes copied into the page cache (memory). The kernel writes them to the device later, in its own order.';if(s.tmp==='partial'||s.tmp==='cached')s.tmp='cached';else s.neu='cached'}
+      else if(r.name==='write'||r.name==='writev'){why=fmt(r.bytes||(/^\d+$/.test(r.ret)?+r.ret:0))+' bytes copied into the page cache (memory). The kernel writes them to the device later, in its own order.';if(s.tmp==='partial'||s.tmp==='cached')s.tmp='cached';else s.neu='cached'}
       else if(r.name==='fsync'&&/\.tmp/.test(r.args)){s.tmp='durable';why='fsync returns only when the device has the temporary file\'s data and size.'}
       else if(r.name==='fsync'&&/ck_\w+\.pt>/.test(r.args)){s.neu='durable';why='fsync: the new checkpoint\'s bytes are now on the device.'}
       else if(r.name==='renameat'){s.name='new?';why='The name ckpt.pt now points at the new file, atomically. The directory change itself may still be only in memory.'}
@@ -126,14 +135,16 @@
   function draw(i){
     const rows=C[mode].rows,S=states(rows),cur=S[i],el=$('tr-ck-svg');
     el.innerHTML=rows.map((r,j)=>'<div class="r'+(j===i-1?' sel':'')+'" style="cursor:default;opacity:'+(j<i?1:.45)+'"><span class="t">'+(j+1)+'</span><span class="n">'+esc(r.name)+(r.n>1?' x'+r.n:'')+'</span><span class="a">'+esc(r.args.replace(/AT_FDCWD<\/work>, /g,''))+(r.ret?' = '+esc(r.ret):'')+'</span></div>').join('');
-    const v=verdict(cur.s);
-    $('tr-ck-step').innerHTML=(i===0?'':'<b>'+esc(rows[i-1].name)+'</b>: ')+esc(cur.why)+'<br><b style="color:var('+(v[0]==='good'?'--good':'--bad')+')">A crash now:</b> '+esc(v[1]);
     const T=C.timing;
     $('tr-ck-stats').innerHTML=st('System calls',fmt(C[mode].n_syscalls),'between the markers, traced')+st('Time on /work',ms(T.work[mode].median_ms/1000),'median of '+T.work[mode].reps+' untraced runs')+
       st('Time on /dev/shm',ms(T.shm[mode].median_ms/1000),'tmpfs: memory only, fsync has nothing to wait for')+st('Size',fmt(T.work[mode].size_b)+' B',mode==='naive'?'torch.save(path) uses its own C++ writer: few large writev calls':'torch.save(file object): Python writes');
   }
   function st(k,v,d){return '<div class="tr-stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>'}
-  const A=anim({card:'tr-s-ck',ctl:'tr-ck-ctl',n:C.naive.rows.length+1,draw,ms:1400,label:'Checkpoint step'});
-  seg($('tr-ck-mode'),v=>{mode=v;A.reset(C[mode].rows.length+1)});
+  // the step list: what each call does and what a crash right after it would leave (it replaces the old per-step caption)
+  function list(){const rows=C[mode].rows,S=states(rows);
+    $('tr-ck-sx').innerHTML=S.map((x,i)=>{const v=verdict(x.s);return '<li><b>'+(i===0?'Before the save.':esc(rows[i-1].name)+(rows[i-1].n>1?' x'+rows[i-1].n:'')+'.')+'</b> '+esc(x.why)+' <b style="color:var('+(v[0]==='good'?'--good':'--bad')+')">A crash now:</b> '+esc(v[1])+'</li>'}).join('')}
+  list();
+  const A=anim({card:'tr-ck-card',ctl:'tr-ck-ctl',list:'tr-ck-sx',n:C.naive.rows.length+1,draw,ms:4200,label:'Checkpoint step'});
+  seg($('tr-ck-mode'),v=>{mode=v;list();A.reset(C[mode].rows.length+1)});
   onResize(()=>A.redraw());
 })();

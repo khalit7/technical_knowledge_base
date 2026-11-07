@@ -32,3 +32,7 @@ A rule for numbers measured inside a laptop VM: state the VM, prefer ratios, and
 - `sh run_all.sh [name]` re-records out/ (containers os-rd-*); `python3 make_data.py` writes parts/22_js_rd_data.js.
 - `python3 code/check_embed.py`: RD_DATA equals out/, every number in the prose recomputed, no private patterns.
 - `node read/check_read.mjs` (from the repo root, see its header): every control at 390 dark and 920 light, card screenshots in .shots/rd/.
+
+## 2026-11-07 (layout rollout)
+- Built: Fig. 1, a 3D stage (`26_js_sc_hero.js`): one training job on three layers (user glass plate, kernel plate, hardware floor), nine steps, one per owner, flows on each path (system call, scheduler to CPUs, page tables to RAM, allocator, futex and epoll queues, page cache to the drive, libcuda to the GPU), camera close per step, numbers from `RD_DATA`. Replaces the HTML stack.
+- Kept 2D: the cost ladder (log axis). Rejected: a 3D stage per section (processes, scheduling, memory and so on): each child already owns that stage, and the root links to it.

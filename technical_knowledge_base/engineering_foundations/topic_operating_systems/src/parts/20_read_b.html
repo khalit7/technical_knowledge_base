@@ -1,7 +1,13 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s1">
 <h2>1. The boundary, and what each crossing costs</h2>
-<p>A computer has a few CPUs, one physical memory and some devices; dozens of programs want them at once, none trusts the others, and none wants to know how an NVMe drive is programmed. The kernel owns five things on their behalf: <b>CPU time</b>, <b>memory</b>, <b>devices</b> (each run by a driver), <b>files</b> and the <b>network</b> (sockets and TCP: {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}). A program never touches any of them directly. It runs on the CPU at full speed in user mode, and the kernel regains control only at a system call, a fault or a timer interrupt; OSTEP calls this <i>limited direct execution</i>. Every subsystem in the table above is a kind of crossing, and the children measure what each one costs.</p>
-<div class="fig" id="rd-lad-fig">
+<p>A computer has a few CPUs, one physical memory and some devices; dozens of programs want them at once, none trusts the others, and none wants to know how an NVMe drive is programmed. The kernel owns five things on their behalf: <b>CPU time</b>, <b>memory</b>, <b>devices</b> (each run by a driver), <b>files</b> and the <b>network</b> (sockets and TCP: {{Networking foundations|n:3c65c17b0d0d8117b21dcb9041879564}}). A program never touches any of them directly. It runs on the CPU at full speed in user mode, and the kernel regains control only at a system call, a fault or a timer interrupt; OSTEP calls this <i>limited direct execution</i>. Every subsystem in the table above is a kind of crossing, and the children measure what each one costs. The ladder beside this text puts sixteen of those costs, all measured on this topic's lab machine, on one log scale.</p>
+<p>Python, C++, Rust and Node do not talk to the kernel in their own ways: they all end in the same few hundred system calls, usually through the C library (glibc here). The {{Syscall tracer|#t-trace}} records every call of the running job and traces one small file read in five languages.</p>
+<div class="deepnote"><b>Go deeper:</b> the system-call boundary, its instruction and its cost are section 2 of {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}} (one <code>os.read()</code> down and back is its {{Fig. 2|n:3f05c17b0d0d811e99f7cb8c15d12697#stg-sc}}); the hypervisor's crossing is section 2 of {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}} (one VM exit, measured, is its {{Fig. 3|n:3f05c17b0d0d8158b029e9b2ba2e161b#stg-exit}}).</div>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card">
+<div id="rd-lad-fig">
 <h4>Each step down the ladder costs about ten to a thousand times the one above: fast code is code that crosses less</h4>
 <div class="lad" id="rd-lad">
 <div class="r"><div class="nm">A function call (not inlined) <i>{{Processes|n:3f05c17b0d0d811e99f7cb8c15d12697}}</i></div><div class="bar u" style="width:1.3%"></div><div class="v">1.3 ns</div></div>
@@ -24,9 +30,8 @@
 </div>
 <p class="cap">Log scale, one machine (the lab VM, 2026-10-05), each number from the page named beside it or from this page's own runs (<code>src/read/code/</code>, <code>src/sim/real/</code>, <code>src/trace/raw/</code>). Grey: stays in user space; blue: enters the kernel or the hypervisor; green: waits for the device. The ratio between a function call and the cheapest system call, in the hundreds, explains buffered I/O, large reads, and the <dfn id="g-vdso">vDSO</dfn> (kernel code mapped into every process so that asking the time never enters the kernel).</p>
 </div>
-<p>Python, C++, Rust and Node do not talk to the kernel in their own ways: they all end in the same few hundred system calls, usually through the C library (glibc here). The {{Syscall tracer|#t-trace}} records every call of the running job and traces one small file read in five languages.</p>
-<div class="deepnote"><b>Go deeper:</b> the system-call boundary, its instruction and its cost are section 2 of {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}; the hypervisor's crossing is section 2 of {{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}.</div>
-</section>
+</div></div></div></div>
+
 
 <section id="rd-s2">
 <h2>2. Processes and threads: the unit the kernel runs</h2>
@@ -43,5 +48,5 @@
 </tbody></table></div>
 <p class="small"><b>Which one you get by default</b> depends on the Python version and the platform: on Linux, fork through Python 3.13 and forkserver from 3.14 ("On POSIX platforms the default start method was changed from fork to forkserver to retain the performance but avoid common multithreaded process incompatibilities", {{Python 3.14 docs|https://docs.python.org/3.14/library/multiprocessing.html#contexts-and-start-methods}}); on macOS, spawn since 3.8, because "macOS system libraries may start threads" ({{Python 3.11 docs|https://docs.python.org/3.11/library/multiprocessing.html#contexts-and-start-methods}}). Since 3.12, os.fork() raises a DeprecationWarning when Python detects that the process has several threads. PyTorch's DataLoader follows the same defaults ({{torch.utils.data docs, 2.14|https://docs.pytorch.org/docs/stable/data.html#multi-process-data-loading}}). The running job uses Python 3.11 on Linux, so fork. Code that relies on fork-only behaviour, such as a global built at import and read by workers, changes behaviour on upgrading to 3.14: name the start method explicitly (<code>multiprocessing_context=</code>).</p>
 </div></details>
-<div class="deepnote"><b>Go deeper:</b> {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}} (fork, exec, wait and PID 1, signals, descriptors, the DataLoader and torchrun, preemption measured); the {{Syscall tracer|#t-trace}} (the start methods' system calls); the {{Debug lab|#t-debug}} (zombies, ignored SIGTERM, fork after threads).</div>
+<div class="deepnote"><b>Go deeper:</b> {{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}} (fork, exec, wait and PID 1, signals, descriptors, the DataLoader and torchrun, preemption measured; fork is its {{Fig. 3|n:3f05c17b0d0d811e99f7cb8c15d12697#stg-fork}}, a signal its {{Fig. 5|n:3f05c17b0d0d811e99f7cb8c15d12697#stg-sig}}); the {{Syscall tracer|#t-trace}} (the start methods' system calls); the {{Debug lab|#t-debug}} (zombies, ignored SIGTERM, fork after threads).</div>
 </section>

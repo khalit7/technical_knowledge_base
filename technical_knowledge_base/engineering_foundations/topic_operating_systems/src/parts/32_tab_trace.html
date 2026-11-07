@@ -67,13 +67,17 @@
 <div class="co warn"><div class="t">Timings under strace are not real timings</div>Stopping at every call costs a lot: the same job took <b data-tr="slow"></b> under strace against <b data-tr="fast"></b> without it (median of 3 untraced runs). So the order and the count of calls below are exact, but their times are inflated. Every timing that claims to be a cost (time to first batch, write and checkpoint times) was measured in separate runs with no tracer attached, and says so.</div>
 
 <section id="tr-s-phase">
+<div class="s3sp"><div class="s3L">
 <h2>1. The job at a glance: where the calls go</h2>
 <p>The job marks each phase with a deliberate, harmless system call, <code>faccessat("/phase/&lt;name&gt;")</code>, which fails because the path does not exist; that is how the trace below is cut into phases. Bars are system calls in each phase, all processes and threads together, coloured by kind. <b>The scale is logarithmic</b>, because two phases dwarf all the others.</p>
 <div class="tr-bar"><span class="small mute">Start method</span><span class="tr-seg" id="tr-ph-run"><button data-m="fork" class="on">fork</button><button data-m="spawn">spawn</button><button data-m="forkserver">forkserver</button></span></div>
+<div class="tr-q" id="tr-q1"><b>Predict first.</b> Of the <span data-tr="fork_total"></span> system calls the fork run made, how many came from importing code (Python modules and shared libraries), rather than from loading data, training or saving?<div class="opts"><button data-a="0">about 10%</button><button data-a="1">about 50%</button><button data-a="2">over 90%</button></div><div class="ans" hidden></div></div>
+
+</div><div class="s3R"><div class="s3side"><div class="card">
 <div class="tr-leg" id="tr-ph-leg"></div>
 <div class="tr-svg" id="tr-ph-svg"></div>
 <p class="tr-cap" id="tr-ph-cap"></p>
-<div class="tr-q" id="tr-q1"><b>Predict first.</b> Of the <span data-tr="fork_total"></span> system calls the fork run made, how many came from importing code (Python modules and shared libraries), rather than from loading data, training or saving?<div class="opts"><button data-a="0">about 10%</button><button data-a="1">about 50%</button><button data-a="2">over 90%</button></div><div class="ans" hidden></div></div>
+</div></div></div></div>
 </section>
 
 <section id="tr-s-x">
@@ -98,38 +102,47 @@
 <div class="co"><div class="t">The 1 GiB reservation when the model is built</div>Building the model makes an <code>mmap</code> of 1 GiB (MAP_NORESERVE: address space only, no memory committed) followed by <code>madvise(MADV_HUGEPAGE)</code>. A gdb catchpoint on that madvise shows the caller: <code>mi_reserve_os_memory_ex</code> and <code>_mi_prim_alloc</code> in <code>torch/lib/libc10.so</code>, the mimalloc allocator built into this PyTorch wheel. See it in the explorer with the jump button "the 1 GiB reservation".</div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="tr-sm-card">
+<div class="tr-svg" id="tr-sm-svg"></div>
+<div class="an-ctl" id="tr-sm-ctl"></div>
+<div class="tr-stats" id="tr-sm-stats"></div>
+</div></div></div><div class="s3L">
 <section id="tr-s-sm">
 <h2>4. Starting the workers: fork, spawn, forkserver</h2>
 <p>A DataLoader with <code>num_workers=2</code> starts two worker processes. How they start is Python's <i>start method</i> (<a href="https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods" target="_blank" rel="noopener noreferrer">multiprocessing docs</a>). <b>fork</b>: the kernel copies the parent (copy-on-write: no memory is copied until someone writes), so the worker starts with torch already imported. <b>spawn</b>: a brand new Python is <code>execve</code>'d and must import everything again. <b>forkserver</b>: a small server process is spawned once, and each worker is forked from it. In CPython 3.11 the default is fork on Linux and spawn on macOS (<a href="https://github.com/python/cpython/blob/v3.11.2/Lib/multiprocessing/context.py#L322-L327" target="_blank" rel="noopener noreferrer">context.py lines 322 to 327</a>); Python 3.14 changed the Linux default to forkserver (<a href="https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods" target="_blank" rel="noopener noreferrer">docs, "Changed in version 3.14"</a>). The animation replays the real traces, from <code>iter(dl)</code> to the first batch, drawn to scale in system calls.</p>
 <div class="tr-bar"><span class="small mute">Start method</span><span class="tr-seg" id="tr-sm-mode"><button data-m="fork" class="on">fork</button><button data-m="spawn">spawn</button><button data-m="forkserver">forkserver</button></span></div>
-<div class="tr-svg" id="tr-sm-svg"></div>
-<div class="tr-step" id="tr-sm-step"></div>
-<div class="an-ctl" id="tr-sm-ctl"></div>
-<div class="tr-stats" id="tr-sm-stats"></div>
+<p class="sxh">Step by step</p><ol class="sx" id="tr-sm-sx"></ol>
 <div id="tr-sm-epochs"></div>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="tr-wr-card">
+<div class="tr-svg" id="tr-wr-svg"></div>
+<div class="an-ctl" id="tr-wr-ctl"></div>
+<div class="tr-stats" id="tr-wr-stats"></div>
+</div></div></div><div class="s3L">
 <section id="tr-s-wr">
 <h2>5. Buffered and unbuffered writes</h2>
 <p>A system call is not free: the CPU has to switch into kernel mode and back. Python's file objects therefore keep a buffer in user memory and call <code>write(2)</code> only when it fills. Its size is "chosen using a heuristic trying to determine the underlying device's block size and falling back on <code>io.DEFAULT_BUFFER_SIZE</code>" (<a href="https://docs.python.org/3.11/library/functions.html#open" target="_blank" rel="noopener noreferrer">open() in the 3.11 docs</a>); here the file system reports 4,096-byte blocks, and the trace shows exactly 4,096-byte writes. The experiment writes the same 1 MiB as 4,096 pieces of 256 bytes, once through a normal file object and once with <code>buffering=0</code>.</p>
 <div class="tr-bar"><span class="small mute">Mode</span><span class="tr-seg" id="tr-wr-mode"><button data-m="buffered" class="on">buffered</button><button data-m="unbuffered">unbuffered</button></span></div>
-<div class="tr-svg" id="tr-wr-svg"></div>
-<div class="tr-step" id="tr-wr-step"></div>
-<div class="an-ctl" id="tr-wr-ctl"></div>
-<div class="tr-stats" id="tr-wr-stats"></div>
+<p class="sxh">Step by step</p><ol class="sx" id="tr-wr-sx"></ol>
 <p class="tr-src">Script: <code>src/trace/scripts/writes.py</code>; traces <code>raw/writes_buffered.strace.txt</code> and <code>raw/writes_unbuffered.strace.txt</code>; times in <code>raw/writes_timing.txt</code> (best of 21 untraced runs, on the container's overlay file system).</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="tr-ck-card">
+<div class="tr-list" id="tr-ck-svg" style="max-height:none"></div>
+<div class="an-ctl" id="tr-ck-ctl"></div>
+<div class="tr-stats" id="tr-ck-stats"></div>
+</div></div></div><div class="s3L">
 <section id="tr-s-ck">
 <h2>6. A checkpoint, three ways, and a crash</h2>
 <p>The same checkpoint (the job's model and optimizer state, about 270 KB) written three ways. <b>naive</b>: <code>torch.save(obj, "ckpt.pt")</code> over the old file. <b>fsync</b>: write through a file object, then <code>os.fsync</code>. <b>safe</b>: write <code>ckpt.pt.tmp</code>, fsync it, <code>os.replace</code> it over <code>ckpt.pt</code>, fsync the directory. A <code>write</code> only copies bytes into the kernel's page cache (memory); <code>fsync</code> waits until the storage device has them (<a href="https://man7.org/linux/man-pages/man2/fsync.2.html" target="_blank" rel="noopener noreferrer">fsync(2)</a>); a rename replaces a name atomically, so a reader sees the old file or the new one, never a mixture (<a href="https://man7.org/linux/man-pages/man2/rename.2.html" target="_blank" rel="noopener noreferrer">rename(2)</a>). Step through the real calls and see what a crash at that moment would leave on disk.</p>
 <div class="tr-bar"><span class="small mute">Way</span><span class="tr-seg" id="tr-ck-mode"><button data-m="naive" class="on">naive</button><button data-m="fsync">fsync</button><button data-m="safe">safe</button></span></div>
-<div class="tr-list" id="tr-ck-svg" style="max-height:none"></div>
-<div class="tr-step" id="tr-ck-step"></div>
-<div class="an-ctl" id="tr-ck-ctl"></div>
-<div class="tr-stats" id="tr-ck-stats"></div>
+<p class="sxh">Step by step</p><ol class="sx" id="tr-ck-sx"></ol>
 <p class="tr-cap">What "a crash here" leaves is reasoned from the man pages and the order of calls (what reaches the device before each point), not from a real power cut: a container cannot cut the power to its disk. The Debug lab tries what can be tried honestly.</p>
 </section>
+</div></div>
 
 <section id="tr-s-sig">
 <h2>7. The SIGTERM path</h2>
@@ -138,9 +151,12 @@
 </section>
 
 <section id="tr-s-lang">
+<div class="s3sp"><div class="s3L">
 <h2>8. Language to kernel: one small file, five languages</h2>
 <p>The same task, read <code>/work/hello.txt</code> (27 bytes) into memory, in C, C++, Rust, Python and Node, each traced. Every one of them ends in the same three system calls, <code>openat</code>, <code>read</code>, <code>close</code>; what differs is how many calls the runtime makes before your line runs, and how many extra questions it asks about the file. The call stacks were captured with gdb stopping at each of those system calls (symbols from Debian's debuginfod server), so the path from your line to the kernel is real, not drawn.</p>
+</div><div class="s3R"><div class="s3side"><div class="card">
 <div class="tr-stats" id="tr-lang-stats"></div>
+</div></div></div></div>
 <div class="tr-lang" id="tr-lang"></div>
 </section>
 

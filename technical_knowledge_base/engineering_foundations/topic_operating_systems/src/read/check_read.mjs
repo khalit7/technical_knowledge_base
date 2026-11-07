@@ -26,7 +26,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     // every segmented button, then every animation control
     const segs = await p.$$(`#${tab} .seg button`);
     for (const s of segs) { await s.evaluate(e => e.scrollIntoView()); await s.click(); await new Promise(r => setTimeout(r, 60)); }
-    const ctls = await p.$$(`#${tab} .an-ctl`);
+    const ctls = await p.$$(`#${tab} .an-ctl[id]`); // the 3D stage's own bar has no id: check_stages.mjs drives it
     for (const c of ctls) {
       const id = await c.evaluate(e => e.id);
       await c.evaluate(e => e.scrollIntoView({ block: 'center' }));
