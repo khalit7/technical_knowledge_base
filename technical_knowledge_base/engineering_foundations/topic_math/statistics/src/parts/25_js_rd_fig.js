@@ -1,4 +1,4 @@
-// ---- Reading figures added in the 2026-10-24 rebuild: hero, estimators, log-likelihood, n - 1, null distribution, power,
+// ---- Reading figures added in the 2026-10-24 rebuild: estimators, log-likelihood, n - 1, null distribution, power,
 // permutation, many tests, conjugate posterior, regression and ridge, cross-validation folds.
 // Every number either comes from SD (sims.py, recompute.py) or is computed here from a closed form that recompute.py also computes.
 (function(){
@@ -16,34 +16,7 @@
   const TH=(x,y,t,o)=>RD.t(x,y,t,o).replace('<text ','<text style="paint-order:stroke;stroke:var(--soft);stroke-width:4px;stroke-linejoin:round" ');
   const reg=(id,f)=>{const el=document.getElementById(id);if(!el)return null;const go=()=>f(el);RD.onRender(go);RD.onResize(go);go();return go};
 
-  // ---- hero: population, sampling distribution of the mean (n = 30), one sample's interval ----
-  reg('rd-hero-svg',el=>{
-    const W=RD.width(el),wide=W>=640,gap=wide?18:16,pw=wide?(W-2*gap)/3:W,ph=wide?178:150,H=wide?ph:3*ph+2*gap;
-    const c=SD.clt.dists.tiny,h=c.by_n['30'],tn=SD.tiny,b=SD.boot.tiny30,mu=tn.mu,se=tn.sd/Math.sqrt(30);
-    let s='';const org=i=>wide?[i*(pw+gap),0]:[0,i*(ph+gap)];
-    const frame=(i,title,lo,hi,ticks)=>{const [ox,oy]=org(i),L=ox+8,R=ox+pw-8,top=oy+34,bot=oy+ph-22,X=v=>L+(v-lo)/(hi-lo)*(R-L);
-      s+=rc(ox,oy,pw,ph,'fill:var(--soft);stroke:var(--line)')+T(ox+8,oy+16,title,{fs:12,w:600})+ln(L,bot,R,bot,'stroke:var(--mute)');
-      ticks.forEach(t=>{s+=T(X(t),bot+14,String(t),{fs:10.5,a:'middle',fill:'var(--mute)'})});return {X,top,bot,L,R,ox,oy}};
-    // 1 population
-    let f=frame(0,'1. Population: one word’s loss',0,2.8,[0,1,2]);
-    tn.L.forEach((l,j)=>{const y=f.bot-(f.bot-f.top-14)*tn.p[j]/0.7;s+=rc(f.X(l)-7,y,14,f.bot-y,'fill:var(--c1);opacity:.85')+T(f.X(l),y-4,['cat','dog','sat'][j]+' '+F(tn.p[j],3),{fs:11,a:j===2?'end':'middle'})});
-    s+=ln(f.X(mu),f.top,f.X(mu),f.bot,'stroke:var(--good);stroke-width:1.5;stroke-dasharray:4 3')+T(f.X(mu)+4,f.top+8,'μ = '+F(mu,3),{fs:11,fill:'var(--good)'});
-    // 2 sampling distribution, bins merged in pairs (means of 30 discrete losses sit on a lattice)
-    const lo=0.45,hi=1.2;f=frame(1,'2. Averages of 30, over 20,000 samples',lo,hi,[0.5,0.75,1]);
-    const k=h.cnt.length,bw=(h.hi-h.lo)/k,m=[];for(let j=0;j<k;j+=2)m.push([h.lo+j*bw,h.lo+(j+2)*bw,h.cnt[j]+(h.cnt[j+1]||0)]);
-    const mx=Math.max(...m.map(v=>v[2]));m.forEach(v=>{const y=f.bot-(f.bot-f.top-22)*v[2]/mx;s+=rc(f.X(v[0])+0.5,y,f.X(v[1])-f.X(v[0])-1,f.bot-y,'fill:var(--c1);opacity:.6')});
-    s+=ln(f.X(mu),f.top,f.X(mu),f.bot,'stroke:var(--good);stroke-width:1.5;stroke-dasharray:4 3');
-    const yb=f.top+6;s+=ln(f.X(mu-se),yb,f.X(mu+se),yb,'stroke:var(--acc);stroke-width:2.4')+ln(f.X(mu-se),yb-4,f.X(mu-se),yb+4,'stroke:var(--acc);stroke-width:2')+ln(f.X(mu+se),yb-4,f.X(mu+se),yb+4,'stroke:var(--acc);stroke-width:2');
-    s+=T(f.X(mu+se)+5,yb+4,'±1 SE = '+F(se,3),{fs:11,fill:'var(--acc)',w:600});
-    // 3 one sample
-    f=frame(2,'3. Your one sample of 30',lo,hi,[0.5,0.75,1]);
-    const ci=b.ci.t,yc=(f.top+f.bot)/2+6;
-    s+=ln(f.X(mu),f.top,f.X(mu),f.bot,'stroke:var(--good);stroke-width:1.5;stroke-dasharray:4 3')+T(f.X(mu)+4,f.top+8,'truth '+F(mu,3),{fs:11,fill:'var(--good)'});
-    s+=ln(f.X(ci[0]),yc,f.X(ci[1]),yc,'stroke:var(--ink);stroke-width:2.4')+'<circle cx="'+f.X(b.mean).toFixed(1)+'" cy="'+yc+'" r="4" style="fill:var(--acc)"/>';
-    s+=TH(f.X(b.mean)+3,yc-10,'mean '+F(b.mean,3),{fs:11,a:'end',fill:'var(--acc)',w:600})+TH((f.L+f.R)/2,yc+20,'95% interval ('+F(ci[0],3)+', '+F(ci[1],3)+')',{fs:11,a:'middle'});
-    if(wide){[0,1].forEach(i=>{const x=(i+1)*(pw+gap)-gap/2,y=ph/2;s+='<path d="M'+(x-5)+' '+(y-6)+'L'+(x+3)+' '+y+'L'+(x-5)+' '+(y+6)+'" style="fill:none;stroke:var(--mute);stroke-width:2"/>'})}
-    el.innerHTML=RD.svg(W,H,s,'Population, sampling distribution of the mean, and one sample with its 95% interval');
-  });
+  // (the 2D hero was replaced by the 3D stage of 35_js_sc_hero.js on 2026-11-07)
 
   // ---- section 1: bias squared plus variance for three entropy estimators, exact ----
   reg('rd-est-svg',el=>{

@@ -1,17 +1,13 @@
-// ---- Reading s6: bootstrap world against the real world (data: SD.boot from sims.py) ----
+// ---- Reading s6: the numbers beside the bootstrap stage (36_js_sc_boot.js draws the resamples; data: SD.boot from sims.py) ----
 (function(){
-  const card=document.getElementById('rd-bs-card');if(!card)return;let key='tiny30';
-  function draw(){
-    const b=SD.boot[key],el=document.getElementById('rd-bs-svg'),sc=SD.boot.B/SD.boot.R;
-    el.innerHTML=ST.hist({w:RD.width(el),h:200,lo:b.lo,hi:b.hi,cnt:b.hist_boot,cnt2:b.hist_true.map(c=>c*sc),fill:'var(--c1)',stroke2:'var(--c2)',
-      vlines:[{x:b.mu,label:'true mean '+b.mu.toFixed(3)},{x:b.mean,label:'this sample '+b.mean.toFixed(3),c:'var(--c1)',dy:12}],xlab:'mean of n = '+b.n,label:'Bootstrap distribution against the true sampling distribution'})+
-      '<div class="leg"><span style="--sw:var(--c1)">bootstrap: '+SD.boot.B+' resamples of one sample</span><span style="--sw:var(--c2)">truth: '+SD.boot.R.toLocaleString('en')+' fresh samples (outline)</span></div>';
+  const cnt=document.getElementById('rd-bs-cnt');if(!cnt)return;let key='tiny30';
+  function draw(){const b=SD.boot[key];
     const f=a=>'('+a[0].toFixed(3)+', '+a[1].toFixed(3)+')',hit=a=>a[0]<=b.mu&&b.mu<=a[1]?'catches':'misses';
-    document.getElementById('rd-bs-cnt').innerHTML=RD.stat('bootstrap SE',b.boot_sd.toFixed(3),'formula s/√n: '+b.se_formula.toFixed(3))+RD.stat('true SE',b.true_sd.toFixed(3),'from fresh samples')+
+    cnt.innerHTML=RD.stat('bootstrap SE',b.boot_sd.toFixed(3),'formula s/√n: '+b.se_formula.toFixed(3))+RD.stat('true SE',b.true_sd.toFixed(3),'from fresh samples')+
       RD.stat('t-interval',f(b.ci.t),hit(b.ci.t)+' the truth')+RD.stat('percentile',f(b.ci.pct),hit(b.ci.pct)+' the truth')+RD.stat('BCa',f(b.ci.bca),hit(b.ci.bca)+' the truth');
   }
-  RD.seg(document.getElementById('rd-bs-seg'),m=>{key=m;draw()});
-  RD.onRender(draw);RD.onResize(draw);draw();
+  RD.seg(document.getElementById('rd-bs-seg'),m=>{key=m;draw();['sx-bs','sx-bs-ln'].forEach(id=>{const l=document.getElementById(id);if(l)l.hidden=(id==='sx-bs')!==(m==='tiny30')});if(window.ST_BOOT_STAGE)ST_BOOT_STAGE.set(m)});
+  draw();
 })();
 // ---- Reading s10: bounds against the exact tail (exact binomial tail from sims.py; bounds computed here) ----
 ST.bounds=n=>{const t=0.05,se=Math.sqrt(0.25/n);return {cheb:0.25/(n*t*t),hoeff:2*Math.exp(-2*n*t*t),clt:2*(1-ST.Phi(t/se))}};

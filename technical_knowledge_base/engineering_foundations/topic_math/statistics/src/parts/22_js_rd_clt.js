@@ -22,24 +22,18 @@ ST.hist=function(o){
 };
 (function(){
   const D=SD.clt,NS=D.n,card=document.getElementById('rd-clt-card');if(!card)return;
-  const NAME={tiny:"the tiny model's loss",exponential:'an exponential',lognormal:'a lognormal',pareto15:'a Pareto with tail index 1.5'};
-  let dist='tiny';
+    let dist='tiny';
   function draw(i){
     const n=NS[i],dd=D.dists[dist],c=dd.by_n[String(n)],el=document.getElementById('rd-clt-svg');
     let curve=null;
     if(dd.sd){const se=dd.sd/Math.sqrt(n),bw=(c.hi-c.lo)/c.cnt.length;curve=[];for(let j=0;j<=120;j++){const x=c.lo+(c.hi-c.lo)*j/120;curve.push([x,D.R*bw*ST.npdf(x,dd.mean,se)])}}
     el.innerHTML=ST.hist({w:RD.width(el),h:210,lo:c.lo,hi:c.hi,cnt:c.cnt,curve:curve,vlines:[{x:dd.mean,label:'true mean '+ST.fmt(dd.mean,3)}],xlab:'sample mean of n = '+n+' draws',label:'Distribution of the sample mean'});
-    const cap=document.getElementById('rd-clt-cap');
-    let t;
-    if(n===1)t='One draw: this is the population itself, '+NAME[dist]+'. The black line is the normal curve with the same mean and standard deviation'+(dd.sd?'':' (none here: the variance is infinite)')+'.';
-    else if(dist==='pareto15')t='Averages of '+n+' draws. The variance is infinite, so there is no normal curve to approach: the spread shrinks slowly and rare huge draws keep dragging single averages far to the right.';
-    else if(c.skew>0.5)t='Averages of '+n+' draws: still visibly lopsided (skewness '+ST.fmt(c.skew,2)+'). The normal curve misplaces the tails, so 1.96 standard errors does not give exactly 95%.';
-    else t='Averages of '+n+' draws: close to the bell (skewness '+ST.fmt(c.skew,2)+'), centred on the truth, with width shrinking like 1/√n.';
-    cap.innerHTML='<div class="t">n = '+n+'</div><p>'+t+'</p>';
     document.getElementById('rd-clt-cnt').innerHTML=RD.stat('draws averaged',n,'')+RD.stat('skewness of the mean',ST.fmt(c.skew,2),'0 for a bell')+
       RD.stat('within ±1.96 SE',c.within196==null?'n/a':ST.pct(c.within196),'CLT promises 95%')+RD.stat('t-interval coverage',c.tcov==null?'n/a':ST.pct(c.tcov),'using s from the sample');
   }
-  const A=RD.anim({card:'rd-clt-card',ctl:'rd-clt-ctl',n:NS.length,draw:draw,ms:1800,label:'Sample size step'});
-  RD.seg(document.getElementById('rd-clt-seg'),m=>{dist=m;A.reset(NS.length)});
+  // the step list on the left changes with the population: one list per population, one item per n
+  const LIST={tiny:'sx-clt-tiny',exponential:'sx-clt-exponential',lognormal:'sx-clt-lognormal',pareto15:'sx-clt-pareto15'};
+  const A=RD.anim({card:'rd-clt-card',ctl:'rd-clt-ctl',n:NS.length,draw:draw,ms:4200,label:'Sample size step',list:LIST.tiny});
+  RD.seg(document.getElementById('rd-clt-seg'),m=>{dist=m;Object.keys(LIST).forEach(k=>{const l=document.getElementById(LIST[k]);if(l)l.hidden=k!==m});A.reset(NS.length,LIST[m])});
   RD.onResize(()=>A.redraw());
 })();

@@ -53,8 +53,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_math/linear_algebra` Linear algebra for ML: vectors to SVD, rank, conditioning, low-rank methods
 - [x] `engineering_foundations/topic_math/matrix_calculus_and_backprop` Matrix calculus and backprop: Jacobians, layouts, vector-Jacobian products, autodiff
 - [x] `engineering_foundations/topic_math/numerical_computing` Numerical computing for ML: floating point, precision formats, stable softmax
-- [ ] `engineering_foundations/topic_math/probability` Probability for ML: random variables, distributions to losses, MLE, MAP, Bayes
-- [ ] `engineering_foundations/topic_math/statistics` Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests
+- [~] `engineering_foundations/topic_math/probability` Probability for ML: random variables, distributions to losses, MLE, MAP, Bayes
+- [x] `engineering_foundations/topic_math/statistics` Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests
 - [ ] `engineering_foundations/topic_math/variational_inference_and_generative_models` Variational inference and generative-model maths: ELBO, VAEs, diffusion
 - [ ] `engineering_foundations/topic_math` Topic: math
 - [ ] `engineering_foundations/topic_operating_systems/concurrency` Concurrency: threads, locks, futexes, deadlock, and event-driven I/O
@@ -347,3 +347,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_math/linear_algebra`: Fig. 1 step 4 crops the input plate at the left edge; multiplication card's arithmetic line partly repeats its step item.
 - `engineering_foundations/topic_math/matrix_calculus_and_backprop`: Fig. 1 objects small and labels faint at 1400 (long chain, camera far); Fig. 3 small with empty space below at 390.
 - `engineering_foundations/topic_math/numerical_computing`: softmax stage sparse at mid steps; softmax bit readout long and wraps; NaN stage small at 1400.
+- `engineering_foundations/topic_math/statistics`: Fig. 6 mid steps busy (resample rows dense) and the "resample 1 · mean" label clips at the right edge at 1400; both stages small at 390.

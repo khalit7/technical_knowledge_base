@@ -72,11 +72,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     ok(t.includes((100 * tc).toFixed(1) + '%'), 'clt tcov at n 1000 ' + d);
   }
   await scrub('rd-clt-ctl-s', 3); await shot('#rd-clt-card', 'clt');
-  // CI animation: every scenario and multiplier, at the last step
+  // CI animation (six stretches since 2026-11-07): every scenario and multiplier, at the last step
   for (const k of ['normal30', 'tiny30', 'lognormal5']) for (const m of ['t', 'z']) {
     await click('#rd-ci-seg button[data-m="' + k + '"]'); await click('#rd-ci-meth button[data-m="' + m + '"]');
-    for (const s of [0, 1, 50]) { await scrub('rd-ci-ctl-s', s); await noBad('#rd-ci-cnt', 'ci ' + k + m + s) }
-    await scrub('rd-ci-ctl-s', 100);
+    for (const s of [0, 1, 4]) { await scrub('rd-ci-ctl-s', s); await noBad('#rd-ci-cnt', 'ci ' + k + m + s) }
+    await scrub('rd-ci-ctl-s', 5); // the last of six stretches: all 100 experiments
     const got = await p.$eval('#rd-ci-cnt .stat:nth-child(2) .v', e => +e.textContent);
     ok(got === E.anim[k]['cov_' + m], 'ci count ' + k + ' ' + m + ': page ' + got + ' expected ' + E.anim[k]['cov_' + m]);
     if (m === 't') { const lo = await p.$eval('#rd-ci-cnt .stat:nth-child(3) .v', e => e.textContent); ok(lo.startsWith(String(E.anim[k].miss_low_t) + ' '), 'ci misses below ' + k + ' ' + lo) }
@@ -87,7 +87,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const k of ['tiny30', 'lognormal10']) {
     await click('#rd-bs-seg button[data-m="' + k + '"]'); const t = await txt('#rd-bs-cnt');
     const bb = E['boot_' + k]; ok(t.includes(bb.boot_sd.toFixed(3)) && t.includes(bb.true_sd.toFixed(3)) && t.includes(bb.ci.bca[1].toFixed(3)), 'boot numbers ' + k);
-    await shot('#rd-bs-card', 'boot-' + k);
+    await shot('#stg-bs', 'boot-' + k);
   }
   // bounds: every n
   for (let i = 0; i <= 16; i++) { await scrub('rd-conc-n', i); await noBad('#rd-conc-cnt', 'conc ' + i) }
@@ -116,7 +116,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const m of ['unif', 'scep', 'jeff']) { await click('#rd-post-seg button[data-m="' + m + '"]'); const t = await txt('#rd-post-cnt'); ok(t.includes(E['conj_' + m + '_mean'].toFixed(3)) && t.includes(E['conj_' + m + '_lo'].toFixed(3)) && t.includes(E['conj_' + m + '_pgt'].toFixed(3)), 'posterior ' + m + ': ' + t) }
   for (const l of [0, 1, 10, 42, 100]) { await scrub('rd-reg-l', l); const t = await txt('#rd-reg-cnt'); ok(!/NaN|undefined/.test(t), 'reg ' + l); if (l === 0) ok(t.includes(E.reg_b1.toFixed(4)), 'reg ols'); if ([1, 10, 42].includes(l)) ok(t.includes(E['reg_ridge_b1_' + l].toFixed(4)) && t.includes(E['reg_ridge_tau_' + l].toFixed(3)), 'ridge ' + l + ': ' + t) }
   { const t = await p.$eval('#rd-perm-svg', e => e.textContent); ok(t.includes(E.perm_count + ' of 256'), 'perm count: ' + t.slice(0, 60)) }
-  for (const id of ['rd-hero-svg', 'rd-est-svg', 'rd-ss-svg', 'rd-null-svg', 'rd-bh-svg', 'rd-fold-svg']) ok(await p.$eval('#' + id, e => !!e.querySelector('svg')), 'figure drawn ' + id);
+  for (const id of ['rd-est-svg', 'rd-ss-svg', 'rd-null-svg', 'rd-bh-svg', 'rd-fold-svg']) ok(await p.$eval('#' + id, e => !!e.querySelector('svg')), 'figure drawn ' + id);
   await click('#tabs button[data-t="t-more"]'); await click('#tabs button[data-t="t-read"]');
   const box = await p.$eval('#jsErr', e => e.hidden); ok(box, 'error box hidden ' + tag);
   ok(errs.length === 0, 'console errors ' + tag + ': ' + errs.join(' | '));
