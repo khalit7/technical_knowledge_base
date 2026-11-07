@@ -59,7 +59,14 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   }
   await p.evaluate(() => document.querySelectorAll('#t-read details summary').forEach(s => s.click()));
   await check('reading details');
-  for (const id of ['tl-hero-card', 'tl-aead-card', 'tl-ks-card', 'tl-res-card', 'tl-chain-card', 'tl-rev-card', 'tl-term-card', 'tl-insp-card', 'one-fig', 'dh-card', 'hrr-tab', 'cost-bars', 'zr-card', 'x509-tab', 'pub-tab', 'life-card', 'rot-card', 'speed-bars', 'tm-tab']) await shot(id, id);
+  for (const id of ['tl-aead-card', 'tl-ks-card', 'tl-rev-card', 'tl-term-card', 'tl-insp-card', 'one-fig', 'dh-card', 'hrr-tab', 'zr-card', 'x509-tab', 'pub-tab', 'life-card', 'rot-card', 'speed-card', 'tm-tab']) await shot(id, id);
+  // 3D stages (2026-11-07): every mode stepped to its last step
+  for (const [id, sel, modes] of [['stg-hero', null, [null]], ['stg-hs', null, [null]], ['stg-res', '#res-mode', ['res', 'zr']], ['stg-chain', null, [null]], ['stg-mtls', null, [null]]]) for (const m of modes) {
+    if (sel) await p.evaluate((s, m) => document.querySelector(s + ' [data-m="' + m + '"]').click(), sel, m);
+    const n = await p.evaluate(id => +document.getElementById(id + '-r').max, id);
+    for (let k = 0; k <= n; k++) { await p.evaluate(id => document.getElementById(id + '-f').click(), id); await check(id + ' ' + m + ' step ' + k); total++; }
+    for (const b of ['-p', '-p', '-b']) { await p.evaluate((id, b) => document.getElementById(id + b).click(), id, b); total++; }
+  }
   // Handshake, decrypted (Reading section 2 since 2026-10-24)
   for (const r of ['tls13', 'mtls', 'tls12']) for (const v of ['obs', 'end']) {
     await p.evaluate((r, v) => { document.querySelector('#hs-rec [data-m="' + r + '"]').click(); document.querySelector('#hs-view [data-m="' + v + '"]').click(); }, r, v);
@@ -88,21 +95,35 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.click('#tabs button[data-t="t-more"]'); await check('more');
   await p.close();
 }
-// No autoplay (2026-10-23 rule): with normal motion, scroll each animation into view, wait, and expect step 0 and a Play button
+// Motion (2026-11-06 rule): with normal motion, an animation scrolled into view plays by itself (its button reads Pause) and replays after a
+// mode switch; the record-by-record widget never plays by itself. Reduced motion (the loop above) never moves anything: checked here too.
 {
   const p = await browser.newPage();
   await p.setViewport({ width: 920, height: 900 });
-  await p.goto(page_url);
+  await p.goto(page_url); await p.click('#tabs button[data-t="t-read"]'); await sleep(300);   // the loop above left Further reading open (remembered)
   for (const c of ['hs', 'obs', 'acme', 'fl']) {
-    await p.evaluate(c => document.getElementById(c + '-card').scrollIntoView(), c); await sleep(2500);
-    const r = await p.evaluate(c => [document.getElementById(c + '-ctl-s').value, document.getElementById(c + '-ctl-p').textContent], c);
-    if (r[0] !== '0' || !/Play/.test(r[1])) { bad++; console.log('FAIL autoplay', c, r); }
-    // a mode switch must not start it either
+    await p.evaluate(c => document.getElementById(c + '-card').scrollIntoView({ block: 'center' }), c); await sleep(2000);
+    const r = await p.evaluate(c => document.getElementById(c + '-ctl-p').textContent, c);
+    const want = c !== 'hs';
+    if (/Pause/.test(r) !== want) { bad++; console.log('FAIL motion', c, r); }
     const seg = { hs: '#hs-rec [data-m="mtls"]', obs: '#obs-mode [data-m="tls12"]', acme: '#acme-pick [data-m="1"]', fl: '#fl-mode [data-m="rsa"]' }[c];
-    await p.evaluate(s => document.querySelector(s).click(), seg); await sleep(2500);
+    await p.evaluate(s => document.querySelector(s).click(), seg); await sleep(1500);
     const r2 = await p.evaluate(c => [document.getElementById(c + '-ctl-s').value, document.getElementById(c + '-ctl-p').textContent], c);
-    if (r2[0] !== '0' || !/Play/.test(r2[1])) { bad++; console.log('FAIL autoplay after mode switch', c, r2); }
+    if (/Pause/.test(r2[1]) !== want) { bad++; console.log('FAIL motion after mode switch', c, r2); }
     total += 2;
+  }
+  await p.close();
+}
+{
+  const p = await browser.newPage();
+  await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  await p.goto(page_url); await p.click('#tabs button[data-t="t-read"]'); await sleep(300);   // the loop above left Further reading open (remembered)
+  for (const c of ['hs', 'obs', 'acme', 'fl']) {
+    await p.evaluate(c => document.getElementById(c + '-card').scrollIntoView({ block: 'center' }), c); await sleep(1500);
+    const r = await p.evaluate(c => [document.getElementById(c + '-ctl-s').value, document.getElementById(c + '-ctl-p').textContent], c);
+    if (r[0] !== '0' || /Pause/.test(r[1])) { bad++; console.log('FAIL reduced motion', c, r); }
+    total++;
   }
   await p.close();
 }

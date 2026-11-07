@@ -19,12 +19,13 @@
     if(f.d==='s2c')return ['Server: '+(has('NewSessionTicket')?'a session ticket and ':'')+'the response begins','The response head and the first event, encrypted.'+(has('NewSessionTicket')?' The ticket allows a resumed handshake next time (section 3).':'')];
     return ['Step '+(i+1),''];
   }
-  const st=document.getElementById('obs-stats'),fig=document.getElementById('obs-fig'),cap=document.getElementById('obs-cap');
+  const st=document.getElementById('obs-stats'),fig=document.getElementById('obs-fig'),ol=document.getElementById('sx-obs');
+  // the step list on the left: one item per flight, the explanation that used to be the caption under the figure
+  function list(){const fls=model[mode];ol.innerHTML=fls.map((f,i)=>{const c=caption(mode,f,i,fls);return '<li><b>'+c[0]+'.</b> '+c[1]+'</li>'}).join('')}
+  list();
   function draw(i){
     const fls=model[mode];i=Math.min(i,fls.length-1);
     TLS.render(fig,fls,i,{collapse:true});
-    const c=caption(mode,fls[i],i,fls);
-    cap.innerHTML='<div class="t">'+(i+1)+'/'+fls.length+'. '+c[0]+'</div><p>'+c[1]+'</p>';
     const upto=fls.slice(0,i+1);
     const sent=upto.reduce((a,f)=>a+f.bytes,0),vis=upto.reduce((a,f)=>a+f.items.filter(x=>x.vis).reduce((b,x)=>b+x.n,0),0);
     const certVis=upto.some(f=>f.items.some(x=>x.vis&&x.t==='Certificate'));
@@ -34,6 +35,6 @@
       RD.stat('Certificate readable?',certVis?'<span class="no">yes</span>':'no',certVis?'subject, issuer, dates':'')+
       RD.stat('TLS round trips before the request',i>=reqIdx?String(fls.slice(0,reqIdx).filter(g=>g.d==='s2c').length):'waiting ('+rtts+' so far)',mode==='tls13'?'TLS 1.3: one':'TLS 1.2: two');
   }
-  const a=RD.anim({card:'obs-card',ctl:'obs-ctl',n:model[mode].length,draw,ms:2200,label:'Handshake step'});
-  RD.seg(document.getElementById('obs-mode'),m=>{mode=m;a.reset(model[m].length)});
+  const a=RD.anim({card:'obs-card',ctl:'obs-ctl',n:model[mode].length,draw,ms:4200,label:'Handshake step',list:'sx-obs'});
+  RD.seg(document.getElementById('obs-mode'),m=>{mode=m;list();a.reset(model[m].length,'sx-obs')});
 })();

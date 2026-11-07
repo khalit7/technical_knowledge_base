@@ -82,10 +82,7 @@ window.TLS=(function(){
     hr.cases.map(c=>'<tr><td><code>'+RD.esc(c.cg)+'</code></td><td><code>'+RD.esc(c.sg)+'</code></td><td>'+(c.hrr?'<span class="no">yes</span>':'no')+'</td><td>'+RD.esc((c.neg||'').replace('Negotiated TLS1.3 group: ','').replace('Peer Temp Key: ',''))+'</td><td class="num">'+c.ch.map(fmt).join(' + ')+'</td><td class="num">'+c.fin.toFixed(0)+' ms</td></tr>').join('')+
     '</tbody></table><p class="small mute">OpenSSL 3.6.5 s_client and s_server, a proxy adding '+hr.delay+' ms each way (one round trip = '+(2*hr.delay)+' ms). Times are from the first client byte at the proxy to the client\'s Finished leaving the proxy. A HelloRetryRequest adds about one round trip: compare rows 2 and 3. <code>src/lab/hrr.py</code></p>';
 
-  // resumption cost bars
-  const cm=D.cost.median,cp=D.cost.p90,keys=Object.keys(cm),mx=Math.max(...keys.map(k=>cm[k]));
-  document.getElementById('cost-bars').innerHTML=keys.map((k,i)=>'<div class="row"><span class="nm" title="'+k+'">'+k+'</span><span class="track"><span class="fill" style="width:'+(100*cm[k]/mx).toFixed(1)+'%;background:var(--c'+(i+1)+')"></span></span><span class="val">'+cm[k].toFixed(2)+' ms</span></div>').join('')+
-    '<p class="small mute">Median client-observed time per request over '+D.cost.n+' requests each (90th percentile: '+keys.map(k=>cp[k].toFixed(2)).join(', ')+' ms). All '+D.cost.resumed+' resumptions were accepted by the server.</p>';
+  // the resumption cost bars moved into Fig. 3 (43_js_sc_res.js, step 3) on 2026-11-07
 
   // the X.509 field table, from the api.anthropic.com leaf in the survey
   const host=D.pub.hosts.find(h=>h.host==='api.anthropic.com'),L=host.chain[0];

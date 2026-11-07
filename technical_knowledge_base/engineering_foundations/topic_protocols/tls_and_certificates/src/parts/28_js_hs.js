@@ -64,7 +64,7 @@
   }
   list.addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]');if(tr)A.go(+tr.dataset.i)});
   build();
-  const A=RD.anim({card:'hs-card',ctl:'hs-ctl',n:D.hs[rec].recs.length,draw,ms:1600,label:'Record'});
+  const A=RD.anim({card:'hs-card',ctl:'hs-ctl',n:D.hs[rec].recs.length,draw,ms:1600,label:'Record',auto:false}); // a widget the reader drives (19 to 22 records: the long-replay rule), never autoplays
   RD.seg(document.getElementById('hs-rec'),m=>{rec=m;build();A.reset(D.hs[rec].recs.length)});
   RD.seg(document.getElementById('hs-view'),m=>{view=m;build();A.redraw()});
 })();

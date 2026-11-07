@@ -19,7 +19,7 @@
     const js=o=>esc(typeof o==='string'?o:JSON.stringify(o,null,1));
     function draw(i){
       const s=segs[seg],e=L[s.a+i];if(!e)return;
-      let h='<div class="an-cap"><div class="t">'+(i+1)+'/'+(s.b-s.a)+'. '+esc(e.step)+'</div>';
+      let h='<div class="an-cap">';
       if(e.m==='local')h+='<p>Done by the client on its own infrastructure (here, through the challenge test server\'s API): no ACME message.</p></div><pre class="blk">'+js(e.body)+'</pre>';
       else{
         h+='<p><code>'+esc(e.m)+' '+esc(e.url||'')+'</code> &rarr; <b>'+e.st+'</b>'+(e.loc?' <span class="mute">Location: '+esc(e.loc)+'</span>':'')+(e.ra?' <span class="mute">Retry-After: '+esc(e.ra)+'</span>':'')+'</p></div>';
@@ -28,8 +28,12 @@
       }
       out.innerHTML=h;
     }
-    const a=RD.anim({card:'acme-card',ctl:'acme-ctl',n:segs[0].b-segs[0].a,draw,ms:2600,label:'ACME message'});
-    RD.seg(pick,m=>{seg=+m;a.reset(segs[seg].b-segs[seg].a)});
+    // the step list on the left: one item per recorded message (the step's name, then the method and status); the card keeps the JSON
+    const ol=document.getElementById('sx-acme');
+    function list(){const sg=segs[seg];ol.innerHTML=L.slice(sg.a,sg.b).map(e=>'<li><b>'+esc(e.step.charAt(0).toUpperCase()+e.step.slice(1))+'.</b> '+(e.m==='local'?'On the client\'s own infrastructure, no ACME message.':'<code>'+esc(e.m)+'</code> &rarr; '+e.st)+'</li>').join('')}
+    list();
+    const a=RD.anim({card:'acme-card',ctl:'acme-ctl',n:segs[0].b-segs[0].a,draw,ms:3800,label:'ACME message',list:'sx-acme'});
+    RD.seg(pick,m=>{seg=+m;list();a.reset(segs[seg].b-segs[seg].a,'sx-acme')});
     const ari=L.find(e=>/ARI/.test(e.step));
     const w=ari.body.suggestedWindow,iss=L.find(e=>/download the certificate/.test(e.step));
     document.getElementById('ari-txt').textContent='from '+w.start.slice(0,10)+' to '+w.end.slice(0,10)+' for the 90-day certificate it issued on '+D.acme.recorded+', that is about two thirds of the way through its life';
@@ -85,7 +89,7 @@
       '<li>Connection 2 opens: the client sees '+tag(s[2].conn2_sees)+'</li>'+
       '<li>Connection 1 still carries data ("'+esc(s[3].server_received)+'" received) under '+tag(s[3].conn1_still_sees)+'</li></ol>'+
       '<p class="small mute">Fingerprints are the first bytes of each certificate\'s SHA-256. Both certificates name api.llm.test and come from the same intermediate.</p>';
-    document.getElementById('rot-ms').textContent=s[1].ms;
+    document.getElementById('rot-ms').textContent=s[1].ms;document.getElementById('rot-ms2').textContent=s[1].ms;
   })();
 
   // post-quantum survey text and speed bars

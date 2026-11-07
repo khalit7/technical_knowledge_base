@@ -96,7 +96,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_protocols/service_apis` Service APIs: REST, gRPC, GraphQL and load balancing
 - [x] `engineering_foundations/topic_protocols/ssh` SSH: keys, certificates, jump hosts and tunnels for cluster work
 - [x] `engineering_foundations/topic_protocols/streaming_and_real_time` Streaming and real-time: SSE, WebSockets, webhooks, long polling
-- [ ] `engineering_foundations/topic_protocols/tls_and_certificates` TLS and certificates: the handshake, PKI, mTLS and post-quantum
+- [x] `engineering_foundations/topic_protocols/tls_and_certificates` TLS and certificates: the handshake, PKI, mTLS and post-quantum
 - [ ] `engineering_foundations/topic_protocols` Topic: protocols
 - [ ] `engineering_foundations/topic_swe_and_system_design/building_a_backend_api` Building a backend API: request lifecycle, data layer, async and workers, shutdown
 - [ ] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
@@ -389,3 +389,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_protocols/service_apis`: core 55 min (about 52 one mode per figure), over 50: consider condensing; Fig. 5 (lb) "calls after backend-3 joined" label overlaps the 96 bar at 1400; deadline and lb scenes small at 390; webhook stepper nearly empty at step 1; pagination card title repeats its Fig. 2 heading; new idempotency recording made on Linux, the October ones on macOS.
 - `engineering_foundations/topic_protocols/ssh`: Fig. 1 hero at 390 faded future-layer labels overlap (user authentication over connection, channels); jump, agent and forwarding scenes small with empty margin at 1400; mux exit-step label over a faded slab label; agent root label near the bastion at 390; 33 min of closed details is large.
 - `engineering_foundations/topic_protocols/streaming_and_real_time`: Fig. 1 hero crowded at 1400 (one connection, last token 431 ms labels overlap; client and server slabs large and cut at the edges); hero and tok scenes small at 390; Fig. 9 end state thin (bars and labels only).
+- `engineering_foundations/topic_protocols/tls_and_certificates`: Fig. 1 hero leaf 478 B and intermediate 421 B labels close at 1400; Fig. 2 step 4 CertificateVerify and Finished labels close; empty space above scene objects at 1400; stages small below 520 px.
