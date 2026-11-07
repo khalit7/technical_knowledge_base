@@ -5,7 +5,9 @@ The essentials page of the Python language (page prefix `es`, storage key `pyes-
 ## Build
 `python3 es/gen.py && sh build.sh` writes `../index.html` from `parts/` (the skill template build: single-level tabs, Reading `t-read`, Further reading `t-more`).
 - Generated, never edited by hand: `parts/20_read_a.html` (styles, nav, the idea, the hero) and `parts/20_read_b.html` (section 2), from `es/tpl/` by `es/gen.py` (trimmed from the data-model child's generator; markers `[[run:]]`, `[[runx:]]`, `[[predict:]]`, `[[drill:]]`, `[[out:]]`, `[[code:]]`), inlining `es/code/*.py` and `es/outputs/*`.
-- Hand-written: `01_head.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `99_js_tabs.js` (skill templates; `21_js_rd_common.js` only drives the section-nav highlight, nothing animates), `10_header.html`, `20_read_c.html` (traps, choosing), `20_read_e.html` (child cards), `20_read_z.html`, `39_tab_more.html`.
+- Hand-written: `01_head.html`, `02_split.html`, `05z_errbox.js.html`, `21_js_rd_common.js`, `25_js_s3.js`, `99_js_tabs.js` (skill templates, the last with key `pyes-tab`; `21_js_rd_common.js` drives the section-nav highlight), `10_header.html`, `20_read_c.html` (traps, choosing), `20_read_e.html` (child cards), `20_read_z.html`, `30_js_sc_hero.js` (Fig. 1), `39_tab_more.html`.
+- `es/gen.py` also embeds the hero run (`outputs/h1_hero.txt`) as JSON in `<script type="application/json" id="es-h1">` (marker `[[json:h1_hero]]`), which Fig. 1 parses.
+- Checks: `node src/check_stages.mjs [shots dir]` (`ALL=1` also shoots every step at 1400 px).
 - Runs: `PY=python3.14 sh es/run_all.sh` (seconds). `n1_alias` and `n2_identity` are the language page's scripts (recorded 2026-10-05); `h1_hero.py` (new) and `q_drills.py` (the three "names" drills of the old Predict tab) were run on CPython 3.14.8, Apple M1 Pro, 2026-10-26 (`es/versions.txt`); the rerun of n1 and n2 matched the 2026-10-05 outputs byte for byte.
 - `merge_ledger.py`: how `ledger.json` was made from the master ledger (below).
 
@@ -31,3 +33,27 @@ The "Integer caching" drill (and Float arithmetic, the two async drills and the 
 
 ## Checks
 `sh html_utils/checkpage.sh <page>`: fail=0, emdash 0, errbox 1, clipped 0. `python3 html_utils/ledger.py check <page>`: problems 0. Every Notion id linked is in `pages.json`.
+
+## 2026-11-07: split layout, a 3D hero (renderer v2), the children's figures linked (layout rollout)
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the four children were rebuilt in the same rollout. Copied unchanged from the templates: `build.sh` (it now includes `parts/02_split.html`), `parts/02_split.html`, `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `pyes-tab`). `01_head.html` kept (it carries the `kb-look` block).
+
+**Sections** (Reading tab; Further reading unchanged):
+| Section | Layout | Visual | Step list |
+|---|---|---|---|
+| The idea in one screen (`s0`) | split | 3D stage `stg-hero` (Fig. 1, new, `parts/30_js_sc_hero.js`) | yes, `sx-hero`, 7 steps |
+| You need, new terms | full width | none | no |
+| 1 Five things the runs showed (`s1`) | full width | table | no |
+| 2 Names, objects and references (`s2`) | split | 2D static, Fig. 2 (the old hero: three lines, three frames) in `.s3side`, with its real run | no |
+| 3 Traps, 4 Choosing, 5 Child pages | full width | tables and cards | no |
+
+- **Fig. 1** follows one program (the three lines of Fig. 2 as `app.py`) from install to run: `pyproject.toml` and `uv.lock` resolving into `.venv`; `app.py` under the type checker's glass plate, with the hints stopping there; the bytecode as a glass plate of its 15 real instructions (from the hero's `dis` listing) with `STORE_NAME`, `LOAD_ATTR` and `BINARY_OP` marked as the cursor passes, flowing into the C evaluation loop; the namespace plate (x, y, z) streaming to the list objects, the reference count going 1 to 2 at `y = x` and the new list's 1 (the hero run's `sys.getrefcount`), the type object `list` answering `append` and `__add__` (the hero run's method reprs); three threads in front with the GIL token hopping between them. The step list's steps 3 to 7 are the old "five facts" cards, reordered along the journey (the old fact 5, "types are for tools, speed is for measurement", split into steps 3 and 4; fact 3, laziness and functions as objects, folded into step 6). Each step names its owner and links that child's own stage (`#stg-uv`, toolchain `#stg-hero`, `#stg-eval`, `#stg-obj`, `#stg-rc`, data model `#stg-hero` and `#stg-look`, concurrency `#stg-hero` and `#stg-loop`); nothing of a child's mechanism is redrawn (no stack values, no MRO, no event-loop trace, no lock files' contents).
+- **Fig. 2** (the old hero) moved to section 2, beside the text it illustrates; the cut "five facts" cards live on as Fig. 1's steps.
+- **Traps table**: the "Fact" column became "Step" (the stop of Fig. 1 where each trap starts); "the event-loop stepper" became the concurrency child's Fig. 3.
+- **Child cards**: "Child page, about N min, plus M in closed details." from each child's header on 2026-11-07 (data model 29 + 21, concurrency 21 + 10, internals 24 + 6, toolchain 22 + 15), each naming the child's 3D figures. The internals card no longer quotes a Version explorer time (its header does not state one).
+- **Kept 2D, and why**: Fig. 2 is three before/after frames of names and objects with code under each; a flat drawing reads them at once, and Fig. 1 steps 5 and 6 already put the same three lines in 3D. The tables stay text. No other stage: each mechanism with spatial structure has its stage on the child that owns it.
+
+**Length.** Reading 10.3 core + 1.5 closed before (2,359 and 339 words), 12.4 + 1.5 after (2,849 and 339; 230 words a minute, `html_utils/audit_pages.mjs`). The two minutes added are Fig. 1's step list (about 560 words), the map of which child owns each stop with links to its figures; the five-facts cards it replaces were about 280 words. Header: 12 min, plus 1. Further reading 1.1, unchanged. Right for a page that is a map plus one concept.
+
+**Ledger**: 624 units: core 41, depth 1, owned 531, fat 51; `ledger.py check` problems 0. The children's rebuild had broken 16 keys; 15 owned keys were re-pointed to the owner's current wording (for example "every step is a stretch of the lines g2_order.py printed, in order", "30 bits in each 4-byte digit", "one time.sleep in b held the thread for 200 ms", "pick a real file from pypi (fetched 2026-10-05)"), and unit 10006 (child cards) now keys on "Child page, about". No unit had to come back here. Added 10007 (Fig. 1), 10008 (uv sync is exact, step 2), 10009 (the traps' Step column), 10010 (the cards' 3D figures). Units 19 and 20 (the lost-update counts, 3 of 5 runs and 24k to 36k, and "A lock fixed both") stay core here: the concurrency child shows those numbers only in a script-drawn table.
+
+**Checks (2026-11-07)**: `sh html_utils/checkpage.sh`: tabs 2, emdash 0, errbox 1, clipped 0, fail=0; `node src/check_stages.mjs` (copied from the C++ essentials page: the stage at 1400 light, 920 light and 390 dark plays once in view, reaches its last step, has one list item per step, stops redrawing off screen, never moves under reduced motion; splits are two columns at 1400; the step list's reference counts and instruction names equal the embedded run): 0 problems.

@@ -3,8 +3,8 @@
 Notion: https://app.notion.com/p/3cd5c17b0d0d81b28acdea39e7a4d998 (child of Topic: programming-languages)
 Site: https://khalit7.github.io/technical_knowledge_base/engineering_foundations/topic_programming_languages/python/
 
-Interactive page: `index.html`, built from `src/` (`python3 src/es/gen.py && sh src/build.sh`; see `src/README.md`). Tabs: Reading, Further reading. Reading: 10 min, plus 2 in closed details.
-The essentials page of the Python language (rebuilt 2026-10-26, when the old two-part page "Python: the language in depth and the 2026 toolchain" was split into four children): the core idea and a static hero (three lines: names, the object with its type and reference count, the special method each line calls, from a real run), five facts behind almost every surprise with five measured findings, names, objects and references (aliasing, `is` against `==`, the mutable default), the traps that cut across the language, choosing a tool for a job, and the child cards.
+Interactive page: `index.html`, built from `src/` (`python3 src/es/gen.py && sh src/build.sh`; see `src/README.md`). Tabs: Reading, Further reading. Reading: 12 min, plus 1 in closed details.
+The essentials page of the Python language (rebuilt 2026-10-26, when the old two-part page "Python: the language in depth and the 2026 toolchain" was split into four children; split layout and a 3D hero on 2026-11-07): the core idea and Fig. 1, one program from install to run with each child's concept pinned where it acts and linked (the five facts behind almost every surprise are its steps), five measured findings, names, objects and references beside Fig. 2 (three lines from a real run: names, the object with its reference count, the method looked up on the type), the traps that cut across the language, choosing a tool for a job, and the child cards.
 
 Child pages (each folder here):
 - `data_model_and_protocols/`: Python: the data model and protocols

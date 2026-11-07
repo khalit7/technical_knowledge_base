@@ -7,6 +7,7 @@ Markers in templates:
   [[out:FILE]]        outputs/FILE (a .txt name without extension), with a caption line above
   [[predict:NAME]]    code, then the output hidden behind "Predict, then reveal"
   [[drill:TITLE]]     a snippet from outputs/q_drills.json, its output hidden behind "Predict, then reveal"
+  [[json:NAME]]       DATA[NAME] as JSON (used inside <script type="application/json">)
 Run with any Python 3.10+: python3 gen.py"""
 import html, io, json, keyword, re, sys, tokenize
 from pathlib import Path
@@ -94,7 +95,7 @@ def expand(text):
         raise ValueError(kind)
     return re.sub(r"\[\[(runx|run|code|out|predict|drill|json):([^\]]+)\]\]", rep, text)
 
-DATA = {}
+DATA = {"h1_hero": (OUT / "h1_hero.txt").read_text()}   # the hero run, parsed by Fig. 1 (parts/30_js_sc_hero.js) for its instruction names and reference counts
 
 written = []
 for f in sorted(TPL.iterdir()):
