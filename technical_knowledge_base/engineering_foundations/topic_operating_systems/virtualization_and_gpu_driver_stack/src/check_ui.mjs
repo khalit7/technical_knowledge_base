@@ -1,4 +1,4 @@
-// Click every control of the virtualization and GPU driver stack page at 390 dark and 920 light; report page errors,
+// Click every control of the virtualization and GPU driver stack page at 390 dark and 920 light (the 3D stages' own checks are in check_stages.mjs); report page errors,
 // NaN/undefined text, sideways scroll; screenshot each tab and each animation card. Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_operating_systems/virtualization_and_gpu_driver_stack/src/check_ui.mjs <outdir>
 import { createRequire } from 'node:module';
@@ -23,10 +23,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const startTab = await p.evaluate(() => [...document.querySelectorAll('.tab')].find(t => !t.hidden).id);
   if (startTab !== 't-read') console.log(scheme, 'opened on', startTab, '(remembered in localStorage)');
   await p.click('button[data-t=t-read]'); await sleep(100);
-  // nothing moves before the reader acts: scroll every animation into view, wait, and confirm each is still on step 0 and paused
-  for (const c of ['pw-card', 'wk-card', 'vq-card', 'fc-card']) { await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await sleep(600) }
-  const moving = await p.evaluate(() => ['pw-ctl', 'wk-ctl', 'vq-ctl', 'fc-ctl'].filter(c => document.getElementById(c + '-s').value !== '0' || !/Play/.test(document.getElementById(c + '-p').textContent)));
-  if (moving.length) errs.push('autoplay: ' + moving.join(', '));
+  // since 2026-11-07 every animation plays by itself once scrolled into view (the stages are checked by check_stages.mjs): the two 2D animations must be playing
+  for (const c of ['wk', 'vq']) { await p.$eval('#' + c + '-card', e => e.scrollIntoView({ block: 'center' })); await sleep(1200);
+    if (!/Pause/.test(await p.$eval('#' + c + '-ctl-p', e => e.textContent))) errs.push('autoplay: ' + c + '-card did not play when scrolled into view') }
   await p.evaluate(() => scrollTo(0, 0));
   const check = async (tab, label) => {
     const t = await p.$eval('#' + tab, e => e.innerText);
@@ -55,10 +54,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   };
   // Reading
   await check('t-read', scheme + ' read');
-  await segs('t-read', 'pw-mode', ['pw-ctl'], scheme, 'pw-card');
   await segs('t-read', 'wk-mode', ['wk-ctl'], scheme, 'wk-card');
   await segs('t-read', 'vq-mode', ['vq-ctl'], scheme, 'vq-card');
-  await segs('t-read', 'fc-mode', ['fc-ctl'], scheme, 'fc-card');
+  await segs('t-read', 'fc-mode', [], scheme, 'stg-cuda');
   // version checker: every combination
   const vc = await p.evaluate(() => {
     const ids = ['vc-drv', 'vc-rt', 'vc-gpu', 'vc-code', 'vc-compat'], sel = ids.map(i => document.getElementById(i));

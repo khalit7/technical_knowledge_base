@@ -1,10 +1,9 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s1">
 <h2>1. Virtual machines against containers, and what makes a CPU virtualizable</h2>
 <span class="ostep">Appendix B, 6</span>
 <p><b>The problem.</b> A cloud provider sells slices of one big machine to strangers. Each wants root, their own kernel and drivers, and the certainty that the neighbour cannot read their memory or crash their kernel. A container cannot promise that: every container shares one kernel, so a kernel bug is everyone's bug. A <dfn>virtual machine</dfn> (VM) gives each customer a whole kernel of their own; the <dfn>hypervisor</dfn> (or <dfn>virtual machine monitor</dfn>, VMM) does for operating systems what an operating system does for processes.</p>
-<div class="card"><h4>Where the isolation boundary sits</h4>
-<div class="fgrid"><div class="fg" id="fg-vmct-c"></div><div class="fg" id="fg-vmct-v"></div></div>
-<p class="small">Containers: one kernel, separated by namespaces and cgroups (the {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} page owns how). VMs: one kernel per guest, separated by the CPU's virtualization hardware, so a guest kernel crash or exploit stays in its guest. The price is the boundary crossings of sections 2 to 6. Sandboxes for untrusted code (Firecracker, gVisor) sit between the two and are on the containers page.</p></div>
+
 <p><b>How it works: limited direct execution, one level down.</b> A kernel runs your program directly on the CPU and takes control back only on a system call, fault or timer (OSTEP chapter 6). A hypervisor does the same to a whole kernel: the guest kernel's instructions run directly, at full speed, and the hypervisor takes over only when the guest does something it must not do alone, such as touch a device or reprogram the interrupt controller. That hand-over is a <dfn>trap</dfn>; in a VM it is a <dfn>VM exit</dfn>. OSTEP's appendix calls it extending "the notion of limited direct execution" so the VMM can "interpose on key events (such as traps)" ({{OSTEP Appendix B|https://pages.cs.wisc.edu/~remzi/OSTEP/vmm-intro.pdf}}).</p>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>arm64 (this laptop)</th><th>Runs</th><th>x86-64 equivalent</th></tr></thead><tbody>
 <tr><td><b>EL0</b></td><td>your process (Python, the training job)</td><td>ring 3</td></tr>
@@ -25,14 +24,25 @@
 <div class="ch"><button>The system calls: the hypervisor must handle each one</button><button data-ok="1">The disk reads</button><button>Both the same</button></div>
 <div class="ans" hidden>A system call goes from EL0 to the guest kernel at EL1 without involving the hypervisor at all: hardware virtualization exists so that this path does not exit. A disk read touches a (virtual) device: the guest writes a device register to say "go", which exits to the hypervisor, and the completion arrives as an interrupt the hypervisor injects. Sections 2, 5 and 6 measure those exits.</div></div>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 2: where the isolation boundary sits</h4>
+<div class="fgrid"><div class="fg" id="fg-vmct-c"></div><div class="fg" id="fg-vmct-v"></div></div>
+<p class="small">Containers: one kernel, separated by namespaces and cgroups (the {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}} page owns how). VMs: one kernel per guest, separated by the CPU's virtualization hardware, so a guest kernel crash or exploit stays in its guest. The price is the boundary crossings of sections 2 to 6. Sandboxes for untrusted code (Firecracker, gVisor) sit between the two and are on the containers page.</p></div></div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-exit"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. A VM exit, measured</h2>
 <span class="ostep">Appendix B</span>
 <p><b>What an exit is.</b> When the guest does something the hypervisor asked to see, the CPU stops the guest, saves its registers, switches to the hypervisor's privilege level and jumps to its handler with a <dfn>syndrome</dfn> saying why (on arm64 the exception class, <dfn>EC</dfn>; on x86 the exit reason). The handler emulates the effect and resumes the guest. Everything a guest does is either free (runs directly) or costs one of these round trips.</p>
-<div class="card"><h4>A system call never leaves the guest; a device register store does</h4>
-<div class="fg" id="fg-exit"></div>
-<p class="small">Privilege levels over time on arm64. The guest's <code>getpid()</code> goes EL0 to EL1 and back, exactly as on bare metal. A store to an emulated device register (<dfn>MMIO</dfn>) exits from EL1 to EL2, runs the hypervisor's handler, and resumes: <b data-k="hvf.mmio_med">0.92</b> µs <span class="meas">measured</span> on this laptop.</p></div>
+
 <p><b>Measured: our own tiny VM on this laptop.</b> This VM cannot run KVM (no <code>/dev/kvm</code>: the M1 Pro has no nested virtualization), but macOS's Hypervisor.framework has the same shape (create a VM, map memory, create a vCPU, <code>hv_vcpu_run</code> until an exit). <code>src/exp/hvf_exits.c</code> builds a VM with one vCPU and two instructions of guest code, an instruction that exits and a branch back to it, and times one exit round trip 20,000 times.</p>
+<p class="sxh">Fig. 3: a system call never leaves the guest; a device register store does</p>
+<ol class="sx" id="sx-exit">
+<li><b>Three privilege levels, two worlds.</b> In the guest, your process runs at EL0 and the guest kernel at EL1. Below them, at EL2, the hypervisor: here Apple's Hypervisor.framework in the macOS kernel. QEMU, the program that emulates the devices, is an ordinary macOS process; each vCPU is one of its threads, sitting in <code>hv_vcpu_run</code> while the guest runs.</li>
+<li><b><code>getpid()</code> stays in the guest.</b> EL0 to EL1 and back, exactly as on bare metal: the guest kernel handles its own system calls and page faults, and the hypervisor never sees them.</li>
+<li><b>A store to a device register exits.</b> <code>str x1, [x2]</code> to an address with no memory behind it: the CPU saves the guest's state, enters EL2 with exception class 0x24, and <code>hv_vcpu_run</code> returns into QEMU, which emulates the device and enters the guest again. One round trip: <b data-k="hvf.mmio_med">0.92</b> µs.</li>
+<li><b>Every reason costs about the same.</b> A hypercall (<code>hvc #0</code>, class 0x16) took <b data-k="hvf.hvc_med">0.88</b> µs and the idle instruction (<code>wfi</code>, class 0x01) <b data-k="hvf.wfi_med">0.88</b> µs: the floor is the trip to EL2 and out to QEMU and back, not the reason.</li>
+<li><b>A forced exit from another thread.</b> Another host thread calls <code>hv_vcpus_exit</code> and the running vCPU is pulled out: <b data-k="hvf.kick_med">1.08</b> µs from the call to the exit. This is how a VMM interrupts a vCPU that is running guest code (section 5).</li>
+<li><b>About three system calls' worth.</b> The root page measured a <code>read</code> system call at 0.316 µs; an exit is roughly three of them. Cheap once; a fast VM is designed to keep it rare.</li>
+</ol>
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Guest instruction</th><th>Why it exits</th><th>Exception class</th><th>Median per exit <span class="meas">measured</span></th></tr></thead><tbody>
 <tr><td><code>hvc #0</code></td><td>a hypercall: the guest asks the hypervisor for something</td><td>0x16</td><td><b data-k="hvf.hvc_med">0.88</b> µs</td></tr>
 <tr><td><code>str x1, [x2]</code> to an address with no memory</td><td>a device register (MMIO): the hypervisor must emulate the device</td><td>0x24</td><td><b data-k="hvf.mmio_med">0.92</b> µs</td></tr>
@@ -40,7 +50,7 @@
 <tr><td>(another host thread calls <code>hv_vcpus_exit</code>)</td><td>a forced exit, how a VMM interrupts a running vCPU</td><td>canceled</td><td><b data-k="hvf.kick_med">1.08</b> µs from the call to the exit</td></tr>
 </tbody></table></div>
 <p class="small mute"><span class="meas">measured</span> macOS host, not the VM: Apple M1 Pro, Hypervisor.framework, 3 runs of 20,000 exits (2,000 kicks), median of the three run medians; timer resolution 0.042 µs. Raw: <code>src/raw/hvf_macos.txt</code>.</p>
-<p><b>Reading it.</b> About 0.9 µs per exit, whatever the reason, is the floor: the switch to EL2, Apple's kernel code, the return to our user-space loop, and back. That is roughly <b>three system calls' worth</b> (the root measured a <code>read</code> system call at 0.316 µs). Cheap once; a fast VM is designed to keep it rare. The guest's own system calls, page faults and arithmetic never exit; idle, device registers, timer and interrupt-controller registers, hypercalls and host interrupts do.</p>
+<p><b>Reading it.</b> About 0.9 µs per exit, whatever the reason, is the floor: the hardware switch to EL2, Apple's kernel code, the return to our user-space loop, and back. The guest's own system calls, page faults and arithmetic never exit; idle, device registers, timer and interrupt-controller registers, hypercalls and host interrupts do.</p>
 <div class="ff"><div class="t">When it bites in ML</div><ul>
 <li>A GPU's work does <b>not</b> exit: with passthrough the GPU's registers are mapped straight into the guest, so writing a doorbell is an ordinary store (sections 7 and 9). The CUDA kernel itself never notices the VM.</li>
 <li>What exits is the CPU side: interrupts, idle and wake-ups (section 5), disk and network I/O (section 6). A data loader with many threads handing work to each other is the part of a training job that pays.</li>
@@ -75,3 +85,4 @@ ioctl(vm, KVM_SET_USER_MEMORY_REGION, &amp;r);
 </tbody></table></div>
 </div></details>
 </section>
+</div></div>

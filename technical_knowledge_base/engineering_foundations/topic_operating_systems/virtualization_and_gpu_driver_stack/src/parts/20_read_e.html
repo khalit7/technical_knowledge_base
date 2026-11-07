@@ -14,17 +14,47 @@
 </tbody></table></div>
 <p class="small mute"><span class="meas">measured</span> <code>src/exp/ipi.c</code> in a container with <code>--cpuset-cpus 1,2,3,4</code>; medians of 3 runs (raw: <code>src/raw/ipi.txt</code>). After each test the program reads <code>/proc/interrupts</code> and divides the IPI counts it added by the number of operations. The sibling pages' numbers came from other runs on the same VM at other times; the spread between runs is itself a property of a laptop VM shared with other work.</p>
 <p><b>Reading it.</b> Moving the byte between CPUs through memory costs <b data-k="ipi.spin_one_way_med">0.054</b> µs: the cache-coherence hardware is fast. The interrupt is slow: one IPI round trip costs about <b data-k="der.ipi_rt">14.5</b> µs (membarrier with one peer, minus the bare system call), and a sleeping wake-up <b data-k="der.idle_x_same">12.7</b> times a same-CPU switch. Three IPIs at once cost <b data-k="der.ipi3_per">30.2</b> µs each, <b data-k="der.ipi3_x">2.1</b> times what three independent ones would: they queue behind each other somewhere.</p>
-<p><b>Where the time goes.</b> On this guest's emulated GICv2, sending an IPI is a store to a distributor register, and taking one is a load to acknowledge it and a store to end it. All three are device registers, so all three are VM exits into QEMU, which emulates the controller while holding its one global lock. If the target vCPU was idle, its host thread is asleep in <code>pselect</code> and must be woken with a signal. Step through it, against the same hand-off on bare hardware:</p>
-<div class="card" id="wk-card">
-<h4>One wake-up: three exits, and a sleeping host thread when the target is idle</h4>
+</section>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="wk-card">
+<h4>Who does what, step by step, and the measured totals</h4>
 <div class="seg" id="wk-mode"><button data-m="idle" class="on">This VM, target vCPU idle</button><button data-m="busy">This VM, target vCPU busy</button><button data-m="bm">Bare hardware</button></div>
 <div class="an-ctl" id="wk-ctl"></div>
-<div class="cl" id="wk-steps"></div>
+<div class="rd-chart" id="wk-lanes"></div>
 <div class="an-cnt" id="wk-cnt"></div>
-<div class="an-cap" id="wk-cap"></div>
 <div class="wk" id="wk-bars"></div>
 <p class="small mute">Steps from the Linux v5.10 GICv2 driver and QEMU v6.2.0's HVF code (the upstream form of the patches in Docker's QEMU 5.2). Times: the totals are the one-way medians measured above; the per-step costs are measured separately on the macOS host (section 2's exits and kick, and a host thread woken from <code>pselect</code> the way QEMU does it). Bare hardware: macOS's own pipe hand-off on the same laptop; bare-metal Linux was not measured here.</p>
 </div>
+</div></div><div class="s3L">
+<section id="rd-s5a">
+<p><b>Where the time goes.</b> On this guest's emulated GICv2, sending an IPI is a store to a distributor register, and taking one is a load to acknowledge it and a store to end it. All three are device registers, so all three are VM exits into QEMU, which emulates the controller while holding its one global lock. If the target vCPU was idle, its host thread is asleep in <code>pselect</code> and must be woken with a signal. Step through it, against the same hand-off on bare hardware:</p>
+<p class="sxh">Fig. 5: one wake-up, three exits, and a sleeping host thread when the target is idle</p>
+<ol class="sx" id="sx-wk-idle">
+<li><b>Thread A on vCPU 1 writes to the pipe.</b> The guest kernel finds thread B asleep; B last ran on vCPU 2, which is idle, so it must send vCPU 2 a reschedule IPI (<code>resched_curr</code>, <code>smp_send_reschedule</code>).</li>
+<li><b>vCPU 1 writes the distributor register: VM exit 1.</b> A store to the emulated GICv2 distributor (<code>GICD_SGIR</code>) is an MMIO access: vCPU 1's host thread returns from <code>hv_vcpu_run</code> into QEMU. One exit cost <b data-k="hvf.mmio_med">0.92</b> µs on this laptop.</li>
+<li><b>QEMU emulates the interrupt controller.</b> Holding its global lock, QEMU marks the interrupt pending for vCPU 2 and kicks vCPU 2's thread: a signal plus <code>hv_vcpus_exit</code>. vCPU 1 re-enters the guest.</li>
+<li><b>macOS wakes vCPU 2's sleeping host thread.</b> vCPU 2 had run <code>wfi</code> (idle), exited, and QEMU put its thread to sleep in <code>pselect</code>. The signal wakes it: waking an idle host thread this way took <b data-k="hvf.wake_med">29.2</b> µs (median) in a separate test.</li>
+<li><b>vCPU 2's thread injects the interrupt.</b> It takes the global lock, marks the virtual IRQ pending (<code>hv_vcpu_set_pending_interrupt</code>) and enters the guest.</li>
+<li><b>The guest acknowledges the IPI: VM exit 2.</b> Linux reads the CPU interface's acknowledge register (<code>GICC_IAR</code>): another MMIO access, another exit.</li>
+<li><b>The guest ends the IPI: VM exit 3.</b> After the handler, Linux writes the end-of-interrupt register (<code>GICC_EOIR</code>): a third exit.</li>
+<li><b>Thread B runs and reads the byte.</b> The scheduler on vCPU 2 switches to B. Measured: <b data-k="ipi.idle_one_way_med">25.3</b> µs one way for the whole path.</li>
+</ol>
+<ol class="sx" id="sx-wk-busy" hidden>
+<li><b>Thread A on vCPU 1 writes to the pipe.</b> Thread B sleeps; vCPU 2 is busy running a nice 19 loop, so it is inside the guest, not idle. B still needs a reschedule IPI to preempt the loop.</li>
+<li><b>vCPU 1 writes the distributor register: VM exit 1.</b> The same MMIO store and exit as before (<b data-k="hvf.mmio_med">0.92</b> µs per exit).</li>
+<li><b>QEMU emulates the interrupt controller.</b> Under its global lock it marks the interrupt pending for vCPU 2 and kicks it.</li>
+<li><b>QEMU forces vCPU 2 out of the guest.</b> vCPU 2's thread is inside <code>hv_vcpu_run</code>, so <code>hv_vcpus_exit</code> makes it exit: <b data-k="hvf.kick_med">1.08</b> µs measured. No host thread has to wake.</li>
+<li><b>vCPU 2's thread injects the interrupt.</b> Pending IRQ set; back into the guest.</li>
+<li><b>The guest acknowledges the IPI: VM exit 2.</b> <code>GICC_IAR</code> read.</li>
+<li><b>The guest ends the IPI: VM exit 3.</b> <code>GICC_EOIR</code> write.</li>
+<li><b>Thread B preempts the loop and reads the byte.</b> Measured: <b data-k="ipi.busy_one_way_med">15.4</b> µs one way. Faster than the idle case because no sleeping host thread had to be woken.</li>
+</ol>
+<ol class="sx" id="sx-wk-bm" hidden>
+<li><b>Thread A on CPU 1 writes to the pipe.</b> The same kernel decision: B sleeps, its CPU is idle, send a reschedule IPI.</li>
+<li><b>CPU 1 writes the interrupt controller.</b> On real hardware this register write goes to the interrupt controller itself, which delivers the IPI. No software in between.</li>
+<li><b>CPU 2 wakes from <code>wfi</code>.</b> The idle instruction ends in hardware when the interrupt arrives.</li>
+<li><b>CPU 2 acknowledges and ends the interrupt.</b> Plain register accesses to real hardware: no exits.</li>
+<li><b>Thread B runs and reads the byte.</b> Measured on the same laptop, natively on macOS (cores chosen by macOS): <b data-k="hvf.pipe_one_way_med">1.80</b> µs one way. Bare-metal Linux was not measured here.</li>
+</ol>
 <details class="dp"><summary>The pieces of the path, each measured on the macOS host <span class="mute">(depth)</span></summary><div class="b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Piece of the path</th><th>Cost <span class="meas">measured on the macOS host</span></th></tr></thead><tbody>
 <tr><td>One VM exit (MMIO), three per wake-up (send, acknowledge, end)</td><td><b data-k="hvf.mmio_med">0.92</b> µs each, <b data-k="der.exit3">2.7</b> µs for three</td></tr>
@@ -34,6 +64,9 @@
 </tbody></table></div>
 </div></details>
 <p><b>So.</b> With the target idle, the wake-up is dominated by the host waking a sleeping vCPU thread: about 29 µs on this laptop, the same size as the <b data-k="ipi.idle_one_way_med">25.3</b> µs measured inside. With the target busy, no host thread sleeps and <b data-k="ipi.busy_one_way_med">15.4</b> µs remain: exits and the kick explain <b data-k="der.exit3_kick">3.8</b> µs; the other <b data-k="der.busy_rem">11.5</b> µs are QEMU's interrupt-controller emulation and the guest's scheduler work, not measured separately. The superlinear cost of three IPIs fits exits queuing on QEMU's single global lock (likely, not traced). A hand-off inside the VM was <b data-k="der.vm_x_mac">14.0</b> times the same hand-off natively on the host.</p>
+</section>
+</div></div>
+<section id="rd-s5b">
 <div class="fix"><div class="t">How real hypervisors avoid most of this <span class="src">source</span></div><ul class="tight">
 <li><b>Interrupt controller in the hypervisor's kernel, helped by hardware:</b> KVM's in-kernel controller, and GICv3's virtual CPU interface, Intel's APICv and posted interrupts or AMD's AVIC, let the guest acknowledge and end interrupts without exiting.</li>
 <li><b>Halt polling:</b> KVM, or the guest itself, polls briefly before sleeping an idle vCPU, trading CPU for wake-up latency.</li>

@@ -1,12 +1,22 @@
+<div class="s3sp"><div class="s3R"><div id="stg-share"></div></div><div class="s3L">
 <section id="rd-s8">
 <h2>8. SR-IOV and the ways to share one GPU</h2>
 <p class="nrh">not run here: no GPU; from NVIDIA's MIG, MPS, vGPU and GPU Operator documentation and the kernel's SR-IOV documentation.</p>
 <p><b>The problem.</b> Passthrough gives one guest a whole device. An 80 GB data-centre GPU is far more than a notebook, a small model's inference server or a CI job needs, and an idle GPU is expensive. The question is how to split one GPU between several processes, containers or VMs, and what each split gives up.</p>
 <p><b>SR-IOV first, because NICs use it.</b> <dfn>Single Root I/O Virtualization</dfn> lets one PCIe device present a <dfn>physical function</dfn> (PF, the full device, managed by the host) and many lightweight <dfn>virtual functions</dfn> (VFs), each with its own PCI identity, so each can be passed through to a different VM with section 7's machinery. On Linux you create them by writing a number to <code>/sys/bus/pci/devices/&lt;address&gt;/sriov_numvfs</code> ({{pci-iov-howto.rst, Linux v6.12|https://github.com/torvalds/linux/blob/v6.12/Documentation/PCI/pci-iov-howto.rst#L77}}). This is how a GPU VM gets its own slice of an InfiniBand or RoCE NIC for RDMA.</p>
 <p><b>Why GPUs are harder: how the GPU itself schedules.</b> A GPU runs work from one <dfn>CUDA context</dfn> (the per-process state: address space, loaded kernels, streams) concurrently, but "work launched to the compute engine from work queues belonging to different CUDA contexts cannot execute concurrently": between processes the GPU <b>time-slices</b> ({{MPS architecture|https://docs.nvidia.com/deploy/mps/architecture.html}}). Every sharing scheme is a different answer to that:</p>
-<div class="card"><h4>Three ways to put jobs A and B on one GPU: take turns, merge, or cut</h4>
-<div class="fgrid" id="fg-share"><div class="fg" id="fg-share-t"></div><div class="fg" id="fg-share-m"></div><div class="fg" id="fg-share-g"></div></div>
-<p class="small">Each panel: the GPU's SMs (up) over time (across), and its memory below. Time slicing runs one context at a time and shares all memory; MPS merges both clients' work onto the SMs at once, with separate address spaces but shared memory bandwidth and no full fault isolation; MIG gives each its own SMs, L2 slices and memory. vGPU puts either form behind a hypervisor; passthrough is one whole GPU per VM. Proportions <span class="ill">illustrative</span>.</p></div>
+<p class="sxh">Fig. 8: three ways to put jobs A and B on one GPU: take turns, merge, or cut</p>
+<ol class="sx" id="sx-share">
+<li><b>One GPU, as MIG sees it.</b> An A100 40GB: 7 compute slices (groups of SMs) in a row, time running from back to front, and 8 memory slices below (L2 banks, memory controllers and DRAM). Jobs A (blue) and B (purple) both want it.</li>
+<li><b>Time slicing: take turns.</b> Contexts of different processes cannot run at once, so the GPU switches between A and B over time, each getting the whole chip in its turn. Both allocate from one pool of memory: no memory limit and no fault isolation between them.</li>
+<li><b>MPS: merge.</b> One server process merges A's and B's work, so both run on the SMs at the same moment. Their address spaces are separate, but memory bandwidth and caches are shared and an error in one can affect the other.</li>
+<li><b>MIG: cut.</b> A <code>4g.20gb</code> instance at memory slice 0 for A and a <code>3g.20gb</code> at slice 4 for B: each has its own SMs, L2 slices, memory controllers and DRAM, so its own memory, bandwidth and faults.</li>
+<li><b>Up to seven instances.</b> Seven <code>1g.5gb</code> instances, each a 5 GB GPU to CUDA (<code>CUDA_VISIBLE_DEVICES=MIG-&lt;uuid&gt;</code>), reconfigured only while the GPU is idle. vGPU puts either time slicing or a MIG instance behind a hypervisor; passthrough is one whole GPU per VM. Profiles and placements are NVIDIA's for the A100 40GB (lab below); slice proportions on the stage are <span class="ill">illustrative</span>.</li>
+</ol>
+
+</section>
+</div></div>
+<section id="rd-s8b">
 <div class="tw"><table class="tbl-sm"><thead><tr><th></th><th>Time slicing</th><th>MPS</th><th>MIG</th><th>vGPU</th><th>Passthrough</th></tr></thead><tbody>
 <tr><td>What it is</td><td>several processes or pods use the same GPU; the GPU switches between their contexts</td><td>a server process merges clients' work so it runs concurrently</td><td>the hardware is cut into up to 7 instances, each with its own SMs, L2 slices and memory</td><td>a hypervisor-side manager gives each VM a virtual GPU, time-sliced or backed by a MIG instance</td><td>one whole GPU per VM</td></tr>
 <tr><td>Concurrency between users</td><td>no, one context at a time</td><td>yes</td><td>yes, physically separate</td><td>time-sliced or MIG-backed</td><td>n/a</td></tr>
@@ -19,8 +29,17 @@
 <details class="dp"><summary>Sources for the sharing table <span class="mute">(depth)</span></summary><div class="b">
 <p class="small">Streams, MPS and MIG columns from the MIG user guide's table "CUDA Concurrency Mechanisms" ({{MIG concepts|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/concepts.html}}): MPS "does not offer error isolation between clients", and with MIG "each instance's processors have separate and isolated paths through the entire memory system - the on-chip crossbar ports, L2 cache banks, memory controllers, and DRAM address busses" ({{MIG introduction|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/introduction.html}}); MPS's limited containment from the {{MPS documentation|https://docs.nvidia.com/deploy/mps/when-to-use-mps.html}}. Time slicing from the {{GPU Operator guide|https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html}}: "A request for more than one time-sliced GPU does not guarantee that the pod receives access to a proportional amount of GPU compute power." vGPU's time-sliced schedulers are "best effort" (the default), "equal share" and "fixed share" ({{vGPU scheduling policies|https://docs.nvidia.com/vgpu/latest/grid-vgpu-user-guide/changing-vgpu-scheduling-policy.html}}).</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s8c">
 <p><b>MIG in practice.</b> A MIG-capable GPU (A100 and later data-centre parts) is enabled once (on A100 and A30, "setting MIG mode ... requires a GPU reset"), then carved into <dfn>GPU instances</dfn> from fixed profiles, each named by its compute slices and memory: on an H100 80GB, <code>1g.10gb</code> (1/7 of the SMs, 1/8 of the memory, up to 7 of them), <code>2g.20gb</code>, <code>3g.40gb</code>, <code>4g.40gb</code>, <code>7g.80gb</code> ({{MIG supported profiles|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/supported-mig-profiles.html}}). Profiles can only sit at certain positions, so the order you create them in matters. Each instance then appears to CUDA as its own device: <code>CUDA_VISIBLE_DEVICES=MIG-&lt;uuid&gt;</code>.</p>
-<div class="card" id="mg-box"><style>
+<div class="ff"><div class="t">When it bites in ML</div><ul>
+<li><b>Training wants whole GPUs.</b> Sharing is for inference, notebooks, small fine-tunes and CI. A training job on a time-sliced GPU shares memory with strangers and can be slowed or killed by their faults.</li>
+<li><b>"My job got slower and nothing changed"</b> on a shared node: another pod was scheduled on the same time-sliced GPU. <code>nvidia-smi</code> on the node lists every process on the GPU.</li>
+<li><b>MIG memory is a hard wall:</b> a 1g.10gb instance is a 10 GB GPU to PyTorch, and NCCL between MIG instances is limited ("only P2P between MIG instances on the same GPU is supported" with R570, {{MIG deployment considerations|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/deployment-considerations.html}}).</li>
+</ul></div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="mg-box"><style>
 #mg-box .seg{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}#mg-box .seg button{font-size:12.5px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;background:var(--soft);color:var(--ink)}
 #mg-box .seg button.on{background:var(--acc2);border-color:var(--acc);font-weight:600}
 #mg-box .seg button:disabled{opacity:.4}
@@ -57,11 +76,7 @@ GPU 0 Profile ID 0 Placement : {0}:8                   7g.40gb</pre>
 <p class="small">"The syntax of the placement is {&lt;index&gt;}:&lt;GPU Slice Count&gt;". Instances may not overlap, and the compute slices (the number before "g") add up to at most 7. The guide warns: "As GPU Instances are created and destroyed at different locations, fragmentation can occur, and the physical position of one GPU Instance will play a role in which other GPU Instances can be instantiated next to it" ({{MIG concepts|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/concepts.html}}); and "due to a known issue with the APIs, the profile ID 9 or 3g.20gb must be specified first", because the driver's automatic placement of smaller instances can take the positions a 3g.20gb needs. Try the "1-1-2, then 3g" example to see it. The H100 80GB has the same seven profiles at twice the memory (<code>1g.10gb</code>, <code>1g.10gb+me</code>, <code>1g.20gb</code>, <code>2g.20gb</code>, <code>3g.40gb</code>, <code>4g.40gb</code>, <code>7g.80gb</code>) ({{supported profiles|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/supported-mig-profiles.html}}); its placement listing is not reproduced here.</p>
 <p class="small">After creating GPU instances you create compute instances inside them (<code>nvidia-smi mig -cgi 9,3g.20gb -C</code> does both), and each appears to CUDA as its own device: <code>CUDA_VISIBLE_DEVICES=MIG-&lt;uuid&gt;</code>. "The created MIG devices are not persistent across system reboots."</p>
 </div></details>
-</div>
-<div class="ff"><div class="t">When it bites in ML</div><ul>
-<li><b>Training wants whole GPUs.</b> Sharing is for inference, notebooks, small fine-tunes and CI. A training job on a time-sliced GPU shares memory with strangers and can be slowed or killed by their faults.</li>
-<li><b>"My job got slower and nothing changed"</b> on a shared node: another pod was scheduled on the same time-sliced GPU. <code>nvidia-smi</code> on the node lists every process on the GPU.</li>
-<li><b>MIG memory is a hard wall:</b> a 1g.10gb instance is a 10 GB GPU to PyTorch, and NCCL between MIG instances is limited ("only P2P between MIG instances on the same GPU is supported" with R570, {{MIG deployment considerations|https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/deployment-considerations.html}}).</li>
-</ul></div>
+</div></div></div></div>
+<section id="rd-s8d">
 <p class="cmd">nvidia-smi mig -lgip; nvidia-smi mig -lgipp; nvidia-smi -L</p>
 </section>

@@ -1,9 +1,15 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="core">Both layers between your training code and a cloud GPU get out of the way on the hot path: <b>guest code runs directly on the CPU and a CUDA launch is a few stores into mapped memory plus a doorbell</b>, so you pay only at the boundaries: a <span class="hlw">VM exit</span> (about 0.92 µs here) each time the guest touches what the hypervisor must see, and a system call into the driver at start-up, allocation and errors.</p>
-<div class="hero"><h4>Two stacks, one rule: the hot path never asks permission</h4>
-<div class="fgrid"><div class="fg" id="fg-hero-v"></div><div class="fg" id="fg-hero-c"></div></div>
-<p class="small">First: the VM this page ran in (QEMU 5.2 on Apple's Hypervisor.framework; a cloud uses KVM or Nitro in the same place). Second: one CUDA call, from PyTorch to the GPU, as NVIDIA's open kernel modules 615.71.09 lay it out. <span class="hlw">Blue arrows</span> are the direct paths; dashed lines are the boundary crossings each section measures or reads in source.</p></div>
+<p class="sxh">Fig. 1: two stacks, one rule: the hot path never asks permission</p>
+<ol class="sx" id="sx-hero">
+<li><b>Two stacks.</b> Left, the VM this page ran in: your process, the guest kernel, the hypervisor (QEMU 5.2 on Apple's Hypervisor.framework; a cloud uses KVM or Nitro in the same place), the CPU. Right, one CUDA call as NVIDIA's open kernel modules 615.71.09 lay it out: PyTorch, the CUDA runtime, the user-mode driver <code>libcuda</code>, the kernel driver <code>nvidia.ko</code>, the GSP firmware, the GPU.</li>
+<li><b>Guest code runs directly.</b> The guest's arithmetic, its system calls and its page faults run on the CPU without the hypervisor seeing them: the stream passes through the hypervisor's layer without stopping.</li>
+<li><b>A VM exit at the boundary.</b> A store to a device register, the idle instruction or an interrupt hands control to the hypervisor and back: <b data-k="hvf.mmio_med">0.92</b> µs per exit measured on this laptop (section 2).</li>
+<li><b>A launch is stores plus a doorbell.</b> <code>libcuda</code> writes the launch into memory the GPU can read and stores a token into the mapped doorbell register; the GPU fetches the work by DMA. No system call, and no exit even in a VM (section 9).</li>
+<li><b>ioctls at start-up, allocation and errors.</b> The first call, an allocation or an error enters the kernel driver by <code>ioctl</code>, which on Turing and later GPUs forwards the work by RPC to the resource manager running as firmware on the GPU (section 9).</li>
+</ol>
 <p><b>You need:</b> limited direct execution, system calls and the cost of a context switch from the root {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}} (section 9 there is this page's intuition); page tables and the TLB from {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}; namespaces, cgroups and the device controller from {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}. CUDA programming is {{Topic: cuda-and-gpu-programming|n:3c65c17b0d0d81c39f34d5e070d783c1}}'s; the GPU as silicon is {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}'s; MIG as a cluster scheduling unit is {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}}'s.</p>
 <dl class="terms">
 <dt>Hypervisor (VMM)</dt><dd>the program that runs whole operating systems as <dfn>guests</dfn>, as a kernel runs processes.</dd>
@@ -17,6 +23,9 @@
 <dt>GSP</dt><dd>the GPU System Processor: a processor on Turing and later GPUs that runs the driver's resource manager as firmware.</dd>
 <dt>Channel, doorbell</dt><dd>a GPU work queue in memory, and the register store that tells the GPU the queue moved.</dd>
 </dl>
+</section>
+</div></div>
+<section id="rd-one-map">
 <div class="tw"><table class="tbl-sm">
 <thead><tr><th>Mechanism</th><th>What it costs here</th><th>When it bites in ML</th><th>Command that shows it</th></tr></thead>
 <tbody>

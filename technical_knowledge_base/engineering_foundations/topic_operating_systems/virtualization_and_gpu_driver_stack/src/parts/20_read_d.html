@@ -1,18 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-walk"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Memory: two translations, and the 24-step page walk</h2>
 <span class="ostep">Appendix B, 19, 20</span>
 <p><b>The problem.</b> The guest kernel believes it owns "physical" memory from address 0 and builds page tables onto it. That memory is really part of the hypervisor's process (QEMU's 10 GiB here), scattered across the host's RAM. So every guest access needs <b>two</b> translations: guest virtual to <dfn>guest physical</dfn> (the guest's tables), then guest physical to <dfn>host physical</dfn> (tables the hypervisor owns and the guest cannot see). {{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} owns the first translation, the TLB and huge pages; this is the second layer.</p>
 <p><b>Shadow page tables, then nested paging.</b> Before hardware help, the hypervisor kept a <dfn>shadow page table</dfn> from guest virtual straight to host physical and write-protected the guest's own tables, so every page-table update exited to be mirrored. With <dfn>nested paging</dfn> (Intel EPT, AMD NPT, ARM <dfn>stage 2</dfn>) the CPU walks both sets itself, the guest edits its tables with no exits, and the TLB caches the combined result tagged with a VM identifier (VMID on arm64, VPID on Intel) so switching VMs does not flush it. The price moves to the TLB miss: every pointer in the guest's walk is guest-physical and needs a host walk of its own.</p>
-<div class="card" id="pw-card">
-<h4>One TLB miss: each guest level waits for a host walk</h4>
-<div class="small mute">Predict before you step: with 4 guest levels and 4 host levels, how many memory reads does one miss take? Every box is one reference. Toggle the page sizes to see huge pages shorten both walks.</div>
-<div class="seg" id="pw-mode"><button data-m="nat" class="on">Native (no VM)</button><button data-m="44">VM, 4 KiB pages both stages</button><button data-m="43">VM, host 2 MiB pages</button><button data-m="33">VM, 2 MiB pages both stages</button></div>
-<div class="an-ctl" id="pw-ctl"></div>
-<div class="pw" id="pw-grid"></div>
-<div class="an-cnt" id="pw-cnt"></div>
-<div class="an-cap" id="pw-cap"></div>
+<p class="sxh">Fig. 4: one TLB miss in a VM, each plate one memory reference</p>
+<p class="small mute">Predict before it plays: with 4 guest levels and 4 host levels, how many memory reads does one miss take?</p>
+<ol class="sx" id="sx-walk">
+<li><b>A TLB miss in a VM.</b> The guest's table register holds a guest-physical address, so the CPU cannot read even the first guest table until the host's tables have translated that address. The four large plates are the guest's tables; the small plates in front of each are the host's (stage-2) tables. Every plate is one memory reference.</li>
+<li><b>Guest level 0: a host walk, then the entry.</b> Four host reads turn the table's guest-physical address into a host-physical one; then one read of the guest's own entry: 5 references so far.</li>
+<li><b>Guest level 1: the same again.</b> The entry gave the next table's address, again guest-physical: another four host reads plus the entry, 10.</li>
+<li><b>Guest level 2.</b> Four host reads and the entry: 15.</li>
+<li><b>Guest level 3.</b> Four host reads and the entry: 20. This entry gives the data page's guest-physical address.</li>
+<li><b>The data page needs one more host walk.</b> Four reads: <b data-k="der.walk44">24</b> references in all for one miss, against 4 without a VM.</li>
+<li><b>The TLB caches the combined result.</b> One entry from guest virtual to host physical, tagged with the VM's identifier (VMID on arm64, VPID on Intel) so switching VMs does not flush it. Page-walk caches keep most real misses far shorter than this worst case.</li>
+<li><b>Huge pages shorten both walks.</b> With 2 MiB pages backing the guest on the host, every host walk ends one level early: <b data-k="der.walk43">19</b> references. With 2 MiB pages in both stages: <b data-k="der.walk33">15</b>.</li>
+</ol>
 <p class="small mute"><span class="src">derived</span> with g guest levels and h host levels, each of the g guest table pointers needs a host walk (h reads) plus the read of the guest entry, and the final data address one more host walk: g(h+1) + h = (g+1)(h+1) - 1 references. Analysed in {{Bhargava et al., ASPLOS 2008|https://doi.org/10.1145/1346281.1346286}}, which also proposed the page-walk caches that keep most misses far shorter in practice.</p>
-</div>
+
 <div class="tw"><table class="tbl-sm"><thead><tr><th>Configuration</th><th>Memory references on a full TLB miss</th></tr></thead><tbody>
 <tr><td>No VM, 4-level page table</td><td>4</td></tr>
 <tr><td>VM, 4 KiB pages in both stages (4 x 4 levels)</td><td><b data-k="der.walk44">24</b></td></tr>
@@ -29,3 +34,4 @@
 <p><b>Memory overcommit, and why GPU VMs cannot do it.</b> Because guest memory is memory of the hypervisor's process, a host can promise its VMs more than it has: a <dfn>balloon driver</dfn> in the guest gives pages back on request, KSM merges identical pages across VMs, and the host can swap. A VM with a passed-through device cannot: the device writes guest memory by DMA at any moment, so every page it might touch must stay put. VFIO pins the pages it maps for a device, and QEMU maps all of guest RAM for it, so <b>a GPU VM's whole memory is pinned when it starts</b>: one reason large GPU VMs boot slowly and cannot be overcommitted.</p>
 <details class="dp"><summary>Sources for overcommit and pinning <span class="mute">(depth)</span></summary><div class="b"><p class="small">This kernel has <code>CONFIG_VIRTIO_BALLOON=y</code>; {{KSM, kernel docs|https://docs.kernel.org/admin-guide/mm/ksm.html}}. VFIO charges pinned pages against the locked-memory limit ({{vfio_pin_map_dma checks RLIMIT_MEMLOCK, Linux v6.12|https://github.com/torvalds/linux/blob/v6.12/drivers/vfio/vfio_iommu_type1.c#L1441-L1449}}). QEMU maps every RAM region of the guest for the device as the region appears ({{vfio_listener_region_add calls vfio_dma_map, hw/vfio/common.c L864 and L1063, QEMU v6.2.0|https://github.com/qemu/qemu/blob/v6.2.0/hw/vfio/common.c#L1063}}). Shadow page tables are described in {{OSTEP Appendix B|https://pages.cs.wisc.edu/~remzi/OSTEP/vmm-intro.pdf}}: correct, but every page-table update and many page faults cost an exit.</p></div></details>
 </section>
+</div></div>

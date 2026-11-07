@@ -1,4 +1,4 @@
-// ---- Reading: static annotated figures (hero stacks, VMs against containers, a VM exit, the IOMMU, GPU sharing, GSP, image against host) ----
+// ---- Reading: static annotated figures (VMs against containers, GSP off and on, image against host); the hero, the exit, the IOMMU and GPU sharing are 3D stages since 2026-11-07 ----
 // Every figure is drawn at the container's measured width and redrawn on resize; text wraps by measured characters, never scaled down.
 (function(){
   const $=id=>document.getElementById(id);
@@ -44,15 +44,6 @@
     el.innerHTML=svg(W,y+4,b,sp.label||sp.title||'diagram')}
 
   const F={};
-  F.heroV=()=>rows($('fg-hero-v'),{title:'The VM: a whole kernel as a guest',label:'Virtualization stack: process, guest kernel, hypervisor, CPU, with VM exits as the only crossing',
-    rows:[[{t:'Your process (EL0)',sub:'a container on the guest kernel',col:'var(--c1)'}],[{t:'Guest kernel (EL1)',sub:'Linux 5.10: virtio devices, a GICv2, a timer',col:'var(--c1)'}],
-      [{t:'Hypervisor (EL2, plus QEMU)',sub:'Hypervisor.framework and QEMU 5.2; in a cloud KVM or Nitro',col:'var(--c2)'}],[{t:'CPU and memory',sub:'M1 Pro: EL2 and stage-2 page tables',col:'var(--c3)'}]],
-    marks:[{after:1,text:'VM exit: device register, idle, interrupt (0.92 µs)',kind:'cross'}],hot:{from:0,to:3,label:'runs directly'}});
-  F.heroC=()=>rows($('fg-hero-c'),{title:'One CUDA call: the driver in three parts',label:'GPU driver stack: PyTorch, CUDA runtime, user-mode driver, kernel driver, GSP firmware, GPU',
-    rows:[[{t:'PyTorch',sub:'y = x @ w picks a cuBLAS kernel',col:'var(--c1)'}],[{t:'CUDA runtime libcudart.so.13',sub:'from your image or wheel',col:'var(--c4)'}],
-      [{t:'User-mode driver libcuda.so.1',sub:'from the host; builds command buffers',col:'var(--c4)'}],[{t:'Kernel driver nvidia.ko',sub:'ioctls on /dev/nvidia*',col:'var(--c2)'}],
-      [{t:'GSP firmware (GSP-RM)',sub:'resource manager on the GPU, Turing and later',col:'var(--c5)'}],[{t:'GPU engines',sub:'fetch commands by DMA',col:'var(--c3)'}]],
-    marks:[{after:2,text:'ioctl: start-up, allocation, errors',kind:'cross'},{after:3,text:'RPC to the GSP',kind:'cross'}],hot:{from:2,to:5,label:'launch: stores + doorbell'}});
   F.vmctC=()=>rows($('fg-vmct-c'),{title:'Containers: one kernel for all',label:'Containers share one host kernel',
     rows:[[{t:'Job A',col:'var(--c1)'},{t:'Job B',col:'var(--c4)'}],[{t:'One host kernel',sub:'namespaces and cgroups keep A and B apart',col:'var(--c2)'}],[{t:'Hardware',col:'var(--c3)'}]],
     marks:[{after:0,text:'boundary: the kernel\'s own checks; a kernel bug reaches both',kind:'bound'}]});
@@ -73,55 +64,6 @@
       [{t:'nvidia.ko and the GSP firmware',sub:'the same version as libcuda',err:'no module: error 100, ENXIO (case 4); versions differ: "NVRM: API mismatch"',col:'var(--c2)'}]],
     marks:[{after:-1,text:'From your image',kind:'group'},{after:1,text:'From the host, lent by the NVIDIA Container Toolkit',kind:'group'},{after:3,text:'In the host kernel',kind:'group'}]});
 
-  // a VM exit against a system call: privilege levels over time
-  F.exit=()=>{const el=$('fg-exit');if(!el)return;const W=RD.width(el),lx=narrowW(W)?34:110,top=8,lh=34,R=W-6;let b='';
-    const lanes=[['EL0','your process'],['EL1','guest kernel'],['EL2','hypervisor']];
-    lanes.forEach((l,i)=>{const y=top+i*lh;b+=rect(lx,y,R-lx,lh-6,{fill:i===2?'var(--soft)':'var(--bg)',r:4});b+=tl(4,y+18,[l[0]],{fs:12,w:600});if(!narrowW(W))b+=tl(36,y+18,[l[1]],{fs:11.5,fill:'var(--mute)'})});
-    const X=f=>lx+(R-lx)*f,Y=i=>top+i*lh+(lh-6)/2;
-    const P=[[0,0],[0.14,0],[0.14,1],[0.24,1],[0.24,0],[0.42,0],[0.42,1],[0.56,1],[0.56,2],[0.76,2],[0.76,1],[0.86,1],[0.86,0],[1,0]];
-    let d='';P.forEach((p,i)=>{d+=(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)});
-    b+='<path d="'+d+'" fill="none" stroke="var(--acc)" stroke-width="3" stroke-linejoin="round"/>';
-    b+='<rect x="'+X(0.56)+'" y="'+(Y(2)-9)+'" width="'+(X(0.76)-X(0.56))+'" height="18" fill="var(--bad)" fill-opacity=".18" stroke="var(--bad)"/>';
-    let y=top+3*lh+6;const half=(R-lx)/2-6;
-    const A=wrap('1. getpid(): EL0 to EL1 and back. No exit, the same as bare metal.',narrowW(W)?R-lx:half,11.5),B=wrap('2. The guest driver stores to a device register: VM exit to EL2, the hypervisor emulates the device, resume. 0.92 µs measured.',narrowW(W)?R-lx:half,11.5);
-    if(narrowW(W)){b+=tl(lx,y+12,A,{fs:11.5});y+=A.length*15+4;b+=tl(lx,y+12,B,{fs:11.5,fill:'var(--bad)'});y+=B.length*15}
-    else{b+=tl(lx,y+12,A,{fs:11.5});b+=tl(lx+half+12,y+12,B,{fs:11.5,fill:'var(--bad)'});y+=Math.max(A.length,B.length)*15}
-    b+=tl(lx,y+16,['time →'],{fs:11,fill:'var(--mute)'});
-    el.innerHTML=svg(W,y+22,b,'Privilege levels over time: a system call stays in the guest, an MMIO store exits to the hypervisor')};
-  const narrowW=W=>W<470;
-
-  // the IOMMU: one DMA allowed, one blocked
-  F.iommu=()=>{const el=$('fg-iommu');if(!el)return;const W=RD.width(el),bw=Math.min(W-4,560),x=(W-bw)/2;let b='',y=2;
-    const box=(t,s,col,hl)=>{const T=wrap(t,bw-20,12.5,true),S=s?wrap(s,bw-20,11.5):[];const h=12+T.length*16+S.length*14.5;b+=rect(x,y,bw,h,{fill:hl?'var(--acc2)':'var(--soft)',stroke:hl?'var(--acc)':'var(--line)'});b+='<rect x="'+x+'" y="'+y+'" width="4" height="'+h+'" fill="'+col+'"/>';b+=tl(x+12,y+17,T,{fs:12.5,w:600});b+=tl(x+12,y+17+T.length*16,S,{fs:11.5,fill:'var(--mute)'});y+=h};
-    box('GPU, passed through to VM A','the guest driver gave it guest-physical addresses','var(--c3)');
-    b+=arrow(x+bw*0.3,y+2,x+bw*0.3,y+30,{col:'var(--acc)'});b+=arrow(x+bw*0.72,y+2,x+bw*0.72,y+30,{col:'var(--bad)',dash:'5 4'});
-    b+=tl(x+bw*0.3+8,y+20,['DMA to 0x1000'],{fs:11.5,fill:'var(--acc)',w:600});b+=tl(x+bw*0.72+8,y+20,['DMA to 0x9000'],{fs:11.5,fill:'var(--bad)',w:600});y+=34;
-    box('IOMMU: the page table of VM A\'s domain','0x1000 maps to a host page of VM A; 0x9000 has no entry, so that DMA is blocked','var(--c2)',1);
-    b+=arrow(x+bw*0.3,y+2,x+bw*0.3,y+30,{col:'var(--acc)'});const bx=x+bw*0.72;b+=line(bx-8,y+8,bx+8,y+24,{col:'var(--bad)',sw:2.5})+line(bx+8,y+8,bx-8,y+24,{col:'var(--bad)',sw:2.5});y+=34;
-    const n=narrowW(W)?8:12,cw=bw/n,own=['A','B','host','A','B','A','host','B','A','B','host','A'];b+=tl(x,y+12,['Host RAM, page by page'],{fs:11.5,fill:'var(--mute)'});y+=18;
-    for(let k=0;k<n;k++){const o=own[k],hit=k===Math.min(n-1,Math.round((bw*0.3)/cw-0.5));b+=rect(x+k*cw+1,y,cw-2,28,{r:3,fill:o==='A'?'color-mix(in srgb,var(--c1) 28%,var(--bg))':o==='B'?'color-mix(in srgb,var(--c4) 28%,var(--bg))':'var(--soft)',stroke:hit?'var(--acc)':'var(--line)',sw:hit?2.5:1});b+=tl(x+k*cw+cw/2,y+18,[o],{fs:11.5,a:'middle',w:600})}
-    y+=34;b+=tl(x,y+12,wrap('A: pages backing VM A; B: another guest\'s; host: the hypervisor\'s own. Addresses illustrative.',bw,11.5),{fs:11.5,fill:'var(--mute)'});y+=30;
-    el.innerHTML=svg(W,y,b,'The IOMMU translates a passed-through GPU\'s DMA into VM A\'s pages and blocks addresses outside them')};
-
-  // three ways to share a GPU: SMs over time, memory below
-  function sharePanel(id,kind){const el=$(id);if(!el)return;const W=RD.width(el),pw=W-4,x=2;let b='',y=2;
-    const T={t:'Time slicing',m:'MPS',g:'MIG'}[kind],sub={t:'one context at a time',m:'both at once, merged',g:'separate hardware'}[kind];
-    b+=tl(x,y+14,[T],{fs:13,w:600});b+=tl(x,y+30,wrap(sub,pw,11.5),{fs:11.5,fill:'var(--mute)'});y+=40;
-    const gh=84,cA='color-mix(in srgb,var(--c1) 55%,var(--bg))',cB='color-mix(in srgb,var(--c4) 55%,var(--bg))';
-    b+=rect(x,y,pw,gh,{fill:'var(--bg)',r:4});
-    if(kind==='t'){const n=6,w=pw/n;for(let k=0;k<n;k++){b+=rect(x+k*w+1,y+2,w-2,gh-4,{r:3,fill:k%2?cB:cA,stroke:'none'});b+=tl(x+k*w+w/2,y+gh/2+4,[k%2?'B':'A'],{fs:12,a:'middle',w:600})}}
-    else if(kind==='m'){const n=6,w=pw/n,sp=[0.6,0.45,0.7,0.5,0.35,0.6];for(let k=0;k<n;k++){const ha=(gh-4)*sp[k];b+=rect(x+k*w+1,y+2,w-2,ha,{r:2,fill:cA,stroke:'none'});b+=rect(x+k*w+1,y+2+ha,w-2,gh-4-ha,{r:2,fill:cB,stroke:'none'})}
-      b+=tl(x+8,y+16,['A'],{fs:12,w:600});b+=tl(x+8,y+gh-8,['B'],{fs:12,w:600})}
-    else{const ha=(gh-4)*4/7;b+=rect(x+1,y+2,pw-2,ha-1,{r:3,fill:cA,stroke:'none'});b+=rect(x+1,y+2+ha+1,pw-2,gh-5-ha,{r:3,fill:cB,stroke:'none'});b+=line(x,y+2+ha,x+pw,y+2+ha,{col:'var(--ink)',sw:2});
-      b+=tl(x+8,y+2+ha/2+4,['A: 4 of 7 compute slices'],{fs:11.5,w:600});b+=tl(x+8,y+2+ha+(gh-4-ha)/2+5,['B: 3 of 7'],{fs:11.5,w:600})}
-    b+=tl(x,y-4+gh+18,['SMs (up) over time (across)'],{fs:11,fill:'var(--mute)'});y+=gh+24;
-    const mh=26;
-    if(kind==='g'){const w1=pw*4/8;b+=rect(x,y,w1-2,mh,{r:3,fill:cA,stroke:'none'});b+=rect(x+w1+2,y,pw-w1-2,mh,{r:3,fill:cB,stroke:'none'});b+=tl(x+6,y+17,['A memory'],{fs:11.5,w:600});b+=tl(x+w1+8,y+17,['B memory'],{fs:11.5,w:600})}
-    else{b+=rect(x,y,pw,mh,{r:3,fill:'var(--soft)'});b+=tl(x+6,y+17,[kind==='t'?'one pool: A and B mixed':'one pool, separate address spaces'],{fs:11.5,w:600})}
-    y+=mh+4;const iso={t:'no memory limit, no fault isolation',m:'shared bandwidth; no full error isolation',g:'own memory, bandwidth and faults'}[kind];
-    b+=tl(x,y+12,wrap(iso,pw,11.5),{fs:11.5,fill:kind==='g'?'var(--good)':'var(--bad)',w:600});y+=wrap(iso,pw,11.5).length*15+4;
-    el.innerHTML=svg(W,y,b,T+': how jobs A and B share the GPU\'s SMs and memory')}
-  F.share=()=>{sharePanel('fg-share-t','t');sharePanel('fg-share-m','m');sharePanel('fg-share-g','g')};
 
   const all=()=>Object.values(F).forEach(f=>{try{f()}catch(e){console.error(e)}});
   RD.onRender(all);RD.onResize(all);

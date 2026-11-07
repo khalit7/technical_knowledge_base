@@ -64,10 +64,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_operating_systems/scheduling_and_cpu_time` Scheduling and CPU time: context switches, CFS and EEVDF, affinity, cgroup limits
 - [x] `engineering_foundations/topic_operating_systems/storage_and_file_systems` Storage and file systems: the page cache, fsync, journaling, and checkpoints
 - [x] `engineering_foundations/topic_operating_systems/virtual_memory` Virtual memory: paging, the TLB, mmap, copy-on-write, huge pages, the OOM killer
-- [~] `engineering_foundations/topic_operating_systems/virtualization_and_gpu_driver_stack` Virtualization and the GPU driver stack: hypervisors, IOMMU, MIG, one CUDA call down
+- [x] `engineering_foundations/topic_operating_systems/virtualization_and_gpu_driver_stack` Virtualization and the GPU driver stack: hypervisors, IOMMU, MIG, one CUDA call down
 - [ ] `engineering_foundations/topic_operating_systems` Topic: operating-systems
 - [x] `engineering_foundations/topic_programming_languages/cpp/classes_templates_and_the_standard_library` C++: classes, templates and the standard library
-- [ ] `engineering_foundations/topic_programming_languages/cpp/ownership_moves_and_lifetimes` C++: ownership, moves and object lifetimes
+- [~] `engineering_foundations/topic_programming_languages/cpp/ownership_moves_and_lifetimes` C++: ownership, moves and object lifetimes
 - [ ] `engineering_foundations/topic_programming_languages/cpp/reading_llama_cpp` C++: reading llama.cpp, one token through the code
 - [ ] `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath` C++: the machine underneath: caches, layout, SIMD and the memory model
 - [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams` JavaScript: the event loop, promises and streams
@@ -358,3 +358,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_operating_systems/processes_and_syscalls`: 55 min core now (44 before; about 5 min hidden mode lists): worth a length look; Figs 1, 5, 7 empty space above at 1400; Fig. 2 registers and Fig. 5 labels touch at 390.
 - `engineering_foundations/topic_operating_systems/virtual_memory`: Fig. 2 data page cropped at the right and the offset bar runs into "drag to turn" at 1400; hero and fault stages dense on phones.
 - `engineering_foundations/topic_programming_languages/cpp/classes_templates_and_the_standard_library`: Fig. vt scene small in its card at 1400 (empty space around); stages small at 390 at their opening step.
+- `engineering_foundations/topic_operating_systems/virtualization_and_gpu_driver_stack`: 49 min core now (41 before): length look; Fig. 4 reference counter jumps anchor between columns; hero wide and short at 920.

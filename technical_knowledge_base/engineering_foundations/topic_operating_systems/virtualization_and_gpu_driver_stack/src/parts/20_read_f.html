@@ -1,3 +1,12 @@
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="vq-card">
+<h4>Notifications are the cost: batching buys them back</h4>
+<div class="small mute">Predict the kicks and interrupts for each mode before it plays.</div>
+<div class="seg" id="vq-mode"><button data-m="one" class="on">One request at a time (queue depth 1)</button><button data-m="batch">Four requests together</button></div>
+<div class="an-ctl" id="vq-ctl"></div>
+<div class="vq" id="vq-rings"></div>
+<div class="an-cnt" id="vq-cnt"></div>
+<p class="small mute">An illustration of the protocol with four requests; the measured ratios are in the table below.</p>
+</div></div></div><div class="s3L">
 <section id="rd-s6">
 <h2>6. Devices without the exits: virtio</h2>
 <span class="ostep">36</span>
@@ -12,16 +21,23 @@
 <details class="dp"><summary>virtio in the specification and the kernel source <span class="mute">(depth)</span></summary><div class="b">
 <p class="small">virtio: {{Russell, virtio, 2008|https://doi.org/10.1145/1400097.1400108}}; {{OASIS VIRTIO 1.2 specification|https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html}}; the three parts in {{include/uapi/linux/virtio_ring.h, Linux v5.10|https://github.com/torvalds/linux/blob/v5.10/include/uapi/linux/virtio_ring.h#L97-L135}}. The event index is <code>VIRTIO_RING_F_EVENT_IDX</code>, bit 29 ({{vring_need_event|https://github.com/torvalds/linux/blob/v5.10/include/uapi/linux/virtio_ring.h#L216}}, used by {{virtqueue_kick_prepare_split|https://github.com/torvalds/linux/blob/v5.10/drivers/virtio/virtio_ring.c#L589-L608}}). Both of this VM's virtio devices offer it (section 3's feature bits). For QEMU, the device side reads guest memory as its own memory.</p>
 </div></details>
-<div class="card" id="vq-card">
-<h4>Notifications are the cost: batching buys them back</h4>
-<div class="small mute">Four 4 KiB reads through one virtqueue: one at a time, then posted together. Predict the kicks and interrupts for each mode, then step.</div>
-<div class="seg" id="vq-mode"><button data-m="one" class="on">One request at a time (queue depth 1)</button><button data-m="batch">Four requests together</button></div>
-<div class="an-ctl" id="vq-ctl"></div>
-<div class="vq" id="vq-rings"></div>
-<div class="an-cnt" id="vq-cnt"></div>
-<div class="an-cap" id="vq-cap"></div>
-<p class="small mute">An illustration of the protocol with four requests; the measured ratios are in the table below.</p>
-</div>
+<p class="sxh">Fig. 6: four 4 KiB reads through one virtqueue</p>
+<ol class="sx" id="sx-vq-one">
+<li><b>An empty queue.</b> The guest has four 4 KiB reads to do, one at a time (queue depth 1). Each request needs three descriptors: a header (read sector N), the data buffer, a status byte.</li>
+<li><b>Request 1 posted.</b> The guest driver fills the three descriptors and puts the chain's head in the available ring: plain memory writes, no exit yet.</li>
+<li><b>Kick: one register write, one VM exit.</b> The device has no idea the ring moved until the guest notifies it; with nothing else outstanding, the guest must.</li>
+<li><b>The device does the read.</b> QEMU reads the request out of guest memory, reads the disk image, writes the data straight into the guest's buffer and adds a used entry.</li>
+<li><b>Interrupt: request 1 completes.</b> One injected interrupt (with its own exits, section 5); the guest frees the descriptors and only then issues the next read.</li>
+<li><b>Requests 2, 3 and 4: the same four beats.</b> One request at a time, each pays its own kick and its own interrupt: four kicks and four interrupts for four reads. Measured at queue depth 1: <b data-k="virtio.qd1.irq_per_req">1.0</b> interrupt per request.</li>
+</ol>
+<ol class="sx" id="sx-vq-batch" hidden>
+<li><b>An empty queue.</b> The same four 4 KiB reads, this time posted together.</li>
+<li><b>All four requests posted.</b> Twelve descriptors filled and four heads in the available ring: plain memory writes.</li>
+<li><b>One kick for all four.</b> <code>virtqueue_kick_prepare</code> decides one notification covers them: the device is told where to look once.</li>
+<li><b>The device serves all four.</b> It walks the available ring, does four reads and writes four used entries.</li>
+<li><b>One interrupt completes all four.</b> With the event index the device interrupts once; the guest's handler finds four used entries. Measured on this VM's disk at queue depth 32: 0.112 interrupts per request.</li>
+</ol>
+
 <div class="tw"><table class="tbl-sm"><thead><tr><th>4 KiB random <code>O_DIRECT</code> reads, 20,000 each</th><th>Queue depth 1</th><th>Queue depth 32</th></tr></thead><tbody>
 <tr><td>Requests per second</td><td><b data-k="virtio.qd1.iops">15748</b></td><td><b data-k="virtio.qd32.iops">60975</b> (<b data-k="der.vq_x">3.9</b> times)</td></tr>
 <tr><td>Time per request</td><td><b data-k="der.vq1_us">63.5</b> µs (1 / rate)</td><td><b data-k="virtio.qd32.clat_us">508.6</b> µs mean completion latency (Little's law: 32 / rate = <b data-k="der.vq32_little">524.8</b> µs)</td></tr>
@@ -29,6 +45,9 @@
 </tbody></table></div>
 <p class="small mute"><span class="meas">measured</span> fio 3.33 with libaio on a 256 MiB file on the VM's virtio-blk disk, interrupts counted from the <code>virtio1-req.*</code> lines of <code>/proc/interrupts</code> and requests from <code>/sys/block/vda/stat</code> (<code>src/exp/virtio.sh</code>; raw: <code>src/raw/virtio.txt</code>). The disk image is a file on the Mac's SSD that macOS caches, so absolute times are not a real NVMe drive's; the {{Storage|n:3f05c17b0d0d8141be7acc1313570cbf}} page measured the disk side in depth.</p>
 <p><b>Reading it.</b> At queue depth 1, every request pays its own kick and its own interrupt, each with its exits; at depth 32, the event index lets one interrupt report about nine completions and the rate nearly quadruples. This is the I/O version of section 5's lesson: in a VM, notifications are the expensive part, and batching is how you buy them back.</p>
+</section>
+</div></div>
+<section id="rd-s6b">
 <div class="mech">
 <div><b>Device in QEMU (here)</b>the kick exits to QEMU in user space, which does the I/O with system calls.</div>
 <div><b>vhost</b>the data path moves into the host kernel: the kick wakes a kernel thread, no trip to QEMU.</div>

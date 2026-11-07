@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s10">
 <h2>10. Two versions, and what a GPU container borrows from the host</h2>
 <p><b>The problem.</b> A CUDA program depends on two independently installed things: the <b>runtime</b> it was built with (inside your image or wheel: <code>torch.version.cuda</code>) and the <b>driver</b> on the machine it runs on (host: <code>nvidia-smi</code> prints its version and the newest CUDA version it supports). Clusters upgrade drivers rarely and carefully; images change every week. "CUDA driver version is insufficient for CUDA runtime version" is the result of the two drifting apart.</p>
@@ -12,18 +13,8 @@
 <details class="dp"><summary>Sources for the compatibility rules <span class="mute">(depth)</span></summary><div class="b">
 <p class="small">From {{CUDA Compatibility: why|https://docs.nvidia.com/deploy/cuda-compatibility/why-cuda-compatibility.html}} and {{minor version compatibility|https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html}}: minimum drivers CUDA 13.x "&gt;= 580", 12.x "&gt;= 525", 11.x "&gt;= 450"; "Applications that compile device code to PTX will not work on older drivers". {{Forward compatibility|https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html}}: "the cuda-compat-13-4 package is built using the NVIDIA driver libraries version 615", installed into <code>/usr/local/cuda-13.4/compat/</code>, and "This package only provides the libraries, and does not configure the system to find such libraries" (you set <code>LD_LIBRARY_PATH</code>); errors 803 <code>CUDA_ERROR_SYSTEM_DRIVER_MISMATCH</code> and 804 <code>CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE</code>. Since CUDA 13.4 the Linux driver is no longer bundled with the toolkit.</p>
 </div></details>
-<p><b>The container toolkit at the driver level.</b> A GPU container is section 9's stack cut in two: the image brings PyTorch and the runtime; the host must lend it the user-mode driver that matches its kernel module, the device files, and permission to open them. Each missing piece is one of section 9's measured failures. The NVIDIA Container Toolkit (or a CDI spec it generates) supplies all three and checks <code>NVIDIA_REQUIRE_CUDA</code> first; how it does so (bind mounts, the device cgroup's BPF program, CDI) is owned by {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p>
-<div class="card"><h4>What comes from the image, what must come from the host, and the error when it does not</h4>
-<div class="fg" id="fg-img"></div>
-<p class="small">Errors <span class="meas">measured</span> here (section 9, cases 1 to 4) except the version mismatch, which is the open module's message read in source. Why the toolkit mounts the host's <code>libcuda</code> rather than trusting the image's: the version handshake wants the two halves of the driver to agree; the compat package is the one sanctioned exception.</p></div>
-<p><b>Why forward compatibility can work at all.</b> Section 9's version handshake is between the user-mode driver and the kernel module. Forward compatibility swaps only the user-mode half: a newer <code>libcuda</code> (from the compat package) talks to an older <code>nvidia.ko</code>. NVIDIA: "forward compatibility is defined between the kernel driver and the CUDA driver", which is also why it can JIT PTX where minor version compatibility cannot (the compat package brings its own PTX compiler, <code>libnvidia-ptxjitcompiler</code>, visible in this image's compat directory).</p>
-<div class="tw"><table class="tbl-sm"><caption class="small mute" style="text-align:left">Version facts, as of October 2026 (volatile; from NVIDIA's CUDA Compatibility pages and this page's image)</caption><thead><tr><th>Fact</th><th>Value</th></tr></thead><tbody>
-<tr><td>Minimum driver for minor version compatibility</td><td>CUDA 13.x: 580; 12.x: 525; 11.x: 450</td></tr>
-<tr><td>Newest toolkit and its driver</td><td>CUDA 13.4, driver branch 615 (615.71.09 here); <code>cuda-compat-13-4</code> is built from driver 615</td></tr>
-<tr><td>Forward-compatibility targets in the matrix</td><td>driver branches 535, 570, 580, 590, 595, 610 (data-centre GPUs)</td></tr>
-<tr><td>Toolkit installer</td><td>since CUDA 13.4 the Linux driver is no longer bundled</td></tr>
-</tbody></table></div>
-<div class="card" id="vc-card">
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="vc-card">
 <h4>Will it run? The rules interact, so predict before you pick</h4>
 <div class="small mute">Pick the host's driver branch and what your application was built with. The rules and the forward-compatibility matrix are NVIDIA's (Table 3 of the forward compatibility page, driver branches 535 to 615).</div>
 <div class="vc">
@@ -35,6 +26,22 @@
 </div>
 <div class="verdict" id="vc-out"></div>
 </div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-s10b">
+<p><b>The container toolkit at the driver level.</b> A GPU container is section 9's stack cut in two: the image brings PyTorch and the runtime; the host must lend it the user-mode driver that matches its kernel module, the device files, and permission to open them. Each missing piece is one of section 9's measured failures. The NVIDIA Container Toolkit (or a CDI spec it generates) supplies all three and checks <code>NVIDIA_REQUIRE_CUDA</code> first; how it does so (bind mounts, the device cgroup's BPF program, CDI) is owned by {{Containers and isolation|n:3f05c17b0d0d8156a841e4bf28f11293}}.</p>
+<p><b>Why forward compatibility can work at all.</b> Section 9's version handshake is between the user-mode driver and the kernel module. Forward compatibility swaps only the user-mode half: a newer <code>libcuda</code> (from the compat package) talks to an older <code>nvidia.ko</code>. NVIDIA: "forward compatibility is defined between the kernel driver and the CUDA driver", which is also why it can JIT PTX where minor version compatibility cannot (the compat package brings its own PTX compiler, <code>libnvidia-ptxjitcompiler</code>, visible in this image's compat directory).</p>
+<div class="tw"><table class="tbl-sm"><caption class="small mute" style="text-align:left">Version facts, as of October 2026 (volatile; from NVIDIA's CUDA Compatibility pages and this page's image)</caption><thead><tr><th>Fact</th><th>Value</th></tr></thead><tbody>
+<tr><td>Minimum driver for minor version compatibility</td><td>CUDA 13.x: 580; 12.x: 525; 11.x: 450</td></tr>
+<tr><td>Newest toolkit and its driver</td><td>CUDA 13.4, driver branch 615 (615.71.09 here); <code>cuda-compat-13-4</code> is built from driver 615</td></tr>
+<tr><td>Forward-compatibility targets in the matrix</td><td>driver branches 535, 570, 580, 590, 595, 610 (data-centre GPUs)</td></tr>
+<tr><td>Toolkit installer</td><td>since CUDA 13.4 the Linux driver is no longer bundled</td></tr>
+</tbody></table></div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 11: what comes from the image, what must come from the host, and the error when it does not</h4>
+<div class="fg" id="fg-img"></div>
+<p class="small">Errors <span class="meas">measured</span> here (section 9, cases 1 to 4) except the version mismatch, which is the open module's message read in source. Why the toolkit mounts the host's <code>libcuda</code> rather than trusting the image's: the version handshake wants the two halves of the driver to agree; the compat package is the one sanctioned exception.</p></div></div></div></div>
+<section id="rd-s10c">
 <div class="ff"><div class="t">When it bites in ML</div><ul>
 <li><b>A new PyTorch wheel on an old cluster:</b> PyTorch's CUDA wheels ship the runtime; the cluster's driver is older. Within the same CUDA major and with SASS for your GPU it runs (minor version compatibility); across a major version it needs the compat package or an older wheel. PyTorch's own error for an old driver: "The NVIDIA driver on your system is too old (found version ...)" ({{CUDAFunctions.cpp|https://github.com/pytorch/pytorch/blob/v2.14.1/c10/cuda/CUDAFunctions.cpp#L45-L54}}).</li>
 <li><b>Custom kernels compiled to PTX only</b> (a JIT extension, some Triton or third-party builds) fail under minor version compatibility even when everything else works.</li>
