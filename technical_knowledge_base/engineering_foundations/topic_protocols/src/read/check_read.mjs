@@ -31,10 +31,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const textOf = sel => p.$$eval(sel, es => es.map(e => e.innerText).join(' '));
   // a card may sit in a closed block (the recorded MCP call): open them first so its controls can be clicked
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true));
-  // nothing may move before the reader acts (2026-10-24): every stepper starts on step 0
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
-  if (moved.length) { console.log(scheme, 'started without the reader', moved); problems++; }
-  const cards = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id.replace(/-ctl$/, '')));
+  // (2026-11-07: animations now play by themselves once in view; src/check_stages.mjs checks autoplay and reduced motion)
+  const cards = await p.$$eval('#t-read .an-ctl[id]', es => es.map(e => e.id.replace(/-ctl$/, '')));
   for (const c of cards) {
     const modes = await p.$$eval('#' + c + '-seg button', es => es.map(e => e.dataset.m));
     for (const m of (modes.length ? modes : [null])) {

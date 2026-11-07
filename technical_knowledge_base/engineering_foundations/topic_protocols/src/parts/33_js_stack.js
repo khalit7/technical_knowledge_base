@@ -78,10 +78,10 @@
       (k===n-1?'This is the bottom of this path: from here the packet leaves on the wire.':'Next it goes down to '+esc(E[p[k+1]].name)+'.')+'</div>';
     $('at-walk').innerHTML=h;
     $('at-wspd').value=String(W.speed);
-    $('at-wplay').addEventListener('click',()=>{W.playing?stop():play()});
-    $('at-wback').addEventListener('click',()=>{stop();W.step=Math.max(0,W.step-1);drawWalk();hl()});
-    $('at-wfwd').addEventListener('click',()=>{stop();W.step=Math.min(n-1,W.step+1);drawWalk();hl()});
-    $('at-wscr').addEventListener('input',ev=>{stop();W.step=+ev.target.value;drawWalk();hl()});
+    $('at-wplay').addEventListener('click',()=>{W.resume=false;W.playing?stop():play()});
+    $('at-wback').addEventListener('click',()=>{W.resume=false;stop();W.step=Math.max(0,W.step-1);drawWalk();hl()});
+    $('at-wfwd').addEventListener('click',()=>{W.resume=false;stop();W.step=Math.min(n-1,W.step+1);drawWalk();hl()});
+    $('at-wscr').addEventListener('input',ev=>{W.resume=false;stop();W.step=+ev.target.value;drawWalk();hl()});
     $('at-wspd').addEventListener('change',ev=>{W.speed=+ev.target.value});
     const ps=$('at-wpath');if(ps)ps.addEventListener('change',ev=>{W.pi=+ev.target.value;W.step=0;stop();drawWalk();hl()});
     hl();
@@ -89,15 +89,15 @@
   function hl(){const p=stepsOf(),k=Math.min(W.step,p.length-1);$('at-stack').querySelectorAll('.walk').forEach(b=>b.classList.remove('walk'));const c=chip(p[k]);if(c)c.classList.add('walk')}
   function tick(){
     if(!W.playing)return;
-    if(!A.visible()||!W.onScreen){stop();return}
+    if(!A.visible()||!W.onScreen){W.resume=true;stop();return}   // off screen: pause, and resume on return
     const n=stepsOf().length;
-    if(W.step>=n-1){W.step=0}else W.step++;
-    drawWalk();W.timer=setTimeout(tick,1600/W.speed);
+    if(W.step>=n-1){stop();return}W.step++;   // 2026-11-07: stops at the last layer instead of looping
+    drawWalk();if(W.step>=n-1){stop();return}W.timer=setTimeout(tick,1600/W.speed);
   }
-  function play(){if(W.playing)return;W.playing=true;drawWalk();W.timer=setTimeout(tick,1600/W.speed)}
+  function play(){if(W.playing)return;if(W.step>=stepsOf().length-1)W.step=0;W.playing=true;drawWalk();W.timer=setTimeout(tick,1600/W.speed)}
   function stop(){W.playing=false;if(W.timer)clearTimeout(W.timer);W.timer=null;const b=$('at-wplay');if(b)b.textContent='Play'}
   if('IntersectionObserver' in window){
-    new IntersectionObserver(es=>{es.forEach(x=>{W.onScreen=x.isIntersecting;if(!W.onScreen)stop()})}).observe($('at-walk'));
+    new IntersectionObserver(es=>{es.forEach(x=>{W.onScreen=x.isIntersecting;if(!W.onScreen){if(W.playing)W.resume=true;stop()}else if(W.resume&&!A.RM){W.resume=false;play()}})}).observe($('at-walk'));
   }else W.onScreen=true;
 
   buildRows();

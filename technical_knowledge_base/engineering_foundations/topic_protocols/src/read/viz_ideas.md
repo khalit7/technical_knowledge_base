@@ -20,3 +20,8 @@ The question the topic keeps returning to: **what does each layer add to one req
 
 ## What the method lacked
 A rule for recordings that drift between runs (TTLs, record sizes, timings): the prose numbers are now asserted against the embedded recording by `check_embed.py`, so a re-run that changes them fails loudly.
+
+## 2026-11-07 (layout rollout)
+- Built: Fig. 1 as a 3D stage (eight glass plates in the order the request meets them, request down as orange dots, answer up as green, a tool result up as purple; camera per plate). Considered a client stack and a server stack side by side (sixteen plates): rejected as too many objects for the composition rule; the far party of each step sits to the right instead.
+- Kept 2D: the wrapping bars, round-trip bars, the On the wire waterfall, anatomy stacks, TLS ladder and race (byte or time axes read best flat).
+- Removed: On the wire section 4's token-by-token loss animation (HTTP's Fig. 4 owns that figure; Khalid, 2026-11-07).

@@ -26,6 +26,10 @@ window.WI=(function(){
   const V={
     date:()=>date,
     prefill:()=>D.server.first_token_delay_s+' s',gap:()=>D.server.token_gap_s+' s',
+    // section 4's summary of the loss runs (the figure is HTTP's Fig. 4): the largest delay of each request's tokens against the run without loss
+    'hol-h2':()=>{const L=[0,1,2].map(i=>Math.max(...H.loss_h2.tokens[i].map((t,j)=>t-H.base_h2.tokens[i][j])));return f0(L[0])+', '+f0(L[1])+' and '+f0(L[2])+' ms'},
+    'hol-h3':()=>f0(Math.max(...H.loss_h3.tokens[0].map((t,j)=>t-H.base_h3.tokens[0][j])))+' ms',
+    'hol-h1':()=>'about '+(Math.round(H.loss_h1.tokens[2][4]/10)*10).toLocaleString('en-GB')+' ms against about '+Math.round(H.loss_h2.tokens[2][4]/100)*100+' ms',
   };
   WI.V=V;
   document.querySelectorAll('#t-wire [data-wi]').forEach(el=>{const f=V[el.dataset.wi];el.textContent=f?f():'??'});
@@ -95,7 +99,7 @@ window.WI=(function(){
     const x=t=>L+(w-L-Rr)*Math.min(t,tmax)/tmax;
     let b='<defs><pattern id="wi-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="var(--wi-tcp)"/><rect x="3" width="3" height="6" fill="var(--wi-tls)"/></pattern></defs>';
     const step=[1,2,5,10,20,50,100,200,500,1000].find(s=>tmax/s<=(narrow?5:8))||1000;
-    for(let t=0;t<=tmax;t+=step){b+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+top+'" y2="'+(h-24)+'" stroke="var(--line)"/>'+tx(x(t),h-10,t+(t===0?'':' ms'),{a:t===0?'start':'middle',fill:'var(--mute)',fs:10})}
+    for(let t=0;t<=tmax;t+=step){b+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+top+'" y2="'+(h-24)+'" stroke="var(--line)"/>'+tx(x(t),h-10,t+(t===0?'':' ms'),{a:t===0?'start':x(t)>w-24?'end':'middle',fill:'var(--mute)',fs:10})}
     rows.forEach((r,i)=>{const y=top+i*rh,by=narrow?y+18:y+6,bh=narrow?18:20;
       b+=narrow?tx(L,y+12,'<tspan font-weight="600">'+esc(r.name)+'</tspan> <tspan fill="var(--mute)">'+esc(r.sub)+'</tspan>',{fs:11}):tx(L-8,y+15,esc(r.name),{a:'end',w:600})+tx(L-8,y+28,esc(r.sub),{a:'end',fill:'var(--mute)',fs:10});
       r.segs.forEach(s=>{if(s.a>=tmax)return;const X=x(s.a),Wd=Math.max(s.b>s.a?1.5:0,x(s.b)-X);

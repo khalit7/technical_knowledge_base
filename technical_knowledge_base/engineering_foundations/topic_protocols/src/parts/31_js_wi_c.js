@@ -1,36 +1,13 @@
 // ---- On the wire: 4. head-of-line blocking, 5. TLS 1.2 vs 1.3, 6. cold vs resumed vs kept alive, 7. reproduce ----
 (function(){
-  const {D,$,esc,f1,f0,ms,svg,tx,width,anim,seg}=WI,H=D.hol;
+  // 2026-11-07: the token-by-token figure of these runs is HTTP's Fig. 4 (it owns head-of-line blocking); this section keeps the result as a table and the method
+  const {D,$,esc,f1,f0,ms}=WI,H=D.hol;
   const P=[['h1','HTTP/1.1','one TCP connection: requests wait their turn'],['h2','HTTP/2','three streams on one TCP connection'],['h3','HTTP/3','three streams on one QUIC connection']];
-  const NM=['A','B','C'],COL=['var(--c1)','var(--c3)','var(--c4)'];
-  let mode='loss',a=null;const STEP=20;
-  const tmaxOf=()=>Math.max(...P.map(p=>Math.max(...[0,1,2].map(i=>Math.max(...H[mode+'_'+p[0]].tokens[i])))))*1.04;
-  function draw(k){
-    const el=$('wi-hol'),w=width(el),narrow=w<560,L=narrow?24:136,Rr=8,lane=13,gh=3*lane+26,top=6,tmax=tmaxOf(),now=k*STEP;
-    const x=t=>L+(w-L-Rr)*t/tmax,h=top+P.length*gh+22;let b='';
-    const step=[50,100,200,250,500].find(s=>tmax/s<=(narrow?5:9))||500;
-    for(let t=0;t<=tmax;t+=step)b+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+top+'" y2="'+(h-18)+'" stroke="var(--line)"/>'+tx(x(t),h-5,t+(t?'':' ms'),{a:t?'middle':'start',fill:'var(--mute)',fs:10});
-    P.forEach((p,g)=>{const R=H[mode+'_'+p[0]],B=H['base_'+p[0]],y0=top+g*gh;
-      b+=narrow?tx(2,y0+10,'<tspan font-weight="600">'+p[1]+'</tspan> <tspan fill="var(--mute)">'+p[2]+'</tspan>',{fs:10.5}):tx(L-24,y0+22,p[1],{a:'end',w:600})+tx(L-24,y0+35,p[0]==='h1'?'one at a time':p[0]==='h2'?'shared TCP':'shared QUIC',{a:'end',fill:'var(--mute)',fs:10});
-      [0,1,2].forEach(i=>{const y=y0+(narrow?16:6)+i*lane+6;
-        b+=tx(narrow?14:L-8,y+4,NM[i],{a:'end',fs:10,fill:'var(--mute)'});
-        const s=R.sent[i];if(now>s)b+='<line x1="'+x(s)+'" x2="'+x(Math.min(now,R.tokens[i][4]))+'" y1="'+y+'" y2="'+y+'" stroke="'+COL[i]+'" stroke-opacity=".35" stroke-width="2"/>';
-        R.tokens[i].map((t,j)=>[t,j]).sort((p,q)=>((p[0]-B.tokens[i][p[1]]>20)-(q[0]-B.tokens[i][q[1]]>20))).forEach(([t,j])=>{const late=mode==='loss'&&t-B.tokens[i][j]>20;
-          if(late&&now>=B.tokens[i][j])b+='<circle cx="'+x(B.tokens[i][j])+'" cy="'+y+'" r="3.5" fill="none" stroke="var(--mute)" stroke-dasharray="2 2"/>';
-          if(now>=t)b+='<circle cx="'+x(t)+'" cy="'+y+'" r="4" fill="'+(late?'var(--bad)':COL[i])+'"><title>'+NM[i]+' token '+(j+1)+' at '+f1(t)+' ms'+(late?' ('+f0(t-B.tokens[i][j])+' ms late)':'')+'</title></circle>'});
-        if(mode==='loss'&&i===0&&now>=B.tokens[0][1]){const X=x(B.tokens[0][1]);b+='<path d="M'+(X-4)+' '+(y-10)+' l8 8 M'+(X+4)+' '+(y-10)+' l-8 8" stroke="var(--bad)" stroke-width="2"/>'}
-      })});
-    b+='<line x1="'+x(Math.min(now,tmax))+'" x2="'+x(Math.min(now,tmax))+'" y1="'+top+'" y2="'+(h-18)+'" stroke="var(--ink)" stroke-opacity=".5"/>';
-    el.innerHTML=svg(w,h,b,'Token arrivals for three requests over HTTP/1.1, HTTP/2 and HTTP/3');
-    panel();
-  }
-  function panel(){
-    const rows=P.map(p=>{const R=H[mode+'_'+p[0]],B=H['base_'+p[0]];
+  function table(){
+    const rows=P.map(p=>{const R=H['loss_'+p[0]],B=H['base_'+p[0]];
       const late=[0,1,2].map(i=>Math.max(0,...R.tokens[i].map((t,j)=>t-B.tokens[i][j])));
-      return '<tr><td>'+p[1]+'</td>'+[0,1,2].map(i=>'<td class="num">'+f0(R.tokens[i][4])+(mode==='loss'?'<br><span class="mute">'+(late[i]>20?'+'+f0(late[i])+' ms late':'on time')+'</span>':'')+'</td>').join('')+'</tr>'}).join('');
-    $('wi-hol-panel').innerHTML='<h4>'+(mode==='loss'?'One lost packet: who had to wait':'No loss: the baseline')+'</h4><div class="tw"><table class="wi-t"><tr><th></th><th class="num">A done at</th><th class="num">B done at</th><th class="num">C done at</th></tr>'+rows+'</table></div>'+
-      (mode==='loss'?'<p><b>HTTP/2:</b> the lost bytes belonged to A, but TCP hands bytes to the app strictly in order, so B\'s and C\'s tokens that arrived meanwhile sat in the kernel until the gap was filled: all three stalled (head-of-line blocking at the transport). <b>HTTP/3:</b> QUIC orders bytes per stream, so only A waited; B and C carried on. <b>HTTP/1.1</b> on one connection never had B and C in flight: they started only after A ended, so the whole batch took about three times longer, loss or not. (Browsers open up to six connections to dodge this; each costs its own handshakes.)</p>':'<p>Without loss HTTP/2 and HTTP/3 behave the same: three answers interleaved on one connection, each token about '+f0(D.server.token_gap_s*1000)+' ms after the last. HTTP/1.1 on one connection runs them back to back.</p>')+
-      '<p class="wi-src">Times in ms from the first request, as seen by the app. Dashed circles: where a token arrived in the no-loss run. Source: <code>raw/hol/</code>.</p>'}
+      return '<tr><td>'+p[1]+'<br><span class="mute">'+p[2]+'</span></td>'+[0,1,2].map(i=>'<td class="num">'+f0(R.tokens[i][4])+' ms<br><span class="mute">'+(late[i]>20?'+'+f0(late[i])+' ms late':'on time')+'</span></td>').join('')+'</tr>'}).join('');
+    $('wi-hol-sum').innerHTML='<table class="wi-t"><tr><th>One packet lost</th><th class="num">A done at</th><th class="num">B done at</th><th class="num">C done at</th></tr>'+rows+'</table><p class="wi-src">Times from the first request, as seen by the app; "late" is the largest delay of any of that request\'s tokens against the run without loss (on time: under 20 ms). Source: <code>raw/hol/</code>.</p>'}
   function how(){const q=H.quic_packets,m=H.quic_missing_pn[0];const ev3=H.loss_h3.event,ev2=H.loss_h2.event;
     // a retransmission fills a gap: a stream-0 frame whose offset is below an offset already received on stream 0
     let mx=-1,lostRe=null;q.forEach(p=>p.stream.forEach(s=>{if(s[0]!==0)return;if(s[1]<mx&&!lostRe)lostRe=p;mx=Math.max(mx,s[1])}));
@@ -38,9 +15,7 @@
     $('wi-hol-how').innerHTML='<p><b>Delay.</b> <code>netem.py</code> sits between client and server on 127.0.0.1 and holds every chunk (TCP) or datagram (UDP) for 25 ms in each direction.</p>'+
       '<p><b>HTTP/3: a real loss.</b> The proxy dropped one UDP datagram from server to client: the first one of exactly '+ev3.bytes+' bytes, which is the size of a packet carrying " sky" (encrypted packets still give away their length, and token lengths differ). The client\'s own QUIC log shows packet number '+m+' never arrived'+(lostRe&&nextP?'; request A\'s bytes from offset '+lostRe.stream.find(s=>s[0]===0)[1]+' (" sky") came again in packet '+lostRe.pn+', '+f1(lostRe.t_ms)+' ms into the connection, after packet '+nextP.pn+' had already brought A\'s next token, which had to wait for it':'')+'. QUIC noticed the gap when later packets were acknowledged and resent the data (RFC 9002 section 6.1): A\'s token came <b>'+H.stall_ms+' ms</b> late.</p>'+
       '<p><b>HTTP/1.1 and HTTP/2: a simulated loss.</b> A proxy cannot drop a TCP segment: the two kernels would resend it below our view. So the proxy reproduces what the app sees after a TCP loss: it held the first '+ev2.bytes+'-byte chunk (A\'s " sky" on HTTP/2; '+H.loss_h1.event.bytes+' bytes on HTTP/1.1) for the same '+H.stall_ms+' ms QUIC needed, and every byte behind it waited too, because TCP delivers in order. Same lost data, same recovery time; the only difference is who has to wait. Real TCP often takes longer on a sparse stream like token streaming: with too few packets after the loss to trigger a fast retransmit it falls back to a timer (RFC 8985, RFC 6298).</p>'}
-  seg($('wi-hol-seg'),m=>{mode=m;a.reset(Math.ceil(tmaxOf()/STEP)+1);a.go(Math.ceil(tmaxOf()/STEP));});
-  a=anim({card:'wi-hol-card',ctl:'wi-hol-ctl',n:Math.ceil(tmaxOf()/STEP)+1,draw,ms:110,label:'Time'});
-  a.go(Math.ceil(tmaxOf()/STEP));how();
+  table();how();
 })();
 
 // ---- 5. TLS 1.2 vs 1.3 ladder ----
@@ -66,12 +41,20 @@
         const col=f.http?'var(--wi-wait)':'var(--acc)';
         b+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="'+(i===k?2.4:1.4)+'"/><circle cx="'+x2+'" cy="'+y2+'" r="2.5" fill="'+col+'"/>';
         const lab=f.names.join(', ')+(f.len?' ('+f.len+' B)':'');
-        b+=tx((x1+x2)/2,(y1+y2)/2-3,esc(lab.length>(two?44:56)?lab.slice(0,two?42:54)+'...':lab),{a:'middle',fs:9.5,fill:i===k?'var(--ink)':'var(--mute)'})});
+        b+=tx((x1+x2)/2,(y1+y2)/2+(f.http?12:-3),esc(lab.length>(two?44:56)?lab.slice(0,two?42:54)+'...':lab),{a:'middle',fs:9.5,fill:i===k?'var(--ink)':'var(--mute)'})});
     });
     el.innerHTML=svg(w,two?ph+14:2*ph+24,b,'Ladder diagram of the TLS 1.2 and TLS 1.3 handshakes');
-    const lines=runs.map((r,c)=>{const f=F[c][Math.min(k,F[c].length-1)];return '<b>'+r[0]+'</b>: '+esc(f.names.join(', '))+(f.len?', '+f.len+' bytes':'')+', '+(f.dir==='out'?'sent':'received')+' at '+ms(f.t)});
-    $('wi-tls-panel').innerHTML='<div class="wi-step">Flight '+(k+1)+' of '+n+'</div>'+lines.join('<br>')+'<p class="wi-src">Time runs down. Arrows slope because each direction takes '+OW+' ms. Message names and sizes from OpenSSL\'s message callback in <code>wire_client.py</code>; times measured at the client. Source: <code>raw/tls1.2_netem.json</code>, <code>raw/tls1.3_netem.json</code>.</p>'}
-  anim({card:'wi-tls-card',ctl:'wi-tls-ctl',n,draw,ms:1300,label:'Flight'});
+  }
+  // the step list on the left: one item per flight, both versions side by side, written from the same recorded messages
+  const WHY=['Both clients open with a ClientHello. TLS 1.3\'s is far bigger because it already carries its key share (a hybrid post-quantum one); TLS 1.2 waits to be told which key exchange to use.',
+    'TLS 1.3 answers in one flight with everything, already encrypted after the ServerHello, and finishes; TLS 1.2 sends its certificate and key exchange in the clear and stops to wait.',
+    'TLS 1.3: the client\'s Finished, and it is done after one round trip. TLS 1.2: the client\'s key exchange and Finished, and a second wait.',
+    'TLS 1.3 has already sent the request; TLS 1.2 only now receives the server\'s Finished, the end of its second round trip.',
+    'TLS 1.2 can finally send the request; on TLS 1.3 the server\'s session tickets arrive with the answer.',
+    'The first byte of the answer: one round trip after the request on both, so TLS 1.2 is a whole round trip behind.'];
+  const fl=f=>esc(f.names.join(', '))+(f.len?' ('+f.len+' B)':'')+', '+(f.dir==='out'?'sent':'received')+' at '+ms(f.t);
+  $('sx-tls').innerHTML=Array.from({length:n},(_,k)=>'<li><b>Flight '+(k+1)+'.</b> '+(WHY[k]||'')+' <span class="mute">'+runs.map((r,c)=>r[0]+': '+(F[c][k]?fl(F[c][k]):'nothing more')).join('; ')+'.</span></li>').join('');
+  anim({card:'wi-tls-card',ctl:'wi-tls-ctl',n,draw,ms:4200,label:'Flight',list:'sx-tls'});
   // the summary table, emulated and public
   const row=(lab,k)=>{const r=S[k],c=r[0],rs=r.slice(1);const med=a=>{a=a.slice().sort((x,y)=>x-y);return a[Math.floor(a.length/2)]};
     const hs=x=>x.tls_ms-x.tcp_ms;return '<tr><td>'+lab+'</td><td class="num">'+f1(c.tcp_ms)+'</td><td class="num">'+f1(hs(c))+'</td><td class="num">'+f1(med(rs.map(hs)))+'</td><td class="num">'+(c.hs_bytes?c.hs_bytes.out+' / '+c.hs_bytes.in:'')+'</td><td class="num">'+(rs[0].hs_bytes?rs[0].hs_bytes.out+' / '+rs[0].hs_bytes.in:'')+'</td></tr>'};
@@ -99,7 +82,8 @@
       const end=r.segs[r.segs.length-1][1];if(now>=end)b+=tx(x(end)+4,y+13,f0(end)+' ms',{fs:10.5,w:600})});
     el.innerHTML=svg(w,h,b,'Time to the first byte: cold, resumed, kept alive');
   }
-  anim({card:'wi-res-card',ctl:'wi-res-ctl',n,draw,ms:45,label:'Time'});
+  // a widget (the long-replay rule, case b): the outcome is the point, so it opens on the finished race and never plays by itself
+  anim({card:'wi-res-card',ctl:'wi-res-ctl',n,draw,ms:45,label:'Time',auto:false,start:n-1});
   const h3r=S.h3_resume_netem.filter(r=>r.label!=='cold');
   $('wi-res-panel').innerHTML='<p><b>Kept alive wins:</b> the second request on an open connection gets its first byte after one round trip ('+ms(med(ka.map(r=>r.first_byte_ms)))+'), against '+ms(cold.first_byte_ms)+' for a cold connection. That is why SDKs keep a connection pool and why a proxy that closes idle connections quietly adds a handshake to the next call. <b>TLS 1.3 resumption</b> saved the certificate ('+cold.hs_bytes.in+' bytes in from the server cold, '+res[0].hs_bytes.in+' resumed) but no time: still one round trip. TCP connect is near zero in this emulation only because our proxy answers it; on a real path add one round trip to the first two bars.</p>'+
     '<p class="wi-src">HTTP/3 resumption and 0-RTT were attempted and not measured: the server we used (hypercorn '+esc((D.env.hypercorn||'').split(' ')[0])+') issued no QUIC session tickets, so all '+h3r.length+' reconnections were full handshakes (resumed: '+h3r.map(r=>String(r.resumed)).join(', ')+'). Source: <code>raw/resume_netem.json</code>, <code>raw/keepalive_netem.json</code>, <code>raw/h3_resume_netem.json</code>, <code>raw/h3_0rtt_netem.json</code>.</p>';

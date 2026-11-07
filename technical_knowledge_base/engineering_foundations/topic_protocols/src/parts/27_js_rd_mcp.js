@@ -2,7 +2,7 @@
 (function(){
   const card=document.getElementById('rd-mcp');if(!card||!RD.X||!RD.X.json.mcp)return;
   const M=RD.X.json.mcp,O=RD.X.json.tl_mcp,E=RD.esc;
-  const msgEl=document.getElementById('rd-mcp-msg'),cap=document.getElementById('rd-mcp-cap'),lanes=[...document.querySelectorAll('#rd-mcp-lanes div')];
+  const msgEl=document.getElementById('rd-mcp-msg'),sx=document.getElementById('sx-mcp'),lanes=[...document.querySelectorAll('#rd-mcp-lanes div')];
   // split the proxy's byte log into HTTP messages
   const split=(s,re)=>s.split(re).filter(x=>x.trim()).map(x=>x);
   const reqs=split(M.http[0],/(?=POST \/mcp HTTP\/1\.1)/),resps=split(M.http[1],/(?=HTTP\/1\.1 \d{3} )/);
@@ -41,10 +41,12 @@
     const L=mode==='new'?NEW:OLD,s=L[i];
     lanes.forEach((d,j)=>d.classList.toggle('on',j===s.from||j===s.to));
     msgEl.innerHTML='<div class="msg cur"><div class="h"><span>'+E(s.label)+'</span><span>step '+(i+1)+' of '+L.length+'</span></div>'+s.html+'</div>';
-    cap.innerHTML='<div class="t">'+E(s.t)+'</div><p>'+E(s.p)+'</p>';
     const inj=msgEl.querySelector('.inj'),pre=msgEl.querySelector('pre');if(inj&&pre)pre.scrollTop=Math.max(0,inj.offsetTop-pre.offsetTop-30);
   }
   NEW.forEach(s=>{if(s.lane!=null){s.from=s.lane===2?2:3;s.to=s.lane===2?3:2}});
-  const a=RD.anim({card:'rd-mcp',ctl:'rd-mcp-ctl',n:NEW.length,draw,ms:2600,label:'Message'});
-  RD.seg(document.getElementById('rd-mcp-seg'),m=>{mode=m;a.reset(m==='new'?NEW.length:OLD.length);a.play()});
+  // the step list on the left is written from the same step data (title and explanation of each message), and rewritten on a mode switch
+  const fill=L=>{sx.innerHTML=L.map(s=>'<li><b>'+E(s.t)+'.</b> '+E(s.p)+'</li>').join('')};
+  fill(NEW);
+  const a=RD.anim({card:'rd-mcp',ctl:'rd-mcp-ctl',n:NEW.length,draw,ms:4600,label:'Message',list:'sx-mcp'});
+  RD.seg(document.getElementById('rd-mcp-seg'),m=>{mode=m;fill(m==='new'?NEW:OLD);a.reset(m==='new'?NEW.length:OLD.length,'sx-mcp')});
 })();

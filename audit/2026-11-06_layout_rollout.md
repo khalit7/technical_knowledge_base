@@ -97,7 +97,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_protocols/ssh` SSH: keys, certificates, jump hosts and tunnels for cluster work
 - [x] `engineering_foundations/topic_protocols/streaming_and_real_time` Streaming and real-time: SSE, WebSockets, webhooks, long polling
 - [x] `engineering_foundations/topic_protocols/tls_and_certificates` TLS and certificates: the handshake, PKI, mTLS and post-quantum
-- [ ] `engineering_foundations/topic_protocols` Topic: protocols
+- [x] `engineering_foundations/topic_protocols` Topic: protocols
 - [ ] `engineering_foundations/topic_swe_and_system_design/building_a_backend_api` Building a backend API: request lifecycle, data layer, async and workers, shutdown
 - [ ] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
 - [ ] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
@@ -390,3 +390,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_protocols/ssh`: Fig. 1 hero at 390 faded future-layer labels overlap (user authentication over connection, channels); jump, agent and forwarding scenes small with empty margin at 1400; mux exit-step label over a faded slab label; agent root label near the bastion at 390; 33 min of closed details is large.
 - `engineering_foundations/topic_protocols/streaming_and_real_time`: Fig. 1 hero crowded at 1400 (one connection, last token 431 ms labels overlap; client and server slabs large and cut at the edges); hero and tok scenes small at 390; Fig. 9 end state thin (bars and labels only).
 - `engineering_foundations/topic_protocols/tls_and_certificates`: Fig. 1 hero leaf 478 B and intermediate 421 B labels close at 1400; Fig. 2 step 4 CertificateVerify and Finished labels close; empty space above scene objects at 1400; stages small below 520 px.
+- `engineering_foundations/topic_protocols` (root): hero close-up steps leave empty canvas below the lower plates; On the wire section 4 table shows 1140 without a thousands comma; verify_layout flags the Protocol atlas svg outside a split (accepted: reader-driven explorer); an older environment note on the page mentions a session scratchpad build of OpenSSL (wording only, no path).

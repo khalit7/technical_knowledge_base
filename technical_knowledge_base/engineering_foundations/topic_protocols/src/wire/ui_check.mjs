@@ -36,7 +36,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     // tap a bar of the waterfall when present
     await p.evaluate(() => { const r = document.querySelector('#wi-wf rect[data-row]'); if (r) r.dispatchEvent(new MouseEvent('click', { bubbles: true })) });
   }
-  for (const ctl of ['wi-an-ctl', 'wi-hol-ctl', 'wi-tls-ctl', 'wi-res-ctl']) {
+  for (const ctl of ['wi-an-ctl', 'wi-tls-ctl', 'wi-res-ctl']) {
     const n = await p.$eval('#' + ctl + '-s', e => +e.max);
     for (let k = 0; k <= n; k += (n > 40 ? 7 : 1)) {
       await p.evaluate((c, k) => { const s = document.getElementById(c + '-s'); s.value = k; s.dispatchEvent(new Event('input')) }, ctl, k);

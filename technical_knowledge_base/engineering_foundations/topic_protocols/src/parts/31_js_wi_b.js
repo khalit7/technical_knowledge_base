@@ -49,9 +49,15 @@
       b+='<line x1="'+x1+'" x2="'+x2+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--acc)" stroke-width="2"/><path d="M'+x2+' '+yy+' l'+(a?-8:8)+' -5 v10 z" fill="var(--acc)"/>'+tx((x1+x2)/2,yy-6,esc(s.lab.replace(/^[A-Z0-9/ ]+: /,'')),{a:'middle',fs:narrow?10:11,w:600})}
     b+=tx(w/2,h-6,'t = '+ms(s.t),{a:'middle',fill:'var(--mute)',fs:11});
     el.innerHTML=svg(w,h,b,'Layer stacks of client and server, step '+(i+1));
-    $('wi-an-panel').innerHTML='<div class="wi-step">Step '+(i+1)+' of '+steps.length+'</div><h4>'+esc(s.lab)+'</h4>'+s.html;
+    $('wi-an-panel').innerHTML='<div class="wi-step">Message '+(i+1)+' of '+steps.length+'</div><h4>'+esc(s.lab)+'</h4>'+s.html;
     if(s.big)scale()}
-  anim({card:'wi-an-card',ctl:'wi-an-ctl',n:steps.length,draw,ms:2600,label:'Anatomy step'});
+  // fifteen messages in seven explained stretches (the long-replay rule, case a): the step list sx-an has one item per stretch,
+  // marked while any of its messages is shown; a click on an item jumps to its first message and stops the autoplay
+  const G=[0,1,2,2,2,3,3,3,3,4,4,5,5,6,6],lis=[...document.querySelectorAll('#sx-an>li')];
+  const mark=i=>lis.forEach((li,g)=>{li.classList.toggle('on',g===G[i]);li.classList.toggle('done',g<G[i]);if(g===G[i])li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
+  const a=anim({card:'wi-an-card',ctl:'wi-an-ctl',n:steps.length,draw:i=>{draw(i);mark(i)},ms:3000,label:'Anatomy step'});
+  lis.forEach((li,g)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>a.go(G.indexOf(g));li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}});
+  window.WI_AN_GROUPS=G;   // for src/check_stages.mjs
 
   // one token, three HTTP versions
   function tokens(){const el=$('wi-tok'),w=width(el);

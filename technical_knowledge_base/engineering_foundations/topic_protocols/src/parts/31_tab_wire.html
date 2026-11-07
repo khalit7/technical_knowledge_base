@@ -46,69 +46,96 @@
 
 <div class="deepnote"><b>Words used below.</b> A <b>packet</b> is one unit the network carries (a few hundred to about 1,500 bytes). A <b>port</b> is a number that picks the program on a machine; an address plus a port is one end of a <b>connection</b>. A <b>round trip</b> (RTT) is the time for a message to go and an answer to come back: every protocol step that must wait for an answer costs one. A <b>handshake</b> is the exchange that sets a connection up before any request can go. A <b>stream</b> is one request and its answer inside a shared connection; a <b>frame</b> is one labelled piece of a stream. The Reading tab defines each one properly.</div>
 
+<div class="s3sp"><div class="s3L">
 <section id="wi-s-req">
 <h2>1. The request and the answer, as bytes</h2>
 <p>The app sends a <b>POST</b> to <code>/v1/messages</code> with a JSON body; the server answers <b>200</b> with <code>content-type: text/event-stream</code> and then sends <b>Server-Sent Events</b> (SSE): small text blocks, each an <code>event:</code> line, a <code>data:</code> line and a blank line (WHATWG HTML Standard, section 9.2). The event names and JSON shapes follow Anthropic's Messages API streaming format, trimmed to <code>message_start</code>, one <code>content_block_delta</code> per token, and <code>message_stop</code>. No model runs: the five tokens are fixed, the first comes after <span data-wi="prefill"></span> (standing in for the model reading the prompt) and the rest <span data-wi="gap"></span> apart, so every run sends the same bytes.</p>
+<p class="wi-cap">Under the bytes, each mark is one <code>recv()</code> call returning bytes to the app over plain HTTP/1.1 (port 8080, no encryption), so the timing is the server's, not the network's. Source: <code>raw/h1_arrivals.json</code>.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card">
 <div class="wi-bar"><span class="seg" id="wi-req-seg"><button data-m="req" class="on">Request</button><button data-m="resp">Response</button></span><label class="chk"><input type="checkbox" id="wi-req-inv"> show invisible bytes (CR LF)</label></div>
 <pre id="wi-req-pre" class="wrap"></pre>
 <p class="wi-cap" id="wi-req-cap"></p>
 <div class="wi-svg" id="wi-req-arr"></div>
-<p class="wi-cap">Each mark is one <code>recv()</code> call returning bytes to the app over plain HTTP/1.1 (port 8080, no encryption), so the timing is the server's, not the network's. Source: <code>raw/h1_arrivals.json</code>.</p>
-</section>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="wi-s-wf">
 <h2>2. Where the time goes: a measured waterfall</h2>
-<p>Before the first byte of the answer can arrive, the client has to find the server (<b>DNS</b>), open a connection (<b>TCP</b>, or <b>QUIC</b> for HTTP/3), and secure it (<b>TLS</b>). Each bar below is the median of repeated runs of our instrumented clients, which timestamp every step; tap a bar for every run.</p>
+<p>Before the first byte of the answer can arrive, the client has to find the server (<b>DNS</b>), open a connection (<b>TCP</b>, or <b>QUIC</b> for HTTP/3), and secure it (<b>TLS</b>). Each bar on the right is the median of repeated runs of our instrumented clients, which timestamp every step; tap a bar for every run.</p>
+<div id="wi-wf-note" class="wi-panel"></div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card">
 <div class="wi-bar"><span class="seg" id="wi-wf-seg"><button data-m="local" class="on">Loopback</button><button data-m="netem">Emulated 50 ms RTT</button><button data-m="public">Public hosts</button></span></div>
 <div class="wi-leg" id="wi-wf-leg"></div>
 <div class="wi-svg" id="wi-wf"></div>
-<div id="wi-wf-note" class="wi-panel"></div>
 <details class="wi-d"><summary>Cross-check with <code>curl -w</code> (medians)</summary><div><div class="tw" id="wi-wf-curl"></div><p class="wi-src">curl measures the same phases from inside a different TLS library (macOS SecureTransport): <code>time_namelookup</code> (DNS), <code>time_connect</code> (TCP done), <code>time_appconnect</code> (TLS done), <code>time_starttransfer</code> (first byte), all from the start. Source: <code>raw/curl_local.tsv</code>, <code>raw/curl_netem.tsv</code>, <code>raw/public_curl.tsv</code>.</p></div></details>
-</section>
+</div></div></div></div>
 
-<section id="wi-s-an">
-<h2>3. Anatomy: the same request down and up the layers</h2>
-<p>Step through the HTTP/2 run of the request (the version curl and most SDKs pick when the server offers it). The left stack is the client, the right stack the server; the panel shows the real bytes of each step and the time it happened. The last steps draw one token's bytes to scale, layer by layer.</p>
+<div class="s3sp"><div class="s3R">
 <div class="card" id="wi-an-card">
 <div class="an-ctl" id="wi-an-ctl"></div>
 <div class="wi-svg" id="wi-an-svg"></div>
 <div class="wi-panel" id="wi-an-panel"></div>
 </div>
+</div><div class="s3L">
+<section id="wi-s-an">
+<h2>3. Anatomy: the same request down and up the layers</h2>
+<p>The HTTP/2 run of the request (the version curl and most SDKs pick when the server offers it), message by message: the left stack is the client, the right stack the server, and the panel under them shows the real bytes of each message and the time it happened. Fifteen messages in seven stretches:</p>
+<p class="sxh">One request, every message, on loopback</p>
+<ol class="sx" id="sx-an">
+<li><b>The app builds the request.</b> The SDK turns the chat turn into the JSON body. Nothing has touched the network yet.</li>
+<li><b>DNS turns the name into an address.</b> The test name is pinned to <code>127.0.0.1</code>, so the panel shows the same question asked of a real LLM API with <code>dig</code>: one address and its TTL, and a DNS filter on this laptop that answered even a query sent straight to a root server.</li>
+<li><b>TCP: SYN, SYN-ACK, ACK.</b> The kernel picks a free local port and the three-way handshake opens a reliable, ordered byte stream: the first round trip, before anything else can happen.</li>
+<li><b>TLS 1.3 in one round trip.</b> The ClientHello carries the hybrid post-quantum key share in the clear; the ServerHello returns the server's half, and from then on everything is encrypted: the certificate, the signature proving the server holds its key, and both Finished messages.</li>
+<li><b>The HTTP/2 request.</b> The connection preface, SETTINGS and the request as HPACK-compressed HEADERS plus a DATA frame, all in one encrypted record; the server answers with its SETTINGS and two TLS session tickets for a later, resumed connection (section 6).</li>
+<li><b>Response headers, then the first token.</b> <code>:status 200</code> and <code>text/event-stream</code> open the stream; after the server's pause the first token arrives, drawn to scale layer by layer.</li>
+<li><b>Tokens stream, the stream ends.</b> One DATA frame in one TLS record per token; the last frame carries END_STREAM, and the connection stays open for the next request. Of the whole exchange, the network part on loopback is a few milliseconds; the rest is the server thinking.</li>
+</ol>
 <details class="wi-d"><summary>The same token in HTTP/1.1, HTTP/2 and HTTP/3, to scale</summary><div><div class="wi-svg" id="wi-tok"></div><p class="wi-src" id="wi-tok-src"></p></div></details>
 </section>
+</div></div>
 
 <section id="wi-s-hol">
 <h2>4. One lost packet: HTTP/1.1, HTTP/2 and HTTP/3</h2>
-<p>Three copies of the request (call them A, B and C, as when an agent fires three model calls at once) go out 10 ms apart on one connection, over the emulated 50 ms path. Then <b>one packet is lost</b>: the one carrying request A's second token, " sky". Press play to watch the tokens arrive at the app at their measured times, slowed down.</p>
-<div class="wi-bar"><span class="seg" id="wi-hol-seg"><button data-m="loss" class="on">One packet lost</button><button data-m="base">No loss</button></span></div>
-<div class="card" id="wi-hol-card">
-<div class="an-ctl" id="wi-hol-ctl"></div>
-<div class="wi-svg" id="wi-hol"></div>
-<div class="wi-panel" id="wi-hol-panel"></div>
-</div>
+<p>Three copies of the request (call them A, B and C, as when an agent fires three model calls at once) went out 10 ms apart on one connection, over the emulated 50 ms path, and one packet was lost: the one carrying request A's second token, " sky". The figure of this measurement now lives where head-of-line blocking is taught: {{HTTP, Fig. 4|n:3c65c17b0d0d811bb035fa3f158b0889#rd-s7}} replays these same runs token by token for HTTP/2 and HTTP/3. The result, from this page's runs (<code>raw/hol/</code>):</p>
+<div class="tw" id="wi-hol-sum"></div>
+<ul class="tight">
+<li><b>HTTP/2:</b> the lost bytes belonged to A, but TCP hands bytes to the app strictly in order, so every stream waited: all three streams were delayed, by <span data-wi="hol-h2"></span>.</li>
+<li><b>HTTP/3:</b> QUIC orders bytes per stream, so only A waited, <span data-wi="hol-h3"></span>; B and C carried on.</li>
+<li><b>HTTP/1.1</b> on one connection never had B and C in flight: they started only after A ended, so the batch finished after <span data-wi="hol-h1"></span> on HTTP/2 and HTTP/3, loss or not (browsers open up to six connections to dodge this, each with its own handshakes).</li>
+</ul>
 <details class="wi-d"><summary>How the loss was made, and why it is fair</summary><div id="wi-hol-how"></div></details>
 </section>
 
-<section id="wi-s-tls">
-<h2>5. TLS 1.2 against TLS 1.3: counting round trips</h2>
-<p>The same client and server, forced to TLS 1.2 and then to TLS 1.3, over the emulated 50 ms path. Every message below was logged by OpenSSL itself as it went out or came in. TLS 1.2 needs two round trips before the request can go; TLS 1.3 needs one, because the client sends its key share in its very first message instead of waiting to be told which one to use.</p>
+<div class="s3sp"><div class="s3R">
 <div class="card" id="wi-tls-card">
 <div class="an-ctl" id="wi-tls-ctl"></div>
 <div class="wi-svg" id="wi-tls"></div>
-<div class="wi-panel" id="wi-tls-panel"></div>
+<p class="wi-src">Time runs down. Arrows slope because each direction takes 25 ms. Message names and sizes from OpenSSL's message callback in <code>wire_client.py</code>; times measured at the client. Source: <code>raw/tls1.2_netem.json</code>, <code>raw/tls1.3_netem.json</code>.</p>
 </div>
-<div class="tw" id="wi-tls-tab"></div>
+</div><div class="s3L">
+<section id="wi-s-tls">
+<h2>5. TLS 1.2 against TLS 1.3: counting round trips</h2>
+<p>The same client and server, forced to TLS 1.2 and then to TLS 1.3, over the emulated 50 ms path. Every message below was logged by OpenSSL itself as it went out or came in. TLS 1.2 needs two round trips before the request can go; TLS 1.3 needs one, because the client sends its key share in its very first message instead of waiting to be told which one to use.</p>
+<p class="sxh">The two handshakes, flight by flight</p>
+<ol class="sx" id="sx-tls"></ol>
 </section>
+</div></div>
+<div class="tw" id="wi-tls-tab"></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="wi-s-res">
 <h2>6. A cold connection, a resumed one, and a reused one</h2>
-<p>The first request on a new connection pays for TCP and TLS. A <b>resumed</b> TLS session (the client shows a ticket the server gave it last time) skips the certificate; a <b>kept-alive</b> connection (the same open connection, reused) skips the handshakes altogether. Measured on the emulated 50 ms path, HTTP/2:</p>
+<p>The first request on a new connection pays for TCP and TLS. A <b>resumed</b> TLS session (the client shows a ticket the server gave it last time) skips the certificate; a <b>kept-alive</b> connection (the same open connection, reused) skips the handshakes altogether. Measured on the emulated 50 ms path, HTTP/2; the chart opens on the finished race, and play replays it in time.</p>
+<div id="wi-res-panel"></div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="wi-res-card">
 <div class="an-ctl" id="wi-res-ctl"></div>
 <div class="wi-svg" id="wi-res"></div>
-<div class="wi-panel" id="wi-res-panel"></div>
 </div>
-</section>
+</div></div></div>
 
 <section id="wi-s-repro">
 <h2>7. Reproduce it, and what this does not show</h2>

@@ -62,6 +62,13 @@ tab = open(os.path.join(HERE, "..", "parts", "31_tab_wire.html")).read()
 ok(not re.search(r"\b\d+(\.\d+)? ms\b", re.sub(r"<style>.*?</style>", "", tab, flags=re.S).replace("50 ms", "").replace("25 ms", "").replace("10 ms", "")),
    "hard-coded ms value in 31_tab_wire.html (other than the emulation settings 25/50 ms and the 10 ms stagger)")
 
+# 5. the section 4 summary (2026-11-07: the figure moved to HTTP Fig. 4): its prose numbers recompute from the embedded loss and base runs
+H = D["hol"]
+late = lambda p, i: max(t - b for t, b in zip(H["loss_" + p]["tokens"][str(i)], H["base_" + p]["tokens"][str(i)]))
+ok([round(late("h2", i)) for i in range(3)] == [68, 56, 43], "HTTP/2 delays are 68, 56 and 43 ms")
+ok(round(late("h3", 0)) == 66 and all(late("h3", i) < 20 for i in (1, 2)), "HTTP/3: only A late, by 66 ms")
+ok(abs(H["loss_h1"]["tokens"]["2"][4] - 1140) < 10 and all(abs(H["loss_" + p]["tokens"]["2"][4] - 400) < 10 for p in ("h2", "h3")), "HTTP/1.1 batch about 1,140 ms against about 400 ms")
+
 print("check_wire:", "ok" if not fails else "FAIL")
 for f in fails:
     print("  -", f)
