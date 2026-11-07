@@ -1,4 +1,5 @@
-// ---- Reading: static figures drawn at the measured width (hero, chains, loops, state machine, probes, latency, jitter, goodput, stream) ----
+// ---- Reading: static figures drawn at the measured width (chains, loops, probes, latency, jitter, goodput, stream) ----
+// 2026-11-07: the hero, deadline, amplification and breaker figures became the 3D stages Fig. 1, 2, 3 and 5 (34_js_sc_hero.js and the others).
 // Static diagrams have no controls. The jitter figure is a before/after toggle on one seeded input; the goodput
 // curve runs the shared engine (22_js_engine.js) at each offered load. recompute.py checks the jitter and goodput numbers.
 window.RFIG=(function(){
@@ -34,22 +35,9 @@ window.RFIG=(function(){
         el.innerHTML=S(w,y+1,b,label)}};
     draw();RD.onRender(draw);RD.onResize(draw)}
 
-  chain('rd-hero',[
-    {t:'Phone app',l:['the user gives up after ~2 s','SLIs are counted here,','as near the user as we can']},
-    {t:'Edge and load balancer',l:['rate limit per client: 429','health checks choose servers','canary: a new build gets 5%'],hl:1},
-    {t:'Our chat API',l:['bounded queue: shed early (503)','bulkhead: separate pools','deadline: 10 s per request'],hl:1},
-    {t:'Call to the model provider',l:['timeout = the deadline left','retry here only, budgeted','breaker, then fallback model'],hl:1}],
-    'Where each defence acts on one chat request: rate limits and health checks at the edge, shedding and bulkheads in the API, timeouts, retries and breakers on the provider call');
   chain('rd-chain',[
     {t:'Load balancer',l:['99.99%']},{t:'Our servers',l:['99.9%']},{t:'Database',l:['99.95%']},{t:'Cache',l:['99.9%']},{t:'Model provider',l:['99.5%']},
     {t:'Chat API',l:['at most 99.24%'],hl:1}],'A chain of five required dependencies multiplies to 99.24%, below the weakest link');
-  chain('rd-dl',[
-    {t:'Phone app',l:['deadline: now + 10 s']},{t:'Chat API',l:['7 s spent on','history and retrieval'],c:'var(--mute)'},
-    {t:'Provider call',l:['timeout = 3 s left,','not a fresh 10 s'],hl:1},{t:'Provider server',l:['sees the deadline;','skips work if expired']}],
-    'Deadline propagation: each hop gets only the time that remains');
-  chain('rd-amp',[
-    {t:'User taps send',l:['1 message']},{t:'Phone app',l:['3 tries','3 requests']},{t:'Our API',l:['3 tries each','9 provider calls']},
-    {t:'Provider gateway',l:['3 tries each','27 model calls'],hl:1,c:'var(--bad)'}],'Retries at three layers multiply: one tap becomes up to 27 model calls');
   chain('rd-waves',[
     {t:'One box',l:['one VM or container','bake at least 1 h']},{t:'First region, wave 1',l:['bake at least 12 h']},
     {t:'Larger waves',l:['more regions at once','alarms roll back']},{t:'Everyone',l:['only after every','wave baked clean'],hl:1}],
@@ -66,26 +54,10 @@ window.RFIG=(function(){
       el.innerHTML=S(w,top+2*bh+g+2,b,'The retry loop that sustains a metastable failure, and where a retry budget or a bounded queue cuts it')};
     draw();RD.onRender(draw);RD.onResize(draw)})();
 
-  // circuit breaker state machine (resilience4j defaults as the example numbers)
-  (function(){const el=document.getElementById('rd-brk');if(!el)return;
-    const draw=()=>{const w=W(el),fw=Math.min(w,580),ox=(w-fw)/2,bw=Math.min(160,fw*0.36),bh=50;let b='';
-      const C=[ox,24],O=[ox+fw-bw,24],H=[ox+fw/2-bw/2,140];
-      b+=box(C[0]+.5,C[1]+.5,bw-1,bh,0)+T(C[0]+10,C[1]+21,'Closed',{fs:12.5,w:600})+T(C[0]+10,C[1]+38,'calls go through',{fs:11});
-      b+=box(O[0]+.5,O[1]+.5,bw-1,bh,1)+T(O[0]+10,O[1]+21,'Open',{fs:12.5,w:600})+T(O[0]+10,O[1]+38,'fail fast, fallback',{fs:11});
-      b+=box(H[0]+.5,H[1]+.5,bw-1,bh,0)+T(H[0]+10,H[1]+21,'Half-open',{fs:12.5,w:600})+T(H[0]+10,H[1]+38,'a few trial calls',{fs:11});
-      b+=arrow(C[0]+bw+4,C[1]+bh/2,O[0]-4,O[1]+bh/2,'var(--bad)')+T(ox+fw/2,C[1]+bh/2-6,'failures \u2265 50%',{fs:11,a:'middle',fill:'var(--bad)'});
-      const a1=[O[0]+bw*0.5,O[1]+bh+3],a2=[H[0]+bw-8,H[1]-3];b+=arrow(a1[0],a1[1],a2[0],a2[1]);
-      b+=T(Math.min(ox+fw,(a1[0]+a2[0])/2+10),(a1[1]+a2[1])/2+4,'after 60 s',{fs:11});
-      const c1=[H[0]+8,H[1]-3],c2=[C[0]+bw*0.5,C[1]+bh+3];b+=arrow(c1[0],c1[1],c2[0],c2[1],'var(--good)');
-      b+=T(Math.max(ox,(c1[0]+c2[0])/2-10),(c1[1]+c2[1])/2+4,'10 trials pass',{fs:11,a:'end',fill:'var(--good)'});
-      b+=T(ox+fw/2,H[1]+bh+16,'a trial fails: back to Open',{fs:11,a:'middle',fill:'var(--bad)'});
-      el.innerHTML=S(w,H[1]+bh+22,b,'Circuit breaker states: closed, open after failures pass the threshold, half-open after the wait, closed again when trials pass, open again when one fails')};
-    draw();RD.onRender(draw);RD.onResize(draw)})();
-
   // probe -> action pairs
   (function(){const el=document.getElementById('rd-probe');if(!el)return;
     const R=[[['Liveness fails','3 checks in a row'],['Container restarted','(so keep it shallow)'],0],[['Readiness fails','e.g. database unreachable'],['Taken out of the load','balancer, not restarted'],0],
-      [['Every server fails','at the same moment'],['Fail open: AWS balancers','send to all servers'],1]];
+      [['Every server fails','at the same moment'],['Fail open: AWS','balancers send to all'],1]];
     const draw=()=>{const w=W(el),g=30,bw=(w-g)/2,bh=44;let b='';R.forEach((r,i)=>{const y=i*(bh+10);
       b+=box(.5,y+.5,bw-1,bh,0)+T(8,y+18,r[0][0],{fs:12,w:600})+T(8,y+34,r[0][1],{fs:11,fill:'var(--mute)'});
       b+=arrow(bw+3,y+bh/2,bw+g-3,y+bh/2)+box(bw+g+.5,y+.5,bw-1,bh,r[2])+T(bw+g+8,y+18,r[1][0],{fs:12,w:600})+T(bw+g+8,y+34,r[1][1],{fs:11})});

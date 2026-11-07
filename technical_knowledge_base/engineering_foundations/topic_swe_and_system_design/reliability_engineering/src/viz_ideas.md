@@ -43,3 +43,7 @@ Scores: teaching value (T), uses real data (R), not already on the root or a sib
 
 ## What the methodology lacked
 A rule for local measurements whose outcome depends on overhead (asyncio scheduling) that the model omits: here the gap was closed with one calibrated input, stated on the page.
+
+## 2026-11-07 rollout
+- Built as 3D stages: hero call chain, deadline columns, retry amplification, the measured storm as a bar field, breaker states, bulkheads (new engine presets).
+- Kept 2D: curves, histograms, tables, the before/after time series, burn-rate card. Rejected: a 3D rate-limiter (a timeline reads flat), a 3D SLO budget surface (one axis is enough).

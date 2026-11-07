@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'; import path from 'node:path'; impor
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const here = path.dirname(new URL(import.meta.url).pathname), out = process.argv[2]; fs.mkdirSync(out, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
-const ids = ['rd-hero','rd-chain','rd-loop','rd-lat','rd-dl','rd-amp','rd-jit-card','rd-brk','rd-gp','rd-probe','rd-waves','slo-card','rd-stream','rd-ms-card','rd-ba-card','rd-rl-card'];
+const ids = ['rd-chain','rd-loop','rd-lat','rd-jit-card','rd-gp','rd-probe','rd-waves','slo-card','rd-stream','rd-ms-card','rd-ba-card','rd-rl-card'];
 for (const [s, w] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); await p.setViewport({ width: w, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: s }]);
   await p.goto('file://' + path.resolve(here, '..', 'index.html')); await new Promise(r => setTimeout(r, 400));

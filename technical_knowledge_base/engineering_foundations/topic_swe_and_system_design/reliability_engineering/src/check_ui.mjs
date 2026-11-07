@@ -1,4 +1,4 @@
-// Clicks every control on every tab (and checks that nothing in Reading moves before the reader acts) at 390 dark and 920 light; reports errors, NaN/undefined text, sideways scroll; screenshots each visual.
+// Clicks every control on every tab at 390 dark and 920 light; reports errors, NaN/undefined text, sideways scroll; screenshots each visual.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/reliability_engineering/src/check_ui.mjs <shots dir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -22,8 +22,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.goto('file://' + file);
   await sleep(300);
   await p.click('button[data-t=t-read]'); await sleep(200);
-  await p.evaluate(() => document.getElementById('rd-ba-card').scrollIntoView()); await sleep(3200);
-  if (await p.$eval('#rd-ba-ctl-s', e => e.value) !== '0') { problems++; console.log(scheme, width, 'before/after animation moved without the reader') }
+  // (2026-11-07: the old "the before/after animation does not move by itself" assertion was removed; check_stages.mjs checks it plays in view and never moves under reduced motion)
   const bad = async label => {
     const r = await p.evaluate(() => {
       const t = document.body.innerText; const m = t.match(/.{0,40}(NaN|undefined|Infinity).{0,40}/);
@@ -45,7 +44,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const n = await p.$eval('#rd-ba-ctl input[type=range]', x => +x.max + 1);
     for (let i = 0; i < n; i++) { await p.evaluate(() => document.getElementById('rd-ba-ctl-f').click()); await bad('ba ' + m + i) }
     await p.evaluate(() => { document.getElementById('rd-ba-ctl-b').click(); document.getElementById('rd-ba-ctl-p').click(); document.getElementById('rd-ba-ctl-p').click(); const s = document.getElementById('rd-ba-ctl-v'); s.value = '2'; s.dispatchEvent(new Event('change')) });
-    for (const step of [5, 14]) { await p.evaluate(v => { const s = document.getElementById('rd-ba-ctl-s'); s.value = v; s.dispatchEvent(new Event('input')) }, step); await shot('#rd-ba-card', `ba-${m}-${step}`) }
+    for (const step of [2, 4]) { await p.evaluate(v => { const s = document.getElementById('rd-ba-ctl-s'); s.value = v; s.dispatchEvent(new Event('input')) }, step); await shot('#rd-ba-card', `ba-${m}-${step}`) }
   }
   await shot('#rd-rl-card', 'rl');
   await shot('#rd-nines', 'nines'); await shot('#rd-burn', 'burn'); await shot('#rd-ms-tab', 'mstab');

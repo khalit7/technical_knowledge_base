@@ -17,6 +17,9 @@ PRESETS = {
     'm_shed': {'back': 'none', 'dmaxQ': 8, 'Ld': 28, 'Ls': 103},
     'before': dict(rate=100, pA=0.5, W=20, own=5, Tu=2000, Kd=1000, Ld=25, Ls=3000, Td=0, att=1, back='none', brk=0, fb=0, maxQ=0),
     'after': dict(rate=100, pA=0.5, W=20, own=5, Tu=2000, Kd=1000, Ld=25, Ls=3000, Td=100, att=1, back='none', brk=1, brkN=20, brkF=50, brkOpen=2000, brkHalf=5, fb=1, maxQ=40),
+    # Fig. 6 (bulkheads, 2026-11-07): the before design's 20 workers as two pools of 10, each run on its own at 50 requests a second
+    'bulk_msg': dict(rate=50, pA=1, W=10, own=5, Tu=2000, Kd=1000, Ld=25, Ls=3000, Td=0, att=1, back='none', brk=0, fb=0, maxQ=0),
+    'bulk_hist': dict(rate=50, pA=0, W=10, own=5, Tu=2000, Kd=1000, Ld=25, Ls=3000, Td=0, att=1, back='none', brk=0, fb=0, maxQ=0, seed=2),
 }
 out = {'presets': PRESETS, 'engine': {}, 'random': []}
 for k, c in PRESETS.items():

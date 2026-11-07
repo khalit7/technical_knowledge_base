@@ -4,11 +4,17 @@
 <p><b>The reliability rule:</b> no automatic retry of a non-idempotent call without a key, and read what your client libraries retry: Jepsen found the etcd Java client "jetcd incorrectly retries non-idempotent requests which may have actually succeeded" ({{Kingsbury, Jepsen, 2024-08-08|https://jepsen.io/analyses/jetcd-0.8.2}}). An LLM call is idempotent in effect (you pay twice) unless it has side effects such as tool calls that send email; those need keys at the tool.</p>
 </section>
 
-<section id="s-cb">
+<div class="s3sp"><div class="s3R"><div id="stg-brk"></div></div><div class="s3L"><section id="s-cb">
 <h2>7. Circuit breakers: stop calling what is broken</h2>
 <p>Timeouts bound how long each call to a sick dependency wastes; a <dfn id="d-breaker">circuit breaker</dfn> stops making the calls: "Once the failures reach a certain threshold, the circuit breaker trips, and all further calls to the circuit breaker return with an error, without the protected call being made at all" ({{Fowler, 2014|https://martinfowler.com/bliki/CircuitBreaker.html}}, crediting Michael Nygard's <i>Release It!</i>).</p>
-<div class="fig"><div class="ft">Three states; the numbers are resilience4j's defaults</div><div class="rd-svg" id="rd-brk"></div>
-<p class="cap">Closed counts outcomes in a sliding window; Open fails at once (or answers with the fallback) for a wait period; Half-open lets a few trial calls through. What it buys: no full timeout per call, workers freed at once, breathing room for the dependency, and the fallback runs immediately.</p></div>
+<p>Fig. 5 runs the after design of section 8's before and after (a 100 ms timeout, a breaker that opens at 50% failures over the last 20 calls, waits 2 s and tries 5 calls, a smaller fallback model) through the same 3 s provider slowdown, in the page's simulation engine.</p>
+<ol class="sx" id="sx-brk">
+<li><b>Closed: calls go through.</b> The breaker counts outcomes in a sliding window: here the last 20 calls (resilience4j's default: at least 50% of the last 100 calls). Before the slowdown every call succeeds in 25 ms.</li>
+<li><b>Failures fill the window.</b> At second 10 the provider takes 3 s per call, so each call fails at its 100 ms timeout. Once at least half of the last 20 calls failed, the breaker trips.</li>
+<li><b>Open: fail fast.</b> For a wait period (2 s here; 60 s by default in resilience4j) every call returns at once, answered by the fallback, without calling the provider. What it buys: no full timeout per call, workers freed at once, breathing room for the dependency, and the fallback runs immediately. In this run the breaker refused 315 calls, and 336 requests in all were answered by the fallback.</li>
+<li><b>Half-open: a few trial calls.</b> After the wait, 5 trial calls go through (resilience4j: 10). While the provider is still slow they fail and the breaker opens again; a trial that fails sends it back to Open. It was open for 6.0 s in all, flickering through half-open every 2 s.</li>
+<li><b>Closed again.</b> Once the provider recovers at second 15, the trials pass and the breaker closes; full answers return. Not one request failed in the whole run, against 403 without the defences (Fig. 1).</li>
+</ol>
 <div class="corr"><div class="t">Envoy's "circuit breakers" are not Fowler's</div>Envoy's are "fully distributed (not coordinated)" concurrency caps per upstream cluster: by default 1,024 connections, 1,024 pending requests, 1,024 parallel requests and 3 parallel retries ({{Envoy docs|https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking}}). That is a <a href="#s-shed">bulkhead</a>. Envoy's closest thing to a breaker is <dfn id="d-outlier">outlier detection</dfn>, which ejects one bad host: after 5 consecutive 5xx, checked every 10 s, ejected for 30 s times the number of ejections, never more than 10% of the cluster at once ({{outlier detection API|https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/cluster/v3/outlier_detection.proto}}). The 10% cap stops a bad health signal from ejecting everything.</div>
 <p><b>Costs and when not to.</b> A breaker rejects calls that might have worked and adds a mode that appears only during failures; Brooker argues breakers "introduce modal behavior into systems that can be difficult to test" and prefers the retry token bucket. Do not put one breaker in front of many independent hosts or tenants (one bad shard opens it for all; use outlier detection or a breaker per host), nor on low-traffic calls where 5 failures are noise; and decide what Open returns, or an open breaker is just a faster outage.</p>
 <details class="dp"><summary>Breaker defaults by library, and Hystrix's history</summary><div class="b">
@@ -22,14 +28,23 @@
 </tbody></table></div>
 <p>Hystrix's README: "Hystrix is no longer in active development, and is currently in maintenance mode"; Netflix would use "open and active projects like resilience4j for new internal projects", and its "focus has shifted towards more adaptive implementations that react to an application's real time performance rather than pre-configured settings" ({{README, 2018-11-19|https://raw.githubusercontent.com/Netflix/Hystrix/master/README.md}}). Today the same protection often lives in a proxy such as Envoy, configured once for every service.</p>
 </div></details>
-</section>
+</section></div></div>
 
-<section id="s-shed">
+<div class="s3sp"><div class="s3R"><div id="stg-bulk"></div></div><div class="s3L"><section id="s-shed">
 <h2>8. Overload: bulkheads, load shedding, degradation</h2>
 <p>A <dfn id="d-bulkhead">bulkhead</dfn> splits capacity into pools so one consumer cannot take it all: "Isolate the elements of an application into pools so that if one element fails, the others continue to function" ({{Azure Architecture Center|https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead}}). For our chat API: model-provider calls get at most 30 of the 50 workers and their own connection pool, so a provider stall leaves 20 for login, history and billing. At larger scale it is cell isolation (the root's Case files: Shopify's "pods", so one shop's bad day stays theirs), one way to shrink blast radius. The cost is idle capacity; the mistake is pools too small for normal peaks.</p>
+<ol class="sx" id="sx-bulk">
+<li><b>One shared pool.</b> The 20 workers of the before design (end of this section) serve both kinds of request: 50 a second send a message and call the provider, 50 load history (5 ms of our own work).</li>
+<li><b>The provider slows; everything fails.</b> At 3 s per call, message requests take all 20 of 20 workers; history loads queue behind them, and 175 of them fail although they never touch the provider.</li>
+<li><b>Two pools.</b> Split the same 20 workers: 10 only for requests that call the provider, 10 for everything else (the engine run once per pool, 50 requests a second each).</li>
+<li><b>The same slowdown, contained.</b> The provider pool fills (10 of 10) and 242 message requests fail; the other pool never notices: 0 of 2,053 history loads fail.</li>
+<li><b>What it costs, and what it does not fix.</b> History needs about a quarter of one worker (50 a second &times; 5 ms), so its pool sits mostly idle; that idle capacity is the price. The provider pool still fails its own requests: bounding the wait (timeout, breaker, fallback; Fig. 5) is what saves those.</li>
+</ol>
+</section></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-shed2">
+<h3>Load shedding and goodput</h3>
 <p>When more work arrives than a service can finish, a queue that grows without limit turns overload into latency, then timeouts, then (with retries) a metastable failure. <dfn id="d-shed">Load shedding</dfn> rejects the excess early and cheaply so accepted work still succeeds. The quantity to protect is <dfn id="d-goodput">goodput</dfn>: "the subset of the throughput that is handled without errors and with low enough latency for the client to make use of the response" ({{Yanacek, Builders' Library|https://builder.aws.com/content/3Eun1EEyX6p2e3VYNyRLSJzLuMV/using-load-shedding-to-avoid-overload}}).</p>
-<div class="fig"><div class="ft">Past capacity, an unbounded queue's goodput collapses; a bounded one holds</div><div class="rd-svg" id="rd-gp"></div>
-<p class="cap">The measured experiment's service (4 slots of 28 ms, so 143 calls a second; 100 ms client timeout; no retries, no slowdown), run by the Resilience lab engine at each load. At 200 a second: <b id="rd-gp-n">0.7 against 143.1</b> good answers a second. Yanacek: "If load shedding is working, goodput will remain steady even as offered throughput increases well beyond the scaled capabilities of the service".</p></div>
 <ul>
 <li><b>Bound every queue:</b> "it is usually better to have small queue lengths relative to the thread pool size (e.g., 50% or less)" (SRE book, ch. 22). In the measured storm a queue of 8 was the fix.</li>
 <li><b>Reject cheaply and drop expired work:</b> reject before parsing the body or calling anything (even <code>iptables</code> limits "can reject excess connections far more cheaply than any server process"); if the deadline has passed, "it can skip doing the rest of the work" (Yanacek).</li>
@@ -38,18 +53,41 @@
 <li><b>Adapt the limit</b> to measured latency instead of fixing it (details below).</li>
 </ul>
 <details class="dp"><summary>Adaptive concurrency limits and client-side throttling <span class="mute">(Netflix, Google)</span></summary><div class="b"><p>Netflix's concurrency-limits treats it like a TCP congestion window with Little's law, "Limit = Average RPS * Average Latency" ({{README|https://raw.githubusercontent.com/Netflix/concurrency-limits/master/README.md}}), shrinking it as latency rises above the no-load latency ({{Netflix, 2018, archived|https://web.archive.org/web/2019id_/https://medium.com/@NetflixTechBlog/performance-under-load-3e6fa9a60581}}). Google's clients throttle themselves, rejecting locally with probability max(0, (requests &minus; K &times; accepts) / (requests + 1)), K = 2 (ch. 21).</p></div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card fig"><div class="ft">Past capacity, an unbounded queue's goodput collapses; a bounded one holds</div><div class="rd-svg" id="rd-gp"></div>
+<p class="cap">The measured experiment's service (4 slots of 28 ms, so 143 calls a second; 100 ms client timeout; no retries, no slowdown), run by the Resilience lab engine at each load. At 200 a second: <b id="rd-gp-n">0.7 against 143.1</b> good answers a second. Yanacek: "If load shedding is working, goodput will remain steady even as offered throughput increases well beyond the scaled capabilities of the service".</p></div></div></div></div>
+
+<section id="s-degr">
+<h3>Graceful degradation</h3>
 <p><dfn id="d-degrade">Graceful degradation</dfn> goes further: serve "responses that are not as accurate as or that contain less data than normal responses, but that are easier to compute" (ch. 21). A <dfn id="d-brownout">brownout</dfn> switches optional features off under load (Amazon's load-shedding essay uses the word for the overload state itself). Decide the ladder in advance:</p>
 <div class="flow"><div><b>Full</b>Large model, retrieval, tools</div><i>&rarr;</i><div><b>Lighter</b>Smaller or other provider's model</div><i>&rarr;</i><div><b>Leaner</b>No retrieval, shorter context</div><i>&rarr;</i><div><b>Cached</b>Common questions</div><i>&rarr;</i><div><b>Honest error</b>"Busy, try in a minute", fast</div></div>
 <p>Each rung needs a switch an operator can flip in seconds (an ops toggle or <dfn id="d-kill">kill switch</dfn>, {{Fowler and Hodgson, Feature Toggles|https://martinfowler.com/articles/feature-toggles.html}}) and a test: code that only runs in emergencies is the least tested you own, so run "a small subset of servers near overload in order to exercise this code path" (SRE book). Do not degrade where a wrong answer is worse than none (a payment, a dosage).</p>
-<h3>Before and after: one slowdown, two designs</h3>
-<p>Same event through two versions of our chat API: half the requests need the provider (send a message), half do not (load history); 20 worker slots; users give up after 2 s; at second 10 the provider takes 3 s per call instead of 25 ms, for 5 seconds. <b>Before:</b> no timeout on the provider call, no breaker, unbounded queue. <b>After:</b> 100 ms timeout, a breaker (opens at 50% failures over the last 20 calls, waits 2 s, tries 5 calls), a fallback answer (a smaller model) and a queue bounded at 40. Watch the worker strip: in Before, history loads fail although they never touch the provider.</p>
-<div class="card" id="rd-ba-card">
+</section>
+
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-ba-card">
 <div class="seg" id="rd-ba-seg"><button data-m="before" class="on">Before: no protection</button><button data-m="after">After: timeout + breaker + shedding</button></div>
 <div class="chart" id="rd-ba-svg"></div>
 <div class="leg" id="rd-ba-leg"></div>
-<div class="an-cap" id="rd-ba-cap" aria-live="polite"></div>
 <div class="an-cnt" id="rd-ba-cnt"></div>
 <div class="an-ctl" id="rd-ba-ctl"></div>
 <p class="small mute">Same deterministic engine as the {{Resilience lab|#t-lab}}, which lets you change every one of these settings.</p>
-</div>
-</section>
+</div></div><div class="s3L"><section id="s-ba">
+<h3>Before and after: one slowdown, two designs</h3>
+<p>Same event through two versions of our chat API: half the requests need the provider (send a message), half do not (load history); 20 worker slots; users give up after 2 s; at second 10 the provider takes 3 s per call instead of 25 ms, for 5 seconds. <b>Before:</b> no timeout on the provider call, no breaker, unbounded queue. <b>After:</b> 100 ms timeout, a breaker (opens at 50% failures over the last 20 calls, waits 2 s, tries 5 calls), a fallback answer (a smaller model) and a queue bounded at 40. Watch the worker strip: in Before, history loads fail although they never touch the provider. Each step plays a stretch of seconds.</p>
+<ol class="sx" id="sx-ba-before">
+<li><b>Seconds 7 to 9: normal traffic.</b> 100 requests a second: half send a message (need the provider, 25 ms), half load history (5 ms of our own work). 20 workers are plenty; nothing waits.</li>
+<li><b>Second 10: the provider slows to 3 s per call.</b> With no timeout, each message request holds a worker for 3 s. At 50 such requests a second, all 20 workers are stuck within half a second.</li>
+<li><b>Seconds 11 to 14: the cascade.</b> Every worker waits on the provider, so history loads, which never needed it, queue behind them too. The queue grows by about 100 a second and everyone waits past 2 s.</li>
+<li><b>Second 15: the provider recovers.</b> Calls started before second 15 still take 3 s, and the queue holds hundreds of requests whose users already gave up; we still process them.</li>
+<li><b>Seconds 16 to 21: draining.</b> The backlog is worked off, mostly for users who left; then service is normal again.</li>
+<li><b>Totals.</b> Before: 89.8% of all requests answered in time; 403 failed, 175 of them history loads that never needed the provider. Switch to After to run the same slowdown with the defences on.</li>
+</ol>
+<ol class="sx" id="sx-ba-after" hidden>
+<li><b>Seconds 7 to 9: normal traffic.</b> The same 100 requests a second; nothing waits.</li>
+<li><b>Second 10: timeouts, then the breaker.</b> Calls now hit the 100 ms timeout. After 20 calls with at least half failing, the breaker opens and message requests get the fallback model at once.</li>
+<li><b>Seconds 11 to 14: contained.</b> Workers are free: history loads are untouched, message requests get the fallback model. Every 2 s the breaker lets 5 trial calls through; they time out, so it opens again. The queue never forms.</li>
+<li><b>Second 15: the provider recovers.</b> The next half-open trial succeeds and the breaker closes; full answers return.</li>
+<li><b>Seconds 16 to 21: normal.</b> Nothing to drain: nothing piled up.</li>
+<li><b>Totals.</b> After: 100% of all requests answered in time (91.5% with the full model); 0 failed. Compare with Before: the same slowdown, no user saw an error.</li>
+</ol>
+</section></div></div>

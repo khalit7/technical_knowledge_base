@@ -26,12 +26,24 @@
 <a href="#s-top">The idea</a><a href="#s-mean">Reliable means</a><a href="#s-fail">How things fail</a><a href="#s-to">Timeouts</a><a href="#s-re">Retries</a><a href="#s-meas">A storm, measured</a><a href="#s-idem">Idempotency</a><a href="#s-cb">Breakers</a><a href="#s-shed">Overload</a><a href="#s-rl">Rate limits</a><a href="#s-hc">Health checks</a><a href="#s-dep">Deploys</a><a href="#s-slo">SLOs</a><a href="#s-inc">Incidents</a><a href="#s-llm">LLM calls</a><a href="#s-chaos">Chaos tests</a><a href="#s-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A service survives dependencies that are slow, overloaded or down when it <span class="hl">bounds every wait</span> (timeouts, deadlines), <span class="hl">caps the extra work failures create</span> (one retry layer with a budget) and <span class="hl">refuses or cheapens work it cannot finish</span> (shedding, breakers, fallbacks); an SLO then says how much failure is allowed, and the rest is spent on shipping.</p>
-<div class="fig"><div class="ft">Where each defence acts on one chat request</div><div class="rd-svg" id="rd-hero"></div>
-<p class="cap">Running example, from the parent topic: a phone app sends a message to <b>our chat API</b>, which saves it and calls a <b>model provider</b> (another company's service). At the parent root's 10 million messages a day, "rarely" means "every few minutes". Every highlighted box either bounds a wait, caps added load, or removes work.</p></div>
+<p>Running example, from the parent topic: a phone app sends a message to <b>our chat API</b>, which saves it and calls a <b>model provider</b> (another company's service). At the parent root's 10 million messages a day, "rarely" means "every few minutes". Fig. 1 runs one provider slowdown through the page's simulation engine (the one the {{Resilience lab|#t-lab}} uses), without and with the defences; the layout is a schematic.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Normal traffic.</b> 100 requests a second reach our chat API's 20 workers: half send a message and call the provider (25 ms), half load history (5 ms of our own work). At most 6 workers wait on the provider at any moment.</li>
+<li><b>The provider slows to 3 s per call.</b> Nothing errors. Each message request now holds its worker 120 times longer (3 s against 25 ms), and within the second all 20 of 20 workers are waiting on the provider.</li>
+<li><b>The cascade.</b> New requests queue behind the stuck workers (458 waiting at the worst moment) and users give up after 2 s. History loads, which never touch the provider, fail with the rest: 403 requests failed, 175 of them history loads.</li>
+<li><b>Bound every wait.</b> A 100 ms timeout on the provider call frees each worker after 100 ms instead of 3 s, and a deadline passed down every hop stops work nobody is waiting for (section 3).</li>
+<li><b>Cap the extra work.</b> A retry turns one failure into more calls, at every layer that retries. In the measured storm of section 5, retrying at once sent 2.5 attempts per request and never recovered; a retry budget held it to 1.0.</li>
+<li><b>Refuse or cheapen what cannot be finished.</b> After 20 calls with at least half failing, a circuit breaker opens and message requests get a smaller fallback model at once; a queue bounded at 40 sheds the rest. Same slowdown: 0 requests failed, 336 answered by the fallback.</li>
+<li><b>Where each defence acts.</b> At the edge and load balancer: a rate limit per client (429), health checks that choose servers, a canary that gives a new build 5%. In our chat API: a bounded queue that sheds early (503), bulkheads (separate pools), a 10 s deadline per request. On the provider call: timeout = the deadline left, retries here only and budgeted, a breaker, then the fallback model. SLIs are counted at the phone app, as near the user as we can.</li>
+</ol>
 <p><b>The rule under every section:</b> each defence adds load or removes work. Retries add load; shedding, breakers and deadlines remove it. A system in trouble recovers only when the work removed beats the work added, which is why <a href="#s-meas">the measured retry storm</a> never recovered with backoff and jitter alone and recovered at once with a retry budget or a bounded queue. And slow is worse than down: a dependency that is down fails fast, one that is slow quietly holds your workers until you fall over too.</p>
+</section>
+</div></div>
+<div class="rd-need">
 <p class="small"><b>You need:</b> nothing beyond HTTP status codes. The parent {{Topic: swe-and-system-design|n:3c65c17b0d0d81048ae0dd14ac399b4d}} (its Step 4) is the five-minute version of this page. <b>Elsewhere:</b> measuring (metrics, traces, alert rules) is {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}'s; how many servers is {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}'s; end-to-end idempotency is {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}} section 9; rate limits as an API surface (headers, quotas) are {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}'; an LLM gateway's retries, cooldowns and fallbacks are {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}'.</p>
 <dl class="terms">
 <dt>SLI, SLO, error budget</dt><dd>the measure (good events / all events), the target for it, and 100% minus the target: the failures you may spend</dd>
@@ -42,22 +54,23 @@
 <dt>Metastable failure</dt><dd>a bad state that persists after its trigger is gone, kept alive by a sustaining effect (usually retries)</dd>
 <dt>Blast radius</dt><dd>how much of the product one failure or one change can hurt; canaries, waves, cells and bulkheads shrink it</dd>
 </dl>
-</section>
+</div>
 
-<section id="s-mean">
+<div class="s3sp"><div class="s3L"><section id="s-mean">
 <h2>1. What "reliable" means, and what each nine costs</h2>
 <p>Three promises that break separately: <dfn id="d-avail">availability</dfn> (it answers; for a service spread over many machines Google measures it by requests, "availability in terms of the request success rate", {{SRE book, ch. 3|https://sre.google/sre-book/embracing-risk/}}), <dfn id="d-durab">durability</dfn> (saved data stays saved: Amazon S3 is "designed to provide 99.999999999% (11 nines) data durability" but "99.99% availability", {{S3 FAQ|https://aws.amazon.com/s3/faqs/}}) and <dfn id="d-correct">correctness</dfn> (the answer is right: a model can return 200 OK with a worse answer, as in Anthropic's 2025 account of three serving bugs that no error counter saw, in the root's {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}}; LLM quality is measured with evaluations, {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</p>
-<div class="tw"><table id="rd-nines"></table></div>
-<p class="small mute">Allowed downtime = (1 &minus; target) &times; period; the SRE book's {{availability table|https://sre.google/sre-book/availability-table/}} gives the same values with a 30-day month.</p>
 <p>100% is impossible, and each row is ten times less downtime while the cost grows faster: "an incremental improvement in reliability may cost 100x more than the previous increment" (SRE book, ch. 3). Its worked example: moving a service with $1M of revenue from 99.9% to 99.99% is worth at most $900 ($1M &times; 0.09%). Past a point users cannot tell, because their phone network fails more often.</p>
-<div class="fig"><div class="ft">Required dependencies multiply: the chain is weaker than its weakest link</div><div class="rd-svg" id="rd-chain"></div>
-<p class="cap">The parent's example figures; product <b id="rd-chain-v">99.24%</b>. The parent's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab has a calculator for chains like this.</p></div>
 <p>Treynor and colleagues: "A service cannot be more available than the intersection of all its critical dependencies", so critical dependencies "must offer one additional 9 relative to your service", the "rule of the extra 9" ({{ACM Queue 2017, archived|https://web.archive.org/web/20231218074029/https://queue.acm.org/detail.cfm?id=3096459}}). The ways out are to need fewer things (an optional dependency with a fallback) or to have copies (two providers, three replicas). Their second rule: availability is bounded by incident frequency times detection and recovery time. Three 20-minute outages a year are 60 minutes, already more than the 52.56 minutes that 99.99% allows: past three nines, reliability is mostly how fast you notice and undo a problem.</p>
 <details class="dp"><summary>What the big LLM services showed <span class="mute">(dated reading, 2026-10-04)</span></summary><div class="b">
 <p>90-day uptime on their own status pages: OpenAI APIs 99.96%, ChatGPT 99.65% ({{status.openai.com|https://status.openai.com/}}); Claude API 99.52%, claude.ai 99.44% ({{status.claude.com|https://status.claude.com/}}). Each company's own aggregate definition, not comparable SLOs, but LLM products live around two to three nines.</p></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card fig"><div class="ft">Each nine is ten times less downtime</div><div class="tw"><table id="rd-nines"></table></div>
+<p class="small mute">Allowed downtime = (1 &minus; target) &times; period; the SRE book's {{availability table|https://sre.google/sre-book/availability-table/}} gives the same values with a 30-day month.</p></div>
+<div class="card fig"><div class="ft">Required dependencies multiply: the chain is weaker than its weakest link</div><div class="rd-svg" id="rd-chain"></div>
+<p class="cap">The parent's example figures; product <b id="rd-chain-v">99.24%</b>. The parent's {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}} tab has a calculator for chains like this.</p></div>
+</div></div></div>
 
-<section id="s-fail">
+<div class="s3sp"><div class="s3L"><section id="s-fail">
 <h2>2. How things fail</h2>
 <div class="two">
 <div><h4>Crash (fail-stop)</h4><p class="small">The process dies; connections are refused at once. Easy to detect and route around.</p></div>
@@ -67,7 +80,7 @@
 </div>
 <h3>Metastable failure: broken after the cause is gone</h3>
 <p>Bronson and colleagues: "Metastable failures occur in open systems with an uncontrolled source of load where a trigger causes the system to enter a bad state that persists even when the trigger is removed" ({{HotOS 2021|https://sigops.org/s/conferences/hotos/2021/papers/hotos21-s11-bronson.pdf}}). An <dfn id="d-open">open system</dfn> keeps receiving new work whatever it does (users keep sending messages). A system runs <b>stable</b>, then <b>vulnerable</b> (above a hidden load threshold, still healthy and efficient), until a <dfn id="d-trigger">trigger</dfn> tips it over and a <dfn id="d-sustain">sustaining effect</dfn> keeps it there.</p>
-<div class="fig"><div class="ft">The loop that kept the measured service down after a 5-second trigger</div><div class="rd-svg" id="rd-loop"></div>
-<p class="cap">Numbers from <a href="#s-meas">the measured run</a> (4 slots of 25 ms, so 160 calls a second). The two green lines are the cuts that ended it there.</p></div>
 <p>"One of the most common failure-sustaining mechanisms is request retries" (same paper). A study of 22 metastable failures at 11 organisations found retry policy "by far, the most common sustaining effect ... affecting more than 50% of the studied incidents", and at least 4 of 15 major AWS outages in a decade were metastable ({{Huang et al., OSDI 2022|https://www.usenix.org/system/files/osdi22-huang-lexiang.pdf}}). Bronson's lesson for postmortems: outages are "initially blamed on the trigger, but the true root cause is the sustaining effect." The root's Case files hold real ones: AWS's October 2025 EC2 outage (a queue that never drained), Google Cloud's June 2025 restart stampede, Roblox's 73-hour outage.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card fig"><div class="ft">The loop that kept the measured service down after a 5-second trigger</div><div class="rd-svg" id="rd-loop"></div>
+<p class="cap">Numbers from <a href="#s-meas">the measured run</a> (4 slots of 25 ms, so 160 calls a second). The two green lines are the cuts that ended it there.</p></div></div></div></div>

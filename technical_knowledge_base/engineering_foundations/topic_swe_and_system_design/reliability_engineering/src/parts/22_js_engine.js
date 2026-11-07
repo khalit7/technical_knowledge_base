@@ -121,7 +121,10 @@ window.RE=(function(){
     m_shed:{back:'none',dmaxQ:8,Ld:28,Ls:103},
     // Reading animation: our chat API (20 workers) calls a model provider that hangs for 5 s
     before:{rate:100,pA:0.5,W:20,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:0,att:1,back:'none',brk:0,fb:0,maxQ:0},
-    after:{rate:100,pA:0.5,W:20,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:100,att:1,back:'none',brk:1,brkN:20,brkF:50,brkOpen:2000,brkHalf:5,fb:1,maxQ:40}
+    after:{rate:100,pA:0.5,W:20,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:100,att:1,back:'none',brk:1,brkN:20,brkF:50,brkOpen:2000,brkHalf:5,fb:1,maxQ:40},
+    // Fig. 6 (bulkheads): the before design's 20 workers split into two pools of 10, each pool run on its own at 50 requests a second
+    bulk_msg:{rate:50,pA:1,W:10,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:0,att:1,back:'none',brk:0,fb:0,maxQ:0},
+    bulk_hist:{rate:50,pA:0,W:10,own:5,Tu:2000,Kd:1000,Ld:25,Ls:3000,Td:0,att:1,back:'none',brk:0,fb:0,maxQ:0,seed:2}
   };
   return {sim:sim,lcg:lcg,DEF:DEF,P:P};
 })();
