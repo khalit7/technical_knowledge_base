@@ -23,3 +23,17 @@ Methodology notes: every number is measured on this machine (three runs, spread 
 - Latency ladder, Cache simulator and SIMD lanes moved from their own tabs into the Reading beside the claims they prove (sections 1, 2 and 3, 6). The cache simulator is now two instances (`cb-cm-` rows against columns in section 2, `cb-cs-` AoS against SoA in section 3) instead of one with a task switch.
 - Roofline tab dropped: the hardware root's Roofline lab plots the same measured CPU roofs (and the GPU and datacenter chips), and Performance math owns the decode sweep. The roof table stays inline.
 - The SIMD tab's duplicate "measured, all four ways" table dropped (the Reading's dot-product table holds the same numbers).
+
+## Split layout and 3D stages (2026-11-07, the 2026-11-06 rollout)
+| Visual | Decision |
+|---|---|
+| Cache ladder as stacked plates (registers, L1, L2, SLC, DRAM), a 128-byte line rising on a miss, the pointer chase hopping across DRAM, the prefetcher streaming neighbours | built, 3D (`45_js_sc_mem.js`, section 1); sizes from `sysctl`, latencies from `ladder.cpp` run 1 |
+| Latency against working-set size | kept 2D (log axes read best flat); its 37-size climb regrouped into six explained stretches |
+| Cache model, rows against columns | kept 2D (a grid of lines reads best flat); 512 accesses per order regrouped into seven explained stretches on one sequence (rows, then columns), no mode switch |
+| AoS against SoA: the same 32 records rearranged from 8 lines of 4 records into 8 one-field arrays, lines flowing to the core | built, 3D (`46_js_sc_aos.js`, section 3), replaces the 64-access AoS/SoA simulator; measured bars from `aos.v` |
+| SIMD: instructions as boxes in lanes against cycles in depth, scalar, -O2 and NEON side by side | built, 3D (`47_js_sc_simd.js`, section 6), replaces the 2D lanes stepper (16, 17 and 5 steps in three modes) |
+| Store-buffer message passing, relaxed against release/acquire (old idea 10) | built, 3D (`48_js_sc_mo.js`, section 8), labelled illustrative; the counts are measured |
+| False sharing, a line moving between four cores' L1s (old idea 8) | built, 3D (`49_js_sc_fs.js`, section 8): with the stage the 8/64/128-byte timings now have a picture of why |
+| Hero (one operation's time, log scale) | kept 2D (bars on a log axis), moved into a split beside "You need" |
+| Branch predictor state machine (old idea 9) | still rejected: Apple's predictor is undocumented |
+| Roofline chart | still left to its owners (hardware root's Roofline lab, Performance math) |

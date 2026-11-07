@@ -69,8 +69,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/cpp/classes_templates_and_the_standard_library` C++: classes, templates and the standard library
 - [x] `engineering_foundations/topic_programming_languages/cpp/ownership_moves_and_lifetimes` C++: ownership, moves and object lifetimes
 - [x] `engineering_foundations/topic_programming_languages/cpp/reading_llama_cpp` C++: reading llama.cpp, one token through the code
-- [~] `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath` C++: the machine underneath: caches, layout, SIMD and the memory model
-- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams` JavaScript: the event loop, promises and streams
+- [x] `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath` C++: the machine underneath: caches, layout, SIMD and the memory model
+- [~] `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams` JavaScript: the event loop, promises and streams
 - [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents` TypeScript: LLM apps and agents
 - [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers` JavaScript: values, objects, functions and modules for Python programmers
 - [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript` TypeScript: the type system, narrowing and runtime validation
@@ -362,3 +362,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/cpp/ownership_moves_and_lifetimes`: section 2 says a vector holds "a pointer, the size, the capacity" while section 5 says a move "copies three pointers" (libc++ stores begin, end, end-of-capacity pointers): reconcile with a cited source.
 - `engineering_foundations/topic_operating_systems`: hero small at 390; tracer animation cards not sticky on phones; crash-consistency widget opens on crash point 1. Trace explorer (Syscall tracer section 2) stays full width as a dataset view.
 - `engineering_foundations/topic_programming_languages/cpp/reading_llama_cpp`: printed graph shows cache_k_l0 as {192, 8192} while the page says 256 cells (5.62 MiB matches 256): resolve; graph and quant stages have empty space at some steps on phones; unused caption fields left in 52_js_cl_tour.js.
+- `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath`: stg-mem and stg-fs full views leave empty space at 1400; SIMD stage crops inactive bands on phones.

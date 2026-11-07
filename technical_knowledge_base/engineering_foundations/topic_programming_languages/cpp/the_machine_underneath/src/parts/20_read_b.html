@@ -1,8 +1,7 @@
 <section id="cb-top">
 <div class="core"><b class="k">The idea in one sentence</b>Once a loop compiles to a handful of machine instructions, <span class="hot">memory, not arithmetic, sets its speed</span>: where the data sits in the cache ladder, how it is laid out in cache lines and whether the compiler could turn it into independent SIMD work decide whether the same loop runs 50 times faster or slower.</div>
-<div class="fig" id="cb-hero"><h4>One load from DRAM costs as much time as 13,000 floating-point operations</h4>
-<div class="rd-svg" id="cb-hero-svg"></div>
-<p class="cap">Time for one operation, log scale, all on this M1 Pro. A load from L1 (about 1 ns) is as cheap as one fused multiply-add; a load whose address the hardware cannot predict, from a 512 MB buffer, takes about 133 ns; in that time one core running at its measured peak of 97.5 GFLOP/s could have done 97.5 x 133 = about 13,000 FLOPs <span class="der">derived</span>. The same 512 MB read in address order costs about 11 ns per load, because the prefetcher fetches ahead. The rest of the page is how to stay on the left of this picture.</p></div>
+</section>
+<div class="s3sp"><div class="s3L"><section id="cb-need">
 <p class="small"><b>You need</b>: how C++ is compiled and linked, and what undefined behaviour means ({{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}); <code>new</code>, RAII and moves ({{C++: ownership, moves and object lifetimes|n:4055c17b0d0d81819d74fa010e68ac2a}}). Python habits are enough for the rest: each section says where NumPy or CPython meets the same machine.</p>
 <div class="terms">
 <div><dfn>Cache line</dfn>: the unit memory moves in, 128 bytes on Apple silicon (64 on most x86).</div>
@@ -15,10 +14,13 @@
 <div><dfn>False sharing</dfn>: two threads writing different variables on one cache line, fighting over the line.</div>
 <div><dfn>ABI</dfn>: the binary contract between compiled pieces: registers, layouts, symbol names.</div>
 </div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="cb-hero"><h4 style="margin:0 0 6px;font-size:14.5px">One load from DRAM costs as much time as 13,000 floating-point operations</h4>
+<div class="rd-svg" id="cb-hero-svg"></div>
+<p class="cap">Time for one operation, log scale, all on this M1 Pro. A load from L1 (about 1 ns) is as cheap as one fused multiply-add; a load whose address the hardware cannot predict, from a 512 MB buffer, takes about 133 ns; in that time one core running at its measured peak of 97.5 GFLOP/s could have done 97.5 x 133 = about 13,000 FLOPs <span class="der">derived</span>. The same 512 MB read in address order costs about 11 ns per load, because the prefetcher fetches ahead. The rest of the page is how to stay on the left of this picture.</p></div></div></div></div>
 <nav class="nav" id="rd-nav" aria-label="Sections">
 <a href="#cb-s0">In one screen</a><a href="#cb-s1">1 Cache ladder</a><a href="#cb-s2">2 Cache lines</a><a href="#cb-s3">3 Layout</a><a href="#cb-s4">4 Pages</a><a href="#cb-s5">5 Assembly</a><a href="#cb-s6">6 SIMD</a><a href="#cb-s7">7 Branches</a><a href="#cb-s8">8 Memory model</a><a href="#cb-s9">9 Roofline</a><a href="#cb-s10">10 Measuring</a><a href="#cb-s11">11 ABI</a><a href="#cb-s12">12 To the GPU</a>
 </nav>
-</section>
 
 <section id="cb-s0">
 <h2>In one screen</h2>
@@ -42,25 +44,40 @@
 <div class="cb-py"><div class="t">Why Python never showed you this</div>In CPython, <code>total += x</code> costs tens of nanoseconds whatever the data looks like, because the interpreter's own work dwarfs the memory access ({{Python: CPython internals and performance|n:4055c17b0d0d8111872ad7101b7e3c22}}). Once a loop compiles to a few machine instructions, as in C++, Rust or inside NumPy, the memory system is what is left. That is why <code>numpy.sum</code> on a contiguous array is fast and on a strided view can be much slower.</div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-mem"></div></div><div class="s3L">
 <section id="cb-s1">
 <h2>1. The ladder of caches</h2>
 <p>An addition takes a fraction of a nanosecond; fetching a number from DRAM takes about a hundred. To hide the gap the chip keeps copies of recently used memory in <b>caches</b>, each level bigger and slower than the one before: on this M1 Pro, 128 KB of <b>L1</b> per performance core, 12 MB of <b>L2</b> shared by the 8 performance cores, a <b>system level cache</b> shared with the GPU (size unpublished), then 16 GB of DRAM, "up to 200GB/s" for the chip ({{Apple|https://www.apple.com/newsroom/2021/10/introducing-m1-pro-and-m1-max-the-most-powerful-chips-apple-has-ever-built/}}).</p>
-<p>To time one load you must stop the processor from overlapping loads. A <b>pointer chase</b> does it: a linked list scattered over a buffer, each node holding the address of the next, so load <i>k</i>+1 cannot start before load <i>k</i> returns. Time per load is the latency of whatever level holds the buffer; grow the buffer from 4 KB to 1 GB and each level overflows in turn.</p>
-<div class="card" id="cb-ld-card">
+<ol class="sx" id="sx-mem">
+<li><b>Five levels, one core's view.</b> Registers inside the core, then L1, L2, the system level cache (SLC) and DRAM, each plate as wide as the logarithm of its size. Every level holds copies of lines from the one below.</li>
+<li><b>A hit in L1.</b> The value is already in L1 and goes straight to a register: <span class="cb-num" data-cbv="ladder.random.0.pts.4.1" data-d="2"></span> ns per load over a 16 KB buffer, about three clock cycles.</li>
+<li><b>A miss in L1, a hit in L2.</b> L1 fetches the whole 128-byte line that holds the value from L2, keeps it, and hands the value up: <span class="cb-num" data-cbv="ladder.random.0.pts.16.1" data-d="2"></span> ns over a 1 MB buffer, about six times L1.</li>
+<li><b>A miss all the way to DRAM.</b> The line comes up through every level and each keeps a copy: <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="2"></span> ns over a 512 MB buffer read in random order, more than a hundred times L1.</li>
+<li><b>A pointer chase waits for every trip.</b> To time one load you must stop the processor from overlapping loads. A <b>pointer chase</b> does it: a linked list scattered over a buffer, each node holding the address of the next, so load <i>k</i>+1 cannot start before load <i>k</i> returns. Time per load is the latency of whatever level holds the buffer.</li>
+<li><b>Address order: the prefetcher runs ahead.</b> The same 512 MB, but the list visits the nodes in address order: <span class="cb-num" data-cbv="ladder.seq.0.pts.34.1" data-d="2"></span> ns per load against <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="0"></span> ns, although each load still waits for the previous one. The <b>prefetcher</b> notices that addresses go up by 128 bytes each time and fetches the next lines before they are asked for. Predictable access is the cheapest optimisation there is: you get it by storing data in the order you read it.</li>
+</ol>
+<p class="small mute">Plate widths are log-scaled sizes and the latencies are this machine's measured pointer-chase times (next figure); the system level cache's size is unpublished, so its plate has no number.</p>
+</section></div></div>
+
+<div class="s3sp"><div class="s3R"><div class="card" id="cb-ld-card">
 <h4 style="margin:0 0 4px;font-size:14.5px">Each time the buffer outgrows a cache, a load gets several times dearer</h4>
-<div class="an-ctl"><span class="seg" id="cb-ld-y"><button data-m="log" class="on">Log scale</button><button data-m="lin">Linear scale</button></span>
-<label class="chk"><input type="checkbox" id="cb-ld-seq" checked> address order</label><label class="chk"><input type="checkbox" id="cb-ld-all" checked> all runs</label></div>
+<div class="an-ctl"><span class="seg" id="cb-ld-y"><button data-m="log" class="on">Log scale</button><button data-m="lin">Linear scale</button></span></div>
 <div class="cb-chart" id="cb-ld-chart"></div>
-<div class="cb-tip" id="cb-ld-tip" aria-live="polite"></div>
+<div class="cb-tip" id="cb-ld-tip" aria-live="polite">Hover or tap the chart to read any point.</div>
 <div class="an-ctl" id="cb-ld-ctl"></div>
-<div class="an-cap" id="cb-ld-cap"></div>
-<div class="out" id="cb-ld-stats"></div>
-<p class="small mute">Measured: <code>ladder.cpp</code>, one node per 128-byte line, best of 3 timings inside each run; three runs in random order, two in address order (load average per run: <span id="cb-ld-load"></span>). Step through the sizes, or hover or tap the chart to read any point; the linear scale shows how far DRAM is.</p>
-</div>
-<p>Up to 128 KB (L1) a load costs about 1 ns, three clock cycles. Past that the buffer lives in L2 and loads cost 5 to 15 ns. From about 8 MB they climb towards DRAM's roughly 125 ns, a hundred times L1. The steps are soft because other programs share L2 and DRAM, and because past a few MB the chase also misses in the <b>TLB</b>, the cache of address translations ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} owns it).</p>
-<div class="cb-pr"><p class="q"><b>Predict.</b> The same 512 MB buffer, but the list visits the nodes in address order (node 0, 1, 2, ...). Each load still waits for the previous one. Still about 125 ns per load?</p>
-<button class="cb-rv" data-for="cb-a1" aria-expanded="false">Reveal the real output</button>
-<div class="cb-ans" id="cb-a1" hidden><p>No: <span class="cb-num" data-cbv="ladder.seq.0.pts.34.1"></span> ns per load in address order, against <span class="cb-num" data-cbv="ladder.random.0.pts.34.1" data-d="0"></span> ns in random order, over the same 512 MB. The <b>prefetcher</b> notices that addresses go up by 128 bytes each time and fetches the next lines before they are asked for. Predictable access is the cheapest optimisation there is: you get it by storing data in the order you read it.</p></div></div>
+<p class="small mute">Measured: <code>ladder.cpp</code>, one node per 128-byte line, best of 3 timings inside each run; three runs in random order, two in address order (load average per run: <span id="cb-ld-load"></span>). The linear scale shows how far DRAM is.</p>
+</div></div><div class="s3L">
+<section id="cb-s1b">
+<h3>The measured ladder</h3>
+<p>Grow the pointer chase's buffer from 4 KB to 1 GB and each level overflows in turn. The chart climbs the 37 sizes in five stretches, then adds the address-order runs:</p>
+<ol class="sx" id="sx-ld">
+<li><b>4 KB to 128 KB: L1.</b> Up to 128 KB (L1) a load costs about 1 ns, three clock cycles: <span class="cb-num" data-cbv="ladder.random.0.pts.0.1" data-d="2"></span> to <span class="cb-num" data-cbv="ladder.random.0.pts.10.1" data-d="2"></span> ns, flat.</li>
+<li><b>192 KB to 6 MB: L2.</b> Past that the buffer lives in L2 and loads cost 5 to 15 ns: <span class="cb-num" data-cbv="ladder.random.0.pts.11.1" data-d="2"></span> ns at 192 KB, <span class="cb-num" data-cbv="ladder.random.0.pts.21.1" data-d="2"></span> ns at 6 MB.</li>
+<li><b>8 MB to 48 MB: the climb.</b> From about 8 MB they climb towards DRAM's roughly 125 ns: <span class="cb-num" data-cbv="ladder.random.0.pts.22.1" data-d="2"></span> ns at 8 MB, <span class="cb-num" data-cbv="ladder.random.0.pts.24.1" data-d="2"></span> at 16 MB, <span class="cb-num" data-cbv="ladder.random.0.pts.27.1" data-d="2"></span> at 48 MB. The L2 is shared with other programs, and the system level cache sits between L2 and DRAM and shows only as a softer ramp.</li>
+<li><b>64 MB to 1 GB: DRAM, a hundred times L1.</b> <span class="cb-num" data-cbv="ladder.random.0.pts.28.1" data-d="2"></span> to <span class="cb-num" data-cbv="ladder.random.0.pts.36.1" data-d="2"></span> ns. It still creeps up because past a few MB the chase also misses in the <b>TLB</b>, the cache of address translations ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}} owns it).</li>
+<li><b>Three runs, soft steps.</b> The other two random-order runs, drawn faintly, agree within about 8% at every size except from 2 MB to 16 MB, where they spread by up to 53% (at 6 MB). The steps are soft because other programs share L2 and DRAM.</li>
+<li><b>Address order.</b> The dashed curves: the same buffers visited in address order cost under 2 ns up to 6 MB and 10.8 to 14.2 ns from 64 MB to 1 GB (both runs), about a tenth of the random order, because the prefetcher fetches ahead.</li>
+</ol>
 <p>A hash-table lookup or linked-structure walk over a big table pays the right-hand end of this chart per hop; a scan over a contiguous array pays the bottom curve or less. Shrinking the working set by one level (from DRAM-sized to L2-sized) is often worth more than any change to the arithmetic.</p>
 <div class="cb-py"><div class="t">In Python</div>A Python list of floats is an array of pointers to float objects scattered on the heap, so iterating it is closer to a pointer chase than to a scan; the {{root page|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} measured about 17 ns per element in order and 77 ns shuffled. A NumPy array stores the numbers themselves, contiguously.</div>
 <details class="dp"><summary>The pointer chase in code, the sysctl output and the table of all sizes</summary><div>
@@ -70,4 +87,4 @@
 <p class="small">Random order, run 1, with the range of the three runs (the system level cache sits between L2 and DRAM and shows only as a softer ramp):</p>
 <div class="tw"><table class="cb-t" id="cb-ladtab"></table></div>
 </div></details>
-</section>
+</section></div></div>

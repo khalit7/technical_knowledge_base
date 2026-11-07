@@ -3,7 +3,9 @@
   const X=window.CBX,CB=X.CB,f=X.fmt,$=id=>document.getElementById(id);
   if(!CB.ladder||!$('cb-ld-chart'))return;
   const R=CB.ladder.random,S=CB.ladder.seq,sizes=R[0].pts.map(p=>p[0]);
-  const st={ylog:true,seq:true,all:true,cur:-1};
+  const st={ylog:true,seq:false,all:false,cur:-1,upto:36,lo:-1,hi:-1};
+  // the six explained stretches (step list sx-ld): [first, last] size index of run 1 random order, then all runs, then address order
+  const STR=[[0,10],[11,21],[22,27],[28,36],[0,36],[0,36]];
   const sz=kb=>kb>=1048576?(kb/1048576)+' GB':kb>=1024?(+(kb/1024).toFixed(1))+' MB':kb+' KB';
   const level=kb=>kb<=128?'L1 (128 KB per core)':kb<=12288?'L2 (12 MB per cluster), shared with other programs':kb<=49152?'past L2: system level cache and DRAM':'DRAM';
   const val=(run,kb)=>{const p=run.pts.find(q=>q[0]===kb);return p?p[1]:NaN};
@@ -27,7 +29,7 @@
     xt.forEach(kb=>{s+='<line x1="'+xs(kb)+'" x2="'+xs(kb)+'" y1="'+(m.t+ih)+'" y2="'+(m.t+ih+4)+'" style="stroke:var(--mute)"/>'+RDt(xs(kb),m.t+ih+15,sz(kb),{a:'middle',fs:10})});
     s+=RDt(m.l+iw/2,H-4,'buffer size (working set), log scale',{a:'middle',fs:10.5,fill:'var(--mute)'});
     s+='<text transform="translate(11,'+(m.t+ih/2)+') rotate(-90)" text-anchor="middle" font-size="10.5" style="fill:var(--mute)">ns per load</text>';
-    const line=(run,col,dash,op)=>{let d='';run.pts.forEach((p,i)=>{d+=(i?'L':'M')+xs(p[0]).toFixed(1)+','+ys(Math.max(ymin||0.5,p[1])).toFixed(1)});
+    const line=(run,col,dash,op)=>{let d='';run.pts.forEach((p,i)=>{if(i>st.upto)return;d+=(i?'L':'M')+xs(p[0]).toFixed(1)+','+ys(Math.max(ymin||0.5,p[1])).toFixed(1)});
       s+='<path d="'+d+'" style="fill:none;stroke:'+col+';stroke-width:'+(op<1?1.2:2)+';opacity:'+op+'"'+(dash?' stroke-dasharray="5 4"':'')+'/>'};
     if(st.all)R.slice(1).forEach(r=>line(r,'var(--c2)',false,.45));
     line(R[0],'var(--c2)',false,1);
@@ -35,6 +37,8 @@
     // legend
     s+='<g font-size="10.5"><line x1="'+(m.l+8)+'" x2="'+(m.l+26)+'" y1="'+(m.t+28)+'" y2="'+(m.t+28)+'" style="stroke:var(--c2);stroke-width:2"/>'+RDt(m.l+30,m.t+31,'random order',{fs:10.5})+
       (st.seq?'<line x1="'+(m.l+8)+'" x2="'+(m.l+26)+'" y1="'+(m.t+42)+'" y2="'+(m.t+42)+'" stroke-dasharray="5 4" style="stroke:var(--c1);stroke-width:2"/>'+RDt(m.l+30,m.t+45,'address order',{fs:10.5}):'')+'</g>';
+    if(st.lo>=0&&st.hi>st.lo-1&&!(st.lo===0&&st.hi===36)){const xa=xs(sizes[st.lo])-6,xb=xs(sizes[st.hi])+6;s+='<rect x="'+xa+'" y="'+m.t+'" width="'+(xb-xa)+'" height="'+ih+'" rx="4" style="fill:var(--acc);opacity:.10"/>';
+      for(let i=st.lo;i<=st.hi;i++)s+='<circle class="rd-new" cx="'+xs(sizes[i])+'" cy="'+ys(R[0].pts[i][1])+'" r="3.6" style="fill:var(--c2);stroke:var(--card);stroke-width:1.5"/>'}
     if(st.cur>=0){const kb=sizes[st.cur],v=val(R[0],kb);s+='<line x1="'+xs(kb)+'" x2="'+xs(kb)+'" y1="'+m.t+'" y2="'+(m.t+ih)+'" style="stroke:var(--ink);stroke-dasharray:2 3"/><circle cx="'+xs(kb)+'" cy="'+ys(v)+'" r="5" style="fill:var(--c2);stroke:var(--bg);stroke-width:2"/>';
       if(st.seq){const w=val(S[0],kb);s+='<circle cx="'+xs(kb)+'" cy="'+ys(w)+'" r="4" style="fill:var(--c1);stroke:var(--bg);stroke-width:2"/>'}}
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Load latency against buffer size">'+s+'</svg>';
@@ -43,13 +47,9 @@
   function tipFor(i){const kb=sizes[i],r=R.map(q=>val(q,kb)),q=S.map(z=>val(z,kb));
     return '<b>'+sz(kb)+'</b>: random '+f(r[0])+' ns (runs '+r.map(v=>f(v)).join(', ')+'), address order '+f(q[0])+' ns; about '+f(r[0]*3.2,0)+' cycles at 3.2 GHz.'}
   $('cb-ld-chart').addEventListener('pointermove',e=>{if(!geo)return;const b=e.currentTarget.getBoundingClientRect(),sc=geo.W/b.width,x=(e.clientX-b.left)*sc;
-    let bi=0,bd=1e9;sizes.forEach((kb,i)=>{const d=Math.abs(geo.xs(kb)-x);if(d<bd){bd=d;bi=i}});$('cb-ld-tip').innerHTML=tipFor(bi)});
+    let bi=0,bd=1e9;sizes.forEach((kb,i)=>{const d=Math.abs(geo.xs(kb)-x);if(d<bd){bd=d;bi=i}});$('cb-ld-tip').innerHTML=tipFor(bi);st.cur=bi;draw()});
   RD.seg($('cb-ld-y'),m=>{st.ylog=m==='log';draw()});
-  $('cb-ld-seq').addEventListener('change',e=>{st.seq=e.target.checked;draw()});
-  $('cb-ld-all').addEventListener('change',e=>{st.all=e.target.checked;draw()});
-  const l1=val(R[0],16);
-  const A=RD.anim({card:'cb-ld-card',ctl:'cb-ld-ctl',n:sizes.length,ms:900,label:'Buffer size step',draw(i){st.cur=i;draw();const kb=sizes[i],v=val(R[0],kb),w=val(S[0],kb);
-    $('cb-ld-cap').innerHTML='<b>Step '+(i+1)+' of '+sizes.length+': a '+sz(kb)+' buffer.</b> It fits in: '+level(kb)+'. One unpredictable load takes '+f(v)+' ns, '+f(v/l1,0)+'x an L1 load; in address order '+f(w)+' ns, because the prefetcher fetches ahead.';
-    $('cb-ld-stats').innerHTML=RD.stat('Buffer',sz(kb),f(kb*1024/128,0)+' cache lines')+RD.stat('Random order',f(v)+' ns','x'+f(v/l1,0)+' vs L1')+RD.stat('Address order',f(w)+' ns','prefetcher on')+RD.stat('Cycles per random load',f(v*3.2,0),'at 3.2 GHz')}});
+  const A=RD.anim({card:'cb-ld-card',ctl:'cb-ld-ctl',n:STR.length,ms:5200,label:'Ladder step',list:'sx-ld',draw(i){const [lo,hi]=STR[i];
+    st.upto=i<4?hi:36;st.lo=i<4?lo:-1;st.hi=i<4?hi:-1;st.all=i>=4;st.seq=i>=5;st.cur=-1;draw()}});
   X.onRender('t-read',()=>{draw();A.redraw()});X.onResize('t-read',draw);
 })();

@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-mo"></div></div><div class="s3L">
 <section id="cb-s8">
 <h2>8. Atomics and the C++ memory model</h2>
 <p>A <b>data race</b> (two threads touching the same memory, at least one writing, nothing ordering them) is undefined behaviour in C++; threads, locks and atomics as operating-system mechanisms belong to {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}. What the hardware adds: cores do not see each other's writes in the order they were made. Each core writes into a private <b>store buffer</b> before the shared caches and runs loads early, out of order. x86 keeps stores in order (a strong model); ARM, including this chip, does not (a weak model); the compiler may reorder too. So C++ defines a <b>memory model</b>, and each <b>atomic</b> operation (a <code>std::atomic&lt;T&gt;</code> read or write that can never be torn) states the order it needs ({{cppreference|https://en.cppreference.com/w/cpp/atomic/memory_order}}):</p>
@@ -7,11 +8,20 @@
 <tr><td><code>acquire</code> (on a load)</td><td>If I see a released value, I also see everything written before it. "Subscribe."</td><td><code>ldapr</code> (load-acquire)</td></tr>
 <tr><td><code>seq_cst</code> (the default)</td><td>Acquire and release, plus one single order of all such operations that every thread agrees on. Easiest to reason about, slightly dearer.</td><td><code>stlr</code> / <code>ldar</code></td></tr>
 </tbody></table></div>
-<p>The standard test is <b>message passing</b>: thread A writes <code>data = 1</code>, then <code>flag = 1</code>; thread B reads <code>flag</code>, then <code>data</code>. The program runs it on a million independent slots, fifty times:</p>
-<details class="dp"><summary>The program (<code>litmus.cpp</code>)</summary><div><pre data-src="litmus.cpp" data-lines="12-35"></pre></div></details>
-<div class="cb-pr"><p class="q"><b>Predict.</b> Out of 52 million trials with relaxed atomics, how many times does B see <code>flag == 1</code> but <code>data == 0</code>?</p>
-<button class="cb-rv" data-for="cb-a8" aria-expanded="false">Reveal the real output</button>
-<div class="cb-ans" id="cb-a8" hidden><pre class="cb-o" data-out="litmus.raw"></pre><p>Three runs: <span data-cbsp="litmus.v.relaxed" data-d="0"></span> reordered trials with relaxed, 0 every time with release/acquire. Rare and real: a reader on this processor can see the flag before the data, so code that "works in testing" with relaxed atomics or plain variables can fail once in millions of messages in production. Release on the flag's store and acquire on its load forbid the outcome, and the instructions in the table enforce it.</p></div></div>
+<p>The standard test is <b>message passing</b>: thread A writes <code>data = 1</code>, then <code>flag = 1</code>; thread B reads <code>flag</code>, then <code>data</code>. The program runs it on a million independent slots, fifty times, 52,428,800 trials per memory order.</p>
+<ol class="sx" id="sx-mo">
+<li><b>Two threads, two variables.</b> Thread A, on one core, will store <code>data = 1</code> then <code>flag = 1</code>; thread B, on another, loads <code>flag</code> then <code>data</code>. Both start at 0 in the shared caches.</li>
+<li><b>Stores wait in a store buffer.</b> A's two stores go into its private store buffer in program order. Until they drain into the shared cache, no other core can see them.</li>
+<li><b>Relaxed: nothing orders the drain.</b> Plain <code>str</code> instructions promise nothing about which store becomes visible first: here <code>flag = 1</code> reaches the shared cache while <code>data = 1</code> still waits.</li>
+<li><b>B sees the flag but not the data.</b> B loads <code>flag</code> (1), then <code>data</code> (0): the message arrived without its contents. Measured with relaxed atomics: <span class="cb-num" data-cbv="litmus.v.relaxed.runs.0" data-d="0"></span> of <span class="cb-num" data-cbv="litmus.v.trials.runs.0" data-d="0"></span> trials. A core that runs B's load of <code>data</code> early, before its load of <code>flag</code>, produces the same outcome.</li>
+<li><b>Release: <code>stlr</code> keeps earlier writes first.</b> With release on the flag's store, every write A made before it becomes visible before the flag does: <code>data = 1</code> lands, then <code>flag = 1</code>.</li>
+<li><b>Acquire: <code>ldapr</code> keeps later reads after.</b> With acquire on B's load of the flag, B's load of <code>data</code> cannot run before it; seeing <code>flag = 1</code>, B sees <code>data = 1</code>. Measured: <span class="cb-num" data-cbv="litmus.v.acqrel.runs.0" data-d="0"></span> trials in all three runs.</li>
+</ol>
+<p class="small mute"><span class="ill">illustrative</span> The store buffer drawn here is the textbook model of what ARM's memory model allows, not a documented picture of Apple's cores; the instructions are this program's compiled code and the counts are measured.</p>
+<p>Three runs: <span data-cbsp="litmus.v.relaxed" data-d="0"></span> reordered trials with relaxed, 0 every time with release/acquire. Rare and real: a reader on this processor can see the flag before the data, so code that "works in testing" with relaxed atomics or plain variables can fail once in millions of messages in production. Release on the flag's store and acquire on its load forbid the outcome, and the instructions in the table enforce it.</p>
+<details class="dp"><summary>The program (<code>litmus.cpp</code>) and its recorded output</summary><div><pre data-src="litmus.cpp" data-lines="12-35"></pre><pre class="cb-o" data-out="litmus.raw"></pre></div></details>
+</section></div></div>
+<section id="cb-s8b">
 <p><b>Plain variables are worse: the compiler deletes the wait.</b> The same pattern with an ordinary <code>bool ready</code>, run 300 times, sometimes prints 0 at <code>-O2</code> and never at <code>-O0</code>. Thread B's assembly at <code>-O2</code> has no loop at all: a data race is undefined behaviour, so the compiler may assume <code>ready</code> cannot change while <code>while (!ready) {}</code> spins; a side-effect-free loop that never ends is also undefined behaviour ({{[intro.progress]|https://eel.is/c++draft/intro.progress}}), so it assumes the loop ends and deletes it. <b>ThreadSanitizer</b> (<code>-fsanitize=thread</code>) finds the race on any run, even one that printed 42.</p>
 <details class="dp"><summary>The code each memory order compiles to, the race program, its 300 runs and ThreadSanitizer's report</summary><div>
 <div class="seg cb-sw" data-pre="cb-ordasm"><button class="on" data-m="asm.send_relaxed" data-lang="asm">send, relaxed</button><button data-m="asm.send_release" data-lang="asm">send, release</button><button data-m="asm.recv_relaxed" data-lang="asm">receive, relaxed</button><button data-m="asm.recv_acquire" data-lang="asm">receive, acquire</button><button data-m="asm.send_seq" data-lang="asm">send, seq_cst</button><button data-m="asm.recv_seq" data-lang="asm">receive, seq_cst</button></div>
@@ -22,16 +32,23 @@
 <p class="small">Thread B's <code>-O2</code> assembly is in <code>src/cb/out/race_O2.s</code>. ThreadSanitizer ran with LLVM clang 23, since Apple's sanitizer runtime does not start on macOS 27 (more undefined behaviour with sanitizers on {{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}):</p>
 <pre class="cb-o" data-out="tsan"></pre>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-fs"></div></div><div class="s3L">
+<section id="cb-s8c">
 <h3>False sharing</h3>
 <p>Coherence works per cache line: before a core writes to a line, every other core's copy is invalidated. Two threads writing different variables that share a line fight over it as if they shared data: <b>false sharing</b>. Four threads, each incrementing its own counter 100 million times:</p>
-<details class="dp"><summary>The program (<code>false_sharing.cpp</code>)</summary><div><pre data-src="false_sharing.cpp" data-lines="10-21"></pre></div></details>
-<div class="cb-pr"><p class="q"><b>Predict.</b> The counters 8 bytes apart (one line for all four) against 128 bytes apart (one line each). And 64 bytes apart?</p>
-<button class="cb-rv" data-for="cb-a9" aria-expanded="false">Reveal the real output</button>
-<div class="cb-ans" id="cb-a9" hidden><pre class="cb-o" data-out="fs.raw"></pre><p>Three runs: 8 bytes apart took <span data-cbsp="fs.v.b8" data-d="0"></span> ms against <span data-cbsp="fs.v.b128" data-d="0"></span> ms one line apart. 64 bytes apart is still about twice as slow (<span data-cbsp="fs.v.b64" data-d="0"></span> ms), because two counters 64 bytes apart still share a 128-byte line. A trap: <code>std::hardware_destructive_interference_size</code>, the standard's "minimum offset to avoid false sharing" ({{cppreference|https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size}}), is 64 in this standard library (the layout output in section 3), and llama.cpp's own <code>CACHE_LINE_SIZE</code> is 64 on ARM as well:</p>
+<ol class="sx" id="sx-fs">
+<li><b>One thread alone.</b> Its counter's line stays in its own core's L1: 100 million increments in <span class="cb-num" data-cbv="fs.v.one.runs.0" data-d="0"></span> ms.</li>
+<li><b>Four counters 8 bytes apart.</b> All four sit in one 128-byte line. Before a core writes, every other core's copy is invalidated, so the line travels from core to core on almost every increment: <span class="cb-num" data-cbv="fs.v.b8.runs.0" data-d="0"></span> ms, <span class="cb-num" data-cbratio="fs.v.b8.runs.0|fs.v.one.runs.0" data-d="0"></span> times one thread alone, although no data is shared.</li>
+<li><b>64 bytes apart.</b> Two counters per 128-byte line, so two lines, each fought over by two cores: <span class="cb-num" data-cbv="fs.v.b64.runs.0" data-d="0"></span> ms.</li>
+<li><b>128 bytes apart.</b> One line each, no fight: <span class="cb-num" data-cbv="fs.v.b128.runs.0" data-d="0"></span> ms, about the time of one thread alone.</li>
+</ol>
+<p>Three runs: 8 bytes apart took <span data-cbsp="fs.v.b8" data-d="0"></span> ms against <span data-cbsp="fs.v.b128" data-d="0"></span> ms one line apart. 64 bytes apart is still about twice as slow (<span data-cbsp="fs.v.b64" data-d="0"></span> ms), because two counters 64 bytes apart still share a 128-byte line. A trap: <code>std::hardware_destructive_interference_size</code>, the standard's "minimum offset to avoid false sharing" ({{cppreference|https://en.cppreference.com/w/cpp/thread/hardware_destructive_interference_size}}), is 64 in this standard library (the layout output in section 3), and llama.cpp's own <code>CACHE_LINE_SIZE</code> is 64 on ARM as well:</p>
 <pre data-out="llamaex.ops" data-lang="cpp"></pre>
-<p class="small mute">{{ggml-cpu/ops.h L8-18|https://github.com/ggml-org/llama.cpp/blob/8e1642198dcd4e408f8776222d6ae31b74d01187/ggml/src/ggml-cpu/ops.h#L8-L18}}.</p></div></div>
+<p class="small mute">{{ggml-cpu/ops.h L8-18|https://github.com/ggml-org/llama.cpp/blob/8e1642198dcd4e408f8776222d6ae31b74d01187/ggml/src/ggml-cpu/ops.h#L8-L18}}.</p>
+<details class="dp"><summary>The program (<code>false_sharing.cpp</code>) and its recorded output</summary><div><pre data-src="false_sharing.cpp" data-lines="10-21"></pre><pre class="cb-o" data-out="fs.raw"></pre></div></details>
 <p>On Apple silicon, pad hot per-thread data to 128 bytes: <code>struct alignas(128) Padded { ... }</code>. In Python, the GIL hides all of this in default CPython; free-threaded 3.14t brings it back ({{Python: concurrency, asyncio and the GIL|n:4055c17b0d0d81bdbee8c37d80b55a0e}}), and NumPy and PyTorch release the GIL inside their kernels, so their worker threads run this machine-level code for you.</p>
-</section>
+</section></div></div>
 
 <section id="cb-s9">
 <h2>9. The CPU's roofline, measured</h2>
