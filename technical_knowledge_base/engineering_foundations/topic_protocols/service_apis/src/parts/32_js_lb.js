@@ -20,5 +20,6 @@
     else if(t<4.5)cap=['Waiting for a reconnect','With MAX_CONNECTION_AGE the servers keep closing connections with GOAWAY; each reconnect is a new choice by the L4 balancer. Plain L4 and the fixed client list never change.'];
     else cap=['After 7 seconds','Read the counters: the plain L4 run never left backend-1; L4 + age reached backend-3 only after reconnects; L7 spread evenly once the replica existed; the fixed list never knew it existed.'];
     document.getElementById('lb-cap').innerHTML='<div class="t">t = '+t.toFixed(1)+' s: '+cap[0]+'</div><p>'+cap[1]+'</p>'}
-  RD.anim({card:'lb-panels',ctl:'lb-ctl',n:N,ms:140,draw,label:'Time'});
+  // 71 frames: a viewer the reader drives (the long-replay rule, case b), opening on the end of the runs; never plays by itself
+  RD.anim({card:'lb-panels',ctl:'lb-ctl',n:N,ms:140,draw,label:'Time',auto:false,start:N-1});
 })();

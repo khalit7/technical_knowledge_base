@@ -1,44 +1,7 @@
-// ---- Reading, part B: the deadline animation, failures, retries, pings, balancing tables, GraphQL, drills ----
+// ---- Reading, part B: failures, retries, pings, balancing tables, GraphQL, drills ----
 (function(){
   const S=window.SA,esc=RD.esc,set=(id,h)=>{const e=document.getElementById(id);if(e)e.innerHTML=h};
-  // ---- deadlines: one abandoned request, four endings ----
-  const DL=S.deadline,FIRST=0.12,GAP=0.05,TMAX=2.4,STEP=0.1,N=Math.round(TMAX/STEP)+1;
-  let mode=0;
-  const tt=i=>FIRST+GAP*i;
-  const NAMES={propagate:'deadline and cancellation propagated',none:'nothing propagated, plain loop',thread:'nothing propagated, worker thread'};
-  function draw(step){
-    const r=DL[mode],t=step*STEP,gone=r.client.gave_up_s,inf=r.inference,gw=r.gateway;
-    const pct=x=>(100*x/TMAX).toFixed(2)+'%';
-    const ticks=(n,col,cut)=>{let h='';for(let i=0;i<n;i++){const x=tt(i);if(x>t)break;h+='<i style="left:'+pct(x)+';background:'+(cut&&x>cut?'var(--bad)':col)+'"></i>'}return h};
-    const lane=(nm,inner,end)=>'<div class="ln">'+nm+'</div><div class="tr">'+inner+(t>=gone?'<span class="cut" style="left:'+pct(gone)+'"></span>':'')+'<span class="now" style="left:'+pct(Math.min(t,TMAX))+'"></span></div>';
-    const infEnd=Math.min(inf.dur_s,TMAX);
-    set('rd-dlplot','<div class="dlg">'+
-      lane('Client',ticks(r.client.tokens_received,'var(--c1)'))+
-      lane('Gateway',ticks(Math.min(gw.tokens_forwarded,r.client.tokens_received+1),'var(--c4)'))+
-      lane('Inference',ticks(inf.tokens_made,'var(--c3)',gone))+
-      '<div class="ln"></div><div class="small mute" style="display:flex;justify-content:space-between"><span>0 s</span><span>time &rarr;</span><span>'+TMAX+' s</span></div></div>'+
-      '<div class="leg"><span style="--sw:var(--c1)">token delivered to the user</span><span style="--sw:var(--c4)">forwarded by the gateway</span><span style="--sw:var(--c3)">generated</span><span style="--sw:var(--bad)">generated after the user left</span><span style="--sw:var(--bad)">red line: client gives up at '+gone+' s</span></div>');
-    const madeBy=n=>{let k=0;for(let i=0;i<n;i++)if(tt(i)<=t)k++;return k};
-    const made=madeBy(inf.tokens_made),after=Math.max(0,made-madeBy(Math.min(inf.tokens_made,r.client.tokens_received)));
-    set('rd-dlcnt',RD.stat('Tokens to the user',Math.min(made,r.client.tokens_received)+(t>=gone?' (final: '+r.client.tokens_received+')':''),r.client.code)+
-      RD.stat('Tokens generated',made+(t>=infEnd?' (final: '+inf.tokens_made+')':''),'inference service')+
-      RD.stat('Generated for nobody',after,after?'GPU work wasted':'')+
-      RD.stat('Deadline seen by the inference service',inf.time_remaining_s==null?'none':inf.time_remaining_s+' s',r.hop2_timeout?'grpc-timeout: '+r.hop2_timeout:'no grpc-timeout header'));
-    let cap;
-    if(t<FIRST)cap=['Prefill','The request crossed both hops; the inference service is computing the prompt before its first token (0.12 s here).'];
-    else if(t<gone)cap=['Streaming','Each token goes inference &rarr; gateway &rarr; client, one length-prefixed message per token.'];
-    else if(t<gone+STEP)cap=[r.cancel_at?'The user closes the tab':'The client\'s deadline expires',r.cancel_at?'The client cancels: an RST_STREAM (CANCEL) reaches the gateway.':'At '+r.deadline+' s the client ends the call with DEADLINE_EXCEEDED and resets the stream.'];
-    else{const m=r.mode;
-      if(m==='propagate')cap=['Downstream stops too',(r.hop2_timeout?'The inference service had its own deadline (grpc-timeout '+r.hop2_timeout+') and the gateway also cancelled it: ':'The gateway\'s cancel hook reset the downstream stream: ')+'it stopped after '+inf.tokens_made+' tokens, in '+inf.dur_s+' s.'];
-      else if(m==='thread')cap=['Nobody tells the GPU','The worker thread keeps reading the downstream stream, so the inference service, which never got a deadline, generates all '+inf.tokens_made+' tokens over '+inf.dur_s+' s; '+(inf.tokens_made-r.client.tokens_received)+' of them for nobody.'];
-      else cap=['Rescued by accident','No deadline or hook, yet the downstream call was cancelled at about '+Math.round(r.hop2_end[0].ms)+' ms: closing the gateway\'s generator freed the call object, and CPython cancels a call when it is freed. Run D shows what happens when that accident does not occur.'];}
-    set('rd-dlcap','<div class="t">'+(['A','B','C','D'][mode])+'. '+NAMES[r.mode]+(r.cancel_at?' (user cancels at '+r.cancel_at+' s, no deadline)':'')+': '+cap[0]+'</div><p>'+cap[1]+'</p>');
-  }
-  let A=null;
-  if(document.getElementById('rd-dl')){
-    A=RD.anim({card:'rd-dl',ctl:'rd-dlctl',n:N,ms:420,draw,label:'Time step'});
-    RD.seg(document.getElementById('rd-dlseg'),m=>{mode=+m;A.reset(N)});
-  }
+  // (the deadline lanes became the 3D stage stg-dl on 2026-11-07: 43_js_sc_dl.js)
   // ---- failures as the client sees them ----
   const ft=document.getElementById('rd-fails');
   if(ft)ft.innerHTML=S.status.cases.filter(c=>c.id!=='too_many_pings').map(c=>'<div class="fc"><div class="h"><span>'+esc(c.what)+'</span><span><b>'+c.code+'</b> &middot; '+c.ms+' ms</span></div><div class="small mute"><code>'+esc(c.call)+'</code></div>'+(c.details?'<div><code>'+esc(c.details)+'</code></div>':'')+'</div>').join('');

@@ -3,7 +3,7 @@
 # Usage: WORK=<scratch dir> NGINX=<nginx binary> sh run_all.sh
 #   WORK:  scratch directory (venv, generated protobuf code, logs; nothing in it is committed)
 #   NGINX: nginx 1.31.x with http_v2 and stream modules (the root Failure lab's build, ../../src/fail/README.md)
-# Ports (all 127.0.0.1): 30500-30501 frames, 30520-30522 deadlines, 30530-30534 balancers, 30541-30549 failures.
+# Ports (all 127.0.0.1): 30500-30501 frames, 30520-30522 deadlines, 30530-30534 balancers, 30541-30549 failures, 30550 the idempotency toy.
 # Only the processes these scripts start are stopped. No network access is needed.
 set -e
 WORK="${WORK:?scratch dir}"; NGINX="${NGINX:?nginx binary}"
@@ -26,5 +26,6 @@ sleep 1.5; "$PY" "$LAB/frames_run.py" "$WORK/gen" 30500 "$WORK/frames.jsonl" "$R
 "$PY" "$LAB/lb_run.py" "$WORK/gen" "$PY" "$LAB" "$NGINX" "$WORK" "$RAW/lb.json"
 "$PY" "$LAB/status_run.py" "$WORK/gen" "$PY" "$LAB" "$NGINX" "$WORK" "$RAW/status.json"
 "$PY" "$LAB/graphql_run.py" "$RAW/graphql.json"
+"$PY" -I "$LAB/idem_run.py" "$RAW/idem.json"   # standard library only; port 30550
 cd "$HERE"
 python3 make_data.py && sh build.sh && python3 check_embed.py | tail -1

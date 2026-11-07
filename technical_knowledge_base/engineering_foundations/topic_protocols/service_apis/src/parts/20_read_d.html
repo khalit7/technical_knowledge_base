@@ -1,7 +1,17 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s5">
 <h2>5. Rate limits and quotas at the API</h2>
 <p>A rate limit caps what one caller may use per unit of time, so one runaway script cannot take capacity from everyone; for LLM APIs it is counted in tokens as well as requests, because a 100,000-token prompt and a 50-token one are not the same load. How the server counts (token bucket, sliding window) is {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}'s; budgets across many providers at a gateway are {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}'s. What this page owns is the contract with the client: what the API says before, at and after the limit.</p>
-<div class="fig" id="rd-rl">
+<ul class="tight">
+<li><b>At the wall:</b> 429 Too Many Requests (RFC 6585) with <code>Retry-After</code> in seconds or as an HTTP date (RFC 9110). A well-behaved client waits that long; the official SDKs honour it automatically. In gRPC the same signal is <code>RESOURCE_EXHAUSTED</code>, with the wait in a <code>RetryInfo</code> detail or the <code>grpc-retry-pushback-ms</code> trailer (section 11).</li>
+<li><b>Before the wall:</b> remaining-budget headers on every response let a client slow down before it is refused, which is cheaper for both sides than a 429 and a retry.</li>
+<li><b>A quota is not a rate limit.</b> "1,000 messages a month" or a spend cap will not clear by waiting a second, so say so in the error type and omit <code>retry-after</code>: Anthropic's spend-cap 429 has the same error type as a rate limit but no <code>retry-after</code>, and tells itself apart with <code>error.details.error_code</code> <code>enforced_spend_limit_reached</code>; "Retrying, including the SDK's automatic retries, fails until access resumes" (rate-limits page, read 2026-10-24).</li>
+<li><b>Limit before expensive work, and before the idempotency layer.</b> Stripe notes that "rate limiters run before the API's idempotency layer" ({{Stripe, advanced error handling|https://docs.stripe.com/error-low-level}}), so a 429 is not stored against the key and the retry gets a fresh chance.</li>
+<li><b>Limit per key, per model, per dimension.</b> Anthropic publishes separate limits for requests, input tokens and output tokens per minute, per model (same rate-limits page); a client that only counts requests will be surprised by the token limit. What counts is a design decision with consequences: on most Claude models only uncached input tokens count toward input tokens per minute, and <code>max_tokens</code> "does not factor into OTPM rate limit calculations", so prompt caching raises effective throughput and a large <code>max_tokens</code> costs nothing against the limit. The server counts with a token bucket, so capacity refills continuously rather than at fixed intervals.</li>
+</ul>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0" id="rd-rl">
 <div class="ft">Tell the client where it stands on every response, and exactly how long to wait at the wall</div>
 <div class="panes">
 <div><h5>Before the wall: every response</h5><pre class="cd">HTTP/1.1 200 OK
@@ -19,24 +29,26 @@ content-type: application/json
 </div>
 <p class="cap">Header names from the {{Claude API rate limits|https://platform.claude.com/docs/en/api/rate-limits}} page and the IETF {{RateLimit header fields draft|https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/}} (draft-11, 2026-05-23, an active draft, not an RFC: quota 5 per 5-second window, 4 remaining, resets in 0 s); values illustrative. OpenAI sends the same information as <code>x-ratelimit-remaining-requests</code>, <code>x-ratelimit-remaining-tokens</code> and their reset times.</p>
 </div>
-<ul class="tight">
-<li><b>At the wall:</b> 429 Too Many Requests (RFC 6585) with <code>Retry-After</code> in seconds or as an HTTP date (RFC 9110). A well-behaved client waits that long; the official SDKs honour it automatically. In gRPC the same signal is <code>RESOURCE_EXHAUSTED</code>, with the wait in a <code>RetryInfo</code> detail or the <code>grpc-retry-pushback-ms</code> trailer (section 11).</li>
-<li><b>Before the wall:</b> remaining-budget headers on every response let a client slow down before it is refused, which is cheaper for both sides than a 429 and a retry.</li>
-<li><b>A quota is not a rate limit.</b> "1,000 messages a month" or a spend cap will not clear by waiting a second, so say so in the error type and omit <code>retry-after</code>: Anthropic's spend-cap 429 has the same error type as a rate limit but no <code>retry-after</code>, and tells itself apart with <code>error.details.error_code</code> <code>enforced_spend_limit_reached</code>; "Retrying, including the SDK's automatic retries, fails until access resumes" (rate-limits page, read 2026-10-24).</li>
-<li><b>Limit before expensive work, and before the idempotency layer.</b> Stripe notes that "rate limiters run before the API's idempotency layer" ({{Stripe, advanced error handling|https://docs.stripe.com/error-low-level}}), so a 429 is not stored against the key and the retry gets a fresh chance.</li>
-<li><b>Limit per key, per model, per dimension.</b> Anthropic publishes separate limits for requests, input tokens and output tokens per minute, per model (same rate-limits page); a client that only counts requests will be surprised by the token limit. What counts is a design decision with consequences: on most Claude models only uncached input tokens count toward input tokens per minute, and <code>max_tokens</code> "does not factor into OTPM rate limit calculations", so prompt caching raises effective throughput and a large <code>max_tokens</code> costs nothing against the limit. The server counts with a token bucket, so capacity refills continuously rather than at fixed intervals.</li>
-</ul>
-</section>
-<section id="rd-s6">
-<h2>6. Webhooks: your API, called in reverse</h2>
-<p>Some events happen later: a batch finishes, a payment clears, a moderation review completes. Clients could poll; a <b>webhook</b> turns it around: the client registers a URL and your server POSTs to it when the event happens. Now you are the client, calling code you do not control, over a network that fails, so everything from sections 2 to 5 applies with the roles swapped. Step through one delivery that goes wrong in the usual way:</p>
-<div class="fig" id="rd-hook">
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0" id="rd-hook">
 <div class="ft">At-least-once delivery: sign, retry with backoff, and let the receiver dedupe on the event id</div>
 <div id="rd-hooksvg"></div>
 <div class="an-ctl" id="rd-hookctl"></div>
-<div class="an-cap" id="rd-hookcap"></div>
 <p class="cap">Header names and the signed string follow the {{Standard Webhooks spec|https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md}}; retry timings follow its suggested schedule; ids and times illustrative.</p>
 </div>
+</div></div><div class="s3L">
+<section id="rd-s6">
+<h2>6. Webhooks: your API, called in reverse</h2>
+<p>Some events happen later: a batch finishes, a payment clears, a moderation review completes. Clients could poll; a <b>webhook</b> turns it around: the client registers a URL and your server POSTs to it when the event happens. Now you are the client, calling code you do not control, over a network that fails, so everything from sections 2 to 5 applies with the roles swapped. Step through one delivery that goes wrong in the usual way:</p>
+<ol class="sx" id="sx-hook">
+<li><b>The event.</b> Batch msgbatch_1 ended. The provider builds the payload and signs the id, the timestamp and the exact bytes of the body: HMAC-SHA256(secret, "msg_2Kx.1729760000.&lt;raw body&gt;").</li>
+<li><b>Attempt 1.</b> The signature headers (<code>webhook-id</code>, <code>webhook-timestamp</code>, <code>webhook-signature: v1,...</code>) travel with the body.</li>
+<li><b>The receiver is slow.</b> It verifies on the raw bytes and checks the timestamp is within 5 minutes, which is right; then it does the work before answering, which is the mistake.</li>
+<li><b>Timeout.</b> No 2xx arrives before the provider's timeout, so attempt 1 failed. The provider cannot know the work happened, so it must try again.</li>
+<li><b>Attempt 2.</b> After 5 s, the same webhook-id with a new signature. The schedule backs off: immediately, 5 s, 5 min, 30 min, on up to 24 hours.</li>
+<li><b>Dedupe.</b> The receiver has already processed msg_2Kx, so it answers 204 with no second side effect. At-least-once delivery means the receiver, not the provider, guarantees "once".</li>
+<li><b>The fix.</b> The better receiver verifies, records the id, puts the event on a queue and answers 204 within milliseconds; a worker does the work from the queue, and the provider never times out.</li>
+</ol>
 <ul class="tight">
 <li><b>Sign every delivery</b> with an HMAC-SHA256 over the id, a timestamp and the exact body, using a secret shared with that receiver: Standard Webhooks signs <code>msg_id.timestamp.payload</code> and sends <code>webhook-id</code>, <code>webhook-timestamp</code> and <code>webhook-signature: v1,&lt;base64&gt;</code>; Stripe signs <code>timestamp.payload</code> into <code>Stripe-Signature: t=...,v1=...</code> ({{Stripe webhooks|https://docs.stripe.com/webhooks}}). Receivers verify against the <b>raw bytes</b> before parsing (re-serialised JSON changes spacing and key order), compare in constant time, and reject old timestamps to stop replays: Stripe's libraries default to "a default tolerance of 5 minutes".</li>
 <li><b>Retry with backoff, for days.</b> Stripe retries "for up to three days with an exponential back off in live mode"; Standard Webhooks suggests immediately, 5 seconds, 5 minutes, 30 minutes, and on up to 24 hours. Then mark the endpoint failing and let the user redeliver. Not every provider retries: GitHub "does not automatically redeliver failed deliveries" ({{GitHub, failed deliveries|https://docs.github.com/en/webhooks/using-webhooks/handling-failed-webhook-deliveries}}), so a receiver that is down simply misses them unless it asks for redelivery.</li>
@@ -45,3 +57,4 @@ content-type: application/json
 </ul>
 <p class="small mute">How webhooks compare with SSE, WebSockets and polling as ways to push news to a client is {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}'s; this section owns the API design of one.</p>
 </section>
+</div></div>

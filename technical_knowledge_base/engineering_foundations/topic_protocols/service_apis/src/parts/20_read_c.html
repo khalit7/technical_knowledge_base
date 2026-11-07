@@ -1,24 +1,48 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s3">
 <h2>3. OpenAPI and schema-first design: the contract as data</h2>
 <p>Without a written contract, clients and servers drift apart silently: a renamed field is found by a customer, not a compiler. A schema turns the contract into data that tools check. For REST that is an <b>OpenAPI</b> document (paths, methods, parameters, request and response schemas, auth schemes); for gRPC it is the <code>.proto</code> file (section 8); for GraphQL its SDL. Everything else is generated from it:</p>
-<div class="fig" id="rd-schema">
+<p><b>Code-first</b> writes the server and exports the spec (FastAPI serves one at <code>/openapi.json</code>); <b>schema-first</b> writes the spec, reviews it like code, and generates server stubs and clients from it. Larger organisations with many teams tend to the second, because the review happens before anyone depends on the shape, and a CI job that diffs the new spec against the published one fails the build when a field disappears. Several API companies, LLM providers among them, generate their official SDKs from an OpenAPI spec with commercial generators. OpenAPI 3.1 aligned its schemas with JSON Schema; 3.2.0 (19 September 2025) added sequential and streaming media types such as <code>text/event-stream</code>, so SSE endpoints can finally be described; the current release is 3.2.1 (10 September 2026, the root's {{Protocol atlas|n:3c65c17b0d0d81ec9355f4eecd6eed02}} entry).</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0" id="rd-schema">
 <div class="ft">One schema, five things that can no longer drift from it</div>
 <div id="rd-schemasvg"></div>
 <p class="cap">The fan-out is the same for an OpenAPI document and a <code>.proto</code> file; only the tools differ (OpenAPI Generator and commercial generators, oasdiff; <code>protoc</code>, buf breaking).</p>
 </div>
-<p><b>Code-first</b> writes the server and exports the spec (FastAPI serves one at <code>/openapi.json</code>); <b>schema-first</b> writes the spec, reviews it like code, and generates server stubs and clients from it. Larger organisations with many teams tend to the second, because the review happens before anyone depends on the shape, and a CI job that diffs the new spec against the published one fails the build when a field disappears. Several API companies, LLM providers among them, generate their official SDKs from an OpenAPI spec with commercial generators. OpenAPI 3.1 aligned its schemas with JSON Schema; 3.2.0 (19 September 2025) added sequential and streaming media types such as <code>text/event-stream</code>, so SSE endpoints can finally be described; the current release is 3.2.1 (10 September 2026, the root's {{Protocol atlas|n:3c65c17b0d0d81ec9355f4eecd6eed02}} entry).</p>
-</section>
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-idem"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Idempotency keys and retries across services</h2>
-<p>The user presses Send; after 30 seconds nothing has come back. Either the request never arrived, or it arrived, the model answered, the credits were charged and the reply was lost. The client sees the same timeout in both cases: retrying risks paying twice, not retrying risks losing the message. GET, PUT and DELETE may be retried because they are idempotent; generation is a POST. An <dfn id="g-ikey2">idempotency key</dfn> makes one POST idempotent: the client generates a unique value per logical action, sends it on every retry of that action, and the server answers repeats from what it stored the first time. Same input, with and without the key:</p>
-<div class="fig" id="rd-idem">
-<div class="ft">The retry is harmless only when the server remembers the key</div>
-<div class="seg" id="rd-idemseg"><button data-m="0" class="on">Before: no key</button><button data-m="1">After: Idempotency-Key</button></div>
-<div id="rd-idemsvg"></div>
-<div class="an-ctl" id="rd-idemctl"></div>
-<div class="an-cap" id="rd-idemcap"></div>
-<p class="cap">The mechanism follows Stripe's design ({{Stripe, idempotent requests|https://docs.stripe.com/api/idempotent_requests}}; {{Brandur Leach, 2017|https://brandur.org/idempotency-keys}}); credits, ids and timings are illustrative.</p>
-</div>
+<p>The user presses Send; after 30 seconds nothing has come back. Either the request never arrived, or it arrived, the model answered, the credits were charged and the reply was lost. The client sees the same timeout in both cases: retrying risks paying twice, not retrying risks losing the message. GET, PUT and DELETE may be retried because they are idempotent; generation is a POST. An <dfn id="g-ikey2">idempotency key</dfn> makes one POST idempotent: the client generates a unique value per logical action, sends it on every retry of that action, and the server answers repeats from what it stored the first time. The page's toy front door ran the same lost reply four ways; pick one:</p>
+<div class="s3chips" id="idem-mode"><button data-m="nokey" class="on">No key</button><button data-m="key">With a key</button><button data-m="early">Retry too early</button><button data-m="mismatch">Key reused</button></div>
+<p class="sxh">Fig. 3 · The retry is harmless only when the server remembers the key</p>
+<ol class="sx" id="sx-idem-nokey">
+<li><b>The request leaves without a key.</b> The toy client sends the message at 0.000 s with a 0.2 s read timeout; the toy server's "model" takes 0.3 s.</li>
+<li><b>The work commits.</b> At 0.301 s the server saves msg_1 and charges 10 credits in one transaction.</li>
+<li><b>The reply is lost.</b> The client gave up at 0.201 s, so the 201 written at 0.301 s reaches nobody. A tunnel, a proxy reset, a phone that slept: the client cannot tell this from a request that never arrived.</li>
+<li><b>The client retries.</b> It must, or the message is lost. At 0.601 s the same body arrives with nothing to recognise it by, so the model runs again: msg_2 and 10 more credits, answered at 0.902 s.</li>
+<li><b>What the user ends up with.</b> Two messages and 20 credits for one press of Send, and a duplicate in the chat.</li>
+</ol>
+<ol class="sx" id="sx-idem-key" hidden>
+<li><b>Claim the key.</b> The request carries <code>Idempotency-Key: 7f3c9a0e-...</code>; at 0.000 s the server inserts the key with the request's fingerprint and status <code>started</code>, under a unique constraint, so of two simultaneous attempts exactly one wins.</li>
+<li><b>One transaction.</b> At 0.301 s msg_1, the 10-credit charge and the stored 201 response commit together, and the key becomes <code>done</code>.</li>
+<li><b>The reply is lost.</b> The client gave up at 0.200 s, as before.</li>
+<li><b>The retry is answered from the store.</b> At 0.601 s the same key and fingerprint arrive and the key is <code>done</code>, so no work runs: the stored 201 for msg_1 comes back marked <code>Idempotent-Replayed: true</code>, in under a millisecond.</li>
+<li><b>What the user ends up with.</b> One message, 10 credits, and the same response the first attempt would have returned.</li>
+</ol>
+<ol class="sx" id="sx-idem-early" hidden>
+<li><b>Claim the key.</b> The first attempt claims the key at 0.000 s and starts the work.</li>
+<li><b>A retry arrives too early.</b> At 0.250 s, while the key is still <code>started</code>, the same request comes again: 409, retry later. Running it would charge twice; waiting is the only safe answer.</li>
+<li><b>The work commits; the reply is lost.</b> msg_1 commits at 0.301 s; the first attempt's client had given up at 0.201 s.</li>
+<li><b>The later retry is replayed.</b> At 0.600 s the key is <code>done</code>: the stored 201 for msg_1 comes back, <code>Idempotent-Replayed: true</code>. One message, 10 credits.</li>
+</ol>
+<ol class="sx" id="sx-idem-mismatch" hidden>
+<li><b>A normal call.</b> The first request claims its key and succeeds: 201, msg_1, at 0.301 s.</li>
+<li><b>The same key, a different message.</b> The client reuses the key for "What colour is grass?". Its fingerprint (e7b301b3) differs from the stored one (2fc72bdf), so the server answers 422 rather than replay the answer to a different question.</li>
+<li><b>The key is bound to its first request.</b> Still one message and 10 credits; a client bug that reuses keys shows up as 422s, not as wrong answers.</li>
+</ol>
+<p class="small mute"><span class="meas">measured</span> 7 November 2026 by <code>src/lab/idem_run.py</code>: a standard-library HTTP server with SQLite (Python <span data-sa="idem.python"></span>, SQLite <span data-sa="idem.sqlite"></span>) standing in for the front door. The work time (0.3 s), the client's timeout (0.2 s) and the price (10 credits) are the toy's settings, illustrative; statuses, headers, counts and times are measured. The mechanism follows Stripe's design ({{Stripe, idempotent requests|https://docs.stripe.com/api/idempotent_requests}}; {{Brandur Leach, 2017|https://brandur.org/idempotency-keys}}).</p>
 <p><b>The server side, in three steps.</b> (1) <b>Claim the key atomically</b>: insert (user, key, request fingerprint, status <code>started</code>) under a unique constraint, so exactly one of two simultaneous attempts wins; never "select, and if absent insert", which races. (2) <b>If it exists, compare and replay</b>: a different fingerprint means the client reused a key for a different action (422); <code>started</code> means the first attempt is still running (409, retry later); <code>done</code> means return the stored status and body (Stripe marks it <code>Idempotent-Replayed: true</code>). (3) <b>Do the work and store the result in one transaction</b>, so the message, the charge and the stored response commit together. Then release the claim on every exit that did not store a response, and give claims an expiry, or a crash between steps 1 and 3 leaves the key stuck at <code>started</code> and every retry gets 409 forever ({{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} found and measured exactly that bug in the Building a backend API demo).</p>
 <details class="xc"><summary>Depth: what the IETF draft and Stripe each specify</summary><div>
 <div class="tw"><table>
@@ -32,6 +56,9 @@
 </tbody></table></div>
 <p class="small mute">The Idempotency-Key header is not an RFC: the IETF draft reached revision 07 and is listed as expired ({{datatracker|https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/}}, checked 2026-10-04), though its implementation list names Stripe, Adyen, PayPal, Square, Twilio and others. Use the header name; do not cite it as a standard.</p>
 </div></details>
+</section>
+</div></div>
+<section id="rd-s4b">
 <h3>Across services: one retry layer, one deadline, one key</h3>
 <p>Behind the front door the same request crosses a router and an inference service, and each hop has a client that could retry. Three rules keep that safe:</p>
 <ul class="tight">

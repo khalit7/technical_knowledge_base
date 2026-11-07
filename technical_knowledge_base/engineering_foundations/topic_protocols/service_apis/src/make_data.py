@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "..", "src"))
 import private_patterns  # noqa: E402  (git-ignored patterns; used to refuse leaking them)
 
 R = lambda n: json.load(open(os.path.join(HERE, "raw", n)))
-pb, fr, dl, lb, st, gq = R("pb.json"), R("frames.json"), R("deadline.json"), R("lb.json"), R("status.json"), R("graphql.json")
+pb, fr, dl, lb, st, gq, idm = R("pb.json"), R("frames.json"), R("deadline.json"), R("lb.json"), R("status.json"), R("graphql.json"), R("idem.json")
 
 
 def data():
@@ -25,7 +25,14 @@ def data():
         status=dict(cases=st["cases"], services=st["reflection_services"],
                     retry=[dict(ms=round((x["t"] - t0) * 1000), header=x["attempt_header"], failed=x["failed"]) for x in st["retry_server_log"]],
                     pings=[f for f in st["keepalive_frames"] if f["conn"] == max(g["conn"] for g in st["keepalive_frames"])]),
-        gql=gq)
+        gql=gq,
+        # the idempotency toy (lab/idem_run.py, 2026-11-07): attempts as the client saw them, the server's log, what was stored
+        idem=dict(python=idm["python"], sqlite=idm["sqlite"], recorded=idm["recorded"], work_s=idm["work_s"], client_timeout_s=idm["client_timeout_s"],
+                  price=idm["price_credits"], runs={r["run"]: dict(
+                      attempts=[dict(key=(a["key"] or "")[:8] or None, sent=a["sent"], got=a["got"], status=a["status"], replayed=a.get("replayed"),
+                                     msg=(a.get("body") or {}).get("id")) for a in r["attempts"]],
+                      log=[{k: v for k, v in e.items() if k != "key"} for e in r["server_log"]], messages=r["messages"], credits=r["credits"])
+                      for r in idm["runs"]}))
 
 
 if __name__ == "__main__":

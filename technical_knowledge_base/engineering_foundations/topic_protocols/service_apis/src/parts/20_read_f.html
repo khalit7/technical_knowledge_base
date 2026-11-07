@@ -1,4 +1,5 @@
 <section id="rd-s8">
+<div class="s3sp"><div class="s3L">
 <h2>8. Protobuf: the bytes inside every gRPC call</h2>
 <p>JSON spells out every field name in every message (<code>"max_tokens":16</code> is 15 bytes to say "16"), stores numbers as text, and has no schema, so a typo in a field name is silently ignored. Between your own services, millions of times a second, that costs CPU and bandwidth and hides bugs. <dfn id="g-protobuf">Protocol Buffers</dfn> fix all three: a schema both sides compile, and a binary encoding that sends field <i>numbers</i> and compact values. The running request as the lab's <code>llm.proto</code> (in <code>src/lab/</code>):</p>
 <pre class="cd"><span class="k">message</span> GenerateRequest {
@@ -10,20 +11,22 @@
 <span class="k">service</span> Inference {
   <span class="k">rpc</span> Generate(GenerateRequest) <span class="k">returns</span> (<span class="k">stream</span> Token);  <span class="c">// server streaming</span>
 }</pre>
-<p>The numbers after <code>=</code> are the contract; <code>protoc</code> turns the file into classes and stubs for each language. On the wire every field is a <b>tag</b>, <code>(field_number &lt;&lt; 3) | wire_type</code>, then a value; the <dfn id="g-wiretype">wire type</dfn> says how to find the value's end: 0 VARINT (integers, booleans, enums), 2 LEN (a length, then bytes: strings, nested messages, packed lists), 1 and 5 for fixed 8- and 4-byte values ({{encoding guide|https://protobuf.dev/programming-guides/encoding/}}). A <dfn id="g-varint">varint</dfn> is 7 bits per byte, low group first, the top bit set on every byte but the last: 150 is <code>1 0010110</code> in binary, so <code>0x96</code> (low 7 bits plus "more") then <code>0x01</code>, written <code>96 01</code>. Type a number:</p>
-<div class="card" id="rd-vcard">
+<p>The numbers after <code>=</code> are the contract; <code>protoc</code> turns the file into classes and stubs for each language. On the wire every field is a <b>tag</b>, <code>(field_number &lt;&lt; 3) | wire_type</code>, then a value; the <dfn id="g-wiretype">wire type</dfn> says how to find the value's end: 0 VARINT (integers, booleans, enums), 2 LEN (a length, then bytes: strings, nested messages, packed lists), 1 and 5 for fixed 8- and 4-byte values ({{encoding guide|https://protobuf.dev/programming-guides/encoding/}}). A <dfn id="g-varint">varint</dfn> is 7 bits per byte, low group first, the top bit set on every byte but the last: 150 is <code>1 0010110</code> in binary, so <code>0x96</code> (low 7 bits plus "more") then <code>0x01</code>, written <code>96 01</code>. Type a number in the box beside this text.</p>
+<p><span data-sa="pb.request.pb_bytes"></span> bytes of protobuf against <span data-sa="pb.request.json_bytes"></span> of JSON, 49 bytes against 117, so JSON is 2.4 times protobuf here (<span class="meas">measured</span>). The saving is names (<code>"max_tokens":</code> becomes the one tag byte <code>18</code>), quotes and braces; strings cost the same in both ("What colour is the sky?" is 23 bytes either way), which is why protobuf's win on chat text is modest and its win on numbers (token ids, logits, embeddings) large. Each streamed token is a 5-to-9-byte message (<code>" sky"</code> at index 1 is <code>0a 04 20 73 6b 79 10 01</code>).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" style="margin-top:0" id="rd-vcard">
 <div class="vin"><label>Value <input type="number" id="rd-vval" value="150" min="0" max="4294967295" step="1"></label><label>Field number <input type="number" id="rd-vfn" value="3" min="1" max="536870911" step="1" style="width:7em"></label></div>
 <div class="vbits" id="rd-vbits"></div>
 <div class="out" id="rd-vout"></div>
 <p class="small mute">The page's 15-line encoder is checked against the protobuf library's own bytes for 1, 127, 128, 150, 300, 16384 and 2,147,483,647 when the page loads (<span class="meas">measured</span>, protobuf <span data-sa="meta.protobuf"></span>): <span id="rd-vcheck"></span></p>
 </div>
-<p>The whole running request, serialised by the library; click any byte:</p>
+<p class="small" style="margin:10px 0 0"><b>The whole running request</b>, serialised by the library; click any byte:</p>
 <div class="card" id="rd-pbcard">
 <div class="bstrip" id="rd-pbstrip"></div>
 <div class="anninfo" id="rd-pbinfo">Each coloured group is one field; bold bytes are tags.</div>
 <div class="out" id="rd-pbout"></div>
 </div>
-<p><span data-sa="pb.request.pb_bytes"></span> bytes of protobuf against <span data-sa="pb.request.json_bytes"></span> of JSON, 49 bytes against 117, so JSON is 2.4 times protobuf here (<span class="meas">measured</span>). The saving is names (<code>"max_tokens":</code> becomes the one tag byte <code>18</code>), quotes and braces; strings cost the same in both ("What colour is the sky?" is 23 bytes either way), which is why protobuf's win on chat text is modest and its win on numbers (token ids, logits, embeddings) large. Each streamed token is a 5-to-9-byte message (<code>" sky"</code> at index 1 is <code>0a 04 20 73 6b 79 10 01</code>).</p>
+</div></div></div>
 <h3>Schema evolution: why the numbers are sacred</h3>
 <p>Services deploy one at a time, so for a while a new writer talks to an old reader. A reader keeps fields it does not know as unknown fields and carries on. The lab tried three changes against the old reader (<span class="meas">measured</span>):</p>
 <div class="tw"><table id="rd-evo"><thead><tr><th>Change</th><th>What the old reader saw</th><th>Verdict</th></tr></thead><tbody></tbody></table></div>

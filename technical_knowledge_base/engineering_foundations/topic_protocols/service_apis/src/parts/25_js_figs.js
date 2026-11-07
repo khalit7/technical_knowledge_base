@@ -1,5 +1,5 @@
-// ---- Reading figures added on 2026-10-24: hero, annotated call, pagination, schema fan-out, idempotency, webhook,
-// LLM formats, status-code decisions, balancer placement. Every SVG is drawn at the measured width and redrawn on resize.
+// ---- Reading figures added on 2026-10-24: annotated call, pagination, schema fan-out, webhook, LLM formats, status-code decisions
+// (the hero, idempotency and balancer figures became 3D stages on 2026-11-07). Every SVG is drawn at the measured width and redrawn on resize.
 (function(){
   const S=window.SA,esc=RD.esc,$=id=>document.getElementById(id);
   const CW=fs=>fs*0.56;                                  // approximate glyph width of the UI font
@@ -12,29 +12,7 @@
   const draws=[];const reg=f=>{draws.push(f);f()};
   RD.onRender(()=>draws.forEach(f=>f()));RD.onResize(()=>draws.forEach(f=>f()));
 
-  // ---- hero: the running request through three styles ----
-  function hero(){const el=$('rd-herosvg');if(!el)return;const W=RD.width(el),fs=W<520?11.5:12.5;
-    const nw=Math.min(250,Math.round(W*0.4)),lx=nw+28,lw=W-lx-4;
-    const N=[['Your app','curl, an SDK, a browser','c1'],['API front door','auth, rate limits, idempotency, translation','c2'],['Router (L7)','picks a replica for each call','c4'],['Inference replicas','three copies of the model server','c3']];
-    const E=[['REST + SSE over HTTPS: resources, versions, errors, pagination (2); an OpenAPI contract (3); Idempotency-Key (4); 429 and rate-limit headers (5); the provider format, Chat Completions, Responses or Messages (7)','c1'],
-      ['gRPC: protobuf bytes (8), one HTTP/2 stream per call (9), a deadline that shrinks each hop (10), a status in the trailers and a retry policy (11)','c2'],
-      ['Who answers: L4, L7 or client-side choice; keepalive and GOAWAY on long-lived connections (12, 13)','c4']];
-    let y=8,body=MK.replace('IDa','hA');const ys=[],nhs=[];
-    const lab=E.map(e=>wrap(e[0],lw,fs)),icon=nw>=200,sub=N.map((n,i)=>wrap(n[1],nw-24-(i===3&&icon?50:0),fs-1.5));
-    N.forEach((n,i)=>{const nh=26+sub[i].length*(fs-1.5)*1.3+4;ys.push(y);nhs.push(nh);y+=nh;if(i<E.length)y+=Math.max(52,lab[i].length*fs*1.3+16)});
-    const H=y+8;
-    N.forEach((n,i)=>{const yy=ys[i],nh=nhs[i];body+=box(20,yy,nw,nh,{stroke:'var(--'+n[2]+')',sw:1.8});
-      body+=RD.t(32,yy+19,esc(n[0]),{fs:fs+0.5,w:600})+T(32,yy+36,sub[i],{fs:fs-1.5,fill:'var(--mute)'});
-      if(i===3&&icon){for(let k=0;k<3;k++)body+=box(nw-48+k*10,yy+8+k*4,26,16,{r:3,fill:'var(--soft)',stroke:'var(--c3)'})}
-      if(i<E.length){const y1=yy+nh,y2=ys[i+1],mx=20+nw/2;body+=line(mx,y1+2,mx,y2-3,{col:'var(--'+E[i][1]+')',sw:2,arrow:'hA'});
-        const ly=(y1+y2)/2-(lab[i].length-1)*fs*0.65+4;body+=T(lx,ly,lab[i],{fs});
-        body+=line(mx+6,(y1+y2)/2,lx-6,(y1+y2)/2,{col:'var(--line)',sw:1,dash:'2 3'})}});
-    // webhook back from the front door to the app
-    const wy1=ys[1]+nhs[1]/2,wy0=ys[0]+nhs[0]/2;body+='<path d="M20,'+wy1+' C2,'+wy1+' 2,'+wy0+' 18,'+wy0+'" fill="none" stroke="var(--c5)" stroke-width="1.6" stroke-dasharray="5 3" marker-end="url(#hA)"/>';
-    body+=RD.t(9,(wy0+wy1)/2+4,'6',{fs:11,fill:'var(--c5)',w:600,a:'middle'});
-    el.innerHTML=RD.svg(W,H,body,'The running request: your app calls the front door with REST and SSE, the front door calls a router with gRPC, the router picks one of three inference replicas; a dashed arrow labelled 6 is a webhook back to the app');
-    el.insertAdjacentHTML('beforeend','<p class="small mute" style="margin:2px 0 0">Dashed arrow (6): when a batch ends, the front door calls <i>you</i>, a webhook. Other faces of the same services: gRPC-Web and Connect for browsers (14), GraphQL (15), JSON-RPC for MCP and A2A (16).</p>')}
-  reg(hero);
+  // (the 2D hero became the 3D stage stg-hero on 2026-11-07: 41_js_sc_hero.js)
 
   // ---- annotated call ----
   const AN=['Path: a plural noun for the resource collection, with the major version first. A v2 is a second API to run, so everything between majors must be additive.',
@@ -57,9 +35,6 @@
       const fetch=(si)=>{const L=states[si];let rows;
         if(m===0){rows=L.slice(off,off+3);off+=3}else{const i=after?L.indexOf(after)+1:0;rows=L.slice(i,i+3);if(rows.length)after=rows[rows.length-1]}return rows};
       res[1]=fetch(0);res[2]=fetch(1);res[3]=fetch(2);return res}
-    const CAP=[['Page 1','The user gets c8, c7, c6, the three newest chats. Offset remembers "skip 3"; the cursor remembers "after c6".'],
-      ['A write between requests','Someone creates c9 at the top of the list. The user does not know.'],
-      ['Page 2',''],['Another write','c5 is deleted.'],['Page 3',''],['What the user saw','']];
     function draw(i){const W=RD.width(el),fs=W<480?11:12,res=pages(mode),st=ST[i],L=states[st[0]];
       const upTo=i>=4?3:i>=2?2:1,seenRows=[];for(let p=1;p<=upTo;p++)res[p].forEach(r=>seenRows.push([r,p]));
       const cur=st[1]>0&&st[1]<9?st[1]:0,curRows=cur?res[cur]:[];
@@ -80,13 +55,10 @@
       if(missing.length){const y=24+seenRows.length*rh+12;body+=RD.t(x1+4,y,'never shown: '+missing.join(', '),{fs:fs,fill:'var(--bad)',w:600})}
       const H=24+Math.max(L.length,seenRows.length+1)*rh+24;
       el.innerHTML=RD.svg(W,H,body,'Pagination: the list in the database beside what the user has been shown');
-      let cap=CAP[i].slice();
-      if(i===2)cap[1]=mode===0?'Offset skips 3 rows of the new list: c9, c8, c7. The user gets c6 again, then c5 and c4.':'The cursor asks for rows after c6: c5, c4, c3. The new row c9 does not disturb it.';
-      if(i===4)cap[1]=mode===0?'Offset skips 6 rows: the list shrank, so the page starts at c2. c3 is never shown.':'The cursor asks for rows after c3: c2, c1. The deleted c5 simply is not there.';
-      if(i===5)cap[1]=mode===0?'Offset showed one chat twice and never showed another, without any error. Both writes were ordinary.':'Every chat that existed was shown exactly once, whatever was written in between.';
-      $('rd-pgcap').innerHTML='<div class="t">Step '+(i+1)+' of '+ST.length+': '+cap[0]+'</div><p>'+cap[1]+'</p>'}
-    const A=RD.anim({card:'rd-pg',ctl:'rd-pgctl',n:ST.length,ms:1600,draw,label:'Step'});
-    RD.seg($('rd-pgseg'),m=>{mode=+m;A.reset(ST.length)});reg(()=>A.redraw())})();
+}
+    // the steps are explained by the step lists on the left (sx-pg-0 offset, sx-pg-1 cursor), swapped with the mode
+    const A=RD.anim({card:'rd-pg',ctl:'rd-pgctl',n:ST.length,draw,label:'Step',list:'sx-pg-0'});
+    RD.seg($('rd-pgseg'),m=>{mode=+m;[0,1].forEach(j=>$('sx-pg-'+j).hidden=j!==mode);A.reset(ST.length,'sx-pg-'+m)});reg(()=>A.redraw())})();
 
   // ---- schema fan-out ----
   function schema(){const el=$('rd-schemasvg');if(!el)return;const W=RD.width(el),fs=W<480?11.5:12.5;
@@ -119,25 +91,7 @@
       body+='</g>'});
     el.innerHTML=RD.svg(W,H,body,label)}
 
-  // ---- idempotency: one message, a lost reply, a retry ----
-  (function(){const el=$('rd-idemsvg');if(!el)return;let mode=0;
-    const L=['Client','Front door','Store'];
-    const M=m=>[{s:0,f:0,t:1,l:m?'POST /v1/messages, Idempotency-Key: k_7f3c':'POST /v1/messages (no key)'},
-      {s:1,f:1,t:2,l:m?'INSERT key k_7f3c, fingerprint, status started (unique)':'nothing recorded about the attempt'},
-      {s:2,f:2,self:1,l:m?'one transaction: msg_1 saved, 10 credits charged, key done, response stored':'msg_1 saved, 10 credits charged'},
-      {s:3,f:1,t:0,lost:1,l:'201 Created, lost on the way back',col:'bad'},
-      {s:4,f:0,t:1,l:m?'timeout at 30 s; same request, same key k_7f3c':'timeout at 30 s; same request again'},
-      {s:5,f:1,t:2,l:m?'k_7f3c exists, fingerprint matches, status done':'msg_2 saved, 10 more credits charged',col:m?'good':'bad'},
-      {s:6,f:1,t:0,l:m?'the stored 201, Idempotent-Replayed: true':'201 Created for a duplicate message',col:m?'good':'bad'}];
-    const CAP=[['The request leaves','The user pressed Send once.'],['Before any work',''],['The work','The model answers and the credits are charged.'],['The reply is lost','A tunnel, a proxy reset, a phone that slept: the client cannot tell this from a request that never arrived.'],['The client retries','It must, or the user\'s message is lost.'],['The server sees the retry',''],['What the user ends up with','']];
-    function draw(i){seq(el,L,M(mode),i,'Sequence diagram: client, front door and store, one message sent, the reply lost, and a retry');
-      let c=CAP[i].slice();
-      if(i===1)c[1]=mode?'The front door claims the key with an insert under a unique constraint, so of two simultaneous attempts exactly one wins.':'Without a key the server has no way to recognise a repeat later.';
-      if(i===5)c[1]=mode?'The key is already done and the request fingerprint matches, so the server does no work: it answers from the store. (A different body under the same key would get 422; a retry while the first is still running, 409.)':'To the server this is a new message. The model runs again and the user pays again.';
-      if(i===6)c[1]=mode?'One message, 10 credits, and the same response the first attempt would have returned.':'Two messages, 20 credits, and a duplicate in the chat.';
-      $('rd-idemcap').innerHTML='<div class="t">Step '+(i+1)+' of 7: '+c[0]+'</div><p>'+c[1]+'</p>'}
-    const A=RD.anim({card:'rd-idem',ctl:'rd-idemctl',n:7,ms:1700,draw,label:'Step'});
-    RD.seg($('rd-idemseg'),m=>{mode=+m;A.reset(7)});reg(()=>A.redraw())})();
+  // (the idempotency stepper became the 3D stage stg-idem on 2026-11-07, driven by the recorded toy: 42_js_sc_idem.js)
 
   // ---- webhook: one delivery that goes wrong in the usual way ----
   (function(){const el=$('rd-hooksvg');if(!el)return;
@@ -150,10 +104,9 @@
       {s:5,f:1,self:1,l:'webhook-id msg_2Kx already processed: 204, no second side effect',col:'good'},
       {s:6,f:1,t:2,l:'the better receiver: verify, record the id, enqueue',col:'good'},
       {s:6,f:1,t:0,l:'204 within milliseconds',col:'good'}];
-    const CAP=[['The event','The provider builds the payload and signs the id, the timestamp and the exact bytes of the body.'],['Attempt 1','The signature headers travel with the body.'],['The receiver is slow','Verification is right; doing the work before answering is the mistake.'],['Timeout','The provider cannot know the work happened, so it must try again.'],['Attempt 2','The schedule backs off: immediately, 5 s, 5 min, 30 min, on up to 24 hours.'],['Dedupe','At-least-once delivery means the receiver, not the provider, guarantees "once".'],['The fix','Answer at once and let a worker do the work from the queue; the provider never times out.']];
     function draw(i){seq(el,L,M,i,'Sequence diagram of a webhook delivery: signed POST, slow receiver, provider timeout, retry, dedupe by webhook-id');
-      $('rd-hookcap').innerHTML='<div class="t">Step '+(i+1)+' of 7: '+CAP[i][0]+'</div><p>'+CAP[i][1]+'</p>'}
-    const A=RD.anim({card:'rd-hook',ctl:'rd-hookctl',n:7,ms:1700,draw,label:'Step'});reg(()=>A.redraw())})();
+}
+    const A=RD.anim({card:'rd-hook',ctl:'rd-hookctl',n:7,draw,label:'Step',list:'sx-hook'});reg(()=>A.redraw())})();
 
   // ---- LLM formats toggle ----
   (function(){const f=$('rd-llm');if(!f)return;RD.seg($('rd-llmseg'),m=>f.querySelectorAll('[data-f]').forEach(d=>d.hidden=d.dataset.f!==m))})();
@@ -174,26 +127,5 @@
     el.innerHTML=RD.svg(W,y,body,'Which gRPC status codes may be retried and at what scope')}
   reg(codes);
 
-  // ---- where the balancing choice is made ----
-  function lbd(){const el=$('rd-lbdsvg');if(!el||!S)return;const W=RD.width(el),fs=W<480?10.5:11.5;
-    const cnt=k=>{const c=S.lb.counts[k].answers;return ['backend-1','backend-2','backend-3'].map(b=>c[b]||0)};
-    const P=[['L4 balancer','one connection, chosen once',2,'l4'],['L7 balancer','one connection to the proxy; a choice per call',3,'l7'],['Client, pick_first (default)','three addresses known, one connection',0,'pf'],['Client, round_robin','one connection per replica',1,'rr']];
-    const cols=W>=760?4:2,pw=(W-(cols-1)*10)/cols,ph=170;let body=MK.replace('IDa','lA');
-    P.forEach((p,k)=>{const ox=(k%cols)*(pw+10),oy=Math.floor(k/cols)*(ph+10),c=cnt(p[2]);
-      body+=box(ox+1,oy+1,pw-2,ph-2,{r:8});body+=RD.t(ox+8,oy+16,esc(p[0]),{fs:fs+0.5,w:600})+T(ox+8,oy+30,wrap(p[1],pw-16,fs-1).slice(0,2),{fs:fs-1,fill:'var(--mute)'});
-      const cx=ox+18,cy=oy+100,rxp=ox+pw-46,bx=ox+pw*0.47;
-      body+=box(cx-12,cy-12,30,24,{r:4,fill:'var(--soft)',stroke:'var(--c1)'})+RD.t(cx+3,cy+4,'C',{fs,a:'middle',w:600});
-      const rys=[cy-38,cy,cy+38];
-      rys.forEach((ry,j)=>{body+=box(rxp,ry-11,40,22,{r:4,fill:'var(--soft)',stroke:'var(--c3)'})+RD.t(rxp+20,ry+4,String(c[j]),{fs,a:'middle',w:600,fill:c[j]?'var(--ink)':'var(--mute)'})});
-      const thick=(x1,y1,x2,y2)=>line(x1,y1,x2,y2,{col:'var(--acc)',sw:3});
-      if(p[3]==='l4'||p[3]==='l7'){body+=box(bx-12,cy-14,24,28,{r:4,fill:'var(--bg)',stroke:'var(--c4)'})+RD.t(bx,cy+4,p[3]==='l4'?'L4':'L7',{fs:fs-1,a:'middle'});
-        body+=thick(cx+18,cy,bx-12,cy);
-        if(p[3]==='l4')body+=thick(bx+12,cy,rxp,rys[0]);else rys.forEach(ry=>body+=line(bx+12,cy,rxp-3,ry,{col:'var(--acc)',sw:1.8,arrow:'lA'}))}
-      else if(p[3]==='pf')body+=thick(cx+18,cy,rxp,rys[0])+rys.slice(1).map(ry=>line(cx+18,cy,rxp,ry,{col:'var(--line)',sw:1,dash:'3 3'})).join('');
-      else rys.forEach(ry=>body+=thick(cx+18,cy,rxp,ry));
-      body+=RD.t(ox+8,oy+ph-10,'30 calls: '+c.join(' / '),{fs:fs-0.5,fill:'var(--mute)'})});
-    const H=Math.ceil(P.length/cols)*(ph+10);
-    el.innerHTML=RD.svg(W,H,body,'Four ways to choose a replica: L4 balancer, L7 balancer, client pick_first and client round_robin, with the measured calls per replica');
-    el.insertAdjacentHTML('beforeend','<p class="small mute" style="margin:4px 0 0">Thick lines are TCP connections; the numbers on the replicas are the measured calls out of 30 (table below). Dashed: addresses the client knows but does not use.</p>')}
-  reg(lbd);
+  // (the balancer-placement diagram became the 3D stage stg-lb on 2026-11-07: 44_js_sc_lb.js)
 })();

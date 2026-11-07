@@ -53,3 +53,14 @@ New, built (all in `parts/25_js_figs.js`, drawn at the measured width, never aut
 | N10 | **Where the balancing choice is made**: L4, L7, client pick_first, client round_robin, connections drawn, measured counts on the replicas | static diagram on measured data | section 13 | `raw/lb.json` |
 
 Rejected in this pass: a live HMAC verifier for webhooks (Building a backend API has one built on its demo's captured event; the sequence stepper teaches the delivery contract, which is what this page owns); a retry-amplification slider (a^L is said completely by one sentence with 3 x 3 x 3 = 27); a token-bucket animation for rate limits (owned by Reliability engineering).
+
+## 2026-11-07: the split-layout rollout (renderer v2 stages)
+Built: four 3D stages, each with a step list on the left and driven by the page's recordings.
+| Fig. | Stage | Replaces | Data |
+|---|---|---|---|
+| 1 | `stg-hero` (6 steps): app, front door, L7 router, three replicas; REST + SSE, gRPC with the frame size, the router's per-call choice, a webhook back, the other faces | N1 hero (static SVG) | `pb.json` sizes, `lb.json` L7 counts |
+| 3 | `stg-idem` (modes 5, 5, 4, 3 steps): one lost reply four ways; the keys plate and the messages plate, credits as a bar | N5 idempotency stepper (illustrative) | new recording `raw/idem.json` (`lab/idem_run.py`) |
+| 4 | `stg-dl` (4 modes x 5 steps): client, gateway, inference with 40 token slots each; the deadline travelling, the give-up, what happens downstream, the bill | the deadline lanes (25 frames per run) | `deadline.json` |
+| 5 | `stg-lb` (8 steps): connections as thick lines, calls as dots, counts as bars; four 30-call setups, then the four join runs | N10 placement diagram | `lb.json` |
+Kept 2D: the annotated call, the schema fan-out, rate-limit headers, LLM formats, protobuf byte strip and varint box, the status-code decisions, the ping table and N+1 bars (bytes, code, tables and bars read best flat); pagination and webhook steppers (a list beside a list and a sequence diagram: flat structures) now with step lists; the frame viewer and the balancer-run timelines became widgets (long replays, never autoplay; the timelines open on their last frame).
+Rejected: a 3D protobuf byte layout (bytes are a strip; depth adds nothing); a 3D status-code table.

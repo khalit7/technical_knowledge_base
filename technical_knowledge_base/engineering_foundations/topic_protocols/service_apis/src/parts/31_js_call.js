@@ -51,6 +51,7 @@
       '<div><b>On the wire</b><br>'+c.filter(f=>f.stream!==undefined).length+' frames, '+c.filter(f=>f.dir==='c>s').reduce((x,f)=>x+(f.len||0),0)+' payload bytes sent, '+c.filter(f=>f.dir==='s>c').reduce((x,f)=>x+(f.len||0),0)+' received (plus 9 bytes of frame header each)</div>'}
   list.addEventListener('click',e=>{const r=e.target.closest('.fr');if(r&&A)A.go(+r.dataset.k)});
   build();
-  A=RD.anim({card:'cl-det',ctl:'cl-ctl',n:CONNS[0].length,ms:900,draw,label:'Frame'});
+  // a frame viewer the reader drives (the long-replay rule, case b): it never plays by itself
+  A=RD.anim({card:'cl-det',ctl:'cl-ctl',n:CONNS[0].length,ms:900,draw,label:'Frame',auto:false});
   RD.seg(document.getElementById('cl-seg'),m=>{conn=+m;build();A.reset(CONNS[conn].length)});
 })();

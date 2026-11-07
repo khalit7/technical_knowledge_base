@@ -1,7 +1,16 @@
 <section id="rd-s9">
+<div class="s3sp"><div class="s3L">
 <h2>9. gRPC on the wire</h2>
-<p>Protobuf gives bytes; a call also needs a method name, a deadline, credentials, streams both ways and an outcome, over connections that stay open for hours. gRPC (open-sourced by Google in 2015 from its internal Stubby) maps every call onto one HTTP/2 stream ({{gRPC over HTTP/2 spec|https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md}}); HTTP/2 frames and HPACK themselves are {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}'s. The lab ran the running request through a logging proxy that decodes every HTTP/2 frame (no packet capture: the proxy sits on the socket between grpcio client and server), asking for 5 tokens with a 2-second deadline. Step through it, or click any frame:</p>
-<div class="fig" id="rd-call">
+<p>Protobuf gives bytes; a call also needs a method name, a deadline, credentials, streams both ways and an outcome, over connections that stay open for hours. gRPC (open-sourced by Google in 2015 from its internal Stubby) maps every call onto one HTTP/2 stream ({{gRPC over HTTP/2 spec|https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md}}); HTTP/2 frames and HPACK themselves are {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}'s. The lab ran the running request through a logging proxy that decodes every HTTP/2 frame (no packet capture: the proxy sits on the socket between grpcio client and server), asking for 5 tokens with a 2-second deadline. Click any frame in the viewer, or step through it with the arrows:</p>
+<p>Four things in that stream are gRPC's own:</p>
+<ol>
+<li><b>The method is the path</b>: <code>:path /llm.v1.Inference/Generate</code> is <code>/package.Service/Method</code>, always a POST, so proxies can route on it like any URL.</li>
+<li><b><code>te: trailers</code> and <code>content-type: application/grpc</code></b>: the first tells proxies the client understands <dfn id="g-trailer2">trailers</dfn>; the spec uses it "to detect incompatible proxies". A server sent a non-gRPC content type should answer 415.</li>
+<li><b>A 5-byte prefix on every message</b>: the request DATA frame is <code>00 00 00 00 31</code> then the 49 bytes of section 8 (one byte "compressed?", four bytes of length, 0x31 = 49). Each token arrives the same way, 10 to 14 bytes in all. Frame boundaries need not match message boundaries, so readers parse by prefixes, never by frames.</li>
+<li><b>The outcome comes last</b>: HTTP status is 200 even for failures; the real result is the trailer <code>grpc-status</code> (0 = OK) with <code>grpc-message</code>. A call that fails before any message gets one <dfn id="g-trailersonly">trailers-only</dfn> HEADERS frame: the call to a missing method came back as <code>:status 200</code>, <code>grpc-status 12</code>, <code>grpc-message Method not found!</code> in a single frame.</li>
+</ol>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0" id="rd-call">
 <div class="ft">A gRPC call is a POST whose real result arrives last, in trailers</div>
 <div class="seg" id="cl-seg"><button data-m="0" class="on">Generate: 5 tokens streamed</button><button data-m="1">A method that does not exist</button><button data-m="2">Health check</button></div>
 <div class="lanes2" id="cl-app"></div>
@@ -10,39 +19,52 @@
 <div class="fl" id="cl-list"></div>
 <p class="cap"><span class="meas">measured</span> 5 October 2026 by <code>src/lab/frame_proxy.py</code>: times are milliseconds since the TCP connection opened, as the proxy saw them (the two directions are read by two threads, so frames crossing within a fraction of a millisecond may print slightly out of order); bytes are exact; protobuf inside DATA frames is decoded with <code>llm.proto</code>.</p>
 </div>
-<p>Four things in that stream are gRPC's own:</p>
-<ol>
-<li><b>The method is the path</b>: <code>:path /llm.v1.Inference/Generate</code> is <code>/package.Service/Method</code>, always a POST, so proxies can route on it like any URL.</li>
-<li><b><code>te: trailers</code> and <code>content-type: application/grpc</code></b>: the first tells proxies the client understands <dfn id="g-trailer2">trailers</dfn>; the spec uses it "to detect incompatible proxies". A server sent a non-gRPC content type should answer 415.</li>
-<li><b>A 5-byte prefix on every message</b>: the request DATA frame is <code>00 00 00 00 31</code> then the 49 bytes of section 8 (one byte "compressed?", four bytes of length, 0x31 = 49). Each token arrives the same way, 10 to 14 bytes in all. Frame boundaries need not match message boundaries, so readers parse by prefixes, never by frames.</li>
-<li><b>The outcome comes last</b>: HTTP status is 200 even for failures; the real result is the trailer <code>grpc-status</code> (0 = OK) with <code>grpc-message</code>. A call that fails before any message gets one <dfn id="g-trailersonly">trailers-only</dfn> HEADERS frame: the call to a missing method came back as <code>:status 200</code>, <code>grpc-status 12</code>, <code>grpc-message Method not found!</code> in a single frame.</li>
-</ol>
+</div></div></div>
 <p>The rest is HTTP/2 housekeeping: SETTINGS (both sides advertised 4 MB windows and frame size), WINDOW_UPDATE, and PINGs that gRPC sends to estimate the bandwidth-delay product and grow its windows (BDP probing). Against the root page's REST and SSE recording of the same request:</p>
 <div class="tw"><table id="rd-vsrest"><thead><tr><th>Part</th><th class="num">REST + SSE (root page)</th><th class="num">gRPC (this lab)</th><th>Why</th></tr></thead><tbody></tbody></table></div>
 <p class="small mute">REST figures are the root's HTTP/1.1 recording (277-byte request, 771 bytes of SSE payload for the same five tokens); gRPC figures count HTTP/2 frame payloads. The first HEADERS on a fresh connection is large because HPACK's table starts empty; later calls on the connection shrink it.</p>
 <p><b>Four call shapes, one stream each</b>: unary (most calls), server streaming (the token stream above), client streaming (audio chunks in, one transcript out) and bidirectional (realtime voice, Triton's sequence models, Envoy talking to an external processor). The shape only changes how many prefixed messages each side sends before closing its half; HTTP/1.1 cannot carry both bodies at once or trailers every client honours, hence HTTP/2.</p>
 <p><b>Channels.</b> Client code makes a <dfn id="g-channel2">channel</dfn> to a target and a stub on it; the channel resolves the name, opens one connection per backend address (a <dfn id="g-subchannel">subchannel</dfn>), keeps them alive, reconnects with backoff, and multiplexes every call as a new stream. A channel is expensive (TCP, maybe TLS, SETTINGS) and a call cheap: one channel per target, shared, never one per call ({{performance guide|https://grpc.io/docs/guides/performance/}}); its hours-long connection is what confuses load balancers (section 13). Credentials, logging and tracing go in <b>interceptors</b>, gRPC's middleware.</p>
 </section>
+<div class="s3sp"><div class="s3R"><div id="stg-dl"></div></div><div class="s3L">
 <section id="rd-s10">
 <h2>10. Deadlines and cancellation: giving up together</h2>
 <p>The user closes the tab after the ninth token. The front door notices; behind it, the router and the inference server do not, and the GPU keeps decoding an answer nobody will read, while abandoned work queues ahead of live work. Every hop needs two facts: <i>how long the caller will wait</i>, and <i>whether it is still there</i>. In gRPC the caller sets a <b>deadline</b>; it travels as a relative timeout in <code>grpc-timeout</code> (at most 8 digits plus a unit, <code>H M S m u n</code>), and each hop subtracts the time already spent before passing it on, so no clocks need to agree ({{deadlines guide|https://grpc.io/docs/guides/deadlines/}}). When it passes, both ends end the call with <code>DEADLINE_EXCEEDED</code> and the client sends <code>RST_STREAM</code> with code CANCEL (8); cancellation for any other reason uses the same frame.</p>
 <div class="co warn"><div class="t">The default is "wait forever"</div><p>"By default, gRPC does not set a deadline which means it is possible for a client to end up waiting for a response effectively forever." Propagation "is supported by some gRPC implementations": on by default in Java and Go when you pass the incoming context on, opt-in in C++, and in Python you do it yourself (<code>timeout=ctx.time_remaining()</code>). Stopping the work is the server's job: "The server application is responsible for stopping any activity it has spawned to service the RPC."</p></div>
-<p>The lab chained client, gateway and inference service (three processes, real gRPC, a frame log on the second hop). The inference service emits up to 40 tokens, the first after 0.12 s then one every 0.05 s, so a full answer takes about 2.1 s; in every run the client stops after 0.6 s. Predict which runs keep the GPU busy, then pick a run and step:</p>
-<div class="card" id="rd-dl">
-<div class="seg" id="rd-dlseg"><button data-m="0" class="on">A. Deadline propagated</button><button data-m="3">D. Not propagated (worker thread)</button><button data-m="1">B. Not propagated (plain loop)</button><button data-m="2">C. User cancels, no deadline</button></div>
-<div id="rd-dlplot"></div>
-<div class="an-ctl" id="rd-dlctl"></div>
-<div class="an-cap" id="rd-dlcap"></div>
-<div class="an-cnt" id="rd-dlcnt"></div>
-<p class="small mute">Counts, end times, headers and RST_STREAM frames are <span class="meas">measured</span> (grpcio <span data-sa="meta.grpcio"></span>); each tick's position is drawn from the configured schedule, not timed individually.</p>
-</div>
-<ul class="tight">
-<li><b>A, propagated:</b> the gateway saw <span data-sa="deadline.0.gateway.time_remaining_s"></span> s left and sent <code>grpc-timeout: <span data-sa="deadline.0.hop2_timeout"></span></code>; the inference service stopped after <span data-sa="deadline.0.inference.tokens_made"></span> tokens.</li>
-<li><b>D, not propagated, stream read by a worker thread</b> (the shape of fan-out and batching code): no deadline, nobody cancelled, all <span data-sa="deadline.3.inference.tokens_made"></span> tokens over <span data-sa="deadline.3.inference.dur_s"></span> s for a client that had received <span data-sa="deadline.3.client.tokens_received"></span>.</li>
-<li><b>B, not propagated, plain loop:</b> stopped after <span data-sa="deadline.1.inference.tokens_made"></span> tokens with no <code>grpc-timeout</code>, by accident (details below); D shows the accident not happening.</li>
-<li><b>C, user cancels with no deadline:</b> cancellation alone, propagated with <code>ctx.add_callback(call.cancel)</code>, stopped the work after <span data-sa="deadline.2.inference.tokens_made"></span> tokens. A deadline is still needed for a client that is alive but stuck.</li>
-</ul>
+<p>The lab chained client, gateway and inference service (three processes, real gRPC, a frame log on the second hop). The inference service emits up to 40 tokens, the first after 0.12 s then one every 0.05 s, so a full answer takes about 2.1 s; in every run the client stops after 0.6 s. Predict which runs keep the GPU busy, then pick a run:</p>
+<div class="s3chips" id="dl-mode"><button data-m="0" class="on">A. Deadline propagated</button><button data-m="3">D. Not propagated (worker thread)</button><button data-m="1">B. Not propagated (plain loop)</button><button data-m="2">C. User cancels, no deadline</button></div>
+<p class="sxh">Fig. 4 · One abandoned request, four endings</p>
+<ol class="sx" id="sx-dl-0">
+<li><b>The call and its deadline.</b> The client sets a 0.6 s deadline. The gateway sees 0.598 s left and passes on what remains: <code>grpc-timeout: 595m</code> on the second hop, so the inference service starts with 0.594 s.</li>
+<li><b>Tokens stream back.</b> After 0.12 s of prefill the first token, then one every 0.05 s, each going inference to gateway to client as one length-prefixed message.</li>
+<li><b>The deadline expires.</b> At 0.607 s, after 8 tokens, the client ends the call with DEADLINE_EXCEEDED and resets its stream (RST_STREAM, CANCEL).</li>
+<li><b>Downstream stops too.</b> The inference service had its own deadline, and the gateway also cancelled it (RST_STREAM CANCEL on the second hop at 601.6 ms): it stopped after 8 tokens, in 0.601 s.</li>
+<li><b>The bill.</b> 8 tokens generated, 8 delivered: nothing generated for nobody.</li>
+</ol>
+<ol class="sx" id="sx-dl-3" hidden>
+<li><b>The call, and no deadline downstream.</b> The same 0.6 s deadline; the gateway sees 0.596 s left but reads the downstream stream in a worker thread (the shape of fan-out and batching code) and passes nothing on: no <code>grpc-timeout</code> on the second hop.</li>
+<li><b>Tokens stream back.</b> After 0.12 s the first token, then one every 0.05 s.</li>
+<li><b>The deadline expires.</b> At 0.609 s, after 8 tokens, the client ends the call with DEADLINE_EXCEEDED.</li>
+<li><b>Nobody tells the GPU.</b> No deadline, nobody cancelled: the worker thread keeps reading the downstream stream, so the inference service generates all 40 tokens over 2.471 s and ends with <code>grpc-status 0</code>.</li>
+<li><b>The bill.</b> 40 tokens generated for a client that had received 8: 32 of them for nobody.</li>
+</ol>
+<ol class="sx" id="sx-dl-1" hidden>
+<li><b>The call, and no deadline downstream.</b> The same 0.6 s deadline; the gateway sees 0.598 s left and calls the inference service in a plain loop, with no deadline and no cancel hook.</li>
+<li><b>Tokens stream back.</b> After 0.12 s the first token, then one every 0.05 s.</li>
+<li><b>The deadline expires.</b> At 0.602 s, after 9 tokens, the client ends the call with DEADLINE_EXCEEDED.</li>
+<li><b>Rescued by accident.</b> No <code>grpc-timeout</code> reached the inference service, yet the downstream call was cancelled at 607.8 ms and it stopped after 10 tokens (details below). Run D shows the accident not happening.</li>
+<li><b>The bill.</b> 10 tokens generated, 9 delivered: one for nobody, by luck of the code's shape.</li>
+</ol>
+<ol class="sx" id="sx-dl-2" hidden>
+<li><b>No deadline at all.</b> The client sets none and cancels instead at 0.6 s, as a user closing the tab does; the gateway propagates cancellation with <code>ctx.add_callback(call.cancel)</code>.</li>
+<li><b>Tokens stream back.</b> After 0.12 s the first token, then one every 0.05 s.</li>
+<li><b>The user closes the tab.</b> After 9 tokens the client cancels: its call ends CANCELLED (returned at 0.619 s) and an RST_STREAM (CANCEL) reaches the gateway.</li>
+<li><b>The cancel hook fires.</b> The gateway's callback cancels the downstream call (RST_STREAM CANCEL at 614.4 ms): cancellation alone stopped the work after 9 tokens.</li>
+<li><b>The bill.</b> 9 generated, 9 delivered. A deadline is still needed for a client that is alive but stuck.</li>
+</ol>
+<p class="small mute">Counts, end times, headers and RST_STREAM frames are <span class="meas">measured</span> (grpcio <span data-sa="meta.grpcio"></span>, 5 October 2026); the tokens' positions along the hops follow the configured schedule, not individual timings.</p>
 <details class="xc"><summary>Depth: why run B was rescued by accident</summary><div><p>No <code>grpc-timeout</code> reached the inference service in run B, yet it stopped early: when the client left, gRPC Python closed the gateway's generator, CPython freed the abandoned downstream call object at once, and freeing it cancelled the stream (the frame log shows the gateway's RST_STREAM CANCEL). Change the code shape, as run D does with a worker thread, and the rescue disappears.</p></div></details>
 <p><b>Choosing the number.</b> Start from what the caller will tolerate (a chat UI with a 60-second spinner sets about 60 s at the front door) and let each hop inherit what is left; gRPC suggests an educated guess "validated by some load testing". A deadline covers queueing as well as work (the root's Failure lab case "Max concurrent streams: calls queue on the connection" shows calls failing at 2.5 s that the server never saw fail); retries share it (section 11); and a streamed generation needs a deadline sized for the whole stream, or an idle timer instead (HTTP's section 9 plays that out for HTTP hops). <b>With HTTP</b> there is no deadline header: each hop sets its own timeout, cancellation is the connection closing, and the server must notice (details below).</p>
 <details class="xc"><summary>Depth: noticing a disconnected HTTP client in Python</summary><div><p>vLLM's OpenAI-compatible server races the handler against the ASGI <code>http.disconnect</code> message in its <code>with_cancellation</code> decorator, noting that the simpler <code>request.is_disconnected</code> "does not work with middleware" ({{vLLM v0.31.0, api_utils.py|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/serve/utils/api_utils.py}}). The equivalent discipline to gRPC deadlines: a timeout on every outgoing call and a server that stops work when its incoming request is gone. Timeouts per hop for HTTP (connect, read, idle, total) are {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}'s.</p></div></details>
 </section>
+</div></div>

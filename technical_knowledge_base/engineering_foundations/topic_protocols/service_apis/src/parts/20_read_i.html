@@ -1,17 +1,28 @@
+<div class="s3sp"><div class="s3R"><div id="stg-lb"></div></div><div class="s3L">
 <section id="rd-s13">
 <h2>13. Load balancing gRPC: L4, L7 and the client</h2>
-<p>Three replicas should take a third of the calls each. <i>Where</i> and <i>how often</i> a replica is chosen decides whether they do, or one is hot and two idle; with gRPC's long-lived multiplexed connections this is the number-one production surprise.</p>
-<div class="fig" id="rd-lbd">
-<div class="ft">An L4 balancer chooses once per connection; an L7 balancer or the client chooses once per call</div>
-<div id="rd-lbdsvg"></div>
-<p class="cap"><b>L4</b> (AWS NLB, Linux IPVS, kube-proxy, nginx <code>stream</code>) sees TCP and copies bytes without reading them. <b>L7</b> (Envoy, nginx <code>grpc_pass</code>, a mesh sidecar, AWS ALB, which has supported gRPC since 29 October 2020, {{AWS|https://aws.amazon.com/about-aws/whats-new/2020/10/application-load-balancers-enable-grpc-workloads-end-to-end-http-2-support/}}) terminates HTTP/2, reads each call's HEADERS and can route on <code>:path</code>, retry and count calls in flight. <b>Client-side</b>: the channel learns every address (DNS or a control plane) and picks per call with a policy: <code>pick_first</code> (the default), <code>round_robin</code>, or xDS policies ({{gRPC load balancing|https://github.com/grpc/grpc/blob/master/doc/load-balancing.md}}).</p>
-</div>
+<p>Three replicas should take a third of the calls each. <i>Where</i> and <i>how often</i> a replica is chosen decides whether they do, or one is hot and two idle; with gRPC's long-lived multiplexed connections this is the number-one production surprise. Predict where backend-3's calls come from in each setup before steps 5 to 8.</p>
+<p><b>L4</b> (AWS NLB, Linux IPVS, kube-proxy, nginx <code>stream</code>) sees TCP and copies bytes without reading them. <b>L7</b> (Envoy, nginx <code>grpc_pass</code>, a mesh sidecar, AWS ALB, which has supported gRPC since 29 October 2020, {{AWS|https://aws.amazon.com/about-aws/whats-new/2020/10/application-load-balancers-enable-grpc-workloads-end-to-end-http-2-support/}}) terminates HTTP/2, reads each call's HEADERS and can route on <code>:path</code>, retry and count calls in flight. <b>Client-side</b>: the channel learns every address (DNS or a control plane) and picks per call with a policy: <code>pick_first</code> (the default), <code>round_robin</code>, or xDS policies ({{gRPC load balancing|https://github.com/grpc/grpc/blob/master/doc/load-balancing.md}}).</p>
+<p class="sxh">Fig. 5 · An L4 balancer chooses once per connection; an L7 balancer or the client chooses once per call</p>
+<ol class="sx" id="sx-lb">
+<li><b>Behind an L4 balancer, one choice.</b> One client channel opens one TCP connection; the L4 balancer (nginx <code>stream</code>) picks a replica once, for that connection. It balanced <i>connections</i>, and there was one, so all 30 calls went to backend-1: 30 / 0 / 0.</li>
+<li><b>Behind an L7 balancer, a choice per call.</b> The client still opens one connection, to the proxy (nginx <code>grpc_pass</code>), which reads each call's HEADERS and keeps its own connection to every replica: 10 / 10 / 10.</li>
+<li><b>The client chooses, with the default policy.</b> A client <i>given all three addresses</i> still sent everything to backend-1, because <code>pick_first</code> "attempts to connect to those addresses one at a time, in order, until it finds one that is reachable" and then sends every call there: 30 / 0 / 0.</li>
+<li><b>The client chooses, round_robin.</b> Asked for explicitly (<code>{"loadBalancingConfig": [{"round_robin": {}}]}</code> in the service config, or the channel option), the channel keeps one connection per replica and rotates the calls: 11 / 9 / 10.</li>
+<li><b>A replica joins, behind plain L4.</b> Autoscaling makes it worse. Each run started with backend-1 and backend-2, sent one call every 50 ms for 7 s, and backend-3 joined at 1.5 s (nginx reloaded with the longer list). The existing connection stays where it is until something closes it: of the 96 calls after the join, backend-3 got none.</li>
+<li><b>L4 with <code>MAX_CONNECTION_AGE</code>.</b> With an age of 1 s on the servers, each connection was closed gracefully with GOAWAY about every second and the client reconnected through the balancer, a new choice each time: backend-3 took its first call at 4.28 s and 17 of the 97 calls after the join, with no failed calls.</li>
+<li><b>L7.</b> The proxy sent backend-3 a call 0.22 s after the reload, and 32 of the 100 calls after the join.</li>
+<li><b>A fixed client list.</b> round_robin over the two addresses it was given was perfectly even over what it knew (48 / 47 after the join) and blind to what it did not: backend-3 got nothing.</li>
+</ol>
+<p class="small mute">Call counts per replica are <span class="meas">measured</span> (5 October 2026, nginx 1.31.6, grpcio <span data-sa="meta.grpcio"></span>; tables below); each stack is one setup's calls, drawn to scale within each half of the figure.</p>
+</section>
+</div></div>
+<section id="rd-s13b">
 <h3>Measured: 30 calls on one channel, three replicas</h3>
 <div class="tw"><table id="rd-lbcounts"><thead><tr><th>Setup</th><th>backend-1</th><th>backend-2</th><th>backend-3</th><th>Why</th></tr></thead><tbody></tbody></table></div>
 <p class="small mute"><span class="meas">measured</span> with nginx 1.31.6 (stream module for L4, <code>grpc_pass</code> for L7, both round robin) and grpcio <span data-sa="meta.grpcio"></span>; one channel making 30 sequential unary calls per row, except the three-channel row. The root's Failure lab has the L4 case as "gRPC behind an L4 load balancer: one backend takes everything".</p>
-<p>Two rows surprise people. The L4 balancer did its job: it balanced <i>connections</i>, and there was one, so 30/0/0 against 10/10/10 through L7. And a client <i>given all three addresses</i> still sent everything to backend-1, because <code>pick_first</code> "attempts to connect to those addresses one at a time, in order, until it finds one that is reachable" and then sends every call there. Client-side balancing needs <code>round_robin</code> (or xDS) asked for explicitly: <code>{"loadBalancingConfig": [{"round_robin": {}}]}</code> in the service config, or the channel option.</p>
 <h3>Measured: a replica joins at 1.5 s</h3>
-<p>Autoscaling makes it worse. Each setup started with backend-1 and backend-2; the client sent one call every 50 ms for 7 s; backend-3 joined at 1.5 s (nginx reloaded with the longer list). Predict where backend-3's calls come from in each setup, then step through the real calls (each tick is one call, placed when it was sent, on the replica that answered):</p>
+<p>Every call of the four runs, as recorded: each tick is one call, placed when it was sent, on the replica that answered. The viewer opens on the end of the runs; scrub back to watch backend-3 join.</p>
 <div class="fig" id="rd-lb">
 <div class="ft">Behind L4 a new replica waits for a reconnect; behind L7 it takes calls at once</div>
 <div class="an-ctl" id="lb-ctl"></div>
@@ -20,7 +31,6 @@
 <p class="cap"><span class="meas">measured</span> 5 October 2026: three Python gRPC servers (grpcio <span id="lb-ver"></span>), one client channel per run; the client round_robin run was given backend-1 and backend-2 only. The hatched part of backend-3's track is before it existed. Script: <code>src/lab/lb_run.py</code>.</p>
 </div>
 <div class="tw"><table id="rd-lbscale"><thead><tr><th>Setup</th><th>Calls after backend-3 joined</th><th>backend-3's share</th></tr></thead><tbody></tbody></table></div>
-<p>Behind plain L4 the new replica got nothing: the existing connection stays where it is until something closes it. With <code>MAX_CONNECTION_AGE</code> of 1 s on the servers, each connection was closed gracefully with GOAWAY about every second, the client reconnected through the balancer, and backend-3 took its first call at <span id="rd-b3age"></span> s, with no failed calls. The L7 balancer sent it a call <span id="rd-b3l7"></span> s after the reload. The fixed client list was perfectly even over what it knew and blind to what it did not.</p>
 <h3>What to do, in order of preference</h3>
 <ol>
 <li><b>An L7 proxy that speaks HTTP/2</b> (Envoy, nginx <code>grpc_pass</code>, Istio or Linkerd, a cloud L7 balancer). Cost: one more hop to run and scale.</li>

@@ -46,16 +46,14 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   };
   // Reading (every visual is inline since 2026-10-24)
   await p.click('#tabs button[data-t="t-read"]');
-  // nothing may move before the reader acts: every step counter must still be at 0 after a wait
+  // under reduced motion nothing may move by itself (since 2026-11-07 animations play once in view otherwise: check_stages.mjs checks that);
+  // the balancer-run viewer opens on its last frame by design
   await sleep(2500);
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
+  const moved = await p.$$eval('#t-read .an-ctl:not(.stg-bar) input[type=range]', rs => rs.filter(r => r.id !== 'lb-ctl-s' && +r.value !== 0).map(r => r.id));
   if (moved.length) { bad++; console.log('AUTOPLAY', scheme, w, moved); }
-  for (const m of ['0', '1', '2', '3']) {
-    await p.evaluate(m => document.querySelector('#rd-dlseg [data-m="' + m + '"]').click(), m);
-    await scrub('#rd-dlctl'); await check('deadline ' + m);
-    if (m === '3') await shot('rd-dl', 'rd-dl-D');
-  }
-  for (const [seg, ctl, card, modes] of [['#rd-pgseg', '#rd-pgctl', 'rd-pg', ['0', '1']], ['#rd-idemseg', '#rd-idemctl', 'rd-idem', ['0', '1']], [null, '#rd-hookctl', 'rd-hook', [null]], ['#cl-seg', '#cl-ctl', 'rd-call', ['0', '1', '2']]]) {
+  // the 3D stages' mode chips (their steps are checked by check_stages.mjs)
+  for (const sel of ['#idem-mode button', '#dl-mode button']) { await clickAll(sel); await check(sel); }
+  for (const [seg, ctl, card, modes] of [['#rd-pgseg', '#rd-pgctl', 'rd-pg', ['0', '1']], [null, '#rd-hookctl', 'rd-hook', [null]], ['#cl-seg', '#cl-ctl', 'rd-call', ['0', '1', '2']]]) {
     for (const m of modes) {
       if (seg) await p.evaluate((s, m) => document.querySelector(s + ' [data-m="' + m + '"]').click(), seg, m);
       await scrub(ctl); await check(card + ' ' + m);
@@ -68,13 +66,13 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await clickAll('#cl-list .fr'); await check('call frames');
   await scrub('#lb-ctl'); await check('lb'); await shot('rd-lb', 'rd-lb');
   for (const m of ['cc', 're', 'me']) { await p.evaluate(m => document.querySelector('#rd-llmseg [data-m="' + m + '"]').click(), m); await check('llm ' + m); await shot('rd-llm', 'rd-llm-' + m); }
-  for (const sel of ['#rd-pbstrip span', '#rd-anat span[data-p]', '#t-read .an-ctl button', '#t-read details summary', '#t-read .drill .opts button', '#rd-dlseg button']) await clickAll(sel);
+  for (const sel of ['#rd-pbstrip span', '#rd-anat span[data-p]', '#t-read .an-ctl:not(.stg-bar) button', '#t-read details summary', '#t-read .drill .opts button', '#idem-mode button', '#dl-mode button']) await clickAll(sel);
   for (const v of ['0', '1', '127', '128', '300', '4294967295', '-5', '']) {
     await p.evaluate(v => { const e = document.getElementById('rd-vval'); e.value = v; e.dispatchEvent(new Event('input')); }, v);
     await check('varint ' + v);
   }
   await check('reading');
-  for (const id of ['rd-hero', 'rd-anat', 'rd-schema', 'rd-rl', 'rd-codes', 'rd-lbd', 'rd-vcard', 'rd-pbcard', 'rd-evo', 'rd-tensor', 'rd-vsrest', 'rd-fails', 'rd-pings', 'rd-lbcounts', 'rd-lbscale', 'rd-n1', 'rd-fan', 'rd-partial']) await shot(id, id);
+  for (const id of ['rd-anat', 'rd-schema', 'rd-rl', 'rd-codes', 'rd-vcard', 'rd-pbcard', 'rd-evo', 'rd-tensor', 'rd-vsrest', 'rd-fails', 'rd-pings', 'rd-lbcounts', 'rd-lbscale', 'rd-n1', 'rd-fan', 'rd-partial']) await shot(id, id);
   // Further reading and tab links
   await p.click('#tabs button[data-t="t-more"]'); await sleep(50); await check('more');
   await clickAll('#t-more a[data-tab]'); await check('more links');
