@@ -1,10 +1,19 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-llm"></div></div><div class="s3L">
 <section id="rd-ops">
 <h2>7. Running an LLM service: what the design must add</h2>
 <p>Serving the model behind one endpoint is where section 6 ends. Serving it to many tenants adds a layer of components between the app and the GPUs, each with a decision that stays with the system designer and internals owned by another page.</p>
-<div class="card"><b>The model layer of the chat assistant: every box exists because of a row of section 6's table</b>
-<div class="rd-svg" id="rd-arch"></div>
-<p class="small mute">Letters match the table below.</p></div>
+<p>Fig. 4 follows the chat assistant's requests through that layer, priced by the {{Cost-quality lab|#t-gw}}'s model at its defaults (1,000 input and 400 output tokens, 60% easy requests, a router that is right 90% of the time; every latency there is <span class="ill">illustrative</span>). Letters match the table below.</p>
+<ol class="sx" id="sx-llm">
+<li><b>Naive: one front door, one large model.</b> Every model call passes the gateway (A), which knows the tenant, counts tokens against limits and budget, and applies input rails. Everything goes to Claude Sonnet 5.5: $6.00 per 1,000 requests, mean TTFT 0.81 s.</li>
+<li><b>Cache and router.</b> The exact cache (F) answers 5% of requests and 70% of input tokens are a cached prefix; the router (B) sends 55.1% to Claude 4.5 Haiku and 39.9% to the large model. $3.20 per 1,000 requests and a mean TTFT of 0.34 s, but 3.8% of answers are worse (hard questions misrouted to the small model), and no error counter sees them.</li>
+<li><b>The large model's provider fails.</b> With no fallback, the 39.9% of requests bound for it fail. The bill falls to $1.31 per 1,000 because failed calls cost nothing, and mean TTFT rises to 0.95 s while each failure is detected.</li>
+<li><b>Fall back to a second provider (B).</b> The same calls go to GPT-6.1 Sol: errors 0%, but $3.70 per 1,000 requests (its prompt cache is cold) and a mean TTFT of 1.27 s (2 s to detect and switch). A recorded LiteLLM 1.104.0 run with mocked providers shows the mechanism: a call to claude-sonnet-4-5 failed twice with <code>RateLimitError</code> and gpt-4o served it, 3.41 s measured, of which 0.5 s is a pause the script adds, so about 2.9 s in the router; a <code>ContextWindowExceededError</code> on claude-haiku-4-5 went to the long-context model at once (0.521 s measured, about 0.02 s in the router). Retries, cooldowns and fallbacks call by call are on {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}.</li>
+<li><b>One usage event per request (H).</b> Every path writes the tenant, tokens, cost and latency into one usage event; that is what makes these budgets measurable in production (back at step 2's settings: $3.20 per 1,000 requests).</li>
+</ol>
+</section>
+</div></div>
+<section id="rd-ops-b">
 <div class="tw"><table><thead><tr><th></th><th>Component</th><th>The design decision that stays here</th><th>Internals owned by</th></tr></thead><tbody>
 <tr><td>A</td><td><dfn id="d-gateway">LLM gateway</dfn>, <dfn id="d-ratelimit">rate limits</dfn> and <dfn id="d-quota">quotas</dfn></td><td>one front door for every model call, for control not throughput (Uber's served a peak of 25 queries a second); limits count tokens, not requests, and cap concurrent streams per tenant; decide whether it fails open or closed when its own counters are unreachable</td><td>{{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}; the token bucket on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}</td></tr>
 <tr><td>B</td><td><dfn id="d-router">Router</dfn> and fallbacks</td><td>a tier router is a classifier: measure it on labelled traffic, because a misrouted hard question is a worse answer no error counter sees; a fallback needs standing capacity elsewhere and the same prompt and tool format</td><td>model choice: Gateways and routing; replica choice: {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}</td></tr>

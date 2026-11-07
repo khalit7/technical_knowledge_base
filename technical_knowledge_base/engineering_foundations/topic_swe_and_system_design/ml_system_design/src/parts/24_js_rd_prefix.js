@@ -17,7 +17,7 @@ window.MSD_PREFIX=(function(){
 })();
 (function(){
   const card=document.getElementById('rd-pc-card');if(!card)return;
-  const M=window.MSD_PREFIX,el=document.getElementById('rd-pc-svg'),cap=document.getElementById('rd-pc-cap'),cnt=document.getElementById('rd-pc-cnt');
+  const M=window.MSD_PREFIX,el=document.getElementById('rd-pc-svg'),cnt=document.getElementById('rd-pc-cnt');
   let mode='before';
   function draw(i){const T=M.turns(mode),W=Math.max(280,Math.min(860,RD.width(el))),fs=W<420?10:11,L=W<420?44:54,R=6,bh=16,gap=10;
     const max=T[T.length-1].input,x=v=>L+(W-L-R)*v/max;let b='',y=6;
@@ -32,16 +32,12 @@ window.MSD_PREFIX=(function(){
       if(on)b+=RD.t(Math.min(W-R,x(t.input)+4),y+bh-4,'',{fs:fs});
       y+=bh+gap});
     el.innerHTML=RD.svg(W,y,b,'Six turns of one conversation; the green outline marks the part of each prompt served from the prefix cache');
-    const t=T[i];
-    cap.innerHTML='<div class="t">Turn '+t.k+': '+t.input.toLocaleString('en-US')+' input tokens, '+t.cached.toLocaleString('en-US')+' from the cache</div><p>'+
-      (mode==='before'?(i===0?'The prompt starts with a line holding the current time to the second, then the 2,000-token system prompt. Nothing is cached yet.':
-        'The time line changed, and it is the very first thing in the prompt. A prefix cache matches from the first token, so one changed token at the start makes everything after it a miss: the whole conversation is processed again, every turn.'):
-       (i===0?'Same content, new order: the unchanging system prompt first, then the conversation, then the new message with its time line at the end. The first request writes the cache (at a 25% premium on Anthropic\'s 5-minute cache).':
-        'The request is append-only: it begins with the whole previous request, byte for byte, so all of that comes from the cache at a tenth of the input price. The model processes only what is new since then, the previous reply and the new message: '+t.fresh.toLocaleString('en-US')+' tokens, written to the cache for the next turn.'))+'</p>';
+    const t=T[i];   // the explanation of each turn is the step list on the left (ol#sx-pc-before, ol#sx-pc-after)
     cnt.innerHTML=RD.stat('Tokens the model processes this turn',t.fresh.toLocaleString('en-US'),'')+
       RD.stat('Cost this turn','$'+t.cost.toFixed(4),'input and 400 output tokens')+
       RD.stat('Conversation so far','$'+t.cum.toFixed(4),t.cumTok.toLocaleString('en-US')+' tokens processed')}
-  const A=RD.anim({card:'rd-pc-card',ctl:'rd-pc-ctl',n:M.TURNS,draw,ms:1500,label:'Turn'});
-  RD.seg(document.getElementById('rd-pc-seg'),m=>{mode=m;A.reset(M.TURNS)});
+  const A=RD.anim({card:'rd-pc-card',ctl:'rd-pc-ctl',n:M.TURNS,draw,ms:4200,label:'Turn',list:'sx-pc-before'});
+  // a mode switch swaps the step list and replays (the one exception to "stops for good")
+  RD.seg(document.getElementById('rd-pc-seg'),m=>{mode=m;['before','after'].forEach(x=>document.getElementById('sx-pc-'+x).hidden=x!==m);A.reset(M.TURNS,'sx-pc-'+m)});
   RD.onResize(()=>A.redraw());
 })();

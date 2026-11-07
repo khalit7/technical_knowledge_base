@@ -37,3 +37,13 @@ The page now owns ML system design as a discipline (framing, the data loop and s
 | Point-in-time join | | | rejected: owned and drawn by ML platforms and workflows and measured on the Analytics page |
 | Drift chart over time | | | rejected: no sourced data; a schematic would decorate. The four-layer monitoring table carries it |
 | Real image (Sculley et al.'s Figure 1, the small ML-code box among infrastructure) | | | rejected: the paper's figure is not openly licensed; the hero carries the idea |
+
+## 2026-11-07 rollout (split layout, 3D stages v2)
+| Visual | Kind | Where | Status |
+|---|---|---|---|
+| Fig. 1, the loop in two lanes, glass plates and flowing dots, close view of the model box with the LLM rungs (`34_js_sc_hero.js`) | 3D stage, 5 steps | top | built; replaces the 2D hero |
+| Fig. 2, one feature on a timeline, two windows, 3 against 5, then logged at serving (`35_js_sc_skew.js`) | 3D stage, 5 steps, illustrative ticket times | s2 | built; replaces the 2D before/after toggle |
+| Fig. 3, batch, online and streaming lanes; the streamed reply to scale; 64 streams per replica; Little's law (`36_js_sc_serve.js`) | 3D stage, 5 steps, from `MSD_LAT` | s4 | built, new |
+| Fig. 4, one request through gateway, cache, router, models, fallback and usage log, with the lab's budget as bars (`37_js_sc_llm.js`) | 3D stage, 5 steps, from `MSD_GW` presets and the LiteLLM recording | s7 | built; replaces the 2D model-layer boxes |
+| Metric ladder, LLM ladder, gaps staircase, latency slider, feedback stepper, prefix-cache bars | 2D | s1, s6, s3, s4, s5, s6 | kept: each reads best flat (labelled boxes, one axis, one slider) |
+| Offline-against-online drift chart | 2D | s5 | still rejected: no sourced data |

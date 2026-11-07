@@ -1,4 +1,4 @@
-// Click every control of the page at 390 dark and 920 light; report errors, NaN/undefined text, sideways scroll; save card screenshots.
+// Click every control of the page at 390 dark and 920 light, under reduced motion (the 3D stages and autoplay are checked by src/check_stages.mjs); report errors, NaN/undefined text, sideways scroll; save card screenshots.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/ml_system_design/src/check/check_ui.mjs
 import { createRequire } from 'module'; import path from 'path'; import fs from 'fs';
 const require = createRequire(path.resolve('html_utils/package.json'));
@@ -15,12 +15,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const bad = async (where) => { const r = await p.evaluate(() => { const t = document.body.innerText; return { nan: /\bNaN\b|undefined|Infinity/.test(t), side: document.documentElement.scrollWidth > innerWidth } });
     if (r.nan || r.side) { problems++; console.log('PROBLEM', scheme, width, where, JSON.stringify(r)) } };
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await el.screenshot({ path: path.join(out, name + '-' + scheme + '-' + width + '.png') }) } };
-  for (const id of ['rd-hero', 'rd-ladder', 'rd-gaps', 'rd-llmlad', 'rd-arch']) await shot('#' + id, id.slice(3));
+  for (const id of ['rd-ladder', 'rd-gaps', 'rd-llmlad']) await shot('#' + id, id.slice(3));
   await shot('#rd-one', 'top');
-  for (const m of ['before', 'after']) { await p.click(`#rd-skew-seg button[data-m=${m}]`); await bad('skew ' + m); await shot('#rd-skew-card', 'skew-' + m) }
   for (const v of [1, 400, 1500]) { await p.$eval('#rd-lat-n', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await bad('lat ' + v) }
   await shot('#rd-lat-svg', 'lat'); await p.$eval('#rd-lat-n', e => { e.value = 400; e.dispatchEvent(new Event('input')) });
-  // nothing may move before the reader acts: the stepper and the prefix animation sit on step 0
+  // this run emulates reduced motion, under which nothing may move by itself (2026-11-06: otherwise the animations play once in view,
+  // checked by src/check_stages.mjs): the stepper and the prefix animation sit on step 0
   const s0 = await p.evaluate(() => [document.getElementById('rd-fb-ctl-s').value, document.getElementById('rd-pc-ctl-s').value]);
   if (s0.join() !== '0,0') { problems++; console.log('PROBLEM autoplay', s0) }
   for (let i = 0; i < 4; i++) { await p.$eval('#rd-fb-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('fb ' + i); if (i === 2 || i === 3) await shot('#rd-fb-card', 'fb-' + i) }

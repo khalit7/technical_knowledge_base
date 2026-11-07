@@ -1,18 +1,25 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-skew"></div></div><div class="s3L">
 <section id="rd-data">
 <h2>2. The data loop: features, two paths, and training-serving skew</h2>
 <p>The escalation model reads <dfn id="d-feature">features</dfn>, numbers computed from data such as "tickets this customer opened in the last 7 days". Each feature is computed twice: offline, for every historical training row, from the warehouse; and online, for the live ticket, in milliseconds. Uber's Michelangelo is the reference picture of the two paths: online features "precomputed and stored in Cassandra where they can be read at low latency", serving at "P95 latency of less than 5 milliseconds" without stored features and "less than 10ms" with them ({{Uber Engineering, Meet Michelangelo, 5 Sep 2017|https://www.uber.com/blog/michelangelo-machine-learning-platform/}}). Two code paths for one number is where the classic ML bug lives.</p>
-<div class="card" id="rd-skew-card"><b>The same ticket, the same feature name, two different numbers, and nothing raises an error</b>
-<div class="seg" id="rd-skew-seg"><button data-m="before" class="on">Before: two code paths</button><button data-m="after">After: one definition, logged at serving</button></div>
-<div class="rd-svg" id="rd-skew-svg"></div>
-<div class="an-cap" id="rd-skew-cap" aria-live="polite"></div>
-<p class="small mute"><span class="ill">Illustrative</span> values. The definitions differ the way real ones do: a calendar-day window in UTC against a rolling 168 hours, and a nightly job that has not yet seen today.</p></div>
+<p>Fig. 2 follows one feature, "tickets this customer opened in the last 7 days", for one live ticket. <span class="ill">Illustrative</span> ticket times; the two definitions differ the way real ones do: a calendar-day window in UTC against a rolling 168 hours, and a nightly job that has not yet seen today.</p>
+<ol class="sx" id="sx-skew">
+<li><b>One feature, one ticket.</b> The customer opened five tickets in the last eight days, two of them today; a new ticket arrives now, at 15:00 UTC, and the escalation model needs the count.</li>
+<li><b>Offline: the nightly SQL.</b> Training rows got the feature from a nightly warehouse job over the 7 calendar days before today; it has not yet seen today, so it counts 3.</li>
+<li><b>Online: the stream counter.</b> The live service counts on a stream over the last 168 hours up to now, so it counts 5. Both are "tickets in the last 7 days".</li>
+<li><b>The model meets an input it never learned from.</b> Trained on 3, it answers a ticket like this alone; served 5, it escalates, a different call than offline evaluation predicted. No error is raised anywhere.</li>
+<li><b>Fix: one definition, logged at serving.</b> Both sides call the same feature code (Rule #32), and the service writes the value it used into the log; training reads that logged value (Rule #29). The model is trained on exactly what it will see.</li>
+</ol>
 <p>Google's Rules of ML define <dfn id="d-skew">training-serving skew</dfn> as "a difference between performance during training and performance during serving", caused by "A discrepancy between how you handle data in the training and serving pipelines", "A change in the data between when you train and when you serve", or "A feedback loop between your model and your algorithm" (the last is section 5). Three rules fix the first two causes ({{Rules of ML|https://developers.google.com/machine-learning/guides/rules-of-ml}}):</p>
 <ul>
 <li><b>Rule #32</b>: "Re-use code between your training pipeline and your serving pipeline whenever possible."</li>
 <li><b>Rule #29</b>: "save the set of features used at serving time, and then pipe those features to a log to use them at training time". YouTube's home page did this "with significant quality improvements and a reduction in code complexity".</li>
 <li><b>Rule #31</b>: "Beware that if you join data from a table at training and serving time, the data in the table may change"; "The easiest way to avoid this sort of problem is to log features at serving time".</li>
 </ul>
+</section>
+</div></div>
+<section id="rd-data-b">
 <p>A <dfn id="d-fstore">feature store</dfn> productises Rule #32: features are defined once, computed into an offline store for training and an online store for serving, and read through one API. Its key guarantee is <dfn id="d-pit">point-in-time correctness</dfn>: a training example labelled at 8:50 must only see feature values known at 8:50, not ones computed at 8:52, or the model learns from the future and disappoints in production ({{Databricks docs, point-in-time joins|https://docs.databricks.com/aws/en/machine-learning/feature-store/time-series}}). How feature stores work (Feast's offline and online calls, materialisation, the point-in-time join) is owned by {{ML platforms and workflows|n:3c65c17b0d0d81b9943cf6c72600f96b}}, section 9; a point-in-time join measured in DuckDB, with the leak it prevents, is section 11 of {{Analytics: columnar engines, DuckDB and the lakehouse|n:3ef5c17b0d0d8157814ec5dd8a0d4fb5}}.</p>
 <p><b>LLM products have skew too</b>, with prompts in place of features: a prompt template assembled differently in the evaluation harness and in production, a retrieval index rebuilt between evaluation and launch, a tokenizer or chat-template version mismatch. Rule #29 transfers directly: log the exact prompt the model saw, and evaluate on logged prompts.</p>
 <details class="dp"><summary>Michelangelo at scale, and Chronon's consistency check <span class="mute">(depth)</span></summary><div class="b">
@@ -21,10 +28,13 @@
 </div></details>
 </section>
 
-<section id="rd-eval">
+<div class="s3sp"><div class="s3L"><section id="rd-eval">
 <h2>3. Offline evaluation against online metrics</h2>
 <p>An offline score is measured on stored data; the decision to ship is about live traffic. Rules of ML, Rule #37 ("Measure Training/Serving Skew"), splits the distance between them into gaps, each with its own meaning. Adding the gap to the product goal from section 1 gives four.</p>
-<div class="card"><b>Each step down is a different problem; only the third is a bug</b>
+
+<p>For an LLM the offline set is a set of past tickets scored by tests, graders or judges, and it is a statistic, not a test suite: models sample, and even at temperature zero serving engines are not deterministic, because the numerical result of a matrix multiplication depends on how many other requests share the batch. Thinking Machines sampled the same prompt 1,000 times at temperature 0 from Qwen3-235B and got 80 different completions; with batch-invariant kernels all 1,000 were identical, at a cost in speed ({{Thinking Machines, 10 Sep 2025|https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><b>Each step down is a different problem; only the third is a bug</b>
 <div class="rd-svg" id="rd-gaps"></div>
 <ol class="tight">
 <li><b>Training to holdout</b>: "In general, this will always exist, and it is not always bad."</li>
@@ -32,8 +42,8 @@
 <li><b>Next-day to live</b>: "If you apply a model to an example in the training data and the same example at serving, it should give you exactly the same result. Thus, a discrepancy here probably indicates an engineering error": skew, section 2.</li>
 <li><b>Live metric to product goal</b>: the proxy gap of the metric ladder; only an online experiment measures it.</li>
 </ol>
-<p class="small mute">Quotes from {{Rules of ML|https://developers.google.com/machine-learning/guides/rules-of-ml}}, Rule #37. Bar heights are schematic: the rule names the gaps, not their sizes.</p></div>
-<p>For an LLM the offline set is a set of past tickets scored by tests, graders or judges, and it is a statistic, not a test suite: models sample, and even at temperature zero serving engines are not deterministic, because the numerical result of a matrix multiplication depends on how many other requests share the batch. Thinking Machines sampled the same prompt 1,000 times at temperature 0 from Qwen3-235B and got 80 different completions; with batch-invariant kernels all 1,000 were identical, at a cost in speed ({{Thinking Machines, 10 Sep 2025|https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}}).</p>
+<p class="small mute">Quotes from {{Rules of ML|https://developers.google.com/machine-learning/guides/rules-of-ml}}, Rule #37. Bar heights are schematic: the rule names the gaps, not their sizes.</p></div></div></div></div>
+<section id="rd-eval-b">
 <p>So a change ships in stages, each answering a question the one before cannot. A "change" is any of: a new model or provider version, a prompt, sampling parameters, an engine version or GPU type (Anthropic's postmortem shows the same model behaving differently on different hardware stacks), or a router.</p>
 <div class="flow"><div><b>0. Pin and version</b>model snapshot, prompt, parameters and router in versioned config, recorded in every usage event; rollback is a config change</div><i>&rarr;</i><div><b>1. Offline gate</b>is it better on stored cases? (gaps 1 and 2)</div><i>&rarr;</i><div><b>2. Shadow</b>live inputs, answers thrown away: same quality, latency, cost? (gap 3)</div><i>&rarr;</i><div><b>3. Canary</b>1%, 5%, 25%, 100% of real traffic, keyed by user or tenant: is it safe?</div><i>&rarr;</i><div><b>4. A/B test</b>a fixed split long enough to measure users: is it better? (gap 4)</div></div>
 <p>The statistics of each stage (how much traffic, for how long, which test) and golden sets and CI gates are owned by {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}; the offline regression suite by the sibling {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}. Staged rollout costs days instead of minutes per change, shadow compute, and two versions in production at once (two prompt caches, two sets of GPUs if self-hosted); internal tools and prototypes can switch at once behind a flag, anything customers depend on cannot.</p>

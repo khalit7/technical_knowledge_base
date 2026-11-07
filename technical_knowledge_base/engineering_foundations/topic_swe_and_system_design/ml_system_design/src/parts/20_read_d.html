@@ -1,15 +1,18 @@
 
-<section id="rd-llm">
+<div class="s3sp"><div class="s3L"><section id="rd-llm">
 <h2>6. LLM applications: prompt, retrieval, fine-tuning or an agent, inside a budget</h2>
 <p>With an LLM the "model" box of the hero is a design of its own. The design question is what the base model lacks for this task, answered with the cheapest rung that supplies it; each rung up adds cost, latency and something new to evaluate.</p>
-<div class="card"><b>Climb only as far as the task needs: each rung answers a different lack</b>
-<div class="rd-svg" id="rd-llmlad"></div>
-<p class="small mute">The baseline is rung 1; the evaluation set of section 3 decides whether a rung earned its cost.</p></div>
+
 <ul>
 <li><b>Lacks facts</b> (the tenant's help articles, this customer's orders): <b>retrieval</b>. Fine-tuning "changes how a model behaves but is a poor way to add facts: it cannot be updated per document, cannot cite, cannot give two users different views, and still hallucinates on what it saw once"; the two combine: "fine-tune for format and domain style, retrieve for facts" ({{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}, which owns the pipeline).</li>
 <li><b>Lacks behaviour</b> (a strict output format, a house style, a small model doing one narrow job cheaply): <b>fine-tuning</b>, usually an adapter; many tenants' adapters can share one base model on one replica ({{Parameter-Efficient Fine-Tuning|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}).</li>
 <li><b>Lacks steps</b> (look up the order, then check the refund policy, then act): a <b>workflow</b>, model calls "orchestrated through predefined code paths", or an <b>agent</b>, where models "dynamically direct their own processes and tool usage"; Anthropic's advice is "the simplest solution possible, and only increasing complexity when needed" ({{Building effective agents|https://www.anthropic.com/engineering/building-effective-agents}}, compared on {{Topic: agentic-frameworks|n:3c65c17b0d0d81ab8432c54d65b7f8c7}}). An agent's cost and latency are a distribution, not a number: budget steps and tokens per task.</li>
 </ul>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><b>Climb only as far as the task needs: each rung answers a different lack</b>
+<div class="rd-svg" id="rd-llmlad"></div>
+<p class="small mute">The baseline is rung 1; the evaluation set of section 3 decides whether a rung earned its cost.</p></div></div></div></div>
+<section id="rd-llm-a">
 <h3>What changes when the model is an LLM</h3>
 <div class="tw"><table>
 <thead><tr><th>What is different</th><th>Ordinary web request</th><th>LLM request</th><th>What the design adds</th></tr></thead>
@@ -33,18 +36,39 @@
 </ul>
 <p class="small">The API costs six to ten times the self-hosted fleet at this volume (with and without caching), but buys a stronger model, no capacity risk and no GPU team; a router that sends easy tickets to a small tier and caching change the ratio, and the self-hosted fleet sized for the peak is mostly idle at night unless batch work fills it. "Prefix caching cuts the cost per message by about 40% here because 70% of each prompt is static" is the kind of quantified trade-off a design review wants. Checked in <code>src/recompute.py</code>. Move these levers yourself in the {{Cost-quality lab|#t-gw}}.</p></div>
 
-<p>The prefix cache is the cheapest lever and the easiest to lose: it keeps the computed state of a prompt's beginning so the next request with the same beginning skips that part of prefill. It never changes the answer, only speed and price, and it matches from the first token, so prompt layout decides whether it works.</p>
-<div class="card" id="rd-pc-card">
+</section>
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-pc-card">
 <b>One changed line at the top of the prompt makes every turn a cache miss</b>
-<p class="small">Six turns of a chat. Each request holds a 2,000-token system prompt (instructions and tool definitions), the conversation so far, and the new message, which includes a 30-token line with the current time and user context. Only the order changes. <b>Predict first:</b> how much of turn 6 can come from the cache in each layout?</p>
 <div class="seg" id="rd-pc-seg"><button data-m="before" class="on">Before: time line first</button><button data-m="after">After: static first, append-only</button></div>
 <div class="leg"><span style="--sw:var(--c2)">time and user line</span><span style="--sw:var(--c1)">system prompt</span><span style="--sw:var(--dim)">conversation so far</span><span style="--sw:var(--c5)">new message</span><span style="--sw:var(--good)">outline: served from cache</span></div>
 <div class="rd-svg" id="rd-pc-svg"></div>
-<div class="an-cap" id="rd-pc-cap" aria-live="polite"></div>
 <div class="an-cnt" id="rd-pc-cnt"></div>
 <div class="an-ctl" id="rd-pc-ctl"></div>
-<p class="small mute">Prices: Claude Sonnet 5.5, $2 per million input tokens, $2.50 cache write (5-minute), $0.20 cache read, $10 output ({{Anthropic prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}}, read 2026-10-04). Over six turns the "after" layout costs $0.0391 against $0.0655 (input alone: $0.0151 against $0.0415, 64% less), and the model processes 4,780 input tokens instead of 20,730. <span class="ill">Illustrative</span> token counts; checked in <code>src/recompute.py</code>. Caveats: a cache entry lives 5 minutes unless used (or 1 hour at a higher write price), there is a minimum cacheable length (512 to 4,096 tokens by model on Anthropic), and an entry "only becomes available after the first response begins", so parallel requests sent at once all miss.</p>
 </div>
+</div><div class="s3L">
+<section id="rd-llm-b">
+<p>The prefix cache is the cheapest lever and the easiest to lose: it keeps the computed state of a prompt's beginning so the next request with the same beginning skips that part of prefill. It never changes the answer, only speed and price, and it matches from the first token, so prompt layout decides whether it works.</p>
+<p class="small">Six turns of a chat in the figure; each request holds a 2,000-token system prompt (instructions and tool definitions), the conversation so far, and the new message, which includes a 30-token line with the current time and user context. Only the order changes between the two layouts. <b>Predict first:</b> how much of turn 6 can come from the cache in each layout?</p>
+<ol class="sx" id="sx-pc-before">
+<li><b>Turn 1: 2,130 input tokens, none from the cache.</b> The prompt starts with a line holding the current time to the second, then the 2,000-token system prompt. Nothing is cached yet.</li>
+<li><b>Turn 2: 2,660 input tokens, none from the cache.</b> The time line changed, and it is the very first thing in the prompt. A prefix cache matches from the first token, so one changed token at the start makes everything after it a miss.</li>
+<li><b>Turn 3: 3,190 input tokens, none from the cache.</b> The whole conversation is processed again.</li>
+<li><b>Turn 4: 3,720 input tokens, none from the cache.</b> Again, every token.</li>
+<li><b>Turn 5: 4,250 input tokens, none from the cache.</b> Again, every token.</li>
+<li><b>Turn 6: 4,780 input tokens, none from the cache.</b> Over six turns the model has processed 20,730 input tokens, and the conversation has cost $0.0655.</li>
+</ol>
+<ol class="sx" id="sx-pc-after" hidden>
+<li><b>Turn 1: 2,130 input tokens, none from the cache.</b> Same content, new order: the unchanging system prompt first, then the conversation, then the new message with its time line at the end. The first request writes the cache (at a 25% premium on Anthropic's 5-minute cache).</li>
+<li><b>Turn 2: 2,660 input tokens, 2,130 from the cache.</b> The request is append-only: it begins with the whole previous request, byte for byte, so all of that comes from the cache at a tenth of the input price. The model processes only what is new, the previous reply and the new message: 530 tokens, written to the cache for the next turn.</li>
+<li><b>Turn 3: 3,190 input tokens, 2,660 from the cache.</b> 530 new tokens again.</li>
+<li><b>Turn 4: 3,720 input tokens, 3,190 from the cache.</b> 530 new tokens again.</li>
+<li><b>Turn 5: 4,250 input tokens, 3,720 from the cache.</b> 530 new tokens again.</li>
+<li><b>Turn 6: 4,780 input tokens, 4,250 from the cache.</b> Over six turns the model has processed 4,780 input tokens, and the conversation has cost $0.0391.</li>
+</ol>
+<p class="small mute">Prices: Claude Sonnet 5.5, $2 per million input tokens, $2.50 cache write (5-minute), $0.20 cache read, $10 output ({{Anthropic prompt caching|https://platform.claude.com/docs/en/build-with-claude/prompt-caching}}, read 2026-10-04). Over six turns the "after" layout costs $0.0391 against $0.0655 (input alone: $0.0151 against $0.0415, 64% less), and the model processes 4,780 input tokens instead of 20,730. <span class="ill">Illustrative</span> token counts; checked in <code>src/recompute.py</code>. Caveats: a cache entry lives 5 minutes unless used (or 1 hour at a higher write price), there is a minimum cacheable length (512 to 4,096 tokens by model on Anthropic), and an entry "only becomes available after the first response begins", so parallel requests sent at once all miss.</p>
+</section>
+</div></div>
+<section id="rd-llm-c">
 <p>The rule: <b>prompts are append-only</b>; anything that changes per request (time, user name, retrieved documents, a shuffled tool list) goes after everything that does not. And the request must reach a machine that has the prefix: provider caches live on individual machines (OpenAI: traffic "above 15 requests per minute" on one prefix "can lead to overflow routing"; a <code>prompt_cache_key</code> helps it route), and self-hosted pools need a prefix-aware router ({{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 2); Character.AI's sticky sessions reached a "95% cache rate" (parent's Case files). How engines keep the prefix is owned by {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}.</p>
 <details class="dp"><summary>What the providers claim for prompt caching <span class="mute">(depth, vendor figures)</span></summary><div class="b"><p>Anthropic says prompt caching reduces "costs by up to 90% and latency by up to 85% for long prompts" ({{Anthropic|https://claude.com/blog/prompt-caching}}; vendor figure). OpenAI applies it automatically to long prompts and advises putting "stable developer instructions and shared reference material first" ({{OpenAI docs|https://developers.openai.com/api/docs/guides/prompt-caching}}). Both say the same thing as the animation above: what never changes goes first.</p></div></details>
 </section>

@@ -1,4 +1,4 @@
-// ---- Reading: box-row diagrams (drawer adapted from the parent root's 22_js_rd_one.js): the metric ladder (s1), the LLM design ladder (s6), the model layer (s7) ----
+// ---- Reading: box-row diagrams (drawer adapted from the parent root's 22_js_rd_one.js): the metric ladder (s1) and the LLM design ladder (s6); the model layer (s7) is the 3D stage in 37_js_sc_llm.js ----
 (function(){
   const SC=['--mute','--c1','--c2','--c3','--c4','--c5','--c6'];
   function wrap(s,max){const w=s.split(' '),out=[];let l='';w.forEach(x=>{if(l&&(l+' '+x).length>max){out.push(l);l=x}else l=l?l+' '+x:x});if(l)out.push(l);return out}
@@ -40,15 +40,5 @@
     [['+ Fine-tuning','format, domain style, a smaller model doing a narrow job',2,'3']],
     [['+ Workflow or agent','several calls; an agent when the steps depend on what is found',3,'4']]
   ],'The LLM design ladder: prompt a model, then add retrieval for facts, fine-tuning for behaviour, and a workflow or agent for multi-step work; each rung adds cost, latency and things to evaluate']);
-  // section 7: the model layer of the chat assistant
-  D.push(['rd-arch',[
-    [['Users','phones and browsers, 230 messages a second at peak',0]],
-    [['Chat API servers','the parent topic\'s app servers: auth, history, streaming to the user',0]],
-    [['LLM gateway','who is calling, may they, how much have they used',1,'A'],['Cache','exact and semantic answers; prompt prefixes',5,'F']],
-    [['Rate limits and quotas','in tokens, per tenant',1,'A'],['Router and fallbacks','which model, and what if it fails',2,'B']],
-    [['Realtime pool','streaming chat on GPUs',3,'D'],['External providers','model APIs, a second vendor',2,'B'],['Batch queue','evals, embeddings, overnight jobs',3,'D']],
-    [['Autoscaler','adds GPU replicas on queue and KV signals',3,'E'],['Engines','vLLM, SGLang, TensorRT-LLM on GPUs',0]],
-    [['Usage events','tokens and cost per request, per tenant',6,'H'],['Metrics and traces','TTFT, tokens/s, errors, quality',6,'H'],['Rollout control','pinned versions, canary weights',4,'G']]
-  ],'The model layer of the chat assistant: API servers, LLM gateway with cache, rate limits and router, realtime GPU pool, external providers and batch queue, autoscaler and engines, and usage events, metrics and rollout control']);
   D.forEach(([id,rows,label,side])=>{const el=document.getElementById(id);if(!el)return;const f=()=>draw(el,rows,label,side);f();RD.onRender(f);RD.onResize(f)});
 })();
