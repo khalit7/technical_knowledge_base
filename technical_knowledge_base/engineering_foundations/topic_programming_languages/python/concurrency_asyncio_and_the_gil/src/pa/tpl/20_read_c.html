@@ -5,22 +5,42 @@
 [[drill:gather keeps argument order]]
 <p class="small">The second answer: tasks finish in the order their waits end (1, 2, 3), but <code>gather</code> returns results in the order of its arguments, <code>[3, 1, 2]</code>.</p>
 
+<div class="s3sp"><div class="s3R"><div id="stg-loop"></div></div><div class="s3L">
 <h3>Three coroutines, four ways</h3>
-<p>Three coroutines wait 100, 200 and 300 ms. Awaited one after another they take 0.6 s; started together with <code>asyncio.gather</code> they take 0.3 s, the longest single wait. Then the middle one calls blocking <code>time.sleep(0.2)</code> instead of <code>await asyncio.sleep(0.2)</code>. Every step below is a real event from <code>a2_trace.py</code>, stamped with the loop's clock and drawn to scale on one 0 to 620 ms axis, so the four modes compare by eye.</p>
+<p>Three coroutines wait 100, 200 and 300 ms. Awaited one after another they take 0.6 s; started together with <code>asyncio.gather</code> they take 0.3 s, the longest single wait. Then the middle one calls blocking <code>time.sleep(0.2)</code> instead of <code>await asyncio.sleep(0.2)</code>. Every step of Fig. 3 is a stretch of real events from <code>a2_trace.py</code>, stamped with the loop's clock; the ruler at the front is that clock, 0 to 620 ms for all four modes, so they compare by eye. A task sits in the <b>ready queue</b> (left), on <b>the one thread</b> (centre), <b>suspended at an <code>await</code></b> on the loop's timers (back), or <b>done</b> (right).</p>
 <div class="pr" id="cg-pr-loop"></div>
-<div class="cg-anim" id="cg-loop-card"><h4>One blocking call freezes every task; <code>to_thread</code> gives the time back</h4>
-<div class="seg" id="cg-loop-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="gathered">2. gather</button><button data-m="gathered_blocking">3. gather, B blocks</button><button data-m="gathered_thread">4. gather, B in a thread</button></div>
-<div class="cg-ctl" id="cg-loop-ctl"></div>
-<div class="cg-svg" id="cg-loop-svg"></div>
-<div class="cg-cap" id="cg-loop-cap"></div>
-<div class="cg-cnt" id="cg-loop-cnt"></div>
-<div class="cg-src">Thin bar: suspended at an <code>await</code> (the thread is free). Thick dark bar: holding the thread. Orange bar: a blocking call. Ring: the moment a timer is due. The top lane is what the one thread is doing.</div>
-</div>
-<ul class="tight small">
-<li><b>1 against 2</b>: the same coroutines; <code>await</code> in a loop runs them back to back (0.6 s), <code>gather</code> wraps each in a task so their waits overlap (0.3 s).</li>
-<li><b>2 against 3</b>: one <code>time.sleep</code> in B holds the thread for 200 ms. A's timer is due at 100 ms but A cannot resume until 200 ms; C cannot even start until 200 ms; total 0.5 s. Nothing crashed and nothing warned: a blocked loop is silent unless debug mode is on.</li>
-<li><b>3 against 4</b>: <code>await asyncio.to_thread(time.sleep, 0.2)</code> runs the same blocking call in a worker thread; B suspends like any other await, and the total is back to 0.3 s.</li>
-</ul>
+<div class="s3chips" id="cg-loop-mode"><button data-m="sequential" class="on">1. await one by one</button><button data-m="gathered">2. gather</button><button data-m="gathered_blocking">3. gather, B blocks</button><button data-m="gathered_thread">4. gather, B in a thread</button></div>
+<ol class="sx" id="sx-loop-sequential" data-m="sequential">
+<li data-e="1"><b>A starts and suspends (0.2 ms).</b> <code>main</code> awaits A directly, so A runs on the thread until <code>await asyncio.sleep(0.1)</code>, then parks on a timer due at 100 ms. B and C do not exist yet: <code>await</code> in a loop creates each coroutine only when the one before it has finished.</li>
+<li data-e="3"><b>A resumes and finishes (100.6 ms).</b> The timer fires, the loop puts A back on the thread, and A returns its result.</li>
+<li data-e="5"><b>B starts and suspends (100.6 ms).</b> Only now does <code>main</code> create B, which waits 200 ms.</li>
+<li data-e="7"><b>B finishes (302.8 ms).</b> For 200 ms the thread had nothing to do.</li>
+<li data-e="9"><b>C starts and suspends (302.8 ms).</b> 300 ms more.</li>
+<li data-e="11"><b>C finishes (604.9 ms): total 605.2 ms.</b> The three waits ran back to back, 100 + 200 + 300 ms: <code>await</code> in a loop is sequential.</li>
+</ol>
+<ol class="sx" id="sx-loop-gathered" data-m="gathered" hidden>
+<li data-e="1"><b>gather queues three tasks; A runs (0.2 ms).</b> <code>gather</code> wraps each coroutine in a task and puts all three on the ready queue. A runs until its <code>await</code> and suspends, due at 100 ms.</li>
+<li data-e="5"><b>B and C start and suspend (0.2 ms).</b> The loop runs the next ready task at once; within the same 0.2 ms all three are waiting and the thread is idle.</li>
+<li data-e="7"><b>A resumes and finishes (102.3 ms).</b></li>
+<li data-e="9"><b>B resumes and finishes (201.3 ms).</b></li>
+<li data-e="11"><b>C finishes (302.3 ms): total 302.5 ms</b>, the longest single wait: the same coroutines as mode 1, but their waits overlapped.</li>
+</ol>
+<ol class="sx" id="sx-loop-gathered_blocking" data-m="gathered_blocking" hidden>
+<li data-e="1"><b>A starts and suspends (0.1 ms).</b> As in mode 2, A waits on a timer due at 100 ms.</li>
+<li data-e="3"><b>B calls <code>time.sleep(0.2)</code> (0.1 ms).</b> That is not an <code>await</code>: the thread is stuck inside the call. A's timer comes due at 100 ms, but the loop cannot run it, and C cannot even start.</li>
+<li data-e="4"><b>B returns (202.0 ms).</b> Only now does the thread get back to the loop.</li>
+<li data-e="8"><b>C starts; A resumes 102 ms late (202.1 ms).</b> C was queued first, so it runs and suspends; then A, due at 100 ms, finally resumes and finishes.</li>
+<li data-e="10"><b>C finishes (504.3 ms): total 505.0 ms.</b> One <code>time.sleep</code> in B held the thread for 200 ms and every task paid for it. Nothing crashed and nothing warned: a blocked loop is silent unless debug mode is on.</li>
+</ol>
+<ol class="sx" id="sx-loop-gathered_thread" data-m="gathered_thread" hidden>
+<li data-e="1"><b>A starts and suspends (0.4 ms).</b></li>
+<li data-e="3"><b>B hands its sleep to a worker thread (0.4 ms).</b> <code>await asyncio.to_thread(time.sleep, 0.2)</code> runs the same blocking call in a worker thread; B suspends like any other await, and the loop's thread stays free.</li>
+<li data-e="5"><b>C starts and suspends (3.1 ms).</b> It waits 300 ms like the others.</li>
+<li data-e="7"><b>A resumes and finishes (108.4 ms).</b></li>
+<li data-e="9"><b>B's worker returns; B finishes (212.3 ms).</b></li>
+<li data-e="11"><b>C finishes (305.2 ms): total 305.7 ms</b>, back to the gather time of mode 2.</li>
+</ol>
+</div></div>
 <details class="dp"><summary>The script, <code>a2_trace.py</code>, and its real output <span class="mute">(code)</span></summary><div class="b">
 [[code:a2_trace]]
 [[out:a2_trace|real output, Python 3.14.8]]
@@ -28,13 +48,16 @@
 <div class="co warn"><div class="t">Never block the loop</div>"If a function performs a CPU-intensive calculation for 1 second, all concurrent asyncio Tasks and IO operations would be delayed by 1 second" ({{Developing with asyncio|https://docs.python.org/3/library/asyncio-dev.html}}). Culprits: <code>requests</code>, <code>time.sleep</code>, a synchronous database driver, a big <code>json.loads</code>, tokenising a long document. Fixes: an async library, <code>await asyncio.to_thread(f)</code>, or a process pool via <code>loop.run_in_executor</code>. Debug mode reports any step that holds the loop longer than 100 ms:</div>
 [[run:a6_debug]]
 
+<div class="s3sp"><div class="s3L">
 <h3>A real HTTP fan-out against a local server</h3>
-<p>The common LLM-application pattern: call an API many times concurrently, but not unboundedly. A standard-library server (<code>asyncio.start_server</code>) answers <code>GET /delay/100</code> after 100 ms, standing in for a model API; the client opens a connection per request with <code>asyncio.open_connection</code>. Twenty calls:</p>
-<div class="cg-svg" id="cg-fan-bars"></div>
+<p>The common LLM-application pattern: call an API many times concurrently, but not unboundedly. A standard-library server (<code>asyncio.start_server</code>) answers <code>GET /delay/100</code> after 100 ms, standing in for a model API; the client opens a connection per request with <code>asyncio.open_connection</code>. Twenty calls, timed in Fig. 4:</p>
 <p>Twenty sequential calls take twenty times 100 ms. <code>gather</code> overlaps all the waits: 0.10 s. A <code>Semaphore(5)</code> keeps at most five requests in flight (rate limits are real), giving four waves of 100 ms. <code>TaskGroup</code> (3.11+) is <code>gather</code> with structured clean-up: if one task fails, the others are cancelled and the errors arrive together as an ExceptionGroup. <code>asyncio.timeout</code> (3.11+) bounds a block of awaits: one 2 s call with a 250 ms budget stopped at 0.252 s.</p>
 <details class="dp"><summary>The script, <code>a3_fanout.py</code> (server and client, standard library only), and its real output <span class="mute">(code)</span></summary><div class="b">
 [[run:a3_fanout]]
 </div></details>
+
+</div><div class="s3R"><div class="s3side"><div class="card" id="cg-fan-card"><h4 class="cg-h4">Fig. 4 · Twenty 100 ms calls: overlapped, they take one call's time</h4>
+<div class="cg-svg" id="cg-fan-bars"></div></div></div></div></div>
 
 <h3>Cancellation and timeouts</h3>
 <p><code>task.cancel()</code> does not stop a task immediately; it arranges for <code>CancelledError</code> to be raised inside it at its current <code>await</code>, so its <code>finally</code> blocks and <code>async with</code> exits run. A timeout is a cancellation that the timeout block turns into <code>TimeoutError</code>. The rule: if you catch <code>CancelledError</code> to clean up, re-raise it. A coroutine that swallows it reports success to whoever cancelled it, and <code>TaskGroup</code> and <code>timeout</code> stop working around it. The real run: <code>w1</code> re-raises, the swallower returns a value, <code>w2</code> sits under a 50 ms timeout.</p>

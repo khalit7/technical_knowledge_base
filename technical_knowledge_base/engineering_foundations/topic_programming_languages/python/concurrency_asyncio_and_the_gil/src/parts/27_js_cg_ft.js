@@ -8,30 +8,31 @@
   const endOf=k=>Math.max(...F[k].trace4.map(l=>l[l.length-1][1]));
   const MAXT=Math.max(...KEYS.map(endOf));
   const meanChunk=k=>{let s=0,n=0;F[k].trace4.forEach(l=>l.forEach(c=>{s+=c[1]-c[0];n++}));return s/n};
-  const NSTEP=22;let mode='PY314',A=null;
-  function draw(i){
-    const tr=F[mode].trace4,end=endOf(mode),t=i>=NSTEP?end:end*i/NSTEP;
-    const w=RD.width($('cg-ft-plot')),L0=62,R=8,lane=24,H=4*lane+34,X=v=>L0+(w-L0-R)*v/MAXT;
-    let s='';const cols=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
-    tr.forEach((l,k)=>{const y=6+k*lane;s+='<text x="0" y="'+(y+15)+'" font-size="11" fill="var(--mute)">thread '+(k+1)+'</text>';
+  // Fig. 5: one step per interpreter, all on one time axis; a forward step grows that build's lanes over about 1.8 s (the recording, to scale),
+  // any other move (back, scrubber, a step in the list, reduced motion) draws the finished lanes at once. Earlier builds' finish times stay marked.
+  const RM=RD.RM,COLS=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];let raf=0;
+  function frame(i,t){
+    const k=KEYS[i],tr=F[k].trace4,end=endOf(k);
+    const w=RD.width($('cg-ft-plot')),L0=62,R=8,lane=26,top=8,H=top+4*lane+30+4*15,X=v=>L0+(w-L0-R)*v/MAXT;
+    let s='';
+    tr.forEach((l,j)=>{const y=top+j*lane;s+=RD.t(0,y+16,'thread '+(j+1),{fs:12,fill:'var(--mute)'});
       s+='<rect x="'+L0+'" y="'+(y+2)+'" width="'+(w-L0-R)+'" height="'+(lane-6)+'" fill="var(--soft)"></rect>';
-      l.forEach(c=>{if(c[0]>=t)return;const x0=X(c[0]),x1=X(Math.min(c[1],t));s+='<rect x="'+x0.toFixed(1)+'" y="'+(y+2)+'" width="'+Math.max(0.6,x1-x0-0.6).toFixed(1)+'" height="'+(lane-6)+'" fill="'+cols[k]+'" opacity="'+(c[1]<=t?0.85:0.45)+'"></rect>'})});
-    const yA=6+4*lane;const stepv=w<520?200:100;
-    for(let v=0;v<=MAXT;v+=stepv){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+yA+'" y2="'+(yA+4)+'" stroke="var(--mute)"></line><text x="'+x+'" y="'+(yA+16)+'" font-size="10.5" text-anchor="middle" fill="var(--mute)">'+v+' ms</text>'}
-    s+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="2" y2="'+yA+'" stroke="var(--ink)" stroke-width="1.5"></line>';
-    $('cg-ft-plot').innerHTML=RD.svg(w,H,s,'Four threads processing blocks of 1,000 lines over time');
-    const done=tr.reduce((a,l)=>a+l.filter(c=>c[1]<=t).length,0)*1000;
-    $('cg-ft-cnt').innerHTML='<span>elapsed <b>'+fmt(t,0)+' ms</b></span><span>lines counted <b>'+done.toLocaleString('en-US')+'</b> of '+F[mode].lines.toLocaleString('en-US')+'</span><span>average block <b>'+fmt(meanChunk(mode),1)+' ms</b></span>';
-    const gil=!F[mode].free_threaded,one=F[mode].scale['1'].median_s*1000;
-    let c;
-    if(i===0)c='<b>'+LAB[mode]+'.</b> Four threads start together; each will count 25 blocks of 1,000 lines. A darker block is finished, a pale one is in progress. Press play or step.';
-    else if(i<NSTEP)c=gil?'All four threads make progress, but each block takes about '+fmt(meanChunk(mode)/(one/F[mode].lines*1000),1)+' times as long as one thread alone needs for it: they take turns holding the GIL, switching every '+(F[mode].switch_interval_s*1000)+' ms. Four lanes, one core\'s worth of work.':
-      'The four threads run at the same moment on different cores. Each block takes '+fmt(meanChunk(mode)/(one/F[mode].lines*1000),1)+' times as long as one thread alone needs for it: close to 1 would be perfect parallelism; the excess is the busy machine and contention.';
-    else c='<b>Finished in '+fmt(end,0)+' ms.</b> One thread alone took '+fmt(one,0)+' ms on this interpreter (median of the scaling runs), so four threads were '+fmt(one/end,1)+'x faster here. Switch the build above to compare, on the same time axis.';
-    $('cg-ft-cap').innerHTML=c;
+      l.forEach(c=>{if(c[0]>=t)return;const x0=X(c[0]),x1=X(Math.min(c[1],t));s+='<rect x="'+x0.toFixed(1)+'" y="'+(y+2)+'" width="'+Math.max(0.6,x1-x0-0.6).toFixed(1)+'" height="'+(lane-6)+'" fill="'+COLS[j]+'" opacity="'+(c[1]<=t?0.85:0.4)+'"></rect>'})});
+    const yA=top+4*lane;const stepv=w<520?200:100;
+    for(let v=0;v<=MAXT;v+=stepv){const x=X(v);s+='<line x1="'+x+'" x2="'+x+'" y1="'+yA+'" y2="'+(yA+4)+'" stroke="var(--mute)"></line>'+RD.t(x,yA+16,v+(v+stepv>MAXT?' ms':''),{a:'middle',fs:11,fill:'var(--mute)'})}
+    // the finish of every build shown so far (this one in bold once it is reached)
+    for(let q=0;q<=i;q++){const kq=KEYS[q],eq=endOf(kq),x=X(eq),cur=q===i;if(cur&&t<eq)continue;
+      s+='<line x1="'+x+'" x2="'+x+'" y1="2" y2="'+yA+'" stroke="'+(F[kq].free_threaded?'var(--acc)':'var(--c2)')+'" stroke-width="'+(cur?2:1.2)+'" stroke-dasharray="'+(cur?'':'4 3')+'"></line>';
+      const lab=(w<520?SHORT[kq]:LAB[kq])+' '+eq.toFixed(0)+' ms',right=x>w*.6;
+      s+=RD.t(right?x-4:x+4,yA+32+q*15,lab,{a:right?'end':'start',fs:11.5,w:cur?600:400,fill:F[kq].free_threaded?'var(--acc)':'var(--c2)'})}
+    if(t<end)s+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="2" y2="'+yA+'" stroke="var(--ink)" stroke-width="1.5"></line>';
+    $('cg-ft-plot').innerHTML=RD.svg(w,H,s,'Four threads processing blocks of 1,000 lines over time, '+LAB[k]);
   }
-  A=RD.anim({card:'cg-ft-card',ctl:'cg-ft-ctl',n:NSTEP+1,draw:draw,ms:600,label:'Time step'});
-  RD.seg($('cg-ft-seg'),m=>{mode=m;A.reset(NSTEP+1)});
+  const SHORT={PY314:'3.14',PY314T:'3.14t',PY315:'3.15rc3',PY315T:'3.15rc3t'};
+  function draw(i){cancelAnimationFrame(raf);const end=endOf(KEYS[i]),card=$('cg-ft-card');
+    if(RM||!card.classList.contains('rd-fwd')){frame(i,end);return}
+    const t0=performance.now(),D=1800;const go=now=>{const u=Math.min(1,(now-t0)/D);frame(i,end*u);if(u<1)raf=requestAnimationFrame(go)};frame(i,0);raf=requestAnimationFrame(go)}
+  A=RD.anim({card:'cg-ft-card',ctl:'cg-ft-ctl',n:KEYS.length,draw,ms:5200,label:'Interpreter',list:'sx-ft'});
   $('cg-ft-src').innerHTML='Real per-block timestamps from one run on each interpreter (<code>ft_bench.py</code>, <code>trace(4)</code>); the time axis is the same for all four builds. Load average during the runs: '+KEYS.map(k=>LAB[k]+' '+CGU.la(F[k].loadavg_start)).join('; ')+'.';
   RD.onResize(()=>A.redraw());
 

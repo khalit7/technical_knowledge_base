@@ -11,3 +11,8 @@ Rejected
 - A separate Runtime lab tab: its tables back single claims, so they sit in closed blocks beside them.
 - A start-up bar chart for subinterpreters: the three start-ups span three orders of magnitude (0.05, 6 and 84 ms); a table reads better than log bars.
 - An animated hero: the comparison is structural; animation would add nothing the four rows do not show.
+
+## 2026-11-07 rollout: built and rejected
+- Built: Fig. 1 3D hero (cores, threads, GIL token, plates); Fig. 3 3D event loop replaying a2_trace; Fig. 5 lanes as a 4-step 2D animation.
+- Kept 2D: bars (Figs. 2, 4, 6, 7) and the scaling line chart in its closed block: numbers on one axis read best flat.
+- Rejected: a 3D lost-update stage (OS Concurrency owns the race and draws it in section 2; linked instead); per-build lane towers in 3D (a timeline reads better flat); a 3D wheel survey (a table).

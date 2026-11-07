@@ -66,15 +66,33 @@
 #t-read .seg button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 #t-read .chips button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
 #t-read code{overflow-wrap:anywhere}
+#t-read .cg-h4{margin:0 0 8px;font-size:14.5px;line-height:1.35}
+/* eased steps (template 01_head.html): RD.anim adds rd-fwd to a card on a forward step */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s0">The idea</a><a href="#s1">Threads and the GIL</a><a href="#s2">asyncio</a><a href="#s3">Free-threading</a><a href="#s4">Subinterpreters</a><a href="#s5">Choosing</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">In the default CPython build <span class="hl">one lock, the GIL, lets only one thread run Python bytecode at a time</span>, so threads overlap waiting but never computing. asyncio replaces many waiting threads with <span class="hl">one event loop that switches tasks only at an <code>await</code></span>, so a single blocking call stalls every task. To compute in parallel you need several GILs (processes, subinterpreters), no GIL (the free-threaded build), or native code that releases it.</p>
-<div class="hero" id="cg-hero-card"><h4>Who runs Python bytecode at each instant, four ways</h4>
-<div class="cg-svg" id="cg-hero"></div>
-<div class="leg"><span><i style="background:var(--acc)"></i>running Python bytecode (in the asyncio row, one colour per task)</span><span><i style="background:var(--c3);opacity:.45"></i>waiting on I/O (lock released)</span><span><i style="border:1px dashed var(--mute);height:8px"></i>ready, waiting for the GIL or the loop</span><span><i style="background:var(--bad)"></i>a blocking call inside the loop</span><span><i style="background:var(--dim)"></i>process start-up and pickling</span></div>
-<p class="small">Schedules <span class="mute">illustrative</span>; every one is measured below. Notice that in the GIL row two blue bars never overlap, in the free-threaded and process rows they do, and in the asyncio row one orange block stops every task.</p></div>
+<p class="small">Fig. 1 shows who runs Python bytecode on four CPU cores in each of the six arrangements this page measures; the numbers are this page's runs on CPython 3.14.8 and 3.14.8t (an Apple M1 Pro, 2026-10-05).</p>
+<ol class="sx" id="sx-hero">
+<li><b>Four threads, one GIL.</b> All four threads belong to one interpreter (the glass plate), and only the thread holding the GIL (the gold token) runs bytecode; the others are ready but wait. The token hops between them: <code>sys.getswitchinterval()</code> read 5 ms in the recorded runs. So the CPU job took 0.96 s serially and 0.99 s on four threads.</li>
+<li><b>Waiting gives the GIL back.</b> A thread inside <code>time.sleep</code>, a socket read or a file read releases the lock while the operating system does the waiting, so four waits overlap: four 200 ms waits took 0.83 s one after another and 208 ms on four threads.</li>
+<li><b>Four processes, four GILs.</b> Each worker process has its own interpreter and its own lock, so all four compute at once. Arguments and results cross between processes as pickles (the orange dots). The CPU job took 0.36 s; spawning one process cost 84.4 ms on 3.14.8 (section 4).</li>
+<li><b>Four subinterpreters, four GILs, one process.</b> Since 3.12 each subinterpreter has its own GIL, so they compute in parallel inside one process, still passing pickles. One started in 5.985 ms, against 84.4 ms for a spawned process and 0.052 ms for a thread (section 4).</li>
+<li><b>The free-threaded build: no GIL.</b> <code>python3.14t</code> has one interpreter and no token: all four threads run bytecode at the same moment, and the CPU job fell from 0.94 s serially to 0.37 s on four threads.</li>
+<li><b>asyncio: one thread, many waits.</b> One thread runs one task at a time; the others are suspended at an <code>await</code> while the operating system waits for them. A task gives up the thread only at an <code>await</code>. Fig. 3 replays a real loop event by event.</li>
+</ol>
+</section>
+</div></div>
+<div class="cg-after0">
 <p><b>You need:</b> {{Python: the essentials|n:3cd5c17b0d0d81b28acdea39e7a4d998}} (names, objects and the one interpreter). What a thread, a lock and <code>epoll</code> are at the operating-system level, and the GIL seen as an OS lock, is {{Concurrency: threads, locks, futexes, deadlock, and event-driven I/O|n:3f05c17b0d0d8112ad1af99308fa913f}} (sections 1, 7 and 8); this page is what the lock means in Python code, with measurements.</p>
 <dl class="terms">
 <dt>GIL</dt><dd>the global interpreter lock: only the thread holding it runs Python bytecode.</dd>
@@ -86,4 +104,4 @@
 <dt>Subinterpreter</dt><dd>a second, isolated interpreter in the same process, with its own GIL.</dd>
 <dt>CPU-bound, I/O-bound</dt><dd>limited by computing, or by waiting (network, disk, a model API).</dd>
 </dl>
-</section>
+</div>

@@ -1,16 +1,20 @@
 <section id="s3"><h2>3. Free-threading in practice</h2>
 <p>The <b>free-threaded build</b> removes the GIL ({{PEP 703|https://peps.python.org/pep-0703/}}): experimental in 3.13, officially supported but still optional in 3.14 ({{PEP 779|https://peps.python.org/pep-0779/}}), installed separately as <code>python3.14t</code> (<code>uv python install 3.14t</code>). Check which one you are on with <code>sys._is_gil_enabled()</code>.</p>
-<p>The workload is the parent topic's program: count tokens per user over 100,000 JSONL chat lines (the root's generator, seed 7), split across threads, each thread filling its own <code>Counter</code> that the main thread merges (<code>src/pb/ft/</code>). Every thread recorded when it finished each block of 1,000 lines; this is that recording, to scale, for four threads. Predict before you switch builds: with the GIL, do four threads finish sooner than one?</p>
-<div class="cg-anim" id="cg-ft-card"><h4>With the GIL four lanes do one core's work; without it they run at once</h4>
-<div class="seg" id="cg-ft-seg"><button data-m="PY314" class="on">3.14, GIL</button><button data-m="PY314T">3.14t, no GIL</button><button data-m="PY315">3.15rc3, GIL</button><button data-m="PY315T">3.15rc3t, no GIL</button></div>
+<div class="s3sp"><div class="s3R"><div class="cg-anim" id="cg-ft-card"><h4>Fig. 5 · With the GIL four lanes do one core's work; without it they run at once</h4>
 <div class="cg-svg" id="cg-ft-plot"></div>
-<div class="cg-cnt" id="cg-ft-cnt"></div>
-<div class="cg-cap" id="cg-ft-cap"></div>
 <div class="cg-ctl" id="cg-ft-ctl"></div>
 <div class="cg-src" id="cg-ft-src"></div>
-</div>
+</div></div><div class="s3L">
+<p>The workload is the parent topic's program: count tokens per user over 100,000 JSONL chat lines (the root's generator, seed 7), split across threads, each thread filling its own <code>Counter</code> that the main thread merges (<code>src/pb/ft/</code>). Every thread recorded when it finished each block of 1,000 lines; Fig. 5 is that recording, to scale, for four threads on four interpreters, one step each, on one time axis. A dark block is finished, a pale one in progress. Predict before step 2: with the GIL, do four threads finish sooner than one?</p>
+<ol class="sx" id="sx-ft">
+<li><b>3.14.8, with the GIL: 648 ms.</b> All four lanes move, but slowly: each block of 1,000 lines took 3.9 times as long as one thread alone needs for it, because the threads take turns holding the GIL. One thread alone took 633 ms (median of the scaling runs), so four threads were 1.0x as fast: four lanes, one core's worth of work.</li>
+<li><b>3.14.8t, no GIL: 330 ms.</b> The four threads run at the same moment on different cores. A block took 1.8 times as long as alone (1 would be perfect parallelism; the excess is the busy machine and contention). One thread took 683 ms, so four were 2.1x faster. The 3.14 finish stays marked on the axis.</li>
+<li><b>3.15.0rc3, with the GIL: 752 ms.</b> The same picture as 3.14: blocks 4.2 times as long as alone, one thread 686 ms, so 0.9x.</li>
+<li><b>3.15.0rc3t, no GIL: 334 ms.</b> Blocks 1.5 times as long as alone; one thread took 830 ms, so 2.5x. Both free-threaded builds finish in about half the time of both GIL builds.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p id="cg-ft-scale-p"></p>
-<div class="cg-svg" id="cg-ft-bars"></div>
 <p class="small mute">Speed-up over one thread on the same interpreter, median of five runs. Section 1 timed a different CPU-bound job on 3.14t (0.94 s serial, 0.37 s on four threads, about 2.5x); this final run of the token counter measured <span id="cg-ft-cmp4"></span> with four threads, under a heavier load. Both are rough: on a busy laptop the same job varies by tens of percent between runs.</p>
 <details class="dp" id="cg-scale-det"><summary>Every scaling run, 1 to 8 threads, and the single-thread overhead <span class="mute">(all runs)</span></summary><div class="b">
 <p class="small">100,000 lines split evenly across N threads; each thread counts into its own <code>Counter</code>, then the main thread merges and checks the total against a single-threaded run. Five timed runs per point after one warm-up; the chart shows the median, the table every run. Script: <code>src/pb/ft/ft_bench.py</code>. One laptop (Apple M1 Pro: 8 performance and 2 efficiency cores, 16 GB, macOS 27) in normal use: treat differences under about 10% as noise; ratios on the same interpreter are more portable than absolute times.</p>
@@ -21,10 +25,13 @@
 <p id="cg-sc-ovh" class="small"></p>
 </div></details>
 
+</div><div class="s3R"><div class="s3side"><div class="card" id="cg-ftb-card"><h4 class="cg-h4">Fig. 6 · Speed-up over one thread: only the free-threaded builds scale</h4>
+<div class="cg-svg" id="cg-ft-bars"></div></div></div></div></div>
+
 <h3>The bug the GIL was hiding (and was not preventing)</h3>
 <p>Now the same four threads update one shared dictionary instead of their own: <code>shared[user] = shared.get(user, 0) + n</code>. That line reads, adds and writes back in three steps; if two threads read the same old value, one addition is lost.</p>
 <div class="pr" id="cg-pr-race"></div>
-<p>Python's documentation never promised that a read-modify-write like this is atomic under the GIL ({{Python FAQ|https://docs.python.org/3/faq/library.html#what-kinds-of-global-value-mutation-are-thread-safe}}); the GIL only made losing an update rare. Without the GIL the same bug happens on most runs (the parent topic's section 9, Concurrency, measured about 70% of unsynchronised counter updates lost, {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). What the free-threaded build does guarantee is that built-in objects stay internally consistent: the dictionary never crashes or corrupts, it only holds the wrong totals. The fixes are the same on both builds: a <code>threading.Lock</code> around the update (exact in every run), or, better, no shared state, which is what the scaling run did.</p>
+<p>Python's documentation never promised that a read-modify-write like this is atomic under the GIL ({{Python FAQ|https://docs.python.org/3/faq/library.html#what-kinds-of-global-value-mutation-are-thread-safe}}); the GIL only made losing an update rare. Without the GIL the same bug happens on most runs (the parent topic's section 9, Concurrency, measured about 70% of unsynchronised counter updates lost, {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}}). What the free-threaded build does guarantee is that built-in objects stay internally consistent: the dictionary never crashes or corrupts, it only holds the wrong totals. The fixes are the same on both builds: a <code>threading.Lock</code> around the update (exact in every run), or, better, no shared state, which is what the scaling run did. How an update is lost instruction by instruction, and what a mutex or an atomic changes, is drawn on {{Concurrency|n:3f05c17b0d0d8112ad1af99308fa913f}}, section 2.</p>
 
 <h3>Will your dependencies run without the GIL?</h3>
 <p>A C, C++ or Rust extension must declare that it is safe without the GIL. If it does not, importing it on the free-threaded build silently turns the GIL back on for the whole process, with a warning. Real output from two tiny C extensions, identical except for one line that declares support (<code>Py_mod_gil</code>):</p>
