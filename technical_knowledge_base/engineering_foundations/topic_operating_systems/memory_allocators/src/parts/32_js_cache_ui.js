@@ -31,7 +31,7 @@ window.CacheView=function(el,o){
     const names=o.full?[$('ca').value,$('cb').value]:[o.a,o.b];
     lanes=names.map(n=>({name:n,steps:CACHESIM.run(ops,Object.assign({capacity:cap},CFG[n]))}));
     const n=ops.length+1;
-    if(!A)A=RD.anim({card:uid,ctl:uid+'ctl',n:n,ms:o.ms||260,tab:o.tab,label:'Request',draw:draw});else A.reset(n);
+    if(!A)A=RD.anim({card:uid,ctl:uid+'ctl',n:n,ms:o.ms||260,auto:false,label:'Request',draw:draw})  // a widget (200 requests): never plays by itself; Fig. 6 is the explained replay;else A.reset(n);
     draw(0);
   }
   function opText(op){return op[0]==='+'?'allocate <b>'+op[1]+'</b> ('+mib(op[2])+')':'free <b>'+op[1]+'</b>'}
@@ -78,7 +78,7 @@ window.CacheView=function(el,o){
     else for(let q=cur;q<N;q++){if(lanes.some(l=>hit(l.steps,q,s=>s.events.some(x=>j==='seg'?(x[0]==='cudaMalloc'||x[0]==='map'):(x[0]==='cudaFree'||x[0]==='unmap'))))){tgt=q+1;break}}
     A.go(tgt)});
   if(o.full){['sc','ca','cb'].forEach(s=>$(s).addEventListener('change',()=>{if(s==='sc')$('cap').value='';build()}));$('cap').addEventListener('change',build);$('own').addEventListener('change',build)}
-  RD.onRenderTab(o.tab,()=>{if(A)A.redraw()});
+  RD.onRender(()=>{if(A)A.redraw()});
   let rt=0;addEventListener('resize',()=>{if(el.offsetParent===null)return;clearTimeout(rt);rt=setTimeout(()=>A&&A.redraw(),80)});
   build();
 };

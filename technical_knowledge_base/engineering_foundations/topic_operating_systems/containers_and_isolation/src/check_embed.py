@@ -35,4 +35,10 @@ print("recompute.py:", r.stdout.strip().splitlines()[-1]); bad += r.returncode !
 for pat in ["/" + "Users/", "gl" + "pat", "sk-" + "ant", "scratch" + "pad"]:
     hits = [str(p) for p in [pathlib.Path("../index.html"), pathlib.Path("../README.md"), *pathlib.Path(".").rglob("*")] if p.is_file() and p.suffix in (".html", ".txt", ".py", ".sh", ".js", ".md", ".mjs", ".c", ".json", "") and pat in p.read_text(errors="ignore")]
     if hits: bad += 1; print("FAIL private pattern", pat, hits)
+# the login name, looked up at run time and matched case-sensitively (it is never written here)
+import getpass
+me = getpass.getuser()
+if me:
+    hits = [str(p) for p in [pathlib.Path("../index.html"), pathlib.Path("../README.md"), *pathlib.Path(".").rglob("*")] if p.is_file() and p.suffix in (".html", ".txt", ".py", ".sh", ".js", ".md", ".mjs", ".c", ".json", "") and me in p.read_text(errors="ignore")]
+    if hits: bad += 1; print("FAIL login name in", hits)
 print("check_embed:", "PASS" if not bad else f"{bad} FAIL"); sys.exit(1 if bad else 0)

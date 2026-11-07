@@ -2,8 +2,10 @@
 
 Build: `python3 gen_data.py` (raw outputs and checks into `parts/22_js_data.js`), then `sh build.sh` (the skill's template build; writes `../index.html`).
 Check: `python3 check_embed.py` (embedded data equals raw/, every quoted number equals its measurement, no private
-pattern); `node sim/check_freelist.mjs`; `node sim/check_js.mjs`; from `html_utils/`, `node <this folder>/check_ui.mjs <shots dir>`
-(clicks every control at 390 px dark and 920 px light, and checks that no animation moves before the reader acts).
+pattern); from `sim/`, `node check_freelist.mjs` and `node check_js.mjs`; from `html_utils/`, `node <this folder>/check_ui.mjs <shots dir>`
+(clicks every control at 390 px dark and 920 px light; the two labs never play by themselves); `node src/check_stages.mjs [shots dir]`
+(the six 3D stages and the threshold traces play once in view, stop off screen, step to their last step with one list item per step,
+nothing moves under reduced motion; the step lists' numbers equal the page's malloc.py port and caching-allocator model).
 
 ## Real runs (`run_all.sh`, containers `os-alloc-*`, image `kb-os-alloc:1` from `Dockerfile.alloc`)
 | Script (`exp/`) | Raw output (`raw/`) | Page |
@@ -36,7 +38,7 @@ Rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teachi
 - **New content this page owns** (OWNERS brief): reference counting and the cycle collector at the level of memory behaviour (measured with `exp/gc_cycles.py`; thresholds, what waits for the collector, the gc.freeze recipe for forking), heaptrack for native growth (section 10, from its README, not run here), the memory snapshot moved into the diagnosis section.
 - **Into closed blocks**: provenance of the runs, the C API table and bug list, the bins table, glibc's knobs and introspection calls, the slab and buddy recorded outputs, the CUDA allocator's rules with line numbers (a compact core paragraph stays), the torch strace, mimalloc's source lines, interview rehearsal, the OSTEP chapter map.
 - **Deleted as fat**: the five cards, wind-ups and headings that restated, the "Common mistakes" (each restated a section; the one new fact, nvidia-smi includes the CUDA context, moved into section 9), pointers to the removed tabs. Each has a `note` in `ledger.json`.
-- **No autoplay**: `21_js_rd_common.js` is the skill template plus `onRenderTab` (the two inline labs register under `t-read`); `99_js_tabs.js` is the template with key `os-alloc-tab`. `check_ui.mjs` scrolls each animation into view and confirms it stays on step 0.
+- **No autoplay** (superseded on 2026-11-07, below): `21_js_rd_common.js` was the skill template plus `onRenderTab`; `check_ui.mjs` confirmed every animation stayed on step 0.
 - **One highlight colour**: orange (`--c2`) means free but held by the allocator, in the hero, the free-list lab's free chunks, the caching allocator's hatched cached blocks, the pymalloc figure and the prose; tcmalloc's series moved to grey and the simulator's temporaries to gold to keep orange for that.
 
 ## Length judgement
@@ -58,3 +60,19 @@ Child-page shape (`.claude/skills/explainer-page/page-kinds/topic-child.md`), wi
 ## Topic close (2026-10-24)
 Further reading times and titles were brought in line with each page's header and the rebuilt root (Reading: 24 min, plus 7 in closed details); references to the root's retired sections and simulators were reworded.
 The provenance block gained the dead-code trap of the root's first malloc strace; the arena pairs and the 7,880-page figure now point to the root's recording and to Virtual memory section 7.
+
+## 2026-11-07: split layout and 3D stages (the 2026-11-06 rollout)
+- **Templates**: `02_split.html`, `21_js_rd_common.js`, `25_js_s3.js` (renderer v2) and `99_js_tabs.js` (key `os-alloc-tab`) copied unchanged from the skill; `build.sh` cats `02_split.html` after `01_head.html`; the eased-step CSS (`rd-fwd`) added to `01_head.html`. The template has no `onRenderTab`, so the two labs register with `RD.onRender` (all their controls are in `t-read`).
+- **Six 3D stages**, one scene file each (`34a` to `34f`), each with an `ol.sx` step list on the left, all driven by the page's own data or engines:
+  Fig. 1 hero (`34a_js_sc_hero.js`): four allocators on a user-space plate over the kernel and the CUDA driver; steps 4 and 5 move the camera onto glibc's heap to scale from `AD.frag.glibc` (1,562 live, 110,524 and 29,404 KiB). Replaces the static hero SVG.
+  Fig. 2 (`34b`): the section-1 drill (preset Q7 plus `-1, +15`) run by the page's malloc.py port `FREELIST` with coalescing on; the step list's numbers are checked against it, coalescing off included.
+  Fig. 3 (`34c`): glibc's lookup order as a staircase of glass plates from tcache down to the kernel; replaces the 2D ladder. Chunk counts illustrative, limits the source's.
+  Fig. 4 (`34d`): `arenas.c`'s eight producers and one consumer, one arena against ten; counts and numbers measured (`AK`), arena fill illustrative.
+  Fig. 5 (`34e`): 17 pages (four gaps) of `frag.c`'s glibc heap to scale, 272-byte chunks, survivors every 17,408 bytes; `malloc_trim` drops the pages wholly inside free chunks (4 of 17 stay, from the chunk arithmetic); RSS labels measured.
+  Fig. 6 (`34f`): the caching-allocator model `CACHESIM` on the batch scenario, default (front, stops at its OOM at request 104) against expandable segments (back), six stretches of the 201 requests; numbers in the steps checked against the model.
+- **Kept 2D, moved into splits** (figure or chart in the right column, text left): chunk sizes (s2), the threshold traces (s3; now plays once in view, its caption carousel moved into the step list `sx-thr`), arena bars and table (s4), fragmentation table and the data-loader chart (s5), the allocator cliffs table and the running job (s6), pymalloc's arena figure and the cycle-collector bars (s7), the two PyTorch docs images (s9, s10). They stay 2D because their message is numbers on an axis or a table.
+- **Widgets** (the long-replay rule, case b): the free-list lab (up to 1,000 operations) and the caching-allocator lab (201 requests, five configurations) are `RD.anim({auto:false})`: they open on step 0 and never play by themselves; Figs. 2 and 6 are their explained replays.
+- **Full width**: the layer table, provenance, section 8, the jemalloc/tcmalloc/mimalloc comparison table, the diagnosis table, "In ML work", choosing an allocator, Depth.
+- **Checks**: `check_stages.mjs` (new, from the Concurrency sibling): problems 0 at 1400 light, 920 light, 390 dark and under reduced motion. `check_ui.mjs`: the never-autoplay block now covers only the two labs. `check_embed.py`, `sim/check_freelist.mjs` (178 cases, 0 mismatches) and `sim/check_js.mjs` (85 cases, 0 mismatches) unchanged and passing. `checkpage.sh`: fail=0, emdash 0, errbox 1, clipped 0.
+- **Ledger**: 338 units (core 252, depth 53, fat 33), problems 0. Two keys changed (unit 94, "Step through both traces beside"; unit 331, "looks, cheapest first", the ladder's caption became Fig. 3's step-list heading); three units added for facts the new step lists state (coalescing off in Fig. 2, the 17,136-byte gaps, the model's OOM numbers).
+- **Length**: Reading core 34.0 to 41.1 min (7,829 to 9,455 words), closed 10.1 min unchanged, Further reading 3.2. The added words are the seven step lists, which explain the six stages and the traces and replace a script-written caption carousel (uncounted before) and two static captions; the arena prose that the step list now carries was cut to one sentence. Nothing knowledge-bearing was cut. 41 minutes is right for ten mechanisms each with a measured or source-checked visual.

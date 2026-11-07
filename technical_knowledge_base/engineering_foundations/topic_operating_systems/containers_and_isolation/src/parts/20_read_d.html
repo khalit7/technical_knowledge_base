@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ov"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Mount namespaces, images and overlayfs: what files it has</h2>
 <p class="small"><span class="ostep">ch. 39 to 40 (files, file system implementation)</span> <span class="src">source</span> {{mount_namespaces(7)|https://man7.org/linux/man-pages/man7/mount_namespaces.7.html}}, {{pivot_root(2)|https://man7.org/linux/man-pages/man2/pivot_root.2.html}}, {{overlayfs docs|https://docs.kernel.org/filesystems/overlayfs.html}}, {{OCI image spec|https://github.com/opencontainers/image-spec/blob/main/spec.md}}</p>
@@ -10,12 +11,17 @@
 </div></details>
 <h3>overlayfs: layers, copy-up and whiteouts</h3>
 <p>The new root is an <dfn>overlay</dfn> mount: several read-only <dfn>lower</dfn> directories (the image layers), one writable <dfn>upper</dfn> directory (this container's changes) and a <code>workdir</code> for atomic operations, merged into one tree. A lookup returns the topmost layer's version of a name. Writing to a file that exists only in a lower layer triggers a <dfn>copy-up</dfn>: overlayfs copies the <b>whole file</b> into the upper layer first ({{ovl_copy_up_data, fs/overlayfs/copy_up.c line 132|https://github.com/torvalds/linux/blob/v5.10/fs/overlayfs/copy_up.c#L132}}), then lets the write proceed. Deleting a lower-layer file creates a <dfn>whiteout</dfn> in the upper layer, a character device with device number 0/0 that hides the name. An overlay cannot use another overlay as its upper layer (the first attempt of this page's experiment failed with <code>EINVAL</code> until the layers moved to a tmpfs).</p>
-<div class="card" id="ct-ov-card"><p class="ftitle">Reads come from the topmost layer; the first write copies the whole file up, a delete writes a whiteout</p>
-<div class="rd-chart" id="ct-ov"></div>
-<div class="an-cap" id="ct-ov-cap"></div>
-<div class="an-cnt" id="ct-ov-cnt"></div>
-<div class="an-ctl" id="ct-ov-ctl"></div>
-<p class="small mute">Stepper over one real image, <code>kb-os-cont:1</code> (three of its six layers drawn). The times and the <code>docker diff</code> lines are <span class="meas">measured</span> in a Docker container on this VM (<code>src/raw/image.txt</code>); the whiteout's mode is from the hand-built container of section 0.</p></div>
+<p class="sxh">Fig. 3 steps over one real image, <code>kb-os-cont:1</code> (three of its six layers drawn)</p>
+<ol class="sx" id="sx-ov">
+<li><b>Layers, and a merged view.</b> Two read-only image layers (Debian base, 139 MB; the venv with PyTorch, 853 MB), an empty writable upper layer for this container, and the merged tree the container sees as <code>/</code>. Each name in the merged view comes from the topmost layer that has it: <code>libtorch_cpu.so</code> from the venv layer, <code>/etc/motd</code> from the base.</li>
+<li><b>First write: copy-up.</b> A one-byte write to <code>libtorch_cpu.so</code> (264 MB, in an image layer) makes overlayfs copy the whole file into the upper layer before the write goes ahead: <span class="meas">measured</span> <span id="rd-cu1b"></span> ms. The merged view now shows the upper copy.</li>
+<li><b>Second write.</b> The file is already in the upper layer, so the write goes to that private copy: <span id="rd-cu2b"></span> ms.</li>
+<li><b>Delete: a whiteout.</b> <code>rm /etc/motd</code> cannot change a lower layer, so overlayfs writes a whiteout (a character device 0, 0) with the same name in the upper layer, and the merged view hides the name. <code>docker diff</code> shows <code>D /etc/motd</code>.</li>
+<li><b>Create: straight to the upper layer.</b> A new file, <code>/work/new.txt</code>, goes directly to the upper layer with no copy (<span id="rd-tnew"></span> ms) and vanishes with the container. <code>docker diff</code> shows <code>A /work/new.txt</code>. Times are <span class="meas">measured</span> in a Docker container on this VM (<code>src/raw/image.txt</code>); the whiteout's mode is from the hand-built container of section 0.</li>
+</ol>
+</section>
+</div></div>
+<section id="rd-s3b">
 <div class="cost"><div class="t">What it costs here <span class="meas">measured</span></div>The first one-byte write to PyTorch's <code>libtorch_cpu.so</code> (264 MB, in an image layer) took <span id="rd-cu1"></span> ms: the whole file was copied into the container's upper layer. The second took <span id="rd-cu2"></span> ms. Creating a new file costs nothing extra: it goes straight to the upper layer.</div>
 <details class="xc"><summary>The raw outputs: the upper layer of the hand-built container, and the copy-up timing</summary><div>
 <div class="panes"><div><h5>Inside the hand-built container <span class="meas">measured</span></h5><pre class="cd out">$ echo hi &gt; /etc/motd; rm /etc/passwd

@@ -37,3 +37,17 @@ Real images: none. The page is about kernel mechanisms, not physical objects; th
 
 ## What the methodology lacked
 Nothing new; as on the sibling pages, "measured here" replaced "real data from a model" and a toy that adds the missing published cell became "the same input under each setting".
+
+## 2026-11-07: split layout and 3D stages (renderer v2)
+| Visual | Now | Why |
+|---|---|---|
+| Hero | 3D stage (`30a`): one kernel floor, two containers as glass boxes; SEE, USE, HAVE, DO one per step, then the shared kernel | four restrictions are layers around processes on one kernel: spatial |
+| nsproxy | 3D stage (`30b`): eight namespace boxes, the outer processes behind and the process being built in front; its pointers swing to new boxes (inode numbers from `raw/minictr.txt`) | the same process seen from outside and inside |
+| overlayfs stepper | 3D stage (`30c`): stacked glass plates (base, venv, upper, merged), copy-up as a stream of dots | layers are literally a stack |
+| cgroup before/after | 3D stage (`30d`): the tree, EBUSY, delegation, then pids.max, memory.max (a ceiling) and io.max pushing back (three measured runs, named in the steps) | a hierarchy with limits |
+| three gates | 3D stage (`30e`): a call falling through three glass gates to the kernel floor; per-call cost bars; io_uring rings beside the gates | a path through layers |
+| sandboxes | 3D stage (`30f`): container, gVisor, microVM side by side on one host kernel (not run here) | the extra layer between code and host kernel |
+| Build stepper, docker stop stepper | 2D, step list on the left | the view table, code and process boxes are text and read best flat |
+| memory limits | 2D, grouped into 3 or 4 explained stretches per limit | a curve over allocation steps; a 19 to 30 frame replay |
+| namespace costs, freezer, uid_map, runtime chain, GPU container, Pod to cgroup | 2D in the right column | log bars, a time series, maps and a calculator read best flat |
+Rejected: a 3D docker stop (signals between three boxes gain nothing from depth); a 3D runtime chain (a tree that is clear flat).

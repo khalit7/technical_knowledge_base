@@ -1,3 +1,13 @@
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-stop-card">
+<p class="ftitle">Who receives SIGTERM, who dies, and in what order</p>
+<div class="seg" id="rd-stop-mode" role="group" aria-label="How the job was started"><button data-m="A_init_shell" class="on">--init + sh</button><button data-m="B_init_group">--init -g + sh</button><button data-m="C_shell_pid1">sh as PID 1</button><button data-m="D_dumb_init">dumb-init + sh</button><button data-m="E_init_exec">--init + exec</button><button data-m="F_bash_trap">bash trap</button><button data-m="G_python_pid1">python as PID 1</button></div>
+<div class="small mute" id="rd-stop-cmd"></div>
+<div class="proc" id="rd-stop-proc"></div>
+<div class="an-cnt" id="rd-stop-cnt"></div>
+<div class="an-ctl" id="rd-stop-ctl"></div>
+<pre class="cd out" id="rd-stop-log"></pre>
+<p class="small mute">Times, exit codes, checkpoint files and the job's log lines are <span class="meas">measured</span> (<code>src/raw/stop_matrix.txt</code>); the step-by-step order in between is the kernel and tini source cited in each caption.</p>
+</div></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. PID namespaces and PID 1: the stop that loses a checkpoint</h2>
 <p class="small"><span class="ostep">ch. 5 Interlude: Process API</span> <span class="src">source</span> {{pid_namespaces(7)|https://man7.org/linux/man-pages/man7/pid_namespaces.7.html}}; <code>kernel/pid_namespace.c</code>, <code>kernel/exit.c</code>, <code>kernel/signal.c</code> v5.10</p>
@@ -8,17 +18,11 @@
 <li><b>When it dies, everything else dies.</b> "If the 'init' process of a PID namespace terminates, the kernel terminates all of the processes in the namespace via a SIGKILL signal" (pid_namespaces(7)). In the source: when init exits, <code>find_child_reaper</code> finds no other reaper and calls <code>zap_pid_ns_processes</code> ({{exit.c line 527|https://github.com/torvalds/linux/blob/v5.10/kernel/exit.c#L527}}), which walks every PID in the namespace and sends SIGKILL ({{pid_namespace.c lines 172 to 211|https://github.com/torvalds/linux/blob/v5.10/kernel/pid_namespace.c#L172}}). No handler runs; no checkpoint is written.</li>
 </ol>
 <p>Rule 1 is why people add an init (<code>docker run --init</code> starts {{tini|https://github.com/krallin/tini}} as PID 1, which forwards signals and reaps zombies). Rule 2 is the trap in that fix, which the {{processes page|n:3f05c17b0d0d811e99f7cb8c15d12697}} measured first: tini forwards SIGTERM to its one child; when that child is a <b>shell</b> running Python, the shell dies at once, tini exits, and the kernel kills Python. Below, seven ways to start the same job, each stopped with <code>docker stop -t 10</code> three seconds after start. The job is a stand-in for the root's training loop: on SIGTERM it writes a checkpoint that takes about 1 s (<code>src/exp/stopjob.py</code>), and logs every event with a time stamp.</p>
-<div class="card" id="rd-stop-card">
-<p class="ftitle">Seven launch styles, one <code>docker stop</code>: the checkpoint survives only when the process holding PID 1 outlives the job</p>
-<div class="seg" id="rd-stop-mode" role="group" aria-label="How the job was started"><button data-m="A_init_shell" class="on">--init + sh</button><button data-m="B_init_group">--init -g + sh</button><button data-m="C_shell_pid1">sh as PID 1</button><button data-m="D_dumb_init">dumb-init + sh</button><button data-m="E_init_exec">--init + exec</button><button data-m="F_bash_trap">bash trap</button><button data-m="G_python_pid1">python as PID 1</button></div>
-<div class="small mute" id="rd-stop-cmd"></div>
-<div class="proc" id="rd-stop-proc"></div>
-<div class="an-cap" id="rd-stop-cap"></div>
-<div class="an-cnt" id="rd-stop-cnt"></div>
-<div class="an-ctl" id="rd-stop-ctl"></div>
-<pre class="cd out" id="rd-stop-log"></pre>
-<p class="small mute">Times, exit codes, checkpoint files and the job's log lines are <span class="meas">measured</span> (<code>src/raw/stop_matrix.txt</code>); the step-by-step order in between is the kernel and tini source cited in each caption.</p>
-</div>
+<p class="sxh">Seven launch styles, one <code>docker stop</code>: the checkpoint survives only when the process holding PID 1 outlives the job. Pick a style on the card; its steps:</p>
+<ol class="sx" id="sx-stop"></ol>
+</section>
+</div></div>
+<section id="rd-s2b">
 <div class="tw"><table class="tbl-sm" id="rd-stop-tab"><thead><tr><th>Started as</th><th>docker stop to exit</th><th>Exit code</th><th>Checkpoint</th></tr></thead><tbody></tbody></table></div>
 <details class="xc"><summary>Why the process-group variants (tini -g, dumb-init) fail too</summary><div><p class="small">tini with <code>TINI_KILL_PROCESS_GROUP=1</code> (the <code>-g</code> flag) and dumb-init (which signals the whole process group by default) send SIGTERM to the shell <b>and</b> to Python ({{tini.c line 526|https://github.com/krallin/tini/blob/v0.19.0/src/tini.c#L526}}, {{dumb-init.c line 66|https://github.com/Yelp/dumb-init/blob/v1.2.5/dumb-init.c#L66}}). It does not help: the shell still dies at once, the init still exits with it, and the namespace's SIGKILL follows within milliseconds. Python's handler is a Python function that runs between bytecodes, after the C-level signal handler has set a flag; the job's log has no "SIGTERM received" line in either run, so the SIGKILL arrived before that function ran. What saves the checkpoint is that the process holding PID 1 <b>outlives the job</b>.</p></div></details>
 <div class="fix"><div class="t">The fix</div>

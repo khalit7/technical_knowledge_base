@@ -28,3 +28,14 @@ What the methodology lacked here: for a mechanism that only runs on hardware we 
 
 Rebuild of 2026-10-24 (teaching contract): the two lab tabs each explained one mechanism, so both moved inline beside the claim they prove; nothing now lives one click away.
 
+
+## 2026-11-07: 3D stages (renderer v2) and the split layout
+| # | Idea | Placement | Status | Data |
+|---|---|---|---|---|
+| MA20 | Hero as a 3D stage: allocators on a user-space plate over the kernel and the driver, freed blocks turning orange, then glibc's heap to scale | Reading top, Fig. 1 | built; replaces MA15 | `AD.frag.glibc` |
+| MA21 | The section-1 drill as a 3D heap strip with the free list as arcs | s1, Fig. 2 | built | the page's malloc.py port |
+| MA22 | glibc's lookup order as a staircase of bins | s3, Fig. 3 | built; replaces MA16 (MA11, a faithful `_int_malloc` animation, stays rejected: the stage walks the order, it does not simulate it) | malloc.c limits; counts illustrative |
+| MA23 | Threads and arenas, one against ten | s4, Fig. 4 | built | `raw/arenas.txt` via `AK` |
+| MA24 | Fragmentation as pages: survivors pin pages, malloc_trim drops the rest | s5, Fig. 5 | built | chunk arithmetic plus `AD.frag.glibc` |
+| MA25 | Caching allocator, default against expandable segments, in depth | s9, Fig. 6 | built | `CACHESIM` on the batch scenario |
+| MA26 | pymalloc arena as a 3D grid of pools | s7 | rejected: the static figure carries it, and pool contents would be illustrative only |

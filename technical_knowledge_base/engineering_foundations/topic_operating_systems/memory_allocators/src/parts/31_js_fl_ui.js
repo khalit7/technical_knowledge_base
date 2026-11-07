@@ -31,7 +31,7 @@
     runs=cmp?[{t:'Coalescing off',r:FREELIST.run(opts(false))},{t:'Coalescing on (-C)',r:FREELIST.run(opts(true))}]:[{t:c?'Coalescing on (-C)':'Coalescing off',r:FREELIST.run(opts(c))}];
     $('fl-lanes').innerHTML=runs.map((_,k)=>laneHTML(k)).join('');
     const n=Math.max(1,...runs.map(x=>x.r.steps.length));
-    if(!A)A=RD.anim({card:'fl-lanes',ctl:'fl-ctl',n:n+1,ms:900,tab:'t-read',label:'Operation',draw:draw});else A.reset(n+1);
+    if(!A)A=RD.anim({card:'fl-lanes',ctl:'fl-ctl',n:n+1,ms:900,auto:false,label:'Operation',draw:draw})  // a widget the reader drives (up to 1,000 operations): never plays by itself;else A.reset(n+1);
     draw(0);
   }
   function draw(i){
@@ -72,7 +72,7 @@
   $('fl-hide').addEventListener('change',()=>A&&A.redraw());
   if(window.FL_CHECK)$('fl-chk').textContent='(checked: '+FL_CHECK+')';
   pre.querySelector('button').classList.add('on');apply(PRE[0][1]);note=PRE[0][2];
-  RD.onRenderTab('t-read',()=>{if(!runs.length)rebuild();else A.redraw()});
+  RD.onRender(()=>{if(!runs.length)rebuild();else A.redraw()});
   let rt=0;addEventListener('resize',()=>{if(root.offsetParent===null)return;clearTimeout(rt);rt=setTimeout(()=>A&&A.redraw(),80)});
   rebuild();
 })();

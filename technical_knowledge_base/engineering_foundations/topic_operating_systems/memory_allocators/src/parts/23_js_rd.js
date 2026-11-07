@@ -1,4 +1,4 @@
-// ---- Reading tab: measured outputs, charts, the threshold stepper, drills. Data: window.AD (22_js_data.js).
+// ---- Reading tab: measured outputs, charts, the threshold stepper (plays once in view, explained by #sx-thr), drills. Data: window.AD (22_js_data.js).
 (function(){
   const D=window.AD,$=id=>document.getElementById(id),esc=RD.esc;if(!D)return;
   const COL={glibc:'--c1',jemalloc:'--c3',tcmalloc:'--mute',mimalloc:'--c4',fixed_threshold:'--c5',arena_max_2:'--c6'};
@@ -62,17 +62,12 @@
   if($('rd-thr-card')){
     const cut=lines=>{const ph=[[]];lines.forEach(l=>{if(/^write\(2, "---/.test(l)){ph.push([l])}else ph[ph.length-1].push(l)});return ph};
     const P=[cut(D.thr[0]),cut(D.thr[1])];
-    const CAP=['Two runs of the same program under strace. Step through its four actions.',
-      '1st malloc(1 MiB): above the 128 KiB threshold, so both runs map a fresh region with mmap (the brk calls set up the heap for small allocations).',
-      'free: both runs give the mapping straight back with munmap. In the default run glibc also raises its threshold to about 1 MiB.',
-      '2nd malloc(1 MiB): the default run now serves it from the heap, growing it with brk; the fixed-threshold run maps again.',
-      'free: the default run makes no system call, the 1 MiB stays in the heap (trim threshold now about 2 MiB); the fixed run unmaps it.',
-      'End: same program, same requests; the default run ends holding 1 MiB more.'];
+    // the explanation of each step is the ol.sx#sx-thr list on the left (the old caption carousel moved there)
     function draw(i){[0,1].forEach(k=>{const ph=P[k];let h='';
       for(let j=1;j<=Math.min(i,ph.length-1);j++){ph[j].forEach(l=>{h+='<div'+(j===i?' class="now"':'')+'>'+esc(l.replace(/\s+=\s+/,' = ').replace(/\)\s+=/,') ='))+'</div>'})}
       $(k?'rd-thr-b':'rd-thr-a').innerHTML=h||'<div>(nothing yet)</div>'});
-      $('rd-thr-cap').innerHTML='<p>'+CAP[Math.min(i,CAP.length-1)]+'</p>'}
-    RD.anim({card:'rd-thr-card',ctl:'rd-thr-ctl',n:6,ms:1800,label:'Step',draw:draw});
+}
+    RD.anim({card:'rd-thr-card',ctl:'rd-thr-ctl',n:6,ms:4200,label:'Step',list:'sx-thr',draw:draw});
   }
   // reference counts against the cycle collector (section 7)
   if($('rd-gc')&&D.gc){const R=D.gc.py311.runs,g=(c,e)=>R.find(r=>r.cyclic===c&&r.gc_enabled===e);

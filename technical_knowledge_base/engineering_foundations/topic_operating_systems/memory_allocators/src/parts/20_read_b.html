@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-heap"></div></div><div class="s3L">
 <section id="rd-s1">
 <h2>1. Free space from zero: headers, free lists, splitting, coalescing</h2>
 <p class="ostep">ch. 17 Free-Space Management</p>
@@ -6,11 +7,32 @@
 <div class="chunk" aria-label="One allocated chunk"><div class="h">header: size</div><div class="u">the bytes the program uses (the pointer malloc returned points here)</div></div>
 <p><b>Splitting and coalescing.</b> A request smaller than the chosen chunk <i>splits</i> it: the front goes to the program, the rest stays on the list. A freed chunk next to another free chunk is <i>coalesced</i> with it into one; without that the heap fills with free slivers too small for anything.</p>
 <p><b>Fragmentation, the two kinds.</b> <dfn id="g-extfrag">External fragmentation</dfn>: enough memory is free in total, but in pieces, so a request fails (or the heap grows). <dfn id="g-intfrag">Internal fragmentation</dfn>: a block is larger than asked for (rounding, size classes, headers), and the excess is wasted inside it. The classic survey measures it as the allocator's peak memory against the peak of live data ({{Wilson et al. 1995|https://www.cs.hmc.edu/~oneill/gc-library/Wilson-Alloc-Survey-1995.pdf}}); this page uses RSS against live bytes.</p>
-<p><b>Which free chunk to pick.</b> <i>Best fit</i> takes the smallest chunk that fits (little waste, a full search, tiny leftovers); <i>worst fit</i> the largest (big leftovers, a full search, fragments badly in practice); <i>first fit</i> the first that fits (fast, but the front of the list fills with small pieces); <i>next fit</i> continues from where the last search stopped. A list sorted by address makes coalescing cheap; sorted by size, first fit becomes best or worst fit.</p>
 <div class="drill"><div class="q">Predict: a 100-byte heap, ten requests of 10 bytes (it is now full), then free every other one. 50 bytes are free. Can a request for 15 bytes succeed, with coalescing on?</div>
 <div class="opts"><button>yes, coalescing joins the free pieces</button><button data-right>no</button><button>only with best fit</button></div>
-<div class="ans" hidden>No. The five free pieces are 10 bytes each and none are next to each other, so coalescing has nothing to join: 50 bytes free, largest piece 10. That is external fragmentation, and no search policy fixes it, because a C allocator cannot move live blocks to close the gaps (a compacting garbage collector can; malloc cannot). Run it below: preset Q7.</div></div>
-<style>
+<div class="ans" hidden>No. The five free pieces are 10 bytes each and none are next to each other, so coalescing has nothing to join: 50 bytes free, largest piece 10. That is external fragmentation, and no search policy fixes it, because a C allocator cannot move live blocks to close the gaps (a compacting garbage collector can; malloc cannot). Fig. 2 steps through it with the page's port of OSTEP's simulator; preset Q7 in the lab below runs it too.</div></div>
+<p class="sxh">Fig. 2, step by step: the drill on a 100-byte heap, coalescing on</p>
+<ol class="sx" id="sx-heap">
+<li><b>A fresh heap is one free chunk.</b> 100 bytes at address 1000, no headers (OSTEP's <code>-H 0</code>); the free list holds one entry, [1000, 100].</li>
+<li><b>Ten <code>malloc(10)</code> calls split it.</b> Each takes the front 10 bytes of the free chunk and leaves the rest on the list; after the tenth the heap is full and the free list is empty.</li>
+<li><b>Free every other block.</b> <code>free(ptr[0])</code>, <code>[2]</code>, <code>[4]</code>, <code>[6]</code>, <code>[8]</code>: five 10-byte chunks go back on the list (the arcs: the links live inside the free chunks). No two are neighbours, so there is nothing to coalesce.</li>
+<li><b><code>malloc(15)</code> fails.</b> 50 bytes are free but the largest piece is 10; the search looked at all 5 entries and returned -1. External fragmentation, and no policy fixes it.</li>
+<li><b><code>free(ptr[1])</code> coalesces.</b> Its neighbours on both sides are free, so the three merge into one 30-byte chunk at 1000 and the list shrinks to 4 entries. With coalescing off the list would hold six 10-byte pieces.</li>
+<li><b><code>malloc(15)</code> now succeeds.</b> Best fit takes the 30-byte chunk, splits it, returns address 1000 and leaves 15 bytes at 1015 on the list.</li>
+</ol>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s1b">
+<p><b>Which free chunk to pick.</b> <i>Best fit</i> takes the smallest chunk that fits (little waste, a full search, tiny leftovers); <i>worst fit</i> the largest (big leftovers, a full search, fragments badly in practice); <i>first fit</i> the first that fits (fast, but the front of the list fills with small pieces); <i>next fit</i> continues from where the last search stopped. A list sorted by address makes coalescing cheap; sorted by size, first fit becomes best or worst fit.</p>
+
+<p class="small">Q5: without coalescing the free list grows to dozens of slivers and later large requests fail although plenty of bytes are free in total; with it the list stays short. Q1 to Q4 vary policy and order; Q7 is the drill above.</p>
+<p><b>Better than one list: size classes.</b> Most programs allocate a few sizes over and over. A <dfn id="g-segl">segregated list</dfn> allocator keeps one list per size class (16, 32, 48, ... bytes), so a request is a pop with no search and objects of one size sit together: every allocator below does this. The kernel's own are the <dfn id="g-slab">slab allocator</dfn> (a cache of pre-cut objects per type; Bonwick, {{USENIX 1994|https://www.usenix.org/legacy/publications/library/proceedings/bos94/full_papers/bonwick.a}}) and, for runs of whole pages, the <dfn id="g-buddy">buddy allocator</dfn>: blocks of 2<sup>k</sup> pages that split in halves and merge with their "buddy", cheap to coalesce at the price of internal fragmentation (a 9-page request takes 16).</p>
+<details class="dp"><summary>The kernel's slab caches and buddy lists, read live <span class="mute">(recorded outputs)</span></summary><div class="b">
+<pre class="cd out" id="rd-slab"></pre>
+<p class="small mute"><span class="meas">measured here</span> <code>/proc/slabinfo</code> in a container (excerpt). A <code>task_struct</code>, the kernel's record of one thread, is 3,712 bytes, one per slab page. Dentries (cached path components) are 200 bytes, 20 per page. The nonzero "tunables" columns are printed only by the older SLAB implementation (SLUB, the default in most distribution kernels, prints zeros), so this linuxkit kernel uses SLAB: an inference from the format, not checked against its config.</p>
+<pre class="cd out" id="rd-buddy"></pre>
+<p class="small mute"><span class="meas">measured here</span> <code>cat /proc/buddyinfo</code>: the number of free blocks of each order, 0 (4 KiB) to 10 (4 MiB). A huge page (2 MiB, order 9) can be found only while order-9 or order-10 blocks remain, which is why huge pages get harder to find on a long-running, fragmented machine (the {{virtual memory page|n:3f05c17b0d0d81a48892cea154ce950b}} owns THP).</p>
+</div></details>
+</section></div>
+<div class="s3R"><style>
 #fl-lab .flc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px 12px;margin:8px 0}
 #fl-lab .flc label{font-size:12.5px;display:block;min-width:0}#fl-lab .flc input,#fl-lab .flc select{width:100%;font-size:13px;padding:3px 6px}
 #fl-lab .flc input[type=checkbox]{width:auto}
@@ -54,21 +76,13 @@
 <details class="xc"><summary>The printed output, as <code>malloc.py -c</code> prints it, up to this step</summary><pre class="out" id="fl-out"></pre></details>
 <p class="small mute">External fragmentation here is 1 minus (largest free chunk / total free bytes): 0 when all free space is one chunk, near 1 when it is many slivers. "Searched" is how many list elements the search looked at, OSTEP's measure of search cost. Port checked by <code>src/sim/check_freelist.mjs</code> against <code>src/inputs/ostep_malloc.py</code> ({{ostep-homework vm-freespace|https://github.com/remzi-arpacidusseau/ostep-homework/tree/master/vm-freespace}}).</p>
 </div>
-<p class="small">Q5: without coalescing the free list grows to dozens of slivers and later large requests fail although plenty of bytes are free in total; with it the list stays short. Q1 to Q4 vary policy and order; Q7 is the drill above.</p>
-<p><b>Better than one list: size classes.</b> Most programs allocate a few sizes over and over. A <dfn id="g-segl">segregated list</dfn> allocator keeps one list per size class (16, 32, 48, ... bytes), so a request is a pop with no search and objects of one size sit together: every allocator below does this. The kernel's own are the <dfn id="g-slab">slab allocator</dfn> (a cache of pre-cut objects per type; Bonwick, {{USENIX 1994|https://www.usenix.org/legacy/publications/library/proceedings/bos94/full_papers/bonwick.a}}) and, for runs of whole pages, the <dfn id="g-buddy">buddy allocator</dfn>: blocks of 2<sup>k</sup> pages that split in halves and merge with their "buddy", cheap to coalesce at the price of internal fragmentation (a 9-page request takes 16).</p>
-<details class="dp"><summary>The kernel's slab caches and buddy lists, read live <span class="mute">(recorded outputs)</span></summary><div class="b">
-<pre class="cd out" id="rd-slab"></pre>
-<p class="small mute"><span class="meas">measured here</span> <code>/proc/slabinfo</code> in a container (excerpt). A <code>task_struct</code>, the kernel's record of one thread, is 3,712 bytes, one per slab page. Dentries (cached path components) are 200 bytes, 20 per page. The nonzero "tunables" columns are printed only by the older SLAB implementation (SLUB, the default in most distribution kernels, prints zeros), so this linuxkit kernel uses SLAB: an inference from the format, not checked against its config.</p>
-<pre class="cd out" id="rd-buddy"></pre>
-<p class="small mute"><span class="meas">measured here</span> <code>cat /proc/buddyinfo</code>: the number of free blocks of each order, 0 (4 KiB) to 10 (4 MiB). A huge page (2 MiB, order 9) can be found only while order-9 or order-10 blocks remain, which is why huge pages get harder to find on a long-running, fragmented machine (the {{virtual memory page|n:3f05c17b0d0d81a48892cea154ce950b}} owns THP).</p>
-</div></details>
-</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <section id="rd-s2">
 <h2>2. What one request really costs</h2>
 <p class="ostep">ch. 14 Interlude: Memory API</p>
-<p>In glibc a chunk is the request plus an 8-byte size field, rounded up to a multiple of 16, at least 32 bytes: <code>request2size</code> (malloc.c line 1326, {{glibc 2.36|https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;hb=refs/tags/glibc-2.36#l1326}}). Measured with two back-to-back mallocs, whose distance is the chunk size:</p>
-<div class="rd-chart" id="rd-sizes"></div>
-<p class="small mute"><span class="meas">measured here</span> <code>src/exp/sizes.c</code>. Usable is what <code>malloc_usable_size</code> reports; the stride is the chunk size. Formula: chunk = max(32, (request + 8 + 15) rounded down to a multiple of 16); a 1-byte request costs 32 bytes, a 25-byte one 48. Next to a 256-byte request the 8-byte header is 3% overhead; next to a 16-byte one it is half the chunk, which is why allocating millions of tiny objects one by one is expensive in memory as well as time.</p>
+<p>In glibc a chunk is the request plus an 8-byte size field, rounded up to a multiple of 16, at least 32 bytes: <code>request2size</code> (malloc.c line 1326, {{glibc 2.36|https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;hb=refs/tags/glibc-2.36#l1326}}). Measured with two back-to-back mallocs, whose distance is the chunk size (the chart beside).</p>
+
 <p>C trusts the program completely: a use after free, a double free or an overflow corrupts the allocator's own data, often far from where it happened. In ML work these bugs live in C and C++ extensions, and from Python they surface as a segmentation fault or a <code>malloc(): ...</code> abort with no Python traceback; the {{root's Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} shows how to get a native stack.</p>
 <details class="dp"><summary>The C API, the bugs and the tools <span class="mute">(reference)</span></summary><div class="b">
 <p>The calls ({{malloc(3)|https://man7.org/linux/man-pages/man3/malloc.3.html}}, {{posix_memalign(3)|https://man7.org/linux/man-pages/man3/posix_memalign.3.html}}, {{malloc_usable_size(3)|https://man7.org/linux/man-pages/man3/malloc_usable_size.3.html}}):</p>
@@ -80,7 +94,7 @@
 <tr><td><code>realloc(p, n)</code></td><td>resize, maybe moving</td><td>a large mmapped block can grow with <code>mremap</code> without copying (<code>mremap_chunk</code>, line 3068)</td></tr>
 <tr><td><code>free(p)</code></td><td>give back</td><td>free(NULL) does nothing; everything else must be a pointer malloc returned, freed once</td></tr>
 <tr><td><code>posix_memalign</code>, <code>aligned_alloc</code></td><td>n bytes at a chosen alignment</td><td>what PyTorch's CPU allocator calls on x86-64 Linux, with 64-byte alignment (section 8)</td></tr>
-<tr><td><code>malloc_usable_size(p)</code></td><td>how many bytes the block really has</td><td>shows the rounding (the chart above)</td></tr>
+<tr><td><code>malloc_usable_size(p)</code></td><td>how many bytes the block really has</td><td>shows the rounding (the chunk-size chart)</td></tr>
 </tbody></table></div>
 <ul class="tight">
 <li><b>Leak</b>: memory never freed. Harmless in a short process, fatal in a server or a long training run.</li>
@@ -90,4 +104,7 @@
 </ul>
 <p>Tools: AddressSanitizer (<code>gcc -fsanitize=address</code>, which puts poisoned red zones around every block and keeps freed memory in quarantine), Valgrind's memcheck, and glibc's own checks.</p>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="vt">A chunk is the request plus 8 bytes, rounded up to 16, at least 32</h4>
+<div class="rd-chart" id="rd-sizes"></div>
+<p class="small mute"><span class="meas">measured here</span> <code>src/exp/sizes.c</code>. Usable is what <code>malloc_usable_size</code> reports; the stride is the chunk size. Formula: chunk = max(32, (request + 8 + 15) rounded down to a multiple of 16); a 1-byte request costs 32 bytes, a 25-byte one 48. Next to a 256-byte request the 8-byte header is 3% overhead; next to a 16-byte one it is half the chunk, which is why allocating millions of tiny objects one by one is expensive in memory as well as time.</p></div></div></div></div>

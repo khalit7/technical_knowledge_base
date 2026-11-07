@@ -1,9 +1,17 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea</h2>
 <p class="core">A container is not a thing the kernel knows about: it is <b>ordinary processes</b> on the host's one kernel, given a private view (<b>namespaces</b>), a budget (<b>cgroups</b>), fewer powers (<b>capabilities, seccomp, LSMs</b>) and a layered root file system (<b>an image</b>). Because the kernel is shared, a container keeps well-behaved jobs apart but is <b>not a security boundary like a VM</b>: hostile code needs another kernel in the way.</p>
-<div class="card"><p class="ftitle">One kernel, many containers: each restriction is a separate kernel mechanism, and nothing stands between an allowed system call and the host kernel</p>
-<div class="rd-chart" id="ct-hero"></div>
-<p class="small mute">Static diagram. Everything a runtime such as Docker does is a sequence of ordinary system calls; section 0 makes them by hand, one at a time, and section 9 shows who makes them for real (containerd, a shim, runc). Section numbers say where each part is taught.</p></div>
+<p class="sxh">Fig. 1: one kernel, many containers, step by step</p>
+<ol class="sx" id="sx-hero">
+<li><b>One kernel, ordinary processes.</b> Two containers on one machine, an illustrative pair: a training job (<code>python train.py</code> and two DataLoader workers) and a notebook. To the kernel floor below they are just processes; "container" is not a kernel object.</li>
+<li><b>SEE: namespaces.</b> Each group gets a private view: its own PID numbers, mount table, network stack, hostname, IPC, user IDs, cgroup path and clocks. The <code>sleep 60</code> container of section 9 was PID 1 inside and PID 68321 on the VM (sections 1 to 3).</li>
+<li><b>USE: a cgroup.</b> A budget for the whole group, workers included: <code>memory.max</code>, <code>cpu.max</code>, <code>io.max</code>, <code>pids.max</code>. Usage that reaches the ceiling is pushed back: reclaim, a failed fork, an OOM kill (sections 4, 5).</li>
+<li><b>HAVE: an image.</b> Read-only layers plus one writable layer, merged by overlayfs into the container's <code>/</code>; the image measured here, <code>kb-os-cont:1</code>, has six (section 3).</li>
+<li><b>DO: the gate.</b> Capabilities, seccomp and LSMs check each system call before the kernel acts: Docker's default 14 capabilities, and a filter that refused <code>perf_event_open</code> with EPERM (sections 6 to 8).</li>
+<li><b>Nothing else in between.</b> An allowed call runs the host kernel's own code, the same kernel for both containers. Everything a runtime such as Docker does is a sequence of ordinary system calls (section 0 makes them by hand, section 9 shows who makes them for real), and a kernel bug reachable through an allowed call is a way out: hostile code needs another kernel in the way (section 10).</li>
+</ol>
+
 <p><b>You need</b>: what a process, <code>fork</code>, <code>exec</code> and signals are ({{Processes and the system-call API|n:3f05c17b0d0d811e99f7cb8c15d12697}}) and section 8 of {{Topic: operating-systems|n:3f05c17b0d0d81c5a97ce991644af140}}, which reads these four restrictions from inside one container; its {{Debug lab|n:3f05c17b0d0d81c5a97ce991644af140}} reproduces the OOM kill, the <code>/dev/shm</code> limit, CPU throttling and the pids limit. This page goes one level down: how each restriction works in the kernel (Linux v5.10, the kernel these runs used), what it costs, where it bites a training or serving job, and the command that shows it.</p>
 <p class="small"><b>Owned elsewhere</b>, linked where they come up: the OOM killer and its score ({{Virtual memory|n:3f05c17b0d0d81a48892cea154ce950b}}), <code>cpu.weight</code> and <code>cpu.max</code> throttling ({{Scheduling and CPU time|n:3f05c17b0d0d81ed9c18cc47c6bfdf76}}), hypervisors, the IOMMU and GPU passthrough ({{Virtualization and the GPU driver stack|n:3f05c17b0d0d8158b029e9b2ba2e161b}}), Kubernetes as a system ({{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}}) and sandboxing agents as a security design ({{Agent security|n:3f15c17b0d0d81ad9fb7d1dd74217335}}).</p>
 <p class="small"><b>New terms</b> (each defined again where it is taught):</p>
@@ -46,14 +54,10 @@
 <p class="small">OSTEP is free at {{pages.cs.wisc.edu/~remzi/OSTEP|https://pages.cs.wisc.edu/~remzi/OSTEP/}}. Read chapter 55 (Access Control) alongside sections 6 and 7 here.</p>
 </div></details>
 </section>
-<section id="rd-s0">
-<h2>0. A container in ten system calls</h2>
-<p>A container runtime in about 170 lines of C (<code>src/exp/minictr.c</code>) starts as an ordinary root process, applies one restriction per step, and after each step prints everything the process can observe: its PID, hostname, namespace numbers, how many processes and mounts it sees, its network interfaces, its cgroup and visible limits, its capabilities and seccomp state. Then it <code>execve</code>s a busybox shell that runs a small workload. Step through it before the mechanisms: every later section explains one of these steps.</p>
-<div class="card" id="bl-card">
+</div></div>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="bl-card">
 <p class="ftitle">Each call changes exactly one thing the process can see or do; changed values are highlighted, the old value struck through</p>
-<div class="bl-steps" id="bl-steps" role="group" aria-label="Jump to step"></div>
 <div class="seg" id="bl-cmp" role="group" aria-label="Compare with"><button data-m="prev" class="on">compare with the previous step</button><button data-m="zero">compare with step 0 (before everything)</button></div>
-<div class="bl-cap" id="bl-cap"></div>
 <div class="an-ctl" id="bl-ctl"></div>
 <div class="panes">
 <div><h5>The call</h5><pre class="cd" id="bl-code"></pre><div id="bl-tries"></div></div>
@@ -61,13 +65,21 @@
 </div>
 <pre class="cd out" id="bl-out" hidden></pre>
 <p class="small mute">Every value was printed by that run <span class="meas">measured</span> (<code>src/raw/minictr.txt</code>). It ran inside a Docker container started with <code>--cap-add SYS_ADMIN --security-opt seccomp=unconfined</code>, so that it could do what runc does on the host: create namespaces, mount, and call <code>pivot_root</code> (which Docker 20.10's default profile blocks). Beforehand a shell script made a busybox root file system for the overlay's lower layer and a cgroup <code>/ctr</code> with <code>memory.max</code> 64 MiB, <code>memory.swap.max</code> 0 and <code>pids.max</code> 16 (<code>src/exp/minictr.sh</code>).</p>
-</div>
-<div class="co key"><div class="t">What to notice</div><ul class="tight">
-<li><b>Step 2:</b> the PID becomes 1 only after the fork, yet <code>ps</code> would still see the outer processes: <code>/proc</code> is the old namespace's until step 4 mounts a new one.</li>
-<li><b>Step 3:</b> <code>/proc/self/cgroup</code> becomes <code>0::/</code>, but the visible <code>memory.max</code> is still the outer container's 1.5 GB: a cgroup namespace changes how paths are shown, and the mounted cgroup file system is the old view until step 4 remounts it.</li>
-<li><b>Step 4:</b> one visible process, seven root entries, eight mounts: the host's tree is gone from this mount namespace, not merely hidden.</li>
-<li><b>Step 5:</b> the network namespace has no <code>eth0</code>, only loopback and two tunnel devices this kernel creates in every namespace. A real runtime would now add one end of a virtual Ethernet pair.</li>
-<li><b>Step 7:</b> <code>CapEff</code> drops from <code>a82425fb</code> (Docker's 14 plus <code>CAP_SYS_ADMIN</code>) to <code>a80425fb</code>, Docker's 14: bit 21 gone. Root can still <code>chown</code>, but no longer change the hostname or mount.</li>
-<li><b>Step 9:</b> the cgroup limits bite: a fork past 16 tasks fails, and a 100 MB allocation is OOM-killed inside the 64 MiB group while the shell survives. The deleted <code>/etc/passwd</code> becomes a whiteout in the upper layer.</li>
-</ul></div>
+</div></div></div><div class="s3L">
+<section id="rd-s0">
+<h2>0. A container in ten system calls</h2>
+<p>A container runtime in about 170 lines of C (<code>src/exp/minictr.c</code>) starts as an ordinary root process, applies one restriction per step, and after each step prints everything the process can observe: its PID, hostname, namespace numbers, how many processes and mounts it sees, its network interfaces, its cgroup and visible limits, its capabilities and seccomp state. Then it <code>execve</code>s a busybox shell that runs a small workload. Step through it before the mechanisms: every later section explains one of these steps. The steps are numbered from 0, as the program numbers them.</p>
+<ol class="sx" id="sx-build" style="counter-reset:sx -1">
+<li><b>Start: an ordinary root process.</b> The baseline, inside the outer Docker container: its namespaces, 22 entries in <code>/</code>, 23 mounts, <code>eth0</code>, the outer cgroup <code>/init</code>, and no seccomp filter (the outer container ran unconfined). It creates one System V shared memory segment, to watch at step 6.</li>
+<li><b>A new UTS namespace.</b> Only the uts namespace number and the hostname change. The outer container still has its own hostname: this process now has a private copy (kernel side: <a href="https://github.com/torvalds/linux/blob/v5.10/kernel/nsproxy.c#L216" target="_blank" rel="noopener noreferrer">unshare_nsproxy_namespaces</a>).</li>
+<li><b>A new PID namespace, then fork.</b> The child is PID 1 with parent 0 (its parent is outside the namespace): the pid becomes 1 only after the fork, because <code>unshare</code> sets only <code>pid_ns_for_children</code> (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/fork.c#L2111" target="_blank" rel="noopener noreferrer">alloc_pid in fork.c</a>). Yet it still sees 3 processes: <code>/proc</code> is the old namespace's until step 4 mounts a new one.</li>
+<li><b>Join the limited cgroup, then a cgroup namespace.</b> <code>/proc/self/cgroup</code> becomes <code>0::/</code> (this cgroup looks like the root), but the visible <code>memory.max</code> is still the outer container's 1.5 GB: a cgroup namespace changes how paths are shown, and the mounted cgroup file system is the old view until step 4 remounts it.</li>
+<li><b>A mount namespace, an overlay root, pivot_root.</b> The busybox tree is now <code>/</code> and the old root is unmounted: one visible process, seven root entries, eight mounts. The host's tree is gone from this mount namespace, not merely hidden. The new cgroup2 mount shows <code>/ctr</code> as its root: <code>memory.max</code> 64 MiB, <code>pids.max</code> 16.</li>
+<li><b>A network namespace.</b> <code>eth0</code> is gone; <code>lo</code>, <code>tunl0</code> and <code>ip6tnl0</code> are new devices of the new namespace (all down), two tunnel devices this kernel creates in every namespace (<a href="https://github.com/torvalds/linux/blob/v5.10/net/core/net_namespace.c#L325" target="_blank" rel="noopener noreferrer">setup_net</a>, about 2.4 ms, section 1). A real runtime would now add one end of a virtual Ethernet pair.</li>
+<li><b>An IPC namespace.</b> The System V shared memory segment created at step 0 is no longer visible: zero segments.</li>
+<li><b>Drop capabilities to Docker's default 14.</b> <code>CapEff</code> drops from <code>a82425fb</code> (Docker's 14 plus <code>CAP_SYS_ADMIN</code>) to <code>a80425fb</code>, Docker's 14: bit 21 gone. Root can still <code>chown</code>, but <code>sethostname</code> and <code>mount</code> now fail with EPERM.</li>
+<li><b>no_new_privs and a seccomp filter.</b> Seccomp becomes 2 (filter mode) and NoNewPrivs 1. <code>mkdir</code> and <code>unshare</code> fail before reaching the kernel's code for them; <code>getpid</code> is unaffected (<a href="https://github.com/torvalds/linux/blob/v5.10/kernel/seccomp.c#L311" target="_blank" rel="noopener noreferrer">seccomp_run_filters</a>).</li>
+<li><b>execve the workload.</b> busybox <code>sh</code> replaces the program and keeps every restriction. The cgroup limits bite: a fork past 16 tasks fails, and a 100 MB allocation is OOM-killed inside the 64 MiB group while the shell survives. The deleted <code>/etc/passwd</code> becomes a whiteout in the upper layer (the workload's output and the upper layer are under the card).</li>
+</ol>
 </section>
+</div></div>

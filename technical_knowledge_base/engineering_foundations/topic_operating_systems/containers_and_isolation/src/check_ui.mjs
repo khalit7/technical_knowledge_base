@@ -1,5 +1,5 @@
 // Click every control of the containers page at 390 dark and 920 light; report page errors, NaN/undefined text,
-// sideways scroll; screenshot each tab and each animated card. Run from the repo root:
+// sideways scroll; screenshot each tab and each animated card. (Autoplay and the 3D stages: check_stages.mjs.) Run from the repo root:
 //   node technical_knowledge_base/engineering_foundations/topic_operating_systems/containers_and_isolation/src/check_ui.mjs <outdir>
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -44,11 +44,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       if (shot && (i === 0 || i === n - 1 || i === 1)) { const el = await p.$('#' + shot); await el.screenshot({ path: `${out}/${scheme}_${width}_${shot}_${i}.png` }); }
     }
   };
-  // No autoplay: scroll each animation into view and wait; every scrubber must still be at step 0
-  for (const c of ['bl', 'rd-stop', 'ct-ov', 'rd-mem']) {
-    await p.$eval('#' + c + '-card', e => e.scrollIntoView()); await sleep(2200);
-    const v = await p.$eval('#' + c + '-ctl-s', e => +e.value); if (v !== 0) errs.push(scheme + ' ' + c + ' moved by itself to ' + v);
-  }
+  // Autoplay on view, stepping every stage and animation to its end, and reduced motion: check_stages.mjs (2026-11-07; the never-autoplay block was removed)
   // Reading (the tab choice is remembered across loads)
   await p.click('button[data-t=t-read]'); await sleep(200);
   await check('t-read', scheme + ' read');
@@ -69,13 +65,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   // Section 0: the build stepper (moved from its own tab into Reading)
   for (const m of [0, 1]) {
     await p.$$eval('#bl-cmp button', (bs, m) => bs[m].click(), m);
-    const n = await p.$$eval('#bl-steps button', bs => bs.length);
-    for (let i = 0; i < n; i++) { await p.$$eval('#bl-steps button', (bs, i) => bs[i].click(), i); await check('t-read', scheme + ' build step ' + i + ' cmp ' + m); }
+    const n = await p.$$eval('#sx-build li', bs => bs.length);
+    for (let i = 0; i < n; i++) { await p.$$eval('#sx-build li', (bs, i) => bs[i].click(), i); await check('t-read', scheme + ' build step ' + i + ' cmp ' + m); }
     await ctl('bl-ctl');
   }
-  for (const i of [4, 9]) { await p.$$eval('#bl-steps button', (bs, i) => bs[i].click(), i); await (await p.$('#bl-card')).screenshot({ path: `${out}/${scheme}_${width}_build_${i}.png` }); }
-  // Section 3: the overlay stepper
-  await ctl('ct-ov-ctl'); await check('t-read', scheme + ' overlay');
+  for (const i of [4, 9]) { await p.$$eval('#sx-build li', (bs, i) => bs[i].click(), i); await (await p.$('#bl-card')).screenshot({ path: `${out}/${scheme}_${width}_build_${i}.png` }); }
+  // Section 3: the overlay is a 3D stage now (check_stages.mjs)
   // Section 12: the Pod to cgroup calculator (moved from its own tab into Reading)
   const np = await p.$$eval('#pd-pre button', bs => bs.length);
   for (let i = 0; i < np; i++) {

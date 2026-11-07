@@ -1,13 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-bins"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Inside glibc's malloc: chunks, bins, the heap's top, and two thresholds</h2>
 <p class="ostep">ch. 17 (real allocators), beyond OSTEP</p>
 <p>glibc's allocator (ptmalloc, descended from Doug Lea's dlmalloc) is what <code>malloc</code> means on Debian, Ubuntu and most Linux machines a training job runs on. Its source is <code>malloc/malloc.c</code> plus <code>arena.c</code>; line numbers below are {{glibc 2.36|https://sourceware.org/git/?p=glibc.git;a=blob;f=malloc/malloc.c;hb=refs/tags/glibc-2.36}}, the version in the lab image, and glibc's {{MallocInternals|https://sourceware.org/glibc/wiki/MallocInternals}} page is the best tour.</p>
 <p><b>A chunk</b> (<code>struct malloc_chunk</code>, line 1148) starts with the previous chunk's size (used only while that one is free) and its own size, whose three low bits are flags because sizes are multiples of 16: <b>P</b> (PREV_INUSE, line 1366: do not merge with the chunk before me), <b>M</b> (IS_MMAPPED, line 1373: I came from my own mmap), <b>A</b> (NON_MAIN_ARENA, line 1382: I belong to a thread arena, section 4). A free chunk keeps its list links <code>fd</code> and <code>bk</code> in its first user bytes.</p>
 <div class="chunk" aria-label="glibc chunk layout"><div class="h">prev_size (8)</div><div class="h">size | A M P (8)</div><div class="u">user data (or, when free: fd, bk, ...)</div></div>
-<div class="card" id="rd-bins-card"><h4 class="vt">malloc(n) tries the cheapest place first, and asks the kernel last</h4>
-<div class="rd-svg" id="rd-bins"></div>
-<p class="small">Simplified order of glibc 2.36 for a request that fits each row's range: the tcache check is in <code>__libc_malloc</code>, the rest in <code>_int_malloc</code> (line 3765), which also consolidates fastbins before a large request and searches bigger bins through a bitmap before using the top. Freeing merges a chunk with free neighbours and, if it touches the top, grows the top; tcache and fastbins keep chunks whole for speed.</p></div>
-<p><b>The cost of each place, measured.</b> A malloc plus free of the same small size, repeated, is a tcache push and pop: <span data-k="bench.g.16">11.1</span> ns here. A thousand mallocs followed by a thousand frees overflow the 7-entry tcache and go through the bins, still cheap for 256 bytes (<span data-k="bench.gb.256">28.9</span> ns a pair) but <span data-k="bench.gb.4096">899.1</span> ns for 4 KiB. That jump is the trim threshold, below.</p>
+
+<p class="sxh">Fig. 3, step by step: where <code>malloc(n)</code> looks, cheapest first</p>
+<ol class="sx" id="sx-bins">
+<li><b>tcache, per thread.</b> Chunks up to 1,032 B, 7 per size, no lock, last in first out: since glibc 2.26 the fast path for most small requests. A malloc plus free of the same small size, repeated, is a tcache push and pop: <span data-k="bench.g.16">11.1</span> ns here.</li>
+<li><b>fastbin, per arena.</b> Once a size's tcache list holds 7, the next free of up to 128 B goes to the arena's fastbin: single-linked, popped under the arena lock, not merged with its neighbours until a consolidation.</li>
+<li><b>small bin.</b> Below 1,024 B, one exact size per bin, double-linked: take the first chunk.</li>
+<li><b>unsorted bin.</b> Every other freed chunk lands here first; the next malloc walks it, takes an exact fit on the way and sorts the rest into the small and large bins.</li>
+<li><b>large bin.</b> 1,024 B and up, size ranges sorted by size: best fit within the bin, then split. Before a large request <code>_int_malloc</code> consolidates the fastbins, and it finds bigger bins through a bitmap.</li>
+<li><b>top chunk.</b> The free end of the heap: split off its front when no bin fits. Freeing merges a chunk with free neighbours, and one that touches the top grows the top; tcache and fastbins keep chunks whole for speed.</li>
+<li><b>sysmalloc: ask the kernel.</b> When the top is too small, <code>brk</code> grows the heap; a request at or above the mmap threshold gets its own <code>mmap</code> instead (below). The orange levels are what a <code>free</code> refills; only this last one is a system call.</li>
+</ol>
+<p class="small">Simplified order of glibc 2.36 for a request that fits each level's range: the tcache check is in <code>__libc_malloc</code>, the rest in <code>_int_malloc</code> (line 3765). Chunk counts in Fig. 3 are <span class="ill">illustrative</span>; sizes and limits are the source's (table below).</p>
+<p><b>The cost of each place, measured.</b> A malloc plus free of the same small size, repeated, is a tcache push and pop (step 1). A thousand mallocs followed by a thousand frees overflow the 7-entry tcache and go through the bins, still cheap for 256 bytes (<span data-k="bench.gb.256">28.9</span> ns a pair) but <span data-k="bench.gb.4096">899.1</span> ns for 4 KiB. That jump is the trim threshold, below.</p>
 <details class="dp"><summary>Every bin with its size range and source line <span class="mute">(reference)</span></summary><div class="b"><div class="tw"><table class="tbl-sm">
 <thead><tr><th>Bin</th><th>Holds</th><th>How it works</th><th>Source</th></tr></thead>
 <tbody>
@@ -18,18 +28,30 @@
 <tr><td>large bins</td><td>1,024 bytes and up, size ranges</td><td>sorted by size, best fit within the bin; large free chunks also carry <code>fd_nextsize</code>, <code>bk_nextsize</code></td><td>NBINS 128, line 1570</td></tr>
 <tr><td>top chunk</td><td>the free space at the end of the heap</td><td>split when no bin fits; the heap grows with <code>brk</code> when top is too small</td><td><code>sysmalloc</code>, line 2541</td></tr>
 </tbody></table></div></div></details>
+</section></div></div>
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="rd-thr-card">
+<h4 class="vt">The same program twice: after one free, glibc stops using mmap for 1 MiB</h4>
+<div class="lanes2"><div><h4>Default (dynamic threshold)</h4><div class="sys" id="rd-thr-a"></div></div><div><h4>MALLOC_MMAP_THRESHOLD_=131072 (fixed)</h4><div class="sys" id="rd-thr-b"></div></div></div>
+<div class="an-ctl" id="rd-thr-ctl"></div>
+<p class="small mute"><span class="meas">measured here</span> <code>strace -e trace=brk,mmap,munmap,write ./threshold</code> (<code>src/exp/threshold.c</code>); the "---" lines are the program's own markers.</p>
+</div></div><div class="s3L"><section id="rd-s3b">
 <h3>Where the bytes come from: brk, mmap, and the dynamic threshold</h3>
 <p>The main heap grows by moving the "program break" with <code>brk</code> ({{brk(2)|https://man7.org/linux/man-pages/man2/brk.2.html}}): cheap, but only the top can ever be given back. A request at or above <code>M_MMAP_THRESHOLD</code> gets its own <code>mmap</code> instead, unmapped the moment it is freed. The threshold starts at 128 KiB (DEFAULT_MMAP_THRESHOLD_MIN, line 961) and is <i>dynamic</i>: freeing an mmapped chunk larger than it raises the threshold to that size and the trim threshold to twice that (lines 3366 to 3371), up to 32 MiB on 64-bit (<code>4 * 1024 * 1024 * sizeof(long)</code>, line 972), on the guess ({{mallopt(3)|https://man7.org/linux/man-pages/man3/mallopt.3.html}}) that the program will allocate that size again and should not pay an mmap, a munmap and fresh page faults each time.</p>
 <div class="drill"><div class="q">Predict: malloc 1 MiB, touch it, free it, then malloc 1 MiB again and free it. Which system calls does the second malloc make?</div>
 <div class="opts"><button>mmap again, and munmap on free</button><button data-right>a brk to grow the heap, and nothing on free</button><button>none: glibc reuses the old mapping</button></div>
-<div class="ans" hidden>The first free raised the threshold to about 1 MiB, so the second request is below it and comes from the heap (one <code>brk</code>), and freeing it gives nothing back: the trim threshold is now about 2 MiB. Step through both traces below, the default and with the threshold pinned.</div></div>
-<div class="card" id="rd-thr-card">
-<h4 class="vt">The same program twice: after one free, glibc stops using mmap for 1 MiB</h4>
-<div class="lanes2"><div><h4>Default (dynamic threshold)</h4><div class="sys" id="rd-thr-a"></div></div><div><h4>MALLOC_MMAP_THRESHOLD_=131072 (fixed)</h4><div class="sys" id="rd-thr-b"></div></div></div>
-<div class="an-cap" id="rd-thr-cap"></div>
-<div class="an-ctl" id="rd-thr-ctl"></div>
-</div>
-<p class="small mute"><span class="meas">measured here</span> <code>strace -e trace=brk,mmap,munmap,write ./threshold</code> (<code>src/exp/threshold.c</code>); the "---" lines are the program's own markers. Setting any of <code>M_MMAP_THRESHOLD</code>, <code>M_TRIM_THRESHOLD</code>, <code>M_TOP_PAD</code> or <code>M_MMAP_MAX</code> turns the dynamic adjustment off (mallopt(3)).</p>
+<div class="ans" hidden>The first free raised the threshold to about 1 MiB, so the second request is below it and comes from the heap (one <code>brk</code>), and freeing it gives nothing back: the trim threshold is now about 2 MiB. Step through both traces beside, the default and with the threshold pinned.</div></div>
+<p class="sxh">The two traces, step by step</p>
+<ol class="sx" id="sx-thr">
+<li><b>Two runs of the same program under strace.</b> Left, glibc's default (a dynamic threshold); right, the threshold pinned at 128 KiB with <code>MALLOC_MMAP_THRESHOLD_=131072</code>. The program makes four calls.</li>
+<li><b>1st <code>malloc(1 MiB)</code>.</b> Above the 128 KiB threshold, so both runs map a fresh region with <code>mmap</code> (the <code>brk</code> calls set up the heap for small allocations).</li>
+<li><b><code>free</code>.</b> Both runs give the mapping straight back with <code>munmap</code>. In the default run glibc also raises its threshold to about 1 MiB.</li>
+<li><b>2nd <code>malloc(1 MiB)</code>.</b> The default run now serves it from the heap, growing it with <code>brk</code>; the fixed-threshold run maps again.</li>
+<li><b><code>free</code>.</b> The default run makes no system call: the 1 MiB stays in the heap (the trim threshold is now about 2 MiB). The fixed run unmaps it.</li>
+<li><b>End.</b> Same program, same requests; the default run ends holding 1 MiB more.</li>
+</ol>
+<p class="small mute">Setting any of <code>M_MMAP_THRESHOLD</code>, <code>M_TRIM_THRESHOLD</code>, <code>M_TOP_PAD</code> or <code>M_MMAP_MAX</code> turns the dynamic adjustment off (mallopt(3)).</p>
+</section></div></div>
+<section id="rd-s3c">
 <p><b>The trim threshold, and the 899 ns.</b> When the top chunk grows past <code>M_TRIM_THRESHOLD</code> (128 KiB to start, line 919), free shrinks the heap with <code>brk</code> (<code>systrim</code>, line 2971). In the batch benchmark, a thousand 4 KiB blocks freed together merge into a 4 MiB top, glibc trims it, and the next round grows the heap again and takes a page fault on every new page: <span data-k="bench.gb.4096">899.1</span> ns a pair. With <code>MALLOC_TRIM_THRESHOLD_=67108864</code> the heap is kept and the same loop costs <span data-k="bench.trim.4096">28.4</span> ns. The price moves elsewhere: the setting also pins the mmap threshold, so 1 MiB blocks now take an mmap and munmap every time (<span data-k="bench.trim.1m">4,723.3</span> ns a pair, against <span data-k="bench.gb.1m">2,142.4</span> by default). Every knob here trades memory held against system calls and page faults.</p>
 <p><b>malloc_trim.</b> <code>malloc_trim(0)</code> ({{malloc_trim(3)|https://man7.org/linux/man-pages/man3/malloc_trim.3.html}}) does more than its name says: it consolidates every arena and then calls <code>madvise(MADV_DONTNEED)</code> on every whole free page inside free chunks anywhere in the heap, not just at the top (<code>mtrim</code>, lines 5035 to 5089). The kernel drops those pages from RSS while the addresses stay valid. Section 5 measures what that recovers, and what it cannot.</p>
 <details class="dp"><summary>The knobs, and how to look inside a running process <span class="mute">(reference)</span></summary><div class="b">

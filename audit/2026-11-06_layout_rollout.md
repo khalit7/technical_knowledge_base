@@ -58,8 +58,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_math/variational_inference_and_generative_models` Variational inference and generative-model maths: ELBO, VAEs, diffusion
 - [x] `engineering_foundations/topic_math` Topic: math
 - [x] `engineering_foundations/topic_operating_systems/concurrency` Concurrency: threads, locks, futexes, deadlock, and event-driven I/O
-- [~] `engineering_foundations/topic_operating_systems/containers_and_isolation` Containers and isolation: namespaces, cgroups v2, seccomp, sandboxes
-- [ ] `engineering_foundations/topic_operating_systems/memory_allocators` Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator
+- [x] `engineering_foundations/topic_operating_systems/containers_and_isolation` Containers and isolation: namespaces, cgroups v2, seccomp, sandboxes
+- [x] `engineering_foundations/topic_operating_systems/memory_allocators` Memory allocators: malloc, arenas, fragmentation, and PyTorch's caching allocator
 - [ ] `engineering_foundations/topic_operating_systems/processes_and_syscalls` Processes and the system-call API: fork, exec, signals, file descriptors
 - [ ] `engineering_foundations/topic_operating_systems/scheduling_and_cpu_time` Scheduling and CPU time: context switches, CFS and EEVDF, affinity, cgroup limits
 - [ ] `engineering_foundations/topic_operating_systems/storage_and_file_systems` Storage and file systems: the page cache, fsync, journaling, and checkpoints
@@ -352,3 +352,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_math/variational_inference_and_generative_models`: Fig. 3 low-density edge stepped; Fig. 5 opening step leaves empty space above.
 - `engineering_foundations/topic_operating_systems/concurrency`: Fig. 4 and Fig. 5 (epoll mode) dense at 390.
 - `engineering_foundations/topic_math`: hero step 5 crops the left plate and leaves the top third empty at 1400; step 7 busy; hero small at 390. Open question for Khalid: drop Gradient lab panel 3 (Calculus and optimisation lab covers it)?
+- `engineering_foundations/topic_operating_systems/containers_and_isolation`: Fig. 4 step 4, "pids.max 16 · 15 tasks" overlaps "ctr7 (limited)" and the parent plate crops at the left; namespace stage small on phones.
+- `engineering_foundations/topic_operating_systems/memory_allocators`: Figs 4 and 6 sit in a wide shallow band with empty card space at 1400.

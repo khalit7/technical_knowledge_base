@@ -24,9 +24,10 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await tab('t-read');
   await clickAll('#t-read .drill .opts button:first-child');
   await clickAll('#rd-loader-seg button'); await clickAll('#rd-loader-seg button:first-child');
-  // no autoplay: scroll every animation into view, wait, and check each is still on step 0
-  for (const id of ['rd-thr-card', 'fl-lanes', 'cv-read']) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await sleep(1200) }
-  const moved = await p.evaluate(() => ['rd-thr-ctl-s', 'fl-ctl-s', 'cv-readctl-s'].filter(id => +document.getElementById(id).value !== 0));
+  // the two labs are widgets (long replays the reader drives): scrolled into view they stay on step 0. The threshold traces and the six
+  // 3D stages now play by themselves once in view (2026-11-06 rule); src/check_stages.mjs checks that, and that nothing moves under reduced motion.
+  for (const id of ['fl-lanes', 'cv-read']) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await sleep(1200) }
+  const moved = await p.evaluate(() => ['fl-ctl-s', 'cv-readctl-s'].filter(id => +document.getElementById(id).value !== 0));
   if (moved.length) { bad++; console.log('AUTOPLAY', scheme, w, moved) }
   for (const c of ['rd-thr-ctl', 'cv-read']) {
     const ctl = c === 'cv-read' ? 'cv-readctl' : c;

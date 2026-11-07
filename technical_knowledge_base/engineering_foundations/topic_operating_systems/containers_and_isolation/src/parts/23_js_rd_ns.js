@@ -76,11 +76,22 @@
     const state={};for(let k=0;k<=i;k++)Object.assign(state,v.s[k][1]);
     document.getElementById('rd-stop-proc').innerHTML='<div class="box"><b>docker stop</b>outside</div><span class="arrow">&#8594;</span>'+v.p.map(([n,p])=>{const s=state[p]||'';
       return '<div class="box '+(s==='dead'?'dead':s==='kill'?'kill':s==='sig'?'sig':s==='ok'?'ok':'')+'"><b>PID '+p+'</b>'+E(n)+(s==='kill'?'<br><span class="small" style="color:var(--bad)">SIGKILL</span>':s==='sig'?'<br><span class="small" style="color:var(--c5)">SIGTERM</span>':s==='ok'?'<br><span class="small" style="color:var(--good)">checkpointing</span>':'')+'</div>'}).join('<span class="arrow">&#8594;</span>');
-    const cap=last?(m.saved?'The checkpoint was saved and the container exited '+m.code+', '+m.s.toFixed(2)+' s after docker stop.':'No checkpoint: the container exited '+m.code+' after '+m.s.toFixed(2)+' s, and the checkpoint file is '+m.ckpt+'.'):st[0];
-    document.getElementById('rd-stop-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+v.s.length+'</div><p>'+E(cap)+'</p>';
     document.getElementById('rd-stop-cnt').innerHTML=RD.stat('docker stop to exit',last?m.s.toFixed(2)+' s':'...','measured')+RD.stat('exit code',last?String(m.code):'...',last?(m.code===143?'128 + SIGTERM':m.code===137?'128 + SIGKILL':'clean'):'')+RD.stat('checkpoint',last?(m.saved?'saved':'lost'):'...',last?'file: '+m.ckpt:'');
     document.getElementById('rd-stop-log').textContent='the job\'s log (seconds from docker stop):\n'+m.log.slice(0,last?99:Math.min(m.log.length,1+Math.floor(i/2))).join('\n');
   }
-  const a=RD.anim({card:'rd-stop-card',ctl:'rd-stop-ctl',n:6,draw,ms:1700,label:'Step of the stop'});
-  RD.seg(document.getElementById('rd-stop-mode'),m=>{cur=m;a.reset(V[m].s.length)});
+  // the step list on the left (sx-stop) is written for the chosen launch style: one item per step, a short title and the step's explanation;
+  // the last item is the measured result (2026-11-07: replaces the caption under the card)
+  const TT={A_init_shell:['SIGTERM to PID 1','tini forwards','The shell dies','tini exits','The namespace is zapped'],
+    B_init_group:['SIGTERM to PID 1','To the whole group','The shell dies','tini exits','SIGKILL wins the race'],
+    C_shell_pid1:['SIGTERM to PID 1','Ignored by PID 1','The grace period','SIGKILL from outside','The namespace is zapped'],
+    D_dumb_init:['SIGTERM to PID 1','To the whole group','The shell dies','dumb-init exits','SIGKILL wins the race'],
+    E_init_exec:['SIGTERM to PID 1','Forwarded to Python','The handler runs','Checkpoint saved','tini exits cleanly'],
+    F_bash_trap:['SIGTERM to PID 1','The trap forwards','The handler runs','Checkpoint saved','bash exits cleanly'],
+    G_python_pid1:['SIGTERM to PID 1','Not ignored','The handler runs','Checkpoint saved','Python exits']};
+  function list(){const v=V[cur],m=M[cur];document.getElementById('sx-stop').innerHTML=v.s.map((st,i)=>{const last=i===v.s.length-1;
+      const t=last?(m.saved?'The checkpoint was saved and the container exited '+m.code+', '+m.s.toFixed(2)+' s after docker stop.':'No checkpoint: the container exited '+m.code+' after '+m.s.toFixed(2)+' s, and the checkpoint file is '+m.ckpt+'.'):st[0];
+      return '<li><b>'+E(last?'Result, measured':TT[cur][i])+'.</b> '+E(t)+'</li>'}).join('')}
+  list();
+  const a=RD.anim({card:'rd-stop-card',ctl:'rd-stop-ctl',n:6,draw,ms:4200,label:'Step of the stop',list:'sx-stop'});
+  RD.seg(document.getElementById('rd-stop-mode'),m=>{cur=m;list();a.reset(V[m].s.length,'sx-stop')});
 })();
