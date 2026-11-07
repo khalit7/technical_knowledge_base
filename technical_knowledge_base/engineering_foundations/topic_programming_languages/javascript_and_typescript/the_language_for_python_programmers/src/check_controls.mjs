@@ -3,7 +3,7 @@
 // its end, presses every preset of the double probe, opens every closed block, runs all 22 playground drills live; fails on
 // any page or console error, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity outside code and outputs.
 // Checks that every embedded output equals its file in ja/outputs, that the stepper's trace equals n3_deopt.txt, that the probe's
-// presets print what the recorded b1_numbers run printed, and that nothing moves before the reader acts.
+// presets print what the recorded b1_numbers run printed, that the stepper plays once in view and that nothing moves under reduced motion.
 // SHOTS=<dir> also writes element screenshots there.
 import { createRequire } from 'node:module'; import fs from 'node:fs'; import path from 'node:path';
 import { fileURLToPath } from 'node:url'; import { execSync } from 'node:child_process';
@@ -28,9 +28,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
         box: document.getElementById('jsErr').hidden === false }; });
     if (r.bad || r.side || r.box || errs.length) { fail++; console.log('PROBLEM', scheme, width, label, JSON.stringify(r), errs.splice(0)); }
   };
-  // nothing moves by itself
-  await p.$eval('#jl-v8-card', el => el.scrollIntoView()); await sleep(2600);
-  if (await p.$eval('#jl-v8-ctl-s', r => +r.value) !== 0) { fail++; console.log('PROBLEM V8 stepper moved without the reader'); }
+  // it plays by itself once in view (2026-11-06; check_stages.mjs covers every stage and the off-screen and reduced-motion rules)
+  await p.$eval('#jl-v8-card', el => el.scrollIntoView({ block: 'center' })); await sleep(1500);
+  if (!/Pause/.test(await p.$eval('#jl-v8-ctl-p', b => b.textContent))) { fail++; console.log('PROBLEM V8 stepper did not play when scrolled into view'); }
   // the stepper
   const n = await p.$eval('#jl-v8-ctl-s', s => +s.max + 1);
   for (let i = 1; i < n; i++) { await p.click('#jl-v8-ctl-f'); await report('v8 step ' + i); }
@@ -72,9 +72,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.click('button[data-t=t-more]'); await report('more');
   await p.close();
 }
-// reduced motion: still nothing moves
+// reduced motion: nothing moves by itself
 { const p = await b.newPage(); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-  await p.goto('file://' + PAGE); await p.click('button[data-t=t-read]'); await p.$eval('#jl-v8-card', el => el.scrollIntoView()); await sleep(2600);
+  await p.goto('file://' + PAGE); await p.click('button[data-t=t-read]'); await p.$eval('#jl-v8-card', el => el.scrollIntoView({ block: 'center' })); await sleep(2600);
   if (await p.$eval('#jl-v8-ctl-s', r => +r.value) !== 0) { fail++; console.log('PROBLEM moved under reduced motion'); } await p.close(); }
 await b.close();
 console.log(notes.join('\n'));

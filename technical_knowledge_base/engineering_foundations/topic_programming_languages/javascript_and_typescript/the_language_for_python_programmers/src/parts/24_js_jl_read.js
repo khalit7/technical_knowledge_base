@@ -36,24 +36,15 @@
   window.JL_DP_PRINT=v=>{inp.value=v;render();const dd=out.querySelectorAll('dd');return dd[1]?dd[1].textContent:''};
 })();
 (function(){
-  // The V8 stepper: each step shows one line of the recorded --trace-opt --trace-deopt output and where add's code runs.
+  // The V8 stepper: each step shows one line of the recorded --trace-opt --trace-deopt output and where add's code runs; it plays once in view (RD.anim).
   const $=id=>document.getElementById(id);
   if(!$('jl-v8-svg')||!window.JL||!JL.deopt)return;
   const L=JL.deopt;
   const TIERS=[['Ignition','interpreter'],['Sparkplug','baseline'],['Maglev','optimising'],['TurboFan','top tier']];
   // at: tier where add runs; line: index into the recorded trace (-1 none); arrow: which transition is active
-  const S=[
-    {at:0,line:-1,ar:'',t:'<code>add(i, 1)</code> starts as bytecode in Ignition. Every call records what it saw: two small integers (Smis), 200,000 times in the loop.'},
-    {at:0,line:0,ar:'hot',t:'V8 marks <code>add</code> as hot and stable: called often, always with the same types. It picks Maglev.'},
-    {at:0,line:1,ar:'hot',t:'Maglev compiles <code>add</code> specialised for Smis, with a check on entry that the guess still holds.'},
-    {at:2,line:2,ar:'',t:'From now on <code>add</code> runs as Maglev machine code, specialised for small integers.'},
-    {at:2,line:3,ar:'',t:'The program prints this line and calls <code>add("a", "b")</code>.'},
-    {at:0,line:4,ar:'deopt',t:'The check fails ("not a Smi"): V8 throws the compiled code away and resumes in Ignition. "deopt-eager" means it bailed out at the failed check.'},
-    {at:0,line:5,ar:'hot',t:'Ignition\'s feedback now includes strings. The second loop makes <code>add</code> hot again.'},
-    {at:0,line:6,ar:'hot',t:'Recompiled, now from the wider feedback.'},
-    {at:2,line:7,ar:'',t:'Back in Maglev.'},
-    {at:2,line:8,ar:'',t:'The loop ends and prints <code>s</code>. TurboFan never appears in this run: which tier a function reaches depends on how hot it gets, and on load.'}
-  ];
+  // the explanation of each step is the step list on the left (#sx-v8, one item per entry here)
+  const S=[{at:0,line:-1,ar:''},{at:0,line:0,ar:'hot'},{at:0,line:1,ar:'hot'},{at:2,line:2,ar:''},{at:2,line:3,ar:''},
+    {at:0,line:4,ar:'deopt'},{at:0,line:5,ar:'hot'},{at:0,line:6,ar:'hot'},{at:2,line:7,ar:''},{at:2,line:8,ar:''}];
   const X=i=>6+i*88;
   function draw(i){
     const s=S[i];let b='';
@@ -65,11 +56,10 @@
       b+='<rect class="'+(on?'bxa':'bx')+'" x="'+X(k)+'" y="36" width="80" height="56" rx="7"/>';
       b+=RD.t(X(k)+40,55,tr[0],{a:'middle',fs:12,w:600});
       b+=RD.t(X(k)+40,70,tr[1],{a:'middle',fs:11,fill:'var(--mute)'});
-      if(on)b+=RD.t(X(k)+40,86,'add runs here',{a:'middle',fs:11,w:600,fill:'var(--acc)'});
+      if(on)b+=RD.t(X(k)+40,86,'add is here',{a:'middle',fs:11,w:600,fill:'var(--acc)'});
     });
     $('jl-v8-svg').innerHTML='<defs><marker id="jl-v8-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker></defs>'+b;
-    $('jl-v8-cap').innerHTML='<b>Step '+(i+1)+' of '+S.length+'.</b> '+s.t;
     $('jl-v8-trace').innerHTML=L.map((x,k)=>'<span class="ln'+(k===s.line?' on':k<s.line?' seen':'')+'">'+RD.esc(x)+'</span>').join('');
   }
-  RD.anim({card:'jl-v8-card',ctl:'jl-v8-ctl',n:S.length,draw,ms:2200,label:'Trace step'});
+  RD.anim({card:'jl-v8-card',ctl:'jl-v8-ctl',n:S.length,draw,ms:4200,label:'Trace step',list:'sx-v8'});
 })();

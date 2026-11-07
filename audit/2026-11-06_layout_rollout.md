@@ -71,8 +71,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/cpp/reading_llama_cpp` C++: reading llama.cpp, one token through the code
 - [x] `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath` C++: the machine underneath: caches, layout, SIMD and the memory model
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams` JavaScript: the event loop, promises and streams
-- [~] `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents` TypeScript: LLM apps and agents
-- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers` JavaScript: values, objects, functions and modules for Python programmers
+- [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents` TypeScript: LLM apps and agents
+- [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers` JavaScript: values, objects, functions and modules for Python programmers
 - [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript` TypeScript: the type system, narrowing and runtime validation
 - [ ] `engineering_foundations/topic_programming_languages/python/concurrency_asyncio_and_the_gil` Python: concurrency, asyncio and the GIL
 - [ ] `engineering_foundations/topic_programming_languages/python/cpython_internals_and_performance` Python: CPython internals and performance
@@ -365,3 +365,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath`: stg-mem and stg-fs full views leave empty space at 1400; SIMD stage crops inactive bands on phones.
 - `engineering_foundations/topic_programming_languages/cpp`: Fig. 1 steps 1 to 3 show no labels under 520 px (grouped labels hide); step 9 map small at 390.
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript/event_loop_promises_and_streams`: Fig. 3 quotes the ignore run as 402.2 ms (last write done) while the recording total is 402.3 ms (stream end): label which; Fig. 2 small at 390; core 25 min (14 before; about 6 min hidden mode lists).
+- `engineering_foundations/topic_programming_languages/javascript_and_typescript/the_language_for_python_programmers`: on desktop the UTF-16 units figure sits beside its predict box (b3) and gives the answer away; Figs 2 and 4 small in a tall card on phones.
+- `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents`: loop close-up shows tool edges at the right; run table and Fig. 3 show the runs twice; stages small at 390.

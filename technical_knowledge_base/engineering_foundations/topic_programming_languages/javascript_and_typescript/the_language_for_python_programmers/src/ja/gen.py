@@ -125,9 +125,13 @@ def units(text):
 def deopt():
     return (OUT / "n3_deopt.txt").read_text().rstrip("\n").split("\n")
 
+# the recorded outputs the 3D stages read their values from (Fig. 1 to Fig. 4; checked against the step lists by check_stages.mjs)
+STAGE_OUTS = ["c1_objects", "c4_copy", "d2_closures", "e1_classes", "e2_prototype"]
+
 DATA = {
     "drills": drills(),
     "deopt": deopt(),
+    "out": {n: (OUT / f"{n}.txt").read_text().rstrip("\n") for n in STAGE_OUTS},
 }
 
 if __name__ == "__main__":

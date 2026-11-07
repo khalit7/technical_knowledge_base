@@ -154,9 +154,10 @@ DATA = {
                "tool": frames(json.loads((OUT / "b1_stream.json").read_text())["tool"]),
                "openai": frames(json.loads((OUT / "b2_stream_openai.json").read_text())["openai"])},
     "cancel": cancel(),
+    "agent": agent(),   # the four recorded runs of c1_agent_loop.ts, for the loop stage (Fig. 3, section 4)
 }
-# agent() and mcp() above shaped the data of the language page's Agent loop stepper and MCP message flow tabs, which this
-# page dropped (the harness root's Loop lab and the MCP page own those); they are kept for the static figures below.
+# agent() also feeds the static run table below; mcp() shaped the language page's MCP message flow tab, which this page dropped
+# (the MCP page owns the protocol and a stepped session).
 
 def bar(name, value, vmax, label, colour="var(--acc)", hl=False):
     pct = max(0.5, 100 * value / vmax)

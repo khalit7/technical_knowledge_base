@@ -1,4 +1,5 @@
-// ---- Reading: the stream inspector (section 3) and the cancellation before/after (section 9). Uses RD.anim; redraws registered on t-read ----
+// ---- Reading: the stream inspector (section 3, a widget the reader steps: no autoplay, no step list; it opens on the first text piece) and the
+// cancellation before/after (section 9, an animation explained by the step lists sx-cx-with and sx-cx-without). Uses RD.anim; redraws registered on t-read ----
 (function(){
   if(!window.TL||!window.RD||!document.getElementById('tl-sx-card'))return;
   const D=window.TL,esc=RD.esc,reg=f=>{(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-read']=window.TAB_RENDER['t-read']||[]).push(f)};
@@ -40,8 +41,9 @@
     $('tl-sx-cap').innerHTML='<b>'+esc(f.ev)+'</b>: '+esc(capOf(f));
     $('tl-sx-cnt').innerHTML='frames <b>'+(i+1)+'/'+F.length+'</b> &middot; bytes received <b>'+bytes+'</b> &middot; '+(sxMode==='tool'?'argument characters <b>'+json.length+'</b>':'text characters <b>'+acc.length+'</b>');
   }
-  const sx=RD.anim({card:'tl-sx-card',ctl:'tl-sx-ctl',n:D.stream.anthropic.length,draw:sxDraw,ms:900,label:'Stream frame'});
-  RD.seg($('tl-sx-mode'),m=>{sxMode=m;sx.reset(D.stream[m].length)});
+  const first=m=>Math.max(0,D.stream[m].findIndex(f=>f.ev==='content_block_delta'||f.ev==='response.output_text.delta'));
+  const sx=RD.anim({card:'tl-sx-card',ctl:'tl-sx-ctl',n:D.stream.anthropic.length,draw:sxDraw,ms:900,label:'Stream frame',auto:false,start:first('anthropic')});
+  RD.seg($('tl-sx-mode'),m=>{sxMode=m;sx.reset(D.stream[m].length);sx.go(first(m),true)});
   reg(()=>sx.redraw());
 
   // ---------- cancellation before/after ----------
@@ -63,10 +65,9 @@
     const lane=(n,v)=>'<div><b>'+n+'</b><span>'+esc(v)+'</span></div>';
     $('tl-cx-view').innerHTML='<div class="tl-stack">'+lane('Browser',s.lanes[0])+lane('Your server',s.lanes[1])+lane('Model API',s.lanes[2])+'</div>'+
       '<div class="small mute" style="margin-top:6px">The model answer\'s '+total+' events: <span style="color:var(--good)">read by the user</span>, <span style="color:var(--bad)">generated, paid for, never read</span>, <span class="mute">never generated</span></div><div style="line-height:0;margin:4px 0">'+cells+'</div>';
-    $('tl-cx-cap').innerHTML=(s.t!==null?'<b>+'+s.t+' ms</b>: ':'')+esc(s.txt);
-    $('tl-cx-cnt').innerHTML='events generated <b>'+s.gen+'/'+total+'</b> &middot; read <b>'+read+'</b> &middot; wasted <b>'+Math.max(0,s.gen-read)+'</b>';
+        $('tl-cx-cnt').innerHTML='events generated <b>'+s.gen+'/'+total+'</b> &middot; read <b>'+read+'</b> &middot; wasted <b>'+Math.max(0,s.gen-read)+'</b>';
   }
-  const cx=RD.anim({card:'tl-cx-card',ctl:'tl-cx-ctl',n:cxSteps('with').length,draw:cxDraw,ms:1800,label:'Cancellation step'});
-  RD.seg($('tl-cx-mode'),m=>{cxMode=m;cx.reset(cxSteps(m).length)});
+  const cx=RD.anim({card:'tl-cx-card',ctl:'tl-cx-ctl',n:cxSteps('with').length,draw:cxDraw,ms:4200,label:'Cancellation step',list:'sx-cx-with'});
+  RD.seg($('tl-cx-mode'),m=>{cxMode=m;['with','without'].forEach(x=>$('sx-cx-'+x).hidden=x!==m);cx.reset(cxSteps(m).length,'sx-cx-'+m)});
   reg(()=>cx.redraw());
 })();

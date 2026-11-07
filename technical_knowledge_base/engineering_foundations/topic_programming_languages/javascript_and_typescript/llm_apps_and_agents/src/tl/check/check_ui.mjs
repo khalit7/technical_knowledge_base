@@ -1,6 +1,8 @@
 // UI check of "TypeScript: LLM apps and agents": open each tab at 390 px dark and 920 px light; for every mode of every
 // animation, step through every frame and look for errors, NaN, undefined, Infinity and sideways scroll; then click every
-// other control. Also checks that nothing moves before the reader acts. Screenshots go to <page>/.shots/ui (not committed).
+// other control. Runs under prefers-reduced-motion, where nothing may move by itself (2026-11-06: elsewhere the cancellation animation
+// and the 3D stages play once in view; src/check_stages.mjs checks that). The stream inspector is a widget that opens on its first
+// text frame. Screenshots go to <page>/.shots/ui (not committed).
 // Usage: node src/tl/check/check_ui.mjs [outdir]
 import { createRequire } from 'module';
 import path from 'path';
@@ -36,9 +38,10 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
         if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) found.push(where + ' sideways scroll');
       };
       let frames = 0, k = 0;
-      for (const r of tab.querySelectorAll('.an-ctl input[type=range]')) if (+r.value !== 0) found.push('moved before the reader acted: ' + r.id);
+      for (const r of tab.querySelectorAll('.an-ctl input[type=range]')) if (+r.value !== 0 && r.id !== 'tl-sx-ctl-s' && !r.classList.contains('stg-r')) found.push('moved by itself under reduced motion: ' + r.id);
+      for (const st of tab.querySelectorAll('.stg')) if (+st.dataset.frames > 0) found.push('stage moved by itself under reduced motion: ' + st.id);
       for (const card of tab.querySelectorAll('.tl-anim')) {
-        const segs = [...card.querySelectorAll('.seg button')];
+        const mb = document.getElementById(card.id.replace(/-card$/, '-mode')), segs = mb ? [...mb.querySelectorAll('button')] : [];
         for (const b of (segs.length ? segs : [null])) {
           if (b) { b.click(); k++; await sleep(20); }
           const prev = card.querySelector('.an-ctl button[aria-label="Previous step"]'), next = card.querySelector('.an-ctl button[aria-label="Next step"]'), rng = card.querySelector('.an-ctl input[type=range]');

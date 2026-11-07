@@ -30,7 +30,17 @@ SyntaxError: Private field '#secret' must be declared in an enclosing class
 
 Node.js v24.21.0
 [exit code 1]</pre></div>
-<p>Under the syntax, there are no classes at all: every object has a <b>prototype</b>, another object where missing properties are looked up, and so on up a chain ending at <code>Object.prototype</code> (the hero figure at the top draws it). A class is a function whose <code>prototype</code> object holds the methods; <code>new</code> makes an object whose prototype is that object. Python's attribute lookup through the MRO is the same idea with more rules ({{Python: the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}). Knowing the chain explains <code>instanceof</code>, method sharing, and why changing a prototype changes every instance; <code>Object.create(proto)</code> makes an object with a chosen prototype and no class at all.</p>
+<div class="s3sp"><div class="s3R"><div id="stg-proto"></div></div><div class="s3L">
+<p>Under the syntax, there are no classes at all: every object has a <b>prototype</b>, another object where missing properties are looked up, and so on up a chain ending at <code>Object.prototype</code> and then <code>null</code>. A class is a function whose <code>prototype</code> object holds the methods; <code>new</code> makes an object whose prototype is that object. Python's attribute lookup through the MRO is the same idea with more rules ({{Python: the data model and protocols|n:4055c17b0d0d816a8705e4d3f20b3da7}}, section 5). Knowing the chain explains <code>instanceof</code>, method sharing, and why changing a prototype changes every instance; <code>Object.create(proto)</code> makes an object with a chosen prototype and no class at all. Fig. 4 steps through <code>e2_prototype.mjs</code>:</p>
+<p class="sxh">Fig. 4: a lookup climbs the chain until it finds the name</p>
+<ol class="sx" id="sx-proto">
+<li><b>The chain <code>new Dog()</code> builds.</b> <code>d</code>'s own properties, then <code>Dog.prototype</code>, <code>Animal.prototype</code> (because <code>Dog extends Animal</code>), <code>Object.prototype</code> and <code>null</code>. The first line of the run checks the first two links with <code>Object.getPrototypeOf</code>: <span class="jl-v" data-v="l0">true true</span>.</li>
+<li><b><code>d.name</code> is found at once.</b> <code>name</code> was assigned on <code>d</code>, so it is an own property: <code>Object.hasOwn(d, "name")</code> is <span class="jl-v" data-v="own">true</span>.</li>
+<li><b><code>d.speak</code> climbs one level.</b> Not own (<code>Object.hasOwn(d, "speak")</code> is <span class="jl-v" data-v="notown">false</span>) but found on <code>Dog.prototype</code> (<code>"speak" in d</code> is <span class="jl-v" data-v="in">true</span>); the search stops there, so <code>Animal.prototype</code>'s <code>speak</code> is never reached. That is overriding.</li>
+<li><b><code>Object.create(base)</code>: a chain without a class.</b> <code>child</code> has no own properties (<code>Object.keys(child)</code> is <code>[]</code>); <code>child.greet()</code> climbs to <code>base</code> and returns <span class="jl-v" data-v="greet">hello from the prototype</span>.</li>
+<li><b>Patch the prototype, change every instance.</b> Assigning <code>Dog.prototype.speak</code> after <code>d</code> exists changes what <code>d.speak()</code> finds, because <code>d</code> holds no copy of the method: the run prints <span class="jl-v" data-v="patch">patched at run time</span>.</li>
+<li><b>Python climbs classes, and a miss is an error.</b> Python looks in the instance's own <code>__dict__</code>, then along <code>type(d).__mro__</code>: <code>Dog</code>, <code>Animal</code>, <code>object</code>, with data descriptors (such as <code>property</code>) taking priority, and ends in <code>AttributeError</code> (section 5 of the Python page has the full order). JavaScript's chain is made of plain objects, one link each, set per object; Python's MRO is a list of classes, computed from multiple bases. A JavaScript miss is <code>undefined</code>.</li>
+</ol>
 <div class="jl-snip"><div class="jl-olab">real output of e2_prototype.mjs, Node 24.21.0</div><pre class="jl-out" data-jl-src="e2_prototype.txt">true true
 true false true
 hello from the prototype []
@@ -45,6 +55,7 @@ console.log(Object.hasOwn(d, <span class="st">"name"</span>), Object.hasOwn(d, <
 console.log(child.greet(), Object.keys(child));
 Dog.prototype.speak = <span class="kw">function</span> () &#123; <span class="kw">return</span> <span class="st">"patched at run time"</span>; &#125;;   <span class="cm">// monkey-patching works on every Dog</span>
 console.log(d.speak());</pre></div></details></div>
+</div></div>
 <details class="dp"><summary>Depth: the few hooks instead of dunder methods, and Proxy</summary><div class="b">
 <p>The few hooks JavaScript offers instead of dunder methods are keyed by well-known symbols: <code>Symbol.iterator</code> (<code>__iter__</code>), <code>Symbol.asyncIterator</code> (<code>__aiter__</code>), <code>Symbol.toPrimitive</code> (roughly <code>__int__</code> and <code>__str__</code>), plus <code>toString</code> and <code>toJSON</code>. With no <code>__eq__</code> or <code>__add__</code>, <code>==</code> on two objects is identity and <code>+</code> goes through <code>toPrimitive</code>.</p>
 <div class="jl-snip jl-pred"><div class="jl-file">e3_dunders.mjs</div><pre class="jl-code"><span class="cm">// Python's dunder methods have a few JavaScript counterparts, keyed by well-known Symbols.</span>
@@ -75,19 +86,8 @@ RangeError temperature must be in [0, 2]</pre></div>
 </section>
 
 <section id="s5"><h2>5. Modules: ES modules and CommonJS</h2>
+<div class="s3sp"><div class="s3L">
 <p>JavaScript has two module systems, and Node runs both. <b>ES modules</b> (ESM, the standard since 2015): <code>import</code> and <code>export</code>, loaded and linked before any code runs, asynchronous, with top-level <code>await</code>. <b>CommonJS</b> (CJS, Node's original): <code>require()</code> and <code>module.exports</code>, synchronous, still in many packages. Python has one system; its <code>import</code> is closest to <code>require</code> (synchronous, runs the module once, caches it).</p>
-<div class="fig"><h4>Node picks the system per file, and the two meet in one place that can fail</h4>
-<div class="jl-flow">
-<div class="esm"><b><code>.mjs</code></b>always an ES module</div>
-<div class="cjs"><b><code>.cjs</code></b>always CommonJS</div>
-<div><b><code>.js</code></b>the <code>"type"</code> field of the nearest <code>package.json</code>: <code>"module"</code> gives ESM, missing or <code>"commonjs"</code> gives CJS</div>
-</div>
-<div class="jl-flow">
-<div class="esm"><b>ESM <code>import</code> of CJS</b>works: <code>module.exports</code> arrives as the default export</div>
-<div class="cjs"><b>CJS <code>require()</code> of ESM</b>works since Node 22.12 and 20.19, without a flag; stable in 25.4</div>
-<div class="err"><b>unless the ESM graph uses top-level <code>await</code></b><code>ERR_REQUIRE_ASYNC_MODULE</code>, because <code>require</code> must finish synchronously</div>
-</div>
-<p class="cap">All three cases ran in the real output below ({{Node docs, Loading ECMAScript modules using require()|https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require}}).</p></div>
 <p>In ESM, relative imports need the file extension, and <code>require</code>, <code>__filename</code> and <code>__dirname</code> do not exist (use <code>import.meta.url</code>, <code>import.meta.filename</code>, <code>import.meta.dirname</code>). A module's body runs once, however many times it is imported.</p>
 <div class="jl-snip"><div class="jl-olab">real output, Node 24.21.0: the folder's package.json says "type": "module"</div><pre class="jl-out" data-jl-src="f_mod.txt">$ node main.js
 tokens.js evaluated (once, however many times it is imported)
@@ -123,6 +123,18 @@ console.log(shout(<span class="st">"cjs"</span>), tokens.countTokens(<span class
 console.log(<span class="kw">typeof</span> module, __filename.split(<span class="st">"/"</span>).pop());</pre></div>
 </div></details>
 <div class="jl-cost"><div><div class="t">What to do</div>New code: <code>"type": "module"</code> in <code>package.json</code> and <code>import</code> everywhere. Dynamic <code>await import("x")</code> for lazy loading (Python's import inside a function).</div><div><div class="t">Libraries</div>A library's <code>package.json</code> <code>"exports"</code> map says which file each runtime gets; publishing with types is on {{TypeScript: the type system, narrowing and runtime validation|n:4055c17b0d0d81519278df19753ab5ec}}.</div></div>
+</div><div class="s3R"><div class="s3side"><div class="fig"><h4>Node picks the system per file, and the two meet in one place that can fail</h4>
+<div class="jl-flow">
+<div class="esm"><b><code>.mjs</code></b>always an ES module</div>
+<div class="cjs"><b><code>.cjs</code></b>always CommonJS</div>
+<div><b><code>.js</code></b>the <code>"type"</code> field of the nearest <code>package.json</code>: <code>"module"</code> gives ESM, missing or <code>"commonjs"</code> gives CJS</div>
+</div>
+<div class="jl-flow">
+<div class="esm"><b>ESM <code>import</code> of CJS</b>works: <code>module.exports</code> arrives as the default export</div>
+<div class="cjs"><b>CJS <code>require()</code> of ESM</b>works since Node 22.12 and 20.19, without a flag; stable in 25.4</div>
+<div class="err"><b>unless the ESM graph uses top-level <code>await</code></b><code>ERR_REQUIRE_ASYNC_MODULE</code>, because <code>require</code> must finish synchronously</div>
+</div>
+<p class="cap">All three cases ran in the real output of this section ({{Node docs, Loading ECMAScript modules using require()|https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require}}).</p></div></div></div></div>
 </section>
 
 <section id="s6"><h2>6. Errors</h2>

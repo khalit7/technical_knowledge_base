@@ -1,20 +1,53 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-stream"></div></div><div class="s3L">
 <section id="s3"><h2>3. Streaming: the events, in two wire formats</h2>
-<p>Streaming sends each piece of the answer as it is produced, as <b>server-sent events</b> on one HTTP response that stays open. The SSE format itself is owned by {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}, and parsing raw SSE bytes safely (chunks split events and even UTF-8 characters) by {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}; the SDK does that parsing for you. What remains is knowing the events. Predict before stepping: in which event does the final <code>stop_reason</code> arrive?</p>
-<div class="tl-anim" id="tl-sx-card"><h4>The same answer as Anthropic and OpenAI events, and a tool call's arguments arriving as broken JSON</h4>
+<p>Streaming sends each piece of the answer as it is produced, as <b>server-sent events</b> on one HTTP response that stays open. The SSE format itself is owned by {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}, and parsing raw SSE bytes safely (chunks split events and even UTF-8 characters) by {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}}; the SDK does that parsing for you. What remains is knowing the events. Predict before it plays: in which event does the final <code>stop_reason</code> arrive?</p>
+<p>Fig. 2 replays the recorded frames of one request: each tile is one frame, as tall as its size on the wire, landing in order after the SDK's parser; the Message at the back is assembled from them as the SDK does it. The same answer took 2,840 bytes as Anthropic events and 5,653 as OpenAI events (each frame's text plus its blank-line separator, summed over the recorded frames).</p>
+<div class="s3chips" id="tl-st-mode"><button data-m="anthropic" class="on">Anthropic Messages</button><button data-m="openai">OpenAI Responses</button><button data-m="tool">Anthropic, a tool call</button></div>
+<ol class="sx" id="sx-st-anthropic">
+<li><b>One request.</b> <code>POST /v1/messages</code> with <code>stream: true</code>. The response starts at once and stays open; everything below arrives on it.</li>
+<li><b><code>message_start</code>: an empty Message.</b> The largest frame (246 bytes): id, model and <code>input_tokens</code> (20), with <code>content: []</code> and <code>stop_reason: null</code>; both fill in later.</li>
+<li><b>A text block opens; a ping is dropped.</b> <code>content_block_start</code> opens an empty text block at index 0. A <code>ping</code> keep-alive follows; the SDK drops it at the parser, so code iterating the stream sees 23 events where the wire carried 24 frames.</li>
+<li><b>18 <code>text_delta</code> frames.</b> Each, 116 to 124 bytes, carries one piece of text (here one word); the SDK appends it to the block. This is what you print as it arrives.</li>
+<li><b><code>content_block_stop</code>.</b> The text block is complete.</li>
+<li><b><code>message_delta</code>: the answer to the prediction.</b> <code>stop_reason: "end_turn"</code> and the output token count (34) arrive at the end, not at the start.</li>
+<li><b><code>message_stop</code>.</b> End of the message. <code>finalMessage()</code> resolves now with the assembled Message, identical to what a non-streaming call returns.</li>
+</ol>
+<ol class="sx" id="sx-st-openai" hidden>
+<li><b>One request.</b> <code>POST /v1/responses</code> with <code>stream: true</code>; the same answer text as the Anthropic run.</li>
+<li><b><code>response.created</code>.</b> The Responses API opens with the whole response object: <code>status: "in_progress"</code>, <code>output: []</code>.</li>
+<li><b>An output item and a content part open.</b> <code>response.output_item.added</code> (a <code>message</code>; a <code>function_call</code> would be another kind of item), then <code>response.content_part.added</code> (an empty <code>output_text</code>).</li>
+<li><b>18 <code>response.output_text.delta</code> frames.</b> The same 18 pieces, each frame 185 to 193 bytes: every one names its <code>item_id</code>, <code>output_index</code> and <code>content_index</code>, and carries a <code>sequence_number</code>, as every OpenAI event does.</li>
+<li><b>Three <code>.done</code> events.</b> <code>response.output_text.done</code> repeats the full text once complete; <code>response.content_part.done</code> and <code>response.output_item.done</code> close the part and the item.</li>
+<li><b><code>response.completed</code>.</b> The final response object with <code>status: "completed"</code> and <code>usage</code>: the largest frame of the run (524 bytes).</li>
+</ol>
+<ol class="sx" id="sx-st-tool" hidden>
+<li><b>One request, with tools.</b> The same call with a tool list; the model will answer with a sentence and a tool call.</li>
+<li><b>The Message, a text block, a ping.</b> <code>message_start</code> (<code>input_tokens</code> 59), an empty text block at index 0, and a ping the SDK drops.</li>
+<li><b>Seven <code>text_delta</code> frames.</b> The preamble: "I'll count the tokens per user first."</li>
+<li><b>The text block closes; a <code>tool_use</code> block opens.</b> <code>content_block_start</code> at index 1 brings the tool's name (<code>count_tokens</code>) and id now; its <code>input</code> is still <code>{}</code>.</li>
+<li><b>Three <code>input_json_delta</code> fragments.</b> The arguments arrive as <span class="hl">partial JSON</span>: <code>{"path":"cha</code>, <code>t.jsonl","to</code>, <code>p":3}</code>. None is JSON on its own; the SDK re-parses the whole string after each one, so its snapshot goes <code>{}</code>, then <code>{"path":"chat.jsonl"}</code>, then <code>{"path":"chat.jsonl","top":3}</code>.</li>
+<li><b><code>content_block_stop</code>.</b> The block is complete: the arguments are now whole JSON. They are still model output, so your loop checks them with zod before running the tool (section 4).</li>
+<li><b><code>message_delta</code> and <code>message_stop</code>.</b> <code>stop_reason: "tool_use"</code> (output tokens 42) arrives last: the signal for your loop to run the tool.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<p>The SDK gives three levels. <code>create({ ..., stream: true })</code> returns an async iterable of the raw events, already parsed (without the ping). <code>messages.stream()</code> is the helper: <code>.on("text", f)</code> for each text piece and <code>await finalMessage()</code> for the assembled <code>Message</code>, identical to what a non-streaming call returns. And for tool calls the helper re-parses the partial JSON after each fragment, as in Fig. 2's tool call. The inspector beside shows every frame as it was on the wire: step through it at your own pace.</p>
+[[outd:b1_stream|The three levels, run: b1_stream.ts and its output]]
+[[outd:b2_stream_openai|The OpenAI stream, run: b2_stream_openai.ts and its output]]
+<p>When not to stream: a batch job, or anything that needs the whole answer before acting (a classifier, a JSON extraction you validate as a whole); then a plain <code>create</code> is simpler. The SDK's documentation recommends streaming for large <code>max_tokens</code> so that long responses do not hit HTTP timeouts, and <code>finalMessage()</code> gives you a complete message anyway.</p>
+<div class="tl-py"><div class="t">From Python</div><code>with client.messages.stream(...) as s: for text in s.text_stream: ...</code> becomes <code>const s = client.messages.stream(...); for await (const ev of s) ...</code> or <code>s.on("text", ...)</code>. <code>async for</code> is <code>for await</code>; the context manager's cleanup is the stream's own <code>abort()</code> (or breaking out of the loop).</div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card tl-anim" id="tl-sx-card"><h4>The same answer as Anthropic and OpenAI events, and a tool call's arguments arriving as broken JSON</h4>
 <div class="seg" id="tl-sx-mode"><button data-m="anthropic" class="on">Anthropic Messages</button><button data-m="openai">OpenAI Responses</button><button data-m="tool">Anthropic, a tool call</button></div>
 <div class="an-ctl" id="tl-sx-ctl"></div>
 <div id="tl-sx-view"></div>
 <div class="tl-cap" id="tl-sx-cap"></div>
 <div class="tl-counters" id="tl-sx-cnt"></div>
 <div class="tl-src">Every frame is one the mock really sent in the recorded runs of <code>b1_stream.ts</code> and <code>b2_stream_openai.ts</code> (same answer text in both formats); the "assembled so far" column is computed in your browser from those frames, the way the SDK assembles them. Event references: <a href="https://platform.claude.com/docs/en/build-with-claude/streaming" target="_blank" rel="noopener noreferrer">Anthropic streaming</a>, <a href="https://developers.openai.com/api/reference/resources/responses/streaming-events" target="_blank" rel="noopener noreferrer">OpenAI Responses streaming events</a>.</div>
-</div>
-<p>The SDK gives three levels. <code>create({ ..., stream: true })</code> returns an async iterable of the raw events, already parsed (it drops the <code>ping</code> keep-alive: 23 events arrive, the wire carried 24). <code>messages.stream()</code> is the helper: <code>.on("text", f)</code> for each text piece and <code>await finalMessage()</code> for the assembled <code>Message</code>, identical to what a non-streaming call returns. And for tool calls, the arguments stream as <span class="hl">partial JSON</span> (<code>input_json_delta</code>): fragments like <code>"t.jsonl\",\"to"</code> that are not JSON on their own; the helper re-parses the snapshot after each one.</p>
-[[outd:b1_stream|The three levels, run: b1_stream.ts and its output]]
-[[outd:b2_stream_openai|The OpenAI stream, run: b2_stream_openai.ts and its output]]
-<p>When not to stream: a batch job, or anything that needs the whole answer before acting (a classifier, a JSON extraction you validate as a whole); then a plain <code>create</code> is simpler. The SDK's documentation recommends streaming for large <code>max_tokens</code> so that long responses do not hit HTTP timeouts, and <code>finalMessage()</code> gives you a complete message anyway.</p>
-<div class="tl-py"><div class="t">From Python</div><code>with client.messages.stream(...) as s: for text in s.text_stream: ...</code> becomes <code>const s = client.messages.stream(...); for await (const ev of s) ...</code> or <code>s.on("text", ...)</code>. <code>async for</code> is <code>for await</code>; the context manager's cleanup is the stream's own <code>abort()</code> (or breaking out of the loop).</div>
-</section>
+</div></div></div></div>
 
 <section id="s4"><h2>4. Tools and the agent loop, in TypeScript</h2>
 <p>You send a list of <b>tools</b> (a name, a description, a JSON Schema for the arguments). The model never runs anything: it stops with <code>stop_reason: "tool_use"</code> and a <code>tool_use</code> block; <b>your code</b> runs the function and sends the whole conversation back with a <code>tool_result</code> block of the same id; repeat until it answers. That loop plus tools is all an "agent" is; the loop itself, what a harness adds around it, and a lab that steps through real Claude Code runs are on {{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}} (its Loop lab). This section is what the loop looks like in TypeScript, and the guards that make it safe:</p>
@@ -27,12 +60,37 @@
 <div><div class="t">Meter the cost</div>Add up <code>usage</code> after every call; a loop multiplies the bill (every step resends everything).</div>
 </div>
 [[coded:c1_agent_loop.ts@9-65|The hand-written loop with every guard: c1_agent_loop.ts, lines 9 to 65]]
-<p>The scripted model plays four scenarios against that loop. Predict before reading the table: in the "timeout" run, step 2 asks for two profile lookups, each cut off at 500 ms. Does step 2 take about 500 ms or about 1,000 ms? And how many model calls does the runaway run make before it stops?</p>
+<div class="s3sp"><div class="s3R"><div id="stg-loop"></div></div><div class="s3L">
+<p>The scripted model plays four scenarios against that loop, and Fig. 3 replays each from its recording, one step per model call: <code>messages[]</code> as a stack of plates (one per message), the call going out, the reply coming back, the tool calls crossing the zod gate together and their results returning, errors included. Predict before it plays: in the "timeout" run, step 2 asks for two profile lookups, each cut off at 500 ms. Does step 2 take about 500 ms or about 1,000 ms? And how many model calls does the runaway run make before it stops?</p>
+<div class="s3chips" id="tl-lp-mode"><button data-m="happy" class="on">happy</button><button data-m="typo">typo</button><button data-m="timeout">timeout</button><button data-m="runaway">runaway</button></div>
+<ol class="sx" id="sx-lp-happy">
+<li><b>Call 1: one message out, one tool call back.</b> The task goes to the model (189 input tokens, the mock's estimate). It answers with a sentence and <code>count_tokens({"path":"chat.jsonl","top":3})</code>, <code>stop_reason: "tool_use"</code>. The arguments pass <code>CountArgs.safeParse</code>, the tool runs (8 ms), and its result is appended.</li>
+<li><b>Call 2: 3 messages, two lookups at once.</b> The model asks for <code>user_profile</code> of u0029 and u0005 in one turn. <code>Promise.all</code> starts both: 23 ms each, 24 ms for the step. Both results go back in <b>one</b> user message.</li>
+<li><b>Call 3: 5 messages, the answer.</b> <code>stop_reason: "end_turn"</code>; the loop returns the text. The run: 6 messages, 941 tokens in and 145 out, US$0.00333 at list price.</li>
+</ol>
+<ol class="sx" id="sx-lp-typo" hidden>
+<li><b>Call 1: a wrong file name.</b> The model asks for <code>count_tokens</code> on <code>chats.jsonl</code>. The arguments are valid (a string is a string), but the file does not exist: <code>runTool</code> catches the error and returns it as a result, <code>is_error: true</code>, "cannot open chats.jsonl: ENOENT".</li>
+<li><b>Call 2: the model fixes its own mistake.</b> It reads the error ("That file does not exist; the log is chat.jsonl.") and asks again with the right name; the tool runs in 6 ms.</li>
+<li><b>Call 3: the answer.</b> The same answer as the happy run: 862 tokens in, 119 out. Throwing instead of returning the error would have killed the run at call 1.</li>
+</ol>
+<ol class="sx" id="sx-lp-timeout" hidden>
+<li><b>Call 1: the count.</b> As in the happy run (5 ms).</li>
+<li><b>Call 2: two lookups, both hung.</b> In this run the profile service answers after 2,000 ms. Each lookup has <code>AbortSignal.timeout(500)</code>: both return "timed out after 500 ms" at 501 ms, and the step took <b>501 ms, not 1,002</b>, because <code>Promise.all</code> started both before awaiting either.</li>
+<li><b>Call 3: an answer that says what failed.</b> "2 profile lookups timed out, so I left the team out." A stuck tool became an error result, not a hung agent.</li>
+</ol>
+<ol class="sx" id="sx-lp-runaway" hidden>
+<li><b>Call 1: <code>top: 1</code>.</b> The scripted model asks for <code>count_tokens</code> and never answers; each call adds two messages and resends the whole array (189 tokens in).</li>
+<li><b>Call 2: <code>top: 2</code>.</b> 3 messages sent, 277 tokens in.</li>
+<li><b>Call 3: <code>top: 3</code>.</b> 5 messages sent, 374 tokens in.</li>
+<li><b>Call 4: <code>top: 4</code>.</b> 7 messages sent, 481 tokens in: each call costs more than the last.</li>
+<li><b>Call 5: <code>top: 5</code>, the step limit.</b> 9 messages sent, 597 tokens in, and still <code>tool_use</code>. The loop ends at <code>maxSteps</code> (5) with "stopped: hit maxSteps=5": 11 messages, 1,918 tokens in, 130 out, US$0.00514 for no answer.</li>
+</ol>
+</div></div>
 <div class="tl-fig"><h4>Four recorded runs of one loop: each guard acting once</h4>
 [[gen:agent_table]]
 <p class="small">From the recorded run of <code>c1_agent_loop.ts</code>: tools ran for real (the token counter read <code>chat.jsonl</code>; the profile service is a local HTTP server), the model's turns are the mock's scripted answers, and the cost applies Claude Sonnet 5.5's list price, US$2 per million input tokens and US$10 per million output tokens (<a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic pricing</a>, checked 2026-10-05), to the mock's token estimates: the arithmetic, not a real bill.</p></div>
 [[outd:c1_agent_loop|Every step of the four runs: c1_agent_loop.ts output]]
-<p>The timeout run's step 2 took about 500 ms, not 1,000: the two lookups waited at the same time, because <code>Promise.all</code> started both before awaiting either. A <code>for</code> loop with <code>await</code> inside would have taken twice as long (one at a time against all at once is on the event-loop page). And because <code>runTool</code> catches every error and returns it as a result, <code>Promise.all</code> can never reject halfway and lose the other results. A real request with tools also carries a hidden tool-use system prompt (286 tokens on Sonnet 5.5, same pricing page).</p>
+<p>A <code>for</code> loop with <code>await</code> inside would have taken twice as long (one at a time against all at once is on the event-loop page). And because <code>runTool</code> catches every error and returns it as a result, <code>Promise.all</code> can never reject halfway and lose the other results. A real request with tools also carries a hidden tool-use system prompt (286 tokens on Sonnet 5.5, same pricing page).</p>
 <div class="tl-py"><div class="t">From Python</div>The loop is line for line what you would write in Python. The differences are TypeScript's: <code>msg.content.filter((b): b is Anthropic.ToolUseBlock =&gt; b.type === "tool_use")</code> is a <b>type guard</b> (a function whose return type <code>b is T</code> tells the compiler what passed the filter), and the SDK's types (<code>Anthropic.MessageParam</code>, <code>Anthropic.ToolResultBlockParam</code>) make a malformed message a compile error instead of a 400 at run time.</div>
 <p><b>The tool runner: the same loop, written by the SDK.</b> <code>client.beta.messages.toolRunner</code> (beta in 0.131.0) takes tools made by <code>betaZodTool</code>: a zod schema and a <code>run</code> function each. The runner sends the schema, validates the model's arguments against it before calling <code>run</code>, sends the results back, and stops when the model answers or after <code>max_iterations</code>. It made the same three model calls as the happy run above. Use it for most custom-tool agents (less code, validation built in); write the loop by hand when you need control it does not give, such as your own cost cut-off, a per-step log format, or handling of <code>pause_turn</code> (the SDK's documentation notes the runner does not resume a paused server-tool turn by itself). Writing the loop once by hand is what keeps the runner from being magic.</p>
 [[outd:c2_tool_runner|The tool runner, run: c2_tool_runner.ts and its output]]

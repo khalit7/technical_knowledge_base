@@ -15,3 +15,8 @@
 | 11 | JS playground: 22 drills with recorded output and a live runner | `code/q`, `outputs/q_*` | own tab | kept from the language page (a tool used across the page) |
 | 12 | Hidden-class transition tree | `%HaveSameMap` outputs | section 8 | rejected (as on the language page): the real four-line output and the measured bars carry it; a drawn tree would be illustrative |
 | 13 | Prototype lookup animation | none real | section 4 | rejected: the hero's static chain with the lookup caption says it |
+| 14 | 3D hero: binding plate, objects, prototype plates, a closure scope | e1, c1, d2 outputs (`JL.out`) | top | built 2026-11-07 (replaces 1) |
+| 15 | 3D copies: alias, shallow, deep, one push | c4 output | section 2 | built 2026-11-07 (replaces 5) |
+| 16 | 3D closures: a scope outliving its call; var against let | d2 output | section 3 | built 2026-11-07 (replaces 6) |
+| 17 | 3D prototype lookups climbing the chain, against Python's MRO | e2 output | section 4 | built 2026-11-07 (replaces the rejection in 13: the run now drives it) |
+| 18 | 3D module graph in load order | f_mod | section 5 | rejected: three files and two rules, nothing spatial; the decision table reads better flat |
