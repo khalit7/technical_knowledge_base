@@ -30,3 +30,15 @@ What the methodology lacked: guidance for protocol pages, where the measurable o
 | M16 | Trust map: five attacker positions with their controls | Reading s8 | built; an attack walkthrough was rejected (rejected pattern: step-by-step attack routes) |
 | M17 | Confused deputy sequence | none | rejected: an attack route; explained in text with the specified mitigation |
 | M18 | Real image (MCP Inspector screenshot) | none | rejected: a UI screenshot teaches nothing a diagram does not, licence unclear |
+
+## Rollout of 2026-11-07 (split layout, renderer v2)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| M19 | Hero as a 3D stage: host platform with policy and clients, two servers, model API, authorization server; one tool call stepped | Reading top | built (replaces M11) |
+| M20 | Session lifecycle: client and server as glass plates, each recorded stdio message a row to scale, legacy against 2026-07-28 | Reading s2 | built (new) |
+| M21 | The two transports in depth: pipes to a child process against POST through a gateway, the event stream, hostile requests, warm medians as columns | Reading s4 | built (replaces M14) |
+| M22 | Two replicas as a stage, four modes from the recording | Reading s5 | built (replaces M1's 2D stepper) |
+| M23 | The OAuth discovery flow as a stage, seven stretches over the 15 recorded exchanges | Reading s7 | built (replaces M3's 2D sequence) |
+| M24 | Token passthrough in 3D | none | rejected: Auth's Fig. 5 owns the 3D passthrough and exchange; this page keeps its flat before/after and links Auth |
+| M25 | Trust map in 3D | none | rejected: five positions with numbered controls read best flat; the threat list stays a table (brief) |
+| M26 | Envelope, version table, compatibility matrix in 3D | none | rejected: bytes as text and tables read best flat (brief) |

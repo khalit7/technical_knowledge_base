@@ -2,34 +2,49 @@
 <section id="rd-s1">
 <h2>1. Roles, and where MCP sits in an agent loop</h2>
 <p><b>The problem.</b> A model only produces text; to list your checkpoints or open a pull request, the application around it must call real code. Before MCP every application wired every integration itself: N applications and M tools meant N &times; M adapters. MCP makes it N + M: write a server once, and every MCP host can use it. Anthropic released it on {{25 November 2024|https://www.anthropic.com/news/model-context-protocol}} and donated it on 9 December 2025 to the Agentic AI Foundation, a fund under the Linux Foundation co-founded with Block and OpenAI ({{Anthropic|https://www.anthropic.com/news/donating-the-model-context-protocol-and-establishing-of-the-agentic-ai-foundation}}), which by October 2026 also held A2A, AGENTS.md and Agent Skills among ten projects (the foundation's map: {{Agent-to-agent and beyond|n:3f05c17b0d0d81199373d4d0b18706d8}}).</p>
-<p><b>Three roles</b>, drawn in the figure above. The <b>host</b> owns the conversation with the model, decides which servers to start and which tools the model may see, and asks the user for consent; the specification puts security policy here: "Enforces security policies and consent requirements" ({{architecture|https://modelcontextprotocol.io/specification/2026-07-28/architecture}}). A <b>client</b> inside the host speaks MCP to exactly one server, so a host with five servers runs five clients. A <b>server</b> (<code>ckpt-tools</code>, a GitHub server, a database server) sees only the requests sent to it.</p>
-<p><b>The model does not speak MCP.</b> Model APIs have their own tool-calling format (a list of tool definitions in the request, <code>tool_use</code> blocks in the answer), and the host translates, as numbered in the figure:</p>
-<ol class="tight">
-<li>The client asks each server for its tools (<code>tools/list</code>); the host copies each tool's <code>name</code>, <code>description</code> and <code>inputSchema</code> into the model request's tool list.</li>
-<li>The model answers with a tool call, for example <code>list_checkpoints({"run": "llama-7b-sft"})</code>.</li>
-<li>The host checks its policy (is this tool allowed? does the user need to confirm?), then its client sends <code>tools/call</code> to the right server.</li>
-<li>The server runs the function; the host puts the result's text into the next model request as a tool result, and the model continues.</li>
-</ol>
+<p><b>Three roles</b>, as in Fig. 1. The specification puts security policy in the host: "Enforces security policies and consent requirements" ({{architecture|https://modelcontextprotocol.io/specification/2026-07-28/architecture}}). A host with five servers runs five clients; a server (<code>ckpt-tools</code>, a GitHub server, a database server) never sees the others.</p>
+<p><b>The model does not speak MCP.</b> Model APIs have their own tool-calling format (a list of tool definitions in the request, <code>tool_use</code> blocks in the answer), and the host translates both ways: Fig. 1, steps 2 to 5, is one tool call.</p>
 <p>So everything a server returns ends up in the model's context, and everything in a tool's description shapes what the model does. Both facts drive section 8.</p>
 <div class="cost"><div class="t">What MCP costs, and when not to use it</div>It adds a process or a network hop, a JSON layer and a dependency on host support. If one application calls one internal API, ordinary function calling with the model API's own tool format is simpler. MCP pays off when several hosts (an IDE, a CLI agent, a chat app) must reach the same tools, when a team wants to publish tools once, or when tools must run with credentials or isolation the host should not hold.</div>
 </section>
 
 <section id="rd-s2">
 <h2>2. The messages: JSON-RPC 2.0 with an MCP envelope</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-life"></div></div><div class="s3L">
 <p><dfn id="g-jsonrpc">JSON-RPC 2.0</dfn> ({{specification|https://www.jsonrpc.org/specification}}) gives MCP three message kinds ({{MCP basic protocol|https://modelcontextprotocol.io/specification/2026-07-28/basic}}): a <b>request</b> (<code>id</code>, <code>method</code>, <code>params</code>; MCP forbids a <code>null</code> id and reusing an id that is still waiting for its answer), a <b>response</b> with the same <code>id</code> and either a <code>result</code> or an <code>error</code> (<code>code</code>, <code>message</code>, optional <code>data</code>), which is how a client matches answers when several are in flight on one pipe, and a <b>notification</b> with no id and no answer (progress, change notices, cancellation on stdio). Since 2026-07-28 only the client sends requests: when a server needs something from the client, it says so inside its result and the client asks again (section 5).</p>
-<div class="fig" id="env-card">
-<h4>The same tools/call, before and after 2026-07-28: the envelope is now on every request</h4>
-<div class="rd-svg" id="env-svg"></div>
-<div class="panes"><div><h5>2025-11-25 (after a handshake)</h5><pre class="cd" id="env-old"></pre></div><div><h5>2026-07-28 (self-contained)</h5><pre class="cd" id="env-new"></pre></div></div>
-<p class="small mute"><span class="meas">measured</span> stdio lines, newline included. The same <code>tools/call</code> line is 304 bytes under 2026-07-28 and 121 bytes under 2025-11-25: 183 bytes of <code>_meta</code> (highlighted) that every request now repeats instead of saying once at the start of a session. The result grows by 111 bytes (819 against 708) for <code>resultType</code> and <code>serverInfo</code>. On a local pipe this is noise; across millions of calls through a gateway it is the price of letting any replica answer any request.</p>
-</div>
-<p>The four MCP additions to plain JSON-RPC, all visible above:</p>
+<p class="sxh">Fig. 2 · One stdio conversation with ckpt-tools, message by message</p>
+<div class="s3chips" id="life-mode"><button data-m="legacy">2025-11-25 (legacy client)</button><button data-m="modern" class="on">2026-07-28 (dual-era client)</button></div>
+<ol class="sx" id="sx-life-legacy" hidden>
+<li><b>initialize.</b> The legacy client (SDK 1.30.0) opens with <code>initialize</code> (id 1, 153 bytes): <code>protocolVersion</code> 2025-11-25, its capabilities (none) and <code>clientInfo</code>.</li>
+<li><b>The server's half of the negotiation.</b> The result (id 1, 338 bytes) names the version, the server's capabilities (prompts, resources, tools) and its instructions. From here both sides hold that agreement in memory for as long as the connection lives.</li>
+<li><b>A notification.</b> <code>notifications/initialized</code> (55 bytes) has no id and gets no answer; only then may work start.</li>
+<li><b>tools/call, id 2.</b> 119 bytes and no <code>_meta</code>: the version was said once, at the start. The result (706 bytes) comes back with the same id.</li>
+<li><b>tools/list, id 3.</b> 47 bytes; the answer is 1,671 bytes, without the <code>cacheScope</code> and <code>resultType</code> fields of the 2026-07-28 answer. Seven messages in all, three of them only to set the conversation up.</li>
+</ol>
+<ol class="sx" id="sx-life-modern">
+<li><b>Probe: server/discover.</b> The dual-era client asks first (id 1, 246 bytes); the answer (429 bytes) lists <code>supportedVersions</code> ["2026-07-28"], capabilities and identity, marked <code>cacheScope: "private"</code>, so the client may cache it. Optional for clients; servers MUST implement it.</li>
+<li><b>A self-contained request.</b> <code>tools/call</code>, id 2, 302 bytes: the tool name, its arguments and <code>_meta</code> with the protocol version, <code>clientInfo</code> and <code>clientCapabilities</code>. The tinted 183 bytes are what this request carries that the legacy call does not.</li>
+<li><b>The response carries the same id.</b> A <code>result</code> with id 2 (817 bytes), with <code>resultType: "complete"</code> and <code>serverInfo</code> in its <code>_meta</code>. The id is how a client matches answers when several requests are in flight on one pipe.</li>
+<li><b>Every request stands alone.</b> <code>tools/list</code> (id 3, 241 bytes) repeats the <code>_meta</code>; its answer (1,819 bytes with the newline) carries <code>cacheScope: "public"</code>. Nothing either side does depends on an earlier message.</li>
+</ol>
+<p class="small mute"><span class="meas">measured</span> stdio lines of the cold runs (first call of each client; sizes include the newline). The warm calls of the next figure have longer ids, so their requests are 2 bytes longer.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p>The four MCP additions to plain JSON-RPC, all visible in the recorded lines beside:</p>
 <ul class="tight">
 <li><b><code>_meta</code> on every request.</b> <code>io.modelcontextprotocol/protocolVersion</code> and <code>io.modelcontextprotocol/clientCapabilities</code> are required; <code>clientInfo</code> is recommended. A request missing a required field is rejected with <code>-32602</code> (on HTTP, status 400).</li>
 <li><b><code>resultType</code> on every result</b>: <code>"complete"</code>, or <code>"input_required"</code> when the server needs more input. A client must treat a missing <code>resultType</code> (an older server) as complete.</li>
 <li><b><code>serverInfo</code> in the result's <code>_meta</code></b>, so a client can tell who answered without remembering a handshake. Both <code>clientInfo</code> and <code>serverInfo</code> are self-reported: the specification says not to base security decisions on them.</li>
 <li><b>Trace context</b>: <code>traceparent</code>, <code>tracestate</code> and <code>baggage</code> may ride in <code>_meta</code> (W3C formats), so one trace can follow a request from the model call through the host into the server.</li>
 </ul>
+</div><div class="s3R"><div class="s3side">
+<div class="fig card" id="env-card">
+<h4>The same tools/call, before and after 2026-07-28: the envelope is now on every request</h4>
+<div class="rd-svg" id="env-svg"></div>
+<div class="panes"><div><h5>2025-11-25 (after a handshake)</h5><pre class="cd" id="env-old"></pre></div><div><h5>2026-07-28 (self-contained)</h5><pre class="cd" id="env-new"></pre></div></div>
+<p class="small mute"><span class="meas">measured</span> stdio lines, newline included. The same <code>tools/call</code> line is 304 bytes under 2026-07-28 and 121 bytes under 2025-11-25: 183 bytes of <code>_meta</code> (highlighted) that every request now repeats instead of saying once at the start of a session. The result grows by 111 bytes (819 against 708) for <code>resultType</code> and <code>serverInfo</code>. On a local pipe this is noise; across millions of calls through a gateway it is the price of letting any replica answer any request.</p>
+</div>
+</div></div></div>
 <h3>Three kinds of failure, and who should see each</h3>
 <div class="tw"><table>
 <thead><tr><th>Kind</th><th>Shape</th><th>Example (<span class="meas">measured</span>)</th><th>Who acts on it</th></tr></thead>

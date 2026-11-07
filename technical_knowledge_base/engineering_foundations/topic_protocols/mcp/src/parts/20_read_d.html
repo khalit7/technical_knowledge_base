@@ -1,24 +1,49 @@
 
 <section id="rd-s5">
 <h2>5. The stateless revision (2026-07-28)</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-rep"></div></div><div class="s3L">
 <p><b>Before.</b> From 2024-11-05 to 2025-11-25 a connection began with a handshake: the client sent <code>initialize</code> with its version and capabilities, the server answered with its own, the client sent <code>notifications/initialized</code>, and only then could work start. Over HTTP the server minted an <code>Mcp-Session-Id</code> that the client sent on every later request, opened a GET stream for messages the server wanted to push, and ended the session with DELETE. A server could also send its own requests to the client (a confirmation, a model completion) on an open stream, and wait.</p>
 <p><b>The problem.</b> A session is memory inside one server process. Behind an ordinary round-robin load balancer the second request of a session lands on a replica that never saw the first, so you need sticky routing (the balancer pins each session to a replica) or a shared session store, and a server that pauses mid-call waiting for the client holds that memory open even longer.</p>
 <p><b>After.</b> The 2026-07-28 revision ({{changelog|https://modelcontextprotocol.io/specification/2026-07-28/changelog}}) removed the handshake, the session, the GET stream, <code>ping</code>, <code>logging/setLevel</code> and server-initiated requests. Every request says everything about itself in <code>_meta</code>. A client that wants to know a server up front may call <code>server/discover</code> (servers MUST implement it), which returns supported versions, capabilities and identity, and is cacheable.</p>
 <h3>Multi round-trip requests: asking the user without holding a session</h3>
 <p>The replacement for server-initiated requests is <dfn id="g-mrtr">MRTR</dfn> ({{multi round-trip requests|https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr}}). The server answers the original request with <code>resultType: "input_required"</code>, a map of <code>inputRequests</code> (an elicitation, a sampling request, a roots request) and an opaque <code>requestState</code>. The client gathers the answers and sends the <b>same request again</b>, with a new id, plus <code>inputResponses</code> and the echoed <code>requestState</code>. Any replica can finish it, because everything it needs is in the retry. Only <code>tools/call</code>, <code>resources/read</code> and <code>prompts/get</code> may do this.</p>
-<div class="card" id="rp-card">
-<h4>One confirm-then-delete call through a round-robin balancer, four ways: the session breaks; MRTR works once the replicas share one key</h4>
-<p class="small"><b>Predict first</b> for each setup: which HTTP request fails, and why? Then step through it.</p>
-<div class="seg" id="rp-seg"></div>
-<div class="an-ctl" id="rp-ctl"></div>
-<div class="rd-svg" id="rp-svg"></div>
-<div class="an-cnt" id="rp-cnt"></div>
-<div class="an-cap" id="rp-cap"></div>
-<div id="rp-msg"></div>
+<p class="sxh">Fig. 4 · One confirm-then-delete call through a round-robin balancer, four ways</p>
+<p class="small"><b>Predict first</b> for each setup: which HTTP request fails, and why?</p>
+<div class="s3chips" id="rep-mode"><button data-m="0" class="on">2025-11-25, round robin</button><button data-m="1">2025-11-25, affinity</button><button data-m="2">2026-07-28, per-process keys</button><button data-m="3">2026-07-28, shared key</button></div>
+<ol class="sx" id="sx-rep-0">
+<li><b>initialize lands on B.</b> The balancer sends the first POST to replica B, which creates a session and returns <code>Mcp-Session-Id</code>. From now on the session exists only in B's memory.</li>
+<li><b>The next request lands on A.</b> <code>notifications/initialized</code>, carrying the session id, goes to replica A by round robin; A never saw the session and answers 404 "Session not found".</li>
+<li><b>The GET stream opens on B.</b> The legacy client opens its standing stream for server-initiated messages; round robin happens to send it to B (200).</li>
+<li><b>tools/call lands on A: 404 again.</b> The delete never runs. The specification says the client must start over with <code>initialize</code>, which will land somewhere else again.</li>
+<li><b>DELETE ends the session</b> on B (200).</li>
+<li><b>0 of 20 runs.</b> Every run failed the same way; nothing about the tool mattered.</li>
+</ol>
+<ol class="sx" id="sx-rep-1" hidden>
+<li><b>initialize on B.</b> B creates the session and returns <code>Mcp-Session-Id</code>.</li>
+<li><b>Pinned to B.</b> <code>notifications/initialized</code> (202 Accepted) and every later request of the session go to B: the balancer reads the session id and routes on it.</li>
+<li><b>The GET stream</b> opens on B (200).</li>
+<li><b>The server asks over the open stream.</b> B answers <code>tools/call</code> with <code>elicitation/create</code> on that request's event stream and waits, holding the call open.</li>
+<li><b>The answer is a separate POST</b> (202), which must also reach B. The scripted user says yes, and the deletion result follows on the held stream.</li>
+<li><b>tools/list</b> on B: the SDK client re-lists tools to validate the structured result against the output schema.</li>
+<li><b>DELETE</b> closes the session (200).</li>
+<li><b>20 of 20, at a price</b>: a balancer that understands MCP sessions, uneven load, and lost sessions whenever a replica restarts.</li>
+</ol>
+<ol class="sx" id="sx-rep-2" hidden>
+<li><b>Round 1 on B: input required.</b> No session. B answers <code>tools/call</code> with <code>resultType: "input_required"</code>, an elicitation request and a sealed <code>requestState</code>, then forgets the call.</li>
+<li><b>The retry lands on A: 400.</b> The client asks the (scripted) user and sends the same request again with <code>inputResponses</code> and the echoed <code>requestState</code>. A cannot open it: B sealed it with a key generated when that process started. The retry is lost.</li>
+<li><b>Fails 20 of 20.</b> No session, but the sealed state still tied the call to one process.</li>
+</ol>
+<ol class="sx" id="sx-rep-3" hidden>
+<li><b>Round 1 on B: input required</b>, with a sealed <code>requestState</code>, exactly as before.</li>
+<li><b>The retry on A: deleted.</b> A opens the state with the shared key and completes the call from the retry alone: arguments, the user's answer and the sealed state were all in the request.</li>
+<li><b>tools/list on B</b> (200).</li>
+<li><b>20 of 20 with no affinity</b>: two independent POSTs, either replica can answer either one, nothing held in memory between them.</li>
+</ol>
 <p class="small mute"><span class="meas">measured</span> 5 October 2026, <code>src/lab/replicas.py</code>: two <code>ckpt_server.py</code> processes (SDK 2.3.0) on ports 30711 (A) and 30712 (B), <code>lb_proxy.py</code> on 30710 sending each HTTP request to the next replica in turn (or, with affinity, to the replica that minted the session), and an SDK client whose "user" answers yes by script. The steps replay the first of 20 runs of each setup; the table below counts all 20.</p>
-</div>
+<details class="dp"><summary>The recorded bytes of the current step</summary><div class="b" id="rp-msg"></div></details>
+</div></div>
 <div class="tw"><table id="rd-rep"></table></div>
-<details class="dp"><summary>The four setups in words</summary><div class="b"><p>Old protocol, round robin: <code>initialize</code> creates a session in one replica and the very next request goes to the other, which answers 404 "Session not found"; nothing about the tool matters. Old protocol, affinity: works, at the price of a balancer that understands MCP sessions, uneven load, and lost sessions whenever a replica restarts; the confirmation travels as a server request on the open stream and the answer as a separate POST. New protocol, per-process keys: no session, but the first answer carries sealed <code>requestState</code>; the retry reaches the other replica, which cannot open it. Fails 20 of 20. New protocol, shared key: two independent POSTs, either replica can answer either one, 20 of 20 with no affinity and nothing held in memory between them.</p></div></details>
+
 <div class="pr" data-a="c"><div class="q">Predict before you look at the last two rows: the new protocol keeps no session. Will 20 of 20 calls succeed through plain round robin with the SDK's default settings?</div>
 <div class="opts"><button data-k="a">Yes, stateless means any replica works</button><button data-k="b">No, it needs sticky routing like the old one</button><button data-k="c">No, but for a different reason</button></div>
 <div class="ans" hidden><b>No, for a different reason</b>: 0 of 20. The first round went to replica B, which sealed <code>requestState</code> with a key generated when that process started; the retry went to A, which could not open it: <code>-32602 Invalid or expired requestState</code>. The SDK's documentation says it plainly: "Multi-instance deployments must share a key via keys=[...]". With one key shared by both replicas (<code>RequestStateSecurity(keys=[...])</code>, here from an environment variable), 20 of 20. Stateless protocol does not mean stateless deployment: something must still be shared, but it is a key in your secret store rather than live session memory in one process.</div></div>

@@ -91,7 +91,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_protocols/auth` Auth: API keys, OAuth 2.1, OIDC, JWTs, mTLS and agent-era auth
 - [x] `engineering_foundations/topic_protocols/dns` DNS: resolution, caching and the failure modes
 - [x] `engineering_foundations/topic_protocols/http` HTTP: semantics, 1.1 vs 2 vs 3, proxies and timeouts for LLM APIs
-- [ ] `engineering_foundations/topic_protocols/mcp` MCP: building servers and clients, transports, auth and security
+- [x] `engineering_foundations/topic_protocols/mcp` MCP: building servers and clients, transports, auth and security
 - [ ] `engineering_foundations/topic_protocols/networking_foundations` Networking foundations: IP, TCP, UDP and QUIC
 - [ ] `engineering_foundations/topic_protocols/service_apis` Service APIs: REST, gRPC, GraphQL and load balancing
 - [ ] `engineering_foundations/topic_protocols/ssh` SSH: keys, certificates, jump hosts and tunnels for cluster work
@@ -384,3 +384,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages`: hero small at 390; some sticky code panels taller than the window; Python traceback indentation odd in code panels (interleaved stdout/stderr, predates); page 825 KB.
 - `engineering_foundations/topic_protocols/dns`: Fig. 4 NSEC label partly covers `llm.test.` at 1400; some clamped labels at the phone edge; check_embed.py needs the git-ignored topic_protocols/src/.private_patterns file (absent on this machine). Data-centre code lhr18 removed from the page; it remains in git history.
 - `engineering_foundations/topic_protocols/http`: Fig. 4 (one lost packet) redraws the root On the wire tab measurement: when the protocols root is rebuilt, link the root to http Fig. 4 or drop one (decide then); Fig. 2 client/server blocks look like deep slabs.
+- `engineering_foundations/topic_protocols/mcp`: Fig. 5 (auth) step 4 labels overlap at 1400 (authorization server name, AS fetches client.json, client.json label); auth and replica scenes sparse at 390; core 38 min (about 36 reading one mode per figure).

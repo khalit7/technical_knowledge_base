@@ -23,7 +23,7 @@ for k, v in tr.items():
         continue
     cold = v.get("cold_trace") or []
     if cold and "dir" in cold[0]:
-        msgs = [{"d": c["dir"], "s": cut(c["line"].strip(), 600)} for c in cold]
+        msgs = [{"d": c["dir"], "s": cut(c["line"].strip(), 600), "n": len(c["line"].encode())} for c in cold]   # n: bytes on the pipe, newline included
     else:
         msgs = []
         for c in cold or []:

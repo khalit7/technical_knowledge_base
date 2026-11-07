@@ -1,7 +1,7 @@
-// ---- Reading: static figures drawn on 2026-10-24 (hero roles and loop, envelope before/after, anatomy of a tool,
-// the two transports, token passthrough before/after, the trust map). Drawn at the measured width; nothing moves. ----
+// ---- Reading: static figures drawn on 2026-10-24 (envelope before/after, anatomy of a tool, token passthrough before/after,
+// the trust map; the hero and the two transports became 3D stages on 2026-11-07). Drawn at the measured width; nothing moves. ----
 (function(){
-  if(!document.getElementById('hr-svg'))return;
+  if(!document.getElementById('env-svg'))return;
   const D=window.MCPD,esc=RD.esc,T=RD.t;
   const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx||7)+'" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="4 3"':'')+'/>'};
   const arrow=(x1,y1,x2,y2,col,dash,sw)=>{const a=Math.atan2(y2-y1,x2-x1),L=7;
@@ -13,49 +13,6 @@
   const lines=(x,y,arr,o)=>arr.map((s,i)=>T(x,y+i*(o.lh||14),esc(s),o)).join('');
   const set=(id,f)=>{const el=document.getElementById(id);if(!el)return;const draw=()=>{el.innerHTML=f(RD.width(el))};draw();RD.onRender(draw);RD.onResize(draw)};
   const CH=6.1; // approximate width of one 11 px character
-
-  // ---------- hero: roles and the loop ----------
-  set('hr-svg',W=>{
-    const P=6,nw=W<560,cw=(W-2*P-14)/2,xl=P,xr=P+cw+14,mid=W/2;let b='';
-    let y=4;
-    b+=box(P,y,W-2*P,40);
-    b+=T(P+10,y+17,'Model API',{fs:12,w:600});
-    b+=T(P+10,y+32,esc(nw?'its own tool format; never MCP':'its own tool format (tool list in, tool_use out); it never speaks MCP'),{fs:11,fill:'var(--mute)'});
-    y+=40;
-    const ga=40,ax1=W*0.3,ax2=W*0.7;
-    b+=arrow(ax1,y+2,ax1,y+ga-2,'var(--mute)');b+=badge(ax1-32,y+ga/2,1,'var(--mute)');
-    b+=T(ax1+8,y+ga/2-2,'tool list',{fs:11,fill:'var(--mute)'});b+=T(ax1+8,y+ga/2+11,'and results',{fs:11,fill:'var(--mute)'});b+=badge(ax1-13,y+ga/2,4,'var(--mute)');
-    b+=arrow(ax2,y+ga-2,ax2,y+2,'var(--mute)');b+=badge(ax2-14,y+ga/2,2,'var(--mute)');b+=T(ax2+8,y+ga/2+4,'tool_use',{fs:11,fill:'var(--mute)'});
-    y+=ga;
-    const hh=104;
-    b+=box(P,y,W-2*P,hh,{fill:'var(--bg)',stroke:'var(--ink)',sw:1.2});
-    b+=T(P+10,y+17,esc(nw?'Host (Claude Code, an IDE, your agent)':'Host: Claude Code, an IDE, your own agent'),{fs:12,w:600});
-    b+=badge(P+18,y+36,3);
-    b+=T(P+32,y+40,esc(nw?'policy, consent, tool list':'policy and consent: which tools the model sees, what needs a yes'),{fs:11});
-    const cy=y+54,cbw=Math.min(150,cw-20);
-    [[xl,'Client 1'],[xr,'Client 2']].forEach(([x,n])=>{const bx=x+cw/2-cbw/2;b+=box(bx,cy,cbw,38,{fill:'var(--acc2)',stroke:'var(--acc)'});b+=T(x+cw/2,cy+16,n,{a:'middle',fs:11.5,w:600});b+=T(x+cw/2,cy+31,'one per server',{a:'middle',fs:11,fill:'var(--mute)'})});
-    y+=hh;
-    const gs=46;
-    [[xl,nw?'stdio':'JSON-RPC over stdio'],[xr,nw?'HTTP':'JSON-RPC over Streamable HTTP']].forEach(([x,l])=>{const cx=x+cw/2;
-      b+=arrow(cx-8,y+2,cx-8,y+gs-2,'var(--acc)',false,2);b+=arrow(cx+8,y+gs-2,cx+8,y+2,'var(--acc)',false,2);
-      b+=T(cx+18,y+gs/2+4,esc(l),{fs:11,fill:'var(--acc)',w:600})});
-    y+=gs;
-    const sh=118;
-    const srv=(x,title,sub,last)=>{let s=box(x,y,cw,sh,{stroke:'var(--acc)'});
-      s+=T(x+8,y+16,esc(title),{fs:11.5,w:600});s+=T(x+8,y+31,esc(sub),{fs:11,fill:'var(--mute)'});
-      [['tools','the model decides'],['resources','the app decides'],['prompts','the user decides']].forEach(([k,v],i)=>{s+=T(x+8,y+52+i*16,k,{fs:11,w:600,fill:'var(--acc)'});s+=T(x+8+(nw?62:70),y+52+i*16,esc(nw?v.replace('the ',''):v),{fs:11})});
-      s+=T(x+8,y+sh-10,esc(last),{fs:11,fill:'var(--mute)'});return s};
-    b+=srv(xl,nw?'Local server':'Local server (child process)',nw?'a child process':'e.g. a code editor\'s tools',nw?'user\'s rights, env creds':'runs with the user\'s rights');
-    b+=srv(xr,nw?'Remote: ckpt-tools':'Remote server: ckpt-tools',nw?'a web service':'an ordinary web service, many replicas',nw?'OAuth resource server':'an OAuth resource server');
-    y+=sh;
-    const ah=40,abh=40;
-    b+=arrow(xr+cw/2,y+ah-2,xr+cw/2,y+2,'var(--mute)');b+=T(xr+cw/2+8,y+ah/2+4,esc(nw?'token for it':'token, aud = this server'),{fs:11,fill:'var(--mute)'});
-    b+=T(xl+8,y+ah/2+4,esc(nw?'no auth protocol':'credentials from the environment'),{fs:11,fill:'var(--mute)'});
-    y+=ah;
-    b+=box(xr,y,cw,abh);b+=T(xr+8,y+16,esc(nw?'Authorization server':'Authorization server (OAuth)'),{fs:11.5,w:600});b+=T(xr+8,y+31,esc(nw?'your identity provider':'your identity provider issues tokens'),{fs:11,fill:'var(--mute)'});
-    y+=abh+4;
-    return RD.svg(W,y,b,'MCP roles: the model API, a host with one client per server, a local stdio server, a remote HTTP server and its authorization server');
-  });
 
   // ---------- section 2: the envelope before and after ----------
   set('env-svg',W=>{
@@ -94,34 +51,6 @@
     b+=lines(x2+8,yy+14,wrap('measured: 818 bytes of result body for about 200 bytes of facts',Math.floor((cw-16)/CH)),{fs:11,fill:'var(--good)',w:600});
     const H=Math.max(y+h1,y2+h2)+4;
     return RD.svg(W,H,b,'Anatomy of an MCP tool definition and of a tool result');
-  });
-
-  // ---------- section 4: the two transports ----------
-  set('tp-svg',W=>{
-    const P=4,two=W>=720,pw=two?(W-2*P-16)/2:W-2*P,ph=pw<420?190:168;let b='';
-    const pan=(x,y,title)=>box(x,y,pw,ph,{fill:'var(--bg)'})+T(x+8,y+17,esc(title),{fs:12,w:600});
-    // stdio
-    let x=P,y=4;b+=pan(x,y,'stdio: a child process');
-    const bw=Math.min(110,pw*0.3);
-    b+=box(x+8,y+32,bw,64,{fill:'var(--acc2)',stroke:'var(--acc)'});b+=T(x+8+bw/2,y+60,'Host',{a:'middle',fs:11.5,w:600});b+=T(x+8+bw/2,y+76,'(client)',{a:'middle',fs:11,fill:'var(--mute)'});
-    const sx=x+pw-8-bw;b+=box(sx,y+32,bw,64,{stroke:'var(--acc)'});b+=T(sx+bw/2,y+60,'Server',{a:'middle',fs:11.5,w:600});b+=T(sx+bw/2,y+76,'process',{a:'middle',fs:11,fill:'var(--mute)'});
-    b+=arrow(x+8+bw+2,y+50,sx-2,y+50,'var(--acc)',false,2);b+=T((x+8+bw+sx)/2,y+45,'stdin',{a:'middle',fs:11,fill:'var(--acc)',w:600});
-    b+=arrow(sx-2,y+80,x+8+bw+2,y+80,'var(--acc)',false,2);b+=T((x+8+bw+sx)/2,y+75,'stdout',{a:'middle',fs:11,fill:'var(--acc)',w:600});
-    b+=arrow(sx+bw/2,y+97,sx+bw/2,y+114,'var(--mute)',true);b+=T(sx+bw/2,y+126,'stderr: logs',{a:'middle',fs:11,fill:'var(--mute)'});
-    b+=lines(x+8,y+122,wrap('one JSON-RPC message per line; stdout carries only MCP',Math.floor((sx-x-16)/CH)),{fs:11});
-    b+=T(x+8,y+ph-10,esc(pw<380?'no port, no auth: the user\'s rights':'no port, no auth: the user\'s rights and environment'),{fs:11,fill:'var(--mute)'});
-    // HTTP
-    x=two?P+pw+16:P;y=two?4:4+ph+12;b+=pan(x,y,'Streamable HTTP: one POST per message');
-    const w3=Math.min(96,(pw-40)/3),g=(pw-16-3*w3)/2;
-    const bx=[x+8,x+8+w3+g,x+8+2*(w3+g)];
-    [['Client',''],['Gateway','reads headers'],['Server','/mcp']].forEach(([n,s],k)=>{b+=box(bx[k],y+32,w3,48,k===1?{}:{fill:k===0?'var(--acc2)':'var(--soft)',stroke:'var(--acc)'});b+=T(bx[k]+w3/2,y+52,n,{a:'middle',fs:11.5,w:600});if(s)b+=T(bx[k]+w3/2,y+68,s,{a:'middle',fs:11,fill:'var(--mute)'})});
-    b+=arrow(bx[0]+w3+2,y+46,bx[1]-2,y+46,'var(--acc)',false,2);b+=arrow(bx[1]+w3+2,y+46,bx[2]-2,y+46,'var(--acc)',false,2);
-    b+=arrow(bx[2]-2,y+68,bx[1]+w3+2,y+68,'var(--acc)',true);b+=arrow(bx[1]-2,y+68,bx[0]+w3+2,y+68,'var(--acc)',true);
-    const n=Math.floor((pw-16)/CH);
-    const l1=wrap('POST carries MCP-Protocol-Version, Mcp-Method, Mcp-Name: route and block by tool without parsing JSON',n),l2=wrap('reply: one JSON object, or an SSE stream for this request (progress, then the result)',n);
-    b+=lines(x+8,y+98,l1,{fs:11});b+=lines(x+8,y+98+l1.length*14+6,l2,{fs:11,fill:'var(--mute)'});
-    const H=(two?4+ph:4+2*ph+12)+4;
-    return RD.svg(W,H,b,'The stdio and Streamable HTTP transports');
   });
 
   // ---------- section 7: token passthrough against the server's own upstream token ----------

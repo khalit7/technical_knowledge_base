@@ -1,7 +1,8 @@
 // node <page>/src/check_controls.mjs <page>/index.html [shot dir]
 // From the repo root. Clicks every control of the Reading tab at 390 px dark and 920 px light, steps every stepper to
-// its end, fails on page errors, NaN/undefined/Infinity, sideways scroll or a visible error box; checks that nothing moves
-// before the reader acts (normal motion); optionally screenshots every figure and card.
+// its end, fails on page errors, NaN/undefined/Infinity, sideways scroll or a visible error box; optionally screenshots every figure and card.
+// Since 2026-11-07 the steppers are 3D stages that play by themselves once in view (the 2026-11-06 rule); check_stages.mjs checks that they
+// do, that they stop off screen and that nothing moves under reduced motion (the never-autoplay check that stood here was inverted there).
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const page = path.resolve(process.argv[2]); const shots = process.argv[3];
@@ -15,20 +16,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.goto('file://' + page);
   await p.evaluate(() => { try { localStorage.clear() } catch (e) {} });
   await p.reload();
-  // nothing plays before the reader acts: scroll every card into view, wait, check every scrubber is still at 0
-  const moved = await p.evaluate(async () => {
-    for (const c of document.querySelectorAll('#t-read .card')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 400)); }
-    await new Promise(r => setTimeout(r, 2500));
-    return [...document.querySelectorAll('#t-read .an-ctl input[type=range]')].filter(s => +s.value !== 0).map(s => s.id);
-  });
-  if (moved.length) errs.push('autoplay: ' + moved.join(', '));
   await p.evaluate(async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     document.querySelectorAll('#t-read details').forEach(d => d.open = true);
     for (const s of document.querySelectorAll('#t-read select')) for (let i = 0; i < s.options.length; i++) { s.selectedIndex = i; s.dispatchEvent(new Event('change')); }
-    for (const seg of document.querySelectorAll('#t-read .seg')) for (const btn of seg.querySelectorAll('button')) {
+    for (const seg of document.querySelectorAll('#t-read .seg, #t-read .s3chips')) for (const btn of seg.querySelectorAll('button')) {
       btn.click(); await sleep(20);
-      const ctl = seg.parentElement.querySelector('.an-ctl'); const f = ctl && ctl.querySelector('button[aria-label="Next step"]');
+      const sp = seg.closest('.s3sp'), ctl = (sp || seg.parentElement).querySelector('.an-ctl'); const f = ctl && ctl.querySelector('button[aria-label="Next step"]');
       const r = ctl && ctl.querySelector('input[type=range]');
       if (f) for (let i = 0; i <= +r.max; i++) f.click();
     }
@@ -43,7 +37,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth)) errs.push('sideways scroll');
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   if (shots) {
-    const els = await p.$$('#t-read .hero, #t-read .fig, #t-read .card');
+    const els = await p.$$('#t-read .fig, #t-read .card, #t-read .stg');
     let i = 0; for (const el of els) { await el.scrollIntoView(); await el.screenshot({ path: path.join(shots, `${scheme}-${width}-${String(i++).padStart(2, '0')}.png`) }); }
   }
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
