@@ -1,4 +1,4 @@
-// Clicks every control on every tab at 390 dark and 920 light; reports errors, NaN/undefined text, sideways scroll;
+// Clicks every control on every tab at 390 dark and 920 light (the 3D stages and autoplay are checked by check_stages.mjs); reports errors, NaN/undefined text, sideways scroll;
 // screenshots each visual; and checks the Alert lab's JavaScript against src/recompute_out.json.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/observability/src/check_ui.mjs [shots dir]
 import { createRequire } from 'node:module';
@@ -36,10 +36,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const clickAll = async (sel, label, after) => { const n = await p.$$eval(sel, x => x.length); for (let i = 0; i < n; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), sel, i); await sleep(40); await bad(label + ' ' + i); if (after) await after(i) } return n };
   const setRange = async (id, v) => p.evaluate((id, v) => { const e = document.getElementById(id); e.value = v === 'min' ? e.min : v === 'max' ? e.max : v; e.dispatchEvent(new Event('input')) }, id, v);
   // ---- Reading ----
-  await shot('#hd-card', 'hero');
-  // nothing may move before the reader acts: the incident animation must still be on step 0 after a wait
-  await p.evaluate(() => document.getElementById('ix-card').scrollIntoView()); await sleep(2500);
-  if (await p.$eval('#ix-ctl-s', x => x.value) !== '0') { problems++; console.log('ix autoplayed') }
+  await shot('#stg-hero', 'hero');
+  // since 2026-11-07 the incident animation plays by itself once in view (check_stages.mjs checks that, and that nothing moves under reduced motion)
   await shot('#s-logs', 'logs');
   await clickAll('#pc-seg button', 'pc', async i => { if (i === 1) await shot('#pc-card', 'pc-incident') });
   for (const v of ['min', 'max', 900, 990]) { await setRange('hq-p', v); await sleep(30); await bad('hq ' + v) }
@@ -49,13 +47,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await clickAll('#cd-seg button', 'cd');
   await shot('#cd-card', 'cd');
   await clickAll('#tr-typ .r', 'typ wf');
-  await shot('#s-tr .card', 'typ');
+  await shot('#tr-typ', 'typ');
   await clickAll('#tp-view span[data-k]', 'tp');
   for (const v of ['00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01', '00-00000000000000000000000000000000-b7ad6b7169203331-01', 'ff-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01', '00-0AF7651916CD43DD8448EB211C80319C-b7ad6b7169203331-01', 'garbage']) {
     await p.evaluate(v => { const e = document.getElementById('tp-in'); e.value = v; e.dispatchEvent(new Event('input')) }, v); await bad('tp ' + v)
   }
   await shot('#tp-card', 'tp');
-  await shot('#sp-bars', 'samp'); await shot('#ot-card', 'otel'); await shot('#pf-flame', 'flame'); await shot('#pf-bench', 'bench');
+  await shot('#sp-bars', 'samp'); await shot('#stg-otel', 'otel'); await shot('#pf-flame', 'flame'); await shot('#pf-bench', 'bench');
   for (const m of ['a', 'b']) {
     await p.evaluate(m => document.querySelector('#ix-seg button[data-m=' + m + ']').click(), m); await sleep(50);
     const n = await p.$eval('#ix-ctl input[type=range]', x => +x.max + 1);

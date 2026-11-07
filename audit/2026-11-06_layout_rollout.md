@@ -103,7 +103,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
 - [x] `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals` Distributed systems fundamentals: replication, partitioning, consistency, consensus
 - [x] `engineering_foundations/topic_swe_and_system_design/ml_system_design` ML system design: LLM and ML services
-- [ ] `engineering_foundations/topic_swe_and_system_design/observability` Observability: logs, metrics, traces, alerting
+- [x] `engineering_foundations/topic_swe_and_system_design/observability` Observability: logs, metrics, traces, alerting
 - [ ] `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work` Queues, streams and async work: delivery semantics, Kafka, the outbox pattern
 - [ ] `engineering_foundations/topic_swe_and_system_design/reliability_engineering` Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents
 - [ ] `engineering_foundations/topic_swe_and_system_design/system_design_case_studies` System design case studies: worked designs from requirements to bottlenecks
@@ -396,3 +396,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_swe_and_system_design/code_design`: Fig. 1 hero mid step 3 (collapse to 17 lines) is a cluttered pile of slabs at 1400 (end states read well); Fig. 3 step 2 small in its card, one side's import arrows faint; Fig. 4 step 2 labels close at 1400; numbered sub-labels hidden at 390.
 - `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals`: core 49 min (about 46 one mode per figure), near 50; Fig. 2 small in its card at 390; labels close in Fig. 4 step 5 (lease only) and Fig. 3 steps 6 and 7 at 1400; hero side shards cut at the card edges at 1400.
 - `engineering_foundations/topic_swe_and_system_design/ml_system_design`: Fig. 4 labels close at steps 2 and 3 (39.9% shown twice, provider failing near the large tier); Fig. 2 step 4 labels close; Fig. 1 text-heavy lanes busy at 390.
+- `engineering_foundations/topic_swe_and_system_design/observability`: Fig. 1 hero step 4 cuts the traces plate, retrieval and model call at the card edges at 1400; Fig. 3 steps 5 and 6 labels sit on the field with a halo; trace and OTel stages keep the desktop angle at 390 (small band); verify_layout flags the Real telemetry svg outside a split (accepted: reader-driven explorer).

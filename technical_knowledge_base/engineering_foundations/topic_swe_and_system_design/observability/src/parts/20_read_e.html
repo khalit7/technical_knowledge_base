@@ -1,23 +1,42 @@
 
-<section id="s-inc">
-<h2>13. One incident, debugged two ways</h2>
-<p>Same incident, same data, two toolkits: an average-latency graph and a log search, against percentiles from a histogram, exemplars and traces. Every line, number, log entry and span is from the real run; only the engineer's reasoning in the captions is written for the page. Step through one toolkit, then switch.</p>
-<div class="card" id="ix-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="ix-card">
 <div class="seg" id="ix-seg"><button data-m="a" class="on">Averages and logs</button><button data-m="b">Percentiles and traces</button></div>
 <div class="an-ctl" id="ix-ctl"></div>
 <div class="chart" id="ix-chart"></div>
-<div class="an-cap" id="ix-cap"></div>
 <div id="ix-ev"></div>
 <div class="an-cnt" id="ix-cnt"></div>
-</div>
+</div></div></div><div class="s3L">
+<section id="s-inc">
+<h2>13. One incident, debugged two ways</h2>
+<p>Same incident, same data, two toolkits: an average-latency graph and a log search, against percentiles from a histogram, exemplars and traces. Every line, number, log entry and span is from the real run; only the engineer's reasoning in the steps is written for the page. Step through one toolkit, then switch.</p>
+<ol class="sx" id="sx-ix-a">
+<li><b>Normal: one graph, the average.</b> The service dashboard shows average latency: about 323 ms. Your toolkit is this graph and a log search.</li>
+<li><b>The incident: the average rises.</b> Average latency climbs to about 441 ms (+37%). Is every request a bit slower, or are some much slower? The average cannot say.</li>
+<li><b>Open the logs.</b> Fourteen consecutive chat-api lines from the incident (lines over 800 ms highlighted for you; nothing highlights them for the engineer). Every successful request says "request served" with its total duration; nothing says where the time went.</li>
+<li><b>Search for errors.</b> level = ERROR finds 12 lines in the 90-second incident, all "request failed: retrieval timed out". A lead, but errors are 1.7% of requests, while 91 successful requests also took over 800 ms.</li>
+<li><b>The slow successes have no story.</b> Sorting the successful requests by duration finds them, but each is one number. Retrieval? The model? The database? A log line written at the end of a request cannot split its time.</li>
+<li><b>It recovers; the cause stays unknown.</b> The cold replica warms and latency returns. The write-up can only say "retrieval sometimes timed out and things were slower". Next step: add logging, redeploy, and wait for it to happen again.</li>
+</ol>
+<ol class="sx" id="sx-ix-b" hidden>
+<li><b>Normal: p50 and p99 from the histogram.</b> Same service, same moment. p50 about 356 ms, p99 about 621 ms (histogram estimates).</li>
+<li><b>The incident: only the tail moves.</b> p50 barely moves (382 ms); p99 jumps to 1,462 ms. Not everyone is slower: a minority of requests is much slower. That narrows the question to "what do the slow ones have in common?"</li>
+<li><b>Follow an exemplar to a trace.</b> The dot on the p99 line is an exemplar: a real request's trace ID stored with the bucket it landed in. It opens this trace: 1,497 ms in total.</li>
+<li><b>The waterfall points at one span.</b> Of 1,497 ms, the call to retrieval took 912 ms, nearly all of it inside "vector index lookup" (910 ms) on replica r3-cold. The model call took a normal 579 ms.</li>
+<li><b>An error trace from the same minute.</b> chat-api timed out at 1,015 ms and answered 503; retrieval kept working until 1,517 ms on a request nobody was waiting for. Two findings: the same slow replica, and a missing deadline.</li>
+<li><b>Confirm across all requests, then act.</b> Group every retrieval lookup in the incident by its replica attribute: r1 and r2 answered in a median of about 19 ms; all 103 lookups on r3-cold took over 500 ms (median 910 ms). Action: drain r3-cold. Tail sampling kept every one of the 90 slow or failed traces to check against.</li>
+</ol>
 <p>The difference is not effort or talent. With averages and logs, the slow-but-successful requests are invisible: they log "request served" like everyone else, and the average blends them into a mild rise. With a p99 the tail shows as its own line; an exemplar links the line to a request; the trace shows where its time went across a process boundary; grouping spans by an attribute confirms it. Real numbers from the incident phase: replicas r1 and r2 answered in a median of about 18 ms, while every one of the <b id="ix-r3n"></b> lookups on r3-cold took over 500 ms (median <b id="ix-r3m"></b> ms). <span class="small mute">In this demo the slow replica is labelled by construction; in production the attribute would carry the real host or pod name, and the query would be the same.</span></p>
 <p class="small">The error trace also shows a second problem: chat-api gave up after its 1-second timeout and answered 503, but retrieval kept working for another half second on a request nobody was waiting for. Passing the deadline down with the call fixes that; deadline propagation is taught on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
 </section>
+</div></div>
 
 <section id="s-dash">
 <h2>14. Dashboards that help</h2>
-<p>A <dfn id="g-dash">dashboard</dfn> is a saved page of graphs. The SRE book's test: dashboards "should answer basic questions about your service, and normally include some form of the four golden signals", and teams "carefully avoid any situation that requires someone to 'stare at a screen to watch for problems'" ({{SRE book, ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}}): alerts watch, dashboards explain. The first row of chat-api's dashboard, from the real Prometheus queries over the demo run (shaded: the incident):</p>
-<div class="card"><div class="grid" id="db-grid"></div></div>
+<div class="s3sp"><div class="s3L">
+<p>A <dfn id="g-dash">dashboard</dfn> is a saved page of graphs. The SRE book's test: dashboards "should answer basic questions about your service, and normally include some form of the four golden signals", and teams "carefully avoid any situation that requires someone to 'stare at a screen to watch for problems'" ({{SRE book, ch. 6|https://sre.google/sre-book/monitoring-distributed-systems/}}): alerts watch, dashboards explain. The first row of chat-api's dashboard is on the right, from the real Prometheus queries over the demo run (shaded: the incident).</p>
+
 <p>A layout that works, top to bottom: <b>(1)</b> is it healthy for users: RED for the service, with the SLO drawn as a line; <b>(2)</b> its dependencies, the same three graphs per dependency as the client sees them (the bottom-right panel found the incident); <b>(3)</b> its resources, USE for CPU, memory, connection pools, GPUs; <b>(4)</b> deploy and config-change markers on every graph, since "roughly 70% of outages are due to changes in a live system" ({{SRE book, ch. 1|https://sre.google/sre-book/introduction/}}). Show p50 and p99 together, never only the mean; keep one dashboard per service in the same layout; and prune: "Signals that are collected, but not exposed in any prebaked dashboard nor used by any alert, are candidates for removal."</p>
 <p class="small">The error-ratio panel starts only at the first failure: the 503 series did not exist until a 503 happened (client libraries create a labelled series on first use), so before that the query returns nothing rather than 0, and dashboards and alerts read "nothing" as "no data", not "fine". Pre-create the label values you expect (in the Python client, calling <code>.labels(route, "503")</code> once at start-up creates the series at 0) or write the query to treat a missing series as zero. Likewise a <code>rate()</code> window needs at least two samples, so a window as short as the scrape interval returns nothing: use windows several times the scrape interval.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="grid" id="db-grid"></div></div></div></div></div>
 </section>

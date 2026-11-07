@@ -1,4 +1,5 @@
-// ---- Reading: one incident, debugged two ways (before/after animation on the real run) ----
+// ---- Reading: one incident, debugged two ways (before/after animation on the real run). Since 2026-11-07 each step is explained in the
+// step lists on the left (sx-ix-a, sx-ix-b, written from these captions); window.OBS_IX keeps the captions so check_stages.mjs can compare. ----
 (function(){
   const D=window.DEMO,esc=RD.esc,$=id=>document.getElementById(id);
   const fmt=(v,d)=>v.toLocaleString('en-US',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});
@@ -32,14 +33,14 @@
   function draw(i){
     const S=(mode==='a'?A:B)[i];
     LC($('ix-chart'),{series:ser(mode),x0:0,x1:225,y1:1.6,band:[90,180],cursor:S.c,h:170,yfmt:v=>v.toFixed(1)+' s',marks:S.mark?[[slow.t,slow.dur/1000]]:null,label:'Latency over the demo run'});
-    $('ix-cap').innerHTML='<div class="t">'+(i+1)+'. '+S.t+'</div><p>'+S.p+'</p>';
     $('ix-ev').innerHTML=S.ev();
     if(S.wf){const t=S.wf[0];WF.render($('ix-wf'),t,{hl:S.wf[1],onSel:j=>{const kv=$('ix-kv');if(kv)kv.textContent=WF.detail(t,j)}});
       const kv=$('ix-kv');if(kv){const j=t.sp.findIndex(s=>s[0]===S.wf[1]);kv.textContent=WF.detail(t,j)}}
     $('ix-cnt').innerHTML=RD.stat('Best guess at the cause',S.k[0])+RD.stat('Signals in use',S.k[1])+RD.stat('Slow requests explained',S.k[2],'successful requests over 800 ms');
   }
-  const an=RD.anim({card:'ix-card',ctl:'ix-ctl',n:6,draw,ms:4200,label:'Incident step'});
-  RD.seg($('ix-seg'),m=>{mode=m;an.reset(6)});
+  window.OBS_IX={a:A.map(s=>s.t+'. '+s.p),b:B.map(s=>s.t+'. '+s.p)};
+  const an=RD.anim({card:'ix-card',ctl:'ix-ctl',n:6,draw,ms:5200,label:'Incident step',list:'sx-ix-a'});
+  RD.seg($('ix-seg'),m=>{mode=m;['a','b'].forEach(x=>$('sx-ix-'+x).hidden=x!==m);an.reset(6,'sx-ix-'+m)});
   $('ix-r3n').textContent=r3.n;$('ix-r3m').textContent=fmt(r3.median_ms);
   RD.onResize(()=>an.redraw());
 })();

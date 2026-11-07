@@ -1,18 +1,8 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
 #t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
-#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
-#t-read .hero h4{margin:0 0 4px;font-size:14.5px}
-#t-read .hero .req{font-size:13px;background:var(--soft);border-radius:6px;padding:6px 10px;margin:4px 0 8px;overflow-wrap:anywhere}
-#t-read .hcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px}
-#t-read .hcol{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
-#t-read .hcol .nm{font-weight:700;font-size:14px}
-#t-read .hcol .q{font-size:13px;margin:2px 0 4px}
-#t-read .hcol .c{font-size:12px;color:var(--mute);margin-top:4px}
-#t-read .hcol .hpic{min-height:84px;margin:4px 0}
-#t-read .hcol .hlog{font:11.5px/1.45 ui-monospace,Menlo,monospace;background:var(--soft);border-radius:6px;padding:6px 8px;overflow-wrap:anywhere}
 #t-read .tid{background:var(--hl);border-radius:3px;padding:0 2px}
-#t-read .hjoin{font-size:13px;margin:8px 0 2px;border-left:3px solid var(--bad);padding:2px 0 2px 10px}
+#t-read code.tlog{font-size:12px}
 #t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
 #t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
 @media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
@@ -32,27 +22,21 @@
 </style>
 <p class="small mute">This page owns observability in general. LLM-specific signals (time to first token, tokens per second, KV cache, cost per request) are on the sibling {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (section 7); traces of model calls and agent runs and the OpenTelemetry GenAI conventions on {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}; GPU counters, DCGM, goodput and GPU-hour accounting on {{Observability and cost|n:3c65c17b0d0d818ebf79d1af4532f3ee}}; SLO definitions, error budgets as policy and incident response on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
+<section id="s-idea">
 <p class="core"><b>The idea in one sentence.</b> Count every request into a histogram (metrics), follow a sample of requests across services (traces), write one structured line per event (logs), tie the three together with one trace ID, and page a human only when users' error budget is burning fast.</p>
-
-<div class="hero" id="hd-card">
-<h4>One slow request, recorded three ways, joined by one ID</h4>
-<div class="req">A real request from the demo's incident: <code>POST /v1/chat</code>, trace ID <code><span class="tid">abb78623</span>4a7345e9a0ff1bb9fd531735</code>, <b>1,497 ms</b> where a normal one takes about 320 ms, status 200 (so no error counter saw it).</div>
-<div class="hcols">
-<div class="hcol"><div class="nm" style="color:var(--c1)">Metrics: how many, how slow, across all requests</div>
-<div class="hpic" id="hd-met"></div>
-<div class="q">It is one count in the 1.0 to 1.5 s bucket of the latency histogram (about 63 of that minute's 481 requests). Cheap enough to record every request; the ringed dot is an <b>exemplar</b>, its trace ID kept with the bucket.</div>
-<div class="c">Cost: per time series (name &times; label values).</div></div>
-<div class="hcol"><div class="nm" style="color:var(--c3)">Traces: where this request's time went</div>
-<div class="hpic" id="hd-tr"></div>
-<div class="q">912 ms of it was the call to retrieval, almost all inside "vector index lookup" on replica r3-cold, in another process; the model call took a normal 579 ms.</div>
-<div class="c">Cost: per span; usually sampled.</div></div>
-<div class="hcol"><div class="nm" style="color:var(--c4)">Logs: what exactly happened</div>
-<div class="hpic"><div class="hlog">{"ts":"19:37:32.140Z",<br>"level":"INFO",<br>"service":"chat-api",<br>"msg":"request served",<br>"trace_id":"<span class="tid">abb78623</span>...",<br>"status":200,<br>"duration_ms":1496.7}</div></div>
-<div class="q">One JSON line per event, with named fields; it says the request was slow but not why.</div>
-<div class="c">Cost: per gigabyte stored and per line indexed.</div></div>
-</div>
-<div class="hjoin"><b>The join:</b> the same trace ID sits in the exemplar, in every span and in every log line, so a spike on a graph leads to a trace, and a trace to its logs. <b>The alert</b> sits on the metrics: the share of failing requests divided by the error budget (the <b>burn rate</b>) pages a human when it is high enough to matter (section 15).</div>
-</div>
+<p>Fig. 1 follows <b>one slow request, recorded three ways, joined by one ID</b>: a real request from the demo's incident, <code>POST /v1/chat</code>, trace ID <code><span class="tid">abb78623</span>4a7345e9a0ff1bb9fd531735</code>, <b>1,497 ms</b> where a normal one takes about 320 ms, status 200 (so no error counter saw it). Every timing, count and line in the figure is from that request; the layout is a schematic.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The request arrives.</b> The load generator sends <code>POST /v1/chat</code> to chat-api, which checks auth (3 ms) and loads the conversation from SQLite (0.5 ms). The clock above chat-api replays the trace's own timings.</li>
+<li><b>A call into another process.</b> chat-api calls retrieval, writing the trace ID into a <code>traceparent</code> header (the large dot); retrieval sent the lookup to replica r3-cold, the cold one, where it took 910 ms.</li>
+<li><b>The model, then the answer.</b> The model call took a normal 579 ms (<span class="ill">simulated: a sleep</span>); the reply left after 1,497 ms, with status 200.</li>
+<li><b>Metrics: how many, how slow, across all requests.</b> It is one count in the 1.0 to 1.5 s bucket of the latency histogram (about 63 of that minute's 481 requests; the bars are that minute's real buckets). Cheap enough to record every request; the ringed dot is an <b>exemplar</b>, its trace ID kept with the bucket. Cost: per time series (name &times; label values).</li>
+<li><b>Traces: where this request's time went.</b> Eight spans from two processes on one time axis. 912 ms of it was the call to retrieval, almost all inside "vector index lookup" on replica r3-cold, in another process; the model call took a normal 579 ms. Cost: per span; usually sampled.</li>
+<li><b>Logs: what exactly happened.</b> One JSON line per event, with named fields, from each service: <code class="tlog">{"ts":"19:37:32.140Z", "level":"INFO", "service":"chat-api", "msg":"request served", "trace_id":"<span class="tid">abb78623</span>...", "status":200, "duration_ms":1496.7}</code>. It says the request was slow but not why. Cost: per gigabyte stored and per line indexed.</li>
+<li><b>The join, and the alert.</b> The same trace ID sits in the exemplar, in every span and in every log line, so a spike on a graph leads to a trace, and a trace to its logs. <b>The alert</b> sits on the metrics: the share of failing requests divided by the error budget (the <b>burn rate</b>) pages a human when it is high enough to matter (section 15).</li>
+</ol>
+</section>
+</div></div>
 
 <p><b>You need</b>: nothing beyond running an HTTP service. The parent root's Step 4 is the two-paragraph version of this page.</p>
 <dl class="terms">

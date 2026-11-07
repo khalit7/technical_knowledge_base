@@ -1,27 +1,36 @@
 
 <section id="s-logs">
 <h2>2. Logs: what happened, one event at a time</h2>
-<p>A <dfn id="g-log">log</dfn> is a timestamped record of one event. A line of text such as <code>2026-10-04 19:36:42 request failed for user7 after 1014ms</code> reads well, but a machine has to guess where the user name ends, and at 10 million messages a day (the parent root's estimate) nobody reads lines; you query them. So write <dfn id="g-slog">structured logs</dfn>: one JSON object per line, with named fields. A real line from the demo, written by the incident's first failed request:</p>
-<div class="logbox" id="lg-one"></div>
+<div class="s3sp"><div class="s3L">
+<p>A <dfn id="g-log">log</dfn> is a timestamped record of one event. A line of text such as <code>2026-10-04 19:36:42 request failed for user7 after 1014ms</code> reads well, but a machine has to guess where the user name ends, and at 10 million messages a day (the parent root's estimate) nobody reads lines; you query them. So write <dfn id="g-slog">structured logs</dfn>: one JSON object per line, with named fields. A real line from the demo, written by the incident's first failed request, is on the right.</p>
+
 <p>Now <code>level="ERROR" and route="/v1/chat"</code> is a filter and the average <code>duration_ms</code> by <code>status</code> is a query. Three fields do most of the work:</p>
 <ul>
 <li><b>level</b>: Python's standard levels, in order, are DEBUG, INFO, WARNING, ERROR, CRITICAL ({{Python logging docs|https://docs.python.org/3/library/logging.html#logging-levels}}); production usually runs at INFO. A DEBUG call that is switched off costs almost nothing: we measured 0.14 microseconds, against 17 for a JSON line actually written.</li>
 <li><b>request_id</b>: a random ID given at the edge and returned to the client in an <code>X-Request-Id</code> header (a common convention, not a standard), so a support ticket can be matched to your logs.</li>
 <li><b>trace_id and span_id</b>: the <a href="#s-tr">trace</a> this event belongs to, the field that ties the three signals together. Our <code>JsonFormatter</code> reads them from the current OpenTelemetry span, so no handler code passes them around.</li>
 </ul>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="logbox" id="lg-one"></div></div></div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3>What never to log</h3>
 <p>Logs are copied to agents, storage, backups and laptops, and read by many people, so a secret in a log is a leaked secret. OWASP lists what "should usually not be recorded directly in the logs, but instead should be removed, masked, sanitized, hashed, or encrypted": session identifiers, access tokens, passwords, database connection strings, encryption keys, payment card data and sensitive personal data ({{OWASP Logging Cheat Sheet|https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html}}). For the chat product: never log prompts or replies by default (customer data; retention is on {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} section 7), API keys or bearer tokens. The demo deliberately passes an email and an <code>Authorization</code> header to the logger, and a redaction filter in the formatter masks them:</p>
-<div class="two">
+
+<p class="small">Treat the filter as a seatbelt, not the plan: a filter only catches the patterns it knows, so the plan is not to pass secrets to the logger at all.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="two">
 <div><h4>What the handler passed in</h4><div class="kvs" id="lg-in"></div></div>
 <div><h4>What reached the log file</h4><div class="kvs" id="lg-out"></div></div>
-</div>
-<p class="small">Treat the filter as a seatbelt, not the plan: a filter only catches the patterns it knows, so the plan is not to pass secrets to the logger at all.</p>
+</div></div></div></div></div>
 <h3>Where logs go, and what they cost</h3>
 <p>The program writes JSON lines to standard output; an <b>agent</b> on each machine (Fluent Bit, Vector or the OpenTelemetry Collector) adds the host and pod and ships them to a store. A <b>full-text index</b> (Elasticsearch, OpenSearch, Datadog's indexed logs) makes any word searchable in milliseconds and charges for the index; <b>labels only</b> (Grafana Loki: "Loki does not index the contents of the logs, but only indexes metadata about your logs as a set of labels for each log stream", {{Loki overview|https://grafana.com/docs/loki/latest/get-started/overview/}}) scans compressed lines at query time: cheaper to keep, slower to search widely.</p>
 <div class="cost"><div class="t">The count of lines, not their size, drives the bill</div>
 <p class="small">Measured: chat-api's lines average <b id="lc-a"></b> bytes, retrieval's <b id="lc-r"></b>; one message makes one line in each. At 10 million messages a day that is <b id="lc-gb"></b> GB a day, <b id="lc-gbm"></b> GB per 30 days. At Datadog's list prices on 2026-10-04 ($0.10 per ingested GB and $1.70 per million log events indexed with 15-day retention, annual billing, {{Datadog pricing|https://www.datadoghq.com/pricing/}}), ingesting costs about <b id="lc-ing"></b> a month but indexing <b id="lc-idx"></b> lines costs about <b id="lc-idxc"></b>. DEBUG at 20 lines per request <span class="ill">(illustrative)</span> makes the indexing line ten times larger. The usual answers: index only WARNING and above, keep INFO in cheap archive storage, sample repetitive success lines, and count with metrics, not logs.</p></div>
+<div class="s3sp"><div class="s3L">
 <h3>The incident, as seen in logs alone</h3>
-<p>14 consecutive chat-api lines from the real incident, around the first failure (time, level, service, message, status, duration, start of the trace ID):</p>
-<div class="logbox" id="lg-stream"></div>
+<p>14 consecutive chat-api lines from the real incident, around the first failure, are on the right (time, level, service, message, status, duration, start of the trace ID).</p>
+
 <p class="small">The error line is obvious. What the stream does not show is that one request in seven is about 900 ms slower than normal, because those succeed and log "request served" like every other. Logs answer "what happened to this request"; they are bad at "what is happening to all requests". That is the job of metrics.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="logbox" id="lg-stream"></div></div></div></div></div>
 </section>
