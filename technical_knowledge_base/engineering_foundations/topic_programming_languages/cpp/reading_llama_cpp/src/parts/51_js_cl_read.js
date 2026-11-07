@@ -64,21 +64,25 @@
       while(next<16){let i=0;for(let k=1;k<nth;k++)if(t[k]<t[i])i=k;const d=1/speed[i];ev.push({th:i,ch:next,s:t[i],e:t[i]+d,w:1});t[i]+=d;next++}}
     const end=Math.max(...ev.map(e=>e.e));return {ev,end}}
   let chkMode='dyn',chkAnim=null,chkSim=simulate('dyn');
-  function stepsFor(sim){const ts=[...new Set([0].concat(sim.ev.map(e=>e.s),sim.ev.map(e=>e.e)))].sort((a,b)=>a-b);return ts}
+  // one step per moment a chunk finishes (5 with the counter, 2 with fixed shares), each explained by an item of sx-chk-dyn or sx-chk-static
+  function stepsFor(sim){return [...new Set(sim.ev.map(e=>e.e))].sort((a,b)=>a-b)}
   function drawChk(i){const el=document.getElementById('cl-chk-svg');if(!el)return;const W=X.width(el),sim=chkSim,ts=stepsFor(sim),now=ts[Math.min(i,ts.length-1)];
     const L=98,R=10,top=8,rowH=30,maxT=8.5,sx=(W-L-R)/maxT;let b='';
     for(let th=0;th<4;th++){const y=top+th*rowH;b+='<text x="0" y="'+(y+18)+'" font-size="11.5" fill="'+X.css('--ink')+'">thread '+th+(th===3?' (slow)':'')+'</text><rect x="'+L+'" y="'+y+'" width="'+(W-L-R)+'" height="'+(rowH-6)+'" fill="'+X.css('--soft')+'"></rect>'}
+    // chunks a thread has just taken at this moment: a dashed outline of the work ahead
+    sim.ev.forEach(e=>{if(Math.abs(e.s-now)>1e-9)return;const y=top+e.th*rowH,x=L+e.s*sx,w=(e.e-e.s)*sx;
+      b+='<rect class="rd-new" x="'+(x+1).toFixed(1)+'" y="'+(y+1)+'" width="'+Math.max(0,w-3).toFixed(1)+'" height="'+(rowH-8)+'" rx="3" fill="none" stroke="'+X.css('--c5')+'" stroke-width="1.4" stroke-dasharray="4 3"></rect>';
+      if(w>16)b+='<text x="'+(x+w/2).toFixed(1)+'" y="'+(y+16)+'" font-size="11" text-anchor="middle" fill="'+X.css('--ink')+'">c'+e.ch+'</text>'});
     sim.ev.forEach(e=>{if(e.s>=now)return;const y=top+e.th*rowH,x=L+e.s*sx,w=(Math.min(e.e,now)-e.s)*sx;const done=e.e<=now;
       b+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+Math.max(0,w-1).toFixed(1)+'" height="'+(rowH-6)+'" rx="3" fill="'+X.css(done?'--c1':'--c5')+'" opacity="'+(done?.85:1)+'"></rect>';
-      if(w>16)b+='<text x="'+(x+w/2).toFixed(1)+'" y="'+(y+16)+'" font-size="10.5" text-anchor="middle" fill="'+X.css('--bg')+'">'+(e.w>1?'rows '+(e.ch*4)+'-'+(e.ch*4+3)+' of 16':'c'+e.ch)+'</text>'});
+      if(w>16)b+='<text x="'+(x+w/2).toFixed(1)+'" y="'+(y+16)+'" font-size="11" text-anchor="middle" fill="'+X.css('--bg')+'">'+(e.w>1?'chunks '+(e.ch*4)+' to '+(e.ch*4+3):'c'+e.ch)+'</text>'});
     const nx=L+now*sx;b+='<line x1="'+nx+'" x2="'+nx+'" y1="'+(top-4)+'" y2="'+(top+4*rowH)+'" stroke="'+X.css('--bad')+'" stroke-width="1.5"></line>';
-    const bar=L+sim.end*sx;b+='<line x1="'+bar+'" x2="'+bar+'" y1="'+(top-4)+'" y2="'+(top+4*rowH)+'" stroke="'+X.css('--mute')+'" stroke-dasharray="3 3"></line><text x="'+(bar+170>W?bar-3:bar+3)+'" y="'+(top+4*rowH+12)+'" font-size="10.5" text-anchor="'+(bar+170>W?'end':'start')+'" fill="'+X.css('--mute')+'">barrier: all done at t = '+sim.end.toFixed(1)+'</text>';
+    const bar=L+sim.end*sx;b+='<line x1="'+bar+'" x2="'+bar+'" y1="'+(top-4)+'" y2="'+(top+4*rowH)+'" stroke="'+X.css('--mute')+'" stroke-dasharray="3 3"></line><text x="'+(bar+170>W?bar-3:bar+3)+'" y="'+(top+4*rowH+12)+'" font-size="11" text-anchor="'+(bar+170>W?'end':'start')+'" fill="'+X.css('--mute')+'">barrier: all done at t = '+sim.end.toFixed(1)+'</text>';
     el.setAttribute('viewBox','0 0 '+W+' '+(top+4*rowH+18));el.setAttribute('height',top+4*rowH+18);el.innerHTML=b;
-    const taken=sim.ev.filter(e=>e.s<now).length,counter=chkMode==='dyn'?Math.min(16,Math.max(4,taken)):null;
-    document.getElementById('cl-chk-cap').innerHTML='t = '+now.toFixed(1)+' (time unit: one chunk on a fast thread). '+(chkMode==='dyn'?'Atomic counter <code>current_chunk</code> = '+counter+'. Each thread starts with chunk <code>ith</code>; when it finishes it calls <code>atomic_fetch_add(&amp;current_chunk, 1)</code> and takes the number it gets. The slow thread ends up doing fewer chunks, and everyone finishes at t = '+sim.end.toFixed(1)+'.':'Each thread owns a quarter of the rows. The fast threads finish at t = 4 and wait at the barrier; the slow thread\'s quarter takes until t = 8. The whole product takes as long as its slowest share.')}
+  }
   function initChk(){const ctl=document.getElementById('cl-chk-ctl');if(!ctl||!window.RD)return;
-    chkAnim=RD.anim({card:'cl-chk',ctl:'cl-chk-ctl',n:stepsFor(chkSim).length,ms:700,draw:drawChk,label:'Time step'});
-    RD.seg(document.getElementById('cl-chk-m'),m=>{chkMode=m;chkSim=simulate(m);chkAnim.reset(stepsFor(chkSim).length);chkAnim.play()})}
+    chkAnim=RD.anim({card:'cl-chk',ctl:'cl-chk-ctl',n:stepsFor(chkSim).length,ms:4200,draw:drawChk,label:'Time step',list:'sx-chk-dyn'});
+    RD.seg(document.getElementById('cl-chk-m'),m=>{chkMode=m;chkSim=simulate(m);['dyn','static'].forEach(x=>{const l=document.getElementById('sx-chk-'+x);if(l)l.hidden=x!==m});chkAnim.reset(stepsFor(chkSim).length,'sx-chk-'+m)})}
 
   // 6. threads and speed
   let thrMode='tg';

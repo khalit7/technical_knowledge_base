@@ -70,11 +70,21 @@
 @media (max-width:520px){#t-read pre{font-size:11px}#cl-s0 thead{display:none}#cl-s0 tr{display:block;border-bottom:1px solid var(--line);padding:6px 0}#cl-s0 td{display:block;border:0;padding:1px 4px}#cl-s0 td:first-child{font-weight:600}#cl-s0 code{overflow-wrap:anywhere}}
 </style>
 
-<section id="cl-top">
 <div class="core"><b class="k">The idea in one sentence</b>One generated token is <span class="hot">a ggml graph</span>: libllama builds it once from the model file, ggml plans its memory once, and a pool of threads walks it node by node, spending its arithmetic in one SIMD kernel that reads weights repacked at load time, a kernel most guides never mention.</div>
-<div class="fig" id="cl-hero-fig"><h4>One token goes down through libllama and ggml to a single SIMD kernel, then back up to the sampler</h4>
-<div id="rlc-hero" role="img" aria-label="The path of one generated token through llama.cpp, from the example program down to the SIMD kernel and back up to the sampler"></div>
-<p class="cap">One decoded token on the CPU (SmolLM2-135M in Q8_0, 4 threads, Apple M1 Pro): each layer, the file that does the work, and what was counted there <span class="meas">measured</span>. The sections below open each box; section 13 walks the same path stop by stop.</p></div>
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#cl-s0">In one screen</a><a href="#cl-s1">1 Map</a><a href="#cl-s2">2 Build</a><a href="#cl-s3">3 API</a><a href="#cl-s4">4 GGUF</a><a href="#cl-s5">5 Loading</a><a href="#cl-s6">6 Tensors</a><a href="#cl-s7">7 Graph</a><a href="#cl-s8">8 Compute</a><a href="#cl-s9">9 Threads</a><a href="#cl-s10">10 Kernels</a><a href="#cl-s11">11 KV and sampling</a><a href="#cl-s12">12 Server</a><a href="#cl-s13">13 One token</a></nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
+<section id="cl-top">
+<h2>One token through the layers</h2>
+<ol class="sx" id="sx-hero">
+<li><b>Your program.</b> <code>examples/simple/simple.cpp</code> puts the token in a batch at the next position (5, after a 5-token prompt) and calls <code>llama_process</code>: <span class="cl-num" data-clv="v.tg_ms_tok" data-d="2"></span> ms per token, everything below included.</li>
+<li><b>libllama.</b> <code>src/llama-context.cpp</code> finds a KV cell; the graph has the same shapes as last time, so only its inputs are written. Its <span data-clv="v.nodes"></span> nodes were built for the prompt and the first token, then reused <span data-clv="v.graphs_reused" data-d="0"></span> times.</li>
+<li><b>ggml: graph, memory, scheduler.</b> In <code>ggml-alloc.c</code> and <code>ggml-backend.cpp</code>, one planned buffer of <span data-clv="v.compute_mib" data-d="1"></span> MiB holds every intermediate, and the whole graph is one split on the CPU backend.</li>
+<li><b>The thread pool.</b> In <code>ggml-cpu/ggml-cpu.c</code>, 4 threads walk every node and meet at a barrier after each of the <span data-clv="v.real_ops"></span> real operations; the rest are free views.</li>
+<li><b>Matrix products.</b> In <code>ggml-cpu/repack.cpp</code>, each product quantises its input row to Q8_0 and cuts the weight rows into 16 chunks, taken from an atomic counter: <span data-clv="v.n_mulmat"></span> products &times; 16 chunks = <span data-clv="v.gemv_tok"></span> kernel calls.</li>
+<li><b>The kernel that runs.</b> <code>ggml_gemv_q8_0_4x4_q8_0</code> in <code>arch/arm/repack.cpp</code>: SDOT instructions over four interleaved rows of weights repacked at load. Every weight is read once, about 143 MB per token.</li>
+<li><b>Back up to the sampler.</b> 49,152 logits are copied out of the graph, and the greedy sampler in <code>src/llama-sampler.cpp</code> takes the largest: the first one sampled here was " Paris".</li>
+</ol>
+<p class="small mute">SmolLM2-135M in Q8_0, 4 threads, Apple M1 Pro; every number on the figure and in the steps <span class="meas">measured</span> (the objects on each layer are schematic). The sections below open each layer; section 13 walks the same path file by file.</p>
 <p class="small"><b>You need</b>: the build and libraries ({{C++: the essentials|n:3cd5c17b0d0d81ceadcee44fe9c023a0}}); <code>unique_ptr</code> and RAII ({{C++: ownership, moves and object lifetimes|n:4055c17b0d0d81819d74fa010e68ac2a}}); templates, virtual functions, lambdas ({{C++: classes, templates and the standard library|n:4055c17b0d0d818a9509f6035089a7e1}}); cache lines, SIMD, atomics ({{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}). What the code computes (attention, the KV cache, batching, quantisation error) is taught by {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}} and {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}; this page reads how it is built.</p>
 <div class="terms">
 <div><dfn>ggml</dfn>: llama.cpp's tensor library: tensors, the compute graph, the file format and the backends.</div>
@@ -89,8 +99,8 @@
 <div><dfn>Slot</dfn>: one request in progress inside <code>llama-server</code>.</div>
 </div>
 <p class="small mute">Source pinned at commit <span class="cl-mono" data-clv="v.commit7"></span>, every excerpt linked to its lines; model SmolLM2-135M-Instruct in Q8_0; every log, count and timing real, from a busy Apple M1 Pro (<a href="#cl-notes">How this was run</a>).</p>
-<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#cl-s0">In one screen</a><a href="#cl-s1">1 Map</a><a href="#cl-s2">2 Build</a><a href="#cl-s3">3 API</a><a href="#cl-s4">4 GGUF</a><a href="#cl-s5">5 Loading</a><a href="#cl-s6">6 Tensors</a><a href="#cl-s7">7 Graph</a><a href="#cl-s8">8 Compute</a><a href="#cl-s9">9 Threads</a><a href="#cl-s10">10 Kernels</a><a href="#cl-s11">11 KV and sampling</a><a href="#cl-s12">12 Server</a><a href="#cl-s13">13 One token</a></nav>
 </section>
+</div></div>
 
 <section id="cl-s0">
 <h2>In one screen</h2>

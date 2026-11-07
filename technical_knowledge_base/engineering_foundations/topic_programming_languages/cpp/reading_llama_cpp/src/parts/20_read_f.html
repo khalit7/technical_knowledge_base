@@ -1,7 +1,15 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-kv"></div></div><div class="s3L">
 <section id="cl-s11">
 <h2>11. KV cache, batches and sampling</h2>
 <p>What the KV cache is and why it exists is taught by {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} (and how it grows with context by {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}); here is how llama.cpp writes it. It is a C++ class with virtual functions behind an abstract interface, <code>llama_memory_i</code> (a plain cache, a sliding-window one, one for recurrent models), storing one K and one V tensor per layer. Writing this token's K is a <code>SET_ROWS</code> node into the cells chosen for this batch; reading K for attention is a 4-dimensional <b>view</b> of the same tensor (section 6), <code>{64, 3, 256}</code> in our trace: 64 numbers per head, 3 KV heads, 256 cells.</p>
+<ol class="sx" id="sx-kv">
+<li><b>Allocated once, for every layer.</b> At context creation the cache gets one K and one V tensor per layer, 30 of each, every one 192 numbers (3 KV heads of 64) for each of 256 cells, in F16. Nothing is written yet.</li>
+<li><b>The prompt fills 5 cells.</b> The 5 prompt tokens are computed together; in every layer two <code>SET_ROWS</code> nodes write their K and V into 5 cells.</li>
+<li><b>Each new token, one more cell.</b> The decoded token's K and V go into one more cell of each of the 60 tensors; nothing already in the cache moves.</li>
+<li><b>Attention reads through a view.</b> For layer 0, <code>get_k</code> returns a 4-dimensional view <code>{64, 3, 256}</code> of the same bytes: 3 heads of 64 numbers per cell. <code>FLASH_ATTN_EXT</code> reads K and V through such views, with no copy.</li>
+<li><b>Sized for 256 cells.</b> <code>simple.cpp</code> asked for 12; the context rounds up to 256, so the cache is 2 &times; 30 &times; 256 &times; 192 &times; 2 bytes whatever the run uses: mostly empty here.</li>
+</ol>
 <div class="cl-ex" data-ex="kv_get_k"></div>
 <details class="dp"><summary>The class declaration and the <code>SET_ROWS</code> write, in the source</summary><div>
 <div class="cl-ex" data-ex="kv_class"></div>
@@ -18,6 +26,7 @@
 </div></details>
 <p>So one codebase writes interfaces two ways: the KV cache as a C++ class with <code>virtual</code> functions, samplers and backends as C structs of function pointers, because they are part of the C API other languages call (section 7's small program does both side by side).</p>
 </section>
+</div></div>
 
 <section id="cl-s12">
 <h2>12. The server</h2>
@@ -33,24 +42,42 @@
 <div class="cl-py"><div class="t">From Python</div>This is the role vLLM or Text Generation Inference play in Python land: a scheduler that batches requests around one model. llama-server is the C++ version for a single machine, often a laptop.</div>
 </section>
 
-<section id="cl-s13">
-<h2>13. One token, end to end, timed</h2>
-<p>Put together, the path of one generated token on the CPU, file by file. Switch between the prompt (the first call, which builds everything) and the next token (which reuses the graph): the same path, with four stops skipped. <i>Before stepping, predict which stops the next token can skip.</i></p>
-<div class="seg" id="tr-mode"><button data-m="prompt" class="on">Prompt: 5 tokens, first call</button><button data-m="next">Next token: 1 token, graph reused</button></div>
-<div class="card" id="tr-card">
+<div class="s3sp"><div class="s3R"><div class="card" id="tr-card">
 <h4 style="margin:0 0 4px;font-size:14.5px">The next token skips building, scheduling and planning: only its inputs change</h4>
+<div class="seg" id="tr-mode"><button data-m="prompt" class="on">Prompt: 5 tokens, first call</button><button data-m="next">Next token: 1 token, graph reused</button></div>
 <svg id="tr-svg" class="cl-chart" role="img" aria-label="The files of llama.cpp and the token's current position"></svg>
 <div class="an-ctl" id="tr-ctl"></div>
-<div class="an-cap" id="tr-cap"></div>
-<div class="tr-list" id="tr-list" aria-label="Jump to a stop"></div>
-</div>
-<details class="dp"><summary>The code at the current stop</summary><div><div class="tr-stop" id="tr-stop"></div></div></details>
-<p class="small mute">Counts and timings come from the runs on this page (CPU, 4 threads, SmolLM2-135M Q8_0, prompt "The capital of France is"). Stops shown struck through are skipped in the selected mode.</p>
+<p class="small mute" style="margin:4px 0 0">Files the token has passed are shaded, the current ones outlined; files faded are skipped in this mode.</p>
+</div></div><div class="s3L">
+<section id="cl-s13">
+<h2>13. One token, end to end, timed</h2>
+<p>Put together, the path of one generated token on the CPU, file by file. Switch between the prompt (the first call, which builds everything) and the next token (which reuses the graph): the same path, with four stops skipped. <i>Before it plays, predict which stops the next token can skip.</i></p>
+<ol class="sx" id="sx-tr-prompt">
+<li><b>Into the library.</b> <code>simple.cpp</code>: the prompt is tokenized into 5 ids, and <code>batch_set_tokens</code> puts them at positions 0 to 4 and asks for logits only for the last one. <code>llama_process</code>, the C entry point, calls the C++ method <code>llama_context::decode</code>, which splits the batch into micro-batches (one here) and reserves KV cells for its 5 tokens.</li>
+<li><b>Build the graph.</b> No graph exists for 5 tokens yet, so <code>can_reuse</code> is false. <code>graph&lt;false&gt;</code>'s constructor (<code>models/llama.cpp</code>) loops over 30 layers calling <code>build_norm</code>, <code>build_qkv</code>, <code>ggml_rope_ext</code>, <code>build_attn</code> and <code>build_ffn</code>; in <code>ggml.c</code> each call only records a node: <span data-clv="v.nodes"></span> nodes, <span data-clv="v.n_mulmat"></span> of them matrix products.</li>
+<li><b>Schedule, then plan memory.</b> <code>ggml-backend.cpp</code> sends every node to the backend that holds its weights; all weights are in CPU buffers (mapped and repacked), so the graph is 1 split. <code>ggml-alloc.c</code> walks the nodes in order and releases a tensor's memory when its last reader has run: every intermediate fits in <span data-clv="v.compute_mib" data-d="2"></span> MiB.</li>
+<li><b>Inputs and KV slots.</b> <code>set_inputs</code> copies token ids, positions and KV cell indices into the graph's input tensors; in the graph, <code>cpy_k</code> (<code>llama-kv-cache.cpp</code>) is a <code>SET_ROWS</code> node that will write each token's K into its cell.</li>
+<li><b>Compute: 4 threads walk every node.</b> <code>graph_compute</code> calls the CPU backend through the <code>ggml_backend_i</code> table of function pointers; in <code>ggml-cpu.c</code> each of the 4 threads loops over all <span data-clv="v.nodes"></span> nodes, skipping views, with a barrier after each of the <span data-clv="v.real_ops"></span> real operations.</li>
+<li><b>Chunks, then the kernel.</b> In <code>repack.cpp</code> each product quantises its input rows to Q8_0, cuts the weight rows into 16 chunks taken from an atomic counter, and per chunk calls <code>gemm</code> (<code>ggml_gemm_q8_0_4x4_q8_0</code>) for 4 token rows and <code>gemv</code> for the 5th: <span data-clv="v.gemm_prompt"></span> <code>gemm</code> and <span data-clv="v.gemv_prompt"></span> <code>gemv</code> calls measured for the prompt, 8 <code>vdotq_laneq_s32</code> per 32-weight block.</li>
+<li><b>Attention reads the cache through a view.</b> <code>FLASH_ATTN_EXT</code> reads K and V through a 4-dimensional view <code>{64, 3, cells}</code> of each layer's cache: no copy.</li>
+<li><b>Logits out, a token picked, printed.</b> Only the last token asked for logits, so the last layer kept one row (<code>GET_ROWS</code>), and <code>llama-context.cpp</code> copies 49,152 floats out of the graph. The greedy sampler scans them for the largest: the first generated token is " Paris". <code>llama_token_to_piece</code> turns the id into text. Prompt time measured: <span data-clv="v.pp_ms" data-d="1"></span> ms for 5 tokens.</li>
+</ol>
+<ol class="sx" id="sx-tr-next" hidden>
+<li><b>Into the library.</b> The token just sampled goes into a batch of one, at the next position (5 for the first generated token); the same entry point finds one KV cell.</li>
+<li><b>Reuse the graph.</b> The previous graph had the same shapes, so <code>can_reuse</code> is true: building, scheduling and planning are skipped. Measured: <code>graphs reused = <span data-clv="v.graphs_reused" data-d="0"></span></code> over the run.</li>
+<li><b>Only the inputs change.</b> One token id, position and cell index: this is all the CPU does before computing.</li>
+<li><b>Compute, same graph.</b> Same call, same graph object as last time; the same loop, up to <span data-clv="v.real_ops"></span> barriers for one token.</li>
+<li><b>Only <code>gemv</code>.</b> One token row: <span data-clv="v.gemv_tok"></span> <code>gemv</code> calls per token = <span data-clv="v.n_mulmat"></span> products &times; 16 chunks. This loop does every multiply of the token, every weight of the model once.</li>
+<li><b>The view covers the earlier positions too.</b> The new K and V were just written by <code>SET_ROWS</code>; attention reads them with the 5 before through the same kind of view.</li>
+<li><b>Logits, a token, printed.</b> 49,152 floats copied out, the scores for the next token; the same scan picks it; printed, and the next batch. Measured: <span data-clv="v.tg_ms_tok" data-d="2"></span> ms per generated token on 4 threads (busy laptop).</li>
+</ol>
+<details class="dp"><summary>The code at the current step</summary><div><div class="tr-stop" id="tr-stop"></div></div></details>
+<p class="small mute">Counts and timings come from the runs on this page (CPU, 4 threads, SmolLM2-135M Q8_0, prompt "The capital of France is").</p>
 <p>And the clock, from the run of <code>simple.cpp</code> (<code>llama_perf_context_print</code>):</p>
 <div class="tw"><table class="cl-t"><thead><tr><th>Phase</th><th>Measured</th><th>What it is</th></tr></thead><tbody>
 <tr><td>Load</td><td><span class="cl-num" data-clv="v.load_ms" data-d="0"></span> ms</td><td>From the start of model loading to the end of the first evaluation (that is how <code>llama-context.cpp</code> measures it, line 796): read the header, map the file, repack 136 MiB of weights, create the context, plan the graph's memory, and run the prompt</td></tr>
 <tr><td>Prompt (5 tokens)</td><td><span class="cl-num" data-clv="v.pp_ms" data-d="1"></span> ms, <span data-clv="v.pp_ms_tok" data-d="2"></span> ms per token</td><td>One forward pass over all 5 tokens; reading the weights once serves all five rows</td></tr>
-<tr><td>Each next token</td><td><span class="cl-num" data-clv="v.tg_ms_tok" data-d="2"></span> ms (<span data-clv="v.tg_runs"></span> runs)</td><td>One forward pass for one row: every weight read for a single dot product</td></tr>
+<tr><td>Each next token</td><td><span class="cl-num" data-clv="v.tg_ms_tok" data-d="2"></span> ms (<span data-clv="v.tg_runs" data-d="0"></span> runs)</td><td>One forward pass for one row: every weight read for a single dot product</td></tr>
 </tbody></table></div>
 <p>Per token, the prompt is cheaper than generation because the weights read from memory are reused across five rows: more arithmetic per byte (the roofline: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). The GPU shows the same split more sharply: on Metal a 64-token prompt ran at <span class="cl-num" data-clv="v.metal_pp" data-d="0"></span> tokens/s, against <span class="cl-num" data-clv="v.pp1_on" data-d="0"></span> on one CPU thread, while generation ran at <span class="cl-num" data-clv="v.metal_tg" data-d="0"></span> tokens/s, slower than the CPU's <span class="cl-num" data-clv="v.tg4" data-d="0"></span>: for a model this small, launching hundreds of tiny GPU kernels per token costs more than the arithmetic. Bigger models change that; measure your own.</p>
 <details class="dp"><summary>Habits for reading or running llama.cpp, collected</summary><div><ul>
@@ -64,6 +91,7 @@
 <li><b>Instrument a copy, never the clone you are reading</b>, so every excerpt and line number stays true to the commit (section 10).</li>
 </ul></div></details>
 </section>
+</div></div>
 
 <section id="cl-notes">
 <h2>How this was run</h2>

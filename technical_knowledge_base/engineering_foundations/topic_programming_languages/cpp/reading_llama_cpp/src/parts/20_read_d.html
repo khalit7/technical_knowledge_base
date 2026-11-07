@@ -1,23 +1,25 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="cl-s6">
 <h2>6. ggml tensors: sizes, strides, a pointer</h2>
 <p>Everything in ggml is a <code>struct ggml_tensor</code>, a plain C struct (no methods, no constructor):</p>
 <div class="cl-ex" data-ex="tensor"></div>
 <p><code>ne</code> holds up to four sizes, <b>innermost first</b> (<code>ne[0]</code> is the dimension whose elements are adjacent in memory); <code>nb</code> the matching <b>strides in bytes</b>; <code>data</code> the first byte; <code>op</code> and <code>src</code> say how this tensor is computed from others (section 7); <code>view_src</code> and <code>view_offs</code> mark a tensor that borrows another's memory. Element (i0, i1, i2, i3) lives at <code>data + i0*nb[0] + i1*nb[1] + i2*nb[2] + i3*nb[3]</code>, which is why views are free: a <b>transpose</b> swaps two sizes and their strides and touches no data.</p>
-<p>A real tensor from our run: layer 0's K cache, <code>cache_k_l0</code>, F16, 192 numbers per position for 256 positions, which attention reads as 3 heads of 64 through a view of the same bytes (section 11). <i>Predict the byte offset where head 1 starts, then switch.</i></p>
-<div class="card" id="cl-strd">
-<h4 style="margin:0 0 4px;font-size:14.5px">Three views, one buffer: only the strides change</h4>
-<div class="seg" id="cl-strd-m"><button data-m="base" class="on">As stored {192, 256}</button><button data-m="heads">Per head {64, 3, 256}</button><button data-m="tr">Transposed {256, 192}</button></div>
-<div id="cl-strd-svg" class="cl-chart" role="img" aria-label="Memory order of a tensor under different views"></div>
-<div class="an-cap" id="cl-strd-cap"></div>
-</div>
+<p>A real tensor from our run: layer 0's K cache, <code>cache_k_l0</code>, F16, 192 numbers per position for 256 positions, which attention reads as 3 heads of 64 through a view of the same bytes (section 11). <i>Predict the byte offset where head 1 starts, then switch the view on the right.</i></p>
 <details class="dp"><summary><code>ggml_transpose</code> in the source</summary><div><div class="cl-ex" data-ex="transpose_view"></div></div></details>
 <div class="cl-py"><div class="t">From Python</div>NumPy's <code>a.strides</code> (bytes) and PyTorch's <code>a.stride()</code> (elements) are the same idea, and <code>a.T</code> is the same free view. Two differences: sizes innermost first (a weight PyTorch calls <code>(out, in)</code> is <code>{in, out}</code>), and a quantised type has no per-element stride: <code>nb[0]</code> is the size of a 32-weight block, so only whole blocks are addressable.</div>
 <p><b>Nothing is computed when you call an operation.</b> <code>ggml_mul_mat</code> does not multiply: it creates a result tensor, records <code>op = GGML_OP_MUL_MAT</code> and its two sources, and returns.</p>
 <div class="cl-ex" data-ex="mul_mat_lazy"></div>
 <p>The result is <code>{a-&gt;ne[1], b-&gt;ne[1], ...}</code>: each row of <code>a</code> (the weight, one output feature per row) times each row of <code>b</code> (one token per row), so both operands are read along their contiguous dimension. Calling operations builds a graph; running it is section 8, and values exist only after it runs.</p>
 <div class="cl-py"><div class="t">From Python</div>This is tracing, as in <code>torch.compile</code>, <code>torch.fx</code> or <code>jax.jit</code>: calls record a graph of operations; a later step plans memory and runs it. PyTorch's default eager mode is the opposite: each call computes immediately.</div>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="cl-strd">
+<h4 style="margin:0 0 4px;font-size:14.5px">Three views, one buffer: only the strides change</h4>
+<div class="seg" id="cl-strd-m"><button data-m="base" class="on">As stored {192, 256}</button><button data-m="heads">Per head {64, 3, 256}</button><button data-m="tr">Transposed {256, 192}</button></div>
+<div id="cl-strd-svg" class="cl-chart" role="img" aria-label="Memory order of a tensor under different views"></div>
+<div class="an-cap" id="cl-strd-cap"></div>
+</div>
+</div></div></div>
 
 <section id="cl-s7">
 <h2>7. The model as a graph</h2>
@@ -42,18 +44,34 @@
 <pre class="cl-o" data-out="out.features"></pre>
 <p>The second compile shows what <code>static_assert</code> buys: someone adds a field to a block, the compiler computes <code>40 == 34</code> (the <code>float</code> also brings 2 bytes of padding) and refuses to build. A file written with the old layout would otherwise be read as garbage, silently.</p>
 </div></details>
-<h3>The real graph of one token</h3>
-<p><code>llama-eval-callback</code> (in <code>examples/</code>) prints every node as it is computed. Our token was "Paris" (id <span data-clv="v.paris_id"></span>), decoded on the CPU: <span class="cl-num" data-clv="v.nodes"></span> nodes, <span data-clv="v.nodes_per_layer" data-d="0"></span> per layer. Pick a part of the graph:</p>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-graph"></div></div><div class="s3L">
+<section id="cl-s7g">
+<h2>The real graph of one token</h2>
+<p><code>llama-eval-callback</code> (in <code>examples/</code>) prints every node as it is computed. Our token was "Paris" (id <span data-clv="v.paris_id"></span>), decoded on the CPU: <span class="cl-num" data-clv="v.nodes"></span> nodes, <span data-clv="v.nodes_per_layer" data-d="0"></span> per layer. The figure builds layer 0 from that printout, node by node, in the order <code>build_attn</code> and <code>build_ffn</code> wrote them, then runs it:</p>
+<ol class="sx" id="sx-graph">
+<li><b>The input row, normalised.</b> <code>embd</code> holds this token's 576 numbers, fetched from the embedding table by <code>GET_ROWS</code>. <code>RMS_NORM</code> then <code>MUL</code> by <code>attn_norm.weight</code> is <code>build_norm</code>: two nodes.</li>
+<li><b>Q, K and V.</b> Three <code>MUL_MAT</code> nodes are Q, K and V, one per weight matrix (the glass plates: <code>attn_q</code> {576, 576}, <code>attn_k</code> and <code>attn_v</code> {576, 192}). <code>RESHAPE</code> reads Q as 9 heads of 64 and K and V as 3; two <code>ROPE</code> nodes rotate Q and K by position.</li>
+<li><b>Into the cache.</b> A <code>VIEW</code> flattens K and V back to 192 numbers, and <code>SET_ROWS</code> writes this token's K and V into the cache tensors <code>cache_k_l0</code> and <code>cache_v_l0</code> (section 11).</li>
+<li><b>Views cost nothing.</b> Three more <code>VIEW</code> and three <code>PERMUTE</code> nodes give Q and the whole cache the shape attention wants, {64, 3, 256} per head for the cache: sizes and strides only (section 6), no data moved. They are dashed in the figure.</li>
+<li><b>Attention, then the residual.</b> <code>FLASH_ATTN_EXT</code> is the whole attention in one fused operation; a <code>RESHAPE</code> back to 576, the output projection (<code>MUL_MAT</code> by <code>attn_output</code>), and the residual <code>ADD</code> of the layer's input.</li>
+<li><b>The feed-forward block.</b> <code>build_ffn</code>: <code>RMS_NORM</code> and <code>MUL</code> again, <code>MUL_MAT</code> gate and up (1,536 rows each), <code>SWIGLU</code>, <code>MUL_MAT</code> down back to 576, and the second residual <code>ADD</code>.</li>
+<li><b>Built, not yet run.</b> 31 nodes for this layer, 7 of them matrix products, and nothing computed: the graph is data. Thirty such layers plus the input and the output head make the whole graph.</li>
+<li><b>Then the CPU runs it, in order.</b> The backend walks the nodes as listed, skips the 12 views, reshapes and permutes (more than a third of the layer), and computes the other 19, with a barrier after each (section 9): the data flows down the edges.</li>
+</ol>
+<p>Of the <span data-clv="v.nodes"></span> nodes, <span data-clv="v.n_mulmat"></span> are matrix products: 7 per layer &times; 30 layers + 1 output projection. They hold nearly all the arithmetic, which is why sections 9 and 10 are about them.</p>
+<details class="dp"><summary>Every node as <code>llama-eval-callback</code> printed it: the input, layer 0, the last layer and output, the count by operation</summary><div>
 <div class="card" id="cl-trace">
 <h4 style="margin:0 0 4px;font-size:14.5px">Each line of <code>build_attn</code> and <code>build_ffn</code> became a node, and more than a third of them move no data</h4>
 <div class="seg" id="cl-trace-m"><button data-m="head">Input</button><button data-m="layer0" class="on">Layer 0</button><button data-m="tail">Layer 29 and output</button><button data-m="hist">Count by operation</button></div>
 <div class="tw" id="cl-trace-t"></div>
 <div class="cl-tip" id="cl-trace-cap"></div>
 </div>
-<p>Read layer 0 against the source: <code>RMS_NORM</code> then <code>MUL</code> is <code>build_norm</code>; three <code>MUL_MAT</code> are Q, K and V; two <code>ROPE</code>; <code>SET_ROWS</code> writes this token's K and V into the cache; <code>VIEW</code> and <code>PERMUTE</code> nodes cost nothing (section 6); <code>FLASH_ATTN_EXT</code> is the whole attention in one fused operation; then the output projection, the residual <code>ADD</code>, and the feed-forward block (<code>MUL_MAT</code> gate and up, <code>SWIGLU</code>, <code>MUL_MAT</code> down). Of the <span data-clv="v.nodes"></span> nodes, <span data-clv="v.n_mulmat"></span> are matrix products: 7 per layer &times; 30 layers + 1 output projection. They hold nearly all the arithmetic, which is why sections 9 and 10 are about them.</p>
+</div></details>
 <div class="cl-pr"><p class="q"><b>Predict.</b> For a single token, how many rows of weights does one forward pass read? (Rows: q 576, k 192, v 192, o 576, gate 1536, up 1536, down 576 per layer; output 49,152.)</p>
 <button class="cl-rv" data-for="cl-a7">Reveal the real answer</button><div class="cl-ans" id="cl-a7" hidden>30 &times; (576 + 192 + 192 + 576 + 1536 + 1536 + 576) + 49,152 = 30 &times; 5,184 + 49,152 = 204,672 rows, each of 576 or 1,536 weights: every weight of the model, once, for every token. At 34 bytes per 32 weights that is about 143 MB read per token, which is why decoding is bound by memory bandwidth (the decode bound: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}).</div></div>
 </section>
+</div></div>
 
 <section id="cl-s8">
 <h2>8. From graph to memory to compute</h2>
@@ -62,7 +80,7 @@
 <div class="cl-ex" data-ex="llama_process"></div>
 <div class="cl-ex" data-ex="process_ubatch"></div>
 </div></details>
-<p><b>Graph reuse.</b> For the next token the graph is the same except for its inputs, so <code>can_reuse</code> checks that the shapes match and, if they do, only <code>set_inputs</code> runs. Our run logged <code>graphs reused = <span data-clv="v.graphs_reused"></span></code>: the prompt's graph was built, the first one-token graph was built, and the other 6 decoding steps reused it.</p>
+<p><b>Graph reuse.</b> For the next token the graph is the same except for its inputs, so <code>can_reuse</code> checks that the shapes match and, if they do, only <code>set_inputs</code> runs. Our run logged <code>graphs reused = <span data-clv="v.graphs_reused" data-d="0"></span></code>: the prompt's graph was built, the first one-token graph was built, and the other 6 decoding steps reused it.</p>
 <p><b>Memory planning.</b> The allocator (<code>ggml-alloc.c</code>) gives every intermediate an address in one buffer: walking the nodes in order, it counts how many later nodes still read each tensor, and when the count reaches zero the memory goes to the next node. From the log: <code>CPU compute buffer size = <span data-clv="v.compute_mib" data-d="2"></span> MiB</code> for every intermediate of a forward pass, against 143 MB of weights. The plan is made once (<code>sched_reserve</code>, at context creation, for the worst case) and reused.</p>
 <details class="dp"><summary>The reference count in <code>ggml-alloc.c</code></summary><div><div class="cl-ex" data-ex="alloc_refcount"></div></div></details>
 <div class="cl-py"><div class="t">From Python</div>This is CPython's reference counting, done ahead of time: a tensor is freed when the last operation that uses it has run. PyTorch's caching allocator does it at run time, as tensors go out of scope.</div>
@@ -70,7 +88,7 @@
 <div class="cl-ex" data-ex="backend_iface"></div>
 <p>The scheduler (<code>ggml_backend_sched</code>) sends each node to the backend that already holds its data, so operations on weights go where the weights are, and cuts the graph into <b>splits</b>, runs of consecutive nodes on one backend with copies between them. With repacking off and a 64-token prompt, the graph is cut into <span class="cl-num" data-clv="v.splits_off"></span> pieces: each large matrix product goes to the BLAS backend (Accelerate), the rest stays on the CPU. With repacking on, the weights live in a buffer only the CPU backend understands: 1 split.</p>
 <details class="dp"><summary>One token, the GPU, the first scheduling pass in the source, and the measured splits</summary><div>
-<p>For one token (<code>tg bs=1</code>) it is 1 split even with repacking off, because BLAS only takes products of at least 32 rows each way (section 2). On the GPU (<code>-ngl 99</code>) the log showed <code>splits = <span data-clv="v.metal_splits"></span></code>: the embedding lookup runs on the CPU, where the embedding table stayed (<span data-clv="v.metal_cpu_mib" data-d="2"></span> MiB), and the rest on Metal.</p>
+<p>For one token (<code>tg bs=1</code>) it is 1 split even with repacking off, because BLAS only takes products of at least 32 rows each way (section 2). On the GPU (<code>-ngl 99</code>) the log showed <code>splits = <span data-clv="v.metal_splits" data-d="0"></span></code>: the embedding lookup runs on the CPU, where the embedding table stayed (<span data-clv="v.metal_cpu_mib" data-d="2"></span> MiB), and the rest on Metal.</p>
 <div class="cl-ex" data-ex="sched_assign"></div>
 <pre class="cl-o" data-out="out.sched_splits"></pre>
 </div></details>

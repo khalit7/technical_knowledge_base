@@ -54,34 +54,32 @@
      p:'<code>llama_token_to_piece</code> turns the id into text, it is printed, and the loop builds the next batch. Prompt time measured: '+fmt(v.pp_ms,1)+' ms for 5 tokens.',
      n:'Printed; next batch. Measured: '+fmt(v.tg_ms_tok,2)+' ms per generated token on 4 threads (busy laptop).'}];
   let mode='prompt';
-  const seq=()=>STEPS.map((s,i)=>i).filter(i=>!STEPS[i].only||STEPS[i].only===mode);
+  // the stops grouped into explained stretches, one per item of the step list on the left (sx-tr-prompt, sx-tr-next)
+  const GR={prompt:[[0,1],[2,3,4],[5,6],[7],[8,9],[10,11],[12],[13,14,15]],next:[[0,1],[2],[7],[8,9],[10,11],[12],[13,14,15]]};
+  const seq=()=>GR[mode].flat();
   // layout of file boxes
   function layout(W){const narrow=W<620,cols=narrow?2:4,gx=8,colW=(W-gx*(cols-1))/cols,bh=26,gap=5,head=18;const pos={};let maxY=0;
     GROUPS.forEach((g,gi)=>{const c=narrow?gi%2:gi,r=narrow?Math.floor(gi/2):0;const x=c*(colW+gx);
       const y0=r*(head+4*(bh+gap)+16);g.box={x,y:y0,w:colW,h:head+g[3].length*(bh+gap)+4};
       g[3].forEach((f,fi)=>{pos[f]={x:x+4,y:y0+head+fi*(bh+gap),w:colW-8,h:bh,g};maxY=Math.max(maxY,y0+head+(fi+1)*(bh+gap)+8)})});
     return {pos,H:maxY+6}}
-  function draw(i){const svg=document.getElementById('tr-svg');if(!svg)return;const W=X.width(svg),L=layout(W),order=seq(),k=Math.min(i,order.length-1),cur=STEPS[order[k]];
+  function draw(i){const svg=document.getElementById('tr-svg');if(!svg)return;const W=X.width(svg),L=layout(W),G=GR[mode],k=Math.min(i,G.length-1),cur=G[k],order=seq();
+    const curF=new Set(cur.map(j=>STEPS[j].f));
     let b='';GROUPS.forEach(g=>{b+='<rect x="'+g.box.x+'" y="'+g.box.y+'" width="'+g.box.w+'" height="'+g.box.h+'" rx="6" fill="none" stroke="'+X.css(g[2])+'" stroke-width="1.2" opacity=".7"></rect><text x="'+(g.box.x+6)+'" y="'+(g.box.y+13)+'" font-size="11" fill="'+X.css(g[2])+'" font-weight="600">'+esc(g[1])+'</text>'});
-    const visited=new Set(order.slice(0,k+1).map(j=>STEPS[j].f));
-    Object.entries(L.pos).forEach(([f,p])=>{const on=f===cur.f,seen=visited.has(f);const unused=!STEPS.some((s,j)=>s.f===f&&order.includes(j));
-      b+='<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="4" fill="'+X.css(on?'--acc2':seen?'--soft':'--bg')+'" stroke="'+X.css(on?'--acc':'--line')+'" stroke-width="'+(on?2:1)+'" opacity="'+(unused?.45:1)+'"></rect>'+
+    const done=G.slice(0,k+1).flat(),visited=new Set(done.map(j=>STEPS[j].f));
+    Object.entries(L.pos).forEach(([f,p])=>{const on=curF.has(f),seen=visited.has(f);const unused=!order.some(j=>STEPS[j].f===f);
+      b+='<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="4" fill="'+X.css(on?'--acc2':seen?'--soft':'--bg')+'" stroke="'+X.css(on?'--acc':'--line')+'" stroke-width="'+(on?2:1)+'" opacity="'+(unused?.4:1)+'"'+(on?' class="rd-new"':'')+'></rect>'+
         '<text x="'+(p.x+7)+'" y="'+(p.y+17)+'" font-size="11.5" fill="'+X.css(unused?'--mute':'--ink')+'" font-family="ui-monospace,Menlo,monospace"'+(on?' font-weight="700"':'')+'>'+esc(f)+'</text>'});
     // path so far
-    const pts=order.slice(0,k+1).map(j=>{const p=L.pos[STEPS[j].f];return [p.x+p.w-14,p.y+p.h/2]});
+    const pts=done.map(j=>{const p=L.pos[STEPS[j].f];return [p.x+p.w-14,p.y+p.h/2]});
     if(pts.length>1)b+='<polyline points="'+pts.map(q=>q.join(',')).join(' ')+'" fill="none" stroke="'+X.css('--bad')+'" stroke-width="1.6" stroke-dasharray="4 3" opacity=".75"></polyline>';
     const q=pts[pts.length-1];b+='<circle cx="'+q[0]+'" cy="'+q[1]+'" r="7" fill="'+X.css('--bad')+'"></circle><text x="'+q[0]+'" y="'+(q[1]+3.5)+'" font-size="9" text-anchor="middle" fill="'+X.css('--bg')+'">'+(mode==='prompt'?'5':'1')+'</text>';
     svg.setAttribute('viewBox','0 0 '+W+' '+L.H);svg.setAttribute('height',L.H);svg.innerHTML=b;
-    document.getElementById('tr-cap').innerHTML='<b>Stop '+(k+1)+' of '+order.length+': '+esc(cur.t)+'</b> <span class="mute small">('+esc(cur.f)+')</span><br>'+(mode==='prompt'?cur.p:(cur.n||cur.p));
-    document.querySelectorAll('#tr-list button').forEach(bt=>{const j=+bt.dataset.j;bt.classList.toggle('cur',j===order[k]);bt.classList.toggle('skip',!order.includes(j))});
-    const e=(CL.src||{})[cur.ex];
-    document.getElementById('tr-stop').innerHTML='<h3>'+esc(cur.t)+'</h3><div class="cl-chips">'+cur.chips.map(c=>c[1].startsWith('n:')?'<a href="https://app.notion.com/p/'+c[1].slice(2)+'" target="_blank" rel="noopener noreferrer">'+esc(c[0])+'</a>':'<a href="#" class="cl-x" data-xs="'+c[2]+'">'+esc(c[0])+'</a>').join('')+'</div>'+
-      '<div class="cl-ex" data-ex="'+cur.ex+'"></div><div class="tr-meas">'+(mode==='prompt'?cur.p:(cur.n||cur.p))+'</div>';
+    // the code of every stop in this stretch, in the closed block under the list
+    document.getElementById('tr-stop').innerHTML=cur.map(j=>{const c=STEPS[j];return '<h3>'+esc(c.t)+' <span class="mute small">('+esc(c.f)+')</span></h3><div class="cl-chips">'+c.chips.map(x=>x[1].startsWith('n:')?'<a href="https://app.notion.com/p/'+x[1].slice(2)+'" target="_blank" rel="noopener noreferrer">'+esc(x[0])+'</a>':'<a href="#" class="cl-x" data-xs="'+x[2]+'">'+esc(x[0])+'</a>').join('')+'</div>'+
+      '<div class="cl-ex" data-ex="'+c.ex+'"></div>'}).join('');
     X.fill(document.getElementById('tr-stop'))}
-  const list=document.getElementById('tr-list');
-  list.innerHTML=STEPS.map((s,j)=>'<button data-j="'+j+'">'+(j+1)+'. '+esc(s.t)+'</button>').join('');
-  const an=RD.anim({card:'tr-card',ctl:'tr-ctl',n:seq().length,ms:2200,draw,label:'Stop'});
-  list.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const j=+b.dataset.j;const o=seq();const k=o.indexOf(j);if(k>=0)an.go(k)});
-  RD.seg(document.getElementById('tr-mode'),m=>{mode=m;an.reset(seq().length)});
+  const an=RD.anim({card:'tr-card',ctl:'tr-ctl',n:GR.prompt.length,ms:5200,draw,label:'Step',list:'sx-tr-prompt'});
+  RD.seg(document.getElementById('tr-mode'),m=>{mode=m;['prompt','next'].forEach(x=>{document.getElementById('sx-tr-'+x).hidden=x!==m});an.reset(GR[m].length,'sx-tr-'+m)});
   X.onRender(TAB,()=>an.redraw());X.onResize(TAB,()=>an.redraw());
 })();

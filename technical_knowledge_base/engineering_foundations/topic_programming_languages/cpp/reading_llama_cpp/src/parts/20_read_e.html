@@ -1,4 +1,12 @@
 
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="cl-chk">
+<h4 style="margin:0 0 4px;font-size:14.5px">With chunks off a counter, one slow thread costs a little; with fixed shares it doubles the time</h4>
+<div class="seg" id="cl-chk-m"><button data-m="dyn" class="on">16 chunks, atomic counter</button><button data-m="static">4 fixed shares (one per thread)</button></div>
+<svg id="cl-chk-svg" class="cl-chart" role="img" aria-label="Four threads taking chunks of a matrix product"></svg>
+<div class="an-ctl" id="cl-chk-ctl"></div>
+<p class="small mute"><span class="ill">Illustrative durations</span>: thread 3 made slow on purpose; time unit, one chunk on a fast thread; the scheme and the 16 chunks are the real ones (counted).</p>
+</div>
+</div><div class="s3L">
 <section id="cl-s9">
 <h2>9. The CPU backend: threads, barriers, chunks</h2>
 <p>The CPU backend runs the graph with a pool of threads (4 by default, <code>GGML_DEFAULT_N_THREADS</code>), simply and strictly: <b>every thread walks every node</b>, does its share, then waits at a <b>barrier</b> before the next node. The loop each thread runs:</p>
@@ -7,14 +15,17 @@
 <details class="dp"><summary>The barrier in the source, and how an operation splits its work</summary><div><div class="cl-ex" data-ex="barrier"></div>
 <p>The barrier is a few atomic operations (a few fewer barriers run when fused operations run as one); a waiting thread spins instead of sleeping, which is fast when every thread has a core and wasteful when it does not. Inside a node, each operation splits its work with two numbers in <code>params</code>: <code>ith</code>, this thread's index, and <code>nth</code>, the number of threads (the root page's {{Design space|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} tab quotes the two lines from <code>ops.cpp</code>).</p></div></details>
 <p>For matrix products a static split is fragile: if one thread is slow (an efficiency core, or another program takes its core), everyone waits. So the rows are cut into more chunks than threads, and a thread that finishes takes the next chunk from a shared atomic counter; the repacked kernel aims at 4 chunks per thread. Measured with call counters (section 10): every decoded token makes <span class="cl-num" data-clv="v.gemv_tok"></span> kernel calls = <span data-clv="v.n_mulmat"></span> matrix products &times; <span data-clv="v.chunks_per_mm" data-d="0"></span> chunks (4 threads &times; 4). <i>Predict: with one thread at half speed, how much later than the others does a fixed four-way split finish?</i></p>
-<div class="card" id="cl-chk">
-<h4 style="margin:0 0 4px;font-size:14.5px">With chunks off a counter, one slow thread costs a little; with fixed shares it doubles the time</h4>
-<div class="seg" id="cl-chk-m"><button data-m="dyn" class="on">16 chunks, atomic counter</button><button data-m="static">4 fixed shares (one per thread)</button></div>
-<svg id="cl-chk-svg" class="cl-chart" role="img" aria-label="Four threads taking chunks of a matrix product"></svg>
-<div class="an-ctl" id="cl-chk-ctl"></div>
-<div class="an-cap" id="cl-chk-cap"></div>
-<p class="small mute"><span class="ill">Illustrative durations</span>: thread 3 made slow on purpose; the scheme and the 16 chunks are the real ones (counted).</p>
-</div>
+<ol class="sx" id="sx-chk-dyn">
+<li><b>Each thread starts on chunk <code>ith</code>.</b> One time unit in, threads 0 to 2 have finished chunks 0 to 2 and the slow thread 3 is half-way through chunk 3. The fast three call <code>atomic_fetch_add(&amp;current_chunk, 1)</code> and get 4, 5 and 6.</li>
+<li><b>Whoever is free takes the next number.</b> At t = 2 thread 3 finishes chunk 3 as the others finish 4 to 6, and all four take a number: 7, 8, 9 and 10.</li>
+<li><b>The slow thread simply takes fewer.</b> At t = 3 the fast threads take 11, 12 and 13; thread 3 is still half-way through chunk 10.</li>
+<li><b>The last two chunks.</b> At t = 4 everyone is free and only 14 and 15 are left: threads 0 and 1 take them, threads 2 and 3 go to the barrier.</li>
+<li><b>Done at t = 5.</b> The slow thread did 2 chunks, the others 5, 5 and 4: one slow thread cost one time unit, against 4 units with four fast threads.</li>
+</ol>
+<ol class="sx" id="sx-chk-static" hidden>
+<li><b>One quarter each.</b> Each thread owns 4 chunks' worth of rows. At t = 4 the three fast threads are done and wait at the barrier; the slow thread is half-way through its quarter.</li>
+<li><b>Done at t = 8.</b> The whole product takes as long as its slowest share: twice the time.</li>
+</ol>
 <details class="dp"><summary>The chunking code: the generic version and the repacked kernel's</summary><div>
 <div class="cl-ex" data-ex="chunks"></div>
 <div class="cl-ex" data-ex="repack_chunks"></div>
@@ -27,17 +38,33 @@
 <div class="cl-ex" data-ex="cache_align"></div>
 <pre class="cl-o" data-out="out.threadpool"></pre>
 </div></details>
-<h3>Threads and speed</h3>
-<div class="fig"><h4>Generation peaks at a few threads, and 8 threads collapse on a busy laptop</h4>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="cl-s9t">
+<h2>Threads and speed</h2>
+
+<p>Generation peaks at a few threads: a token reads 143 MB once, so once memory bandwidth is the limit, more threads add barrier waiting, not speed. And 8 threads collapse (<span class="cl-num" data-clv="v.tg8" data-d="0"></span> tokens/s against <span class="cl-num" data-clv="v.tg4" data-d="0"></span> at 4) on a laptop where other programs already used most cores: one thread that loses its core stalls the other seven at each of hundreds of barriers per token. On a quiet machine 8 threads would do much better; on a shared server, use fewer threads than free cores, and benchmark with repetitions (<code>llama-bench -r 5</code>), every sample and the load average.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card fig"><h4>Generation peaks at a few threads, and 8 threads collapse on a busy laptop</h4>
 <div class="seg" id="cl-thr-m"><button data-m="tg" class="on">Generating (one token at a time)</button><button data-m="pp">Prompt (64 tokens at once)</button></div>
 <div id="cl-thr" class="cl-chart" role="img" aria-label="Tokens per second against thread count"></div>
 <div class="cl-tip" id="cl-thr-cap">Median of 5 runs of <code>llama-bench</code>; dots are the individual runs. <span class="meas">Measured</span> while the laptop was busy (load average <span data-clv="v.load_lo" data-d="0"></span> to <span data-clv="v.load_hi" data-d="0"></span> on 10 cores).</div></div>
-<p>Generation peaks at a few threads: a token reads 143 MB once, so once memory bandwidth is the limit, more threads add barrier waiting, not speed. And 8 threads collapse (<span class="cl-num" data-clv="v.tg8" data-d="0"></span> tokens/s against <span class="cl-num" data-clv="v.tg4" data-d="0"></span> at 4) on a laptop where other programs already used most cores: one thread that loses its core stalls the other seven at each of hundreds of barriers per token. On a quiet machine 8 threads would do much better; on a shared server, use fewer threads than free cores, and benchmark with repetitions (<code>llama-bench -r 5</code>), every sample and the load average.</p>
-</section>
+</div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-quant"></div></div><div class="s3L">
 <section id="cl-s10">
 <h2>10. Quantised blocks and the kernels that read them</h2>
 <p>A quantised type stores weights in <b>blocks</b>: 32 weights share one scale <code>d</code>, and each weight is a small integer <code>q</code>, with weight &asymp; <code>d &times; q</code>. Why quantise, the block types and what they cost in accuracy belong to {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} and {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}} (section 4, which also draws the k-quant block); here we read the code. The blocks are plain C structs:</p>
+<p>The figure follows one real block from the file to the kernel that reads it on this M1 (the code for each step is below it):</p>
+<ol class="sx" id="sx-quant">
+<li><b>One Q8_0 block, to scale.</b> The first block of layer 0's query weights (row 0, weights 0 to 31) as the file stores it: a 2-byte scale <code>d</code>, then 32 one-byte integers <code>q</code>. 34 bytes for 32 weights, 8.5 bits each.</li>
+<li><b>The integers, as signed bars.</b> Each <code>q</code> is a signed byte, and the weight is <code>d &times; q</code> with <code>d</code> = <span data-qb="d8"></span>. The largest magnitude, weight <span data-qb="amaxI"></span>, is stored as 127, the end of the int8 range: that is how the quantiser chose <code>d</code>.</li>
+<li><b>The same 32 weights as Q4_0.</b> 16 levels instead of 255: weight = (<code>q</code> &minus; 8) &times; <code>d</code> with <code>d</code> = <span data-qb="d4"></span>, two weights per byte, 2 + 16 = 18 bytes. The red marks are each weight's error; over the whole matrix the relative RMS error is <span data-clv="quant.rel_rms_q4_tensor" data-d="4"></span>.</li>
+<li><b>Repacked at load.</b> The CPU backend weaves four rows' blocks into one <code>block_q8_0x4</code>: their 4 scales first, then their 128 weight bytes interleaved 4 at a time, 136 bytes (section 5's <code>CPU_REPACK</code> copy). Only row 0's block was read from the file, so rows 1 to 3 are drawn without values.</li>
+<li><b>One SDOT, four rows.</b> The token's activations are quantised to Q8_0 too. One <code>vdotq_laneq_s32</code> multiplies 4 activation bytes (one lane) against 4 bytes of each of the 4 rows: 16 multiply-adds into four 32-bit sums.</li>
+<li><b>Eight cover the block.</b> Eight such instructions use the 32 activation bytes once for all four rows; one fused multiply-add applies both scales, and four outputs come out together. The activation is loaded once per 4 rows instead of once per row.</li>
+</ol>
 <div class="cl-ex" data-ex="block_q8_0"></div>
 <div class="cl-ex" data-ex="block_q4_0"></div>
 <p><code>ggml_half</code> is a 16-bit float stored as a <code>uint16_t</code> (C has no portable half type). The <code>static_assert</code> pins the size: 34 bytes for Q8_0 (8.5 bits per weight), 18 for Q4_0 (4.5 bits: two 4-bit values per byte). The reference quantiser for Q8_0 is ten lines: find the largest magnitude, divide by 127, round each weight.</p>
@@ -48,11 +75,27 @@
 <p class="small">The first 2 bytes (highlighted) are the scale <code>d</code> as a 16-bit float, little-endian: <code class="cl-mono" id="qb-d8"></code>. Each of the next 32 bytes is one weight as a signed 8-bit integer <code>q</code>; the weight is <code>d &times; q</code>. Tap a byte.</p>
 <div class="cl-tip" id="qb-hextip"></div>
 <p>The file's weights are already Q8_0, so requantising them as Q8_0 must give back the stored bytes exactly: that is our check that the Python matches ggml (it does). Q4_0 then shows what 4 bits cost on the same input.</p>
+<ol class="sx" id="sx-qb-q8">
+<li><b>The input.</b> The 32 weights of the block as real numbers (blue bars); the largest magnitude is weight <span data-qb="amaxI"></span>, <span data-qb="xmax"></span>.</li>
+<li><b>Find the largest magnitude.</b> <code>amax = max |x|</code> = <span data-qb="amax"></span> (the outlined bar).</li>
+<li><b>Choose the scale.</b> <code>d = amax / 127</code> = <span data-qb="d8"></span>, stored as a 16-bit float. The largest weight maps to &plusmn;127, the end of the int8 range.</li>
+<li><b>Round each weight.</b> <code>q = roundf(x / d)</code>: 32 integers from &minus;127 to 127, the labels under the bars.</li>
+<li><b>Dequantise and compare.</b> <code>d &times; q</code> (orange dots) lands exactly on every bar, maximum error <span data-qb="maxerr8"></span>, because these weights were Q8_0 already: our Python reproduces ggml's rounding.</li>
+<li><b>Store the block.</b> 2 bytes of <code>d</code> + 32 bytes of <code>q</code> = 34 bytes, identical to the bytes in the file above.</li>
+</ol>
+<ol class="sx" id="sx-qb-q4" hidden>
+<li><b>The input.</b> The same 32 weights.</li>
+<li><b>Find the extreme, keeping its sign.</b> <code>max</code> = the weight with the largest magnitude, sign kept: <span data-qb="xmax"></span> (weight <span data-qb="amaxI"></span>).</li>
+<li><b>Choose the scale.</b> <code>d = max / &minus;8</code> = <span data-qb="d4"></span>. Dividing by &minus;8 maps the extreme to &minus;8, stored as q = 0 with no error beyond the rounding of d to 16 bits; the other end of the range reaches only +7.</li>
+<li><b>Shift and truncate.</b> <code>q = min(15, (int8_t)(x / d + 8.5))</code>: integers 0 to 15, the labels. Adding 8.5 then truncating rounds to the nearest of 16 levels and shifts them to be non-negative.</li>
+<li><b>Dequantise and compare.</b> <code>(q &minus; 8) &times; d</code> (orange dots) misses most bars; red lines are the error. Maximum <span data-qb="maxerr4"></span>, RMS <span data-qb="rms4"></span>, against weights of typical size <span data-qb="rmsx"></span>.</li>
+<li><b>Pack two per byte.</b> <code>qs[j] = q[j] | q[j + 16] &lt;&lt; 4</code>: byte j holds weight j in its low 4 bits and weight j + 16 in its high 4 bits. 2 + 16 = 18 bytes.</li>
+</ol>
 <div class="card" id="qb-card">
 <div class="seg" id="qb-mode"><button data-m="q8" class="on">Q8_0: 34 bytes</button><button data-m="q4">Q4_0: 18 bytes</button></div>
 <svg id="qb-svg" class="cl-chart" role="img" aria-label="32 weights, their quantised values and the error"></svg>
 <div class="an-ctl" id="qb-ctl"></div>
-<div class="an-cap" id="qb-cap"></div>
+<div class="cl-tip" id="qb-cap">Tap a bar for its numbers.</div>
 <div class="qb-stats" id="qb-stats"></div>
 <div class="qb-hex" id="qb-out"></div>
 </div>
@@ -85,3 +128,4 @@
 <div class="cl-pr"><p class="q"><b>Predict.</b> We converted the model to Q4_0 (<code>llama-quantize --allow-requantize ... Q4_0</code>). The file shrinks from 145 MB to about what, and does the greedy continuation of "The capital of France is" stay the same?</p>
 <button class="cl-rv" data-for="cl-a10">Reveal the real answer</button><div class="cl-ans" id="cl-a10" hidden><span class="cl-num" data-clv="v.q4_bytes"></span> bytes (<span data-clv="v.q4_bpw" data-d="2"></span> bits per weight, not 4.5: the embedding table, which doubles as the output projection, stays at Q8_0: <code>llama-quantize</code> keeps that tensor at higher precision, wanted Q6_K, and logged <code>ncols 576 not divisible by 256 (required for type q6_K) -&gt; falling back to q8_0</code>). The text changed: <code class="cl-mono" data-clv="out.simple_q4_0"></code> instead of "... Paris. Paris is a city known for". Requantising an already quantised model, without an importance matrix, on a model this small, costs visible quality: the <a href="#cl-qb">block opened above</a> measures a <span data-clv="quant.rel_rms_q4_tensor" data-d="3"></span> relative error on one weight matrix. Decoding was faster: <span class="cl-num" data-clv="v.q4_tg4" data-d="0"></span> against <span class="cl-num" data-clv="v.tg4" data-d="0"></span> tokens/s at 4 threads (medians, busy laptop), since fewer bytes are read per token.</div></div>
 </section>
+</div></div>

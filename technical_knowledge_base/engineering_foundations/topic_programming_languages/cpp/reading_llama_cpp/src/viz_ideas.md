@@ -7,3 +7,8 @@ The visuals built for Part 3 of the C++ page are listed, scored and with the rej
 - **Quant blocks** (was its own tab) moved into a closed block in section 10: the 34 real bytes and the Q8_0 and Q4_0 stepper. Closed because the quantisation concept and the best before/after block visual belong to Local and on-device inference (section 4, five types on one real block); this page keeps it as the check that the Python reproduces ggml's quantiser byte for byte. The Q4_K drawing to scale was dropped for that page's.
 - **Run it** (was its own tab) moved into the closed block "How this was run": reproduce commands, one prompt three ways, the raw counters, every benchmark sample, versions.
 - Inline as before: repository map (1), GGUF file to scale (4, now closed), stride views (6), graph of one token (7), chunk scheduler animation (9), threads chart (9), kernel call counts (10).
+
+## 2026-11-07 (rollout)
+- Built in 3D: the hero (layers as glass plates, token flowing), layer 0's graph (built then run), one Q8_0 block to the repack and the SDOT kernel, the KV cache stacks. All driven by `window.CL`.
+- Kept 2D: repository map, stride grid, threads chart, GGUF file map, chunk scheduler (a timeline), code tour (a file map), tables.
+- Rejected: a 3D GGUF file (a 1D layout gains nothing from depth); a 3D thread timeline (time reads best on a flat axis); a real image (the page is about code; no physical object to show).
