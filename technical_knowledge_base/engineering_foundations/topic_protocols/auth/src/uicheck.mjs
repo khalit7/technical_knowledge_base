@@ -12,7 +12,7 @@ const puppeteer = require('puppeteer');
 const OUT = process.argv[2] || '/tmp/auth-ui'; fs.mkdirSync(OUT, { recursive: true });
 const file = 'file://' + path.resolve(here, '..', 'index.html');
 const b = await puppeteer.launch({ headless: 'shell' });
-// nothing may move before the reader acts: check every controller is paused after load, with normal motion
+// the 3D stages (autoplay on view, every step, reduced motion) are checked by check_stages.mjs
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const problems = []; let clicks = 0; let values = null;
@@ -43,7 +43,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
         if (!el || el.offsetParent === null) return 'hidden';
         if (el.tagName === 'SELECT') { el.value = el.options[el.options.length - 1].value; el.dispatchEvent(new Event('change')); return 'select'; }
         if (el.type === 'range') { el.value = el.max; el.dispatchEvent(new Event('input')); return 'range'; }
-        if (el.dataset.a === 'play') return 'skip';
+        if (el.classList.contains('stg-p')) return 'skip';
         el.click(); return 'click';
       }, tab, i);
       if (kind !== 'hidden' && kind !== 'skip') clicks++;
@@ -59,16 +59,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     // screenshots of the main widgets in fixed states
     await p.goto(file); await sleep(300);
     const shot = async (sel, name) => { const el = await p.$(sel); if (el) await el.screenshot({ path: path.join(OUT, name + '.png') }); };
-    for (const m of ['implicit', 'nopkce', 'pkce']) {
-      await p.click(`#oaA [data-m=${m}]`); await p.evaluate(() => { const s = document.querySelector('#oaA [data-a=scrub]'); s.value = s.max; s.dispatchEvent(new Event('input')); });
-      await sleep(900); await shot('#oaA', 'oauth-' + m);
-    }
-    await shot('#sgCalc', 'sigv4'); await shot('#rotSvg', 'rotation'); await shot('#devSvg', 'device'); await shot('#heroCard', 'hero'); await shot('#dpSvg', 'dpop'); await shot('#wiSvg', 'workload'); await shot('#rdDisc2', 'discovery'); await shot('#rdAlgs', 'algs'); 
-    // the recorded MCP flow stepper (#mfA) moved to the MCP page's section 7 at the topic close, 2026-10-24
-    for (const m of ['strict', 'naive', 'xchg']) {
-      await p.click(`#mfB [data-p=${m}]`); await p.evaluate(() => { const s = document.querySelector('#mfB [data-a=scrub]'); s.value = s.max - 1; s.dispatchEvent(new Event('input')); });
-      await sleep(300); await shot('#mfB', 'mf-' + m);
-    }
+    await shot('#sgCalc', 'sigv4'); await shot('#rotSvg', 'rotation'); await shot('#devSvg', 'device'); await shot('#dpSvg', 'dpop'); await shot('#wiSvg', 'workload'); await shot('#rdDisc2', 'discovery'); await shot('#rdAlgs', 'algs'); 
+    // the OAuth, hero and exchange steppers became 3D stages on 2026-11-07; check_stages.mjs screenshots them
     for (const m of ['strict', 'noaud', 'naive']) { await p.click(`[data-pre=${m}]`); await sleep(100); await shot('#jl', 'jwt-' + m); }
     values = await p.evaluate(() => ({
       tamperToken: AU.tamperToken, sigOk: AU.sigOk, pkce: document.getElementById('rdPkceC').textContent,

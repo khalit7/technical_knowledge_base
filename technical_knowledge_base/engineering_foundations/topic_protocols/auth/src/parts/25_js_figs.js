@@ -1,4 +1,4 @@
-// ---- Reading figures added in the 2026-10-24 rebuild: hero, sessions against tokens, refresh rotation, device grant,
+// ---- Reading figures added in the 2026-10-24 rebuild (the hero became the 3D stage of 30_js_sc_hero.js on 2026-11-07): sessions against tokens, refresh rotation, device grant,
 // ID token against access token, DPoP proof structure, workload identity. All static (nothing moves); drawn at the
 // measured width when the Reading tab opens and on resize. Recorded figures read AUTHDATA; the rest are labelled illustrative.
 (function () {
@@ -6,19 +6,6 @@
   const draws = [];
   const reg = f => { draws.push(f); };
   const desc = b => (b && typeof b === 'object' && (b.error_description || b.error)) || '';
-
-  // Hero: one delegated call, every hop with its own narrow token (values recorded in this page's lab)
-  reg(() => {
-    const svg = $('heroSvg'); if (!svg) return;
-    const W = AU.width(svg.parentElement);
-    AU.lanes(svg, ['Agent\n(MCP client)', 'Authorization\nserver', 'MCP\nserver', 'Mail\nAPI'], [
-      { from: 0, to: 1, label: 'code + PKCE verifier, resource = MCP server', back: 'token A (+ a rotating refresh token)', chip: 'A: aud MCP server, files:read, 300 s' },
-      { from: 0, to: 2, label: 'tools/call, Authorization: Bearer A', back: 'checks sig, iss, aud, exp, scope', backKind: 'good' },
-      { from: 2, to: 3, label: 'forward A?', kind: 'bad', dash: true, back: '401: A is not for the mail API', backKind: 'bad' },
-      { from: 2, to: 1, label: 'exchange: A + its own signed assertion', kind: 'xc', back: 'token B', chip: 'B: aud mail API, mail:read, act: MCP server', chipColor: 'var(--open2)' },
-      { from: 2, to: 3, label: 'Authorization: Bearer B', kind: 'good', back: '200: sees alice and the MCP server', backKind: 'good' }
-    ], 99, W, true);
-  });
 
   // Sessions against self-contained tokens against a backend for frontend (illustrative)
   function stack(svg, boxes, links) {

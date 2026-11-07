@@ -1,12 +1,14 @@
 <section id="sec-jwt">
 <h2>6. JWTs: tokens a server can check alone</h2>
+<div class="s3sp"><div class="s3L">
 <p>If every API call made the API ask the AS "is this token good?", the AS would carry the whole system's traffic and latency. A <b>JSON Web Token</b> puts the answer inside the token and signs it, so any API holding the AS's public key verifies it offline in microseconds ({{RFC 7519|https://www.rfc-editor.org/rfc/rfc7519}}). The family, all May 2015: JWS (signed, {{RFC 7515|https://www.rfc-editor.org/rfc/rfc7515}}), JWE (encrypted, RFC 7516), JWK (keys as JSON, {{RFC 7517|https://www.rfc-editor.org/rfc/rfc7517}}), JWA (algorithm names, {{RFC 7518|https://www.rfc-editor.org/rfc/rfc7518}}) and JWT (the claims). "JWT" in conversation almost always means a JWS-signed JWT.</p>
-<div class="fig">
+</div>
+<div class="s3R"><div class="s3side"><div class="fig">
 <h4>Three base64url pieces: anyone can read the first two; only the signature needs a key</h4>
 <div class="jwtparts" id="rdJwtParts"></div>
 <div class="tw"><table id="rdJwtClaims"></table></div>
 <p class="figcap"><span class="meas">recorded</span> An RS256 access token from the lab, decoded by this page's JavaScript: a <span style="color:var(--c2)">header</span> (algorithm and key ID), a <span style="color:var(--c4)">payload</span> (the claims) and a <span style="color:var(--c6)">signature</span> over the ASCII bytes <code>base64url(header) + "." + base64url(payload)</code>. Base64url is an encoding, not encryption: put no secrets and no more personal data than needed in claims; use JWE or an opaque token if the contents must stay private.</p>
-</div>
+</div></div></div></div>
 <h3>The algorithms, measured</h3>
 <p><span class="meas">measured</span> The same claims signed five ways with PyJWT 2.15.1 (Apple M1 Pro, one core; median of 7 runs of 200):</p>
 <div class="tw"><table id="rdAlgs"></table></div>
@@ -15,16 +17,21 @@
 <li><b>RS256</b> is the most widely deployed (Google, Microsoft and GitHub Actions list only RS256 in the discovery documents of section 5). Verification is cheap and signing about ten times slower, which suits one issuer and many verifiers; its 256-byte signature makes tokens roughly twice the size of the others.</li>
 <li><b>ES256</b> (P-256) and <b>EdDSA</b> (Ed25519) give 64-byte signatures. ECDSA needs care: Java 17.0.2 and 18 accepted an all-zero signature as valid for any message and any key, because the verifier skipped the check that r and s are at least 1 ({{CVE-2022-21449|https://www.cve.org/CVERecord?id=CVE-2022-21449}}; {{Neil Madden, "Psychic signatures in Java", 19 April 2022|https://neilmadden.blog/2022/04/19/psychic-signatures-in-java/}}).</li>
 </ul>
+<div class="s3sp"><div class="s3R"><div id="stg-jwt"></div></div><div class="s3L">
 <h3 id="jl-sec">Validating a JWT, in order</h3>
-<ol class="steps">
+<p class="sxh">Fig. 3 · The recorded good token as three plates, checked in order by a verifier that chooses the algorithm and the key itself</p>
+<ol class="sx" id="sx-jwt">
+<li><b>Three pieces.</b> The token splits at its two dots into header, payload and signature, drawn to scale with their base64url lengths. Anyone can decode the first two; only the signature needs a key.</li>
 <li><b>Choose the algorithm yourself.</b> Accept only the algorithm(s) you expect for this issuer; never let the token's <code>alg</code> header decide ({{RFC 8725 s3.1|https://www.rfc-editor.org/rfc/rfc8725#section-3.1}}). In PyJWT that is <code>algorithms=["RS256"]</code>, required since 2.0.0 ({{changelog|https://github.com/jpadilla/pyjwt/blob/master/CHANGELOG.rst}}); applications that passed "every algorithm" there were still open to key confusion until 2.4.0 ({{CVE-2022-29217|https://www.cve.org/CVERecord?id=CVE-2022-29217}}).</li>
 <li><b>Choose the key yourself.</b> Look the <code>kid</code> up in the issuer's JWKS, fetched from the <code>jwks_uri</code> in its discovery document and cached. Never fetch keys from a URL inside the token (<code>jku</code>, <code>x5u</code>); never treat <code>kid</code> as a file path or a database query.</li>
-<li><b>Verify the signature.</b></li>
+<li><b>Verify the signature.</b> RS256 over the ASCII bytes of header, dot, payload, with the key just chosen; for the recorded token the pinned verifier said "RS256 with the issuer's key: signature valid".</li>
 <li><b>Check the type</b> (<code>typ: at+jwt</code>) so an ID token or another JWT from the same issuer is not accepted as an access token ({{RFC 8725 s3.11|https://www.rfc-editor.org/rfc/rfc8725#section-3.11}}).</li>
 <li><b>Check <code>iss</code></b> equals the issuer you trust and <b><code>aud</code></b> contains your own identifier ({{s3.8, s3.9|https://www.rfc-editor.org/rfc/rfc8725#section-3.9}}). Skipping <code>aud</code> "because it is our own issuer" is the classic bug: the same issuer mints tokens for every API you own, so a token for the least important one opens all of them.</li>
 <li><b>Check time</b>: <code>exp</code> in the future, <code>nbf</code>/<code>iat</code> not in the future, with a small leeway (seconds to a couple of minutes) for clock skew.</li>
 <li>Only now <b>authorize</b>: scopes, roles, tenant, the specific object.</li>
 </ol>
+<p class="small mute"><span class="meas">recorded</span> The token is the lab's "A good token" (section 6's validator, below); its claims and the verdict are the recording's, checked with the clock at the recording time.</p>
+</div></div>
 <div class="card" id="jl">
 <h4>Twelve real tokens through a verifier you configure: predict which forgeries the "common bug" preset lets through, then click it</h4>
 <div class="chips"><span class="small mute">Presets:</span><button data-pre="strict" class="on">Strict (RFC 8725)</button><button data-pre="noaud">Common bug: no aud, no typ</button><button data-pre="naive">Naive: trust the header</button></div>

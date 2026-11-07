@@ -1,4 +1,4 @@
-// ---- Shared utilities: SHA-256, HMAC, base64url, HTML escaping, an animation controller ----
+// ---- Shared utilities: SHA-256, HMAC, base64url, HTML escaping, the sequence-lane drawer (the step controller AU.anim was retired on 2026-11-07: the animations are S3 stages now) ----
 window.TAB_RENDER = window.TAB_RENDER || {};
 window.AU = (function () {
   const K = new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
@@ -59,37 +59,6 @@ window.AU = (function () {
   }
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
-  // Animation controller: steps 0..n-1, play/pause/step/scrub/speed; advances only when the element is on screen and its tab visible.
-  // It never autoplays (2026-10-23): it waits on step 0 until the reader presses play or steps. draw(i, touched) gets touched=false until then.
-  function anim(opts) {
-    const st = { i: 0, playing: false, speed: 1, timer: null, onScreen: false, touched: false };
-    const root = opts.root, n = () => opts.count();
-    const play = root.querySelector('[data-a=play]'), scrub = root.querySelector('[data-a=scrub]'), spd = root.querySelector('[data-a=speed]');
-    function render() { if (scrub) { scrub.max = n() - 1; scrub.value = st.i; } if (play) play.textContent = st.playing ? 'Pause' : 'Play'; opts.draw(st.i, st.touched); }
-    function visible() { const t = root.closest('.tab'); return st.onScreen && (!t || !t.hidden); }
-    function tick() {
-      clearTimeout(st.timer);
-      if (!st.playing) return;
-      st.timer = setTimeout(() => {
-        if (visible()) { if (st.i < n() - 1) { st.i++; render(); } else { st.playing = false; render(); return; } }
-        tick();
-      }, (opts.dwell || 1700) / st.speed);
-    }
-    root.querySelectorAll('[data-a]').forEach(b => {
-      const a = b.dataset.a;
-      b.addEventListener('click', () => { st.touched = true; }, true);
-      if (a === 'play') b.addEventListener('click', () => { if (!st.playing && st.i >= n() - 1) st.i = 0; st.playing = !st.playing; render(); tick(); });
-      if (a === 'prev') b.addEventListener('click', () => { st.playing = false; st.i = Math.max(0, st.i - 1); render(); });
-      if (a === 'next') b.addEventListener('click', () => { st.playing = false; st.i = Math.min(n() - 1, st.i + 1); render(); });
-      if (a === 'reset') b.addEventListener('click', () => { st.playing = false; st.i = 0; render(); });
-    });
-    if (scrub) scrub.addEventListener('input', () => { st.touched = true; st.playing = false; st.i = +scrub.value; render(); });
-    if (spd) spd.addEventListener('change', () => { st.speed = +spd.value; tick(); });
-    try { new IntersectionObserver(es => { st.onScreen = es[0].isIntersecting; }).observe(root); } catch (e) { st.onScreen = true; }
-    render();
-    return { go(i, touched) { st.playing = false; st.i = i; if (touched) st.touched = true; render(); }, redraw: render, state: st };
-  }
-  const ctrlHTML = '<div class="ctrl"><button data-a="play">Play</button><button data-a="prev" aria-label="previous step">&#8592;</button><button data-a="next" aria-label="next step">&#8594;</button><input type="range" data-a="scrub" min="0" max="1" value="0" aria-label="scrub"><select data-a="speed" aria-label="speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select><button data-a="reset">Reset</button></div>';
   // Sequence lanes: steps [{from,to,label,kind,back,backKind,chip,chipColor,dash}]; from===to draws a note at that lane.
   // i = last step shown (earlier steps faded unless all is true). Labels wrap to the width; text is 11 px or more.
   // The layout is computed for every step, so stepping never moves what is already drawn.
@@ -147,5 +116,5 @@ window.AU = (function () {
     svg.innerHTML = o;
   }
   const width = el => { const w = el && el.clientWidth; return w && w > 60 ? w : Math.max(300, Math.min(880, (document.documentElement.clientWidth || 900) - 60)); };
-  return { lanes, width, sha256, hmac, hex, b64u, b64uDec, utf8, esc, anim, ctrlHTML, reduced };
+  return { lanes, width, sha256, hmac, hex, b64u, b64uDec, utf8, esc, reduced };
 })();

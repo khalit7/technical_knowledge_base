@@ -27,3 +27,8 @@ Nothing structural. For protocol pages, "recorded bytes from the official SDK, r
 ## 2026-10-24 rebuild
 Built: hero (recorded delegated call), sessions/JWT/BFF panels, refresh rotation and device grant drawn from the recordings, ID token against access token, DPoP proof structure, workload identity sequence; the MCP flow stepper and passthrough/exchange before/after moved inline; JWT lab moved inline.
 Rejected: a step-by-step drawing of the confused-deputy attack (attack routes stay text, per the skill); an SVG for API-key rotation with overlap (one sentence says it); a real photo (nothing physical to show; the recorded wire bytes are the real artefacts).
+
+## 2026-11-07 rollout (split layout, 3D stages v2)
+Built: five stages on renderer v2 (parties as blocks, credentials as glass plates riding flows): the hero (recorded delegated call), one login three ways (replaces the 2D lanes animation), the recorded good JWT as three plates to scale checked in order (replaces the plain ordered list), mTLS as identity (new; the subsection had no visual), passthrough against exchange (replaces the 2D stepper).
+Kept 2D: refresh rotation, device grant, workload identity (time-ordered sequences read best flat), sessions/JWT/BFF stacks, the DPoP field diagram, the ID/access token table, the SigV4 calculator and the JWT lab (text tools).
+Rejected: a DPoP stage (the recorded three-way theft table already shows it, and Fig. 1's last step points at binding); an mTLS handshake stage (TLS and certificates owns the handshake and draws it); a real image (nothing physical to show).

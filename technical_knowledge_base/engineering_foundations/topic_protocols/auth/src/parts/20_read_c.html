@@ -1,12 +1,7 @@
 <section id="sec-keys">
 <h2>2. API keys: the simplest credential, done properly</h2>
+<div class="s3sp"><div class="s3L">
 <p>Your backend calls an LLM provider thousands of times a day, with no user to ask and no browser to redirect; the provider only needs to know which account to bill and limit. The root page's running request carries the answer in one header, <code>x-api-key: sk-wirelab-not-a-real-key</code> (a fake): a long random string the provider generated, showed you once and remembers. Whoever presents it <i>is</i> the account.</p>
-<div class="fig">
-<h4>A good key says what it is, is unguessable, and can be rejected without a database lookup</h4>
-<pre class="wire" id="rdKey"></pre>
-<div class="card" style="margin:8px 0 0"><label class="small" for="keyIn">Edit one character of the lab key and watch the checksum reject it</label><input id="keyIn" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:13px" spellcheck="false"><div id="keyOut" class="small" style="margin-top:6px"></div></div>
-<p class="figcap"><span class="meas">recorded</span> A lab key in the shape of GitHub's 2021 token redesign ({{GitHub blog, 5 April 2021|https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/}}). <b>Prefix</b> <code>lab_</code>: secret scanners (GitHub's, your CI's, your log pipeline's) match it with almost no false positives, and an underscore keeps double-click selection whole. <b>Body</b>: 30 characters from 62 symbols carry 30 &times; log<sub>2</sub>(62) = <b id="rdKeyBits"></b> bits (GitHub quotes 178), so the server can store a plain SHA-256 of the key rather than the slow, salted hash a human-chosen password needs: there is nothing to brute-force. <b>Checksum</b>: the last six characters are a CRC32 of the body in base 62.</p>
-</div>
 <ul>
 <li><b>One key per service and environment.</b> When staging's key leaks you revoke staging, and per-key usage tells you who spent what. Providers rate-limit per key or per organisation, so one runaway job on a shared key throttles everyone (429 with <code>retry-after</code>; the {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}} case "429 Too Many Requests with Retry-After" shows the headers).</li>
 <li><b>Store it in a secrets manager</b> and inject it at run time: not in git, a notebook (outputs and cell history get shared), a Docker image layer, or a browser or mobile app (anyone can read it out). Redact <code>Authorization</code> and key headers at the logger: access logs, proxy debug logs and tracing spans are where bearer credentials most often leak.</li>
@@ -14,6 +9,13 @@
 <li><b>Show only a hint</b> (<code id="rdKeyHint"></code>) in dashboards and logs, so people can tell keys apart.</li>
 </ul>
 <p><b>What a key cannot do</b>: it carries no user (every call is "the account"), no consent, no expiry unless you add one, and no audience narrower than the whole provider. Fine for your backend calling your provider; wrong once a third party (an app, an agent) acts for one of <i>your</i> users, which is what OAuth is for (section 4).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig">
+<h4>A good key says what it is, is unguessable, and can be rejected without a database lookup</h4>
+<pre class="wire" id="rdKey"></pre>
+<div class="card" style="margin:8px 0 0"><label class="small" for="keyIn">Edit one character of the lab key and watch the checksum reject it</label><input id="keyIn" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:13px" spellcheck="false"><div id="keyOut" class="small" style="margin-top:6px"></div></div>
+<p class="figcap"><span class="meas">recorded</span> A lab key in the shape of GitHub's 2021 token redesign ({{GitHub blog, 5 April 2021|https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/}}). <b>Prefix</b> <code>lab_</code>: secret scanners (GitHub's, your CI's, your log pipeline's) match it with almost no false positives, and an underscore keeps double-click selection whole. <b>Body</b>: 30 characters from 62 symbols carry 30 &times; log<sub>2</sub>(62) = <b id="rdKeyBits"></b> bits (GitHub quotes 178), so the server can store a plain SHA-256 of the key rather than the slow, salted hash a human-chosen password needs: there is nothing to brute-force. <b>Checksum</b>: the last six characters are a CRC32 of the body in base 62.</p>
+</div></div></div></div>
 <div class="drill"><div class="t">Predict, then reveal</div>
 <p>A notebook that worked yesterday now gets 401 from the LLM provider on every call; your colleague's identical notebook works. The key in your environment variable has the right prefix. What do you check first?</p>
 <details><summary>Reveal</summary><div class="ans">Which key the process actually sees, and whether it is still active: print its hint (prefix and last four characters), not the key, and compare with the provider's dashboard. Usual causes: a key revoked in a rotation, a staging key against the production endpoint, or a stale value cached by the kernel or a <code>.env</code> file loaded before the change. A 401 says "this key is not accepted"; a 403 would say "this key is fine but may not use this model or workspace".</div></details></div>

@@ -7,50 +7,78 @@
 <div class="sp"><div class="n">Authorization server (AS)</div><p>Logs alice in, asks for consent, issues tokens: accounts.google.com, Microsoft Entra, Okta, Auth0, Keycloak, or your own.</p></div>
 <div class="sp"><div class="n">Resource server (RS)</div><p>The API that holds the data and accepts the tokens: the drive API, an MCP server.</p></div>
 </div>
+<div class="s3sp"><div class="s3R"><div id="stg-oauth"></div></div><div class="s3L">
 <h3>The authorization code flow with PKCE</h3>
 <p>The flow for anything a person logs into: web and mobile apps, CLIs, desktop agents, MCP clients. <b>Predict first:</b> an attacker can read the browser redirect (a malicious app that registered the same custom URL scheme on a phone, a browser extension, a log that records full URLs: the attacks of {{RFC 9700 s4.1 to s4.5|https://www.rfc-editor.org/rfc/rfc9700#section-4.1}}). What does it end up holding in each mode? Then step through.</p>
-<div class="card" id="oaA">
-<h4>The same login three ways: only PKCE leaves the attacker with nothing it can redeem</h4>
-<div class="seg" role="group" aria-label="Flow"><button data-m="implicit">Implicit (OAuth 2.0, removed)</button><button data-m="nopkce">Code, no PKCE</button><button data-m="pkce" class="on">Code + PKCE (OAuth 2.1)</button></div>
-<div class="lanes"><svg id="oaSvg" role="img" aria-label="Sequence of messages between browser, client, authorization server and attacker"></svg></div>
-<div class="cap" id="oaCap"></div>
-<div class="cnt" id="oaCnt"></div>
-<!--CTRL-->
-<p class="try"><b>Compare</b> the step counts too: PKCE costs the client one hash and two extra parameters, and no extra round trip.</p>
-</div>
-<p>The parameters you will debug in every authorization URL (the recorded one is step 4 of the MCP flow in section 9):</p>
+<p class="sxh">Fig. 2 · The same login three ways: only PKCE leaves the attacker with nothing it can redeem</p>
+<div class="s3chips" id="oa-mode"><button data-m="implicit">Implicit (OAuth 2.0, removed)</button><button data-m="nopkce">Code, no PKCE</button><button data-m="pkce" class="on">Code + PKCE (OAuth 2.1)</button></div>
+<ol class="sx" id="sx-oa-implicit" hidden>
+<li><b>Build the URL: <code>response_type=token</code>.</b> The client wants a token directly from the browser redirect (the OAuth 2.0 implicit grant, meant for browser apps that had no back end).</li>
+<li><b>Open <code>/authorize</code>.</b> The client opens the browser at the authorization endpoint; the browser asks the AS. Nothing secret yet.</li>
+<li><b>alice logs in and approves.</b> The user authenticates and consents.</li>
+<li><b>302 <code>...#access_token=eyJ...</code></b> The AS puts the access token itself in the redirect URL (in the fragment). It now sits in the browser: history, extensions, any script on the page.</li>
+<li><b>The attacker reads the redirect</b> (a lookalike app, an extension, a leaky page script) and now holds an access token.</li>
+<li><b>GET <code>/api</code> with the token: 200.</b> The attacker calls the API as alice. The token is a bearer token: no key, no binding, nothing more to steal. OAuth 2.1 removed this grant (draft-16 s10.1).</li>
+</ol>
+<ol class="sx" id="sx-oa-nopkce" hidden>
+<li><b>Build the URL: <code>response_type=code</code>.</b> The client asks for a one-time code instead of a token.</li>
+<li><b>Open <code>/authorize</code>.</b> The client opens the browser at the authorization endpoint; the browser asks the AS.</li>
+<li><b>alice logs in and approves.</b> The user authenticates and consents.</li>
+<li><b>302 <code>/callback?code=JTCl...</code></b> The redirect carries only a code. Better: a code is single-use and short-lived. But it still passes through the browser.</li>
+<li><b>The attacker reads the redirect</b> and gets the code.</li>
+<li><b>POST <code>/token code=JTCl...</code></b> A public client (CLI, mobile app) has no secret, so nothing else is needed to redeem the code. The attacker redeems it first.</li>
+<li><b>200: access and refresh token.</b> The AS cannot tell the attacker from the client. The attacker now holds a refresh token too: access until revoked.</li>
+</ol>
+<ol class="sx" id="sx-oa-pkce">
+<li><b>Verifier and challenge.</b> The client first invents a random <code>code_verifier</code> (43 to 128 characters) and keeps it in memory; it will send only its SHA-256 hash, the challenge.</li>
+<li><b>Open <code>/authorize ...code_challenge=E9Me...</code></b> The authorization URL carries the challenge and <code>code_challenge_method=S256</code>; the AS stores the challenge with the code it is about to issue.</li>
+<li><b>alice logs in and approves.</b> The user authenticates and consents.</li>
+<li><b>302 <code>/callback?code=...&amp;iss=...</code></b> The redirect carries the code (and, per RFC 9207, the AS's own name).</li>
+<li><b>The attacker reads the redirect</b> and intercepts the code, exactly as before.</li>
+<li><b>POST <code>/token code=...</code>, no verifier.</b> The attacker tries to redeem it. It has the code but not the verifier, and SHA-256 cannot be run backwards from the challenge.</li>
+<li><b>400 <code>invalid_grant</code>.</b> Refused. <span class="meas">recorded</span> from the lab AS: "invalid_grant: PKCE verification failed: S256(code_verifier) != code_challenge".</li>
+<li><b>The real callback.</b> The real client receives the same redirect and checks <code>state</code> and <code>iss</code>.</li>
+<li><b>POST <code>/token</code> with the code and the verifier.</b> If the attacker's attempt had already burned the code, the user logs in again: a denial, not a theft.</li>
+<li><b>200: access and refresh token.</b> Tokens go to the client over a direct TLS call; they never touched the browser. Same number of round trips as without PKCE: the price is one hash and two extra parameters.</li>
+</ol>
+</div></div>
+<p>The parameters you will debug in every authorization URL (a recorded one is in the flow on {{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}}, section 7):</p>
 <ul>
 <li><code>response_type=code</code>: ask for a one-time <b>authorization code</b>, not a token. The code comes back through the browser, the leaky part; the tokens come back on a direct, TLS-protected call from the client to the AS's token endpoint.</li>
 <li><code>code_challenge</code>, <code>code_challenge_method=S256</code> (PKCE, {{RFC 7636|https://www.rfc-editor.org/rfc/rfc7636}}): the client invents a random <code>code_verifier</code>, sends only its SHA-256 (base64url), and must present the verifier to redeem the code. The RFC's own example (verifier <code>dBjftJeZ...EjXk</code> gives challenge <code id="rdPkceC"></code>) is recomputed live by this page's SHA-256: <span id="rdPkceOk"></span>.</li>
 <li><code>state</code>: a random value the client checks on return, so an attacker cannot feed it a response to a request it never made (CSRF on the callback).</li>
 <li><code>redirect_uri</code>: must <b>exactly</b> match a registered value ({{RFC 9700 s4.1.3|https://www.rfc-editor.org/rfc/rfc9700#section-4.1.3}}); pattern matching let attackers register lookalike paths and receive codes. For native apps on a loopback address the port may vary ({{RFC 8252 s7.3|https://www.rfc-editor.org/rfc/rfc8252#section-7.3}}), which is how <code>claude</code>, <code>gh</code> and <code>gcloud</code> logins catch the redirect on <code>http://127.0.0.1:&lt;random port&gt;/callback</code> (the {{Failure lab|n:3c65c17b0d0d81ec9355f4eecd6eed02}}'s "OAuth redirect URI mismatch" shows a near-miss).</li>
-<li><code>iss</code> in the response ({{RFC 9207|https://www.rfc-editor.org/rfc/rfc9207}}): the AS names itself, so a client talking to several authorization servers can refuse a response from the wrong one (a "mix-up" attack). MCP clients must check it; the SDK did, in the recording (section 9).</li>
+<li><code>iss</code> in the response ({{RFC 9207|https://www.rfc-editor.org/rfc/rfc9207}}): the AS names itself, so a client talking to several authorization servers can refuse a response from the wrong one (a "mix-up" attack). MCP clients must check it; the SDK did, in the recording on {{MCP|n:3c65c17b0d0d813f9695dc4175c44cbb}} (section 7).</li>
 <li><code>scope</code> and <code>resource</code>: what the token may do, and for which API ({{RFC 8707|https://www.rfc-editor.org/rfc/rfc8707}}). Together they decide how bad a leak is.</li>
 </ul>
 <p><span class="meas">recorded</span> Against the lab's authorization server: an interceptor who has the code but not the verifier, then a code used twice.</p>
 <pre class="wire" id="rdPkceRec"></pre>
 <div class="corr"><div class="t">Correction to the old page</div>The old page said PKCE is "mandatory even for confidential clients". OAuth 2.1 draft-16 is one notch softer: PKCE is required unless the client is confidential <i>and</i> the AS has reasonable assurance it implements the OpenID Connect <code>nonce</code> correctly; even then PKCE stays recommended, because only PKCE lets the AS refuse an injected code before issuing any token ({{draft-16 s7.5.1.1|https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16#section-7.5.1.1}}). The draft also removed the <code>redirect_uri</code> parameter from the token request (s10.2); the MCP SDK 2.3.0 client still sends it (visible in the recording), and servers ignore it.</div>
 
+<div class="s3sp"><div class="s3L">
 <h3>Refresh tokens: rotation catches a copy</h3>
 <p>Access tokens stay short (the lab's live 300 s) so a stolen one expires soon; a <b>refresh token</b> lets the client get new ones without sending alice through the browser again. Being long-lived, it is precious, so OAuth 2.1 requires that a public client's refresh tokens be sender-constrained (DPoP or mTLS) or <b>rotated</b>: each refresh returns a new refresh token and invalidates the old one, and if an old one is ever presented again someone has a copy, so the AS revokes the whole grant ({{draft-16 s4.3.1|https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16#section-4.3.1}}).</p>
-<div class="fig">
+</div>
+<div class="s3R"><div class="s3side"><div class="fig">
 <h4>The thief's replay of a spent refresh token revokes the grant, logging out the real client too</h4>
 <div class="lanes"><svg id="rotSvg" role="img" aria-label="Client refreshes with RT1 and gets RT2; a thief replays RT1 and the grant is revoked; the client's RT2 then fails"></svg></div>
 <p class="figcap"><span class="meas">recorded</span> Statuses and error texts from the lab AS: "refresh token reuse detected; grant revoked", then "refresh token invalid or revoked". The AS cannot tell which of the two presenters was the thief, so both lose: one forced re-login against a silent, long-lived compromise. The same mechanism bites honest code: two processes sharing one refresh token look exactly like this (section 10).</p>
-</div>
+</div></div></div></div>
 
 <h3>Client credentials: a service acting as itself</h3>
 <p>With no user (a nightly batch job calling an internal API), the client authenticates <i>as itself</i> at the token endpoint and receives a token whose subject is the client. How it authenticates matters more than the grant: a shared secret in a Basic header (a secret to store and rotate), or better <b>private_key_jwt</b>, a short JWT assertion the client signs with its own private key and the AS checks with the registered public key ({{RFC 7523 s2.2|https://www.rfc-editor.org/rfc/rfc7523#section-2.2}}), so no shared secret exists at all (the lab's MCP server authenticates this way in section 8). <span class="meas">recorded</span> with a secret:</p>
 <div id="rdCC"></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>The device grant: logging in a box with no browser</h3>
 <p>A GPU node over SSH, a TV, a CLI in a container cannot open a browser. The device asks the AS for a secret <b>device code</b> and a short <b>user code</b>, alice types the user code on her phone, and the device polls the token endpoint until she approves ({{RFC 8628|https://www.rfc-editor.org/rfc/rfc8628}}). Polling rules: wait <code>interval</code> seconds (5 if unspecified); on <code>slow_down</code>, add 5 seconds for good (s3.5).</p>
-<div class="fig">
+<p>The user code is short on purpose: RFC 8628's own example, 8 characters from a 20-letter alphabet, carries 8 &times; log<sub>2</sub>(20) = <b id="rdUcBits"></b> bits, enough only because of rate limiting and expiry (s6.1). The flow's real weakness: the user approves a code someone else started. In the Storm-2372 campaign, attackers sent victims device codes disguised as meeting invitations, and the victims' approvals gave the attackers tokens; Microsoft's advice is to block the device flow wherever it is not needed ({{Microsoft Threat Intelligence, 13 February 2025|https://www.microsoft.com/en-us/security/blog/2025/02/13/storm-2372-conducts-device-code-phishing-campaign/}}).</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig">
 <h4>The device polls; polling too fast earns slow_down; tokens arrive on the first poll after approval</h4>
 <div class="lanes"><svg id="devSvg" role="img" aria-label="Device asks for codes, polls, is told to slow down, the user approves on a phone, the next poll returns tokens"></svg></div>
 <p class="figcap"><span class="meas">recorded</span> with the lab's interval set to 1 s to keep it short; after <code>slow_down</code> the AS answered "polling too fast; interval is now 6 s".</p>
-</div>
-<p>The user code is short on purpose: RFC 8628's own example, 8 characters from a 20-letter alphabet, carries 8 &times; log<sub>2</sub>(20) = <b id="rdUcBits"></b> bits, enough only because of rate limiting and expiry (s6.1). The flow's real weakness: the user approves a code someone else started. In the Storm-2372 campaign, attackers sent victims device codes disguised as meeting invitations, and the victims' approvals gave the attackers tokens; Microsoft's advice is to block the device flow wherever it is not needed ({{Microsoft Threat Intelligence, 13 February 2025|https://www.microsoft.com/en-us/security/blog/2025/02/13/storm-2372-conducts-device-code-phishing-campaign/}}).</p>
+</div></div></div></div>
 
 <h3>What OAuth 2.1 removed</h3>
 <div class="tw"><table>
