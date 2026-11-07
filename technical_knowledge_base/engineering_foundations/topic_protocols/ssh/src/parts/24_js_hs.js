@@ -1,7 +1,7 @@
 // ---- Section 1: one login, packet by packet, for four key exchanges (bars to scale), and the round-trip ladder.
 (function(){
   const K=SSHD.kex;let mode='mlkem768x25519-sha256';
-  const fig=document.getElementById('hs-fig'),cap=document.getElementById('hs-cap'),out=document.getElementById('hs-out');
+  const fig=document.getElementById('hs-fig'),out=document.getElementById('hs-out'),list=document.getElementById('sx-hs');
   const SCALE=Math.max(...Object.values(K).flatMap(v=>v.packets.map(p=>p.bytes)));
   const fmt=n=>n.toLocaleString('en-GB');
   const short=s=>s.length>70?s.slice(0,70)+'…':s;
@@ -28,11 +28,13 @@
       s+=RD.t(x0+len+5,yy+12,fmt(p.bytes)+' B',{fs:11,fill:on?'var(--ink)':'var(--dim)'});
     });
     fig.innerHTML=RD.svg(w,P.length*rh+8,s,'SSH login packets to scale, '+mode);
-    const c=capFor(P[i],mode);cap.innerHTML='<div class="t">'+c[0]+'</div><p>'+c[1]+'</p>';
     out.innerHTML=RD.stat('Plain-text bytes so far',fmt(plain),'visible to any observer')+RD.stat('Key exchange messages',fmt(kx)+' B','init + reply so far')+RD.stat('Encrypted bytes so far',fmt(enc),'sizes only')+RD.stat('Median login time',K[mode].median_ms+' ms','15 fresh logins, no added delay');
   }
-  const A=RD.anim({card:'hs-card',ctl:'hs-ctl',n:K[mode].packets.length,draw,ms:1500,label:'Packet'});
-  RD.seg(document.getElementById('hs-seg'),m=>{mode=m;A.reset(K[mode].packets.length);A.go(K[mode].packets.length-1)});
+  // the step list on the left: one item per packet group of the chosen key exchange (its captions moved here from under the chart)
+  function fill(){list.innerHTML=K[mode].packets.map(p=>{const c=capFor(p,mode);return '<li><b>'+c[0]+'.</b> '+c[1]+'</li>'}).join('')}
+  fill();
+  const A=RD.anim({card:'hs-card',ctl:'hs-ctl',n:K[mode].packets.length,draw,ms:3800,label:'Packet',list:'sx-hs'});
+  RD.seg(document.getElementById('hs-seg'),m=>{mode=m;fill();A.reset(K[mode].packets.length,'sx-hs')});
   RD.onResize(()=>A.redraw());
 })();
 // round-trip ladder from the 40 ms recording

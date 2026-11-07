@@ -1,4 +1,4 @@
-// Click every control of the SSH page at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
+// Click every control of the SSH page at 390 px dark and 920 px light (reduced motion, so nothing plays by itself); fail on page errors, NaN, undefined,
 // sideways scroll or the error box. Screenshots of each interactive card go to <out dir>.
 // Usage (from the repo root): node technical_knowledge_base/engineering_foundations/topic_protocols/ssh/src/check_ui.mjs <out dir>
 import { createRequire } from 'module';
@@ -43,24 +43,28 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     await p.evaluate(c => { const s = document.getElementById(c + '-v'); s.value = '2'; s.dispatchEvent(new Event('change')); }, ctl);
     await check(where + ' buttons');
   };
+  const scrub3 = async (id, where) => {
+    const n = await p.$eval('#' + id + '-r', r => +r.max);
+    for (let v = 0; v <= n; v++) { await p.evaluate((id, v) => { const r = document.getElementById(id + '-r'); r.value = v; r.dispatchEvent(new Event('input')); }, id, v); await check(where + ' step ' + v); }
+  };
   const shot = async (id, name) => {
     const el = await p.$('#' + id);
     if (el) { await el.scrollIntoView(); await sleep(80); await el.screenshot({ path: `${out}/${name}-${scheme}-${w}.png` }); }
   };
   const seg = async (segId, m) => p.evaluate((s, m) => document.querySelector('#' + s + ' [data-m="' + m + '"]').click(), segId, m);
   await p.click('#tabs button[data-t="t-read"]');
-  await shot('hero-card', 'hero'); await shot('layers-fig', 'layers');
+  await shot('stg-hero', 'hero');
   for (const m of ['curve25519-sha256', 'sntrup761x25519-sha512', 'ecdh-sha2-nistp256', 'mlkem768x25519-sha256']) { await seg('hs-seg', m); await scrub('hs-ctl', 'hs ' + m); }
   await p.evaluate(() => { const r = document.getElementById('hs-ctl-s'); r.value = 4; r.dispatchEvent(new Event('input')); }); await shot('hs-card', 'hs');
   await shot('rtt-fig', 'rtt');
   for (const m of ['cert_good', 'cert_expired', 'cert_wrong_principal', 'cert_no_principal', 'cert_revoked']) { await seg('cert-seg', m); await check('cert ' + m); }
   await shot('cert-card', 'cert');
-  for (const m of ['forward', 'constrained', 'proxyjump']) { await seg('ag-seg', m); await scrub('ag-ctl', 'agent ' + m); }
-  await seg('ag-seg', 'forward'); await p.evaluate(() => { const r = document.getElementById('ag-ctl-s'); r.value = 3; r.dispatchEvent(new Event('input')); }); await shot('ag-card', 'agent');
-  for (const m of ['fresh', 'mux', 'both']) { await seg('mux-seg', m); await scrub('mux-ctl', 'mux ' + m); }
-  for (const c of ['hk', 'hc', 'pj', 'tn']) { await scrub(c + '-ctl', 'stepper ' + c); await shot(c + '-card', 'step-' + c); }
+  // the 3D stages (stepped and checked by check_stages.mjs): every mode of the agent stage, every step, no errors
+  for (const m of ['forward', 'constrained', 'proxyjump']) { await seg('ag-mode', m); await scrub3('stg-agent', 'agent ' + m); }
+  for (const id of ['stg-hero', 'stg-jump', 'stg-mux', 'stg-fwd']) await scrub3(id, id);
+  for (const c of ['hk', 'hc']) { await scrub(c + '-ctl', 'stepper ' + c); await shot(c + '-card', 'step-' + c); }
   for (const f of ['ca-fig', 'ka-fig', 'pen-fig', 'dbg-fig']) await shot(f, f);
-  await shot('mux-card', 'mux'); await shot('fwd-fig', 'fwd'); await shot('reach-tbl', 'reach'); await shot('xfer-fig', 'xfer');
+  await shot('stg-mux', 'mux'); await shot('stg-fwd', 'fwd'); await shot('reach-tbl', 'reach'); await shot('xfer-fig', 'xfer');
   const nc = await p.$$eval('#cfg-card .cfg div[role=option]', d => d.length);
   for (let i = 0; i < nc; i++) { await p.evaluate(i => document.querySelectorAll('#cfg-card .cfg div[role=option]')[i].click(), i); await check('cfg ' + i); }
   await shot('cfg-card', 'cfg');
@@ -83,13 +87,13 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   const links = await p.$$eval('#t-more a[target=_blank]', a => a.filter(x => !/^https:\/\//.test(x.href)).length); if (links) { bad++; console.log('FAIL non-https link'); }
   await p.close();
 }
-{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(page_url);
+// reduced motion (2026-11-06: animations now play by themselves once in view, which check_stages.mjs checks): nothing moves by itself
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.goto(page_url);
   const ids = await p.$$eval('#t-read input[type=range]', r => r.map(x => x.id));
-  for (const id of ids) { await p.$eval('#' + id, e => e.closest('.card').scrollIntoView()); await sleep(250); }
+  for (const id of ids) { await p.$eval('#' + id, e => (e.closest('.card') || e.closest('.stg')).scrollIntoView()); await sleep(250); }
   await sleep(3500);
-  const moved = await p.$$eval('#t-read input[type=range]', r => r.filter(x => +x.value !== 0 && x.id !== 'hs-ctl-s').map(x => x.id + '=' + x.value));
-  const hs = await p.$eval('#hs-ctl-s', x => +x.value);
-  total++; if (moved.length || hs !== 0) { bad++; console.log('FAIL autoplay', moved, 'hs', hs); } else console.log('no autoplay: ' + ids.length + ' animations still on step 1');
+  const moved = await p.$$eval('#t-read input[type=range]', r => r.filter(x => +x.value !== 0).map(x => x.id + '=' + x.value));
+  total++; if (moved.length) { bad++; console.log('FAIL moved under reduced motion', moved); } else console.log('reduced motion: ' + ids.length + ' animations and stages still on step 1');
   await p.close(); }
 await browser.close();
 console.log('checks', total, 'failures', bad);
