@@ -1,4 +1,5 @@
-// ---- Reading figures added in the 2026-10-24 rebuild: hero, layers, composition, wrong abstraction, agent loop, debt quadrant, deprecation timeline ----
+// ---- Reading figures added in the 2026-10-24 rebuild: composition, wrong abstraction, agent loop, debt quadrant, deprecation timeline
+// (the hero, the layers diagram and the depth chart became the 3D stages of 44 to 47 on 2026-11-07) ----
 (function(){
   const CD=window.CD, esc=RD.esc, T=RD.t, $=id=>document.getElementById(id);
   // wrap a string into lines of at most n characters (SVG text does not wrap)
@@ -7,43 +8,6 @@
   const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.rx==null?6:o.rx)+'" fill="'+(o.fill||'var(--bg)')+'" stroke="'+(o.stroke||'var(--line)')+'"'+(o.dash?' stroke-dasharray="5 4"':'')+' stroke-width="'+(o.sw||1.2)+'"/>'};
   const defs='<defs><marker id="cd-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--mute)"/></marker></defs>';
   const arrow=(x1,y1,x2,y2,dash)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.4"'+(dash?' stroke-dasharray="5 4"':'')+' marker-end="url(#cd-ar)"/>';
-
-  // ---- hero: the handler as a barcode of concerns, before and after, with the helpers that now hide each concern ----
-  const HELP={auth:['current_owner','who'],rate:['enforce_rate_limit','take_token'],idem:['idempotency_claim','claim_key','request_fingerprint','require_key'],store:['save_reply','chat_exists'],model:['make_reply']};
-  function hero(){
-    const el=$('cd-hero');if(!el)return;const W=Math.min(860,RD.width(el)),pad=4;
-    const st=k=>CD.steps.find(s=>s.step===k);
-    const rows=[[st(0),'Before: '+st(0).handler_lines+' lines, complexity '+st(0).cc_handler],[st(10),'After: '+st(10).handler_lines+' lines, complexity '+st(10).cc_handler]];
-    const n0=st(0).handler.split('\n').length,cw=(W-2*pad)/n0;let b='',y=16;
-    rows.forEach(([s,lab])=>{b+=T(pad,y,esc(lab),{fs:12,w:600});y+=6;
-      s.handler.split('\n').forEach((l,i)=>{const c=RD.concernOf(l);b+='<rect x="'+(pad+i*cw).toFixed(1)+'" y="'+y+'" width="'+Math.max(1,cw-1).toFixed(1)+'" height="30" fill="var('+(c?c[2]:'--line')+')"/>'});y+=48});
-    // helper boxes
-    const D=Object.fromEntries(CD.depth.map(d=>[d.name,d]));
-    const cols=W<560?2:5,gw=(W-2*pad)/cols,maxP=4;
-    b+=lines(pad,y,W<560?['Where each concern went (box width: parameters','of the entry helper; height: lines it hides)']:['Where each concern went (box width: parameters of the entry helper; height: lines it hides)'],{fs:11,fill:'var(--mute)'},14);y+=W<560?24:10;
-    let rowH=0,yy=y;
-    RD.CON.forEach((c,i)=>{const names=HELP[c[0]],top=D[names[0]],hid=names.reduce((a,n)=>a+(D[n]?D[n].body:0),0);
-      if(i%cols===0&&i){yy+=rowH+8;rowH=0}
-      const x=pad+(i%cols)*gw,w=Math.max(18,(gw-14)*top.params/maxP),h=Math.max(6,hid*3);
-      b+=T(x,yy+14,esc(c[1])+': '+hid+(hid===1?' line':' lines'),{fs:11,w:600})+T(x,yy+28,esc(names[0]+(names.length>1?' +'+(names.length-1):'')),{fs:11,fill:'var(--mute)'});
-      b+='<rect x="'+x+'" y="'+(yy+34)+'" width="'+w.toFixed(1)+'" height="'+h+'" fill="var('+c[2]+')" opacity="0.55"/><line x1="'+x+'" y1="'+(yy+34)+'" x2="'+(x+w).toFixed(1)+'" y2="'+(yy+34)+'" stroke="var(--bad)" stroke-width="3"/>';
-      rowH=Math.max(rowH,34+h+6)});
-    el.innerHTML=RD.svg(W,yy+rowH+4,b,'The send_message handler before and after the refactor, each line coloured by concern');
-  }
-
-  // ---- layers: imports point inward ----
-  function layers(){
-    const el=$('lay');if(!el)return;const W=Math.min(760,RD.width(el)),narrow=W<520;
-    const lw=narrow?W*0.58:W*0.55,rx=lw+(narrow?14:40),rw=W-rx-4,bh=narrow?44:40,gap=26;
-    const L=[['main.py','composition root','--c5'],['api/','HTTP in, HTTP out','--c1'],['services/','use cases','--c4'],['domain/ + ports.py','pure rules, Protocols','--c3']];
-    let b=defs;L.forEach((l,i)=>{const y=4+i*(bh+gap);b+=box(4,y,lw-8,bh,{stroke:'var('+l[2]+')',sw:2})+T(14,y+17,esc(l[0]),{fs:12,w:600})+T(14,y+33,esc(l[1]),{fs:11,fill:'var(--mute)'});
-      if(i<L.length-1)b+=arrow(lw/2,y+bh+2,lw/2,y+bh+gap-3)+T(lw/2+8,y+bh+17,'imports',{fs:11,fill:'var(--mute)'})});
-    const ay=4+(bh+gap),ah=2*bh+gap;
-    b+=box(rx,ay,rw,ah,{dash:true,fill:'var(--soft)'})+T(rx+8,ay+17,'adapters/',{fs:12,w:600})+lines(rx+8,ay+33,narrow?['Postgres,','SQLite store,','HTTP model,','test fakes']:['Postgres, SQLite store','HTTP model client','Redis limiter, test fakes'],{fs:11,fill:'var(--mute)'},14);
-    b+=arrow(lw-6,4+bh/2,rx+rw/2,ay-3)+T(rx+(narrow?2:rw/2-30),ay-8,'builds',{fs:11,fill:'var(--mute)'});
-    const py=4+3*(bh+gap)+bh/2;b+=arrow(rx+rw/2,ay+ah+2,lw-4,py,true)+T(rx-(narrow?6:0),py+18,'implements ports',{fs:11,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,4+4*bh+3*gap+8,b,'Layers of the chat service with import arrows pointing inward');
-  }
 
   // ---- composition against inheritance ----
   let K=3;const PROV=['Http','Local'],FEAT=[['R','Retrying'],['C','Cached'],['L','Logged']];
@@ -79,8 +43,8 @@
    ['Back out: inline into every caller, keep only its branch','Metz\'s remedy. Each caller keeps the one or two lines it uses; what is left in common is small and real: formatting one message.',
     ['def fmt(m): return f"{m.role}: {m.content}"       # the real shared part','# summarize.py','text = "\\n".join(fmt(m) for m in msgs)','# export.py','text = "\\n".join(f"{m.at:%H:%M} {fmt(m)}" for m in msgs)','# eval.py','text = "\\n".join(fmt(m) for m in msgs if m.role != "system")'],[0,2,4,6]]];
   if($('wa-card')){
-    RD.anim({card:'wa-card',ctl:'wa-ctl',n:WA.length,ms:3500,label:'Wrong abstraction step',draw:i=>{const f=WA[i];
-      $('wa-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+WA.length+': '+esc(f[0])+'</div><p>'+esc(f[1])+'</p>';
+    // the step titles and explanations are the ol.sx list beside the card (20_read_b.html); WA keeps them for reference
+    RD.anim({card:'wa-card',ctl:'wa-ctl',n:WA.length,ms:4200,label:'Wrong abstraction step',list:'sx-wa',draw:i=>{const f=WA[i];
       RD.code($('wa-code'),f[2],f[2].map((_,j)=>f[3].includes(j)?'add':''))}});
   }
 
@@ -122,6 +86,6 @@
     el.innerHTML=RD.svg(W,narrow?136:112,b,'Deprecation timeline from 0.3.0 to 0.5.0');
   }
 
-  const all=()=>{hero();layers();comp();agent();debt();tl()};
+  const all=()=>{comp();agent();debt();tl()};
   all();RD.onResize(all);RD.onRender(all);
 })();

@@ -1,4 +1,4 @@
-// Click every control at 390 px dark and 920 px light; check no errors, NaN, undefined or sideways scroll;
+// Click every control at 390 px dark (reduced motion) and 920 px light; the 3D stages and the animations' autoplay are checked by check_stages.mjs; check no errors, NaN, undefined or sideways scroll;
 // compare the page's numbers with recompute.py; save element screenshots to ../.shots/.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/code_design/src/check_page.mjs
 import { createRequire } from 'module'; import path from 'path'; import fs from 'fs'; import { execSync } from 'child_process';
@@ -36,15 +36,22 @@ for (const [w, scheme, motion] of [[390, 'dark', 'reduce'], [920, 'light', 'no-p
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await sleep(100); await el.screenshot({ path: path.join(shots, 'el-' + name + '-' + w + '.png') }) } };
   const clickAll = async sel => { const n = await p.$$eval(sel, a => a.length); for (let i = 0; i < n; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), sel, i); await sleep(30); await check(sel + ' ' + i) } };
   await tab('t-read'); await check('load');
-  // nothing moves before the reader acts: scroll each animation into view, wait, and expect step 0
-  for (const id of ['rf-ctl', 'wa-ctl']) { await p.$eval('#' + id, e => e.scrollIntoView()); await sleep(4200); const v = await p.$eval('#' + id + '-s', e => +e.value); if (v !== 0) problems.push(w + ' ' + id + ' autoplayed to ' + v) }
-  // hero numbers and static captions against recompute.py
-  const heroTxt = await p.$eval('#cd-hero', e => e.textContent);
-  for (const [k, v] of Object.entries(ref.hidden)) if (!heroTxt.includes(v + (v === 1 ? ' line' : ' lines'))) problems.push(w + ' hero lacks ' + k + ' ' + v + ' lines');
+  // since 2026-11-07 every animation plays by itself once in view (the rollout rule), and never under reduced motion:
+  // at 390 px (reduced motion) each must still be on step 0 after 4 s in view; at 920 px it must be playing
+  for (const id of ['rf-ctl', 'wa-ctl']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await sleep(motion === 'reduce' ? 4200 : 1500);
+    const v = await p.$eval('#' + id + '-s', e => +e.value), playing = /Pause/.test(await p.$eval('#' + id + '-p', e => e.textContent));
+    if (motion === 'reduce' && (v !== 0 || playing)) problems.push(w + ' ' + id + ' moved under reduced motion (step ' + v + ')');
+    if (motion !== 'reduce' && !playing && v === 0) problems.push(w + ' ' + id + ' did not play when scrolled into view') }
+  // hero numbers (Fig. 1's step list and the scene's own count) against recompute.py
+  const heroTxt = await p.$eval('#sx-hero', e => e.textContent.replace(/\s+/g, ' '));
+  const HN = { auth: 'auth', rate: 'rate limit', idem: 'idempotency', store: 'database', model: 'the model call' };
+  for (const [k, v] of Object.entries(ref.hidden)) if (!heroTxt.includes(HN[k] + ' ' + v)) problems.push(w + ' hero list lacks ' + k + ' ' + v);
+  eq(await p.evaluate(() => window.CD_HERO.hidden), ref.hidden, 'hero scene hidden lines');
+  eq(await p.evaluate(() => window.CD_HERO.runs), ref.idem_runs_before, 'hero scene idempotency runs');
   const readTxt = await p.$eval('#t-read', e => e.textContent);
   if (!readTxt.includes('split into ' + ref.idem_runs_before + ' separate runs')) problems.push(w + ' hero caption idem runs');
   if (!readTxt.includes('claim_key hides ' + ref.claim_key[1] + ' lines behind ' + ref.claim_key[0] + ' parameters')) problems.push(w + ' depth caption claim_key');
-  await shot('#cd-hero', 'hero'); await shot('#lay', 'layers'); await shot('#ag-svg', 'agent'); await shot('#debt-svg', 'debt'); await shot('#dep-tl', 'deptl');
+  await shot('#ag-svg', 'agent'); await shot('#debt-svg', 'debt'); await shot('#dep-tl', 'deptl');
   // composition toggle
   for (const k of ['1', '2', '3']) { await p.click('#ci-seg button[data-m="' + k + '"]'); await sleep(40); await check('ci ' + k);
     const t = await p.$eval('#ci-title', e => e.textContent); const [a, c] = ref.composition[k]; if (!t.includes(a + ' classes') || !t.includes('needs ' + c)) problems.push(w + ' composition ' + k + ': ' + t) }
@@ -60,7 +67,7 @@ for (const [w, scheme, motion] of [[390, 'dark', 'reduce'], [920, 'light', 'no-p
   await p.click('#llm-seg button[data-m="2"]'); await shot('#llm-card', 'llm');
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await check('details open');
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = false));
-  await shot('#dep-card', 'depth'); await shot('#bench-bars', 'bench');
+  await shot('#bench-bars', 'bench');
   // refactor animation: step through every step in both modes and compare counters
   const counters = async () => p.$$eval('#rf-cnt .stat .v', a => a.map(x => x.textContent));
   await p.evaluate(() => document.querySelector('#rf-seg button[data-m="steps"]').click()); await sleep(50);

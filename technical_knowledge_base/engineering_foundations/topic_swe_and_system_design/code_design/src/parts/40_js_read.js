@@ -60,28 +60,10 @@
   document.getElementById('llm-stats').innerHTML=
     RD.stat('Highest complexity',st.before.cc_max+' &#8594; '+st.after.cc_max,'one function of '+st.before.cc_max+' vs the most complex of '+st.after.functions+' (HttpChatModel.complete)')+
     RD.stat('ruff findings',st.before.ruff.length+' &#8594; '+st.after.ruff.length,'rules C901, PLR0911/0912, PLR2004, BLE001, S113, ANN001/201')+
-    RD.stat('mypy --strict errors',st.before.mypy_strict_errors+' &#8594; '+st.after.mypy_strict_errors,'misleadingly low before: see section 6')+
+    RD.stat('mypy --strict errors',st.before.mypy_strict_errors+' &#8594; '+st.after.mypy_strict_errors,'misleadingly low before: see the Types block under Depth')+
     RD.stat('Source lines',st.before.sloc+' &#8594; '+st.after.sloc,'longer, and every piece testable alone');
   RD.code(document.getElementById('llm-before'),CD.llm.before.trimEnd().split('\n'));
   RD.code(document.getElementById('llm-after'),CD.llm.after.trimEnd().split('\n'));
-
-  // ---- module depth (section 5) ----
-  function drawDepth(){
-    const el=document.getElementById('dep-plot');const W=Math.min(860,RD.width(el));
-    const D=CD.depth.slice().sort((a,b)=>b.body/b.params-a.body/a.params);
-    const pu=Math.max(14,Math.min(26,(W-20)/34)), hu=5;   // px per parameter, px per body line
-    const cols=W<520?2:4, cw=(W-10)/cols;
-    let x=0,y=0,rowH=0,body='',i=0;
-    D.forEach(d=>{const w=d.params*pu,h=Math.max(6,d.body*hu),cx=(i%cols)*cw+6;if(i%cols===0&&i){y+=rowH+16;rowH=0}
-      const top=y+30;rowH=Math.max(rowH,h+34);
-      body+='<rect x="'+cx+'" y="'+top+'" width="'+w+'" height="'+h+'" fill="var(--acc2)" stroke="var(--acc)"/>'+
-        '<line x1="'+cx+'" y1="'+top+'" x2="'+(cx+w)+'" y2="'+top+'" stroke="var(--bad)" stroke-width="3"/>'+
-        RD.t(cx,top-16,esc(d.name),{fs:11,w:600})+RD.t(cx,top-4,d.params+' param'+(d.params>1?'s':'')+', '+d.body+' lines',{fs:11,fill:'var(--mute)'});
-      i++});
-    const H=y+rowH+6;
-    el.innerHTML=RD.svg(W,H,body,'Module depth of the helpers in the refactored service');
-  }
-  drawDepth();RD.onResize(drawDepth);RD.onRender(drawDepth);
 
   // ---- benchmark bars (section 6) ----
   function drawBench(){const el=document.getElementById('bench-bars');const mx=Math.max(...Object.values(B));

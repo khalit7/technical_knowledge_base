@@ -20,21 +20,22 @@
     el.innerHTML=RD.svg(W,H,b,'Handler length and complexity per step');
   }
   function draw(i){
-    const s=seq[i],prev=i>0?seq[i-1]:null,bang=s.step==='bigbang';
-    $('rf-cap').innerHTML='<div class="t">'+(bang?'One rewrite':'Step '+s.step)+': '+esc(s.title)+'</div><p>'+esc(s.why)+'</p>'+
-      (s.fails.length?'<p style="color:var(--bad)"><b>'+s.fails.length+' failing:</b> '+s.fails.map(f=>'<code>'+esc(f.name)+'</code>').join(', ')+'</p>':'');
+    const s=seq[i],prev=i>0?seq[i-1]:null;
     const d=(k,fmt)=>prev?(s[k]===prev[k]?'unchanged':(s[k]<prev[k]?'down from ':'up from ')+prev[k]):'start';
     $('rf-cnt').innerHTML=RD.stat('Handler lines',s.handler_lines,d('handler_lines'))+RD.stat('Complexity (McCabe)',s.cc_handler,d('cc_handler'))+
       RD.stat('Tests passing',s.passed+' / '+s.total,s.passed<s.total?'<span style="color:var(--bad)">red: stop and look</span>':'green')+
       RD.stat('Functions in file',s.n_funcs,d('n_funcs'))+RD.stat('ruff findings',s.ruff.length,s.ruff.join(', ')||'none');
     const failing=new Set(s.fails.map(f=>f.name));
-    $('rf-tests').innerHTML='<div class="tp" role="img" aria-label="'+s.passed+' of '+s.total+' tests pass">'+s.tests.map(t=>'<span title="'+esc(t)+'"'+(failing.has(t)?' class="f"':'')+'></span>').join('')+'</div>';
+    $('rf-tests').innerHTML='<div class="tp" role="img" aria-label="'+s.passed+' of '+s.total+' tests pass">'+s.tests.map(t=>'<span title="'+esc(t)+'"'+(failing.has(t)?' class="f"':'')+'></span>').join('')+'</div>'+
+      (s.fails.length?'<p style="color:var(--bad);margin:2px 0"><b>'+s.fails.length+' failing:</b> '+s.fails.map(f=>'<code>'+esc(f.name)+'</code>').join(', ')+'</p>':'');
     const lines=s.handler.split('\n'),old=new Set(prev?prev.handler.split('\n').map(x=>x.trim()):[]);
     RD.code($('rf-code'),lines,lines.map(l=>prev&&l.trim()&&!old.has(l.trim())?'add':''));
     $('rf-diff').innerHTML=s.diff.length?s.diff.map(l=>{const k=l[0];return '<span class="l'+(k==='+'?' add':k==='-'?' del':'')+'">'+(k==='@'?'<span class="cm">'+esc(l)+'</span>':RD.hl(l))+'</span>'}).join(''):'<span class="l"><span class="cm"># no change to the code: this step only adds tests (src/refactor/tests/)</span></span>';
     chart(s);
   }
-  const A=RD.anim({card:'rf-card',ctl:'rf-ctl',n:seq.length,draw,ms:3000,label:'Refactoring step'});
-  RD.seg($('rf-seg'),m=>{mode=m;seq=m==='bang'?[STEPS[0],BANG]:STEPS;A.reset(seq.length)});
+  const A=RD.anim({card:'rf-card',ctl:'rf-ctl',n:seq.length,draw,ms:4200,label:'Refactoring step',list:'sx-rf-steps'});
+  // a mode switch swaps the step list on the left (20_read_f.html) and replays
+  RD.seg($('rf-seg'),m=>{mode=m;seq=m==='bang'?[STEPS[0],BANG]:STEPS;['steps','bang'].forEach(x=>{$('sx-rf-'+x).hidden=x!==m});A.reset(seq.length,'sx-rf-'+m)});
+  window.CD_RF=A;
   RD.onResize(()=>A.redraw());
 })();

@@ -100,7 +100,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_protocols` Topic: protocols
 - [x] `engineering_foundations/topic_swe_and_system_design/building_a_backend_api` Building a backend API: request lifecycle, data layer, async and workers, shutdown
 - [x] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
-- [ ] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
+- [x] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
 - [ ] `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals` Distributed systems fundamentals: replication, partitioning, consistency, consensus
 - [ ] `engineering_foundations/topic_swe_and_system_design/ml_system_design` ML system design: LLM and ML services
 - [ ] `engineering_foundations/topic_swe_and_system_design/observability` Observability: logs, metrics, traces, alerting
@@ -393,3 +393,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_protocols` (root): hero close-up steps leave empty canvas below the lower plates; On the wire section 4 table shows 1140 without a thousands comma; verify_layout flags the Protocol atlas svg outside a split (accepted: reader-driven explorer); an older environment note on the page mentions a session scratchpad build of OpenSSL (wording only, no path).
 - `engineering_foundations/topic_swe_and_system_design/building_a_backend_api`: Fig. 2 last step plate labels close at 1400 (middleware, router); phone stages carry few labels (grouped labels hide at 390).
 - `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance`: Fig. 3 step 4 "17K/s, no leases" label close to "database" at 1400; Fig. 1 "W = 10S" label sits on the output block; measured bar labels hidden at 390 in Figs. 2 and 4; verify_layout flags the Load-test lab svg outside a split (accepted: reader-driven tool).
+- `engineering_foundations/topic_swe_and_system_design/code_design`: Fig. 1 hero mid step 3 (collapse to 17 lines) is a cluttered pile of slabs at 1400 (end states read well); Fig. 3 step 2 small in its card, one side's import arrows faint; Fig. 4 step 2 labels close at 1400; numbered sub-labels hidden at 390.

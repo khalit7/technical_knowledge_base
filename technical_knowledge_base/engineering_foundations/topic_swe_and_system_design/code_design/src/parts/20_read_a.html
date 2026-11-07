@@ -1,7 +1,7 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px;overflow-wrap:anywhere}
@@ -75,11 +75,20 @@ table.sc td.r{color:var(--bad);font-weight:600}table.sc td.g{color:var(--good);f
 <a href="#s-top">The idea</a><a href="#s-why">Cohesion, coupling</a><a href="#s-read">Readable code</a><a href="#s-abs">Deep modules</a><a href="#s-when">When to abstract</a><a href="#s-struct">Dependency direction</a><a href="#s-comp">Composition, patterns</a><a href="#s-core">Core and shell</a><a href="#s-err">Errors</a><a href="#s-ref">Refactoring</a><a href="#s-ai">Agents</a><a href="#s-debt">Debt</a><a href="#s-lib">Libraries</a><a href="#s-rev">Review</a><a href="#s-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Good code design keeps <span class="hl2">the next change cheap and safe</span>: put what changes together behind a small interface that hides a lot (high cohesion, low coupling, deep modules), let dependencies point toward the stable rules and keep I/O at the edges, and change structure only in small steps that tests pin down.</p>
-<div class="fig"><div class="ft">The same handler before and after: five concerns tangled in one function, then each behind one named helper</div><div class="rd-svg" id="cd-hero"></div>
-<p class="cap">Real code: the busiest endpoint of the chat API built on {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, before (52 lines, McCabe complexity 9) and after the ten-step refactor of <a href="#s-ref">section 9</a> (17 lines, complexity 4). Each stripe is one line of the handler, coloured by the concern it serves (by keyword rules, so a line or two is approximate). Before, the idempotency logic alone is split into 5 separate runs of lines; after, every concern is a call to a helper whose box is drawn as wide as its parameters and as tall as the lines it hides.</p></div>
+<p>Fig. 1 is that idea on real code: the busiest endpoint of the chat API built on {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}, before and after the ten-step refactor of <a href="#s-ref">section 9</a>. Each slab is one line of the handler, as long as the line and indented as in the file, coloured by the concern it serves (by keyword rules, so a line or two is approximate).</p>
+<ol class="sx" id="sx-hero">
+<li><b>Before: five concerns in one function.</b> The handler as it was: 52 lines, McCabe complexity 9, with authentication, rate limiting, idempotency keys, storage and the model call interleaved line by line.</li>
+<li><b>One concern, scattered.</b> Pull the idempotency lines forward and they come out in pieces: the idempotency logic alone is split into 5 separate runs of lines, so changing that one rule means finding it in five places (low cohesion, section 1).</li>
+<li><b>After: 17 lines, complexity 4.</b> The refactored handler reads top to bottom; each concern is now a call or two with a name that says what it is for.</li>
+<li><b>Behind each call, a module.</b> Each concern's code moved into helpers, drawn behind the handler as Ousterhout draws modules: the red top is as wide as the entry helper's parameters, the height is the lines its helpers hide (idempotency 26, rate limit 14, database 11, auth 8, the model call 1). Small interfaces, much hidden: section 3.</li>
+</ol>
+</section>
+</div></div>
+<div id="s-top2">
 <p><b>Why this is the whole subject.</b> Code is read far more often than it is written ({{PEP 8|https://peps.python.org/pep-0008/#a-foolish-consistency-is-the-hobgoblin-of-little-minds}} credits the insight to Guido van Rossum), so the test of a design is the <b>next change</b>: code that works today but makes every change risky is bad code; code that is a little longer but where each change touches one place is good code. Every section below is one technique for that, with what it costs and when not to use it.</p>
 <p class="small"><b>You need:</b> Python and a little FastAPI; nothing else. <b>Elsewhere:</b> tests themselves are {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}'s (doubles, CI, mutation testing); language idioms, typing mechanics and the toolchain (ruff, uv, type checkers, packaging) are {{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}}'s; whole-system design is {{System design case studies|n:3ef5c17b0d0d81c3b211d75127ef5ded}}'; HTTP API design is {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}', and the service behind it {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}'s.</p>
 <dl class="terms">
@@ -91,7 +100,7 @@ table.sc td.r{color:var(--bad);font-weight:600}table.sc td.g{color:var(--good);f
 <dt>Refactoring, characterization test</dt><dd>a change of structure that keeps behaviour; a test that records what code does today</dd>
 <dt>Technical debt</dt><dd>design shortcuts whose cost is paid later as "interest" on every change that touches them</dd>
 </dl>
-</section>
+</div>
 
 <section id="s-why"><h2>1. The enemy is complexity; cohesion and coupling are how you see it</h2>
 <p>John Ousterhout, who teaches software design at Stanford, defines <dfn id="g-complexity">complexity</dfn> as "Anything related to the structure of a system that makes it hard to work on the development of that system" ({{his course notes|https://web.stanford.edu/~ouster/cgi-bin/cs190-winter18/lecture.php?topic=complexity}}; the book is {{A Philosophy of Software Design|https://web.stanford.edu/~ouster/cgi-bin/book.php}}, 2nd edition July 2021). Its three symptoms: <b>change amplification</b> (a simple change needs many edits), <b>cognitive load</b> (you must hold a lot in your head to make a change) and <b>unknown unknowns</b> (something you needed to know was not obvious, or not even findable). Its two causes: <b>dependencies</b> (if one piece changes, another must too) and <b>obscurity</b> (it is not clear how or why the code works). It is "judged by readers of code, not the writer", and it is incremental: "an accumulation of thousands of small dependencies and obscurities".</p>
@@ -100,6 +109,7 @@ table.sc td.r{color:var(--bad);font-weight:600}table.sc td.g{color:var(--good);f
 <div class="co key"><div class="t">The running example</div>The chat product from the parent topic. Its API is a 200-line FastAPI service; its busiest endpoint, <code>POST /v1/chats/{id}/messages</code>, is one 52-line function that checks the API key, applies a rate limit, handles idempotency keys, stores the message, charges credits and "calls the model". It works, and it is exactly the kind of function that becomes hard to change. A second example, an LLM call that titles and summarises a chat, was written for this page in the tangled shape such code usually grows into.</div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-read"><h2>2. Readable code: names, one level of detail, comments that say why</h2>
 <h3>Names</h3>
 <p>{{PEP 8|https://peps.python.org/pep-0008/#naming-conventions}} fixes the spelling (<code>lower_case_with_underscores</code> functions, <code>CapWords</code> classes, <code>ALL_CAPS</code> constants, a leading underscore as the "weak internal use indicator"), and a formatter enforces it. The hard part is <b>what</b> a name says:</p>
@@ -110,13 +120,7 @@ table.sc td.r{color:var(--bad);font-weight:600}table.sc td.g{color:var(--good);f
 <li><b>Length follows scope.</b> <code>r</code> is fine for a response used on the next two lines; a module-level name must stand alone. <code>data</code>, <code>info</code>, <code>manager</code>, <code>handle</code> and <code>process</code> say almost nothing; they usually mean the thing has no single job yet.</li>
 </ul>
 <h3>One level of detail per function</h3>
-<p>A function should either say <i>what</i> happens in a few named steps, or do <i>one</i> of those steps in detail. Mixing the two forces the reader to switch between "the plan" and "the SQL" every few lines. Toggle the real handler: before, the rate-limit lines sit between the auth lines and the idempotency lines; after, each concern is one named line and the details live in functions you open only when you need them.</p>
-<div class="card" id="cnc-card">
-<div class="seg" id="cnc-seg"><button data-m="0" class="on">Before: 52 lines</button><button data-m="10">After the refactor: 17 lines</button></div>
-<div class="leg" id="cnc-leg"></div>
-<p class="small mute" id="cnc-note"></p>
-<details class="mist"><summary>Read the handler line by line, coloured by concern</summary><div class="b"><div class="cv" id="cnc-code"></div></div></details>
-</div>
+<p>A function should either say <i>what</i> happens in a few named steps, or do <i>one</i> of those steps in detail. Mixing the two forces the reader to switch between "the plan" and "the SQL" every few lines. Toggle the real handler (right): before, the rate-limit lines sit between the auth lines and the idempotency lines; after, each concern is one named line and the details live in functions you open only when you need them.</p>
 <div class="co"><div class="t">How short should a function be? Two experts disagree, usefully</div>Robert C. Martin's <i>Clean Code</i> (2008) pushes for very small functions. Ousterhout: "The advice in Clean Code on method length is so extreme that it encourages programmers to create teeny-tiny methods that suffer from both shallow interfaces and entanglement", and "Depth is more important than length: first make functions deep, then try to make them short enough to be easily read" ({{their written debate, September 2024 to February 2025|https://github.com/johnousterhout/aposd-vs-clean-code#method-length}}; the second quote is from the {{2nd edition extract|https://web.stanford.edu/~ouster/cgi-bin/aposd2ndEdExtract.pdf}}). The practical rule: split when the pieces have names that explain them and can be understood alone; do not split when the reader would jump between five tiny functions to follow one idea.</div>
 <h3>Comments that say why</h3>
 <p>Code says <i>what</i>; a comment earns its place by saying what the code cannot: <b>why</b>, what it protects against, what was tried and rejected. PEP 8: "Comments that contradict the code are worse than no comments", and inline comments "are unnecessary and in fact distracting if they state the obvious" (its example: <code>x = x + 1  # Increment x</code>). Google's review guide asks for comments that "mostly explain why instead of what" ({{What to look for|https://google.github.io/eng-practices/review/reviewer/looking-for.html#comments}}).</p>
@@ -126,3 +130,14 @@ table.sc td.r{color:var(--bad);font-weight:600}table.sc td.g{color:var(--good);f
 </div>
 <p class="small"><b>Cost.</b> Renaming in shared code touches every caller and every open pull request; in a library it is a breaking change (<a href="#s-lib">section 12</a>). Splitting adds jumps for the reader and pays only when the new names carry meaning. Do not docstring every private three-line helper "for completeness": a good name is shorter and cannot go stale.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="fig" style="margin-top:0"><div class="ft">The same handler, toggled: before, the concerns alternate line by line; after, one named call each</div>
+<div class="card" id="cnc-card">
+<div class="seg" id="cnc-seg"><button data-m="0" class="on">Before: 52 lines</button><button data-m="10">After the refactor: 17 lines</button></div>
+<div class="leg" id="cnc-leg"></div>
+<p class="small mute" id="cnc-note"></p>
+<details class="mist"><summary>Read the handler line by line, coloured by concern</summary><div class="b"><div class="cv" id="cnc-code"></div></div></details>
+</div>
+</div>
+</div></div></div>
