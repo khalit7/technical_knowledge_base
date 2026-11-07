@@ -1,10 +1,11 @@
 // node <page>/src/check_controls.mjs   (paths are resolved from this file; puppeteer from html_utils' node_modules)
 // Adapted from the language page's src/ja/check_ui.mjs and the Python concurrency child's check_controls.mjs (2026-10-26).
-// At 390 px dark and 920 px light: clicks every mode of the three animations and steps each to its end; fails on any page
+// At 390 px dark and 920 px light: clicks every mode of the two 2D animations and steps each to its end; fails on any page
 // or console error, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity outside code. Checks that every embedded
 // output equals its file in ja/outputs, that the stepper's printed lines equal the recorded Node output for all six programs,
-// and that the SSE replay's live parsers reproduce the recorded run. Under reduced motion and with no reduced motion,
-// scrolling each animation into view must leave it on step 1 (nothing moves before the reader acts).
+// and that the SSE replay's live parsers reproduce the recorded run. 2026-11-07: the stepper is now a 3D stage (Fig. 2) and every animation
+// plays once scrolled into view, so the old "nothing moves before the reader acts" block is gone; check_stages.mjs checks autoplay,
+// the stop rules, reduced motion and the step lists.
 import { createRequire } from 'node:module'; import fs from 'node:fs'; import path from 'node:path';
 import { fileURLToPath } from 'node:url'; import { execSync } from 'node:child_process';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -14,16 +15,13 @@ const PAGE = path.resolve(HERE, '../index.html'), OUT = path.join(HERE, 'ja/outp
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await puppeteer.launch({ headless: 'shell' });
 let fail = 0; const notes = [];
-const ANIMS = [['el-lp', 'el-lp-mode'], ['el-tl', 'el-tl-mode'], ['el-sse', 'el-sse-mode']];
+const ANIMS = [['el-tl', 'el-tl-mode'], ['el-sse', 'el-sse-mode']];
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto('file://' + PAGE); await p.click('button[data-t=t-read]');   // the tab bar remembers the last tab
-  // nothing plays by itself
-  for (const [a] of ANIMS) { await p.$eval('#' + a + '-card', el => el.scrollIntoView()); await sleep(1900);
-    const v = await p.$eval('#' + a + '-ctl-s', r => +r.value); if (v !== 0) errs.push(a + ' moved without the reader'); }
   const report = async label => {
     const r = await p.evaluate(() => { const t = [...document.querySelectorAll('.tab')].find(x => !x.hidden);
       const c = t.cloneNode(true); c.querySelectorAll('pre,code,.el-q').forEach(e => e.remove());
@@ -38,11 +36,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       for (let i = 1; i < n; i++) await p.click(`#${a}-ctl-f`);
       await report(`${a} ${m}`);
       const cnt = await p.$eval(`#${a}-cnt`, e => e.textContent);
-      if (a === 'el-lp' && !/recorded output: yes/.test(cnt)) errs.push('stepper output differs ' + m);
       if (a === 'el-sse' && !/recorded run: yes/.test(cnt)) errs.push('sse differs ' + m);
       await p.click(`#${a}-ctl-b`); await p.click(`#${a}-ctl-p`); await p.click(`#${a}-ctl-p`); await p.select(`#${a}-ctl-v`, '2');
     }
   }
+  if (!/: yes/.test(await p.$eval('#el-lp-check', e => e.textContent))) errs.push('stepper output differs from the recording');
   const lc = await p.evaluate(() => window.EL_LOOP_CHECK()); lc.forEach(([k, ok]) => { if (!ok) errs.push('loop check ' + k) });
   for (const [k, v] of Object.entries(await p.evaluate(() => EL.loops))) {
     const disk = fs.readFileSync(path.join(OUT, 'loop_' + k + '.txt'), 'utf8').replace(/\n+$/, '').split('\n');

@@ -24,15 +24,36 @@ stopped early; Array.fromAsync collects a whole stream: [ 'The', ' answer', ' is
 console.log(<span class="st">"full text:"</span>, JSON.stringify(text));
 <span class="kw">for</span> <span class="kw">await</span> (<span class="kw">const</span> tok <span class="kw">of</span> fakeModel(<span class="st">"q"</span>)) &#123; <span class="kw">if</span> (tok === <span class="st">" is"</span>) <span class="kw">break</span>; &#125;       <span class="cm">// stop early, e.g. the user pressed Stop</span>
 console.log(<span class="st">"stopped early; Array.fromAsync collects a whole stream:"</span>, <span class="kw">await</span> Array.fromAsync(fakeModel(<span class="st">"q"</span>)));</pre></div></details></div>
-<p>A streaming LLM API sends <b>server-sent events</b> (SSE): an HTTP response that stays open, carrying text lines <code>data: {...}</code>, each event ended by a blank line (the format, its parsing rules and how eight real parsers handle them are on {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}). With <code>fetch</code>, <code>response.body</code> is a stream of <code>Uint8Array</code> byte chunks that you can <code>for await</code> over. The trap: <span class="hl">the network decides where chunks end, not the server</span>. A chunk can end in the middle of an event, and in the middle of a multi-byte UTF-8 character. Code that parses each chunk on its own works on a fast local test and fails in production behind a proxy. The fix is one streaming <code>TextDecoder</code> (<code>{ stream: true }</code> keeps half a character for the next chunk), a text buffer, and parsing only complete events. Official SDKs do this for you; the bug appears when you hand-roll a client, a proxy or a test.</p>
-<div class="el-anim" id="el-sse-card"><h4>The same nine chunks: parsed one by one, 0 of 6 tokens; buffered, all 6</h4>
-<div class="seg" id="el-sse-mode"><button data-m="naive" class="on">Parse each chunk (wrong)</button><button data-m="good">Buffer, then parse (right)</button></div>
+<div class="s3sp"><div class="s3R"><div class="el-anim" id="el-sse-card"><h4>The same nine chunks: parsed one by one, 0 of 6 tokens; buffered, all 6</h4>
 <div class="el-ctl" id="el-sse-ctl"></div>
 <div id="el-sse-view"></div>
-<div class="el-cap" id="el-sse-cap"></div>
 <div class="el-counters" id="el-sse-cnt"></div>
 <div class="el-src">The nine chunks are the ones the client really received in the recorded run of <code>j1_sse.mjs</code> (a local server writing 19-byte slices 15 ms apart; byte lengths saved by the script); the two parsers run <span class="el-live">live</span> in your browser on those bytes, and their final results are checked against the recorded run.</div>
-</div>
+</div></div><div class="s3L">
+<p>A streaming LLM API sends <b>server-sent events</b> (SSE): an HTTP response that stays open, carrying text lines <code>data: {...}</code>, each event ended by a blank line (the format, its parsing rules and how eight real parsers handle them are on {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}). With <code>fetch</code>, <code>response.body</code> is a stream of <code>Uint8Array</code> byte chunks that you can <code>for await</code> over. The trap: <span class="hl">the network decides where chunks end, not the server</span>. A chunk can end in the middle of an event, and in the middle of a multi-byte UTF-8 character. Code that parses each chunk on its own works on a fast local test and fails in production behind a proxy. The fix is one streaming <code>TextDecoder</code> (<code>{ stream: true }</code> keeps half a character for the next chunk), a text buffer, and parsing only complete events. Official SDKs do this for you; the bug appears when you hand-roll a client, a proxy or a test.</p>
+<div class="s3chips" id="el-sse-mode"><button data-m="naive" class="on">Parse each chunk (wrong)</button><button data-m="good">Buffer, then parse (right)</button></div>
+<ol class="sx" id="sx-sse-naive" data-m="naive">
+<li><b>Chunk 1: cut mid-string.</b> <code>data: {"delta":"Hel</code> starts like an event but ends inside the string, so <code>JSON.parse</code> fails: Unterminated string. Nothing is shown.</li>
+<li><b>Chunk 2: the rest is dropped.</b> It starts with <code>lo"}</code>, the end of event 1, which does not start with <code>data: </code> and is thrown away; its second piece, <code>data: {"delta</code>, fails again. "Hello" is lost.</li>
+<li><b>Chunk 3: the same again.</b> The comma's event is cut the same way: a third Unterminated string.</li>
+<li><b>Chunk 4: lost without an error.</b> It begins mid-event and ends with <code>dat</code>; no piece starts with <code>data: </code>, so nothing is parsed and " wörld" disappears silently.</li>
+<li><b>Chunk 5: silent again.</b> <code>a: {"delta":"!"}</code> and <code>d</code>: the "!" is lost the same way.</li>
+<li><b>Chunk 6: half a character.</b> The chunk ends inside the rocket emoji's four UTF-8 bytes. A fresh decoder for this chunk alone turns the half into &#xFFFD;, the replacement character.</li>
+<li><b>Chunk 7: the other half.</b> It starts with the rest of the emoji (another &#xFFFD;); its event piece, <code>data: {"delta"</code>, fails: Expected ':' after property name.</li>
+<li><b>Chunk 8: the end marker, cut.</b> <code>data: [D</code> fails: Unexpected token 'D'.</li>
+<li><b>Chunk 9: nothing to show.</b> 158 bytes arrived and the user saw none of the 6 tokens, after 5 parse errors, as in the recorded run.</li>
+</ol>
+<ol class="sx" id="sx-sse-good" data-m="good" hidden>
+<li><b>Chunk 1: kept, not parsed.</b> The bytes go through one streaming <code>TextDecoder</code> into a text buffer. There is no blank line yet, so no event is complete and the buffer keeps <code>data: {"delta":"Hel</code>.</li>
+<li><b>Chunk 2: event 1 completes.</b> Text up to the blank line is a whole event: "Hello" is shown, and the buffer keeps <code>data: {"delta</code> for the next chunk.</li>
+<li><b>Chunk 3: ",".</b> The comma's event completes from the kept piece plus this chunk.</li>
+<li><b>Chunk 4: " wörld".</b> Complete, with its two-byte ö; the buffer keeps <code>dat</code>.</li>
+<li><b>Chunk 5: "!".</b> The buffer keeps <code>d</code>.</li>
+<li><b>Chunk 6: half an emoji held back.</b> The chunk ends inside the emoji; <code>{ stream: true }</code> makes the decoder keep those bytes until the rest arrives, so no &#xFFFD; appears and no event completes.</li>
+<li><b>Chunk 7: " 🚀".</b> The rest of the emoji arrives; the decoder completes the character and the event.</li>
+<li><b>Chunk 8: " done".</b> The buffer keeps <code>data: [D</code>.</li>
+<li><b>Chunk 9: all six tokens.</b> <code>data: [DONE]</code> completes: the stream's end marker, not a token. The user saw "Hello, wörld! 🚀 done", equal to the recorded run.</li>
+</ol>
 <details class="dp"><summary>The parser code and its recorded run: j1_sse.mjs (a local SSE server and both parsers)</summary><div class="b">
 <div class="el-snip"><div class="el-olab">real output of j1_sse.mjs, Node 24.21.0</div><pre class="el-out" data-el-src="j1_sse.txt">158 bytes arrived in 9 chunks; the first three:
   chunk 1: "data: &#123;\"delta\":\"Hel"
@@ -85,5 +106,70 @@ console.log(<span class="st">"naive parser, tokens:"</span>, JSON.stringify(naiv
 console.log(<span class="st">"buffered parser, tokens:"</span>, JSON.stringify(good.join(<span class="st">""</span>)));
 <span class="kw">if</span> (process.argv[2]) (<span class="kw">await</span> <span class="kw">import</span>(<span class="st">"node:fs"</span>)).writeFileSync(process.argv[2], JSON.stringify(&#123; body: BODY.toString(), slice: 19, chunks: naive.chunks, lens: naive.lens, naive: naive.events, naiveErrors: naive.errors, good &#125;));</pre></div>
 </div></details>
-<p><b>Node streams and backpressure.</b> Node also has its own older stream classes (<code>Readable</code>, <code>Writable</code>, <code>Transform</code>, <code>pipeline</code>) used by files, sockets and HTTP. They handle backpressure: a fast producer is paused while a slow consumer catches up, so memory stays bounded. Readable streams are async iterable too, which is the easiest way to use them. What happens to a server's memory when it ignores <code>write()</code>'s <code>false</code>, measured, is on {{TypeScript: LLM apps and agents|n:4055c17b0d0d8109aad6e69a87b3bd6f}}.</p>
+</div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-bp"></div></div><div class="s3L">
+<p><b>Node streams and backpressure.</b> Node also has its own older stream classes (<code>Readable</code>, <code>Writable</code>, <code>Transform</code>, <code>pipeline</code>) used by files, sockets and HTTP. They handle backpressure: a fast producer is paused while a slow consumer catches up, so memory stays bounded. Each stream has a buffer with a highWaterMark; <code>push()</code> and <code>write()</code> return false once it is reached, and <code>pipeline()</code> obeys that signal for you. Readable streams are async iterable too, which is the easiest way to use them. Fig. 3 replays a run of <code>k1_backpressure.mjs</code> recorded for this page (Node 20.20.1 on an AMD Ryzen 9 9950X under Linux, 2026-11-07; every event and buffer level was the same in four runs, the totals within 2 ms). What happens to a server's memory when it ignores <code>write()</code>'s <code>false</code> at scale, measured, is on {{TypeScript: LLM apps and agents|n:4055c17b0d0d8109aad6e69a87b3bd6f}}.</p>
+<div class="s3chips" id="el-bp-mode"><button data-m="pipeline" class="on">pipeline(): pauses the source</button><button data-m="ignore">write() in a loop, false ignored</button></div>
+<ol class="sx" id="sx-bp-pipeline" data-m="pipeline">
+<li data-e="0"><b>Three stages, four buffers.</b> A source (<code>Readable</code>), a pass-through <code>Transform</code> and a sink (<code>Writable</code>) that takes 20 ms for each 1 KiB chunk, joined by <code>pipeline()</code>. Every buffer has a highWaterMark of 2 KiB; the Transform has one on each side. At 1.1 ms the source's <code>read()</code> is called for the first time.</li>
+<li data-e="2"><b>The source fills its buffer and stops.</b> <code>push()</code> returns true for chunk 0 and false for chunk 1: the buffer has reached its 2 KiB mark, so the source stops pushing. The mark is a threshold, not a cap: the chunk that crossed it is kept.</li>
+<li data-e="13"><b>Chunks flow down until every buffer is at its mark.</b> The pipe moves chunks into the Transform and the sink (the sink starts writing chunk 0 at 1.4 ms), and each time the source's buffer drops below its mark, <code>read()</code> asks for one more. By 1.7 ms every buffer is full; the four counters add up to 8 KiB.</li>
+<li data-e="14"><b>Paused for 20 ms.</b> From 1.7 to 22.0 ms nobody calls <code>read()</code>: the source is paused, and the only work is the sink writing chunk 0.</li>
+<li data-e="21"><b>Room travels up the pipe.</b> The sink finishes chunks 0 and 1 (22.0 and 42.2 ms); the space they leave moves up stage by stage, and at 42.6 ms <code>read()</code> is called twice, for chunks 7 and 8.</li>
+<li data-e="67"><b>Steady state, paced by the sink.</b> From then on, about every 40 ms, the sink finishes two chunks and the source pushes two more, up to chunk 19 at 283.9 ms. No buffer ever holds more than its mark plus the one chunk that crossed it.</li>
+<li data-e="79"><b>The end.</b> The source pushes <code>null</code> (end of stream), the buffers drain, and the sink finishes chunk 19 at 403.9 ms.</li>
+</ol>
+<ol class="sx" id="sx-bp-ignore" data-m="ignore" hidden>
+<li data-e="1"><b>The same sink, written to in a loop.</b> A <code>for</code> loop calls <code>sink.write()</code> for each of the 20 chunks and ignores what it returns. The first write returns true, and the sink starts on chunk 0 at once.</li>
+<li data-e="20"><b>write() says false 19 times; the loop goes on.</b> From the second chunk on, <code>write()</code> returns false: the buffer is at its 2 KiB mark. By 0.1 ms all 20 chunks sit in the sink's buffer: 20 KiB, ten times the mark. Memory now grows with the input, not with the mark.</li>
+<li data-e="40"><b>Drained one chunk every 20 ms.</b> The sink still takes 20 ms a chunk; at 201.4 ms it has finished 10 and 10 KiB are still waiting.</li>
+<li data-e="60"><b>The same time, 2.5 times the memory.</b> The last chunk finishes at 402.2 ms, against 403.9 ms with <code>pipeline()</code>: the sink sets the pace either way, so ignoring false bought no speed, only memory (20 KiB against 8 KiB here; for a long stream to a slow client, without bound).</li>
+</ol>
+<details class="dp"><summary>The recording and the code: k1_backpressure.mjs</summary><div class="b">
+<div class="el-snip"><div class="el-olab">real output of k1_backpressure.mjs, Node 20.20.1 on Linux (the stage replays the events it saved)</div><pre class="el-out" data-el-src="k1_backpressure.txt">pipeline: 20 chunks of 1 KiB, highWaterMark 2 KiB, sink 20 ms a chunk: 404 ms, peak buffered 8 KiB, peak in the sink 2 KiB
+ignore: write() returned false 19 times
+ignore: 20 chunks of 1 KiB, highWaterMark 2 KiB, sink 20 ms a chunk: 402 ms, peak buffered 20 KiB, peak in the sink 20 KiB</pre></div>
+<div class="el-snip"><div class="el-olab">four runs compared (the event sequence and every buffer level)</div><pre class="el-out" data-el-src="k1_det.txt">k1_backpressure.mjs, 4 runs on Node 20.20.1 (Linux, AMD Ryzen 9 9950X), 2026-11-07: the sequence of events and buffer levels was identical in all 4
+pipeline totals (ms): 403.9 405.2 405.4 403.9 (the last is the recording)
+ignore totals (ms): 402.1 401.4 403.0 402.3 (the last is the recording)</pre></div>
+<div class="el-snip"><div class="el-file">k1_backpressure.mjs</div><pre class="el-code"><span class="cm">// Backpressure in a Node stream pipeline: a fast source, a pass-through Transform, a slow sink (20 ms per 1 KiB chunk).</span>
+<span class="cm">// Every buffer's highWaterMark is 2 KiB. Mode "pipeline": stream.pipeline() pauses the source when the buffers are full.</span>
+<span class="cm">// Mode "ignore": a loop calls sink.write() for every chunk and ignores the false it returns, so the sink's buffer grows.</span>
+<span class="cm">// Each event is stamped with ms since the start and the bytes waiting in every buffer; the Reading stage replays them.</span>
+<span class="kw">import</span> &#123; Readable, Transform, Writable &#125; <span class="kw">from</span> <span class="st">"node:stream"</span>;
+<span class="kw">import</span> &#123; pipeline &#125; <span class="kw">from</span> <span class="st">"node:stream/promises"</span>;
+<span class="kw">import</span> &#123; writeFileSync &#125; <span class="kw">from</span> <span class="st">"node:fs"</span>;
+<span class="kw">const</span> N = 20, KB = 1024, HWM = 2 * KB, SLOW = 20;
+<span class="kw">const</span> chunk = i =&gt; Buffer.alloc(KB, 97 + (i % 26));
+<span class="kw">async</span> <span class="kw">function</span> run(mode) &#123;
+  <span class="kw">const</span> EV = [], T0 = performance.now(); <span class="kw">let</span> src = <span class="kw">null</span>, xf = <span class="kw">null</span>, sink = <span class="kw">null</span>;
+  <span class="kw">const</span> lv = () =&gt; [src ? src.readableLength : 0, xf ? xf.writableLength : 0, xf ? xf.readableLength : 0, sink.writableLength];
+  <span class="kw">const</span> ev = (what, i, ok) =&gt; EV.push([what, i, +(performance.now() - T0).toFixed(1), ...lv(), ok === <span class="kw">undefined</span> ? <span class="kw">null</span> : ok]);
+  sink = <span class="kw">new</span> Writable(&#123; highWaterMark: HWM, write(c, _e, cb) &#123; <span class="kw">const</span> i = c[0] - 97; ev(<span class="st">"write"</span>, i); setTimeout(() =&gt; &#123; ev(<span class="st">"done"</span>, i); cb(); &#125;, SLOW); &#125; &#125;);
+  <span class="kw">if</span> (mode === <span class="st">"pipeline"</span>) &#123;
+    <span class="kw">let</span> i = 0;
+    src = <span class="kw">new</span> Readable(&#123; highWaterMark: HWM, read() &#123;             <span class="cm">// called whenever the source's buffer has room</span>
+      ev(<span class="st">"read"</span>, i);
+      <span class="kw">while</span> (i &lt; N) &#123; <span class="kw">const</span> ok = <span class="kw">this</span>.push(chunk(i)); ev(<span class="st">"push"</span>, i, ok); i++; <span class="kw">if</span> (!ok) <span class="kw">return</span>; &#125;   <span class="cm">// false: stop until read() is called again</span>
+      <span class="kw">this</span>.push(<span class="kw">null</span>);
+    &#125; &#125;);
+    xf = <span class="kw">new</span> Transform(&#123; highWaterMark: HWM, transform(c, _e, cb) &#123; cb(<span class="kw">null</span>, c); &#125; &#125;);
+    <span class="kw">await</span> pipeline(src, xf, sink);
+  &#125; <span class="kw">else</span> &#123;
+    <span class="kw">let</span> falses = 0;
+    <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; N; i++) &#123; <span class="kw">const</span> ok = sink.write(chunk(i)); ev(<span class="st">"push"</span>, i, ok); <span class="kw">if</span> (!ok) falses++; &#125;   <span class="cm">// ignores false</span>
+    <span class="kw">await</span> <span class="kw">new</span> Promise(r =&gt; sink.end(r));
+    ev(<span class="st">"end"</span>, N);
+    console.log(<span class="st">`ignore: write() returned false $&#123;falses&#125; times`</span>);
+  &#125;
+  <span class="kw">const</span> peak = Math.max(...EV.map(e =&gt; e[3] + e[4] + e[5] + e[6]));
+  console.log(<span class="st">`$&#123;mode&#125;: $&#123;N&#125; chunks of 1 KiB, highWaterMark 2 KiB, sink 20 ms a chunk: $&#123;EV.at(-1)[2].toFixed(0)&#125; ms, peak buffered $&#123;(peak / KB).toFixed(0)&#125; KiB, peak in the sink $&#123;(Math.max(...EV.map(e =&gt; e[6])) / KB).toFixed(0)&#125; KiB`</span>);
+  <span class="kw">return</span> &#123; events: EV, total_ms: EV.at(-1)[2], peak_kib: peak / KB &#125;;
+&#125;
+<span class="kw">const</span> out = &#123; n: N, hwm_kib: HWM / KB, slow_ms: SLOW, cols: [<span class="st">"what"</span>, <span class="st">"chunk"</span>, <span class="st">"ms"</span>, <span class="st">"source"</span>, <span class="st">"transform in"</span>, <span class="st">"transform out"</span>, <span class="st">"sink"</span>] &#125;;
+out.pipeline = <span class="kw">await</span> run(<span class="st">"pipeline"</span>);
+out.ignore = <span class="kw">await</span> run(<span class="st">"ignore"</span>);
+<span class="kw">if</span> (process.argv[2]) writeFileSync(process.argv[2], JSON.stringify(out));</pre></div>
+</div></details>
+</div></div>
 </section>

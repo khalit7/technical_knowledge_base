@@ -7,6 +7,7 @@ the drills and start-up data went with their sections. Markers in templates:
   [[predict:NAME]]    code, then the output hidden behind "Predict, then reveal"
   [[outc:NAME]]       the output in the core, the code beside it in a closed block
   [[json:KEY]]        (in .js templates) a dataset from DATA below
+  [[sx:PROGRAM]]      the step list (ol.sx) of one event-loop program, from loop_steps.json (added 2026-11-07)
 Run with any Python 3.10+: python3 gen.py"""
 import html, json, re
 from pathlib import Path
@@ -89,10 +90,13 @@ def expand(text):
         if kind == "predict":
             return (f'<div class="el-snip el-pred">{code_block(arg)}<details><summary>Predict the output, then reveal</summary>'
                     f'{out_block(out_name(arg), "real output, " + RUNTIME)}</details></div>')
+        if kind == "sx":
+            items = "".join(f"<li><b>{st['h']}.</b> {st['cap']}</li>" for st in STEPS[arg])
+            return f'<ol class="sx" id="{sx_id(arg)}" data-m="{arg}"{"" if arg == FIRST else " hidden"}>{items}</ol>'
         if kind == "json":
             return json.dumps(DATA[arg], separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
         raise ValueError(kind)
-    return re.sub(r"\[\[(run|code|out|predict|outc|json):([^\]]+)\]\]", rep, text)
+    return re.sub(r"\[\[(run|code|out|predict|outc|json|sx):([^\]]+)\]\]", rep, text)
 
 def loops():
     res = {}
@@ -100,7 +104,16 @@ def loops():
         res[p.name] = {"code": p.read_text().rstrip("\n"), "out": (OUT / f"loop_{p.name}.txt").read_text().rstrip("\n").split("\n")}
     return res
 
+# the stepper's explained steps (2026-11-07): a bold title and the explanation go to the step lists in the Reading tab,
+# the rest (lines lit, call stack, each queue, the line printed) to window.EL.steps for the 3D stage
+STEPS = json.loads((HERE / "loop_steps.json").read_text())
+FIRST = next(iter(STEPS))
+def sx_id(name):
+    return "sx-lp-" + re.sub(r"[^a-z0-9]+", "-", name.lower())
+
 DATA = {
+    "steps": {k: [{x: v for x, v in st.items() if x not in ("h", "cap")} for st in v] for k, v in STEPS.items()},
+    "bp": json.loads((OUT / "k1_backpressure.json").read_text()),
     "i4_trace": json.loads((OUT / "i4_trace.json").read_text()),
     "j1_sse": json.loads((OUT / "j1_sse.json").read_text()),
     "loops": loops(),

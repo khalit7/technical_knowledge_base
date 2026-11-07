@@ -28,4 +28,7 @@ for f in $SIMPLE loop/*; do case $f in i5*|i8*|i9*|i7*) continue;; esac
   g=${f%.mjs}; [ -f "$g.mjs" ] && g=$g.mjs || g=$f
   for N in $NODE22 $NODE26; do $NODE24 $g 2>&1 | clean > "$WORK/a.txt"; $N $g 2>&1 | clean > "$WORK/b.txt"
     cmp -s "$WORK/a.txt" "$WORK/b.txt" || echo "$g differs on $($N -v)" >> "$OUT/node_versions_diff.here.txt"; done; done
+# k1_backpressure (added 2026-11-07) was recorded on another machine, Node 20.20.1 on Linux (AMD Ryzen 9 9950X): run it with any Node 20+
+# and compare the event sequence with outputs/k1_backpressure.json (k1_det.txt records four identical runs)
+${NODE:-node} k1_backpressure.mjs "$OUT/k1_backpressure.json" > "$OUT/k1_backpressure.txt"
 echo done
