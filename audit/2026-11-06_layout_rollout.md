@@ -106,7 +106,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_swe_and_system_design/observability` Observability: logs, metrics, traces, alerting
 - [x] `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work` Queues, streams and async work: delivery semantics, Kafka, the outbox pattern
 - [x] `engineering_foundations/topic_swe_and_system_design/reliability_engineering` Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents
-- [ ] `engineering_foundations/topic_swe_and_system_design/system_design_case_studies` System design case studies: worked designs from requirements to bottlenecks
+- [x] `engineering_foundations/topic_swe_and_system_design/system_design_case_studies` System design case studies: worked designs from requirements to bottlenecks
 - [ ] `engineering_foundations/topic_swe_and_system_design/testing_and_quality` Testing and quality: unit, property-based, data and model tests, CI
 - [ ] `engineering_foundations/topic_swe_and_system_design` Topic: swe-and-system-design
 - [ ] `measurement/topic_benchmarks/agentic` Agentic benchmarks: GAIA, OSWorld, WebArena, tau2, Terminal-Bench, MCP evals
@@ -399,3 +399,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_swe_and_system_design/observability`: Fig. 1 hero step 4 cuts the traces plate, retrieval and model call at the card edges at 1400; Fig. 3 steps 5 and 6 labels sit on the field with a halo; trace and OTel stages keep the desktop angle at 390 (small band); verify_layout flags the Real telemetry svg outside a split (accepted: reader-driven explorer).
 - `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work`: outbox and delivery-semantics scenes small at 390, Fig. 4 bars show no values on phones; labels close at 1400 (work, then ack by workers in Fig. 1; crash before ack over a worker block); verify_layout flags the Queue lab svg outside a split (accepted: reader-driven tool).
 - `engineering_foundations/topic_swe_and_system_design/reliability_engineering`: Fig. 4 success line faint until its 3.2 s tween ends; phone stages carry one or two labels; Fig. 5 intro sentence awkward (the after design of section 8's before and after); verify_layout flags the Resilience lab svg outside a split (accepted: reader-driven tool).
+- `engineering_foundations/topic_swe_and_system_design/system_design_case_studies`: 5- and 6-lane stages draw small parts at full view (Figs. 5 and 7 cut lanes at the card edges at 1400); hero tight in the right column at 1400; phone stages name parts only in the naive step; check_stages takes about 4.5 min; 28 min of closed details is large.

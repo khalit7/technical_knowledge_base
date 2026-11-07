@@ -1,15 +1,27 @@
 <section id="s-url">
 <h2 class="dhead"><span class="dnum">Design 1</span>URL shortener: IDs, base62, caching, read-heavy scaling</h2>
+<div class="s3sp"><div class="s3L">
 <p>The warm-up: small enough to finish, and it still touches IDs, caching, HTTP and storage. A <b>URL shortener</b> turns a long address into a short one (<code>sho.rt/aZ3kQ9x</code>); visiting the short one <b>redirects</b>: the server answers "go here instead" and the browser follows.</p>
 <div class="req"><div class="t">Requirements (agreed with the interviewer)</div><div class="cols">
 <div><h5>Functional</h5><ul><li>Create a short link (optionally a custom alias); visiting it redirects.</li><li>Click counts per link for owners.</li><li>Out of scope: accounts, editing, link previews.</li></ul></div>
 <div><h5>Non-functional</h5><ul><li>Sized like Bitly in 2014: 600 million new links and 6 billion clicks a month ({{High Scalability, 2014|http://web.archive.org/web/2015/http://highscalability.com/blog/2014/7/14/bitly-lessons-learned-building-a-distributed-system-that-han.html}}, a summary of a Bitly engineer's talk).</li><li>Redirect under 50 ms at the server, p99. Links never break, kept 5 years; never give two users the same code.</li><li>Click counts may lag by minutes; a few lost clicks are acceptable.</li></ul></div></div></div>
-<div class="est" id="est-url"></div>
 <p><b>What the numbers say.</b> Writes are 230 a second and redirects under 5,000 a second at peak: both within one database (about 17,500 a second at our half-benchmark planning figure), so the cache is about latency and headroom, not survival. Two numbers do change the design: 36 billion links after five years fill <b>63%</b> of the 6-character code space, so random 6-character codes would collide on most attempts and 7 characters are needed; and 18 TB of rows is more than one comfortable database server, so storage must be <a href="#d-url-store">split later</a>. The app tier needs about a dozen servers, the order Bitly reported: "~30 servers handle all incoming traffic from the outside world including shortens, redirects, api requests, web ui, etc." (same source).</p>
+</div><div class="s3R"><div class="s3side"><div class="est" id="est-url"></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div class="sc-pin"><div id="stg-url"></div><div class="an-cnt" id="cnt-url"></div><p class="sc-leg">Each <span class="sk-bad">red</span> step is a bottleneck the estimate exposed; the next <span class="sk-fix">green</span> step fixes it. The counters show the naive design's value struck through beside the current one, for the same traffic.</p></div></div><div class="s3L">
 <h3>The design, built step by step: three bottlenecks, three fixes</h3>
-<p class="try"><b>Try:</b> step with the arrows or press play. Each red step is a bottleneck the estimate exposed; the next green step fixes it; the counters show the naive design's value struck through beside the current one, for the same traffic.</p>
-<div class="card" id="dia-url"></div>
+<ol class="sx" id="sx-url">
+<li data-k="naive"><b><span class="sk">The naive design:</span> one server, one database.</b> The browser asks the app server for a code; it reads the long URL from Postgres, adds 1 to a click counter in the same row, and answers 302. New links get a random 6-character code.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> the code space fills up.</b> After five years, 36 billion links fill 63% of the 56.8 billion 6-character codes, so most new random codes collide and must be retried, and the retries get worse every month.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> 7-character codes from leased ID ranges.</b> Each server leases a block of numbers from an ID range service, scrambles and encodes it in base62: 7 characters, 3.52 trillion codes, 1% used after five years, no collisions and no network call per create.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> every redirect is a database read and a write.</b> At peak, 4,630 redirects a second each read the row and update its click count. A viral link becomes one row locked by thousands of requests in turn.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> a cache in front, clicks to a queue.</b> Redis answers 90% of redirects (cache-aside, about 0.14 ms). The click becomes an event on a queue that consumers aggregate; the redirect no longer writes anything.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> one app server: capacity and a single point of failure.</b> 5,093 requests a second at peak against about 500 per server, and if the one machine dies, every link on the internet that points at us breaks.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> a load balancer and 12 stateless servers.</b> Servers hold no state (codes come from leased blocks, data from cache and database), so any server can answer any request and one can die unnoticed.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> 18 TB, and one primary for every write.</b> Five years of links is 18 TB on one database primary: backups, index rebuilds and failover all get slow, and the primary is still a single point of failure for creates.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> partition by code, a replica per shard.</b> Hash the code to choose a shard; each shard has a replica that takes over on failure. Planned from day one (code is the key), executed when storage demands it.</li>
+</ol>
+</div></div>
 
 <h3>The decision that matters: where short codes come from</h3>
 <p><b>Base62</b> writes a number with 62 symbols (0 to 9, a to z, A to Z): 6 characters give 62<sup>6</sup> = 56.8 billion codes, 7 give 3.52 trillion. Three schemes:</p>

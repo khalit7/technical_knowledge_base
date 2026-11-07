@@ -1,14 +1,27 @@
 <section id="s-job">
 <h2 class="dhead"><span class="dnum">Design 7</span>A distributed job scheduler: cron for a whole company</h2>
+<div class="s3sp"><div class="s3L">
 <p>A <b>job scheduler</b> runs work at a given time: "every day at 02:00, rebuild the search index"; "in 30 minutes, send this reminder". <b>Cron</b> is the classic Unix program that does this on one machine from schedules like <code>0 2 * * *</code> (minute, hour, day, month, weekday). The company-wide version must survive machines dying without running jobs twice or skipping them silently. (A notification system reuses most of designs 3 and 7 and is a prompt in the {{Design drill|#t-drill}}, with Netflix's published design as its reference; the scheduler is worked here because it has the better public sources, all with numbers.)</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
 <div><h5>Functional</h5><ul><li>Register recurring (cron syntax) and one-off delayed jobs; cancel; pause.</li><li>Run each due job on a worker and record each run (start, end, result, logs link).</li><li>Retries with backoff; alert the owner after N failures.</li></ul></div>
 <div><h5>Non-functional</h5><ul><li>10 million runs a day, 30% of them scheduled at the top of an hour (illustrative).</li><li>Start within a few seconds of the due time (Dropbox's target: 95% within 5 s, below).</li><li>No double runs of non-idempotent jobs, no silent skips; survives the loss of any machine.</li></ul></div></div></div>
-<div class="est" id="est-job"></div>
 <p><b>What the numbers say.</b> The average is small: 116 runs a second, about 2,300 running at once, 48 worker machines. The danger is the clock: people write <code>0 * * * *</code>, so 30% of the day's runs, 125,000 of them, become due in the same second, which would need 2,500 machines for one second and 48 the rest of the time. Spreading each hourly batch over a minute with <b>jitter</b> (a random delay per job) brings the burst to about 2,100 a second. Run history (5 GB a day) is easy.</p>
+</div><div class="s3R"><div class="s3side"><div class="est" id="est-job"></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div class="sc-pin"><div id="stg-job"></div><div class="an-cnt" id="cnt-job"></div><p class="sc-leg">Each <span class="sk-bad">red</span> step is a bottleneck the estimate exposed; the next <span class="sk-fix">green</span> step fixes it. The counters show the naive design's value struck through beside the current one, for the same traffic.</p></div></div><div class="s3L">
 <h3>The design, built step by step: one crontab, two schedulers, then a queue and jitter</h3>
-<div class="card" id="dia-job"></div>
+<ol class="sx" id="sx-job">
+<li data-k="naive"><b><span class="sk">The naive design:</span> cron on one machine.</b> One server runs a crontab: at the due minute it starts each job as a local process. No history, no retries.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> one machine: when it dies, nothing runs, silently.</b> A reboot during 02:00 skips the nightly jobs, and nobody notices until the reports are missing.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> a jobs table and two scheduler machines.</b> Schedules and runs live in a database; two scheduler machines read what is due, so either can die.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> both schedulers run the same job.</b> Both read "job 7 is due at 02:00" and both start it: the invoice email goes out twice.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> claim rows atomically; one row per intended run.</b> FOR UPDATE SKIP LOCKED divides due rows between schedulers; the runs table's key (job, scheduled time) makes a second launch a conflict, not a run.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> the scheduler runs the work, and a slow job blocks launches.</b> A 40-minute export holds a scheduler thread while hundreds of other launches wait; a crash mid-job loses it.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> schedulers only enqueue; workers lease runs.</b> Due runs go on a queue; workers lease them and heartbeat. A dead worker's lease expires and the run is retried (at-least-once, so jobs are idempotent).</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> 125,000 runs due in the same second.</b> 30% of the day's runs are "0 * * * *": every hour, one second needs 2,500 machines' worth of slots and the queue explodes.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> deterministic jitter over a minute.</b> Jobs that do not need the exact second get a fixed offset from a hash of their id: about 2,100 starts a second instead of 125,000 at once.</li>
+</ol>
+</div></div>
 
 <h3>The decisions that matter</h3>
 <p><b>Deciding what is due, exactly once.</b> Two machines both reading "what is due?" will both run the same job. One fix is <b>one leader</b>, elected through a consensus system (etcd, ZooKeeper, or Paxos/Raft directly): clean, but failover takes seconds, and a deposed leader that does not yet know it can still launch, hence leases and fencing tokens ({{Distributed systems fundamentals, Leader election, leases and fencing tokens|n:3c65c17b0d0d8115bc45c31d915b4d33}}). <i>Chosen at this scale:</i> <b>row claiming</b>: every instance runs <code>SELECT ... FROM jobs WHERE next_run_at &lt;= now() ORDER BY next_run_at LIMIT 100 FOR UPDATE SKIP LOCKED</code>, where <code>SKIP LOCKED</code> makes each skip rows another has locked, and in the same transaction inserts the run row and advances <code>next_run_at</code>: no extra system, the database's transaction is the coordination. Either way the <code>runs</code> primary key <code>(job_id, scheduled_for)</code> makes "the 02:00 run of job 7" a row that can exist only once, so a second scheduler gets a conflict instead of a second run.</p>

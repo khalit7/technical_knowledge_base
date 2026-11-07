@@ -1,14 +1,29 @@
 <section id="s-gw">
 <h2 class="dhead"><span class="dnum">Design 5</span>An LLM gateway for a company: routing, quotas, fallbacks, cost</h2>
+<div class="s3sp"><div class="s3L">
 <p>Every team now calls large language models (LLMs), each with its own API keys, retry code and surprise bill. An <b>LLM gateway</b> is one internal service every model call goes through. Its mechanisms (authentication, routing, token-based limits, budgets, fallbacks) are taught in {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}, caching and the degradation ladder in {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (section 7, and its <b>Cost-quality lab</b> tab); this section runs the interview: what to ask, what the numbers say, what to build first.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
 <div><h5>Functional</h5><ul><li>One OpenAI-compatible API for every model, so existing SDKs work.</li><li>Per-team keys, budgets, rate limits, usage and cost.</li><li>Routing to vendors and self-hosted models, with automatic fallback.</li><li>Personal data removed before it leaves the company; an audit log of every call.</li></ul></div>
 <div><h5>Non-functional</h5><ul><li>10,000 employees, 40% using AI daily, 30 requests each, plus 400,000 automated requests a day (illustrative).</li><li>Adds under 50 ms before the first token; streams pass through unbuffered.</li><li>More available than the providers behind it; spend correct to the cent per team per month.</li></ul></div></div></div>
-<div class="est" id="est-gw"></div>
 <p><b>What the numbers say.</b> Throughput is <i>not</i> the problem: 18 requests a second at peak fits on one small server (run at least two). Uber's real gateway reported "16 million queries per month, with a peak QPS of 25" for "close to 30 customer teams" ({{Wang and Bansal, Uber, 2024-07-11|https://www.uber.com/blog/genai-gateway/}}), the same order as ours (an independent comparison, not a reproduction). What is big is <b>money</b>: about $4,200 a day, $1.5 million a year at the illustrative Sonnet 5.5 price of $2 and $10 per million input and output tokens (from {{ML system design, section 6|n:3c65c17b0d0d8117b057dc2586836ec8}}), where a 10% routing mistake is a salary. Also about 180 streams open at once (Little's law with 10-second replies), which sets connection limits and timeouts, and 5.5 GB of request logs a day holding whatever employees typed, a security asset to protect.</p>
+</div><div class="s3R"><div class="s3side"><div class="est" id="est-gw"></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div class="sc-pin"><div id="stg-gw"></div><div class="an-cnt" id="cnt-gw"></div><p class="sc-leg">Each <span class="sk-bad">red</span> step is a bottleneck the estimate exposed; the next <span class="sk-fix">green</span> step fixes it. The counters show the naive design's value struck through beside the current one, for the same traffic.</p></div></div><div class="s3L">
 <h3>The design, built step by step: from keys in every service to one front door</h3>
-<div class="card" id="dia-gw"></div>
+<ol class="sx" id="sx-gw">
+<li data-k="naive"><b><span class="sk">The naive design:</span> every team calls the vendor directly.</b> Each team has its own API key in its own config, its own retry code, and a share of one invoice.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> nobody knows who spends what, and keys are everywhere.</b> About $4,200 a day arrives as one bill. A leaked key in a repository can only be revoked for everyone at once.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> one gateway, virtual keys, usage events.</b> Teams get gateway keys; the gateway holds the real ones. Every call emits a usage event (team, feature, model, tokens, cost) to a queue and a warehouse.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> one runaway script spends the month.</b> A loop calling a large model with 8,000-token outputs can burn a team's monthly budget overnight, and request counts would not notice.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> budgets and limits counted in tokens.</b> Reserve input plus max_tokens before the call, settle after; per-team tokens per minute and monthly dollars, with atomic counters as in design 2.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> the vendor has an outage.</b> Every AI feature in the company fails together, and each team's SDK retries on top of the others.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> ordered fallbacks, one retry layer.</b> Each alias has a route: vendor A, then vendor B, with timeouts and cooldowns. Only the gateway retries; the fallback is exercised regularly so it works when needed.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> customer data leaves the company.</b> Employees paste customer records into prompts that go to an outside vendor, against the data policy.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> redaction and policy routing.</b> Personal data is replaced before external calls and restored in the response; teams whose data may not leave are routed to a self-hosted model.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> the gateway is now the single point of failure.</b> Every model call in the company passes one service: its outage is everyone's outage.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> stateless replicas in two zones.</b> State lives in the budget store and the warehouse; replicas are interchangeable. If the budget store fails, allow requests under a local cap (fail open, as in design 2).</li>
+</ol>
+</div></div>
 
 <h3>The decision that matters: what to build first, in order</h3>
 <ol>

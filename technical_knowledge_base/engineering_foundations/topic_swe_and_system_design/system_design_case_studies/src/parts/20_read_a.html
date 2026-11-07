@@ -12,6 +12,11 @@
 #t-read details.dp>.b{padding:0 12px 10px}
 #t-read details.dp>.b h4{margin:12px 0 4px;font-size:14px}
 #t-read .vt{font-weight:600;font-size:14px;margin:12px 0 2px}
+#t-read .sc-pin{display:contents}
+#t-read .sc-leg{font-size:12.5px;color:var(--mute);margin:4px 2px 0}
+#t-read .sk-bad,#t-read ol.sx>li[data-k=bad] .sk{color:var(--bad)}#t-read .sk-fix,#t-read ol.sx>li[data-k=fix] .sk{color:var(--good)}#t-read ol.sx>li[data-k=naive] .sk{color:var(--mute)}
+#t-read .sc-pin .an-cnt{margin:8px 0 0}
+@media (min-width:1100px){#t-read .sc-pin{display:block;position:sticky;top:58px;margin-top:20px}#t-read .sc-pin .stg{position:relative;top:auto;margin:0}}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#s-one">The idea</a><a href="#s-method">The method</a><a href="#s-url">1 Shortener</a><a href="#s-rl">2 Rate limiter</a><a href="#s-chat">3 Chat</a><a href="#s-feed">4 Feed</a><a href="#s-gw">5 LLM gateway</a><a href="#s-rag">6 RAG</a><a href="#s-job">7 Scheduler</a><a href="#s-prac">Practise</a>
@@ -19,18 +24,19 @@
 
 <section id="s-one">
 <h2>The idea in one screen</h2>
+<div class="s3sp"><div class="s3L">
 <p class="core">Every design is the same seven steps; what differs is <span class="hl">which number binds</span>. Requirements give the load, the estimate turns it into per-second rates and bytes, and the one quantity that crosses a single machine's limit (storage, open connections, a shared counter, a burst, or money) is the part you design; everything else stays the simplest thing that works.</p>
-<div class="hero" id="hero-card"><h4>One method, seven designs: the estimate points at the part that is hard</h4>
-<div class="rd-svg" id="hero-svg"></div>
-<p class="small">Top: the seven steps, widths to scale with the minutes the {{Design drill|#t-drill}}'s 45-minute clock gives each (5, 5, 3, 3, 9, 15, 5), after Alex Xu's ranges. Below: the number in each design that crossed a single machine's capacity, grouped by kind of constraint; the deep dives (15 minutes, the widest step) go there. Numbers from this page's estimates (<code>src/recompute.py</code>).</p></div>
 <p><b>You need:</b> the parent root's method and constants ({{Topic: swe-and-system-design, Step 6 and Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}}). Each building block is taught on its owner and only applied here: partitioning, replication, leases ({{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}); delivery semantics and idempotent consumers ({{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}); retries, breakers, rate-limit algorithms ({{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}); Little's law and caching ({{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}); HTTP, cursors, idempotency keys ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}).</p>
 <dl class="terms">
 <dt>Functional / non-functional</dt><dd>what the system does / how much, how fast, how reliably, how consistently, how cheaply. The second kind decides the architecture.</dd>
 <dt>Back-of-the-envelope estimate</dt><dd>users to requests a second, bytes and machines, one significant figure, each row compared with one machine's capacity.</dd>
-<dt>Bottleneck</dt><dd>the first resource to run out as load grows; in the step diagrams it turns red and the next step fixes it (green).</dd>
+<dt>Bottleneck</dt><dd>the first resource to run out as load grows; in the 3D build-ups it turns red and the next step fixes it (green).</dd>
 <dt>Fan-out</dt><dd>one event delivered to many recipients (followers, gateways, subscribers); where it happens (on write or on read) is a recurring choice.</dd>
 <dt>Fail open</dt><dd>when a check cannot run, allow the request (a rate limiter); fail closed denies (a permission check).</dd>
 </dl>
+</div><div class="s3R"><div class="s3side"><div class="hero" id="hero-card"><h4>One method, seven designs: the estimate points at the part that is hard</h4>
+<div class="rd-svg" id="hero-svg"></div>
+<p class="small">Top: the seven steps, widths to scale with the minutes the {{Design drill|#t-drill}}'s 45-minute clock gives each (5, 5, 3, 3, 9, 15, 5), after Alex Xu's ranges. Below: the number in each design that crossed a single machine's capacity, grouped by kind of constraint; the deep dives (15 minutes, the widest step) go there. Numbers from this page's estimates (<code>src/recompute.py</code>).</p></div></div></div></div>
 <div class="tw"><table class="onescreen">
 <thead><tr><th>Design</th><th>What the numbers say is hard</th><th>The key move</th><th>Who built it for real</th></tr></thead>
 <tbody>
@@ -42,7 +48,7 @@
 <tr><td><a href="#s-rag">6. RAG service</a></td><td>215 GB of vectors; permissions; freshness; knowing whether answers are right</td><td>An ingestion pipeline, hybrid retrieval, permission filters, an evaluation set</td><td>Anthropic (2024), LinkedIn (2024), Uber (2025), DoorDash (2024)</td></tr>
 <tr><td><a href="#s-job">7. Job scheduler</a></td><td>125,000 jobs due in the same second at the top of the hour; a crash must not run a job twice</td><td>Separate "decide what is due" from "do the work"; leases, jitter, idempotent jobs</td><td>Google cron (2015), Dropbox ATF (2020), Slack (2020)</td></tr>
 </tbody></table></div>
-<p>Each design has a live estimate (try "10&times; the traffic": a row turns red when it crosses one machine's capacity) and a step diagram from the naive version through each bottleneck and fix. Two results were measured for this page on PostgreSQL 16.2 on a laptop (<code>src/lab/measure_pg.py</code>, about 2 minutes): the <a href="#s-rl-race">rate limiter race</a> and <a href="#s-feed-meas">fan-out on read against on write</a>. To practise, the {{Design drill|#t-drill}} tab runs the method on twelve prompts against a clock.</p>
+<p>Each design has a live estimate (try "10&times; the traffic": a row turns red when it crosses one machine's capacity) and a 3D build-up from the naive version through each bottleneck and fix (its steps written out on the left, played as you scroll to it). Two results were measured for this page on PostgreSQL 16.2 on a laptop (<code>src/lab/measure_pg.py</code>, about 2 minutes): the <a href="#s-rl-race">rate limiter race</a> and <a href="#s-feed-meas">fan-out on read against on write</a>. To practise, the {{Design drill|#t-drill}} tab runs the method on twelve prompts against a clock.</p>
 </section>
 
 <section id="s-method">

@@ -1,4 +1,4 @@
-// Click every control at 390 px dark and 920 px light; fail on script errors, NaN, undefined or sideways scroll.
+// Click every control at 390 px dark and 920 px light (reduced motion, so nothing plays by itself); fail on script errors, NaN, undefined or sideways scroll.
 // Also compares the page's estimate engine with recompute.py (EST.evaluate at the defaults against EST_EXPECT).
 // usage (from the repo root): node technical_knowledge_base/.../system_design_case_studies/src/check_page.mjs [shots dir]
 import { createRequire } from 'node:module';
@@ -29,13 +29,14 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (diff.length) problems.push('JS vs Python: ' + diff.join('; ')); else if (width === 390) console.log('estimates: JS equals recompute.py for every row');
   await p.click('button[data-t=t-read]'); await sleep(200);
   for (const d of ['url', 'rl', 'chat', 'feed', 'gw', 'rag', 'job']) {
-    const id = '#dia-' + d;
+    // the 3D build-up: every step through the controls (the full motion checks are in check_stages.mjs)
+    const id = '#stg-' + d;
     await p.$eval(id, e => e.scrollIntoView()); await sleep(100);
-    const n = await p.$eval(id + '-ctl-s', e => +e.max + 1);
-    await p.$eval(id + '-ctl-s', e => { e.value = 0; e.dispatchEvent(new Event('input')) });
-    for (let i = 0; i < n; i++) { await scan(id, d + ' step ' + (i + 1)); if (i === 1 || i === n - 1) { const el = await p.$(id); await el.screenshot({ path: `${shots}/dia-${d}-${i + 1}-${tag}.png` }) } await p.click(id + '-ctl-f'); await sleep(40) }
-    await p.click(id + '-ctl-b'); await p.click(id + '-ctl-p'); await sleep(100); await p.click(id + '-ctl-p');
-    await p.select(id + '-ctl-v', '2');
+    const n = await p.$eval(id + '-r', e => +e.max + 1);
+    await p.$eval(id + '-r', e => { e.value = 0; e.dispatchEvent(new Event('input')) });
+    for (let i = 0; i < n; i++) { await scan('#cnt-' + d, d + ' step ' + (i + 1)); await p.click(id + '-f'); await sleep(40) }
+    await p.click(id + '-b'); await p.click(id + '-p'); await sleep(100); await p.click(id + '-p');
+    await p.select(id + '-s', '2');
     // estimate table: each scale button, then edit the first input
     const eid = '#est-' + d;
     for (const m of ['10', '100', '1']) { await p.click(`${eid}-seg button[data-m="${m}"]`); await sleep(30); await scan(eid, d + ' estimate x' + m) }
@@ -65,12 +66,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   console.log(tag, problems.length ? 'PROBLEMS\n  ' + problems.join('\n  ') : 'ok');
   bad += problems.length; await p.close();
 }
-// no autoplay (2026-10-24): with normal motion, every diagram stays on step 1 after scrolling into view
-{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
-  await p.goto('file://' + file); await sleep(300); const moved = [];
-  for (const d of ['url', 'rl', 'chat', 'feed', 'gw', 'rag', 'job']) { await p.$eval('#dia-' + d, e => e.scrollIntoView()); await sleep(1500);
-    const v = await p.$eval('#dia-' + d + '-ctl-s', e => +e.value); if (v !== 0) moved.push(d + ' at step ' + (v + 1)) }
-  console.log('autoplay', moved.length ? 'PROBLEMS ' + moved.join(', ') : 'none'); bad += moved.length; await p.close(); }
+// autoplay on view and reduced motion: src/check_stages.mjs (2026-11-07; the 2026-10-24 never-autoplay check was inverted there)
 await b.close();
 process.exit(bad ? 1 : 0);

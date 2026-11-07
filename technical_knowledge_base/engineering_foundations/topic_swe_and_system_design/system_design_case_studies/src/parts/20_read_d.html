@@ -1,14 +1,27 @@
 <section id="s-chat">
 <h2 class="dhead"><span class="dnum">Design 3</span>Chat and messaging: WebSockets, fan-out, ordering, presence, storage</h2>
+<div class="s3sp"><div class="s3L">
 <p>A chat system delivers a message to the others in a conversation within a second, keeps the history forever and shows who is online. The new ingredient after designs 1 and 2: the server must <b>push</b>, sending you a message while you are not asking for anything.</p>
 <div class="req"><div class="t">Requirements</div><div class="cols">
 <div><h5>Functional</h5><ul><li>One-to-one and group conversations (both called <b>channels</b>), groups up to a few thousand members.</li><li>Real-time delivery to online members; offline members catch up on return and get a push notification.</li><li>Full scrollable history; presence (online dots); read receipts.</li></ul></div>
 <div><h5>Non-functional</h5><ul><li>50 million daily users, 40 messages each a day, 20% connected at the peak (illustrative).</li><li>Delivery under 500 ms for online members.</li><li>Never lost once acknowledged; order within a channel the same for everyone; history kept forever.</li></ul></div></div></div>
-<div class="est" id="est-chat"></div>
 <p><b>What the numbers say.</b> The message rate (46,000 a second at peak) is not the hard part. Three numbers are: <b>10 million open connections</b>, about 100 servers that do nothing but hold connections; <b>333,000 presence heartbeats a second</b>, seven times the message rate, so presence must be cheap and lossy; and <b>657 TB a year</b> of stored messages with three copies, which no single database holds. If clients instead asked "anything new?" every 5 seconds, that is 2 million mostly empty requests a second, 43 times the real message rate: the row turns red, and that is why chat uses persistent connections.</p>
+</div><div class="s3R"><div class="s3side"><div class="est" id="est-chat"></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div class="sc-pin"><div id="stg-chat"></div><div class="an-cnt" id="cnt-chat"></div><p class="sc-leg">Each <span class="sk-bad">red</span> step is a bottleneck the estimate exposed; the next <span class="sk-fix">green</span> step fixes it. The counters show the naive design's value struck through beside the current one, for the same traffic.</p></div></div><div class="s3L">
 <h3>The design, built step by step: from polling to channel servers and partitioned storage</h3>
-<div class="card" id="dia-chat"></div>
+<ol class="sx" id="sx-chat">
+<li data-k="naive"><b><span class="sk">The naive design:</span> clients poll an HTTP API.</b> Each app asks "anything new?" every 5 seconds; the service reads new messages from one Postgres table.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> 2 million polls a second, almost all empty.</b> 10 million connected clients &divide; 5 s = 2,000,000 requests a second, 43 times the real message rate, and messages still wait up to 5 seconds.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> persistent WebSocket connections.</b> Each client holds one WebSocket to a gateway server, which can push the moment a message arrives. About 100 gateways at a conservative 100,000 connections each.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> which gateway holds the recipient?</b> A message arrives at gateway 17; the recipients sit on gateways 3, 58 and 90. Something must know who is where and fan out.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> channel servers on a hash ring; push for the offline.</b> Each channel is owned by one channel server, chosen by consistent hashing; gateways subscribe for their users and receive each message once per gateway. The channel server assigns the order. Offline members get a push notification.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> 657 TB a year in one database.</b> 46,000 writes a second at peak and history kept forever: no single Postgres holds it, and a busy channel is a hot spot.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> a wide-column store keyed by channel and time.</b> Partition by (channel_id, time bucket), sort by message id inside: Discord's key. Reads of "the latest 50" hit one bounded partition.</li>
+<li data-k="bad"><b><span class="sk">Bottleneck:</span> presence: 333,000 heartbeats a second.</b> Every connection reports "still here" every 30 s, seven times the message rate; naively each change fans out to every contact.</li>
+<li data-k="fix"><b><span class="sk">Fix:</span> presence as TTL keys, sent only to watchers, batched.</b> A heartbeat refreshes a key that expires on its own; changes go only to people looking, in batches, and may be seconds stale.</li>
+</ol>
+</div></div>
 
 <h3>The decisions that matter</h3>
 <p><b>The connection.</b> A <b>WebSocket</b> ({{RFC 6455|https://www.rfc-editor.org/rfc/rfc6455}}) starts as an HTTP request that asks to "upgrade", then either side can send at any time over the same TCP connection. <b>Long polling</b> (the server holds each request until there is news) works everywhere but costs a request per message; <b>server-sent events</b> are one-way server push, what LLM APIs use to stream tokens ({{Streaming and real-time, section 2|n:3c65c17b0d0d812daa9fdb38719fc82b}}). Chat needs both directions often: WebSockets, with long polling as a fallback for hostile networks. Connection setup and TLS cost: {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}.</p>
