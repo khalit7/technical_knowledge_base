@@ -28,7 +28,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const txt = sel => p.$eval(sel, e => e.textContent);
   const bad = async where => { const t = await p.evaluate(() => [...document.querySelectorAll('.tab:not([hidden])')].map(e => e.innerText).join(' ')); ok(!/NaN|undefined|Infinity(?!\))/.test(t.replace(/∞/g, '')), where + ': NaN/undefined in text') };
   // ---- Reading ----
-  for (const id of ['rd-vec-svg', 'rd-map-svg', 'rd-sub-svg', 'rd-ball-svg', 'rd-lora-svg', 'rd-embcos', 'rd-low-tab']) await shot('#' + id, id);
+  for (const id of ['rd-vec-svg', 'rd-map-svg', 'rd-ball-svg', 'rd-lora-svg', 'rd-embcos', 'rd-low-tab']) await shot('#' + id, id);
   // map presets
   for (const m of ['A', 'rot', 'shear', 'proj', 'refl', 'W']) { await clk(p, '#rd-map-seg button[data-m=' + m + ']'); await sleep(60); if (m === 'proj' || m === 'W') await shot('#rd-map-svg', 'map-' + m) }
   // matmul animation: every mode, every step
@@ -62,12 +62,24 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   rows.forEach((r, i) => { const g = N.gpt2[names[i]]; near(+r[1], g.k90, 0, names[i] + ' k90'); near(+r[2], g.rand_k90, 0, names[i] + ' rand k90'); near(+r[3].replace('%', ''), Math.round(100 * g.out_err_k64), 0, names[i] + ' out err'); near(parseFloat(r[4]), g.loss_k.find(x => x[0] === 64)[1], 6e-4, names[i] + ' loss k64') });
   near(parseInt(await txt('#rd-lora-top1a')), N.gpt2.lora[0].median_top1_pct, 0, 'lora a top1'); near(parseInt(await txt('#rd-lora-top1b')), N.gpt2.lora[1].median_top1_pct, 0, 'lora b top1');
   near(+(await txt('#rd-attn-qkrank')), N.gpt2.head0_qk_rank, 0, 'qk rank');
+  // the 3D stages (2026-11-07): the bar-field scene's own decomposition against recompute.py, and every number its step lists quote
+  const LR = await p.evaluate(() => window.LA_LR);
+  N.lr_sv.forEach((v, i) => near(+LR.sv[i].toFixed(3), v, 1e-3, 'lr sv ' + i)); N.lr_err_fro.forEach((v, i) => near(+LR.err[i].toFixed(3), v, 1.5e-3, 'lr err ' + i)); near(+LR.nC.toFixed(3), N.lr_C_fro, 1e-3, 'lr |C|');
+  const has = async (id, vals, what) => { const t = await txt('#' + id); for (const v of vals) ok(t.includes(v), what + ': "' + v + '" in ' + id) };
+  await has('sx-lr', [N.lr_sv[0].toFixed(2), ...N.lr_sv.slice(1, 3).map(v => v.toFixed(3)), N.lr_C_fro.toFixed(3), ...N.lr_err_fro.slice(0, 3).map(v => v.toFixed(3)), Math.round(100 * N.lr_err_rel[0]) + '%', Math.round(100 * N.lr_err_rel[1]) + '%', Math.round(100 * N.lr_err_rel[2]) + '%', N.lr_keep_pct[2].toFixed(1) + '%', Math.round(100 * N.lr_err_rel[3]) + '%', N.gpt2.emb_rand_cos_mean.toFixed(2)], 'Fig. 11');
+  for (const [i, nm] of [[0, '-0.58'], [1, '-0.61']]) ok(Math.abs(N.lr_u[1][4 + i] - +nm) < 0.006, 'lr u2 ' + nm);
+  ok(Math.abs(N.lr_u[2][7] - 0.56) < 0.006 && Math.abs(N.lr_u[2][8] - 0.53) < 0.006 && Math.abs(N.lr_u[2][0] + 0.34) < 0.006 && Math.abs(N.lr_u[2][1] + 0.48) < 0.006, 'lr u3 quoted');
+  ok(Math.min(...N.lr_u[0]) >= 0.23 - 0.006 && Math.max(...N.lr_u[0]) <= 0.38 + 0.006, 'lr u1 range');
+  await has('sx-ls', [...N.ls3_yhat.map(v => v.toFixed(3)), '0.167', '0.333', N.ls3_resid_len.toFixed(3), N.ls3_Qty.map(v => v.toFixed(3)).join(', '), N.ls_w[0].toFixed(3)], 'Fig. 8');
+  await has('sx-hero', [N.A_sv[0].toFixed(3), N.A_sv[1].toFixed(3), N.A_rotU_deg.toFixed(2) + '°', '−45°'.replace('−', '-'), '1.5', '4.5', String(N.A_kappa.toFixed(0))], 'Fig. 1');
+  await has('sx-sub', ['(1, 0, 1)', '(0, 1, -2)', '(2, 1, 0)', '(-1, 2, 1)', '(0, 0)'], 'Fig. 4');
+  ok(N.sub_n_dot_z === 0 && N.sub_Wt_n.every(v => v === 0) && N.sub_rank_Wt === 2, 'Fig. 4 left null space');
   // new static figures (2026-10-24) against recompute.py
   const angs = (await p.$eval('#rd-pow-svg', e => e.dataset.angles)).split(',').map(Number);
   N.power_angles_deg.forEach((a, i) => near(angs[i], a, 0.006, 'power angle ' + i));
   const svs = (await p.$eval('#rd-ns-svg', e => e.dataset.sv)).split(',').map(x => x.split('/').map(Number));
   svs.forEach((v, i) => { near(v[0], N.ns_sv[i][0], 1e-4, 'NS fig sv1 step ' + i); near(v[1], N.ns_sv[i][1], 1e-4, 'NS fig sv2 step ' + i) });
-  for (const id of ['rd-hero', 'rd-bc-svg', 'rd-rank-svg', 'rd-ls-svg', 'rd-pow-svg', 'rd-pd-svg', 'rd-cond-svg', 'rd-ns-svg']) await shot('#' + id, id);
+  for (const id of ['rd-bc-svg', 'rd-rank-svg', 'rd-ls-svg', 'rd-pow-svg', 'rd-pd-svg', 'rd-cond-svg', 'rd-ns-svg']) await shot('#' + id, id);
   // ---- Matrix playground ----
   await clk(p, 'button[data-t=t-play]'); await sleep(200);
   const ro = async () => p.$$eval('#pl-ro dd', d => d.map(x => x.textContent));
@@ -106,11 +118,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const sw = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth); ok(!sw, tag + ' sideways scroll');
   await p.close();
 }
-// normal motion: nothing may move before the reader acts (2026-10-23)
-{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await sleep(200);
-  for (const id of ['rd-mm-card', 'rd-svd-card']) { await p.$eval('#' + id, e => e.scrollIntoView()); await sleep(2600);
-    const v = await p.$eval('#' + id.replace('card', 'ctl') + '-s', e => +e.value); ok(v === 0, 'autoplay: ' + id + ' at step ' + v) }
-  await clk(p, '#rd-svd-seg button[data-m=svd]'); await sleep(2600); ok(await p.$eval('#rd-svd-ctl-s', e => +e.value) === 0, 'autoplay after mode switch');
+// normal motion (2026-11-06 rule, inverted from the 2026-10-23 never-autoplay check): each animation plays by itself once scrolled into view
+{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload(); await sleep(300);
+  for (const id of ['rd-mm-card', 'rd-svd-card']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+    const t = await p.$eval('#' + id.replace('card', 'ctl') + '-p', e => e.textContent); ok(/Pause/.test(t), 'autoplay: ' + id + ' did not play in view (' + t + ')') }
+  await clk(p, '#rd-svd-seg button[data-m=svd]'); await sleep(1500); ok(/Pause/.test(await p.$eval('#rd-svd-ctl-p', e => e.textContent)), 'a mode switch replays');
   await p.close() }
 await browser.close();
 console.log('checks', checks, 'fails', fails);

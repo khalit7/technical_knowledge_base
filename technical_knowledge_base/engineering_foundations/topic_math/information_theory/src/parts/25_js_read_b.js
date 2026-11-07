@@ -26,9 +26,10 @@
 
   // s7: forward against reverse KL fit
   const fr=document.getElementById('it-fr');let mode='both',FT=null,RT=null;
-  const FR_STEPS=[0,1,2,3,4,5,6,8,10,13,16,20,25,30,40,50,65,80,100,125,150,175,200];
-  function drawFr(i){if(!fr)return;if(!FT){FT=IT.fit('fwd',200);RT=IT.fit('rev',200)}
-    const k=FR_STEPS[i],W=RD.width(fr),rows=mode==='both'?['fwd','rev']:[mode],rh=150,l=8,r=8,pw=W-l-r;let o='';
+  // four explained stretches of the 200 gradient steps (the long-replay rule): each step of the list plays its stretch of frames
+  const FR_STEPS=[0,10,40,200],RMf=matchMedia('(prefers-reduced-motion: reduce)').matches;let frI=0,frRaf=0;
+  function frame(k){if(!FT){FT=IT.fit('fwd',200);RT=IT.fit('rev',200)}
+    const W=RD.width(fr),rows=mode==='both'?['fwd','rev']:[mode],rh=150,l=8,r=8,pw=W-l-r;let o='';
     rows.forEach((d,ri)=>{const y0=ri*(rh+12),base=y0+rh-22,top=y0+18;const tr=d==='fwd'?FT:RT,[m,s]=tr[k];
       const X=x=>l+(x+5)/10*pw,Y=v=>base-v/0.7*(base-top);
       let dp='',dq='';for(let j=150;j<=650;j+=2){const x=IT.GX[j];dp+=(j>150?'L':'M')+X(x).toFixed(1)+','+Y(IT.MIX[j]).toFixed(1);dq+=(j>150?'L':'M')+X(x).toFixed(1)+','+Y(Math.min(0.75,IT.npdf(x,m,s))).toFixed(1)}
@@ -39,16 +40,14 @@
       o+='<path d="'+dq+'" fill="none" stroke="'+(d==='fwd'?'var(--c3)':'var(--c2)')+'" stroke-width="2.4"/>';
       o+=T(l+2,y0+12,(d==='fwd'?'forward KL(p ‖ q): ':'reverse KL(q ‖ p): ')+'μ = '+m.toFixed(2)+', σ = '+s.toFixed(2),{fs:11.5,w:600,fill:d==='fwd'?'var(--c3)':'var(--c2)'})});
     fr.innerHTML=RD.svg(W,rows.length*(rh+12),o,'One Gaussian fitted to a two-humped distribution by forward and reverse KL');
-    const capT=k===0?'Step 0: the same start':k<20?'Step '+k+': the two objectives pull differently':k<100?'Step '+k+': settling':'Step '+k+': converged';
-    const capP=k===0?'Both fits start at μ = 1, σ = 1, a narrow bell near the right hump. Blue: the truth p. The shaded band is the valley |x| < 0.5, where p has only 0.6% of its mass.':
-      k<20?'Forward KL is paying for every point of the left hump that q misses, so it widens fast and slides left. Reverse KL only pays where q itself has mass, so it moves right onto the hump and tightens.':
-      k<100?'Forward KL heads for the mean and spread of the whole of p; reverse KL has found its hump.':
-      'Forward: μ ≈ 0, σ ≈ 2.09, the moments of p, spreading 18.6% of its mass into the valley. Reverse: μ = 2.00, σ = 0.60, one hump fitted tightly and the other ignored (its forward KL is 10.2 nats).';
-    document.getElementById('it-fr-cap').innerHTML='<div class="t">'+capT+'</div><p>'+capP+'</p>';
     const [fm,fs]=FT[k],[rm,rs]=RT[k],fk=IT.kls(fm,fs),rk=IT.kls(rm,rs);
     document.getElementById('it-fr-cnt').innerHTML=RD.stat('forward fit: KL(p‖q)',fk[0].toFixed(3),'reverse of it: '+fk[1].toFixed(3))+RD.stat('reverse fit: KL(q‖p)',rk[1].toFixed(3),'forward of it: '+rk[0].toFixed(3))+RD.stat('mass in the valley',(100*IT.valley(fm,fs)).toFixed(1)+'% / '+(100*IT.valley(rm,rs)).toFixed(1)+'%','forward / reverse; truth 0.6%')}
-  if(fr){const a=RD.anim({card:'it-fr-card',ctl:'it-fr-ctl',n:FR_STEPS.length,draw:drawFr,ms:500,label:'Gradient step'});
-    RD.seg(document.getElementById('it-fr-seg'),m=>{mode=m;a.redraw()});RD.onResize(()=>a.redraw())}
+  function drawFr(i){if(!fr)return;if(frRaf){cancelAnimationFrame(frRaf);frRaf=0}
+    const from=FR_STEPS[frI],to=FR_STEPS[i],card=document.getElementById('it-fr-card'),r=card.getBoundingClientRect(),onScreen=r.bottom>0&&r.top<innerHeight&&card.offsetParent!==null;
+    frI=i;if(i===0||to<=from||RMf||!onScreen){frame(to);return}
+    const t0=performance.now(),D=2200;const run=now=>{const u=Math.min(1,(now-t0)/D),k=Math.round(from+(to-from)*(1-Math.pow(1-u,2)));frame(k);frRaf=u<1?requestAnimationFrame(run):0};frRaf=requestAnimationFrame(run)}
+  if(fr){const a=RD.anim({card:'it-fr-card',ctl:'it-fr-ctl',n:FR_STEPS.length,draw:drawFr,ms:5200,label:'Stretch',list:'sx-fr'});
+    RD.seg(document.getElementById('it-fr-seg'),m=>{mode=m;frame(FR_STEPS[frI])});RD.onResize(()=>frame(FR_STEPS[frI]))}
 
   // s9: InfoNCE estimate against N
   const nce=document.getElementById('it-nce');let rhoI=4;const RHO=[0.5,0.9,0.99,0.999,0.99999],NN=[2,4,8,16,32,64,128,256,512,1024];const cache={};

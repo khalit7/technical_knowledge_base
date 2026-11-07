@@ -1,4 +1,4 @@
-<section id="rd-low">
+<div class="s3sp"><div class="s3L"><section id="rd-low">
 <h2>12. Low rank in ML: what is really low rank, and what is not</h2>
 <p>LoRA, MLA, GaLore and many compression papers all say "low rank". Low rank of what: pretrained weights, the updates fine-tuning makes, the gradients, or the cached keys and values? The answers differ, and real numbers settle them.</p>
 <div class="co key"><div class="t">The pattern</div>Low rank is a fact about <b>changes and products</b> (fine-tuning updates, gradients, the query-key product of one head, the KV bottleneck a model is trained with), much more than about pretrained weight matrices themselves. Methods that impose low rank during training (LoRA, MLA, GaLore) work; compressing a finished model by truncated SVD costs accuracy fast.</div>
@@ -7,7 +7,9 @@
 <div class="tw" id="rd-low-tab"></div>
 <p class="small mute">k90: singular directions needed to keep 90% of the squared Frobenius norm, out of 768; "random" is a Gaussian matrix of the same shape and norm. Output error: relative error of the layer's output on the real inputs that reach it, \(\lVert X(W - W_k) \rVert_F / \lVert XW \rVert_F\). Loss: GPT-2's next-token loss on the same text with only that one matrix replaced by its rank-64 truncation (unchanged model: <span id="rd-low-base"></span> nats).</p>
 <p>Three readings. First, every real spectrum is more concentrated than random (k90 near 300 against 391 for the attention matrices), so there is structure. Second, it is nowhere near rank 64: keeping 64 of 768 directions leaves a relative output error of 42% for the MLP input matrix and 70% to 86% for the other five. Third, how much a matrix matters is not how compressible it is: cutting the MLP input matrix to rank 64 raises the loss by 0.72 nats, cutting the key matrix by 0.20. Truncating every attention and MLP matrix in all 12 layers to 90% of its rank, which saves no parameters at all, already raises the loss from 3.17 to 3.91; at 50% of the rank it is 8.50, close to the 10.8 of a uniform guess over 50,257 tokens (<span id="rd-low-whole"></span>). Real weights carry information in their small singular values too.</p>
-<div class="card" id="lr-card"><h4>Truncate one real GPT-2 matrix: the matrix error falls smoothly, the loss does not recover until k is large</h4>
+
+</section></div>
+<div class="s3R"><div class="s3side s3tall"><div class="card" id="lr-card"><h4>Truncate one real GPT-2 matrix: the matrix error falls smoothly, the loss does not recover until k is large</h4>
 <p class="small">Predict first: at \(k = 64\), how much of the query matrix's output on real text is lost? Then pick a matrix and move \(k\) (the Eckart-Young truncation of section 10).</p>
 <p class="small mute" id="lr-src"></p>
 <div class="seg" id="lr-mat"></div>
@@ -23,12 +25,13 @@
 <details class="mist"><summary>All 48 attention and MLP matrices truncated at once <span class="mute">(table)</span></summary><div class="b">
 <div class="tw" id="lr-whole"></div>
 <p class="small mute">Each matrix keeps the stated fraction of its full rank (768); the attention input matrix is truncated as its three 768 by 768 blocks, Q, K and V, separately. "Parameters in low-rank form" counts \(k(m + n)\) per matrix, capped at \(mn\): below rank 384 for a square matrix, a truncated SVD is not even smaller than the original. A uniform guess over the 50,257-token vocabulary scores \(\ln 50257 = 10.8\) nats.</p></div></details>
-</div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-low-b">
 <h3>Fine-tuning updates: genuinely low rank</h3>
 <p>LoRA (Hu et al. 2021) does not compress the weights; it constrains the <b>change</b>. The layer computes \(W_0 x + \frac{\alpha}{r} B A x\) with the pretrained \(W_0\) frozen, \(B\) of shape \(d \times r\), \(A\) of shape \(r \times k\) and \(r \ll \min(d, k)\). \(BA\) is a sum of \(r\) outer products, so its rank is at most \(r\). \(B\) starts at zero, so training starts exactly at the pretrained model, and after training \(BA\) can be merged into \(W_0\) for free inference. For \(d = k = 4096\), \(r = 8\): \(2 \times 4096 \times 8 = 65{,}536\) trainable numbers instead of \(16{,}777{,}216\), 0.39%. The method, its variants (DoRA, rsLoRA, PiSSA) and current practice are on {{Parameter-Efficient Fine-Tuning (PEFT)|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}; the {{LoRA paper page|n:3c65c17b0d0d81018f15edd19fa5c28a}} trains LoRA live on a toy where the true update is known.</p>
 <div class="co warn"><div class="t">Correction carried from the root</div>The old page said "ranks as low as 1 to 8 were competitive on GPT-3". The paper's words: "a rank as small as one suffices for adapting both \(W_q\) and \(W_v\)" on GPT-3, with Table 6 testing \(r = 1, 2, 4, 8, 64\); and the low "intrinsic rank" of the update is the authors' hypothesis, which they then test ({{LoRA, arXiv 2106.09685, sections 4 and 7|https://arxiv.org/abs/2106.09685}}). The idea goes back to Aghajanyan, Zettlemoyer and Gupta: "by optimizing only 200 trainable parameters randomly projected back into the full space, we can tune a RoBERTa model to achieve 90% of the full parameter performance levels on MRPC" ({{Intrinsic dimensionality, arXiv 2012.13255|https://arxiv.org/abs/2012.13255}}).</div>
 <p><b>Two real adapters, measured.</b> Two public GPT-2 LoRA adapters on Hugging Face target the attention input matrix <code>c_attn</code> (\(768 \to 2304\)) in all 12 layers: <code>monsterapi/gpt2_alpaca-lora</code> (\(r = 8\), \(\alpha = 16\), trained on Alpaca) and <code>harigovind511/GPT2-Guanaco-LoRA</code> (\(r = 32\), \(\alpha = 8\), a QLoRA run on a 4-bit base). Rebuilding each \(\Delta W = \frac{\alpha}{r} BA\) and taking its SVD:</p>
-<div class="card"><h4>Inside its rank budget, a real LoRA update puts most of its energy in one direction</h4><div class="rd-svg" id="rd-lora-svg"></div><p class="small mute" id="rd-lora-cap"></p></div>
+
 <ul>
 <li>Exactly \(r\) singular values are nonzero (the next is about \(10^{-14}\), rounding), as the algebra says.</li>
 <li>Inside its budget the update is far lower rank still: the largest singular value alone carries a median <span id="rd-lora-top1a"></span> of \(\lVert \Delta W \rVert_F^2\) for the \(r = 8\) adapter and <span id="rd-lora-top1b"></span> for the \(r = 32\) one. Most of the rank budget is unused.</li>
@@ -41,6 +44,9 @@
 <div class="out" id="lr-lstats"></div>
 <div class="plot rd-svg" id="lr-lbars"></div>
 <p class="small mute" id="lr-lcap"></p></div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Inside its rank budget, a real LoRA update puts most of its energy in one direction</h4><div class="rd-svg" id="rd-lora-svg"></div><p class="small mute" id="rd-lora-cap"></p></div></div></div></div>
+<section id="rd-low-c">
 <h3>Gradients: GaLore</h3>
 <p>GaLore keeps full-rank weights but notices that the gradient of a weight matrix is approximately low rank (one example's gradient is exactly rank 1, section 5; a batch sums a few such outer products). Every \(T\) steps it takes the SVD of the current gradient \(G\) (\(m \times n\), \(m \le n\)), keeps the top \(r\) left singular vectors as a projector \(P\) (\(m \times r\)), runs Adam on the small matrix \(P^\top G\) (\(r \times n\)), and maps the update back with \(P\). Adam's two moment matrices shrink from \(2mn\) numbers to \(2nr\), plus \(mr\) for \(P\); the paper reports that it "reduces memory usage by up to 65.5% in optimizer states" ({{GaLore, Zhao et al. 2024, arXiv 2403.03507|https://arxiv.org/abs/2403.03507}}).</p>
 <details class="mist"><summary>GaLore's settings and one matrix counted</summary><div class="b"><p>The paper uses \(T = 200\) and scale \(\alpha = 0.25\) for its LLaMA pretraining runs. For one \(4096 \times 4096\) matrix at \(r = 128\): 33,554,432 moment numbers become \(4096 \times 128 + 2 \times 4096 \times 128 = 1{,}572{,}864\).</p></div></details>

@@ -1,4 +1,4 @@
-// ---- Reading: binary entropy (s2), Huffman build (s3), one stream two codes (s6) ----
+// ---- Reading: binary entropy (section 1), Huffman build (section 2); the two-code stream of section 3 is now the 3D stage 28_js_sc_3kl.js ----
 (function(){
   const T=RD.t,f3=v=>v.toFixed(3);
   // binary entropy curve
@@ -17,12 +17,6 @@
   // Huffman on the tiny model's bet
   const P=[0.665,0.245,0.090],NM=['cat','dog','sat'];
   const hf=document.getElementById('it-huf');
-  const hcap=[
-    ['Three leaves','The tiny model\'s bet: cat 0.665, dog 0.245, sat 0.090. Ideal code lengths are −log₂ q: 0.588, 2.031 and 3.473 bits, not whole numbers.'],
-    ['Merge the two least likely','dog (0.245) and sat (0.090) are the two smallest. Join them under one node of weight 0.335.'],
-    ['Merge again','Two items are left: cat (0.665) and the dog-sat node (0.335). Join them: the root, weight 1.'],
-    ['Read the codewords','Label every left branch 0 and every right branch 1, and read from the root down: cat 0, dog 10, sat 11. No codeword starts another, and the Kraft sum is 2⁻¹ + 2⁻² + 2⁻² = 1: no budget wasted.'],
-    ['The cost','Average length 0.665 × 1 + 0.245 × 2 + 0.090 × 2 = 1.335 bits per word, against the entropy 1.201. The 0.134 bits are the price of whole bits: cat deserves 0.588 bits and gets 1.']];
   function drawHuf(i){if(!hf)return;const W=Math.min(RD.width(hf),620),H=210;let o='';
     const lx=[W*0.18,W*0.5,W*0.82],ly=170,nodeY1=105,nodeY2=40;
     const dsx=(lx[1]+lx[2])/2;
@@ -36,31 +30,7 @@
     for(let k=0;k<3;k++){o+=node(lx[k],ly,f3(P[k]),NM[k],(i===1&&k>0)||(i===2&&k===0)?'var(--c2)':'var(--c1)');
       if(i>=3)o+=T(lx[k],ly+30,code[k],{a:'middle',fs:13,w:700,fill:'var(--c2)'})}
     hf.innerHTML=RD.svg(W,H+(i>=3?14:0),o,'Huffman tree for the tiny model bet');
-    document.getElementById('it-huf-cap').innerHTML='<div class="t">Step '+(i+1)+' of 5: '+hcap[i][0]+'</div><p>'+hcap[i][1]+'</p>';
     document.getElementById('it-huf-cnt').innerHTML=RD.stat('entropy H','1.201 bits','')+RD.stat('Huffman length L',i>=4?'1.335 bits':'…','')+RD.stat('L − H',i>=4?'0.134 bits':'…','less than 1, as the theorem promises');}
-  if(hf)RD.anim({card:'it-huf-card',ctl:'it-huf-ctl',n:5,draw:drawHuf,ms:2200,label:'Huffman step'});
+  if(hf)RD.anim({card:'it-huf-card',ctl:'it-huf-ctl',n:5,draw:drawHuf,ms:4200,label:'Huffman step',list:'sx-huf'});
 
-  // one stream, two codes
-  const SEQ='ABACABADABACABDA',CP={A:'0',B:'10',C:'110',D:'111'},CQ={A:'110',B:'0',C:'10',D:'111'};
-  const kl=document.getElementById('it-kl');
-  function drawKl(i){if(!kl)return;const W=RD.width(kl),n=i;// symbols encoded so far
-    let bitsP=0,bitsQ=0;for(let k=0;k<n;k++){bitsP+=CP[SEQ[k]].length;bitsQ+=CQ[SEQ[k]].length}
-    const bw=Math.max(4,Math.min(16,(W-90)/38)),rowH=22,lab=82;let o='';
-    // symbol row
-    const sw=Math.max(14,Math.min(30,(W-lab)/16));
-    o+=T(0,16,'symbols',{fs:11,fill:'var(--mute)'});
-    for(let k=0;k<16;k++){const x=lab+k*sw;o+='<rect x="'+x+'" y="4" width="'+(sw-2)+'" height="18" rx="3" fill="'+(k<n?'var(--acc2)':'var(--soft)')+'" stroke="'+(k===n-1?'var(--acc)':'var(--line)')+'"/>'+T(x+sw/2-1,17,SEQ[k],{a:'middle',fs:11,w:k<n?600:400,fill:k<n?'var(--ink)':'var(--mute)'})}
-    const strip=(y,code,col,name)=>{let s=T(0,y+14,name,{fs:11,fill:'var(--mute)'}),x=lab,alt=0;
-      for(let k=0;k<n;k++){const c=code[SEQ[k]];for(let j=0;j<c.length;j++){s+='<rect x="'+x+'" y="'+y+'" width="'+(bw-1)+'" height="'+(rowH-4)+'" rx="2" fill="'+col+'" opacity="'+(alt?0.6:1)+'"/>'+(bw>=10?T(x+bw/2-0.5,y+13,c[j],{a:'middle',fs:10,fill:'var(--bg)'}):'');x+=bw}alt^=1}
-      return s};
-    o+=strip(34,CP,'var(--c3)','code for p');o+=strip(34+rowH+8,CQ,'var(--c2)','code for q');
-    const H=34+2*rowH+16;
-    kl.innerHTML=RD.svg(W,H,o,'Bits used by the code for p and by the code for q on the same symbols');
-    const cap=n===0?['Nothing encoded yet','The same 16 symbols will go through both codes. Shades alternate per symbol so you can see each codeword.']:
-      n<16?['After '+n+' symbol'+(n>1?'s':''),'Last symbol '+SEQ[n-1]+': '+CP[SEQ[n-1]].length+' bit'+(CP[SEQ[n-1]].length>1?'s':'')+' with the code for p ('+CP[SEQ[n-1]]+'), '+CQ[SEQ[n-1]].length+' with the code for q ('+CQ[SEQ[n-1]]+'). The wrong code saves bits on B and loses them on A, the most common symbol.']:
-      ['All 16 symbols','28 bits against 38: 1.75 against 2.375 bits per symbol. The gap, 0.625 bits per symbol, is exactly D_KL(p ‖ q), because the 16 symbols occur in exactly the proportions of p and every probability is a power of one half.'];
-    document.getElementById('it-kl-cap').innerHTML='<div class="t">'+cap[0]+'</div><p>'+cap[1]+'</p>';
-    const per=(b)=>n?(b/n).toFixed(3):'…';
-    document.getElementById('it-kl-cnt').innerHTML=RD.stat('symbols',n+' / 16','')+RD.stat('bits, code for p',bitsP,per(bitsP)+' per symbol; H(p) = 1.75')+RD.stat('bits, code for q',bitsQ,per(bitsQ)+' per symbol; H(p, q) = 2.375')+RD.stat('extra per symbol',n?((bitsQ-bitsP)/n).toFixed(3):'…','D_KL(p ‖ q) = 0.625')}
-  if(kl){const a=RD.anim({card:'it-kl-card',ctl:'it-kl-ctl',n:17,draw:drawKl,ms:700,label:'Symbols encoded'});RD.onResize(()=>a.redraw())}
 })();

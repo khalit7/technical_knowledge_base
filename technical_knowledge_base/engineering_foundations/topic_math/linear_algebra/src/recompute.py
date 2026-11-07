@@ -109,6 +109,9 @@ q32, r32 = np.linalg.qr(V32); wq = np.linalg.solve(r32, q32.T @ y32)
 rel = lambda u: float(np.linalg.norm(u.astype(float) - wt) / np.linalg.norm(wt))
 put("f32_err_normal", float("%.2g" % rel(wn)), 6); put("f32_err_qr", float("%.2g" % rel(wq)), 6)
 N["f32_dtypes"] = [str(wn.dtype), str(wq.dtype)]
+# the page quotes the 2026-10 run (0.77); in float32 the normal-equations error depends on the BLAS build: a 2026-11-07 rerun
+# with NumPy 2.5.4 on OpenBLAS 0.3.34 (x86-64) gave 0.87. Both lose essentially every digit; QR gave 1.8e-05 both times.
+N["f32_err_normal_page"] = 0.77; N["f32_numpy"] = np.__version__
 
 # ---- symmetric / PD / Cholesky ----
 C = np.array([[4., 2], [2, 3]]); L = np.linalg.cholesky(C); put("chol_old", L, 4)
@@ -159,6 +162,25 @@ for i_, L_ in enumerate(G["lora"]):
     N["gpt2"]["lora"][i_]["median_top1_pct"] = int(round(100 * sorted(fr)[len(fr) // 2]))
     N["gpt2"]["lora"][i_]["amp_range"] = [round(min(x_["q_amplification"] for x_ in L_["layers"]), 2), round(max(x_["q_amplification"] for x_ in L_["layers"]), 2)]
     N["gpt2"]["lora"][i_]["rel_range_pct"] = [round(100 * min(x_["dW_fro"] / x_["W_fro"] for x_ in L_["layers"]), 1), round(100 * max(x_["dW_fro"] / x_["W_fro"] for x_ in L_["layers"]), 1)]
+
+# ---- the 3D stages (2026-11-07): every number a scene shows or its step list quotes ----
+# Fig. 1 (hero): A through V^T, Sigma, U; the rank-1 truncation A_1 maps the circle onto a segment of half-length sigma_1
+put("hero_A1", A1, 3); put("hero_A1_halflen", s[0], 3)
+# Fig. 4 (four subspaces): W's columns, the image of x, the left null direction, and W^T sending it to zero
+put("sub_cols", W.T, 3); put("sub_z", W @ x, 3); put("sub_n", np.array([-1., 2, 1]), 3); put("sub_n_dot_z", np.array([-1., 2, 1]) @ (W @ x), 6)
+put("sub_Wt_n", W.T @ np.array([-1., 2, 1]), 6); put("sub_rank_Wt", np.linalg.matrix_rank(W.T))
+# Fig. 8 (least squares in R^3): y, its foot, the residual's length, the QR basis and Q^T y (the foot's coordinates in that basis)
+yhat = X @ w; put("ls3_yhat", yhat, 3); put("ls3_resid", yv - yhat, 3); put("ls3_resid_len", np.linalg.norm(yv - yhat), 3); put("ls3_y_len", np.linalg.norm(yv), 3)
+put("ls3_Qty", Qx.T @ yv, 3); put("ls3_foot_from_Q", Qx @ (Qx.T @ yv), 3)
+# Fig. 12 (Eckart-Young on a real matrix): the 9 x 9 cosine matrix of GPT-2 embeddings rebuilt from rank-one layers
+C_ = np.array(G["emb_cos"], float); lc, Vc = np.linalg.eigh(C_); o_ = np.argsort(-lc); lc, Vc = lc[o_], Vc[:, o_]
+Vc = Vc * np.sign(Vc.sum(0) + 1e-12)
+put("lr_sv", lc, 3); put("lr_psd", bool(lc.min() > 0))
+put("lr_err_fro", [np.linalg.norm(C_ - (Vc[:, :k] * lc[:k]) @ Vc[:, :k].T) for k in range(1, 10)], 3)
+put("lr_err_rel", [np.linalg.norm(C_ - (Vc[:, :k] * lc[:k]) @ Vc[:, :k].T) / np.linalg.norm(C_) for k in range(1, 10)], 3)
+put("lr_keep_pct", [100 * (1 - (np.linalg.norm(C_ - (Vc[:, :k] * lc[:k]) @ Vc[:, :k].T) / np.linalg.norm(C_)) ** 2) for k in range(1, 10)], 1)
+put("lr_u", Vc[:, :3].T, 2); put("lr_C_fro", np.linalg.norm(C_), 3)
+put("lr_C3_min", ((Vc[:, :3] * lc[:3]) @ Vc[:, :3].T).min(), 3)
 json.dump(N, open(os.path.join(H, "numbers.json"), "w"), indent=1, default=lambda o: o.item() if hasattr(o, "item") else str(o))
 for k, v in N.items():
     if k != "gpt2": print(k, v)

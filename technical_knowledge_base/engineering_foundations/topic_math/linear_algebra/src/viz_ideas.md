@@ -40,3 +40,16 @@ Built (static, inline, numbers from the same inputs as `recompute.py`; power ang
 | 18 | Ill-conditioned 2x2: true scale, and the gap magnified 1,000 times | before/after on the same system | s11 |
 | 19 | Newton-Schulz: singular values of A/‖A‖F climbing to 1 | static chart | s11 |
 Moved: the Low-rank lab (#2, #4) from its own tab into Reading section 12, because it explains one mechanism.
+
+## 2026-11-07: the split layout and four 3D stages (renderer v2)
+| # | Idea | Kind | Where | Decision |
+|---|---|---|---|---|
+| 20 | Hero as four glass plates one behind the other (input, after Vᵀ, after ΣVᵀ, after UΣVᵀ = A), the circle's points streaming through, then A in one step and the rank-1 truncation | 3D stage, 6 steps | top (Fig. 1) | built; replaces #12 |
+| 21 | The tiny model's W: input plane on the floor, W as a plate, the column space as a tilted plane in R³, the left null line at right angles, then Wᵀ collapsing a cloud of score vectors onto the plane | 3D stage, 5 steps | s5 (Fig. 4) | built; replaces the 2D subspace sketch (its R³ panel was a hand projection) |
+| 22 | Least squares in R³, one axis per data point, camera turned so the column space is level; foot, residual at right angles, the QR basis | 3D stage, 5 steps | s7 (Fig. 8) | built; replaces the schematic half of #15 (the data-space half stays 2D beside the problem) |
+| 23 | Eckart-Young on a real matrix: GPT-2's 9 x 9 embedding-cosine matrix (section 1's table) as a bar field rebuilt from 1, 2, 3 rank-one layers, then the spectrum | 3D stage, 5 steps | s10 (Fig. 11) | built; new, computed from the page's own data (recompute.py `lr_*`) |
+| 24 | Conditioning as a long thin ellipsoid | 3D | s11 | rejected: the page's ill-conditioned example is 2x2, and the two nearly parallel lines (#18) say it flat; no 3x3 ill-conditioned matrix on the page to drive one |
+| 25 | A 3x3 SVD (unit sphere to ellipsoid) | 3D | s10 | rejected: the page has no full-rank 3x3 running matrix (its 3x3 examples are rank 2), and inventing one is not allowed; the hero does rotate, stretch, rotate on A |
+| 26 | GPT-2 low-rank lab spectra and error against k | kept 2D | s12 | log axes read best flat |
+| 27 | Matrix multiplication four ways, SVD against eigen stepper | kept 2D, step lists added | s3, s10 | 2x2 grids and a plane say it all |
+Kept 2D and why: the vector, map-preset, broadcasting, rank-1, L1-ball, power-iteration, PD-ellipse, near-singular and Newton-Schulz figures are 2x2 or planar (a plane says it all), the LoRA spectra and the low-rank lab are curves on log or index axes, and the playground is a calculator.

@@ -1,7 +1,7 @@
 // ---- Reading: static figures added on 2026-10-24 (hero SVD, broadcasting, rank 1, least squares, power iteration, PD ellipse, conditioning, Newton-Schulz) ----
 // Every number is computed here from the same inputs as src/recompute.py (A, W, the least-squares points, B, the Newton-Schulz map).
 (function(){
-  const $=id=>document.getElementById(id);if(!$('rd-hero'))return;
+  const $=id=>document.getElementById(id);if(!$('rd-ls-svg'))return;
   const arrow=RDF.arrow,T=RD.t,F=(v,d)=>(Math.abs(v)<5e-13?0:v).toFixed(d);
   const ln=(x1,y1,x2,y2,col,o)=>{o=o||{};return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+col+'" stroke-width="'+(o.w||1)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+(o.op?' stroke-opacity="'+o.op+'"':'')+'/>'};
   const dot=(x,y,col,r)=>'<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(r||4)+'" fill="'+col+'"/>';
@@ -9,28 +9,7 @@
   const curve=(f,X,Y,n)=>{let d='';for(let i=0;i<=n;i++){const p=f(i/n*2*Math.PI);d+=(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)}return d};
   // panel helper: a square-ish box with equal x and y scale centred on (cx0, cy0) data coordinates
   function panel(ox,oy,pw,ph,R,c){const sc=Math.min(pw,ph-20)/(2*R),cx=ox+pw/2-(c?c[0]*sc:0),cy=oy+20+(ph-20)/2+(c?c[1]*sc:0);return {sc,X:v=>cx+v*sc,Y:v=>cy-v*sc}}
-  // ---------- hero: A = U Sigma V^T in four panels ----------
-  function hero(){const el=$('rd-hero'),W=Math.min(RD.width(el),900),four=W>=640,pw=four?W/4:W/2,ph=Math.round(Math.min(pw*1.02,240)),H=four?ph:2*ph;
-    const A=[[3,0],[4,5]],r2=Math.SQRT1_2,v1=[r2,r2],v2=[-r2,r2],s=[Math.sqrt(45),Math.sqrt(5)];
-    const Vt=[[v1[0],v1[1]],[v2[0],v2[1]]],SVt=[[s[0]*Vt[0][0],s[0]*Vt[0][1]],[s[1]*Vt[1][0],s[1]*Vt[1][1]]];
-    const stages=[[[1,0],[0,1]],Vt,SVt,A],R=[1.45,1.45,7.4,8.6];
-    const titles=[['1. Input','circle, v₁ ⟂ v₂'],['2. Vᵀ: rotate −45°','v₁, v₂ onto the axes'],['3. Σ: stretch','by σ₁ = 6.708, σ₂ = 2.236'],['4. U: rotate 71.57°','= A: rank 2, κ = 3']];
-    let b='';
-    stages.forEach((M,k)=>{const ox=four?k*pw:(k%2)*pw,oy=four?0:Math.floor(k/2)*ph,P=panel(ox,oy+14,pw,ph-14,R[k]),X=P.X,Y=P.Y;
-      b+='<rect x="'+(ox+3)+'" y="'+(oy+3)+'" width="'+(pw-6)+'" height="'+(ph-6)+'" rx="8" fill="none" stroke="var(--line)"/>';
-      b+=T(ox+pw/2,oy+17,titles[k][0],{a:'middle',fs:12,w:600})+T(ox+pw/2,oy+31,titles[k][1],{a:'middle',fs:11,fill:'var(--mute)'});
-      b+=ln(X(-R[k]*0.95),Y(0),X(R[k]*0.95),Y(0),'var(--line)')+ln(X(0),Y(-R[k]*0.9),X(0),Y(R[k]*0.9),'var(--line)');
-      if(k>=2)b+='<circle cx="'+X(0)+'" cy="'+Y(0)+'" r="'+P.sc+'" fill="none" stroke="var(--mute)" stroke-dasharray="3 3"/>';
-      b+='<path d="'+curve(t=>mv(M,[Math.cos(t),Math.sin(t)]),X,Y,96)+'" fill="var(--c6)" fill-opacity=".12" stroke="var(--c6)" stroke-width="2"/>';
-      const a=mv(M,v1),c=mv(M,v2);b+=arrow(X(0),Y(0),X(a[0]),Y(a[1]),'var(--c1)',2.4)+arrow(X(0),Y(0),X(c[0]),Y(c[1]),'var(--c2)',2.4);
-      const la=k<2?['v₁','v₂']:k===2?['σ₁ = 6.708','σ₂ = 2.236']:['σ₁u₁','σ₂u₂'];
-      const off=(p,q)=>{const n=Math.hypot(p[0],p[1])||1;return [p[0]/n*q,p[1]/n*q]};
-      const pa=off(a,10),pc=off(c,10);
-      if(k===2)b+=T(X(a[0])-2,Y(a[1])+17,la[0],{fs:11.5,w:600,fill:'var(--c1)',a:'end'});else b+=T(X(a[0])+pa[0],Y(a[1])-pa[1]+4,la[0],{fs:11.5,w:600,fill:'var(--c1)',a:a[0]>=0?'start':'end'});
-      b+=T(X(c[0])+pc[0],Y(c[1])-pc[1]+4,la[1],{fs:11.5,w:600,fill:'var(--c2)',a:c[0]>0.05?'start':(c[0]<-0.05?'end':'middle')});
-      if(k===2)b+=T(ox+pw/2,oy+ph-12,'dashed: unit circle, to scale',{a:'middle',fs:11,fill:'var(--mute)'});
-      if(four&&k<3)b+=T(ox+pw-1,oy+ph/2+4,'→',{a:'middle',fs:14,fill:'var(--mute)'})});
-    el.innerHTML=RD.svg(W,H,b,'A as rotate, stretch, rotate')}
+  // (the 2D hero of 2026-10-24 became the 3D stage of Fig. 1, 32_js_sc_hero.js, on 2026-11-07)
   // ---------- broadcasting: (3,1) - (3,) ----------
   function bcast(){const el=$('rd-bc-svg'),W=Math.min(RD.width(el),560),c=Math.max(24,Math.min(36,W/13.5)),gap=c*0.75,H=Math.round(5*c+46);
     const p=[1,2,3],t=[1,2,3];let b='',x=4;const y0=10;
@@ -70,7 +49,7 @@
       b+=T(ox+pw-10,oy+ph-12,'both inputs land here',{fs:11,fill:'var(--mute)',a:'end'})}
     el.innerHTML=RD.svg(W,H,b,'A rank-1 map')}
   // ---------- least squares ----------
-  function lsq(){const el=$('rd-ls-svg'),W=Math.min(RD.width(el),660),two=W>=520,pw=two?W/2:W,ph=Math.round(Math.min(pw*0.78,250)),H=two?ph:2*ph+8;let b='';
+  function lsq(){const el=$('rd-ls-svg'),W=Math.min(RD.width(el),560),pw=W,ph=Math.round(Math.min(pw*0.62,300)),H=ph;let b=''; // the R^3 half became Fig. 8 (34_js_sc_ls.js)
     const pts=[[0,1],[1,2],[2,2]],w0=7/6,w1=0.5;
     {const l=40,r=pw-14,t=28,bt=ph-32,X=v=>l+(v+0.25)/2.5*(r-l),Y=v=>bt-(v-0.4)/2.2*(bt-t);
       b+=T(6,16,'Data space: three points, one line',{fs:12,w:600});
@@ -80,18 +59,6 @@
       pts.forEach(p=>{const yh=w0+w1*p[0],rr=p[1]-yh;b+=ln(X(p[0]),Y(p[1]),X(p[0]),Y(yh),'var(--c2)',{w:2,dash:'3 2'})+dot(X(p[0]),Y(p[1]),'var(--ink)')+dot(X(p[0]),Y(yh),'var(--c1)',3);
         b+=T(X(p[0])+6,(Y(p[1])+Y(yh))/2+4,(rr>0?'+':'')+rr.toFixed(3),{fs:11,fill:'var(--c2)'})});
       b+=T(X(2.2),Y(w0+1.1)-6,'ŷ = 1.167 + 0.5 t',{fs:11,fill:'var(--c1)',a:'end'})}
-    {const ox=two?pw:0,oy=two?0:ph+8;b+=T(ox+6,oy+16,'In ℝ³: a projection (schematic)',{fs:12,w:600});
-      const cx=ox+pw*0.5,cy=oy+ph*0.68,u=Math.min(pw,ph*1.3)/7;
-      const P=(a,c)=>[cx+(a*1.6-c*1.1)*u,cy+(a*0.35+c*0.55)*u];
-      const cs=[[-1.3,-1.1],[1.6,-1.1],[1.6,1.3],[-1.3,1.3]].map(q=>P(q[0],q[1]));
-      b+='<polygon points="'+cs.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'" fill="var(--c3)" fill-opacity=".16" stroke="var(--c3)"/>';
-      const o=P(-0.9,-0.6),f=P(0.7,0.25),top=[f[0],f[1]-2.4*u];
-      b+=arrow(o[0],o[1],f[0],f[1],'var(--c1)',2.2)+arrow(o[0],o[1],top[0],top[1],'var(--ink)',2.2);
-      b+=ln(top[0],top[1],f[0],f[1],'var(--c2)',{w:2,dash:'4 3'});
-      b+='<polyline points="'+(f[0]+9)+','+(f[1]+2)+' '+(f[0]+9)+','+(f[1]-8)+' '+f[0]+','+(f[1]-10)+'" fill="none" stroke="var(--mute)"/>';
-      b+=T(top[0]+6,top[1]+4,'y',{fs:12,w:600})+T(f[0]+6,f[1]+16,'ŷ = Xw',{fs:11.5,fill:'var(--c1)',w:600});
-      b+=T(top[0]+7,(top[1]+f[1])/2+4,'y − ŷ ⟂ plane',{fs:11.5,fill:'var(--c2)',a:'start',w:600});
-      b+=T(cs[3][0]+4,cs[3][1]-6,'column space of X',{fs:11,fill:'var(--c3)'})}
     el.innerHTML=RD.svg(W,H,b,'Least squares as a projection')}
   // ---------- power iteration: the first iterates on the plane, then the angle per step ----------
   function power(){const el=$('rd-pow-svg'),W=Math.min(RD.width(el),760),two=W>=560,pw=two?W*0.46:W,ph=Math.round(two?260:Math.min(W*0.8,300)),H=two?ph:2*ph+8,A=[[3,0],[4,5]];let b='';
@@ -152,6 +119,6 @@
     hist.forEach((h,k)=>{if(k<6||W>420)b+=T(X(k)+(k===0?4:0),Y(h[1])+16,h[1].toFixed(3),{fs:10.5,a:k===0?'start':'middle',fill:'var(--c2)'})});
     b+=T(X(0),14,'σ₁: 0.949, then 1.000 from step 2',{fs:11,fill:'var(--c1)'})+T(X(6),bt-8,'σ₂ (orange)',{fs:11,fill:'var(--c2)',a:'end'});
     el.innerHTML=RD.svg(W,H,b,'Singular values under Newton-Schulz');el.dataset.sv=hist.map(h=>h.map(v=>v.toFixed(4)).join('/')).join(',')}
-  function all(){hero();bcast();rank1();lsq();power();pd();cond();ns()}
+  function all(){bcast();rank1();lsq();power();pd();cond();ns()}
   RD.onRender(all);RD.onResize(all);all();
 })();

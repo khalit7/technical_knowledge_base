@@ -23,14 +23,9 @@
         o+=T(W-r,y+36,'['+lo.toFixed(4)+', '+(lo+w).toFixed(4)+')  width '+w.toFixed(4),{a:'end',fs:10.5,fill:'var(--mute)'})}
       if(k===3){o+='<rect x="'+l+'" y="'+y+'" width="'+pw+'" height="24" rx="3" fill="var(--c3)" opacity="0.85"/>'+T(l+pw/2,y+16,'final interval ['+lo.toFixed(4)+', '+(lo+w).toFixed(4)+'), width '+w.toFixed(4),{a:'middle',fs:11.5,w:600,fill:'var(--bg)'})}}
     ac.innerHTML=RD.svg(W,Math.min(i,3)*rowH+40,o,'Arithmetic coding intervals');
-    const caps=[['Start: the whole interval [0, 1)','Split it in proportion to the bet: cat takes the first 0.665, dog the next 0.245, sat the last 0.090. The message is "sat cat cat".'],
-      ['Symbol 1: sat','Keep sat\'s slice, [0.910, 1.000), width 0.090, and split it again in the same proportions (each row is zoomed to fill the width).'],
-      ['Symbol 2: cat','Keep cat\'s part of that slice: width 0.090 × 0.665 = 0.0599.'],
-      ['Symbol 3: cat','Width 0.0599 × 0.665 = 0.0398. Any number inside identifies the whole message. Naming a number to that precision takes about −log₂ 0.0398 = 4.65 bits, plus at most about two for termination.']];
-    const s=caps[Math.min(i,3)];document.getElementById('it-ac-cap').innerHTML='<div class="t">'+s[0]+'</div><p>'+s[1]+'</p>';
     const w=iv[Math.min(i,3)][1];let sur=0;for(let k=0;k<Math.min(i,3);k++)sur+=-Math.log2(P[MSG[k]]);
     document.getElementById('it-ac-cnt').innerHTML=RD.stat('interval width',w.toFixed(4),'product of the probabilities')+RD.stat('−log₂ width',(-Math.log2(w)).toFixed(3)+' bits','')+RD.stat('sum of surprises',sur.toFixed(3)+' bits','3.473 + 0.588 + 0.588')}
-  if(ac){const a=RD.anim({card:'it-ac-card',ctl:'it-ac-ctl',n:4,draw:drawAc,ms:2200,label:'Symbols coded'});RD.onResize(()=>a.redraw())}
+  if(ac){const a=RD.anim({card:'it-ac-card',ctl:'it-ac-ctl',n:4,draw:drawAc,ms:4200,label:'Symbols coded',list:'sx-ac'});RD.onResize(()=>a.redraw())}
 
   // compression ladder on the Darwin passage
   const lad=document.getElementById('it-lad');

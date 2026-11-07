@@ -1,33 +1,6 @@
-// ---- Reading: hero figure (top) and the temperature slider (s5) ----
+// ---- Reading: the temperature slider (section 5); the hero is the 3D stage 28_js_sc_1hero.js ----
 (function(){
   const T=RD.t;
-  // hero: loss = floor + removable, two codes (exact) and two real models on one passage (measured)
-  const he=document.getElementById('it-hero');
-  function drawHero(){if(!he)return;const W=Math.min(RD.width(he),760),l=4,r=8,pw=W-l-r,bh=22;let o='',y=0;
-    const g=ITM.texts.en.models['openai-community/gpt2'].bpb,q=ITM.texts.en.models['Qwen/Qwen2.5-0.5B'].bpb;
-    const seg=(x,w,yy,col,lab,op)=>'<rect x="'+x+'" y="'+yy+'" width="'+Math.max(1,w-1)+'" height="'+bh+'" rx="3" fill="'+col+'"'+(op?' opacity="'+op+'"':'')+'/>'+(lab&&w>60?T(x+w/2,yy+15,lab,{a:'middle',fs:11.5,w:600,fill:'var(--bg)'}):'');
-    const head=(yy,s,col)=>T(l,yy,s,{fs:12,w:600,fill:col||'var(--ink)'});
-    // group 1: bits per symbol, scale 2.5
-    const S1=pw/2.5;
-    o+=head(y+12,'Two codes, one stream (bits per symbol, exact)','var(--mute)');y+=20;
-    o+=T(l,y+12,'code built for the truth p: 1.75',{fs:11.5});y+=16;
-    o+=seg(l,1.75*S1,y,'var(--c1)','floor H(p) = 1.75');y+=bh+8;
-    o+=T(l,y+12,'code built for a wrong guess q: 2.375',{fs:11.5});y+=16;
-    o+=seg(l,1.75*S1,y,'var(--c1)','floor H(p) = 1.75')+seg(l+1.75*S1,0.625*S1,y,'var(--c2)','KL 0.625');
-    if(0.625*S1<=60)o+=T(l+2.375*S1+4,y+15,'KL 0.625',{fs:11.5,w:600,fill:'var(--c2)'});
-    y+=bh+18;
-    // group 2: bits per byte on the Darwin passage, scale 1.1
-    const S2=pw/1.1;
-    o+=head(y+12,'Two models, one passage (bits per byte, measured)','var(--mute)');y+=20;
-    o+=T(l,y+12,'Qwen2.5-0.5B: '+q.toFixed(3),{fs:11.5});y+=16;
-    o+=seg(l,q*S2,y,'var(--c1)','floor + its own KL',0.55);y+=bh+8;
-    o+=T(l,y+12,'GPT-2 (124M): '+g.toFixed(3)+' = '+q.toFixed(3)+' + <tspan fill="var(--c2)" font-weight="600">'+(g-q).toFixed(3)+' more KL</tspan>',{fs:11.5});y+=16;
-    o+=seg(l,q*S2,y,'var(--c1)','floor + Qwen\'s KL',0.55)+seg(l+q*S2,(g-q)*S2,y,'var(--c2)','');
-    if(l+g*S2+80<W)o+=T(l+g*S2+4,y+15,'+'+(g-q).toFixed(3)+' KL',{fs:11.5,w:600,fill:'var(--c2)'});
-    y+=bh+4;
-    he.innerHTML=RD.svg(W,y,o,'Cross-entropy split into entropy and KL for two codes and two real models')}
-  RD.onRender(drawHero);RD.onResize(drawHero);drawHero();
-
   // temperature slider on the tiny model's scores
   const sl=document.getElementById('it-tp-s');if(!sl)return;
   const Z=[2,1,0],NM=['cat','dog','sat'],COL=['var(--c1)','var(--c4)','var(--c2)'];

@@ -2,13 +2,24 @@
 <a href="#rd-one">The idea</a><a href="#rd-vec">1 Vectors</a><a href="#rd-map">2 Maps</a><a href="#rd-mul">3 Multiply</a><a href="#rd-shape">4 Shapes, einsum</a><a href="#rd-rank">5 Rank, subspaces</a><a href="#rd-norm">6 Norms</a><a href="#rd-orth">7 Least squares</a><a href="#rd-eig">8 Eigen</a><a href="#rd-sym">9 Symmetric, PD</a><a href="#rd-svd">10 SVD</a><a href="#rd-cond">11 Conditioning</a><a href="#rd-low">12 Low rank in ML</a><a href="#rd-attn">13 Attention</a><a href="#rd-tools">14 Which tool</a><a href="#rd-mist">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core"><b>A matrix is a map: it rotates, stretches along a few orthogonal directions (squashing some to zero), and rotates again.</b> That is the SVD, and its stretches, the <span class="hl">singular values</span>, answer almost every linear-algebra question in ML: which directions survive (rank), how big the map is (norms), how badly it amplifies errors (conditioning), and how much is lost by keeping only the biggest stretches (low-rank approximation).</p>
-<div class="hero" id="rd-hero-card"><h4>The running matrix A = [[3, 0], [4, 5]] is a rotation, a stretch by 6.708 and 2.236, and another rotation</h4>
-<div class="rd-svg" id="rd-hero"></div>
-<p class="small" id="rd-hero-cap">The unit circle and two input directions \(v_1, v_2\) at right angles. \(V^\top\) rotates them onto the axes (by \(-45°\)), \(\Sigma\) stretches the axes by the <span class="hl">singular values</span> \(\sigma_1 = 6.708\) and \(\sigma_2 = 2.236\), and \(U\) rotates the result onto the output directions (by \(71.57°\)). Read off the last panel: rank 2 (two nonzero stretches), spectral norm 6.708, condition number \(6.708 / 2.236 = 3\), and the best rank-1 approximation misses by exactly \(\sigma_2 = 2.236\). Section 10 steps through it; the {{Matrix playground|#t-play}} does it for any 2x2 or 3x3 matrix.</p></div>
+<p class="sxh">Fig. 1: the running matrix A = [[3, 0], [4, 5]] is a rotation, a stretch by 6.708 and 2.236, and another rotation</p>
+<ol class="sx" id="sx-hero">
+<li><b>The input.</b> The unit circle and two input directions \(v_1 = (1, 1)/\sqrt{2}\), \(v_2 = (-1, 1)/\sqrt{2}\) at right angles: the right singular vectors of \(A\). Each glass plate behind holds the picture after one more factor.</li>
+<li><b>\(V^\top\) rotates them onto the axes (by \(-45°\)).</b> A rotation keeps every length and angle: the circle is still the unit circle, and the dots stream through without spreading.</li>
+<li><b>\(\Sigma\) stretches the axes by the <span class="hl">singular values</span>.</b> Horizontally by \(\sigma_1 = 6.708\), vertically by \(\sigma_2 = 2.236\) (dashed: the unit circle, to scale). The only step that changes shape; area grows by \(6.708 \times 2.236 = 15 = \det A\).</li>
+<li><b>\(U\) rotates the result onto the output directions (by \(71.57°\)).</b> The arrows land on \(\sigma_1 u_1\) and \(\sigma_2 u_2\), \(u_1 = (1, 3)/\sqrt{10}\), still at right angles.</li>
+<li><b>\(A\) in one step lands on the same ellipse.</b> Read off the last plate: rank 2 (two nonzero stretches), spectral norm 6.708, condition number \(6.708 / 2.236 = 3\).</li>
+<li><b>Drop \(\sigma_2\): the best rank-1 approximation.</b> Keeping only \(\sigma_1 u_1 v_1^\top = \begin{pmatrix} 1.5 & 1.5 \\ 4.5 & 4.5 \end{pmatrix}\) flattens the circle onto a segment of half-length 6.708, and it misses \(A\) by exactly \(\sigma_2 = 2.236\) (Eckart-Young, section 10).</li>
+</ol>
+<p class="small mute">Section 10 steps through the SVD against the eigendecomposition; the {{Matrix playground|#t-play}} does it for any 2x2 or 3x3 matrix.</p>
 <div class="co key"><div class="t">The one idea to keep</div>Ask of any matrix: <b>which directions does it keep, how much does it stretch each, and how unequal are the stretches?</b> The SVD answers all three, which is why it sits in the middle of this page.</div>
+</section>
+</div></div>
+<section id="rd-need">
 <p><b>You need:</b> the running example of {{Topic: math|n:3c65c17b0d0d81cdb851c0835b25a538}} (its running example): a tiny three-word model with input \(x = (2, 1)\) and weight rows cat \((1, 0)\), dog \((0, 1)\), sat \((1, -2)\), so \(W\) is \(3 \times 2\). Worked numbers use it and one running 2x2 matrix \(A\); real numbers come from GPT-2 small's released weights and two public LoRA adapters; all of them are recomputed by the script in this page's source folder. Matrix calculus (Jacobians, layouts, gradients of matrix expressions, FLOP counts) is on {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}; floating point on {{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}}.</p>
 <dl class="terms">
 <dt>Singular values \(\sigma_i\)</dt><dd>the stretches of a matrix along its orthogonal input directions, largest first; every matrix has them.</dd>
@@ -38,11 +49,10 @@
 </tbody></table></div></div></details>
 </section>
 
-<section id="rd-vec">
+<div class="s3sp"><div class="s3L"><section id="rd-vec">
 <h2>1. Vectors and the dot product: the score behind every logit</h2>
 <p>A <dfn id="g-vector">vector</dfn> is a list of numbers and, equally, an arrow from the origin. A GPT-2 small token is a list of 768 numbers; nobody can draw 768 axes, but every rule on this page works the same in 768 dimensions as in 2, which is why the 2-D pictures are worth learning. The <dfn id="g-dot">dot product</dfn> multiplies two vectors entry by entry and adds, \(a \cdot b = a^\top b = \sum_i a_i b_i\), and that is how the tiny model scores each word: \(x \cdot w_{\text{cat}} = 2 \cdot 1 + 1 \cdot 0 = 2\), \(x \cdot w_{\text{dog}} = 1\), \(x \cdot w_{\text{sat}} = 2 \cdot 1 + 1 \cdot (-2) = 0\).</p>
-<div class="card"><h4>The right answer, sat, is at right angles to the input, so its score is 0</h4><div class="rd-svg" id="rd-vec-svg"></div>
-<p class="small mute">The tiny model's input \(x = (2, 1)\) and its three word rows: cat \((1, 0)\), dog \((0, 1)\), sat \((1, -2)\). The dashed line is the projection of \(x\) onto the cat arrow. Every number comes from the root's model.</p></div>
+
 <p>The same number has a geometric reading, \(a \cdot b = \lVert a \rVert \, \lVert b \rVert \cos\theta\), with the length \(\lVert x \rVert_2 = \sqrt{\sum_i x_i^2}\) (\(\sqrt{5} \approx 2.236\) for \(x\)). Divide out the lengths and only the direction is left, the <dfn>cosine similarity</dfn> \(\cos\theta = a \cdot b / (\lVert a \rVert \lVert b \rVert)\): 1 for the same direction, 0 at right angles (<dfn>orthogonal</dfn>), \(-1\) opposite. For the tiny model sat is exactly orthogonal to the input, which is why its score is 0 however long the arrows are.</p>
 <p><b>On real embeddings.</b> GPT-2 small stores one 768-number vector per token in its embedding table. The cosine similarities between a few of them (computed from the released weights, script in this page's source folder):</p>
 <div class="tw" id="rd-embcos"></div>
@@ -56,17 +66,20 @@
 <p><b>The numbers.</b> \(\cos(x, w_{\text{cat}}) = 2/\sqrt{5} = 0.894\), \(\cos(x, w_{\text{dog}}) = 1/\sqrt{5} = 0.447\), \(\cos(x, w_{\text{sat}}) = 0\). Projecting \(x = (2, 1)\) onto \(b = (1, 1)\): \(x \cdot b = 3\), \(b \cdot b = 2\), so the projection is \(1.5\,(1, 1) = (1.5, 1.5)\) and the leftover \((0.5, -0.5)\) has \((0.5, -0.5) \cdot (1, 1) = 0\).</p>
 <p><b>From the old page, checked:</b> \(a = (1, 2, 2)\), \(b = (2, 1, 2)\) give \(a \cdot b = 8\), \(\lVert a \rVert = \lVert b \rVert = 3\), \(\cos\theta = 8/9 = 0.889\); and \((3, -4) \cdot (4, 3) = 12 - 12 = 0\), orthogonal.</p></div></details>
 <div class="deepnote"><b>Go deeper (optional):</b> the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} tab lets you move \(x\) and the word rows; contrastive losses built on cosine similarity are on {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}.</div>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>The right answer, sat, is at right angles to the input, so its score is 0</h4><div class="rd-svg" id="rd-vec-svg"></div>
+<p class="small mute">The tiny model's input \(x = (2, 1)\) and its three word rows: cat \((1, 0)\), dog \((0, 1)\), sat \((1, -2)\). The dashed line is the projection of \(x\) onto the cat arrow. Every number comes from the root's model.</p></div></div></div></div>
 
-<section id="rd-map">
+<div class="s3sp"><div class="s3L"><section id="rd-map">
 <h2>2. Matrices as maps: the columns are where the axes land</h2>
 <p>An \(m \times n\) <dfn id="g-matrix">matrix</dfn> times a vector with \(n\) entries gives one with \(m\) entries, so a matrix is a <dfn>map</dfn> from \(\mathbb{R}^n\) to \(\mathbb{R}^m\), and a <dfn>linear</dfn> one: \(A(x + y) = Ax + Ay\) and \(A(c\,x) = c\,(Ax)\). Straight lines stay straight, the origin stays put, and evenly spaced grid lines stay evenly spaced. Writing \(x = x_1 e_1 + x_2 e_2\) with the axis arrows \(e_1 = (1, 0)\), \(e_2 = (0, 1)\) (the <dfn>standard basis</dfn>), linearity gives \(Ax = x_1 (Ae_1) + x_2 (Ae_2)\), and \(Ae_1\) is just the first column of \(A\).</p>
 <div class="co key"><div class="t">The one picture to keep</div>The columns of a matrix are where the axis arrows land. Know where \(e_1\) and \(e_2\) go, and you know where every point goes: the whole grid follows them.</div>
 <p>The running matrix (from the old page, every number checked) is \(A = \begin{pmatrix} 3 & 0 \\ 4 & 5 \end{pmatrix}\): \(e_1\) lands on \((3, 4)\), \(e_2\) on \((0, 5)\), the unit square becomes the parallelogram with those sides and the unit circle becomes an ellipse. Switch the preset to see a rotation, shear, projection and reflection do the same.</p>
-<div class="card"><h4>Each preset moves the axis arrows; the grid, the square and the circle follow</h4><div class="seg" id="rd-map-seg"><button data-m="A" class="on">A</button><button data-m="rot">Rotation 30°</button><button data-m="shear">Shear</button><button data-m="proj">Projection</button><button data-m="refl">Reflection</button><button data-m="W">S = WᵀW (tiny model)</button></div>
-<div class="rd-svg" id="rd-map-svg"></div><p class="small" id="rd-map-cap"></p></div>
+
 <p>The <dfn id="g-det">determinant</dfn>, \(\det \begin{pmatrix} a & b \\ c & d \end{pmatrix} = ad - bc\), is the signed factor by which the map scales area: for \(A\), \(3 \cdot 5 - 0 \cdot 4 = 15\). A negative determinant means the map also flips orientation (a mirror image, like the reflection preset). A determinant of 0 means the plane is squashed onto a line or a point (the projection preset): many inputs land on the same output, so the map cannot be undone. In \(n\) dimensions the determinant scales volume the same way.</p>
 <p><b>Non-square matrices</b> change the dimension. The tiny model's \(W\) is \(3 \times 2\): it takes the 2-number input to 3 scores, so it maps the plane into a flat plane sitting inside 3-D space, with \(e_1\) and \(e_2\) landing on its columns \((1, 0, 1)\) and \((0, 1, -2)\). A \(2 \times 3\) matrix goes the other way and must squash a whole direction of 3-D space to zero (section 5 says exactly which one).</p>
 <div class="use"><div class="t">What it is used for in ML</div>Every dense layer, every attention projection and every embedding lookup is a linear map; a network is linear maps alternating with simple non-linear functions (activations), because a stack of purely linear maps would collapse into one linear map (section 3). Thinking of a weight matrix as "what it does to directions" is what makes rank, conditioning and low-rank methods make sense.</div>
 <p class="small mute">Notation: \(A_{ij}\) is the entry in row \(i\), column \(j\) (row first, always); an \(m \times n\) matrix has \(m\) rows and \(n\) columns.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Each preset moves the axis arrows; the grid, the square and the circle follow</h4><div class="seg" id="rd-map-seg"><button data-m="A" class="on">A</button><button data-m="rot">Rotation 30°</button><button data-m="shear">Shear</button><button data-m="proj">Projection</button><button data-m="refl">Reflection</button><button data-m="W">S = WᵀW (tiny model)</button></div>
+<div class="rd-svg" id="rd-map-svg"></div><p class="small" id="rd-map-cap"></p></div></div></div></div>

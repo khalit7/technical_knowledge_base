@@ -24,7 +24,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   };
   // Reading: step every animation forward to the end and back, switch every segmented control
   await p.click('button[data-t=t-read]'); await sleep(300);
-  for (const id of ['it-huf', 'it-kl', 'it-fr', 'it-ac']) {
+  for (const id of ['it-huf', 'it-fr', 'it-ac']) {
     const n = await p.$eval('#' + id + '-ctl-s', e => +e.max);
     await p.$eval('#' + id + '-card', e => e.scrollIntoView());
     for (let i = 0; i < n; i++) { await p.click('#' + id + '-ctl-f'); clicks++ }

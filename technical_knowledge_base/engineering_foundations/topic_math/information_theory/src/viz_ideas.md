@@ -27,3 +27,12 @@ Central question: what does a log-loss number mean, and which part of it can a m
 | R4 | Real arithmetic coder driven by GPT-2 in the browser | | needs model weights in the page; the arithmetic is shown exactly on the tiny model | none | rejected |
 
 Methodology gaps: no published bits-per-byte number exists for these passages, so the real measurements reproduce nothing published; the page says "by construction" for PPL = exp(CE) and BPB = total/bytes, and compares GPT-2's tokens per byte with the Pile's 0.29335 only as consistency.
+
+## 2026-11-06 rollout (split layout, renderer v2)
+| # | Idea | Data | Placement | Status |
+|---|---|---|---|---|
+| IT15 | Cross-entropy surface over the triangle of bets for the soft target; floor plane at H(p); KL column; descent path | IT.CE, IT.H; recompute.py hero3d_* | top of Reading, replaces IT13 | built (3D) |
+| IT16 | Entropy surface over the triangle; edge = binary entropy; temperature path | IT.H; temp | section 1 | built (3D) |
+| IT17 | Two codes as codeword stacks; per-outcome KL terms, both directions | p, q of section 3; kl3d_* | section 3, replaces IT1 | built (3D) |
+| IT18 | Joint as bar grid, marginals, independence lids, per-cell MI terms; Y = X^2 | mi3d_* | section 8 | built (3D) |
+| R6 | KL-penalty optimum as bar rows in depth for four betas | rl table | section 10 | rejected: the table reads at a glance |

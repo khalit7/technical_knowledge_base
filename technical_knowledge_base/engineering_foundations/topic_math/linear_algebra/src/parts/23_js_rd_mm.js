@@ -34,7 +34,8 @@
     $('rd-mm-work').textContent=s.work||' ';
     const known=s.res.flat().filter(v=>v!==null).length;
     $('rd-mm-cnt').innerHTML=RD.stat('Multiplications so far',String(s.mults),'of 8')+RD.stat('Entries of PQ known',String(known),'of 4');
-    $('rd-mm-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+s.title+'</div><p>'+s.text+'</p>'}
-  const an=RD.anim({card:'rd-mm-card',ctl:'rd-mm-ctl',n:steps().length,draw,ms:2200,label:'Step of the multiplication'});
-  RD.seg($('rd-mm-seg'),m=>{mode=m;an.reset(steps().length)});
+  }
+  // the step list on the left (one per reading, in the HTML) explains each step; the card shows the work line and counters
+  const an=RD.anim({card:'rd-mm-card',ctl:'rd-mm-ctl',n:steps().length,draw,ms:3800,label:'Step of the multiplication',list:'sx-mm-rc'});
+  RD.seg($('rd-mm-seg'),m=>{mode=m;['rc','col','outer','comp'].forEach(x=>{const l=$('sx-mm-'+x);if(l)l.hidden=x!==m});an.reset(steps().length,'sx-mm-'+m)});
 })();

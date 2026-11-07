@@ -263,3 +263,25 @@ OUT['pinsker_bound'] = round(math.sqrt(KL(pi1, ref, math.e) / 2), 4)
 OUT['hero_gap_bpb'] = round(M['texts']['en']['models']['openai-community/gpt2']['bpb'] - M['texts']['en']['models']['Qwen/Qwen2.5-0.5B']['bpb'], 4)
 json.dump(OUT, open(os.path.join(HERE, 'inputs', 'numbers.json'), 'w'), indent=0)
 print({k: OUT[k] for k in ('temp', 'temp_var_T1', 'temp_dHdT_numeric_T1', 'temp_eff_choices_T1', 'pinsker_tv', 'pinsker_bound', 'hero_gap_bpb')})
+
+# ---- additions (2026-11-06 rollout): the numbers the four 3D stages draw and their step lists quote ----
+# Fig. 1: cross-entropy surface against the soft target p = (cat 0, dog 0.2, sat 0.8); gradient descent on the scores, step size 1, 40 steps
+pt = [0, 0.2, 0.8]; z = [2.0, 1.0, 0.0]
+OUT['hero3d_H'] = round(H(pt, math.e), 4); OUT['hero3d_CE'] = round(CE(pt, softmax(z), math.e), 4); OUT['hero3d_KL'] = round(KL(pt, softmax(z), math.e), 4)
+for _ in range(40):
+    qz = softmax(z); z = [a - (b - c) for a, b, c in zip(z, qz, pt)]
+OUT['hero3d_KL_after40'] = round(KL(pt, softmax(z), math.e), 4)
+# Fig. 2: entropy surface; the uniform peak and the tiny bet (bits)
+OUT['ent3d_uniform'] = round(math.log2(3), 4); OUT['ent3d_tiny'] = round(H(softmax([2, 1, 0]), 2), 4)
+# Fig. 3: per-outcome KL terms, both directions (bits)
+ps, qs = [1/2, 1/4, 1/8, 1/8], [1/8, 1/2, 1/4, 1/8]
+OUT['kl3d_fwd_terms'] = [round(a * math.log2(a / b), 4) for a, b in zip(ps, qs)]; OUT['kl3d_rev_terms'] = [round(b * math.log2(b / a), 4) for a, b in zip(ps, qs)]
+OUT['kl3d_bits'] = [sum(16 * a * l for a, l in zip(ps, [1, 2, 3, 3])), sum(16 * a * l for a, l in zip(ps, [3, 1, 2, 3]))]
+# Fig. 4: per-cell mutual-information terms (bits) for the 80%-agreement signals and for Y = X^2
+def mi_terms(J):
+    px = [sum(r) for r in J]; py = [sum(r[j] for r in J) for j in range(len(J[0]))]
+    return [round(v * math.log2(v / (px[i] * py[j])), 4) if v > 0 else 0 for i, r in enumerate(J) for j, v in enumerate(r)]
+OUT['mi3d_terms'] = mi_terms([[.4, .1], [.1, .4]]); OUT['mi3d_I'] = round(sum(mi_terms([[.4, .1], [.1, .4]])), 4)
+OUT['mi3d_sq_terms'] = mi_terms([[0, 1/3], [1/3, 0], [0, 1/3]]); OUT['mi3d_sq_I'] = round(sum(mi_terms([[0, 1/3], [1/3, 0], [0, 1/3]])), 4)
+json.dump(OUT, open(os.path.join(HERE, 'inputs', 'numbers.json'), 'w'), indent=0)
+print({k: OUT[k] for k in OUT if k.startswith(('hero3d', 'ent3d', 'kl3d', 'mi3d'))})
