@@ -1,17 +1,38 @@
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-idem-card">
+<h4>One charge, one lost reply, one retry: only a key checked at the end stops the double charge</h4>
+<div class="seg" id="rd-idem-seg"><button data-m="0" class="on">Before: blind retry</button><button data-m="1">Deduplicate in the middle</button><button data-m="2">After: key checked at the end</button></div>
+<div id="rd-idem-svg" class="rd-svg"></div>
+<div class="an-cnt" id="rd-idem-cnt"></div>
+<div class="an-ctl" id="rd-idem-ctl"></div>
+<p class="small mute"><span class="ill">Illustrative</span> amounts and key.</p>
+</div></div><div class="s3L">
 <section id="rd-once">
 <h2>9. Idempotency and exactly-once: an end-to-end property</h2>
 <p>Go back to the fourth silence: the database saved the charge and the reply was lost. The client cannot tell this from "request lost", so it has two choices. Never retry, and some charges silently never happen (<dfn id="d-amo">at-most-once</dfn>); or retry until it hears "done", and some charges happen twice (<dfn id="d-alo">at-least-once</dfn>). No protocol on the wire removes that choice, because the sender never learns which silence it got. What can happen exactly once is the <b>effect</b>: deliver at least once, and make the receiver recognise a repeat. An operation is <dfn id="d-idem">idempotent</dfn> when doing it twice has the same effect as doing it once ("set the title to Trip" is; "add 10 credits" is not).</p>
 <p>Where the repeat is recognised matters, and that is the <b>end-to-end argument</b> (Saltzer, Reed and Clark, ACM Transactions on Computer Systems, 1984): "The function in question can completely and correctly be implemented only with the knowledge and help of the application standing at the end points of the communication system." On duplicates specifically: "even if the network suppresses duplicates, the application itself may accidentally originate duplicate requests, in its own failure/retry procedures. These application level duplications look like different messages to the communication system, so it cannot suppress them" ({{Saltzer, Reed and Clark|https://web.mit.edu/Saltzer/www/publications/endtoend/endtoend.pdf}}).</p>
-<div class="card" id="rd-idem-card">
-<h4>One charge, one lost reply, one retry: only a key checked at the end stops the double charge</h4>
+
 <p class="try"><b>Predict:</b> the gateway in the middle drops duplicate messages. Does that save Ana from a double charge when her app retries? Compare the middle mode with the last one.</p>
-<div class="seg" id="rd-idem-seg"><button data-m="0" class="on">Before: blind retry</button><button data-m="1">Deduplicate in the middle</button><button data-m="2">After: key checked at the end</button></div>
-<div id="rd-idem-svg" class="rd-svg"></div>
-<div class="an-cnt" id="rd-idem-cnt"></div>
-<div class="an-cap" id="rd-idem-cap" aria-live="polite"></div>
-<div class="an-ctl" id="rd-idem-ctl"></div>
-<p class="small mute"><span class="ill">Illustrative</span> amounts and key.</p>
-</div>
+<ol class="sx" id="sx-idem-0">
+<li><b>Ana's app sends the charge.</b> The app asks for a 10-credit charge. Nothing identifies this operation except its content.</li>
+<li><b>Payments charges: 100 becomes 90.</b> The charge is applied and the reply sent.</li>
+<li><b>The reply is lost; the app's timeout fires.</b> The fourth silence: the charge happened, and the app cannot know it. It retries, as it must.</li>
+<li><b>The app retries.</b> The retry looks exactly like a new charge.</li>
+<li><b>Charged twice: 90 becomes 80.</b> Payments has no way to tell a retry from a second purchase. Ana paid 20 credits for one request.</li>
+</ol>
+<ol class="sx" id="sx-idem-1" hidden>
+<li><b>Ana's app sends the charge.</b> The gateway tags each message it forwards with its own id (m-1) and drops any message whose id it has already seen, as many brokers do.</li>
+<li><b>Payments charges: 100 becomes 90.</b> The charge is applied and the reply sent. (If the gateway re-sent m-1 after its own timeout, it would drop the duplicate correctly.)</li>
+<li><b>The reply is lost; the app's timeout fires.</b> The fourth silence: the charge happened, and the app cannot know it. It retries, as it must.</li>
+<li><b>The app retries.</b> To the gateway the retry is a <b>new message</b>, so it gets a new id, m-2, and passes the duplicate check. This is Saltzer, Reed and Clark's point: application-level duplicates "look like different messages to the communication system".</li>
+<li><b>Charged twice anyway.</b> Deduplication in the middle removed only the duplicates the middle created. The end received two different-looking requests and charged twice. Only the end can do this job.</li>
+</ol>
+<ol class="sx" id="sx-idem-2" hidden>
+<li><b>Ana's app sends the charge.</b> Before the first attempt the app generates a key, <code>k-7f3</code>, that names this one charge, and will reuse it on every retry.</li>
+<li><b>Payments charges: 100 becomes 90.</b> In one transaction, payments applies the charge and inserts <code>k-7f3</code> with its result into a table with a unique key.</li>
+<li><b>The reply is lost; the app's timeout fires.</b> The fourth silence: the charge happened, and the app cannot know it. It retries with the same key.</li>
+<li><b>The app retries.</b> The retry carries <code>k-7f3</code> again: the operation has a name the end can recognise.</li>
+<li><b>Key found: return the stored result, charge nothing.</b> The insert of <code>k-7f3</code> fails on the unique key, so payments returns the result it stored the first time. One charge, and the app finally hears "ok, balance 90". At-least-once delivery plus this check is the exactly-once <b>effect</b>.</li>
+</ol>
 <p>The recipe, wherever the end is (a payment service, a database, a job handler):</p>
 <ul>
 <li><b>The originator names the operation.</b> The client generates a unique <dfn id="d-ikey">idempotency key</dfn> once, before the first attempt, and sends the same key on every retry. A key minted by a middle hop is a new key per attempt, which is the middle mode above.</li>
@@ -20,3 +41,4 @@
 </ul>
 <p>Read "exactly-once" claims with this in mind. Kafka's transactions give exactly-once only while input and output are both Kafka topics; any external side effect needs its own deduplication, which {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}} shows in detail. Retries done for you are the usual source of the duplicate: Jepsen found that the official etcd Java client "incorrectly retries non-idempotent requests which may have actually succeeded" ({{Jepsen, jetcd 0.8.2, 2024-08-08|https://jepsen.io/analyses/jetcd-0.8.2}}). How many times to retry, with what backoff, is {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; the HTTP shape of an idempotency key (header, expiry, the stored response) is {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} (section 4).</p>
 </section>
+</div></div>

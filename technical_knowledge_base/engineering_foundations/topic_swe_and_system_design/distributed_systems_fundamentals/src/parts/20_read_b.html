@@ -1,16 +1,19 @@
-<section id="rd-net">
+<div class="s3sp"><div class="s3L"><section id="rd-net">
 <h2>1. Why it is hard: messages, silence, pauses and clocks</h2>
 <p>One database server has one copy of the truth, and the parent page's advice stands: "a bigger machine and one Postgres go a long way". You leave it for four reasons, each pointing at a different technique: <b>it dies</b> (fix: replication), <b>too many reads</b> (replication again, or a cache), <b>too many writes or too much data</b> (copies do not help, every copy takes every write; fix: partitioning), and <b>users far away</b> (light in fibre needs about 59 ms to cross the Atlantic and back, and Azure measures 78 ms East US to UK South, {{Numbers to know|n:3c65c17b0d0d81048ae0dd14ac399b4d}}; fix: replicas near users, which puts the copies far from each other). Every fix puts data on machines that can only talk by message.</p>
 <h3>Partial failure: silence has four causes</h3>
 <p>A program on one computer mostly works or crashes. A distributed system has a third state, <dfn id="d-partial">partial failure</dfn>: some machines or links work and others do not. The app server sends "save hello" to the database and hears nothing. Predict before you click: in how many of these four cases did the write happen?</p>
-<div class="widget" id="rd-net-card">
+<p>The only tool the app server has is a <dfn id="d-timeout">timeout</dfn>: wait so long, then assume failure. It cannot say <i>what</i> failed, and in two of the four cases (slow, reply lost) the write <b>did happen</b>, in a third (crashed) it may have. That single fact drives most of this page: it is why retries need <a href="#rd-once">idempotency</a>, why a "dead" leader may still be alive (<a href="#rd-lease">leases and fencing</a>), and why Kafka's documentation says of a producer that sees a network error: "it cannot be sure if this error happened before or after the message was committed" ({{Kafka 4.2 design docs|https://kafka.apache.org/42/design/design/}}).</p>
+<p>Choosing the timeout has no free answer. Too short, and a slow but healthy node is declared dead, a replacement takes over, and two think they are in charge. Too long, and every real failure means a long wait. etcd defaults to a 100 ms heartbeat and a 1,000 ms election timeout, and its docs say the election timeout "must be at least 10 times the round-trip time" ({{etcd v3.6 tuning|https://etcd.io/docs/v3.6/tuning/}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="widget" id="rd-net-card">
 <h4>The app server's view is identical in all four; the database's is not</h4>
 <div class="seg" id="rd-net-seg"><button data-m="0" class="on">Request lost</button><button data-m="1">Server crashed</button><button data-m="2">Server slow</button><button data-m="3">Reply lost</button></div>
 <div id="rd-net-svg" class="rd-svg"></div>
 <p class="small" id="rd-net-cap"></p>
 </div>
-<p>The only tool the app server has is a <dfn id="d-timeout">timeout</dfn>: wait so long, then assume failure. It cannot say <i>what</i> failed, and in two of the four cases (slow, reply lost) the write <b>did happen</b>, in a third (crashed) it may have. That single fact drives most of this page: it is why retries need <a href="#rd-once">idempotency</a>, why a "dead" leader may still be alive (<a href="#rd-lease">leases and fencing</a>), and why Kafka's documentation says of a producer that sees a network error: "it cannot be sure if this error happened before or after the message was committed" ({{Kafka 4.2 design docs|https://kafka.apache.org/42/design/design/}}).</p>
-<p>Choosing the timeout has no free answer. Too short, and a slow but healthy node is declared dead, a replacement takes over, and two think they are in charge. Too long, and every real failure means a long wait. etcd defaults to a 100 ms heartbeat and a 1,000 ms election timeout, and its docs say the election timeout "must be at least 10 times the round-trip time" ({{etcd v3.6 tuning|https://etcd.io/docs/v3.6/tuning/}}).</p>
+</div></div></div>
+<section id="rd-net-b">
 <h3>Partitions, pauses and clocks</h3>
 <ul>
 <li><b>Network partitions are real.</b> A <dfn id="d-netpart">network partition</dfn> is a split: two groups of machines each up but unable to reach each other. GitHub, 21 October 2018: maintenance cut the US East Coast data centre off for 43 seconds; automation promoted West Coast replicas to leaders, both coasts held writes the other lacked, and repair took 24 hours and 11 minutes ({{GitHub post-incident analysis|https://github.blog/news-insights/company-news/oct21-post-incident-analysis/}}; "gh-2018-10" in the parent's {{Case files|n:3c65c17b0d0d81048ae0dd14ac399b4d}}).</li>

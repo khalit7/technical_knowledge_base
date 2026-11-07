@@ -36,5 +36,16 @@ for (let r = 0; r < runs; r++) {
     commits += Object.keys(committed).length; maxTerm = Math.max(maxTerm, ...sim.S.map(s => s.term)); elections += Object.keys(sim.leadersByTerm).length;
   } catch (e) { bad++; console.log('run', r, 'FAIL', e.message) }
 }
+// Fig. 3's trace (parts/34_js_raft_trace.js): the same safety checks on every recorded snapshot, and its stretches in order
+{ const c2 = { window: { RAFT }, Math, Set, Map, Error, Infinity, console }; vm.createContext(c2);
+  vm.runInContext(fs.readFileSync(path.join(H, 'parts/34_js_raft_trace.js'), 'utf8'), c2);
+  const T = c2.window.DSF_RTRACE, committed = {}; let tb = 0; const lead = {};
+  try {
+    T.snaps.forEach(sn => { sn.S.forEach((s, i) => { if (s.alive && s.role === 'leader') { const k = s.term; if (lead[k] != null && lead[k] !== i) throw new Error('two leaders in term ' + k); lead[k] = i }
+      for (let j = 1; j <= s.commit; j++) { const e = s.log[j - 1], k = e[0] + ':' + e[1]; if (committed[j] && committed[j] !== k) throw new Error('trace: committed entry ' + j + ' differs'); committed[j] = k } }) });
+    T.stretches.forEach((s, i) => { if (s.t1 < s.t0 || (i && s.t0 !== T.stretches[i - 1].t1)) throw new Error('trace: stretch ' + (i + 1) + ' out of order') });
+    if (T.stretches.length !== 8) throw new Error('trace: ' + T.stretches.length + ' stretches');
+  } catch (e) { tb = 1; bad++; console.log('trace FAIL', e.message) }
+  console.log(`trace: ${T.snaps.length} snapshots, ${T.msgs.length} messages, ${Object.keys(committed).length} committed entries, ${tb ? 'FAILED' : 'safe'}`) }
 console.log(`runs=${runs} failures=${bad} committed entries checked=${commits} leaders elected=${elections} max term=${maxTerm}`);
 process.exit(bad ? 1 : 0);

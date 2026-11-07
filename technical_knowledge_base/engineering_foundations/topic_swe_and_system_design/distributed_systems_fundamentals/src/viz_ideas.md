@@ -29,3 +29,14 @@ What the methodology lacked: a rule for validating a simulator (here: fuzz the m
 | Consistency ladder: the checker's verdicts as rungs with Jepsen's availability per rung | Reading, section 5 | built | the old Consistency lab tab, moved inline |
 | Raft lab | Reading, section 7 | moved inline | one mechanism, so it sits beside the steps it shows |
 | Real photo (TrueTime GPS or atomic clock hardware) | - | rejected | a photo would not teach the interval idea; the page is about mechanisms |
+
+## 2026-11-07 rollout (split layout, renderer v2 stages)
+| Idea | Placement | Status | Notes |
+|---|---|---|---|
+| Hero as a 3D stage: shards as tinted key-range plates, leader and followers with log slabs, the write flowing in, the stale read, the etcd group | Reading, top (Fig. 1) | built | replaces the 2D hero; illustrative layout and log positions |
+| Quorums in 3D: N replicas on an arc, W confirmations and the worst-case R as flows, the overlap glowing | section 4 (Fig. 2) | built | settings are the widget's presets; the slider widget stays beside it as the reader's tool |
+| Raft tour as a 3D stage over the page's own trace, eight stretches, messages as dots, logs as slabs by term | section 7 (Fig. 3) | built | replaces the 2D guided tour; free mode stays as a widget |
+| Leases and fencing in 3D: a glass case for the pause, lease plates, tokens riding with writes | section 8 (Fig. 4) | built | replaces the 2D timeline stepper |
+| Lamport and vector clocks in 3D | section 2 | rejected | a space-time diagram reads best flat (the brief) |
+| Replication lag and idempotency steppers in 3D | sections 3 and 9 | kept 2D | message-sequence pictures; the hero already shows the lag in 3D |
+| History checker, CAP toggle, ring widget in 3D | sections 5, 6, 10 | kept 2D | histories are timelines, CAP is a toggle of four end states, the ring is a reader-driven calculator |

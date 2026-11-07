@@ -16,8 +16,8 @@ window.RAFT=(function(){
     function send(from,to,m){if(!S[from].alive)return;m.from=from;m.to=to;m.sent=now;m.at=now+rint(P.latMin,P.latMax);msgs.push(m)}
     function resetTimer(s){s.eto=rint(P.etoMin,P.etoMax);s.deadline=now+s.eto}
     function stepDown(s,term){if(term>s.term){s.term=term;s.voted=null}if(s.role!=='follower'){s.role='follower';s.votes=new Set()}}
-    function startElection(s){s.term++;s.role='candidate';s.voted=s.id;s.votes=new Set([s.id]);s.leader=null;resetTimer(s);
-      note('S'+(s.id+1)+' heard no leader for '+s.eto+' ms: becomes candidate for term '+s.term+' and asks for votes');
+    function startElection(s){const waited=s.eto;s.term++;s.role='candidate';s.voted=s.id;s.votes=new Set([s.id]);s.leader=null;resetTimer(s);
+      note('S'+(s.id+1)+' heard no leader for '+waited+' ms: becomes candidate for term '+s.term+' and asks for votes');
       S.forEach(o=>{if(o.id!==s.id)send(s.id,o.id,{k:'RV',term:s.term,li:lastIdx(s),lt:lastTerm(s)})})}
     function becomeLeader(s){s.role='leader';s.leader=s.id;s.next=S.map(()=>lastIdx(s)+1);s.match=S.map(()=>0);
       (leadersByTerm[s.term]=leadersByTerm[s.term]||[]).push(s.id);

@@ -7,10 +7,25 @@ Child page of Topic: swe-and-system-design (page prefix `dsf`, storage key `dsf-
 
 - `python3 recompute.py && node check_recompute.mjs`: ring, clocks and history verdicts in JS against Python; the measured table against `inputs/replication_local.json`.
 - `node check_raft.mjs`: fuzzes the Raft model (300 runs, safety after every event, liveness after healing).
-- `node check_page.mjs`: clicks every control at 390 dark and 920 light; `node shot_el.mjs <w> <dark|light> t-read <id>` for element screenshots.
+- `node check_page.mjs`: clicks every control at 390 dark and 920 light; `node check_stages.mjs` (see 2026-11-07); `node shot_el.mjs <w> <dark|light> t-read <id>` for element screenshots.
 - `python3 ../../../../../html_utils/ledger.py check <page>` from the repo root: the knowledge ledger.
 - Measurement (unchanged): `measure_replication.py` (real Postgres 16.2 primary and streaming replica via the pgserver wheel, about a minute) writes `inputs/replication_local.json`.
 - Older provenance kept: `live.md` (the old Notion page, verbatim), `coverage.json`, `handoff_queues.md`, `handoff_reliability.md`.
+
+## 2026-11-07: split layout, four 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
+- **Templates** `02_split.html`, `25_js_s3.js` (renderer v2, as `33_js_s3.js`), `21_js_rd_common.js` and `99_js_tabs.js` (key `dsf-tab`) copied unchanged; `build.sh` cats `02_split.html` after `01_head.html`. The page's `#t-read .an-ctl` rules no longer reach the stage bars (`:not(.stg-bar)`). `22_js_hero.js` and `26_js_fence.js` were removed.
+- **Four stages** (`35_js_sc_kit.js` holds the shared machine, log-stack, tag, timer and cross pieces), each with an `ol.sx` step list on the left and no per-step caption:
+  - Fig. 1 `stg-hero` (5 steps, `36_js_sc_hero.js`) replaces the 2D hero; its numbered list became the steps. Illustrative layout.
+  - Fig. 2 `stg-q` (5 steps, `37_js_sc_quorum.js`, new): Dynamo's (3,2,2), Cassandra ONE / ONE and QUORUM with 5 copies, drawn as the widget draws them (the read takes the worst R); `window.DSF_QSTEPS`. The slider widget moved into its own split, "Try any N, R and W".
+  - Fig. 3 `stg-raft` (8 steps, `38_js_sc_raft.js`) replaces the 2D guided tour: `34_js_raft_trace.js` runs the page's own model (seed 11) through eight stretches and records every state and message; each step plays its stretch (the long-replay rule, case a), messages as dots, logs as slabs coloured by term, timers as draining columns, heartbeats flowing at rest. The step list's numbers (S1 times out first at 227 ms, a four-way split vote in term 1, S3 leads term 2 at 444 ms, S2 wins term 3 224 ms after the crash, entries 7 and 8 never commit, terms climb from 4 to 11) are `DSF_RTRACE.facts`, checked by `check_stages.mjs`; `check_raft.mjs` checks the trace's safety too. The free mode stays as a widget beside "Break it yourself" (it never plays by itself).
+  - Fig. 4 `stg-fence` (two modes, 5 steps each, `39_js_sc_fence.js`) replaces the 2D fencing timeline; the mode chips swap the step list (`sx-fence-0`, `sx-fence-1`).
+- **2D animations with step lists**: the replication-lag stepper (`sx-repl-0` to `-3`) and the idempotency stepper (`sx-idem-0` to `-2`); their script-written captions became the list items, the counters stay.
+- **Model fix**: the Raft model's event line "heard no leader for N ms" printed the new random timeout instead of the one that had just run out; it now prints the elapsed one (the random sequence is unchanged, so every run is the same).
+- **Splits**: the idea (Fig. 1), 1 partial failure (the four silences), 2 (clocks widget), 3 (measured table; then the lag stepper), 4 (Fig. 2; then the slider widget), 5 (history checker), 6 (CAP toggle), 7 (Fig. 3; then the free-mode widget), 8 (Fig. 4), 9 (the idempotency stepper), 10 (the ring widget). Full width: the problem table, habit, new terms, owners note, partitions-pauses-clocks, failover, multi-leader, leaderless, linearisable against serialisable, PACELC, why consensus, hot keys, 11, 12 and every closed block.
+- **Checks**: `node <page>/src/check_stages.mjs [shot dir]` from the repo root (new): at 1400 light, 920 light and 390 dark the four stages and two animations play when scrolled into view, reach their last step in every mode with one list item per step, stop redrawing off screen and never move under reduced motion; the Raft widget never moves by itself; splits are two columns at 1400 only; the step lists' numbers match the trace, the quorum settings, the fencing amounts and the measured table.
+- **Phones**: under 520 px Fig. 1 and Fig. 4 look along their long axis so the scene fills the tall card, and side labels hide (the steps name the parts).
+- **Ledger** (problems 0): 563 units, core 376, depth 69, owned 9, fat 109 (unchanged counts); units 302, 478, 479, 480 and 554 re-keyed to the stage's step list and the free-mode text.
+- **Length**: Reading core 40.3 to 49.4 min (9,260 to 11,358 words), closed 9.7 to 9.8, Further reading 3.9 unchanged. The growth is the step lists (2,178 words), which carry what the script-drawn captions of the tour, the fencing, replication and idempotency steppers said (the audit did not count those); 833 of those words sit in modes not on screen, so one mode per figure reads in about 46 minutes. Nothing knowledge-bearing was cut.
 
 ## Reading parts (2026-10-24)
 | Part | Section | Visual |
@@ -28,7 +43,7 @@ Child page of Topic: swe-and-system-design (page prefix `dsf`, storage key `dsf-
 | `20_read_k` | 10. Partitioning: range or hash, consistent hashing, hot keys, rebalancing, shard key; closed: secondary indexes, routing | `25_js_ring.js` |
 | `20_read_l` | 11. Transactions across machines (2PC, Spanner, dual writes, links to owners); 12. what real systems choose (closed table) and Jepsen (closed table) | |
 
-`21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (never autoplay; storage key `dsf-tab`).
+(2026-10-24 state; superseded by the 2026-11-07 section above.)
 
 ## What changed and why (2026-10-24)
 - **Top**: the core sentence, a hero figure (shards, leaders and followers, a stale read, an etcd group, numbered to the four jobs), "You need", new terms. The 50-entry glossary and the old reading-time line were deleted as fat: every term is defined where it first appears.

@@ -1,8 +1,9 @@
 // ---- Reading: replication lag, before and after (the same write "hello", four ways of reading it back) ----
+// The step texts are the ol.sx lists sx-repl-0..3 in 20_read_d.html (one item per step); t and p below are kept as the steps' notes.
 // Positions are illustrative (log position 101 = "hello"); the measured numbers live in the HTML beside it (inputs/replication_local.json).
 (function(){
   const box=document.getElementById('rd-repl-svg');if(!box)return;
-  const capEl=document.getElementById('rd-repl-cap'),cnt=document.getElementById('rd-repl-cnt');
+  const cnt=document.getElementById('rd-repl-cnt');
   // common opening: write, ack, stream
   const open=[
     {L:101,f1:100,f2:100,lead:100,ana:['hi'],ar:[],t:'Three copies, in step',p:'One <b>leader</b> takes every write and appends it to its log; two <b>followers</b> replay that log. All three hold Ana\'s earlier message "hi" (log position 100).'},
@@ -42,11 +43,10 @@
     g+=node('A',s.ana.map(m=>[m,m.indexOf('hello')===0?'var(--good)':'var(--ink)']).concat(s.gone?[['"hello" is gone','var(--bad)']]:[]));
     (s.ar||[]).forEach(a=>{const e=edge(a[0],a[1]);g+='<line x1="'+e[0].x+'" y1="'+e[0].y+'" x2="'+e[1].x+'" y2="'+e[1].y+'" stroke="'+col[a[2]]+'" stroke-width="2.5"'+(a[2]==='d'?' stroke-dasharray="6 5"':'')+' marker-end="url(#rp-'+a[2]+')"/>'});
     box.innerHTML=RD.svg(W,H,g,'Leader, two followers and Ana\'s screen, step '+(i+1));
-    capEl.innerHTML='<div class="t">'+(i+1)+'/'+M[mode].steps.length+'. '+s.t+'</div><p>'+s.p+'</p>';
     const stale=M[mode].steps.slice(0,i+1).some(x=>x.stale)?1:0,waited=s.wait?'yes, one read':'no';
     cnt.innerHTML=RD.stat('Ana\'s last write','position 101','')+RD.stat('Followers replayed up to',s.f1+' and '+s.f2,'')+RD.stat('Reads that missed her write',String(stale),stale?'stale':'none')+RD.stat('Read waited for replay',waited,'');
   }
-  const A=RD.anim({card:'rd-repl-card',ctl:'rd-repl-ctl',n:M[0].steps.length,draw:draw,ms:2600,label:'Replication step'});
-  RD.seg(document.getElementById('rd-repl-seg'),v=>{mode=+v;A.reset(M[mode].steps.length)});
+  const A=RD.anim({card:'rd-repl-card',ctl:'rd-repl-ctl',n:M[0].steps.length,draw:draw,ms:4200,label:'Replication step',list:'sx-repl-0'});
+  RD.seg(document.getElementById('rd-repl-seg'),v=>{mode=+v;for(let j=0;j<4;j++)document.getElementById('sx-repl-'+j).hidden=j!==mode;A.reset(M[mode].steps.length,'sx-repl-'+mode)});
   RD.onResize(()=>A.redraw());
 })();

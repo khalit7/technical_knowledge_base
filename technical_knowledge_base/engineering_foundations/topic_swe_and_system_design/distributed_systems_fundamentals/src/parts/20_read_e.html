@@ -1,10 +1,28 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-q"></div></div><div class="s3L">
 <section id="rd-quorum">
 <h2>4. Quorums: N, R and W</h2>
 <p>In a leaderless system each piece of data is stored on <b>N</b> replicas. A write is sent to all N and counts as successful once <b>W</b> of them confirm. A read asks replicas and waits for <b>R</b> answers, then takes the newest version among them (every value carries a version). The rule that makes this work is one line:</p>
 <div class="fm"><div class="eq">R + W &gt; N</div><dl><dt>N</dt><dd>replicas that hold each item</dd><dt>W</dt><dd>replicas that must confirm a write</dd><dt>R</dt><dd>replicas a read must hear from</dd></dl></div>
-<p>If R + W &gt; N, every read set and every write set share at least R + W − N replicas, so at least one replica the read hears from has the latest successful write. This overlapping set is a <dfn id="d-quorum">quorum</dfn>. Amazon's Dynamo paper: "The common (N,R,W) configuration used by several instances of Dynamo is (3,2,2)" ({{DeCandia et al., SOSP 2007|https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf}}). Predict: with N = 3, can W = 1 and R = 2 ever miss the latest write? Set it and see; the read is drawn picking the worst replicas it could.</p>
-<div class="widget" id="rd-q-card">
+<p>If R + W &gt; N, every read set and every write set share at least R + W − N replicas, so at least one replica the read hears from has the latest successful write. This overlapping set is a <dfn id="d-quorum">quorum</dfn>. Amazon's Dynamo paper: "The common (N,R,W) configuration used by several instances of Dynamo is (3,2,2)" ({{DeCandia et al., SOSP 2007|https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf}}).</p>
+<ol class="sx" id="sx-q">
+<li><b>N = 3 copies of each item.</b> Every replica holds version v1 of the value (say, Ana's chat title). The client, or a coordinator acting for it, talks to all three.</li>
+<li><b>A write confirmed by W = 2.</b> The write of v2 is sent to all three and counts as successful once two confirm (r1 and r2). r3 has not got it yet, and nothing waits for it.</li>
+<li><b>A read that hears from R = 2.</b> Drawn at its worst: the read hears from r2 and r3, the two replicas it is least lucky with. R + W = 4 &gt; 3, so at least one of them (r2, glowing) holds v2, and the read keeps the newest version it hears.</li>
+<li><b>Cassandra ONE / ONE: R + W = 2 ≤ 3.</b> W = 1 and R = 1. The write reaches only r1; the read hears only from r3, which the write never reached, and returns v1 although the write "succeeded".</li>
+<li><b>QUORUM with 5 copies: (5, 3, 3).</b> Three of five for writes and three of five for reads still overlap in at least one replica (r3), and writes keep working with N − W = 2 replicas down, reads with N − R = 2.</li>
+</ol>
+
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-q-try">
+<h3>Try any N, R and W</h3>
+<p>Predict: with N = 3, can W = 1 and R = 2 ever miss the latest write? Set it and see; the read is drawn picking the worst replicas it could.</p>
+<p>The knobs trade against each other: lower W makes writes faster and keeps them working with more replicas down (N − W may be down), lower R does the same for reads (N − R).</p><details class="dp"><summary>Cassandra's consistency levels, read repair and anti-entropy <span class="mute">(optional)</span></summary><div><p>Cassandra exposes this per query as <dfn id="d-cl">consistency levels</dfn>: "QUORUM: A majority (n/2 + 1) of the replicas must respond", ONE, ALL, LOCAL_QUORUM (a majority in the local data centre) and others, and its docs call them "a version of Dynamo's R + W &gt; N consistency mechanism" ({{Apache Cassandra docs, Dynamo architecture|https://cassandra.apache.org/doc/latest/cassandra/architecture/dynamo.html}}). Replicas that missed a write catch up by <b>read repair</b> (a read that sees an old version writes the new one back) and by <b>anti-entropy</b>: background comparison of Merkle trees, hash trees that let two replicas find differing ranges without sending all the data (Dynamo, Table 1).</p></div></details>
+<div class="corr"><div class="t">R + W &gt; N is not the same as strong consistency</div>It guarantees overlap, not linearisability (defined <a href="#rd-cons">below</a>). Abadi: by increasing R + W such systems "gain more consistency at the expense of latency (although they cannot achieve full consistency as defined by Gilbert and Lynch, even if R + W &gt; N)" ({{Abadi, IEEE Computer, Feb 2012|https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf}}). The gaps: two concurrent writes, settled by timestamps (Cassandra uses "a simpler last-write-wins model where every mutation is timestamped", so a skewed clock picks the winner); a write that reached fewer than W replicas reports failure but is not rolled back where it landed; and a <b>sloppy quorum</b>, Dynamo's choice under failures, accepts writes on replicas outside the usual N ("hinted handoff") so the overlap no longer holds.</div>
+<p class="small mute">Discord, which read and wrote "with quorum consistency level" on Cassandra, also found that one slow replica in a busy partition slowed everyone ("discord-2023" in the parent's Case files).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="widget" id="rd-q-card">
 <h4>Overlap is guaranteed only when R + W &gt; N</h4>
 <div class="ctl">
 <label>N, replicas <b id="rd-q-nv"></b><input type="range" id="rd-q-n" min="1" max="7" value="3"></label>
@@ -15,9 +33,5 @@
 <div id="rd-q-svg" class="rd-svg"></div>
 <div class="out" id="rd-q-out"></div>
 <p class="small" id="rd-q-cap"></p>
-</div>
-<p>The knobs trade against each other: lower W makes writes faster and keeps them working with more replicas down (N − W may be down), lower R does the same for reads (N − R).</p><details class="dp"><summary>Cassandra's consistency levels, read repair and anti-entropy <span class="mute">(optional)</span></summary><div><p>Cassandra exposes this per query as <dfn id="d-cl">consistency levels</dfn>: "QUORUM: A majority (n/2 + 1) of the replicas must respond", ONE, ALL, LOCAL_QUORUM (a majority in the local data centre) and others, and its docs call them "a version of Dynamo's R + W &gt; N consistency mechanism" ({{Apache Cassandra docs, Dynamo architecture|https://cassandra.apache.org/doc/latest/cassandra/architecture/dynamo.html}}). Replicas that missed a write catch up by <b>read repair</b> (a read that sees an old version writes the new one back) and by <b>anti-entropy</b>: background comparison of Merkle trees, hash trees that let two replicas find differing ranges without sending all the data (Dynamo, Table 1).</p></div></details>
-<div class="corr"><div class="t">R + W &gt; N is not the same as strong consistency</div>It guarantees overlap, not linearisability (defined <a href="#rd-cons">below</a>). Abadi: by increasing R + W such systems "gain more consistency at the expense of latency (although they cannot achieve full consistency as defined by Gilbert and Lynch, even if R + W &gt; N)" ({{Abadi, IEEE Computer, Feb 2012|https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf}}). The gaps: two concurrent writes, settled by timestamps (Cassandra uses "a simpler last-write-wins model where every mutation is timestamped", so a skewed clock picks the winner); a write that reached fewer than W replicas reports failure but is not rolled back where it landed; and a <b>sloppy quorum</b>, Dynamo's choice under failures, accepts writes on replicas outside the usual N ("hinted handoff") so the overlap no longer holds.</div>
-<p class="small mute">Discord, which read and wrote "with quorum consistency level" on Cassandra, also found that one slow replica in a busy partition slowed everyone ("discord-2023" in the parent's Case files).</p>
-</section>
+</div></div></div></div>
 

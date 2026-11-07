@@ -1,7 +1,7 @@
 // ---- Reading, section 9: a lost reply and a retry under three designs (stepper; illustrative amounts and key) ----
 (function(){
   const box=document.getElementById('rd-idem-svg');if(!box)return;
-  const capEl=document.getElementById('rd-idem-cap'),cnt=document.getElementById('rd-idem-cnt');
+  const cnt=document.getElementById('rd-idem-cnt');
   // ev: [from lane, to lane, label, colour key, lost?]; t: time on the x axis (0..10)
   const lbl=[['charge 10','charge 10, msg m-1','charge 10, key k-7f3'],['charge 10','charge 10, msg m-2','charge 10, key k-7f3']];
   function steps(m){
@@ -37,10 +37,9 @@
       if(cur&&j===st.ev.length-1)g+=RD.t(4,H-4,'Now: '+e[2],{fs:11,fill:col[e[3]],w:600})}));
     g+='<line x1="'+X(s.t)+'" y1="10" x2="'+X(s.t)+'" y2="'+(H-16)+'" stroke="var(--acc)" stroke-width="1" opacity=".5"/>';
     box.innerHTML=RD.svg(W,H,g,'Charge request timeline, step '+(i+1));
-    capEl.innerHTML='<div class="t">'+(i+1)+'/'+S.length+'. '+s.t1+'</div><p>'+s.p+'</p>';
     cnt.innerHTML=RD.stat('Ana\'s balance',s.bal+' credits',s.bad?'should be 90':'')+RD.stat('Charges applied',String(s.n),s.bad?'one request, two charges':'')+RD.stat('The app sees',s.sees,'')+RD.stat('Duplicate check',['none','in the middle, by message id','at the end, by key'][mode],s.hit?'hit: k-7f3':'');
   }
-  const A=RD.anim({card:'rd-idem-card',ctl:'rd-idem-ctl',n:S.length,draw:draw,ms:2600,label:'Retry step'});
-  RD.seg(document.getElementById('rd-idem-seg'),v=>{mode=+v;S=steps(mode);A.reset(S.length)});
+  const A=RD.anim({card:'rd-idem-card',ctl:'rd-idem-ctl',n:S.length,draw:draw,ms:4200,label:'Retry step',list:'sx-idem-0'});
+  RD.seg(document.getElementById('rd-idem-seg'),v=>{mode=+v;S=steps(mode);for(let j=0;j<3;j++)document.getElementById('sx-idem-'+j).hidden=j!==mode;A.reset(S.length,'sx-idem-'+mode)});
   RD.onResize(()=>A.redraw());
 })();

@@ -101,7 +101,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_swe_and_system_design/building_a_backend_api` Building a backend API: request lifecycle, data layer, async and workers, shutdown
 - [x] `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance` Capacity planning and performance: load balancing, caching, queueing, load testing
 - [x] `engineering_foundations/topic_swe_and_system_design/code_design` Code design: readable code, abstractions, review, library design
-- [ ] `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals` Distributed systems fundamentals: replication, partitioning, consistency, consensus
+- [x] `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals` Distributed systems fundamentals: replication, partitioning, consistency, consensus
 - [ ] `engineering_foundations/topic_swe_and_system_design/ml_system_design` ML system design: LLM and ML services
 - [ ] `engineering_foundations/topic_swe_and_system_design/observability` Observability: logs, metrics, traces, alerting
 - [ ] `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work` Queues, streams and async work: delivery semantics, Kafka, the outbox pattern
@@ -394,3 +394,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_swe_and_system_design/building_a_backend_api`: Fig. 2 last step plate labels close at 1400 (middleware, router); phone stages carry few labels (grouped labels hide at 390).
 - `engineering_foundations/topic_swe_and_system_design/capacity_planning_and_performance`: Fig. 3 step 4 "17K/s, no leases" label close to "database" at 1400; Fig. 1 "W = 10S" label sits on the output block; measured bar labels hidden at 390 in Figs. 2 and 4; verify_layout flags the Load-test lab svg outside a split (accepted: reader-driven tool).
 - `engineering_foundations/topic_swe_and_system_design/code_design`: Fig. 1 hero mid step 3 (collapse to 17 lines) is a cluttered pile of slabs at 1400 (end states read well); Fig. 3 step 2 small in its card, one side's import arrows faint; Fig. 4 step 2 labels close at 1400; numbered sub-labels hidden at 390.
+- `engineering_foundations/topic_swe_and_system_design/distributed_systems_fundamentals`: core 49 min (about 46 one mode per figure), near 50; Fig. 2 small in its card at 390; labels close in Fig. 4 step 5 (lease only) and Fig. 3 steps 6 and 7 at 1400; hero side shards cut at the card edges at 1400.

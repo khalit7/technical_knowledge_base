@@ -1,16 +1,25 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fence"></div></div><div class="s3L">
 <section id="rd-lease">
 <h2>8. Leases and fencing tokens</h2>
 <p>Most systems do not run consensus on every write. They use it to elect one leader, then let that leader work alone. To make "one leader" survive crashes, leadership is a <dfn id="d-lease">lease</dfn>: permission that expires after a fixed time (the TTL, time to live) unless renewed. If the leader dies, the lease runs out and someone else takes it. DynamoDB works this way per partition: its replication group "uses Multi-Paxos for leader election and consensus", and "Once elected leader, a replica can maintain leadership as long as it periodically renews its leadership lease" ({{Elhemali et al., USENIX ATC 2022|https://www.usenix.org/system/files/atc22-elhemali.pdf}}).</p>
 <p>The trap is the pause from section 1. A lease holder that freezes does not know its lease ran out. When it wakes, it carries on writing as if it were still the leader. Martin Kleppmann's 2016 analysis of the Redlock algorithm walks through this with a garbage-collection pause and gives the fix ({{Kleppmann, How to do distributed locking, 2016-02-08|https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html}}): every time the lock is granted, the lock service hands out a number that only grows, a <dfn id="d-fence">fencing token</dfn>, and the storage rejects any write carrying a token lower than one it has already seen: "the storage server remembers that it has already processed a write with a higher token number (34), and so it rejects the request with token 33." Predict before stepping: in the "lease only" run, what is Ana's balance at the end, and what should it be?</p>
-<div class="card" id="rd-fence-card">
-<h4>The same garbage-collection pause twice: without a token a charge vanishes, with one the stale write is rejected</h4>
-<div class="seg" id="rd-fence-seg"><button data-m="0" class="on">Before: lease only</button><button data-m="1">After: fencing token</button></div>
-<div id="rd-fence-svg" class="rd-svg"></div>
-<div class="an-cnt" id="rd-fence-cnt"></div>
-<div class="an-cap" id="rd-fence-cap" aria-live="polite"></div>
-<div class="an-ctl" id="rd-fence-ctl"></div>
+<div class="seg" id="fc-seg"><button data-m="0" class="on">Before: lease only</button><button data-m="1">After: fencing token</button></div>
+<ol class="sx" id="sx-fence-0">
+<li><b>Worker 1 gets the lease.</b> Worker 1 must charge Ana 10 credits. It takes the lease (TTL 10 s) and receives token 33. It reads her balance: 100.</li>
+<li><b>Worker 1 freezes.</b> A long garbage-collection pause stops Worker 1 mid-task. It still has "100" in memory and believes it holds the lease. It cannot notice time passing.</li>
+<li><b>The lease expires; Worker 2 takes it.</b> The lock service has not heard from Worker 1 for 10 s, so the lease expired. Worker 2, which must charge Ana 60 credits, takes the lease and receives token 34.</li>
+<li><b>Worker 2 writes 100 − 60 = 40.</b> Correct so far: the storage now holds 40.</li>
+<li><b>Worker 1 wakes and writes 100 − 10 = 90.</b> Its code continues from the next line. Without a check, the storage accepts the write: the balance is 90 and the 60-credit charge has vanished; it should end at 30 (100 − 60 − 10). Two workers both "held the lock".</li>
+</ol>
+<ol class="sx" id="sx-fence-1" hidden>
+<li><b>Worker 1 gets the lease.</b> Worker 1 must charge Ana 10 credits. It takes the lease (TTL 10 s) and receives token 33. It reads her balance: 100.</li>
+<li><b>Worker 1 freezes.</b> A long garbage-collection pause stops Worker 1 mid-task. It still has "100" in memory and believes it holds the lease. It cannot notice time passing.</li>
+<li><b>The lease expires; Worker 2 takes it.</b> The lock service has not heard from Worker 1 for 10 s, so the lease expired. Worker 2, which must charge Ana 60 credits, takes the lease and receives token 34.</li>
+<li><b>Worker 2 writes 100 − 60 = 40.</b> Correct so far: the storage now holds 40 and remembers the highest token it has seen, 34.</li>
+<li><b>Worker 1 wakes; the storage rejects token 33.</b> The storage has already seen 34, so 33 must belong to an expired lease: rejected. The balance stays 40. Worker 1 gets an error, re-takes the lease (token 35) and reads the balance again.</li>
+</ol>
 <p class="small mute"><span class="ill">Illustrative</span> amounts and timing; the tokens 33 and 34 are Kleppmann's.</p>
-</div>
+
 <p>Real evidence that this matters:</p>
 <ul>
 <li><b>Jepsen, etcd 3.4.3 (2020-01-30):</b> "etcd locks are fundamentally unsafe". With "two-second leases TTLs, five concurrent processes, and process pauses every five seconds, we could reliably induce the loss of ~18% of acknowledged updates", and short TTLs of 1 to 3 seconds "generally failed to provide mutual exclusion after only a few minutes of testing, even in healthy clusters". The fix Jepsen names: "users can use the revision of their lock key as a globally ordered fencing token" (Google's Chubby calls these sequencers; in ZooKeeper, Kleppmann suggests the zxid).</li>
@@ -19,3 +28,4 @@
 <div class="corr"><div class="t">Correction to the old page</div>The old page advised taking a lease from etcd or ZooKeeper and to "keep the lease TTL well above GC pauses". A long TTL makes the failure rarer, not impossible: a pause can always outlast it, and Jepsen showed mutual exclusion failing even "in healthy clusters". The old page's next sentence is the real fix and is kept: fence every write with a monotonically increasing token, checked by the storage. Jepsen adds that this gives isolation but "does not guarantee atomicity": a holder that dies halfway through a multi-step update still leaves a half-done state.</div>
 <p>Kleppmann's other useful distinction: a lock for <b>efficiency</b> (stop two workers doing the same job twice; an occasional double is harmless) can be simple, even a single Redis key; a lock for <b>correctness</b> (two writers would corrupt data) needs consensus plus fencing.</p>
 </section>
+</div></div>
