@@ -1,5 +1,5 @@
 // Checks for "C++: the essentials": click every control of the Reading tab at 390 dark and 920 light; report script errors,
-// NaN/undefined, sideways scroll; confirm nothing moves before the reader acts; confirm a link to one UB case opens it;
+// NaN/undefined, sideways scroll; confirm nothing moves by itself under reduced motion (autoplay on view is checked by src/check_stages.mjs); confirm a link to one UB case opens it;
 // confirm the page embeds exactly the recorded outputs.
 // usage: node src/ca/check.mjs [shots dir]   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'node:module';
@@ -27,11 +27,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.goto('file://' + page);
-  // nothing moves before the reader acts: the stepper is still on step 1 after 3 s on screen
+  // reduced motion (emulated above): the stepper is still on step 1 after 3 s on screen
   await p.evaluate(() => document.getElementById('ca-bd-card').scrollIntoView());
   await sleep(3000);
   const still = await p.evaluate(() => document.getElementById('ca-bd-ctl-s').value);
-  if (still !== '0') { problems++; console.log('PROBLEM the build stepper moved by itself, step', still) }
+  if (still !== '0') { problems++; console.log('PROBLEM the build stepper moved by itself under reduced motion, step', still) }
   for (const t of TABS) {
     await p.click(`button[data-t="${t}"]`);
     await sleep(200);

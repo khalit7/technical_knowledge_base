@@ -11,8 +11,23 @@
 [[out:ub_overflow_san]]
 <p>(Under UBSan the program prints 1 again: the instrumented build computes the addition so it can check it.) The fix is to test before adding: <code>x == INT_MAX</code>, or <code>__builtin_add_overflow</code>, or C++26's <code>&lt;stdckdint.h&gt;</code> checked arithmetic. Unsigned integers do not have this problem: they wrap around by definition.</p>
 
-<h3 id="es-ub-gallery">The UB gallery: ten bugs that compile</h3>
+</section>
+
+<div class="s3sp"><div class="s3L">
+<section id="es-gal"><h3 id="es-ub-gallery">The UB gallery: ten bugs that compile</h3>
 <p>Each program was compiled with LLVM clang 23.1.2 without optimisation (<code>-O0</code>) and with it (<code>-O2</code>), and run; then with the tool that catches it: a sanitizer, a warning, or a hardened standard library. Every output is the real one. <b>For each case, predict before you read the two runs</b>: does the bug show at <code>-O0</code>, at <code>-O2</code>, or at neither? Notice how often a buggy program prints something plausible.</p>
+<p class="small mute">Commands as recorded by <code>src/ca/steps/40_ub.sh</code>; each run had a 5-second time limit. The uninitialised case printed "not seen" at <code>-O0</code> and "seen" at <code>-O2</code> for the same call, and the compiler warned only with <code>-Wall</code>.</p>
+
+<h3>Your defences</h3>
+<ol>
+<li><b>Warnings</b>: <code>-Wall -Wextra</code> always, <code>-Werror</code> in CI. They caught the uninitialised read, the dangling <code>string_view</code> and the missing return in the gallery.</li>
+<li><b>Sanitizers in tests</b>: ASan (out of bounds, use after free, double free), UBSan (overflow, bad shifts, missing return), TSan (data races). They slow the program, so they run in tests, not production.</li>
+<li><b>A hardened standard library</b>: libc++ can check <code>v[i]</code>, <code>front()</code>, <code>string_view</code> bounds and more, turning silent UB into a trap.</li>
+<li><b>Initialise everything</b>; C++26 turns reading an uninitialised local into <b>erroneous behaviour</b>, a defined (wrong) value the implementation may diagnose, instead of UB ({{P2795|https://wg21.link/P2795}}).</li>
+<li><b>Prefer what cannot be misused</b>: <code>.at(i)</code> or a hardened library over raw indexing in non-hot code, smart pointers over <code>new</code>, values over references when lifetimes are unclear.</li>
+</ol>
+</section>
+</div><div class="s3R">
 <div class="card" id="ca-ub-card">
 <div class="ca-ubrow" id="ca-ub-list" role="group" aria-label="Case">
 <button id="es-ub-overflow" data-m="overflow">Signed overflow</button>
@@ -28,16 +43,9 @@
 </div>
 <div id="ca-ub-view"></div>
 </div>
-<p class="small mute">Commands as recorded by <code>src/ca/steps/40_ub.sh</code>; each run had a 5-second time limit. The uninitialised case printed "not seen" at <code>-O0</code> and "seen" at <code>-O2</code> for the same call, and the compiler warned only with <code>-Wall</code>.</p>
+</div></div>
 
-<h3>Your defences</h3>
-<ol>
-<li><b>Warnings</b>: <code>-Wall -Wextra</code> always, <code>-Werror</code> in CI. They caught the uninitialised read, the dangling <code>string_view</code> and the missing return in the gallery.</li>
-<li><b>Sanitizers in tests</b>: ASan (out of bounds, use after free, double free), UBSan (overflow, bad shifts, missing return), TSan (data races). They slow the program, so they run in tests, not production.</li>
-<li><b>A hardened standard library</b>: libc++ can check <code>v[i]</code>, <code>front()</code>, <code>string_view</code> bounds and more, turning silent UB into a trap.</li>
-<li><b>Initialise everything</b>; C++26 turns reading an uninitialised local into <b>erroneous behaviour</b>, a defined (wrong) value the implementation may diagnose, instead of UB ({{P2795|https://wg21.link/P2795}}).</li>
-<li><b>Prefer what cannot be misused</b>: <code>.at(i)</code> or a hardened library over raw indexing in non-hot code, smart pointers over <code>new</code>, values over references when lifetimes are unclear.</li>
-</ol>
+<section id="es-def">
 <details class="dp"><summary>The defences in detail: flags, slowdowns, hardening modes <span class="mute">(documentation checked 2026-10-05)</span></summary><div class="b">
 <ul class="tight">
 <li>Flags: <code>-fsanitize=address</code> (ASan), <code>-fsanitize=undefined</code> (UBSan), <code>-fsanitize=thread</code> (TSan). Slowdown: about 2 times for ASan per its {{documentation|https://clang.llvm.org/docs/AddressSanitizer.html}}, 5 to 15 times for TSan per {{its documentation|https://clang.llvm.org/docs/ThreadSanitizer.html}}.</li>

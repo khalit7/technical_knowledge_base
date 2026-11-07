@@ -1,5 +1,7 @@
-// ---- Section 1: the build pipeline stepper (Reading). All numbers and texts come from CA_DATA.build (recorded outputs).
-// Never moves on its own: Play or a step button starts it; a scenario switch resets to step 1 without playing. ----
+// ---- Section 1: the build pipeline stepper (Reading). All numbers come from CA_DATA.build (recorded outputs).
+// Each scenario's steps are explained by its step list on the left (ol#sx-bd-<scenario>, static in ca/tpl/20_read_b.html, one item per step).
+// RD.anim (template): plays by itself once half in view, stops for good on a reader control or the last step, never moves under reduced motion;
+// a scenario switch shows that scenario's list, restarts at step 1 and replays. ----
 (function(){
   const B=window.CA_DATA.build,O=B.out,F=B.files,esc=CA.esc;
   const body=n=>O[n].split('\n').slice(1).join('\n').replace(/\n+$/,'');      // output without its "$ command" line
@@ -32,41 +34,41 @@
   }
   const fileCode=f=>'<div class="ca-src"><div class="ca-fn">'+esc(f.split('/').pop())+'</div><pre class="ca-code">'+F[f].split('\n').map(CA.hl).join('\n')+'</pre></div>';
   const common=[
-    {vis:['s-main','s-h','s-tok'],act:['s-main','s-h','s-tok'],cap:'Three source files: a header that declares count_tokens, a .cpp that defines it, and main.cpp that calls it. Together '+(lines('build1/main.cpp')+lines('build1/tokens.h')+lines('build1/tokens.cpp'))+' lines.',det:fileCode('build1/main.cpp')+fileCode('build1/tokens.h')},
-    {vis:['s-main','s-h','s-tok','tu-main'],act:['tu-main'],cap:'The preprocessor pastes tokens.h, and through it the standard headers, into main.cpp: '+fmt(tuMain)+' lines for the compiler to read. The last lines are your code:',det:pre('b_pp_head')+pre('b_pp_count')},
-    {vis:['s-main','s-h','s-tok','tu-main','tu-tok'],act:['tu-tok'],cap:'tokens.cpp becomes its own translation unit of '+fmt(tuTok)+' lines. The two are processed separately; neither sees the other.',det:pre('b_pp_tokens')},
-    {vis:['s-main','s-h','s-tok','tu-main','tu-tok','o-main','o-tok'],act:['o-main','o-tok'],cap:'Each translation unit compiles to an object file of machine code. main.o needs count_tokens and printf (U); tokens.o defines count_tokens (T). The compiler trusted the declaration in tokens.h.',det:pre('b_compile')+pre('b_nm')}
+    {vis:['s-main','s-h','s-tok'],act:['s-main','s-h','s-tok'],det:fileCode('build1/main.cpp')+fileCode('build1/tokens.h')},
+    {vis:['s-main','s-h','s-tok','tu-main'],act:['tu-main'],det:pre('b_pp_head')+pre('b_pp_count')},
+    {vis:['s-main','s-h','s-tok','tu-main','tu-tok'],act:['tu-tok'],det:pre('b_pp_tokens')},
+    {vis:['s-main','s-h','s-tok','tu-main','tu-tok','o-main','o-tok'],act:['o-main','o-tok'],det:pre('b_compile')+pre('b_nm')}
   ];
   const incr=O.b_incr.replace(/\n+$/,'').split(/\n(?=\$ )/);   // three '$ command' blocks
   const pinc=i=>'<pre class="ca-out">'+esc(incr[i])+'</pre>';
   const all=['s-main','s-h','s-tok','tu-main','tu-tok','o-main','o-tok','x-app'];
   const SC={
     ok:common.concat([
-      {vis:all,act:['o-main','o-tok','x-app'],linked:true,cap:'The linker matches main.o\'s U count_tokens to tokens.o\'s T count_tokens (now green), leaves printf to the dynamic system library, and writes the executable.',det:pre('b_link_ok')+pre('b_otool')},
-      {vis:all,act:['x-app'],linked:true,cap:'The program runs: "C++ is fun, x86_64 too" has 6 tokens under the root page\'s rule (C, is, fun, x86, 64, too).',det:pre('b_sizes')}]),
-    missing:common.concat([
-      {vis:all,act:['o-main'],err:['x-app'],cap:'Link only main.o. Nothing defines count_tokens, so the linker (ld), not the compiler, fails: "Undefined symbols". The compile step had succeeded.',det:pre('b_link_missing')}]),
+      {vis:all,act:['o-main','o-tok','x-app'],linked:true,det:pre('b_link_ok')+pre('b_otool')},
+      {vis:all,act:['x-app'],linked:true,det:pre('b_sizes')}]),
+    missing:[common[3]].concat([
+      {vis:all,act:['o-main'],err:['x-app'],det:pre('b_link_missing')}]),
     odr:[
-      {vis:['s-h','s-a','s-b'],act:['s-h'],cap:'util.h defines a function body, not just a declaration, and both a.cpp and b.cpp include it.',det:fileCode('odr/util.h')+fileCode('odr/a.cpp')+fileCode('odr/b.cpp')},
-      {vis:['s-h','s-a','s-b','tu-a','tu-b'],act:['tu-a','tu-b'],cap:'After preprocessing, each translation unit contains its own copy of twice().',det:''},
-      {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b'],act:['o-a','o-b'],cap:'So each object file defines twice(int): two T entries for one name.',det:pre('b_odr_nm')},
-      {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b','x-app'],act:['o-a','o-b'],err:['x-app'],cap:'The one definition rule is broken and the linker refuses: "duplicate symbol".',det:pre('b_odr')},
-      {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b','x-app'],act:['x-app'],cap:'The fix: mark the function inline (util_inline.h). The linker keeps one copy; the program links and exits with 0.',det:fileCode('odr/util_inline.h')+pre('b_odr_fix')}],
+      {vis:['s-h','s-a','s-b'],act:['s-h'],det:fileCode('odr/util.h')+fileCode('odr/a.cpp')+fileCode('odr/b.cpp')},
+      {vis:['s-h','s-a','s-b','tu-a','tu-b'],act:['tu-a','tu-b'],det:''},
+      {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b'],act:['o-a','o-b'],det:pre('b_odr_nm')},
+      {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b','x-app'],act:['o-a','o-b'],err:['x-app'],det:pre('b_odr')},
+      {vis:['s-h','s-a','s-b','tu-a','tu-b','o-a','o-b','x-app'],act:['x-app'],det:fileCode('odr/util_inline.h')+pre('b_odr_fix')}],
     incr:[
-      {vis:all,act:all,linked:true,cap:'The CMake project of section 1 builds tokens.cpp into a static library, libtokens.a, and links it into tokcount. Ninja records what each output was built from.',det:pre('b_cmake2')},
-      {vis:all,act:['s-tok','tu-tok','o-tok','x-app'],linked:true,cap:'Edit tokens.cpp (here: touch it). Only tokens.cpp recompiles; the library and the program relink. main.cpp is untouched.',det:pinc(0)},
-      {vis:all,act:['s-h','tu-main','tu-tok','o-main','o-tok','x-app'],linked:true,cap:'Edit tokens.h. Both .cpp files include it, so both recompile: headers are why big C++ projects rebuild slowly.',det:pinc(1)},
-      {vis:all,act:[],linked:true,cap:'Change nothing and build again: nothing to do.',det:pinc(2)}]
+      {vis:all,act:all,linked:true,det:pre('b_cmake2')},
+      {vis:all,act:['s-tok','tu-tok','o-tok','x-app'],linked:true,det:pinc(0)},
+      {vis:all,act:['s-h','tu-main','tu-tok','o-main','o-tok','x-app'],linked:true,det:pinc(1)},
+      {vis:all,act:[],linked:true,det:pinc(2)}]
   };
 
   let sc='ok';
-  const pipe=document.getElementById('ca-bd-pipe'),cap=document.getElementById('ca-bd-cap'),det=document.getElementById('ca-bd-detail');
+  const pipe=document.getElementById('ca-bd-pipe'),det=document.getElementById('ca-bd-detail');
   function draw(i){const s=SC[sc][i];pipe.innerHTML=layout(sc);
     if(!s.linked)pipe.querySelectorAll('.ca-sym .ok').forEach(e=>e.className='U');
     if(s.linked)pipe.querySelectorAll('.ca-sym .U').forEach(e=>e.className=/printf|strlen|maskrune|DefaultRune/.test(e.textContent)?'U':'ok');
     pipe.querySelectorAll('.ca-f').forEach(e=>{const id=e.dataset.id;e.classList.toggle('vis',s.vis.includes(id));e.classList.toggle('act',(s.act||[]).includes(id));e.classList.toggle('err',(s.err||[]).includes(id))});
     pipe.querySelectorAll('.ca-stage').forEach(st=>st.classList.toggle('on',!!st.querySelector('.act,.err')));
-    cap.innerHTML='<b>Step '+(i+1)+' of '+SC[sc].length+'.</b> '+esc(s.cap);det.innerHTML=s.det}
-  const a=RD.anim({card:'ca-bd-card',ctl:'ca-bd-ctl',n:SC.ok.length,draw,ms:2600,label:'Build step'});
-  RD.seg(document.getElementById('ca-bd-seg'),k=>{sc=k;a.reset(SC[k].length)});
+    det.innerHTML=s.det}
+  const a=RD.anim({card:'ca-bd-card',ctl:'ca-bd-ctl',n:SC.ok.length,draw,ms:4200,label:'Build step',list:'sx-bd-ok'});
+  RD.seg(document.getElementById('ca-bd-seg'),k=>{sc=k;Object.keys(SC).forEach(m=>{document.getElementById('sx-bd-'+m).hidden=m!==k});a.reset(SC[k].length,'sx-bd-'+k)});
 })();

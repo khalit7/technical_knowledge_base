@@ -35,3 +35,34 @@ None found: the only recording present on two children (`l_sizes`) is shown on t
 
 ## Checks
 `sh html_utils/checkpage.sh <page>`: fail=0, emdash 0, errbox 1, clipped 0. `node src/ca/check.mjs`: all checks passed (135 interactions per width, no autoplay, the case anchor works, 19 embedded outputs equal their files). Every Notion id linked is in `pages.json`.
+
+## 2026-11-07: split layout, a 3D hero (renderer v2), explained and autoplaying steps (layout rollout)
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after the four children were rebuilt in the same rollout. Copied unchanged from the templates: `build.sh` (it now includes `parts/02_split.html`), `parts/02_split.html`, `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `cpp-es-tab`). `ca/gen.py` gained `[[gn:NAME|REGEX]]` (a recorded integer with thousands separators) and now embeds `h_vector` and `h_vector_py` in `CA_DATA.build` for the hero.
+
+**Sections** (Reading tab; Further reading unchanged):
+| Section | Layout | Visual | Step list |
+|---|---|---|---|
+| The idea in one screen | split | 3D stage `stg-es` (Fig. 1, new, `parts/36_js_sc_es.js`) | yes, `sx-es`, 9 steps |
+| You need, new terms | full width | none | no |
+| Six ideas | split | 2D static, Fig. 2 (the old hero: one vector in C++ against Python), in `.s3side` with its runs | no |
+| Six things the runs showed (`es-runs`) | full width | table | no |
+| 1 Build: intro, the three files, the line counts | full width | code | no |
+| 1 Build: the pipeline (`es-pipe`) | split | 2D stepper (`RD.anim`), sticky, 2 x 2 stages from 1100 px | yes, `sx-bd-ok` (6), `sx-bd-missing` (2), `sx-bd-odr` (5), `sx-bd-incr` (4) |
+| 1 Build: CMake (`es-cmake`) | full width | code | no |
+| 2 UB: the overflow example | full width | code | no |
+| 2 UB: the gallery and the defences (`es-gal`) | split | the UB gallery widget (reader-driven, no autoplay) | no |
+| 2 UB: defences in detail, the honest summary (`es-def`) | full width | none | no |
+| 3 Libraries | split | 2D static, Fig. 3 (new: header-only, static, dynamic; the dylib names from `b_otool`) | no |
+| 4 Standards, 5 Mistakes, 6 Child pages | full width | tables and cards | no |
+
+- **Fig. 1** follows one program: three source files (line counts), the preprocessor pasting `<string_view>` (heights log10 of the line count, said in the step), two object files with their U and T symbols and sizes, the link to `app` and its two dylibs (dashed, loaded at start), the vector on the stack (24 bytes, three 8-byte fields to scale) and its 12 heap bytes (to scale), the closing brace freeing them, the gallery's double free (two owners, one 16-byte array, the -O0 exit code and the -O2 output in the step), a cache line climbing DRAM, L2, L1 to a register, and a last map naming each region's owner. Every number comes from `CA_DATA` (the recorded build, the hero's run, the double-free outputs); the camera moves in close on the build columns, the stack and heap, then the cache ladder, and pulls back for the map. It does not re-teach a child: steps 5, 6, 8 and 9 link the children's own figures (`#stg-own`, `#stg-vec`, `#stg-mem`, `#stg-hero`). The cache ladder carries no latencies (they are the machine child's).
+- **Build stepper**: the per-step caption (`ca-bd-cap`) and the caption strings in `37_js_ca_build.js` were removed; the four step lists (static in `ca/tpl/20_read_b.html`, numbers from the outputs) explain the steps. The missing-object scenario now opens on the two object files (2 steps instead of 5: its first four steps repeated the correct build). It plays once half in view; a scenario switch shows that list and replays.
+- **The line-count prediction** in section 1 became a plain closed block: Fig. 1 states the count above it.
+- **Child cards**: "Child page, about N min, plus M in closed details." from each child's header on 2026-11-07 (ownership 23 + 13, classes 25 + 17, machine 33 + 21, llama.cpp 38 + 39), and each card names the child's 3D figures.
+- **Kept 2D, and why**: Fig. 2 (a side-by-side comparison of two memory pictures with byte counts; a flat drawing reads it at once, and the ownership child's `stg-own` already draws the C++ side in 3D), the build stepper (lists of files and symbol tables, which are text), Fig. 3 (three small structure diagrams), the gallery (code and outputs). No other stage: every other mechanism with spatial structure has its stage on the child that owns it.
+
+**Length.** Reading 17.2 core + 9.2 closed before (3,952 and 2,107 words), 21.7 + 9.2 after (4,987 and 2,107; 230 words a minute, `html_utils/audit_pages.mjs`; the count includes the build stepper's three hidden step lists). The 4.5 minutes added are the hero's step list (the map of which page owns each piece, about 600 words), the build stepper's step lists (which were captions shown one at a time) and Fig. 3. Header: 22 min, plus 9. Further reading 1.5, unchanged.
+
+**Ledger**: 1005 units: core 136, depth 31, owned 743, fat 95; `ledger.py check` problems 0. The children's rebuild had broken 30 owned keys; each was re-pointed to the owner's current wording (for example "each level overflows in turn", "three MUL_MAT nodes are Q, K and V", "files faded are skipped in this mode"). Three prediction questions whose answers are separate owned units were relabelled fat, as the machine child labels them (units 434, 450, 535). No unit had to come back here. Unit 10008 (child cards) now keys on "Child page, about"; added 10009 (Fig. 1), 10010 (Fig. 3), 10011 (the stepper's lists).
+
+**Checks (2026-11-07)**: `sh html_utils/checkpage.sh`: tabs 2, emdash 0, errbox 1, clipped 0, fail=0; `node src/check_stages.mjs` (new, adapted from the machine child: the stage and the stepper in all four scenarios at 1400 light, 920 light and 390 dark play once in view, reach their last step, have one list item per step, stop redrawing off screen, never move under reduced motion; splits are two columns at 1400; the step lists' numbers equal `CA_DATA`): 0 problems; `node src/ca/check.mjs` (its no-autoplay check now runs under reduced motion): all checks passed.

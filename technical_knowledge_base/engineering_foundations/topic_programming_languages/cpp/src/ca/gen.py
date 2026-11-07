@@ -6,6 +6,7 @@ Template directives (all replaced by HTML):
   [[out:NAME]]                          recorded output out/NAME.txt (long ones folded after 22 lines)
   [[pr:NAME|QUESTION]]                  predict, then reveal: the output hidden in a <details>
   [[g:NAME|REGEX]]                      the first regex group found in out/NAME.txt (inline number)
+  [[gn:NAME|REGEX]]                     the same, an integer written with thousands separators (55,693)
 Run: python3 src/ca/gen.py  (then sh src/build.sh)
 """
 import html, json, re, sys
@@ -86,6 +87,10 @@ def pr(arg):
     return (f'<details class="ca-pr"><summary><b>Predict, then reveal:</b> {q}</summary>{out(name)}</details>')
 
 
+def grab_n(arg):
+    return f"{int(grab(arg)):,}"
+
+
 def grab(arg):
     name, rx = arg.split("|", 1)
     m = re.search(rx, read_out(name), re.M)
@@ -94,13 +99,13 @@ def grab(arg):
     return esc(m.group(1))
 
 
-DIRECT = re.compile(r"\[\[(code|out|pr|g):(.+?)\]\]", re.S)
+DIRECT = re.compile(r"\[\[(code|out|pr|gn|g):(.+?)\]\]", re.S)
 
 
 def render(text):
     def rep(m):
         k, a = m.group(1), m.group(2)
-        return {"code": code, "out": out, "pr": pr, "g": grab}[k](a)
+        return {"code": code, "out": out, "pr": pr, "g": grab, "gn": grab_n}[k](a)
     return DIRECT.sub(rep, text)
 
 
@@ -120,7 +125,7 @@ def ub_data():
 
 def build_data():
     names = ["b_pp_count", "b_pp_tokens", "b_pp_head", "b_compile", "b_nm", "b_link_missing", "b_link_ok", "b_odr", "b_odr_nm", "b_odr_fix",
-             "b_sizes", "b_otool", "b_incr", "b_cmake2"]
+             "b_sizes", "b_otool", "b_incr", "b_cmake2", "h_vector", "h_vector_py"]
     files = {p: (CODE / p).read_text().rstrip("\n") for p in
              ["build1/main.cpp", "build1/tokens.h", "build1/tokens.cpp", "odr/util.h", "odr/a.cpp", "odr/b.cpp", "odr/util_inline.h"]}
     return {"out": {n: read_out(n) for n in names}, "files": files}

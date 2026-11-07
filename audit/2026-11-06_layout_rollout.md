@@ -82,7 +82,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [ ] `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors` Rust: enums, traits, errors and iterators
 - [ ] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
 - [ ] `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions` Rust: speeding up Python with PyO3 and maturin
-- [ ] `engineering_foundations/topic_programming_languages/cpp` C++: the essentials
+- [x] `engineering_foundations/topic_programming_languages/cpp` C++: the essentials
 - [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
 - [ ] `engineering_foundations/topic_programming_languages/python` Python: the essentials
 - [ ] `engineering_foundations/topic_programming_languages/rust` Rust: the essentials
@@ -363,3 +363,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_operating_systems`: hero small at 390; tracer animation cards not sticky on phones; crash-consistency widget opens on crash point 1. Trace explorer (Syscall tracer section 2) stays full width as a dataset view.
 - `engineering_foundations/topic_programming_languages/cpp/reading_llama_cpp`: printed graph shows cache_k_l0 as {192, 8192} while the page says 256 cells (5.62 MiB matches 256): resolve; graph and quant stages have empty space at some steps on phones; unused caption fields left in 52_js_cl_tour.js.
 - `engineering_foundations/topic_programming_languages/cpp/the_machine_underneath`: stg-mem and stg-fs full views leave empty space at 1400; SIMD stage crops inactive bands on phones.
+- `engineering_foundations/topic_programming_languages/cpp`: Fig. 1 steps 1 to 3 show no labels under 520 px (grouped labels hide); step 9 map small at 390.

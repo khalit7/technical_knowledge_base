@@ -32,7 +32,7 @@
     &#125;
     <span class="ca-kw">return</span> n;
 &#125;</pre></div>
-<details class="ca-pr"><summary><b>Predict, then reveal:</b> after the preprocessor, how many lines is the translation unit of this 7-line main.cpp, and what does one standard header cost?</summary><pre class="ca-out" data-ca-out="b_pp_count"><span class="ca-cmd">$ wc -l main.cpp tokens.h; clang++ -std=c++20 -E main.cpp | wc -l</span>
+<details class="dp"><summary>What the preprocessor made of the 7-line main.cpp, and what one standard header costs alone <span class="mute">(the recorded counts)</span></summary><div class="b"><pre class="ca-out" data-ca-out="b_pp_count"><span class="ca-cmd">$ wc -l main.cpp tokens.h; clang++ -std=c++20 -E main.cpp | wc -l</span>
 for h in cstdio string_view vector string algorithm iostream; do printf "#include &lt;%s&gt; alone: " $h; printf "#include &lt;$h&gt;\\n" | clang++ -std=c++20 -x c++ -E - | wc -l | tr -d " "; done
        7 main.cpp
        4 tokens.h
@@ -43,20 +43,50 @@ for h in cstdio string_view vector string algorithm iostream; do printf "#includ
 #include &lt;vector&gt; alone: 72835
 #include &lt;string&gt; alone: 59542
 #include &lt;algorithm&gt; alone: 54846
-#include &lt;iostream&gt; alone: 93507</pre><p>Fifty-five thousand lines, nearly all from <code>&lt;string_view&gt;</code>.</p></details>
+#include &lt;iostream&gt; alone: 93507</pre><p>Fifty-five thousand lines, nearly all from <code>&lt;string_view&gt;</code>.</p></div></details>
 <p>Every <code>.cpp</code> that includes a standard header recompiles that header from text, which is why C++ builds are slow and why C++20 added <b>modules</b> (section 4) to replace textual inclusion.</p>
 
-<h3>The pipeline, step by step</h3>
-<p>The same three files through the three stages, with the real line counts, sizes, symbol tables and messages (Apple clang 17, <code>-std=c++20</code>); bars are to scale by line count. <b>Predict</b> before you pick "Forgot tokens.o": which stage fails, the compiler or the linker?</p>
-<div class="card" id="ca-bd-card">
-<div class="seg" id="ca-bd-seg" role="group" aria-label="Scenario"><button data-m="ok" class="on">A correct build</button><button data-m="missing">Forgot tokens.o</button><button data-m="odr">Function body in a header</button><button data-m="incr">Edit, then rebuild</button></div>
+</section>
+
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="ca-bd-card">
 <div class="ca-pipe" id="ca-bd-pipe"></div>
-<div class="ca-cap" id="ca-bd-cap" aria-live="polite"></div>
 <div class="ca-ctl" id="ca-bd-ctl"></div>
 <details class="dp" id="ca-bd-more"><summary>The real commands and output for this step</summary><div class="b" id="ca-bd-detail"></div></details>
-</div>
+</div></div></div><div class="s3L">
+<section id="es-pipe"><h3>The pipeline, step by step</h3>
+<p>The same three files through the three stages, with the real line counts, sizes, symbol tables and messages (Apple clang 17, <code>-std=c++20</code>); bars are to scale by line count. <b>Predict</b> before you pick "Forgot tokens.o": which stage fails, the compiler or the linker?</p>
+<div class="seg" id="ca-bd-seg" role="group" aria-label="Scenario"><button data-m="ok" class="on">A correct build</button><button data-m="missing">Forgot tokens.o</button><button data-m="odr">Function body in a header</button><button data-m="incr">Edit, then rebuild</button></div>
+<ol class="sx" id="sx-bd-ok">
+<li><b>Three source files.</b> A header that declares <code>count_tokens</code>, a <code>.cpp</code> that defines it, and <code>main.cpp</code> that calls it: 25 lines together.</li>
+<li><b>main.cpp's translation unit.</b> The preprocessor pastes <code>tokens.h</code>, and through it the standard headers, into <code>main.cpp</code>: 55,693 lines for the compiler to read. The last lines are your code (the closed block under the pipeline shows them).</li>
+<li><b>tokens.cpp's translation unit.</b> <code>tokens.cpp</code> becomes its own translation unit of 55,700 lines. The two are processed separately; neither sees the other.</li>
+<li><b>Two object files.</b> Each translation unit compiles to an object file of machine code: <code>main.o</code> needs <code>count_tokens</code> and <code>printf</code> (U); <code>tokens.o</code> defines <code>count_tokens</code> (T). The compiler trusted the declaration in <code>tokens.h</code>.</li>
+<li><b>The link.</b> The linker matches <code>main.o</code>'s U <code>count_tokens</code> to <code>tokens.o</code>'s T (now green), leaves <code>printf</code> to the dynamic system library, and writes the executable.</li>
+<li><b>It runs.</b> "C++ is fun, x86_64 too" has 6 tokens under the root page's rule (C, is, fun, x86, 64, too).</li>
+</ol>
+<ol class="sx" id="sx-bd-missing" hidden>
+<li><b>Two object files, as before.</b> Preprocessing and compiling went exactly as in a correct build: <code>main.o</code> needs <code>count_tokens</code> (U), <code>tokens.o</code> defines it (T).</li>
+<li><b>Link only main.o.</b> Nothing defines <code>count_tokens</code>, so the linker (<code>ld</code>), not the compiler, fails: "Undefined symbols". The compile step had succeeded.</li>
+</ol>
+<ol class="sx" id="sx-bd-odr" hidden>
+<li><b>A body in a header.</b> <code>util.h</code> defines a function body, not just a declaration, and both <code>a.cpp</code> and <code>b.cpp</code> include it.</li>
+<li><b>Two copies.</b> After preprocessing, each translation unit contains its own copy of <code>twice()</code>.</li>
+<li><b>Two definitions.</b> So each object file defines <code>twice(int)</code>: two T entries for one name.</li>
+<li><b>The linker refuses.</b> The one definition rule is broken: "duplicate symbol".</li>
+<li><b>The fix.</b> Mark the function <code>inline</code> (<code>util_inline.h</code>). The linker keeps one copy; the program links and exits with 0.</li>
+</ol>
+<ol class="sx" id="sx-bd-incr" hidden>
+<li><b>A CMake build.</b> The CMake project below builds <code>tokens.cpp</code> into a static library, <code>libtokens.a</code>, and links it into <code>tokcount</code>. Ninja records what each output was built from.</li>
+<li><b>Edit tokens.cpp.</b> (Here: touch it.) Only <code>tokens.cpp</code> recompiles; the library and the program relink. <code>main.cpp</code> is untouched.</li>
+<li><b>Edit tokens.h.</b> Both <code>.cpp</code> files include it, so both recompile: headers are why big C++ projects rebuild slowly.</li>
+<li><b>Change nothing.</b> Build again: nothing to do.</li>
+</ol>
 <p><b>Reading a symbol table</b> (<code>nm</code>): <code>T</code> (green) is defined here, <code>U</code> (red) is used here and defined elsewhere. The linker must find exactly one <code>T</code> for each <code>U</code>: none is "Undefined symbols", two is "duplicate symbol". The compiler accepted <code>main.cpp</code> on the header's promise alone, so a missing definition is always the linker's error.</p>
 <p>The <b>one definition rule</b> (ODR) says a function may be defined once in the whole program. A function body in a header included from two <code>.cpp</code> files gives each object file its own copy: "duplicate symbol" from <code>ld</code> on macOS (GNU ld says "multiple definition"). The fix is <code>inline</code> ("identical copies may appear; keep one") or only a declaration in the header. Functions defined inside a class body, templates and <code>constexpr</code> functions are implicitly inline, which is why headers full of them link fine.</p>
+</section>
+</div></div>
+
+<section id="es-cmake">
 <div class="ca-py"><div class="t">Python bridge</div>A header is like a <code>.pyi</code> stub (types only) that every user pastes into their file. Python resolves names when the line runs; C++ resolves them at link time, so a missing or duplicated function is a build error, never a run-time <code>NameError</code>.</div>
 
 <h3>CMake: the build system</h3>
