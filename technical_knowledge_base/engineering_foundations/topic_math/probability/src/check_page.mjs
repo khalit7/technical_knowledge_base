@@ -53,8 +53,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   // ---- Reading: coin, both modes, every step
   for (const m of ['bayes', 'mle']) {
     await click('#rd-coin-seg button[data-m="' + m + '"]');
-    for (let i = 0; i < E.coin_steps.length; i++) {
-      await setRange('#rd-coin-ctl-s', i); const s = E.coin_steps[i];
+    // five explained stretches of flips (2026-11-07): step i ends on frame STR[i]
+    const STR = [0, 3, 4, 8, 12];
+    for (let k = 0; k < STR.length; k++) {
+      await setRange('#rd-coin-ctl-s', k); const i = STR[k], s = E.coin_steps[i];
       if (m === 'bayes') {
         near(await ds('#rd-coin-svg', 'mean'), s.mean, 1e-9, tag + ' coin mean ' + i); near(await ds('#rd-coin-svg', 'lo'), s.lo, 1e-9, tag + ' coin lo ' + i);
         near(await ds('#rd-coin-svg', 'hi'), s.hi, 1e-9, tag + ' coin hi ' + i); near(await ds('#rd-coin-svg', 'cb'), s.cum_bayes, 1e-9, tag + ' coin loss ' + i)
@@ -124,14 +126,16 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.close();
 }
 
-// ---- no autoplay: with normal motion, scroll each animation into view and wait; nothing may advance
-{
+// ---- autoplay on view (2026-11-06): with normal motion, each animation plays once scrolled into view; under reduced motion none moves
+for (const motion of ['no-preference', 'reduce']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
-  await p.goto('file://' + file);
-  for (const [card, ctl] of [['#rd-clt-card', '#rd-clt-ctl-s'], ['#rd-coin-card', '#rd-coin-ctl-s'], ['#rd-smp-card', '#rd-smp-ctl-s']]) {
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: motion }]);
+  await p.goto('file://' + file); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + file); // open on the Reading tab
+  for (const [card, ctl] of [['#rd-clt-card', '#rd-clt-ctl'], ['#rd-coin-card', '#rd-coin-ctl'], ['#rd-smp-card', '#rd-smp-ctl']]) {
     await p.$eval(card, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
-    ok(await p.$eval(ctl, e => e.value) === '0', 'no autoplay ' + card);
+    const playing = await p.$eval(ctl + '-p', e => /Pause/.test(e.textContent)), moved = await p.$eval(ctl + '-s', e => e.value !== '0');
+    if (motion === 'reduce') ok(!playing && !moved, 'reduced motion: ' + card + ' moved by itself');
+    else ok(playing || moved, 'autoplay on view ' + card);
   }
   await p.close();
 }

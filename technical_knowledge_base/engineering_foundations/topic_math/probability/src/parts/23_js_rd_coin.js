@@ -1,4 +1,4 @@
-// ---- s12: the Beta-Bernoulli coin, flip by flip, MLE alone (before) against the posterior (after) ----
+// ---- section 9: the Beta-Bernoulli coin, flip by flip, MLE alone (before) against the posterior (after) ----
 (function(){
   const $=id=>document.getElementById(id);const box=$('rd-coin-svg');if(!box)return;
   const FL='HHHTHHTHTHHT',A0=2,B0=2;
@@ -15,7 +15,7 @@
   let mode='bayes';
   const f3=v=>v==null?'none':PM.f(v,3);
   const fl=v=>v===Infinity?'∞':PM.f(v,3);
-  function draw(i){
+  function frame(i){fi=i;
     const s=S[i];const W=Math.min(RD.width(box),760),H=250,L=40,R=W-14,T=40,Bm=H-34;
     const X=p=>L+(R-L)*p;let g='';
     // flip strip
@@ -50,24 +50,22 @@
     }
     box.innerHTML=RD.svg(W,H,g,'Coin posterior after '+s.n+' flips');
     const pn=mode==='bayes'?s.mean:(s.n?s.mle:0.5);
-    let cap;
-    if(i===0)cap=mode==='bayes'?'<div class="t">Before any flip: the prior Beta(2, 2)</div><p>Centred on 0.5 but wide: 95% of its mass lies between 0.094 and 0.906. It acts like one imaginary head and one imaginary tail.</p>':'<div class="t">Before any flip: MLE has nothing to say</div><p>With no data the likelihood is flat; we let it predict 0.5 for the first flip.</p>';
-    else if(i===3)cap=mode==='bayes'?'<div class="t">Three heads in three: posterior Beta(5, 2)</div><p>MAP 0.8, mean (the next-flip bet) 0.714, 95% interval 0.359 to 0.957: leaning to heads, still very unsure. Tails is possible.</p>':'<div class="t">Three heads in three: MLE says p = 1</div><p>A point estimate with no width. It bets probability 0 on tails for the next flip.</p>';
-    else if(i===4)cap=mode==='bayes'?'<div class="t">Flip 4 was tails: cost 1.253 nats</div><p>The bet on tails was 2/7, so the surprise was −ln(2/7) = 1.253. The posterior moves left to Beta(5, 3).</p>':'<div class="t">Flip 4 was tails: infinite loss</div><p>A probability-0 event happened, so −ln 0 = ∞. One overconfident estimate ruins the whole running score, which is why we never train or predict with raw counts on small data.</p>';
-    else if(i===FL.length)cap='<div class="t">After 12 flips (8 heads, 4 tails)</div><p>'+(mode==='bayes'?'Posterior Beta(10, 6): MLE 0.667, MAP 0.643, mean 0.625, 95% interval 0.384 to 0.837. The answers converge as data swamps the prior. Total log loss 8.518 nats = −ln of the evidence.':'MLE 0.667, close to the Bayesian answers now; but its running log loss stayed infinite from flip 4.')+'</p>';
-    else cap='<div class="t">After '+s.n+' flips ('+s.h+' heads, '+s.t+' tails)</div><p>'+(mode==='bayes'?'Posterior Beta('+s.a+', '+s.b+'). Next-flip bet on heads: '+f3(s.mean)+'; 95% interval '+f3(s.lo)+' to '+f3(s.hi)+'.':'MLE '+f3(s.mle)+'; it bets exactly that on the next flip and carries no measure of how sure it is.')+'</p>';
-    $('rd-coin-cap').innerHTML=cap;
     $('rd-coin-cnt').innerHTML=RD.stat('Flips seen',s.n,s.h+' H, '+s.t+' T')+RD.stat('Bet on heads next',PM.f(pn,3),mode==='bayes'?'posterior mean':'MLE')+
       RD.stat('Log loss so far, posterior',fl(s.cb),'sum of −ln(bet on what came)')+RD.stat('Log loss so far, MLE',fl(s.cm),'')+
       (mode==='bayes'?RD.stat('95% credible interval',f3(s.lo)+' to '+f3(s.hi),'Beta('+s.a+', '+s.b+')'):'');
     box.dataset.step=i;box.dataset.mean=f3(s.mean);box.dataset.lo=f3(s.lo);box.dataset.hi=f3(s.hi);box.dataset.cb=fl(s.cb);
   }
-  const an=RD.anim({card:'rd-coin-card',ctl:'rd-coin-ctl',n:FL.length+1,draw,ms:1500,label:'Flip'});
-  RD.seg($('rd-coin-seg'),m=>{mode=m;an.redraw()});
-  RD.onResize(()=>an.redraw());
+  // five explained stretches of the 13 frames (0 to 12 flips): each step of the list plays its flips one by one when stepped forward
+  const STR=[[0,0],[1,3],[4,4],[5,8],[9,12]],RMc=RD.RM,card=$('rd-coin-card');let fi=0,ct=0;
+  function draw(i){if(ct){clearTimeout(ct);ct=0}const [a,b]=STR[i],r=card.getBoundingClientRect(),on=r.bottom>0&&r.top<innerHeight&&card.offsetParent!==null;
+    if(!card.classList.contains('rd-fwd')||RMc||!on||a===b){frame(b);return}
+    let j=a;const run=()=>{frame(j);ct=0;if(j<b){j++;ct=setTimeout(run,750)}};run()}
+  const an=RD.anim({card:'rd-coin-card',ctl:'rd-coin-ctl',n:STR.length,draw,ms:5200,label:'Stretch of flips',list:'sx-coin-bayes'});
+  RD.seg($('rd-coin-seg'),m=>{mode=m;['bayes','mle'].forEach(x=>{$('sx-coin-'+x).hidden=x!==m});an.reset(STR.length,'sx-coin-'+m)});
+  RD.onResize(()=>frame(fi));
 })();
 
-// ---- s13: inverse CDF against Gumbel-max on the tiny model ----
+// ---- section 10: inverse CDF against Gumbel-max on the tiny model ----
 (function(){
   const $=id=>document.getElementById(id);const box=$('rd-smp-svg');if(!box)return;
   const z=[2,1,0],W3=['cat','dog','sat'];const ez=z.map(Math.exp),Sm=ez.reduce((a,b)=>a+b),p=ez.map(v=>v/Sm);
@@ -90,14 +88,12 @@
       g+='<line x1="'+(L+(Rr-L)*p[k]).toFixed(1)+'" y1="'+(y-3)+'" x2="'+(L+(Rr-L)*p[k]).toFixed(1)+'" y2="'+(y+bh+3)+'" stroke="var(--ink)" stroke-width="2"/>';
       g+=RD.t(Rr+6,y+bh/2+4,n?PM.f(fr,3):'',{fs:11})}
     box.innerHTML=RD.svg(W,H,g,'Sample frequencies against the model probabilities');
-    let cap='<div class="t">'+n.toLocaleString('en-US')+' draw'+(n===1?'':'s')+(mode==='inv'?' by inverse CDF':' by Gumbel-max')+'</div>';
-    if(n>=1&&n<=3){const e=R.last[n-1];
-      cap+=mode==='inv'?'<p>u = '+PM.f(e.u,3)+': '+(e.k===0?'below 0.665, so cat':e.k===1?'between 0.665 and 0.910, so dog':'above 0.910, so sat')+'.</p>':
-        '<p>Gumbels g = ('+e.g.map(v=>PM.f(v,2)).join(', ')+'); z + g = ('+e.s.map(v=>PM.f(v,2)).join(', ')+'); the largest is '+W3[e.k]+'.</p>'}
-    else if(n===0)cap+='<p>The ticks mark p = (0.665, 0.245, 0.090). Press play: both samplers land on them, by different routes.</p>';
-    else cap+='<p>Frequencies ('+c.map(v=>PM.f(v/n,3)).join(', ')+') against p = (0.665, 0.245, 0.090). The error shrinks like 1/√n: about '+PM.f(Math.sqrt(0.665*0.335/n),3)+' for cat (section 14).</p>';
+    let cap=n.toLocaleString('en-US')+' draw'+(n===1?'':'s')+(mode==='inv'?' by inverse CDF':' by Gumbel-max')+': ';
+    if(n===0)cap+='none yet; the ticks mark p.';
+    else if(n<=3){const e=R.last[n-1];cap+=mode==='inv'?'u = '+PM.f(e.u,3)+' gives '+W3[e.k]+'.':'z + g = ('+e.s.map(v=>PM.f(v,2)).join(', ')+') gives '+W3[e.k]+'.'}
+    else cap+='frequencies ('+c.map(v=>PM.f(v/n,3)).join(', ')+') against p = (0.665, 0.245, 0.090).';
     $('rd-smp-cap').innerHTML=cap;box.dataset.freq=c.map(v=>n?PM.f(v/n,3):'0').join(',');
   }
-  const an=RD.anim({card:'rd-smp-card',ctl:'rd-smp-ctl',n:STEPS.length,draw,ms:1300,label:'Draws'});
-  RD.seg($('rd-smp-seg'),m=>{mode=m;an.redraw()});RD.onResize(()=>an.redraw());
+  const an=RD.anim({card:'rd-smp-card',ctl:'rd-smp-ctl',n:STEPS.length,draw,ms:3800,label:'Draws',list:'sx-smp-inv'});
+  RD.seg($('rd-smp-seg'),m=>{mode=m;['inv','gum'].forEach(x=>{$('sx-smp-'+x).hidden=x!==m});an.reset(STEPS.length,'sx-smp-'+m)});RD.onResize(()=>an.redraw());
 })();

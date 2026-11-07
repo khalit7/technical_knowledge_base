@@ -295,5 +295,45 @@ zz = [1000.0, 999.0, 998.0]; mm = max(zz); ee = [math.exp(v - mm) for v in zz]
 put("lse_shift_sum", sum(ee), 3); put("lse_1000", mm + ln(sum(ee)), 3)
 E["lse_shift_e"] = [round(v, 3) for v in ee]
 
+# ---------------- 2026-11-07: the numbers the 3D stages and the step lists quote ----------------
+# hero: the bet at T = 2 is temp_2; the CDF slice for u = 0.7 is dog (tiny_cdf)
+# Fig. 2, the Gaussian: rho = 0.8 and rho = 0.95 (unit variances): eigenvalues, det, axis half-lengths; a point on each axis
+def mvn(rho):
+    l1, l2 = 1 + rho, 1 - rho
+    return {"eig": [round(l1, 4), round(l2, 4)], "det": round(1 - rho * rho, 4), "half": [round(math.sqrt(l1), 3), round(math.sqrt(l2), 3)],
+            "peak": round(1 / (2 * math.pi * math.sqrt(1 - rho * rho)), 3)}
+E["mvn3d"] = {"0": mvn(0.0), "0.8": mvn(0.8), "0.95": mvn(0.95)}
+# the same Euclidean distance sqrt(1.8) along each axis: Mahalanobis distance 1 along the long axis, sqrt(1.8 / 0.2) = 3 along the short one
+put("mvn3d_maha_short", math.sqrt(1.8) / math.sqrt(0.2), 3)
+# Fig. 3, the umbrella joint: rows rain, dry; columns umbrella, none
+J = [[0.24, 0.06], [0.14, 0.56]]; px_ = [sum(r_) for r_ in J]; py_ = [J[0][j] + J[1][j] for j in range(2)]
+E["joint3d"] = {"px": [round(v, 2) for v in px_], "py": [round(v, 2) for v in py_],
+                "prod": [[round(px_[i] * py_[j], 3) for j in range(2)] for i in range(2)],
+                "given_umbrella": [round(J[i][0] / py_[0], 3) for i in range(2)]}
+# Fig. 4, Bayes as bars: prior times likelihood, then normalise (base rate 1% and 20%)
+def bayes(b):
+    prod = [b * tpr, (1 - b) * fpr]; ev = sum(prod)
+    return {"prod": [round(v, 4) for v in prod], "evidence": round(ev, 4), "post": [round(v / ev, 3) for v in prod]}
+E["bayes3d"] = {"0.01": bayes(0.01), "0.2": bayes(0.2)}
+# Fig. 5, MAP on the triangle: counts cat 3, dog 1, sat 0; prior Dirichlet(2, 2, 2); posterior Dirichlet(5, 3, 2)
+cnt = [3, 1, 0]; al = [2 + c for c in cnt]; a0 = sum(al)
+E["map3d"] = {"mle": [round(c / sum(cnt), 3) for c in cnt], "map": [round((a - 1) / (a0 - 3), 3) for a in al],
+              "mean": [round(a / a0, 3) for a in al], "nll_sat_map": round(-ln(1 / 7), 3), "nll_sat_mean": round(-ln(al[2] / a0), 3)}
+# the sampler's first three draws (seed 2026, the page's generator): inverse CDF uses one uniform a draw, Gumbel-max three
+r = mulberry32(2026); inv = []
+for _ in range(3):
+    u = r(); inv.append({"u": round(u, 3), "k": 0 if u < cdf2[0] else (1 if u < cdf2[1] else 2)})
+r = mulberry32(2026); gum = []
+for _ in range(3):
+    us = [r(), r(), r()]; g = [-ln(-ln(u)) for u in us]; s3 = [z[i] + g[i] for i in range(3)]
+    gum.append({"g": [round(v, 2) for v in g], "zg": [round(v, 2) for v in s3], "k": s3.index(max(s3))})
+E["smp_first3"] = {"inv": inv, "gum": gum}
+# density at the two points 1.342 from the mean (rho = 0.8): Mahalanobis 1 and 3
+def mvn_pdf(x, y, rho): d = 1 - rho * rho; return math.exp(-0.5 * (x * x - 2 * rho * x * y + y * y) / d) / (2 * math.pi * math.sqrt(d))
+ra = math.sqrt(1.8) / math.sqrt(2)
+E["mvn3d_dens"] = [round(mvn_pdf(ra, ra, 0.8), 4), round(mvn_pdf(-ra, ra, 0.8), 4)]
+# sampler step list: the typical error of cat's frequency, sqrt(p (1 - p) / n)
+E["smp_err_cat"] = {str(n): round(math.sqrt(p[0] * (1 - p[0]) / n), 4) for n in (10, 100, 1000, 10000)}
+
 json.dump(E, open(os.path.join(here, "expected.json"), "w"), indent=1)
 print(json.dumps({k: v for k, v in E.items() if k not in ("coin_steps",)}, indent=0)[:6000])

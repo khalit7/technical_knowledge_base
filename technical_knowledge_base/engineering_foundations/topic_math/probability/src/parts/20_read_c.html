@@ -21,21 +21,32 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-clt-card"><h4>Averages of the tiny model's token losses settle (top) and turn Gaussian (bottom)</h4>
+<div class="dgm" id="rd-clt"></div>
+<div class="an-ctl" id="rd-clt-ctl"></div>
+<div class="an-cnt" id="rd-clt-cnt"></div>
+<p class="small mute">Top: one stream of draws from \(p\), its running mean against \(n\) (log scale) with the band \(0.832 \pm 1.96 \times 0.651/\sqrt{n}\). Bottom: 2,000 independent averages of \(n\) draws each, histogram against the CLT's \(\mathcal{N}(0.832, 0.651^2/n)\) curve, on a fixed axis. Seeded generator (mulberry32); <code>src/recompute.py</code> reruns the same generator and reproduces every counter.</p>
+</div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. The law of large numbers and the central limit theorem, by simulation</h2>
 <p>Most expectations in ML (an expected reward, an expected loss over all texts, a predictive integral) are sums over too many outcomes to compute, so they are estimated by an average of draws, the <b>Monte Carlo</b> estimate:</p>
 \[ \mathbb{E}_{x \sim p}[f(x)] \approx \hat\mu_n = \frac1n \sum_{i=1}^{n} f(x_i), \qquad \operatorname{SE}(\hat\mu_n) = \frac{\sigma_f}{\sqrt{n}}. \]
 <p>Two theorems say why this works. The <dfn id="g-lln">law of large numbers</dfn>: \(\hat\mu_n\) converges to \(\mathbb{E}[f]\) as \(n\) grows (it is unbiased by linearity). The <dfn id="g-clt">central limit theorem</dfn>: for finite variance, the error \(\hat\mu_n - \mathbb{E}[f]\) is close to Gaussian with standard deviation \(\sigma_f/\sqrt{n}\), whatever the shape of \(f\)'s distribution. On the tiny model, \(f = -\ln p(\text{word})\) takes only three values (0.408, 1.408, 2.408), with mean 0.832 and standard deviation 0.651: nothing Gaussian about it.</p>
 <p class="try"><b>Predict, then step:</b> at \(n = 100\) token losses per average, how wide is the spread of the averages? (Answer: \(0.651/\sqrt{100} = 0.065\); 10,000 draws give 0.0065.) And at \(n = 1\), does "within 1.96 standard errors" catch 95% of draws?</p>
-<div class="card" id="rd-clt-card"><h4>Averages of the tiny model's token losses settle (top) and turn Gaussian (bottom)</h4>
-<div class="dgm" id="rd-clt"></div>
-<div class="an-ctl" id="rd-clt-ctl"></div>
-<div class="an-cap" id="rd-clt-cap"></div>
-<div class="an-cnt" id="rd-clt-cnt"></div>
-<p class="small mute">Top: one stream of draws from \(p\), its running mean against \(n\) (log scale) with the band \(0.832 \pm 1.96 \times 0.651/\sqrt{n}\). Bottom: 2,000 independent averages of \(n\) draws each, histogram against the CLT's \(\mathcal{N}(0.832, 0.651^2/n)\) curve, on a fixed axis. At \(n = 1\) only 90.6% of single losses fall inside \(\pm 1.96\) standard deviations (three spikes are not a bell); by \(n = 10\), 95.7%; at \(n = 1{,}000\), 94.9%, with a spread of 0.0205 against the CLT's 0.0206. Seeded generator (mulberry32); <code>src/recompute.py</code> reruns the same generator and reproduces every counter.</p>
-</div>
+<ol class="sx" id="sx-clt">
+<li><b>\(n = 1\): each "average" is one token loss.</b> Three spikes at 0.408, 1.408 and 2.408, nothing like a bell; the \(\pm 1.96\) band catches only 90.6% of them, not 95%: the Gaussian rule needs averaging first.</li>
+<li><b>\(n = 2\): five possible averages.</b> The spikes start to fill in towards the middle; the spread, 0.462, is already \(1/\sqrt{2}\) of one draw's.</li>
+<li><b>\(n = 4\): the shape is rounding off.</b> Still skewed to the right (the bet piles mass on the cheap word cat), but the curve is a fair summary.</li>
+<li><b>\(n = 10\): close to Gaussian.</b> Spread 0.206 against the CLT's \(0.651/\sqrt{10} = 0.206\); 95.7% of the averages fall inside \(\pm 1.96\) standard errors.</li>
+<li><b>\(n = 30\).</b> Spread 0.120 (theory 0.119); the running mean of the single stream (top) has settled inside its band.</li>
+<li><b>\(n = 100\): about \(\pm 0.065\).</b> Spread 0.063 against \(0.651/\sqrt{100} = 0.065\): a 100-token average pins the mean loss to about \(\pm 0.065\) per standard error.</li>
+<li><b>\(n = 1{,}000\): ten times the samples, about a third of the error.</b> Spread 0.0205 against the CLT's 0.0206, and 94.9% inside the band; the running mean reads 0.795, inside \(0.832 \pm 0.040\). The law of large numbers says where the error goes, the CLT how fast and in what shape.</li>
+</ol>
 <p>Four times the samples halve the error, whatever the dimension: that is why Monte Carlo is the default in high dimensions, and why an eval of 100 items cannot separate two models 2 points apart (a 70% accuracy on 100 items has standard error \(\sqrt{0.7 \times 0.3/100} = 0.046\), 4.6 points). Where the Gaussian approximation fails (heavy tails, infinite variance, small \(n\) on a skewed metric), and how to build intervals and tests from it, is {{Statistics for ML|n:3f05c17b0d0d810f896cf688ce9aed1b}}'s.</p>
 <p class="small">Used for: minibatch gradients (a Monte Carlo estimate of the full-data gradient); policy gradients and RL returns; the ELBO and diffusion losses (sampled noise and time steps); MCMC predictive averages; pass@k and other sampled eval metrics.</p>
+</section>
+</div></div>
+<section>
 <details class="dp"><summary>Importance sampling: estimating under \(p\) with draws from \(q\) <span class="mute">(depth)</span></summary><div class="b">
 <p>If you can only sample from \(q\), reweight: \(\mathbb{E}_p[f] = \mathbb{E}_q\big[f(x)\, p(x)/q(x)\big]\). The ratio \(p/q\) is the importance weight; with \(q\) uniform over the tiny model's three words, the weights are \(3p = (1.996, 0.734, 0.270)\). It is unbiased but its variance explodes when \(q\) puts little mass where \(p\) has a lot. PPO's probability ratio and every off-policy correction are importance weights (on {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}); the IWAE bound is importance sampling inside the ELBO (on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}).</p>
 </div></details>

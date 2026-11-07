@@ -1,4 +1,4 @@
-// ---- Reading visuals added in the 2026-10-24 rebuild: hero (top), density (s1), LLN and CLT (s4), temperature (s6), reparameterisation (s11) ----
+// ---- Reading visuals added in the 2026-10-24 rebuild: density (s1), LLN and CLT (s4), temperature (s6), reparameterisation (s11) ----
 // Numbers are checked against src/recompute.py (expected.json) by src/check_page.mjs.
 (function(){
   const $=id=>document.getElementById(id);
@@ -6,28 +6,6 @@
   const ez=z.map(Math.exp),S=ez.reduce((a,b)=>a+b),p=ez.map(v=>v/S);
   const T=RD.t,f=PM.f;
   const box=(x,y,w,h,txt,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="5" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'"/>'+T(x+w/2,y+h/2+4,txt,{a:'middle',fs:o.fs||12,fill:o.ink||'var(--ink)',w:o.w})};
-
-  // ---------- hero: scores -> softmax -> bars; score it (loss) and draw from it (CDF strip) ----------
-  function hero(){const el=$('rd-hero');if(!el)return;
-    const W=Math.min(RD.width(el),760),L=8,R=W-8;let g='';
-    const bw=Math.min(96,(R-L-60)/3),gap=(R-L-60-3*bw)/2;
-    g+=T(L,22,'scores z',{fill:'var(--mute)'});
-    for(let k=0;k<3;k++){const x=L+60+k*(bw+gap);g+=box(x,6,bw,26,W3[k]+': '+z[k],{})}
-    g+=T(L,56,'↓ softmax',{fill:'var(--ink)',w:600})+T(R,56,'reshape here: z / T, or + ln prior',{a:'end',fill:'var(--mute)'});
-    const x0=L+40,xm=R-50;
-    for(let k=0;k<3;k++){const y=68+k*24,w=(xm-x0)*p[k];
-      g+=T(x0-6,y+14,W3[k],{a:'end'});
-      g+='<rect x="'+x0+'" y="'+y+'" width="'+w.toFixed(1)+'" height="18" rx="2" fill="'+COL[k]+'"'+(k===2?' stroke="var(--acc)" stroke-width="2"':'')+'/>';
-      g+=T(x0+w+6,y+14,f(p[k],3),{w:k===2?600:400})}
-    g+=T(L,158,W<480?'score it: truth sat, loss −ln 0.090 = 2.408':'score it: the truth was sat, so the loss is −ln 0.090 = 2.408',{fill:'var(--acc)',w:600});
-    // CDF strip
-    const sx0=L+40,sx1=R-10,sw=sx1-sx0,cy=196;let c=0;
-    g+=T(L,cy+15,'CDF',{fill:'var(--mute)'});
-    for(let k=0;k<3;k++){const x=sx0+sw*c,w=sw*p[k];g+='<rect x="'+x.toFixed(1)+'" y="'+cy+'" width="'+w.toFixed(1)+'" height="22" fill="'+COL[k]+'" fill-opacity=".55" stroke="var(--bg)"/>'+T(x+w/2,cy+15,W3[k],{a:'middle',fs:11});c+=p[k]}
-    [[0,'0'],[p[0],'0.665'],[p[0]+p[1],'0.910'],[1,W<480?'':'1']].forEach(([v,s],i)=>{const x=sx0+sw*v;g+='<line x1="'+x.toFixed(1)+'" y1="'+(cy+22)+'" x2="'+x.toFixed(1)+'" y2="'+(cy+27)+'" stroke="var(--mute)"/>'+T(x,cy+39,s,{a:i===0?'start':i===3?'end':'middle',fill:'var(--mute)',fs:11})});
-    const ux=sx0+sw*0.7;g+='<path d="M'+ux.toFixed(1)+' '+(cy-2)+' l-5 -8 h10 z" fill="var(--ink)"/>'+T(ux-8,cy-6,'draw: u = 0.7 lands on dog',{a:'end',fill:'var(--ink)',w:600});
-    el.innerHTML=RD.svg(W,cy+46,g,'Scores become a distribution by softmax; the distribution is scored by the log-probability of the truth and sampled through its CDF');
-  }
 
   // ---------- density is not probability ----------
   function dens(){const el=$('rd-dens');if(!el)return;
@@ -90,19 +68,11 @@
     [[0.408,'0.408'],[1.408,'1.408'],[2.408,'2.408']].forEach(([v,s])=>{g+=T(hx(v),b1+15,s,{a:'middle',fill:'var(--mute)',fs:11})});
     g+=T(L+4,b0+4,'2,000 averages (bars) against the CLT curve',{fill:'var(--mute)',fs:11});
     el.innerHTML=RD.svg(W,b1+22,g,'Law of large numbers and central limit theorem on the tiny model');
-    const caps={1:'<div class="t">n = 1: each "average" is one token loss</div><p>Three spikes at 0.408, 1.408 and 2.408, nothing like a bell. The ±1.96 band catches only '+f(100*d.inside,1)+'% of them, not 95%: the Gaussian rule needs averaging first.</p>',
-      2:'<div class="t">n = 2: five possible averages</div><p>The spikes start to fill in towards the middle; the spread is already 1/√2 of one draw\'s.</p>',
-      4:'<div class="t">n = 4: the shape is rounding off</div><p>Skewed to the right still (the bet piles mass on the cheap word cat), but the curve is a fair summary.</p>',
-      10:'<div class="t">n = 10: close to Gaussian</div><p>Spread '+f(d.sd,3)+' against the CLT\'s 0.651/√10 = '+f(d.th,3)+'; '+f(100*d.inside,1)+'% of averages inside ±1.96 standard errors.</p>',
-      30:'<div class="t">n = 30</div><p>Spread '+f(d.sd,3)+' (theory '+f(d.th,3)+'). The running mean of one stream has settled inside its band.</p>',
-      100:'<div class="t">n = 100: about ±0.065</div><p>Spread '+f(d.sd,3)+' against 0.651/√100 = '+f(d.th,3)+': a 100-token average pins the mean loss to about ±0.065 per standard error.</p>',
-      1000:'<div class="t">n = 1,000: ten times the samples, about a third of the error</div><p>Spread '+f(d.sd,4)+' against '+f(d.th,4)+'; the running mean reads '+f(D.run[999],3)+', inside 0.832 ± '+f(1.96*d.th,3)+'. Error shrinks like 1/√n: the law of large numbers says where it goes, the CLT says how fast and in what shape.</p>'};
-    $('rd-clt-cap').innerHTML=caps[n];
     $('rd-clt-cnt').innerHTML=RD.stat('Draws per average',n.toLocaleString('en-US'),'2,000 averages')+RD.stat('Spread of the averages',f(d.sd,4),'standard deviation, measured')+
       RD.stat('CLT prediction',f(d.th,4),'0.651 / √n')+RD.stat('Inside ±1.96 SE',f(100*d.inside,1)+'%','Gaussian rule: 95%')+RD.stat('One stream at n',f(D.run[n-1],4),'running mean');
     el.dataset.n=n;el.dataset.sd=f(d.sd,4);el.dataset.inside=f(d.inside,4);el.dataset.run=f(D.run[n-1],4);el.dataset.mean=f(d.m,4);
   }
-  if($('rd-clt')){const an=RD.anim({card:'rd-clt-card',ctl:'rd-clt-ctl',n:NS.length,draw:clt,ms:1600,label:'Draws per average'});RD.onResize(()=>an.redraw())}
+  if($('rd-clt')){const an=RD.anim({card:'rd-clt-card',ctl:'rd-clt-ctl',n:NS.length,draw:clt,ms:4200,label:'Draws per average',list:'sx-clt'});RD.onResize(()=>an.redraw())}
 
   // ---------- temperature ----------
   const TS=[0.1,0.25,0.5,0.75,1,1.5,2,3,5,10];
@@ -144,6 +114,6 @@
     lab.forEach(([n,v,c],k)=>{const y=y0+8+k*30;g+=T(L,y+11,n,{fs:11})+'<rect x="'+L+'" y="'+(y+15)+'" width="'+((Rr-L)*v/30).toFixed(1)+'" height="10" rx="2" fill="'+c+'"/>'+T(L+(Rr-L)*v/30+6,y+24,v,{fs:11,w:600})});
     el.innerHTML=RD.svg(W,y0+8+3*30+4,g,'Score-function against reparameterised gradient: computation paths and variances 30, 18 and 4');
   }
-  function all(){hero();dens();rep()}
+  function all(){dens();rep()}
   all();RD.onRender(all);RD.onResize(all);
 })();

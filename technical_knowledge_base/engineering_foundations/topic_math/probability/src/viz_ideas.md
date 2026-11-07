@@ -30,3 +30,14 @@ Placement changed and five visuals were added; the rule was "every core idea has
 | PR14 | Softmax temperature slider on the tiny model, T = 0.1 to 10, default 1 lands on (0.665, 0.245, 0.090) | one slider, one variable | Reading section 6 | built |
 | PR15 | Log-sum-exp before/after on (1000, 999, 998) | before/after (static table) | Reading section 12 | built; the animated version with every intermediate's bits is Numerical computing's, linked |
 | PR16 | Proper-score curves | | | still rejected: three numbers at q = 0.7 carry it |
+
+## 2026-11-07: split layout and five 3D stages (renderer v2)
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| PR11b | Hero as a stage: scores on a plinth, softmax as a glass plate with dots carrying each word's share into the bet, the loss column on sat, the CDF strip with u = 0.7 dropping on dog, the bet at T = 2 | 3D stage, 5 steps | top of Reading (replaces the static PR11) | built |
+| PR17 | The 2D Gaussian as a density surface; the slider's own seeded draws moved by L; eigen-axes from above; two points at the same distance with Mahalanobis 1 and 3; rho = 0.95 | 3D stage, 5 steps | Reading section 2, above the slider (kept) | built |
+| PR18 | The umbrella joint as a bar grid: marginals with flows, conditioning as keeping one column and renormalising, independence as glass lids at P(x) P(y) | 3D stage, 4 steps | Reading section 5 | built |
+| PR19 | Bayes as bars: prior times likelihood into the product, normalised by P(flag); then a 20% base rate | 3D stage, 5 steps | Reading section 5, above the base-rate dots (kept) | built |
+| PR20 | MLE against MAP on the probability triangle: likelihood q_cat^3 q_dog, prior Dirichlet(2, 2, 2), posterior Dirichlet(5, 3, 2), the cost of "the sat" | 3D stage, 5 steps | Reading section 9 | built; the 2D likelihood surface over the Gaussian (mu, sigma) was considered and not built (the triangle carries MLE and MAP together on the page's own counts) |
+| PR13b | LLN and CLT, coin, samplers | 2D animations with step lists, autoplay on view | sections 4, 9, 10 | captions moved into step lists; the coin's 13 frames grouped into 5 stretches |
+| PR21 | 3D for the density, the temperature bars, the CDF, the calibration charts, the reparameterisation paths | | | kept 2D: one variable, curves and bars on an axis read best flat |

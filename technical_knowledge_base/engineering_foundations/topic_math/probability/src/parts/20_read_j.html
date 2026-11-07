@@ -1,26 +1,35 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s11">
 <h2>11. Reparameterisation: why gradients can pass through a random sample</h2>
 <p>Training a VAE or a diffusion model needs \(\nabla_\theta\, \mathbb{E}_{x \sim p_\theta}[f(x)]\), with the parameters inside the distribution being sampled. "Draw a random number" has no derivative. There are two ways round it:</p>
-<div class="card" id="rd-rep-card"><h4>Move the randomness to an input the parameters do not touch</h4>
-<div class="dgm" id="rd-rep"></div>
-<p class="small">Same target, \(f(x) = x^2\) with \(x \sim \mathcal{N}(\mu, 1)\) at \(\mu = 1\) (true gradient \(2\mu = 2\)); variances of a one-sample gradient estimate, derived exactly (a 200,000-draw simulation in <code>src/recompute.py</code> agrees).</p>
-</div>
 <ul class="tight">
 <li><b>Score function</b> (REINFORCE, likelihood ratio): \(\nabla_\theta\, \mathbb{E}_{p_\theta}[f(x)] = \mathbb{E}_{p_\theta}\big[f(x)\, \nabla_\theta \ln p_\theta(x)\big]\), from \(\nabla_\theta p_\theta = p_\theta \nabla_\theta \ln p_\theta\). It works for any distribution and any \(f\), even a non-differentiable reward ({{Williams, 1992|https://doi.org/10.1007/BF00992696}}), but it only sees \(f\)'s value, not its slope, so it is noisy: one sample \(x^2 (x - \mu) = (1 + \varepsilon)^2 \varepsilon\) has mean 2 and variance 30.</li>
 <li><b>Reparameterisation</b> (pathwise): write the sample as \(x = g_\theta(\varepsilon)\) with parameter-free noise, for a Gaussian \(x = \mu + \sigma\varepsilon\), \(\varepsilon \sim \mathcal{N}(0, 1)\). The expectation is now over \(\varepsilon\), which does not depend on \(\theta\), so the gradient moves inside: \(\nabla_\theta\, \mathbb{E}_{\varepsilon}[f(g_\theta(\varepsilon))] = \mathbb{E}_{\varepsilon}[\nabla_x f(x)\, \nabla_\theta g_\theta(\varepsilon)]\). One sample \(2x = 2(1 + \varepsilon)\) has mean 2 and variance 4.</li>
 </ul>
 <p>Subtracting a baseline \(b = \mathbb{E}[f] = 2\) from \(f\) keeps the score-function mean and cuts its variance to 18, still 4.5 times the pathwise estimator's. That gap is why VAEs ({{Kingma and Welling, 2013|https://arxiv.org/abs/1312.6114}}) use the reparameterisation, and why policy gradients, which cannot (the reward is not differentiable in the sampled text), work so hard on baselines. The ELBO, the VAE and the diffusion loss that use it, and the variance gap measured up to 100 dimensions, are on {{Variational inference and generative-model maths|n:3f05c17b0d0d81aa9857eb5fa1bac530}}; baselines and advantages on {{Policy gradients and actor-critic|n:3ee5c17b0d0d8101a262d3620e75747c}}.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-rep-card"><h4>Move the randomness to an input the parameters do not touch</h4>
+<div class="dgm" id="rd-rep"></div>
+<p class="small">Same target, \(f(x) = x^2\) with \(x \sim \mathcal{N}(\mu, 1)\) at \(\mu = 1\) (true gradient \(2\mu = 2\)); variances of a one-sample gradient estimate, derived exactly (a 200,000-draw simulation in <code>src/recompute.py</code> agrees).</p>
+</div></div></div></div>
+<section>
 <details class="dp"><summary>The variance of the score-function estimator, worked <span class="mute">(derivation)</span></summary><div class="b">
 <p>\(\mathbb{E}[x^2] = \mu^2 + 1\). Score function with \(x = 1 + \varepsilon\): variance \(\mathbb{E}[(\varepsilon + 2\varepsilon^2 + \varepsilon^3)^2] - 4 = 34 - 4 = 30\), using \(\mathbb{E}\varepsilon^2 = 1\), \(\mathbb{E}\varepsilon^4 = 3\), \(\mathbb{E}\varepsilon^6 = 15\). With the baseline, \((x^2 - 2)\varepsilon = (2\varepsilon + \varepsilon^2 - 1)\varepsilon\), whose second moment is \(4 \times 3 + 15 + 1 - 2 \times 3 = 22\), so the variance is \(22 - 4 = 18\). Pathwise: \(\operatorname{Var}(2 + 2\varepsilon) = 4\).</p>
 </div></details>
 <p class="small">Used for: VAEs (sampling the latent); diffusion (\(x_t = \sqrt{\bar\alpha_t}\,x_0 + \sqrt{1 - \bar\alpha_t}\,\varepsilon\) is a reparameterisation); SAC's squashed Gaussian policy; Gumbel-softmax for discrete choices (section 10); the Cholesky sampler of section 2.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s12">
 <h2>12. Log-probabilities and log-sum-exp</h2>
 <p>Probabilities of whole sequences are products of many small numbers, so every library works in log space. A 100-token sentence at the tiny model's 0.090 per token has probability \(0.090^{100} = 10^{-104.6}\): below float32's smallest positive number (about \(1.4 \times 10^{-45}\)), so it rounds to 0 and its log to \(-\infty\). Its log-probability, \(100 \times (-2.408) = -240.8\), is an ordinary number, and products become sums (the chain rule of section 5, the i.i.d. sum of section 7).</p>
 <p>The one place a log-probability needs care is the softmax normaliser. \(\ln p_y = z_y - \ln\sum_k e^{z_k}\), and \(\ln\sum_k e^{z_k}\), the <dfn id="g-lse">log-sum-exp</dfn>, overflows for large scores. Because softmax depends only on differences of scores (section 6), subtract the largest first:</p>
 \[ \operatorname{LSE}(z) = \ln \sum_k e^{z_k} = m + \ln \sum_k e^{z_k - m}, \qquad m = \max_k z_k. \]
+<p class="small">The rule: keep logits and log-probabilities, call the fused functions (<code>cross_entropy</code>, <code>log_softmax</code>, <code>logsumexp</code>), never <code>log(softmax(z))</code>. How floats overflow and underflow, the animated naive-against-stable softmax with every intermediate's bits, log-softmax, logsigmoid and BCE with logits are on {{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}} (its sections 7 and 8); the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} panel 5 shows the float32 and float64 overflow points.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Subtract the max and the overflow disappears</h4>
 <div class="ba" id="rd-lse">
 <div class="bad"><h4>Before: exponentiate, then normalise</h4><table>
 <tr><td>scores \(z\)</td><td>(1000, 999, 998)</td></tr>
@@ -33,5 +42,5 @@
 <tr><td>\(p\)</td><td>(0.665, 0.245, 0.090): the tiny model's bet, since these scores are \((2, 1, 0) + 998\)</td></tr>
 <tr><td>\(\operatorname{LSE}\), loss</td><td>\(1000 + \ln 1.503 = 1000.408\); \(1000.408 - 998 = 2.408\)</td></tr></table></div>
 </div>
-<p class="small">The rule: keep logits and log-probabilities, call the fused functions (<code>cross_entropy</code>, <code>log_softmax</code>, <code>logsumexp</code>), never <code>log(softmax(z))</code>. How floats overflow and underflow, the animated naive-against-stable softmax with every intermediate's bits, log-softmax, logsigmoid and BCE with logits are on {{Numerical computing for ML|n:3f05c17b0d0d81d6af0be4a9a2edba8d}} (its sections 7 and 8); the root's {{Gradient lab|n:3c65c17b0d0d81cdb851c0835b25a538}} panel 5 shows the float32 and float64 overflow points.</p>
-</section>
+</div></div></div></div>
+

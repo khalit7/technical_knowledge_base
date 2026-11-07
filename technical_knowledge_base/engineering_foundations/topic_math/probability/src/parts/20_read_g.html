@@ -16,6 +16,9 @@
 \[ f'(r) = -\frac{q}{r} + \frac{1 - q}{1 - r} = 0 \;\Longrightarrow\; q(1 - r) = r(1 - q) \;\Longrightarrow\; r = q, \]
 <p>and \(f''(r) = q/r^2 + (1 - q)/(1 - r)^2 \gt 0\), so it is the unique minimum. For \(K\) classes the expected loss minus its minimum is \(\sum_k q_k \ln(q_k / r_k)\), the KL divergence, zero only at \(r = q\) (Gibbs' inequality, on {{Information theory for ML|n:3c65c17b0d0d81c6baf3f778a62e14e5}}).</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L">
+<section>
 <p>So a model trained by maximum likelihood, on data like its test data, should come out <dfn id="g-calib">calibrated</dfn>: among predictions made with confidence about 70%, about 70% are right (\(P(Y = \hat y \mid \hat c = c) = c\)). A <b>reliability diagram</b> bins predictions by confidence (15 bins here) and plots each bin's accuracy against its confidence; the <dfn id="g-ece">expected calibration error</dfn> is the size-weighted gap ({{Guo et al., 2017, eq. 3|https://arxiv.org/abs/1706.04599}}):</p>
 \[ \text{ECE} = \sum_{b=1}^{B} \frac{n_b}{n}\,\big|\operatorname{acc}(b) - \operatorname{conf}(b)\big|. \]
 <p>Measured here on two small open base models and one instruct-tuned version, predicting the next token of WikiText-2 (20,480 tokens each, top-1 confidence, computed offline):</p>
@@ -26,7 +29,10 @@
 <tr><td>Qwen2.5-0.5B-Instruct</td><td class="num">44.1%</td><td class="num">0.022</td><td class="num">2.884</td></tr>
 </table></div>
 <p class="try"><b>Predict, then drag:</b> GPT-2 sits on the diagonal at \(T = 1\). At \(T = 0.6\), do the bars fall below the diagonal or rise above it, and does accuracy change?</p>
-<div class="card" id="rd-cal-card"><h4>Pretrained models are close to the diagonal; one temperature moves every bar</h4>
+<p>Both base models are close to the diagonal: when they put 70% on their top token, they are right about 70% of the time (GPT-2's 0.700 bin: 71.7% correct; Qwen's: 64.4%, its largest gap). The instruct-tuned Qwen, run on raw text without a chat template, is slightly overconfident (average top-1 confidence 46.2% against 44.1% correct), and \(T = 1.05\) cuts its ECE from 0.022 to 0.012. Small models on 20,480 tokens of one Wikipedia sample (Qwen may have seen Wikipedia in training; GPT-2's WebText removed it, {{Radford et al., 2019, section 2.1|https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf}}): a demonstration of the measurement, not a ranking.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-cal-card"><h4>Pretrained models are close to the diagonal; one temperature moves every bar</h4>
 <div class="seg" id="cal-seg" role="group" aria-label="Model"></div>
 <div class="ctl"><label>Temperature \(T\): <b id="cal-tv">1.00</b><input type="range" id="cal-t" min="0" max="30" step="1" value="10" aria-label="Temperature"></label></div>
 <div class="out" id="cal-stats"></div>
@@ -39,8 +45,8 @@
 <div class="leg"><span style="--sw:var(--c2)">ECE (left axis)</span><span style="--sw:var(--c1)">NLL in nats per token (right axis)</span><span style="--sw:var(--ink)">current \(T\)</span></div>
 </div>
 <p class="small mute">Dividing every logit by \(T\) before the softmax is temperature scaling. At \(T = 0.6\) every GPT-2 bar falls below the diagonal (overconfident: ECE 0.250 against 0.015); at 1.6 they rise above it. The instruct model's bars at \(T = 1\) sit a little below, and its best \(T\) by NLL is 1.05. Accuracy never moves: dividing by \(T\) keeps the top token. The NLL is proper, so the \(T\) minimising it is the temperature-scaling fit (Guo et al. fit it on a validation set; here it is fitted and shown on the same tokens, an in-sample illustration); ECE's minimum need not coincide with it.</p>
-</div>
-<p>Both base models are close to the diagonal: when they put 70% on their top token, they are right about 70% of the time (GPT-2's 0.700 bin: 71.7% correct; Qwen's: 64.4%, its largest gap). The instruct-tuned Qwen, run on raw text without a chat template, is slightly overconfident (average top-1 confidence 46.2% against 44.1% correct), and \(T = 1.05\) cuts its ECE from 0.022 to 0.012. Small models on 20,480 tokens of one Wikipedia sample (Qwen may have seen Wikipedia in training; GPT-2's WebText removed it, {{Radford et al., 2019, section 2.1|https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf}}): a demonstration of the measurement, not a ranking.</p>
+</div></div></div></div>
+<section>
 <p><b>Calibration can be lost</b>, by depth and by post-training, and one fitted temperature recovers much of it (evidence below). Report ECE beside the NLL or Brier score, which are proper: ECE depends on the number of bins, looks only at the top class, and scores 0 for a model that always predicts the base rate.</p>
 <details class="dp"><summary>The evidence that calibration is lost and fixed, and what calibration is used for <span class="mute">(depth)</span></summary><div class="b">
 <p>{{Guo et al., 2017|https://arxiv.org/abs/1706.04599}} found deep image classifiers overconfident (a 110-layer ResNet on CIFAR-100, their Figure 1, against a well-calibrated 5-layer LeNet from 1998; their Table 1 uses the same 15 bins as here) and that temperature scaling "is surprisingly effective at calibrating predictions". The {{GPT-4 technical report|https://arxiv.org/abs/2303.08774}} (Figure 8) says "the pre-trained model is highly calibrated" on an MMLU subset, and that "post-training hurts calibration significantly". Label smoothing changes the target, so it trades calibration of the top class for other behaviour (measured on {{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}}). Metric definitions are on {{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}}; a judge's calibration on {{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}.</p>
