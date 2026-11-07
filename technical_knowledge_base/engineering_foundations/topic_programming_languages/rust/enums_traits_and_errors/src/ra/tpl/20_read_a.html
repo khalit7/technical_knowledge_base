@@ -1,9 +1,6 @@
+<div class="s3sp"><div class="s3L">
 <section id="ra-top">
 <p class="core">Rust turns what a Python program discovers while it runs into <span class="hl">types the compiler checks before it runs</span>: an enum says exactly which data each case carries and <code>match</code> must handle every case, <code>Result</code> puts every failure in the signature, a trait says what a type can do, and the iterator chains built on all of this compile to the same machine code as the loop you would have written by hand.</p>
-<div class="hero" id="ra-hero-card"><h4>The same four mistakes: Python finds them while running, Rust before running</h4>
-<div id="ra-hero" class="ra-lane"></div>
-<p class="small">The Rust side of each row is a recorded run on this page: a missing <code>match</code> arm is error <b>E0004</b> (section 2); a maybe-missing value is an <code>Option</code> and a failed parse of <code>"8k"</code> a <code>Result</code>, and you get the value inside only by deciding what happens in the other case (section 3); a type without the trait is <b>E0277</b> at the call (section 4). The Python side is what the same mistake does in plain Python with no type checker. One exception stays a run-time failure in Rust too: a string slice that cuts a character panics (section 1). And the price of all this checking in a hot loop is none: an iterator chain ran at <b>0.293 ns per element</b>, the hand-written loop at 0.290 (section 5) <span class="ra-meas">measured</span>.</p>
-</div>
 <p><b>You need:</b> Cargo, ownership, moves and borrowing (<code>&amp;</code> and <code>&amp;mut</code>) from {{Rust: the essentials|n:3c65c17b0d0d8156bed9ead8a22f33b0}}. Lifetimes, <code>Box</code>, <code>Rc</code> and threads are on {{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}; this page mentions them only where a type here needs one.</p>
 <dl class="terms">
 <dt>Slice, <code>&amp;str</code></dt><dd>a borrowed view (pointer and length) into elements or UTF-8 text owned by someone else.</dd>
@@ -15,8 +12,15 @@
 <dt>Monomorphisation, vtable</dt><dd>one compiled copy of a generic per type, against one copy that calls through a table of function pointers.</dd>
 <dt>Closure, <code>Fn</code>, <code>FnMut</code>, <code>FnOnce</code></dt><dd>an anonymous function that captures variables; the three traits say whether it reads, changes or consumes them.</dd>
 </dl>
-<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#ra-s0">In one screen</a><a href="#ra-str">1 Strings</a><a href="#ra-enum">2 Enums, match</a><a href="#ra-err">3 Errors</a><a href="#ra-trait">4 Traits</a><a href="#ra-iter">5 Iterators</a><a href="#ra-coll">6 Collections</a><a href="#ra-test">7 Testing</a></nav>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="hero card" id="ra-hero-card"><h4>The same four mistakes: Python finds them while running, Rust before running</h4>
+<div id="ra-hero" class="ra-lane"></div>
+<p class="small">The Rust side of each row is a recorded run on this page: a missing <code>match</code> arm is error <b>E0004</b> (section 2); a maybe-missing value is an <code>Option</code> and a failed parse of <code>"8k"</code> a <code>Result</code>, and you get the value inside only by deciding what happens in the other case (section 3); a type without the trait is <b>E0277</b> at the call (section 4). The Python side is what the same mistake does in plain Python with no type checker. One exception stays a run-time failure in Rust too: a string slice that cuts a character panics (section 1). And the price of all this checking in a hot loop is none: an iterator chain ran at <b>0.293 ns per element</b>, the hand-written loop at 0.290 (section 5) <span class="ra-meas">measured</span>.</p>
+</div>
+</div></div></div>
+
+<nav class="nav" id="rd-nav" aria-label="Sections"><a href="#ra-s0">In one screen</a><a href="#ra-str">1 Strings</a><a href="#ra-enum">2 Enums, match</a><a href="#ra-err">3 Errors</a><a href="#ra-trait">4 Traits</a><a href="#ra-iter">5 Iterators</a><a href="#ra-coll">6 Collections</a><a href="#ra-test">7 Testing</a></nav>
 
 <section id="ra-s0">
 <h2>In one screen</h2>
@@ -32,6 +36,7 @@
 <p class="small">How to read the code: each block is a file in this page's <code>src/ra/code/</code>, followed by the command that ran and its real output (green border) or error (orange border). Dashed boxes are predictions: the Python and three Rust translations a newcomer might write; pick one, then see what all three did. Recorded 2026-10-05 with rustc 1.99.0 (edition 2024) and CPython 3.14.8.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="ra-str">
 <h2>1. Strings and slices: String against &amp;str, and UTF-8</h2>
 <p>A <dfn>slice</dfn> is a borrowed view into a run of elements owned by someone else: a pointer and a length. <code>&amp;[u64]</code> is a slice of numbers (borrowed from a <code>Vec</code>, an array or part of either); <code>&amp;str</code> is a slice of text. Rust has two main string types:</p>
@@ -41,14 +46,7 @@
 <tr><td>Use for</td><td>struct fields, return values, building text</td><td>function parameters that only read</td></tr>
 <tr><td>Make one</td><td><code>String::from("x")</code>, <code>"x".to_string()</code>, <code>format!(...)</code></td><td><code>&amp;s</code>, <code>&amp;s[a..b]</code>, <code>"literal"</code></td></tr>
 </tbody></table></div>
-<p>Both are always valid <b>UTF-8</b>, and lengths and indexes are in <b>bytes</b>; Python's <code>str</code> counts code points. The text below is the one the recorded program uses: 10 characters, 20 bytes.</p>
-<div class="ra-fig" id="ra-bytes-card"><h4>A slice must end on a character boundary: drag the end and watch which cuts are allowed</h4>
-<p class="small"><b>Predict first:</b> of the 21 possible end offsets (0 to 20), how many can <code>&amp;s[0..end]</code> use without panicking?</p>
-<div class="ra-bytes" id="ra-bytes"></div>
-<div class="ra-ctl"><label for="ra-bytes-s" class="small">end byte</label><input type="range" id="ra-bytes-s" min="0" max="20" value="4" step="1"><span id="ra-bytes-v" class="small"></span></div>
-<div id="ra-bytes-out"></div>
-<p class="small">Cells are the 20 UTF-8 bytes of <code>"café 日本語 🦀"</code>, grouped under the character they encode: <code>é</code> takes 2 bytes, each of <code>日本語</code> 3, the crab 4. The allowed ends are exactly the 10 offsets <code>char_indices()</code> printed (0, 1, 2, 3, 5, 6, 9, 12, 15, 16) plus 20, the end of the string: 11 of 21. At end 4 the message is the one the recorded program printed; the other positions apply the same rule in your browser.</p>
-</div>
+<p>Both are always valid <b>UTF-8</b>, and lengths and indexes are in <b>bytes</b>; Python's <code>str</code> counts code points. The figure uses the text of the recorded program: 10 characters, 20 bytes.</p>
 [[code:lang/strings.rs]]
 <div class="ra-two"><div>[[out:l_strings]]</div><div>[[out:l_strings_py]]</div></div>
 <ul>
@@ -57,5 +55,16 @@
 </ul>
 <details class="dp"><summary>The full E0277 error for <code>s[0]</code></summary><div>[[out:l_index_err]]</div></details>
 <p>Take <code>&amp;str</code> in parameters (<code>count_words(text: &amp;str)</code> accepts <code>&amp;owned</code> and a literal alike; clippy's <code>ptr_arg</code> lint flags <code>&amp;String</code> parameters) and return <code>String</code> when you build new text. A "character" a user sees may be several code points (an emoji with a skin tone); neither language's <code>len</code> counts those.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="ra-fig card" id="ra-bytes-card"><h4>A slice must end on a character boundary: drag the end and watch which cuts are allowed</h4>
+<p class="small"><b>Predict first:</b> of the 21 possible end offsets (0 to 20), how many can <code>&amp;s[0..end]</code> use without panicking?</p>
+<div class="ra-bytes" id="ra-bytes"></div>
+<div class="ra-ctl"><label for="ra-bytes-s" class="small">end byte</label><input type="range" id="ra-bytes-s" min="0" max="20" value="4" step="1"><span id="ra-bytes-v" class="small"></span></div>
+<div id="ra-bytes-out"></div>
+<p class="small">Cells are the 20 UTF-8 bytes of <code>"café 日本語 🦀"</code>, grouped under the character they encode: <code>é</code> takes 2 bytes, each of <code>日本語</code> 3, the crab 4. The allowed ends are exactly the 10 offsets <code>char_indices()</code> printed (0, 1, 2, 3, 5, 6, 9, 12, 15, 16) plus 20, the end of the string: 11 of 21. At end 4 the message is the one the recorded program printed; the other positions apply the same rule in your browser.</p>
+</div>
+</div></div></div>
+<section id="ra-str-p" aria-label="Strings: prediction">
 [[drill:d04]]
 </section>

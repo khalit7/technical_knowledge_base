@@ -1,17 +1,40 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="ra-enum">
 <h2>2. Structs, enums and match: make illegal states unrepresentable</h2>
 <p>A <dfn>struct</dfn> is a record with named fields, like a dataclass. An <dfn>enum</dfn> in Rust is far more than Python's <code>Enum</code>: each <dfn>variant</dfn> can carry its own data, so one type says "a message is <i>either</i> text from a user, <i>or</i> a tool call with arguments, <i>or</i> an image of some size". This is called a sum type or tagged union. <code>match</code> takes it apart, and must cover every variant.</p>
 <p>The design habit this enables matters more than the syntax. Python code often models state as one class with optional fields and a status string, and every method checks that the fields agree with the status. In Rust, give each state exactly the data it has. "Connected but no session id" or "failed with no error" then cannot be written at all:</p>
-<div class="ra-fig" id="ra-states-card"><h4>The same connection, two ways: 32 states you can write, 4 that make sense</h4>
+[[code:lang/states.rs:1-20]]
+[[out:l_states]]
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="ra-fig card" id="ra-states-card"><h4>The same connection, two ways: 32 states you can write, 4 that make sense</h4>
 <div class="seg" id="ra-states-seg"><button data-m="py" class="on">Python: status string plus optional fields</button><button data-m="rs">Rust: one enum</button></div>
 <div id="ra-states"></div>
 <p class="small" id="ra-states-cap"></p>
 <p class="small mute">Counting only the four status strings the code uses, a class with <code>status</code> and three optional fields (<code>attempt</code>, <code>session_id</code>, <code>error</code>) can hold 4 &times; 2 &times; 2 &times; 2 = 32 combinations; 4 are legal. The Rust enum is <code>code/lang/states.rs</code> below; the Python class is illustrative, not run.</p>
 </div>
-[[code:lang/states.rs:1-20]]
-[[out:l_states]]
-<p>The last three lines show a related point: <code>Option&lt;u64&gt;</code> needs 16 bytes (8 for the number, plus a tag, padded), but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in 8, because a reference is never null and the compiler uses the null value to mean <code>None</code> (the "niche" optimisation). Safety without null costs nothing there.</p>
+</div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-lay"></div></div><div class="s3L">
+<section id="ra-lay">
+<h3>What an enum costs in memory</h3>
+<p>The last three lines of that run are about memory: <code>Option&lt;u64&gt;</code> needs [[g:l_states|^size_of Option<u64> = (\d+)]] bytes, but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in [[g:l_states|^size_of Option<&u64> = (\d+)]]. A second program, <code>layout.rs</code>, prints the size and alignment of each type here and finds where each variant's data sits (the address of a field minus the address of the value), so the figure is drawn to scale, one cube per byte:</p>
+<ol class="sx" id="sx-lay">
+<li><b>A tag costs a byte, and padding.</b> <code>Option&lt;u8&gt;</code> is [[g:l_layout|^Option<u8>\s+size\s+(\d+)]] bytes: the <code>u8</code> plus one tag byte saying <code>Some</code> or <code>None</code>. <code>Option&lt;u32&gt;</code> is [[g:l_layout|^Option<u32>\s+size\s+(\d+)]], with the <code>u32</code> at offset [[g:l_layout|^Option<u32>: Some's u32 at offset (\d+)]]: a <code>u32</code> must start at a multiple of 4, so the tag byte is followed by 3 bytes of padding.</li>
+<li><b><code>Option&lt;u64&gt;</code>: 16 bytes for 8 of data.</b> The <code>u64</code> sits at offset [[g:l_layout|^Option<u64>: Some's u64 at offset (\d+)]] and is aligned to 8, so one tag byte costs 8 bytes in all. Every value of a <code>u64</code> is a valid number, so the tag has nowhere else to go.</li>
+<li><b><code>Option&lt;&amp;u64&gt;</code>: no tag at all.</b> [[g:l_layout|^Option<&u64>\s+size\s+(\d+)]] bytes, the same as <code>&amp;u64</code>, and the same for <code>Box</code>. A reference is never null, so the all-zero pattern is free to mean <code>None</code>: the "null pointer optimisation", which the {{Option documentation|https://doc.rust-lang.org/std/option/index.html#representation}} guarantees for references, <code>Box</code>, function pointers and <code>NonZero</code> numbers. A bit pattern a type can never hold is called a <dfn>niche</dfn>. Safety without null costs nothing here.</li>
+<li><b>A <code>String</code> is three words.</b> [[g:l_layout|^String\s+size\s+(\d+)]] bytes: a capacity, a pointer to the text on the heap, and a length. Taking a <code>String</code> of capacity 16 holding <code>"timeout"</code> apart word by word found them in that order on this build (the {{Vec documentation|https://doc.rust-lang.org/std/vec/struct.Vec.html#guarantees}} leaves the order unspecified).</li>
+<li><b><code>Conn</code>: four variants in the same 24 bytes.</b> An enum is as big as its largest variant, here <code>Failed</code>'s <code>String</code> at offset [[g:l_layout|^Conn::Failed: error \(String, \d+ bytes\) at offset (\d+)]]. The others reuse the same bytes: <code>Connecting</code>'s <code>attempt</code> and <code>Connected</code>'s <code>session_id</code> both sit at offset [[g:l_layout|^Conn::Connected: session_id \(u64\) at offset (\d+)]]; <code>Idle</code> has no data. <code>size_of::&lt;Conn&gt;()</code> printed [[g:l_layout|^Conn\s+size\s+(\d+)]]: not one byte more than the <code>String</code>.</li>
+<li><b>The tag hides in the first word.</b> For <code>Failed</code> the first word is the <code>String</code>'s capacity ([[g:l_layout|^first word of Failed \{ error: "timeout" \}\s+(0x[0-9a-f]+)]], that is 16). For the other three it held [[g:l_layout|^first word of Idle\s+(0x[0-9a-f]+)]], ...01 and ...02: 2<sup>63</sup> and up, more than <code>isize::MAX</code>, and a capacity can never be that large (a <code>Vec</code> "panics if the new capacity exceeds <code>isize::MAX</code> bytes", and <code>String::as_mut_vec</code> exposes the <code>Vec&lt;u8&gt;</code> under a <code>String</code>). The compiler stored the tag in that niche.</li>
+<li><b><code>Option&lt;Conn&gt;</code>: still 24.</b> There are many unused capacities, so <code>None::&lt;Conn&gt;</code> simply takes the next one, [[g:l_layout|^first word of None::<Conn>\s+(0x[0-9a-f]+)]]. Wrapping an enum in <code>Option</code> cost nothing either.</li>
+</ol>
+<p class="small mute">Recorded with rustc 1.94.0 on Linux x86-64 (the rest of the page used rustc 1.99.0 on the M1 Pro; the three sizes both runs print agree). Where the compiler puts a tag is not a stable guarantee, except the null pointer case: read <code>size_of</code>, do not rely on the layout. The heap buffer in steps 4 to 6 is drawn smaller than scale.</p>
+<details class="dp"><summary>The program, <code>layout.rs</code>, and its output</summary><div>[[code:lang/layout.rs]][[out:l_layout]]</div></details>
+</section>
+</div></div>
+
+<section id="ra-enum-syn">
 <h3>The syntax, on a chat message</h3>
 [[code:lang/enums.rs]]
 [[out:l_enums]]
@@ -25,6 +48,13 @@
 <div class="ra-cost"><div><b>Solves</b>Whole classes of "this field should not be None here" bugs; adding a case shows every place to update.</div><div><b>Costs</b>An enum is as big as its largest variant (box a huge rarely used one); exhaustive matching makes public enums hard to extend without breaking users (<code>#[non_exhaustive]</code> exists for that).</div><div><b>Python today</b>The same idea is available as a union of dataclasses plus <code>match</code> and a type checker's exhaustiveness check (<code>assert_never</code>; Python's type checkers are on {{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}}); Rust enforces it always.</div></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="ra-fig card" id="ra-q-card"><h4>Where an error goes: <code>?</code> returns it one level up, and the rest of the function never runs</h4>
+<div class="seg" id="ra-q-seg"><button data-m="bad" class="on">context = "8k"</button><button data-m="missing">max_output missing</button><button data-m="good">both present</button></div>
+<div class="an-ctl" id="ra-q-ctl"></div>
+<div class="ra-tl" id="ra-q-code"></div>
+<p class="small mute">Lines 22 to 43 of <code>code/lang/errors.rs</code> (the whole file is in the closed block under the steps); the highlighted lines are the ones running at each step.</p>
+</div>
+</div><div class="s3L">
 <section id="ra-err">
 <h2>3. Option, Result and ?: errors as values</h2>
 <p>Rust has no <code>None</code> that can appear anywhere and no exceptions for expected failures. Two enums from the standard library carry them, written like any other enum:</p>
@@ -32,15 +62,35 @@
 <li><code>Option&lt;T&gt;</code> is <code>Some(value)</code> or <code>None</code>: maybe missing. <code>dict.get</code>, <code>str.find</code> and "first element" return one.</li>
 <li><code>Result&lt;T, E&gt;</code> is <code>Ok(value)</code> or <code>Err(error)</code>: may fail. Parsing, I/O and network calls return one.</li>
 </ul>
-<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate. Step through the recorded program on its three configurations:</p>
-<div class="ra-fig" id="ra-q-card"><h4>Where an error goes: <code>?</code> returns it one level up, and the rest of the function never runs</h4>
-<div class="seg" id="ra-q-seg"><button data-m="bad" class="on">context = "8k"</button><button data-m="missing">max_output missing</button><button data-m="good">both present</button></div>
-<div class="ra-ctl"><button type="button" id="ra-q-b" aria-label="Previous step">&#9664; Back</button><button type="button" id="ra-q-f" aria-label="Next step">Next &#9654;</button><span class="small" id="ra-q-pos"></span></div>
-<div class="ra-tl" id="ra-q-code"></div>
-<div class="ra-cap" id="ra-q-cap"></div>
-<p class="small mute">Lines 22 to 43 of <code>code/lang/errors.rs</code> (the whole file is below); each configuration's last step prints the line the recorded run printed.</p>
-</div>
+<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate. The recorded program on its three configurations (pick one on the figure):</p>
+<ol class="sx" id="sx-q-bad">
+<li><b>The call.</b> <code>main</code> calls <code>budget(&amp;bad)</code>; <code>bad</code> has <code>context = "8k"</code>.</li>
+<li><b>Into <code>get_num</code>.</b> <code>budget</code> calls <code>get_num(cfg, "context")</code>.</li>
+<li><b>The key is there.</b> <code>cfg.get("context")</code> is <code>Some("8k")</code>; <code>ok_or</code> makes it <code>Ok("8k")</code>; <code>?</code> unwraps it, so <code>raw = "8k"</code>.</li>
+<li><b>The parse fails.</b> <code>"8k".parse::&lt;u32&gt;()</code> returns <code>Err(ParseIntError { kind: InvalidDigit })</code>.</li>
+<li><b>The error is wrapped.</b> <code>map_err</code> wraps it as <code>Err(BadNumber { key: "context", source })</code>. With no semicolon, that is <code>get_num</code>'s return value.</li>
+<li><b><code>?</code> returns early.</b> Back in <code>budget</code>, <code>?</code> sees an <code>Err</code> and returns it from <code>budget</code> at once. Lines 31 and 32 never run: <code>max_output</code> is never read.</li>
+<li><b><code>main</code> reports it.</b> <code>main</code>'s <code>match</code> takes the <code>Err</code> arm and prints <code>[[g:l_errors|^(error: context.*?)\s+\(debug]]</code> (the message is <code>ConfigError</code>'s <code>Display</code>).</li>
+</ol>
+<ol class="sx" id="sx-q-missing" hidden>
+<li><b>The call.</b> <code>main</code> calls <code>budget(&amp;missing)</code>; <code>missing</code> has no <code>max_output</code>.</li>
+<li><b>The first number parses.</b> <code>get_num(cfg, "context")</code> finds <code>"8192"</code> and parses it: <code>Ok(8192)</code>, so <code>?</code> gives <code>ctx = 8192</code>.</li>
+<li><b>The second call.</b> <code>budget</code> calls <code>get_num(cfg, "max_output")</code>.</li>
+<li><b>The key is missing.</b> <code>cfg.get("max_output")</code> is <code>None</code>; <code>ok_or</code> turns it into <code>Err(Missing("max_output"))</code>; <code>?</code> returns it from <code>get_num</code> immediately. Lines 24 to 26 never run.</li>
+<li><b><code>?</code> again.</b> In <code>budget</code>, <code>?</code> returns the same <code>Err</code>; line 32 never runs.</li>
+<li><b><code>main</code> reports it.</b> <code>main</code> prints <code>[[g:l_errors|^(error: missing.*?)\s+\(debug]]</code>.</li>
+</ol>
+<ol class="sx" id="sx-q-good" hidden>
+<li><b>The call.</b> <code>main</code> calls <code>budget(&amp;good)</code>.</li>
+<li><b>The first number.</b> <code>"8192"</code> parses: <code>ctx = 8192</code>.</li>
+<li><b>The second number.</b> <code>" 1024"</code> is trimmed, then parses: <code>out = 1024</code>.</li>
+<li><b>The last line runs.</b> Both <code>?</code> found <code>Ok</code>, so <code>budget</code> reaches its last line: <code>Ok(8192 - 1024)</code>.</li>
+<li><b><code>main</code> prints the result.</b> <code>main</code> prints <code>[[g:l_errors|^(ok: .*)$]]</code>.</li>
+</ol>
 <details class="dp"><summary>The whole program, <code>errors.rs</code> (the error type and <code>main</code>)</summary><div>[[code:lang/errors.rs]]</div></details>
+</section>
+</div></div>
+<section id="ra-err-more" aria-label="Errors: the rest">
 [[out:l_errors]]
 <ul>
 <li><code>ok_or</code> turns an <code>Option</code> into a <code>Result</code>; <code>map_err</code> converts one error type into another; <code>unwrap_or</code> supplies a default.</li>

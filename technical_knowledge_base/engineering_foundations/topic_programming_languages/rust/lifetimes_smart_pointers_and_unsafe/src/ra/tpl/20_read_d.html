@@ -17,6 +17,10 @@
 [[out:l_race_scope_err]]
 </div></details>
 
+</section>
+
+<div class="s3sp"><div class="s3L">
+<section id="lsp-ss">
 <h3>The two marker traits</h3>
 <p>Two marker traits carry the rule. They have no methods; the compiler implements them automatically for a type whose parts all qualify ({{std::marker::Send|https://doc.rust-lang.org/std/marker/trait.Send.html}}, {{the Rustonomicon on Send and Sync|https://doc.rust-lang.org/nomicon/send-and-sync.html}}):</p>
 <ul>
@@ -27,12 +31,6 @@
 <details class="dp"><summary>The full error <span class="mute">(rc_thread_err.rs)</span></summary><div class="b">
 [[out:l_rc_thread_err]]
 </div></details>
-<div class="lsp-vis">
-<h4>Which types may cross threads: every cell below was checked by the compiler</h4>
-<p class="small">Predict before reading the columns: is <code>Arc&lt;RefCell&lt;i32&gt;&gt;</code> <code>Send</code>? Is a <code>Mutex</code> holding a <code>Cell</code> <code>Sync</code>?</p>
-[[sendsync]]
-<p class="lsp-cap small">The 25 "yes" cells are asserted in <code>sendsync.rs</code>, which compiles (<code>all 25 "yes" claims compile</code>); the 9 "no" cells are each refused with E0277 in <code>sendsync_err.rs</code>. <code>Arc&lt;T&gt;</code> is <code>Send</code> and <code>Sync</code> only when <code>T</code> is both; <code>Mutex&lt;T&gt;</code> is <code>Sync</code> when <code>T</code> is merely <code>Send</code>, which is how a lock makes unshareable data shareable. MutexGuard's reason is from its {{documentation|https://doc.rust-lang.org/std/sync/struct.MutexGuard.html}}.</p>
-</div>
 <details class="dp"><summary>The two programs behind the table, and the nine refusals <span class="mute">(sendsync.rs, sendsync_err.rs)</span></summary><div class="b">
 [[code:lang/sendsync.rs]]
 [[out:l_sendsync]]
@@ -41,14 +39,29 @@
 </div></details>
 <p>A type you write gets <code>Send</code> and <code>Sync</code> for free when its fields have them. Only a type holding a raw pointer (a wrapper around a C handle, say) has to claim them by hand with <code>unsafe impl Send for T {}</code>, which is a promise the compiler cannot check: one of section 4's five unsafe operations.</p>
 
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="lsp-vis">
+<h4>Which types may cross threads: every cell below was checked by the compiler</h4>
+<p class="small">Predict before reading the columns: is <code>Arc&lt;RefCell&lt;i32&gt;&gt;</code> <code>Send</code>? Is a <code>Mutex</code> holding a <code>Cell</code> <code>Sync</code>?</p>
+[[sendsync]]
+<p class="lsp-cap small">The 25 "yes" cells are asserted in <code>sendsync.rs</code>, which compiles (<code>all 25 "yes" claims compile</code>); the 9 "no" cells are each refused with E0277 in <code>sendsync_err.rs</code>. <code>Arc&lt;T&gt;</code> is <code>Send</code> and <code>Sync</code> only when <code>T</code> is both; <code>Mutex&lt;T&gt;</code> is <code>Sync</code> when <code>T</code> is merely <code>Send</code>, which is how a lock makes unshareable data shareable. MutexGuard's reason is from its {{documentation|https://doc.rust-lang.org/std/sync/struct.MutexGuard.html}}.</p>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-thr"></div></div><div class="s3L">
+<section id="lsp-tools">
 <h3>The working toolbox, every result exact</h3>
-<div class="tw"><table><thead><tr><th>Need</th><th>Tool</th><th>threads.rs printed</th></tr></thead><tbody>
-<tr><td>owned work per thread</td><td><code>thread::spawn(move || ...)</code> plus <code>join()</code></td><td><code>spawned: [(0, 3), (1, 2), (2, 1)]</code></td></tr>
-<tr><td>threads that borrow local data</td><td><code>thread::scope</code></td><td><code>scoped sum: 1000000</code></td></tr>
-<tr><td>shared mutable state</td><td><code>Arc&lt;Mutex&lt;T&gt;&gt;</code></td><td><code>mutex counter: 800000 (expected 800000)</code></td></tr>
-<tr><td>one counter or flag</td><td>an atomic (<code>AtomicU64</code>)</td><td><code>atomic counter: 800000</code></td></tr>
-<tr><td>pass messages instead of sharing</td><td>a channel (<code>mpsc</code>)</td><td><code>channel: ["worker 0 done", ...]</code></td></tr>
-</tbody></table></div>
+<p>threads.rs uses the five tools in turn; every number on the stage is its printed output. The main thread is in front, the threads it starts on an arc behind it (positions illustrative).</p>
+<ol class="sx" id="sx-thr">
+<li><b>Owned work per thread: <code>thread::spawn(move || ...)</code> plus <code>join()</code>.</b> Each thread gets its own document, moved in, and hands back a count when joined. Printed: <code>spawned: [[x:thr.spawned]]</code>.</li>
+<li><b>Threads that borrow local data: <code>thread::scope</code>.</b> Two threads read the two halves of one vector that stays owned by <code>main</code>; the scope joins both before it returns, so the borrow cannot outlive the data. Printed: <code>scoped sum: [[x:thr.scoped]]</code>.</li>
+<li><b>What may not cross.</b> An <code>Rc</code> moved into a spawned thread is refused at compile time: <code>[[x:thr.rc_err]]</code> (E0277), because two threads could update its plain counter at once.</li>
+<li><b>Shared mutable state: <code>Arc&lt;Mutex&lt;T&gt;&gt;</code>.</b> One counter on the heap behind a lock; each of the [[x:thr.n]] threads holds an <code>Arc</code> clone, so the strong count is [[x:thr.n]] + 1 while they run (from the code; not printed).</li>
+<li><b>One holder at a time.</b> Each thread adds 1 [[x:thr.per]] times, and every add goes through <code>lock()</code>: one thread holds the guard, the others wait for it.</li>
+<li><b>Joined: every update counted.</b> The threads end, their clones drop and the count falls back to 1. Printed: <code>mutex counter: [[x:thr.mutex]] (expected 800000)</code>, [[x:thr.n]] &times; [[x:thr.per]].</li>
+<li><b>One counter or flag: an atomic (<code>AtomicU64</code>).</b> The same [[x:thr.n]] threads call <code>fetch_add</code> with no lock; the hardware makes each add indivisible. Printed: <code>atomic counter: [[x:thr.atomic]]</code>.</li>
+<li><b>Pass messages instead of sharing: a channel (<code>mpsc</code>).</b> [[x:thr.workers]] workers send a string each into one receiver on the main thread. Printed: <code>channel: [[x:thr.channel]]</code>.</li>
+</ol>
 <p><code>lock()</code> returns a guard that unlocks when dropped, and the data is reachable <i>only</i> through the guard, so you cannot forget the lock. What <code>Ordering::Relaxed</code> on the atomic means (and when you need stronger orderings) is memory order, taught on the {{OS concurrency page|n:3f05c17b0d0d8112ad1af99308fa913f}}; a counter needs only <code>Relaxed</code>. For data parallelism over a collection, the {{rayon|https://docs.rs/rayon}} crate turns <code>iter()</code> into <code>par_iter()</code>; {{Rust: speeding up Python with PyO3 and maturin|n:4055c17b0d0d81048311c87e9b76a78a}} uses it to parallelise the token counter inside a Python extension.</p>
 <details class="dp"><summary>threads.rs <span class="mute">(the five tools, with the full output)</span></summary><div class="b">
 [[code:lang/threads.rs]]
@@ -57,3 +70,4 @@
 <div class="co warn"><div class="t">What the compiler does not prevent</div>Deadlocks (two threads each holding the lock the other needs), logic races (check-then-act with the lock released in between), and leaked memory are all possible in safe Rust. "Fearless" means no data races and no use after free, not no concurrency bugs.</div>
 <p><b>Async</b> is the other way to be concurrent: for thousands of network calls rather than CPU work, Rust uses <code>async fn</code> and a runtime library, almost always tokio. The same two traits decide what may cross <code>.await</code> points on a multi-threaded runtime (<code>tokio::spawn</code> needs <code>Send + 'static</code>); {{Rust: async with tokio, services with axum, and CLIs|n:4055c17b0d0d8148b863faa050cf5456}} owns it.</p>
 </section>
+</div></div>

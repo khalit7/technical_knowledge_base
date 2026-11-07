@@ -10,6 +10,11 @@
 <tr><td><code>Mutex&lt;T&gt;</code>, <code>RwLock&lt;T&gt;</code></td><td>the same across threads, by locking</td><td>a lock per access; contention</td><td><code>threading.Lock</code></td></tr>
 <tr><td><code>Weak&lt;T&gt;</code></td><td>a non-owning pointer to an <code>Rc</code>/<code>Arc</code> value; breaks cycles</td><td><code>upgrade()</code> may find it gone</td><td><code>weakref</code></td></tr>
 </tbody></table></div>
+</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-rc"></div></div><div class="s3L">
+<section id="lsp-rc">
+<h3>Box, Rc and RefCell: handles on the stack, counted blocks on the heap</h3>
 <p>A recursive type needs <code>Box</code>, because a value that contains itself directly would have infinite size; with the <code>Box</code> each child is one 8-byte pointer, as the run below prints (<code>size_of Box&lt;Expr&gt; = 8</code>).</p>
 <details class="dp"><summary>The recursive type without a Box <span class="mute">(E0072)</span></summary><div class="b">
 <pre class="ra-out ra-bad" data-ra-out="l_recursive_err">
@@ -33,14 +38,16 @@ error: aborting due to 1 previous error
 For more information about this error, try `rustc --explain E0072`.
 [exit code 1]</pre>
 </div></details>
-
-<h3>Rc: shared ownership is a counter beside the value</h3>
-<div class="lsp-vis" id="lsp-rc">
-<h4>Cloning an Rc copies an 8-byte pointer and bumps a count; the value is freed when the count reaches 0</h4>
-<div class="lsp-ctl"><button id="lsp-rc-prev" aria-label="Previous step">Back</button><button id="lsp-rc-next" aria-label="Next step">Next</button><span class="n" id="lsp-rc-n"></span></div>
-<div class="hs"><svg id="lsp-rc-svg" viewBox="0 0 600 170" role="img" aria-label="Stack handles pointing to one heap block that holds the strong count and the Doc value"></svg></div>
-<p class="lsp-cap" id="lsp-rc-cap">Step through smart.rs lines 31 to 38. The counts at steps 3 and 4 are the program's own printed values.</p>
-</div>
+<p><b>Rc: shared ownership is a counter beside the value.</b> Cloning an <code>Rc</code> copies an 8-byte pointer and bumps a count; the value is freed when the count reaches 0. The stage steps through <code>smart.rs</code>: handles on the stack plate, the blocks they own on the heap floor, dots running along each owning pointer. The counts the program prints are marked printed; the others follow from the code. Positions and block sizes are illustrative.</p>
+<ol class="sx" id="sx-rc">
+<li><b>Box: one owner, a heap allocation.</b> <code>e</code> is an <code>Expr::Add</code> holding two <code>Box</code>es, and the <code>Mul</code> holds two more: a tree of heap allocations, each <code>Box</code> 8 bytes, the <code>Expr</code> itself 24. Printed: <code>2 + 3 * 4 = 14</code>. Dropping <code>e</code> frees the whole tree, owner by owner.</li>
+<li><b><code>Rc::new</code>: count 1.</b> Line 31: one heap block holds the count and the <code>Doc</code>; <code>shared</code> is an 8-byte pointer to it (<code>Rc&lt;Doc&gt; = 8</code>, printed). strong_count = 1.</li>
+<li><b>A clone copies the pointer: count 2.</b> Line 32, <code>Rc::clone(&amp;shared)</code>: copies the pointer and adds 1. The <code>Doc</code> and its <code>String</code> are not copied.</li>
+<li><b>A third handle, and a change through it.</b> Lines 34 and 35: a third handle <code>b</code>; <code>b.cache_hits.set(..)</code> changes the shared value through <code>Cell</code>. Printed: <code>strong_count inside = 3</code>.</li>
+<li><b>A handle goes: count down, nothing freed.</b> Line 37, <code>b</code> leaves its block: dropping an <code>Rc</code> subtracts 1. Printed: <code>strong_count after = 2, hits = 1</code>. The <code>Doc</code> is freed only when the last handle goes and the count reaches 0.</li>
+<li><b><code>Rc&lt;RefCell&lt;Vec&gt;&gt;</code>: a borrow flag.</b> Line 41: <code>log</code> and its clone <code>writer</code> share one <code>RefCell</code> (count 2). Each <code>borrow_mut()</code> sets the flag to "one writer" while it lasts, and the pushes land: printed <code>log = ["first", "second"]</code>.</li>
+<li><b>Two writers at once: a panic.</b> Lines 57 and 58 hold two <code>borrow_mut()</code> at the same time. The flag already says "one writer", so the second one panics: <code>RefCell already borrowed</code>, at <code>smart.rs:58:22</code>.</li>
+</ol>
 <p>The same program also shows <code>Cell</code>: <code>b.cache_hits.set(...)</code> changes the <code>Doc</code> through a shared <code>Rc</code>, which plain <code>&amp;</code> would refuse. <code>Cell</code> does it by copying values in and out, never handing out a reference, so it needs no check at all; <code>RefCell</code> hands out references, so it must count them.</p>
 <pre class="ra-out ra-bad" data-ra-out="l_smart">
 <span class="ra-cmd">$ rustc --edition 2024 smart.rs &amp;&amp; ./smart</span>
@@ -120,32 +127,13 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
     <span class="ra-mac">println!</span>(<span class="ra-st">"strong_count after = &#123;&#125;, hits = &#123;&#125;, name = &#123;&#125;"</span>, Rc::strong_count(&amp;a), a.cache_hits.get(), a.name);
 </pre></div>
 </div></details>
+</section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
+<section id="lsp-cyc">
 <h3>Reference cycles leak</h3>
-<p>Reference counting cannot free a cycle, in Rust as in Python (where the cycle collector cleans up afterwards; Rust has none). Leaking memory is <i>safe</i> in Rust's sense, so the compiler allows it.</p>
-<div class="lsp-vis">
-<h4>Before and after: two nodes that own each other never reach 0; make the back edge Weak and both drop</h4>
-<div class="hs"><svg viewBox="0 0 640 176" role="img" aria-label="Left: x and y point at each other with owning Rc edges; after the handles go each still has a strong count of 1, so neither is dropped. Right: x owns y, y points back to x with a Weak edge; when the handles go x's count reaches 0, x drops, which releases y, which drops">
-<defs><marker id="lsp-ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs>
-<g font-size="12" fill="var(--ink)">
-<text x="10" y="16" font-weight="600">Before: Rc both ways</text>
-<rect x="30" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="75" y="70" text-anchor="middle" font-weight="600">x</text><text x="75" y="86" text-anchor="middle" font-size="11">strong 2 then 1</text>
-<rect x="190" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="235" y="70" text-anchor="middle" font-weight="600">y</text><text x="235" y="86" text-anchor="middle" font-size="11">strong 2 then 1</text>
-<path d="M120,60 L188,60" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="154" y="54" text-anchor="middle" font-size="11">Rc</text>
-<path d="M190,84 L122,84" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="154" y="100" text-anchor="middle" font-size="11">Rc</text>
-<text x="10" y="128" font-size="11.5">Handles leave scope: counts fall to 1 and stop.</text>
-<text x="10" y="146" font-size="11.5" fill="var(--lsp-red)">No "drop" is printed: a leak, allowed in safe Rust.</text>
-<line x1="320" y1="8" x2="320" y2="168" stroke="var(--line)"/>
-<text x="340" y="16" font-weight="600">After: Weak back edge</text>
-<rect x="360" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="405" y="70" text-anchor="middle" font-weight="600">x</text><text x="405" y="86" text-anchor="middle" font-size="11">strong 1, weak 1</text>
-<rect x="520" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="565" y="70" text-anchor="middle" font-weight="600">y</text><text x="565" y="86" text-anchor="middle" font-size="11">strong 1</text>
-<path d="M450,60 L518,60" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="484" y="54" text-anchor="middle" font-size="11">Rc</text>
-<path d="M520,84 L452,84" stroke="var(--ink)" stroke-dasharray="4 3" fill="none" marker-end="url(#lsp-ar2)"/><text x="484" y="100" text-anchor="middle" font-size="11">Weak</text>
-<text x="340" y="128" font-size="11.5">Handle to x goes: x's strong count reaches 0,</text>
-<text x="340" y="146" font-size="11.5" fill="var(--good)">"drop x", which releases y: "drop y".</text>
-</g></svg></div>
-<p class="lsp-cap small">Counts are leak.rs's printed values (<code>cycle: x strong_count = 2</code>; <code>weak: x strong_count = 1, weak_count = 1</code>); the code and the full output are below.</p>
-</div>
+<p>Reference counting cannot free a cycle, in Rust as in Python (where the cycle collector cleans up afterwards; Rust has none). Leaking memory is <i>safe</i> in Rust's sense, so the compiler allows it. The figure is leak.rs's two blocks: a pair of nodes that own each other, and the same pair with the back edge made <code>Weak</code>. (The {{C++ ownership page|n:4055c17b0d0d81819d74fa010e68ac2a}} replays the same cycle with <code>shared_ptr</code> and <code>weak_ptr</code> on its smart-pointer stage: <code>Rc</code> is <code>shared_ptr</code> without atomic counts, <code>Arc</code> with them.)</p>
 <details class="ra-pr"><summary><b>Predict, then reveal:</b> Which of the four nodes print "drop"?</summary><pre class="ra-out" data-ra-out="l_leak">
 <span class="ra-cmd">$ rustc --edition 2024 leak.rs &amp;&amp; ./leak</span>
 cycle: x strong_count = 2
@@ -195,3 +183,27 @@ end of main: the Rc cycle was never dropped (a leak, which safe Rust allows)</pr
 &#125;</pre></div>
 </div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="lsp-vis">
+<h4>Before and after: two nodes that own each other never reach 0; make the back edge Weak and both drop</h4>
+<div class="hs"><svg viewBox="0 0 640 176" role="img" aria-label="Left: x and y point at each other with owning Rc edges; after the handles go each still has a strong count of 1, so neither is dropped. Right: x owns y, y points back to x with a Weak edge; when the handles go x's count reaches 0, x drops, which releases y, which drops">
+<defs><marker id="lsp-ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker></defs>
+<g font-size="12" fill="var(--ink)">
+<text x="10" y="16" font-weight="600">Before: Rc both ways</text>
+<rect x="30" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="75" y="70" text-anchor="middle" font-weight="600">x</text><text x="75" y="86" text-anchor="middle" font-size="11">strong 2 then 1</text>
+<rect x="190" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="235" y="70" text-anchor="middle" font-weight="600">y</text><text x="235" y="86" text-anchor="middle" font-size="11">strong 2 then 1</text>
+<path d="M120,60 L188,60" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="154" y="54" text-anchor="middle" font-size="11">Rc</text>
+<path d="M190,84 L122,84" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="154" y="100" text-anchor="middle" font-size="11">Rc</text>
+<text x="10" y="128" font-size="11.5">Handles leave scope: counts fall to 1 and stop.</text>
+<text x="10" y="146" font-size="11.5" fill="var(--lsp-red)">No "drop" is printed: a leak, allowed in safe Rust.</text>
+<line x1="320" y1="8" x2="320" y2="168" stroke="var(--line)"/>
+<text x="340" y="16" font-weight="600">After: Weak back edge</text>
+<rect x="360" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="405" y="70" text-anchor="middle" font-weight="600">x</text><text x="405" y="86" text-anchor="middle" font-size="11">strong 1, weak 1</text>
+<rect x="520" y="50" width="90" height="44" rx="6" fill="var(--soft)" stroke="var(--line)"/><text x="565" y="70" text-anchor="middle" font-weight="600">y</text><text x="565" y="86" text-anchor="middle" font-size="11">strong 1</text>
+<path d="M450,60 L518,60" stroke="var(--ink)" fill="none" marker-end="url(#lsp-ar2)"/><text x="484" y="54" text-anchor="middle" font-size="11">Rc</text>
+<path d="M520,84 L452,84" stroke="var(--ink)" stroke-dasharray="4 3" fill="none" marker-end="url(#lsp-ar2)"/><text x="484" y="100" text-anchor="middle" font-size="11">Weak</text>
+<text x="340" y="128" font-size="11.5">Handle to x goes: x's strong count reaches 0,</text>
+<text x="340" y="146" font-size="11.5" fill="var(--good)">"drop x", which releases y: "drop y".</text>
+</g></svg></div>
+<p class="lsp-cap small">Counts are leak.rs's printed values (<code>cycle: x strong_count = 2</code>; <code>weak: x strong_count = 1, weak_count = 1</code>); the code and the full output are below.</p>
+</div></div></div></div>

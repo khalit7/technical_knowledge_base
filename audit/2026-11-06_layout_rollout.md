@@ -79,8 +79,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_programming_languages/python/data_model_and_protocols` Python: the data model and protocols
 - [x] `engineering_foundations/topic_programming_languages/python/typing_packaging_and_toolchain` Python: typing, uv, packaging and the toolchain
 - [x] `engineering_foundations/topic_programming_languages/rust/async_services_and_clis` Rust: async with tokio, services with axum, and CLIs
-- [~] `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors` Rust: enums, traits, errors and iterators
-- [ ] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
+- [x] `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors` Rust: enums, traits, errors and iterators
+- [x] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
 - [ ] `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions` Rust: speeding up Python with PyO3 and maturin
 - [x] `engineering_foundations/topic_programming_languages/cpp` C++: the essentials
 - [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
@@ -375,3 +375,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/python/typing_packaging_and_toolchain`: no resolver stage (no trace recorded; proposal: record `uv lock -v` with a deliberate conflict); s2 checker prediction sits in the right column; uv and install stages small on phones.
 - `engineering_foundations/topic_programming_languages/python`: Fig. 1 overview step small at 390.
 - `engineering_foundations/topic_programming_languages/rust/async_services_and_clis`: Fig. 1 workers 3 and 4 crop at the right edge at 1400 and 390; axum step 7 "its future is dropped" is an inference from tower-http "will be aborted" (check wording).
+- `engineering_foundations/topic_programming_languages/rust/enums_traits_and_errors`: nine predict-then-reveal prompts (contract suggests two or three); lazy and dispatch stages dense at 390; `?` card not sticky on phones. Two new recordings (layout.rs, lazy.rs) ran on Linux x86-64 rustc 1.94.0, not the M1 (stated on the page).
+- `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe`: hero SVG scrolls sideways inside its box at 390 (predates); two framing sentences unsourced ("dropping e frees the whole tree", "the hardware makes each add indivisible").

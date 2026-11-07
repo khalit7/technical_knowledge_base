@@ -7,6 +7,7 @@ Template directives (all replaced by HTML):
   [[out:NAME]]                          recorded output out/NAME.txt (long ones folded after 22 lines)
   [[pr:NAME|QUESTION]]                  predict, then reveal: the output hidden in a <details>
   [[g:NAME|REGEX]]                      the first regex group found in out/NAME.txt (inline value)
+  [[x:PATH]]                            a value of the stage data (LSP_DATA), by dotted path
   [[sendsync]]                          the Send and Sync table, every cell checked against the two recordings
 Run: python3 src/ra/gen.py  (then sh src/build.sh)
 """
@@ -107,11 +108,20 @@ def grab(arg):
     return esc(m.group(1))
 
 
-DIRECT = re.compile(r"\[\[(code|out|pr|g):(.+?)\]\]", re.S)
+DIRECT = re.compile(r"\[\[(code|out|pr|g|x):(.+?)\]\]", re.S)
+SD = {}
+
+
+def xval(path):
+    """[[x:a.b.c]]: a value of the stage data (LSP_DATA), so the step lists print exactly what the stages draw."""
+    v = SD
+    for k in path.split("."):
+        v = v[int(k)] if isinstance(v, list) else v[k]
+    return esc(str(v))
 
 
 def render(text):
-    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab}[m.group(1)](m.group(2)), text)
+    return DIRECT.sub(lambda m: {"code": code, "out": out, "pr": pr, "g": grab, "x": xval}[m.group(1)](m.group(2)), text)
 
 
 # (type, Send, Sync, why). "yes" cells must be asserted in code/lang/sendsync.rs (which compiles and runs);
@@ -155,10 +165,87 @@ def sendsync():
             f"<tbody>{body}</tbody></table></div>")
 
 
+def lineno(path, rx, start=1):
+    """1-based number of the first line of code/PATH (from line START) matching RX."""
+    for i, l in enumerate(src(path).split("\n")[start - 1:], start):
+        if re.search(rx, l):
+            return i
+    sys.exit(f"no line matching {rx} in {path}")
+
+
+def g1(name, rx, conv=str):
+    m = re.search(rx, read_out(name), re.M)
+    if not m:
+        sys.exit(f"stage data: no match for {rx} in {name}")
+    return conv(m.group(1))
+
+
+def stage_data():
+    """LSP_DATA for the four 3D stages: every value read from code/ (line numbers, loop counts) or out/ (printed results)."""
+    E, OK = "lang/life_err2.rs", "lang/life.rs"
+    err = read_out("l_life_err2")
+    pts = {k: int(re.search(r"^\s*(\d+) \|.*\n\s*\|.*" + rx, err, re.M).group(1)) for k, rx in
+           (("decl", "binding `b` declared here"), ("borrow", "borrowed value does not live long enough"),
+            ("drop", "`b` dropped here while still borrowed"), ("use", "borrow later used here"))}
+    nE = len(src(E).split("\n"))
+    life = {
+        "err": {"a": lineno(E, r"let a ="), "b": lineno(E, r"let b ="), "call": lineno(E, r"w = longest"),
+                "bend": lineno(E, r"^\s*\}", lineno(E, r"let b =")), "use": lineno(E, r'println!\("\{w\}"\)'), "end": nE,
+                "code": g1("l_life_err2", r"^(error\[E\d+\]: .*)$"), "pts": pts},
+        "ok": {"a": lineno(OK, r"let a ="), "b": lineno(OK, r"let b ="), "call": lineno(OK, r"w = longest"),
+               "use": lineno(OK, r"println!\(\"longest"), "bend": lineno(OK, r"^\s*\}", lineno(OK, r"let b =")),
+               "end": len(src(OK).split("\n")), "out": g1("l_life", r"^(longest: .*)$")},
+    }
+    assert life["err"]["b"] == pts["decl"] and life["err"]["call"] == pts["borrow"] and life["err"]["bend"] == pts["drop"] and life["err"]["use"] == pts["use"], (life, pts)
+    smart = {"eval": g1("l_smart", r"^(2 \+ 3 \* 4 = \S+)$"), "inside": g1("l_smart", r"strong_count inside = (\d+)", int),
+             "after": g1("l_smart", r"strong_count after = (\d+)", int), "hits": g1("l_smart", r"hits = (\d+)", int),
+             "name": g1("l_smart", r"name = (.*)$"), "log": g1("l_smart", r"^log = (.*)$"),
+             "box": g1("l_smart", r"size_of Box<Expr> = (\d+)", int), "rc": g1("l_smart", r"Rc<Doc> = (\d+)", int),
+             "expr": g1("l_smart", r"Expr = (\d+)$", int), "panic_at": g1("l_smart", r"panicked at (smart\.rs:\d+:\d+)"),
+             "panic": g1("l_smart", r"^(RefCell already borrowed)$"),
+             "lines": {"new": lineno("lang/smart.rs", r"Rc::new\(Doc"), "clone_a": lineno("lang/smart.rs", r"let a = Rc::clone"),
+                       "clone_b": lineno("lang/smart.rs", r"let b = Rc::clone"), "set": lineno("lang/smart.rs", r"cache_hits\.set"),
+                       "b_end": lineno("lang/smart.rs", r"^\s*\}", lineno("lang/smart.rs", r"let b = Rc::clone")),
+                       "log": lineno("lang/smart.rs", r"let log = "), "first": lineno("lang/smart.rs", r"let first = "),
+                       "second": lineno("lang/smart.rs", r"let second = ")}}
+    assert smart["panic_at"] == f"smart.rs:{smart['lines']['second']}:22", smart
+    T = src("lang/threads.rs")
+    nthr = int(re.search(r"for _ in 0\.\.(\d+) \{\s*\n\s*let c = Arc::clone", T).group(1))
+    per = int(re.search(r"for _ in 0\.\.([\d_]+) \{ \*c\.lock", T).group(1).replace("_", ""))
+    thr = {"spawned": g1("l_threads", r"^spawned: (.*)$"), "scoped": g1("l_threads", r"^scoped sum: (\d+)$", int),
+           "mutex": g1("l_threads", r"^mutex counter: (\d+)", int), "atomic": g1("l_threads", r"^atomic counter: (\d+)$", int),
+           "channel": g1("l_threads", r"^channel: (.*)$"), "n": nthr, "per": per,
+           "docs": re.findall(r'"([^"]*)"', re.search(r"let docs = vec!\[(.*?)\]", T).group(1)),
+           "workers": int(re.search(r"for id in 0\.\.(\d+)", T).group(1)),
+           "rc_err": g1("l_rc_thread_err", r"^error\[E0277\]: (.*)$")}
+    assert thr["mutex"] == thr["atomic"] == nthr * per, thr
+    U = src("ub/src/main.rs")
+    ub = {"vals": [int(x) for x in re.findall(r"(\d+)(?:u32)?", re.search(r"let v = vec!\[(.*?)\]", U).group(1))],
+          "elt": 4 if "u32" in re.search(r"let v = vec!\[(.*?)\]", U).group(1) else None,
+          "past": int(re.search(r"\*p\.add\((\d+)\)", U).group(1)),
+          "w": [int(x) for x in re.findall(r"(\d+)(?:u32)?", re.search(r"let w = vec!\[(.*?)\]", U).group(1))],
+          "run_past": g1("l_ub_run", r"read past the end: (\d+)", int), "run_free": g1("l_ub_run", r"read after free: (\d+)", int),
+          "miri": g1("l_ub_miri", r"error: Undefined Behavior: (.*)$"), "miri_at": g1("l_ub_miri", r"--> (src/main\.rs:\d+:\d+)"),
+          "size": g1("l_ub_miri", r"allocation of size (\d+) bytes", int), "off": g1("l_ub_miri", r"\+0x([0-9a-f]+)", lambda h: int(h, 16)),
+          "acc": g1("l_ub_miri", r"attempting to access (\d+) bytes", int)}
+    assert ub["size"] == ub["elt"] * len(ub["vals"]) and ub["off"] == ub["past"] * ub["elt"], ub
+    UO = src("lang/unsafe_ok.rs")
+    uok = {"vals": [int(x) for x in re.findall(r"(\d+)(?:u32)?", re.search(r"let v = vec!\[(.*?)\]", UO).group(1))],
+           "idx": int(re.search(r"\*p\.add\((\d+)\)", UO).group(1)), "second": g1("l_unsafe_ok", r"second = (\d+)", int),
+           "a": [int(x) for x in re.findall(r"\d+", re.search(r"let mut a = \[(.*?)\]", UO).group(1))],
+           "mid": int(re.search(r"split_at_mut\((\d+)\)", UO).group(1)), "after": g1("l_unsafe_ok", r"^(\[.*\])$")}
+    assert uok["vals"][uok["idx"]] == uok["second"], uok
+    return {"life": life, "smart": smart, "thr": thr, "ub": ub, "uok": uok}
+
+
 def main():
+    SD.update(stage_data())
     for t in sorted(TPL.glob("*.html")):
         (PARTS / t.name).write_text(render(t.read_text()).replace("[[sendsync]]", sendsync()))
         print("wrote", t.name)
+    (PARTS / "22_js_lsp_data.js").write_text("// Generated by src/ra/gen.py from ra/code and ra/out: the values the four 3D stages draw. Never edit by hand.\n"
+                                              "window.LSP_DATA=" + json.dumps(SD, ensure_ascii=False, separators=(",", ":")) + ";\n")
+    print("wrote 22_js_lsp_data.js")
 
 
 main()

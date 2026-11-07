@@ -8,7 +8,8 @@ Template directives (all replaced by HTML):
   [[g:NAME|REGEX]]                      the first regex group found in out/NAME.txt (inline value)
   [[drill:ID]]                          a Python-to-Rust prediction prompt: the Python, three Rust candidates,
                                         and their recorded results in a closed block (notes from content.py)
-Also writes parts/34_js_ra_data.js (the iterator benchmark, errors.rs for the ? stepper, the strings run) from the recordings.
+Also writes parts/34_js_ra_data.js (the iterator benchmark, errors.rs for the ? stepper, the strings run, and the layout,
+lazy-chain, traits and mono recordings that drive the three 3D stages) from the recordings.
 Run: python3 src/ra/gen.py  (then sh src/build.sh)
 """
 import html, json, re, sys
@@ -157,7 +158,9 @@ def render(text):
 def data():
     return {"bench": {"rs": read_out("t_iterbench"), "py": read_out("t_iterbench_py")},
             "errors": {"src": src("lang/errors.rs"), "out": read_out("l_errors")},
-            "strings": {"out": read_out("l_strings")}}
+            "strings": {"out": read_out("l_strings")},
+            "layout": read_out("l_layout"), "lazy": read_out("l_lazy"),
+            "traits": read_out("l_traits"), "mono": read_out("l_mono")}
 
 
 def main():

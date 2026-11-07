@@ -1,5 +1,5 @@
 // Checks for "Rust: enums, traits, errors and iterators": click every control of the Reading tab at 390 dark and
-// 920 light (reduced motion); report script errors, NaN/undefined and sideways scroll; confirm the page embeds exactly
+// 920 light (reduced motion, so nothing may change without input; autoplay itself is checked by ../check_stages.mjs); report script errors, NaN/undefined and sideways scroll; confirm the page embeds exactly
 // the recorded outputs and that the JS data equals the files; confirm each prediction prompt has exactly one candidate
 // whose recorded output equals Python's, and that it is the marked answer.
 // usage: node src/ra/check.mjs [shots dir]   (puppeteer from html_utils/node_modules)
@@ -40,8 +40,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (let v = 0; v <= 20; v++) { s.value = v; s.dispatchEvent(new Event('input')); clicks++ }
     for (const g of tab.querySelectorAll('.seg')) for (const bt of g.querySelectorAll('button')) {
       bt.click(); clicks++; await wait(10);
-      for (let i = 0; i < 9; i++) { document.getElementById('ra-q-f').click(); clicks++ }
-      for (let i = 0; i < 9; i++) { document.getElementById('ra-q-b').click(); clicks++ }
+      for (let i = 0; i < 9; i++) { document.getElementById('ra-q-ctl-f').click(); clicks++ }
+      for (let i = 0; i < 9; i++) { document.getElementById('ra-q-ctl-b').click(); clicks++ }
     }
     for (const q of tab.querySelectorAll('.ra-dq')) { q.querySelector('button[data-pick="a"]').click(); clicks++ }
     for (const d of tab.querySelectorAll('details')) { d.open = true; clicks++ }
@@ -66,10 +66,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const D = await p.evaluate(() => window.RA_DATA);
     let dbad = 0;
     const eq = (a, nm) => { if (a !== file(nm)) { dbad++; console.log('DATA MISMATCH', nm) } };
-    eq(D.bench.rs, 't_iterbench'); eq(D.bench.py, 't_iterbench_py'); eq(D.errors.out, 'l_errors'); eq(D.strings.out, 'l_strings');
+    eq(D.bench.rs, 't_iterbench'); eq(D.bench.py, 't_iterbench_py'); eq(D.errors.out, 'l_errors'); eq(D.strings.out, 'l_strings'); eq(D.layout, 'l_layout'); eq(D.lazy, 'l_lazy'); eq(D.traits, 'l_traits'); eq(D.mono, 'l_mono');
     if (D.errors.src !== fs.readFileSync(path.join(here, 'code/lang/errors.rs'), 'utf8').replace(/\n+$/, '')) { dbad++; console.log('DATA MISMATCH errors.rs') }
     // the ? stepper's printed lines come from the recording
-    const cap = await p.evaluate(async () => { const out = []; for (const m of ['bad', 'missing', 'good']) { document.querySelector('#ra-q-seg button[data-m="' + m + '"]').click(); for (let i = 0; i < 9; i++) document.getElementById('ra-q-f').click(); out.push(document.getElementById('ra-q-cap').textContent) } return out });
+    // (2026-11-07: the per-step caption became the step lists sx-q-*; the last step must be the marked item and print the recorded line)
+    const cap = await p.evaluate(async () => { const out = []; for (const m of ['bad', 'missing', 'good']) { document.querySelector('#ra-q-seg button[data-m="' + m + '"]').click(); for (let i = 0; i < 9; i++) document.getElementById('ra-q-ctl-f').click(); const l = document.getElementById('sx-q-' + m), on = l.querySelector('li.on'); out.push(on === l.lastElementChild && !l.hidden ? on.textContent : 'not on the last step') } return out });
     const lines = file('l_errors').split('\n');
     const wantCap = [lines.find(l => l.startsWith('error: context')).replace(/\s+\(debug:.*$/, ''), lines.find(l => l.startsWith('error: missing')).replace(/\s+\(debug:.*$/, ''), lines.find(l => l.startsWith('ok:'))];
     cap.forEach((c, i) => { if (!c.includes(wantCap[i])) { dbad++; console.log('STEPPER', i, c) } });

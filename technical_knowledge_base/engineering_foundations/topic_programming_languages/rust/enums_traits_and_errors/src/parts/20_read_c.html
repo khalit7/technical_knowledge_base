@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-dyn"></div></div><div class="s3L">
 <section id="ra-trait">
 <h2>4. Traits and generics: duck typing, checked</h2>
 <p>A <dfn>trait</dfn> names a set of methods a type promises to provide, like a Python <code>Protocol</code>, except that a type must say so explicitly (<code>impl Tokenizer for Whitespace</code>) and the compiler checks it before the program runs. A trait may have default methods written in terms of the others. A <dfn>generic</dfn> function takes a type parameter with a <dfn>bound</dfn>: <code>fn total&lt;T: Tokenizer&gt;</code> accepts any <code>T</code> that implements <code>Tokenizer</code>.</p>
@@ -64,25 +65,18 @@ dyn: whitespace = 7
 dyn: chars/3 = 10
 1.5, 2.25
 size_of &amp;Whitespace = 8, &amp;dyn Tokenizer = 16</pre>
-<p>There are two ways to call through a trait, and the choice is a real trade-off:</p>
-<div class="ra-fig"><h4>A generic is copied per type and called directly; a trait object is one copy called through a table</h4>
-<div class="ra-boxes">
-<div><b class="small">Generic <code>total&lt;T: Tokenizer&gt;</code></b>
-<div class="ra-bx"><span class="lb">your source</span>fn total&lt;T: Tokenizer&gt;(t: &amp;T, ...)</div>
-<div class="ra-arrow">&#8595; compiled once per type used (monomorphisation)</div>
-<div class="ra-bx acc"><span class="lb">machine code</span>total::&lt;Whitespace&gt; &nbsp;calls Whitespace::count directly, inlined</div>
-<div class="ra-bx acc"><span class="lb">machine code</span>total::&lt;Chars&gt; &nbsp;calls Chars::count directly, inlined</div>
-<div class="small">The argument is a plain reference: <b>8 bytes</b> (<code>&amp;Whitespace</code>, recorded above).</div>
-</div>
-<div><b class="small">Trait object <code>&amp;dyn Tokenizer</code></b>
-<div class="ra-ptr"><span>data pointer</span><span>vtable pointer</span></div>
-<div class="small">A "fat" pointer: <b>16 bytes</b> (recorded above).</div>
-<div class="ra-arrow">&#8595; the vtable for Chars (one per type, built by the compiler)</div>
-<div class="ra-bx"><span class="lb">vtable</span>drop, size, align<br>name &#8594; Chars::name<br>count &#8594; Chars::count<br>report &#8594; the default method</div>
-<div class="ra-bx"><span class="lb">machine code</span>total_dyn &nbsp;one copy; each <code>t.count(d)</code> loads the address from the table, then calls it</div>
-</div>
-</div>
-</div>
+<p>There are two ways to call through a trait, and the choice is a real trade-off. The figure follows both through the compiled program:</p>
+<ol class="sx" id="sx-dyn">
+<li><b>One generic, written once.</b> <code>mono.rs</code> defines <code>biggest&lt;T: PartialOrd + Copy&gt;</code> once and calls it on slices of <code>u8</code>, <code>i64</code>, <code>f64</code> and <code>char</code>.</li>
+<li><b>Compiled four times.</b> The release binary's symbol table (<code>nm</code>, recorded below) holds four functions: <code>biggest::&lt;char&gt;</code>, <code>&lt;f64&gt;</code>, <code>&lt;i64&gt;</code> and <code>&lt;u8&gt;</code>. Each is compiled for its own type, so <code>x &gt; b</code> is one machine comparison of that type: this is <dfn>monomorphisation</dfn>.</li>
+<li><b>A generic call is direct.</b> <code>biggest(&amp;[1u8, 7, 3])</code> jumps straight to <code>biggest::&lt;u8&gt;</code>: the target is known when compiling, so it can be inlined and optimised with the caller.</li>
+<li><b>A trait object is a fat pointer.</b> <code>&amp;Whitespace</code> is 8 bytes; <code>&amp;dyn Tokenizer</code> is 16 (recorded above): one word points at the value, the second at the vtable of the value's type.</li>
+<li><b>One vtable per type.</b> The compiler builds one table per type used as <code>dyn Tokenizer</code>: drop, size, align, then <code>name</code> &#8594; <code>Chars::name</code>, <code>count</code> &#8594; <code>Chars::count</code>, <code>report</code> &#8594; the default method. Every <code>&amp;dyn Tokenizer</code> to a <code>Chars</code> shares it; <code>Whitespace</code> has its own.</li>
+<li><b>The call: a load and a jump.</b> <code>total_dyn</code> is compiled once. Each <code>t.count(d)</code> loads the address of <code>count</code> from the table the second word points at, then calls it with the first word as <code>self</code>. The target is not known when compiling, so it cannot be inlined.</li>
+<li><b>The extra word is in the reference, not the value.</b> A value is passed either by a plain reference (8 bytes, like <code>&amp;Whitespace</code>: direct calls) or as <code>&amp;dyn Tokenizer</code> (16 bytes: calls through the table); the value itself carries no table pointer, so you pay only where you write <code>dyn</code>. C++ puts its vtable pointer inside every object of a class with a virtual function instead (8 bytes grow to 16 on {{C++: classes, templates and the standard library|n:4055c17b0d0d818a9509f6035089a7e1}}, whose section 2 follows a virtual call through memory; the table and the loads are the same idea).</li>
+<li><b>What the table costs in a hot loop.</b> The same closure called through a generic took 0.289 ns per element, through <code>&amp;dyn Fn</code> 0.954 ns: about three times slower, because the call through the table blocks inlining (section 5 has the full measurement).</li>
+</ol>
+<p class="small mute">Byte rows drawn to scale (one cube per byte) from <code>size_of</code> in <code>traits.rs</code>; the symbol names are <code>mono.rs</code>'s recorded <code>nm</code> output; the nanoseconds are <code>iterbench.rs</code>'s. The vtable's contents are simplified, and functions are drawn as boxes, not to scale.</p>
 <div class="tw"><table><thead><tr><th></th><th>Generic <code>&lt;T: Tokenizer&gt;</code></th><th>Trait object <code>&amp;dyn Tokenizer</code></th></tr></thead><tbody>
 <tr><td>How it is compiled</td><td><dfn>monomorphisation</dfn>: one copy of the function per concrete type, each optimised (inlined) for that type</td><td>one copy; each call looks the method up in a table of function pointers (a <dfn>vtable</dfn>)</td></tr>
 <tr><td>Costs</td><td>compile time and binary size grow with each type used</td><td>an indirect call per method; no inlining across it</td></tr>
@@ -118,6 +112,9 @@ t mono::biggest_dyn</pre>
     <span class="ra-kw">let</span> one = || 1.0; <span class="ra-kw">let</span> two = || 2.0;
     <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;&#125;"</span>, biggest_dyn(&amp;[&amp;one, &amp;two]));
 &#125;</pre></div></div></details>
+</section>
+</div></div>
+<section id="ra-trait-more" aria-label="Traits: errors and rules">
 <p>Section 5 measures what the vtable costs in a hot loop. Two real errors worth recognising. Use an operator the bound does not promise, and you get E0369, "binary operation <code>&gt;</code> cannot be applied to type <code>&amp;T</code>", with the help "consider restricting type parameter <code>T</code> with trait <code>PartialOrd</code>". Pass a type that does not implement the trait, and you get E0277, "the trait bound <code>Whitespace: Tokenizer</code> is not satisfied", pointing at the call and at the bound; Python would fail at run time, on the first call to the missing method.</p>
 <details class="dp"><summary>The two errors in full</summary><div><pre class="ra-out ra-bad" data-ra-out="l_bound_err">
 <span class="ra-cmd">$ rustc --edition 2024 bound_err.rs</span>
@@ -232,14 +229,11 @@ For more information about this error, try `rustc --explain E0599`.
 [0.1, 0.2, 0.3]</pre></details></div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="ra-iter">
 <h2>5. Iterators and closures: lazy pipelines that cost nothing</h2>
 <p>An <dfn>iterator</dfn> in Rust is any type with a <code>next()</code> method returning <code>Option&lt;Item&gt;</code>, the same protocol as Python's <code>__next__</code> raising <code>StopIteration</code>. Adapters such as <code>map</code>, <code>filter</code>, <code>zip</code>, <code>enumerate</code>, <code>take</code> build a lazy pipeline, like a generator expression; a <dfn>consumer</dfn> (<code>collect</code>, <code>sum</code>, <code>count</code>, <code>fold</code>, a <code>for</code> loop) runs it. A <dfn>closure</dfn> is an anonymous function that can capture variables from where it is written: <code>|x| x * 2</code> is Python's <code>lambda x: x * 2</code>, but with any number of statements.</p>
 <p>What is new for a Python programmer is the cost, so it comes first. Rust's claim is that the iterator chain compiles to the same machine code as the hand-written loop. The same work five ways (sum of <code>x*x</code> over the even values in 10 million <code>u64</code>, release build, best of 9) and in CPython 3.14 (best of 3):</p>
-<div class="ra-fig"><h4>The chain runs as fast as the loop; only a closure hidden behind <code>&amp;dyn Fn</code> is slower, and CPython's generator about 150 times slower than the chain</h4>
-<div class="bars ra-bench" id="ra-bench-bars"></div>
-<p class="small"><span class="ra-meas">measured</span> All four statically dispatched versions take the same time, about <b>0.293 ns per element</b>: the closures were inlined and the loop vectorised, so the chain really is free. Calling the closure through <code>&amp;dyn Fn</code>, with the target hidden from the optimiser, blocks inlining and takes 0.954 ns, about three times slower: still far below CPython's 45.8 ns per element for the generator expression (71.4 for the plain loop). The machine was busy (load average around 16 on 10 cores, recorded before and after), so take the ratios, not the absolute values; all seven results agree (1662703719376).</p>
-</div>
 <details class="dp"><summary>The benchmark code, the raw recordings and the load average</summary><div><div class="ra-src"><div class="ra-fn">iterbench.rs (lines 1 to 31)</div><pre class="ra-code"><span class="ra-cm">// Is an iterator chain really as fast as a hand-written loop? Same work, five ways:</span>
 <span class="ra-cm">// sum of x*x over the even numbers in a Vec&lt;u64&gt; of 10 million pseudo-random values.</span>
 <span class="ra-kw">use</span> std::hint::black_box;
@@ -285,7 +279,98 @@ sum(generator)                   45.8 ns/element  result 1662703719376</pre><pre
 Apple M1 Pro</pre><pre class="ra-out" data-ra-out="t_load_after">
 <span class="ra-cmd">$ sysctl -n vm.loadavg</span>
 &#123; 17.03 16.06 12.18 &#125;</pre></div></details>
-<p>The laziness is Python's, so one recorded program covers the rest of the API:</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="ra-fig card"><h4>The chain runs as fast as the loop; only a closure hidden behind <code>&amp;dyn Fn</code> is slower, and CPython's generator about 150 times slower than the chain</h4>
+<div class="bars ra-bench" id="ra-bench-bars"></div>
+<p class="small"><span class="ra-meas">measured</span> All four statically dispatched versions take the same time, about <b>0.293 ns per element</b>: the closures were inlined and the loop vectorised, so the chain really is free. Calling the closure through <code>&amp;dyn Fn</code>, with the target hidden from the optimiser, blocks inlining and takes 0.954 ns, about three times slower: still far below CPython's 45.8 ns per element for the generator expression (71.4 for the plain loop). The machine was busy (load average around 16 on 10 cores, recorded before and after), so take the ratios, not the absolute values; all seven results agree (1662703719376).</p>
+</div>
+</div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-lazy"></div></div><div class="s3L">
+<section id="ra-lazy">
+<h3>Why it costs nothing: one value, pulled from the end</h3>
+<p>The laziness is Python's; what makes it free is how the chain is built. <code>lazy.rs</code> runs the chain from <code>iters.rs</code> with a print inside each closure, then the same work the Python-list way, then with <code>take(2)</code>; the figure replays its trace:</p>
+<ol class="sx" id="sx-lazy">
+<li><b>Built: one small value, nothing ran.</b> <code>words.iter().filter(..).map(..)</code> is a single value of 16 bytes whose type nests the stages: <code>Map&lt;Filter&lt;Iter&lt;&amp;str&gt;, closure&gt;, closure&gt;</code> (<code>type_name_of_val</code> printed it). The closures are part of the type, so the compiler sees every call; no closure has run yet.</li>
+<li><b><code>collect</code> pulls "Rust" through.</b> <code>collect</code> asks <code>Map</code> for an item, <code>Map</code> asks <code>Filter</code>, <code>Filter</code> asks the slice iterator. "Rust" comes back: the filter keeps it, the map lowercases it, <code>collect</code> pushes "rust".</li>
+<li><b>"is" stops at the filter.</b> The filter drops it and asks the slice for the next word itself; the map never sees "is".</li>
+<li><b>"fast", then "and".</b> Each word goes all the way through before the next is read: the trace alternates filter, map, filter, map.</li>
+<li><b>"safe", "and", "fun", then the end.</b> The slice runs out, <code>next()</code> returns <code>None</code>, and <code>collect</code> returns the 6 words. No list existed in between: the chain held one word at a time.</li>
+<li><b>The Python-list habit: filter everything first.</b> Collecting after the filter runs it on all 7 words into a first <code>Vec</code> of 6.</li>
+<li><b>Then map, into a second <code>Vec</code>.</b> The map runs 6 times over the first <code>Vec</code>: two full buffers, and the trace reads 7 filters, then 6 maps.</li>
+<li><b><code>take(2)</code> stops early.</b> With <code>.take(2)</code> before <code>collect</code>, pulling stops once "fast" is out: 3 words filtered, 2 mapped; "and", "safe", "and" and "fun" are never read.</li>
+</ol>
+<details class="dp"><summary>The program, <code>lazy.rs</code>, and its trace</summary><div><div class="ra-src"><div class="ra-fn">lazy.rs</div><pre class="ra-code"><span class="ra-cm">// The chain from iters.rs, with a print in each closure: who runs, in what order.</span>
+<span class="ra-cm">// Lazy: collect pulls one word at a time through filter and map.</span>
+<span class="ra-cm">// Eager: the Python-list habit, a full Vec after each step.</span>
+<span class="ra-cm">// take(2): the consumer stops early, so the source is never read to the end.</span>
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-kw">let</span> words = [<span class="ra-st">"Rust"</span>, <span class="ra-st">"is"</span>, <span class="ra-st">"fast"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"safe"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"fun"</span>];
+    <span class="ra-kw">let</span> chain = words.iter()
+        .filter(|w| &#123; <span class="ra-kw">let</span> keep = w.len() &gt; 2; <span class="ra-mac">println!</span>(<span class="ra-st">"  filter &#123;w:&lt;5&#125; &#123;&#125;"</span>, <span class="ra-kw">if</span> keep &#123; <span class="ra-st">"keep"</span> &#125; <span class="ra-kw">else</span> &#123; <span class="ra-st">"drop"</span> &#125;); keep &#125;)
+        .map(|w| &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"  map    &#123;w:&lt;5&#125; -&gt; &#123;&#125;"</span>, w.to_lowercase()); w.to_lowercase() &#125;);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"lazy: chain built, nothing printed yet"</span>);
+    <span class="ra-mac">println!</span>(<span class="ra-st">"lazy: the chain is one value of &#123;&#125; bytes, type &#123;&#125;"</span>, std::mem::size_of_val(&amp;chain), std::any::type_name_of_val(&amp;chain));
+    <span class="ra-kw">let</span> long: Vec&lt;String&gt; = chain.collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"lazy: collect returned &#123;long:?&#125;"</span>);
+    <span class="ra-kw">let</span> kept: Vec&lt;&amp;&amp;str&gt; = words.iter()
+        .filter(|w| &#123; <span class="ra-kw">let</span> keep = w.len() &gt; 2; <span class="ra-mac">println!</span>(<span class="ra-st">"  filter &#123;w:&lt;5&#125; &#123;&#125;"</span>, <span class="ra-kw">if</span> keep &#123; <span class="ra-st">"keep"</span> &#125; <span class="ra-kw">else</span> &#123; <span class="ra-st">"drop"</span> &#125;); keep &#125;)
+        .collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"eager: first Vec, &#123;&#125; items &#123;kept:?&#125;"</span>, kept.len());
+    <span class="ra-kw">let</span> lower: Vec&lt;String&gt; = kept.iter()
+        .map(|w| &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"  map    &#123;w:&lt;5&#125; -&gt; &#123;&#125;"</span>, w.to_lowercase()); w.to_lowercase() &#125;)
+        .collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"eager: second Vec, &#123;&#125; items &#123;lower:?&#125;"</span>, lower.len());
+    <span class="ra-cm">// Lazy again, but the consumer wants only two: the rest of the words are never looked at.</span>
+    <span class="ra-kw">let</span> two: Vec&lt;String&gt; = words.iter()
+        .filter(|w| &#123; <span class="ra-kw">let</span> keep = w.len() &gt; 2; <span class="ra-mac">println!</span>(<span class="ra-st">"  filter &#123;w:&lt;5&#125; &#123;&#125;"</span>, <span class="ra-kw">if</span> keep &#123; <span class="ra-st">"keep"</span> &#125; <span class="ra-kw">else</span> &#123; <span class="ra-st">"drop"</span> &#125;); keep &#125;)
+        .map(|w| &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"  map    &#123;w:&lt;5&#125; -&gt; &#123;&#125;"</span>, w.to_lowercase()); w.to_lowercase() &#125;)
+        .take(2)
+        .collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"take(2): collect returned &#123;two:?&#125;"</span>);
+&#125;</pre></div><pre class="ra-out" data-ra-out="l_lazy">
+<span class="ra-cmd">$ rustc --version &amp;&amp; uname -sm &amp;&amp; rustc --edition 2024 lazy.rs &amp;&amp; ./lazy</span>
+rustc 1.94.0 (4a4ef493e 2026-03-02)
+Linux x86_64
+lazy: chain built, nothing printed yet
+lazy: the chain is one value of 16 bytes, type core::iter::adapters::map::Map&lt;core::iter::adapters::filter::Filter&lt;core::slice::iter::Iter&lt;'_, &amp;str&gt;, lazy::main::&#123;&#123;closure&#125;&#125;&gt;, lazy::main::&#123;&#123;closure&#125;&#125;&gt;
+  filter Rust  keep
+  map    Rust  -&gt; rust
+  filter is    drop
+  filter fast  keep
+  map    fast  -&gt; fast
+  filter and   keep
+  map    and   -&gt; and
+  filter safe  keep
+  map    safe  -&gt; safe
+  filter and   keep
+  map    and   -&gt; and
+  filter fun   keep
+  map    fun   -&gt; fun
+lazy: collect returned ["rust", "fast", "and", "safe", "and", "fun"]</pre><details class="ra-more"><summary>show the remaining 21 lines</summary><pre class="ra-out" data-ra-rest="l_lazy">
+  filter Rust  keep
+  filter is    drop
+  filter fast  keep
+  filter and   keep
+  filter safe  keep
+  filter and   keep
+  filter fun   keep
+eager: first Vec, 6 items ["Rust", "fast", "and", "safe", "and", "fun"]
+  map    Rust  -&gt; rust
+  map    fast  -&gt; fast
+  map    and   -&gt; and
+  map    safe  -&gt; safe
+  map    and   -&gt; and
+  map    fun   -&gt; fun
+eager: second Vec, 6 items ["rust", "fast", "and", "safe", "and", "fun"]
+  filter Rust  keep
+  map    Rust  -&gt; rust
+  filter is    drop
+  filter fast  keep
+  map    fast  -&gt; fast
+take(2): collect returned ["rust", "fast"]</pre></details></div></details>
+<p>The rest of the API, in one recorded program:</p>
 <div class="ra-src"><div class="ra-fn">iters.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;
     <span class="ra-kw">let</span> words = [<span class="ra-st">"Rust"</span>, <span class="ra-st">"is"</span>, <span class="ra-st">"fast"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"safe"</span>, <span class="ra-st">"and"</span>, <span class="ra-st">"fun"</span>];
     <span class="ra-cm">// An iterator chain: lazy until something consumes it (collect, sum, for).</span>
@@ -339,6 +424,9 @@ even [2, 4, 6] odd [1, 3, 5]
 short 4, seen 7, consume() 5
 [3, 2, 1]</pre></details>
 <p>Closures capture in the least demanding way that works, and the compiler records which in the closure's type: <code>Fn</code> (reads captured values: <code>short</code> above), <code>FnMut</code> (changes them: <code>count</code>), <code>FnOnce</code> (moves them out, so it can run once). <code>move</code> before a closure makes it take ownership of what it captures (<code>consume</code>), needed when the closure outlives the current function, as a thread's does ({{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}). A type with a <code>next()</code> method (<code>Countdown</code>) is Rust's generator: any struct can be an iterator.</p>
+</section>
+</div></div>
+<section id="ra-iter-p" aria-label="Iterators: predictions">
 <div class="ra-dq" id="ra-dq-d07" data-ans="b"><div class="ra-dqh"><b>Predict:</b> A list comprehension. Which Rust version prints what the Python prints?</div><div class="ra-two"><div><div class="ra-src"><div class="ra-fn">d07.py</div><pre class="ra-code"><span class="ra-kw">print</span>([x * x <span class="ra-kw">for</span> x <span class="ra-kw">in</span> range(5) <span class="ra-kw">if</span> x % 2 == 0])</pre></div></div><div><pre class="ra-out" data-ra-out="dr_d07_py">
 <span class="ra-cmd">$ python3.14 d07.py</span>
 [0, 4, 16]</pre></div></div><div class="ra-dc"><div class="ra-cand" data-c="a"><div class="h"><span>A</span><button type="button" data-pick="a">This one</button></div><div class="ra-src"><div class="ra-fn">d07_a.rs</div><pre class="ra-code"><span class="ra-kw">fn</span> main() &#123;

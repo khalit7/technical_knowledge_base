@@ -1,14 +1,9 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="ra-enum">
 <h2>2. Structs, enums and match: make illegal states unrepresentable</h2>
 <p>A <dfn>struct</dfn> is a record with named fields, like a dataclass. An <dfn>enum</dfn> in Rust is far more than Python's <code>Enum</code>: each <dfn>variant</dfn> can carry its own data, so one type says "a message is <i>either</i> text from a user, <i>or</i> a tool call with arguments, <i>or</i> an image of some size". This is called a sum type or tagged union. <code>match</code> takes it apart, and must cover every variant.</p>
 <p>The design habit this enables matters more than the syntax. Python code often models state as one class with optional fields and a status string, and every method checks that the fields agree with the status. In Rust, give each state exactly the data it has. "Connected but no session id" or "failed with no error" then cannot be written at all:</p>
-<div class="ra-fig" id="ra-states-card"><h4>The same connection, two ways: 32 states you can write, 4 that make sense</h4>
-<div class="seg" id="ra-states-seg"><button data-m="py" class="on">Python: status string plus optional fields</button><button data-m="rs">Rust: one enum</button></div>
-<div id="ra-states"></div>
-<p class="small" id="ra-states-cap"></p>
-<p class="small mute">Counting only the four status strings the code uses, a class with <code>status</code> and three optional fields (<code>attempt</code>, <code>session_id</code>, <code>error</code>) can hold 4 &times; 2 &times; 2 &times; 2 = 32 combinations; 4 are legal. The Rust enum is <code>code/lang/states.rs</code> below; the Python class is illustrative, not run.</p>
-</div>
 <div class="ra-src"><div class="ra-fn">states.rs (lines 1 to 20)</div><pre class="ra-code"><span class="ra-cm">// Python habit: one class with optional fields and a status string.</span>
 <span class="ra-cm">// Here every state carries exactly the data that state has, so</span>
 <span class="ra-cm">// "connected but no socket" or "failed but no error" cannot be written.</span>
@@ -40,7 +35,127 @@ Failed &#123; error: "timeout" &#125;
 size_of Option&lt;u64&gt; = 16
 size_of Option&lt;&amp;u64&gt; = 8
 size_of Option&lt;Box&lt;u64&gt;&gt; = 8</pre>
-<p>The last three lines show a related point: <code>Option&lt;u64&gt;</code> needs 16 bytes (8 for the number, plus a tag, padded), but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in 8, because a reference is never null and the compiler uses the null value to mean <code>None</code> (the "niche" optimisation). Safety without null costs nothing there.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="ra-fig card" id="ra-states-card"><h4>The same connection, two ways: 32 states you can write, 4 that make sense</h4>
+<div class="seg" id="ra-states-seg"><button data-m="py" class="on">Python: status string plus optional fields</button><button data-m="rs">Rust: one enum</button></div>
+<div id="ra-states"></div>
+<p class="small" id="ra-states-cap"></p>
+<p class="small mute">Counting only the four status strings the code uses, a class with <code>status</code> and three optional fields (<code>attempt</code>, <code>session_id</code>, <code>error</code>) can hold 4 &times; 2 &times; 2 &times; 2 = 32 combinations; 4 are legal. The Rust enum is <code>code/lang/states.rs</code> below; the Python class is illustrative, not run.</p>
+</div>
+</div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-lay"></div></div><div class="s3L">
+<section id="ra-lay">
+<h3>What an enum costs in memory</h3>
+<p>The last three lines of that run are about memory: <code>Option&lt;u64&gt;</code> needs 16 bytes, but <code>Option&lt;&amp;u64&gt;</code> and <code>Option&lt;Box&lt;u64&gt;&gt;</code> fit in 8. A second program, <code>layout.rs</code>, prints the size and alignment of each type here and finds where each variant's data sits (the address of a field minus the address of the value), so the figure is drawn to scale, one cube per byte:</p>
+<ol class="sx" id="sx-lay">
+<li><b>A tag costs a byte, and padding.</b> <code>Option&lt;u8&gt;</code> is 2 bytes: the <code>u8</code> plus one tag byte saying <code>Some</code> or <code>None</code>. <code>Option&lt;u32&gt;</code> is 8, with the <code>u32</code> at offset 4: a <code>u32</code> must start at a multiple of 4, so the tag byte is followed by 3 bytes of padding.</li>
+<li><b><code>Option&lt;u64&gt;</code>: 16 bytes for 8 of data.</b> The <code>u64</code> sits at offset 8 and is aligned to 8, so one tag byte costs 8 bytes in all. Every value of a <code>u64</code> is a valid number, so the tag has nowhere else to go.</li>
+<li><b><code>Option&lt;&amp;u64&gt;</code>: no tag at all.</b> 8 bytes, the same as <code>&amp;u64</code>, and the same for <code>Box</code>. A reference is never null, so the all-zero pattern is free to mean <code>None</code>: the "null pointer optimisation", which the {{Option documentation|https://doc.rust-lang.org/std/option/index.html#representation}} guarantees for references, <code>Box</code>, function pointers and <code>NonZero</code> numbers. A bit pattern a type can never hold is called a <dfn>niche</dfn>. Safety without null costs nothing here.</li>
+<li><b>A <code>String</code> is three words.</b> 24 bytes: a capacity, a pointer to the text on the heap, and a length. Taking a <code>String</code> of capacity 16 holding <code>"timeout"</code> apart word by word found them in that order on this build (the {{Vec documentation|https://doc.rust-lang.org/std/vec/struct.Vec.html#guarantees}} leaves the order unspecified).</li>
+<li><b><code>Conn</code>: four variants in the same 24 bytes.</b> An enum is as big as its largest variant, here <code>Failed</code>'s <code>String</code> at offset 0. The others reuse the same bytes: <code>Connecting</code>'s <code>attempt</code> and <code>Connected</code>'s <code>session_id</code> both sit at offset 8; <code>Idle</code> has no data. <code>size_of::&lt;Conn&gt;()</code> printed 24: not one byte more than the <code>String</code>.</li>
+<li><b>The tag hides in the first word.</b> For <code>Failed</code> the first word is the <code>String</code>'s capacity (0x0000000000000010, that is 16). For the other three it held 0x8000000000000000, ...01 and ...02: 2<sup>63</sup> and up, more than <code>isize::MAX</code>, and a capacity can never be that large (a <code>Vec</code> "panics if the new capacity exceeds <code>isize::MAX</code> bytes", and <code>String::as_mut_vec</code> exposes the <code>Vec&lt;u8&gt;</code> under a <code>String</code>). The compiler stored the tag in that niche.</li>
+<li><b><code>Option&lt;Conn&gt;</code>: still 24.</b> There are many unused capacities, so <code>None::&lt;Conn&gt;</code> simply takes the next one, 0x8000000000000003. Wrapping an enum in <code>Option</code> cost nothing either.</li>
+</ol>
+<p class="small mute">Recorded with rustc 1.94.0 on Linux x86-64 (the rest of the page used rustc 1.99.0 on the M1 Pro; the three sizes both runs print agree). Where the compiler puts a tag is not a stable guarantee, except the null pointer case: read <code>size_of</code>, do not rely on the layout. The heap buffer in steps 4 to 6 is drawn smaller than scale.</p>
+<details class="dp"><summary>The program, <code>layout.rs</code>, and its output</summary><div><div class="ra-src"><div class="ra-fn">layout.rs</div><pre class="ra-code"><span class="ra-cm">// What an enum costs in memory: sizes, alignments and where each variant's data sits.</span>
+<span class="ra-cm">// Offsets are measured with plain references (field address minus value address): no unsafe.</span>
+<span class="ra-kw">use</span> std::mem::&#123;align_of, size_of&#125;;
+
+<span class="ra-at">#[allow(dead_code)]</span>
+<span class="ra-at">#[derive(Debug)]</span>
+<span class="ra-kw">enum</span> Conn &#123;
+    Idle,
+    Connecting &#123; attempt: u32 &#125;,
+    Connected &#123; session_id: u64 &#125;,
+    Failed &#123; error: String &#125;,
+&#125;
+
+<span class="ra-kw">fn</span> off&lt;T, F&gt;(base: &amp;T, field: &amp;F) -&gt; usize &#123;
+    field <span class="ra-kw">as</span> *<span class="ra-kw">const</span> F <span class="ra-kw">as</span> usize - base <span class="ra-kw">as</span> *<span class="ra-kw">const</span> T <span class="ra-kw">as</span> usize
+&#125;
+
+<span class="ra-kw">fn</span> main() &#123;
+    <span class="ra-cm">// the tag: Option&lt;u8&gt; adds one byte; a wider payload pads the tag up to its alignment</span>
+    <span class="ra-kw">for</span> (name, s, a) <span class="ra-kw">in</span> [
+        (<span class="ra-st">"u8"</span>, size_of::&lt;u8&gt;(), align_of::&lt;u8&gt;()),
+        (<span class="ra-st">"Option&lt;u8&gt;"</span>, size_of::&lt;Option&lt;u8&gt;&gt;(), align_of::&lt;Option&lt;u8&gt;&gt;()),
+        (<span class="ra-st">"u32"</span>, size_of::&lt;u32&gt;(), align_of::&lt;u32&gt;()),
+        (<span class="ra-st">"Option&lt;u32&gt;"</span>, size_of::&lt;Option&lt;u32&gt;&gt;(), align_of::&lt;Option&lt;u32&gt;&gt;()),
+        (<span class="ra-st">"u64"</span>, size_of::&lt;u64&gt;(), align_of::&lt;u64&gt;()),
+        (<span class="ra-st">"Option&lt;u64&gt;"</span>, size_of::&lt;Option&lt;u64&gt;&gt;(), align_of::&lt;Option&lt;u64&gt;&gt;()),
+        (<span class="ra-st">"&amp;u64"</span>, size_of::&lt;&amp;u64&gt;(), align_of::&lt;&amp;u64&gt;()),
+        (<span class="ra-st">"Option&lt;&amp;u64&gt;"</span>, size_of::&lt;Option&lt;&amp;u64&gt;&gt;(), align_of::&lt;Option&lt;&amp;u64&gt;&gt;()),
+        (<span class="ra-st">"Box&lt;u64&gt;"</span>, size_of::&lt;Box&lt;u64&gt;&gt;(), align_of::&lt;Box&lt;u64&gt;&gt;()),
+        (<span class="ra-st">"Option&lt;Box&lt;u64&gt;&gt;"</span>, size_of::&lt;Option&lt;Box&lt;u64&gt;&gt;&gt;(), align_of::&lt;Option&lt;Box&lt;u64&gt;&gt;&gt;()),
+        (<span class="ra-st">"String"</span>, size_of::&lt;String&gt;(), align_of::&lt;String&gt;()),
+        (<span class="ra-st">"Option&lt;String&gt;"</span>, size_of::&lt;Option&lt;String&gt;&gt;(), align_of::&lt;Option&lt;String&gt;&gt;()),
+        (<span class="ra-st">"Conn"</span>, size_of::&lt;Conn&gt;(), align_of::&lt;Conn&gt;()),
+        (<span class="ra-st">"Option&lt;Conn&gt;"</span>, size_of::&lt;Option&lt;Conn&gt;&gt;(), align_of::&lt;Option&lt;Conn&gt;&gt;()),
+    ] &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;name:&lt;18&#125; size &#123;s:&gt;2&#125;  align &#123;a&#125;"</span>);
+    &#125;
+    <span class="ra-kw">let</span> x = Some(7u64);
+    <span class="ra-kw">if</span> <span class="ra-kw">let</span> Some(v) = &amp;x &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"Option&lt;u64&gt;: Some's u64 at offset &#123;&#125;"</span>, off(&amp;x, v)); &#125;
+    <span class="ra-kw">let</span> x = Some(7u32);
+    <span class="ra-kw">if</span> <span class="ra-kw">let</span> Some(v) = &amp;x &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"Option&lt;u32&gt;: Some's u32 at offset &#123;&#125;"</span>, off(&amp;x, v)); &#125;
+    <span class="ra-kw">let</span> c = Conn::Connecting &#123; attempt: 1 &#125;;
+    <span class="ra-kw">if</span> <span class="ra-kw">let</span> Conn::Connecting &#123; attempt &#125; = &amp;c &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"Conn::Connecting: attempt (u32) at offset &#123;&#125;"</span>, off(&amp;c, attempt)); &#125;
+    <span class="ra-kw">let</span> c = Conn::Connected &#123; session_id: 42 &#125;;
+    <span class="ra-kw">if</span> <span class="ra-kw">let</span> Conn::Connected &#123; session_id &#125; = &amp;c &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"Conn::Connected: session_id (u64) at offset &#123;&#125;"</span>, off(&amp;c, session_id)); &#125;
+    <span class="ra-kw">let</span> c = Conn::Failed &#123; error: <span class="ra-st">"timeout"</span>.into() &#125;;
+    <span class="ra-kw">if</span> <span class="ra-kw">let</span> Conn::Failed &#123; error &#125; = &amp;c &#123; <span class="ra-mac">println!</span>(<span class="ra-st">"Conn::Failed: error (String, &#123;&#125; bytes) at offset &#123;&#125;"</span>, size_of::&lt;String&gt;(), off(&amp;c, error)); &#125;
+    <span class="ra-cm">// Where is the tag? Read the String's three words, then the first word of each Conn value.</span>
+    <span class="ra-cm">// A probe, not production code: it reads only words every variant has initialised.</span>
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> s = String::with_capacity(16);
+    s.push_str(<span class="ra-st">"timeout"</span>);
+    <span class="ra-kw">let</span> (cap, len) = (s.capacity(), s.len());
+    <span class="ra-kw">let</span> w: [usize; 3] = <span class="ra-kw">unsafe</span> &#123; std::mem::transmute(s) &#125;;
+    <span class="ra-kw">let</span> names: Vec&lt;&amp;str&gt; = w.iter().map(|&amp;x| <span class="ra-kw">if</span> x == cap &amp;&amp; x == len &#123; <span class="ra-st">"cap=len"</span> &#125; <span class="ra-kw">else</span> <span class="ra-kw">if</span> x == cap &#123; <span class="ra-st">"capacity"</span> &#125; <span class="ra-kw">else</span> <span class="ra-kw">if</span> x == len &#123; <span class="ra-st">"length"</span> &#125; <span class="ra-kw">else</span> &#123; <span class="ra-st">"pointer"</span> &#125;).collect();
+    <span class="ra-mac">println!</span>(<span class="ra-st">"String \"timeout\" (capacity &#123;cap&#125;, length &#123;len&#125;) as three words: &#123;:?&#125;"</span>, names);
+    <span class="ra-kw">let</span> _ = <span class="ra-kw">unsafe</span> &#123; std::mem::transmute::&lt;[usize; 3], String&gt;(w) &#125;;
+    <span class="ra-kw">let</span> <span class="ra-kw">mut</span> e = String::with_capacity(16);
+    e.push_str(<span class="ra-st">"timeout"</span>);
+    <span class="ra-kw">let</span> first = |c: &amp;Conn| <span class="ra-kw">unsafe</span> &#123; *(c <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Conn <span class="ra-kw">as</span> *<span class="ra-kw">const</span> usize) &#125;;
+    <span class="ra-kw">for</span> c <span class="ra-kw">in</span> [Conn::Idle, Conn::Connecting &#123; attempt: 1 &#125;, Conn::Connected &#123; session_id: 42 &#125;, Conn::Failed &#123; error: e &#125;] &#123;
+        <span class="ra-mac">println!</span>(<span class="ra-st">"first word of &#123;:&lt;40&#125; &#123;:#018x&#125;"</span>, <span class="ra-mac">format!</span>(<span class="ra-st">"&#123;c:?&#125;"</span>), first(&amp;c));
+    &#125;
+    <span class="ra-kw">let</span> none: Option&lt;Conn&gt; = <span class="ra-kw">None</span>;
+    <span class="ra-mac">println!</span>(<span class="ra-st">"first word of &#123;:&lt;40&#125; &#123;:#018x&#125;"</span>, <span class="ra-st">"None::&lt;Conn&gt;"</span>, <span class="ra-kw">unsafe</span> &#123; *(&amp;none <span class="ra-kw">as</span> *<span class="ra-kw">const</span> Option&lt;Conn&gt; <span class="ra-kw">as</span> *<span class="ra-kw">const</span> usize) &#125;);
+&#125;</pre></div><pre class="ra-out" data-ra-out="l_layout">
+<span class="ra-cmd">$ rustc --version &amp;&amp; uname -sm &amp;&amp; rustc --edition 2024 layout.rs &amp;&amp; ./layout</span>
+rustc 1.94.0 (4a4ef493e 2026-03-02)
+Linux x86_64
+u8                 size  1  align 1
+Option&lt;u8&gt;         size  2  align 1
+u32                size  4  align 4
+Option&lt;u32&gt;        size  8  align 4
+u64                size  8  align 8
+Option&lt;u64&gt;        size 16  align 8
+&amp;u64               size  8  align 8
+Option&lt;&amp;u64&gt;       size  8  align 8
+Box&lt;u64&gt;           size  8  align 8
+Option&lt;Box&lt;u64&gt;&gt;   size  8  align 8
+String             size 24  align 8
+Option&lt;String&gt;     size 24  align 8
+Conn               size 24  align 8
+Option&lt;Conn&gt;       size 24  align 8
+Option&lt;u64&gt;: Some's u64 at offset 8
+Option&lt;u32&gt;: Some's u32 at offset 4</pre><details class="ra-more"><summary>show the remaining 9 lines</summary><pre class="ra-out" data-ra-rest="l_layout">
+Conn::Connecting: attempt (u32) at offset 8
+Conn::Connected: session_id (u64) at offset 8
+Conn::Failed: error (String, 24 bytes) at offset 0
+String "timeout" (capacity 16, length 7) as three words: ["capacity", "pointer", "length"]
+first word of Idle                                     0x8000000000000000
+first word of Connecting &#123; attempt: 1 &#125;                0x8000000000000001
+first word of Connected &#123; session_id: 42 &#125;             0x8000000000000002
+first word of Failed &#123; error: "timeout" &#125;              0x0000000000000010
+first word of None::&lt;Conn&gt;                             0x8000000000000003</pre></details></div></details>
+</section>
+</div></div>
+
+<section id="ra-enum-syn">
 <h3>The syntax, on a chat message</h3>
 <div class="ra-src"><div class="ra-fn">enums.rs</div><pre class="ra-code"><span class="ra-at">#[derive(Debug, Clone, PartialEq)]</span>
 <span class="ra-kw">struct</span> Usage &#123;
@@ -145,6 +260,13 @@ For more information about this error, try `rustc --explain E0004`.
 <div class="ra-cost"><div><b>Solves</b>Whole classes of "this field should not be None here" bugs; adding a case shows every place to update.</div><div><b>Costs</b>An enum is as big as its largest variant (box a huge rarely used one); exhaustive matching makes public enums hard to extend without breaking users (<code>#[non_exhaustive]</code> exists for that).</div><div><b>Python today</b>The same idea is available as a union of dataclasses plus <code>match</code> and a type checker's exhaustiveness check (<code>assert_never</code>; Python's type checkers are on {{Python: typing, uv, packaging and the toolchain|n:4055c17b0d0d8192878fce7505cc612f}}); Rust enforces it always.</div></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="ra-fig card" id="ra-q-card"><h4>Where an error goes: <code>?</code> returns it one level up, and the rest of the function never runs</h4>
+<div class="seg" id="ra-q-seg"><button data-m="bad" class="on">context = "8k"</button><button data-m="missing">max_output missing</button><button data-m="good">both present</button></div>
+<div class="an-ctl" id="ra-q-ctl"></div>
+<div class="ra-tl" id="ra-q-code"></div>
+<p class="small mute">Lines 22 to 43 of <code>code/lang/errors.rs</code> (the whole file is in the closed block under the steps); the highlighted lines are the ones running at each step.</p>
+</div>
+</div><div class="s3L">
 <section id="ra-err">
 <h2>3. Option, Result and ?: errors as values</h2>
 <p>Rust has no <code>None</code> that can appear anywhere and no exceptions for expected failures. Two enums from the standard library carry them, written like any other enum:</p>
@@ -152,14 +274,31 @@ For more information about this error, try `rustc --explain E0004`.
 <li><code>Option&lt;T&gt;</code> is <code>Some(value)</code> or <code>None</code>: maybe missing. <code>dict.get</code>, <code>str.find</code> and "first element" return one.</li>
 <li><code>Result&lt;T, E&gt;</code> is <code>Ok(value)</code> or <code>Err(error)</code>: may fail. Parsing, I/O and network calls return one.</li>
 </ul>
-<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate. Step through the recorded program on its three configurations:</p>
-<div class="ra-fig" id="ra-q-card"><h4>Where an error goes: <code>?</code> returns it one level up, and the rest of the function never runs</h4>
-<div class="seg" id="ra-q-seg"><button data-m="bad" class="on">context = "8k"</button><button data-m="missing">max_output missing</button><button data-m="good">both present</button></div>
-<div class="ra-ctl"><button type="button" id="ra-q-b" aria-label="Previous step">&#9664; Back</button><button type="button" id="ra-q-f" aria-label="Next step">Next &#9654;</button><span class="small" id="ra-q-pos"></span></div>
-<div class="ra-tl" id="ra-q-code"></div>
-<div class="ra-cap" id="ra-q-cap"></div>
-<p class="small mute">Lines 22 to 43 of <code>code/lang/errors.rs</code> (the whole file is below); each configuration's last step prints the line the recorded run printed.</p>
-</div>
+<p>You cannot use the value inside without deciding what happens in the other case. The <code>?</code> operator is the common decision: "if this is an <code>Err</code>, return it from my function now; otherwise give me the value". It is the explicit, typed version of letting an exception propagate. The recorded program on its three configurations (pick one on the figure):</p>
+<ol class="sx" id="sx-q-bad">
+<li><b>The call.</b> <code>main</code> calls <code>budget(&amp;bad)</code>; <code>bad</code> has <code>context = "8k"</code>.</li>
+<li><b>Into <code>get_num</code>.</b> <code>budget</code> calls <code>get_num(cfg, "context")</code>.</li>
+<li><b>The key is there.</b> <code>cfg.get("context")</code> is <code>Some("8k")</code>; <code>ok_or</code> makes it <code>Ok("8k")</code>; <code>?</code> unwraps it, so <code>raw = "8k"</code>.</li>
+<li><b>The parse fails.</b> <code>"8k".parse::&lt;u32&gt;()</code> returns <code>Err(ParseIntError { kind: InvalidDigit })</code>.</li>
+<li><b>The error is wrapped.</b> <code>map_err</code> wraps it as <code>Err(BadNumber { key: "context", source })</code>. With no semicolon, that is <code>get_num</code>'s return value.</li>
+<li><b><code>?</code> returns early.</b> Back in <code>budget</code>, <code>?</code> sees an <code>Err</code> and returns it from <code>budget</code> at once. Lines 31 and 32 never run: <code>max_output</code> is never read.</li>
+<li><b><code>main</code> reports it.</b> <code>main</code>'s <code>match</code> takes the <code>Err</code> arm and prints <code>error: context is not a number: invalid digit found in string</code> (the message is <code>ConfigError</code>'s <code>Display</code>).</li>
+</ol>
+<ol class="sx" id="sx-q-missing" hidden>
+<li><b>The call.</b> <code>main</code> calls <code>budget(&amp;missing)</code>; <code>missing</code> has no <code>max_output</code>.</li>
+<li><b>The first number parses.</b> <code>get_num(cfg, "context")</code> finds <code>"8192"</code> and parses it: <code>Ok(8192)</code>, so <code>?</code> gives <code>ctx = 8192</code>.</li>
+<li><b>The second call.</b> <code>budget</code> calls <code>get_num(cfg, "max_output")</code>.</li>
+<li><b>The key is missing.</b> <code>cfg.get("max_output")</code> is <code>None</code>; <code>ok_or</code> turns it into <code>Err(Missing("max_output"))</code>; <code>?</code> returns it from <code>get_num</code> immediately. Lines 24 to 26 never run.</li>
+<li><b><code>?</code> again.</b> In <code>budget</code>, <code>?</code> returns the same <code>Err</code>; line 32 never runs.</li>
+<li><b><code>main</code> reports it.</b> <code>main</code> prints <code>error: missing key max_output</code>.</li>
+</ol>
+<ol class="sx" id="sx-q-good" hidden>
+<li><b>The call.</b> <code>main</code> calls <code>budget(&amp;good)</code>.</li>
+<li><b>The first number.</b> <code>"8192"</code> parses: <code>ctx = 8192</code>.</li>
+<li><b>The second number.</b> <code>" 1024"</code> is trimmed, then parses: <code>out = 1024</code>.</li>
+<li><b>The last line runs.</b> Both <code>?</code> found <code>Ok</code>, so <code>budget</code> reaches its last line: <code>Ok(8192 - 1024)</code>.</li>
+<li><b><code>main</code> prints the result.</b> <code>main</code> prints <code>ok: 7168 tokens for the prompt</code>.</li>
+</ol>
 <details class="dp"><summary>The whole program, <code>errors.rs</code> (the error type and <code>main</code>)</summary><div><div class="ra-src"><div class="ra-fn">errors.rs</div><pre class="ra-code"><span class="ra-kw">use</span> std::collections::HashMap;
 <span class="ra-kw">use</span> std::fmt;
 <span class="ra-kw">use</span> std::num::ParseIntError;
@@ -213,6 +352,9 @@ For more information about this error, try `rustc --explain E0004`.
     <span class="ra-kw">let</span> y: u32 = <span class="ra-st">"twelve"</span>.parse().expect(<span class="ra-st">"config value must be a number"</span>); <span class="ra-cm">// panics</span>
     <span class="ra-mac">println!</span>(<span class="ra-st">"&#123;y&#125;"</span>);
 &#125;</pre></div></div></details>
+</section>
+</div></div>
+<section id="ra-err-more" aria-label="Errors: the rest">
 <pre class="ra-out ra-bad" data-ra-out="l_errors">
 <span class="ra-cmd">$ rustc --edition 2024 errors.rs &amp;&amp; ./errors</span>
 ok: 7168 tokens for the prompt

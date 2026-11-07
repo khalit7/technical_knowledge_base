@@ -1,4 +1,4 @@
-// ---- Reading: hero, UTF-8 slice widget (s1), states before/after (s2), the ? stepper (s3), iterator bars (s5), prediction prompts ----
+// ---- Reading: hero, UTF-8 slice widget (s1), states before/after (s2), the ? stepper (s3, autoplays with its step list), iterator bars (s5), prediction prompts ----
 (function(){
   const D=window.RA_DATA;if(!D||!document.getElementById('t-read'))return;
   const esc=RA.esc,T=RD.t;
@@ -77,38 +77,17 @@
     stEl.innerHTML=RD.svg(W,h,s,stMode==='py'?'32 combinations of status and optional fields, 4 legal':'four enum variants');}
   RD.seg(document.getElementById('ra-states-seg'),m=>{stMode=m;states()});
 
-  // ----- section 3: the ? stepper over errors.rs -----
-  const SRC=D.errors.src.split('\n'),OUTL=D.errors.out.split('\n');
+  // ----- section 3: the ? stepper over errors.rs (RD.anim: plays once in view; its steps are the ol.sx lists sx-q-* on the left) -----
+  const SRC=D.errors.src.split('\n');
   const L0=22,L1=43;
-  const PR={bad:OUTL.find(l=>l.startsWith('error: context')),missing:OUTL.find(l=>l.startsWith('error: missing')),good:OUTL.find(l=>l.startsWith('ok:'))};
-  const cut=t=>t.replace(/\s+\(debug:.*$/,'');
-  const QS={
-    bad:[[[39,40],'<code>main</code> calls <code>budget(&amp;bad)</code>; <code>bad</code> has <code>context = "8k"</code>.'],
-      [[30],'<code>budget</code> calls <code>get_num(cfg, "context")</code>.'],
-      [[23],'<code>cfg.get("context")</code> is <code>Some("8k")</code>; <code>ok_or</code> makes it <code>Ok("8k")</code>; <code>?</code> unwraps it, so <code>raw = "8k"</code>.'],
-      [[24,25],'<code>"8k".parse::&lt;u32&gt;()</code> returns <code>Err(ParseIntError { kind: InvalidDigit })</code>.'],
-      [[26],'<code>map_err</code> wraps it as <code>Err(BadNumber { key: "context", source })</code>. With no semicolon, that is <code>get_num</code>\'s return value.'],
-      [[30],'Back in <code>budget</code>, <code>?</code> sees an <code>Err</code> and returns it from <code>budget</code> at once. Lines 31 and 32 never run: <code>max_output</code> is never read.'],
-      [[42],'<code>main</code>\'s <code>match</code> takes the <code>Err</code> arm and prints <code>'+esc(cut(PR.bad||''))+'</code> (the message is <code>ConfigError</code>\'s <code>Display</code>).']],
-    missing:[[[39,40],'<code>main</code> calls <code>budget(&amp;missing)</code>; <code>missing</code> has no <code>max_output</code>.'],
-      [[30,23,24,25,26],'<code>get_num(cfg, "context")</code> finds <code>"8192"</code> and parses it: <code>Ok(8192)</code>, so <code>?</code> gives <code>ctx = 8192</code>.'],
-      [[31],'<code>budget</code> calls <code>get_num(cfg, "max_output")</code>.'],
-      [[23],'<code>cfg.get("max_output")</code> is <code>None</code>; <code>ok_or</code> turns it into <code>Err(Missing("max_output"))</code>; <code>?</code> returns it from <code>get_num</code> immediately. Lines 24 to 26 never run.'],
-      [[31],'In <code>budget</code>, <code>?</code> returns the same <code>Err</code>; line 32 never runs.'],
-      [[42],'<code>main</code> prints <code>'+esc(cut(PR.missing||''))+'</code>.']],
-    good:[[[39,40],'<code>main</code> calls <code>budget(&amp;good)</code>.'],
-      [[30,23,24,25,26],'<code>"8192"</code> parses: <code>ctx = 8192</code>.'],
-      [[31,23,24,25,26],'<code>" 1024"</code> is trimmed, then parses: <code>out = 1024</code>.'],
-      [[32],'Both <code>?</code> found <code>Ok</code>, so <code>budget</code> reaches its last line: <code>Ok(8192 - 1024)</code>.'],
-      [[41],'<code>main</code> prints <code>'+esc(PR.good||'')+'</code>.']]};
-  let qm='bad',qi=0;const qCode=document.getElementById('ra-q-code'),qCap=document.getElementById('ra-q-cap'),qPos=document.getElementById('ra-q-pos');
-  function qdraw(){const st=QS[qm][qi],on=new Set(st[0]);let h='';
+  // the lines running at each step, per configuration; what each step means is written in the step lists
+  const QS={bad:[[39,40],[30],[23],[24,25],[26],[30],[42]],missing:[[39,40],[30,23,24,25,26],[31],[23],[31],[42]],good:[[39,40],[30,23,24,25,26],[31,23,24,25,26],[32],[41]]};
+  let qm='bad';const qCode=document.getElementById('ra-q-code');
+  function qdraw(i){const on=new Set(QS[qm][i]);let h='';
     for(let n=L0;n<=L1;n++)h+='<div class="ln'+(on.has(n)?' on':'')+'"><span class="no">'+n+'</span><span class="tx">'+RA.hl(SRC[n-1]||'')+'</span></div>';
-    qCode.innerHTML=h;qCap.innerHTML='<b>Step '+(qi+1)+' of '+QS[qm].length+'.</b> '+st[1];qPos.textContent='';
-    document.getElementById('ra-q-b').disabled=qi===0;document.getElementById('ra-q-f').disabled=qi===QS[qm].length-1}
-  document.getElementById('ra-q-b').addEventListener('click',()=>{if(qi>0){qi--;qdraw()}});
-  document.getElementById('ra-q-f').addEventListener('click',()=>{if(qi<QS[qm].length-1){qi++;qdraw()}});
-  RD.seg(document.getElementById('ra-q-seg'),m=>{qm=m;qi=0;qdraw()});
+    qCode.innerHTML=h}
+  const qa=RD.anim({card:'ra-q-card',ctl:'ra-q-ctl',n:QS.bad.length,draw:qdraw,ms:4200,label:'Step through the ? walk-through',list:'sx-q-bad'});
+  RD.seg(document.getElementById('ra-q-seg'),m=>{qm=m;['bad','missing','good'].forEach(k=>document.getElementById('sx-q-'+k).hidden=k!==m);qa.reset(QS[m].length,'sx-q-'+m)});
 
   // ----- section 5: measured bars, log scale -----
   const bars=document.getElementById('ra-bench-bars');
@@ -127,6 +106,6 @@
     const d=q.querySelector('details.ra-drv');if(d)d.open=true;
     const h=q.querySelector('.ra-dqh');if(h&&!h.querySelector('.res')){const s=document.createElement('span');s.className='res';s.innerHTML=' <b>'+(p===ans?'Right.':'Not quite: '+ans.toUpperCase()+' is the one.')+'</b>';h.appendChild(s)}})});
 
-  function all(){hero();slice();states();qdraw();drawBars()}
+  function all(){hero();slice();states();drawBars()}
   all();RD.onRender(all);RD.onResize(()=>{hero();slice();states()});
 })();
