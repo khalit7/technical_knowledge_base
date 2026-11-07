@@ -1,30 +1,21 @@
+<div class="s3sp"><div class="s3R"><div id="stg-je"></div></div><div class="s3L">
 <section id="je-top">
 <p class="core">JavaScript runs your code on <span class="hl">one thread around an event loop</span>: nothing runs in parallel with your code, every slow operation is started and finishes later as a callback, a promise or an <code>await</code>, and a long loop freezes everything. TypeScript is <span class="hl">a type layer erased before anything runs</span>: it is checked in your editor and CI, then deleted, so what runs is always plain JavaScript.</p>
-<div class="je-fig" id="je-hero"><h4>Types stop at the dashed line; below it, one thread takes one task at a time and the slow work happens outside it</h4>
-<div class="je-hero">
-<div class="je-box"><b><code>count.ts</code></b>JavaScript plus types: <code>function countTokens(text: string): number</code></div>
-<div class="je-arr"><i>&rarr;</i>types erased: stripped by <code>node</code>, Bun or Deno, or compiled by <code>tsc</code></div>
-<div class="je-box"><b><code>count.js</code></b>the same code with no types: <code>function countTokens(text)</code></div>
-<div class="je-arr"><i>&rarr;</i>loaded by a runtime</div>
-<div class="je-box acc"><b>Node, Bun or Deno</b>an engine plus files, sockets, processes and the event loop</div>
-</div>
-<div class="je-cut">run time: only JavaScript exists below this line; <code>tsc</code> checked the types earlier and nothing checks them now</div>
-<div class="je-run">
-<div class="je-eng"><b>The engine, on one thread</b> <span class="small mute">(V8 in Node and Deno, JavaScriptCore in Bun)</span>
-<div class="je-q">
-<div class="s"><b>Call stack</b>your code, one function at a time; while it runs, nothing else does</div>
-<div><b>Microtask queue</b>what runs after an <code>await</code> or in a <code>.then</code>; emptied completely after every task</div>
-<div><b>Task queue</b>timers and finished I/O, one task per turn of the loop</div>
-</div>
-<div class="je-loop"><b>The event loop:</b> run one task to the end, run every microtask, take the next task. A <code>for</code> loop that computes for 0.44 s holds the stack for 0.44 s: no timer, request or stream moves meanwhile (section 2 measures it).</div>
-</div>
-<div class="je-side">
-<div class="je-box"><b>libuv, under Node</b>watches sockets with the operating system's readiness API; files, <code>dns.lookup</code>, some <code>crypto</code> and <code>zlib</code> calls run on its thread pool, 4 threads by default. Results come back as tasks.</div>
-<div class="je-box"><b>Worker threads</b>a second engine with its own loop on another core; shares nothing unless asked, talks by messages. The way to run CPU work without freezing the loop.</div>
-</div>
-</div>
-<p class="small mute">A static map: the queues are drawn as {{JavaScript: the event loop, promises and streams|n:4055c17b0d0d81fe857de8b34db109ea}} steps them, and the erasure as {{TypeScript: the type system, narrowing and runtime validation|n:4055c17b0d0d81519278df19753ab5ec}} shows it on a real file; the root's {{Topic: programming-languages, Design space tab, false friend "TypeScript types vanish at run time"|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows it with a real run. libuv's pool size and what uses it: {{libuv: thread pool|https://docs.libuv.org/en/v1.x/threadpool.html}}.</p>
-</div>
+<p>Fig. 1 follows one TypeScript program from your editor to the edge of the process. Each step pins one piece where it acts and names the page that owns it; the pieces this page owns (the runtime, Node's standard library, libuv and worker threads, packages) are its sections 1 to 3. The heights in step 3 are the recorded start-up medians and in step 7 the recorded timer waits; everything else is a map, not to scale.</p>
+<ol class="sx" id="sx-je">
+<li><b>Your program, in TypeScript.</b> <code>count.ts</code> is JavaScript plus a layer of types (<code>function countTokens(text: string): number</code>, drawn as the glass plate). <code>tsc</code>, in your editor and CI, checks that layer against the code it can see; it runs nothing. How the checker works and what it cannot see: {{the TypeScript page's Fig. 1|n:4055c17b0d0d81519278df19753ab5ec#stg-hero}}.</li>
+<li><b>The types are erased.</b> Before anything runs, the layer is deleted: <code>node</code>, Bun and Deno strip it, or <code>tsc</code> compiles it away. What is left, <code>count.js</code>, is plain JavaScript; from here on nothing checks a type. Types stop at this line.</li>
+<li><b>A runtime loads it.</b> Node, Bun or Deno: an engine plus files, sockets, processes and the event loop. The bars are each one's median start-up on this laptop: Node 24 <span class="je-v" data-v="node">31.4 ms</span>, Bun <span class="je-v" data-v="bun">8.7 ms</span>, Deno <span class="je-v" data-v="deno">11.3 ms</span> (section 3 compares them).</li>
+<li><b>Your code runs on one call stack.</b> One thread, one function at a time; while it runs, nothing else does. What that code handles (values, objects and their prototype chain, closures) is the language page's subject, drawn in {{its Fig. 1|n:4055c17b0d0d810c982ac6ab36f88539#stg-hero}}.</li>
+<li><b>The event loop feeds the thread.</b> Run one task (a timer or finished I/O) to the end, then run every microtask (the code after an <code>await</code>, a <code>.then</code>), then take the next task. The two queues are stepped through on six real programs in {{the event-loop page's Fig. 2|n:4055c17b0d0d81fe857de8b34db109ea#stg-loop}}; its Fig. 1 adds the loop's phases.</li>
+<li><b>Slow I/O leaves the thread.</b> Under Node, libuv watches sockets with the operating system's readiness API, and runs file reads, <code>dns.lookup</code> and some <code>crypto</code> and <code>zlib</code> calls on its thread pool, 4 threads by default ({{libuv: thread pool|https://docs.libuv.org/en/v1.x/threadpool.html}}). The call returns at once; the result comes back later as a task (section 2).</li>
+<li><b>CPU work blocks the thread; a worker does not.</b> A prime count that took <span class="je-v" data-v="took">439 ms</span> on the main thread made a 10 ms heartbeat timer wait <span class="je-v" data-v="gap">438 ms</span>: nothing else moved. In a worker thread (a second engine with its own loop, talking by messages) the timer never waited more than <span class="je-v" data-v="wgap">14 ms</span> (section 2's run).</li>
+<li><b>Data from outside meets a validator.</b> A <code>fetch</code> body, a model's reply, a file: <code>JSON.parse</code> returns whatever arrived, and the erased types cannot check it. A schema that exists at run time (zod) stands at the boundary, passes what fits and rejects the rest with a reason: of the TypeScript page's 10 recorded model replies, 4 passed and 6 were rejected ({{its section 7|n:4055c17b0d0d81519278df19753ab5ec}}). The agent loop that sends the reason back to the model is {{the LLM apps page's Fig. 3|n:4055c17b0d0d8109aad6e69a87b3bd6f#stg-loop}}.</li>
+<li><b>Who owns which piece.</b> This page: the runtime, Node's standard library, libuv and worker threads, packages, and the traps that cut across. The language page: values and objects. The event-loop page: the queues. The TypeScript page: the types and the boundary. The LLM apps page: an agent built on all of it (section 5 has the cards).</li>
+</ol>
+<p class="small mute">The root's {{Topic: programming-languages, Design space tab, false friend "TypeScript types vanish at run time"|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} shows the erasure with a real run.</p>
+</section>
+</div></div>
 <p><b>You need</b> everyday Python; asyncio helps but is not assumed. Nothing else: this page is where the JavaScript and TypeScript pages start.</p>
 <dl class="terms">
 <dt>runtime</dt><dd>the program that runs JavaScript and gives it files, network and processes (Node, Bun, Deno; a browser is another)</dd>
@@ -35,7 +26,6 @@
 <dt>lockfile</dt><dd><code>package-lock.json</code> (or pnpm's, Bun's): the exact resolved dependency tree, like <code>uv.lock</code></dd>
 <dt>LTS</dt><dd>a long-term support release line of Node</dd>
 </dl>
-</section>
 
 <section id="je-s1"><h2>1. Running JavaScript</h2>
 <p>JavaScript was made for web pages in 1995; <b>Node.js</b> (2009) took Google's <b>V8</b> engine out of the browser and added what a server needs: files, sockets, processes, and an event loop built on the C library libuv. The language itself (ECMAScript) has no files, network or processes: a runtime adds them. In Python terms, Node is both the interpreter (<code>python</code>) and a large standard library. You write a file and run it; there is no compile step.</p>

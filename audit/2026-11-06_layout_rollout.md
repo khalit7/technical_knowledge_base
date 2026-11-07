@@ -83,7 +83,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [ ] `engineering_foundations/topic_programming_languages/rust/lifetimes_smart_pointers_and_unsafe` Rust: lifetimes, smart pointers, threads and unsafe
 - [ ] `engineering_foundations/topic_programming_languages/rust/pyo3_python_extensions` Rust: speeding up Python with PyO3 and maturin
 - [x] `engineering_foundations/topic_programming_languages/cpp` C++: the essentials
-- [ ] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
+- [x] `engineering_foundations/topic_programming_languages/javascript_and_typescript` JavaScript and TypeScript: the essentials
 - [ ] `engineering_foundations/topic_programming_languages/python` Python: the essentials
 - [ ] `engineering_foundations/topic_programming_languages/rust` Rust: the essentials
 - [ ] `engineering_foundations/topic_programming_languages` Topic: programming-languages
@@ -369,3 +369,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript/llm_apps_and_agents`: loop close-up shows tool edges at the right; run table and Fig. 3 show the runs twice; stages small at 390.
 - `engineering_foundations/topic_programming_languages/python/concurrency_asyncio_and_the_gil`: hero running thread pale in dark mode; hero empty space at 1400; loop stage timers slab close to "due" labels.
 - `engineering_foundations/topic_programming_languages/javascript_and_typescript/typescript`: both stages small and width-limited at 390.
+- `engineering_foundations/topic_programming_languages/javascript_and_typescript`: map step small at 390; left plate edge crops at step 5 at 1400.
