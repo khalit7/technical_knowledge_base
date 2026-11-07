@@ -51,8 +51,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_math/calculus_and_optimisation` Calculus and optimisation for ML: derivatives to convexity, Hessians, Newton, Lagrange
 - [x] `engineering_foundations/topic_math/information_theory` Information theory for ML: entropy, cross-entropy, KL, mutual information
 - [x] `engineering_foundations/topic_math/linear_algebra` Linear algebra for ML: vectors to SVD, rank, conditioning, low-rank methods
-- [ ] `engineering_foundations/topic_math/matrix_calculus_and_backprop` Matrix calculus and backprop: Jacobians, layouts, vector-Jacobian products, autodiff
-- [ ] `engineering_foundations/topic_math/numerical_computing` Numerical computing for ML: floating point, precision formats, stable softmax
+- [x] `engineering_foundations/topic_math/matrix_calculus_and_backprop` Matrix calculus and backprop: Jacobians, layouts, vector-Jacobian products, autodiff
+- [x] `engineering_foundations/topic_math/numerical_computing` Numerical computing for ML: floating point, precision formats, stable softmax
 - [ ] `engineering_foundations/topic_math/probability` Probability for ML: random variables, distributions to losses, MLE, MAP, Bayes
 - [ ] `engineering_foundations/topic_math/statistics` Statistics for ML: estimation, bias and variance, bootstrap, hypothesis tests
 - [ ] `engineering_foundations/topic_math/variational_inference_and_generative_models` Variational inference and generative-model maths: ELBO, VAEs, diffusion
@@ -345,3 +345,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Template stage controls: the speed selector wraps to a second row at 390 px on every stage.
 - `engineering_foundations/topic_math/information_theory`: Fig. 4 lid step, value labels sit on the glass lids; hero zoomed step labels close on phones.
 - `engineering_foundations/topic_math/linear_algebra`: Fig. 1 step 4 crops the input plate at the left edge; multiplication card's arithmetic line partly repeats its step item.
+- `engineering_foundations/topic_math/matrix_calculus_and_backprop`: Fig. 1 objects small and labels faint at 1400 (long chain, camera far); Fig. 3 small with empty space below at 390.
+- `engineering_foundations/topic_math/numerical_computing`: softmax stage sparse at mid steps; softmax bit readout long and wraps; NaN stage small at 1400.

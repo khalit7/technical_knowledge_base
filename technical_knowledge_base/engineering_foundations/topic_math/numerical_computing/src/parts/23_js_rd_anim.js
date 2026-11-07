@@ -1,4 +1,4 @@
-// ---- Reading tab animations: naive against Kahan summation (float16), naive against stable softmax (any format) ----
+// ---- Reading tab: naive against Kahan summation (float16, a 2D animation with step lists), and the softmax traces (naive and stable, any format) that the 3D stage of section 7 draws ----
 (function(){
   const $=id=>document.getElementById(id),S=FP.show,Pn=(v,k)=>(v<0||Object.is(v,-0))?'('+S(v,k)+')':S(v,k);
   const lane=(nm,v,f,cls,note)=>'<div class="lane '+(cls||'')+'"><span class="nm">'+nm+'</span>'+FP.bitsHTML(FP.enc(v,f).bits,f,{sm:true})+'<span class="val">'+S(v,9)+(note?' <span class="mute small">'+note+'</span>':'')+'</span></div>';
@@ -10,23 +10,19 @@
     XS.forEach((x,i)=>{if(mode==='naive'){const t=FP.add(s,x,f16);tr.push({x,s:t,exact:s+x,lost:(s+x)-t});s=t}
       else{const y=FP.sub(x,c,f16),t=FP.add(s,y,f16),c2=FP.sub(FP.sub(t,s,f16),y,f16);tr.push({x,y,t,s:t,c:c2,cprev:c,sprev:s});s=t;c=c2}});return tr}
   let km='naive',KT=kahanTrace(km);
+  // the steps group the eleven additions into explained stretches (the step lists sx-kahN and sx-kahK): each step shows the state after CNT[mode][i] additions
+  const CNT={naive:[0,1,2,11],kahan:[0,1,2,3,4,8,9,11]};
   function kdraw(i){
-    const r=KT[i],exactSoFar=FP.fsum(XS.slice(0,i));
-    let h='<div class="op">inputs: '+XS.map((x,j)=>j<i?'<b>'+S(x,8)+'</b>':(j===i?'<span style="text-decoration:underline">'+S(x,8)+'</span>':'<span class="mute">'+S(x,8)+'</span>')).join(', ')+'</div>';
-    h+=lane('sum s',r.s,f16,i&&Math.abs(r.s-exactSoFar)>0.5?'nan':'ok','exact so far '+S(exactSoFar,9));
+    const n=CNT[km][i],r=KT[n],exactSoFar=FP.fsum(XS.slice(0,n)),prev=i?CNT[km][i-1]:0;
+    let h='<div class="op">inputs: '+XS.map((x,j)=>j<prev?'<b>'+S(x,8)+'</b>':(j<n?'<b style="text-decoration:underline">'+S(x,8)+'</b>':'<span class="mute">'+S(x,8)+'</span>')).join(', ')+'</div>';
+    h+=lane('sum s',r.s,f16,n&&Math.abs(r.s-exactSoFar)>0.5?'nan':'ok','exact so far '+S(exactSoFar,9));
     if(km==='kahan')h+=lane('c (lost)',r.c,f16,'','minus what the last addition dropped');
     $('rd-kahStage').innerHTML=h;
-    let cap;
-    if(i===0)cap='<div class="t">Start</div><p>s = 0'+(km==='kahan'?', c = 0':'')+'. Eleven numbers will be added in float16, where the gap between numbers at 2048 is 2.</p>';
-    else if(i===1)cap='<div class="t">Add 2048</div><p>2048 is exactly representable; the sum is 2048.</p>';
-    else if(km==='naive')cap='<div class="t">Add '+S(r.x,8)+'</div><p>The exact sum '+S(r.exact,9)+' is less than half a gap (1) above 2048, so it rounds back to '+S(r.s)+'. Lost this step: '+S(r.lost,8)+'. Every 0.4 is absorbed the same way: the naive sum never moves.</p>';
-    else cap='<div class="t">Add '+S(r.x,8)+' with the correction</div><p>y = x − c = '+S(r.x,8)+' − '+Pn(r.cprev,8)+' = '+S(r.y,8)+'; t = s + y = '+S(r.sprev,9)+' + '+Pn(r.y,8)+' rounds to '+S(r.t,9)+'; c = (t − s) − y = '+S(r.t-r.sprev,8)+' − '+Pn(r.y,8)+' = '+S(r.c,8)+'. '+(r.t!==r.sprev?'The carried amount was large enough to move the sum by one gap.':'Nothing reached the sum yet, but c remembers it.')+'</p>';
-    $('rd-kahCap').innerHTML=cap;
     const fin=KT[KT.length-1].s;
-    $('rd-kahCnt').innerHTML=RD.stat('Sum now',S(r.s,9),'after '+i+' of 11 numbers')+RD.stat('Exact so far',S(exactSoFar,9),'math.fsum')+RD.stat('Final ('+(km==='naive'?'naive':'Kahan')+')',i===KT.length-1?S(fin,9):'…','exact '+S(EX,9)+'; nearest float16 2052');
+    $('rd-kahCnt').innerHTML=RD.stat('Sum now',S(r.s,9),'after '+n+' of 11 numbers')+RD.stat('Exact so far',S(exactSoFar,9),'math.fsum')+RD.stat('Final ('+(km==='naive'?'naive':'Kahan')+')',n===11?S(fin,9):'…','exact '+S(EX,9)+'; nearest float16 2052');
   }
-  const KA=RD.anim({card:'rd-kahCard',ctl:'rd-kahCtl',n:KT.length,draw:kdraw,ms:1300,label:'Summation step'});
-  RD.seg($('rd-kahMode'),m=>{km=m;KT=kahanTrace(km);KA.reset(KT.length)});
+  const KA=RD.anim({card:'rd-kahCard',ctl:'rd-kahCtl',n:CNT.naive.length,draw:kdraw,ms:4200,label:'Summation step',list:'sx-kahN'});
+  RD.seg($('rd-kahMode'),m=>{km=m;KT=kahanTrace(km);$('sx-kahN').hidden=m!=='naive';$('sx-kahK').hidden=m==='naive';KA.reset(CNT[m].length,m==='naive'?'sx-kahN':'sx-kahK')});
   // ---------- softmax ----------
   const Z=[1000,999,0],NM=['cat','dog','sat'],TGT=2;
   let sm='naive',sf='fp32';
@@ -58,18 +54,5 @@
     }
     return st;
   }
-  let ST=smTrace();
-  function smdraw(i){
-    const f=FP.F[sf];let h='';
-    for(let j=0;j<=i;j++){const s=ST[j];h+='<div class="op"'+(j<i?' style="opacity:.55"':'')+'>'+(j+1)+'. '+s.t+'</div>';
-      if(j===i||j>=i-1)s.rows.forEach(r=>{h+=lane(r[0],r[1],f,kind(r[1]),r[2])})}
-    $('rd-smStage').innerHTML=h;
-    $('rd-smCap').innerHTML='<div class="t">'+(sm==='naive'?'Naive':'Stable')+', '+f.name+': '+ST[i].t+'</div><p>'+ST[i].p+'</p>';
-    let ni=0,nn=0,nf=0;for(let j=0;j<=i;j++)ST[j].rows.forEach(r=>{const k=kind(r[1]);if(k==='inf')ni++;else if(k==='nan')nn++;else nf++});
-    $('rd-smCnt').innerHTML=RD.stat('Finite values',nf,'so far')+RD.stat('Infinities',ni?'<span class="bad">'+ni+'</span>':0,'')+RD.stat('NaNs',nn?'<span class="bad">'+nn+'</span>':0,'')+RD.stat('Step',(i+1)+' of '+ST.length,'');
-  }
-  const SA=RD.anim({card:'rd-smCard',ctl:'rd-smCtl',n:ST.length,draw:smdraw,ms:1700,label:'Softmax step'});
-  const re=()=>{ST=smTrace();SA.reset(ST.length)};
-  RD.seg($('rd-smMode'),m=>{sm=m;re()});RD.seg($('rd-smFmt'),m=>{sf=m;re()});
-  window.NC_ANIM={smTrace:()=>smTrace(),setSm:(m,f)=>{sm=m;sf=f;ST=smTrace();SA.reset(ST.length)},kahan:m=>kahanTrace(m)};
+  window.NC_ANIM={smTrace:()=>smTrace(),setSm:(m,f)=>{sm=m;sf=f},trace:(m,f)=>{const o=[sm,sf];sm=m;sf=f;const t=smTrace();[sm,sf]=o;return t},kahan:m=>kahanTrace(m),lane,kind};
 })();

@@ -36,3 +36,14 @@ What the methodology lacked: a rule for two libraries that legitimately disagree
 | 16 | NaN spread through a linear layer and one step | Reading s10 | built (4-step stepper) |
 | 5 | Summation lab | moved from its own tab into Reading s5 | it explains one mechanism |
 | R5 | Real photo or image | rejected: the page is about arithmetic, no physical object teaches it |
+
+## 2026-11-07 pass (split layout, renderer v2 3D stages, step lists, autoplay)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 17 | **Formats, bit by bit (3D)**: the loss 2.4076 as one row of bit blocks per format (float32 at the back, then bfloat16, TF32, float16, E5M2, E4M3 toward the viewer), aligned at the sign bit; flows carry the kept bits from the source row; the camera moves along the rows | Reading s3 | built (`27_js_sc_1fmt.js`); depth lines up the exponent fields so the same-range formats and the cut-down ones read at a glance |
+| 1b | **Softmax (3D)**: naive (back row) and stable (front row) on the same logits, signed bars on plinths, a glass ceiling for the format's largest number that the naive exponentials break through; format chips; the stored bits of each step in the left column | Reading s7 | built (`27_js_sc_2sm.js`), replaces the 2D animation of idea 1; before and after on one input is what depth separates |
+| 16b | **NaN spread (3D)**: X, W and Y as glass plates with bar fields, NaN cells as red blocks, flows along the row (forward) and the column (backward) the NaN takes | Reading s10 | built (`27_js_sc_3nan.js`), replaces the 2D stepper of idea 16; the flows show why a row and then a column turn NaN |
+| 4 | Kahan animation | Reading s5 | kept 2D, now four (naive) and eight (Kahan) explained stretches of the eleven additions with step lists |
+| R6 | Matrix-multiply accumulation in 3D (16-bit tiles feeding a float32 accumulator) | | rejected: its message is error against N on log axes, which the summation lab already draws better flat; a 3D tile scene would have no number of its own to show |
+| R7 | 3D hero | | rejected: the hero's second half is a range on a log axis; the bits half is now the section 3 stage |
+| R8 | 3D E4M3 grid, spacing staircase, reduction trees, toolbox curves, loss-scale histogram | | kept 2D: a number line, log-log curves, a tree, curves and a histogram read best flat |

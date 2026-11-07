@@ -1,10 +1,12 @@
 
-<section id="mc-s9">
+<div class="s3sp"><div class="s3L"><section id="mc-s9">
 <h2>9. Memory: what the backward pass must keep, and checkpointing</h2>
 <p>Every rule in section 6 needs something from the forward pass: a linear layer's weight gradient needs its input \(x\); GELU needs its input; softmax and tanh need their outputs; layer norm needs its input and its statistics. These <dfn>activations</dfn> must be kept from the moment the forward pass computes them until the backward pass uses them, so at the turn from forward to backward almost all of them are alive at once. Inference keeps nothing: each value can be freed as soon as the next layer has read it.</p>
 <p><dfn>Activation checkpointing</dfn> (also gradient checkpointing or rematerialisation) keeps only some activations and recomputes the missing ones from the nearest checkpoint during the backward pass. Chen et al.: "we design an algorithm that costs \(O(\sqrt{n})\) memory to train a n layer network, with only the computational cost of an extra forward pass per mini-batch" ({{Chen et al. 2016, abstract|https://arxiv.org/abs/1604.06174}}). The argument (their section 4.3, Eq. 1): split \(n\) layers into \(k\) segments, keep the segment boundaries, and hold one segment's \(n/k\) activations at a time; memory is about \(n/k + k\), smallest at \(k = \sqrt n\), where it is \(2\sqrt n\) instead of \(n\), and each segment is recomputed once, so the extra work is at most one forward pass.</p>
-<div class="pred"><b>Predict:</b> with 9 layers, how many activations does store-everything hold at its peak, and how many does checkpointing every 3 layers hold? Step through both.</div>
-<div class="card" id="mc-mem-card"><h4 class="ft">One chain, four ways to run it: memory held against layers recomputed</h4>
+<div class="pred"><b>Predict:</b> with 9 layers, how many activations does store-everything hold at its peak, and how many does checkpointing every 3 layers hold? Then step through both: the widget opens at the turn from forward to backward, where memory peaks; its schedule buttons and sliders change the run, and its arrows and scrubber walk it event by event.</div>
+
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="mc-mem-card"><h4 class="ft">One chain, four ways to run it: memory held against layers recomputed</h4>
 <div class="seg" id="mc-mem-mode" role="group" aria-label="Schedule"><button data-m="infer">Inference only</button><button data-m="all">Before: training, store everything</button><button data-m="ckpt" class="on">After: checkpoint every k layers</button><button data-m="none">Store nothing, recompute everything</button></div>
 <div class="ctl"><label>Layers, \(n\): <b id="mc-mem-nv">9</b><input type="range" id="mc-mem-n" min="4" max="16" step="1" value="9" aria-label="Number of layers"></label><label>Segment length, \(k\) (checkpoint mode): <b id="mc-mem-sv">3</b><input type="range" id="mc-mem-s" min="1" max="8" step="1" value="3" aria-label="Segment length"></label></div>
 <div class="rd-svg" id="mc-mem-svg"></div>
@@ -13,9 +15,11 @@
 <div class="an-cap" id="mc-mem-cap" aria-live="polite"></div>
 <div class="an-cnt" id="mc-mem-cnt"></div>
 <p class="small mute">A chain \(h_k = \tanh(w_k\,h_{k-1})\) with a squared-error loss <span class="ill">illustrative weights</span>; the backward step through layer \(k\) needs \(h_{k-1}\) (for the weight's gradient) and \(h_k\) (tanh's derivative is \(1 - h_k^2\)), exactly what PyTorch saves for <code>mul</code> and <code>tanh</code>. Memory is counted in activations (the input \(h_0\) included), compute in layer evaluations. Store-everything peaks at \(n + 1\); checkpointing with \(k = \sqrt n\) peaks near \(2\sqrt n\) and recomputes fewer than \(n\) layers; storing nothing needs only 4 but recomputes \(n(n-1)/2\) layers, quadratic in depth. Schedules are recomputed in <code>src/recompute.py</code>.</p>
-</div>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="mc-s9b">
 <p><b>Measured on a real model.</b> The 8-block stack of section 8 on an Apple GPU (MPS), its allocator's count of allocated bytes read after every operation of one training step, each block run normally or wrapped in <code>torch.utils.checkpoint.checkpoint(..., use_reentrant=False)</code>:</p>
-<div class="card" id="mc-tl-card"><h4 class="ft">Checkpointing every block cuts the memory held at the turn from 422 to 52 MiB</h4><div class="rd-svg" id="mc-tl-svg"></div><p class="small mute" id="mc-tl-cap"></p></div>
+
 <p>Store-everything held 422.1 MiB at the turn and peaked at 486.1 MiB; checkpointing every block held 52.0 MiB and peaked at 172.6 MiB, for 42.9 GFLOP of recomputation (20.8% more) and a backward pass of 0.288 s instead of 0.182 s; inference peaked at 68 MiB. At scale, activation memory per layer, full against selective recomputation and how checkpointing combines with parallelism are on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; how <code>torch.utils.checkpoint</code> works inside is on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}.</p>
 <details class="dp"><summary>The measured table, where the 422 MiB go, and why the recompute is less than a forward pass <span class="mute">(2 min)</span></summary><div class="b">
 <div class="tw"><table class="mini" style="width:100%"><tr><th>run</th><th class="num">held at the turn, MiB</th><th class="num">peak, MiB</th><th class="num">extra FLOPs</th><th class="num">backward time (CPU), s</th></tr>
@@ -30,20 +34,16 @@
 <li>The optimal schedule for a fixed number of checkpoints is Griewank and Walther's revolve, whose schedules are "provably optimal with regard to a primary and a secondary criterion" ({{ACM TOMS 26(1), 2000|https://doi.org/10.1145/347837.347846}}); recomputing attention inside the kernel is on the {{FlashAttention paper page|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}.</li>
 </ul>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="mc-tl-card"><h4 class="ft">Checkpointing every block cuts the memory held at the turn from 422 to 52 MiB</h4><div class="rd-svg" id="mc-tl-svg"></div><p class="small mute" id="mc-tl-cap"></p></div></div></div></div>
 
-<section id="mc-s10">
+<div class="s3sp"><div class="s3L"><section id="mc-s10">
 <h2>10. Vanishing and exploding gradients: a property of the product</h2>
 <p>By the chain rule, the gradient that reaches layer 0 of an \(n\)-layer chain is a product of \(n\) transposed Jacobians, \(\bar h_0 = J_1^\top J_2^\top \cdots J_n^\top\, \bar h_n\), so its size is bounded by the product of their largest stretches (spectral norms):</p>
 \[ \lVert \bar h_0 \rVert \le \lVert J_1 \rVert\, \lVert J_2 \rVert \cdots \lVert J_n \rVert\; \lVert \bar h_n \rVert \]
 <p class="plain">If each layer scales a typical vector by a factor \(g\), thirty layers scale it by about \(g^{30}\): \(0.9^{30} = 0.042\) and \(1.1^{30} = 17.4\). The gradient vanishes or explodes geometrically with depth, and no single layer is to blame: a 10% shortfall per layer is enough. Below, 30 layers of width 64 with random weights of standard deviation \(g/\sqrt{64}\) <span class="ill">illustrative, seeded</span>, so each linear layer scales a typical vector by about \(g\).</p>
 <div class="pred"><b>Predict:</b> at \(g = 1\) the linear chain's gradient stays near 1. What happens to the tanh chain at \(g = 1\), and at what \(g\) does it stop vanishing? Then drag.</div>
-<div class="card" id="mc-van-card"><h4 class="ft">The gradient at layer 0 is a product of 30 factors: move the per-layer gain</h4>
-<div class="ctl"><label>Per-layer gain \(g\): <b id="mc-van-gv">1.00</b><input type="range" id="mc-van-g" min="0.5" max="2" step="0.05" value="1" aria-label="Per-layer gain"></label></div>
-<div class="rd-svg" id="mc-van-svg"></div>
-<div class="an-cnt" id="mc-van-cnt"></div>
-<p class="small mute">The loss's gradient enters at layer 30 as a random unit vector and is sent back through \(W_k^\top\) (linear) or through \(W_k^\top\) after multiplying by tanh's slope \(1 - h_k^2\). Log scale: each grid line is a factor of 100,000. Computed in the page (<code>parts/22c_js_new.js</code>), checked against <code>src/two_layer.py</code>.</p>
-</div>
+
 <p>Tanh's slope is at most 1, so at \(g = 1\) every factor shrinks a little and the gradient at layer 0 is 0.039 of what entered; raising \(g\) makes the weights larger but also pushes the units into saturation, where the slope is near 0. The cures all act on the factors: <b>initialisation</b> that sets \(g \approx 1\) for the activation used, and <b>normalisation</b> that keeps it there ({{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}}); <b>residual connections</b>, whose factor \(I + J_F\) keeps an identity path through every layer (section 3), with the branches scaled down at depth ({{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}}); <b>gradient clipping</b> against the occasional explosion ({{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}); and, in recurrent networks, where the same Jacobian is multiplied once per time step, gated cells ({{Sequence models: the pre-transformer lineage|n:3c65c17b0d0d818da4ded61ace6847ce}}, backpropagation through time).</p>
 <details class="dp"><summary>The toy's numbers at six gains <span class="mute">(under 1 min)</span></summary><div class="b">
 <div class="tw"><table class="mini"><tr><th>\(g\)</th><th class="num">0.5</th><th class="num">0.9</th><th class="num">1.0</th><th class="num">1.1</th><th class="num">1.5</th><th class="num">2.0</th></tr>
@@ -52,4 +52,10 @@
 <tr><td>\(g^{30}\)</td><td class="num">9.3e-10</td><td class="num">0.042</td><td class="num">1</td><td class="num">17.4</td><td class="num">1.92e5</td><td class="num">1.07e9</td></tr></table></div>
 <p class="small">The linear chain tracks \(g^{30}\) within the spread of one random draw (30 layers, width 64, seed 7); the tanh chain stays below it at every gain because each factor carries a slope \(1 - h^2 \le 1\).</p>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="mc-van-card"><h4 class="ft">The gradient at layer 0 is a product of 30 factors: move the per-layer gain</h4>
+<div class="ctl"><label>Per-layer gain \(g\): <b id="mc-van-gv">1.00</b><input type="range" id="mc-van-g" min="0.5" max="2" step="0.05" value="1" aria-label="Per-layer gain"></label></div>
+<div class="rd-svg" id="mc-van-svg"></div>
+<div class="an-cnt" id="mc-van-cnt"></div>
+<p class="small mute">The loss's gradient enters at layer 30 as a random unit vector and is sent back through \(W_k^\top\) (linear) or through \(W_k^\top\) after multiplying by tanh's slope \(1 - h_k^2\). Log scale: each grid line is a factor of 100,000. Computed in the page (<code>parts/22c_js_new.js</code>), checked against <code>src/two_layer.py</code>.</p>
+</div></div></div></div>

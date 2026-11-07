@@ -11,19 +11,42 @@
 <li><dfn id="rd-g-kahan">Kahan (compensated) summation</dfn> ({{Kahan 1965|https://doi.org/10.1145/363707.363723}}) carries a second number \(c\) holding what the last addition lost and feeds it into the next one. Its bound is \(\bigl(2u + O(n u^2)\bigr)\sum|x_i|\): independent of \(n\) while \(n u \ll 1\).</li>
 <li><b>Accumulate in higher precision</b>: 16-bit inputs added in a float32 accumulator. Tensor cores do this for fp16 and bf16 matrix multiplies (PyTorch notes: "intermediate accumulations (reduction) in single-precision"); FP8 recipes promote partial sums periodically: DeepSeek-V3 every 128 elements ({{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</li>
 </ul>
-\[ y = x_k - c, \qquad t = s + y, \qquad c = (t - s) - y, \qquad s = t \]
-<p>Read Kahan's four lines as: \(y\) is the new term corrected by last step's loss; \(t\) is the rounded new sum; \((t - s)\) is what actually got added, so \((t - s) - y\) is minus what was lost. In exact arithmetic \(c\) would always be 0, which is why a compiler allowed to reassociate (<code>-ffast-math</code>, some JIT settings) can silently delete it. Step through both on the same input:</p>
-<div class="card" id="rd-kahCard">
+</section>
+<div class="s3sp"><div class="s3R"><div class="card" id="rd-kahCard">
 <h4>Before and after: the same eleven float16 numbers, 2048 then ten copies of 0.4</h4>
-<div class="small">0.4 is stored as \(0.39990234\). Exact sum \(2051.999\); the nearest float16 is 2052. Predict the naive sum before you step.</div>
+<div class="small">0.4 is stored as \(0.39990234\). Exact sum \(2051.999\); the nearest float16 is 2052.</div>
 <div class="seg" id="rd-kahMode"><button data-m="naive" class="on">Naive running sum</button><button data-m="kahan">Kahan summation</button></div>
 <div class="an-stage" id="rd-kahStage"></div>
-<div class="an-cap" id="rd-kahCap"></div>
 <div class="an-cnt" id="rd-kahCnt"></div>
 <div class="an-ctl" id="rd-kahCtl"></div>
 </div>
+</div><div class="s3L"><section id="rd-sum2">
+\[ y = x_k - c, \qquad t = s + y, \qquad c = (t - s) - y, \qquad s = t \]
+<p>Read Kahan's four lines as: \(y\) is the new term corrected by last step's loss; \(t\) is the rounded new sum; \((t - s)\) is what actually got added, so \((t - s) - y\) is minus what was lost. In exact arithmetic \(c\) would always be 0, which is why a compiler allowed to reassociate (<code>-ffast-math</code>, some JIT settings) can silently delete it. Step through both on the same input; the steps play by themselves once the card is in view:</p>
+<p class="small">Predict the naive sum before it plays; the mode buttons on the card swap the steps below.</p>
+<ol class="sx" id="sx-kahN">
+<li><b>Start.</b> \(s = 0\). Eleven float16 numbers will be added: 2048, then ten copies of 0.4, stored as \(0.39990234\). At 2048 float16's gap is 2.</li>
+<li><b>Add 2048.</b> It is exactly representable: \(s = 2048\).</li>
+<li><b>Add the first 0.4: absorbed.</b> The exact sum \(2048.3999\) is less than half a gap (1) above 2048, so it rounds back to 2048. Lost this step: \(0.39990234\).</li>
+<li><b>Add the other nine: all absorbed.</b> Each is lost the same way, so the naive sum never moves: it ends at <b>2048</b>, against an exact \(2051.999\) whose nearest float16 is 2052.</li>
+</ol>
+<ol class="sx" id="sx-kahK" hidden>
+<li><b>Start.</b> \(s = 0\), \(c = 0\). The same eleven float16 numbers; at 2048 the gap is 2.</li>
+<li><b>Add 2048.</b> \(y = 2048\), \(t = 2048\), \(c = 0\): nothing lost.</li>
+<li><b>First 0.4: the sum does not move, but \(c\) remembers.</b> \(y = 0.39990234\); \(t = s + y\) rounds to 2048; \(c = (t - s) - y = -0.39990234\), minus what was lost.</li>
+<li><b>Second 0.4.</b> \(y = x - c = 0.79980469\); \(t\) still rounds to 2048; \(c = -0.79980469\).</li>
+<li><b>Third 0.4: the carried amount moves the sum.</b> \(y = 1.19921875\) is more than half a gap, so \(t = 2050\); \(c = (2050 - 2048) - 1.19921875 = 0.80078125\): the sum overshot, and \(c\) holds the overshoot.</li>
+<li><b>Fourth to eighth: \(c\) cycles, the sum waits at 2050.</b> \(y\) is cut by the overshoot (\(-0.40087891\), \(-0.00097656\)), then grows again (\(0.39892578\), \(0.79882813\)); \(c\) ends at \(-0.79882813\).</li>
+<li><b>Ninth: one more step up.</b> \(y = 1.19921875\) again, so \(t = 2052\) and \(c = 0.80078125\).</li>
+<li><b>Tenth and eleventh: done.</b> The sum stays at <b>2052</b>, the nearest float16 to the exact \(2051.999\); \(c\) ends at \(0.00097656\).</li>
+</ol>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-sum3">
 <p>The same error growth on many numbers: add \(N\) numbers with the four algorithms, every addition rounded to the chosen format exactly as the hardware would, against the exact sum (Shewchuk's algorithm, as Python's <code>math.fsum</code>). <b>Predict</b> what the naive float16 sum of 10,000 uniform numbers returns, then look.</p>
-<div class="card" id="rd-labCard">
+
+<p><b>Measured on a million numbers</b> (NumPy and PyTorch on this laptop, uniform on \([0, 1)\)): the naive 16-bit running sum is useless past a few thousand terms (float16 59% low at \(N = 10^4\), bfloat16 50% low at \(N = 10^3\)); pairwise and Kahan stay within one rounding; Kahan in bfloat16 fails at \(N = 10^6\) (87% error) exactly as its bound warns, since \(n u^2 = 10^6 \times 2^{-16} \approx 15\) is no longer small; the float32 accumulator is the best by orders of magnitude. At \(N = 10^6\) the true sum, about 500,000, is beyond float16's 65,504, so pairwise, NumPy and <code>torch.sum</code> overflow to infinity and Kahan to NaN (its correction becomes \(\infty - \infty\)); only the naive sum stays finite, because it stalled at 2,048 long before. Rules: accumulate in float32 (float64 for metrics), prefer the library's reduction to a Python loop, never keep a running total in bf16.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-labCard">
 <h4>Error against \(N\): naive drifts, pairwise and Kahan stay near one rounding, a float32 accumulator wins</h4>
 <div class="ctl">
 <label>Format<select id="sl-fmt"><option value="fp16" selected>float16</option><option value="bf16">bfloat16</option><option value="fp32">float32</option></select></label>
@@ -37,8 +60,8 @@
 <p><button id="sl-shuf">Shuffle 20 orders (naive sum)</button></p>
 <div class="sl-shuf" id="sl-shufOut"></div>
 <div class="small mute">Float16, uniform, \(N = 10{,}000\): the naive sum stalls at 2,048 (59% low) while pairwise and Kahan are within one rounding. Try <b>big first value</b> (naive loses almost all the small numbers), <b>mixed signs</b> (every bound is relative to \(\sum|x_i|\), not to the small answer) and <b>Shuffle</b>. "Best possible" is the exact sum rounded once to the format. A relative error of exactly 0 is drawn at the bottom edge, an infinite one (overflow) at the top. Data from a seeded generator (mulberry32), rounded to the format first so only the summation rounds; <code>recompute.py</code> reproduces the uniform cases at \(N = 100\), 1,000 and 10,000 in NumPy.</div>
-</div>
-<p><b>Measured on a million numbers</b> (NumPy and PyTorch on this laptop, uniform on \([0, 1)\)): the naive 16-bit running sum is useless past a few thousand terms (float16 59% low at \(N = 10^4\), bfloat16 50% low at \(N = 10^3\)); pairwise and Kahan stay within one rounding; Kahan in bfloat16 fails at \(N = 10^6\) (87% error) exactly as its bound warns, since \(n u^2 = 10^6 \times 2^{-16} \approx 15\) is no longer small; the float32 accumulator is the best by orders of magnitude. At \(N = 10^6\) the true sum, about 500,000, is beyond float16's 65,504, so pairwise, NumPy and <code>torch.sum</code> overflow to infinity and Kahan to NaN (its correction becomes \(\infty - \infty\)); only the naive sum stays finite, because it stalled at 2,048 long before. Rules: accumulate in float32 (float64 for metrics), prefer the library's reduction to a Python loop, never keep a running total in bf16.</p>
+</div></div></div></div>
+<section id="rd-sum4">
 <details class="dp"><summary>The measured table: three formats, five methods, \(N\) from 100 to \(10^6\)</summary><div>
 <p class="small">Sum the first \(N\) of a million numbers drawn uniformly from \([0, 1)\), each first rounded to the format so that only the summation rounds. Relative error against <code>math.fsum</code>; "fp32 accumulator" adds the 16-bit inputs in a float32 running sum; <code>torch.sum</code> is PyTorch 2.14.1 on the CPU.</p>
 <div class="tw" id="rd-sumTbl"></div>

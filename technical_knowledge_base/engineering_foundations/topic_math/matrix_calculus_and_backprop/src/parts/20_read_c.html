@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-fr"></div></div><div class="s3L">
 <section id="mc-s3">
 <h2>3. The chain rule as a product of Jacobians</h2>
 <p>Let \(y = g(x)\) and \(z = f(y)\). A small step \(\delta x\) moves \(y\) by about \(J_g\,\delta x\), and that moves \(z\) by about \(J_f\) times it:</p>
@@ -22,23 +23,40 @@
 <div style="--sc:var(--c1)"><h4>Forward mode: Jacobian-vector products</h4>Pick one input direction \(u\) and carry a <dfn>tangent</dfn> \(\dot v\) (how fast each value changes along \(u\)) alongside every value, in the order of the computation: \(\dot z = J_1 u\), \(\dot p = J_2 \dot z\), ... One pass gives \(Ju\): how <b>every output</b> changes along <b>one</b> input direction. A full gradient over \(n\) inputs needs \(n\) passes.</div>
 <div style="--sc:var(--c2)"><h4>Reverse mode: vector-Jacobian products</h4>Run forward once, keeping what each local derivative will need. Then carry an <dfn>adjoint</dfn> \(\bar v\) backwards from one output: \(\bar p\), then \(\bar z = J_2^\top \bar p\), then \(\bar W\) and \(\bar x\). One backward pass gives the slope of <b>one</b> output with respect to <b>every</b> input. Backpropagation is reverse mode applied to a loss.</div>
 </div>
-<div class="pred"><b>Predict:</b> the tiny model has six weights. How many sweeps does each mode need for all six slopes, and how many multiply-adds? Then step through both.</div>
-<div class="card" id="mc-fr-card"><h4 class="ft">Forward mode needs a sweep per weight; reverse mode one sweep for all</h4>
-<div class="seg" id="mc-fr-mode" role="group" aria-label="Mode"><button data-m="fwd">Before: forward mode (one sweep per weight)</button><button data-m="rev" class="on">After: reverse mode (one backward sweep)</button></div>
-<div id="mc-fr-view"></div>
-<div class="an-ctl" id="mc-fr-ctl"></div>
-<div class="an-cap" id="mc-fr-cap" aria-live="polite"></div>
-<div class="an-cnt" id="mc-fr-cnt"></div>
+<div class="pred"><b>Predict:</b> the tiny model has six weights. How many sweeps does each mode need for all six slopes, and how many multiply-adds? Then watch both: the stage plays reverse mode; the button switches to forward mode.</div>
+<div class="s3chips" id="mc-fr-mode" role="group" aria-label="Mode"><button data-m="rev" class="on">After: reverse mode (one backward sweep)</button><button data-m="fwd">Before: forward mode (one sweep per weight)</button></div>
+<ol class="sx" id="sx-fr-rev">
+<li><b>The forward pass, shared by both modes.</b> \(z = Wx = (2, 1, 0)\), \(p = (0.665, 0.245, 0.090)\), \(L = 2.408\). Reverse mode keeps \(x\) and \(p\) (orange), the values its local derivatives will need.</li>
+<li><b>Start at the loss: \(\bar p\).</b> \(\bar L = 1\) and \(L = -\ln p_{\text{sat}}\), so \(\bar p = (0, 0, -1/p_{\text{sat}}) = (0, 0, -11.107)\). One multiply-add.</li>
+<li><b>Back through softmax: \(\bar z = J^\top \bar p\).</b> A vector-Jacobian product, nine multiply-adds: \(\bar z = (0.665, 0.245, -0.910)\), the prediction minus the target.</li>
+<li><b>All six slopes at once: \(\bar W = \bar z\,x^\top\).</b> An outer product of the arriving gradient (blue) and the stored input (green): every entry of \(\partial L/\partial W\) in one step, six multiply-adds.</li>
+<li><b>And the input's gradient for free.</b> \(\bar x = W^\top \bar z = (-0.245, 2.065)\): what an earlier layer (here the embedding) would receive; six more multiply-adds.</li>
+<li><b>One sweep for every slope.</b> All six slopes plus the input's, in one backward sweep. Its cost does not grow with the number of weights, only with the size of the computation, which is why every training framework uses it.</li>
+</ol>
+<ol class="sx" id="sx-fr-fwd" hidden>
+<li><b>The forward pass, shared by both modes.</b> The same values; forward mode will now push one <span class="mc-tan">tangent</span> through the chain for each of the six weights, and can forget each value as soon as it is used.</li>
+<li><b>Sweep 1: seed \(W_{\text{cat},1}\).</b> Its tangent is 1 and every other weight's 0, so \(\dot z = \dot W x = (2, 0, 0)\): only the cat score moves, at rate \(x_1 = 2\). Through softmax \(\dot p = J\dot z\); through the loss \(\dot L = -\dot p_{\text{sat}}/p_{\text{sat}} = 1.330\). One sweep of 16 multiply-adds, one slope.</li>
+<li><b>Sweep 2: \(W_{\text{cat},2}\).</b> \(\dot z = (1, 0, 0)\), \(\dot L = 0.665\).</li>
+<li><b>Sweep 3: \(W_{\text{dog},1}\).</b> \(\dot z = (0, 2, 0)\), \(\dot L = 0.489\).</li>
+<li><b>Sweep 4: \(W_{\text{dog},2}\).</b> \(\dot z = (0, 1, 0)\), \(\dot L = 0.245\).</li>
+<li><b>Sweep 5: \(W_{\text{sat},1}\).</b> \(\dot z = (0, 0, 2)\), \(\dot L = -1.820\).</li>
+<li><b>Sweep 6: \(W_{\text{sat},2}\).</b> \(\dot z = (0, 0, 1)\), \(\dot L = -0.910\).</li>
+<li><b>Six sweeps for six slopes.</b> 96 multiply-adds. A model with a billion weights would need a billion sweeps. Each sweep gives the derivative of every output along one direction, which is wasted here because there is only one output.</li>
+</ol>
 <p class="small mute">Multiply-adds counted the same way in both modes: applying a matrix with \(r\) rows and \(c\) columns costs \(r \times c\); the shared forward pass is not counted. Forward mode: 16 per sweep, 96 for six; reverse mode: 16 for \(\bar W\), 6 more for \(\bar x\). Values from <code>parts/22b_js_core.js</code>, checked against <code>src/recompute.py</code>.</p>
-</div>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="mc-s4b">
 <p><b>The rule.</b> For \(f: \mathbb{R}^n \to \mathbb{R}^m\) the whole Jacobian costs \(n\) forward-mode passes or \(m\) reverse-mode passes. The standard survey's bound: "\(n\,c\,\text{ops}(f)\)" in forward mode and "\(m\,c\,\text{ops}(f)\)" in reverse mode, "where c is a constant guaranteed to be c &lt; 6 and typically c ∼ [2, 3]" ({{Baydin et al. 2018, section 3.2, p. 13|https://arxiv.org/abs/1502.05767}}, citing Griewank and Walther 2008). Training has \(m = 1\) and \(n\) in the billions, so reverse mode, by a factor of \(n\). Forward mode wins when inputs are few and outputs many, such as the sensitivity of every output of a simulation to one hyperparameter. Measured with <code>torch.func.jacfwd</code> and <code>jacrev</code> on \(f(x) = B\tanh(Ax)\) (hidden width 256, float64, two CPU threads):</p>
-<div class="card" id="mc-jac-card"><h4 class="ft">The cheaper mode flips with the shape of the Jacobian</h4><div class="rd-svg" id="mc-jac-svg"></div>
-<p class="small mute" id="mc-jac-cap"></p></div>
-<p><b>The price of reverse mode is memory.</b> The backward sweep runs in the opposite order to the computation, so every value a local derivative needs must still exist when the sweep reaches it: stored during the forward pass, or recomputed. Forward mode carries its tangent along and can forget each value at once. Sections 8 and 9 measure both costs.</p>
+
+<p><b>The price of reverse mode is memory.</b> The backward sweep runs in the opposite order to the computation, so every value a local derivative needs must still exist when the sweep reaches it: stored during the forward pass, or recomputed. Forward mode carries its tangent along and can forget each value at once. Sections 8 and 9 measure both costs.</p></section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="mc-jac-card"><h4 class="ft">The cheaper mode flips with the shape of the Jacobian</h4><div class="rd-svg" id="mc-jac-svg"></div>
+<p class="small mute" id="mc-jac-cap"></p></div></div></div></div>
 <details class="dp"><summary>Dual numbers, JAX's cost notes, and a little history <span class="mute">(2 min)</span></summary><div class="b">
 <p><b>The cheap gradient principle.</b> Griewank calls a gradient at a small constant multiple of the function's cost, whatever \(n\), the "Cheap Gradient Principle", and adds that "there is no corresponding Cheap Jacobian Principle" ({{Griewank 2012, p. 391|https://ftp.gwdg.de/pub/misc/EMIS/journals/DMJDMV/vol-ismp/52_griewank-andreas-b.pdf}}).</p>
 <p><b>Dual numbers.</b> Forward mode has a neat algebraic form: numbers \(a + b\varepsilon\) with \(\varepsilon^2 = 0\). Then \(f(a + b\varepsilon) = f(a) + f'(a)\,b\,\varepsilon\) for any smooth \(f\) (the Taylor series stops after the linear term), so evaluating with dual numbers carries the derivative along for free. PyTorch exposes it as <code>torch.func.jvp</code> and dual tensors in <code>torch.autograd.forward_ad</code>; JAX as <code>jax.jvp</code>.</p>
 <p><b>JAX's documentation</b> gives the same picture: for a VJP "the FLOP cost ... is only about three times the cost of evaluating f", and "though the FLOPs are friendly, memory scales with the depth of the computation"; for a JVP "the memory cost is independent of the depth of the computation"; and "jacfwd ... is more efficient for "tall" Jacobian matrices (more outputs than inputs), while jacrev ... is more efficient for "wide" Jacobian matrices" ({{JAX, The Autodiff Cookbook|https://docs.jax.dev/en/latest/notebooks/autodiff_cookbook.html}}).</p>
 <p><b>History.</b> "Forward mode AD as a general method for evaluating partial derivatives was essentially discovered by Wengert (1964)"; the work of "Linnainmaa (1970, 1976) is often cited as the first published description of the reverse mode"; in machine learning it "has been reinvented several times ... until it was eventually brought to fame by Rumelhart et al. (1986)" ({{Baydin et al. 2018, section 3.3|https://arxiv.org/abs/1502.05767}}). Griewank's history adds that Ostrowski used the reverse idea some five years before Linnainmaa, in chemical engineering ({{Griewank 2012, p. 389|https://ftp.gwdg.de/pub/misc/EMIS/journals/DMJDMV/vol-ismp/52_griewank-andreas-b.pdf}}). As Baydin et al. put it, "the backpropagation algorithm is only a special case of AD" (section 4.2).</p>
 </div></details>
-</section>
+

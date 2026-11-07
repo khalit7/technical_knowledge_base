@@ -1,5 +1,5 @@
 // ---- Reading tab, visuals added 2026-10-24: hero (bits and range of every format), cancellation digits,
-// reduction trees (1, 2, 4 threads), naive against stable toolbox curves, NaN spread stepper ----
+// reduction trees (1, 2, 4 threads), naive against stable toolbox curves, and the data of the NaN spread (drawn in 3D by 27_js_sc_nan.js since 2026-11-07) ----
 (function(){
   const $=id=>document.getElementById(id),S=FP.show,T=RD.t;
   const SUP={'-':'\u207b','0':'\u2070','1':'\u00b9','2':'\u00b2','3':'\u00b3','4':'\u2074','5':'\u2075','6':'\u2076','7':'\u2077','8':'\u2078','9':'\u2079'};
@@ -119,32 +119,18 @@
   }
   window.NC_TOOL={first:(fn,f)=>firstBad(fn,FP.F[f],-100,100),eval:(fn,x,f)=>evalFn(fn,x,FP.F[f])};
   RD.seg($('rd-toolFn'),m=>{tfn=m;tool()});RD.seg($('rd-toolFmt'),m=>{tf=m;tool()});
-  // ---------- 5. NaN spread stepper ----------
+  // ---------- 5. NaN spread: the matrices of each step (the step texts are the list sx-nan in section 10) ----------
   const X0=[[0.5,-1.2,0.3,0.8],[1.1,0.4,NaN,-0.6],[-0.3,0.9,0.2,1.4]];
   const W0=[[0.2,-0.1,0.4],[0.3,0.5,-0.2],[-0.4,0.1,0.6],[0.1,-0.3,0.2]];
   const mm=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,v,k)=>s+v*B[k][j],0)));
   const tr=A=>A[0].map((_,j)=>A.map(r=>r[j]));
   const Y0=mm(X0,W0),Lval=Y0.flat().reduce((s,v)=>s+v,0)/9,dY=Y0.map(r=>r.map(()=>1/9)),dW=mm(tr(X0),dY),W1=W0.map((r,i)=>r.map((v,j)=>v-0.1*dW[i][j])),Y1=mm(X0,W1);
   const NS=[
-    {t:'Forward: one NaN in the input',m:[['X',X0],['W',W0],['Y = XW',Y0]],p:'Token 2, feature 3 is NaN (say an overflowed activation upstream). Each output in row 2 of Y is a sum that includes NaN × w, so the whole row is NaN; rows 1 and 3 are fine.'},
-    {t:'The loss is NaN',m:[['X',X0],['W',W0],['Y = XW',Y0]],loss:Lval,p:'The mean loss adds every entry of Y, including row 2, so the loss is NaN. A check written as loss > 10 is false for NaN and never fires.'},
-    {t:'Backward: one row of weight gradients',m:[['X',X0],['∂L/∂W',dW],['∂L/∂Y',dY]],loss:Lval,p:'∂L/∂Y of a mean is 1/9 everywhere, finite. But ∂L/∂W = Xᵀ ∂L/∂Y: row 3 of it sums column 3 of X, which holds the NaN, so that whole row of the gradient is NaN.'},
-    {t:'Update, then the next forward pass: everything',m:[['X',X0],['new W',W1],['next Y',Y1]],loss:NaN,p:'The optimiser writes NaN into row 3 of W. Every output of the next forward pass uses that row (feature 3 times row 3), so every entry is NaN, for every token, and the run is over.'}];
-  function nanDraw(i){
-    const el=$('rd-nanFig');if(!el)return;const s=NS[i];
-    const W=Math.min(860,RD.width(el)),cw=Math.max(12,Math.min(26,(W-36)/11.6)),gap=10;let b='',x=0;
-    s.m.forEach(([nm,M])=>{const r=M.length,c=M[0].length;b+=T(x,12,nm,{fs:11,w:600});
-      M.forEach((row,ri)=>row.forEach((v,ci)=>{const bad=Number.isNaN(v);b+='<rect x="'+(x+ci*cw).toFixed(1)+'" y="'+(20+ri*cw).toFixed(1)+'" width="'+(cw-2).toFixed(1)+'" height="'+(cw-2).toFixed(1)+'" rx="2" fill="'+(bad?'var(--bad)':'var(--soft)')+'" stroke="var(--line)"/>';
-        if(bad&&cw>=20)b+=T((x+ci*cw+(cw-2)/2).toFixed(1),(20+ri*cw+cw/2+3).toFixed(1),'NaN',{a:'middle',fs:11,fill:'var(--bg)'})}));
-      x+=c*cw+gap});
-    const lx=x,ok=s.loss===undefined;b+=T(lx,12,'loss',{fs:11,w:600});
-    b+='<rect x="'+lx.toFixed(1)+'" y="20" width="'+(cw*1.6).toFixed(1)+'" height="'+(cw-2).toFixed(1)+'" rx="2" fill="'+(ok?'var(--soft)':'var(--bad)')+'" stroke="var(--line)"/>';
-    const wTot=lx+cw*1.6+2;
-    el.innerHTML=RD.svg(Math.min(W,Math.ceil(wTot)),20+4*cw+6,b,'NaN spreading through a linear layer, step '+(i+1));
-    $('rd-nanCap').innerHTML='<div class="t">Step '+(i+1)+' of 4: '+s.t+'</div><p>'+s.p+'</p>';
-  }
-  window.NC_NAN={steps:()=>NS.map(s=>s.m.map(([n,M])=>M.flat().filter(Number.isNaN).length))};
+    {t:'Forward: one NaN in the input',m:[['X',X0],['W',W0],['Y = XW',Y0]]},
+    {t:'The loss is NaN',m:[['X',X0],['W',W0],['Y = XW',Y0]],loss:Lval},
+    {t:'Backward: one row of weight gradients',m:[['X',X0],['∂L/∂W',dW],['∂L/∂Y',dY]],loss:Lval},
+    {t:'Update, then the next forward pass: everything',m:[['X',X0],['new W',W1],['next Y',Y1]],loss:NaN}];
+  window.NC_NAN={NS,steps:()=>NS.map(s=>s.m.map(([n,M])=>M.flat().filter(Number.isNaN).length))}; // drawn by the 3D stage of section 10 (27_js_sc_nan.js)
   function all(){hero();canc();tree();tool()}
-  all();RD.onRender(all);RD.onResize(()=>{all();NA.redraw()});
-  const NA=RD.anim({card:'rd-nanCard',ctl:'rd-nanCtl',n:NS.length,draw:nanDraw,ms:2200,label:'NaN step'});
+  all();RD.onRender(all);RD.onResize(all);
 })();

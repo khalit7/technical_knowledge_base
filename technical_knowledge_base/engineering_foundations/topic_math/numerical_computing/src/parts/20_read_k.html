@@ -1,10 +1,14 @@
-<section id="rd-nan">
+<div class="s3sp"><div class="s3R"><div id="stg-nan"></div></div><div class="s3L"><section id="rd-nan">
 <h2>10. NaN hunting: where non-finite numbers come from and how to find the first one</h2>
-<p>Step 41,200 logs <code>loss: nan</code> and every weight is now NaN. NaN never appears from nowhere: some operation received an input outside its domain or produced a result outside the format's range, and from there it spreads through every operation that touches it:</p>
-<div class="card" id="rd-nanCard"><h4>One NaN in, a whole row out, then one row of weights, then everything</h4><div class="rd-svg" id="rd-nanFig"></div>
-<div class="an-cap" id="rd-nanCap"></div>
-<div class="an-ctl" id="rd-nanCtl"></div>
-<div class="small mute">A linear layer \(Y = XW\) with a mean loss, one training step and the next forward pass; every cell is a real IEEE 754 result of the stated operation on these shapes (illustrative sizes: 3 tokens, 4 features, 3 outputs).</div></div>
+<p>Step 41,200 logs <code>loss: nan</code> and every weight is now NaN. NaN never appears from nowhere: some operation received an input outside its domain or produced a result outside the format's range, and from there it spreads through every operation that touches it. The stage follows one NaN through a linear layer \(Y = XW\) with a mean loss, one training step and the next forward pass; every cell is a real IEEE 754 result of the stated operation, on illustrative sizes (3 tokens, 4 features, 3 outputs) and illustrative values.</p>
+<ol class="sx" id="sx-nan">
+<li><b>Forward: one NaN in the input.</b> Token 2, feature 3 of \(X\) is NaN (say an overflowed activation upstream). Each output in row 2 of \(Y\) is a sum that includes NaN times a weight, so the NaN flows along its row into every output of token 2; rows 1 and 3 are fine.</li>
+<li><b>The loss is NaN.</b> The mean loss adds every entry of \(Y\), row 2 included. A check written as <code>loss &gt; 10</code> is false for NaN and never fires.</li>
+<li><b>Backward: one row of weight gradients.</b> \(\partial L / \partial Y\) of a mean is \(1/9\) everywhere, finite. But \(\partial L / \partial W = X^{\top} \partial L / \partial Y\): row 3 of it sums column 3 of \(X\), which holds the NaN, so that whole row of the gradient is NaN.</li>
+<li><b>Update, then the next forward pass: everything.</b> The optimiser writes NaN into row 3 of \(W\). Every output of the next forward pass uses that row (feature 3 times row 3), so every entry is NaN, for every token, and the run is over.</li>
+</ol>
+</section></div></div>
+<section id="rd-nan2">
 <div class="tw"><table class="mini"><thead><tr><th>Operation</th><th>Result</th><th>Typical ML cause</th></tr></thead><tbody>
 <tr><td>\(e^{x}\), \(x \gt 88.72\) (fp32) or \(\gt 11.09\) (fp16)</td><td>\(\infty\)</td><td>naive softmax or sigmoid, an exponentiated log-variance</td></tr>
 <tr><td>any result above 65,504 in fp16</td><td>\(\infty\)</td><td>attention scores, sums of squares, large activations, too large a loss scale</td></tr>

@@ -37,3 +37,14 @@ No real image: the page is about a mechanism, not a physical object, so a diagra
 
 ## What the methodology lacked
 Measured wall-clock numbers on a shared laptop vary run to run (bwd/fwd 1.44, 1.57, 1.95 across three runs); the page states the variance and leans on exact FLOP and allocator counts.
+
+## 2026-11-07: split layout and 3D stages (renderer v2)
+| # | Idea | Kind | Where | Notes |
+|---|---|---|---|---|
+| 17 | The two-layer network as a chain in depth: values forward along the front row (green flows), gradients back along the row behind through the same glass weight plates (blue flows), weight gradients rising as outer-product bar fields behind each plate, kept activations on orange plinths | 3D stage, 5 steps | top (Fig. 1), replaces 10 | real values and gradients from MC2.two() |
+| 18 | The same scene, 12 steps with the numbers, the camera moving in close on each layer | 3D stage | s5 (Fig. 5), replaces 11 | step list carries the old captions and counters |
+| 19 | Jacobians of the tiny model: J = W as a plate and laid flat, softmax's 3 x 3 Jacobian as a signed bar field, dz/dW as three 3 x 2 slices (12 of 18 zero), contracted by z-bar into W-bar | 3D stage, 4 steps | s1 (Fig. 2), replaces 12 | MC.tinyAll() |
+| 20 | Reverse against forward mode: adjoints run back once (blue) and fill all six cells of dL/dW at once; tangents run forward once per weight (gold) and fill one cell per sweep; two step lists swapped by a mode toggle | 3D stage, 6 and 8 steps | s3 and s4 (Fig. 3), replaces 3 | MC.tinyAll(), MC.tinyJvps(); forward mode grouped one sweep per step (the long-replay rule) |
+| 1 | The four memory schedules | widget, no autoplay | s9 | up to about 60 events, so a widget the reader drives (long-replay rule b); opens on the turn from forward to backward |
+
+Kept 2D, and why: the layouts figure (a small table read flat), jacfwd against jacrev and the FLOP and time bars (numbers on axes, a log axis), the memory timeline (a curve), the gradient-product slider and the finite-difference chart (log axes), attention's shapes (a flat to-scale comparison of block sizes), the workbench (tables of numbers) and the autograd graph explorer (a list). Considered and not built: a 3D stage for checkpointing (the schedule is a one-dimensional chain over time, which the 2D widget already shows with real values); an outer-product bar field for 6a on its own (the network stages already show two).

@@ -40,8 +40,11 @@
     document.getElementById('mc-mem-cnt').innerHTML=RD.stat('Held now',String(e.now),'activations in memory')+RD.stat('Peak so far',String(e.peak),'store everything peaks at '+allPeak)+
       RD.stat('Layer evaluations',String(e.fw+e.rc),e.fw+' forward + '+e.rc+' recomputed')+RD.stat('Backward steps',e.bw+' of '+(mode==='infer'?0:n),'');
   }
-  const A=RD.anim({card:'mc-mem-card',ctl:'mc-mem-ctl',n:sch.ev.length,draw,ms:900,label:'Step'});
-  function rebuild(){build();A.reset(sch.ev.length)}
+  // a widget the reader drives (the long-replay rule, 2026-11-06: up to about 60 events, so it never plays by itself); it opens on the turn from forward to backward,
+  // the moment memory peaks, and every schedule change returns there
+  const turn=()=>{let t=0;sch.ev.forEach((e,j)=>{if(e.t==='f')t=j});return t};
+  const A=RD.anim({card:'mc-mem-card',ctl:'mc-mem-ctl',n:sch.ev.length,draw,ms:900,label:'Step',auto:false,start:turn()});
+  function rebuild(){build();A.reset(sch.ev.length);A.go(turn(),true)}
   RD.seg(document.getElementById('mc-mem-mode'),m=>{mode=m;rebuild()});
   const nr=document.getElementById('mc-mem-n'),sr=document.getElementById('mc-mem-s');
   nr.addEventListener('input',()=>{n=+nr.value;document.getElementById('mc-mem-nv').textContent=n;sr.max=Math.min(8,n);if(seg>n){seg=n;sr.value=n;document.getElementById('mc-mem-sv').textContent=n}rebuild()});

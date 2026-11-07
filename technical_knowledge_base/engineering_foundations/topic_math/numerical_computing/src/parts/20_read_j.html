@@ -10,16 +10,20 @@
 </tbody></table></div>
 <p class="small mute">Measured: <code>(w.to(dtype) - eta * sign(g).to(dtype)) == w.to(dtype)</code> over all 134.5M weights. The two 83.8% cells are the same weights: both conditions reduce to \(|w| \ge 2^{-5}\). Typical LLM learning rates are \(10^{-4}\) to \(10^{-3}\), decayed lower at the end of training.</p>
 <p>At a median weight of 0.107, bfloat16's gap is \(2^{-11} = 0.00049\), so any step below \(0.00024\) is lost: most of a run at learning rate \(10^{-4}\) would not train. The fix is a float32 <dfn id="rd-g-master">master copy</dfn>: the optimiser adds the update in float32 and a 16-bit copy is made for the next forward pass. The bytes this costs (2 + 2 + 4 + 4 + 4 = 16 per parameter with Adam) are counted on {{Quantization and precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-mp2">
 <h3>Failure 2: small gradients underflow (fix: loss scaling, float16 only)</h3>
 <p>In the float32 reference step the median \(|g|\) is \(3.2 \times 10^{-5}\), below float16's smallest normal number (\(2^{-14} = 6.1 \times 10^{-5}\)): <b>68%</b> of SmolLM2's gradients live in float16's subnormal range, <b>7.2%</b> are below its smallest subnormal \(2^{-24}\), and <b>5.0%</b> are below \(2^{-25}\) and round to exactly 0 when cast (measured). The 2017 paper found the same order on a speech model: "approximately 5% of weight gradient values have exponents smaller than \(-24\)". <dfn id="rd-g-ls">Loss scaling</dfn> multiplies the loss by \(S\) before the backward pass; by the chain rule every gradient is multiplied by \(S\), shifting the histogram right by \(\log_2 S\) binades; the gradients are divided by \(S\) in float32 before the update, so the step is unchanged. Too small an \(S\) leaves gradients in the underflow zone; too large pushes the largest past 65,504 into infinity. Predict the largest safe \(k\), then drag:</p>
-<div class="card" id="rd-lsCard">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-lsCard">
 <h4>SmolLM2-135M's real gradients slide into float16's range, until the top falls off the end</h4>
 <div class="small">Bars: how many of the 134.5M gradients fall in each binade \([2^{e}, 2^{e+1})\) (float32 reference step, measured), shifted by the loss scale. Shading: float16 rounds to 0 (left of \(2^{-25}\)), subnormal (\(2^{-25}\) to \(2^{-14}\)), normal, overflow (right of \(2^{16}\)).</div>
 <div class="ctl"><label>Loss scale \(S = 2^{k}\), \(k\) = <b id="rd-lsK">0</b> (\(S\) = <b id="rd-lsS">1</b>)<input type="range" id="rd-lsR" min="0" max="24" step="1" value="0" aria-label="log2 of the loss scale"></label></div>
 <div class="rd-svg" id="rd-lsFig"></div>
 <div class="out" id="rd-lsOut"></div>
 <div class="small mute" id="rd-lsNote"></div>
-</div>
+</div></div></div></div>
+<section id="rd-mp3">
 <p>The slider reads the float32 histogram; the real float16 runs are the ground truth (pure float16 forward and backward on MPS, every gradient compared with the float32 one):</p>
 <div class="tw" id="rd-lsTbl"></div>
 <p>So on this model a static scale between \(2^{8}\) and \(2^{16}\) works and \(2^{20}\) is fatal: one overflow in the backward pass becomes infinity, then NaN, and spreads to 96.5 million gradients. Because the right scale changes during training, frameworks adjust it. PyTorch's <code>GradScaler</code> starts at <code>init_scale=2.0**16</code>; when a step produces inf or NaN gradients it skips the step and multiplies the scale by <code>backoff_factor=0.5</code>, and after <code>growth_interval=2000</code> clean steps it multiplies by <code>growth_factor=2.0</code> ({{grad_scaler.py, lines 123 to 131, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/torch/amp/grad_scaler.py#L123-L131}}). The loop: <code>scaler.scale(loss).backward()</code>, <code>scaler.step(opt)</code>, <code>scaler.update()</code>, and <code>scaler.unscale_(opt)</code> before gradient clipping, so the threshold applies to the true gradients.</p>

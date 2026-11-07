@@ -3,7 +3,8 @@
 #t-read .deepnote{border:1px dashed var(--line);border-radius:8px;padding:8px 12px;margin:12px 0;font-size:13px;color:var(--mute)}#t-read .deepnote b{color:var(--ink)}
 #t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
 #t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-ctl select{padding:3px 6px}
+#t-read .stg .stg-bar{flex-wrap:nowrap;margin:0}#t-read .stg .stg-bar input.stg-r{flex:1 1 40px;min-width:30px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr));gap:6px;margin:6px 0}
@@ -62,6 +63,7 @@
 #t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
 #t-read .hero h4,#t-read .card h4.ft{margin:0 0 4px;font-size:14.5px}
 #t-read .hl{color:var(--acc);font-weight:600}
+#t-read .mc-kept{color:var(--c2);font-weight:600}#t-read .mc-fw{color:var(--c3);font-weight:600}#t-read .mc-tan{color:var(--c5);font-weight:600}
 #t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
 #t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
 @media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
@@ -94,12 +96,18 @@
 <a href="#mc-one">The idea</a><a href="#mc-s1">1 Shapes</a><a href="#mc-s2">2 Layouts</a><a href="#mc-s3">3 Chain rule</a><a href="#mc-s4">4 Reverse mode</a><a href="#mc-s5">5 By hand</a><a href="#mc-s6">6 Layer gradients</a><a href="#mc-s7">7 Trace trick</a><a href="#mc-s8">8 Cost</a><a href="#mc-s9">9 Memory</a><a href="#mc-s10">10 Vanishing</a><a href="#mc-s11">11 Checking</a><a href="#mc-s12">12 Autograd</a><a href="#mc-deep">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-net"></div></div><div class="s3L">
 <section id="mc-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Training needs the slope of one scalar loss with respect to every parameter. <b>Backpropagation is the chain rule multiplied from the loss end</b>: each layer turns the gradient at its output into the gradient at its input with one <span class="hl">vector-Jacobian product</span> (VJP), never building the Jacobian, so every slope comes out of one backward pass that costs about twice the forward pass in FLOPs and is paid for by keeping the forward pass's activations.</p>
-<div class="hero" id="mc-hero-card"><h4>One backward pass gives every gradient, each in the shape of its variable</h4>
-<div class="rd-svg" id="mc-hero"></div>
-<p class="small">The tiny model with one hidden layer, the network section 5 runs by hand. Left: the forward pass, each value with its shape; orange tags mark what it must keep. Middle: the backward pass, read bottom to top; each <span class="hl">blue arrow is one VJP</span>, a matrix-vector product, not a Jacobian. Right (below, on a phone): the weight gradients, each an outer product shaped like its weight.</p></div>
+<ol class="sx" id="sx-net">
+<li><b>Forward: values flow left to right</b> (<span class="mc-fw">green</span>). \(x = (2, 1)\) passes through the glass plate \(W_1\) to give \(a\), the ReLU gives \(h\), \(W_2\) gives the scores \(z\), and softmax with cross-entropy gives the loss \(L\). <span class="mc-kept">Orange plinths</span> mark what the pass must keep: \(x\), the sign of \(a\), \(h\) and \(p\).</li>
+<li><b>The backward pass starts at the loss.</b> \(\bar L = 1\), and softmax with cross-entropy hands back \(\bar z = p - y\) in one step (section 6d).</li>
+<li><b>One VJP per layer, back through the same plates.</b> \(\bar z\) goes back through \(W_2^\top\) to \(\bar h\), through the ReLU's mask to \(\bar a\), through \(W_1^\top\) to \(\bar x\): <span class="hl">each blue stream is one VJP</span>, a matrix-vector product with a stored value, not a Jacobian.</li>
+<li><b>Each weight gradient is an outer product, shaped like its weight.</b> \(\bar W_2 = \bar z\,h^\top\) (3 × 3) and \(\bar W_1 = \bar a\,x^\top\) (3 × 2): the gradient arriving at the layer (blue) times the input the layer kept (green).</li>
+<li><b>The price.</b> The backward pass did 30 matrix-product multiply-adds to the forward pass's 15 (section 8's factor of two), and every orange plinth stayed in memory from its forward step until the backward pass used it (section 9).</li>
+</ol>
+<p class="small mute">The two-layer network of section 5, where every number is worked out; bar heights are its real values and gradients.</p>
 <p><b>You need:</b> derivatives, the one-variable chain rule and the tiny model's loss (the root, {{Topic: math|n:3c65c17b0d0d81cdb851c0835b25a538}}, Reading sections 2 and 3); matrix products and transposes ({{Linear algebra for ML|n:3c65c17b0d0d81d89c26e1dab2fcb701}}). The losses themselves are on {{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}}, what happens to the gradient next on {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}, PyTorch's autograd engine on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}} and JAX's transforms on {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}.</p>
 <dl class="terms">
 <dt>Jacobian \(J\)</dt><dd>every output's slope with respect to every input: outputs by inputs, \(m \times n\).</dd>
@@ -111,3 +119,4 @@
 </dl>
 <div class="co key"><div class="t">The running example</div>The same tiny next-token model as the root page: the context "the cat" is the input \(x = (2, 1)\), the weight matrix \(W\) has one row per word, cat \((1, 0)\), dog \((0, 1)\), sat \((1, -2)\), the scores are \(z = Wx = (2, 1, 0)\), softmax turns them into probabilities \(p = (0.665, 0.245, 0.090)\), and the right next word is sat, so the loss is \(L = -\ln 0.090 = 2.408\). Every formula below is tried on these numbers first.</div>
 </section>
+</div></div>

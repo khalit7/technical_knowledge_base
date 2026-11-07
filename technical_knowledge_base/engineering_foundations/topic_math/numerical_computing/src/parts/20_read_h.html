@@ -1,4 +1,4 @@
-<section id="rd-soft">
+<div class="s3sp"><div class="s3R"><div id="stg-sm"></div></div><div class="s3L"><section id="rd-soft">
 <h2>7. The stable softmax, log-sum-exp and log-softmax</h2>
 <p>The <dfn id="rd-g-softmax">softmax</dfn> turns logits \(z_1, \dots, z_n\) into probabilities, and the loss is the negative log of the target's:</p>
 \[ p_i = \frac{e^{z_i}}{\sum_{j=1}^{n} e^{z_j}}, \qquad \text{loss} = -\ln p_y \ \text{ for the target } y . \]
@@ -8,18 +8,23 @@
 \[ \frac{e^{z_i}}{\sum_j e^{z_j}} = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}}, \qquad m = \max_j z_j . \]
 <p>Then every exponent is at most 0, every \(e^{z_j - m}\) lies in \((0, 1]\), nothing can overflow, and the denominator lies between 1 (the largest term is exactly \(e^0\)) and \(n\). Terms that underflow to 0 are far below \(u\) relative to that 1, so dropping them changes nothing visible. The same move gives the <dfn id="rd-g-lse">log-sum-exp</dfn>, the log of the denominator, and the <dfn id="rd-g-logsoftmax">log-softmax</dfn>:</p>
 \[ \operatorname{LSE}(z) = m + \ln \sum_j e^{z_j - m}, \qquad \ln p_i = z_i - \operatorname{LSE}(z) = (z_i - m) - \ln \sum_j e^{z_j - m} . \]
+<p>The stage computes both versions on the running example, logits cat 1000, dog 999, sat 0 (target sat), with every operation rounded to the chosen format by this page's emulator (the numbers match NumPy and ml_dtypes, <code>recompute.py</code>). The back row is the naive softmax, the front row the stable one. Predict which naive step first goes wrong.</p>
+<div class="s3chips" id="rd-smFmt"><button data-m="fp32" class="on">float32</button><button data-m="fp16">float16</button><button data-m="bf16">bfloat16</button></div>
+<ol class="sx" id="sx-sm">
+<li><b>The same logits, twice.</b> Bar heights are the logits as stored: cat 1000, dog 999, sat 0. In bfloat16, 999 is not a number (between 512 and 1024 the gap is 4), so it is stored as 1000 and the difference between cat and dog is gone before anything is computed.</li>
+<li><b>Naive: exponentiate, and two bars break through the ceiling.</b> On a log scale the bar for \(e^{z}\) has height \(z\), and the glass ceiling is the format's largest number: \(e^{88.72}\) in float32 and bfloat16, \(e^{11.09}\) in float16. \(e^{1000}\) and \(e^{999}\) pass it and round to infinity (exponent all ones, fraction 0); \(e^{0} = 1\) is fine.</li>
+<li><b>Naive: sum, divide, loss.</b> \(\infty + \infty + 1 = \infty\); then \(\infty / \infty\) is NaN for cat and dog and \(1 / \infty = 0\) for sat. The loss \(-\ln 0\) is infinite and the gradient \(p - \text{onehot}\) is NaN, NaN, \(-1\): one optimiser step with it makes every weight NaN. PyTorch measured the same: loss inf, gradient [nan, nan, nan].</li>
+<li><b>Stable: subtract the largest logit.</b> \(m = 1000\) flows to every logit; the shifted logits are 0, \(-1\) and \(-1000\), every one at most 0, so no exponential can pass the ceiling. The subtraction is exact here.</li>
+<li><b>Stable: exponentiate.</b> \(e^{0} = 1\), \(e^{-1} = 0.368\), and \(e^{-1000}\) underflows to 0, far too small to change the sum: harmless. Every bar lies in \((0, 1]\), far below the ceiling.</li>
+<li><b>Stable: sum, then divide.</b> The denominator is \(1.368\), between 1 and 3 because the largest term is exactly 1; \(p = (0.731, 0.269, 0)\), finite and summing to 1. In bfloat16 it is \((0.5, 0.5, 0)\): stable, but the logits had already lost their difference.</li>
+<li><b>Log-softmax, loss and gradient.</b> \(\ln p = (z - m) - \ln 1.368\): \(-0.313\), \(-1.313\) and \(-1000.313\), even though \(p_{\text{sat}}\) itself underflowed to 0, because the log never sees the 0. The loss is \(1000.313\), huge but honest, and the gradient \((0.731, 0.269, -1)\) is finite; PyTorch's fused <code>cross_entropy</code> measured the same: \(1000.3132\), \([0.7311, 0.2689, -1]\).</li>
+</ol>
+<p class="sxh">The values at this step, as stored bits</p>
+<div class="an-stage" id="rd-smOut"></div>
+</section></div></div>
+<section id="rd-soft2">
 <p>For \((1000, 999, 0)\): \(\operatorname{LSE} = 1000 + \ln(1 + e^{-1} + e^{-1000})\), that is \(1000 + \ln 1.3679 = 1000.3133\) (derived; the old Topic: math child page's example, logits \((1000, 1001)\), gives \(1001.313\) the same way, rechecked). <b>Never take the log of a softmax</b>: \(p_{\text{sat}} = e^{-1000.31}\) underflows to 0 even in float64 (smallest about \(e^{-744}\)), and \(-\ln 0 = \infty\), while the log-softmax gives \(\ln p_{\text{sat}} = (0 - 1000) - 0.3133 = -1000.3133\): a huge, honest, finite loss, with gradient \(p - \text{onehot}(y) = (0.731, 0.269, -1)\). For the same reason every likelihood is a sum of logs: 1,000 tokens each with probability 0.1 have likelihood \(10^{-1000}\), which underflows even float64, while its log, \(-1000 \ln 10 = -2302.6\), is ordinary (derived). This is why <code>CrossEntropyLoss</code> takes "unnormalized logits" and runs log-softmax and the negative log-likelihood fused. (The probability side, why losses and likelihoods live in log space, is {{Probability|n:3c65c17b0d0d815f9a47d613409b5a0c}}'s section 12.)</p>
-<div class="card" id="rd-smCard">
-<h4>Before and after: one softmax, naive and stable, every intermediate as its stored bits</h4>
-<div class="small">Logits cat 1000, dog 999, sat 0 (target sat). Every operation is rounded to the chosen format by this page's emulator; the numbers match NumPy and ml_dtypes (<code>recompute.py</code>). Predict which step of the naive version first goes wrong, then step.</div>
-<div class="seg" id="rd-smMode"><button data-m="naive" class="on">Naive: exp, sum, divide</button><button data-m="stable">Stable: subtract max, then exp</button></div>
-<div class="seg" id="rd-smFmt"><button data-m="fp32" class="on">float32</button><button data-m="fp16">float16</button><button data-m="bf16">bfloat16</button></div>
-<div class="an-stage" id="rd-smStage"></div>
-<div class="an-cap" id="rd-smCap"></div>
-<div class="an-cnt" id="rd-smCnt"></div>
-<div class="an-ctl" id="rd-smCtl"></div>
-</div>
-<p class="small">Try bfloat16 with the stable mode: \(999\) is not a bfloat16 number (between 512 and 1024 the gap is 4), so it is stored as 1000 and the stable softmax returns \((0.5, 0.5, 0)\): stable, but the logits had already lost the difference. Keep logits and softmax in float32: PyTorch's autocast lists <code>softmax</code>, <code>log_softmax</code>, <code>cross_entropy</code>, <code>exp</code>, <code>log</code> and <code>sum</code> among the "CUDA Ops that can autocast to <code>float32</code>" ({{amp docs, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/docs/source/amp.md}}).</p>
+<p class="small">Keep logits and softmax in float32: PyTorch's autocast lists <code>softmax</code>, <code>log_softmax</code>, <code>cross_entropy</code>, <code>exp</code>, <code>log</code> and <code>sum</code> among the "CUDA Ops that can autocast to <code>float32</code>" ({{amp docs, v2.14.1|https://github.com/pytorch/pytorch/blob/v2.14.1/docs/source/amp.md}}).</p>
 <h3>One pass instead of two: the online softmax</h3>
 <p>The stable softmax reads the logits twice (max, then sum). Milakov and Gimelshein update both in one pass ({{2018|https://arxiv.org/abs/1805.02867}}): keep the running max \(m_k\) and the running sum \(d_k = \sum_{j \le k} e^{z_j - m_k}\), and rescale the old sum when the max changes:</p>
 \[ m_k = \max(m_{k-1}, z_k), \qquad d_k = d_{k-1}\, e^{m_{k-1} - m_k} + e^{z_k - m_k} . \]

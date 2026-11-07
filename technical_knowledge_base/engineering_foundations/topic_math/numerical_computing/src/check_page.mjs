@@ -1,4 +1,4 @@
-// Exercise every control of the Numerical computing page at 390 px dark and 920 px light (reduced motion),
+// Exercise every control of the Numerical computing page at 390 px dark and 920 px light (reduced motion), check that the animations and 3D stages play on view (and not under reduced motion),
 // compare the page's emulator and numbers with recompute.py's numbers.json and inputs/fp_vectors.json (NumPy and ml_dtypes),
 // and take element screenshots into ../.shots/check/.
 // usage (from the repo root): node technical_knowledge_base/engineering_foundations/topic_math/numerical_computing/src/check_page.mjs
@@ -75,12 +75,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const m of ['naive', 'kahan']) { await p.click('#rd-kahMode button[data-m=' + m + ']'); await sleep(40); const n = await p.$eval('#rd-kahCtl-s', e => +e.max + 1);
     for (let i = 1; i < n; i++) { await p.click('#rd-kahCtl-f'); await sleep(15) } await shot('#rd-kahCard', 'kahan-' + m + '-end');
     const fin = await p.$eval('#rd-kahCnt .stat:last-child .v', e => e.textContent); ok(fin === (m === 'naive' ? '2048' : '2052'), 'Kahan final ' + m + ' ' + fin) }
-  for (const f of ['fp32', 'fp16', 'bf16']) for (const m of ['naive', 'stable']) {
-    await p.click('#rd-smFmt button[data-m=' + f + ']'); await p.click('#rd-smMode button[data-m=' + m + ']'); await sleep(40);
-    const n = await p.$eval('#rd-smCtl-s', e => +e.max + 1);
-    for (let i = 1; i < n; i++) { await p.click('#rd-smCtl-f'); await sleep(15); if (f === 'fp32' && (i === 4 || i === 1)) await shot('#rd-smCard', 'sm-' + m + '-' + f + '-' + i) }
-    await shot('#rd-smCard', 'sm-' + m + '-' + f + '-end');
-    const nan = await p.$eval('#rd-smCnt', e => e.innerText); if (m === 'stable') ok(/NaNs\s*0/.test(nan), 'stable has no NaN ' + f) }
+  // the softmax stage (section 7): every format, stepped to its end; the readout on the left shows the stored bits of each step
+  for (const f of ['fp32', 'fp16', 'bf16']) {
+    await p.click('#rd-smFmt button[data-m=' + f + ']'); await sleep(60);
+    const n = await p.$eval('#stg-sm-r', e => +e.max + 1); ok(n === 7, 'softmax stage has 7 steps: ' + n);
+    for (let i = 1; i < n; i++) { await p.click('#stg-sm-f'); await sleep(30); if (f === 'fp32' && (i === 2 || i === 4)) await shot('#rd-smOut', 'sm-out-' + f + '-' + i) }
+    const out = await p.$eval('#rd-smOut', e => e.innerText); ok(!/NaN|Infinity|\binf\b/.test(out.replace(/stable, [a-z0-9]+: /g, '')) && (f !== 'fp32' || /1000\.3/.test(out)), 'stable softmax ends finite ' + f);
+    await shot('#stg-sm', 'sm-stage-' + f + '-end') }
   for (const k of [0, 4, 8, 16, 20, 24]) { await p.$eval('#rd-lsR', (e, k) => { e.value = k; e.dispatchEvent(new Event('input')) }, k); await sleep(30); if (k % 8 === 0) await shot('#rd-lsCard', 'ls-' + k) }
   await shot('#rd-sumTbl', 'sumtbl'); await shot('#rd-lsTbl', 'lstbl');
   await undef('reading');
@@ -131,7 +132,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const m of ['1', '2', '4']) { await p.click('#rd-treeMode button[data-m="' + m + '"]'); await sleep(40); await shot('#rd-treeCard', 'tree-' + m) }
   for (const fn of ['bce', 'ls', 'sp']) for (const f of ['fp32', 'fp16', 'bf16']) { await p.click('#rd-toolFn button[data-m=' + fn + ']'); await p.click('#rd-toolFmt button[data-m=' + f + ']'); await sleep(40) }
   await shot('#rd-toolCard', 'tool');
-  for (let i = 1; i < 4; i++) { await p.click('#rd-nanCtl-f'); await sleep(20) } await shot('#rd-nanCard', 'nan-end');
+  for (let i = 1; i < 4; i++) { await p.click('#stg-nan-f'); await sleep(20) } await shot('#stg-nan', 'nan-end');
   await shot('#rd-heroCard', 'hero'); await shot('#rd-cancCard', 'canc');
   await undef('reading new visuals');
   await tab('t-more'); await undef('more');
@@ -140,12 +141,15 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   ok(await p.$eval('#jsErr', e => e.hidden), tag + ' error box hidden');
   await p.close();
 }
-{ const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload(); await sleep(300);
-  for (const id of ['rd-kahCard', 'rd-smCard', 'rd-nanCard']) { await (await p.$('#' + id)).scrollIntoView(); await sleep(1800) }
-  for (const m of ['kahan', 'naive']) { await p.click('#rd-kahMode button[data-m=' + m + ']'); await sleep(300) }
-  await p.click('#rd-smMode button[data-m=stable]'); await sleep(2000);
-  const pos = await p.evaluate(() => ['rd-kahCtl-s', 'rd-smCtl-s', 'rd-nanCtl-s'].map(i => +document.getElementById(i).value));
-  ok(pos.every(v => v === 0), 'no animation moves before the reader acts (normal motion): ' + pos); await p.close() }
+{ // autoplay (2026-11-06): every animation and stage plays by itself once scrolled into view with normal motion; under reduced motion none moves
+  for (const rm of ['no-preference', 'reduce']) {
+    const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
+    await p.goto(url); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload(); await sleep(300);
+    const res = [];
+    for (const id of ['stg-fmt', 'rd-kahCard', 'stg-sm', 'stg-nan']) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await sleep(2200);
+      res.push(await p.$eval('#' + id, e => e.classList.contains('stg') ? (+e.dataset.frames || 0) > 0 : /Pause/.test(document.getElementById('rd-kahCtl-p').textContent))) }
+    if (rm === 'reduce') ok(res.every(v => !v), 'reduced motion: nothing moves by itself ' + res); else ok(res.every(v => v), 'every animation and stage plays when scrolled into view ' + res);
+    await p.close() } }
 await browser.close();
 console.log('checks', checks, 'fails', fails);
 process.exit(fails ? 1 : 0);
