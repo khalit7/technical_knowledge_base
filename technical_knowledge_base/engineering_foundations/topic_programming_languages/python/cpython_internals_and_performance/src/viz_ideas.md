@@ -16,3 +16,15 @@ Built
 Rejected
 - An animated evaluation loop executing bytecode instruction by instruction: the stepper over real listings shows what changes; a per-instruction animation would be illustrative only.
 - A memory chart of the cycle collector: Memory allocators section 7 owns the memory behaviour.
+
+## 2026-11-07 (split layout and 3D stages)
+Built
+- Fig. 1 hero as a 3D stage (list of pointers to boxed floats, the evaluation loop plate, NumPy's buffer and four C passes, the measured times).
+- Fig. 3 evaluation loop as a 3D stage: frame, value stack and the six real loop instructions, values moving on flows, then the in-place rewrites. The 2026-10-26 "rejected" entry (an animated evaluation loop would be illustrative only) is answered by driving it from the real listing, the real stack effects and the script's own warm-up values.
+- Fig. 4 objects to scale in 3D with a byte ruler; Fig. 5 reference counting replayed from the recorded run (new).
+- Lazy imports regrouped into explained stretches with step lists.
+Kept 2D: every bar chart, the JIT table and the release lines (numbers on an axis or a table).
+Rejected
+- A 3D stage for the copy-and-patch JIT (stencils stitched into a trace): it would be illustrative only; the page has no recorded trace or stencil to drive it.
+- A 3D list over-allocation scene: at one scale the 312-byte list next to 8-byte ints would dwarf the rest; the sizes stay in text and the closed block.
+- Real images: CPython has no physical object to photograph; none added.

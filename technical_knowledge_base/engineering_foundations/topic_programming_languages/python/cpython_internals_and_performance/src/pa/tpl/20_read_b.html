@@ -1,32 +1,59 @@
+<div class="s3sp"><div class="s3R"><div id="stg-eval"></div></div><div class="s3L">
 <section id="s1"><h2>1. Bytecode, and how it rewrites itself while running</h2>
-<p>CPython, the standard Python, is a C program. It compiles your source to <dfn>bytecode</dfn>, instructions for a virtual stack machine (cached in <code>__pycache__/*.pyc</code>), and an <dfn>evaluation loop</dfn> in C executes them one by one. The root page's {{How code runs|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} section follows one line through Python, C++, Rust and JavaScript; this section is CPython's half, seen with the <code>dis</code> module.</p>
-<p>Since 3.11 the interpreter is <dfn>specialising and adaptive</dfn> ({{PEP 659|https://peps.python.org/pep-0659/}}): after an instruction has run a few times it is rewritten in place into a version specialised for the types it saw, guarded by a cheap check; if the check starts failing, it falls back and re-specialises. "Python 3.11 is between 10-60% faster than Python 3.10", 1.25x on average ({{What's new in 3.11|https://docs.python.org/3/whatsnew/3.11.html}}, vendor figure), largely from this. <code>dis.dis(f, adaptive=True)</code> shows the live, rewritten instructions. Step through one function, <code>total(xs)</code>, which sums a list with <code>s = s + x</code>:</p>
-<div class="ci-anim" id="ci-dis-card"><h4>The interpreter rewrites <code>+</code> for the types it has seen</h4>
-<div class="ci-ctl" id="ci-dis-ctl"></div>
-<div class="ci-svg" id="ci-dis-view"></div>
-<div class="ci-cap" id="ci-dis-cap"></div>
-<div class="ci-src">The three listings are the real output of <code>code/i1_dis.py</code> on Python 3.14.8 (the script is in the closed block below). Highlighted rows changed since the previous listing.</div>
-</div>
+<p>CPython, the standard Python, is a C program. It compiles your source to <dfn>bytecode</dfn>, instructions for a virtual stack machine (cached in <code>__pycache__/*.pyc</code>), and an <dfn>evaluation loop</dfn> in C executes them one by one. The root page's {{How code runs|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} section follows one line through Python, C++, Rust and JavaScript; this section is CPython's half, seen with the {{dis|https://docs.python.org/3/library/dis.html}} module.</p>
+<p>Since 3.11 the interpreter is <dfn>specialising and adaptive</dfn> ({{PEP 659|https://peps.python.org/pep-0659/}}): after an instruction has run a few times it is rewritten in place into a version specialised for the types it saw, guarded by a cheap check; if the check starts failing, it falls back and re-specialises. "Python 3.11 is between 10-60% faster than Python 3.10", 1.25x on average ({{What's new in 3.11|https://docs.python.org/3/whatsnew/3.11.html}}, vendor figure), largely from this. <code>dis.dis(f, adaptive=True)</code> shows the live, rewritten instructions.</p>
+<p>Fig. 3 runs one function, <code>total(xs)</code>, which sums a list with <code>s = s + x</code>: its frame, its value stack and the six real instructions of its loop (from <code>code/i1_dis.py</code> on Python 3.14.8; stack effects as <code>dis.stack_effect</code> reports them, <code>code/stack_effects.py</code>, run on Python 3.12, the version available on the machine that drew this figure; the fused 3.14 instruction <code>LOAD_FAST_BORROW_LOAD_FAST_BORROW</code> is described from its argument, not measured).</p>
 <div class="pr" id="ci-pr-dis"></div>
+<ol class="sx" id="sx-eval">
+<li><b>One frame, one value stack.</b> Calling <code>total(xs)</code> makes a frame: the local variables <code>xs</code>, <code>s</code> and <code>x</code> in fixed slots, and a value stack that instructions push to and pop from. <code>GET_ITER</code> has already replaced the list on the stack with an iterator. The figure is the fourth pass of the warm-up call <code>total(list(range(1000)))</code>, so <code>s</code> is 0 + 1 + 2 = 3.</li>
+<li><b><code>FOR_ITER</code>, then <code>STORE_FAST x</code>.</b> <code>FOR_ITER</code> pushes the iterator's next item, 3 (stack effect +1, the iterator stays below it); <code>STORE_FAST</code> pops it into the slot <code>x</code> (-1).</li>
+<li><b><code>LOAD_FAST_BORROW_LOAD_FAST_BORROW (s, x)</code>.</b> One instruction, whose argument names both locals, pushes <code>s</code> and <code>x</code>: 3 and 3.</li>
+<li><b><code>BINARY_OP (+)</code>.</b> Pops two values and pushes their sum, 6 (-1). This generic instruction must find out at run time what <code>+</code> means for these two objects; a sum above 256 would also be a new int object (section 2's small-int cache).</li>
+<li><b><code>STORE_FAST s</code>, <code>JUMP_BACKWARD</code>.</b> Pops 6 into <code>s</code>, and the back-edge returns to <code>FOR_ITER</code>. Six instructions per element, each one trip round the C evaluation loop: the per-element cost of Fig. 1.</li>
+<li><b>Specialised after 1,000 ints.</b> After the warm-up call the instructions were rewritten in place: <code>BINARY_OP_ADD_INT</code> adds two ints directly after a cheap type check; <code>FOR_ITER_LIST</code> walks a list without the general iterator protocol; <code>JUMP_BACKWARD_NO_JIT</code> is the specialised back-edge (the JIT is off). Outside the loop, <code>RESUME</code> became <code>RESUME_CHECK</code>.</li>
+<li><b>Floats arrive: re-specialised.</b> After 100 calls on lists of 0.5, the int guard failed, the instruction fell back and was specialised again: <code>BINARY_OP_ADD_FLOAT</code>. Code whose types keep changing pays for this churn; code with stable types stays on the fast path.</li>
+</ol>
+</section>
+</div></div>
+<p>The three listings the figure is drawn from, side by side (highlighted cells changed since the previous listing; the marked rows are the loop):</p>
+[[listings]]
 <details class="dp"><summary>The script behind the listings <span class="mute">(i1_dis.py)</span></summary><div class="b">
 [[code:i1_dis]]
 </div></details>
-<p><code>BINARY_OP (+)</code>, which must handle every type with an <code>__add__</code>, became <code>BINARY_OP_ADD_INT</code>, then <code>BINARY_OP_ADD_FLOAT</code> when the types changed; <code>FOR_ITER</code> became <code>FOR_ITER_LIST</code>. <code>JUMP_BACKWARD_NO_JIT</code> is the loop's back-edge on a build where the experimental JIT is off, which is the default in 3.14 ({{What's new in 3.14|https://docs.python.org/3.14/whatsnew/3.14.html}}); section 5 turns it on and measures it. The lesson for speed: <span class="hl">hot loops whose types never change are the ones CPython can specialise</span>, and even specialised, each element still costs several instructions.</p>
-</section>
+<p><code>JUMP_BACKWARD_NO_JIT</code> is the loop's back-edge on a build where the experimental JIT is off, which is the default in 3.14 ({{What's new in 3.14|https://docs.python.org/3.14/whatsnew/3.14.html}}); section 5 turns it on and measures it. The lesson for speed: <span class="hl">hot loops whose types never change are the ones CPython can specialise</span>, and even specialised, each element still costs several instructions.</p>
 
+<div class="s3sp"><div class="s3R"><div id="stg-obj"></div></div><div class="s3L">
 <section id="s2"><h2>2. What objects cost</h2>
-<p>Every value is a heap object with a header: a reference count and a pointer to its type, 16 bytes on a 64-bit build. A <code>float</code> adds its 8-byte double; an <code>int</code> adds a size field and 30-bit digits, because ints are arbitrary precision.</p>
-<div class="hero" id="ci-obj-card"><h4>A Python int is 28 bytes where a C <code>int64</code> is 8, and grows 4 bytes per 30 bits</h4>
-<div class="ci-svg" id="ci-obj"></div>
-<p class="small">Sizes from <code>sys.getsizeof</code> on Python 3.14.8 (the full output is in the closed block below). A list of a million floats is a million 8-byte pointers to a million separate 24-byte objects; NumPy stores 8 bytes each, contiguously.</p></div>
+<p>Every value is a heap object with a header: a reference count and a pointer to its type, 16 bytes on a 64-bit build. Fig. 4 draws objects to scale, one byte to one unit of length, from <code>sys.getsizeof</code> on Python 3.14.8 (the full output is in the closed block below).</p>
+<ol class="sx" id="sx-obj">
+<li><b>A C <code>int64</code>: 8 bytes.</b> In C, and in a NumPy <code>int64</code> array, a number is only its value.</li>
+<li><b>A <code>float</code>: 24 bytes.</b> The 16-byte header, the reference count and a pointer to the type object <code>float</code> (one object that every float points at), then the 8-byte double.</li>
+<li><b>An <code>int</code>: 28 bytes.</b> After the header, a size field and the digits, 30 bits in each 4-byte digit, because ints are arbitrary precision. 0 and 1 both take 28 bytes: a Python int is 28 bytes where a C <code>int64</code> is 8.</li>
+<li><b>4 more bytes per 30 bits.</b> 2**30 needs a second digit (32 bytes), 2**60 a third (36), 2**100 a fourth (40).</li>
+</ol>
 <p>A <code>str</code> stores 1, 2 or 4 bytes per character for the whole string, chosen by its widest character ({{PEP 393|https://peps.python.org/pep-0393/}}); a non-ASCII string also carries a larger header, which is why <code>'é'</code> (1 byte per character) costs 61 bytes against 42 for <code>'a'</code>, and <code>'🙂'</code> (4 bytes per character) 64. A list over-allocates: appends reserve spare room in steps (56, 88, 120, 184 bytes as it grows), which is why <code>append</code> is O(1) on average.</p>
 <details class="dp"><summary>Every size measured <span class="mute">(i3_sizes.py and its output)</span></summary><div class="b">
 [[run:i3_sizes]]
 </div></details>
+</section>
+</div></div>
+
 <h3>Reference counting and the cycle collector</h3>
-<p>When an object's count reaches zero it is freed at once, deterministically; that is why a file closed by going out of scope closes immediately in CPython. Counting cannot free a <dfn>cycle</dfn> (A points at B, B at A: both counts stay at 1 after your last name is gone), so a separate <dfn>cycle collector</dfn> (<code>gc</code>) periodically looks for groups of objects reachable only from each other. Predict when each object below is freed:</p>
+<p>When an object's count reaches zero it is freed at once, deterministically; that is why a file closed by going out of scope closes immediately in CPython. Counting cannot free a <dfn>cycle</dfn> (A points at B, B at A: both counts stay at 1 after your last name is gone), so a separate <dfn>cycle collector</dfn> (<code>gc</code>) periodically looks for groups of objects reachable only from each other. Predict when each object below is freed, then Fig. 5 replays the run:</p>
 [[predict:i2_refcount]]
-<p><code>sys.getrefcount</code> reports one more than you expect because its own argument is a reference. <code>a</code> died the instant its last name went; the cycle survived <code>del</code> until <code>gc.collect()</code>. The thresholds <code>(2000, 10, 10)</code> are those of the generational collector: Python 3.14.0 to 3.14.4 shipped an incremental collector, and 3.14.5 reverted to "the generational GC from 3.13" after "reports of significant memory pressure in production environments" ({{What's new in 3.14, Garbage collection|https://docs.python.org/3.14/whatsnew/3.14.html}}).</p>
+<div class="s3sp"><div class="s3R"><div id="stg-rc"></div></div><div class="s3L">
+<p class="small">Fig. 5 follows <code>i2_refcount.py</code> line by line; each step quotes what the run printed (Python 3.14.8). The stacked discs on an object are its reference count.</p>
+<ol class="sx" id="sx-rc">
+<li><b><code>a = Node("a")</code>: one reference.</b> The name <code>a</code> refers to the new object, so its count is 1. <code>sys.getrefcount</code> reports one more than you expect because its own argument is a reference: it printed "refcount: 2".</li>
+<li><b><code>b = a</code>: two.</b> A second name for the same object: "refcount: 3".</li>
+<li><b><code>del a</code>: one.</b> Deleting a name removes a reference, not the object: "del a: still alive through b".</li>
+<li><b><code>del b</code>: zero, freed at once.</b> <code>a</code> died the instant its last name went: its finaliser printed "a freed" before the next line, "del b done".</li>
+<li><b>A cycle.</b> <code>x.other, y.other = y, x</code>: each object now has two references, its name and the other's <code>.other</code>.</li>
+<li><b><code>del x, y</code>: both counts stay at 1.</b> The names are gone, but each object still holds the other, so neither count reaches zero: "after del x, y: nothing freed yet".</li>
+<li><b><code>gc.collect()</code> frees the cycle.</b> The collector found the pair reachable only from each other and freed both ("x freed", "y freed"): the cycle survived <code>del</code> until <code>gc.collect()</code>, which reported "found 4 unreachable objects".</li>
+</ol>
+</div></div>
+<p>The thresholds <code>(2000, 10, 10)</code> are those of the generational collector: Python 3.14.0 to 3.14.4 shipped an incremental collector, and 3.14.5 reverted to "the generational GC from 3.13" after "reports of significant memory pressure in production environments" ({{What's new in 3.14, Garbage collection|https://docs.python.org/3.14/whatsnew/3.14.html}}).</p>
 <p>Practical consequences: break cycles in long-lived structures (parent pointers, callbacks that capture <code>self</code>) or use <code>weakref</code>; do not rely on <code>__del__</code> for clean-up (use <code>with</code>); and for PyTorch, a tensor held by a cycle keeps its GPU memory until the collector runs. What both mechanisms do to a process's memory (pymalloc's arenas and pools, freed memory that does not go back to the operating system, the copy-on-write cost in DataLoader workers) is {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}, section 7.</p>
 <h3>Two implementation details that leak into results</h3>
 [[drill:Integer caching]]
@@ -47,4 +74,3 @@
 </tbody></table></div>
 <p class="small mute">Time complexities as listed on the {{Python wiki's TimeComplexity page|https://wiki.python.org/moin/TimeComplexity}}.</p>
 </div></details>
-</section>

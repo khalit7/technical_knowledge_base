@@ -1,28 +1,11 @@
-// ---- Sections 1, 3 and 4: the bytecode stepper (from the language page's 35_js_pa_read.js), the prediction prompts, the profile and NumPy bars ----
+// ---- Sections 1, 3 and 4: the prediction prompts, the profile and NumPy bars (the bytecode stepper became the Fig. 3 stage, 31_js_sc_eval.js, on 2026-11-07) ----
 (function(){
   const $=id=>document.getElementById(id),esc=RD.esc;
   if(!window.PA)return;
-  // 1. bytecode before and after specialisation (real dis output, three listings); never moves before the reader acts
-  (function(){
-    if(!$('ci-dis-card'))return;
-    const CAP=['Before the first call: generic instructions. <code>BINARY_OP (+)</code> must work for any two objects with an <code>__add__</code>; <code>FOR_ITER</code> for any iterator.',
-      'After summing a list of 1,000 ints: the interpreter has rewritten instructions in place. <code>BINARY_OP_ADD_INT</code> adds two ints directly after a cheap type check; <code>FOR_ITER_LIST</code> walks a list without the general iterator protocol; <code>RESUME_CHECK</code> and <code>JUMP_BACKWARD_NO_JIT</code> are the specialised entry and loop back-edge (the JIT is off).',
-      'After calls with floats: the int guard failed, the instruction fell back and re-specialised to <code>BINARY_OP_ADD_FLOAT</code>. Code whose types keep changing pays for this churn; code with stable types stays on the fast path.'];
-    function draw(i){
-      const blk=PA.dis[i],prev=i>0?PA.dis[i-1]:null;
-      let h='<div class="tw"><table class="ci-dis"><thead><tr><th>line</th><th></th><th>instruction and argument</th></tr></thead><tbody>';
-      blk.ins.forEach((r,k)=>{const ch=prev&&prev.ins[k]&&prev.ins[k][2]!==r[2];
-        h+='<tr'+(ch?' class="ch"':'')+'><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td>'+esc(r[2])+' <span class="ci-was">'+esc(r[3])+'</span>'+(ch?'<br><span class="ci-was">was '+esc(prev.ins[k][2])+'</span>':'')+'</td></tr>'});
-      $('ci-dis-view').innerHTML=h+'</tbody></table></div>';
-      const nch=prev?blk.ins.filter((r,k)=>prev.ins[k]&&prev.ins[k][2]!==r[2]).length:0;
-      $('ci-dis-cap').innerHTML='<b>'+(i+1)+' of 3, '+esc(blk.title)+'</b> ('+nch+' instruction'+(nch===1?'':'s')+' changed). '+CAP[i];
-    }
-    RD.anim({card:'ci-dis-card',ctl:'ci-dis-ctl',n:PA.dis.length,draw,ms:3200,label:'Listing'});
-  })();
   const find=(blk,pre)=>(blk.ins.find(r=>r[2].startsWith(pre))||[])[2];
   CIU.drill($('ci-pr-dis'),'Predict: after 1,000 int additions the <code>+</code> is <code>BINARY_OP_ADD_INT</code>. Then the same function is called with lists of floats. What happens to that instruction?',
     [{t:'It stays ADD_INT and each float addition takes a slow path forever',right:false},{t:'It falls back and re-specialises for floats',right:true},{t:'It returns to the generic BINARY_OP for good',right:false}],
-    ()=>'Listing 3 shows <code>'+esc(find(PA.dis[2],'BINARY_OP'))+'</code>: the guard failed, the instruction fell back and was specialised again for the new type. Step the listings above to see each rewrite.');
+    ()=>'Listing 3 shows <code>'+esc(find(PA.dis[2],'BINARY_OP'))+'</code>: the guard failed, the instruction fell back and was specialised again for the new type. The last two steps of Fig. 3 and the listings below show each rewrite.');
   // 3. what the profiler did to the program
   const P=PA.prof;
   CIU.drill($('ci-pr-prof'),'Predict: the slow version takes '+P.slow_ms+' ms. How long does the same call take under cProfile?',

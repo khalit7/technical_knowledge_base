@@ -85,10 +85,30 @@ def expand(text):
             return (f'<div class="ci-snip ci-pred"><div class="ci-file">{esc(d["title"])}</div><pre class="ci-code">{highlight(d["code"])}</pre>'
                     f'<details><summary>Predict the output, then reveal</summary><div class="ci-olab">real output, Python 3.14.8 (outputs/q_drills.json)</div>'
                     f'<pre class="ci-out">{esc(d["out"])}</pre></details></div>')
+        if kind == "listings":
+            return listings_table()
         if kind == "json":
             return json.dumps(DATA[arg], separators=(",", ":"), ensure_ascii=False).replace("</", "<\\/")
         raise ValueError(kind)
-    return re.sub(r"\[\[(run|code|out|predict|drill|json):([^\]]+)\]\]", rep, text)
+    text = text.replace("[[listings]]", "[[listings:i1_dis]]")
+    return re.sub(r"\[\[(run|code|out|predict|drill|json|listings):([^\]]+)\]\]", rep, text)
+
+def listings_table():
+    """The three dis listings of i1_dis.txt side by side; a cell that changed since the previous listing is marked, the loop rows too."""
+    B = parse_dis()
+    heads = ["before running", "after 1,000 ints", "after floats arrive"]
+    h = ['<div class="tw"><table class="ci-lst"><thead><tr><th>line</th><th></th>' + "".join(f"<th>{esc(t)}</th>" for t in heads) + "<th>argument</th></tr></thead><tbody>"]
+    loop = False
+    for k, r in enumerate(B[0]["ins"]):
+        if r[1] == "L1:": loop = True
+        if r[1] == "L2:": loop = False
+        cells = []
+        for j, b in enumerate(B):
+            ch = j > 0 and b["ins"][k][2] != B[j - 1]["ins"][k][2]
+            cells.append(("<td class='ch'>" if ch else "<td>") + esc(b["ins"][k][2]) + "</td>")
+        h.append(("<tr class='lp'>" if loop else "<tr>") + f"<td>{esc(r[0])}</td><td>{esc(r[1])}</td>" + "".join(cells) + f"<td>{esc(r[3])}</td></tr>")
+    h.append('</tbody></table></div><p class="ci-src">Real output of <code>code/i1_dis.py</code>, <code>dis.dis(total, adaptive=True)</code> on Python 3.14.8; the argument column is the same in all three.</p>')
+    return "".join(h)
 
 def parse_dis():
     blocks, cur = [], None
@@ -112,7 +132,23 @@ def parse_prof():
     return {"profiled_s": float(re.search(r"function calls in ([\d.]+) seconds", t).group(1)),
             "slow_ms": int(re.search(r"p1_slow: (\d+) ms", t).group(1)), "fast_ms": int(re.search(r"p1_fast: (\d+) ms", t).group(1))}
 
+def parse_sizes():
+    """i3_sizes.txt: [[repr, type, bytes], ...] and the list growth [(length, bytes), ...]"""
+    rows, growth = [], []
+    for line in (OUT / "i3_sizes.txt").read_text().splitlines():
+        m = re.match(r"^\s*(.+?)\s+(int|float|str|bytes|tuple|list|dict|set)\s+(\d+) bytes$", line)
+        if m: rows.append([m.group(1), m.group(2), int(m.group(3))])
+        if line.startswith("list size jumps"):
+            growth = [[int(a), int(b)] for a, b in re.findall(r"\((\d+), (\d+)\)", line)]
+    return {"rows": rows, "growth": growth}
+
+def parse_rc():
+    """i2_refcount.txt: the lines as printed, in order"""
+    return [l for l in (OUT / "i2_refcount.txt").read_text().splitlines() if l.strip()]
+
 DATA = {
+    "sizes": parse_sizes(),
+    "rc": parse_rc(),
     "i1_dis": parse_dis(),
     "np": parse_np(),
     "prof": parse_prof(),

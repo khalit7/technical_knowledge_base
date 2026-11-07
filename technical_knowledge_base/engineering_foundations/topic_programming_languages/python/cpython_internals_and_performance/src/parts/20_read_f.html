@@ -1,3 +1,11 @@
+<div class="s3sp"><div class="s3R">
+<div class="ci-anim" id="ci-lz-card"><h4>Fig. 10 · Three unused imports cost three quarters of the start-up</h4>
+<div class="seg" id="ci-lz-seg"><button data-m="cli_eager" class="on">Eager imports</button><button data-m="cli_lazy">lazy import</button><button data-m="cli_all">Eager file, -X lazy_imports=all</button></div>
+<div class="ci-svg" id="ci-lz-plot"></div>
+<div class="ci-cnt" id="ci-lz-cnt"></div>
+<div class="ci-ctl" id="ci-lz-ctl"></div>
+</div>
+</div><div class="s3L">
 <section id="s7"><h2>7. Lazy imports (3.15), measured</h2>
 <p>A Python program's start-up time is mostly imports: each <code>import</code> finds a file, loads or compiles its bytecode and runs all its top-level code, including its own imports. A command-line tool that imports httpx, pydantic and rich at the top pays for all three even when the user only asked for <code>--help</code>. Until now the fix was to move imports inside functions. 3.15 adds <code>lazy import</code> ({{PEP 810|https://peps.python.org/pep-0810/}}): the name is bound to a lightweight proxy and the module loads the first time the name is used.</p>
 <div class="ci-code2">import argparse
@@ -5,16 +13,35 @@
 lazy import httpx                     # was: import httpx
 lazy import pydantic                  # was: import pydantic
 lazy from rich.console import Console # was: from rich.console import Console</div>
-<p>That is the only change between the two files measured below (<code>src/pb/lazy/</code>). Both run the fast path, <code>count "hello world"</code>, which needs none of the three libraries. Step through what Python imports, to scale; switching mode starts again from the first import:</p>
-<div class="ci-anim" id="ci-lz-card"><h4>Three unused imports cost three quarters of the start-up</h4>
-<div class="seg" id="ci-lz-seg"><button data-m="cli_eager" class="on">Eager imports</button><button data-m="cli_lazy">lazy import</button><button data-m="cli_all">Eager file, -X lazy_imports=all</button></div>
-<div class="ci-svg" id="ci-lz-plot"></div>
-<div class="ci-cnt" id="ci-lz-cnt"></div>
-<div class="ci-cap" id="ci-lz-cap"></div>
-<div class="ci-ctl" id="ci-lz-ctl"></div>
-<div class="ci-src" id="ci-lz-src"></div>
+<p>That is the only change between the two files measured below (<code>src/pb/lazy/</code>). Both run the fast path, <code>count "hello world"</code>, which needs none of the three libraries. Fig. 10 steps through what Python imports, to scale, in five or six stretches; switching mode starts again from the first import:</p>
+<div class="ci-lz-lists">
+<ol class="sx" id="sx-lz-cli_eager">
+<li><b>Start-up machinery: 2.8 ms, 12 modules.</b> <code>_frozen_importlib_external</code>, <code>zipimport</code>, <code>encodings</code>, <code>encodings.utf_8</code> and <code>_signal</code>: what every Python process imports before your first line, the same in all three runs.</li>
+<li><b><code>site</code>: 6.8 ms, 26 modules.</b> <code>site</code> sets up <code>sys.path</code> and the environment's site-packages; also the same in every run.</li>
+<li><b><code>argparse</code>: 4.3 ms, 10 modules.</b> Your first line of code: <code>import argparse</code>, eager in all versions of the file.</li>
+<li><b><code>httpx</code>: 46.6 ms, 153 modules.</b> The HTTP client and everything it imports at start-up (among them http.client, ssl, socket, email, idna, zstandard), loaded although <code>count</code> never uses it.</li>
+<li><b><code>pydantic</code> and <code>rich.console</code>: 63.4 ms, 67 modules.</b> pydantic 16.0 ms, rich.console 47.4 ms, both loaded although unused. Three unused imports cost most of the start-up.</li>
+<li><b>Done: 123.9 ms of import time, 268 modules.</b> The program printed 2. Measured without <code>-X importtime</code>, the whole run took 100 ms (median of 30).</li>
+</ol>
+<ol class="sx" id="sx-lz-cli_lazy" hidden>
+<li><b>Start-up machinery: 5.0 ms, 12 modules.</b> The same 12 modules every process imports before your first line.</li>
+<li><b><code>site</code>: 5.0 ms, 26 modules.</b> Also the same in every run.</li>
+<li><b><code>argparse</code>: 4.7 ms, 10 modules.</b> Still eager in this file. The three <code>lazy</code> lines only bind proxies; nothing is loaded for them.</li>
+<li><b><code>locale</code> and <code>shutil</code>: 4.2 ms, 16 modules.</b> Loaded only when argparse first needs them while parsing the command line. (In the eager run an earlier import had already brought them in, so they never appeared on their own.)</li>
+<li><b>Done: 18.9 ms of import time, 64 modules.</b> The program printed 2; the whole run took 26 ms (median of 30). httpx, pydantic and rich were never loaded: the <code>count</code> path never touched the names.</li>
+</ol>
+<ol class="sx" id="sx-lz-cli_all" hidden>
+<li><b>Start-up machinery: 2.9 ms, 12 modules.</b> The same 12 modules every process imports before your first line.</li>
+<li><b><code>site</code>: 4.7 ms, 26 modules.</b> Also the same in every run.</li>
+<li><b><code>argparse</code>: 1.5 ms, 1 module.</b> With every import lazy, even argparse's own imports wait until it uses them, so argparse itself is one module here.</li>
+<li><b><code>re</code>, <code>gettext</code>, <code>locale</code> and <code>shutil</code>: 7.3 ms, 21 modules.</b> argparse's own imports, loaded when parsing first needs them.</li>
+<li><b>Done: 16.5 ms of import time, 60 modules.</b> The eager file, unedited, run with <code>-X lazy_imports=all</code>: the whole run took 26 ms (median of 30), and httpx, pydantic and rich were never loaded.</li>
+</ol>
 </div>
-<div id="ci-lz-bars"></div>
+<div class="ci-src" id="ci-lz-src"></div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p>What to take from it: the lazy file loads 64 of the eager file's 268 modules and the whole run takes 26 ms instead of 100 ms (hyperfine medians), and the global switch <code>-X lazy_imports=all</code> (or <code>PYTHON_LAZY_IMPORTS=all</code>) gets the same result without editing the file. The work has not disappeared: a run that uses httpx pays for it at the first use instead.</p>
 <div class="ci-cost"><div class="t">What it costs, and when not to use it</div><ul class="tight">
 <li>Errors move: a misspelled module raises at first use, not at start-up; the traceback shows both places.</li>
@@ -23,4 +50,7 @@ lazy from rich.console import Console # was: from rich.console import Console</d
 <li>Code that must also run on 3.14 or older cannot use the keyword (it is a <code>SyntaxError</code> there; see the {{Version explorer|#t-ver}}); list the modules in <code>__lazy_modules__</code> instead, which older versions ignore.</li>
 </ul></div>
 <details class="dp"><summary>The PEP and the release disagree on one detail</summary><div class="b">PEP 810 (status Final) describes three global modes, <code>normal</code>, <code>all</code> and <code>none</code> (none would force every import eager, for debugging). 3.15.0rc3 accepts only two, as What's New says:<div class="ci-term" id="ci-lz-none"></div>Use <code>normal</code> to undo <code>all</code>; there is no switch that forces explicit <code>lazy</code> imports eager.</div></details>
-</section>
+
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 11 · The whole run: 100 ms eager, 26 ms lazy</h4><div id="ci-lz-bars"></div></div>
+</div></div></div>

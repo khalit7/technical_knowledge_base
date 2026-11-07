@@ -73,16 +73,37 @@
 #t-read .ci-pill{display:inline-block;font-size:11.5px;border-radius:99px;padding:0 8px;border:1px solid var(--line)}
 #t-read .ci-pill.bad{border-color:var(--bad);color:var(--bad)}#t-read .ci-pill.ok{border-color:var(--good);color:var(--good)}
 #t-read .ci-life text{font-family:inherit}
+#t-read table.ci-lst{font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;border-collapse:collapse;width:100%;min-width:640px}
+#t-read table.ci-lst th,#t-read table.ci-lst td{padding:2px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+#t-read table.ci-lst thead th{background:var(--soft);font-family:ui-sans-serif,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;font-weight:600}
+#t-read table.ci-lst td.ch{background:var(--hl);font-weight:700}#t-read table.ci-lst tr.lp td:first-child{border-left:3px solid var(--acc)}
+#t-read .ci-lz-lists ol.sx[hidden]{display:none}
+/* eased steps (template 01_head.html): RD.anim adds rd-fwd to a card on a forward step */
+.rd-fwd .rd-new{animation:rdIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+.rd-fwd .rd-gone{animation:rdGone .6s ease-out both}
+.rd-fade{animation:rdFade .35s ease-out both}
+@keyframes rdIn{from{opacity:0;transform:translateY(-8px) scale(.85)}}
+@keyframes rdGone{from{opacity:.25}}
+@keyframes rdFade{from{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rd-fwd .rd-new,.rd-fwd .rd-gone,.rd-fade{animation:none}}
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections"><a href="#s0">The idea</a><a href="#s1">Bytecode</a><a href="#s2">Objects</a><a href="#s3">Profiling</a><a href="#s4">Out of Python</a><a href="#s5">The JIT</a><a href="#s6">3.12 to 3.15</a><a href="#s7">Lazy imports</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">CPython runs your code as <span class="hl">bytecode in a loop written in C, and every value is a separate heap object</span>, so a Python loop pays an interpreter step and new objects for every element. Speed comes from <span class="hl">moving the loop out of Python</span> (into built-ins, NumPy or native code), and from <span class="hl">measuring first</span> to find the one loop that matters.</p>
-<div class="hero" id="ci-hero-card"><h4>The same reduction over a million floats: 47.6 ms as a Python loop, 3.2 ms as one NumPy call</h4>
-<div class="ci-svg" id="ci-hero"></div>
-<p class="small">Notice where the work sits. Top: a list holds a million pointers to separate float objects, and the C evaluation loop runs the loop body's bytecode once per element, making three new floats each time (<code>x - m</code>, the <code>exp</code>, the new <code>s</code>). Bottom: one call, three C loops over one contiguous buffer of 8-byte doubles, no objects per element. Times are the real <code>p2_numpy</code> run of section 4 (CPython 3.14.8, NumPy 2.5.3, Apple M1 Pro).</p></div>
-<div class="ci-anim"><h4>Within Python a remedy buys under 3x; moving the loop out buys 15x</h4><div id="ci-ladder"></div>
-<p class="ci-src">Speed-up of each remedy measured on this page, on the same machine (different workloads, named in each bar). The specialising interpreter (section 1) is already in the "Python loop" time; the JIT (section 5) is off by default.</p></div>
+<p class="small">Fig. 1 is the same reduction over a million floats, the denominator of a softmax: 47.6 ms as a Python loop, 3.2 ms as one NumPy call. Times are the real <code>p2_numpy</code> run of section 4 (CPython 3.14.8, NumPy 2.5.3, Apple M1 Pro); sizes are <code>sys.getsizeof</code> from section 2. The figure draws 8 of the million elements.</p>
+<ol class="sx" id="sx-hero">
+<li><b>A list holds pointers, not numbers.</b> <code>xs</code> is one 8-byte pointer per element, and each pointer leads to a separate float object somewhere on the heap: 24 bytes holding a reference count, a pointer to its type and the 8-byte double. That is 32 bytes per number, against 8. The addresses in the figure are illustrative.</li>
+<li><b>The interpreter visits every element.</b> The C evaluation loop runs the body of <code>for x in xs: s += math.exp(x - m)</code> once per element, follows the pointer, checks the type, and makes 3 new float objects each time (<code>x - m</code>, the <code>exp</code>, the new <code>s</code>). A million times: 47.6 ms.</li>
+<li><b>NumPy keeps the numbers in one buffer.</b> <code>np.exp(a - a.max()).sum()</code> is one Python call; inside it, <code>a.max()</code>, the subtraction, <code>exp</code> and <code>sum</code> are each one tight C loop over a contiguous buffer of 8-byte doubles, with no object per element (the script's comment counts three passes; with <code>a.max()</code> it is four). 3.2 ms.</li>
+<li><b>Same answer, 14.9 times faster.</b> The script asserts that the two sums agree to one part in a million. The speed-up is the per-element interpreter step and the per-element objects removed; section 4 shows it only appears from about a thousand elements up.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<p>Fig. 2 puts the remedies this page measures on one scale. The specialising interpreter (section 1) is already in the "Python loop" time; the JIT (section 5) is off by default.</p>
 <p><b>You need:</b> {{Python: the essentials|n:3cd5c17b0d0d81b28acdea39e7a4d998}} (names, objects and the one interpreter). What reference counting and the collector do to a process's memory (pymalloc's arenas, memory that never returns to the OS) is {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}, section 7; profiling a live service with py-spy and flame graphs is {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
 <dl class="terms">
 <dt>Bytecode</dt><dd>instructions for CPython's virtual stack machine, compiled from your source and cached in <code>__pycache__/*.pyc</code>.</dd>
@@ -94,4 +115,6 @@
 <dt>Vectorise</dt><dd>replace a per-element Python loop with one call that loops in C over a typed buffer.</dd>
 <dt>JIT</dt><dd>just-in-time compiler: turns hot code into machine code while the program runs; CPython's is experimental and off by default.</dd>
 </dl>
-</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 2 · Within Python a remedy buys under 3x; moving the loop out buys 15x</h4><div id="ci-ladder"></div>
+<p class="ci-src">Speed-up of each remedy measured on this page, on the same machine (different workloads, named in each bar).</p></div></div></div></div>
