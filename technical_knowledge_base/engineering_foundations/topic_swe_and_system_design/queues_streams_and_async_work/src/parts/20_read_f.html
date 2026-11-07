@@ -1,19 +1,41 @@
 <section id="s-dual">
+<div class="s3sp"><div class="s3R"><div id="stg-ob"></div></div><div class="s3L">
 <h2>The dual-write problem and the transactional outbox</h2>
-<p>Placing an order means saving it in the database <i>and</i> publishing "order placed" for e-mail, warehouse and analytics: a <dfn id="d-dual">dual write</dfn>, two writes to two systems that share no transaction. Gunnar Morling, then Debezium's lead: "we cannot have one shared transaction that would span the service's database as well as Apache Kafka, as the latter doesn't support to be enlisted in distributed (XA) transactions" ({{Debezium blog, 2019-02-19|https://debezium.io/blog/2019/02/19/reliable-microservices-data-exchange-with-the-outbox-pattern/}}). Whichever write goes first, a crash between them leaves the systems disagreeing. Step through the same order under three designs:</p>
-<div class="card" id="rd-ob-card">
-<h4>Swapping the two writes swaps the failure; the outbox turns them into one</h4>
+<p>Placing an order means saving it in the database <i>and</i> publishing "order placed" for e-mail, warehouse and analytics: a <dfn id="d-dual">dual write</dfn>, two writes to two systems that share no transaction. Gunnar Morling, then Debezium's lead: "we cannot have one shared transaction that would span the service's database as well as Apache Kafka, as the latter doesn't support to be enlisted in distributed (XA) transactions" ({{Debezium blog, 2019-02-19|https://debezium.io/blog/2019/02/19/reliable-microservices-data-exchange-with-the-outbox-pattern/}}). Whichever write goes first, a crash between them leaves the systems disagreeing. Fig. 6 steps the same order through three designs; choose one with the buttons. Swapping the two writes swaps the failure; the outbox turns them into one. The crash points are the ones the measured lab injects; the counts are from that lab (500 orders, 5% crash chance, three runs).</p>
 <div class="seg" id="rd-ob-seg"><button data-m="naive" class="on">Before: commit, then publish</button><button data-m="first">Before: publish, then commit</button><button data-m="outbox">After: transactional outbox</button></div>
-<div class="chart" id="rd-ob-svg"></div>
-<div class="an-cap" id="rd-ob-cap" aria-live="polite"></div>
-<div class="an-cnt" id="rd-ob-cnt"></div>
-<div class="an-ctl" id="rd-ob-ctl"></div>
-<p class="small mute">Crash points are the ones the measured lab injects; counts in the captions are from that lab (500 orders, 5% crash chance, three runs).</p>
-</div>
+<ol class="sx" id="sx-ob-naive">
+<li><b>Order 42 arrives.</b> A customer places order 42. The order API must do two things: save the order in Postgres, and tell the rest of the company (e-mail, warehouse, analytics) by publishing an "order placed" event to the broker. Two systems, and no transaction spans both.</li>
+<li><b>Write 1: save the order, COMMIT.</b> <code>INSERT INTO orders ...; COMMIT;</code> The order is now durable: Postgres has promised it survives a crash.</li>
+<li><b>The process dies before write 2.</b> A deploy, an out-of-memory kill, a lost network packet to the broker: anything that stops the process between the two writes. In the measured lab this is <code>os._exit()</code> at exactly this line.</li>
+<li><b>Restart: nothing remembers the event.</b> The new process handles the next order. The event for order 42 lived only in the dead process's memory. No error was logged anywhere: the database is fine and the broker is fine.</li>
+<li><b>Result: a lost event.</b> Order 42 exists, but no receipt is ever sent, the warehouse never ships it, analytics never counts it. Measured on a real Postgres: 500 orders with a 5% crash chance lost 19, 28 and 27 events in three runs, one per crash, silently.</li>
+</ol>
+<ol class="sx" id="sx-ob-first" hidden>
+<li><b>Order 42 arrives.</b> Same order, the writes the other way round: publish first, so the event cannot be lost, then save.</li>
+<li><b>Write 1: publish "order 42 placed".</b> The broker has the event durably. Consumers may read it at once.</li>
+<li><b>The process dies before write 2.</b> The order's transaction never commits; Postgres rolls it back.</li>
+<li><b>A consumer acts on an order that does not exist.</b> The e-mail service sends a receipt for order 42; the warehouse may ship it. But order 42 is in no database: a <b>phantom event</b>.</li>
+<li><b>Result: the opposite failure.</b> Swapping the order of two writes only swaps which failure you get. Measured: 19, 28 and 27 phantom events per 500 orders. Any fix must make the two writes one.</li>
+</ol>
+<ol class="sx" id="sx-ob-outbox" hidden>
+<li><b>Order 42 arrives.</b> The outbox pattern: the API never talks to the broker. It writes the event as a row in an <code>outbox</code> table in the same database as the order.</li>
+<li><b>One transaction: the order and its event.</b> <code>BEGIN; INSERT INTO orders ...; INSERT INTO outbox (event_id, payload) ...; COMMIT;</code> Both rows commit, or neither does. There is only one write.</li>
+<li><b>The API crashes now: nothing is lost.</b> Unlike the naive version, the event is already durable, waiting in the outbox with <code>sent_at</code> empty.</li>
+<li><b>The relay finds unsent rows.</b> A separate process, the <b>relay</b>, polls: <code>SELECT ... FROM outbox WHERE sent_at IS NULL ORDER BY seq LIMIT 10 FOR UPDATE SKIP LOCKED</code>. (Or a change-data-capture tool such as Debezium reads the same rows from the database's log.)</li>
+<li><b>It publishes e42 to the broker.</b> The broker now has the event.</li>
+<li><b>The relay crashes before marking the row sent.</b> The same two-writes gap, moved to a place where it is harmless: the row still says unsent, so the event will be sent again.</li>
+<li><b>Restart: e42 is published again, then marked sent.</b> The broker holds e42 twice. The outbox gives <b>at-least-once</b> publishing: never lost, sometimes duplicated. Measured: 0 events lost in three runs; 24 to 32 duplicates per 500 orders with one event per relay transaction, 147 to 185 with batches of 10.</li>
+<li><b>The consumer handles e42 once.</b> In one transaction it records <code>e42</code> in its <code>processed_events</code> table (a primary key on the event id) and does its work: one receipt.</li>
+<li><b>The duplicate arrives and is skipped.</b> Inserting <code>e42</code> again violates the primary key, so the consumer knows it has seen it and acknowledges without acting. This is the <b>idempotent consumer</b> (also called the inbox pattern).</li>
+<li><b>Result: nothing lost, nothing doubled.</b> One order, one event delivered at least once, one e-mail. The outbox removes loss; the consumer's deduplication removes the duplicates. Together they give the effect people mean by "exactly once".</li>
+</ol>
 <p>The <dfn id="d-outbox">transactional outbox</dfn> (Chris Richardson's name): "the service that sends the message to first store the message in the database as part of the transaction that updates the business entities. A separate process then sends the messages to the message broker" ({{microservices.io, Transactional outbox|https://microservices.io/patterns/data/transactional-outbox.html}}). The relay "might, for example, crash after publishing a message but before recording the fact that it has done so. When it restarts, it will then publish the message again. As a result, a message consumer must be idempotent". So the outbox converts "sometimes lost" into "sometimes duplicated", and the idempotent consumer converts that into "once".</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>Measured</b> on the same laptop Postgres (the "broker" is a second database, so there is genuinely no shared transaction; 500 orders, 5% crash chance at the dangerous line, three runs):</p>
-<div class="tw"><table id="rd-ob-tbl"></table></div>
 <p class="small mute">With a batch of 10 events per relay transaction, a crash mid-batch rolls back every "sent" mark in the batch, so all of them are published again: about 4 to 5 duplicates per crash. With one event per transaction, duplicates equal crashes. Batching is faster; it multiplies duplicates.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="tw"><table id="rd-ob-tbl"></table></div></div></div></div></div>
 <p><b>Two ways to run the relay.</b> A <b>polling publisher</b> loops over <code>SELECT ... WHERE sent_at IS NULL ORDER BY seq LIMIT 100 FOR UPDATE SKIP LOCKED</code>, publishes and marks sent ({{microservices.io|https://microservices.io/patterns/data/polling-publisher.html}}): simple, any database, a little polling load and latency; several relays can run thanks to <code>SKIP LOCKED</code>, but then strict ordering across them is lost. <b><dfn id="d-cdc">Change data capture</dfn></b> (CDC) instead tails the database's log: in Postgres, <b>logical decoding</b> of the write-ahead log, "the process of extracting all persistent changes to a database's tables into a coherent, easy to understand format" ({{PostgreSQL docs|https://www.postgresql.org/docs/current/logicaldecoding-explanation.html}}). Debezium is the standard tool: no polling, ordered by commit, at the cost of a Kafka Connect deployment and a replication slot to monitor (an abandoned slot makes Postgres keep WAL forever). It is still at-least-once: "while it is recovering from the fault, it's possible that the connector might emit some duplicate change events" ({{Debezium Postgres connector|https://debezium.io/documentation/reference/stable/connectors/postgresql.html}}).</p>
 <p><b>When you do not need an outbox:</b> when the queue lives in the same database. River "encourages the use of the same database for application data and job queue. By enqueueing jobs transactionally along with other database changes, whole classes of distributed systems problems are avoided" ({{River docs|https://github.com/riverqueue/river/blob/master/docs/README.md}}). The outbox <i>is</i> such a queue, with a relay that forwards to Kafka for consumers that live elsewhere. And the receiving side's mirror is the <dfn id="d-inbox">inbox</dfn>: the consumer stores each incoming message id with its effects, which is the idempotent consumer by another name.</p>
 <p><b>Webhooks are the same problem facing outwards</b>: calling a customer's endpoint after a database change is a dual write to their server, so the sender delivers from an outbox with retries and the receiver answers <code>2xx</code> at once and queues the work (details below). Webhooks as an API are owned by {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}, section 6.</p>
@@ -26,13 +48,9 @@
 </section>
 
 <section id="s-saga">
+<div class="s3sp"><div class="s3L">
 <h2>Sagas, not two-phase commit</h2>
 <p>The outbox makes <i>one</i> service's write and event atomic. "Upgrade to Pro" spans three: charge the card (payments), raise the token quota (quota), send a receipt (e-mail). If the quota update fails after the charge, the user has paid for nothing.</p>
-<div class="card" id="rd-sg-card">
-<h4>A saga commits each step and undoes with compensations; 2PC holds locks and waits</h4>
-<div class="seg" id="rd-sg-seg"><button data-m="ok" class="on">Saga: all steps succeed</button><button data-m="fail">Saga: quota step fails</button><button data-m="tpc">Two-phase commit</button></div>
-<div id="rd-sg-out"></div>
-</div>
 <p><dfn id="d-2pc">Two-phase commit</dfn> (2PC) asks every participant to <i>prepare</i> (do the work, hold the locks, promise to commit), then tells all to commit or all to abort. "The classic Two-Phase Commit protocol blocks if the coordinator fails" ({{Gray and Lamport, Consensus on Transaction Commit|https://arxiv.org/abs/cs/0408036}}), and the systems a service talks to (Kafka, SaaS APIs, a payment provider) cannot take part at all. Postgres supports the prepare step but warns "Unless you're writing a transaction manager, you probably shouldn't be using PREPARE TRANSACTION" ({{PostgreSQL docs|https://www.postgresql.org/docs/current/sql-prepare-transaction.html}}). 2PC run over consensus inside distributed databases is on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}.</p>
 <p>A <dfn id="d-saga">saga</dfn> gives up atomicity and adds undo: "A saga is a sequence of local transactions. Each local transaction updates the database and publishes a message or event to trigger the next local transaction in the saga. If a local transaction fails because it violates a business rule then the saga executes a series of compensating transactions" ({{microservices.io, Saga|https://microservices.io/patterns/data/saga.html}}; the idea is Garcia-Molina and Salem's, {{SIGMOD 1987|https://www.cs.cornell.edu/andru/cs711/2002fa/reading/sagas.pdf}}). What that means in practice:</p>
 <ul>
@@ -41,6 +59,13 @@
 <li><b>Every step and compensation runs at least once</b>, because messages drive them, so each is idempotent.</li>
 <li><b>Choreography or orchestration.</b> In choreography "each local transaction publishes domain events that trigger local transactions in other services"; in orchestration "an orchestrator (object) tells the participants what local transactions to execute". Orchestration keeps the flow in one place, which is what durable workflow engines (<a href="#s-jobs">below</a>) are for.</li>
 </ul>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-sg-card">
+<h4>A saga commits each step and undoes with compensations; 2PC holds locks and waits</h4>
+<div class="seg" id="rd-sg-seg"><button data-m="ok" class="on">Saga: all steps succeed</button><button data-m="fail">Saga: quota step fails</button><button data-m="tpc">Two-phase commit</button></div>
+<div id="rd-sg-out"></div>
+</div>
+</div></div></div>
 <p class="when"><b>When not to use either:</b> if all the data can live in one database, use one transaction. Splitting data across services is what creates the need for sagas; do it for a reason.</p>
 <details class="dp"><summary>2PC's details, the 1987 definition, and event-driven architecture, event sourcing and CQRS <span class="mute">(depth)</span></summary><div class="b">
 <p>In 2PC, prepared participants hold their locks and cannot decide alone while the coordinator is gone. Postgres's warning in full: "PREPARE TRANSACTION is not intended for use in applications ... Unless you're writing a transaction manager, you probably shouldn't be using PREPARE TRANSACTION". 2PC lives on inside distributed databases (Spanner, CockroachDB), run over consensus so the coordinator cannot simply vanish. The 1987 paper: a long transaction "is a saga if it can be written as a sequence of transactions that can be interleaved with other transactions", and the system "guarantees that either all the transactions in a saga are successfully completed or compensating transactions are run to amend a partial execution"; "other transactions might see the effects of a partial saga execution". Choreography has no central piece, but the flow is spread across services and hard to see.</p>

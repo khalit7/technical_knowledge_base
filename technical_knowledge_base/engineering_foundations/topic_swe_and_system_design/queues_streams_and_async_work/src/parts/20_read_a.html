@@ -1,8 +1,7 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
 #t-read .core{font-size:16.5px;line-height:1.5;border-left:4px solid var(--acc);padding:4px 0 4px 12px;margin:10px 0}
-#t-read .hero{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
-#t-read .hero h4,#t-read .card h4{margin:0 0 4px;font-size:14.5px}
+#t-read .card h4{margin:0 0 4px;font-size:14.5px}
 #t-read .terms{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;font-size:13.5px;margin:6px 0}
 #t-read .terms dt{font-weight:600}#t-read .terms dd{margin:0}
 @media (max-width:520px){#t-read .terms{grid-template-columns:minmax(0,1fr)}#t-read .terms dd{margin:0 0 4px}}
@@ -15,25 +14,27 @@
 #t-read code{overflow-wrap:anywhere}
 #t-read .der{font-size:11.5px;color:var(--c5);font-weight:600}
 #t-read .pred{font-size:13.5px;border-left:3px solid var(--c5);padding:2px 0 2px 10px;margin:6px 0}
-#t-read .bk{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:6px;font-size:13px;margin:6px 0}
-#t-read .bk>div{border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:0}
-#t-read .bk b.n{display:inline-block;min-width:1.5em;height:1.5em;line-height:1.5em;text-align:center;border-radius:50%;background:var(--bad);color:var(--bg);font-size:12px;margin-right:4px}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#s-top">The idea</a><a href="#s-why">Why async</a><a href="#s-kinds">Queues and logs</a><a href="#s-kafka">Kafka</a><a href="#s-sem">Delivery semantics</a><a href="#s-eos">Kafka exactly-once</a><a href="#s-idem">Idempotent consumers</a><a href="#s-vt">Visibility timeouts</a><a href="#s-dlq">Dead letters</a><a href="#s-bp">Backpressure</a><a href="#s-dual">Outbox</a><a href="#s-saga">Sagas</a><a href="#s-jobs">Job queues and workflows</a><a href="#s-cron">Cron</a><a href="#s-batch">Worked example</a><a href="#s-ref">Reference</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Handing work to a queue or a log means it will be delivered <span class="hl">at least once</span>, never exactly once, so you make its <b>effect</b> happen once (an idempotent consumer, an outbox for the hand-off itself) and you watch the <b>age of the oldest message</b>, because a queue hides overload instead of removing it.</p>
-<div class="hero" id="rd-hero-card"><h4>Three places where handed-off work goes wrong, and the fix for each</h4>
-<div class="chart" id="rd-hero"></div>
-<div class="bk">
-<div><b class="n">1</b><b>The hand-off.</b> Saving a row and publishing its event are two writes with no shared transaction; a crash between them loses the event. Fix: the <a href="#s-dual">transactional outbox</a>.</div>
-<div><b class="n">2</b><b>The acknowledgement.</b> A worker that dies after the work but before the ack gets the message back, and the work runs twice. Fix: an <a href="#s-idem">idempotent consumer</a> keyed on a producer-assigned id.</div>
-<div><b class="n">3</b><b>The rate.</b> If arrivals exceed what workers can finish (&lambda; &gt; C/S), nothing errors: the backlog just grows. Fix: <a href="#s-bp">backpressure</a>, workers sized by Little's law, an alarm on message age.</div>
-</div>
-<p class="small mute">Measured on a real Postgres later on this page: 1,000 jobs with a 5% crash chance were done 1,046 to 1,053 times, and exactly 1,000 with a unique key on the job id; a naive dual write lost 19 to 28 events per 500 orders, the outbox none.</p></div>
+<p>Fig. 1 follows one piece of work from the request that accepts it to the receipt it produces, and stops at the <b>three places where handed-off work goes wrong</b>. The failure counts are measured on a real Postgres later on this page, the backlog is the {{Queue lab|#t-lab}}'s simulator; the layout and the number of boxes are a schematic.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Accept now.</b> The user's request reaches the order API, which writes a small message, <code>{"type": "embed_document", "doc_id": 981}</code>, and answers <code>202 Accepted</code> at once; the slow work happens later, elsewhere.</li>
+<li><b>Hand the message off, in one transaction.</b> The order and an outbox row commit together in Postgres; a relay copies the row to the broker. Saving a row and publishing its event as two writes with no shared transaction is failure point 1: a crash between them lost 19 to 28 events per 500 orders in the measured lab, and the <a href="#s-dual">transactional outbox</a> lost none.</li>
+<li><b>The broker holds it.</b> Messages wait in the broker until a worker takes one. A queue deletes each once it is done; a log keeps them all (<a href="#s-kinds">two shapes</a>).</li>
+<li><b>Workers take one each, work, then ack.</b> The work sends the receipt; the ack tells the broker the message is done, and a queue deletes it.</li>
+<li><b>A crash between the work and the ack.</b> A worker that dies after the work but before the ack gets the message back: after a timeout another worker takes it, and the work runs twice. Failure point 2. Measured: 1,000 jobs with a 5% crash chance were done 1,046 to 1,053 times, and exactly 1,000 with a unique key on the job id, an <a href="#s-idem">idempotent consumer</a> keyed on a producer-assigned id.</li>
+<li><b>Arrivals faster than the workers finish.</b> Four workers at 0.15 s a message finish at most 26.7 a second (C/S). In the simulator, 20 arrivals a second never leave a message waiting more than 1.3 s; at 30 a second (&rho; = 1.125) 419 messages are waiting after two minutes, the oldest 15 s old, and nothing has errored: the backlog just grows. Failure point 3 (&lambda; &gt; C/S).</li>
+<li><b>Three places, three fixes.</b> The hand-off: the outbox. The acknowledgement: an idempotent consumer. The rate: <a href="#s-bp">backpressure</a>, workers sized by Little's law, an alarm on message age. The rest of the page takes them one at a time.</li>
+</ol>
+</section>
+</div></div>
 <p><b>You need:</b> nothing beyond a web service and a database transaction. The parent root's Step 3 ("Slow work leaves the request path", {{Topic: swe-and-system-design|n:3c65c17b0d0d81048ae0dd14ac399b4d}}) is the five-minute version. Why "exactly once" is an end-to-end property of any distributed system, and how Kafka's partitions are replicated, are on {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}; this page is the queue and stream machinery.</p>
 <dl class="terms">
 <dt>Broker</dt><dd>the system that stores messages between producer and consumer (SQS, RabbitMQ, Kafka, a Postgres table).</dd>
