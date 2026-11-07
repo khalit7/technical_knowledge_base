@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="s-val">
 <h2>3. Validation: parse at the edge, once</h2>
 <p>Every byte from a client is untrusted: malformed, malicious, or from an app version two years old. The rule is to turn it into typed objects at the edge, once, and reject what does not fit, so code inside never sees a missing field or a string where a number should be. Alexis King calls it "parse, don't validate": the result of checking should be a value whose type proves the check happened ({{lexi-lambda.github.io, 2019|https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/}}). A pydantic model is exactly that, and FastAPI builds it before the handler runs:</p>
@@ -8,23 +9,30 @@
 <li><b><code>extra="forbid"</code></b> rejects unknown fields, catching client typos (<code>max_token</code>) that would otherwise be silently ignored; the cost is that clients cannot send fields from a newer version. Anthropic's API rejects an unknown field with "Extra inputs are not permitted" ({{Claude API errors|https://platform.claude.com/docs/en/api/errors}}), which is pydantic's own wording.</li>
 <li><b><code>Literal["small", "large"]</code></b> is an enum: any other model name fails with a message listing the allowed values.</li>
 </ul>
-<p>Before and after, on the same bad body <code>{"title": "", "colour": "blue"}</code> (both captured): FastAPI's default answer, and the same failure after the demo's twelve-line exception handler rewrites it into the problem-details shape that {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} specifies.</p>
-<div class="grid">
+<p>Before and after, on the same bad body <code>{"title": "", "colour": "blue"}</code> (both captured): FastAPI's default answer (on the right, top), and the same failure after the demo's twelve-line exception handler rewrites it into the problem-details shape that {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}} specifies (below it).</p>
+<div class="cost"><div class="t">Where validation stops</div>Pydantic v2's validation core is written in Rust ({{pydantic docs|https://docs.pydantic.dev/latest/}}), so it costs little next to network and database time. It checks <em>shape</em>: types, lengths, ranges, allowed values. It cannot check <em>meaning</em> that needs the database: whether the chat exists and belongs to the caller, whether the user has credits. Those are business rules in the handler, and they answer 404, 403 or 409 rather than 422. Keep pydantic models at the boundary rather than deep in the program ({{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}).</div>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0">
+<div class="ft">Before and after: FastAPI's default 422 against problem details, same bad body</div>
+<div>
 <div><div class="small mute">Before: FastAPI default (<code>application/json</code>)</div><div class="raw" data-body="create_invalid_default"></div></div>
 <div><div class="small mute">After: problem details with a JSON Pointer per field</div><div class="raw" data-body="create_invalid"></div></div>
 </div>
-<p class="small">Both report every failing field at once, so a form can highlight two mistakes in one round trip. The default exposes pydantic's internals (<code>loc</code>, <code>ctx</code>, and the echoed <code>input</code>, which can leak a secret a user pasted into the wrong field); the rewritten one points at each field with a JSON Pointer ({{RFC 6901|https://www.rfc-editor.org/rfc/rfc6901.html}}), names a query parameter instead (<code>"parameter": "limit"</code> for <code>?limit=500</code>), and for a body that is not JSON says where it broke ("Invalid JSON at character ...").</p>
-<div class="cost"><div class="t">Where validation stops</div>Pydantic v2's validation core is written in Rust ({{pydantic docs|https://docs.pydantic.dev/latest/}}), so it costs little next to network and database time. It checks <em>shape</em>: types, lengths, ranges, allowed values. It cannot check <em>meaning</em> that needs the database: whether the chat exists and belongs to the caller, whether the user has credits. Those are business rules in the handler, and they answer 404, 403 or 409 rather than 422. Keep pydantic models at the boundary rather than deep in the program ({{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}).</div>
-</section>
+<p class="cap">Both report every failing field at once, so a form can highlight two mistakes in one round trip. The default exposes pydantic's internals (<code>loc</code>, <code>ctx</code>, and the echoed <code>input</code>, which can leak a secret a user pasted into the wrong field); the rewritten one points at each field with a JSON Pointer ({{RFC 6901|https://www.rfc-editor.org/rfc/rfc6901.html}}), names a query parameter instead (<code>"parameter": "limit"</code> for <code>?limit=500</code>), and for a body that is not JSON says where it broke ("Invalid JSON at character ...").</p>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-mw">
 <h2>4. Middleware, dependencies and the handler: what goes where</h2>
 <p>Three places can hold code that runs for a request, and choosing the wrong one is a common source of bugs. The test is <em>scope</em>: does it apply to every request, to some routes, or to one?</p>
-<div class="fig">
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0">
 <div class="ft">Middleware wraps everything; a dependency wraps one route; the handler is the route</div>
 <div class="vis" id="rd-onion-svg"></div>
 <p class="cap">Drawn from the recorded order in section 2: the outer ring (registered last) enters first and leaves last. A dependency runs only for routes that declare it, after routing and before the handler; FastAPI resolves it together with the parsed body, so both are ready when the handler starts.</p>
-</div>
+</div></div></div></div>
 <div class="tw"><table>
 <thead><tr><th>Place</th><th>Runs for</th><th>Put here</th><th>Do not put here</th></tr></thead>
 <tbody>
@@ -37,4 +45,4 @@
 <p>Knowing who is calling (authentication, {{Auth|n:3c65c17b0d0d817692dcc8ebd59b5c2b}}) is not the same as checking they may touch <em>this</em> chat. The first entry of {{OWASP's API Security Top 10 (2023)|https://owasp.org/API-Security/editions/2023/en/0x11-t10/}} is <b>Broken Object Level Authorization</b> (API1:2023): an endpoint takes an ID from the URL and returns or changes that object without checking the caller owns it; change <code>chat_ae81...</code> to someone else's ID and you read their chats. The fix belongs in the data layer of the handler: scope every query by the caller, so a lookup by ID alone does not exist in the code base. The demo's:</p>
 <div class="code" data-src="row = DB.execute(&quot;select id,title,created_at from chats where id=? and owner=?&quot;|return problem(404, &quot;not-found&quot;, &quot;Chat not found.&quot;, f&quot;No chat {chat_id} for this API key.&quot;)"></div>
 <p class="small">It answers 404, not 403, for someone else's chat, so the API does not confirm the chat exists. Add a test per endpoint that tries another user's ID ({{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}}); roles and scopes (<code>chats:read</code>) come later, as a policy layer in a dependency.</p>
-</section>
+

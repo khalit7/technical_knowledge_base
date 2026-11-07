@@ -15,18 +15,23 @@
 <div class="co key"><div class="t">The framework is not the bottleneck of an LLM product</div>Measured on an Apple M1 Pro, one uvicorn worker, loopback, keep-alive, 2,000 requests after 200 warm-up: <code>GET /v1/health</code> p50 0.341 ms, p99 0.451 ms; <code>GET /v1/chats/{id}</code> with a database read p50 0.383 ms, p99 0.597 ms. An LLM reply takes seconds (the root's Step 5), so what decides the service's behaviour is how it waits: on the model, on the database, on other requests. That is what the rest of the page is about.</div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="ba-stick"><div id="stg-life"></div><div class="ba-art" id="rd-life-art"></div></div></div><div class="s3L">
 <section id="s-life">
 <h2>2. One request through the service, stage by stage</h2>
-<p>A Python web service has two programs in one process. The <b>server</b>, uvicorn, owns the socket: it accepts connections and parses the HTTP bytes. The <b>application</b>, FastAPI (built on Starlette), receives each parsed request through <dfn>ASGI</dfn> ({{asgi.readthedocs.io|https://asgi.readthedocs.io/en/latest/}}): a dictionary called the <em>scope</em>, plus two functions, <code>receive</code> for the body and <code>send</code> for the response. Step through one real request to <code>exp_app.py</code>, <code>GET /trace</code> with an API key; the order of the stages was logged by the app itself.</p>
-<div class="card" id="rd-life-card">
-<b>Stepper: one recorded request, every stage in the order it ran</b> <span class="real">recorded</span>
-<div class="vis" id="rd-life-svg"></div>
-<div class="an-cap" id="rd-life-cap" aria-live="polite"></div>
-<div id="rd-life-art"></div>
-<div class="an-ctl" id="rd-life-ctl"></div>
+<p>A Python web service has two programs in one process. The <b>server</b>, uvicorn, owns the socket: it accepts connections and parses the HTTP bytes. The <b>application</b>, FastAPI (built on Starlette), receives each parsed request through <dfn>ASGI</dfn> ({{asgi.readthedocs.io|https://asgi.readthedocs.io/en/latest/}}): a dictionary called the <em>scope</em>, plus two functions, <code>receive</code> for the body and <code>send</code> for the response. Fig. 2 follows one real request to <code>exp_app.py</code>, <code>GET /trace</code> with an API key; the order of the stages was logged by the app itself <span class="real">recorded</span>, and under the figure is what each stage saw or ran.</p>
+<ol class="sx" id="sx-life">
+<li><b>uvicorn turns bytes into a scope.</b> The server read the request line and headers off the socket and built the ASGI scope shown under the figure: method, path, query string, headers as byte pairs (lower-cased names), and who is on each end. The body is not in it; the app pulls it with <code>receive()</code> only if a route needs it.</li>
+<li><b>Middleware runs, outermost first.</b> The two middlewares log their entry. The one registered <b>second</b> entered first: Starlette builds the stack so that the last middleware added wraps the others. Middleware sees every request, before any routing.</li>
+<li><b>The router picks the function.</b> Starlette matches the method and path against the routes in order; <code>GET /trace</code> matches this one. No match gives 404; a path that exists with another method gives 405.</li>
+<li><b>Dependencies run, for this route only, 3rd.</b> The handler asked for <code>Depends(current_user)</code>, so FastAPI ran it first and passed its result in. This is where authentication, a per-request database session and permission checks live; raising here answers 401 or 403 before the handler runs.</li>
+<li><b>Inputs are parsed and validated.</b> Path and query parameters, headers and the JSON body are converted to the declared types; a failure answers 422 without running the handler (section 3). <code>/trace</code> has no body, so only the header was read. Neither the router nor validation writes to the log, so these two stages carry no number.</li>
+<li><b>The handler runs, 4th.</b> Only now does your code run, with typed arguments and a known user. It returned a dict; FastAPI serialises it to JSON.</li>
+<li><b>The response goes back out, innermost first.</b> The middlewares leave in reverse order (added first leaves 5th, added second 6th), so the outermost one can time the whole request and add headers to every response. Then uvicorn writes the bytes.</li>
+</ol>
 <p class="small mute">Recorded 2026-10-24 by <code>src/service/run_experiments.py</code>. Two middlewares were registered, "added first" then "added second"; the log shows the one added second ran outermost (it entered first and left last). The scope is printed as the app received it (client port elided).</p>
-</div>
-<p>Three things to carry from the stepper. <b>Order is a design decision</b>: the middleware registered last wraps everything else, so put the request-ID and timing middleware outermost (registered last) so they see every request, including ones rejected inside. <b>Every stage can answer early</b>: no route gives 404 or 405, a dependency can raise 401, validation gives 422, all before your handler runs. <b>The response travels back through the same layers</b>, which is how middleware adds headers and measures duration.</p>
+<p><b>Order is a design decision.</b> The middleware registered last wraps everything else, so register the request-ID and timing middleware last (outermost): then they see every request, including the ones an inner stage rejects (no route: 404 or 405; a dependency: 401; validation: 422), and they time the whole trip back out.</p>
+</section>
+</div></div>
 <details class="xc"><summary>Every exchange the chat API produced (20 captured requests and responses, every line explained)</summary><div id="t-wl">
 <p class="small">Real bytes, captured on 2026-10-04 by <code>src/service/capture.py</code>, which starts <code>app.py</code> and talks to it over a raw socket so nothing is reformatted. Pick an exchange, then click any line for what it means. The <code>Connection: close</code> header was added by the capture client so each exchange is one connection; real clients keep connections open. What each header means in HTTP is {{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}'s subject; what each error and idempotency response means as a contract is {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}'s.</p>
 <div id="wl-list"></div>
@@ -39,4 +44,4 @@
 <div class="raw" id="wl-curl" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
 </div>
 </div></details>
-</section>
+

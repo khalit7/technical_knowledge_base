@@ -1,4 +1,6 @@
 
+<div class="s3sp"><div class="s3R"><div class="ba-stick"><div id="stg-conc"></div>
+<div class="ba-art"><div class="vis" id="rd-sty-sum"></div><p class="small mute" style="margin:2px 0">Time until all 50 were answered, the four styles on one scale <span class="real">measured</span>. Recorded 2026-10-24 by <code>src/service/run_experiments.py</code> on an Apple M1 Pro laptop over loopback (uvicorn 0.54.0, one worker unless stated; httpx client with 50 open connections; the client takes about 45 ms to send all 50).</p></div></div></div><div class="s3L">
 <section id="s-conc">
 <h2>6. Async, threads and worker processes: how many requests can wait at once</h2>
 <p>A handler spends most of its time waiting: on the database, on the model, on another service. What decides throughput is what the process does with the other requests while one waits. FastAPI gives two ways to write a handler, and uvicorn a third lever:</p>
@@ -7,22 +9,31 @@
 <li><b>Plain <code>def</code></b> runs in a worker thread from AnyIO's pool, so blocking is fine; the pool has 40 threads by default (<code>CapacityLimiter(40)</code> in AnyIO 4.15.1, printed by the run below).</li>
 <li><b><code>--workers N</code></b> starts N processes sharing the port, each with its own loop and pool.</li>
 </ul>
-<p><b>Predict</b>: 50 requests arrive at once, each waiting 500 ms. Written as <code>async def</code> with <code>time.sleep(0.5)</code>, how long until the <em>first</em> one is answered? Then pick a style.</p>
-<div class="card" id="rd-sty-card">
-<b>Measured: 50 concurrent requests, each waiting 500 ms, written four ways</b> <span class="real">measured</span>
-<div class="seg" id="rd-sty-seg"><button data-m="async_blocking" class="on">Before: async def + time.sleep</button><button data-m="async_await">After: async def + await</button><button data-m="plain_def">plain def (thread pool)</button><button data-m="async_blocking_4_workers">blocking, 4 workers</button></div>
-<div class="vis" id="rd-sty-svg"></div>
-<div class="an-cnt" id="rd-sty-cnt"></div>
-<div class="vis" id="rd-sty-sum"></div>
-<p class="small mute">One bar per request, from send to response. Recorded 2026-10-24 by <code>src/service/run_experiments.py</code> on an Apple M1 Pro laptop over loopback (uvicorn 0.54.0, one worker unless stated; httpx client with 50 open connections; the client takes about 45 ms to send all 50). The summary row puts all four on one scale.</p>
-</div>
-<p>What the bars show:</p>
-<ul>
-<li><b>Blocking inside <code>async def</code></b>: 50 x 500 ms run one after another, 25,460 ms in all, and the median request waited 25,421 ms, not about 12.75 s, the median a fair one-at-a-time queue would give (answers at 0.5, 1.0, ... 25 s): each handler's response is written only after the loop gets back to it, by which time every other request's sleep had run. One blocking call in an async handler hurts every request on the worker, not only the slow one.</li>
-<li><b><code>await asyncio.sleep</code></b>: all 50 wait at the same time; the last answer came at 745 ms (500 ms of waiting plus the overhead of 50 requests on one loop).</li>
-<li><b>Plain <code>def</code></b>: also concurrent, until the pool runs out: 40 answers by about 740 ms, the last 10 at 1,066 to 1,102 ms, a second wave. The 40-thread cap is a hidden concurrency limit; raise it deliberately or prefer async for many slow waits.</li>
-<li><b>Four workers</b> divide the blocking damage but do not remove it: 10,241 ms, because the operating system handed the 50 connections to the workers unevenly (20, 14, 9 and 7 requests on this macOS laptop) and the busiest worker sets the time.</li>
-</ul>
+<p><b>Predict</b>: 50 requests arrive at once, each waiting 500 ms. Written as <code>async def</code> with <code>time.sleep(0.5)</code>, how long until the <em>first</em> one is answered? Then pick a style. Fig. 4 replays each recorded run: every ball is one request, at the place it waited, on the run's own clock.</p>
+<div class="s3chips" id="conc-mode"><button data-m="blocking" class="on">Before: async def + time.sleep</button><button data-m="await">After: async def + await</button><button data-m="def">plain def (thread pool)</button><button data-m="w4">blocking, 4 workers</button></div>
+<ol class="sx" id="sx-conc-blocking">
+<li><b>50 requests arrive within about 45 ms.</b> The client opens 50 connections at once; every request lands on the worker's one event loop.</li>
+<li><b>The loop runs one sleep at a time.</b> <code>time.sleep(0.5)</code> never hands the loop back, so the 50 sleeps run one after another, and for 25 seconds not a single answer goes out, not even to the first request.</li>
+<li><b>All 50 answers leave at the end,</b> between 25,412 and 25,460 ms: 25,460 ms in all, and the median request waited 25,421 ms, not about 12.75 s, the median a fair one-at-a-time queue would give (answers at 0.5, 1.0, ... 25 s). Each handler's response is written only after the loop gets back to it, by which time every other request's sleep had run. One blocking call in an async handler hurts every request on the worker, not only the slow one.</li>
+</ol>
+<ol class="sx" id="sx-conc-await" hidden>
+<li><b>50 requests arrive within about 45 ms,</b> all on the one event loop.</li>
+<li><b>All 50 wait at the same time.</b> Each <code>await asyncio.sleep(0.5)</code> hands the loop back, so the loop keeps switching and the 50 waits overlap.</li>
+<li><b>Answers from 547 to 745 ms.</b> The last came at 745 ms: 500 ms of waiting plus the overhead of 50 requests on one loop.</li>
+</ol>
+<ol class="sx" id="sx-conc-def" hidden>
+<li><b>50 requests arrive within about 45 ms.</b> Plain <code>def</code> handlers run in AnyIO's thread pool, not on the loop.</li>
+<li><b>40 threads take 40 requests.</b> The pool's <code>CapacityLimiter(40)</code> lets 40 handlers sleep in threads at once; the other 10 wait for a free thread.</li>
+<li><b>The first wave answers by about 740 ms</b> (547 to 739 ms). As each thread frees, one of the 10 takes it; they are drawn moving about 500 ms before their answers, inferred from the answer times.</li>
+<li><b>A second wave: 1,066 to 1,102 ms.</b> The last 10 answers come a full wait later. The 40-thread cap is a hidden concurrency limit; raise it deliberately or prefer async for many slow waits.</li>
+</ol>
+<ol class="sx" id="sx-conc-w4" hidden>
+<li><b>The operating system hands out the connections unevenly:</b> 20, 14, 9 and 7 requests on the four workers (on this macOS laptop; Linux may spread them differently).</li>
+<li><b>Each worker blocks on its own share.</b> Every worker runs its sleeps one at a time; the one with 7 requests answers all of them at 3,680 to 3,683 ms (7 x 500 ms of sleeping, then the answers).</li>
+<li><b>The busiest worker sets the time.</b> The others answer at 4,646 to 4,654 ms (9 requests) and 7,300 to 7,316 ms (14); the 20 on the busiest finish at 10,241 ms. Four workers divide the blocking damage but do not remove it.</li>
+</ol>
+</section>
+</div></div>
 <h3>So which shape?</h3>
 <div class="tw"><table>
 <thead><tr><th>Work the handler waits on</th><th>Write it as</th><th>Why</th></tr></thead>
@@ -35,4 +46,4 @@
 <details class="xc"><summary>The three handlers, exactly as measured</summary><div>
 <div class="code" data-file="2" data-src="WAIT = float|def thread()|+2"></div>
 </div></details>
-</section>
+

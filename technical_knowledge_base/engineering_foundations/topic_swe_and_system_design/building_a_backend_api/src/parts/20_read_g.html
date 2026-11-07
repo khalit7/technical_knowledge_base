@@ -10,17 +10,28 @@
 <p class="small mute">Kubernetes' three probes (liveness, readiness, startup), their defaults and the outages caused by probes that check too much are on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}.</p>
 <h3>Startup and shutdown belong to the lifespan hook</h3>
 <p>Open the pool, read the settings, warm the model client once, in the app's <dfn>lifespan</dfn>: code before its <code>yield</code> runs before the first request, code after it once the server has drained. A pool opened lazily inside the first request makes the first users slow; one closed nowhere leaves connections for Postgres to time out.</p>
-<h3>What a stop actually looks like</h3>
-<p>Kubernetes stops a pod by sending SIGTERM to the container's main process; "The default <code>terminationGracePeriodSeconds</code> setting is 30 seconds", after which "The container runtime sends <code>SIGKILL</code> to any processes still running" ({{Kubernetes, pod lifecycle|https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/}}). Removal from the load balancer happens "At the same time as the kubelet is starting graceful shutdown", not before it. Here is what uvicorn does with that SIGTERM, recorded with a slow request, an idle keep-alive connection and a background job in flight. <b>Predict</b>: does the slow request get its answer?</p>
-<div class="card" id="rd-sd-card">
-<b>Stepper: SIGTERM with three things in flight, recorded</b> <span class="real">recorded</span>
-<div class="seg" id="rd-sd-seg"><button data-m="0" class="on">uvicorn default</button><button data-m="1">--timeout-graceful-shutdown 1</button></div>
-<div class="vis" id="rd-sd-svg"></div>
-<div class="an-cap" id="rd-sd-cap" aria-live="polite"></div>
-<div class="an-ctl" id="rd-sd-ctl"></div>
-<p class="small mute">Recorded 2026-10-24 by <code>src/service/run_experiments.py</code>: <code>exp_app.py</code> under uvicorn 0.54.0; a 3 s request sent at 0.2 s, a 3 s background job at 0.3 s, SIGTERM at 1.0 s, then a new connection and a request on the idle keep-alive connection. Times in ms from the start of the run, same clock for server and clients.</p>
-</div>
-<p>With the default, the server stopped accepting at once (a new connection at 1,310 ms was refused), closed the idle keep-alive connection (the request on it failed with RemoteDisconnected), let the slow request finish with 200 at 3,218 ms, waited for the background job (done at 3,317 ms), then ran the lifespan shutdown and exited at 3,426 ms. With <code>--timeout-graceful-shutdown 1</code> it logged "Cancel 2 running task(s), timeout graceful shutdown exceeded" about a second after starting to shut down: the slow request was cut without a response and the background job was cancelled. Both follow uvicorn's <code>Server.shutdown</code> in <code>uvicorn/server.py</code> (0.54.0): close the listeners, ask each connection to shut down, wait for connections and then tasks up to the timeout, cancel what is left, run the lifespan shutdown. The process then re-raises the signal it caught, so its exit status is "killed by SIGTERM" (143 in a shell) even after a clean drain.</p>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-shut"></div></div><div class="s3L">
+<h3 id="s-stop">What a stop actually looks like</h3>
+<p>Kubernetes stops a pod by sending SIGTERM to the container's main process; "The default <code>terminationGracePeriodSeconds</code> setting is 30 seconds", after which "The container runtime sends <code>SIGKILL</code> to any processes still running" ({{Kubernetes, pod lifecycle|https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/}}). Removal from the load balancer happens "At the same time as the kubelet is starting graceful shutdown", not before it. Here is what uvicorn does with that SIGTERM, recorded with a slow request, an idle keep-alive connection and a background job in flight. <b>Predict</b>: does the slow request get its answer? Fig. 5 replays the recording <span class="real">recorded</span> on the run's own clock: <code>exp_app.py</code> under uvicorn 0.54.0, a 3 s request sent at about 0.2 s, a 3 s background job at about 0.3 s, SIGTERM at about 1.0 s, then a new connection and a request on the idle keep-alive connection (times in ms from the start of the run, the same clock for server and clients).</p>
+<div class="s3chips" id="shut-mode"><button data-m="0" class="on">uvicorn default</button><button data-m="1">--timeout-graceful-shutdown 1</button></div>
+<ol class="sx" id="sx-shut-0">
+<li><b>Three things in flight.</b> A request on a keep-alive connection was answered (200 at 133 ms) and the connection stays open, idle; a 3 s request was sent at 208 ms (its handler started at 213 ms); a request that left a 3 s background job running got its answer at 316 ms, and the job runs on in the same process.</li>
+<li><b>SIGTERM at 1,003 ms, and uvicorn starts shutting down.</b> The signal handler only sets a flag; the main loop checks it every 0.1 s and logs "Shutting down" at 1,063 ms. It closes the listening socket and asks every connection to close after its current response, so the idle keep-alive connection closes now; "Waiting for connections to close" follows at 1,165 ms.</li>
+<li><b>New work bounces.</b> A new connection at 1,310 ms is refused (ConnectionRefusedError), and a request on the old keep-alive connection at 1,410 ms fails with RemoteDisconnected. A load balancer that still routes here gets errors, which is why a preStop sleep exists; clients must retry such requests on a new connection, elsewhere.</li>
+<li><b>The slow request finishes normally:</b> 200 OK at 3,218 ms. Graceful shutdown waited for it.</li>
+<li><b>The background job is awaited.</b> uvicorn logs "Waiting for background tasks to complete" at 3,315 ms and the job is done at 3,317 ms: it waits for tasks after connections.</li>
+<li><b>Lifespan shutdown, then exit.</b> The code after the lifespan <code>yield</code> (close the pool) runs at 3,416 ms, and the process exits at 3,426 ms, 2,423 ms after SIGTERM, well inside the 30 s grace period.</li>
+</ol>
+<ol class="sx" id="sx-shut-1" hidden>
+<li><b>The same three things in flight.</b> The keep-alive request answered at 126 ms, the 3 s request sent at 206 ms, the background job's request answered at 310 ms.</li>
+<li><b>SIGTERM at 1,009 ms.</b> "Shutting down" at 1,110 ms; the socket closes, and "Waiting for connections to close" follows at 1,211 ms.</li>
+<li><b>New work bounces.</b> A new connection at 1,309 ms is refused; the request on the idle keep-alive connection at 1,403 ms fails with RemoteDisconnected.</li>
+<li><b>The timeout expires and both tasks are cancelled.</b> "Cancel 2 running task(s), timeout graceful shutdown exceeded" at 2,214 ms, about a second after shutdown began: the slow request is cut without a response (its client sees RemoteDisconnected at 2,221 ms) and the background job is cancelled; the lifespan shutdown runs at 2,215 ms.</li>
+<li><b>Exit at 2,235 ms,</b> 1,226 ms after SIGTERM, with neither the request nor the job finished.</li>
+</ol>
+<p>Both runs follow uvicorn's <code>Server.shutdown</code> in <code>uvicorn/server.py</code> (0.54.0): close the listeners, ask each connection to shut down, wait for connections and then tasks up to the timeout, cancel what is left, run the lifespan shutdown. The process then re-raises the signal it caught, so its exit status is "killed by SIGTERM" (143 in a shell) even after a clean drain.</p>
+</div></div>
 <div class="cost"><div class="t">The shutdown checklist for a service behind a load balancer</div>
 <ul>
 <li><b>Keep serving briefly after SIGTERM.</b> uvicorn refuses new connections immediately, but the balancer may still route to the pod for a moment while endpoints update. The common fix is a <code>preStop</code> hook that sleeps a few seconds before the signal, so the pod leaves the balancer first; the sleep counts against the 30 s.</li>
@@ -28,4 +39,4 @@
 <li><b>Long streams outlive any grace period.</b> A model reply can stream for minutes; decide whether to raise the grace period for that deployment, or cut streams and let clients retry with their idempotency key.</li>
 <li><b>Background work in the process dies with it</b> once the timeout passes (section 8): what must happen goes on a queue.</li>
 </ul></div>
-</section>
+

@@ -1,12 +1,8 @@
 
+<div class="s3sp"><div class="s3L">
 <section id="s-cfg">
 <h2>7. Configuration and secrets: read once, typed, at startup</h2>
 <p>Configuration is, in the Twelve-Factor App's words, "everything that is likely to vary between deploys (staging, production, developer environments, etc)": the database URL, the model name, the provider key, timeouts. Its rule: "The twelve-factor app stores config in environment variables", and its test is "whether the codebase could be made open source at any moment, without compromising any credentials" ({{12factor.net/config|https://12factor.net/config}}). In Python the usual tool is pydantic-settings: a class whose fields are read from the environment, typed and validated like a request body, once, when the process starts.</p>
-<div class="fig">
-<div class="ft">Measured: when the same setting comes from five places, the one nearest the code wins</div>
-<div class="vis" id="rd-cfg-svg"></div>
-<p class="cap">Top row: highest priority; each row is the source added at that step, numbered in the order added, and the value then read. Recorded with pydantic-settings 2.16.1: a <code>Settings</code> class with <code>env_prefix="CHAT_"</code>, a <code>.env</code> file and a <code>secrets_dir</code>, each source added in turn for <code>model_name</code>. The value read went small, from-secrets-dir, from-dotenv, from-environment, from-init: an argument in code beats an environment variable, which beats the <code>.env</code> file, which beats a file in the secrets directory, which beats the class default.</p>
-</div>
 <ul>
 <li><b>Fail fast.</b> A required setting that is missing stops the process at startup, not on the first request that needs it. The recorded error: <code>1 validation error for Required / database_url / Field required [type=missing, ...]</code>. A crash loop at deploy time is visible; a service that starts and fails one request in a hundred is not.</li>
 <li><b>Secrets are typed as secrets.</b> A <code>SecretStr</code> field prints as <code>SecretStr('**********')</code>, so the whole settings object can be logged at startup without leaking the key; the value comes out only through <code>provider_key.get_secret_value()</code> at the point of use.</li>
@@ -15,15 +11,25 @@
 </ul>
 <p class="small mute">Feature flags and gradual config rollouts are configuration that changes while the process runs; rolling them out like code is on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}. The code-design view of settings objects is on {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0">
+<div class="ft">Measured: when the same setting comes from five places, the one nearest the code wins</div>
+<div class="vis" id="rd-cfg-svg"></div>
+<p class="cap">Top row: highest priority; each row is the source added at that step, numbered in the order added, and the value then read. Recorded with pydantic-settings 2.16.1: a <code>Settings</code> class with <code>env_prefix="CHAT_"</code>, a <code>.env</code> file and a <code>secrets_dir</code>, each source added in turn for <code>model_name</code>. The value read went small, from-secrets-dir, from-dotenv, from-environment, from-init: an argument in code beats an environment variable, which beats the <code>.env</code> file, which beats a file in the secrets directory, which beats the class default.</p>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-bg">
 <h2>8. Background work: answer first, then do the rest</h2>
 <p>Some work does not need to finish before the user gets an answer: send a notification, meter the tokens, generate a chat title, index the message for search. Doing it inline makes every user wait for it. There are three places to put it, and the difference is what happens when the process dies.</p>
-<div class="fig">
+<p>FastAPI's own guidance draws the same line: background tasks run "<em>after</em> returning a response", and for "heavy background computation" that does not need the same process "you might benefit from using other bigger tools like Celery", which need "a message/job queue manager, like RabbitMQ or Redis" but run "in multiple processes, and especially, in multiple servers" ({{FastAPI, background tasks|https://fastapi.tiangolo.com/tutorial/background-tasks/}}). Section 9 shows the in-process kind being waited for on a graceful shutdown and cancelled on a forced one. For long work the client must see, answer <code>202 Accepted</code> with a job resource to poll; queues, at-least-once delivery and the outbox pattern (write the job row in the same transaction as the business change) are {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}'s.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig" style="margin-top:0">
 <div class="ft">Measured: the same 500 ms of follow-up work, inline against BackgroundTasks; and where a queue would put it</div>
 <div class="vis" id="rd-bg-svg"></div>
 <p class="cap">Medians of seven requests to <code>exp_app.py</code> (2026-10-24): inline, the client waited 506.3 ms; with <code>BackgroundTasks</code> the response came in 4.2 ms and the work finished 501.8 ms after it, in the same process. The queue row is drawn, not measured: the handler only enqueues, and a separate worker process does the work.</p>
-</div>
+</div></div></div></div>
 <div class="tw"><table>
 <thead><tr><th></th><th>Inline</th><th><code>BackgroundTasks</code></th><th>A queue and a worker</th></tr></thead>
 <tbody>
@@ -33,5 +39,5 @@
 <tr><td>Retries</td><td>The client's</td><td>None unless you write them</td><td>The queue's, so the job must be idempotent</td></tr>
 <tr><td>Use for</td><td>Work the answer depends on</td><td>Small, losable work: FastAPI's example is a log line or "sending an email notification"</td><td>Anything that must happen, is heavy, or takes longer than a deploy's grace period</td></tr>
 </tbody></table></div>
-<p>FastAPI's own guidance draws the same line: background tasks run "<em>after</em> returning a response", and for "heavy background computation" that does not need the same process "you might benefit from using other bigger tools like Celery", which need "a message/job queue manager, like RabbitMQ or Redis" but run "in multiple processes, and especially, in multiple servers" ({{FastAPI, background tasks|https://fastapi.tiangolo.com/tutorial/background-tasks/}}). Section 9 shows the in-process kind being waited for on a graceful shutdown and cancelled on a forced one. For long work the client must see, answer <code>202 Accepted</code> with a job resource to poll; queues, at-least-once delivery and the outbox pattern (write the job row in the same transaction as the business change) are {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}'s.</p>
-</section>
+
+

@@ -1,16 +1,28 @@
 
-<section id="s-llm">
-<h2>10. Worked example: the LLM-backed endpoint, end to end</h2>
-<p><code>POST /v1/chats/{chat_id}/messages</code> is where every section meets: it costs money, takes seconds, may stream, and is the request users retry. Step through the demo's real handler; each step shows the code that ran for the captures, what it does, and what a production version adds.</p>
-<div class="card" id="rd-llm-card">
-<b>Stepper: the message handler, top to bottom</b> <span class="real">real code</span>
-<div class="vis" id="rd-llm-svg"></div>
-<div class="an-cap" id="rd-llm-cap" aria-live="polite"></div>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-llm-card" style="margin-top:0">
+<b>The message handler, top to bottom</b> <span class="real">real code</span>
+<p class="ba-stage" id="rd-llm-stage"></p>
 <div class="code codebox" id="rd-llm-code"></div>
 <div class="an-ctl" id="rd-llm-ctl"></div>
 <p class="small mute">Code from <code>src/service/app.py</code> with its real line numbers. The demo "calls the model" with a sleep and an echo; the captured responses of each branch (401, 429, 400, 201, the replay, 409, 422, the stream) are in the exchanges block of section 2.</p>
-</div>
+</div></div></div><div class="s3L">
+<section id="s-llm">
+<h2>10. Worked example: the LLM-backed endpoint, end to end</h2>
+<p><code>POST /v1/chats/{chat_id}/messages</code> is where every section meets: it costs money, takes seconds, may stream, and is the request users retry. The steps below walk the demo's real handler; on the right is the code that ran for the captures <span class="real">real code</span>, and each step says what it does and what a production version adds.</p>
+<ol class="sx" id="sx-llm">
+<li><b>The signature is the contract.</b> The path parameter, the body as a <code>MessageIn</code> (content up to 32,000 characters, <code>model</code> small or large, <code>max_tokens</code> 1 to 4096, <code>stream</code>) and two headers. FastAPI validates all of it before line one of the body runs; a bad request is a 422 that cost nothing. The handler is <code>async def</code> because it awaits the model.</li>
+<li><b>Who is calling.</b> The API key becomes a user or a 401. The demo calls a helper; a production version makes it a dependency (<code>Depends(current_user)</code>) shared by every route.</li>
+<li><b>Rate limit before anything expensive.</b> A token bucket per key (5 requests, refilling at 1 per second); over the limit is a 429 with Retry-After. It runs before the idempotency claim, so a limited request is not stored against the key (the contract is Service APIs's; a shared limiter in Redis or the gateway replaces this in-process dict once there are several workers).</li>
+<li><b>Claim the idempotency key.</b> An <code>INSERT</code> that the primary key lets only one attempt win; a retry gets the stored answer, a concurrent one 409, a different body with the same key 422. This claim sits outside the transaction of step 8, which is the stuck-key bug of section 5.</li>
+<li><b>Authorise the object.</b> The chat must exist <em>and</em> belong to the caller, in one query (section 4). Production: this is where the history is read, in one query, and the connection released before the model call.</li>
+<li><b>Or stream the reply.</b> The streaming branch returns a <code>StreamingResponse</code> of server-sent events; the status line is sent now, so any later failure must be an event. The demo frees the key and stores nothing here; production stores the finished message so a retry can fetch it, and stops when the client disconnects.</li>
+<li><b>Call the model.</b> The demo sleeps and echoes. A real call is <code>await client.messages.create(...)</code> with an async client and a timeout, so the event loop serves other requests during the seconds it takes (section 6).</li>
+<li><b>One transaction for everything that must agree.</b> The reply, the charge and the stored response commit together (section 5). Production charges by the provider's reported token usage rather than a flat 10 credits.</li>
+<li><b>Answer.</b> 201 with the message and the rate limit headers. What does not change the answer (titles, metering, indexing) goes to a queue after this point (section 8).</li>
+</ol>
 <p>The order is the design. Cheap rejections come first (credentials; the rate limit, a bucket of 5 requests refilling at 1 per second; a missing key), so a flood of bad requests costs almost nothing; the rate limit runs before the idempotency claim, so a 429 is not stored against the key; the expensive call happens only after the request is known to be valid, owned and not a duplicate; and everything that must agree afterwards commits in one transaction.</p>
+</section>
+</div></div>
 <div class="cost"><div class="t">What the production version of this handler adds</div>
 <ul>
 <li><b>A timeout on the model call</b> (<code>httpx.AsyncClient(timeout=...)</code> or <code>asyncio.timeout</code>), shorter than the client's, with the provider's own retries counted in; the demo has none, which is how the stuck-key bug of section 5 is triggered. Timeout budgets are {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}'s.</li>
@@ -20,12 +32,25 @@
 <li><b>Stream after the checks, store at the end.</b> The demo frees the idempotency key on the streaming path and stores nothing; a real one stores the finished message so a retry can fetch it. The status code is gone once streaming starts, so failures become an error event ({{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}, sections 4 and 5).</li>
 <li><b>Hand off the rest</b> (title generation, metering, search indexing) to a queue (section 8), and pin the model version you call, since a model change is a contract change ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}).</li>
 </ul></div>
-<p>What the user sees from the streaming branch, replayed at the real arrival times of the capture: a start event, five deltas about 50 ms apart, a stop event.</p>
-<div class="card" id="rd-sse-card">
-<b>Replay of the captured stream, at its real arrival times</b> <span class="real">captured</span>
-<div class="grid"><div><div class="small mute">Bytes on the wire</div><div class="raw" id="rd-sse-raw" style="max-height:320px;overflow:auto"></div></div>
-<div><div class="small mute">What the user sees</div><div id="rd-sse-ui" style="border:1px solid var(--line);border-radius:8px;padding:10px;min-height:5em;font-size:15px"></div><div class="small mute" id="rd-sse-t"></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-sse-card" style="margin-top:0">
+<b>Replay of the captured stream, one arrival per step</b> <span class="real">captured</span>
+<div><div><div class="small mute">Bytes on the wire</div><div class="raw" id="rd-sse-raw" style="max-height:320px;overflow:auto"></div></div>
+<div><div class="small mute">What the user sees</div><div id="rd-sse-ui" style="border:1px solid var(--line);border-radius:8px;padding:10px;min-height:5em;font-size:15px"></div></div></div>
 <div class="an-ctl" id="rd-sse-ctl"></div>
 <p class="small mute">The SSE format and chunked encoding are taught byte by byte on {{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}; here it is only this endpoint's real output.</p>
-</div>
-</section>
+</div></div></div><div class="s3L">
+<p>What the user sees from the streaming branch, one arrival per step, with the arrival times of the capture: a start event, five deltas about 50 ms apart, a stop event.</p>
+<ol class="sx" id="sx-sse">
+<li><b>Request sent</b> (0 ms), with <code>"stream": true</code>.</li>
+<li><b>Headers and <code>message_start</code>, 0.8 ms.</b> The status line and <code>text/event-stream</code> go out before any text exists, in the same packet as the first chunk.</li>
+<li><b>The first delta, "Here", also at 0.8 ms.</b></li>
+<li><b>" is" at 53.0 ms.</b></li>
+<li><b>" a" at 105.1 ms.</b></li>
+<li><b>" short" at 157.3 ms.</b></li>
+<li><b>" reply." at 209.5 ms:</b> five deltas about 52 ms apart, the demo's stand-in for tokens.</li>
+<li><b><code>message_stop</code> at 261.7 ms,</b> with <code>finish_reason</code> "stop".</li>
+<li><b>The zero-length chunk ends the body,</b> in the same arrival as the stop event.</li>
+</ol>
+</div></div>
+

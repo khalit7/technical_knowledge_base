@@ -1,7 +1,7 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.6em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px;overflow-wrap:anywhere}
@@ -39,6 +39,12 @@
 #t-read .two h4{margin:0 0 4px;font-size:13.5px}
 .real{display:inline-block;font-size:11px;font-weight:600;color:var(--good);border:1px solid var(--good);border-radius:99px;padding:0 7px;margin-right:4px;vertical-align:1px}
 #t-read .moved td:first-child{white-space:nowrap}
+/* split layout (2026-11-07): a stage with its artefact or summary below stays in view together on wide screens */
+@media (min-width:1100px){#t-read .ba-stick{position:sticky;top:58px}#t-read .ba-stick .stg{position:relative;top:0}}
+@media (max-width:1099px){#t-read .ba-stick{display:contents}}
+#t-read .ba-art{border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin:8px 0;background:var(--card);min-width:0}
+#t-read .ba-art .codebox,#t-read .ba-art .raw{max-height:230px;overflow:auto;margin:4px 0}
+#t-read .ba-stage{font-size:12.5px;color:var(--mute);margin:0 0 4px}
 #t-wl .wl-list{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
 #t-wl .wl-list button{font-size:12.5px;text-align:left;border-radius:7px;padding:4px 9px}
 #t-wl .wl-list button .c{font-weight:600;margin-right:4px}
@@ -50,14 +56,21 @@
 <a href="#s-top">The idea</a><a href="#s-ex">The example</a><a href="#s-life">One request</a><a href="#s-val">Validation</a><a href="#s-mw">Middleware</a><a href="#s-data">Data layer</a><a href="#s-conc">Async and workers</a><a href="#s-cfg">Config</a><a href="#s-bg">Background work</a><a href="#s-shut">Health and shutdown</a><a href="#s-llm">LLM endpoint</a><a href="#s-prod">Before real users</a><a href="#s-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-top">
 <h2>The idea in one screen</h2>
 <p class="core">Every request runs the same pipeline inside one worker process (server, middleware, router, dependencies, validation, handler, data layer, response), and building a backend well means <span class="em">keeping each stage bounded</span>: never block the event loop, never hold a database connection across a slow call, and never let a request die half done when the process is told to stop.</p>
-<div class="fig" id="rd-hero">
-<div class="ft">One request, one worker process: the stages it passes and the resources it borrows</div>
-<div class="vis" id="rd-hero-svg"></div>
-<p class="cap">The running example is the chat API built for this page (<code>src/service/app.py</code>). Left column: the stages every request passes, in order; the response goes back out through the same middleware in reverse. Right (below, on a phone): what the handler borrows (a pooled database connection, the model client, somewhere to hand off work) and what the process shares (one event loop, a pool of 40 threads). The bottom strip is the process's own life, from startup to a drained shutdown. Each label is a section below.</p>
-</div>
+<p>Fig. 1 is that pipeline. The running example is the chat API built for this page (<code>src/service/app.py</code>); each part of the figure is a section below.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Six stages before your code.</b> A request from the client passes uvicorn (the server: the socket and the HTTP bytes, section 2), the middleware (section 4), the router, the dependencies (section 4) and validation (section 3), and only then reaches the handler, all inside one worker process (the dashed outline). Any of them can answer early.</li>
+<li><b>What the handler borrows.</b> A pooled database connection (SQLAlchemy's default pool: 5 open plus up to 10 overflow per process, section 5), the model client (async, with a timeout: sections 6 and 10) and somewhere to hand off work the answer does not depend on (BackgroundTasks or a queue, section 8).</li>
+<li><b>What every request shares.</b> One event loop that runs every <code>async def</code> handler, a pool of 40 threads for plain <code>def</code> handlers (section 6), and settings read once at startup (section 7). One request that blocks the loop stalls all the others.</li>
+<li><b>The answer goes back out</b> through the same middleware in reverse, which is how middleware times a request and adds headers to every response (section 2).</li>
+<li><b>The process's own life.</b> Startup (the lifespan opens the pool), serving (<code>/livez</code>, <code>/readyz</code>), SIGTERM (stop accepting, drain what is in flight) and exit (the lifespan closes the pool): section 9.</li>
+</ol>
+</section>
+</div></div>
+<div id="s-top2">
 <p><b>You need</b>: what an HTTP request and response contain ({{HTTP|n:3c65c17b0d0d811bb035fa3f158b0889}}, sections 1 and 2). The contract the service exposes (error shapes, pagination, idempotency keys, rate limits, versioning, OpenAPI) is designed on {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}; this page builds the service behind it.</p>
 <p><b>New terms</b></p>
 <div class="terms">
@@ -89,4 +102,4 @@
 </tbody></table></div>
 <p class="small mute">Also elsewhere: queues and delivery guarantees on {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}; timeouts, retries and probes' failure modes on {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}}; request IDs, logs and traces on {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}; Postgres itself on {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}; how to structure the code behind the endpoints on {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}.</p>
 </div></details>
-</section>
+</div>

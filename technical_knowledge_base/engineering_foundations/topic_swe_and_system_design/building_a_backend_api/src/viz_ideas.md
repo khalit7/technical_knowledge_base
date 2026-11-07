@@ -26,3 +26,15 @@ HTTP anatomy (HTTP), offset against keyset bars and the drift animation (Service
 - Measuring connection cost and N+1 again here: Running Postgres and Query planning already measured them on the same laptop; this page reuses their numbers.
 - A Kubernetes shutdown run (kind or minikube with a preStop hook): minutes of setup for a result the Kubernetes docs state; the uvicorn run shows the part the service controls.
 - A free-threaded Python comparison: Capacity planning's experiment 4 covers it.
+
+## 2026-11-07: the split layout and renderer v2 stages (the 2026-11-06 rollout)
+| Section | Visual now | Kind | Replaces |
+|---|---|---|---|
+| Top | Fig. 1 `stg-hero` (5 steps): the stages as glass plates across the request's path, the handler's borrowed resources (the pool drawn as 5 open + 10 overflow slots), the loop as a ring with flowing dots, 40 thread posts, the process's life along the front | 3D stage | H (the static service figure; its caption became the step list) |
+| 2 | Fig. 2 `stg-life` (7 steps): the recorded request travels plate by plate, the logged order written on each, the camera moving in close per stage; the step's artefact (scope, log lines, code) under the stage | 3D stage | 1 |
+| 5 | Fig. 3 `stg-pool` (5 steps): one pool, 20 pods against `max_connections` as bars on plinths, a deploy doubling it, then holding against borrowing twice (schematic, labelled) | 3D stage | new (the arithmetic was prose only) |
+| 6 | Fig. 4 `stg-conc` (4 modes, 3 to 4 steps): every recorded request as a ball at its send time, waiting on the loop, in a thread or on its worker, flying to "answered" at its recorded answer time; each step plays a stretch of the run's clock; the four-on-one-scale summary under it | 3D stage replaying the recording | 5 (the 50-bar timelines; the summary is kept in 2D) |
+| 9 | Fig. 5 `stg-shut` (2 modes, 6 and 5 steps): the listening socket as a plate that closes, the three clients and their connections, the handler and job filling over 3 s, the pool closing, the run's clock along the front | 3D stage replaying the recording | 8 (the lane stepper) |
+| 10 | The handler stepper and the stream replay keep their 2D cards; their captions became step lists (`sx-llm`, `sx-sse`) and the service figure in the handler card became a one-line stage label | 2D animations | 9, 10 |
+
+Kept 2D, and why: the onion (a nesting, flat by nature), the validation before/after (two JSON bodies), the hold and N+1 sliders (one number against one parameter), the settings ladder (an ordered list), the background-work timeline (three rows on one time axis), the four-style summary (four bars on one scale), every table and code block, and the closed exchanges explorer. No real image: nothing physical here that a photo would show better.

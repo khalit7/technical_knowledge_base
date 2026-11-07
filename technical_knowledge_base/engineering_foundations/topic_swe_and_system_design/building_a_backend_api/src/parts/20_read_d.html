@@ -1,21 +1,33 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-pool"></div></div><div class="s3L">
 <section id="s-data">
 <h2>5. The data layer: pools, transactions and round trips</h2>
 <p>Almost every handler reads or writes the database, and three habits decide whether that scales: borrow connections from a pool, make one unit of work one transaction, and count round trips. The demo uses SQLite in memory; a real service uses Postgres with the same tables ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}).</p>
-
 <h3>Connection pools, and the arithmetic that runs them out</h3>
-<p>A Postgres connection is a whole operating-system process on the server, and opening one costs a process start plus authentication; {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}} measures both (section 7). So each service process keeps a <dfn>pool</dfn>: a handful of open connections lent to a request and taken back. Then do the arithmetic nobody does: SQLAlchemy's default pool is 5 connections plus up to 10 overflow, so twenty pods open up to 20 x 15 = 300 connections, a deploy briefly runs old and new pods together (600), and Postgres's <code>max_connections</code> defaults to 100. The usual answer is small per-process pools behind a pooler such as PgBouncer in transaction mode, not a bigger <code>max_connections</code> (sizing with Little's law is on {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}).</p>
-
+<p>A Postgres connection is a whole operating-system process on the server, and opening one costs a process start plus authentication; {{Running Postgres in production|n:3ef5c17b0d0d8149a0c9d3e2083ed0de}} measures both (section 7). So each service process keeps a <dfn>pool</dfn>: a handful of open connections lent to a request and taken back. Steps 1 to 3 of Fig. 3 do the arithmetic nobody does.</p>
 <h3>Never hold a connection across the model call</h3>
-<p>An LLM handler reads the chat, waits seconds for the model, then saves the reply. If it borrows one connection at the start and returns it at the end, the connection sits idle through the whole model call, and the pool needs one connection per request in flight. Little's law (in-flight = arrival rate x time held) makes the cost exact. <b>Predict</b>: at the root's busy hour of 231.5 model calls a second (only the message request calls the model) and a 10 s model call, how many connections does holding need, and how many does borrowing twice for 1 ms each need? Then move the slider.</p>
-<div class="card" id="rd-hold-card">
+<p>An LLM handler reads the chat, waits seconds for the model, then saves the reply. If it borrows one connection at the start and returns it at the end, the connection sits idle through the whole model call, and the pool needs one connection per request in flight (steps 4 and 5).</p>
+<ol class="sx" id="sx-pool">
+<li><b>One process, one pool.</b> SQLAlchemy's default pool is 5 connections plus up to 10 overflow, opened on demand: up to 15 Postgres processes for one service process.</li>
+<li><b>Twenty processes.</b> Twenty pods open up to 20 x 15 = 300 connections, and Postgres's <code>max_connections</code> defaults to 100 (the dashed line).</li>
+<li><b>A deploy doubles it.</b> A deploy briefly runs old and new pods together (600). The usual answer is small per-process pools behind a pooler such as PgBouncer in transaction mode, not a bigger <code>max_connections</code> (sizing with Little's law is on {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}).</li>
+<li><b>Holding across the model call</b> (a schematic, not a run). Each request borrows a connection first and returns it only after the model answers: five slow model calls hold all five connections, idle, and every other request queues for one, even one that needs the database for a millisecond.</li>
+<li><b>Borrowing twice.</b> Read the history, give the connection back, call the model, borrow again to save the reply. Each borrow is brief, so the connections are free while the model works; the slider below puts numbers on the difference.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<p>Little's law (in-flight = arrival rate x time held) makes the cost exact. <b>Predict</b>: at the root's busy hour of 231.5 model calls a second (only the message request calls the model) and a 10 s model call, how many connections does holding need, and how many does borrowing twice for 1 ms each need? Then move the slider.</p>
+<p>The same rule covers transactions: a transaction left open across the model call holds its locks and its snapshot for seconds. Read what you need, commit or release, call the model, then open a short transaction to save the result.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-hold-card" style="margin-top:0">
 <b>Before and after: the same request holding one connection, or borrowing twice</b> <span class="ill">derived</span>
 <div class="an-ctl"><label class="small" for="rd-hold-s">Model call duration</label><input type="range" id="rd-hold-s" min="0.5" max="30" step="0.5" value="10"><span class="small" id="rd-hold-v"></span></div>
 <div class="vis" id="rd-hold-svg"></div>
 <div class="an-cnt" id="rd-hold-cnt"></div>
 <p class="small mute">Derived: connections busy = 231.5 model calls/s x seconds held. Before holds for the model call (10 s at the default: 2,315, the root's figure for streams open at once and {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}'s corrected one, "correction (2026-10-24)": its earlier 11,570 counted all five requests per message as model calls); after holds two 1 ms borrows (read the history, save the reply): 0.5. The rate is the root's busy-hour estimate; the 1 ms per borrow is Capacity planning's assumption, not a measurement.</p>
-</div>
-<p>The same rule covers transactions: a transaction left open across the model call holds its locks and its snapshot for seconds. Read what you need, commit or release, call the model, then open a short transaction to save the result.</p>
+</div></div></div></div>
 
 <h3>One unit of work, one transaction</h3>
 <p>A <dfn>transaction</dfn> makes several writes commit together or not at all. In the demo's message handler the reply, the credit charge and the stored response (for idempotent retries) must agree, so they are one transaction:</p>
@@ -23,14 +35,15 @@
 <p class="small">If they were separate statements, a crash between them would leave credits taken and no reply, or a reply nobody paid for. Isolation levels and the anomalies they allow are {{Transactions and concurrency|n:3ef5c17b0d0d8155aa64ddeb09da144e}}'s subject; the handler's job is to draw the boundary in the right place.</p>
 <div class="corr"><div class="t">A bug in this demo, found later: work outside the transaction left a key claimed forever</div>The handler claims its idempotency key with an <code>INSERT</code> <em>before</em> the transaction above. If anything fails between the claim and the commit (the model call times out, the process is killed, any unexpected exception), the row stays at <code>started</code>, nothing releases it, and every retry with that key gets 409 "still in progress" forever. The demo releases the claim only on the two paths it thought of (unknown chat, streaming). {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}} found and measured this while refactoring the same handler. <b>The fix</b> is general handler hygiene: release on every exit that did not save a response (Code design's step 10 wraps the claim in one context manager, <code>idempotency_claim</code>), and give each claim an expiry so a claim left by a process that died without cleanup is taken over after a few minutes. The captures on this page come from the demo as it was and were not rerun.</div>
 
+<div class="s3sp"><div class="s3L">
 <h3>Count round trips: N+1 queries</h3>
 <p>The list page of chats with each chat's last message, written the obvious way with an ORM's lazy loading, is one query for 20 chats and then one per chat: 21 round trips. One query with a join returns the same rows. {{Query planning and performance|n:3ef5c17b0d0d817f9e15f445b079e9c8}} measured it on one laptop (psycopg 3.3.6, 0.056 ms for <code>SELECT 1</code>): 1.42 ms against 0.22 ms per page, 6.5 times. Across a network each extra trip costs its full latency. Move the round-trip time:</p>
-<div class="card" id="rd-n1-card">
+<p class="small">Every query passes values as parameters (the demo's <code>?</code> placeholders), so the database never interprets user text as SQL: that is the whole fix for SQL injection. The fix for N+1 is eager loading (<code>selectinload</code> or <code>joinedload</code> in SQLAlchemy, <code>select_related</code> and <code>prefetch_related</code> in Django) or writing the join; the way to notice is a trace that shows how many queries each request made ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}). Paging itself is one query per page with a cursor (the demo's <code>where (created_at,id) &gt; (?,?)</code>; the design is {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}'s).</p>
+<div class="co"><div class="t">An async handler needs an async driver</div>The demo's message handler is <code>async def</code> but calls <code>sqlite3</code>, a blocking driver. With an in-memory SQLite that blocks for microseconds; with a network database it blocks the whole event loop for every query (section 6 measures what that does). Use an async driver (<code>asyncpg</code>, psycopg 3's async connection, SQLAlchemy's asyncio extension) in <code>async def</code> handlers, or keep the handler a plain <code>def</code>.</div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-n1-card" style="margin-top:0">
 <b>Before and after: 21 round trips or one, as the network gets further away</b> <span class="ill">derived</span>
 <div class="an-ctl"><label class="small" for="rd-n1-s">Round trip to the database</label><input type="range" id="rd-n1-s" min="0" max="3" step="1" value="2"><span class="small" id="rd-n1-v"></span></div>
 <div class="vis" id="rd-n1-svg"></div>
 <p class="small mute">Derived: time on the wire = round trips x round-trip time; query execution is left out. Four presets: the measured local trip (0.056 ms, Query planning), and from the root's Numbers to know tab the same data centre (0.5 ms, Dean 2009), zone to zone in one region (2 ms, Microsoft's target) and two nearby regions (8 ms, Azure East US to East US 2, P50). At 2 ms the 21 trips cost 42 ms against 2 ms for the single query; the root adds 21 x 0.067 ms of lookup time for 43.41 ms.</p>
-</div>
-<p class="small">Every query passes values as parameters (the demo's <code>?</code> placeholders), so the database never interprets user text as SQL: that is the whole fix for SQL injection. The fix for N+1 is eager loading (<code>selectinload</code> or <code>joinedload</code> in SQLAlchemy, <code>select_related</code> and <code>prefetch_related</code> in Django) or writing the join; the way to notice is a trace that shows how many queries each request made ({{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}). Paging itself is one query per page with a cursor (the demo's <code>where (created_at,id) &gt; (?,?)</code>; the design is {{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}'s).</p>
-<div class="co"><div class="t">An async handler needs an async driver</div>The demo's message handler is <code>async def</code> but calls <code>sqlite3</code>, a blocking driver. With an in-memory SQLite that blocks for microseconds; with a network database it blocks the whole event loop for every query (section 6 measures what that does). Use an async driver (<code>asyncpg</code>, psycopg 3's async connection, SQLAlchemy's asyncio extension) in <code>async def</code> handlers, or keep the handler a plain <code>def</code>.</div>
-</section>
+</div></div></div></div>
