@@ -1,4 +1,4 @@
-// ---- Object-lifetime animation (copied from the C++ page's Part 1; switching scenario no longer starts playback). Replays the recorded output of lifetime.cpp (src/ca/out/lt_*.txt) step by step ----
+// ---- Object-lifetime animation (copied from the C++ page's Part 1; since 2026-11-07 each step is one explained stretch of the log, from the step list on the left). Replays the recorded output of lifetime.cpp (src/ca/out/lt_*.txt) step by step ----
 CA.life=(function(){
   const D=window.CA_DATA.lifetime;
   // parse one recorded log into steps: each step = one output line, with the state after it
@@ -28,33 +28,47 @@ CA.life=(function(){
     });
     return st;
   }
-  function codeHTML(sc,line){
+  function codeHTML(sc,lines){
     const blocks=[];if(sc.helpers)blocks.push(sc.helpers);blocks.push({first:sc.first,lines:sc.lines});
     return blocks.map(b=>'<pre class="ca-code ca-lc">'+b.lines.map((l,i)=>{const n=b.first+i;
-      return '<span class="ca-ln'+(n===line?' on':'')+'"><span class="ca-no">'+n+'</span>'+(CA.hl(l)||' ')+'</span>'}).join('')+'</pre>').join('');
+      return '<span class="ca-ln'+(lines.has(n)?' on':'')+'"><span class="ca-no">'+n+'</span>'+(CA.hl(l)||' ')+'</span>'}).join('')+'</pre>').join('');
   }
   function box(o){const cls={new:' new',moved:' moved',dying:' dying',hit:' hit',live:''}[o.state]||'';
     return '<div class="ca-obj'+cls+'"><b>#'+o.id+'</b> '+CA.esc(o.state==='moved'?'"" (moved-from)':'"'+o.name+'"')+'<span>'+CA.esc(o.from)+'</span></div>'}
-  // mount an animation in element el; keys = scenarios selectable by a segmented control (seg element id) or one key
+  // Grouped replay (2026-11-07 rollout): each step of the animation is one explained stretch of the log, given by the step list on the left:
+  // <ol class="sx" id=...><li data-l="a-b"> covers log lines a..b (0-based). The lists must cover every line once, in order.
+  function groups(listId,n){const L=document.getElementById(listId);if(!L)throw new Error('no step list '+listId);
+    const g=[...L.children].map(li=>{const m=(li.dataset.l||'').match(/^(\d+)(?:-(\d+))?$/);if(!m)throw new Error(listId+': item without data-l');return [+m[1],m[2]==null?+m[1]:+m[2]]});
+    g.forEach((x,i)=>{if(x[0]!==(i?g[i-1][1]+1:0)||x[1]<x[0])throw new Error(listId+': step '+(i+1)+' does not follow on')});
+    if(!g.length||g[g.length-1][1]!==n-1)throw new Error(listId+': steps do not cover the '+n+' log lines');return g}
+  // the state shown for one stretch: objects alive at its end, plus those destroyed during it (struck through); objects made in it are marked new
+  function stretch(st,a,b){const s=st[b],made=new Set(),hit=new Set(),gone=[],lines=new Set();
+    for(let j=a;j<=b;j++){const x=st[j],m=x.ev.match(/^(?:ctor|copy|move) #(\d+)/),h=x.ev.match(/^(?:copy|move)= #(\d+)/);if(m)made.add(+m[1]);if(h)hit.add(+h[1]);
+      if(x.kind==='dtor'&&j<b){const d=x.objs.find(o=>o.state==='dying');if(d)gone.push(d)}if(x.line)lines.add(x.line)}
+    const objs=s.objs.map(o=>Object.assign({},o)).concat(gone.map(o=>Object.assign({},o))).sort((p,q)=>p.id-q.id);
+    objs.forEach(o=>{if(o.state!=='dying'&&o.state!=='moved'){o.state=made.has(o.id)?'new':hit.has(o.id)?'hit':'live'}});
+    return {objs,lines,cnt:s.cnt}}
+  // mount an animation in element el; o.lists maps each scenario key to its step list; o.seg is the scenario switch
   function mount(o){
-    const el=document.getElementById(o.el);let key=o.key,st=steps(key);
+    const el=document.getElementById(o.el);let key=o.key,st=steps(key),g=groups(o.lists[key],st.length);
     el.innerHTML='<div class="ca-lgrid"><div class="ca-lcode" id="'+o.el+'-code"></div><div class="ca-mem"><div class="ca-col"><div class="h">Stack</div><div id="'+o.el+'-st"></div></div><div class="ca-col"><div class="h">Heap</div><div id="'+o.el+'-hp"></div></div></div></div>'+
-      '<div class="ca-cap" id="'+o.el+'-cap" aria-live="polite"></div><div class="ca-cnt" id="'+o.el+'-cnt"></div><pre class="ca-out ca-log" id="'+o.el+'-log"></pre>';
+      '<div class="ca-cnt" id="'+o.el+'-cnt"></div><pre class="ca-out ca-log" id="'+o.el+'-log"></pre>';
     const $=s=>document.getElementById(o.el+'-'+s);
-    function draw(i){const s=st[i],sc=D[key];
-      $('code').innerHTML=codeHTML(sc,s.line);
+    function draw(i){const [a,b]=g[Math.min(i,g.length-1)],s=stretch(st,a,b),sc=D[key];
+      $('code').innerHTML=codeHTML(sc,s.lines);
       $('st').innerHTML=s.objs.filter(x=>x.where==='stack').map(box).join('')||'<div class="ca-none">empty</div>';
       $('hp').innerHTML=s.objs.filter(x=>x.where==='heap').map(box).join('')||'<div class="ca-none">empty</div>';
-      $('cap').innerHTML='<b>Step '+(i+1)+' of '+st.length+'.</b> '+CA.esc(s.cap);
       const c=s.cnt;$('cnt').innerHTML=['constructed '+c.ctor,'copied '+c.copy,'moved '+c.move,'assigned '+c.assign,'destroyed '+c.dtor,'alive '+s.objs.filter(x=>x.state!=='dying').length].map(x=>'<span>'+x+'</span>').join('');
-      $('log').innerHTML='<span class="ca-cmd">$ '+CA.esc(sc.cmd.replace(/^.*&& /,''))+'</span>\n'+sc.log.map((l,j)=>j===i?'<mark>'+CA.esc(l)+'</mark>':j<i?CA.esc(l):'<span class="ca-fut">'+CA.esc(l)+'</span>').join('\n');
+      $('log').innerHTML='<span class="ca-cmd">$ '+CA.esc(sc.cmd.replace(/^.*&& /,''))+'</span>\n'+sc.log.map((l,j)=>j>=a&&j<=b?'<mark>'+CA.esc(l)+'</mark>':j<a?CA.esc(l):'<span class="ca-fut">'+CA.esc(l)+'</span>').join('\n');
       const lg=$('log'),mk=lg.querySelector('mark');if(mk){const y=mk.offsetTop-lg.offsetTop;if(y<lg.scrollTop||y>lg.scrollTop+lg.clientHeight-24)lg.scrollTop=Math.max(0,y-60)}
       const lc=$('code').querySelector('.ca-ln.on');if(lc&&lc.parentNode){const p=lc.parentNode;if(lc.offsetTop<p.scrollTop||lc.offsetTop>p.scrollTop+p.clientHeight-20)p.scrollTop=Math.max(0,lc.offsetTop-40)}
     }
-    const a=CA.anim({card:o.card,ctl:o.ctl,n:st.length,draw,ms:1300,label:'Step of the program run'},o.tab||'t-read');
-    function set(k){key=k;st=steps(k);a.reset(st.length)}
+    const show=k=>Object.entries(o.lists).forEach(([m,id])=>{const L=document.getElementById(id);if(L)L.hidden=m!==k});
+    show(key);
+    const a=CA.anim({card:o.card,ctl:o.ctl,n:g.length,draw,ms:4600,label:'Step of the program run',list:o.lists[key]},o.tab||'t-read');
+    function set(k){key=k;st=steps(k);g=groups(o.lists[k],st.length);show(k);a.reset(g.length,o.lists[k])}
     if(o.seg)RD.seg(document.getElementById(o.seg),set);
-    return {set,get key(){return key}};
+    return {set,get key(){return key},anim:a};
   }
   return {mount,steps};
 })();

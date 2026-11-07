@@ -1,7 +1,8 @@
 // Checks for "C++: ownership, moves and object lifetimes".
 // usage: node src/check_controls.mjs [shots dir]   (run from the page folder or anywhere; puppeteer from html_utils)
-// 1. At 390 px dark and 920 px light (reduced motion on): nothing moves before the reader acts; every chip and
-//    segment button, every step button and slider of the four replays; no script error, NaN, undefined or sideways scroll.
+// 1. At 390 px dark and 920 px light (reduced motion on): nothing moves before the reader acts (autoplay on view is checked
+//    without reduced motion by check_stages.mjs); every chip and segment button, every step button and slider of the three
+//    replays and two stages; no script error, NaN, undefined or sideways scroll.
 // 2. Every embedded output equals its recorded file in src/ca/out, and the replay data equals the logs.
 // 3. Numbers the prose states about the traces (copies without noexcept, objects made, leaked objects) recomputed from the logs.
 import { createRequire } from 'node:module';
@@ -75,9 +76,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   console.log(`${scheme} ${width}: ${n} interactions`);
   if (shots) {
     await p.evaluate(() => document.querySelector('button[data-t="t-read"]').click());
-    for (const id of ['ow-hero', 'ow-s0', 'ow-addr', 'ow-cost', 'ow-a1-card', 'ow-a2-card', 'ow-a4-card']) {
+    for (const id of ['ow-hero', 'ow-s0', 'stg-own', 'stg-ptr', 'ow-cost', 'ow-a1-card', 'ow-a3-card', 'ow-a4-card']) {
       const el = await p.$('#' + id); if (!el) { fail('missing #' + id); continue }
-      const target = id === 'ow-addr' || id === 'ow-cost' ? await el.evaluateHandle(e => e.closest('.fig')) : el;
+      const target = id === 'ow-cost' ? await el.evaluateHandle(e => e.closest('.fig')) : el;
       await target.screenshot({ path: `${shots}/${id}-${scheme}-${width}.png` });
     }
   }

@@ -1,4 +1,4 @@
-// ---- Reading: the hero, the address map, the owner-cost bars and the four lifetime replays (data: window.CA_DATA from src/ca/gen.py) ----
+// ---- Reading: the hero, the owner-cost bars and the three lifetime replays (the address map became the 3D stage in 31_js_sc_own.js on 2026-11-07) (data: window.CA_DATA from src/ca/gen.py) ----
 (function(){
   if(!window.CA_DATA||!window.CA||!CA.life)return;
   const D=window.CA_DATA,$=id=>document.getElementById(id),esc=RD.esc;
@@ -43,23 +43,6 @@
     s+=T(16,189,'}  ends the scope: ~vector() frees the buffer',{fs:12});
     el.innerHTML=RD.svg(w,h,s,'C++: v owns a heap buffer; r observes v; the closing brace runs the destructor')}
 
-  // Address map from stack_heap.cpp's real output
-  function addr(){const el=$('ow-addr');if(!el||!D.addr)return;const w=Math.max(290,RD.width(el));
-    const reg=l=>/static/.test(l)?'static':(/heap|elements/.test(l)?'heap':'stack');
-    const groups=[['stack','Stack'],['heap','Heap'],['static','Static']];
-    const rh=22,gx=Math.min(64,w*0.17),lx=gx+16;let y=8,s='',pos={};
-    groups.forEach(([k,name])=>{const rows=D.addr.filter(r=>reg(r[0])===k);if(!rows.length)return;
-      const top=y;s+=box(4,top,w-8,rows.length*rh+10,{fill:k==='heap'?'var(--acc2)':'var(--soft)'});
-      s+=T(12,top+19,name,{fs:12,w:600});
-      rows.forEach((r,i)=>{const yy=top+20+i*rh;pos[r[0]]=yy;
-        s+='<text x="'+lx+'" y="'+yy+'" font-size="11.5">'+esc(r[0])+'</text>';
-        s+='<text x="'+(w-12)+'" y="'+yy+'" font-size="11.5" text-anchor="end" font-family="ui-monospace,Menlo,monospace">'+esc(r[1])+'</text>'});
-      y=top+rows.length*rh+18});
-    const a=pos['&v (the vector object)'],b=pos['v.data() (its elements)'];
-    if(a&&b){const x=lx-7;s+='<path d="M'+(x+4)+' '+(a-4)+' C '+(x-10)+' '+(a-4)+', '+(x-10)+' '+(b-4)+', '+(x+1)+' '+(b-4)+'" fill="none" stroke="var(--acc)" stroke-width="1.6"/>';
-      s+=arrow(x-2,b-4,x+3,b-4,{c:'var(--acc)'})}
-    el.innerHTML=RD.svg(w,y-6,s,'Printed addresses grouped by region; the vector object on the stack points at its elements on the heap')}
-
   // Owner-cost bars (log scale), from ptr_cost.cpp's output
   function cost(){const el=$('ow-cost');if(!el||!D.cost)return;
     const rows=D.cost.rows.filter(r=>!/1 thread/.test(r[0]));
@@ -68,12 +51,11 @@
     const name=r=>/4 threads/.test(r[0])?'shared_ptr by value, 4 threads at once':r[0];
     el.innerHTML=rows.map(r=>'<div class="row"><div class="nm">'+esc(name(r))+'</div><div class="track"><div class="fill" style="width:'+pct(r[1]).toFixed(1)+'%;background:'+col(r)+'"></div></div><div class="val">'+r[1].toFixed(2)+' ns</div></div>').join('')}
 
-  function draw(){heroPy();heroCpp();addr()}
+  function draw(){heroPy();heroCpp()}
   cost();draw();RD.onRender(draw);RD.onResize(draw);
 
-  // The four replays of lifetime.cpp, each beside the section it proves
-  CA.life.mount({el:'ow-a1',card:'ow-a1-card',ctl:'ow-a1-ctl',key:'scope',seg:'ow-a1-seg'});
-  CA.life.mount({el:'ow-a2',card:'ow-a2-card',ctl:'ow-a2-ctl',key:'unique',seg:'ow-a2-seg'});
-  CA.life.mount({el:'ow-a3',card:'ow-a3-card',ctl:'ow-a3-ctl',key:'copymove',seg:'ow-a3-seg'});
-  CA.life.mount({el:'ow-a4',card:'ow-a4-card',ctl:'ow-a4-ctl',key:'growth',seg:'ow-a4-seg'});
+  // The three replays of lifetime.cpp, each beside the section it proves; each step is one stretch of the log, explained by the step list on the left
+  CA.life.mount({el:'ow-a1',card:'ow-a1-card',ctl:'ow-a1-ctl',key:'scope',seg:'ow-a1-seg',lists:{scope:'sx-scope',temps:'sx-temps',unwind:'sx-unwind'}});
+  CA.life.mount({el:'ow-a3',card:'ow-a3-card',ctl:'ow-a3-ctl',key:'copymove',seg:'ow-a3-seg',lists:{copymove:'sx-copymove',calls:'sx-calls'}});
+  CA.life.mount({el:'ow-a4',card:'ow-a4-card',ctl:'ow-a4-ctl',key:'growth',seg:'ow-a4-seg',lists:{growth:'sx-growth',growth_nx:'sx-growth_nx',reserve:'sx-reserve'}});
 })();

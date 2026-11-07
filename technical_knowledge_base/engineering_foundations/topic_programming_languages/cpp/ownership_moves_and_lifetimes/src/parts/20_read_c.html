@@ -1,19 +1,32 @@
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="ow-a1-card">
+<div class="chips" id="ow-a1-seg" role="group" aria-label="Scenario"><button data-m="scope" class="on">Scopes</button><button data-m="temps">Temporaries</button><button data-m="unwind">Exception unwinding</button></div>
+<div id="ow-a1"></div>
+<div class="ca-ctl an-ctl" id="ow-a1-ctl"></div>
+</div></div></div><div class="s3L">
 <section id="ow-s3">
 <h2>3. Destructors and RAII</h2>
 <p>A class can define a <b>constructor</b>, which runs when an object is created, and a <b>destructor</b>, written <code>~ClassName()</code>, which runs automatically when the object dies: at the closing brace for a local, when its owner dies for a member, when <code>delete</code> is called for a heap object. <b>RAII</b> means: tie every resource (memory, a file, a lock, a GPU buffer, a socket) to an object whose destructor releases it. Then you can never forget to release it, even when an exception jumps out of the function.</p>
-<p>To watch it happen, this page uses a small class, <code>Tracer</code>, that prints a line from each special member function, numbers its objects <code>#1</code>, <code>#2</code>... and says whether each lives on the stack or the heap. The animations replay that real output one line at a time: the code line that caused the event (taken from <code>std::source_location</code>), the live objects, and the log. Lines starting with <code>@</code> are the program's own <code>STEP</code> markers, with their line numbers.</p>
+<p>To watch it happen, this page uses a small class, <code>Tracer</code>, that prints a line from each special member function, numbers its objects <code>#1</code>, <code>#2</code>... and says whether each lives on the stack or the heap. The replay on the right steps through that real output, a few log lines per step: the code lines that caused the events (taken from <code>std::source_location</code>), the live objects, and the log. Lines starting with <code>@</code> are the program's own <code>STEP</code> markers, with their line numbers.</p>
 <p class="pred"><b>Predict, then step:</b> in Scopes, in what order are <code>a</code>, <code>b</code> and <code>c</code> destroyed? In Temporaries, which of <code>t</code> and <code>u</code> outlives its line?</p>
-<div class="card" id="ow-a1-card">
-<div class="chips" id="ow-a1-seg" role="group" aria-label="Scenario"><button data-m="scope" class="on">Scopes</button><button data-m="temps">Temporaries</button><button data-m="unwind">Exception unwinding</button></div>
-<div id="ow-a1"></div>
-<div class="ca-ctl" id="ow-a1-ctl"></div>
-</div>
-<ul>
-<li><b>Scopes:</b> <code>b</code> dies at its inner brace, before <code>c</code> is even created; at the end, <code>c</code> dies before <code>a</code>: reverse order of construction, always.</li>
-<li><b>Temporaries:</b> <code>Tracer{"u"}</code> dies at the semicolon of its own line, right after its size is printed. <code>Tracer{"t"}</code> is bound to <code>const Tracer&amp; r</code>, which extends it to <code>r</code>'s lifetime, so it dies at the closing brace. The extension works only for a reference bound directly to the temporary (or to one of its members); a reference <i>returned by a function</i> called on a temporary (<code>make().items()</code>), or a <code>string_view</code> of a temporary string, dangles at the semicolon.</li>
-<li><b>Exception unwinding:</b> when <code>throw</code> leaves the <code>try</code> block, C++ <b>unwinds the stack</b>: it destroys every local in the scopes being left (<code>b</code>) before the <code>catch</code> runs. This is why RAII and exceptions work together, and why C++ code almost never needs <code>finally</code>.</li>
-</ul>
+<ol class="sx" id="sx-scope">
+<li data-l="0-2"><b>a, then b in an inner block.</b> Both are constructed on the stack: <code>a</code> is #1 (line 15), <code>b</code> is #2 (line 17).</li>
+<li data-l="3"><b>The inner brace ends b.</b> <code>b</code> dies at its inner brace, before <code>c</code> is even created.</li>
+<li data-l="4-5"><b>c is constructed</b> as #3 at line 20, in the outer block, beside <code>a</code>.</li>
+<li data-l="6-8"><b>The function's brace: c, then a.</b> At the end, <code>c</code> dies before <code>a</code>: reverse order of construction, always.</li>
+</ol>
+<ol class="sx" id="sx-temps" hidden>
+<li data-l="0-1"><b>A temporary bound to a const&amp;.</b> <code>Tracer{"t"}</code> (#1) is bound to <code>const Tracer&amp; r</code>: its statement has ended, and it is still alive at line 135.</li>
+<li data-l="2-4"><b>A temporary dies at the semicolon.</b> <code>Tracer{"u"}</code> (#2) dies at the semicolon of its own line, right after its size is printed.</li>
+<li data-l="5-7"><b>The brace ends t.</b> Binding <code>Tracer{"t"}</code> to <code>r</code> extended it to <code>r</code>'s lifetime, so it dies at the closing brace.</li>
+</ol>
+<ol class="sx" id="sx-unwind" hidden>
+<li data-l="0-1"><b>a outside the try, b inside.</b> #1 and #2, both on the stack.</li>
+<li data-l="2"><b>throw: the stack unwinds.</b> When <code>throw</code> leaves the <code>try</code> block, C++ <b>unwinds the stack</b>: it destroys every local in the scopes being left (<code>b</code>) before the <code>catch</code> runs.</li>
+<li data-l="3"><b>The catch runs</b> and prints <code>caught boom</code>; the <code>STEP("never reached")</code> line never printed.</li>
+<li data-l="4-6"><b>The function ends normally</b>, and <code>a</code> dies at its closing brace.</li>
+</ol>
+<p>The lifetime extension works only for a reference bound directly to the temporary (or to one of its members); a reference <i>returned by a function</i> called on a temporary (<code>make().items()</code>), or a <code>string_view</code> of a temporary string, dangles at the semicolon. Unwinding is why RAII and exceptions work together, and why C++ code almost never needs <code>finally</code>.</p>
 <div class="ca-py"><div class="t">Python bridge</div><code>with open(p) as f:</code> is RAII you opt into for one block. In C++ every object behaves like a <code>with</code> block, and the "exit" is the destructor. Python's <code>__del__</code> is <i>not</i> the equivalent: it runs whenever the reference count or the garbage collector gets to it.</div>
 <div class="ca-cost"><div><b>Problem it solves</b>Leaks and forgotten cleanup, including on error paths.</div><div><b>What it costs</b>Nothing at run time beyond the destructor's own work.</div><div><b>Common mistakes</b>Holding a resource in a raw pointer instead of an owning object; a destructor that throws (it must not: a second exception during unwinding terminates the program).</div></div>
 <details class="dp"><summary>The Tracer class (tracer.h) and the whole traced program (lifetime.cpp)</summary><div>
@@ -228,7 +241,9 @@ Tracer make(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n)
 <p>Every scenario was compiled with <code>clang++ -std=c++23 -O2 -Wall -Wextra lifetime.cpp</code> (Apple clang 17) and run once; <code>src/ca/run_all.sh</code> records them all. The stack or heap label is a heuristic: an address within 8 MB of a local in <code>main</code> counts as stack.</p>
 </div></details>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-ptr"></div></div><div class="s3L">
 <section id="ow-s4">
 <h2>4. Owning heap objects: unique_ptr, shared_ptr and weak_ptr</h2>
 <p>When an object must live on the heap (it must outlive the function, it is too big for the stack, or its exact type is decided at run time), do not write <code>new</code> and <code>delete</code>. Use a <b>smart pointer</b>: a small stack object that <span class="own">owns</span> the heap object and deletes it in its destructor.</p>
@@ -238,16 +253,17 @@ Tracer make(<span class="ca-kw">const</span> <span class="ca-kw">char</span>* n)
 <li><b><code>std::weak_ptr&lt;T&gt;</code></b>: observes an object owned by <code>shared_ptr</code>s without keeping it alive. It breaks reference cycles, which reference counting alone never frees: Python has a cycle collector; C++ does not.</li>
 </ul>
 <p class="pred"><b>Predict, then step:</b> in the cycle, which Tracers are ever destroyed?</p>
-<div class="card" id="ow-a2-card">
-<div class="chips" id="ow-a2-seg" role="group" aria-label="Scenario"><button data-m="unique" class="on">unique_ptr</button><button data-m="shared">shared_ptr</button><button data-m="cycle">A cycle, then weak_ptr</button></div>
-<div id="ow-a2"></div>
-<div class="ca-ctl" id="ow-a2-ctl"></div>
-</div>
-<ul>
-<li><b>unique_ptr:</b> the Tracer is created once (#1, on the heap) and never copied or moved: moving the <code>unique_ptr</code> moved only the 8-byte pointer, and <code>p</code> became null. <code>reset()</code> destroyed it at that line, before the end of the function.</li>
-<li><b>shared_ptr:</b> the count is 2 while <code>t</code> exists and 1 after; the Tracer dies with the last owner, <code>s</code>.</li>
-<li><b>The cycle:</b> <code>a</code> and <code>b</code> own each other, so when both locals go, each node still has a count of 1: no destructor ever runs for #1 and #2, and the memory leaks until the process exits. In the second block the back edge is a <code>weak_ptr</code>, so <code>c</code>'s count reaches 0 and both nodes go. Note the order: #4 (d's Tracer) dies before #3 (c's), because destroying node c destroys its members in reverse declaration order: <code>prev</code>, then <code>next</code> (releasing d, whose count reaches 0), then <code>t</code>.</li>
-</ul>
+<p>The stage replays three recorded scenarios of <code>lifetime.cpp</code> (each run numbers its Tracers from #1): owners on the stack plate, the objects and control blocks on the heap floor, the dots running along owning pointers.</p>
+<ol class="sx" id="sx-ptr">
+<li><b>unique_ptr: one owner.</b> <code>auto p = std::make_unique&lt;Tracer&gt;("h");</code> The Tracer is created once (#1, on the heap). <code>p</code> is one pointer, 8 bytes, the size of an <code>int*</code>.</li>
+<li><b>Moving the owner, not the object.</b> <code>q = std::move(p)</code>: moving the <code>unique_ptr</code> moved only the 8-byte pointer, and <code>p</code> became null; the program prints <code>p is null, q owns #1</code>. The Tracer was never copied or moved.</li>
+<li><b>reset() frees it now.</b> <code>q.reset()</code> destroyed it at that line, before the end of the function.</li>
+<li><b>shared_ptr: two owners, one count.</b> <code>s</code> owns Tracer #1 and points at its control block; copying it into <code>t</code> adds a second owner: the count is 2 while <code>t</code> exists (the program prints <code>use_count 2</code>). Each <code>shared_ptr</code> is 16 bytes, two pointers.</li>
+<li><b>One owner leaves.</b> <code>t</code>'s block ends and the count is 1 after (<code>use_count 1</code>); the Tracer is untouched.</li>
+<li><b>The last owner leaves.</b> At the end of the function the count reaches 0: the Tracer dies with the last owner, <code>s</code>.</li>
+<li><b>A cycle of owners leaks.</b> <code>a</code> and <code>b</code> own each other, so when both locals go, each node still has a count of 1: no destructor ever runs for #1 and #2, and the memory leaks until the process exits.</li>
+<li><b>weak_ptr breaks the cycle.</b> In the second block the back edge is a <code>weak_ptr</code>, so <code>c</code>'s count reaches 0 and both nodes go. Note the order: #4 (d's Tracer) dies before #3 (c's), because destroying node c destroys its members in reverse declaration order: <code>prev</code>, then <code>next</code> (releasing d, whose count reaches 0), then <code>t</code>.</li>
+</ol>
 <p>Copying a <code>unique_ptr</code> does not compile, and the error says why:</p>
 <div class="ca-src"><div class="ca-fn">unique_copy.cpp</div><pre class="ca-code"><span class="ca-pp">#include &lt;memory&gt;</span>
 <span class="ca-pp">#include &lt;string&gt;</span>
@@ -266,10 +282,20 @@ unique_copy.cpp:6:10: error: call to implicitly-deleted copy constructor of 'uni
       |                                                       ^
 1 error generated.
 [exit code 1]</pre>
-<div class="fig"><h4>Owning costs nothing until you copy a shared_ptr, and much more when threads share one</h4>
-<div class="bars" id="ow-cost"></div>
-<p class="cap"><code>ptr_cost.cpp</code> <span class="meas">measured</span> on the M1 Pro (Apple clang 17, <code>-O2</code>, best of 5 runs, load average 6.70): one non-inlined call that reads an <code>int</code>, 100 million times. Passing a raw pointer, a <code>const unique_ptr&amp;</code> or a <code>const shared_ptr&amp;</code> costs the same, 0.96 ns per call. Passing the <code>shared_ptr</code> by value copies it, two atomic count updates: 13.50 ns. With 4 threads copying the same <code>shared_ptr</code>, every update fights for the cache line holding the count: 302.42 ns per call per thread (why a shared line is that slow is measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}). Scale is logarithmic.</p></div>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="ow-s4c">
+<h3>What an owner costs per call</h3>
+<p><code>ptr_cost.cpp</code> <span class="meas">measured</span> on the M1 Pro (Apple clang 17, <code>-O2</code>, best of 5 runs, load average 6.70): one non-inlined call that reads an <code>int</code>, 100 million times. Passing a raw pointer, a <code>const unique_ptr&amp;</code> or a <code>const shared_ptr&amp;</code> costs the same, 0.96 ns per call. Passing the <code>shared_ptr</code> by value copies it, two atomic count updates: 13.50 ns. With 4 threads copying the same <code>shared_ptr</code>, every update fights for the cache line holding the count: 302.42 ns per call per thread (why a shared line is that slow is measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}).</p>
 <p>So pass a smart pointer only when the callee takes part in ownership (the C++ Core Guidelines' {{rule R.30|https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rr-smartptrparam}}); a function that only uses the object takes <code>T&amp;</code>, <code>const T&amp;</code> or <code>T*</code>. Sizes on this Mac (<code>sizeof</code>, in bytes): <code>int*</code> 8, <code>std::unique_ptr&lt;int&gt;</code> 8, <code>std::shared_ptr&lt;int&gt;</code> 16 (a pointer to the object and one to the control block).</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig"><h4>Owning costs nothing until you copy a shared_ptr, and much more when threads share one</h4>
+<div class="bars" id="ow-cost"></div>
+<p class="cap">Logarithmic scale; best of 5 runs on the M1 Pro, nanoseconds per call.</p></div></div></div></div>
+<section id="ow-s4d">
 <div class="ca-cost"><div><b>Rule</b><code>unique_ptr</code> by default; <code>shared_ptr</code> only when ownership is genuinely shared (a cache entry used by several requests); raw pointers and references only to <i>observe</i> an object someone else owns.</div><div><b>What it costs</b><code>unique_ptr</code>: nothing. <code>shared_ptr</code>: 16 bytes, a control block allocation, atomic count updates.</div><div><b>Common mistakes</b><code>shared_ptr</code> everywhere "to be safe" (slow and hides who owns what); two <code>shared_ptr</code>s made separately from one raw pointer (two counts, double delete); cycles of <code>shared_ptr</code>.</div></div>
 <div class="ca-py"><div class="t">Rust bridge</div><code>Box&lt;T&gt;</code> is <code>unique_ptr</code>; <code>Rc&lt;T&gt;</code> and <code>Arc&lt;T&gt;</code> are <code>shared_ptr</code> without and with atomic counts; <code>Weak</code> is <code>weak_ptr</code>. Rust's compiler enforces the "do not use after move" rule that C++ only recommends: {{Rust: lifetimes, smart pointers, threads and unsafe|n:4055c17b0d0d8160aa32df9cda0aef03}}.</div>
 <details class="dp"><summary>The benchmark (ptr_cost.cpp), its output, and every sizeof on this Mac</summary><div>

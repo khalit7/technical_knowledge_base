@@ -25,6 +25,7 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-own"></div></div><div class="s3L">
 <section id="ow-s2">
 <h2>2. Where objects live: the stack, the heap and static storage</h2>
 <p>A C++ object lives in one of three kinds of storage, and the kind decides when it dies:</p>
@@ -33,13 +34,19 @@
 <li><b>Dynamic storage, "the heap"</b>: objects created with <code>new</code> (properly, with <code>std::make_unique</code>, section 4). They live until someone destroys them. Allocation calls the memory allocator (<code>malloc</code>), which costs tens of nanoseconds and can fragment memory; how it does that is {{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}}' subject.</li>
 <li><b>Static storage</b>: globals and <code>static</code> variables, alive for the whole program.</li>
 </ul>
-<p>Python puts every object on the heap and frees it when its reference count reaches zero ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} also owns reference counting and the cycle collector as memory behaviour). C++ lets you put most things on the stack. One program printing the addresses of each kind:</p>
-<div class="fig"><h4>The vector object sits on the stack; its elements sit on the heap, owned by it</h4>
-<div class="rd-svg" id="ow-addr" role="img" aria-label="Addresses printed by stack_heap.cpp, grouped into static, heap and stack regions"></div>
-<p class="cap">Real addresses from one run of <code>stack_heap.cpp</code> <span class="meas">measured</span> (they change on every run: macOS randomises where each region starts). The stack addresses (<code>0x16...</code>) go <i>down</i> as variables are added: on this ARM Mac the stack grows towards lower addresses. The <code>std::vector</code> object itself is [[g:l_stack_heap|sizeof\(v\) = (\d+) bytes]] bytes on the stack (a pointer to the elements, the size, the capacity), and its elements live in a heap buffer it owns.</p></div>
+<p>Python puts every object on the heap and frees it when its reference count reaches zero ({{Memory allocators|n:3f05c17b0d0d81209ae9d856695dc958}} also owns reference counting and the cycle collector as memory behaviour). C++ lets you put most things on the stack. The stage draws one real run of <code>stack_heap.cpp</code> <span class="meas">measured</span>, the stack frame as a raised plate above the heap, then continues the same picture with a copy, a move and the closing brace:</p>
+<ol class="sx" id="sx-own">
+<li><b>v on the stack, its elements on the heap.</b> <code>std::vector&lt;int&gt; v{1, 2, 3};</code> The <code>std::vector</code> object itself is [[g:l_stack_heap|sizeof\(v\) = (\d+) bytes]] bytes on the stack (a pointer to the elements, the size, the capacity), at <code>[[g:l_stack_heap|&v \(the vector object\)\s+(0x[0-9a-f]+)]]</code> in this run, and its elements live in a heap buffer it owns, at <code>[[g:l_stack_heap|v\.data\(\) \(its elements\)\s+(0x[0-9a-f]+)]]</code>. The dots are the pointer that links them.</li>
+<li><b>The whole run, region by region.</b> <code>on_stack</code> (<code>[[g:l_stack_heap|&on_stack\s+(0x[0-9a-f]+)]]</code>) and <code>also_on_stack</code> (<code>[[g:l_stack_heap|&also_on_stack\s+(0x[0-9a-f]+)]]</code>, 4 bytes lower) sit beside <code>v</code> (24 bytes lower again): on this ARM Mac the stack grows towards lower addresses. <code>on_heap</code>, a <code>unique_ptr</code>, owns one <code>int</code> on the heap at <code>[[g:l_stack_heap|on_heap\.get\(\) \(heap int\)\s+(0x[0-9a-f]+)]]</code>, 16 bytes before <code>v</code>'s elements; <code>global_counter</code> is in static storage at <code>[[g:l_stack_heap|&global_counter \(static\)\s+(0x[0-9a-f]+)]]</code>. The addresses change on every run: macOS randomises where each region starts.</li>
+<li><b>A copy duplicates the buffer.</b> <code>std::vector&lt;int&gt; b = v;</code> gives <code>b</code> its own heap buffer, and the three ints are copied into it: two owners, two buffers. copy.cpp (section 1) prints "a has [[g:l_copy|a has (\d+), b has]], b has [[g:l_copy|a has \d+, b has (\d+)]]" after <code>b.push_back(4)</code>: the two are independent. From this step on, the lines are added for the picture and the positions are illustrative.</li>
+<li><b>A move hands the buffer over.</b> <code>std::vector&lt;int&gt; w = std::move(v);</code> copies three pointers into <code>w</code> and nulls <code>v</code>'s: the same buffer, no element touched, and <code>v</code> is left empty. moved_from.cpp (section 5) printed <code>w.data() == old v.data(): [[g:l_moved_from|w\.data\(\) == old v\.data\(\): (\d+)]], v.size() now [[g:l_moved_from|v\.size\(\) now (\d+)]]</code>.</li>
+<li><b>The closing brace frees, in reverse order.</b> The destructors run from the last object constructed to the first: <code>w</code> frees the buffer it took, <code>b</code> frees its copy, the moved-from <code>v</code> has nothing to free, and <code>on_heap</code> frees its int. The frame is popped; <code>global_counter</code> lives until after <code>main</code> returns.</li>
+<li><b>A pointer that outlives its owner dangles.</b> Had <code>b.data()</code> been saved in a global <code>int* p</code>, <code>p</code> would still hold the freed buffer's address after the brace. Reading through it is undefined behaviour; the essentials page's UB gallery shows such reads crash, or worse, not crash.</li>
+</ol>
 <p>When the vector dies, its destructor frees the buffer. That pattern, a small <span class="own">owner</span> on the stack and a big buffer on the heap, is how C++ gets automatic cleanup of heap memory, and it has a name: RAII. Why stack memory is fast (it is almost always in the CPU cache) and what an allocation costs on this machine are measured in {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}; the root page {{Topic: programming-languages|n:3c65c17b0d0d81a2bb1ac0bc8aeb6aa9}} draws the same records laid out in Python, C++ and Rust.</p>
 <details class="dp"><summary>The program and its raw output</summary><div>
 [[code:lang/stack_heap.cpp]]
 [[out:l_stack_heap]]
 </div></details>
 </section>
+</div></div>

@@ -1,4 +1,9 @@
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="ow-a3-card">
+<div class="chips" id="ow-a3-seg" role="group" aria-label="Scenario"><button data-m="copymove" class="on">Copy vs move</button><button data-m="calls">Passing and returning</button></div>
+<div id="ow-a3"></div>
+<div class="ca-ctl an-ctl" id="ow-a3-ctl"></div>
+</div></div></div><div class="s3L">
 <section id="ow-s5">
 <h2>5. Moves</h2>
 <p>Copy-by-default has an obvious cost: returning a vector of a million elements, or putting a string into a container, would copy every byte. C++11 added <b>moves</b>: when the source object is about to die anyway, the new object may <i>steal</i> its heap buffer (copy three pointers, set the source's to null) instead of copying the contents. The compiler needs to know when stealing is safe, so it sorts expressions into two families (simplified):</p>
@@ -8,15 +13,21 @@
 </ul>
 <p>A class gets a <b>move constructor</b> <code>T(T&amp;&amp; other)</code> (the <code>&amp;&amp;</code> means "rvalue reference": it binds only to things that may be moved from) alongside its copy constructor <code>T(const T&amp; other)</code>, and overload resolution picks one. <b><code>std::move(x)</code> moves nothing.</b> It is a cast that says "treat x as an rvalue; I will not need its value again" ({{cppreference: "exactly equivalent to a static_cast to an rvalue reference type"|https://en.cppreference.com/w/cpp/utility/move}}); the move constructor that it selects does the stealing.</p>
 <p class="pred"><b>Predict, then step:</b> in Copy vs move, which constructors run, and what is left in <code>a.name</code>? In Passing and returning, how many Tracers are made in total, and where does <code>m</code> come from?</p>
-<div class="card" id="ow-a3-card">
-<div class="chips" id="ow-a3-seg" role="group" aria-label="Scenario"><button data-m="copymove" class="on">Copy vs move</button><button data-m="calls">Passing and returning</button></div>
-<div id="ow-a3"></div>
-<div class="ca-ctl" id="ow-a3-ctl"></div>
-</div>
-<ul>
-<li><b>Copy vs move:</b> the moved-from <code>a</code> is still a valid object (its destructor runs, #1, at the end) but its value is unspecified; libc++ leaves the string empty. The standard only promises "valid but unspecified": you may assign to it or destroy it; do not read it. <code>b = c</code> is an <i>assignment</i> (b already exists), so no object is created.</li>
-<li><b>Passing and returning:</b> passing by reference makes nothing; by value makes a copy (#2), or a move (#3) when the argument is <code>std::move(a)</code>. <code>m</code> is the object constructed inside <code>make()</code> at line 10: returning it cost no copy and no move. Four Tracers in total.</li>
-</ul>
+<ol class="sx" id="sx-copymove">
+<li data-l="0"><b>a is constructed</b> as #1 on the stack (line 27).</li>
+<li data-l="1"><b>Copy.</b> <code>Tracer b = a;</code> runs the copy constructor: #2 gets its own copy of the name.</li>
+<li data-l="2-3"><b>Move.</b> <code>Tracer c = std::move(a);</code> runs the move constructor: #3 takes #1's string. The moved-from <code>a</code> is still a valid object, but its value is unspecified; libc++ leaves the string empty (the program prints <code>a.name is now ""</code>).</li>
+<li data-l="4"><b>Assignment, not construction.</b> <code>b = c</code> is an <i>assignment</i> (b already exists), so no object is created: #2 takes a copy of #3's name.</li>
+<li data-l="5-9"><b>Reverse order at the brace.</b> #3, #2, then #1: the moved-from <code>a</code>'s destructor runs at the end like any other.</li>
+</ol>
+<ol class="sx" id="sx-calls" hidden>
+<li data-l="0-1"><b>By reference: nothing is made.</b> <code>a</code> is #1; <code>by_ref(a)</code> runs with no new object.</li>
+<li data-l="2-4"><b>By value: a copy.</b> <code>by_value(a)</code> copies <code>a</code> into the parameter (#2), which dies when the function returns.</li>
+<li data-l="5-7"><b>By value from std::move(a): a move.</b> The parameter is move-constructed (#3) and dies on return.</li>
+<li data-l="8"><b>Returned without a copy or a move.</b> <code>m</code> is the object constructed inside <code>make()</code> at line 10: returning it cost no copy and no move.</li>
+<li data-l="9-12"><b>The brace: #4, then #1.</b> Four Tracers in total.</li>
+</ol>
+<p>The standard only promises "valid but unspecified" for a moved-from object: you may assign to it or destroy it; do not read it.</p>
 <p>That last line is <b>copy elision</b>: since C++17, returning a temporary constructs the result directly in the caller's variable, guaranteed, and compilers do the same for a returned local variable in practice ({{cppreference|https://en.cppreference.com/w/cpp/language/copy_elision}}). So return big objects by value, and never write <code>return std::move(local);</code>, which can only prevent elision. What moving buys, and one trap:</p>
 <div class="ca-src"><div class="ca-fn">moved_from.cpp (lines 7 to 20)</div><pre class="ca-code">    std::string s = <span class="ca-st">"a string long enough to live on the heap"</span>;
     std::string t = std::move(s);       <span class="ca-cm">// t steals s's heap buffer</span>
@@ -39,16 +50,34 @@ w.data() == old v.data(): 1, v.size() now 0
 c after 'move': const</pre>
 <p>The million-element vector changed hands in constant time: <code>w</code> owns the very same buffer, and <code>v</code> is empty. A moved-from string can be assigned to and reused. The last line is the trap: <code>std::move</code> of a <code>const</code> object silently copies, because a move constructor needs to modify its source. It compiles and copies, with no warning.</p>
 </section>
+</div></div>
 
-<section id="ow-s6">
-<h2>6. Why noexcept on a move constructor matters: one vector, two classes</h2>
-<p>A <code>std::vector</code> keeps its elements in one buffer. When the buffer is full, <code>push_back</code> allocates a bigger one, transfers the old elements and frees the old buffer. It would like to <i>move</i> them, but if a move threw an exception halfway, the old buffer would be half-emptied and the vector could not restore it. So the standard library moves only if the move constructor is declared <code>noexcept</code> ("this never throws"); otherwise it copies, to keep its strong exception guarantee ({{std::move_if_noexcept|https://en.cppreference.com/w/cpp/utility/move_if_noexcept}}). The animation runs the same three <code>push_back</code> calls on two versions of Tracer that differ only in that one keyword.</p>
-<p class="pred"><b>Predict, then step:</b> without <code>noexcept</code>, how many of the transfers become copies?</p>
-<div class="card" id="ow-a4-card">
+
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="ow-a4-card">
 <div class="seg" id="ow-a4-seg" role="group" aria-label="Which version"><button data-m="growth" class="on">Move is noexcept</button><button data-m="growth_nx">Move may throw (before)</button><button data-m="reserve">reserve + emplace_back</button></div>
 <div id="ow-a4"></div>
-<div class="ca-ctl" id="ow-a4-ctl"></div>
-</div>
+<div class="ca-ctl an-ctl" id="ow-a4-ctl"></div>
+</div></div></div><div class="s3L">
+<section id="ow-s6">
+<h2>6. Why noexcept on a move constructor matters: one vector, two classes</h2>
+<p>A <code>std::vector</code> keeps its elements in one buffer. When the buffer is full, <code>push_back</code> allocates a bigger one, transfers the old elements and frees the old buffer. It would like to <i>move</i> them, but if a move threw an exception halfway, the old buffer would be half-emptied and the vector could not restore it. So the standard library moves only if the move constructor is declared <code>noexcept</code> ("this never throws"); otherwise it copies, to keep its strong exception guarantee ({{std::move_if_noexcept|https://en.cppreference.com/w/cpp/utility/move_if_noexcept}}). The replay runs the same three <code>push_back</code> calls on two versions of Tracer that differ only in that one keyword.</p>
+<p class="pred"><b>Predict, then step:</b> without <code>noexcept</code>, how many of the transfers become copies?</p>
+<ol class="sx" id="sx-growth">
+<li data-l="0-3"><b>push_back(x) into an empty vector.</b> The temporary <code>T{"x"}</code> (#1) is built on the stack, moved into the new heap buffer by the library (#2), and destroyed at the semicolon.</li>
+<li data-l="4-9"><b>y: the buffer is full, so the vector reallocates.</b> The new element is moved into the bigger buffer first (#4 from y's temporary #3), then x is moved across (#5 from #2); the old buffer's x and the temporary are destroyed.</li>
+<li data-l="10-17"><b>z: it reallocates again.</b> z goes in (#7), then x and y are moved across (#8, #9); the old elements #5 and #4 and the temporary #6 are destroyed. No copies at all.</li>
+<li data-l="18-21"><b>The vector dies</b> and destroys its three elements: #7, #9, #8.</li>
+</ol>
+<ol class="sx" id="sx-growth_nx" hidden>
+<li data-l="0-3"><b>push_back(x) into an empty vector.</b> As before: the temporary (#1) is moved in (#2) and destroyed. Moving the argument itself does not need <code>noexcept</code>.</li>
+<li data-l="4-9"><b>y: the reallocation copies.</b> The new element is still moved in (#4), but x is <i>copied</i> across (#5 is a copy of #2): the move constructor may throw, so the library keeps the old buffer intact until the new one is complete.</li>
+<li data-l="10-17"><b>z: two more copies.</b> z is moved in (#7), and x and y are copied across (#8 from #5, #9 from #4).</li>
+<li data-l="18-21"><b>The vector dies:</b> #7, #9, #8, the same objects as with <code>noexcept</code>, at the cost of 3 copies.</li>
+</ol>
+<ol class="sx" id="sx-reserve" hidden>
+<li data-l="0-2"><b>Built in place.</b> After <code>reserve(3)</code>, each <code>emplace_back</code> constructs its Tracer directly in the vector's heap buffer (#1, #2, #3, made by the library).</li>
+<li data-l="3-7"><b>The vector dies:</b> #3, #2, #1. Three objects, nothing moved or copied.</li>
+</ol>
 <p>Both versions make 9 objects. With <code>noexcept</code>, each reallocation moves the old elements (cheap); without it, the same code copies them: 3 copies here (<code>x</code> at the second growth, <code>x</code> and <code>y</code> at the third). For a vector of strings each copy is a heap allocation and a byte copy, on every growth. With <code>reserve(3)</code> and <code>emplace_back</code>, three objects are built directly in the vector's buffer: no temporaries, no moves. The compiler writes a <code>noexcept</code> move constructor for you when every member's is <code>noexcept</code> (the rule of zero, below), which is one more reason not to write them by hand.</p>
 <details class="dp"><summary>Details in the growth traces</summary><div>
 <p>The capacities on this libc++ go 1, 2, 4: the third <code>push_back</code> reallocates again. Each new element is constructed in the new buffer <i>before</i> the old elements are transferred (#7 before #8 and #9), so the argument stays valid even if it referred to an element of the old buffer. At the end, libc++ destroys the elements last to first (#7, #9, #8 are z, y, x); the standard does not fix that order for a vector.</p>
@@ -77,6 +106,7 @@ dtor #8
 @0 back in main</pre>
 </div></details>
 </section>
+</div></div>
 
 <section id="ow-s7">
 <h2>7. The rule of zero and the rule of five</h2>
