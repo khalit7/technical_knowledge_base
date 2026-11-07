@@ -78,7 +78,12 @@
   }
   const op=s=>'<span class="nd-op">'+s+'</span>';
   let mode='s';
-  const STEPS=13;
+  // 13 frames grouped into 7 explained stretches (the long-replay rule): a stretch with several frames plays them in turn when it is reached by
+  // playing or stepping forward, and shows its last frame when jumped to; the step lists sx-nd-s and sx-nd-u carry the explanation
+  const FR=[[0],[1],[2,3,4],[5],[6,7,8],[9,10,11],[12]],STEPS=FR.length;let subT=[];
+  function drawStretch(k){subT.forEach(clearTimeout);subT=[];const fr=FR[k],card=document.getElementById('nd-an');
+    if(fr.length>1&&card.classList.contains('rd-fwd')&&!RD.RM){fr.forEach((f,j)=>{if(!j)draw(f);else subT.push(setTimeout(()=>draw(f),j*1100))})}
+    else draw(fr[fr.length-1])}
   function draw(i){
     const M=mats[mode],sc=mode==='s';const st=document.getElementById('nd-an-stage');let h='',cap='',shape='',mults=0;
     const sname=sc?'QKᵀ/√dₖ':'QKᵀ';
@@ -100,8 +105,8 @@
       cap='Output row '+(r+1)+' = '+M.W[r].map((w,k)=>fmt(w)+'·v'+(k+1)).join(' + ')+' = ('+M.O[r].map(fmt).join(', ')+'): a weighted average of V’s rows.';shape='3 × 2'}
     else{mults=54;h=mx('Attention(Q, K, V)',M.O,n,dv,()=>'nw');
       cap='Done. Shapes: (3×4)(4×3) → 3×3 scores'+(sc?' → ÷2':'')+' → softmax 3×3 → (3×3)(3×2) → 3×2. Cost: n·n·dₖ + n·n·dᵥ = 36 + 18 multiply-adds.';shape='3 × 2'}
-    st.innerHTML=h;document.getElementById('nd-an-cap').textContent=cap;
-    document.getElementById('nd-an-cnt').innerHTML='<span>Step <b>'+(i+1)+' of '+STEPS+'</b> ('+(sc?'scaled, Eq. 1':'unscaled, before')+')</span><span>Result shape <b>'+shape+'</b></span><span>Multiply-adds so far <b>'+mults+'</b></span>';
+    st.innerHTML=h;
+    document.getElementById('nd-an-cnt').innerHTML='<span><b>'+(sc?'scaled, Eq. 1':'unscaled, before')+'</b></span><span>Result shape <b>'+shape+'</b></span><span>Multiply-adds so far <b>'+mults+'</b></span>';
   }
   function cmp(){
     const a=mats.s.W,b=mats.u.W;
@@ -111,8 +116,9 @@
   }
   let AN=null;
   if(document.getElementById('nd-an')){
-    AN=RD.anim({card:'nd-an',ctl:'nd-an-ctl',n:STEPS,ms:1700,label:'Attention step',draw});
-    RD.seg(document.getElementById('nd-an-mode'),m=>{mode=m;AN.redraw()});
+    AN=RD.anim({card:'nd-an',ctl:'nd-an-ctl',n:STEPS,ms:4400,label:'Attention step',draw:drawStretch,list:'sx-nd-s'});
+    // the mode toggle swaps the step list and replays (the one exception to "stops for good")
+    RD.seg(document.getElementById('nd-an-mode'),m=>{mode=m;document.getElementById('sx-nd-s').hidden=m!=='s';document.getElementById('sx-nd-u').hidden=m==='s';AN.reset(STEPS,m==='s'?'sx-nd-s':'sx-nd-u')});
     cmp();
   }
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-notation']=window.TAB_RENDER['t-notation']||[]).push(()=>{if(AN)AN.redraw()});

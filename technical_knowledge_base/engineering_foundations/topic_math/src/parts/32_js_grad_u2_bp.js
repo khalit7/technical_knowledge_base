@@ -65,17 +65,19 @@
     $('gl-tape').innerHTML=h;
     $('gl-bpCap').innerHTML=s.cap;
     $('gl-bpCtr').innerHTML='<span>forward multiply-adds <b>'+s.fm+'</b></span><span>backward multiply-adds <b>'+s.bm+'</b></span>'+(mode==='both'?'<span>backward ÷ forward <b>'+(s.bm?U.f(s.bm/s.fm,2):'0')+'</b></span>':'')+'<span>step <b>'+(i+1)+'</b> of '+S.length+'</span>'}
-  const A=U.anim({card:'gl-bpCard',ctl:'gl-bpCtl',n:S.length,draw:i=>draw(Math.min(i,S.length-1)),ms:2200,label:'Backprop step'});
-  function rebuild(keep){S=steps();A.reset(S.length);if(keep)A.go(S.length-1)}
+  // a widget the reader drives (the long-replay rule, case b; the walk itself is Matrix calculus and backprop's Fig. 5): it never plays by itself and opens on the finished tape
+  const A=U.anim({card:'gl-bpCard',ctl:'gl-bpCtl',n:S.length,draw:i=>draw(Math.min(i,S.length-1)),ms:2200,label:'Backprop step',autoplay:false});
+  function rebuild(){S=steps();A.reset(S.length);A.go(S.length-1)}
+  A.go(S.length-1);
   U.seg($('gl-bpMode'),v=>{mode=v;rebuild()});
-  U.seg($('gl-bpNet'),v=>{net=v;m=base();hist=[];trainX=net==='two';$('gl-trainX').checked=trainX;$('gl-checkOut').innerHTML='';rebuild();A.play()});
-  $('gl-trainX').addEventListener('change',e=>{trainX=e.target.checked;rebuild(true)});
+  U.seg($('gl-bpNet'),v=>{net=v;m=base();hist=[];trainX=net==='two';$('gl-trainX').checked=trainX;$('gl-checkOut').innerHTML='';rebuild()});
+  $('gl-trainX').addEventListener('change',e=>{trainX=e.target.checked;rebuild()});
   $('gl-check').addEventListener('click',()=>{const r=G.gradCheck(m,'');let mx=0;
     const rows=r.filter(x=>x.p[0]!=='x'||trainX).map(x=>{const rel=Math.abs(x.an-x.num)/Math.max(1e-12,Math.abs(x.an)+Math.abs(x.num));mx=Math.max(mx,x.an===0&&x.num===0?0:rel);
       const nm=x.p[0]==='x'?'x<sub>'+(x.p[1]+1)+'</sub>':'W<sub>'+(x.p[0][1]||'')+'</sub>['+(x.p[1]+1)+','+(x.p[2]+1)+']';
       return '<tr><td>'+nm+'</td><td class="num">'+U.f(x.an,5)+'</td><td class="num">'+U.f(x.num,5)+'</td><td class="num">'+(x.an===0&&x.num===0?'0':U.e(rel,1))+'</td></tr>'});
     $('gl-checkOut').innerHTML='<p class="small"><span class="gl-pill '+(mx<1e-6?'good':'bad')+'">largest relative error '+U.e(mx,1)+'</span> over '+rows.length+' numbers, nudge <i>h</i> = 10<sup>−5</sup>. Relative error = |analytic − numerical| ÷ (|analytic| + |numerical|); below 10<sup>−6</sup> means the hand-derived backward pass is right.</p><div class="tw"><table class="gl-t"><tr><th>parameter</th><th class="num">backprop</th><th class="num">nudging</th><th class="num">rel. error</th></tr>'+rows.join('')+'</table></div>'});
   function stepInfo(){const L=G.forward(m);$('gl-checkOut').innerHTML='<p class="small">Training steps taken: <b>'+hist.length+'</b>. Loss '+hist.map(v=>U.f(v,4)).concat([U.f(L.L,4)]).join(' → ')+'; P(sat) now <b>'+U.f(100*L.p[m.t],1)+'%</b>. Each step moves every weight (and the embedding, if ticked) by \u2212learning rate \u00d7 its gradient; logits now ('+L.z.map(v=>U.f(v,3)).join(', ')+'), p = ('+L.p.map(v=>U.f(v,3)).join(', ')+'). The tape above now shows the updated model.</p>'}
-  $('gl-step').addEventListener('click',()=>{hist.push(G.forward(m).L);m=G.sgdStep(m,+$('gl-lrSel').value,'',-1,!trainX);rebuild(true);stepInfo()});
+  $('gl-step').addEventListener('click',()=>{hist.push(G.forward(m).L);m=G.sgdStep(m,+$('gl-lrSel').value,'',-1,!trainX);rebuild();stepInfo()});
   $('gl-reset').addEventListener('click',()=>{m=base();hist=[];$('gl-checkOut').innerHTML='';rebuild()});
 })();

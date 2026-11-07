@@ -19,3 +19,7 @@ Central question: how does one training step use each area of maths, and what do
 | X5 | Attention equation animated | the Attention paper page has a live toy Transformer | rd-eq uses tiny numbers in text | rejected (linked) |
 
 What the methodology lacked here: a teaching page from zero has no "published figure to reproduce"; the equivalent check was that every animation's numbers reproduce the recompute script (spot-checked in `test_read.mjs` output and `check_numbers.py`).
+
+## 2026-11-06 (layout rollout)
+- Built: the hero as a 3D stage (`stg-one`), the tiny model's one step with each child's concept pinned where it acts; replaced the 2D seven-box map.
+- Kept 2D or text: the map, one-step and diagnosis tables (comparisons read best as text), the hats cards, the equation walk-through (attention is owned by the paper page and The transformer from zero). A 3D curvature or attention scene here would re-teach a child.

@@ -71,9 +71,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
       document.querySelector('#nd-an-mode button[data-m="' + m + '"]').click();
       const sc = document.getElementById('nd-an-ctl-s');
       sc.value = 0; sc.dispatchEvent(new Event('input'));
-      const caps = [];
-      for (let i = 0; i < 13; i++) {
-        caps.push(document.getElementById('nd-an-cap').textContent);
+      // 2026-11-06: 13 frames grouped into 7 explained stretches; the step list on the left (one item per step, the current one marked) replaced the caption
+      const caps = [], n = +sc.max + 1, list = document.getElementById('sx-nd-' + m);
+      if (n !== 7) out.bad.push('anim ' + m + ': ' + n + ' steps, expected 7');
+      if (list.hidden || list.children.length !== n) out.bad.push('anim ' + m + ': step list ' + list.children.length + ' items for ' + n + ' steps');
+      for (let i = 0; i < n; i++) {
+        const on = list.querySelector('li.on'); caps.push(on ? on.innerText : '');
+        if (!on || [...list.children].indexOf(on) !== i) out.bad.push('anim ' + m + ' step ' + i + ': list not marked');
         chk('anim ' + m + ' step ' + i);
         document.getElementById('nd-an-ctl-f').click();
       }

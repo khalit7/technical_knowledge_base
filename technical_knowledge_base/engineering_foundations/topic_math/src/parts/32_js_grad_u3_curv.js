@@ -60,10 +60,11 @@
     if(S.opt==='adam')note='<span class="ill">Intuition, not a theorem:</span> Adam’s step per coordinate is about η in size whatever the curvature, so it does not blow up at large η the way gradient descent does; instead it ends up jittering around the minimum at a scale set by η. Rotate the valley to 0° and to 45° at the same η: lined up with the axes it helps most.';
     if(S.opt==='newton')note='Newton’s method divides the gradient by the curvature in every direction at once, so the condition number stops mattering: one step, whatever κ and the rotation. The cost is the inverse Hessian, impossible to form for millions of parameters.';
     $('gl-curvNote').innerHTML=note}
-  const A=U.anim({card:'gl-curvCard',ctl:'gl-curvAnim',n:STEPS+1,draw:i=>{if(run)draw(Math.min(i,run.path.length-1))},ms:160,label:'Optimiser step'});
+  // a widget (the long-replay rule, case b): it never plays by itself, opens on the finished run, and replays when the reader picks an optimiser or a preset
+  const A=U.anim({card:'gl-curvCard',ctl:'gl-curvAnim',n:STEPS+1,draw:i=>{if(run)draw(Math.min(i,run.path.length-1))},ms:160,label:'Optimiser step',autoplay:false});
   U.seg($('gl-optSeg'),m=>{S.opt=m;if(m==='adam'&&S.lr>1)S.lr=0.1;ctl();recompute(false);A.play()});
   $('gl-presets').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const p=PRE[b.dataset.p];Object.assign(S,p,{lmax:2});
     $('gl-optSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===S.opt));ctl();recompute(false);A.play()});
-  ctl();run=G.runOpt(o());A.reset(run.path.length);stats();
+  ctl();run=G.runOpt(o());A.reset(run.path.length);A.go(run.path.length-1);stats();
   U.onRender(()=>A.redraw());U.onResize(()=>A.redraw());
 })();

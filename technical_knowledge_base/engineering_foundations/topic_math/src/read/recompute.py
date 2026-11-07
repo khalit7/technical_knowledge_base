@@ -138,5 +138,7 @@ put("bits_per_nat", round(1 / math.log(2), 3))
 put("ln_50000_init_loss", round(math.log(50000), 2))
 put("bench500_ci_halfwidth_points", round(100 * 1.96 * math.sqrt(0.25 / 500), 1))
 put("float32_exp_overflow_z", round(math.log(float(np.finfo(np.float32).max)), 2))
+# ---------- added 2026-11-06 for the hero stage (Fig. 1, step 8): 95% error bar of a held-out mean change, spread 0.5 nats, 100 sentences ----------
+put("hero_heldout_ci95_s0.5_n100", round(1.96 * 0.5 / math.sqrt(100), 3))
 
 json.dump(R, open(sys.argv[1] if len(sys.argv) > 1 else "numbers.json", "w"), indent=1, default=lambda o: o if not isinstance(o, np.generic) else o.item())

@@ -174,4 +174,14 @@ for eid, e in EQ.items():
             n += 1
             if tok.lstrip("-") not in nums:
                 bad += 1; print("NOT ON PAGE", eid, tok)
+# the attention animation's step lists (2026-11-06): every weight and output written there, as the page's fmt prints it (3 decimals, trailing zeros dropped)
+fm = lambda v: ("%.3f" % v).rstrip("0").rstrip(".")
+for lid, Wm, Om in (("sx-nd-s", W, O), ("sx-nd-u", Wu, Ou)):
+    mt = re.search(r'<ol class="sx" id="%s"[^>]*>(.*?)</ol>' % lid, page, re.S)
+    txt = html.unescape(re.sub(r"<[^>]+>", " ", mt.group(1))) if mt else ""
+    for r in range(2):
+        for v in ("(" + ", ".join(fm(x) for x in Wm[r]) + ")", "(" + ", ".join(fm(x) for x in Om[r]) + ")"):
+            n += 1
+            if v not in txt:
+                bad += 1; print("MISMATCH step list", lid, v)
 print(f"{n} checks, {bad} mismatches")

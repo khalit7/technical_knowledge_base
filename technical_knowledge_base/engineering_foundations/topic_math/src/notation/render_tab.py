@@ -152,14 +152,33 @@ def card(e):
     return "\n".join(o)
 
 
-ANIM = """<div class="nd-an" id="nd-an">
+ANIM = """<div class="s3sp"><div class="s3R"><div class="s3side"><div class="nd-an" id="nd-an">
 <div class="seg" id="nd-an-mode" role="group" aria-label="Which attention"><button type="button" data-m="s" class="on">Scaled, as in Eq. (1)</button><button type="button" data-m="u">Before: plain dot-product (no \\(\\sqrt{d_k}\\))</button></div>
 <div class="nd-stage" id="nd-an-stage" aria-live="polite"></div>
-<div class="nd-cap" id="nd-an-cap"></div>
 <div class="nd-cnt" id="nd-an-cnt"></div>
 <div class="nd-ctl" id="nd-an-ctl"></div>
 <div class="nd-cmp" id="nd-an-cmp"></div>
-</div>"""
+</div></div></div><div class="s3L">
+<p class="sxh">The animation, step by step</p>
+<ol class="sx" id="sx-nd-s">
+<li><b>The inputs.</b> One row per token: \\(Q\\) and \\(K\\) are 3 × 4 (\\(d_k = 4\\)), \\(V\\) is 3 × 2.</li>
+<li><b>Transpose K.</b> Its rows become columns, 3 × 4 becomes 4 × 3, so every query can meet every key.</li>
+<li><b>Scores, row by row.</b> Each query dotted with each key: row 1 is (2, 0, 1), its first cell 1·1 + 0·0 + 1·1 + 0·0 = 2; row 2 is (0, 3, 2); row 3 is (2, 2, 2), a query that matches every key the same. 36 multiply-adds.</li>
+<li><b>Divide by \\(\\sqrt{d_k} = 2\\).</b> The shape is unchanged; this keeps the scores from growing with \\(d_k\\) (the paper's footnote 4).</li>
+<li><b>Softmax each row.</b> Exponentiate and divide by the row's sum: row 1 becomes (0.506, 0.186, 0.307), row 2 (0.122, 0.547, 0.331), row 3 equal thirds. Every row sums to 1.</li>
+<li><b>Weighted sum of V's rows.</b> Output row 1 = 0.506·v₁ + 0.186·v₂ + 0.307·v₃ = (0.814, 0.494); row 2 is (0.453, 0.878); row 3 (0.667, 0.667). 18 more multiply-adds.</li>
+<li><b>Done.</b> Shapes (3×4)(4×3) → 3×3 scores → ÷2 → softmax 3×3 → (3×3)(3×2) → 3×2. Cost: n·n·dₖ + n·n·dᵥ = 36 + 18 multiply-adds.</li>
+</ol>
+<ol class="sx" id="sx-nd-u" hidden>
+<li><b>The inputs.</b> The same \\(Q\\), \\(K\\) (3 × 4) and \\(V\\) (3 × 2).</li>
+<li><b>Transpose K.</b> 3 × 4 becomes 4 × 3.</li>
+<li><b>Scores, row by row.</b> The same raw scores: (2, 0, 1), (0, 3, 2), (2, 2, 2). 36 multiply-adds.</li>
+<li><b>No division.</b> Plain dot-product attention, the method Eq. (1) replaced, skips the \\(\\sqrt{d_k}\\), so the raw scores go straight into the softmax.</li>
+<li><b>Softmax each row.</b> Row 1 becomes (0.665, 0.09, 0.245), row 2 (0.035, 0.705, 0.259), row 3 equal thirds: sharper than the scaled weights.</li>
+<li><b>Weighted sum of V's rows.</b> Output rows (0.91, 0.335), (0.295, 0.965) and (0.667, 0.667). 18 more multiply-adds.</li>
+<li><b>Done.</b> Shapes (3×4)(4×3) → 3×3 scores → softmax 3×3 → (3×3)(3×2) → 3×2, and the same 36 + 18 multiply-adds: the division costs nothing.</li>
+</ol>
+</div></div>"""
 
 
 def picker():
