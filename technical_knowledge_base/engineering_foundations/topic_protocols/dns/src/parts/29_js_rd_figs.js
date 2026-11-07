@@ -5,41 +5,8 @@
   const arrow=(x1,y1,x2,y2,col,dash)=>{const a=Math.atan2(y2-y1,x2-x1),L=7;
     return '<line x1="'+x1+'" y1="'+y1+'" x2="'+(x2-Math.cos(a)*4)+'" y2="'+(y2-Math.sin(a)*4)+'" stroke="'+(col||'var(--mute)')+'" stroke-width="1.4"'+(dash?' stroke-dasharray="4 3"':'')+'/>'+
       '<path d="M'+x2+' '+y2+' L'+(x2-L*Math.cos(a-0.45))+' '+(y2-L*Math.sin(a-0.45))+' L'+(x2-L*Math.cos(a+0.45))+' '+(y2-L*Math.sin(a+0.45))+' z" fill="'+(col||'var(--mute)')+'"/>'};
-  const tag=(x,y,s,anchor)=>T(x,y,esc(s),{a:anchor,fs:11,fill:'var(--bad)',w:600});
   const set=(id,f)=>{const el=document.getElementById(id);if(!el)return;const draw=()=>{el.innerHTML=f(RD.width(el))};draw();RD.onRender(draw);RD.onResize(draw)};
 
-  // Hero: process, resolver with its cache, three authoritative servers; the four failure causes where they happen.
-  set('hr-svg',w=>{
-    const n=w<560,P=8,bw=w-2*P;let b='';
-    const yP=6,hP=n?70:58,yR=yP+hP+56,hR=n?84:70,yA=yR+hR+58,hA=n?92:62;
-    b+=box(P,yP,bw,hP);
-    b+=T(P+10,yP+18,n?'Your process (Python, curl, Node)':'Your process: Python, curl, Node, a gRPC channel',{fs:12,w:600});
-    b+=T(P+10,yP+35,n?'getaddrinfo(): the stub; reads resolv.conf':'getaddrinfo() = the stub resolver; reads /etc/resolv.conf',{fs:11});
-    b+=T(P+10,yP+50,'no cache in glibc or musl',{fs:11,fill:'var(--mute)'});
-    if(n){b+=tag(P+10,yP+65,'search list: 1 name = 8 queries; lost packet = 5 s')}
-    else{b+=tag(w-P-10,yP+35,'search list: 1 name = 8 queries',"end");b+=tag(w-P-10,yP+50,'one lost packet = a 5 s timer',"end")}
-    // arrow 1
-    const xa=P+bw*0.3;b+=arrow(xa,yP+hP+2,xa,yR-2,'var(--ink)')+arrow(xa+18,yR-2,xa+18,yP+hP+2,'var(--mute)',1);
-    b+=T(xa+28,yP+hP+22,'1  recursive question (RD set)',{fs:11,w:600})+T(xa+28,yP+hP+38,'answer, from cache if it can',{fs:11,fill:'var(--mute)'});
-    if(!n)b+=tag(w-P-10,yP+hP+30,'wrong resolver asked: split horizon',"end");
-    // resolver with cache
-    b+=box(P,yR,bw,hR,{stroke:'var(--acc)',sw:1.6});
-    b+=T(P+10,yR+18,n?'Recursive resolver (CoreDNS, 1.1.1.1)':'Recursive resolver: CoreDNS, the VPC resolver, 1.1.1.1',{fs:12,w:600});
-    b+=T(P+10,yR+36,n?'cache: api.llm.test A 10.53.0.80, TTL 60':'cache: api.llm.test A 10.53.0.80, TTL 60 counting down; test. and llm.test. NS for days',{fs:11,fill:'var(--acc)',w:600});
-    b+=T(P+10,yR+52,n?'cache: "no" for min(SOA TTL, MINIMUM)':'cache: "no such name" for min(SOA TTL, MINIMUM)',{fs:11,fill:'var(--acc)',w:600});
-    if(n){b+=tag(P+10,yR+70,'cached old answer; wrong resolver asked')}else b+=tag(w-P-10,yR+18,'stale cached answer',"end");
-    // three authoritative servers
-    const g=8,aw=(bw-2*g)/3,L=[['Root  .',n?['refers to','test.']:['referral: test. is at','ns1.nic.test + glue']],['test.',n?['refers to','llm.test.']:['referral: llm.test. is at','ns1.llm.test + glue']],['llm.test.',n?['answers','A 10.53.0.80']:['answers (aa flag):','A 10.53.0.80, TTL 60']]];
-    L.forEach((z,i)=>{const x=P+i*(aw+g);b+=box(x,yA,aw,hA);b+=T(x+8,yA+18,esc(z[0]),{fs:12,w:600});b+=T(x+8,yA+35,esc(z[1][0]),{fs:11});b+=T(x+8,yA+51,esc(z[1][1]),{fs:11});
-      if(n&&i===0)b+=T(x+8,yA+68,'all three:',{fs:11,fill:'var(--mute)'});
-      if(n&&i===0)b+=T(x+8,yA+84,'authoritative',{fs:11,fill:'var(--mute)'});
-      const xs=P+bw*(0.55+i*0.12),xe=x+aw/2;b+=arrow(xs,yR+hR+2,xe,yA-2,'var(--ink)');
-      b+=T((xs+xe)/2+(i===0?-6:6),yR+hR+30,String(i+2),{a:i===0?'end':'start',fs:11,w:600})});
-    if(!n)b+=T(P+10,yR+hR+22,'2 to 4: only on a cache miss',{fs:11,fill:'var(--mute)'});
-    if(!n)b+=T(P+10,yA+hA+16,'authoritative servers: each answers for one zone and never asks anyone else',{fs:11,fill:'var(--mute)'});
-    else b+=T(P+10,yA+hA+16,'2 to 4: only on a cache miss',{fs:11,fill:'var(--mute)'});
-    return RD.svg(w,yA+hA+24,b,'One DNS lookup: process, recursive resolver with its cache, three authoritative servers');
-  });
 
   // Zone tree: the lab and the real DNS, same shape.
   set('tr-svg',w=>{

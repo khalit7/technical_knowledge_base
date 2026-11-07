@@ -34,7 +34,8 @@
       (P.lead&&P.lead<P.oldTTL?' The lead is shorter than the old TTL, so caches that fetched just before the lowering still hold the old TTL.':'');
   }
   compute();
-  const A=RD.anim({card:'cc-card',ctl:'cc-ctl',n:STEPS,draw:chart,ms:220,label:'Time'});
+  // a widget the reader drives (the long-replay rule, case b): it never plays by itself and opens a quarter of the way along, where the two curves differ most
+  const A=RD.anim({card:'cc-card',ctl:'cc-ctl',n:STEPS,draw:chart,ms:220,label:'Time',auto:false,start:12});
   ['cc-old','cc-new','cc-lead','cc-jvm','cc-pin'].forEach(id=>$(id).addEventListener('input',()=>{compute();A.redraw()}));
   RD.onResize(()=>A.redraw());
   function calcs(){

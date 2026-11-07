@@ -1,12 +1,14 @@
 <section id="rd-k8s">
 <h2>7. Kubernetes: search lists, ndots and the cluster DNS</h2>
+<div class="s3sp"><div class="s3L">
 <p><b>What a pod gets.</b> With the default <code>dnsPolicy: ClusterFirst</code>, kubelet writes every pod a <code>resolv.conf</code> that points at the cluster DNS service (CoreDNS) and adds a search list and <code>ndots:5</code> ({{Kubernetes docs|https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy}}):</p>
 <pre class="cd">search default.svc.cluster.local svc.cluster.local cluster.local
 nameserver 10.96.0.10
 options ndots:5</pre>
 <p>This is what lets code in namespace <code>default</code> say <code>http://llm-proxy</code> and reach <code>llm-proxy.default.svc.cluster.local</code>. CoreDNS answers <code>cluster.local</code> names from the Kubernetes API and forwards everything else upstream. The policy named <code>Default</code> is not the default: it copies the node's resolver settings instead.</p>
-<p><b>The rule that costs.</b> A name with fewer dots than <code>ndots</code> is tried with every search suffix <b>before</b> it is tried as written. <code>api.llm.test</code> has two dots, fewer than five, so the stub first asks for <code>api.llm.test.default.svc.cluster.local</code>, then <code>api.llm.test.svc.cluster.local</code>, then <code>api.llm.test.cluster.local</code>, each for A and AAAA, and only then for <code>api.llm.test</code>. External API names (<code>api.anthropic.com</code>, <code>s3.us-east-1.amazonaws.com</code>: two and three dots) all pay this. Predict how many queries one lookup sends, then step through the recording:</p>
-<div class="card" id="pd-card">
+<p><b>The rule that costs.</b> A name with fewer dots than <code>ndots</code> is tried with every search suffix <b>before</b> it is tried as written. <code>api.llm.test</code> has two dots, fewer than five, so the stub first asks for <code>api.llm.test.default.svc.cluster.local</code>, then <code>api.llm.test.svc.cluster.local</code>, then <code>api.llm.test.cluster.local</code>, each for A and AAAA, and only then for <code>api.llm.test</code>. External API names (<code>api.anthropic.com</code>, <code>s3.us-east-1.amazonaws.com</code>: two and three dots) all pay this. The resolver lab beside this opens on the whole recorded exchange; step back through it packet by packet, or pick another pair of runs.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="pd-card">
 <h4>One lookup from a pod: 8 queries, 6 of them NXDOMAIN, against 2 with a trailing dot</h4>
 <div class="presets" id="pd-pre">
 <button data-p="glibc_ndots5|0,glibc_ndots5|1" class="on">ndots:5 against a trailing dot</button>
@@ -24,6 +26,7 @@ options ndots:5</pre>
 <div class="an-cap" id="pd-cap"></div>
 <p class="small mute">The resolver lab: each pane replays one recorded <code>getaddrinfo</code> call, with the exact <code>/etc/resolv.conf</code> the pod had and every DNS packet it sent and received, captured with tcpdump inside the pod's own network namespace (<span class="meas">measured</span>, 5 October 2026; glibc 2.41 on Debian 13, musl 1.2.6 on Alpine; a real CoreDNS 1.12.4 as the cluster DNS, Unbound 1.25.2 behind it). Pick a preset or any two runs; the bars draw both durations to one scale. Rows marked "wait" are gaps of more than half a second with no packet: the library on its timer. The lossy runs used a relay that dropped the first AAAA query (or every query, for "dead"); its log is under each pane.</p>
 </div>
+</div></div></div>
 <div class="tw"><table><thead><tr><th>One lookup of</th><th>resolv.conf</th><th>glibc: queries (failed)</th><th>musl: queries (failed)</th><th>Result</th></tr></thead><tbody id="k8-tab"></tbody></table></div>
 <p class="small mute"><span class="meas">measured</span>: packets the pod sent. "4 search domains" adds a node-inherited suffix (<code>us-east-1.compute.internal</code>, as on an EC2 node) the way kubelet appends the node's own search list: 10 queries, 8 failing.</p>
 <p><b>The fixes, in order of preference.</b></p>

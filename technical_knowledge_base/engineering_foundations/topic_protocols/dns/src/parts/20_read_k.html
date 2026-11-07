@@ -1,17 +1,46 @@
 <section id="rd-sec">
 <h2>9. DNSSEC: what a signed answer proves</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-sec"></div></div><div class="s3L">
 <p><b>The problem.</b> Classic DNS has no authentication: a resolver accepts the first answer that matches its question's ID and port, so anyone who can answer first, or who controls a hop, can send you to the wrong address (section 10). <dfn id="g-dnssec">DNSSEC</dfn> ({{RFC 4033|https://www.rfc-editor.org/rfc/rfc4033}} to 4035) lets a resolver prove that an answer is exactly what the zone's owner published, and that a "no such name" is genuine.</p>
 <p><b>How it works.</b> Each zone signs every RRset; the signature is an <b>RRSIG</b> record with an inception and an expiry date. The zone publishes its public keys as <b>DNSKEY</b> records, usually in two roles: a <dfn id="g-ksk">key-signing key (KSK)</dfn> that signs only the key set, and a zone-signing key (ZSK) that signs everything else. The parent vouches for the child's KSK by publishing a hash of it, a <b>DS</b> record, which the parent signs in turn. Following DS to DNSKEY to DS up the tree ends at the root's KSK, which the resolver must already trust: that copy is the <dfn id="g-anchor">trust anchor</dfn>. A name that does not exist is proven by an <b>NSEC</b> (or hashed NSEC3) record, a signed statement "nothing exists between these two names". Each key is named by a 16-bit <dfn id="g-keytag">key tag</dfn>, a checksum of the key.</p>
-<p><b>The chain, recorded.</b> The lab's three zones were signed (ECDSA P-256, algorithm 13) and the lab resolver given the lab root's KSK as its anchor. Step through the chain for <code>api.llm.test</code>, then switch to the two ways it breaks:</p>
-<div class="card" id="ds-card">
-<h4>Trust flows down from one configured key; break any link and everything below it is SERVFAIL</h4>
-<div class="seg" id="ds-mode"><button data-m="valid" class="on">Valid chain</button><button data-m="expired">Signatures expired</button><button data-m="rolled">Root key rolled, old anchor</button><button data-m="nx">Proving a name does not exist</button></div>
-<div class="chain" id="ds-chain"></div>
-<div class="an-ctl" id="ds-ctl"></div>
-<div class="an-cap" id="ds-cap"></div>
-<pre class="cd out" id="ds-out"></pre>
+<p><b>The chain, recorded.</b> The lab's three zones were signed (ECDSA P-256, algorithm 13) and the lab resolver given the lab root's KSK as its anchor. Follow the chain for <code>api.llm.test</code>, then switch to the two ways it breaks:</p>
+<p class="sxh">Fig. 4 · Trust flows down from one configured key; break any link and everything below it is SERVFAIL</p>
+<div class="s3chips" id="ds-mode"><button data-m="valid" class="on">Valid chain</button><button data-m="expired">Signature expired</button><button data-m="rolled">Root key rolled, old anchor</button><button data-m="nx">Proving a name does not exist</button></div>
+<ol class="sx" id="sx-sec-valid">
+<li><b>Trust anchor (configured).</b> The resolver trusts one key without proof: the lab root's KSK, given as a DS hash with key tag 21590.</li>
+<li><b>Root DNSKEY set.</b> The root publishes its keys; the KSK with tag 21590 hashes to the anchor, and its RRSIG over the key set verifies. Now the root's ZSK (37458) is trusted too.</li>
+<li><b><code>test.</code> DS, in the root zone.</b> The root vouches for <code>test.</code>: a DS with tag 25517, signed by the root's ZSK.</li>
+<li><b><code>test.</code> DNSKEY set.</b> <code>test.</code>'s KSK (tag 25517) matches that DS and signs its key set, which holds its ZSK (59849).</li>
+<li><b><code>llm.test.</code> DS, in <code>test.</code></b> <code>test.</code> vouches for <code>llm.test.</code>: DS tag 48849.</li>
+<li><b><code>llm.test.</code> DNSKEY set.</b> KSK tag 48849 matches; the ZSK (tag 51623) signs the zone's records.</li>
+<li><b><code>api.llm.test</code> A and its RRSIG.</b> The address is signed by the ZSK. The chain is complete: the resolver sets AD (authentic data). <code>delv</code> doing the same walk itself prints each verified key id (in the records block below).</li>
+</ol>
+<ol class="sx" id="sx-sec-expired" hidden>
+<li><b>Trust anchor.</b> The same configured key, tag 21590.</li>
+<li><b>Root DNSKEY set.</b> Verified as before.</li>
+<li><b><code>test.</code> DS.</b> Verified.</li>
+<li><b><code>test.</code> DNSKEY set.</b> Verified.</li>
+<li><b><code>llm.test.</code> DS.</b> Verified.</li>
+<li><b><code>llm.test.</code> DNSKEY set.</b> Verified: every link up to the zone's keys holds.</li>
+<li><b>The A record's signature expired.</b> The RRSIG over the A record expired a day ago. A validating resolver must refuse it: SERVFAIL. With CD set (checking disabled) the same resolver hands over the address, which proves the fault is DNSSEC; Unbound's log names the cause ("signature expired").</li>
+</ol>
+<ol class="sx" id="sx-sec-rolled" hidden>
+<li><b>Trust anchor.</b> The resolver still holds the old root key, tag 21590.</li>
+<li><b>The root's key changed.</b> The lab root has rolled to a new KSK (tag 48248) and withdrawn the old one. The anchor matches nothing, so the resolver cannot trust the root, and therefore nothing below it: every lookup returns SERVFAIL, signed or not.</li>
+<li><b>Given the new anchor.</b> With the new key (tag 48248) as its anchor, the same resolver validates again: NOERROR, AD set.</li>
+</ol>
+<ol class="sx" id="sx-sec-nx" hidden>
+<li><b>Trust anchor.</b> The same configured key, tag 21590.</li>
+<li><b>Root DNSKEY set.</b> Verified.</li>
+<li><b><code>test.</code> DS.</b> Verified.</li>
+<li><b><code>test.</code> DNSKEY set.</b> Verified.</li>
+<li><b><code>llm.test.</code> DS.</b> Verified.</li>
+<li><b><code>llm.test.</code> DNSKEY set.</b> Verified.</li>
+<li><b><code>nope.llm.test</code>: a signed "no".</b> The name does not exist, and the resolver can prove it: the zone returns NSEC records, signed, saying "after api.llm.test the next name is ns1.llm.test", so nothing called nope.llm.test can exist (it would sort between them). AD is set on the NXDOMAIN.</li>
+</ol>
+<details class="dp"><summary>The records behind the current step</summary><div class="b"><pre class="cd out" id="ds-out"></pre></div></details>
 <p class="small mute"><span class="meas">measured</span>: records and resolver answers from the lab (Unbound 1.25.2 validating, CoreDNS serving pre-signed zones), 5 October 2026. Keys were generated for this run; their tags change on each rerun.</p>
-</div>
+</div></div>
 <p><b>What it does not do.</b> DNSSEC proves origin and integrity, not secrecy: the question and answer still cross the network in the clear. It protects the resolver, not the hop from your laptop to the resolver, unless your own stub validates or trusts the AD flag over a secure channel (glibc only honours AD with <code>options trust-ad</code>, since glibc 2.31; {{resolv.conf(5)|https://man7.org/linux/man-pages/man5/resolv.conf.5.html}}). It says nothing about the server you then connect to (that is TLS's job). And signed answers are larger, which makes DNS a better amplifier for denial-of-service floods.</p>
 <h3>How it fails: one bad signature takes everything below it down</h3>
 <p>A validating resolver that finds a broken signature must return <b>SERVFAIL</b>, not the unvalidated answer, so a signing mistake looks exactly like an outage. The test is the <b>CD</b> flag: <code>dig +cd name</code> asks the resolver to skip validation; if that returns an answer while the normal query fails, the problem is DNSSEC. A public example, deliberately broken by its owner: <code>dnssec-failed.org</code> returned SERVFAIL through 1.1.1.1, with the Extended DNS Error "9 (DNSKEY Missing): no SEP matching the DS found", and an address with <code>+cd</code> (<span class="meas">measured</span>; Extended DNS Errors are {{RFC 8914|https://www.rfc-editor.org/rfc/rfc8914}}).</p>

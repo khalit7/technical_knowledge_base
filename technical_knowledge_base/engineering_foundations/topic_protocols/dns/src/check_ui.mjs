@@ -1,5 +1,6 @@
 // Click every control of the page at 390 px dark and 920 px light: tabs, segmented buttons, every animation step,
-// byte fields, presets, both pane selects, sliders, calculators, drills, details; then, at normal motion, that nothing plays by itself. Fails on script errors, the error box,
+// byte fields, presets, both pane selects, sliders, calculators, drills, details; then, at normal motion, that the rebinding animation plays once in view
+// and the two widgets (resolver lab, change planner) never play by themselves (2026-11-06 rule; the 3D stages are checked by check_stages.mjs). Fails on script errors, the error box,
 // NaN/undefined/Infinity in visible text, or sideways scroll. Screenshots of each card go to <out dir>.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_protocols/dns/src/check_ui.mjs <out dir>
 import { createRequire } from 'node:module';
@@ -38,7 +39,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const e = await p.$(sel); if (e) await e.screenshot({ path: `${out}/${name}-${w}.png` }) };
   // Reading
   await p.click('button[data-t=t-read]'); await sleep(200);
-  for (const [seg, ctl, card] of [['#wk-mode button', 'wk-ctl', 'wk-card'], ['#ds-mode button', 'ds-ctl', 'ds-card'], ['#rb-mode button', 'rb-ctl', 'rb-card']]) {
+  for (const [seg, ctl, card] of [['#rb-mode button', 'rb-ctl', 'rb-card']]) {
     const k = await p.$$eval(seg, es => es.length);
     for (let i = 0; i < k; i++) { await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), seg, i); await sleep(50); const n = await stepAll(ctl); await bad(card + ' mode ' + i + ' (' + n + ' steps)'); await shot('#' + card, card + '-m' + i) } }
   for (let i = 0; i < 3; i++) { await p.evaluate(i => document.querySelectorAll('#wa-pick button')[i].click(), i); await sleep(30);
@@ -47,7 +48,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true));
   const nd = await clickAll('#rd-drills button[data-j]'); await bad('drills (' + nd + ' answers)');
   await bad('details');
-  for (const id of ['hr-card', 'tr-card', 'dp-card', 'sh-card', 'tt-chart', 'nx-chart', 'st-stale', 'rr-rows', 'st-dead', 'st-err', 'st-http', 'k8-tab', 'k8-loop', 'ds-root', 'wa-trunc', 'rd-drills']) await shot('#' + id, id);
+  for (const id of ['tr-card', 'dp-card', 'sh-card', 'tt-chart', 'nx-chart', 'st-stale', 'rr-rows', 'st-dead', 'st-err', 'st-http', 'k8-tab', 'k8-loop', 'ds-root', 'wa-trunc', 'rd-drills']) await shot('#' + id, id);
   // The resolver lab (Reading section 7, moved from its own tab on 2026-10-24)
   const np = await p.$$eval('#pd-pre button', es => es.length);
   for (let i = 0; i < np; i++) { await p.evaluate(i => document.querySelectorAll('#pd-pre button')[i].click(), i); await sleep(30); const n = await stepAll('pd-ctl'); await bad('pod preset ' + i + ' (' + n + ' steps)'); await shot('#pd-card', 'pod-' + i) }
@@ -67,11 +68,11 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.close();
 }
 { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + page); await sleep(200);
-  const n = await p.$$eval('.an-ctl', es => es.length);
-  for (let i = 0; i < n; i++) { await p.evaluate(i => document.querySelectorAll('.an-ctl')[i].scrollIntoView({ block: 'center' }), i); await sleep(400) }
-  await sleep(1500);
-  const moving = await p.evaluate(() => [...document.querySelectorAll('.an-ctl')].filter(c => /Pause/.test(c.textContent) || (c.querySelector('input[type=range]') || {}).value > 0).map(c => c.id));
-  if (moving.length) { fails++; console.log('autoplay:', moving) } else console.log('no animation moved before the reader acted (' + n + ' controllers, normal motion)');
+  await p.click('button[data-t=t-read]'); await sleep(200); // the earlier passes left Further reading as the remembered tab
+  const st = {};
+  for (const id of ['pd-ctl', 'cc-ctl']) { await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(1800); st[id] = /Pause/.test(await p.$eval('#' + id, c => c.textContent)) }
+  await p.evaluate(() => document.getElementById('rb-card').scrollIntoView({ block: 'center' })); await sleep(2200); const rb = /Pause/.test(await p.$eval('#rb-ctl', c => c.textContent));
+  if (st['pd-ctl'] || st['cc-ctl'] || !rb) { fails++; console.log('motion:', JSON.stringify(st), 'rebinding playing:', rb) } else console.log('the rebinding animation played once in view; the two widgets stayed still (normal motion)');
   await p.close(); }
 await b.close();
 console.log(fails ? 'FAIL ' + fails : 'ui ok: every control at 390 dark and 920 light, no errors, NaN, undefined or sideways scroll');

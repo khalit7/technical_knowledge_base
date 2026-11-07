@@ -1,6 +1,6 @@
 """Checks that the built page says exactly what the recordings say. Plain Python 3 plus node.
 1. parts/22_js_data.js is regenerated from lab/out/*.json by make_data.py, and index.html embeds it byte for byte.
-2. The Cache timeline's model (parts/32_js_cache_model.js) agrees with an independent Python version (recompute below).
+2. The Cache timeline's model (parts/30_js_cache_model.js) agrees with an independent Python version (recompute below).
 3. The page's in-browser key-tag function gives the root's real key tags (inputs/root_dnskey_2026100500.txt,
    from InterNIC's root zone) and they are the ones IANA publishes (inputs/root-anchors.xml).
 4. Every number the prose quotes from a recording is recomputed from the data.
@@ -53,7 +53,7 @@ def model(p):
 
 cases = [dict(oldTTL=3600, newTTL=60, lead=3600, jvm=30, jvmShare=0.2, pinShare=0), dict(oldTTL=3600, newTTL=60, lead=1800, jvm=30, jvmShare=0, pinShare=0),
          dict(oldTTL=3600, newTTL=60, lead=0, jvm=30, jvmShare=0.2, pinShare=0.05), dict(oldTTL=86400, newTTL=300, lead=43200, jvm=30, jvmShare=0.5, pinShare=0.2)]
-js = open(os.path.join(HERE, "parts", "32_js_cache_model.js")).read()
+js = open(os.path.join(HERE, "parts", "30_js_cache_model.js")).read()
 node = "global.window={};" + js + ";const C=" + json.dumps(cases) + ";console.log(JSON.stringify(C.map(p=>{const m=window.cacheModel(p);return {worst:m.worst,a10:m.at(10),a60:m.at(60),a900:m.at(900),a1800:m.at(1800)}})))"
 jsres = json.loads(subprocess.run(["node", "-e", node], capture_output=True, text=True, check=True).stdout)
 for c, r in zip(cases, jsres):
@@ -106,7 +106,7 @@ check('alpn="h2"' in P["api_https"] and 'alpn="h3,h2"' in P["cf_https"], "HTTPS 
 check(P["rootzone"]["tld_count"] == 1437 and "1,437" in html, "1,437 TLDs delegated in the root zone file")
 check("20326" in P["root_rrsig"], "root key set signed by 20326 on 5 October")
 check("SERVFAIL" in P["failed"] and "NOERROR" in P["failed_cd"] and "EDE: 9" in P["failed"], "dnssec-failed.org: SERVFAIL, EDE 9, answer with +cd")
-check(P["identity"]["plain_same_as_dot"] is False and re.fullmatch(r'"[a-z]{3}\d{2}"', P["identity"]["dot"]) is not None, "DoT reached a public data-centre code; plain UDP did not")
+check(P["identity"]["plain_same_as_dot"] is False and P["identity"]["dot_is_datacentre_code"] is True and "dot" not in P["identity"], "DoT reached a public data-centre code (its name not stored: it locates the machine); plain UDP did not")
 check(all(x == "468" for x in re.findall(r"MSG SIZE  rcvd: (\d+)", json.dumps(P))), "every recorded DoT reply 468 bytes")
 check("ra" in P["root_intercept"].split("flags:")[1].split(";")[0] and "ANSWER: 2" in P["root_intercept"], "a root server's address answered with RA and a final answer (interception)")
 S = D["sec"]

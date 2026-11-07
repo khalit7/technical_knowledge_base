@@ -1,15 +1,36 @@
 <section id="rd-ttl">
 <h2>5. Caching: TTLs, negative answers and stale answers</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-cache"></div></div><div class="s3L">
 <p><b>The rule.</b> Every record carries a <dfn id="g-ttl">TTL (time to live)</dfn>, chosen by the zone owner: the number of seconds a <span class="ac">cache</span> may keep it. A resolver that fetches a record with TTL 300 serves it for up to 300 seconds, counting down, then asks again. Nothing can push a change into caches or invalidate them from outside. So "DNS propagation" is a myth: the authoritative server has the new data the moment you save it, and you are waiting for every cache that holds the old answer to expire.</p>
-<div class="card">
-<h4>The resolver kept the old address until its copy expired, whatever the authoritative server said</h4>
-<div class="rd-svg" id="tt-chart"></div><div class="leg"><span class="sw1">resolver's answer: old address</span><span class="sw2">resolver's answer: new address</span><span class="sw0">authoritative server</span></div><p class="small mute" id="tt-note"></p>
-<p class="small mute">Recorded: the lab resolver fetched <code>weights.llm.test</code> (TTL 30); a few seconds later the address was changed at the authoritative server; both were then asked every two seconds. The resolver's TTL fell 30, 27, 25 ... 1, and only then did it fetch the new address.</p>
-</div>
+<p class="sxh">Fig. 3 · A cache keeps what it has until the TTL runs out</p>
+<div class="s3chips" id="ch-mode"><button data-m="change" class="on">An address change</button><button data-m="neg">A name created after a "no"</button><button data-m="stale">The source goes down</button></div>
+<ol class="sx" id="sx-cache-change">
+<li><b>The resolver fetches.</b> At 0 s the client asks for <code>weights.llm.test</code>; the resolver fetches <code>A 10.53.0.81</code> from the authoritative server (4 ms) and caches it for its TTL, 30 s.</li>
+<li><b>The address changes at the source.</b> At 7.0 s the record is changed on the authoritative server, which answers <code>10.53.0.82</code> from 9.5 s (it reloads its zone file every second). The resolver's copy has 23 s left.</li>
+<li><b>The resolver keeps the old answer.</b> Asked every two seconds, it answers <code>10.53.0.81</code> with the TTL counting down, 21, 18, 16 ... 2, whatever the authoritative server now says: nothing pushes the change into the cache.</li>
+<li><b>Expired, fetched again.</b> At 30.4 s, 30.4 s after it first fetched it, the copy has expired; the resolver asks again and answers <code>10.53.0.82</code>, TTL 30.</li>
+</ol>
+<ol class="sx" id="sx-cache-neg" hidden>
+<li><b>"No" is cached too.</b> At 0 s the name does not exist: NXDOMAIN, which the resolver caches for min(300, 30) = 30 s, the SOA record's TTL and its MINIMUM field.</li>
+<li><b>The name is created.</b> At 4.6 s the record is added; the authoritative server answers <code>10.53.0.83</code> from 7.1 s.</li>
+<li><b>The resolver still says it does not exist.</b> Its cached "no" counts down, 23 ... 2 s, and every answer is NXDOMAIN.</li>
+<li><b>The "no" expires.</b> At 30.2 s the resolver asks again and answers <code>10.53.0.83</code>, now cached for that record's own TTL, 300 s.</li>
+</ol>
+<ol class="sx" id="sx-cache-stale" hidden>
+<li><b>Both resolvers cache the record.</b> Two Unbound resolvers, one default and one with <code>serve-expired: yes</code>, fetch <code>A 10.53.0.81</code>, TTL 30.</li>
+<li><b>The source stops.</b> At 0.6 s the authoritative server for <code>llm.test.</code> is stopped.</li>
+<li><b>The TTLs run out.</b> Both copies count down to zero (derived from the TTL of 30 s); from then on a resolver must ask the server, which does not answer.</li>
+<li><b>Default: no answer at all.</b> Asked at 34.6 s, the default resolver has nothing to give, and dig gives up waiting: no reply, not even SERVFAIL.</li>
+<li><b>Serve-expired: the old answer, late.</b> Asked at 54.9 s, the other resolver tries the server for about 1.8 s, then answers with the expired record, <code>10.53.0.81</code> with TTL 30, after 1,809 ms (and 1,806 ms again at 59.9 s).</li>
+</ol>
+<p class="small mute"><span class="meas">measured</span>: the lab resolver (Unbound 1.25.2) and the authoritative server for <code>llm.test.</code> were both asked every two seconds; each slab is the cached copy, its length the TTL the resolver reported. Beside "Negative caching" below, the same two recordings are drawn as timelines.</p>
 <p>With a TTL of a day the same picture lasts a day. A TTL is also a per-cache countdown, not a global clock: <code>api.anthropic.com</code> came back with 292 seconds left and, five seconds later from the same public resolver address, 212 seconds left, 80 lower instead of 5 (<span class="meas">measured</span> over DoT), because one address hides many caches filled at different times.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Planning a change</h3>
 <p>Lower the TTL (to 60 to 300 s) at least one <b>old</b> TTL before the change, because caches that fetched just before you lowered it keep the old TTL. Make the change. Keep the old address serving until the old TTL has passed since the change, then raise the TTL again. Clients add their own layer: a JVM caches for 30 s by default, and a long-lived connection never re-resolves at all (section 6). Predict: with a one-hour TTL lowered to 60 s only 30 minutes ahead, how long until every cache has the new address? Then set the lead slider to 30 min.</p>
-<div class="card" id="cc-card">
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="cc-card">
 <h4>Lowering the TTL one old TTL ahead turns up to an hour of stale answers into about a minute and a half</h4>
 <div class="ctl2">
 <label>Current TTL: <b id="cc-oldv"></b><input type="range" id="cc-old" min="0" max="5" step="1" value="3"></label>
@@ -29,10 +50,19 @@
 <p class="small mute"><span class="ill">illustrative model</span>: you are moving <code>api.example.com</code>; the squares are 100 resolver caches flipping from old (blue) to new (green); the orange step is the recorded run above. The rule it encodes is exact: a cache flips when the entry it held at the moment of the change expires, and an entry keeps the TTL it was fetched with. For a move between DNS providers (changing NS records) count the parent's TTL, 48 hours for <code>.com</code>.</p>
 <details class="dp"><summary>The model's assumptions</summary><div class="b"><p>Every cache is assumed to be kept warm by steady traffic, with fetch times spread evenly over one TTL; a real cache that sees little traffic refetches later and flips sooner. Clients with their own cache add up to 30 s spread evenly; pinned clients never flip. Checked against an independent Python version by <code>check_embed.py</code>.</p></div></details>
 </div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Negative caching: "no" is cached too</h3>
 <p>A resolver also caches NXDOMAIN and NODATA, so that a typo hammered in a loop does not reach the authoritative servers every time. For how long is set by the zone's SOA record, which the "no" carries in its authority section: the minimum of the SOA record's own TTL and its last field, MINIMUM ({{RFC 2308 s5|https://www.rfc-editor.org/rfc/rfc2308#section-5}}; MINIMUM once meant something else and was repurposed for this). In the lab, <code>llm.test</code>'s SOA has TTL 300 and MINIMUM 30, so a "no" lives min(300, 30) = 30 seconds:</p>
-<div class="card"><h4>The name existed after a few seconds, but the resolver said "does not exist" for 30</h4><div class="rd-svg" id="nx-chart"></div><p class="small mute" id="nx-note"></p></div>
 <p>For <code>anthropic.com</code> both numbers are 1,800 (<code>SOA ... 604800 1800</code>, measured), so a name looked up a moment before it is created stays missing for up to half an hour for everyone behind that cache; a zone with MINIMUM 86400 would make it a day. Keep MINIMUM between about 300 and 900 seconds on zones that change, and do not let deploy scripts or health checks look up names before they exist (the root's Failure lab "NXDOMAIN" case shows what each client library prints). Failures are cached as well: a resolver that gets no usable answer must remember that for at least 1 second and at most 5 minutes, and back off rather than retry hard ({{RFC 9520 s3|https://www.rfc-editor.org/rfc/rfc9520#section-3}}, December 2023), which is why a broken zone can stay broken for a few minutes after it is fixed.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card">
+<h4>The resolver kept the old address until its copy expired, whatever the authoritative server said</h4>
+<div class="rd-svg" id="tt-chart"></div><div class="leg"><span class="sw1">resolver's answer: old address</span><span class="sw2">resolver's answer: new address</span><span class="sw0">authoritative server</span></div><p class="small mute" id="tt-note"></p>
+<p class="small mute">Recorded: the lab resolver fetched <code>weights.llm.test</code> (TTL 30); a few seconds later the address was changed at the authoritative server; both were then asked every two seconds. The resolver's TTL fell 30, 28, 25 ... 2, and only then did it fetch the new address.</p>
+</div>
+<div class="card"><h4>The name existed after a few seconds, but the resolver said "does not exist" for 30</h4><div class="rd-svg" id="nx-chart"></div><p class="small mute" id="nx-note"></p></div>
+</div></div></div>
 <details class="dp"><summary>Three more waits, from their formulas <span class="mute">(negative cache, failover, name-server move)</span></summary><div class="b">
 <div class="calc">
 <div><b>A name looked up before it existed</b><label>SOA TTL <input type="number" id="nc-ttl" value="1800" min="0"></label> <label>SOA MINIMUM <input type="number" id="nc-min" value="1800" min="0"></label><p id="nc-out"></p></div>

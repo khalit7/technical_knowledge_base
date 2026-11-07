@@ -38,7 +38,8 @@ def main():
     dot_id = d("id.server CH TXT", "+short")
     p = sh(["docker", "run", *CAP, "--name", "proto-dns-pub", TOOLS, "sh", "-c", "dig @1.1.1.1 id.server CH TXT +short"], timeout=60)
     plain = p.stdout.strip()
-    res["identity"] = {"dot": dot_id, "plain_same_as_dot": plain == dot_id,
+    # the DoT identity is a data-centre code that names where this machine is; only its shape is kept (2026-11-07)
+    res["identity"] = {"dot_is_datacentre_code": bool(re.fullmatch(r'"[a-z]{3}\d{2}"', dot_id)), "plain_same_as_dot": plain == dot_id,
                        "plain_looks_like_datacentre_code": bool(re.fullmatch(r'"[a-z]{3}\d{2}"', plain))}
     # root zone file and trust anchors (fetched over HTTPS from InterNIC and IANA)
     rz = open(os.path.join(WORK, "root.zone")).read()

@@ -45,8 +45,9 @@
     const cap=(g,nm)=>{const e=g.ev[Math.min(k,g.ev.length-1)];if(!e)return nm+': no packets (the library could not even reach a server).';
       return nm+': '+(e.tcp?'TCP segment ['+e.tcp+']':(e.d==='q'?'asks '+e.type+' for '+e.name:'gets '+e.rcode+' for '+e.type+' '+e.name))+' at '+fmt(e.t-g.t0)+'.'};
     document.getElementById('pd-cap').innerHTML=cap(ga,'Left')+' '+cap(gb,'Right')}
-  function reset(){A.reset(n());A.go(n()-1)}
-  A=RD.anim({card:'pd-card',ctl:'pd-ctl',n:n(),draw:draw,ms:700,label:'Packet'});
-  document.getElementById('pd-pre').addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;document.querySelectorAll('#pd-pre button').forEach(x=>x.classList.toggle('on',x===b));const p=b.dataset.p.split(',');side.a=p[0];side.b=p[1];A.reset(n())});
+  function reset(){A.reset(n());A.go(n()-1,true)}
+  // a widget (the long-replay rule, case b): the reader picks two recorded calls; it never plays by itself and opens on the last packet
+  A=RD.anim({card:'pd-card',ctl:'pd-ctl',n:n(),draw:draw,ms:700,label:'Packet',auto:false,start:n()-1});
+  document.getElementById('pd-pre').addEventListener('click',e=>{const b=e.target.closest('button[data-p]');if(!b)return;document.querySelectorAll('#pd-pre button').forEach(x=>x.classList.toggle('on',x===b));const p=b.dataset.p.split(',');side.a=p[0];side.b=p[1];A.reset(n());A.go(n()-1,true)});
   RD.onResize(()=>bars());
 })();
