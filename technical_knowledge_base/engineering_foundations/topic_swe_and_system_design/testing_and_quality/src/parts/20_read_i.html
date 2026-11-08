@@ -1,7 +1,15 @@
-<section id="s-ci"><h2>11. CI: fast feedback, cheapest checks first</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-ci"></div></div><div class="s3L"><section id="s-ci"><h2>11. CI: fast feedback, cheapest checks first</h2>
 <p><dfn id="g-ci">Continuous integration</dfn> (CI) runs the checks automatically on every push and pull request, on a clean machine, and blocks the merge if any fail. It turns "the tests pass on my laptop" into "the tests pass, from scratch, for everyone". The design problem is time: developers wait for CI, so the order and split of the checks matter as much as the checks.</p>
-<div class="fig"><div class="ft">A change meets the cheapest checks first; the slow tiers run on merge or at night</div><div class="rd-svg" id="tq-ci"></div>
-<p class="cap">The job graph of the workflow below (written for this page on 2026-10-04 and parsed as valid YAML, not run on GitHub). Each job runs only if the one before it passed (<code>needs:</code>); a new push to the same branch cancels the older run. The durations are the order of magnitude each tier should aim for, not measurements.</p></div>
+
+<p>Fig. 4 is the job graph of the workflow in the closed block below (written for this page on 2026-10-04 and parsed as valid YAML, not run on GitHub). Block sizes are not measurements; the durations in the step text are the order of magnitude each tier should aim for.</p>
+<ol class="sx" id="sx-ci">
+<li><b>Jobs in needs: order.</b> pre-commit on the laptop (ruff, optionally the fast tests, before each commit), then on every push <code>static</code> (ruff check, ruff format, mypy: seconds), <code>unit</code> (minutes), <code>integration</code> (minutes), then review and merge. Each job runs only if the one before it passed (<code>needs:</code>).</li>
+<li><b>A bad change stops at the first job.</b> A lint error (illustrative) fails <code>static</code> in seconds, and <code>unit</code> and <code>integration</code> never start: the cheapest check gives the fastest feedback and saves the rest of the run.</li>
+<li><b>The unit matrix.</b> A good change fans out into one unit job per Python version (3.12 and 3.13), each running <code>pytest -m "not slow and not gpu" -n auto -p randomly</code>; <code>fail-fast: false</code> lets every version report.</li>
+<li><b>Integration with a real database.</b> The job talks to <code>postgres:17</code>, started by GitHub Actions as a service container next to it and health-checked with <code>pg_isready</code> before the tests run.</li>
+<li><b>Cancel stale runs.</b> A newer push to the same branch arrives; <code>concurrency</code> with <code>cancel-in-progress: true</code> cancels the older run, which was worthless anyway.</li>
+<li><b>Merge, and the nightly tier.</b> A human reads the tests first and the change merges. The slow tiers run on their own trigger: <code>schedule: cron "0 3 * * *"</code> starts <code>gpu-nightly</code> on a <code>gpu-t4</code> runner (smoke training, slow tests, evals), where hours are fine.</li>
+</ol>
 <ul>
 <li><b>Cheapest first, fail fast.</b> Lint and type checks take seconds and catch a large share of mistakes; run them first and stop there if they fail. Then unit tests (aim for a few minutes), then integration tests, then the slow tiers.</li>
 <li><b>Tiers by cost.</b> Unit on every push; integration with real services and fakes on every pull request; GPU, full-model and eval tiers on the merge queue or nightly. Mark tests (<code>@pytest.mark.slow</code>, <code>gpu</code>, <code>integration</code>) so laptops and CI select with <code>-m</code>.</li>
@@ -10,6 +18,9 @@
 <li><b>Parallelise</b> with <code>pytest -n auto</code> (pytest-xdist) inside a job, and a matrix across Python versions; set <code>fail-fast: false</code> on a matrix when you want every version to report rather than stop at the first failure.</li>
 <li><b>Same checks locally.</b> pre-commit hooks run ruff (and optionally the fast tests) before each commit, so CI is rarely the first to find a lint error.</li>
 </ul>
+</section></div>
+</div>
+<section id="s-ci-more">
 <details class="dp"><summary>The complete GitHub Actions workflow <span class="mute">(experiments/ci/ci.yml, dated 2026-10-04, with the version pins checked that day)</span></summary><div class="b">
 <pre class="cv yml"># .github/workflows/ci.yml  (written 2026-10-04; action versions checked on GitHub that day)
 name: ci

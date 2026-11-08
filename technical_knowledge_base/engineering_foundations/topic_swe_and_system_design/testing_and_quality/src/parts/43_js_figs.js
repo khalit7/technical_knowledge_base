@@ -1,5 +1,5 @@
-// ---- Reading: static figures (hero, behaviour matrix, doubles, Pact, two engines, LLM seams, ML objects, smoke, flaky causes,
-// coverage against mutation score, CI job graph) and the shrink plot under the property animation. Static figures have no
+// ---- Reading: static figures (behaviour matrix, Pact, two engines, LLM seams, ML objects, smoke, flaky causes,
+// coverage against mutation score). The hero, the doubles, the property run and the CI job graph are 3D stages (45_ to 48_js_sc_*.js). Static figures have no
 // controls; every number comes from window.TQ (generated from src/inputs/) or is quoted with its source in the caption.
 window.TQF=(function(){
   const S=window.TQS,TQ=window.TQ,C=TQ.calc,M=TQ.mut,H=TQ.hyp;
@@ -10,46 +10,10 @@ window.TQF=(function(){
   // smallest failing input so far in the recorded property run, ordered as the page's animation orders it (length, size, overlap)
   const key=e=>[e.n,e.s,e.o],less=(a,b)=>{for(let i=0;i<3;i++){if(a[i]!==b[i])return a[i]<b[i]}return false};
   const best=[];let bi=-1;H.log.forEach((e,i)=>{if(e.f&&(bi<0||less(key(e),key(H.log[bi]))))bi=i;best.push(bi)});
-  let last=['ex',null];
-  function pbPlot(mode,i){const el=document.getElementById('pb-plot');if(!el)return;last=[mode,i];const w=S.W(el),log=H.log,n=log.length;
-    const L=34,R=8,top=16,ph=96,bw=(w-L-R)/n,maxN=Math.max(...log.map(e=>e.n)),y=v=>top+ph-v/maxN*ph;let b='';
-    [0,5,10].forEach(v=>{b+='<line x1="'+L+'" x2="'+(w-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+S.T(L-6,y(v)+4,String(v),{a:'end',fs:11,fill:'var(--mute)'})});
-    b+=S.T(L,10,'characters in the generated text',{fs:11,fill:'var(--mute)'});
-    log.forEach((e,k)=>{const x=L+k*bw,h=Math.max(2,e.n/maxN*ph);b+='<rect x="'+(x+1)+'" y="'+(top+ph-h)+'" width="'+Math.max(1,bw-2)+'" height="'+h+'" fill="'+(e.f?'var(--bad)':'var(--dim)')+'"'+(mode==='pb'&&k>i?' opacity=".3"':'')+'/>'});
-    let pts=[];best.forEach((bk,k)=>{if(bk>=0)pts.push((L+k*bw+bw/2)+','+y(log[bk].n))});
-    b+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';
-    const lastB=log[best[n-1]];b+=S.T(w-R,y(lastB.n)-6,'smallest: '+lastB.n+' char, size '+lastB.s,{a:'end',fs:11,fill:'var(--acc)',w:600});
-    if(mode==='pb'&&i!=null){const x=L+i*bw+bw/2;b+='<line x1="'+x+'" x2="'+x+'" y1="'+top+'" y2="'+(top+ph)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'}
-    [1,Math.round(n/2),n].forEach(k=>{b+=S.T(L+(k-1)*bw+bw/2,top+ph+14,String(k),{a:'middle',fs:11,fill:'var(--mute)'})});
-    b+=S.T(L+(w-L-R)/2,top+ph+28,'call number',{a:'middle',fs:11,fill:'var(--mute)'});
-    el.innerHTML=S.svg(w,top+ph+32,b,'Text length of each Hypothesis call, and the smallest failure so far')}
-  RD.onRender(()=>pbPlot(last[0],last[1]));RD.onResize(()=>pbPlot(last[0],last[1]));
-  return {curve,best,pbPlot};
+  return {curve,best};
 })();
 (function(){
   const S=window.TQS,TQ=window.TQ,C=TQ.calc,G=TQ.integ,F=TQ.flaky;
-  // hero: the layers as a pyramid, each with the bug it caught on this page
-  S.mount('tq-hero',w=>{
-    const rows=[
-      {k:'Evals (model quality)',n:'Is the model good? A rate with a threshold, not yes or no: measured on Production eval engineering.',dash:1},
-      {k:'End-to-end',n:'A few critical journeys after each deploy (send a message, get a streamed reply). Not built here.'},
-      {k:'Integration',n:'Chat search green on SQLite, wrong on PostgreSQL: [2] instead of [1, 2]. '+G.pg_ms+' ms a test, '+C.pgRatio+'x SQLite.',hl:1},
-      {k:'Contract and fakes',n:'Out-of-range model output: exactly one repair request, then a clean failure. 3 tests in 0.18 s, no API key.',hl:1},
-      {k:'Unit and property',n:'The chunker drops short documents: 3 examples pass, the property fails within '+C.hypMaxTries+' generated inputs and shrinks to one character.',hl:1},
-      {k:'Static checks',n:'Type errors, typos, a missing await: the whole repository in seconds.'}];
-    const P=Math.min(250,Math.max(110,w*0.34)),nx=P+14,nw=w-nx,fs=11.5,lh=fs*1.32;let y=0,b='';
-    const laid=rows.map(r=>{const ls=S.wrap(r.n,nw-4,fs);return {r,ls,h:Math.max(40,18+ls.length*lh+8)}});
-    const tot=laid.reduce((a,c)=>a+c.h+4,0),wt=f=>P*(0.16+0.84*f);
-    laid.forEach((c,i)=>{const y0=y,y1=y+c.h,f0=y0/tot,f1=y1/tot,a=wt(f0),bb=wt(f1),cx=P/2;
-      b+='<path d="M'+(cx-a/2)+' '+y0+'L'+(cx+a/2)+' '+y0+'L'+(cx+bb/2)+' '+y1+'L'+(cx-bb/2)+' '+y1+'Z" fill="'+(c.r.hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(c.r.hl?'var(--acc)':'var(--line)')+'"'+(c.r.dash?' stroke-dasharray="5 4"':'')+'/>';
-      b+=S.T(nx,y0+15,c.r.k,{fs:12.5,w:600,fill:c.r.hl?'var(--acc)':'var(--ink)'});
-      b+=S.lines(nx,y0+15+lh+2,c.ls,{fs});
-      b+='<line x1="'+(cx+(a+bb)/4+4)+'" y1="'+(y0+c.h/2)+'" x2="'+(nx-4)+'" y2="'+(y0+c.h/2)+'" stroke="var(--line)" stroke-dasharray="2 3"/>';
-      y=y1+4});
-    const ny=y+6,ns=S.wrap('Testing the nets: 100% line and branch coverage killed only '+C.mutWeak+' of '+C.mutN+' planted bugs (section 10); a test with unseeded randomness failed '+C.flakyPct+'% of '+C.flakyRuns.toLocaleString('en-GB')+' runs (section 9).',w-20,fs);
-    b+=S.box(.5,ny,w-1,ns.length*lh+14,{stroke:'var(--c5)'})+S.lines(10,ny+17,ns,{fs});
-    return S.svg(w,ny+ns.length*lh+16,b,'Test layers as a pyramid with the bug each caught on this page')});
-
   // behaviour against implementation: two tests, two changes
   S.mount('tq-beh',w=>{const hw=Math.min(170,w*0.3),g=6,cw=(w-hw-2*g)/2,fs=11.5,lh=fs*1.32;let b='';
     const cols=['Correct refactor: min() rewritten as an if','Real bug: cap 8 changed to 9'];
@@ -64,17 +28,6 @@ window.TQF=(function(){
         b+=S.T(x+8,y+18,c[0],{fs:12.5,w:600,fill:bad?'var(--bad)':'var(--good)'})+S.lines(x+8,y+18+lh+2,cl[i],{fs})});
       y+=rh});
     return S.svg(w,y,b,'Brittle and robust tests under a refactor and under a real bug')});
-
-  // test doubles: what each proves
-  S.mount('tq-dbl',w=>{const head=S.cards(w,[{t:'search_chats(conn, owner, text): our code',l:['the handler under test; the connection is passed in (the seam)']}],{minW:100});
-    const it=S.cards(w,[
-      {t:'Real PostgreSQL',hl:1,l:['Proves: the results are right on the engine you ship.','Costs: '+G.pg_ms+' ms a test plus '+C.pgWarmMin+' s startup.']},
-      {t:'Fake: in-memory store',l:['Proves: results right against your model of the store.','Misses: where the fake and PostgreSQL disagree (LIKE and case). Keep it honest with a contract test.']},
-      {t:'Mock of the connection',tone:'bad',l:['assert_called_once_with(sql)','Proves: the handler made the call you expected.','Misses: whether the results are right; passes with the case bug.']}],{minW:170,all:1});
-    const gy=head.h+26;let b=head.body;
-    const k=Math.floor((w+12)/(170+12));
-    if(k>=3){[0,1,2].forEach(i=>{const cw=(w-24)/3,x=i*(cw+12)+cw/2;b+=S.arrow(w/2,head.h+2,x,gy-3)})}else b+=S.arrow(w/2,head.h+2,w/2,gy-3);
-    return S.svg(w,gy+it.h,b+'<g transform="translate(0,'+gy+')">'+it.body+'</g>','Real, fake and mock behind the same seam')});
 
   // Pact: consumer-driven contracts
   S.mount('tq-pact',w=>{const r=S.cards(w,[
@@ -148,17 +101,7 @@ window.TQF=(function(){
     return S.svg(w,top+ph+34,b,'Coverage and mutation score as tests are added')});
 
   // CI job graph
-  S.mount('tq-ci',w=>{const r=S.cards(w,[
-      {t:'Laptop: pre-commit',l:['ruff, optionally the fast tests','before each commit']},
-      {t:'static',hl:1,l:['ruff check, ruff format, mypy','seconds; every push']},
-      {t:'unit',l:['Python 3.12 and 3.13 matrix; pytest -n auto -p randomly','minutes; every push']},
-      {t:'integration',l:['postgres:17 as a service container','minutes; every push and pull request']},
-      {t:'Review and merge',l:['a human reads the tests first','merge queue']},
-      {t:'Nightly',dash:1,l:['gpu-t4 runner: smoke training, slow tests; evals','hours are fine']}],{arrows:1,minW:150,cols:3});
-    return S.svg(w,r.h,r.body,'CI job graph from the cheapest checks to the nightly tier')});
-
   // predict blocks
   document.querySelectorAll('#t-read .pr').forEach(p=>p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!p.contains(b))return;
     p.querySelectorAll('.opts button').forEach(x=>x.classList.toggle('right',!!x.dataset.ok));if(!b.dataset.ok)b.classList.add('wrong');p.querySelector('.ans').hidden=false}));
-  window.TQF.pbPlot('ex',null);
 })();

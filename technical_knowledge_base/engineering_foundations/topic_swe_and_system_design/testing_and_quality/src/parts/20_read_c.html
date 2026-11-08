@@ -1,19 +1,31 @@
+<div class="s3sp"><div class="s3R"><div id="stg-dbl"></div></div><div class="s3L">
 <section id="s-dbl"><h2>4. Test doubles: prefer real, then fake, then mock</h2>
 <p>Real dependencies (the model provider, a payment API, a database) can be slow, cost money, need network access or fail at random. A <dfn id="g-double">test double</dfn> stands in for one during a test, the way a stunt double stands in for an actor. Gerard Meszaros named the kinds in <i>xUnit Test Patterns</i> (2007); Martin Fowler's {{Mocks Aren't Stubs|https://martinfowler.com/articles/mocksArentStubs.html}} (2004, revised 2007) is the classic explanation. A <dfn id="g-dummy">dummy</dfn> fills a parameter and is never used (a <code>logger=None</code>); a <dfn id="g-stub">stub</dfn> returns canned answers (a model client whose <code>complete()</code> always returns <code>"Hello"</code>); a <dfn id="g-spy">spy</dfn> is a stub that also records how it was called; a <dfn id="g-mock">mock</dfn> is pre-programmed with expected calls and fails the test if they differ (<code>unittest.mock</code>, <code>pytest-mock</code>: <code>client.complete.assert_called_once_with(...)</code>); a <dfn id="g-fake">fake</dfn> is a small working implementation with shortcuts (an in-memory chat store, an HTTP handler that answers like a chat-completions API).</p>
-<div class="fig"><div class="ft">What a test proves depends on what stands behind the seam</div><div class="rd-svg" id="tq-dbl"></div>
-<p class="cap">The same chat-search handler tested three ways. Only the real engine catches the case-sensitivity bug in <a href="#s-int">section 5</a>; the fake catches it only if whoever wrote the fake knew PostgreSQL's rule; the mock catches nothing about results, because it checks that a call was made.</p></div>
+<ol class="sx" id="sx-dbl">
+<li><b>The seam.</b> <code>test_search_ignores_case</code> seeds three chats ("Trip planning for Lisbon" and "trip budget spreadsheet" for ada, "Trip ideas" for bob), searches "trip" for ada and expects [1, 2]. <code>search_chats</code> takes its connection as an argument: the seam where a test chooses what stands behind it.</li>
+<li><b>A mock of the connection.</b> It records the call, and the test asserts <code>assert_called_once_with(sql)</code>. That proves the handler made the call you expected and nothing about the results: the mock catches nothing about results, because it checks that a call was made, so it passes with the case bug.</li>
+<li><b>SQLite in memory, a stand-in.</b> Playing the fake's role, it returns [1, 2], because its <code>LIKE</code> ignores ASCII case: the test passes and the bug ships. A hand-written in-memory fake proves the results are right against your model of the store; it catches this bug only if whoever wrote the fake knew PostgreSQL's rule. Keep it honest with a contract test (below).</li>
+<li><b>Real PostgreSQL <span data-v="env.postgres"></span>.</b> Its <code>LIKE</code> is case-sensitive, so "Trip planning for Lisbon" is missed and <code>assert [2] == [1, 2]</code> fails. Only the real engine catches the case-sensitivity bug in <a href="#s-int">section 5</a>, where its measured cost is: <span data-v="integ.pg_ms"></span> ms a test plus <span data-v="calc.pgWarmMin"></span> s startup.</li>
+<li><b>The fix, on both.</b> <code>lower(title) LIKE lower(?)</code> returns [1, 2] on SQLite and on PostgreSQL: the test now pins the product's rule (ignore case) on the engine you ship.</li>
+</ol>
+
 <p><b>Prefer real, then fake, then mock.</b> Google's testing book: "A real implementation should be preferred over a test double. A fake is often the ideal solution if a real implementation can't be used" ({{Software Engineering at Google, ch. 13|https://abseil.io/resources/swe-book/html/ch13.html}}), and mocks sparingly. A test made of mocks restates the implementation, so it passes when the code is wrong and fails when the code is refactored correctly. {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}'s Review lab has a real example: a mock-only test that still passes with the function it claims to test broken.</p>
 <div class="two">
 <div><h4>Where a mock is the right tool</h4><p class="small">The interaction <i>is</i> the behaviour: "a payment is charged exactly once", "the alert is sent", "we never call the provider when the cache hits". Mock at the boundary you own (your <code>PaymentGateway</code> wrapper), not deep inside third-party libraries.</p></div>
 <div><h4>Where a mock lies</h4><p class="small">Mocking the database, then asserting the SQL string was passed. Mocking <code>requests.post</code> to return a dict that the real API never returns. Mocking a function in the same module you are testing. Each passes forever while production breaks.</p></div>
 </div>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-pact">
 <h3>Contract tests: keeping fakes honest</h3>
 <p>A fake drifts: the real service changes a field name and your fake does not. A <dfn id="g-contract">contract test</dfn> checks the agreement between two sides directly. In <b>consumer-driven contract testing</b> ({{Pact|https://docs.pact.io/}}, "a code-first consumer-driven contract testing tool"; pact-python 3.4.1, 2026-09-17), each side tests alone, yet a breaking change is caught before deploy:</p>
-<div class="fig"><div class="ft">Consumer-driven contracts: the consumer writes the expectations, the provider's CI replays them</div><div class="rd-svg" id="tq-pact"></div></div>
-<p><b>Cost and when not to:</b> it needs a place to share pacts (the Pact Broker or PactFlow) and buy-in from both teams. For a third-party API you do not control (a model provider), the provider will never run your pacts; use recorded responses and schema checks instead (<a href="#s-llm">section 7</a>), and an OpenAPI document as the contract when one exists ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}, section 3).</p>
-</section>
 
-<section id="s-int"><h2>5. Integration tests against the engine you ship</h2>
+<p><b>Cost and when not to:</b> it needs a place to share pacts (the Pact Broker or PactFlow) and buy-in from both teams. For a third-party API you do not control (a model provider), the provider will never run your pacts; use recorded responses and schema checks instead (<a href="#s-llm">section 7</a>), and an OpenAPI document as the contract when one exists ({{Service APIs|n:3c65c17b0d0d81cb88a3f1f63e85f27b}}, section 3).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="fig" style="margin:0"><div class="ft">Consumer-driven contracts: the consumer writes the expectations, the provider's CI replays them</div><div class="rd-svg" id="tq-pact"></div></div></div></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-int"><h2>5. Integration tests against the engine you ship</h2>
 <p>An <dfn id="g-integration">integration test</dfn> runs your code with a real dependency (the actual database engine, a real Redis, a real HTTP stack) and catches the bugs that live <i>between</i> components: SQL a different engine reads differently, a transaction that does not roll back, a type the driver converts. A common shortcut is SQLite in memory in tests while production runs PostgreSQL. What that shortcut cost, measured:</p>
 <div class="cvh"><span class="real">real</span> <code>experiments/integ/</code>: the same test against SQLite and PostgreSQL <span data-v="env.postgres"></span></div>
 <pre class="cv py">def search_chats(conn, owner, text):
@@ -27,8 +39,7 @@ def test_search_ignores_case(db, request):
     conn = request.getfixturevalue(db)
     seed(conn)   # "Trip planning for Lisbon", "trip budget spreadsheet" (ada); "Trip ideas" (bob)
     assert search_chats(conn, "ada", "trip") == [1, 2]</pre>
-<div class="fig"><div class="ft">Same query, same rows, two engines: PostgreSQL misses the capitalised title</div><div class="rd-svg" id="tq-int"></div>
-<p class="cap">Measured on 2026-10-04 (median of 50 runs each, <code>experiments/integ/test_timing.py</code>): per test, create a table, 3 inserts, 1 search. pytest's verdict: <code>FAILED test_search.py::test_search_ignores_case[pg_conn] - assert [2] == [1, 2]</code>.</p></div>
+
 <p>SQLite's <code>LIKE</code> ignores case for ASCII letters by default ({{SQLite docs|https://www.sqlite.org/lang_expr.html#like}}); PostgreSQL's <code>LIKE</code> is case-sensitive and offers <code>ILIKE</code> for the other behaviour ({{PostgreSQL docs|https://www.postgresql.org/docs/16/functions-matching.html#FUNCTIONS-LIKE}}). So the SQLite suite was green while production users searching "trip" never saw "Trip planning for Lisbon". The fix, <code>lower(title) LIKE lower(?)</code>, passes on both; at scale you would add a trigram index ({{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} owns that depth).</p>
 <div class="term" id="int-cost"></div>
 <p>The usual objection is speed: here a real PostgreSQL costs well under a second of startup per test run and a couple of milliseconds per test, so a suite of 500 such tests adds about a second. A little time for tests that use the engine you ship.</p>
@@ -39,4 +50,6 @@ def test_search_ignores_case(db, request):
 <tr><td>{{testcontainers-python|https://testcontainers-python.readthedocs.io/}}</td><td>Starts a throwaway Docker container per session: <code>with PostgresContainer("postgres:17") as pg:</code>. Also Kafka, Redis, MinIO, LocalStack.</td><td>Needs Docker; first pull is slow; seconds per start. Any image and version, so it can match production exactly.</td></tr>
 <tr><td>CI service containers</td><td>The CI system starts the database next to the job (<code>services:</code> in GitHub Actions, <a href="#s-ci">section 11</a>).</td><td>Only in CI; locally you still need one of the above.</td></tr>
 </tbody></table></div></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="fig" style="margin:0"><div class="ft">Same query, same rows, two engines: PostgreSQL misses the capitalised title</div><div class="rd-svg" id="tq-int"></div>
+<p class="cap">Measured on 2026-10-04 (median of 50 runs each, <code>experiments/integ/test_timing.py</code>): per test, create a table, 3 inserts, 1 search. pytest's verdict: <code>FAILED test_search.py::test_search_ignores_case[pg_conn] - assert [2] == [1, 2]</code>.</p></div></div></div></div></div>

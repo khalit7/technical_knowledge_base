@@ -107,7 +107,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work` Queues, streams and async work: delivery semantics, Kafka, the outbox pattern
 - [x] `engineering_foundations/topic_swe_and_system_design/reliability_engineering` Reliability engineering: timeouts, retries, circuit breakers, SLOs, incidents
 - [x] `engineering_foundations/topic_swe_and_system_design/system_design_case_studies` System design case studies: worked designs from requirements to bottlenecks
-- [ ] `engineering_foundations/topic_swe_and_system_design/testing_and_quality` Testing and quality: unit, property-based, data and model tests, CI
+- [x] `engineering_foundations/topic_swe_and_system_design/testing_and_quality` Testing and quality: unit, property-based, data and model tests, CI
 - [ ] `engineering_foundations/topic_swe_and_system_design` Topic: swe-and-system-design
 - [ ] `measurement/topic_benchmarks/agentic` Agentic benchmarks: GAIA, OSWorld, WebArena, tau2, Terminal-Bench, MCP evals
 - [ ] `measurement/topic_benchmarks/coding` Coding benchmarks: HumanEval to SWE-bench Pro
@@ -400,3 +400,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_swe_and_system_design/queues_streams_and_async_work`: outbox and delivery-semantics scenes small at 390, Fig. 4 bars show no values on phones; labels close at 1400 (work, then ack by workers in Fig. 1; crash before ack over a worker block); verify_layout flags the Queue lab svg outside a split (accepted: reader-driven tool).
 - `engineering_foundations/topic_swe_and_system_design/reliability_engineering`: Fig. 4 success line faint until its 3.2 s tween ends; phone stages carry one or two labels; Fig. 5 intro sentence awkward (the after design of section 8's before and after); verify_layout flags the Resilience lab svg outside a split (accepted: reader-driven tool).
 - `engineering_foundations/topic_swe_and_system_design/system_design_case_studies`: 5- and 6-lane stages draw small parts at full view (Figs. 5 and 7 cut lanes at the card edges at 1400); hero tight in the right column at 1400; phone stages name parts only in the naive step; check_stages takes about 4.5 min; 28 min of closed details is large.
+- `engineering_foundations/topic_swe_and_system_design/testing_and_quality`: Fig. 1 hero left label (search: [2] on PostgreSQL) runs to the card edge at 1400; section 5 two-engines figure overlaps Fig. 2 slightly (kept for measured cost per test); the property animation's Examples mode was dropped (section 3 still shows those tests).

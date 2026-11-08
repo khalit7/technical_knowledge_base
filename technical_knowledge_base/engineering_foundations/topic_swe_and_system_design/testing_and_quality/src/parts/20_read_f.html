@@ -1,7 +1,6 @@
-<section id="s-ml"><h2>8. Testing data and ML code</h2>
+<div class="s3sp"><div class="s3L"><section id="s-ml"><h2>8. Testing data and ML code</h2>
 <p>An ML system has three things to test, and they behave differently:</p>
-<div class="fig"><div class="ft">Code is checked exactly, data against a schema, the model statistically</div><div class="rd-svg" id="tq-ml3"></div>
-<p class="cap">Most "ML testing" failures come from testing only the code. Eugene Yan's {{How to Test Machine Learning Code and Systems|https://eugeneyan.com/writing/testing-ml/}} (2020) splits model tests into pre-train tests (shapes, the loss goes down, no label leakage) and post-train tests ("Post-train tests check if the learned logic is expected"); Google's {{ML Test Score|https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/}} (Breck et al., 2017) lists "28 specific tests and monitoring needs" across data, model development, infrastructure and monitoring, still the best checklist for production readiness.</p></div>
+
 
 <h3>Transforms are ordinary code: test them like it</h3>
 <p>The code between raw data and model input (cleaning, joining, feature computation, tokenisation, prompt assembly) is where most ML bugs live, and it is plain deterministic code. Use tiny literal fixtures (a few rows built inline, golden files for bigger cases); invariants, not only examples (row count preserved or changed by exactly the filtered rows, no NaN introduced, dtypes stable, keys unique, output values in the expected set); and the edge inputs production will send (an empty frame, one row, an all-null column, unicode, maximum-length strings, duplicate keys). Tokenisation and prompt assembly are transforms too: assert round trips where the tokenizer promises them, render templates with empty, huge and injection-shaped fields, and assert exact token counts on cost-critical paths.</p>
@@ -49,15 +48,19 @@ input_tokens            in_range(1, 128000)            0      1
   latency_ms                   not_nullable          NaN      1</div>
 <p>{{Great Expectations|https://docs.greatexpectations.io/docs/core/introduction/gx_overview}} (1.23.2) does the same at a larger scale: suites of "expectations" run against tables in warehouses, with generated HTML reports for the people who own the data. pandera is a library call inside your pipeline; Great Expectations is closer to a service. Tutorials written for its old 0.x API (such as the Made With ML lesson's <code>ge.dataset.PandasDataset</code>) no longer run on 1.x.</p></div></details>
 
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="fig" style="margin:0"><div class="ft">Code is checked exactly, data against a schema, the model statistically</div><div class="rd-svg" id="tq-ml3"></div>
+<p class="cap">Most "ML testing" failures come from testing only the code. Eugene Yan's {{How to Test Machine Learning Code and Systems|https://eugeneyan.com/writing/testing-ml/}} (2020) splits model tests into pre-train tests (shapes, the loss goes down, no label leakage) and post-train tests ("Post-train tests check if the learned logic is expected"); Google's {{ML Test Score|https://research.google/pubs/the-ml-test-score-a-rubric-for-ml-production-readiness-and-technical-debt-reduction/}} (Breck et al., 2017) lists "28 specific tests and monitoring needs" across data, model development, infrastructure and monitoring, still the best checklist for production readiness.</p></div></div></div></div></div>
+<section id="s-ml-seeds">
 <h3>Seeds and tolerances: deterministic enough to test</h3>
 <p>ML code is full of randomness (shuffles, initialisation, dropout, sampling). Pass a seeded generator in (<code>rng = np.random.default_rng(0)</code>) rather than using global state, and set seeds for <code>random</code>, NumPy and PyTorch in a fixture. Even then, exact equality on floats is the wrong check:</p>
 <div class="term" id="float-out"></div>
 <p>The same million <code>float32</code> numbers, summed forwards and backwards, give different answers, because floating-point addition is not associative. Parallel hardware sums in whatever order its threads finish, so GPU results can change between runs and versions: PyTorch states that "completely reproducible results are not guaranteed across PyTorch releases, individual commits, or different platforms", and offers <code>torch.use_deterministic_algorithms(True)</code> at some speed cost ({{PyTorch reproducibility notes|https://docs.pytorch.org/docs/stable/notes/randomness.html}}). So numeric tests assert with a tolerance chosen for the precision: <code>np.testing.assert_allclose(got, want, rtol=1e-5)</code> for float32, looser for bf16, and never <code>==</code>.</p>
 
-<h3>The training smoke test</h3>
+</section>
+<div class="s3sp"><div class="s3L"><section id="s-smoke"><h3>The training smoke test</h3>
 <p>Unit tests cannot see wiring bugs in a training loop: labels shuffled separately from inputs, the wrong tensor detached, a loss that is computed but never back-propagated. The cheapest catch is a <dfn id="g-smoke">smoke test</dfn>: train on ten examples for a few hundred steps and assert the model memorises them.</p>
-<div class="fig"><div class="ft">A correct loop memorises ten examples; a loop with shuffled labels cannot</div><div class="rd-svg" id="tq-smoke"></div>
-<p class="cap">Loss over 500 steps on 10 examples, a tiny NumPy logistic regression standing in for a real model (<code>experiments/mlt/smoke_out.json</code>). The test's threshold is 10% of the starting loss.</p></div>
+
 <details class="dp"><summary>The smoke test's code and output</summary><div class="b">
 <div class="cvh"><span class="real">real</span> <code>experiments/mlt/test_smoke.py</code></div>
 <pre class="cv py">def test_overfits_ten_examples():
@@ -71,6 +74,10 @@ def test_smoke_catches_shuffled_labels():
 </div></details>
 <p>With a real model, use the smallest configuration that exercises the code path (two layers, a tiny vocabulary, or a 0.5B-parameter checkpoint), on CPU if possible, in seconds. It runs on every pull request; the full training run never does.</p>
 
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="fig" style="margin:0"><div class="ft">A correct loop memorises ten examples; a loop with shuffled labels cannot</div><div class="rd-svg" id="tq-smoke"></div>
+<p class="cap">Loss over 500 steps on 10 examples, a tiny NumPy logistic regression standing in for a real model (<code>experiments/mlt/smoke_out.json</code>). The test's threshold is 10% of the starting loss.</p></div></div></div></div></div>
+<section id="s-ml-tail">
 <h3>Model behaviour: where tests end and evals begin</h3>
 <p>Behavioural test sets borrow unit-test ideas for models. CheckList ({{Ribeiro et al., ACL 2020|https://aclanthology.org/2020.acl-main.442.pdf}}) names three kinds: <b>minimum functionality</b> tests (simple cases the model must get right), <b>invariance</b> tests ("label-preserving perturbations": a paraphrase or a swapped name must not change the answer) and <b>directional</b> tests (adding "answer in French" must change the language). Because a model passes them statistically, they are scored with a threshold and per-slice results, versioned with the prompt, and wired in as a merge gate; that machinery is on {{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}}.</p>
 <details class="dp"><summary>Where test inputs come from <span class="mute">(literals, factories, generated, golden files, cassettes, sampled production data)</span></summary><div class="b">

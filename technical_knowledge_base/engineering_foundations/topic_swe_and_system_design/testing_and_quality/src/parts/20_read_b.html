@@ -1,16 +1,17 @@
-<section id="s-shape"><h2>2. Layers: what each catches, what it costs</h2>
+<div class="s3sp"><div class="s3L"><section id="s-shape"><h2>2. Layers: what each catches, what it costs</h2>
 <p>Tests are grouped by how much of the system one test runs: a <dfn id="g-unit">unit test</dfn> runs one function or class in one process, no network or disk (milliseconds); an <dfn id="g-int2">integration test</dfn> runs your code with a real dependency such as a database, queue or another module (milliseconds to seconds); an <dfn id="g-e2e">end-to-end test</dfn> drives the whole deployed system like a user (HTTP requests to the real API, a browser clicking the UI: seconds to minutes, and the flakiest); <dfn id="g-static">static checks</dfn> (mypy, pyright, ruff) read the code without running it. Because "unit" and "integration" mean different things to different teams, Google sorts tests by the resources they use instead: "small tests run in a single process, medium tests run on a single machine, and large tests run wherever they want" ({{Software Engineering at Google, ch. 11|https://abseil.io/resources/swe-book/html/ch11.html}}). The PostgreSQL tests on this page are medium: one machine, a local server.</p>
-<div class="card" id="lay-card">
+
+<p>The <dfn id="g-pyramid">test pyramid</dfn> (Mike Cohn, <i>Succeeding with Agile</i>, 2009; {{Fowler's summary|https://martinfowler.com/bliki/TestPyramid.html}}, 2012): many fast unit tests at the base, fewer integration tests, very few end-to-end tests. Google's testing blog suggested "a 70/20/10 split: 70% unit tests, 20% integration tests, and 10% end-to-end tests" as a first guess ({{Wacker, 2015|https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html}}). The <dfn id="g-trophy">testing trophy</dfn> (Kent C. Dodds, 2018; {{his 2021 write-up|https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications}}) puts static checks at the base and makes integration the widest layer, after Guillermo Rauch's line "Write tests. Not too many. Mostly integration." (2016).</p>
+<p><b>Which shape?</b> Both want most of the checking done by fast, reliable tests and few slow end-to-end ones. The pyramid fits code with a lot of logic of its own (a retry policy, a tokenizer, a pricing engine); the trophy fits code that is mostly wiring between other systems (a web front end, a thin API over a database), where a unit test with everything mocked checks little. ML systems add a band on top, <b>evals</b>, which score a model or prompt on a set of cases against a threshold; they are statistical, slow and costly, so they run on merge or nightly ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} owns them).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="lay-card">
 <div class="ft" style="font-weight:600;font-size:14px">Pyramid and trophy agree on the top; they differ on how wide the middle is</div>
 <div class="rd-svg" id="tq-lay"></div>
 <p class="cap">Band widths are the shapes' proportions, not measurements. Click a band for what that layer catches, misses and costs on this page.</p>
 <div class="detail" id="lay-detail"></div>
-</div>
-<p>The <dfn id="g-pyramid">test pyramid</dfn> (Mike Cohn, <i>Succeeding with Agile</i>, 2009; {{Fowler's summary|https://martinfowler.com/bliki/TestPyramid.html}}, 2012): many fast unit tests at the base, fewer integration tests, very few end-to-end tests. Google's testing blog suggested "a 70/20/10 split: 70% unit tests, 20% integration tests, and 10% end-to-end tests" as a first guess ({{Wacker, 2015|https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html}}). The <dfn id="g-trophy">testing trophy</dfn> (Kent C. Dodds, 2018; {{his 2021 write-up|https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications}}) puts static checks at the base and makes integration the widest layer, after Guillermo Rauch's line "Write tests. Not too many. Mostly integration." (2016).</p>
-<p><b>Which shape?</b> Both want most of the checking done by fast, reliable tests and few slow end-to-end ones. The pyramid fits code with a lot of logic of its own (a retry policy, a tokenizer, a pricing engine); the trophy fits code that is mostly wiring between other systems (a web front end, a thin API over a database), where a unit test with everything mocked checks little. ML systems add a band on top, <b>evals</b>, which score a model or prompt on a set of cases against a threshold; they are statistical, slow and costly, so they run on merge or nightly ({{Production eval engineering|n:3c65c17b0d0d81b39ad9e96193d21adc}} owns them).</p>
-</section>
+</div></div></div></div>
 
-<section id="s-unit"><h2>3. Unit tests that survive refactoring</h2>
+<div class="s3sp"><div class="s3L"><section id="s-unit"><h2>3. Unit tests that survive refactoring</h2>
 <p>The first piece of the chat product under test is the <b>chunker</b>: before a document can be searched by meaning (retrieval, the R in RAG), it is cut into overlapping windows of text, each embedded separately. The function and three ordinary pytest tests:</p>
 <div class="cvh"><span class="real">real</span> <code>experiments/hyp/chunking.py</code></div>
 <pre class="cv py">def chunk(text: str, size: int, overlap: int) -&gt; list[str]:
@@ -44,8 +45,7 @@ def test_round_trip():
 
 <h3>Test behaviour, not implementation</h3>
 <p>The most useful idea in test design: a test checks <b>what</b> the code promises (its outputs, its errors, its effects others can see), not <b>how</b> it does it. Google's testing book puts the goal as tests that are "unchanging": they only need to change when the requirements change ({{Software Engineering at Google, ch. 12|https://abseil.io/resources/swe-book/html/ch12.html}}). The figure is why: the two kinds of test answer two kinds of change in opposite ways.</p>
-<div class="fig"><div class="ft">A test tied to the how fails on a correct refactor and passes a real bug</div><div class="rd-svg" id="tq-beh"></div>
-<p class="cap">The retry policy's <code>backoff_delay(attempt)</code> returns 0.5 s doubled per attempt, capped at 8. The real bug is mutant <code>backoff_delay #2</code> from <a href="#s-mut">section 10</a> (cap 8 changed to 9), which survived the weak suite. The brittle test is illustrative (<code>mocker</code> comes from pytest-mock).</p></div>
+
 <div class="cmp">
 <div><h4><span class="lbl b">brittle</span> tests the implementation</h4>
 <pre class="cv py">def test_backoff_uses_min(mocker):
@@ -130,4 +130,6 @@ markers = [
   "gpu: needs a GPU runner",
 ]</pre>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="fig" style="margin:0"><div class="ft">A test tied to the how fails on a correct refactor and passes a real bug</div><div class="rd-svg" id="tq-beh"></div>
+<p class="cap">The retry policy's <code>backoff_delay(attempt)</code> returns 0.5 s doubled per attempt, capped at 8. The real bug is mutant <code>backoff_delay #2</code> from <a href="#s-mut">section 10</a> (cap 8 changed to 9), which survived the weak suite. The brittle test is illustrative (<code>mocker</code> comes from pytest-mock).</p></div></div></div></div></div>

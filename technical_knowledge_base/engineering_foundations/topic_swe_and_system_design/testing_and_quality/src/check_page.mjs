@@ -11,10 +11,11 @@ const browser = await puppeteer.launch({ headless: 'shell', args: ['--no-sandbox
 const problems = []; let actions = 0;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-// autoplay check: with normal motion, nothing may move in 2 s without the reader
+// autoplay (2026-11-06 rule): with normal motion the property stage plays by itself once scrolled into view (check_stages.mjs checks every stage,
+// and that nothing moves under reduced motion, which every pass below emulates)
 { const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + path.join(base, 'index.html'));
-  await p.evaluate(() => document.getElementById('pb-card').scrollIntoView()); await sleep(2500);
-  const v = await p.$eval('#pb-ctl-s', s => s.value); if (v !== '0') problems.push('property animation moved by itself: step ' + v); await p.close() }
+  await p.evaluate(() => document.getElementById('stg-prop').scrollIntoView({ block: 'center' })); await sleep(2500);
+  const f = await p.$eval('#stg-prop', s => +s.dataset.frames || 0); if (!(f > 0)) problems.push('property stage did not play when scrolled into view'); await p.close() }
 for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const p = await browser.newPage();
   await p.setViewport({ width: w, height: 900 });
@@ -27,7 +28,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const check = async label => {
     actions++;
     const r = await p.evaluate(() => {
-      const t = [...document.querySelectorAll('.stat, .term:not(.lit), td, #pb-wrap, #ml-why, .mrow, #lay-detail, [data-v]')].map(x => x.innerText).join(' ');
+      const t = [...document.querySelectorAll('.stat, .term:not(.lit), td, #ml-why, .mrow, #lay-detail, [data-v]')].map(x => x.innerText).join(' ');
       const all = [...document.querySelectorAll('.tab')].map(x => x.innerText).join(' ');
       const wide = [...document.querySelectorAll('.tab:not([hidden]) *')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.right > innerWidth + 1 && !e.closest('.cv,.term,.tw,.src,.nav,.tabs,pre') }).map(e => e.tagName + '.' + e.className).slice(0, 3);
       return { bad: /\bNaN\b|Infinity/.test(t) || /undefined/.test(all), q: [...document.querySelectorAll('[data-v]')].filter(e => e.textContent === '?').map(e => e.dataset.v), side: document.documentElement.scrollWidth > innerWidth, wide, err: document.getElementById('jsErr').hidden === false ? document.getElementById('jsErr').textContent : '' };
@@ -53,16 +54,13 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const html = fs.readFileSync(path.join(base, 'index.html'), 'utf8');
   for (const s of ['killed only ' + ref.mutWeak + ' of ' + ref.mutN, (ref.mutN - ref.mutWeak) + ' of ' + ref.mutN + ' planted bugs', ref.mutWeak + ': about seven in ten', ref.mutWeakCrash + ' of the ' + ref.mutWeak + ' kills'])
     if (w === 390 && !html.includes(s) && !(await p.evaluate(s => document.body.innerText.includes(s), s))) problems.push('prose number missing: ' + s);
-  // property animation: every mode, every step
-  for (const m of ['ex', 'pb', 'fx']) {
-    await p.evaluate(m => document.querySelector('#pb-mode button[data-m="' + m + '"]').click(), m); await sleep(50);
-    const n = await p.$eval('#pb-ctl-s', s => +s.max + 1);
-    for (let i = 0; i < n; i++) { await p.evaluate(i => { const s = document.getElementById('pb-ctl-s'); s.value = i; s.dispatchEvent(new Event('input')) }, i); if (i % 5 === 0 || i === n - 1) await check('pb ' + m + ' ' + i) }
-    if (m === 'pb') { const f = await p.$$eval('#pb-strip span.f', a => a.length); if (f !== 14) problems.push(w + ' pb failures at end ' + f) }
-    await shot('#pb-card', 'pb-' + m);
+  // property stage: both modes, every step from its list
+  for (const m of ['bug', 'fix']) {
+    await p.evaluate(m => document.querySelector('#prop-mode button[data-m="' + m + '"]').click(), m); await sleep(50);
+    const lid = m === 'bug' ? 'sx-prop' : 'sx-prop-fix', n = await p.$eval('#' + lid, l => l.children.length);
+    for (let i = 0; i < n; i++) { await p.evaluate((lid, i) => document.getElementById(lid).children[i].click(), lid, i); await check('prop ' + m + ' ' + i) }
+    await shot('#stg-prop', 'prop-' + m);
   }
-  for (const id of ['pb-ctl-b', 'pb-ctl-f', 'pb-ctl-p', 'pb-ctl-p']) { await p.evaluate(i => document.getElementById(i).click(), id); await sleep(40); await check(id) }
-  await p.select('#pb-ctl-v', '2'); await check('speed');
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await check('details open');
   await shot('#fl-card', 'flaky'); await shot('#s-mut', 'mut-section');
   await clickAll('#rd-nav a');
