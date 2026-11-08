@@ -86,7 +86,7 @@ NM.budget=(function(){
   function lay(list){let t=0,qEnd=0;const out=[];list.forEach(s=>{if(s.lane==='bg')return;out.push(Object.assign({t0:t},s));t+=s.v;if(s.c==='q')qEnd=t});
     let b=qEnd;list.filter(s=>s.lane==='bg').forEach(s=>{out.push(Object.assign({t0:b},s));b+=s.v});return {segs:out,total:t,end:Math.max(t,b)}}
   const steps=()=>1+sc.before.length+sc.after.length+1;
-  function draw(i){if(!sc)return;const el=$('nm-bud-svg');const w=Math.round(W(el));const B=lay(sc.before),A=lay(sc.after);
+  function draw(i){if(!sc)return;mark(i);const el=$('nm-bud-svg');const w=Math.round(W(el));const B=lay(sc.before),A=lay(sc.after);
     const nb=sc.before.length,na=sc.after.length;const showB=Math.max(0,Math.min(nb,i)),showA=Math.max(0,Math.min(na,i-nb));
     const hasBg=sc.after.some(s=>s.lane==='bg');const L=w<520?0:64,pad=8,max=Math.max(B.end,A.end)*1.04;const X=t=>L+(t/max)*(w-L-pad);
     const rows=[['Before',B.segs.filter(s=>s.lane!=='bg'),showB,0],['After',A.segs.filter(s=>s.lane!=='bg'),showA,0]];
@@ -104,7 +104,7 @@ NM.budget=(function(){
       y+=rh});
     el.innerHTML='<svg viewBox="0 0 '+w+' '+(rows.length*rh+26)+'" width="'+w+'" height="'+(rows.length*rh+26)+'" role="img" aria-label="Time budget of one request before and after: '+esc(sc.n)+'">'+s+'</svg>';
     // caption
-    let cap;if(i===0)cap='Press play, or step through: each bar is one piece of the wait, first before the change, then after it.';
+    let cap;if(i===0)cap='Each bar is one piece of the wait, first before the change, then after it.';
     else if(i<=nb){const g=sc.before[i-1];cap='<b>Before, step '+i+' of '+nb+': '+esc(g.lab)+'</b> ('+sig(g.v)+' ms, '+CLN[g.c]+(g.ill?', illustrative':'')+'). '+esc(g.note||'')}
     else if(i<=nb+na){const g=sc.after[i-nb-1];cap='<b>After, step '+(i-nb)+' of '+na+': '+esc(g.lab)+'</b> ('+sig(g.v)+' ms, '+CLN[g.c]+(g.ill?', illustrative':'')+(g.lane==='bg'?', not waited for by the user':'')+'). '+esc(g.note||'')}
     else cap='<b>Result.</b> The user waited '+sig(B.total)+' ms before and '+sig(A.total)+' ms after: '+Math.round((1-A.total/B.total)*100)+'% less. '+esc(sc.lesson);
@@ -115,11 +115,22 @@ NM.budget=(function(){
       NM_stat('Saved',done?sig(B.total-A.total)+' ms':'...',done?Math.round((1-A.total/B.total)*100)+'% of the wait':'after both are drawn');
     $('nm-bud-card').dataset.totals=JSON.stringify({id:sc.id,before:+B.total.toFixed(2),after:+A.total.toFixed(2)})}
   function NM_stat(k,v,d){return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>'}
-  function setSc(id){sc=NUM_DATA.budget.find(b=>b.id===id);$('nm-bud-q').innerHTML='<b>'+esc(sc.n)+'.</b> '+esc(sc.q);$('nm-bud-lesson').innerHTML='<b>Key colours:</b> '+Object.keys(COL).map(c=>'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+COL[c]+';margin:0 3px 0 6px"></span>'+CLN[c]).join('')+'. Dashed outline: illustrative time for your own code.';
+  // the step list on the left (sx-bud) explains the replay in four stretches (rollout rule 3a): the request, the bars before, the bars after, the result;
+  // grp(i) maps a frame to its item; the live caption under the chart keeps each bar's own note
+  const grp=i=>{const nb=sc.before.length,na=sc.after.length;return i===0?0:i<=nb?1:i<=nb+na?2:3};
+  const first=j=>[0,1,1+sc.before.length,1+sc.before.length+sc.after.length][j];
+  function fillList(){const B=lay(sc.before),A=lay(sc.after),bars=l=>l.map(g=>esc(g.lab)+' '+sig(g.v)+' ms'+(g.lane==='bg'?' (after the reply)':'')).join('; ');
+    const L=$('sx-bud');L.innerHTML='<li><b>'+esc(sc.n)+'.</b> '+esc(sc.q)+'</li>'+
+      '<li><b>Before: '+sc.before.length+' pieces, '+sig(B.total)+' ms.</b> '+bars(sc.before)+'.</li>'+
+      '<li><b>After: '+sc.after.length+' pieces, '+sig(A.total)+' ms for the user.</b> '+bars(sc.after)+'.</li>'+
+      '<li><b>Result: '+Math.round((1-A.total/B.total)*100)+'% less waiting.</b> '+esc(sc.lesson)+'</li>';
+    [...L.children].forEach((li,j)=>{li.tabIndex=0;li.setAttribute('role','button');const go=()=>an&&an.go(first(j));li.onclick=go;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}})}
+  function mark(i){const g=grp(i);[...$('sx-bud').children].forEach((li,j)=>{li.classList.toggle('on',j===g);li.classList.toggle('done',j<g);if(j===g)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')})}
+  function setSc(id){sc=NUM_DATA.budget.find(b=>b.id===id);fillList();$('nm-bud-lesson').innerHTML='<b>Key colours:</b> '+Object.keys(COL).map(c=>'<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+COL[c]+';margin:0 3px 0 6px"></span>'+CLN[c]).join('')+'. Dashed outline: illustrative time for your own code.';
     if(an){an.reset(steps());draw(0)}}
   function init(){sc=NUM_DATA.budget[0];setSc(sc.id);
     an=RD.anim({card:'nm-bud-card',ctl:'nm-bud-ctl',n:steps(),draw:i=>draw(i),ms:1500,label:'Animation step'});
-    NM.seg($('nm-bud-sc'),m=>{setSc(m);an.play()})}
+    NM.seg($('nm-bud-sc'),m=>setSc(m))}
   return {init,redraw:()=>an&&an.redraw(),lay};
 })();
 

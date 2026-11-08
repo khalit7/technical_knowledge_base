@@ -54,8 +54,6 @@
 #t-cases .cf-an svg{display:block;max-width:100%}
 #t-cases .cf-an .an-ctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 2px}
 #t-cases .cf-an .an-ctl input[type=range]{flex:1 1 120px;min-width:100px;width:auto}
-#t-cases .cf-cap{font-size:13.5px;min-height:5.2em;margin:8px 0 4px}
-#t-cases .cf-cap .tm{font-weight:600}
 #t-cases .cf-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:6px;margin:6px 0}
 #t-cases .cf-stats .stat{border:1px solid var(--line);border-radius:8px;padding:5px 8px;min-width:0}
 #t-cases .cf-stats .stat .k{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
@@ -67,17 +65,33 @@
 <p class="cf-intro">The Reading tab builds an imaginary chat product from one server to ten million users. This tab is the evidence that the same problems hit real companies: <b id="cf-n-all">33</b> published architectures and outages, each read from the company's own write-up (engineering blog, official postmortem, regulator's order), each mapped to the building block it teaches. A <b>postmortem</b> is the report a team writes after an outage: what broke, why, and what it changed; good ones are blameless, about systems rather than people.</p>
 <p class="small mute">How to read a card: <b>the system</b> (what it was), <b>what happened</b> in plain words, <b>what they changed</b>, the <b>lesson</b> in one line, the numbers the source gives (each tied to a quote, or derived with its formula shown), and the source's own words under "Quotes from the source". Where a source prints an em-dash, this page shows "--". Sources read on 4 October 2026.</p>
 
-<h3 class="cf-sec">Watch one outage, step by step: AWS, 20 October 2025</h3>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="cf-an" id="cf-an">
-<p class="small" style="margin-top:0">On 20 October 2025 EC2 could not start new virtual machines for hours after its database came back (the <a href="#cf-c-aws-2025-dwfm" class="cf-jump">card</a>). Three words first. A <b>lease</b> is a claim on a server that expires unless it is renewed. A <b>queue</b> is a waiting line of work. A <b>timeout</b> is how long work may take before it is abandoned. Below, every square in the top row is one physical server (AWS calls them droplets); each needs a lease before it can host new machines. <b>Before</b> replays the mechanism AWS describes; <b>After</b> replays the fix it shipped that morning.</p>
 <div class="cf-seg cf-modes" id="cf-an-mode"><button data-m="before" class="on">Before: no limit on the line (2:25 AM)</button><button data-m="after">After: throttle and restart (4:14 AM)</button></div>
 <div class="cf-leg" style="margin:0 0 6px"><span><i class="sq" style="background:var(--good)"></i>has a lease</span><span><i class="sq" style="background:var(--acc)"></i>attempt waiting in line</span><span><i class="sq" style="background:var(--bad)"></i>in line, will time out before served</span><span><i class="sq" style="background:var(--dim)"></i>waits outside the line</span><span><i class="sq" style="background:transparent;box-shadow:inset 0 0 0 2px var(--bad)"></i>attempt just timed out</span></div>
 <div id="cf-an-svg"></div>
 <div class="cf-stats" id="cf-an-stats"></div>
-<div class="cf-cap" id="cf-an-cap"></div>
 <div class="an-ctl" id="cf-an-ctl"></div>
-<p class="small mute">Illustrative model, not AWS's numbers: 48 servers, a worker that finishes 4 lease attempts per tick, and a timeout of 3 ticks, so at most 12 attempts can be waiting and still finish in time. AWS publishes the mechanism and the times, not its internal sizes. What the model shares with the postmortem: attempts that wait too long time out, each timeout queues a new attempt, the line stops shrinking, and the fix is to let in only as much work as can finish (AWS's planned fix rate-limits incoming work "based on the size of the waiting queue"). Checked against <code>src/cases/recompute.py</code>.</p>
 </div>
+</div></div><div class="s3L">
+<h3 class="cf-sec">Watch one outage, step by step: AWS, 20 October 2025</h3>
+<p class="small">On 20 October 2025 EC2 could not start new virtual machines for hours after its database came back (the <a href="#cf-c-aws-2025-dwfm" class="cf-jump">card</a>). Three words first. A <b>lease</b> is a claim on a server that expires unless it is renewed. A <b>queue</b> is a waiting line of work. A <b>timeout</b> is how long work may take before it is abandoned. Below, every square in the top row is one physical server (AWS calls them droplets); each needs a lease before it can host new machines. <b>Before</b> replays the mechanism AWS describes; <b>After</b> replays the fix it shipped that morning.</p>
+<ol class="sx" id="sx-cf-before">
+<li><b>2:25 AM, DynamoDB is back: 48 attempts join the line.</b> While it was down the servers&rsquo; leases timed out, so all 48 now ask the lease manager (DWFM) at once. The worker finishes 4 per tick; an attempt that has waited 3 ticks or more when it reaches the front has timed out. Red squares in the line are already doomed.</li>
+<li><b>Ticks 1 to 3: the front of the line succeeds.</b> The 4 attempts at the front each tick waited less than 3 ticks, so they succeed: 12 of 48 servers now have a lease.</li>
+<li><b>Tick 4: the first timeouts.</b> The next 4 attempts waited 3 ticks: timed out. The work was done but wasted, and each timeout puts a new attempt at the back of the line. AWS: &ldquo;Additional work was queued to reattempt establishing the droplet lease.&rdquo;</li>
+<li><b>Ticks 5 to 12: doomed on arrival.</b> Every attempt behind 12th place was doomed the moment it joined: 12 places at 4 per tick is 3 ticks of waiting. Each one times out and rejoins, so the line stays at 36.</li>
+<li><b>Ticks 13 to 15: congestive collapse.</b> The retries reach the front, but they have waited 9 to 11 ticks. All time out and rejoin. The worker is fully busy and makes no progress, which AWS calls &ldquo;congestive collapse&rdquo;.</li>
+<li><b>After 16 ticks: 64 attempts finished, 52 of them wasted.</b> Still only 12 of 48 servers are leased; EC2 told customers &ldquo;insufficient capacity errors&rdquo;. Waiting longer would not help, and more retries only add to the line: the line itself is the problem. Switch to <b>After</b>.</li>
+</ol>
+<ol class="sx" id="sx-cf-after" hidden>
+<li><b>4:14 AM: where Before ended.</b> 12 servers leased and 36 attempts stuck in a line that never shrinks.</li>
+<li><b>Restart.</b> AWS: &ldquo;Restarting the DWFM hosts cleared out the DWFM queues&rdquo;. The 36 servers still need leases, but now they wait outside the line, where no timeout is running (grey).</li>
+<li><b>Ticks 1 to 8 after the restart: the throttle.</b> Work is let in only while fewer than 12 attempts are waiting, the most that can finish before the timeout. Every attempt the worker finishes succeeds: 4 more leases a tick, from 16 to 44 of 48.</li>
+<li><b>All 48 leased, 9 ticks after the restart.</b> In the real event, 5:28 AM: &ldquo;DWFM had established leases with all droplets&rdquo;. Same worker, same timeout: capping the line turned zero progress into 4 leases per tick. AWS will now rate limit incoming work by the size of the waiting queue.</li>
+</ol>
+<p class="small mute">Illustrative model, not AWS's numbers: 48 servers, a worker that finishes 4 lease attempts per tick, and a timeout of 3 ticks, so at most 12 attempts can be waiting and still finish in time. AWS publishes the mechanism and the times, not its internal sizes. What the model shares with the postmortem: attempts that wait too long time out, each timeout queues a new attempt, the line stops shrinking, and the fix is to let in only as much work as can finish (AWS's planned fix rate-limits incoming work "based on the size of the waiting queue"). Checked against <code>src/cases/recompute.py</code>.</p>
+</div></div>
 
 <h3 class="cf-sec">All cases</h3>
 <div class="cf-row"><label>Building block</label></div>

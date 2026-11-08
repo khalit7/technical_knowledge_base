@@ -38,22 +38,9 @@
   window.CF_SIM={N,C,T,L,before:B.map(s=>({t:s.t,leased:s.leased,queue:s.queue,wasted:s.wastedTot,done:s.done,outside:s.outside})),
     after:A.map(s=>({t:s.t,leased:s.leased,queue:s.queue,wasted:s.wastedTot,done:s.done,outside:s.outside}))};
 
-  const q2=s=>'“'+s+'”';
-  function capBefore(i,s){
-    if(i===0)return '<span class="tm">2:25 AM, DynamoDB is back.</span> While it was down the servers’ leases timed out, so all 48 now ask the lease manager (DWFM) at once: 48 attempts join the line. The worker finishes 4 per tick. An attempt that has waited 3 ticks or more when it reaches the front has timed out. Red squares in the line are already doomed.';
-    if(i<=3)return '<span class="tm">Tick '+i+'.</span> The 4 attempts at the front waited less than 3 ticks, so they succeed: '+s.leased+' of 48 servers now have a lease.';
-    if(i===4)return '<span class="tm">Tick 4.</span> The next 4 attempts waited 3 ticks: timed out. The work was done but wasted, and each timeout puts a new attempt at the back of the line. AWS: '+q2('Additional work was queued to reattempt establishing the droplet lease.');
-    if(i<13)return '<span class="tm">Tick '+i+'.</span> Every attempt behind 12th place was doomed the moment it joined: 12 places at 4 per tick is 3 ticks of waiting. Each one times out and rejoins. The line stays at '+s.queue+'.';
-    if(i<B.length-1)return '<span class="tm">Tick '+i+'.</span> The retries reach the front, but they have waited '+(i-4)+' ticks. All time out and rejoin. The worker is fully busy and makes no progress, which AWS calls '+q2('congestive collapse')+'.';
-    return '<span class="tm">After 16 ticks:</span> '+s.done+' attempts finished, '+s.wastedTot+' of them wasted, and still only '+s.leased+' of 48 servers leased. EC2 told customers '+q2('insufficient capacity errors')+'. Waiting longer would not help, and more retries only add to the line: the line itself is the problem. Switch to <b>After</b>.';
-  }
-  function capAfter(i,s){
-    if(i===0)return '<span class="tm">4:14 AM.</span> The state Before ended in: 12 servers leased and 36 attempts stuck in a line that never shrinks.';
-    if(i===1)return '<span class="tm">Restart.</span> AWS: '+q2('Restarting the DWFM hosts cleared out the DWFM queues')+'. The 36 servers still need leases, but now they wait outside the line, where no timeout is running (grey).';
-    if(i<A.length-1)return '<span class="tm">Tick '+(i-1)+' after the restart.</span> The throttle lets work in only while fewer than 12 attempts are waiting, the most that can finish before the timeout. Every attempt the worker finishes succeeds: '+s.leased+' of 48 leased, '+s.outside+' still waiting outside.';
-    return '<span class="tm">All 48 leased, '+(i-1)+' ticks after the restart</span> (in the real event, 5:28 AM: '+q2('DWFM had established leases with all droplets')+'). Same worker, same timeout: capping the line turned zero progress into 4 leases per tick. AWS will now rate limit incoming work by the size of the waiting queue.';
-  }
-
+  // the step lists on the left (sx-cf-before, sx-cf-after) explain the replay in stretches (rollout rule 3a): G maps each frame to its item
+  const G={before:[0,1,1,1,2,3,3,3,3,3,3,3,3,4,4,4,5],after:[0,1,2,2,2,2,2,2,2,2,3]};
+  window.CF_GROUPS=G;
   let mode='before';
   const seq=()=>mode==='before'?B:A;
   function draw(i){
@@ -94,10 +81,13 @@
       RD.stat('In line',s.queue,'attempts waiting')+
       RD.stat('Wasted',s.wastedTot,'attempts that timed out')+
       RD.stat('Work done',s.done,'attempts the worker finished');
-    document.getElementById('cf-an-cap').innerHTML=(mode==='before'?capBefore:capAfter)(i,s);
+    const LS=document.getElementById('sx-cf-'+mode),g=G[mode][i];[...LS.children].forEach((li,j)=>{li.classList.toggle('on',j===g);li.classList.toggle('done',j<g);if(j===g)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
   }
   const an=RD.anim({card:'cf-an',ctl:'cf-an-ctl',n:B.length,draw:draw,ms:1500,label:'Animation step'});
-  RD.seg(document.getElementById('cf-an-mode'),m=>{mode=m;an.reset(seq().length);an.play()});
+  // a click on an item jumps to the first frame of its stretch (and, like any control, stops the autoplay)
+  ['before','after'].forEach(m=>[...document.getElementById('sx-cf-'+m).children].forEach((li,j)=>{li.tabIndex=0;li.setAttribute('role','button');
+    const go=()=>an.go(G[m].indexOf(j));li.onclick=go;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}}));
+  RD.seg(document.getElementById('cf-an-mode'),m=>{mode=m;['before','after'].forEach(x=>{document.getElementById('sx-cf-'+x).hidden=x!==m});an.reset(seq().length)});
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-cases']=window.TAB_RENDER['t-cases']||[]).push(()=>an.redraw());
   let rt=0;addEventListener('resize',()=>{const r=document.getElementById('t-cases');if(!r||r.hidden)return;clearTimeout(rt);rt=setTimeout(()=>an.redraw(),80)});
 })();

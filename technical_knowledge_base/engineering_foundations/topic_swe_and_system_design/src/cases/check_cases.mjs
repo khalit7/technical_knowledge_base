@@ -1,7 +1,7 @@
 // Exercise every control of the Case files tab at 390 px dark and 920 px light.
 // Fails on page errors, NaN/undefined in the tab, sideways scroll, or a mismatch between the animation's
 // JavaScript model and recompute_out.json. Screenshots go to ../../.shots/cases_*.png (page folder, not committed).
-// Run: node src/cases/check_cases.mjs   (from the page folder)
+// Run: node src/cases/check_cases.mjs   (from the page folder). Autoplay and reduced motion of the animation: ../check_stages.mjs
 import { createRequire } from 'module';
 import path from 'path';
 import fs from 'fs';
@@ -58,6 +58,10 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     await p.click('#cf-an-ctl-p'); await p.click('#cf-an-ctl-p'); // play, pause
     for (let i = 0; i < n + 1; i++) await p.click('#cf-an-ctl-f');
     await check(`anim ${m} end`);
+    // the step list on the left: one item per stretch (window.CF_GROUPS maps frames to items), the last one marked at the end
+    { const G = await p.evaluate(m => window.CF_GROUPS[m], m), lis = await p.$eval('#sx-cf-' + m, e => e.hidden ? -1 : e.children.length);
+      if (G.length !== n || Math.max(...G) + 1 !== lis) bad(`${w} ${m}: ${n} frames, ${G.length} mapped, ${lis} items shown`);
+      const on = await p.$eval('#sx-cf-' + m, e => [...e.children].findIndex(li => li.classList.contains('on'))); if (on !== lis - 1) bad(`${w} ${m}: list marks ${on} at the end`); }
     const el = await p.$('#cf-an'); await el.screenshot({ path: path.join(shots, `cases_${w}_anim_${m}.png`) });
     for (let i = 0; i < 3; i++) await p.click('#cf-an-ctl-b');
     await p.evaluate(() => { const s = document.getElementById('cf-an-ctl-s'); s.value = 2; s.dispatchEvent(new Event('input')); });
@@ -90,7 +94,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.evaluate(() => document.querySelectorAll('#cf-cards details').forEach(d => d.open = true));
   await check('quotes open');
   await p.click('#cf-reset');
-  await p.evaluate(() => document.querySelector('#cf-an a.cf-jump').click());
+  await p.evaluate(() => document.querySelector('#t-cases .s3sp a.cf-jump').click());
   await p.evaluate(() => document.querySelector('#cf-def a[data-tab]') && 0);
   await check('jump');
   await p.evaluate(() => document.querySelectorAll('#cf-cards details').forEach(d => d.open = false));

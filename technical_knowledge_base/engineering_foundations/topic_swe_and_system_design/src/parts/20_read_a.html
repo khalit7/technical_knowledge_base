@@ -1,13 +1,23 @@
-
+<div class="s3sp"><div class="s3R"><div id="stg-map"></div></div><div class="s3L">
 <section id="rd-one">
 <h2>The idea in one screen</h2>
 <p class="lead"><b>A production service is one request path through a few layers (servers, data, slow work, failure handling, the model), and every building block on that path fixes one bottleneck at a price you can name; add it only when its bottleneck has arrived.</b></p>
-<p>System design is the craft of keeping a product fast, correct and affordable as more people use it. <b>The running example.</b> A chat assistant powered by a large language model (LLM): people sign in, chat, upload documents and come back to their history. It starts on one machine with one user and grows to ten million registered users. Every child page of this topic uses the same product, so its numbers line up from page to page. The six steps below are the order in which its walls arrive; each names the building block that fixes it, what that block costs, and the child page that owns it.</p>
-<div class="two">
-<div><h4>1 user: everything on one machine</h4><div class="rd-svg" id="rd-one-a"></div></div>
-<div><h4>10 million users: each box has an owner</h4><div class="rd-svg" id="rd-one-b"></div></div>
-</div>
-<p class="small mute">The number on each box is the step that introduces it; the last line names the page that owns it. A cache makes reads fast and data slightly stale; a queue makes requests fast and results late; a retry rescues one request and can sink the whole system: every box on the right is a fix with a price.</p>
+<p>System design is the craft of keeping a product fast, correct and affordable as more people use it. <b>The running example.</b> A chat assistant powered by a large language model (LLM): people sign in, chat, upload documents and come back to their history. It starts on one machine with one user and grows to ten million registered users. Every child page of this topic uses the same product, so its numbers line up from page to page. Fig. 1 grows it one wall at a time, in the order the walls arrive: the part that breaks turns red, the building block that fixes it arrives green and names the child page that owns it, and the dots are requests on the paths they take.</p>
+<p class="sxh">Fig. 1 · The product grown wall by wall, each fix with its owner</p>
+<ol class="sx" id="sx-map">
+<li><b>1 user: everything on one machine.</b> App code, database and a call to a model API share one server, and requests are a trickle. Nothing is wrong yet, so nothing is added yet.</li>
+<li><b>Step 1: too many requests for one server.</b> 600 a second arrive at a server that answers 400 (illustrative), and the line grows without bound. The fix: a load balancer in front of stateless servers, with the state moved into one shared database. Owners: {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} and {{Building a backend API|n:3c65c17b0d0d8190ade6c34e8f653e79}}.</li>
+<li><b>Step 2: the database becomes the bottleneck.</b> 1,000 reads a second against about 600 answered (illustrative). The fix: a cache that answers nine reads in ten, then read replicas. Owners: {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}} and {{Distributed systems fundamentals|n:3c65c17b0d0d8115bc45c31d915b4d33}}.</li>
+<li><b>Step 3: slow work leaves the request path.</b> Uploads take tens of seconds and hold the server&rsquo;s few slots, so chat messages wait behind them. The fix: a queue and workers, the request answered <code>202 Accepted</code> at once. Owner: {{Queues, streams and async work|n:3ef5c17b0d0d81aebf91df927f215b6e}}.</li>
+<li><b>Step 4: things fail, and the fixes can make it worse.</b> 1 call in 100 to the model provider hangs for a minute (illustrative), and the hung calls use up every slot. The fix: timeouts, retries with backoff and jitter and a breaker, watched against an SLO. Owners: {{Reliability engineering|n:3ef5c17b0d0d8152b8dececf34196174}} and {{Observability|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}.</li>
+<li><b>Step 5: the GPU layer.</b> Reading an 8-billion-parameter model&rsquo;s weights takes 4.8 ms per token, so one conversation gets at most about 210 tokens a second. The fix: batching (64 conversations share each read, about 13,000 tokens a second) and a model router. Owners: {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}}, {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}} and {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</li>
+<li><b>Step 6: designing it on purpose.</b> Estimate before building: 10 million messages a day is 231.5 requests a second in the busy hour, 56 GPUs and 2,315 streams open at once, so the model layer is the hard part. Owners: {{System design case studies|n:3ef5c17b0d0d81c3b211d75127ef5ded}} and Capacity planning.</li>
+<li><b>Every step: the code under the boxes.</b> Each fix is code someone must change safely later: tests at the right layer, modules that hide their decisions. Owners: {{Testing and quality|n:3c65c17b0d0d81548848e2ebdd2f63ee}} and {{Code design|n:3ef5c17b0d0d817b99a0ff9701ff30cd}}.</li>
+</ol>
+<p class="small mute">The walls' numbers are the <span class="ill">illustrative</span> ones of Steps 1 to 4 below, the derived ceilings of Step 5 and the estimate of Step 6, and the map below gives each fix its price; the layout (the request path in the middle, the model in front, slow work behind) is a drawing, not a deployment. A cache makes reads fast and data slightly stale; a queue makes requests fast and results late; a retry rescues one request and can sink the whole system: every green block is a fix with a price.</p>
+</section>
+</div></div>
+<div class="rd-after">
 <p><b>You need</b>: nothing from other pages. The wire under Step 1 (DNS, TCP, TLS, HTTP) is {{Topic: protocols|n:3c65c17b0d0d81ec9355f4eecd6eed02}}, the database under Step 2 is {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}, and the engine under Step 5 is {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}; this page needs only their one-line definitions, given where they are used.</p>
 <p><b>New terms</b> (each defined where it first appears, and only these):</p>
 <div class="terms">
@@ -21,11 +31,11 @@
 <div><b>Back-of-the-envelope estimate</b>: arithmetic accurate to a factor of two that finds the hard part.</div>
 </div>
 <p>Three tools on this page span every child: the {{Scale simulator|#t-sim}} pushes traffic through the whole design and shows which part breaks first, {{Numbers to know|#t-num}} holds the latency, throughput and price figures every page estimates with, and {{Case files|#t-cases}} tells real outages and redesigns, each tagged with the step it belongs to.</p>
-</section>
+</div>
 
 <section id="rd-map">
 <h2>The map: six walls, the fix for each, its price, and who owns it</h2>
-<p>Read across a row: what breaks, the blocks that fix it, what those blocks give up, and the page that teaches them in depth. The price column is the part that only shows when the pages are side by side: every fix moves the problem somewhere else.</p>
+<p>Fig. 1 adds these rows one at a time; the table puts them side by side. Read across a row: what breaks, the blocks that fix it, what those blocks give up, and the page that teaches them in depth. The price column is the part that only shows when the pages are side by side: every fix moves the problem somewhere else.</p>
 <div class="tw"><table class="map">
 <thead><tr><th>Step</th><th>What breaks</th><th>Building blocks</th><th>What they cost</th><th>Owner</th></tr></thead>
 <tbody>

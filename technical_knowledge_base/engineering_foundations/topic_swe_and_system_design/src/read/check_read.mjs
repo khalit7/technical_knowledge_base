@@ -1,5 +1,6 @@
 // Exercise every control of the Reading tab and Further reading at 390 px dark and 920 px light,
-// check that the estimate never moves before the reader acts, and compare it (window.RDSIM) with recompute.py's output.
+// check that the estimate plays by itself once in view (2026-11-06 rollout; reduced motion is checked in ../check_stages.mjs), that its static step lists
+// quote the numbers it computes, and compare it (window.RDSIM) with recompute.py's output.
 // Since the 2026-10-24 rebuild the Reading tab has one animation (the Step 6 estimate); the five retired ones are in retired/parts.
 // Run from the repo root: node technical_knowledge_base/engineering_foundations/topic_swe_and_system_design/src/read/check_read.mjs
 import { createRequire } from 'module'; import path from 'path'; import fs from 'fs'; import { execSync } from 'child_process';
@@ -44,12 +45,21 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     const r2 = JSON.parse(JSON.stringify(ref)); delete r2.a6_day_avg.shape_mean; delete r2.a6_day_peak.shape_mean;
     for (const k of ['a6', 'a6_day_avg', 'a6_day_peak']) { if (norm(r2[k]) !== norm(js[k])) problems.push('recompute mismatch ' + k + ': py ' + norm(r2[k]).slice(0, 200) + ' js ' + norm(js[k]).slice(0, 200)); else actions++ }
   }
-  // no autoplay: after scrolling the estimate into view and waiting, it is still on step 0
-  await p.$eval('#rd-est-card', e => e.scrollIntoView()); await sleep(2500);
-  const st0 = await p.$eval('#rd-est-ctl-s', e => +e.value); if (st0 !== 0) problems.push(w + ' estimate moved by itself to step ' + st0); actions++;
-  await p.$$eval('#rd-est-seg button', bs => bs[1].click()); await sleep(2500);
-  const st1 = await p.$eval('#rd-est-ctl-s', e => +e.value); if (st1 !== 0) problems.push(w + ' estimate moved by itself after a mode switch, step ' + st1); actions++;
+  // autoplay: once scrolled into view the estimate plays (the button reads Pause); a mode switch replays it
+  await p.$eval('#rd-est-card', e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+  if (!/Pause/.test(await p.$eval('#rd-est-ctl-p', e => e.textContent))) problems.push(w + ' estimate did not play when scrolled into view'); actions++;
+  await p.$$eval('#rd-est-seg button', bs => bs[1].click()); await sleep(600);
+  if (!/Pause/.test(await p.$eval('#rd-est-ctl-p', e => e.textContent))) problems.push(w + ' estimate did not replay after a mode switch'); actions++;
+  if (await p.$$eval('#sx-est .m-peak', xs => xs.some(x => x.hidden)) || await p.$$eval('#sx-est .m-avg', xs => xs.some(x => !x.hidden))) problems.push(w + ' mode switch did not swap the step texts'); actions++;
   await p.$$eval('#rd-est-seg button', bs => bs[0].click());
+  // the static step lists quote the numbers the estimate computes
+  if (w === 390) {
+    const f = n => Math.round(n).toLocaleString('en-US');
+    const want = { '#sx-est .m-avg, #sx-est > li:not(:has(.m-avg))': [f(js.a6.msgs), String(js.a6.avg_rps), String(js.a6.peak_rps), f(js.a6.tok_avg), js.a6.gpu_avg + ' GPUs', f(js.a6.streams), js.a6.store_day_gb + ' GB', js.a6.store_year_tb + ' TB', js.a6_day_avg.hours_over + ' of 24 hours'],
+      '#sx-est .m-peak': [f(js.a6.tok_peak), js.a6.gpu_peak + ' GPUs', String(js.a6_day_peak.idle_gpu_hours), f(js.a6.gpu_peak * 24) + ' GPU-hours'] };
+    for (const [id, xs] of Object.entries(want)) { const t = await p.$$eval(id, es => es.map(e => e.textContent).join(' ')); xs.forEach(x => { if (!t.includes(x)) problems.push(id + ' does not quote ' + x); actions++ }) }
+    const t1 = await p.$eval('#sx-map', e => e.textContent); [String(js.a6.peak_rps), js.a6.gpu_peak + ' GPUs', f(js.a6.streams)].forEach(x => { if (!t1.includes(x)) problems.push('sx-map does not quote ' + x); actions++ });
+  }
   // closed blocks open without errors
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true)); await check('details open');
   // every animation: both modes, step through every step, scrub, speed, play/pause
@@ -70,7 +80,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
       if (w === 390 || c.join('') === '1' || c.join('') === '11') await (await p.$('#' + id + '-card')).screenshot({ path: path.join(shots, 'rd-' + id + '-' + c.join('') + '-' + w + '.png') });
     }
   }
-  for (const id of ['rd-one-a', 'rd-one-b']) await (await p.$('#' + id)).screenshot({ path: path.join(shots, id + '-' + w + '.png') });
+  await (await p.$('#stg-map')).screenshot({ path: path.join(shots, 'stg-map-' + w + '.png') });
   // every child card links to its page
   const kids = await p.$$eval('#rd-kids .kids > div', ds => ds.map(d => d.querySelectorAll('a[href*="notion.com/p/"]').length));
   if (kids.length !== 10 || kids.some(n => n !== 1)) problems.push('child cards: ' + JSON.stringify(kids)); actions++;

@@ -14,7 +14,7 @@
 <details class="dp"><summary>Published throughput figures behind these ceilings <span class="mute">(depth)</span></summary><div class="b">
 <p>NVIDIA's published performance overview (v0.21 data) reports about 15,000 output tokens a second for Llama 3.1 8B in 8-bit on one H100, 1,000 input and 1,000 output tokens per request, at maximum load (vendor benchmark; see {{Numbers to know|#t-num}}). Continuous batching was introduced by Orca ({{OSDI 2022|https://www.usenix.org/conference/osdi22/presentation/yu}}); Anyscale's benchmark reported up to 23x the throughput of naive static batching when combined with vLLM's memory management ({{Anyscale, 2023|https://www.anyscale.com/blog/continuous-batching-llm-inference}}; a single benchmark by an interested party, so read it as "large", not as a constant).</p>
 </div></details>
-<div class="deepnote"><b>Go deeper.</b> Designing the service around a model (framing, the data loop, serving shape and latency budgets, drift, the LLM design ladder and its cost) and what running an LLM service adds: {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (sections 4, 6 and 7). LLM gateways, routing, fallbacks, token rate limits and budgets: {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}. Continuous batching, paged KV caches and prefix caching in the engine: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}; replica routing, autoscaling and cold starts: {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}; the whole engine layer: {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}. Capacity for an LLM-backed service from the client's side (provider limits, open streams): Capacity planning.</div>
+<div class="deepnote"><b>Go deeper.</b> <b>Drawn by the owners:</b> {{ML system design, Fig. 4|n:3c65c17b0d0d8117b057dc2586836ec8#stg-llm}} (one request through the model layer). Designing the service around a model (framing, the data loop, serving shape and latency budgets, drift, the LLM design ladder and its cost) and what running an LLM service adds: {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (sections 4, 6 and 7). LLM gateways, routing, fallbacks, token rate limits and budgets: {{Gateways and routing|n:3f15c17b0d0d81e4a964c129a3e520ae}}. Continuous batching, paged KV caches and prefix caching in the engine: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}; replica routing, autoscaling and cold starts: {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}; the whole engine layer: {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}. Capacity for an LLM-backed service from the client's side (provider limits, open streams): Capacity planning.</div>
 </section>
 
 <section id="rd-s6">
@@ -28,21 +28,43 @@
 <div><b>High-level design, deep dives, trade-offs.</b> The boxes, each justified by a requirement or an estimate; then the two or three parts the estimates flagged; then what breaks at ten times the traffic and what each choice cost.</div>
 </div>
 
+</section>
+
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="card" id="rd-est-card">
-<b>The estimate step by step: a fleet sized for the average day is short every evening</b>
-<p class="small"><b>Predict</b> before you step: if the busy hour runs at twice the average, how many hours of the day does a fleet sized for the average fall short? Then switch to the peak-sized fleet and look at the night.</p>
+<b>A fleet sized for the average day is short every evening</b>
 <div class="seg" id="rd-est-seg"><button data-m="avg" class="on">Before: size the fleet for the average</button><button data-m="peak">After: size for the peak, plus headroom</button></div>
 <div id="rd-est-list"></div>
 <div class="rd-svg" id="rd-est-svg"></div>
 <div class="leg" id="rd-est-leg"></div>
-<div class="an-cap" id="rd-est-cap" aria-live="polite"></div>
 <div class="an-cnt" id="rd-est-cnt"></div>
 <div class="an-ctl" id="rd-est-ctl"></div>
+</div>
+</div></div><div class="s3L">
+<section id="rd-est">
+<p class="sxh">Fig. 2 · The estimate step by step, for the average and for the peak</p>
+<p class="small"><b>Predict</b> before you step: if the busy hour runs at twice the average, how many hours of the day does a fleet sized for the average fall short? Then switch to the peak-sized fleet and look at the night.</p>
+<ol class="sx" id="sx-est">
+<li><b>Start from the requirement.</b> Ten million registered users. Everything else is derived from assumptions you say out loud.</li>
+<li><b>Who is actually there: 1,000,000 a day.</b> 10,000,000 &times; 10%. Only some users come back on a given day; 10% is the assumption here.</li>
+<li><b>How much they do: 10,000,000 messages a day.</b> 1,000,000 &times; 10. Each message is one request to the model.</li>
+<li><b>Turn a day into a rate: about 116 requests a second.</b> 10,000,000 &divide; 86,400 s = 115.7: modest for app servers and a database.</li>
+<li><b>Traffic is not flat: 231.5 a second in the busy hour.</b> 115.7 &times; 2. Evenings are busier than nights. Assume the busy hour runs at twice the average, close to what German Wikipedia measures in one time zone (1.92 in September 2026; see the note below).</li>
+<li><b>Convert to model work.</b> At 400 output tokens per reply (with about 1,000 input tokens, the request shape the {{Scale simulator|#t-sim}} uses) the model must produce about 46,000 tokens a second on average and 93,000 in the busy hour. The chart shows the day&rsquo;s shape.</li>
+<li><span class="m-avg"><b>Size the fleet for the average: 24 GPUs.</b> At an assumed 2,000 output tokens a second per GPU, 46,296 &divide; 2,000 rounds up to 24 GPUs, enough for the average.</span><span class="m-peak" hidden><b>Size the fleet for the peak: 56 GPUs.</b> At an assumed 2,000 output tokens a second per GPU, 92,593 &times; 1.2 headroom &divide; 2,000 rounds up to 56 GPUs: the busy hour with 20% headroom.</span></li>
+<li><b>Count open connections: 2,315.</b> Little&rsquo;s law again: 231.5 new replies a second, each streaming for 10 seconds, means about 2,315 connections open at once, which every layer from the load balancer down must hold.</li>
+<li><b>Count the bytes: 40 GB a day.</b> 10,000,000 messages &times; 2 &times; 2 KB, 14.6 TB a year. Storage is not the hard part; the GPUs are.</li>
+<li><span class="m-avg"><b>Check the whole day: short for 14 of 24 hours.</b> Sized for the average, demand exceeds capacity for 14 of 24 hours: every evening, replies queue and slow down. The average hid the peak.</span><span class="m-peak" hidden><b>Check the whole day: 788.4 of 1,344 GPU-hours idle.</b> Sized for the peak, no hour exceeds capacity, but 788.4 of 1,344 GPU-hours a day are idle overnight. That idle cost is why autoscaling and night-time batch work matter.</span></li>
+</ol>
 <p class="small mute"><span class="ill">Every input is an assumption, labelled as such</span>: 10% of users active each day, 10 messages each, 1,000 input and 400 output tokens per reply (the same request shape as the {{Scale simulator|#t-sim}}), a busy hour twice the daily average, 2,000 output tokens per second per GPU, replies streaming for 10 seconds, 2 KB of text per message. The daily traffic shape is invented to average exactly 1. Checked in <code>src/read/recompute.py</code>. The results the child pages reuse: 10 million messages a day, about 116 requests a second on average and 231.5 in the busy hour, 56 GPUs for the busy hour with 20% headroom, 2,315 streams open at once.</p>
 <details class="dp"><summary>Where the peak factor and the GPU figure come from <span class="mute">(depth)</span></summary><div class="b">
 <p>The busy hour at twice the daily average is a fair figure for a product used in one region: {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} measured Wikipedia's busy hour against its day's average for September 2026 at 1.92 for German, 1.63 for Japanese and 1.24 for the worldwide English site; per second, peaks are much sharper, as Twitter's busiest second in August 2013 ran at 25 times its average (see {{Case files|#t-cases}}). The 2,000 output tokens per second per GPU is a round planning number, a little below NVIDIA's maximum-load benchmark row for Llama 3.3 70B in FP8 on two H100s with 1,000 input and 1,000 output tokens per request: 2,209 output tokens/s per GPU ({{TensorRT-LLM perf overview, commit 8a9c66c|https://github.com/NVIDIA/TensorRT-LLM/blob/8a9c66ce086594054d3722307cfed2d658d25e60/docs/source/developer-guide/perf-overview.md}}, vendor figure, the same row the Scale simulator uses); a service holding latency targets gets less, so measure your own; more figures in {{Numbers to know|#t-num}}. Changing any input changes the answer in proportion, which is the point: the method, not the numbers, is what carries over.</p>
 </div></details>
+</section>
+</div></div>
+
+<div class="rd-after">
 <p>Two lessons fall out of the arithmetic. The model layer dominates: 116 requests a second is a small load for app servers and a database, while the same traffic needs tens of GPUs. And the peak sets the size, not the average: a fleet sized for the average is short of capacity for 14 hours of the day, and one sized for the peak sits more than half idle overnight, which is why <dfn id="d-autoscale">autoscaling</dfn>, night-time batch work and routing to smaller models matter so much.</p>
 <p class="small">Machine learning design interviews keep this method and swap part of the middle for the metrics that define success offline and online, the data, the model choice, then serving and monitoring (Chip Huyen's free {{Machine Learning Systems Design|https://huyenchip.com/machine-learning-systems-design/toc.html}} booklet uses this framing). In both, what is judged is whether you quantify and name trade-offs, not how many component names you know.</p>
-<div class="deepnote"><b>Go deeper.</b> Seven whole designs run through the method, from requirements and live estimates to bottlenecks, and a 45-minute Design drill: {{System design case studies|n:3ef5c17b0d0d81c3b211d75127ef5ded}}. Peak factors, headroom, N+1 and cost per request: {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} (Capacity planning). The ML and LLM version of the interview: {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (section 8). Run this estimate with your own inputs in the {{Scale simulator|#t-sim}}.</div>
-</section>
+<div class="deepnote"><b>Go deeper.</b> <b>Drawn by the owners:</b> {{System design case studies, Figs. 2 to 8|n:3ef5c17b0d0d81c3b211d75127ef5ded#stg-url}} (seven designs, each built step by step). Seven whole designs run through the method, from requirements and live estimates to bottlenecks, and a 45-minute Design drill: {{System design case studies|n:3ef5c17b0d0d81c3b211d75127ef5ded}}. Peak factors, headroom, N+1 and cost per request: {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}} (Capacity planning). The ML and LLM version of the interview: {{ML system design|n:3c65c17b0d0d8117b057dc2586836ec8}} (section 8). Run this estimate with your own inputs in the {{Scale simulator|#t-sim}}.</div>
+</div>
