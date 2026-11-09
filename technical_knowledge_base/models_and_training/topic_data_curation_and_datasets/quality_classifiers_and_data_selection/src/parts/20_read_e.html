@@ -1,9 +1,8 @@
+<div class="s3sp"><div class="s3L">
 <section id="qc-s4">
 <h2>4. LLM-graded classifiers: FineWeb-Edu and the Nemotron-CC ensemble</h2>
 <p><b>The problem with reference sets</b> is that you can only ask "does it look like X". The second family asks a question instead: write a rubric, have a large LLM grade a few hundred thousand pages against it, then train a small model to imitate the grades on the whole crawl. The LLM is the <dfn>annotator</dfn>; the small model is a <dfn>distilled classifier</dfn>.</p>
-<div class="rd-card"><h4>An expensive annotator grades a sample once; a cheap student grades the crawl</h4>
-<div class="rd-svg" id="qc-llmg"></div>
-<p class="small mute">Top row FineWeb-Edu, bottom row Nemotron-CC, both <span class="vend">published</span> (FineWeb paper Section 4; Nemotron-CC Table 2). Nemotron-CC's two regressors were trained FineWeb-Edu style on other annotators; the FineWeb-Edu classifier itself was left out for licence reasons.</p></div>
+
 <h3>FineWeb-Edu, step by step</h3>
 <ol>
 <li><b>Rubric.</b> An additive 0 to 5 "educational value" prompt aimed at primary to grade-school teaching, chosen "to avoid having the LLM favor highly technical pages like arXiv abstracts" (the verbatim prompt is on the root's {{Quality lab|n:3c65c17b0d0d811fa5ecda8d365ab00f}}).</li>
@@ -15,12 +14,20 @@
 <p>The student is <b>uncased</b> and whitespace-blind (lowercasing all @@perturb_n_edu@@ test documents changed no score by more than @@edu_lower_maxabs@@; collapsing a page to one paragraph changed nothing), while bullets raise its score (section 3): it reads content and some layout, not typography <span class="meas">measured</span>.</p>
 <p><b>What it buys</b> <span class="vend">published</span>: on 1.71B models trained on 350B tokens, MMLU 33% to 37% and ARC 46% to 57% against FineWeb, and FineWeb-Edu reaches FineWeb's final MMLU with about 10 times fewer tokens. The threshold 3 was chosen over 2 on aggregate benchmarks (the paper gives the comparison only as a plot, Fig. 17). The price is topic skew: Science &amp; Tech. rises from 4.1% to 15.8% of the data and Entertainment falls from 8.1% to 1.6% (WebOrganizer, section 10). A HellaSwag loss shows in WebOrganizer Table 1 (57.5 to 56.0 at 1B scale); FineWeb gives no number for it.</p>
 
+</section>
+</div><div class="s3R"><div class="s3side"><div class="rd-card"><h4>An expensive annotator grades a sample once; a cheap student grades the crawl</h4>
+<div class="rd-svg" id="qc-llmg"></div>
+<p class="small mute">Top row FineWeb-Edu, bottom row Nemotron-CC, both <span class="vend">published</span> (FineWeb paper Section 4; Nemotron-CC Table 2). Nemotron-CC's two regressors were trained FineWeb-Edu style on other annotators; the FineWeb-Edu classifier itself was left out for licence reasons.</p></div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<div id="qc-s4b">
 <h3>Nemotron-CC: three graders, percentile buckets and a maximum</h3>
 <p>NVIDIA's argument (<a href="https://arxiv.org/abs/2412.02595" target="_blank" rel="noopener noreferrer">Nemotron-CC, 2024</a>) is that FineWeb-Edu and DCLM each keep about 10% of the crawl, too few unique tokens for a 15T-token run, and that they keep <i>different</i> 10% (Table 8: 10.1% of the union kept by both, the root measured @@jacc_published@@ on our documents). So it trains two FineWeb-Edu-style regressors on other annotators (Mixtral 8x22B and Nemotron-4-340B) and adds DCLM's fastText. Each classifier's score is turned into a <b>rank bucket 0 to 19</b> (bucket 19 = its top 5%), a document gets the <b>maximum</b> of its three buckets, and buckets are grouped into five levels by annealing tests: 19 high, 18 medium-high, 12 to 17 medium, 7 to 11 medium-low, 0 to 6 low (Table 2). Taking the maximum is a deliberate union: a page any one grader rates in its top 5% is promoted, where an average would demote pages only one grader recognises.</p>
 <p><b>Rebuilt here.</b> NVIDIA released both regressors, so the whole ensemble runs on CPU. On 1,000 Nemotron-CC documents of CC-MAIN-2024-30 (200 per published level), with percentile cut-offs estimated from those documents re-weighted to the published level shares, the rebuilt ensemble puts @@nemo_exact@@ of documents in exactly their published level and @@nemo_within1@@ within one level <span class="meas">measured</span>. Each member alone does worse (@@nemo_single_range@@ exact), and the maximum is set by @@nemo_argmax@@. The two regressors agree with each other more than with DCLM (Spearman @@sp_mix_nem@@ between them, @@sp_mix_dclm@@ with DCLM, on run0).</p>
-<div class="rd-svg" id="qc-nemo"></div>
-<p class="small mute">Rows: the level Nemotron-CC published. Columns: the level the rebuilt ensemble assigns; the diagonal is agreement. Departures, said plainly: the real percentiles came from a whole crawl after jusText extraction; ours come from 1,000 documents weighted by Table 2's token shares as if they were document shares. Model revisions: nvidia/nemocurator-fineweb-mixtral-edu-classifier 768fe255, nemotron-4 variant 84231629, scored as NeMo Curator 1.4.0 does (<code>stages/text/classifiers/fineweb_edu.py:98-126</code>).</p>
+
 <p>Applied to run0 with the same cut-offs, the ensemble would place @@run0_nemo_high@@ of the 2,617 documents in "high" and @@run0_nemo_hq@@ in the top two levels, against @@keep_edu@@ kept by FineWeb-Edu and @@keep_dclm@@ by DCLM. That is the recall argument in numbers: the union of three graders keeps more, and Nemotron-CC then decides by annealing how much of each level to train on (its Table 9: the ensemble labels 25% of tokens high quality against 9% to 14% for single classifiers, at equal or better accuracy on 1T-token 8B runs, <span class="vend">published</span>).</p>
+</div>
+</div><div class="s3R"><div class="s3side"><div class="rd-card"><h4>The rebuilt ensemble lands on the published level for most documents</h4><div class="rd-svg" id="qc-nemo"></div>
+<p class="small mute">Rows: the level Nemotron-CC published. Columns: the level the rebuilt ensemble assigns; the diagonal is agreement. Departures, said plainly: the real percentiles came from a whole crawl after jusText extraction; ours come from 1,000 documents weighted by Table 2's token shares as if they were document shares. Model revisions: nvidia/nemocurator-fineweb-mixtral-edu-classifier 768fe255, nemotron-4 variant 84231629, scored as NeMo Curator 1.4.0 does (<code>stages/text/classifiers/fineweb_edu.py:98-126</code>).</p></div></div></div></div>
 <details class="dp"><summary>Six more classifiers built the same way, with their published results <span class="mute">(Llama 3, QuRating, Ultra-FineWeb, Meta-rater, PreSelect, Ask-LLM)</span></summary><div class="b">
 <div class="tw"><table>
 <thead><tr><th>Classifier</th><th>Annotator and rubric</th><th>Student</th><th>Result as published</th></tr></thead>
@@ -34,4 +41,3 @@
 </tbody></table></div>
 <p class="small mute">All rows <span class="vend">published</span> by their authors, each on its own benchmark suite and scale; the averages are not comparable across rows. Read from the papers' tables (arXiv HTML), 2026-10-14.</p>
 </div></details>
-</section>

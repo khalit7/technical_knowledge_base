@@ -1,16 +1,24 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ft"></div></div><div class="s3L">
 <section id="qc-s1">
 <h2>1. How a reference-set classifier scores a page: fastText</h2>
-<p><b>The problem.</b> You have billions of documents and a few hundred thousand examples of text you like (the <dfn>reference set</dfn>, or positives), and you need a scorer cheap enough to run on every document of a crawl. The answer since GPT-3 has been a linear classifier on word features, trained to separate the reference set from random crawl documents (the <dfn>negatives</dfn>). DCLM's classifier, the one behind DCLM-baseline and OLMo 2's pretraining mix, is a <dfn>fastText</dfn> model: Facebook's library for linear text classifiers with hashed word n-grams (<a href="https://arxiv.org/abs/1607.01759" target="_blank" rel="noopener noreferrer">Joulin et al. 2016</a>). Step through one real page below, then switch the reference set.</p>
+<p><b>The problem.</b> You have billions of documents and a few hundred thousand examples of text you like (the <dfn>reference set</dfn>, or positives), and you need a scorer cheap enough to run on every document of a crawl. The answer since GPT-3 has been a linear classifier on word features, trained to separate the reference set from random crawl documents (the <dfn>negatives</dfn>). DCLM's classifier, the one behind DCLM-baseline and OLMo 2's pretraining mix, is a <dfn>fastText</dfn> model: Facebook's library for linear text classifiers with hashed word n-grams (<a href="https://arxiv.org/abs/1607.01759" target="_blank" rel="noopener noreferrer">Joulin et al. 2016</a>). Fig. 1 scores one real page with DCLM's real weights; pick another page or another reference set under the steps.</p>
 
+<p class="sxh">Fig. 1 · one real page through fastText</p>
+<ol class="sx" id="sx-ft">
+<li><b>The page as extracted.</b> The classifier receives the extracted text and nothing else: not the URL, not the layout. Each tile on the glass page is one token, as wide as its characters (the readout below shows the text).</li>
+<li><b>One line, cut at whitespace.</b> Lines are joined with a space and the line is cut at ASCII whitespace. Case and punctuation stay attached: "Why" and "why?" are different tokens, and "&lt;/s&gt;" marks the end. The tiles fall into reading order: <span class="ft-v" data-k="ntok"></span> tokens, the first <span class="ft-v" data-k="shown"></span> drawn.</li>
+<li><b>Word features.</b> Each token in the vocabulary looks up its own 100-number row (the glass table), and that row's push stands up toward high quality (green) or hangs down toward crawl (red). Tokens outside the vocabulary stay grey and add nothing here. This page: <span class="ft-v" data-k="nU"></span> word features, pushes summing to <span class="ft-v" data-k="sumU"></span>.</li>
+<li><b>Bigram features.</b> Every neighbouring pair is hashed into a bucket with its own row (2,000,000 buckets for DCLM, 500,000 for the classifiers trained here), and its push, split between its two tokens, stacks on top in amber. Now every feature of the page is counted: <span class="ft-v" data-k="nB"></span> bigrams summing to <span class="ft-v" data-k="sumB"></span>.</li>
+<li><b>Average, then a straight line.</b> The page vector is the average of all its feature rows, so the logit is the total push divided by the number of features: <span class="ft-v" data-k="avg"></span>. Long pages are averaged as hard as short ones.</li>
+<li><b>Probability and the cut.</b> A sigmoid of the logit gives P(high quality), and the page is kept if P clears the cut (the glass plane): the published 0.018112 for DCLM, or for the classifiers trained here the top 10% of 18,478 held-out RefinedWeb pages. <span class="ft-v" data-k="verdict"></span></li>
+</ol>
+<p class="sxh">Page</p><div class="s3chips" id="qc-a1-doc"></div>
+<p class="sxh">Classifier</p><div class="s3chips" id="qc-a1-mod"></div>
 <div class="rd-card" id="qc-a1">
-<h4>The same page, scored step by step: every word and bigram pushes, and the pushes add up to the verdict</h4>
-<div class="seg" id="qc-a1-doc"></div>
-<div class="seg" id="qc-a1-mod"></div>
-<div id="qc-a1-ctl" class="an-ctl"></div>
-<div class="an-cap" id="qc-a1-cap"></div>
+<h4>The same page as text: each token coloured by its push at the current step</h4>
 <div id="qc-a1-view"></div>
 <div class="an-cnt" id="qc-a1-cnt"></div>
-<p class="small mute">Real weights: DCLM's published classifier (mlfoundations/fasttext-oh-eli5 rev cd8b714a) and classifiers trained here with DCLM's hyperparameters (smaller bucket table) on other reference sets (section 2). Colour = each token's push toward high quality (green) or crawl (red); a bigram's push is split between its two tokens. Only the first tokens are drawn; the counters use every feature. Text is from run0's PII-scrubbed output.</p>
+<p class="small mute">Real weights: DCLM's published classifier (mlfoundations/fasttext-oh-eli5 rev cd8b714a) and classifiers trained here with DCLM's hyperparameters (smaller bucket table) on other reference sets (section 2). Colour = each token's push toward high quality (green) or crawl (red); a bigram's push is split between its two tokens. Only the first tokens are drawn, in the figure and here; the counters use every feature. Bar heights in Fig. 1 are to scale within the page. Text is from run0's PII-scrubbed output.</p>
 </div>
 <p>The same steps as a formula. Each feature (a word in the vocabulary, DCLM's has @@dclm_nwords@@, or a <dfn>hashed bigram</dfn>: a pair of neighbouring tokens hashed into one of 2,000,000 buckets) owns a row of 100 numbers. The document vector is the plain mean of its rows, and with two labels the softmax is a logistic regression:</p>
 <div class="fm"><div class="eq">logit = (w<sub>hq</sub> − w<sub>cc</sub>) · (1/N) Σ<sub>f</sub> row<sub>f</sub> = (1/N) Σ<sub>f</sub> push<sub>f</sub></div><dl><dt>N</dt><dd>number of features: words found in the vocabulary plus every bigram (unknown words still take part in bigrams)</dd><dt>push<sub>f</sub></dt><dd>row<sub>f</sub> · (w<sub>hq</sub> − w<sub>cc</sub>), the feature's own vote</dd><dt>keep</dt><dd>if P(hq) = σ(logit) ≥ 0.018112 (<code>baselines/baselines_configs/fasttext_filter.yaml:8</code>), the value that keeps the top 10% of DCLM's pool</dd></dl></div>
@@ -27,12 +35,17 @@
 </div></details>
 <p><b>The cost.</b> Training is minutes on a laptop: DCLM's recipe at full size (200,000 positives and 200,000 negatives, with the smaller bucket table of section 2) took @@train_full_secs@@ s here on 4 threads <span class="meas">measured, rough</span>. Scoring is a hash lookup and a 100-dimensional average, about @@cost_ft_ms@@ ms per document per core, so a whole crawl is a CPU job, not a GPU job. The memory is the catch: the 2,000,000 bigram buckets plus a vocabulary of millions of words make DCLM's file 2.39 GB, loaded once per worker process (DCLM's README asks for <code>--ray_num_cpus 2</code> per task for this reason).</p>
 
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<div id="qc-s1b">
 <h3>GPT-3's version: a random keep instead of a cut</h3>
 <p>GPT-3 (<a href="https://arxiv.org/abs/2005.14165" target="_blank" rel="noopener noreferrer">Brown et al. 2020, Appendix A</a>) trained a logistic regression on Spark's standard tokenizer and HashingTF features, with WebText, Wikipedia and a web books corpus as positives and unfiltered Common Crawl as negatives. It did not keep a top slice. It kept a document when <code>np.random.pareto(α) &gt; 1 - score</code> with α = 9, "to take mostly documents the classifier scored highly, but still include some documents that were out of distribution". NumPy's <code>pareto</code> draws from a Lomax distribution with P(X &gt; x) = (1 + x)<sup>-α</sup>, so:</p>
-<div class="rd-svg" id="qc-pareto"></div>
 <div class="fm"><div class="eq">P(keep | s) = (2 − s)<sup>−9</sup></div><dl><dt>s = 1</dt><dd>kept with probability 1</dd><dt>s = 0.5</dt><dd>1.5<sup>-9</sup> = 2.6%</dd><dt>s = 0</dt><dd>2<sup>-9</sup> = 0.2%: even the lowest-scoring page survives 1 time in 512</dd></dl></div>
-<p class="small mute">Derived here from NumPy's definition and checked by simulation (@@pareto_sim@@). The bars are the GPT-3-style classifier rebuilt in section 2, scoring run0: trained against raw crawl, it calls most already-filtered pages good.</p>
 
 <div class="pr" id="qc-pr1"><div class="q">Predict: which single word pushes DCLM's classifier hardest toward "high quality"? (Among words seen at least 200 times in its training data.)</div>
 <div class="opts"><button data-a="0">"Abstract"</button><button data-a="1">"therefore"</button><button data-a="2">three backticks (a Markdown code fence)</button><button data-a="3">"Wikipedia"</button></div><div class="ans" hidden></div></div>
-</section>
+</div>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card"><h4>GPT-3 keeps even its lowest-scoring pages now and then</h4><div class="rd-svg" id="qc-pareto"></div><p class="small mute">Derived here from NumPy's definition and checked by simulation (@@pareto_sim@@). The bars are the GPT-3-style classifier rebuilt in section 2, scoring run0: trained against raw crawl, it calls most already-filtered pages good.</p></div></div></div></div>

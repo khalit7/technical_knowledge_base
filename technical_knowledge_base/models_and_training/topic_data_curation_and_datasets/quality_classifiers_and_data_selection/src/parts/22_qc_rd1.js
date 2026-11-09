@@ -1,4 +1,4 @@
-// Reading: fastText step animation (qc-a1), GPT-3 Pareto keep curve (qc-pareto), predict-then-reveal widgets (.pr)
+// Reading: GPT-3 Pareto keep curve (qc-pareto), predict-then-reveal widgets (.pr); the fastText steps are Fig. 1 (34_js_sc_ft.js)
 (function(){
   const D=window.QC, esc=RD.esc, f2=x=>(Math.abs(x)>=100?x.toFixed(0):Math.abs(x)>=10?x.toFixed(1):x.toFixed(2));
   // ---------- predict then reveal ----------
@@ -26,43 +26,5 @@
     el.innerHTML=RD.svg(W,H,g,'Probability that GPT-3 keeps a document as a function of its classifier score');
   }
   RD.onRender(pareto);RD.onResize(pareto);pareto();
-  // ---------- fastText step animation ----------
-  const A=D.a1; if(!A)return;
-  let doc=A.docs[0].key, mod=A.models[0].key;
-  const segD=document.getElementById('qc-a1-doc'), segM=document.getElementById('qc-a1-mod');
-  segD.innerHTML=A.docs.map((d,i)=>'<button data-m="'+d.key+'"'+(i?'':' class="on"')+'>'+esc(d.label)+'</button>').join('');
-  segM.innerHTML=A.models.map((m,i)=>'<button data-m="'+m.key+'"'+(i?'':' class="on"')+'>'+esc(m.label)+'</button>').join('');
-  const view=document.getElementById('qc-a1-view'), cap=document.getElementById('qc-a1-cap'), cnt=document.getElementById('qc-a1-cnt');
-  const STEPS=[
-    ['The page as extracted','This is what the classifier receives after the pipeline: extracted text, several lines. Nothing about the page (its URL, its layout) reaches the classifier except these characters.'],
-    ['One line, cut at whitespace','Lines are joined with a space and the line is cut at ASCII whitespace. Case and punctuation stay attached: "Why" and "why?" are different tokens. "</s>" marks the end.'],
-    ['Word features','Each token in the vocabulary looks up its own 100-number row. The colour is that row\'s push toward high quality (green) or crawl (red). Tokens outside the vocabulary (grey) add nothing here.'],
-    ['Bigram features','Every neighbouring pair is hashed into a bucket with its own row (2,000,000 buckets for DCLM, 500,000 for the classifiers trained here). Bigram pushes are added (split between the two tokens). Now every feature of the page is counted.'],
-    ['Average, then a straight line','The page vector is the average of all its feature rows, so the logit is the total push divided by the number of features. Long pages are averaged as hard as short ones.'],
-    ['Probability and the cut','A sigmoid of the logit gives P(high quality). The page is kept if P clears the cut: the published 0.018112 for DCLM, or for the classifiers trained here the top 10% of 18,478 held-out RefinedWeb pages.']];
-  function cur(){return A.ex[doc][mod]}
-  function col(v,on){if(!on)return 'transparent';const a=Math.min(1,Math.abs(v)/A.scale);return v>=0?'rgba(63,160,90,'+(0.12+0.6*a).toFixed(2)+')':'rgba(214,100,60,'+(0.12+0.6*a).toFixed(2)+')'}
-  function draw(i){
-    const e=cur(), m=A.models.find(x=>x.key===mod);
-    cap.innerHTML='<div class="t">Step '+(i+1)+' of '+STEPS.length+': '+STEPS[i][0]+'</div><p>'+STEPS[i][1]+'</p>';
-    if(i===0){view.innerHTML='<div class="rd-doc">'+esc(A.docs.find(d=>d.key===doc).text)+'</div>'}
-    else{
-      let h='<div class="rd-doc" style="line-height:1.9">';
-      e.toks.forEach((t,k)=>{const u=e.uni[k], b=e.big[k];
-        const v=i<2?0:(i===2?(u===null?0:u):((u===null?0:u)+b));
-        const oov=i>=2&&u===null;
-        h+='<span title="'+(u===null?'not in vocabulary':'word push '+f2(u))+(i>=3?', bigram share '+f2(b):'')+'" style="display:inline-block;max-width:100%;overflow-wrap:anywhere;padding:0 2px;border-radius:3px;margin:0 3px 2px 0;background:'+col(v,i>=2)+(oov?';color:var(--mute);text-decoration:line-through':'')+'">'+esc(t)+'</span>'});
-      if(e.more)h+='<span class="mute"> ... '+e.more+' more tokens</span>';
-      view.innerHTML=h+'</div>';
-    }
-    const st=(k,v,d)=>RD.stat(k,v,d);
-    let c=st('Tokens',e.ntok,'incl. &lt;/s&gt;');
-    if(i>=2)c+=st('Word features',e.nU,'push total '+f2(e.sumU));
-    if(i>=3)c+=st('Bigram features',e.nB,'push total '+f2(e.sumB));
-    if(i>=4)c+=st('Logit',f2(e.logit),'('+f2(e.sumU)+' + '+f2(e.sumB)+') / '+(e.nU+e.nB));
-    if(i>=5)c+=st('P(high quality)',e.p<0.001?e.p.toExponential(1):e.p.toFixed(3),'cut '+m.cut.toPrecision(3)+': <b style="color:'+(e.p>=m.cut?'var(--good)">kept':'var(--bad)">dropped')+'</b>');
-    cnt.innerHTML=c;
-  }
-  const an=RD.anim({card:'qc-a1',ctl:'qc-a1-ctl',n:STEPS.length,draw,ms:2200,label:'fastText step'});
-  RD.seg(segD,v=>{doc=v;an.redraw()});RD.seg(segM,v=>{mod=v;an.redraw()});
+  // the fastText step animation is now the 3D stage Fig. 1 (34_js_sc_ft.js)
 })();

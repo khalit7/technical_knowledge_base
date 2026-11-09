@@ -33,6 +33,19 @@ Scores 0 to 2 on the methodology's questions (moves with a control, reproduces a
 
 No real image: the page is about mechanisms and data, not a physical object; a paper figure would repeat what the recomputed figures show.
 
+## Added 2026-11-09 (split layout and renderer v2 stages)
+| # | Idea | Kind | Placement | Data |
+|---|---|---|---|---|
+| QC18 | Fig. 1: one real run0 page through fastText: tokens as tiles on a glass page, then in reading order on a see-through plinth; word pushes up or down, bigram shares stacked, flows into the averaged logit on a logit axis, the cut as a glass plane (replaces the 2D stepper and its captions) | 3D stage, 6 steps, page and classifier chips | Reading s1 | `QC.a1` (fastText rebuilt from the model files) |
+| QC19 | Fig. 2: six reference sets as glass plates; rows for overlap with DCLM, hand precision, Llama AUC, DCLM's published Core | 3D stage, 5 steps | Reading s2 | `QC.reftab`, `QC.t5` |
+| QC20 | Fig. 3: the 200 labelled pages as columns by rank (square-root scale), a glass threshold plane rising from the top 60% to 5%, then the same pages re-sorted by FineWeb-Edu (replaces the closed reveal) | 3D stage, 6 steps | Reading s5 | `QC.th.rank`, `QC.th.lab` |
+
+Kept 2D, and why: the hero (a histogram with a cut), the Pareto keep curve, Table 5 and Table 4 bars (numbers on one axis), the
+Classifier replay and the Threshold explorer (reader-driven widgets with selects and a slider; one parameter), the edit table, the
+LLM-graded pipeline (a flowchart), the Nemotron-CC confusion matrix and the bias heatmap (heatmaps), the Qwen perplexity histogram
+(log axis), DSIR's length bars (no per-document data survives the 2026-10-15 scratch wipe, so a point-cloud scene would need invented
+points), the gradient diagram (illustrative 2-D arrows), the repetition calculator (a curve with inputs).
+
 ## Rejected
 - Live fastText training in the browser: models are about 1 GB; the replay of real weights teaches the same mechanism.
 - Re-drawing the root's same-shard before/after animation and its agreement scatter: the root owns them; linked instead.
