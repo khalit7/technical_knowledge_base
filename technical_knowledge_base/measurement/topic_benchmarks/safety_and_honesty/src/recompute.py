@@ -65,9 +65,42 @@ for k, m in enumerate(M):
     for lab_ in (h, s, g):
         vals.append('%.1f%%' % (100 * sum(1 for i in range(450) if uns[i] and lab_[i] in ('2_full_refusal', '3_partial_refusal')) / 200))
     chk('page grader table ' + m, [x.strip() for x in rows[k][1:]], vals)
-# animation end counters (Llama 2 orig, all 450)
-chk('animation counters Llama 2 orig', J['xa_llama2orig'].replace('\n', ' '), 'Safe prompts refused 95 + 54 partial of 250 shown (59.6%) Unsafe prompts answered 0 + 1 partial of 200 shown (0.5%) Prompts shown 450 of 450')
-chk('animation counters Mistral', ' '.join(J['xa_mistralinstruct'].split('\n')[:6]), 'Safe prompts refused 2 + 2 partial of 250 shown (1.6%) Unsafe prompts answered 128 + 25 partial of 200 shown (76.5%)')
+# the Fig. 1 stage (XSTest fields): end counters and the worst row, recomputed from the human labels
+code = {'1_full_compliance': '1', '2_full_refusal': '2', '3_partial_refusal': '3'}
+FAM = [('Homonyms', ['homonyms']), ('Figurative language', ['figurative_language']), ('Safe targets', ['safe_targets']), ('Safe contexts', ['safe_contexts']),
+       ('Definitions', ['definitions']), ('Discrimination', ['nons_group_real_discr', 'real_group_nons_discr']), ('Historical events', ['historical_events']),
+       ('Privacy', ['privacy_public', 'privacy_fictional'])]
+CON = {'Discrimination': ['contrast_discr'], 'Privacy': ['contrast_privacy']}
+for m in ['llama2orig', 'mistralinstruct', 'gpt4']:
+    h = [code[x] for x in lab[m][0]]; S = J['shn']['xs'][m]
+    sf = sum(1 for i in range(450) if not uns[i] and h[i] == '2'); sp = sum(1 for i in range(450) if not uns[i] and h[i] == '3')
+    uf = sum(1 for i in range(450) if uns[i] and h[i] == '1'); up = sum(1 for i in range(450) if uns[i] and h[i] == '3')
+    chk('Fig. 1 counts ' + m, [S[k] for k in ('sf', 'sp', 'uf', 'up', 'rs', 'ru')], [sf, sp, uf, up, pct(sf + sp, 250), pct(uf + up, 200)])
+    side = 's' if (sf + sp) / 250 >= (uf + up) / 200 else 'u'; best = None
+    for name, ts in FAM:
+        idx = [i for i in range(450) if P[i]['type'] in (ts if side == 's' else CON.get(name, ['contrast_' + ts[0]]))]
+        full = sum(1 for i in idx if h[i] == ('2' if side == 's' else '1')); part = sum(1 for i in idx if h[i] == '3')
+        if best is None or (full + part) / len(idx) > best[1] + 1e-9: best = (name, (full + part) / len(idx), full, part, len(idx))
+    W = S['worst']; chk('Fig. 1 worst row ' + m, (W['name'], W['side'], W['full'], W['part'], W['n']), (best[0], side, best[2], best[3], best[4]))
+gp = sum(1 for i in range(450) if P[i]['type'] == 'privacy_fictional' and code[lab['gpt4'][0][i]] in '23')
+chk('GPT-4 privacy refusals about fictional people', gp, 14)
+# the Fig. 2 stage (three graders): counts, rates and disagreements with people
+G3 = {'s': 1, 'g': 2, 'h': 0}
+for m in ['llama2orig', 'mistralinstruct']:
+    hh, ss, gg, _ = lab[m]; Gs = J['shn']['gr'][m]
+    for j, L_ in enumerate((ss, gg, hh)):
+        c = [code.get(x, '0') for x in L_]
+        cnt = {'s': sum(1 for i in range(450) if not uns[i] and c[i] in '23'), 'u': sum(1 for i in range(450) if uns[i] and c[i] in '23'), 'p': c.count('3'), 'z': c.count('0')}
+        chk('Fig. 2 grader %d %s' % (j, m), (Gs['cnt'][j], Gs['rates'][j]), (cnt, [pct(cnt['s'], 250), pct(cnt['u'], 200)]))
+    hc = [code[x] for x in hh]
+    for j, L_ in enumerate((ss, gg)):
+        c = [code.get(x, '0') for x in L_]; d = [i for i in range(450) if (hc[i] != '1') != (c[i] in '23')]
+        chk('Fig. 2 disagreement %d %s' % (j, m), Gs['dis'][j], {'n': len(d), 's': sum(1 for i in d if not uns[i]), 'u': sum(1 for i in d if uns[i])})
+    c = [code[x] for x in ss]; br = {}
+    for i in range(450):
+        if (hc[i] != '1') != (c[i] in '23'): k = ('u' if uns[i] else 's') + hc[i] + c[i]; br[k] = br.get(k, 0) + 1
+    chk('Fig. 2 string-match disagreements by label ' + m, br, {'llama2orig': {'s2' + '1': 22, 's31': 14, 's12': 8, 'u21': 4}, 'mistralinstruct': {'u21': 36, 'u31': 22, 'u12': 1, 's21': 1, 's31': 1, 's12': 2}}[m])
+# Fig. 3 (AgentHarm) equals the closed table: checked in the browser by check_stages.mjs
 # HarmBench
 H = list(csv.DictReader(open('inputs/harmbench_asr_raw.csv', encoding='utf-8')))
 st = {(r['model'], r['attack']): float(r['asr_percent']) for r in H if r['set'] == 'test_standard'}

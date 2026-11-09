@@ -60,19 +60,10 @@ window.SH=(function(){
     h.innerHTML=RD.svg(W,y,b,'Refusal rates under three graders')+'<div class="leg">'+GS.map(g=>'<span><i style="background:'+g[2]+'"></i>'+g[1]+'</span>').join('')+'</div>'}
   SH.reg(draw)})();
 
-// section 4: AgentHarm with and without the jailbreak template
-(function(){const h=document.getElementById('sh-ah');if(!h)return;
-  const D=[['GPT-4o',48.4,48.9,72.7,13.6],['Claude 3.5 Sonnet',13.5,85.2,68.7,16.7],['Gemini 1.5 Pro',15.7,78.4,56.1,3.5],['Mistral Large 2',82.2,1.1,80.5,0.0]];
-  function draw(){const W=Math.min(860,RD.width(h)),narrow=W<560,lw=narrow?112:130,pw=narrow?W-lw-16:(W-lw-34)/2,rh=24;let b='',H=0;
-    [['Harm score',1,3],['Refusal rate',2,4]].forEach(([t,a,c],k)=>{const ox=narrow?lw+8:lw+8+k*(pw+20),oy=narrow?k*(D.length*rh+46):0,X=v=>ox+pw*v/100;
-      b+=RD.t(narrow?0:ox,oy+12,t+': no attack → with template',{fs:11.5,w:600,fill:'var(--ink)'});
-      [0,50,100].forEach(v=>b+='<line x1="'+X(v)+'" y1="'+(oy+30)+'" x2="'+X(v)+'" y2="'+(oy+30+D.length*rh)+'" stroke="var(--line)"/>'+RD.t(X(v),oy+27,v+'%',{a:v===100?'end':v?'middle':'start',fs:10.5,fill:'var(--mute)'}));
-      D.forEach((d,i)=>{const cy=oy+30+i*rh+rh/2,x1=X(d[a]),x2=X(d[c]);if(k===0||narrow)b+=RD.t(lw,cy+4,d[0],{a:'end',fs:11});
-        const dir=x2>=x1?1:-1;if(Math.abs(x2-x1)>8)b+='<line x1="'+x1+'" y1="'+cy+'" x2="'+(x2-dir*6)+'" y2="'+cy+'" stroke="var(--mute)" stroke-width="1.6"/><path d="M'+x2+','+cy+' l'+(-dir*7)+',-4 l0,8 Z" fill="var(--mute)"/>';
-        b+='<circle cx="'+x1+'" cy="'+cy+'" r="4.5" fill="var(--acc)"/><circle cx="'+x2+'" cy="'+cy+'" r="4.5" fill="var(--bad)"/>'});
-      H=Math.max(H,oy+30+D.length*rh+4)});
-    h.innerHTML=RD.svg(W,H,b,'AgentHarm with and without a jailbreak template')+'<div class="leg"><span><i style="background:var(--acc)"></i>no attack</span><span><i style="background:var(--bad)"></i>with the jailbreak template</span></div>'}
-  SH.reg(draw)})();
+// section 4: AgentHarm (arXiv 2410.09024 v3, Tables 2 and 3, public test, paper authors' runs), drawn by the Fig. 3 stage (33_js_sc_ag.js);
+// the same values are the static table in the closed block under it (check_stages.mjs compares them).
+// rows: model, harm no attack, refusal no attack, harm with template, refusal with template, harm on non-refused tasks with template, benign twin harm score (null: not given)
+window.SHD={ah:[['GPT-4o',48.4,48.9,72.7,13.6,84.2,89.9],['Claude 3.5 Sonnet',13.5,85.2,68.7,16.7,81.9,82],['Gemini 1.5 Pro',15.7,78.4,56.1,3.5,null,null],['Mistral Large 2',82.2,1.1,80.5,0.0,null,null]]};
 
 // section 5: TruthfulQA answered without the question
 (function(){const h=document.getElementById('sh-tqa');if(!h)return;const C='var(--c4)';

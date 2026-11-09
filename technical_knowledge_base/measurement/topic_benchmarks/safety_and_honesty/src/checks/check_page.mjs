@@ -34,18 +34,19 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const tab = async t => { await p.evaluate(t => document.querySelector(`#tabs button[data-t="${t}"]`).click(), t); actions++; await wait(150); await bad('tab ' + t) };
   // Reading: the XSTest animation in every mode, every step; squares tapped
   await bad('read load');
-  // nothing plays before the reader acts: scroll the animation into view and wait
-  await p.evaluate(() => document.getElementById('xa-card').scrollIntoView()); await wait(3000);
-  const playing = await p.$eval('#xa-ctl-p', e => e.getAttribute('aria-label')); if (playing !== 'Play') problems.push(`${scheme}${width}: XSTest animation started by itself`);
-  if (await p.$eval('#xa-ctl-s', e => e.value) !== '0') problems.push(`${scheme}${width}: XSTest animation moved by itself`);
-  for (const m of ['llama2orig', 'mistralinstruct', 'gpt4']) {
-    await p.evaluate(m => document.querySelector(`#xa-mode button[data-m="${m}"]`).click(), m); actions++;
-    await setRange('#xa-ctl-s', 'xa ' + m);
-    if (scheme === 'dark') out['xa_' + m] = await p.$eval('#xa-cnt', e => e.innerText);
-    for (const k of [0, 120, 300, 449]) { await fire('#xa-svg rect[data-i]', k); actions++; await bad('xa square ' + k) }
+  // the three stages (autoplay, reduced motion and the step lists are checked by ../check_stages.mjs): every mode, every step, back and forth, speed
+  for (const [id, sel, modes] of [['stg-xs', '#xa-mode', ['llama2orig', 'mistralinstruct', 'gpt4']], ['stg-gr', '#gr-mode', ['llama2orig', 'mistralinstruct']], ['stg-ag', null, ['']]]) {
+    for (const m of modes) {
+      if (sel) { await p.evaluate((sel, m) => document.querySelector(`${sel} button[data-m="${m}"]`).click(), sel, m); actions++ }
+      await setRange(`#${id}-r`, id + ' ' + m);
+      await fire(`#${id}-b`, 0); await fire(`#${id}-f`, 0); await fire(`#${id}-p`, 0); await wait(200); await fire(`#${id}-p`, 0); actions += 4;
+    }
+    await p.select(`#${id}-s`, '2'); actions++; await bad(id + ' speed');
   }
-  for (const id of ['#xa-ctl-p']) { await fire(id, 0); await wait(400); await fire(id, 0) } await fire('#xa-ctl-b', 0); await fire('#xa-ctl-f', 0); actions += 4;
-  await p.select('#xa-ctl-v', '2'); actions++;
+  await p.evaluate(() => { document.getElementById('xa-pairs').closest('details').open = true }); await bad('pairs open');
+  if (scheme === 'dark') { const x = await p.evaluate(() => window.SHN); for (const m of ['llama2orig', 'mistralinstruct', 'gpt4']) { const c = x.xs[m];
+      out['xa_' + m] = `Safe prompts refused ${c.sf} + ${c.sp} partial of ${c.sn} shown (${c.rs.toFixed(1)}%) Unsafe prompts answered ${c.uf} + ${c.up} partial of ${c.un} shown (${c.ru.toFixed(1)}%) Prompts shown 450 of 450` }
+    out.shn = x; out.pairs = await p.$eval('#xa-pairs', e => e.innerText) }
   await p.evaluate(() => { document.getElementById('gr-tab').closest('details').open = true });
   if (scheme === 'dark') { out.gr_tab = await p.$eval('#gr-tab', e => e.innerText); out.gr_note = await p.$eval('#gr-note', e => e.innerText); }
   // the abstention scoring toggle

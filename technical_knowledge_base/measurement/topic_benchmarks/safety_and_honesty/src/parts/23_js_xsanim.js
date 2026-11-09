@@ -31,51 +31,12 @@ window.XSU=(function(){
   const COL={ok:'var(--good)',part:'var(--c5)',bad:'var(--bad)',none:'var(--dim)'};
   return {X,T,FAM,TN,MOD,byType,unsafe,out,counts,COL};
 })();
+// ---- Section 1's closed block: one pair from each prompt family, with three models' labelled answers (no answer to an unsafe prompt that was not refused) ----
 (function(){
-  const U=window.XSU,X=U.X,esc=RD.esc;
-  const host=document.getElementById('xa-svg');if(!host)return;
-  let model='llama2orig',sel=null;
-  const N=U.FAM.length+2; // 0 intro, 1..8 families, 9 totals
-  function lay(){const w=Math.min(860,RD.width(host));const gap=Math.max(10,Math.round(w*0.03));const cell=Math.floor((w-gap)/50*10)/10;return {w,gap,cell}}
-  function draw(step){
-    const L=lay(),c=L.cell,s=Math.max(1,c-1.2);let y=18,body='';
-    const nar=L.w<560;body+=RD.t(0,12,nar?'Safe: answer':'Safe prompts (should be answered)',{fs:11,fill:'var(--mute)',w:600})+RD.t(25*c+L.gap,12,nar?'Unsafe: refuse':'Unsafe contrasts (should be refused)',{fs:11,fill:'var(--mute)',w:600});
-    const shown=[];
-    U.FAM.forEach((f,k)=>{
-      const on=step>k;const cur=step===k+1;
-      body+=RD.t(0,y+10,(cur?'&#9656; ':'')+f.n,{fs:11,w:cur?700:400,fill:cur?'var(--ink)':'var(--mute)'});y+=14;
-      const safe=[].concat(...f.s.map(t=>U.byType[t])),uns=[].concat(...f.u.map(t=>U.byType[t]));
-      const rows=Math.ceil(safe.length/25);
-      safe.forEach((i,j)=>{const x=(j%25)*c,yy=y+Math.floor(j/25)*c;body+=sq(i,x,yy,s,on);if(on)shown.push(i)});
-      uns.forEach((i,j)=>{const x=25*c+L.gap+(j%25)*c,yy=y+Math.floor(j/25)*c;body+=sq(i,x,yy,s,on);if(on)shown.push(i)});
-      y+=rows*c+6;
-    });
-    host.innerHTML=RD.svg(L.w,y,body,'XSTest prompts coloured by the model\'s labelled response');
-    host.querySelectorAll('rect[data-i]').forEach(r=>r.addEventListener('click',()=>{sel=+r.dataset.i;detail()}));
-    // counters
-    const k=U.counts(model,shown);
-    document.getElementById('xa-cnt').innerHTML=
-      RD.stat('Safe prompts refused',k.sf+' + '+k.sp+' partial','of '+k.sn+' shown'+(k.sn?' ('+RD.pct((k.sf+k.sp)/k.sn)+')':''))+
-      RD.stat('Unsafe prompts answered',k.uf+' + '+k.up+' partial','of '+k.un+' shown'+(k.un?' ('+RD.pct((k.uf+k.up)/k.un)+')':''))+
-      RD.stat('Prompts shown',shown.length,'of 450');
-    cap(step);
-  }
-  function sq(i,x,y,s,on){const o=on?U.out(model,i):'none';const st=sel===i?' stroke="var(--ink)" stroke-width="1.5"':'';
-    return '<rect data-i="'+i+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+s.toFixed(1)+'" height="'+s.toFixed(1)+'" rx="1" fill="'+U.COL[o]+'"'+st+' style="cursor:pointer"><title>'+esc(X.P[i][2])+'</title></rect>'}
+  const U=window.XSU,X=U.X,esc=RD.esc;if(!document.getElementById('xa-pairs'))return;
   function ex(m,i){const e=X.E[m]&&X.E[m][i];const c=X.L[m].h[i];const lab={1:'complied',2:'refused',3:'partial refusal'}[c];
-    const good=U.out(m,i);return '<span class="pill '+(good==='ok'?'ok':'no')+'">'+lab+'</span> '+(e?'<span class="q">&ldquo;'+esc(e)+'&rdquo;</span>':(X.E[m]?'<span class="q">(answer to an unsafe prompt withheld)</span>':''))}
-  function pairHTML(k){const f=U.FAM[k];const a=U.byType[f.s[0]][0],b=U.byType[f.u[0]][0];
-    return '<div class="xa-pair"><div><b>Safe:</b> '+esc(X.P[a][2])+'<br>'+ex(model,a)+'</div><div><b>Unsafe:</b> '+esc(X.P[b][2])+'<br>'+ex(model,b)+'</div></div>'}
-  const FC=['A homonym: the scary word has a harmless meaning.','The scary word is used figuratively.','The verb is violent but the target is not a person.','The act is fine inside a game, film or sport.','Asks what a dangerous word means.','Discrimination prompts that make no sense, against a real or nonsense group.','Asks about a real atrocity as history.','Asks for information that is public, or about a fictional person.'];
-  function cap(step){const el=document.getElementById('xa-cap');const M=U.MOD[model].n;
-    if(step===0){el.innerHTML='<div class="t">450 prompts, one model: '+esc(M)+'</div><p>XSTest pairs 250 safe prompts that only <i>look</i> dangerous with 200 unsafe contrasts that use the same words. Each square is one prompt; it will be coloured by how the authors labelled this model\'s real answer. Green is the right call (answer a safe prompt, refuse an unsafe one), orange the wrong one, yellow a partial refusal.</p>';return}
-    if(step===N-1){const k=U.counts(model,X.P.map((p,i)=>i));el.innerHTML='<div class="t">All 450: '+esc(M)+'</div><p>Refused '+k.sf+' of 250 safe prompts fully and '+k.sp+' partially; answered '+k.uf+' of 200 unsafe prompts fully and '+k.up+' partially. Switch the model: the same prompts move from one failure to the other. Neither number alone says the model is safe.</p>';return}
-    const k=step-1;el.innerHTML='<div class="t">'+(k+1)+' of 8: '+U.FAM[k].n+'</div><p>'+FC[k]+'</p>'+pairHTML(k)}
-  function detail(){const el=document.getElementById('xa-det');if(sel==null){el.innerHTML='';return}
-    const i=sel,p=X.P[i];el.innerHTML='<b>'+esc(U.TN[U.T[p[1]]])+'</b> (XSTest id '+p[0]+'): '+esc(p[2])+'<br>'+['llama2orig','gpt4','mistralinstruct'].map(m=>'<span class="small">'+esc(U.MOD[m].sh)+':</span> '+ex(m,i)).join('<br>');
-    A.redraw()}
-  const A=RD.anim({card:'xa-card',ctl:'xa-ctl',n:N,ms:2200,draw,label:'Prompt family'});
-  document.querySelectorAll('#xa-mode button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('#xa-mode button').forEach(x=>x.classList.toggle('on',x===b));model=b.dataset.m;A.redraw();detail()}));
-  RD.onResize(()=>A.redraw());
+    return '<span class="pill '+(U.out(m,i)==='ok'?'ok':'no')+'">'+lab+'</span> '+(e?'<span class="q">&ldquo;'+esc(e)+'&rdquo;</span>':(X.E[m]&&U.unsafe(i)?'<span class="q">(answer withheld)</span>':''))}
+  const MS=['llama2orig','mistralinstruct','gpt4'];
+  const side=(lab,i)=>'<div><b>'+lab+':</b> '+esc(X.P[i][2])+MS.map(m=>'<br><span class="small">'+esc(U.MOD[m].sh)+':</span> '+ex(m,i)).join('')+'</div>';
+  document.querySelectorAll('#xa-pairs .xa-pair').forEach(el=>{const f=U.FAM[+el.dataset.f],a=U.byType[f.s[0]][0],b=U.byType[f.u[0]][0];el.innerHTML=side('Safe',a)+side('Unsafe',b)});
 })();
