@@ -119,7 +119,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_benchmarks` Topic: benchmarks
 - [x] `measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation` Agent and trajectory evaluation: grading actions, not messages
 - [x] `measurement/topic_evaluation_and_llm_judges/eval_harnesses` Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools
-- [ ] `measurement/topic_evaluation_and_llm_judges/eval_statistics` Eval statistics: error bars, paired tests, how many items you need
+- [x] `measurement/topic_evaluation_and_llm_judges/eval_statistics` Eval statistics: error bars, paired tests, how many items you need
 - [ ] `measurement/topic_evaluation_and_llm_judges/human_evaluation_and_annotation` Human evaluation and annotation: rubrics, agreement, gold-label auditing
 - [ ] `measurement/topic_evaluation_and_llm_judges/llm_as_judge` LLM-as-judge: design, biases, calibration, reliability
 - [ ] `measurement/topic_evaluation_and_llm_judges/production_eval_engineering` Production eval engineering: gates, golden sets, shadow and A/B tests
@@ -412,3 +412,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `measurement/topic_benchmarks` (root): Fig. 1 lane names and counts hidden at 390 in the last step; same/check_calc.py needs `uv run --no-project --with scipy --with numpy --with statsmodels`; verify_layout flags the atlas, saturation and same-cases svgs outside a split (accepted: reader-driven explorers); error-bar widget replaced by a computed table plus a link to Math Fig. 3.
 - `measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation`: hero is a long row, so a shallow card on wide screens; Fig. 2 step 2 start-plate label briefly overlaps the gold plate as it slides out; side labels hidden at 390; checks/check_ui.mjs writes shots to /tmp by default (pass a dir).
 - `measurement/topic_evaluation_and_llm_judges/eval_harnesses`: Fig. 4 cube field small in its card at 1400 (rule labels faint); Fig. 3 and the GSM8K widget scroll with their text (taller than a window); stages small at 390; run logs carry the default Hugging Face cache path (~/.cache/huggingface/...), no personal data.
+- `measurement/topic_evaluation_and_llm_judges/eval_statistics`: Fig. 2 domino field at the bottom of the card is faint and partly cut at 1400; old animation's MT-Bench toggle dropped (pair stays in prose and the Interval lab); verify_layout flags the Interval lab svg outside a split (accepted: reader tool); recompute.py needs `uv run --no-project --with scipy --with numpy` and reruns differ only in float noise.
+- (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

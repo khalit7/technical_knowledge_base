@@ -1,5 +1,6 @@
 // 1. Compare the page's own numbers (window.ES_CHECK) with recompute.json.
-// 2. Click every control at 390 px dark and 920 px light; report errors, NaN/undefined text, sideways scroll; screenshots to ../.shots/own_*.png
+// 2. Click every control at 390 px dark and 920 px light; step both 3D stages; report errors, NaN/undefined text, sideways scroll; screenshots to ../.shots/own_*.png
+// The stages' autoplay, reduced motion and step lists are checked by check_stages.mjs.
 // usage (from this folder): node check_page.mjs
 import { createRequire } from 'module';
 import path from 'path'; import fs from 'fs'; import { fileURLToPath } from 'url';
@@ -75,16 +76,16 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     console.log(w, scheme, t, 'controls', n);
     await page.screenshot({ path: `${shots}/own_${w}_${t}.png`, fullPage: true });
   }
-  // the animation: every step on both data sets
+  // the two 3D stages (2026-11-09; they replace the 2D animation): every step, no NaN or undefined in the card
   await page.click('#tabs button[data-t="t-read"]');
-  for (const ds of ['race', 'mtb']) {
-    await page.evaluate(ds => document.querySelector('#rd-an-ds button[data-m="' + ds + '"]').click(), ds);
-    for (let i = 0; i < 6; i++) {
-      await page.evaluate(i => { const s = document.getElementById('rd-an-ctl-s'); s.value = i; s.dispatchEvent(new Event('input')) }, i);
-      const cap = await page.evaluate(() => document.getElementById('rd-an-card').innerText);
-      if (/NaN|undefined/.test(cap)) { bad++; console.log('anim problem', ds, i) }
+  for (const id of ['stg-se', 'stg-pair']) {
+    const n = await page.$eval(`#${id}-r`, e => +e.max + 1);
+    for (let i = 0; i < n; i++) {
+      await page.evaluate((id, i) => { const s = document.getElementById(id + '-r'); s.value = i; s.dispatchEvent(new Event('input')) }, id, i);
+      const cap = await page.evaluate(id => document.getElementById(id).innerText, id);
+      if (/NaN|undefined/.test(cap)) { bad++; console.log('stage problem', id, i) }
     }
-    const el = await page.$('#rd-an-card'); await el.screenshot({ path: `${shots}/own_${w}_anim_${ds}.png` });
+    await new Promise(r => setTimeout(r, 1700)); const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/own_${w}_${id}.png` });
   }
   const jsErr = await page.evaluate(() => document.getElementById('jsErr').hidden);
   if (errs.length || !jsErr) { bad++; console.log(w, 'errors', errs, 'jsErr hidden', jsErr) }
