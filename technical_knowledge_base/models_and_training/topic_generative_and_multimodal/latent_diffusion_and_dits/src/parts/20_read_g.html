@@ -1,13 +1,18 @@
+<div class="s3sp"><div class="s3L">
 <section id="ld-s8">
 <h2>8. Resolution and aspect ratio</h2>
 <p><b>The problem.</b> A denoiser learns the statistics of the latent grids it was trained on: their size, their shape, and how much of a subject one position covers. SD 1.5 was fine-tuned at 512 &times; 512 (its model card: 595k steps at that size). Ask it for another size and nothing in the code stops you: the U-Net is convolutional and its attention takes any number of positions.</p>
-<div class="rd-card" id="ld-c-res">
+
+<p id="ld-res-read"><b>What the four sizes show.</b> At 512, the training size, one puppy fills the frame. At 768 (2.25 times the area) one puppy still holds together, with more background. At 1024 (four times the area) the model draws <b>four puppies</b>: each region of the 128 &times; 128 latent is denoised with the statistics of a 64 &times; 64 training image, so the canvas fills with several subjects of the usual size; the U-Net's attention reaches the whole grid, but nothing in its training taught it what one large subject looks like at this scale. At 256 the puppy is cropped at the edge and its proportions are off: too few positions for the layout it learned. The same seed and settings throughout; no sampler change fixes this.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="ld-c-res">
 <h4>One prompt, one seed, four sizes: at four times the training area SD 1.5 draws four puppies</h4>
 <div class="seg" id="ld-res-pick"></div>
 <div class="ld-resimg" id="ld-res-img"></div>
 <p class="ld-note" id="ld-res-note"></p>
-</div>
-<p id="ld-res-read"><b>What the four sizes show.</b> At 512, the training size, one puppy fills the frame. At 768 (2.25 times the area) one puppy still holds together, with more background. At 1024 (four times the area) the model draws <b>four puppies</b>: each region of the 128 &times; 128 latent is denoised with the statistics of a 64 &times; 64 training image, so the canvas fills with several subjects of the usual size; the U-Net's attention reaches the whole grid, but nothing in its training taught it what one large subject looks like at this scale. At 256 the puppy is cropped at the edge and its proportions are off: too few positions for the layout it learned. The same seed and settings throughout; no sampler change fixes this.</p>
+</div></div></div></div>
+
+<section id="ld-s8b">
 <p><b>How production models handle it.</b></p>
 <ul>
 <li><b>Train at the sizes you will sample.</b> SDXL pretrained at 256 &times; 256, then 512, then fine-tuned on "different aspect ratios ... of ~1024 &times; 1024 pixel area" ({{Podell et al. 2023|https://arxiv.org/abs/2307.01952}}, section 2.5).</li>
@@ -17,36 +22,38 @@
 </ul>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="ld-s9">
 <h2>9. What one image costs</h2>
 <p><b>The formula.</b> One image = text encoder once (twice with guidance and a negative or empty prompt) + <i>steps</i> &times; <i>passes per step</i> &times; <span class="hl">FLOPs per pass</span> + one VAE decode. Passes per step is 2 with classifier-free guidance (the conditional and the unconditional prediction, batched together) and 1 for a guidance-distilled model (FLUX.1 [dev]) or a model sampled without guidance (FLUX.1 [schnell], Z-Image-Turbo). FLOPs per pass grow with the image tokens N (linear layers, convolutions) and with N<sup>2</sup> (attention), so at high resolution attention takes over: counted here, attention scores are <span data-ld="cost.sd15_attn512" data-f="pct0"></span> of SD 1.5's FLOPs at 512 pixels and <span data-ld="cost.sd15_attn2048" data-f="pct0"></span> at 2,048. A video clip multiplies the image tokens by its frames, so the N<sup>2</sup> term grows with the square of the duration: the clip-length slider of {{Video and audio generation|n:3c65c17b0d0d8198bd7be111a3dc4c3a}}, section 4 ("Duration is the expensive axis"), shows it overtaking everything else.</p>
-<div class="rd-card" id="ld-c-cost">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="ld-c-cost">
 <h4>One 1024 &times; 1024 image with each pipeline's default settings: steps &times; passes moves the total as much as model size</h4>
 <div class="tw"><table class="rd-cmp" id="ld-costtab"><thead><tr><th>Pipeline</th><th>Tokens (image + text)</th><th>FLOPs per pass</th><th>Steps &times; passes</th><th>Denoiser FLOPs per image</th></tr></thead><tbody></tbody></table></div>
 <p class="ld-note">Steps and guidance from each pipeline's <span class="ld-mono">__call__</span> defaults in diffusers 0.41.0, except where the model card recommends otherwise (FLUX.1 [schnell] "1 to 4 steps": 4; FLUX.2 [klein] 4B card: 4 steps, guidance 1.0; Z-Image-Turbo card: 9 steps, "8 DiT forwards", guidance 0). SD 1.5 and DiT-XL/2 were trained at 512 and 256 and are included for scale. Text encoders and the VAE decode are not included. <span class="der">derived</span> Try other sizes and settings in the {{Tokens and FLOPs calculator|#t-ldcalc}}.</p>
-</div>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="ld-s9b">
+
 <p><b>Measured here.</b> One SD 1.5 U-Net pass on the laptop's GPU (float16, attention slicing, batch 1) at six sizes, against the counted FLOPs:</p>
-<div class="rd-card" id="ld-c-m1">
-<h4>Time per pass grows faster than FLOPs: the laptop runs large attention less efficiently</h4>
-<div class="rd-svg" id="ld-m1-svg"></div>
-<p class="ld-note" id="ld-m1-note"></p>
-</div>
+
 <p><b>Where the time goes inside one pass</b> (the same guided pass as the root diffusion runs' 0.610 s, hooked per kind of layer): <span id="ld-prof-sum"></span> The parameter view of section 2 would have predicted none of this. Seconds do not transfer to a datacenter GPU with a fused attention kernel; the FLOP shares do (closed block "What transfers", below).</p>
 <div class="pr" id="ld-pr-steps"><div class="q">Predict: you must halve the cost of SD3.5 Large images at 1024 pixels without retraining. Which change saves the most?</div>
 <div class="opts"><button data-ok="0">Drop the T5 encoder (it is 4.7B parameters)</button><button data-ok="1">Halve the steps (28 to 14), or distil guidance away (two passes to one)</button><button data-ok="0">Shorten the prompt from 333 to 77 text tokens</button></div>
 <div class="ans" hidden></div></div>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="ld-c-m1">
+<h4>Time per pass grows faster than FLOPs: the laptop runs large attention less efficiently</h4>
+<div class="rd-svg" id="ld-m1-svg"></div>
+<p class="ld-note" id="ld-m1-note"></p>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="ld-s10">
 <h2>10. Few steps: distillation</h2>
 <p><b>The problem.</b> The cost formula's biggest lever is <span class="hl">passes per image</span>: 50 for SD 1.5 at the topic's settings, 100 for SDXL at its pipeline default, against one decode. Better solvers bring 1,000 steps down to 10 to 25 ({{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}}, section 5), but no solver follows a curved path in one or two straight steps. Below about 8 steps you need a second model trained to jump: <dfn>distillation</dfn>, where a <dfn>student</dfn> learns to do in a few passes what the <dfn>teacher</dfn> (the original model plus its sampler) does in many. A student removes one of two things.</p>
-<div class="rd-card" id="ld-c-dist">
-<h4>Distilled students cut passes per image 7 to 100 times; FLOPs per pass stay the same</h4>
-<div class="seg" id="ld-dist-mode"><button data-m="before" class="on">Teacher sampling</button><button data-m="after">Distilled student</button></div>
-<div class="rd-svg" id="ld-dist-svg"></div>
-<div class="an-cnt" id="ld-dist-cnt"></div>
-<p class="ld-note" id="ld-dist-note">One square is one denoiser pass; blue conditional, orange the unconditional passes guidance adds. Teachers at the topic's settings (SD 1.5) or the diffusers pipeline defaults. Students: LCM-LoRA 4 steps, guidance off (measured on {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}}, section 7); SDXL-Turbo 1 step, <span class="ld-mono">guidance_scale=0.0</span> ({{card|https://huggingface.co/stabilityai/sdxl-turbo}}: "1 to 4 steps"); SD3-Turbo "four unguided sampling steps" ({{LADD|https://arxiv.org/abs/2403.12015}}); FLUX.1 [schnell] 4 steps ({{card|https://huggingface.co/black-forest-labs/FLUX.1-schnell}}: "1 to 4 steps"). [dev] and [schnell] share one 11.9B transformer, 74.38 TFLOP per pass at 1024: 28 passes are 2,083 TFLOP, 4 are 298. <span class="der">derived</span></p>
-</div>
+
 <ul>
 <li><b>Remove the second pass per step: guidance distillation.</b> Train a student that takes the guidance scale w as an input and outputs the guided prediction in one call ({{Meng et al. 2022|https://arxiv.org/abs/2210.03142}}). FLUX.1 [dev] is such a model ("Trained using guidance distillation", its {{model card|https://huggingface.co/black-forest-labs/FLUX.1-dev}}), and it shows in the weights: the 10,229,760-parameter guidance embedder of section 6. Halves the cost at the same steps; negative prompts lose their slot, since there is no unconditional pass to replace.</li>
 <li><b>Remove steps: four families of students.</b>
@@ -57,6 +64,16 @@
 <li><b>Distribution matching</b> ({{DMD, Yin et al. 2023|https://arxiv.org/abs/2311.18828}}; {{DMD2, 2024|https://arxiv.org/abs/2405.14867}}): match the student's output distribution to the teacher's, using two score models.</li>
 </ul></li>
 </ul>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="ld-c-dist">
+<h4>Distilled students cut passes per image 7 to 100 times; FLOPs per pass stay the same</h4>
+<div class="seg" id="ld-dist-mode"><button data-m="before" class="on">Teacher sampling</button><button data-m="after">Distilled student</button></div>
+<div class="rd-svg" id="ld-dist-svg"></div>
+<div class="an-cnt" id="ld-dist-cnt"></div>
+<p class="ld-note" id="ld-dist-note">One square is one denoiser pass; blue conditional, orange the unconditional passes guidance adds. Teachers at the topic's settings (SD 1.5) or the diffusers pipeline defaults. Students: LCM-LoRA 4 steps, guidance off (measured on {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}}, section 7); SDXL-Turbo 1 step, <span class="ld-mono">guidance_scale=0.0</span> ({{card|https://huggingface.co/stabilityai/sdxl-turbo}}: "1 to 4 steps"); SD3-Turbo "four unguided sampling steps" ({{LADD|https://arxiv.org/abs/2403.12015}}); FLUX.1 [schnell] 4 steps ({{card|https://huggingface.co/black-forest-labs/FLUX.1-schnell}}: "1 to 4 steps"). [dev] and [schnell] share one 11.9B transformer, 74.38 TFLOP per pass at 1024: 28 passes are 2,083 TFLOP, 4 are 298. <span class="der">derived</span></p>
+</div></div></div></div>
+
+<section id="ld-s10b">
 <p><b>What it costs.</b> A student is a new model: training it takes compute and data (LCM about 32 A100 GPU hours), it is tied to its teacher's weights, and the few-step regime has its own failures. Measured on SD 1.5 by {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}} (section 7): "LCM-LoRA is sharp at 1 to 4 steps but drops the lighthouse; DPM-Solver++ needs 4 steps to keep it". Flow-based shortcuts (rectified flow, reflow, one-step distillation of a flow) are on {{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}}, sections 8 and 9.</p>
 <details class="dp"><summary>Seven distillation methods: idea, steps and published result <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="rd-cmp"><thead><tr><th>Method (first version)</th><th>Idea</th><th>Steps</th><th>Published result</th></tr></thead><tbody>

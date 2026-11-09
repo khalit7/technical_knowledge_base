@@ -1,6 +1,15 @@
+<div class="s3sp"><div class="s3R"><div id="stg-xa"></div></div><div class="s3L">
 <section id="ld-s3">
 <h2>3. How the text gets in: encoders, pooled vectors and cross-attention</h2>
 <p><b>The problem.</b> The denoiser must draw what the prompt says, so the prompt has to reach every position of the latent at every step. Two questions: what vectors stand for the prompt (the <dfn>text encoder</dfn> and which of its outputs), and how the image positions read them (cross-attention, joint attention or modulation).</p>
+<p class="sxh">Fig. 4, step by step: the running example's prompt reaching the image, from SD 1.5's recorded cross-attention</p>
+<ol class="sx" id="sx-xa">
+<li><b>77 text positions.</b> The prompt as SD 1.5 sees it: the start token, 11 word pieces, the end token and 64 more copies of the end token's id as padding (the first padding position is drawn; the other 63 are faint).</li>
+<li><b>A causal encoder.</b> CLIP's text transformer turns each position into a 768-number vector using only itself and the positions before it (the flows run left to right), so the start token's vector is the same constant for every prompt.</li>
+<li><b>Image positions ask.</b> At a 16 &times; 16 level of the U-Net the latent's 256 positions are the queries; the 77 text vectors are the keys and values.</li>
+<li><b>Where the attention goes.</b> Each position's softmax over the 77 tokens, averaged over positions, heads, layers and all 25 steps of the recorded run (columns and stream density to scale): the start token takes 91%, the 11 words 5%, the end token and padding 4%.</li>
+<li><b>One word's map.</b> The weight each position gives "bicycle" at the last step, scaled to that token's maximum: it sits where the bicycle is drawn. The viewer below shows every word and step.</li>
+</ol>
 
 <p><b>Step 1: tokens.</b> SD 1.5's tokenizer (CLIP's byte-pair encoding) turns the running example's first prompt into a start token, 11 word pieces and an end token, then pads to exactly 77 positions with the end token's id (49407) again. 77 is the context length CLIP was trained with; anything longer is cut, with only a logged warning ({{pipeline_stable_diffusion.py line 413|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion.py#L413}}). A 97-token prompt, run here:</p>
 <div class="ld-toks" id="ld-toks"></div>
@@ -15,9 +24,23 @@
 </ul>
 <details class="dp"><summary>The pooled vector and the padding, checked <span class="mute">(depth)</span></summary><div class="b"><p>CLIP's single summary vector (<span class="ld-mono">pooler_output</span>) is the final-layer output at the end token (equal here to within 10<sup>&minus;5</sup>). <b>Padding is not empty:</b> the positions after the end token have seen the whole prompt; their outputs stay close to the end token's (cosine 1.00 just after it, falling to <span data-ld="te.cos_pad_last" data-f="f2"></span> at the last position). SD 1.5's U-Net applies no mask, so the image attends to them.</p></div></details>
 
-<p><b>Step 3: cross-attention.</b> In each transformer block of the U-Net, the latent positions form the queries and the 77 text vectors the keys and values: position <i>i</i> computes a softmax over the 77 tokens and takes the weighted mix of their values. The weights are a map per token: where in the image that word is being used. Recorded here while SD 1.5 generated four of the topic's images (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5, float16 on the laptop's GPU). Pick a prompt and a word, then step through the run:</p>
+</section>
+</div></div>
 
-<div class="rd-card" id="ld-xa">
+<div class="s3sp"><div class="s3L">
+<section id="ld-s3b">
+<p><b>Step 3: cross-attention.</b> In each transformer block of the U-Net, the latent positions form the queries and the 77 text vectors the keys and values: position <i>i</i> computes a softmax over the 77 tokens and takes the weighted mix of their values. The weights are a map per token: where in the image that word is being used. Recorded here while SD 1.5 generated four of the topic's images (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5, float16 on the laptop's GPU). Pick a prompt and a word, then move through the run in the viewer:</p>
+
+<details class="dp"><summary>How the maps were recorded, and the code <span class="mute">(provenance)</span></summary><div class="b">
+<p>Every <span class="ld-mono">attn2</span> processor of the U-Net replaced by one that keeps the softmax output (<span class="ld-mono">src/sd/sd_ld.py</span>): diffusers routes every attention layer through a processor object, so swapping the processors records every map without touching the model. The conditional half of the guided batch, mean over heads, summed per resolution; maps stored as 8-bit, each token scaled to its own maximum (the mass bars use the unscaled values). The step image is the model's prediction of the clean latent at that step, x&#770;<sub>0</sub> = (x<sub>t</sub> &minus; &radic;(1 &minus; &alpha;&#772;<sub>t</sub>) &epsilon;&#770;) / &radic;&alpha;&#772;<sub>t</sub> with the guided &epsilon;&#770;, decoded by the VAE. The part that records the maps:</p>
+<pre class="rd-code" id="ld-code-grab"></pre>
+</div></details>
+
+<div class="pr" id="ld-pr-horse"><div class="q">Predict: the topic's test image g06 ("an astronaut riding a horse on the moon, digital art", seed 5) shows no horse. What does the "horse" token's cross-attention map look like?</div>
+<div class="opts"><button data-ok="0">Nothing: the token gets no attention at all</button><button data-ok="1">It is weak and lands on the astronaut's body: the word is read, but no separate region is given to it</button><button data-ok="0">A sharp horse-shaped region that the decoder fails to draw</button></div>
+<div class="ans" hidden></div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="ld-xa">
 <h4>Each word's map is in place from the first steps, while the image is still a blur</h4>
 <div class="seg" id="xa-prompt"></div>
 <div class="xa-toks" id="xa-toks"></div>
@@ -36,16 +59,9 @@
 <div class="xa-cmp" id="xa-cmp"></div>
 <p class="ld-note" id="xa-cmp-note"></p>
 <p class="ld-note">Left: the word's map over the model's guess of the final image at that step (x&#770;<sub>0</sub>, decoded by the VAE), at seven of the 25 steps. <span class="meas">measured on Apple M1 Pro (MPS), float16</span></p>
-</div>
-<p>Averaged over all steps and layers at each resolution, the start token takes <span data-ld="xm.g01.start16" data-f="pct0"></span> of the 16 &times; 16 layers' cross-attention for the bicycle prompt, the 11 words <span data-ld="xm.g01.words16" data-f="pct0"></span> and the end and padding positions <span data-ld="xm.g01.end16" data-f="pct0"></span>.</p>
-<details class="dp"><summary>How the maps were recorded, and the code <span class="mute">(provenance)</span></summary><div class="b">
-<p>Every <span class="ld-mono">attn2</span> processor of the U-Net replaced by one that keeps the softmax output (<span class="ld-mono">src/sd/sd_ld.py</span>): diffusers routes every attention layer through a processor object, so swapping the processors records every map without touching the model. The conditional half of the guided batch, mean over heads, summed per resolution; maps stored as 8-bit, each token scaled to its own maximum (the mass bars use the unscaled values). The step image is the model's prediction of the clean latent at that step, x&#770;<sub>0</sub> = (x<sub>t</sub> &minus; &radic;(1 &minus; &alpha;&#772;<sub>t</sub>) &epsilon;&#770;) / &radic;&alpha;&#772;<sub>t</sub> with the guided &epsilon;&#770;, decoded by the VAE. The part that records the maps:</p>
-<pre class="rd-code" id="ld-code-grab"></pre>
-</div></details>
+</div></div></div></div>
 
-<div class="pr" id="ld-pr-horse"><div class="q">Predict: the topic's test image g06 ("an astronaut riding a horse on the moon, digital art", seed 5) shows no horse. What does the "horse" token's cross-attention map look like?</div>
-<div class="opts"><button data-ok="0">Nothing: the token gets no attention at all</button><button data-ok="1">It is weak and lands on the astronaut's body: the word is read, but no separate region is given to it</button><button data-ok="0">A sharp horse-shaped region that the decoder fails to draw</button></div>
-<div class="ans" hidden></div></div>
+<section id="ld-s3c">
 
 <p><b>Bigger encoders and other outputs.</b> Every later model changed what the text side hands over (encoders, widths and lengths read from the pipelines and configs, diffusers v0.41.0):</p>
 <div class="tw"><table class="rd-cmp">

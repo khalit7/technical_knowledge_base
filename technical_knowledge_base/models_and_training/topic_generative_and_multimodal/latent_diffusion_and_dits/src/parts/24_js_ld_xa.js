@@ -19,7 +19,7 @@
     $('xa-cap2').innerHTML=mode==='step'?'predicted clean image at step '+(st+1):'final image, seed '+v.seed;
     const mx=mode==='step'?v.m16[st].max[tok]:v.m32max[tok];
     $('xa-anc').innerHTML='<div class="t">'+RD.esc(v.prompt)+'</div><p>'+(mode==='step'?(st<3?'Early steps: the predicted image is a blur of the layout, and the word\'s map is already roughly where its object will be.':st<12?'Middle steps: the layout is fixed; maps sharpen around their objects.':'Late steps: detail is being added; the maps change little.'):'The run-average map at the 32 &times; 32 layers.')+' Strongest cell for this word: '+U.pct(mx,1)+' of a position\'s attention.</p>'}
-  const an=RD.anim({card:'xa-card',ctl:'xa-ctl',n:7,draw,ms:1500,label:'Step'});
+  const an=RD.anim({card:'xa-card',ctl:'xa-ctl',n:7,draw,ms:1500,label:'Step',auto:false}); // a viewer the reader drives (prompt, word, step): never plays by itself
   $('xa-prompt').innerHTML=keys.map((k,i)=>'<button data-m="'+k+'"'+(i===0?' class="on"':'')+'>'+(names[k]||k)+'</button>').join('');
   RD.seg($('xa-prompt'),k=>{tok=null;setPrompt(k)});
   $('xa-toks').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!b.isConnected||+b.dataset.i>=X[P].tokens.length)return;tok=+b.dataset.i;$('xa-toks').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));an.redraw()});

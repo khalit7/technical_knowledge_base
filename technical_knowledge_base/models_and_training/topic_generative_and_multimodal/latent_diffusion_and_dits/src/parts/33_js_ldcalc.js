@@ -41,5 +41,5 @@
     s+=RD.t((l+W-r)/2,H-4,'image side in pixels (square, log scale)',{a:'middle',fs:10.5,fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'FLOPs per pass against image size');
     $('lc-note').innerHTML='Each line: FLOPs of one pass (GF, TF, PF: giga, tera, peta) at the pipeline\'s default text length, from the counted formula; the selected denoiser is drawn thick. SD 1.5 is the cheapest pass up to 512 pixels and Sana (32&times; VAE, linear attention) from 768 up; SD 1.5\'s U-Net, with attention at its highest-resolution level, costs more per pass than SDXL\'s 2.6B U-Net between 1,536 and 2,048 pixels, because SDXL dropped attention there. <span class="der">derived</span>'+(r<=60?' Colours in order: '+keys.map((k,i)=>'<span style="color:'+col[i]+'">'+A[k].label.split(' (')[0]+'</span>').join(', ')+'.':'')}
-  draw();RD.onResize(draw,'t-ldcalc');RD.onRender(draw,'t-ldcalc');$('lc-m').addEventListener('change',draw);
+  draw();(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-ldcalc']=window.TAB_RENDER['t-ldcalc']||[]).push(draw);{let tm=0;addEventListener('resize',()=>{const r=$('t-ldcalc');if(!r||r.hidden)return;clearTimeout(tm);tm=setTimeout(draw,60)})}$('lc-m').addEventListener('change',draw);
 })();

@@ -1,15 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-dit"></div></div><div class="s3L">
 <section id="ld-s4">
 <h2>4. The diffusion transformer (DiT): patches, adaLN-Zero, and scaling with compute</h2>
 <p><b>The problem.</b> The U-Net is a hand-built stack of different blocks; a transformer is one block repeated, with well-understood scaling and years of systems work behind it. Peebles and Xie asked whether a plain transformer can replace the U-Net inside latent diffusion, and what to scale ({{Scalable Diffusion Models with Transformers, Dec 2022|https://arxiv.org/abs/2212.09748}}).</p>
-<figure class="ld-fig" id="ld-fig-dit"><a href="img/dit_block_fig3.webp" target="_blank" rel="noopener noreferrer"><img src="img/dit_block_fig3.webp" width="1400" height="578" alt="DiT architecture figure from the paper: on the left, a noised 32 by 32 by 4 latent is patchified, embedded with the timestep and label, passed through N DiT blocks, a layer norm and a linear-and-reshape layer to give noise and covariance; on the right, three block designs: adaLN-Zero with scale, shift and gate parameters regressed from the conditioning, cross-attention, and in-context conditioning" loading="lazy"></a>
-<figcaption><b>Notice the arrows coming in from the right of the adaLN-Zero block:</b> the conditioning never enters as tokens; an MLP turns it into &gamma;, &beta; (scale and shift for each LayerNorm) and &alpha; (the gate before each residual add). The two greyed blocks are the alternatives the paper tested and rejected (results below). Tap to open full size. Figure 3 of Peebles and Xie, {{arXiv:2212.09748|https://arxiv.org/abs/2212.09748}}, CC BY 4.0.</figcaption></figure>
-<p><b>How it works.</b> Four pieces, all visible in the animation of section 2 (switch it to DiT):</p>
-<ol>
-<li><b>Patchify.</b> Cut the I &times; I &times; C latent into p &times; p patches and embed each linearly (a convolution with kernel and stride p): T = (I / p)<sup>2</sup> tokens of width d. At 256 &times; 256 the latent is 32 &times; 32 &times; 4, so p = 2 gives 256 tokens; at 512, 1,024 tokens.</li>
-<li><b>Positions.</b> Add a fixed 2-D sine-cosine embedding (as in ViT and MAE): the tokens carry where they came from (section 7).</li>
-<li><b>N identical DiT blocks</b> with <dfn>adaLN-Zero</dfn> conditioning (below).</li>
-<li><b>Unpatchify.</b> A final adaptive LayerNorm and a linear layer map each token back to p &times; p &times; 2C numbers (the noise and, for DiT, a learned variance), reshaped into the latent grid ({{models.py line 218|https://github.com/facebookresearch/DiT/blob/ed81ce2229091fd4ecc9a223645f95cf379d582b/models.py#L218}}).</li>
+
+<p><b>How it works.</b> Four pieces, drawn on DiT-XL/2's 512 model in Fig. 5: patchify, positions, N identical blocks, unpatchify.</p>
+<p class="sxh">Fig. 5, step by step: one latent through DiT-XL/2, from the authors' code at 512 pixels</p>
+<ol class="sx" id="sx-dit">
+<li><b>The same latent.</b> 64 &times; 64 &times; 4, the latent of a 512 &times; 512 image, as in Fig. 3.</li>
+<li><b>Patchify, and positions.</b> Cut the I &times; I &times; C latent into p &times; p patches and embed each linearly (a convolution with kernel and stride p): T = (I / p)<sup>2</sup> tokens of width d. Here p = 2: 1,024 tokens of 1,152 (at 256 &times; 256 the latent is 32 &times; 32 &times; 4, so p = 2 gives 256 tokens). Add a fixed 2-D sine-cosine embedding (as in ViT and MAE): the tokens carry where they came from (section 7).</li>
+<li><b>The condition is one vector.</b> The timestep and class embeddings are summed into c, and each block's modulation layer turns c into six vectors of 1,152: a shift, a scale and a gate for attention, and the same for the MLP (adaLN-Zero, below).</li>
+<li><b>One block.</b> LayerNorm, shift and scale, attention over all 1,024 tokens, times the gate, added back; then the same around the MLP. The gates start at zero, so the block starts as the identity.</li>
+<li><b>N identical DiT blocks with adaLN-Zero conditioning (below).</b> 28 here, each 23.9M parameters and 37.5 GFLOP at 512 pixels (counted): no levels and no skips, the token count and width never change, so scaling means more blocks, wider blocks or smaller patches. Attention scores over 1,024 tokens are about an eighth of each block's FLOPs.</li>
+<li><b>Unpatchify.</b> A final adaptive LayerNorm and a linear layer map each token back to p &times; p &times; 2C numbers (the noise and, for DiT, a learned variance), reshaped into the latent grid: 64 &times; 64 &times; 8 ({{models.py line 218|https://github.com/facebookresearch/DiT/blob/ed81ce2229091fd4ecc9a223645f95cf379d582b/models.py#L218}}).</li>
 </ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="ld-s4b">
 <p><b>adaLN-Zero.</b> The timestep and class embeddings are summed into one vector c. Each block feeds c through SiLU and one linear layer to 6d numbers: a <dfn>shift</dfn> and <dfn>scale</dfn> for the LayerNorm before attention and before the MLP (adaptive LayerNorm, the same trick as FiLM and StyleGAN), and a <dfn>gate</dfn> that multiplies each branch before its residual add. That linear layer is initialised to zero, so every gate starts at 0 and every block starts as the identity. The authors' code, as it ran here for counting ({{models.py lines 119 to 121|https://github.com/facebookresearch/DiT/blob/ed81ce2229091fd4ecc9a223645f95cf379d582b/models.py#L119}} and {{207|https://github.com/facebookresearch/DiT/blob/ed81ce2229091fd4ecc9a223645f95cf379d582b/models.py#L207}}):</p>
 <pre class="rd-code">def forward(self, x, c):
     shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
@@ -22,24 +30,35 @@ for block in self.blocks:
     nn.init.constant_(block.adaLN_modulation[-1].weight, 0)
     nn.init.constant_(block.adaLN_modulation[-1].bias, 0)</pre>
 <p class="rd-codecap"><span class="ld-mono">modulate(x, shift, scale)</span> is <span class="ld-mono">x * (1 + scale) + shift</span> (line 19). facebookresearch/DiT at ed81ce2.</p>
-<div class="rd-card">
+</section></div>
+<div class="s3R"><div class="s3side"><figure class="ld-fig" id="ld-fig-dit"><a href="img/dit_block_fig3.webp" target="_blank" rel="noopener noreferrer"><img src="img/dit_block_fig3.webp" width="1400" height="578" alt="DiT architecture figure from the paper: on the left, a noised 32 by 32 by 4 latent is patchified, embedded with the timestep and label, passed through N DiT blocks, a layer norm and a linear-and-reshape layer to give noise and covariance; on the right, three block designs: adaLN-Zero with scale, shift and gate parameters regressed from the conditioning, cross-attention, and in-context conditioning" loading="lazy"></a>
+<figcaption><b>Notice the arrows coming in from the right of the adaLN-Zero block:</b> the conditioning never enters as tokens; an MLP turns it into &gamma;, &beta; (scale and shift for each LayerNorm) and &alpha; (the gate before each residual add). The two greyed blocks are the alternatives the paper tested and rejected (results below). Tap to open full size. Figure 3 of Peebles and Xie, {{arXiv:2212.09748|https://arxiv.org/abs/2212.09748}}, CC BY 4.0.</figcaption></figure>
+<div class="rd-card card">
 <h4>adaLN-Zero beat the other three ways of bringing in the condition</h4>
 <div class="rd-bars" id="ld-condbars"></div>
 <p class="ld-note">Table 4 of the paper: each a DiT-XL/2 trained 400K steps, FID-50K without guidance, lower is better (<span class="indep">published, the authors' runs</span>). In-context: c appended as two extra tokens. Cross-attention: an extra cross-attention layer reading c, "roughly a 15% overhead" in Gflops. adaLN: regress shift and scale only (4d outputs), no gates. adaLN-Zero: shift, scale and zero-initialised gates (6d). Parameters from the same table.</p>
-</div>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="ld-s4c">
+
 
 <p><b>Scaling: what to grow.</b> DiT's central result: across 12 models (four widths and depths times three patch sizes), FID after 400K steps follows the forward-pass compute, not the parameter count. Shrinking the patch from 8 to 2 leaves the parameters almost unchanged and multiplies the tokens, and so the compute, by 16.</p>
-<div class="rd-card" id="ld-c-scale">
-<h4>DiT's 12 models: FID falls with compute per pass, whatever the size of the model</h4>
-<div class="rd-svg" id="ld-scale-svg"></div>
-<p class="ld-note" id="ld-scale-note"></p>
-</div>
+
 <div class="pr" id="ld-pr-patch"><div class="q">Predict: DiT-XL with 4 &times; 4 patches has 675M parameters, 29.05 Gflops and FID 43.01. Halve the patch to 2 &times; 2. What happens to parameters, compute and FID?</div>
 <div class="opts"><button data-ok="0">Parameters double, compute doubles, FID a little better</button><button data-ok="1">Parameters unchanged, compute about 4 times, FID less than half</button><button data-ok="0">Parameters unchanged, compute unchanged, FID unchanged (same model)</button></div>
 <div class="ans" hidden></div></div>
 <details class="dp"><summary>Two more DiT results to read critically <span class="mute">(depth)</span></summary><div class="b">
 <p><b>Sampling compute does not buy back model compute:</b> DiT-L/2 with 1,000 sampling steps (80.7 Tflops per image) scored FID-10K 25.9, DiT-XL/2 with 128 steps (15.2 Tflops) 23.7. <b>The headline FID 2.27 used guidance on three of the four latent channels only</b>, a detail in the appendix; four-channel guidance at scale 1.375 gave 2.20, so the choice did not flatter the result, but a reimplementation that guides all channels at 1.5 is not the published configuration.</p>
 </div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="ld-c-scale">
+<h4>DiT's 12 models: FID falls with compute per pass, whatever the size of the model</h4>
+<div class="rd-svg" id="ld-scale-svg"></div>
+<p class="ld-note" id="ld-scale-note"></p>
+</div></div></div></div>
+
+<section id="ld-s4d">
 
 <p><b>At toy scale the U-Net wins.</b> Trained here with the topic's flow-matching recipe on Fashion-MNIST, a 4.1M-parameter DiT given the same training compute as the 1.0M-parameter U-Net scored a Fr&eacute;chet distance of 38.1 against the U-Net's 23.75 (lower is better, guidance 1.5): convolutions build in locality a small transformer must learn. DiT wins by how it scales with compute, not by data efficiency. Smaller patches helped at equal steps (2 &times; 2 beat 4 &times; 4 beat 8 &times; 8, as in DiT's Figure 8), and zero-initialised gates beat the default initialisation. <span class="meas">measured on Apple M1 Pro (MPS), one seed</span></p>
 <details class="dp"><summary>The tiny DiT against the tiny U-Net: setup, every run, the same noise through each <span class="mute">(measured here)</span></summary><div class="b">

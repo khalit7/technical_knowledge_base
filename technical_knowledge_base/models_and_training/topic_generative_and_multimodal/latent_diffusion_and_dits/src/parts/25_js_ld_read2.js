@@ -1,4 +1,4 @@
-// ---- Reading, sections 4 to 7: conditioning variants, DiT scaling, the tiny experiment, attention patterns, parameter shares, FLUX position ids ----
+// ---- Reading, sections 4 to 7: conditioning variants, DiT scaling, the tiny experiment, attention patterns, parameter shares (FLUX position ids are Fig. 8, 28_js_sc8rope.js) ----
 (function(){
   const U=window.LDU,L=U.L,$=id=>document.getElementById(id),A=U.byKey,PUB=L.pub;
   // ------------------------------------------------ DiT conditioning variants (Table 4)
@@ -80,20 +80,5 @@
     const f=A.flux1,s=A.sd35l,p=L.pipe,F1=U.grid('flux1',1024),S3=U.grid('sd35l',1024);
     const fi=p.flux1.num_inference_steps*1*F1[2],si=p.sd3.num_inference_steps*2*S3[2];
     U.setAns('ld-pr-dev','Counted at 1024 pixels with each pipeline\'s default text length: FLUX.1 [dev] '+U.FL(F1[2])+' per pass &times; '+p.flux1.num_inference_steps+' steps &times; 1 pass = <b>'+U.FL(fi)+'</b>; SD3.5 Large '+U.FL(S3[2])+' &times; '+p.sd3.num_inference_steps+' &times; 2 passes = <b>'+U.FL(si)+'</b>. FLUX.1 costs '+U.fx(fi/si,2)+' times as much, not 1.5: guidance distillation removed half of its passes. Parameters ('+U.B(f.params)+' against '+U.B(s.params)+') are a poor guide to cost per image.');
-  })();
-  // ------------------------------------------------ FLUX position ids
-  (function(){
-    const el=$('ld-rope-svg');
-    function draw(){const h=Math.max(1,Math.min(8,+$('ld-rope-h').value||1)),w=Math.max(1,Math.min(8,+$('ld-rope-w').value||1)),t=Math.max(1,Math.min(6,+$('ld-rope-t').value||1));
-      const W=Math.min(700,Math.max(280,el.clientWidth||500)),cw=Math.min(64,Math.floor((W-20)/Math.max(w,t))),ch=34;let s='',y=14;
-      s+=RD.t(10,y,'text tokens (ids)',{fs:10.5,fill:'var(--mute)'});y+=6;
-      for(let i=0;i<t;i++)s+='<rect x="'+(10+i*cw)+'" y="'+y+'" width="'+(cw-3)+'" height="'+(ch-4)+'" rx="3" fill="var(--c6)" opacity=".35"/>'+RD.t(10+i*cw+(cw-3)/2,y+ch/2+2,'0,0,0',{a:'middle',fs:10});
-      y+=ch+16;s+=RD.t(10,y,'image tokens (ids = time, row, column)',{fs:10.5,fill:'var(--mute)'});y+=6;
-      for(let r=0;r<h;r++)for(let c=0;c<w;c++)s+='<rect x="'+(10+c*cw)+'" y="'+(y+r*ch)+'" width="'+(cw-3)+'" height="'+(ch-4)+'" rx="3" fill="var(--c1)" opacity=".3"/>'+RD.t(10+c*cw+(cw-3)/2,y+r*ch+ch/2+2,'0,'+r+','+c,{a:'middle',fs:10});
-      y+=h*ch+18;const bw=W-20;s+=RD.t(10,y,'one 128-wide attention head, split by axis',{fs:10.5,fill:'var(--mute)'});y+=6;
-      [[16,'time',"var(--c5)"],[56,'row',"var(--c1)"],[56,'column',"var(--c3)"]].reduce((x,[d,n,col])=>{s+='<rect x="'+x+'" y="'+y+'" width="'+(bw*d/128-2)+'" height="18" fill="'+col+'" opacity=".6"/>'+RD.t(x+bw*d/256,y+13,d+' '+n,{a:'middle',fs:10});return x+bw*d/128},10);
-      el.innerHTML=RD.svg(W,y+26,s,'FLUX position ids');
-      $('ld-rope-note').innerHTML=(h*w)+' image tokens and '+t+' text tokens, '+(h*w+t)+' in the joint sequence. The text ids are all zero (pipeline line 387: <span class="ld-mono">torch.zeros(prompt_embeds.shape[1], 3)</span>), so rotary embedding leaves text unrotated; each image token\'s query and key are rotated by angles set by its row (56 channels) and column (56 channels), so the score between two image tokens depends on their row and column offsets only. A 1024 &times; 1024 image is a 128 &times; 128 latent packed to '+64+' &times; 64 = 4,096 tokens.'}
-    ['ld-rope-h','ld-rope-w','ld-rope-t'].forEach(i=>$(i).addEventListener('input',draw));draw();RD.onResize(draw);
   })();
 })();

@@ -2,13 +2,22 @@
 <a href="#ld-s0">The idea</a><a href="#ld-s1">1 Why latents</a><a href="#ld-s2">2 The U-Net</a><a href="#ld-s3">3 Text in</a><a href="#ld-s4">4 DiT</a><a href="#ld-s5">5 MMDiT</a><a href="#ld-s6">6 Double and single stream</a><a href="#ld-s7">7 Positions</a><a href="#ld-s8">8 Resolution</a><a href="#ld-s9">9 Cost</a><a href="#ld-s10">10 Few steps</a><a href="#ld-dp">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="ld-s0">
 <p class="core">A text-to-image model runs one large network, the <span class="hl">denoiser</span>, tens of times on a small VAE <dfn>latent</dfn> while a text encoder steers it, so the price of an image is <span class="hl">FLOPs per denoiser pass &times; passes per image</span>. Every design on this page changes one of those two factors or how the text reaches the image: the latent shrinks the pass, the U-Net and the diffusion transformer (DiT) are two ways to build it, cross-attention and joint attention are two ways to read the prompt, and distillation cuts the passes.</p>
 
-<div class="hero" id="ld-hero-card"><h4>One image from Stable Diffusion 1.5: the denoiser runs 50 times, everything else once</h4>
-<div class="rd-svg" id="ld-hero"></div>
-<p class="ld-note" id="ld-hero-cap">The running example at the topic's settings (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5). Times are the topic's diffusion runs on Apple M1 Pro (root Diffusion lab recordings): 0.319 s per U-Net pass, 0.610 s per guided step (two passes batched), 0.488 s per VAE decode; 25 &times; 0.610 = 15.3 s of denoising against one decode. <span class="meas">measured</span> <span class="der">derived</span> Parameters counted from the configs.</p></div>
+<p class="sxh">Fig. 1, step by step: one image from Stable Diffusion 1.5: the denoiser runs 50 times, everything else once</p>
+<ol class="sx" id="sx-hero">
+<li><b>The prompt, once.</b> CLIP's tokenizer cuts the prompt into 77 positions (section 3); CLIP ViT-L's text encoder (123.1M parameters) turns them into 77 vectors of 768, once per prompt (twice with guidance, for the empty prompt).</li>
+<li><b>A latent, not an image.</b> The denoiser works on a 64 &times; 64 &times; 4 latent, 16,384 numbers standing for the 512 &times; 512 &times; 3 image, and starts from pure noise. Here the two are not to scale; Fig. 2 draws them so.</li>
+<li><b>The denoiser, 50 times.</b> The U-Net (859.5M parameters, 0.80 TFLOP per pass at 512 pixels, counted) runs at every one of 25 sampler steps, twice per step with classifier-free guidance (the prompt and the empty prompt, batched), and every pass reads the 77 text vectors.</li>
+<li><b>The VAE decoder, once.</b> 83.7M parameters draw the final latent as the 512 &times; 512 &times; 3 image.</li>
+<li><b>Where the time goes.</b> The two columns are to scale: 25 guided steps of 0.610 s against one decode of 0.488 s. The price of an image is FLOPs per pass &times; passes per image.</li>
+</ol>
+<p class="ld-note" id="ld-hero-cap">The running example at the topic's settings (512 &times; 512, 25 DPM-Solver++ steps, guidance 7.5). Times are the topic's diffusion runs on Apple M1 Pro (root Diffusion lab recordings): 0.319 s per U-Net pass, 0.610 s per guided step (two passes batched), 0.488 s per VAE decode; 25 &times; 0.610 = 15.3 s of denoising against one decode. <span class="meas">measured</span> <span class="der">derived</span> Parameters counted from the configs.</p></section>
+</div></div>
 
+<section id="ld-s0x">
 <p><b>You need:</b> the transformer block, attention and patch tokens that a DiT reuses ({{The transformer from zero: one block, every shape, a GPT you train|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}); what a denoiser predicts, how a sampler and classifier-free guidance use it, and the forward process and schedule underneath ({{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}}: targets and loss section 3, the three views section 4, samplers section 5, guidance section 6; for SD3 and FLUX, the velocity objective of {{Flow matching|n:3fc5c17b0d0d8136a1efc73aaa446ceb}}), and the VAE that makes the latent, with its scaling factor ({{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}, section 11). The parent {{Topic: generative-and-multimodal|n:3c65c17b0d0d817ab6ade318917bff55}} gives the map of the topic; its Model map (one prompt through six real pipelines, with every generator's release, licence and size) is reused here, not repeated.</p>
 <dl class="terms">
 <dt>Latent</dt><dd>the VAE's compressed grid standing in for the image: 64 &times; 64 &times; 4 for a 512 &times; 512 SD 1.5 image.</dd>
@@ -35,16 +44,19 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-lat"></div></div><div class="s3L">
 <section id="ld-s1">
 <h2>1. Why latent diffusion: the compute arithmetic</h2>
 <p><b>The problem.</b> The denoiser runs tens of times per image (at the topic's settings: 25 steps, each two passes with guidance), so everything it costs is multiplied. A 512 &times; 512 colour image is 786,432 numbers, while the details that matter to a viewer (shapes, layout, texture statistics) are far fewer.</p>
 <p><b>How it works.</b> Train an autoencoder once, then train and run the denoiser on its latent. Stable Diffusion's VAE maps 512 &times; 512 &times; 3 to 64 &times; 64 &times; 4 = 16,384 numbers, 48 times fewer (the <dfn>downsampling factor</dfn> f = 8 per side, 4 channels). The decoder runs once at the end; the denoiser never sees a pixel. Rombach et al. called this splitting "perceptual compression" (the autoencoder) from "semantic compression" (the generator); the paper's own f sweep is rebuilt on the {{LDM paper page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}, with a live toy of latent against pixel diffusion at fixed compute.</p>
 
-<div class="rd-card" id="ld-c-pix">
-<h4>The same U-Net costs hundreds of times more on pixels than on the latent</h4>
-<div class="rd-bars" id="ld-pixbars"></div>
-<p class="ld-note" id="ld-pixnote"></p>
-</div>
+<p class="sxh">Fig. 2, step by step: the same image as pixels and as a latent, drawn to scale</p>
+<ol class="sx" id="sx-lat">
+<li><b>The image: 786,432 numbers.</b> Three 512 &times; 512 colour planes (grid lines every 32 pixels).</li>
+<li><b>Its latent, to scale: 16,384 numbers.</b> The VAE's encoder maps it to 64 &times; 64 &times; 4: an eighth of the side, 4 channels, 48 times fewer numbers. This small grid is all the denoiser ever sees.</li>
+<li><b>The same U-Net costs hundreds of times more on pixels than on the latent.</b> One SD 1.5 U-Net pass (batch 1, 77 text tokens) is 0.80 TFLOP on the latent and 545 TFLOP on a 512 &times; 512 pixel grid, 679 times as much; the columns are to scale, so the latent's is a sliver. The latent pass is counted on meta tensors; the pixel pass is the same network with 512 &times; 512 positions at its top level (the input convolution would take 3 channels instead of 4, a negligible change), from the counted formula, which is exact for this network.</li>
+<li><b>The N<sup>2</sup> part grows fastest.</b> The darker part of each column is the formula's N<sup>2</sup> terms (attention scores): 15% of the latent pass, 92% of the pixel pass. Positions grow 64 times, attention entries 4,096 times.</li>
+</ol>
 
 <p><b>Two parts that scale differently.</b> Convolutions and linear layers cost in proportion to the positions N, attention scores to N<sup>2</sup>. SD 1.5's top level already compares 4,096 positions with 4,096; on pixels it would hold 262,144, an attention matrix of 6.9 &times; 10<sup>10</sup> entries per head per layer. That is why pixel-space models (DDPM, ADM, Imagen's base model) worked mostly at 64 to 256 pixels and reached higher resolutions with separate upsampling models.</p>
 
@@ -54,3 +66,4 @@
 
 <p><b>The price.</b> Latents cap quality at what the decoder can draw (small text, faces at a distance: {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}} measures nine decoders), and the denoiser must be fed a latent with the statistics it was trained on, which is what the scaling factor is for (same page, section 11). Since 2023 the saved compute has gone into a bigger denoiser and deeper compression with more channels (FLUX.1 and SD3: 16 channels at f = 8; Sana's DC-AE: 32 channels at f = 32), not back to pixels.</p>
 </section>
+</div></div>
