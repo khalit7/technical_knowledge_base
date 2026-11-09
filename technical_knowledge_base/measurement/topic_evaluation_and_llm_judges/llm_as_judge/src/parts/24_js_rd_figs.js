@@ -1,4 +1,4 @@
-// ---- Reading: static figures (hero, modes, prompt anatomy, order cost, null model, kappa, reliability vs validity, jury, JudgeBench, list vs item) ----
+// ---- Reading: static figures (hero, prompt anatomy, null model, kappa, reliability vs validity, JudgeBench, list vs item; modes, order, gold slice and jury are 3D stages since 2026-11-09) ----
 // Drawn at the measured width when the Reading tab opens and on resize. Numbers from the MT-Bench data are computed with LJ
 // (checked against src/recompute.json by src/check_page.mjs); published numbers carry their source in the caption beside each figure.
 (function(){
@@ -58,28 +58,6 @@
     put('lj-hero',W,H,s,'An LLM judge as an instrument: prompt, judge, verdicts, raw rate; a gold slice of human labels gives the judge error rates that correct the raw rate');
   }
 
-  // ---------- four modes ----------
-  function modes(){
-    const W=RD.width($('lj-modes')),cols=W>=680?4:2,g=12,pw=(W-(cols-1)*g-2)/cols,ph=150;
-    const M=[['Pointwise',['answer'],'score, or pass/fail','1 call per answer'],
-      ['Pairwise',['A','B'],'A, B or tie','2 calls: both orders'],
-      ['Reference-guided',['answer','reference'],'pass or fail','math fails: 14 to 3 of 20'],
-      ['Checklist',['answer','q1 q2 q3'],'yes/no per item','3 to 25 items per query']];
-    let s='';
-    M.forEach((m,i)=>{const x=1+(i%cols)*(pw+g),y=Math.floor(i/cols)*(ph+g);
-      s+='<rect x="'+x+'" y="'+y+'" width="'+pw+'" height="'+ph+'" rx="8" fill="none" stroke="var(--line)"/>';
-      s+=T(x+pw/2,y+18,m[0],{a:'middle',fs:12.5,w:600});
-      const n=m[1].length,cw=Math.min(78,(pw-16-(n-1)*8)/n),tot=n*cw+(n-1)*8;
-      m[1].forEach((c,j)=>{const cx=x+pw/2-tot/2+j*(cw+8);s+=box(cx,y+28,cw,24,[[c,{fs:11}]],c==='reference'||c.startsWith('q1')?{fill:'var(--open2)'}:{})});
-      s+=arrow(x+pw/2,y+54,x+pw/2,y+70);
-      s+=box(x+pw/2-36,y+70,72,22,[['judge',{fs:11,w:600}]],{fill:'var(--acc2)',stroke:'var(--acc)'});
-      s+=arrow(x+pw/2,y+93,x+pw/2,y+108);
-      s+=T(x+pw/2,y+124,m[2],{a:'middle',fs:11.5,w:600});
-      s+=T(x+pw/2,y+141,m[3],{a:'middle',fs:11,fill:'var(--mute)'});
-    });
-    const rows=Math.ceil(M.length/cols);
-    put('lj-modes',W,rows*ph+(rows-1)*g+1,s,'Four judge modes: what the judge sees and what it returns');
-  }
 
   // ---------- prompt anatomy ----------
   function prompt(){
@@ -100,24 +78,6 @@
     put('lj-prompt',W,y,s,'Anatomy of a judge prompt: rubric, reference, fenced candidate, analysis then a parsed verdict');
   }
 
-  // ---------- order: one order against both ----------
-  function order(){
-    const W=RD.width($('lj-order')),o={scope:'g35'};
-    const rows=[['F','Shown first'],['B','Shown second'],['FB','Both orders']].map(r=>Object.assign({lab:r[1]},L.agree(r[0],o)));
-    const two=W>=560,pw=two?(W-24)/2:W-2,lw=94,rh=24;
-    function panel(x0,y0,title,key,max,fmt,ticks,col){
-      let s=T(x0,y0+12,title,{fs:12,w:600});const bx=x0+lw,bw=pw-lw-56;
-      ticks.forEach(t=>{const x=bx+bw*t/max;s+='<line x1="'+x+'" y1="'+(y0+20)+'" x2="'+x+'" y2="'+(y0+22+rows.length*rh)+'" stroke="var(--line)"/>'+T(x,y0+34+rows.length*rh,fmt(t,1),{a:'middle',fs:11,fill:'var(--mute)'})});
-      rows.forEach((r,i)=>{const y=y0+24+i*rh,v=r[key],last=i===rows.length-1;
-        s+=T(bx-6,y+13,r.lab,{a:'end',fs:11.5,w:last?600:400});
-        s+='<rect x="'+bx+'" y="'+(y+3)+'" width="'+Math.max(1,bw*v/max)+'" height="14" rx="2" fill="'+(last?col:'var(--dim)')+'"/>';
-        s+=T(bx+bw*v/max+5,y+14,fmt(v),{fs:11.5,w:last?600:400})});
-      return s}
-    const ph=24+rows.length*rh+20;
-    let s=panel(1,0,'Kappa with humans (higher is better)','kappa',0.4,(v,t)=>t?v.toFixed(1):v.toFixed(3),[0,0.1,0.2,0.3,0.4],'var(--acc)');
-    s+=two?panel(pw+23,0,'Judge tie rate (cost)','ties',0.3,(v,t)=>(v*100).toFixed(t?0:1)+'%',[0,0.1,0.2,0.3],'var(--bad)'):panel(1,ph+14,'Judge tie rate (cost)','ties',0.3,(v,t)=>(v*100).toFixed(t?0:1)+'%',[0,0.1,0.2,0.3],'var(--bad)');
-    put('lj-order',W,two?ph+2:2*ph+16,s,'Kappa with humans and tie rate for one order against both orders');
-  }
 
   // ---------- null model ----------
   function nullm(){
@@ -167,20 +127,6 @@
     put('lj-rv',W,cy+R+22,s,'Two targets: a reliable and valid judge, and a reliable but biased one');
   }
 
-  // ---------- jury: mean against median ----------
-  function jury(){
-    const W=RD.width($('lj-jury')),lw=W>=520?120:82,pw=W-lw-16,X=v=>lw+pw*(v-1)/4,rh=74;
-    const base=[3.5,3.75,4,4.25,4.5],rows=[['all healthy',base,0],['one collapsed',[1].concat(base.slice(0,4)),1],['two collapsed',[1,1].concat(base.slice(0,3)),2]];
-    let s='';[1,2,3,4,5].forEach(v=>{s+='<line x1="'+X(v)+'" y1="10" x2="'+X(v)+'" y2="'+(10+rows.length*rh)+'" stroke="var(--line)"/>'+T(X(v),rows.length*rh+24,v,{a:'middle',fs:11,fill:'var(--mute)'})});
-    rows.forEach((r,i)=>{const y=i*rh+30,v=r[1].slice().sort((a,b)=>a-b),mean=v.reduce((a,x)=>a+x,0)/v.length,med=v[2];
-      s+=T(lw-8,y+4,r[0],{a:'end',fs:11.5});
-      s+='<line x1="'+X(1)+'" y1="'+y+'" x2="'+X(5)+'" y2="'+y+'" stroke="var(--dim)" stroke-width="2"/>';
-      const seen={};v.forEach(x=>{const k=seen[x]=(seen[x]||0)+1,failed=x===1;s+='<circle cx="'+(X(x)+(k-1)*11)+'" cy="'+y+'" r="5" fill="'+(failed?'var(--bad)':'var(--mute)')+'"/>'});
-      s+='<path d="M'+X(mean)+' '+(y-8)+' l-5 -9 h10z" fill="var(--c2)"/>'+T(X(mean),y-20,'mean '+mean.toFixed(2),{a:'middle',fs:11,fill:'var(--c2)'});
-      s+='<path d="M'+X(med)+' '+(y+8)+' l-5 9 h10z" fill="var(--acc)"/>'+T(X(med),y+29,'median '+med.toFixed(2),{a:'middle',fs:11,fill:'var(--acc)'});
-    });
-    put('lj-jury',W,rows.length*rh+30,s,'Five jurors on a 1 to 5 scale: mean and median as jurors collapse to 1');
-  }
 
   // ---------- JudgeBench ----------
   function jb(){
@@ -211,7 +157,7 @@
     if(!$('lj-list-leg'))$('lj-list').insertAdjacentHTML('afterend','<div class="leg" id="lj-list-leg"><span style="--sw:var(--c3)">humans</span><span style="--sw:var(--c2)">GPT-4 judge</span><span style="--sw:var(--line)">right: humans → judge, %</span></div>');
   }
 
-  const ALL=[hero,modes,prompt,order,nullm,kappa,rv,jury,jb,list];
+  const ALL=[hero,prompt,nullm,kappa,rv,jb,list];
   const draw=()=>ALL.forEach(f=>{try{f()}catch(e){window.__jsErr&&window.__jsErr('figure '+f.name+': '+e.message)}});
   RD.onRender(draw);RD.onResize(draw);
 })();

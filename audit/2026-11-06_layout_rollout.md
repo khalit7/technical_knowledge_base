@@ -121,7 +121,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_evaluation_and_llm_judges/eval_harnesses` Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools
 - [x] `measurement/topic_evaluation_and_llm_judges/eval_statistics` Eval statistics: error bars, paired tests, how many items you need
 - [x] `measurement/topic_evaluation_and_llm_judges/human_evaluation_and_annotation` Human evaluation and annotation: rubrics, agreement, gold-label auditing
-- [ ] `measurement/topic_evaluation_and_llm_judges/llm_as_judge` LLM-as-judge: design, biases, calibration, reliability
+- [x] `measurement/topic_evaluation_and_llm_judges/llm_as_judge` LLM-as-judge: design, biases, calibration, reliability
 - [ ] `measurement/topic_evaluation_and_llm_judges/production_eval_engineering` Production eval engineering: gates, golden sets, shadow and A/B tests
 - [ ] `measurement/topic_evaluation_and_llm_judges/rag_and_retrieval_evaluation` RAG and retrieval evaluation: faithfulness, groundedness, retrieval metrics
 - [ ] `measurement/topic_evaluation_and_llm_judges` Topic: evaluation-and-llm-judges
@@ -414,4 +414,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `measurement/topic_evaluation_and_llm_judges/eval_harnesses`: Fig. 4 cube field small in its card at 1400 (rule labels faint); Fig. 3 and the GSM8K widget scroll with their text (taller than a window); stages small at 390; run logs carry the default Hugging Face cache path (~/.cache/huggingface/...), no personal data.
 - `measurement/topic_evaluation_and_llm_judges/eval_statistics`: Fig. 2 domino field at the bottom of the card is faint and partly cut at 1400; old animation's MT-Bench toggle dropped (pair stays in prose and the Interval lab); verify_layout flags the Interval lab svg outside a split (accepted: reader tool); recompute.py needs `uv run --no-project --with scipy --with numpy` and reruns differ only in float noise.
 - `measurement/topic_evaluation_and_llm_judges/human_evaluation_and_annotation`: Fig. 4 step 4 field of 100 columns busy at 1400 (flawed and unflawed hard to tell apart at a glance); Fig. 1 last two steps small at 390; Fig. 4 rescoring labels only the biggest climber and faller on phones; hero comes after You need and terms on phones (template order).
+- `measurement/topic_evaluation_and_llm_judges/llm_as_judge`: modes stage per-lane close-ups zoom only a little; gold stage TP/FP/TN labels tight at 390; src/bias/check.mjs writes PNGs to the current directory without a shot dir (run from the repo root with one).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

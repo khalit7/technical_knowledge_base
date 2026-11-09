@@ -48,3 +48,7 @@ V3 (the Calibration lab) moved into Reading's Calibration section beside the ste
 ## What the methodology lacked for this page
 
 A rule for two released runs of the same judge that disagree (the leaderboard run and the run released with the votes differ on 15.6% of shared comparisons). Handled by showing both as separate protocols and saying so, rather than choosing one.
+
+## 2026-11-09 rollout
+- Built: four renderer-v2 stages (modes, position bias, gold-slice correction, juries), each driven by the page's MT-Bench data or published numbers; the bias lab's one-pair animation got a step list and autoplay.
+- Rejected: a 3D kappa matrix (Human evaluation and annotation owns the agreement-against-chance stage; the 2D matrix carries the arithmetic); a 3D hero (a map, nothing spatial); 3D for the CALM grid, JudgeBench or the win-rate dumbbell (values on an axis read best flat).

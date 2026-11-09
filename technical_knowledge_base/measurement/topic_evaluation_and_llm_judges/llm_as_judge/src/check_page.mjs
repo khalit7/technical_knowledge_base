@@ -50,36 +50,37 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   for (const i of [0, 3, 6]) { await click(`#calm-tbl th[data-k="${i}"]`); }
   for (let i = 0; i < 54; i += 5) { const c = (await p.$$('#calm-tbl td.v'))[i]; await c.evaluate(x => x.scrollIntoView({ block: 'center' })); await c.click(); actions++ }
   await audit('read calm');
+  // Fig. 3, the gold-slice stage (replaced the 2D stepper on 2026-11-09): every mode, model and slice size, stepped to the end
   for (const m of ['naive', 'corr']) {
-    await click(`#an-mode button[data-m="${m}"]`);
-    await selectAll('#an-target', async () => {
-      await selectAll('#an-m', async () => {
-        for (let k = 0; k < 8; k++) await click('#an-ctl-f');
-        await audit('anim ' + m);
+    await click(`#gd-mode button[data-m="${m}"]`);
+    await selectAll('#gd-target', async () => {
+      await selectAll('#gd-m', async () => {
+        for (let k = 0; k < 8; k++) await click('#stg-gold-f');
+        await audit('gold ' + m);
       });
     });
   }
-  await p.select('#an-target', '2'); await p.select('#an-m', '100'); await click('#an-mode button[data-m="corr"]');
-  for (let k = 0; k < 8; k++) await click('#an-ctl-f');
-  await click('#an-ctl-b'); await click('#an-ctl-b');
-  await p.$eval('#an-ctl-s', s => { s.value = s.max; s.dispatchEvent(new Event('input')) }); actions++;
-  await p.select('#an-ctl-v', '2'); await click('#an-ctl-p'); await new Promise(r => setTimeout(r, 300)); await click('#an-ctl-p');
-  await p.$eval('#an-ctl-s', s => { s.value = s.max; s.dispatchEvent(new Event('input')) });
-  const animTxt = await p.$eval('#an-cnt', e => e.innerText);
-  await p.$eval('#an-card', e => e.scrollIntoView()); await p.screenshot({ path: `${shots}/chk-anim-${scheme}-${width}.png` });
-  await audit('anim end');
+  await p.select('#gd-target', '2'); await p.select('#gd-m', '100'); await click('#gd-mode button[data-m="corr"]');
+  for (let k = 0; k < 8; k++) await click('#stg-gold-f');
+  await click('#stg-gold-b'); await click('#stg-gold-b');
+  await p.$eval('#stg-gold-r', s => { s.value = s.max; s.dispatchEvent(new Event('input')) }); actions++;
+  await p.select('#stg-gold-s', '2'); await click('#stg-gold-p'); await new Promise(r => setTimeout(r, 300)); await click('#stg-gold-p');
+  await p.$eval('#stg-gold-r', s => { s.value = s.max; s.dispatchEvent(new Event('input')) });
+  const animTxt = await p.$eval('#sx-gold-c', e => e.innerText);
+  await p.$eval('#stg-gold', e => e.scrollIntoView()); await p.screenshot({ path: `${shots}/chk-anim-${scheme}-${width}.png` });
+  await audit('gold end');
   // numbers in the animation against recompute (GPT-3.5-turbo, 100 labels, seed 1)
   const c35 = R.calibration['gpt-3.5-turbo_P'];
   const est = await p.evaluate(() => { const L = window.LJ; const I = L.items(2, 'P'); const C = L.calib(I, 100, 1); return { p: C.p, th: C.th, est: C.c.est, lo: C.c.lo, hi: C.c.hi, tp: C.tp, fn: C.fn, fp: C.fp, tn: C.tn } });
   near(est.est, c35.seed1_m100.est, 1e-4, 'anim est'); near(est.lo, c35.seed1_m100.lo, 1e-4, 'anim lo'); near(est.hi, c35.seed1_m100.hi, 1e-4, 'anim hi');
   near(est.tp, c35.seed1_m100.tp, 0, 'anim tp'); near(est.fp, c35.seed1_m100.fp, 0, 'anim fp');
-  if (!animTxt.includes((100 * c35.seed1_m100.est).toFixed(1) + '%')) problems.push('anim counter does not show the corrected estimate: ' + animTxt.replace(/\n/g, ' '));
+  if (!animTxt.includes((100 * c35.seed1_m100.est).toFixed(1) + '%')) problems.push('gold step list does not show the corrected estimate: ' + animTxt.replace(/\n/g, ' '));
   // Reading figures: every figure drawn, and the computed numbers agree with recompute.json and the static captions
-  const figs = await p.evaluate(() => ['lj-hero','lj-modes','lj-prompt','lj-order','lj-null','lj-kappa','lj-rv','lj-jury','lj-jb','lj-list'].map(id => [id, !!document.querySelector('#' + id + ' svg')]));
+  const figs = await p.evaluate(() => ['lj-hero','lj-prompt','lj-null','lj-kappa','lj-rv','lj-jb','lj-list'].map(id => [id, !!document.querySelector('#' + id + ' svg')]));
   for (const [id, ok] of figs) if (!ok) problems.push(`${scheme}${width}: figure ${id} not drawn`);
   const kt = await p.$eval('#lj-kappa', e => e.textContent);
   near(+(kt.match(/= (0\.\d{3})\s*$/) || [0, NaN])[1], +R.lab.all_S1_all.P.kappa.toFixed(3), 0, 'kappa figure');
-  const ot = await p.$eval('#lj-order', e => e.textContent);
+  const ot = await p.$eval('#sx-order', e => e.textContent); // Fig. 2's step list (the 2D order chart became a stage on 2026-11-09)
   for (const x of ['F', 'B', 'FB']) { const v = R.lab.g35_S1_all[x]; if (!ot.includes(v.kappa.toFixed(3).slice(0, 4))) problems.push('order figure kappa ' + x); if (!ot.includes(v.ties.toFixed(1) + '%')) problems.push('order figure ties ' + x) }
   const ht = await p.$eval('#lj-hero', e => e.textContent);
   if (!ht.includes((100 * c35.seed1_m100.est).toFixed(1) + '%')) problems.push('hero corrected estimate');

@@ -54,6 +54,10 @@ window.JB=(function(){
       {cf:null,read:order.flatMap(id=>[[id,0],[id,1]]),m:null,x:'swap',c:'After fix 1, swap and require agreement (Zheng et al.&rsquo;s conservative rule): a judge that disagrees with itself across the two orders scores a tie. Three confident verdicts become honest ties that flag the item. What survives is Claude 3.5 Sonnet for the right answer and Claude 3 Opus for its own family&rsquo;s wrong one.'},
       {cf:null,read:order.flatMap(id=>[[id,0],[id,1]]),m:null,x:'jury',c:'After fix 2, a jury. Summing the five swap-checked verdicts gives one for each answer and three ties: no winner. Dropping the two Anthropic judges (the candidate&rsquo;s family) leaves three ties. Neither fix can make a judge right on a sum it cannot do; the gold line (an exact computation, or a verified reference answer given to the judge) settles it.'}
     ];
+    // the step list on the left: one item per step, written from the step captions (the page no longer shows a caption under the card)
+    const TT=['The right answer.','One judge, baseline first.','The same judge, swapped.','A judge from the candidate&rsquo;s family.','That judge, swapped.','Before any fix: all ten verdicts.','Fix 1: swap and require agreement.','Fix 2: a jury.'];
+    el('sx-jb').innerHTML=S.map((s,i)=>'<li><b>'+TT[i]+'</b> '+s.c.replace(' Press play to have judges grade the pair.','')+'</li>').join('');
+    const lis=[...el('sx-jb').children];
     const pB=el('jb-base'),pC=el('jb-cand');
     function place(cf){
       // order 1: baseline left (A). order 2: candidate left (A). Narrow screens stack the cards, so swap vertically.
@@ -80,14 +84,14 @@ window.JB=(function(){
       if(x==='jury')h+='<div class="out">'+stat('Jury of five',sb+' : '+sc+' : '+st,'baseline : Claude : tie')+stat('Without Anthropic judges',xb+' : '+xc+' : '+xt,'baseline : Claude : tie')+stat('Gold line','GPT-4 (0314)','exact computation')+'</div>';
       return h;
     }
-    let st={i:0,play:false,timer:0,vis:false,started:false,spd:1};
+    let st={i:0,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
     function draw(i){
       const s=S[i];place(s.cf);
       const mk=el('jb-mk');
       if(s.m){mk.style.opacity=1;mk.style.left=(50+25*v(s.m[0],s.m[1]))+'%';el('jb-quote').innerHTML=QL(s.m[0],s.m[1])}
       else{mk.style.opacity=0;el('jb-quote').innerHTML=i===0?'<span class="mute">No verdict yet.</span>':'<span class="mute">All verdicts are in the table below.</span>'}
       el('jb-cnt').innerHTML=counters(s.read);el('jb-extra').innerHTML=extra(s.x);
-      el('jb-cap').innerHTML='<b>Step '+(i+1)+' of '+S.length+'.</b> '+s.c;
+      lis.forEach((li,j)=>{li.classList.toggle('on',j===i);li.classList.toggle('done',j<i);if(j===i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
       el('jb-s').value=i;
     }
     const ctl=el('jb-ctl');
@@ -95,20 +99,23 @@ window.JB=(function(){
       '<input type="range" id="jb-s" min="0" max="'+(S.length-1)+'" step="1" value="0" aria-label="Step"><label class="small">Speed <select id="jb-v"><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="2">2&times;</option></select></label>';
     const box=el('jb-anim');
     const live=()=>st.vis&&!document.hidden&&box.offsetParent!==null;
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=S.length-1){setPlay(false);return}st.i++;draw(st.i);if(st.i>=S.length-1){setPlay(false);return}st.timer=setTimeout(tick,4200/st.spd)}
+    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=S.length-1){st.ended=true;setPlay(false);return}st.i++;draw(st.i);if(st.i>=S.length-1){st.ended=true;setPlay(false);return}st.timer=setTimeout(tick,4200/st.spd)}
     function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,4200/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(p){st.play=p;el('jb-p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';el('jb-p').setAttribute('aria-label',p?'Pause':'Play');
+    function setPlay(p){st.play=p;if(p)box.dataset.playing='1';else delete box.dataset.playing;el('jb-p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';el('jb-p').setAttribute('aria-label',p?'Pause':'Play');
       if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=S.length-1){st.i=0;draw(0)}kick()}
-    el('jb-p').addEventListener('click',()=>setPlay(!st.play));
-    el('jb-f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(S.length-1,st.i+1);draw(st.i)});
-    el('jb-b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);draw(st.i)});
-    el('jb-s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;draw(st.i)});
+    el('jb-p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    el('jb-f').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.min(S.length-1,st.i+1);draw(st.i)});
+    el('jb-b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);draw(st.i)});
+    el('jb-s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;draw(st.i)});
     el('jb-v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      kick()},{threshold:.2}).observe(box)}else st.vis=true;
+    lis.forEach((li,j)=>{li.tabIndex=0;li.setAttribute('role','button');const go=()=>{st.user=true;setPlay(false);st.i=j;draw(j)};li.onclick=go;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
+    // autoplay (2026-11-06): plays by itself once at least half the card is in view, pauses off screen, stops for good on any reader control or at the last step, never under reduced motion
+    function auto(){if(!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(box)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     addEventListener('resize',()=>{if(box.offsetParent)place(S[st.i].cf)});
-    onRender(()=>{draw(st.i);kick()});
+    onRender(()=>{draw(st.i);auto();kick()});
     draw(0);
   }
 
