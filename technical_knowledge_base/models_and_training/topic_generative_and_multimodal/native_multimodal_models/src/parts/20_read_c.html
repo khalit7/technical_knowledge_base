@@ -1,28 +1,29 @@
+<div class="s3sp"><div class="s3R"><div id="stg-tok"></div></div><div class="s3L">
 <section id="nm-s2">
 <h2>2. Two kinds of image token: one to read, one to write</h2>
 <p>A transformer works on a sequence of vectors; text gets there by looking each token id up in an embedding table. An image has no ids, and what it becomes decides whether the model can ever write images.</p>
-<div class="rd-two">
-<div><p><b>Soft tokens</b> (continuous). A vision encoder (ViT, SigLIP) outputs one vector per patch; a projector maps them to the model's width. Rich and semantic, but the model cannot output them: its output layer is a softmax over the vocabulary, and soft tokens are not in it. Every VLM and the encoder-free models read images this way: 1,088 positions for one image in SmolVLM-500M, 280 by default in Gemma 4 12B Unified.</p></div>
-<div><p><b>Discrete tokens</b> (codes). An image tokenizer (VQ-VAE, VQGAN or FSQ) maps each cell of a small latent grid to the index of its nearest codebook entry: an integer, exactly like a text token id, and a decoder maps codes back to pixels. Now the model can predict an image with the same softmax and cross-entropy it uses for words. The price: the tokenizer's reconstruction is lossy, and the model must write every code.</p></div>
-</div>
-<p>How the tokenizer is trained is the sibling page {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}'s; here it is a fixed part. The running example uses that page's best tiny tokenizer, an FSQ autoencoder with levels [8, 5, 5, 5] (8 &times; 5 &times; 5 &times; 5 = 1,000 codes): each 28 &times; 28 Fashion-MNIST image, padded to 32 &times; 32, becomes an 8 &times; 8 grid, so <b>64 tokens from 1,000 codes</b>. The topic's 128-code VQ-VAE (root Latent lab recordings; VQ training is taught on {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}) gives a second tokenizer of the same shape.</p>
-<div class="rd-card" id="nm-tv-card">
-<h4>An image becomes 64 integers, and the round trip already loses detail: the tokenizer is a ceiling</h4>
-<div class="seg" id="nm-tv-pick"></div>
-<div class="nm-cols">
-<div><canvas class="nm-canvas" id="nm-tv-orig" width="28" height="28" aria-label="original"></canvas><p class="small mute">Original (test set)</p></div>
-<div><div class="nm-tokgrid" id="nm-tv-grid"></div><p class="small mute">Its 64 FSQ codes (unshaded: code 472, the most common, background)</p></div>
-<div><canvas class="nm-canvas" id="nm-tv-fsq" width="28" height="28" aria-label="FSQ reconstruction"></canvas><p class="small mute">Decoded from the 64 codes (FSQ, 1,000 codes)</p></div>
-<div><canvas class="nm-canvas" id="nm-tv-vq" width="28" height="28" aria-label="VQ reconstruction"></canvas><p class="small mute">Decoded from the topic's 128-code VQ</p></div>
-</div>
-<p class="small">Measured on the first 1,000 validation images (CPU): FD of the reconstructions <span data-nm="tok.fsq1000.recon_val1000_fd"></span> (FSQ-1000) and <span data-nm="tok.vq128.recon_val1000_fd"></span> (VQ-128), against <span data-nm="tok.floor_fd_val1000"></span> for the real images themselves; the classifier still recognises <span data-nm="tok.fsq1000.recon_val1000_acc" data-f="pct"></span> and <span data-nm="tok.vq128.recon_val1000_acc" data-f="pct"></span> of the reconstructions. <span class="meas">measured</span> These are the ceilings for any generator that writes these codes.</p>
-</div>
-<p><b>How many bits is an image?</b> Writing one of 1,000 codes blindly costs log<sub>2</sub> 1,000 = 9.97 bits, so 64 codes cost <span data-nm="tok.fsq1000.bits_per_image_uniform" data-f="1"></span> bits; the codes' frequencies over the training set give <span data-nm="tok.fsq1000.unigram_entropy_bits" data-f="2"></span> bits per code, <span data-nm="tok.fsq1000.bits_per_image_unigram" data-f="1"></span> per image. An autoregressive model that predicts each code from the class and the codes before it needs, on held-out validation images, <b><span data-nm="nll_ar" data-f="1"></span> bits per image</b>: its exact negative log-likelihood, a number diffusion models cannot give cheaply.</p>
+<p><b>Soft tokens</b> (continuous). A vision encoder (ViT, SigLIP) outputs one vector per patch; a projector maps them to the model's width. Rich and semantic, but the model cannot output them: its output layer is a softmax over the vocabulary, and soft tokens are not in it. Every VLM and the encoder-free models read images this way: 1,088 positions for one image in SmolVLM-500M, 280 by default in Gemma 4 12B Unified.</p>
+<p><b>Discrete tokens</b> (codes). An image tokenizer (VQ-VAE, VQGAN or FSQ) maps each cell of a small latent grid to the index of its nearest codebook entry: an integer, exactly like a text token id, and a decoder maps codes back to pixels. Now the model can predict an image with the same softmax and cross-entropy it uses for words. The price: the tokenizer's reconstruction is lossy, and the model must write every code.</p>
+<p>How the tokenizer is trained is the sibling page {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}'s; here it is a fixed part. The running example uses that page's best tiny tokenizer, an FSQ autoencoder with levels [8, 5, 5, 5] (8 &times; 5 &times; 5 &times; 5 = 1,000 codes): each 28 &times; 28 Fashion-MNIST image, padded to 32 &times; 32, becomes an 8 &times; 8 grid, so <b>64 tokens from 1,000 codes</b>. The topic's 128-code VQ-VAE (root Latent lab recordings; VQ training is taught on {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}) gives a second tokenizer of the same shape. <b>An image becomes 64 integers, and the round trip already loses detail: the tokenizer is a ceiling.</b></p>
+<div class="s3chips" id="nm-tok-cls" aria-label="test image"></div>
+<ol class="sx" id="sx-tok">
+<li><b>One test image, 8 &times; 8 cells.</b> A real Fashion-MNIST test image (pick another above); each cell of the grid becomes one token either way.</li>
+<li><b>To read: one vector per cell.</b> An encoder and projector turn each cell into a vector of the model's width. The model attends to them like any position, but nothing in its output layer can produce one. (Drawn as plain columns: this page runs no vision encoder, so their values are not shown.)</li>
+<li><b>To write: one integer per cell.</b> The FSQ tokenizer maps each cell to the nearest of its 1,000 codes; these are this image's real 64 codes (pale: code 472, the most common, background). An integer is exactly what a softmax can output.</li>
+<li><b>The output layer ranks codes.</b> The trained tiny model writing this class, at one position where a few codes compete: its real top 5 of 1,000 probabilities (green: the code it drew). Writing an image is the same softmax and cross-entropy as writing a word.</li>
+<li><b>Back to pixels, with a loss.</b> The decoder turns the codes back into an image. Measured on the first 1,000 validation images (CPU): FD of the reconstructions <span data-nm="tok.fsq1000.recon_val1000_fd"></span> (FSQ-1000) and <span data-nm="tok.vq128.recon_val1000_fd"></span> (VQ-128), against <span data-nm="tok.floor_fd_val1000"></span> for the real images themselves; the classifier still recognises <span data-nm="tok.fsq1000.recon_val1000_acc" data-f="pct"></span> and <span data-nm="tok.vq128.recon_val1000_acc" data-f="pct"></span> of the reconstructions. <span class="meas">measured</span> These are the ceilings for any generator that writes these codes.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p><b>How many bits is an image?</b> Writing one of 1,000 codes blindly costs log<sub>2</sub> 1,000 = 9.97 bits, so 64 codes cost <span data-nm="tok.fsq1000.bits_per_image_uniform" data-f="1"></span> bits; the codes' frequencies over the training set give <span data-nm="tok.fsq1000.unigram_entropy_bits" data-f="2"></span> bits per code, <span data-nm="tok.fsq1000.bits_per_image_unigram" data-f="1"></span> per image. An autoregressive model that predicts each code from the class and the codes before it needs, on held-out validation images, <b><span data-nm="nll_ar" data-f="1"></span> bits per image</b>: its exact negative log-likelihood, a number diffusion models cannot give cheaply. The two maps on the right show where those bits go.</p>
+<p><b>Why not one kind for both jobs?</b> Janus tried it: with one VQ tokenizer for reading and writing, its understanding score (POPE) was 60.1; with SigLIP features to read and VQ codes to write, 87.0 (Janus Table 5, {{arXiv 2410.13848v1|https://arxiv.org/html/2410.13848v1}}) <span class="vend">vendor</span>. Codes trained to reconstruct pixels keep what pixels need (exact edges, colours), not what a question needs (what the object is). That is why Janus, BAGEL and most unified models keep two encodings (section 6).</p>
+</div><div class="s3R"><div class="s3side"><div class="rd-card">
+<h4>Context makes the border almost free; the bits go to the garment's outline and texture</h4>
 <div class="nm-cols">
 <div><div id="nm-heat-a"></div><p class="small mute">Per position, no context: entropy of the codes seen at that position in training (bits; darker = more uncertain)</p></div>
 <div><div id="nm-heat-b"></div><p class="small mute">Per position, with context: the trained model's average cost on validation images (bits). Corners and borders become almost free; the bits go to the garment's outline and texture. <span class="meas">measured</span></p></div>
-</div>
-<p><b>Why not one kind for both jobs?</b> Janus tried it: with one VQ tokenizer for reading and writing, its understanding score (POPE) was 60.1; with SigLIP features to read and VQ codes to write, 87.0 (Janus Table 5, {{arXiv 2410.13848v1|https://arxiv.org/html/2410.13848v1}}) <span class="vend">vendor</span>. Codes trained to reconstruct pixels keep what pixels need (exact edges, colours), not what a question needs (what the object is). That is why Janus, BAGEL and most unified models keep two encodings (section 6).</p>
+</div></div></div></div></div>
 <details class="dp"><summary>Positions per image in nine models <span class="mute">(reference table)</span></summary><div class="b">
 <div class="tw"><table>
 <tr><th>Model</th><th>Image</th><th class="num">Positions per image</th><th>Kind</th><th>Source</th></tr>
@@ -38,15 +39,31 @@
 </table></div>
 <p class="small">The full published table of tokenizers, with codebook sizes and reconstruction FID, is on {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}} (its section 10); the arithmetic for whole requests is in {{Token economics|#t-nmtok}}.</p>
 </div></details>
-</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-ar"></div></div><div class="s3L">
 <section id="nm-s3">
 <h2>3. Writing an image one token at a time</h2>
 <p>Put the image's codes in raster order (left to right, top to bottom) and model them like words. The chain rule turns the probability of a whole image into a product of next-token probabilities:</p>
 <div class="fm"><div class="eq"><i>p</i>(<i>x</i><sub>1</sub>, &hellip;, <i>x</i><sub>64</sub> | <i>c</i>) = &prod;<sub><i>i</i></sub> <i>p</i>(<i>x<sub>i</sub></i> | <i>c</i>, <i>x</i><sub>1</sub>, &hellip;, <i>x</i><sub><i>i</i>&minus;1</sub>)</div>
 <dl><dt>x<sub>i</sub></dt><dd>the code at position <i>i</i> (one of 1,000 here)</dd><dt>c</dt><dd>the condition: a class here, a text prompt in a real model, both as tokens before the image</dd></dl></div>
 <p>Training is next-token cross-entropy with teacher forcing, all 64 positions in one pass under a causal mask; generating is a loop of one call, one sampled code, append. The running example's model is a 6-layer transformer of width 192 (<span data-nm="tok.params_ar1000" data-f="int"></span> parameters, 3.07M), the class embedding as the first position (LlamaGen's layout), trained with the topic's exact DDPM recipe (the one {{Diffusion from zero|n:3c65c17b0d0d81cf9bf0d94e57ce9164}} uses) (batch 128, AdamW 5 &times; 10<sup>-4</sup>, EMA 0.999, 10% of labels dropped for guidance) for <span data-nm="runs.ar_fsq1000.steps" data-f="int"></span> steps, <span data-nm="runs.ar_fsq1000.seconds" data-f="int"></span> s on the M1 Pro's GPU.</p>
+<p><b>Fig. 3 writes one dress</b> with the page's recorded sample (temperature 1, no top-k, no guidance), one step per row of 8 calls. Each column's height is the entropy of that call's distribution: the bits the model is unsure about at that moment (9.97 would be a blind guess among 1,000 codes).</p>
+<ol class="sx" id="sx-ar">
+<li><b>Row 1: calls 1 to 8.</b> The class token (dress) is the first position; each call reads it and every code so far, draws one code and appends it. Row 1: <span data-nm="sc.ar.row1" data-f="1"></span> bits.</li>
+<li><b>Row 2: the edges stay cheap.</b> The left and right columns of the whole image average <span data-nm="sc.ar.side_mean" data-f="2"></span> bits a call (at most <span data-nm="sc.ar.side_max" data-f="2"></span>): mostly background the model has seen thousands of times. Row 2: <span data-nm="sc.ar.row2" data-f="1"></span> bits.</li>
+<li><b>Row 3: the body opens up.</b> The six interior columns average <span data-nm="sc.ar.mid_mean" data-f="2"></span> bits a call: many codes are plausible, and the draw decides the detail. Row 3: <span data-nm="sc.ar.row3" data-f="1"></span> bits.</li>
+<li><b>Row 4: the most open call.</b> Position <span data-nm="sc.ar.Hmax_pos" data-f="int"></span> (row <span data-nm="sc.ar.Hmax_row" data-f="int"></span>, column <span data-nm="sc.ar.Hmax_col" data-f="int"></span>) has <span data-nm="sc.ar.Hmax" data-f="2"></span> bits of entropy, close to a blind guess. Row 4: <span data-nm="sc.ar.row4" data-f="1"></span> bits.</li>
+<li><b>Row 5.</b> <span data-nm="sc.ar.n_above_5" data-f="int"></span> of this image's 64 calls are above 5 bits and only <span data-nm="sc.ar.n_below_half" data-f="int"></span> below 0.5. Row 5: <span data-nm="sc.ar.row5" data-f="1"></span> bits, the most of any row.</li>
+<li><b>Row 6.</b> The shape so far constrains the hem: the decoded image already reads as a dress. Row 6: <span data-nm="sc.ar.row6" data-f="1"></span> bits.</li>
+<li><b>Row 7.</b> Each call still processes one new token and reads the cached keys and values of all earlier ones: small calls, but strictly one after another. Row 7: <span data-nm="sc.ar.row7" data-f="1"></span> bits.</li>
+<li><b>Row 8: 64 calls.</b> Row 8: <span data-nm="sc.ar.row8" data-f="1"></span> bits; <span data-nm="sc.ar.Hsum" data-f="1"></span> bits of entropy over the image, against 638 for blind guesses. The tokenizer's decoder turns the 64 codes into the image.</li>
+</ol>
+<p class="small">Recorded run at temperature 1: the model's real entropy at each of the 64 steps and its real partial decodes. <span class="meas">measured on Apple M1 Pro (MPS)</span> Every one of the 64 calls with its top-5 codes is in the closed block below.</p>
+</section>
+</div></div>
+<details class="dp"><summary>Every one of the 64 calls, with the top-5 codes at each <span class="mute">(widget)</span></summary><div class="b">
 <div class="rd-card" id="g-watch">
-<h4>One image written by the tiny model: most positions are nearly certain, and a few open ones decide the detail</h4>
+<h4>One image written by the tiny model, call by call: the borders are nearly certain, the body is open</h4>
 <div class="g-row"><label>Class<select id="g-wc"><option value="2">pullover</option><option value="3" selected>dress</option><option value="5">sandal</option><option value="8">bag</option><option value="9">ankle boot</option></select></label></div>
 <div class="g-two">
 <div><div class="nm-tokgrid" id="g-wgrid"></div><p class="small mute">The 8 &times; 8 code grid in raster order; highlighted: the code being chosen.</p></div>
@@ -57,10 +74,14 @@
 <div class="an-cap" id="g-wcap"></div>
 <p class="small">Recorded run at temperature 1: the model's real top-5 probabilities and the entropy at each of the 64 steps. <span class="meas">measured on Apple M1 Pro (MPS)</span></p>
 </div>
+</div></details>
+<div class="s3sp"><div class="s3L">
 <p><b>Three knobs, the same as for text.</b> <dfn>Temperature</dfn> <i>T</i> divides the logits before the softmax (0 means always take the top code, <dfn>greedy</dfn>); <dfn>top-k</dfn> keeps the <i>k</i> likeliest codes; <dfn>classifier-free guidance</dfn> on logits runs the conditional and the null-class input together and uses <i>l</i><sub>u</sub> + <i>s</i>(<i>l</i><sub>c</sub> &minus; <i>l</i><sub>u</sub>), <i>s</i> = 1 being the plain conditional model. LlamaGen states this form; its best ImageNet result uses <i>s</i> = 1.65 ({{arXiv 2406.06525v1|https://arxiv.org/html/2406.06525v1}}). Guidance doubles the batch, not the number of sequential steps. The same knobs for text, with real logits, are on {{Sampling and Decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}; for images the verdicts differ.</p>
 <div class="pr"><div class="q">Predict: sample 100 pullovers from the tiny model with greedy decoding (temperature 0). How many different images do you get?</div>
 <div class="opts"><button>About 100: the codes differ a little each time</button><button>About 50</button><button data-r="1">One</button></div>
 <div class="ans" hidden><span class="meas">measured</span> <span data-nm="greedy.distinct_per_class" data-f="int"></span> per class. With the class as the only input and no randomness, every call sees the same prefix and picks the same code: greedy decoding is a deterministic function of the class. FD <span data-nm="greedy.fd" data-f="1"></span> against <span data-nm="t1.fd" data-f="1"></span> at temperature 1. For a factual text answer that is fine; for images it deletes the distribution.</div></div>
+<p id="nm-s3-read"><b>What the measurements say.</b> Without guidance the best FD is at temperature 1, the temperature the model was trained for: cooling to 0.7 makes every class look tidier (classifier accuracy rises) but samples cluster around the most typical shapes, diversity drops and FD gets worse; heating to 1.3 adds noise faster than variety. Top-k behaves like cooling: keeping the 10 likeliest codes gives FD <span data-nm="topk10.fd" data-f="1"></span> against <span data-nm="t1.fd" data-f="1"></span> with all 1,000. Guidance helps most: the best scale, s = <span data-nm="best_cfg.s" data-f="1"></span>, brings FD to <span data-nm="best_cfg.fd" data-f="1"></span> with <span data-nm="best_cfg.acc" data-f="pct"></span> of samples recognised as the asked-for class; s = 0 (the unconditional model) gives FD <span data-nm="cfg0.fd" data-f="1"></span> and the right class only <span data-nm="cfg0.acc" data-f="pct"></span> of the time, chance level. <span class="meas">measured</span> Guidance on logits behaves as guidance on noise predictions does for diffusion (the topic's DDPM runs scored best at s = 2, root Diffusion lab recordings).</p>
+</div><div class="s3R"><div class="s3side">
 <div class="rd-card" id="g-sw">
 <h4>Temperature and top-k trade diversity for typicality and FD punishes it; guidance is the knob that buys fidelity</h4>
 <div class="seg" id="g-swm"><button data-m="ar_temp" class="on">Temperature (top-k all, s = 1)</button><button data-m="ar_topk">Top-k (temperature 1, s = 1)</button><button data-m="ar_cfg">Guidance (temperature 1, top-k all)</button><button data-m="mask">Masked model: rounds (section 4)</button></div>
@@ -69,7 +90,7 @@
 <p class="small" id="g-swcap"></p>
 <p class="small">One knob per view, 1,000 samples per point (100 per class), the same random draws at every setting; FD in the shared classifier's feature space against the 10,000 test images (lower is better; 1,000 real validation images score <span data-nm="tok.floor_fd_val1000"></span>). <span class="meas">measured on Apple M1 Pro (MPS)</span></p>
 </div>
-<p id="nm-s3-read"><b>What the measurements say.</b> Without guidance the best FD is at temperature 1, the temperature the model was trained for: cooling to 0.7 makes every class look tidier (classifier accuracy rises) but samples cluster around the most typical shapes, diversity drops and FD gets worse; heating to 1.3 adds noise faster than variety. Top-k behaves like cooling: keeping the 10 likeliest codes gives FD <span data-nm="topk10.fd" data-f="1"></span> against <span data-nm="t1.fd" data-f="1"></span> with all 1,000. Guidance helps most: the best scale, s = <span data-nm="best_cfg.s" data-f="1"></span>, brings FD to <span data-nm="best_cfg.fd" data-f="1"></span> with <span data-nm="best_cfg.acc" data-f="pct"></span> of samples recognised as the asked-for class; s = 0 (the unconditional model) gives FD <span data-nm="cfg0.fd" data-f="1"></span> and the right class only <span data-nm="cfg0.acc" data-f="pct"></span> of the time, chance level. <span class="meas">measured</span> Guidance on logits behaves as guidance on noise predictions does for diffusion (the topic's DDPM runs scored best at s = 2, root Diffusion lab recordings).</p>
+</div></div></div>
 <details class="dp"><summary>Every combination of temperature, top-k and guidance (45 recorded settings) <span class="mute">(explore)</span></summary><div class="b" id="g-samp">
 <div class="g-row">
 <label>Temperature <b id="g-tv"></b><input type="range" id="g-t" min="0" max="4" step="1" value="2"></label>
@@ -108,4 +129,4 @@
 <p class="small">Guidance in library code: transformers implements the same line for Janus as <code>scores_processed = uncond_logits + (cond_logits - uncond_logits) * self.guidance_scale</code> ({{logits_process.py line 2205, v5.20.1|https://github.com/huggingface/transformers/blob/v5.20.1/src/transformers/generation/logits_process.py#L2205}}), and Janus's generate falls back to 5 when no scale is given (<code>modeling_janus.py</code> line 1194).</p>
 <p class="small">Checks that ran: the cached and uncached loops give logits within 1.4 &times; 10<sup>-6</sup> and identical samples (CPU); one image at batch 1 takes <span data-nm="batch1.cache" data-f="2"></span> s with the cache and <span data-nm="batch1.nocache" data-f="2"></span> s without (MPS, median of 3): at 64 tokens recomputing the short prefix is cheaper than the cache's bookkeeping on this GPU; the cache pays off for the thousands of tokens of a real image or conversation, where recomputation grows with the square of the length. <span class="meas">measured</span></p>
 </div></details>
-</section>
+

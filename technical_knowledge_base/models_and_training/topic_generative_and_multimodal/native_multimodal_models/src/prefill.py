@@ -14,6 +14,9 @@ PAGE = os.path.join(HERE, "..", "index.html")
 html = open(PAGE, encoding="utf8").read()
 data = open(os.path.join(HERE, "parts", "22_js_nm_0data.js"), encoding="utf8").read()
 N = json.loads(re.search(r"window\.NM=(\{.*?\});\n", data, re.S).group(1))
+# the scene numbers (make_scene_data.py) live in their own part as window.NM.sc
+sc = open(os.path.join(HERE, "parts", "22_js_nm_1sc.js"), encoding="utf8").read()
+N["sc"] = json.loads(re.search(r"window\.NM\.sc=(\{.*?\});\n", sc, re.S).group(1))
 
 
 def walk(root, path):

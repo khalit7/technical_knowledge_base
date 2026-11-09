@@ -70,9 +70,10 @@
       $('g-wst').innerHTML=RD.stat('Chosen code',String(ch),'probability '+(100*pch).toFixed(1)+'%')+RD.stat('Uncertainty',H.toFixed(2)+' bits','entropy of this step (uniform: 9.97)')+RD.stat('Calls so far',String(n+1),'of 64');
       $('g-wcap').innerHTML='<div class="t">Position '+(n+1)+': row '+(Math.floor(n/8)+1)+', column '+(n%8+1)+'</div><p>'+(H<0.5?'Nearly certain: the model has seen this kind of position (usually background or a predictable edge) thousands of times.':H<3?'A few candidates: the shape so far constrains this code.':'Genuinely open: many codes are plausible here, and the draw decides the detail.')+' The chosen code is drawn with the shared random number for this position (temperature 1, no top-k, no guidance).</p>';
     }else{
-      const tot=rec.H[wc].reduce((a,b)=>a+b,0),lp=rec.p[wc].reduce((a,b)=>a-Math.log2(b),0);
-      $('g-wtop').innerHTML='';$('g-wst').innerHTML=RD.stat('Bits spent on this image',lp.toFixed(0),'-log2 of the chosen codes\' probabilities')+RD.stat('Sum of step entropies',tot.toFixed(0)+' bits','uniform codes would be 638');
-      $('g-wcap').innerHTML='<div class="t">Done: 64 calls</div><p>The tokenizer\'s decoder turns the 64 codes into the image. Most of the uncertainty sat in a minority of positions; scrub back to find them.</p>';
+      // (the chosen codes' probabilities are recorded to 4 decimals, some as 0, so -log2 of them is not shown)
+      const tot=rec.H[wc].reduce((a,b)=>a+b,0);
+      $('g-wtop').innerHTML='';$('g-wst').innerHTML=RD.stat('Sum of step entropies',tot.toFixed(0)+' bits','uniform codes would be 638');
+      $('g-wcap').innerHTML='<div class="t">Done: 64 calls</div><p>The tokenizer\'s decoder turns the 64 codes into the image. The borders were nearly free and the uncertainty sat in the garment itself; scrub back to find the open calls.</p>';
     }
   }
   function setClass(c){wc=c;frameImg=new Image();frameImg.onload=()=>drawWatch(A3?A3.i:0);frameImg.src=N.img['ar_frames__1.0_c'+c]}
@@ -80,7 +81,8 @@
   RD.seg($('g-swm'),m=>{swm=m;swSel=null;drawSw()});
   $('g-wc').addEventListener('change',e=>{setClass(+e.target.value);A3.go(0)});
   setClass(3);
-  A3=RD.anim({card:'g-watch',ctl:'g-wctl',n:65,draw:drawWatch,ms:450,label:'Token'});
+  // a widget the reader drives (64 calls: the long-replay rule), never playing by itself; Fig. 3 plays the same sample row by row
+  A3=RD.anim({card:'g-watch',ctl:'g-wctl',n:65,draw:drawWatch,ms:450,label:'Token',auto:false});
   drawSamp();drawSw();
   RD.onRender(drawSw);RD.onResize(drawSw);
 })();

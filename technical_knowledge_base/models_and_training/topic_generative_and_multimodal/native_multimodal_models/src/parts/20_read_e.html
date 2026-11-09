@@ -1,15 +1,7 @@
+<div class="s3sp"><div class="s3L">
 <section id="nm-s6">
 <h2>6. One transformer that reads and writes: the unified models</h2>
 <p>A <dfn>unified</dfn> model puts the generator of sections 3 to 5 inside a language model. Beyond the hero's two choices, the designs differ in which positions may attend to which (the <dfn>attention mask</dfn>) and which loss each position carries. <b>Predict:</b> in a model that writes an image by diffusion, should an output image's patches see each other?</p>
-<div class="rd-card" id="nm-fx-card">
-<h4>Text stays causal everywhere; what changes is whether an image's own positions see each other, and which loss each position carries</h4>
-<div class="fx-pick" id="fx-pick" aria-label="designs"></div>
-<p class="small">Click once to show a design on the left; with "compare" on, the next click fills the right. <label class="chk"><input type="checkbox" id="fx-cmp" checked> compare two</label></p>
-<div class="fx-two"><div id="fx-a"></div><div id="fx-b"></div></div>
-<div class="leg"><span style="--sw:var(--c5)">text</span><span style="--sw:var(--c1)">input image</span><span style="--sw:var(--c3)">output image</span><span style="--sw:var(--c4)">cross-attention to image features (outside the sequence)</span><span style="--sw:var(--soft)">not allowed</span></div>
-<p class="small">Ten designs: a pipeline; two late-fusion layouts (cross-attention to image features as in Flamingo (its gates start at zero), IDEFICS and Llama 3.2 Vision, or encoder plus projector as in LLaVA); early fusion with discrete tokens; two encodings; text plus diffusion (Transfusion); text plus masked codes (Show-o); mixture of transformer experts (BAGEL); encoder-free; and any-to-any speech, which has no single mask. The toy request: two text tokens, an input image (4 positions), two more text tokens and, where the design can draw, an output image (4 positions). Row = the position computing its output, column = a position it may read. Loss letters: T = next-token cross-entropy on text; C = next-token cross-entropy on image codes; M = cross-entropy on masked image codes; D = diffusion (denoising) loss; blank = no loss at that position. Masks follow the papers and configs quoted below (Gemma 4 12B Unified's config: <code>"use_bidirectional_attention": "vision"</code>); the input image's loss differs by recipe (Chameleon trains on all tokens, LLaVA-style VLMs on the answer only), so the letters show the common case.</p>
-</div>
-
 <h3>Chameleon: everything is a token, and the training fights back</h3>
 <p>Chameleon (Meta, May 2024) is the reference early-fusion model: the shared space "allows for seamless reasoning and generation across modalities. However, it also presents significant technical challenges, particularly in terms of optimization stability and scaling" ({{arXiv 2405.09818v2, section 1|https://arxiv.org/html/2405.09818v2}}). A VQ tokenizer turns "a 512 x 512 image into 1024 discrete tokens from a codebook of size 8192", and those 8,192 codes sit inside one BPE vocabulary of 65,536; the 7B and 34B transformers predict text and image tokens with the same softmax.</p>
 <p><b>Why it was hard: the modalities compete.</b> With all weights shared, "each modality will try to "compete" with the other by increasing its norms slightly", harmless early but divergent "once we get outside the effective representation range of bf16"; with image generation disabled training showed no instability (Figure 10). The fixes: <dfn>QK-Norm</dfn> (layer norm on queries and keys before the attention softmax) for both sizes, "essential in both cases"; dropout 0.1 for the 7B, a Swin-style reordering of the norms for the 34B; and <dfn>z-loss</dfn>, 10<sup>-5</sup> log<sup>2</sup> Z on the output softmax's normaliser Z, because QK-Norm "does not solve the problem of logit shift in the final softmax". The operational lesson: "monitoring uncontrolled growth of output norms is strongly correlated with predicting future loss divergence", even when divergence arrives "after as much as even 20-30% of training progress" (all {{section 2.3|https://arxiv.org/html/2405.09818v2}}) <span class="vend">vendor</span>. How QK-norm and z-loss work in any transformer is on {{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}}.</p>
@@ -23,11 +15,25 @@
 <h3>Janus: one transformer, two image encodings</h3>
 <p>DeepSeek's Janus starts from the section 2 measurement: "due to the differing levels of information granularity required by multimodal understanding and generation, this approach can lead to suboptimal performance ... we decouple visual encoding into separate pathways" ({{arXiv 2410.13848v1|https://arxiv.org/html/2410.13848v1}}): SigLIP-Large-Patch16-384 features to read, LlamaGen's VQ tokenizer (16,384 codes, downsampling 16, 384 &times; 384 images, so 576 tokens: <span class="der">derived</span>) to write.</p>
 
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="rd-card" id="nm-fx-card">
+<h4>Text stays causal everywhere; what changes is whether an image's own positions see each other, and which loss each position carries</h4>
+<div class="fx-pick" id="fx-pick" aria-label="designs"></div>
+<p class="small">Click once to show a design on the left; with "compare" on, the next click fills the right. <label class="chk"><input type="checkbox" id="fx-cmp" checked> compare two</label></p>
+<div class="fx-two"><div id="fx-a"></div><div id="fx-b"></div></div>
+<div class="leg"><span style="--sw:var(--c5)">text</span><span style="--sw:var(--c1)">input image</span><span style="--sw:var(--c3)">output image</span><span style="--sw:var(--c4)">cross-attention to image features (outside the sequence)</span><span style="--sw:var(--soft)">not allowed</span></div>
+<p class="small">Ten designs: a pipeline; two late-fusion layouts (cross-attention to image features as in Flamingo (its gates start at zero), IDEFICS and Llama 3.2 Vision, or encoder plus projector as in LLaVA); early fusion with discrete tokens; two encodings; text plus diffusion (Transfusion); text plus masked codes (Show-o); mixture of transformer experts (BAGEL); encoder-free; and any-to-any speech, which has no single mask. The toy request: two text tokens, an input image (4 positions), two more text tokens and, where the design can draw, an output image (4 positions). Row = the position computing its output, column = a position it may read. Loss letters: T = next-token cross-entropy on text; C = next-token cross-entropy on image codes; M = cross-entropy on masked image codes; D = diffusion (denoising) loss; blank = no loss at that position. Masks follow the papers and configs quoted below (Gemma 4 12B Unified's config: <code>"use_bidirectional_attention": "vision"</code>); the input image's loss differs by recipe (Chameleon trains on all tokens, LLaVA-style VLMs on the answer only), so the letters show the common case.</p>
+</div>
+
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Transfusion: next token for text, diffusion for images, one set of weights</h3>
 <p>Transfusion (Meta, August 2024) keeps images continuous: it "combines the language modeling loss function (next token prediction) with diffusion to train a single transformer over mixed-modality sequences" ({{arXiv 2408.11039v1|https://arxiv.org/html/2408.11039v1}}). An 86M-parameter VAE turns a 256 &times; 256 image into a 32 &times; 32 &times; 8 latent; U-Net down blocks make 2 &times; 2 latent patches, 256 positions per image. The loss is L = L<sub>LM</sub> + &lambda; L<sub>DDPM</sub> with &lambda; = 5 (section 7). The mask is "causal attention to every element in the sequence, and bidirectional attention within the elements of each individual image"; turning on the bidirectional part alone moved FID from 61.3 to 20.3 in their ablation (Table 5, 0.76B models).</p>
 <div class="pr"><div class="q">Predict: the authors retrained a Chameleon-style discrete-token model and Transfusion at 7B on the same 0.5T tokens. How much of Chameleon's compute did Transfusion need to match its image FID?</div>
 <div class="opts"><button>About the same</button><button>About half</button><button data-r="1">About 3%</button></div>
 <div class="ans" hidden><span class="vend">vendor</span> A parity FLOP ratio of 0.029 (Table 3): "34x less compute". To match the CLIP score it needs 0.319, which is where the introduction's "less than a third of the compute" comes from: two headlines from one table, one per metric. The chart below shows all six.</div></div>
+</div><div class="s3R"><div class="s3side">
 <div class="rd-card">
 <h4>Continuous latents with a diffusion loss beat discrete codes on every metric, most of all on image FID</h4>
 <div class="rd-bars">
@@ -41,6 +47,7 @@
 <p class="small">Parity FLOP ratio: the share of Transfusion-7B's training FLOPs needed to match Chameleon-7B's final result on each metric, both trained by the Transfusion authors on 0.5T tokens (Table 3; a bar of 1.0 would mean no saving). At the end of training: FID 16.8 against 29.6, CLIP score 25.5 against 24.3, C4 perplexity 7.72 against 8.41. Even text got cheaper, which the authors tentatively put down to "the competition between text and image tokens in the output distribution". <span class="vend">vendor</span></p>
 </div>
 
+</div></div></div>
 <h3>Show-o and BAGEL: the other hybrids</h3>
 <ul>
 <li><b>Show-o</b> (NUS and ByteDance, 2024): 1.3B (Phi-1.5), images as MAGVIT-v2 lookup-free codes (8,192, 16 &times; 16 at 256 px), written by masked prediction as in section 4, with "omni-attention": "Show-o model text tokens v within the sequence via causal attention. For image tokens u, Show-o processes them via full attention" ({{arXiv 2408.12528v7|https://arxiv.org/html/2408.12528v7}}).</li>
@@ -58,4 +65,4 @@
 </ul></div></details>
 <div class="co warn"><div class="t">"Native" and "early fusion" mean different things in different documents</div><p>Chameleon: discrete image tokens, no encoder, trained together from scratch. Llama 4: "incorporating early fusion to seamlessly integrate text and vision tokens into a unified model backbone", yet with a vision encoder "based on MetaCLIP but trained separately in conjunction with a frozen Llama model" ({{Meta, 5 April 2025|https://ai.meta.com/blog/llama-4-multimodal-intelligence/}}): early means the vision tokens join from pretraining onward. Qwen3.8-27B calls itself "a native vision-language model", and its card also says "Causal Language Model with Vision Encoder" (a 27-layer ViT in its config): native is a training claim. Gemma 4 12B Unified and Fuyu: no encoder at all. When a model card says native, read the config.</p></div>
 <p class="small">Diffusion used the other way round, to generate text, is on {{DiffusionGemma Technical Report|n:3c65c17b0d0d818390bfd7969757211e}}.</p>
-</section>
+

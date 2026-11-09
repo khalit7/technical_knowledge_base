@@ -34,3 +34,6 @@ Central question: when one network reads and writes images and speech, what does
 | 14 | MoT: separate weights, shared attention; savings against the dense baseline | Reading s7 | static diagram plus bars |
 | 15 | Cascade against Moshi's frame layout (17 tokens per 80 ms step, acoustic codebooks one frame late) | Reading s9 | static diagram at measured width |
 Moved inline: #2 (Fusion explorer, now s6) and #8 (Token generator lab: stepper and sweeps in s3, the 45-setting grid closed). Removed: #5's temperature table (the sweep chart carries the same rows). Rejected: a paper's canonical figure (Transfusion Figure 1, Chameleon Figure 1): the explorer already draws the same masks in this page's colours, and the arXiv licences were not checked as reusable.
+
+## 2026-11-09 (split layout and 3D stages)
+Built: Fig. 1 fusion (replaces idea 1's 2D stepper), Fig. 2 two kinds of token (replaces idea 3), Fig. 3 one dress row by row (idea 8's token-by-token stepper, regrouped into 8 rows; the 65-step version stays as a widget), Fig. 4 three ways (replaces idea 6), Fig. 5 cascade against per-frame (replaces the Moshi frame diagram). Rejected: a 3D unified-model stream (the fusion explorer already shows it; masks read best flat); 3D bars for equal compute, data mix or MoT savings (numbers on an axis).
