@@ -17,6 +17,17 @@ def glob(name):
 
 # 1. embedded data equals the recorded outputs
 AVR, AVK, AVL = glob("AVR"), glob("AVK"), glob("AVL")
+# the stage data (2026-11-09): AVB equals the topic root's decode bench and Inside lab recordings it is written from (make_stage_data.py)
+AVB = glob("AVB")
+_root = os.path.join(HERE, "..", "..", "src")
+_db = json.load(open(os.path.join(_root, "attn", "out", "decode_bench.json")))
+for r in AVB["rows"]:
+    src = [x for x in _db["part_a"] if x["ctx"] == AVB["ctx"] and x["variant"] == r["variant"]]
+    if not src or src[0]["ms_median"] != r["ms_median"] or src[0]["cache_bytes"] != r["cache_bytes"]:
+        bad.append(f"AVB row {r['variant']} differs from decode_bench.json")
+_sm = json.load(open(os.path.join(_root, "inside", "out", "smol.json")))
+if AVB["sink"]["tok0_by_layer"] != _sm["sink_layer"] or any(AVB["sink"]["win"][k] != _sm["win"][k]["loss_after_W"] for k in ("full", "window", "window_sink", "window_sink1")):
+    bad.append("AVB.sink differs from the Inside lab's smol.json")
 if AVL["rungs"] != O("ladder.json")["rungs"]:
     bad.append("AVL differs from out/ladder.json")
 tk = O("topk_mass.json")

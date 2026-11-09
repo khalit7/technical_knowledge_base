@@ -75,13 +75,25 @@
 #t-read .dr .opts button.right{border-color:var(--good);color:var(--good);font-weight:600}#t-read .dr .opts button.wrong{border-color:var(--bad);color:var(--bad)}
 #t-read .dr .ans{font-size:13.5px;border-left:3px solid var(--good);padding:2px 0 2px 10px;overflow-wrap:anywhere}
 #t-read .tw table.dsx{min-width:520px}
+@media (min-width:1100px){#t-read .s3R>.card{position:sticky;top:58px;margin-top:20px}}
 </style>
 <nav class="nav" id="rd-nav"><a href="#s0">The idea</a><a href="#s1">Why the cache</a><a href="#s2">MQA and GQA</a><a href="#s3">MLA</a><a href="#s4">Windows</a><a href="#s5">Sparse</a><a href="#s6">Sinks and gates</a><a href="#s7">Decode cost</a><a href="#s8">Depth</a></nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s0"><h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Decoding reads every cached key and value once per new token, so <b>the bytes each past token leaves behind are decode time</b>. Every attention variant changes one factor: <span class="hl">how big each entry is</span> (MHA, GQA, MQA, MLA), <span class="hl">how many entries are kept</span> (sliding windows, V4's compression), or <span class="hl">how many are read</span> (NSA, DSA); sinks and gates change where attention goes when nothing is worth reading.</p>
-<div class="hero" id="av-hero-card"><h4>What one past token leaves behind in one layer, and what the next token reads</h4>
-<div class="rd-svg" id="av-hero"></div>
-<p class="small" id="av-hero-cap">Entries to scale at Llama 3.1 8B's shape (32 query heads of 128); the MLA rows use DeepSeek-V3's 512 + 64. Squares: orange key, purple value, green latent, teal RoPE key, gold indexer key, pale green merged entry. Strip: <span class="hl">blue = read</span>, grey = stored, not read, dashed = not stored; window, top-k and ratios <span class="ill">illustrative</span>.</p></div>
+<p class="small">Fig. 1: what one past token leaves behind in one layer, and what the next token reads. Each column is one of 24 past tokens, its height the numbers its entry holds in one layer, to one scale throughout (bf16 configs as section 7 reads them); <span class="hl">lit columns are read</span> by the new token's query, faded ones are stored but not read, dashed ones are not stored. The window, the top-k picks, the merged blocks chosen and the sink step are <span class="ill">illustrative</span>.</p>
+<ol class="sx" id="sx-hero">
+<li><b>MHA: every head keeps its own key and value.</b> Llama 2 7B: 32 heads of 128, a key (teal) and a value (purple) each, 8,192 numbers per token per layer, and the new query reads all 24 entries. This height is the scale every later step is drawn against (the wireframe).</li>
+<li><b>Smaller entries: share key and value heads (GQA).</b> Llama 3.1 8B keeps 8 KV heads for its 32 query heads: 2,048 numbers, a quarter. Every token is still kept and read. Section 2.</li>
+<li><b>Smaller still: cache a latent (MLA).</b> DeepSeek-V3 caches a 512-number latent (green) and a 64-number RoPE key (teal), 576 numbers, yet every one of its 128 heads keeps its own keys. Section 3.</li>
+<li><b>Fewer kept: a sliding window.</b> Mistral 7B v0.1 keeps only the last W = 4,096 tokens in every layer (6 drawn); older entries are gone (dashed), and what a token reads stops growing. Section 4.</li>
+<li><b>Fewer read: select the top k (DSA).</b> DeepSeek-V3.2 keeps every MLA entry plus a 128-number indexer key (gold), and attention reads only the top 2,048 (5 drawn); the rest stay resident, unread. Section 5.</li>
+<li><b>Fewer stored: merge blocks (V4's CSA).</b> DeepSeek-V4-Pro merges every 4 tokens into one 512-number entry, keeps the last 128 tokens raw, and reads the top 1,024 merged entries plus that window. Section 5.</li>
+<li><b>Where unused weight goes: sinks and gates.</b> Softmax weights sum to 1, so a head with nothing worth reading parks its weight on token 0 (the thick flow) or, with a learned sink logit, sends it nowhere (red), at no cost in cache. Section 6.</li>
+</ol>
+</section>
+</div></div>
+<section id="s0b">
 <p><b>You need:</b> what attention and a KV cache are ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}: one head by hand in section 3, why the cache exists in section 9; or the root's {{attention section|n:3fd5c17b0d0d8172b490dc9f9ac281df}}, section 4) and RoPE ({{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}), which MLA's decoupled key works around. Whole-model cache sizes at a context length (bytes per sequence, what fits on a GPU) are on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}; this page is the mechanism.</p>
 <dl class="terms">
 <dt>KV head</dt><dd>one key and one value projection; MHA has one per query head, GQA one per group of query heads, MQA one in all.</dd>

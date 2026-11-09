@@ -9,42 +9,64 @@
 <p id="ky-say" class="small"></p>
 </div></details>
 
+</section>
+<div class="s3sp"><div class="s3L"><section id="s5n">
 <h3>NSA: three branches and a learned mix</h3>
 <p><b>Concrete.</b> Native Sparse Attention (Yuan et al., DeepSeek-AI and Peking University, {{arXiv 2502.11089|https://arxiv.org/html/2502.11089}}) computes three attentions per query, "compressed coarse-grained tokens, selectively retained fine-grained tokens, and sliding windows for local contextual information", and adds them with gates (each in [0, 1], from an MLP and a sigmoid on the query token). Its settings (section 4.1): a summary per block of l = 32 tokens with stride d = 16; the n = 16 selected blocks of l&prime; = 64 tokens "including the 1 initial block and 2 local blocks"; a window of w = 512.</p>
-<div class="card" id="av-nsa-card"><h4>NSA reads a summary of everything, a few whole blocks, and the recent window, then mixes them</h4>
-<div class="rd-svg" id="av-nsa"></div>
-<p class="small mute">One query over 64 earlier tokens, blocks of 8 and 4 selected blocks <span class="ill">illustrative</span>. Selection reuses the compressed scores, so finding blocks is cheap, and whole blocks keep the kernel's reads contiguous.</p>
-</div>
+
 <div class="fm"><div class="eq">o<sub>t</sub> = g<sub>t</sub><sup>cmp</sup> Attn(q<sub>t</sub>, K&#771;<sup>cmp</sup>, V&#771;<sup>cmp</sup>) + g<sub>t</sub><sup>slc</sup> Attn(q<sub>t</sub>, K&#771;<sup>slc</sup>, V&#771;<sup>slc</sup>) + g<sub>t</sub><sup>win</sup> Attn(q<sub>t</sub>, K&#771;<sup>win</sup>, V&#771;<sup>win</sup>)</div>
 <dl><dt>cmp, slc, win</dt><dd>the three branches above: block summaries, the selected blocks' tokens, the last w tokens</dd><dt>g<sub>t</sub></dt><dd>gates in [0, 1] from the query token</dd></dl></div>
 <p>It is trained with the sparsity in place ("native"), not applied after training, and the paper reports it above full attention on its own benchmarks and up to 11.6x fewer memory accesses per decoded token at 64K.</p>
 <details class="dp"><summary>NSA's reported results <span class="mute">(authors' runs; not run here)</span></summary><div class="b"><p><span class="vend">authors' results</span> (section 4.1, Tables 1, 2, 4): a 27B-total, 3B-active MoE (30 layers, hidden 2,560, 64 heads in GQA groups of 4) pretrained on 270B tokens at 8K (section 1 says 260B; the paper disagrees with itself), then extended to 32K with YaRN. General benchmarks average 0.456 against full attention's 0.443; LongBench 0.469 against 0.437; at 64K up to 9.0x forward and 6.0x backward speedup in training. Table 4 counts what one decode step must load: 2,048 equivalent tokens against 8,192 at 8K (4x), 2,560 at 16K (6.4x), 3,584 at 32K (9.1x), 5,632 against 65,536 at 64K (11.6x), an expected speedup, a calculation. Not run here: it needs Triton kernels on CUDA and contexts long enough to have blocks to skip.</p></div></details>
 
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="av-nsa-card"><h4>NSA reads a summary of everything, a few whole blocks, and the recent window, then mixes them</h4>
+<div class="rd-svg" id="av-nsa"></div>
+<p class="small mute">One query over 64 earlier tokens, blocks of 8 and 4 selected blocks <span class="ill">illustrative</span>. Selection reuses the compressed scores, so finding blocks is cheap, and whole blocks keep the kernel's reads contiguous.</p>
+</div></div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-dsa"></div></div><div class="s3L"><section id="s5d">
 <h3>DSA: a lightning indexer picks the top 2,048 tokens</h3>
 <p><b>Concrete.</b> DeepSeek Sparse Attention (V3.2-Exp, shipped 29 September 2025; V3.2 technical report, {{arXiv 2512.02556|https://arxiv.org/abs/2512.02556}}) is simpler. A <dfn>lightning indexer</dfn> with a few small heads scores every cached token for the current query, and MLA's attention then runs over the top k only. V3.2's config: <code>index_n_heads</code> 64, <code>index_head_dim</code> 128, <code>index_topk</code> 2048. GLM-5 (February 2026) has the same three fields (32 indexer heads of 128, top 2,048) on an MLA backbone.</p>
-<div class="card" id="av-dsa-card"><h4>One decode step under DSA: score every entry cheaply, read only the top k</h4>
-<div id="av-dsa" class="rd-svg"></div>
-<div id="av-dsa-stage"></div>
-<div class="an-ctl" id="av-dsa-ctl"></div>
-<div class="an-cap" id="av-dsa-cap" aria-live="polite"></div>
-<div class="an-cnt" id="av-dsa-cnt"></div>
-<p class="small mute">One square per cached token of the running sequence (226 tokens), k = 16 (V3.2: 2,048). Scores: SmolLM2-135M's real attention from the last token, layer 18, mean of 9 heads, standing in for the indexer: an <b>oracle</b>, the best any indexer could do. <span class="meas">measured on Apple M1 Pro (CPU)</span></p>
-</div>
+<ol class="sx" id="sx-dsa">
+<li><b>The cache: every entry stays resident.</b> Each of the 226 earlier tokens of the running sequence keeps its MLA entry (576 numbers, green) <b>and</b> a 128-number indexer key (the gold top). Nothing is evicted: any entry may be selected later. That is why DSA stores more than MLA alone: 83.9 KiB per token against V3's 68.6 in bf16.</li>
+<li><b>The lightning indexer scores every entry.</b> For the new token, a few small indexer heads compute I<sub>t,s</sub> = &Sigma;<sub>j</sub> w<sub>t,j</sub> ReLU(q<sub>t,j</sub> &middot; k<sub>s</sub>) against every cached indexer key (height: the score). ReLU instead of a softmax and FP8 make each score cheap, but every token is scored: the indexer is still O(L<sup>2</sup>) over a sequence.</li>
+<li><b>Keep the top k.</b> Only the k highest-scoring entries (blue) go to the real attention: k = 16 here, 2,048 in V3.2. Here the scores are the model's real attention, so these are the best 16 any indexer could pick; the tallest is position 0, the sink of section 6.</li>
+<li><b>MLA attention reads only the selected entries.</b> The 128 query heads, in MLA's absorbed (MQA) mode, read the 16 selected 576-number entries and nothing else (the streams, denser for larger weights): 16 of 226 entries, holding 97% of this query's real attention. A selected entry must be shared by all heads for the kernel to be efficient, which is why DSA sits on MLA.</li>
+<li><b>What one decoded token reads at V3.2's scale.</b> At 131,072 cached tokens, per layer: the indexer reads 131,072 keys of 128 numbers (16.8M numbers) and attention reads 2,048 entries of 576 (1.18M). Together about 24% of what dense V3 reads (75.5M), not 2,048 / 131,072 = 1.6%: the indexer's read grows with the context. Below 2,048 tokens DSA reads everything.</li>
+<li><b>How it learned to choose: two training stages.</b> V3.2 continued from V3.1-Terminus. Stage 1, dense warm-up: the model frozen, only the indexer trained, for 1,000 steps (2.1B tokens), to match the main attention distribution (scores summed over heads and normalised) with a KL-divergence loss. Stage 2, sparse: 943.7B tokens in which the whole model adapts to top-2,048 selection, while the indexer, detached from the main graph, keeps fitting the attention over the selected set (columns to scale). DSA is an approximation trained in, not applied afterwards.</li>
+</ol>
+<p class="small mute">Fig. 6: one square per cached token of the running sequence (226 tokens), k = 16 (V3.2: 2,048). Scores: SmolLM2-135M's real attention from the last token, layer 18, mean of 9 heads, standing in for the indexer: an <b>oracle</b>, the best any indexer could do. <span class="meas">measured on Apple M1 Pro (CPU)</span></p>
 <div class="fm"><div class="eq">I<sub>t,s</sub> = &Sigma;<sub>j=1</sub><sup>H<sup>I</sup></sup> w<sup>I</sup><sub>t,j</sub> &middot; ReLU(q<sup>I</sup><sub>t,j</sub> &middot; k<sup>I</sup><sub>s</sub>) &nbsp;&nbsp;&nbsp; u<sub>t</sub> = Attn(h<sub>t</sub>, { c<sub>s</sub> : I<sub>t,s</sub> &isin; Top-k(I<sub>t,:</sub>) })</div>
 <dl><dt>I<sub>t,s</sub></dt><dd>the index score of earlier token s for query token t</dd><dt>H<sup>I</sup></dt><dd>the (small) number of indexer heads, with query q<sup>I</sup> and weight w<sup>I</sup> from the query token</dd><dt>k<sup>I</sup><sub>s</sub></dt><dd>a 128-number indexer key cached for every token, beside its MLA entry c<sub>s</sub></dd></dl></div>
 <p>ReLU instead of a softmax, and FP8 (the indexer "can be implemented in FP8"), make each score cheap, but every token is scored: DSA "reduces the core attention complexity of the main model from O(L<sup>2</sup>) to O(Lk)", while "the lightning indexer still has a complexity of O(L<sup>2</sup>)" (<span class="vend">DeepSeek</span>). DSA sits on MLA's MQA mode because a selected entry must be shared by all heads for the kernel to be efficient. Memory goes <i>up</i>: 68.6 + 15.25 = 83.9 KiB per token in bf16 with the indexer keys. Unlike MLA, exact up to its low-rank bottleneck, DSA is an approximation, trained in: DeepSeek "deliberately aligned the training configurations of DeepSeek-V3.2-Exp with V3.1-Terminus" and reports "performance on par with V3.1-Terminus" ({{model card|https://huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp}}, <span class="vend">vendor</span>).</p>
-<p><b>How it was trained.</b> V3.2 continued from V3.1-Terminus in two stages: a dense warm-up with the model frozen, the indexer alone fitted for 1,000 steps (2.1B tokens) to the main attention distribution (summed over heads, normalised) with a KL-divergence loss; then 943.7B tokens of sparse training in which the whole model adapts to top-2,048 selection while the indexer, detached from the main graph, keeps fitting attention over the selected set.</p>
 <p><b>When it matters, how to check.</b> Only past k: below 2,048 tokens DSA reads everything. And the indexer's read grows with the context: at 131,072 tokens it reads 14x more numbers than attention does, so a decoded token reads about 24% of what V3 reads, not 2,048 / 131,072 = 1.6% (bf16, <span class="der">calculation</span>; FP8 indexer keys halve that part). Check <code>index_topk</code> and <code>index_head_dim</code> (transformers 5.20.1: <code>F.relu(scores)</code>, then <code>index_scores.topk(topk, dim=-1)</code>), and judge quality with long-context retrieval rather than perplexity: a selector that misses the one needed token barely moves average loss ({{Long-context and multimodal benchmarks|n:3ef5c17b0d0d810bb4dfc98919c9be8a}}).</p>
 
-<h3>DeepSeek-V4: compress what is stored, then select</h3>
-<p><b>Concrete.</b> V4 (April 2026, {{DeepSeek-V4 report|https://arxiv.org/pdf/2606.19348}}) changes what is <i>stored</i>, with two layer types interleaved. <b>CSA</b> (Compressed Sparse Attention) merges every m = 4 tokens into one 512-number entry, with overlapping blocks (each entry built from 2m = 8 tokens through two weight series), then applies DSA to the merged entries: an indexer of 64 heads of 128, in FP4, picks the top 1,024 (V4-Pro) or 512 (V4-Flash). <b>HCA</b> (Heavily Compressed Attention) merges every 128 tokens, without overlap, and reads all of them. In V4-Pro's config 30 layers are CSA and 31 HCA (<code>compress_ratios</code>, read 2026-10-18).</p>
-<div class="card" id="av-v4-card"><h4>One decode step under V4: merge blocks into entries, keep a raw window, then select (CSA) or read all (HCA)</h4>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="av-v4-card"><h4>One decode step under V4: merge blocks into entries, keep a raw window, then select (CSA) or read all (HCA)</h4>
 <div class="seg" id="av-v4-mode" role="group" aria-label="Layer type"><button data-m="csa" class="on">CSA (4 tokens per entry, top-k)</button><button data-m="hca">HCA (128 per entry, read all)</button></div>
 <div id="av-v4" class="rd-svg"></div>
 <div class="an-ctl" id="av-v4-ctl"></div>
-<div class="an-cap" id="av-v4-cap" aria-live="polite"></div>
 <p class="small mute">64 tokens; CSA at its real 4 tokens per entry (top-3, 8-token window); HCA at 16 per entry instead of 128 <span class="ill">illustrative</span>. Real numbers at 1M tokens in the last step.</p>
-</div>
+</div></div><div class="s3L"><section id="s5v">
+<h3>DeepSeek-V4: compress what is stored, then select</h3>
+<p><b>Concrete.</b> V4 (April 2026, {{DeepSeek-V4 report|https://arxiv.org/pdf/2606.19348}}) changes what is <i>stored</i>, with two layer types interleaved. <b>CSA</b> (Compressed Sparse Attention) merges every m = 4 tokens into one 512-number entry, with overlapping blocks (each entry built from 2m = 8 tokens through two weight series), then applies DSA to the merged entries: an indexer of 64 heads of 128, in FP4, picks the top 1,024 (V4-Pro) or 512 (V4-Flash). <b>HCA</b> (Heavily Compressed Attention) merges every 128 tokens, without overlap, and reads all of them. In V4-Pro's config 30 layers are CSA and 31 HCA (<code>compress_ratios</code>, read 2026-10-18).</p>
+<p class="small">The stepper beside follows one decode step; switch the layer type above it.</p>
+<ol class="sx" id="sx-v4c">
+<li><b>Tokens arrive.</b> Each token gets a 512-number entry C<sub>j</sub> (key and value at once) and a compression logit Z<sub>j</sub>. Nothing is cached per token yet, except in the window.</li>
+<li><b>Every 4 tokens merge into one entry.</b> A block's entries are averaged channel by channel with learned weights, softmax over the block of Z + B. CSA's blocks overlap: each entry is built from 8 tokens (the bracket) through two weight series. The cache keeps one entry per 4 tokens.</li>
+<li><b>Keep the last 128 tokens raw.</b> A query may attend only to completed blocks, so without a window it could not see its own unfinished block, usually the most relevant tokens. V4 keeps the last 128 tokens uncompressed (8 drawn).</li>
+<li><b>The indexer picks the top-k entries; attention reads them and the window.</b> A DSA indexer (64 heads of 128, FP4) scores every merged entry and the query reads the top 1,024 (V4-Pro; 512 in Flash; 3 drawn) plus the window, with each entry serving as key and value for all 128 heads.</li>
+<li><b>At 1M tokens, per CSA layer.</b> Stored: 250,000 merged entries + 128 in the window. Read per decoded token: 1,024 + 128. The indexer still scores all 250,000, a quarter of what DSA's indexer scores on raw tokens.</li>
+</ol>
+<ol class="sx" id="sx-v4h" hidden>
+<li><b>Tokens arrive.</b> Each token gets a 512-number entry C<sub>j</sub> and a compression logit, as in CSA.</li>
+<li><b>Every 128 tokens merge into one entry.</b> Blocks do not overlap; each is one learned channel-wise weighted average (16 tokens per entry drawn, so the entries are visible). The cache keeps one entry per 128 tokens.</li>
+<li><b>Keep the last 128 tokens raw.</b> The same uncompressed window as CSA, for the same reason: the unfinished block is invisible otherwise.</li>
+<li><b>No selection: read every entry and the window.</b> HCA attends densely to all of its merged entries; there is no indexer. It is not sparse attention, just heavy compression.</li>
+<li><b>At 1M tokens, per HCA layer.</b> Stored: 7,813 merged entries + 128 in the window; read: all 7,941, fewer than DSA stores by two orders of magnitude. CSA and HCA together: precise nearby, cheap far away.</li>
+</ol>
+
 <div class="fm"><div class="eq">C<sup>Comp</sup><sub>i</sub> = &Sigma;<sub>j &isin; block i</sub> S<sub>j</sub> &#8857; C<sub>j</sub> &nbsp;&nbsp;&nbsp; S<sub>block i</sub> = Softmax<sub>row</sub>(Z<sub>block i</sub> + B)</div>
 <dl><dt>C<sub>j</sub>, Z<sub>j</sub></dt><dd>token j's 512-number entry and its learned compression logits (Z<sub>j</sub> = W<sup>Z</sup> h<sub>j</sub>)</dd><dt>B</dt><dd>a learned per-position bias; the softmax runs across the block, per channel</dd></dl></div>
 <p>Both layer types keep a <b>window of 128 uncompressed recent tokens</b> (a query may attend only to completed blocks, so without it its own unfinished block, usually the most relevant, would be invisible) and use each entry as key and value for every query head, MLA's decode shape.</p>
@@ -59,6 +81,9 @@
 <li>GQA-8 in BF16 over the same 61 layers: 2 &times; 8 &times; 128 &times; 2 = 4,096 bytes per layer, 249,856 bytes per token. Ratio: 1.98%.</li></ol>
 <p class="small">FP8 indexer keys give 2.17% and none 1.78%, so the reported "about 2%" is robust to that assumption. The 128-token windows add a fixed 128 &times; 576 &times; 61 = 4.5 MB per sequence. <span class="der">derived</span></p>
 </div></details>
+</section>
+</div></div>
+<section id="s5t">
 <div class="tw"><table class="dsx">
 <thead><tr><th>Per layer</th><th>Stored</th><th>Read per decoded token</th><th>At 1M tokens: stored / read</th><th>How keys are chosen</th><th>Exact?</th></tr></thead>
 <tbody>

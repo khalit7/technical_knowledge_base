@@ -45,3 +45,8 @@ Scores 0 to 2 on the skill's eight criteria (2 and 3 count double), minus build 
 | Per-layer decode cost: read and FLOPs per byte for 16 layer types | Reading s7 | one slider (context), from the old Cache ladder | per layer (the mechanism), not per sequence (Long context owns sizing) |
 
 Removed: the two-rung decode race (its point, memory-bound against near the balance point, is carried by the FLOPs per byte bars and one sentence); the Cache ladder's "cache held per sequence" mode (whole-model sizing belongs to Long context); the DeepSeek page's MLA prefill/decode toggle and GQA-groups slider were not moved (the MLA explainer's steps 5 and 6 and the "576 = 2 x 2.25 x 128" sentence carry them).
+
+## 2026-11-09 (split layout and 3D rollout)
+Built as 3D stages: hero (entry per token to scale, read or not), the KV cache as bricks of layers by KV heads per token, GQA query plates sharing KV plates, the MLA before/after, the window staircase, DSA as a bar field on SmolLM2's attention, sinks (token 0 by layer, eviction, learned sink, gate).
+Kept 2D: NSA's branch diagram (static structure), the V4 stepper (a flat timeline of blocks), the key/value spectrum (curves on a log axis), the per-layer decode-cost rows (bytes over three orders of magnitude, a slider), the keys explorer tab (reader-driven).
+Rejected: decode cost as 3D columns (2 GiB against 16 MiB is unreadable on a linear height; log heights in 3D mislead); two side-by-side window stacks (the upper plates hid the lower ones; replaced by one staircase that changes design at step 4).

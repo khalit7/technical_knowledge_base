@@ -80,17 +80,6 @@
     for(const [W,s] of [[32,0],[32,1],[16,0],[16,1]])h+=row('served with window '+W+(s?' + position 0':'')+' (positions &ge; W)',r=>f3(r.serving.find(x=>x.serve_window===W&&x.sinks_kept===s).loss_pos_ge_W));
     $('av-sink-tab').innerHTML=h+'</tbody>';
     if(window.AVR_SINK_SAY)$('av-sink-say').innerHTML=window.AVR_SINK_SAY(A);
-    const sk=S.find(r=>r.anim);if(!sk||!first)return;const an=sk.anim;let mode='with';
-    $('av-sk-sub').innerHTML='<span class="meas">measured on Apple M1 Pro (CPU)</span>: the av_sink model, layer '+an.layer+', head '+an.head+' (the head that sends the most weight to its sink), on the running sequence. Each bar is one earlier position\'s weight; the red bar at the end is the sink. Removing the sink renormalises the same scores over the real tokens, which is what a model trained without a sink must do.';
-    const toks=A.run_pieces||[];
-    function draw(i){const r=an.rows[i],q=an.queries[i],w=r.slice(0,-1),s=r[r.length-1];const tot=w.reduce((a,b)=>a+b,0);
-      const ww=mode==='with'?w:w.map(v=>v/tot),mx=Math.max(...ww,mode==='with'?s:0)||1;
-      $('av-sk-row').innerHTML=ww.map(v=>'<i style="height:'+(2+60*v/mx).toFixed(1)+'px"></i>').join('')+(mode==='with'?'<i class="sk" style="height:'+(2+60*s/mx).toFixed(1)+'px;flex:0 0 8px"></i>':'');
-      const top=ww.indexOf(Math.max(...ww));
-      $('av-sk-cap').innerHTML='<b>Query position '+q+(toks[q]?' ("'+esc(toks[q].trim())+'")':'')+'.</b> '+(mode==='with'?'The sink takes '+(100*s).toFixed(0)+'% of this head\'s weight; the real tokens share '+(100*tot).toFixed(0)+'%, the largest '+(100*Math.max(...w)).toFixed(0)+'% on position '+top+'.':'Without the sink the same scores must sum to 1 over real tokens: position '+top+' now gets '+(100*Math.max(...ww)).toFixed(0)+'%, and the weight the head wanted to discard lands on tokens it did not choose.');
-    }
-    const a=RD.anim({card:'av-sk-row',ctl:'av-sk-ctl',n:an.queries.length,ms:1300,draw,label:'Query position'});
-    RD.seg($('av-sk-mode'),m=>{mode=m;a.redraw()});
   }
   function code(){const Q=A.code;if(!Q)return;$('av-tfv').textContent=Q.transformers;
     const order=[['tiny_mla_cache','The tiny GPT\'s MLA caches the latent and the RoPE key, not K and V'],['tiny_window','The tiny GPT\'s window and its global layers'],['swa_mask','transformers: the sliding-window mask (W keys, the query included)'],['gemma3_pattern','transformers: Gemma 3\'s default layer pattern (every 6th layer global)'],['gptoss_pattern','transformers: gpt-oss alternates local and global'],['tiny_sink','The tiny GPT\'s learned sink column'],['gptoss_sinks','transformers: gpt-oss concatenates a sink logit per head'],['gptoss_sinks_drop','... and drops it after the softmax'],['qwen3next_gate_split','transformers: Qwen3-Next computes the gate with the query'],['qwen3next_gate_apply','... and applies it before the output projection'],['dsa_relu','transformers: DSA indexer scores use ReLU'],['dsa_topk','... and attention reads the top k'],['diff_lambda_init','transformers: DiffLlama\'s lambda_init'],['diff_combine','... and the subtraction, then the per-head norm']];

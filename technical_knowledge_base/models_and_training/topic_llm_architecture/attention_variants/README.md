@@ -11,6 +11,6 @@ decoupled RoPE key), sliding windows and local : global layers, NSA, DSA (the li
 stages), DeepSeek-V4's CSA and HCA, sinks and output gates; per-layer decode cost for 16 real layer types. Measured
 checks on the tiny GPT and SmolLM2-135M, published results kept apart, depth in closed blocks.
 
-Tabs: Reading (core idea and hero, sections 1 to 7 with their visuals inline, section 8 closed depth: differential
+Tabs: Reading (core idea and hero, sections 1 to 7 with their visuals in the split layout, seven of them 3D stages (2026-11-09), section 8 closed depth: differential
 attention, production configs, code, mistakes, design questions), Which keys are read (SmolLM2's real attention under
 each variant), Further reading. How it was built and rerun: `src/README.md`.
