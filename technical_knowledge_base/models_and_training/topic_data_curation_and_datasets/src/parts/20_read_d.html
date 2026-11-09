@@ -10,11 +10,13 @@
 <tr><td><b>Spark or Ray, custom</b></td><td>your own stages on a general distributed engine</td><td>you already run that infrastructure or need logic no framework has</td></tr>
 </table></div>
 <p class="small mute">Versions, release and commit dates, licences, a "which tool for which job" picker and every extractor, language-ID model, dedup library and corpus with its status: the {{Tool map|#t-map}}.</p>
-<div class="deepnote"><b>Go deeper.</b> {{Storage and loading at scale: formats, shards, streaming|n:3f95c17b0d0d81398782efcb29d950d4}}: JSONL and compression (section 2), Parquet (3), shard formats (4), token files (5), packing and document masks (6), sharding to ranks (7), shuffling (8), streaming (9), loaders and prefetch (10), resuming mid-epoch (11), the cost model (12); its Format comparer tab compares every format. Cluster storage (object stores, parallel file systems) is {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}}'s; columnar formats as a database idea, {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}.</div>
+<div class="deepnote"><b>Go deeper.</b> {{Storage and loading at scale: formats, shards, streaming|n:3f95c17b0d0d81398782efcb29d950d4}}: JSONL and compression (section 2), Parquet (3), shard formats (4), token files (5), packing and document masks (6), sharding to ranks (7), shuffling (8), streaming (9), loaders and prefetch (10), resuming mid-epoch (11), the cost model (12); its Format comparer tab compares every format. Drawn there: its {{Fig. 1|n:3f95c17b0d0d81398782efcb29d950d4#stg-hero}}, documents to tokens to a computed order; {{Fig. 3|n:3f95c17b0d0d81398782efcb29d950d4#stg-pq}}, rows against columns; {{Fig. 6|n:3f95c17b0d0d81398782efcb29d950d4#stg-pack}}, packing; {{Fig. 7|n:3f95c17b0d0d81398782efcb29d950d4#stg-shard}}, sharding to ranks and workers; {{Fig. 8|n:3f95c17b0d0d81398782efcb29d950d4#stg-buf}}, a shuffle buffer. Cluster storage (object stores, parallel file systems) is {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}}'s; columnar formats as a database idea, {{Topic: databases|n:3cd5c17b0d0d815d8841ec845f5f3324}}.</div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-s11">
 <h2>11. Choosing: what to do for the run in front of you</h2>
+<p class="small"><b>Predict first:</b> how many Common Crawl crawls would a 2-trillion-token run need at FineWeb-Edu's strict cut, with no repetition? Then change the selection and the repeats in Fig. 5.</p>
 <div class="kids">
 <div><b>A small pretrain (up to about 2B parameters, a few hundred billion tokens)</b>Use an existing corpus: FineWeb-Edu at threshold 3 (1.3 trillion tokens, so nothing repeats), or SmolLM2's 60/40 mix of FineWeb-Edu and DCLM-baseline if commonsense and everyday-language benchmarks matter. Add a few percent of code and maths, mostly in the last stage. Your remaining jobs are decontamination against your own evaluations and ablating any change on a small proxy.<span class="own">SmolLM2 trained its 135M and 360M models on 2 and 4 trillion tokens: small models are routinely trained far past the compute-optimal point.</span></div>
 <div><b>A long run (trillions of tokens)</b>The binding constraint is unique good tokens. Do not keep only the top 10%: bucket by quality, keep the middle tiers for bulk, rephrase the low ones, add PDFs and code, repeat the best data up to about 4 times, and save the best for a mid-training stage (Nemotron-CC, Dolma 3).</div>
@@ -22,20 +24,6 @@
 <div><b>Your own pipeline from raw crawl</b>Start from datatrove's FineWeb example (WARC, trafilatura with <code>deduplicate=False</code>, language ID with the language set explicitly, Gopher, C4 and FineWeb rules, MinHash per crawl, PII), check its thresholds against the paper (and swap in resiliparse, which datatrove v0.10.1 does not ship as an extractor, if extraction cost dominates), then ablate one change at a time on small proxies (FineWeb used 1.71B models on 28B tokens).</div>
 <div><b>Post-training data</b>Start from an open mixture (Tulu 3, SmolTalk) for coverage; add targeted data for your weak skills; generate preference pairs on-policy; keep only RLVR prompts your model sometimes solves; decontaminate every source.</div>
 <div><b>A new language</b>Per-language pipelines and thresholds (FineWeb2 tunes them per language), language ID with a model that covers it well, and temperature sampling so small languages are not drowned.</div>
-</div>
-
-<div class="rd-card" id="rd-calc-card">
-<h4>A strict quality cut cannot fill a long run from the crawls that exist: size the pipeline before you choose</h4>
-<p class="small"><b>Predict first:</b> how many Common Crawl crawls would a 2-trillion-token run need at FineWeb-Edu's strict cut, with no repetition? Then change the selection and the repeats.</p>
-<div class="rd-calc">
-<label>Training tokens wanted (billions)<input type="number" id="rd-c-tok" value="2000" min="10" step="10"></label>
-<label>Selection<select id="rd-c-sel"><option value="1">FineWeb-level (heuristics and dedup only): 100%</option><option value="0.36">FineWeb-Edu, score 2 or more: 36%</option><option value="0.0867" selected>FineWeb-Edu, score 3 or more: 8.7%</option></select></label>
-<label>Extractor<select id="rd-c-ext"><option value="4.55" selected>resiliparse, 4.55 MB/s per core</option><option value="0.56">trafilatura, 0.56 MB/s per core</option></select></label>
-<label>Repeats allowed of the kept tokens<select id="rd-c-rep"><option value="1" selected>1 (no repetition)</option><option value="2">2</option><option value="4">4 (Muennighoff: nearly free)</option></select></label>
-</div>
-<div class="an-cnt" id="rd-c-out"></div>
-<div class="an-cap" id="rd-c-cap"></div>
-<p class="small mute"><span class="der">derived</span>. Per-crawl yield: 166.4B FineWeb tokens on average (18,305.9B over the 110 distinct crawls in the FineWeb card's table, which lists CC-MAIN-2021-43 twice); selection shares: 1.3T and 5.4T out of FineWeb's 15T (paper and cards), so the defaults reproduce FineWeb-Edu's size by construction; compressed WARC per crawl: 82.73 TiB (June 2025 crawl, used for every crawl, which overstates older, smaller crawls); extractor throughput: DCLM Table 16, read as MB of compressed WARC per second per core; quality-model scoring: 6,000 H100 hours for FineWeb's 15T tokens (FineWeb-Edu), scaled linearly. Excludes language ID, rules, dedup, tokenization, storage and retries. It spans four children's numbers (extraction, quality, mixing, corpora), which is why it lives here.</p>
 </div>
 
 <details class="mist" id="rd-mis"><summary>Mistakes that only show across stages (nine)</summary><div class="b">
@@ -50,3 +38,16 @@
 <p><b>Reading the CMR ratio as the share of general data.</b> The critical mixture ratio is the largest share of <i>domain</i> data (29.8% to 47.8% in the paper's finance runs), not the general share. An old version of this page had it backwards.</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="rd-card" id="rd-calc-card">
+<h4>Fig. 5 · A strict quality cut cannot fill a long run from the crawls that exist: size the pipeline before you choose</h4>
+<div class="rd-calc">
+<label>Training tokens wanted (billions)<input type="number" id="rd-c-tok" value="2000" min="10" step="10"></label>
+<label>Selection<select id="rd-c-sel"><option value="1">FineWeb-level (heuristics and dedup only): 100%</option><option value="0.36">FineWeb-Edu, score 2 or more: 36%</option><option value="0.0867" selected>FineWeb-Edu, score 3 or more: 8.7%</option></select></label>
+<label>Extractor<select id="rd-c-ext"><option value="4.55" selected>resiliparse, 4.55 MB/s per core</option><option value="0.56">trafilatura, 0.56 MB/s per core</option></select></label>
+<label>Repeats allowed of the kept tokens<select id="rd-c-rep"><option value="1" selected>1 (no repetition)</option><option value="2">2</option><option value="4">4 (Muennighoff: nearly free)</option></select></label>
+</div>
+<div class="an-cnt" id="rd-c-out"></div>
+<div class="an-cap" id="rd-c-cap"></div>
+<p class="small mute"><span class="der">derived</span>. Per-crawl yield: 166.4B FineWeb tokens on average (18,305.9B over the 110 distinct crawls in the FineWeb card's table, which lists CC-MAIN-2021-43 twice); selection shares: 1.3T and 5.4T out of FineWeb's 15T (paper and cards), so the defaults reproduce FineWeb-Edu's size by construction; compressed WARC per crawl: 82.73 TiB (June 2025 crawl, used for every crawl, which overstates older, smaller crawls); extractor throughput: DCLM Table 16, read as MB of compressed WARC per second per core; quality-model scoring: 6,000 H100 hours for FineWeb's 15T tokens (FineWeb-Edu), scaled linearly. Excludes language ID, rules, dedup, tokenization, storage and retries. It spans four children's numbers (extraction, quality, mixing, corpora), which is why it lives here.</p>
+</div>
+</div></div></div>

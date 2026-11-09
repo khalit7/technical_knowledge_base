@@ -40,7 +40,7 @@
   const PII=/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
   let mode='traf';
   const STEPS=['Raw WARC record','Extraction','URL filter','Language ID','Heuristic filters','Quality model','Deduplication','PII scrubbing','Result'];
-  const cnt=document.getElementById('rd-page-cnt'),cap=document.getElementById('rd-page-cap'),view=document.getElementById('rd-page-view');
+  const cnt=document.getElementById('rd-page-cnt'),view=document.getElementById('rd-page-view');
   const doc=(lines,mark)=>'<div class="rd-doc">'+lines.map(mark).join('\n')+'</div>';
   function draw(i){
     const txt=TXT[mode],R=rules(txt),fail=R.find(r=>!r[2]),V=P.verdict[mode],dead=V[0]!=='kept'&&i>4;
@@ -67,12 +67,13 @@
       c=['PII scrubbing',m.length?m.length+' email or IP address found and replaced.':'The email and IP-address patterns find nothing on this page, so the text is unchanged. The Pipeline lab shows what the patterns catch and miss on the whole file.'];v=doc(linesOf(txt),esc);}}
     else {c=dead?['Result: dropped','Lost at the Gopher rules because of how the text was extracted. Across the four WARC files of the running example, the pipeline on WET text kept 3,526 pages; on trafilatura\'s text, 10,955.']:
       ['Result: kept','A training document in FineWeb and FineWeb-Edu. It would not be in DCLM-baseline: same page, three corpora, two verdicts.'];v=dead?'':doc(linesOf(txt),esc);}
-    cap.innerHTML='<div class="t">Step '+(i+1)+' of '+STEPS.length+': '+esc(c[0])+'</div><p>'+esc(c[1])+'</p>';
+    // the step list sx-page on the left explains each step (2026-11-09); c is kept as the card's accessible label
+    view.setAttribute('aria-label','Step '+(i+1)+' of '+STEPS.length+': '+c[0]);
     view.innerHTML=v;
     const cur=i===0?P.html_excerpt:txt;
     const status=i<4?'in progress':(V[0]!=='kept'?'dropped (step 5)':(i===8?'kept':'passing'));
     cnt.innerHTML=RD.stat('Text',NAME[mode])+RD.stat(i===0?'HTML characters':'Characters',(i===0?P.html_chars:cur.length).toLocaleString('en-US'))+RD.stat('Words',i===0?'n/a':toks(cur).filter(x=>/[\p{L}\p{N}]/u.test(x)).length)+RD.stat('Lines',i===0?'n/a':linesOf(cur).length)+RD.stat('Status',status);
   }
-  const A=RD.anim({card:'rd-page-card',ctl:'rd-page-ctl',n:STEPS.length,draw,ms:2800,label:'Pipeline step'});
+  const A=RD.anim({card:'rd-page-card',ctl:'rd-page-ctl',n:STEPS.length,draw,ms:4600,label:'Pipeline step',list:'sx-page'});
   RD.seg(document.getElementById('rd-page-mode'),m=>{mode=m;A.redraw()});
 })();

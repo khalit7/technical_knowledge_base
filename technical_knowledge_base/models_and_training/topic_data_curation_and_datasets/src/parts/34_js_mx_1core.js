@@ -22,25 +22,10 @@ window.MXX=(function(){
   const COL={web:'var(--c1)',wiki:'var(--c5)',code:'var(--c2)',math:'var(--c3)',papers:'var(--c4)',hqweb:'var(--c6)',instr:'var(--closed)'};
   const NAME={web:'Web',wiki:'Encyclopedic',code:'Code',math:'Math',papers:'Papers',hqweb:'High-quality web',instr:'Instruction and Q&A'};
   // step animation controller: o {card, ctl, n, draw(i), ms, label}
-  function anim(o){
-    const card=$(o.card),ctl=$(o.ctl);const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false};
-    const p=o.ctl+'-';
-    ctl.innerHTML='<button id="'+p+'b" aria-label="Previous step">&#9664;&#9664;</button><button id="'+p+'p" aria-label="Play">&#9654; Play</button><button id="'+p+'f" aria-label="Next step">&#9654;&#9654;</button><input type="range" id="'+p+'s" min="0" max="'+(st.n-1)+'" value="0" aria-label="'+esc(o.label||'Step')+'">';
-    const g=s=>$(p+s);
-    const show=()=>{g('s').max=st.n-1;g('s').value=st.i;o.draw(st.i)};
-    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}st.timer=setTimeout(tick,o.ms||2600)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,o.ms||2600);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(v){st.play=v;g('p').innerHTML=v?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',v?'Pause':'Play');if(!v&&st.timer){clearTimeout(st.timer);st.timer=0}if(v&&st.i>=st.n-1){st.i=0;show()}kick()}
-    g('p').addEventListener('click',()=>setPlay(!st.play));
-    g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()});show();
-    return {go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i}};
-  }
+  function anim(o){ // 2026-11-09: the skill template RD.anim (21_js_rd_common.js): plays once at least half in view, pauses off screen, stops for good on any control or at its last step,
+    // never moves by itself under reduced motion; o.auto false makes it a widget that never plays by itself. Redrawn when this tab opens.
+    if(!o.fast)o.ms=Math.max(o.ms||0,3800); // time to read each step's caption
+    const A=RD.anim(o);onRender(()=>A.redraw());return A}
   // tween a number toward a target with requestAnimationFrame (jumps under reduced motion or when hidden)
   function tween(from,to,ms,step,done){if(RM||document.hidden||!window.requestAnimationFrame){step(to);done&&done();return ()=>{}}
     const t0=performance.now();let stop=false;const f=now=>{if(stop)return;const k=Math.min(1,(now-t0)/ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;step(from+(to-from)*e);if(k<1)requestAnimationFrame(f);else done&&done()};requestAnimationFrame(f);return ()=>{stop=true}}

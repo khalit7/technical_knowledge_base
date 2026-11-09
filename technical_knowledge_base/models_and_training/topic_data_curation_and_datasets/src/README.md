@@ -2,6 +2,42 @@
 
 Root of the topic (storage key `dc-tab`). Built 2026-10-14 to 16 by tab agents (`read/`, `pipe/`, `dedup/`, `qual/`, `mix/`, `post/`, `map/`, each with its own README; the shared running example is `data/`). Rebuilt on 2026-10-24 at the topic close, after its nine children were rebuilt to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`), with the method of `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md`. Editing only, no new runs. Examples followed: the ML infra, ML fundamentals and RL roots.
 
+## 2026-11-09: split layout, one 3D stage (renderer v2), explained and autoplaying animations (layout rollout)
+
+Method: `.claude/skills/explainer-page/orchestration/briefs/rebuild-page.md` with `layout-rollout.md`, after all nine children were rebuilt in the same rollout (none edited here). Copied unchanged from the templates: `parts/02_split.html` (in `build.sh` after `01_head.html`), `parts/25_js_s3.js` (renderer v2), `parts/21_js_rd_common.js`, `parts/05z_errbox.js.html`, `parts/99_js_tabs.js` (key `dc-tab`). `build.sh` writes the em-dash test as bytes. Replaced parts are kept in `read/retired/parts_2026-11-09/`.
+
+**Reading tab** (anchors `rd-s0` to `rd-s12`, `rd-hero`, `rd-worth`, `rd-lin-card`, `rd-page-card`, `rd-smol-card`, `rd-calc-card`, `rd-mis`, `rd-iq` unchanged; `rd-hero` is now the split that holds Fig. 1):
+| Section | Layout | Visual | Step list |
+|---|---|---|---|
+| The idea (`rd-s0`) | split | **3D stage Fig. 1 `stg-pipe`** (`parts/38_js_sc_pipe.js`), replacing the static twelve-row hero | yes, 10 items (`sx-pipe`), the hero rows' words |
+| You need, terms, running example | full width | none | no |
+| 1. Why the data decides | full width | table (`rd-worth`) | no |
+| 2. Where the tokens come from | split | 2D Fig. 2, corpus sizes (log scale); labels now placed without overlap, 12 px | no (click widget) |
+| 3. The pipeline | split | 2D stepper Fig. 3 (`rd-page-card`) | yes, 9 items (`sx-page`); its caption carousel is gone |
+| 4. Deduplication | full width | none; links Deduplication Figs. 1 to 4 | no |
+| 5. Quality models | split | 2D Fig. 4, FineWeb-Edu against DCLM bars | no (static) |
+| 6. Decontamination | full width | none; links Decontamination Figs. 1 to 3 | no |
+| 7. Mixing and staging | full width | none; links Data mixing Figs. 1, 2, 3, 4, 6 | no |
+| 8. Synthetic data | full width | none: the one-dimensional collapse simulation is retired (`27_js_rd_s789.js`); one sentence links Synthetic data Fig. 4, which draws collapse; links Figs. 1 and 2 | no |
+| 9. Post-training data | full width | table; links Post-training data Figs. 1 to 3 | no |
+| 10. Storage and tools | full width | table; links Storage and loading Figs. 1, 3, 6, 7, 8 | no |
+| 11. Choosing | split | calculator Fig. 5 (its predict prompt moved to the left) | no (widget) |
+| 12. Child pages | full width | cards; times as each child's header states on 2026-11-09 | no |
+
+**Fig. 1, `stg-pipe`.** One Common Crawl WARC file through nine glass gates, cheapest first: URL filter, extract, language ID, heuristic rules, dedup, quality model, decontamination and PII, mix, store. Documents flow as dots (dot size and count follow the share still alive), removed ones arc into a tray in front of the gate (count by share removed), and the white column after each gate is the share of the 20,463 HTML pages still alive, to scale, shrinking from the input share to the output share during the step. The quality step adds two thin columns (FineWeb-Edu keeps 159, DCLM 573) while the stream stays at 2,617 (the later stages were measured on all 2,617); decontamination removes nothing (no 13-gram overlap, the Decontamination child's finding) and PII edits 101; the mix step brings four other domains in from behind and morphs the mixture column from the running example's natural shares to the DoReMi proxy's weights; the store step turns the stream into four token shards (illustrative) with bytes per token derived from the Tool map's storage measurement; the last step pulls back to the whole line with synthetic data joining the mix. The camera moves in close on each gate, older gates fade out, and labels appear only once the camera has arrived. Data: `window.RDP.funnel`, `window.DCPD.run0` and `.pii`, `window.QD.S`, `window.MXD.proxy.doremi`, `window.TM_DATA.storage`, read when the scene first draws (the script loads after the lab data parts). `read/check_read.mjs` checks every number in `sx-pipe` against those globals.
+
+**Lab tabs** stay full width (reader-driven tools and data views). Every lab animation now uses the template `RD.anim` through each lab's own `anim` (the six `3x_js_*_1core.js`): it plays once at least half in view, pauses off screen, stops for good on any control or at its last step, never moves under reduced motion, at least 3.8 s per step (the rephrasing progress animation keeps 1.3 s, `fast:true`), redrawn when its tab opens. The Tool map's corpus lineage by year opens on 2026 and is a widget (`auto:false`). The lab animations keep their in-card captions and have no step list on the left (the lead's scope for this root: lab internals unchanged).
+
+**Kept 2D, and why**: the corpus size chart (a log axis over time), the SmolLM2 bars (scores on one axis), the page stepper (real text, line by line), the tables and the calculator. The one 3D stage is the orienting map, where the gates in a row and the shrinking columns are the structure.
+
+**Retired**: the static hero rows (now the step list of Fig. 1), the page stepper's caption, the collapse simulation (ledger units 297 owned by Synthetic data, 298 and 299 fat with notes). Ledger re-keys: 15 (the hero's URL row), 1182 to 1196 (outside-resource times: keys no longer contain minutes).
+
+**Length** (230 words a minute, `html_utils/audit_pages.mjs`): Reading 31.0 core + 6.7 closed before, 35.1 + 6.0 after (header 35 + 6). The rise is the two step lists: Fig. 1's list carries the hero rows' words plus the stage's added numbers (the DoReMi weights, bytes per token, quality keeps, decontamination and PII), and Fig. 3's list puts on the page the nine captions the stepper showed one at a time (script text the audit did not count); the collapse simulation, in a closed block, was retired (closed time down). Still a map: every mechanism is a line and a link, and each section now names the child figure that draws it. Lab tabs and Further reading unchanged in length.
+
+**Ledger**: 1,197 units, core 901, depth 203, owned 63, fat 30, volatile 0; problems 0.
+
+**Checks (2026-11-09)**: `sh html_utils/checkpage.sh`: tabs 8, emdash 0, errbox 1, clipped 0, fail=0; `node src/check_stages.mjs` (new; the stage and the page stepper play once in view, have 10 and 9 list items, reach their last step, a list click holds; the stage's flows stop off screen; every lab animation plays in view and stops on a control; the lineage widget never moves by itself; nothing moves under reduced motion; five Reading splits are two columns at 1400; no errors, NaN, undefined or sideways scroll in any tab at 1400 light, 920 light and 390 dark; the Quality lab's quoted "Encountered NaN" is whitelisted); `node src/read/check_read.mjs` (stepper checks now read the view, counts and `sx-page`; new checks of every number in `sx-pipe`); the lab checks listed above, all clean.
+
 ## Build and check
 - `sh build.sh` writes `../index.html`. Children read `data/`, `dedup/` (outputs and `dd_common.py`), `qual/` (`q_common.py`, `out/q_summary.json`), `post/` (`pt_common.py`, `pt_checkers.py`) and `pipe/`: keep those paths, even for retired cards.
 - `sh html_utils/checkpage.sh <this page>`: tabs 8, emdash 0, errbox 1, clipped 0, fail=0 (2026-10-24). `python3 html_utils/ledger.py check <this page>`: problems 0.

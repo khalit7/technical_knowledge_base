@@ -86,7 +86,7 @@
   $('tm-lplot').addEventListener('click',e=>{const g=e.target.closest('g[data-c]');if(g)det(g.dataset.c)});
   $('tm-lplot').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const g=e.target.closest('g[data-c]');if(g){e.preventDefault();det(g.dataset.c)}}});
   document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('#t-map a[data-tm-corp]');if(!a)return;e.preventDefault();det(a.dataset.tmCorp);$('tm-lcard').scrollIntoView({block:'start'})});
-  const A=anim({card:'tm-lcard',ctl:'tm-lctl',n:YEARS.length,ms:2200,label:'Year',draw:i=>{step=i;draw()}});
+  const A=anim({card:'tm-lcard',ctl:'tm-lctl',n:YEARS.length,ms:2200,auto:false,label:'Year',draw:i=>{step=i;draw()}});
   A.go(YEARS.length-1);
   $('tm-lmode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('tm-lmode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()});
   onRender(draw);onResize(draw);

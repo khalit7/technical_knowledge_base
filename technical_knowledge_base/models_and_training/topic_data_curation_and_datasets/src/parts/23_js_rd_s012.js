@@ -34,9 +34,15 @@
       const cx=x(c[1]),cy=y(c[2]),r=W<500?5:6;
       s+='<g data-i="'+i+'" style="cursor:pointer;opacity:'+(on?1:.18)+'"><circle cx="'+cx+'" cy="'+cy+'" r="'+(r+5)+'" fill="transparent"/>'+
         '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+col[c[3]]+'"'+(c[4]?' stroke="var(--c3)" stroke-width="3"':'')+(i===sel?' stroke="var(--ink)" stroke-width="2.5"':'')+'/>';
-      if(W>=640||i===sel){const right=cx<W-130;s+=RD.t(right?cx+r+4:cx-r-4,cy+4,esc(c[0]),{a:right?'start':'end',fs:10.5,w:i===sel?600:400})}
       s+='</g>';
     });
+    // labels: the selected corpus first, then the rest wherever they fit without touching a placed label (2026-11-09: the split column is narrower)
+    if(W>=520){const boxes=[],order=D.lin.map((c,i)=>i).sort((a,b)=>(b===sel)-(a===sel));
+      order.forEach(i=>{const c=D.lin[i],on=mode==='all'||(mode==='web'&&c[3]==='web')||(mode==='sel'&&c[4]);if(!on&&i!==sel)return;
+        const cx=x(c[1]),cy=y(c[2]),r=W<500?5:6,tw=c[0].length*6.6+4;
+        for(const right of (cx<W-140?[true,false]:[false,true])){const x0=right?cx+r+4:cx-r-4-tw,b=[x0,cy-9,x0+tw,cy+5];
+          if(b[0]<L||b[2]>W-2)continue;if(boxes.some(o=>b[0]<o[2]&&b[2]>o[0]&&b[1]<o[3]&&b[3]>o[1]))continue;
+          boxes.push(b);s+=RD.t(right?cx+r+4:cx-r-4,cy+4,esc(c[0]),{a:right?'start':'end',fs:12,w:i===sel?600:400});break}})}
     host.innerHTML=RD.svg(W,H,s,'Open pretraining corpora by year and size in tokens, log scale');
     host.querySelectorAll('g[data-i]').forEach(g=>g.addEventListener('click',()=>{sel=+g.dataset.i;draw();show()}));
   }

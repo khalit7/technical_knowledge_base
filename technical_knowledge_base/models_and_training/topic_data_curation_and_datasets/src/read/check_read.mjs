@@ -39,14 +39,26 @@ ok(has('about 4 GLUE points and 4.6 SQuAD')&&Math.abs((83.28-79.55)-3.73)<1e-9&&
 ok(has('about 1.2% of the run')&&Math.abs(50/4050*100-1.23)<0.01,'prose 50B / 4.05T');
 ok(has('57.5%'),'prose Dolmino synthetic share (100 - 10 - 5 - 5 - 22.5)');
 ok(D.fwP.every(([s,v])=>Math.abs(P(s,14,8)-v)<0.006),'14 x 8 (the hero and section 4 name it) reproduces FineWeb');
-// 4. live demos match the prose
+// 4. live demos match the step lists (2026-11-09: the page stepper's caption became the step list sx-page; the card keeps the live view and counts)
 const pg=await p.evaluate(async()=>{const r={};const seg=document.getElementById('rd-page-mode'),ctl=document.getElementById('rd-page-ctl'),sl=ctl.querySelector('input[type=range]');
-  for(const m of ['wet','traf','res']){seg.querySelector('[data-m="'+m+'"]').click();for(const st of [1,4,5,6,8]){sl.value=st;sl.dispatchEvent(new Event('input'));r[m+st]=document.getElementById('rd-page-cap').innerText+' | '+document.getElementById('rd-page-view').innerText}}return r});
-ok(/dropped/.test(pg.wet4)&&/Words with a letter/.test(pg.wet4)&&/gopher_below_alpha_threshold/.test(pg.wet4),'WET text: live rules and datatrove agree (alpha rule)');
-ok(/passed/.test(pg.traf4)&&/: 0\.801/.test(pg.traf4)&&/passed/.test(pg.res4),'trafilatura and resiliparse text pass; alpha 0.801 as the caption says');
-ok(/2\.765/.test(pg.traf5)&&/0\.00164/.test(pg.traf5),'quality scores of the real page shown');
+  for(const m of ['wet','traf','res']){seg.querySelector('[data-m="'+m+'"]').click();for(const st of [1,4,5,6,8]){sl.value=st;sl.dispatchEvent(new Event('input'));r[m+st]=document.getElementById('rd-page-cnt').innerText+' | '+document.getElementById('rd-page-view').innerText}}
+  r.list=document.getElementById('sx-page').innerText;const P=window.RDP.page;
+  r.wetDrop=P.wet_lines.filter((l,j)=>!P.keep_traf[j]).length;r.wetN=P.wet_lines.length;r.kept=P.keep_traf.filter(Boolean).length;r.lid=P.lid;r.v=P.verdict;r.hc=P.html_chars;r.ht=P.html_tags;return r});
+ok(/dropped/.test(pg.wet4)&&/FAIL/.test(pg.wet4)&&/Words with a letter/.test(pg.wet4)&&pg.v.wet[1]==='gopher_below_alpha_threshold'&&pg.list.includes('gopher_below_alpha_threshold'),'WET text: live rules and datatrove agree (alpha rule), as the list says');
+ok(!/FAIL/.test(pg.traf4)&&/: 0\.801/.test(pg.traf4)&&!/FAIL/.test(pg.res4)&&pg.list.includes('0.801 against 0.8'),'trafilatura and resiliparse text pass; alpha 0.801 as the list says');
+ok(/2\.765/.test(pg.traf5)&&/0\.00164/.test(pg.traf5)&&pg.list.includes('2.765')&&pg.list.includes('0.00164'),'quality scores of the real page shown and listed');
 ok(/a candidate pair/.test(pg.traf6),'the three extractions of the page are candidate near duplicates');
-console.log(pg.wet1.split('|')[0]);ok(/24 of its 36 lines/.test(pg.wet1),'WET line count in caption');
+ok(pg.wetDrop===24&&pg.wetN===36&&pg.list.includes('24 of its 36 lines')&&pg.kept===12&&pg.list.includes('keep the 12 lines'),'WET and extractor line counts in the list');
+ok(['0.9435','0.9361','0.9313'].every((v,i)=>pg.list.includes(v)&&Math.abs([pg.lid.traf,pg.lid.res,pg.lid.wet][i]-+v)<1e-9),'lid.176 scores in the list');
+ok(pg.list.includes(pg.hc.toLocaleString('en-US')+' characters of HTML with '+pg.ht+' tags'),'raw record size in the list');
+// 4b. Fig. 1 (the stage stg-pipe): every number in its step list against the data it draws
+const st=await p.evaluate(()=>{const L=document.getElementById('sx-pipe').innerText,S=window.TM_DATA.storage,b=k=>S.sizes.find(x=>x.fmt===k).bytes/S.tokens,D=window.MXD.proxy.doremi,Q=window.QD.S,R0=window.DCPD.run0;
+  return {L,bpt:[b('jsonl'),b('jsonl.zst'),b('bin')].map(v=>v.toFixed(2)),tok:S.tokens,ref:D.ref_w.map(v=>Math.round(v*100)+'%'),dr:D.avg_w.map(v=>(v*100).toFixed(1)+'%'),edu:Q.keep_edu,dclm:Q.keep_dclm,pii:window.DCPD.pii.docs_edited,
+    resp:R0.responses,rem:[R0.removed['3_gopher_rep'].n,R0.removed['4_gopher_qual'].n,R0.removed['5_c4'].n,R0.removed['6_fineweb_qual'].n],fw:[R0.fineweb_kept,R0.fineweb_in_final]}});
+ok(st.bpt.every(v=>st.L.includes(v))&&st.L.includes(st.tok.toLocaleString('en-US')),'stage: bytes per token '+st.bpt.join(', '));
+ok(st.ref.every(v=>st.L.includes(v))&&st.dr.every(v=>st.L.includes(v)),'stage: natural shares and DoReMi weights '+st.dr.join(', '));
+ok(st.L.includes('keeps '+st.edu)&&st.L.includes(st.dclm.toLocaleString('en-US'))&&st.L.includes(st.pii+' documents edited'),'stage: quality keeps and PII edits');
+ok(st.L.includes(st.resp.toLocaleString('en-US')+' responses')&&st.rem.every(v=>st.L.includes(v.toLocaleString('en-US')))&&st.L.includes(st.fw[0].toLocaleString('en-US'))&&st.L.includes(st.fw[1].toLocaleString('en-US')),'stage: responses, rule removals, FineWeb overlap');
 const R=await p.evaluate(()=>window.RDP);
 ok(R.funnel.docs.html_pages===20463&&R.funnel.docs.after_minhash_in_file===2617&&R.chardup['extra_docs_kept_at_0.1']===154&&R.chardup['kept_at_0.1']===2846,'embedded Pipeline lab funnel and char-dup numbers');
 const hero=[['20,991 responses',true],['−183 → 20,280',R.funnel.docs.after_url===20280],['→ 19,241',R.funnel.docs.after_extraction===19241],['−12,270 → 6,971',R.funnel.docs.after_lid===6971],['−4,279 → 2,692',R.funnel.docs.after_c4_and_fineweb_rules===2692&&R.funnel.docs.after_lid-2692===4279],['−75 inside one file → 2,617',R.funnel.docs.after_minhash_in_file===2617]];

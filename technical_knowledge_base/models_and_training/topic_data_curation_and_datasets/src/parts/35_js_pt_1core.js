@@ -15,33 +15,10 @@ window.PT=(function(){
   function seg(el,f){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;
     el.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});f(b.dataset.m)})}
   // step-animation controller: play, pause, step, scrub, speed; animates only on screen in the visible tab
-  function anim(o){
-    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl);
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
-    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
-      '<button id="'+pid+'p" aria-label="Play">&#9654; Play</button>'+
-      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
-      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
-      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
-    const $=s=>document.getElementById(pid+s);
-    function show(){$('s').max=st.n-1;$('s').value=st.i;o.draw(st.i)}
-    const live=()=>st.vis&&!document.hidden&&visible();
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=st.n-1){setPlay(false);return}
-      st.i++;show();if(st.i>=st.n-1){setPlay(false);return}st.timer=setTimeout(tick,(o.ms||1800)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1800)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');
-      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
-    $('p').addEventListener('click',()=>setPlay(!st.play));
-    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      kick()},{threshold:.2}).observe(card)}else st.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()});
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i},stop(){setPlay(false)}};
-  }
+  function anim(o){ // 2026-11-09: the skill template RD.anim (21_js_rd_common.js): plays once at least half in view, pauses off screen, stops for good on any control or at its last step,
+    // never moves by itself under reduced motion; o.auto false makes it a widget that never plays by itself. Redrawn when this tab opens.
+    if(!o.fast)o.ms=Math.max(o.ms||0,3800); // time to read each step's caption
+    const A=RD.anim(o);onRender(()=>A.redraw());return A}
   // numbers quoted in the prose, all derived from PTD (checked by src/post/check_pt.mjs)
   const S=D.stats,F=D.filter,C=D.checkers,R=D.rephrase;
   const sftOpt=F.sft.optional,ref=C.ref;

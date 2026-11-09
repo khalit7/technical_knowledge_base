@@ -25,7 +25,7 @@
     const st=document.getElementById('pt-rstats');const card=(k,a,b)=>'<div class="stat"><div class="k">'+k+'</div><div class="v">'+a+'</div><div class="d">'+b+'</div></div>';
     st.innerHTML=card('Words',fmt(v.sw.length)+' to '+fmt(v.ow.length),'×'+fmt(v.ow.length/Math.max(1,v.sw.length),2))+card('New 4-word sequences',pct(v.novel,0),'0% would be a copy')+card('Source numbers kept',fmt(v.kept)+' of '+fmt(v.sn.length),'a cheap fidelity check')+card('FineWeb-Edu score',fmt(v.d.edu,2)+' to '+fmt(v.o.edu,2),'classifier rev 284663cb, CPU');
     document.getElementById('pt-rsrc').innerHTML='Source: '+esc(v.d.url||'Cosmopedia web_samples_v2 row '+cp.i)+'. Output by '+esc(v.o.model)+'. Measures as in the Synthetic data page\'s <code>analyze_rephrase.py</code>; scores <span class="meas">measured on Apple M1 Pro (CPU)</span>.'}
-  const A=P.anim({card:'pt-rcard',ctl:'pt-rctl',n:N,draw,ms:1300,label:'Rephrasing step'});
+  const A=P.anim({card:'pt-rcard',ctl:'pt-rctl',n:N,draw,ms:1300,fast:true,label:'Rephrasing step'});
   function styles(){const ks=Object.keys(docs[di].styles);if(!ks.includes(sty))sty=ks.includes('medium')?'medium':ks[0];
     sseg.innerHTML=ks.map(k=>'<button data-m="'+k+'" class="'+(k===sty?'on':'')+'" aria-pressed="'+(k===sty)+'">'+esc(STY[k]||k)+'</button>').join('')}
   P.seg(sseg,m=>{sty=m;view=null;A.reset(N)});
