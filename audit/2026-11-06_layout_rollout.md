@@ -149,8 +149,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/beyond_attention` Beyond attention: SSMs, Mamba, linear attention, RWKV and hybrids
 - [x] `models_and_training/topic_llm_architecture/families_and_objectives` Families and objectives: decoder-only, encoders, encoder-decoder, multi-token prediction, diffusion LMs
 - [x] `models_and_training/topic_llm_architecture/llm_architecture_gallery` LLM Architecture Gallery (rasbt) and the architectural deltas that matter
-- [~] `models_and_training/topic_llm_architecture/long_context` Long context: KV cache growth and compression, local and global attention, effective context
-- [ ] `models_and_training/topic_llm_architecture/mixture_of_experts` Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism
+- [x] `models_and_training/topic_llm_architecture/long_context` Long context: KV cache growth and compression, local and global attention, effective context
+- [~] `models_and_training/topic_llm_architecture/mixture_of_experts` Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism
 - [ ] `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability` Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
 - [ ] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
 - [ ] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
@@ -442,4 +442,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/families_and_objectives`: Fig. 2 top-left <eot> key and row labels close; Fig. 5 scene small in its card in steps 2 to 4, cross-attention label touches the plate edge; Fig. 6 Emb(t i+1) label sits over its own flow; lab/check_page_data.py needs the index.html path as its argument.
 - `models_and_training/topic_llm_architecture/beyond_attention`: core 30 to 36 min plus 20 closed; section 3's "What it shows" paragraph overlaps its step list (condense later, it carries data-v numbers); Fig. 1's 32 plates read as a near-solid block in dark mode; empty space above shallow rows in Fig. 5 and Fig. 7 step 1; verify_layout flags the State vs KV cache calculator outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_architecture/llm_architecture_gallery`: Fig. 14 Gemma 4 sharing arrows follow transformers modeling_gemma4.py read at 5.17.0 while the page cites 5.20.1 (recheck at 5.20.1); no rasbt images (no stated licence on the gallery figures); phone labels hidden, tower names at staggered heights; src/check_stages.mjs needs a shots dir argument.
+- `models_and_training/topic_llm_architecture/long_context`: some labels close to objects at 390; Fig. 4 run names shortened (PI x4 + 300 steps); Fig. 3 "number kept whole in 0 of 90 caches" label sits on the column block at 1400.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

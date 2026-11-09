@@ -43,3 +43,13 @@ elsewhere, animatable against the method replaced. Build cost subtracted.
 Rejected on 2026-10-23: a log-scale bar chart of every preset (bars on a log axis lie about ratios; linear bars with printed
 values instead); keeping the Memory wall alongside the calculator (two calculators for one concept); per-channel key
 histograms (would need a rerun for data the ratio strip already shows).
+
+## 2026-11-09 rollout (split layout, renderer v2)
+| Visual | Where | Kind | Data |
+|---|---|---|---|
+| Fig. 1 hero: one request's cache as a block along the context axis, the weights behind at the same cross-section, one 80 GB GPU column; three requests stacked; MHA counterfactual hitting the GPU at 109,748 | Reading top | 3D stage, 5 steps | KC engine on llama-3.1-8b (config.json) |
+| Fig. 2 prefill against decode: the causal triangle, weight bars, a new decode row reading every key, rows growing, four sequences sharing one weight read | Reading s2 | 3D stage, 5 steps | KCD.vis.flops8b (calc.py), KC; 12 tokens illustrative |
+| Fig. 3 eviction: 30 layers by 32 columns of kept share, evicted entries lift out, the needle plate and the answer | Reading s4 | 3D stage, 8 steps, budget chips | EVD.maps and EVD.feat (run_kv.py) |
+| Fig. 4 the position wall: one row of loss columns per run, trained-length plates | Reading s7 | 3D stage, 6 steps | EFD.past (past.json) |
+Kept 2D (in splits): attention share of FLOPs (log axis), key/value outlier strip, quality against memory (log axis, three metrics), Gemma 3 layer strip (one slider), distance histogram (slider), pass-key grid (a heatmap), the design stepper (RD.anim with a step list), the calculator.
+Removed: the 2D hero chart, the per-design entry squares (Attention variants Fig. 1 draws them), the 2D eviction map stepper and the 2D position-wall line chart (both replaced by stages). Considered and rejected: the pass-key grid as 3D columns (a heatmap reads best flat); effective context accepted against used as 3D (the grid already shows it).

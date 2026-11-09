@@ -1,27 +1,29 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ev"></div></div><div class="s3L">
 <section id="lc-s4">
 <h2>4. Fewer entries: eviction</h2>
 <p>Most cached tokens get little attention most of the time; <dfn>eviction</dfn> scores each entry and keeps the best within a budget. <b>StreamingLLM</b> keeps the first few tokens (the attention sinks) plus a recent window: fluent forever, but nothing that left the window is remembered ({{Xiao et al. 2023|https://arxiv.org/abs/2309.17453}}). <b>H2O</b> keeps the "heavy hitters", tokens that "contribute most of the value when computing attention scores", plus recent ones ({{Zhang et al. 2023|https://arxiv.org/abs/2306.14048}}). <b>SnapKV</b> keeps what the last prompt tokens, usually the question, attend to ({{Li et al. 2024|https://arxiv.org/abs/2404.14469}}).</p>
 <p><b>The test here</b>: SmolLM2-135M, one 4,096-token prompt of TinyStories with a planted sentence ("The secret number is 66226. Remember it.") and a question at the end; prefill with the full cache, compress, then score the continuation against what survived (<dfn>prefill-then-compress</dfn>, SnapKV's setting). Each policy keeps the same share in every one of the 90 caches. <span class="meas">measured on Apple M1 Pro (CPU), fp32, 4 threads</span>, deterministic.</p>
-<div class="ev-box" id="ev-card">
-<h4>Before and after: what each policy keeps of the same prompt</h4>
-<p class="small">Rows: the 90 caches (30 layers top to bottom, 3 KV heads each). Columns: 64 tokens each, oldest left. Darker means more kept; the outlined band is the planted number, the question sits at the right edge. Step 0 is the full cache. Needle at 50% depth, seed 0.</p>
+<p class="small">Fig. 3: <b>Before and after: what each policy keeps of the same prompt.</b> Rows are the 30 layers (layer 0 at the back), each the average of its 3 KV heads; columns are 128 tokens each, oldest left. A column's height is the share of its entries kept, and evicted entries lift out as the step changes. The planted number is the orange plate (needle at 50% depth, seed 0); the question sits at the right end, and dots stream from the number to the answer only from the caches that kept it whole. Step 1 is the full cache; each later step applies one policy to the same prefilled cache, at the budget chosen here:</p>
 <div class="seg" id="ev-bud"><button data-m="0.25" class="on">keep 25%</button><button data-m="0.125">keep 12.5%</button></div>
-<div class="an-ctl" id="ev-ctl"></div>
-<canvas id="ev-cv" height="300" aria-label="Kept cache entries per layer and head"></canvas>
-<div class="ev-leg"><span><i style="background:var(--acc)"></i>kept</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>evicted</span><span><i style="background:var(--c4)"></i>the planted number</span></div>
-<div class="an-cap" id="ev-cap"></div>
-<div class="ev-cnt" id="ev-cnt"></div>
-</div>
+<ol class="sx" id="sx-ev">
+<li><b>Full cache.</b> Every key and value of all 4,096 prompt tokens in all 90 caches: 4,096 &times; 23,040 bytes = 90 MiB in bf16 for this small model. The model answers 66226.</li>
+<li><b>Recent only.</b> A window applied after training: everything older than the window is gone, including the first tokens where SmolLM2 parks its attention (its attention sink switches on at layer 12, Inside a real model on the root).</li>
+<li><b>Sink + recent (StreamingLLM).</b> The first 4 tokens stay as sinks, so the model stays fluent, but the window still forgets the needle unless it is recent.</li>
+<li><b>Random, the control.</b> A random choice per head, keeping the sinks and the question. A five-token number survives intact in almost no head.</li>
+<li><b>H2O.</b> Accumulated attention favours tokens many queries looked at: early tokens, sinks, punctuation. A number read once in passing is not a heavy hitter.</li>
+<li><b>SnapKV.</b> Scored by the question itself (it sits in the 32-token observation window), each head keeps what the question looks at: the number survives where it matters.</li>
+<li><b>SnapKV, before the question.</b> The same method, but scored before the question arrived. The selection is made for the document's last sentences, and the number is dropped.</li>
+<li><b>Local + global, imposed.</b> Five global layers keep everything (the full rows); the other 25 keep sinks and a short window. The model was trained with every layer global, so the five cannot carry the answer alone. It cannot reach 12.5% (its five global layers alone are a sixth of the cache), so it is shown at 25% under both budgets.</li>
+</ol>
+<p class="small" id="ev-now"></p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="lc-s4b">
 <div class="pr" id="ev-pr1"><div class="q"><b>Predict.</b> At 12.5% of the cache, which policy answers the pass-key question most often: H2O (keep what has been attended most), SnapKV (keep what the question attends to), or local + global (keep everything in 5 layers)?</div>
 <div class="opts"><button>H2O</button><button data-ok="1">SnapKV</button><button>local + global</button></div>
 <div class="ans" id="ev-pr1-a"></div></div>
-<div class="ev-box" id="ev-qcard">
-<h4>Fewer bits beat fewer entries at equal memory; perplexity hides the difference</h4>
-<div class="seg" id="ev-met"><button data-m="pk" class="on">pass-key correct</button><button data-m="copy">copy loss</button><button data-m="new">new-story loss</button></div>
-<div id="ev-chart"></div>
-<div class="ev-leg" id="ev-leg"></div>
-<p class="small" id="ev-qtext"></p>
-</div>
 <p><b>What the runs show.</b> Only a question-aware policy survives: SnapKV keeps <span data-lc="ev_snap25_pk">97</span>% at a quarter of the cache, but <span data-lc="ev_snapdoc25_pk">0</span>% when it scored the cache before the question arrived. Every eviction policy loses copying already at half the cache, while int4 at 31% of the bytes keeps it. Perplexity sees none of this: H2O at 12.5% moves the new-story loss from <span data-lc="ev_full_new">2.07</span> to <span data-lc="ev_h2o125_new">2.10</span> while answering <span data-lc="ev_h2o125_pk">0</span>% of pass-key questions. And keep the first tokens: a recent window without sinks sends the new-story loss to <span data-lc="ev_rec50_new">4.02</span>; with 4 sinks, <span data-lc="ev_sr50_new">2.08</span>.</p>
 <div class="co warn"><div class="t">Two lessons a paper's headline will not give you</div>
 <p>An eviction method is only as good as the test: perplexity or summarisation can stay flat while retrieval of a single fact goes to zero. And question-aware methods need the question at compression time; in a multi-turn chat, an agent loop or a shared prefix cache the document is compressed before anyone asks, and the method becomes another heuristic.</p></div>
@@ -51,3 +53,12 @@ o = F.scaled_dot_product_attention(q[None], Kall[None], Vall[None], attn_mask=ma
 <p class="small">Check against transformers 5.20.1's own forward on 1,024 tokens (prefill 900, continue 124, full cache): largest logit difference <span data-lc="ev_check">1.9e-04</span> on logits up to 41.9 (<code>src/kv/out/check.json</code>). Run: <code>python run_kv.py evict</code>, about 10 minutes on 4 CPU threads. {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}} ran H2O, SnapKV and random eviction on Qwen3-0.6B at about 1,000 tokens with the realisable-saving test; this run goes four times longer, adds architecture-style policies, quantisation on the same axis and the question-timing test.</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="ev-box" id="ev-qcard">
+<h4>Fewer bits beat fewer entries at equal memory; perplexity hides the difference</h4>
+<div class="seg" id="ev-met"><button data-m="pk" class="on">pass-key correct</button><button data-m="copy">copy loss</button><button data-m="new">new-story loss</button></div>
+<div id="ev-chart"></div>
+<div class="ev-leg" id="ev-leg"></div>
+<p class="small" id="ev-qtext"></p>
+</div>
+</div></div></div>

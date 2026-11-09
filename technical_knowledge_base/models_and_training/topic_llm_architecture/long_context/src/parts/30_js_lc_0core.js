@@ -1,6 +1,5 @@
-// Long context page: shared helpers for the lab tabs (window.LC). The step controller is RD.anim's, made tab-aware:
-// it registers its redraw on the tab that holds its card, animates only while the card is on screen in the visible
-// tab, and never autoplays: it waits on step 0 until the reader presses play or steps (learner pacing, 2026-10-23).
+// Long context page: shared helpers for the Reading figures and the calculator tab (window.LC). The step controllers are
+// RD.anim (21_js_rd_common.js, the design stepper) and S3.stage (25_js_s3.js, the 3D figures); this file has none since 2026-11-09.
 window.LC=(function(){
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
   const $=id=>document.getElementById(id);
@@ -17,36 +16,5 @@ window.LC=(function(){
   const svg=(w,h,body,label)=>'<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="'+esc(label||'')+'">'+body+'</svg>';
   const t=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':' fill="var(--ink)"')+(o.w?' font-weight="'+o.w+'"':'')+'>'+s+'</text>'};
   const seg=(el,f)=>el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)});
-  function anim(o){
-    const card=$(o.card),ctl=$(o.ctl);
-    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
-    const pid=o.ctl+'-';
-    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
-      '<button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
-      '<button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
-      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
-      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>';
-    const q=s=>$(pid+s);
-    function show(){const sc=q('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
-    const live=()=>st.vis&&!document.hidden&&visible(card);
-    function tick(){st.timer=0;if(!st.play||!live())return;
-      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
-      st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(p){st.play=p;q('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';q('p').setAttribute('aria-label',p?'Pause':'Play');
-      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
-    q('p').addEventListener('click',()=>setPlay(!st.play));
-    q('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    q('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    q('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      kick()},{threshold:.25}).observe(card)}else st.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    onTab(o.tab,()=>{show();kick()});
-    show();
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
-      redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n}};
-  }
-  return {RM,$,onTab,width,visible,onResize,esc,fmt,int,bytes,gb,cnt,svg,t,seg,anim};
+  return {RM,$,onTab,width,visible,onResize,esc,fmt,int,bytes,gb,cnt,svg,t,seg};
 })();

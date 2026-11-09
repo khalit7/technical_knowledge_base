@@ -1,42 +1,9 @@
-// Reading-tab figures: the hero (one request's memory against context, to scale), one token's entry per design,
+// Reading-tab 2D figures (the hero is the 3D stage in 41_js_sc_hero.js; one token's entry per design is drawn on Attention variants):
 // attention's share of FLOPs, key and value channel outliers, and Gemma 3 27B's layer strip. Numbers from window.KC
 // (the calculator's engine) and KCD.vis (written by src/kv_calc/make_kv_data.py with the root's calc.py).
 (function(){
-  if(!window.KC||!window.KCD||!document.getElementById('lc-hero'))return;
+  if(!window.KC||!window.KCD||!document.getElementById('lc-fl'))return;
   const $=id=>document.getElementById(id),T=RD.t,G=1e9,f1=x=>x.toLocaleString('en-GB',{maximumFractionDigits:1}),fi=x=>Math.round(x).toLocaleString('en-GB');
-  // ---- hero ----
-  function hero(){
-    const el=$('lc-hero-svg'),W=RD.width(el),H=Math.round(Math.min(310,Math.max(240,W*0.46))),L=W<520?34:40,R=W<520?8:14,Tp=12,B=40;
-    const p=KC.byKey['llama-3.1-8b'],w=p.params*2,cap=80*G*0.92,Tm=131072;
-    const mha=KC.redesign(p,'mha'),X=t=>L+(W-L-R)*t/Tm,Y=v=>Tp+(H-B-Tp)*(1-v/(80*G));
-    let s='';[0,20,40,60,80].forEach(v=>{s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(v*G)+'" y2="'+Y(v*G)+'" stroke="var(--line)"/>'+T(L-4,Y(v*G)+4,v+' GB',{a:'end'})});
-    [0,32768,65536,98304,131072].forEach(t=>{s+=T(X(t),H-B+15,t?(t/1024)+'K':'0',{a:t===131072?'end':'middle'})});
-    s+=T(W-R,H-3,'context of one request (tokens)',{a:'end',fill:'var(--mute)'});
-    s+='<rect x="'+L+'" y="'+Y(w)+'" width="'+(W-L-R)+'" height="'+(Y(0)-Y(w))+'" fill="var(--c2)" opacity=".35"/>'+T(L+6,Y(w/2)+4,'weights 16.06 GB, paid once',{fill:'var(--ink)'});
-    const pts=k=>{let a='M'+X(0)+' '+Y(w);for(let t=0;t<=Tm;t+=1024){const v=w+KC.seq(k,t).total;if(v>80*G)break;a+='L'+X(t).toFixed(1)+' '+Y(v).toFixed(1)}return a};
-    let area='M'+X(0)+' '+Y(w);for(let t=0;t<=Tm;t+=2048)area+='L'+X(t).toFixed(1)+' '+Y(w+KC.seq(p,t).total).toFixed(1);area+='L'+X(Tm)+' '+Y(w)+'Z';
-    s+='<path d="'+area+'" fill="var(--acc)" opacity=".35"/>';
-    s+='<path d="'+pts(mha)+'" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="6 4"/>';
-    s+='<path d="'+pts(p)+'" fill="none" stroke="var(--acc)" stroke-width="2.5"/>';
-    s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(cap)+'" y2="'+Y(cap)+'" stroke="var(--bad)" stroke-width="1.5"/>'+T(L+4,Y(cap)+14,'usable on an 80 GB GPU (92%)',{fill:'var(--bad)'});
-    const c=KC.seq(p,Tm).total;s+=T(X(Tm)-4,Y(w+c)-8,'cache 17.18 GB at 131,072',{a:'end',fill:'var(--acc)',w:600});
-    const xm=KC.reach(mha,cap-w);s+='<circle cx="'+X(xm)+'" cy="'+Y(cap)+'" r="4" fill="var(--bad)"/>'+T(X(xm)-8,Y(cap)-8,'MHA (32 KV heads): full at '+fi(xm),{a:'end',fill:'var(--bad)'});
-    s+=T(X(Tm*0.5),Y(w+KC.seq(p,Tm*0.5).total)+16,'GQA-8 as released: +128 KiB per token',{a:'middle',fill:'var(--ink)'});
-    el.innerHTML=RD.svg(W,H,s,'Weights and KV cache of one Llama 3.1 8B request against context');
-  }
-  // ---- one token's entry per design, squares of 64 numbers ----
-  function entry(){
-    const el=$('lc-entry-svg'),W=RD.width(el),narrow=W<520,lab=narrow?92:150,sq=narrow?6:8,gap=1,per=Math.max(8,Math.floor((W-lab-80)/(sq+gap)));
-    const rows=[['MHA (32 KV heads)',8192,'var(--bad)'],['GQA-8 (Llama 3.1)',2048,'var(--acc)'],['MQA (1 KV head)',256,'var(--c3)'],['MLA (DeepSeek-V3)',576,'var(--c5)'],['MLA + DSA indexer',704,'var(--c5)'],['Recurrent layer',0,'var(--c6)']];
-    let y=4,s='';rows.forEach(([nm,n,col])=>{const k=n/64,lines=Math.max(1,Math.ceil(k/per));
-      s+=T(0,y+sq+1,nm,{fs:11});
-      for(let i=0;i<k;i++){const r=Math.floor(i/per),c=i%per;s+='<rect x="'+(lab+c*(sq+gap))+'" y="'+(y+r*(sq+gap))+'" width="'+sq+'" height="'+sq+'" fill="'+col+'" opacity="'+(nm.includes('indexer')&&i>=9?'.45':'.85')+'"/>'}
-      const txt=n?fi(n)+' numbers, '+(n*2>=1024?f1(n*2/1024)+' KiB':n*2+' B')+' bf16':'0 per token; a fixed state per sequence';
-      const tx=lab+Math.min(k,per)*(sq+gap)+6,fits=!n||tx+txt.length*6<W;
-      if(fits){s+=T(n?tx:lab,y+sq+1,txt,{fs:11,fill:'var(--mute)'});y+=lines*(sq+gap)+(narrow?14:12)}
-      else{s+=T(lab,y+lines*(sq+gap)+11,txt,{fs:11,fill:'var(--mute)'});y+=lines*(sq+gap)+26}});
-    el.innerHTML=RD.svg(W,y,s,'Numbers one token stores in one layer, by design');
-  }
   // ---- attention share of FLOPs, Llama 3.1 8B ----
   function flops(){
     const el=$('lc-fl-svg'),W=RD.width(el),H=Math.round(Math.min(260,Math.max(210,W*0.38))),L=40,R=12,Tp=12,B=40,d=KCD.vis.flops8b;
@@ -73,7 +40,7 @@
     const tot=KC.seq(p,T0).total,all=KC.seq(Object.assign({},p,{groups:p.groups.map(g=>Object.assign({},g,{win:0}))}),T0).total,sh=loc/(loc+glo);
     $('lc-lg-cap').innerHTML='Each row is one of the 62 layers; its length is the tokens it caches (16 KV heads of 128, 8 KiB per token in bf16). <b style="color:var(--c4)">52 local layers</b> stop at 1,024; <b style="color:var(--acc)">10 global layers</b> keep growing. At '+fi(T0)+' tokens: '+(tot/2**30).toFixed(2)+' GiB, against '+(all/2**30).toFixed(2)+' GiB if every layer were global; the local layers hold '+(100*sh).toFixed(1)+'% of it. <span class="der">derived</span>';
   }
-  function all(){hero();entry();flops();kch();lg()}
+  function all(){flops();kch();lg()}
   $('lc-lg-r').addEventListener('input',lg);
   RD.onRender(all);RD.onResize(all);all();
 })();

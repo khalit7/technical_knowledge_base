@@ -1,33 +1,12 @@
-// Effective context lab: recorded per-position losses of the tiny GPT past its trained length (src/past/out/past.json),
-// the training-distance histogram (computed), and SmolLM2's pass-key grid (src/kv/out/map.json).
+// Sections 7 and 8: the table and predict answer of the tiny GPT's per-position losses past its trained length (src/past/out/past.json;
+// the losses themselves are drawn by the 3D stage 44_js_sc_past.js since 2026-11-09), the training-distance histogram (computed), and SmolLM2's pass-key grid (src/kv/out/map.json).
 (function(){
-  if(!window.EFD||!LC.$('ef-chart'))return;
+  if(!window.EFD||!LC.$('ef-dist'))return;
   const $=LC.$,E=EFD;
   // ---------- 1. past the trained length
   const runs=(E.past&&E.past.runs)||[];
   const lab=r=>r.model==='at_mha'?(r.scaling==='plain'?'plain RoPE':r.scaling.replace('linear','linear (PI)').replace('ntk','NTK').replace('yarn','YaRN')):
     r.model==='lc_pi_ft'?'PI x4 + 300 steps at 1,024':r.model==='lc_plain_ft'?'plain + 300 steps at 1,024':r.model==='at_swa64'?'window 64 (trained)':r.model;
-  const COL=['--ink','--c2','--c5','--c3','--acc','--c4','--c6','--bad'];
-  let on=new Set(runs.map((r,i)=>i).filter(i=>['plain','yarn x8','linear x4'].includes(runs[i].scaling)&&runs[i].model==='at_mha'));
-  runs.forEach((r,i)=>{if(r.model!=='at_mha')on.add(i)});
-  function chart(){
-    const el=$('ef-chart');if(!runs.length){el.innerHTML='<p class="small">Runs pending.</p>';return}
-    const W=LC.width(el),H=Math.round(Math.min(300,Math.max(220,W*0.5))),L=38,R=10,T=10,B=32,bin=E.past.bin,n=E.past.length;
-    const ymin=1.8,ymax=4.6,px=x=>L+(W-L-R)*x/n,py=v=>T+(H-T-B)*(1-(Math.min(ymax,v)-ymin)/(ymax-ymin));
-    let g='<rect x="'+px(0)+'" y="'+T+'" width="'+(px(256)-px(0))+'" height="'+(H-T-B)+'" fill="var(--soft)"/>';
-    [2,2.5,3,3.5,4,4.5].forEach(v=>{g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+py(v)+'" y2="'+py(v)+'" stroke="var(--line)"/>'+LC.t(L-4,py(v)+4,v.toFixed(1),{a:'end'})});
-    (W<520?[0,512,1024,1536,2048]:[0,256,512,768,1024,1280,1536,1792,2048]).forEach(x=>{g+=LC.t(px(x),H-B+14,x,{a:'middle'})});
-    g+=LC.t(L,H-3,'position in the window (loss per token, nats)',{fill:'var(--mute)'});
-    g+=LC.t(px(128),T+13,'trained',{a:'middle',fill:'var(--mute)'});
-    const leg=[];
-    runs.forEach((r,i)=>{const c='var('+COL[i%COL.length]+')';
-      leg.push('<button data-i="'+i+'" class="'+(on.has(i)?'on':'')+'"><i style="background:'+c+'"></i>'+lab(r)+'</button>');
-      if(!on.has(i))return;
-      g+='<path d="'+r.curve.map((v,k)=>(k?'L':'M')+px(k*bin+bin/2).toFixed(1)+' '+py(v).toFixed(1)).join('')+'" fill="none" stroke="'+c+'" stroke-width="2.2"/>'});
-    el.innerHTML=LC.svg(W,H,g,'Loss by position past the trained length');
-    $('ef-sel').innerHTML=leg.join('');
-  }
-  $('ef-sel').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const i=+b.dataset.i;on.has(i)?on.delete(i):on.add(i);chart()});
   if(runs.length){
     const B=['0-255','256-511','512-1023','1024-2047'];
     $('ef-tab').innerHTML='<thead><tr><th>Run</th>'+B.map(b=>'<th class="num">positions '+b+'</th>').join('')+'</tr></thead><tbody>'+
@@ -71,5 +50,5 @@
     $('ef-hm').innerHTML=h+'</tbody>';
     $('ef-mtext').textContent='SmolLM2-135M, '+((window.LCF&&LCF.map_text)||'')+' * marks lengths past max_position_embeddings.';
   }
-  LC.onTab('t-read',()=>{chart();dist();map()});LC.onResize($('t-read'),()=>{chart();dist()});chart();dist();map();
+  LC.onTab('t-read',()=>{dist();map()});LC.onResize($('t-read'),()=>{dist()});dist();map();
 })();

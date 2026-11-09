@@ -1,8 +1,16 @@
+<div class="s3sp"><div class="s3R"><div class="rd-anim" id="lc-dz"><h4>The same 80 GB GPU and 128K requests, one lever at a time: only a trained layout plus fp8 reaches 32</h4>
+<div class="an-ctl" id="lc-dz-ctl"></div><div id="lc-dz-svg" class="rd-svg"></div><div class="an-cnt" id="lc-dz-cnt"></div></div></div><div class="s3L">
 <section id="lc-s9">
 <h2>9. Designing for a context budget</h2>
 <p><b>The question.</b> "Serve 128K-token requests, 32 at a time, on one 80 GB GPU." Start from Llama 3.1 8B and move one lever at a time (bf16 weights, 92% of memory usable, vLLM's default <code>gpu_memory_utilization</code>; <span class="der">derived</span>, <code>src/wall/out/examples.json</code>):</p>
-<div class="rd-anim" id="lc-dz"><h4>The same 80 GB GPU and 128K requests, one lever at a time: only a trained layout plus fp8 reaches 32</h4>
-<div class="an-ctl" id="lc-dz-ctl"></div><div id="lc-dz-svg" class="rd-svg"></div><div class="an-cap" id="lc-dz-cap"></div><div class="an-cnt" id="lc-dz-cnt"></div></div>
+
+<ol class="sx" id="sx-dz">
+<li><b>As released.</b> Llama 3.1 8B: 32 layers, 8 KV heads of 128, every layer global, bf16 cache. Each 128K request needs as much memory as the whole model, and <span data-lc="w_l8_cfg_fit">3</span> fit.</li>
+<li><b>fp8 cache.</b> Same model, each cached number in one byte instead of two. Free to switch on in vLLM or SGLang; 8 bits were lossless on SmolLM2 here (section 3). <span data-lc="w_l8_fp8_fit">6</span> fit.</li>
+<li><b>MQA instead.</b> One KV head shared by all 32 query heads: eight times smaller entries, but the model must be retrained or uptrained. <span data-lc="w_l8_mqa_fit">26</span> fit.</li>
+<li><b>5 local : 1 global.</b> Five of every six layers keep only the last 1,024 tokens (Gemma 3's layout). Six times smaller, and prefill attention falls from 70% to 28% of the FLOPs. Trained in, not imposed: <span data-lc="w_l8_lg_fit">20</span> fit.</li>
+<li><b>Layout and fp8.</b> Both: 41 requests fit, past the 32 asked for.</li>
+</ol>
 <details class="dp"><summary>The five designs as a table</summary><div><div class="tw"><table class="small">
 <thead><tr><th>Design</th><th class="num">Cache per token</th><th class="num">Per 128K sequence</th><th class="num">Sequences that fit</th><th class="num">Attention share of prefill</th></tr></thead>
 <tbody>
@@ -15,6 +23,7 @@
 <p><b>Reading it.</b> No single lever reaches 32. fp8 is free but only doubles capacity; MQA and a local/global layout cut the cache 8 and 6 times but are training-time choices (section 5); only the windowed layout also cuts prefill compute (attention from 70% to 28% of the FLOPs). The design review answer: a model trained with a local/global layout (as Gemma 3 and gpt-oss are), an fp8 cache, chunked prefill so the 128K prompts do not stall the 31 streams already decoding, sinks never evicted, and a retrieval acceptance test at 128K, because none of these numbers says the model uses the context (section 8).</p>
 <p><b>Other budgets.</b> Many short chats favour MLA or few KV heads plus prefix caching. Long single sequences (agents, codebases) make one sequence's cache and its prefill dominate: hybrids with a constant-state mixer in most layers or trained sparse attention change the curve rather than shift it. Mixture-of-experts models move the weight bar, not the cache: DeepSeek-V3 needs 671 GB of fp8 weights on eight 141 GB GPUs but only <span data-lc="w_ds_cfg_seq">9.21</span> GB of MLA cache per 128K sequence, so <span data-lc="w_ds_cfg_fit">39</span> fit. Try any of them in the {{KV-cache calculator|#t-kv}}.</p>
 </section>
+</div></div>
 
 <section id="lc-more">
 <h2>Depth</h2>
