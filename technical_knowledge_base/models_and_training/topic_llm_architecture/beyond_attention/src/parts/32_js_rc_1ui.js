@@ -1,5 +1,5 @@
 // ---- Recall visuals in Reading (moved from the retired Recall probes tab on 2026-10-23): running-sequence token strip
-// (section 9), Pythia vs Mamba charts (section 8), tiny GPT name recall and MQAR curves (closed blocks in section 8).
+// (section 9, a widget: the whole story, one model against attention), Pythia vs Mamba charts (section 8), tiny GPT name recall and MQAR curves (closed blocks in section 8).
 // The numbers in the prose and tables are static HTML; check_data.mjs compares them with window.BAD. ----
 (function(){
   const $=id=>document.getElementById(id);
@@ -19,10 +19,11 @@
     const sum=(arr,f)=>{let s=0,n=0;for(let t=1;t<=upto;t++)if(f(t)){s+=arr[t-1];n++}return n?s/n:0};
     const isR=t=>roxy.has(t)&&P[t]!==' R',notR=t=>!roxy.has(t);
     const lab={ba_ssm:'the SSM-only model',ba_hybrid:'the hybrid (1 attention in 6)',ba_hybrid2:'the hybrid (2 in 6)',pe_nope:'attention without positions'}[other];
-    $('rc-rs-cap').innerHTML='<b>Tokens 1 to '+upto+'.</b> Mean loss on the later pieces of " Roxy" ("o", "x", "y"): attention '+sum(a,isR).toFixed(2)+', '+lab+' '+sum(b,isR).toFixed(2)+
+    $('rc-rs-cap').innerHTML='<b>All '+upto+' tokens.</b> Mean loss on the later pieces of " Roxy" ("o", "x", "y"): attention '+sum(a,isR).toFixed(2)+', '+lab+' '+sum(b,isR).toFixed(2)+
       '; on every other token: '+sum(a,notR).toFixed(2)+' and '+sum(b,notR).toFixed(2)+' nats. '+(i===NS-1?'Whole story: '+(a.reduce((x,y)=>x+y,0)/a.length).toFixed(3)+' against '+(b.reduce((x,y)=>x+y,0)/b.length).toFixed(3)+'.':'')}
-  const an=BA.anim({tab:TAB,card:'rc-rs',ctl:'rc-rs-ctl',n:NS,draw:drawRS,ms:900,label:'Tokens shown'});
-  RD.seg($('rc-rs-b'),m=>{other=m;an.reset(NS)});
+  // a widget the reader drives (2026-11-09): the whole story at once, one model against attention, chosen by the chips; it does not animate
+  const an={redraw(){drawRS(NS-1)}};
+  RD.seg($('rc-rs-b'),m=>{other=m;an.redraw()});
   // 2. Pythia vs Mamba
   function copy(){const C=BAD.copy;if(!C){pend($('rc-copy'));return}
     const py=C.models.find(m=>/pythia/.test(m.name)),mb=C.models.find(m=>/mamba/.test(m.name));

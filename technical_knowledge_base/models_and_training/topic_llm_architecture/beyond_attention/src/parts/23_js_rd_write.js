@@ -1,4 +1,4 @@
-// ---- Reading section 3: one state, five write rules. A line-by-line port of src/state/state_rules.py (same mulberry32
+// ---- Reading section 3 (closed block under Fig. 3): one state, five write rules, write by write. A line-by-line port of src/state/state_rules.py (same mulberry32
 // generator and Box-Muller draws, float64), so the end-of-sequence cosines equal the recorded ones (check_data.py). ----
 (function(){
   const $=id=>document.getElementById(id);
@@ -26,7 +26,7 @@
         else r=S.map(row=>row.reduce((s,x,j)=>s+x*q[j],0));
         const nr=Math.sqrt(r.reduce((s,x)=>s+x*x,0))||1e-12;cos[u]=r.reduce((s,x,i)=>s+x*latest[u][i],0)/nr});
       steps.push({S:S.map(r=>r.slice()),n:cache.length,cos})});
-    return {steps,words}}
+    return {steps,words,keys,vals}}
   window.BA_WR=simulate;   // exposed for the data check
   let rule='linear',dk=8,sim=simulate(dk,rule);
   const NAMES={softmax:'softmax attention over a KV cache',linear:'linear attention (add v k&#8868;)',decay:'decay a = 0.9, then add',delta:'delta rule (&beta; = 1)',gated:'gated delta (a = 0.9, &beta; = 1)'};
@@ -64,7 +64,8 @@
        'Decay, then a delta write: recent words exact, old ones fading.')+'</p>';
     $('rd-wr-cnt').innerHTML=RD.stat('numbers kept',(rule==='softmax'?(i+1)*2*dk:dk*dk).toLocaleString('en-GB'),rule==='softmax'?'grows per write':'fixed')+
       RD.stat('distinct keys so far',String(ws.length),'d<sub>k</sub> = '+dk)+RD.stat('mean read-back cosine',mean.toFixed(2),'1.00 is perfect recall')}
-  const an=RD.anim({card:'rd-wr',ctl:'rd-wr-ctl',n:WR.length,draw,ms:1300,label:'Write'});
+  // a widget the reader drives (12 writes under 5 rules and 4 key sizes; Fig. 3 above walks them): never plays by itself
+  const an=RD.anim({card:'rd-wr',ctl:'rd-wr-ctl',n:WR.length,draw,ms:1300,label:'Write',auto:false});
   RD.seg($('rd-wr-mode'),m=>{rule=m;sim=simulate(dk,rule);an.reset(WR.length)});
   RD.seg($('rd-wr-dk'),m=>{dk=+m;sim=simulate(dk,rule);an.reset(WR.length)});
   RD.onResize(()=>an.redraw());

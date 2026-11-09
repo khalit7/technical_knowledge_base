@@ -1,5 +1,5 @@
 // ---- The trained SSM, in Reading section 4 (moved from the retired Inside tab on 2026-10-23): per-token decay, hidden
-// attention maps against attention maps (stepped over layers), half-lives (closed block). Data: window.BAD.inside (src/inside/out/ssm_inside.json, maps and decays quantised to 0..255). ----
+// attention maps against attention maps (a layer picker), half-lives (closed block). Data: window.BAD.inside (src/inside/out/ssm_inside.json, maps and decays quantised to 0..255). ----
 (function(){
   const $=id=>document.getElementById(id);
   if(!window.BA||!window.BAD||!BAD.inside||!$('si-map-card'))return;
@@ -23,8 +23,10 @@
     heat($('si-mb'),BA.dec(L.maps[sh]),'SSM layer '+L.layer+', head '+L.map_heads[sh]+' (half-life '+(L.half_life[L.map_heads[sh]]||0).toFixed(1)+')');
     heat($('si-ma'),BA.dec(A.maps[ah]),'attention layer '+A.layer+', head '+A.heads[ah]);
     $('si-cap').innerHTML='<b>Layer '+L.layer+'.</b> '+(sh===0?'The long-memory SSM head draws vertical stripes: a few earlier tokens were written into the state strongly (large &Delta; and B) and every later query reads them, barely faded over 48 tokens. Which tokens are read is decided mostly when they are written, not by the query.':'The short-memory SSM head is a band along the diagonal broken into small blocks: it carries the last few tokens and drops them where its decay falls to near zero.')+' The attention head '+(ah===0?'chooses its own earlier tokens for each query: the stripes are short and scattered, because softmax compares every query with every key.':'mostly reads the token just before, one position exactly, where the SSM band smears over several.')+' Same 48 tokens: "'+RD.esc(I.tokens.slice(1,13).join(''))+'..."'}
-  const an=BA.anim({tab:TAB,card:'si-map-card',ctl:'si-ctl',n:I.layers.length,draw:drawMaps,ms:1600,label:'Layer'});
-  RD.seg($('si-sh'),m=>{sh=+m;an.redraw()});RD.seg($('si-ah'),m=>{ah=+m;an.redraw()});
+  // a widget the reader drives (2026-11-09): pick the layer; it opens on layer 1 and never plays by itself
+  let lay=0;$('si-lay').innerHTML=I.layers.map((L,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>Layer '+L.layer+'</button>').join('');
+  const an={redraw(){drawMaps(lay)}};
+  RD.seg($('si-lay'),m=>{lay=+m;an.redraw()});RD.seg($('si-sh'),m=>{sh=+m;an.redraw()});RD.seg($('si-ah'),m=>{ah=+m;an.redraw()});
   // 3. decay per token
   $('si-l').innerHTML=I.layers.map((L,i)=>'<option value="'+i+'">'+L.layer+'</option>').join('');
   function vary(L){const a=BA.dec(L.a_tok),T=a.length/16;let best=0,bv=-1;for(let h=0;h<16;h++){let m=0,q=0;for(let t=0;t<T;t++){const v=a[h*T+t]/255;m+=v;q+=v*v}const sd=q/T-(m/T)*(m/T);if(sd>bv){bv=sd;best=h}}return best}

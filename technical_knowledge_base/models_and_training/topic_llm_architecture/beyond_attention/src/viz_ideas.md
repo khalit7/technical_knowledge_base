@@ -40,3 +40,16 @@ absent elsewhere 0-2, animatable 0-1; minus build cost).
 | One forget rate per head against one per key channel | Reading s6 | built (static, rates illustrative) |
 | Rollback: KV cache drops entries, state restores a snapshot and recomputes | Reading s10 | built (static, follows from the mechanism) |
 | ba.2, ba.4, ba.5, ba.8, ba.9 | Reading s7, s9, s8, s4, s4 | moved inline from the lab tabs; ba.6, ba.7, half-lives in closed blocks |
+
+## 2026-11-09 rollout (split layout, renderer v2 stages)
+| Idea | Where | Decision |
+|---|---|---|
+| Recurrence against attention as bricks and glass plates, volumes to scale (Qwen3-Next config), the cache tower reaching the state's height at 512 tokens | Reading s1, Fig. 1 `stg-rec` | built; replaces the 2D stepper (its log chart kept in a closed block) |
+| Linear attention as a recurrence: key and value combs, the outer product as a bar field on a glass plate, the query read out, then the masked T x T form | Reading s2, Fig. 2 `stg-lin` | built on the write-rule toy (BA_WR); replaces the static two-forms figure |
+| Forget or overwrite: the same 12 writes under linear, decay, delta and gated delta, the delta write in close-up, then d_k 16 | Reading s3, Fig. 3 `stg-wr` | built; the 2D write-rule animation stays as a widget in a closed block (softmax and every key size) |
+| Selective scan on the trained ba_ssm head: median decay against measured a_t, the state flowing, a write's surviving share, Mamba-2's mask L | Reading s4, Fig. 4 `stg-scan` | built; the decay explorer moved into a closed block |
+| Hybrid layer patterns from 10 configs, cache columns only on attention layers, totals, Falcon-H1 in parallel | Reading s7, Fig. 5 `stg-hyb` | built; the token-by-token race became a context slider in the State vs KV cache tab |
+| Pythia against Mamba: cache slabs against one state slab, accuracy columns at 32, 256, 1,000 words and a 40-entry phone book | Reading s8, Fig. 6 `stg-recall` | built; the full curves moved into the probes' closed block |
+| The tiny GPT runs as rows of six layers, memory at 256 tokens, signed loss bars against attention (held-out, running sequence, the repeated name) | Reading s9, Fig. 7 `stg-runs` | built |
+| Hidden attention maps, running-sequence strip | Reading s4, s9 | kept 2D (heatmap, token strip), now widgets (layer chips, model chips), no autoplay |
+| Hero grid, decay granularity, rollback, State vs KV cache tab | s0, s6, s10, t-mem | kept 2D: a taxonomy table, a two-panel comparison of rates (illustrative) and a 16-token strip read best flat; the tab is a reader-driven calculator |

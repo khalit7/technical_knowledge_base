@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-scan"></div></div><div class="s3L">
 <section id="s4"><h2>4. State-space models: S4, then Mamba, then Mamba-2</h2>
 <h3>S4: a continuous system, discretised</h3>
 <p>A <dfn>state-space model</dfn> (SSM) comes from control theory: a 1-D input signal u(t) drives an N-dimensional state x(t), x&prime;(t) = A x(t) + B u(t), read out as y(t) = C x(t) (+ D u(t), a skip). {{S4 (Gu, Goel and R&eacute; 2021)|https://arxiv.org/abs/2111.00396}} applies one such system to each channel of the model and runs it on tokens by <dfn>discretising</dfn> it with a step size &Delta;, giving the recurrence x<sub>k</sub> = A&#772;x<sub>k&minus;1</sub> + B&#772;u<sub>k</sub>, y<sub>k</sub> = Cx<sub>k</sub>. A&#772;, B&#772; and C are the same at every position (the model is <dfn>linear time-invariant</dfn>, LTI), so the output is one convolution of the input with the kernel K&#772; = (CB&#772;, CA&#772;B&#772;, CA&#772;<sup>2</sup>B&#772;, ...), computed with FFTs: that is why it trains fast. It remembers because A is not random but the <dfn>HiPPO</dfn> matrix, which makes "the state x(t) to memorize the history of the input u(t)".</p>
@@ -8,29 +9,33 @@
 </div></details>
 
 <h3>Mamba: make the system depend on the input</h3>
-<p>{{Mamba (Gu and Dao 2023)|https://arxiv.org/abs/2312.00752}}: "simply letting the SSM parameters be functions of the input addresses their weakness with discrete modalities, allowing the model to selectively propagate or forget information along the sequence length dimension depending on the current token". &Delta;<sub>t</sub>, B<sub>t</sub> and C<sub>t</sub> become projections of x<sub>t</sub>: a large &Delta;<sub>t</sub> resets the state toward the current token, a small one keeps the past. In the trained tiny SSM below, one head's decay a<sub>t</sub> moves with the text; an S4-style layer would draw a flat line.</p>
+<p>{{Mamba (Gu and Dao 2023)|https://arxiv.org/abs/2312.00752}}: "simply letting the SSM parameters be functions of the input addresses their weakness with discrete modalities, allowing the model to selectively propagate or forget information along the sequence length dimension depending on the current token". &Delta;<sub>t</sub>, B<sub>t</sub> and C<sub>t</sub> become projections of x<sub>t</sub>: a large &Delta;<sub>t</sub> resets the state toward the current token, a small one keeps the past. Fig. 4 measures this on the trained tiny SSM (the SSM-only tiny GPT, run <code>ba_ssm</code>, section 9): one head of layer 1, over 17 tokens of the running sequence that contain " Roxy" twice. An S4-style layer would give every token the same decay.</p>
+<ol class="sx" id="sx-scan">
+<li><b>S4: one decay for every token.</b> An input-independent layer multiplies its state by the same a at every token; here a is this head's median, 0.60. A write made at the first "R" fades by the same factor per token, the same for a name as for filler: 60%, 36%, 22%, ... of it remains.</li>
+<li><b>Mamba: the decay depends on the token.</b> The same head's recorded a<sub>t</sub> = exp(&Delta;<sub>t</sub>A<sub>h</sub>): it forgets hardest (red) at both " R" pieces that start "Roxy" (0.33) and at "os" (0.42), the end of "rhinoceros", and keeps more inside the name ("x" 0.65, "y" 0.72) and at the full stop (0.81).</li>
+<li><b>The state flows along the sequence.</b> Each token writes into a state of 32 channels &times; 16 per head (orange, from below), and the state passes to the next token scaled by that token's a (the blue stream thins where a is small). This is the recurrence used for decoding; a parallel scan computes all positions at once for training.</li>
+<li><b>What one write is worth later.</b> The same write at the first "R", with the measured decays: the share left falls to 19% by the full stop and is cut to 6% at the second " R" (the reset where the name begins again), where the constant decay of step 1 would have kept a smooth tail. The layer chooses what to keep from what it reads.</li>
+<li><b>Mamba-2's decay mask.</b> Multiplying these decays between every pair of positions gives L<sub>ij</sub> = a<sub>j+1</sub> &hellip; a<sub>i</sub> (1 on the diagonal, 0 above it): a lower-triangular T &times; T matrix like a causal attention mask with fading weights. Mamba-2 multiplies it into C B<sup>&#8868;</sup> to get the whole layer as one masked matrix product (next).</li>
+</ol>
+<details class="dp"><summary>Any layer and head over the whole story <span class="mute">(the decay explorer)</span></summary><div class="b">
 <div class="card" id="si-dec-card"><h4>Selection, measured: a trained head forgets hardest at the start of a name</h4>
 <div class="ctl"><label>Layer <select id="si-l"></select></label><label>Head <select id="si-h"></select></label></div>
 <div class="rd-svg" id="si-dec"></div>
 <p class="small mute" id="si-dec-say"></p>
 <p class="small">The decay a<sub>t</sub> = exp(&Delta;<sub>t</sub>A<sub>h</sub>) of one head of the SSM-only tiny GPT (run <code>ba_ssm</code>, section 9) over the 256-token running sequence (1 keeps everything, 0 resets the state). The default is layer 1's most variable head: it forgets hardest at the "R" pieces that start "Roxy" and at quotation marks, where a name or a line of dialogue begins. <code>src/inside/ssm_inside.py</code>, CPU, fp32. <span class="meas">measured on Apple M1 Pro (CPU)</span></p></div>
+</div></details>
+
 <p><b>How it stays fast.</b> The convolution is gone (the kernel changes every step), so Mamba runs the recurrence as "a hardware-aware parallel algorithm in recurrent mode": the expanded state never leaves on-chip SRAM. Its state per layer is d<sub>inner</sub> &times; N with N = 16: 5,120 &times; 16 for Mamba 2.8B. Without a KV cache it serves "4-5x higher inference throughput than a Transformer of similar size" because it "can use much higher batch sizes". <span class="vend">authors</span></p>
 <details class="dp"><summary>Mamba's kernel and state, in detail <span class="mute">(depth)</span></summary><div class="b">The expanded state (batch &times; length &times; channels &times; N) never touches GPU main memory; parameters are loaded into on-chip SRAM, discretised and scanned there. N = 16 is the code's default and the paper's setting, d<sub>inner</sub> = 2 &times; d<sub>model</sub>. The throughput quote is section 4.5 ("since without the KV cache it can use much higher batch sizes"); the abstract rounds it to 5x.</div></details>
-
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="s4b">
 <h3>Mamba-2: restrict A to a scalar, and the layer becomes masked attention</h3>
 <p>{{Mamba-2 (Dao and Gu 2024)|https://arxiv.org/abs/2405.21060}} simplifies A "from diagonal to scalar times identity structure": one decay a<sub>t</sub> = exp(&Delta;<sub>t</sub>A) per head per step, shared by all its channels and state entries, with head dimension P = 64 or 128 like a transformer. Then unrolling gives</p>
 <div class="fm"><div class="eq">y<sub>i</sub> = &sum;<sub>j&le;i</sub> (C<sub>i</sub>&middot;B<sub>j</sub>) &middot; (a<sub>j+1</sub>a<sub>j+2</sub>&hellip;a<sub>i</sub>) &middot; x<sub>j</sub> &nbsp;&nbsp;&rArr;&nbsp;&nbsp; Y = (L &#8857; C B&#8868;) X</div>
 <dl><dt>C B&#8868;</dt><dd>a T &times; T matrix of query-key scores: C plays the query, B the key, x the value</dd><dt>L</dt><dd>the decay mask, L<sub>ij</sub> = product of a's between j and i (1 on the diagonal, 0 above it): "1-semiseparable"</dd></dl></div>
 <p>That is linear attention (section 2) with a decaying mask instead of the plain causal mask: "When L is the causal mask, it is standard linear attention", and the two are "duals of each other with the exact same linear and quadratic forms". The name is <dfn>state space duality</dfn> (SSD). So every SSM head has an implicit attention map ("Mamba models give rise to three orders of magnitude more attention matrices than transformers", {{Ali et al. 2024|https://arxiv.org/abs/2403.01590}}); here they are, on real weights:</p>
-<div class="card" id="si-map-card">
-<h4>The same 48 tokens: an attention head's map against an SSM head's hidden map</h4>
-<div class="seg" id="si-sh"><button data-m="0" class="on">SSM: longest-memory head</button><button data-m="1">SSM: shortest-memory head</button></div>
-<div class="seg" id="si-ah"><button data-m="0" class="on">Attention: most far weight</button><button data-m="1">Attention: previous-token head</button></div>
-<div class="si-two"><div class="rd-svg" id="si-ma"></div><div class="rd-svg" id="si-mb"></div></div>
-<div class="an-ctl" id="si-ctl"></div>
-<div class="an-cap" id="si-cap"></div>
-<p class="small">|M<sub>ij</sub>| = |(C<sub>i</sub>&middot;B<sub>j</sub>) &times; (decays between j and i) &times; &Delta;<sub>j</sub>| for one head of the trained SSM-only tiny GPT, each row scaled to its maximum (not normalised like softmax), beside the attention model's (run <code>at_mha</code>) map at the same layer. Rows are queries, columns earlier tokens; step through the six layers. <span class="meas">measured on Apple M1 Pro (CPU)</span></p>
-</div>
+
 <p><b>Why it matters for speed.</b> Split the sequence into chunks, use the quadratic form inside each chunk (matrix multiplies on tensor cores) and the recurrence between chunks. The SSD kernel is "2-8x faster than Mamba's fused associative scan" (a kernel speedup, not a whole-model one), and the speed buys state: Mamba-2 uses N "around 64 or 128" (code default 64; Nemotron-H 8B uses 128) against Mamba's 16. <span class="vend">authors</span></p>
 <details class="dp"><summary>SSD against FlashAttention-2 <span class="mute">(depth)</span></summary><div class="b">The full quote: "2-8x faster than Mamba's fused associative scan, which does not leverage matmul units"; SSD crosses FlashAttention-2 "at sequence length 2K" and is "6x faster at sequence length 16K". <span class="vend">authors</span></div></details>
 <p><b>The topic's tiny GPT uses exactly this layer.</b> Its SSM mixer (16 heads of 32 channels, N = 16, a short causal convolution, a gate) trains in the quadratic dual form and decodes with the recurrence (code in section 11). On the trained SSM-only model the two forms give logits that differ by at most <span class="ba-v" data-v="inside.dual">1.9e-5</span> on the running sequence (<code>src/inside/ssm_inside.py</code>, CPU, fp32).</p>
@@ -40,4 +45,14 @@
 <p class="small">96 heads: half-lives from 1.1 to 910 tokens, median 7.1; 22 heads keep half their state for 64 tokens or more. Most heads are short-range (local syntax); a few per layer carry the story. Head 0 of each layer starts with the slowest decay (A initialised from 1 to 16 across heads) and stays the longest in 5 of 6 layers. In the maps above, the long-memory SSM head draws vertical stripes (a few tokens written strongly, read by every later query, so which tokens are read is decided mostly when they are written); the short-memory head is a band along the diagonal broken where its decay falls to near zero; the attention head's stripes are short and scattered, because softmax compares every query with every key. <span class="meas">measured on Apple M1 Pro (CPU)</span></p>
 </div></details>
 <details class="dp"><summary>Mamba-3 (2026, published only) <span class="mute">(depth)</span></summary><div class="b">{{Mamba-3|https://arxiv.org/abs/2603.15569}} adds "a more expressive recurrence derived from SSM discretization", "a complex-valued state update rule that enables richer state tracking" and a multi-input multi-output form; the authors report "comparable perplexity to Mamba-2 despite using half of its predecessor's state size" at 1.5B. <span class="vend">authors</span> Not run here (no released small checkpoint in the topic's environment).</div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="si-map-card">
+<h4>The same 48 tokens: an attention head's map against an SSM head's hidden map</h4>
+<div class="seg" id="si-sh"><button data-m="0" class="on">SSM: longest-memory head</button><button data-m="1">SSM: shortest-memory head</button></div>
+<div class="seg" id="si-ah"><button data-m="0" class="on">Attention: most far weight</button><button data-m="1">Attention: previous-token head</button></div>
+<div class="si-two"><div class="rd-svg" id="si-ma"></div><div class="rd-svg" id="si-mb"></div></div>
+<div class="seg" id="si-lay" aria-label="Layer"></div>
+<div class="an-cap" id="si-cap"></div>
+<p class="small">|M<sub>ij</sub>| = |(C<sub>i</sub>&middot;B<sub>j</sub>) &times; (decays between j and i) &times; &Delta;<sub>j</sub>| for one head of the trained SSM-only tiny GPT, each row scaled to its maximum (not normalised like softmax), beside the attention model's (run <code>at_mha</code>) map at the same layer. Rows are queries, columns earlier tokens; pick any of the six layers. <span class="meas">measured on Apple M1 Pro (CPU)</span></p>
+</div></div></div></div>
+

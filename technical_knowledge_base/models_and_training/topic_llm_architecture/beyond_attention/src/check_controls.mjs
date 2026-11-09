@@ -1,5 +1,6 @@
 // Clicks every control on every tab at 390 px dark and 920 px light; fails on page errors, console errors, a visible
-// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Also checks nothing autoplays under reduced motion.
+// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Also checks nothing moves by itself under reduced motion, every 3D stage
+// plays once scrolled into view at normal motion, and the reader-driven widgets never start by themselves (2026-11-09).
 // Run from the repo root: node technical_knowledge_base/models_and_training/topic_llm_architecture/beyond_attention/src/check_controls.mjs [shots]
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
@@ -41,11 +42,16 @@ try {
   for (const t of tabs) { await p.click(`button[data-t=${t}]`); await new Promise(r => setTimeout(r, 1500));
     playing.push(...await p.$$eval('#' + t + ' .an-play', bs => bs.filter(x => /Pause/.test(x.textContent)).map(x => x.id))) }
   console.log('reduced motion autoplay', playing.length ? playing : 'none'); bad += playing.length; await p.close();
-  // normal motion: scroll every animation card into view; none may start before the reader presses play or steps
-  { const q = await b.newPage(); await q.setViewport({ width: 920, height: 900 }); await q.goto('file://' + PAGE); await new Promise(r => setTimeout(r, 300));
-    const cards = await q.$$eval('#t-read .an-ctl', cs => cs.map(c => c.id)); const moving = [];
-    for (const c of cards) { await q.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200));
+  // normal motion (2026-11-06 rule): every 3D stage plays by itself once scrolled into view; the 2D write-rule widget (auto:false, a widget the
+  // reader drives) and the other widgets never start by themselves
+  { const q = await b.newPage(); await q.setViewport({ width: 920, height: 900 }); await q.goto('file://' + PAGE); await q.click('button[data-t=t-read]'); await new Promise(r => setTimeout(r, 300));
+    const stages = await q.$$eval('#t-read .stg', cs => cs.map(c => c.id)), still = [];
+    for (const c of stages) { await q.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2000));
+      if (!(await q.$eval('#' + c, e => +e.dataset.frames || 0) > 0)) still.push(c) }
+    const widgets = await q.$$eval('#t-read .an-ctl:not(.stg-bar)', cs => cs.map(c => c.id)), moving = [];
+    for (const c of widgets) { await q.$eval('#' + c, e => { e.closest('details') && (e.closest('details').open = true); e.scrollIntoView({ block: 'center' }) }); await new Promise(r => setTimeout(r, 1500));
       if (await q.$eval('#' + c + '-p', x => /Pause/.test(x.textContent)) || await q.$eval('#' + c + '-s', x => x.value !== '0')) moving.push(c) }
-    console.log('normal motion autoplay over', cards.length, 'animations:', moving.length ? moving : 'none'); bad += moving.length; await q.close() }
+    console.log('normal motion:', stages.length, 'stages,', still.length ? 'did not play: ' + still : 'all played;', widgets.length, 'widgets,', moving.length ? 'moved by themselves: ' + moving : 'none moved');
+    bad += still.length + moving.length; await q.close() }
 } finally { await b.close() }
 process.exit(bad ? 1 : 0);
