@@ -55,8 +55,9 @@
       const x=M[mode][i],x0=M[mode][0];
       document.getElementById('sy-bg-cap').innerHTML='<div class="t">'+NAME[mode]+', generation '+i+(i===0?' (trained on real stories)':'')+'</div><p>'+(i===0?'The bigram model counted '+B.params.train_tokens.toLocaleString('en-US')+' words of real TinyStories. Every later generation is refit on text sampled from the model before it.':mode==='replace'?'Refit only on the previous model\'s samples: every word pair the sample missed is gone for good.':mode==='keep10'?'Refit on 90% sampled text plus a fresh random 10% of the real stories: lost words can come back.':'Refit on the real stories plus every sample so far: nothing real is ever removed.')+'</p><p class="small"><i>Sampled: "'+esc(x.examples[0])+'"</i></p>';
       document.getElementById('sy-bg-cnt').innerHTML=RD.stat('Perplexity, real stories',x.test_ppl.toFixed(1),'generation 0: '+x0.test_ppl.toFixed(1))+RD.stat('Word types in training data',x.vocab.toLocaleString('en-US'),'of '+x0.vocab.toLocaleString('en-US'))+RD.stat('Distinct word pairs',x.bigrams.toLocaleString('en-US'),'of '+x0.bigrams.toLocaleString('en-US'))}
-    const A=RD.anim({card:'sy-bg-card',ctl:'sy-bg-ctl',n:G+1,draw,ms:900,label:'Generation'});
-    RD.seg(document.getElementById('sy-bg-seg'),m=>{mode=m;A.go(0)});RD.onResize(()=>A.redraw())})();
+    // a widget (the outcome of each workflow is the point): no autoplay, opens on generation 10
+    const A=RD.anim({card:'sy-bg-card',ctl:'sy-bg-ctl',n:G+1,draw,ms:900,label:'Generation',auto:false,start:G});
+    RD.seg(document.getElementById('sy-bg-seg'),m=>{mode=m;A.go(G,true)});RD.onResize(()=>A.redraw())})();
 
   // cost calculator
   (function(){const g=document.getElementById('sy-cost-g');if(!g)return;

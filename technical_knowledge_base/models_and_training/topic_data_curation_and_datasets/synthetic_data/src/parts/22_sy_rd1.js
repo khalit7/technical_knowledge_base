@@ -1,4 +1,4 @@
-// ---- Reading tab, sections 2 and 3: predict widgets, Cosmopedia anatomy, openings bars, Nemotron-CC step animation, WRAP tables ----
+// ---- Reading tab, sections 2 and 3: predict widgets, Cosmopedia anatomy, openings bars, Nemotron-CC step animation (Fig. 3, its steps explained by the list sx-nm), WRAP tables ----
 (function(){
   const D=window.SY||{},esc=RD.esc;
   // shared text helpers (also used by the Rephrasing lab)
@@ -59,23 +59,15 @@
       diverse_qa_pairs:'"Task: Read the text, ask questions and answer them. Follow these instructions: 1. Ask diverse questions that require different cognitive skills or cover different aspects of the text. 2. Ask questions in various forms such as: [...]" (Prompt 1, first lines; it ends asking for up to 8 questions)'};
     const pairs=ORDER.map(k=>P.find(p=>p.kind===k)).filter(Boolean);let cur=0;
     seg.innerHTML=pairs.map((p,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+NAME[p.kind]+'</button>').join('');
-    const STEPS=['Crawled','Bucketed','Segmented','Prompted','Generated','Published'];
-    const host=u=>{try{return new URL(u).hostname}catch(e){return u}};
+        const host=u=>{try{return new URL(u).hostname}catch(e){return u}};
     function draw(i){const p=pairs[cur],k=p.kind,b=document.getElementById('sy-nm-b'),a=document.getElementById('sy-nm-a'),al=document.getElementById('sy-nm-al');
-      document.getElementById('sy-nm-steps').innerHTML=STEPS.map((s,j)=>'<span'+(j===i?' class="on"':'')+'>'+(j+1)+'. '+s+'</span>').join('');
       b.textContent=p.before;const K=SYT.kept(p.before,p.after);
-      const cap=[['The page as crawled','A page from '+esc(host(p.url))+' captured in Common Crawl CC-MAIN-2024-30 (WARC record '+esc(p.warc_record_id.slice(0,8))+'...), its text extracted with jusText: '+p.before_words+' words. This is the "before".'],
-        ['Sorted into a quality bucket','Nemotron-CC\'s classifier ensemble scored the page and put it in the <b>high-quality</b> bucket, so it gets the four transformation prompts as well as Wikipedia-style rephrasing (low-quality pages get only the rephrasing).'],
-        ['Cut into segments','The text is cut at line boundaries into segments of at most <b>'+LIM[k]+' tokens</b> including the prompt (footnote 11), because longer inputs came back over-simplified. Lines longer than the limit are dropped.'],
-        ['Wrapped in the '+NAME[k]+' prompt',esc(PROMPT[k])],
-        ['Generated','Mistral NeMo 12B Instruct, FP8, temperature 0.5, top-p 0.9, run with TensorRT-LLM. The raw output (with any "Here is a paraphrased version:" preamble) was not published.'],
-        ['Post-processed and published','Preambles and Markdown stripped, outputs under 50 tokens dropped'+(k==='diverse_qa_pairs'?', question-answer pairs shuffled and some appended after the source segment':', segments joined back per document')+'. The published row: '+p.after_words+' words. Green words sit in a four-word sequence copied from the page.']][i];
-      document.getElementById('sy-nm-cap').innerHTML='<div class="t">'+cap[0]+'</div><p>'+cap[1]+'</p>';
+      document.getElementById('sy-nm-src').innerHTML=esc(NAME[k])+' pair: a page from '+esc(host(p.url))+', WARC record '+esc(p.warc_record_id.slice(0,8))+'..., '+p.before_words+' words after jusText; segments of at most '+LIM[k]+' tokens for this prompt.';
       if(i<3){a.innerHTML='<span class="mute">(not yet generated)</span>';al.textContent='After'}
       else if(i===3){a.innerHTML='<span class="ins">'+esc(PROMPT[k])+'</span>\n\n<span class="seed">[segment of the page above]</span>';al.textContent='The prompt'}
       else if(i===4){a.textContent=p.after;al.textContent='After: the model output (as published)'}
       else{a.innerHTML=K.html;al.textContent='After: the published row'}
       document.getElementById('sy-nm-cnt').innerHTML=RD.stat('Words before',p.before_words,'jusText extract')+RD.stat('Words after',i>=4?p.after_words:'...','published row')+RD.stat('After / before',i>=4?(p.after_words/p.before_words).toFixed(2):'...','length ratio')+RD.stat('Copied phrasing',i>=5?(100*K.share).toFixed(0)+'%':'...','of output words in 4-grams from the page')}
-    const A=RD.anim({card:'sy-nm-card',ctl:'sy-nm-ctl',n:6,draw,ms:2600,label:'Step'});
-    RD.seg(seg,m=>{cur=+m;A.go(0)})})();
+    const A=RD.anim({card:'sy-nm-card',ctl:'sy-nm-ctl',n:6,draw,ms:4200,label:'Step',list:'sx-nm'});
+    RD.seg(seg,m=>{cur=+m;A.reset(6)})})();
 })();

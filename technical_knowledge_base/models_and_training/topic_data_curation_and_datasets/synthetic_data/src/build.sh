@@ -1,13 +1,14 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (pattern of the root's src/build.sh and the sibling pretraining_corpora, 2026-10-14).
-# HTML: 01_head, 10_header (title and tab bar), 20_read_*.html (Reading tab, in file-name order), then 3x_tab_*.html (one per tab).
-# JS: data/syn_data.json as window.SY, then every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js last.
+# HTML: 01_head, 02_split (the split layout, skill template), 10_header (title and tab bar), 20_read_*.html (Reading tab, in file-name order), then 3x_tab_*.html (one per tab).
+# JS: data/syn_data.json as window.SY, then every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js last
+# (21 the RD template, 22 to 25_sy the 2D figures, 25_js_s3 the 3D renderer v2, 26 to 28 the 3D scenes, 33 the Diversity meter).
 # Prose numbers are written @@key@@ and filled from data/facts.json (made by build_data.py from the recorded runs);
 # a fact whose run is pending stays unfilled and is reported.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/10_header.html
+{ cat parts/01_head.html parts/02_split.html parts/10_header.html
   for f in parts/20_read_*.html; do cat "$f"; done
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
@@ -22,5 +23,6 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
 if grep -q '@@[A-Za-z0-9_]*@@' ../index.html; then echo "UNFILLED FACT"; grep -o '@@[A-Za-z0-9_]*@@' ../index.html | sort | uniq -c; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html

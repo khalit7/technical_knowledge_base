@@ -12,11 +12,16 @@ for (const [scheme, width, rm] of [['dark', 390, false], ['light', 920, false], 
   await p.setViewport({ width, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: rm ? 'reduce' : 'no-preference' }]);
   await p.goto('file://' + page); await sleep(300);
-  // nothing may move before the reader acts: every animation sits on its first step
-  const steps0 = await p.$$eval('#t-read .an-ctl input[type=range]', xs => xs.map(x => x.value));
+  // 2026-11-09 (rollout): animations now play once scrolled into view (check_stages.mjs checks that); here, at the top of the page, nothing off screen
+  // may move, and the three widgets the reader drives open where they should: the rewrite viewer on Easy (1), the categorical toy on its last
+  // generation (30), the bigram toy on generation 10; the Nemotron-CC animation (Fig. 3) waits on step 0 until it is in view
+  const want = { 're-wr-ctl-s': '1', 'sc-ctl-s': '30', 'sy-bg-ctl-s': '10', 'sy-nm-ctl-s': '0' };
+  const steps0 = await p.$$eval('#t-read .an-ctl input[type=range]', xs => xs.map(x => [x.id, x.value]));
   await sleep(2500);
-  const steps1 = await p.$$eval('#t-read .an-ctl input[type=range]', xs => xs.map(x => x.value));
-  if (steps0.join() !== steps1.join() || steps1.some(v => v !== '0')) errs.push('an animation moved without the reader: ' + steps1.join(','));
+  const steps1 = await p.$$eval('#t-read .an-ctl input[type=range]', xs => xs.map(x => [x.id, x.value]));
+  if (steps0.join() !== steps1.join()) errs.push('an animation off screen moved: ' + steps1.join(' '));
+  for (const [id, v] of steps1) if (want[id] !== undefined && want[id] !== v) errs.push(`${id} opens on ${v}, expected ${want[id]}`);
+  if (Object.keys(want).some(id => !steps1.find(x => x[0] === id))) errs.push('a widget is missing: ' + steps1.map(x => x[0]).join(','));
   for (const t of await p.$$eval('button[data-t]', bs => bs.map(b => b.dataset.t))) {
     await p.click(`button[data-t=${t}]`); await sleep(200);
     await p.$$eval(`#${t} details`, ds => ds.forEach(d => d.open = true));

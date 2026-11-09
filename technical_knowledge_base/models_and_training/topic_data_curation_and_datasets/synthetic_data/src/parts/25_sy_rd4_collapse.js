@@ -18,6 +18,7 @@
       else{const k=Math.round(pi*n),fr=draw(p0,k,rnd),sy=draw(p,n-k,rnd);fit=fr.map((a,i)=>a+sy[i])}
       p=norm(fit);out.push(metrics(p,p0));if(keep)ps.push(p)}
     return {m:out,ps,p0}}
+  window.SYC={run,zipf};  // Fig. 4 (28_js_sc_col.js) draws the same runs in 3D
   const MODES=['replace','accumulate','subsample','fresh'],NAME={replace:'Replace',accumulate:'Accumulate',subsample:'Accumulate-subsample',fresh:'Fresh real data'},CL={replace:'var(--c2)',accumulate:'var(--c3)',subsample:'var(--c4)',fresh:'var(--c5)'};
   const V=1000;let mode='replace',R=null,ALL=null,A=null;
   function params(){return {n:+$('sc-n').value,s:+$('sc-s').value,pi:+$('sc-pi').value,G:+$('sc-g').value,seed:Math.max(1,Math.min(9999,Math.round(+$('sc-seed').value||1)))}}
@@ -42,13 +43,14 @@
     $('sc-cap').innerHTML='<div class="t">'+NAME[mode]+', generation '+i+'</div>'+(i===0?'The model counted '+P.n.toLocaleString('en-US')+' draws from the real distribution: only '+x0.alive+' of the 1,000 types appeared, the rest are dead from the start (red ticks). Expected: the sum over types of 1 &minus; (1 &minus; p)<sup>n</sup>.':
       mode==='replace'?'Fit on '+P.n.toLocaleString('en-US')+' samples of the previous model. Dead types never return; surviving probabilities wander.':mode==='accumulate'?'Fit on the real sample plus '+i+' synthetic samples. Real counts stay in the pool, so the set of live types cannot shrink.':mode==='subsample'?'The pool grows, but each model sees only '+P.n.toLocaleString('en-US')+' draws from it.':'Each generation\'s '+P.n.toLocaleString('en-US')+' samples include '+Math.round(P.pi*P.n).toLocaleString('en-US')+' fresh draws from the real distribution.');
     $('sc-cnt').innerHTML=RD.stat('Types alive',x.alive,'generation 0: '+x0.alive)+RD.stat('Entropy, bits',x.ent.toFixed(2),'generation 0: '+x0.ent.toFixed(2))+RD.stat('Tail mass (rank 101+)',(100*x.tail).toFixed(1)+'%','real: '+(100*R.p0.slice(100).reduce((a,b)=>a+b,0)).toFixed(1)+'%')+RD.stat('Distance from real',(100*x.tv).toFixed(1)+'%','total variation')}
-  function rebuild(){const P=compute();A.reset(P.G+1);parity(P)}
+  function rebuild(){const P=compute();A.reset(P.G+1);A.go(P.G,true);parity(P)}
   function parity(P){const ref=D.collapse_ref,el=$('sc-par');if(!ref||!el)return;const rp=ref.params;
     if(P.n!==rp.n||P.s!==rp.s||P.G!==rp.G||P.seed!==rp.seed||P.pi!==rp.pi){el.innerHTML='Settings differ from the recorded Python run (n 2,000, s 1.1, 30 generations, seed 1, 10% fresh), so no check is shown.';return}
     const ok=MODES.every(m=>ALL[m].length===ref.runs[m].length&&ALL[m].every((x,g)=>{const y=ref.runs[m][g];return x.alive===y.alive&&['tail','tv','ent'].every(k=>Math.abs(x[k]-y[k])<=2e-6)}));
     el.innerHTML='<span class="chk'+(ok?'':' no')+'">'+(ok?'Matches':'Does not match')+'</span> the recorded Python run (src/scripts/collapse_categorical.py, same PRNG) generation by generation for all four workflows (types alive exactly; tail mass, distance and entropy to the sixth decimal, where the two languages round ties differently). Over 50 seeds at these settings, types alive at generation 30 (median, range): '+MODES.map(m=>NAME[m]+' '+ref.alive_at_G_50_seeds[m].median+' ('+ref.alive_at_G_50_seeds[m].min+' to '+ref.alive_at_G_50_seeds[m].max+')').join('; ')+'. <span class="meas">measured</span>'}
   compute();
-  A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:R.m.length,draw:drawStep,ms:350,label:'Generation'});
+  // a widget the reader drives (the long-replay rule: 31 generations, the outcome is the point): no autoplay, opens on the last generation; Fig. 4 is the explained animation
+  A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:R.m.length,draw:drawStep,ms:350,label:'Generation',auto:false,start:R.m.length-1});
   parity(params());
   RD.seg($('sc-mode'),m=>{mode=m;rebuild()});
   ['sc-n','sc-s','sc-pi','sc-g','sc-seed'].forEach(id=>$(id).addEventListener('change',rebuild));

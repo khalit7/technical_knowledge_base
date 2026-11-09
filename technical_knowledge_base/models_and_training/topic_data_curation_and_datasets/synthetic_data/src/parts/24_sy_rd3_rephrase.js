@@ -31,8 +31,9 @@
     $('re-wr-a').innerHTML=s.K.html;$('re-wr-al').textContent='Rewritten: '+SN[st];
     $('re-wr-cap').innerHTML='<div class="t">'+SN[st]+'</div>Prompt: '+esc(PR[st]);
     $('re-wr-cnt').innerHTML=RD.stat('After / before',s.ratio.toFixed(2),s.aw+' / '+s.bw+' words')+RD.stat('Copied phrasing',pct(s.copied),'words in copied 4-grams')+RD.stat('Numbers kept',pct(s.num),s.nn+' in source')+RD.stat('Names kept',pct(s.names),s.nc+' in source')+RD.stat('Tokens generated',r.completion_tokens||'n/a',(r.seconds||0).toFixed(0)+' s'+(GPU?', GPU, 4 requests at once':' on CPU'))}
-  const A=RD.anim({card:'re-wr',ctl:'re-wr-ctl',n:5,draw:step,ms:3200,label:'Style'});
-  RD.seg($('re-wr-doc'),m=>{di=+m;A.go(0)});
+  // a viewer the reader drives (no autoplay): it opens on Easy; Fig. 2 above is the explained animation of the same rewrites
+  const A=RD.anim({card:'re-wr',ctl:'re-wr-ctl',n:5,draw:step,ms:3200,label:'Style',auto:false,start:1});
+  RD.seg($('re-wr-doc'),m=>{di=+m;A.go(1,true)});
   // per-style table over the rows shown
   $('re-wr-tab').innerHTML='<thead><tr><th>Style</th><th class="num">After / before</th><th class="num">Copied phrasing</th><th class="num">Numbers kept</th><th class="num">Names kept</th><th class="num">Opens with Markdown</th></tr></thead><tbody>'+
     STY.map(st=>{const rs=R.filter(r=>r.style===st),ss=rs.map(r=>stats(r.source,r.output));const avg=f=>{const v=ss.map(f).filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
