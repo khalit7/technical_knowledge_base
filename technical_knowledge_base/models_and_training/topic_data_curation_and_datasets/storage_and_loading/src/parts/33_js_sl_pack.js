@@ -1,4 +1,4 @@
-// ---- Packing lab: pad, truncate, concatenate, best-fit decreasing (same rules as src/scripts/packing.py) ----
+// ---- Packing tool (section 6): pad, truncate, concatenate, best-fit decreasing (same rules as src/scripts/packing.py) ----
 window.SLPACK=(function(){
   // each strategy returns placements in placement order: [win, doc, start_in_doc, len, cut] plus window count
   function pad(lens,L){const pl=[];let w=0;lens.forEach((n,d)=>{if(!n)return;let s=0;while(s<n){const t=Math.min(L,n-s);pl.push([w++,d,s,t,s+t<n||s>0]);s+=t}});return {pl,W:w,eos:false}}
@@ -38,10 +38,8 @@ window.SLPACK=(function(){
       if(p[4])body+='<rect x="'+(p[2]>0?x:x+w-3).toFixed(1)+'" y="'+y+'" width="3" height="'+rowH+'" fill="var(--bad)"/>'});
     body+='<rect x="'+lab+'" y="'+(sel*(rowH+4)+3)+'" width="'+(L*sx).toFixed(1)+'" height="'+(rowH+2)+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';
     $('sl-p-plot').innerHTML=RD.svg(W,r.W*(rowH+4)+8,body,'Windows');
-    const fin=i>=r.pl.length;
-    const p=shown[shown.length-1];
-    $('sl-p-cap').innerHTML=i===0?'<b>'+NAMES[S]+', L = '+U.f0(L)+'.</b> '+({pad:'Each document gets its own window(s); the rest is padding.',trunc:'One window per document; anything past L is thrown away.',concat:'Documents are laid end to end, each followed by an end-of-document token, and cut every L tokens.',bfd:'Documents longer than L are split into L-sized pieces first; then pieces are placed longest first, each into the window with the least room that still fits it (Best-Fit Decreasing).'})[S]+' Press play or step.':
-      (fin?'<b>Done.</b> ':'')+'Placed document '+(p[1]+1)+' ('+U.f0(demo[p[1]]+(r.eos?1:0))+' tokens'+(p[2]>0||p[3]<demo[p[1]]+(r.eos?1:0)?', piece from token '+U.f0(p[2])+' of length '+U.f0(p[3]):'')+') in window '+(p[0]+1)+'.'+(p[4]?' This document is cut.':'');
+        $('sl-p-cap').innerHTML='<b>'+NAMES[S]+', L = '+U.f0(L)+'.</b> '+({pad:'Each document gets its own window(s); the rest is padding.',trunc:'One window per document; anything past L is thrown away.',concat:'Documents are laid end to end, each followed by an end-of-document token, and cut every L tokens.',bfd:'Documents longer than L are split into L-sized pieces first; then pieces are placed longest first, each into the window with the least room that still fits it (Best-Fit Decreasing).'})[S]+' Click a window to see its attention.';
+    const fin=true;
     const fs=P.stats(r,demo,L);
     $('sl-p-out').innerHTML=RD.stat('Windows',String(fin?fs.windows:nW),'for 12 documents')+RD.stat('Real tokens',fin?U.pc(fs.fill):'...','of window positions')+RD.stat('Documents cut',fin?String(fs.docs_cut):'...','or truncated')+
       RD.stat('Cross-document pairs',fin?(mask&&(S==='concat'||S==='bfd')?'0 (masked, was '+U.pc(fs.cross,0)+')':U.pc(fs.cross,0)):'...','of causal attention pairs');
@@ -57,9 +55,10 @@ window.SLPACK=(function(){
     el.innerHTML=RD.svg(Wd,sz+20,body,'Attention pattern of one window');
     const tot=m*(m+1)/2,same=segs.reduce((a,p)=>a+p[3]*(p[3]+1)/2,0);
     $('sl-p-attcap').innerHTML='<b>Window '+(w+1)+'</b> (final layout): '+segs.length+' piece'+(segs.length>1?'s':'')+', '+U.f0(m)+' real tokens. Rows are queries, columns keys (to scale, L = '+U.f0(L)+'); coloured triangles are attention within a document, red blocks attention across documents'+(mask?' (dashed: removed by the document mask)':'')+', grey is padding. Cross-document pairs: '+(tot?U.pc((tot-same)/tot,0):'0%')+(mask&&tot>same?', all masked':'')+'. Click another window above.'}
-  const A=RD.anim({card:'sl-p-card',ctl:'sl-p-ctl',n:run().pl.length+1,ms:700,label:'Placement',draw});
+  // 2026-11-09: a widget the reader drives (strategy, L, mask, a window); the step-by-step story is the 3D stage beside section 6 (29_js_sc_pack.js)
+  run();const A={redraw(){draw(cur.pl.length)},reset(){run();draw(cur.pl.length)}};
   $('sl-p-plot').addEventListener('click',e=>{const t=e.target.closest('[data-w]');if(!t)return;sel=+t.dataset.w;A.redraw()});
-  function restart(){sel=0;A.reset(run().pl.length+1);table()}
+  function restart(){sel=0;A.reset();table()}
   RD.seg($('sl-p-s'),v=>{S=v;restart()});RD.seg($('sl-p-l'),v=>{L=+v;restart()});$('sl-p-mask').addEventListener('change',e=>{mask=e.target.checked;A.redraw();table()});
   function table(){const rows=['pad','trunc','concat','bfd'].map(k=>[k,P.stats(P[k](lens,L),lens,L)]);
     $('sl-p-tbl').innerHTML='<tr><th>Strategy</th><th class="num">Windows</th><th class="num">Real tokens</th><th class="num">Tokens thrown away</th><th class="num">Documents cut</th><th class="num">Cross-document pairs</th><th class="num">Tokens without their document start</th></tr>'+
@@ -77,5 +76,5 @@ window.SLPACK=(function(){
     const xL=10+(Math.log10(L)-lo)/(hi-lo)*(W-20);body+='<line x1="'+xL.toFixed(1)+'" x2="'+xL.toFixed(1)+'" y1="6" y2="'+(H-20)+'" stroke="var(--bad)" stroke-width="2"/>'+RD.t(xL+(xL>W-90?-4:4),16,'L = '+U.f0(L),{fs:11,fill:'var(--bad)',a:xL>W-90?'end':null});
     [10,100,1000,10000].forEach(v=>{const x=10+(Math.log10(v)-lo)/(hi-lo)*(W-20);body+=RD.t(x,H-6,U.f0(v),{fs:10,a:'middle',fill:'var(--mute)'})});
     el.innerHTML=RD.svg(W,H,body,'Length histogram')}
-  RD.onRender(()=>{A.redraw();table()});RD.onResize(()=>{A.redraw();hist()});table();
+  RD.onRender(()=>{A.redraw();table()});RD.onResize(()=>{A.redraw();hist()});A.redraw();table();
 })();

@@ -1,16 +1,25 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-pack"></div></div><div class="s3L">
 <section id="sl-s7">
 <h2>6. Packing documents into windows, and their boundaries</h2>
-<p>A GPU trains on rectangles: a batch of sequences of one <dfn>context length</dfn> L. Documents are not that shape: in our sample the median is 466 Qwen3 tokens and the 90th percentile 1,386. Four ways to fill the windows, measured on the same 2,000 documents at L = 2,048 <span class="sl-lbl meas">measured</span>:</p>
-<ul>
-<li><b>Pad</b>: one document per window, the rest padding masked out of the loss: 2,143 windows, 67.6% of positions wasted (padding to the batch's longest sequence, as fine-tuning code does, helps a little).</li>
-<li><b>Truncate</b>: one window per document, long tails thrown away: 12.4% of all tokens lost, padding as before.</li>
-<li><b>Concatenate and chunk</b> ("packing" in most code: GPT-3, nanoGPT, Megatron's default): join with EOD tokens, cut every L. 696 windows, 99.95% real tokens; but 605 of the 2,000 documents are cut, and tokens attend to the previous, unrelated document.</li>
-<li><b>Best-fit packing</b> ({{Ding et al. 2024|https://arxiv.org/abs/2404.10830}}): split only documents longer than L, then place pieces longest first into the window with the least room that fits (Best-Fit Decreasing). 697 windows; only the 93 documents longer than 2,048 tokens are cut.</li>
-</ul>
+<p>A GPU trains on rectangles: a batch of sequences of one <dfn>context length</dfn> L. Documents are not that shape: in our sample the median is 466 Qwen3 tokens and the 90th percentile 1,386. Four ways to fill the windows, on the stage with the running example's first twelve documents at L = 2,048, and measured on all 2,000 at the same L <span class="sl-lbl meas">measured</span>:</p>
 <div class="sl-pred" id="sl-pq3"></div>
-<div class="card" id="sl-p-card">
-<h4>The same twelve documents, four ways: watch where the cuts (red) and the padding (grey) go</h4>
+<ol class="sx" id="sx-pack">
+<li><b>Twelve documents against one window.</b> Their real lengths run from 334 to 4,321 tokens; two (the 2nd and the 10th) are longer than L = 2,048 (the dashed outline).</li>
+<li><b>Pad.</b> One document per window, the rest padding masked out of the loss: the twelve need 15 windows (the two long ones are split) and 55.4% of positions are padding. On all 2,000 documents: 2,143 windows, 67.6% of positions wasted (padding to the batch's longest sequence, as fine-tuning code does, helps a little).</li>
+<li><b>Truncate.</b> One window per document, long tails thrown away: here 2,273 and 23 tokens, 16.8% of the twelve documents' tokens; 12.4% of all tokens lost on the 2,000, padding as before.</li>
+<li><b>Concatenate and chunk</b> ("packing" in most code: GPT-3, nanoGPT, Megatron's default). Join with EOD tokens (black), cut every L: 7 windows, 95.6% real tokens, but 5 of the 12 documents are cut (red). On the 2,000: 696 windows, 99.95% real tokens; but 605 of the 2,000 documents are cut, and tokens attend to the previous, unrelated document.</li>
+<li><b>Best-fit packing</b> ({{Ding et al. 2024|https://arxiv.org/abs/2404.10830}}). Split only documents longer than L, then place pieces longest first into the window with the least room that fits (Best-Fit Decreasing): the same 7 windows, and only the 2 long documents are cut. On the 2,000: 697 windows; only the 93 documents longer than 2,048 tokens are cut.</li>
+<li><b>Boundaries in attention.</b> Concatenation's fourth window holds five pieces of five documents. Behind it, its causal attention (query position along the window, key position up): coloured triangles are attention within a document, red blocks attention across documents, 77% of this window's pairs. A document mask removes the red blocks.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p><b>Document boundaries in attention.</b> With several documents in a window, either every token attends to everything before it (cheap, the standard GPT-3 setup), or a <dfn>document mask</dfn> lets a token attend only to earlier tokens of its own document, usually with position ids restarting at each document. On our windows, 53% of the (query, key) pairs a causal model computes cross a document boundary at L = 2,048, and 81% at 8,192 <span class="sl-lbl meas">measured</span>. A document mask removes them, and a variable-length attention kernel (FlashAttention's varlen interface, PyTorch's FlexAttention with a document mask) also skips their compute. Megatron exposes this as <code>reset_attention_mask</code> and <code>reset_position_ids</code> (<code>gpt_dataset.py</code> lines 800-860); datatrove's dataset returns per-document positions from the <code>.index</code> file (<code>utils/dataset.py</code> lines 70-127).</p>
+<p class="small mute">"Cross-document pairs": the share of causal (query, key) pairs whose query and key belong to different documents. Masked, they are excluded; with a variable-length kernel the same share is the attention-score work saved (the rest of the model's FLOPs are unchanged). Truncation and padding have none, at the cost in the table below.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="sl-p-card">
+<h4>The same twelve documents at any L: where the cuts (red) and the padding (grey) go</h4>
 <div class="ctl">
 <label>Strategy<div class="seg" id="sl-p-s"><button data-m="pad">Pad</button><button data-m="trunc">Truncate</button><button data-m="concat" class="on">Concatenate</button><button data-m="bfd">Best-fit packing</button></div></label>
 <label>Context length L<div class="seg" id="sl-p-l"><button data-m="1024">1,024</button><button data-m="2048" class="on">2,048</button><button data-m="4096">4,096</button><button data-m="8192">8,192</button></div></label>
@@ -19,16 +28,14 @@
 <div class="sl-cap" id="sl-p-cap"></div>
 <div class="sl-plot" id="sl-p-plot"></div>
 <div class="out" id="sl-p-out"></div>
-<div id="sl-p-ctl" class="an-ctl"></div>
 <div class="sl-leg"><span><i style="background:var(--c1)"></i>document tokens (colour = document)</span><span><i style="background:var(--dim)"></i>padding</span><span><i style="background:var(--bad)"></i>cut: the document continues in another window, or is thrown away</span></div>
-<p class="small mute">Real lengths of the running example's first twelve documents (Qwen3 tokens, plus one EOD each when packed). Step through the placement, then click a window to see its attention below.</p>
+<p class="small mute">Real lengths of the running example's first twelve documents (Qwen3 tokens, plus one EOD each when packed). Pick a strategy and L; click a window to see its attention below.</p>
 </div>
-<p><b>Document boundaries in attention.</b> With several documents in a window, either every token attends to everything before it (cheap, the standard GPT-3 setup), or a <dfn>document mask</dfn> lets a token attend only to earlier tokens of its own document, usually with position ids restarting at each document. On our windows, 53% of the (query, key) pairs a causal model computes cross a document boundary at L = 2,048, and 81% at 8,192 <span class="sl-lbl meas">measured</span>. A document mask removes them, and a variable-length attention kernel (FlashAttention's varlen interface, PyTorch's FlexAttention with a document mask) also skips their compute. Megatron exposes this as <code>reset_attention_mask</code> and <code>reset_position_ids</code> (<code>gpt_dataset.py</code> lines 800-860); datatrove's dataset returns per-document positions from the <code>.index</code> file (<code>utils/dataset.py</code> lines 70-127).</p>
 <div class="card"><div class="small" id="sl-p-attcap"></div><div class="sl-plot" id="sl-p-att"></div>
-<p class="small mute">"Cross-document pairs": the share of causal (query, key) pairs whose query and key belong to different documents. Masked, they are excluded; with a variable-length kernel the same share is the attention-score work saved (the rest of the model's FLOPs are unchanged). Truncation and padding have none, at the cost in the table below.</p></div>
+</div></div></div></div>
 <div class="tw"><table id="sl-p-tbl"></table></div>
 <p class="small mute">All 2,000 documents at the chosen L, computed live by the code that drives the animation and checked against <code>src/scripts/packing.py</code> at every L: <span id="sl-p-chk"></span></p>
-<div class="card"><h4>Most documents are far shorter than any window; a few are longer</h4><div class="sl-plot" id="sl-p-hist"></div><p class="small mute">Lengths of the 2,000 documents (Qwen3 tokens, log scale), with L marked; it moves with the L buttons above.</p></div>
+<div class="s3sp"><div class="s3L">
 <p><b>What the evidence says</b> <span class="sl-lbl pub">published</span>. Llama 3: "We use an attention mask that prevents self-attention between different documents within the same sequence. We find that this change had limited impact during in standard pre-training, but find it to be important in continued pre-training on very long sequences" ({{Llama 3 paper, section 3.2|https://arxiv.org/abs/2407.21783}}). Ding et al. (LLaMA-architecture 7B and 13B models) report gains from best-fit packing of +4.7% on reading comprehension, +16.8% on context following and +9.2% on program synthesis, and up to 58.3% less closed-domain hallucination. The gains are small to moderate for short web documents at 2k to 8k windows and grow with long contexts and data where whole documents matter (code files, long articles, instruction data); the waste of padding always matters. Sequence-length schedules and long-context stages are on {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}.</p>
 <details class="dp"><summary>The evidence in detail, and the strategies at 50,000 documents <span class="mute">(depth)</span></summary><div class="b">
 <ul>
@@ -39,13 +46,23 @@
 <div class="tw"><table id="sl-p-tbl50"></table></div>
 <p class="small mute">From <code>src/scripts/packing.py</code> on the first 50,000 rows of the setup's random FineWeb sample (37.6M Qwen3 tokens) at the L chosen above <span class="sl-lbl meas">measured</span>. With more documents best-fit packing finds better fits: its extra windows over concatenation fall from 0.14% (2,000 documents, L = 2,048) to 0.06%; Ding et al. report at most 0.01% on RefinedWeb and The Stack at their scale.</p>
 </div></details>
-</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Most documents are far shorter than any window; a few are longer</h4><div class="sl-plot" id="sl-p-hist"></div><p class="small mute">Lengths of the 2,000 documents (Qwen3 tokens, log scale), with L marked; it moves with the L buttons above.</p></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-shard"></div></div><div class="s3L">
 <section id="sl-s8">
 <h2>7. Sharding: splitting the data across files, ranks and workers</h2>
 <p>Nothing at this scale is one file: writers run in parallel (one output shard per pipeline task), each data-parallel <dfn>rank</dfn> reads different data with several loader <dfn>worker</dfn> processes, a failed task redoes one shard, and object stores serve many medium-sized objects better than one huge one. Data reaches the ranks in one of two ways:</p>
-<div class="card"><h4>Index-based loaders ignore shard boundaries; shard-based loaders need at least ranks × workers shards</h4><div class="rd-svg" id="sl-shard"></div>
-<p class="small"><b>Index-based</b> (Megatron, MosaicML Streaming, map-style PyTorch datasets with a <code>DistributedSampler</code>): every rank computes the same global sample order from the seed and takes its own slice of each global batch. <b>Shard-based</b> (WebDataset, Hugging Face streaming <code>IterableDataset</code>): shards are dealt to ranks, then to each rank's workers; dealt round robin, 11 shards over 2 ranks × 4 workers leave 3 workers reading a second shard while the other 5 sit idle <span class="sl-lbl ill">illustrative</span>. Keep the shard count a multiple of ranks × workers. Hugging Face's <code>split_dataset_by_node</code> assigns whole shards only when <code>num_shards</code> is a multiple of the world size; otherwise "each node keeps 1 example out of <code>world_size</code>, skipping the other examples", so every node reads every shard (<code>distributed.py</code> lines 21-23, datasets 5.0.1).</p></div>
+<ol class="sx" id="sx-shard">
+<li><b>Eleven shard files.</b> As in the shuffle experiment of section 8; any count works the same way.</li>
+<li><b>Shard-based: dealt to ranks.</b> WebDataset and Hugging Face streaming <code>IterableDataset</code> deal shards to ranks round robin: rank 0 gets s0, s2, ... s10 (six), rank 1 gets the odd five.</li>
+<li><b>Then to each rank's workers.</b> Each rank deals its shards on to its 4 loader workers; in the first round all 8 workers read one shard each.</li>
+<li><b>The second round.</b> Only three shards are left (s8, s9, s10): 3 workers read a second shard while the other 5 sit idle <span class="sl-lbl ill">illustrative</span>. Keep the shard count a multiple of ranks × workers (16 here) so every worker always has one.</li>
+<li><b>Index-based: one seeded order.</b> Megatron, MosaicML Streaming and map-style PyTorch datasets with a <code>DistributedSampler</code> ignore shard boundaries: every rank computes the same global sample order from the seed and takes its own slice of each global batch (the 16-sample order drawn is illustrative).</li>
+<li><b>The fallback that reads everything.</b> Hugging Face's <code>split_dataset_by_node</code> assigns whole shards only when <code>num_shards</code> is a multiple of the world size; otherwise "each node keeps 1 example out of <code>world_size</code>, skipping the other examples", so every node reads every shard (<code>distributed.py</code> lines 21-23, datasets 5.0.1).</li>
+</ol>
+
 <div class="co warn"><div class="t">A version-specific trap, measured</div>With <code>datasets</code> 5.0.1, our 11-file streaming dataset reports <code>num_shards = 11</code>, but after <code>.shuffle(seed, buffer_size)</code> it reports 1: the new shuffle reads up to <code>max_buffer_input_shards</code> = 10 shard groups round robin into the buffer (<code>iterable_dataset.py</code> lines 3738-3830), and the wrapper exposes the minimum shard count of its sources. A <code>DataLoader</code> with 4 workers then warns "Too many dataloader workers: 4 (max is dataset.num_shards=1). Stopping 3 dataloader workers." and runs on one. Passing <code>max_buffer_input_shards=1</code> restores 11 shards (and the older shuffle). Print <code>num_shards</code> after every transformation.</div>
 <p><b>How big.</b> Large enough that per-request latency and per-file overhead vanish, small enough that a worker starts quickly and a shuffle has many units to permute: tens of megabytes to a few gigabytes. MosaicML Streaming's default <code>size_limit</code> is 64 MiB; FineWeb's Parquet files are about 2 GB, with 2 MB row groups as the real reading unit. <b>A few hundred MB is the usual middle</b>: enough shards that every rank's loader workers read in parallel (at least ranks &times; workers of them, above), and small enough that a crashed job or a failed writer task redoes or resumes from one shard rather than a whole file.</p>
 </section>
+</div></div>

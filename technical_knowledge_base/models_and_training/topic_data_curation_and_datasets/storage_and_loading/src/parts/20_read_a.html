@@ -1,12 +1,19 @@
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav"><a href="#sl-s0">The idea</a><a href="#sl-s1">Two lives</a><a href="#sl-s2">Compression</a><a href="#sl-s3">Parquet and Arrow</a><a href="#sl-s4">Shard formats</a><a href="#sl-s5">Token files</a><a href="#sl-s7">Packing</a><a href="#sl-s8">Sharding</a><a href="#sl-s9">Shuffling</a><a href="#sl-s10">Streaming</a><a href="#sl-s11">Loaders</a><a href="#sl-s12">Resuming</a><a href="#sl-s13">Cost model</a><a href="#sl-s15">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="sl-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Keep the corpus twice: <b>documents</b>, compressed, for people and pipelines, and <b>tokens</b>, as flat fixed-width arrays the GPU can slice; then make the training order <span class="hl">a pure function of (seed, samples consumed)</span>, so every rank gets packed, well-mixed windows and a restart continues at exactly the next sample.</p>
-<div class="hero" id="sl-hero-card"><h4>From curated documents to a GPU batch: what each stage stores, per token</h4>
-<div class="rd-svg" id="sl-hero"></div>
-<p class="small" id="sl-hero-cap">Bars are bytes per Qwen3 token to scale, measured on 2,000 FineWeb documents (the uint16 bar is per GPT-2 token) <span class="sl-lbl meas">measured</span>. Documents shrink to about 1.9 bytes per token compressed; token files are exactly 2 or 4. Everything below the token file is computed, not stored: <span class="hl">the order</span> comes from the seed, and the checkpoint only needs the number of samples consumed.</p></div>
+<p class="sxh">From curated documents to a GPU batch: what each stage stores, per token</p>
+<ol class="sx" id="sx-hero">
+<li><b>Documents, compressed.</b> The same 2,000 FineWeb documents take 4.78 bytes per Qwen3 token as bare UTF-8 text and 5.41 as JSON Lines with their metadata; compressed with zstd at level 3 they shrink to 1.93 as JSONL and 1.89 as Parquet <span class="sl-lbl meas">measured</span>. These are kept: people and later pipeline runs read them.</li>
+<li><b>Tokenize once, offline.</b> A CPU job turns the documents into a token file: ids back to back, an end-of-document id after each, exactly 4 bytes per token as uint32 Qwen3 ids (4.01 with its index) or 2 as uint16 GPT-2 ids (2.01). Drawn: the first nine documents' real lengths, to scale.</li>
+<li><b>The order is computed, not stored.</b> From a seed, three small index arrays decide which slices of the token file become samples and in which order (section 5).</li>
+<li><b>Each rank takes its slice.</b> Every data-parallel rank computes the same order and reads its own part of each global batch, packed into fixed windows (section 6) and fetched ahead of the GPU (section 10). Four ranks are drawn.</li>
+<li><b>The checkpoint saves one integer.</b> The samples consumed (640 in the resume runs of section 11): a restart rebuilds the same indices from the seed and continues at exactly the next sample.</li>
+</ol>
+<p class="small mute">Bars to scale (the uint16 bar per GPT-2 token): documents shrink to about 1.9 bytes per token compressed, token files are exactly 2 or 4, and after the token file nothing is stored: <span class="hl">the order</span> comes from the seed, and the checkpoint only needs the number of samples consumed.</p>
 <p><b>You need:</b> what token ids are ({{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}) and what a data-parallel rank is ({{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}). Memory mapping and the page cache are on {{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}; object stores and parallel file systems on {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}}. This page owns the formats and the loaders.</p>
 <dl class="terms">
 <dt>Shard</dt><dd>one file of a dataset split into many; the unit a writer produces and a reader is handed.</dd>
@@ -31,6 +38,7 @@
 <p class="small mute">The root page's {{Tool map|n:3c65c17b0d0d811fa5ecda8d365ab00f}} tab ("Storage and loading") introduced the first rows on the same 2,000 documents; every number it shows is reproduced here byte for byte (<code>src/scripts/formats.py</code> asserts it). Labels used on this page: <span class="sl-lbl pub">published</span> a paper's, vendor's or library's own number; <span class="sl-lbl der">derived</span> computed here, formula shown; <span class="sl-lbl meas">measured</span> deterministic results (bytes, counts, orders) that reproduce anywhere with the same inputs; <span class="sl-lbl rough">rough</span> timings on a shared machine at low priority with at most 4 threads, good for ratios, not absolute speeds; <span class="sl-lbl ill">illustrative</span> made-up inputs that teach a mechanism. Versions: pyarrow 26.0.0, zstandard 0.25.0, webdataset 1.0.2, mosaicml-streaming 0.13.0, pylance 13.0.0, datasets 5.0.1, torch 2.14.1, torchdata 0.11.0.</p>
 </div></details>
 </section>
+</div></div>
 
 <section id="sl-s1">
 <h2>1. The two lives of a corpus</h2>
@@ -41,11 +49,12 @@
 <div class="co key"><div class="t">Rule of thumb</div>English web text is about 4.8 bytes of UTF-8 per token with a modern 150k vocabulary, about 1.9 bytes per token compressed, and exactly 2 or 4 bytes per token as a training array. A trillion training tokens is about 2 TB (vocabulary under 65,536) or 4 TB of token files, and roughly the same again for the compressed documents kept beside them.</div>
 </section>
 
-<section id="sl-s2">
+<div class="s3sp"><div class="s3L"><section id="sl-s2">
 <h2>2. Documents on disk: JSON Lines and compression</h2>
 <p><dfn>JSON Lines</dfn> (JSONL) is one JSON object per line, <code>{"text": "...", "url": "...", "language_score": 0.93, ...}</code>: any language reads it, a broken line breaks one record, files concatenate with <code>cat</code>. The 2,000 documents take 7.70 MB, 6.80 MB of it the text and the rest keys and metadata repeated on every line. A compressor replaces repeated byte sequences with references to earlier ones: <dfn>gzip</dfn> (DEFLATE, {{RFC 1951 and 1952|https://www.rfc-editor.org/rfc/rfc1952}}, levels 1 to 9) or <dfn>zstd</dfn> (Zstandard, open-sourced by Facebook in 2016, {{RFC 8878|https://www.rfc-editor.org/rfc/rfc8878}}, levels 1 to 22), which compresses better at the same speed and decompresses several times faster (the {{zstd README benchmark|https://github.com/facebook/zstd#benchmarks}} <span class="sl-lbl pub">published</span>, vendor). The level trades write time for size; read speed barely depends on it, so data written once and read many times can afford a high level.</p>
 <div class="sl-pred" id="sl-pq1"></div>
-<div class="card"><h4>zstd keeps shrinking with level; gzip stops at level 6</h4><div id="sl-cmp"></div>
-<p class="small mute">Bytes on disk for the same 2,000 documents <span class="sl-lbl meas">measured</span>, <code>src/scripts/formats.py</code>; gzip from Python's <code>gzip</code> module, zstd from <code>zstandard</code> 0.25.0. Read speeds of every format are in the {{Format comparer|#t-fmt}}.</p></div>
+
 <p><b>The catch: no random access.</b> A gzip or zstd stream is one chain: to reach document 1,500 you decompress documents 1 to 1,499. Reading 200 random documents from the 2,000-document <code>.jsonl.zst</code> took about 1.8 s; the same 200 from the token file of section 5 about 5 ms <span class="sl-lbl rough">rough</span>. Fine for pipeline stages, which read files start to end; wrong for a training loader that wants sample 8,213,511 now. Corpora live with it by keeping files small (thousands per crawl) and converting to an indexed format before training.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>zstd keeps shrinking with level; gzip stops at level 6</h4><div id="sl-cmp"></div>
+<p class="small mute">Bytes on disk for the same 2,000 documents <span class="sl-lbl meas">measured</span>, <code>src/scripts/formats.py</code>; gzip from Python's <code>gzip</code> module, zstd from <code>zstandard</code> 0.25.0. Read speeds of every format are in the {{Format comparer|#t-fmt}}.</p></div></div></div></div>

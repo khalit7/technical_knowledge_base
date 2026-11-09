@@ -1,13 +1,15 @@
 
-<section id="sl-s11">
+<div class="s3sp"><div class="s3L"><section id="sl-s11">
 <h2>10. Data loaders: keeping the next batch ready</h2>
 <p>The <dfn>data loader</dfn> is the code in each training process that produces the next batch while the GPU computes on the current one. In PyTorch it is <code>torch.utils.data.DataLoader</code>: a dataset says how to get samples, by index (<i>map-style</i>, <code>__getitem__(i)</code>, with a sampler deciding the order) or as a stream (<i>iterable-style</i>, <code>__iter__</code>); <code>num_workers</code> separate processes fetch in parallel; each keeps <code>prefetch_factor</code> batches ready (2 by default); <code>pin_memory</code> puts them in page-locked memory so the copy to the GPU overlaps compute. The same idea one level up: a loader that fetches the next shard only when it needs it adds the fetch to every step; one that keeps the next shards in flight hides it, as long as fetching is faster than computing. How often it is not, measured on production training servers (Mohan et al.'s data stalls, VLDB 2021), and the page cache, readahead and memory mapping underneath, are {{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf#rd-s11}}, section 11.</p>
-<div class="card" id="sl-pf-card"><h4>Prefetching hides the fetch, until a fetch takes longer than a step</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="sl-pf-card"><h4>Prefetching hides the fetch, until a fetch takes longer than a step</h4>
 <div class="seg" id="sl-pf-st"><button data-m="s3" class="on">S3 store</button><button data-m="local">Docker volume</button><button data-m="model">Slower store (model)</button></div>
 <div class="ctl" id="sl-pf-mctl" hidden><label>Fetch time per shard: <b id="sl-pf-fv"></b> ms<input type="range" id="sl-pf-f" min="1" max="250" step="1" value="9" aria-label="Fetch time per shard in milliseconds"></label></div>
 <div class="rd-svg" id="sl-pf"></div>
 <p class="small" id="sl-pf-txt"></p>
-<p class="small mute">One 4 MiB token shard per step, 100 ms of compute per step (a sleep standing in for the GPU), 16 steps, median of 3 runs; measured in the ML infra topic's Storage lab, from one container to an S3-compatible store and to a Docker volume, and shown first on {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}} <span class="sl-lbl meas">measured</span>. The model mode assumes one fetch at a time in the background: a step takes fetch + compute without prefetch, and max(fetch, compute) with it <span class="sl-lbl ill">illustrative</span>; at 9 ms it lands within 1.3% of both measured S3 totals.</p></div>
+<p class="small mute">One 4 MiB token shard per step, 100 ms of compute per step (a sleep standing in for the GPU), 16 steps, median of 3 runs; measured in the ML infra topic's Storage lab, from one container to an S3-compatible store and to a Docker volume, and shown first on {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}} <span class="sl-lbl meas">measured</span>. The model mode assumes one fetch at a time in the background: a step takes fetch + compute without prefetch, and max(fetch, compute) with it <span class="sl-lbl ill">illustrative</span>; at 9 ms it lands within 1.3% of both measured S3 totals.</p></div></div></div></div>
+<div>
 <p><b>The iterable-dataset worker trap.</b> With an iterable dataset every worker process runs <code>__iter__</code> from the start; unless the dataset asks which worker it is and takes its share, each sample comes out once per worker. Run here, with real output:</p>
 <pre class="sl-code">class Naive(IterableDataset):
     def __iter__(self): return iter(range(1000))
@@ -22,15 +24,18 @@ for D in (Naive, Sharded):
 <p class="small mute"><code>src/scripts/resume.py</code>, torch 2.14.1, CPU <span class="sl-lbl meas">measured</span>: Naive yields 4,000 samples, 1,000 distinct. Libraries that stream shards (Hugging Face <code>datasets</code>, WebDataset, MosaicML Streaming) split by shard for you; your own iterable dataset must, by worker and by rank.</p>
 <p><b>How fast does a loader need to be?</b> Much less than people expect for text. Reading 8 × 2,048-token windows from a memory-mapped token file, the nanoGPT way, ran at about 48M tokens per second in one process; a map-style dataset through a <code>DataLoader</code> at about 5M tokens per second with no workers and about 49M with 4 <span class="sl-lbl rough">rough</span>, file in the page cache. One H100 training a 1B-parameter model at 40% utilisation consumes about 66,000 tokens per second (section 12). The loader becomes the bottleneck when it does real work per sample (tokenizing online, decoding images or video, heavy augmentation), when the file is remote and nothing prefetches it, or at start-up, when every rank opens files and builds indices before the first step. Seeing a data-bound step in a profiler trace, and the worker settings that fix it, is on {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}} (section 4).</p>
 <p><b>Mixing at load time.</b> With several token files mixed by weight (web, code, maths) the loader also picks the source of each sample. Megatron's <code>BlendedDataset</code> precomputes which dataset and which sample with a deterministic error-driven rule and caches them like the other indices, so resuming still needs only the samples consumed; Hugging Face's <code>interleave_datasets</code> samples at random, and its <code>stopping_strategy</code> ("first_exhausted" or "all_exhausted") silently changes how often small sources repeat. Both are taught, with the blending rule animated, on {{Data mixing|n:3c65c17b0d0d819ea5d6c59471e66875}}.</p>
-</section>
+</div>
 
 <section id="sl-s12">
 <h2>11. Checkpointing the data state and resuming mid-epoch</h2>
 <p>Large runs stop all the time: Llama 3 405B's pretraining saw 466 job interruptions in a 54-day snapshot, 419 of them unexpected, about 78% from confirmed or suspected hardware ({{Llama 3, section 3.3.4|https://arxiv.org/abs/2407.21783}} <span class="sl-lbl pub">published</span>), more than 8 a day. Each restart reloads the model and optimiser; if the loader cannot also return to the exact next sample, the run silently trains on some data twice and some not at all, and two runs from the same checkpoint differ.</p>
 <p><b>What the data state is.</b> For an index-based loader, one integer: the samples consumed (plus the seed and the configuration that built the indices, which do not change). Megatron's sampler literally starts at it: <code>for idx in range(self.consumed_samples, self.total_samples)</code> (<code>data_samplers.py</code> lines 190-198 at 80781ab). For a streaming loader with a shuffle buffer the state includes the buffer's contents, which are rarely saved. For a mixture with adaptive weights, also the weights and the sampler's random state. Each loader below read one epoch of the same 2,200 samples straight through, then again stopping after 20 batches (640 samples), saving the state the library offers, and resuming in a fresh loader <span class="sl-lbl meas">measured</span>:</p>
 <div class="tw"><table id="sl-restbl"></table></div>
+<div class="s3sp"><div class="s3L">
 <p class="small mute"><code>src/scripts/resume.py</code>; torch 2.14.1, torchdata 0.11.0, datasets 5.0.1, mosaicml-streaming 0.13.0. Restarting the epoch with the same seed reads the first 640 twice; with a new seed, 463 are read twice and 463 never. The Hugging Face documentation states the loss: "examples from shuffle buffers are lost when resuming and the buffers are refilled with new data" (<code>iterable_dataset.py</code> line 2566). Losing 1,000 of 2,200 is dramatic because the epoch is tiny; on a real run it is one buffer per worker per restart, small but not zero, and the order after the restart differs from an uninterrupted run: accept and log it, or use an index-based loader for pretraining.</p>
-<div class="card" id="sl-r-card">
+<p><b>How to check yours.</b> Run N batches straight; run k, save, restore, run N − k; compare the two lists of sample ids. It takes a minute to write for any loader; put it in CI.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="sl-r-card">
 <h4>Stop at k, resume: only the index-based loader puts every document back in its place</h4>
 <div class="ctl">
 <label>Loader<div class="seg" id="sl-r-m"><button data-m="index" class="on">Index + samples consumed</button><button data-m="restart">Restart the epoch</button><button data-m="buffer">Shuffle buffer, state without buffer</button></div></label>
@@ -39,18 +44,18 @@ for D in (Naive, Sharded):
 </div>
 <div class="sl-plot" id="sl-r-plot"></div><div class="out" id="sl-r-out"></div>
 <p class="small mute">Top: the order an uninterrupted run reads the 2,200 documents in. Bottom: stopped after k and resumed. Green: same document at the same position; yellow: read a second time; grey: right set, different order. Replayed by this page's JavaScript (a seeded buffer shuffle following the Hugging Face algorithm) <span class="sl-lbl ill">illustrative mirror</span>; it reproduces the measured counts: with a buffer of B not saved, exactly B documents are never read.</p>
-</div>
-<p><b>How to check yours.</b> Run N batches straight; run k, save, restore, run N − k; compare the two lists of sample ids. It takes a minute to write for any loader; put it in CI.</p>
+</div></div></div></div>
 </section>
 
-<section id="sl-s13">
+<div class="s3sp"><div class="s3L"><section id="sl-s13">
 <h2>12. The cost model: bytes per token, terabytes per trillion, megabytes per second</h2>
 <p>Three formulas cover the storage and bandwidth side of planning a run <span class="sl-lbl der">derived</span>:</p>
 <div class="fm"><div class="eq">tokens/s per GPU ≈ MFU × peak FLOP/s ÷ (6 × N)</div><dl><dt>N</dt><dd>model parameters (6N FLOPs per token for forward and backward, ignoring attention)</dd><dt>MFU</dt><dd>model FLOPs utilisation, the share of peak the run achieves (Llama 3 405B: 38-43%, Table 4)</dd></dl></div>
 <div class="fm"><div class="eq">loader bytes/s = tokens/s × bytes per token</div><dl><dt>bytes per token</dt><dd>2 (uint16) or 4 (uint32) for token files; about 1.9 for zstd JSONL plus tokenizer CPU</dd></dl></div>
 <div class="fm"><div class="eq">storage = training tokens × bytes per token</div><dl><dt>e.g.</dt><dd>15T tokens of uint32 ids = 60 TB; the same as uint16 = 30 TB</dd></dl></div>
 <p><b>Llama 3 405B as a check:</b> 16,384 GPUs at 400 TFLOP/s each (Table 4, 41% BF16 MFU) and N = 405B give 16,384 × 400 × 10<sup>12</sup> ÷ (6 × 405 × 10<sup>9</sup>) ≈ 2.7 million tokens per second for the whole job, about 165 per GPU. With 16M tokens per batch (Table 4) that is a step every 6.2 s, and about 11 MB/s of uint32 ids for 16,384 GPUs, against a storage fabric sustaining 2 TB/s. Data bandwidth for text pretraining is negligible; what costs is everything around it. Move the model, the GPUs and the format:</p>
-<div class="card" id="sl-c-card">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="sl-c-card">
 <h4>The whole job's loaders need megabytes per second; online tokenizing is what costs</h4>
 <div class="chips" id="sl-c-pre"></div>
 <div class="ctl">
@@ -66,5 +71,6 @@ for D in (Naive, Sharded):
 <div class="small mute">Bytes per second the whole job's loaders must deliver, against reference rates (log scale)</div><div class="sl-plot" id="sl-c-plot"></div>
 <p class="small mute" id="sl-c-res"></p>
 <p class="small mute">The Llama 3 preset reproduces the paper's 3.8 × 10<sup>25</sup> training FLOPs (6ND) independently from its N and D. Peaks: H100 SXM 989.5 and A100 312 TFLOP/s dense BF16 (NVIDIA datasheets, as recorded on {{Topic: hardware|n:3c65c17b0d0d8118beeefaed56da6f8e}}) <span class="sl-lbl pub">published</span>, vendor. Measured references are this machine's <span class="sl-lbl rough">rough</span> timings: one process reading random windows from a memory-mapped token file, and one CPU thread of the <code>tokenizers</code> library on FineWeb text. "zstd JSONL" uses 1.93 bytes per Qwen3 token, measured on the running example. The 6N approximation ignores attention, so long-context runs consume somewhat fewer tokens per second than shown.</p>
-</div>
-</section>
+</div></div></div></div>
+
+

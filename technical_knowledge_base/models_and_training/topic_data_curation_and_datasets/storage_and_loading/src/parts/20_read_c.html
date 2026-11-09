@@ -1,5 +1,5 @@
 
-<section id="sl-s5">
+<div class="s3sp"><div class="s3L"><section id="sl-s5">
 <h2>5. Token files: what a pretraining run actually reads</h2>
 <p><b>Tokenize once, offline.</b> Each document is independent, so pipelines run tokenizing as many CPU tasks, one per input file, each writing its own token shard (datatrove's <code>DocumentTokenizer</code>, Megatron's <code>tools/preprocess_data.py</code>). On this machine the Hugging Face <code>tokenizers</code> library encoded 50,000 FineWeb documents (37.6M Qwen3 tokens) at about 1.4M tokens per second on 4 threads and 0.49M tokens per second on one <span class="sl-lbl rough">rough</span>. 15 trillion tokens at 0.49M per core-second is about 8,500 core-hours <span class="sl-lbl der">derived</span> (3.1 × 10<sup>7</sup> core-seconds): an afternoon on a 2,000-core cluster, once, instead of every training node's CPUs for the whole run, tied to one tokenizer version.</p>
 <p><b>The layout.</b> Every document's ids go one after another into one binary file, each id a fixed-width integer, usually with an <dfn>end-of-document token</dfn> (EOD, for example <code>&lt;|endoftext|&gt;</code>) after each document; an <dfn>index</dfn> beside it records where each document ends. The file is memory-mapped, so <code>tokens[i : i + 2049]</code> costs one page-cache lookup, no parsing and no copy of the rest. Megatron's pair on our 2,000 documents: 5,730,606 bytes with Qwen3 ids (int32), 2,969,916 bytes with GPT-2 ids (uint16); the index is 40,042 bytes, 20 bytes per document <span class="sl-lbl meas">measured</span>, written byte for byte to Megatron's layout by <code>src/scripts/formats.py</code>. zstd saves less than you might hope on ids (uint32 Qwen3: 5.69 MB to 2.38 MB; uint16 GPT-2: 2.93 MB to 2.10 MB) and kills random access, so token files are stored raw.</p>
@@ -15,23 +15,34 @@
 </div></details>
 <div class="sl-pred" id="sl-pq2"></div>
 <div class="co warn"><div class="t">The 16-bit trap, measured</div>Qwen3's vocabulary has 151,669 entries, so its ids need 18 bits. In our 2,000 documents, 34,587 of 1,422,641 tokens (2.4%) have ids of 65,536 or more, and 1,942 documents (97%) contain at least one. Written as uint16, each such id silently becomes <code>id mod 65,536</code>, another real token. Nothing crashes; the model trains on corrupted text. datatrove's default <code>token_size=2</code> and nanoGPT's hard-coded uint16 both do this if you change the tokenizer and forget the width. Check: after writing, compare <code>max(ids)</code> with the vocabulary size and decode one document.</div>
-<div class="card"><h4>What the wrapped ids become</h4><div id="sl-wrap"></div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>What the wrapped ids become</h4><div id="sl-wrap"></div></div></div></div></div>
 
-<h3>From one token file to training samples: Megatron's three indices</h3>
-<p>Something must decide which slices become samples, in which order, for how many epochs. nanoGPT draws random start positions every step (<code>torch.randint(len(data) - block_size, ...)</code>, <code>train.py</code> lines 116-131): no epochs, and draws with replacement both repeat and miss text; after as many windows as would cover the file once, about e<sup>−1</sup> ≈ 36.8% of tokens has never been seen (simulated on a 50-million-token array: 36.8% <span class="sl-lbl der">derived</span>): fine for a toy, not for a run whose data budget is planned in epochs. Megatron-LM's <code>GPTDataset</code> instead builds three small arrays once, saves them as <code>.npy</code> files, and memory-maps them in every rank (<code>gpt_dataset.py</code> lines 475-660):</p>
-<ol>
-<li><b>document_index</b>: every document id once per epoch, all epochs shuffled together with <code>numpy.random.RandomState(seed)</code> (<code>_build_document_index</code>, lines 734-765).</li>
-<li><b>sample_index</b>: walks that order as one stream and records where every sample starts (document position, token offset); each sample is <code>sequence_length + 1</code> tokens, the extra one the last target (<code>helpers.cpp</code> <code>build_sample_idx</code>, lines 144-249).</li>
-<li><b>shuffle_index</b>: a permutation of the sample numbers, from the same random state (<code>_build_shuffle_index</code>).</li>
-</ol>
-<p>Sample <i>k</i> of the run is <code>shuffle_index[k]</code> → two rows of <code>sample_index</code> → a few slices of the token file. Everything is a function of the seed, so a restart needs only the samples consumed. Step through it on twelve real documents, then switch to nanoGPT and watch the coverage strip:</p>
-<div class="card" id="sl-meg">
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="sl-meg">
 <h4>The order is computed from the seed, so resuming needs one integer</h4>
 <div class="seg" id="sl-meg-seg"><button data-m="meg" class="on">Megatron: indexed epochs</button><button data-m="nano">nanoGPT: random offsets</button></div>
-<div class="sl-cap" id="sl-meg-cap"></div>
 <div class="sl-plot" id="sl-meg-plot"></div>
+<div class="small" id="sl-meg-live"></div>
 <div class="out" id="sl-meg-out"></div>
 <div id="sl-meg-ctl" class="an-ctl"></div>
-<p class="small mute">The first twelve documents of the running example (Qwen3 tokens plus one EOD); a 1,024-token window rather than a real 4,096 or 8,192 so the samples are visible, and 2 epochs <span class="sl-lbl ill">illustrative settings</span>. Indices from <code>src/scripts/megatron_demo.py</code>, a line-for-line port of the three functions above with <code>RandomState(1234)</code>; the random offsets from <code>torch.randint</code> with seed 1234, as nanoGPT draws them.</p>
-</div>
-</section>
+<p class="small mute">The first twelve documents of the running example (Qwen3 tokens plus one EOD); a 1,024-token window rather than a real 4,096 or 8,192 so the samples are visible, and 2 epochs <span class="sl-lbl ill">illustrative settings</span>. Indices from <code>src/scripts/megatron_demo.py</code>, a line-for-line port of the three functions on the left with <code>RandomState(1234)</code>; the random offsets from <code>torch.randint</code> with seed 1234, as nanoGPT draws them.</p>
+</div></div><div class="s3L">
+<h3>From one token file to training samples: Megatron's three indices</h3>
+<p>Something must decide which slices become samples, in which order, for how many epochs. nanoGPT draws random start positions every step (<code>torch.randint(len(data) - block_size, ...)</code>, <code>train.py</code> lines 116-131): no epochs, and draws with replacement both repeat and miss text; after as many windows as would cover the file once, about e<sup>−1</sup> ≈ 36.8% of tokens has never been seen (simulated on a 50-million-token array: 36.8% <span class="sl-lbl der">derived</span>): fine for a toy, not for a run whose data budget is planned in epochs. Megatron-LM's <code>GPTDataset</code> instead builds three small arrays once, saves them as <code>.npy</code> files, and memory-maps them in every rank (<code>gpt_dataset.py</code> lines 475-660). Sample <i>k</i> of the run is <code>shuffle_index[k]</code> → two rows of <code>sample_index</code> → a few slices of the token file. Everything is a function of the seed, so a restart needs only the samples consumed. On twelve real documents:</p>
+<ol class="sx" id="sx-meg">
+<li><b>The token file.</b> Twelve real documents of the running example in file order, to scale: 13,706 tokens including one end-of-document token each. Colour is the document.</li>
+<li><b>document_index.</b> Every document id once per epoch, all epochs shuffled together with <code>numpy.random.RandomState(seed)</code> (<code>_build_document_index</code>, lines 734-765): 24 entries for 2 epochs. Epochs mix: a document can come back before every other has been seen once.</li>
+<li><b>sample_index.</b> That order is walked as one stream of 27,412 tokens and cut every 1,024 tokens (the black ticks): 26 samples. Each row stores (position in document_index, offset inside that document); a sample reads <code>sequence_length + 1</code> = 1,025 tokens, the extra one the last target (<code>helpers.cpp</code> <code>build_sample_idx</code>, lines 144-249).</li>
+<li><b>shuffle_index, samples 1 to 9.</b> A permutation of the sample numbers from the same random state (<code>_build_shuffle_index</code>). The loader asks for sample <i>k</i> of the run, looks up <code>shuffle_index[k]</code>, then two rows of <code>sample_index</code>, and reads a few slices: the first, sample 22 of the stream, is one slice of document 9; the second, sample 21, spans documents 2, 11 and 9. Earlier samples stay dashed.</li>
+<li><b>Samples 10 to 18.</b> The reads jump around the stream; each touches one to three documents, never parsing anything.</li>
+<li><b>Samples 19 to 26.</b> Every sample of the stream is read once.</li>
+<li><b>Crash and resume.</b> All three arrays are a pure function of the seed and the data, cached as <code>.npy</code> files. After a crash at, say, sample 10, the checkpoint only needs <code>consumed_samples = 10</code>: the sampler restarts at <code>range(10, total)</code> and step 11 reads exactly what it would have read. Each copy of every document was read exactly once, except the final tail shorter than one sample (787 tokens), which is dropped.</li>
+</ol>
+<ol class="sx" id="sx-nano" hidden>
+<li><b>The same twelve documents, no index.</b> nanoGPT memory-maps the file and, every step, draws start positions with <code>torch.randint(len(data) - block_size, ...)</code>. The strip under each row shows how often each token has been read: red never, green once, yellow twice or more.</li>
+<li><b>Draws 1 to 7.</b> Windows start anywhere, ignore document starts and overlap earlier ones.</li>
+<li><b>Draws 8 to 13.</b> Thirteen windows, as many as fit in one epoch of these 13,706 tokens.</li>
+<li><b>After one epoch's worth of windows.</b> 41.7% of these tokens were never read and 24.8% were read twice or more. On a long file the never-read share tends to e<sup>−1</sup> ≈ 36.8%. Resuming needs the random generator's state, not just a counter.</li>
+</ol>
+</div></div>
+

@@ -1,4 +1,6 @@
-// ---- Reading section 5: Megatron's document, sample and shuffle indices against nanoGPT's random offsets ----
+// ---- Reading section 5: Megatron's document, sample and shuffle indices against nanoGPT's random offsets. 2026-11-09: the frames are grouped into
+// explained steps (the long-replay rule): the step lists sx-meg and sx-nano on the left explain them; a step that is a stretch of samples plays its
+// frames during the step (about 0.43 s each; the last frame at once under reduced motion or in a hidden tab). ----
 (function(){
   const M=SL.meg,U=SLU,$=U.$,card=$('sl-meg');if(!card)return;
   const SEQ=M.seq,sizes=M.sizes,DI=M.document_index,SI=M.sample_index,SH=M.shuffle_index,NS=M.num_samples,D=M.D;
@@ -28,7 +30,7 @@
     else if(i===1)cap='<b>document_index.</b> Every document appears once per epoch (2 epochs here), and all '+DI.length+' entries are shuffled together with <code>RandomState(1234)</code>. Note that epochs mix: a document can come back before every other has been seen once.';
     else if(i===2)cap='<b>sample_index.</b> The shuffled order is treated as one stream and cut every '+U.f0(SEQ)+' tokens (black ticks): '+NS+' samples. Each row of sample_index stores (position in document_index, offset inside that document) for one tick; a sample reads '+U.f0(SEQ+1)+' tokens, the last also being the first of the next.';
     else if(i<nSteps.meg-1){const smp=SH[cons],e=SI[smp],e2=SI[smp+1],docs=[];for(let p=e[0];p<=e2[0];p++)docs.push(DI[p]);
-      cap='<b>Step '+(cons+1)+':</b> the loader asks for sample '+cons+' of the run; <code>shuffle_index['+cons+'] = '+smp+'</code>; <code>sample_index['+smp+'] = ('+e[0]+', '+e[1]+')</code> to <code>('+e2[0]+', '+e2[1]+')</code>: it reads '+docs.length+' slice'+(docs.length>1?'s':'')+' from document'+(docs.length>1?'s ':' ')+docs.join(', ')+'. Earlier samples are dashed.'}
+      cap='Run sample '+cons+': <code>shuffle_index['+cons+'] = '+smp+'</code>; <code>sample_index['+smp+'] = ('+e[0]+', '+e[1]+')</code> to <code>('+e2[0]+', '+e2[1]+')</code>: it reads '+docs.length+' slice'+(docs.length>1?'s':'')+' from document'+(docs.length>1?'s ':' ')+docs.join(', ')+'.'}
     else cap='<b>Crash and resume.</b> All three arrays are a pure function of the seed and the data, cached as <code>.npy</code> files. After a crash at, say, sample 10, the checkpoint only needs <code>consumed_samples = 10</code>: the sampler restarts at <code>range(10, total)</code> and step 11 reads exactly what it would have read. Each of the two copies of every document was read exactly once, except the final tail shorter than one sample ('+U.f0(streamTok-spos(SI[NS])-1)+' tokens), which is dropped.';
     out=RD.stat('Samples consumed',i>=3?Math.min(cons+(i<nSteps.meg-1?1:0),NS)+' / '+NS:'0 / '+NS,'')+RD.stat('Epochs in the stream',String(M.epochs),U.f0(streamTok)+' tokens')+RD.stat('Sample length',U.f0(SEQ)+' + 1','tokens');
     return {body,H:L.H,cap,out}}
@@ -41,13 +43,22 @@
     let z=0,o=0,m=0;for(let j=0;j<nano.tokens;j++){if(cov[j]===0)z++;else if(cov[j]===1)o++;else m++}
     let cap;
     if(i===0)cap='<b>The same twelve documents, one epoch, no index.</b> nanoGPT memory-maps the file and, every step, draws start positions with <code>torch.randint(len(data) - block_size, ...)</code>. The strip under each row will show how often each token has been read: red never, green once, yellow twice or more.';
-    else if(i<=nano.samples)cap='<b>Draw '+k+' of '+nano.samples+'</b> (as many windows as fit in one epoch): start '+U.f0(nano.starts[k-1])+'. Windows ignore document starts and may overlap earlier ones.';
+    else if(i<=nano.samples)cap='Draw '+k+' of '+nano.samples+': the window starts at token '+U.f0(nano.starts[k-1])+'.';
     else cap='<b>After one epoch\'s worth of windows</b>, '+U.pc(nano.unseen_frac)+' of these tokens were never read and '+U.pc(nano.twice_or_more_frac)+' were read twice or more. On a long file the never-read share tends to e<sup>−1</sup> ≈ 36.8% (simulated on 50M tokens: '+U.pc(M.nanogpt_big.unseen_frac)+'). Resuming needs the random generator\'s state, not just a counter.';
     const out=RD.stat('Never read',U.pc(z/nano.tokens),'')+RD.stat('Read once',U.pc(o/nano.tokens),'')+RD.stat('Read 2+ times',U.pc(m/nano.tokens),'');
     return {body,H:L.H+6,cap,out}}
-  function draw(i){const r=mode==='meg'?drawMeg(i):drawNano(i),W=RD.width(card);
-    $('sl-meg-plot').innerHTML=RD.svg(W,r.H,r.body,mode==='meg'?'Megatron indices':'nanoGPT random windows');$('sl-meg-cap').innerHTML=r.cap;$('sl-meg-out').innerHTML=r.out}
-  const A=RD.anim({card:'sl-meg',ctl:'sl-meg-ctl',n:nSteps.meg,ms:1300,label:'Step',draw});
-  RD.seg($('sl-meg-seg'),m=>{mode=m;A.reset(nSteps[m])});
+  const rg=(a,b)=>Array.from({length:b-a+1},(_,j)=>a+j);
+  const GR={meg:[[0],[1],[2],rg(3,11),rg(12,20),rg(21,28),[29]],nano:[[0],rg(1,7),rg(8,13),[14]]};
+  window.SLSC=window.SLSC||{};SLSC.meg={GR,nSteps,stream:streamTok,epoch:epochTok,tail:streamTok-spos(SI[NS])-1};
+  function render(f){const r=mode==='meg'?drawMeg(f):drawNano(f),W=RD.width(card);
+    $('sl-meg-plot').innerHTML=RD.svg(W,r.H,r.body,mode==='meg'?'Megatron indices':'nanoGPT random windows');
+    $('sl-meg-live').innerHTML=(mode==='meg'&&f>=3&&f<nSteps.meg-1)||(mode==='nano'&&f>=1&&f<=nano.samples)?r.cap:'';$('sl-meg-out').innerHTML=r.out}
+  const sub={key:null,j:0,t:0};
+  function draw(i){const fr=GR[mode][i],key=mode+i;clearTimeout(sub.t);
+    if(fr.length===1||RD.RM||card.offsetParent===null){sub.key=key;sub.j=fr.length-1;render(fr[fr.length-1]);return}
+    if(sub.key!==key){sub.key=key;sub.j=0}
+    const stepf=()=>{render(fr[sub.j]);if(sub.j<fr.length-1){sub.j++;sub.t=setTimeout(stepf,430)}};stepf()}
+  const A=RD.anim({card:'sl-meg',ctl:'sl-meg-ctl',n:GR.meg.length,ms:5200,label:'Step',draw,list:'sx-meg'});
+  RD.seg($('sl-meg-seg'),m=>{mode=m;$('sx-meg').hidden=m!=='meg';$('sx-nano').hidden=m!=='nano';sub.key=null;A.reset(GR[m].length,m==='meg'?'sx-meg':'sx-nano')});
   RD.onResize(()=>A.redraw());
 })();

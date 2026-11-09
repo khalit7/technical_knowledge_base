@@ -31,3 +31,14 @@ What the methodology lacked here: a rule for "real library, recorded output" vs 
 | SL16 | Index-based slice of a global batch against shard-based dealing of 11 shards to 2 ranks x 4 workers | Reading, section 7 | built (static, illustrative) |
 | SL17 | Prefetch before/after on the same 16 steps (measured on the ML infra Storage lab), plus a fetch-time slider on a stated model | Reading, section 10 | built; absorbed from Storage and data movement, which should now link here |
 | SL18 | A real photo or paper figure | | rejected: nothing physical to show; the Ding et al. figure is not openly licensed and the stepper shows the same packing |
+
+## 2026-11-09 layout rollout (split layout, renderer v2 3D stages)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| SL19 | Fig. 1, 3D: documents as bytes-per-token bars, the token file, seed and three indices, ranks, the checkpoint | Reading, top | built; replaces SL14 |
+| SL20 | Fig. 3, 3D: the same table as a row-major stream and as Parquet column chunks in row groups, the footer, a one-column query lit | Reading, section 3 | built |
+| SL21 | Fig. 6, 3D: twelve real documents packed four ways into 2,048-token windows, EOD marks and cuts, one window's causal attention and the mask | Reading, section 6 | built; the 2D packing stepper became a widget |
+| SL22 | Fig. 7, 3D: 11 shards dealt to 2 ranks x 4 workers, idle workers, the index-based slice, the split_dataset_by_node fallback | Reading, section 7 | built; replaces SL16 |
+| SL23 | Fig. 8, 3D: a shuffle buffer over 11 sorted shards, the recorded output batches, measured shards per batch | Reading, section 8 | built; the shuffle visualiser became a widget |
+| SL24 | 3D data-state checkpoint per worker (resume continuing mid-epoch) | | rejected as its own stage: Fig. 1's last step and the 2D resume panel (a reader-driven k and B) carry it |
+| SL25 | 3D prefetch timeline, compression bars, length histogram | | rejected: numbers on an axis read best flat |

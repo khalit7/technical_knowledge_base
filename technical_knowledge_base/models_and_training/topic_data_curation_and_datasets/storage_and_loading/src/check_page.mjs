@@ -1,6 +1,6 @@
 // Page check for the storage and loading child page (prefix sl). From the repo root:
 //   node technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/storage_and_loading/src/check_page.mjs
-// 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
+// 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion; the 3D stages and autoplay are checked by check_stages.mjs), failing on JS errors, NaN,
 //    undefined or Infinity in visible text, or sideways page scroll; saves element screenshots to ../.shots/;
 // 2. checks the page embeds exactly data/sl_data.json, that the browser's packing and shuffle code reproduce the Python
 //    runs, and that numbers quoted in the prose match the data.
@@ -38,15 +38,16 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
   ok(errs.length===0&&!(await p.evaluate(()=>!document.getElementById('jsErr').hidden)),scheme+' '+width+': no JS errors ('+clicks+' controls exercised)'+(errs.length?' '+errs.slice(0,3).join(' | '):''));
   // element screenshots in a fresh state; first check that no animation has moved on its own
   await p.reload({waitUntil:'load'});await p.click('#tabs button[data-t="t-read"]');
-  for(const id of ['sl-meg-ctl','sl-p-ctl','sl-s-ctl']){await p.evaluate(id=>document.getElementById(id).scrollIntoView(),id);await new Promise(r=>setTimeout(r,1500));
-    const st=await p.evaluate(id=>[document.getElementById(id+'-s').value,document.getElementById(id+'-p').textContent],id);
-    ok(!/Pause/.test(st[1]),scheme+' '+width+' '+id+' does not autoplay (step '+st[0]+')')}
-  for(const [t,sel,prep] of [['t-read','#sl-meg',async()=>{await p.evaluate(()=>{const s=document.getElementById('sl-meg-ctl-s');s.value=8;s.dispatchEvent(new Event('input'))})}],
+  // under reduced motion (emulated here) the one 2D animation never moves by itself; autoplay on view is checked by check_stages.mjs (2026-11-09)
+  {await p.evaluate(()=>document.getElementById('sl-meg-ctl').scrollIntoView());await new Promise(r=>setTimeout(r,1500));
+    const st=await p.evaluate(()=>[document.getElementById('sl-meg-ctl-s').value,document.getElementById('sl-meg-ctl-p').textContent]);
+    ok(!/Pause/.test(st[1])&&st[0]==='0',scheme+' '+width+' sl-meg does not move by itself under reduced motion (step '+st[0]+')')}
+  for(const [t,sel,prep] of [['t-read','#sl-meg',async()=>{await p.evaluate(()=>{const s=document.getElementById('sl-meg-ctl-s');s.value=3;s.dispatchEvent(new Event('input'))})}],
       ['t-read','#sl-meg',async()=>{await p.evaluate(()=>{document.querySelector('#sl-meg-seg button[data-m=nano]').click();const s=document.getElementById('sl-meg-ctl-s');s.value=s.max;s.dispatchEvent(new Event('input'))})}],
       ['t-read','#sl-fwpq',null],['t-read','#sl-cmp',null],['t-read','#sl-wrap',null],['t-read','#sl-shsum',null],
-      ['t-read','#sl-p-card',async()=>{await p.evaluate(()=>{document.querySelector('#sl-p-s button[data-m=bfd]').click();const s=document.getElementById('sl-p-ctl-s');s.value=s.max;s.dispatchEvent(new Event('input'))})}],
+      ['t-read','#sl-p-card',async()=>{await p.evaluate(()=>{document.querySelector('#sl-p-s button[data-m=bfd]').click()})}],
       ['t-read','#sl-s-card',null],['t-read','#sl-r-card',async()=>{await p.evaluate(()=>document.querySelector('#sl-r-m button[data-m=buffer]').click())}],
-      ['t-read','#sl-c-card',null],['t-read','#sl-hero-card',null],['t-read','#sl-shd',null],['t-read','#sl-shard',null],
+      ['t-read','#sl-c-card',null],['t-read','#sl-shd',null],
       ['t-read','#sl-pf-card',null],['t-read','#sl-pf-card',async()=>{await p.evaluate(()=>{document.querySelector('#sl-pf-st button[data-m=model]').click();const s=document.getElementById('sl-pf-f');s.value=180;s.dispatchEvent(new Event('input'))})}],
       ['t-fmt','#sl-f-bars',null]]){
     await p.click('#tabs button[data-t="'+t+'"]');if(prep)await prep();const el=await p.$(sel);

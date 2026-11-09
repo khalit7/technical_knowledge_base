@@ -1,4 +1,4 @@
-// ---- Reading sections 8 and 11: shuffle visualiser and resume panel (moved from the Shuffle and resume tab, 2026-10-24) ----
+// ---- Reading sections 8 and 11: shuffle visualiser and resume panel (moved from the Shuffle and resume tab, 2026-10-24; widgets since 2026-11-09) ----
 (function(){
   const U=SLU,$=U.$;if(!$('sl-s-card'))return;
   const SH=SL.shuf,K=SH.K,S=SH.S,N=K*S,B=SH.batch,NB=Math.floor(N/B);
@@ -40,15 +40,11 @@
     const nb=Math.min(NB,i);for(let b=0;b<nb;b++)t+='<rect x="'+(36+b*pw).toFixed(1)+'" y="'+y(met.tv[b]).toFixed(1)+'" width="'+Math.max(1,pw-1).toFixed(1)+'" height="'+(H-18-y(met.tv[b])).toFixed(1)+'" fill="var(--acc)"/>';
     t+=RD.t(36,H-4,'batch 1',{fs:10,fill:'var(--mute)'})+RD.t(W-4,H-4,'batch '+NB,{fs:10,a:'end',fill:'var(--mute)'})+RD.t(36,10,W<600?'Batch distance from the true mix (dashed: global)':'Distance of each batch from the true mix (0 = perfect, 0.91 = one shard); dashed: global permutation mean',{fs:10.5,fill:'var(--mute)'});
     $('sl-s-tv').innerHTML=RD.svg(W,H,t,'Batch distance');
-    let cap;if(i===0)cap='Press play or step to read the stream batch by batch ('+NB+' batches of '+B+').';
-    else if(i<=NB){const c=new Array(K).fill(0);for(let p=(i-1)*B;p<i*B;p++)c[ord[p]]++;const top=c.indexOf(Math.max(...c));
-      cap='<b>Batch '+i+'</b>: '+c.filter(v=>v>0).length+' of 11 shards; the largest, <i>'+U.esc(SH.names[top])+'</i>, is '+U.pc(c[top]/B,0)+' of it; distance '+met.tv[i-1].toFixed(2)+'.'}
-    else cap='Whole epoch read.';
-    $('sl-s-cap').innerHTML=cap;
     $('sl-s-out').innerHTML=RD.stat('Shards per batch',met.dm.toFixed(1),'mean over '+NB+' batches')+RD.stat('Mean distance',met.tvm.toFixed(3),'global permutation: '+gm.toFixed(3))+
       RD.stat('Source',src==='rec'?'real library':'this page\'s mirror',src==='rec'?(met.check?'browser recomputation matches Python':'MISMATCH with Python'):'B = '+U.f0(BV[+$('sl-s-b').value]));
     $('sl-s-leg').innerHTML=SH.names.map((n,k)=>'<span><i style="background:'+COL[k]+'"></i>'+U.esc(n)+'</span>').join('')}
-  const A=RD.anim({card:'sl-s-card',ctl:'sl-s-ctl',n:NB+2,ms:160,label:'Batch',draw,start:NB+1});
+  // 2026-11-09: a widget (the long-replay rule, case b): it always shows the whole epoch; the reader picks the scheme or the buffer; the mechanism is the 3D stage beside section 8 (36_js_sc_buf.js)
+  const A={go(){draw(NB+1)},redraw(){draw(NB+1)}};
   function upd(){compute();A.go(NB+1);$('sl-s-note').innerHTML=src==='rec'?'Recorded by <code>src/scripts/shuffle.py</code> with datasets '+SH.versions.datasets+', torch '+SH.versions.torch+', mosaicml-streaming '+SH.versions['mosaicml-streaming']+' <span class="sl-lbl meas">measured</span>. With 4 DataLoader workers each batch comes from one worker, which reads only its own shards.':
     'Computed in your browser: the shard order shuffled with a seeded generator, then a buffer shuffle following <code>BufferShuffledExamplesIterable</code> (pick a random slot, emit it, put the next example in its place). With B = 1,000 and no round robin it lands close to the recorded run (shards per batch '+SH.m.hf_buf1000_mbis1.batch_distinct_mean.toFixed(1)+') without being the same sequence. <span class="sl-lbl ill">illustrative mirror</span>'}
   RD.seg($('sl-s-src'),v=>{src=v;$('sl-s-livectl').hidden=v!=='live';$('sl-s-recl').hidden=v!=='rec';upd()});
