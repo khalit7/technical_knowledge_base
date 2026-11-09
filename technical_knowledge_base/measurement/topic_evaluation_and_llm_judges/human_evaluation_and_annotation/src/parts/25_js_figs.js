@@ -1,4 +1,5 @@
-// Static Reading figures drawn at the measured width: hero (life of a label), rater pools, ChaosNLI, the prevalence curve, the gold-error routine.
+// Static Reading figures drawn at the measured width: hero (life of a label), rater pools, ChaosNLI, the prevalence curve, the gold-error routine,
+// the ImageNet rank slope chart (Northcutt et al. Table S1).
 // Every number here is printed in the caption beside the figure, with its source.
 (function(){
 const S=window.HES;const $=id=>document.getElementById(id);
@@ -106,7 +107,20 @@ function routine(){const el=$('rd-routine');if(!el)return;const w=W(el),narrow=w
   b+='<text x="'+(xl-5)+'" y="'+((f[1]+g[1]+g[3])/2)+'" font-size="11.5" font-weight="600" fill="var(--acc)" text-anchor="middle" transform="rotate(-90 '+(xl-5)+' '+((f[1]+g[1]+g[3])/2)+')">5  every failure, continuously</text>';
   el.innerHTML=svg(w,H,b,'The gold-error-aware routine',mk)}
 
-function all(){hero();pools();chaos();par();routine()}
+
+// ---- ImageNet correctable set: each model's rank on the original (wrong) labels against its rank on the corrected labels (Northcutt et al. Table S1)
+function inet(){const el=$('rd-inet');if(!el||!window.HE||!HE.nc)return;const w=W(el),rows=HE.nc.s1,n=rows.length,top=24,rh=9,H=top+n*rh+26,narrow=w<520;
+  const xl=narrow?114:150,xr=w-(narrow?56:150),Y=r=>top+(r-.5)*rh,hot={'resnet18':'var(--good)','nasnetlarge':'var(--bad)'};
+  let b=T(xl,14,'original labels',{fs:12,a:'middle',fill:'var(--mute)',w:600})+T(xr,14,'corrected labels',{fs:12,a:'middle',fill:'var(--mute)',w:600});
+  const draw1=(r,c,sw,op)=>'<line x1="'+xl+'" y1="'+Y(r.rank1)+'" x2="'+xr+'" y2="'+Y(r.crank1)+'" stroke="'+c+'" stroke-width="'+sw+'" opacity="'+op+'"/>'+
+    '<circle cx="'+xl+'" cy="'+Y(r.rank1)+'" r="2.6" fill="'+c+'" opacity="'+op+'"/><circle cx="'+xr+'" cy="'+Y(r.crank1)+'" r="2.6" fill="'+c+'" opacity="'+op+'"/>';
+  rows.forEach(r=>{if(!hot[r.model])b+=draw1(r,'var(--mute)',1,.35)});
+  rows.forEach(r=>{const c=hot[r.model];if(!c)return;b+=draw1(r,c,2.4,1);const nm=r.model==='nasnetlarge'?'NASNet-large':'ResNet-18';
+    b+=T(xl-8,Y(r.rank1)+4,nm+' #'+r.rank1,{fs:12,a:'end',fill:c,w:600})+T(xr+8,Y(r.crank1)+4,'#'+r.crank1+(narrow?'':' '+r.cacc1.toFixed(1)+'%'),{fs:12,fill:c,w:600})});
+  b+=T(w/2,H-6,'34 ImageNet models; rank 1 at the top on both sides',{fs:11.5,a:'middle',fill:'var(--mute)'});
+  el.innerHTML=svg(w,H,b,'ImageNet model ranks before and after the label correction')}
+
+function all(){hero();pools();chaos();par();routine();inet()}
 all();
 const sl=$('rd-par-s');if(sl)sl.addEventListener('input',par);
 (window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=(window.TAB_RENDER['t-read']||[]).concat([all]);

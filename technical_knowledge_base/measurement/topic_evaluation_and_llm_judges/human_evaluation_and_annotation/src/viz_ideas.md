@@ -32,3 +32,13 @@ What the methodology lacked: guidance for data whose "truth" is itself a human l
 | H19 | Preference forms side by side (Llama 2 forced choice and margin; MT-Bench and Arena with tie) | Reading, Preference data | built (HTML) |
 | H20 | Bar chart of every audit's error rate | none | rejected: the audits count different things (wrong key, any flaw, removed tasks), so one axis would mix figure kinds; the table stays |
 | H21 | Photo or paper figure | none | rejected: nothing physical to show; MMLU-Redux's taxonomy figure is already carried by the format table and the decision order |
+
+## 2026-11-09: split layout and 3D stages
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| H22 | Fig. 1 `stg-agr`: agreement against chance in 3D (stacks per item, raw agreement meter, chance as a glass plane, kappa as the gap above it, coincidence matrix as a bar field, order and AC1), three modes | Reading, Agreement | built; replaces H1 |
+| H23 | Fig. 4 `stg-find`: suspects proposed by 18 models as raised cubes, review queue of 20, human verdicts, rescoring on the corrected key with intervals; three subjects by base rate | Reading, Finding the wrong labels | built; replaces H2's MMLU modes |
+| H24 | ImageNet rank slope chart (Table S1) | Reading, Auditing gold | built; replaces H2's ImageNet mode |
+| H25 | Disagreement as stacks of per-item vote distributions | none | rejected: no per-item ChaosNLI distributions in the page's data |
+| H26 | Annotator quality control stage (raters as plates, seeded gold items, drift flagged) | none | rejected: HelpSteer2 releases no rater identities; it would be invented data |
+| H27 | Hero in 3D | none | rejected: a map of six stages, nothing for depth to separate |

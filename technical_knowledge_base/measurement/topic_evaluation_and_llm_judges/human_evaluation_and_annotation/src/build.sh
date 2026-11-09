@@ -1,12 +1,13 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/.
-# HTML: 01_head, 02_style, 10_header (title and tab bar), 20_read_*.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
-# JS: window.HE from inputs/ (agree.json, audit.json, northcutt.json), then every *.js in parts/ in file-name order,
+# HTML: 01_head, 02_style, 02_split (the split layout, skill template), 10_header (title and tab bar), 20_read_*.html (Reading tab), then 3x_tab_*.html (one per tab, in file-name order).
+# JS: window.HE from inputs/ (agree.json, audit.json, northcutt.json), then every *.js in parts/ in file-name order
+# (21 statistics, 24 and 25 Reading figures, 25_js_s3 the 3D renderer S3 v2, 31 and 32 labs, 33 and 34 the 3D scenes),
 # each in its own <script>, 99_js_tabs.js (the tab wiring) last.
 # Links may be written {{text|url}} (url may be n:<notion id>, or #t-<tab> for a link to a tab); plain <a> tags pass through.
 cd "$(dirname "$0")"
-{ cat parts/01_head.html parts/02_style.html parts/10_header.html
+{ cat parts/01_head.html parts/02_style.html parts/02_split.html parts/10_header.html
   for f in parts/20_read_*.html; do cat "$f"; done
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'

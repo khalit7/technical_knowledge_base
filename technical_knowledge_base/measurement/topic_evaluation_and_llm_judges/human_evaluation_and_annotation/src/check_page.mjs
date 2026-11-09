@@ -1,5 +1,5 @@
 // Click every control at 390 px dark and 920 px light; report errors, NaN/undefined text, sideways scroll; step both
-// animations through every mode; compare window.HE_CHECK() with recompute.json. Screenshots to ../.shots/own_*.png
+// 3D stages through every mode; compare window.HE_CHECK() with recompute.json. Screenshots to ../.shots/own_*.png
 // Run from this folder: node check_page.mjs
 import { createRequire } from 'module';
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
@@ -39,26 +39,21 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     console.log(w, scheme, t, 'controls', n);
     await page.screenshot({ path: `${shots}/own_${w}_${t}.png`, fullPage: true });
   }
-  // animations: every step in every mode
+  // the 3D stages (Figs. 1 and 4): every step in every mode (check_stages.mjs checks motion, step lists and their numbers)
   await page.click('#tabs button[data-t="t-read"]');
-  for (const [pre, modes, steps] of [['ag', 3, 6], ['au', 3, 5]]) {
-    for (let md = 0; md < modes; md++) {
-      for (let s = 0; s < steps; s++) {
-        const txt = await page.evaluate((pre, md, s) => {
-          document.getElementById(pre + '-m' + md).click();
-          const sc = document.getElementById(pre + '-scrub'); sc.value = s; sc.dispatchEvent(new Event('input'));
-          return document.getElementById(pre).innerText;
-        }, pre, md, s);
+  for (const [id, seg] of [['stg-agr', '#agr-mode'], ['stg-find', '#fd-mode']]) {
+    const modes = await page.$$eval(seg + ' button', bs => bs.map(b => b.dataset.m));
+    for (const md of modes) {
+      const n = await page.evaluate((id, seg, md) => { document.querySelector(seg + ` button[data-m="${md}"]`).click(); return +document.getElementById(id + '-r').max + 1 }, id, seg, md);
+      for (let s = 0; s < n; s++) {
+        const txt = await page.evaluate((id, s) => { const sc = document.getElementById(id + '-r'); sc.value = s; sc.dispatchEvent(new Event('input'));
+          return document.getElementById(id).parentElement.parentElement.innerText }, id, s);
         const m = txt.match(/.{0,40}(NaN|undefined|Infinity).{0,40}/);
-        if (m) { bad++; console.log(w, pre, md, s, 'PROBLEM', m[0]) }
+        if (m) { bad++; console.log(w, id, md, s, 'PROBLEM', m[0]) }
       }
-      await new Promise(r => setTimeout(r, 1100)); const el = await page.$('#' + pre); await el.screenshot({ path: `${shots}/own_${w}_${pre}${md}.png` });
     }
+    await new Promise(r => setTimeout(r, 1700)); const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/own_${w}_${id}.png` });
   }
-  // play button runs and pauses
-  await page.evaluate(() => { document.getElementById('ag-play').click() }); await new Promise(r => setTimeout(r, 600));
-  await page.evaluate(() => { document.getElementById('ag-play').click(); document.getElementById('au-play').click() }); await new Promise(r => setTimeout(r, 600));
-  await page.evaluate(() => { document.getElementById('au-play').click() });
   const unfilled = await page.evaluate(() => [...document.querySelectorAll('[data-k]')].filter(e => !e.textContent || e.textContent === '?').map(e => e.dataset.k));
   if (unfilled.length) { bad++; console.log('unfilled prose numbers', unfilled) }
   const jsErr = await page.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' });
