@@ -20,3 +20,13 @@ Scores 0 to 2 each: quantity moves with a control; defaults reproduce a publishe
 
 Inspiration: the DeepSeek MLA explainer pattern (same input, old method then new), Topic: benchmarks' RD animation controller (reused).
 What the methodology lacked here: a rule for audits that publish counts but not per-item verdicts; handled by drawing exact counts with an "arrangement illustrative" note.
+
+## 2026-11-09 (layout rollout: split layout, renderer v2)
+| # | Visual | Where | Decision |
+|---|---|---|---|
+| R6 | Five-layer cards | Reading, section 1 | **Replaced by Fig. 1, the 3D stage `stg-layers`** (`parts/27_js_sc_layers.js`): five pedestals rising left to right, a glass plate on each, outputs of one change flowing up layer by layer; one step per layer with its cost, what it catches and its page (the cards' own words), the human layer's stream back down to the judge (calibration), a golden-set grid on the gates, live traffic into online. The order is the page's; heights and sizes are a layout, not measured costs (said in the section and the ledger). The only 3D stage on the root: the stack is spatial (layers in order), nothing else here is. |
+| R1 | Same failures, attributed | Reading, section 5 | Kept 2D (squares are counts: a grid reads best flat), now Fig. 2 in a split with its five steps written out in `ol#sx-att` (rewritten for each benchmark); plays once in view. |
+| R5 | 2 points on 200 items | Reading, section 4 | **Retired as a chart**: Eval statistics Figs. 1 and 2 now draw the error bar and the paired comparison on real RACE-H data; the root keeps the numbers as a static table computed by `read/recompute.py` and links both figures. |
+| hero | One reading, seven parts | Reading, top | Kept 2D static (a flow of named boxes reads best flat); a three-column snake layout added for the split's right column. |
+| R12 | A 3D graders stage (program, judge, people side by side on one output) | none | Rejected: LLM-as-judge Fig. 1 and Agent evaluation Fig. 1 draw graders on real data; the root's table compares and links them. |
+| R13 | A 3D calibration stage | none | Rejected: LLM-as-judge Fig. 3 (gold-slice correction) and Human evaluation Fig. 1 (agreement against chance) own it; linked from section 3. |

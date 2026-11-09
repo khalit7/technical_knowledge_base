@@ -1,6 +1,6 @@
 // ---- Reading, top: the hero figure. One eval reading as seven parts, each with the child page that owns it; ----
 // the three parts that can each move a score (system, grader, gold labels) are outlined in the highlight colour.
-// Static: drawn at the measured width, horizontal from 760 px, a vertical stack below.
+// Static: drawn at the measured width: one row from 760 px, a three-column snake from 520 px (the right column of the split), a vertical stack below.
 (function(){
   const host=document.getElementById('rd-hero');if(!host)return;
   const N={
@@ -44,6 +44,23 @@
       s+=T(X(0),gy+36,'the system, the grader, the gold labels.',{fs:11.5,fill:'var(--ink)'});
       s+=T(X(0),gy+52,'Attribute a change before acting (section 5).',{fs:11.5,fill:'var(--mute)'});
       H=gy+bh;
+    }else if(W>=520){
+      // two rows of three, the second read right to left (a snake), the gold labels under the grader
+      const pad=3,gap=34,bw=(W-2*pad-2*gap)/3,bh=92,vg=36;
+      const X=i=>pad+i*(bw+gap),Y=r=>6+r*(bh+vg);
+      const pos={items:[0,0],harn:[1,0],sys:[2,0],grader:[2,1],score:[1,1],dec:[0,1]};
+      main.forEach(k=>{const [c,r]=pos[k];s+=box(X(c),Y(r),bw,bh,N[k],true)});
+      s+=arrow(X(0)+bw+1,Y(0)+bh/2,X(1)-2,Y(0)+bh/2)+arrow(X(1)+bw+1,Y(0)+bh/2,X(2)-2,Y(0)+bh/2);
+      s+=arrow(X(2)+bw/2,Y(0)+bh+1,X(2)+bw/2,Y(1)-2);
+      s+=arrow(X(2)-1,Y(1)+bh/2,X(1)+bw+2,Y(1)+bh/2)+arrow(X(1)-1,Y(1)+bh/2,X(0)+bw+2,Y(1)+bh/2);
+      const gy=Y(2)-4;
+      s+=box(X(2),gy,bw,bh-10,N.gold,true);
+      s+=arrow(X(2)+bw/2,gy-1,X(2)+bw/2,Y(1)+bh+3);
+      s+=T(X(2)+bw/2+8,Y(1)+bh+21,'compared with',{fs:11,fill:'var(--mute)'});
+      s+=T(X(0),gy+22,'Three parts can each move a score:',{fs:11.5,fill:'var(--ink)'});
+      s+=T(X(0),gy+38,'the system, the grader, the gold labels.',{fs:11.5,fill:'var(--ink)'});
+      s+=T(X(0),gy+54,'Attribute a change before acting (section 5).',{fs:11.5,fill:'var(--mute)'});
+      H=gy+bh-6;
     }else{
       const x=2,bw=W-4,bh=58,gap=20;let y=4;
       const order=['items','harn','sys','grader','gold','score','dec'];

@@ -2,7 +2,7 @@
 import os, re, json, csv
 H = os.path.dirname(os.path.abspath(__file__))
 I = os.path.join(H, 'inputs')
-ROCKET = os.path.join(H, '..', '..', '..', '..', 'reference', 'papers', 'rocketeval', 'src', 'tables.json')
+ROCKET = os.path.join(H, '..', '..', '..', '..', 'whats_new', 'papers', 'rocketeval', 'src', 'tables.json')
 _cache = {}
 
 def tsv(f):

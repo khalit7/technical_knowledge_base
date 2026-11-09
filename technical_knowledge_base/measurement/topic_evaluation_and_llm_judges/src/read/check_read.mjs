@@ -1,4 +1,5 @@
-// Exercise every Reading and Further reading control (rebuilt 2026-10-24: hero, statistics chart, attribution stepper) at 390 dark and 920 light; compare RD_CHECK with recompute.json.
+// Exercise every Reading and Further reading control (rebuilt 2026-10-24; 2026-11-09: hero, statistics table, attribution animation with its step list) at 390 dark and 920 light;
+// compare RD_CHECK and the statistics table with recompute.json. Autoplay, the Fig. 1 stage and reduced motion are checked by ../check_stages.mjs.
 // Run from the repo root: node technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/src/read/check_read.mjs [shotdir]
 import { createRequire } from 'module';
 import fs from 'fs'; import path from 'path'; import os from 'os';
@@ -30,12 +31,16 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     actions++;
   };
   await scan('load');
-  await pg.$eval('#rd-att-card', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 3000));
-  const st0 = await pg.$eval('#rd-att-ctl-s', e => +e.value); if (st0 !== 0) problems.push(`${w} attribution stepper moved by itself (${st0})`);
+  // the attribution animation plays by itself once in view (2026-11-06 rule; it never did before)
+  await pg.$eval('#rd-att-card', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 6000));
+  const st0 = await pg.$eval('#rd-att-ctl-s', e => +e.value); if (st0 < 1) problems.push(`${w} attribution animation did not play in view (${st0})`);
   // RD_CHECK against recompute.json
   const got = await pg.evaluate(() => window.RD_CHECK);
   const close = (a, b) => Math.abs(a - b) < 1e-6;
-  for (const k of Object.keys(want.stat)) if (!close(got.stat[k], want.stat[k])) problems.push(`stat ${k} ${got.stat[k]} vs ${want.stat[k]}`);
+  // the statistics table (static HTML since 2026-11-09) against recompute.json, at its printed precision
+  const cells = await pg.$$eval('#rd-ci td[data-k]', a => Object.fromEntries(a.map(x => [x.dataset.k, x.textContent])));
+  const fmt = { seU: v => v.toFixed(1) + ' pts', seP: v => v.toFixed(1) + ' pts', ciU: v => '−2 ± ' + v.toFixed(1) + ' pts', ciP: v => '−2 ± ' + v.toFixed(1) + ' pts', nU: v => v.toLocaleString('en-US') + ' per model', nP: v => v.toLocaleString('en-US') };
+  for (const k of Object.keys(fmt)) if (cells[k] !== fmt[k](want.stat[k])) problems.push(`stat ${k}: page ${cells[k]} vs ${fmt[k](want.stat[k])}`);
   for (const b of Object.keys(want.attr)) for (const f of ['n', 'q', 'g', 'm']) if (got.attr[b][f] !== want.attr[b][f]) problems.push(`attr ${b} ${f}`);
   for (const b of ['all', 'HLE-Physics', 'PRISM-Physics', 'PHYBench', 'UGPhysics']) {
     await pg.select('#rd-att-b', b);
