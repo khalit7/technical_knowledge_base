@@ -113,7 +113,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_benchmarks/coding` Coding benchmarks: HumanEval to SWE-bench Pro
 - [x] `measurement/topic_benchmarks/human_preference_and_arenas` Human preference and arenas
 - [x] `measurement/topic_benchmarks/knowledge_and_reasoning` Knowledge and reasoning benchmarks: MMLU family, GPQA, HLE, ARC-AGI
-- [ ] `measurement/topic_benchmarks/long_context_and_multimodal` Long-context and multimodal benchmarks
+- [x] `measurement/topic_benchmarks/long_context_and_multimodal` Long-context and multimodal benchmarks
 - [ ] `measurement/topic_benchmarks/math` Math benchmarks: GSM8K to FrontierMath
 - [ ] `measurement/topic_benchmarks/safety_and_honesty` Safety and honesty benchmarks
 - [ ] `measurement/topic_benchmarks` Topic: benchmarks
@@ -406,3 +406,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `measurement/topic_benchmarks/coding`: Fig. 3 step 4 container cut at the card's left edge at 1400; Fig. 1 step 6 bars crowded over the task stack; side labels hidden at 390. OWNERS conflict for Khalid: OWNERS gives the pass@k plug-in bias to Agent and trajectory evaluation, but only this page carries it (closed block, units 227 and 29 to 31): move it there or make this page its owner.
 - `measurement/topic_benchmarks/human_preference_and_arenas`: Fig. 2 step 4 "50%: an even split" label touches the card's right edge at 1400; Fig. 2 row labels close to the first-column bars in steps 4 and 5; Fig. 2 step 6 and Fig. 4 step 6 dense; src/coverage.json stale (6 phrases missing, pre-existing; the ledger supersedes it).
 - `measurement/topic_benchmarks/knowledge_and_reasoning`: Fig. 2 grouped model-name labels hide at 390 (readout names the leader); Fig. 1 small on phones (card set to 300 px).
+- `measurement/topic_benchmarks/long_context_and_multimodal`: scenes small inside their cards at 390 with empty space above and below (NoLiMa step 1 most); per-model selects removed, other models appear only as rows in the last steps of Figs. 1 and 3.

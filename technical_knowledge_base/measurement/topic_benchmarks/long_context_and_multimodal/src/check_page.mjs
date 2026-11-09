@@ -1,4 +1,6 @@
-// Exercise every control at 390 dark and 920 light (all inline in the Reading tab since 2026-10-24); compare JS numbers with recompute_out.json; screenshot cards; check nothing moves before the reader acts.
+// Exercise every 2D control at 390 dark and 920 light (all inline in the Reading tab since 2026-10-24); compare JS numbers with recompute_out.json; screenshot cards.
+// Since 2026-11-09 the lost-in-the-middle chart and the NoLiMa and MMMU steppers are 3D stages, checked (autoplay in view, still under reduced motion, step lists
+// against the data) by check_stages.mjs; the never-autoplay check that lived here is inverted there.
 // usage: node src/check_page.mjs   (from the page folder or anywhere)
 import { createRequire } from 'node:module';
 import path from 'node:path'; import fs from 'node:fs'; import { fileURLToPath } from 'node:url';
@@ -16,31 +18,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.goto('file://' + page);
   await p.click('button[data-t=t-read]');
   const bad = async (where) => { const t = await p.evaluate(() => document.body.innerText); for (const w of ['NaN', 'undefined', 'Infinity']) if (t.includes(w)) problems.push(`${scheme}${width} ${where}: text contains ${w}`) };
-  // NoLiMa animation: every mode, mc on/off, every step
-  for (const m of ['direct', 'one', 'two']) for (const mc of [false, true]) {
-    await p.click(`#nb-mode button[data-m=${m}]`);
-    const cur = await p.$eval('#nb-mc', e => e.checked); if (cur !== mc) await p.click('#nb-mc');
-    for (let i = 0; i < 7; i++) { await p.$eval('#nb-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i) }
-    await bad('nolima ' + m + mc);
-    const acc = await p.$eval('#nb-out', e => e.innerText);
-    if (width === 920 && m === 'one' && !mc) { const el = await p.$('#nb-card'); await el.screenshot({ path: shots + `/c-nolima-one-${scheme}-${width}.png` }) }
-    if (width === 390 && m === 'two' && mc) { const el = await p.$('#nb-card'); await el.screenshot({ path: shots + `/c-nolima-two-mc-${scheme}-${width}.png` }) }
-  }
   // overlap function vs recompute
   const ov = await p.evaluate(() => Object.fromEntries(Object.entries(LD.pairs).map(([k, v]) => [k, LC_overlap(v.q, v.needle)])));
   for (const k in ov) if (ov[k].hits.length !== R.overlap[k].content_hits.length || ov[k].qc.length !== R.overlap[k].q_content.length) problems.push('overlap mismatch ' + k);
-  // MMMU animation
-  for (const m of ['blind', 'pro']) {
-    await p.click(`#mm-mode button[data-m=${m}]`);
-    const opts = await p.$$eval('#mm-model option', o => o.map(x => x.value));
-    for (const o of opts) { await p.select('#mm-model', o); const n = await p.$eval('#mm-ctl-s', e => +e.max); for (let i = 0; i <= n; i++) await p.$eval('#mm-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('mm ' + m + o) }
-    await p.select('#mm-model', opts[0]); await p.$eval('#mm-ctl-s', e => { e.value = e.max; e.dispatchEvent(new Event('input')) });
-    const el = await p.$('#mm-card'); await el.screenshot({ path: shots + `/c-mm-${m}-${scheme}-${width}.png` });
-  }
-  // lost in the middle
-  const lo = await p.$$eval('#litm-m option', o => o.map(x => x.value));
-  for (const o of lo) { await p.select('#litm-m', o); await bad('litm ' + o) }
-  await p.select('#litm-m', '0'); { const el = await p.$('#litm-card'); await el.screenshot({ path: shots + `/c-litm-${scheme}-${width}.png` }) }
   { const el = await p.$('#niah-pair'); await el.screenshot({ path: shots + `/c-niah-${scheme}-${width}.png` }) }
   // effective length: JS rule vs recompute
   const js = await p.evaluate(() => ({ r: LC_eff.eff('ruler', 'abs', 85.6), n: LC_eff.eff('nolima', 'rel', 85) }));
@@ -66,14 +46,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.click('#mr-cands button'); { const el = await p.$('#mr-card'); await el.screenshot({ path: shots + `/c-mrcr-${scheme}-${width}.png` }) }
   for (const id of ['hero-card', 'bias-card']) { const el = await p.$('#' + id); await el.screenshot({ path: shots + `/c-${id}-${scheme}-${width}.png` }) }
   { const el = await p.$('figure.ph'); await el.screenshot({ path: shots + `/c-niahimg-${scheme}-${width}.png` }) }
-  const moved = await p.evaluate(() => [...document.querySelectorAll('.an-ctl input[type=range]')].map(e => e.value)); if (!moved.length) problems.push('no steppers found')
   const sw = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth); if (sw) problems.push(scheme + width + ' sideways scroll');
   const box = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' }); if (box) problems.push('errbox: ' + box);
   if (errs.length) problems.push(scheme + width + ' errors ' + errs.join(' | '));
   await p.close();
 }
-{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + page);
-  for (const id of ['nb-card', 'mm-card']) { await p.$eval('#' + id, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 2500)); const v = await p.$eval('#' + id + ' .an-ctl input[type=range]', e => +e.value); if (v !== 0) problems.push('autoplay: ' + id + ' at step ' + v) }
-  await p.close() }
 await b.close();
 console.log(problems.length ? problems.join('\n') : 'all controls ok, JS matches recompute_out.json');

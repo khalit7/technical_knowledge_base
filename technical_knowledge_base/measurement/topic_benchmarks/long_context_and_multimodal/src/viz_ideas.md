@@ -30,3 +30,7 @@ What the methodology lacked here: a rule for real items whose text contains forb
 | LM14 | **Never-looking model card** | POPE always-yes confusion matrix (F1 66.67, yes-rate 100%) beside CircularEval with an always-A model (25% to 0) | Reading, yes-bias | built (static HTML) |
 | LM15 | **Kamradt's Claude 2.1 heatmap** | The test's real output, MIT | Reading, needles | built (image) |
 | LM16 | Video-MME-v2 group score stepper | The paper's exact grouping formula is not in the saved extract; text only until it is | | not built |
+
+## 2026-11-09 (layout rollout)
+- Built: 3D stages for lost in the middle (passage tiles, moving answer passage, glass closed-book and oracle planes, six-model field), NoLiMa (haystack, glass fact plates, question-kind by length field) and MMMU blind baseline / MMMU-Pro (question card, image plate removed or merged, eleven-model field).
+- Rejected: a 3D needle surface by depth and length (no such data on the page; Kamradt's heatmap image stays); an MRCR conversation stage (the 2D map of the real row already shows order and identity, and the grader is a reader tool); 3D for RULER effective lengths (a log axis and a threshold read best flat).
