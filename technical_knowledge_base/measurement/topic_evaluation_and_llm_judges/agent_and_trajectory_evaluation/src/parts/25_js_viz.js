@@ -1,4 +1,4 @@
-// Reading figures drawn as SVG at the measured width (2026-10-24 rebuild): hero, do-nothing bars, message-vs-state 2x2,
+// Reading figures drawn as SVG at the measured width (2026-10-24 rebuild; the hero became the 3D stage Fig. 1 on 2026-11-09, 26_js_sc_hero.js): do-nothing bars, message-vs-state 2x2,
 // path-matcher ladder, judges with and without tools, pass^k curves, failure taxonomy, environment diagram, cost bars.
 // Numbers come from window.ATJ_OUT (22_js_calc.js, checked against recompute.json) or D.meta; published figures are cited in the captions.
 (function(){
@@ -12,26 +12,6 @@ const ARR='<defs><marker id="aj-arr" viewBox="0 0 10 10" refX="9" refY="5" marke
 const MOD={gpt52:'GPT-5.2',opus45:'Opus 4.5'};
 const draws=[];const reg=f=>{draws.push(f)};
 function all(){draws.forEach(f=>{try{f()}catch(e){if(window.console)console.error(e)}})}
-
-// chips laid out left to right, wrapping; returns {svg, h}
-function chips(x0,y0,w,items){let x=x0,y=y0,s='';const H=22,G=6;
-  items.forEach(it=>{const cw=Math.min(w,it.t.length*CW+16);if(x+cw>x0+w){x=x0;y+=H+G}
-    s+=rect(x,y,cw,H,it.f||'var(--soft)',{s:it.s||'var(--line)',sw:it.sw||1,dash:it.dash})+tx(x+8,y+15,it.t,{fs:11,fill:it.c,w:it.b?600:null});x+=cw+G});
-  return {svg:s,h:y+H-y0}}
-
-// 1. hero: the default trial, three layers, three graders
-reg(function(){const el=$('aj-hero-svg');if(!el)return;const w=RD.width(el),nar=w<560;
-  const lanes=[
-   {t:'Said: the messages',g:'Message grader (transcript judge)',v:'pass',items:nar?[{t:'U: cancel, rebook'},{t:'U: insurance? yes'},{t:'U: gift card + card'},{t:'A: "All set."',b:1}]:[{t:'User: cancel and rebook'},{t:'User: "Insurance: Yes, please"'},{t:'User: gift card, then the card'},{t:'Agent: "All set."',b:1}]},
-   {t:'Did: the tool calls',g:'Step grader (gold actions)',v:'fail',items:nar?[{t:'get_reservation ✓'},{t:'get_user +'},{t:'search ×3 +'},{t:'book ≈',f:'var(--hl)',s:'var(--acc)',sw:2},{t:'cancel ✓',f:'var(--hl)',s:'var(--acc)',sw:2}]:[{t:'get_reservation_details ✓'},{t:'get_user_details +'},{t:'search_direct_flight ×3 +'},{t:'book_reservation ≈ (write)',f:'var(--hl)',s:'var(--acc)',sw:2},{t:'cancel_reservation ✓ (write)',f:'var(--hl)',s:'var(--acc)',sw:2}]},
-   {t:'Changed: the database against the gold',g:'Outcome grader (state diff)',v:'fail',items:nar?[{t:'insurance: no → yes'},{t:'$282 card → $279 gift + $33'},{t:'6 fields differ',b:1,c:'var(--bad)'}]:[{t:'insurance: gold no, agent yes'},{t:'payment: gold $282 on the card, agent $279 gift card + $33 card'},{t:'6 fields differ',b:1,c:'var(--bad)'}]}];
-  let y=4,s='';
-  lanes.forEach((L,k)=>{const top=y;y+=16;s+=tx(10,y,(k+1)+'. '+L.t,{fs:12,w:600});
-    const vt=L.g+': '+L.v,vc=L.v==='pass'?'var(--good)':'var(--bad)';
-    if(nar){y+=16;s+=tx(10,y,vt,{fs:11,fill:vc,w:600})}else s+=tx(w-10,y,vt,{fs:11.5,fill:vc,w:600,a:'end'});
-    y+=8;const c=chips(10,y,w-20,L.items);s+=c.svg;y+=c.h+10;
-    s=rect(1,top,w-2,y-top,'none',{s:'var(--line)'})+s;y+=8});
-  el.innerHTML=RD.svg(w,y,s,'One trial in three layers: messages, tool calls and the database, each read by a different grader')});
 
 // horizontal bars: rows [{l, segs:[[value,colour]], v}], scale max
 function hbars(el,rows,max,opts){opts=opts||{};const w=RD.width(el),lw=Math.min(opts.lw||190,Math.round(w*.42)),vw=opts.vw||52,bw=w-lw-vw-12,H=opts.H||24;let y=4,s='';
@@ -101,7 +81,7 @@ reg(function(){const el=$('aj-tax-svg');if(!el)return;const F=O.fail_tax;
   const n=$('f-n');if(n)n.textContent=F.gpt52.reduce((a,b)=>a+b,0)+F.opus45.reduce((a,b)=>a+b,0)});
 
 // 8. environment diagram
-reg(function(){const el=$('aj-env-svg');if(!el)return;const w=RD.width(el),nar=w<620;let s=ARR;
+reg(function(){const el=$('aj-env-svg');if(!el)return;const w=RD.width(el),nar=w<760;let s=ARR;
   const box=(x,y,bw,bh,a,b,hl)=>rect(x,y,bw,bh,hl?'var(--hl)':'var(--soft)',{s:hl?'var(--acc)':'var(--line)'})+tx(x+8,y+16,a,{fs:12,w:600})+(b?tx(x+8,y+31,b,{fs:11,fill:'var(--mute)'}):'');
   let h;
   if(!nar){const G=124,cw=(w-2*G)/3,X=[0,cw+G,2*cw+2*G];

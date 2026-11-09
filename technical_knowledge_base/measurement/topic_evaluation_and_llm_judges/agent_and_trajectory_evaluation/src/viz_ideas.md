@@ -38,3 +38,7 @@ Built (all SVG at the measured width, `parts/25_js_viz.js`, inline beside the cl
 | ATJ6 | Cost bars, redrawn as SVG | bars | rd-cost |
 
 Rejected in this pass: a real image (nothing physical to show; a paper figure would be a weaker copy of the diagrams), an animation of the environment (a structure, not a change), a per-category stepper for the taxonomy (a sentence and the bars say it).
+
+## 2026-11-09 (layout rollout)
+- Built: Fig. 1 one trajectory, three graders (3D, three lanes); Fig. 2 state diff with the do-nothing agent (3D); Fig. 3 the estimator counted on one task (3D).
+- Considered and not built: a 3D reward-hacking scene (a null agent passing a weak check) as its own stage; the do-nothing agent became Fig. 2's last step instead, beside the 2D bars that give the per-domain numbers. A 3D failure taxonomy (bars read best flat). A 3D version of the trial stepper (its point is reading the messages, so it stays an HTML widget).

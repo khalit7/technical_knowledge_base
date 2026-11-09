@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-diff"></div></div><div class="s3L">
 <section id="rd-outcome">
 <h2>Outcome grading: check the world, not the claim</h2>
 <p>An outcome grader looks only at the world after the run: a <b>state diff</b> against a gold state, <b>tests</b> the change must pass, <b>assertions</b> on named parts of the state, or <b>required information</b> the agent must have told the user.</p>
@@ -9,16 +10,32 @@
 <tr><td data-l="Shape"><b>Assertions</b></td><td data-l="How">Programmatic checks on named parts of the state</td><td data-l="Example">τ²-bench telecom's environment assertions on the simulated phone; OSWorld's per-task checker scripts</td></tr>
 <tr><td data-l="Shape"><b>Required information</b></td><td data-l="How">String checks that the agent told the user specific facts</td><td data-l="Example">τ²-bench's <code>communicate_info</code>: a substring that must appear in an agent message</td></tr>
 </tbody></table></div></div></details>
-<p>A state diff is the strongest: indifferent to path and wording, it sees changes the agent never mentioned. Keep it a <b>diff</b>, not just a hash: the six differing fields of task 29 explain the failure in one look, where a hash only says "different". <b>Partial credit</b> helps where a task has parts ("a support agent that correctly identifies the problem and verifies the customer but fails to process a refund is meaningfully better than one that fails immediately", Anthropic): score each required change and keep the all-or-nothing score beside it.</p>
+<p class="sxh">Fig. 2, the same trial graded by its end state</p>
+<ol class="sx" id="sx-diff">
+<li><b>The starting database.</b> Every trial of task 29 starts from the same airline database: the customer's reservation VA5SGQ, his profile and his payment methods (the cells are schematic; the actions and fields below are the trial's own).</li>
+<li><b>Replay the gold actions on a copy.</b> The task's 3 gold actions (<code>get_reservation_details</code>, <code>cancel_reservation</code>, <code>book_reservation</code>) run on one copy: the old reservation cancelled, a new one booked. That copy is the gold state.</li>
+<li><b>Replay the agent's calls on another copy.</b> The trial's 7 calls run on a second copy, as <code>dbdiff.py</code> does with τ²-bench's own environment; its 2 writes also book and cancel, with different arguments.</li>
+<li><b>Compare the two.</b> τ²-bench hashes both databases and requires equality: they differ, so the reward is 0. Any order of calls and any wording would have passed had the end state matched.</li>
+<li><b>Lift out the diff.</b> A field-by-field diff says why in one look: 6 fields differ. Insurance: gold no, agent yes. The first payment: gold $282 on credit_card_8003957, agent $279 on gift_card_6468981. A second payment of $33 on the card, absent from the gold (two fields). The gift card's balance: gold 279, agent 0.</li>
+<li><b>The do-nothing agent.</b> An agent that makes no call leaves the starting database. On task 29 it fails, because the gold changed the database; but on 23 of the 50 airline tasks the gold is "no change", and it passes every one of them (next section).</li>
+</ol>
+<p>A state diff is the strongest grader: indifferent to path and wording, it sees changes the agent never mentioned. Keep it a <b>diff</b>, not just a hash (step 5). <b>Partial credit</b> helps where a task has parts ("a support agent that correctly identifies the problem and verifies the customer but fails to process a refund is meaningfully better than one that fails immediately", Anthropic): score each required change and keep the all-or-nothing score beside it.</p>
+</section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
+<section id="rd-null">
 <h3>The do-nothing baseline</h3>
 <p>Many good agent tasks have "change nothing" as the right answer (refuse a forbidden cancellation, decline an unaffordable change), and on those an agent that does nothing passes. This page ran that agent through τ²-bench's evaluator: the first user turn, then no tool calls.</p>
-<div class="fig"><h4>Nearly half the airline suite rewards doing nothing</h4>
-<div class="aj-svg" id="aj-null-svg"></div>
-<p class="cap">Top: share of tasks a do-nothing agent passes. Bottom: each agent's 200 airline trials, passes split by whether the do-nothing agent also passes that task. <span class="meas">measured here</span></p></div>
+
 <p>On airline, <b id="nb-air">23 of 50</b> tasks pass with no action, and <b id="nb-g">88 of GPT-5.2's 166</b> passing trials are on those tasks. Its pass^1 on the 27 tasks that need a change is <b id="nb-gc">72.2%</b>, against 83.0% overall (Opus 4.5: <b id="nb-oc">73.2%</b> against 84.0%). Neither number is wrong; the overall one hides that nearly half the suite rewards restraint. Anthropic's general form: "Test both the cases where a behavior should occur and where it shouldn't ... avoid class-imbalanced evals." For your own suite: run a do-nothing agent and a random agent first, report their scores beside every result, and report change and no-change tasks separately.</p>
 <details class="dep"><summary>How the do-nothing agent was graded</summary><div class="b">The greeting and first user message of a real trial, then the conversation ends; graded with <code>evaluate_simulation</code> at commit 5bfa7e3. Airline and telecom use the full reward; retail's reward also includes LLM-judged assertions, which were not run, so its figure is the database component only (an upper bound for the do-nothing agent). Per-model bars are computed in the page from the 400 trials and checked by <code>recompute.py</code>.</div></details>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="fig"><h4>Nearly half the airline suite rewards doing nothing</h4>
+<div class="aj-svg" id="aj-null-svg"></div>
+<p class="cap">Top: share of tasks a do-nothing agent passes. Bottom: each agent's 200 airline trials, passes split by whether the do-nothing agent also passes that task. <span class="meas">measured here</span></p></div></div></div></div>
 
+<section id="rd-blind">
 <h3>What an outcome check cannot see</h3>
 <ul>
 <li><b>Harm along the way.</b> An agent that emails a customer's data to the wrong address and then finishes the booking correctly passes a check on the reservations table. The outcome check covers the state you decided to check; the next section covers the rest.</li>
@@ -28,12 +45,10 @@
 </ul>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-actions">
 <h2>Grade actions, not messages</h2>
 <p>A message grader reads what the agent said, and for agents saying and doing come apart. Even a judge that read the whole transcript, tool calls included, disagrees with the database on <b>49</b> of the 400 trials; a grader that reads only the final message knows less.</p>
-<div class="fig"><h4>The transcript judge and the database disagree on 49 of 400 trials, in both directions</h4>
-<div class="aj-svg" id="aj-m22-svg"></div>
-<p class="cap">τ²-bench's natural-language assertions (an LLM judge over the transcript) against the database check, all 400 trials. The 18 trials in the corner the judge passes and the database fails are the dangerous ones: a confident report over a wrong world. <span class="meas">measured here</span>; any other pair of graders is in the {{Three graders, 400 trials|#t-grade}} tab.</p></div>
 <div class="co warn"><div class="t">MOLE: what was measured (correction carried from the parent page)</div>An earlier version of the parent page said MOLE found that "a model's stated refusal did not predict whether it actually declined". That overstates the paper. What it measured: under a preamble telling every model the sandbox is harmless and that refusing spoils the research, <b>28 of 39 models</b> (72%) completed more than half of their assigned harmful objectives, verified in the services' state, not in what the agent said; across models, refusal and completion rates are strongly linked (<b>Spearman -0.73</b>) ({{Muhamed and Smith, MOLE, Sep 2026|https://arxiv.org/abs/2609.06966}}; corrected reading on the {{MOLE paper page|n:3db5c17b0d0d818b9680c7b91baaf7e9}}). The point that survives: in agentic systems, grade what the account did.</div>
 <p><b>Emergence World</b> scored private reasoning, requested actions, executed actions and speech separately, letting none count for another: all seven exposed worlds warned their community about a phishing lure, none removed its traces, and in the Gemini world agents made <b>489</b> calls to the attacker's database after their own world had flagged it ({{Akkil et al., Sep 2026|https://arxiv.org/abs/2609.17320}}). A message grader would have scored that world as having detected the attack.</p>
 <h3>How to grade actions</h3>
@@ -49,3 +64,6 @@
 <p>Runtime enforcement of the same checks, as rails before and after each call: {{Guardrails|n:3c65c17b0d0d819bbfa5dffa9246c297}}. Benchmarks that grade refusals and harmful completions: {{Safety and honesty benchmarks|n:3ef5c17b0d0d818da9d5efda1a443166}}.</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="fig"><h4>The transcript judge and the database disagree on 49 of 400 trials, in both directions</h4>
+<div class="aj-svg" id="aj-m22-svg"></div>
+<p class="cap">τ²-bench's natural-language assertions (an LLM judge over the transcript) against the database check, all 400 trials. The 18 trials in the corner the judge passes and the database fails are the dangerous ones: a confident report over a wrong world. <span class="meas">measured here</span>; any other pair of graders is in the {{Three graders, 400 trials|#t-grade}} tab.</p></div></div></div></div>

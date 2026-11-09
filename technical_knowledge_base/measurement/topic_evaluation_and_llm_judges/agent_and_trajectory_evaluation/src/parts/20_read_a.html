@@ -1,9 +1,26 @@
 <div class="tab" id="t-read" role="tabpanel">
+<nav class="nav" id="rd-nav"><a href="#rd-one">In one screen</a><a href="#rd-anim">One trajectory</a><a href="#rd-outcome">Outcome</a><a href="#rd-actions">Actions</a><a href="#rd-steps">Steps</a><a href="#rd-judges">Judges</a><a href="#rd-rel">Reliability</a><a href="#rd-fail">Failure taxonomy</a><a href="#rd-env">Environments</a><a href="#rd-hack">Hacking</a><a href="#rd-cost">Cost</a><a href="#rd-obs">What to log</a><a href="#rd-check">Checklist</a></nav>
+
 <section id="rd-top">
 <div class="core"><b class="k">The idea in one sentence</b>An agent is judged by what it <span class="hot">did</span>, not by what it said: check the end state of the world with code, check the actions wherever they can do harm the end state does not show, use the exact path only to diagnose, and run every task several times, because one run is a sample.</div>
-<div class="fig" id="aj-hero"><h4>Three graders read three different parts of the same run, and disagree</h4>
-<div class="aj-svg" id="aj-hero-svg"></div>
-<p class="cap">One τ²-bench airline trial as a grader sees it: the messages (what the agent <i>said</i>), the tool calls (what it <i>did</i>, reads and <span class="hot">writes</span>) and the database before and after (what <i>changed</i>). Each grader reads one layer, and here they split: the judge passes the trial, the other two fail it. ✓ matches a gold call, ≈ same tool with different arguments, + not in the gold path. <span class="meas">measured here</span></p></div>
+</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
+<section id="rd-hero">
+<p class="sxh">Fig. 1, three graders read three different parts of the same run, and disagree</p>
+<ol class="sx" id="sx-hero">
+<li><b>One trial, as a record.</b> GPT-5.2 on τ²-bench airline task 29, trial 1, from the trajectory file Sierra released: 17 records in time order, 10 messages (upright plates: the agent's blue, the simulated user's yellow) and 7 tool calls (cubes). Every grader reads this record; each reads a different part of it.</li>
+<li><b>What it did: actions reach the environment.</b> 5 reads pull rows from the airline database and 2 writes change it: <code>book_reservation</code> creates the new booking and <code>cancel_reservation</code> cancels the old one. The cells are schematic; the calls are the trial's own.</li>
+<li><b>The transcript judge reads what it said.</b> τ²-bench's LLM judge reads the transcript against 3 natural-language assertions and marks all 3 met: <span class="ok">pass</span>. The agent's last message begins "All set."</li>
+<li><b>The outcome grader reads what changed.</b> Replay the gold actions on a copy of the starting database and compare: 6 fields differ (insurance yes where the gold has no; the payment split over a gift card and a card where the gold has one $282 card payment): <span class="no">fail</span>, reward 0.</li>
+<li><b>The step grader marks each call.</b> Against the 3 gold actions: <code>get_reservation_details</code> and <code>cancel_reservation</code> match exactly (✓), <code>book_reservation</code> is the right tool with different arguments (≈), and 4 reads are not in the gold path (+): 2 of 3 exact, <span class="no">fail</span>.</li>
+<li><b>Three graders, two verdicts, and the gold is in question.</b> The judge passes the trial; the database and the steps fail it. In record 11 the simulated user asked for insurance and to pay with a gift card, and the task's instructions mention neither, so the gold encodes the author's assumption. Only reading the steps shows it (<a href="#rd-anim">read the whole trial below</a>).</li>
+</ol>
+<p class="small mute">Marks in step 5: ✓ matches a gold call, ≈ same tool with different arguments, + not in the gold path. Data: the released trajectory file, re-graded here. <span class="meas">measured here</span></p>
+</section>
+</div></div>
+
+<section id="rd-need">
 <p class="small"><b>You need</b>: how an LLM judge works and fails ({{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}); what an agent loop and its tool calls are ({{Topic: agentic-harnesses|n:3c65c17b0d0d81d881a8fe98b4cff7bb}}). Public agent benchmarks and their scores are on {{Agentic benchmarks|n:3c65c17b0d0d811fb926d7b91ef8234e}}; this page is about evaluating <b>your own agent</b>, on your tasks, before you ship it and while it runs.</p>
 <div class="terms">
 <div><dfn>Task / trial</dfn>: one test with inputs and success criteria / one attempt at it (Anthropic's vocabulary).</div>
@@ -14,7 +31,6 @@
 <div><dfn>pass^k</dfn>: the probability that all k trials of a task succeed; <dfn>pass@k</dfn>: that at least one does.</div>
 <div><dfn>Process reward model (PRM)</dfn>: a trained model that scores each step rather than the end.</div>
 </div>
-<nav class="nav" id="rd-nav"><a href="#rd-one">In one screen</a><a href="#rd-anim">One trajectory</a><a href="#rd-outcome">Outcome</a><a href="#rd-actions">Actions</a><a href="#rd-steps">Steps</a><a href="#rd-judges">Judges</a><a href="#rd-rel">Reliability</a><a href="#rd-fail">Failure taxonomy</a><a href="#rd-env">Environments</a><a href="#rd-hack">Hacking</a><a href="#rd-cost">Cost</a><a href="#rd-obs">What to log</a><a href="#rd-check">Checklist</a></nav>
 </section>
 
 <section id="rd-one">
@@ -30,9 +46,23 @@
 <div class="co key"><div class="t">The rule this page argues for</div>Grade the <b>outcome</b> first, with code, on a state you can diff. Grade <b>actions</b> (not messages) wherever an action can do harm the outcome check does not see. Use the <b>path</b> only for diagnosis or for actions that must never happen, never as an exact sequence to match. Read failing and suspiciously passing transcripts every time the number moves. Anthropic's own advice is close: "it's often better to grade what the agent produced, not the path it took" ({{Demystifying evals for AI agents|https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents}}, 9 Jan 2026), with one addition from the safety results below: what an agent <i>did</i> along the way is part of what it produced.</div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-anim">
 <h2>One trajectory, three graders</h2>
-<p>Pick a real trial and step through it (nothing moves until you press a control). Each panel shows what that grader would say <i>if the run stopped here</i>: the message grader sees the replies, the outcome grader diffs the database against the gold database, the step grader matches each call against the gold actions.</p>
+<p>Pick a real trial and step through it: Fig. 1's trial in full, and four more where a different grader is wrong. It opens on the last step and moves only when you do; each panel shows what its grader would say <i>if the run stopped here</i>.</p>
+<p class="try"><b>Read it yourself:</b> on the default trial (Fig. 1's), press "Message only" and step from the start: the replies read like a success. Then switch to "Final state". Then pick the Claude Opus 4.5 trial of the same task, the only one of eight that passed, and compare who proposed insurance.</p>
+<div class="tw"><table class="aj-five">
+<thead><tr><th>Trial</th><th>What happened</th><th>Which grader is wrong</th></tr></thead>
+<tbody>
+<tr><td>GPT-5.2, task 29, trial 1</td><td>Cancels, rebooks, ends "All set."; the judge marks all three assertions met, the database differs on six fields (the gold has no insurance and one $282 card payment). <b>But the simulated user asked for both</b> ("Insurance on the new booking: Yes, please"; "use gift_card_6468981"), and the task's instructions mention neither. Task 29 passed in 1 of 8 trials across the two models.</td><td>Arguably the gold: it enforces the author's unstated assumption against the simulator's improvisation; only the step view shows it.</td></tr>
+<tr><td>GPT-5.2, task 0, trial 3</td><td>Should refuse a forbidden cancellation; transfers to a human instead. Nothing changes, so it scores 1; the judge says it "did not refuse".</td><td>The outcome grader, too lenient.</td></tr>
+<tr><td>GPT-5.2, task 12, trial 1</td><td>Database exactly right; the gold path calls <code>calculate</code> for the fare difference and the agent did the arithmetic itself.</td><td>A path grader that demands every gold call.</td></tr>
+<tr><td>GPT-5.2, task 31, trial 1</td><td>Upgrades basic economy to economy, then moves the flight, for $47; the user: "this is exactly what I needed". The gold is "no change", so it fails.</td><td>Possibly the gold. Anthropic describes Opus 4.5 finding a τ²-bench policy loophole that "'failed' the evaluation as written, but actually came up with a better solution for the user"; same task <span class="unc">unconfirmed</span>, same pattern.</td></tr>
+<tr><td>Claude Opus 4.5, task 29, trial 2</td><td>Proposes the booking without insurance, on the card on file; the user accepts ("<b>no</b>, please <b>do not</b> add travel insurance").</td><td>None: all three agree, and the database is the gold reservation.</td></tr>
+</tbody></table></div>
+<details class="dep"><summary>Where the data comes from</summary><div class="b">Sierra's released trajectory files for the GPT-5.2 (high) and Claude Opus 4.5 (high) airline submissions (26 Feb 2026, user simulator GPT-5.2; {{GPT-5.2 file|https://sierra-tau-bench-public.s3.us-west-2.amazonaws.com/submissions/gpt-5-2_sierra_2026-02-26/trajectories/gpt-5.2_high_airline_gpt-5.2_4trials.json}}, {{Opus 4.5 file|https://sierra-tau-bench-public.s3.us-west-2.amazonaws.com/submissions/claude-opus-4-5_sierra_2026-02-26/trajectories/claude-opus-4-5_high_airline_gpt-5.2_4trials.json}}, MIT). The message verdicts are τ²-bench's own natural-language assertions, graded by an LLM judge over the transcript and stored in the files; airline does not count them toward the reward. The database diffs were computed for this page by replaying the agent's calls and the gold actions in {{τ²-bench's environment|https://github.com/sierra-research/tau2-bench}} (commit 5bfa7e3, 28 Sep 2026); re-grading all 200 GPT-5.2 airline trials with its evaluator reproduces every recorded reward (200 of 200). Long messages and tool results are clipped for display. Every trial with all five verdicts is in the {{Three graders, 400 trials|#t-grade}} tab.</div></details>
+</section>
+</div><div class="s3R">
 <div class="an" id="an">
 <div class="bar"><span class="lab2">Trial</span><select id="an-case" aria-label="Trial"></select></div>
 <div class="bar" role="group" aria-label="Lens"><span class="lab2">Highlight</span><div class="seg" id="an-lens"><button data-l="all" class="on">All three</button><button data-l="msg">Message only</button><button data-l="state">Final state</button><button data-l="steps">Step by step</button></div></div>
@@ -49,15 +79,4 @@
 <div class="ctrl"><button id="an-back" aria-label="Step back">&#9664;</button><button id="an-play">Play</button><button id="an-fwd" aria-label="Step forward">&#9654;</button><input type="range" id="an-scrub" min="0" max="1" value="0" aria-label="Scrub"><select id="an-speed" aria-label="Speed"><option value="1800">slow</option><option value="1000" selected>normal</option><option value="500">fast</option></select></div>
 <p class="small mute" id="an-src"></p>
 </div>
-<p class="try"><b>Predict, then step:</b> on the default trial the agent ends "All set." Will the database agree? Run it to the end with "Message only", then switch to "Final state". Then pick the Claude Opus 4.5 trial of the same task, the only one of eight that passed, and compare who proposed insurance.</p>
-<div class="tw"><table class="aj-five">
-<thead><tr><th>Trial</th><th>What happened</th><th>Which grader is wrong</th></tr></thead>
-<tbody>
-<tr><td>GPT-5.2, task 29, trial 1</td><td>Cancels, rebooks, ends "All set."; the judge marks all three assertions met, the database differs on six fields (the gold has no insurance and one $282 card payment). <b>But the simulated user asked for both</b> ("Insurance on the new booking: Yes, please"; "use gift_card_6468981"), and the task's instructions mention neither. Task 29 passed in 1 of 8 trials across the two models.</td><td>Arguably the gold: it enforces the author's unstated assumption against the simulator's improvisation; only the step view shows it.</td></tr>
-<tr><td>GPT-5.2, task 0, trial 3</td><td>Should refuse a forbidden cancellation; transfers to a human instead. Nothing changes, so it scores 1; the judge says it "did not refuse".</td><td>The outcome grader, too lenient.</td></tr>
-<tr><td>GPT-5.2, task 12, trial 1</td><td>Database exactly right; the gold path calls <code>calculate</code> for the fare difference and the agent did the arithmetic itself.</td><td>A path grader that demands every gold call.</td></tr>
-<tr><td>GPT-5.2, task 31, trial 1</td><td>Upgrades basic economy to economy, then moves the flight, for $47; the user: "this is exactly what I needed". The gold is "no change", so it fails.</td><td>Possibly the gold. Anthropic describes Opus 4.5 finding a τ²-bench policy loophole that "'failed' the evaluation as written, but actually came up with a better solution for the user"; same task <span class="unc">unconfirmed</span>, same pattern.</td></tr>
-<tr><td>Claude Opus 4.5, task 29, trial 2</td><td>Proposes the booking without insurance, on the card on file; the user accepts ("<b>no</b>, please <b>do not</b> add travel insurance").</td><td>None: all three agree, and the database is the gold reservation.</td></tr>
-</tbody></table></div>
-<details class="dep"><summary>Where the data comes from</summary><div class="b">Sierra's released trajectory files for the GPT-5.2 (high) and Claude Opus 4.5 (high) airline submissions (26 Feb 2026, user simulator GPT-5.2; {{GPT-5.2 file|https://sierra-tau-bench-public.s3.us-west-2.amazonaws.com/submissions/gpt-5-2_sierra_2026-02-26/trajectories/gpt-5.2_high_airline_gpt-5.2_4trials.json}}, {{Opus 4.5 file|https://sierra-tau-bench-public.s3.us-west-2.amazonaws.com/submissions/claude-opus-4-5_sierra_2026-02-26/trajectories/claude-opus-4-5_high_airline_gpt-5.2_4trials.json}}, MIT). The message verdicts are τ²-bench's own natural-language assertions, graded by an LLM judge over the transcript and stored in the files; airline does not count them toward the reward. The database diffs were computed for this page by replaying the agent's calls and the gold actions in {{τ²-bench's environment|https://github.com/sierra-research/tau2-bench}} (commit 5bfa7e3, 28 Sep 2026); re-grading all 200 GPT-5.2 airline trials with its evaluator reproduces every recorded reward (200 of 200). Long messages and tool results are clipped for display. Every trial with all five verdicts is in the {{Three graders, 400 trials|#t-grade}} tab.</div></details>
-</section>
+</div></div>

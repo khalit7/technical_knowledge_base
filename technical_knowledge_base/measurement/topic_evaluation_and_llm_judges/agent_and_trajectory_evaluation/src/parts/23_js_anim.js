@@ -1,4 +1,5 @@
-// Reading, rd-anim: one real tau2-bench trial stepped through, graded three ways at every step.
+// Reading, rd-anim: one real tau2-bench trial stepped through, graded three ways at every step. A reader-driven widget (2026-11-06 rule 3b):
+// it never plays by itself and opens on the last step of the default trial (all three verdicts shown); Fig. 1 above is the explained, autoplaying view.
 // Data: window.ATJ.cases (src/inputs/tau2_cases.json). Final verdicts are the recorded ones (message judge, action checks)
 // and the database diff computed with tau2's environment; mid-run state verdicts compare the writes made so far with the gold writes.
 (function(){
@@ -89,5 +90,5 @@ $('an-tl').addEventListener('click',e=>{const r=e.target.closest('.st');if(r){st
 if('IntersectionObserver' in window){new IntersectionObserver(es=>{onScreen=es[0].isIntersecting;if(!onScreen&&playing)stop()}).observe($('an'))}
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)stop()});
 window.ATJ_ANIM={set:(k,j)=>{key=k;i=j;sel.value=k;render()},end:()=>{i=C().steps.length-1;render()}};
-render();
+i=C().steps.length-1;render();
 })();
