@@ -36,9 +36,9 @@
       const cur=ex===st.ex&&fz===st.fz&&se===st.se;return '<td class="num"'+(cur?' style="font-weight:700"':'')+'>'+U.fmt(S.docs)+' / '+kb(S.bytes)+'</td>'}).join('')+'</tr>';
     let h='<thead><tr><th>exact and fuzzy</th><th class="num">semantic off</th><th class="num">&epsilon; 0.05</th><th class="num">&epsilon; 0.1</th></tr></thead><tbody>';
     ['off','on'].forEach(ex=>Object.keys(LBL).forEach(fz=>{h+=row(ex,fz)}));$('dp-cmp-tab').innerHTML=h+'</tbody>'}
-  const upd=()=>{an.go(4);table()};
+  const upd=()=>{an.go(4,true);table()};
   ['ex','fz','se','sa'].forEach(k=>RD.seg($('dp-cmp-'+k),m=>{st[k]=m;upd()}));
-  an=RD.anim({card:'dp-cmp-card',ctl:'dp-cmp-ctl',n:5,draw,ms:1700,label:'Dedup step'});
+  an=RD.anim({card:'dp-cmp-card',ctl:'dp-cmp-ctl',n:5,draw,ms:1700,label:'Dedup step',auto:false,start:4}); // a widget the reader drives: opens on the result of every chosen step, never plays by itself
   table();
   U.onTab('t-cmp',()=>an.redraw());
   window.DPCMP={result,stats};

@@ -1,9 +1,9 @@
-<section id="rd-sem">
+<div class="s3sp"><div class="s3L"><section id="rd-sem">
 <h2>8. Semantic dedup: SemDeDup and D4</h2>
 <p><b>The problem.</b> Two pages can say the same thing in different words and share no 5-word phrase: Jaccard near 0. Paraphrase-level redundancy is common in synthetic data, instruction sets and spam.</p>
 <p><b>How it works.</b> An <b>encoder</b> (a model that maps a text to a vector so that texts with similar meaning land close together) embeds every document. Comparing all pairs is again quadratic, so <b>SemDeDup</b> (Abbas et al. 2023) first clusters the vectors with k-means, then inside each cluster removes a document whose cosine similarity to a kept one is at least 1&minus;&epsilon;. NeMo Curator 1.4.0 runs this on GPUs with embeddinggemma-300m, 100 clusters and &epsilon; = 0.01 by default, keeping the members farthest from the centroid first ("hard"; <code>stages/text/deduplication/semantic.py:80-92</code>). <b>D4</b> (Tirumala et al. 2023) adds a second step: k-means again and drop the documents <i>closest</i> to their centroid, the most typical ones, until a target size.</p>
 <p><span class="lbl me">measured</span> <b>Does the encoder matter?</b> The 2,692 filtered documents embedded with three encoders on CPU (4 threads, low priority): arctic-embed-m (the FineWeb-Edu classifier's backbone, root lab), bge-small-en-v1.5 (440 s) and all-MiniLM-L6-v2 (100 s), then SemDeDup with 20 k-means clusters.</p>
-<div class="card"><h4 style="margin:0 0 4px">Three encoders remove similar counts but different documents</h4><div id="rd-sem-plot"></div><p class="small mute" id="rd-sem-note"></p></div>
+
 <ul>
 <li><b>Similar counts, different documents.</b> At &epsilon; = 0.05 the three encoders remove 62, 59 and 57 documents, but only 34 are removed by all three and 85 by at least one. At &epsilon; = 0.1: 72, 72 and 67; 38 by all three, 104 by any.</li>
 <li><b>A fixed &epsilon; does not transfer between encoders.</b> The median cosine between two unrelated documents is 0.21 for arctic, 0.49 for bge-small and 0.05 for MiniLM; the lowest cosine among pairs with Jaccard &ge; 0.8 is 0.71, 0.80 and 0.74. Calibrate &epsilon; on labelled pairs for each encoder before trusting NeMo Curator's default.</li>
@@ -11,6 +11,8 @@
 </ul>
 <p><b>Published results are modest</b> (closed block below): no loss on LAION at 37% removed, a perplexity match for C4 with less data, small downstream gains for D4 at 6.7B, and no gain as DCLM's selection step. <b>When it matters:</b> synthetic and instruction data, after exact and MinHash dedup. <b>Cost:</b> an encoder pass over every document plus k-means. <b>How to check it:</b> read the removed pairs at the chosen &epsilon;, especially pairs with low Jaccard: on this file they are cookie notices from different plugins and casino spam (root lab), but at looser &epsilon; real pages start to go.</p>
 
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 style="margin:0 0 4px">Three encoders remove similar counts but different documents</h4><div id="rd-sem-plot"></div><p class="small mute" id="rd-sem-note"></p></div></div></div></div>
 <details class="dp"><summary>D4 on the running example and on 50,000 FineWeb-Edu rows (GPU run) <span class="mute">(depth)</span></summary><div class="b">
 <p><span class="lbl me">measured</span> After SemDeDup (&epsilon; 0.05, 2,630 left), keeping 80% by D4's rule prunes the 476 most typical documents: median length 1,057 characters against 2,156 for those kept, median FineWeb-Edu score 0.62 against 1.10, and only 19 of the 159 documents scoring &ge; 2.5 (FineWeb-Edu's keep line).</p>
 <div id="rd-d4fw"></div>
@@ -22,4 +24,3 @@
 <li><b>D4</b> ({{arXiv 2308.12284|https://arxiv.org/html/2308.12284}}): SemDeDup first (keep 75%), then "SSL prototypes". At 6.7B parameters and 100B tokens: about 20% fewer steps to reach the baseline's perplexity and up to 2% better average downstream accuracy. Table 1 (1.3B, 40B tokens): D4-selected 20B tokens repeated twice beat 40B random tokens once on non-web perplexity (16.10 vs 16.27) and instruction perplexity (13.85 vs 14.19). Selection always hurt perplexity on a held-out web snapshot: it trades web typicality for diversity.</li>
 <li><b>DCLM</b> Table 4: SemDedup used as the selection step scored 27.1 Core against 27.5 for no model-based selection; as a quality filter on its own it did not help.</li>
 </ul></div></details>
-</section>

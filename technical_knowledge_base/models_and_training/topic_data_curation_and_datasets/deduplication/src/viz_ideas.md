@@ -31,3 +31,14 @@ offline and its output checked against the pipeline's files.
 | DP18 | Bloom filter bits | a false positive from two inserted lines | illustrative | Reading section 7 | built |
 | DP19 | DCLM Table 22 bars | BFF removal grows with shard size | published | Reading section 7 | built |
 | DP20 | Real photo or paper figure | | | | rejected: an algorithm page; diagrams teach the mechanisms better |
+
+## Added 2026-11-09 (split layout and 3D stages, the 2026-11-06 rollout)
+
+| # | Idea | What it shows | Data | Placement | Status |
+|---|---|---|---|---|---|
+| DP21 | 3D: MinHash and LSH (Fig. 1) | shingle tiles in two rows, hash values as bars and each page's minimum, hashes 2 to 8 replayed, two 112-value signatures as glass plates, 14 bands, an equal band's bucket between the plates | DP.mhdemo (datatrove's own signer), three pairs | Reading 3 | built; replaces the 13-step 2D stepper and its exact-Jaccard mode (now step 2's text) |
+| DP22 | 3D: union-find on the 25-page cluster (Fig. 2) | pages in a ring, the root in the middle, pair chords and parent arcs replayed in three stretches, then heights as Jaccard with the kept page and the 0.8 check as a glass plane | DP.uf.anim[0] | Reading 4 | built; replaces the 2D replay (25 frames, one per operation) and its cluster and check toggles |
+| DP23 | 3D: suffix array (Fig. 3) | two pages as word tiles, 22 suffixes stacked, sorted, LCP at L = 4, mapped back and cut | illustrative, computed in the page | Reading 6 | built; replaces DP17's HTML list |
+| DP24 | 3D: Bloom filter (Fig. 4) | 16 bit cells on a glass plate, three lines sending flows to their bits, the false positive | illustrative | Reading 7 | built; replaces DP18's HTML bits |
+| DP25 | 3D: semantic dedup as points and radii | embeddings clustered, neighbours within 1 - epsilon pruned | would need emb.npy, which the page does not embed | Reading 8 | rejected: no coordinates in the page's data; inventing them would show made-up geometry |
+| DP26 | 3D hero: 2,692 documents as a tile field, removed step by step | the comparer's grid in depth | dp_compare.json | Reading top | rejected: the hero is a four-way comparison table; the comparer's flat grid already shows the per-document result |

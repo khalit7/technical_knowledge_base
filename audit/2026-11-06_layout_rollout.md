@@ -127,8 +127,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_evaluation_and_llm_judges` Topic: evaluation-and-llm-judges
 - [x] `models_and_training/topic_data_curation_and_datasets/data_mixing` Data mixing, curricula and continued-pretraining ratios
 - [x] `models_and_training/topic_data_curation_and_datasets/decontamination_pii_and_governance` Decontamination, PII and data governance
-- [~] `models_and_training/topic_data_curation_and_datasets/deduplication` Deduplication: exact, MinHash, suffix arrays, semantic
-- [ ] `models_and_training/topic_data_curation_and_datasets/extraction_and_filtering` Extraction and filtering: from WARC to clean text
+- [x] `models_and_training/topic_data_curation_and_datasets/deduplication` Deduplication: exact, MinHash, suffix arrays, semantic
+- [~] `models_and_training/topic_data_curation_and_datasets/extraction_and_filtering` Extraction and filtering: from WARC to clean text
 - [ ] `models_and_training/topic_data_curation_and_datasets/post_training_data` Post-training data: SFT, preference, verifiable-reward and environments
 - [ ] `models_and_training/topic_data_curation_and_datasets/pretraining_corpora` Pretraining corpora: lineage, licences and what to use
 - [ ] `models_and_training/topic_data_curation_and_datasets/quality_classifiers_and_data_selection` Quality classifiers and data selection
@@ -420,4 +420,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_data_curation_and_datasets/data_mixing`: core 45 min plus 23 closed (large); empty card space on early steps (Fig. 2 steps 1 and 2, Fig. 3 step 1); Fig. 6 German-cost +0.00 labels close; Fig. 3 loss and score columns differ by only 5 to 14% (honest, hard to see); verify_layout flags the planner and CPT recipes svgs outside a split (accepted: reader tools).
 - `measurement/topic_evaluation_and_llm_judges` (root): Fig. 1 overview steps leave empty space above and below and are small on phones; short layer names sit on the plates' back edges; interval chart replaced by a computed table linking Eval statistics Figs. 1 and 2; verify_layout flags the Judge atlas chart outside a split (accepted: reader-driven explorer).
 - `models_and_training/topic_data_curation_and_datasets/decontamination_pii_and_governance`: Fig. 2 step 4 muddled at 1400 ("longest match" label floats with nothing under it, faint ghost columns); Fig. 1 first step tokens cut at the card's right edge; full-view token rows thin; PII detector card taller than the window at 1400 (does not stick); 21 min of closed details is large.
+- `models_and_training/topic_data_curation_and_datasets/deduplication`: Fig. 1 first two steps wide and shallow (empty card space above and below); Fig. 2 step 7 plane label clamped at the card's right edge; 23 min of closed details is large; no semantic-dedup stage (no embedding coordinates on the page).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

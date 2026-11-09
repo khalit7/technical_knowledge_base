@@ -1,6 +1,6 @@
 // Page check for the deduplication child page (prefix dp). From the repo root:
 //   node technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/deduplication/src/check_page.mjs [shot dir]
-// 1. clicks every control in every tab (Reading now holds the MinHash stepper, Band designer and union-find replay) at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
+// 1. clicks every control in every tab (Reading holds the four 3D stages, the Band designer and the hash calculators; the comparer is a widget) at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
 //    undefined or Infinity in visible text, or sideways page scroll; screenshots each chart at 390 px into [shot dir];
 // 2. checks the page embeds exactly data/dp_data.json, that the page's JS reproduces published and Python results
 //    (datasketch's (b, r) choices, the S-curve, union-find totals, comparer totals), and that prose numbers match data.
@@ -36,7 +36,7 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
     const side=await p.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1);
     ok(!side,scheme+' '+width+' '+t+': no sideways scroll');
     if(shots&&width===390){fs.mkdirSync(shots,{recursive:true});
-      const ids=await p.evaluate(t=>[...document.getElementById(t).querySelectorAll('[id$="-plot"],[id^="rd-"][id$="17"],#rd-var,#rd-sa-scope,#dp-mh-stage,#dp-sd-hist,#dp-sd-cand,#dp-cmp-grid,#rd-sc-tab')].map(e=>e.id),t);
+      const ids=await p.evaluate(t=>[...document.getElementById(t).querySelectorAll('[id$="-plot"],[id^="rd-"][id$="17"],#rd-var,#rd-sa-scope,.stg,#dp-sd-hist,#dp-sd-cand,#dp-cmp-grid,#rd-sc-tab')].map(e=>e.id),t);
       for(const id of ids){const el=await p.$('#'+id);if(el){try{await el.screenshot({path:path.join(shots,t+'-'+id+'.png')})}catch(e){}}}}
   }
   ok(errs.length===0&&!(await p.evaluate(()=>!document.getElementById('jsErr').hidden)),scheme+' '+width+': no JS errors ('+clicks+' controls exercised)'+(errs.length?' '+errs.slice(0,3).join(' | '):''));
