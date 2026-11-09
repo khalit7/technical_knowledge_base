@@ -68,7 +68,7 @@
       $('dc-anP').innerHTML=s===0?'Nothing stored yet. Press play to walk the '+(n-1)+' layers that can keep a cache.':(per(i)?'Keeps '+fmt(per(i))+' bytes per token ('+esc((r.ph||{})[c]||'')+')'+(c==='S'&&r.W?'; at 131,072 tokens it holds only its last '+fmt(r.W)+', so on average '+fmt(cred(i),1)+' bytes per token.':'.'):'Adds nothing that grows with context'+(c==='L'||c==='H'?' (a fixed state instead).':'.'));
       $('dc-anC').innerHTML=G.stat('Card convention, so far',fmtB(a*(r.passes||1)),'blue bar')+G.stat('Windows credited at 131,072, so far',fmtB(b*(r.passes||1)),'teal bar')+G.stat('Layers walked',s+' of '+(n-1),'')}
     if(!anim)anim=G.anim({card:'dc-an',ctl:'dc-anCtl',n,draw:i=>curDraw(i),ms:Math.max(60,Math.min(500,9000/n)),tab:'t-dec',label:'Layer'});
-    curDraw=draw;anim.reset(n)}
+    curDraw=draw;anim.reset(n);anim.go(n-1)} // a widget the reader drives (up to 94 frames): it opens on its last frame, the totals, and never plays by itself
   let curDraw=()=>{};
   function show(n){const r=by[n];if(!r)return;cur=n;sel.value=n;
     $('dc-card').innerHTML=card(r);$('dc-json').innerHTML=json(r);

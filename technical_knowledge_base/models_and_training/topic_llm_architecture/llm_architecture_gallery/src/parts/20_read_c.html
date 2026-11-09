@@ -1,24 +1,48 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-store"></div></div><div class="s3L">
 <section id="ag-s5">
 <h2>5. Delta one: what each token stores</h2>
-<p>Every decoded token reads the keys and values of every earlier token in every attention layer, so the bytes per entry are decode time as well as memory. At Llama 3.1 70B's shape with all 64 heads (MHA) that would be 2,560 KiB per token, 320 GiB for one 128K request; GQA keeps one key and value head per group (Llama 3.1 70B: 64 query heads, 8 KV heads, 320 KiB per token), and MLA a 512-number latent plus a 64-number positional key per layer whatever the head count (DeepSeek-V3: 61 × 576 × 2 = 68.6 KiB per token). Fewer KV heads cost a little quality and MLA costs extra projections and its own kernels; why, and how MLA rebuilds the heads, is on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}.</p>
-<div class="card"><h4>The hundredfold spread, and a median that halved in a year</h4>
-<div id="ag-spread"></div>
-<p class="small mute">KV cache per token, card convention, bf16, every gallery model with a config (DeepSeek V4's compressed caches and xLSTM's state-only stack left out); dots coloured by attention family, the bar marks the median. Derived from configs. In the gallery's 2026 models the median is 68.6 KiB per token against 144 KiB for the 2025 models, and the spread is still a hundredfold: Nemotron 3.5 Lightning keeps 6 KiB per token, Gemma 4 31B 840 KiB.</p></div>
-<p><b>How to check:</b> <code>num_key_value_heads</code> × <code>head_dim</code> × 4 bytes per attention layer (K and V, 2 bytes each), or (<code>kv_lora_rank</code> + <code>qk_rope_head_dim</code>) × 2 for MLA, then count the layers that grow a cache. The table does that for ten models.</p>
-<div class="tw" id="ag-t6"></div>
-<p><b>Sparse attention does not shrink the cache.</b> Selecting the top k keys cuts arithmetic, not storage: every key must stay available to be selected, and the indexer adds keys of its own. DeepSeek V3.2 keeps V3's 68.6 KiB per token plus 15.25 KiB of indexer keys (61 × 128 × 2 bytes); storage falls only when entries are also compressed, as in V4 (section 10).</p>
+<p>Every decoded token reads the keys and values of every earlier token in every attention layer, so the bytes per entry are decode time as well as memory. At Llama 3.1 70B's shape with all 64 heads (MHA) that would be 2,560 KiB per token, 320 GiB for one 128K request; GQA keeps one key and value head per group (Llama 3.1 70B: 64 query heads, 8 KV heads, 320 KiB per token), and MLA a 512-number latent plus a 64-number positional key per layer whatever the head count (DeepSeek-V3: 61 × 576 × 2 = 68.6 KiB per token). Fewer KV heads cost a little quality and MLA costs extra projections and its own kernels; why, and how MLA rebuilds the heads, is on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}. Fig. 6 shows what released models chose.</p>
+<ol class="sx" id="sx-store">
+<li><b>One layer, one token.</b> Each row is a released model and each box one of its layers; the first box's height is what that layer keeps for one token, read from the config: from 1 KiB (Nemotron 3.5 Lightning, 2 KV heads of 128) and 1,152 bytes (DeepSeek V3's MLA latent and key, (512 + 64) × 2) to 16 KiB (Gemma 4 31B's windowed layers, 16 KV heads of 256). The outlines are the layers still to come; front to back, the rows are Nemotron 3.5 Lightning, DeepSeek V3, gpt-oss-120b, Qwen3 235B, Llama 3.1 70B and Gemma 4 31B.</li>
+<li><b>Times every layer that grows.</b> Llama 3.1 70B 80 × 4 KiB = 320 KiB per token; Qwen3 235B 94 × 2 KiB = 188 KiB; gpt-oss-120b 36 × 2 KiB = 72 KiB; DeepSeek V3 68.6 KiB; Gemma 4 31B 50 × 16 + 10 × 4 = 840 KiB. In Nemotron 3.5 Lightning only 6 of 52 layers grow (the flat hollow tiles are Mamba-2 and FFN-only blocks): 6 KiB per token.</li>
+<li><b>The spread, from above.</b> Each row's boxes add up to its card figure, from 6 KiB to 840 KiB per token: 140 times. It does not follow size: gpt-oss-120b, with 117B parameters, keeps less than a quarter of what Llama 3.1 70B keeps.</li>
+<li><b>Sparse attention adds keys.</b> Selecting the top k keys cuts arithmetic, not storage: every key must stay available to be selected, and the indexer adds keys of its own (purple). DeepSeek V3.2 keeps V3's 68.6 KiB per token plus 15.25 KiB of indexer keys (61 × 128 × 2 bytes); storage falls only when entries are also compressed, as in V4 (section 10).</li>
+</ol>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L"><section id="ag-s5b">
+<p><b>Across the whole gallery</b> (Fig. 7), the median halved in a year and the spread stayed a hundredfold: in the gallery's 2026 models the median is 68.6 KiB per token against 144 KiB for the 2025 models, and Nemotron 3.5 Lightning keeps 6 KiB per token, Gemma 4 31B 840 KiB.</p>
+<p><b>How to check:</b> <code>num_key_value_heads</code> × <code>head_dim</code> × 4 bytes per attention layer (K and V, 2 bytes each), or (<code>kv_lora_rank</code> + <code>qk_rope_head_dim</code>) × 2 for MLA, then count the layers that grow a cache. The table does that for ten models.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 7 · The hundredfold spread, and a median that halved in a year</h4>
+<div id="ag-spread"></div>
+<p class="small mute">KV cache per token, card convention, bf16, every gallery model with a config (DeepSeek V4's compressed caches and xLSTM's state-only stack left out); dots coloured by attention family, the bar marks the median. Derived from configs.</p></div></div></div></div>
+<div class="tw" id="ag-t6"></div>
+
+
+<div class="s3sp"><div class="s3R"><div id="stg-win"></div></div><div class="s3L">
 <section id="ag-s6">
 <h2>6. Delta two: how long it is kept (sliding windows)</h2>
 <p>Most layers attend only to the last W tokens (a <dfn>sliding window</dfn>) and every few layers a <dfn>global</dfn> layer attends to everything. A windowed layer stores the same entry per token as its base design but drops entries older than W, so one request at context T holds the sum over layers of bytes per token × min(T, W). That is why the card's figure, which counts windowed layers at full cost, overstates a windowed model's long-context cache. The price: information more than W tokens back reaches a token only through the global layers, so exact retrieval far back depends on how many there are. What windows cost in recall is on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}} and {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}; this section counts who uses them.</p>
-<div class="card" id="ag-w7"><h4>Crediting the windows: the card (hollow) against the cache held at 131,072 tokens (filled)</h4>
-<div id="ag-w7b"></div>
-<p class="small mute">Every windowed model in the gallery with a computable cache, sorted by the factor on the right; log scale, bf16, derived from configs. Crediting the windows cuts the long-context cache 2 times for gpt-oss and 18 times for Gemma 4 31B: 840 KiB per token on the card, about 46 KiB per token at 131,072 tokens, 105 GiB against 5.8 GiB for one request. The top of the list is Gemma 4 12B at 31.2 times.</p></div>
+<ol class="sx" id="sx-win">
+<li><b>Gemma 3 27B at 1,024 tokens: every layer holds the same.</b> 62 layers of 8 KiB per token (16 KV heads of 128), each a bar as long as the tokens it holds. Below the window the windowed (teal) and global (blue) layers coincide: 496 MiB, card and held alike.</li>
+<li><b>At 8,192 tokens the windows stop.</b> The 52 windowed layers keep their last 1,024 tokens (the band at the front) and drop older entries; the 10 global layers keep all 8,192. Held 1.03 GiB, against 3.88 GiB if every layer were global.</li>
+<li><b>At 131,072 tokens the windows are a sliver.</b> 52 × 8 KiB × 1,024 = 416 MiB for the windowed layers, 10 × 8 KiB × 131,072 = 10 GiB for the global ones: 10.4 GiB held, against the card's 496 KiB × 131,072 = 62 GiB.</li>
+<li><b>gpt-oss-120b: one to one, 128-token windows.</b> 18 windowed and 18 global layers of 2 KiB: the windows save half, 4.5 GiB held against 9 GiB on the card, because half the layers still grow.</li>
+<li><b>Gemma 4 31B: windows on the big layers.</b> Its 50 windowed layers keep 16 KiB per token and its 10 global layers only 4 KiB (4 KV heads of 512, keys and values shared): 800 MiB + 5 GiB = 5.8 GiB held against 105 GiB on the card, 18 times less.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="ag-s6b">
 <p><b>The ratios released.</b> The local-to-global ratio runs from 1:1 (gpt-oss) through 3:1 (11 models, the most common) to 5:1 (Gemma 3 and 4), and windows from 128 tokens (11 models, gpt-oss and MiMo among them) to 8,192 (Llama 4's chunks). <b>How to check:</b> count <code>sliding_attention</code> entries in <code>layer_types</code>, read <code>sliding_window</code>, then credit them; below W the two numbers coincide.</p>
 <div class="ag-pr" data-ok="b"><div class="q">Predict: Llama 4 Maverick has 48 layers; 36 attend within 8,192-token chunks and 12 are global, each layer 4 KiB per token. The card says 192 KiB per token. What does a 131,072-token request hold per token?</div>
 <div class="opts"><button data-k="a">192 KiB, chunks do not help</button><button data-k="b">57 KiB</button><button data-k="c">48 KiB, only the global layers count</button></div>
 <p class="small"><a href="#" class="skip">Skip: show the answer</a></p>
 <div class="ans" hidden>57 KiB. The 12 global layers hold every token: 12 × 4 = 48 KiB per token. The 36 chunked layers hold at most 8,192 tokens each, which spread over 131,072 tokens is 36 × 4 KiB × 8,192 / 131,072 = 9 KiB per token. Close to "only the globals count", but not equal: windows that are a large fraction of the context still cost. (This page, like the root Config calculator, treats Llama 4's chunks as an 8,192-token window, an upper bound for chunked attention; the chunk mechanism is on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}.)</div></div>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="ag-w7"><h4>Fig. 9 · Crediting the windows: the card (hollow) against the cache held at 131,072 tokens (filled)</h4>
+<div id="ag-w7b"></div>
+<p class="small mute">Every windowed model in the gallery with a computable cache, sorted by the factor on the right; log scale, bf16, derived from configs. Crediting the windows cuts the long-context cache 2 times for gpt-oss and 18 times for Gemma 4 31B: 840 KiB per token on the card, about 46 KiB per token at 131,072 tokens, 105 GiB against 5.8 GiB for one request. The top of the list is Gemma 4 12B at 31.2 times.</p></div></div></div></div>

@@ -16,7 +16,9 @@ P=parts
 reads=$(ls $P/20_read_*.html 2>/dev/null | LC_ALL=C sort)
 tabs=$(ls $P/3*_tab_*.html 2>/dev/null | LC_ALL=C sort)
 js=$(ls $P/*.js 2>/dev/null | LC_ALL=C sort)
-{ cat $P/01_head.html $P/10_header.html
+{ cat $P/01_head.html
+  [ -f $P/02_split.html ] && cat $P/02_split.html
+  cat $P/10_header.html
   [ -f $P/20_read.html ] && cat $P/20_read.html
   for f in $reads; do cat "$f"; done
   for f in $tabs; do cat "$f"; done
@@ -33,17 +35,3 @@ if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' 
 ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
 if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html
-# Reading time: words in the Reading tab's visible text at 230 words per minute; closed <details> counted apart.
-python3 - <<'PY'
-import re
-s = open('../index.html', encoding='utf-8').read()
-a = s.index('id="t-read"'); b = s.index('<div class="tab" id="t-', a + 10)
-body = re.sub(r'<script.*?</script>|<style.*?</style>', '', s[a:b], flags=re.S)
-det = ''.join(re.findall(r'<details(?! open).*?</details>', body, flags=re.S))
-main = re.sub(r'<details(?! open).*?</details>', '', body, flags=re.S)
-w = lambda x: len(re.sub(r'<[^>]+>', ' ', x).split())
-m, d = round(w(main) / 230), round(w(det) / 230)
-s = s.replace('RT_MIN', str(m)).replace('RT_DET', str(d))
-open('../index.html', 'w', encoding='utf-8').write(s)
-print('reading words', w(main), 'minutes', m, '; closed details words', w(det), 'minutes', d)
-PY

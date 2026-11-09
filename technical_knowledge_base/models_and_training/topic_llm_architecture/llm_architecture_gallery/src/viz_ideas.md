@@ -40,3 +40,18 @@ a pinned version, not only the config, when the config cannot settle the cache (
 | Config layers against caches per token | Reading 10 | built (new) |
 | Small multiples as SVG | Reading 4 | rejected: the HTML strips already work at phone width and are clickable; the audit does not count them as a visual |
 | Positional choices figure | Reading 9 | rejected: the census and hero carry the counts; a sentence says the rest |
+
+## 2026-11-09 rollout (split layout, renderer v2 stages)
+| Visual | Place | Status |
+|---|---|---|
+| Fig. 1: five released stacks as towers, one slab per layer, footprint the bytes kept per token, windowed slabs shrinking to their 131K share, linear slabs hollow | Reading 0 (hero) | built (3D, new) |
+| Fig. 6: six models' layers as boxes of bytes per token, then the indexer keys of DeepSeek V3.2 | Reading 5 | built (3D, new) |
+| Fig. 8: one request, layers by tokens held, Gemma 3 27B at 1K, 8K, 131K, then gpt-oss-120b and Gemma 4 31B | Reading 6 | built (3D, new; the window is the change, so it tweens T in log steps) |
+| Fig. 10: a hybrid's fixed state against its growing cache, Kimi K3 to the crossover and past it, then Nemotron 3 Super | Reading 7 | built (3D, new) |
+| Fig. 12: one FFN layer as a grid of experts, dense to 896, a few tokens touching dozens (illustrative picks) | Reading 8 | built (3D, new) |
+| Fig. 14: stack shape, ordinary stacks to scale, then looped, shared, two sublayers, then config layers against caches | Reading 10 | built (3D); replaces the 2D bars of 2026-10-23 |
+| Hero matrix, census, mismatch dumbbell, KV spread, windows dumbbell, ratio ablation, active share, small-multiple strips | Reading | kept 2D, each beside its text in a split: tables, log axes, scatters and dot plots read best flat |
+| Decode tab layer walk | Decode a config | kept 2D, a widget (up to 94 frames, the reader picks the model): no autoplay, no step list, opens on its last frame |
+| Compare scatter | Compare architectures | kept 2D (dates against a log axis), in a split |
+| A 3D version of the 105-model strips | Compare | rejected: 105 rows is a lookup table; depth would hide rows behind rows |
+| Real images (rasbt's architecture figures) | Reading 1 | not added: the figures live on the gallery site with no stated licence (the repository's Apache 2.0 covers models.yml, which holds no images) |

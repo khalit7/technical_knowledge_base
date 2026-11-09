@@ -1,5 +1,5 @@
 // ---- Reading tab figures (2026-10-23 rebuild): hero matrix, census by year, corrections, KV spread, windows,
-// hybrid ratios, expert sparsity, stack shape. Every number is derived from window.AGD (src/out/gallery.json and
+// hybrid ratios, expert sparsity (the stack-shape bars became the 3D Fig. 14, 46_js_sc_stack.js, on 2026-11-09). Every number is derived from window.AGD (src/out/gallery.json and
 // census.json, written by src/gen_data.py) or quoted with its source in the caption; src/checks/check_data.py checks
 // the static captions against the same data.
 (function(){
@@ -21,7 +21,7 @@
   // ---------- hero: model by design choice ----------
   add(function(){const el=$('ag-hero');if(!el)return;
     const N=['Llama 3.1 8B','DeepSeek V3','Gemma 3 27B','Llama 4 Maverick','Qwen3 235B-A22B','GPT-OSS 120B','Qwen3 Next 80B-A3B','DeepSeek V3.2','GLM-5 744B','Qwen3.5 397B','Nemotron 3 Super 120B-A12B','Gemma 4 31B','DeepSeek V4-Flash','Kimi K3'].filter(n=>by[n]);
-    const w0=G.width(el),narrow=w0<620,SH={'Qwen3 235B-A22B':'Qwen3 235B','Qwen3 Next 80B-A3B':'Qwen3-Next 80B','Nemotron 3 Super 120B-A12B':'Nemotron 3 Super','GLM-5 744B':'GLM-5','GPT-OSS 120B':'gpt-oss-120b'};
+    const w0=G.width(el),narrow=w0<620,mid=!narrow&&w0<820,SH={'Qwen3 235B-A22B':'Qwen3 235B','Qwen3 Next 80B-A3B':'Qwen3-Next 80B','Nemotron 3 Super 120B-A12B':'Nemotron 3 Super','GLM-5 744B':'GLM-5','GPT-OSS 120B':'gpt-oss-120b'};
     const cols=[
       {h:['Cache','entry'],c:'var(--c1)',v:r=>entry(r),on:r=>true,col:r=>r.kvc?'var(--c4)':r.dc&&r.mt!=='Motif'?'var(--c3)':'var(--c1)',foot:'MLA '+C['2026'].mla},
       {h:['Windowed','layers'],c:'var(--c6)',v:r=>{const s=(r.mix.match(/S/g)||[]).length;return s?s+'/'+att(r)+' · '+(r.W>=1024&&r.W%1024===0?r.W/1024+'K':fmt(r.W)):''},foot:String(C['2026'].win)},
@@ -29,12 +29,12 @@
       {h:['Sparse','indexer'],c:'var(--c4)',v:r=>/D/.test(r.mix)?'top-k':'',foot:String(C['2026'].sparse)},
       {h:['Experts','routed/k'],c:'var(--c2)',v:r=>r.E?r.E+'/'+r.k:'',foot:String(C['2026'].moe)},
       {h:['Shared','expert'],c:'var(--c2)',v:r=>r.E&&r.sh?String(r.sh):'',foot:String(C['2026'].shared),wide:1},
-      {h:['Dense','first'],c:'var(--mute)',v:r=>prefix(r)?String(prefix(r)):'',foot:String(C['2026'].prefix),wide:1},
+      {h:['Dense','first'],c:'var(--mute)',v:r=>prefix(r)?String(prefix(r)):'',foot:String(C['2026'].prefix),wide:2},
       {h:['Position','partial · NoPE'],c:'var(--ink)',v:r=>posTxt(r),on:r=>/NoPE|partial/.test(posTxt(r)),foot:C['2026'].prope+' · '+C['2026'].nope},
       {h:['KV/token','card'],c:'var(--acc)',v:r=>r.kv?fmtB(r.kv):r.galtxt||'',on:r=>false,foot:fmtB(C['2026'].kv_median),num:1},
-      {h:['Held at','131K'],c:'var(--acc)',v:r=>r.kvw?fmtB(r.kvw):'',on:r=>false,foot:fmtB(C['2026'].kvw_median),num:1,wide:1}
-    ].filter(c=>!narrow||!c.wide);
-    const nw=narrow?118:136,cw=narrow?66:64,W=Math.max(w0,nw+cols.length*cw+34),rh=22,top=34,H=top+N.length*rh+38;
+      {h:['Held at','131K'],c:'var(--acc)',v:r=>r.kvw?fmtB(r.kvw):'',on:r=>false,foot:fmtB(C['2026'].kvw_median),num:1,wide:2}
+    ].filter(c=>!(narrow&&c.wide)&&!(mid&&c.wide===2));
+    const nw=narrow||mid?118:136,cw=narrow?66:mid?Math.min(70,Math.floor((w0-118-32)/8)):64,W=Math.max(w0,nw+cols.length*cw+34),rh=22,top=34,H=top+N.length*rh+38;
     const cwx=(W-nw-34)/cols.length;
     let s='';
     cols.forEach((c,j)=>{const x=nw+j*cwx+cwx/2;s+=T(x,13,c.h[0],{a:'middle',fs:11,w:600})+T(x,26,c.h[1],{a:'middle',fs:10.5,fill:'var(--mute)'})});
@@ -133,16 +133,5 @@
     el.innerHTML=svg(W,H,s,'Active share of parameters against total parameters, MoE models of 2025 and 2026')+'<div class="ag-leg"><span><i class="ag-sw" style="background:var(--c2);border-radius:50%"></i>2025</span><span><i class="ag-sw" style="background:var(--acc);border-radius:50%"></i>2026</span></div>';
   });
 
-  // ---------- stack shape: layers in the config against caches kept ----------
-  add(function(){const el=$('ag-stack');if(!el)return;
-    const S=[['Ouro-Thinking 2.6B','4 passes'],['Nanbeige 4.2 3B','2 passes'],['LongCat-Flash-Lite 68.5B-A3B','2 MLA sublayers per layer'],['Gemma 4 E4B','last 18 reuse a cache'],['Gemma 4 E2B','last 20 reuse a cache']].filter(x=>by[x[0]]);
-    const cfgL=r=>(r.fields&&(r.fields.num_hidden_layers||r.fields.num_layers))||r.L,kept=r=>(r.L-(r.shared||0))*(r.passes||1);
-    const W=Math.max(300,Math.min(860,G.width(el))),narrow=W<520,lw=narrow?0:200,pr=40,rh=narrow?44:30,mx=200,X=v=>(W-lw-pr)*v/mx;let s='';
-    S.forEach(([n,why],i)=>{const r=by[n],y=i*rh+(narrow?16:4),a=cfgL(r),b=kept(r);
-      s+=narrow?T(0,y-4,esc(n)+': '+why,{fs:11}):T(0,y+10,esc(n),{fs:12})+T(0,y+23,why,{fs:10.5,fill:'var(--mute)'});
-      s+='<rect x="'+lw+'" y="'+y+'" width="'+X(a).toFixed(1)+'" height="9" rx="2" fill="var(--dim)"/>'+T(lw+X(a)+4,y+8.5,a+' layers in the config',{fs:10.5,fill:'var(--mute)'});
-      const lb=b+' caches per token',ins=lw+X(b)+130>W;s+='<rect x="'+lw+'" y="'+(y+11)+'" width="'+X(b).toFixed(1)+'" height="9" rx="2" fill="var(--acc)"/>'+(ins?T(lw+X(b)-4,y+19,lb,{a:'end',fs:10.5,w:600,fill:'var(--bg)'}):T(lw+X(b)+4,y+19.5,lb,{fs:10.5,w:600}))});
-    el.innerHTML=svg(W,S.length*rh+(narrow?16:4),s,'Layers in the config against caches kept per token');
-  });
   all();
 })();

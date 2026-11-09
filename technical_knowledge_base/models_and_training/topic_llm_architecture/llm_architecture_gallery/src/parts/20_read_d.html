@@ -1,27 +1,52 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-lin"></div></div><div class="s3L">
 <section id="ag-s7">
 <h2>7. Delta three: whether it is stored at all (linear and state-space layers)</h2>
 <p>A hybrid replaces most attention layers with a recurrence that folds each token into a fixed-size state: Gated DeltaNet in Qwen3-Next and Qwen3.5 to 3.8, Kimi Delta Attention in Kimi Linear and Kimi K3, Mamba-2 in Nemotron 3 and Granite 4.0-H, lightning attention in Ling, short convolutions in LFM2.5. The state is a lossy summary, so every released hybrid keeps some attention layers for exact recall; the question the configs answer is how many. The mechanisms are on {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}.</p>
-<div class="card"><h4>The ablation picked 3 : 1, and so did most of the market</h4>
-<div id="ag-ratio"></div>
-<p class="small mute">Top, published (vendor): Moonshot's Kimi Linear ablation ({{arXiv 2510.26692|https://arxiv.org/abs/2510.26692}}, Table 1), validation perplexity 5.65 at 3:1 against 5.66 at 1:1, 5.70 at 7:1, 5.82 at 15:1 and 5.77 for the pure full-attention baseline (0:1). Bottom, derived from configs: every gallery hybrid with attention layers at its own linear-to-attention ratio (Nemotron's FFN-only blocks left out); 13 of the 23 sit between 2.9 and 3.1 to 1, the rest from 1.7:1 (LFM2.5) to 7:1 (Ling). Two sources on two panels: one vendor's small-scale ablation is not evidence about the other models.</p></div>
+<ol class="sx" id="sx-lin">
+<li><b>Kimi K3 at 4,096 tokens: the state outweighs the cache.</b> Three Kimi Delta Attention layers (hollow, yellow) for every MLA layer (green): 69 of its 93 layers each hold a fixed state of 1,572,864 numbers, 6 MiB in FP32, and the 24 MLA layers grow by 1,152 bytes per token each. Each bar's length is the bytes it holds for one request: at 4,096 tokens, 108 MiB of cache against 414 MiB of state.</li>
+<li><b>At about 15,700 tokens they balance.</b> The cache has grown to the size of the state; the state has not moved, because a linear layer folds each new token into the same matrix instead of appending it.</li>
+<li><b>At 131,072 tokens the cache dominates.</b> 24 × 1,152 bytes × 131,072 = 3.4 GiB of cache; the state is still 414 MiB, an eighth of it.</li>
+<li><b>Nemotron 3 Super: fewer attention layers, a later balance.</b> 40 Mamba-2 layers of 4 MiB (160 MiB) against 8 attention layers of 1 KiB per token (the flat tiles are its FFN-only blocks): the cache reaches the state only at 20,480 tokens.</li>
+</ol>
 <p><b>The state is a cost too.</b> Below some context a hybrid holds more state than cache (the closed table gives, per model, the context at which the fixed state equals the growing cache). <b>How to check:</b> count <code>linear_attention</code>, <code>mamba</code> or <code>M</code> entries; the state per layer is heads × key dim × value dim (heads × head dim × state size for Mamba-2), in FP32. Calling a hybrid "cache-free" is wrong on both counts: Kimi K3's attention layers still grow 27 KiB per token, and its 414 MiB of state is larger than the cache up to about 15,700 tokens.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="ag-s7b">
+<p><b>How many attention layers to keep</b> is the design question, and Fig. 11 sets the one published ablation beside what the released hybrids chose: the market settled near 3 : 1, which is also where the ablation's perplexity bottoms out.</p>
 <details class="dp"><summary>Every hybrid: attention layers, cache, state, and where they cross <span class="mute">(per-model table)</span></summary><div class="b"><div class="tw" id="ag-t8"></div></div></details>
 <div class="ag-pr" data-ok="b"><div class="q">Predict: Qwen3.5 397B keeps 15 attention layers of 60, 30 KiB per token in all; its 45 Gated DeltaNet layers hold 180 MiB of FP32 state per sequence. Past what context does the growing cache outweigh the fixed state?</div>
 <div class="opts"><button data-k="a">About 600 tokens</button><button data-k="b">About 6,000 tokens</button><button data-k="c">About 60,000 tokens</button></div>
 <p class="small"><a href="#" class="skip">Skip: show the answer</a></p>
 <div class="ans" hidden>About 6,000: 180 MiB / 30 KiB = 6,144 tokens. Below that a short chat holds more state than cache; at 262,144 tokens the cache is 7.5 GiB and the state a rounding error. For serving many short requests the state, not the cache, sets concurrency.</div></div>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 11 · The ablation picked 3 : 1, and so did most of the market</h4>
+<div id="ag-ratio"></div>
+<p class="small mute">Top, published (vendor): Moonshot's Kimi Linear ablation ({{arXiv 2510.26692|https://arxiv.org/abs/2510.26692}}, Table 1), validation perplexity 5.65 at 3:1 against 5.66 at 1:1, 5.70 at 7:1, 5.82 at 15:1 and 5.77 for the pure full-attention baseline (0:1). Bottom, derived from configs: every gallery hybrid with attention layers at its own linear-to-attention ratio (Nemotron's FFN-only blocks left out); 13 of the 23 sit between 2.9 and 3.1 to 1, the rest from 1.7:1 (LFM2.5) to 7:1 (Ling). Two sources on two panels: one vendor's small-scale ablation is not evidence about the other models.</p></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-moe"></div></div><div class="s3L">
 <section id="ag-s8">
 <h2>8. Delta four: how many FFN weights run (experts)</h2>
 <p>A mixture-of-experts (MoE) layer holds many expert FFNs and a router sends each token to k of them, often plus an always-on <dfn>shared expert</dfn>; many models keep their first layers dense. Of the gallery's 2026 models with a config, 52 of 66 are MoE; 39 of those add a shared expert and 31 keep a dense prefix; 8 experts per token is the most common choice (31 models). Routing, balancing and expert parallelism are owned by {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}.</p>
-<div class="card"><h4>The bigger the model, the smaller the share that runs</h4>
-<div id="ag-moe"></div>
-<p class="small mute">Active parameters as a share of total, every MoE model of 2025 and 2026 in the gallery, against total parameters (both from the gallery's lines, <span class="ag-lab gal">gallery</span>, from vendor cards). From 500B parameters up, 21 of 22 models run 2.9 to 6.4% of their weights per token (DeepSeek V4-Pro 3.1%, Kimi K2.5 to K2.7 3.2%, Kimi K3 3.7%; the exception, Nemotron 3 Ultra, 10%); at 35B and below the share is 8 to 21% (Mellum2 Thinking 20.8%).</p></div>
-<p><b>What it means for serving.</b> All experts must be in memory, so the total, not the active count, sets the hardware; at small batch, decode reads every expert some token picks. The MoE choice and the attention choice are independent: Kimi K3 is extreme on both. <b>How to check:</b> <code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code>, and the dense prefix from <code>first_k_dense_replace</code> or a per-layer list.</p>
-<details class="dp"><summary>The fourteen largest MoE models of 2026: experts, shared, dense first layers <span class="mute">(per-model table)</span></summary><div class="b"><div class="tw" id="ag-t9"></div></div></details>
+<ol class="sx" id="sx-moe">
+<li><b>Llama 3.1 8B: one dense FFN.</b> Every weight runs for every token: 8B parameters in all, 8B active.</li>
+<li><b>gpt-oss-120b: 128 experts, 4 per token.</b> The router sends each token to 4 of 128 expert FFNs, with no shared expert: 5.1B of 117B parameters run per token (the gallery's lines, from OpenAI's card).</li>
+<li><b>DeepSeek V3: 256 experts, 8 per token, plus 1 shared.</b> The shared expert (dark, beside the grid) sees every token; the first 3 of its 61 layers stay dense (the dense prefix, not drawn). 37B of 671B active.</li>
+<li><b>Kimi K3: 896 experts, 16 per token, plus 2 shared.</b> The same layer cut into finer experts, each a smaller block: 104B of 2.8T active, 3.7%.</li>
+<li><b>Six tokens read many experts.</b> Each token picks its own 8 of DeepSeek V3's 256 (illustrative random picks; real routing depends on the token and is skewed), so six tokens already touch dozens of experts, and every expert must sit in memory.</li>
+</ol>
+<p><b>What it means for serving.</b> All experts must be in memory, so the total, not the active count, sets the hardware; at small batch, decode reads every expert some token picks. The MoE choice and the attention choice are independent: Kimi K3 is extreme on both.</p>
 </section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="ag-s8b">
+<p><b>Across the gallery</b> (Fig. 13) the active share falls as models grow. <b>How to check:</b> <code>n_routed_experts</code>, <code>num_experts_per_tok</code>, <code>n_shared_experts</code>, and the dense prefix from <code>first_k_dense_replace</code> or a per-layer list.</p>
+<details class="dp"><summary>The fourteen largest MoE models of 2026: experts, shared, dense first layers <span class="mute">(per-model table)</span></summary><div class="b"><div class="tw" id="ag-t9"></div></div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 13 · The bigger the model, the smaller the share that runs</h4>
+<div id="ag-moe"></div>
+<p class="small mute">Active parameters as a share of total, every MoE model of 2025 and 2026 in the gallery, against total parameters (both from the gallery's lines, <span class="ag-lab gal">gallery</span>, from vendor cards). From 500B parameters up, 21 of 22 models run 2.9 to 6.4% of their weights per token (DeepSeek V4-Pro 3.1%, Kimi K2.5 to K2.7 3.2%, Kimi K3 3.7%; the exception, Nemotron 3 Ultra, 10%); at 35B and below the share is 8 to 21% (Mellum2 Thinking 20.8%).</p></div></div></div></div>
 
 <section id="ag-s9">
 <h2>9. Position, norms and gates</h2>
