@@ -39,3 +39,15 @@ What the methodology lacked: a rule for checking a coordinate convention empiric
 | 2 | Tiles against native animation | moved from the What the model saw tab to Reading 2 | moved |
 | 9 | Hallucination probe | moved from its own tab to a closed block in Reading 7 | moved |
 | 20 | Real photo or paper figure (LLaVA, Flamingo architecture figure) | none | rejected: the connector animation and hero draw the same structure with this page's numbers; arXiv's default licence does not grant reuse |
+
+## 2026-11-09 rollout (split layout, renderer v2 stages)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 21 | **Hero as a 3D stage**: the cat through both models in two lanes, the processors' own views as image plates, patch grids, connectors as glass, token walls to scale, the language model reading them | Reading top, Fig. 1 | built (replaces idea 16's static SVG) |
+| 22 | **Five connectors** as one stage, one design per step, then the context each pays as columns | Reading 1, Fig. 2 | built (replaces the 2D connector animation and its picker) |
+| 23 | **Tiles against native resolution** to scale (one unit = 512 pixels): the rocket stretched into 12 tiles and a global view against 640 x 416 | Reading 2, Fig. 3 | built (replaces idea 2's 2D animation) |
+| 24 | **Legibility**: one 20-pixel code resampled at five processor scales, patch grid and one token outlined, capital heights as columns against a patch | Reading 3, Fig. 4 | built (new) |
+| 25 | **Pointing**: one answer's four numbers drawn under the three readings with IoU | Reading 4, Fig. 5 | built; the 12-scene explorer moved into a closed block |
+| 26 | **Video to tokens**: 16 frames, 8 kept, pairs into tubes, 80 tokens each, timestamps as text, both answers | Reading 5, Fig. 6 | built (new; frames redrawn from make_inputs.py's recipe) |
+| 27 | **Training-free token cuts** on SmolVLM's 1,088 tokens over the processor's views: FastV's real kept set, pooling, no global view, all nine results | Reading 8a, Fig. 7 | built (replaces the 2D result bars) |
+| 28 | 3D position grid for 2a, 3D training stages, 3D hallucination or cache charts | none | rejected: a table of numbers, a matrix of stages and bar or line charts read best flat |

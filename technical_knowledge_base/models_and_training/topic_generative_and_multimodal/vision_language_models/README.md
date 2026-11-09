@@ -3,4 +3,4 @@
 Notion: https://app.notion.com/p/3fc5c17b0d0d81adbb7be5bc41c4d9d0 (child of Topic: generative-and-multimodal; a new page).
 Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/topic_generative_and_multimodal/vision_language_models/
 
-HTML-only page built 2026-10-17, rebuilt to the teaching contract 2026-10-24: `index.html` is the whole page (Reading, What the model saw, Token budget, Further reading); source and runs in `src/` (start with `src/README.md`). Not published to Notion yet.
+HTML-only page built 2026-10-17, rebuilt to the teaching contract 2026-10-24 and to the split layout with seven 3D stages (renderer v2) on 2026-11-09: `index.html` is the whole page (Reading, What the model saw, Token budget, Further reading); source and runs in `src/` (start with `src/README.md`). Not published to Notion yet.

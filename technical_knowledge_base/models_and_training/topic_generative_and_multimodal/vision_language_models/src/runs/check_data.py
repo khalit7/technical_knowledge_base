@@ -74,7 +74,7 @@ has("pos_answer", "(" + ", ".join(map(str, cat["pos_text_after"])) + ")")
 # hero and the tiles animation caption (static numbers)
 cs = next(x for x in ss["images"] if x["key"] == "p01_cat")["settings"][0]
 has("hero", f"{c(cs['image_tokens'])} image tokens in SmolVLM"); check(cs["prompt_tokens"] == 1142, "hero: SmolVLM cat prompt 1,142")
-check(cat["image_tokens"] == 256 and cat["prompt_tokens"] == 277 and "277-token prompt" in open(os.path.join(SRC, "parts", "27_js_vm_hero.js")).read(), "hero: Qwen3.5 cat 256 tokens, prompt 277")
+check(cat["image_tokens"] == 256 and cat["prompt_tokens"] == 277, "hero: Qwen3.5 cat 256 tokens, prompt 277"); has("hero", "reads 277 tokens"); has("hero", f"a {c(cs['prompt_tokens'])}-token prompt")
 rk = next(x for x in D["saw"]["images"] if x["key"] == "rocket_native")
 rq = next(x for x in rk["qwen"] if x["budget"] == "native")
 has("tiles", f"= {c(rk['smol'][0]['imgTok'])} tokens; Qwen3.5: {rq['resized'][0]} &#215; {rq['resized'][1]}".replace("&#215;", "\u00d7")); has("tiles", f"shape kept, {rq['imgTok']} tokens")

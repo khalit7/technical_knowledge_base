@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-vid"></div></div><div class="s3L">
 <section id="vm-s5">
 <h2>5. Video: frames become tokens, time becomes text</h2>
 <p>A minute of video at 30 frames per second is 1,800 images; even at 256 tokens each that is 460,800 tokens <span class="der">derived</span>. Video VLMs sample a few frames per second, merge pairs of frames into one token, and cap the total. Qwen2-VL samples &#8220;two frames per second&#8221;; its patch embedding is a 3-D convolution of depth 2 over consecutive frames (&#8220;3D tubes instead of 2D patches&#8221;; a still image is &#8220;treated as two identical frames&#8221;), and training capped &#8220;the total number of tokens per video to 16384&#8221; ({{section 2.1|https://arxiv.org/html/2409.12191}}) <span class="pub">paper</span>. Time positions moved from frame counting (Qwen2-VL) to absolute time inside M-RoPE (Qwen2.5-VL) to plain text: Qwen3-VL prefixes each temporal patch with &#8220;a timestamp expressed as a formatted text string&#8221;, such as &#8220;&lt;3.0 seconds&gt;&#8221; ({{Qwen3-VL report, section 2.3|https://arxiv.org/html/2511.21631}}) <span class="pub">paper</span>.</p>
@@ -5,16 +6,32 @@
 <pre class="vm-pre" data-vm="video_prompt"></pre>
 <p><b>Token arithmetic</b> <span class="der">derived</span>: tokens per second = (frames sampled per second / 2) &#215; (height / 32) &#215; (width / 32), plus a few timestamp tokens per pair of frames. A 320 &#215; 240 clip at 2 frames per second costs 80 tokens per second; a 1,280 &#215; 720 clip costs 720, because the processor caps each frame at 768 tokens and shrinks the frames to 1,152 &#215; 640 <span class="meas">measured with the processor</span>. The {{Token budget|#t-vmbud}} tab computes any case.</p>
 <p><b>The test</b> <span class="meas">measured</span>: 8 synthetic clips (16 frames, 4 seconds) of a red or blue dot crossing the frame in one of four directions, asked which way it moves; as a control, the same question about the first frame alone.</p>
+<p class="sxh">Fig. 6: one 4-second clip becomes 320 video tokens with its times written as text</p>
+<ol class="sx" id="sx-vid">
+<li><b>16 frames, 4 seconds.</b> One clip as it was made: a red dot crossing a 320 &#215; 240 frame from left to right, 4 frames per second.</li>
+<li><b>Sampled at 2 per second.</b> The processor keeps 8 of the 16 frames: 0, 2, 4, 6, 9, 11, 13 and 15 (inferred from the four timestamps it writes, which are the means of these pairs) <span class="der">derived</span>.</li>
+<li><b>Pairs become tubes.</b> Each pair of kept frames is one 3-D patch of depth 2; the frames are resized to 320 &#215; 256, so each tube is 16 &#215; 20 patches of 16 pixels (<code>video_grid_thw</code> [4, 16, 20]).</li>
+<li><b>80 tokens per tube.</b> The 2 &#215; 2 merger turns each tube into 80 tokens: 4 &#215; 80 = 320 video tokens, 400 prompt tokens in all.</li>
+<li><b>Time is text.</b> Before each tube the processor writes its time as ordinary text tokens, &lt;0.2 seconds&gt; to &lt;3.5 seconds&gt;: the model reads when each tube happened instead of counting frames.</li>
+<li><b>The answer.</b> Asked which way the dot moves, Qwen3.5 said &#8220;right to left&#8221;; shown only the first frame, it said &#8220;left to right&#8221;.</li>
+</ol>
+</section>
+</div></div>
+<section id="vm-s5b">
 <div class="vm-fig" id="vm-vid-fig"></div>
 <p class="vm-cap"><b>Qwen3.5 got the direction right in 0 of 8 clips; in 7 it named exactly the opposite direction.</b> Each clip is 320 video tokens (4 temporal patches of 80), 400 prompt tokens in all. The one-frame control got 4 of 8, all horizontal: with the dot near one edge, &#8220;it moves away from that edge&#8221; is a good guess. The processor keeps the frames in order (decoding the dot from <code>pixel_values_videos</code>, it moves from x = 40 to 248 in the left-to-right clip), so the reversal is the model&#8217;s. A 0.8B model on synthetic dots is a narrow probe (the vendor reports VideoMME 63.8, thinking, with subtitles <span class="vend">vendor</span>), but direction of motion is what a video model must not get backwards, and checking it costs 16 frames.</p>
 </section>
-<section id="vm-s6">
+<div class="s3sp"><div class="s3L"><section id="vm-s6">
 <h2>6. Training: align the connector, then train everything</h2>
 <p>A VLM joins two pretrained parts that have never met through a randomly initialised connector. Training everything at once lets the random connector send noise into a good language model; training too little leaves the image tokens unreadable. Every recipe answers which parts train in which stage, on what data, and for how long:</p>
-<div class="vm-svg" id="vm-train"></div>
-<p class="vm-cap"><b>After a short connector-only stage, recent recipes train the encoder too.</b> One row per published recipe, one column per stage; E encoder, C connector, L language model <span class="pub">paper</span>. &#8220;Not stated&#8221; means the paper&#8217;s text does not say for that part; BLIP-2&#8217;s first stage has no language model at all; Qwen3-VL&#8217;s S2 and S3 then extend the context to 32,768 and 262,144 tokens; SmolVLM&#8217;s two stages (&#8220;(1) a vision stage, and (2) a video stage&#8221;) are left out because the passages read do not say what is frozen.</p>
+
 <p><b>The pattern.</b> A short alignment stage with only the connector training survives everywhere (LLaVA&#8217;s stage 1, Qwen3-VL&#8217;s S0); after it, recent recipes train <b>everything</b>, the encoder included, on a trillion tokens or more, with text-only data mixed in so the language model does not forget. Image-caption pairs teach what is in an image; interleaved web pages teach several images in context; OCR, chart, document and grounding data teach reading and pointing; instruction and conversation data teach answering. The loss is on text tokens only: the model never predicts image tokens (that is {{Native multimodal and any-to-any models|n:3c65c17b0d0d8139bd6cd4137dd2a4d8}}).</p>
 <p><b>Freeze or train the encoder?</b> Freezing saves memory (no optimiser state for it) and protects features learned from billions of pairs; training lets the encoder learn what the language model needs (small text, positions, the processor&#8217;s tiles). Idefics2 found that adapting the backbones with LoRA beat freezing them by 9.2 points in its own table (section 1), and the recipes that train the encoder do so after an alignment stage, usually at a lower learning rate. The weights show it happened in SmolVLM: its encoder moved 0.23 to 0.37 of its norm away from the public SigLIP checkpoint it started from (below).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card"><h4>After a short connector-only stage, recent recipes train the encoder too</h4>
+<div class="vm-svg" id="vm-train"></div>
+<p class="vm-cap">One row per published recipe, one column per stage; E encoder, C connector, L language model <span class="pub">paper</span>. &#8220;Not stated&#8221; means the paper&#8217;s text does not say for that part; BLIP-2&#8217;s first stage has no language model at all; Qwen3-VL&#8217;s S2 and S3 then extend the context to 32,768 and 262,144 tokens; SmolVLM&#8217;s two stages (&#8220;(1) a vision stage, and (2) a video stage&#8221;) are left out because the passages read do not say what is frozen.</p></div></div></div></div>
+<section id="vm-s6b">
 <details class="dp"><summary>Each recipe&#8217;s stages, data and compute in the papers&#8217; words <span class="mute">(reference table)</span></summary><div class="b">
 <div class="tw"><table class="vm-t">
 <thead><tr><th>Model</th><th>Stages and what trains</th><th>Data and compute stated</th></tr></thead><tbody>

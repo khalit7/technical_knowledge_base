@@ -1,5 +1,7 @@
 // Check the whole page: every control in every tab clicked at 390 px dark and 920 px light; no page errors, no NaN or
 // undefined, no sideways scroll; reading time of the Reading tab (220 words per minute); card screenshots to argv[2].
+// Since 2026-11-09 the animations are 3D stages that play by themselves once in view (the 2026-11-06 rule); ../check_stages.mjs checks
+// that they do, that they stop on a reader control and off screen, and that nothing moves under reduced motion.
 // Usage: node check_page.mjs <shots dir>
 import {createRequire} from 'module';
 import path from 'path';
@@ -21,8 +23,6 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.emulateMediaFeatures([{name:'prefers-color-scheme',value:scheme}]);
   await p.goto('file://'+page_);
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
-  {await wait(3500);const st=await p.evaluate(()=>[...document.querySelectorAll('.an-ctl input[type=range]')].map(r=>r.id+'='+r.value));
-   if(st.some(x=>!x.endsWith('=0'))){errs.push('autoplay: '+st.join(' '))}}
   const out={};
   for(const tab of ['t-read','t-vmsaw','t-vmbud','t-more']){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(250);
@@ -45,11 +45,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
     if(r.nan||r.side||r.wide.length)bad++;
   }
   // screenshots of the animations at chosen steps, and of the main cards
-  for(const [tab,id,ctl,steps] of [['t-read','vm-conn','vm-conn-ctl-s',[1,2,3,4]],['t-read','vm-saw-anim','vm-sa-ctl-s',[1,3,4]]]){
-    await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(200);
-    for(const s of steps){await p.evaluate((c,s)=>{const e=document.getElementById(c);e.value=s;e.dispatchEvent(new Event('input'))},ctl,s);
-      const el=await p.$('#'+id);await el.scrollIntoView();await wait(150);await el.screenshot({path:path.join(shots,id+'_'+s+'_'+w+'.png')})}}
-  for(const [tab,ids] of [['t-read',['vm-norm-fig','vm-res-fig','vm-ocr-fig','vm-gr-fig','vm-vid-fig','vm-drift-fig','vm-hal-fig','vm-kv-fig','vm-red-fig','vm-hero','vm-pos','vm-train','vm-hl-fig']],['t-vmsaw',['vm-saw-fig','vm-saw-strip']],['t-vmbud',['vm-bd-tab','vm-bd-fig','vm-bd-acc']]]){
+  for(const [tab,ids] of [['t-read',['vm-norm-fig','vm-res-fig','vm-ocr-fig','vm-gr-fig','vm-vid-fig','vm-drift-fig','vm-hal-fig','vm-kv-fig','vm-pos','vm-train','vm-hl-fig']],['t-vmsaw',['vm-saw-fig','vm-saw-strip']],['t-vmbud',['vm-bd-tab','vm-bd-fig','vm-bd-acc']]]){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(200);
     for(const id of ids){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);const bx=await el.boundingBox();if(bx&&bx.height>2)await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}}
   const myErrs=errs;if(myErrs.length)bad++;
