@@ -1,4 +1,4 @@
-// Click every control on every tab at 390 px dark and 920 px light; fail on script errors, NaN/undefined/null text,
+// Click every control on every tab at 390 px dark and 920 px light (reduced motion, so the 3D stages only move when told); fail on script errors, NaN/undefined/null text,
 // sideways scroll, or a number on screen that disagrees with inputs/recompute.json.
 // Run from the repo root: node technical_knowledge_base/measurement/topic_benchmarks/knowledge_and_reasoning/src/check_ui.mjs
 import { createRequire } from 'node:module';
@@ -56,22 +56,27 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await bad('grade after answers');
   // Fix the key (Reading, section rd-key; the defect map is in the MMLU section)
   await p.click('button[data-t=t-read]'); await bad('read key');
-  for (const s of [0, 1, 2, 3, 4]) { await p.evaluate(s => document.querySelectorAll('#ky-subj button')[s].click(), s); await scrub('ky-ctl-s', 5, 'mmlu subj ' + s) }
-  await p.click('#ky-mode button[data-m=hle]'); await scrub('ky-ctl-s', 5, 'hle');
+  // Fig. 2 is a 3D stage (check_stages.mjs steps it); here every chip, then each step through the step list, with the readout checked
+  for (const s of [0, 1, 2, 3, 4]) { await p.evaluate(s => document.querySelectorAll('#ky-subj button')[s].click(), s); actions++;
+    for (let k = 0; k < 5; k++) { await p.evaluate(k => document.getElementById('sx-key-mmlu').children[k].click(), k); actions++; await bad('mmlu subj ' + s + ' step ' + k) } }
+  await p.$eval('#ky-mode button[data-m=hle]', e => e.click()); actions++;
+  for (let k = 0; k < 5; k++) { await p.evaluate(k => document.getElementById('sx-key-hle').children[k].click(), k); actions++; await bad('hle step ' + k) }
   const lead = await p.evaluate(() => [...document.querySelectorAll('#ky-cnt .stat')].map(x => x.innerText).join(' / '));
   if (!/Grok 4\.1 fast|GPT-5\.2|Gemini 3 Pro/.test(lead)) problems.push('HLE leader not shown: ' + lead);
-  await p.click('#ky-mode button[data-m=mmlu]'); await clickAll('#ky-sort button', 'map'); await clickAll('#ky-n button', 'map'); await clickAll('#ky-map .row', 'map');
-  for (const b2 of ['ky-ctl-p', 'ky-ctl-f', 'ky-ctl-b']) { await p.click('#' + b2); actions++ }
+  await p.$eval('#ky-mode button[data-m=mmlu]', e => e.click()); await clickAll('#ky-sort button', 'map'); await clickAll('#ky-n button', 'map'); await clickAll('#ky-map .row', 'map');
+  for (const b2 of ['stg-key-p', 'stg-key-f', 'stg-key-b']) { await p.$eval('#' + b2, e => e.click()); actions++ }
   // ARC (Reading, section rd-arc; the solver sits in a closed block, opened here)
   await p.click('button[data-t=t-read]'); await bad('read arc');
   await p.evaluate(() => { document.getElementById('sv-det').open = true; dispatchEvent(new Event('resize')) });
-  for (const r of ['frac', 'up']) {
-    await p.click(`#ar-rule button[data-m=${r}]`);
+  for (const r of ['a', 'b']) {
+    await p.$eval(`#ar-rule button[data-m=${r}]`, e => e.click()); actions++;
     for (let k = 0; k < 6; k++) {
-      await p.evaluate(k => document.querySelectorAll('#ar-pair button')[k].click(), k); await scrub('ar-ctl-s', 10, 'arc ' + r + ' pair ' + k);
+      await p.evaluate(k => document.querySelectorAll('#ar-pair button')[k].click(), k); actions++;
+      await p.evaluate(() => document.getElementById(document.getElementById('sx-arc-a').hidden ? 'sx-arc-b' : 'sx-arc-a').children[5].click()); actions++;
+      await bad('arc ' + r + ' pair ' + k);
       const m = await p.$eval('#ar-cnt', e => e.innerText);
-      if (r === 'frac' && !/81 of 81/.test(m)) problems.push('rule A pair ' + k + ' not 81/81: ' + m);
-      if (r === 'up' && k === 0 && !/67 of 81/.test(m)) problems.push('rule B demo 1 not 67/81: ' + m);
+      if (r === 'a' && !/81 of 81/.test(m)) problems.push('rule A pair ' + k + ' not 81/81: ' + m);
+      if (r === 'b' && k === 0 && !/67 of 81/.test(m)) problems.push('rule B demo 1 not 67/81: ' + m);
     }
   }
   const tasks = await p.$$eval('#sv-task button', e => e.length);
@@ -111,16 +116,17 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (errs.length) problems.push(scheme + ' errors: ' + errs.join(' | '));
   await p.close();
 }
-// no autoplay: with normal motion, scroll each animation into view, wait, and expect it still on step 0
+// autoplay (2026-11-06; inverted from the old no-autoplay check): with normal motion each 3D stage plays once scrolled into view;
+// check_stages.mjs also confirms none moves under reduced motion
 {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
-  await p.goto('file://' + page);
-  for (const id of ['ky-card', 'ar-card']) {
+  await p.goto('file://' + page); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + page);
+  for (const id of ['stg-gr', 'stg-key', 'stg-arc']) {
     await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id);
-    await new Promise(r => setTimeout(r, 3000));
-    const v = await p.evaluate(id => document.getElementById(id.replace('card', 'ctl') + '-s').value, id);
-    if (v !== '0') problems.push(`${id} moved by itself to step ${v}`);
+    await new Promise(r => setTimeout(r, 2500));
+    const f = await p.evaluate(id => +document.getElementById(id).dataset.frames || 0, id);
+    if (!(f > 0)) problems.push(`${id} did not play when scrolled into view`);
   }
   await p.close();
 }

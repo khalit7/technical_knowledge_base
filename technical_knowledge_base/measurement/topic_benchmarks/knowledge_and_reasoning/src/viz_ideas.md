@@ -25,3 +25,12 @@ Scored 0 to 2 per the Methodology (`.claude/skills/explainer-page/visuals/choosi
 | K17 | **Physics re-grade outcome**: 250 wrong answers split 143 / 95 / 12, and HLE-Physics and CritPt before and after | 8 | Reading, Fix the key | built 2026-10-24 as a static summary beside the claim; the count-by-count replay stays on the paper page (K14) |
 
 What the Methodology lacked here: a rule for real items from datasets that ask not to be published (GPQA, HLE, BIG-Bench canaries). Followed: show none, say why on the page.
+
+## 2026-11-09 (split layout and 3D stages rollout)
+| Id | Visual | Status |
+|---|---|---|
+| K18 | Fig. 1 `stg-gr`: four grader stations (glass plates) with flows from the model's output to the verdict, on the page's own items | built; replaces K16's four static diagrams |
+| K19 | Fig. 2 `stg-key`: the MMLU-Redux sample as a 10×10 cube field, flawed cubes lifted out, ten HELM models re-sorted; HLE-Verified as three stacks to scale and seven models | built; replaces the 2D squares-and-bars animation |
+| K20 | Fig. 3 `stg-arc`: task 007bbfb7's 3×3 input on a plinth, the 9×9 output built row of blocks by row with flows, the real output uncovered, wrong cells lifted in red | built; replaces the 2D build animation |
+| K21 | Hero in 3D (launch against now as columns) | rejected: a value on an axis per benchmark reads best flat |
+| K22 | Defect map, GPQA funnel, HLE tools pairs, physics bar, ARC-AGI-3 harness chart in 3D | rejected: bars and dumbbells on a percent axis; kept 2D beside their text |

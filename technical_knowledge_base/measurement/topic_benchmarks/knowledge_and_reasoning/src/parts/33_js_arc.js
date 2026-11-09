@@ -1,37 +1,6 @@
-// ---- ARC-AGI lab: two hypotheses animated on task 007bbfb7, a solver for real tasks, and an RHAE calculator (data: window.KR.arc) ----
+// ---- ARC-AGI: a solver for real tasks and an RHAE calculator (data: window.KR.arc; the exact-match figure is the 3D stage in 37_js_sc_arc.js) ----
 (function(){
   const K=window.KR,E=KU.esc,A=KU.a;
-  const TASK=K.arc.find(t=>t.id==='007bbfb7');
-  const PAIRS=TASK.train.map((p,i)=>({lab:'Demo '+(i+1),p})).concat(TASK.test.map((p,i)=>({lab:'Test',p})));
-  const RULE={frac:g=>{const o=[];for(let r=0;r<9;r++){o.push([]);for(let c=0;c<9;c++)o[r].push(g[Math.floor(r/3)][Math.floor(c/3)]?g[r%3][c%3]:0)}return o},
-    up:g=>{const o=[];for(let r=0;r<9;r++){o.push([]);for(let c=0;c<9;c++)o[r].push(g[Math.floor(r/3)][Math.floor(c/3)])}return o}};
-  let rule='frac',pi=0;
-  const pairBox=document.getElementById('ar-pair');
-  pairBox.innerHTML=PAIRS.map((x,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+x.lab+'</button>').join('');
-  const stage=document.getElementById('ar-stage'),cap=document.getElementById('ar-cap'),cnt=document.getElementById('ar-cnt');
-  const cs=()=>KU.width(stage)<460?15:22;
-  function draw(i){// steps 0..8: block i built; step 9: grade
-    const P=PAIRS[pi].p,g=P.input,full=RULE[rule](g),exp=P.output,c=cs();
-    const built=full.map((row,r)=>row.map((v,cc)=>{const b=Math.floor(r/3)*3+Math.floor(cc/3);return b<=Math.min(i,8)?v:-1}));
-    const br=Math.floor(Math.min(i,8)/3),bc=Math.min(i,8)%3;
-    const inHl=(r,cc)=>i<9&&r===br&&cc===bc?'var(--acc)':null;
-    const grade=i>=9;let match=0;for(let r=0;r<9;r++)for(let cc=0;cc<9;cc++)if(full[r][cc]===exp[r][cc])match++;
-    const outHl=(r,cc)=>grade?(full[r][cc]===exp[r][cc]?null:'#ff2d55'):(Math.floor(r/3)===br&&Math.floor(cc/3)===bc&&i<9?'var(--acc)':null);
-    stage.innerHTML='<div><div class="lb">Input (3×3)</div>'+KU.grid(g,c*1.6,inHl,'input')+'</div>'+
-      '<div><div class="lb">'+(rule==='frac'?'Rule A':'Rule B')+' output</div>'+KU.grid(built,c,outHl,'built output')+'</div>'+
-      '<div><div class="lb">Real output'+(PAIRS[pi].lab==='Test'?' (hidden from the solver)':'')+'</div>'+(grade?KU.grid(exp,c,null,'expected output'):'<div style="width:'+(9*c)+'px;height:'+(9*c)+'px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mute)">revealed at grading</div>')+'</div>';
-    const v=g[br][bc],nm=KU.ARCN[v];
-    let t,p;
-    if(i<9){t='Block '+(i+1)+' of 9: input cell row '+(br+1)+', column '+(bc+1)+' is '+(v?nm:'black');
-      p=rule==='frac'?(v?'It is coloured, so the whole 3×3 input is copied into this block of the output.':'It is empty, so this block stays black.'):'Every cell becomes a solid 3×3 block of its own colour.'}
-    else {const ok=match===81;t=ok?'Graded: exact match':'Graded: '+(81-match)+' wrong cells, so the task is failed';
-      p=ok?'All 81 cells agree with the real output. Under pass@2 a solver gets two such attempts per test input.':'Red outlines mark cells that differ. '+match+' of 81 cells are right ('+(100*match/81).toFixed(0)+'%), and the score for this task is still 0: ARC has no partial credit.'}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-    cnt.innerHTML=KU.stat('Blocks built',Math.min(i+1,9)+' of 9')+KU.stat('Cells matching',grade?match+' of 81':'?','graded at the last step')+KU.stat('Task score',grade?(match===81?'1 (solved)':'0'):'?','exact match, no partial credit');
-  }
-  const an=KU.anim({card:'ar-card',ctl:'ar-ctl',n:10,draw,ms:1100,label:'Build step'});
-  KU.seg(document.getElementById('ar-rule'),m=>{rule=m;an.reset(10)});
-  KU.seg(pairBox,m=>{pi=+m;an.reset(10)});
   // ---- solver ----
   const tb=document.getElementById('sv-task');
   const ORD=['25ff71a9','3c9b0459','d4f3cd78','007bbfb7','28a6681f'].map(id=>K.arc.find(t=>t.id===id)).filter(Boolean);
@@ -87,5 +56,5 @@
   tbl.addEventListener('input',calc);tbl.addEventListener('change',calc);
   KU.seg(document.getElementById('rh-pre'),m=>rhRows(PRE[m]));
   rhRows(PRE.human);
-  KU.onResize('t-read',()=>{an.redraw();drawEd()});
+  KU.onResize('t-read',()=>drawEd());
 })();
