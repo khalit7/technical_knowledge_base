@@ -7,7 +7,6 @@
   const steps=[];for(let m=N.start;m<=N.end;m+=N.step)steps.push(m);
   const ax0=2013*12,ax1=2026*12+11;
   let mode='all',i=0,timer=null,playing=false;
-  const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
   const scrub=$('at-scrub');scrub.max=steps.length-1;
   $('at-an-mode').innerHTML='<button data-m="all" class="on">All five</button><button data-m="two">Before and after: static against refreshed</button>';
   $('at-an-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('at-an-mode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));draw()});
@@ -64,8 +63,7 @@
   scrub.addEventListener('input',()=>{playing=false;stepTo(+scrub.value)});
   // start at a telling step: mid-2024 (Verified about to be published, LiveCodeBench mid-stream)
   i=steps.indexOf(2024*12+3);if(i<0)i=0;
-  if(!reduce){/* autoplay only when the reader scrolls it into view */
-    if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting&&!playing&&!draw.started){draw.started=1;i=0;playing=true;timer=setTimeout(tick,600);draw()}})},{threshold:.3});io.observe($('at-lanes'))}}
+  // a widget the reader drives (2026-11-09, layout rollout rule 3b: a sweep over 20 cutoffs whose outcome, not its motion, is the point): it opens on March 2024 and never plays by itself
   window.TAB_RENDER=window.TAB_RENDER||{};(window.TAB_RENDER['t-atlas']=window.TAB_RENDER['t-atlas']||[]).push(draw);
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(!$('t-atlas').hidden)draw()},120)});
   draw();

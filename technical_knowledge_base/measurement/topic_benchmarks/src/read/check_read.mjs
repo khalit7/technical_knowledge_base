@@ -1,6 +1,7 @@
 // Exercise every Reading and Further reading control at 390 dark and 920 light; report errors, NaN/undefined, sideways scroll,
 // elements wider than the viewport; check the page's JS numbers against read/recompute_out.json; save screenshots.
 // usage (from src/): node read/check_read.mjs
+// (2026-11-09: the reduced-motion emulation below keeps the Fig. 1 stage still while the tab is scanned; autoplay is checked by src/check_stages.mjs)
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -30,36 +31,19 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (r.nan || r.side || r.wide.length) probs.push(label + ' ' + JSON.stringify(r));
   };
   await scan('initial');
-  // life animation: both modes, every step
-  for (const m of ['then', 'now']) {
-    await p.click(`#rd-life-mode button[data-m=${m}]`);
-    for (let i = 0; i < 5; i++) {
-      await p.evaluate(i => { const s = document.getElementById('rd-life-ctl-s'); s.value = i; s.dispatchEvent(new Event('input')) }, i);
-      await scan(`life ${m} ${i}`);
-      if (i === 4 || (m === 'then' && i === 1)) await (await p.$('#rd-life-card')).screenshot({ path: `${shots}/rd-life-${m}-${i}-${scheme}-${width}.png` });
-    }
-    for (const c of ['p', 'p', 'f', 'b']) await p.click('#rd-life-ctl-' + c);
-    await p.select('#rd-life-ctl-v', '2');
-  }
+  // (2026-11-09) the life stepper is now the 3D stage Fig. 1 and the error-bar widget a static table; src/check_stages.mjs drives the stage
   // numbers in the JS against recompute.py
   const life = await p.evaluate(() => ({ R: RD_LIFE.R, pace: RD_LIFE.pace }));
   for (const k of ['mmlu', 'tbs']) { const js = life.R[k === 'mmlu' ? 'then' : 'now']; ref[k].forEach((r, i) => {
     for (const f of ['days', 'score', 'headroom', 'gain', 'per30']) if (r[f] !== null && !near(js[i][f], r[f])) { probs.push(`life ${k}[${i}].${f} js ${js[i][f]} py ${r[f]}`) } }) }
   if (!near(life.pace, ref.pace_ratio, 0.051)) probs.push('pace ' + life.pace + ' vs ' + ref.pace_ratio);
-  // error bars: each preset at its reference rate
-  for (const [k, v] of Object.entries(ref.err)) {
-    const s = await p.evaluate((n, q) => RD_ERR.set(n, q), v.n, v.p);
-    if (!near(s.se, v.se_pts) || !near(s.half, v.ci95_half) || !near(s.diff, v.diff95_unpaired) || !near(s.item, v.item_pts)) probs.push('err ' + k + ' ' + JSON.stringify(s));
-  }
-  // error widget controls
-  for (const n of ['30', '198', '500', '2500']) {
-    await p.click(`#rd-err-n button[data-m="${n}"]`);
-    await p.evaluate(() => { const s = document.getElementById('rd-err-p'); s.value = 37; s.dispatchEvent(new Event('input')) });
-    await p.click('#rd-err-run1'); await p.click('#rd-err-run20');
-    await scan('err ' + n);
-    if (n === '30' || n === '500') await (await p.$('#rd-err-card')).screenshot({ path: `${shots}/rd-err-${n}-${scheme}-${width}.png` });
-    await p.click('#rd-err-clr');
-  }
+  // error bars: the static table in Sampling against recompute.py (standard error, 95% half-width, unpaired gap, one item)
+  const tab = await p.$$eval('#t-read table.rd-se tbody tr', rs => rs.map(r => [...r.cells].map(c => c.textContent.replace(/[±,\u00b1%]/g, ''))));
+  const want = { 'AIME (one year)': 'AIME (one year)', 'GPQA Diamond': 'GPQA Diamond', 'SWE-bench Verified': 'SWE-bench Verified', 'HLE': 'HLE' };
+  for (const [k, name] of Object.entries(want)) { const v = ref.err[k], r = tab.find(x => x[0] === name);
+    if (!r) { probs.push('err table: no row ' + name); continue }
+    const got = [+r[1], +r[2] / 100, +r[3], +r[4], +r[5], +r[6]], exp = [v.n, v.p, v.se_pts, v.ci95_half, v.diff95_unpaired, v.item_pts];
+    got.forEach((g, i) => { if (!near(g, exp[i], 0.006)) probs.push(`err table ${name} col ${i + 1}: ${g} vs ${exp[i]}`) }) }
   // mistakes, nav links, tab links
   await p.$$eval('#t-read details', ds => ds.forEach(d => d.open = true)); await scan('details open');
   for (const a of await p.$$('#rd-nav a')) { await a.click(); }
