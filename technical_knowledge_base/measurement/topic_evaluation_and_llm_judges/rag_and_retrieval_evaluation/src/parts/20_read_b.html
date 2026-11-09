@@ -1,13 +1,22 @@
-
+<div class="s3sp"><div class="s3R"><div id="stg-rank"></div></div><div class="s3L">
 <section id="rd-ret">
 <h2>The retrieval half: what changes when the reader is a generator</h2>
 <p>The metrics are the ranked-list metrics of information retrieval (precision@k, recall@k, MRR, MAP and nDCG with its two gain definitions, worked on one list in section 6 of {{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}}), computed per query and averaged; TREC's <code>trec_eval</code> and its Python binding <code>pytrec_eval</code> are the reference implementations, and BEIR and MTEB use them. What RAG changes is where to read them. We ran five retrievers over three BEIR test sets (<a href="https://arxiv.org/abs/2104.08663" target="_blank" rel="noopener noreferrer">Thakur et al., NeurIPS 2021 Datasets and Benchmarks</a>): SciFact (5,183 abstracts, 300 scientific claims), NFCorpus (3,633 medical documents, 323 queries, graded labels 1 and 2) and FiQA-2018 (57,638 financial forum posts, 648 questions).</p>
+<p>Fig. 2 reads the metrics on one query's real ranked lists, from our runs on NFCorpus (graded labels, many per query):</p>
+<ol class="sx" id="sx-rank">
+<li><b>One query, the top 100 as a field.</b> NFCorpus query "grapes" has <span data-rr="nlab">196</span> labelled passages. BM25's top 100 is folded into rows of ten, rank 1 at the front left; the <span data-rr="b100">15</span> labelled passages among them stand up.</li>
+<li><b>The prompt's cut, k = 10.</b> <span data-rr="b10">9</span> of the first ten are labelled: precision@10 = <span data-rr="bp10">0.9</span> and hit@10 = 1, yet recall@10 = 9/196 = <span data-rr="br10">0.046</span>. With 196 labels, recall@10 cannot exceed 10/196 (<span data-rr="rmax">0.051</span>): when a query has many labels, hit rate and recall tell different stories.</li>
+<li><b>nDCG@10 discounts each hit by its rank.</b> A hit's gain is divided by log<sub>2</sub>(rank + 1): rank 1 keeps all of it, rank 10 keeps 0.29. Summed, DCG@10 = <span data-rr="bdcg">4.113</span>; the ideal list (ten labelled passages on top) scores <span data-rr="idcg">4.544</span>, so nDCG@10 = <span data-rr="bndcg">0.905</span>.</li>
+<li><b>The reranker's depth, k = 100.</b> All ten rows: 15 of 196, recall@100 = <span data-rr="br100">0.077</span>. The <span data-rr="bdeep">6</span> labelled passages below rank 10 are what a reranker reading this list could still lift into the prompt; nothing else can get there.</li>
+<li><b>The dense run on the same query.</b> MiniLM's top 100: only <span data-rr="d10">2</span> labelled passages in its first ten, but <span data-rr="d100">22</span> in the hundred (recall@100 <span data-rr="dr100">0.112</span>; nDCG@10 <span data-rr="dndcg">0.130</span>).</li>
+<li><b>Read both depths.</b> At the prompt BM25 wins, 9 against 2; at the reranker's depth the dense run wins, 22 against 15 (the RRF hybrid keeps <span data-rr="h10">9</span> and reaches <span data-rr="h100">24</span>). Recall read at one depth hides either a ranking miss or a retrieval miss.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-ret-b">
+<h3>Over all queries, at both depths</h3>
 <div class="pr"><b>Predict:</b> on FiQA, where forum questions paraphrase the posts, how much recall@100 does a 22M-parameter dense model add over BM25: about 2 points, 10, or 17? Pick FiQA below.</div>
-<div class="fig" id="rc-card"><h4>Recall keeps rising past the prompt's k: read it at the prompt and at the reranker's depth</h4>
-<div class="seg" id="rc-set"><button data-m="scifact" class="on">SciFact</button><button data-m="nfcorpus">NFCorpus</button><button data-m="fiqa">FiQA-2018</button></div>
-<div class="rd-svg" id="rc-svg"></div>
-<p class="cap" id="rc-cap"></p>
-<p class="cap">Recall@k for k = 1 to 100 against the released qrels, computed in your browser from the stored ranks of every labelled passage; <span class="meas">measured</span> on our runs (<code>src/beir_run.py</code>, <code>src/paired.py</code>). FiQA: BM25 recall@100 0.538, dense 0.706, hybrid 0.711, so the dense model adds about 17 points. On SciFact a reranker reading BM25's top 100 has 12.5 more points of recall to work with (0.800 to 0.925) than the prompt ever sees, and none beyond 0.925.</p></div>
 <ul class="tight">
 <li><b>Measure recall twice</b>, at the prompt's k and at the reranker's depth (often 50 to 150), or a retrieval miss and a ranking miss look the same.</li>
 <li><b>Recall@k has no value for an unanswerable question</b> (no relevant passage to divide by): leave those out of the average and score abstention on them instead.</li>
@@ -16,6 +25,15 @@
 <li><b>nDCG@10</b> is the standard for comparing rerankers and BEIR's and MTEB's headline number; MRR fits single-answer lookups. Say the gain: linear (gain = grade) in <code>trec_eval</code>, BEIR and MTEB, exponential (2<sup>grade</sup> &minus; 1) in some learning-to-rank libraries; they differ on graded labels.</li>
 <li><b>ANN recall is not retrieval recall.</b> ANN recall measures an approximate index against exact search over the same embeddings; retrieval recall measures the system against human labels. A perfect index cannot fix an embedding model that puts the right passage far from the query ({{Vector indexes|n:3f85c17b0d0d81f29707c130b2ebcfb1}} owns ANN recall).</li>
 </ul>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="fig" id="rc-card"><h4>Recall keeps rising past the prompt's k: read it at the prompt and at the reranker's depth</h4>
+<div class="seg" id="rc-set"><button data-m="scifact" class="on">SciFact</button><button data-m="nfcorpus">NFCorpus</button><button data-m="fiqa">FiQA-2018</button></div>
+<div class="rd-svg" id="rc-svg"></div>
+<p class="cap" id="rc-cap"></p>
+<p class="cap">Recall@k for k = 1 to 100 against the released qrels, computed in your browser from the stored ranks of every labelled passage; <span class="meas">measured</span> on our runs (<code>src/beir_run.py</code>, <code>src/paired.py</code>). FiQA: BM25 recall@100 0.538, dense 0.706, hybrid 0.711, so the dense model adds about 17 points. On SciFact a reranker reading BM25's top 100 has 12.5 more points of recall to work with (0.800 to 0.925) than the prompt ever sees, and none beyond 0.925.</p></div>
+</div></div></div>
+<section id="rd-real">
 <h3>Five retrievers on three sets, scored and reproduced</h3>
 <p>BM25 (two parameter sets and the <code>rank_bm25</code> package), a small dense model and their RRF hybrid, scored against the qrels:</p>
 <details class="dp"><summary>The five systems, exactly</summary><div><p>The systems: BM25 reimplemented the way Anserini's "flat" regression runs it (title and text as one field, Lucene's English stopwords, Porter stemming, k1 = 0.9, b = 0.4), the same BM25 with k1 = 1.2 and b = 0.75, the <code>rank_bm25</code> package as installed, a small dense retriever (all-MiniLM-L6-v2, 22M parameters, cosine), and a hybrid fusing BM25 and dense with reciprocal rank fusion (k = 60). All runs took under 15 minutes on a laptop CPU, two threads. Code: <code>src/beir_run.py</code>.</p></div></details>

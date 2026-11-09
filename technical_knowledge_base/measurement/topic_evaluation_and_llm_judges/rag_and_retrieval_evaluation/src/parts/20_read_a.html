@@ -29,11 +29,9 @@
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections"><a href="#rd-top">The idea</a><a href="#rd-halves">Split the halves</a><a href="#rd-ret">Retrieval half</a><a href="#rd-faith">Faithfulness</a><a href="#rd-ctx">Relevance and context</a><a href="#rd-cite">Citations</a><a href="#rd-agree">Agreement with people</a><a href="#rd-build">Eval set</a><a href="#rd-cmp">Comparing two systems</a><a href="#rd-agent">Agentic RAG</a></nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-top">
 <div class="core"><b class="k">The idea in one sentence</b>A RAG answer can fail at finding the evidence or at using it, so grade the two halves apart: the retrieved passages against labels of which passages hold the answer, the answer against the passages it was actually given, and only then the answer against the truth; every RAG metric compares two of five things, and which two decides what it can see.</div>
-<div class="fig" id="rd-hero"><h4>Each metric is one comparison; faithfulness never looks at the truth, correctness never looks at the passages</h4>
-<div class="rd-svg" id="rd-hero-svg"></div>
-<p class="cap">Upper arcs grade the passages (the retrieval half), lower arcs grade the answer (the generation half). Recall@k needs passage labels (qrels); context precision and context recall replace them with a reference answer and a judge; faithfulness and citation accuracy compare the answer with the passages only; correctness and nugget recall compare it with a reference only. No single arc says which half failed; the pair of halves does.</p></div>
 <p class="small"><b>You need</b>: the ranked-list metrics themselves, recall@k, MRR and nDCG with its two gains ({{Evaluation metrics|n:3c65c17b0d0d81a29acef722e842a29b}}, section 6, owns the definitions and a one-list calculator); what an LLM judge is and how it is calibrated ({{LLM-as-judge|n:3c65c17b0d0d810ba2a2ecc08c4c233b}}); how a RAG system is built ({{Topic: rag-and-retrieval|n:3c65c17b0d0d81b89145c37dfe8a3b0b}}). Everything here is worked on released human labels: BEIR qrels, 1,584 RAGTruth answers with annotated spans, and MS MARCO's marks of which passage holds the answer.</p>
 <div class="terms">
 <div><dfn>qrels</dfn>: the relevance labels of a test set, query to passage to grade.</div>
@@ -58,26 +56,78 @@
 <tr><td>Is the answer right?</td><td>correctness against a reference, or the share of reference nuggets covered</td><td>reference answers or nuggets</td><td>which half failed</td></tr>
 </tbody></table></div></div></details>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="fig" id="rd-hero"><h4>Each metric is one comparison; faithfulness never looks at the truth, correctness never looks at the passages</h4>
+<div class="rd-svg" id="rd-hero-svg"></div>
+<p class="cap">Upper arcs grade the passages (the retrieval half), lower arcs grade the answer (the generation half). Recall@k needs passage labels (qrels); context precision and context recall replace them with a reference answer and a judge; faithfulness and citation accuracy compare the answer with the passages only; correctness and nugget recall compare it with a reference only. No single arc says which half failed; the pair of halves does.</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-halves"></div></div><div class="s3L">
 <section id="rd-halves">
 <h2>Split the halves: one score hides which one failed</h2>
 <p>End-to-end accuracy is a product of stage shares, A = r<sub>K</sub> &middot; p<sub>k|K</sub> &middot; g (found in the first stage's top K, kept in the k that reach the prompt, answered correctly), so the same accuracy can come from a weak retriever or a weak generator; {{The retrieval pipeline|n:3c65c17b0d0d819899fde889e1e8b782}} measures that split on its running example (section 9). Here it is done on single answers, with human labels for each half.</p>
 <div class="co key"><div class="t">The one habit</div>For every wrong answer, first ask whether a passage that holds the answer was in the prompt. That one bit gives the failure to the retriever (not in the prompt) or to the generator (in the prompt, and still wrong) before anybody touches a component.</div>
-<p><b>Before</b> scores each answer end to end; <b>After</b> also scores the retrieval half against a human mark of which passage holds the answer, and the generation half against human-marked hallucinated spans. Predict first: for the "carry on cast" question, how many of the six generators fail because of retrieval?</p>
+<p>Here it is on one claim, with a label for each half: SciFact's qrels say which abstract holds the evidence, SciFact's CONTRADICT label says what the right answer is. Fig. 1 runs it twice, first with BM25, then with retrieval fixed:</p>
+<ol class="sx" id="sx-halves">
+<li><b>A real claim, a real retriever.</b> SciFact test claim 54, "AMP-activated protein kinase (AMPK) activation increases inflammation-related fibrosis in the lungs", goes to BM25 over the 5,183 SciFact abstracts (our run, k1 = 0.9, b = 0.4), which returns a ranked list.</li>
+<li><b>The top 3 reach the generator.</b> Three abstracts about AMPK, none about the lung, go into the prompt of Qwen2.5-1.5B-Instruct with RAGTruth's instruction to say "Unable to answer" if the passages do not settle it. It answers "Supported".</li>
+<li><b>Score end to end: wrong.</b> SciFact's annotators label the claim CONTRADICT, from a paper showing that metformin, an AMPK activator, reverses lung fibrosis in mice. One more miss in the accuracy number; which half to fix is not in it.</li>
+<li><b>Score the retrieval half: failed.</b> SciFact's qrels name one relevant abstract, "Metformin reverses established lung fibrosis in a bleomycin model"; BM25 ranked it at <span data-rr="bm25rank">5</span>, below the cut. So hit@3 = 0, precision@3 = 0, RR@3 = 0: the evidence never reached the prompt.</li>
+<li><b>Score the generation half: failed too.</b> The answer quotes passage 1 on JAK1 and 14-3-3 proteins in endothelial cells and fibroblasts and says it shows AMPK "leads to increased inflammation-related fibrosis"; none of the three passages mentions lung fibrosis, so the answer is unfaithful, and the instructed answer was "Unable to answer". Fix retrieval first: a better generator could at best refuse; it cannot find what it was not given.</li>
+<li><b>Fix the half that failed.</b> Same claim, same generator, retrieval swapped for BM25 plus the MiniLM dense run fused by RRF (our hybrid). The labelled abstract rises to rank <span data-rr="hybrank">2</span>: hit@3 = 1, precision@3 = 1/3, RR = 1/2. Retrieval now passes.</li>
+<li><b>The bug moved.</b> The answer still says "Supported", so a single accuracy number would say the retrieval change did nothing. Split, it did: the answer even cites passage 2 ("metformin, an AMPK activator, reverses established lung fibrosis"), then calls that support for a claim that AMPK activation increases fibrosis, an Evident Conflict in RAGTruth's terms. The next fix is the generator: a stronger model, or an instruction to check the direction of the effect.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="card" id="an-card">
 <div class="seg" id="an-mode"><button data-m="before">Before: one end-to-end score</button><button data-m="after" class="on">After: split the halves</button></div>
-<div class="an-ctl"><label class="small wide">Question <select id="an-case"><option value="carry">"carry on cast still alive" (RAGTruth, MS MARCO)</option><option value="ampk">AMPK and lung fibrosis claim (SciFact)</option></select></label><label class="small" id="an-mwrap">Generator <select id="an-model"></select></label></div>
+<div class="an-ctl"><label class="small">Generator <select id="an-model"></select></label></div>
 <div class="pipe" id="an-pipe"></div>
 <div class="an-cnt" id="an-cnt"></div>
-<div class="an-cap" id="an-cap" aria-live="polite"></div>
+<p class="small an-read" id="an-read" aria-live="polite"></p>
 <div class="an-ctl" id="an-ctl"></div>
 </div>
+</div></div><div class="s3L">
+<section id="rd-six">
+<h3>Six generators, the same three passages</h3>
+<p>The same split on a question six generators answered from the same three passages. <b>Before</b> scores each answer end to end; <b>After</b> also scores the retrieval half against a human mark of which passage holds the answer, and the generation half against human-marked hallucinated spans. Predict first: for the "carry on cast" question, how many of the six generators fail because of retrieval?</p>
+<ol class="sx" id="sx-an-a">
+<li><b>A real question.</b> MS MARCO's "carry on cast still alive", one of RAGTruth's 989 question-answering items. The instruction: answer strictly from the three passages, or reply "Unable to answer based on given passages."</li>
+<li><b>Retrieve.</b> The three passages RAGTruth kept from MS MARCO's ten Bing results. Nobody has looked at labels yet.</li>
+<li><b>Generate.</b> The chosen generator writes its answer from the three passages (temperature 0.7, as released). Switch the generator to see the other five.</li>
+<li><b>Score end to end.</b> Against MS MARCO's reference answer, which names six actors, the answer is correct or wrong: one bit. Our reading of the chosen answer is under the card.</li>
+<li><b>Score the retrieval half.</b> MS MARCO's annotator marked passage 2 as the one the answer was written from (<code>is_selected</code>). So hit@3 = 1, precision@3 = 1/3, RR = 1/2: the evidence reached the prompt, whatever the answer says. This half is identical for all six generators.</li>
+<li><b>Score the generation half.</b> RAGTruth's annotated spans light up in the answer; the reading under the card says what each span is, or what an answer without spans still gets wrong.</li>
+<li><b>Which half failed.</b> For the three wrong answers, the generator: retrieval delivered the answer-bearing passage, and the answer contradicted it, ignored it or left half of it out. The fix is the prompt, the model or the instruction, not the retriever. For the three correct ones, neither half, against the passages and the reference.</li>
+<li><b>And the world.</b> Both halves can pass and the answer still be wrong today: passage 2 dates from about 2014, and four of the six (June Whitfield, Barbara Windsor, Leslie Phillips, Julian Holloway) have died since, per Wikipedia on 4 October 2026. Faithfulness checks the answer against the passages, never the passages against the world; corpus freshness is a third thing to test.</li>
+</ol>
+<ol class="sx" id="sx-an-b" hidden>
+<li><b>A real question.</b> The same question and instruction.</li>
+<li><b>Retrieve.</b> The same three passages.</li>
+<li><b>Generate.</b> The chosen generator's answer.</li>
+<li><b>Score end to end.</b> Correct or wrong against the reference answer.</li>
+<li><b>The usual report.</b> A single accuracy number records a miss and nothing else: was the evidence missing, or misused? The instinct is "try a bigger model" or "tune the retriever", chosen by guesswork. Switch to After to split it.</li>
+</ol>
 <details class="dp"><summary>Where each label in the animation comes from</summary><div>
 <p>Which passage holds the answer is MS MARCO v1.1's <code>is_selected</code> flag (the MS MARCO annotator wrote the reference answer from it) and SciFact's qrels; hallucinated spans are RAGTruth's annotations; end-to-end correctness is our reading of each answer against MS MARCO's reference answer and SciFact's CONTRADICT label, shown in the caption so it can be checked. The first question comes from RAGTruth, whose three passages per question were taken from MS MARCO; the second from SciFact, retrieved by our own BM25 and hybrid runs. The SciFact answers were generated for this page by Qwen2.5-1.5B-Instruct, greedy, with RAGTruth's QA instruction (<code>src/gen_case.py</code>).</p></div></details>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-xt">
 <p id="rd-xtab-lead">None, and not by luck. Of RAGTruth's 989 MS MARCO questions, 276 match MS MARCO v1.1 by text, and in all 264 whose three passages could be matched, at least one passage carries MS MARCO's answer mark (exactly one in 200 questions, two in 51, all three in 13). Retrieval on those contexts scores hit@3 = 1.0, precision@3 = 0.431 and MRR = 0.651 for every model, so every difference between the bars is the generator's:</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig"><h4>Same 264 questions, same passages: the generator alone decides the outcome</h4><div id="rd-xtab"></div>
 <p class="cap">"Hallucinated": RAGTruth marked any span. "Refused": only the instructed "Unable to answer based on given passages" (under 150 characters). "Answered, then disclaimed": answers, then appends that sentence anyway (a Llama-2-7B habit). <span class="meas">measured</span> by <code>src/ragtruth_marco.py</code>.</p></div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="rd-triage">
+<h3>Triage a wrong answer, cheapest check first</h3>
+<p>Each "no" names what to fix: a corpus gap is not a retriever bug; outside the first stage's top K is a retrieval miss (chunking, hybrid search, query rewriting); found at rank 40 when the prompt takes 10 is a ranking miss, visible only if recall is measured at the reranker's depth too; a wrong answer from the right passage is the generator's (prompt, model, context format, distraction by irrelevant passages); a refusal when the context sufficed, or an answer when it did not, is an abstention miss (instructions); both halves passing on a stale source is a corpus miss.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="rd-tri"><h4>Triage a wrong answer in five questions, cheapest first</h4>
 <div class="rd-svg" id="rd-tri-svg"></div>
-<p class="cap">Each "no" names what to fix: a corpus gap is not a retriever bug; outside the first stage's top K is a retrieval miss (chunking, hybrid search, query rewriting); found at rank 40 when the prompt takes 10 is a ranking miss, visible only if recall is measured at the reranker's depth too; a wrong answer from the right passage is the generator's (prompt, model, context format, distraction by irrelevant passages); a refusal when the context sufficed, or an answer when it did not, is an abstention miss (instructions); both halves passing on a stale source is a corpus miss.</p></div>
-</section>
+</div>
+</div></div></div>

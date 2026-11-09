@@ -1,5 +1,6 @@
 // Exercise every control at 390 dark and 920 light: no errors, no NaN/undefined/Infinity in visible text, no sideways scroll;
-// compare the Reading table and calculator with src/recompute.py's values; save element screenshots to ../.shots/.
+// compare the Reading table and calculator with src/recompute.py's values; save element screenshots to ../.shots/. Autoplay is checked with motion allowed at the end;
+// the 3D stages and the step lists are checked by check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/rag_and_retrieval_evaluation/src/check_page.mjs
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -37,21 +38,17 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const click = async (sel) => { await p.$eval(sel, e => e.click()); await audit(sel); };
   const select = async (sel, v) => { await p.select(sel, v); await audit(sel + '=' + v); };
   const tag = `${scheme}-${width}`;
-  // nothing moves before the reader acts: scroll both step cards into view with motion allowed (checked once, below, without reduced motion)
-  // Reading: animation, every case, mode, model and step
-  for (const cs of ['carry', 'ampk']) {
-    await select('#an-case', cs);
-    for (const mode of ['before', 'after']) {
-      await click(`#an-mode button[data-m="${mode}"]`);
-      const models = cs === 'carry' ? await p.$$eval('#an-model option', o => o.map(x => x.value)) : [null];
-      for (const m of models) {
-        if (m) await select('#an-model', m);
-        const n = await p.$eval('#an-ctl-s', e => +e.max + 1);
-        for (let i = 0; i < n; i++) {
-          await p.$eval('#an-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await audit(`anim ${cs} ${mode} ${m} step ${i}`);
-          if (mode === 'after' && i === n - 1 && (m === 'mistral-7B-instruct' || cs === 'ampk')) { const el = await p.$('#an-card'); await el.screenshot({ path: `${shots}/anim-${cs}-${tag}.png` }); }
-          if (mode === 'after' && i === 5 && m === 'llama-2-13b-chat') { const el = await p.$('#an-card'); await el.screenshot({ path: `${shots}/anim-carry-gh-${tag}.png` }); }
-        }
+  // Reading: the carry-on-cast animation, both modes, every generator and step (the SciFact case is the 3D stage, checked by check_stages.mjs)
+  for (const mode of ['before', 'after']) {
+    await click(`#an-mode button[data-m="${mode}"]`);
+    const models = await p.$$eval('#an-model option', o => o.map(x => x.value));
+    for (const m of models) {
+      await select('#an-model', m);
+      const n = await p.$eval('#an-ctl-s', e => +e.max + 1);
+      for (let i = 0; i < n; i++) {
+        await p.$eval('#an-ctl-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await audit(`anim ${mode} ${m} step ${i}`);
+        if (mode === 'after' && i === n - 1 && m === 'mistral-7B-instruct') { const el = await p.$('#an-card'); await el.screenshot({ path: `${shots}/anim-carry-${tag}.png` }); }
+        if (mode === 'after' && i === 5 && m === 'llama-2-13b-chat') { const el = await p.$('#an-card'); await el.screenshot({ path: `${shots}/anim-carry-gh-${tag}.png` }); }
       }
     }
   }
@@ -113,10 +110,10 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (errs.length) problems.push(`${tag} errors: ${errs.slice(0, 3).join(' | ')}`);
   await p.close();
 }
-// no autoplay, with motion allowed: scroll each step card into view, wait, and confirm it is still on step 0
+// autoplay (2026-11-06 rule), with motion allowed: scroll each step card into view, wait, and confirm it has moved on by itself
 { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(file, { waitUntil: 'load' }); await p.$eval('#tabs button[data-t="t-read"]', e => e.click());
-  for (const id of ['an', 'fs']) { await p.$eval('#' + id + '-card', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 3500));
-    const v = await p.$eval('#' + id + '-ctl-s', e => +e.value); if (v !== 0) problems.push(`autoplay: ${id} moved to step ${v} without input`); }
+  for (const id of ['an', 'fs']) { await p.$eval('#' + id + '-card', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 5500));
+    const v = await p.$eval('#' + id + '-ctl-s', e => +e.value); if (v < 1) problems.push(`autoplay: ${id} did not play when scrolled into view (step ${v})`); }
   await p.close(); }
 await b.close();
 console.log(`actions ${actions}, problems ${problems.length}`);
