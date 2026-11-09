@@ -17,8 +17,9 @@
       'The draft "'+esc(e.rej||'')+'" was wrong; the main model\'s own token "'+esc(e.emit[0])+'" is used and a new draft is made from it.')+'</p>';
     document.getElementById('mt-cnt').innerHTML=RD.stat('forwards',k+1,'main model')+RD.stat('tokens emitted',tok,'')+RD.stat('tokens per forward',(tok/(k+1)).toFixed(2),'')+RD.stat('drafts accepted',acc+' of '+(acc+rej),'');
   }
-  const A=FO.anim({card:'mt-card',ctl:'mt-ctl',n:ev().length,draw,ms:420,label:'Forward',tab:TAB});
-  RD.seg(document.getElementById('mt-seg'),m=>{kind=m;A.reset(ev().length)});
+  // a replay of 70 to 80 forwards is a widget the reader drives (the long-replay rule, 2026-11-06): no autoplay, no step list, opening on its last forward
+  const A=FO.anim({card:'mt-card',ctl:'mt-ctl',n:ev().length,draw,ms:420,label:'Forward',auto:false,start:ev().length-1});
+  RD.seg(document.getElementById('mt-seg'),m=>{kind=m;A.reset(ev().length);A.go(ev().length-1,true)});
   // table
   document.querySelector('#mt-tab tbody').innerHTML=D.spec.map(r=>{const s=r.sequential,p=r.parallel,j=r.joint;
     const idn=[s,p,j].filter(Boolean).every(x=>x.identical)?'yes':'NO';

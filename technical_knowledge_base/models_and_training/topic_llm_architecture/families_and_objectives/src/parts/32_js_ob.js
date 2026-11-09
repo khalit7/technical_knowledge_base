@@ -1,4 +1,4 @@
-// ---- Reading section 2 (moved from the old Objective drill tab): the same 40 tokens under six objectives; per-256 table ----
+// ---- Reading section 2: the same 40 tokens under six objectives, a stepper with its step list (2026-11-09); the per-256 table ----
 (function(){
   if(!window.FOD||!document.getElementById('ob-card'))return;
   const O=FOD.obj,esc=FO.esc,n=O.n,P=O.pieces.map(s=>s.replace(/\n/g,'↵'));
@@ -25,10 +25,13 @@
     else{const dm=new Set(O.diff_mask);inp=P.map((p,i)=>dm.has(i)?sp('[MASK]','m'):sp(p)).join('');out=O.diff_mask.map(i=>sp(P[i],'t')).join('');
       cap='One rate t = '+O.diff_t+' for the whole sequence: '+O.diff_mask.length+' of '+n+' tokens masked in this draw, each scored and weighted by 1/t = '+(1/O.diff_t)+'. Next sequence, a new t: from nearly clean to nearly all masked.';cnt=[O.diff_mask.length,'both sides (unmasked ones)']}
     document.getElementById('ob-in').innerHTML=inp;document.getElementById('ob-out').innerHTML=out;
-    document.getElementById('ob-cap').innerHTML='<p>'+cap+'</p>';
+    // the step list on the left (sx-ob) carries the explanation; cap is kept only as the card's accessible description
+    document.getElementById('ob-card').setAttribute('aria-description',cap);
     document.getElementById('ob-cnt').innerHTML=RD.stat('loss terms here',cnt[0],'from '+n+' tokens')+RD.stat('a scored token sees',cnt[1],'');
   }
-  RD.seg(document.getElementById('ob-seg'),build);build('clm');
+  // a 2D stepper (RD.anim, template): one step per objective, explained by the step list sx-ob; plays once in view
+  const MODES=['clm','mlm','t5','prefix','mtp','diff'];
+  FO.anim({card:'ob-card',ctl:'ob-ctl',n:MODES.length,draw:i=>build(MODES[i]),ms:5200,label:'Objective',list:'sx-ob'});
   const t5=FOD.obj.t5_256;
   const rows=[['causal LM',256,255,'left context','yes, one token per forward'],['masked LM (BERT)',256,Math.round(0.15*256),'both sides','no'],
     ['span corruption (T5)',t5.input,t5.targets,'encoder: whole corrupted input','yes (decoder)'],['prefix LM (prefix 128)',256,128,'prefix both ways, then left','yes'],

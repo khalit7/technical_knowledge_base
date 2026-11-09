@@ -1,10 +1,15 @@
+<div class="s3sp"><div class="s3R"><div id="stg-mtp"></div></div><div class="s3L">
 <section id="fo-s7">
 <h2>7. Multi-token prediction (MTP)</h2>
 <p>Next-token prediction asks each position about one token, so a model can do well on local patterns without planning; and at inference the decoder makes one forward per token, each limited at small batch by reading the weights from memory, not by arithmetic ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). <dfn>Multi-token prediction</dfn> adds loss terms for tokens two or more places ahead: a denser training signal, and a ready-made guess for the next forward to check.</p>
-<div class="fo-card" id="fo-md-card"><h4>Two ways to predict the token after next: the sequential module is told the next token</h4>
-<div class="fo-seg" id="fo-md-seg"><button data-m="par" class="on">parallel heads (Gloeckle et al. 2024)</button><button data-m="seq">sequential module (DeepSeek-V3)</button></div>
-<div class="fo-svg" id="fo-md-svg"></div>
-<div class="fo-cap" id="fo-md-cap"></div></div>
+<p class="sxh">Fig. 6 · Two ways to predict the token after next: the sequential module is told the next token</p>
+<ol class="sx" id="sx-mtp">
+<li><b>The trunk and its head.</b> The tokens up to position i (" a", an <span class="ill">illustrative</span> position) flow up through the 6 blocks to h<sub>i</sub>, the last hidden state; the shared head turns it into the next token, " time". The frozen reference's top-1 on t+1 over 128 held-out windows: <span data-f="mtpf.held_out.main_next.top1" data-fmt="pct"></span>.</li>
+<li><b>A parallel head (Gloeckle et al.).</b> One extra block reads h<sub>i</sub> alone and the same head predicts t<sub>i+2</sub>: top-1 <span data-f="mtpf.held_out.parallel.top1" data-fmt="pct"></span>. It has to guess t<sub>i+1</sub> implicitly.</li>
+<li><b>The sequential module (DeepSeek-V3, depth 1).</b> The module is also told the known t<sub>i+1</sub>: M projects [RMSNorm(h<sub>i</sub>) ; RMSNorm(Emb(t<sub>i+1</sub>))] from 2d to d, then one block of the main model's shape and the shared head: top-1 <span data-f="mtpf.held_out.sequential.top1" data-fmt="pct"></span> on t+2, close to the main model's own next-token score.</li>
+<li><b>As a draft.</b> A draft is accepted when it equals the main model's next greedy choice: <span data-f="mtpf.held_out.sequential_accept.top1" data-fmt="pct"></span> of the time for the sequential module against <span data-f="mtpf.held_out.parallel_accept.top1" data-fmt="pct"></span> for the parallel head on held-out windows; on the 8 evaluation prompts that is <span data-f="d.spec.sequential.tpf" data-fmt="2"></span> against <span data-f="d.spec.parallel.tpf" data-fmt="2"></span> tokens per forward.</li>
+<li><b>What it costs.</b> To scale: the sequential module's <span data-f="mtpf.params.sequential" data-fmt="int"></span> parameters and the parallel head's <span data-f="mtpf.params.parallel" data-fmt="int"></span> beside the main model's <span data-f="mtpf.main_params" data-fmt="int"></span>. Training pays for one more block; inference can drop it.</li>
+</ol>
 <ul>
 <li><b>Parallel heads</b> ({{Gloeckle et al., arXiv 2404.19737|https://arxiv.org/abs/2404.19737}}, April 2024): n independent one-layer heads on a shared trunk and unembedding; head k predicts t+k from the trunk's state at t alone. Heads run forward and backward one at a time, so peak memory stays O(V + d) instead of O(nV + d). <span class="vend">vendor</span> (Meta): at 13B, 12% more HumanEval and 17% more MBPP problems solved; "worse than the baseline for small model sizes, but outperform the baseline at scale"; n = 4 best for token-level code; as drafts, 3.0x faster decoding on code and 2.7x on text.</li>
 <li><b>Sequential module</b> (DeepSeek-V3, {{arXiv 2412.19437 section 2.2|https://arxiv.org/abs/2412.19437}}): depth k takes the previous depth's state and the embedding of the <i>known</i> token t<sub>i+k</sub>, so the chain stays causal (the paper compares it to EAGLE). DeepSeek-V3 uses D = 1 and weights the loss by λ = 0.3 for the first 10T tokens and 0.1 for the remaining 4.8T.</li>
@@ -12,20 +17,18 @@
 <div class="fm"><div class="eq">h′<sub>i</sub> = M [ RMSNorm(h<sub>i</sub>) ; RMSNorm(Emb(t<sub>i+1</sub>)) ],&nbsp;&nbsp; P<sub>i+2</sub> = OutHead(TRM(h′<sub>i</sub>)),&nbsp;&nbsp; L = L<sub>main</sub> + λ · CE(P<sub>i+2</sub>, t<sub>i+2</sub>)</div>
 <dl><dt>h<sub>i</sub></dt><dd>the main model's last hidden state at position i (d = 7,168 in DeepSeek-V3; 256 in the tiny GPT)</dd><dt>M</dt><dd>d by 2d projection (<code>eh_proj</code> in the checkpoint)</dd><dt>TRM</dt><dd>one transformer block of the main model's shape (in V3 an MLA + MoE block)</dd><dt>OutHead, Emb</dt><dd>shared with the main model</dd></dl></div>
 <p><b>Cost.</b> One extra block in training, nothing at inference: the module can be discarded. DeepSeek-V3's MTP layer is 13.46B parameters, mostly its own stored copies of the embedding and output head, which is why the Hub says 685B where the paper says 671B (bill in the closed block). <b>Benefit, published:</b> DeepSeek-V3 Table 4 shows real but small single-run gains at 15.7B and 228.7B (and MMLU 0.9 lower at large scale); as a draft in serving, the second-token guess has "between 85% and 90%" acceptance and gives "1.8 times TPS" (section 5.4.3).</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="fo-s7b">
 <h3>Measured: is it worth it at equal compute?</h3>
 <p>The baseline tiny GPT with a sequential depth-1 module beside it, λ = 0.3, at exactly the reference budget (1,500 steps of 8,192 tokens, same seed, schedule and batches; <code>src/lab/train_mtp_joint.py</code>, MPS). Predict, then switch the x-axis:</p>
-<div class="fo-card" id="fo-jt-card"><h4>MTP wins at equal tokens and loses at equal FLOPs: held-out loss of the main model</h4><div class="fo-svg" id="fo-jt-svg"></div><div class="fo-cap" id="fo-jt-cap"></div></div>
 <p>At equal tokens the main model's loss ends at <span data-f="mtpj.joint.final" data-fmt="4"></span> with MTP against <span data-f="mtpj.ref.final" data-fmt="4"></span> for the reference (seed 0), and <span data-f="mtpj.joint_s1.final" data-fmt="4"></span> against <span data-f="mtpj.base_s1.final" data-fmt="4"></span> with seed 1, gaps several times the rerun spread of the seed-0 baseline (2.2744 to 2.2811). But the module adds a seventh block and a second pass through the output head, <span data-f="d.mtp_extra_flops" data-fmt="pct0"></span> more training FLOPs per step (<span class="der">derived</span> from the Block lab's FLOP counts); spent on plain next-token training instead (1,980 steps), the baseline reaches <span data-f="mtpj.base_1980.final" data-fmt="4"></span>. <b>At equal compute MTP loses at this scale</b>, in line with Gloeckle et al.'s small-model result (their parallel heads; ours is the sequential design) and with DeepSeek's evidence being single runs at large scale. What transfers: an MTP loss is cheap to add and free at inference; whether it pays must be measured at equal compute and at your scale.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="fo-card" id="fo-jt-card"><h4>MTP wins at equal tokens and loses at equal FLOPs: held-out loss of the main model</h4><div class="fo-svg" id="fo-jt-svg"></div><div class="fo-cap" id="fo-jt-cap"></div></div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="fo-s7c">
 <h3>Measured: the module as a draft</h3>
 <p>Both designs trained on top of the frozen reference, 600 steps each, only the module learning (<code>src/lab/mtp_frozen.py</code>, CPU). In <dfn>self-speculative</dfn> greedy decoding each forward of the main model checks the previous draft and makes a new one, so it emits 2 tokens when the draft was right and 1 when it was wrong, and the output is identical to plain greedy decoding. One prompt, the running sequence's opening, decoded with each draft:</p>
-<div class="fo-card" id="mt-card"><h4>Same prompt, same output, fewer forwards when the draft is told the next token</h4>
-<div class="fo-seg" id="mt-seg"><button data-m="sequential" class="on">sequential module (sees t+1)</button><button data-m="parallel">parallel head (h only)</button></div>
-<div class="fo-toks" id="mt-toks"></div>
-<div id="mt-ctl"></div>
-<div class="fo-leg"><span style="--sw:var(--acc2)">emitted by the main model (verified)</span><span style="--sw:var(--hl)">draft accepted: a free token</span><span style="--sw:var(--bad)">draft rejected (struck)</span></div>
-<div class="fo-cap" id="mt-cap"></div>
-<div class="fo-cnt" id="mt-cnt"></div>
-</div>
+
 <p>Over the 8 evaluation prompts, 120 new tokens each, the sequential draft gives <span data-f="d.spec.sequential.tpf" data-fmt="2"></span> tokens per forward and the parallel head <span data-f="d.spec.parallel.tpf" data-fmt="2"></span>, output identical to plain greedy in every case (<span data-f="d.spec.identical"></span>). The sequential module, told token t+1, predicts t+2 almost as well as the main model predicts t+1; the parallel head must guess t+1 too. Tokens per forward is not speed: on a GPU the verifying forward costs about a normal decode step only while decoding is memory-bound; {{Speculative decoding|n:3f35c17b0d0d81e086fde85940ebac1c}} owns the batch-size crossover and the acceptance rule for sampling.</p>
 <p class="small"><span class="meas">measured</span> on Apple M1 Pro (CPU), 2026-10-18; greedy, no KV cache (each forward recomputes the sequence; counts of forwards, not timings, are the result).</p>
 <details class="dp"><summary>The parameter bill, DeepSeek-V3 Table 4, the draft numbers per prompt, an acceptance calculator <span class="mute">(depth)</span></summary><div class="b">
@@ -46,4 +49,12 @@
 <div class="fo-card" id="mt-tr-card"><h4>Training the two draft modules on the frozen trunk</h4><div class="fo-svg" id="mt-tr-svg"></div>
 <p class="small">Training loss on the token two places ahead, 600 steps of 16 windows of 256, AdamW lr 1e-3, only the module learning (trunk, embedding, final norm and head frozen). The sequential module starts from a better place because it is given the real next token. Parameters: sequential <span data-f="mtpf.params.sequential" data-fmt="int"></span> (one block plus the 512 to 256 projection and two norms), parallel <span data-f="mtpf.params.parallel" data-fmt="int"></span>; main model <span data-f="mtpf.main_params" data-fmt="int"></span>.</p></div>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="fo-card" id="mt-card"><h4>Same prompt, same output, fewer forwards when the draft is told the next token</h4>
+<div class="fo-seg" id="mt-seg"><button data-m="sequential" class="on">sequential module (sees t+1)</button><button data-m="parallel">parallel head (h only)</button></div>
+<div class="fo-toks" id="mt-toks"></div>
+<div id="mt-ctl"></div>
+<div class="fo-leg"><span style="--sw:var(--acc2)">emitted by the main model (verified)</span><span style="--sw:var(--hl)">draft accepted: a free token</span><span style="--sw:var(--bad)">draft rejected (struck)</span></div>
+<div class="fo-cap" id="mt-cap"></div>
+<div class="fo-cnt" id="mt-cnt"></div>
+</div></div></div></div>

@@ -1,13 +1,17 @@
+<div class="s3sp"><div class="s3R"><div id="stg-mask"></div></div><div class="s3L">
 <section id="fo-s1">
 <h2>1. One block, four masks</h2>
-<p>Attention scores form a T by T matrix: row i is the <dfn>query</dfn> (the position asking), column j the <dfn>key</dfn> (the position read). The mask adds minus infinity to forbidden cells before the softmax, so their weight is exactly zero. Left unmasked, a model asked to predict token i+1 while it can see token i+1 learns to copy; the mask is how one architecture serves both understanding and writing. The first 12 tokens of the running sequence under each pattern:</p>
-<div class="fo-card" id="fo-mk-card"><h4>Which keys each query may read, and what that lets you cache</h4>
-<div class="fo-seg" id="fo-mk-seg"><button data-m="causal" class="on">causal (decoder)</button><button data-m="bidir">bidirectional (encoder)</button><button data-m="prefix">prefix LM (prefix 5)</button><button data-m="encdec">encoder-decoder</button></div>
-<div class="fo-svg" id="fo-mk-svg"></div>
-<div class="fo-cap" id="fo-mk-cap"></div></div>
+<p>Attention scores form a T by T matrix: row i is the <dfn>query</dfn> (the position asking), column j the <dfn>key</dfn> (the position read). The mask adds minus infinity to forbidden cells before the softmax, so their weight is exactly zero. Left unmasked, a model asked to predict token i+1 while it can see token i+1 learns to copy; the mask is how one architecture serves both understanding and writing. The first 12 tokens of the running sequence under each pattern, the marked query (a ball, an <span class="ill">illustrative</span> choice) fed by every key it may read:</p>
+<p class="sxh">Fig. 2 · Which keys each query may read, and what that lets you cache</p>
+<ol class="sx" id="sx-mask">
+<li><b>Causal (decoder-only).</b> Query i reads keys 0 to i: 78 of the 144 cells stand. The marked query, " forest" at position 9, draws on the ten keys up to itself. Every position trains at once, and a past key never changes when a token arrives, so it is computed once and cached.</li>
+<li><b>Bidirectional (encoder).</b> All 144 cells stand: query " a" at position 2 now reads the nine keys after it too. Each token gets both sides, but a new token changes every row, so there is nothing to cache and nothing to generate with.</li>
+<li><b>Prefix LM, prefix of 5.</b> The first 5 tokens (the prompt, inside the dashed line) read each other both ways: 88 of 144 cells. Query " a" reads up to position 4; later tokens are causal but read the whole prompt. Only the continuation is scored.</li>
+<li><b>Encoder-decoder, as one fused matrix.</b> Rows 0 to 5 are the encoder over the input, bidirectional. Rows 6 to 11 are the decoder: causal over its own tokens (blue) and reading every encoder token through cross-attention (purple), as " forest" does here. T5Gemma 2 fuses the decoder's two attentions into one mask of this shape.</li>
+<li><b>Same weights, swapped mask, measured.</b> The reference tiny GPT, trained causally, under three masks at inference (first and last 128 positions of each window). Bidirectional: <span data-f="masks.swap.causal.held_out" data-fmt="3"></span> becomes <span data-f="masks.swap.bidir.held_out" data-fmt="3"></span> overall. Prefix 128: the last 128 positions stay causal, yet rise from <span data-f="masks.swap.causal.held_out_last128" data-fmt="3"></span> to <span data-f="masks.swap.prefix128.held_out_last128" data-fmt="3"></span>. Seeing more makes a causal model worse.</li>
+</ol>
 <p><b>The mask is free and decides the cache.</b> Same FLOPs, same parameters. A causal model's past keys and values never change when a token arrives, so they are computed once and kept: the KV cache. Under a bidirectional mask every new token changes every earlier position's output, so an encoder or a diffusion LM recomputes the whole sequence every pass. An encoder-decoder's decoder caches its own causal KV plus the cross-attention keys and values of the encoder output, computed once per input; T5Gemma 2 fuses the decoder's self- and cross-attention into one attention with one mask.</p>
-<p><b>A mask is a training-time contract.</b> We took the reference tiny GPT, trained causally, and changed only the mask at inference (<code>src/lab/masks.py</code>, the topic's 20 fixed held-out batches of 32 windows, 640 windows of 256 tokens; <b>correction</b>: the 2026-10-18 page said "20 windows", checked against the script). Predict first: with a bidirectional mask the model can see the very token it must predict. Does its loss go down?</p>
-<div class="fo-card" id="mk-sw-card"><h4>Seeing more makes a causal model worse: held-out loss per token under three masks, same weights</h4><div class="fo-svg" id="mk-sw-svg"></div><div class="fo-cap" id="mk-sw-cap"></div></div>
+<p><b>A mask is a training-time contract.</b> Step 5 is the test: we took the reference tiny GPT, trained causally, and changed only the mask at inference (<code>src/lab/masks.py</code>, the topic's 20 fixed held-out batches of 32 windows, 640 windows of 256 tokens; <b>correction</b>: the 2026-10-18 page said "20 windows", checked against the script). Predict before it plays: with a bidirectional mask the model can see the very token it must predict. Does its loss go down?</p>
 <p class="small"><span class="meas">measured</span> on Apple M1 Pro (CPU, 4 threads), 2026-10-18; the causal row reproduces the topic's reference 2.278 (measured there on MPS). The loss rises by <span data-f="d.swap_bidir_gap" data-fmt="2"></span> nats: the model never learned to use the future, and the extra keys disturb representations learned under the causal contract. With a 128-token prefix even the causal suffix degrades, because it reads keys computed under a mask the model never saw. What transfers: the direction (a mask is learned, not a switch); the size of the gap does not.</p>
 <details class="dp"><summary>The masks in code, the full table, and a 24-token explorer <span class="mute">(depth)</span></summary><div class="b">
 <ul>
@@ -50,19 +54,27 @@ def enable_masks():
 <p class="fo-codecap">Output of <code>masks.py</code> (scrubbed of timings), Apple M1 Pro, CPU, torch 2.14.1. The <code>is_local</code> override matters: the tiny GPT's fast path calls <code>F.scaled_dot_product_attention(..., is_causal=True)</code> and would ignore any custom mask.</p>
 </div></details>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="fo-card" id="ob-card"><h4>Fig. 3 · One text, six objectives: what goes in, what is scored, what each scored token can see</h4>
+<div class="ob-lab">model input</div><div class="fo-toks" id="ob-in"></div>
+<div class="ob-lab">scored targets</div><div class="fo-toks" id="ob-out"></div>
+<div id="ob-ctl"></div>
+<div class="fo-leg"><span style="--sw:var(--dim)">[MASK] or sentinel</span><span style="--sw:var(--acc2)">scored target</span><span style="--sw:var(--hl)">second target (MTP)</span><span style="--sw:var(--open2)">prefix, read both ways</span></div>
+<div class="fo-cnt" id="ob-cnt"></div>
+<p class="small">Which positions are masked or corrupted is one seeded draw (<span class="ill">illustrative</span> positions); the rules are the real ones.</p>
+</div></div><div class="s3L">
 <section id="fo-s2">
 <h2>2. The objectives: what the model is asked to predict</h2>
 <p>An <dfn>objective</dfn> turns raw text into (input, target) pairs and a loss. The same 40 tokens of the running sequence under six of them; the top row is what the model reads, the bottom row what it is scored on:</p>
-<div class="fo-card" id="ob-card"><h4>One text, six objectives: what goes in, what is scored, what each scored token can see</h4>
-<div class="fo-seg" id="ob-seg"><button data-m="clm" class="on">causal LM</button><button data-m="mlm">masked LM (BERT)</button><button data-m="t5">span corruption (T5)</button><button data-m="prefix">prefix LM</button><button data-m="mtp">CLM + MTP</button><button data-m="diff">masked diffusion, t = 0.5</button></div>
-<div class="ob-lab">model input</div><div class="fo-toks" id="ob-in"></div>
-<div class="ob-lab">scored targets</div><div class="fo-toks" id="ob-out"></div>
-<div class="fo-leg"><span style="--sw:var(--dim)">[MASK] or sentinel</span><span style="--sw:var(--acc2)">scored target</span><span style="--sw:var(--hl)">second target (MTP)</span><span style="--sw:var(--open2)">prefix, read both ways</span></div>
-<div class="fo-cap" id="ob-cap"></div>
-<div class="fo-cnt" id="ob-cnt"></div>
-<p class="small">Which positions are masked or corrupted is one seeded draw (<span class="ill">illustrative</span> positions); the rules are the real ones.</p>
-</div>
+<ol class="sx" id="sx-ob">
+<li><b>Causal LM.</b> Input tokens 0 to 38; the target at each position is the next token: 39 loss terms from 40 tokens, each seeing only its left.</li>
+<li><b>Masked LM (BERT).</b> 15% of 40 = 6 positions chosen; in this draw 5 became <code>[MASK]</code> and 1 stayed unchanged (green), none a random token (struck through when it happens). All 6 are scored, each from both sides.</li>
+<li><b>Span corruption (T5).</b> round(0.15 x 40) = 6 corrupted tokens in 2 spans, each replaced by one sentinel (<code>&lt;X0&gt;</code> stands for <code>&lt;extra_id_0&gt;</code>): input 37 tokens, target 9 (the sentinels, the hidden tokens and a closing sentinel). The encoder reads the input both ways, the decoder writes the target.</li>
+<li><b>Prefix LM.</b> The first 16 tokens are the prefix, read both ways and not scored (dashed); the 24 continuation targets are scored causally.</li>
+<li><b>CLM + MTP.</b> Each position is scored twice: the main head on token i+1 (blue) and the MTP module on token i+2 (yellow), the module also given the real token i+1: 39 + 38 = 77 loss terms.</li>
+<li><b>Masked diffusion, t = 0.5.</b> One rate for the whole sequence: 20 of 40 tokens masked in this draw, each scored and weighted by 1/t = 2. The next sequence draws a new t, from nearly clean to nearly all masked.</li>
+</ol>
 <ul>
 <li><b>Causal LM (CLM).</b> Target: the text shifted left by one; a 256-token window gives 255 loss terms (the topic's trainer reads 257 tokens and scores all 256). It won because every token of every document is a training example, any task can be written as a prompt, and the model generates with the same forward it was trained with; {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}} runs it at scale. The costs: a strict left-to-right loop at inference and no right-hand context for the token being predicted.</li>
 <li><b>Masked LM (MLM).</b> BERT ({{BERT paper page|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}}) picks 15% of positions; of those, 80% become <code>[MASK]</code>, 10% a random token, 10% stay unchanged, because <code>[MASK]</code> never appears at fine-tuning and a model that only sees <code>[MASK]</code> at scored positions learns nothing useful about real tokens there. transformers 5.20.1 keeps these defaults in <code>DataCollatorForLanguageModeling</code>: <code>mlm_probability = 0.15</code>, <code>mask_replace_prob = 0.8</code>, <code>random_replace_prob = 0.1</code> (<code>data/data_collator.py</code> lines <span data-f="code.collator_defaults.line"></span>). The cost is signal: about 38 loss terms per 256-token window against CLM's 255. ELECTRA ({{Clark et al. 2020|https://arxiv.org/abs/2003.10555}}, ICLR 2020) answered with replaced-token detection, where "the task is defined over all input tokens rather than just the small subset that was masked out"; ModernBERT raised the masking rate to 30%.</li>
@@ -84,3 +96,4 @@ def enable_masks():
 <div class="pr" data-right="0"><div class="q">Which objective lets a decoder answer a prompt it reads bidirectionally, without a second stack?</div><div class="opts"><button>Prefix LM</button><button>Span corruption</button><button>MTP</button></div><p class="small"><a href="#" class="skip">Skip</a></p><div class="ans" hidden>Prefix LM; T5 Table 2 puts it at 81.82 GLUE against the encoder-decoder's 83.28 and the causal LM's 74.70. The price is that the prompt's cache depends on the whole prompt, so it cannot grow token by token.</div></div>
 </div></details>
 </section>
+</div></div>

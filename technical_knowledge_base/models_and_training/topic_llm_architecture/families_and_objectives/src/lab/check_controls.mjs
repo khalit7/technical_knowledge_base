@@ -1,4 +1,4 @@
-// check_controls.mjs: click every control in every tab at 390 px dark and 920 px light; fail on page errors,
+// check_controls.mjs: click every control in every tab at 390 px dark and 920 px light; fail on page errors (2026-11-09: autoplay rule inverted),
 // a visible #jsErr, NaN/undefined/Infinity/(pending) in tab text, or sideways scroll. One browser, closed at the end.
 // Run from the repo root: node <page>/src/lab/check_controls.mjs <page>/index.html
 import { createRequire } from 'node:module'; import path from 'node:path';
@@ -17,10 +17,15 @@ try {
     const tabs = await p.$$eval('#tabs button[data-t]', bs => bs.map(x => x.dataset.t));
     for (const t of tabs) {
       await p.click(`#tabs button[data-t=${t}]`); await new Promise(r => setTimeout(r, 250));
-      // nothing may move before the reader acts (2026-10-23): scroll every card into view, then no Pause-labelled button
-      await p.evaluate(t => { for (const c of document.querySelectorAll(`#${t} .fo-card`)) c.scrollIntoView() }, t); await new Promise(r => setTimeout(r, 400));
-      const auto = await p.$$eval(`#${t} .an-play`, bs => bs.filter(x => /Pause/.test(x.textContent)).length);
-      if (auto) errs.push(`${t}: ${auto} animation(s) started without the reader (${rm})`);
+      // 2026-11-06 rule: the objectives stepper plays by itself once in view (not under reduced motion); the two replays the reader drives
+      // (MTP draft, diffusion words) never do. The 3D stages are checked by ../check_stages.mjs.
+      if (t === 't-read') {
+        await p.$eval('#ob-card', c => c.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1500));
+        const ob = await p.$eval('#ob-ctl-p', x => x.getAttribute('aria-label'));
+        if (rm !== 'reduce' && ob !== 'Pause') errs.push(`${t}: the objectives stepper did not play in view (${rm})`);
+        for (const c of ['mt-card', 'df-card']) { await p.$eval('#' + c, x => x.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200));
+          if (await p.$eval('#' + c, x => /Pause/.test(x.querySelector('.an-play').textContent))) errs.push(`${t}: ${c} played by itself (${rm})`) }
+      }
       // open every closed block so its controls are exercised too
       await p.evaluate(t => document.querySelectorAll(`#${t} details`).forEach(d => { d.open = true }), t); await new Promise(r => setTimeout(r, 200));
       if (rm === 'reduce') {   // nothing may autoplay: every Pause-labelled button must be absent
@@ -35,7 +40,7 @@ try {
       }
       await p.evaluate(t => { document.querySelectorAll(`#${t} input[type=range]`).forEach(r => { for (const v of [r.min, (+r.min + +r.max) / 2, r.max]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })) } }) }, t);
       // step every animation to its end with the forward buttons
-      await p.evaluate(t => { document.querySelectorAll(`#${t} [id$="-f"]`).forEach(f => { for (let k = 0; k < 60; k++) f.click() }) }, t);
+      await p.evaluate(t => { document.querySelectorAll(`#${t} [id$="-f"]`).forEach(f => { for (let k = 0; k < 90; k++) f.click() }) }, t);
       // click tokens in the mask explorer
       await p.evaluate(t => { document.querySelectorAll(`#${t} #mk-toks span[data-i]`).forEach((s, k) => { if (k % 5 === 0) s.click() }) }, t);
       await new Promise(r => setTimeout(r, 150));

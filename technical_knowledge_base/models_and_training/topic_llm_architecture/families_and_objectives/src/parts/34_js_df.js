@@ -22,8 +22,9 @@
     document.getElementById('df-cap').innerHTML='<p>'+cap+'</p>';
     document.getElementById('df-cnt').innerHTML=RD.stat('forwards',fwd,'of '+nsteps())+RD.stat('tokens committed',committed+' / '+G,'')+RD.stat('tokens per forward',(committed/fwd).toFixed(1),'')+RD.stat('token positions processed',proc.toLocaleString('en-US'),mode==='ar'?'prefill + 1 per step':fwd+' x '+(Pn+G));
   }
-  const A=FO.anim({card:'df-card',ctl:'df-ctl',n:nsteps(),draw,ms:700,label:'Step',tab:TAB});
-  RD.seg(document.getElementById('df-seg'),m=>{mode=m;A.reset(nsteps())});
+  // up to 48 frames per decoder: a widget the reader drives (the long-replay rule, 2026-11-06), opening on the finished 12-step text; Fig. 7 is the explained animation
+  const A=FO.anim({card:'df-card',ctl:'df-ctl',n:nsteps(),draw,ms:700,label:'Step',auto:false,start:nsteps()-1});
+  RD.seg(document.getElementById('df-seg'),m=>{mode=m;A.reset(nsteps());A.go(nsteps()-1,true)});
   const S=D.summary,ord=[['ar_greedy','causal, greedy',48],['ar_t0.8','causal, T 0.8',48],['diff_48_low','diffusion 48',48],['diff_24_low','diffusion 24',24],['diff_12_low','diffusion 12',12],['diff_6_low','diffusion 6',6],['diff_3_low','diffusion 3',3]].filter(r=>S[r[0]]);
   function quality(){
     const el=document.getElementById('df-q-svg'),W=Math.min(FO.W(el),720),lab=W<460?96:130,rh=24,H=ord.length*rh+44;
