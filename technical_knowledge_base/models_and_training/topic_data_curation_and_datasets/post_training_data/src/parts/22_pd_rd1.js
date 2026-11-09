@@ -27,17 +27,19 @@ $('pd-kinds').innerHTML=P.kinds.map(k=>'<div style="--kc:'+k.c+'"><b>'+E(k.k)+'<
       steps.push({i,best,near:bi>=0?pool[bi].txt:'',nearSeed:bi>=0&&bi<seeds.length,admit,over,size:pool.length,rej,dupIn})}
     return steps}
   const R={on:run(true),off:run(false)};let mode='on';
-  const n=ST.length+1;
-  function draw(k){const S=R[mode];const cnt=$('pd-si-cnt'),cap=$('pd-si-cap'),pool=$('pd-si-pool'),now=$('pd-si-now');
-    const done=S.slice(0,k);const last=done[done.length-1];
+  // the 26 candidates in seven explained stretches (the long-replay rule): step k shows candidates up to B[k]; a forward step adds its stretch one candidate at a time
+  const B=[0,5,9,13,17,21,26].map(v=>Math.min(v,ST.length)),n=B.length;
+  function draw(k){const S=R[mode],card=$('pd-si-card'),fwd=card.classList.contains('rd-fwd')&&!RD.RM;const cnt=$('pd-si-cnt'),pool=$('pd-si-pool'),now=$('pd-si-now');
+    const done=S.slice(0,B[k]);const last=done[done.length-1],from=k?B[k-1]:0;
     let h='';for(let i=0;i<seeds.length;i++)h+='<span class="s"></span>';
-    done.forEach((s,j)=>{h+='<span class="'+(s.admit?'g':'r')+(j===k-1?' n':'')+'" title="'+E(stream[s.i])+'"></span>'});pool.innerHTML=h;
-    cnt.innerHTML=RD.stat('Pool size',f0(last?last.size:seeds.length))+RD.stat('Candidates seen',k?k:0)+RD.stat('Rejected',last?last.rej:0)+RD.stat('Near-duplicates admitted',last?last.dupIn:0,'ROUGE-L above 0.7');
-    if(!k){cap.innerHTML='<div class="t">Start: the 175 human-written seed tasks</div><p>Each square is one instruction in the pool. The next '+stream.length+' candidates are real Dolly instructions (written by people, never filtered), fed in one at a time.</p>';now.innerHTML='';return}
-    const s=last;cap.innerHTML='<div class="t">Candidate '+k+': best ROUGE-L against the pool '+s.best.toFixed(2)+(s.over?(mode==='on'?', rejected':', admitted anyway (filter off)'):', admitted')+'</div><p>'+(s.over?'It shares most of its words, in order, with an instruction already in the pool.':'Different enough in wording from everything in the pool.')+'</p>';
-    now.innerHTML='<div class="pd-cand"><div class="m">candidate</div>'+E(stream[s.i])+'<div class="m" style="margin-top:4px">most similar in pool ('+(s.nearSeed?'a seed':'an earlier candidate')+', ROUGE-L '+s.best.toFixed(2)+')</div>'+E(s.near)+'</div>'}
-  const an=RD.anim({card:'pd-si-card',ctl:'pd-si-ctl',n,draw,ms:1500,label:'Candidate'});
-  RD.seg($('pd-si-mode'),m=>{mode=m;an.redraw()});
+    done.forEach((s,j)=>{const nw=j>=from;h+='<span class="'+(s.admit?'g':'r')+(nw?' n':'')+(nw&&fwd?' rd-new':'')+'"'+(nw&&fwd?' style="animation-delay:'+((j-from)*420)+'ms"':'')+' title="'+E(stream[s.i])+'"></span>'});pool.innerHTML=h;
+    cnt.innerHTML=RD.stat('Pool size',f0(last?last.size:seeds.length))+RD.stat('Candidates seen',B[k])+RD.stat('Rejected',last?last.rej:0)+RD.stat('Near-duplicates admitted',last?last.dupIn:0,'ROUGE-L above 0.7');
+    if(!k){now.innerHTML='<p class="small mute">The '+stream.length+' candidates wait outside the pool; outlined squares will mark each stretch\'s newcomers.</p>';return}
+    const tr=(t,m)=>t.length>m?t.slice(0,m)+' ...':t;
+    now.innerHTML='<div class="tw"><table class="pd-si-t"><thead><tr><th>#</th><th>Candidate, and the closest instruction already in the pool</th><th class="num">ROUGE-L</th></tr></thead><tbody>'+
+      S.slice(from,B[k]).map((s,j)=>'<tr class="'+(s.admit?(s.over?'si-dup':'si-in'):'si-out')+(fwd?' rd-new':'')+'"'+(fwd?' style="animation-delay:'+(j*420)+'ms"':'')+'><td>'+(s.i+1)+'</td><td>'+E(tr(stream[s.i],70))+'<br><span class="small mute">closest ('+(s.nearSeed?'seed':'candidate')+'): '+E(tr(s.near,60))+'</span></td><td class="num">'+s.best.toFixed(2)+'<br><span class="small">'+(s.admit?(s.over?'kept (filter off)':'admitted'):'rejected')+'</span></td></tr>').join('')+'</tbody></table></div>'}
+  const an=RD.anim({card:'pd-si-card',ctl:'pd-si-ctl',n,draw,ms:5200,label:'Stretch',list:'sx-si'});
+  RD.seg($('pd-si-mode'),m=>{mode=m;an.reset(n)});
 })();
 
 // 2. mixtures by skill
@@ -69,7 +71,6 @@ $('pd-kinds').innerHTML=P.kinds.map(k=>'<div style="--kc:'+k.c+'"><b>'+E(k.k)+'<
    RD.stat('"wait" in the thinking',f0(t.wait['0.5']),'median per trace; p90 '+f0(t.wait['0.9']))+RD.stat('Marked incomplete',f0(t.incomplete),'is_reasoning_complete = false')+
    RD.stat('Stopped at the length limit',f0(t.length_stop)+' of '+f0(t.finish_known),'rows that record finish_reasons')+RD.stat('With CJK characters',f0(t.cjk),'language mixing to filter')+
    RD.stat('Median tokens, right vs wrong',f0(t.correct_tok['0.5'])+' / '+f0(t.wrong_tok['0.5']),'by the recorded Math-Verify verdict')})();
-(function(){const j=P.judge;bars($('pd-judge-bars'),j.map((x,i)=>[x[0],x[1],i===4?'var(--bad)':'var(--good)',x[1]+' of 30']),{max:30})})();
 
 // 4. one row before (stored messages) and after (rendered, tokenized, loss mask)
 (function(){const t=P.tok;const full=t.pieces.map(p=>p[0]).join('');

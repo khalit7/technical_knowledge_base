@@ -2,22 +2,7 @@
 (function(){
 const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc,bars}=window.PDU;
 
-// 6. binarization animation on real UltraFeedback prompts
-(function(){const X=P.pref.ub.examples;let rule='h4';const n=X.length*3;
-  const mean=c=>{const v=c.asp.filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
-  function pair(e){if(rule==='h4')return e.h4;if(rule==='argilla')return e.argilla;const m=e.comps.map(mean);const ci=m.indexOf(Math.max(...m));const ri=m.indexOf(Math.min(...m));return [ci,ri]}
-  function draw(k){const e=X[Math.floor(k/3)],ph=k%3;const [ci,ri]=pair(e);
-    $('pd-bin-prompt').innerHTML='<b>Prompt '+(Math.floor(k/3)+1)+' of '+X.length+'</b> (UltraFeedback evol_instruct): '+E(e.prompt);
-    $('pd-bin-comp').innerHTML=e.comps.map((c,i)=>{const cls=ph>=1&&i===ci?'ch':ph>=2&&i===ri?'rj':ph>=2?'out':'';
-      const m=mean(c);return '<div class="'+cls+'"><div class="h"><span>'+E(c.model||'')+'</span><span>'+f0(c.tok)+' tokens</span></div><div class="h"><span>overall_score '+(c.overall==null?'n/a':c.overall)+'</span><span>mean of aspects '+(m==null?'n/a':m.toFixed(2))+'</span></div>'+
-        (cls==='ch'?'<span class="badge" style="color:var(--good)">chosen</span>':cls==='rj'?'<span class="badge" style="color:var(--bad)">rejected</span>':'')+'<div class="t">'+E(c.text.length>220?c.text.slice(0,220)+' [...]':c.text)+'</div></div>'}).join('');
-    const c=e.comps[ci],r=e.comps[ri];
-    const cap=['<div class="t">Four answers from four models, each rated by GPT-4</div><p>overall_score comes from a critique pass; the four aspect ratings (instruction following, honesty, truthfulness, helpfulness) are separate. Lengths in Qwen3 tokens.</p>',
-      '<div class="t">The rule picks the chosen answer</div><p>'+E(P.pref.rules[rule]||'')+'.</p>',
-      '<div class="t">... and the rejected one: a pair of '+f0(c.tok)+' against '+f0(r.tok)+' tokens</div><p>'+(rule==='h4'&&e.h4[0]!==e.argilla[0]?'The two common rules disagree on this prompt: the mean-of-aspects rule chooses another answer. ':'')+(c.tok>r.tok?'The chosen answer is the longer one.':'The chosen answer is the shorter one.')+'</p>'][ph];
-    $('pd-bin-cap').innerHTML=cap}
-  const an=RD.anim({card:'pd-bin-card',ctl:'pd-bin-ctl',n,draw,ms:1700,label:'Step'});
-  RD.seg($('pd-bin-rule'),m=>{rule=m;an.redraw()})})();
+// 6. binarization: now the 3D stage Fig. in section 5 (28_js_sc_pref.js)
 
 // 6. aspect correlations and length bias across sets
 (function(){const r=P.pref.ub.rvl;bars($('pd-asp-bars'),Object.entries(r.aspects).map(([k,v])=>[k.replace('_',' '),v.mean,'var(--c4)',(v.mean>=0?'+':'')+v.mean.toFixed(2)]),{max:0.6});
@@ -26,14 +11,16 @@ const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc,bars}=window
 // 7. one answer through six extractors
 (function(){const C=P.check;const NM={last_number:'Last number (Tulu 3 GSM8K)',tulu_math:'Tulu 3 MATH verifier',minerva:'Minerva sentence (strict)',boxed_exact:'Exact \\boxed{} string',answer_is:'"The answer is"',math_verify:'Math-Verify 0.8.0'};
   const cats=['mv_only','versions','thinking_vs_answer','tulu_only','mcq'];const X=cats.map(c=>C.examples.find(e=>e.cat===c&&/boxed/.test(e.tail))||C.examples.find(e=>e.cat===c)).filter(Boolean);
-  let view='answer';const n=X.length*(C.ex.length+1);
+  let view='answer';
   function hl(text,s){if(!s||s[0]==='[')return E(text);const i=text.lastIndexOf(s.slice(0,Math.min(25,s.length)));if(i<0)return E(text);return E(text.slice(0,i))+'<span class="k">'+E(text.slice(i,i+s.length))+'</span>'+E(text.slice(i+s.length))}
-  function draw(k){const e=X[Math.floor(k/(C.ex.length+1))],st=k%(C.ex.length+1);const V=view==='answer'?e.v:e.vf;
+  // one step per answer (the long-replay rule): a forward step reveals the six verdicts one after another
+  function draw(k){const e=X[k],V=view==='answer'?e.v:e.vf,fwd=$('pd-ex-card').classList.contains('rd-fwd')&&!RD.RM;
     const txt=(view==='full'&&e.think_tail?'[... thinking ...] '+e.think_tail+'\n</think>\n\n':'')+e.tail;
-    if(st===0){$('pd-ex-cap').innerHTML='<div class="t">Problem '+(Math.floor(k/(C.ex.length+1))+1)+' of '+X.length+'. Label: '+E(e.gold)+'</div><p>'+E(e.problem)+'</p>';$('pd-ex-doc').innerHTML=E(txt)}
-    else{const x=C.ex[st-1],v=V[x];$('pd-ex-cap').innerHTML='<div class="t">'+E(NM[x])+': extracts "'+E(v[0])+'", '+(v[1]?'accepted':'rejected')+'</div><p>Label "'+E(e.gold)+'". OpenR1\'s recorded Math-Verify verdict: '+(e.rec_mv?'accepted':'rejected')+(e.llama==null?'':'; Llama judge: '+(e.llama?'accepted':'rejected'))+'.</p>';$('pd-ex-doc').innerHTML=hl(txt,v[0])}
-    $('pd-ex-checks').innerHTML=C.ex.map((x,i)=>'<div>'+E(NM[x])+': '+(st>i?(V[x][1]?'<span class="ok">accept</span>':'<span class="no">reject</span>'):'<span class="mute">...</span>')+'</div>').join('')}
-  const an=RD.anim({card:'pd-ex-card',ctl:'pd-ex-ctl',n,draw,ms:1500,label:'Step'});
+    $('pd-ex-prob').innerHTML='<b>Answer '+(k+1)+' of '+X.length+'. Label: '+E(e.gold)+'.</b> '+E(e.problem.length>240?e.problem.slice(0,240)+' ...':e.problem)+' <span class="mute">OpenR1\'s recorded Math-Verify verdict: '+(e.rec_mv?'accepted':'rejected')+(e.llama==null?'':'; Llama judge: '+(e.llama?'accepted':'rejected'))+'.</span>';
+    $('pd-ex-doc').innerHTML=hl(txt,V.math_verify[0]);
+    $('pd-ex-checks').innerHTML=C.ex.map((x,i)=>'<div'+(fwd?' class="rd-new" style="animation-delay:'+(300+i*450)+'ms"':'')+'>'+E(NM[x])+': <code>'+E(V[x][0])+'</code> '+(V[x][1]?'<span class="ok">accept</span>':'<span class="no">reject</span>')+'</div>').join('')}
+  const n=X.length;
+  const an=RD.anim({card:'pd-ex-card',ctl:'pd-ex-ctl',n,draw,ms:6000,label:'Answer',list:'sx-ex'});
   RD.seg($('pd-ex-view'),m=>{view=m;an.redraw()});
   const a=C.answer.ok;bars($('pd-ck-bars'),C.ex.map(x=>[NM[x],a[x],x==='math_verify'||x==='tulu_math'?'var(--good)':'var(--acc)',pc(a[x],C.n,0)]).concat([['Recorded Math-Verify (Feb 2025)',a.rec_mv,'var(--c4)',pc(a.rec_mv,C.n,0)]]),{max:C.n})})();
 
@@ -53,11 +40,12 @@ const P=window.PD,E=RD.esc,$=id=>document.getElementById(id),{f0,pc,bars}=window
   RD.stat('FAIL_TO_PASS tests',f0(e.gym.f2p['0.5'])+' / '+f0(e.reb.f2p['0.5']),'median; p90 '+f0(e.gym.f2p['0.9'])+' / '+f0(e.reb.f2p['0.9']))+RD.stat('PASS_TO_PASS tests',f0(e.gym.p2p['0.5'])+' / '+f0(e.reb.p2p['0.5']),'median')+
   RD.stat('Issue length',f0(e.gym.problem_tok['0.5'])+' / '+f0(e.reb.problem_tok['0.5']),'median Qwen3 tokens')+RD.stat('Newest task',e.gym.years[e.gym.years.length-1][0]+' / '+e.reb.years[e.reb.years.length-1][0],'creation year')})();
 (function(){const T=P.env.traj;if(!T)return;const S=T.steps;
-  function draw(k){const s=S[k];let tr=0,ms=0;S.slice(0,k+1).forEach(x=>{if(x.trained)tr+=x.chars;else ms+=x.chars});
-    $('pd-traj-cap').innerHTML='<div class="t">Turn '+(k+1)+' of '+S.length+': '+(s.role==='ai'?'the agent acts':s.role==='system'?'system prompt':'the environment answers')+(s.trained?' (trained)':' (masked)')+'</div><p>'+(s.role==='ai'?'Its reasoning and one command; these characters get loss.':s.role==='system'?'Tool documentation and rules, the same in every trajectory.':'Command output, file views, test results: the environment\'s text, masked from the loss.')+'</p>';
+  // 13 turns in five explained stretches (the long-replay rule): system prompt, task, turns 3 to 6, 7 to 10, 11 to 13
+  const G=[[0,1],[1,2],[2,6],[6,10],[10,13]];
+  function draw(k){const [a,b]=G[k],fwd=$('pd-traj-card').classList.contains('rd-fwd')&&!RD.RM;let tr=0,ms=0;S.slice(0,b).forEach(x=>{if(x.trained)tr+=x.chars;else ms+=x.chars});
     $('pd-traj-cnt').innerHTML=RD.stat('Characters trained',f0(tr))+RD.stat('Characters masked',f0(ms))+RD.stat('Share trained',pc(tr,tr+ms||1,0));
-    $('pd-traj-doc').innerHTML='<span class="'+(s.trained?'p':'tag')+'">['+E(s.role)+(s.trained?', trained':', masked')+']</span>\n'+E(s.text)}
-  RD.anim({card:'pd-traj-card',ctl:'pd-traj-ctl',n:S.length,draw,ms:1800,label:'Turn'})})();
+    $('pd-traj-doc').innerHTML=S.slice(a,b).map((s,j)=>'<div'+(fwd?' class="rd-new" style="animation-delay:'+(j*700)+'ms"':'')+'><span class="'+(s.trained?'p':'tag')+'">[turn '+(a+j+1)+', '+E(s.role)+(s.trained?', trained':', masked')+', '+f0(s.chars)+' characters]</span>\n'+E(s.text)+'</div>').join('\n')}
+  RD.anim({card:'pd-traj-card',ctl:'pd-traj-ctl',n:G.length,draw,ms:6000,label:'Stretch',list:'sx-traj'})})();
 
 // 9. overlap and contamination
 (function(){const q=P.quality;if(!q)return;const ks=Object.keys(q.sets);const N={alpaca:'Alpaca',dolly:'Dolly',tulu3_sft:'Tulu 3 SFT',dolci_sft:'Dolci SFT',ufb_h4:'UF (H4)',ufb_argilla:'UF (Argilla)',tulu3_pref:'Tulu 3 pref',olmo2_pref:'OLMo 2 pref',dolci_dpo:'Dolci DPO',rlvr:'Tulu 3 RLVR',openr1:'OpenR1'};

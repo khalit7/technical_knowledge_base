@@ -1,16 +1,27 @@
-<section id="pd-s4"><h2>4. What a row becomes: one conversation, one training example</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-row"></div></div><div class="s3L"><section id="pd-s4"><h2>4. What a row becomes: one conversation, one training example</h2>
 <p>A row is a list of turns; the model reads one string of tokens. A <dfn>chat template</dfn> renders the turns into that string with headers that say who speaks, and a <dfn>loss mask</dfn> decides which tokens are graded. The mechanics are owned elsewhere: how masked tokens drop out of the loss, and packing, on {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}} (section 1, its loss-mask widget); template syntax and special tokens on {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}. Here is what they do to one real row of the Tulu 3 sample, rendered with open-instruct's "tulu" template and tokenized with the Qwen3 tokenizer.</p>
+<ol class="sx" id="sx-row">
+<li><b>The stored row.</b> One row of the Tulu 3 sample (Persona Hub math, synthetic) is a list of two messages, the user's problem and the assistant's answer: two plates, each as wide as its text is long in characters.</li>
+<li><b>The chat template writes one string.</b> open-instruct's "tulu" template puts a header before each turn (<code>&lt;|user|&gt;</code>, <code>&lt;|assistant|&gt;</code>) and the end-of-text token after the answer, so the two messages become one line of text.</li>
+<li><b>Tokenised: 476 tokens.</b> The Qwen3 tokenizer cuts that string into 476 tokens, one cube each in reading order, 28 to a row: 5 for each header, 98 for the problem, 367 for the answer and 1 end token.</li>
+<li><b>The loss mask grades only the answer.</b> The headers and the problem are masked (flat, grey); the answer and its end token get loss (raised, green): 368 of 476 tokens, 77%.</li>
+<li><b>The boundary, close up.</b> The mask covers the <code>&lt;|assistant|&gt;</code> header with the prompt and starts at the answer's first token; at the far end <code>&lt;|endoftext|&gt;</code> is graded, which is how the model learns to stop.</li>
+</ol>
+<details class="dp"><summary>The real strings: the row as stored and the training example <span class="mute">(before and after, every token)</span></summary><div class="b">
 <div class="rd-card" id="pd-row-card"><h4>Before: the row as stored. After: the string the model trains on, with only the answer graded</h4>
 <div class="seg" id="pd-row-mode"><button class="on" data-m="raw">Before: the stored row</button><button data-m="fmt">After: the training example</button></div>
 <div class="an-cnt" id="pd-row-cnt"></div>
 <div id="pd-row-view"></div>
 <p class="small mute" id="pd-tok-note"></p>
 </div>
+</div></details>
+</section></div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>How much of a row is trained</b> <span class="meas">measured</span>: the same template and masking on every set (at most 3,000 rows each, seed 0), share of all tokens that get loss.</p>
-<div class="rd-card"><h4>Trained tokens per row run from 14% to 98%: budget in trained tokens, not rows</h4><div class="rd-bars" id="pd-mask-bars"></div></div>
 <p>In a reasoning set nearly every token is the model's own trace, so nearly every token is trained (@@mask_max_pct@@). In an agent trajectory the observations (file contents, test output) are most of the tokens and are masked: only @@mask_min_pct@@ is the agent's. Two sets with the same number of rows can carry five times different amounts of training signal, so a mixture balanced by rows is not balanced by signal.</p>
 <details class="dp"><summary>How open-instruct builds the mask, and three ways it goes wrong <span class="mute">(code at pinned commits)</span></summary><div class="b">
 <p>open-instruct renders the conversation with its "tulu" template (<code>&lt;|user|&gt;</code>, <code>&lt;|assistant|&gt;</code> headers, end-of-text token after each answer; <code>dataset_transformation.py</code> lines 260 to 279 at commit 72f46040), then, for each non-assistant message, renders the conversation up to that message and masks that span of tokens, including the <code>&lt;|assistant|&gt;</code> header that follows it (<code>finetune.py</code> lines 401 to 444 at the Tulu 3 release commit b0899767; today's code builds the same labels another way, lines 1598 to 1728). Rows padded, not packed.</p>
 <p><b>Template drift</b>: the base model's tokenizer ships one template, the training script uses another, the serving stack a third; whitespace and the end-of-turn token are the usual differences. Render a row with each and diff the strings. <b>No end token</b>: if the token after the answer is masked or missing, the model never learns to stop. <b>Masking by string search</b>: finding "assistant" in the text to start the mask breaks on any answer that contains the word; render prefixes, as open-instruct does.</p>
 </div></details>
-</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 style="margin:0 0 4px">Trained tokens per row run from 14% to 98%: budget in trained tokens, not rows</h4><div class="rd-bars" id="pd-mask-bars"></div></div></div></div></div>

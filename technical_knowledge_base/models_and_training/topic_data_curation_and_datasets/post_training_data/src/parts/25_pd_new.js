@@ -4,7 +4,7 @@
 const $=id=>document.getElementById(id),E=RD.esc;
 // wrap text to lines of at most n characters
 function wrap(s,n){const w=String(s).split(' ');const L=[];let c='';w.forEach(x=>{if((c+' '+x).trim().length>n&&c){L.push(c);c=x}else c=(c+' '+x).trim()});if(c)L.push(c);return L}
-function lines(x,y,arr,o){return arr.map((s,i)=>RD.t(x,y+i*14,E(s),o)).join('')}
+function lines(x,y,arr,o){return arr.map((s,i)=>RD.t(x,y+i*15,E(s),o)).join('')}
 function box(x,y,w,h,cls,stroke){return '<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+h+'" rx="6" fill="'+(cls==='sig'?'var(--acc2)':cls==='bad'?'var(--bg)':'var(--soft)')+'" stroke="'+(stroke||'var(--line)')+'" stroke-width="'+(cls?1.6:1)+'"/>'}
 function arrow(x,y1,y2){return '<line x1="'+x+'" x2="'+x+'" y1="'+y1+'" y2="'+(y2-5)+'" stroke="var(--mute)" stroke-width="1.3"/><path d="M'+(x-4)+' '+(y2-6)+' L'+x+' '+y2+' L'+(x+4)+' '+(y2-6)+'" fill="var(--mute)"/>'}
 
@@ -14,18 +14,18 @@ const K=[
  {k:'Preference',c:'var(--c2)',p:'a prompt',s:'chosen beats rejected (a judge decided)',t:'trains: DPO or a reward model',f:'the chosen answer is the longer one in 67% of Dolci DPO pairs'},
  {k:'Verifiable reward',c:'var(--c3)',p:'a problem',s:'a label plus a checker program',t:'trains: RL on the verdict',f:'six checkers accept @@ck_min_pct@@ to @@ck_max_pct@@ of the same R1 answers'},
  {k:'Environment',c:'var(--c4)',p:'an issue in a repository',s:'tests run in a container (FAIL_TO_PASS)',t:'trains: agent RL, or SFT on wins',f:'@@env_resolved_pct@@ of 3,000 agent trajectories resolve the issue'}];
-function hero(){const el=$('pd-hero');if(!el)return;const w=RD.width(el);const cols=w>=640?4:2,gap=10,cw=(w-gap*(cols-1))/cols;const ch=Math.max(14,Math.floor((cw-14)/6.3));
+function hero(){const el=$('pd-hero');if(!el)return;const w=RD.width(el);const cols=w>=640?4:2,gap=10,cw=(w-gap*(cols-1))/cols;const ch=Math.max(14,Math.floor((cw-14)/6.9));
   const W2=K.map(k=>({P:wrap(k.p,ch),S:wrap(k.s,ch),T:wrap(k.t,ch),F:wrap(k.f,ch)}));
-  const hgt=x=>32+(10+14*x.P.length)+16+(10+14*x.S.length)+(10+14*x.T.length)+16+(10+14*x.F.length);
+  const hgt=x=>32+(10+15*x.P.length)+16+(10+15*x.S.length)+(10+15*x.T.length)+16+(10+15*x.F.length);
   const rows=Math.ceil(K.length/cols),RH=[];for(let r=0;r<rows;r++)RH.push(Math.max(...W2.slice(r*cols,r*cols+cols).map(hgt)));
   let g='';K.forEach((k,i)=>{const r=Math.floor(i/cols),x=(i%cols)*(cw+gap);let y0=0;for(let j=0;j<r;j++)y0+=RH[j]+12;const {P,S,T,F}=W2[i];
     g+='<rect x="'+x.toFixed(1)+'" y="'+y0+'" width="'+cw.toFixed(1)+'" height="5" rx="2" fill="'+k.c+'"/>'+RD.t(x+2,y0+22,E(k.k),{w:600,fs:13});
-    let y=y0+32;g+=box(x,y,cw,10+14*P.length)+lines(x+7,y+15,P,{fill:'var(--mute)'});y+=10+14*P.length;
+    let y=y0+32;g+=box(x,y,cw,10+15*P.length)+lines(x+7,y+15,P,{fill:'var(--mute)'});y+=10+15*P.length;
     g+=arrow(x+cw/2,y+2,y+14);y+=16;
-    g+=box(x,y,cw,10+14*S.length,'sig','var(--acc)')+lines(x+7,y+15,S,{w:600});y+=10+14*S.length;
-    g+=lines(x+7,y+17,T,{fill:'var(--mute)'});y+=10+14*T.length;
+    g+=box(x,y,cw,10+15*S.length,'sig','var(--acc)')+lines(x+7,y+15,S,{w:600});y+=10+15*S.length;
+    g+=lines(x+7,y+17,T,{fill:'var(--mute)'});y+=10+15*T.length;
     g+=arrow(x+cw/2,y+2,y+14);y+=16;
-    g+=box(x,y,cw,10+14*F.length,'bad','var(--bad)')+lines(x+7,y+15,F,{fill:'var(--bad)'})});
+    g+=box(x,y,cw,10+15*F.length,'bad','var(--bad)')+lines(x+7,y+15,F,{fill:'var(--bad)'})});
   const H=RH.reduce((a,b)=>a+b+12,0);el.innerHTML=RD.svg(w,H,g,'Four kinds of post-training row: prompt, signal, what it trains, and the measured failure')}
 
 // 2. lineage dot plot (published sizes; dates and sizes from the lineage table in 20_read_b.html)
@@ -44,7 +44,7 @@ function lineage(){const el=$('pd-lineage');if(!el)return;const w=RD.width(el);c
 // 8. prompt reuse
 function reuse(){const el=$('pd-reuse');if(!el)return;const w=RD.width(el);const narrow=w<560;let g='';
   const S=[['SFT','answer to copy','var(--c1)'],['Preference','chosen against rejected','var(--c2)'],['RL (RLVR)','checker or constraint','var(--c3)']];
-  if(!narrow){const pw=Math.min(210,w*0.3),ph=96,py=20;g+=box(0,py,pw,ph)+lines(10,py+22,['One prompt pool','Tulu 3 SFT subsets: Persona Hub,','Evol CodeAlpaca, Aya, WildChat,','WildJailbreak, WildGuardMix ...'],{})+'';
+  if(!narrow){const pw=Math.min(250,w*0.36),ph=96,py=20;g+=box(0,py,pw,ph)+lines(10,py+22,['One prompt pool','Tulu 3 SFT subsets: Persona Hub,','Evol CodeAlpaca, Aya, WildChat,','WildJailbreak, WildGuardMix ...'],{})+'';
     const sx=pw+60,sw=w-sx-2;S.forEach((s,i)=>{const y=6+i*44;g+='<path d="M'+pw+' '+(py+ph/2)+' C'+(pw+30)+' '+(py+ph/2)+' '+(sx-30)+' '+(y+18)+' '+(sx-4)+' '+(y+18)+'" fill="none" stroke="var(--mute)" stroke-width="1.3"/>'+box(sx,y,sw,36,'sig','var(--acc)')+RD.t(sx+8,y+15,E(s[0]),{w:600})+RD.t(sx+8,y+29,'signal: '+E(s[1]),{fill:'var(--mute)'})});
     g+=RD.t(0,py+ph+34,'the same base prompt; a contaminated prompt is contaminated in all three',{fill:'var(--bad)'});el.innerHTML=RD.svg(w,py+ph+42,g,'One prompt pool feeds SFT, preference and RL');return}
   g+=box(0,0,w,52)+lines(10,18,['One prompt pool (Tulu 3 SFT subsets:','Persona Hub, Evol CodeAlpaca, Aya, safety ...)'],{});

@@ -45,3 +45,11 @@ reproduce (they did for Tulu 3's MATH verifier on OLMo 3's rollouts; they did no
 | One prompt pool feeding SFT, preference and RL | static diagram | section 8 | structure stated only in prose before |
 Moved: the Pair inspector and Checker lab tabs into closed blocks of sections 5 and 6 (each explained one mechanism).
 Rejected: redrawing the loss-mask widget (Alignment owns it); a log-axis bar chart for the lineage (dots instead, no areas on a log scale).
+
+## Added 2026-11-09 (split layout and 3D rollout)
+| Idea | Kind | Placement | Why |
+|---|---|---|---|
+| Rejection sampling and the judge: problems fan out to generations, Math-Verify and judge plates, the 30 hand-read rescues | 3D stage, 4 steps | section 3 | a funnel of real counts with a second checker; replaces the rescue bars |
+| What a row becomes: plates, headers, 476 token cubes, the loss mask, the boundary | 3D stage, 5 steps | section 4 | the real row's structure and graded share; Alignment keeps the loss mechanics |
+| Binarization and length: four answers as columns, three rules' pairs, each rule's chosen-longer share | 3D stage, 5 steps | section 5 | replaces the 24-frame binarization stepper |
+Rejected: a 3D verifiable-reward stage (prompt, label and checker plates) because the extracted strings are what teaches and a canvas label cannot show them; a 3D quality-control field (no per-stage removal counts in the data); 3D for any bar chart.
