@@ -52,8 +52,8 @@
   $('mm-tl').addEventListener('click',e=>{const c=e.target.closest('.mm-pt');if(!c)return;sel=c.dataset.id;const r=M.byId[sel];
     $('mm-tl-tip').innerHTML=M.dot(r.fam)+'<b>'+esc(r.n)+'</b> ('+esc(r.o)+', '+esc(r.d)+'): '+esc(D.fam[r.fam][0])+'; '+M.accTag(r.acc)+' <a href="#" id="mm-tl-go">open its row</a>';
     $('mm-tl-go').addEventListener('click',ev=>{ev.preventDefault();M.showRow(sel)});draw()});
-  const A=M.anim({card:'mm-time-card',ctl:'mm-tl-ctl',n:YEARS.length,ms:1700,label:'Year',draw:i=>{cur=i;draw()}});
-  A.go(YEARS.length-1);
+  const A=M.anim({card:'mm-time-card',ctl:'mm-tl-ctl',n:YEARS.length,ms:1700,label:'Year',auto:false,start:YEARS.length-1,draw:i=>{cur=i;draw()}}); // a widget (2026-11-09): opens on the latest year and never plays by itself
+
   M.onRender(draw);
   let t=0;addEventListener('resize',()=>{const tab=$('t-map');if(tab.hidden)return;clearTimeout(t);t=setTimeout(draw,80)});
 })();

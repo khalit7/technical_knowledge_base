@@ -56,7 +56,7 @@
       $('mm-st-note').innerHTML='Read from each model\'s config.json ('+esc(D.checked)+'): LLaVA vision image_size and patch_size, Qwen2-VL spatial_merge_size, SmolVLM image_seq_len, Gemma 4 vision_soft_tokens_per_image and num_soft_tokens. Token counts and the processors that produce them are measured in the {{VLM lab|#t-vlm}}.';
     }
   }
-  A=M.anim({card:'mm-stack-card',ctl:'mm-st-ctl',n:D.stack.length,ms:3200,label:'Pipeline',draw});
+  A=M.anim({card:'mm-stack-card',ctl:'mm-st-ctl',n:D.stack.length,ms:4200,label:'Pipeline',draw});
   document.getElementById('mm-stack-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     document.querySelectorAll('#mm-stack-mode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;A.reset(mode==='t2i'?D.stack.length:D.vstack.length)});
 })();

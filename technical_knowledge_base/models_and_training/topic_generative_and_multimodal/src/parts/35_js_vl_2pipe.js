@@ -63,7 +63,7 @@
     $('vl-pipe-cap').innerHTML='<b>'+(i+1)+'. '+st[0]+'.</b> '+st[1];
     $('vl-pipe-cnt').innerHTML=V.stat('Now',V.comma(c[0]),c[1]+(c[2]?', '+c[2]:''))+V.stat('Image tokens at the end',mode==='smol'?'1,088':'576',mode==='smol'?'measured (processor)':'derived from the config')+V.stat('Model',mode==='smol'?'SmolVLM-500M':'LLaVA-1.5 7B',mode==='smol'?'run here':'not run here');
   }
-  const A=V.anim({card:'vl-pipe',ctl:'vl-pipe-ctl',n:7,label:'Pipeline step',draw});
+  const A=V.anim({card:'vl-pipe',ctl:'vl-pipe-ctl',n:7,ms:4200,label:'Pipeline step',draw});
   V.seg($('vl-pipe-mode'),[['smol','SmolVLM-500M (run here)'],['llava','LLaVA-1.5 (config only)']],'smol',v=>{mode=v;A.redraw()});
   window.addEventListener('resize',()=>{if(cv.offsetParent)A.redraw()});
 })();

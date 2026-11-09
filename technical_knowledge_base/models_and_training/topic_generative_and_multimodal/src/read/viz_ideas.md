@@ -2,7 +2,13 @@
 
 The question the topic keeps returning to: what does one sample cost (network passes, tokens), and what does it buy in quality, for each way of generating or reading an image? The root gives intuition; the lab tabs hold the measured visuals, so the Reading tab keeps few visuals of its own (Topic: rl lesson, 2026-10-04: one or two per idea at most).
 
-## Built
+## 2026-11-09 (layout rollout)
+- **R1 became Fig. 1, a 3D stage** (`parts/26_js_sc_fam.js`, renderer v2): the same exact frames (autoregressive 49 tokens, DDIM 50 steps, Euler 8 steps, on the same pullover and seeded noise) as five lanes with one marker per sequential call, plus the VAE and GAN lanes and a reading block (encoder, VLM, native); a 10-item step list replaces the caption and the guidance toggle (step 6 states the doubled counts). The image-against-noise chart is now a sentence and two numbers (8% image after 25 of 50 DDIM calls, 50% after 4 of 8 Euler steps): Flow matching Fig. 1 and Diffusion from zero Fig. 1 draw the paths.
+- **R4 retired**: the SD 1.5 strip is a three-row table (Latent diffusion and DiTs Fig. 1 draws the pipeline in 3D with times); the VLM strip is one sentence (Vision-language models Figs. 1 to 3 draw it).
+- **R5 is Fig. 2**, in a split (text left, calculator right).
+- Kept 2D or none: tables (comparisons), the calculator (a widget), the hero (an HTML map whose boxes are links). Rejected: a second 3D stage for section 4 (would redraw Latent diffusion Fig. 1).
+
+## Built (2026-10-17 to 2026-10-24)
 
 | # | Idea | Placement | Why it earns its place | Data |
 |---|---|---|---|---|

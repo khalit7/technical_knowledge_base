@@ -24,7 +24,7 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   for(let y=0;y<H;y+=700){await p.evaluate(y=>scrollTo(0,y),y);await new Promise(r=>setTimeout(r,40))}
   const n=await p.evaluate(async()=>{let k=0;const sel='#t-read button,#t-read summary';
     for(const el of document.querySelectorAll(sel)){el.click();k++;await new Promise(r=>setTimeout(r,5))}
-    const r=document.getElementById('rd-gen-ctl-s');if(r){for(const v of [0,10,25,49,50]){r.value=v;r.dispatchEvent(new Event('input'))}}
+    // the section 1 card became the 3D stage Fig. 1 (stg-fam) on 2026-11-09; ../check_stages.mjs steps it
     for(const s of document.querySelectorAll('#t-read select')){for(const o of s.options){s.value=o.value;s.dispatchEvent(new Event('input'));s.dispatchEvent(new Event('change'));k++}}
     const sec=document.getElementById('rd-c-sec');if(sec){sec.value='0.25';sec.dispatchEvent(new Event('input'))}
     return k});
