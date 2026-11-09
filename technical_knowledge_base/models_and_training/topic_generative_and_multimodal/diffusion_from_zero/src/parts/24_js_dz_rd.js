@@ -9,9 +9,10 @@
       pr.querySelectorAll('.opts button').forEach(x=>{x.classList.remove('right','wrong');if(x.dataset.a===String(ok))x.classList.add('right')});
       if(b.dataset.a!==String(ok))b.classList.add('wrong');ans.hidden=false}))});
 
-  // ---- the toy animation: 160 paths, ODE against stochastic, exact denoiser ----
+  // ---- the toy animation: 160 paths, ODE against stochastic, exact denoiser. Its 51 frames are grouped into five explained stretches
+  // (the step list sx-toyan): each stretch plays its frames when the animation moves forward onto it, and jumps to its end otherwise. ----
   const card=document.getElementById('dz-toyan');if(!card)return;
-  const cv=document.getElementById('dz-toyan-cv'),cap=document.getElementById('dz-toyan-cap'),cnt=document.getElementById('dz-toyan-cnt');
+  const cv=document.getElementById('dz-toyan-cv'),cnt=document.getElementById('dz-toyan-cnt');
   const N=50,runs={};let mode='0';
   const get=m=>runs[m]||(runs[m]=DZT.sample({steps:N,eta:+m,tau:1,N:4000,seed:7,keep:160}));
   const color=m=>m==='0'?'#2f6fb5':'#c2703a';
@@ -27,25 +28,21 @@
       for(let j=0;j<4000;j++){const x0=DZT.x0hat(x[j],a,1),e=(x[j]-Math.sqrt(a)*x0)/Math.sqrt(1-a);x[j]=Math.sqrt(ap)*x0+c*e+(sig>0?sig*R.g():0)}
       tr.push(Float64Array.from(x))}
     r.trace=tr;return r}
-  function phase(k,t){
-    if(k===0)return['Start: 160 draws of pure noise','Every path starts from a standard Gaussian draw at t = 999. Nothing in it says which bump it will end on.'];
-    if(t>700)return['High noise: drifting with the Gaussian','The denoiser\'s guess is still close to the average of all three bumps, so every path moves the same way. Steps here decide little.'];
-    if(t>300)return['Middle: each path commits to a bump','Around the point where signal and noise are equal (SNR = 1 at t = 259 on this schedule, a little later for these well-separated bumps) the guess snaps to one bump. This is where samples get their "class".'];
-    if(k<N)return['Low noise: sharpening','Paths are on their bump; the remaining steps remove the last noise. Skipping steps here costs little.'];
-    return['Done: the final histogram against the true density','Right panel: histogram of all 4,000 samples against the true mixture (black line). The counters give the distance.'];
-  }
-  function draw(k){
-    const r=withTrace(mode);DZT.draw(cv,r,k,{color:color(mode)});
-    const t=k?r.ts[k-1]:999,ph=phase(k,t),a=DZT.ab[k?(k<N?r.ts[k]:0):999];
-    cap.innerHTML='<div class="t">'+ph[0]+'</div><p>'+ph[1]+'</p>';
-    const com=committed(r,k),sc=k===N?DZT.scores(r.x):null;
+  // the last frame of each stretch: start; high noise (t above 700); middle (t above 300); low noise; done
+  function ends(r){const last=th=>{let k=0;for(let i=1;i<N;i++)if(r.ts[i-1]>th)k=i;return k};return [0,last(700),last(300),N-1,N]}
+  function frame(k){const r=withTrace(mode);DZT.draw(cv,r,k,{color:color(mode)});
+    const a=DZT.ab[k?(k<N?r.ts[k]:0):999],com=committed(r,k),sc=k===N?DZT.scores(r.x):null;
     cnt.innerHTML=RD.stat('Step',k+' / '+N,'network calls so far: '+k)+RD.stat('Timestep',k<N?String(k?r.ts[k]:999):'0','next noise level')+
       RD.stat('&sigma;',k<N?DZC.f(Math.sqrt((1-a)/a),2):'0','noise level in x&#771; units')+
       RD.stat('Committed',com==null?'n/a':DZC.pct(com,0),'denoiser guess on a bump')+
-      RD.stat('Distance to truth',sc?DZC.f(sc.tv,3):'after the last step','total variation, 4,000 samples');
-  }
-  const an=RD.anim({card:'dz-toyan',ctl:'dz-toyan-ctl',n:N+1,ms:260,label:'Sampling step',draw,tab:'t-read'});
-  RD.seg(document.getElementById('dz-toyan-m'),m=>{mode=m;an.reset(N+1)});   // a mode switch resets to step 0; nothing plays until the reader presses play
+      RD.stat('Distance to truth',sc?DZC.f(sc.tv,3):'after the last step','total variation, 4,000 samples')}
+  let prev=-1,raf=0;
+  function draw(i){const r=withTrace(mode),E=ends(r),hi=E[i],lo=i>0?E[i-1]:0,fwd=i===prev+1&&card.classList.contains('rd-fwd');prev=i;cancelAnimationFrame(raf);
+    if(!fwd||RD.RM||hi-lo<2||card.offsetParent===null){frame(hi);return}
+    const t0=performance.now(),dur=Math.min(3200,(hi-lo)*140);   // the stretch plays its frames, then holds on its last one
+    (function go(now){const f=Math.min(1,(now-t0)/dur),k=Math.round(lo+(hi-lo)*f);frame(k);if(f<1)raf=requestAnimationFrame(go)})(t0)}
+  const an=RD.anim({card:'dz-toyan',ctl:'dz-toyan-ctl',n:5,ms:5200,label:'Stretch of the sampling run',list:'sx-toyan',draw});
+  RD.seg(document.getElementById('dz-toyan-m'),m=>{mode=m;prev=-1;an.reset(5)});   // a mode switch restarts from the first stretch and replays
   RD.onResize(()=>an.redraw());
 })();
 

@@ -1,7 +1,7 @@
 // ---- Visuals absorbed from the root Diffusion lab on 2026-10-24 (this page now owns diffusion from zero):
 // the hero, the forward-process slider (section 1), error by timestep and the one-step strips (section 3),
 // and the recorded sampling trajectories (section 5). Data: window.DZ.test (Fashion-MNIST test images) and
-// window.DZX (the lab's recordings, runs/make_data_more.py). Nothing plays before the reader acts.
+// window.DZX (the lab's recordings, runs/make_data_more.py). The trajectories are a widget the reader drives (never autoplays).
 (function(){
   const D=window.DZ,X=window.DZX;if(!D||!X)return;
   const $=id=>document.getElementById(id);
@@ -63,7 +63,7 @@
   // ---------- section 5: the recorded trajectories, a stepper ----------
   if($('dz-traj-card')){
     const TR=X.traj,K=TR.k,cv=[...$('dz-traj').querySelectorAll('canvas')];
-    let mode='20',view='xt';
+    let mode='20',view='x0';   // a widget (the long-replay rule, case b): it opens on the model's guess after 10 of 20 calls (frame 5) and never plays by itself
     const frames=()=>TR[mode].frames.length+1;
     function draw(i){const d=TR[mode],v=view==='x0'&&d.x0?'x0':'xt';
       for(let k=0;k<K;k++){if(i===0)tile(cv[k],TR.noise,k,K);else tile(cv[k],d[v],(i-1)*K+k,K)}
@@ -74,7 +74,7 @@
         if(n===1)cap+=' One step lands on the model\'s single guess: for this noise-predicting model the noise estimate is divided by &radic;&#257; = '+X.lab.sqrtab_lin_999+', mostly amplified error (section 3).'}
       $('dz-traj-cap').innerHTML='<div class="t">'+title+'</div><p>'+cap+'</p>';
       $('dz-traj-cnt').innerHTML=RD.stat('Timestep',i===0?'999 (start)':String(t),'at the step\'s input')+RD.stat('Signal kept',i===0?'0':'&radic;&#257; = '+Math.sqrt(AB[t]).toFixed(3),'')+RD.stat('Network calls',s+' of '+n,'per image')}
-    const an=RD.anim({card:'dz-traj-card',ctl:'dz-traj-ctl',n:frames(),ms:700,label:'Sampling step',draw});
+    const an=RD.anim({card:'dz-traj-card',ctl:'dz-traj-ctl',n:frames(),ms:700,label:'Sampling step',draw,auto:false,start:5});
     const vb=$('dz-traj-v').querySelector('[data-m="x0"]');
     RD.seg($('dz-traj-n'),m=>{mode=m;vb.disabled=m==='d20';if(m==='d20'&&view==='x0'){view='xt';$('dz-traj-v').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='xt'))}an.reset(frames())});
     RD.seg($('dz-traj-v'),m=>{if(m==='x0'&&mode==='d20')return;view=m;an.redraw()});

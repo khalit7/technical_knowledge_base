@@ -1,6 +1,6 @@
 // ---- The two-moons block (section 5, closed; guidance table in section 6): forward-then-back animation, straightness of
 // DDIM against flow-matching paths, and the sampler lab. Moved from the Variational inference maths page, 2026-10-26.
-// Nothing runs until the reader opens the block; the animation waits on step 0 until the reader plays or steps.
+// Nothing runs until the reader opens the block; the animation then plays its five stretches once in view (2026-11-06 rule).
 (function(){
   const $=id=>document.getElementById(id);
   const NP=300,D=DZM.moons(NP,21);
@@ -52,24 +52,23 @@
   function draw(i){
     const el=$('dzm-fr-svg'),W=Math.min(RD.width(el),640),H=Math.round(W*0.62);const R=RUNS[mode];
     if(!R||R.frames.length<=i){el.innerHTML=RD.svg(W,H,RD.t(W/2,H/2,'computing the trained model’s steps… '+(R?Math.round(100*R.frames.length/NF[mode]):0)+'%',{a:'middle',fs:13}),'computing');
-      $('dzm-fr-cap').innerHTML='<div class="t">Running the network in your browser</div><p>'+(mode==='ddpm'?'1,000 reverse steps for 300 points: a few seconds.':'50 steps each way.')+'</p>';$('dzm-fr-cnt').innerHTML='';return}
+      $('dzm-fr-cnt').innerHTML=RD.stat('running the network in your browser',(R?Math.round(100*R.frames.length/NF[mode]):0)+'%',mode==='ddpm'?'1,000 reverse steps for 300 points':'50 steps each way');return}
     const F=R.frames[i],S=3.4,sc=Math.min(W,H)/(2*S)*1.0,cx=W/2,cy=H/2;let s='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="var(--line)"/>';
     for(let p=0;p<NP;p++){s+='<circle cx="'+(cx+F[2*p]*sc).toFixed(1)+'" cy="'+(cy-F[2*p+1]*sc).toFixed(1)+'" r="2.2" fill="'+(D.Y[p]?'var(--c2)':'var(--c1)')+'" fill-opacity="0.85"/>'}
     el.innerHTML=RD.svg(W,H,s,'Points through the forward and reverse processes');
-    const key=mode+i;const st=cache[key]||(cache[key]=stats(F));const lab=R.labels[i];
-    const last=i===NF[mode]-1,first=i===0,mid=(NF[mode]-1)/2;
-    let cap;
-    if(first)cap='300 points from the two-moons data, coloured by the moon each started on.';
-    else if(i<mid)cap=mode==='ddpm'?'Forward process: each step shrinks every point by √(1−βₜ) and adds fresh Gaussian noise. No network involved.':mode==='ddim'?'DDIM run backwards (inversion): the network’s noise guess pushes each point deterministically towards higher noise.':'The flow model’s velocity carries each point forward along (nearly) straight paths towards noise.';
-    else if(i===mid)cap='Pure noise at t = 1000 (or t = 1): the moons are gone; what remains is (close to) a standard Gaussian cloud.';
-    else if(!last)cap=mode==='ddpm'?'Reverse process: each step applies the trained network’s mean and adds fresh noise of variance β̃ₜ. Structure appears late, in the last few hundred steps.':'Decoding: the same deterministic steps, run backwards in noise level.';
-    else cap=mode==='ddpm'?'Back on the moons, but each point landed wherever the fresh noise took it: only about half are on their own moon (chance), mean distance from start '+st.dist.toFixed(2)+'.':'Back on the moons, each point near its own starting place: '+Math.round(100*st.own)+'% on their own moon, mean distance from start '+st.dist.toFixed(2)+' (not 0: 50 steps each way are approximate).';
-    $('dzm-fr-cap').innerHTML='<div class="t">'+lab[0]+': '+lab[1]+'</div><p>'+cap+'</p>';
+    const key=mode+i;const st=cache[key]||(cache[key]=stats(F));
     $('dzm-fr-cnt').innerHTML=RD.stat('on the data',Math.round(100*st.on)+'%','within 0.2 of a moon')+RD.stat('on their own moon',Math.round(100*st.own)+'%','by starting colour')+RD.stat('mean distance from start',st.dist.toFixed(2),'standardised units')+RD.stat('network evaluations',String(R.evals[i]),mode==='ddpm'?'1,000 for the full reverse':'50 + 50');
   }
   let seen=false;
-  function boot(){if(!$('dzm-fr-svg'))return;A=RD.anim({card:'dzm-fr-card',ctl:'dzm-fr-ctl',n:NF[mode],draw:i=>{if(seen&&!RUNS[mode])startRun(mode,()=>A&&A.redraw());draw(i)},ms:450,label:'Animation frame'});
-    RD.seg($('dzm-fr-seg'),m=>{mode=m;startRun(m,()=>A.redraw());A.reset(NF[m])});RD.onResize(()=>A.redraw());
+  // the 41 (DDPM) or 21 frames are grouped into five explained stretches (the step list sx-dzm-fr): data; forward; pure noise; back; landed.
+  // A stretch plays its frames when the animation moves forward onto it, and jumps to its last frame otherwise.
+  const ends=()=>{const n=NF[mode],mid=(n-1)/2;return [0,mid-1,mid,n-2,n-1]};let prev=-1,raf=0;
+  function stretch(i){const E=ends(),hi=E[i],lo=i>0?E[i-1]:0,card=$('dzm-fr-card'),fwd=i===prev+1&&card.classList.contains('rd-fwd');prev=i;cancelAnimationFrame(raf);
+    const show=k=>{if(seen&&!RUNS[mode])startRun(mode,()=>A&&A.redraw());draw(k)};
+    if(!fwd||RD.RM||hi-lo<2||card.offsetParent===null){show(hi);return}
+    const t0=performance.now(),dur=Math.min(3200,(hi-lo)*160);(function go(now){const f=Math.min(1,(now-t0)/dur);show(Math.round(lo+(hi-lo)*f));if(f<1)raf=requestAnimationFrame(go)})(t0)}
+  function boot(){if(!$('dzm-fr-svg'))return;A=RD.anim({card:'dzm-fr-card',ctl:'dzm-fr-ctl',n:5,draw:stretch,ms:5200,label:'Stretch of the animation',list:'sx-dzm-fr'});
+    RD.seg($('dzm-fr-seg'),m=>{mode=m;prev=-1;startRun(m,()=>A.redraw());A.reset(5)});RD.onResize(()=>A.redraw());
     const card=$('dzm-fr-card');
     if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es[es.length-1].isIntersecting&&!seen&&card.offsetParent){seen=true;startRun(mode,()=>A.redraw());A.redraw()}},{rootMargin:'300px'}).observe(card);else{seen=true;startRun(mode,()=>A.redraw())}}
   boot();

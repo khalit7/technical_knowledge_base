@@ -43,16 +43,17 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   }
   // screenshots of the animations at chosen steps, and of the tabs' main cards
   await p.evaluate(()=>document.querySelector('#tabs button[data-t="t-read"]').click());await wait(200);
-  for(const [id,ctl,steps] of [['dz-toyan','dz-toyan-ctl-s',[0,10,25,50]]]){
+  for(const [id,ctl,steps] of [['dz-toyan','dz-toyan-ctl-s',[0,1,2,4]]]){
     for(const m of ['0','1']){await p.evaluate(m=>document.querySelector('#dz-toyan-m button[data-m="'+m+'"]').click(),m);await wait(100);
     for(const s of steps){await p.evaluate((c,s)=>{const e=document.getElementById(c);e.value=s;e.dispatchEvent(new Event('input'))},ctl,s);
       const el=await p.$('#'+id);await el.scrollIntoView();await wait(120);await el.screenshot({path:path.join(shots,id+'_'+m+'_'+s+'_'+w+'.png')})}}}
   for(const id of ['dz-hero','dz-fwd','dz-sd','dz-err','dz-ev','dz-toyx','dz-traj-card','dz-sw','dz-gx','dz-gs','dz-w-chart','dz-gx-chart','dz-zt-ims','dz-lcm-ims','dz-bug-cv','dz-dist-tab']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(150);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
-  // nothing moves before the reader acts: every animation's scrubber is still at 0 after scrolling past it
+  // since 2026-11-06 the stages and the two grouped animations play by themselves once in view (runs/check_stages.mjs checks them);
+  // the widgets must not: the image trajectories' scrubber is still where it opens (call 5) after scrolling past it
   await p.goto('file://'+page_);await wait(200);
   const H2=await p.evaluate(()=>document.body.scrollHeight);for(let y=0;y<H2;y+=500){await p.evaluate(y=>scrollTo(0,y),y);await wait(60)}
   await wait(1500);
-  const moved=await p.evaluate(()=>[...document.querySelectorAll('.an-ctl input[type=range]')].filter(r=>+r.value!==0).map(r=>r.id));
+  const moved=await p.evaluate(()=>[...document.querySelectorAll('.an-ctl input[type=range]')].filter(r=>!r.closest('.stg')&&!r.closest('#dz-toyan')&&!r.closest('#dzm-fr-card')&&+r.value!==(r.id==='dz-traj-ctl-s'?5:0)).map(r=>r.id));
   if(moved.length){bad++;console.log('autoplay:',moved)}
   const myErrs=errs;if(myErrs.length)bad++;
   console.log(w,scheme,JSON.stringify(out),'errors',JSON.stringify(myErrs.slice(0,5)),'reading min',(out['t-read'].words/220).toFixed(1));
