@@ -124,8 +124,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_evaluation_and_llm_judges/llm_as_judge` LLM-as-judge: design, biases, calibration, reliability
 - [x] `measurement/topic_evaluation_and_llm_judges/production_eval_engineering` Production eval engineering: gates, golden sets, shadow and A/B tests
 - [x] `measurement/topic_evaluation_and_llm_judges/rag_and_retrieval_evaluation` RAG and retrieval evaluation: faithfulness, groundedness, retrieval metrics
-- [ ] `measurement/topic_evaluation_and_llm_judges` Topic: evaluation-and-llm-judges
-- [~] `models_and_training/topic_data_curation_and_datasets/data_mixing` Data mixing, curricula and continued-pretraining ratios
+- [~] `measurement/topic_evaluation_and_llm_judges` Topic: evaluation-and-llm-judges
+- [x] `models_and_training/topic_data_curation_and_datasets/data_mixing` Data mixing, curricula and continued-pretraining ratios
 - [ ] `models_and_training/topic_data_curation_and_datasets/decontamination_pii_and_governance` Decontamination, PII and data governance
 - [ ] `models_and_training/topic_data_curation_and_datasets/deduplication` Deduplication: exact, MinHash, suffix arrays, semantic
 - [ ] `models_and_training/topic_data_curation_and_datasets/extraction_and_filtering` Extraction and filtering: from WARC to clean text
@@ -417,4 +417,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `measurement/topic_evaluation_and_llm_judges/llm_as_judge`: modes stage per-lane close-ups zoom only a little; gold stage TP/FP/TN labels tight at 390; src/bias/check.mjs writes PNGs to the current directory without a shot dir (run from the repo root with one).
 - `measurement/topic_evaluation_and_llm_judges/production_eval_engineering`: Fig. 4 "guardrails, rollback line" label touches the card's right edge at 1400; Fig. 2 aggregate pillar tiny (-0.03) and its bar field dense in steps 2 and 3; Fig. 1 uses MT-Bench categories as stand-in failure modes (labelled); verify_layout flags the Gate designer svg outside a split (accepted: reader tool).
 - `measurement/topic_evaluation_and_llm_judges/rag_and_retrieval_evaluation`: Fig. 1 side plates (corpus, generator, verdict) cut at the card edges in close-ups at 1400, generator half off the right edge during the step 2 glide; Fig. 2 full view small at 390; hero's arc layout never shows in the split column (list form instead).
+- `models_and_training/topic_data_curation_and_datasets/data_mixing`: core 45 min plus 23 closed (large); empty card space on early steps (Fig. 2 steps 1 and 2, Fig. 3 step 1); Fig. 6 German-cost +0.00 labels close; Fig. 3 loss and score columns differ by only 5 to 14% (honest, hard to see); verify_layout flags the planner and CPT recipes svgs outside a split (accepted: reader tools).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

@@ -62,7 +62,7 @@
     $('mx2-pl-anout').innerHTML=RD.stat('Tokens read',(i/N*tot/1000).toFixed(2)+'T of '+(tot/1000).toFixed(2)+'T','')+RD.stat(esc(S.doms[hl].name)+' read so far',seen(i).toFixed(1)+'B','of '+R.total[hl].toFixed(1)+'B in the run')+
       RD.stat(esc(S.doms[hl].name)+' share of the last 10%',(100*last10()).toFixed(1)+'%',(other==='static'?'static mix: ':'stages: ')+(100*l10o).toFixed(1)+'%');
     $('mx2-pl-cap').textContent=(mode==='static'?'One static mix: every part of the run has the same composition, so the best data is spread thinly and most of it is read while the learning rate is still high. ':'Your stages: the same tokens per domain, with the last stage concentrated where the learning rate decays. ')+'Highlighted domain: '+S.doms[hl].name+' (the one whose weight rises most in the last stage).'}
-  const A=RD.anim({card:'mx2-pl-card',ctl:'mx2-pl-ctl',n:N+1,ms:90,label:'Position in the run',draw:drawAn,tab:'t-plan'});
+  const A=RD.anim({card:'mx2-pl-card',ctl:'mx2-pl-ctl',n:N+1,ms:90,label:'Position in the run',draw:drawAn,auto:false});
   RD.seg($('mx2-pl-mode'),m=>{mode=m;A.reset(N+1)});
   RD.onRender(()=>A.redraw(),'t-plan');RD.onResize(()=>A.redraw(),'t-plan');
   load('ill');

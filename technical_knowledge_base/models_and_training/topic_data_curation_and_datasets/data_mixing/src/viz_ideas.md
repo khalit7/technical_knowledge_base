@@ -37,3 +37,8 @@ Scores 0 to 2 on: parameter the reader moves; reproduces a published figure (cou
 - Moved inline: measured DoReMi run (3a), fitter (3c); toy DoReMi, recommendations and coefficients to closed blocks.
 - Absorbed from the CPT page (its `cpt/viz_ideas_cpt.md` keeps that page's scoring): forgetting before/after animation (6a), frontier chart (6b), toy grid (closed, 6b), schedule toggle (6c), CMR calculator (6d), D-CPT card (closed, 6d), recipes table and scatter (tab).
 - Rejected: a paper's own figure as an image (no physical object; the figures are rebuilt from released data, and arXiv licences were not cleared).
+
+## 2026-11-09 (layout rollout)
+- Built: 3D stages Fig. 1 (Pile weights and passes), Fig. 2 (value of each repeated pass), Fig. 3 (RegMix runs, law, mixture, scores), Fig. 4 (offline against online, random against Megatron blend; replaces idea 7's 2D animation), Fig. 6 (replay toy 3 × 3 bar field).
+- Considered and kept 2D: the hero (a token axis), the DoReMi trajectory (a curve over steps), the fitter scatter, the frontier, schedules and CMR curves.
+- Rejected: a 3D CPT stream of German and English tokens (decorative; the toy's 3 × 3 grid carries the real numbers).

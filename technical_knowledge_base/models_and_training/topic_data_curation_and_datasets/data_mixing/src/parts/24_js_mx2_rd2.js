@@ -1,4 +1,4 @@
-// ---- Reading tab widgets, part 2: DoReMi weights, RegMix refit table, Aioli table, loader blend animation, stage recipes, smoke test ----
+// ---- Reading tab widgets, part 2: DoReMi weights, RegMix refit table, Aioli table, loader blend sequences, stage recipes, smoke test ----
 (function(){
   const D=window.MX2, $=id=>document.getElementById(id), esc=RD.esc, pct=(x,d)=>(100*x).toFixed(d==null?1:d)+'%';
 
@@ -30,28 +30,13 @@
   $('mx2-aioli').innerHTML='<thead><tr><th>Method</th>'+A.cols.map(c=>'<th class="num">'+c+'</th>').join('')+'<th class="num">beats stratified</th></tr></thead><tbody><tr><td>Stratified (perplexity)</td>'+A.stratified.map(v=>'<td class="num">'+v.toFixed(3)+'</td>').join('')+'<td class="num">-</td></tr>'+
     Object.keys(A.rows).map(k=>'<tr><td>'+k+'</td>'+A.rows[k].map(v=>'<td class="num" style="color:'+(v<0?'var(--good)':'var(--bad)')+'">'+(v>0?'+':'')+v.toFixed(3)+'</td>').join('')+'<td class="num">'+A.beats[k]+' / 6</td></tr>').join('')+'</tbody>';
 
-  // 4. loader blend animation: random per-sample vs Megatron error-driven
+  // 4. loader blend: random per-sample against Megatron's error-driven rule (the same 60 samples)
   const BW=[0.6,0.3,0.1],BN=['web','code','maths'],BC=['var(--c1)','var(--c3)','var(--c2)'],NS=60;
   function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   function seqRand(){const r=mulberry32(11),s=[];for(let i=0;i<NS;i++){const x=r();s.push(x<BW[0]?0:x<BW[0]+BW[1]?1:2)}return s}
   function seqMeg(){const c=[0,0,0],s=[];for(let n=0;n<NS;n++){const nd=Math.max(n,1);let mi=0,me=BW[0]*nd-c[0];for(let d=1;d<3;d++){const e=BW[d]*nd-c[d];if(e>me){me=e;mi=d}}s.push(mi);c[mi]++}return s}
-  const SEQ={rand:seqRand(),meg:seqMeg()};let bm='rand';
-  RD.mx2blend={seqMeg,seqRand,BW};
-  const blA=RD.anim({card:'mx2-bl',ctl:'mx2-bl-ctl',n:NS+1,ms:260,label:'Sample',draw:drawBL});
-  function drawBL(i){
-    const s=SEQ[bm].slice(0,i),c=[0,0,0];s.forEach(d=>c[d]++);
-    const W=RD.width($('mx2-bl-plot')),cols=Math.max(10,Math.min(30,Math.floor((W-10)/16))),cw=(W-10)/cols,rows=Math.ceil(NS/cols),H=rows*cw+70;
-    let g='';SEQ[bm].forEach((d,k)=>{const x=5+(k%cols)*cw,y=5+Math.floor(k/cols)*cw;g+='<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(cw-2)+'" rx="2" fill="'+(k<i?BC[d]:'var(--soft)')+'" stroke="var(--line)"/>'});
-    // deviation trace: max over domains of |count - w*n|
-    const y0=rows*cw+15,hh=45,dev=[];const cc=[0,0,0];SEQ[bm].forEach((d,k)=>{cc[d]++;dev.push(Math.max(...cc.map((v,j)=>Math.abs(v-BW[j]*(k+1)))))});
-    const mx=4;let p='';dev.slice(0,i).forEach((v,k)=>{p+=(k?'L':'M')+(5+k/(NS-1)*(W-10)).toFixed(1)+' '+(y0+hh-Math.min(v,mx)/mx*hh).toFixed(1)});
-    g+='<line x1="5" x2="'+(W-5)+'" y1="'+(y0+hh)+'" y2="'+(y0+hh)+'" stroke="var(--line)"/>'+RD.t(5,y0+8,'largest gap between a domain\'s count and its target (0 to 4 samples)',{fs:10,fill:'var(--mute)'});
-    if(p)g+='<path d="'+p+'" fill="none" stroke="var(--bad)" stroke-width="2"/>';
-    $('mx2-bl-plot').innerHTML=RD.svg(W,H,g,'Sequence of domains drawn by the loader');
-    $('mx2-bl-out').innerHTML=BN.map((n,j)=>RD.stat(n+' (target '+pct(BW[j],0)+')',c[j]+' of '+i,'target '+(BW[j]*i).toFixed(1))).join('')+RD.stat('Largest gap so far',(i?Math.max(...dev.slice(0,i)):0).toFixed(1),'samples');
-    $('mx2-bl-cap').textContent=i===0?'Step 0: no samples drawn yet. Each step draws one sample.':
-      (bm==='rand'?'Random: each sample picks a domain with probability 0.6, 0.3, 0.1. ':'Blend: each sample goes to the domain whose count lags w·n most. ')+'Sample '+i+' came from '+BN[SEQ[bm][i-1]]+'.'}
-  RD.seg($('mx2-bl-seg'),m=>{bm=m;blA.reset(NS+1)}); RD.onResize(()=>blA.redraw());
+  // the sequences are drawn by the 3D stage (29_js_sc_bl.js)
+  RD.mx2blend={seqMeg,seqRand,BW,BN,NS};
 
   // 5. SmolLM3 stage groups
   const GN={web_en:'English web',multilingual:'Multilingual',code:'Code',math:'Maths',other:'Other'},GC={web_en:'var(--c1)',multilingual:'var(--c6)',code:'var(--c3)',math:'var(--c2)',other:'var(--c5)'};

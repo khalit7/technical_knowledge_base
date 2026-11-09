@@ -4,7 +4,7 @@
 //    undefined, Infinity in visible text, or sideways page scroll;
 // 2. checks the page embeds exactly data/mx2_data.json and parts/26_js_cpt_data.js, that the page's JS reproduces recompute.py
 //    (DoReMi toy, mixing-law refit, blend rule) and cpt/recompute_cpt.py (CMR, D-CPT), and that numbers quoted in the prose match;
-// 3. with normal motion, scrolls the whole Reading tab and confirms no animation has started by itself (2026-10-23 rule).
+// 3. the 6a animation plays by itself once in view, the replays the reader drives never do, and nothing moves under reduced motion (2026-11-06 rule).
 import {createRequire} from 'module';
 import path from 'path';
 import fs from 'fs';
@@ -97,11 +97,17 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
   }
   await p.close();
 }
-// 3. no autoplay: normal motion, scroll every card into view, wait, and confirm nothing is playing and every scrubber is at 0
-{ const p=await b.newPage();await p.setViewport({width:920,height:900});await p.goto('file://'+page_path,{waitUntil:'load'});
-  await p.evaluate(async()=>{try{localStorage.clear()}catch(e){}const sl=ms=>new Promise(r=>setTimeout(r,ms));for(const c of document.querySelectorAll('#t-read .card')){c.scrollIntoView({block:'center'});await sl(60)}await sl(2000)});
-  const st=await p.evaluate(()=>[...document.querySelectorAll('#t-read .an-play')].map(b=>b.getAttribute('aria-label')+':'+(b.parentElement.querySelector('input[type=range]')||{}).value));
-  ok(st.length>=4&&st.every(x=>x.startsWith('Play:0')),'no animation starts by itself ('+st.length+' controllers: '+st.join(' ')+')');
+// 3. motion (2026-11-06 rule): the 2D animation of 6a plays by itself once scrolled into view; the three replays the reader drives
+//    (the measured DoReMi run, the DoReMi toy, the planner) never do and open on their last frame; under reduced motion nothing plays.
+//    The 3D stages are checked by check_stages.mjs.
+for(const rm of [false,true]){ const p=await b.newPage();await p.setViewport({width:920,height:900});
+  if(rm)await p.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+  await p.goto('file://'+page_path,{waitUntil:'load'});await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});await p.goto('file://'+page_path,{waitUntil:'load'});
+  const look=async id=>{await p.$eval('#'+id,e=>e.scrollIntoView({block:'center'}));await new Promise(r=>setTimeout(r,2600));
+    return p.$eval('#'+id,c=>{const b=c.querySelector('.an-play'),r=c.querySelector('input[type=range]');return {play:b.getAttribute('aria-label'),v:+r.value,max:+r.max}})};
+  const fg=await look('fgCard');
+  ok(rm?fg.play==='Play'&&fg.v===0:fg.play==='Pause',(rm?'reduced motion: 6a forgetting stays still':'6a forgetting plays by itself once in view')+' ('+fg.play+' at '+fg.v+')');
+  for(const id of ['mx2-drm-card']){const w=await look(id);ok(w.play==='Play'&&w.v===w.max,(rm?'reduced motion: ':'')+id+' is a widget: opens on its last frame and does not play ('+w.play+' '+w.v+'/'+w.max+')')}
   await p.close(); }
 await b.close();
 console.log(fail?('FAILED '+fail):'all checks passed');process.exit(fail?1:0);

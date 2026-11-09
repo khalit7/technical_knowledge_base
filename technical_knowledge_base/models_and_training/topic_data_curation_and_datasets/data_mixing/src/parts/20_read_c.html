@@ -1,15 +1,18 @@
+<div class="s3sp"><div class="s3R"><div id="stg-bl"></div></div><div class="s3L">
 <section id="mx2-s4">
 <h2>4. Offline or online, and how a loader hits the weights</h2>
 <p><b>Offline mixing</b> fixes the weights before training and writes (or indexes) one shuffled stream. The Pile did it literally: it drew documents at random, "weighted by the number of documents in each dataset times the number of epochs desired", and interleaved the output into 30 files (appendix on construction). Reproducible and simple; the weights cannot change. <b>Online mixing</b> keeps one stream per domain and lets the training loop choose the domain of every sample from the current weights. Stages need it (the weights change at a step boundary), and so do the methods that adapt during the run: DoReMi's proxy, ODM, Aioli. The cost is engineering: per-domain shards, a sampler whose state is saved with each checkpoint so a restart resumes the same sequence, and a log of the weights actually used ({{Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} covers shards, shuffling and resumption).</p>
 <p><b>Hitting the weights exactly.</b> Sampling a domain at random for each sample matches the weights only on average; over a short window the achieved shares wander. Megatron-LM's blended dataset is deterministic: for sample n it computes, for every dataset, the error w<sub>i</sub>·n − (samples taken from i so far), and takes the next sample from the dataset with the largest error.</p>
-<div class="card" id="mx2-bl">
-<div class="seg" id="mx2-bl-seg"><button data-m="rand" class="on">Random sampling per sample</button><button data-m="meg">Megatron error-driven blend</button></div>
-<div id="mx2-bl-plot"></div>
-<div class="out" id="mx2-bl-out"></div>
-<div id="mx2-bl-cap" class="small"></div>
-<div id="mx2-bl-ctl" class="chips"></div>
-<p class="small mute"><b>Random draws drift from the target; the blend is never more than one sample off.</b> Same three weights (web 0.6, code 0.3, maths 0.1) and the same 60 samples in both modes; random mode uses a fixed seed <span class="mx2-lbl ill">illustrative</span>. The blend rule is Megatron's code, ported line for line. Play random, then switch and play the blend.</p>
-</div>
+<p class="sxh">Fig. 4 · Random draws drift from the target; the blend is never more than one sample off</p>
+<ol class="sx" id="sx-bl">
+<li><b>Offline: mix once, write one stream.</b> Three pools, web, code and maths, are drawn into a single shuffled stream before training, as The Pile wrote its 30 files. Simple and reproducible; the weights inside it can no longer change.</li>
+<li><b>Online: one stream per domain, chosen per sample.</b> The pools stay separate and the loader picks the domain of every sample from the current weights, here 0.6, 0.3 and 0.1 <span class="mx2-lbl ill">illustrative</span>. A stage boundary or an adaptive method can change them mid-run.</li>
+<li><b>Random draws, samples 1 to 20.</b> Each sample's domain is drawn at random with those probabilities (a fixed seed). After 20 samples the counts are web 14, code 6, maths 0, against targets of 12, 6 and 2: maths has not appeared at all.</li>
+<li><b>Random draws, samples 21 to 60.</b> After 60: 39, 19 and 2 against 36, 18 and 6. The largest gap between a domain's count and its target reached 4.8 samples during the run; the weights hold only on average.</li>
+<li><b>Megatron's blend, samples 1 to 20.</b> The same 60 slots, now filled by the rule in Megatron-LM's code, ported line for line: each sample goes to the domain whose count lags w<sub>i</sub>·n most. After 20: 12, 6 and 2, exactly the targets.</li>
+<li><b>The blend, samples 21 to 60.</b> After 60: 36, 18 and 6. The gap never exceeded 0.8 of a sample, and the order is fully determined by the weights, so a restart reproduces it.</li>
+</ol>
+
 <details class="mx2-deep"><summary>The blend rule in Megatron-LM's code</summary><div class="b">
 <p class="small">NVIDIA/Megatron-LM at 80781ab, <code>megatron/core/datasets/helpers.cpp</code>, <code>build_blending_indices</code>, lines 104 to 128:</p>
 <div class="mx2-code">for (int64_t sample_idx = 0; sample_idx &lt; size; ++sample_idx) {                       // 104
@@ -27,18 +30,23 @@
 </div></details>
 <p>Hugging Face <code>datasets</code> offers the random version as <code>interleave_datasets(..., probabilities=[...], seed=..., stopping_strategy=...)</code>: <code>"first_exhausted"</code> stops when the smallest stream ends (undersampling), <code>"all_exhausted"</code> restarts finished streams until every one has been seen once (oversampling, so small domains repeat). Which one you pick silently changes the epochs of the small domains.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="mx2-s5">
 <h2>5. Curricula, stages and mid-training</h2>
 <p>A <b>curriculum</b> is an order over the data. In current pretraining it is coarse: a few <b>stages</b>, each a block of steps with its own mixture, ending in a <b>decay stage</b> (mid-training, the anneal) where the learning rate falls to zero while the mix shifts to the best data: maths, code, instruction-like and question-answer text, often synthetic. "Annealing" has three meanings in this literature (the learning-rate decay, this final data stage, and a cheap experiment that anneals a checkpoint on a candidate dataset); {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}} separates them. The {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}} page owns the training side (its section 4 animates GPT-3, OLMo 2 and SmolLM3 stages on their token axes; its section 5 has OLMo 2's Table 11 split of the anneal's gain into learning-rate decay and data, and the anneal toy). This section is the data side: what goes into each stage.</p>
-<div class="card" id="mx2-sm3">
-<div id="mx2-sm3-plot"></div>
-<p class="small mute"><b>SmolLM3's decay stage halves the share of English web and quadruples maths.</b> huggingface/smollm at 438be18, <code>text/pretraining/smollm3/stage1_8T.yaml</code>, <code>stage2_8T_9T.yaml</code>, <code>stage3_9T_11T.yaml</code>: 41, 46 and 56 sources with their <code>dataset_weights</code>, grouped by this page into English web (FineWeb-Edu, DCLM), multilingual (FineWeb-2 languages), code (Stack-Edu, pull requests, notebooks, issues, Kaggle), maths (FineMath, InfiWebMath, MegaMath, OpenMath data) and other (papers, Wikipedia, StackExchange, Cosmopedia, reasoning sets) <span class="mx2-lbl der">derived</span>. Token boundaries from steps × 2,359,296 tokens per step (data parallel 192 × micro-batch 3 × 4,096) <span class="mx2-lbl der">derived</span>: the decay stage starts at step 4,198,001, the same step as <code>lr_decay_starting_step</code>. The decay stage's raw weights sum to 1.0056; loaders normalise.</p>
-</div>
+
 <p>English web falls from 70% to 50% while code goes from 12.5% to 23% and maths from 2.7% to 12.5%, and the decay stage adds instruction-style maths (OpenMathInstruct-2, OpenMathReasoning) and code reasoning sets. SmolLM2 (Allal et al. 2025, {{§4 and Table 3|https://arxiv.org/abs/2502.02737}}) has the same shape, with scores per stage <span class="mx2-lbl pub">published</span>:</p>
 <div class="mx2-pred" data-ans="c"><div class="q">Predict: in SmolLM2's Table 3, which category gains most in the decay stage (stage 3 to stage 4)?</div>
 <div class="opts"><button data-o="a">Knowledge and reasoning</button><button data-o="b">Generative tasks</button><button data-o="c">Maths</button></div>
 <div class="ans" hidden>Maths, 7.27 to 22.07, three times its stage-3 score, after the highest-quality maths sets (FineMath 4+, InfiWebMath 3+) entered only in stage 4. Code goes 16.75 to 23.21; knowledge and reasoning 57.47 to 60.24. Part of any decay-stage gain is the learning-rate decay itself, which no SmolLM2 ablation separates; OLMo 2's did (Pretraining, section 5): on maths all of it was the data.</div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="mx2-sm3">
+<div id="mx2-sm3-plot"></div>
+<p class="small mute"><b>SmolLM3's decay stage halves the share of English web and quadruples maths.</b> huggingface/smollm at 438be18, <code>text/pretraining/smollm3/stage1_8T.yaml</code>, <code>stage2_8T_9T.yaml</code>, <code>stage3_9T_11T.yaml</code>: 41, 46 and 56 sources with their <code>dataset_weights</code>, grouped by this page into English web (FineWeb-Edu, DCLM), multilingual (FineWeb-2 languages), code (Stack-Edu, pull requests, notebooks, issues, Kaggle), maths (FineMath, InfiWebMath, MegaMath, OpenMath data) and other (papers, Wikipedia, StackExchange, Cosmopedia, reasoning sets) <span class="mx2-lbl der">derived</span>. Token boundaries from steps × 2,359,296 tokens per step (data parallel 192 × micro-batch 3 × 4,096) <span class="mx2-lbl der">derived</span>: the decay stage starts at step 4,198,001, the same step as <code>lr_decay_starting_step</code>. The decay stage's raw weights sum to 1.0056; loaders normalise.</p>
+</div></div></div></div>
+<section id="mx2-s5b">
 <div class="tw"><table class="mx2-tbl" id="mx2-sm2"></table></div>
 <p class="small mute">SmolLM2 1.7B on 11T tokens, warmup-stable-decay schedule with the decay over the last 10%. Stage mixes from the text of §4.2 to §4.5; stage 3's exact shares are given only in a figure, so they are not transcribed. Stage-4 maths 14% is derived from the stated 58% web, 24% code and 4% Cosmopedia.</p>
 <h3>OLMo 2: the anneal repeats its small sources</h3>

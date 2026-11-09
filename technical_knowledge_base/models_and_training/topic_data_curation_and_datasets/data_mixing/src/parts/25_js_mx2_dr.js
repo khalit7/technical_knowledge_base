@@ -36,7 +36,7 @@
       RD.stat('Weights now',s.al.map(f2).join(' / '),P.names.join(' / '))+RD.stat('Running average (the answer)',s.avg.map(f2).join(' / '),'');
     $('mx2-dr-cap').textContent='Step '+i+': each weight is multiplied by e^(η·λ): '+P.names.map((n,k)=>n+' ×'+f3(mult[k])).join(', ')+'; renormalised to sum 1, then 0.1% uniform mixed in. '+
       (i<6?'Early on the proxy is far behind the reference everywhere, so excess is large and the weights swing.':i>P.T-5?'By the end the proxy has caught up where it was upweighted; excess is near zero and noise dominates the instantaneous weights, which is why the answer is the average.':'Weight flows to the domains where the proxy still lags; the upweighted domains then get more effective gradient and catch up.')}
-  const A=RD.anim({card:'mx2-dr-card',ctl:'mx2-dr-ctl',n:P.T+1,ms:220,label:'Step',draw});
+  const A=RD.anim({card:'mx2-dr-card',ctl:'mx2-dr-ctl',n:P.T+1,ms:220,label:'Step',draw,auto:false,start:P.T});
   function drawBA(){
     const W=RD.width($('mx2-dr-baplot')),nmW=58,bw=W-nmW-44,rh=34,H=K*rh+10,mx=Math.max(...R.main_ref,...R.main_dr);let g='';
     for(let k=0;k<K;k++){const y=4+k*rh;g+=RD.t(nmW-6,y+17,P.names[k],{a:'end',fs:12,w:600,fill:COL[k]});
@@ -73,7 +73,7 @@
     $('mx2-drm-out').innerHTML=RD.stat('Proxy step',steps[j]+' of '+R.config.steps,'')+RD.stat('α at this step',R.trajectory[j].map(v=>v.toFixed(2)).join(' / '),N.join(' / '))+RD.stat('Running average',R.running_avg[j].map(v=>v.toFixed(2)).join(' / '),'the answer if the run stopped here');
     const top=R.excess_smoothed[j].indexOf(Math.max(...R.excess_smoothed[j]));
     $('mx2-drm-cap').textContent='Step '+steps[j]+': largest smoothed excess is '+N[top]+' ('+f3(R.excess_smoothed[j][top])+' nats), so its weight is being pushed up; weights only settle once the proxy has caught up with the reference everywhere.'}
-  const A=RD.anim({card:'mx2-drm-card',ctl:'mx2-drm-ctl',n:T+1,ms:60,label:'Proxy step',draw});
+  const A=RD.anim({card:'mx2-drm-card',ctl:'mx2-drm-ctl',n:T+1,ms:60,label:'Proxy step',draw,auto:false,start:T});
   function drawBA(){
     const W=RD.width($('mx2-drm-baplot')),nmW=58,bw=(W-nmW-20)/2-40,rh=34,H=K*rh+26,mw=Math.max(...ref,...avg),lv=N.map(n=>[R.ref_val_loss[n],R.proxy_val_loss[n]]),ml=Math.max(...lv.flat());let g='';
     g+=RD.t(nmW,12,'weight: reference / DoReMi',{fs:10,fill:'var(--mute)'})+RD.t(nmW+bw+60,12,'held-out loss: ref. / proxy',{fs:10,fill:'var(--mute)'});

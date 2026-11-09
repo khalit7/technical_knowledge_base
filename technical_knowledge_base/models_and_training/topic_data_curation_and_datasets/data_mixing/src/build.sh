@@ -1,14 +1,14 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (data mixing child page, prefix mx2).
-# HTML: 01_head, 10_header, 20_read_*.html (Reading tab), 3*_tab_*.html (planner, CPT recipes, Further reading, file-name order).
-# JS: data (generated from data/mx2_data.json), then every *.js in parts/ in file-name order, each in its own <script>, 99_js_tabs.js last.
+# HTML: 01_head, 02_split (the split layout, skill template), 10_header, 20_read_*.html (Reading tab), 3*_tab_*.html (planner, CPT recipes, Further reading, file-name order).
+# JS: data (generated from data/mx2_data.json), then every *.js in parts/ in file-name order (21 the RD template and the page's additions, 23 to 28 the 2D figures, 25_js_s3 the 3D renderer v2, 29_js_sc_* the 3D scenes, 35 and 37 the tabs), each in its own <script>, 99_js_tabs.js last.
 # Links: {{text|url}}, {{text|n:<notion id>}}, {{text|#t-<tab>}}.
 cd "$(dirname "$0")"
 python3 recompute.py > /dev/null || { echo "recompute failed"; exit 1; }
 python3 cpt/recompute_cpt.py > /dev/null || { echo "cpt recompute failed"; exit 1; }   # writes parts/26_js_cpt_data.js (window.CPT)
 { printf 'window.MX2='; cat data/mx2_data.json; printf ';\n'; } > parts/22_js_data.js
-{ cat parts/01_head.html parts/10_header.html parts/20_read_*.html
+{ cat parts/01_head.html parts/02_split.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
@@ -18,5 +18,6 @@ python3 cpt/recompute_cpt.py > /dev/null || { echo "cpt recompute failed"; exit 
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a href=\"#\" data-tab=\"$1\">$t<\/a>"}else{$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"}/ge;
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html

@@ -18,10 +18,10 @@
   function caption(i){
     const st=MARK[Math.min(i,MARK.length-1)],r=at(mode,st),lab='<b>'+LBL[mode]+'.</b> ';
     const dEn=r[1]-base.en,dDe=r[2]-base.de;
-    if(i===0)return '<div class="t">Step 1 of '+(MARK.length+1)+': the base model</div>Pretrained on English only for '+PT.toLocaleString()+' steps, learning rate decayed to its minimum. English loss '+f(base.en)+' bits per character; German '+f(base.de)+' (it has never seen a German word; umlauts are written ae, oe, ue).';
+    if(i===0)return 'Pretrained on English only for '+PT.toLocaleString()+' steps, learning rate decayed to its minimum. English loss '+f(base.en)+' bits per character; German '+f(base.de)+' (it has never seen a German word; umlauts are written ae, oe, ue).';
     if(i===MARK.length){const o=Object.keys(LBL).map(k=>{const e=at(k,N);return LBL[k]+': English '+f(e[1])+', German '+f(e[2])}).join('; ');
-      return '<div class="t">Step '+(i+1)+' of '+(MARK.length+1)+': the three runs side by side</div>'+o+'. Retrained from scratch on both languages: '+f(uni.en)+' and '+f(uni.de)+'. Replay keeps most of the English for a small price in German; a lower peak forgets less but learns less German, and still forgets far more than replay does.'}
-    let t='<div class="t">Step '+(i+1)+' of '+(MARK.length+1)+': after '+st.toLocaleString()+' CPT steps</div>'+lab;
+      return o+'. Retrained from scratch on both languages: '+f(uni.en)+' and '+f(uni.de)+'. Replay keeps most of the English for a small price in German; a lower peak forgets less but learns less German, and still forgets far more than replay does.'}
+    let t=lab;
     if(st===50)t+='The learning rate re-warmed to its peak in 15 steps. English loss is already '+f(r[1])+' ('+sg(dEn)+'): the forgetting comes first, before German has been learned (German '+f(r[2])+').';
     else if(st<=200)t+='German loss falls fast ('+f(r[2])+', '+sg(dDe)+') while English '+(dEn>0.5?'keeps degrading':'holds')+' at '+f(r[1])+' ('+sg(dEn)+').';
     else if(st<N)t+='The cosine decay slows both curves. English '+f(r[1])+' ('+sg(dEn)+'), German '+f(r[2])+' ('+sg(dDe)+').';
@@ -55,13 +55,15 @@
       RD.stat('English replayed',fmtC(Math.round(chars*rp)),rp?Math.round(rp*100)+'% of each batch':'none')+
       RD.stat('English loss',f(e[1]),'<span class="'+(e[1]-base.en>0.3?'cp-warn':'cp-ok')+'">'+sg(e[1]-base.en)+'</span> from the base')+
       RD.stat('German loss',f(e[2]),sg(e[2]-base.de)+' from the base');
-    document.getElementById('fgCap').innerHTML=caption(i);
     const sm=document.getElementById('fgSmp');
     if(last||st===N){const s0=T.samples[0];const q=x=>RD.esc(x);
       sm.innerHTML='<p class="small" style="margin:6px 0 2px">The English prompt "it was a", continued by seed 1 (temperature 0.7):</p><div class="smp"><span class="pr">base:</span> '+q(s0.base.en)+'</div><div class="smp"><span class="pr">'+LBL[mode]+':</span> '+q(s0[mode].en)+'</div>'}
     else sm.innerHTML=''}
-  const an=RD.anim({card:'fgCard',ctl:'fgCtl',n:MARK.length+1,ms:1700,draw,label:'Training step'});
+  // the step list on the left carries each step's explanation for the chosen run (no caption under the chart)
+  function fillList(){document.querySelectorAll('#sx-fg .fg-x').forEach((x,i)=>x.innerHTML=caption(i))}
+  fillList();
+  const an=RD.anim({card:'fgCard',ctl:'fgCtl',n:MARK.length+1,ms:4600,draw,label:'Training step',list:'sx-fg'});
   document.querySelectorAll('#fgMode button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('#fgMode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;an.reset(MARK.length+1)}));
+    document.querySelectorAll('#fgMode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;fillList();an.reset(MARK.length+1)}));
   addEventListener('resize',()=>an.redraw());
 })();
