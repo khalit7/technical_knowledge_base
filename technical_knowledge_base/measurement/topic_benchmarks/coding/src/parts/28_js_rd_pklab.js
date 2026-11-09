@@ -13,11 +13,11 @@
     const P=+$('pk-p').value/100,N=+$('pk-n2').value;$('pk-pv').textContent=(P*100).toFixed(0)+'%';$('pk-n2v').textContent=N;
     const el=$('pk-bias'),W=RD.width(el),H=230,L=40,R=10,T=10,B=32,iw=W-L-R,ih=H-T-B;
     const x=kk=>L+iw*(kk-1)/Math.max(1,N-1),y=v=>T+ih*(1-v);let s='';
-    for(const g of [0,.25,.5,.75,1])s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/>'+RD.t(L-5,y(g)+4,Math.round(g*100)+'%',{a:'end',fs:10,fill:'var(--mute)'});
+    for(const g of [0,.25,.5,.75,1])s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/>'+RD.t(L-5,y(g)+4,Math.round(g*100)+'%',{a:'end',fs:11,fill:'var(--mute)'});
     const ln=(f,col,w,da)=>{let d='';for(let kk=1;kk<=N;kk++)d+=(d?'L':'M')+x(kk).toFixed(1)+','+y(f(kk)).toFixed(1);return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="'+w+'"'+(da?' stroke-dasharray="'+da+'"':'')+'/>'};
     s+=ln(kk=>1-Math.pow(1-P,kk),'var(--ink)',1.5,'5 4')+ln(kk=>CM.expect(N,P,kk,CM.passk),'var(--c1)',2.4)+ln(kk=>CM.expect(N,P,kk,CM.plug),'var(--c2)',2.4);
     const tk=[1,Math.round(N/4),Math.round(N/2),Math.round(3*N/4),N].filter((v,i,a)=>v>=1&&a.indexOf(v)===i);
-    for(const kk of tk)s+=RD.t(x(kk),H-B+15,String(kk),{a:'middle',fs:10,fill:'var(--mute)'});
+    for(const kk of tk)s+=RD.t(x(kk),H-B+15,String(kk),{a:'middle',fs:11,fill:'var(--mute)'});
     s+=RD.t(L+iw/2,H-3,'k',{a:'middle',fs:10.5,fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'Average estimates of pass@k against the truth');
     let worst=0,wk=1;for(let kk=1;kk<=N;kk++){const g=(1-Math.pow(1-P,kk))-CM.expect(N,P,kk,CM.plug);if(g>worst){worst=g;wk=kk}}
@@ -34,9 +34,9 @@
     const el=$('pk-real'),W=RD.width(el),H=220,L=40,R=10,T=10,B=30,iw=W-L-R,ih=H-T-B;
     const lo=Math.max(0,Math.floor(Math.min(r.u[0],r.p[0])*10)/10-0.1),hi=Math.min(1,Math.ceil(r.u[M.n-1]*10)/10+0.05);
     const x=kk=>L+iw*(kk-1)/(M.n-1),y=v=>T+ih*(1-(v-lo)/(hi-lo));let s='';
-    for(let g=lo;g<=hi+1e-9;g+=0.1)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/>'+RD.t(L-5,y(g)+4,Math.round(g*100)+'%',{a:'end',fs:10,fill:'var(--mute)'});
+    for(let g=lo;g<=hi+1e-9;g+=0.1)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/>'+RD.t(L-5,y(g)+4,Math.round(g*100)+'%',{a:'end',fs:11,fill:'var(--mute)'});
     for(const [arr,col] of [[r.u,'var(--c1)'],[r.p,'var(--c2)']]){s+='<path d="'+arr.map((v,i)=>(i?'L':'M')+x(i+1).toFixed(1)+','+y(v).toFixed(1)).join('')+'" fill="none" stroke="'+col+'" stroke-width="2.2"/>';arr.forEach((v,i)=>s+='<circle cx="'+x(i+1)+'" cy="'+y(v)+'" r="2.6" fill="'+col+'"/>')}
-    for(let kk=1;kk<=M.n;kk++)s+=RD.t(x(kk),H-B+14,String(kk),{a:'middle',fs:10,fill:'var(--mute)'});
+    for(let kk=1;kk<=M.n;kk++)s+=RD.t(x(kk),H-B+14,String(kk),{a:'middle',fs:11,fill:'var(--mute)'});
     s+=RD.t(L+iw/2,H-2,'k',{a:'middle',fs:10.5,fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'pass@k on LiveCodeBench');
     $('pk-real-out').innerHTML=RD.stat('pass@1',CM.pct(r.u[0]),r.np+' problems')+RD.stat('pass@'+M.n+', Codex',CM.pct(r.u[M.n-1]),'share with ≥ 1 pass')+RD.stat('pass@'+M.n+', plug-in',CM.pct(r.p[M.n-1]),((r.u[M.n-1]-r.p[M.n-1])*100).toFixed(1)+' points low');

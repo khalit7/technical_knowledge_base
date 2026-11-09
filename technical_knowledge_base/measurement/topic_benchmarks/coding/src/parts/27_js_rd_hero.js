@@ -1,4 +1,4 @@
-// ---- Reading: the hero (three levers outside the model, with one measured pair each) and the SWE-bench probes chart ----
+// ---- Reading: the dumbbell helper (window.RDB) and the SWE-bench probes chart (the hero is the 3D stage in 31_js_sc_hero.js since 2026-11-09) ----
 // Every value is published and cited in the captions; the deltas are differences of the printed values.
 window.RDB=(function(){
   // wrap a label to lines of at most max characters
@@ -33,28 +33,6 @@ window.RDB=(function(){
     return {s,y:y+4};
   }
   return {wrap,dumb};
-})();
-(function(){
-  const el=document.getElementById('rd-hero');if(!el)return;
-  const G=[
-    {g:'1  THE TESTS',rows:[{lab:'o1-preview: base MBPP tests, then MBPP+ (35x more tests, same 378 tasks)',a:95.5,b:80.2}]},
-    {g:'2  THE TASKS',rows:[{lab:'Claude Opus 5: SWE-Bench Pro V2 public split, then the private split it cannot have seen',a:99.4,b:81.6},
-      {lab:'GPT-5.4-mini: SWE-bench Verified, then the same 500 tasks with the repositories transformed',a:46.8,b:35.6}]},
-    {g:'3  THE HARNESS',rows:[{lab:'GPT-5: SWE-Bench Pro V1 public, 200 turns, then 250 turns with no cost cap',a:23.3,b:41.8}]}];
-  function draw(){
-    const W=RD.width(el);let s='';
-    // the pipeline: where each lever sits
-    const n=4,gap=20,bw=(W-gap*(n-1))/n,bh=40,y0=10;
-    const nm=[['the task',''],['the model in','a harness'],['the tests',''],['the score','']],mk=[2,3,1,0];
-    for(let i=0;i<n;i++){const x=i*(bw+gap);const on=mk[i]>0;
-      s+='<rect x="'+(x+1)+'" y="'+y0+'" width="'+(bw-2)+'" height="'+bh+'" rx="7" fill="'+(on?'var(--acc2)':'var(--soft)')+'" stroke="'+(on?'var(--acc)':'var(--line)')+'" stroke-width="1.4"/>';
-      const ls=nm[i].filter(Boolean);ls.forEach((t,j)=>s+=RD.t(x+bw/2,y0+bh/2+4+(j-(ls.length-1)/2)*13,t,{a:'middle',fs:bw<100?11:11.5,w:on?600:400}));
-      if(on)s+='<circle cx="'+(x+bw-4)+'" cy="'+(y0+2)+'" r="8" fill="var(--acc)"/>'+RD.t(x+bw-4,y0+6,String(mk[i]),{a:'middle',fs:11,w:700,fill:'var(--bg)'});
-      if(i<n-1){const ax=x+bw+2,ay=y0+bh/2;s+='<path d="M'+ax+','+ay+'h'+(gap-7)+'" stroke="var(--mute)" stroke-width="1.4"/><path d="M'+(ax+gap-4)+','+ay+'l-6,-4v8z" fill="var(--mute)"/>'}}
-    const d=RDB.dumb(W,y0+bh+8,G,{dl:'change'});s+=d.s;
-    el.innerHTML=RD.svg(W,d.y,s,'Pipeline from task to score with three levers outside the model, and one model-pair per lever');
-  }
-  RD.onRender(draw);RD.onResize(draw);draw();
 })();
 (function(){
   const el=document.getElementById('rd-flaw');if(!el)return;

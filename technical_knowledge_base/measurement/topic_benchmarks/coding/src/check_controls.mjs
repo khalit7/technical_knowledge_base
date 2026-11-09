@@ -2,7 +2,8 @@
 // elements wider than the viewport; check the page's JS numbers against recompute_out.json; save screenshots.
 // usage (from src/): python3 recompute.py && node check_controls.mjs
 // Since 2026-10-24 every widget lives in the Reading tab (the lab tabs were moved inline); closed blocks are opened first.
-// Also checks that no animation moves before the reader acts (normal motion, cards scrolled into view).
+// The 3D stages (Figs. 1 to 3) are checked by check_stages.mjs; this script checks the 2D widgets and, since 2026-11-09, that the pass@k
+// animation (Fig. 4) plays by itself once scrolled into view with normal motion and stays still under reduced motion (the old no-autoplay check, inverted).
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -56,11 +57,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   // ---- Reading ----
   await tab('t-read'); await scan('t-read', 'read initial');
-  for (const m of ['unb', 'plug']) { await p.click(`#rd-pk-mode button[data-m=${m}]`); for (const i of [0, 3, 8, 20, 21]) { await slide('rd-pk-ctl-s', i); await scan('t-read', `pk ${m} ${i}`) } }
+  for (const m of ['unb', 'plug']) { await p.click(`#rd-pk-mode button[data-m=${m}]`); for (const i of [0, 1, 2, 3, 4, 5, 6]) { await slide('rd-pk-ctl-s', i); await scan('t-read', `pk ${m} ${i}`) } }
   await (await p.$('#rd-pk-card')).screenshot({ path: `${shots}/rd-pk-${scheme}-${width}.png` });
-  for (const m of ['c6', 'c4', 'c1']) { await p.click(`#rd-he-mode button[data-m=${m}]`); const n = await p.evaluate(() => +document.getElementById('rd-he-ctl-s').max); for (let i = 0; i <= n; i++) { await slide('rd-he-ctl-s', i); await scan('t-read', `he ${m} ${i}`) }
-    const cap = await p.evaluate(() => document.getElementById('rd-he-cap').innerText); if (m === 'c6' && !/45 wrong answers/.test(cap)) { bad++; console.log('he c6 verdict', cap) }
-    await (await p.$('#rd-he-card')).screenshot({ path: `${shots}/rd-he-${m}-${scheme}-${width}.png` }) }
   // Real-SWE: drop each task in turn
   for (let i = 0; i < 10; i++) { await p.click(`#rd-rs tr[data-i="${i}"]`); await scan('t-read', 'rs drop ' + i); await p.click(`#rd-rs tr[data-i="${i}"]`) }
   await p.click('#rd-rs tr[data-i="5"]'); const lead = await p.evaluate(() => document.getElementById('rd-rs-cnt').innerText); if (!/Fable 5\.1/.test(lead)) { bad++; console.log('loo leader', lead) } await p.click('#rd-rs tr[data-i="5"]');
@@ -80,12 +78,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.evaluate(() => { document.getElementById('lc-p').value = ''; document.getElementById('lc-d').value = '' }); await slide('lc-s', 0);
   for (let a = 0; a < 28; a += 3) for (const d of ['m', '', 'e', 'h']) { await sel('lc-a', a); await sel('lc-md', d); await scan('t-read', `mon ${a} ${d}`) }
   await sel('lc-a', await p.evaluate(() => CD.lcb.models.findIndex(m => m.m === 'DeepSeek-V3'))); await sel('lc-md', 'm');
-  // ---- One SWE-bench task ----
+  // ---- One SWE-bench task: the candidate chips swap the step list and the username checks ----
   await scan('t-read', 'task initial');
-  const verdicts = {};
-  for (const m of ['gold', 'issue', 'half', 'none']) { await p.click(`#tk-mode button[data-m=${m}]`); for (let i = 0; i < 6; i++) { await slide('tk-ctl-s', i); await scan('t-read', `task ${m} ${i}`) } verdicts[m] = await p.evaluate(() => document.getElementById('tk-cap').innerText.split('\n')[0]) }
-  const exp = { gold: 'RESOLVED', issue: 'RESOLVED', half: 'NOT RESOLVED', none: 'NOT RESOLVED' };
-  for (const m in exp) if (!verdicts[m].endsWith(': ' + exp[m])) { bad++; console.log('verdict', m, verdicts[m]) }
+  for (const m of ['gold', 'issue', 'half', 'none']) { await p.$eval(`#swe-mode button[data-m=${m}]`, e => e.click()); await new Promise(r => setTimeout(r, 150));
+    const r = await p.evaluate(m => ({ shown: [...document.querySelectorAll('ol.sx[id^=sx-swe-]')].filter(o => !o.hidden).map(o => o.id), det: document.getElementById('tk-detail').innerText }), m);
+    if (r.shown.join() !== 'sx-swe-' + m) { bad++; console.log('swe list', m, r.shown) }
+    const fails = (r.det.match(/FAIL/g) || []).length, want = { gold: 0, issue: 0, half: 1, none: 2 }[m]; if (fails !== want) { bad++; console.log('swe checks', m, fails) }
+    await scan('t-read', `task ${m}`) }
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true)); await scan('t-read', 'task details');
   // ---- Further reading: every tab link ----
   await tab('t-more'); await scan('t-more', 'more');
@@ -97,16 +96,14 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   console.log(scheme, width, 'done');
   await p.close();
 }
-// ---- nothing moves before the reader acts (normal motion) ----
-{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+// ---- the pass@k animation plays once in view (normal motion), and not under reduced motion ----
+for (const rm of ['no-preference', 'reduce']) { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
   await p.goto('file://' + file); await p.evaluate(() => { try { localStorage.clear() } catch (e) {} }); await p.reload();
-  await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')) }));
-  for (const c of ['rd-pk-card', 'rd-he-card', 'tk-card']) {
-    await p.$eval('#' + c, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
-    const v = await p.$eval('#' + c.replace('card', 'ctl') + '-s', e => +e.value); if (v !== 0) { bad++; console.log('AUTOPLAY', c, v) } }
-  // a mode switch must not start playback either
-  await p.click('#rd-he-mode button[data-m=c4]'); await new Promise(r => setTimeout(r, 2500));
-  if (await p.$eval('#rd-he-ctl-s', e => +e.value) !== 0) { bad++; console.log('AUTOPLAY after mode switch') }
-  console.log('no-autoplay check done'); await p.close(); }
+  await p.evaluate(() => { const d = document.getElementById('rd-pk-det'); d.open = true; d.dispatchEvent(new Event('toggle')) });
+  await p.$eval('#rd-pk-card', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1500));
+  const r = await p.evaluate(() => [document.getElementById('rd-pk-ctl-p').textContent, document.querySelectorAll('#sx-pk>li').length, +document.getElementById('rd-pk-ctl-s').max + 1]);
+  if (rm === 'reduce' ? /Pause/.test(r[0]) : !/Pause/.test(r[0])) { bad++; console.log('pk autoplay', rm, r[0]) }
+  if (r[1] !== r[2]) { bad++; console.log('pk list', r) }
+  console.log('pk autoplay check', rm, r[0].trim()); await p.close() }
 await b.close(); console.log('problems', bad);

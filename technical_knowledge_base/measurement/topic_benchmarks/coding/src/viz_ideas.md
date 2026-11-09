@@ -24,3 +24,13 @@ What the methodology lacked: a rule for leaderboard data that is visibly broken 
 | pass@k curves on real counts, LiveCodeBench monthly chart, harness stepper | moved from tabs | Reading, beside their claims | unchanged |
 
 Rejected: one model's SWE-bench readings across splits and harnesses (Claude Opus 5, 63.4% to 99.4%): the parent's Same model, many numbers tab owns it; a SWE-bench Figure 1 image: the harness stepper shows the same pipeline on a real task; any photo: nothing physical to show.
+
+## 2026-11-09 rollout (split layout, renderer v2 stages)
+| Idea | Kind | Placement | Data |
+|---|---|---|---|
+| Fig. 1 hero: task, model in a glass harness, a wall of tests, the score; one lever at a time with its published pair, camera in close per lever | 3D stage, 6 steps | Reading top, split | the four published pairs (replaces the 2D hero) |
+| Fig. 2 weak tests: three Codex samples as cards, each with a glass plate of 13 + 154 input cells lighting as they run | 3D stage, 6 steps | Weak tests, split | `CD.he.res` from recompute.py (replaces the 2D HumanEval/31 grid and its mode chips) |
+| Fig. 3 one SWE-bench task: container at the base commit, patch and test patch landing on their files, 3 fail-to-pass and 19 pass-to-pass cubes, verdict; four candidate modes | 3D stage, 4 modes of 6 steps | SWE-bench, split | `CD.dj`, `CD.djr` (replaces the 2D harness stepper) |
+| Fig. 4 pass@k estimator's bias: 20 draws grouped into five stretches of four | 2D RD.anim with a step list | closed block, split | illustrative draw, exact binomial sums |
+
+Rejected: a 3D pass@k-from-n-samples stage (Agentic benchmarks Fig. 3 already draws the same estimator trial by trial on real runs; linked instead); 3D for the LiveCodeBench monthly chart, the pass@k curves, the probes, the Verified counts, the Pro splits, the SWE-rebench split, the Real-SWE grid and the SchrodingerRepo bars (curves, intervals, tables and counts read best flat); a contamination timeline in 3D (a timeline is flat).

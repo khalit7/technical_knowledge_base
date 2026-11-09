@@ -23,9 +23,9 @@
     const A=L.models[+$('lc-a').value],B=L.models[+$('lc-b').value],d=$('lc-md').value;
     const el=$('lc-mon'),W=RD.width(el),H=240,Lm=38,R=10,T=10,Bm=34,iw=W-Lm-R,ih=H-T-Bm;
     const x=i=>Lm+iw*(i+0.5)/months.length,y=v=>T+ih*(1-v);let s='';
-    for(const g of [0,.25,.5,.75,1])s+='<line x1="'+Lm+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/>'+RD.t(Lm-5,y(g)+4,Math.round(g*100)+'%',{a:'end',fs:10,fill:'var(--mute)'});
-    months.forEach((mo,i)=>{if(mo.endsWith('-01')||i===0)s+=RD.t(x(i),H-Bm+14,mo.slice(0,4),{a:'middle',fs:10,fill:'var(--mute)'})});
-    s+=RD.t(Lm+iw/2,H-4,'month the problem was released',{a:'middle',fs:10,fill:'var(--mute)'});
+    for(const g of [0,.25,.5,.75,1])s+='<line x1="'+Lm+'" x2="'+(W-R)+'" y1="'+y(g)+'" y2="'+y(g)+'" stroke="var(--line)"/>'+RD.t(Lm-5,y(g)+4,Math.round(g*100)+'%',{a:'end',fs:11,fill:'var(--mute)'});
+    months.forEach((mo,i)=>{if(mo.endsWith('-01')||i===0)s+=RD.t(x(i),H-Bm+14,mo.slice(0,4),{a:'middle',fs:11,fill:'var(--mute)'})});
+    s+=RD.t(Lm+iw/2,H-4,'month the problem was released',{a:'middle',fs:11,fill:'var(--mute)'});
     for(const [M,col] of [[A,'var(--c1)'],[B,'var(--c2)']]){
       const mi=months.indexOf(M.mark.slice(0,7));if(mi>=0)s+='<line x1="'+x(mi)+'" x2="'+x(mi)+'" y1="'+T+'" y2="'+(T+ih)+'" stroke="'+col+'" stroke-dasharray="4 3"/>';
       const ser=series(M,d);let path='';ser.forEach((v,i)=>{if(!v){return}path+=(path?'L':'M')+x(i).toFixed(1)+','+y(v[0]).toFixed(1)});
