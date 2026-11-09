@@ -71,7 +71,7 @@
   reg('dg-dt-view',w=>{
     const dt=C.rlvr.dt,c1=(DG.rules['datatrove|post'].cats.copy||0),c2=69; // 69: facts.json dt_line ("catches 69 of 71")
     const rows=[['default (answer n-grams)',dt.default.docs,c1],['find_query_ngrams=True',dt.query.docs,c2]];
-    const narrow=w<560,lw=narrow?0:180,bw=w-lw-6,sc=bw*0.7/Math.max(dt.default.docs,dt.query.docs);let y=4,h='';
+    const narrow=w<700,lw=narrow?0:180,bw=w-lw-6,sc=bw*0.7/Math.max(dt.default.docs,dt.query.docs);let y=4,h='';
     rows.forEach(([n,rm,cp])=>{let yy=y;if(narrow){h+=T(0,y+11,n,{w:600});yy+=15}else h+=T(0,y+16,n,{w:600});
       const lab=f(rm)+' rows removed, <tspan style="fill:var(--bad);font-weight:600">'+cp+' of 71 copies</tspan>';
       h+=R(lw,yy+4,rm*sc,14,FP,{rx:1})+R(lw,yy+4,cp*sc,14,COPY,{rx:1})+(narrow?T(0,yy+33,lab,{}):T(lw+rm*sc+5,yy+15,lab,{}));y+=narrow?56:30});

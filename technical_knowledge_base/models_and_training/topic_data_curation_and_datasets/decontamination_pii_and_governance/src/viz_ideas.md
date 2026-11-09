@@ -36,3 +36,13 @@ reproduction target (the counts must match the labelled data, checked by `script
 | dg9, dg10 | Removal units, Min-K% AUC | Reading, sections 6 and 5 | redrawn as SVG |
 | dg6, dg8 | PII lab, provenance chain | moved from tabs into sections 7 and 9 | moved |
 | dg19 | A real image | rejected: no physical object; mechanisms are drawn |
+
+## 2026-11-09 rollout (split layout, renderer v2 stages)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| dg20 | Fig. 1: one real pair as two rows of token blocks, a glass n-gram window sliding into the index and along the document, covered tokens rising against Tulu 3's 50% plate, four verdict plinths | Reading, section 2 | built (`26_js_sc_ng.js`; replaces the 2D stepper, whose captions became the step list) |
+| dg21 | Fig. 2: the running example as two fields of document sets, each rule's flagged pairs lifted into a column split by label | Reading, section 3 | built (`27_js_sc_fld.js`; dg16 kept as a closed flat chart) |
+| dg22 | Fig. 3: a too-short copy as two glass plates, then the 72 nearest pairs at radius 1 - cosine with the 0.95 and 0.88 rings, then the judge's verdicts | Reading, section 4 | built (`28_js_sc_emb.js`) |
+| dg23 | Removal cost as nested volumes cut from one document | section 6 | rejected: the message is four numbers on a log axis; the 2D bars stay |
+| dg24 | Documents removed against benchmark score change | section 6 | rejected: the page has no score data; score effects are Topic: benchmarks' |
+| dg8 | Provenance chain | section 9 | kept 2D, step list `sx-pv`, only the current step expanded so the card stays in view |

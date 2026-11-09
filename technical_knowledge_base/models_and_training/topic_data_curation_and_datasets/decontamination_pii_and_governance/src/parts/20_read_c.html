@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <section id="dg-s2">
 <h2>2. Finding it in training data: n-gram rules</h2>
 <p><b>The idea.</b> Turn every test item and every training document into <dfn>tokens</dfn> (usually lower-cased words, punctuation stripped), then look for runs of <i>n</i> consecutive tokens, <dfn>n-grams</dfn>, that occur in both. A copied question shares almost all its n-grams with the page that copies it; an unrelated page shares none. The choice of <i>n</i> trades the two errors: short n-grams ("which of the following is") occur everywhere, long ones break on any small edit.</p>
@@ -6,24 +7,34 @@
 <div class="opts"><button data-a="0">under 1%</button><button data-a="1">about 10%</button><button data-a="2">about 40%</button><button data-a="3">over 80%</button></div>
 <div class="ans" hidden>83.5% (41,762 of 50,000). At 8 tokens it is 2.2%, at 13 tokens 0.04%: the chart below has every corpus.</div>
 </div>
-<div class="rd-card" id="dg-n-card">
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="dg-n-card">
 <h4>A 5-gram touches most of the web; a 13-gram almost none of it</h4>
 <div class="seg" id="dg-n-seg"><button data-m="5">n = 5</button><button data-m="8" class="on">n = 8 (Tulu 3, Llama 3)</button><button data-m="13">n = 13 (GPT-3)</button></div>
 <div class="vz" id="dg-n-view"></div>
 <p class="small mute"><span class="meas">measured</span> Share of each corpus's documents that share at least one n-gram with any of the @@n_items@@ test items (log scale). Sharing an n-gram is not containing a test question: section 3 reads what the flags are.</p>
-</div>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-ng"></div></div><div class="s3L">
+<div>
 <p><b>How it runs at scale.</b> The test side is small, so it becomes an index: hash every n-gram of every test item into a set (or a Bloom filter, a fixed-size bit array that answers "probably seen" or "certainly not seen"; the root's {{Dedup lab|n:3c65c17b0d0d811fa5ecda8d365ab00f}} measures one). The training side is streamed once: hash each document's n-grams and look each up. The cost is one pass over the corpus at roughly the speed of tokenising it; the index here, all seven benchmarks at once, holds @@idx13@@ distinct 13-grams and @@idx8@@ 8-grams. Llama 2 used suffix arrays instead (which find matches of any length) and reports the pass took "around seven hours ... utilizing an estimated 1,500 cores" (<a href="https://arxiv.org/abs/2307.09288" target="_blank" rel="noopener noreferrer">Appendix A.6</a>).</p>
-<p><b>The published rules</b> differ in four choices: the unit (words or model tokens), <i>n</i>, what is matched (the whole item, the question, or the answer), and the decision. Three cover most practice: <b>GPT-3</b>, any shared 13-gram of words, ignoring 13-grams that match more than 10 training documents; <b>Tulu 3</b> (Llama 3 and PaLM are similar), an item counts as matched when more than 50% of its tokens sit in 8-grams shared with one training example; <b>datatrove</b>'s default, any shared 12-gram from the answer, numbers replaced by 0. Singh et al. found the longest single matched span (<dfn>longest match</dfn>, their ConTAM) works better than the union of all matches. The stepper runs all four on one real pair.</p>
-<div class="rd-card" id="dg-ng-card">
-<h4>One real pair, four rules: the same marks, four verdicts</h4>
-<p class="small">A benchmark item (top) and the matched part of a training document (bottom), tokenised as the scripts here do. Step through: normalise, index the item's 8-grams, stream the document, mark the covered item tokens, apply each rule. Switch the pair to see a real copy, a shared famous passage, a question stem and shared diagram code go through the same steps.</p>
-<div class="seg" id="dg-ng-pair"></div>
-<div id="dg-ng-ctl" class="an-ctl"></div>
-<div class="an-cap" id="dg-ng-cap"></div>
+<p><b>The published rules</b> differ in four choices: the unit (words or model tokens), <i>n</i>, what is matched (the whole item, the question, or the answer), and the decision. Three cover most practice: <b>GPT-3</b>, any shared 13-gram of words, ignoring 13-grams that match more than 10 training documents; <b>Tulu 3</b> (Llama 3 and PaLM are similar), an item counts as matched when more than 50% of its tokens sit in 8-grams shared with one training example; <b>datatrove</b>'s default, any shared 12-gram from the answer, numbers replaced by 0. Singh et al. found the longest single matched span (<dfn>longest match</dfn>, their ConTAM) works better than the union of all matches. Fig. 1 runs all four on one real pair.</p>
+<p class="sxh">Fig. 1 · one real pair, four rules: the same marks, four verdicts</p>
+<div class="s3chips" id="dg-ng-pair"></div>
+<ol class="sx" id="sx-ng">
+<li><b>Normalise both texts.</b> Lower-case, punctuation to spaces, accents removed, split on spaces (datatrove's <code>simplify_text</code> with numbers kept). The front row is the benchmark item (<span id="ng-s1">MMLU #4393, 75 tokens</span>), one block per token; the back row is the matched part of a training document (<span id="ng-s1d">Tulu 3 RLVR GSM/MATH/IF, all 29,946 prompts, 82 tokens shown</span>). This is what every rule sees: in maths the operators are punctuation, so they are gone.</li>
+<li><b>Index the item's n-grams.</b> A window of <span class="ng-n">8</span> tokens slides along the item and hashes every run into the index: <span id="ng-s2">68</span> n-grams for this item. The index is the small side: the whole page's, for all seven benchmarks, is built in seconds.</li>
+<li><b>Stream the document.</b> The same window slides along the document and looks each n-gram up; a hit lights its tokens green: <span id="ng-s3">63</span> of the item's n-grams are shared.</li>
+<li><b>Mark the item tokens covered.</b> Item tokens inside a shared n-gram rise: coverage <span id="ng-s4">93%</span> of the tokens shown, the longest unbroken covered run <span id="ng-s4r">70</span> tokens (what ConTAM uses). The glass plate at the right is Tulu 3's 50% line.</li>
+<li><b>Apply the published rules.</b> The same marks, four verdicts, each on the whole item: <span id="ng-s5">GPT-3 (any 13-gram) flags it, 58 shared 13-grams; Tulu 3 (more than 50% of the item by 8-grams) flags it, coverage 93% of all 75 tokens; ConTAM (longest match) flags it, a run of 70 tokens, 93% of the item; datatrove's default (a 12-gram on the answer) passes it</span>. <b>What it really is:</b> <span id="ng-s5w">copy. This is the case decontamination exists for: the test question and its answer are in the training row.</span></li>
+</ol>
+<p class="small">Switch the pair to put a famous passage, a question stem and shared diagram code through the same five steps, and n to 13 to see how the marks shrink. The tokens themselves, with the shared ones marked:</p>
 <div id="dg-ng-view"></div>
-<div class="an-cnt" id="dg-ng-cnt"></div>
 <p class="small mute"><span class="meas">measured</span> pairs from the running example (flagged by the scan in <code>src/scripts/dg_contam.py</code>, labelled by reading). Tokens: datatrove's <code>simplify_text</code> with numbers kept, split on spaces. The verdicts are computed in the page from these tokens and agree with the scan.</p>
 </div>
+</div></div>
+<div>
 <p><b>Two details that decide the false-positive rate.</b></p>
 <ul class="tight">
 <li><b>Punctuation stripping erases mathematics.</b> Every rule removes punctuation before matching, and in maths the operators are punctuation: <code>z^4 + z^2 + 1</code> and <code>z^4 - z^2 + 1</code> become the same tokens. The scan here flagged a Tulu 3 RLVR prompt as a copy of a MATH-500 problem for exactly that reason (section 3). For maths and code, match on a normalisation that keeps operators and digits, or confirm matches by comparing answers.</li>
@@ -51,4 +62,4 @@
 </tbody></table></div>
 <p class="small mute">Tulu 3 does not name the tokenizer it counts with; its Table 37 caption says "&gt;5% eval overlap" while Section 3.2 states 2% (both quoted, the paper does not reconcile them). Singh et al., whose method Llama 3 follows, found the longest single matched span works better than the union of all matches, and that n above 8 or requiring more than one occurrence causes misses (<a href="https://arxiv.org/abs/2411.03923" target="_blank" rel="noopener noreferrer">arXiv 2411.03923, Section 1</a>).</p>
 </div></details>
-</section>
+</div>
