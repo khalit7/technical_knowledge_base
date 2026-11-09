@@ -109,7 +109,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `engineering_foundations/topic_swe_and_system_design/system_design_case_studies` System design case studies: worked designs from requirements to bottlenecks
 - [x] `engineering_foundations/topic_swe_and_system_design/testing_and_quality` Testing and quality: unit, property-based, data and model tests, CI
 - [x] `engineering_foundations/topic_swe_and_system_design` Topic: swe-and-system-design
-- [ ] `measurement/topic_benchmarks/agentic` Agentic benchmarks: GAIA, OSWorld, WebArena, tau2, Terminal-Bench, MCP evals
+- [x] `measurement/topic_benchmarks/agentic` Agentic benchmarks: GAIA, OSWorld, WebArena, tau2, Terminal-Bench, MCP evals
 - [ ] `measurement/topic_benchmarks/coding` Coding benchmarks: HumanEval to SWE-bench Pro
 - [ ] `measurement/topic_benchmarks/human_preference_and_arenas` Human preference and arenas
 - [ ] `measurement/topic_benchmarks/knowledge_and_reasoning` Knowledge and reasoning benchmarks: MMLU family, GPQA, HLE, ARC-AGI
@@ -402,3 +402,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `engineering_foundations/topic_swe_and_system_design/system_design_case_studies`: 5- and 6-lane stages draw small parts at full view (Figs. 5 and 7 cut lanes at the card edges at 1400); hero tight in the right column at 1400; phone stages name parts only in the naive step; check_stages takes about 4.5 min; 28 min of closed details is large.
 - `engineering_foundations/topic_swe_and_system_design/testing_and_quality`: Fig. 1 hero left label (search: [2] on PostgreSQL) runs to the card edge at 1400; section 5 two-engines figure overlaps Fig. 2 slightly (kept for measured cost per test); the property animation's Examples mode was dropped (section 3 still shows those tests).
 - `engineering_foundations/topic_swe_and_system_design` (root): map Step 4 red wall label appears only after the camera arrives at 1400; tab storage key `bench-tab` is shared with the benchmarks pages (rename to `swe-tab` would stop them remembering each other's tab); src/cases/inputs/verify_log.txt holds two em-dashes inside a recorded log; verify_layout flags the Scale simulator and Case files svgs outside a split (accepted: reader-driven tools).
+- `measurement/topic_benchmarks/agentic`: Fig. 3 "pass^2 = 69.59" total label runs to the card's right edge at 1400; Fig. 3 small and Fig. 2 compact at 390; Fig. 1 objects fade at the card edge during camera glides; recompute.py needs `uv run --no-project --with numpy --with scikit-learn --with pyyaml`.

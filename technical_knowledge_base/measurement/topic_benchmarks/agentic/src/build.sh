@@ -1,7 +1,7 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/. Copy this file to <page folder>/src/build.sh; it needs no edits for the standard layout.
-# This page: 02_css.html (shared look) and 03_css_page.html (this page's pieces) follow 01_head.html. Data parts are generated:
+# This page: 02_css.html (shared look), 03_css_page.html (this page's pieces) and 02_split.html (template, the split layout) follow 01_head.html. Data parts are generated:
 #   uv run --with pyyaml python3 mk_data.py (parts/22_js_data.js) and python3 mk_harness.py (parts/22_js_hs.js).
 # What to change for a new page: nothing here unless the layout differs. Set the <title> in parts/01_head.html,
 # the storage key in parts/99_js_tabs.js, and add a tex2mathml pass (below, commented) only if the page has LaTeX.
@@ -18,7 +18,7 @@ P=parts
 reads=$(ls $P/20_read_*.html 2>/dev/null | LC_ALL=C sort)
 tabs=$(ls $P/3*_tab_*.html 2>/dev/null | LC_ALL=C sort)
 js=$(ls $P/*.js 2>/dev/null | LC_ALL=C sort)
-{ cat $P/01_head.html $P/02_css.html $P/03_css_page.html $P/10_header.html
+{ cat $P/01_head.html $P/02_css.html $P/03_css_page.html $P/02_split.html $P/10_header.html
   [ -f $P/20_read.html ] && cat $P/20_read.html
   for f in $reads; do cat "$f"; done
   for f in $tabs; do cat "$f"; done

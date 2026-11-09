@@ -32,11 +32,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const setRange = async (sel, where) => { const [lo, hi] = await p.$eval(sel, e => [+e.min, +e.max]); for (let v = lo; v <= hi; v++) { await p.evaluate((s, v) => { const e = document.querySelector(s); e.value = v; e.dispatchEvent(new Event('input')) }, sel, v); actions++; await wait(20); await bad(where + ' ' + sel + '=' + v) } };
   // Reading
   await bad('read load');
-  for (const m of [0, 1, 2]) { await p.evaluate(m => document.querySelector(`#an1-mode button[data-m="${m}"]`).click(), m); for (let i = 0; i < 7; i++) { await p.evaluate(s => document.querySelector(s).click(), '#an1-ctl-f'); actions++ } await bad('an1 mode ' + m); for (let i = 0; i < 7; i++) { await p.evaluate(s => document.querySelector(s).click(), '#an1-ctl-b'); actions++ } }
-  await setRange('#an1-ctl-s', 'an1 scrub');
-  for (const m of ['hat', 'at']) { await p.evaluate(m => document.querySelector(`#an2-mode button[data-m="${m}"]`).click(), m); await setSel('#an2-set', 'an2 ' + m); await setRange('#an2-ctl-s', 'an2 scrub ' + m) }
-  await p.evaluate(s => document.querySelector(s).click(), '#an2-ctl-p'); await wait(500); await p.evaluate(s => document.querySelector(s).click(), '#an2-ctl-p'); actions += 2;
-  await p.select('#an2-ctl-v', '2'); actions++;
+  // the three 3D stages (Fig. 1 to 3): every mode chip, every step via the stage controls, the run picker (autoplay and reduced motion: check_stages.mjs)
+  const stepAll = async (id, where) => { const n = await p.$eval(`#${id}-r`, e => +e.max + 1); for (let i = 0; i < n; i++) { await p.evaluate(s => document.querySelector(s).click(), `#${id}-f`); actions++ } await bad(where); for (let i = 0; i < n; i++) { await p.evaluate(s => document.querySelector(s).click(), `#${id}-b`); actions++ } };
+  await stepAll('stg-hero', 'hero');
+  for (const m of [0, 1, 2]) { await p.evaluate(m => document.querySelector(`#run-mode button[data-m="${m}"]`).click(), m); actions++; await stepAll('stg-run', 'run mode ' + m) }
+  for (const m of ['hat', 'at']) { await p.evaluate(m => document.querySelector(`#pk-mode button[data-m="${m}"]`).click(), m); actions++; await setSel('#an2-set', 'pk stage ' + m); await stepAll('stg-pk', 'pk stage ' + m) }
+  await p.select('#stg-pk-s', '2'); actions++;
   await clickAll('#tbb-y button', 'tbb'); await clickAll('#tbb-fig circle[data-i]', 'tbb points');
   await clickAll('#tbl-fig g[data-i]', 'tbl');
   await clickAll('#t-read details > summary', 'closed blocks'); await clickAll('#hs-fig circle[data-m]', 'harness strip');

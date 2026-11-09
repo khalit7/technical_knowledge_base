@@ -33,3 +33,7 @@ What the methodology lacked: a rule for leaderboard files that do not reproduce 
 | 17 | **OSWorld Figure 2** (CC BY 4.0): a task config whose expected file is a public URL | Reading, Computer use | built (real image) |
 | 3, 4, 5 | pass^k, Time horizon and Grade a real task tabs | moved into Reading (inline charts beside their claims; explorers in closed blocks) | moved |
 | 5b | exploit matrix | removed: it repeated the three-run animation | removed |
+
+## 2026-11-08 (layout rollout)
+- Built: three 3D stages (Fig. 1 hero run and the four places; Fig. 2 regex-log in three runs as containers with file blocks; Fig. 3 pass^k as towers of trial cubes on success-count platforms).
+- Considered and rejected for 3D: the harness strip chart, the METR fit and trend (log axes), the Terminal-Bench 4.0 board scatter, the rank bars and the families map: each reads best flat. A 3D "harness, effort and budget wrapping one model" stage was skipped: Fig. 1 step 2 already shows the harness spread, and the effort and budget numbers are a handful of scalars the text carries.

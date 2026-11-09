@@ -1,17 +1,39 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-run"></div></div><div class="s3L">
 <section id="rd-anat">
 <h2>1. How an agent benchmark is built and checked</h2>
-<p>Take one real task, {{regex-log|https://github.com/harbor-framework/terminal-bench-2/tree/main/regex-log}} from Terminal-Bench 2.0 (Apache 2.0). The <b>task</b> is an instruction plus an initial state plus limits: write a regular expression that finds the last date on each log line containing a valid IPv4 address, save it to <code>/app/regex.txt</code>, within 900 seconds, 1 CPU and 2 GB. The <b>environment</b> is a Docker container with a shell. The <b>checker</b>, <code>tests/test.sh</code>, installs <code>curl</code>, downloads the <code>uv</code> installer with <code>curl ... | sh</code>, runs <code>pytest</code> on 25 log lines that must yield exactly 9 dates, and writes 1 or 0 to <code>/logs/verifier/reward.txt</code>. The score is the share of tasks whose reward file says 1. Step through three runs: an honest agent, Berkeley RDI's exploit on the 2.0 layout, and the same exploit against the separate verifier that Terminal-Bench 3.0 and 4.0 tasks declare.</p>
-<div class="card" id="an1">
-<p class="ft" style="font-weight:600;margin:0 0 6px">A reward of 1 is evidence of a solution only if the agent could not touch what the checker runs</p>
-<div class="seg" id="an1-mode" role="group" aria-label="Which run"><button data-m="0" class="on">Honest agent, 2.0 layout</button><button data-m="1">Exploit, 2.0 layout</button><button data-m="2">Exploit, separate verifier</button></div>
-<div id="an1-fig"></div>
-<div class="an-cap" id="an1-cap"></div>
-<div class="an-cnt" id="an1-cnt"></div>
-<div class="an-ctl" id="an1-ctl"></div>
+<p>Take one real task, {{regex-log|https://github.com/harbor-framework/terminal-bench-2/tree/main/regex-log}} from Terminal-Bench 2.0 (Apache 2.0). The <b>task</b> is an instruction plus an initial state plus limits: write a regular expression that finds the last date on each log line containing a valid IPv4 address, save it to <code>/app/regex.txt</code>, within 900 seconds, 1 CPU and 2 GB. The <b>environment</b> is a Docker container with a shell. The <b>checker</b>, <code>tests/test.sh</code>, installs <code>curl</code>, downloads the <code>uv</code> installer with <code>curl ... | sh</code>, runs <code>pytest</code> on 25 log lines that must yield exactly 9 dates, and writes 1 or 0 to <code>/logs/verifier/reward.txt</code>. The score is the share of tasks whose reward file says 1. Fig. 2 steps through three runs: an honest agent, Berkeley RDI's exploit on the 2.0 layout, and the same exploit against the separate verifier that Terminal-Bench 3.0 and 4.0 tasks declare.</p>
+<p class="sxh">Fig. 2, a reward of 1 is evidence of a solution only if the agent could not touch what the checker runs</p>
+<div class="s3chips" id="run-mode" role="group" aria-label="Which run"><button data-m="0" class="on">Honest agent, 2.0 layout</button><button data-m="1">Exploit, 2.0 layout</button><button data-m="2">Exploit, separate verifier</button></div>
+<ol class="sx" id="sx-run-0">
+<li><b>The task starts.</b> A fresh container from the task's Dockerfile (ubuntu:24.04, WORKDIR /app). The agent gets instruction.md and a shell; task.toml gives it 900 seconds, 1 CPU and 2 GB (<code>timeout_sec = 900.0</code>, <code>cpus = 1</code>, <code>memory_mb = 2048</code>, <code>allow_internet = true</code>).</li>
+<li><b>The agent writes its answer.</b> An honest agent works out the pattern and saves one line to /app/regex.txt. Shown here: the reference solution from solution/solve.sh, written with <code>cat &lt;&lt; 'EOF' &gt; /app/regex.txt</code>.</li>
+<li><b>The agent phase ends; the checker arrives.</b> Harbor copies the protected tests/ folder into the same container. Everything the agent left behind is still there.</li>
+<li><b>The verifier installs its tools inside the container.</b> tests/test.sh installs curl (<code>apt-get install -y curl</code>), then fetches the uv installer with curl and pipes it to sh (<code>curl -LsSf https://astral.sh/uv/0.9.5/install.sh | sh</code>). 82 of the 89 Terminal-Bench 2.0 tasks do this at verification time.</li>
+<li><b>pytest runs the real test.</b> 25 log lines are joined and the regex is applied with re.findall and re.MULTILINE (<code>uvx -p 3.13 -w pytest==8.4.1 ... pytest /tests/test_outputs.py</code>). The 9 expected dates come back in order, so the one test passes: <code>test_regex_matches_dates PASSED</code>.</li>
+<li><b>Reward 1, earned.</b> test.sh writes 1 to the reward file because pytest exited 0 (<code>echo 1 &gt; /logs/verifier/reward.txt</code>). The score is the share of tasks whose reward file says 1.</li>
+</ol>
+<ol class="sx" id="sx-run-1" hidden>
+<li><b>The task starts.</b> The same container, instruction and limits: 900 seconds, 1 CPU, 2 GB, internet allowed.</li>
+<li><b>The agent plants a wrapper instead of a regex.</b> The exploit writes no solution. The container has internet, so it can install curl and replace /usr/bin/curl with a wrapper script (RDI: "replaces /usr/bin/curl with a wrapper during the agent phase"; how it gets curl onto this particular image is our reading): <code>mv /usr/bin/curl /usr/bin/curl.real</code>, then a wrapper that passes through and tampers with uvx.</li>
+<li><b>The checker arrives; /tests/ is protected.</b> Harbor re-uploads tests/, so the test file itself is clean. But the verifier will run in this same container, with the agent's binaries.</li>
+<li><b>The verifier calls the agent's curl.</b> apt-get finds curl already installed. <code>curl ... | sh</code> now runs the wrapper: it installs the real uv, then replaces uvx with a trojan.</li>
+<li><b>"pytest" never runs.</b> The trojaned uvx sees a pytest invocation and prints a passing session (RDI's write-up shows <code>3 passed in 0.05s</code>). The real test, which would fail because /app/regex.txt does not exist, is never executed.</li>
+<li><b>Reward 1, for nothing.</b> test.sh trusts the exit code and writes 1. RDI report 89 of 89 tasks, 100%, "without writing a single line of solution code".</li>
+</ol>
+<ol class="sx" id="sx-run-2" hidden>
+<li><b>The task starts (3.0 and 4.0 layout).</b> Same task, drawn under the verifier layout of every Terminal-Bench 3.0 and 4.0 task file: the verifier is a separate environment (<code>environment_mode = "separate"</code>, with <code>artifacts = ["/app/regex.txt"]</code> declared, illustrative for this task), and 4.0 gives every task a flat 8-hour agent timeout (<code>timeout_sec = 28800.0</code>).</li>
+<li><b>The agent plants the same wrapper.</b> Nothing stops the agent from tampering with its own container.</li>
+<li><b>Only the declared artifact leaves.</b> The harness copies the declared artifacts out and starts a fresh verifier from tests/Dockerfile ("Separate-mode verifiers skip the tests/ upload, so the image must own /tests/* itself"). The agent's curl stays behind in a container nobody reads.</li>
+<li><b>Nothing is installed at trial time.</b> The verifier runs pytest from its own image ("All tooling ... is pre-baked into the verifier image; nothing is installed at trial time"); it calls no binary the agent could have touched.</li>
+<li><b>The real test runs and fails.</b> The first assertion fails: <code>AssertionError: Regex file /app/regex.txt does not exist</code>.</li>
+<li><b>Reward 0.</b> The exploit buys nothing. What separation does not fix: answers shipped with the task, eval() on agent strings, or a judge that reads the agent's text (RDI's other root causes, below).</li>
+</ol>
 <p class="small mute">Files, commands and test verbatim from the task's repository (read 4 Oct 2026); exploit steps follow {{Berkeley RDI|https://rdi.berkeley.edu/blog/trustworthy-benchmarks-cont/}}, who report it on all 89 tasks (82 through the <code>curl</code> step shown, the other 7 by wrapping <code>pip</code>, <code>python</code> or a preinstalled <code>uvx</code>). The third run is <span class="ill">illustrative</span>: regex-log is a 2.0 task, drawn under the layout that every one of the 74 Terminal-Bench 3.0 and 66 4.0 task files declares (<code>environment_mode = "separate"</code>, artifacts copied out, nothing installed at trial time; counted in this page from the {{3.0 and 4.0 task files|https://github.com/harbor-framework/terminal-bench/tree/v4.0.0/tasks}}). RDI did not test 3.0 or 4.0.</p>
-</div>
 <p>The root cause is the commonest in RDI's audit: <b>the checker trusted something the agent could touch</b>. Harbor, the harness, re-uploads the protected <code>/tests/</code> folder before verification, but the verifier then used the container's own <code>curl</code>. Counted from the {{terminal-bench-2 repository|https://github.com/harbor-framework/terminal-bench-2}} in this page, 82 of the 89 tasks' <code>test.sh</code> files fetch the <code>uv</code> installer with <code>curl</code> at verification time, which matches RDI's count independently.</p>
+</section>
+</div></div>
+<section id="rd-anat2">
 <details class="dp" id="tk-card"><summary><b>Grade your own regex against regex-log's real test</b> (the task's instruction, presets, a per-line verdict)</summary><div>
 <p>Expert time estimate 45 minutes, junior 180. The test joins the 25 log lines, applies your pattern the way <code>re.findall(pattern, log_text, re.MULTILINE)</code> does, and passes only if the matches equal the 9 expected dates, in order. The instruction, verbatim:</p>
 <pre class="tk sm scrollbox" id="tk-instr"></pre>
@@ -35,27 +57,45 @@
 </tbody></table></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-pk"></div></div><div class="s3L">
 <section id="rd-rel">
 <h2>2. Best case or reliability: pass@k against pass^k</h2>
 <p>Agents are sampled, so the same task can pass on one try and fail on the next. The {{τ-bench paper (Yao et al., 2024)|https://arxiv.org/abs/2406.12045}} showed what that does to a customer-service agent: gpt-4o as a function-calling agent passed 61% of retail tasks once, but the chance of passing the same task eight times out of eight, pass^8, fell to about 25% (abstract and section 5). Below are <b>real released trials</b>: GPT-5.2 (high) on τ²-bench's 114 retail tasks, four trials each, from the trajectory file Sierra published with its leaderboard submission (26 Feb 2026, user simulator GPT-5.2). Every value is computed in the page from those 456 trials and lands on the leaderboard's published 81.58 / 69.59 / 59.87 / 51.75 exactly.</p>
-<div class="card" id="an2">
-<p class="ft" style="font-weight:600;margin:0 0 6px">The drop from pass^1 to pass^4 is set by the middle columns: tasks solved sometimes</p>
-<div class="seg" id="an2-mode" role="group" aria-label="Metric"><button data-m="hat" class="on">pass^k (all k succeed)</button><button data-m="at">pass@k (any of k succeeds)</button></div>
+<p class="sxh">Fig. 3, the drop from pass^1 to pass^4 is set by the middle platforms: tasks solved sometimes</p>
+<div class="s3chips" id="pk-mode" role="group" aria-label="Metric"><button data-m="hat" class="on">pass^k (all k succeed)</button><button data-m="at">pass@k (any of k succeeds)</button></div>
+<ol class="sx" id="sx-pk-hat">
+<li><b>The raw trials.</b> 114 tasks, each a tower of its 4 trials in file order. Sierra released every trajectory behind this leaderboard entry; each task was run 4 times with the same user instructions and database, and only the sampling of the agent and the simulated user differs.</li>
+<li><b>Group the tasks by how often they passed.</b> Each task moves to the platform of its success count: 4 tasks passed 0 times, 3 once, 11 twice, 37 three times and 59 all four times.</li>
+<li><b>k = 1: pass^1 = 81.58.</b> Every task counts c/4 of a point, so a task solved 3 times in 4 counts 0.75. This average is the number most tables print.</li>
+<li><b>k = 2: pass^2 = 69.59.</b> A task with c successes counts C(c,2)/C(4,2), the chance that 2 of its 4 recorded trials drawn without replacement both passed: the 3-of-4 platform drops to half, the 2-of-4 to a sixth.</li>
+<li><b>k = 3: pass^3 = 59.87.</b> Only the 3-of-4 tasks (a quarter each) and the 4-of-4 tasks still count.</li>
+<li><b>k = 4: pass^4 = 51.75.</b> Only the 59 tasks solved 4 times out of 4 count at all: 30 points below pass^1, from the same 456 trials.</li>
+</ol>
+<ol class="sx" id="sx-pk-at" hidden>
+<li><b>The raw trials.</b> The same 114 tasks and 456 trials.</li>
+<li><b>Group the tasks by how often they passed.</b> 4, 3, 11, 37 and 59 tasks on the platforms 0 to 4 of 4.</li>
+<li><b>k = 1: pass@1 = 81.58.</b> With one try, best case and reliability are the same number.</li>
+<li><b>k = 2: pass@2 = 93.57.</b> A task with c successes counts 1 &minus; C(4&minus;c,2)/C(4,2): the 1-of-4 platform jumps to half, the 2-of-4 to five sixths.</li>
+<li><b>k = 3: pass@3 = 95.83.</b> Every task solved at least twice now counts fully.</li>
+<li><b>k = 4: pass@4 = 96.49.</b> Every task solved even once counts fully; only the 4 never-solved tasks are left out. The best case rewards a task solved once.</li>
+</ol>
 <label class="small">Run <select id="an2-set"></select></label>
-<div id="an2-fig" class="rd-svg"></div>
-<div class="an-cap" id="an2-cap"></div>
-<div class="an-cnt" id="an2-cnt"></div>
-<div class="an-ctl" id="an2-ctl"></div>
-<p class="small mute">Each square is one task, placed in the column of how many of its 4 trials succeeded; its fill is the task's contribution to the metric at the current k. Only runs whose released file reproduces the published figures exactly are offered (27 of 36 files checked; the others are listed in the closed block below).</p>
-</div>
+<div class="small" id="pk-out"></div>
+<p class="small mute">Each tower is one task, its four cubes its four trials (green passed, orange failed), standing on the platform of how many succeeded; the bar behind each platform is that platform's contribution to the metric at the current k, and the bar on the right their sum. The step list's numbers are for the default run; the line under the run picker gives the selected run's. Only runs whose released file reproduces the published figures exactly are offered (27 of 36 files checked; the others are listed in the closed block below).</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="rd-rel2">
 <p><b>pass@k</b> is the chance that at least one of k tries succeeds (the best case); <b>pass^k</b>, introduced by τ-bench, the chance that all k succeed (reliability, what a product that must work every time needs). The formulas and the estimator, worked on one task, are owned by {{Agent and trajectory evaluation|n:3ef5c17b0d0d81fdbabaf3582bff37f2#rd-rel}} ("Reliability across runs: pass^k"); this section reads published boards with them.</p>
 <p>On real τ²-bench trials pass^4 is 15 to 30 points below pass^1. A task solved 3 times in 4 counts 0.75 toward pass^1 and nothing toward pass^4, so a model whose failures are spread thinly across many tasks falls hardest. And <b>pass@k flatters</b>: the same GPT-5.2 run reaches 96.49% at pass@4, so "solved at least once" and "solved every time" differ by 45 points. Because the drop depends on how failures are spread, <b>rankings change with k</b>. Predict before you move the slider: on retail, GPT-5.2 (81.58), Claude Opus 4.5 (79.61) and Gemini 3 Flash (76.75) differ by five points at pass^1. What happens at pass^4?</p>
-<div class="rd-fig" id="pk-card">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card rd-fig" id="pk-card">
 <p class="ft">Rankings at pass^1 are not rankings at pass^4</p>
 <div class="ctl"><label>Domain <select id="pk-dom"></select></label><label>k (tries that must all pass) <b id="pk-kv">4</b><input type="range" id="pk-k" min="1" max="4" step="1" value="4"></label></div>
 <div id="pk-bars" class="rd-svg"></div>
 <p class="small mute">Every reproduced τ²-bench run in the chosen domain, recomputed from its trajectory file (submissions in {{sierra-research/tau2-bench|https://github.com/sierra-research/tau2-bench/tree/main/web/leaderboard/public/submissions}}, MIT, read 4 Oct 2026). On retail at k = 4 the three runs tie exactly at 51.75: each solved 59 of 114 tasks four times out of four. On airline, Opus 4.5 leads at pass^1 (84.0 against 83.0) and GPT-5.2 at pass^4 (72.0 against 70.0); with 50 tasks that is one task either way, inside the noise.</p>
-</div>
+</div></div></div></div>
+<section id="rd-rel3">
 <p>Other boards report the same split. {{MCPMark|https://arxiv.org/abs/2509.24002}} launched with gpt-5 (medium) at 52.56% pass@1 and 33.86% pass^4; its board's last top entry is GPT-5.2 (high) at 57.5% pass@1 and 44.9% pass^4 ({{MCPMark leaderboard|https://mcpmark.ai/leaderboard}}, updated 15 Dec 2025). The {{Terminal-Bench 4.0 board|https://www.tbench.ai/leaderboard}} runs every pair 5 times per task and prints pass@5 beside the mean: GPT-6 Astra (max) in Codex 58.18% mean and 71.2% pass@5, Claude Fable 5.1 (max) in Claude Code 57.88% and 78.8%, so the order flips depending on which you read. If a product must work every time, ask for pass^k.</p>
 <details class="dp" id="pk-more"><summary><b>Every reproduced run, two runs task by task, pass^k beyond k = 4, and the files that do not reproduce</b></summary><div>
 <div class="tw"><table class="rd-t" id="pk-tab"></table></div>
