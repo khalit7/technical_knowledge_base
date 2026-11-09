@@ -1,5 +1,5 @@
 // Check the whole page: every control in every tab clicked at 390 px dark and 920 px light; no page errors, no NaN or
-// undefined, no sideways scroll; card screenshots to argv[2]. Reading time: html_utils/audit_pages.mjs (230 words a minute).
+// undefined, no sideways scroll; card screenshots to argv[2]. The 3D stages' autoplay, steps and reduced motion: ../check_stages.mjs. Reading time: html_utils/audit_pages.mjs (230 words a minute).
 // Usage: node check_page.mjs <shots dir>
 import {createRequire} from 'module';
 import path from 'path';
@@ -43,11 +43,8 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   }
   // screenshots of the animations at every step, and of the tabs
   await p.evaluate(()=>document.querySelector('#tabs button[data-t="t-read"]').click());await wait(200);
-  for(const [id,seg,modes,n] of [['ev-an1','ev-an1-set',['ddpm','vae','half'],6],['ev-an2','ev-an2-q',['75'],4]]){
-    for(const m of modes){await p.evaluate((g,m)=>document.querySelector('#'+g+' button[data-m="'+m+'"]').click(),seg,m);await wait(80);
-      for(let s=0;s<n;s++){await p.evaluate((c,s)=>{const e=document.getElementById(c);e.value=s;e.dispatchEvent(new Event('input'))},id+'-ctl-s',s);
-        const el=await p.$('#'+id);await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+m+'_'+s+'_'+w+'.png')})}}}
-  for(const id of ['ev-sets','ev-bias','ev-pr','ev-sd','ev-sd-tab','ev-ranktab','ev-pit']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
+  // the three 3D stages are stepped, timed and shot by ../check_stages.mjs (they play by themselves once in view since 2026-11-06)
+  for(const id of ['ev-sets','ev-bias','ev-pr','ev-sd','ev-sd-tab','ev-ranktab','ev-p-ims','ev-p-pub']){const el=await p.$('#'+id);if(el){await el.scrollIntoView();await wait(100);await el.screenshot({path:path.join(shots,id+'_'+w+'.png')})}}
   for(const tab of ['t-evcmp','t-evpick']){await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);await wait(300);await p.evaluate(()=>scrollTo(0,0));
     const el=await p.$('#'+tab);await el.screenshot({path:path.join(shots,tab+'_'+w+'.png')})}
   const myErrs=errs;if(myErrs.length)bad++;

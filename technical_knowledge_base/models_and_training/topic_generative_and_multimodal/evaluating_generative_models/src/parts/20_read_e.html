@@ -1,29 +1,29 @@
+<div class="s3sp"><div class="s3R"><div id="stg-pit"></div></div><div class="s3L">
 <section id="ev-s5">
 <h2>5. Pitfalls: the same images, a different FID</h2>
-<p>FID is a function of the pixels that reach Inception, so anything between the generator and the metric changes it: file format, resizing, the reference set, the code. The rule: <b>process both sets identically, with the same code, and say how</b>. Each case below uses real training images as the "model", so the right answer is "nothing is wrong" and any change from the floor is pure artefact.</p>
-<div class="rd-card" id="ev-an2"><h4>Before and after: real images saved as JPEG look the same and score four times worse</h4>
-<div class="seg" id="ev-an2-q"><button data-m="90">JPEG quality 90</button><button data-m="75" class="on">75 (PIL's default)</button><button data-m="50">50</button></div>
-<div class="rd-svg" id="ev-an2-svg"></div>
-<div class="an-cap" id="ev-an2-cap"></div>
-<div class="an-cnt" id="ev-an2-cnt"></div>
-<div class="an-ctl" id="ev-an2-ctl"></div>
-</div>
-<p>PIL saves JPEG at quality 75 unless told otherwise, so <code>img.save("x.jpg")</code> is enough: FID moves from <span data-ev="pit:real"></span> to <span data-ev="pit:real_jpeg75"></span>. Compress the reference the same way and it comes back to <span data-ev="pit:real_jpeg75_vs_test_jpeg75"></span>. The clean-fid paper ({{Parmar, Zhang and Zhu 2022|https://arxiv.org/abs/2104.11222}}) found the same on FFHQ: JPEG-75 copies of real images score "a high score (21)", while StyleGAN2 scores "around 3"; and on LSUN Church, whose training images were stored as JPEG, compressing StyleGAN2's samples at quality 87 improved its FID from 4.00 to 3.48. On the topic's models: <span data-ev="txt:jpeg_models"></span></p>
-
+<p>FID is a function of the pixels that reach Inception, so anything between the generator and the metric changes it: file format, resizing, the reference set, the code. The rule: <b>process both sets identically, with the same code, and say how</b>.</p>
+<ol class="sx" id="sx-pit">
+<li><b>The floor.</b> Each case uses real training images as the "model", so the right answer is "nothing is wrong" and any change from the floor is pure artefact. Stored losslessly (PNG) on both sides, they score <span data-evs="real">2.54</span> against the 10,000 test images.</li>
+<li><b>Saved as JPEG on one side.</b> PIL, grey, read back: to the eye, the same garments. FID <span data-evs="real_jpeg90">5.10</span> at quality 90, <span data-evs="real_jpeg75">10.04</span> at 75 (PIL's default), <span data-evs="real_jpeg50">22.20</span> at 50. Real images saved as JPEG look the same and score four times worse.</li>
+<li><b>What changed.</b> The absolute difference, amplified 8x: JPEG works on 8 x 8 blocks, and on a 28-pixel image one block is almost a third of the width. At quality 75 the mean change is <span data-evs="mad75">3.69</span> of 255 per pixel over all 10,000 images (PSNR <span data-evs="psnr75">32.5</span> dB).</li>
+<li><b>Compress both sides.</b> Compress the reference the same way and it comes back to <span data-evs="real_jpeg75_vs_test_jpeg75">2.60</span>.</li>
+<li><b>Resize one side.</b> Only the real set pre-resized to 299, so the extractor's own resize does nothing for it: PIL bicubic <span data-evs="real_bic299">74.19</span> (bicubic overshoots at edges and blurs differently from the bilinear resize the reference gets), nearest-neighbour <span data-evs="real_near299">331.25</span> (blocky: hard pixel edges the reference never has; cut at the top of the scale). The same function on both sides: <span data-evs="real_bic299_vs_test_bic299">3.22</span>, back near the floor; only the reference resized: <span data-evs="real_vs_test_bic299">75.03</span>.</li>
+<li><b>Model samples too.</b> DDPM scores <span data-evs="ddpm">11.46</span> as PNG, <span data-evs="ddpm_jpeg75">15.40</span> with its samples saved as JPEG 75, <span data-evs="ddpm_vs_test_jpeg75">22.37</span> if only the reference is compressed, and <span data-evs="ddpm_jpeg75_vs_test_jpeg75">10.13</span> with both compressed, lower than its PNG score.</li>
+</ol>
+<p>PIL saves JPEG at quality 75 unless told otherwise, so <code>img.save("x.jpg")</code> is enough: FID moves from <span data-ev="pit:real"></span> to <span data-ev="pit:real_jpeg75"></span>. Compress the reference the same way and it comes back to <span data-ev="pit:real_jpeg75_vs_test_jpeg75"></span>. The clean-fid paper ({{Parmar, Zhang and Zhu 2022|https://arxiv.org/abs/2104.11222}}) found the same on FFHQ: JPEG-75 copies of real images score "a high score (21)", while StyleGAN2 scores "around 3"; and on LSUN Church, whose training images were stored as JPEG, compressing StyleGAN2's samples at quality 87 improved its FID from 4.00 to 3.48.</p>
+<p>Compression is not neutral: it erases fine detail the model got wrong as well as detail it got right. The flow model: <span data-evs="flow">15.96</span>, <span data-evs="flow_jpeg75">22.11</span>, <span data-evs="flow_vs_test_jpeg75">21.40</span> and <span data-evs="flow_jpeg75_vs_test_jpeg75">13.75</span> in the same four cases. Other features notice JPEG too: the JPEG-75 real set's FD-DINOv2 is <span data-evs="dino75">81.3</span> (floor <span data-evs="dino0">17.1</span>) and its CMMD <span data-evs="cmmd75">0.103</span> (floor <span data-evs="cmmd0">0.0002</span>), worse than the flow model's <span data-evs="cmmdflow">0.072</span>.</p>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="ev-s5rs">
 <h3>Resizing</h3>
-<p>Inception wants 299 x 299. Downsampling with a fixed-width bilinear filter (TensorFlow 1, PyTorch's <code>F.interpolate</code>) aliases: fine detail folds into false patterns. Here the images are 28 px, so the resize is an upsampling and cannot alias; resizing one set differently still moves FID. Pick a case:</p>
-<div class="ev-box" id="ev-pit"><h4>One processing difference, one bar: only matching both sides returns to the floor</h4>
-<div class="seg" id="ev-p-case"></div>
-<div id="ev-p-text"></div>
-<div class="ev-ims" id="ev-p-ims"></div>
-<div class="rd-svg" id="ev-p-svg"></div>
-<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>: 10,000 images per set, reference = the 10,000 test images, torch-fidelity 0.4.0 Inception features. Pre-resizing only the real set to 299 with PIL bicubic gives <span data-ev="pit:real_bic299"></span>, with nearest-neighbour <span data-ev="pit:real_near299"></span>; both sets the same way, <span data-ev="pit:real_bic299_vs_test_bic299"></span>.</p>
-</div>
+<p>Inception wants 299 x 299. Downsampling with a fixed-width bilinear filter (TensorFlow 1, PyTorch's <code>F.interpolate</code>) aliases: fine detail folds into false patterns. Here the images are 28 px, so the resize is an upsampling and cannot alias; resizing one set differently still moves FID (Fig. 3, step 5). Beside: what each resize hands the network, and the same effect at full scale.</p>
+<p class="small"><span class="meas">measured on Apple M1 Pro</span>: 10,000 images per set, reference = the 10,000 test images, torch-fidelity 0.4.0 Inception features. Pre-resizing only the real set to 299 with PIL bicubic gives <span data-ev="pit:real_bic299"></span>, with nearest-neighbour <span data-ev="pit:real_near299"></span>; both sets the same way, <span data-ev="pit:real_bic299_vs_test_bic299"></span>.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>The same garment, resized to 299 three ways</h4><div class="ev-ims" id="ev-p-ims"></div></div>
 <div class="ev-box"><h4>At scale (FFHQ, 1024 px), the resize library alone moves FID by more than typical gaps between methods</h4>
 <p class="small"><span class="pub">published</span> {{Parmar, Zhang and Zhu 2022|https://arxiv.org/abs/2104.11222}}, Table 1. Left: FFHQ real images resized to 299 by each library, scored against the PIL-bicubic version of the same images (right answer 0). Right: StyleGAN2's samples resized by each library, against PIL-bicubic reference statistics (2.98 when both match). The same real images already differ by 4.34 (TensorFlow bilinear) and 7.43 (nearest); StyleGAN2's 2.98 becomes 7.45 if only its samples go through TensorFlow's or PyTorch's bilinear resize. Their library offers <code>mode="clean"</code> (PIL bicubic) plus two legacy modes that reproduce the old numbers.</p>
 <div class="rd-svg" id="ev-p-pub"></div>
-</div>
-
+</div></div></div></div>
+<section id="ev-s5ref">
 <h3>The reference set, the features and the code</h3>
 <ul class="tight">
 <li><b>Reference set.</b> Training or held-out images, how many, which split: each gives a different number. ADM and EDM2 use statistics of the whole training set against 50,000 samples; this topic uses the 10,000 test images.</li>

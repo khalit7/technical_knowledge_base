@@ -11,53 +11,7 @@
   // the eight sets with their strips
   $('ev-sets').innerHTML=E.sets.map(s=>'<div><img src="'+s.strip+'" alt="'+RD.esc(s.label)+' samples" style="display:block;width:100%;image-rendering:pixelated;border-radius:3px;margin-bottom:4px"><b style="color:'+s.color+'">'+RD.esc(s.label)+'</b>'+RD.esc(s.what)+'</div>').join('');
 
-  // ---------- FID in four steps ----------
-  const A1={set:'ddpm'};
-  const CAP1=[
-    ['Two sets of images','The reference: the 10,000 real test images. The candidate: 10,000 images of the chosen set. Each strip shows ten of them.'],
-    ['Every image becomes a point','Inception-v3 maps each image to 2,048 numbers. Drawn here: 300 images of each set, projected on the two directions along which the real features vary most. Grey: real test images.'],
-    ['Fit a Gaussian to each cloud','Mean (the cross) and covariance (the ellipse covers about 86% of a 2-D Gaussian: two standard deviations). FID never looks at single points again: only these two summaries.'],
-    ['The mean term','The squared distance between the two means, summed over all 2,048 dimensions. Large when the average content is wrong.'],
-    ['The covariance term','Tr(&Sigma;<sub>r</sub> + &Sigma;<sub>g</sub> &minus; 2(&Sigma;<sub>r</sub>&Sigma;<sub>g</sub>)<sup>1/2</sup>): zero when the two clouds have the same spread and orientation. Large when variety is missing or misplaced.'],
-    ['FID = mean term + covariance term','The number reported. Compare it with the floor: the real training images score '+E.txt['m:real:fid:10000']+' at this sample count.']];
-  function ellipse(mu,c,sx,sy,k){const a=c[0][0],b=c[0][1],d=c[1][1];const tr=(a+d)/2,det=Math.sqrt(Math.max(0,((a-d)/2)**2+b*b));
-    const l1=tr+det,l2=Math.max(1e-12,tr-det);const ang=Math.atan2(l1-a,b||1e-12);const pts=[];
-    for(let i=0;i<=48;i++){const th=2*Math.PI*i/48;const x=k*Math.sqrt(l1)*Math.cos(th),y=k*Math.sqrt(l2)*Math.sin(th);
-      pts.push(sx(mu[0]+x*Math.cos(ang)-y*Math.sin(ang)).toFixed(1)+','+sy(mu[1]+x*Math.sin(ang)+y*Math.cos(ang)).toFixed(1))}return pts.join(' ')}
-  function draw1(i){
-    const host=$('ev-an1-svg'),W=Math.min(640,RD.width(host)),H=Math.round(Math.min(360,W*0.62));
-    const P=E.pca,R=P.pts.test,G=P.pts[A1.set],SR=P.stats.test,SG=P.stats[A1.set];
-    const ex=S=>{const sx=2*Math.sqrt(S.cov[0][0]),sy=2*Math.sqrt(S.cov[1][1]);return [[S.mu[0]-sx,S.mu[1]-sy],[S.mu[0]+sx,S.mu[1]+sy]]};
-    const all=R.concat(G,ex(SR),ex(SG));let x0=Math.min(...all.map(p=>p[0])),x1=Math.max(...all.map(p=>p[0])),y0=Math.min(...all.map(p=>p[1])),y1=Math.max(...all.map(p=>p[1]));
-    const px=(x1-x0)*0.05,py=(y1-y0)*0.05;x0-=px;x1+=px;y0-=py;y1+=py;
-    const L=10,T=i===0?70:10,sx=v=>L+(v-x0)/(x1-x0)*(W-2*L),sy=v=>T+(1-(v-y0)/(y1-y0))*(H-T-24);
-    let b='';const c=col(A1.set);
-    if(i===0){b+='<image href="'+E.ref_strip+'" x="'+L+'" y="8" width="'+Math.min(W-2*L,420)+'" height="'+Math.min(W-2*L,420)/10+'" style="image-rendering:pixelated"/>';
-      b+='<image href="'+SET[A1.set].strip+'" x="'+L+'" y="'+(16+Math.min(W-2*L,420)/10)+'" width="'+Math.min(W-2*L,420)+'" height="'+Math.min(W-2*L,420)/10+'" style="image-rendering:pixelated"/>';
-      b+=t(L,H-48,'Top strip: real test images.',{fs:11.5});
-      b+=t(L,H-30,'Below it: '+RD.esc(SET[A1.set].label)+'.',{fs:11.5});
-      b+=t(L,H-12,'Next: each image becomes a feature vector.',{fs:11.5,fill:'var(--mute)'});
-    }else{
-      b+='<rect x="'+L+'" y="'+T+'" width="'+(W-2*L)+'" height="'+(H-T-24)+'" fill="none" stroke="var(--line)"/>';
-      R.forEach(p=>b+='<circle cx="'+sx(p[0]).toFixed(1)+'" cy="'+sy(p[1]).toFixed(1)+'" r="2" fill="var(--mute)" opacity="'+(i>=2?0.25:0.5)+'"/>');
-      G.forEach(p=>b+='<circle cx="'+sx(p[0]).toFixed(1)+'" cy="'+sy(p[1]).toFixed(1)+'" r="2" fill="'+c+'" opacity="'+(i>=2?0.3:0.65)+'"/>');
-      if(i>=2){b+='<polygon points="'+ellipse(SR.mu,SR.cov,sx,sy,2)+'" fill="none" stroke="var(--ink)" stroke-width="'+(i===4?2.5:1.5)+'"/>';
-        b+='<polygon points="'+ellipse(SG.mu,SG.cov,sx,sy,2)+'" fill="none" stroke="'+c+'" stroke-width="'+(i===4?2.5:1.5)+'"/>';
-        [[SR.mu,'var(--ink)'],[SG.mu,c]].forEach(([m,cc])=>{const X=sx(m[0]),Y=sy(m[1]);b+='<path d="M'+(X-6)+' '+Y+'h12M'+X+' '+(Y-6)+'v12" stroke="'+cc+'" stroke-width="2.5"/>'})}
-      if(i===3||i===5){b+='<line x1="'+sx(SR.mu[0])+'" y1="'+sy(SR.mu[1])+'" x2="'+sx(SG.mu[0])+'" y2="'+sy(SG.mu[1])+'" stroke="var(--bad)" stroke-width="2.5" stroke-dasharray="5 3"/>'}
-      b+=t(L,H-8,W<520?'PC 1 and PC 2 of real features ('+P.var_pct+' of variance)':'PC 1 (horizontal) and PC 2 (vertical) of the real Inception features; '+P.var_pct+' of their variance',{fs:11,fill:'var(--mute)'});
-    }
-    host.innerHTML=RD.svg(W,H,b,'FID step '+(i+1));
-    $('ev-an1-cap').innerHTML='<div class="t">'+(i+1)+'. '+CAP1[i][0]+'</div><p>'+CAP1[i][1]+'</p>';
-    const d=E.dec[A1.set];
-    $('ev-an1-cnt').innerHTML=RD.stat('images per set','10,000','reference: test set')+
-      RD.stat('mean term',i>=3?fmt(d.mean,2):'&middot;','&#8214;&mu;r &minus; &mu;g&#8214;&sup2;, 2,048-d')+
-      RD.stat('covariance term',i>=4?fmt(d.cov,2):'&middot;','trace term, 2,048-d')+
-      RD.stat('FID',i>=5?fmt(d.mean+d.cov,2):'&middot;',i>=5?'floor (real set) '+E.txt['m:real:fid:10000']:'');
-  }
-  const an1=RD.anim({card:'ev-an1',ctl:'ev-an1-ctl',n:6,draw:draw1,ms:2600,label:'FID step'});
-  RD.seg($('ev-an1-set'),m=>{A1.set=m;an1.reset(6)});
-  RD.onResize(()=>an1.redraw());
+  // FID in four steps is the 3D stage of section 2 (26_js_sc1fid.js)
 
   // ---------- FID against N ----------
   let biasX='n';
@@ -117,29 +71,7 @@
     MODELS.map(k=>'<tr><td style="color:'+col(k)+'">'+RD.esc(SET[k].short)+'</td>'+MK.map(m=>'<td class="num">'+fmt(val(k,m,10000).mean,MET[m].dp)+' <span class="mute">('+rk[k][m]+')</span></td>').join('')+
       '<td class="num">'+fmt(E.pr[k].dino_10000[0],2)+' / '+fmt(E.pr[k].dino_10000[1],2)+'</td></tr>').join('')+'</tbody>';
 
-  // ---------- JPEG before / after ----------
-  const A2={q:'75'};
-  const CAP2=[['The real images, as stored','Four real training images (PNG, lossless), drawn 4x. Against the 10,000 test images their FID is the floor.'],
-    ['Saved as JPEG and read back','PIL, grey, quality '+'Q'+'. To the eye: the same garments.'],
-    ['What changed','The absolute difference, amplified 8x: JPEG works on 8 x 8 blocks, and on a 28-pixel image one block is almost a third of the width.'],
-    ['What FID sees','The same 10,000 real images, scored three ways.']];
-  function draw2(i){
-    const host=$('ev-an2-svg'),W=Math.min(640,RD.width(host)),J=E.jpeg,q=A2.q;
-    const n=4,gap=8,sz=Math.min(112,Math.floor((W-gap*(n-1))/n));let H=sz+30,b='';
-    if(i<3){const src=i===0?J.orig:i===1?J['q'+q]:J['d'+q];
-      src.forEach((u,j)=>{b+='<image href="'+u+'" x="'+(j*(sz+gap))+'" y="0" width="'+sz+'" height="'+sz+'" style="image-rendering:pixelated"/>'});
-      b+=t(0,sz+18,i===0?'PNG (lossless)':i===1?'JPEG quality '+q:'|JPEG - PNG| x 8',{fs:11.5,fill:'var(--mute)'});
-    }else{const rows=[['real vs test (nothing wrong)',E.pit.real.fid],['JPEG '+q+' real vs test',E.pit['real_jpeg'+q].fid]];
-      if(q==='75')rows.push(['JPEG 75 real vs JPEG 75 test',E.pit.real_jpeg75_vs_test_jpeg75.fid]);
-      const mx=Math.max(...rows.map(r=>r[1]))*1.1,lw=W<480?150:210;H=rows.length*30+10;
-      rows.forEach((r,j)=>{const y=j*30+4,w=(W-lw-60)*r[1]/mx;b+=t(0,y+15,r[0],{fs:11.5});b+='<rect x="'+lw+'" y="'+y+'" width="'+Math.max(2,w)+'" height="18" rx="3" fill="'+(j===0?'var(--good)':j===1?'var(--bad)':'var(--acc)')+'"/>'+t(lw+w+6,y+14,fmt(r[1],2),{fs:11.5})});}
-    host.innerHTML=RD.svg(W,H,b,'JPEG before and after');
-    $('ev-an2-cap').innerHTML='<div class="t">'+(i+1)+'. '+CAP2[i][0]+'</div><p>'+CAP2[i][1].replace('Q',q)+'</p>';
-    $('ev-an2-cnt').innerHTML=RD.stat('mean |change| per pixel',i>=1?fmt(J.mad[q],2)+' of 255':'&middot;','over all 10,000 images')+RD.stat('PSNR',i>=1?fmt(J.psnr[q],1)+' dB':'&middot;','JPEG against PNG')+
-      RD.stat('FID',i>=3?fmt(E.pit['real_jpeg'+q].fid,2):'&middot;','floor '+fmt(E.pit.real.fid,2));
-  }
-  const an2=RD.anim({card:'ev-an2',ctl:'ev-an2-ctl',n:4,draw:draw2,ms:2400,label:'JPEG step'});
-  RD.seg($('ev-an2-q'),m=>{A2.q=m;an2.reset(4)});RD.onResize(()=>an2.redraw());
+  // JPEG before and after is part of the pitfall stage of section 5 (28_js_sc3pit.js)
 
   // ---------- Stable Diffusion: four guidance scales ----------
   const S=E.sd,A3={p:Object.keys(S.prompts)[0],seed:'0'};

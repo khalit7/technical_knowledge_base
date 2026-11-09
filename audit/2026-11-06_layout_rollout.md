@@ -136,8 +136,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_data_curation_and_datasets/synthetic_data` Synthetic data: rephrasing, textbooks and model collapse
 - [x] `models_and_training/topic_data_curation_and_datasets` Topic: data-curation-and-datasets
 - [x] `models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes` Autoencoders and VAEs: latents and image tokenizers
-- [ ] `models_and_training/topic_generative_and_multimodal/diffusion_from_zero` Diffusion from zero: DDPM, samplers and guidance
-- [ ] `models_and_training/topic_generative_and_multimodal/evaluating_generative_models` Evaluating generative models: FID, CLIPScore, preference and VLM benchmarks
+- [~] `models_and_training/topic_generative_and_multimodal/diffusion_from_zero` Diffusion from zero: DDPM, samplers and guidance
+- [x] `models_and_training/topic_generative_and_multimodal/evaluating_generative_models` Evaluating generative models: FID, CLIPScore, preference and VLM benchmarks
 - [ ] `models_and_training/topic_generative_and_multimodal/flow_matching` Flow matching and rectified flow
 - [ ] `models_and_training/topic_generative_and_multimodal/latent_diffusion_and_dits` Latent diffusion and diffusion transformers
 - [ ] `models_and_training/topic_generative_and_multimodal/native_multimodal_models` Native multimodal and any-to-any models
@@ -429,4 +429,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_data_curation_and_datasets/synthetic_data`: Fig. 4 generation labels at the card's right edge at 1400 and the accumulate surface briefly off-card during the step 4 glide; rephrase blocks read through the glass prompt plates; FineWeb's top openings show as partial cubes (one cube per five documents).
 - `models_and_training/topic_data_curation_and_datasets` (root): page is 1.25 MB (was 1.22); lab animations have no step lists (in-card captions kept); Fig. 1 step 10 glide cuts objects at the left edge; full view small at 390; verify_layout flags all six lab tabs' visuals outside splits (accepted: reader-driven labs).
 - `models_and_training/topic_generative_and_multimodal/autoencoders_and_vaes`: index.html 943 KB (under the 1 MB budget); Figs. 1 and 3 wide and shallow with empty card space at 1400; Fig. 2 class labels crowd the VAE plate centre; check_page.mjs writes ../.shots_av by default; verify_layout flags the Tokenizer comparator figure outside a split (accepted: dataset tool). Correction made: plain VQ in the toy recovers all 16 codes (usage uneven, perplexity 11.3 against 12.2), not "strands most of its codes".
+- `models_and_training/topic_generative_and_multimodal/evaluating_generative_models`: Fig. 1 real and generated clouds hard to tell apart by colour at 1400, bells read flat from above; Fig. 2 step 1 small at 390 with the N = infinity label near the edge; zoomed column value labels sit on the top-face edge; EV.txt keeps two unused keys; verify_layout flags the Metric comparator outside a split (accepted: reader tool).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
