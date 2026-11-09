@@ -176,4 +176,53 @@ for bname in ('overall', 'hard'):
         for i, r in enumerate(o): pos.setdefault(r['m'], {})[key] = i + 1
     out['style_pos_' + bname] = pos
     out['style_moved3_' + bname] = sum(1 for m_, p_ in pos.items() if abs(p_['bt'] - p_['sc']) >= 3)
+
+# ---- the 3D stages (2026-11-09): the lab sample's win matrix, the Bradley-Terry fit's predictions, and bootstrap refits ----
+# Fig. 2 (votes to a rating): battles and scores per pair (ties and both-bad count half, as in the fit), after the first 600 votes and after all 6,000.
+bt = out['lab']['bt']
+def pairs(upto):
+    nb = [[0] * m for _ in range(m)]; sc = [[0.0] * m for _ in range(m)]
+    for i in range(upto):
+        a, b, y = A[i], B[i], score(O[i]); nb[a][b] += 1; nb[b][a] += 1; sc[a][b] += y; sc[b][a] += 1 - y
+    return nb, sc
+nb6, sc6 = pairs(n); nb600, sc600 = pairs(600)
+pred = [[1 / (1 + 10 ** ((bt[b] - bt[a]) / 400)) if a != b else None for b in range(m)] for a in range(m)]
+obs = [[sc6[a][b] / nb6[a][b] if a != b and nb6[a][b] else None for b in range(m)] for a in range(m)]
+cnt = [x for a in range(m) for x in nb6[a] if x]
+gaps = [(abs(obs[a][b] - pred[a][b]), nb6[a][b]) for a in range(m) for b in range(m) if a < b]
+won = [sum(sc6[a]) / sum(nb6[a]) for a in range(m)]
+# the first decisive vote, for step 1
+fv = next(i for i in range(n) if O[i] in (0, 1))
+st = {'nb6': nb6, 'sc6': [[round(x, 1) for x in r] for r in sc6], 'nb600': nb600, 'sc600': [[round(x, 1) for x in r] for r in sc600],
+      'pair_min': min(cnt), 'pair_max': max(cnt), 'n_pairs': len(cnt) // 2,
+      'pred': [[round(x, 4) if x is not None else None for x in r] for r in pred],
+      'gap_mean_w': round(sum(g * w for g, w in gaps) / sum(w for g, w in gaps), 4), 'gap_max': round(max(g for g, w in gaps), 4),
+      'won': [round(x, 4) for x in won], 'first': {'i': fv, 'a': A[fv], 'b': B[fv], 'o': O[fv]}}
+# Fig. 4 (how sure): 200 bootstrap refits, votes resampled with replacement (mulberry32 seed 12345, the same draws as the Fit the votes tab's bootstrap),
+# on all 6,000 votes and on the earliest 1,000; plain Bradley-Terry, ties half, centred like the lab.
+def boot(nn, rounds=200):
+    r = mulberry(12345); idx = list(range(nn)); R = []
+    for _ in range(rounds):
+        s = [idx[int(r() * nn)] for _ in idx]; f, _, _ = fit(rows_for(s, []), 0); R.append([round(t, 1) for t in points(f, mean_bt)])
+    ci = []
+    for i in range(m):
+        v = sorted(x[i] for x in R); ci.append([v[int(0.025 * rounds)], v[math.ceil(0.975 * rounds) - 1]])
+    rk = [[0] * m for _ in range(m)]
+    for x in R:
+        for pos, i in enumerate(sorted(range(m), key=lambda j: -x[j])): rk[i][pos] += 1
+    sp = []
+    for i in range(m):
+        b_, w_ = 1, 1
+        for j in range(m):
+            if j != i and ci[j][0] > ci[i][1]: b_ += 1
+            if j != i and ci[j][1] > ci[i][0]: w_ += 1
+        sp.append([b_, w_])
+    return {'n': nn, 'R': R, 'ci': ci, 'rank': rk, 'spread': sp}
+r1k, _, V1k = fit(rows_for(list(range(1000)), []), 0)
+st['boot6'] = boot(n); st['boot1'] = boot(1000)
+st['bt1000'] = [round(t, 2) for t in points(r1k, mean_bt)]; st['bt1000_se'] = [round(400 * math.sqrt(V1k[i][i]), 3) for i in range(m)]
+w6 = [c[1] - c[0] for c in st['boot6']['ci']]; w1 = [c[1] - c[0] for c in st['boot1']['ci']]
+st['width_ratio'] = round(sum(w1) / sum(w6), 2)
+st['boot_vs_sand'] = round(max(abs((c[1] - c[0]) / 2 - 1.96 * se) for c, se in zip(st['boot6']['ci'], out['lab']['bt_se'])), 2)
+out['stage'] = st
 json.dump(out, open(os.path.join(HERE, 'recompute_out.json'), 'w'), indent=1)

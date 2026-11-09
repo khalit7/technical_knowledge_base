@@ -30,9 +30,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   E.bt.forEach((v, i) => close(v, R.lab.bt[i], 0.05, 'elo card BT ' + i));
   const mb = R.lab.mean_bt;
   for (const k of ['time', 'rev', 'shuf']) E.finals[k].forEach((v, i) => close(v, R.lab['elo_' + k][i] - 1000 + mb, 0.05, `elo ${k} ${i}`));
-  for (const m of ['time', 'rev', 'shuf']) { await clk(`#rd-elo-seg button[data-m=${m}]`); await wait(100); await noBad('#rd-elo-card', 'elo ' + m) }
+  for (let k = 0; k < 6; k++) { await p.$eval('#rd-elo-ctl-s', (e, k) => { e.value = k; e.dispatchEvent(new Event('input')) }, k); await wait(60); await noBad('#rd-elo-card', 'elo step ' + k) }
   await clk('#rd-elo-ctl-b'); await clk('#rd-elo-ctl-f'); await p.$eval('#rd-elo-ctl-s', e => { e.value = 0; e.dispatchEvent(new Event('input')) }); await noBad('#rd-elo-card', 'elo step0');
-  await p.$eval('#rd-elo-ctl-s', e => { e.value = 12; e.dispatchEvent(new Event('input')) });
+  await p.$eval('#rd-elo-ctl-s', e => { e.value = 5; e.dispatchEvent(new Event('input')) });
   await shot('#rd-elo-card', 'elo');
   for (const m of ['raw', 'sc']) { await clk(`#rd-sp-seg button[data-m=${m}]`); await wait(80); await shot('#rd-sp-card', 'spread-' + m) }
   for (const m of ['hard', 'overall']) {
@@ -52,7 +52,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   }
   await p.$eval('#rd-bon-n', e => { e.value = 50; e.dispatchEvent(new Event('input')) }); await p.$eval('#rd-bon-v', e => { e.value = 3000; e.dispatchEvent(new Event('input')) });
   const bon = await p.evaluate(() => window.HP_CHECK.bon()); close(bon.emax50, R.bon.emax50, 0.002, 'E[max 50]'); close(bon.inf, R.bon.inflation_50_3000, 0.02, 'inflation');
-  await shot('#rd-bon-card', 'bon'); await shot('#rd-hero-card', 'hero'); await shot('#rd-lc-card', 'lc');
+  await shot('#rd-bon-card', 'bon'); await shot('#rd-lc-card', 'lc');
   for (const g of [0, 100, 400]) { await p.$eval('#rd-gap', (e, g) => { e.value = g; e.dispatchEvent(new Event('input')) }, g); await noBad('#rd-gap-card', 'gap ' + g) }
   if (!(await txt('#rd-gap-v')).includes('76.0%')) { await p.$eval('#rd-gap', e => { e.value = 200; e.dispatchEvent(new Event('input')) }); if (!(await txt('#rd-gap-v')).includes('76.0%')) bad('gap 200 not 76.0%') }
   await p.$eval('#rd-gap', e => { e.value = 100; e.dispatchEvent(new Event('input')) }); if (!(await txt('#rd-gap-v')).includes('64.0%')) bad('gap 100 not 64.0%'); await shot('#rd-gap-card', 'gap'); await shot('#rd-null-card', 'null');
@@ -94,14 +94,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (errs.length) bad(scheme + ' errors ' + errs.join(' | '));
   await p.close();
 }
-// Normal motion: nothing may move before the reader acts (2026-10-24)
+// Normal motion: each animation plays by itself once scrolled into view (inverted 2026-11-09 for the autoplay rule of 2026-11-06; check_stages.mjs covers the stages
+// and reduced motion)
 {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.goto('file://' + page);
-  for (const sel of ['#rd-elo-card', '#rd-sty-card']) { await p.$eval(sel, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 2500)) }
-  await p.$eval('#rd-sty-seg button[data-m=hard]', e => e.click()); await new Promise(r => setTimeout(r, 2500));
-  const st = await p.evaluate(() => [document.getElementById('rd-elo-ctl-s').value, document.getElementById('rd-sty-ctl-s').value]);
-  if (st.some(v => v !== '0')) bad('an animation moved before the reader acted: ' + st);
+  for (const [sel, s] of [['#rd-elo-card', '#rd-elo-ctl-s'], ['#rd-sty-card', '#rd-sty-ctl-s']]) { await p.$eval(sel, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 5600));
+    const v = await p.$eval(s, e => e.value); if (v === '0') bad(sel + ' did not play by itself once in view') }
   await p.close();
 }
 await b.close();

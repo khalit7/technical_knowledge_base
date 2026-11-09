@@ -26,3 +26,12 @@ What the methodology lacked: guidance for a leaderboard whose published history 
 | AlpacaEval raw against length-controlled range, Spearman 0.94 against 0.98 | before/after | Reading section 6 | Dubois et al. 2024 |
 
 Rejected in the rebuild: a Chatbot Arena UI screenshot (the Chatbot Arena paper is arXiv non-exclusive licence, arena.ai screenshots are not openly licensed); the Leaderboard Illusion's best-of-N figure (its own Figure 8; it repeats the best-of-N slider beside it); a drawn diagram per arena (the highlighted table says the difference completely).
+
+## 2026-11-09 (split layout and 3D stages)
+| Visual | Kind | Where | Data |
+|---|---|---|---|
+| Fig. 1 hero: battle, votes, fit, score, rank spread, then the four bends | 3D stage, 6 steps (replaces the static 2D hero) | top | HPD.board (2 Oct 2026), HPD.fits coefficients, best-of-50 from the section 4 formula |
+| Fig. 2 votes to a rating: win matrix as a bar field, shares on a 50% glass plane, Bradley-Terry pillars, predicted shares as glass | 3D stage, 6 steps | section 1 | the 6,000-vote lab sample; recompute.py `stage` |
+| Fig. 4 bootstrap: 200 refits piled per model, interval plates, rank-share bar field, 1,000 votes | 3D stage, 6 steps | section 2 | recompute.py `stage.boot6`, `stage.boot1` (seed 12345, the lab's draws) |
+| Fig. 3 Elo against Bradley-Terry | 2D, regrouped from 13 frames into 6 explained stretches | section 1 | unchanged |
+Kept 2D: the gap slider, intervals and rank spreads chart, style-control reorder (Fig. 5), board explorer, best-of-N slider, length-control and null-model bars, preference-against-capability scatter, all tables: curves, intervals on an axis, rankings as lists and scatters read best flat. Rejected: a 3D judge-graded proxy pipeline (the section's point is a regression and a number on a scale; a pipeline of boxes would decorate); a 3D style-control stage (a reordered list is the message).
