@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-pos"></div></div><div class="s3L">
 <section id="ve-s2">
 <h2>2. Positions, and what happens when the resolution changes</h2>
 <p>Attention is permutation-invariant: without positions the model sees a bag of patches. A learned position table has one row per grid slot of the training resolution. CLIP B/32 has 49 rows for its 7 &times; 7 grid; give it a 336-pixel image (10 &times; 10 = 100 patches) and there are no rows for the extra slots. Both libraries refuse, with these exact errors <span class="meas">measured</span>:</p>
@@ -6,15 +7,21 @@ ValueError: Input image size (336*336) doesn't match model (224*224).
 
 SigLIP 2 B/16, 336 x 336 input:
 RuntimeError: The size of tensor a (441) must match the size of tensor b (196) at non-singleton dimension 1</pre>
-<p>Pass <code>interpolate_pos_encoding=True</code> and transformers reshapes the table into its 2-D grid, resizes it bicubically to the new grid and flattens it back (<code>interpolate_pos_encoding</code>, <code>models/clip/modeling_clip.py:161</code>, <code>mode="bicubic"</code> at :194; the same code in SigLIP at <code>modeling_siglip.py:137</code> and DINOv2 at <code>modeling_dinov2.py:87</code>). Step through it on CLIP's real table:</p>
-<div class="rd-card" id="ve-ra"><h4>A position table resized like an image: the pattern survives, but no new row was ever trained</h4>
-<div class="seg" id="ve-ra-slot"><button data-m="0" class="on">Top-left slot</button><button data-m="24">Centre slot</button><button data-m="34">Lower-right of centre</button></div>
-<div class="an-ctl" id="ve-ra-ctl"></div>
-<div class="rd-svg" id="ve-ra-svg"></div>
-<div class="an-cap" id="ve-ra-cap"></div>
-<div class="an-cnt" id="ve-ra-cnt"></div>
-<p class="small mute">Left: test image p01 at the model's input size with its patch grid. Right: cosine similarity of the chosen slot's position vector to every slot (bright = similar), from the released table (224) and from the model's own bicubic resize (448) <span class="meas">measured</span>. Nobody told the model the grid is 2-D; the learned table shows it anyway.</p></div>
+<p>Pass <code>interpolate_pos_encoding=True</code> and transformers reshapes the table into its 2-D grid, resizes it bicubically to the new grid and flattens it back (<code>interpolate_pos_encoding</code>, <code>models/clip/modeling_clip.py:161</code>, <code>mode="bicubic"</code> at :194; the same code in SigLIP at <code>modeling_siglip.py:137</code> and DINOv2 at <code>modeling_dinov2.py:87</code>). Fig. 3 steps through it on CLIP's real table.</p>
+<p class="sxh">Slot</p>
+<div class="s3chips" id="ve-pos-slot"><button data-m="0" class="on">Top-left</button><button data-m="24">Centre</button><button data-m="34">Lower-right of centre</button></div>
+<ol class="sx" id="sx-pos">
+<li><b>The trained grid.</b> At 224 pixels CLIP B/32 cuts the image into 7 &times; 7 patches of 32 pixels, and its learned table has one position vector per slot (49, plus one for [CLS]). The columns are how similar the chosen slot's vector is to every slot's. Nobody told the model the grid is 2-D, yet the pattern is: slots close by, and slots on the same border, have similar vectors (try the centre slot).</li>
+<li><b>A bigger image, no rows for it.</b> At 448 pixels the same patches make a 14 &times; 14 grid: 196 slots, but the table still has 49 rows. Without interpolation the model refuses (the errors above).</li>
+<li><b>Resize the table like an image.</b> <code>interpolate_pos_encoding</code> reshapes the 49 vectors into a 7 &times; 7 &times; 768 grid and resizes it bicubically to 14 &times; 14: the columns grow from the old grid's values, each copied over a 2 &times; 2 block, to the model's own resized table. Every new vector is a smooth blend of its trained neighbours.</li>
+<li><b>The resized table.</b> The similarity pattern survives, stretched over four times as many slots, but none of these 196 vectors was ever trained: the model now runs at 448 on positions it has never seen.</li>
+<li><b>What it costs.</b> Four times the tokens (49 to 196) and about four times the compute by the formula of section 1 (4.41 to 17.91 GMACs); on the 16 test images the image embedding moves to an average cosine of <span data-rd="clip448cos"></span> with its own 224-pixel version (as low as <span data-rd="clip448min"></span>).</li>
+</ol>
+<p class="small mute">Heights: cosine similarity of the chosen slot's position vector to every slot's, from the released table (224) and from the model's own bicubic resize (448) <span class="meas">measured</span>; the image is test image p01 at the model's input size.</p>
 <p><b>The cost.</b> It runs, on positions the network never trained on. On the 16 colour test images, CLIP's image embedding at 448 pixels keeps a cosine of only <span data-rd="clip448cos"></span> on average (as low as <span data-rd="clip448min"></span>) with the same image at 224; SigLIP 2's keeps <span data-rd="sig448cos"></span>. Caption matching did not change on these easy pairs (CLIP still 15 of 16, SigLIP 2 still 16 of 16) <span class="meas">measured</span>. The published fix is to train briefly at the new size, as SigLIP 2 did for its fixed-resolution checkpoints (resumed at 95% of training with the table resized, <a href="https://arxiv.org/abs/2502.14786" target="_blank" rel="noopener noreferrer">Tschannen et al. 2025, &sect;2.4.1</a>) <span class="vend">published</span>.</p>
+</section>
+</div></div>
+<section id="ve-s2b">
 <p><b>Designs that avoid the table.</b> MAE's fixed sine-cosine table can be computed for any grid. <dfn>FlexiViT</dfn> randomises the patch size during training so one set of weights works "across a wide range of patch sizes" (<a href="https://arxiv.org/abs/2212.08013" target="_blank" rel="noopener noreferrer">Beyer et al. 2022</a>). <dfn>NaViT</dfn> packs several images of different sizes and aspect ratios into one sequence and trains on "inputs of arbitrary resolutions and aspect ratios" (<a href="https://arxiv.org/abs/2307.06304" target="_blank" rel="noopener noreferrer">Dehghani et al. 2023</a>); SigLIP 2's <dfn>NaFlex</dfn> variant combines the two, resizing each image so both sides are multiples of the patch size with the aspect ratio kept as closely as possible within a token budget (256 by default). <dfn>2-D RoPE</dfn> (rotary position embedding along rows and columns, {{Positional encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}) puts position into the attention product instead of a table, so any grid works: Qwen2.5-VL's encoder uses it (<a href="https://arxiv.org/abs/2502.13923" target="_blank" rel="noopener noreferrer">Qwen2.5-VL report, &sect;2.1.1</a>), and DINOv3 replaced DINOv2's learnable table with RoPE (<a href="https://arxiv.org/abs/2508.10104" target="_blank" rel="noopener noreferrer">DINOv3, Table 2</a>).</p>
 <p><b>What the processor does to a real image</b> decides both what the encoder sees and how many tokens it costs. Type a size and compare the four rules (the last two ported line by line from transformers v5.20.1: <code>models/siglip2/image_processing_siglip2.py:42</code> <code>get_image_size_for_max_num_patches</code>; <code>models/qwen2_vl/image_processing_qwen2_vl.py:63</code> <code>smart_resize</code>, used by Qwen2.5-VL with <code>min_pixels</code> 3,136 and <code>max_pixels</code> 12,845,056 from its <code>preprocessor_config.json</code>):</p>
 <div class="rd-card"><h4>A 1920 &times; 1080 frame: CLIP crops 44% away, a fixed square squashes it, NaFlex and Qwen keep its shape</h4>
@@ -28,6 +35,7 @@ RuntimeError: The size of tensor a (441) must match the size of tensor b (196) a
 <p class="small mute">Drawn to scale: the original (grey outline) and what each rule feeds the encoder <span class="der">derived</span>. A 1920 &times; 1080 frame loses 44% of its area to CLIP's crop; SigLIP 2's fixed processor distorts its aspect by 78%; Qwen2.5-VL rounds to multiples of 28 and merges each 2 &times; 2 group of 14-pixel patches into one language-model token. Normalisation constants differ too (CLIP's ImageNet-like mean and standard deviation, SigLIP's 0.5 and 0.5).</p></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-reg"></div></div><div class="s3L">
 <section id="ve-s3">
 <h2>3. High-norm tokens and registers</h2>
 <p>Large ViTs learn to dump global information into a few patch tokens in uninformative background areas. <a href="https://arxiv.org/abs/2309.16588" target="_blank" rel="noopener noreferrer">Darcet et al. (2023)</a> found these "tokens with roughly 10x higher norm at the output", "around 2%" of the sequence, holding "less information about their original position in the image or the original pixels in their patch" <span class="vend">published</span>. They spoil attention maps and dense features. <b>The fix:</b> append a few learned <dfn>register</dfn> tokens that carry no image content, so the model has somewhere else to compute; "one register is sufficient to remove artefacts", and they kept 4.</p>
@@ -35,9 +43,16 @@ RuntimeError: The size of tensor a (441) must match the size of tensor b (196) a
 <div class="pr" id="ve-p2"><div class="q">Predict: which of the five base-size encoders here shows high-norm outlier tokens on the 16 test images?</div>
 <div class="opts"><button data-a="0">None: the paper says DINOv2 outliers start at ViT-Large</button><button data-a="1">DINOv2 B only</button><button data-a="2">SigLIP 2, strongly, and DINOv2 B, mildly</button></div>
 <div class="ans" hidden>SigLIP 2 strongly, DINOv2 B mildly; the map below shows them.</div></div>
-<div class="rd-card" id="ve-reg"><h4>SigLIP 2's three bright slots sit in the same place in every image</h4>
-<div class="chips" id="ve-reg-img"></div>
-<div class="rd-gens" id="ve-reg-maps"></div>
-<p class="small mute">Each square is one patch token's L2 norm in the last block's output (before any final LayerNorm), divided by that image's median; colour saturates at 4 times the median. Registers and [CLS] are not drawn; their medians are in the captions <span class="meas">measured</span>.</p></div>
-<p><b>What it shows</b> <span class="meas">measured</span>. In SigLIP 2 B/16 the same three grid slots (row 0 column 1, row 0 column 13, row 3 column 13) have 15 to 23 times the median patch norm in all 16 images, wherever the object is (a fourth, row 0 column 11, joins them in the five flat synthetic images): three bright fixed slots in every image. Two of them, (0, 1) and (3, 13), are among the four slots where SigLIP 2's attention-pooling head puts 30 to 45% of its weight: the pooled vector reads from the outliers. DINOv2 B has milder ones (up to 4.7 times the median) in 8 of the 16 images, at varying places; DINOv2 B with registers, CLIP B/32 and MAE B have none (at most 1.5 times). <b>Look at token norms before building dense features on a model</b>, and prefer a registers variant where one exists.</p>
+<p class="sxh">Image</p>
+<div class="s3chips" id="ve-reg-img"></div>
+<ol class="sx" id="sx-reg">
+<li><b>SigLIP 2, one image.</b> Each column is one patch token's L2 norm in the last block's output (before any final LayerNorm), divided by that image's median. Three slots tower over the rest, in the top row and near the right edge, in background, not on the object.</li>
+<li><b>SigLIP 2, all 16 images.</b> The mean over the 16 test images keeps the same three towers: the slots are fixed by the model, not found in the picture.</li>
+<li><b>DINOv2 B.</b> Milder outliers, and not in fixed slots: on the cat, one at row 2, column 2.</li>
+<li><b>DINOv2 B with registers.</b> The patch tokens are flat (at most 1.4 times the median here), and two of the four register tokens carry about twice the median norm: the global computation has somewhere else to go. (This is a separately released checkpoint, so it is a comparison of two models, not of one model with and without registers.)</li>
+</ol>
+<p class="small mute">Registers and [CLS] are not part of the grid; one height scale for every step <span class="meas">measured</span>.</p>
+<p><b>What it shows</b> <span class="meas">measured</span>. In SigLIP 2 B/16 the same three grid slots stand out in all 16 images, wherever the object is: row 0 column 13 at 15 to 23 times the median patch norm, row 3 column 13 at 11 to 13 times and row 0 column 1 at about 4 times (a fourth, row 0 column 11, joins them in the five flat synthetic images): three bright fixed slots in every image. Two of them, (0, 1) and (3, 13), are among the four slots where SigLIP 2's attention-pooling head puts 30 to 45% of its weight: the pooled vector reads from the outliers. DINOv2 B has milder ones (up to 4.7 times the median) in 8 of the 16 images, at varying places; DINOv2 B with registers, CLIP B/32 and MAE B have none (at most 1.5 times). <b>Look at token norms before building dense features on a model</b>, and prefer a registers variant where one exists.</p>
 </section>
+</div></div>
+

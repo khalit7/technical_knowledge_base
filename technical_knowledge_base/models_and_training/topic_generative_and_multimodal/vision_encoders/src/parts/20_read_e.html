@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-loss"></div></div><div class="s3L">
 <section id="ve-s4">
 <h2>4. Training on captions: the contrastive loss</h2>
 <p>There are hundreds of millions of image-caption pairs on the web and no labels saying how similar any two are. <dfn>Contrastive</dfn> training uses the pairing itself as the label: in a batch of N pairs, each image's own caption is the positive and the other N &minus; 1 captions are negatives. Two towers (a ViT for images, a transformer for text) each end in a vector scaled to length 1, so their dot product is the <dfn>cosine similarity</dfn>.</p>
@@ -5,15 +6,14 @@
 <div class="pr" id="ve-p7"><div class="q">Predict first: as the scale t goes to 0, what does CLIP's softmax loss on a batch of N tend to? And as t grows very large?</div>
 <div class="opts"><button data-a="0">ln N at t = 0; dominated by the hardest negatives as t grows</button><button data-a="1">0 at t = 0, because nothing is penalised</button><button data-a="2">It keeps falling as t grows, for any model</button></div>
 <div class="ans" hidden>At t = 0 every logit is 0, every softmax is uniform, and the loss is exactly ln N whatever the embeddings: the chance level (ln 8 = 2.079 for 8 pairs). As t grows the softmax approaches an argmax: rows the model gets right cost almost nothing, but a row where a negative beats the positive costs about t times the gap. On the first 8 pairs CLIP's loss falls to its minimum, 0.071, near t = 100 (its learned value) and rises again to 0.121 at t = 316, because one row (s04) is wrong; on SigLIP 2's embeddings, where all 8 rows are right, it keeps falling <span class="meas">measured</span>. Move the sliders to see it.</div></div>
-<div class="rd-card" id="ve-loss"><h4>The loss on the real matrix: softmax asks each row to choose, sigmoid asks every cell yes or no</h4>
-<div class="seg" id="ve-loss-m"><button data-m="clip" class="on">CLIP B/32</button><button data-m="siglip">SigLIP 2 B/16</button></div>
-<div class="seg" id="ve-loss-l"><button data-m="soft" class="on">Softmax (CLIP's loss)</button><button data-m="sig">Sigmoid (SigLIP's loss)</button></div>
-<div class="rd-calc"><label>Batch size N: <b id="ve-loss-nv">8</b><input type="range" id="ve-loss-n" min="2" max="16" step="1" value="8"></label>
-<label>Scale t: <b id="ve-loss-tv">100</b><input type="range" id="ve-loss-t" min="0" max="2.5" step="0.01" value="2"></label></div>
-<div class="an-cnt" id="ve-loss-out"></div>
-<div class="rd-two"><div class="rd-svg" id="ve-loss-mx"></div><div class="rd-svg" id="ve-loss-curve"></div></div>
-<p class="small mute" id="ve-loss-note"></p>
-<p class="small mute">Left: first N images (rows) against first N captions (columns), each cell's probability under the chosen loss, diagonal outlined. Right: the loss at every scale, the dot at the current one. Real cosines from the root's vision recordings <span class="meas">measured</span>. Sigmoid bias: SigLIP 2's learned &minus;16.77, or SigLIP's initial &minus;10 for CLIP (illustrative).</p></div>
+<ol class="sx" id="sx-loss">
+<li><b>The batch.</b> The first 8 test images (rows) and their 8 captions (columns, T1 to T8). Each tower turns its input into a vector scaled to length 1, so every image-caption dot product is a cosine.</li>
+<li><b>All 64 cosines.</b> Through CLIP B/32 the 8 true pairs (the diagonal, lit) average 0.327 and the 56 others 0.168: small numbers, and a narrow gap.</li>
+<li><b>Softmax over each row.</b> CLIP multiplies the cosines by t = 100 and asks each image to pick its caption: each row becomes probabilities that sum to 1. Seven rows put almost all their weight on the diagonal; row 8, the typographic image s04, gives 36% to its own caption and 63% to the cat's (the red column).</li>
+<li><b>And over each column.</b> Each caption must also pick its image. CLIP's loss is the mean of the row and column cross-entropies: 0.071 on these 8 pairs, against ln 8 = 2.079 at t = 0, where every row is uniform.</li>
+<li><b>SigLIP 2's cosines.</b> SigLIP 2 B/16 on the same batch: true pairs 0.198, others &minus;0.018 (the negative ones hang below the plate). Its cosines are smaller still, but every row is right.</li>
+<li><b>A sigmoid per cell.</b> SigLIP scales by its learned t = 112.67, adds its learned bias b = &minus;16.77 and asks every cell its own yes-or-no question: the diagonal rises to 0.77 to 1.00, every other cell sinks to almost 0 (the worst, 0.34, is in row 8 again). No row or column is normalised, so no device needs the whole batch. Loss 0.129.</li>
+</ol>
 <div class="fm"><div class="eq">CLIP: &#8467; = &frac12; [ CE<sub>rows</sub>(t &middot; S) + CE<sub>columns</sub>(t &middot; S) ]</div>
 <div class="eq">SigLIP: &#8467; = &minus;(1/N) &Sigma;<sub>i,j</sub> log &sigma;( z<sub>ij</sub> (t &middot; S<sub>ij</sub> + b) )</div>
 <dl><dt>S</dt><dd>the N &times; N matrix of cosines, images in rows, captions in columns; the diagonal holds the true pairs</dd>
@@ -21,17 +21,40 @@
 <dt>t, b</dt><dd>learned scale and (SigLIP only) bias; SigLIP learns t&prime; = log t and initialises t&prime; and b "to log 10 and &minus;10 respectively", so training starts from the prior that almost every pair is a mismatch (<a href="https://arxiv.org/abs/2303.15343" target="_blank" rel="noopener noreferrer">Zhai et al. 2023, &sect;3.2</a>)</dd>
 <dt>z<sub>ij</sub></dt><dd>+1 on the diagonal, &minus;1 elsewhere: every cell is a separate yes-or-no question</dd>
 <dt>&sigma;</dt><dd>the logistic sigmoid 1 / (1 + e<sup>&minus;x</sup>)</dd></dl></div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="ve-s4b">
+<p><b>Try it.</b> The widget evaluates both losses on the same real matrix for any batch size and scale: the softmax view shows how CLIP's loss depends on t, the sigmoid view each cell on its own.</p>
+
 <p>CLIP's t = 100.0 is exactly where its paper clipped the scale; SigLIP 2 learned t = 112.67 with b = &minus;16.77 <span class="meas">read from the weights in float32</span>. Because SigLIP's logits carry a bias they are calibrated per pair (a sigmoid gives a yes-or-no probability); CLIP's are calibrated only relative to the other candidates.</p>
 <details class="dp"><summary>The two losses in code <span class="mute">(depth)</span></summary><div class="b"><p>In transformers 5.20.1: CLIP's <code>contrastive_loss</code> is a cross-entropy against <code>torch.arange(len(logits))</code> (<code>models/clip/modeling_clip.py:47</code>), applied to the logits and their transpose and averaged; SigLIP's logits are <code>logits_per_text * logit_scale.exp() + logit_bias</code> (<code>models/siglip/modeling_siglip.py:805</code>) and the loss is <code>logsigmoid(m1_diag1 * logits_per_text)</code> summed over each row and averaged (<code>:814</code>). CLIP's scale started at 1 / 0.07 and was clipped at 100 (CLIP paper &sect;2.5); the released B/32 sits exactly at that clip, and SigLIP 2 learned t = 112.67 with b = &minus;16.77 <span class="meas">read from the weights in float32</span>. A sigmoid of 100 &times; cosine is near 1 for every CLIP pair, so applying one model's rule to the other's logits is meaningless.</p></div></details>
 
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="ve-loss"><h4>The loss on the real matrix: softmax asks each row to choose, sigmoid asks every cell yes or no</h4>
+<div class="seg" id="ve-loss-m"><button data-m="clip" class="on">CLIP B/32</button><button data-m="siglip">SigLIP 2 B/16</button></div>
+<div class="seg" id="ve-loss-l"><button data-m="soft" class="on">Softmax (CLIP's loss)</button><button data-m="sig">Sigmoid (SigLIP's loss)</button></div>
+<div class="rd-calc"><label>Batch size N: <b id="ve-loss-nv">8</b><input type="range" id="ve-loss-n" min="2" max="16" step="1" value="8"></label>
+<label>Scale t: <b id="ve-loss-tv">100</b><input type="range" id="ve-loss-t" min="0" max="2.5" step="0.01" value="2"></label></div>
+<div class="an-cnt" id="ve-loss-out"></div>
+<div class="rd-svg" id="ve-loss-mx"></div><div class="rd-svg" id="ve-loss-curve"></div>
+<p class="small mute" id="ve-loss-note"></p>
+<p class="small mute">Left: first N images (rows) against first N captions (columns), each cell's probability under the chosen loss, diagonal outlined. Right: the loss at every scale, the dot at the current one. Real cosines from the root's vision recordings <span class="meas">measured</span>. Sigmoid bias: SigLIP 2's learned &minus;16.77, or SigLIP's initial &minus;10 for CLIP (illustrative).</p></div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="ve-s4c">
 <h3>Batch size, and why the sigmoid scales</h3>
 <p>The softmax learns only from the negatives in the batch, and its chance level ln N grows with it: CLIP's batch of 32,768 asked each image to pick 1 caption out of 32,768 ({{CLIP page|n:3c65c17b0d0d8194a85dfc5f3bf3f799}}), and hard negatives (two cats, two similar captions) only show up in large batches. Split over D devices, the softmax normalises each row and column over the whole batch, so every device needs every other device's embeddings (an <dfn>all-gather</dfn>). The sigmoid scores each cell alone, so SigLIP's "chunked" implementation keeps each device's images in place and passes text embeddings round the devices in D steps: "the memory cost at any given moment is reduced from |B|<sup>2</sup> to b<sup>2</sup>", with b = |B| / D (SigLIP &sect;3.3).</p>
-<div class="rd-card"><h4>Before and after: the softmax needs every embedding on every device, the chunked sigmoid passes one block at a time</h4>
-<div class="rd-svg" id="ve-chunk"></div>
-<p class="small mute">Drawn for D = 4 devices. Numbers for a global batch |B| = 32,768 on D = 256 (b = 128 per device), float32 logits: the full matrix is 4.3 GB; one device's rows b &times; |B| are 16.8 MB; one chunk b &times; b is 65.5 kB <span class="der">derived from SigLIP &sect;3.3</span>.</p></div>
 <p><b>What the paper measured</b> <span class="vend">published</span>: with locked image features (SigLiT), "when the batch size is smaller than 16 k, sigmoid loss outperforms softmax loss by a large margin", but "performance for both sigmoid and softmax saturate at around 32 k batch size" (they went up to one million), and for SigLIP proper "a very large batch size hurts both losses" (&sect;4.1, Figure 2). With four TPUv4 chips a SigLiT model reached 84.5% ImageNet zero-shot in two days. So the sigmoid buys <b>cost and small-batch quality, not a higher ceiling</b>.</p>
 <details class="dp"><summary>What the widget can and cannot say; where to train a toy <span class="mute">(depth)</span></summary><div class="b"><p>Not run here: training either loss at scale. The widget evaluates both losses on released embeddings, and each model was trained with its own rule, so a loss computed with the other rule says nothing about how that model would have trained. "D collective permutes is typically faster than two all-gathers" (SigLIP &sect;3.3). A toy CLIP trained from scratch, with softmax against sigmoid on a toy batch, is on the {{CLIP page|n:3c65c17b0d0d8194a85dfc5f3bf3f799}}; InfoNCE on a real text batch and the temperature's effect on hard negatives are on {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}.</p></div></details>
 
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card"><h4>Before and after: the softmax needs every embedding on every device, the chunked sigmoid passes one block at a time</h4>
+<div class="rd-svg" id="ve-chunk"></div>
+<p class="small mute">Drawn for D = 4 devices. Numbers for a global batch |B| = 32,768 on D = 256 (b = 128 per device), float32 logits: the full matrix is 4.3 GB; one device's rows b &times; |B| are 16.8 MB; one chunk b &times; b is 65.5 kB <span class="der">derived from SigLIP &sect;3.3</span>.</p></div></div></div></div>
+<section id="ve-s4d">
 <h3>Why the data is the model</h3>
 <p>CLIP chose the contrastive loss for efficiency (it learned ImageNet-recognisable features 4 times faster than predicting the caption's bag of words, CLIP Figure 2), but almost every gain since 2021 came with a new dataset rather than a new loss. At fixed compute, curation moved accuracy by several points: MetaCLIP's ViT-B/32 goes from 57.4% on raw English pairs to 65.5% with its metadata balancing, and DataComp's best filter adds 6.9 points over its unfiltered pool <span class="vend">published</span>.</p>
 <details class="dp"><summary>Six datasets and how each was chosen <span class="mute">(reference)</span></summary><div class="b"><div class="tw"><table class="rd-cmp">
@@ -46,11 +69,17 @@
 </tbody></table></div>
 <p class="small mute">All rows are published by the dataset's authors <span class="vend">published</span>; ImageNet accuracies are zero-shot top-1 on the validation set, read from each paper's own text or table on 2026-10-17.</p>
 </div></details>
-<p><b>LAION's CLIP-score filter, on the running example.</b> LAION used OpenAI's CLIP ViT-B/32, the very model run here, so its rule can be applied to the real 16 &times; 16 matrix. Move the threshold:</p>
-<div class="rd-card" id="ve-laion"><h4>The 0.28 threshold sits just under real matches</h4><div class="rd-calc"><label>Keep a pair if its cosine is at least <b id="ve-laion-v">0.28</b><input type="range" id="ve-laion-t" min="0.15" max="0.4" step="0.005" value="0.28"></label></div>
-<div class="an-cnt" id="ve-laion-out"></div><div class="rd-svg" id="ve-laion-svg"></div>
-<p class="small mute">Dots: the 16 true pairs (top row) and the 240 mismatched image-caption pairs (bottom row), CLIP ViT-B/32 cosines <span class="meas">measured</span>; the line is the threshold.</p></div>
+</section>
+<div class="s3sp"><div class="s3L">
+<section id="ve-s4e">
+<p><b>LAION's CLIP-score filter, on the running example.</b> LAION used OpenAI's CLIP ViT-B/32, the very model run here, so its rule can be applied to the real 16 &times; 16 matrix. Move the threshold.</p>
 <p>At 0.28 all 16 true pairs pass and 1 of the 240 wrong pairs passes too <span class="meas">measured</span>: good captions of simple images score only about 0.28 to 0.38, and the typographic image s04 (0.284) barely survives. A filter built from one model passes that model's blind spots into the next model's data; LAION's authors note that a small CLIP "may leave more image-text pairs with weak or no semantic connection" (&sect;3.1).</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="ve-laion"><h4>The 0.28 threshold sits just under real matches</h4><div class="rd-calc"><label>Keep a pair if its cosine is at least <b id="ve-laion-v">0.28</b><input type="range" id="ve-laion-t" min="0.15" max="0.4" step="0.005" value="0.28"></label></div>
+<div class="an-cnt" id="ve-laion-out"></div><div class="rd-svg" id="ve-laion-svg"></div>
+<p class="small mute">Dots: the 16 true pairs (top row) and the 240 mismatched image-caption pairs (bottom row), CLIP ViT-B/32 cosines <span class="meas">measured</span>; the line is the threshold.</p></div></div></div></div>
+<section id="ve-s4f">
 <p><b>SigLIP 2</b> keeps the sigmoid loss and adds a caption decoder that reads the un-pooled patch tokens, then, for the last 20% of training, self-distillation and masked prediction "to improve the local semantics of the (un-pooled) feature representation" (&sect;2.2, 2.3): its patch tokens become much better for dense tasks, ADE20K linear segmentation rising from 37.6 (SigLIP So/14, 224) to 41.8 mIoU (its Table 2) <span class="vend">published</span>.</p>
 <details class="dp"><summary>Locking a tower: LiT <span class="mute">(depth)</span></summary><div class="b"><p>Contrastive training does not have to start from scratch. <dfn>LiT</dfn> (locked-image tuning) freezes a pre-trained image model and trains only a text tower to read it, and found "locked pre-trained image models with unlocked text models work best"; with a ViT-g/14 image tower it reached 85.2% ImageNet zero-shot (<a href="https://arxiv.org/abs/2111.07991" target="_blank" rel="noopener noreferrer">Zhai et al. 2021</a>) <span class="vend">published</span>. SigLIP's 84.5% in two days is a LiT-style run. SigLIP 2's caption decoder comes from LocCa.</p></div></details>
 </section>
@@ -59,7 +88,7 @@
 <h2>5. Training without captions: labels, pixels, other views</h2>
 <p><b>Labels</b>, the original recipe (ImageNet-21k, Google's private JFT-300M), teach only the distinctions their 1,000 or 21,000 classes ask for, and labels are expensive; captions and self-supervision both remove the labeller.</p>
 <details class="dp"><summary>DeiT: a ViT on ImageNet alone <span class="mute">(depth)</span></summary><div class="b"><p><dfn>DeiT</dfn> showed the ViT's data requirement was partly a recipe problem: "competitive convolution-free transformers by training on Imagenet only", 83.1% top-1 for an 86M model with a distillation token that learns from a CNN teacher, "on a single computer in less than 3 days" (<a href="https://arxiv.org/abs/2012.12877" target="_blank" rel="noopener noreferrer">Touvron et al. 2020</a>) <span class="vend">published</span>.</p></div></details>
-<p><b>Images alone.</b> How the methods work (with MAE's real reconstructions and the collapse problem) is on {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}. In one line each: <dfn>MAE</dfn> hides 75% of the patches and trains the encoder plus a small decoder to redraw the missing pixels; <dfn>DINO</dfn> trains a student network so that its output for one crop matches a slowly averaged teacher copy's output for another crop, and DINOv2 adds a masked-patch version of the same loss (iBOT) that is applied to every patch token. As encoders they differ like this:</p>
+<p><b>Images alone.</b> How the methods work (with MAE's real reconstructions and the collapse problem) is on {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}}. In one line each: <dfn>MAE</dfn> hides 75% of the patches and trains the encoder plus a small decoder to redraw the missing pixels; <dfn>DINO</dfn> trains a student network so that its output for one crop matches a slowly averaged teacher copy's output for another crop, and DINOv2 adds a masked-patch version of the same loss (iBOT) that is applied to every patch token (both are drawn in Fig. 1, steps 5 and 6). As encoders they differ like this:</p>
 <ul class="tight">
 <li><b>MAE's features are not linearly separable.</b> Its paper: "the MAE representations are less linearly separable, they are stronger non-linear features" and do well "when a non-linear head is tuned"; ViT-B linear probe 68.0% on ImageNet against 83.6% fine-tuned (<a href="https://arxiv.org/abs/2111.06377" target="_blank" rel="noopener noreferrer">He et al. 2021, &sect;4.3, Tables 3 and 12</a>) <span class="vend">published</span>. MAE is a starting point for fine-tuning, not a frozen feature extractor.</li>
 <li><b>DINOv2 was built to be used frozen.</b> A 1.1B ViT-g trained on LVD-142M, 142 million images chosen by retrieval "close to those in several curated datasets" from an uncurated pool, then distilled into S, B and L; "the linear probe performance is lower-bounded by the k-NN performance" in their experience. Its Table 4 (frozen features, ImageNet-1k): DINOv2 B/14 82.1% kNN and 84.5% linear, against MAE ViT-H/14 49.4% kNN and 76.6% linear, and OpenAI CLIP ViT-L/14 79.8% and 84.3% (<a href="https://arxiv.org/abs/2304.07193" target="_blank" rel="noopener noreferrer">Oquab et al. 2023</a>) <span class="vend">published</span>.</li>
