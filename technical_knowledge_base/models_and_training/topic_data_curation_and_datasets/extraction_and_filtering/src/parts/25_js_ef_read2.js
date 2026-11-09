@@ -55,17 +55,14 @@
     const Ls=X.lines.filter(l=>l.t);const tot=Ls.reduce((a,l)=>a+l.t.length,0);
     const why={too_few_words:'fewer than 3 words',no_terminal_punct:'no terminal punctuation',javascript:'mentions JavaScript',policy:'cookie or policy phrase',too_long_word:'a word over 1,000 characters',blank:'blank',upper:'mostly upper case',numeric:'only digits',counter:'a counter',one_word:'one word',cta:'call to action'};
     const flag=l=>mode==='fw'?l.c4:mode==='c4'?l.c4p:l.rw;
-    const verdict=()=>mode==='fw'?'kept (and it passes the FineWeb rules after the edits: run0 kept it, and so did FineWeb)':mode==='c4'?'dropped by datatrove\'s default: three sentences survive the line edits, under its minimum of 5. C4\'s own minimum of 3 would have kept it: the swapped default decides this page':'dropped: flagged lines hold '+H.p(X.rw_share*1,1,1)+' of its words, over the 5% limit';
-    const caps={fw:['<span class="t">The document as trafilatura extracted it.</span> '+Ls.length+' lines.','<span class="t">C4\'s line rules, FineWeb settings.</span> Lines of fewer than 3 words go; "LOCATION", "Strathpine" and "QLD 4500" vanish and the street address is left without its label.','<span class="t">Document decision.</span> '],
-      c4:['<span class="t">The same document.</span>','<span class="t">C4\'s line rules with terminal punctuation.</span> Every line not ending in . ! ? or a quote goes: dates, times, the address, the headings; two lines, three sentences, remain.','<span class="t">Document decision.</span> '],
-      rw:['<span class="t">The same document.</span>','<span class="t">RefinedWeb-style line flags (reconstruction).</span> Upper-case headings and one-word lines are flagged.','<span class="t">Document decision.</span> ']};
     function draw(s){let rm=0,ch=0;const out=Ls.map(l=>{const f=s>0?flag(l):null;if(f)rm++;else ch+=l.t.length;
         return '<div class="ef-ln'+(f?(mode==='rw'?' f':' x'):'')+(s===2&&mode!=='fw'?' x':'')+'">'+H.esc(l.t)+(f?'<span class="why">'+why[f]+'</span>':'')+'</div>'}).join('');
-      $('ef-ln-doc').innerHTML=out;$('ef-ln-cap').innerHTML=caps[mode][s]+(s===2?verdict():'');
+      $('ef-ln-doc').innerHTML=out;
       const dropped=s===2&&mode!=='fw';
       $('ef-ln-cnt').innerHTML=H.stat('Lines',Ls.length,'')+H.stat(mode==='rw'?'Lines flagged':'Lines deleted',s>0?rm:0,'')+H.stat('Characters left',dropped?0:H.n(s>0&&mode!=='rw'?ch:tot),'of '+H.n(tot))+H.stat('Document',s<2?'...':(dropped?'dropped':'kept'),'');}
-    const A=RD.anim({card:'ef-ln-card',ctl:'ef-ln-ctl',n:3,draw,ms:2600,label:'Line-filter step'});
-    H.chips($('ef-ln-mode'),m=>{mode=m;A.reset(3)});
+    const A=RD.anim({card:'ef-ln-card',ctl:'ef-ln-ctl',n:3,draw,ms:4600,label:'Line-filter step',list:'sx-ln-fw'});
+    // a mode switch shows that mode's step list and replays
+    H.chips($('ef-ln-mode'),m=>{mode=m;['fw','c4','rw'].forEach(k=>{$('sx-ln-'+k).hidden=k!==m});A.reset(3,'sx-ln-'+m)});
   })();
 
   // URL lists

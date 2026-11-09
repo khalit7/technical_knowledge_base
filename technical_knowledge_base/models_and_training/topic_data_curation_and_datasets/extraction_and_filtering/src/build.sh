@@ -1,14 +1,14 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/ (Extraction and filtering child page, prefix ef).
-# HTML: 01_head, 02_css, 10_header, 20_read_*.html (Reading tab), 3*_tab_*.html (lab tabs and 39_tab_more.html, file-name order).
+# HTML: 01_head, 02_css, 02_split (the split layout, skill template, 2026-11-09), 10_header, 20_read_*.html (Reading tab), 3*_tab_*.html (lab tabs and 39_tab_more.html, file-name order).
 # JS: 22_js_data.js (written here by make_data.py from data/*.json), then every *.js in parts/ in file-name order,
-# each in its own <script>, 99_js_tabs.js last.
+# each in its own <script>, 99_js_tabs.js last (25_js_s3.js is the 3D renderer v2, skill template; 27 to 29_js_sc_*.js the three 3D scenes).
 # Links: {{text|url}}, {{text|n:<notion id>}}, {{text|#t-<tab>}}. Prose numbers written [[KEY]] are filled by fill.py
 # from data/ef_facts.json (written by make_data.py).
 cd "$(dirname "$0")"
 python3 make_data.py > /dev/null || { echo "make_data failed"; exit 1; }
-{ cat parts/01_head.html parts/02_css.html parts/10_header.html parts/20_read_*.html
+{ cat parts/01_head.html parts/02_css.html parts/02_split.html parts/10_header.html parts/20_read_*.html
   for f in parts/3*_tab_*.html; do cat "$f"; done
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
@@ -19,5 +19,6 @@ s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a hre
 ' | python3 fill.py > ../index.html.part || { echo "fill failed"; rm -f ../index.html.part; exit 1; }
 mv ../index.html.part ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; grep -n -o '.\{30\}—.\{30\}' ../index.html | head; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html

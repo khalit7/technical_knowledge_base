@@ -5,55 +5,6 @@
   H.pred('ef-pred-1','jusText: '+H.n(E.chain.justext&&E.chain.justext.kept)+' documents survive the filters, against '+H.n(E.chain.traf111.kept)+' from trafilatura, '+H.n(E.chain.res.kept)+' from resiliparse and '+H.n(E.chain.wet.kept)+' from WET. But only '+H.n(E.chain.justext&&E.chain.justext.kept_in_fineweb)+' of jusText\'s are documents FineWeb kept: it keeps different text, not just more.');
   H.pred('ef-pred-2','The curly-bracket rule drops the whole document, so code in C-family languages, CSS, JSON and every LaTeX formula with an argument ("\\frac{a}{b}") disappears; in FineWeb\'s 50,000-document sample not one document contains "{".');
 
-  // jusText animation
-  (function(){const J=E.jt;if(!J||!$('ef-jt-card'))return;
-    const P=J.paras,S=J.snaps,np=P.length;let mode='jt';
-    const norm=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-    // align an extractor's output lines to the blocks, in order; a link-only block (a table-of-contents entry with the
-    // same words as a heading) is used only when no other block matches
-    const same=(t,l)=>{const a=norm(t).slice(0,40),b=norm(l).slice(0,40);return a.length>1&&b.length>1&&(a.startsWith(b)||b.startsWith(a))};
-    function align(list){const hit=P.map(()=>false);let cur=0;
-      list.forEach(l=>{let j=-1;for(let i=cur;i<np;i++){if(P[i].ld<0.9&&same(P[i].t,l)){j=i;break}}
-        if(j<0){for(let i=cur;i<np;i++){if(same(P[i].t,l)){j=i;break}}}
-        if(j>=0){hit[j]=true;cur=j+1}});return hit}
-    const inTraf=align(J.traf),inRes=align(J.res);
-    const capJ=['<span class="t">Step 1: blocks.</span> jusText splits the cleaned page at block-level tags into '+np+' blocks: menu items, the title, headings, paragraphs, sidebar links, the footer. Nothing is classified yet.',
-      '<span class="t">Step 2: context-free classes</span> (core.py:243-275). Each block on its own: link density over 0.2 or a copyright sign makes it bad; under 70 characters short; otherwise its stop-word density decides good, near-good or bad. The headings are short; the long paragraphs good; the sidebar links bad.',
-      '<span class="t">Step 3: pass 1, "good headings"</span> (core.py:313-326). Meant to promote a short heading followed by a good block. Nothing changes: the blocks after each heading still have an empty class when it looks at them (issue #45).',
-      '<span class="t">Step 4: pass 2, short blocks</span> (core.py:328-346). A short block between two good ones becomes good; between two bad ones, bad; mixed cases look one step further. The headings between paragraphs become good; the short sidebar items bad.',
-      '<span class="t">Step 5: pass 3, near-good</span> (core.py:348-357). A near-good block becomes bad only when both nearest good-or-bad neighbours are bad. This page has no near-good blocks, so nothing changes.',
-      '<span class="t">Step 6: pass 4, "more good headings"</span> (core.py:359-370). A heading that ended bad but was not bad on its own becomes good if a good block follows within 200 characters. This is what rescues the first heading, the one pass 1 should have caught. Dimmed blocks are dropped as boilerplate.'];
-    const capC=['<span class="t">The same page, jusText\'s final choice.</span> Good blocks are kept. Note the page title is dropped: its stop-word density is 0.',
-      '<span class="t">trafilatura on the same page.</span> Blocks whose text appears in trafilatura 1.11\'s output stay bright. A completely different method lands on exactly the same twelve blocks: the six headings and six paragraphs, title dropped.',
-      '<span class="t">resiliparse on the same page.</span> Blocks whose text appears in resiliparse\'s output (Dolma settings) stay bright: the same twelve plus the page title, which no class name marks as boilerplate (it also leaves a stray "by" from the byline whose author link it dropped).'];
-    function cls(i,s){return mode==='jt'?(s===0?'none':S[s-1][i]):S[S.length-1][i]}
-    function draw(s){
-      const rows=[];let good=0,chars=0,chg=0;
-      for(let i=0;i<np;i++){let c,keep,changed=false;
-        if(mode==='jt'){c=s===0?null:S[s-1][i];changed=s>1&&S[s-1][i]!==S[s-2][i];keep=s<5||c==='good'}
-        else{c=S[S.length-1][i];keep=s===0?c==='good':s===1?inTraf[i]:inRes[i]}
-        if(changed)chg++;
-        const on=(mode==='jt'?(c==='good'):keep);if(on){good++;chars+=P[i].len}
-        const k=c?'<span class="k ef-k-'+c+'">'+(c==='neargood'?'near-good':c)+'</span>':'<span class="k" style="background:var(--soft);color:var(--mute)">block</span>';
-        const out=(mode==='jt'?(s===5&&c!=='good'):!keep);
-        rows.push('<div class="ef-para'+(changed?' chg':'')+(out?' out':'')+'" title="length '+P[i].len+', stop-word density '+P[i].sw+', link density '+P[i].ld+(P[i].h?', heading':'')+'">'+k+'<span class="x">'+(P[i].h?'<b>':'')+H.esc(P[i].t)+(P[i].h?'</b>':'')+'</span></div>')}
-      $('ef-jt-body').innerHTML='<div class="ef-paras">'+rows.join('')+'</div>';
-      $('ef-jt-cap').innerHTML=(mode==='jt'?capJ:capC)[s];
-      $('ef-jt-cnt').innerHTML=H.stat('Blocks',np,'on '+H.esc(J.host))+H.stat(mode==='jt'?'Good now':'Kept',good,'blocks')+H.stat('Characters kept',H.n(chars),'')+(mode==='jt'?H.stat('Changed at this step',chg,''):H.stat('Extractor',['jusText','trafilatura 1.11','resiliparse'][s],''));
-    }
-    const A=RD.anim({card:'ef-jt-card',ctl:'ef-jt-ctl',n:capJ.length,draw,ms:2600,label:'jusText step'});
-    H.chips($('ef-jt-mode'),m=>{mode=m;A.reset(m==='jt'?capJ.length:capC.length)});
-  })();
-
-  // six extractors, same filters
-  (function(){if(!$('ef-x-bars'))return;const C=E.chain;
-    const ks=['traf111','traf231','res','justext','readability','wet'].filter(k=>C[k]);
-    function draw(m){const rows=ks.map(k=>({name:H.XN[k],v:C[k][m]||0,color:H.XC[k],hl:k==='traf111',txt:(m==='chars'||m==='kept_chars')?(C[k][m]/1e6).toFixed(1)+' M':H.n(C[k][m])}));
-      H.bars($('ef-x-bars'),rows);
-      $('ef-x-note').innerHTML='The same 20,280 pages, then lid.176 English &gt; 0.65 and run0\'s heuristic chain (datatrove 0.10.1) <span class="ef-lbl meas">measured</span>. Of the kept documents, how many FineWeb also kept from this file: '+ks.map(k=>H.XN[k].split(' (')[0]+' '+H.n(C[k].kept_in_fineweb)).join(', ')+' (FineWeb kept 2,425 in all). trafilatura 1.11 here is run0\'s own text, with its 1 s timeouts; without the timeout it keeps '+H.n(C.traf111_dedup&&C.traf111_dedup.kept)+'.'}
-    draw('kept');H.chips($('ef-x-metric'),draw);
-  })();
-
   // WCEB
   (function(){const W=E.wceb,P=E.wcebPub;if(!W||!$('ef-wceb'))return;
     const map={traf111:'Trafilatura',traf231:'Trafilatura',resiliparse:'Resiliparse',justext:'jusText',readability:'Readability',alltext:'inscriptis'};

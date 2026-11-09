@@ -31,3 +31,12 @@ Question the page keeps returning to: what does each extraction and filtering ch
 
 What the methodology lacked here: a rule for hand labels (who labelled, sample design, intervals); this page states
 labeller, seed and Wilson intervals everywhere labels are used.
+
+## 2026-11-09 (the split-layout and 3D rollout)
+| Id | Visual | Where | Status | Data |
+|---|---|---|---|---|
+| EF21 | Fig. 1: jusText on a real page as 37 block plates, a glass bar walking each pass, boilerplate peeled away; comparison rows for trafilatura and resiliparse | Reading s2 | built (3D; replaces the 2D stepper) | EF.jt, EF.pages |
+| EF22 | Fig. 2: six extractor lanes, rows for characters, English and kept documents, FineWeb overlap | Reading s3 | built (3D; replaces the metric-chip bars) | EF.chain |
+| EF23 | Fig. 3: rule gates per family with a pile per rule and the labelled wrong-drop share | Reading s7 | built (3D) | EF.wb.reasons, EF.pipe.run0, EF.labels.summary |
+| R5 | 3D hero funnel | none | rejected: counts per stage on one axis read best flat, and Fig. 3 already carries the gates in 3D |
+| R6 | Cost-ordered pipeline in 3D | none | rejected: rough timings on a shared machine, four orders of magnitude; a bar chart says it |

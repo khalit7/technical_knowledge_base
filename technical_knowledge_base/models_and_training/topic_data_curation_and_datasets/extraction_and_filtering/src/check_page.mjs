@@ -2,7 +2,7 @@
 //   node technical_knowledge_base/models_and_training/topic_data_curation_and_datasets/extraction_and_filtering/src/check_page.mjs
 // 1. clicks every control in every tab at 390 px dark and 920 px light (reduced motion), failing on JS errors, NaN,
 //    undefined or Infinity in visible text, or sideways page scroll; steps both animations to their ends;
-//    checks that nothing plays before the reader acts (no animation advances on its own, normal motion);
+//    checks that the animations play once scrolled into view (normal motion; src/check_stages.mjs checks the rest of the motion rules);
 //    saves element screenshots to ../.shots/el-*.png;
 // 2. checks the page embeds exactly the data make_data.py wrote, that every prose fact was filled, that the rule
 //    workbench at its defaults reproduces run0 (2,692 kept), and that numbers quoted in the prose match the data.
@@ -42,19 +42,19 @@ for(const [scheme,width] of [['dark',390],['light',920]]){
   ok(errs.length===0&&!(await p.evaluate(()=>!document.getElementById('jsErr').hidden)),scheme+' '+width+': no JS errors ('+clicks+' controls exercised)'+(errs.length?' '+errs.slice(0,3).join(' | '):''));
   await p.reload({waitUntil:'load'});
   if(scheme==='light'){const p2=await b.newPage();await p2.setViewport({width,height:900});await p2.goto('file://'+page_path,{waitUntil:'load'});
-    const s0=await p2.evaluate(()=>['ef-jt-ctl-s','ef-ln-ctl-s'].map(i=>document.getElementById(i).value));
-    for(const sel of ['#ef-jt-card','#ef-ln-card']){await p2.$eval(sel,e=>e.scrollIntoView());await new Promise(r=>setTimeout(r,3500))}
-    await p2.evaluate(()=>document.querySelectorAll('#ef-jt-mode button')[1].click());await new Promise(r=>setTimeout(r,3000));
-    const s1=await p2.evaluate(()=>['ef-jt-ctl-s','ef-ln-ctl-s'].map(i=>document.getElementById(i).value));
-    ok(JSON.stringify(s0)===JSON.stringify(s1)&&s1.every(v=>v==='0'),'no animation plays before the reader acts (normal motion, after scrolling to each and switching mode) '+JSON.stringify(s1));await p2.close()}
+    await p2.evaluate(()=>{try{localStorage.clear()}catch(e){}});await p2.goto('file://'+page_path,{waitUntil:'load'}); // open on the Reading tab
+    // autoplay on view (2026-11-06, replaces the never-autoplay check): the line-level animation and the three 3D stages play once scrolled into view
+    await p2.$eval('#ef-ln-card',e=>e.scrollIntoView({block:'center'}));await new Promise(r=>setTimeout(r,2500));
+    const ln=await p2.$eval('#ef-ln-card .an-play',e=>e.getAttribute('aria-label'));
+    const fr=[];for(const id of ['stg-jt','stg-x6','stg-gate']){await p2.$eval('#'+id,e=>e.scrollIntoView({block:'center'}));await new Promise(r=>setTimeout(r,2500));fr.push(await p2.$eval('#'+id,e=>+e.dataset.frames||0))}
+    ok(ln==='Pause'&&fr.every(v=>v>0),'animations play once scrolled into view (normal motion) '+JSON.stringify([ln,fr]));await p2.close()}
   const last=async(ctl)=>{await p.evaluate(c=>{const s=document.getElementById(c+'-s');s.value=s.max;s.dispatchEvent(new Event('input'))},ctl)};
   for(const [t,sel,prep,tag] of [
-      ['t-read','#ef-jt-card',async()=>{await last('ef-jt-ctl')},'final'],
-      ['t-read','#ef-jt-card',async()=>{await p.evaluate(()=>{const s=document.getElementById('ef-jt-ctl-s');s.value=2;s.dispatchEvent(new Event('input'))})},'pass1'],
-      ['t-read','#ef-jt-card',async()=>{await p.click('#ef-jt-mode button[data-m=cmp]');await last('ef-jt-ctl')},'cmp'],
+      ['t-read','#stg-jt',async()=>{await p.evaluate(()=>{const s=document.getElementById('stg-jt-r');s.value=s.max;s.dispatchEvent(new Event('input'))})},'final'],
+      ['t-read','#stg-jt',async()=>{await p.click('#ef-jt-mode button[data-m=cmp]');await p.evaluate(()=>{const s=document.getElementById('stg-jt-r');s.value=s.max;s.dispatchEvent(new Event('input'))})},'cmp'],
       ['t-read','#ef-ln-card',async()=>{await last('ef-ln-ctl')},'fw'],
       ['t-read','#ef-ln-card',async()=>{await p.click('#ef-ln-mode button[data-m=c4]');await last('ef-ln-ctl')},'c4'],
-      ['t-read','#ef-path-card',null,''],['t-read','#ef-x-bars',null,''],['t-read','#ef-wceb',null,''],['t-read','#ef-st-bars',null,''],
+      ['t-read','#ef-path-card',null,''],['t-read','#stg-x6',null,''],['t-read','#stg-gate',null,''],['t-read','#ef-wceb',null,''],['t-read','#ef-st-bars',null,''],
       ['t-read','#ef-rt',null,''],['t-read','#ef-traps',null,''],['t-read','#ef-lid-mini',null,''],['t-read','#ef-tox',null,''],['t-read','#ef-cost',null,''],['t-read','#ef-cache',null,''],['t-read','#ef-url',null,''],
       ['t-read','#ef-hero-card',null,''],['t-read','#ef-ft-card',null,''],['t-read','#ef-lid-card',async()=>{await p.click('#ef-l-pre button[data-m="30"]')},'030'],['t-ext','#t-ext',null,''],['t-rules','#t-rules',null,''],['t-labels','#ef-b-sum',null,'']]){
     await p.click('#tabs button[data-t="'+t+'"]');if(prep)await prep();const el=await p.$(sel);
