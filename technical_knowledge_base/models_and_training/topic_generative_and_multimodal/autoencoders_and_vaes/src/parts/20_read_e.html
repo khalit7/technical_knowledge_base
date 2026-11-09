@@ -1,4 +1,5 @@
 <section id="av-s7">
+<div class="s3sp"><div class="s3L">
 <h2>7. Why reconstructions blur, and what fixes it</h2>
 <p>Pixel-loss autoencoders give soft reconstructions, VAEs more so. Four causes, each with its own fix:</p>
 <ol>
@@ -8,20 +9,34 @@
 <li><b>The downsampling factor.</b> At 8 &times; downsampling a 1-pixel stroke shares a latent cell with 63 other pixels; the decoder redraws it from nothing.</li>
 </ol>
 <p><b>The trade-off you cannot escape.</b> At a given rate, the lowest pixel error and the most realistic output are different targets (Blau and Michaeli, {{The perception-distortion trade-off, 2018|https://arxiv.org/abs/1711.06077}}): a decoder that draws plausible fur where the code was unsure scores a worse PSNR than one that draws the average blur. Judge a tokenizer for generation on realism, not PSNR alone.</p>
+<p><b>What the runs show.</b> LPIPS traded pixel error for realism: PSNR <span data-av="quant.runs.vq_restart.test_psnr_db"></span> to <span data-av="quant.runs.g_lpips.test_psnr_db"></span> dB, rFD <span data-av="quant.runs.vq_restart.rfd"></span> to <span data-av="quant.runs.g_lpips.rfd"></span>; rFD is measured in a different network than the one trained on, so its drop is the honest evidence. The patch GAN did not help at this scale (rFD <span data-av="quant.runs.g_lpips_gan.rfd"></span>; one seed, tiny grey images, 2,500 adversarial steps), which says nothing against GANs on photographs. <span class="meas">measured</span></p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="rd-card" id="av-gan-card"><h4>The same tokenizer, three losses: LPIPS trades pixel error for realism</h4>
 <div class="seg" id="av-gan-mode"><button data-m="0" class="on">Pixel loss</button><button data-m="1">+ LPIPS</button><button data-m="2">+ LPIPS + GAN</button></div>
 <div id="av-gan-strip"></div>
 <div class="an-cap" id="av-gan-cap"></div>
 <div class="an-cnt" id="av-gan-cnt"></div>
 <p class="av-note">A 128-code VQ tokenizer with restarts (section 8) trained three ways: pixel loss; plus LPIPS (feature distance in a pretrained AlexNet, {{Zhang et al. 2018|https://arxiv.org/abs/1801.03924}}); plus a patch discriminator on 8 &times; 8 regions from step 2,500 (hinge loss, adaptive weight as in the LDM code): section 10's VQGAN recipe at toy scale. rFD: Fr&eacute;chet distance between classifier features of all 10,000 reconstructions and the originals (0 is a perfect copy); LPIPS on the first 2,000 (grey to three channels, 64 &times; 64, torchmetrics 1.9.0, AlexNet v0.1). <span class="meas">measured on Apple M1 Pro, one seed each</span></p></div>
-<p><b>What the runs show.</b> LPIPS traded pixel error for realism: PSNR <span data-av="quant.runs.vq_restart.test_psnr_db"></span> to <span data-av="quant.runs.g_lpips.test_psnr_db"></span> dB, rFD <span data-av="quant.runs.vq_restart.rfd"></span> to <span data-av="quant.runs.g_lpips.rfd"></span>; rFD is measured in a different network than the one trained on, so its drop is the honest evidence. The patch GAN did not help at this scale (rFD <span data-av="quant.runs.g_lpips_gan.rfd"></span>; one seed, tiny grey images, 2,500 adversarial steps), which says nothing against GANs on photographs. <span class="meas">measured</span></p>
+</div></div></div>
 </section>
 
 <section id="av-s8">
+<div class="s3sp"><div class="s3R"><div id="stg-vq"></div></div><div class="s3L">
 <h2>8. VQ-VAE: an image as tokens, and keeping the codebook alive</h2>
 <p>Keep the latent as a grid (here 8 &times; 8 positions of 8 numbers) and replace each position's vector z<sub>e</sub> by the nearest of K learned vectors e, the <dfn>codebook</dfn> (here K = 128): the image becomes 64 integers ({{van den Oord et al. 2017|https://arxiv.org/abs/1711.00937}}). The lookup has no gradient, so the decoder's gradient is copied to z<sub>e</sub> unchanged (the <dfn>straight-through estimator</dfn>, <span class="av-mono">z_st = ze + (zq - ze).detach()</span>), and two terms train the codebook and keep the encoder near it:</p>
 <div class="fm"><div class="eq">loss = reconstruction + &#8214;sg[z<sub>e</sub>] &minus; e&#8214;<sup>2</sup> + &beta; &#8214;z<sub>e</sub> &minus; sg[e]&#8214;<sup>2</sup></div>
 <dl><dt>sg</dt><dd>stop-gradient: the first extra term (the <dfn>codebook loss</dfn>) moves only the codes, the second (the <dfn>commitment loss</dfn>, &beta; = 0.25 in the paper, eq. 3, and here) only the encoder</dd></dl></div>
+<p><b>Dead codes.</b> A code that is never the nearest to any encoder output gets no gradient, never moves and is never chosen: <dfn>codebook collapse</dfn>. With the usual initialisation (uniform in &plusmn;1/K, far smaller than the encoder's outputs) most codes die in the first few hundred steps (the real runs below). Fig. 5 shows the mechanism on a 2-D toy.</p>
+<ol class="sx" id="sx-vq">
+<li><b>Encoder outputs and a fresh codebook.</b> 600 points stand for encoder outputs (frozen here; in real training the encoder moves too); 16 codes start in a tiny square at the origin, uniform in &plusmn;1/16, the usual default. <span class="der">illustrative, computed in the page</span></li>
+<li><b>Each output snaps to its nearest code.</b> Each colour is one code's share of the points. With the codes bunched in the middle only those on the outside of the bunch win: <span data-avq="plain.0.used">8</span> of 16 win any point; the others (red) get no gradient.</li>
+<li><b>Plain VQ: live codes move to the mean of their points</b> (what the codebook loss does in the limit), dead codes stay put. In this toy they recover as the live codes leave the centre (<span data-avq="plain.full">16 of 16 by training step 5</span>), but usage stays uneven: perplexity <span data-avq="plain.ppl">11.3</span>, the effective number of equally used codes. In real training the healing is slow (<span data-av="lab.derived.vq_plain_alive200"></span> of 128 codes used at step 200, below).</li>
+<li><b>Restarts re-seed dead codes on the data.</b> Every 3 steps a code that won nothing jumps to a random encoder output (Jukebox&rsquo;s restart), so it comes back where the data is: perplexity <span data-avq="restart.ppl">12.2</span>.</li>
+<li><b>FSQ [4, 4]: a fixed grid, nothing to learn.</b> Each coordinate is squashed by tanh and rounded to one of 4 levels, so the 16 codes are a fixed grid (drawn where each level sits in the encoder&rsquo;s units); a code is unused only if the encoder never sends a point there: <span data-avq="fsq.used">15</span> of 16 here.</li>
+<li><b>LFQ, 2 bits: the sign of each coordinate.</b> In 2-D that is 4 codes, the quadrants (a real LFQ uses log<sub>2</sub> K channels: 18 for 2<sup>18</sup> codes); MAGVIT-v2 adds an entropy penalty so every sign pattern gets used.</li>
+<li><b>Measured: the real 128-code tokenizer.</b> Every code sorted by how often it appears in the 640,000 test tokens (height: square root of the count; red: never): plain VQ ends with <span data-av="quant.runs.vq_plain.codes_used_test" data-f="int"></span> codes in use, restarts with all <span data-av="quant.runs.vq_restart.codes_used_test" data-f="int"></span>.</li>
+</ol>
 <p>Read the library version critically: diffusers' <span class="av-mono">VectorQuantizer</span> keeps a known bug, "due to a bug the beta term was applied to the wrong term" ({{vae.py lines 574 to 576 and 651 to 654, v0.41.0|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/autoencoders/vae.py#L574}}): with the default <span class="av-mono">legacy=True</span>, &beta; multiplies the codebook term.</p>
 <details class="dp"><summary>The quantizer that trained the tokens here <span class="mute">(code)</span></summary><div class="b">
 <pre class="rd-code">    def quantize(self, ze):                    # the topic's src/latent/vq.py
@@ -38,14 +53,8 @@
         z_st = ze + (zq - ze).detach()                              # straight-through estimator
         return self.ae.decode(z_st), ze, zq, idx</pre>
 </div></details>
-<p><b>Dead codes.</b> A code that is never the nearest to any encoder output gets no gradient, never moves and is never chosen: <dfn>codebook collapse</dfn>. With the usual initialisation (uniform in &plusmn;1/K, far smaller than the encoder's outputs) most codes die in the first few hundred steps. Predict how many of the 16 codes survive plain VQ, then step the toy.</p>
-<div class="rd-card" id="avq-toy"><h4>Sixteen codes, 600 encoder outputs: plain VQ strands most of its codes</h4>
-<div class="seg" id="avq-toy-mode"><button data-m="plain" class="on">VQ, plain</button><button data-m="restart">VQ + restarts</button><button data-m="fsq">FSQ [4, 4]</button><button data-m="lfq">LFQ, 2 bits</button></div>
-<div class="an-ctl" id="avq-toy-ctl"></div>
-<div class="av-chart" id="avq-toy-svg" style="max-width:420px"></div>
-<div class="an-cap" id="avq-toy-cap"></div>
-<div class="an-cnt" id="avq-toy-cnt"></div>
-<p class="av-note">Each colour is one code's share of the points; crosses are codes, red crosses unused. The points stand for encoder outputs and are frozen here (in real training the encoder moves too); VQ codes move to the mean of their points each step, which is what the codebook loss does in the limit. <span class="der">illustrative, computed in the page</span></p></div>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>The fixes in use</b>, each run here on the same tokenizer:</p>
 <ul>
 <li><b>Dead-code restarts</b>: re-seed unused codes from random encoder outputs of the current batch (Jukebox, {{Dhariwal et al. 2020, section 3.1|https://arxiv.org/abs/2005.00341}}).</li>
@@ -53,6 +62,10 @@
 <li><b>Normalised codes</b>: L2-normalise z<sub>e</sub> and the codebook, so every code lives on the data's sphere, usually with 8 to 32-number codes (ViT-VQGAN's "factorized codes", {{Yu et al. 2021, section 3.2|https://arxiv.org/abs/2110.04627}}).</li>
 <li>Not run here: k-means initialisation on the first batch's encoder outputs (SoundStream, which also uses EMA and restarts: {{Zeghidour et al. 2021, section III-C|https://arxiv.org/abs/2107.03312}}) and the <b>rotation trick</b>, a better-than-copied gradient ({{Fifty et al. 2024|https://arxiv.org/abs/2410.06424}}).</li>
 </ul>
+<p><b>Reading it.</b> At 128 codes plain VQ crashes early (<span data-av="lab.derived.vq_plain_alive200"></span> of 128 codes used in the window ending at step 200) and heals slowly; restarts refill the book by step <span data-av="lab.derived.vq_restart_full_step" data-f="int"></span>; both end at similar PSNR (Jukebox: without restarts models "can converge to the same test error and codebook usage but require more training steps" <span class="vend">published</span>). Usage is not quality: the EMA codebook uses all 128 codes at the lowest perplexity (<span data-av="quant.runs.q_vq_ema.perplexity"></span>), and the L2-normalised run leaves <span data-av="derived.l2_unused"></span> unused yet has the lowest rFD. At 1,024 codes plain VQ ends with <span data-av="quant.runs.q_vq1024_plain.codes_used_test"></span> in use (<span data-av="quant.runs.q_vq1024_plain.usage_share" data-f="pct"></span>), about what the 128-code model uses: 3 extra bits per token bought and not used (log<sub>2</sub> 1,024 &minus; log<sub>2</sub> 128; <span class="unc">Correction</span> the 2026-10-17 page said 7). Restarts bring it to <span data-av="quant.runs.q_vq1024_restart.codes_used_test"></span>. And 64 tokens of 7 bits (<span data-av="lab.runs.vq_restart.bits_per_image"></span> bits) reconstruct better than 16 real numbers (<span data-av="lab.runs.vq_restart.test_psnr_db"></span> against <span data-av="lab.runs.ae16.test_psnr_db"></span> dB): a grid of local codes suits images, blank corners sharing a few codes and the garment getting its own. <span class="meas">measured</span></p>
+<p><b>How to check.</b> Log codes used and perplexity every few hundred steps; a perplexity far below K means you are paying for a codebook you do not have, and the bigger K, the more it matters.</p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="rd-card" id="avq-vq-card"><h4>Codebook usage on the test set: the plain recipe wastes most of a 1,024-code book</h4>
 <div class="tw"><table id="avq-vq-tab"><thead><tr><th>Variant (click a row)</th><th class="num">K</th><th class="num">Codes used</th><th class="num">Perplexity</th><th class="num">PSNR dB</th><th class="num">rFD</th></tr></thead><tbody>
 <tr data-k="vq_plain"><td>VQ, plain</td><td class="num">128</td><td class="num"><span data-av="quant.runs.vq_plain.codes_used_test" data-f="int"></span></td><td class="num"><span data-av="quant.runs.vq_plain.perplexity"></span></td><td class="num"><span data-av="quant.runs.vq_plain.test_psnr_db" data-f="2"></span></td><td class="num"><span data-av="quant.runs.vq_plain.rfd" data-f="1"></span></td></tr>
@@ -69,7 +82,6 @@
 <div class="av-pick" id="avq-imgpick"></div>
 <div id="avq-tokgrid"></div>
 <p class="av-note">Codes used: distinct codes among the 640,000 test tokens; perplexity: exp of the entropy of code frequencies, the effective number of equally used codes. The K = 128 plain and restart rows are the root Latent lab's recorded checkpoints re-scored with the same script (PSNR matches the recordings). One seed each: a few rFD points between the 128-code runs are within what a second seed could move. <span class="meas">measured on Apple M1 Pro</span>; <span class="av-mono">src/quant/</span></p></div>
-<p><b>Reading it.</b> At 128 codes plain VQ crashes early (<span data-av="lab.derived.vq_plain_alive200"></span> of 128 codes used in the window ending at step 200) and heals slowly; restarts refill the book by step <span data-av="lab.derived.vq_restart_full_step" data-f="int"></span>; both end at similar PSNR (Jukebox: without restarts models "can converge to the same test error and codebook usage but require more training steps" <span class="vend">published</span>). Usage is not quality: the EMA codebook uses all 128 codes at the lowest perplexity (<span data-av="quant.runs.q_vq_ema.perplexity"></span>), and the L2-normalised run leaves <span data-av="derived.l2_unused"></span> unused yet has the lowest rFD. At 1,024 codes plain VQ ends with <span data-av="quant.runs.q_vq1024_plain.codes_used_test"></span> in use (<span data-av="quant.runs.q_vq1024_plain.usage_share" data-f="pct"></span>), about what the 128-code model uses: 3 extra bits per token bought and not used (log<sub>2</sub> 1,024 &minus; log<sub>2</sub> 128; <span class="unc">Correction</span> the 2026-10-17 page said 7). Restarts bring it to <span data-av="quant.runs.q_vq1024_restart.codes_used_test"></span>. And 64 tokens of 7 bits (<span data-av="lab.runs.vq_restart.bits_per_image"></span> bits) reconstruct better than 16 real numbers (<span data-av="lab.runs.vq_restart.test_psnr_db"></span> against <span data-av="lab.runs.ae16.test_psnr_db"></span> dB): a grid of local codes suits images, blank corners sharing a few codes and the garment getting its own. <span class="meas">measured</span></p>
-<p><b>How to check.</b> Log codes used and perplexity every few hundred steps; a perplexity far below K means you are paying for a codebook you do not have, and the bigger K, the more it matters.</p>
+</div></div></div>
 <details class="dp"><summary>How often each code is used, sorted <span class="mute">(chart, any run)</span></summary><div class="b"><div class="av-chart" id="avq-usage"></div><p class="av-note" id="avq-usage-note"></p></div></details>
 </section>

@@ -1,5 +1,5 @@
 // Check every tab: every button clicked, every range moved, every select changed, at 390 px dark and 920 px light;
-// no page errors, no NaN, undefined or unfilled "?" numbers, no broken images, no sideways scroll; nothing playing on load.
+// no page errors, no NaN, undefined or unfilled "?" numbers, no broken images, no sideways scroll; nothing but the 3D stages playing by itself (check_stages.mjs checks those).
 // Usage: node check_page.mjs <shots dir>
 import {createRequire} from 'module';
 import path from 'path';
@@ -23,8 +23,9 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
   for(let y=0;y<30000;y+=700){await p.evaluate(y=>scrollTo(0,y),y);await new Promise(r=>setTimeout(r,30))}
   await new Promise(r=>setTimeout(r,1500));
-  const playing=await p.evaluate(()=>[...document.querySelectorAll('.an-play')].filter(b=>/Pause/.test(b.textContent)).length);
-  console.log(w,scheme,'animations playing after scrolling, before any click:',playing);if(playing)bad++;
+  // since 2026-11-09 the 3D stages play by themselves once in view (src/check_stages.mjs checks them); nothing else may play by itself
+  const playing=await p.evaluate(()=>[...document.querySelectorAll('.an-play')].filter(b=>!b.closest('.stg')&&/Pause/.test(b.textContent)).length);
+  console.log(w,scheme,'non-stage animations playing after scrolling, before any click:',playing);if(playing)bad++;
   await p.evaluate(()=>scrollTo(0,0));
   for(const tab of TABS){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);

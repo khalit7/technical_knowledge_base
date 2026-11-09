@@ -18,9 +18,10 @@ def load(name, var):
 
 
 D = load("22_js_av_0data.js", "AVD")
+SC = load("22_js_av_3scene.js", "AVSC")
 L = load("22_js_av_1lab.js", "AVL") if os.path.exists(os.path.join(HERE, "parts", "22_js_av_1lab.js")) else {}
 ROOTS = {"lt": D["lt"], "elbo": D["elbo"]["runs"], "pc": D["pc"]["runs"], "quant": D["quant"], "derived": D["derived"],
-         "tok": D["tok"]["m"], "lab": L}
+         "tok": D["tok"]["m"], "lab": L, "sc": SC}
 
 
 def get(path):

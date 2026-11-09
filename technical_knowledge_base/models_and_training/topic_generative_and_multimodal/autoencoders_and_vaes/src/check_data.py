@@ -56,8 +56,19 @@ for f in ("scaling_factor", "all16", "decode_mistakes", "noising"):
     ok(LTD["sd_vae"][f] == A["sd"][f], f"lab sd {f}")
 ok(LTD["sd_scale"] == A["scale"] and LTD["perc"] == A["perc"] and LTD["scatter"] == A["scatter"], "lab scale, perc, scatter")
 ok(abs(A["derived"]["snr_ratio"] - (1 / 0.18215) ** 2) < 0.06, "SNR ratio 30.1 = (1/0.18215)^2")
+# 1c. the 3D stages' per-image numbers (AVSC, written by make_scene_data.py) equal the root's recording, and its derived values hold
+js3 = open(os.path.join(HERE, "parts", "22_js_av_3scene.js")).read()
+SC = json.loads(js3[js3.index("window.AVSC=") + len("window.AVSC="):].rstrip().rstrip(";"))
+for j, i in enumerate(SC["pick"]):
+    ok(SC["ae16_code"][j] == tiny["runs"]["ae16"]["code16"][i], f"scene ae16 code {i}")
+    ok(SC["vae_mu"][j] == tiny["runs"]["vae16_b1p0"]["mu16"][i] and SC["vae_sigma"][j] == tiny["runs"]["vae16_b1p0"]["sigma16"][i], f"scene vae {i}")
+    for k in ("ae16", "vae16_b1p0", "vq_restart"):
+        ok(SC["psnr"][k][j] == tiny["runs"][k]["test16_psnr_db"][i], f"scene psnr {k} {i}")
+mu, sg = SC["vae_mu"][0], SC["vae_sigma"][0]
+ok(abs(SC["hero"]["kl_img"] - sum(0.5 * (m * m + v * v - 1 - math.log(v * v)) for m, v in zip(mu, sg))) < 0.006, "scene KL of the hero image")
+ok(SC["col"]["vae_kl_max"] == max(A["runs"]["vae16_b1p0"]["kl_per_dim"]), "scene KL per dim range")
 # 2. every data-av path in the parts resolves
-ROOTS = {"lt": D["lt"], "elbo": D["elbo"]["runs"], "pc": D["pc"]["runs"], "quant": D["quant"], "derived": D["derived"], "tok": D["tok"]["m"], "lab": A}
+ROOTS = {"sc": SC, "lt": D["lt"], "elbo": D["elbo"]["runs"], "pc": D["pc"]["runs"], "quant": D["quant"], "derived": D["derived"], "tok": D["tok"]["m"], "lab": A}
 paths = set()
 for f in glob.glob(os.path.join(HERE, "parts", "*.html")):
     paths |= set(re.findall(r'data-av="([^"]+)"', open(f).read()))

@@ -1,16 +1,16 @@
 <section id="av-s3">
+<div class="s3sp"><div class="s3R"><div id="stg-rep"></div></div><div class="s3L">
 <h2>3. The VAE: an encoder that outputs a distribution</h2>
 <p>The VAE's encoder outputs a mean &mu; and a log-variance log &sigma;<sup>2</sup> per latent dimension: a small Gaussian per image instead of a point. Training decodes a random draw from it and charges for its distance from N(0, I).</p>
-<div class="rd-card"><h4>The reparameterisation trick: the randomness enters from outside, so gradients reach &mu; and &sigma;</h4>
-<div class="rd-pipe">
-<div style="--sc:var(--mute)"><b>x</b><i>image</i></div><span>&rarr;</span>
-<div style="--sc:var(--c1)"><b>Encoder</b><i>outputs &mu;(x), log &sigma;<sup>2</sup>(x)</i></div><span>&rarr;</span>
-<div style="--sc:var(--acc)"><b>z = &mu; + &sigma; &middot; &epsilon;</b><i>differentiable in &mu; and &sigma;</i></div><span>&rarr;</span>
-<div style="--sc:var(--c1)"><b>Decoder</b><i>outputs x&#770;</i></div><span>&rarr;</span>
-<div style="--sc:var(--mute)"><b>loss</b><i>reconstruction + &beta; &middot; KL</i></div>
-</div>
-<div class="rd-pipe"><div style="--sc:var(--c2);flex:0 1 260px"><b>&epsilon; ~ N(0, I)</b><i>drawn outside the network, a constant for the backward pass: no gradient needed through it</i></div></div>
-<p class="av-note">Sampling z directly from N(&mu;, &sigma;<sup>2</sup>) has no gradient path to the encoder; &mu; + &sigma;&epsilon; does.</p></div>
+<ol class="sx" id="sx-rep">
+<li><b>The encoder outputs &mu; and &sigma;.</b> For one test image, the 16-number VAE&rsquo;s recorded mean and spread per number (the network outputs log &sigma;<sup>2</sup>; &sigma; is drawn): &mu; from <span data-av="sc.hero.mu_min" data-f="2"></span> to <span data-av="sc.hero.mu_max" data-f="2"></span>, &sigma; from <span data-av="sc.hero.sig_min" data-f="2"></span> to <span data-av="sc.hero.sig_max" data-f="2"></span>.</li>
+<li><b>Draw &epsilon; outside the network.</b> Sixteen standard-normal numbers drawn outside the network (one draw, illustrative): the randomness enters from outside.</li>
+<li><b>Combine: z = &mu; + &sigma; &middot; &epsilon;.</b> Each number of the code is its mean moved by its own spread times its own noise, so a dimension with a small &sigma; barely moves.</li>
+<li><b>Decode and score.</b> The decoder draws x&#770; from z, and the loss adds the reconstruction to &beta; times the KL.</li>
+<li><b>Gradients flow back to &mu; and &sigma;.</b> z is differentiable in &mu; and &sigma; (&part;z/&part;&mu; = 1, &part;z/&part;&sigma; = &epsilon;), so the decoder&rsquo;s gradient reaches the encoder; &epsilon; is a constant of the backward pass. Sampling z directly from N(&mu;, &sigma;<sup>2</sup>) has no such path.</li>
+<li><b>The KL charge, number by number.</b> &frac12;(&mu;<sup>2</sup> + &sigma;<sup>2</sup> &minus; 1 &minus; log &sigma;<sup>2</sup>) per number, 0 only at &mu; = 0, &sigma; = 1: this image pays <span data-av="sc.hero.kl_img" data-f="2"></span> nats, from <span data-av="sc.hero.kl_dim_min" data-f="2"></span> to <span data-av="sc.hero.kl_dim_max" data-f="2"></span> per number (the test-set mean is <span data-av="lab.runs.vae16_b1p0.test_kl_nats"></span>).</li>
+</ol>
+
 <div class="fm"><div class="eq">z = &mu;(x) + &sigma;(x) &middot; &epsilon;, &nbsp; &epsilon; ~ N(0, I)<br>loss = reconstruction(x, decoder(z)) + &beta; &middot; &frac12; &Sigma;<sub>j</sub> (&mu;<sub>j</sub><sup>2</sup> + &sigma;<sub>j</sub><sup>2</sup> &minus; 1 &minus; log &sigma;<sub>j</sub><sup>2</sup>)</div>
 <dl><dt>KL</dt><dd>the second term is KL(N(&mu;, &sigma;<sup>2</sup>) &#8214; N(0, I)) in closed form, in nats; 0 only when &mu; = 0 and &sigma; = 1, when the code carries nothing</dd>
 <dt>&beta;</dt><dd>1 gives the negative ELBO, the standard VAE loss (derivation: {{the Math page|n:3f05c17b0d0d81aa9857eb5fa1bac530}}); section 5 varies it</dd></dl></div>
@@ -34,6 +34,7 @@ def vae_loss(model, x, y=None, beta=1.0):
 </div></details>
 <p><b>The cost, measured.</b> The 16-number VAE pays <span data-av="lab.runs.vae16_b1p0.test_kl_nats"></span> nats of KL per test image and reconstructs worse than the plain autoencoder (<span data-av="lab.runs.vae16_b1p0.test_nll_nats"></span> against <span data-av="lab.runs.ae16.test_nll_nats"></span> nats, <span data-av="lab.runs.vae16_b1p0.test_psnr_db"></span> against <span data-av="lab.runs.ae16.test_psnr_db"></span> dB); in return its codes sit where N(0, I) expects them. In the 2-number VAE the encoder's &sigma; averages <span data-av="lab.runs.vae2.posterior_sigma_mean"></span>: each image claims a tiny ellipse of a space whose spread is 1. <span class="meas">measured</span></p>
 <p><b>How to check.</b> Log the KL per dimension: near 0 means unused (&mu; always about 0, &sigma; about 1). <dfn>Active units</dfn> count dimensions whose &mu; varies across images with variance above 0.01 ({{Burda et al. 2015|https://arxiv.org/abs/1509.00519}}); this VAE uses <span data-av="lab.runs.vae16_b1p0.active_units"></span> of 16.</p>
+</div></div>
 <style>
 .avp .avvi .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;min-width:0}
 .avp .avvi .small{font-size:13px}.avp .avvi .mute{color:var(--mute)}
@@ -74,6 +75,7 @@ def vae_loss(model, x, y=None, beta=1.0):
 </section>
 
 <section id="av-s4">
+<div class="s3sp"><div class="s3L">
 <h2>4. The loss in working form: two numbers, and their units</h2>
 <p>The two terms balance as the derivation intends only when both are log-probabilities of a whole image, in the same unit; change how either is summed or averaged and you have silently changed &beta;.</p>
 <div class="fm"><div class="eq">loss per image = &minus;log p(x | z) &nbsp;[summed over all pixels]<br>+ &beta; &middot; KL(q(z | x) &#8214; N(0, I)) &nbsp;[summed over all latent dimensions]</div>
@@ -83,6 +85,10 @@ def vae_loss(model, x, y=None, beta=1.0):
 <div class="pr" id="av-pr-meanred"><div class="q">Predict: a tutorial computes the reconstruction with <span class="av-mono">F.binary_cross_entropy(..., reduction="mean")</span> (the default, averaging over the 1,024 pixels) and the KL summed over the 16 dimensions. How many of the 16 latent dimensions stay in use?</div>
 <div class="opts"><button data-ok="0">All 16, the loss is the same up to a constant</button><button data-ok="0">About 8</button><button data-ok="1">Almost none</button></div>
 <div class="ans" hidden>Averaging over 1,024 pixels divides the reconstruction by 1,024, the same as an effective &beta; of 1,024. Measured: <span data-av="elbo.e_meanred.active_units"></span> of 16 active units, KL <span data-av="elbo.e_meanred.test_kl_nats"></span> nats, PSNR <span data-av="elbo.e_meanred.test_psnr_db"></span> dB against <span data-av="lt.vae16_b1p0.test_psnr_db"></span> dB for the correctly summed loss, and every reconstruction close to the average garment. Posterior collapse caused by the loss's units, with an ordinary decoder. <span class="meas">measured</span></div></div>
+<p><b>The Gaussian decoder's &sigma; is a &beta;.</b> Squared error is a Gaussian decoder with fixed &sigma;: &minus;log p(x | z) = &Sigma; (x &minus; x&#770;)<sup>2</sup> / (2&sigma;<sup>2</sup>) + a constant, so plain "MSE summed + KL" fixes &sigma;<sup>2</sup> = 1/2 and the KL's relative weight is 2&sigma;<sup>2</sup> <span class="der">derived</span>. On pixels in [&minus;1, 1], &sigma; = 0.1 makes squared error 100 times dearer than &sigma; = 1: the code carries <span data-av="elbo.e_mse_s0p1.test_kl_nats"></span> nats instead of <span data-av="elbo.e_mse_s1.test_kl_nats"></span> and reconstructs at <span data-av="elbo.e_mse_s0p1.test_psnr_db"></span> dB instead of <span data-av="elbo.e_mse_s1.test_psnr_db"></span>, but random-code samples get worse (prior FD <span data-av="elbo.e_mse_s0p1.prior_fd"></span> against <span data-av="elbo.e_mse_s1.prior_fd"></span>): section 5's trade-off, reached by moving a "noise level" nobody thinks of as a weight. All 16 dimensions stay active in both. Or learn &sigma;, as the LDM autoencoder does (closed block below). <span class="meas">measured</span></p>
+<p><b>How to check.</b> Log reconstruction and KL separately, in nats per image; check the reconstruction is summed over pixels (or &beta; rescaled); count active units. A KL near zero under a fine-looking loss curve is the signature.</p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="rd-card" id="av-elbo-card"><h4>Four losses that all say &beta; = 1 in the code; the units decide what &beta; really is</h4>
 <div class="tw"><table><thead><tr><th>Reconstruction term</th><th>Likelihood</th><th class="num">KL nats</th><th class="num">Active of 16</th><th class="num">PSNR dB</th><th class="num">Prior FD</th></tr></thead><tbody>
 <tr><td>16-number VAE, &beta; = 1 (reference)</td><td>Bernoulli, summed over pixels</td><td class="num"><span data-av="lt.vae16_b1p0.test_kl_nats" data-f="2"></span></td><td class="num"><span data-av="lt.vae16_b1p0.active_units"></span></td><td class="num"><span data-av="lt.vae16_b1p0.test_psnr_db" data-f="2"></span></td><td class="num"><span data-av="lt.vae16_b1p0.prior_fd" data-f="0"></span></td></tr>
@@ -92,7 +98,6 @@ def vae_loss(model, x, y=None, beta=1.0):
 </tbody></table></div>
 <div id="av-elbo-strips"></div>
 <p class="av-note">Three VAEs trained exactly like the reference except for the reconstruction term; 10,000 test images, decoded from the posterior mean; prior FD as in section 2. <span class="meas">measured on Apple M1 Pro</span>; <span class="av-mono">src/train_av.py</span> (<span class="av-mono">make_e_loss</span>), <span class="av-mono">src/elbo/eval_elbo.py</span>.</p></div>
-<p><b>The Gaussian decoder's &sigma; is a &beta;.</b> Squared error is a Gaussian decoder with fixed &sigma;: &minus;log p(x | z) = &Sigma; (x &minus; x&#770;)<sup>2</sup> / (2&sigma;<sup>2</sup>) + a constant, so plain "MSE summed + KL" fixes &sigma;<sup>2</sup> = 1/2 and the KL's relative weight is 2&sigma;<sup>2</sup> <span class="der">derived</span>. On pixels in [&minus;1, 1], &sigma; = 0.1 makes squared error 100 times dearer than &sigma; = 1: the code carries <span data-av="elbo.e_mse_s0p1.test_kl_nats"></span> nats instead of <span data-av="elbo.e_mse_s1.test_kl_nats"></span> and reconstructs at <span data-av="elbo.e_mse_s0p1.test_psnr_db"></span> dB instead of <span data-av="elbo.e_mse_s1.test_psnr_db"></span>, but random-code samples get worse (prior FD <span data-av="elbo.e_mse_s0p1.prior_fd"></span> against <span data-av="elbo.e_mse_s1.prior_fd"></span>): section 5's trade-off, reached by moving a "noise level" nobody thinks of as a weight. All 16 dimensions stay active in both. Or learn &sigma;, as the LDM autoencoder does (closed block below). <span class="meas">measured</span></p>
-<p><b>How to check.</b> Log reconstruction and KL separately, in nats per image; check the reconstruction is summed over pixels (or &beta; rescaled); count active units. A KL near zero under a fine-looking loss curve is the signature.</p>
+</div></div></div>
 <details class="dp"><summary>The LDM autoencoder's loss: a learned &sigma;, and LPIPS once per pixel <span class="mute">(reference code)</span></summary><div class="b"><p>It learns one log-variance for its whole reconstruction term (<span class="av-mono">nll_loss = rec_loss / torch.exp(self.logvar) + self.logvar</span>, {{contperceptual.py line 53|https://github.com/CompVis/latent-diffusion/blob/a506df575647/ldm/modules/losses/contperceptual.py#L53}}), so its effective weight between reconstruction and KL moves during training. In the same function the LPIPS distance, one number per image, is added to the L1 error of every pixel before the sum (lines 48 to 51 and 57: <span class="av-mono">rec_loss = rec_loss + self.perceptual_weight * p_loss</span>, then <span class="av-mono">torch.sum(...) / shape[0]</span>), so the perceptual term counts once per pixel and channel, 786,432 times at 512 &times; 512. The KL, summed over the latent and weighted by 10<sup>&minus;6</sup> (line 83), is tiny against it by design. <span class="av-note">Source read at CompVis/latent-diffusion a506df575647.</span></p></div></details>
 </section>

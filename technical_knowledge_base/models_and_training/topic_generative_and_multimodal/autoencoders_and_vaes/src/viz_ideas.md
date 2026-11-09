@@ -35,3 +35,13 @@ This page now owns the autoencoder concepts the root's Latent lab used to teach,
 - **Changed**: no animation plays by itself (template `RD.anim`); the collapse decode animation and the comparator's crop animation became toggles (the change between end states is the point, not the motion); the three-loss strip is a toggle; every number in the prose is written into the static HTML at build time (`fill_static.py`), replacing the script fill.
 - **Kept as a tab**: Tokenizer comparator (a dataset view used by sections 10 to 12).
 - **Rejected**: a real photo or paper figure. This is a mechanism page and every picture is the page's own data (real reconstructions, real latents); the canonical figures (VQ-VAE, VQGAN, LDM) are under the arXiv default licence, which does not grant reuse.
+
+## 2026-11-09, the split-layout rollout (3D stages, renderer v2)
+Built, each a `28_js_sc*.js` scene with a step list:
+- Fig. 1 hourglass (hero): one test image's recorded tile, the ConvAE's 16 x 16 x 32 and 8 x 8 x 64 maps as glass plates (one per 8 channels), the three bottlenecks from that image's recorded codes (16 numbers; 16 means and spreads; 64 tokens), the three recorded reconstructions and per-image PSNR.
+- Fig. 2 latent spaces: the 600 recorded 2-number codes of ae2 and vae2 as balls on each model's own box, the radius-2 circle, the per-image sigma rings, and the recorded decode-grid tiles nearest the origin.
+- Fig. 3 reparameterisation: the recorded mu and sigma of one image, an illustrative epsilon, z computed, gradients as reverse flows, the per-number KL.
+- Fig. 4 collapse: KL per dimension of four runs as bar rows, the recorded training KL replayed in a column, the annealing weight gauge, the code's worth.
+- Fig. 5 quantizers: the old 2-D toy's engine (unchanged) in 3D, grouped into 6 explained steps (was a 26-frame stepper), plus the real 128-code usage of plain and restart runs.
+- Fig. 6 tokens per image: one 512 x 512 image at f = 8, 16, 32 with the measured MoVQ and aMUSEd grids; tokens and attention pairs.
+Rejected or kept 2D: the drawn-to-scale bars (a number on an axis), the beta slider and its tiles (a widget), the loss-units table and strips, the collapse curves (curves), the GAN toggle, the VQ table with usage curves and token map, the FSQ and LFQ table, the noising toggle, wrong-factor sets and channel crops (real images, best flat), the same-PSNR blur, and the comparator (a dataset tool). A 9 x 9 grid of decoded tiles lying on the Fig. 2 plates was considered and rejected: 162 tiles of merged pixel quads redrawn at 30 frames a second is too heavy for Canvas 2D.

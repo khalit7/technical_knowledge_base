@@ -1,6 +1,14 @@
 <section id="av-s1">
+<div class="s3sp"><div class="s3L">
 <h2>1. Why generate in a latent, and the two kinds of latent</h2>
 <p>A diffusion model runs its network 25 to 50 times per image and an autoregressive model predicts one symbol at a time, so both pay for every number they work on, and most of a 512 &times; 512 image's 786,432 numbers are detail the eye barely registers (the LDM paper's rate-distortion argument, {{LDM paper page|n:3c65c17b0d0d81bb98adc0daf8462cb6}}). So: train an autoencoder once, generate latents, decode once at the end.</p>
+<div class="rd-two">
+<div class="rd-card"><h4>Continuous latent, for diffusion and flow</h4><p>A small grid of real numbers; a VAE in name, trained with a tiny KL weight plus perceptual and adversarial losses (section 11).</p></div>
+<div class="rd-card"><h4>Discrete tokens, for autoregressive and masked models</h4><p>A small grid of integers, each one of K codebook entries, predicted like words so images and text share one sequence (sections 8 to 10).</p></div>
+</div>
+<p><b>The cost, either way.</b> Detail the decoder cannot draw (small text, distant faces, fine texture) cannot appear, however good the generator. Positions set the generator's sequence length or spatial size; channels or codebook size set what each position carries. The trade-off is <dfn>rate</dfn> (what the latent carries) against <dfn>distortion</dfn> (reconstruction error) against how easy the latent is to model, and reconstruction measurements (encode, decode, compare) and generation measurements (sample, decode, compare distributions) often disagree.</p>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="rd-card"><h4>What a generator works on for one 512 &times; 512 image, to scale</h4>
 <div class="rd-bars" id="av-scale-bars">
 <div><span class="nm">Pixels (RGB)</span><span class="tr"><span style="width:100%"></span></span><span class="v">786,432</span></div>
@@ -10,16 +18,39 @@
 <div class="hl"><span class="nm">Chameleon tokens, 13 bits each</span><span class="tr"><span style="width:0.13%"></span></span><span class="v">1,024</span></div>
 </div>
 <p class="av-note">Linear scale; shapes from each model's config (section 11) and Chameleon's paper (section 10), counts <span class="der">derived</span> as height &times; width &times; channels. SD 1.5 keeps 48 times fewer numbers than the pixels.</p></div>
-<div class="rd-two">
-<div class="rd-card"><h4>Continuous latent, for diffusion and flow</h4><p>A small grid of real numbers; a VAE in name, trained with a tiny KL weight plus perceptual and adversarial losses (section 11).</p></div>
-<div class="rd-card"><h4>Discrete tokens, for autoregressive and masked models</h4><p>A small grid of integers, each one of K codebook entries, predicted like words so images and text share one sequence (sections 8 to 10).</p></div>
-</div>
-<p><b>The cost, either way.</b> Detail the decoder cannot draw (small text, distant faces, fine texture) cannot appear, however good the generator. Positions set the generator's sequence length or spatial size; channels or codebook size set what each position carries. The trade-off is <dfn>rate</dfn> (what the latent carries) against <dfn>distortion</dfn> (reconstruction error) against how easy the latent is to model, and reconstruction measurements (encode, decode, compare) and generation measurements (sample, decode, compare distributions) often disagree.</p>
+</div></div></div>
 </section>
 
 <section id="av-s2">
+<div class="s3sp"><div class="s3R"><div id="stg-lat"></div></div><div class="s3L">
 <h2>2. Why a plain autoencoder does not generate, and what the VAE changes</h2>
-<p>To generate, you pick a code and decode it, but a plain autoencoder never says which codes are valid: training only decodes real images' codes, a scattered cloud at whatever scale training chose. Below, 600 test images (60 per class) through a 2-number autoencoder and a 2-number VAE, identical except for the KL term.</p>
+<p>To generate, you pick a code and decode it, but a plain autoencoder never says which codes are valid: training only decodes real images' codes, a scattered cloud at whatever scale training chose. Fig. 2: 600 test images (60 per class) through a 2-number autoencoder and a 2-number VAE, identical except for the KL term (root Latent lab recordings, runs <span class="av-mono">ae2</span>, <span class="av-mono">vae2</span>).</p>
+<ol class="sx" id="sx-lat">
+<li><b>The autoencoder's codes.</b> Each ball is one test image at its 2-number code, coloured by class. Training put them in a box from z<sub>1</sub> <span data-av="lab.runs.ae2.grid.lo.0" data-f="0"></span> to <span data-av="lab.runs.ae2.grid.hi.0" data-f="0"></span> and z<sub>2</sub> <span data-av="lab.runs.ae2.grid.lo.1" data-f="0"></span> to <span data-av="lab.runs.ae2.grid.hi.1" data-f="0"></span>, in class islands with gaps between them; nothing said where valid codes are.</li>
+<li><b>Where N(0, I) draws land.</b> The dashed circle of radius 2 holds 86% of 2-D N(0, I) draws (1 &minus; e<sup>&minus;2</sup>) <span class="der">derived</span>; in this box it is smaller than one decode-grid cell, so every random code lands in one small region and decodes to one blob (the tile: what the decoder draws at the grid point nearest the origin).</li>
+<li><b>The VAE's codes fill N(0, I).</b> Same network, plus the KL term: the means sit in a disc of radius about 3 around the origin, box &minus;3 to 3 on both axes, the classes still in neighbourhoods.</li>
+<li><b>Each code is a small Gaussian.</b> The rings are each image's own &sigma;, to scale: on average <span data-av="lab.runs.vae2.posterior_sigma_mean"></span> against the prior's 1, so each image claims a tiny ellipse of the prior.</li>
+<li><b>A random draw decodes to a garment.</b> A draw near the origin, decoded by each model: the VAE draws a plausible garment, the autoencoder its one blob. The VAE's gain is a known density, N(0, I) by construction.</li>
+</ol>
+<div class="pr" id="av-pr-prior"><div class="q">Predict: decode 1,000 random codes z ~ N(0, I) with the 16-number autoencoder. What comes out?</div>
+<div class="opts"><button data-ok="0">Random noise images</button><button data-ok="0">A blurry mix of all ten classes</button><button data-ok="1">Almost all the same garment</button></div>
+<div class="ans" hidden>The topic's Fashion-MNIST classifier calls <span data-av="lab.derived.ae16_bag" data-f="pct"></span> of them a Bag. Its codes spread with a standard deviation of <span data-av="lab.derived.ae16_std_min" data-f="1"></span> to <span data-av="lab.derived.ae16_std_max" data-f="1"></span> per dimension, so every N(0, I) draw sits in one small region and decodes to one blob: mode collapse from a scale mismatch alone. <span class="meas">measured</span></div></div>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p><b>Three readings.</b> N(0, I) fails for the autoencoder. A Gaussian fitted to its own codes beats the VAE: what makes a latent usable is knowing where the codes are, which can be learned after training (Ghosh et al., {{From Variational to Deterministic Autoencoders, 2019|https://arxiv.org/abs/1903.12436}}) <span class="vend">published</span>; the VAE's gain is that the density is N(0, I) <i>by construction</i>, with no second stage. And all are far from the floor: a decoder fed a simple Gaussian cannot model the data's many modes, which is why real systems put a diffusion or autoregressive model on top of the latent.</p>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="rd-card" id="av-prior-card"><h4>Random codes, decoded: the scale of the codes is what matters</h4>
+<div class="av-rowlab">Plain autoencoder (16 numbers), z ~ N(0, I): FD <span data-av="lab.runs.ae16.prior_std_normal.fd" data-f="0"></span></div><div class="av-tiles" data-row="prior:ae16_prior"></div>
+<div class="av-rowlab">Same autoencoder, z from a Gaussian fitted to its own training codes: FD <span data-av="lab.runs.ae16.prior_fitted_gaussian.fd" data-f="0"></span></div><div class="av-tiles" data-row="prior:ae16_fit"></div>
+<div class="av-rowlab">VAE (16 numbers, &beta; = 1), z ~ N(0, I): FD <span data-av="lab.runs.vae16_b1p0.prior.fd" data-f="0"></span></div><div class="av-tiles" data-row="prior:vae16_b1p0_prior"></div>
+<p class="av-note">FD: Fr&eacute;chet distance between 1,000 decoded samples and the 10,000 test images in the topic classifier's 128-d feature space (the FID formula with a domain network; lower is better). 1,000 real validation images score <span data-av="lab.floor.fd"></span>, the floor at this sample size. "Fitted": mean and covariance of 10,000 training codes, then z = mean + L&epsilon; with L the Cholesky factor. First 8 of the 1,000 shown. <span class="meas">measured on Apple M1 Pro (CPU)</span></p></div>
+<div class="rd-card" id="av-ip-card"><h4>Walking between two images: pixels blend ghosts, a latent walk changes the garment</h4>
+<div class="seg" id="av-ip-pair"><button data-m="0" class="on">Trouser to dress</button><button data-m="1">Sneaker to ankle boot</button><button data-m="2">T-shirt to bag</button></div>
+<div class="av-rowlab">Mixing pixels</div><div class="av-tiles c9" data-ip="0"></div>
+<div class="av-rowlab">Straight line between the 16-number autoencoder's codes</div><div class="av-tiles c9" data-ip="1"></div>
+<div class="av-rowlab">Straight line between the 16-number VAE's means</div><div class="av-tiles c9" data-ip="2"></div>
+<p class="av-note">t = 0, 1/8, ..., 1; latent rows end on reconstructions. The two latent walks differ little here; the VAE's advantage is off the data (the random codes above). Latent diffusion models interpolate the starting noise instead, spherically ({{DDIM, section 5.3|https://arxiv.org/abs/2010.02502}}). <span class="meas">measured</span></p></div>
 <div class="rd-card" id="av-scat-card"><h4>Same images, two latent spaces: the VAE puts its codes where N(0, I) draws land</h4>
 <div class="seg" id="av-scat-mode"><button data-m="pts" class="on">Codes of 600 test images</button><button data-m="grid">Decodes of a 9 &times; 9 grid</button></div>
 <div class="av-scat">
@@ -27,21 +58,7 @@
 <div><div class="av-rowlab">VAE, 2 numbers (the means): box &minus;3 to 3 on both axes</div><canvas id="av-scat-vae2" width="340" height="340" role="img" aria-label="Codes of the VAE"></canvas></div>
 </div>
 <div class="av-leg2" id="av-scat-leg"></div>
-<p class="av-note">Dashed circle: radius 2, where 86% of 2-D N(0, I) draws land (1 &minus; e<sup>&minus;2</sup>) <span class="der">derived</span>; in the autoencoder's box it is smaller than one decode-grid cell, while the VAE's codes fill a disc of radius about 3. "Decodes": what the decoder draws at 81 grid points. <span class="meas">measured</span> (root Latent lab recordings, runs <span class="av-mono">ae2</span>, <span class="av-mono">vae2</span>)</p>
+<p class="av-note">Dashed circle: radius 2 (Fig. 2). "Decodes": what the decoder draws at 81 grid points. <span class="meas">measured</span> (root Latent lab recordings, runs <span class="av-mono">ae2</span>, <span class="av-mono">vae2</span>)</p>
 </div>
-<div class="pr" id="av-pr-prior"><div class="q">Predict: decode 1,000 random codes z ~ N(0, I) with the 16-number autoencoder. What comes out?</div>
-<div class="opts"><button data-ok="0">Random noise images</button><button data-ok="0">A blurry mix of all ten classes</button><button data-ok="1">Almost all the same garment</button></div>
-<div class="ans" hidden>The topic's Fashion-MNIST classifier calls <span data-av="lab.derived.ae16_bag" data-f="pct"></span> of them a Bag. Its codes spread with a standard deviation of <span data-av="lab.derived.ae16_std_min" data-f="1"></span> to <span data-av="lab.derived.ae16_std_max" data-f="1"></span> per dimension, so every N(0, I) draw sits in one small region and decodes to one blob: mode collapse from a scale mismatch alone. <span class="meas">measured</span></div></div>
-<div class="rd-card" id="av-prior-card"><h4>Random codes, decoded: the scale of the codes is what matters</h4>
-<div class="av-rowlab">Plain autoencoder (16 numbers), z ~ N(0, I): FD <span data-av="lab.runs.ae16.prior_std_normal.fd" data-f="0"></span></div><div class="av-tiles" data-row="prior:ae16_prior"></div>
-<div class="av-rowlab">Same autoencoder, z from a Gaussian fitted to its own training codes: FD <span data-av="lab.runs.ae16.prior_fitted_gaussian.fd" data-f="0"></span></div><div class="av-tiles" data-row="prior:ae16_fit"></div>
-<div class="av-rowlab">VAE (16 numbers, &beta; = 1), z ~ N(0, I): FD <span data-av="lab.runs.vae16_b1p0.prior.fd" data-f="0"></span></div><div class="av-tiles" data-row="prior:vae16_b1p0_prior"></div>
-<p class="av-note">FD: Fr&eacute;chet distance between 1,000 decoded samples and the 10,000 test images in the topic classifier's 128-d feature space (the FID formula with a domain network; lower is better). 1,000 real validation images score <span data-av="lab.floor.fd"></span>, the floor at this sample size. "Fitted": mean and covariance of 10,000 training codes, then z = mean + L&epsilon; with L the Cholesky factor. First 8 of the 1,000 shown. <span class="meas">measured on Apple M1 Pro (CPU)</span></p></div>
-<p><b>Three readings.</b> N(0, I) fails for the autoencoder. A Gaussian fitted to its own codes beats the VAE: what makes a latent usable is knowing where the codes are, which can be learned after training (Ghosh et al., {{From Variational to Deterministic Autoencoders, 2019|https://arxiv.org/abs/1903.12436}}) <span class="vend">published</span>; the VAE's gain is that the density is N(0, I) <i>by construction</i>, with no second stage. And all are far from the floor: a decoder fed a simple Gaussian cannot model the data's many modes, which is why real systems put a diffusion or autoregressive model on top of the latent.</p>
-<div class="rd-card" id="av-ip-card"><h4>Walking between two images: pixels blend ghosts, a latent walk changes the garment</h4>
-<div class="seg" id="av-ip-pair"><button data-m="0" class="on">Trouser to dress</button><button data-m="1">Sneaker to ankle boot</button><button data-m="2">T-shirt to bag</button></div>
-<div class="av-rowlab">Mixing pixels</div><div class="av-tiles c9" data-ip="0"></div>
-<div class="av-rowlab">Straight line between the 16-number autoencoder's codes</div><div class="av-tiles c9" data-ip="1"></div>
-<div class="av-rowlab">Straight line between the 16-number VAE's means</div><div class="av-tiles c9" data-ip="2"></div>
-<p class="av-note">t = 0, 1/8, ..., 1; latent rows end on reconstructions. The two latent walks differ little here; the VAE's advantage is off the data (the random codes above). Latent diffusion models interpolate the starting noise instead, spherically ({{DDIM, section 5.3|https://arxiv.org/abs/2010.02502}}). <span class="meas">measured</span></p></div>
+</div></div></div>
 </section>
