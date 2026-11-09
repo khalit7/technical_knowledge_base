@@ -74,14 +74,19 @@ YP = json.load(open(os.path.join(HERE, "out", "page_data_more.json")))
 for k, v in YP.items():
     if Yd.get(k) != v:
         bad.append(f"page_data_more mismatch: {k}")
-rs = open(os.path.join(HERE, "..", "..", "src", "retired", "parts", "33_js_fw_0data.js")).read()
-W = json.loads(rs[rs.index("{"):rs.rindex("}") + 1])
-for k in ["err", "he", "cfg"]:
-    if Yd[k] != W[k]:
-        bad.append(f"FMY {k} differs from the root's recording")
-for k, v in Yd["f"].items():
-    if k in W["f"] and W["f"][k] != v:
-        bad.append(f"FMY fact {k} differs from the root")
+# the root's retired Flow lab data part (read by make_data_more.py) was never committed; when it is absent, say so and skip the comparison
+RS = os.path.join(HERE, "..", "..", "src", "retired", "parts", "33_js_fw_0data.js")
+if os.path.exists(RS):
+    rs = open(RS).read()
+    W = json.loads(rs[rs.index("{"):rs.rindex("}") + 1])
+    for k in ["err", "he", "cfg"]:
+        if Yd[k] != W[k]:
+            bad.append(f"FMY {k} differs from the root's recording")
+    for k, v in Yd["f"].items():
+        if k in W["f"] and W["f"][k] != v:
+            bad.append(f"FMY fact {k} differs from the root")
+else:
+    print("SKIP: the root's retired Flow lab data part is not in the checkout; FMY checked against out/page_data_more.json only")
 usedy = set(re.findall(r'data-fmy="([\w.]+)"', html))
 for k in sorted(usedy - set(Yd["f"])):
     bad.append(f"fmy fact used but missing: {k}")
@@ -96,7 +101,12 @@ lit10 = {fd(I["fm"], "euler", 4): "158.3", fd(I["diff"], "ddim", 4): "478.9", fd
          fd(I["fm"], "euler", 10): "64.4", fd(I["diff"], "ddim", 10): "181.3", fd(I["diff"], "ddpm", 10): "130.5", fd(I["diff"], "dpm", 10): "115.1",
          fd(I["fm"], "euler", 20): "49.8", fd(I["diff"], "ddim", 20): "130.9", fd(I["diff"], "ddpm", 20): "77.9", fd(I["diff"], "dpm", 20): "101.2",
          fd(I["diff"], "ddpm", 1000): "34.9", fd(I["diff"], "ddpm", 250): "39.7", fd(I["fm"], "euler", 250): "53.0", fd(I["fm"], "midpoint", 25): "53.1",
-         f'{min(r["fd"] for r in Yd["he"]):.1f}': "43.5"}
+         f'{min(r["fd"] for r in Yd["he"]):.1f}': "43.5",
+         # the same-noise stepper's step list (2026-11-09): its default pair, DDIM and the flow with Euler
+         fd(I["fm"], "euler", 1): "1253.5", fd(I["diff"], "ddim", 1): "1493.9", fd(I["fm"], "euler", 2): "489.3", fd(I["diff"], "ddim", 50): "112.7", fd(I["fm"], "euler", 50): "48.9"}
+# Fig. 5's step list: the recorded minibatch-OT travel at B = 64 (toy, 4,096 pairs)
+if f'{dict(D["ot"]["cost2d"])[64]:.2f}' != "3.74" or "falls to 3.74" not in text:
+    bad.append("Fig. 5 literal 3.74 (recorded " + f'{dict(D["ot"]["cost2d"])[64]:.2f}' + ")")
 for got, want in lit10.items():
     if got != want or want not in text:
         bad.append(f"section 10 literal {want} (recorded {got})")

@@ -41,7 +41,8 @@
   function side(sel,stripId,titleId,n){const s=S[+$(sel).value];const has=s.pts.find(p=>p[0]===n);const key=has?s.tile(n):null;
     $(titleId).textContent=s.nm+(has?', NFE '+n+': FD '+has[1].toFixed(1):', NFE '+n+': not run');
     if(key)X.tiles($(stripId),key,10,X.CLS);else $(stripId).innerHTML='<span class="small mute">'+(has?'scored, images not recorded':'not run at this budget')+'</span>'}
-  const bc=X.anim({card:'fms-bc',ctl:'fms-ctl',n:BN.length,ms:1100,hold:2000,label:'Evaluations',draw:i=>{side('fms-l','fms-ls','fms-lt',BN[i]);side('fms-r','fms-rs','fms-rt',BN[i]);$('fms-cap').textContent='Network evaluations: '+BN[i]+'. Same ten starting noises on both sides.'}});
+  // plays by itself once in view (RD.anim through FMX.anim); its steps are explained by the step list sx-fms on the left, so it has no caption of its own
+  const bc=X.anim({card:'fms-bc',ctl:'fms-ctl',n:BN.length,ms:3800,label:'Evaluations',list:'sx-fms',draw:i=>{side('fms-l','fms-ls','fms-lt',BN[i]);side('fms-r','fms-rs','fms-rt',BN[i])}});
   ['fms-l','fms-r'].forEach(id=>$(id).addEventListener('change',()=>bc.redraw()));
   X.onRender('t-read',()=>{chart();grid()});
 })();

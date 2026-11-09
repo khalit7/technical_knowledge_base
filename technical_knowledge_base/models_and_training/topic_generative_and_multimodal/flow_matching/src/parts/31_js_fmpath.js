@@ -1,6 +1,6 @@
 // ---- Two panels on the same noise: exact fields, trained networks, students. One engine, two instances:
 // the 2-D flow playground tab (t-fmpath, prefix fmp: every model, solver and noise level) and the reflow card in
-// Reading section 8 (prefix fmr-rf: four fixed comparisons). Never autoplays; a new comparison resets to step 0.
+// Reading section 8 (prefix fmr-rf, retired 2026-11-09 for the reflow stage, Fig. 6). A widget: never plays by itself (auto false); a new comparison resets to step 0.
 (function(){
   const X=window.FMX,Fd=window.FMF,$=X.$;
   const MODELS={
@@ -56,7 +56,7 @@
     if(q('tr'))q('tr').addEventListener('change',()=>A.redraw());
     if(q('new'))q('new').addEventListener('click',()=>{seed+=1;Z=Fd.noise(300,seed);compute()});
     q('pre').addEventListener('click',e=>{const b=e.target.closest('button');if(b)preset(b.dataset.p)});
-    AO={card:P+'-card',ctl:P+'-ctl',n:5,ms:600,hold:1600,draw:i=>draw(i),label:'Step'};A=X.anim(AO);
+    AO={card:P+'-card',ctl:P+'-ctl',n:5,ms:600,draw:i=>draw(i),label:'Step',auto:false};A=X.anim(AO);
     preset(first);
     X.onRender(tabId,()=>A.redraw());
   }

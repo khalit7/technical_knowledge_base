@@ -47,28 +47,10 @@ window.FMX=(function(){
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="'+esc(o.label||'chart')+'">'+g+'</svg>';
     return {X,Y,W,H}}
   const leg=(el,items)=>{el.innerHTML=items.map(i=>'<span><i style="background:'+i[1]+(i[2]?';height:2px;margin-top:5px':'')+'"></i>'+i[0]+'</span>').join('')};
-  // step animation with play, pause, step, scrub and speed; only runs on screen in the visible tab. Never autoplays (2026-10-23):
-  // it waits on step 0 until the reader presses play or steps; a mode change resets it to step 0
-  function anim(o){const card=$(o.card),ctl=$(o.ctl);const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const p=o.ctl+'-';
-    ctl.classList.add('fmx-anim');
-    ctl.innerHTML='<button id="'+p+'b" aria-label="Previous step">&#9664;&#9664;</button><button id="'+p+'p" aria-label="Play">&#9654; Play</button><button id="'+p+'f" aria-label="Next step">&#9654;&#9654;</button>'+
-      '<input type="range" id="'+p+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'"><label class="small">Speed <select id="'+p+'v"><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="2">2&times;</option></select></label>';
-    const q=s=>$(p+s);
-    function show(){const sc=q('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
-    const live=()=>st.vis&&!document.hidden&&shown(card);
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=st.n-1){if(o.loop){st.i=0;show();st.timer=setTimeout(tick,(o.ms||700)/st.spd);return}setPlay(false);return}st.i++;show();st.timer=setTimeout(tick,(st.i>=st.n-1?(o.hold||1400):(o.ms||700))/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||700)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(v){st.play=v;q('p').innerHTML=v?'&#10073;&#10073; Pause':'&#9654; Play';q('p').setAttribute('aria-label',v?'Pause':'Play');if(!v&&st.timer){clearTimeout(st.timer);st.timer=0}if(v&&st.i>=st.n-1){st.i=0;show()}kick()}
-    q('p').addEventListener('click',()=>setPlay(!st.play));
-    q('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    q('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    q('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    const tab=tabOf(card);if(tab)onRender(tab.id,()=>{show();kick()});
-    show();
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},get i(){return st.i},play:setPlay}}
+  // step animation: since the 2026-11-06 rollout this is the skill template's RD.anim (21_js_rd_common.js): it plays by itself once at least
+  // half of its card is in view, pauses off screen, stops for good on any reader control or at its last step, never moves under reduced motion,
+  // and marks its ol.sx step list (o.list). o.auto false makes it a widget the reader drives (the playground). reset(n) restarts on a mode change.
+  function anim(o){const ctl=$(o.ctl);if(ctl)ctl.classList.add('fmx-anim','an-ctl');return window.RD.anim(o)}
   function quiz(){document.querySelectorAll('.fmx-q').forEach(q=>{const right=+(q.dataset.right||1);q.querySelectorAll('.opts button').forEach(b=>b.addEventListener('click',()=>{
     q.querySelectorAll('.opts button').forEach(x=>x.classList.remove('right','wrong'));b.classList.add(+b.dataset.a===right?'right':'wrong');
     q.querySelector('.opts button[data-a="'+right+'"]').classList.add('right');q.querySelector('.ans').hidden=false}))})}
