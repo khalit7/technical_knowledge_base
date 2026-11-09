@@ -30,3 +30,8 @@ Scores: quantity the reader moves (0-2), reproduces a published figure (x2), com
 | M18 | Re-draw voting accuracy against k | Test-time compute and reasoning owns the method; this page keeps only "as reported" (M1) | | | | rejected |
 
 What the methodology lacked: a rule for intervals when a protocol has several runs per item (answers versus problems as the unit); this page reports all three and says which question each answers.
+
+## 2026-11-09 rollout (split layout, renderer v2)
+- Built: Fig. 1 checker stations (3D, replaces the 2D stepper), Fig. 2 nine models by four runs with three rule columns (3D, replaces the 2D table animation and its rule toggle), Fig. 3 answers against problems as the unit with seeded bootstrap clouds (3D, new).
+- Considered and kept 2D: the hero map (a year by check-kind grid read flat), FrontierMath tiers (a ladder of text rungs plus two bars; a 3D stair would add nothing the bars do not show), the formal pipeline (a flow chart), the error-bar slider (one parameter, one bar per set), contest freshness and v1 against v2 (values on an axis).
+- Rejected: a 3D stack of FrontierMath tiers (decoration); a per-frame replay of the 18 FrontierMath release dates (a long replay: kept as a reader-driven widget).

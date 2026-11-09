@@ -114,7 +114,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_benchmarks/human_preference_and_arenas` Human preference and arenas
 - [x] `measurement/topic_benchmarks/knowledge_and_reasoning` Knowledge and reasoning benchmarks: MMLU family, GPQA, HLE, ARC-AGI
 - [x] `measurement/topic_benchmarks/long_context_and_multimodal` Long-context and multimodal benchmarks
-- [~] `measurement/topic_benchmarks/math` Math benchmarks: GSM8K to FrontierMath
+- [x] `measurement/topic_benchmarks/math` Math benchmarks: GSM8K to FrontierMath
 - [ ] `measurement/topic_benchmarks/safety_and_honesty` Safety and honesty benchmarks
 - [ ] `measurement/topic_benchmarks` Topic: benchmarks
 - [ ] `measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation` Agent and trajectory evaluation: grading actions, not messages
@@ -407,3 +407,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `measurement/topic_benchmarks/human_preference_and_arenas`: Fig. 2 step 4 "50%: an even split" label touches the card's right edge at 1400; Fig. 2 row labels close to the first-column bars in steps 4 and 5; Fig. 2 step 6 and Fig. 4 step 6 dense; src/coverage.json stale (6 phrases missing, pre-existing; the ledger supersedes it).
 - `measurement/topic_benchmarks/knowledge_and_reasoning`: Fig. 2 grouped model-name labels hide at 390 (readout names the leader); Fig. 1 small on phones (card set to 300 px).
 - `measurement/topic_benchmarks/long_context_and_multimodal`: scenes small inside their cards at 390 with empty space above and below (NoLiMa step 1 most); per-model selects removed, other models appear only as rows in the last steps of Figs. 1 and 3.
+- `measurement/topic_benchmarks/math`: Fig. 1 overview leaves empty space above the scene; Fig. 3 steps 1 and 2 thin strip leaves blank card height; verify_layout flags the Sample lab svg outside a split (accepted: reader tool); two captured input files had em-dashes replaced with -- (no script parses them).

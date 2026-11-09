@@ -26,5 +26,5 @@
       RD.stat('Tier 4 v2, best',b?b[1].toFixed(1)+'%':'not yet run',b?'≈ '+Math.round(b[1]/100*41)+' of 41':'')+
       RD.stat('Problems left on Tier 4',b?Math.round(41-b[1]/100*41):'41','of 41 private');
   }
-  const an=RD.anim({card:'fm-card',ctl:'fm-ctl',n:dates.length,start:dates.length-1,draw,ms:1500,label:'Model release date'});
+  const an=RD.anim({card:'fm-card',ctl:'fm-ctl',n:dates.length,start:dates.length-1,draw,ms:1500,label:'Model release date',auto:false});
 })();

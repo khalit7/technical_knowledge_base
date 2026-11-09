@@ -21,22 +21,14 @@
     '<br><code class="small">name = sample(names); family = sample(["nephew", "cousin", "brother"]); x, y, z = range(5, 100); total = range(100, 500); ans = range(85, 200); condition: x + y + z + ans == total</code>';
   const PH='To make a call from a phone booth, you must pay $0.6 for each minute of your call. ';
   const STEPS=[
-    {lab:'GSM8K test question (original)',q:ORIG+' <span class="gold">14</span>',bars:['g'],
-     cap:'The original GSM8K test item: 31 + 8 + 9 = 48 toys, 62 − 48 = 14 balls. A model\'s GSM8K score is its accuracy on 1,319 items like this one, each asked once, in one fixed wording.'},
-    {lab:'GSM-Symbolic template',q:TPL,bars:['g'],
-     cap:'The authors turn the item into a template: names, relatives and numbers become variables, with ranges and a condition that keeps the answer a whole number. 100 test items are templated this way.'},
-    {lab:'Instance 0 of template 9 (released data)',q:inst('Mei','brother','71','45','29','204','59'),bars:['g'],
-     cap:'One real draw from the released data. Same reasoning, new name and numbers: 71 + 45 + 29 = 145, 204 − 145 = 59. A student who can do the first can do this.'},
-    {lab:'Instances 1 and 2',q:inst('Ava','cousin','74','42','32','189','41')+'<br><br>'+inst('Emma','cousin','74','37','30','215','74'),bars:['g','s'],
-     cap:'50 draws per template make 50 test sets of 100 questions. The second bar is the mean over the 50 sets, with their spread (solid whisker) and the spread chance alone would give at 100 items (dashed).'},
-    {lab:'GSM-M1: one clause removed (Figure 5)',q:PH+'<span class="del">After 10 minutes, that price drops to $0.5 per minute.</span> How much would a 60-minute call cost? <span class="gold">$36</span>',bars:['g','s','m1'],
-     cap:'Difficulty is changed by the number of clauses. With the price drop removed, the call costs 60 × 0.6 = $36 (answers on these four phone-call steps are worked out here, not printed in the figure).'},
-    {lab:'GSM-P1: one clause added',q:'To make a call from a hotel room phone, you must pay $0.6 for each minute of your call. After 10 minutes, that price drops to $0.5 per minute. <span class="add">After 25 minutes from the start of the call, the price drops even more to $0.3 per minute.</span> How much would a 60-minute call cost? <span class="gold">$24</span>',bars:['g','s','m1','p1'],
-     cap:'One more pricing clause: 10 × 0.6 + 15 × 0.5 + 35 × 0.3 = 6 + 7.5 + 10.5 = $24. One extra step, and weaker models start to fall.'},
-    {lab:'GSM-P2: two clauses added',q:'To make a call from a hotel room phone, you must pay $0.6 for each minute of your call. After 10 minutes, the price drops to $0.5 per minute. <span class="add">After 25 minutes from the start of the call, the price drops even more to $0.3 per minute. If your total bill is more than $10, you get a 25% discount.</span> How much would a 60-minute call cost? <span class="gold">$18</span>',bars:['g','s','m1','p1','p2'],
-     cap:'Two extra clauses: $24 is more than $10, so 25% off gives $18. The mean falls and the spread grows; the paper\'s P2 sets come from 50 of the templates.'},
-    {lab:'GSM-NoOp: a clause that changes nothing (Figure 7)',q:'Oliver picks 44 kiwis on Friday. Then he picks 58 kiwis on Saturday. On Sunday, he picks double the number of kiwis he did on Friday, <span class="noop">but five of them were a bit smaller than average</span>. How many kiwis does Oliver have? <span class="gold">190</span><br><span class="small mute">o1-mini (Figure 7): "88 (Sunday\'s kiwis) - 5 (smaller kiwis) = 83 kiwis ... Oliver has a total of 185 kiwis."</span>',bars:['g','s','m1','p1','p2','no'],
-     cap:'The irrelevant clause is the real test: 44 + 58 + 88 = 190, but models subtract the five small kiwis. Every model drops (Phi-3-mini by 65.7 points from its full GSM8K score); this drop is significant for all 25 models even under the critics\' stricter tests.'}];
+    {lab:'GSM8K test question (original)',q:ORIG+' <span class="gold">14</span>',bars:['g']},
+    {lab:'GSM-Symbolic template',q:TPL,bars:['g']},
+    {lab:'Instance 0 of template 9 (released data)',q:inst('Mei','brother','71','45','29','204','59'),bars:['g']},
+    {lab:'Instances 1 and 2',q:inst('Ava','cousin','74','42','32','189','41')+'<br><br>'+inst('Emma','cousin','74','37','30','215','74'),bars:['g','s']},
+    {lab:'GSM-M1: one clause removed (Figure 5)',q:PH+'<span class="del">After 10 minutes, that price drops to $0.5 per minute.</span> How much would a 60-minute call cost? <span class="gold">$36</span>',bars:['g','s','m1']},
+    {lab:'GSM-P1: one clause added',q:'To make a call from a hotel room phone, you must pay $0.6 for each minute of your call. After 10 minutes, that price drops to $0.5 per minute. <span class="add">After 25 minutes from the start of the call, the price drops even more to $0.3 per minute.</span> How much would a 60-minute call cost? <span class="gold">$24</span>',bars:['g','s','m1','p1']},
+    {lab:'GSM-P2: two clauses added',q:'To make a call from a hotel room phone, you must pay $0.6 for each minute of your call. After 10 minutes, the price drops to $0.5 per minute. <span class="add">After 25 minutes from the start of the call, the price drops even more to $0.3 per minute. If your total bill is more than $10, you get a 25% discount.</span> How much would a 60-minute call cost? <span class="gold">$18</span>',bars:['g','s','m1','p1','p2']},
+    {lab:'GSM-NoOp: a clause that changes nothing (Figure 7)',q:'Oliver picks 44 kiwis on Friday. Then he picks 58 kiwis on Saturday. On Sunday, he picks double the number of kiwis he did on Friday, <span class="noop">but five of them were a bit smaller than average</span>. How many kiwis does Oliver have? <span class="gold">190</span><br><span class="small mute">o1-mini (Figure 7): "88 (Sunday\'s kiwis) - 5 (smaller kiwis) = 83 kiwis ... Oliver has a total of 185 kiwis."</span>',bars:['g','s','m1','p1','p2','no']}];
   const sel=document.getElementById('gs-model');
   Object.keys(T1).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k;sel.appendChild(o)});
   sel.value='Gemma2-9b-it';
@@ -46,7 +38,6 @@
   let cur=0;
   function draw(i){cur=i;const st=STEPS[i],v=T1[sel.value];
     document.getElementById('gs-q').innerHTML='<div class="prob"><span class="plab">'+st.lab+'</span>'+st.q+'</div>';
-    document.getElementById('gs-cap').textContent='Step '+(i+1)+' of '+STEPS.length+': '+st.cap;
     let h='';
     ORDER.forEach(k=>{if(st.bars.indexOf(k)<0)return;const [lab,ai,si]=ROWS[k],a=v[ai],sd=si==null?null:v[si],b=bsd(a);
       const col=k==='g'?'var(--c1)':k==='no'?'var(--closed)':'var(--c3)';
@@ -61,6 +52,6 @@
       RD.stat('Spread over 50 sets',sd==null?'one set':'±'+sd.toFixed(2),'standard deviation, Table 1')+
       RD.stat('Chance alone at 100 items','±'+bsd(a).toFixed(2),'√(p(1−p)/100), derived');
   }
-  const an=RD.anim({card:'gs-card',ctl:'gs-ctl',n:STEPS.length,draw,ms:3200,label:'GSM-Symbolic step'});
+  const an=RD.anim({card:'gs-card',ctl:'gs-ctl',n:STEPS.length,draw,ms:5200,label:'GSM-Symbolic step',list:'sx-gs'});
   sel.addEventListener('change',()=>draw(cur));
 })();

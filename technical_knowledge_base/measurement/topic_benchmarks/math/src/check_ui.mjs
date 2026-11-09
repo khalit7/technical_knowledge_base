@@ -1,4 +1,4 @@
-// Clicks every control of the page at 390 px dark and 920 px light, and checks the page's maths (window.MC) against recompute_out.json.
+// Clicks every control of the page at 390 px dark and 920 px light (the 3D stages' motion and step lists are in check_stages.mjs), and checks the page's maths (window.MC) against recompute_out.json.
 // usage: node check_ui.mjs [shots dir]
 import { createRequire } from 'node:module';
 import path from 'node:path'; import fs from 'node:fs';
@@ -15,9 +15,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
   await p.goto(file);
   await p.click('button[data-t=t-read]'); await new Promise(r => setTimeout(r, 200));
-  { const start = {}; for (const c of ['ck-ctl', 'gs-ctl', 'ai-ctl', 'fm-ctl']) { await p.$eval('#' + c, e => e.scrollIntoView()); start[c] = await p.$eval('#' + c + '-s', e => e.value) }
-    await new Promise(r => setTimeout(r, 4500));
-    for (const c of Object.keys(start)) { const v = await p.$eval('#' + c + '-s', e => e.value); if (v !== start[c]) problems.push('autoplay: ' + c + ' moved from ' + start[c] + ' to ' + v) }
+  // motion (2026-11-06 rollout): the GSM-Symbolic animation plays by itself once in view; the FrontierMath ladder is a widget and never moves by itself.
+  // The three 3D stages (Figs. 1 to 3) are checked in check_stages.mjs.
+  { await p.$eval('#fm-ctl', e => e.scrollIntoView({ block: 'center' })); const fm0 = await p.$eval('#fm-ctl-s', e => e.value);
+    await new Promise(r => setTimeout(r, 2500)); if ((await p.$eval('#fm-ctl-s', e => e.value)) !== fm0) problems.push('autoplay: the FrontierMath widget moved by itself');
+    await p.$eval('#gs-card', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1500));
+    if (!/Pause/.test(await p.$eval('#gs-ctl-p', e => e.textContent))) problems.push('autoplay: GSM-Symbolic did not play when scrolled into view');
     await p.evaluate(() => scrollTo(0, 0)) }
   let actions = 0;
   const bad = async (where) => { const t = await p.evaluate(() => document.body.innerText); if (/NaN|undefined|\bnull\b|Infinity/.test(t)) problems.push(where + ': NaN/undefined/null in text: ' + (t.match(/.{30}(NaN|undefined|\bnull\b|Infinity).{30}/) || [''])[0]);
@@ -34,8 +37,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     // exact: diffs [1,0.5] -> sums |±1±0.5| >= 1.5 in 2 of 4 -> 0.5; six diffs of 1 -> 2/64
     if (Math.abs(pt[0] - 0.5) > 1e-9 || Math.abs(pt[1] - 2 / 64) > 1e-9) problems.push('permTest ' + pt);
   }
+  // the 3D stages: step through each and back
+  for (const id of ['stg-ck', 'stg-ai', 'stg-clu']) { const n = await p.$eval('#' + id + '-r', e => +e.max + 1);
+    for (let i = 0; i < n; i++) { await p.$eval('#' + id + '-f', e => e.click()); actions++ } for (let i = 0; i < n; i++) { await p.$eval('#' + id + '-b', e => e.click()); actions++ } await bad(id) }
   // Reading animations: step through every step of each, in every mode
-  for (const [ctl, modes] of [['ck-ctl', null], ['gs-ctl', null], ['ai-ctl', 'ai-mode'], ['fm-ctl', null]]) {
+  for (const [ctl, modes] of [['gs-ctl', null], ['fm-ctl', null]]) {
     const n = await p.$eval('#' + ctl + '-s', e => +e.max + 1);
     const ms = modes ? await p.$$eval('#' + modes + ' button', bs => bs.length) : 1;
     for (let m = 0; m < ms; m++) {
@@ -51,14 +57,11 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const eb30 = await p.$eval('#eb-svg', e => e.textContent); if (!/±0\.0/.test(eb30)) problems.push('eb at 100%: expected ±0.0');
   await p.$eval('#eb-p', e => { e.value = '80'; e.dispatchEvent(new Event('input')) });
   if (!/±14\.3/.test(await p.$eval('#eb-svg', e => e.textContent))) problems.push('eb at 80%: AIME should be ±14.3');
-  for (const c of ['ck-ctl', 'gs-ctl', 'ai-ctl', 'fm-ctl']) { for (let i = 0; i < 30; i++) await p.click('#' + c + '-f') }
-  await p.click('#ai-mode button:nth-child(2)');
+  for (const c of ['gs-ctl', 'fm-ctl']) { for (let i = 0; i < 30; i++) await p.click('#' + c + '-f') }
   // screenshots of the cards at their last step
-  for (const id of ['ck-card', 'gs-card', 'ai-card', 'fm-card', 'eb-card']) { const el = await p.$('#' + id); await el.screenshot({ path: path.join(SHOTS, 'math-' + id + '-' + scheme + '-' + width + '.png') }) }
-  for (const c of ['gs-ctl', 'ai-ctl', 'fm-ctl']) { for (let i = 0; i < 30; i++) await p.click('#' + c + '-f') }
-  await p.click('#ai-mode button:nth-child(2)');
+  for (const id of ['stg-ck', 'gs-card', 'stg-ai', 'stg-clu', 'fm-card', 'eb-card']) { const el = await p.$('#' + id); await el.screenshot({ path: path.join(SHOTS, 'math-' + id + '-' + scheme + '-' + width + '.png') }) }
   // play buttons
-  for (const c of ['ck-ctl', 'gs-ctl', 'ai-ctl', 'fm-ctl']) { await p.click('#' + c + '-p'); await new Promise(r => setTimeout(r, 400)); await p.click('#' + c + '-p'); actions++ }
+  for (const c of ['gs-ctl', 'fm-ctl']) { await p.click('#' + c + '-p'); await new Promise(r => setTimeout(r, 400)); await p.click('#' + c + '-p'); actions++ }
   // Sample lab
   await p.click('button[data-t=t-lab]'); await new Promise(r => setTimeout(r, 300));
   const comps = await p.$$eval('#lb-comp button', bs => bs.length);
