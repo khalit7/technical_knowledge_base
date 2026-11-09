@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-lat"></div></div><div class="s3L">
 <section id="va-s1">
 <h2>1. Video as space-time latents</h2>
 <p><b>The problem.</b> Wan 2.1's default clip (480 &times; 832 pixels, 81 frames, about 5 s at 16 frames per second) is 97 million numbers, and neighbouring frames are almost the same picture. An image VAE applied to every frame (8 &times; 8 smaller in space) still leaves 81 latent frames; with 2 &times; 2 patches that is 81 &times; 30 &times; 52 = 126,360 tokens, most of them repeating the frame before. Attention cost grows with the square of the token count, so redundancy across time is the first thing to remove.</p>
@@ -13,44 +14,49 @@
 <p style="text-align:center" class="va-mono">tokens = (1 + (F &minus; 1) / c<sub>t</sub>) &times; H / (c<sub>s</sub> p) &times; W / (c<sub>s</sub> p)</p>
 <p>For Wan 2.1's default: 21 &times; 30 &times; 52 = <b class="hl">32,760</b>, about a quarter of the per-frame count. The pipeline computes the first factor the same way (<span class="va-mono">num_latent_frames = (num_frames - 1) // self.vae_scale_factor_temporal + 1</span>, {{pipeline_wan.py:341|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/pipelines/wan/pipeline_wan.py#L341}}).</p>
 
-<div class="rd-card" id="va-c-patch"><h4>One clip, three compressors: 126,360 tokens frame by frame, 32,760 with Wan's video VAE, 4,290 with LTX's</h4>
-<p class="va-small">The same 81-frame, 480 &times; 832 clip through an image VAE per frame (before), Wan 2.1's causal video VAE, and LTX-Video's 32 &times; 32 &times; 8 VAE. In the last step each small square is 390 tokens, the same scale in all three. The moving disc is an illustration; every count is computed from the configs. Step through it.</p>
-<div class="seg" id="va-patch-mode"><button data-m="img">Image VAE per frame</button><button data-m="wan" class="on">Wan 2.1 video VAE</button><button data-m="ltx">LTX-Video VAE</button></div>
-<div class="va-stage"><canvas id="va-patch-cv" width="860" height="300" aria-label="Clip compressed to tokens"></canvas></div>
-<div class="an-cap" id="va-patch-cap"></div>
-<div class="an-cnt" id="va-patch-cnt"></div>
-<div class="an-ctl" id="va-patch-ctl"></div>
-</div>
+<ol class="sx" id="sx-lat">
+<li><b>The clip.</b> Wan 2.1's default: 81 frames of 480 &times; 832 pixels, about 5 s at 16 frames a second, 81 &times; 480 &times; 832 &times; 3 = 97,044,480 numbers. The disc moving across the frames is an illustration: neighbouring frames are almost the same picture.</li>
+<li><b>Group the frames in time.</b> The causal VAE encodes frame 0 alone (purple), then every 4 frames into one latent frame (blue and orange in turn), each group seeing only cached features of earlier frames: 1 + 80 / 4 = 21 latent frames. An image VAE has no time axis and keeps all 81, however similar each is to the last.</li>
+<li><b>Shrink each latent frame in space.</b> 8 times per side: 480 &times; 832 becomes 60 &times; 104, with 16 channels per position, a 21 &times; 60 &times; 104 &times; 16 latent of 2,096,640 numbers, 46 times fewer than the pixels. (From here the plates are drawn larger than to scale.)</li>
+<li><b>Cut into patches.</b> The denoiser groups 2 &times; 2 latent positions into one token (orange): 30 &times; 52 = 1,560 tokens per latent frame.</li>
+<li><b>One sequence, three compressors.</b> 21 &times; 1,560 = 32,760 tokens, so full attention forms 1,073 million pairs per head per layer. The same clip through an image VAE per frame is 81 &times; 1,560 = 126,360 tokens; through LTX-Video's 32 &times; 32 &times; 8 VAE it is 11 &times; 15 &times; 26 = 4,290 (LTX packs 4 &times; 4 pixel patches into the VAE input and keeps 128 channels to hold the detail, so its denoiser uses 1 &times; 1 patches). Columns to scale; every count from the configs.</li>
+</ol>
+</section>
+</div></div>
 
+<div class="s3sp"><div class="s3L"><section id="va-s1m">
 <p><b>What temporal compression costs, measured.</b> Both 17-frame clips through Wan 2.1's VAE become a latent of 16 &times; 5 &times; 32 &times; 32 (5 = 1 + 16 / 4), 48 times fewer numbers, then are decoded and compared frame by frame with <dfn>PSNR</dfn> (peak signal-to-noise ratio in decibels; higher is closer, every 6 dB halves the typical error).</p>
-<div class="rd-card" id="va-c-vae"><h4>Fast motion is what the video VAE loses: PSNR drops after frame 0 and ripples with period 4</h4>
-<div class="seg" id="va-vae-clip"><button data-m="slow" class="on">Slow pan (2 px per frame)</button><button data-m="fast">Fast pan (14 px per frame)</button></div>
-<div class="va-grid2"><div><div class="va-small">Original, reconstruction, and their difference (amplified 4 times) at frame <span id="va-vae-fi">0</span></div>
-<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px" id="va-vae-trio"></div>
-<input type="range" id="va-vae-f" min="0" max="16" value="0" style="width:100%" aria-label="Frame"></div>
-<div><div class="va-small">PSNR per frame (dB), both clips; the chosen clip highlighted</div><div class="rd-svg" id="va-vae-chart"></div></div></div>
-<p class="va-small" id="va-vae-note"></p>
-</div>
 <p>Frame 0, encoded alone, comes back at <span data-va="vae.f0"></span> dB in both clips. With slow motion the other frames stay close (mean <span data-va="vae.slow_rest"></span> dB): four nearly identical frames share one latent frame cheaply. With fast motion every later frame drops to about <span data-va="vae.fast_rest"></span> dB on average, rippling with the group size of 4: one latent frame has to describe four quite different pictures with the same 16 channels. That is why fast motion is where video generators blur first. The PSNRs transfer to any hardware (same weights, float32); the timings in the closed block at the end do not.</p>
 <details class="dp"><summary>The video VAEs of eight models, with published ratios recomputed <span class="mute">(reference table)</span></summary><div class="b">
 <p>"Ratio" is how many input numbers (3 colours &times; pixels &times; frames) each latent number replaces; "pixels per token" includes the denoiser's patch. Read from seven open configs and Movie Gen's paper.</p>
 <div class="tw"><table id="va-vae-table"></table></div>
 <p class="va-small" id="va-vae-repro"></p></div></details>
 <p class="deepnote">Every combination of size, frames and model: the {{Space-time patch calculator|#t-vapatch}}. VAE losses, KL and quantised latents: {{Autoencoders and VAEs|n:3c65c17b0d0d814da93bdb159b7c1e11}}.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="va-c-vae"><h4>Fast motion is what the video VAE loses: PSNR drops after frame 0 and ripples with period 4</h4>
+<div class="seg" id="va-vae-clip"><button data-m="slow" class="on">Slow pan (2 px per frame)</button><button data-m="fast">Fast pan (14 px per frame)</button></div>
+<div class="va-grid2"><div><div class="va-small">Original, reconstruction, and their difference (amplified 4 times) at frame <span id="va-vae-fi">0</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px" id="va-vae-trio"></div>
+<input type="range" id="va-vae-f" min="0" max="16" value="0" style="width:100%" aria-label="Frame"></div>
+<div><div class="va-small">PSNR per frame (dB), both clips; the chosen clip highlighted</div><div class="rd-svg" id="va-vae-chart"></div></div></div>
+<p class="va-small" id="va-vae-note"></p>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-att"></div></div><div class="s3L">
 <section id="va-s2">
 <h2>2. Attention across space and time</h2>
 <p><b>The problem.</b> Each token must see the rest of its frame (to draw a coherent picture) and the same object in other frames (to move smoothly). <dfn>Full 3-D attention</dfn> lets every token attend to every other token in the clip, at a cost that grows with the square of the token count N: for Wan 2.1 1.3B's default clip, N = 32,760, so one layer forms N<sup>2</sup> = 1.07 billion query-key pairs per head.</p>
 <p><b>The older answer: factorise.</b> <dfn>Factorised attention</dfn> splits one layer into <i>spatial</i> attention (within its own latent frame) followed by <i>temporal</i> attention (the same position in the other frames). Video Diffusion Models did this inside a U-Net: "we insert a temporal attention block that performs attention over the first axis" with the spatial axes treated as batch ({{Ho et al. 2022|https://arxiv.org/abs/2204.03458}}); Latte compared four ways of splitting the two inside a video DiT, and alternating spatial and temporal blocks "performs the best" (a plot, not a table: {{Ma et al. 2024, Fig 5|https://arxiv.org/abs/2401.03048}}). With f latent frames of s tokens, the pairs fall from (fs)<sup>2</sup> to fs<sup>2</sup> + sf<sup>2</sup>: about 21 times fewer for Wan's default clip.</p>
 <p><b>The current answer: full attention.</b> Every open model from 2024 on uses it (CogVideoX, HunyuanVideo, Mochi, LTX-Video, Wan, Movie Gen). CogVideoX's argument: separated attention "requires extensive implicit transmission of visual information" ({{Yang et al. 2024, Sec 2.2|https://arxiv.org/abs/2408.06072}}): an object moving diagonally is at a different position in the next frame, so a temporal layer that looks only at the same position cannot follow it directly. Full attention became affordable because the VAE took most of the tokens out (section 1) and FlashAttention-style kernels never store the N<sup>2</sup> matrix; the price is compute, and section 4 shows attention becomes the largest term.</p>
-<div class="rd-card" id="va-c-attn"><h4>Full attention reaches the moving disc in one hop; factorised attention has to relay it</h4>
-<p class="va-small">A latent clip of 6 frames of 6 &times; 10 tokens (illustrative size). The outlined query token sits on the moving disc; shaded tokens are the keys it attends to in each layer. Counters use Wan 2.1 1.3B's real default clip (21 latent frames of 30 &times; 52 tokens).</p>
-<div class="seg" id="va-attn-mode"><button data-m="full" class="on">Full 3-D attention</button><button data-m="fact">Factorised (spatial, then temporal)</button></div>
-<div class="va-stage"><canvas id="va-attn-cv" width="860" height="250" aria-label="Attention pattern"></canvas></div>
-<div class="an-cap" id="va-attn-cap"></div>
-<div class="an-cnt" id="va-attn-cnt"></div>
-<div class="an-ctl" id="va-attn-ctl"></div>
-</div>
+<ol class="sx" id="sx-att">
+<li><b>The query.</b> A small latent clip (6 latent frames of 6 &times; 10 tokens, an illustrative size) with a disc moving diagonally across it. The <span class="s3q">query</span> token sits on the disc in frame 2.</li>
+<li><b>Full 3-D attention.</b> The query reads every token in every frame (<span class="s3k">keys</span>), the disc included wherever it has moved (the streams): one layer, one hop. At Wan 2.1 1.3B's default clip that is all 32,760 tokens.</li>
+<li><b>Factorised, layer 1: spatial.</b> Attention only within its own latent frame: 1,560 keys at Wan's size.</li>
+<li><b>Factorised, layer 2: temporal.</b> Only the same position in every other frame: 21 keys. The disc has moved away, so these keys mostly show background.</li>
+<li><b>Diagonal motion takes two hops.</b> For the query to read the disc in frame 4, a spatial layer in frame 4 first carries the disc's content to the query's position there, then a temporal layer brings it to the query (the stream runs from the disc to the query): relayed, not direct.</li>
+<li><b>What each costs.</b> Every token does this. At Wan's default clip full attention forms N<sup>2</sup> = 1,073 million query-key pairs per head per layer, factorised attention 21 &times; 1,560<sup>2</sup> + 1,560 &times; 21<sup>2</sup> = 52 million, 20.7 times fewer (columns to scale).</li>
+</ol>
 <p><b>Positions in 3-D.</b> Most of these models use <dfn>3-D RoPE</dfn>: the head's channels are split into three groups, each rotated by one coordinate (frame, row, column). HunyuanVideo splits a 128-wide head 16 / 56 / 56 (<span class="va-mono">rope_axes_dim</span>), Wan 44 / 42 / 42 (<span class="va-mono">h_dim = w_dim = 2 * (attention_head_dim // 6)</span>, {{transformer_wan.py:368|https://github.com/huggingface/diffusers/blob/v0.41.0/src/diffusers/models/transformers/transformer_wan.py#L368}}). Movie Gen is the exception: "factorized learnable positional embedding" ({{Polyak et al. 2024, Sec 3.1.3|https://arxiv.org/abs/2410.13720}}). How the ids are built and why rotation gives relative positions: {{Latent diffusion and diffusion transformers|n:3fc5c17b0d0d814fbcb5e0c8df5289f3}} (section 7) and {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}.</p>
 <p class="deepnote">DiT, adaLN-Zero, MMDiT and double and single stream blocks: {{Latent diffusion and diffusion transformers|n:3fc5c17b0d0d814fbcb5e0c8df5289f3}}; attention kernels: {{Writing kernels: ... FlashAttention|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
 </section>
+</div></div>

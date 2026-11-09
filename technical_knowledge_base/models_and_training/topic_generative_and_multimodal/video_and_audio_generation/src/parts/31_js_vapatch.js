@@ -39,5 +39,5 @@
     return esc(r.what)+' &rarr; '+U.int(got)}).join('; ')+' (independently: computed from the factors and frame counts, not fitted). Not reproduced: Mochi\'s "128x" compression (96 from its factors).';
   sel.addEventListener('change',defaults);Object.values(F).forEach(el=>el.addEventListener('input',draw));F.p.addEventListener('change',draw);$('pc-reset').addEventListener('click',defaults);
   RD.seg($('pc-y'),v=>{ymode=v;draw()});
-  sel.value='wan13';defaults();RD.onResize(draw,'t-vapatch');RD.onRender(draw,'t-vapatch');
+  sel.value='wan13';defaults();(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-vapatch']=window.TAB_RENDER['t-vapatch']||[]).push(draw);{let rz=0;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{const T=document.getElementById('t-vapatch');if(T&&!T.hidden)draw()},120)})}
 })();

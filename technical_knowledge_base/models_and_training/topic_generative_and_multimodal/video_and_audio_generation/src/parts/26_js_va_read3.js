@@ -1,4 +1,4 @@
-// ---- Reading sections 6 to 8 and the depth blocks: waveform and spectrogram, the RVQ animation, codebook orders, mistakes ----
+// ---- Reading sections 6 to 8 and the depth blocks: waveform and spectrogram, the measured RVQ widget, mistakes (codebook orders became the 3D stage Fig. 5, 28_js_sc5delay.js) ----
 (function(){
   const U=window.VAU,V=U.V,$=id=>document.getElementById(id);
   const A=V.audio.speech,SP=V.spec.speech;
@@ -39,22 +39,11 @@
       $('va-rvq-cap').innerHTML='<div class="t">Opus '+k+' kbps</div><p>'+(i?'At 12 kbps Opus reaches about EnCodec\'s 6 kbps spectral error ('+U.fx(o.mel_l1,3)+' against '+U.fx(er[7].mel_l1,3)+').':'At 6 kbps Opus keeps the low band and drops much of the rest: spectral error '+U.fx(o.mel_l1,3)+', twice EnCodec\'s '+U.fx(er[7].mel_l1,3)+' at the same bitrate.')+'</p>';
       $('va-rvq-cnt').innerHTML=RD.stat('Bitrate',k+' kbps')+RD.stat('Spectral error',U.fx(o.mel_l1,3))+RD.stat('SNR',U.fx(o.snr_db,1)+' dB')}
     chart(i);playBtns(i)}
-  const an=RD.anim({card:'va-c-rvq',ctl:'va-rvq-ctl',n:KS.length,ms:1600,label:'Codebooks',draw});
+  // a widget the reader drives (the measured spectrogram for each k); Fig. 4 is the explained, autoplaying stage of the same run
+  const an=RD.anim({card:'va-c-rvq',ctl:'va-rvq-ctl',n:KS.length,ms:1600,label:'Codebooks',draw,auto:false});
   RD.seg($('va-rvq-mode'),v=>{mode=v;an.reset(v==='enc'?KS.length:2)});
   RD.onResize(()=>an.redraw());RD.onRender(()=>an.redraw());
   U.setAns('va-pr-tok','EnCodec: 75 frames a second x 8 codebooks = 600 tokens a second, so 6,000 for 10 s. Mimi: 12.5 x 8 = 100 a second, so 1,000. With a delay pattern or a depth transformer the model takes 75 or 12.5 big steps a second, not 600 or 100; Mimi\'s low frame rate is what lets Moshi run one 7B forward pass per 80 ms.');
-
-  // ---------- section 8: three orders for 4 codebooks ----------
-  let dm='delay';
-  const DM={flat:{f:(t,k)=>t*4+k,cap:'Flatten: one token per step, frame by frame. Exact, but 4 steps per frame: 200 steps a second at 50 frames a second.'},
-    par:{f:(t,k)=>t,cap:'Parallel: all 4 codebooks of a frame in one step. 50 steps a second, but the 4 tokens of a frame are predicted independently of each other.'},
-    delay:{f:(t,k)=>t+k,cap:'Delay: codebook k is shifted k - 1 steps. Still one step per frame (plus 3 at the end), and each fine codebook is predicted after the coarser codebooks of the same frame. MusicGen: 30 s of audio in 1,500 steps.'}};
-  function dDraw(){const el=$('va-delay-svg'),w=Math.min(RD.width(el),560),T=6,Fr=6,L=86,cw=(w-L-4)/Fr,rh=26,h=T+4*rh+22,f=DM[dm].f;let s='';
-    for(let k=0;k<4;k++){s+=RD.t(L-6,T+k*rh+17,'codebook '+(k+1),{a:'end',fill:'var(--mute)',fs:10.5});
-      for(let t=0;t<Fr;t++){const st=f(t,k);s+='<rect x="'+(L+t*cw+1)+'" y="'+(T+k*rh)+'" width="'+(cw-2)+'" height="'+(rh-3)+'" rx="3" fill="var(--acc)" opacity="'+(0.18+0.6*(1-st/27)).toFixed(2)+'"/>'+RD.t(L+t*cw+cw/2,T+k*rh+16,st+1,{a:'middle',fs:11})}}
-    for(let t=0;t<Fr;t++)s+=RD.t(L+t*cw+cw/2,h-6,'frame '+(t+1),{a:'middle',fill:'var(--mute)',fs:10});
-    el.innerHTML=RD.svg(w,h,s,'Step at which each token is generated');$('va-delay-cap').textContent=DM[dm].cap}
-  RD.seg($('va-delay-mode'),v=>{dm=v;dDraw()});RD.onRender(dDraw);RD.onResize(dDraw);
 
   // ---------- mistakes: real messages ----------
   $('va-mis-frames').textContent=V.src.wan_frames_warn.text.replace(/^f"/,'').replace(/"$/,'')+' (pipeline_wan.py:'+V.src.wan_frames_warn.line+')';

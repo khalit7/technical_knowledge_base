@@ -1,4 +1,4 @@
-// ---- Reading figures added in the 2026-10-24 rebuild: the hero, the conditioning diagram, the cost slider, Moshi's streams, F5-TTS's infilling ----
+// ---- Reading figures added in the 2026-10-24 rebuild: the hero, the cost slider (the conditioning diagram became the 3D stage Fig. 3, 28_js_sc3cond.js), Moshi's streams, F5-TTS's infilling ----
 // Static diagrams drawn at the measured width (redrawn on resize); the cost slider uses VAU.calc, the same formula as calc/recompute.py.
 (function(){
   const U=window.VAU,$=id=>document.getElementById(id),T=RD.t;
@@ -24,31 +24,6 @@
         L.b.forEach((b,i)=>{const y=lh+i*(bh+vg);s+=bx(x0,y,cw,bh,b);if(i<4){const ax=x0+cw/2,ay=y+bh+2;s+=line(ax,ay,ax,ay+vg-6)+head(ax,ay+vg-2,'d')}})})}
     el.innerHTML=RD.svg(w,h,s,'Video and audio generation pipelines: compress, tokenise, generate, decode')}
   RD.onRender(hero);RD.onResize(hero);
-
-  // ---------- section 3: where each condition enters ----------
-  function cond(){const el=$('va-cond'),w=RD.width(el),nar=w<560,L=nar?50:96,R=4,aw=w-L-R,NF=6,fg=nar?5:10,fw=(aw-fg*(NF-1))/NF;
-    let s='';const yT=8,hT=18,yV=yT+hT+50,hV=48,yA=yV+hV+44,hA=16,h=yA+hA+22;
-    // text row
-    s+=T(0,yT+13,nar?'Text':'Text tokens',{fs:11.5,w:600});
-    const nt=nar?16:32,tw=aw/nt;for(let i=0;i<nt;i++)s+=box(L+i*tw+0.5,yT,tw-1.5,hT,{rx:2,fill:'var(--c4)',stroke:'none',op:0.5});
-    s+=T(L+aw/2,yT+13,'512 umT5 tokens',{a:'middle',fs:11,w:600});
-    // video row
-    s+=T(0,yV+hV/2+4,nar?'Video':'Video latent',{fs:11.5,w:600});
-    for(let f=0;f<NF;f++){const x=L+f*(fw+fg);
-      if(f===0){s+=box(x,yV,fw,hV,{fill:'var(--acc)',stroke:'var(--acc)',op:0.85});s+=T(x+fw/2,yV+hV/2+4,'image',{a:'middle',fs:11,w:700,fill:'var(--bg)'})}
-      else{s+=box(x,yV,fw,hV,{fill:'var(--soft)'});let r=f*9301+49297;for(let k=0;k<26;k++){r=(r*9301+49297)%233280;const px=x+3+(r/233280)*(fw-6);r=(r*9301+49297)%233280;const py=yV+3+(r/233280)*(hV-6);if(fw>44&&Math.abs(py-yV-hV/2)<8)continue;s+='<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="1.3" fill="var(--mute)"/>'}
-        if(fw>44)s+=T(x+fw/2,yV+hV/2+4,'noisy',{a:'middle',fs:11,fill:'var(--mute)'})}
-      s+=T(x+fw/2,yV+hV+12,(nar?'':'latent ')+'frame '+(f===NF-1?20:f),{a:'middle',fs:11,fill:'var(--mute)'})}
-    // text to video arrows
-    [1,3].forEach(f=>{const x=L+f*(fw+fg)+fw/2;s+=line(x,yT+hT+22,x,yV-6,{c:'var(--c4)',w:1.6})+head(x,yV-2,'d','var(--c4)')});
-    s+=T(L+aw/2,yT+hT+15,nar?'cross or joint attention':'cross-attention (Wan, LTX) or joint attention (CogVideoX, HunyuanVideo)',{a:'middle',fs:11,fill:'var(--ink)'});
-    // audio row
-    s+=T(0,yA+12,nar?'Audio':'Audio latent',{fs:11.5,w:600});
-    const na=nar?24:48,awc=aw/na;for(let i=0;i<na;i++)s+=box(L+i*awc+0.5,yA,awc-1.5,hA,{rx:2,fill:'var(--c3)',stroke:'none',op:0.55});
-    for(let f=0;f<NF;f++){const x=L+f*(fw+fg)+fw/2;s+=line(x,yV+hV+16,x,yA-3,{c:'var(--c3)',dash:'3 3',w:1.4})}
-    s+=T(L+aw/2,yA+hA+15,nar?'time-aligned cross-attention (LTX-2)':'cross-attention between the streams, time positions only (LTX-2); each audio segment meets its own frames',{a:'middle',fs:11,fill:'var(--ink)'});
-    el.innerHTML=RD.svg(w,h,s,'Where text, a first frame and audio enter a video denoiser')}
-  RD.onRender(cond);RD.onResize(cond);
 
   // ---------- section 4: one slider, clip length ----------
   const sl=$('va-cost-f'),mx=U.calc(m13,{F:16*20+1}),fc=U.V.flopcheck;

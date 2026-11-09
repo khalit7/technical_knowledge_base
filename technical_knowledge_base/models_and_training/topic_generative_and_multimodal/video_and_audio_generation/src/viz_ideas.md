@@ -38,3 +38,15 @@ What the methodology lacked: a rule for media in a no-network page. Audio player
 | 18 | Evaluation as one table (what each measure does, its blind spot) | table | Reading 9 | built |
 
 Rejected in this pass: a 3-D RoPE channel-split bar (a sentence with the three numbers says it); a photo or paper figure (no openly licensed figure teaches more than the page's own measured spectrograms and frames).
+
+## 2026-11-09 rollout (split layout, 3D stages v2)
+
+| # | Idea | Kind | Placement | Status |
+|---|---|---|---|---|
+| 19 | Fig. 1: Wan 2.1's 81 frames as plates in time, grouped by the causal VAE into 21 latent frames, shrunk, patched, then the token counts of three compressors as columns to scale | 3D stage, 5 steps | Reading 1 | built; replaces the 2D clip-to-tokens stepper and its three-mode toggle |
+| 20 | Fig. 2: one query token in a 6-frame latent clip, full against factorised attention, the two-hop relay, the pairs of Wan's real clip as columns | 3D stage, 6 steps | Reading 2 | built; replaces the 2D attention stepper and its toggle |
+| 21 | Fig. 3: text tokens, a first frame and an audio stream entering Wan's 21 noisy latent frames | 3D stage, 4 steps | Reading 3 | built; replaces the static conditioning diagram |
+| 22 | Fig. 4: EnCodec RVQ stage by stage, unexplained energy and spectral error as columns from the recorded run | 3D stage, 6 steps | Reading 7 | built; the measured spectrogram stepper stays beside it as a reader-driven widget |
+| 23 | Fig. 5: a 6 x 4 token grid filled in flatten, parallel and delay order, height the generation step | 3D stage, 4 steps | Reading 8 | built; replaces the 2D three-mode grid |
+| 24 | Clip cost in 3D (a latent block lengthening with duration, linear against attention columns) | 3D stage | Reading 4 | rejected: the one-slider card is the right kind for one parameter, and the stage would repeat it |
+| 25 | Hero in 3D | 3D stage | top | rejected: a two-lane pipeline whose message is two highlighted counts reads best flat, and Figs. 1 and 4 already build both lanes in depth |

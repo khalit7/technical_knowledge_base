@@ -1,24 +1,35 @@
+<div class="s3sp"><div class="s3R"><div id="stg-delay"></div></div><div class="s3L">
 <section id="va-s8">
 <h2>8. Generating audio: token language models and flow</h2>
 <p><b>Route 1: a language model over codec tokens.</b> Once audio is tokens, generating it is next-token prediction, and everything known about language models applies (prompts, sampling temperature, KV caches, streaming). The difficulty is that each frame has several codebooks, so the question is in what order to predict them.</p>
 <ul>
 <li><b>AudioLM</b> (Google, 2022) used a hierarchy: first <i>semantic</i> tokens (k-means clusters of a speech model's features at 25 a second) for long-range structure, then the first 4 SoundStream codebooks, then the remaining 8, each by its own 0.3B decoder; listeners told its continuations from real speech 51.2% of the time, "not statistically significantly different" from chance ({{Borsos et al. 2022|https://arxiv.org/abs/2209.03143}}) <span class="vend">vendor</span>.</li>
 <li><b>VALL-E</b> (Microsoft, 2023) made text-to-speech a language-model task: phonemes plus a "3-second enrolled recording" of a voice in, EnCodec tokens out (8 codebooks at 6 kbps). The first codebook is predicted autoregressively, codebooks 2 to 8 by a second, non-autoregressive model, all trained on 60K hours of audiobooks ({{Wang et al. 2023|https://arxiv.org/abs/2301.02111}}).</li>
-<li><b>MusicGen</b> (Meta, 2023) predicts all 4 codebooks with one transformer using a <dfn>delay pattern</dfn>: codebook k is shifted k &minus; 1 steps, so each step emits one token per codebook and still sees the coarser codebooks of the same frame from earlier steps. "This translates 30 seconds of audio into 1500 autoregressive steps" (50 frames a second; {{Copet et al. 2023|https://arxiv.org/abs/2306.05284}}); trained on 20K hours of licensed music; weights CC-BY-NC.</li>
+<li><b>MusicGen</b> (Meta, 2023) predicts all 4 codebooks with one transformer using a <dfn>delay pattern</dfn> (Fig. 5, steps 2 to 4): "This translates 30 seconds of audio into 1500 autoregressive steps" (50 frames a second; {{Copet et al. 2023|https://arxiv.org/abs/2306.05284}}); trained on 20K hours of licensed music; weights CC-BY-NC.</li>
 </ul>
-<div class="rd-card" id="va-c-delay"><h4>Three orders for 4 codebooks: the delay pattern keeps one step per frame and still predicts coarse before fine</h4>
-<div class="seg" id="va-delay-mode"><button data-m="flat">Flatten (one token per step)</button><button data-m="par">Parallel (all 4 at once)</button><button data-m="delay" class="on">Delay (MusicGen)</button></div>
-<div class="rd-svg" id="va-delay-svg"></div>
-<p class="va-small" id="va-delay-cap"></p>
-</div>
+<ol class="sx" id="sx-delay">
+<li><b>The token grid.</b> 4 codebooks (rows, the coarse first codebook at the front) by frames (columns), as MusicGen has it at 50 frames a second; each slot is one token to generate. A column's height will be the step at which its token is generated.</li>
+<li><b>Flatten.</b> One token per step, frame by frame: exact, since each token sees every earlier one, the coarser codebooks of its own frame included (the stream), but 4 steps per frame: 24 steps for 6 frames, 200 a second.</li>
+<li><b>Parallel.</b> All 4 codebooks of a frame in one step: 50 steps a second, but the 4 tokens of a frame are predicted independently of each other (no stream between the levels).</li>
+<li><b>Delay.</b> Codebook k is shifted k &minus; 1 steps: still one step per frame (plus 3 at the end), and each fine codebook is generated after the coarser codebooks of the same frame, from earlier steps. MusicGen: 30 s of audio in 1,500 steps.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="va-s8m">
 <p><b>Moshi</b> (Kyutai, 2024) is full duplex: it "always listens and always generates sound", modelling its own Mimi tokens and the user's as parallel streams plus a text stream it writes as an "inner monologue", 17 tokens per 80 ms step (1 text + 8 + 8). A 7B temporal transformer runs once per step and a small depth transformer generates the codebooks within the step; "a theoretical latency of 160ms, 200ms in practice" ({{D&eacute;fossez et al. 2024|https://arxiv.org/abs/2410.00037}}) <span class="vend">vendor</span>. Mimi's 12.5 frames a second are what make one big forward pass per 80 ms affordable.</p>
-<div class="rd-card" id="va-c-moshi"><h4>Moshi listens and speaks at once: 17 tokens per 80 ms step, one big pass per step</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="va-c-moshi"><h4>Moshi listens and speaks at once: 17 tokens per 80 ms step, one big pass per step</h4>
 <div class="rd-svg" id="va-moshi"></div>
-<p class="va-small">Rows are token streams, columns are 80 ms steps (Mimi's 12.5 frames a second). The temporal transformer reads everything up to the previous step once per step; the depth transformer then emits this step's own tokens one after another, text first. In the current step (outlined) the user's codes have just been heard (solid) and Moshi's are still to be generated (faint). Structure from the Moshi paper; token counts from the Mimi config. The same frame set against a three-model cascade, the native-or-pipeline question: {{Native multimodal and any-to-any models|n:3c65c17b0d0d8139bd6cd4137dd2a4d8}}, section 9.</p></div>
+<p class="va-small">Rows are token streams, columns are 80 ms steps (Mimi's 12.5 frames a second). The temporal transformer reads everything up to the previous step once per step; the depth transformer then emits this step's own tokens one after another, text first. In the current step (outlined) the user's codes have just been heard (solid) and Moshi's are still to be generated (faint). Structure from the Moshi paper; token counts from the Mimi config. The same frame set against a three-model cascade, the native-or-pipeline question: {{Native multimodal and any-to-any models|n:3c65c17b0d0d8139bd6cd4137dd2a4d8}}, section 9.</p></div></div></div></div>
+
+<div class="s3sp"><div class="s3L"><section id="va-s8f">
 <p><b>Route 2: flow or diffusion over continuous audio.</b> The image recipe, applied to a spectrogram or an audio latent. <b>F5-TTS</b> trains a DiT with flow matching to fill in masked mel frames; the text is "simply padded with filler tokens to the same length as input speech", with no duration model or aligner; 336M parameters, about 95K hours of speech, "an inference RTF of 0.15" (real-time factor: 10 s of speech in 1.5 s, on an RTX 3090 at 16 steps) ({{Chen et al. 2024|https://arxiv.org/abs/2410.06885}}) <span class="vend">vendor</span>. <b>Stable Audio Open</b> generates "variable-length (up to 47s) stereo audio at 44.1kHz" with a 156M VAE, a 109M T5 text encoder and a 1,057M DiT, trained on Creative Commons recordings; it cannot produce intelligible speech or lyrics ({{Evans et al. 2024|https://arxiv.org/abs/2407.14358}}).</p>
-<div class="rd-card" id="va-c-f5"><h4>F5-TTS needs no aligner: text padded to the length of the audio, the missing frames filled by flow</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="va-c-f5"><h4>F5-TTS needs no aligner: text padded to the length of the audio, the missing frames filled by flow</h4>
 <div class="rd-svg" id="va-f5"></div>
-<p class="va-small">Training: a random span of the mel frames is masked and the model learns the flow that fills it, seeing the rest of the audio and the whole padded text. Inference: the prompt recording is the unmasked part, its transcript plus the new text is padded with filler tokens, and the total length must be chosen before sampling (the "fixed or estimated length" weakness in the table below). Frame counts illustrative.</p></div>
+<p class="va-small">Training: a random span of the mel frames is masked and the model learns the flow that fills it, seeing the rest of the audio and the whole padded text. Inference: the prompt recording is the unmasked part, its transcript plus the new text is padded with filler tokens, and the total length must be chosen before sampling (the "fixed or estimated length" weakness in the table below). Frame counts illustrative.</p></div></div></div></div>
+<section id="va-s8t">
 <div class="tw"><table class="rd-cmp">
 <thead><tr><th></th><th>Codec tokens + language model</th><th>Continuous latent or mel + flow / diffusion</th></tr></thead>
 <tbody>

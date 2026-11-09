@@ -1,43 +1,6 @@
-// ---- Reading sections 2 to 5: attention animation, model table, cost table, implied throughput, noise schedules for long video ----
+// ---- Reading sections 2 to 5 (the attention stepper became the 3D stage Fig. 2, 28_js_sc2att.js): model table, cost table, implied throughput, noise schedules for long video ----
 (function(){
   const U=window.VAU,V=U.V,$=id=>document.getElementById(id),esc=RD.esc;
-  // ---------- animation: who one token can see ----------
-  const NF=6,GR=6,GC=10;let mode='full';
-  const disc=f=>({r:1+Math.round(f*0.7),c:1+Math.round(f*1.5)}); // the disc moves diagonally
-  const q={f:2,...disc(2)};
-  const w13=U.calc(U.mById.wan13);
-  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888'}
-  const cv=$('va-attn-cv');
-  function draw(i){const w=RD.width(cv.parentElement),cols=w<520?3:6,rowsP=Math.ceil(NF/cols);
-    const pw=(w-10*(cols+1))/cols,cell=pw/GC,ph=cell*GR,h=Math.round(rowsP*(ph+22)+6);
-    const dpr=window.devicePixelRatio||1;cv.width=w*dpr;cv.height=h*dpr;cv.style.height=h+'px';const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);
-    const ink=css('--ink'),mute=css('--mute'),acc=css('--acc'),c2=css('--c2'),line=css('--line'),soft=css('--soft');x.font='11px system-ui,sans-serif';
-    for(let f=0;f<NF;f++){const ox=10+(f%cols)*(pw+10),oy=16+Math.floor(f/cols)*(ph+22);x.fillStyle=mute;x.fillText('latent frame '+f,ox,oy-4);
-      const d=disc(f);
-      for(let r=0;r<GR;r++)for(let c=0;c<GC;c++){let on=false;
-        if(mode==='full')on=i>=1;
-        else{if(i>=1&&f===q.f)on=true;if(i>=2&&r===q.r&&c===q.c)on=true}
-        x.fillStyle=on?acc:soft;x.globalAlpha=on?0.45:1;x.fillRect(ox+c*cell+0.5,oy+r*cell+0.5,cell-1,cell-1);x.globalAlpha=1;
-        x.strokeStyle=line;x.strokeRect(ox+c*cell+0.5,oy+r*cell+0.5,cell-1,cell-1);
-        if(r===d.r&&c===d.c){x.fillStyle=ink;x.beginPath();x.arc(ox+(c+0.5)*cell,oy+(r+0.5)*cell,cell*0.3,0,7);x.fill()}
-        if(f===q.f&&r===q.r&&c===q.c){x.strokeStyle=c2;x.lineWidth=2.5;x.strokeRect(ox+c*cell+1,oy+r*cell+1,cell-2,cell-2);x.lineWidth=1}}
-      if(mode==='fact'&&i>=3&&f!==q.f){x.strokeStyle=c2;x.setLineDash([3,3]);x.strokeRect(ox+d.c*cell,oy+d.r*cell,cell,cell);x.setLineDash([])}}
-  }
-  const CAP={full:[['The query','One token on the disc in latent frame 2 (orange outline). The disc moves diagonally from frame to frame.'],
-      ['Full 3-D attention','The token attends to every token in every frame, including the disc wherever it has moved. One layer, one hop.'],
-      ['What it costs','Every token does this: N x N pairs. At Wan 2.1 1.3B\'s default clip that is '+U.int(w13.full/1e6)+' million pairs per head per layer.'],
-      ['Why it is affordable now','The VAE cut the clip to '+U.int(w13.N)+' tokens (section 1), and FlashAttention-style kernels never store the N x N matrix. Compute still grows with N squared (section 4).']],
-    fact:[['The query','The same token on the disc in latent frame 2.'],
-      ['Spatial attention','First layer: attend only within its own latent frame ('+U.int(w13.s)+' tokens at Wan\'s size).'],
-      ['Temporal attention','Second layer: attend only to the same position in every other frame ('+w13.lf+' tokens). The disc has moved away, so these keys mostly show background.'],
-      ['Diagonal motion takes hops','To read the disc in another frame (dashed), information must travel through a temporal layer and then a spatial layer in that frame, or the reverse: relayed, not direct. Pairs: '+U.int(w13.fact/1e6)+' million against '+U.int(w13.full/1e6)+' million ('+U.fx(w13.full/w13.fact,1)+' times fewer).']]};
-  const an=RD.anim({card:'va-c-attn',ctl:'va-attn-ctl',n:4,ms:1900,label:'Step',draw:i=>{
-    const c=CAP[mode][i];$('va-attn-cap').innerHTML='<div class="t">'+(i+1)+'. '+c[0]+'</div><p>'+c[1]+'</p>';
-    const keys=mode==='full'?w13.N:(i>=2?w13.s+w13.lf:w13.s);
-    $('va-attn-cnt').innerHTML=RD.stat('Tokens (Wan default)',U.int(w13.N))+RD.stat('Keys per query',i>=1?U.int(keys):'?','per layer'+(mode==='fact'&&i>=2?' pair':''))+RD.stat('Pairs per head',i>=2?U.int((mode==='full'?w13.full:w13.fact)/1e6)+'M':'?');
-    draw(i)}});
-  RD.seg($('va-attn-mode'),v=>{mode=v;an.redraw()});RD.onResize(()=>an.redraw());RD.onRender(()=>an.redraw());
-
   // ---------- the model table ----------
   $('va-models-table').innerHTML='<thead><tr><th>Model</th><th>Denoiser</th><th>VAE, patch</th><th>Attention and text</th><th>Positions</th><th>Objective</th><th>Default clip</th><th>Tokens</th></tr></thead><tbody>'+
     V.models.map(m=>{const c=U.calc(m);return '<tr><td>'+esc(m.n)+'</td><td>'+U.B(m.params)+' ('+(m.cfg?'counted':'stated')+'), '+m.L+' blocks x '+m.D+'</td><td>'+m.ct+'x'+m.cs+'x'+m.cs+', '+m.ch+' ch; '+m.pt+'x'+m.ph+'x'+m.ph+'</td><td>'+esc(m.attn)+'</td><td>'+esc(m.rope)+'</td><td>'+esc(m.obj)+'</td><td>'+m.W+' x '+m.H+', '+m.F+' frames at '+m.fps+' fps ('+U.fx(c.sec,1)+' s)<div class="va-small">'+esc(m.def_src)+'</div></td><td>'+U.int(c.N)+'</td></tr>'}).join('')+'</tbody>';

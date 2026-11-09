@@ -37,5 +37,5 @@
   $('rq-rates').innerHTML='<thead><tr><th>Codec, setting</th><th>Frames per second</th><th>Codebooks x size</th><th>Tokens per second</th><th>Bitrate (computed)</th><th>Stated</th></tr></thead><tbody>'+
     RATES.map(r=>'<tr><td><a href="'+r[5]+'" target="_blank" rel="noopener noreferrer">'+esc(r[0])+'</a></td><td>'+(r[1]%1?U.fx(r[1],2):r[1])+'</td><td>'+r[2]+' x '+U.int(r[3])+'</td><td>'+U.int(r[1]*r[2])+'</td><td>'+U.int(r[1]*r[2]*Math.log2(r[3]))+' bps</td><td>'+r[4]+'</td></tr>').join('')+'</tbody>';
   ['rq-clip','rq-codec'].forEach(id=>$(id).addEventListener('change',draw));$('rq-k').addEventListener('input',draw);
-  RD.seg($('rq-ym'),v=>{ym=v;draw()});RD.onResize(draw,'t-varvq');RD.onRender(draw,'t-varvq');
+  RD.seg($('rq-ym'),v=>{ym=v;draw()});(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-varvq']=window.TAB_RENDER['t-varvq']||[]).push(draw);{let rz=0;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{const T=document.getElementById('t-varvq');if(T&&!T.hidden)draw()},120)})}
 })();

@@ -141,7 +141,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_generative_and_multimodal/flow_matching` Flow matching and rectified flow
 - [x] `models_and_training/topic_generative_and_multimodal/latent_diffusion_and_dits` Latent diffusion and diffusion transformers
 - [~] `models_and_training/topic_generative_and_multimodal/native_multimodal_models` Native multimodal and any-to-any models
-- [ ] `models_and_training/topic_generative_and_multimodal/video_and_audio_generation` Video and audio generation
+- [x] `models_and_training/topic_generative_and_multimodal/video_and_audio_generation` Video and audio generation
 - [ ] `models_and_training/topic_generative_and_multimodal/vision_encoders` Vision encoders: ViT, CLIP and SigLIP
 - [ ] `models_and_training/topic_generative_and_multimodal/vision_language_models` Vision-language models: how images become tokens
 - [ ] `models_and_training/topic_generative_and_multimodal` Topic: generative-and-multimodal
@@ -433,4 +433,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_generative_and_multimodal/diffusion_from_zero`: index.html 984 KB (near the 1 MB budget); core 43 min plus 20 closed; Fig. 1 full view leaves an empty band above the plates; Fig. 3 step 2 close-up crowded; Fig. 5 next plate cut at the card's right edge; no distillation stage (no distilled toy model).
 - `models_and_training/topic_generative_and_multimodal/flow_matching`: core 43 min plus 17 closed; Fig. 2 last step network miss at t = 0.95 still subtle; plates at an angle make rings ellipses; check_data.py SKIPs the root's retired Flow lab data part, which was never committed (check whether the root still needs it).
 - `models_and_training/topic_generative_and_multimodal/latent_diffusion_and_dits`: Fig. 4 small at 390 with token labels hidden; Fig. 3 stage labels sit only on the up path; Fig. 5 modulation slabs and Fig. 8 dial frequency are drawn, not data (labelled); verify_layout flags the FLOPs calculator outside a split (accepted: reader tool).
+- `models_and_training/topic_generative_and_multimodal/video_and_audio_generation`: Fig. 4 codebook plates at an angle, percentage labels sit over the plates and "codebook 1" overlaps the plate edge; Fig. 5 flow streams faint behind the columns; Fig. 1 step 5 "32,760 tokens" label overlaps the faded latent plates; verify_layout flags the calculator and codec explorer outside splits (accepted: reader tools).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

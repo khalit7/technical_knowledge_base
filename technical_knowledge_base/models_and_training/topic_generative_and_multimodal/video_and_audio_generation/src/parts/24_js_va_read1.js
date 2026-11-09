@@ -1,4 +1,4 @@
-// ---- Reading sections 0 and 1: code blocks, the clip-to-tokens animation, VAE table, the measured VAE viewer ----
+// ---- Reading sections 0 and 1: code blocks, VAE table, the measured VAE viewer (the clip-to-tokens stepper became the 3D stage Fig. 1, 28_js_sc1lat.js) ----
 (function(){
   const U=window.VAU,V=U.V,$=id=>document.getElementById(id),esc=RD.esc;
   U.fill(document.getElementById('t-read'));
@@ -10,61 +10,6 @@
   $('va-rvq-lines').innerHTML='<a href="'+S.enc_rvq_encode.url+'" target="_blank" rel="noopener noreferrer">'+S.enc_rvq_encode.line+' to '+S.enc_rvq_encode.last+'</a>';
   $('va-dist-line').textContent=S.enc_dist.line;$('va-bw-line').textContent=S.enc_bw_per_q.line;
   $('va-code-run').textContent=V.runcode+'\n\n# printed (speech and music; first, eighth and last row of each codec):\n'+V.runout;
-
-  // ---------- animation: one clip, three compressors ----------
-  const MODES={img:{n:'image VAE per frame',ct:1,cs:8,p:2,first:false},wan:{n:'Wan 2.1 video VAE',ct:4,cs:8,p:2,first:true},ltx:{n:'LTX-Video VAE',ct:8,cs:32,p:1,first:true}};
-  const F=81,H=480,W=832;let mode='wan';
-  function counts(m){const lf=m.first?1+(F-1)/m.ct:F/m.ct;const th=H/m.cs/m.p,tw=W/m.cs/m.p;return {lf,th,tw,s:th*tw,N:lf*th*tw}}
-  const cv=$('va-patch-cv'),cap=$('va-patch-cap'),cnt=$('va-patch-cnt');
-  const CAPS=[
-    ['The clip','81 frames of 480 &times; 832 pixels (about 5 s at 16 frames a second): 97 million numbers. A disc moves across it; neighbouring frames are almost identical.'],
-    ['Group the frames in time',''],
-    ['Shrink each latent frame in space',''],
-    ['Cut into patches',''],
-    ['One sequence of tokens','']];
-  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#888'}
-  function draw(i){
-    const m=MODES[mode],c=counts(m),w=RD.width(cv.parentElement),h=Math.round(Math.max(250,Math.min(320,w*0.38)));
-    const dpr=window.devicePixelRatio||1;cv.width=w*dpr;cv.height=h*dpr;cv.style.height=h+'px';
-    const x=cv.getContext('2d');x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);
-    const ink=css('--ink'),mute=css('--mute'),acc=css('--acc'),c2=css('--c2'),c3=css('--c3'),soft=css('--soft'),line=css('--line');
-    x.font='11px system-ui,sans-serif';x.fillStyle=ink;
-    // row of 81 frames
-    const fw=(w-20)/F,fy=18,fh=Math.min(46,h*0.18);
-    for(let f=0;f<F;f++){const gx=10+f*fw;
-      let g=m.first?(f===0?0:1+Math.floor((f-1)/m.ct)):Math.floor(f/m.ct);
-      x.fillStyle=i>=1?(g%2?c2:acc):mute;x.globalAlpha=i>=1?0.55:0.35;x.fillRect(gx,fy,Math.max(1,fw-0.6),fh);
-      x.globalAlpha=1;x.fillStyle=ink;const cx=gx+fw/2,cy=fy+fh*(0.2+0.6*f/F);x.beginPath();x.arc(cx,cy,Math.max(1,fw*0.35),0,7);x.fill()}
-    x.fillStyle=mute;x.fillText('81 frames (time runs left to right)',10,12);
-    if(i>=1){x.fillStyle=ink;x.fillText(c.lf+' latent frames'+(m.first?' (frame 0 alone, then groups of '+m.ct+')':''),10,fy+fh+14)}
-    // one latent frame, to scale against the pixel frame
-    const by=fy+fh+26,bh=h-by-24;
-    if(i>=2){const sc=Math.min((w*0.42)/W,(bh-4)/H);const pw=W*sc,ph=H*sc;
-      x.fillStyle=mute;x.fillText('one frame, 480 x 832 px',10,by+10);const bx=by+14;x.strokeStyle=mute;x.strokeRect(10,bx,pw,ph);
-      const lw=W/m.cs,lh=H/m.cs,cw=pw/lw,ch=ph/lh;
-      x.strokeStyle=i>=3?acc:line;x.globalAlpha=0.7;const step=i>=3?m.p:1;
-      for(let a=0;a<=lw;a+=step){x.beginPath();x.moveTo(10+a*cw,bx);x.lineTo(10+a*cw,bx+ph);x.stroke()}
-      for(let b=0;b<=lh;b+=step){x.beginPath();x.moveTo(10,bx+b*ch);x.lineTo(10+pw,bx+b*ch);x.stroke()}
-      x.globalAlpha=1;x.fillStyle=ink;x.fillText(i>=3?(c.th+' x '+c.tw+' = '+U.int(c.s)+(w<560?' per frame':' per latent frame')):(lh+' x '+lw+' latent grid'),10,Math.min(h-3,bx+ph+13));
-    }
-    // the sequence: one square per 390 tokens (one LTX latent frame), same scale in all modes
-    if(i>=4){const unit=390,nsq=Math.round(c.N/unit),lab=c.th+' x '+c.tw+' = '+U.int(c.s)+(w<560?' per frame':' per latent frame'),x0=Math.max(w*0.47,14+Math.min(w*0.42,x.measureText(lab).width)),aw=w-x0-8;
-      let side=12,per=1;for(;side>2;side--){per=Math.max(1,Math.floor(aw/(side+1)));if(Math.ceil(nsq/per)*(side+1)<=bh+6)break}per=Math.max(1,Math.floor(aw/(side+1)));
-      for(let k=0;k<nsq;k++){x.fillStyle=k%2?acc:c3;x.fillRect(x0+(k%per)*(side+1),by+14+Math.floor(k/per)*(side+1),side,side)}
-      x.fillStyle=ink;x.fillText(U.int(c.N)+' tokens (square = 390)',x0,by+10)}
-  }
-  const an=RD.anim({card:'va-c-patch',ctl:'va-patch-ctl',n:5,ms:1700,label:'Step',draw:i=>{
-    const m=MODES[mode],c=counts(m);
-    const t=[CAPS[0][1],
-      m.first?('Frame 0 is encoded alone, then every '+m.ct+' frames share one latent frame, with a cache of features from earlier frames only (causal): 1 + 80 / '+m.ct+' = '+c.lf+' latent frames.'):'An image VAE has no time axis: every one of the 81 frames gets its own latent frame, however similar it is to the last.',
-      'Space shrinks '+m.cs+' times per side: 480 x 832 becomes '+H/m.cs+' x '+W/m.cs+'.'+(mode==='ltx'?' LTX packs 4 x 4 pixel patches into the VAE input and keeps 128 channels to hold the detail.':' The latent keeps 16 channels per position.'),
-      m.p>1?('The denoiser groups '+m.p+' x '+m.p+' latent positions into one token: '+c.th+' x '+c.tw+' = '+U.int(c.s)+' tokens per latent frame.'):'LTX-Video uses 1 x 1 patches: patching already happened inside the VAE. '+U.int(c.s)+' tokens per latent frame.',
-      U.int(c.lf)+' x '+U.int(c.s)+' = '+U.int(c.N)+' tokens. Full attention forms '+U.int(c.N*c.N/1e6)+' million pairs per head per layer'+(mode==='wan'?'.':', against 1,073 million for Wan\'s VAE.')][i];
-    cap.innerHTML='<div class="t">'+(i+1)+'. '+CAPS[i][0]+' ('+m.n+')</div><p>'+t+'</p>';
-    cnt.innerHTML=RD.stat('Frames',81)+RD.stat('Latent frames',i>=1?c.lf:'?')+RD.stat('Tokens per latent frame',i>=3?U.int(c.s):'?')+RD.stat('Tokens',i>=4?U.int(c.N):'?')+RD.stat('Pairs per head',i>=4?U.int(c.N*c.N/1e6)+'M':'?');
-    draw(i)}});
-  RD.seg($('va-patch-mode'),v=>{mode=v;an.redraw()});
-  RD.onResize(()=>an.redraw());RD.onRender(()=>an.redraw());
 
   // ---------- VAE table ----------
   const rows=V.models.map(m=>{const c=U.calc(m);return '<tr><td>'+esc(m.n)+'</td><td>'+m.ct+' x '+m.cs+' x '+m.cs+'</td><td>'+m.ch+'</td><td>'+U.fx(c.vae,0)+'</td><td>'+m.pt+' x '+m.ph+' x '+m.ph+'</td><td>'+U.int(c.ppt)+'</td></tr>'});

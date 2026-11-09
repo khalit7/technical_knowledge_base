@@ -1,14 +1,16 @@
+<div class="s3sp"><div class="s3R"><div id="stg-cond"></div></div><div class="s3L">
 <section id="va-s3">
 <h2>3. Conditioning: text, a first frame, sound</h2>
-<p>A video denoiser takes three kinds of condition, and each enters at a different place in the sequence.</p>
-<div class="rd-card" id="va-c-cond"><h4>Text enters through attention, an image as latent frame 0, sound as a second stream aligned in time</h4>
-<div class="rd-svg" id="va-cond"></div>
-<p class="va-small">Wan 2.1 1.3B's default clip: 21 latent frames (6 drawn), 512 umT5 text tokens; the audio row follows LTX-2's design. Structure from the papers and configs named below; sizes not to scale.</p></div>
-<ul>
-<li><b>Text.</b> Two designs, both from image models. <b>Cross-attention</b> to the text encoder's output in every block (Wan with umT5, LTX-Video with T5; LTX reports cross-attention beat joint attention for them, Sec 2.3), or <b>joint attention</b> over text and video tokens together, MMDiT-style (CogVideoX, HunyuanVideo's dual-stream then single-stream blocks, Mochi's asymmetric streams with a visual stream "nearly 4 times" the text stream's parameters, {{Mochi card|https://huggingface.co/genmo/mochi-1-preview}}). The text encoders keep growing: T5 (CogVideoX, LTX, Mochi), a multimodal LLM (HunyuanVideo), Qwen2.5-VL (HunyuanVideo 1.5), Gemma 3 12B (LTX-2).</li>
-<li><b>Image to video</b> is the same model with the first frame given: the causal VAE encodes it alone (section 1), and its latent replaces or conditions the first latent frame (LTX-Video gives conditioning tokens a small timestep, Sec 2.4). This is the second reason the first frame is encoded on its own.</li>
-<li><b>Audio with video</b> (Veo 3, LTX-2, Sora 2) adds an audio latent stream with its own 1-D positions and cross-attention between the streams; LTX-2 uses only the time component of RoPE in that cross-attention so sound aligns with frames (Sec 3.1.1) <span class="vend">vendor</span>.</li>
-</ul>
+<p>A video denoiser takes three kinds of condition, and each enters at a different place in the sequence: text through attention, an image as latent frame 0, sound as a second stream aligned in time.</p>
+<ol class="sx" id="sx-cond">
+<li><b>The noisy video latent.</b> What the denoiser works on: Wan 2.1 1.3B's default clip as 21 latent frames, 32,760 tokens, pure noise at the start of sampling.</li>
+<li><b>Text, through attention.</b> Two designs, both from image models (the boxes: 512 umT5 tokens, one per 16). <b>Cross-attention</b> to the text encoder's output in every block (Wan with umT5, LTX-Video with T5; LTX reports cross-attention beat joint attention for them, Sec 2.3), or <b>joint attention</b> over text and video tokens together, MMDiT-style (CogVideoX, HunyuanVideo's dual-stream then single-stream blocks, Mochi's asymmetric streams with a visual stream "nearly 4 times" the text stream's parameters, {{Mochi card|https://huggingface.co/genmo/mochi-1-preview}}). The text encoders keep growing: T5 (CogVideoX, LTX, Mochi), a multimodal LLM (HunyuanVideo), Qwen2.5-VL (HunyuanVideo 1.5), Gemma 3 12B (LTX-2).</li>
+<li><b>A first frame.</b> Image to video is the same model with the first frame given: the causal VAE encodes it alone (section 1), and its latent replaces or conditions the first latent frame (LTX-Video gives conditioning tokens a small timestep, Sec 2.4). This is the second reason the first frame is encoded on its own.</li>
+<li><b>Sound, as a second stream.</b> Audio with video (Veo 3, LTX-2, Sora 2) adds an audio latent stream with its own 1-D positions and cross-attention between the streams; LTX-2 uses only the time component of RoPE in that cross-attention so sound aligns with frames (Sec 3.1.1) <span class="vend">vendor</span>. (One audio segment per latent frame in the figure is illustrative.)</li>
+</ol>
+</section>
+</div></div>
+<section id="va-s3x">
 <p><b>The levers the open models pulled.</b> All of them are a latent transformer with full attention and flow matching (CogVideoX: diffusion with v-prediction); they differ in where they spend tokens and parameters.</p>
 <ul>
 <li><b>Compress harder</b> (LTX-Video, 2024): a 32 &times; 32 &times; 8 VAE with 128 channels ("1:192", "a pixels-to-tokens ratio of 1:8192") leaves so few tokens that a 1.9B model runs "faster-than-real-time": "2 seconds to generate 121 frames at 768x512 pixels and 20 diffusion steps on an Nvidia H100 GPU" ({{Sec 1|https://arxiv.org/abs/2501.00103}}) <span class="vend">vendor</span>. The price is fine detail, so its decoder also performs the last denoising step.</li>
@@ -30,6 +32,7 @@
 <li><b>Sora</b>: it "is a diffusion transformer" trained to predict "clean" patches, on re-captioned videos at native aspect ratios, generating up to a minute <span class="vend">vendor</span>. <b>Veo 3</b> through the Gemini API serves 8 s at 24 fps, 720p or 1080p.</li>
 </ul></div></details>
 </section>
+<div class="s3sp"><div class="s3L">
 <section id="va-s4">
 <h2>4. What one clip costs</h2>
 <p><b>The arithmetic.</b> One denoiser pass over N video tokens costs about</p>
@@ -38,13 +41,6 @@
 <div class="pr" id="va-pr-frames"><div class="q">Predict, then drag: Wan 2.1 1.3B, same resolution, clip doubled from 81 to 161 frames (10 s). Tokens grow by about 2. By how much does the self-attention compute of one denoiser pass grow?</div>
 <div class="opts"><button data-ok="0">About 2 times</button><button data-ok="1">About 4 times</button><button data-ok="0">About 8 times</button></div>
 <div class="ans" hidden></div></div>
-<div class="rd-card" id="va-c-cost"><h4>Duration is the expensive axis: attention grows with its square and overtakes everything else</h4>
-<div class="va-slide"><label for="va-cost-f">Clip length</label><input type="range" id="va-cost-f" min="1" max="20" step="1" value="5" aria-label="Clip length in seconds"><b id="va-cost-fl"></b></div>
-<div class="an-cnt" id="va-cost-cnt"></div>
-<div class="va-small">One pass, to scale against 20 s: <span style="color:var(--c1);font-weight:600">linear layers 2 P N</span> and <span style="color:var(--c2);font-weight:600">self-attention 4 L N<sup>2</sup> D</span></div>
-<div class="va-cbar" id="va-cost-bar"></div>
-<p class="va-small" id="va-cost-note"></p>
-</div>
 <p><b>Checked against a real count.</b> Wan 2.1 1.3B's config instantiated on the meta device (no weights) and run once at its default clip under PyTorch's FLOP counter: <span data-va="fc.counted"></span> TFLOP, of which <span data-va="fc.bmm"></span> TFLOP (<span data-va="fc.share"></span>) are the attention matrix products. The formula gives <span data-va="fc.formula"></span> TFLOP (<span data-va="fc.resid"></span>): it charges all 1.42B parameters to every video token, including the text cross-attention's key and value projections that act on the 512 text tokens only, and it leaves out cross-attention's scores. So attention is about two thirds of the compute even at 480p and 5 s; at HunyuanVideo's 720p and 129 frames the formula puts it at <span data-va="hyv.share"></span>.</p>
 <div class="pr" id="va-pr-res"><div class="q">Predict: which costs more per denoiser pass with Wan 2.1 1.3B, 720p for 5 s (81 frames) or 480p for 10 s (161 frames)?</div>
 <div class="opts"><button data-ok="1">720p for 5 s</button><button data-ok="0">480p for 10 s</button><button data-ok="0">About the same</button></div>
@@ -56,3 +52,11 @@
 <div class="co"><div class="t">Do published speeds agree? (derived)</div><p id="va-implied"></p></div></div></details>
 <p class="deepnote">Any model, resolution, duration and step count: the {{Space-time patch calculator|#t-vapatch}}. Serving costs and batching: {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="va-c-cost"><h4>Duration is the expensive axis: attention grows with its square and overtakes everything else</h4>
+<div class="va-slide"><label for="va-cost-f">Clip length</label><input type="range" id="va-cost-f" min="1" max="20" step="1" value="5" aria-label="Clip length in seconds"><b id="va-cost-fl"></b></div>
+<div class="an-cnt" id="va-cost-cnt"></div>
+<div class="va-small">One pass, to scale against 20 s: <span style="color:var(--c1);font-weight:600">linear layers 2 P N</span> and <span style="color:var(--c2);font-weight:600">self-attention 4 L N<sup>2</sup> D</span></div>
+<div class="va-cbar" id="va-cost-bar"></div>
+<p class="va-small" id="va-cost-note"></p>
+</div></div></div></div>
