@@ -16,4 +16,12 @@ near(C.mean(B), R.leaderboard.instant_dropped, 0.0005, 'instant mean');
 let pass = 0, hid = 0;
 for (const a of C.models) for (const b of C.models) { if (a === b) continue; const g = C.gate(a.s, b.s, O); if (g.aggV === 'pass') { pass++; if (g.slices.some(r => r.v === 'fail')) hid++ } }
 near(pass, R.all_pairs.agg_pass, 0, 'all pairs agg pass'); near(hid, R.all_pairs.agg_pass_slice_fail, 0, 'all pairs hidden');
+// Fig. 1's numbers: parts/22_js_vals.js run on a stub page, against recompute.py's independent shuffles
+{ const document = { querySelectorAll: () => [], getElementById: () => null };
+  vm.runInNewContext(fs.readFileSync(path.join(H, 'parts/22_js_vals.js'), 'utf8'), { window, document, Math, JSON, String, Set, console });
+  const E = window.PES.ea, Q = R.ea;
+  near(E.traces.length, Q.traces, 0, 'ea traces'); near(E.fails.length, Q.fails, 0, 'ea fails'); near(E.med, Q.med, 0, 'ea median'); near(E.p90, Q.p90, 0, 'ea p90'); near(E.w100, Q.w100, 0, 'ea within 100');
+  n++; if (E.satPos.join() !== Q.satPos.join()) { bad++; console.log('MISMATCH ea satPos', E.satPos, Q.satPos) }
+  n++; if (E.modes.map(m => m.c + m.n).join() !== Q.modes.map(m => m[0] + m[1]).join()) { bad++; console.log('MISMATCH ea modes') }
+  n++; if (E.worst.map(w => [w.q, w.t, w.a, w.b].join(' ')).join() !== Q.worst.map(w => w.join(' ')).join()) { bad++; console.log('MISMATCH ea worst') } }
 console.log(`check_core: ${n} checks, ${bad} mismatches`);

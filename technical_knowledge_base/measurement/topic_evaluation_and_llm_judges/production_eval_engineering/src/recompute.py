@@ -54,6 +54,35 @@ for s in (0.0, 0.75, 0.95):
     fr[str(s)] = sorted(m for m, (c, q) in pts.items() if not any(o != m and pts[o][0] <= c and pts[o][1] >= q and (pts[o][0] < c or pts[o][1] > q) for o in pts))
 out['frontier'] = fr
 out['t_quantiles'] = {f'{c}_{df}': stats.t.ppf(1 - (1 - c) / 2, df) for c in (.9, .95, .99) for df in (18, 19, 158)}
+# Fig. 1, error analysis on the swap (2026-11-09): traces are the challenger's graded turns, a failure scored below the champion; the reading orders are
+# Fisher-Yates shuffles driven by the same mulberry32 stream (seed 1) as parts/22_js_vals.js; the first order is the one the stage draws
+def mulberry32(a):
+    def r():
+        nonlocal a
+        a = (a + 0x6D2B79F5) & 0xffffffff
+        t = ((a ^ (a >> 15)) * (a | 1)) & 0xffffffff
+        t ^= (t + (((t ^ (t >> 7)) * (t | 61)) & 0xffffffff)) & 0xffffffff
+        return ((t ^ (t >> 14)) & 0xffffffff) / 4294967296
+    return r
+traces = [i for i in range(160) if B[i] is not None]
+fails = [i for i in traces if B[i] < A[i]]
+rnd = mulberry32(1)
+def shuffle():
+    a = traces[:]
+    for i in range(len(a) - 1, 0, -1):
+        j = int(rnd() * (i + 1)); a[i], a[j] = a[j], a[i]
+    return a
+def satur(order):
+    seen, pos = set(), []
+    for n, i in enumerate(order, 1):
+        if B[i] < A[i] and catOf[i] not in seen: seen.add(catOf[i]); pos.append(n)
+    return pos
+first = satur(shuffle()); lasts = [first[-1]] + [satur(shuffle())[-1] for _ in range(999)]
+srt = sorted(lasts)
+modes = sorted([(c, sum(1 for i in fails if catOf[i] == c)) for c in CATS if any(catOf[i] == c for i in fails)], key=lambda x: -x[1])
+worst = sorted([(B[i] - A[i], i) for i in range(160) if catOf[i] == 'writing' and B[i] is not None and B[i] < A[i]], key=lambda x: x[0])[:3]
+out['ea'] = dict(traces=len(traces), fails=len(fails), modes=modes, satPos=first, med=(srt[499] + srt[500]) / 2, p90=srt[899], w100=sum(1 for x in lasts if x <= 100),
+                 worst=[[D['order'][i][0], D['order'][i][1], A[i], B[i]] for d, i in worst])
 json.dump(out, open(os.path.join(H, 'recompute.json'), 'w'), indent=1, default=float)
-print(json.dumps({k: out[k] for k in ['leaderboard', 'judge', 'parse_failures', 'cost_gate', 'all_pairs', 'frontier']}, indent=1))
+print(json.dumps({k: out[k] for k in ['leaderboard', 'judge', 'parse_failures', 'cost_gate', 'all_pairs', 'frontier', 'ea']}, indent=1))
 print('writing', sl['writing']['mean'], sl['writing']['lo'], sl['writing']['hi'], 'agg', agg['mean'], agg['lo'], agg['hi'])

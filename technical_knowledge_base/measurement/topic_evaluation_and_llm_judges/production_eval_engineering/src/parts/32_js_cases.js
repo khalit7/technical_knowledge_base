@@ -30,7 +30,7 @@ function draw(){
   $('cs-chips').innerHTML='<button data-s="all"'+(cur==='all'?' class="on"':'')+'>All ('+K.length+')</button>'+Object.keys(ST).map(k=>'<button data-s="'+k+'"'+(cur===k?' class="on"':'')+'>'+ST[k]+' ('+K.filter(c=>k in c.s).length+')</button>').join('');
   [...$('cs-chips').querySelectorAll('button')].forEach(b=>b.onclick=()=>{cur=b.dataset.s;draw()});
   const L=K.filter(c=>cur==='all'||cur in c.s);
-  $('cs-list').innerHTML=L.map(c=>'<div class="case"><h4><a href="'+c.u+'" target="_blank" rel="noopener noreferrer">'+c.t+'</a></h4><div class="meta">'+c.o+', '+(c.d?new Date(c.d+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}):'undated')+'</div><div>'+Object.keys(c.s).map(k=>'<span class="stg'+(c.s[k]?' '+c.s[k]:'')+'">'+ST[k]+(c.s[k]==='miss'?': missed':c.s[k]==='hit'?': credited':'')+'</span>').join('')+'</div><ul>'+c.f.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>').join('');
+  $('cs-list').innerHTML=L.map(c=>'<div class="case"><h4><a href="'+c.u+'" target="_blank" rel="noopener noreferrer">'+c.t+'</a></h4><div class="meta">'+c.o+', '+(c.d?new Date(c.d+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}):'undated')+'</div><div>'+Object.keys(c.s).map(k=>'<span class="cs-st'+(c.s[k]?' '+c.s[k]:'')+'">'+ST[k]+(c.s[k]==='miss'?': missed':c.s[k]==='hit'?': credited':'')+'</span>').join('')+'</div><ul>'+c.f.map(x=>'<li>'+x+'</li>').join('')+'</ul></div>').join('');
 }
 (window.TAB_RENDER=window.TAB_RENDER||{})['t-cases']=[draw];
 })();

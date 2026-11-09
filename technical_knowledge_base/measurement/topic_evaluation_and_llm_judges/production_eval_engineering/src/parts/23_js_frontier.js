@@ -7,7 +7,7 @@ function draw(){
   const s=+$('fr-mix').value/100;$('fr-mixv').textContent=Math.round(s*100)+'%';
   M.forEach(m=>{m.b=s*m.p[0]+(1-s)*m.p[1]});
   M.forEach(m=>{m.front=!M.some(o=>o!==m&&o.b<=m.b&&o.q>=m.q&&(o.b<m.b||o.q>m.q))});
-  const w=Math.max(300,$('fr-plot').clientWidth||600),h=230,l=44,r=14,t=12,b=40;
+  const w=Math.max(300,$('fr-plot').clientWidth||600),h=270,l=44,r=14,t=12,b=40;
   const lx=v=>Math.log10(v),x0=lx(1),x1=lx(100),X=v=>l+(lx(v)-x0)/(x1-x0)*(w-l-r),Y=v=>t+(9.2-v)/(9.2-7.6)*(h-t-b);
   let g='<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" role="img" aria-label="MT-Bench score against blended price">';
   [1,2,5,10,20,50,100].forEach(v=>{g+='<line x1="'+X(v)+'" x2="'+X(v)+'" y1="'+t+'" y2="'+(h-b)+'" stroke="var(--line)"/><text x="'+X(v)+'" y="'+(h-b+14)+'" font-size="10.5" fill="var(--mute)" text-anchor="middle">$'+v+'</text>'});

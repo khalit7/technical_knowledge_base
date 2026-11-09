@@ -32,3 +32,13 @@ What the methodology lacked: a rule for a published aggregate that silently incl
 | PE17 | promptfoo web viewer screenshot | real image | Reading 5 | built | promptfoo repository, MIT |
 | PE18 | A simulated failure-taxonomy count chart for the stepper | | | rejected | no real labelled production traces exist to count; invented counts would be decoration |
 | PE19 | Animation of drift over weeks | | | rejected | the change is not the point; a static diagram of the test says it |
+
+## 2026-11-09 rollout (split layout, renderer v2 stages)
+| # | Idea | Kind | Placement | Status | Data |
+|---|---|---|---|---|---|
+| PE20 | Fig. 1: error analysis on the swap: 159 traces in a reading order, 45 failures onto one glass plate per category, stacks as counts, saturation in one order, an evaluator per mode, three items into golden set v+1 | 3D stage, 7 steps | Reading 1 | built (replaces PE12) | released MT-Bench grades; category labelled as a stand-in for a named mode; 1,000 seeded reading orders (mulberry32, seed 1), reproduced in recompute.py. Revisits PE18 with real counts |
+| PE21 | Fig. 2: one swap, two gates as a bar field (8 rows of 20), signed changes on a glass plinth, aggregate or per-slice pillars with intervals against a threshold plate | 3D stage, 7 steps, two modes | Reading 3 | built (replaces PE1's 2D animation) | same file; `window.PEC.gate` |
+| PE22 | Fig. 3: eval gates in CI, cheapest first, a change stopped at the failing gate, three exits, flaky runs quarantined | 3D stage, 6 steps | Reading 4 | built (new) | the swap's slice results, 320 calls and $8.97; the broken change and the runs illustrative |
+| PE23 | Fig. 4: who sees the challenger: requests as dots through a router to two plates, answers back only from the served arm | 3D stage, 5 steps | Reading 8 | built (replaces PE15) | KServe's 10% canary example; A/B half and half illustrative |
+| PE24 | Hero promotion path in 3D | | | rejected | the hero's content is text (cost, what each stage catches, who is exposed); Fig. 3 and Fig. 4 carry the pipeline in depth |
+| PE25 | Frontier, sampling slider, drift test, golden-set anatomy in 3D | | | rejected | log axes and labelled structure read best flat |

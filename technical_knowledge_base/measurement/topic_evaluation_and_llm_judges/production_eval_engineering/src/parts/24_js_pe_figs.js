@@ -1,5 +1,5 @@
-// Reading figures added on 2026-10-24: hero promotion path, error-analysis stepper, golden-set anatomy,
-// online sampling slider, the four exposure designs, drift test. All drawn at the measured width; nothing moves by itself.
+// Reading figures (2D): hero promotion path, golden-set anatomy, online sampling slider, drift test. All drawn at the measured width; nothing moves by itself.
+// The error-analysis stepper and the four exposure designs became the 3D stages Fig. 1 and Fig. 4 on 2026-11-09 (27_js_sc_ea.js, 30_js_sc_exp.js).
 (function(){
 if(!window.RD)return;
 const $=id=>document.getElementById(id),T=RD.t,esc=RD.esc;
@@ -25,13 +25,16 @@ const ST=[
 const EXPO=['no users see it','no users see it','no users see it','a share of users','all users'];
 function hero(){const el=$('pe-hero-svg');if(!el)return;const w=RD.width(el);let s='';
   if(w>=640){
-    const gap=10,bw=(w-gap*4)/5,bh=132,y0=26;
+    const gap=10,bw=(w-gap*4)/5,y0=26,lh=13.5;
+    // each box's lines, wrapped to its width; the boxes share the tallest height
+    const LY=ST.map(d=>{const sub=wrap(d.s,bw-16),cost=wrap(d.t,bw-16),cat=wrap(d.c,bw-16);return {sub,cost,cat,h:22+sub.length*lh+8+(1+cost.length)*lh+6+(1+cat.length)*lh+4}});
+    const bh=Math.max(...LY.map(l=>l.h));
     s+=T(0,13,'a change (prompt, model, retrieval, tool) enters on the left; it must beat the champion at every stage',{fs:11.5,fill:'var(--mute)'});
     ST.forEach((d,i)=>{const x=i*(bw+gap),hl=i===0;
       s+=box(x,y0,bw,bh,{fill:hl?'var(--acc2)':'var(--soft)',stroke:hl?'var(--acc)':'var(--line)',sw:hl?1.6:1});
-      s+=T(x+8,y0+18,esc(d.n),{fs:12.5,w:600});s+=T(x+8,y0+33,esc(d.s),{fs:11,fill:'var(--mute)'});
-      s+=T(x+8,y0+54,'cost: ',{fs:11,fill:'var(--mute)'})+lines(x+8,y0+68,wrap(d.t,bw-16),{fs:11});
-      s+=T(x+8,y0+90,'catches:',{fs:11,fill:'var(--mute)'})+lines(x+8,y0+104,wrap(d.c,bw-16),{fs:11,fill:'var(--good)'});
+      const l=LY[i];let yy=y0+18;s+=T(x+8,yy,esc(d.n),{fs:12.5,w:600});yy+=lh+1;s+=lines(x+8,yy,l.sub,{fs:11,fill:'var(--mute)',lh});yy+=l.sub.length*lh+8;
+      s+=T(x+8,yy,'cost:',{fs:11,fill:'var(--mute)'})+lines(x+8,yy+lh,l.cost,{fs:11,lh});yy+=(1+l.cost.length)*lh+6;
+      s+=T(x+8,yy,'catches:',{fs:11,fill:'var(--mute)'})+lines(x+8,yy+lh,l.cat,{fs:11,fill:'var(--good)',lh});
       if(i<4)s+=arrow(x+bw+1,y0+bh/2,x+bw+gap-1,y0+bh/2,{c:'var(--ink)'});
       const ey=y0+bh+10,op=[.12,.12,.12,.45,.9][i];
       s+='<rect x="'+x+'" y="'+ey+'" width="'+bw+'" height="18" rx="3" fill="var(--bad)" fill-opacity="'+op+'"/>'+T(x+bw/2,ey+13,EXPO[i],{fs:11,a:'middle'});
@@ -61,36 +64,6 @@ function hero(){const el=$('pe-hero-svg');if(!el)return;const w=RD.width(el);let
   }
 }
 reg(hero);
-
-// ---------- Error analysis stepper ----------
-const EA=[
- ['Sample','about 100 traces','100 traces'],['Open code','30+ by you','30+ by you'],['Axial code','failure taxonomy','taxonomy'],['Count','per mode','per mode'],['Saturate','no new modes','no new'],['Evaluators','code or judge','code, judge'],['Promote','golden set v+1','set v+1']];
-const EAC=[
- '<b>Step 1 of 7. Sample traces.</b> Pull about 100 diverse traces from production (or shadow, or a beta). Mix methods, from random to targeted, and keep some random traces in every batch: targeted sampling finds only what you already suspect.',
- '<b>Step 2 of 7. Open coding.</b> Read each trace and write a free-text note on what went wrong, in your own words; no rubric yet. Annotate at least 30 yourself before reviewing any model\'s or agent\'s suggestions.',
- '<b>Step 3 of 7. Axial coding.</b> Group the notes into a <b>failure taxonomy</b>: named modes you can count (in section 3\'s data, "constrained rewrite": the three worst writing drops are all rewrites under an explicit constraint). The FAQ calls this "the most important step".',
- '<b>Step 4 of 7. Count.</b> Tally each mode across the reviewed traces. The counts order the work: a frequent mode gets an evaluator and a fix first; a rare but severe one may get a hard floor.',
- '<b>Step 5 of 7. Saturate.</b> Keep reading until new traces stop revealing modes or changing existing ones (theoretical saturation); at least 100 traces.',
- '<b>Step 6 of 7. One evaluator per mode.</b> A code check when an objective rule identifies the failure; otherwise an LLM judge, validated on 100 to 200 human-labelled examples of that mode. Binary pass or fail.',
- '<b>Step 7 of 7. Promote.</b> Confirmed failures become tagged items in the next golden-set version, each mode its own slice for the gate (section 4). Failures found later by shadow, A/B tests or monitoring re-enter at step 1.'];
-let eaStep=0;
-function eaDraw(i){if(i!==undefined)eaStep=i;const el=$('pe-ea-svg');if(!el)return;const w=RD.width(el),n=EA.length,cols=w<600?4:7;
-  const gap=w<600?12:10,nw=(w-gap*(cols-1))/cols,nh=46,rg=30;let s='';const pos=[];
-  for(let k=0;k<n;k++){const r=Math.floor(k/cols),c0=k%cols,c=r%2?cols-1-c0:c0;pos.push([c*(nw+gap),8+r*(nh+rg)])}
-  for(let k=0;k<n-1;k++){const a=pos[k],b=pos[k+1];
-    if(a[1]===b[1]){const dir=b[0]>a[0];s+=arrow(dir?a[0]+nw+1:a[0]-1,a[1]+nh/2,dir?b[0]-1:b[0]+nw+1,b[1]+nh/2,{c:k<eaStep?'var(--acc)':'var(--mute)'})}
-    else s+=arrow(a[0]+nw/2,a[1]+nh+1,b[0]+nw/2,b[1]-1,{c:k<eaStep?'var(--acc)':'var(--mute)'})}
-  EA.forEach((d,k)=>{const p=pos[k],cur=k===eaStep,done=k<eaStep;
-    s+=box(p[0],p[1],nw,nh,{fill:cur?'var(--acc)':done?'var(--acc2)':'var(--soft)',stroke:cur||done?'var(--acc)':'var(--line)'});
-    s+=T(p[0]+nw/2,p[1]+19,esc(d[0]),{fs:12,a:'middle',w:600,fill:cur?'var(--bg)':'var(--ink)'});
-    s+=T(p[0]+nw/2,p[1]+35,esc(nw<110?d[2]:d[1]),{fs:11,a:'middle',fill:cur?'var(--bg)':'var(--mute)'})});
-  const rows=Math.ceil(n/cols),yb=8+rows*(nh+rg)-rg+14,last=pos[n-1],first=pos[0];
-  // loop back: from Promote to Sample, below the rows
-  s+='<path d="M'+(last[0]+nw/2)+' '+(last[1]+nh)+'V'+yb+'H'+(first[0]+nw/2)+'V'+(first[1]+nh+ (rows>1?0:4))+'" fill="none" stroke="'+(eaStep===n-1?'var(--acc)':'var(--mute)')+'" stroke-width="1.4" stroke-dasharray="5 4"/>';
-  s+=T(w/2,yb+15,'new failures from shadow, A/B tests and monitoring re-enter here',{fs:11,a:'middle',fill:'var(--mute)'});
-  el.innerHTML=RD.svg(w,yb+22,s,'The error-analysis loop, step '+(eaStep+1)+' of 7');
-  $('pe-ea-cap').innerHTML=EAC[eaStep];}
-if($('pe-ea')){RD.anim({card:'pe-ea',ctl:'pe-ea-ctl',n:EA.length,ms:2600,label:'Error-analysis step',draw:eaDraw});RD.onResize(()=>eaDraw())}
 
 // ---------- Golden-set anatomy ----------
 function gs(){const el=$('pe-gs-svg');if(!el)return;const w=RD.width(el);let s='';
@@ -138,35 +111,8 @@ function smp(){const el=$('pe-smp-svg'),r=$('pe-smp-r');if(!el||!r)return;const 
 }
 if($('pe-smp')){$('pe-smp-r').addEventListener('input',smp);reg(smp)}
 
-// ---------- Four exposure designs ----------
-function exp(){const el=$('pe-exp-svg');if(!el)return;const w=RD.width(el),two=w>=640,pw=two?(w-16)/2:w,ph=168;let s='';
-  const P=[
-   {n:'Shadow',sees:'users see: champion only',m:'measures: paired quality, errors, latency; no reactions'},
-   {n:'Canary',sees:'users see: challenger, a small share',m:'measures: guardrails; rollback on a trigger'},
-   {n:'A/B test',sees:'users see: one arm each, randomised',m:'measures: the primary metric, behaviour; unpaired'},
-   {n:'Interleaving',sees:'users see: one merged list',m:'measures: which ranker\'s item was chosen; paired'}];
-  P.forEach((d,i)=>{const ox=two?(i%2)*(pw+16):0,oy=two?Math.floor(i/2)*(ph+14):i*(ph+14);
-    s+=box(ox,oy,pw,ph,{fill:'var(--bg)'})+T(ox+10,oy+18,d.n,{fs:13,w:600});
-    const ux=ox+16,uy=oy+64,cx=ox+pw*0.48,bw=Math.min(118,pw*0.4);
-    const C='var(--c1)',X='var(--c2)';
-    if(i<3){s+='<circle cx="'+(ux+10)+'" cy="'+uy+'" r="10" fill="var(--soft)" stroke="var(--mute)"/>'+T(ux+10,uy+28,i===2?'users':'request',{fs:11,a:'middle',fill:'var(--mute)'})}
-    if(i===0){s+=arrow(ux+22,uy-4,cx-3,oy+42,{c:C})+arrow(ux+22,uy+4,cx-3,oy+86,{c:X,dash:'4 3'});
-      s+=box(cx,oy+30,bw,24,{stroke:C})+T(cx+8,oy+46,'champion: served',{fs:11})+box(cx,oy+74,bw,24,{stroke:X,dash:'4 3'})+T(cx+8,oy+90,'challenger: logged',{fs:11})}
-    if(i===1){s+=arrow(ux+22,uy-4,cx-3,oy+42,{c:C,w:3})+arrow(ux+22,uy+4,cx-3,oy+86,{c:X,w:1});
-      s+=box(cx,oy+30,bw,24,{stroke:C})+T(cx+8,oy+46,'champion: most',{fs:11})+box(cx,oy+74,bw,24,{stroke:X})+T(cx+8,oy+90,'challenger: a few %',{fs:11})}
-    if(i===2){s+=arrow(ux+22,uy-4,cx-3,oy+42,{c:C,w:2})+arrow(ux+22,uy+4,cx-3,oy+86,{c:X,w:2});
-      s+=box(cx,oy+30,bw,24,{stroke:C})+T(cx+8,oy+46,'champion: half',{fs:11})+box(cx,oy+74,bw,24,{stroke:X})+T(cx+8,oy+90,'challenger: half',{fs:11})}
-    if(i===3){const lx=ox+16,lw=Math.min(170,pw-32);
-      ['C','X','C','X','C'].forEach((k,j)=>{const y=oy+30+j*15;s+='<rect x="'+lx+'" y="'+y+'" width="'+lw+'" height="12" rx="2" fill="'+(k==='C'?C:X)+'" fill-opacity="'+(j===1?.75:.3)+'"/>'+T(lx+6,y+10,(j+1)+'. '+(k==='C'?'champion\'s result':'challenger\'s result')+(j===1?' (clicked)':''),{fs:11})});
-      s+=T(lx+lw+8,oy+52,'credit:',{fs:11,fill:'var(--mute)'})+T(lx+lw+8,oy+66,'challenger',{fs:11,fill:X})}
-    s+=lines(ox+10,oy+ph-44,wrap(d.sees,pw-20).slice(0,1),{fs:11,fill:'var(--bad)'})+lines(ox+10,oy+ph-28,wrap(d.m,pw-20).slice(0,2),{fs:11,fill:'var(--mute)'});
-  });
-  const H=two?2*ph+14:4*ph+42;el.innerHTML=RD.svg(w,H,s,'Shadow, canary, A/B test and interleaving: who sees the challenger');
-}
-reg(exp);
-
 // ---------- Drift test ----------
-function drift(){const el=$('pe-drift-svg');if(!el)return;const w=RD.width(el);let s='';const narrow=w<600;
+function drift(){const el=$('pe-drift-svg');if(!el)return;const w=RD.width(el);let s='';const narrow=w<760;
   const cw=narrow?w:(w-40)*0.42,wx=0;
   s+=box(wx,8,cw*0.48,62,{stroke:'var(--c1)'})+T(wx+8,26,'last month',{fs:12,w:600})+T(wx+8,42,'inputs labelled 0',{fs:11,fill:'var(--mute)'})+T(wx+8,58,'(reference window)',{fs:11,fill:'var(--mute)'});
   s+=box(wx+cw*0.52,8,cw*0.48,62,{stroke:'var(--c2)'})+T(wx+cw*0.52+8,26,'this week',{fs:12,w:600})+T(wx+cw*0.52+8,42,'inputs labelled 1',{fs:11,fill:'var(--mute)'})+T(wx+cw*0.52+8,58,'(current window)',{fs:11,fill:'var(--mute)'});
