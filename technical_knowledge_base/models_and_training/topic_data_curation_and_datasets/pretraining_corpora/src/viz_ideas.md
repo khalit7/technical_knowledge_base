@@ -40,3 +40,7 @@ The question the page keeps returning to: **for a given training run, which corp
 - A rule for samples: a first-N sample of one file is not a random sample of a corpus. The page says so beside every measured number; a future method note could ask for random row-group sampling when the budget allows.
 - A rule for library defaults: datatrove's C4 filter is not the T5 paper's (5 against 3 sentences). Reproduction claims should name the library version and its defaults.
 - A rule for corpora whose size is quoted in different units: always carry the tokenizer (or "words") with the number, and convert with a measured ratio, never assume.
+
+## 2026-11-09 (layout rollout)
+- Built: Fig. 1, the lineage as plates on Common Crawl (cube volume = tokens); Fig. 2, total against unique tokens as nested blocks with two run budgets.
+- Considered and not built: section 4 as a 3D field of cubes (20,617 pages: binning would hide which page each corpus kept, and one box per page is too many to draw); the licence layers as stacked glass plates (each layer is a sentence of terms, which reads better as text cards); the hero in 3D (a comparison of shares, flat bars read better).

@@ -57,7 +57,7 @@
       row('Trained on it',esc(c.users))+row('Published evidence',esc(c.evidence))+row('Status, Oct 2026',esc(c.status))+row('Hugging Face',c.hf?'<code>'+esc(c.hf)+'</code>':'')+
       row('Sources',(c.srcs||[]).map(s=>'<a href="'+esc(s[1])+'" target="_blank" rel="noopener noreferrer">'+esc(s[0])+'</a>').join(' · '))+'</dl>';
   }
-  // replay: one step per corpus in date order
+  // replay: one step per corpus in date order; a widget the reader drives (39 frames, the long-replay rule case b: no autoplay, no step list), opening on the full tree
   function counters(){
     const shown=rows.slice(0,step+1);
     const web=shown.filter(c=>c.kind==='web'&&c.tokens_b),big=web.reduce((m,c)=>c.tokens_b>(m?m.tokens_b:0)?c:m,null);
@@ -65,7 +65,7 @@
     document.getElementById('pl-ctr').innerHTML='<span>corpora so far <b>'+shown.length+'</b></span><span>largest English web corpus <b>'+(big?esc(big.name.replace(/ \(.*\)$/,''))+', '+fmtTok(big.tokens_b):'none')+'</b></span><span>with an open compilation licence <b>'+open+' of '+shown.length+'</b></span>';
     const c=rows[step];document.getElementById('pl-cap').innerHTML='<b>'+esc(c.date)+': '+esc(c.name)+'.</b> '+esc(c.idea||'');
   }
-  const an=RD.anim({card:'pl-card',ctl:'pl-ctl',n:rows.length,ms:1300,label:'Corpus',start:rows.length-1,noAuto:true,draw(i){step=i;draw();counters()}});
+  const an=RD.anim({card:'pl-card',ctl:'pl-ctl',n:rows.length,ms:1300,label:'Corpus',start:rows.length-1,auto:false,draw(i){step=i;draw();counters()}});
   RD.onRender(()=>{an.redraw();det()});
   RD.onResize(draw);
   window.PC_SELECT=id=>{if(!C.find(x=>x.id===id))return;sel=id;draw();det();const d=document.getElementById('pl-det');if(d)d.scrollIntoView({block:'start'})};

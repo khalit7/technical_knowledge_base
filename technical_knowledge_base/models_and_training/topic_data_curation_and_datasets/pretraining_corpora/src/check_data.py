@@ -38,11 +38,11 @@ for f in os.listdir(os.path.join(H, 'parts')):
 ok(keys <= set(F), 'every @@key@@ in the parts has a fact' + ('' if keys <= set(F) else ': missing ' + ', '.join(sorted(keys - set(F)))))
 html = open(os.path.join(P, 'index.html')).read()
 ok('@@' not in html, 'no unfilled @@ in index.html')
-ok('—' not in html, 'no em-dash in index.html')
+ok('\u2014' not in html, 'no em-dash in index.html')
 text = re.sub(r'<[^>]+>', ' ', html)
 
 # T5 Table 8 cells quoted in section 3, against the T5 paper page's own extraction
-t5 = json.load(open(os.path.join(P, '..', '..', '..', 'reference', 'papers', 't5', 'src', 'tables.json')))['T8']['rows']
+t5 = json.load(open(os.path.join(P, '..', '..', '..', 'whats_new', 'papers', 't5', 'src', 'tables.json')))['T8']['rows']  # the T5 paper page moved to whats_new/papers (same id)
 cells = {r['name']: r['v'] for r in t5}
 for name, cols in [('C4', (0, 2, 3, 4)), ('C4, unfiltered', (0, 2, 3, 4)), ('Wikipedia', (0, 2, 3, 4)), ('Wikipedia + TBC', (0, 2, 3, 4))]:
     for c in cols:
@@ -94,9 +94,14 @@ if os.environ.get('DC_SCRATCH'):
 else:
     print('skip scratch comparison (DC_SCRATCH unset)')
 
-# privacy
-login = os.environ.get('USER', '')  # the login name, read at run time so this file does not contain it
-pat = re.compile('|'.join(['/' + 'Users/', 'Users' + '-', re.escape(login) if login else 'x^', 'gl' + 'pat', 'sk' + '-ant', r'[\w.+-]+@[\w-]+\.(?:com|org|net|ai|io|edu)\b']), re.I)
+# privacy (2026-11-09: the login name is matched case-sensitively, so ordinary words that contain it in another case do not trip;
+# this machine's hostname, local paths and IPv4 addresses are checked too)
+import getpass, socket
+login = getpass.getuser()  # read at run time so this file does not contain it
+host = socket.gethostname()
+pat = re.compile('|'.join(['/' + 'Users/', 'Users' + '-', '/' + 'home/', '/' + 'tmp/claude', 'gl' + 'pat', 'sk' + '-ant', r'[\w.+-]+@[\w-]+\.(?:com|org|net|ai|io|edu)\b']), re.I)
+pat_cs = re.compile('|'.join([re.escape(x) for x in (login, host) if x and len(x) > 2] or ['x^']))
+ip = re.compile(r'(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])')
 hits = []
 for root, dirs, files in os.walk(P):
     dirs[:] = [d for d in dirs if d not in ('.shots', '__pycache__')]
@@ -106,7 +111,7 @@ for root, dirs, files in os.walk(P):
             t = open(p, encoding='utf-8').read()
         except Exception:
             continue
-        for m in pat.finditer(t):
+        for m in list(pat.finditer(t)) + list(pat_cs.finditer(t)) + list(ip.finditer(t)):
             if m.group(0).lower() not in ('[email]',):
                 hits.append(f'{os.path.relpath(p, P)}: {m.group(0)}')
 ok(not hits, 'privacy grep clean' + ('' if not hits else ': ' + '; '.join(hits[:10])))
