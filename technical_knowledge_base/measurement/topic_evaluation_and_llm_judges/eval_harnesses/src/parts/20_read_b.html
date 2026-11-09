@@ -1,13 +1,29 @@
 
 <section id="rd-unit">
+<div class="s3sp"><div class="s3R"><div id="stg-unit"></div></div><div class="s3L">
 <h2>1. Two designs: a list of requests, or a program per sample</h2>
 <p>Every harness loads items, gets the model to respond and turns the response into a number. What it treats as <b>the unit of work</b> decides what it can score, what it logs and whether it can run an agent safely.</p>
 <ul>
 <li><b>lm-evaluation-harness builds requests.</b> A YAML file says how to render each document into text; the harness builds every request up front (context plus a log-probability to compute or a generation with stop strings), sends them in batches to a backend that implements only three methods, then runs filters and metrics over the responses. Nothing happens per sample that the YAML did not declare: reproducible, and it scales to hundreds of fixed tasks.</li>
 <li><b>Inspect runs a program per sample.</b> A <code>Sample</code> becomes a <code>TaskState</code>; a chain of solvers transforms it (add a system message, fill a template, call the model, call a tool, critique, loop as an agent); a scorer grades the final state; every step is recorded as an event. It can express agents, sandboxes and judge batteries, and its logs are complete.</li>
 </ul>
+<p class="small mute">Fig. 2 runs on this page's two real runs: Qwen2.5-0.5B-Instruct (fp32, CPU, 2 threads) on the first ten GSM8K test problems, under lm-eval 0.4.13's <code>gsm8k</code> task as shipped and under inspect_evals 0.23.0's <code>gsm8k</code> on inspect-ai 0.3.276, greedy in both (Inspect needed <code>do_sample=False</code>, section 2) and Inspect capped at 512 new tokens instead of its 2048 default to bound CPU time. Slab lengths are token counts; cubes are verdicts.</p>
+<ol class="sx" id="sxl-unit">
+<li><b>lm-eval builds every request first.</b> The YAML renders each of the ten problems into one context (five solved problems drawn for that problem, then the question) before the model runs: ten requests of 748 to 1,096 tokens, all queued.</li>
+<li><b>One batch to the model.</b> The backend only has to answer <code>generate_until(context, until)</code>: the ten contexts go in together and ten continuations come back, 29 to 213 tokens each.</li>
+<li><b>Filters over all the responses.</b> Two filter chains read the same ten texts: <code>strict-match</code> finds "#### N" in 7 of them and none is correct; <code>flexible-extract</code> takes the last number and gets 1 right.</li>
+<li><b>One number per filter.</b> <code>exact_match</code> is averaged per filter (0.0 and 0.1) and written to a results file of 5.5 KB; <code>--log_samples</code> adds one record per problem and filter, 90.8 KB for the ten.</li>
+<li><b>Inspect runs a program per sample.</b> One <code>Sample</code> becomes a <code>TaskState</code>; the solvers <code>system_message</code>, <code>prompt_template</code> and <code>generate()</code> change it in turn and the scorer grades the final state. Every step writes events into the log: 20 per sample here.</li>
+<li><b>Ten programs in flight.</b> Each sample runs its own chain, concurrently; <code>match(numeric=True)</code> marks 2 of 10 correct. Nothing is declared up front, so a solver could call a tool, loop as an agent or open a sandbox for its sample.</li>
+<li><b>What each design keeps.</b> A request is fixed before the run, batched and cheap to log: 6.2 to 11.2 KB per problem. A program per sample keeps every message and event: 25.9 to 36.4 KB per problem.</li>
+</ol>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
 <h3>The same GSM8K problem through both</h3>
-<p>Real runs by this page: Qwen2.5-0.5B-Instruct (fp32, CPU, 2 threads) on the first ten GSM8K test problems, under lm-eval 0.4.13's <code>gsm8k</code> task as shipped and under inspect_evals 0.23.0's <code>gsm8k</code> on inspect-ai 0.3.276, greedy in both (Inspect needed <code>do_sample=False</code>, section 2) and Inspect capped at 512 new tokens instead of its 2048 default to bound CPU time. <b>Predict first:</b> which harness builds the longer prompt, and which keeps more about one problem? Then step through.</p>
+<p>The same ten problems, read one at a time. The widget is a reader's tool, not an animation: it opens on the scoring step of the first problem where the two harnesses' own logged verdicts disagree; pick a problem and a harness, then step back to see the real context, request, output and what each filter or scorer read. <b>Predict first:</b> which harness builds the longer prompt, and which keeps more about one problem?</p>
+<p class="small mute">Ten items cannot compare the two harnesses' accuracy (1 correct out of 10 has an exact 95% interval of 0.3% to 44.5%); the stepper shows what each harness does to one problem. The bars share one scale across both modes: prompt tokens, output tokens, bytes kept per problem.</p>
+</div><div class="s3R"><div class="hx-nostick">
 <div class="an-wrap" id="an">
 <div class="seg" id="an-mode"><button data-m="lm" class="on">lm-eval: requests, filters, metrics</button><button data-m="in">Inspect: solvers, scorer, events</button></div>
 <div class="chips" id="an-items"></div>
@@ -19,7 +35,12 @@
 <p class="small mute" id="an-src"></p>
 </div>
 <div class="co" id="an-read"></div>
-<p class="small mute">Ten items cannot compare the two harnesses' accuracy (1 correct out of 10 has an exact 95% interval of 0.3% to 44.5%); the stepper shows what each harness does to one problem. The bars share one scale across both modes: prompt tokens, output tokens, bytes kept per problem.</p>
+</div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<p><b>What "every step is an event" buys: one sample in <code>inspect view</code>, tool calls and their results in order, with Scoring and Metadata one click away.</b> lm-eval's per-sample log has no equivalent because a request has no steps. The real logs of this page's two runs, field by field: tab {{Inside a run log|#t-logs}}.</p>
+</div><div class="s3R"><div class="s3side">
 <figure class="hx-img"><img src="img/inspect_view_messages.webp" alt="Inspect View showing one sample's Messages tab: the system and user messages, two assistant tool calls to a wikipedia tool with their returned summaries, then the final assistant answer; Scoring and Metadata tabs beside Messages" loading="lazy" width="820" height="841">
-<figcaption><b>What "every step is an event" buys: one sample in <code>inspect view</code>, tool calls and their results in order, with Scoring and Metadata one click away.</b> lm-eval's per-sample log has no equivalent because a request has no steps. Image: inspect_ai documentation, UK AI Security Institute, MIT licence ({{source|https://github.com/UKGovernmentBEIS/inspect_ai/blob/9f6accda8dce5ccd754e6be1a22fbcee96042e82/docs/images/inspect-view-messages.png}}). The real logs of this page's two runs, field by field: tab {{Inside a run log|#t-logs}}.</figcaption></figure>
+<figcaption>One sample in <code>inspect view</code>. Image: inspect_ai documentation, UK AI Security Institute, MIT licence ({{source|https://github.com/UKGovernmentBEIS/inspect_ai/blob/9f6accda8dce5ccd754e6be1a22fbcee96042e82/docs/images/inspect-view-messages.png}}).</figcaption></figure>
+</div></div></div>
 </section>

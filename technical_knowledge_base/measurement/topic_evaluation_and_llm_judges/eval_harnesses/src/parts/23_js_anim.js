@@ -1,10 +1,10 @@
-// Reading, rd-unit: one GSM8K problem through lm-eval (requests, filters, metrics) and Inspect (solvers, scorer, events).
+// Reading, rd-unit (a widget beside Fig. 2): one GSM8K problem through lm-eval (requests, filters, metrics) and Inspect (solvers, scorer, events).
 // Real data: src/data/runs.json via parts/22_js_data.js (window.HX.runs).
 (function(){
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-let mode='lm',it=0,step=0,playing=false,timer=null,onScreen=false;
+let mode='lm',it=0,step=5,playing=false,timer=null,onScreen=false;
 const STEPS={lm:['Task YAML','Context','Request','Generate','Filters','Metric','Aggregate, write'],
              in:['Sample','system_message','prompt_template','generate()','Output','Scorer','Metrics, log']};
 const R=()=>window.HX&&window.HX.runs;
@@ -60,8 +60,8 @@ function init(){if(!R()){$('an-cap').textContent='(run data missing)';return}
   // default problem: the first where the harnesses' own logged verdicts disagree (picked by rule, not by hand)
   const r=R();const j=r.items.findIndex(x=>(x.lm['flexible-extract'].exact_match?1:0)!==(x['in'].score==='C'?1:0));if(j>=0)it=j;
   chips();
-  $('an-items').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;it=+b.dataset.i;step=0;chips();draw()});
-  $('an-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;step=0;[...$('an-mode').querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x.dataset.m===mode));draw()});
+  $('an-items').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;it=+b.dataset.i;chips();draw()});
+  $('an-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...$('an-mode').querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x.dataset.m===mode));draw()});
   $('an-play').onclick=()=>{playing=!playing;if(playing&&step>=6)step=0;draw();tick()};
   $('an-prev').onclick=()=>{playing=false;step=Math.max(0,step-1);draw()};
   $('an-next').onclick=()=>{playing=false;step=Math.min(6,step+1);draw()};
@@ -69,7 +69,8 @@ function init(){if(!R()){$('an-cap').textContent='(run data missing)';return}
   $('an-speed').onchange=()=>tick();
   const S=r.summary;
   $('an-src').innerHTML='Runs by this page on 4 Oct 2026: lm-eval '+esc(S.lm.lm_eval_version)+' (wall time '+S.lm.wall_s+' s for 10 problems), inspect-ai 0.3.276 with inspect_evals 0.23.0 (wall time '+S['in'].wall_s+' s); scripts <code>src/run_harnesses.sh</code> and <code>src/mk_runs.py</code>. The default problem is the first where the two harnesses\' logged verdicts differ.';
-  // never autoplays (2026-10-23): the reader presses Play or steps
+  // a reader-driven widget (long-replay rule, case b, 2026-11-06): 7 steps x 2 harnesses x 10 problems of real text; it opens on the scoring step,
+  // keeps the step when the reader switches problem or harness, and never plays by itself; Fig. 2 (stg-unit) explains the two designs step by step
   try{new IntersectionObserver(es=>{onScreen=es[0].isIntersecting},{threshold:0.25}).observe($('an'))}catch(e){onScreen=true}
   draw();}
 (window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=(window.TAB_RENDER['t-read']||[]).concat([init]);

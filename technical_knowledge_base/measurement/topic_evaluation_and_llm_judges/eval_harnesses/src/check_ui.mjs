@@ -1,4 +1,5 @@
 // Click every control on every tab at 390 dark and 920 light; fail on script errors, NaN/undefined text, sideways scroll.
+// The 3D stages and autoplay rules are checked by check_stages.mjs.
 // Run from the repo root: node technical_knowledge_base/measurement/topic_evaluation_and_llm_judges/eval_harnesses/src/check_ui.mjs [shotdir]
 import { createRequire } from 'module';
 import fs from 'fs'; import path from 'path'; import os from 'os';
@@ -39,17 +40,21 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const el = await pg.$(sel); if (el) { await el.scrollIntoView(); await wait(150); await el.screenshot({ path: path.join(shots, `${name}-${w}.png`) }) } };
   // Reading
   await pg.click('#tabs button[data-t="t-read"]'); await wait(200); await scan('read');
-  // never autoplay: both step animations still on step 0 after a few seconds on screen
-  for (const id of ['an', 'hn-s-anim']) { await pg.$eval('#' + id, e => e.scrollIntoView()); await wait(3000);
-    const v = await pg.$eval(id === 'an' ? '#an-scrub' : '#hn-scrub', e => +e.value); if (v !== 0) problems.push(`${w} ${id} moved by itself to step ${v}`); }
+  // the GSM8K stepper is a reader-driven widget: it opens on step 6 (scoring) and never moves by itself; the MMLU stepper (Fig. 3, RD.anim) plays once in view
+  { await pg.$eval('#an', e => e.scrollIntoView()); await wait(3000);
+    const v = await pg.$eval('#an-scrub', e => +e.value); if (v !== 5) problems.push(`${w} the GSM8K widget moved by itself or did not open on step 6 (${v})`); }
+  { await pg.$eval('#hn-s-anim', e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+    const t = await pg.$eval('#hn-ctl-p', e => e.textContent); if (!/Pause/.test(t)) problems.push(`${w} Fig. 3 did not play when scrolled into view (${t})`); }
   // MMLU item read three ways (Reading section 2)
   for (const m of ['ll', 'gen', 'txt']) {
     await pg.click(`#hn-mode button[data-m="${m}"]`);
     const ni = await pg.$$eval('#hn-items button[data-i]', a => a.length);
     for (let i = 0; i < ni; i++) { await pg.evaluate(i => document.querySelectorAll('#hn-items button[data-i]')[i].click(), i);
-      for (let s = 0; s < 5; s++) { await pg.click('#hn-next'); await wait(10); } await scan('hn ' + m + ' ' + i); }
+      for (let s = 0; s < 5; s++) { await pg.click('#hn-ctl-f'); await wait(10); } await scan('hn ' + m + ' ' + i);
+      const nl = await pg.$eval('#sxl-hn-' + m, e => [e.children.length, e.hidden]), ns = await pg.$eval('#hn-ctl-s', e => +e.max + 1);
+      if (nl[0] !== ns || nl[1]) problems.push(`${w} hn ${m}: ${ns} steps but its list has ${nl[0]} items (hidden ${nl[1]})`); }
     await pg.evaluate(() => { const b = document.querySelector('#hn-items button[data-sh="0"]'); if (b && !b.disabled) b.click() }); await scan('hn shots');
-    await pg.click('#hn-prev'); await pg.$eval('#hn-scrub', e => { e.value = 2; e.dispatchEvent(new Event('input')) }); await scan('hn scrub');
+    await pg.click('#hn-ctl-b'); await pg.$eval('#hn-ctl-s', e => { e.value = 2; e.dispatchEvent(new Event('input')) }); await scan('hn scrub');
   }
   await pg.click('#an-play'); await wait(100); await pg.click('#an-play');
   for (const m of ['lm', 'in']) {
@@ -80,7 +85,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await clickAll('#ex-pick button', 'bench');
   await pg.evaluate(() => { const t = document.getElementById('ex-in'); t.value = 'So the answer is **1,234**.\nANSWER: $1,234'; t.dispatchEvent(new Event('input')); const g = document.getElementById('ex-gold'); g.value = '1234'; g.dispatchEvent(new Event('input')) });
   await scan('live');
-  await shot('#ex-fig', 'bench'); await shot('#hn-chart', 'spread'); await shot('#sc-fig', 'scale');
+  await shot('#hn-chart', 'spread'); await shot('#sc-fig', 'scale');
   // One task, every harness
   await pg.click('#tabs button[data-t="t-same"]'); await wait(200); await scan('same');
   await clickAll('#sx-field button', 'field');

@@ -118,7 +118,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `measurement/topic_benchmarks/safety_and_honesty` Safety and honesty benchmarks
 - [x] `measurement/topic_benchmarks` Topic: benchmarks
 - [x] `measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation` Agent and trajectory evaluation: grading actions, not messages
-- [ ] `measurement/topic_evaluation_and_llm_judges/eval_harnesses` Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools
+- [x] `measurement/topic_evaluation_and_llm_judges/eval_harnesses` Eval harnesses: lm-eval-harness, Inspect, HELM, lighteval, app-level tools
 - [ ] `measurement/topic_evaluation_and_llm_judges/eval_statistics` Eval statistics: error bars, paired tests, how many items you need
 - [ ] `measurement/topic_evaluation_and_llm_judges/human_evaluation_and_annotation` Human evaluation and annotation: rubrics, agreement, gold-label auditing
 - [ ] `measurement/topic_evaluation_and_llm_judges/llm_as_judge` LLM-as-judge: design, biases, calibration, reliability
@@ -411,3 +411,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `measurement/topic_benchmarks/safety_and_honesty`: Fig. 1 safe-prompt field dense and hard to read at 1400 (cubes overlap the row labels slightly); Fig. 2 and Fig. 3 phone labels cut to the grader or model under discussion; page-specific helpers kept in 21b_js_rd_page.js alongside the template.
 - `measurement/topic_benchmarks` (root): Fig. 1 lane names and counts hidden at 390 in the last step; same/check_calc.py needs `uv run --no-project --with scipy --with numpy --with statsmodels`; verify_layout flags the atlas, saturation and same-cases svgs outside a split (accepted: reader-driven explorers); error-bar widget replaced by a computed table plus a link to Math Fig. 3.
 - `measurement/topic_evaluation_and_llm_judges/agent_and_trajectory_evaluation`: hero is a long row, so a shallow card on wide screens; Fig. 2 step 2 start-plate label briefly overlaps the gold plate as it slides out; side labels hidden at 390; checks/check_ui.mjs writes shots to /tmp by default (pass a dir).
+- `measurement/topic_evaluation_and_llm_judges/eval_harnesses`: Fig. 4 cube field small in its card at 1400 (rule labels faint); Fig. 3 and the GSM8K widget scroll with their text (taller than a window); stages small at 390; run logs carry the default Hugging Face cache path (~/.cache/huggingface/...), no personal data.
