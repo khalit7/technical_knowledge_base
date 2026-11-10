@@ -3,7 +3,7 @@
 Child page of Topic: llm-training-and-post-training (storage key `align-tab`). Built 3 October 2026; rebuilt 23 October 2026 to the teaching contract (`.claude/skills/explainer-page/teaching/teaching-contract.md`), editing only, no new runs.
 
 ## Build and checks
-`python3 recompute.py` (writes `parts/20_js_data.js` and `inputs/derived.json`), then `sh build.sh` (writes `../index.html`; `fill.py` writes the SFT sample statistics into the prose as static text). The header's reading time is written by hand from `html_utils/audit_pages.mjs`. Checks: `sh html_utils/checkpage.sh <page folder>`, `node src/check_pair.mjs` (every control and figure toggle in both themes and widths, the pair toy's JS against `recompute.py`, and a normal-motion check that no animation moves before the reader acts), `python3 html_utils/ledger.py check <page folder>`.
+`python3 recompute.py` (writes `parts/20_js_data.js` and `inputs/derived.json`), then `sh build.sh` (writes `../index.html`; `fill.py` writes the SFT sample statistics into the prose as static text). The header's reading time is written by hand from `html_utils/audit_pages.mjs`. Checks: `sh html_utils/checkpage.sh <page folder>`, `node src/check_stages.mjs` (the five 3D stages and the 2D push animation: autoplay on view, one step-list item per step, mode switches replay, nothing moves off screen or under reduced motion, splits two columns at 1400 px, and every number in the step lists recomputed in JavaScript from the page's data), `node src/check_pair.mjs` (the pair toy's JS against `recompute.py`, the loss-mask rules, every loss of the pair stage, the static figures, the tree), `python3 html_utils/ledger.py check <page folder>`.
 
 Data: `mk_lengths.py` (network; `uv run --no-project --with tokenizers python mk_lengths.py`) samples the Tulu 3 SFT mixture and tokenizes the example conversation; outputs in `inputs/`. `inputs/research_*.md` are the verified source notes. `live.md` is the old Notion page; `coverage.json` maps every fact in it (historical; `ledger.json` now governs).
 
@@ -43,3 +43,34 @@ A real before/after of one prompt across stages (OLMo 2 1B base, SFT, DPO and In
 
 ## 2026-10-26: the loss-family push animation moved here from the DPO paper page
 Khalid's decision: the DPO-family animation lives on this page. The DPO paper page's Then-and-now card (the push -dL/dh on one pair against its margin, for unlikelihood, DPO, the SLiC hinge, IPO, cDPO and SimPO, with each loss's outcome on that page's toy after 4,000 steps) now sits inline in section 5, after the pair animation and before the family table: the claim it proves is why DPO never stops pushing while a target (IPO) or a hinge does. Ported to this page's RD.anim stepper (`parts/27_js_lfx.js`, no autoplay, a push or loss view), with a prediction prompt and its answer. Data: `mk_lfx_data.py` copies the six long runs' outcomes from the DPO page's generated `_gen_toy.js` into `parts/26z_js_lfx_data.js` (the DPO page still owns and checks that toy). `check_pair.mjs` now steps both views, checks the counters against the data, and includes the card in the autoplay check. Ledger: 4 units added. Reading 25 to 26 min core.
+
+## 2026-11-10: the split layout and five 3D stages (renderer v2)
+The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (added to `build.sh` after `02_css.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `align-tab`). `build.sh` writes the em-dash test as `ED=$(printf ...)`.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | hero, 2D static | no |
+| Reading | (stage table) | full width | table | no |
+| Reading | 1 SFT | split | loss-mask widget, 2D (reader toggles, real tokens) | no |
+| Reading | 2 Batching | split | **3D** `stg-pack` (31) | yes, 7 |
+| Reading | 3 Reward models | split | **3D** `stg-rm` (32) | yes, 5 |
+| Reading | 3, the ceiling | split | agreement bars, 2D static | no |
+| Reading | 3, RLAIF and CAI | full width | none | no |
+| Reading | 4 RL | split | **3D** `stg-rl` (33), PPO and GRPO lists | yes, 5 + 5 |
+| Reading | 5 DPO family | split | **3D** `stg-pr` (34), eight losses | yes, 6 |
+| Reading | 5, why some stop | split | push against margin, 2D `RD.anim` (27) | yes, 6 |
+| Reading | 5, family table | full width | table | no |
+| Reading | 6 Online or offline | split | evidence to scale, 2D static | no |
+| Reading | 7 RLVR | split | **3D** `stg-rv` (33) | yes, 5 |
+| Reading | 8 Recipes | split | stage strips, 2D static | no |
+| Method family tree | | full width | reader-driven tree | no |
+
+**Stages and their data.** `stg-pack`: the eight real conversations of `AL_DATA.sft.batch`, padded, packed best-fit decreasing, the plain-mask leak and the boundaries as streams, then height as the gradient weight of one graded token (mean per conversation, then sum); replaces the padding/packing card (`24_js_pack.js`, removed) and the sum-or-mean figure. `stg-rm`: a Bradley-Terry fit of one illustrative ranking of four (six pairs, 200 steps from 0) computed in `recompute.py`; the ranking-to-pairs drawing moved here, the agreement bars stay 2D. `stg-rl`: policy, reference, reward model and critic as glass plates, PPO (illustrative heights) against GRPO (illustrative scores, advantages computed). `stg-pr`: the existing pair toy (`AL_PAIR`, checked against Python) drawn as token columns, reference as glass, the per-token push as streams, training read from the recorded run at every step; the old HTML token bars, loss-curve and training-curve plots were dropped (the push-against-margin card draws the loss shapes; the stage's labels give log p start and end). `stg-rv`: eight illustrative answers to the page's pens question, a verifier scoring 10 or 0 (Tulu 3), GRPO advantages, and a no-spread group. New numbers: `recompute.py` section 3 writes `derived.json["stage"]` (also in `AL_DATA.stage`), `fill.py` writes them into the step lists as static text.
+
+**Kept 2D**: the hero (words per stage; depth would lose them), the loss-mask chips (a reader-driven toggle over real tokens; Post-training data's Fig. 2 already draws a row becoming a masked sequence in 3D), the agreement bars, the online/offline bars and the recipe strips (numbers on an axis), the push-against-margin curves, and the tree tab.
+
+**Recompute note**: `recompute.py` under this machine's Python 3.12 changes last digits of the stored `sft` and `pair` floats (they were made on the Mac); the committed `derived.json` and `20_js_data.js` keep those values and only gained the `stage` block.
+
+**Length**: Reading core 6,116 words (27 min) before, 7,666 (33 min) after; closed 881 (4 min) unchanged. The growth is the step lists: the old cards wrote their step explanations by script (invisible to the audit), and the lfx captions and the pair, packing and RL explanations are now static text on the left; per-step captions that repeated them were removed. The page is the same length to read in practice, now with every step stated beside its visual.
+
+**Ledger**: 227 units, core 195, depth 25, fat 7, problems 0 (7 units added for the stages' numbers; one key re-keyed after "Below, the push" became "The figure draws the push").

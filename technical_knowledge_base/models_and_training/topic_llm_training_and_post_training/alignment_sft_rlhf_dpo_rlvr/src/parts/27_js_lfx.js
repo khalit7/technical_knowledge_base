@@ -1,6 +1,6 @@
 // ---- Reading, DPO family: the push on one pair as a function of its margin, one loss per step ----
-// Moved from the DPO paper page's Then and now tab on 2026-10-26 (this page owns the DPO family). A stepper on RD.anim:
-// nothing moves until the reader acts. Toy outcomes in the counters: window.LFX (mk_lfx_data.py, from the DPO page's long runs).
+// Moved from the DPO paper page's Then and now tab on 2026-10-26 (this page owns the DPO family). A stepper on RD.anim with its
+// step list sx-lfx on the left (2026-11-10): plays once in view, stops on any control; each step's explanation is the list item. Toy outcomes in the counters: window.LFX (mk_lfx_data.py, from the DPO page's long runs).
 window.AL_LFX=(function(){
   const card=document.getElementById('lfx');if(!card)return null;
   const sg=x=>1/(1+Math.exp(-x)),ls=x=>x>-30?Math.log1p(Math.exp(-x)):-x;   // ls(x) = -log sigma(x)
@@ -36,11 +36,9 @@ window.AL_LFX=(function(){
     const lx=F[k].n==='Hinge (SLiC-HF)'?6:14;s+=RD.t((X(lx)+4).toFixed(1),(Y(cl(F[k][key](lx)))-6).toFixed(1),F[k].n,{fs:12,w:600,fill:F[k].c});
     el.innerHTML=RD.svg(w,H,s,'The push each preference loss puts on one pair, against the pair\'s margin');
     const z=D(F[k].run);
-    document.getElementById('lfxStep').innerHTML=F[k].t+' <span class="mute">('+F[k].d+')</span>';
-    document.getElementById('lfxCap').innerHTML=F[k].cap(z);
     document.getElementById('lfxCnt').innerHTML='<span>on the DPO page\'s toy after '+z.steps.toLocaleString('en')+' steps ('+F[k].run+'):</span> <span>KL <b>'+z.kl.toFixed(2)+'</b></span> <span>true reward <b>'+z.r.toFixed(3)+'</b></span> <span>grammatical <b>'+pc(z.g)+'</b></span> <span>never seen <b>'+pc(z.u)+'</b></span> <span>top review "<b>'+z.top+'</b>"</span>';
   }
-  const A=RD.anim({card:'lfx',ctl:'lfxCtl',n:F.length,draw,ms:2600,label:'Loss'});
+  const A=RD.anim({card:'lfx',ctl:'lfxCtl',n:F.length,draw,ms:4200,label:'Loss',list:'sx-lfx'});
   RD.seg(document.getElementById('lfxM'),m=>{mode=m;A.redraw()});
   RD.onResize(()=>A.redraw());
   return {F,A,draw};

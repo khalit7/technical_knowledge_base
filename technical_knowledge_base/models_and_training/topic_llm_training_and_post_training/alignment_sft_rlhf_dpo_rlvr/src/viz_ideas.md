@@ -42,3 +42,6 @@ A rule for ownership across topics: a sibling under another topic (RL for LLMs) 
 ## 23 October 2026 rebuild
 Built: hero (Tulu 3 8B stages, static annotated); sum against mean per token to scale (toggle); reward-model pairs plus agreement ceiling (static); RL loop PPO against GRPO and reward model against verifier (one drawing, two toggles); online against offline evidence to scale; five recipes as stage strips.
 Rejected: the same prompt through each stage's checkpoint (the parent's Axis 1 owns it, illustrative; a real version is proposed in `README.md`); a GRPO advantage animation (RL for LLMs and DeepSeekMath own it); a timeline of RLVR (the Method family tree tab already lays methods on time).
+
+## 10 November 2026 (split layout, renderer v2)
+Built as 3D stages: batching (padding, packing, leak, per-token weight), reward model from one ranking, PPO against GRPO, one pair through eight losses, the verifier group. Kept 2D: hero, loss-mask chips, agreement bars, online/offline evidence, recipes, push-against-margin curves, tree. Rejected: a 3D hero (text per stage would be lost), the loss mask in 3D (Post-training data owns that drawing), 3D bar charts of published percentages.

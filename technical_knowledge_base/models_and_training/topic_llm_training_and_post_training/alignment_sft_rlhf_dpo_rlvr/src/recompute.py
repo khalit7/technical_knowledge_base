@@ -5,7 +5,9 @@
 1. SFT: loss share, padding against packing, cross-document attention, per-token weights under mean and sum loss,
    on 1,000 sampled rows of the Tulu 3 SFT mixture (inputs/tulu3_lengths.json, made by mk_lengths.py).
 2. The preference-loss family on one illustrative pair: scores, losses, per-token pushes, and 400 gradient steps.
-   The same code is ported to parts/31_js_pair.js; check_pair.mjs compares the two.
+   The same code is ported to parts/25_js_pair.js; check_pair.mjs compares the two.
+3. The 3D stages (2026-11-10): the eight-conversation batch padded, packed and weighted (section 2); a Bradley-Terry fit of
+   one ranking of four answers (section 3, illustrative ranking); GRPO advantages of illustrative groups (sections 4 and 7).
 """
 import json, math, os, random
 
@@ -226,9 +228,90 @@ def pair():
     return out
 
 
+# ---------------------------------------------------------------- 3. the 3D stages
+def stage(S):
+    B, M = S["batch"], MAXLEN
+    out = {}
+    T = [b["t"] for b in B]
+    Lg = [b["l"] for b in B]
+    mx = max(T)
+    out["b_min"], out["b_max"], out["b_sum_t"], out["b_sum_l"] = min(T), mx, sum(T), sum(Lg)
+    out["b_pad_pos"] = 8 * mx
+    out["b_pad_real"] = sum(T) / (8 * mx)
+    # best-fit decreasing, keeping which conversation goes where (the same rule as sft(); ties keep the sampled order)
+    bins = []
+    for i in sorted(range(8), key=lambda i: -T[i]):
+        best = None
+        for b in bins:
+            if b["free"] >= T[i] and (best is None or b["free"] < best["free"]):
+                best = b
+        if best is None:
+            best = {"free": M, "items": []}
+            bins.append(best)
+        best["items"].append(i)
+        best["free"] -= T[i]
+    out["b_bins"] = [b["items"] for b in bins]
+    out["b_pack_pos"] = len(bins) * M
+    out["b_pack_real"] = sum(T) / (len(bins) * M)
+    cross = allp = 0
+    for b in bins:
+        before = 0
+        for i in b["items"]:
+            l = T[i]
+            cross += l * before
+            allp += l * (l + 1) // 2 + l * before
+            before += l
+    out["b_cross"] = cross / allp
+    # per graded token: mean per conversation, then over the 8 (each conversation 1/8 of the gradient), against the sum over tokens
+    out["b_w_mean"] = [1 / (8 * l) for l in Lg]
+    out["b_w_sum"] = 1 / sum(Lg)
+    ish, ilg = Lg.index(min(Lg)), Lg.index(max(Lg))
+    out["b_short"], out["b_long"] = ish, ilg
+    out["b_ratio"] = max(Lg) / min(Lg)
+    out["b_share_short_sum"] = min(Lg) / sum(Lg)
+    out["b_share_long_sum"] = max(Lg) / sum(Lg)
+
+    # Bradley-Terry on one ranking of four answers A > B > C > D (ILLUSTRATIVE ranking): six pairs, InstructGPT's loss averaged
+    # over the K choose 2 = 6 comparisons, four scalar rewards from 0, plain gradient descent, step size 1
+    pairs = [(w, l) for w in range(4) for l in range(w + 1, 4)]
+    r = [0.0] * 4
+    ck = {}
+    for step in range(201):
+        loss = sum(-logsig(r[w] - r[l]) for w, l in pairs) / len(pairs)
+        if step in (0, 10, 25, 50, 100, 200):
+            ck[step] = {"r": list(r), "loss": loss}
+        g = [0.0] * 4
+        for w, l in pairs:
+            q = sig(-(r[w] - r[l])) / len(pairs)
+            g[w] -= q
+            g[l] += q
+        r = [r[i] - 1.0 * g[i] for i in range(4)]
+    out["rm_ck"] = ck
+    end = ck[200]["r"]
+    out["rm_end"] = end
+    out["rm_margin_ad"] = end[0] - end[3]
+    out["rm_p_ad"] = sig(end[0] - end[3])
+    out["rm_loss0"], out["rm_loss_end"] = ck[0]["loss"], ck[200]["loss"]
+
+    # group-relative advantages, (r - mean) / std of the group (population std): ILLUSTRATIVE groups
+    def adv(rs):
+        m = sum(rs) / len(rs)
+        sd = (sum((x - m) ** 2 for x in rs) / len(rs)) ** 0.5
+        return [0.0 if sd == 0 else (x - m) / sd for x in rs], m, sd
+    rm_group = [0.8, 0.3, -0.2, 1.1, -0.6, 0.2]       # six reward-model scores for one prompt (illustrative)
+    a, m, sd = adv(rm_group)
+    out["grpo_rm"] = {"r": rm_group, "adv": a, "mean": m, "std": sd}
+    ver = [10, 0, 0, 10, 0, 0, 10, 0]                  # eight sampled answers, three accepted; Tulu 3's reward of 10 or 0
+    a, m, sd = adv(ver)
+    a1, _, _ = adv([x / 10 for x in ver])
+    out["grpo_ver"] = {"r": ver, "adv": a, "mean": m, "std": sd, "adv_01": a1}
+    return out
+
+
 def main():
     S = sft()
     P = pair()
+    ST = stage(S)
     print("SFT sample: %d rows, %d over %d tokens, mean %.0f, median %d tokens, %d multi-turn" %
           (S["n"], S["over"], MAXLEN, S["mean_total"], S["median_total"], S["multi_turn"]))
     print("loss share (assistant tokens incl. eos / all tokens, untruncated): %.1f%%" % (100 * S["loss_share_untrunc"]))
@@ -243,13 +326,17 @@ def main():
         t = P["train"][m]
         print("%-6s step0 loss %.4f margin %.4f push c %.4f r %.4f | step400 Sc %.2f Sr %.2f margin %.3f" %
               (m, o["loss"], o["margin"], o["gc"], o["gr"], t[400]["Sc"], t[400]["Sr"], t[400]["margin"]))
-    derived = {"sft": S, "pair": P}
+    print("stage batch: pad %d positions %.3f real; packed %s, %d positions %.3f real, cross %.3f; weight ratio %.1fx, short %.4f long %.4f under sum" %
+          (ST["b_pad_pos"], ST["b_pad_real"], ST["b_bins"], ST["b_pack_pos"], ST["b_pack_real"], ST["b_cross"], ST["b_ratio"], ST["b_share_short_sum"], ST["b_share_long_sum"]))
+    print("stage RM fit:", [round(x, 3) for x in ST["rm_end"]], "margin A-D %.3f p %.3f loss %.4f -> %.4f" % (ST["rm_margin_ad"], ST["rm_p_ad"], ST["rm_loss0"], ST["rm_loss_end"]))
+    print("stage GRPO:", {k: [round(x, 3) for x in v["adv"]] for k, v in (("rm", ST["grpo_rm"]), ("ver", ST["grpo_ver"]))}, "ver mean %.2f std %.3f" % (ST["grpo_ver"]["mean"], ST["grpo_ver"]["std"]))
+    derived = {"sft": S, "pair": P, "stage": ST}
     json.dump(derived, open(os.path.join(HERE, "inputs", "derived.json"), "w"), indent=1)
     ex = json.load(open(os.path.join(HERE, "inputs", "example_tokens.json")))
     data = {"ex": [[t["t"], t["role"], t["loss"]] for t in ex["tokens"]],
             "sft": {k: S[k] for k in ("n", "over", "mean_total", "median_total", "loss_share_untrunc", "pad_eff",
                                       "pack_rows", "pack_eff", "cross_share", "batch", "loss_p10", "loss_p90")},
-            "maxlen": MAXLEN}
+            "maxlen": MAXLEN, "stage": ST}
     with open(os.path.join(HERE, "parts", "20_js_data.js"), "w") as f:
         f.write("// Generated by src/recompute.py from inputs/ (do not edit by hand)\nwindow.AL_DATA=")
         f.write(json.dumps(data, ensure_ascii=False, separators=(",", ":")))

@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-pr"></div></div><div class="s3L">
 <section id="s-dpo">
 <h2>5. Direct preference optimisation and its family</h2>
 <p>DPO removes the reward model and the RL loop: the policy becomes its own reward model. The step that makes it possible: the KL-constrained RLHF objective, maximise E[r(x, y)] − β KL(π ‖ π<sub>ref</sub>), has a closed-form optimum, π*(y | x) = π<sub>ref</sub>(y | x) exp(r(x, y)/β) / Z(x). Solved for the reward, any reward is β log(π*/π<sub>ref</sub>) plus a term that depends only on the prompt (Eq. 5). Put that into the Bradley-Terry loss of section 3 and the prompt term cancels, because only differences of rewards appear. What is left trains the policy directly on (chosen, rejected) pairs ({{DPO, Eq. 7|https://arxiv.org/abs/2305.18290}}):</p>
@@ -6,32 +7,49 @@
 <dl><dt>β log π<sub>θ</sub>/π<sub>ref</sub></dt><dd>the implicit reward of an answer, in nats, times β</dd><dt>β</dt><dd>the KL strength; 0.1 in the paper and in Llama 3</dd><dt>gradient</dt><dd>−β σ(r̂<sub>l</sub> − r̂<sub>w</sub>) (∇log π(y<sub>w</sub>) − ∇log π(y<sub>l</sub>)): every pair pushes the chosen answer up and the rejected down, harder when the implicit rewards rank them the wrong way; dropping the weight σ(·) made the model degenerate</dd></dl></div>
 <p>One trained model plus a frozen reference (whose log-probabilities can be computed once and cached), no sampling, a classification loss: stable and cheap, which is why it spread from Zephyr to Llama 3. The paper's headline, a 61% TL;DR win rate against PPO's 57%, rests on single runs about one standard error apart (the {{DPO paper page|n:3c65c17b0d0d818bb1d8cafd30e20f9e}} works out the errors and trains DPO against RLHF on an enumerable toy with an exact optimum). Its successors each change one thing; the animation runs one pair through all of them.</p>
 
-<div class="card" id="pr">
-<h3 style="margin-top:0">One preference pair through eight losses: DPO never stops pushing</h3>
-<p class="try">One prompt, a correct long answer (chosen) and a wrong short one (rejected); each token's probability under the frozen reference is a pale bar, under the policy a solid one. Predict which losses stop widening the margin on their own, then step DPO to 400 and compare IPO and cDPO. <b>Before</b> is the reward model, then DPO, which replaced it; the others are DPO's successors. The two shared tokens "12 pens" (purple): DPO's pushes on them cancel exactly; the length-normalised losses do not cancel.</p>
-<div class="pr-mth" id="prM" role="group" aria-label="Loss"></div>
-<div class="an-ctl" id="prCtl"></div>
+<h3 id="pr">One preference pair through eight losses: DPO never stops pushing</h3>
+<p class="try">One prompt ("A shop sells 3 pens for $2. How much do 12 pens cost?"), a correct long answer (chosen: "12 pens is 4 groups of 3, so 4 × $2 = $8.", 21 tokens) and a wrong short one (rejected: "12 pens cost 12 × $2 = $24.", 13 tokens). Each token is a column: its probability under the frozen reference is the pale glass, under the policy the solid block. Predict which losses stop widening the margin on their own, then pick a loss. <b>Before</b> is the reward model, then DPO, which replaced it; the others are DPO's successors.</p>
+<div class="s3chips" id="prM" role="group" aria-label="Loss"></div>
 <div class="pr-eq" id="prEq"></div>
-<div class="pr-wrap" id="prW"></div>
-<div class="out" id="prN"></div>
-<div class="an-cap" id="prC"></div>
-<div class="pr-plots" id="prP"></div>
+<ol class="sx" id="sx-pr">
+<li><b>The pair, and the reference.</b> Pale glass: each token's probability under the frozen reference (the SFT model); solid: under the policy being trained, which starts as a copy of it. The wrong answer is shorter, so its total log-probability is higher: −3.36 against −5.38. The two shared tokens "12 pens" are purple.</li>
+<li><b>What the loss reads.</b> DPO-style losses read the summed log-ratio log π − log π<sub>ref</sub> of each answer (the policy is the reference at the start, so both are 0); length-normalised ones average it per token; SimPO and ORPO read only the policy, so the reference fades; the reward model reads neither, only its own score per answer.</li>
+<li><b>Score each answer, take the margin.</b> The two tall columns at the right are each answer's score under the chosen loss (for DPO its implicit reward β log π/π<sub>ref</sub>), and the gap between them is the margin the loss is a function of.</li>
+<li><b>The push on each token.</b> The gradient pushes every chosen token up (green streams) and every rejected token down (orange), harder when the margin is wrong. On the shared "12 pens" DPO's two pushes cancel exactly, so it learns only from where the answers differ; the length-normalised losses do not cancel.</li>
+<li><b>Train on this pair: 50 steps.</b> Plain gradient descent on this pair alone; the columns and the scores move step by step.</li>
+<li><b>400 steps: where it ends.</b> DPO's margin keeps growing, mostly by crushing the rejected answer; cDPO stops at margin ln 9 = 2.20 and IPO at its target of 5 nats; the reward model's two scores run apart for ever.</li>
+</ol>
+<div class="al-ro" id="prRo"><div id="prC" aria-live="polite"></div><div class="an-cnt" id="prN"></div></div>
 <p class="small mute"><i class="nl i">illustrative</i> The token probabilities are made up (the tokens are the Tulu 3 tokenizer's), chosen so that the shorter wrong answer has the higher total log-probability (−3.36 against −5.38), the case length normalisation targets. Answer to the prediction: cDPO stops at margin ln 9 = 2.20 and IPO at its target of 5 nats; DPO's margin keeps growing, mostly by crushing the rejected answer.</p>
 <details class="dp"><summary>How the toy is built <span class="mute">(under 1 min)</span></summary><div class="b"><p class="small">Each token's log-probability is log σ(θ) of its own parameter, the shared prefix sharing one, so the bars move independently; a real model shares parameters across answers, which is where likelihood displacement comes from. Hyperparameters are each paper's defaults: DPO β = 0.1; cDPO ε = 0.1 <i class="nl i">illustrative</i>, the note gives no default; IPO τ = 0.1 <i class="nl i">illustrative</i>; length-normalised DPO β = 5 (Tulu 3); SimPO β = 2, γ = 1 (its Llama-3-Base row); ORPO λ = 0.1 (its Mistral setting); KTO β = 0.1, λ<sub>D</sub> = λ<sub>U</sub> = 1, with its reference point z<sub>0</sub> taken as the clipped mean log-ratio of the two answers (the paper estimates it from mismatched pairs in the batch). Training: 400 steps of plain gradient descent, the step size fixed so that every method's largest first step is the same, so differences afterwards come from each loss's shape. Recomputed in <code>src/recompute.py</code>; the page's JavaScript matches it (<code>check_pair.mjs</code>).</p></div></details>
-</div>
 
-<p><b>Why some losses stop and others do not.</b> Almost every successor keeps DPO's frame (a margin between the chosen and the rejected answer, measured against a reference) and changes one thing: how hard a pair is pushed as a function of its margin. That one curve decides whether training stops. Below, the push −∂ℒ/∂<i>h</i> on one pair against its margin <i>h</i> = log π<sub>θ</sub>/π<sub>ref</sub>(<i>y<sub>w</sub></i>) − log π<sub>θ</sub>/π<sub>ref</sub>(<i>y<sub>l</sub></i>) in nats (before any β), one loss per step, with what each did when trained for 4,000 steps on the same deterministic labels on the {{DPO paper page|n:3c65c17b0d0d818bb1d8cafd30e20f9e}}'s enumerable toy (its Run tab trains them).</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="card" id="lfx">
 <h3 style="margin-top:0">The push on a pair against its margin: only a target or a hinge lets it reach zero</h3>
-<p class="try">Predict before stepping: which losses still push a pair that is already ranked right by 10 nats?</p>
 <div class="seg" id="lfxM" role="group" aria-label="View"><button class="on" data-m="push">push on a pair</button><button data-m="loss">the loss itself</button></div>
 <div id="lfxSvg" class="rd-svg"></div>
 <div class="an-ctl" id="lfxCtl"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="lfxStep"></div><p id="lfxCap" style="margin:2px 0 0"></p></div>
 <div class="lfx-cnt" id="lfxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Curves at the toy's settings: β = 0.1 for DPO and cDPO (ε = 0.1), β = 0.5 for the hinge, τ = 0.1 for IPO, β = 2 and γ = 1 for SimPO (whose margin is the reference-free, length-averaged log-probability gap), each push scaled to 1 at <i>h</i> = 0. Formulas from each paper; the IPO and cDPO forms are those of the authors' code ({{trainers.py|https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py}}). Answer: DPO, cDPO (until about 22 nats), SimPO and unlikelihood still push; the hinge has stopped at 2 and IPO pushes the pair back towards 5. The margin here is unscaled, so cDPO's stopping point ln 9 / β is 22 nats, the same point as the 2.20 of the pair animation above, which scales by β. <code>mk_lfx_data.py</code> copies the toy outcomes from the DPO page.</p>
 </div>
 
+</div></div><div class="s3L">
+<p><b>Why some losses stop and others do not.</b> Almost every successor keeps DPO's frame (a margin between the chosen and the rejected answer, measured against a reference) and changes one thing: how hard a pair is pushed as a function of its margin. That one curve decides whether training stops. The figure draws the push −∂ℒ/∂<i>h</i> on one pair against its margin <i>h</i> = log π<sub>θ</sub>/π<sub>ref</sub>(<i>y<sub>w</sub></i>) − log π<sub>θ</sub>/π<sub>ref</sub>(<i>y<sub>l</sub></i>) in nats (before any β), one loss per step, with what each did when trained for 4,000 steps on the same deterministic labels on the {{DPO paper page|n:3c65c17b0d0d818bb1d8cafd30e20f9e}}'s enumerable toy (its Run tab trains them).</p>
+<p class="try">Predict before stepping: which losses still push a pair that is already ranked right by 10 nats?</p>
+<ol class="sx" id="sx-lfx">
+<li><b>Unlikelihood: push every pair at full strength</b> (2019, the DPO paper's baseline). −log π(<i>y<sub>w</sub></i>) + α log π(<i>y<sub>l</sub></i>) (DPO paper, <a href="https://arxiv.org/html/2305.18290v3#A3.SS3" target="_blank" rel="noopener noreferrer">App. C.3</a>). The push does not depend on the margin at all, and nothing ties the policy to π<sub>ref</sub>. On the toy the grammar is gone by 4,000 steps (0.3% grammatical), the paper's "when when when" in miniature.</li>
+<li><b>DPO: push fades as the margin grows, but never stops</b> (May 2023). −log σ(β<i>h</i>). The weight σ(−β<i>h</i>) is the paper's key ingredient; but it only reaches zero at an infinite margin, so with near-deterministic preferences the margins keep growing and the KL penalty is effectively ignored (Azar et al.'s critique). At β = 0.1 the push is still 75% of its starting value at a margin of 5 nats. On the toy the KL keeps climbing: 2.06 at 1,200 steps, 7.47 at 4,000.</li>
+<li><b>SLiC-HF's hinge: full push until a fixed margin, then none</b> (May 2023, concurrent). max(0, δ − β<i>h</i>), here with δ = 1 and β = 0.5, so the push stops at <i>h</i> = 2 (SLiC-HF calibrates sequence likelihoods this way, with an extra SFT term not run here). A pair that is ordered well enough is left alone.</li>
+<li><b>IPO: pull every margin to a target, from either side</b> (October 2023). (<i>h</i> − 1/(2τ))². The push is linear and changes sign at the target margin 1/(2τ) = 5 nats, so a pair can be pushed back. Azar et al. derive it as the identity case of their ΨPO objective, which needs no Bradley-Terry assumption. On the toy it is the only loss whose KL nearly levels off: 1.26 at 1,200 steps, 1.52 at 4,000, against DPO's climb from 2.06 to 7.47.</li>
+<li><b>Conservative DPO: assume ε of the labels are flipped</b> (November 2023 note; rDPO March 2024). (1 − ε) ℒ<sub>DPO</sub>(<i>y<sub>w</sub></i>, <i>y<sub>l</sub></i>) + ε ℒ<sub>DPO</sub>(<i>y<sub>l</sub></i>, <i>y<sub>w</sub></i>): the gradient is zero when σ(β<i>h</i>) = 1 − ε (Mitchell's note), at <i>h</i> = ln 9 / β ≈ 22 nats for ε = 0.1, β = 0.1. A finite stopping point, but far away; the toy is still drifting at 4,000 steps.</li>
+<li><b>SimPO: no reference model, a length-averaged margin and a target gap</b> (May 2024). −log σ(β/|<i>y<sub>w</sub></i>| log π(<i>y<sub>w</sub></i>) − β/|<i>y<sub>l</sub></i>| log π(<i>y<sub>l</sub></i>) − γ). Dropping π<sub>ref</sub> saves memory and aligns the reward with how text is generated (average log-probability), but nothing anchors the policy except early stopping: on the toy, where every answer has 4 words so the length fix cannot help, it degenerates fastest (0.2% grammatical).</li>
+</ol>
+<p class="small mute">Curves at the toy's settings: β = 0.1 for DPO and cDPO (ε = 0.1), β = 0.5 for the hinge, τ = 0.1 for IPO, β = 2 and γ = 1 for SimPO (whose margin is the reference-free, length-averaged log-probability gap), each push scaled to 1 at <i>h</i> = 0. Formulas from each paper; the IPO and cDPO forms are those of the authors' code ({{trainers.py|https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py}}). Answer: DPO, cDPO (until about 22 nats), SimPO and unlikelihood still push; the hinge has stopped at 2 and IPO pushes the pair back towards 5. The margin here is unscaled, so cDPO's stopping point ln 9 / β is 22 nats, the same point as the 2.20 of the pair animation above, which scales by β. <code>mk_lfx_data.py</code> copies the toy outcomes from the DPO page.</p>
+</div></div>
+
+<section id="s-dpo-fam">
 <div class="tw"><table class="fam">
 <thead><tr><th>Loss</th><th>What it changes</th><th>What it fixes</th><th>Reference model</th><th>Pairs needed</th><th>Defaults and result</th></tr></thead>
 <tbody>

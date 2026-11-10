@@ -1,4 +1,5 @@
 // Exercise every control of the page and compare the in-page preference-pair toy with recompute.py.
+// Since 2026-11-10 the packing, pair, RL and verifier figures are 3D stages, checked (autoplay, steps, numbers) by check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/.../alignment_sft_rlhf_dpo_rlvr/src/check_pair.mjs [shots dir]
 // Uses html_utils' puppeteer (npm ci there). Fails on NaN, "undefined", errors or a mismatch.
 import { createRequire } from 'node:module';
@@ -39,24 +40,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   };
   // 2. loss rules
   for (const m of ['all', 'asst', 'last', 'im']) { await p.click(`#mkM button[data-m=${m}]`); await textOk('#mk', 'mask ' + m) }
-  // 3. packing: both modes, every step
-  for (const m of ['pad', 'pack']) {
-    await p.click(`#pkM button[data-m=${m}]`);
-    const n = await p.$eval('#pkCtl-s', e => +e.max + 1);
-    for (let i = 0; i < n; i++) { await p.$eval('#pkCtl-s', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, i); await textOk('#pk', `pack ${m} ${i}`) }
-    await (await p.$('#pk')).screenshot({ path: path.join(shots, `x-pack-${m}-${scheme}.png`) });
-  }
-  // 4. the pair: every method, every step
+  // 3-4. the pair stage: every loss, every step (the stage's readout); its autoplay and lists are in check_stages.mjs
   const methods = await p.$$eval('#prM button', bs => bs.map(b => b.dataset.m));
-  const n = await p.$eval('#prCtl-s', e => +e.max + 1);
   for (const m of methods) {
     await p.click(`#prM button[data-m=${m}]`);
-    for (let i = 0; i < n; i++) { await p.$eval('#prCtl-s', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, i); await textOk('#pr', `pair ${m} ${i}`) }
-    if (['dpo', 'simpo', 'rm'].includes(m)) await (await p.$('#pr')).screenshot({ path: path.join(shots, `x-pair-${m}-${scheme}.png`) });
+    for (let i = 0; i < 6; i++) { await p.$eval('#stg-pr-r', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, i); await textOk('#prRo', `pair ${m} ${i}`) }
   }
-  await p.$eval('#prCtl-s', (e) => { e.value = 3; e.dispatchEvent(new Event('input')) });
-  await p.click('#prM button[data-m=simpo]');
-  await (await p.$('#pr')).screenshot({ path: path.join(shots, `x-pair-simpo3-${scheme}.png`) });
   await (await p.$('#mk')).screenshot({ path: path.join(shots, `x-mask-${scheme}.png`) });
   // 4b. the loss-family push (moved from the DPO paper page, 2026-10-26): both views, every step; numbers equal LFX
   { const n2 = await p.$eval('#lfxCtl-s', e => +e.max + 1);
@@ -68,7 +57,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     await p.click('#lfxM button[data-m=push]'); await p.$eval('#lfxCtl-s', e => { e.value = 3; e.dispatchEvent(new Event('input')) });
     await (await p.$('#lfx')).screenshot({ path: path.join(shots, `x-lfx-ipo-${scheme}.png`) }); }
   // 4b. the static figures and their toggles
-  for (const [fig, seg] of [['hero', null], ['sm', 'smM'], ['rmf', null], ['rlf', 'rlM'], ['oof', null], ['rvf', 'rvM'], ['ref', null]]) {
+  for (const [fig, seg] of [['hero', null], ['rmf', null], ['oof', null], ['ref', null]]) {
     const modes = seg ? await p.$$eval(`#${seg} button`, bs => bs.map(b => b.dataset.m)) : [''];
     for (const m of modes) {
       if (seg) await p.click(`#${seg} button[data-m=${m}]`);
@@ -94,22 +83,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   if (errs.length || sw || box) bad++;
   await p.close();
 }
-// 6. nothing moves before the reader acts (normal motion): scroll to each animation, wait, the step must still be 0
-{
-  const p = await b.newPage();
-  await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
-  await p.goto('file://' + page);
-  await p.click('button[data-t=t-read]');
-  for (const id of ['pk', 'pr', 'lfx']) {
-    await p.$eval('#' + id, e => e.scrollIntoView());
-    await new Promise(r => setTimeout(r, 3500));
-    const v = await p.$eval('#' + id + 'Ctl-s', e => +e.value);
-    console.log('autoplay check', id, 'step after 3.5 s on screen:', v);
-    if (v !== 0) bad++;
-  }
-  await p.close();
-}
+// 6. autoplay on view and reduced motion are checked by check_stages.mjs (the 2026-11-06 rule replaced never-autoplay)
 await b.close();
 console.log(bad ? 'FAIL ' + bad : 'all controls OK');
 process.exit(bad ? 1 : 0);

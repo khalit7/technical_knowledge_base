@@ -1,4 +1,4 @@
-// ---- Reading, DPO family: one preference pair through eight losses (port of recompute.py, checked by check_pair.mjs) ----
+// ---- Reading, DPO family: one preference pair through eight losses (port of recompute.py, checked by check_pair.mjs); drawn by the stage in 34_js_sc_pair.js ----
 window.AL_PAIR=(function(){
   const CH=['12',' pens',' is',' ','4',' groups',' of',' ','3',',',' so',' ','4',' ×',' $','2',' =',' $','8','.','<eos>'];
   const CH_P=[0.55,0.92,0.70,0.80,0.45,0.60,0.95,0.90,0.85,0.75,0.80,0.85,0.80,0.55,0.85,0.95,0.90,0.95,0.70,0.85,0.90];
@@ -41,8 +41,8 @@ window.AL_PAIR=(function(){
     return {traj,snap}}
   return {CH,CH_P,RJ,RJ_P,SH,P,evaluate,train,logit,sRefC,sRefR};
 })();
-(function(){
-  const $=id=>document.getElementById(id);if(!$('pr'))return;
+// The eight losses' descriptions and the readout texts, used by the 3D stage in 34_js_sc_pair.js (2026-11-10)
+window.AL_PAIR_UI=(function(){
   const X=window.AL_PAIR;
   const MET=[
     {k:'rm',n:'Reward model',bef:1,mem:'1 (the RM, trained)',fw:'2 RM passes',
@@ -70,22 +70,7 @@ window.AL_PAIR=(function(){
       eq:'L = λ<sub>D</sub>(1 − σ(β(r<sub>w</sub> − z<sub>0</sub>))) + λ<sub>U</sub>(1 − σ(β(z<sub>0</sub> − r<sub>l</sub>))),  r = log π/π<sub>ref</sub>,  β = 0.1',
       note:'Each answer judged on its own, as if one had a thumbs up and the other a thumbs down: no pairing needed. The value function saturates, so the push fades once an answer is far enough from z<sub>0</sub>.'}];
   const RUN={};MET.forEach(m=>RUN[m.k]=X.train(m.k));
-  const CK=[0,10,25,50,100,200,400];
-  const STEPS=[
-    {t:'The pair, and the reference',p:'One prompt ("A shop sells 3 pens for $2. How much do 12 pens cost?"), the correct answer (21 tokens) and a wrong one (13 tokens). Pale bars: each token\'s probability under the frozen reference (the SFT model); solid bars: under the policy being trained, which starts as a copy of it. The wrong answer is shorter, so its total log-probability is higher: −3.36 against −5.38.',s:0},
-    {t:'What the loss reads',p:'',s:0,read:1},
-    {t:'Score each answer, take the margin',p:'',s:0,score:1},
-    {t:'The loss, and the push on each token',p:'',s:0,score:1,push:1},
-    {t:'Train on this pair: 10 steps',p:'',s:10,score:1,push:1},
-    {t:'25 steps',p:'',s:25,score:1,push:1},
-    {t:'50 steps',p:'',s:50,score:1,push:1},
-    {t:'100 steps',p:'',s:100,score:1,push:1},
-    {t:'200 steps',p:'',s:200,score:1,push:1},
-    {t:'400 steps: where it ends',p:'',s:400,score:1,push:1,end:1}];
-  let cur='dpo',A;
-  const f=(x,d)=>(x<0?'−':'')+Math.abs(x).toFixed(d==null?2:d);
-  const met=()=>MET.find(m=>m.k===cur);
-  $('prM').innerHTML=MET.map(m=>'<button data-m="'+m.k+'" class="'+(m.bef?'bef':'')+'">'+(m.bef?'Before: ':'')+m.n+'</button>').join('');
+  const f=(x,d)=>{const r=Math.abs(x).toFixed(d==null?2:d);return (x<0&&+r!==0?'−':'')+r};   // no "−0.000"
   function readText(m,o){
     const k=m.k;
     if(k==='rm')return 'The reward model reads the prompt and the whole answer and outputs one number per answer: here both start at 0 (an untrained head). The policy\'s token probabilities play no part.';
@@ -113,73 +98,5 @@ window.AL_PAIR=(function(){
       simpo:'With no reference to anchor it, the wrong answer is driven down hard; the correct answer gains little, partly because its shared prefix is pushed down.',
       orpo:'The NLL term lifts the correct answer close to certain, while the rejected answer falls only moderately: ORPO is mostly SFT with a nudge.',
       kto:'The correct answer is lifted towards certainty and the rejected one pushed down until its value function saturates, which at β = 0.1 takes a large gap.'}[m.k])}
-  // line chart: chosen and rejected log-probability (or RM scores) over training, current method solid, DPO dashed
-  function chart(el,step){
-    const W=Math.max(240,RD.width(el)),H=170,pl=40,pr=8,pt=10,pb=26,m=met();
-    const key=m.k==='rm'?['rmc','rmr']:['Sc','Sr'];
-    const tr=RUN[m.k].traj,dp=RUN.dpo.traj;
-    const all=[];[tr].concat(m.k==='rm'?[]:[dp]).forEach(t=>t.forEach(p=>{all.push(p[key[0]],p[key[1]])}));
-    let lo=Math.min(...all),hi=Math.max(...all);if(hi-lo<1){hi+=.5;lo-=.5}
-    const X=s=>pl+(W-pl-pr)*s/400,Y=v=>pt+(H-pt-pb)*(hi-v)/(hi-lo);
-    const path=(t,k)=>t.filter(p=>p.s<=Math.max(step,1)).map((p,i)=>(i?'L':'M')+X(p.s).toFixed(1)+' '+Y(p[k]).toFixed(1)).join('');
-    let g='';const ticks=4;for(let i=0;i<=ticks;i++){const v=lo+(hi-lo)*i/ticks;g+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/><text x="'+(pl-4)+'" y="'+(Y(v)+4)+'" font-size="10" text-anchor="end" fill="var(--mute)">'+f(v,1)+'</text>'}
-    [0,100,200,300,400].forEach(s=>g+='<text x="'+X(s)+'" y="'+(H-8)+'" font-size="10" text-anchor="middle" fill="var(--mute)">'+s+'</text>');
-    if(m.k!=='rm'){g+='<path d="'+path(dp,'Sc')+'" fill="none" stroke="var(--c3)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".7"/><path d="'+path(dp,'Sr')+'" fill="none" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".7"/>'}
-    const full=(t,k)=>t.map((p,i)=>(i?'L':'M')+X(p.s).toFixed(1)+' '+Y(p[k]).toFixed(1)).join('');
-    g+='<path d="'+full(tr,key[0])+'" fill="none" stroke="var(--c3)" stroke-width="1.2" opacity=".3"/><path d="'+full(tr,key[1])+'" fill="none" stroke="var(--bad)" stroke-width="1.2" opacity=".3"/>';
-    g+='<path d="'+path(tr,key[0])+'" fill="none" stroke="var(--c3)" stroke-width="2.4"/><path d="'+path(tr,key[1])+'" fill="none" stroke="var(--bad)" stroke-width="2.4"/>';
-    g+='<line x1="'+X(step)+'" x2="'+X(step)+'" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>';
-    el.innerHTML='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Training curves">'+g+'</svg><div class="cap">'+(m.k==='rm'?'Reward-model scores of the chosen (green) and rejected (orange) answer over 400 steps.':'log p of the chosen (green) and rejected (orange) answer over 400 steps (faint: the rest of the run); dashed: DPO, for comparison.')+'</div>'}
-  // the loss as a function of its margin, current point marked
-  function lossPlot(el,o){
-    const W=Math.max(240,RD.width(el)),H=170,pl=36,pr=8,pt=10,pb=26,m=met(),k=m.k;
-    let lo=-4,hi=8,fn,lab='margin';
-    const q=X.P[k];
-    if(k==='rm'||k==='dpo'||k==='lndpo'||k==='simpo'||k==='orpo')fn=h=>-Math.log(1/(1+Math.exp(-h)));
-    if(k==='cdpo')fn=h=>-(1-q.eps)*Math.log(1/(1+Math.exp(-h)))-q.eps*Math.log(1/(1+Math.exp(h)));
-    if(k==='ipo'){fn=h=>(h-1/(2*q.tau))**2/25;lab='h (loss ÷ 25)'}
-    if(k==='kto'){fn=r=>1-1/(1+Math.exp(-q.beta*r));lo=-60;hi=60;lab='r<sub>w</sub> − z<sub>0</sub> (desirable answer)'}
-    let mv=k==='kto'?o.score_c-o.z0:(k==='ipo'?o.margin:o.margin);if(k==='orpo')mv=o.margin;
-    lo=Math.min(lo,mv-1);hi=Math.max(hi,mv+1);
-    const xs=[];for(let i=0;i<=120;i++)xs.push(lo+(hi-lo)*i/120);
-    const ys=xs.map(fn),ymax=Math.max(...ys.filter(isFinite).map(v=>Math.min(v,6))),ymin=0;
-    const Xp=v=>pl+(W-pl-pr)*(v-lo)/(hi-lo),Yp=v=>pt+(H-pt-pb)*(1-(Math.min(v,ymax)-ymin)/(ymax-ymin||1));
-    let g='<line x1="'+Xp(0)+'" x2="'+Xp(0)+'" y1="'+pt+'" y2="'+(H-pb)+'" stroke="var(--line)"/><line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Yp(0)+'" y2="'+Yp(0)+'" stroke="var(--line)"/>';
-    g+='<path d="'+xs.map((x,i)=>(i?'L':'M')+Xp(x).toFixed(1)+' '+Yp(ys[i]).toFixed(1)).join('')+'" fill="none" stroke="var(--acc)" stroke-width="2"/>';
-    g+='<circle cx="'+Xp(mv)+'" cy="'+Yp(fn(mv))+'" r="5" fill="var(--bad)"/>';
-    [lo,0,hi].forEach(v=>g+='<text x="'+Xp(v)+'" y="'+(H-8)+'" font-size="10" text-anchor="middle" fill="var(--mute)">'+f(v,0)+'</text>');
-    el.innerHTML='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Loss against margin">'+g+'</svg><div class="cap">'+(k==='orpo'?'The odds-ratio term against the log-odds margin (the NLL term comes on top).':'The loss against the '+lab+'; the dot is this pair now.')+(k==='simpo'?' The margin includes −γ.':'')+'</div>'}
-  function tokRow(toks,lp,refp,push,isC){
-    // bars: probability 0..1 drawn to 40 px; push bars to a scale shared by both answers of the method
-    return toks.map((t,i)=>{const p=Math.exp(lp[i]),pr=refp[i],sh=i<X.SH,g=push?push[i]:0;
-      const gh=Math.min(13,Math.abs(g)*13);
-      return '<div class="pr-tk'+(sh?' sh':'')+'" title="'+RD.esc(t)+': reference '+pr.toFixed(2)+', policy '+p.toFixed(3)+'"><div class="b"><span style="height:'+(40*pr)+'px"></span><span class="pol" style="height:'+(40*p).toFixed(1)+'px;background:'+(isC?'var(--c3)':'var(--bad)')+'"></span></div>'+
-        '<div class="g">'+(push?'<span style="'+(g>=0?'bottom:14px;':'top:14px;')+'height:'+gh.toFixed(1)+'px;background:'+(g>=0?'var(--good)':'var(--bad)')+';'+(g>=0?'':'')+'"></span>':'')+'</div>'+
-        '<div class="t">'+RD.esc(t.replace(/^ /,'·'))+'</div></div>'}).join('')}
-  function draw(i){
-    const st=STEPS[i],m=met(),run=RUN[m.k],sn=run.snap[st.s];
-    const o=X.evaluate(m.k,sn.thC,sn.thR,sn.rm),o0=X.evaluate(m.k,run.snap[0].thC,run.snap[0].thR,run.snap[0].rm);
-    $('prM').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m.k));
-    $('prEq').innerHTML=m.eq;
-    // push per token, scaled by this method's largest push at step 0 (so the shape is comparable across methods)
-    let pc=null,pr=null;
-    if(st.push&&m.k!=='rm'){const sc=Math.max(Math.abs(o0.gc+(o0.gr)),Math.abs(o0.gc),Math.abs(o0.gr))||1;
-      pc=o.lc.map((_,j)=>(o.gc+(j<X.SH?o.gr:0))/sc);pr=o.lr.map((_,j)=>(o.gr+(j<X.SH?o.gc:0))/sc)}
-    $('prW').innerHTML='<div class="pr-ans"><div class="h">Chosen: correct, 21 tokens <small>log p = '+f(o.Sc)+(st.s?' (was '+f(o0.Sc)+')':'')+'</small></div><div class="pr-toks">'+tokRow(X.CH,o.lc,X.CH_P,pc,1)+'</div></div>'+
-      '<div class="pr-ans"><div class="h">Rejected: wrong, 13 tokens <small>log p = '+f(o.Sr)+(st.s?' (was '+f(o0.Sr)+')':'')+'</small></div><div class="pr-toks">'+tokRow(X.RJ,o.lr,X.RJ_P,pr,0)+'</div></div>';
-    $('prN').innerHTML=RD.stat('Models in memory',m.mem,'forward passes: '+m.fw)+
-      RD.stat(m.k==='kto'?'r<sub>w</sub> − r<sub>l</sub>':'Margin',st.score?f(o.margin,3):'not yet',m.k==='ipo'?'target 5':(m.k==='cdpo'?'push stops at 2.197':''))+
-      RD.stat('Loss',st.score?f(o.loss,3):'not yet',st.s?'step '+st.s+' of 400':'first step')+
-      RD.stat('Training step',st.s,'on this pair alone');
-    let cap='<div class="t">'+(i+1)+' of '+STEPS.length+' · '+m.n+': '+st.t+'</div>';
-    if(i===0)cap+=st.p;else if(st.read)cap+=readText(m,o);else if(st.end)cap+=endText(m);
-    else if(st.push&&!st.s)cap+=scoreText(m,o)+' '+pushText(m,o)+' '+m.note;
-    else if(st.score&&!st.push)cap+=scoreText(m,o);
-    else cap+=scoreText(m,o)+' '+pushText(m,o);
-    $('prC').innerHTML=cap;
-    if(st.score){$('prP').innerHTML='<div id="prL"></div><div id="prT"></div>';lossPlot($('prL'),o);chart($('prT'),st.s)}else $('prP').innerHTML='';
-  }
-  A=RD.anim({card:'pr',ctl:'prCtl',n:STEPS.length,draw,ms:2600,label:'Step'});
-  $('prM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;cur=b.dataset.m;A.redraw()});
-  window.addEventListener('resize',()=>A.redraw());
+  return {MET,RUN,f,readText,scoreText,pushText,endText};
 })();

@@ -1,34 +1,64 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-rm"></div></div><div class="s3L">
 <section id="s-rm">
 <h2>3. Reward models: turning rankings into a score</h2>
 <p>InstructGPT's labellers ranked K sampled answers per prompt (K = 4 to 9); a ranking of K answers gives K(K−1)/2 comparisons, 6 for K = 4. The reward model is usually the SFT model with its output layer swapped for one scalar head: InstructGPT started "from the SFT model with the final unembedding layer removed" ({{InstructGPT, §3.5|https://arxiv.org/abs/2203.02155}}). It is trained so the preferred answer scores higher, by the <b>Bradley-Terry</b> model: the probability that people prefer y<sub>w</sub> over y<sub>l</sub> is σ(r(x, y<sub>w</sub>) − r(x, y<sub>l</sub>)).</p>
-<div class="fig" id="rmf">
-<h4>Rankings become pairs; the score is only as good as the labellers agree</h4>
-<div class="rd-svg" id="rmSvg"></div>
-<p class="cap">The pairs: one ranking of four answers yields six, all placed in one batch element (InstructGPT, because shuffling them into the dataset made the RM overfit in a single pass). The bars: InstructGPT's agreement figures, ± one standard error, on a 0 to 100% axis with chance at 50% ({{arXiv 2203.02155|https://arxiv.org/abs/2203.02155}}).</p>
-</div>
+<p class="sxh">Rankings become pairs; pairs become a score</p>
+<ol class="sx" id="sx-rm">
+<li><b>One prompt, four answers, one ranking.</b> A labeller ranks K = 4 sampled answers, A &gt; B &gt; C &gt; D (an <i class="nl i">illustrative</i> ranking, as in InstructGPT's own figure; its labellers ranked 4 to 9).</li>
+<li><b>Six comparisons from one ranking.</b> K(K−1)/2 = 6 pairs, each streaming from the winner to the loser. InstructGPT puts all six in one batch element, because shuffling them into the dataset made the RM overfit in a single pass.</li>
+<li><b>The reward model reads each answer.</b> The SFT model with its unembedding swapped for one scalar head (the glass plate) reads the prompt and each answer and outputs one number. An untrained head gives all four the same score, and the loss is ln 2 = <span data-al="rm_loss0"></span>.</li>
+<li><b>Training pulls the scores apart.</b> 200 steps of gradient descent on the six pair losses (step size 1, computed in <code>src/recompute.py</code>): A <span data-al="rm_a"></span>, B <span data-al="rm_b"></span>, C <span data-al="rm_c"></span>, D <span data-al="rm_d"></span>, loss <span data-al="rm_loss"></span>. The order is the ranking's; with one ranking and no ties nothing stops the gap growing, since a hard label has no finite optimum.</li>
+<li><b>Only differences count.</b> The chance that people prefer A to D is σ(r<sub>A</sub> − r<sub>D</sub>) = σ(<span data-al="rm_mad"></span>) = <span data-al="rm_p"></span>. Lift all four scores by the same amount, as this step does, and every probability and the loss stay the same: a reward has no absolute zero, so an RL stage only ever sees how answers compare.</li>
+</ol>
 <div class="fm"><div class="eq">loss(θ) = −<span style="font-size:.8em">1/(K choose 2)</span> · E<sub>(x, y<sub>w</sub>, y<sub>l</sub>)</sub> [ log σ( r<sub>θ</sub>(x, y<sub>w</sub>) − r<sub>θ</sub>(x, y<sub>l</sub>) ) ]</div>
 <dl><dt>r<sub>θ</sub>(x, y)</dt><dd>the reward model's scalar for prompt x and answer y</dd><dt>y<sub>w</sub>, y<sub>l</sub></dt><dd>the preferred ("winning") and the other answer of one comparison</dd><dt>σ</dt><dd>the logistic function; only the difference of two rewards matters, so a reward has no absolute zero</dd></dl></div>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<h3 id="s-rm-c">The ceiling is the people</h3>
 <p>InstructGPT's Eq. 1. One 6B RM served every policy, since 175B RM training "could be unstable". The ceiling is the people: training labellers agreed with each other 72.6 ± 1.5% of the time and the RM predicted their preferences 72.4 ± 0.4% of the time (held-out labellers: 69.6 ± 0.9%). A reward model is a proxy about as reliable as a second labeller, and an RL policy optimised against it will find where it is wrong ({{Reward Hacking|n:3c65c17b0d0d8196a6f1f29a817aa974}}, section 2, draws the measured curves). The same loss on one pair is the first method of the animation in section 5; the {{InstructGPT paper page|n:3c65c17b0d0d8180b958d8299996a063}} fits a toy reward model live ("Run the three steps") and shows every pair's loss for K = 4 to 9.</p>
+</div><div class="s3R"><div class="s3side">
+<div class="fig" id="rmf">
+<h4>The score is only as good as the labellers agree</h4>
+<div class="rd-svg" id="rmSvg"></div>
+<p class="cap">InstructGPT's agreement figures, ± one standard error, on a 0 to 100% axis with chance at 50% ({{arXiv 2203.02155|https://arxiv.org/abs/2203.02155}}).</p>
+</div>
+</div></div></div>
+
+<section id="s-rm-ai">
 <h3>RLAIF and Constitutional AI: who writes the labels</h3>
 <p><b>RLAIF</b> keeps the pipeline and swaps the labeller for a strong model. In Google's controlled comparison, with PaLM 2 as the labeller, RLAIF and RLHF were preferred over SFT about equally (summarisation 71% against 73%, helpful dialogue 63% against 64%, differences not significant), and RLAIF was more harmless (88% against 76%) ({{Lee et al. 2023|https://arxiv.org/abs/2309.00267}}). AI labels scale far better than people, and open recipes now build their pairs with an LLM judge: Tulu 3 rates every response with GPT-4o on helpfulness, instruction following, honesty and truthfulness ({{Tulu 3, §5|https://arxiv.org/abs/2411.15124}}); some frontier recipes still pay for people, as Llama 3 trained its reward model "using human-annotated preference data" ({{Llama 3, §4.1.2|https://arxiv.org/abs/2407.21783}}). RLAIF does not remove people: they write the constitution, the judge's prompt, the rubrics and the evaluation. It moves human effort from labelling to specification.</p>
 <p><b>Constitutional AI</b> (Anthropic, 2022) is a structured RLAIF in two phases. Supervised: the model critiques and revises its own harmful answers against principles from a written constitution (16 critique and revision pairs), and a model is fine-tuned on the revisions. RL: a feedback model, prompted with one of 16 principles, picks the less harmful of two answers; a preference model is trained on those AI labels and the policy is optimised against it ({{arXiv 2212.08073|https://arxiv.org/abs/2212.08073}}). The {{paper page|n:3c65c17b0d0d815a9b31e9443961c700}} replays the released critique chains, counts the refusals, and shows why soft labels from a feedback model have a finite optimum and hard 0/1 labels do not. Anthropic published a new, much longer constitution for Claude in January 2026 ({{Anthropic|https://www.anthropic.com/news/claude-new-constitution}}).</p>
 <div class="co corr"><div class="t">Corrections</div>The old page said RLAIF "is now the norm for most labels". No source states that; the evidence is a trend in open recipes (UltraFeedback, Tulu 3), while Llama 3 used human preference annotations <i class="nl u">unconfirmed as a general norm</i>. It also described Constitutional AI's RL phase as AI labels "judged against the constitution" without qualification: only the harmlessness labels were AI-written; the helpfulness labels stayed human, so 57% of the preference model's data, and all of its harmlessness data, was labelled by a model ({{paper page, §4.2|n:3c65c17b0d0d815a9b31e9443961c700}}).</div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-rl"></div></div><div class="s3L">
 <section id="s-rl">
 <h2>4. RL against a reward: what PPO and GRPO do in the pipeline</h2>
 <p>With a reward model in hand, RL optimises the policy against it: sample answers, score them, compare each score with a baseline (the <b>advantage</b>), and take a clipped policy-gradient step with a KL penalty to the reference. <b>RLHF with PPO</b> (InstructGPT, {{Llama 2|https://arxiv.org/abs/2307.09288}}; GPT-4 was also trained with RLHF, {{GPT-4 report|https://arxiv.org/abs/2303.08774}}) gets its baseline from a learned <b>value model</b> (critic) that estimates the expected return of each partial answer: four models in memory, powerful, notoriously fiddly and memory-hungry. <b>GRPO</b> ({{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}) drops the critic: it samples a group of G answers per prompt and gives each the advantage (its reward − group mean) / group standard deviation.</p>
-<div class="fig" id="rlf">
-<h4>GRPO replaces the critic with the group: one model fewer</h4>
-<div class="seg" id="rlM" role="group" aria-label="Algorithm"><button data-m="ppo" class="on">PPO (critic)</button><button data-m="grpo">GRPO (group baseline)</button></div>
-<div class="rd-svg" id="rlSvg"></div>
-<div class="an-cnt" id="rlN"></div>
-<p class="cap" id="rlC"></p>
-</div>
+<p class="sxh">GRPO replaces the critic with the group: one model fewer</p>
+<div class="s3chips" id="rlM" role="group" aria-label="Algorithm"><button data-m="ppo" class="on">PPO (critic)</button><button data-m="grpo">GRPO (group baseline)</button></div>
+<ol class="sx" id="sx-ppo">
+<li><b>Four models in memory.</b> The policy (trained), a frozen reference (the SFT model), the reward model (frozen, section 3) and the critic, a second trainable model about the size of the policy. InstructGPT and Llama 2 ran this.</li>
+<li><b>Sample.</b> A prompt from the RL set streams into the policy, which samples one answer, token by token.</li>
+<li><b>Score, on a leash.</b> The reward model scores the whole answer, one number at its end; the reference reads the same tokens, and the KL penalty subtracts wherever the policy has drifted from it.</li>
+<li><b>The critic's baseline.</b> The critic predicts the return of each partial answer; the advantage is what the answer earned beyond that prediction (GAE, derived on RL for LLMs).</li>
+<li><b>Update two models.</b> A clipped policy-gradient step on the policy and a regression step on the critic, streaming back into both; the reference and the reward model stay frozen.</li>
+</ol>
+<ol class="sx" id="sx-grpo" hidden>
+<li><b>No critic.</b> GRPO drops the value model: three models in memory, the policy, the reference and the reward model (two with a verifier, section 7).</li>
+<li><b>Sample a group.</b> The policy samples G answers to the same prompt, six here.</li>
+<li><b>Score each.</b> The reward model gives each answer one number: <span data-al="g_rm_r"></span> (<i class="nl i">illustrative</i> scores).</li>
+<li><b>The group is the baseline.</b> Advantage = (r − group mean) / group standard deviation: mean <span data-al="g_rm_mean"></span>, standard deviation <span data-al="g_rm_std"></span>, so the advantages are <span data-al="g_rm_adv"></span> <i class="nl d">derived</i>. An answer above its group's average is reinforced whatever the absolute score.</li>
+<li><b>Update the policy.</b> Answers above the group mean are made more likely and those below less, with the same clipped step and KL to the reference. No critic to train or store; the price is G samples per prompt, and a group whose answers all score the same gives no signal.</li>
+</ol>
+<p class="small mute">The plates are the models; the streams show what flows between them in one step. Heights of rewards, KL and values in the PPO view are <i class="nl i">illustrative</i>; the GRPO advantages are computed from the scores shown (population standard deviation).</p>
 <p>With a verifier instead of a reward model (section 7) GRPO is the workhorse of open reasoning RL: DeepSeek-R1 ({{paper page|n:3c65c17b0d0d813faca4f7a51eaa0c65}}) and Qwen3's reasoning RL use it ({{Qwen3, §4.2|https://arxiv.org/abs/2505.09388}}). Its biases spawned named fixes (Dr. GRPO, DAPO, GSPO, MiniMax-M1's CISPO), each derived on {{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}}, sections 3 and 7, with PPO's GAE and clipping in section 2.</p>
 <details class="dp"><summary>Depth: the GRPO fixes in one line each, and where each algorithm runs live <span class="mute">(1 min)</span></summary><div class="b">
 <p><b>Dr. GRPO</b> removes the per-response length normalisation that lets long wrong answers off lightly and the standard-deviation division that over-weights too-easy and too-hard prompts ({{arXiv 2503.20783|https://arxiv.org/abs/2503.20783}}); <b>DAPO</b> decouples the clip range (clip-higher), drops groups with no spread (dynamic sampling), averages over tokens and shapes overlong answers ({{arXiv 2503.14476|https://arxiv.org/abs/2503.14476}}); <b>GSPO</b> clips one length-normalised ratio per sequence, for stability on long answers and mixture-of-experts models ({{arXiv 2507.18071|https://arxiv.org/abs/2507.18071}}); <b>CISPO</b> "clips importance sampling weights rather than token updates" ({{arXiv 2506.13585|https://arxiv.org/abs/2506.13585}}).</p>
 <p>Live elsewhere: one batch through PPO, GRPO and DPO with the memory each needs is the parent page's "Same batch, three algorithms" (Axis 3). PPO against GRPO on one question, animated, and six methods trained from one toy base are on the {{DeepSeekMath page|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}} (its "Then and now" tab walks GRPO's objective through R1, DAPO, Dr. GRPO and GSPO). A tiny R1-Zero trains in the {{DeepSeek-R1 page|n:3c65c17b0d0d813faca4f7a51eaa0c65}}; a whole RLHF pipeline with PPO and PPO-ptx in the {{InstructGPT page|n:3c65c17b0d0d8180b958d8299996a063}}; GRPO with several rewards in {{Learn What's Left, Not What's Mastered|n:3c65c17b0d0d81e38b0fe72f3daf44bc}}. The policy-gradient theory underneath: {{Topic: rl|n:3c65c17b0d0d8195a6c6c11ad093c16e}}.</p>
 </div></details>
 </section>
+</div></div>
