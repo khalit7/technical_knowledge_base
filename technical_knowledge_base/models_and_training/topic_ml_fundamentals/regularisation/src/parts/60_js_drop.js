@@ -30,7 +30,8 @@
     $('dr-cap').innerHTML='<div class="t">Thinned network '+(i+1)+'</div>'+(i===0?'One fresh mask: a fifth of the pixels and half of each hidden layer switched off. This one subnetwork says <b>'+me+'</b>.':
       i<5?'Each network has its own mask, so its own opinion. The average (right) moves as they arrive; the black ticks are the weight-scaled network, computed once.':
       amb?'The thinned networks disagree on this digit: the votes are split, and MC dropout would report it as uncertain (Gal and Ghahramani 2016). The average sits close to the weight-scaled ticks.':'They agree: almost every subnetwork gives the same answer, and the average and the weight-scaled network coincide.')}
-  const A=RD.anim({card:'dr-card',ctl:'dr-ctl',n:K,draw,ms:800,label:'Thinned network'});
+  // a widget the reader drives (Fig. 4 is the explained animation; 30 masks is a long replay): it never plays by itself and opens on all 30 averaged
+  const A=RD.anim({card:'dr-card',ctl:'dr-ctl',n:K,draw,ms:800,label:'Thinned network',auto:false,start:K-1});
   $('dr-pick').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));
     st.d=b.dataset.d==='rand'?Math.floor(Math.random()*NT):+b.dataset.d;runs=sample(st.d);A.reset(K)});
   // ---- Monte Carlo curve ----

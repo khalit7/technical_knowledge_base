@@ -6,9 +6,54 @@ Shape before 2026-10-24 (kept for history): `.claude/skills/explainer-page/page-
 
 Checks:
 - `node check_core.mjs && uv run --with scikit-learn --with numpy --with torch python recompute.py`: the page's JS (lasso path by LARS, ridge, elastic net, gradient descent, held-out splits, PRNG, the dropout network's forward pass and thinned networks) against scikit-learn 1.9 and PyTorch, plus the published figures (Efron et al. section 1) and Srivastava et al.'s input-dropout = ridge result by Monte Carlo; 37 checks, results in `check/`.
-- `node src/check_page.mjs` (from the repo root): every control and animation step in headless Chrome, light 920 px and dark 390 px; fails on script errors, NaN, undefined or Infinity, or any animation that moves before the reader acts (reduced and normal motion); element screenshots in `../.shots/`.
+- `node src/check_page.mjs` (from the repo root): every control, animation and stage step in headless Chrome, light 920 px and dark 390 px; fails on script errors, NaN, undefined or Infinity, on anything moving under reduced motion, if the step animation does not play in view or an explorer moves by itself; element screenshots in `../.shots/`.
+- `node src/check_stages.mjs [shots dir]` (from the repo root, about 3 minutes): the 2026-11-06 rollout checks, see the 2026-11-10 section.
 - `uv run --with torch --with numpy python check_wd.py` (from `src/`): the weight-decay animation (`parts/26_js_wd_sim.js`) against `torch.optim.Adam` and `AdamW` on the same seeded noise, float64; result in `check/wd.json` (max difference 2e-16).
 - `coverage.json`: every fact of `live.md` and where the page carries it. `viz_ideas.md`: ranked ideas.
+
+## 2026-11-10: the split layout and three 3D stages (renderer v2)
+The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html`, `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (storage key `rg-tab`). `27_js_wd.js` (the 2D weight-decay bars) is removed; `26_js_wd_sim.js` still drives the new Fig. 3 and is still checked by `check_wd.py`.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | 2D hero (loss curves, two runs) | no (a toggle) |
+| Reading | 1 Penalty, constraint, bias-variance trade | split | 2D held-out chart with slider | no (widget) |
+| Reading | 1 The split, exactly | full width | formula | no |
+| Reading | 2 Why L1 gives zeros | split | **3D** `stg-ge`, Fig. 2 | yes, 6 |
+| Reading | 2 Explore every method | split | 2D geometry explorer (widget, opens where the lasso drops bp) | no |
+| Reading | 2 Formula table, elastic net, standardise | full width | table | no |
+| Reading | 3 Weight decay, two ways | split | **3D** `stg-wd`, Fig. 3 (replaces the 2D bars) | yes, 4 |
+| Reading | 3 What λ multiplies, typical values | full width | none | no |
+| Reading | 4 Dropout | split | **3D** `stg-dr`, Fig. 4 | yes, 5 |
+| Reading | 4 Try any digit | split | 2D thinned-network explorer (widget, opens on all 30) | no |
+| Reading | 4 Train against inference | split | 2D step animation `da-card` (caption carousel replaced by the list) | yes, 8 (one list, all three modes) |
+| Reading | 4 Shortcut, linear = ridge, variants | full width | Monte Carlo chart closed | no |
+| Reading | 5 Augmentation | split | 2D digit transforms | no |
+| Reading | 6 Early stopping | full width | none (points to the explorer) | no |
+| Reading | 7 What each buys | split | 2D effects chart | no |
+| Reading | 8 Zhang et al. | full width | none | no |
+| Reading | 8 Double descent | split | 2D random-features curves | no |
+| Reading | 8 Which term makes the peak | split | 2D weak-features card | no |
+| Reading | 9, 10 | full width | none | no |
+| Coefficient paths | the explorer | split (notes left, chart right) | 2D | no |
+| Further reading | | unchanged | | |
+
+**Stages and data.** Fig. 2: bmi and bp of the diabetes data (all 442 patients, unit length), training error over the two coefficients as a bowl; the level is the explorer's step at 0.55 of the way from least squares to b = 0 (+36.1%); ridge (184, 132) and lasso (290, 0) found by bisection on λ exactly as in `40_js_geo.js`; the lasso knot (bp leaves at λ = 1.270, bmi 388). Fig. 3: `RGW.sim()`, frames every 100 steps, four stretches (0, 0 to 2,000 AdamW, 0 to 2,000 Adam with L2, 2,000 to 3,000 both). Fig. 4: the stored dropout network on test digit 242 (label 4), masks from `RG.rng(1000 + digit)` as in the explorer: weight-scaled says 4 (32%), the first three thinned networks 1, 9 and 7, the average of 30 says 4 (26%), the most common vote (1) gets 8 of 30. The step lists carry these as static spans (`data-ge`, `data-wd`, `data-dr`); `check_stages.mjs` compares them with the scenes and recomputes least squares, the ridge fit, the shared ellipse, decay alone and the votes independently.
+**Colours** now agree across 2D and 3D: lasso blue, ridge orange, elastic net purple, the ellipse gold (the 2D explorer's region, path and ellipse colours changed to match).
+**Fixes:** the effects chart wrote the longest bar's value over its row label in the narrower column (now inside the bar); `.co.warn` callouts inherited the counters' bold orange `.warn` text (now body text with an orange title).
+**Checks:** `check_stages.mjs` (new, about 3 minutes); `check_page.mjs` (never-autoplay inverted: the step animation plays in view, the two explorers never move by themselves, nothing moves under reduced motion; the stages are stepped); `check_core.mjs`, `recompute.py` (37 checks, 0 failures; `check/recompute.json` rewritten with differences at 1e-12 from the library versions in the cache) and `check_wd.py` (rerun with torch 2.14.1+cpu, max difference 2.2e-16) pass.
+
+### Length judgement
+| | Before (2026-10-26) | After (2026-11-10) |
+|---|---|---|
+| Reading, core (230 words a minute) | 27.5 min (6,315 words) | 31.6 min (7,260 words) |
+| Reading, closed details | 8.2 min | 8.2 min |
+| Coefficient paths | 2.3 min | 2.3 min |
+| Visuals counted in Reading (audit) | 10 | 12 |
+The 945 new core words are the four step lists (Figs. 2 to 4 and train against inference); the inference list replaces a caption carousel drawn by script, so never counted before. Nothing was cut: each list is the explanation of a figure that had none in static text, and the three 3D figures show the page's three spatial mechanisms (a constrained optimum on a surface, two optimisers side by side, a network thinned unit by unit).
+
+### Ledger
+311 units: core 238, depth 50, fat 23, problems 0. Four units added for the figures' findings; six re-keyed where prompts were reworded (play to step or watch); unit 55 (where the weight-decay animation came from) is now fat; fourteen Further reading keys no longer carry a reading time.
 
 ## The 2026-10-24 rebuild to the teaching contract
 Editing only, no new training runs (one new cheap check, `check_wd.py`).

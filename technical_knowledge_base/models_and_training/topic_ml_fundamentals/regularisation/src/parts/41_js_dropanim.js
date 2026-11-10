@@ -37,13 +37,13 @@
     else {vals=h.map(v=>v*M.inf);opt={col:M.inf!==1?'var(--c2)':'var(--c1)'};const ok=Math.abs(inf-full*p*M.tr)<1e-9;
       cap=[ok?'Train and test agree':'Train and test disagree',ok?'Inference sends '+f1(inf)+', the training average. Both schemes give the same numbers; they differ only in where the factor sits (Srivastava et al. call them equivalent, section 10).':'Inference sends '+f1(inf)+', twice the '+f1(full*p)+' the next layer saw in training. Every downstream unit is driven harder than it was trained for. Frameworks build the scaling in, so the usual slip there is a different one: evaluating in train() mode, where dropout keeps firing and predictions come out noisy.']}
     bars(vals,opt);
-    $('da-cap').innerHTML='<div class="t">Step '+(i+1)+' of 8: '+cap[0]+'</div>'+cap[1];
+    card.dataset.cap=cap[0]; // the step's title; its explanation is the step list sx-da on the left
     $('da-n').innerHTML=RD.stat('kept this pass',i>=1&&i<=5?kept+' of 96':'all 96',i>=1&&i<=5?'p = 0.5':'nothing dropped')+
       RD.stat('sent, this pass',f1(i>=6?inf:i>=2?(i>=3?trainSum:h.reduce((a,v,k)=>a+(mask[k]?v:0),0)):full),i>=6?'inference':'training')+
       RD.stat('training average',i>=5?f1(mean):'…','over 1,000 masks')+
       RD.stat('inference ÷ training',i>=7?(inf/mean).toFixed(2)+'×':'…',i>=7?(Math.abs(inf/mean-1)<0.05?'<span class="ok">matches</span>':'<span class="warn">off by 1/p</span>'):'');
   }
-  const A=RD.anim({card:'da-card',ctl:'da-ctl',n:8,draw,ms:2000,label:'Dropout step'});
-  $('da-m').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.v;A.reset(8)});
+  const A=RD.anim({card:'da-card',ctl:'da-ctl',n:8,draw,ms:4200,label:'Dropout step',list:'sx-da'});
+  $('da-m').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.v;A.reset(8,'sx-da')});
   addEventListener('resize',()=>{if(card.offsetParent)A.redraw()});
 })();

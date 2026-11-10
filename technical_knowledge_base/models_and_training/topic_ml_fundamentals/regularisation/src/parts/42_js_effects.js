@@ -39,7 +39,9 @@
       const txt=s.grp?String(r[2]):(isB?r[1]+'%':(v>0?'+':'−')+Math.abs(v).toFixed(2)+' ('+r[1]+')');
       if(narrow){g+='<text x="'+(W-4)+'" y="'+(y+11)+'" text-anchor="end" font-size="11" fill="var(--mute)">'+txt+'</text>'}else{
       const right=x1+4+txt.length*6<W;
-      g+='<text x="'+(right?x1+4:x0-4)+'" y="'+(by+bh*0.8)+'" text-anchor="'+(right?'start':'end')+'" font-size="11" fill="var(--mute)">'+txt+'</text>';}
+      // a long bar to the left would push its value into the row label: write it inside the bar instead (2026-11-10, narrower right column)
+      const inside=!right&&x0-4-txt.length*6<lw;
+      g+='<text x="'+(right?x1+4:inside?x0+4:x0-4)+'" y="'+(by+bh*0.8)+'" text-anchor="'+(right||inside?'start':'end')+'" font-size="11" fill="'+(inside?'var(--bg)':'var(--mute)')+'">'+txt+'</text>';}
       if(s.grp)g+='<line x1="'+sx(r[1])+'" x2="'+sx(r[1])+'" y1="'+(y+2)+'" y2="'+(y+rh-2)+'" stroke="var(--ink)" stroke-width="2.5" transform="translate(0,'+(narrow?7:0)+')"><title>best epoch '+r[1]+'</title></line>'});
     if(!s.grp)g+='<line x1="'+sx(0)+'" x2="'+sx(0)+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--ink)" stroke-dasharray="4 3"/>';
     g+='<text x="'+(lw+iw/2)+'" y="'+(H-2)+'" text-anchor="middle" font-size="11" fill="var(--mute)">'+(s.grp?s.unit:'change against '+s.baseNm+' ('+s.base+'), points of '+s.unit)+'</text>';

@@ -8,6 +8,7 @@
   const D=RG.parse(DIAB.raw),N=D.y.length,all=[...Array(N).keys()],z=RG.stdz(D.X,D.y,all),SF=RG.stats(z.f(all),z.g(all));
   const PAIRS={bp:{ix:[2,3],nm:['bmi','bp']},s12:{ix:[4,5],nm:['s1 (total cholesterol)','s2 (LDL)']}};
   const MN={ridge:'Ridge',lasso:'Lasso',enet:'Elastic net',gd:'Early stopping'};
+  const MC={ridge:'var(--c2)',lasso:'var(--c1)',enet:'var(--c4)',gd:'var(--c3)'}; // the same colours as Fig. 2 (ridge orange, lasso blue)
   const st={pair:'bp',m:'lasso'};
   let S,ols,knots,rssMin,dMax,steps,eta,gd,memo;
   const rssUp=b=>RG.rss(S,b)-rssMin;
@@ -53,14 +54,14 @@
     const polys=[],lines=[],pts=[],txt=[];
     const lev=f*dMax;
     [0.3,2.2].forEach(g=>{const e=ellipse(Math.max(lev,0.02*dMax)*g);lines.push({xs:e.xs,ys:e.ys,c:'var(--dim)',w:1})});
-    if(f>0){const e=ellipse(lev);lines.push({xs:e.xs,ys:e.ys,c:'var(--c2)',w:1.8})}
-    if(st.m!=='gd'&&f>0){const r=region(st.m,b);polys.push({xs:r.xs,ys:r.ys,fill:'var(--c1)',fo:.16,c:'var(--c1)',w:1.6})}
-    if(st.m==='gd'){const rp=steps.map(g=>at('ridge',g).b);lines.push({xs:rp.map(q=>q[0]),ys:rp.map(q=>q[1]),c:'var(--c4)',w:1.4,dash:'4 3'});
+    if(f>0){const e=ellipse(lev);lines.push({xs:e.xs,ys:e.ys,c:'var(--c5)',w:1.8})}
+    if(st.m!=='gd'&&f>0){const r=region(st.m,b);polys.push({xs:r.xs,ys:r.ys,fill:MC[st.m],fo:.16,c:MC[st.m],w:1.6})}
+    if(st.m==='gd'){const rp=steps.map(g=>at('ridge',g).b);lines.push({xs:rp.map(q=>q[0]),ys:rp.map(q=>q[1]),c:'var(--c2)',w:1.4,dash:'4 3'});
       const T=isFinite(R.t)?R.t:0,sk=Math.max(1,Math.ceil(T/60));for(let k=0;k<=T;k+=sk)pts.push({x:gd[k][0],y:gd[k][1],r:1.8,c:'var(--c3)'})}
-    else{const pa=steps.slice(0,i+1).map(g=>at(st.m,g).b);lines.push({xs:pa.map(q=>q[0]),ys:pa.map(q=>q[1]),c:'var(--c1)',w:1.4,dash:'4 3'})}
+    else{const pa=steps.slice(0,i+1).map(g=>at(st.m,g).b);lines.push({xs:pa.map(q=>q[0]),ys:pa.map(q=>q[1]),c:MC[st.m],w:1.4,dash:'4 3'})}
     if(f>0)pts.push({x:O.b[0],y:O.b[1],r:5,c:'var(--mute)',o:.75,title:MN[other]+' with the same training error'});
     pts.push({x:ols[0],y:ols[1],r:3.5,c:'var(--ink)',title:'least squares'});
-    pts.push({x:b[0],y:b[1],r:6,c:st.m==='gd'?'var(--c3)':'var(--c1)',stroke:'var(--bg)',title:'the fit'});
+    pts.push({x:b[0],y:b[1],r:6,c:MC[st.m],stroke:'var(--bg)',title:'the fit'});
     txt.push({x:ols[0],y:ols[1]+(yr[1]-yr[0])*0.04,s:'least squares',a:'middle',c:'var(--mute)'});
     PL.chart({el,id:'ge',x:xr,y:yr,polys,lines,pts,txt,h:H,maxw:620,xl:'coefficient of '+P.nm[0],yl:'coefficient of '+P.nm[1],label:'Coefficients of '+P.nm.join(' and ')+' as the penalty grows'});
     const nz=b.filter(v=>Math.abs(v)<1e-9).length,nzo=O.b.filter(v=>Math.abs(v)<1e-9).length;
@@ -77,11 +78,12 @@
       return 'The fit is where an ellipse first touches a diamond |b₁| + |b₂| ≤ t. Both coefficients shrink, along a straight line.'+(st.pair==='s12'?' The two variables are correlated at 0.90 and their least-squares coefficients have opposite signs; the lasso is about to drop one.':'')}
     if(st.m==='ridge')return 'The fit is where the ellipse touches a circle b₁² + b₂² ≤ t. A circle has no corners, so the touching point is almost never on an axis: both coefficients shrink'+(st.pair==='s12'?' and, being correlated, are pulled towards each other (the grouping effect)':'')+', and neither reaches 0 at any finite λ. The grey dot is the lasso on the same ellipse'+(O.b.some(v=>Math.abs(v)<1e-9)?', on an axis.':'.');
     if(st.m==='enet')return 'Elastic net mixes both: a diamond with bulging sides. Its corners still give exact zeros ('+(nz?P.nm[1]+' is 0 here':'none yet')+'), and the curved sides share weight between correlated variables. The grey dot is ridge.';
-    return 'Gradient descent from 0, stopped when its training error reaches this level (green dots: the steps taken). The dashed purple line is the ridge path. Early stopping stays close to it without matching it: for a quadratic loss, stopping after t steps of size η acts like an L2 penalty λ ≈ 1/(ηt), an approximation Goodfellow et al. derive for curvatures that are small relative to λ (eq. 7.44 and 7.45). The counters show how close it comes: compare the coefficients, and 1/(ηt) with ridge\'s λ at the same training error.';
+    return 'Gradient descent from 0, stopped when its training error reaches this level (green dots: the steps taken). The dashed orange line is the ridge path. Early stopping stays close to it without matching it: for a quadratic loss, stopping after t steps of size η acts like an L2 penalty λ ≈ 1/(ηt), an approximation Goodfellow et al. derive for curvatures that are small relative to λ (eq. 7.44 and 7.45). The counters show how close it comes: compare the coefficients, and 1/(ηt) with ridge\'s λ at the same training error.';
   }
   let A;
   function n(){if(!S)prep();return steps.length}
-  A=RD.anim({card:'ge-card',ctl:'ge-ctl',n:n(),draw,ms:1800,label:'Step through the penalty'});
+  // a widget the reader drives (Fig. 2 is the explained animation): it never plays by itself and opens on the step where the lasso drops a coefficient
+  A=RD.anim({card:'ge-card',ctl:'ge-ctl',n:n(),draw,ms:1800,label:'Step through the penalty',auto:false,start:steps.indexOf(+(rssUp(knots[1].b)/dMax).toFixed(6))});
   function seg(id,key){$(id).addEventListener('click',e=>{const bt=e.target.closest('button');if(!bt)return;
     [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.classList.toggle('on',x===bt));st[key]=bt.dataset.v;if(key==='pair')prep();A.reset(steps.length)})}
   seg('ge-m','m');seg('ge-p','pair');

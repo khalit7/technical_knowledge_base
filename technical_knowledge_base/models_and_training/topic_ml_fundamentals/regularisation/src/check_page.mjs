@@ -1,4 +1,4 @@
-// Screenshots of each visual for review, and a scripted pass over every control and animation step (script errors, NaN, undefined, Infinity).
+// Screenshots of each visual for review, and a scripted pass over every control, animation and 3D stage step (script errors, NaN, undefined, Infinity); motion rules at the end.
 // Run from the repo root: node technical_knowledge_base/models_and_training/topic_ml_fundamentals/regularisation/src/check_page.mjs [outdir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path'; import fs from 'node:fs'; import { fileURLToPath } from 'node:url';
@@ -20,16 +20,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       const n = await p.$eval('#' + ctl + '-s', e => +e.max + 1);
       for (let k = 0; k < n; k++) { await slide('#' + ctl + '-s', k); await scan('#' + card, card + ' ' + JSON.stringify(c) + ' s' + k) } }
   };
-  // nothing may move before the reader acts: every step slider still at 0 after load
-  const moved = await p.$$eval('.an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id)); if (moved.length) { bad++; console.log('BAD autoplay', moved) }
+  // reduced motion (emulated here): nothing moves by itself; every step slider stays where it opened
+  { const v0 = await p.$$eval('.an-ctl input[type=range]', es => es.map(e => e.id + '=' + e.value)); await wait(1500);
+    const v1 = await p.$$eval('.an-ctl input[type=range]', es => es.map(e => e.id + '=' + e.value)); if (v0.join() !== v1.join()) { bad++; console.log('BAD moved under reduced motion', v0, v1) } }
   // hero: both runs
   for (const v of ['none', 'drop']) { await p.click('#hr-m button[data-v="' + v + '"]'); await scan('#hr-card', 'hero ' + v); await shot('#hr-card', 'hr-' + v) }
   // held-out error (moved from the Coefficient paths tab)
   for (const v of [20, 40, 100, 400]) { await slide('#ho-m', v); await wait(400); await scan('#ho-card', 'ho ' + v) }
   await slide('#ho-m', 40); await wait(400); await shot('#ho-card', 'ho-40');
-  // weight decay: both optimisers, every step
-  await stepAll('wd-card', 'wd-c', ['#wd-m']);
-  for (const [m, k] of [['l2', 20], ['adamw', 30]]) { await p.click('#wd-m button[data-v="' + m + '"]'); await slide('#wd-c-s', k); await shot('#wd-card', 'wd-' + m) }
+  // the three 3D stages (Figs. 2 to 4): every step (their motion is checked by check_stages.mjs)
+  for (const id of ['stg-ge', 'stg-wd', 'stg-dr']) { const n = await p.$eval('#' + id + '-r', e => +e.max + 1);
+    for (let k = 0; k < n; k++) { await slide('#' + id + '-r', k); await scan('#' + id, id + ' s' + k) } await scan('#sx-' + id.slice(4), 'list ' + id) }
   // geometry animation: every method x pair x step
   await stepAll('ge-card', 'ge-ctl', ['#ge-p', '#ge-m']);
   for (const [pr, m, k] of [['bp', 'lasso', 5], ['bp', 'ridge', 5], ['s12', 'lasso', 3], ['s12', 'gd', 4], ['bp', 'gd', 6], ['bp', 'enet', 6]]) {
@@ -72,12 +73,15 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const errbox = await p.$eval('#jsErr', e => e.hidden ? '' : e.textContent); if (errbox) { errs.push('errbox: ' + errbox) }
   await p.close();
 }
-// normal motion: scroll every animation card into view and wait; nothing may start by itself
+// normal motion (inverted 2026-11-10 from the old never-autoplay check): the step animation (da-card) plays by itself once in view;
+// the two explorers (ge-card, dr-card) are widgets and never move by themselves
 { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + page); await wait(300);
-  for (const id of ['ge-card', 'wd-card', 'dr-card', 'da-card']) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1800) }
-  const moved = await p.$$eval('.an-ctl input[type=range]', es => es.filter(e => +e.value !== 0).map(e => e.id));
-  if (moved.length) { bad++; console.log('BAD autoplay (normal motion)', moved) } else console.log('normal motion: nothing autoplays');
-  await p.close() }
+  await p.click('button[data-t="t-read"]'); await wait(200); // the page remembers the last tab opened above
+  await p.$eval('#da-card', e => e.scrollIntoView({ block: 'center' })); await wait(1800);
+  if (!/Pause/.test(await p.$eval('#da-ctl-p', e => e.getAttribute('aria-label') + e.textContent))) { bad++; console.log('BAD da-card did not play in view') }
+  for (const id of ['ge-ctl', 'dr-ctl']) { const v0 = await p.$eval('#' + id + '-s', e => e.value); await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1800);
+    if ((await p.$eval('#' + id + '-s', e => e.value)) !== v0) { bad++; console.log('BAD explorer moved by itself', id) } }
+  console.log('normal motion: the step animation plays in view, the explorers wait'); await p.close() }
 await b.close();
 console.log('scans', scans, 'bad', bad, 'errors', JSON.stringify(errs));
 process.exit(bad || errs.length ? 1 : 0);

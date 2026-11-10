@@ -185,10 +185,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_ml_fundamentals/loss_functions` Loss functions
 - [x] `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` Normalisation and initialisation
 - [x] `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` Optimisers and learning-rate schedulers
-- [~] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
-- [ ] `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer` Sequence models: the pre-transformer lineage
+- [x] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
+- [~] `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer` Sequence models: the pre-transformer lineage
 - [ ] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
-- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack` The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor
+- [~] `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack` The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores` Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy` GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness` Profiling, benchmarking and correctness: Nsight, honest timing, numerical checks
@@ -478,6 +478,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_ml_fundamentals/loss_functions`: Fig. 2 Anscombe view sparse (clean points' columns nearly flat, the scene small in the card).
 - `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation`: Fig. 5 mu/sigma label crosses faded background cubes during step changes; Fig. 3 raw-units ravine drawn as one line (about a pixel wide at equal scale).
 - `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers`: Fig. 1 step 3 close-up runs the ravine surface off the card top; Fig. 3 SOAP step dense (R wall over its eigenbasis, L label over L plates); Fig. 5 close-up cloud small; Fig. 6 last step columns near the right edge; Fig. 2 rotated-ravine walls faint. torch-based checks (`torch_ref.py`, `nqm_check.py`, `sched_check.py`) not rerun.
+- `models_and_training/topic_ml_fundamentals/regularisation`: Fig. 2 step 4 "on this axis bp = 0" label at the card edge and the bowl runs off the top; Fig. 3 faded front row tints the blue columns; phone labels close at some transitions.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -510,3 +511,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Loss functions: Fig. 1 uses a new measured input, `src/real_tokens.py` running SmolLM2-135M on CPU over four public-domain sentences (`inputs/real_tokens.json`); Fig. 4's logit shift of +8 is illustrative. Keep?
 - Normalisation and initialisation: Fig. 1 adds an illustrative twice-He run (Var 4/n_in, x1.98 per layer, 8.6e5 after 20 layers) to show the exploding case. Keep or drop? (Also fixed: nn.Linear default factor 0.162, was printed 0.163.)
 - Optimisers: the Optimiser race tab stays full width (its card is taller than the window, so it cannot be a sticky right column). Keep, or split later?
+- Regularisation: Fig. 2 uses the error level at the explorer's step 9 of 10 (ridge (184, 132)), while the 2D explorer opens on step 7 ((244, 171)); both labelled. Fine, or open the explorer on the same level?

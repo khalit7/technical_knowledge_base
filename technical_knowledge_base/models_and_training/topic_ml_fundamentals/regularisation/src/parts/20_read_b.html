@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-wd"></div></div><div class="s3L">
 <section id="s-wd">
 <h2>3 · Weight decay, and why AdamW decouples it</h2>
 <p>Weight decay pulls every weight a little towards 0 at each step. It can be implemented two ways:</p>
@@ -6,27 +7,45 @@
 <li><b>Decoupled, in the optimiser:</b> change the update rule itself, <i>w</i> &larr; <i>w</i> &minus; ηλ<i>w</i>, applied beside the gradient step.</li>
 </ol>
 <p>For plain SGD the two coincide, up to rescaling λ by the learning rate ({{Loshchilov and Hutter 2017, Proposition 1|https://arxiv.org/abs/1711.05101}}). For Adam they do not: the L2 term is divided by the per-parameter √<i>v̂</i> like the rest of the gradient, so weights with large, noisy gradients are barely decayed while weights with tiny gradients are pulled to 0 at full speed. Decoupling restores the same decay for every weight, and that is the whole of <b>AdamW</b>.</p>
-<p class="try"><b>Predict, then play:</b> six weights start at 1 and receive pure noise as their gradient, from tiny to large, so the only systematic force on them is the decay. Under Adam with L2, which weights end lowest? Play both optimisers on the same noise.</p>
-<div class="card" id="wd-card">
-<h4>Adam with L2 decays each weight by a different amount; AdamW decays them alike</h4>
-<div class="seg2" id="wd-m" role="group" aria-label="Optimiser"><button data-v="l2" class="on">Adam, L2 in the loss</button><button data-v="adamw">AdamW, decoupled</button></div>
-<div class="lg"><span><i style="background:var(--c2)"></i>Adam, L2 in the loss</span><span><i style="background:var(--c1)"></i>AdamW</span><span><i style="background:var(--dim)"></i>the other one, same step</span><span><i class="ln" style="background:var(--c3)"></i>decay alone, (1 &minus; ηλ)<sup>t</sup></span></div>
-<div class="rd-svg" id="wd-svg"></div>
-<div class="an-ctl" id="wd-c"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="wd-t"></div><div id="wd-p"></div></div>
-<div class="cnt" id="wd-n"></div>
-<p class="small mute">Adam with β = (0.9, 0.999), ε = 10<sup>&minus;8</sup>, learning rate 10<sup>&minus;3</sup>, λ = 0.1, 3,000 steps; gradients are seeded Gaussian noise with the standard deviation under each bar <i class="ill">illustrative</i>. At step 2,000 Adam with L2 has driven the three quietest weights to 0.02, where decay alone leaves 0.82; the σ = 10 weight is still at 1.00. Matches <code>torch.optim.Adam</code> and <code>AdamW</code> (torch 2.14.1, float64) to 10<sup>&minus;14</sup> (<code>check_wd.py</code>). Moved here from the parent page's thread 4 on 2026-10-24.</p>
-</div>
+<p class="try"><b>Predict:</b> six weights get pure noise as their gradient, from tiny to large, so the only systematic force on them is the decay. Under Adam with L2, which end lowest, the quiet ones or the noisy ones? Fig. 3 runs both optimisers on the same noise.</p>
+<p class="sxh">Fig. 3, step by step</p>
+<ol class="sx" id="sx-wd">
+<li><b>Twelve weights at 1, the same noise twice.</b> Front row Adam with L2 in the loss, back row AdamW; each column gets a gradient of pure noise, σ = 10<sup>&minus;4</sup> to 10 (labels on the floor). With no signal anywhere, the only systematic force is the decay, and the green glass sheet is what decay alone gives, (1 &minus; ηλ)<sup>t</sup>.</li>
+<li><b>AdamW, steps 0 to 2,000.</b> The decay is applied to the weight directly, outside Adam's rescaling, so all six sink with the sheet (<span data-wd="pure2">0.82</span> by step 2,000; the six weights at <span data-wd="aw2lo">0.73</span> to <span data-wd="aw2hi">0.87</span>); the noise only jiggles them around it.</li>
+<li><b>Adam with L2, steps 0 to 2,000.</b> The term λw enters the gradient and is divided by √v̂ with everything else. Where the noise is tiny, λw dominates the gradient, Adam normalises it to a full-size step, and the weight is driven to <span data-wd="l2q">0.02</span>; where the noise is large, λw is drowned and the σ = 10 weight is still at <span data-wd="l2loud">1.00</span>. The dots show how fast each column is falling.</li>
+<li><b>Both rows at step 3,000.</b> AdamW's six weights sit at <span data-wd="aw3lo">0.70</span> to <span data-wd="aw3hi">0.81</span>, around decay alone (<span data-wd="pure3">0.74</span>); Adam with L2 has sent the three quietest to about 0 and left the loudest at <span data-wd="l2loud3">0.97</span>.</li>
+</ol>
+<p class="small mute">Adam with β = (0.9, 0.999), ε = 10<sup>&minus;8</sup>, learning rate 10<sup>&minus;3</sup>, λ = 0.1, 3,000 steps; gradients are seeded Gaussian noise with the standard deviation under each bar <i class="ill">illustrative</i>. At step 2,000 Adam with L2 has driven the three quietest weights to 0.02, where decay alone leaves 0.82; the σ = 10 weight is still at 1.00. Matches <code>torch.optim.Adam</code> and <code>AdamW</code> (torch 2.14.1, float64) to 10<sup>&minus;14</sup> (<code>check_wd.py</code>).</p>
+</section>
+</div></div>
+<section id="s-wd2">
 <p><b>What λ multiplies.</b> In Loshchilov and Hutter's Algorithm 2 the decay step is η<sub><i>t</i></sub>λθ, where η<sub><i>t</i></sub> is the schedule multiplier and not the base learning rate α, so decay and learning rate are tuned independently. PyTorch's <code>AdamW</code> applies θ &larr; θ &minus; γλθ with γ the learning rate itself ({{PyTorch 2.14 docs|https://docs.pytorch.org/docs/2.14/generated/torch.optim.AdamW.html}}; default λ = 0.01). So <code>weight_decay=0.1</code> at a learning rate of 3 &times; 10<sup>&minus;4</sup> shrinks each weight by 3 &times; 10<sup>&minus;5</sup> of itself per step <i class="nl d">derived: γλ</i>, and halving the learning rate halves the decay too. The paper's λ is PyTorch's λ times α.</p>
 <p><b>Which parameters.</b> Decay is usually applied to weight matrices only. nanoGPT decays every parameter with two or more dimensions (matrix weights and embeddings) and leaves biases and LayerNorm gains alone ({{model.py, configure_optimizers|https://github.com/karpathy/nanoGPT/blob/master/model.py}}), with λ = 0.1 ({{train.py|https://github.com/karpathy/nanoGPT/blob/master/train.py}}). Decaying a normalisation gain pulls it towards 0 and fights the normalisation it belongs to.</p>
 <p><b>Typical values.</b> AlexNet used SGD with weight decay 0.0005 and found "this small amount of weight decay was important for the model to learn. In other words, weight decay here is not merely a regularizer: it reduces the model's training error" ({{Krizhevsky et al. 2012, section 5|https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf}}). With AdamW, 0.1 is the usual pretraining value: GPT-3 ({{paper page|n:3c65c17b0d0d8193ac92c7648cfaca12}}), ViT ({{paper page|n:3c65c17b0d0d811fa231cfcde6c1954d}}); BERT used L2 weight decay 0.01 ({{paper page|n:3c65c17b0d0d81e5ad9bd09cbf18ad7c}}).</p>
 <p><b>Why decay at all if an LLM never overfits?</b> A model that sees most of its data once has little to overfit, yet nearly every LLM recipe keeps weight decay. D'Angelo, Andriushchenko et al. argue that in both regimes "weight decay is never useful as an explicit regularizer but instead changes the training dynamics in a desirable way": with multi-epoch SGD on vision tasks it strengthens SGD's implicit regularisation, and in near one-epoch LLM training it balances the bias-variance trade-off of stochastic optimisation, giving lower training loss and more stable training ({{NeurIPS 2024, abstract|https://arxiv.org/abs/2310.04415}}). AlexNet's authors saw the same in 2012: decay lowered the training error.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-dr"></div></div><div class="s3L">
 <section id="s-drop">
 <h2>4 · Dropout</h2>
 <p>In each training step every unit is dropped independently at random: its output is 0 for that step, with all its incoming and outgoing connections. No unit can rely on one specific partner (<b>co-adaptation</b>), so the network learns redundant, robust features. A network with <i>n</i> units contains 2<sup><i>n</i></sup> possible <b>thinned</b> networks sharing one set of weights, and each training case trains a freshly sampled one: dropout trains an implicit ensemble ({{Srivastava et al. 2014, section 1|https://jmlr.org/papers/v15/srivastava14a.html}}). At test time there are three ways to use it: the single <b>weight-scaled</b> network (with inverted dropout, the plain forward pass), the <b>arithmetic mean</b> of <i>k</i> sampled thinned networks (Srivastava et al.'s Monte Carlo average), or their <b>geometric mean</b>, which AlexNet's authors said weight scaling approximates.</p>
-<p class="try"><b>Try:</b> step through an ambiguous digit and watch the thinned networks disagree while their average settles; then a clear one, where they all agree. The spread of the votes is what MC dropout uses as an uncertainty.</p>
+<p class="sxh">Fig. 4, step by step</p>
+<ol class="sx" id="sx-dr">
+<li><b>The full network.</b> Test digit 242, labelled <span data-dr="lab">4</span>: its 64 pixels (grey columns, height is brightness), two hidden layers of 96 ReLU units (height is activation) and 10 outputs. With nothing dropped (the weight-scaled network, a plain forward pass under inverted dropout) it says <span data-dr="ws">4</span> at <span data-dr="wsp">32%</span>: an ambiguous digit.</li>
+<li><b>Thinned network 1.</b> One mask: <span data-dr="m0k0">52</span> of 64 pixels and <span data-dr="m0k1">47</span> and <span data-dr="m0k2">40</span> of the 96 units survive (flat grey tiles are dropped), and the dots flow only through survivors. This subnetwork says <span data-dr="m0">1</span> (<span data-dr="m0p">38%</span>).</li>
+<li><b>Thinned network 2.</b> A fresh mask is a different network with the same weights (<span data-dr="m1k0">50</span>, <span data-dr="m1k1">39</span> and <span data-dr="m1k2">52</span> kept); it says <span data-dr="m1">9</span> (<span data-dr="m1p">30%</span>).</li>
+<li><b>Thinned network 3.</b> Another (<span data-dr="m2k0">54</span>, <span data-dr="m2k1">42</span>, <span data-dr="m2k2">40</span> kept) says <span data-dr="m2">7</span> (<span data-dr="m2p">59%</span>). In training, every example meets a freshly sampled one.</li>
+<li><b>The average of 30.</b> Averaging the outputs of 30 thinned networks gives <span data-dr="avg">4</span> at <span data-dr="avgp">26%</span>; the black marks are the weight-scaled network's single pass, close to the average. The votes are split: the most common single answer, <span data-dr="vtd">1</span>, gets only <span data-dr="vt">8</span> of 30. MC dropout reads that spread as uncertainty.</li>
+</ol>
+<p class="small mute">The hero's network, seed 0 with dropout: 64 inputs (8 &times; 8 pixels scaled to [0, 1]), two hidden layers of 96 ReLU units, 10 outputs; dropout keeping 0.8 of the inputs and 0.5 of each hidden layer (<code>nn.Dropout(0.2)</code> and <code>nn.Dropout(0.5)</code>), Adam at 10<sup>&minus;3</sup>, batch 64, 300 epochs, on 1,437 of scikit-learn's 1,797 digits; the other 360 (stratified, fixed seed) are the test set. Weights stored as 8-bit integers with one scale per unit; the stored network's weight-scaled error is the same 1.39% offline and here. Thirty masks per digit, from a fixed seed.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-drop2">
+<p class="try"><b>Try any digit:</b> the explorer runs the same 30 masks on six ambiguous and three clear test digits and opens on all 30 averaged; step back to see them one at a time. On a clear digit they all agree. The spread of the votes is what MC dropout uses as an uncertainty.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="dr-card">
 <h4>Each mask is a different network with its own opinion; their average lands on the weight-scaled answer</h4>
 <div class="chips" id="dr-pick" role="group" aria-label="Test digit"></div>
@@ -41,23 +60,40 @@
 <div class="an-ctl" id="dr-ctl"></div>
 <div class="an-cap" id="dr-cap" aria-live="polite"></div>
 <div class="cnt" id="dr-n"></div>
-<p class="small mute">The hero's network, seed 0 with dropout: 64 inputs (8 &times; 8 pixels scaled to [0, 1]), two hidden layers of 96 ReLU units, 10 outputs; dropout keeping 0.8 of the inputs and 0.5 of each hidden layer (<code>nn.Dropout(0.2)</code> and <code>nn.Dropout(0.5)</code>), Adam at 10<sup>&minus;3</sup>, batch 64, 300 epochs, on 1,437 of scikit-learn's 1,797 digits; the other 360 (stratified, fixed seed) are the test set. Weights stored as 8-bit integers with one scale per unit; the stored network's weight-scaled error is the same 1.39% offline and here. Thirty masks per digit, from a fixed seed.</p>
 </div>
+</div></div></div>
+<section id="s-drop3">
 <div class="co corr"><div class="t">Corrected: the paper keeps about half the hidden units, not 0.8</div>An older version of this page said to keep about 0.8 of hidden units. Srivastava et al. write that the retention probability "can simply be set at 0.5, which seems to be close to optimal for a wide range of networks and tasks. For the input units, however, the optimal probability of retention is usually closer to 1 than to 0.5" (section 1). Their practical guide: "Typical values of p for hidden units are in the range 0.5 to 0.8. For input layers ... For real-valued inputs (image patches or speech frames), a typical value is 0.8" (Appendix A.4), and their MNIST runs use 0.5 for hidden units and 0.8 for inputs (sections 6.1 and 7.4). So: <b>keep about 0.5 for hidden units, about 0.8 for inputs.</b> On MNIST with the width fixed, test error was flat for retention between 0.4 and 0.8 and rose towards 1 (section 7.3, Figure 9a).</div>
 <div class="co warn"><div class="t">p means opposite things in the paper and in PyTorch</div>In Srivastava et al., <i>p</i> is the probability of <b>keeping</b> a unit. In PyTorch's <code>nn.Dropout(p)</code> it is the probability of <b>dropping</b> it (default 0.5), and Keras and most papers since follow the framework. The paper's "<i>p</i> = 0.8 for inputs" is <code>nn.Dropout(0.2)</code>, and <code>nn.Dropout(0.8)</code> would keep only a fifth. Even the mixup paper's dropout experiments use the dropping convention (<i>p</i> &isin; {0.5, 0.7, 0.8, 0.9}; {{Zhang et al. 2018, section 3.4|https://arxiv.org/abs/1710.09412}}).</div>
-<h3>Train against inference: where the scaling goes</h3>
-<p>Training drops units; inference drops nothing. With every unit present a layer would send about 1/<i>p</i> times what the next layer saw in training, so the activations are rescaled to match the expected value: the <b>original scheme</b> multiplies them (equivalently the outgoing weights) by <i>p</i> at inference; <b>inverted dropout</b>, what frameworks do, divides the survivors by <i>p</i> in training, so inference is a plain forward pass. The two "are equivalent with appropriate scaling of the learning rate and weight initializations at each layer" (Srivastava et al., section 10).</p>
-<p class="try"><b>Try:</b> play the inverted scheme, then the original one: the numbers that reach the next layer are the same, only the place of the factor moves. Then play "Scaling forgotten" to see the bug.</p>
-<div class="card" id="da-card">
+</section>
+<div class="s3sp"><div class="s3R"><div class="s3side">
+<div class="card s3stick" id="da-card">
 <h4>The factor 1/<i>p</i> goes either in training or at inference, never nowhere</h4>
 <div class="seg2" id="da-m" role="group" aria-label="Scaling scheme"><button data-v="inv" class="on">Inverted dropout</button><button data-v="orig">Original scheme</button><button data-v="bug">Scaling forgotten</button></div>
 <div class="lg"><span><i style="background:var(--c1)"></i>activation</span><span><i style="background:var(--c3)"></i>scaled up by 1/<i>p</i> in training</span><span><i style="background:var(--c2)"></i>scaled down by <i>p</i> at inference</span><span><i style="border:1px solid var(--dim)"></i>what a dropped unit would have sent</span></div>
 <div class="plotbox" id="da-plot"></div>
 <div class="an-ctl" id="da-ctl"></div>
-<div class="an-cap" id="da-cap" aria-live="polite"></div>
 <div class="cnt" id="da-n"></div>
-<p class="small mute">The 96 bars are the real first-hidden-layer activations of the same network on one test digit; keep probability 0.5 for this layer, as it was trained. "Sent" is the plain sum of the layer's outputs; the mean over 1,000 masks uses a fixed seed. Exact expectation: <i>p</i> &times; (sum of all activations) &times; (training scale). Forgetting the factor sends inputs 2&times; larger than training ever saw.</p>
 </div>
+</div></div><div class="s3L">
+<section id="s-drop4">
+<h3>Train against inference: where the scaling goes</h3>
+<p>Training drops units; inference drops nothing. With every unit present a layer would send about 1/<i>p</i> times what the next layer saw in training, so the activations are rescaled to match the expected value: the <b>original scheme</b> multiplies them (equivalently the outgoing weights) by <i>p</i> at inference; <b>inverted dropout</b>, what frameworks do, divides the survivors by <i>p</i> in training, so inference is a plain forward pass. The two "are equivalent with appropriate scaling of the learning rate and weight initializations at each layer" (Srivastava et al., section 10).</p>
+<p class="try"><b>Watch</b> the inverted scheme, then switch to the original one: the numbers that reach the next layer are the same, only the place of the factor moves. Then switch to "Scaling forgotten" to see the bug; the counters under the chart carry this pass's numbers.</p>
+<ol class="sx" id="sx-da">
+<li><b>The layer.</b> 96 activations of the first hidden layer, from one real test digit; together they send their sum to the next layer.</li>
+<li><b>Draw a mask.</b> Each unit is kept with probability p = 0.5, independently, a coin per unit (&times; marks the dropped ones).</li>
+<li><b>Drop.</b> Dropped units output 0 for this pass and receive no gradient; the survivors send about half as much.</li>
+<li><b>Scale in training?</b> Inverted dropout divides every survivor by p, so each doubles (green); the original scheme and the bug pass them through unchanged.</li>
+<li><b>One training pass.</b> What this pass sends to the next layer. Every training step draws a fresh mask, so the next layer sees a different thinned network each time.</li>
+<li><b>Over 1,000 masks.</b> The average of what the layer sends, against the exact expectation p &times; (sum of all activations) &times; (training scale): the size of input the next layer learned its weights for.</li>
+<li><b>Inference: nothing dropped.</b> Every unit is present. Inverted dropout scales nothing, a plain forward pass; the original scheme multiplies the outputs by p = 0.5 (orange), the paper's "weights are multiplied by p at test time"; with the bug nothing is scaled because the training-side scaling never happened.</li>
+<li><b>Train and test agree, or not.</b> With either scheme inference sends the training average: they differ only in where the factor sits. With the scaling forgotten, inference sends twice what the next layer saw in training. Frameworks build the scaling in, so the usual slip there is evaluating in <code>train()</code> mode, where dropout keeps firing.</li>
+</ol>
+<p class="small mute">The 96 bars are the real first-hidden-layer activations of the same network on one test digit; keep probability 0.5 for this layer, as it was trained. "Sent" is the plain sum of the layer's outputs; the mean over 1,000 masks uses a fixed seed. Exact expectation: <i>p</i> &times; (sum of all activations) &times; (training scale). Forgetting the factor sends inputs 2&times; larger than training ever saw.</p>
+</section>
+</div></div>
+<section id="s-drop5">
 <p><b>How good the weight-scaled shortcut is.</b> Averaging all 2<sup><i>n</i></sup> thinned networks is impossible; the weight-scaled network is the shortcut. On MNIST, Srivastava et al. found that "around <i>k</i> = 50, the Monte-Carlo method becomes as good as the approximate method" and thereafter slightly better, "well within one standard deviation" (section 7.5). AlexNet calls the shortcut "a reasonable approximation to taking the geometric mean of the predictive distributions" of the thinned networks ({{Krizhevsky et al. 2012, section 4.2|https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf}}). Gal and Ghahramani read dropout as approximate Bayesian inference and kept it on at test time to get uncertainty from the spread of the sampled predictions, "MC dropout" ({{2016|https://arxiv.org/abs/1506.02142}}).</p>
 <div class="co"><div class="t">Does not reproduce the k = 50 crossing on this network</div>Here weight scaling (1.39% test error) stays below the Monte Carlo average at every <i>k</i> tried, 1.90% at <i>k</i> = 200; the shape does reproduce (one thinned network alone errs on 10.65%, and the average improves quickly up to a few tens). A different network, dataset and test set from the paper's MNIST run.</div>
 <details class="dp" id="mc-dp"><summary>Monte Carlo averaging against weight scaling, measured over all 360 test digits <span class="mute">(chart, and a live re-run)</span></summary><div class="b">
