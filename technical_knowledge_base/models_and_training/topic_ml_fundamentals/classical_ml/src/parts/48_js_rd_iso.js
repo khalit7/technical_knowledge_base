@@ -23,9 +23,14 @@
     const tree=build([...Array(N).keys()],ML.rng(11),0),box0=[-3.2,3.2,-3.2,3.2];
     const trace=x=>{let nd=tree,b=box0.slice(),out=[{b:b.slice(),n:nd.n}];while(nd.q!=null){const q=nd.q,p=nd.p,cut={q,p,b:b.slice()};
       if(x[q]<p){b[2*q+1]=p;nd=nd.L}else{b[2*q]=p;nd=nd.R}out.push({b:b.slice(),n:nd.n,cut})}return out};
-    M={Eh,s,A,B,tA:trace(P[A]),tB:trace(P[B])};return M}
+    M={Eh,s,A,B,tA:trace(P[A]),tB:trace(P[B])};window.CMLif=M;return M}
   const raw=i=>fa.x[i].toFixed(1)+' min eruption, '+fa.y[i]+' min wait';
-  function draw(i){const m=model(),nA=m.tA.length,nB=m.tB.length,last=Math.max(nA,nB);
+  // six explained steps over the tree's splits: the start, the first split, A alone, B's box shrinking (played as a stretch), B alone, the score
+  let stT=0;
+  const FR=()=>{const m=model(),a=m.tA.length-1,b=m.tB.length-1;return [0,1,a,Math.round((a+b)/2),b,Math.max(a,b)+1]};
+  function draw(j){clearTimeout(stT);const F=FR(),to=F[j],from=j===4?F[3]+1:to;
+    if(j===4&&!RD.RM&&to>from){let f=from;const per=Math.max(150,Math.min(500,2600/(to-from+1)));const nx=()=>{frame(f);if(f<to){f++;stT=setTimeout(nx,per)}};nx()}else frame(to)}
+  function frame(i){const m=model(),nA=m.tA.length,nB=m.tB.length,last=Math.max(nA,nB);
     const el=$('rd-ifV'),w=RD.width(el),h=Math.min(380,Math.round(w*0.72)),ctx=PL.cv(el,w,h),F=PL.frame([-3.2,3.2,-3.2,3.2],w,h,{l:6,r:6,t:6,b:6});
     ctx.strokeStyle=PL.css('--line');ctx.strokeRect(0.5,0.5,w-1,h-1);
     const path=(tr,col)=>{const k=Math.min(i,tr.length-1),b=tr[k].b;ctx.save();ctx.fillStyle=col;ctx.globalAlpha=0.13;ctx.fillRect(F.X(b[0]),F.Y(b[3]),F.X(b[1])-F.X(b[0]),F.Y(b[2])-F.Y(b[3]));ctx.restore();
@@ -36,13 +41,9 @@
     [[m.A,'--c2','A'],[m.B,'--c1','B']].forEach(([j,cc,lab])=>{PL.dot(ctx,F.X(P[j][0]),F.Y(P[j][1]),5,PL.css(cc),PL.css('--ink'),1.2);PL.text(ctx,lab,F.X(P[j][0])+8,F.Y(P[j][1])-6,{c:PL.css(cc),b:1,s:13})});
     PL.text(ctx,'eruption length →',w-10,h-10,{a:'right'});PL.text(ctx,'↑ waiting time',12,18);
     const kA=Math.min(i,nA-1),kB=Math.min(i,nB-1),done=i>=last;
-    let T1,P1;
-    if(i===0){T1='Start: every eruption in one box';P1='A ('+raw(m.A)+') and B ('+raw(m.B)+') are the eruptions the forest below scores most and least anomalous. Each split picks one of the two features at random and cuts at a random value between the box\'s smallest and largest point; we follow the side that holds A, and the side that holds B.'}
-    else if(!done){T1='Split '+i;P1='A\'s box (orange) holds <b>'+m.tA[kA].n+'</b> point'+(m.tA[kA].n===1?'':'s')+(kA<i?' (isolated after '+(nA-1)+' splits)':'')+'; B\'s box (blue) holds <b>'+m.tB[kB].n+'</b>'+(kB<i?' (isolated after '+(nB-1)+' splits)':'')+'. Random cuts land in empty space far more often near a point that is few and different, so its box empties fast.'}
-    else{T1='Over 100 trees: the score';P1='In this tree A was alone after <b>'+(nA-1)+'</b> splits and B after <b>'+(nB-1)+'</b>. Averaged over 100 trees on samples of 256: E[h(A)] = '+m.Eh[m.A].toFixed(1)+' and E[h(B)] = '+m.Eh[m.B].toFixed(1)+', against c(256) = '+c(PSI).toFixed(2)+', so s(A) = '+m.s[m.A].toFixed(2)+' and s(B) = '+m.s[m.B].toFixed(2)+'.'}
-    $('rd-ifT').innerHTML=T1;$('rd-ifP').innerHTML=P1;
     $('rd-ifN').innerHTML=RD.stat('A: splits so far',String(kA),m.tA[kA].n+' left in its box')+RD.stat('B: splits so far',String(kB),m.tB[kB].n+' left in its box')+(done?RD.stat('score s(A)',m.s[m.A].toFixed(2),'above 0.5: stands out')+RD.stat('score s(B)',m.s[m.B].toFixed(2),'below 0.5: normal'):'')}
-  const n0=()=>{const m=model();return Math.max(m.tA.length,m.tB.length)+1};
-  const A=RD.anim({card:'rd-if',ctl:'rd-ifC',n:n0(),draw,ms:1300,label:'Isolation step'});
+  {const m=model(),set=(k,v)=>document.querySelectorAll('[data-if="'+k+'"]').forEach(e=>e.textContent=v),H2=i=>Math.log(i)+0.5772156649,c2=n=>2*H2(n-1)-2*(n-1)/n;
+    set('a',String(m.tA.length-1));set('b',String(m.tB.length-1));set('ra',raw(m.A));set('rb',raw(m.B));set('ha',m.Eh[m.A].toFixed(1));set('hb',m.Eh[m.B].toFixed(1));set('c',c2(PSI).toFixed(2));set('sa',m.s[m.A].toFixed(2));set('sb',m.s[m.B].toFixed(2))}
+  const A=RD.anim({card:'rd-if',ctl:'rd-ifC',n:6,draw,ms:4200,label:'Isolation step',list:'sx-if'});
   RD.onResize(()=>A.redraw());
 })();

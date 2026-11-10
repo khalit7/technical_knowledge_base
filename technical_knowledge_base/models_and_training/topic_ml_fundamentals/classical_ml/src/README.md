@@ -18,7 +18,8 @@ Not rebuilt, linked instead: the parent's comparison-level summary (Reading, "Be
 | `node check/check_search.mjs` | Bayesian-optimisation paths equal to the NumPy port for 3 seeds, 40 of 40 steps each |
 | `recompute.py` (`inputs/recompute.json`) | every number quoted in prose, from scikit-learn: tree depth accuracies, mcycle errors (tree, boosting, sklearn forests over 5 seeds), SVM C sweep, PCA, surface statistics, grid values, BO distributions |
 | `sh html_utils/checkpage.sh <page folder>` | fail=0, emdash 0, errbox 1 |
-| `node <page>/src/check/check_controls.mjs <page>/index.html` (from the repo root): every control in 390 px dark and 920 px light, every animation stepped to its end, every lab model and slider extreme, then reduced motion | clean: no errors, no NaN / undefined / Infinity, no sideways scroll, nothing moves before the reader acts |
+| `node <page>/src/check/check_controls.mjs <page>/index.html` (from the repo root): every control in 390 px dark and 920 px light, every animation stepped to its end, every lab model and slider extreme, then reduced motion | clean: no errors, no NaN / undefined / Infinity, no sideways scroll; the 2D step animations play once in view (2026-11-06; inverted from the old never-autoplay assertion), the search widget does not, nothing moves under reduced motion |
+| `node <page>/src/check_stages.mjs [shots dir]` (from the repo root, about 5 minutes) | the four 3D stages and two step animations play on view, step to the end with one list item per step in every mode, stop off screen, never move under reduced motion; the search widget never plays; splits two columns at 1400 px; every step-list number (data-tr, -en, -sv, -pc, -if spans) equals the scenes' data, and against scikit-learn (recompute.json) where it has one |
 | `node check/hero_numbers.mjs` | the hero caption's numbers (`check/hero_numbers.json`) |
 | `python3 html_utils/ledger.py check <page>` | problems 0 |
 
@@ -66,3 +67,44 @@ Why about 25 minutes is right: the page owns ten method families plus the tabula
 209 units: core 147, depth 45, fat 16, owned 1 (ridge and lasso, at Regularisation). 197 were drafted by `ledger.py init` from the old page; 12 were added for the new visuals and for script-hidden or merged material. Fat units carry a `note` (navigation, tab names, fragments, restatements, the old reading-time line). `python3 html_utils/ledger.py check`: problems 0.
 
 - 2026-10-24, topic close: Further reading times set to the targets' headers (root 23 min, plus 1; Loss, Regularisation, Optimisers, Evaluation metrics, Contrastive).
+
+## 2026-11-10: the split layout and four 3D stages (renderer v2)
+The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (after the data, engine and model parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `cml-tab`). Removed: `41_js_rd_ens.js` and `43_js_rd_svm.js` (2D animations replaced by stages); `40_js_rd_tree.js` now draws only the accuracy-against-depth chart.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea (core, you need, terms) | split | hero, 2D (three model shapes) | no |
+| Reading | Method table, map | full width | table | no |
+| Reading | 1 Linear models, naive Bayes | split | static bars, 2D | no |
+| Reading | 2 Decision trees | split | **3D** `stg-tr` (Fig. 1, replaces the 2D depth animation) | yes, 7 |
+| Reading | Depth, bias and variance | split | accuracy against depth, 2D (marker follows Fig. 1) | no |
+| Reading | 3 Ensembles | split | **3D** `stg-en` (Fig. 2, replaces the 2D animation) | yes, 5 / 5 / 4 (forest, boosting, one tree) |
+| Reading | XGBoost, LightGBM, CatBoost | split | level-wise against leaf-wise SVG, 2D | no |
+| Reading | 4 Still winning? | split | leaderboard bars, 2D | no |
+| Reading | 5 SVMs | split | **3D** `stg-sv` (Fig. 3, replaces the 2D C sweep) | yes, 4 / 4 (linear, RBF) |
+| Reading | 6 kNN | split | distance concentration, 2D | no |
+| Reading | 7 Clustering | split | 2D `RD.anim`, four explained steps per method (step 3 plays the middle iterations as one stretch) | yes, 4 x 4 methods |
+| Reading | 8 Anomaly detection | split | 2D `RD.anim` isolation stepper, six explained steps (step 5 plays B's last cuts as a stretch) | yes, 6 |
+| Reading | 9 PCA | split | **3D** `stg-pc` (Fig. 4, new) | yes, 6 |
+| Reading | Scale decides what PCA finds | split | raw against standardised, 2D | no |
+| Reading | t-SNE, UMAP; 10 search table | full width | table | no |
+| Reading | 10 search, the surface | split | 2D widget (no autoplay, no list, opens on the last trial: the long-replay rule, case b) | no |
+| Reading | Mistakes | full width | none | no |
+| Boundary lab | | full width (a reader-driven tool: two panes side by side need the width) | 2D | no |
+| Further reading | | unchanged | | |
+
+**The stages and their data.** Fig. 1 (`36_js_sc_tree.js`): the page's CART trees (identical to scikit-learn's) on the 398 training tumours at depths 0, 1, 2, 3, 4, 6 and no limit; each leaf is a column over its box, height its share of malignant tumours, the tumours ride on their leaves and drop through each new cut. Fig. 2 (`39_js_sc_ens.js`): mcycle; the forest's first six bootstrap trees on plates behind the front plate, streaming into the average; boosting's newest stage (0.3 x a depth-2 tree fitted to the grey residuals) on its plate, streaming into the sum; held-out errors per step from the same fits (tree and boosting equal scikit-learn's). Fig. 3 (`37_js_sc_svm.js`): the SMO fits of the moons at C = 0.01, 0.1, 1, 100, linear and RBF; the decision value as a surface (capped at plus and minus 2.5), the plates f = +1 and f = -1, support vectors lit; the linear mode is seen along its decision line so the slope (the margin) shows. Fig. 4 (`38_js_sc_pca.js`): ML.pca on three standardised wine measurements (flavanoids, total phenols, OD280/OD315, the three heaviest in PC1 of all 13): axes found, the cloud turned by the rotation whose rows are the components, PC3 dropped.
+**Kept 2D:** the hero (decision maps read best flat), naive Bayes bars, the accuracy chart, the leaf-wise SVG, the leaderboard, distance concentration (a curve on a log axis), clustering and the isolation forest (flat point sets, now explained step by step), PCA's 13-feature scree, the search heatmap (a widget), every table, the Boundary lab.
+**Text.** Script-written captions of the old animations became the step lists, their numbers static spans checked against the data; the old per-step caption boxes are gone (live stats stay). The tree's example question now quotes the real first split (0.26, was 0.43); the gain formula wraps onto its own line; the duplicate id `rd-hp` (section and card) is now `rd-hpc` for the card.
+
+### Length judgement
+| | Before (2026-10-24) | After (2026-11-10) |
+|---|---|---|
+| Reading, core (230 words a minute) | 24.6 min (5,654 words) | 31.3 min (7,191 words) |
+| Reading, closed details | 7.8 min (1,785) | 7.8 min (1,785) |
+| Boundary lab / Further reading | 1.7 / 2.4 min | unchanged |
+| Visuals counted in Reading (audit) | 15 | 16 |
+The 1,537 added words are the twelve step lists (1,582 words). Six of them are alternative modes a reader sees one at a time (586 words), so a reader of one mode per figure reads about 29 minutes; and most list text is not new: the old animations wrote the same explanations by script, which the audit never counted. Genuinely new: Fig. 4's six PCA steps and the tree's per-depth numbers. Every remaining core unit belongs to one of the ten method families this page owns.
+
+### Ledger
+209 units unchanged (core 147, depth 45, fat 16, owned 1), problems 0; no key needed re-keying (the reworded captions kept their keyed phrases).

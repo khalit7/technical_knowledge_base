@@ -30,3 +30,14 @@ Scored with the Methodology (.claude/skills/explainer-page/visuals/choosing.md s
 Inspiration: scikit-learn's "classifier comparison" and "cluster comparison" galleries (made exact and interactive here), TensorFlow Playground, the DeepSeek MLA explainer's step controller (reused via RD.anim), Bergstra and Bengio's Figure 1.
 
 What the methodology lacked for this page: a rule for live leaderboards that change weekly (here: read the CSVs on a date, store them, show version and date beside every number, and flag licence and conflict-of-interest metadata), and a rule for when exactness against a reference library is worth reproducing its random number generator (done for trees, where tie-breaking changes the picture; not for the forest, checked in distribution).
+
+## 2026-11-10: the layout rollout (split layout, 3D stages v2)
+| # | Visual | Decision |
+|---|---|---|
+| CM20 | **Fig. 1, a tree grown depth by depth in 3D**: the feature plane cut into axis-aligned boxes, each leaf a column as tall as its share of malignant tumours, the tumours riding on their leaves | built, replaces the 2D depth animation (CM2); the accuracy-against-depth chart stays 2D beside the next paragraph |
+| CM21 | **Fig. 2, one tree, a forest and boosting with the trees in depth**: the forest's trees on plates behind the front one, streaming into the average; boosting's newest stage on its plate, streaming into the sum | built, replaces the 2D ensemble animation; the 2D version drew up to 12 trees on top of each other |
+| CM22 | **Fig. 3, the SVM score as a height**: the decision value as a surface, the plates f = +1 and f = -1 (the margin), support vectors lit, linear against RBF as C grows | built, replaces the 2D C sweep; the slope of the linear plane is the margin |
+| CM23 | **Fig. 4, PCA on three wine measurements**: the principal axes found one by one, the cloud turned onto them, PC3 dropped | built; the 13-feature raw against standardised card (CM9) stays 2D (a scree is a bar chart) |
+| CM24 | Kernel lift of circles into x1² + x2² so a plane separates them | rejected for now: Fig. 3's score surface already shows a kernel bending the boundary, with the page's real fits; a second SVM stage would repeat the section |
+| CM25 | Search surface (C, gamma) as a 3D height field | rejected: a heatmap reads better flat, and the figure is a widget the reader drives |
+| CM26 | Clustering, isolation forest and distance concentration in 3D | rejected: flat point sets and a curve on a log axis; kept 2D, with step lists for the two animations |

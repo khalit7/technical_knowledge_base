@@ -34,11 +34,12 @@
     const k=Math.round(Math.pow(s.B,1/(2+s.idle))),gi=gridIdx(k),gj=[...Array(k)].map((_,t)=>Math.round(t*(n2-1)/(k-1)));let gb=0;gi.forEach(i=>gj.forEach(j=>gb=Math.max(gb,A[i][j])));
     const bo=CD.bo[String(s.B)];
     $('rd-hpR').innerHTML='<b>Same budget, many runs:</b> grid '+RD.pct(gb,2)+' (always the same); random search median '+RD.pct(rs[250],2)+', 1 run in 10 below '+RD.pct(rs[50],2)+' (500 runs)'+(bo?'; Bayesian optimisation median '+RD.pct(bo[Math.floor(bo.length/2)],2)+', worst '+RD.pct(bo[0],2)+' (40 runs)':'')+'. Best cell on the surface: '+RD.pct(Math.max(...flat),2)+'. The cross-validation estimate itself has a standard error of about 0.2 points (&radic;(0.99 &times; 0.01 / 1,797)), so differences smaller than that are noise.'}
-  const An=RD.anim({card:'rd-hp',ctl:'rd-hpC',n:SC[0].B+1,draw,ms:650,label:'Trial'});
-  function restart(play){trials=null;trials=plan();An.reset(SC[sc].B+1);summary()}
-  $('rd-hpM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('rd-hpM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));restart(true)});
-  $('rd-hpS').addEventListener('change',e=>{sc=+e.target.value;restart(true)});
-  $('rd-hpNew').addEventListener('click',()=>{seed++;restart(true)});
-  restart(false);
+  // a widget the reader drives (the long-replay rule, case b): no autoplay, no step list; it opens on the last trial, the outcome of the run
+  const An=RD.anim({card:'rd-hpc',ctl:'rd-hpC',n:SC[0].B+1,draw,ms:650,label:'Trial',auto:false,start:SC[0].B});
+  function restart(){trials=null;trials=plan();An.reset(SC[sc].B+1);An.go(SC[sc].B,true);summary()}
+  $('rd-hpM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;$('rd-hpM').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));restart()});
+  $('rd-hpS').addEventListener('change',e=>{sc=+e.target.value;restart()});
+  $('rd-hpNew').addEventListener('click',()=>{seed++;restart()});
+  restart();
   let rz=0;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(!document.getElementById('t-read').hidden)An.redraw()},200)});
 })();
