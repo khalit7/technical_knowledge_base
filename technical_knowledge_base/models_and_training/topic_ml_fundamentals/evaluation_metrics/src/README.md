@@ -27,12 +27,13 @@ Python environments: `uv run --with scikit-learn --with pandas --with pyarrow` (
 ## Checks
 
 - `node check_core.mjs` (from `src/`): the page's metric engine `parts/31_js_core.js` against `recompute.json` and the libraries: 1,124 checks, 0 mismatches; 150 of 150 random text pairs match on BLEU, chrF, ROUGE-1/2/L and METEOR.
-- `node <page>/src/shot_parts.mjs` (from the repo root): screenshots of every Reading visual in both themes and widths into `../.shots/`, every control exercised (every animation step of every mode, hero buttons and slider extremes, the regression and k sliders, odd custom text), and a normal-motion pass that scrolls past every animation and confirms nothing plays: no errors, no NaN, no autoplay.
+- `node <page>/src/shot_parts.mjs` (from the repo root): screenshots of every Reading visual in both themes and widths into `../.shots/`, every control exercised (every 2D animation step of every mode, hero buttons and slider extremes, the regression and k sliders, the perplexity texts, odd custom text), and a normal-motion pass that scrolls to each 2D animation and confirms it plays (inverted from the old never-autoplay check, 2026-11-10): no errors, no NaN.
+- `node <page>/src/check_stages.mjs [shots dir]` (from the repo root, about 4 minutes): the rollout checks, see the 2026-11-10 section.
 - `sh html_utils/checkpage.sh <page folder>`: fail=0, emdash 0, errbox 1.
 
 ## Parts
 
-`01_head.html` (CSS shared with the root, plus this page's), `10_header.html`, `20_read_a.html` (styles, nav, top, sections 1 to 4) / `20_read_b.html` (sections 5 to 10), `59_tab_more.html`; JS: `21_js_rd_common.js` (the skill template: `RD.anim` never autoplays), `22_js_rd_fmt.js` (this page's number formats), `30_js_data.js` (generated), `31_js_core.js` (metric engine `MX`), `40_js_rd_basic.js` (inline numbers, accuracy trap, averaging, paraphrase chart, bootstrap), `41_js_rd_cal.js` (calibration stepper), `42_js_rd_text.js` (five-scorer stepper), `43_js_rd_ppl.js` (perplexity, opens on its last step), `44_js_rd_rp.js` (ROC and PR, all against rare), `45_js_rd_reg.js` (regression slider), `46_js_rd_rank.js` (k slider), `51_js_thr.js` (the hero, ids `th-`), `53_js_text.js` (own-sentences editor and presets table, ids `tx-`), `99_js_tabs.js` (template, key `evm-tab`) last.
+`01_head.html` (CSS shared with the root, plus this page's), `02_split.html` (template), `10_header.html`, `20_read_a.html` (styles, nav, top, sections 1 to 4) / `20_read_b.html` (sections 5 to 10), `59_tab_more.html`; JS: `21_js_rd_common.js` (the skill template: `RD.anim` autoplays on view, with step lists), `22_js_rd_fmt.js` (this page's number formats), `30_js_data.js` (generated), `31_js_core.js` (metric engine `MX`), `40_js_rd_basic.js` (inline numbers, accuracy trap, averaging, paraphrase chart, bootstrap), `41_js_rd_cal.js` (calibration stepper), `42_js_rd_text.js` (five-scorer stepper), `44_js_rd_rp.js` (ROC and PR, all against rare), `45_js_rd_reg.js` (regression slider), `46_js_rd_rank.js` (k slider), `51_js_thr.js` (the hero, ids `th-`), `53_js_text.js` (own-sentences editor and presets table, ids `tx-`), `25_js_s3.js` (template, renderer v2), `35_js_sc_thr.js`, `36_js_sc_rank.js`, `37_js_sc_ppl.js` (the three 3D scenes), `99_js_tabs.js` (template, key `evm-tab`) last. `43_js_rd_ppl.js` (the 2D token-by-token perplexity stepper) was removed on 2026-11-10: Fig. 3 replaces it.
 
 ## The 2026-10-24 rebuild: what changed and why
 - **Top**: the core sentence (one threshold, every threshold, the probabilities; each blind to what it leaves out) and a hero that is the old Threshold lab moved inline: a threshold slider on the real SST-2 scores moving one point along ROC and PR, with the confusion matrix, every ratio and a prediction prompt whose answer (ROC dot +0.23, precision dot -0.52 for the same 97 false alarms) is printed under it. The sentence browser is a closed block; the lab's reliability panel was dropped because section 3 draws reliability for all three models. The "In one screen" table is a closed reference block, with rows added for regression and ranking.
@@ -65,3 +66,42 @@ Departures from the method: none of substance. The page is about 273 KB, of whic
 
 ## 2026-10-26 absorb
 Section 6 now defines hit@k (success@k, and recall@k in some dense-retrieval papers) and when it equals recall@k, absorbed from RAG and retrieval evaluation, which keeps one sentence plus a link.
+
+## 2026-11-10: the split layout and three 3D stages (renderer v2)
+The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (after the data, engine and 2D parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `evm-tab`).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea (core, terms, reference table) | split | hero, 2D widget (threshold explorer) | no (reader-driven) |
+| Reading | 1 Classification at a threshold | split | **3D** `stg-thr` (Fig. 1, new) | yes, 6 |
+| Reading | 2 ROC and PR | split | 2D chart (all against rare) | no |
+| Reading | 3 Calibration | split | 2D animation `rd-cal` | yes, 6 (the old script captions) |
+| Reading | 4 Many classes | split | 2D widget (averaging toggle) | no |
+| Reading | 5 Regression | split | 2D widget (one slider) | no |
+| Reading | 6 Ranked lists | split | **3D** `stg-rk` (Fig. 2, new) | yes, 6 |
+| Reading | 6, every k | split | 2D widget (k slider) | no |
+| Reading | 7 Text overlap: table, BLEU notes, correction | full width | table | no |
+| Reading | 7, the five scorers | split | 2D animation `rd-tx` | yes, 8 / 3 / 5 / 3 / 5 (one list per scorer) |
+| Reading | 7, paraphrase against negation | split | 2D bars | no |
+| Reading | 7, your own sentences | split | editor (lab) | no |
+| Reading | 7, presets, NLTK details, status | full width | closed tables | no |
+| Reading | 8 Perplexity | split | **3D** `stg-px` (Fig. 3, replaces the 2D token stepper) | yes, 6 (four texts) |
+| Reading | 9 Embeddings, judges; 10 Error bars | full width | none (the bootstrap widget stays closed) | no |
+| Further reading | | unchanged | | |
+
+**The stages and their data.** Fig. 1 (`35_js_sc_thr.js`): the logistic regression's 872 SST-2 validation probabilities as two rows of columns (0.025 bins; front the 444 positives, back the 428 negatives), a glass threshold plane, the four confusion-matrix cells as stacks with flows from each side of each row; six steps: 0.5, the best-MCC threshold (0.79, found as in the accuracy-trap table), rare positives (`MX.sst(true)`), always negative, the best threshold again. A bin the plane cuts is drawn as two columns so the counts are exact. Fig. 2 (`36_js_sc_rank.js`): the illustrative list of `rank_example.py`, cut at k = 5, the first hit, precision at each hit, the log discount shrinking the columns into a DCG tower, the ideal order and its tower. Fig. 3 (`37_js_sc_ppl.js`): the real per-token log-probabilities of `data_ppl.py`, one row per tokenizer, each token a column as wide as its bytes and as tall as its bits per byte; side columns for bits per token (log2 of perplexity) and bits per byte; the four texts are a mode toggle that rewrites the step list's numbers and replays. Every number in the three step lists is a static `data-tc`, `data-rk` or `data-px` span written by the scene from the data; `check_stages.mjs` compares them with the static page and recomputes a few with `MX`.
+**Kept 2D:** the hero (a reader-driven explorer with two curves, a histogram and a matrix: flat reads best), ROC and PR (curves), the reliability diagram and its dots (a calibration plot), the glass averaging bars and matrix, the regression scatter (a scatter), the k slider (kept as the reader-driven companion of Fig. 2), the five scorers (token chips and a similarity heatmap), the paraphrase bars, the editor, and the bootstrap histogram.
+**Text.** The calibration and five-scorer captions (script-written before, so invisible to the audit and the ledger) are now static step lists; the scorer animation keeps a one-line live caption with this candidate's numbers only. Section 7 is split into five sections (`rd-s7` to `rd-s7e`) so each visual sits beside its paragraph. The accuracy-trap caption's repeated numbers were dropped (Fig. 1 and the table carry them).
+**Phones:** under 520 px the three stages turn the camera to a side view (theta about 0.7) so the wide scenes fill the card, and labels that would be grouped on wide screens are drawn ungrouped (grouped labels hide on phones).
+
+### Length judgement
+| | Before (2026-10-24) | After (2026-11-10) |
+|---|---|---|
+| Reading, core (230 words a minute) | 22.2 min (5,105 words) | 28.6 min (6,572 words) |
+| Reading, closed details | 6.7 min (1,551 words) | 6.7 min (1,551 words) |
+| Further reading | 3.0 min | unchanged |
+| Visuals counted in Reading (audit) | 12 | 14 |
+The step lists are 1,630 words. About 860 of them are not new: the calibration and five-scorer captions were drawn by script before, so the audit never counted them; and four of the five scorer lists (421 words) are alternative modes, of which a reader sees one. Genuinely new: the three figures' lists (773 words), which give the threshold, ranked-list and perplexity sections the pictures they lacked, minus the perplexity "Try" paragraph and the trap caption's numbers. A reader of one scorer reads about 27 minutes. The length is right: every remaining core unit is needed for one of the page's ten sections.
+
+### Ledger
+243 units: core 196, depth 27, owned 2, fat 18, problems 0. Re-keyed two units whose sentences moved into Fig. 1 ("higher than the classifier's", "doubles MCC"); ten units added for the stages' findings and the step lists that used to be script text.

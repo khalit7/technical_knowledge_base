@@ -1,4 +1,4 @@
-// ---- Reading, section 3: calibrating naive Bayes, before and after (real SST-2 predictions) ----
+// ---- Reading, section 3: calibrating naive Bayes, before and after (real SST-2 predictions); the steps are explained by the step list sx-cal ----
 (function(){
   const $=id=>document.getElementById(id),F=RD.f;if(!$('rd-cal'))return;
   const {Y,P}=window.SST,n=Y.length;
@@ -7,12 +7,12 @@
   const stats=m=>{const p=P[m];return {acc:MX.rates(MX.confusion(Y,p,.5)).acc,auc:MX.auc(Y,p),brier:MX.brier(Y,p),ll:MX.logloss(Y,p),rel:MX.reliability(Y,p)}};
   const S={nb:stats('nb'),nbc:stats('nbc'),lr:stats('lr')};
   const steps=[
-    {m:'nb',bins:false,gap:false,t:'Naive Bayes, as trained',d:'Each dot is one of the 872 validation sentences, placed at the probability of "positive" the model gives it; blue dots are positive reviews, orange negative. Most dots sit at the two edges: the model is almost always nearly certain.'},
-    {m:'nb',bins:true,gap:false,t:'Bin by confidence',d:'Cut the probability axis into 10 equal bins. Below, each bin\'s green bar is the share of its sentences that really are positive; a calibrated model\'s bars would reach the diagonal.'},
-    {m:'nb',bins:true,gap:true,t:'The gaps are the calibration error',d:'Sentences given about 0.98 are positive far less often than 98% of the time, and those given 0.02 far more often than 2%. ECE is the gap per bin weighted by the bin\'s share of sentences.'},
-    {m:'nbc',bins:false,gap:false,t:'Isotonic calibration moves every dot',d:'A monotone step function, fitted on cross-validated training predictions, maps each probability to the observed frequency for scores like it. Order is kept, so the ranking (ROC-AUC) barely moves; the dots leave the edges.'},
-    {m:'nbc',bins:true,gap:true,t:'Re-binned: much closer, not perfect',d:'ECE falls from 0.135 to 0.076, log-loss from 0.85 to 0.45, the Brier score from 0.157 to 0.142; accuracy moves by half a point because a few sentences cross 0.5. The top bins are still overconfident: the map was fitted on training phrases, many of them short fragments, and these are full sentences, so calibration learned on one distribution only partly transfers to another.'},
-    {m:'lr',bins:true,gap:true,t:'For reference: logistic regression',d:'Trained by minimising log-loss, logistic regression is close to calibrated without any correction, and has the best Brier score of the three while being the least accurate at 0.5.'}];
+    {m:'nb',bins:false,gap:false},
+    {m:'nb',bins:true,gap:false},
+    {m:'nb',bins:true,gap:true},
+    {m:'nbc',bins:false,gap:false},
+    {m:'nbc',bins:true,gap:true},
+    {m:'lr',bins:true,gap:true}];
   let built=0,W0=0;
   function build(){const box=$('rd-calSvg'),W=RD.width(box);W0=W;const ml=34,mr=10,sh=150,rh=170,H=sh+rh+40;
     const x=v=>ml+(W-ml-mr)*v;
@@ -36,10 +36,9 @@
       if(st.gap)r+='<line x1="'+(x0+w/2)+'" x2="'+(x0+w/2)+'" y1="'+g.ry(bn.frac)+'" y2="'+g.ry(bn.conf)+'" stroke="var(--bad)" stroke-width="3"/><circle cx="'+(x0+w/2)+'" cy="'+g.ry(bn.conf)+'" r="3" fill="var(--bad)"/>';
       r+='<text x="'+(x0+w/2)+'" y="'+(g.ry(0)-3)+'" font-size="9" text-anchor="middle" fill="var(--bg)">'+(w>18?bn.n:'')+'</text>'})}
     box.querySelector('#rd-calRel').innerHTML=r;
-    $('rd-calT').textContent=(k+1)+' / '+steps.length+' · '+st.t;$('rd-calP').textContent=st.d;
     const s=S[st.m],nm={nb:'Naive Bayes',nbc:'Naive Bayes + isotonic',lr:'Logistic regression'}[st.m];
     $('rd-calN').innerHTML=RD.stat('Model',nm,'872 sentences')+RD.stat('Accuracy at 0.5',RD.pct(s.acc),'decisions')+RD.stat('ROC-AUC',F(s.auc,3),'ranking')+RD.stat('Log-loss',F(s.ll,3),'lower is better')+RD.stat('Brier',F(s.brier,3),'lower is better')+RD.stat('ECE, 10 bins',st.bins?F(s.rel.ece,3):'bin first','lower is better');
   }
-  RD.anim({card:'rd-cal',ctl:'rd-calC',n:steps.length,draw,ms:2600,label:'Calibration step'});
+  RD.anim({card:'rd-cal',ctl:'rd-calC',n:steps.length,draw,ms:4600,label:'Calibration step',list:'sx-cal'});
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{built=0;const sc=document.getElementById('rd-calC-s');draw(sc?+sc.value:0)},150)});
 })();
