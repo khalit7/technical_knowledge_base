@@ -53,6 +53,6 @@
   }
   $('smC').addEventListener('click',e=>{const c=e.target.closest('[data-s]');if(!c)return;sel=c.dataset.s;draw()});
   ['smM','smR','smH'].forEach(id=>$(id).addEventListener('change',()=>draw()));
-  const AN=RD.anim({card:'sm',ctl:'smA',n:Q.length,start:Q.length-1,ms:900,label:'Quarter',draw:i=>draw(i)});
+  const AN=RD.anim({card:'sm',ctl:'smA',auto:false,n:Q.length,start:Q.length-1,ms:900,label:'Quarter',draw:i=>draw(i)});
   reg(()=>AN.redraw());addEventListener('resize',()=>{if($('sm').offsetParent)AN.redraw()});
 })();

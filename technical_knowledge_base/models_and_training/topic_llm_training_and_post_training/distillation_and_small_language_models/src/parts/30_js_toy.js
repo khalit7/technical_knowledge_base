@@ -76,7 +76,7 @@
     $('twCt').textContent=c===0?'Step 0: random weights':c===CK[CK.length-1]?'End of training, step '+PF.comma(c):'Step '+PF.comma(c);
     $('twCp').textContent=c===0?'Before any training the student writes nonsense: random nodes, usually not even neighbours.':c===CK[CK.length-1]?(nOk===rs.length?'Every sampled route is correct. ':'Still '+(rs.length-nOk)+' wrong of '+rs.length+'. ')+'The teacher found '+new Set(trs.filter(x=>okW(x[1])).map(x=>x[0].join(','))).size+' distinct correct routes in its 8 samples; this student found '+nD+'.':'Partly trained: '+nOk+' of 8 correct.';
   }
-  const AN=RD.anim({card:'tw',ctl:'twC',n:CK.length,ms:1500,label:'Checkpoint',draw:wdraw});
+  const AN=RD.anim({card:'tw',ctl:'twC',auto:false,n:CK.length,ms:1500,label:'Checkpoint',draw:wdraw});
   ['twP','twM'].forEach(id=>$(id).addEventListener('change',()=>AN.redraw()));
   reg(()=>{draw();reasons();AN.redraw()});
   addEventListener('resize',()=>{if($('ty').offsetParent){draw();AN.redraw()}});

@@ -44,3 +44,12 @@ Thinking Machines' post (its per-token grading illustration), GKD's Figure 1 (me
 | 15 | **Width against depth pruning to scale** (Llama 3.1 8B, Llama-3.1-Minitron-4B-Width and -Depth, shapes from arXiv 2408.11796, derived parameter counts, prediction prompt) | Reading, Prune then distil | built (`27_js_pr.js`); the mechanism had no visual |
 | 16 | Recipe table of eight small models (start, tokens, teacher and channel) | Reading, What makes a good small model | built (static table) |
 | 17 | Moving the toy tab's checkpoint before/after into Reading | none | rejected: the whose-text stepper already shows the mechanism inline; the checkpoint view serves the seven-method lab |
+
+## 2026-11-10 rollout (split layout, renderer v2 stages)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 18 | **Fig. 1, soft targets in 3D**: the real Qwen2.5-0.5B logits (front), a softmax glass plate, the probabilities and the 151,929-token tail (back) at T = 1, the hard label, T = 2 and T = 4; prompt chips replay, a temperature slider takes over | Reading, Soft targets | built (`28_js_sc_dk.js`); replaces the 2D bar widget `22_js_dk.js` |
+| 19 | **Fig. 2, forward against reverse KL in 3D**: teacher, forward-KL and reverse-KL students as three rows of 40 columns, each fit's 40 gradient steps played inside one step, streams showing which mass pulls | Reading, Forward or reverse KL | built (`28_js_sc_kl.js`); replaces the 41-frame 2D animation `23_js_kl.js` (one step per frame broke the long-replay rule) |
+| 20 | **Fig. 3, whose text in 3D**: the toy graph on the floor, the teacher's route and the student's own as streams, the teacher's distribution standing on the candidate nodes, reverse-KL columns on every student move | Reading, Whose text | built (`28_js_sc_fl.js`); replaces the three-mode 2D stepper `24_js_fl.js` (per-position bars for SFT and logit KD are now one close-up step) |
+| 21 | **Fig. 4, prune then distil in 3D**: three stacks of layer slabs to scale (8B, 4B-Width, 4B-Depth), calibration streams, healing streams | Reading, Prune then distil | built (`28_js_sc_pr.js`); replaces the 2D toggle `27_js_pr.js` |
+| 22 | Hero, toy results table, R1 / Qwen3 bars, token budgets on a log axis in 3D | none | kept 2D: a comparison of three short distributions, a table, grouped bars and a log axis read best flat |

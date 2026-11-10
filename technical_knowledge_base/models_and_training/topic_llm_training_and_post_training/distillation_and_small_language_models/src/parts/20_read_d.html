@@ -1,18 +1,22 @@
+<div class="s3sp"><div class="s3R"><div id="stg-pr"></div></div><div class="s3L">
 <section id="s-prune">
 <h2>Prune, then distil</h2>
 <p>Pruning starts the student from the teacher's own weights instead of random ones, so it has far less to learn. NVIDIA's Minitron recipe ranks every attention head, MLP channel, embedding dimension and layer by its effect on activations over a small calibration set (1,024 samples), cuts the least important to the target size in one shot, then heals the result with forward-KL logit distillation from the unpruned model. Its best practices: prefer width pruning to depth pruning, and "train the largest one and prune+distill iteratively to smaller LLMs" ({{Minitron, §4.1|https://arxiv.org/html/2407.14679}}).</p>
-<p class="try"><b>Predict, then switch:</b> width and depth pruning both take Llama 3.1 8B to about 4.5B parameters. Which one keeps more of the model's quality after the same 94B tokens of distillation?</p>
-<div class="card" id="pr">
-<div class="seg2" id="prM" role="group" aria-label="Model"><button data-m="t" class="on">Llama 3.1 8B (teacher)</button><button data-m="w">4B-Width</button><button data-m="d">4B-Depth</button></div>
-<div class="plotbox ch" id="prSvg"></div>
-<div class="out" id="prN"></div>
-<p class="small" id="prCap"></p>
-<p class="small mute">Shapes from {{LLM Pruning and Distillation in Practice (Minitron approach)|https://arxiv.org/html/2408.11796}}: width pruning cuts the hidden size 4096 → 3072 and the MLP 14336 → 9216 and keeps all 32 layers and the attention heads (32 query heads, 8 key-value groups, head size 128); depth pruning drops 32 → 16 layers and keeps every width. Drawn to scale: each column is one layer, its height the hidden size (lower block) plus the MLP width (upper block). Parameter counts are <i class="nl d">derived</i>: per layer 2·h·4096 (query, output) + 2·h·1024 (key, value) + 3·h·m (MLP), plus untied input and output embeddings 2 × 128,256 × h (Llama 3.1's vocabulary); norms ignored. The teacher's total, 8.03B, matches its name. Answer to the prediction: "the width-pruned Llama variant outperforms the depth-pruned one" (Table 1).</p>
-</div>
-<p>The headline is the token budget. Each bar below is the tokens used to make the student, against the tokens its teacher (or the paper's comparison model) was trained on; tap a bar for its recipe and arithmetic. The axis is logarithmic.</p>
-<div class="card" id="bd"><div id="bdSvg" class="plotbox ch"></div>
-<div class="lg"><span><i style="background:var(--dim)"></i>teacher's own pretraining tokens</span><span><i style="background:var(--c1)"></i>tokens used to make the student</span><span><i style="background:var(--c5)"></i>teacher correction (fine-tuning the teacher first)</span><span><i style="background:var(--c3)"></i>no distillation</span></div>
-<div class="sm-det" id="bdD" aria-live="polite"></div></div>
+<p class="try"><b>Predict, then watch:</b> width and depth pruning both take Llama 3.1 8B to about 4.5B parameters. Which one keeps more of the model's quality after the same 94B tokens of distillation?</p>
+<ol class="sx" id="sx-pr">
+<li><b>The teacher.</b> Llama 3.1 8B: 32 layers (one slab each; height the MLP width, 14,336, depth the hidden size, 4,096) and untied input and output embeddings (the glass plate): <span data-pr="t">8.03B</span> parameters.</li>
+<li><b>Rank everything.</b> 1,024 calibration samples flow through the stack; every attention head, MLP channel, hidden dimension and layer is scored by its effect on the activations.</li>
+<li><b>Width pruning.</b> Keep all 32 layers and trim each one: hidden 4096 → 3072, MLP 14336 → 9216, the embeddings shrinking with the hidden size: <span data-pr="w">4.51B</span>.</li>
+<li><b>Depth pruning.</b> Keep every width and drop 16 of the 32 layers (the dashed outline is the teacher's length): <span data-pr="d">4.54B</span>.</li>
+<li><b>Heal by distillation.</b> Both students learn the unpruned teacher's logits (forward KL, the streams) for the same 94B tokens. Width won: "the width-pruned Llama variant outperforms the depth-pruned one" (Table 1).</li>
+</ol>
+<p class="small mute">Shapes from {{LLM Pruning and Distillation in Practice (Minitron approach)|https://arxiv.org/html/2408.11796}}: width pruning cuts the hidden size 4096 → 3072 and the MLP 14336 → 9216 and keeps all 32 layers and the attention heads (32 query heads, 8 key-value groups, head size 128); depth pruning drops 32 → 16 layers and keeps every width. Fig. 4 is drawn to scale. Parameter counts are <i class="nl d">derived</i>: per layer 2·h·4096 (query, output) + 2·h·1024 (key, value) + 3·h·m (MLP), plus untied input and output embeddings 2 × 128,256 × h (Llama 3.1's vocabulary); norms ignored. The teacher's total, 8.03B, matches its name. Which 16 layers the depth-pruned model kept is not in the extracts this page works from, so Fig. 4 does not say.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="s-prune2">
+<p>The headline is the token budget. Each bar in the chart is the tokens used to make the student, against the tokens its teacher (or the paper's comparison model) was trained on; tap a bar for its recipe and arithmetic. The axis is logarithmic.</p>
+
 <ul class="tight">
 <li><b>The headline ratios use different baselines.</b> Llama-3.1-Minitron 4B's "150x" (94B against its teacher's 15T, 159.6 <i class="nl d">derived</i>) leaves out the roughly 100B tokens spent first fine-tuning the teacher on the distillation data ("teacher correction"): counted in, 77 times. Minitron 8B's "40x" is against Nemotron-3 8B, a different model trained from scratch on 3.8T tokens (3,800 / 94 = 40.4 <i class="nl d">derived</i>); against its own teacher's 8T it would be 85.</li>
 <li><b>Distillation without pruning works for all of pretraining.</b> Gemma 2's 2B and 9B were trained on 2T and 8T tokens of teacher distributions, "more than 50×" the compute-optimal amount; in the ablation, a 2B on 500B tokens scored 60.3 from scratch and 67.7 distilled from a 7B teacher (Table 6), and the gain held from 200M to 1B parameters (Table 7) ({{Gemma 2|https://arxiv.org/html/2408.00118}}). Gemma 3 distilled every size, 1B to 27B, on 2T to 14T tokens ({{Gemma 3|https://arxiv.org/html/2503.19786}}).</li>
@@ -28,6 +32,10 @@
 <p class="repro"><b>Defaults reproduce</b> Minitron's 40x and 1.8x, the Llama-3.1-Minitron 150x (as 159.6, which the paper rounds down) and MN-Minitron's 40x independently from the papers' token counts. Gemma 2's "more than 50x" <b>does not reproduce</b> exactly: by 20 tokens per non-embedding parameter it is 49.4 and 48.1 times <i class="nl d">derived</i>, so the report's rule is not stated.</p>
 </div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="bd"><div id="bdSvg" class="plotbox ch"></div>
+<div class="lg"><span><i style="background:var(--dim)"></i>teacher's own pretraining tokens</span><span><i style="background:var(--c1)"></i>tokens used to make the student</span><span><i style="background:var(--c5)"></i>teacher correction (fine-tuning the teacher first)</span><span><i style="background:var(--c3)"></i>no distillation</span></div>
+<div class="sm-det" id="bdD" aria-live="polite"></div></div></div></div></div>
 
 <section id="s-land">
 <h2>What makes a good small model</h2>

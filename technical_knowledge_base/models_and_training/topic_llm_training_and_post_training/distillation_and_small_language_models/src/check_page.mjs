@@ -1,4 +1,4 @@
-// Exercise every control of the page and screenshot each card, in light at 920 px and dark at 390 px.
+// Exercise every control of the page and screenshot each card, in light at 920 px and dark at 390 px (reduced motion; updated 2026-11-10 for the four 3D stages).
 // usage (from the repo root): node <page folder>/src/check_page.mjs
 // Reports script errors, the error box, NaN / undefined / Infinity in visible text, and sideways scroll.
 import { createRequire } from 'node:module';
@@ -27,17 +27,17 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const shot = async (id) => { const e = await p.$('#' + id); if (e) await e.screenshot({ path: `${shots}/card-${id}-${scheme}-${width}.png` }) };
   // Reading
   await tab('t-read');
-  for (const c of await p.$$('#dkP button')) { await c.click(); await range('dkT', [-2, -1, 0, 1, 2, 3]); }
-  await range('dkT', [1]); await range('dkK', [5, 25, 12]); await shot('dk');
-  for (const m of ['f', 'r', 'b']) { await p.click(`#klM button[data-m=${m}]`); await stepAll('klC') }
-  await range('klW', [0.2, 0.8, 0.6]); await range('klS', [4, 36, 16]); await stepAll('klC'); await shot('kl');
-  for (const m of ['sft', 'fkl', 'rkl']) { await p.click(`#flM button[data-m=${m}]`); await stepAll('flC'); await p.click('#flC-b'); await wait(30); await shot('fl') }
-  await p.click('#flM button[data-m=rkl]'); for (let i = 0; i < 4; i++) { await p.click('#flC-f'); await wait(20) } await shot('fl');
+  // the four 3D stages: step each to its end (check_stages.mjs checks autoplay, step lists and the numbers)
+  const stepStage = async id => { const n = await p.$eval(`#${id}-r`, e => +e.max); for (let i = 0; i <= n; i++) { await p.click(`#${id}-f`); await wait(40) } };
+  for (const c of await p.$$('#dkP button')) { await c.click(); await stepStage('stg-dk'); await range('dkT', [-2, -1, 0, 1, 2, 3]); }
+  await range('dkT', [0]); await shot('stg-dk');
+  await range('klW', [0.2, 0.8, 0.6]); await range('klS', [4, 36, 22]); await stepStage('stg-kl'); await shot('stg-kl');
+  await stepStage('stg-fl'); await shot('stg-fl'); await stepStage('stg-pr'); await shot('stg-pr');
   await shot('ts');
   await clickAll('#rlM button'); await shot('rl');
   for (let i = 0; i < 9; i++) { await p.evaluate(i => { const r = document.querySelector('#bdSvg rect[data-i="' + i + '"]'); if (r) r.dispatchEvent(new MouseEvent('click', { bubbles: true })) }, i); await wait(30) } await shot('bd');
   await clickAll('#hp .opts button'); await shot('hp'); await shot('tk');
-  await shot('hero'); for (const m of ['w', 'd', 't', 'w']) { await p.click(`#prM button[data-m=${m}]`); await wait(40) } await shot('pr');
+  await shot('hero');
   // Toy
   await tab('t-toy');
   for (const m of ['1', '2', '3', '4', '5']) { await p.select('#tyM', m); for (const x of ['0', '10']) { await p.select('#tyX', x); for (const d of ['m', 'a']) { await p.select('#tyD', d); await wait(30) } } }
@@ -65,12 +65,12 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   console.log(scheme, width, errs.length ? JSON.stringify([...new Set(errs.map(e => e.replace(/\("[^)]*\)/g, '(..)')))], null, 1) : 'ok'); bad += errs.length;
   await p.close();
 }
-// no animation may move before the reader acts (normal motion, every card scrolled into view)
-{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + file); await p.click('button[data-t=t-read]');
-  for (const c of ['kl', 'fl']) { await p.$eval('#' + c, e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 2500)) }
-  const moved = await p.$$eval('#klC-s,#flC-s', es => es.filter(e => +e.value !== 0).map(e => e.id));
-  for (const m of ['r', 'b']) { await p.click(`#klM button[data-m=${m}]`) } await new Promise(r => setTimeout(r, 1500));
-  const moved2 = await p.$eval('#klC-s', e => +e.value);
-  console.log('autoplay', moved.length || moved2 ? 'MOVED ' + moved.join(',') + ' ' + moved2 : 'none'); if (moved.length || moved2) bad++; await p.close() }
+// motion (2026-11-06): the Reading stages play by themselves once in view (checked in check_stages.mjs); the two tab replays are widgets and never do
+{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + file);
+  const moved = [];
+  for (const [t, c, ctl] of [['t-toy', 'tw', 'twC'], ['t-small', 'sm', 'smA']]) { await p.click(`button[data-t=${t}]`); await p.$eval('#' + c, e => e.scrollIntoView()); const v0 = await p.$eval(`#${ctl}-s`, e => +e.value); await new Promise(r => setTimeout(r, 2500)); if (await p.$eval(`#${ctl}-s`, e => +e.value) !== v0) moved.push(c) }
+  await p.click('button[data-t=t-read]'); await p.$eval('#stg-kl', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+  const played = await p.$eval('#stg-kl', e => +e.dataset.frames || 0);
+  console.log('widgets moved', moved.length ? moved.join(',') : 'none', '· stage played', played > 0); if (moved.length || !played) bad++; await p.close() }
 await b.close();
 process.exit(bad ? 1 : 0);
