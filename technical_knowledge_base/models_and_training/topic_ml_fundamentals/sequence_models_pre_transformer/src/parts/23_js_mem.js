@@ -1,4 +1,4 @@
-// ---- Reading: one sequence through an LSTM gate by gate, against a GRU and a plain RNN (trained weights) ----
+// ---- Reading: one sequence through an LSTM gate by gate, against a GRU and a plain RNN (trained weights); a widget beside the GRU section ----
 (function(){
   const $=id=>document.getElementById(id);
   if(!$('mm'))return;
@@ -9,7 +9,7 @@
   const ROWS={lstm:[['f','forget gate f',0],['i','input gate i',0],['cand','candidate C̃',1],['c','cell state C',2],['o','output gate o',0],['h','hidden state h',1]],
     gru:[['r','reset gate r',0],['u','update gate z',0],['cand','candidate h̃',1],['h','hidden state h',1]],
     rnn:[['h','hidden state h',1]]};
-  const st={mode:'lstm',key:0,T:40,seed:7};
+  const st={mode:'lstm',key:1,T:40,seed:7};  // key b, the running example
   let R,steps,mem,anim;
   function memUnit(m){
     // the unit through which the answer is read: its hidden state at "?" differs most across the four keys (same distractors)
@@ -92,7 +92,8 @@
     $('mm-cnt').innerHTML=RD.stat('Step',(t+1)+' of '+T,'symbol "'+S[R.seq[t]]+'"')+RD.stat('P(key) if asked now',F(R.p[t][st.key],3),'the key is "'+S[st.key]+'"')+
       RD.stat(md==='rnn'?'Jacobian product, ‖∂h<sub>t</sub>/∂h<sub>1</sub>‖':md==='lstm'?'Forget gates multiplied, unit '+(mem+1):'Keep shares multiplied, unit '+(mem+1),pf<1e-3?pf.toExponential(1):F(pf,3),md==='rnn'?'the factor the gradient meets back to the key':'the gradient factor along the protected path');
   }
-  function reset(){build();if(anim)anim.reset(steps.length)}
+  // a widget (the long-replay rule, case b): it never plays by itself and opens on the answer, the most informative frame
+  function reset(){build();if(anim){anim.reset(steps.length);anim.go(steps.length-1,true)}}
   // controls
   $('mm-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.mode=b.dataset.m;[...$('mm-mode').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});reset()});
   $('mm-key').addEventListener('change',e=>{st.key=+e.target.value;reset()});
@@ -100,7 +101,7 @@
   $('mm-new').addEventListener('click',()=>{st.seed=(st.seed*48271)%2147483647;reset()});
   $('mm-Tv').textContent=st.T;
   build();
-  anim=RD.anim({card:'mm',ctl:'mm-ctl',n:steps.length,draw,ms:1100,label:'Step of the sequence'});
+  anim=RD.anim({card:'mm',ctl:'mm-ctl',n:steps.length,draw,ms:1100,label:'Step of the sequence',auto:false,start:steps.length-1});
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>anim.redraw(),150)});
   window.__mm={st,get R(){return R},get steps(){return steps},reset,draw};
 })();

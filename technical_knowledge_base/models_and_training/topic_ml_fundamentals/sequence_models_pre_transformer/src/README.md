@@ -1,6 +1,6 @@
 Source of the interactive HTML on the Notion page "Sequence models: the pre-transformer lineage" (child of Topic: ml-fundamentals).
 
-Build: `sh build.sh` runs `export_data.py` (writes `parts/21_js_data.js` from `inputs/` and `model/runs/`), then writes `../index.html` from `parts/` (parts listed explicitly: 01_head, 10_header, 20_read_a/b/c, 31_tab_vec, 39_tab_more; every *.js in its own script, 99_js_tabs.js last; links as {{text|url}}, n:<notion id> or #t-<tab>), and fills in the reading time (`RT_CORE`, `RT_DET` at the top of the reading-time block, set by hand from `html_utils/audit_pages.mjs` after a rebuild) and the best-resources total. `21_js_rd_common.js` and `99_js_tabs.js` are the explainer-page skill templates (storage key `sq-tab`); nothing moves before the reader presses play or steps.
+Build: `sh build.sh` runs `export_data.py` (writes `parts/21_js_data.js` from `inputs/` and `model/runs/`), then writes `../index.html` from `parts/` (HTML and JS parts listed explicitly in `build.sh`; links as {{text|url}}, n:<notion id> or #t-<tab>), and fills in the reading time (`RT_CORE`, `RT_DET` in `build.sh`, set by hand from `html_utils/audit_pages.mjs` after a rebuild) and the best-resources total. `02_split.html`, `25_js_s3.js`, `21_js_rd_common.js` and `99_js_tabs.js` are the explainer-page skill templates, copied unchanged (storage key `sq-tab`). Since 2026-11-10 the stages and the gradient animation play by themselves once in view (see the section at the end).
 
 Tabs: Reading (the idea in one screen: core sentence, hero, you need, new terms; recurrence and BPTT; the gradient through time; the LSTM gate by gate; GRU; measured memory results; seq2seq, the bottleneck and attention; convolutions for sequences (WaveNet); why the transformer replaced them; static word vectors; closed depth blocks), Word vectors (real GloVe: neighbours, analogies, the test, a projection), Further reading.
 
@@ -13,7 +13,8 @@ Files:
 - `model/train_seq2seq.py`: copy task, GRU encoder-decoder with a fixed context vector, with the source reversed, and with Bahdanau attention, 2 seeds; int8 weights and PyTorch reference outputs in `runs/seq2seq_weights.json`. About 7 minutes.
 - `recompute.py` -> `inputs/recompute.json`: every number the text states (34 checks, 0 failures), including the page's own analogy-test output against a numpy recomputation.
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`). `coverage.json` and `mk_coverage.py` are the older migration check against `live.md` (2026-10-03); the ledger supersedes them and some of their phrases no longer match the rewritten text.
-- `check_page.mjs` (node, needs html_utils/node_modules): every control in light 920 and dark 390 (1,580 actions, including the hero and every step of the gradient animation in each mode), scanning for NaN, undefined, Infinity, null and errors; seq2seq forward pass against PyTorch; dumps the page's cell outputs to `model/runs/page_dump.json`; screenshots `x-*.png` in `../.shots/`.
+- `check_page.mjs` (node, needs html_utils/node_modules): every control in light 920 and dark 390 under reduced motion (1,166 actions since 2026-11-10: the four-cell widget in every mode, key and length, every step of the gradient animation, every step of Fig. 2 to 5, the digit input), scanning for NaN, undefined, Infinity, null and errors; seq2seq forward pass against PyTorch; dumps the page's cell outputs to `model/runs/page_dump.json`; screenshots `x-*.png` in `../.shots/` (or the folder given).
+- `check_stages.mjs` (2026-11-10, from the repository root, about 4 minutes): the rollout checks (below).
 - `check_cells.py`: the page's LSTM, GRU and RNN against PyTorch's on 16 sequences (max difference 7.5e-8).
 - `viz_ideas.md`: candidates scored, chosen and rejected.
 
@@ -45,3 +46,43 @@ Why about 19 minutes is right: the page owns six mechanisms (recurrence and BPTT
 Checks (24 October 2026): `sh html_utils/checkpage.sh <folder>`: tabs 3, fail=0, emdash 0, errbox 1, clipped 0. `node src/check_page.mjs`: 1,580 actions, 0 problems, seq2seq forward OK. `check_cells.py`: 16 of 16 equal, max difference 7.5e-8. `recompute.py`: 34 checks, 0 failures. Earlier checks (3 October 2026): 1,496 actions, 0 problems.
 
 - 2026-10-24, topic close: Further reading times set to headers (root 23 min, plus 1; Normalisation and initialisation, Activation, Contrastive, Tokenizers, Positional Encodings).
+
+## 2026-11-10: the split layout and four 3D stages (renderer v2)
+The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `01_head.html`, which closes `<head>`), `25_js_s3.js` (after the data, engines and 2D parts, before the scenes), `21_js_rd_common.js`, `99_js_tabs.js` (key `sq-tab`). `build.sh` now lists the JS parts explicitly. Removed: `26_js_s2sanim.js` and `28_js_wave.js` (each replaced by a stage; the WaveNet blocks calculator moved to `28_js_wavecfg.js`).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea (core, you need, terms) | split | hero, 2D static diagram (five lanes) | no |
+| Reading | Recurrence | split | **3D** `stg-rnn`, Fig. 2 (new: the section had no visual) | yes, 6 |
+| Reading | The gradient through time | split | 2D animation (`RD.anim`), regrouped from 21 frames into 6 explained stops | yes, 6 (three modes, one list) |
+| Reading | The LSTM, gate by gate | split | **3D** `stg-lstm`, Fig. 3 | yes, 5 |
+| Reading | The GRU (now its own section) | split | the four-cell gate animation as a widget (40 to 120 frames: no autoplay, no step list, opens on the answer, live caption) | no |
+| Reading | Measured | split | 2D chart | no |
+| Reading | Seq2seq, the bottleneck and attention | split | **3D** `stg-s2s`, Fig. 4 (replaces the 2D animation; the digit input sits under its step list) | yes, 6 |
+| Reading | What the toy reproduces | split | 2D chart | no |
+| Reading | Convolutions (WaveNet) | split | **3D** `stg-wave`, Fig. 5 (replaces the 2D animation and its layer slider); blocks calculator inline | yes, 6 |
+| Reading | Why the transformer, word vectors, Depth | full width | stats, none | no |
+| Word vectors | intro and box | full width | none | no |
+| Word vectors | Neighbours, Analogies, The test, Directions | split (notes left, tool right) | 2D tools | no |
+| Further reading | | unchanged | | |
+
+**The stages and their data.** Fig. 2 (`34_js_sc_rnn.js`): the plain RNN trained on lengths 5 to 10 (it holds the key) on `b w w z y y x w w ?`: its real states as signed bars, U and W as glass plates repeated per copy, the answer (P(b) = 0.999), then the gradient factor back to each copy, the Frobenius norm of the Jacobian product from the real states and W (log-scale columns), and every copy's gradient streaming into one shared W. Fig. 3 (`35_js_sc_lstm.js`): the trained LSTM at length 40, key b (key a on the same distractors for contrast), its four layers as glass plates with their 8 outputs, the cell state as a conveyor; unit 4's cell at all 40 steps. Fig. 4 (`36_js_sc_s2s.js`): the two trained encoder-decoders on the reader's digits (default 12 digits of pi): encoder states as 32-number strips, the last as the bottleneck, outputs right or wrong, the attention weights as a bar field (the alignment matrix), streams as dense as the weights. Fig. 5 (`37_js_sc_wave.js`): structural, a dilated stack (dilations 1, 2, 4, 8) behind a plain one, one output traced back layer by layer.
+**Kept 2D:** the hero (five lanes compared side by side read best flat), the gradient curve (a log axis), the measured charts, the four-cell widget (a heatmap over time), the Word vectors tools and the projection (a scatter).
+**Correction found by the stage.** The old LSTM prose said the trained LSTM shuts its input gate on the distractors and holds the key with a forget gate near 1. Its real activations do not show that: on unit 4 the input gate averages 0.88 over the distractors and the forget gate 0.95; the key is written as a sign and re-written in its direction at every step (the candidate reads h), so the cell grows to +15.2 (key b) or -5.8 (key a). Fig. 3's steps and the note under its list now say this; the ledger unit was re-keyed with a note.
+**Text.** The old per-step captions of the gradient, seq2seq and WaveNet animations became the step lists; their numbers are static spans (`data-rn`, `data-gt`, `data-ls`, `data-s2`, `data-wv`) checked against what the scenes compute. The running example is now written with its real distractors (`b w w z y y x w w ?`); the four-cell widget opens on key b. `check_page.mjs` drives the stages through their lists instead of the removed 2D controls; `mk_coverage.py` phrases updated to the rebuilt wording (14 had been stale since 2026-10-24; 59 of 59 found, two link facts noted as replaced by the Topic: llm-architecture link).
+
+### Length judgement
+| | Before (2026-10-24, audit 2026-11-10) | After (2026-11-10) |
+|---|---|---|
+| Reading, core (230 words a minute) | 19.0 min (4,363 words) | 24.2 min (5,576 words) |
+| Reading, closed details | 4.5 min (1,038 words) | 4.5 min (1,038 words) |
+| Word vectors | 3.5 min | 3.5 min (unchanged words) |
+| Further reading | 3.2 min | unchanged |
+| Visuals counted in Reading (audit) | 11 | 13 |
+The 1,213 new words are almost all the five step lists (about 1,250 words). About half are not new to the reader: the gradient, seq2seq and WaveNet animations wrote the same explanations as per-step captions by script, which the audit never counted. Genuinely new are Fig. 2 (recurrence had no visual) and Fig. 3's honest account of what the trained gates do. The length is right: each core unit belongs to one of the page's six mechanisms or the reason the transformer replaced them.
+
+### Ledger
+225 units: core 178, depth 30, fat 13, owned (Beyond attention) 4, problems 0. Re-keyed: the LSTM gate claim (now "Not the textbook picture", with a note), the seq2seq diagonal and the streams caption, the gradient zero and 50-step units, the reading-time unit of Further reading (now keyed on "Nissim et al. 2020", the words before the minutes), the LSTM training sentence. Added five units for findings the step lists now carry (Fig. 2's gradient factor and shared W, Fig. 3's running sum, Fig. 4's counts, Fig. 5's trace).
+
+### Checks (2026-11-10)
+`sh html_utils/checkpage.sh <folder>`: tabs 3, fail=0, emdash 0, errbox 1, clipped 0. `node src/check_stages.mjs [shots dir]` (about 4 minutes): problems 0. `node src/check_page.mjs [dir]`: 1,166 actions, 0 problems, seq2seq forward OK. `python3 html_utils/ledger.py check`: problems 0. `mk_coverage.py`: 59 of 59.

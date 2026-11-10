@@ -1,6 +1,7 @@
 // Exercise every control of the page in headless Chrome (light 920, dark 390), scan for NaN, undefined, Infinity or errors,
 // compare the page's seq2seq forward pass with PyTorch's reference outputs, dump the page's recurrent-cell outputs and
 // analogy-test results for check_cells.py and recompute.py, and screenshot the visuals in a late state.
+// 2026-11-10: the seq2seq and WaveNet 2D animations became 3D stages (Fig. 4, Fig. 5), stepped here through their step lists.
 // usage: node src/check_page.mjs [outdir]   (from the page folder or anywhere; needs html_utils/node_modules)
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -48,15 +49,14 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await scan('#hr', 'hero'); await shot('#hr', 'hero');
   for (const m of ['rnn', 'lstm', 'all']) { await clk(`#gt-mode button[data-m=${m}]`); await scrub('gt-ctl', 'gt', `grad ${m}`) }
   await setv('#gt-ctl-s', 10); await shot('#gt', 'grad');
-  // seq2seq animation
-  for (const m of ['fixed', 'attention']) {
-    await clk(`#sa-mode button[data-m=${m}]`);
-    for (const x of ['314159265358', '12', '9876543210987654321012345', '0000000000']) { await setv('#sa-in', x); await scrub('sa-ctl', 'sa', `s2s ${m} ${x}`) }
-    await setv('#sa-len', 30); await clk('#sa-rand'); await scrub('sa-ctl', 'sa', `s2s ${m} rand30`);
-    await setv('#sa-in', 'abc'); await scan('#sa', 's2s bad input');
-  }
-  await setv('#sa-in', '314159265358');
-  for (const m of ['fixed', 'attention']) { await clk(`#sa-mode button[data-m=${m}]`); const n = await p.$eval('#sa-ctl-s', e => +e.max); await setv('#sa-ctl-s', n - 4); await shot('#sa', 's2s-' + m) }
+  // seq2seq: Fig. 4 (a 3D stage) on several digit strings, every step of its list (reduced motion: no tweening, nothing plays by itself)
+  const steps = async (lid, root, what) => { const n = await p.$eval('#' + lid, e => e.children.length); for (let k = 0; k < n; k++) { await p.$eval('#' + lid, (e, k) => e.children[k].click(), k); actions++; await scan(root, what + ' step ' + k) } };
+  for (const x of ['314159265358', '12', '9876543210987654321012345', '0000000000']) { await setv('#sa-in', x); await steps('sx-s2s', '#rd-s2s', `s2s ${x}`) }
+  await setv('#sa-len', 30); await clk('#sa-rand'); await steps('sx-s2s', '#rd-s2s', 's2s rand30');
+  await setv('#sa-in', 'abc'); await scan('#rd-s2s', 's2s bad input');
+  await setv('#sa-in', '314159265358'); await p.$eval('#sx-s2s', e => e.children[4].click()); await shot('#stg-s2s', 's2s-attention');
+  await p.$eval('#sx-s2s', e => e.children[2].click()); await shot('#stg-s2s', 's2s-fixed');
+  for (const id of ['sx-rnn', 'sx-lstm']) await steps(id, '#t-read', id);
   for (const v of ['seq_acc', 'tok_acc', 'pos']) { await clk(`#sr-view button[data-v=${v}]`); await scan('#sr', 'sr ' + v) }
   await clk('#sr-view button[data-v=seq_acc]'); await shot('#sr', 's2sres');
   // the page's seq2seq against PyTorch (dequantised weights) on the stored references
@@ -65,10 +65,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       let ha = 0; d.hs[d.hs.length - 1].forEach((v, i) => ha = Math.max(ha, Math.abs(v - r.hT[i])));
       let aa = 0; if (r.att) r.att.forEach((row, t) => row.forEach((v, j) => aa = Math.max(aa, Math.abs(v - d.atts[t][j]))));
       res.push({ m, L: r.x.length, same: d.out.join() === r.out.join(), hT_maxdiff: ha, att_maxdiff: aa }) } return res }, { fixed: W.fixed_refs, attention: W.attention_refs });
-  // WaveNet
-  for (const m of ['dil', 'plain']) { await clk(`#wv-mode button[data-m=${m}]`); for (const L of [1, 2, 4, 6]) { await setv('#wv-L', L); await scrub('wv-ctl', 'wv', `wave ${m} L${L}`) } }
+  // WaveNet: Fig. 5 (a 3D stage) step by step, and the blocks calculator
+  await steps('sx-wave', '#rd-wave', 'wave');
   for (const bks of [1, 3, 6]) { await setv('#wv-b', bks); await scan('#wv-cfg', 'wave cfg ' + bks) }
-  await setv('#wv-L', 4); for (const m of ['dil', 'plain']) { await clk(`#wv-mode button[data-m=${m}]`); const n = await p.$eval('#wv-ctl-s', e => +e.max); await setv('#wv-ctl-s', n); await shot('#wv', 'wave-' + m) }
+  await shot('#stg-wave', 'wave');
   await scan('#t-read', 'whole reading tab');
   // Word vectors tab
   await clk('button[data-t=t-vec]');

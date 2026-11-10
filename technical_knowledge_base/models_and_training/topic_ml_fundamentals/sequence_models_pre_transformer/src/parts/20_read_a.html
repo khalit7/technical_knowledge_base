@@ -32,17 +32,20 @@
 #t-read details.dp>.b{padding:0 12px 10px;font-size:14px}
 #t-read details.dp>.b p,#t-read details.dp>.b li{overflow-wrap:anywhere}
 #t-read .an-cap p,#t-read td{overflow-wrap:anywhere}
+#t-read .sq-ctl{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:4px 0 6px;font-size:13px}
+#t-read .sq-ctl label{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;max-width:100%}
+#t-read .sq-ctl input[type=text]{width:13em;max-width:60vw;font-family:ui-monospace,Menlo,monospace}#t-read .sq-ctl input[type=range]{width:130px;max-width:36vw}
+#t-read .s3side .hero{margin-top:0}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#rd-top">The idea</a><a href="#rd-rnn">Recurrence</a><a href="#rd-grad">Gradient through time</a><a href="#rd-lstm">LSTM</a><a href="#rd-gru">GRU</a><a href="#rd-mem">Measured</a><a href="#rd-s2s">Seq2seq and attention</a><a href="#rd-wave">Convolutions</a><a href="#rd-end">Why the transformer</a><a href="#rd-emb">Word vectors</a><a href="#rd-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A recurrent network carries the whole past in one state, updated one step at a time, so <span class="hl">the first token reaches the last output only through one multiplication per step</span>, forward and backward. Each model in this lineage shortened or protected that path: gates gave it an additive lane (LSTM, GRU), attention let the output read every state directly (Bahdanau 2014), dilated convolutions cut it to log<sub>2</sub> <i>n</i> layers with no recurrence (WaveNet 2016), and the transformer kept only attention: one hop between any two positions, every position computed at once in training.</p>
-<div class="hero" id="hr"><h4>The path from the first token to the last output shrinks from 8 hops to 1, and the steps that must run in order from 8 to none</h4>
-<div id="hr-lanes"></div>
-<p class="small"><span class="hl">Blue</span>: the path from <i>x</i><sub>1</sub> to the output at position 8. For length <i>n</i>, the transformer paper's Table 1: path O(<i>n</i>) recurrent, O(log<sub><i>k</i></sub> <i>n</i>) dilated convolution, O(1) self-attention; sequential steps O(<i>n</i>), O(1), O(1) (<a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener noreferrer">Vaswani et al. 2017</a>). "In order" means in training; generation is one token at a time for all of them.</p></div>
+<p>The figure beside this is the whole page in five lanes: each design below it in the order the page takes them, with the path from the first token to the last output drawn in blue.</p>
 <p><b>You need:</b> backpropagation as the chain rule (the parent's {{Topic: ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}} Reading tab) and the slopes of sigmoid and tanh ({{Activation functions|n:3c65c17b0d0d819f8049c255e6f206e2}}). Attention in its modern forms (multi-head, GQA, MLA) is {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}'s; this page has only the 2014 form that bridged RNNs to transformers.</p>
 <dl class="terms">
 <dt>BPTT</dt><dd>backpropagation through time: backpropagate through the network unrolled over the sequence.</dd>
@@ -51,30 +54,53 @@
 <dt>Seq2seq</dt><dd>an encoder network reads, a decoder network writes.</dd>
 <dt>Receptive field</dt><dd>how many past inputs one output of a convolution stack sees.</dd>
 </dl>
-<p class="small mute">The animations run real networks trained offline for this page (PyTorch, minutes on a laptop CPU; <code>src/model/</code>).</p>
+<p class="small mute">The animations and 3D figures run real networks trained offline for this page (PyTorch, minutes on a laptop CPU; <code>src/model/</code>). Drag a 3D figure to turn it.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="hero" id="hr"><h4>The path from the first token to the last output shrinks from 8 hops to 1, and the steps that must run in order from 8 to none</h4>
+<div id="hr-lanes"></div>
+<p class="small"><span class="hl">Blue</span>: the path from <i>x</i><sub>1</sub> to the output at position 8. For length <i>n</i>, the transformer paper's Table 1: path O(<i>n</i>) recurrent, O(log<sub><i>k</i></sub> <i>n</i>) dilated convolution, O(1) self-attention; sequential steps O(<i>n</i>), O(1), O(1) (<a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener noreferrer">Vaswani et al. 2017</a>). "In order" means in training; generation is one token at a time for all of them.</p></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-rnn"></div></div><div class="s3L">
 <section id="rd-rnn">
 <h2>Recurrence: one state, carried forward</h2>
-<p><b>The running example</b> is a task that needs memory and nothing else: a <b>key</b> (a, b, c or d), then a run of random distractors (w, x, y, z), then "?", and the network must answer the key. An 8-unit network reading <code>b x w z y ... ?</code> has to carry "b" across every distractor in 8 numbers. A recurrent network does it with one update applied at every step (<a href="https://doi.org/10.1207/s15516709cog1402_1" target="_blank" rel="noopener noreferrer">Elman 1990</a>):</p>
+<p><b>The running example</b> is a task that needs memory and nothing else: a <b>key</b> (a, b, c or d), then a run of random distractors (w, x, y, z), then "?", and the network must answer the key. An 8-unit network reading <code>b w w z y y x w w ?</code> has to carry "b" across every distractor in 8 numbers. A recurrent network does it with one update applied at every step (<a href="https://doi.org/10.1207/s15516709cog1402_1" target="_blank" rel="noopener noreferrer">Elman 1990</a>):</p>
 <div class="fm"><div class="eq"><i>a<sub>t</sub></i> = <i>f</i>(<i>U x<sub>t</sub></i> + <i>W a</i><sub><i>t</i>&minus;1</sub> + <i>b</i>), &nbsp; <i>y<sub>t</sub></i> = <i>g</i>(<i>V a<sub>t</sub></i>)</div>
 <dl><dt>a<sub>t</sub></dt><dd>the hidden state, the network's whole memory of the past</dd><dt>U, W, V</dt><dd>input, recurrent and output weights, <b>the same at every step</b>: a fixed number of parameters whatever the sequence length (the toy plain RNN has 188 with its 4-way readout)</dd><dt>f, g</dt><dd>usually tanh for the state; softmax for a distribution over outputs</dd></dl></div>
+<p>Fig. 2 runs that sequence through a trained plain RNN, the one trained on sequences of 5 to 10 symbols (the Measured section has why that matters), with its real weights and states.</p>
+<ol class="sx" id="sx-rnn">
+<li><b>Ten symbols, one per step.</b> The key "b", eight distractors and "?" enter from below, left to right. Nothing else reaches the network.</li>
+<li><b>One cell.</b> At step 1 the input weights <i>U</i> (orange glass) read the key and the recurrent weights <i>W</i> (blue glass) read the previous state, all zeros: the new state <i>a</i><sub>1</sub> is 8 numbers, drawn as bars above and below a white plinth.</li>
+<li><b>The same cell at every step.</b> Ten copies of one cell with the same <i>U</i> and <i>W</i>: the state flows from each copy into the next, and each new state mixes the old one with one more symbol. This is the unrolled network; its size grows with the sequence, its weights do not.</li>
+<li><b>The answer at "?".</b> <i>V</i> reads the last state and a softmax gives the four keys' probabilities: "b" gets <span data-rn="pkey">0.999</span>. The key crossed nine updates to get there.</li>
+<li><b>Backpropagation through time.</b> The gradient goes back from the answer through the same ten copies, once through <i>W</i> and the tanh slope per step. Each column is the factor it has been multiplied by on the way, ‖∂<i>a</i><sub>10</sub>/∂<i>a<sub>k</sub></i>‖ on this sequence (log scale): <span data-rn="g3">0.16</span> three steps back, <span data-rn="gmin">0.011</span> at its smallest and <span data-rn="gkey">0.023</span> at the key.</li>
+<li><b>Every copy adds to the same weights.</b> The copies share <i>W</i>, so the gradient each copy contributes is added into the one matrix: the update that teaches the network to store "b" arrives from the key's copy, already shrunk.</li>
+</ol>
 <p>It is trained by <b>backpropagation through time</b> (BPTT; <a href="https://doi.org/10.1109/5.58337" target="_blank" rel="noopener noreferrer">Werbos 1990</a>): unroll the network into one layer per time step, all sharing weights, run ordinary backpropagation, and add up the gradients each copy contributes to the shared weights. Long sequences are usually cut into windows (truncated BPTT), which also caps how far back any gradient can reach.</p>
 </section>
+</div></div>
 
-<section id="rd-grad">
-<h2>The gradient through time: vanishing and exploding</h2>
-<p>The loss at "?" teaches the network to store the key only through the gradient that reaches the key's step, and that gradient crosses one Jacobian per step: ∂<i>a<sub>t</sub></i>/∂<i>a<sub>k</sub></i> = ∏<sub><i>j</i></sub> diag(<i>f</i>′)<i>W</i>. Below, the gradient leaving the answer and travelling back, on the toy's untrained networks: the plain RNN before, the LSTM after.</p>
-<p class="try"><b>Predict</b> how many orders of magnitude separate the plain RNN from the LSTM 50 steps back, then step it.</p>
-<div class="card" id="gt">
+<div class="s3sp"><div class="s3R"><div class="card" id="gt">
 <h4>The gradient shrinks by a roughly constant factor per step, and the LSTM's factor is closest to 1</h4>
 <div class="seg" id="gt-mode" role="group" aria-label="Cell"><button data-m="rnn" aria-pressed="false">Plain RNN (before)</button><button data-m="lstm" aria-pressed="false">LSTM (after)</button><button class="on" data-m="all" aria-pressed="true">Both, with the GRU</button></div>
 <div id="gt-svg"></div>
-<div class="an-cap" id="gt-cap"></div>
 <div class="an-ctl" id="gt-ctl"></div>
 <div class="an-cnt" id="gt-cnt"></div>
-<p class="small mute">Measured: norm of the loss gradient with respect to the hidden state <i>k</i> steps before the answer, relative to the answer's, mean of the same 256 sequences of length 100, untrained networks (seed 0; the LSTM's forget-gate bias starts at 1, so its gates begin near σ(1) &asymp; 0.73), PyTorch autograd (<code>grad_init</code>, <code>src/model/train_memory.py</code>). 50 steps back: 10<sup>&minus;11.8</sup> plain RNN, 10<sup>&minus;9.6</sup> GRU, 10<sup>&minus;6.1</sup> LSTM. Past 86 steps the plain RNN's is exactly zero.</p>
-</div>
+<p class="small mute">Measured: norm of the loss gradient with respect to the hidden state <i>k</i> steps before the answer, relative to the answer's, mean of the same 256 sequences of length 100, untrained networks (seed 0; the LSTM's forget-gate bias starts at 1, so its gates begin near σ(1) &asymp; 0.73), PyTorch autograd (<code>grad_init</code>, <code>src/model/train_memory.py</code>).</p>
+</div></div><div class="s3L">
+<section id="rd-grad">
+<h2>The gradient through time: vanishing and exploding</h2>
+<p>The loss at "?" teaches the network to store the key only through the gradient that reaches the key's step, and that gradient crosses one Jacobian per step: ∂<i>a<sub>t</sub></i>/∂<i>a<sub>k</sub></i> = ∏<sub><i>j</i></sub> diag(<i>f</i>′)<i>W</i>. Fig. 2 showed it on one sequence; the chart beside this measures it over 100 steps on the toy's untrained networks: the plain RNN before, the LSTM after.</p>
+<p class="try"><b>Predict</b> how many orders of magnitude separate the plain RNN from the LSTM 50 steps back, then watch it.</p>
+<ol class="sx" id="sx-gt">
+<li><b>At the answer.</b> The gradient of the loss with respect to the last hidden state is the unit: every value on the chart is relative to it.</li>
+<li><b>10 steps back.</b> Each step multiplies by one Jacobian. On average the plain RNN loses a factor of <span data-gt="frnn">0.58</span> per step, the GRU <span data-gt="fgru">0.64</span> and the LSTM <span data-gt="flstm">0.79</span> <i class="nl d">derived</i> (from the curves between 10 and 50 steps back).</li>
+<li><b>30 steps back.</b> A constant factor per step compounds: the curves are straight lines on a log scale, which is what "exponential" means. The gap is already <span data-gt="gap30">3.0</span> orders of magnitude.</li>
+<li><b>50 steps back: the key of a 50-symbol sequence.</b> This is what the training signal must cross to teach the network to store the key: <span data-gt="r50">10<sup>&minus;11.8</sup></span> for the plain RNN, <span data-gt="g50">10<sup>&minus;9.6</sup></span> for the GRU, <span data-gt="l50">10<sup>&minus;6.1</sup></span> for the LSTM, <span data-gt="gap50">5.7</span> orders of magnitude apart.</li>
+<li><b>86 steps back.</b> The plain RNN's recorded gradient is now exactly zero, too small for the arithmetic to hold; the LSTM's is still <span data-gt="l86">10<sup>&minus;9.4</sup></span>.</li>
+<li><b>99 steps back.</b> Even the LSTM is at <span data-gt="l99">10<sup>&minus;10.7</sup></span>, far below 1: untrained, its forget gates start near σ(1) &asymp; 0.73, so the gate path protects the gradient but does not keep it whole until training opens the gates.</li>
+</ol>
 <p><b>The rule behind the picture</b> (<a href="https://arxiv.org/abs/1211.5063" target="_blank" rel="noopener noreferrer">Pascanu, Mikolov and Bengio 2013</a>, §2.1): if the largest eigenvalue of <i>W</i> (in absolute value) is below 1/γ, where γ bounds |<i>f</i>′| (1 for tanh, 1/4 for the sigmoid), the long-term terms vanish exponentially; above it is necessary, not sufficient, for them to explode. Exploding gradients have a cheap fix the same paper proposed, clipping the gradient's norm (the toys clip at 1); vanishing ones need a change of architecture. The difficulty was first identified in Hochreiter's 1991 diploma thesis and by <a href="https://doi.org/10.1109/72.279181" target="_blank" rel="noopener noreferrer">Bengio, Simard and Frasconi 1994</a>.</p>
 <div class="deepnote">The parent page has the scalar version of this, one 60-step sequence with the recurrent weight and the forget-gate bias as sliders ({{Topic: ml-fundamentals, Reading tab, thread 3, "Vanishing gradients, seen four ways"|n:3c65c17b0d0d81d796ccc0a293218c57}}); deep feed-forward stacks have the same problem through depth ({{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}}).</div>
 </section>
+</div></div>

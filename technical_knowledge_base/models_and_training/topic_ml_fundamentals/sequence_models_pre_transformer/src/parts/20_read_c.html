@@ -1,59 +1,66 @@
-
+<div class="s3sp"><div class="s3R"><div id="stg-s2s"></div></div><div class="s3L">
 <section id="rd-s2s">
 <h2>Seq2seq, the bottleneck, and attention</h2>
 <p>Translation maps a sequence to a sequence of a different length. The <b>encoder-decoder</b> answer of 2014: an encoder RNN reads the source and its final state becomes a fixed-size vector <i>c</i>; a decoder RNN, started from <i>c</i>, writes the target one word at a time, feeding back the word it just wrote (<a href="https://arxiv.org/abs/1406.1078" target="_blank" rel="noopener noreferrer">Cho et al. 2014</a>, who also gave <i>c</i> to the decoder at every step; <a href="https://arxiv.org/abs/1409.3215" target="_blank" rel="noopener noreferrer">Sutskever, Vinyals and Le 2014</a>). Everything about the source passes through one vector of fixed size, however long the sentence: Sutskever et al.'s 4-layer, 1,000-cell LSTM (384M parameters) had to fit every sentence in 8,000 numbers (cell and hidden state of every layer). <a href="https://arxiv.org/abs/1409.1259" target="_blank" rel="noopener noreferrer">Cho et al.</a> found their smaller encoder-decoder's performance "degrades rapidly as the length of the sentence and the number of unknown words increase", and Bahdanau et al. built attention on that observation.</p>
 <details class="dp"><summary>Sutskever et al.'s result <span class="mute">(under 1 min)</span></summary><div class="b"><p>The model used 1,000-dimension embeddings. An ensemble of five scored 34.81 BLEU on WMT'14 English to French against 33.30 for the phrase-based baseline, "the first time that a pure neural translation system outperforms a phrase-based SMT baseline on a large scale MT task".</p></div></details>
-<p><b>The toy:</b> a translation that only memory can solve, copying a string of digits. Two models with the same GRU encoder and decoder (16-dimension embeddings, 32 units) and the same training, differing only in the context vector: the encoder's last state at every step (the fixed vector, as Cho et al.) or attention over all encoder states.</p>
-<p class="try"><b>Predict</b> how many of the 12 digits the fixed vector gets right, then play it. Switch to Attention: the weights form a diagonal, each output reading its own input. Then type 25 digits, past the longest training string (20).</p>
-<div class="card" id="sa">
-<h4>One fixed vector forgets the end of a 12-digit string; attention reads each digit where it is</h4>
-<div class="seg" id="sa-mode" role="group" aria-label="Model"><button class="on" data-m="fixed" aria-pressed="true">Fixed vector (before)</button><button data-m="attention" aria-pressed="false">Attention (after)</button></div>
-<div class="ctlrow"><label>Digits <input type="text" id="sa-in" inputmode="numeric" aria-label="Digits to copy"></label><label>Length <b id="sa-lenv">12</b><input type="range" id="sa-len" min="2" max="30" value="12" aria-label="Random string length"></label><button id="sa-rand">Random digits</button></div>
+<p><b>The toy:</b> a translation that only memory can solve, copying a string of digits. Two models with the same GRU encoder and decoder (16-dimension embeddings, 32 units) and the same training, differing only in the context vector: the encoder's last state at every step (the fixed vector, as Cho et al.) or attention over all encoder states. Fig. 4 runs both on 12 digits of π with their trained weights (13,836 and 15,948 parameters, 8-bit; accuracy within a few points of full precision; greedy decoding; outputs equal to PyTorch's on 8 references).</p>
+<p class="try"><b>Predict</b> how many of the 12 digits the fixed vector gets right before step 3. Then type 25 digits, past the longest training string (20).</p>
+<ol class="sx" id="sx-s2s">
+<li><b>The encoder reads the digits.</b> A GRU reads one digit per step, and each state is a strip of 32 numbers (blue positive, orange negative): 32 numbers per digit, each strip built from the one before.</li>
+<li><b>The bottleneck.</b> The fixed-vector model hands the decoder only the last strip, <i>h</i><sub><span data-s2="L">12</span></sub>: <span data-s2="H">32</span> numbers must carry all <span data-s2="L2">12</span> digits. The other strips fade: the decoder never sees them.</li>
+<li><b>The fixed vector writes the copy.</b> Every output reads the same vector (the streams all leave the last strip). It gets <span data-s2="fr">8</span> of <span data-s2="L3">12</span> digits right<span data-s2="fwc">; the first wrong one is output 7, where it wrote 5 for 2</span>.</li>
+<li><b>Attention keeps every state.</b> The attention model scores all <span data-s2="L4">12</span> strips for output <span data-s2="t">7</span> and takes a softmax: each column is a weight, each stream as dense as its weight. <span data-s2="tw">60%</span> of the weight is on input <span data-s2="tj">7</span> ("<span data-s2="tx">2</span>"), so the right digit is read where it is.</li>
+<li><b>One row of weights per output.</b> Every output does the same: the rows form the alignment matrix, and on a copy task it is a diagonal, each output reading its own input. The last row, the end marker, spreads its weight.</li>
+<li><b>Attention writes the copy.</b> <span data-s2="ar">12</span> of <span data-s2="L5">12</span> digits right, and the end marker in place: nothing had to be squeezed through one vector.</li>
+</ol>
+<div class="sq-ctl"><label>Digits <input type="text" id="sa-in" inputmode="numeric" aria-label="Digits to copy"></label><label>Length <b id="sa-lenv">12</b><input type="range" id="sa-len" min="2" max="30" value="12" aria-label="Random string length"></label><button id="sa-rand">Random digits</button></div>
 <div class="msg" id="sa-msg"></div>
-<div id="sa-svg"></div>
-<div class="an-cap" id="sa-cap"></div>
-<div class="an-ctl" id="sa-ctl"></div>
-<div class="an-cnt" id="sa-cnt"></div>
-<p class="small mute">Trained weights (13,836 and 15,948 parameters, 8-bit; accuracy within a few points of full precision), greedy decoding, a one-way encoder where Bahdanau et al. used a bidirectional one; outputs equal to PyTorch's on 8 references. Encoder columns: 32 numbers per digit. Lines: the attention weights (thickness) or the single vector.</p>
-</div>
+<div class="out small" id="sa-out"></div>
+<p class="small mute">A one-way encoder where Bahdanau et al. used a bidirectional one. Strips: 32 numbers per digit. Streams: the attention weights (density) or the single vector.</p>
+
 <p><b>The formula.</b> <a href="https://arxiv.org/abs/1409.0473" target="_blank" rel="noopener noreferrer">Bahdanau, Cho and Bengio</a> (2014, published at ICLR 2015) kept every encoder state <i>h<sub>j</sub></i> (from a bidirectional RNN, so each state sees the whole sentence) and, at every output step <i>i</i>, let the decoder choose which to read:</p>
 <div class="fm"><div class="eq"><i>e<sub>ij</sub></i> = <i>v</i><sup>⊤</sup> tanh(<i>W s</i><sub><i>i</i>&minus;1</sub> + <i>U h<sub>j</sub></i>), &nbsp; α<sub><i>ij</i></sub> = softmax<sub><i>j</i></sub>(<i>e<sub>ij</sub></i>), &nbsp; <i>c<sub>i</sub></i> = Σ<sub><i>j</i></sub> α<sub><i>ij</i></sub> <i>h<sub>j</sub></i></div>
 <dl><dt>s<sub>i&minus;1</sub></dt><dd>the decoder's state before writing word <i>i</i></dd><dt>e<sub>ij</sub></dt><dd>"alignment" score: how well source position <i>j</i> matches what the decoder needs now; a small network, so this is called additive attention</dd><dt>c<sub>i</sub></dt><dd>a fresh context vector for every output word, fed to the decoder with the previous word</dd></dl></div>
 <p>The decoder now reads as many numbers as the source has states, so nothing has to be squeezed. In the paper's Table 1, trained on sentences up to 50 words, the attention model (RNNsearch-50) scored 26.75 BLEU against 17.82 without it (RNNencdec-50), and even the attention model trained up to 30 words (21.50) beat the plain one trained up to 50; RNNsearch-50 "shows no performance deterioration even with sentences of length 50 or more" (Figure 2). The weights α are soft word alignments, readable as a matrix. A year later <a href="https://arxiv.org/abs/1508.04025" target="_blank" rel="noopener noreferrer">Luong, Pham and Manning</a> scored with a plain <b>dot</b> product, <i>h<sub>t</sub></i><sup>⊤</sup><i>h̄<sub>s</sub></i>; the transformer's softmax(<i>QK</i><sup>⊤</sup>/√<i>d<sub>k</sub></i>)<i>V</i> is that dot score with a scale and separate projections for queries, keys and values.</p>
-<div class="card" id="sr">
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<p>What the toy reproduces: the fixed vector copies 6 digits almost always (96%) and 12 almost never (4%), so 32 numbers are not enough for a dozen digits; reversing the source alone lifts 10 digits from 24% to 68% (Sutskever et al.'s effect); attention copies every trained length perfectly. What it adds: <b>attention fixed the bottleneck, not length generalisation</b>. Past 20 digits it degrades too (93% whole strings at 22, 1% at 26), and Bahdanau et al. claim no deterioration only for RNNsearch-50, the model trained on the longer sentences. Toy scale: digits, not language, two seeds.</p>
+<div class="co corr"><div class="t">Correction: "seq2seq quality collapses on long inputs" was not universal</div>Sutskever et al.: "Surprisingly, the LSTM did not suffer on very long sentences", which they credit to feeding the source <b>reversed</b>, so the first source words sit next to the first target words ("many short term dependencies"; test BLEU 25.9 to 30.6, perplexity 5.8 to 4.7, §3.3). The collapse belongs to smaller, unreversed encoder-decoders (Cho et al.'s, Bahdanau et al.'s RNNencdec).</div>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="sr">
 <h4>Reversing the source helps the fixed vector; attention copies every trained length and slips only past 20</h4>
 <div class="seg" id="sr-view" role="group" aria-label="Measure"><button class="on" data-v="seq_acc" aria-pressed="true">Whole string right</button><button data-v="tok_acc" aria-pressed="false">Digits right</button><button data-v="pos" aria-pressed="false">By position, 20 digits</button></div>
 <div class="leg"><span><i class="ln" style="background:var(--c2)"></i>fixed vector</span><span><i class="ln" style="background:var(--c5)"></i>fixed vector, source reversed</span><span><i class="ln" style="background:var(--c3)"></i>attention</span></div>
 <div id="sr-svg"></div>
 <div class="out" id="sr-n"></div>
 <p class="small mute">1,000 fresh strings per length, two seeds per model (the fainter line is the second), 6,000 Adam steps of 128 strings, lengths 3 to 20. The reversed model is the fixed-vector model fed the digits backwards, Sutskever et al.'s trick.</p>
-</div>
-<p>What the toy reproduces: the fixed vector copies 6 digits almost always (96%) and 12 almost never (4%), so 32 numbers are not enough for a dozen digits; reversing the source alone lifts 10 digits from 24% to 68% (Sutskever et al.'s effect); attention copies every trained length perfectly. What it adds: <b>attention fixed the bottleneck, not length generalisation</b>. Past 20 digits it degrades too (93% whole strings at 22, 1% at 26), and Bahdanau et al. claim no deterioration only for RNNsearch-50, the model trained on the longer sentences. Toy scale: digits, not language, two seeds.</p>
-<div class="co corr"><div class="t">Correction: "seq2seq quality collapses on long inputs" was not universal</div>Sutskever et al.: "Surprisingly, the LSTM did not suffer on very long sentences", which they credit to feeding the source <b>reversed</b>, so the first source words sit next to the first target words ("many short term dependencies"; test BLEU 25.9 to 30.6, perplexity 5.8 to 4.7, §3.3). The collapse belongs to smaller, unreversed encoder-decoders (Cho et al.'s, Bahdanau et al.'s RNNencdec).</div>
-</section>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-wave"></div></div><div class="s3L">
 <section id="rd-wave">
 <h2>Convolutions for sequences: WaveNet</h2>
 <p>Recurrence is sequential: step <i>t</i> waits for step <i>t</i> &minus; 1, in training as in use. <a href="https://arxiv.org/abs/1609.03499" target="_blank" rel="noopener noreferrer">WaveNet</a> (van den Oord et al., DeepMind 2016) generated raw audio one sample at a time (16,000 samples a second in its speech experiments) with a stack of <b>causal convolutions</b>: each output sees only the past, and every position of a training clip is computed in parallel. A plain causal stack grows its receptive field by one sample per layer (the paper's Figure 2: 4 layers, filter 2, field 5). Dilating the filters (skipping 1, 2, 4, ... inputs) doubles the field every layer instead.</p>
-<p class="try"><b>Predict</b> the receptive field of 4 dilated layers, then trace one output back through them (the paper's Figure 3) and through a plain stack of the same depth.</p>
-<div class="card" id="wv">
-<h4>Dilation doubles what one output can see at every layer; a plain stack adds one sample per layer</h4>
-<div class="seg" id="wv-mode" role="group" aria-label="Stack"><button class="on" data-m="dil" aria-pressed="true">Dilated (WaveNet)</button><button data-m="plain" aria-pressed="false">Plain causal</button></div>
-<div class="ctlrow"><label>Layers <b id="wv-Lv"></b><input type="range" id="wv-L" min="1" max="6" value="4" aria-label="Layers"></label></div>
-<div id="wv-svg"></div>
-<div class="an-cap" id="wv-cap"></div>
-<div class="an-ctl" id="wv-ctl"></div>
-<div class="an-cnt" id="wv-cnt"></div>
+<p class="try"><b>Predict</b> the receptive field of 4 dilated layers before the last step. Fig. 5 traces one output back through the paper's Figure 3 stack (behind) and a plain stack of the same depth (in front).</p>
+<ol class="sx" id="sx-wave">
+<li><b>One output, two stacks.</b> The newest output sample (right) of a plain causal stack (front) and a dilated one (back), 4 layers each. Filters have width 2 and are causal: a unit sees its own time step and one earlier one, never the future.</li>
+<li><b>Layer 4.</b> The output reaches its own step and the one <span data-wv="d4">8</span> steps earlier in the dilated stack, 1 step earlier in the plain one: <span data-wv="n4d">2</span> units at this depth in each.</li>
+<li><b>Layer 3.</b> Dilation 4 against 1: the output now depends on <span data-wv="n3d">4</span> units in the dilated stack and <span data-wv="n3p">3</span> in the plain one.</li>
+<li><b>Layer 2.</b> Dilation 2 against 1: <span data-wv="n2d">8</span> units against <span data-wv="n2p">4</span>.</li>
+<li><b>Layer 1, the input.</b> Dilation 1 in both: <span data-wv="n1d">16</span> input samples against <span data-wv="n1p">5</span>, with no sample counted twice.</li>
+<li><b>Receptive field: <span data-wv="rd">16</span> samples against <span data-wv="rp">5</span>.</b> With dilations 1, 2, 4, 8 the field doubles every layer, 2<sup>4</sup> = 16 samples (<span data-wv="msd">1.00</span> ms at 16 kHz); without dilation each layer adds one, 4 + 1 = 5 (the paper's Figure 2; <span data-wv="msp">0.31</span> ms).</li>
+</ol>
 <p class="small mute">Filter width 2, as in the paper. Receptive field = 1 + (filter width &minus; 1) × sum of dilations <i class="nl d">derived</i>.</p>
-</div>
 <p>The paper repeats blocks of dilations 1, 2, 4, ..., 512: "each 1, 2, 4, ..., 512 block has receptive field of size 1024" (§2.1). Stack them:</p>
-<div class="card"><div class="ctlrow"><label>Blocks <b id="wv-bv"></b><input type="range" id="wv-b" min="1" max="6" value="1" aria-label="Blocks of ten layers"></label></div><div class="out" id="wv-cfg"></div></div>
+<div class="card" id="wv-bk"><div class="ctlrow"><label>Blocks <b id="wv-bv"></b><input type="range" id="wv-b" min="1" max="6" value="1" aria-label="Blocks of ten layers"></label></div><div class="out" id="wv-cfg"></div></div>
 <p>Training is parallel, but <b>generation is still one sample at a time</b>, because each sample feeds the next. WaveNet's lesson for text came quickly: ByteNet and ConvS2S translated with convolutions, whose path between two positions is O(log<sub><i>k</i></sub> <i>n</i>) layers for dilated and O(<i>n</i>/<i>k</i>) for contiguous filters, against self-attention's O(1) (the transformer paper, §4; {{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}).</p>
 <div class="co corr"><div class="t">Correction: the WaveNet in production was not the 2016 model</div>The old page said WaveNet "powered Google TTS"; one sample at a time is far too slow to serve. What shipped in the Google Assistant in 2017 was <a href="https://arxiv.org/abs/1711.10433" target="_blank" rel="noopener noreferrer">Parallel WaveNet</a>, a feed-forward student distilled from a trained WaveNet ("probability density distillation"), more than 20 times faster than real time, "deployed online by Google Assistant, including serving multiple English and Japanese voices".</div>
 <details class="dp"><summary>WaveNet's other three pieces: μ-law output, the gated activation, the listening test <span class="mute">(1 min)</span></summary><div class="b">
 <p>Audio samples were μ-law companded and quantised to 256 values, so the output is a softmax over 256 classes instead of 65,536 (§2.2). Each layer uses the <b>gated activation</b> <i>z</i> = tanh(<i>W<sub>f</sub></i> ∗ <i>x</i>) ⊙ σ(<i>W<sub>g</sub></i> ∗ <i>x</i>), from gated PixelCNN, which "worked significantly better than the rectified linear activation" for audio (§2.3): the LSTM's gating idea without the recurrence, and an ancestor of the GLU family that ended in SwiGLU ({{Activation functions|n:3c65c17b0d0d819f8049c255e6f206e2}}). Conditioned on linguistic features, its text-to-speech scored a mean opinion score of 4.21 in US English and 4.08 in Mandarin, against 3.86 and 3.79 for the best earlier systems and 4.55 and 4.21 for natural 16-bit speech (Table 1). The text-to-speech models had a 240 ms receptive field <i class="nl d">= 3,840 samples at 16 kHz</i>.</p>
 </div></details>
 </section>
+</div></div>
 
 <section id="rd-end">
 <h2>Why the transformer replaced them</h2>

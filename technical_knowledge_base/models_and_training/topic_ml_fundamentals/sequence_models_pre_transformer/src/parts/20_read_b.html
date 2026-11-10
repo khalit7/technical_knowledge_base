@@ -1,18 +1,16 @@
+<div class="s3sp"><div class="s3R"><div id="stg-lstm"></div></div><div class="s3L">
 <section id="rd-lstm">
 <h2>The LSTM, gate by gate</h2>
-<p>The long short-term memory network gives each unit a memory cell <i>C</i> whose update is an addition, guarded by sigmoid <b>gates</b> (<a href="https://www.bioinf.jku.at/publications/older/2604.pdf" target="_blank" rel="noopener noreferrer">Hochreiter and Schmidhuber 1997</a>). On the memory task it should write the key once, shut out the distractors and read the key out at "?". Three cells of the same width (8 units), trained the same way on sequences of 5 to 50 symbols, run below with their trained weights; the bottom line shows what each would answer if "?" came now.</p>
-<p class="try"><b>Play</b>: the LSTM writes the key (input gate open), ignores the distractors (input gate shut, forget gate near 1 on the dashed unit) and reads it out at "?" (output gate). Switch to the plain RNN: no gate, and the answer drifts to a guess. <b>Predict</b> whether the fourth model, a plain RNN trained only on short sequences, holds the key at length 120.</p>
-<div class="card" id="mm">
-<h4>The LSTM holds the key on one unit for the whole sequence; the plain RNN trained on the same lengths loses it</h4>
-<div class="seg" id="mm-mode" role="group" aria-label="Cell"><button class="on" data-m="lstm" aria-pressed="true">LSTM</button><button data-m="gru" aria-pressed="false">GRU</button><button data-m="rnn" aria-pressed="false">Plain RNN</button><button data-m="rnn_short" aria-pressed="false">Plain RNN, short training</button></div>
-<div class="ctlrow"><label>Key <select id="mm-key" aria-label="Key"><option value="0">a</option><option value="1">b</option><option value="2">c</option><option value="3">d</option></select></label><label>Length <b id="mm-Tv"></b><input type="range" id="mm-T" min="8" max="120" value="40" aria-label="Sequence length"></label><button id="mm-new">New distractors</button></div>
-<div id="mm-svg"></div>
-<div class="an-cap" id="mm-cap"></div>
-<div class="an-ctl" id="mm-ctl"></div>
-<div class="an-cnt" id="mm-cnt"></div>
-<p class="small mute">Trained weights (8 units; LSTM 644 parameters, GRU 492, plain RNN 188), PyTorch's arithmetic (checked to 7.5e-8, <code>src/check_cells.py</code>). Gate by gate at the key, the first distractor and "?". Gates white (0) to green (1); states blue (+) and orange (&minus;). GRU <i>z</i> in Cho et al.'s convention (share written; PyTorch's <i>z</i> is 1 &minus; <i>z</i>).</p>
-</div>
-<p>The same four layers as formulas. The input <i>x<sub>t</sub></i> and the previous hidden state <i>h</i><sub><i>t</i>&minus;1</sub> are concatenated and fed to all four in parallel:</p>
+<p>The long short-term memory network gives each unit a memory cell <i>C</i> whose update is an addition, guarded by sigmoid <b>gates</b> (<a href="https://www.bioinf.jku.at/publications/older/2604.pdf" target="_blank" rel="noopener noreferrer">Hochreiter and Schmidhuber 1997</a>). Fig. 3 is one step of the toy LSTM (8 units, trained the same way as the other cells on sequences of 5 to 50 symbols), with its real activations on the running example at length 40: <code>b w w z y y x w w ... ?</code>. The input <i>x<sub>t</sub></i> and the previous hidden state <i>h</i><sub><i>t</i>&minus;1</sub> are concatenated and fed to all four in parallel; the cell state runs along the back like a conveyor.</p>
+<ol class="sx" id="sx-lstm">
+<li><b>Four layers read the same input.</b> The key "b" and the previous state (zeros) go into four glass plates at once: the forget gate <i>f</i>, the input gate <i>i</i> and the output gate <i>o</i> (sigmoids, bars from 0 to 1) and the candidate <i>C̃</i> (tanh, bars above or below the plinth). Each makes 8 numbers, one per unit.</li>
+<li><b>The key is written.</b> On unit 4 (outlined) the input gate is <span data-ls="i0">0.80</span> and the candidate <span data-ls="g0">+0.82</span>, so <i>i</i> ⊙ <i>C̃</i> puts <span data-ls="c0">+0.65</span> on the conveyor. With key "a" the same unit's candidate is <span data-ls="ga0">&minus;0.59</span>: the key is written as a sign.</li>
+<li><b>A distractor: keep, and add again.</b> At "w" the forget gate keeps <span data-ls="f1">0.90</span> of the cell and the input gate, <span data-ls="i1">0.86</span>, is not shut: <span data-ls="f1b">0.90</span> × <span data-ls="c0b">0.65</span> + <span data-ls="i1b">0.86</span> × <span data-ls="g1">0.75</span> = <span data-ls="c1">1.23</span>. The candidate has the key's sign because it reads <i>h</i>, which carries the key.</li>
+<li><b>Forty steps on the conveyor.</b> Unit 4's cell at every step, key "b" in front and key "a" behind, on the same distractors: one grows to <span data-ls="cb">+15.2</span>, the other to <span data-ls="ca">&minus;5.8</span>. The forget gates average <span data-ls="mf">0.95</span>, so the first write alone would have shrunk to <span data-ls="pf">0.15</span> of its size; the memory is the running sum, re-written in the key's direction at every step.</li>
+<li><b>At "?", the output gate reads it out.</b> <i>o</i> = <span data-ls="o">0.99</span> on unit 4 and tanh of a large cell is ±1, so <i>h</i> = <span data-ls="h">0.99</span>; the readout over all eight units answers "b" with probability <span data-ls="pk">1.00</span>.</li>
+</ol>
+<p class="small mute">Not the textbook picture: this trained LSTM never shuts its input gate on the distractors (it averages <span data-ls="mi">0.88</span> on unit 4); it keeps writing in the key's direction, and a saturated tanh reads a large cell the same way. The protected path is what matters for learning: along the cell, ∂<i>C<sub>t</sub></i>/∂<i>C</i><sub><i>t</i>&minus;1</sub> is the forget gate alone.</p>
+<p>The same four layers as formulas:</p>
 <div class="tw"><table>
 <tr><th>Part</th><th>Formula</th><th>Role</th></tr>
 <tr><td>Forget gate</td><td><i>f<sub>t</sub></i> = σ(<i>W<sub>f</sub></i>[<i>h</i><sub><i>t</i>&minus;1</sub>, <i>x<sub>t</sub></i>] + <i>b<sub>f</sub></i>)</td><td>how much of the old cell <i>C</i><sub><i>t</i>&minus;1</sub> to keep</td></tr>
@@ -25,25 +23,45 @@
 <div class="co corr"><div class="t">Correction: the 1997 LSTM had no forget gate</div>Its input and output gates guarded a "constant error carrousel", a cell whose self-connection was fixed at 1.0 (§3.2, §4). The forget gate came with <a href="https://doi.org/10.1162/089976600300015015" target="_blank" rel="noopener noreferrer">Gers, Schmidhuber and Cummins 2000</a>, and that version is the LSTM in every library today.</div>
 <details class="dp"><summary>Peepholes, and the history of the variants <span class="mute">(under 1 min)</span></summary><div class="b"><p>"Peephole" connections from the cell to the gates were added by Gers and Schmidhuber in 2000 too; library LSTMs usually leave them out. <a href="https://arxiv.org/abs/1503.04069" target="_blank" rel="noopener noreferrer">Greff et al. 2015</a>, §III, has the history of the variants.</p></div></details>
 
-<h3 id="rd-gru">The GRU: two gates, one state</h3>
-<p>The gated recurrent unit merges the cell and the hidden state and uses two gates (<a href="https://arxiv.org/abs/1406.1078" target="_blank" rel="noopener noreferrer">Cho et al. 2014</a>, who called it a new hidden unit; the name is from <a href="https://arxiv.org/abs/1412.3555" target="_blank" rel="noopener noreferrer">Chung et al. 2014</a>). Switch the animation above to GRU to see them on the same sequence.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="rd-gru">
+<h2>The GRU: two gates, one state</h2>
+<p>The gated recurrent unit merges the cell and the hidden state and uses two gates (<a href="https://arxiv.org/abs/1406.1078" target="_blank" rel="noopener noreferrer">Cho et al. 2014</a>, who called it a new hidden unit; the name is from <a href="https://arxiv.org/abs/1412.3555" target="_blank" rel="noopener noreferrer">Chung et al. 2014</a>).</p>
 <div class="fm"><div class="eq"><i>h<sub>t</sub></i> = (1 &minus; <i>z<sub>t</sub></i>) ⊙ <i>h</i><sub><i>t</i>&minus;1</sub> + <i>z<sub>t</sub></i> ⊙ <i>h̃<sub>t</sub></i>, &nbsp; <i>h̃<sub>t</sub></i> = tanh(<i>W x<sub>t</sub></i> + <i>U</i>(<i>r<sub>t</sub></i> ⊙ <i>h</i><sub><i>t</i>&minus;1</sub>))</div>
 <dl><dt>z<sub>t</sub></dt><dd>update gate: one gate doing the forget and input jobs together (keep 1 &minus; <i>z</i>, write <i>z</i>)</dd><dt>r<sub>t</sub></dt><dd>reset gate: how much of the old state the candidate may look at</dd></dl></div>
 <p>The same interpolating, additive trick with three weight blocks instead of four, so at equal width a GRU has exactly 3/4 of an LSTM's parameters: 3<i>n</i>(<i>n</i> + <i>m</i> + 1) against 4<i>n</i>(<i>n</i> + <i>m</i> + 1) for <i>n</i> units and <i>m</i> inputs <i class="nl d">derived</i> (PyTorch keeps two bias vectors, so +2 instead of +1: the toy's recurrent layers, <i>n</i> = 8, <i>m</i> = 9, have 456 against 608). Quality is usually comparable, so the GRU's real advantage is a quarter fewer parameters at the same width.</p>
 <details class="dp"><summary>GRU against LSTM: what the side-by-side studies found <span class="mute">(under 1 min)</span></summary><div class="b"><p>Chung et al. 2014 "could not make concrete conclusion on which of the two gating units was better"; Jozefowicz et al. 2015 found that "adding a bias of 1 to the LSTM's forget gate closes the gap between the LSTM and the GRU"; Greff et al. 2015's search over eight LSTM variants found none significantly better than the standard LSTM, with the forget gate and the output activation its most critical parts.</p></div></details>
+<p><b>All four cells on any sequence.</b> The widget beside this runs the LSTM, the GRU, the plain RNN and the plain RNN trained only on short sequences, gate by gate, on a key and length you choose; the bottom line shows what each would answer if "?" came now. Switch to the plain RNN: no gate, and the answer drifts to a guess. <b>Predict</b> whether the fourth model, a plain RNN trained only on short sequences, holds the key at length 120.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="mm">
+<h4>All four cells on any sequence: the gated cells hold the key, the plain RNN trained on the same lengths loses it</h4>
+<div class="seg" id="mm-mode" role="group" aria-label="Cell"><button class="on" data-m="lstm" aria-pressed="true">LSTM</button><button data-m="gru" aria-pressed="false">GRU</button><button data-m="rnn" aria-pressed="false">Plain RNN</button><button data-m="rnn_short" aria-pressed="false">Plain RNN, short training</button></div>
+<div class="ctlrow"><label>Key <select id="mm-key" aria-label="Key"><option value="0">a</option><option value="1" selected>b</option><option value="2">c</option><option value="3">d</option></select></label><label>Length <b id="mm-Tv"></b><input type="range" id="mm-T" min="8" max="120" value="40" aria-label="Sequence length"></label><button id="mm-new">New distractors</button></div>
+<div id="mm-svg"></div>
+<div class="an-cap" id="mm-cap"></div>
+<div class="an-ctl" id="mm-ctl"></div>
+<div class="an-cnt" id="mm-cnt"></div>
+<p class="small mute">Trained weights (8 units; LSTM 644 parameters, GRU 492, plain RNN 188), PyTorch's arithmetic (checked to 7.5e-8, <code>src/check_cells.py</code>). A widget: pick a cell, a key and a length, then step through; it opens on the answer. Gate by gate at the key, the first distractor and "?". Gates white (0) to green (1); states blue (+) and orange (&minus;). GRU <i>z</i> in Cho et al.'s convention (share written; PyTorch's <i>z</i> is 1 &minus; <i>z</i>).</p>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-mem">
 <h2>Measured: who learns to remember</h2>
 <p>The memory task as an experiment: each cell trained from scratch on sequences up to 10, 20, 50 or 100 symbols long, at three learning rates (0.003, 0.01, 0.03) and three seeds, 3,000 Adam steps of 64 sequences, gradient norm clipped at 1; then tested on 2,000 fresh sequences at each length from 5 to 200.</p>
-<div class="card" id="mr">
+
+<p><b>The plain RNN can hold a memory but cannot learn one from long sequences:</b> trained on lengths up to 10 it solved the task in <span id="rd-m-r10"></span> of 9 runs, and two of those hold the key correctly at every test length up to 200; trained on lengths up to 50 or 100 it solved it in none of 18, ending at 25% (chance) or 50% (one bit of the key kept). <b>The gated cells learn it at every training length:</b> <span id="rd-m-g"></span>. This is Bengio et al.'s 1994 diagnosis on a laptop: the trouble is the gradient that must find the key (the gradient section above), not the capacity to store it.</p>
+<p class="small mute">Toy scale, said plainly: 8 units, one task, nine runs per setting; it shows the mechanism, not how real language models compare. Scripts and every run's numbers: <code>src/model/train_memory.py</code>, <code>runs/memory_results.json</code>.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="mr">
 <h4>The plain RNN learns the task only from short sequences; the gated cells learn it at every training length</h4>
 <div class="seg" id="mr-tm" role="group" aria-label="Training length"><button data-v="10" aria-pressed="false">trained up to 10</button><button data-v="20" aria-pressed="false">up to 20</button><button class="on" data-v="50" aria-pressed="true">up to 50</button><button data-v="100" aria-pressed="false">up to 100</button></div>
 <div class="leg"><span><i class="ln" style="background:var(--c3)"></i>LSTM</span><span><i class="ln" style="background:var(--c4)"></i>GRU</span><span><i class="ln" style="background:var(--c2)"></i>plain RNN</span></div>
 <div id="mr-svg"></div>
 <div class="out" id="mr-n"></div>
 <p class="small mute" id="mr-note"></p>
-</div>
-<p><b>The plain RNN can hold a memory but cannot learn one from long sequences:</b> trained on lengths up to 10 it solved the task in <span id="rd-m-r10"></span> of 9 runs, and two of those hold the key correctly at every test length up to 200; trained on lengths up to 50 or 100 it solved it in none of 18, ending at 25% (chance) or 50% (one bit of the key kept). <b>The gated cells learn it at every training length:</b> <span id="rd-m-g"></span>. This is Bengio et al.'s 1994 diagnosis on a laptop: the trouble is the gradient that must find the key (the previous section), not the capacity to store it.</p>
-<p class="small mute">Toy scale, said plainly: 8 units, one task, nine runs per setting; it shows the mechanism, not how real language models compare. Scripts and every run's numbers: <code>src/model/train_memory.py</code>, <code>runs/memory_results.json</code>.</p>
-</section>
+</div></div></div></div>
