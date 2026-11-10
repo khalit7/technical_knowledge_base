@@ -110,9 +110,11 @@
     st.lo=lo;st.hi=hi});
     const vals=[];s.steps.forEach(st=>{vals.push(st.lo,st.hi);if(st.sep)vals.push(st.sep)});if(s.ref)vals.push(s.ref.v);
     s.alo=Math.floor(Math.log10(Math.min(...vals.filter(x=>x>0))));s.ahi=Math.ceil(Math.log10(Math.max(...vals))+0.05)});
-  let gs='dsv3',gi=0,gt=0;
+  let gs='dsv3',gi=0,gt=0,guser=false,gended=false,gvis=false;
+  // autoplay (2026-11-06): plays its steps once at least half of it is in view in the open tab, pauses off screen, stops for good on a reader control or the last step, never under reduced motion
+  const glive=()=>gvis&&!document.hidden&&$('pl-grow').offsetParent!==null;
   $('pl-gsub').innerHTML=Object.entries(G).map(([k,s])=>'<button data-g="'+k+'"'+(k===gs?' class="on"':'')+'>'+s.name+'</button>').join('');
-  $('pl-gsub').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{gs=b.dataset.g;$('pl-gsub').querySelectorAll('button').forEach(y=>y.classList.toggle('on',y===b));stopG();gi=0;buildG()}));
+  $('pl-gsub').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{gs=b.dataset.g;$('pl-gsub').querySelectorAll('button').forEach(y=>y.classList.toggle('on',y===b));stopG();gi=0;gended=false;guser=false;buildG();gauto()}));
   function amt(st){return st.open?'not priced':st.sep?fUSD(st.sep):st.lo===st.hi?fUSD(st.lo):fUSD(st.lo)+' to '+fUSD(st.hi)}
   function buildG(){const s=G[gs],X=v=>Math.max(0,(Math.log10(v)-s.alo)/(s.ahi-s.alo)*100);
     let ax='';for(let e=s.alo;e<=s.ahi;e++)ax+='<span class="'+(e===s.alo?'l0':e===s.ahi?'l1':'')+'" style="left:'+X(10**e)+'%">'+fUSD(10**e)+'</span>';
@@ -143,11 +145,13 @@
     $('pl-gpos').textContent='Step '+(gi+1)+' of '+s.steps.length;
     $('pl-gprev').disabled=gi===0;$('pl-gnext').disabled=gi===s.steps.length-1}
   function stopG(){if(gt)clearInterval(gt);gt=0;$('pl-gplay').textContent='Play'}
-  $('pl-gprev').addEventListener('click',()=>{stopG();if(gi>0){gi--;showG()}});
-  $('pl-gnext').addEventListener('click',()=>{stopG();if(gi<G[gs].steps.length-1){gi++;showG()}});
-  $('pl-gplay').addEventListener('click',()=>{if(gt){stopG();return}
-    const n=G[gs].steps.length;if(gi>=n-1)gi=0;showG();$('pl-gplay').textContent='Pause';
-    gt=setInterval(()=>{if(gi<n-1){gi++;showG()}if(gi>=n-1)stopG()},reduce?600:1900)});
+  $('pl-gprev').addEventListener('click',()=>{guser=true;stopG();if(gi>0){gi--;showG()}});
+  $('pl-gnext').addEventListener('click',()=>{guser=true;stopG();if(gi<G[gs].steps.length-1){gi++;showG()}});
+  function playG(){const n=G[gs].steps.length;if(gi>=n-1)gi=0;showG();$('pl-gplay').textContent='Pause';
+    gt=setInterval(()=>{if(!glive())return;if(gi<n-1){gi++;showG()}if(gi>=n-1){gended=true;stopG()}},reduce?600:4200)}
+  $('pl-gplay').addEventListener('click',()=>{guser=true;if(gt){stopG();return}playG()});
+  function gauto(){if(!reduce&&!guser&&!gended&&!gt&&glive())playG()}
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{const x=es[es.length-1];gvis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(gvis)gauto()},{threshold:[0,.25,.5,.75]}).observe($('pl-grow'));
 
   fillPick();info();buildG();
   (window.TAB_RENDER=window.TAB_RENDER||{})['t-price']=(window.TAB_RENDER['t-price']||[]).concat([drawZ]);

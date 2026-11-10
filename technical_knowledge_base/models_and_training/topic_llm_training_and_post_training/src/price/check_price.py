@@ -39,7 +39,7 @@ for r in D['runs']:
         assert f['v'] > 0 and math.isfinite(f['v'])
 print('schema ok:', len(D['runs']), 'runs,', sum(len(r['figs']) for r in D['runs']), 'figures')
 txt = json.dumps(D, ensure_ascii=False)
-assert '—' not in txt, 'em dash in data'
+assert '\u2014' not in txt, 'em dash in data'
 
 # --- DeepSeek-V3 (Table 1)
 chk('V3: 2664K + 119K + 5K GPU-hours', sum(p['gpuh'] for p in runs['dsv3']['parts']), 2.788e6)

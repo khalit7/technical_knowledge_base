@@ -13,4 +13,5 @@ out="$1"; [ -n "$out" ] || { echo "usage: build_iso.sh out.html"; exit 1; }
   echo '</body></html>'; } | perl -CSD -pe '
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a href=\"#\" data-tab=\"$1\">$t<\/a>"}else{$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"}/ge;
 ' > "$out"
-grep -c '—' "$out" | sed 's/^/emdash /'
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+grep -c "$ED" "$out" | sed 's/^/emdash /'

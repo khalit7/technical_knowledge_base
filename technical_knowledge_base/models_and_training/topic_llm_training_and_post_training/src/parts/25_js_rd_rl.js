@@ -56,12 +56,13 @@
         if(sh==='a'){v='one loss term per pair';signals++}}
       roll+='<div class="rl-p"><div class="q">Prompt '+(q+1)+'</div><div class="rl-dots">'+dots+'</div><div class="rl-v">'+v+'</div></div>'}
     $('rd-rlRoll').innerHTML=roll;
-    $('rd-rlT').textContent=(i+1)+' of '+M.steps.length+' · '+s.t;$('rd-rlP').textContent=s.p;
     const trained=M.mods.filter(k=>MOD[k].tr).length,frozen=M.mods.filter(k=>MOD[k].b&&!MOD[k].tr).length;
     $('rd-rlN').innerHTML=RD.stat('Models in memory',trained+frozen,trained+' trained, '+frozen+' frozen')+RD.stat('Model state at 7B',gb(tot)+' GB','<i class="nl d">derived</i> '+tot+' B per parameter')+
       RD.stat('Answers generated',mode==='dpo'?'0':(sh?rollouts:0),mode==='dpo'?'pairs come from the dataset':'this batch')+
       RD.stat(mode==='grpo'?'Answers with a learning signal':'Learning signals',sh==='a'?signals:'not yet',mode==='grpo'?'groups with no spread give none':'');
   }
-  A=RD.anim({card:'rd-rl',ctl:'rd-rlC',n:MODES.ppo.steps.length,draw,ms:2600,label:'Step'});
-  $('rd-rlM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;A.reset(MODES[mode].steps.length)});
+  A=RD.anim({card:'rd-rl',ctl:'rd-rlC',n:MODES.ppo.steps.length,list:'sx-ppo',draw,ms:4600,label:'Step'});
+  // a mode toggle swaps the step list on the left (one item per step) and replays from step 1
+  $('rd-rlM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=b.dataset.m;
+    ['ppo','grpo','dpo'].forEach(m=>{const L=$('sx-'+m);L.hidden=m!==mode;L.previousElementSibling.hidden=m!==mode});A.reset(MODES[mode].steps.length,'sx-'+mode)});
 })();

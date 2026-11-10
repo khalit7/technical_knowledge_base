@@ -1,5 +1,5 @@
 // Exercise every control of the Reading tab at 390 px dark and 920 px light: grid cells, the two animations
-// (every mode, every step, play, pause, speed; neither moves before the reader acts), the path chips and script-written tab links.
+// (every mode, every step, play, pause, speed; each plays by itself once scrolled into view, 2026-11-06), the path chips and script-written tab links.
 // Fails on console errors, NaN or undefined in the tab text, or sideways scroll. Screenshots land in ../.shots/rd-*.png.
 // usage: node src/check_read.mjs   (from the page folder or anywhere)
 import { createRequire } from 'node:module';
@@ -49,14 +49,12 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     return n;
   };
   const scrub = (ctl, i) => p.$eval(`#${ctl}-s`, (s, i) => { s.value = i; s.dispatchEvent(new Event('input')) }, i);
-  // hero and nothing moves before the reader acts: scroll past both animations, wait, the scrubbers must not have moved
-  await shot('#rd-hero', 'hero');
-  const pos0 = await p.evaluate(() => ['rd-dtC-s', 'rd-rlC-s'].map(i => document.getElementById(i).value));
-  for (const id of ['#rd-dt', '#rd-rl']) { await p.$eval(id, e => e.scrollIntoView()); await wait(1600) }
-  const pos1 = await p.evaluate(() => ['rd-dtC-s', 'rd-rlC-s'].map(i => document.getElementById(i).value));
-  if (JSON.stringify(pos0) !== JSON.stringify(pos1)) problems.push('an animation moved before the reader acted ' + pos0 + ' -> ' + pos1);
-  await p.$eval('#rd-rlM button[data-m=grpo]', b => b.click()); await wait(1600);
-  if (await p.$eval('#rd-rlC-s', s => s.value) !== '0') problems.push('rl mode switch started playback');
+  // hero (Fig. 1, a 3D stage checked in check_stages.mjs) and autoplay (2026-11-06): each 2D animation plays by itself once scrolled into view
+  await shot('#rd-top', 'hero');
+  for (const [id, ctl] of [['#rd-dt', 'rd-dtC'], ['#rd-rl', 'rd-rlC']]) { await p.$eval(id, e => e.scrollIntoView({ block: 'center' })); await wait(1600);
+    if (!(await p.$eval(`#${ctl}-p`, b => /Pause/.test(b.textContent)))) problems.push(id + ' did not play when scrolled into view') }
+  await p.$eval('#rd-rlM button[data-m=grpo]', b => b.click()); await wait(800);
+  if (!(await p.$eval('#rd-rlC-p', b => /Pause/.test(b.textContent)))) problems.push('rl mode switch did not replay');
   await p.$eval('#rd-rlM button[data-m=ppo]', b => b.click());
   // Axis 2: data
   await p.$eval('#rd-dt', e => e.scrollIntoView()); await wait(300);

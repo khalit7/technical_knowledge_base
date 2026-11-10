@@ -177,8 +177,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_training_and_post_training/pretraining` Pretraining
 - [x] `models_and_training/topic_llm_training_and_post_training/quantization_and_precision` Quantization and Precision
 - [x] `models_and_training/topic_llm_training_and_post_training/reward_hacking` Reward Hacking
-- [~] `models_and_training/topic_llm_training_and_post_training` Topic: llm-training-and-post-training
-- [ ] `models_and_training/topic_ml_fundamentals/activation_functions` Activation functions
+- [x] `models_and_training/topic_llm_training_and_post_training` Topic: llm-training-and-post-training
+- [x] `models_and_training/topic_ml_fundamentals/activation_functions` Activation functions
 - [ ] `models_and_training/topic_ml_fundamentals/classical_ml` Classical ML
 - [ ] `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning` Contrastive and self-supervised learning
 - [ ] `models_and_training/topic_ml_fundamentals/evaluation_metrics` Evaluation metrics
@@ -470,6 +470,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_training_and_post_training/pretraining`: Fig. 2 has 41 character labels about 8.5 px apart on phones (tight, no overlap); a 3D version of section 4 was tried and dropped.
 - `models_and_training/topic_llm_training_and_post_training/quantization_and_precision`: formats table very tall at 390 px (predates the rebuild); stage labels hide during camera glides then fade in.
 - `models_and_training/topic_llm_training_and_post_training/reward_hacking`: Fig. 2 "assert x == y -> True" label sits across the test plate; empty space above the tests stage at 1400 px; reach stage step 1 fairly empty on phones; buggy-test card tall.
+- `models_and_training/topic_llm_training_and_post_training` (root): Fig. 1 close-ups cut the side stages and plate at the card edges (left and right).
+- `models_and_training/topic_ml_fundamentals/activation_functions`: Fig. 2 close views fade layer 1 near the bottom edge; Fig. 3 dense at its last step; phones hide side and axis labels.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -494,3 +496,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Distributed training: the step-throughs' batch toggle (four sequences against one 32K sequence) and the "compare counters with" menu were removed; their results are now sentences and a readout against DP. Keep removed, or restore?
 - Pretraining: the header says 33 min, which counts the step lists of modes a reader only sees by switching (the default path is about 29 min). Quote 29 instead, or collapse the objective stepper's five per-objective step lists into one generic list (saves about 1.6 min)?
 - Quantization: Fig. 2 bar heights grow with the square root of |w| so ordinary weights stay visible (said on the card); Fig. 10 grid cell counts are illustrative. Keep both?
+- Training root: the static hero became the 3D lifecycle map (dot counts labelled schematic) and Fig. 2 now opens on step 1 and plays instead of the full record. Keep, or restore?
+- Activation functions: Fig. 1's hand-set XOR weights credit no source (the agent could not verify the Deep Learning book's section 6.1). Add a citation once verified, or leave uncredited? The page is 27 min core with every run mode's step list kept in full (about 24 min reading one mode per stage).
