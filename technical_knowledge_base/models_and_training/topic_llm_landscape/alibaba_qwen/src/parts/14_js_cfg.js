@@ -1,16 +1,8 @@
 // ---- Configs tab: eight config.json files, recomputed (cache sizing moved to Long context's KV-cache calculator, 2026-10-23) ----
 (function(){
   if(!$('cfTab2'))return;
-  // Fields copied from each model's config.json (text_config where nested). lf/ll = full/linear layers from layer_types or full_attention_interval.
-  const C=[
-    {n:'Qwen3-32B',c:'var(--c5)',L:64,lf:64,ll:0,kv:8,dh:128,hv:0,dk:0,dv:0,d:5120,E:0,k:0,sh:0,dff:0,tot:32,act:32,note:'dense, 64 layers of full attention'},
-    {n:'Qwen3-30B-A3B',c:'var(--mute)',L:48,lf:48,ll:0,kv:4,dh:128,hv:0,dk:0,dv:0,d:2048,E:128,k:8,sh:0,dff:768,tot:30,act:3},
-    {n:'Qwen3-235B-A22B',c:'var(--c2)',L:94,lf:94,ll:0,kv:4,dh:128,hv:0,dk:0,dv:0,d:4096,E:128,k:8,sh:0,dff:1536,tot:235,act:22},
-    {n:'Qwen3-Next-80B-A3B',c:'var(--c6)',L:48,lf:12,ll:36,kv:2,dh:256,hv:32,dk:128,dv:128,d:2048,E:512,k:10,sh:1,dff:512,tot:80,act:3},
-    {n:'Qwen3.5-397B-A17B',c:'var(--c7)',L:60,lf:15,ll:45,kv:2,dh:256,hv:64,dk:128,dv:128,d:4096,E:512,k:10,sh:1,dff:1024,tot:397,act:17},
-    {n:'Qwen3.8-27B',c:'var(--c4)',L:64,lf:16,ll:48,kv:4,dh:256,hv:48,dk:128,dv:128,d:5120,E:0,k:0,sh:0,dff:0,tot:27,act:27,note:'dense feed-forward (intermediate 17,408)'},
-    {n:'Qwen3.8-2.4T-A95B',c:'var(--c1)',L:92,lf:23,ll:69,kv:4,dh:256,hv:128,dk:128,dv:128,d:8192,E:512,k:10,sh:1,dff:2048,tot:2400,act:95},
-    {n:'Qwen3.8-Flash-Next',c:'var(--good)',L:48,lf:12,ll:36,kv:2,dh:256,hv:48,dk:128,dv:128,d:2560,E:512,k:10,sh:1,dff:640,tot:125,act:6,note:'125B excludes 51B n-gram and 4B MTP'}];
+  // Fields from each model's config.json, decoded by src/mk_data.py into window.QW (22_js_qw_0data.js); lf/ll = full/linear layers from layer_types or full_attention_interval.
+  const C=QW.rows.map(r=>Object.assign({},r,{lf:QW.nf(r),ll:r.L-QW.nf(r),note:r.note||undefined}));
   const big=v=>v>=1e12?(v/1e12).toFixed(3)+'T':v>=1e9?(v/1e9).toFixed(1)+'B':(v/1e6).toFixed(1)+'M';
   function draw(){
     // table 2: parameters

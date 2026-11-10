@@ -1,31 +1,7 @@
-// ---- Static figures drawn at the measured width: hero block, Flash-Next parameters to scale, the Qwen3 post-training recipe ----
+// ---- Static figures drawn at the measured width: Flash-Next parameters to scale, the Qwen3 post-training recipe ----
 (function(){
   const W0=el=>Math.max(300,Math.min(860,RD.width(el)));
   const T=(x,y,s,o)=>RD.t(x,y,s,o);
-  // Hero: one Qwen3.8 block, and the test, adopt, inherit loop under it
-  function hero(){
-    const el=$('heroSvg');if(!el)return;const W=W0(el),nar=W<480;
-    const mixW=Math.round(W*(nar?0.48:0.40)),gap=nar?22:30,moeW=Math.round(W*(nar?0.34:0.30)),rh=42,rg=8,y0=6;
-    let s='';
-    for(let i=0;i<4;i++){const y=y0+i*(rh+rg),g=i<3;
-      s+=bx(0,y,mixW,rh,g?'boxc':'boxa',[g?'Gated DeltaNet':'Gated attention',g?'fixed state':'softmax, every key'],nar?11.5:12);
-      s+=ar(mixW+2,y+rh/2,mixW+gap-2,y+rh/2);
-      s+=bx(mixW+gap,y,moeW,rh,'box',['MoE',nar?'11 of 513':'10 + 1 of 513 experts'],nar?11.5:12)}
-    const bh=4*rh+3*rg,bxr=mixW+gap+moeW+8;
-    if(!nar){s+='<path d="M'+bxr+' '+y0+' q8 0 8 10 v'+(bh/2-16)+' q0 6 6 6 q-6 0 -6 6 v'+(bh/2-16)+' q0 10 -8 10" fill="none" stroke="var(--mute)"/>';
-      s+=T(bxr+18,y0+bh/2-6,'× 12 to 23',{fs:12,w:600})+T(bxr+18,y0+bh/2+10,'blocks',{fs:11,fill:'var(--mute)'})}
-    s+='<rect x="'+(mixW-58)+'" y="'+(y0+3*(rh+rg)-9)+'" width="56" height="16" rx="8" fill="var(--bg)" stroke="var(--acc)"/>'+T(mixW-30,y0+3*(rh+rg)+3,'QSA next',{fs:11,a:'middle',fill:'var(--acc)'});
-    let y=y0+bh+(nar?18:14);
-    if(nar){s+=T(0,y,'The block repeats 12 to 23 times.',{fs:11,fill:'var(--mute)'});y+=14}
-    // loop strip
-    const L=[['Qwen3-Next','Sep 2025','tests'],['Qwen3.5-397B','Feb 2026','adopts'],['Qwen3.8','Aug 2026','inherits'],['Flash-Next','Aug 2026','tests QSA']];
-    const ly=y+18,x0=nar?40:60,x1=W-(nar?40:60),dx=(x1-x0)/3;
-    s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+ly+'" y2="'+ly+'" stroke="var(--line)" stroke-width="2"/>';
-    L.forEach((l,i)=>{const x=x0+i*dx;s+='<circle cx="'+x+'" cy="'+ly+'" r="6" fill="'+(i===1||i===2?'var(--acc)':'var(--bg)')+'" stroke="var(--acc)" stroke-width="2"/>'+
-      T(x,ly-12,l[2],{fs:11,a:'middle',fill:'var(--acc)',w:600})+T(x,ly+22,l[0],{fs:11,a:'middle',w:600})+T(x,ly+36,l[1],{fs:11,a:'middle',fill:'var(--mute)'})});
-    const H=ly+44;el.innerHTML=svgEl(W,H,s,'One Qwen3.8 block: three Gated DeltaNet layers and one gated attention layer, each followed by a 513-expert MoE; below, the loop from Qwen3-Next to Flash-Next');
-  }
-  // Flash-Next: where the parameters live, to scale
   function fnp(){
     const el=$('fnpSvg');if(!el)return;const W=W0(el),nar=W<480;
     const seg=[['experts','121.0B',121.0,'var(--acc)',1],['rest of backbone','≈4B',4.0,'var(--c5)',0],['MTP','4B',4.0,'var(--c4)',0],['n-gram table','51.2B',51.2,'var(--c6)',1]];
@@ -62,6 +38,6 @@
     s+=T(xr,yb-4,'Qwen3-8B: 1,800 GPU h',{fs:11,fill:'var(--good)'})+T(xr,yb+10,'against 17,920 for RL',{fs:11,fill:'var(--good)'});
     el.innerHTML=svgEl(W,yb+16,s,'Qwen3 post-training: four stages for the large models; the small models are distilled from them off-policy, then on-policy');
   }
-  function all(){hero();fnp();rcp()}
+  function all(){fnp();rcp()}
   RD.onRender(all);RD.onResize(all);all();
 })();

@@ -1,6 +1,6 @@
 # Alibaba: Qwen, interactive page (v4, rebuilt 2026-10-24 to the teaching contract)
 
-Child page of Topic: llm-landscape (prefix `qw`, storage key `qw-tab`). Rebuilt by editing only: no new runs, no new numbers except derived ones with their formula.
+Child page of Topic: llm-landscape (prefix `qw`, storage key `qw-tab`). Current structure: the 2026-11-10 section below. Rebuilt by editing only: no new runs, no new numbers except derived ones with their formula.
 
 ## Build and checks (current)
 - `sh build.sh` writes `../index.html`: HTML parts `01_head`, `02_read_a` (core idea, hero, you need, new terms, one-screen table, strategy and licences, how the design got here), `02b_read_line` (lineage release notes, closed), `03_read_b` (MoE, hybrid attention, QSA and Flash-Next), `04_read_c` (post-training, dated lineup), `04d_read_deep` (closed depth blocks), `05_tabs` (Configs, Licence checker), `07_more`; then the error box and one script per JS part: `10_js_common`, `21_js_rd_common` (skill template, never autoplays), `11_js_moe`, `12_js_hx`, `13_js_small`, `14_js_cfg`, `15_js_line` (lineage chart, now in Reading), `16_js_lic`, `17_js_figs` (hero, Flash-Next parameters to scale, Qwen3 post-training recipe), `99_js_tabs` (skill template).
@@ -32,6 +32,28 @@ Why about 23 minutes is right: the page owns three architectural departures (512
 
 ## Knowledge ledger
 471 units: core 286, depth 73, volatile 65, owned 13, fat 34 (`ledger.py check`: problems 0). 455 drafted by `ledger.py init` from the old page, 10 carried from the 2026-10-23 pilot ledger (KV-cache units owned by Long context), 6 added by hand for script-drawn visuals. Owned: delta-rule demo by Beyond attention; Table 21 bars by Distillation and small language models; MoE definition by Mixture of experts; cache sizing by Long context.
+
+## 2026-11-10: split layout, two 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
+- **Templates** copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `qw-tab`). `build.sh` keeps its explicit part lists (new: `22_js_qw_0data.js`, `25_js_s3.js`, `41_js_sc_hero.js`, `42_js_sc_moe.js`) and writes its em-dash test as bytes.
+- **Data**: `mk_data.py` decodes the eight `inputs/cfg_*.json` into `parts/22_js_qw_0data.js` (`window.QW`: layer pattern, d_model, experts, top-k, shared, expert width, KV heads, indexer fields; headline totals from the A-notation). The Configs tab now reads it instead of its own copied table, so the tab and both stages draw the same numbers.
+- **Fig. 1 `stg-hero`** (6 steps, `41_js_sc_hero.js`), the new hero: the loop as layer towers, one slab per layer from each config's layer pattern (blue full attention, green Gated DeltaNet, orange QSA), footprint the hidden size. Qwen3-235B and its distilled 30B-A3B student, Qwen3-Next tests, Qwen3.5 adopts, Qwen3.8 27B and 2.4T inherit, one 2.4T block exploded (three GDN, one gated attention, an MoE plate after each), Flash-Next tests QSA. Flows: teacher to student, test to flagship, flagship to mainline, tokens up the test models. Replaces the 2D hero SVG (removed from `17_js_figs.js`); its bullet list became the step list.
+- **Fig. 3 `stg-moe`** (5 steps, `42_js_sc_moe.js`): one MoE layer per release as an expert grid, block area to scale (side proportional to the square root of 3 d_model d_ff), k lit plus the shared expert, router and flows to the chosen experts; 235B, Next, 3.5, 2.4T, then all five side by side with Flash-Next. Which experts light is illustrative (seeded), said in the step text. Replaces the 2D two-layout grid (`eg`, removed from `11_js_moe.js`, with its "route another token" button).
+- **Hybrid attention animation `#hx`** (own controller, kept 2D): the per-step caption box is gone; its text is three `ol.sx` lists (`sx-hx-full`, `-hyb`, `-qsa`, one shown per mode) whose context-dependent numbers are spans the script fills. The controller got the motion rules: plays once half in view, pauses off screen, stops for good on any reader control or at the last step, a mode toggle swaps the list and replays, never moves under reduced motion; `data-playing` while it plays. Its split also holds the QSA section, which the third mode illustrates.
+- **2D kept, each in a split** (text left, card right): lineage dot chart, global-batch toy (a slider widget), layout ablation bars, Flash-Next parameters to scale, Table 11 bars, post-training recipe, thinking-budget widget. They are a timeline, bars and sliders, which read best flat. Full width: strategy and licence table, "You need", terms, differences table, gated attention and cache sizing, the split and distillation, Models today (volatile, unchanged), Depth, Configs and Licence checker tabs (tables and a tool), Further reading.
+- Checks: `check_stages.mjs` (new): both stages and `#hx` play in view, step to the end with one list item per step, stop off screen, never move under reduced motion; hx modes replay on toggle and the live list numbers follow the context; splits two columns at 1400 px and one below 1100; about 40 numbers in the step lists recomputed from `window.QW`. `check_controls.mjs`: its never-autoplay assertion inverted, and it clears the remembered tab between passes.
+- No real image: Qwen's architecture figures carry no reuse licence (as before).
+
+### Length judgement (2026-11-10)
+| | Before (audit 2026-11-10, before this pass) | After |
+|---|---|---|
+| Reading, core | 5,319 words, 23.1 min | 6,365 words, 27.7 min |
+| Reading, closed details | 2,683 words, 11.7 min | 2,683 words, 11.7 min |
+| Configs / Licence checker / Further reading | 1.5 / 2.5 / 3.0 min | unchanged |
+
+The added words are step lists: the hybrid animation's 17 step texts were script-drawn captions the audit could not count (now static, two of the three lists hidden at a time, about 500 words a reader sees only on switching mode), and the two stages' 11 steps. Where a list now carries a paragraph's numbers (the 2.4T expert arithmetic, the hero bullets) the paragraph shrank. Nothing was cut.
+
+### Knowledge ledger (2026-11-10; problems 0)
+473 units: core 286, depth 74, volatile 66, owned 13, fat 34. Units 84 to 88 and 230 re-keyed to the sentences now beside Fig. 3 and the hx split; 427 and 439 to 454 (external reading times) re-keyed to the resource titles, never the minutes.
 
 ---
 

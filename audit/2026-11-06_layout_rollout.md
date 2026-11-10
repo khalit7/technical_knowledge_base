@@ -156,7 +156,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
 - [~] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
 - [ ] `models_and_training/topic_llm_architecture` Topic: llm-architecture
-- [ ] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
+- [x] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
 - [ ] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
 - [ ] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
 - [ ] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
@@ -447,4 +447,14 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability`: Fig. 1 hero sparse and faint at 1400 (small objects, much empty card); the old stepper's per-token views (token o, token 0) are gone; labels over faded objects in Figs. 3, 4 and 5; Fig. 1 small on phones; Fig. 2's gradient thinning is drawn, not measured (labelled); verify_layout flags the Stability explorer outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_architecture/positional_encodings`: empty space above and below the scene at 1400 (worst Figs. 1, 5, 6); Fig. 6 NTK step's per-pair out-of-range count can exceed plain's (modulo-one-turn judgement; the step also gives how far the slowest pair turns); running-sequence card about 1,070 px tall, not sticky; core 33 to 38 min plus 20 closed.
 - `models_and_training/topic_llm_architecture/the_transformer_from_zero`: core 32 to 40 min plus 22 closed; Fig. 3 step 4 shows a small unexplained cluster at the lower right; full-view steps small (Fig. 1 steps 3 and 6, Fig. 4 step 3); stages read the root's src/block/out/trace_ref_baseline_s1500.json (keep it if the root is reorganised); Fig. 4 heights are square-root weights (said in the step).
+- `models_and_training/topic_llm_landscape/alibaba_qwen`: Fig. 3 all-five step draws grids in a thin band with empty space below; hero step 4 "16 attention" note close to the 2.4T tower at 390; which experts light up is a seeded illustrative pick (said in the step); no Qwen figures (no reuse licence).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
+
+## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
+
+- Extraction and filtering: the labels data carries third-party crawled text (another site's PHP error path under its /home, a googleusercontent host). Not this machine's data; pre-existing. Scrub it or leave it?
+- Maths root, Gradient lab panel 3: keep as practice or drop (Calculus and optimisation has an eight-method lab).
+- Python toolchain page: no resolver stage because no trace was recorded; recording `uv lock -v` on a small project with a deliberate conflict would allow one. Record it?
+- Native multimodal models: the old token viewer paired mismatched images because `ar/tokenize_data.py` writes the first 16 test images, not the topic's fixed 16; rerunning it on test16() (needs scratch data) would restore all classes. Rerun?
+- Generative and multimodal root: five children (Vision encoders, VLMs, Diffusion, Autoencoders, Evaluating) have not absorbed the facts in its "Kept from the retired labs" block. Move them into the children, or keep the block?
+- Pages over about 50 minutes core or with large closed details (see polish notes): condense in the cosmetic pass, or leave?

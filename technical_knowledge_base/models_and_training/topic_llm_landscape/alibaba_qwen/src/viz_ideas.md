@@ -111,3 +111,8 @@ Scoring is 0 to 2 per question; reproduction and computability count double; bui
 - Moved: lineage chart from its tab into Reading.
 - Removed: the delta rule against plain linear attention widget (Beyond attention owns and demonstrates the mechanism); the Table 21 bars (owned by Distillation and small language models, numbers kept in text); the AA bars (merged into the dated table).
 - Rejected: a stepper for QSA's two passes (the hybrid animation's QSA mode already steps them); a real image (no physical object; Qwen's figures carry no reuse licence).
+
+## 2026-11-10 (layout rollout)
+- Built: Fig. 1 loop as layer towers (3D, hero), Fig. 3 expert grids to scale across releases (3D). Retrofitted: hybrid animation with step lists and autoplay.
+- Kept 2D: hybrid per-token read (lanes of grids to scale read best flat and the animation already counts to scale), lineage timeline, ablation and Table 11 bars, Flash-Next parameter bar, recipe diagram, global-batch and thinking-budget sliders.
+- Rejected: a 3D 3:1 layer tower for the attention section (the hero already draws every config's 3:1 stack); cache-per-token towers (Long context and the LLM Architecture Gallery own them).

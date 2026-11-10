@@ -10,31 +10,15 @@
   const IDX=128/4;              // indexer: one 128-dim key per 4-token block, i.e. 32 numbers per token (assumed cached compressed)
   const BUD=2048, NC=512;       // QSA token budget; cells per lane
   const TS=[4096,32768,262144,1000000];
-  const st={m:'hyb',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:'',ti:1};
+  const st={m:'hyb',k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0,ti:1,user:false,ended:false};
   const T=()=>TS[st.ti];
-  const H=(t,c)=>({t,c});
   const tk=()=>fmt(T());
-  const SF=()=>[
-    H('A token arrives','Token <i>t</i> enters one block of four layers (Flash-Next has 12 such blocks, 48 layers). In this counterfactual all four layers are ordinary softmax attention with Flash-Next\'s head shape, 2 key-value heads of 256, so every earlier token holds 2 × 2 × 256 = 1,024 numbers in every layer. Each grid is one layer\'s memory at '+tk()+' tokens of context, to scale: one square holds '+fmt(T()/NC,T()<NC*10?1:0)+' tokens of cache.'),
-    H('Layer 1: append, then read everything','The layer writes the new token\'s key and value, then its query is scored against every earlier key and the values are summed: all '+tk()+' entries, '+fmt(T()*KVT)+' numbers moved from memory for one token in one layer. This read grows with context and is what makes long-context decoding slow.'),
-    H('Layers 2 to 4: the same again','Each layer keeps and reads its own full cache. Nothing is shared between layers, so the block reads four times as much.'),
-    H('The bill for one block','4 × '+tk()+' × 1,024 = '+fmt(4*T()*KVT)+' numbers read per decoded token per block, and a cache of 48 layers × 1,024 numbers per token for the whole model: 96 KiB per token in 16-bit. Switch to the hybrid to see what three Gated DeltaNet layers do to both numbers.')];
-  const SH=()=>[
-    H('A token arrives','The same token, the same block, but three of the four layers are now <b>Gated DeltaNet</b>. Each holds a fixed state of 48 value heads × 128 × 128 = 786,432 numbers, drawn in green at the same scale: the cache of 768 tokens. The dashed outline is what a full-attention layer would hold at '+tk()+' tokens.'),
-    H('Layer 1, Gated DeltaNet: decay, erase, write','The whole state is multiplied by the learned decay <i>α<sub>t</sub></i>; the delta rule subtracts what the state currently returns for key <b>k</b><sub><i>t</i></sub> and writes the new value <b>v</b><sub><i>t</i></sub> with strength <i>β<sub>t</sub></i>. A write replaces an association instead of piling on top of it, and the state does not grow.'),
-    H('Read the state','The output is <b>o</b><sub><i>t</i></sub> = <i>S<sub>t</sub></i><b>q</b><sub><i>t</i></sub>: 786,432 numbers read, whatever the context length. The price is that the state is a lossy summary: exact recall of one early token degrades.'),
-    H('Layers 2 and 3: the same, each with its own state','Two more fixed reads of 786,432 numbers. Three layers of four now cost the same at 4K tokens as at 1M.'),
-    H('Layer 4, gated attention: append and read every key','The fourth layer keeps exact recall: ordinary softmax attention over all '+tk()+' cached tokens, '+fmt(T()*KVT)+' numbers, with a sigmoid gate multiplied onto each head\'s output. This is the path retrieval and copying travel through.'),
-    H('The bill for one block','3 × 786,432 + '+tk()+' × 1,024 = '+fmt(3*ST+T()*KVT)+' numbers read per token per block. The stored cache is a quarter of the all-attention stack\'s (12 layers instead of 48), plus a fixed 54 MiB of states. A state beats the cache it replaces from 786,432 / 1,024 = 768 tokens of context on.')];
-  const SQ=()=>[
-    H('A token arrives','The model as shipped: the same three Gated DeltaNet layers, and the fourth layer is now <b>Qwen Sparse Attention</b> (QSA), swapped in for full attention at continued pretraining. It stores exactly what the hybrid\'s attention layer stores: every key is kept, because the indexer may pick any of them.'),
-    H('Layers 1 to 3: Gated DeltaNet, as before','Three fixed state reads, 3 × 786,432 = 2,359,296 numbers, independent of context.'),
-    H('Layer 4 appends its key and value','The new token\'s 1,024 numbers join the cache, plus a 128-number indexer key that is averaged with its three neighbours into one compressed key per micro-block of 4 tokens.'),
-    H('Indexer pass: score every micro-block','A small multi-query attention (4 query heads, 1 shared key head of 128) scores all '+fmt(Math.floor(T()/4))+' compressed blocks: '+fmt(T()/4*128)+' numbers, a thirty-second of the cache per token. This pass still grows with context, which is why the measured speedup is far below the selection ratio.'),
-    H('Keep the top 512 blocks','The 512 highest-scoring blocks (the budget <i>K</i> = 2,048 tokens over <i>r</i> = 4) are expanded back to their tokens, plus the tokens of the last, unfinished block, which are always kept. At '+tk()+' tokens that is '+(T()>BUD?(100*BUD/T()).toFixed(T()>100000?2:1)+'% of the context':'all of it')+'.'),
-    H('Attention reads only those tokens','Core attention (24 query heads, 2 KV heads of 256) reads '+fmt(Math.min(T(),BUD))+' tokens × 1,024 = '+fmt(Math.min(T(),BUD)*KVT)+' numbers instead of '+fmt(T()*KVT)+'. The read no longer grows with context; the indexer pass is now the part that does.'),
-    H('The bill for one block','2,359,296 + '+fmt(T()/4*128)+' + '+fmt(Math.min(T(),BUD)*KVT)+' = '+fmt(readQ())+' numbers read, against '+fmt(readH())+' for the hybrid and '+fmt(readF())+' with full attention. Storage is the hybrid\'s: QSA cuts reads and arithmetic, not the cache. Measured at 1M tokens the attention module is 7.6 times faster in prefill and 4.9 times in decode, not the read ratio, because selection and gathering also cost time.')];
-  const steps=()=>st.m==='full'?SF():st.m==='hyb'?SH():SQ();
+  // the step lists on the left (sx-hx-full, sx-hx-hyb, sx-hx-qsa) are the explanation; their context-dependent numbers are spans filled here
+  const lists={full:$('sx-hx-full'),hyb:$('sx-hx-hyb'),qsa:$('sx-hx-qsa')};
+  const steps=()=>[...lists[st.m].children];
+  const V={tk:()=>fmt(T()),tpc:()=>fmt(T()/NC,T()<NC*10?1:0),A:()=>fmt(T()*KVT),F4:()=>fmt(4*T()*KVT),H:()=>fmt(readH()),blk:()=>fmt(Math.floor(T()/4)),ix:()=>fmt(T()/4*128),
+    sel:()=>T()>BUD?(100*BUD/T()).toFixed(T()>100000?2:1)+'% of the context':'all of it',core:()=>fmt(Math.min(T(),BUD)),coreN:()=>fmt(Math.min(T(),BUD)*KVT),Q:()=>fmt(readQ())};
+  function fill(){Object.values(lists).forEach(L=>L.querySelectorAll('[data-hx]').forEach(x=>x.textContent=V[x.dataset.hx]()))}
   const readF=()=>4*T()*KVT,readH=()=>3*ST+T()*KVT,readQ=()=>3*ST+T()/4*128+Math.min(T(),BUD)*KVT;
   const storeF=()=>48*T()*KVT,storeH=()=>12*T()*KVT+36*ST,storeQ=()=>storeH()+12*T()*IDX;
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v);
@@ -113,7 +97,7 @@
     s+=row(b+15,'3:1 hybrid',m==='hyb'?cur:(isEnd&&m!=='full'?readH():0),cS,m==='hyb'||(isEnd&&m!=='full')?1:.35);
     s+=row(b+30,'Hybrid + QSA',m==='qsa'?cur:0,cR,m==='qsa'?1:.35);
     $('hxSvg').innerHTML=svgEl(L.W,L.H,s,'One decoded token through one block of four layers: '+(m==='full'?'full attention':m==='hyb'?'Gated DeltaNet hybrid':'hybrid with Qwen Sparse Attention')+', step '+(k+1));
-    if(st.lk!==k||st.lm!==m+st.ti){const S=steps()[k];$('hxStep').innerHTML='Step '+(k+1)+' of '+steps().length+': '+S.t;$('hxCap').innerHTML=S.c;st.lk=k;st.lm=m+st.ti}
+    steps().forEach((li,i)=>{li.classList.toggle('on',i===k);li.classList.toggle('done',i<k);if(i===k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
     const store=m==='full'?storeF():m==='hyb'?storeH():storeQ();
     $('hxCnt').innerHTML=stat('Read so far, this token, this block',fmtN(cur),fmtBytes(cur*2)+' in 16-bit')+stat('Against full attention',m==='full'?'1 ×':isEnd?(readF()/(m==='full'?readF():m==='hyb'?readH():readQ())).toFixed(1)+' times fewer':'at the last step',m==='full'?'the baseline':'numbers read per block')+stat('Stored for this request, whole model',fmtBytes(store*2),m==='qsa'?'incl. compressed indexer keys (assumed)':'48 layers, 16-bit');
     const n=steps().length,sc=$('hxScrub');sc.max=n*100;sc.value=Math.round((k+st.t)*100);
@@ -126,21 +110,29 @@
     const ix=t/4*128,core=Math.min(t,BUD)*KVT;return k===0?0:k===1?3*ST*e:k===2?3*ST:k===3?3*ST+ix*e:k===4?3*ST+ix:k===5?3*ST+ix+core*e:3*ST+ix+core}
   const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
   function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
-    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
-  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('hxPlay').addEventListener('click',()=>{if(st.play){pause()}else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $('hxFwd').addEventListener('click',()=>{pause();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
-  $('hxBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $('hxScrub').addEventListener('input',e=>{pause();const n=steps().length,v=+e.target.value;st.k=Math.min(n-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
+    st.t+=dt*st.spd/DUR;const n=steps().length;if(st.t>=1){if(st.k<n-1){st.k++;st.t=0}else{st.t=1;st.play=false;st.ended=true}}
+    card.dataset.frames=(+card.dataset.frames||0)+1;mark();draw();if(st.play)st.raf=requestAnimationFrame(tick)}
+  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0;st.last=0}}
+  function mark(){if(st.play)card.dataset.playing='1';else delete card.dataset.playing}
+  const pause=()=>{st.play=false;mark();if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+  // autoplay (2026-11-06): plays once at least half in view, pauses off screen and resumes, stops for good on a reader control or at the last step, never under reduced motion
+  function auto(){if(RM||st.user||st.ended||st.play||!live())return;st.play=true;mark();kick();draw()}
+  const user=()=>{st.user=true;pause()};
+  $('hxPlay').addEventListener('click',()=>{st.user=true;if(st.play){pause()}else{const n=steps().length;if(st.k===n-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<n-1){st.k++;st.t=0}if(RM){st.t=1;draw();return}st.play=true;mark();kick()}draw()});
+  $('hxFwd').addEventListener('click',()=>{user();st.k=Math.min(steps().length-1,st.k+1);st.t=1;draw()});
+  $('hxBack').addEventListener('click',()=>{user();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $('hxScrub').addEventListener('input',e=>{const n=steps().length,v=+e.target.value;user();st.k=Math.min(n-1,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('hxSpd').addEventListener('change',e=>{st.spd=+e.target.value});
-  $('hxT').addEventListener('change',e=>{st.ti=+e.target.value;st.lk=-1;draw()});
+  $('hxT').addEventListener('change',e=>{st.ti=+e.target.value;selCache={};fill();draw()});
+  function bindLists(){Object.entries(lists).forEach(([m,L])=>[...L.children].forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');
+    const j=()=>{user();st.k=i;st.t=1;draw()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}}))}
+  // a mode toggle swaps the step list, returns to step 1 and replays (the one exception to "stops for good")
   const seg=$('hxM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    pause();st.m=b.dataset.m;Object.entries(lists).forEach(([m,L])=>L.hidden=m!==st.m);st.k=0;st.t=RM?1:0;st.user=false;st.ended=false;draw();auto()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=0;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});rw=card.clientWidth<560;
-  onTab('t-read',()=>{draw();kick()});
+  bindLists();fill();
+  onTab('t-read',()=>{draw();auto();kick()});
   draw();
 })();
