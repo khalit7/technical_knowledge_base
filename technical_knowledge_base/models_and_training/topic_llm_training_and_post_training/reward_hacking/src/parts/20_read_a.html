@@ -1,9 +1,7 @@
 <div class="tab" id="t-read" role="tabpanel">
 <section id="rh-s0">
+<div class="s3sp"><div class="s3L">
 <div class="core"><b class="k">The idea in one sentence</b>Training can only optimise a <span class="hot">proxy</span> for what we want (a reward model, a judge, a test suite), and optimised hard enough the policy finds the places where proxy and goal disagree: the proxy keeps rising while the true objective peaks and then falls.</div>
-<div class="fig" id="rh-hero"><h4>The proxy keeps climbing after the goal has turned over</h4>
-<div class="rd-svg" id="rh-heroSvg"></div>
-<p class="cap">Schematic, in the shape Gao et al. measured (section 2 draws their fitted curves). Left of the peak, optimising the proxy also improves the goal; right of it, every gain in proxy is bought by exploiting the proxy's errors, which is reward hacking. A KL penalty only chooses where on this curve training stops; a bigger reward model moves the peak later and higher; a hardened verifier removes one shortcut; a monitor watches the gap. None of them removes the turn.</p></div>
 <p class="small"><b>You need</b>: what a reward model, PPO, DPO and RLVR are ({{Alignment: SFT, RLHF, DPO Family, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}}) and the KL penalty in the RL objective ({{RL for LLMs: RLHF, GRPO, RLVR|n:3c65c17b0d0d818c9bcff7177325fe56}}). This page owns what goes wrong when they are optimised.</p>
 <div class="terms">
 <div><dfn>Proxy / gold</dfn>: the signal training optimises / the thing it stands for (people's judgement, a held-out judge, a hidden test set).</div>
@@ -16,6 +14,11 @@
 <div><dfn>Gradient routing (GRAFT)</dfn>: a monitor decides which parameters a sample updates, not its reward; flagged samples train a separate adapter that is deleted after training.</div>
 <div><dfn>Inoculation prompting</dfn>: telling the model during training that the hack is allowed, so hacking stops generalising.</div>
 </div>
+</div><div class="s3R"><div class="s3side">
+<div class="fig card" id="rh-hero"><h4>The proxy keeps climbing after the goal has turned over</h4>
+<div class="rd-svg" id="rh-heroSvg"></div>
+<p class="cap">Schematic, in the shape Gao et al. measured (section 2 draws their fitted curves). Left of the peak, optimising the proxy also improves the goal; right of it, every gain in proxy is bought by exploiting the proxy's errors, which is reward hacking. A KL penalty only chooses where on this curve training stops; a bigger reward model moves the peak later and higher; a hardened verifier removes one shortcut; a monitor watches the gap. None of them removes the turn.</p></div>
+</div></div></div>
 <div class="card"><h4>Where the gap between proxy and goal lives</h4>
 <div class="tw"><table class="rd-cmp"><thead><tr><th>Proxy</th><th>What gets gamed</th><th>Strongest measurement</th><th>Defence with evidence</th><th>Section</th></tr></thead><tbody>
 <tr><td data-h="Proxy">Learned reward model</td><td data-h="Gamed">length, format, agreement, looking right</td><td data-h="Measured">on WebGPT only 2% of the reward gain is not length</td><td data-h="Defence">length-decorrelated rewards, bounded reward shaping, ensembles (partly)</td><td data-h="Section"><a href="#rh-s3">3</a></td></tr>
@@ -28,41 +31,44 @@
 <p class="small mute">Numbers are published, with the source linked, unless marked <i class="nl d">derived</i> (formula shown), <i class="nl r">read from figure</i> (taken off a plotted image because the paper prints no number) or <i class="nl u">unconfirmed</i>.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="rh-s1">
 <h2>1. Goodhart, made precise</h2>
 <p>Goodhart's law: "when a metric is used as a target, it ceases to be a good metric" (quoted in {{Amodei et al. 2016, §4|https://arxiv.org/abs/1606.06565}}). DeepMind's name for the behaviour: "Specification gaming is a behaviour that satisfies the literal specification of an objective without achieving the intended outcome" ({{Krakovna et al., April 2020|https://deepmind.google/discover/blog/specification-gaming-the-flip-side-of-ai-ingenuity/}}). When is a proxy safe to optimise? Skalse et al.'s cleaning robot answers with numbers.</p>
-<div class="fig"><h4>An incomplete proxy is safe; one that flips a ranking is not</h4>
+
+<p>The formal version: a proxy is <i>unhackable</i> "if increasing the expected proxy return can never decrease the expected true return". Over all stochastic policies, two reward functions "can only be unhackable if one of them is constant", so every useful proxy can be hacked by some policy; the practical question is whether optimisation finds one. Lilian Weng's survey splits the field into "environment or goal misspecification, and reward tampering", the second being a model interfering with the reward process itself ({{Weng, November 2024|https://lilianweng.github.io/posts/2024-11-28-reward-hacking/}}). With reinforcement learning from verifiable rewards (RLVR) the proxy is the checker: narrower than a learned reward model and harder to flatter, but still gameable, which is most of the 2025 and 2026 evidence below.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="fig card"><h4>An incomplete proxy is safe; one that flips a ranking is not</h4>
 <div class="tw"><table class="robot"><thead><tr><th>Reward</th><th>attic</th><th>bedroom</th><th>kitchen</th><th>clean the attic</th><th>clean bedroom and kitchen</th></tr></thead><tbody>
 <tr><td>True</td><td>1</td><td>1</td><td>1</td><td>1</td><td>2</td></tr>
 <tr><td>Forgets the kitchen: <b>safe</b></td><td>1</td><td>1</td><td>0</td><td>1</td><td>1</td></tr>
 <tr class="flip"><td>Only counts the attic: <b>hackable</b></td><td>1</td><td>0</td><td>0</td><td><b>1</b></td><td><b>0</b></td></tr>
 </tbody></table></div>
 <p class="cap">Three rooms, true reward 1 for cleaning each ({{Skalse et al. 2022|https://arxiv.org/abs/2209.13085}}). The proxy that forgets the kitchen is safe: anything it prefers, the truth prefers too. The highlighted proxy scores "clean the attic" (proxy 1, true 1) above "clean the bedroom and kitchen" (proxy 0, true 2): it ranks the pair the wrong way round.</p></div>
-<p>The formal version: a proxy is <i>unhackable</i> "if increasing the expected proxy return can never decrease the expected true return". Over all stochastic policies, two reward functions "can only be unhackable if one of them is constant", so every useful proxy can be hacked by some policy; the practical question is whether optimisation finds one. Lilian Weng's survey splits the field into "environment or goal misspecification, and reward tampering", the second being a model interfering with the reward process itself ({{Weng, November 2024|https://lilianweng.github.io/posts/2024-11-28-reward-hacking/}}). With reinforcement learning from verifiable rewards (RLVR) the proxy is the checker: narrower than a learned reward model and harder to flatter, but still gameable, which is most of the 2025 and 2026 evidence below.</p>
-</section>
+</div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-bon"></div></div><div class="s3L">
 <section id="rh-s2">
 <h2>2. The curve: proxy up, gold down</h2>
-<p>The cleanest measurement is {{Gao, Schulman and Hilton (OpenAI, 2022)|https://arxiv.org/abs/2210.10760}}. Human labels are too expensive to measure this carefully, so a fixed 6B "gold" reward model plays the human; proxy reward models from 3M to 3B parameters are trained on 90,000 of its synthetic comparisons, and a 1.2B policy is optimised against each proxy by best-of-<i>n</i> or by PPO. Start with one prompt.</p>
-<div class="card" id="bx">
-<h4>One riddle under best-of-n: the proxy climbs at every step, the gold does not</h4>
-<p class="small">"What is full of holes but still holds water?" Gao et al.'s Table 2 prints the answer best-of-<i>n</i> picks as <i>n</i> grows, with its proxy score (12M reward model) and gold score (6B) ({{Appendix, Table 2|https://ar5iv.labs.arxiv.org/html/2210.10760}}). Step through it.</p>
-<div class="an-ctl" id="bxC"></div>
-<div id="bxSvg" class="plot"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="bxT"></div><p id="bxP" style="margin:2px 0 0"></p></div>
-<div class="out" id="bxN"></div>
-<p class="small mute">Scores are the paper's, recentred so the initial policy averages 0, gold in units of its standard deviation. Proxy rises at every step; gold goes −0.52, −0.02, +0.48 (the right answer, "A sponge"), then down to −0.34 for a fluent answer about tornadoes. Single prompts "do not follow as clean a trend" as the average.</p>
-</div>
-<p>Averaged over prompts and measured against how far the policy has moved, the gold score is smooth enough to fit. The figure draws the fits for every proxy size.</p>
-<div class="fig" id="gx">
-<h4>Bigger reward models move the peak later and higher; none removes it</h4>
-<p class="pred"><b>Predict</b>, then drag: with a proxy 1,000 times larger (3B against 3M), does the gold score still turn over, or does it keep climbing?</p>
-<div class="seg" id="gxM"></div>
-<div class="gx-ctl"><label>Proxy reward-model size: <b id="gxSL"></b><input type="range" id="gxS" min="0" max="8" step="1" value="0" aria-label="Proxy reward-model size"></label></div>
-<div id="gxSvg" class="plot"></div>
-<div class="out" id="gxN"></div>
-<p class="cap">Gold reward (σ: the gold reward model's standard deviation; 0 = the initial policy) against KL from the initial policy (square-root scale), for best-of-<i>n</i> and for RL (PPO, no KL penalty) with a 1.2B policy; fitted forms with coefficients <i class="nl r">read from figure</i> (Gao et al. Figure 3; the paper prints no values). Best-of-<i>n</i> reproduces Figure 1a independently: the 3M proxy peaks at a gold of 0.50 near KL 4.2. The RL curves are <b>by construction</b> (α<sub>RL</sub> = 0.35 estimated, every β<sub>RL</sub> scaled by 0.88 to match Figure 1b): read them for their shape, not their numbers. Solid lines span the KL range the paper measured (BoN to 10 nats, RL to about 100); dashed lines extrapolate.</p>
-</div>
+<p>The cleanest measurement is {{Gao, Schulman and Hilton (OpenAI, 2022)|https://arxiv.org/abs/2210.10760}}. Human labels are too expensive to measure this carefully, so a fixed 6B "gold" reward model plays the human; proxy reward models from 3M to 3B parameters are trained on 90,000 of its synthetic comparisons, and a 1.2B policy is optimised against each proxy by best-of-<i>n</i> or by PPO. Start with one prompt, "What is full of holes but still holds water?": Gao et al.'s Table 2 prints the answer best-of-<i>n</i> picks as <i>n</i> grows, with its proxy score (12M reward model) and gold score (6B) ({{Appendix, Table 2|https://ar5iv.labs.arxiv.org/html/2210.10760}}).</p>
+<p class="sxh">One riddle under best-of-n: the proxy climbs at every step, the gold does not</p>
+<ol class="sx" id="sx-bon">
+<li><b>n = 1: one sample.</b> With a single sample there is nothing to choose: a rambling answer about mussels and clams (the table abbreviates it). Proxy <span data-bx="p0">−0.19</span>, gold <span data-bx="g0">−0.52</span>: both below the starting policy's average, so both bars hang below the plinth.</li>
+<li><b>n = 3: the proxy prefers a fluent guess.</b> Best of 3 by the proxy: "Most likely a pipe is having trouble staying full." Proxy up to <span data-bx="p1">+0.03</span>, gold up a little to <span data-bx="g1">−0.02</span>.</li>
+<li><b>n = 10: the right answer.</b> "A sponge". Gold peaks here at <span data-bx="g2">+0.48</span>. The proxy likes it too (<span data-bx="p2">+0.23</span>), but not as much as it will like later answers.</li>
+<li><b>n = 30: proxy up, gold down.</b> "When something is full of holes, it is used for stirring or moving liquid": a confident sentence that misreads the riddle. The proxy rises to <span data-bx="p3">+0.65</span>; the gold falls below zero (<span data-bx="g3">−0.15</span>).</li>
+<li><b>n = 100 to 1,000: fluent and wrong.</b> Ten times more samples buy a fluent paragraph about tornadoes. The proxy is at <span data-bx="p4">+0.90</span>; the gold is at <span data-bx="g4">−0.34</span>, worse than n = 3.</li>
+<li><b>n = 3,000 to 10,000.</b> "A bore hole is a hole drilled into a rock": plausible, still not the riddle's answer. The proxy barely moves (<span data-bx="p5">+0.90</span>); the gold recovers to <span data-bx="g5">+0.27</span>.</li>
+<li><b>n = 30,000.</b> A pothole, "a structural vulnerability that allows water to penetrate". Proxy <span data-bx="p6">+0.95</span>, its highest; gold <span data-bx="g6">+0.55</span>, a defensible answer. The two lines join the bar tops: at every step the proxy rose; the gold went up and down.</li>
+</ol>
+<p class="small mute">Scores are the paper's, recentred so the initial policy averages 0, gold in units of its standard deviation; each sample flows from the 1.2B policy through the proxy, and only the kept answer reaches the gold judge. Single prompts "do not follow as clean a trend" as the average.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="rh-s2b">
+<p>Averaged over prompts and measured against how far the policy has moved, the gold score is smooth enough to fit. The figure on the right draws the fits for every proxy size.</p>
 <p>The forms, with <i>d</i> = √KL(π ‖ π<sub>init</sub>) ({{§1|https://ar5iv.labs.arxiv.org/html/2210.10760#S1}}):</p>
 <div class="fm"><div class="eq">R<sub>bon</sub>(<i>d</i>) = <i>d</i> (α<sub>bon</sub> − β<sub>bon</sub> <i>d</i>) &nbsp;&nbsp;&nbsp; R<sub>RL</sub>(<i>d</i>) = <i>d</i> (α<sub>RL</sub> − β<sub>RL</sub> ln <i>d</i>)</div>
 <dl><dt>α</dt><dd>the initial slope; the gap between proxy and gold slopes is <i>regressional</i> Goodhart (the proxy is noisy)</dd><dt>β</dt><dd>the bend, mostly <i>extremal</i> Goodhart; β falling with reward-model size reads as "smooth improvements in model robustness" ({{§4.2|https://ar5iv.labs.arxiv.org/html/2210.10760#S4.SS2}})</dd><dt>KL for BoN</dt><dd>ln <i>n</i> − (<i>n</i> − 1)/<i>n</i>: about 6 nats at <i>n</i> = 1,000 and 10 at 60,000</dd></dl></div>
@@ -73,6 +79,20 @@
 <li><b>KL is not a common currency.</b> RL "consumes" far more KL than BoN for the same optimisation (switch the figure to Both), so KL is "an inadequate metric for quantity of (over)optimization" across methods ({{§3.5|https://ar5iv.labs.arxiv.org/html/2210.10760#S3.SS5}}).</li>
 <li><b>A KL penalty acts like early stopping.</b> It "only causes the gold RM score to converge earlier, but does not affect the KL<sub>RL</sub>-gold reward frontier", with the caveat that this "could be particularly sensitive to hyperparameters" ({{§3.6|https://ar5iv.labs.arxiv.org/html/2210.10760#S3.SS6}}). It decides where you stop; it does not lift the curve. The parent page sets this leash among every stage's failures ({{Topic: llm-training-and-post-training, Axis 4|n:3c65c17b0d0d81b6876ee72b7056793b}}).</li>
 </ul>
+</section>
+</div><div class="s3R"><div class="s3side">
+<div class="fig card" id="gx">
+<h4>Bigger reward models move the peak later and higher; none removes it</h4>
+<p class="pred"><b>Predict</b>, then drag: with a proxy 1,000 times larger (3B against 3M), does the gold score still turn over, or does it keep climbing?</p>
+<div class="seg" id="gxM"></div>
+<div class="gx-ctl"><label>Proxy reward-model size: <b id="gxSL"></b><input type="range" id="gxS" min="0" max="8" step="1" value="0" aria-label="Proxy reward-model size"></label></div>
+<div id="gxSvg" class="plot"></div>
+<div class="out" id="gxN"></div>
+<p class="cap">Gold reward (σ: the gold reward model's standard deviation; 0 = the initial policy) against KL from the initial policy (square-root scale), for best-of-<i>n</i> and for RL (PPO, no KL penalty) with a 1.2B policy; fitted forms with coefficients <i class="nl r">read from figure</i> (Gao et al. Figure 3; the paper prints no values). Best-of-<i>n</i> reproduces Figure 1a independently: the 3M proxy peaks at a gold of 0.50 near KL 4.2. The RL curves are <b>by construction</b> (α<sub>RL</sub> = 0.35 estimated, every β<sub>RL</sub> scaled by 0.88 to match Figure 1b): read them for their shape, not their numbers. Solid lines span the KL range the paper measured (BoN to 10 nats, RL to about 100); dashed lines extrapolate.</p>
+</div>
+</div></div></div>
+
+<section id="rh-s2c">
 <details class="dp"><summary>Where the coefficients come from, what does not reproduce, and every size</summary><div>
 <p>The paper prints its functional forms but no coefficient values: α<sub>bon</sub>, β<sub>bon</sub> and β<sub>RL</sub> appear only as dots in Figure 3, and α<sub>RL</sub>, held "constant across all RM sizes", is never given ({{§3.2, Figure 3|https://ar5iv.labs.arxiv.org/html/2210.10760#S3.F3}}). The values here are <i class="nl r">read from figure</i> to about ±0.003 for α and ±0.002 for β; no data or code was released.</p>
 <ul>

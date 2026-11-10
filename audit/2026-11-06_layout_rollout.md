@@ -176,8 +176,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_training_and_post_training/peft` Parameter-Efficient Fine-Tuning (PEFT)
 - [x] `models_and_training/topic_llm_training_and_post_training/pretraining` Pretraining
 - [x] `models_and_training/topic_llm_training_and_post_training/quantization_and_precision` Quantization and Precision
-- [~] `models_and_training/topic_llm_training_and_post_training/reward_hacking` Reward Hacking
-- [ ] `models_and_training/topic_llm_training_and_post_training` Topic: llm-training-and-post-training
+- [x] `models_and_training/topic_llm_training_and_post_training/reward_hacking` Reward Hacking
+- [~] `models_and_training/topic_llm_training_and_post_training` Topic: llm-training-and-post-training
 - [ ] `models_and_training/topic_ml_fundamentals/activation_functions` Activation functions
 - [ ] `models_and_training/topic_ml_fundamentals/classical_ml` Classical ML
 - [ ] `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning` Contrastive and self-supervised learning
@@ -469,6 +469,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_training_and_post_training/distributed_training`: at 390 px the pipeline timeline is faint in dark mode and stages are dense; TP-block labels hidden on phones; `check_stages.mjs` takes over 10 minutes (speed it up).
 - `models_and_training/topic_llm_training_and_post_training/pretraining`: Fig. 2 has 41 character labels about 8.5 px apart on phones (tight, no overlap); a 3D version of section 4 was tried and dropped.
 - `models_and_training/topic_llm_training_and_post_training/quantization_and_precision`: formats table very tall at 390 px (predates the rebuild); stage labels hide during camera glides then fade in.
+- `models_and_training/topic_llm_training_and_post_training/reward_hacking`: Fig. 2 "assert x == y -> True" label sits across the test plate; empty space above the tests stage at 1400 px; reach stage step 1 fairly empty on phones; buggy-test card tall.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)

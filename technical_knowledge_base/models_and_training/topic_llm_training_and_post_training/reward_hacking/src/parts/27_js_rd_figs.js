@@ -1,4 +1,4 @@
-// ---- Reading: static figures added 2026-10-23 (hero schematic, Wen et al. false-positive rates, what the policy can reach) ----
+// ---- Reading: static figures added 2026-10-23 (hero schematic, Wen et al. false-positive rates; the reach diagram became the 3D stage in 28_js_sc_reach.js on 2026-11-10) ----
 (function(){
   const $=id=>document.getElementById(id);
   const T=(x,y,s,o)=>RD.t(x,y,s,Object.assign({fill:'var(--ink)'},o||{}));
@@ -51,17 +51,6 @@
     box.innerHTML='<div class="lg"><span><i style="background:var(--mute)"></i>before RLHF</span><span><i style="background:var(--bad)"></i>after RLHF</span></div>'+RD.svg(W,H,s,'False-positive rate of human evaluators before and after RLHF');
   }
 
-  // what the policy can reach: nested layers, inner = what the task meant to touch
-  function reach(){
-    const box=$('rcSvg');if(!box)return;
-    const L=[['the code the task asked for','var(--good)'],['tests and test framework','var(--c1)'],['scorer','var(--c2)'],['sandbox and filesystem','var(--c4)'],['network and internet','var(--c6)'],['harness and leaderboard','var(--c5)'],['the reward process','var(--bad)']];
-    const W=RD.width(box),n=L.length,band=22,side=W<520?9:16,H=(band+6)*(n-1)+40;
-    let s='';
-    for(let k=n-1;k>=0;k--){const o=n-1-k,x0=side*o,y0=band*o,w=W-2*x0,h=H-y0-6*o;
-      s+='<rect x="'+(x0+1)+'" y="'+(y0+1)+'" width="'+(w-2)+'" height="'+(h-2)+'" rx="8" fill="'+(k===0?'var(--soft)':'var(--bg)')+'" stroke="'+L[k][1]+'" stroke-width="'+(k===0?2.4:1.8)+'"/>';
-      s+=T(x0+9,y0+(k===0?h/2+4:15),L[k][0],{fs:11.5,fill:L[k][1],w:600});}
-    box.innerHTML=RD.svg(W,H,s,'Nested layers a policy can reach, from the code the task asked for out to the reward process');
-  }
-  function all(){hero();wen();reach()}
+  function all(){hero();wen()}
   RD.onRender(all);RD.onResize(all);all();
 })();

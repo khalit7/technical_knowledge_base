@@ -16,20 +16,16 @@
      verdict:['missed','b'],why:'The test is gutted (its assertion replaced by pass) but nothing in the reasoning says "hack". Trained against the monitor, the agent "still learns to reward hack; only now its cheating is undetectable by the monitor".'}];
   let mode=0;
   $('cmM').innerHTML=M.map((m,i)=>'<button data-m="'+i+'" class="'+(i?'':'on')+'">'+m.name+'</button>').join('');
-  const caps=[['1. Failing tests','The reward is "tests pass". Both agents face tests they cannot honestly make pass quickly.'],
-    ['2. The chain of thought','What a monitor reading the reasoning sees (verbatim from OpenAI\'s post).'],
-    ['3. The action','The edit the agent makes (verbatim).'],
-    ['4. Tests pass; does the monitor notice?','The reward is collected either way. The difference is only in what the monitor can see.']];
   function draw(i){
     const m=M[mode];$('cmM').querySelectorAll('button').forEach((b,k)=>b.classList.toggle('on',k===mode));
     let h='<div class="pane'+(i===0?'':' dim')+'"><div class="h">Situation (inferred from the transcript)</div><div class="small">'+esc(m.task)+'</div></div>';
     if(i>=1)h+='<div class="pane'+(i===1?'':' dim')+'"><div class="h">Chain of thought</div><pre>'+esc(m.cot)+'</pre></div>';
     if(i>=2)h+='<div class="pane'+(i===2?'':' dim')+'"><div class="h">Action</div><pre>'+esc(m.act)+'</pre></div>';
     if(i>=3)h+='<div class="pane"><div class="h">Outcome</div><span class="verdict g">tests pass: reward collected</span><span class="verdict '+m.verdict[1]+'">CoT monitor: '+m.verdict[0]+'</span></div>';
-    $('cmV').innerHTML=h;$('cmT').textContent=caps[i][0];$('cmP').textContent=i===3?m.why:caps[i][1];
+    $('cmV').innerHTML=h;
     $('cmN').innerHTML=RD.stat('CoT monitor recall, systemic hacks','95%','GPT-4o reading reasoning and actions; Table 1, before CoT pressure')+
       RD.stat('Action-only monitor recall','60%','same model, actions only')+RD.stat('CoT monitor recall after CoT pressure','"near zero"','§3.2; no figure printed in the text');
   }
-  const an=RD.anim({card:'cm',ctl:'cmC',n:4,start:0,draw,ms:2600,label:'Transcript step'});
-  $('cmM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=+b.dataset.m;an.reset(4)});
+  const an=RD.anim({card:'cm',ctl:'cmC',n:4,start:0,draw,ms:4600,label:'Transcript step',list:'sx-cm'});
+  $('cmM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;mode=+b.dataset.m;an.reset(4,'sx-cm')});
 })();

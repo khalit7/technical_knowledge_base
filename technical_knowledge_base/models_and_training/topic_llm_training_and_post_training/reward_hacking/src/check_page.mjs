@@ -1,4 +1,4 @@
-// Exercise every control of ../index.html and fail on page errors or NaN / undefined / Infinity in visible text.
+// Exercise every control of ../index.html and fail on page errors or NaN / undefined / Infinity in visible text (under reduced motion; the stages and autoplay are in check_stages.mjs).
 // Run from the repo root: node technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/reward_hacking/src/check_page.mjs
 import { createRequire } from 'module';
 import path from 'path';
@@ -37,7 +37,7 @@ for (const [w, scheme] of [[920, 'light'], [390, 'dark']]) {
   const tab = async (t) => { await page.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), t); await scan('tab ' + t); };
   // Reading
   await tab('t-read');
-  for (const id of ['bxC', 'trC', 'cmC']) {
+  for (const id of ['trC', 'cmC']) {
     const modes = { trC: '#trM button', cmC: '#cmM button' }[id];
     const nm = modes ? await page.$$eval(modes, e => e.length) : 1;
     for (let m = 0; m < nm; m++) {
@@ -47,6 +47,8 @@ for (const [w, scheme] of [[920, 'light'], [390, 'dark']]) {
       await page.click('#' + id + '-b'); await page.click('#' + id + '-f'); await page.click('#' + id + '-p'); await page.click('#' + id + '-p'); actions += 4;
     }
   }
+  // the three 3D stages: every step through the step list
+  for (const L of ['sx-bon', 'sx-tests', 'sx-reach']) { const n = await page.$eval('#' + L, e => e.children.length); for (let i = 0; i < n; i++) { await page.evaluate((L, i) => document.getElementById(L).children[i].click(), L, i); actions++; await scan(L + ' ' + i) } }
   for (const s of ['#lnS button', '#fmS button', '#paS button', '#mg .seg button', '#hkS button']) await clickAll(s);
   // Over-optimisation curves (Reading section 2, moved from its own tab on 2026-10-23)
   for (let m = 0; m < 3; m++) {
@@ -58,7 +60,7 @@ for (const [w, scheme] of [[920, 'light'], [390, 'dark']]) {
   }
   await clickAll('#gxT tr[data-i]');
   await clickAll('details.dp summary');
-  // nothing plays before the reader acts
+  // under reduced motion (emulated above) nothing plays by itself; since 2026-11-10 animations autoplay in view otherwise (src/check_stages.mjs checks that)
   const playing = await page.$$eval('.an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
   if (playing) { bad++; console.log('BAD autoplay', playing); }
   // Cases tab
