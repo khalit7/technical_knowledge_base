@@ -31,3 +31,15 @@
 - Timing charts of whole runs: rough on a shared laptop; only the norm micro-benchmark is shown, as ratios.
 - Rebuilding the Block lab's own pre/post animation (one token, bars per sub-layer): the four-placement stepper already draws the same trace for token "o"; the matched-pair numbers (0.9 to 14.8, 16.0 to 16.4, 24.6) are given beside it.
 - A Block lab loss-curves panel in Reading: the Stability explorer overlays any of those runs; Reading shows the final-loss summary instead.
+
+## 2026-11-09 (split layout, 3D stages on renderer v2)
+Built: Fig. 1 the block and the five places a fix acts (replaces the 2D hero SVG); Fig. 2 one sub-layer four ways with the gradient path
+(new); Fig. 3 the stream's size for four placements, init and trained (replaces the 2D four-placement stepper); Fig. 4 the largest
+attention logit per layer during the lr 3e-2 run, four comparisons (replaces the 2D bar-panel replay and its two line charts, which the
+Stability explorer overlays); Fig. 5 SmolLM2-135M's median and largest entries and its sink by layer, then the tiny GPT, then a linear scale (new).
+Kept 2D, in splits: final loss against learning rate (log x axis), gradient by block (log y), mean over RMS (bars), log Z over training
+and gradient norm with spike flags (curves): each is a number on an axis, which reads best flat.
+Rejected: a 3D stage for the LayerNorm against RMSNorm formulas (an equation, no spatial structure); a 3D residual-scaling picture
+(the arithmetic is one line, 0.02/sqrt(12)); 3D for the spike table or the production table (tables); 3D in the Stability explorer
+(a reader-driven grid of runs with four log charts; it stays a full-width tool); the stepper's per-token views (token "o", token 0,
+largest entry) as stage modes: five modes over a five-step story would bury it; the largest entries stay in section 7's table.

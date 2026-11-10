@@ -1,5 +1,6 @@
 // Clicks every control on every tab at 390 px dark and 920 px light; fails on page errors, console errors, a visible
-// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Also checks nothing autoplays under reduced motion.
+// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Also checks nothing plays by itself under reduced motion
+// (the 3D stages play by themselves once in view since 2026-11-09: check_stages.mjs checks that, and their step lists).
 // Run from the repo root: node technical_knowledge_base/models_and_training/topic_llm_architecture/normalisation_residuals_and_stability/src/check_controls.mjs [shots]
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
@@ -31,7 +32,7 @@ try {
       const side = await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
       if (m || side) errs.push(`${t}: ${m ? 'text: ' + m[0] : ''} ${side ? 'sideways scroll' : ''}`);
       if (SHOTS) {
-        for (const id of ['ns-hero-card', 'rs-card', 'ns-lr-card', 'ns-gn-card', 'ns-mu-card', 'ns-lz-card', 'ns-sg-card', 'sp-card', 'rs-tab', 'st-grid', 'st-ev', 'st-ml']) {
+        for (const id of ['ns-lr-card', 'ns-gn-card', 'ns-mu-card', 'ns-lz-card', 'ns-sg-card', 'rs-tab', 'st-grid', 'st-ev', 'st-ml']) {
           const el = await p.$('#' + t + ' #' + id); if (!el) continue;
           const vis = await p.evaluate(e => e.offsetParent !== null, el); if (!vis) continue;
           await el.screenshot({ path: path.join(SHOTS, `${id}_${scheme}${width}.png`) });

@@ -151,8 +151,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/llm_architecture_gallery` LLM Architecture Gallery (rasbt) and the architectural deltas that matter
 - [x] `models_and_training/topic_llm_architecture/long_context` Long context: KV cache growth and compression, local and global attention, effective context
 - [x] `models_and_training/topic_llm_architecture/mixture_of_experts` Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism
-- [~] `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability` Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
-- [ ] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
+- [x] `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability` Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
+- [~] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
 - [ ] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
 - [ ] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
 - [ ] `models_and_training/topic_llm_architecture` Topic: llm-architecture
@@ -444,4 +444,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/llm_architecture_gallery`: Fig. 14 Gemma 4 sharing arrows follow transformers modeling_gemma4.py read at 5.17.0 while the page cites 5.20.1 (recheck at 5.20.1); no rasbt images (no stated licence on the gallery figures); phone labels hidden, tower names at staggered heights; src/check_stages.mjs needs a shots dir argument.
 - `models_and_training/topic_llm_architecture/long_context`: some labels close to objects at 390; Fig. 4 run names shortened (PI x4 + 300 steps); Fig. 3 "number kept whole in 0 of 90 caches" label sits on the column block at 1400.
 - `models_and_training/topic_llm_architecture/mixture_of_experts`: core 29 to 35 min plus 20 closed; Fig. 9 dispatch dots dense; Fig. 3 stacks sit partly behind the score field; scenes small with empty card space on phones; verify_layout flags the calculator outside a split (accepted: reader tool).
+- `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability`: Fig. 1 hero sparse and faint at 1400 (small objects, much empty card); the old stepper's per-token views (token o, token 0) are gone; labels over faded objects in Figs. 3, 4 and 5; Fig. 1 small on phones; Fig. 2's gradient thinning is drawn, not measured (labelled); verify_layout flags the Stability explorer outside a split (accepted: reader tool).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.

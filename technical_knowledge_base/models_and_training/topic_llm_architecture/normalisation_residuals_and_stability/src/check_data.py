@@ -1,5 +1,5 @@
 """Checks for the Normalisation page (run after build.sh):
- 1. the data part equals a fresh regeneration from out/ (make_page_data.py is deterministic);
+ 1. the data parts equal a fresh regeneration from out/ (make_page_data.py and make_scene_data.py are deterministic);
  2. every run in NSD matches its recorded log (final loss, eval curve) in out/runs or the Block lab's out/runs;
  3. no placeholder left, no run pending, no "pending" in the built page;
  4. numbers typed by hand in the parts equal their recorded sources (Block lab, sibling pages, Inside lab);
@@ -17,6 +17,11 @@ before = open(part).read()
 subprocess.run([sys.executable, os.path.join(HERE, "make_page_data.py")], check=True, capture_output=True)
 if open(part).read() != before:
     bad.append("data part differs from a fresh regeneration: rebuild")
+scene = os.path.join(HERE, "parts", "26_js_ns_scene.js")
+before_s = open(scene).read()
+subprocess.run([sys.executable, os.path.join(HERE, "make_scene_data.py")], check=True, capture_output=True)
+if open(scene).read() != before_s:
+    bad.append("scene data part differs from a fresh regeneration: rebuild")
 D = json.loads(before.split("window.NSD=", 1)[1].rstrip().rstrip(";"))
 for n, R in D["runs"].items():
     if R["lab"] == "ns":

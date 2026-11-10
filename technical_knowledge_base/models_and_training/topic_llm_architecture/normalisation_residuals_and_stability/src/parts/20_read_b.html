@@ -1,13 +1,21 @@
 <nav class="nav" id="rd-nav">
 <a href="#ns-top">The idea</a><a href="#ns-s1">1 The stream</a><a href="#ns-s2">2 Placement</a><a href="#ns-s3">3 LN or RMS</a><a href="#ns-s4">4 Attention logits</a><a href="#ns-s5">5 Output logits</a><a href="#ns-s6">6 Initialisation</a><a href="#ns-s7">7 Massive activations</a><a href="#ns-s8">8 Loss spikes</a><a href="#ns-s9">9 In production</a><a href="#ns-mis">Mistakes</a>
 </nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="ns-top">
 <p class="lead"><b>The idea in one sentence.</b> A deep transformer trains because every block <i>adds</i> to a residual stream instead of replacing it and a norm fixes the size of what each block reads; every other stability tool bounds one more quantity that would otherwise grow: the stream (norm placement, initialisation), the attention logits (QK-norm, soft-capping), the output logits (z-loss), or the step (warmup, clipping).</p>
-<div class="rd-card" id="ns-hero-card">
-<h4>One block, and the five places a stability fix acts</h4>
-<div class="rd-svg" id="ns-hero"></div>
-<p class="small">The stream (thick line) runs from the embedding to the LM head; each sub-layer reads it through a norm and adds its branch back at a +. Highlighted: the controls this page measures, tagged with their section; dashed: norms that only some placements have. Loss spikes (section 8) are what you see when one of them fails.</p>
-</div>
+<p class="small"><b>Fig. 1: One block, and the five places a stability fix acts.</b> The running example's decoder block as a structure, no measured numbers: the stream runs along the front from the embedding to the LM head, each sub-layer's branch runs behind it and adds back at a +. Blue plates are norms, green plates the matrices that write into the stream, dashed outlines the places other placements put a norm. Loss spikes (section 8) are what you see when one of them fails.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The stream (section 1).</b> A token's vector enters as the embedding and travels the whole model on the residual stream. Each sub-layer (attention, then the FFN) reads it on a branch and adds its update back at a +; nothing on the main path replaces it.</li>
+<li><b>Where the norm sits (sections 2 and 3).</b> Here the norm stands on each branch, before attention and the FFN (pre-norm), plus a final norm before the LM head. Post-norm puts it on the stream after each +; the sandwich and OLMo 2 put one on the branch output (dashed). LayerNorm or RMSNorm is the choice of what the plate computes.</li>
+<li><b>The attention logits (section 4).</b> Inside attention, q and k come from learned projections that can grow; their dot product is the logit the softmax sees. QK-norm puts a norm on each head's q and k; a soft-cap bounds the logit itself (heights illustrative).</li>
+<li><b>The writing matrices start small (section 6).</b> W_o and W_down are the two matrices that write into the stream; GPT-2 starts them at 0.02/&radic;(2L) so that 2L branches add up to the size of one.</li>
+<li><b>The output logits (section 5).</b> The LM head's logits can drift up or down together without changing the loss; log Z measures the drift and z-loss pulls it back to 0 (bars illustrative).</li>
+<li><b>The whole map.</b> Every place tagged with its section. Under pre-norm the stream grows with depth and its largest entries ride it to the end (section 7); the loss and gradient norm are where a failure shows as a spike (section 8).</li>
+</ol>
+</section>
+</div></div>
+<section id="ns-top2">
 <p><b>You need</b> the decoder block ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}) and the maths of LayerNorm, BatchNorm and init schemes (Xavier, He, &mu;P), which the ML-fundamentals page {{Normalisation and initialisation|n:3c65c17b0d0d81369e1cc38ed4e11d48}} derives; its parent's {{When training goes wrong|n:3c65c17b0d0d81d796ccc0a293218c57}} tab maps training symptoms to causes for any model. This page is the transformer-specific depth.</p>
 <p><b>New terms.</b> <dfn>Residual stream</dfn>: the running vector per token that blocks add to. <dfn>Branch</dfn>: what one sub-layer adds. <dfn>Pre-norm / post-norm / sandwich / output norm</dfn>: the norm before the branch, on the stream after the add, around the branch, after the branch. <dfn>QK-norm</dfn>: a norm on each head's query and key. <dfn>log Z</dfn>: the log of the output softmax's normaliser; <dfn>z-loss</dfn> penalises it. <dfn>Attention entropy</dfn>: how spread a head's weights are (0 nats is one-hot). <dfn>Massive activation</dfn>: one stream entry thousands of times the median. <dfn>Spike score</dfn>: the share of steps far outside a rolling average.</p>
 <p><b>The running example.</b> The root's tiny GPT (6 blocks, d_model 256, 8 heads of 32, LayerNorm, 5.8M parameters) on TinyStories: batches of 32 &times; 256 tokens, AdamW, lr 3e-3 with 100 warmup steps and cosine decay, clipping at 1.0, 1,500 steps. Every run changes one thing and keeps the same batches and seed (Apple M1 Pro, MPS, about 5.5 minutes each). The unigram floor, a model that ignores context and predicts token frequencies, is {%unigram%} nats.</p>

@@ -1,6 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-place"></div></div><div class="s3L">
 <section id="ns-s2">
 <h2>2. Where the norm goes: post, pre, sandwich, output norm</h2>
-<p>The norm can sit before the branch, on the stream after the add, or around the branch. Each choice trades the size of the stream against the path the gradient takes:</p>
+<p>The norm can sit before the branch, on the stream after the add, or around the branch. Each choice trades the size of the stream against the path the gradient takes.</p>
+<p class="small"><b>Fig. 2: The same sub-layer four ways.</b> One row per placement; in each the stream runs left (input) to right (output) along the front, and the branch F runs behind it and adds back at the +. The blue plate is the norm. The gradient's thinning in step 5 is drawn, not measured.</p>
+<ol class="sx" id="sx-place">
+<li><b>Post-norm: <code>x = Norm(x + F(x))</code>.</b> The norm stands on the main path after the add, so the stream is renormalised after every sub-layer and its size is fixed at RMS 1 (times the gain). The 2017 Transformer and BERT.</li>
+<li><b>Pre-norm: <code>x = x + F(Norm(x))</code>.</b> The norm moves onto the branch: the main path is a clean identity and the stream grows with depth, so a final norm before the unembedding is needed. GPT-2 onward.</li>
+<li><b>Sandwich (peri-norm): <code>x = x + Norm(F(Norm(x)))</code>.</b> A second norm on the branch output: every add is a unit-RMS vector times the learned gains. Gemma 2, 3 and 4.</li>
+<li><b>Output norm ("reordered"): <code>x = x + Norm(F(x))</code>.</b> Only the branch output is normalised; the branch reads the raw stream. OLMo 2 and OLMo 3.</li>
+<li><b>The gradient path.</b> Backward, the gradient comes down the main path. Post-norm's passes through every norm on the way down, each rescaling it; the other three keep the identity path of section 1. The measured gradient reaching each block is the chart beside the third part of this section.</li>
+</ol>
+</section>
+</div></div>
+<section id="ns-s2t">
+<details class="qa"><summary>The five placements as a table, with the models that use each (checked in configs and code)</summary><div>
 <div class="tw"><table>
 <thead><tr><th>Placement</th><th>One sub-layer</th><th>Stream</th><th>Gradient path</th><th>Used by (checked in configs and code)</th></tr></thead>
 <tbody>
@@ -10,22 +23,25 @@
 <tr><td><b>Output norm</b> ("reordered")</td><td><code>x = x + Norm(F(x))</code></td><td>grows like &radic;(sub-layers)</td><td>clean</td><td>OLMo 2 and OLMo 3</td></tr>
 <tr><td><b>DeepNorm</b></td><td><code>x = Norm(&alpha;x + F(x))</code>, branch init &times; &beta;</td><td>fixed (post-norm)</td><td>through every norm, but the residual is up-weighted</td><td>MiniMax-M1 (&alpha; = 3.5566 in its config)</td></tr>
 </tbody></table></div>
+</div></details>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-rs"></div></div><div class="s3L">
+<section id="ns-s2b">
+<h3>What placement does to the stream's size</h3>
 <div class="pr"><div class="q">Predict: at initialisation, before any training, which placement's stream is largest after the last of the 12 sub-layers?</div>
 <div class="opts"><button>Pre-norm: nothing ever rescales it</button><button>Post-norm</button><button data-ok="1">Sandwich and output norm</button></div><a href="#" class="skip small">Skip to the answer</a>
-<div class="ans" hidden><b>Sandwich and output norm, at about {%rs_sandwich_init_last%}.</b> Each normalises every branch output to norm 16 (RMS 1) before adding it, and 12 nearly independent unit-RMS vectors sum to about 16 &radic;12 = {%sqrt12%} (derived). Pre-norm starts almost as the identity ({%rs_pre_init_first%} to {%rs_pre_init_last%}) because its branches start small (section 6); post-norm is pinned at 16 by construction. Step through it below.</div></div>
-<div class="rd-anim" id="rs-card">
-<h4>The stream's size through 12 sub-layers: post-norm pins it, the others let it grow</h4>
-<div class="seg" id="rs-when"><span class="lb">Weights</span><button data-m="init" class="on">at initialisation</button><button data-m="trained">trained (1,500 steps)</button></div>
-<div class="seg" id="rs-q"><span class="lb">Size</span><button data-m="median_norm" class="on">median token (L2 norm)</button><button data-m="trace_norm">token "o" in "Roxy" (position 157)</button><button data-m="tok0_norm">token 0 (&lt;|endoftext|&gt;)</button><button data-m="max_abs">largest single entry</button></div>
-<div class="seg" id="rs-init"><span class="lb">Pre-norm init</span><button data-m="gpt2" class="on">GPT-2: residual outputs &divide; &radic;(2L)</button><button data-m="flat">flat: every matrix N(0, 0.02)</button></div>
-<div class="an-ctl" id="rs-ctl"></div>
-<div class="ns-chart" id="rs-ch"></div>
-<div class="leg" id="rs-leg"></div>
-<div class="rs-cnt" id="rs-cnt"></div>
-<div class="an-cap" id="rs-cap"></div>
-<p class="small mute">The 256-token running sequence (the Roxy story, never seen in training), same seed and initial weights; L2 norms over 256 channels (RMS 1 is norm 16), log scale. Trained: pre-norm is the root's reference run (lr 3e-3), post-norm lr 1e-3, the others lr 3e-3.</p>
-<details class="qa"><summary>How the stepper's numbers were made</summary><div><p>CPU forward of the recorded checkpoints (<code>src/analysis/inspect_runs.py</code>, which steps each block by hand for its placement and checks the logits equal the model's own forward; largest difference 0 on every run). Same seed and the same initial weights where the shapes allow.</p></div></details>
-</div>
+<div class="ans" hidden><b>Sandwich and output norm, at about {%rs_sandwich_init_last%}.</b> Each normalises every branch output to norm 16 (RMS 1) before adding it, and 12 nearly independent unit-RMS vectors sum to about 16 &radic;12 = {%sqrt12%} (derived). Pre-norm starts almost as the identity ({%rs_pre_init_first%} to {%rs_pre_init_last%}) because its branches start small (section 6); post-norm is pinned at 16 by construction. Fig. 3 steps through it.</div></div>
+<p class="small"><b>Fig. 3: The stream's size through 12 sub-layers: post-norm pins it, the others let it grow.</b> The median token's L2 norm over 256 channels (RMS 1 is norm 16), log scale, on the 256-token running sequence (the Roxy story, never seen in training), same seed and initial weights. Trained: pre-norm is the root's reference run (lr 3e-3), post-norm lr 1e-3, the others lr 3e-3.</p>
+<ol class="sx" id="sx-rs">
+<li><b>Post-norm pins it at 16.</b> All four start from the same embedding, norm {%rs_pre_init_first%} (the token and position tables start at N(0, 0.02)). Post-norm normalises the stream after every add, so from the first sub-layer it sits at &radic;256 = 16 by construction ({%rs_post_init_last%} after the last).</li>
+<li><b>Pre-norm barely moves.</b> {%rs_pre_init_first%} to {%rs_pre_init_last%}: each branch starts small (output matrices &divide; &radic;(2L), section 6), so 12 adds barely move the stream. Without that shrink (flat init, the outlines) the branches are {%init_ratio%}&times; larger at the start and it ends at {%rs_pre_flat_init_last%}.</li>
+<li><b>Sandwich and output norm grow like &radic;(sub-layers).</b> Each normalises every branch output to norm 16 (RMS 1) before adding it, and 12 nearly independent unit-RMS vectors sum to about 16 &radic;12 = {%sqrt12%} (derived): {%rs_sandwich_init_last%} and {%rs_output_init_last%}.</li>
+<li><b>Trained, pre-norm grows the most.</b> After training pre-norm grows from {%rs_pre_trained_first%} to {%rs_pre_trained_last%}, most of it in block 1's FFN.</li>
+<li><b>Trained, the others.</b> Post-norm stays near 16 and ends at {%rs_post_trained_last%}, set by its last norm's learned gain; the sandwich reaches {%rs_sandwich_trained_last%}, the output norm {%rs_output_trained_last%}. Flat init ends at {%rs_pre_flat_trained_last%}, about where the scaled init ends: training erases the starting scale at this depth.</li>
+</ol>
+<p><span class="meas">measured</span> In a matched pair (the root's Block lab, both at lr 1e-3) token "o" grows from 0.9 to 14.8 under pre-norm and stays between 16.0 and 16.4 under post-norm until the last norm's gain takes it to 24.6; the reference model (lr 3e-3) grows from 1.3 to 65.8, most of it in block 1's FFN (a branch of norm 53.0). That growth is pre-norm's cost: later blocks add updates small next to the stream, and the final norm (ln_f, <code>self.norm</code> in transformers' Llama) is mandatory.</p>
+<details class="qa"><summary>How the numbers in Fig. 3 were made</summary><div><p>CPU forward of the recorded checkpoints (<code>src/analysis/inspect_runs.py</code>, which steps each block by hand for its placement and checks the logits equal the model's own forward; largest difference 0 on every run). Same seed and the same initial weights where the shapes allow.</p></div></details>
+<details class="qa"><summary>The stream at initialisation, as a table</summary><div>
 <div class="tw"><table class="rd-narrow">
 <thead><tr><th>At initialisation</th><th class="num">after the embedding</th><th class="num">after the last sub-layer</th><th>why</th></tr></thead>
 <tbody>
@@ -35,26 +51,34 @@
 <tr><td>Sandwich (peri-norm)</td><td class="num">{%rs_sandwich_init_first%}</td><td class="num">{%rs_sandwich_init_last%}</td><td>every branch output is normalised before the add: about 16 &radic;12</td></tr>
 <tr><td>Output norm (OLMo 2)</td><td class="num">{%rs_output_init_first%}</td><td class="num">{%rs_output_init_last%}</td><td>the same: the branch reads the raw stream, its output is normalised</td></tr>
 </tbody></table></div>
-<div id="rs-say">{%rs_say%}</div>
-<p><span class="meas">measured</span> In a matched pair (the root's Block lab, both at lr 1e-3) token "o" grows from 0.9 to 14.8 under pre-norm and stays between 16.0 and 16.4 under post-norm until the last norm's gain takes it to 24.6; the reference model (lr 3e-3) grows from 1.3 to 65.8, most of it in block 1's FFN (a branch of norm 53.0). That growth is pre-norm's cost: later blocks add updates small next to the stream, and the final norm (ln_f, <code>self.norm</code> in transformers' Llama) is mandatory.</p>
+</div></details>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="ns-s2c">
 <h3>Post-norm trains only in a narrow window</h3>
 <p>{{Xiong et al. 2020|https://arxiv.org/abs/2002.04745}} show that at initialisation post-norm's gradients near the output are large, so a large early learning rate is unstable and warmup (ramping the rate up from near zero) is what makes it train; pre-norm's gradients are "well-behaved at initialization" (the theorem and a toy that reproduces it are on the {{ML-fundamentals Normalisation page|n:3c65c17b0d0d81369e1cc38ed4e11d48}}).</p>
 <div class="pr"><div class="q">Predict: the Block lab trained post-norm at lr 3e-3 with the default 100 warmup steps, and again with 500. Pre-norm at lr 3e-3 reaches {%final_bl_pre_lr3e-3%}. Where does post-norm with 500 warmup steps end?</div>
 <div class="opts"><button>Still stuck near the unigram floor ({%unigram%})</button><button>Trains, but worse than pre-norm (about 2.5)</button><button data-ok="1">Better than pre-norm</button></div><a href="#" class="skip small">Skip to the answer</a>
 <div class="ans" hidden><b>{%final_bl_post_warm500%}, the best of all eight Block lab runs</b>, {%warm_gain%} below pre-norm. With 100 warmup steps post-norm is at the unigram level by step 30 (training loss 6.04) and ends at {%final_bl_post_lr3e-3%}: it learned only token frequencies. Post-norm is not a worse architecture at this depth; it is a narrower one to train.</div></div>
+
+<p><span class="meas">measured</span> Pre-norm trains at every rate tried (2.464 at 1e-3 to 4.361 at 3e-2, where its gradient norm before clipping spikes to 40.8, with 2.734 at 1e-2); post-norm only below 3e-3 (2.534 at 1e-3, 3.215 at 3e-4) or with the long warmup. {%place_say%}</p>
+<div class="co warn"><div class="t">Does not reproduce at this depth: Xiong et al. 2020, Figure 3</div>Their post-norm gradients at initialisation grow toward the output; here (switch the chart to initial weights) post-norm's are level (0.074 to 0.075) and 20 to 30&times; smaller than pre-norm's (2.21 at block 1 to 1.57 at block 6). Their warmup conclusion does reproduce; the failure here develops in the first steps, and the depth profile likely needs a deeper stack. Not run here: a 24-layer version.</div>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="rd-card" id="ns-lr-card">
 <h4>Final loss against learning rate: pre-norm degrades gracefully, post-norm falls off a cliff</h4>
 <div class="ns-chart" id="ns-lr"></div>
 <p class="small">Held-out loss after 1,500 steps (20 fixed validation windows), one point per run, measured on Apple M1 Pro (MPS). Pre- and post-norm points are the root's Block lab runs; the others are this page's. The square is post-norm at lr 3e-3 with 500 warmup steps. Dashed: the unigram floor.</p>
 </div>
-<p><span class="meas">measured</span> Pre-norm trains at every rate tried (2.464 at 1e-3 to 4.361 at 3e-2, where its gradient norm before clipping spikes to 40.8, with 2.734 at 1e-2); post-norm only below 3e-3 (2.534 at 1e-3, 3.215 at 3e-4) or with the long warmup. {%place_say%}</p>
 <div class="rd-card" id="ns-gn-card">
 <h4>Why the failed post-norm run failed: its lower blocks receive almost no gradient</h4>
 <div class="seg" id="ns-gn-when"><button data-m="trained" class="on">trained weights</button><button data-m="init">initial weights</button></div>
 <div class="ns-chart" id="ns-gn"></div>
 <p class="small">Norm of the gradient of all of a block's parameters, one backward pass on 8 fixed held-out windows of 256 tokens, log scale (the root's <code>src/block/gradnorm.py</code>, CPU). After training, the gradient reaching block 1 of the post-norm model at lr 3e-3 is 5.1e-7, against 0.027 at block 6, a factor of about 50,000: its lower blocks stopped learning. The runs that trained have block gradients between 0.27 and 0.92, roughly even across depth.</p>
 </div>
-<div class="co warn"><div class="t">Does not reproduce at this depth: Xiong et al. 2020, Figure 3</div>Their post-norm gradients at initialisation grow toward the output; here (switch the chart to initial weights) post-norm's are level (0.074 to 0.075) and 20 to 30&times; smaller than pre-norm's (2.21 at block 1 to 1.57 at block 6). Their warmup conclusion does reproduce; the failure here develops in the first steps, and the depth profile likely needs a deeper stack. Not run here: a 24-layer version.</div>
+</div></div></div>
+<section id="ns-s2d">
 <details class="qa"><summary>Measured: four placements at three learning rates, as a table</summary><div>{%place_meas%}</div></details>
 <details class="qa"><summary>Published at scale: Peri-LN at 400M to 3.2B (Kim et al. 2025)</summary><div><p>{{Kim et al. 2025 (Peri-LN)|https://arxiv.org/abs/2502.02732}} trained the three placements at 400M, 1.5B and 3.2B parameters (their Table 1, five seeds each, diverged runs excluded, which they say "mostly occurs in Pre-LN"); published by the authors, not run here (hundreds of GPU-days):</p>
 <div class="tw"><table class="rd-narrow"><thead><tr><th>Size</th><th class="num">Post-LN loss</th><th class="num">Pre-LN loss</th><th class="num">Peri-LN loss</th><th class="num">Post / Pre / Peri benchmark average</th></tr></thead><tbody>

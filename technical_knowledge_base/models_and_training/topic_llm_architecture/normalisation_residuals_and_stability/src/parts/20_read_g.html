@@ -1,14 +1,20 @@
+<div class="s3sp"><div class="s3L">
 <section id="ns-s5">
 <h2>5. Output logits and z-loss</h2>
 <p><b>The problem.</b> The last layer's softmax has the same weakness at the other end of the model. Cross-entropy depends only on differences between the output logits y<sub>j</sub>, so the whole vector can drift up or down for free; Z = &Sigma;<sub>j</sub> e<sup>y<sub>j</sub></sup> is the softmax's normaliser and log Z measures that drift. {{Wortsman et al. 2023 (section 3.1.2)|https://arxiv.org/abs/2309.14322}} describe an instability where the logits "diverge and become very negative", far from the log-probabilities, which in low precision loses the small differences that matter.</p>
 <div class="fm"><div class="eq">loss = cross-entropy + c &middot; (log Z)<sup>2</sup>, &nbsp; log Z = log &Sigma;<sub>j</sub> exp(y<sub>j</sub>), &nbsp; c = 10<sup>&minus;4</sup></div>
 <dl><dt>log Z</dt><dd>0 when the logits are already log-probabilities; the penalty pulls them there without changing which token wins</dd><dt>c</dt><dd>PaLM's coefficient: "z loss = 10<sup>&minus;4</sup> &middot; log<sup>2</sup> Z to encourage the softmax normalizer log(Z) to be close to 0, which we found increases the stability of training" ({{PaLM, section 5|https://arxiv.org/abs/2204.02311}}); OLMo 2 and Wortsman et al. use the same value</dd></dl></div>
+
+<p><span class="meas">measured</span> {%z_meas%}</p>
+<p class="small">Released models sit far from log Z = 0 too: GPT-2 averages &minus;42.6, SmolLM2-135M +25.2 and Qwen2.5-0.5B +22.4 on one sentence, and storing GPT-2's logits in bf16 already moves 2.4% of its probability mass. The measurement, with a slider that shifts every logit, is the closed block "Real logits from three small models" on {{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}} ("The level of the logits").</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="rd-card" id="ns-lz-card">
 <h4>log Z drifts upward in a healthy run; z-loss 1e-4 barely moves it here</h4>
 <div class="ns-chart" id="ns-lz"></div>
 <p class="small">Mean log Z of the output softmax on the fixed probe batch, every 10 steps, measured on Apple M1 Pro (MPS).</p>
 </div>
-<p><span class="meas">measured</span> {%z_meas%}</p>
-<p class="small">Released models sit far from log Z = 0 too: GPT-2 averages &minus;42.6, SmolLM2-135M +25.2 and Qwen2.5-0.5B +22.4 on one sentence, and storing GPT-2's logits in bf16 already moves 2.4% of its probability mass. The measurement, with a slider that shifts every logit, is the closed block "Real logits from three small models" on {{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}} ("The level of the logits").</p>
+</div></div></div>
+<section id="ns-s5d">
 <p><b>How to check.</b> Log mean log Z on a fixed batch; a value drifting steadily away from 0 is the symptom z-loss treats, and it costs one logsumexp you already pay for in the cross-entropy. Do not switch the z-loss implementation mid-run (OLMo 2's trap, in the mistakes at the end).</p>
 </section>

@@ -1,35 +1,10 @@
-// ---- Reading figures added in the 2026-10-23 rebuild: the hero block diagram, final loss against learning rate,
+// ---- Reading figures added in the 2026-10-23 rebuild: final loss against learning rate,
 // gradient norm by block (the root Block lab's gradnorm.json), |mean| / RMS through the stream, log Z over training,
 // and every-step gradient norm with OLMo 2's spike flags. Data: window.NSD (22_js_ns_0data.js); helpers: NSC, RD. ----
 (function(){
   const D=window.NSD,C=window.NSC,$=id=>document.getElementById(id);
   if(!D||!C||!window.RD)return;
   const T=(x,y,s,o)=>RD.t(x,y,s,o);
-  // ---------------- hero: one block and where each fix acts (static annotated diagram)
-  function hero(){const el=$('ns-hero');if(!el)return;
-    const w=RD.width(el),nar=w<520,sx=nar?44:70,bw=nar?76:126,x0=sx+bw/2+12,x1=w-4,bh=24,g=7;
-    let y=4,s='';const box=(xa,xb,yy,txt,o)=>{o=o||{};
-      s+='<rect x="'+xa+'" y="'+yy+'" width="'+(xb-xa)+'" height="'+bh+'" rx="5" fill="var('+(o.acc?'--acc2':'--soft')+')" stroke="var('+(o.acc?'--acc':'--line')+')"'+(o.dash?' stroke-dasharray="4 3"':'')+'/>';
-      s+=T(xa+7,yy+16,txt,{fill:'var(--ink)',fs:nar?11:12});
-      if(o.tag)s+=T(xb-6,yy+16,o.tag,{a:'end',fill:'var(--acc)',w:600,fs:nar?11:12})};
-    const arrow=(xa,ya,xb,yb)=>{s+='<line x1="'+xa+'" y1="'+ya+'" x2="'+xb+'" y2="'+yb+'" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#nsh-ar)"/>'};
-    const plus=yy=>{s+='<circle cx="'+sx+'" cy="'+yy+'" r="9" fill="var(--bg)" stroke="var(--ink)"/>'+T(sx,yy+4.5,'+',{a:'middle',fs:14,w:700,fill:'var(--ink)'})};
-    const L=nar?{emb:'embedding x₀ (+ position)',n1:'Norm (pre-norm)',qk:'q, k → QK-norm per head',lg:'q·k/√d → cap → softmax',wo:'W_o: init ÷ √(2L)',on:'Norm on branch output',ffn:'Norm → FFN → W_down ÷ √(2L)',blk:'× L blocks: the stream grows',fin:'final norm',lm:'LM head → logits; z-loss',sp:'loss, grad norm → spikes',post:'post-norm'}
-      :{emb:'token embedding x₀ (+ position): init N(0, 0.02)',n1:'Norm before the branch (pre-norm): LayerNorm or RMSNorm',qk:'q = W_q·, k = W_k· → QK-norm per head',lg:'logits s = q·k/√d_h → soft-cap c·tanh(s/c) → softmax',wo:'W_o writes into the stream: init 0.02/√(2L)',on:'Norm on the branch output (sandwich, OLMo 2)',ffn:'Norm → FFN → W_down writes back: init 0.02/√(2L)',blk:'× L blocks; under pre-norm the stream grows and massive activations ride it',fin:'final norm',lm:'LM head → output logits y → softmax; z-loss pulls log Z to 0',sp:'loss and gradient norm: where spikes show',post:'Norm (post-norm)'};
-    box(4,x1,y,L.emb,{tag:'§6'});const top=y+bh;y+=bh+g+6;
-    const branch=(rows,lab)=>{const y0=y;arrow(sx,y0+bh/2,x0-2,y0+bh/2);
-      rows.forEach(r=>{box(x0,x1,y,r[0],r[1]);y+=bh+g});
-      const yr=y-g-bh/2;s+='<path d="M'+x0+' '+yr+' H'+(sx+11)+'" fill="none" stroke="var(--mute)" stroke-width="1.3" marker-end="url(#nsh-ar)"/>';plus(yr);
-      y+=3;box(sx-bw/2,sx+bw/2,y,L.post,{acc:true,dash:true});s+=T(sx+bw/2+6,y+16,'§2',{fill:'var(--acc)',w:600,fs:nar?11:12});y+=bh+g+4};
-    branch([[L.n1,{acc:true,tag:'§2 §3'}],[L.qk,{acc:true,tag:'§4'}],[L.lg,{acc:true,tag:'§4'}],[L.wo,{acc:true,tag:'§6'}],[L.on,{acc:true,dash:true,tag:'§2'}]]);
-    branch([[L.ffn,{acc:true,tag:'§2 §6'}],[L.on,{acc:true,dash:true,tag:'§2'}]]);
-    s+=T(x0,y+12,L.blk,{fill:'var(--mute)',fs:nar?11:12});s+=T(x1,y+12,'§1 §7',{a:'end',fill:'var(--acc)',w:600,fs:nar?11:12});y+=22;
-    box(sx-bw/2,sx+bw/2,y,L.fin,{acc:true});s+=T(sx+bw/2+6,y+16,'§2',{fill:'var(--acc)',w:600,fs:nar?11:12});const bot=y;y+=bh+g;
-    box(4,x1,y,L.lm,{acc:true,tag:'§5'});y+=bh+g;
-    box(4,x1,y,L.sp,{tag:'§8'});y+=bh+4;
-    const stream='<line x1="'+sx+'" y1="'+top+'" x2="'+sx+'" y2="'+bot+'" stroke="var(--ink)" stroke-opacity=".28" stroke-width="7"/>'+'<line x1="'+sx+'" y1="'+(bot+bh)+'" x2="'+sx+'" y2="'+(bot+bh+g)+'" stroke="var(--ink)" stroke-opacity=".28" stroke-width="7"/>';
-    const defs='<defs><marker id="nsh-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--mute)"/></marker></defs>';
-    el.innerHTML=RD.svg(w,y,defs+stream+s,'One decoder block: the residual stream, the norms, attention, the FFN and the five places a stability fix acts')}
   // ---------------- final loss against learning rate
   const LR=[3e-4,1e-3,3e-3,1e-2,3e-2],lrT={0.0003:'3e-4',0.001:'1e-3',0.003:'3e-3',0.01:'1e-2',0.03:'3e-2'};
   const SER=[['Pre-norm','var(--c1)',['bl_pre_lr1e-3','bl_pre_lr3e-3','bl_pre_lr1e-2','bl_pre_lr3e-2']],
@@ -89,7 +64,7 @@
     R.hits.forEach(st=>{const i=st-1;s+='<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v[i]).toFixed(1)+'" r="4.5" fill="none" stroke="var(--bad)" stroke-width="2"/>'});
     s+=T(w-pr,pt+9,R.hits.length+' flagged step'+(R.hits.length===1?'':'s'),{a:'end',fill:'var(--bad)',w:600});
     el.innerHTML=RD.svg(w,h,s,'Gradient norm at every step with flagged spikes')}
-  const all=()=>{hero();lrChart();gnChart();muChart();lzChart();sgChart()};
+  const all=()=>{lrChart();gnChart();muChart();lzChart();sgChart()};
   if($('ns-gn-when'))RD.seg($('ns-gn-when'),m=>{gnWhen=m;gnChart()});
   if($('ns-sg-pick'))RD.seg($('ns-sg-pick'),m=>{sgRun=m;sgChart()});
   RD.onRender(all);RD.onResize(all);
