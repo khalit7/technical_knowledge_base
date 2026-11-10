@@ -1,39 +1,8 @@
-// ---- Reading tab visuals: drawn-to-scale experts, one real token through both router rules, loads after training,
+// ---- Reading tab visuals (the drawn-to-scale card is Fig. 2, 42_js_sc_scale.js, since 2026-11-09): one real token through both router rules, loads after training,
 // the capacity sweep, dense vs MoE curves and table, the real-config table, and the predict drills ----
 (function(){
   const M=window.MX;if(!M||!window.RD)return;const {D,$,f,pct,tx,svg,esc,EC,RC}=M;
   M.drills();
-  // 1. drawn to scale -------------------------------------------------------------------------------------------
-  if($('mx-scale')){
-    let mode='dense';
-    const pick=run=>{const r=D.runs[run];if(!r||!r.seq)return [];const k=r.seq.k;return r.seq.top[0].slice(k,2*k).split('').map(c=>parseInt(c,16))};
-    function draw(){
-      const el=$('mx-scale-svg'),W=M.width(el),nar=W<520;let s='',H,cap;
-      const sq=nar?7:9,g=1.5;
-      if(mode==='ds'){const per=nar?19:33,rows=Math.ceil(257/per),u=Math.min(sq+4,(W-20)/per-2);H=rows*(u+2)+14;
-        const lit=[3,17,40,77,120,150,201,233];
-        for(let i=0;i<257;i++){const x=10+(i%per)*(u+2),y=10+Math.floor(i/per)*(u+2),sh=i===256,on=sh||lit.includes(i);
-          s+='<rect x="'+x+'" y="'+y+'" width="'+u+'" height="'+u+'" rx="1.5" fill="'+(sh?'var(--good)':on?'var(--acc)':'var(--dim)')+'"/>'}
-        
-        cap='<b>Scale: one square = one expert (44,040,192 weights); green: the shared expert; blue: 8 routed (an illustrative choice).</b> DeepSeek-V3, one MoE layer, drawn at a different scale: 257 experts of 3 &times; 7,168 &times; 2,048 weights each (11.32 billion with the router), of which a token uses 9 (396 million, 3.5%). The router itself (256 &times; 7,168) would be 1/24 of one square.';
-      }else{
-        const groups=mode==='dense'?[{n:16,on:true}]:mode==='m8'?Array.from({length:8},(_,i)=>({n:8,on:pick('moe8').includes(i)})):
-          Array.from({length:17},(_,i)=>({n:4,on:i===16||pick('moe16s').includes(i),sh:i===16}));
-        const cols=mode==='dense'?16:mode==='m8'?4:2,gw=cols*(sq+g)+8;const perRow=Math.max(1,Math.floor((W-20)/gw));
-        const rowsPer=n=>Math.ceil(n/cols);const gh=rowsPer(groups[0].n)*(sq+g)+20;
-        H=Math.ceil(groups.length/perRow)*gh+10;
-        groups.forEach((G,j)=>{const gx=10+(j%perRow)*gw,gy=8+Math.floor(j/perRow)*gh;
-          for(let i=0;i<G.n;i++){const x=gx+(i%cols)*(sq+g),y=gy+Math.floor(i/cols)*(sq+g);
-            s+='<rect x="'+x+'" y="'+y+'" width="'+sq+'" height="'+sq+'" rx="1" fill="'+(G.sh?'var(--good)':G.on?'var(--acc)':'var(--dim)')+'"/>'}
-          if(groups.length>1)s+=tx(gx,gy+rowsPer(G.n)*(sq+g)+11,G.sh?'shared':'E'+j,{fs:10.5,fill:G.on?'var(--ink)':'var(--mute)'})});
-        
-        cap=mode==='dense'?'Dense FFN of the tiny GPT: 524,288 weights per layer (16 squares), all used by every token.':
-          mode==='m8'?'moe8top2: 8 experts of 262,144 weights (8 squares each) stored, 2 used: the same 16 squares of compute, 4 times the storage. The two experts lit are the ones the trained model actually chose for "Once" in layer 1.':
-          'moe16top3_shared: 16 routed experts of 131,072 (4 squares) plus 1 shared, 3 routed + the shared one used: again 16 squares of compute, 4.25 times the storage, and C(16, 3) = 560 possible routed sets instead of C(8, 2) = 28.';
-      }
-      el.innerHTML=svg(W,H,s,'Expert weights drawn to scale');$('mx-scale-cap').innerHTML=(mode==='ds'?'':'<b>Scale: one square = 32,768 weights; coloured: used by token 1 of the running sequence ("Once") in layer 1.</b> ')+cap}
-    RD.seg($('mx-scale-m'),m=>{mode=m;draw()});RD.onRender(draw);RD.onResize(draw);draw();
-  }
   // 2. one real token through softmax and sigmoid ---------------------------------------------------------------
   if($('mx-rc')&&D.runs.moe8&&D.runs.moe8.seq){
     const LG=D.runs.moe8.seq.logits8,X=[0,8,24,56,248];const st={t:0,l:0,x:0};

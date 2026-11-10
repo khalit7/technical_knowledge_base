@@ -1,7 +1,7 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
 #t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
@@ -142,12 +142,18 @@
 <a href="#mx-top">The idea</a><a href="#mx-s1">1 Total and active</a><a href="#mx-s2">2 The router</a><a href="#mx-s3">3 Collapse and balancing</a><a href="#mx-s4">4 Capacity and drops</a><a href="#mx-s5">5 Fine-grained and shared</a><a href="#mx-s6">6 Measured</a><a href="#mx-s7">7 Expert parallelism</a><a href="#mx-s8">8 Serving</a><a href="#mx-s9">9 Real configs</a><a href="#mx-more">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="mx-top">
 <p class="core">A mixture-of-experts (MoE) layer stores E feed-forward networks, the <span class="hl">experts</span>, but sends each token through only the k that a small <span class="hl">router</span> picks, so the model has many parameters but each token pays for k experts. The page is the price of that one discrete choice: the router learns only through what it picked, traffic must be kept balanced, buffers overflow, and the experts must live on many GPUs.</p>
-<div class="hero" id="mx-hero"><h4>One token, one layer: 8 experts stored, 2 computed</h4>
-<div class="rd-svg" id="mx-hero-svg"></div>
-<p class="small" id="mx-hero-cap">Recorded, not drawn by hand: token 1 of the running sequence ("Once") in layer 1 of the trained <code>moe8top2</code> tiny GPT. The router scores all 8 experts, keeps the best 2 and mixes their outputs by the renormalised scores. Memory pays for all 8 experts, compute for 2: <dfn>total parameters</dfn> (what must sit in memory) and <dfn>active parameters</dfn> (what one token computes with) come apart. Under expert parallelism the experts sit on different GPUs, and the token travels to them and back (section <a href="#mx-s7">7</a>).</p>
-</div>
+<p class="sxh">Fig. 1, step by step: one token, one layer, 8 experts stored, 2 computed</p>
+<ol class="sx" id="sx-hero">
+<li><b>Eight experts, all in memory.</b> One MoE layer of the trained <code>moe8top2</code> tiny GPT holds 8 experts, each an FFN of 262,144 weights. Token 1 of the running sequence, "Once", arrives as its 256-number hidden state h.</li>
+<li><b>The router scores every expert.</b> A 256 &times; 8 matrix W<sub>r</sub> turns h into 8 logits and a softmax turns them into scores that sum to 1. Recorded for "Once" in layer 1: E6 gets 0.61, E0 0.13, the other six 0.02 to 0.07.</li>
+<li><b>Keep the best 2.</b> Only E6 and E0 will run for this token; the other 6 are skipped. Their two scores renormalised to sum to 1 are the <dfn>gate weights</dfn>, 0.82 and 0.18.</li>
+<li><b>Dispatch and combine.</b> h travels to the two experts and their outputs come back weighted by the gates (the denser stream is E6's): y = h + 0.82 &middot; E6(h) + 0.18 &middot; E0(h).</li>
+<li><b>Memory pays for 8, compute for 2.</b> All 2,097,152 expert weights must be stored, because the next token may pick any of them; this token computed with 524,288, what the dense FFN costs. <dfn>Total parameters</dfn> (what must sit in memory) and <dfn>active parameters</dfn> (what one token computes with) come apart. Under expert parallelism the experts sit on different GPUs, and the token travels to them and back (section <a href="#mx-s7">7</a>).</li>
+</ol>
+<p class="small mute" id="mx-hero-cap">Recorded, not drawn by hand: the router logits of the trained <code>moe8top2</code> for token 1 of the running sequence in layer 1 (<code>src/analysis/analyse.py</code>), softmax and renormalisation computed on the page.</p>
 <p><b>You need:</b> the feed-forward block each expert copies, and SwiGLU ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}); the running example, the root's tiny GPT on TinyStories ({{Topic: llm-architecture|n:3fd5c17b0d0d8172b490dc9f9ac281df}}). What an all-to-all is and how expert parallelism composes with the other parallelisms in training are on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</p>
 <dl class="terms">
 <dt>Expert</dt><dd>one of E ordinary FFNs in an MoE layer, narrower than the dense FFN it replaces.</dd>
@@ -159,6 +165,9 @@
 <dt>Capacity factor</dt><dd>a fixed buffer per expert as a multiple of its average load; assignments past it are dropped.</dd>
 <dt>Expert parallelism (EP)</dt><dd>experts split over GPUs; tokens move to them and back by two all-to-alls per MoE layer.</dd>
 </dl>
+</section>
+</div></div>
+<section id="mx-top-b">
 <details class="dp"><summary>The design choices in one table, with what 2025 to 2026 configs chose <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="mx-tbl">
 <thead><tr><th>Choice</th><th>Options</th><th>What it buys</th><th>What it costs</th><th>What 2025 to 2026 configs chose</th></tr></thead>

@@ -1,6 +1,18 @@
+<div class="s3sp"><div class="s3R"><div id="stg-scale"></div></div><div class="s3L">
 <section id="mx-s1">
 <h2>1. Total and active: more weights, the same compute per token</h2>
-<p>In a dense transformer every token multiplies through every weight, about 2 FLOPs per parameter per token, and the FFN holds most of them: one tiny-GPT block has 262,144 attention weights (four 256 &times; 256 projections) and 524,288 FFN weights (256 &times; 1,024 up, 1,024 &times; 256 down), two thirds of the block. MoE splits that FFN into experts. The root's tiny GPT (d = 256, 6 blocks, GELU) has MoE presets that keep the <em>active</em> FFN exactly the dense size, so comparisons on this page are at equal compute (presets in the root's <code>src/data/configs.py</code>):</p>
+<p>In a dense transformer every token multiplies through every weight, about 2 FLOPs per parameter per token, and the FFN holds most of them: one tiny-GPT block has 262,144 attention weights (four 256 &times; 256 projections) and 524,288 FFN weights (256 &times; 1,024 up, 1,024 &times; 256 down), two thirds of the block. MoE splits that FFN into experts. The root's tiny GPT (d = 256, 6 blocks, GELU) has MoE presets that keep the <em>active</em> FFN exactly the dense size, so comparisons on this page are at equal compute (presets in the root's <code>src/data/configs.py</code>). Fig. 2 draws them to scale:</p>
+<p class="sxh">Fig. 2, step by step: compute stays at the dense size while storage grows fourfold</p>
+<ol class="sx" id="sx-scale">
+<li><b>Dense: every weight runs.</b> The tiny GPT's dense FFN (256 &rarr; 1,024 &rarr; 256) is 524,288 weights per layer, and every token uses all of them: stored equals per token. A block's footprint is proportional to its weights.</li>
+<li><b>moe8top2: 8 experts, 2 per token.</b> Each expert is half as wide (512), 262,144 weights; a token uses the 2 the router picks (lit: E6 and E0, the trained model's choice for "Once" in layer 1). Stored 2,099,200 with the 2,048-weight router, per token 526,336: four times the storage at the dense cost.</li>
+<li><b>moe16top3_shared: finer, plus one always on.</b> 16 routed experts of 256 plus 1 shared, 131,072 weights each; a token uses 3 routed (E13, E15 and E3 for "Once") and the shared one. Stored 2,232,320, per token 528,384.</li>
+<li><b>Whole models.</b> Attention, embeddings and norms are not copied, so the model totals grow less than the FFN: 5.84M dense, 15.29M and 16.08M for the two MoE presets, while active stays at 5.84M, 5.85M and 5.86M.</li>
+<li><b>A real layer, at another scale.</b> One DeepSeek-V3 MoE layer: 257 experts of 3 &times; 7,168 &times; 2,048 = 44,040,192 weights each (11.32 billion with the router); a token uses 9, 396 million (3.5%). Which 8 routed experts light is illustrative. The router itself (256 &times; 7,168) would be 1/24 of one block.</li>
+</ol>
+</section>
+</div></div>
+<section id="mx-s1b">
 <div class="tw"><table>
 <thead><tr><th>preset</th><th>experts per layer</th><th>expert hidden</th><th>active per token</th><th class="num">FFN weights per layer, stored</th><th class="num">used per token</th><th class="num">model total</th><th class="num">model active</th></tr></thead>
 <tbody>
@@ -9,21 +21,29 @@
 <tr><td><code>moe16top3_shared</code></td><td>16 routed + 1 shared</td><td>256</td><td>3 routed + 1 shared</td><td class="num">2,232,320</td><td class="num">528,384</td><td class="num">16,084,224</td><td class="num">5,860,608</td></tr>
 </tbody></table></div>
 <p class="small mute">Per layer, <code>moe8top2</code> stores 8 &times; (2 &times; 256 &times; 512) = 2,097,152 expert weights plus a 256 &times; 8 = 2,048-weight router; each expert is half the dense FFN, so a token's 2 experts (524,288) cost what the dense FFN costs. <code>moe16top3_shared</code>: 17 experts of 2 &times; 256 &times; 256 = 131,072 plus a 4,096-weight router; a token uses 4 of them. Totals from the tiny GPT's own <code>param_groups()</code> (the root's <code>src/data/README.md</code>, recorded 2026-10-18); active counts differ from dense only by the routers (6 &times; 2,048 = 12,288 and 6 &times; 4,096 = 24,576) <span class="der">derived</span>.</p>
-<div class="rd-card" id="mx-scale"><h4>Drawn to scale: compute stays at 16 squares while storage grows fourfold</h4>
-<div class="seg" id="mx-scale-m"><button data-m="dense" class="on">Dense FFN</button><button data-m="m8">8 experts, top 2</button><button data-m="m16">16 + 1 shared, top 3</button><button data-m="ds">DeepSeek-V3 layer</button></div>
-<div class="rd-svg" id="mx-scale-svg"></div>
-<p class="small" id="mx-scale-cap"></p>
-</div>
-<p>The same move on a real model, step by step: build the <b>dense twin</b> (one FFN as wide as the k routed experts plus the shared ones a token uses), then add the other experts and watch which of the five numbers move. Predict before stepping: which grows, FLOPs per token or weight memory, and what happens to the bytes a decode step reads when 64 sequences share the step?</p>
-<div class="rd-anim" id="mx-twin"><h4>Adding experts moves memory, not compute, until the batch grows</h4>
+</section>
+<div class="s3sp"><div class="s3R"><div class="rd-anim" id="mx-twin"><h4>Adding experts moves memory, not compute, until the batch grows</h4>
 <div class="ctl"><label>Model <select id="mx-twin-m"></select></label></div>
 <div class="an-ctl" id="mx-twin-ctl"></div>
 <div class="tw-bars" id="mx-twin-bars"></div>
 <div class="small mute" id="mx-twin-lab"></div>
 <div class="tw-grid" id="mx-twin-grid"></div>
-<div class="an-cap" id="mx-twin-cap"></div>
+</div></div><div class="s3L">
+<section id="mx-s1c">
+<p>The same move on a real model, step by step: build the <b>dense twin</b> (one FFN as wide as the k routed experts plus the shared ones a token uses), then add the other experts and watch which of the five numbers move. Predict before stepping: which grows, FLOPs per token or weight memory, and what happens to the bytes a decode step reads when 64 sequences share the step?</p>
+<p class="sxh">Step by step: adding experts moves memory, not compute, until the batch grows</p>
+<ol class="sx" id="sx-twin">
+<li><b>The dense twin.</b> <span class="tw-x"></span></li>
+<li><b>Add the other experts.</b> <span class="tw-x"></span></li>
+<li><b>FLOPs barely move.</b> <span class="tw-x"></span></li>
+<li><b>The bill is memory.</b> <span class="tw-x"></span></li>
+<li><b>Batch 8: more experts read.</b> <span class="tw-x"></span></li>
+<li><b>Batch 64: nearly all of them.</b> <span class="tw-x"></span></li>
+</ol>
 <p class="small mute">Parameters from the root's Config calculator code (<code>window.CC</code>, unchanged; validated to residual 0 on 44 Hugging Face checkpoints), weights in BF16, decode reads with the input embedding counted as a full read and uniform independent routing (illustrative: real routing is skewed and touches fewer experts) <span class="der">derived</span>. For a dense model the MoE version splits each FFN into 8 experts with 2 active (the Mixtral pattern). Moved here from the root's Config calculator on 2026-10-23.</p>
-</div>
+</section>
+</div></div>
+<section id="mx-s1d">
 <div class="fm"><div class="eq">y = h + &sum;<sub>i &isin; TopK(s(h))</sub> g<sub>i</sub>(h) &middot; E<sub>i</sub>(h) + &sum;<sub>j</sub> S<sub>j</sub>(h)</div>
 <dl><dt>h</dt><dd>the token's hidden state entering the FFN sub-layer (after the norm), d numbers; the leading h is the residual connection</dd>
 <dt>s(h)</dt><dd>router scores, one per expert, from logits W<sub>r</sub> h (W<sub>r</sub> is E &times; d)</dd>

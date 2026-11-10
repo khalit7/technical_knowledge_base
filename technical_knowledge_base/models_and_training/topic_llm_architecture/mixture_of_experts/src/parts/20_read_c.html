@@ -1,23 +1,34 @@
+<div class="s3sp"><div class="s3R"><div id="stg-rt"></div></div><div class="s3L">
 <section id="mx-s2">
 <h2>2. The router: score, select, dispatch, combine</h2>
-<p>The router runs on every token in every MoE layer, so it must be cheap, and it must learn although "send to expert 3" is a discrete decision with no gradient. In DeepSeek-V3 its matrix W<sub>r</sub> is 256 &times; 7,168 = 1,835,008 weights against 11.32 billion in the whole MoE layer, 0.016% (<span class="der">derived</span> from its config). Step the tiny GPT's router through the first 8 tokens of the running sequence ("Once upon a time, in a big forest, there lived a rhinoceros named Roxy...", never seen in training):</p>
-<div class="rd-anim" id="rt-anim"><h4>Eight real tokens through one router: 16 assignments, and the busiest expert sets the pace</h4>
+<p>The router runs on every token in every MoE layer, so it must be cheap, and it must learn although "send to expert 3" is a discrete decision with no gradient. In DeepSeek-V3 its matrix W<sub>r</sub> is 256 &times; 7,168 = 1,835,008 weights against 11.32 billion in the whole MoE layer, 0.016% (<span class="der">derived</span> from its config). Fig. 3 steps the tiny GPT's router through the first 8 tokens of the running sequence ("Once upon a time, in a big forest, there lived a rhinoceros named Roxy...", never seen in training):</p>
 <div class="seg" id="rt-run"></div>
 <div class="seg" id="rt-lay"></div>
-<div class="rt-svg" id="rt-svg"></div>
-<div class="an-ctl" id="rt-ctl"></div>
-<div class="an-cap" id="rt-cap"></div>
-<div class="an-cnt" id="rt-cnt"></div>
-<p class="small mute">Recorded router outputs of the three 8-expert models, trained identically except for how they balance (section <a href="#mx-s3">3</a>), one forward pass each (<code>src/analysis/analyse.py</code>, <span class="meas">measured on Apple M1 Pro (CPU)</span>). Capacity on this 8-token batch: 1.25 &times; 8 &times; 2 / 8 = 2.5 slots per expert, rounded up to 3 by the tiny GPT's <code>math.ceil</code> ([[ref:tg_cap]]; implementations that round down allow 2). The trained models ran dropless except the capacity-factor run; the drop step shows what the rule would do to these 8 tokens. Switching model or layer resets the steps.</p>
-</div>
+<p class="sxh">Fig. 3: eight real tokens through one router: 16 assignments, and the busiest expert sets the pace</p>
+<ol class="sx" id="sx-rt">
+<li><b>8 tokens reach the FFN sub-layer.</b> Each is the 256-number hidden state of one token after attention and the norm. The router is a 256 &times; 8 matrix: one logit per expert per token.</li>
+<li><b>The router scores every expert.</b> Each column of bars is one token's 8 scores, coloured by expert: a softmax over the 8 for the softmax models, independent sigmoids for the sigmoid model. This costs 2 &times; 256 &times; 8 = 4,096 FLOPs per token.</li>
+<li><b>Each token keeps its top 2.</b> The two chosen bars stay; only those experts run for this token, and the other 6 are skipped.</li>
+<li><b>Dispatch: each assignment goes to its expert.</b> 16 assignments for 8 tokens travel along their expert's row; each cube in a stack is one token copy sent to that expert.</li>
+<li><b>The load each expert gets.</b> The glass sheet is the mean, 2 per expert. The busiest expert sets the step time when experts sit on different GPUs, and an idle one holds weights that did no work.</li>
+<li><b>Combine: a weighted sum of the two experts.</b> Each token adds g<sub>1</sub> E<sub>a</sub>(h) + g<sub>2</sub> E<sub>b</sub>(h) to its residual stream; the numbers under the tokens are the two gate weights.</li>
+</ol>
+<p class="small" id="rt-live"></p>
+<p class="small mute">Recorded router outputs of the four 8-expert models, trained identically except for how they balance (section <a href="#mx-s3">3</a>), one forward pass each (<code>src/analysis/analyse.py</code>, <span class="meas">measured on Apple M1 Pro (CPU)</span>). Switching model or layer replays the steps; section <a href="#mx-s4">4</a> puts buffers of fixed size behind these stacks.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="mx-s2b">
 <p><b>Normalise, then select.</b> A softmax over all E experts (Switch, Mixtral, Qwen3) turns logits into probabilities that sum to 1; a sigmoid per expert (DeepSeek-V3 and the models that copied it) gives each expert an independent affinity in (0, 1). Both are increasing functions of the logit, so from the same logits they pick the same top k and differ only in the gate weights, until a bias or a group limit is added to the selection. <b>Combine</b> renormalises the k chosen scores to sum to 1 (most models), optionally multiplies by a constant <code>routed_scaling_factor</code> (2.5 in DeepSeek-V3, 5.0 in Nemotron 3 Super), and adds the weighted expert outputs to the residual stream. Predict: add experts that score a logit of 0; what happens to the best expert's softmax probability, and to its sigmoid?</p>
-<div class="rd-card" id="mx-rc"><h4>Softmax scores dilute as experts are added; sigmoid scores do not</h4>
+<p>A softmax probability is a share of one distribution: it averages 1/E and shrinks as experts are added, and after renormalisation a logit gap of 1 is a weight ratio of e &asymp; 2.72. A sigmoid depends on its own logit only, which is why the many-expert models moved to it.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="mx-rc"><h4>Softmax scores dilute as experts are added; sigmoid scores do not</h4>
 <p class="small">The router logits of one token of the running sequence in one layer of the trained <code>moe8top2</code> model (recorded, not illustrative). Pick the token and layer, then add experts with logit 0.</p>
 <div class="ctl" id="mx-rc-ctl"></div>
 <div class="rd-svg" id="mx-rc-svg"></div>
 <div class="out" id="mx-rc-out"></div>
 </div>
-<p>A softmax probability is a share of one distribution: it averages 1/E and shrinks as experts are added, and after renormalisation a logit gap of 1 is a weight ratio of e &asymp; 2.72. A sigmoid depends on its own logit only, which is why the many-expert models moved to it.</p>
+</div></div></div>
+<section id="mx-s2c">
 <details class="dp"><summary>The evidence for sigmoid <span class="mute">(depth)</span></summary><div class="b"><p>DeepSeek-V3's report switches to sigmoid without arguing it (section 2.1.2, "slightly different from DeepSeek-V2"), but the same group's auxiliary-loss-free paper says "we find that the sigmoid baseline performs better than the softmax baseline", with softmax gates at higher perplexity for similar balance on 1B models in its appendix C ({{Wang et al. 2024|https://arxiv.org/abs/2408.15664}}, <span class="vend">vendor</span>: the authors are DeepSeek's).</p></div></details>
 <p><b>The router learns only through the experts it picked.</b> Top-k selection has no gradient; the language-model loss reaches the router only through the gate weights g<sub>i</sub> of the chosen experts. An expert that stops being chosen stops producing any evidence that it would have been good, which is why routing can collapse (section <a href="#mx-s3">3</a>). Measured on the trained <code>moe8top2</code>, layer [[f:grad_layer|i]], tokens 1 to 8: with the language-model loss alone the gradient on the 6 unchosen logits of each token is at most [[f:grad_lm_ratio|e]] of the largest chosen one (rounding: analytically zero, since the renormalised gates are a softmax over the chosen logits only); with the Switch auxiliary loss added it is up to [[f:grad_aux_ratio|f3]] of it, on all eight (<span class="meas">measured on Apple M1 Pro (CPU)</span>, <code>src/code/grad_check.py</code>).</p>
 <p><b>Group-limited routing.</b> Experts are split into groups (one per node); each token first picks its best groups, then its experts inside them. DeepSeek-V3: 8 groups of 32, a group scored by the sum of its two best experts, 4 groups per token ([[ref:ds_group]] to [[ref:ds_mask]]): its "at most 4 nodes" (section <a href="#mx-s7">7</a>). Kimi K2 and K3 and GLM set one group, so no limit.</p>

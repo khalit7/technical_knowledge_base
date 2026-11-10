@@ -1,30 +1,14 @@
-// ---- Reading section 3 (moved from the retired Expert load tab on 2026-10-23): before/after animation (no balancing against a chosen scheme), a per-layer heat map
+// ---- Reading section 3 (moved from the retired Expert load tab on 2026-10-23): a per-layer heat map
 // and MaxVio / aux / dropped curves, all decoded from the training logs (window.MXD.runs[*].log.load). ----
 (function(){
-  const M=window.MX;if(!M||!window.RD||!M.$('ld-anim'))return;const {D,$,f,pct,tx,svg,esc,EC,RC}=M;
+  const M=window.MX;if(!M||!window.RD||!M.$('ld-hm'))return;const {D,$,f,pct,tx,svg,esc,EC,RC}=M;
   const RUNS=['moe8','bias','sbias','cap1','moe16s','moe8_s1','none'].filter(k=>D.runs[k]&&D.runs[k].log.load);
   if(!RUNS.length)return;
   const cache={};
   const shares=k=>{if(cache[k])return cache[k];const ld=D.runs[k].log.load,a=M.unb64(ld.shares_b64),E=ld.E,L=ld.L,n=ld.steps.length;
     const out=[];for(let s=0;s<n;s++){const st=[];for(let l=0;l<L;l++){const r=[];for(let e=0;e<E;e++)r.push(a[(s*L+l)*E+e]/255);st.push(r)}out.push(st)}return cache[k]=out};
   const hasNone=!!(D.runs.none&&D.runs.none.log.load);
-  const RIGHT=RUNS.filter(k=>k!=='none');let right=RIGHT[0];
-  function panel(el,k,i){const sh=shares(k)[Math.min(i,shares(k).length-1)],L=sh.length,E=sh[0].length,W=M.width(el),H=150,pl=26,pb=18,gw=(W-pl)/L,bw=(gw-6)/E;let s='';
-    const Y=v=>6+(H-6-pb)*(1-Math.min(1,v)/0.6);
-    [0,0.3,0.6].forEach(v=>{s+='<line x1="'+pl+'" x2="'+W+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/>'+tx(pl-3,Y(v)+4,f(v,1),{a:'end',fs:10,fill:'var(--mute)'})});
-    sh.forEach((l,j)=>{const x0=pl+j*gw+3;l.forEach((v,e)=>{s+='<rect x="'+(x0+e*bw).toFixed(1)+'" y="'+Y(v).toFixed(1)+'" width="'+Math.max(1,bw-0.8).toFixed(1)+'" height="'+(Y(0)-Y(v)).toFixed(1)+'" fill="'+EC[e]+'"/>'});
-      s+='<line x1="'+x0+'" x2="'+(x0+E*bw)+'" y1="'+Y(1/E)+'" y2="'+Y(1/E)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>'+tx(x0+E*bw/2,H-4,'L'+(j+1),{a:'middle',fs:10.5,fill:'var(--mute)'})});
-    el.innerHTML=svg(W,H,s,'Expert shares per layer')}
-  const N=(hasNone?D.runs.none:D.runs[right]).log.load.steps.length;
-  function draw(i){const steps=D.runs[right].log.load.steps,step=steps[Math.min(i,steps.length-1)];
-    if(hasNone){panel($('ld-l'),'none',i);$('ld-lt').innerHTML=esc(D.runs.none.short)+': MaxVio '+f(mv('none',i),2)}
-    else{$('ld-l').innerHTML='<p class="small mute">The no-balancing run is not recorded yet.</p>'}
-    panel($('ld-r'),right,i);$('ld-rt').innerHTML=esc(D.runs[right].short)+': MaxVio '+f(mv(right,i),2);
-    $('ld-cap').innerHTML='Step '+step+' of 1,500 ('+f(step*8192/1e6,1)+'M tokens seen). MaxVio is averaged over the 6 layers: (busiest expert &minus; mean) / mean, 0 when balanced.'}
-  const mv=(k,i)=>{const a=D.runs[k].log.load.maxvio,r=a[Math.min(i,a.length-1)];return r.reduce((x,y)=>x+y,0)/r.length};
-  const anim=RD.anim({card:'ld-anim',ctl:'ld-ctl',n:N,draw,ms:180,label:'Training step'});
-  M.seg($('ld-right'),RIGHT.map(k=>[k,D.runs[k].short]),right,m=>{right=m;anim.redraw()});
-  RD.onResize(()=>anim.redraw());
+  // the before/after replay is Fig. 4 (44_js_sc_load.js) since 2026-11-09
   // heat map
   let hr=hasNone?'none':RUNS[0],hl=0;
   function heat(){const sh=shares(hr),n=sh.length,E=sh[0][0].length,el=$('ld-hm'),W=M.width(el),pl=30,cw=(W-pl-4)/n,ch=E>8?9:14,H=E*ch+26;let s='';

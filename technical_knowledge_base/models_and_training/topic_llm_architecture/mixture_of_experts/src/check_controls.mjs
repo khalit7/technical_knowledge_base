@@ -1,5 +1,6 @@
 // Click every control of the MoE page at 390 px dark and 920 px light; fail on page errors, console errors, a visible
-// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Also checks reduced motion does not autoplay.
+// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Since 2026-11-09 the 2D animation (the dense twin, RD.anim) must play
+// by itself once scrolled into view, and nothing may play under reduced motion; the 3D stages are checked by check_stages.mjs.
 // Run from the repo root: node technical_knowledge_base/models_and_training/topic_llm_architecture/mixture_of_experts/src/check_controls.mjs
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
@@ -18,15 +19,11 @@ try {
     for (const t of tabs) {
       await p.click(`button[data-t=${t}]`); await new Promise(r => setTimeout(r, 250));
       if (rm === 'reduce') continue;
-      // nothing may move before the reader acts: scroll every animation into view, wait, and read its play button
+      // autoplay (2026-11-06 rule): every 2D animation plays by itself once scrolled into view
       if (t === 't-read' && scheme === 'light') {
-        const ids = await p.$$eval('#t-read .an-ctl', cs => cs.map(c => c.id));
-        for (const id of ids) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 300)); }
-        await new Promise(r => setTimeout(r, 2500));
-        const playing = await p.$$eval('#t-read .an-ctl .an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).map(b => b.id));
-        if (playing.length) errs.push('autoplay: ' + playing.join(', '));
-        const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
-        if (moved.length) errs.push('not on step 0 before any action: ' + moved.join(', '));
+        const ids = await p.$$eval('#t-read .an-ctl:not(.stg-bar)', cs => cs.map(c => c.id));
+        for (const id of ids) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
+          const lab = await p.$eval('#' + id + '-p', b => b.getAttribute('aria-label')); if (lab !== 'Pause') errs.push('did not play when in view: ' + id); }
       }
       await p.evaluate(t => document.querySelectorAll(`#${t} details`).forEach(d => { d.open = true; }), t);
       await new Promise(r => setTimeout(r, 200));
@@ -49,7 +46,7 @@ try {
       await p.screenshot({ path: path.join(shots, `ctl_${t}_${scheme}_${width}.png`), fullPage: true });
     }
     if (rm === 'reduce') {
-      await p.click('button[data-t=t-read]'); await p.$eval('#rt-anim', el => el.scrollIntoView()); await new Promise(r => setTimeout(r, 2500));
+      await p.click('button[data-t=t-read]'); await p.$eval('#mx-twin', el => el.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2500));
       const playing = await p.$$eval('#t-read .an-ctl .an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).map(b => b.id));
       if (playing.length) errs.push('reduced motion: autoplay ' + playing.join(', '));
     }

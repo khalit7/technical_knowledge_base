@@ -47,3 +47,18 @@ drops, communication, memory).
 | Expert-parallel dispatch over four ranks, recorded counts | Reading s7 | stepper | the five EP steps were a list; the code and output moved to a closed block |
 | Experts touched against batch, DeepSeek-V3 | Reading s8 | one slider, defaults on B = 32 (163 of 256) | the parameter dependence s8 states |
 Removed: the Router and Expert load tabs (content moved as above).
+
+## Layout rollout of 2026-11-09 (split layout, 3D stages, explained and autoplaying animations)
+| Visual | Where now | Kind | Why |
+|---|---|---|---|
+| Fig. 1 one recorded token through one layer (`41_js_sc_hero.js`) | top, split | 3D stage, 5 steps | replaces the static hero: router plate, score bars, top 2, flows out and back, stored against computed |
+| Fig. 2 stored against computed, to scale (`42_js_sc_scale.js`) | s1, split | 3D stage, 5 steps | replaces the 2D "drawn to scale" card and its mode buttons; whole-model totals and a DeepSeek-V3 layer added as steps |
+| Dense twin (`27_js_rd_new.js`) | s1, split | 2D RD.anim with a step list | bars and an expert grid read best flat; the per-step caption moved into the list |
+| Fig. 3 eight real tokens through the router (`43_js_sc_route.js`) | s2, split | 3D stage, 6 steps | a tokens-by-experts score field is a matrix as heights; dispatch as flows into per-expert stacks; its old capacity step moved to Fig. 5 |
+| Fig. 4 loads over training (`44_js_sc_load.js`) | s3, split | 3D stage, 6 stretches | was a 151-frame replay at 180 ms a frame (against the long-replay rule): now five explained stretches plus held-out, two plates side by side |
+| Fig. 5 capacity on 64 recorded assignments (`45_js_sc_cap.js`) | s4, split | 3D stage, 6 steps | new: the buffer as a slot rack, padding and overflow visible, then dropless |
+| Fig. 6 finer experts at equal compute (`46_js_sc_fine.js`) | s5, split | 3D stage, 4 steps | replaces the static strip figure: blocks split, a shared one added, DeepSeek-V3 |
+| Fig. 9 one layer over four ranks (`47_js_sc_ep.js`) | s7, split | 3D stage, 6 steps | replaces the 2D stepper: rank plates, the send matrix, all-to-all flows proportional to the recorded counts |
+| Softmax against sigmoid widget, CF sweep chart, dense-vs-MoE chart and table, experts-touched slider | s2, s4, s6, s8, each a split with the card on the right | 2D | a widget, line charts, a table and a one-variable grid read best flat |
+| Calculator: decode reads and the m-way split | Dense vs MoE calculator, splits | 2D | reader-driven tools; the other two calculator sections have no prose and stay full width |
+Rejected: a 3D version of the experts-touched slider (a 256-square grid whose only variable is B reads best flat); a 3D held-out heat map (a heat map).

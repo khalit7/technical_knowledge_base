@@ -1,15 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ld"></div></div><div class="s3L">
 <section id="mx-s3">
 <h2>3. Collapse, and the two ways to balance</h2>
-<p>An expert chosen slightly more often gets more gradient, improves, and is chosen more often still; the others starve and, getting no gradient (section <a href="#mx-s2">2</a>), never show they were worth reviving. This is <dfn>routing collapse</dfn>. It costs quality (the model shrinks to the experts that survived) and time (with experts on different GPUs the busiest one sets the step, and with fixed buffers its overflow is dropped). The tiny GPT's training log records every 10 steps how many of the batch's 16,384 assignments (8,192 tokens &times; 2) went to each expert; replay it. Predict first: with no balancing at all, how much of a layer's traffic does the busiest expert end up with?</p>
-<div class="rd-anim" id="ld-anim"><h4>Without balancing the router collapses within 100 steps; the aux loss keeps all eight near 1/8, the bias gets there by step 800</h4>
-<div class="seg" id="ld-right"></div>
-<div class="ld-two"><div><h4 id="ld-lt"></h4><div class="ld-svg" id="ld-l"></div></div><div><h4 id="ld-rt"></h4><div class="ld-svg" id="ld-r"></div></div></div>
-<div class="an-ctl" id="ld-ctl"></div>
-<div class="an-cap" id="ld-cap"></div>
-<p class="small mute">Left: the run with balancing switched off. Right: the chosen balancing scheme. Each group is one layer's 8 expert shares; dashed line 1/8. Same data, seed and schedule for every run; <span class="meas">measured on Apple M1 Pro (MPS)</span>, the root's <code>train.py</code> through the batched MoE forward of <code>src/runs/fast_moe.py</code>.</p>
-</div>
+<p>An expert chosen slightly more often gets more gradient, improves, and is chosen more often still; the others starve and, getting no gradient (section <a href="#mx-s2">2</a>), never show they were worth reviving. This is <dfn>routing collapse</dfn>. It costs quality (the model shrinks to the experts that survived) and time (with experts on different GPUs the busiest one sets the step, and with fixed buffers its overflow is dropped). The tiny GPT's training log records every 10 steps how many of the batch's 16,384 assignments (8,192 tokens &times; 2) went to each expert; Fig. 4 replays it. Predict first: with no balancing at all, how much of a layer's traffic does the busiest expert end up with?</p>
+<p class="small">Right plate: <span class="seg" id="ld-right" style="display:inline-flex"></span></p>
+<p class="sxh">Fig. 4: without balancing the router collapses within 100 steps; the aux loss keeps all eight near 1/8, the bias gets there by step 800</p>
+<ol class="sx" id="sx-ld">
+<li><b>Step 0: even by chance.</b> At initialisation the router's random weights spread traffic roughly evenly: both plates sit near the glass sheet at 1/8 (MaxVio 0.67 on one batch of 8,192 tokens, batch noise).</li>
+<li><b>Steps 0 to 100: the collapse.</b> Without balancing, layers 3 to 6 pile onto one or two experts almost at once (MaxVio 2.20 at step 10 and 1.59 at step 100; the ceiling is 3); with the auxiliary loss the same stretch peaks at 1.19 at step 10 and is down to 0.35 by step 100.</li>
+<li><b>Steps 100 to 300.</b> The aux-loss run is near even (0.23 at step 300); the bias runs come down more slowly (0.51 for the sigmoid router with the bias), because each bias moves only 0.001 a step.</li>
+<li><b>Steps 300 to 800: the bias catches up.</b> 0.11 by step 800 for the sigmoid router with the bias, against 0.17 with the aux loss.</li>
+<li><b>Steps 800 to 1,500: nothing revives.</b> The starved experts of the unbalanced run never come back (1.87 at the end): with no traffic they get no gradient that would show they were useful.</li>
+<li><b>After training, on held-out text.</b> On 20 held-out batches: MaxVio 1.88 without balancing, 0.12 with the aux loss, 0.04 with the sigmoid router and the bias.</li>
+</ol>
+<p class="small mute">Each plate: one run's 6 layers (rows) by 8 experts (columns, 16 for the fine-grained run), height the expert's share of that logged batch's 16,384 assignments; the glass sheet is perfect balance. Same data, seed and schedule for every run; <span class="meas">measured on Apple M1 Pro (MPS)</span>, the root's <code>train.py</code> through the batched MoE forward of <code>src/runs/fast_moe.py</code>. The 151 logged frames play as five stretches.</p>
 <p><b>Measured, no balancing.</b> [[s3_none]] <dfn>MaxVio</dfn> is the metric of {{Wang et al. 2024|https://arxiv.org/abs/2408.15664}}: 0 is perfect; with top 2 the ceiling is 3 (one expert in every token's pair).</p>
 
+</section>
+</div></div>
+<section id="mx-s3b">
 <h3>Fix 1: an auxiliary load-balancing loss (Switch, 2021)</h3>
 <p>Worked example first: E = 4 collapsed onto expert 1, so the dispatch fractions are f = (1, 0, 0, 0) and the mean router probabilities P = (0.7, 0.1, 0.1, 0.1). The loss below is 4 &times; 0.7 = 2.8 times its coefficient, against 1 times when routing is uniform.</p>
 <div class="fm"><div class="eq">&#8466;<sub>aux</sub> = &alpha; &middot; E &middot; &sum;<sub>i=1</sub><sup>E</sup> f<sub>i</sub> P<sub>i</sub></div>
