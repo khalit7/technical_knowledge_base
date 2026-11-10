@@ -175,7 +175,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_training_and_post_training/distributed_training` Distributed Training
 - [x] `models_and_training/topic_llm_training_and_post_training/peft` Parameter-Efficient Fine-Tuning (PEFT)
 - [x] `models_and_training/topic_llm_training_and_post_training/pretraining` Pretraining
-- [~] `models_and_training/topic_llm_training_and_post_training/quantization_and_precision` Quantization and Precision
+- [x] `models_and_training/topic_llm_training_and_post_training/quantization_and_precision` Quantization and Precision
 - [~] `models_and_training/topic_llm_training_and_post_training/reward_hacking` Reward Hacking
 - [ ] `models_and_training/topic_llm_training_and_post_training` Topic: llm-training-and-post-training
 - [ ] `models_and_training/topic_ml_fundamentals/activation_functions` Activation functions
@@ -468,6 +468,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_training_and_post_training/peft`: Fig. 2 "gradients reach A and B only" runs to the card edge; Fig. 8 (serving) dense with flow dots and small in the card; Fig. 4 empty space below the plates.
 - `models_and_training/topic_llm_training_and_post_training/distributed_training`: at 390 px the pipeline timeline is faint in dark mode and stages are dense; TP-block labels hidden on phones; `check_stages.mjs` takes over 10 minutes (speed it up).
 - `models_and_training/topic_llm_training_and_post_training/pretraining`: Fig. 2 has 41 character labels about 8.5 px apart on phones (tight, no overlap); a 3D version of section 4 was tried and dropped.
+- `models_and_training/topic_llm_training_and_post_training/quantization_and_precision`: formats table very tall at 390 px (predates the rebuild); stage labels hide during camera glides then fade in.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -491,3 +492,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - PEFT: the Biderman checkpoint stepper became a static chart with its four-way toggle; keep or restore the stepper? Also, `delta_probe.json` holds real per-layer DoRA magnitude/direction changes (base against Instruct): build a real-data DoRA view from it, or leave the 2D illustration?
 - Distributed training: the step-throughs' batch toggle (four sequences against one 32K sequence) and the "compare counters with" menu were removed; their results are now sentences and a readout against DP. Keep removed, or restore?
 - Pretraining: the header says 33 min, which counts the step lists of modes a reader only sees by switching (the default path is about 29 min). Quote 29 instead, or collapse the objective stepper's five per-objective step lists into one generic list (saves about 1.6 min)?
+- Quantization: Fig. 2 bar heights grow with the square root of |w| so ordinary weights stay visible (said on the card); Fig. 10 grid cell counts are illustrative. Keep both?

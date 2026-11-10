@@ -85,7 +85,7 @@ c('Dense cliff below ~3 bits: broken reasoning chains, format drift', R + ', On 
 c('MoE experts tolerate harder quantisation; 100B-class MoE at 4-bit on 64 GB vs dense 70B', R + ', On the dual 5090s', '100B-class MoEs run acceptably at 4-bit on 64 GB')
 c('5090s: Blackwell SM120 native fp8 and NVFP4; K-quants dequantise to fp16 before matmul; single-stream llama.cpp wins; concurrency vLLM fp8/NVFP4 gap large', R + ', On the dual 5090s', 'Blackwell SM120 with native FP8 and NVFP4 tensor cores')
 c('Link: Ollama, llama.cpp, and local serving (fit and residency arithmetic; running locally)', R + ', On the dual 5090s; Further reading', 'Ollama, llama.cpp, and local serving')
-c('Link: Model formats page (the container)', R + ', On the dual 5090s; Further reading; Mistakes', 'Model formats: GGUF, safetensors, ONNX, and the rest')
+c('Link: Model formats page (the container)', R + ', On the dual 5090s; Further reading; Mistakes', 'the file container (GGUF, safetensors, ONNX and the rest)')
 for n, p in [('What is quantization? (~20 min)', 'What is quantization?'), ('Quantization in practice: GPTQ vs AWQ (~25 min)', 'Quantization in practice: GPTQ vs AWQ'), ('GGUF format and k-quants explained (~25 min)', 'GGUF format and k-quants explained'),
              ('HF Hub GGUF quantisation types (~20 min)', 'Hugging Face Hub: GGUF quantisation types'), ('llama.cpp quantize README (~15 min)', 'llama.cpp quantize README'), ('llm-compressor compression schemes (~20 min)', 'llm-compressor compression schemes'),
              ('Which Quantization Should I Use? arXiv 2601.14277 (45 min)', 'Which Quantization Should I Use?')]:

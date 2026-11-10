@@ -15,14 +15,23 @@ if (r.hadamard.prodDiff > 1e-9) bad.push('rotation changed the product: ' + r.ha
 const g = QV.gptq(); for (const k of ['outRTN', 'outGPTQ', 'wRTN', 'wGPTQ']) cmp(g[k], ref.gptq[k], 'gptq.' + k);
 g.Q.forEach((v, i) => cmp(v, ref.gptq.Q[i], 'gptq.Q' + i)); g.rtn.forEach((v, i) => cmp(v, ref.gptq.rtn[i], 'gptq.rtn' + i));
 g.states.forEach((s, j) => s.cur.forEach((v, i) => cmp(v, ref.gptq.cur[j][i], `gptq.cur${j}.${i}`)));
+// Fig. 2's five scopes and the migration (2026-11-10)
+const sc = QV.scope(); sc.scopes.forEach(m => m.rows.forEach((r, i) => { const py = ref.scope[m.k][i]; if (py.row !== sc.rows[i].r) bad.push('scope row order');
+  cmp(r.err, py.err, `scope.${m.k}.${py.row}.err`); if (r.zeros !== py.zeros) bad.push(`scope.${m.k}.${py.row}.zeros js ${r.zeros} py ${py.zeros}`) }));
+for (const [name, v] of Object.entries(ref.mig)) { const m = QV.mig(name === 'sq50' ? 'sq' : name, v.alpha); for (const k of ['err', 'coarse', 'dx', 'xmax', 'wmax']) cmp(m[k], v[k], `mig.${name}.${k}`);
+  if (m.prodDiff > 1e-12) bad.push('migration changed the product: ' + name + ' ' + m.prodDiff) }
 // prose numbers, each formatted as the page prints it
 const page = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8').replace(/<[^>]+>/g, ' ').replace(/&minus;/g, '−').replace(/\s+/g, ' ');
 const pct = (x, d) => (100 * x).toFixed(d) + '%';
+const pageT = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8').replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<[^>]+>/g, '').replace(/&minus;/g, '−').replace(/\s+/g, ' ');
 const want = [
   'the step is ' + h.tscale.toFixed(3), 'all ' + h.tzero + ' weights round to zero', 'a step of ' + h.bscale.toFixed(4) + ', ' + h.bzero + ' zeros and ' + pct(h.berr, 1) + ' error',
   'falls from ' + r.plain.ratio.toFixed(1) + ' to ' + r.hadamard.ratio.toFixed(1), 'from ' + pct(r.plain.a4, 1) + ' to ' + pct(r.hadamard.a4, 1), pct(r.plain.w4a4, 1) + ' to ' + pct(r.hadamard.w4a4, 1),
-  '(output error ' + pct(g.outRTN, 1) + ')', '(' + pct(g.outGPTQ, 1) + '), with a slightly higher weight error (' + pct(g.wGPTQ, 1) + ' against ' + pct(g.wRTN, 1) + ')'];
+];
+const wantT = ['the output error is ' + pct(g.outGPTQ, 1) + ' against ' + pct(g.outRTN, 1) + ', with a slightly higher weight error (' + pct(g.wGPTQ, 1) + ' against ' + pct(g.wRTN, 1) + ')',
+  'all 802,816 weights sets one step for every weight: 1.664 / 7 = ' + h.tscale.toFixed(3)];
+for (const w of wantT) if (!pageT.includes(w)) bad.push('prose missing: ' + w);
 for (const w of want) if (!page.includes(w)) bad.push('prose missing: ' + w);
 if (!page.includes((h.tscale / h.bamax).toFixed(1) + ' times this block')) bad.push('hero ratio missing: ' + (h.tscale / h.bamax).toFixed(2));
-console.log(`compared ${n} values, worst relative difference ${worst.toExponential(2)}; prose numbers checked ${want.length}`);
+console.log(`compared ${n} values, worst relative difference ${worst.toExponential(2)}; prose numbers checked ${want.length + wantT.length}`);
 console.log(bad.length ? bad.join('\n') : 'visuals OK'); process.exit(bad.length ? 1 : 0);

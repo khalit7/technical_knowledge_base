@@ -35,7 +35,7 @@
   }
   // weight error against output error for the 4.25-bit schemes: the calibrated methods flip
   function flip(){
-    const ks=['int4_g128','awq_g128','gptq_g128','gptq_g128_actorder'],nm={int4_g128:'Round to nearest, g128',awq_g128:'AWQ',gptq_g128:'GPTQ',gptq_g128_actorder:'GPTQ act-order'};
+    const ks=['int4_g128','awq_g128','gptq_g128','gptq_g128_actorder'],nm={int4_g128:'Nearest, g128',awq_g128:'AWQ',gptq_g128:'GPTQ',gptq_g128_actorder:'GPTQ act-order'};
     const mx=0.2,row=(lab,val,col)=>'<div class="row"><span class="nm">'+lab+'</span><span class="track"><span class="fill" style="width:'+(100*val/mx).toFixed(1)+'%;background:'+col+'"></span></span><span class="val">'+(100*val).toFixed(1)+'%</span></div>';
     $('rd-lyF').innerHTML='<div class="small"><b>Weight error</b> ‖Ŵ − W‖ / ‖W‖</div><div class="bars">'+ks.map(k=>row(nm[k],S[k].w_relerr,'var(--c2)')).join('')+'</div>'+
       '<div class="small" style="margin-top:8px"><b>Output error</b> on 511 evaluation tokens</div><div class="bars">'+ks.map(k=>row(nm[k],S[k].out_relerr,'var(--c3)')).join('')+'</div>';

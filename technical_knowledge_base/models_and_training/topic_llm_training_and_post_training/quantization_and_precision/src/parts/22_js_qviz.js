@@ -2,6 +2,8 @@
 // QV.hero(): one ordinary block of 32 real weights, INT4 with the per-tensor scale against its own scale.
 // QV.rot(): the outlier slice (16 tokens x 64 channels, 8 output rows) before and after a 64 x 64 Hadamard rotation.
 // QV.gptq(): GPTQ's column-by-column compensation on an illustrative 1 x 4 weight row (inputs below, labelled illustrative on the page).
+// QV.scope() (2026-11-10): the four shipped rows, input columns 0 to 63, under five scopes (Fig. 2's stage).
+// QV.mig(mode, alpha) (2026-11-10): SmoothQuant and AWQ on the outlier slice, each against its plain method (Fig. 4's stage and the migration widget).
 window.QV=(function(){
   const QF=window.QF,D=window.QD;
   const amax=a=>{let m=0;for(const x of a)m=Math.max(m,Math.abs(x));return m};
@@ -54,5 +56,43 @@ window.QV=(function(){
     const werr=qq=>Math.sqrt(qq.reduce((s,x,k)=>s+(x-G.w[k])**2,0)/G.w.reduce((s,x)=>s+x*x,0));
     return {G,U,states,Q,rtn,outRTN:oerr(rtn),outGPTQ:oerr(Q),wRTN:werr(rtn),wGPTQ:werr(Q)};
   }
-  return {hero,rot,gptq,hadamard};
+
+  // ---------- Fig. 2: four real rows x 64 input columns under five scopes ----------
+  // display order front to back: the two rows holding the layer's largest weights (input column 5), then two ordinary rows
+  const SCOPES=[{k:'tensor',n:'INT4, one scale per tensor',kind:'int4',g:0,bpw:4},{k:'row',n:'INT4, one scale per row',kind:'int4',g:0,bpw:4+16/896},
+    {k:'b32',n:'INT4, one scale per 32',kind:'int4',g:32,bpw:4.5},{k:'mx',n:'MXFP4, a power-of-two scale per 32',kind:'mxfp4',g:32,bpw:4.25},
+    {k:'nv',n:'NVFP4, an FP8 scale per 16',kind:'nvfp4',g:16,bpw:4.5}];
+  function scope(){
+    const R=QF.bf16(D.rows_bf16),K=D.K,C=64,order=[223,222,448,0];
+    const rows=order.map(r=>{const i=D.rows.indexOf(r),w=R.slice(i*K,(i+1)*K);return {r,w:w.slice(0,C),rowAmax:amax(w)}});
+    const sc=SCOPES.map(m=>({...m,rows:rows.map(row=>{const v=row.w,q=[],groups=[];let clipped=0;
+      const gs=m.g||C;for(let c0=0;c0<C;c0+=gs){const seg=v.slice(c0,c0+gs);
+        const ctx={tensorAmax:D.w_absmax};if(m.k==='tensor')ctx.amax=D.w_absmax;else if(m.k==='row')ctx.amax=row.rowAmax;
+        const r=QF.qgroup(seg,m.kind,ctx);q.push(...r.q);clipped+=r.info.clipped||0;
+        let mi=0;seg.forEach((x,i)=>{if(Math.abs(x)>Math.abs(seg[mi]))mi=i});
+        groups.push({c0,c1:c0+gs-1,amax:m.k==='tensor'?D.w_absmax:m.k==='row'?row.rowAmax:amax(seg),at:m.g?c0+mi:-1,scale:r.info.scale,clipped:r.info.clipped||0,err:QF.relerr(r.q,seg)})}
+      return {q,groups,clipped,err:QF.relerr(q,v),zeros:q.filter((x,i)=>x===0&&v[i]!==0).length}})}));
+    return {rows,C,scopes:sc,wmax:D.w_absmax};
+  }
+  // ---------- Fig. 4 and the migration widget: SmoothQuant (W8A8) and AWQ (INT4 weights) on the outlier slice ----------
+  // w8: activations INT8 per tensor with a static scale from the calibration maximum, weights INT8 per output channel; sq: the same after smoothing
+  // w4: weights INT4 asymmetric, one group per row of the slice; awq: the same after AWQ's scaling. The product of the smoothed X and W equals XW^T before rounding.
+  function mig(mode,alpha){
+    const S=D.slice,{X,W}=slice(),C=64,isTop=S.chans.map(c=>S.top.indexOf(c)>=0),sm=mode==='sq'||mode==='awq',pair=mode==='w8'||mode==='sq'?'sq':'awq';
+    let s=new Array(C).fill(1);
+    if(sm&&pair==='sq')s=S.xc_max.map((x,c)=>Math.pow(x,alpha)/Math.pow(S.w_colmax[c],1-alpha));
+    if(sm&&pair==='awq'){s=S.xc_mean.map(x=>Math.pow(x,alpha));const mx=Math.max(...s),mn=Math.min(...s),k=Math.sqrt(mx*mn);s=s.map(x=>x/k)}
+    const Xs=X.map(r=>r.map((x,c)=>x/s[c])),Ws=W.map(r=>r.map((w,c)=>w*s[c])),Y=mul(X,tr(W));
+    let Xq=Xs,Wq,dx=0;
+    if(pair==='sq'){dx=Math.max(...S.xc_max.map((x,c)=>x/s[c]))/127;Xq=Xs.map(r=>r.map(x=>Math.max(-127,Math.min(127,QF.rne(x/dx)))*dx));Wq=Ws.map(r=>QF.qint(r,8,true))}
+    else Wq=Ws.map(r=>QF.qint(r,4,false));
+    const Wd=Wq.map(r=>r.map((w,c)=>w/s[c])),Xd=Xq.map(r=>r.map((x,c)=>x*s[c]));
+    let coarse=0,n=0;if(pair==='sq')for(const r of Xs)for(const x of r){n++;if(Math.abs(x)<4*dx)coarse++}
+    let eT=0,dT=0,eR=0,dR=0;for(let o=0;o<W.length;o++)for(let c=0;c<C;c++){const e=(Wd[o][c]-W[o][c])**2*(S.xc_mean[c]**2),d=(W[o][c]**2)*(S.xc_mean[c]**2);if(isTop[c]){eT+=e;dT+=d}else{eR+=e;dR+=d}}
+    let pd=0;const Ys=mul(Xs,tr(Ws));for(let i=0;i<Y.length;i++)for(let j=0;j<Y[0].length;j++)pd=Math.max(pd,Math.abs(Ys[i][j]-Y[i][j]));
+    const colmax=A=>A[0].map((_,c)=>amax(A.map(r=>r[c])));
+    return {mode,alpha,s,X,W,Xs,Ws,Xq,Wq,isTop,err:rel(mul(Xd,tr(Wd)),Y),dx,coarse:n?coarse/n:0,eTop:Math.sqrt(eT/dT),eRest:Math.sqrt(eR/dR),
+      xmax:amax(Xs.flat()),wmax:amax(Ws.flat()),xcol:colmax(Xs),wcol:colmax(Ws),prodDiff:pd};
+  }
+  return {hero,rot,gptq,hadamard,scope,mig,SCOPES};
 })();

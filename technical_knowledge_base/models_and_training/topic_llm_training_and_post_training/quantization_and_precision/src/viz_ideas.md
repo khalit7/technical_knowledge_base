@@ -47,3 +47,12 @@ Scoring (Methodology, section 2): R reproduces a published figure (x2), C comput
 ## What the methodology lacked here
 A rule for "measured here" numbers from a real model run offline: they are neither published nor derived. Used a fourth label ("measured here") and kept every script and input.
 - 2026-10-19 overlap fix: the GGUF block-layout widget (rd-nm) and the perplexity knee chart (rd-kn) were removed; the local and on-device inference page decodes real blocks and measures a KL-divergence ladder instead.
+
+## 2026-11-10: the split layout and four 3D stages (renderer v2)
+Built:
+- **Fig. 2, sharing a scale** (`32_js_sc_scale.js`): four real rows x 64 input columns as signed bars (height grows with the square root of |w|, said on the card), the plinth cut into one tile per scale group and tinted by the group's error, dots streaming from each group's largest weight across its group, bars lowering to what each scope stores; replaces the 2D five-scope block animation and its row and block selectors (the four rows and two blocks are all in view).
+- **Fig. 4, GPTQ** (`33_js_sc_gptq.js`): the four illustrative weights in front of a purple glass plane whose lines are the grid, the 4 x 4 Hessian as a bar field, dots carrying each column's error into later columns (as many as the move); replaces the 2D stepper.
+- **Fig. 6, outliers** (`34_js_sc_out.js`): the real 16 x 64 activation slice as a bar field with the 8 outlier channels gold, each channel's largest |W| behind it, INT8 near-zero values orange, SmoothQuant at α = 0.75 moving s across (purple dots), then the Hadamard rotation.
+- **Fig. 10, training formats** (`35_js_sc_tr.js`): one layer's three matmuls, each input a glass plate tinted by bit width with its scaling as the plate's grid, dots into the higher-precision sum, the update to the fp32 optimiser state; the recipe buttons redraw it. Replaces the 2D chip table.
+Kept 2D: the hero (two strips drawn to scale with their levels, a flat comparison), the range bars (a log axis), the bit explorer (a tool), error against bits (a log-scale scatter), weight error against output error (bars), the migration explorer (heat maps the reader drives with α and method; the stage teaches the mechanism), the W8A8 bars and α curve, the rotation close-up of one token's 4-bit grid (a toggle widget), the QAT diagram (a flow, flat).
+Rejected: a 3D number-format bit layout (range against precision reads best flat, and Numerical computing owns the bits); NF4's codebook in 3D (owned by QLoRA's page).
