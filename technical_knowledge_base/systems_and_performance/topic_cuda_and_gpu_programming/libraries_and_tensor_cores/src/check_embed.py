@@ -55,5 +55,23 @@ pat = re.compile("/" + U + "/|" + U + "-|gl" + "pat|sk-" + "ant|/private/" + "tm
 bad = [p for p in [os.path.join(H, "..", "index.html")] + glob.glob(os.path.join(H, "**", "*"), recursive=True)
        if os.path.isfile(p) and pat.search(open(p, encoding="utf-8", errors="ignore").read())]
 ok(not bad, "no private paths or tokens" + ("" if not bad else f": {[os.path.relpath(b, H) for b in bad]}"))
+# this machine's login name (looked up at run time, case-sensitive), hostname, home paths and IPv4 addresses (2026-11-10).
+# Recorded compiler and profiler logs keep only paths inside the Docker containers (/work, /tmp/...). Version strings with four
+# numbers (cuDNN 9.27.0.42, libcublasLt 13.8.0.4) are not addresses: an address match must not be part of a longer dotted run or a word.
+import getpass, socket
+who, host = getpass.getuser(), socket.gethostname()
+ipv4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+versions = {"9.27.0.42", "13.8.0.4"}
+hits = []
+for f in [os.path.join(H, "..", "index.html")] + glob.glob(os.path.join(H, "**", "*"), recursive=True):
+    if not os.path.isfile(f) or "__pycache__" in f:
+        continue
+    t = open(f, encoding="utf-8", errors="ignore").read()
+    ips = [m for m in ipv4.findall(t) if m not in versions]
+    for what, found in (("login name", who and re.search(r"\b" + re.escape(who) + r"\b", t)), ("hostname", host and host in t),
+                        ("home path", "/" + "ho" + "me/" in t or "/" + U + "/" in t), ("IPv4 address", ips[:3] if ips else None)):
+        if found:
+            hits.append(f"{os.path.relpath(f, H)}: {what}" + (f" {found}" if what == "IPv4 address" else ""))
+ok(not hits, "no login name, hostname, home path or IP address in the page or src/" + (": " + "; ".join(hits[:8]) if hits else ""))
 print(f"check_embed: {len(seen)} tagged numbers, {fails} failures")
 sys.exit(1 if fails else 0)

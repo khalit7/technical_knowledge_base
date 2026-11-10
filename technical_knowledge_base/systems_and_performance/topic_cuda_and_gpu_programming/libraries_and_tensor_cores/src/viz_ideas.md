@@ -29,6 +29,15 @@ What the text needs to be understood: (1) that one instruction per generation ch
 
 Rejected on 2026-10-23: a stepper of the full/empty stage ring (the Hopper mode of the tile animation already steps through one round; a second drawing would repeat it); a visual for the column-major trap (one sentence says it completely).
 
+## Built on 2026-11-10 (split layout, renderer v2 stages)
+| Idea | Where | Kind | Why |
+|---|---|---|---|
+| Fig. 1: a GEMM as a city of columns (output tiles on the floor, each tile's K loop as its height) beside the GPU's SMs; one wave, the tail wave, a short deep GEMM, split-K layers, Stream-K pieces | Reading s3 | 3D stage, 6 steps | waves, split-K and Stream-K are spatial: which SM holds which slab of the M x N x K iteration space; every count from `GS.plan` |
+| Fig. 2: one MMA instruction per generation in the A-left, B-back, C-floor picture, to one scale, coloured by where each operand lives; lane 0's fragment lit from CuTe's layouts; TMEM under the tcgen05 tile; the two-SM form | Reading s5 | 3D stage, 5 steps | replaces the 2D to-scale tile chart (`26_js_rd_mma.js`, removed): issuer, operand location and size in one picture |
+| Fig. 3: one tile through the pipeline of each generation (HBM, shared-memory stages as glass plates with their two barriers, tensor core, TMEM, registers; one cube per warp), three modes | Reading s6 | 3D stage, 7 steps x 3 modes | replaces the 2D tile animation (`25_js_rd_gen.js`, removed); its seven steps per generation and counters are kept, the copies now flow (a swarm of 2,048 against two TMA dots) |
+
+Kept 2D on purpose: the hero (a map of labelled layers that reads best flat), the epilogue bars and the cuBLAS inventory (numbers on an axis), the kernel-name decoder, the fragment map (a reader-driven grid of lanes), the CuTe layout grids and the swizzle bank view (a layout is a 2D table of offsets; depth adds nothing the Layout lab does not show), the SM budget (drawn to scale on one axis), the scheduler (a reader-driven widget with a Gantt; long replays are widgets) and every table. No real image: the page is about libraries and instruction sets; a die or board photo would repeat GPU architecture, which owns the hardware.
+
 ## Rejected
 - A cuBLAS "heuristic simulator": the heuristic is closed and cannot run without a GPU; we show the inventory and names instead.
 - Measured tensor-core throughput per generation: owned by GPU architecture (hardware topic) and not measurable here.

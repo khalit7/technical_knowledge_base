@@ -1,6 +1,6 @@
 // Puppeteer check of ../../index.html at 390 px dark and 920 px light: every control exercised, no page
 // errors, no NaN/undefined in visible text, no sideways scroll; the scheduler's JS against recompute.py;
-// every Layout-lab preset "matches CuTe"; element screenshots into ../../.shots/el-*.png.
+// every Layout-lab preset "matches CuTe"; the scheduler never plays by itself; element screenshots into ../../.shots/el-*.png.
 // Run from the repo root: node technical_knowledge_base/.../libraries_and_tensor_cores/src/check/check_page.mjs
 import { createRequire } from 'module'; import path from 'path'; import fs from 'fs'; import { fileURLToPath } from 'url';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +25,8 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const shot = async (sel, name) => { const el = await p.$(sel); if (el) { await el.scrollIntoView(); await el.screenshot({ path: path.join(shots, `el-${name}-${scheme}-${w}.png`) }); } };
   // --- Reading ---
   await tab('t-read');
-  for (const pr of ['lt-pr1', 'lt-pr2']) { await p.click(`#${pr} .opts button`); log(await p.$eval(`#${pr} .ans`, e => !e.hidden), `${tag} ${pr} reveals`); }
+  for (const pr of ['lt-pr1', 'lt-pr2']) { await p.$eval(`#${pr} .opts button`, e => e.click()); // a sticky stage may cover it at 390 px, where a reader scrolls on
+    log(await p.$eval(`#${pr} .ans`, e => !e.hidden), `${tag} ${pr} reveals`); }
   for (const m of ['sm80_m16n8k16_A', 'sm80_m16n8k16_B', 'sm80_m16n8k16_C']) {
     await p.click(`#lt-tvsel button[data-m="${m}"]`); await p.click('#lt-tv rect[data-t="5"]');
     const n = await p.$eval('#lt-tvx', e => e.textContent); const want = m.endsWith('A') ? 8 : 4;
@@ -35,19 +36,12 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   log(c0.includes('(0,0) (0,1) (8,0) (8,1)'), `${tag} lane 0 of C = (0,0) (0,1) (8,0) (8,1)`);
   for (const i of [0, 4, 8, 11]) await p.click(`#lt-nm span[data-i="${i}"]`);
   for (const m of ['(4,8):(8,1)', '(4,8):(1,5)', '((2,2),(2,4)):((1,8),(2,16))', '(4,8):(1,4)']) await p.click(`#lt-mini-sel button[data-m="${m}"]`);
-  for (const g of ['ampere', 'hopper', 'blackwell']) {
-    await p.click(`#lt-gen-sel button[data-m="${g}"]`); const n = data.tile[g];
-    for (let i = 0; i < 7; i++) await p.click('#lt-gen-ctl-f');
-    const t = await p.$eval('#lt-gen-cnt', e => e.innerText);
-    log(t.includes(String(n.mma)), `${tag} ${g} animation ends with ${n.mma} MMA per slice`);
-    await p.click('#lt-gen-ctl-b'); await p.click('#lt-gen-ctl-b'); await p.click('#lt-gen-ctl-b');
-    await shot('#lt-gen-card', 'gen-' + g); }
-  await p.click('#lt-gen-ctl-p'); await new Promise(r => setTimeout(r, 300)); await p.click('#lt-gen-ctl-p');
+  // the three-generation tile animation is now the 3D stage of section 6 (Fig. 3), checked by check_stages.mjs
   // the swizzle bank view (moved from the Layout lab into Reading section 7)
   for (const m of ['1', '2', '3', '0']) { await p.click(`#ll-swsel button[data-m="${m}"]`); const t = await p.$eval('#ll-bankx', e => e.textContent);
     log(m === '3' ? t.includes('conflict-free') : (m === '0' ? t.includes('8-way') : true), `${tag} swizzle ${m}: ${t.slice(0, 60)}`); }
   await p.click('#ll-swsel button[data-m="3"]'); await shot('#ll-bank', 'bank');
-  await shot('#lt-hero', 'hero'); await shot('#lt-mma', 'mma'); await shot('#lt-bud', 'bud');
+  await shot('#lt-hero', 'hero'); await shot('#lt-bud', 'bud');
   await shot('#lt-epi', 'epi'); await shot('#lt-inv', 'inv'); await shot('#lt-tv', 'tv'); await shot('#lt-mmatab', 'mmatab'); await shot('#lt-cutab', 'cutab');
   await bad('Reading'); await sideways('Reading');
   // --- Layout lab ---
@@ -86,11 +80,10 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   log(errs.length === 0, `${tag} no page errors ${errs.slice(0, 3).join(' | ')}`);
   await p.close();
 }
-// normal motion: nothing plays before the reader acts (the tile animation stays on step 0, the Gantt on its end state)
+// normal motion: the scheduler is a widget the reader drives, so it never plays by itself (the 3D stages do play once in view:
+// that is checked by check_stages.mjs, which inverted the old never-autoplay assertion of this file on 2026-11-10)
 { const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(page_file, { waitUntil: 'load' });
-  await p.click('#tabs button[data-t="t-read"]'); await p.$eval('#lt-gen-card', e => e.scrollIntoView());
-  await p.click('#lt-gen-sel button[data-m="hopper"]'); await new Promise(r => setTimeout(r, 3000));
-  const v = await p.$eval('#lt-gen-ctl-s', e => e.value); log(v === '0', `no autoplay: tile animation at step ${v} after 3 s and a mode switch`);
+  await p.click('#tabs button[data-t="t-read"]'); await p.$eval('#gs-card', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 3000));
   const g = await p.$eval('#gs-t', e => e.value); log(g === '1000', `no autoplay: scheduler timeline at ${g}/1000`);
   await p.close(); }
 await browser.close();
