@@ -49,7 +49,8 @@
       (i>L?RD.stat('First / last block gradient',(A.g2[0]/A.g2[L-1]).toFixed(2),'above 1: the early blocks get more'):RD.stat('First / last block gradient','&middot;',''));
     document.getElementById('pl-leg').innerHTML='<span><i style="background:var(--c1);height:10px;width:10px"></i>stream, '+NAME[m]+'</span>'+(A.sum[0]?'<span><i style="background:var(--c2)"></i>sum before the norm</span>':'')+'<span><i style="background:var(--c3);height:10px;width:10px"></i>gradient, '+NAME[m]+'</span>'+(B?'<span><b class="dot" style="background:var(--mute)"></b>'+NAME[st.c]+'</span>':'');
   }
-  const AN=RD.anim({card:'pl-card',ctl:'pl-ctl',n:st.L+3,ms:700,label:'Placement step',draw});
+  // a widget (the long-replay rule, case b): up to 51 frames the reader drives; it never plays by itself, the paragraph beside it explains it
+  const AN=RD.anim({card:'pl-card',ctl:'pl-ctl',n:st.L+3,ms:700,label:'Placement step',auto:false,start:st.L+2,draw});
   function reset(){runs();AN.reset(st.L+3)}
   document.getElementById('pl-modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.m=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));runs();AN.go(AN.n-1)});
   cmp.addEventListener('change',()=>{st.c=cmp.value;runs();AN.redraw()});

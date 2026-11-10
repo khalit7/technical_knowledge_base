@@ -183,9 +183,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning` Contrastive and self-supervised learning
 - [x] `models_and_training/topic_ml_fundamentals/evaluation_metrics` Evaluation metrics
 - [x] `models_and_training/topic_ml_fundamentals/loss_functions` Loss functions
-- [~] `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` Normalisation and initialisation
+- [x] `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` Normalisation and initialisation
 - [~] `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` Optimisers and learning-rate schedulers
-- [ ] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
+- [~] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
 - [ ] `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer` Sequence models: the pre-transformer lineage
 - [ ] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack` The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor
@@ -476,6 +476,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning`: sphere outlines faint in Fig. 4; empty floor in Figs. 2 and 4; Fig. 3 dense at 390 px; "The batch is the task" states the InfoNCE ln N bound without linking Information theory (its owner): add the link.
 - `models_and_training/topic_ml_fundamentals/evaluation_metrics`: Fig. 1 row labels (orange, blue) do not match the columns' right/wrong colours (green, purple); phone labels touch (TP/FN in Fig. 1 step 2, Fig. 2 step 6 tower labels); Fig. 3 later rows show faintly from step 1.
 - `models_and_training/topic_ml_fundamentals/loss_functions`: Fig. 2 Anscombe view sparse (clean points' columns nearly flat, the scene small in the card).
+- `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation`: Fig. 5 mu/sigma label crosses faded background cubes during step changes; Fig. 3 raw-units ravine drawn as one line (about a pixel wide at equal scale).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -506,3 +507,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Contrastive: a new 3-D sphere toy run (`train_toy.py sphere3`, about a minute on CPU) replaced the circle's numbers; the 2-D run's "about 50%" kept as a record. No CLIP stage (no real image-text embeddings on the page). Keep?
 - Evaluation metrics: 29 min core (about 27 reading one scorer); the k slider kept beside Fig. 2 although the figure walks through k. Remove the slider, or keep?
 - Loss functions: Fig. 1 uses a new measured input, `src/real_tokens.py` running SmolLM2-135M on CPU over four public-domain sentences (`inputs/real_tokens.json`); Fig. 4's logit shift of +8 is illustrative. Keep?
+- Normalisation and initialisation: Fig. 1 adds an illustrative twice-He run (Var 4/n_in, x1.98 per layer, 8.6e5 after 20 layers) to show the exploding case. Keep or drop? (Also fixed: nn.Linear default factor 0.162, was printed 0.163.)

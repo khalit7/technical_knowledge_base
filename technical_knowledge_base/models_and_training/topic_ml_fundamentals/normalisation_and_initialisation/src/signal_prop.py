@@ -2,6 +2,7 @@
 OMP_NUM_THREADS=2 uv run --with torch python signal_prop.py  ->  signal_output.json
 1. The same 20-layer, width-512 ReLU MLP as recompute.py (same seed, same input), with orthogonal init (gain sqrt 2),
    and with PyTorch's default init plus a LayerNorm before every ReLU: mean square after each layer.
+   Added 2026-11-10: twice He's variance (Var 4/n_in, kaiming_normal_ times sqrt 2), the exploding case of the hero's Fig. 1.
 2. Singular values of the input-output map of a 20-layer *linear* network of width 512 at init:
    Gaussian with Var 1/n (LeCun) against orthogonal (gain 1). Both preserve the mean square on average; only orthogonal
    preserves every direction.
@@ -16,6 +17,9 @@ def deep(init, L=20, d=512, norm=False):
     for _ in range(L):
         lin = nn.Linear(d, d, bias=False)
         if init == 'orth': nn.init.orthogonal_(lin.weight, gain=math.sqrt(2))
+        if init == 'he2':
+            nn.init.kaiming_normal_(lin.weight, nonlinearity='relu')
+            with torch.no_grad(): lin.weight.mul_(math.sqrt(2))
         with torch.no_grad():
             x = lin(x)
             if norm: x = nn.functional.layer_norm(x, (d,))
@@ -24,7 +28,7 @@ def deep(init, L=20, d=512, norm=False):
     return ms
 
 out = {'torch': torch.__version__}
-for k, (init, norm) in {'orth': ('orth', False), 'default_ln': ('default', True)}.items():
+for k, (init, norm) in {'orth': ('orth', False), 'default_ln': ('default', True), 'he2': ('he2', False)}.items():
     m = deep(init, norm=norm)
     out[k] = dict(ms=m, per_layer=(m[-1] / m[1]) ** (1 / 19))
     print('%-11s per-layer %.4f  after 20 layers %.4e' % (k, out[k]['per_layer'], m[-1]))

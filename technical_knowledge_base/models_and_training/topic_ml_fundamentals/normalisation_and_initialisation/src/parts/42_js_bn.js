@@ -1,7 +1,7 @@
 // ---- Reading 3: BatchNorm in training and at inference, against LayerNorm, on one seeded stream of batches ----
 (function(){
   const NI=window.NI,g=document.getElementById('bn-g');if(!g)return;
-  const D=NI.BNF.D,MOM=0.1,NSHOW=5,NLONG=200;
+  const D=NI.BNF.D,MOM=0.1,NSHOW=2,NLONG=200;
   let mode='b8';
   const f=(v,d)=>(Math.abs(v)<1e-12?0:v).toFixed(d===undefined?2:d);
   const col=(v,m)=>{const a=Math.min(1,Math.abs(v)/m);return 'color-mix(in srgb,'+(v>=0?'var(--c1)':'var(--c2)')+' '+Math.round(a*65)+'%,var(--bg))'};
@@ -31,14 +31,14 @@
         :grid(s.x,B,{foot:[{v:Array.from(s.bt.mu,v=>'&mu; '+f(v,1))},{v:Array.from(s.bt.v,v=>'&sigma; '+f(Math.sqrt(v),1))}]});
       const out=ln?s.ln.y:s.bt.y;
       h='<div><div class="t">Batch '+(i+1)+': '+B+' examples &times; '+D+' features</div>'+inG+'</div><div><div class="t">Output in training</div>'+grid(out,B,{m:2.2,dp:2})+'</div>';
-      if(!ln)h+='<div><div class="t">Running statistics after this batch</div>'+grid(new Float64Array(0),0,{foot:[{v:Array.from(s.runAfter.m,v=>'mean '+f(v)),hl:true},{v:Array.from(s.runAfter.v,v=>'sd '+f(Math.sqrt(v))),hl:true},{v:NI.BNF.mean.map(v=>'true '+v)}]})+'</div>';
+      if(!ln)h+='<div><div class="t">Running statistics after this batch</div>'+grid(new Float64Array(0),0,{foot:[{v:Array.from(s.runAfter.m,v=>'μ '+f(v)),hl:true},{v:Array.from(s.runAfter.v,v=>'σ '+f(Math.sqrt(v))),hl:true},{v:NI.BNF.mean.map(v=>'true '+v)}]})+'</div>';
       cap=ln?['LayerNorm: batch '+(i+1),'Each row (example) is normalised by its own mean and spread across its 4 features. Nothing depends on the other rows and nothing is stored for later.']
         :(i===0?['BatchNorm: batch 1','Each column (feature) is normalised by the batch\'s own mean and standard deviation, then the running averages move 10% of the way towards this batch\'s statistics (PyTorch momentum 0.1), from their starting values 0 and 1.']
         :['BatchNorm: batch '+(i+1),B===2?'With two examples, each column is just two numbers: after normalising they are always +1 and &minus;1, whatever the inputs. Only which of the two was larger survives.':'Same procedure; the running mean creeps towards the true feature means (5, &minus;1, 0, 2) at 10% per batch.']);
       cnt=RD.stat('Batches seen',i+1,'of the stream')+(ln?RD.stat('Stored for inference','nothing','LayerNorm has no running statistics'):RD.stat('Running mean, feature 1',f(s.runAfter.m[0]),'true mean 5'))+
         RD.stat('Output values in training',B===2&&!ln?'only &plusmn;1':'continuous',B===2&&!ln?'two per column':'')}
     else if(i===NSHOW){h=ln?'<div><div class="t">After '+NLONG+' batches</div><p class="small">LayerNorm has stored nothing: there is no estimate to converge, and no difference between training and inference.</p></div>'
-        :'<div><div class="t">Running statistics after '+NLONG+' batches</div>'+grid(new Float64Array(0),0,{foot:[{v:Array.from(R.run.m,v=>'mean '+f(v)),hl:true},{v:Array.from(R.run.v,v=>'sd '+f(Math.sqrt(v))),hl:true},{v:NI.BNF.mean.map(v=>'true '+v)},{v:NI.BNF.sd.map(v=>'true sd '+v)}]})+'</div>';
+        :'<div><div class="t">Running statistics after '+NLONG+' batches</div>'+grid(new Float64Array(0),0,{foot:[{v:Array.from(R.run.m,v=>'μ '+f(v)),hl:true},{v:Array.from(R.run.v,v=>'σ '+f(Math.sqrt(v))),hl:true},{v:NI.BNF.mean.map(v=>'true '+v)},{v:NI.BNF.sd.map(v=>'true σ '+v)}]})+'</div>';
       cap=ln?['LayerNorm: nothing to carry','The whole training-time machinery of BatchNorm (running averages, momentum, unbiased variance) is absent.']
         :['BatchNorm: '+NLONG+' batches later','The running averages are an exponential average over roughly the last 10 batches (1 / momentum), so they track the true statistics with some noise'+(B===2?'; even at batch 2 they are fine on average, because the unbiased variance corrects for the tiny batch.':'.')];
       cnt=RD.stat('Batches seen',NLONG,'')+(ln?'':RD.stat('Running mean, feature 1',f(R.run.m[0]),'true mean 5')+RD.stat('Running sd, feature 3',f(Math.sqrt(R.run.v[2])),'true sd 3'))}
@@ -55,9 +55,10 @@
         :['BatchNorm under the shift','The running averages still describe the training data, so every output column is pushed off centre by about 3 / sd in expectation (1.5 for feature 1, 6 for feature 2; this batch\'s own means are below the grid). The fix is to recompute the statistics on new data (or adapt them at test time), which LayerNorm never needs.'];
       cnt=RD.stat('Mean output, feature 2',f(mu[1]),ln?'centred':'should be about 0')+RD.stat('Mean output, feature 1',f(mu[0]),'')}
     g.innerHTML=h;
-    document.getElementById('bn-cap').innerHTML='<div class="t">'+(i+1)+' / '+N+' · '+cap[0]+'</div><p>'+cap[1]+'</p>';
     document.getElementById('bn-cnt').innerHTML=cnt}
-  const A=RD.anim({card:'bn-card',ctl:'bn-ctl',n:N,ms:2800,label:'BatchNorm step',draw});
+  const A=RD.anim({card:'bn-card',ctl:'bn-ctl',n:N,ms:4400,label:'BatchNorm step',list:'sx-bn-b8',draw});
+  const HEAD={b8:'Batch 8',b2:'Batch 2',ln:'LayerNorm, batch 8'};
   document.getElementById('bn-modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;R=run(mode);
-    [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));A.redraw()});
+    [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));
+    ['b8','b2','ln'].forEach(k=>{document.getElementById('sx-bn-'+k).hidden=k!==mode});document.getElementById('sx-bn-h').textContent=HEAD[mode];A.reset(N,'sx-bn-'+mode)});
 })();

@@ -13,10 +13,12 @@ async function bad(){return p.evaluate(()=>{const t=document.querySelector('.tab
 async function clickAll(sel,steps){const n=await p.$$eval(sel,a=>a.length);for(let i=0;i<n;i++){await p.evaluate((s,i)=>document.querySelectorAll(s)[i].click(),sel,i);await wait(60);
   if(steps)for(let k=0;k<steps;k++){await p.evaluate(s=>{const c=document.querySelector(s);c&&c.click()},steps===true?'':steps);}
   const B=await bad();if(B.length)console.log('BAD after',sel,i,B)}}
-// Reading tab: nothing may play before the reader acts (scroll through, then read every play button)
-for(let y=0;y<20000;y+=600){await p.evaluate(y=>scrollTo(0,y),y);await wait(80)}await wait(1500);
-console.log('playing at load (must be empty)',await p.$$eval('.an-play',a=>a.filter(b=>/Pause/.test(b.textContent)).map(b=>b.id)));
+// Reading tab (inverted 2026-11-10, the autoplay rule of 2026-11-06): the two step animations play once scrolled into view,
+// the placement toy in its closed block is a widget and never plays by itself (src/check_stages.mjs checks all of this more fully)
+const played=[];for(const c of ['sc','bn']){await p.$eval('#'+c+'-card',e=>e.scrollIntoView({block:'center'}));await wait(1600);if(/Pause/.test(await p.$eval('#'+c+'-ctl-p',e=>e.textContent)))played.push(c)}
 await p.evaluate(()=>document.querySelectorAll('details.dp').forEach(d=>d.open=true));await wait(200);
+await p.$eval('#pl-card',e=>e.scrollIntoView({block:'center'}));await wait(1600);
+console.log('played on view (must be sc,bn)',played.join(','),'| placement widget played by itself (must be false)',/Pause/.test(await p.$eval('#pl-ctl-p',e=>e.textContent)));
 console.log('wide at load',await wide());
 for(const ctl of ['sc-ctl','bn-ctl','pl-ctl']){
   const n=await p.$eval('#'+ctl+'-s',e=>+e.max);

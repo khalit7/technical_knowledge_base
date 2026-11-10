@@ -27,12 +27,7 @@
   function xy(p,m){const f=frame(m),a=tf(p,m);return [pad.l+(a[0]-f.x0)/(f.x1-f.x0)*(Wd-pad.l-pad.r),Ht-pad.b-(a[1]-f.y0)/(f.y1-f.y0)*(Ht-pad.t-pad.b)]}
   const fmt=(v,d)=>(+v).toFixed(d===undefined?2:d);
   // steps: 0 raw, 1 raw neighbours, 2 morph, 3 scaled neighbours, 4 all test wines
-  const CAP=[
-    ['Raw units, drawn to the same scale on both axes','Proline spans about 1,400 mg/L, hue about 1.2, so on equal axes every wine sits on a flat line: hue is invisible to anything that measures distance.'],
-    ['20 nearest neighbours, raw','The ringed test wine collects its 20 nearest training wines. Most of the distance is proline, so the neighbours are a vertical stripe of wines with similar proline, whatever their hue, and the vote goes to the wrong cultivar.'],
-    ['Standardise: subtract each feature\'s mean, divide by its standard deviation','Both features now have mean 0 and standard deviation 1 on the training wines. Nothing about the wines changed; only the units.'],
-    ['20 nearest neighbours, standardised','Hue now counts as much as proline, the neighbourhood is a round patch, and the vote goes to the right cultivar.'],
-    ['Every test wine','Each of the 54 test wines voted by its 20 neighbours, in raw units and after scaling; crosses mark the wrong votes in the current units.']];
+  // the five steps are explained in the step list on the left (ol#sx-sc)
   let morph=0,raf=0;
   function draw(i){
     Wd=Math.max(320,Math.min(600,RD.width(svg.parentNode)));Ht=Wd<500?300:340;svg.setAttribute('viewBox','0 0 '+Wd+' '+Ht);
@@ -55,7 +50,6 @@
       h+=ok?'<circle cx="'+a[0]+'" cy="'+a[1]+'" r="4" fill="none" stroke="'+COL[q[2]]+'" stroke-width="1.6"/>':'<path d="M'+(a[0]-4)+' '+(a[1]-4)+'l8 8m0 -8l-8 8" stroke="var(--bad)" stroke-width="2"/>'})}
     else{const a=pos(Q);h+='<circle cx="'+a[0]+'" cy="'+a[1]+'" r="7" fill="none" stroke="var(--ink)" stroke-width="2"/><circle cx="'+a[0]+'" cy="'+a[1]+'" r="3.5" fill="'+COL[Q[2]]+'"/>'}
     svg.innerHTML=h;
-    document.getElementById('sc-cap').innerHTML='<div class="t">'+(i+1)+' / 5 · '+CAP[i][0]+'</div><p>'+CAP[i][1]+'</p>';
     const kr=knn(Q,'raw'),ks=knn(Q,m),mn=m==='std'?'standardised':'min-max';
     document.getElementById('sc-cnt').innerHTML=
       RD.stat('Test wine','true: '+NAME[Q[2]],'proline '+Q[0]+', hue '+Q[1])+
@@ -64,11 +58,11 @@
       (i>=4?RD.stat('Test accuracy','raw '+fmt(100*ACC.raw)+'%',mn+' '+fmt(100*ACC[m])+'% (54 wines)'):RD.stat('Test accuracy','&middot;','at step 5'));
   }
   document.getElementById('sc-leg').innerHTML=NAME.map((n,k)=>'<span><b class="dot" style="background:'+COL[k]+'"></b>'+n+'</span>').join('')+'<span>dots: 124 training wines; ring: test wine</span>';
-  const A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:5,ms:2600,label:'Feature scaling step',draw:i=>{
+  const A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:5,ms:4200,label:'Feature scaling step',list:'sx-sc',draw:i=>{
     cancelAnimationFrame(raf);
     if(i===2&&!RD.RM){morph=0;const t0=performance.now();const go=now=>{morph=Math.min(1,(now-t0)/1200);morph=morph*morph*(3-2*morph);draw(2);if(morph<1)raf=requestAnimationFrame(go)};raf=requestAnimationFrame(go)}
     else{morph=1;draw(i)}}});
   document.getElementById('sc-modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;
-    [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));A.redraw()});
+    [...e.currentTarget.children].forEach(x=>x.classList.toggle('on',x===b));A.reset(5)});
   window.NI_SCALE={ACC,knn,Q:()=>Q};
 })();

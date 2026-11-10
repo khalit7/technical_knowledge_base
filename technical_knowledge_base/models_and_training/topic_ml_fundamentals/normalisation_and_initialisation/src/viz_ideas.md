@@ -42,3 +42,10 @@ What the methodology lacked for this page: a rule for measurements on finished c
 | NI4, NI5 | Theorem 1 sweep; six released models | moved from the removed Depth and placement tab into closed blocks of section 6 (placement is owned by Normalisation, residuals and stability; the measurements stay here because that page links to them). |
 | NI3 | Placement toy | moved into a closed block of section 6 with the sweep, for the same reason. |
 | NI6 | Qwen3 QK-norm ceilings | moved into a closed block of section 5. |
+
+## 2026-11-10 (layout rollout, renderer v2)
+- Built: Fig. 1 hero in 3D (the signal through 20 layers as a tube of glass plates, one init per step, measured; twice He added as the exploding case). The old 2D log chart is kept as Fig. 4 in section 2, where the factors are derived.
+- Built: Fig. 3, the loss bowl of hue = w · proline + b on the training wines in raw, min-max and standardised units at equal axis scale, with 30 gradient steps (computed in the browser). The raw case is a plateau with a one-pixel crack; drawing it wider would misstate kappa, so the crack is a line.
+- Built: Fig. 5, the GroupNorm paper's Figure 2 as a 3D block of the page's own tensor, one norm per step, plus the batch test. The 2D click-to-explore grid stays in a closed block (it also has the token layout).
+- Kept 2D: the kNN scatter, BatchNorm's number grids, Fig. 4, the calculator, the QK-norm bars, the depth sweep and the six models (log axes and curves).
+- Rejected: a 3D BatchNorm batch-size scene (the grids of numbers are the point, and bars in perspective would hide them); a 3D residual-stream scene in section 6 (owned by Normalisation, residuals and stability; this page's measurements sit in closed blocks); a muP width scene (no data on this page to drive it).
