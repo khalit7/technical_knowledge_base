@@ -5,4 +5,4 @@ Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/top
 
 `index.html` is the whole page (read it on the site). It is built from `src/` with `sh src/build.sh` and published with the `sync-kb-github` skill.
 
-Status (2026-10-24): rebuilt to the teaching contract; tabs Reading and Further reading (the lineage chart is inline in Reading). See `src/README.md`.
+Status (2026-11-10): split layout throughout Reading, three 3D stages (Colossus builds, Grok-1's layers and experts, Heavy's parallel agents) and an explained, autoplaying injection animation; tabs Reading and Further reading. See `src/README.md`.

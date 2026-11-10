@@ -1,17 +1,20 @@
+<div class="s3sp"><div class="s3R"><div id="stg-g1"></div></div><div class="s3L">
 <section id="s-grok1">
 <h2>Grok-1: the one published architecture</h2>
-<p>Grok-1 is a 314-billion-parameter mixture of experts with 8 experts per layer, of which 2 run for each token; xAI calls that "25% of the weights active on a given token" ({{xAI|@g1os}}; {{run.py and model.py|@g1gh}}). It was previewed in November 2023 as "the best we could do with 2 months of training" ({{Wikipedia|@wg}}), pretrained to October 2023 on a custom JAX and Rust stack, and released on 17 March 2024 as base weights plus architecture under Apache 2.0. Grok 2 followed as open weights in August 2025 (Hugging Face calls it Grok 2, Wikipedia Grok 2.5) under the <b>xAI Community License</b>: research and non-commercial use, and commercial use only within xAI's acceptable use policy ({{licence|@g2lic}}). The pattern: open the previous generation once it is commercially spent; nothing after Grok 2 has a published architecture. The released code is enough to count every parameter; switch models and move the context to see where they sit:</p>
-<div class="card" id="g1Card">
-<p class="vt">Almost all of Grok-1 is experts, so "2 of 8 experts" nearly is the active share; Grok 2's dense block changes that</p>
-<div class="seg" id="g1M" role="group" aria-label="Model"><button class="on" data-m="g1">Grok-1 (2023, Apache 2.0)</button><button data-m="g2">Grok 2 (2024, Community License)</button></div>
-<div class="ctl"><label>Weight precision <select id="g1P"><option value="2">16-bit (bf16)</option><option value="1" selected>8-bit</option><option value="0.5">4-bit</option></select></label>
-<label>Context: <b id="g1Cv"></b> tokens <input type="range" id="g1C" min="10" max="17" step="1" value="13" aria-label="Context length (power of two)"></label></div>
-<div class="xp" id="g1X" aria-hidden="true"></div>
-<div class="out" id="g1Out"></div>
-<div id="g1Bar"></div>
-<p class="small mute" id="g1Note"></p>
-</div>
-<div class="try"><b>Predict, then try:</b> Grok 2 has a dense feed-forward block that every token runs beside its 8 experts. Will its active share stay near a quarter? Switch and see: over 40%. Then raise the context to 128K: at 8 key-value heads (grouped-query attention) the cache is 256 KiB a token, a sixth of what all 48 heads would need.</div>
+<p>Grok-1 is a 314-billion-parameter mixture of experts with 8 experts per layer, of which 2 run for each token; xAI calls that "25% of the weights active on a given token" ({{xAI|@g1os}}; {{run.py and model.py|@g1gh}}). It was previewed in November 2023 as "the best we could do with 2 months of training" ({{Wikipedia|@wg}}), pretrained to October 2023 on a custom JAX and Rust stack, and released on 17 March 2024 as base weights plus architecture under Apache 2.0. Grok 2 followed as open weights in August 2025 (Hugging Face calls it Grok 2, Wikipedia Grok 2.5) under the <b>xAI Community License</b>: research and non-commercial use, and commercial use only within xAI's acceptable use policy ({{licence|@g2lic}}). The pattern: open the previous generation once it is commercially spent; nothing after Grok 2 has a published architecture.</p>
+<ol class="sx" id="sx-g1">
+<li><b>64 layers.</b> Each is an attention slab (teal) over a mixture-of-experts feed-forward slab, at a model width of 6,144; the residual stream runs up through all of them.</li>
+<li><b>One layer, pulled out.</b> 8 experts, each a gated feed-forward of 3 · 6,144 · 32,768 = 604M parameters (box heights to scale), a router of 6,144 × 8, and attention in which 48 query heads share 8 key-value heads (grouped-query attention).</li>
+<li><b>The router keeps 2 of 8.</b> The token's router scores pick 2 experts and their outputs are summed, weighted by the scores; which two is illustrative here. How routers are trained and kept balanced is on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}.</li>
+<li><b>Every layer, every token.</b> 2 experts lit in each of the 64 layers (positions illustrative): 84.6B active of 316.5B.</li>
+<li><b>Total against active, to scale.</b> Experts are 309.2B of the 316.5B. A token runs 77.3B of them plus attention (5.6B) and embeddings (1.6B), which every token uses: 26.7%, above the 25% that "2 of 8 experts" suggests.</li>
+<li><b>Grok 2.</b> Its config.json adds a dense feed-forward block (51.5B) that every token runs beside 8 narrower experts: 269.5B total, 114.9B active, 42.6%.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p>The released code is enough to count every parameter. The calculator does the sum for either model; switch models and move the context to see where they sit:</p>
+<div class="try"><b>Try:</b> switch to Grok 2, whose dense feed-forward block runs for every token beside its 8 experts: the active share moves to over 40%, as step 6 of Fig. 4 shows. Then predict what grouped-query attention saves and raise the context to 128K: at 8 key-value heads the cache is 256 KiB a token, a sixth of what all 48 heads would need.</div>
 <p>The calculator's sum, with the same names as the code:</p>
 <div class="fm"><div class="eq"><math display="block"><mi>N</mi><mo>=</mo><mi>L</mi><mo>(</mo><mn>2</mn><mi>d</mi><msub><mi>n</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><mn>2</mn><mi>d</mi><msub><mi>n</mi><mi>kv</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><mi>E</mi><mo>·</mo><mn>3</mn><mi>d</mi><mi>f</mi><mo>+</mo><mi>d</mi><mi>E</mi><mo>)</mo><mo>+</mo><mn>2</mn><mi>V</mi><mi>d</mi></math></div>
 <dl><dt>L</dt><dd>layers (64)</dd><dt>d</dt><dd>model width (6,144)</dd><dt>n<sub>q</sub>, n<sub>kv</sub>, d<sub>h</sub></dt><dd>query heads (48), key-value heads (8), head size (128)</dd><dt>E, f</dt><dd>experts per layer (8) and each expert's hidden size (32,768, from <code>int(8·6144)·2//3</code>); a gated feed-forward has 3 matrices</dd><dt>dE</dt><dd>the router</dd><dt>V</dt><dd>vocabulary (131,072); 2Vd counts the input embedding and the output head</dd></dl>
@@ -20,7 +23,18 @@
 <details class="dp"><summary>Checks against xAI's figures <span class="mute">(depth)</span></summary><div class="b">
 <p><b>Defaults reproduce</b> xAI's "314 billion" independently, within 1%: 316.5B with a separate output head (315.7B if tied). They <b>do not reproduce</b> "25% active": the sum gives 84.6B, 26.7%, because 25% is just 2 of 8 experts and ignores the attention and embeddings every token uses. For Grok 2, xAI publishes no parameter count; its {{config.json|@g2cfg}} gives 269.5B total and 114.9B active (derived here), and at 16 bits 269.5B is 502 GiB, which reproduces the model card's "approximately 500 GB" checkpoint independently ({{Grok 2 card|@g2}}). The card asks for 8 GPUs with more than 40 GB each.</p>
 </div></details>
-</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="g1Card">
+<p class="vt">Almost all of Grok-1 is experts, so "2 of 8 experts" nearly is the active share; Grok 2's dense block changes that</p>
+<div class="seg" id="g1M" role="group" aria-label="Model"><button class="on" data-m="g1">Grok-1 (2023, Apache 2.0)</button><button data-m="g2">Grok 2 (2024, Community License)</button></div>
+<div class="ctl"><label>Weight precision <select id="g1P"><option value="2">16-bit (bf16)</option><option value="1" selected>8-bit</option><option value="0.5">4-bit</option></select></label>
+<label>Context: <b id="g1Cv"></b> tokens <input type="range" id="g1C" min="10" max="17" step="1" value="13" aria-label="Context length (power of two)"></label></div>
+<div class="xp" id="g1X" aria-hidden="true"></div>
+<div class="out" id="g1Out"></div>
+<div id="g1Bar"></div>
+<p class="small mute" id="g1Note"></p>
+</div></div></div></div>
+
 
 <section id="s-train">
 <h2>Training: brute force on two axes</h2>
@@ -50,20 +64,18 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hv"></div></div><div class="s3L">
 <section id="s-heavy">
 <h2>Heavy: parallel attempts instead of one longer chain</h2>
-<p>A reasoning model buys accuracy with tokens. The serial way lets one chain of thought run longer, and costs latency, because every token waits for the one before it. Grok 4 Heavy took the parallel way: "parallel test-time compute, which allows Grok to consider multiple hypotheses at once" ({{xAI|@g4}}). It works because independent attempts make errors that are only partly correlated, so reconciling them catches mistakes a single chain would keep; it stops working where all attempts share the same blind spot. The API exposes it as <code>grok-4.20-multi-agent</code>: 4 agents (effort low or medium) or 16 (high or xhigh), a designated <b>leader agent</b> synthesises their discussion, only the leader's output is returned, and "all tokens consumed by both the leader agent and sub-agents are billed" ({{multi-agent docs|@xdma}}). Predict before you press play: with the same tokens billed, how much longer does one chain take than 4 parallel agents?</p>
-<div class="card" id="hv">
-<p class="vt">Same tokens billed, a fraction of the wait: parallelism spends money instead of time</p>
-<div class="an-top"><div class="seg" id="hvM" role="group" aria-label="Method"><button class="on" data-m="par" aria-pressed="true">Parallel agents (Heavy)</button><button data-m="ser" aria-pressed="false">One longer chain</button></div>
-<label class="small">Agents <select id="hvN"><option value="4" selected>4 (low, medium)</option><option value="16">16 (high, xhigh)</option></select></label></div>
-<div id="hvSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="hvBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="hvPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="hvFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="hvScrub" min="0" max="400" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="hvSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="hvStep"></div><p id="hvCap"></p></div>
-<div class="an-cnt" id="hvCnt"></div>
-<p class="small mute" style="margin:6px 0 0"><span class="ill">Illustrative inputs.</span> Each attempt is drawn as 8,000 reasoning tokens and the leader's synthesis as 2,000, one square per 1,000 tokens, decoding at one token per unit of time; xAI publishes no per-agent token counts. The agent counts and the billing rule are xAI's ({{docs|@xdma}}). The single chain gets the same total budget, so the comparison isolates where the tokens go, not how accurate each is: no published curve gives Grok's accuracy against either budget. It waits for you to press play or step, and pauses off screen.</p>
-</div>
-<p>The answer: about as many times longer as there are agents (34 units against 10 for 4 agents). How Gemini's Deep Think and OpenAI's tiers spend test-time compute is on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}.</p>
+<p>A reasoning model buys accuracy with tokens. The serial way lets one chain of thought run longer, and costs latency, because every token waits for the one before it. Grok 4 Heavy took the parallel way: "parallel test-time compute, which allows Grok to consider multiple hypotheses at once" ({{xAI|@g4}}). It works because independent attempts make errors that are only partly correlated, so reconciling them catches mistakes a single chain would keep; it stops working where all attempts share the same blind spot. The API exposes it as <code>grok-4.20-multi-agent</code>: 4 agents (effort low or medium) or 16 (high or xhigh), a designated <b>leader agent</b> synthesises their discussion, only the leader's output is returned, and "all tokens consumed by both the leader agent and sub-agents are billed" ({{multi-agent docs|@xdma}}). Predict before Fig. 5 plays: with the same tokens billed, how much longer does one chain take than 4 parallel agents?</p>
+<ol class="sx" id="sx-hv">
+<li><b>The query fans out.</b> At low or medium effort, 4 agents start their own attempts at the same moment. Nothing is shared yet, so their mistakes are only partly correlated.</li>
+<li><b>Four attempts in parallel.</b> Each agent writes 8,000 reasoning tokens. The tokens billed grow 4 times as fast as one chain's, but the clock moves as if there were one: 32,000 tokens in 8 units of time.</li>
+<li><b>The leader synthesises.</b> A designated leader agent reconciles the attempts in 2,000 tokens. Only its output and tool calls come back to you; the sub-agents' work is billed but hidden. Done at 10 units, with 34,000 tokens billed.</li>
+<li><b>The same tokens as one chain.</b> 34,000 tokens spent serially: each waits for the one before it, so the answer comes at 34 units, 3.4 times the wait. A chain that goes wrong early carries the error forward unless it notices and backtracks.</li>
+<li><b>16 agents.</b> At high or xhigh effort: 130,000 tokens billed and still done at 10 units; the same tokens as one chain would take 130 units, 13 times as long. The time axis is redrawn to fit the longer chain.</li>
+</ol>
+<p class="small mute"><span class="ill">Illustrative inputs.</span> Each attempt is drawn as 8,000 reasoning tokens and the leader's synthesis as 2,000, one block per 1,000 tokens, decoding at one token per unit of time; xAI publishes no per-agent token counts. The agent counts and the billing rule are xAI's ({{docs|@xdma}}). The single chain gets the same total budget, so the comparison isolates where the tokens go, not how accurate each is: no published curve gives Grok's accuracy against either budget.</p>
+<p>The answer: about as many times longer as there are agents (34 units against 10 for 4 agents). Same tokens billed, a fraction of the wait: parallelism spends money instead of time. The general mechanism (one chain or many on the same budget, voting and selectors) is drawn on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}, with how Gemini's Deep Think and OpenAI's tiers spend test-time compute.</p>
 </section>
+</div></div>

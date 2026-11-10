@@ -1,13 +1,14 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
 # Assemble ../index.html from parts/: head and CSS, the HTML parts in order, the error box, then one <script> per JS part, tabs last.
+# 02_split.html, 21_js_rd_common.js, 25_js_s3.js and 99_js_tabs.js (key xai-tab) are the explainer-page skill templates, copied unchanged.
 # The header's reading time (RT_CORE, RT_DEPTH in 02_header.html) is filled by hand-run measurement: see src/README.md.
 # Links in any part are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 cd "$(dirname "$0")"
-{ cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/07_more.html
+{ cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_split.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/11_js_read.js parts/12_js_hv.js parts/13_js_ij.js parts/14_js_line.js parts/16_js_hero.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11a_js_data.js parts/11_js_read.js parts/13_js_ij.js parts/14_js_line.js parts/16_js_hero.js parts/25_js_s3.js parts/41_js_sc_cx.js parts/42_js_sc_g1.js parts/43_js_sc_hv.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 wg=>"https://en.wikipedia.org/wiki/Grok_(chatbot)",
@@ -44,5 +45,6 @@ thn=>"https://thehackernews.com/2026/08/new-cryptographic-context-injection.html
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=$u=~m{^@(\w+)$}?($A{$1}||die "alias $1"):$u;$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"/ge;
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html

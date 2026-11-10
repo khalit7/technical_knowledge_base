@@ -1,30 +1,11 @@
-// ---- Reading tab: Colossus build rates, Grok-1/2 parameter count, index panels, Terminal-Bench reporters, long-context cliff ----
+// ---- Reading tab: Grok-1/2 parameter count, index panels, Terminal-Bench reporters, long-context cliff ----
 function hbRows(rows,max,fmtv){return rows.map(r=>'<div class="hb'+(r.g?' grok':'')+'"><div class="nm">'+r.n+(r.s?'<small>'+r.s+'</small>':'')+'</div><div class="track"><div class="fill" style="width:'+Math.max(0.6,100*r.v/max).toFixed(1)+'%;background:'+(r.c||'var(--acc)')+'"></div></div><div class="val">'+fmtv(r.v)+'</div></div>').join('')}
-
-// Colossus (S-1 figures)
-(function(){
-  const box=$('cxBars');if(!box)return;
-  const C=[{n:'Colossus, first cluster',s:'~100,000 H100, ~130 MW, repurposed factory',mw:130,d:122,g:100000,c:'var(--c1)'},
-    {n:'Colossus II, first cluster',s:'~110,000 GB200, ~210 MW',mw:210,d:91,g:110000,c:'var(--c1)'},
-    {n:'Colossus II, second cluster',s:'110,000 GB300, 220 MW, existing site',mw:220,d:64,g:110000,c:'var(--c1)'},
-    {n:'Industry benchmark',s:'100 MW greenfield site, ~2 years',mw:100,d:730,g:null,c:'var(--dim)'}];
-  let m='rate';
-  function draw(){let rows,max,f,note;
-    if(m==='rate'){rows=C.map(c=>({n:c.n,s:c.s,v:c.mw/c.d,c:c.c,g:c.g}));f=v=>v.toFixed(2);note='Megawatts brought online per day = MW / days. The second Colossus II cluster ran at '+(220/64).toFixed(2)+' MW a day, '+Math.round((220/64)/(100/730))+' times the benchmark\'s '+(100/730).toFixed(2)+'.'}
-    else if(m==='days'){rows=C.map(c=>({n:c.n,s:c.s,v:c.d,c:c.c,g:c.g}));f=v=>fmt(v);note='Days from start to online, as the S-1 states them. Shorter is faster; the benchmark\'s "approximately two years" is drawn as 730 days.'}
-    else{rows=C.filter(c=>c.g).map(c=>({n:c.n,s:c.s,v:c.g/c.d,c:c.c,g:1}));f=v=>fmt(v);note='GPUs brought online per day = GPUs / days. The benchmark is quoted in megawatts only, so it has no GPU rate. GPU generations differ: one GB300 is not one H100.'}
-    max=Math.max(...rows.map(r=>r.v));box.innerHTML=hbRows(rows,max,f);$('cxNote').innerHTML=note}
-  segBind('cxM',v=>{m=v;draw()});draw();
-})();
 
 // Grok-1 / Grok 2 parameter and memory calculator (from run.py/model.py and config.json)
 (function(){
   if(!$('g1Card'))return;
-  const M={g1:{n:'Grok-1',d:6144,L:64,nq:48,nkv:8,hd:128,E:8,k:2,f:32768,V:131072,dense:0,ctx:8192,pub:'xAI: 314B, 25% active'},
-           g2:{n:'Grok 2',d:8192,L:64,nq:64,nkv:8,hd:128,E:8,k:2,f:16384,V:131072,dense:32768,ctx:131072,pub:'xAI publishes no count'}};
+  const M=XG1.M,count=XG1.count;
   let m='g1';
-  function count(c){const attn=2*c.d*c.nq*c.hd+2*c.d*c.nkv*c.hd,exp=3*c.d*c.f,dense=c.dense?3*c.d*c.dense:0,router=c.d*c.E,emb=2*c.V*c.d;
-    return {tot:c.L*(attn+c.E*exp+dense+router)+emb,act:c.L*(attn+c.k*exp+dense+router)+emb,exp:c.L*c.E*exp,attn:c.L*attn,dense:c.L*dense,emb,router:c.L*router}}
   function draw(){const c=M[m],r=count(c),bp=+$('g1P').value,ctx=2**(+$('g1C').value);
     $('g1Cv').textContent=fmt(ctx);
     const kvTok=2*c.L*c.nkv*c.hd*2,kv=kvTok*ctx,kvMha=2*c.L*c.nq*c.hd*2*ctx,w=r.tot*bp;

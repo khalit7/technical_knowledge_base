@@ -53,3 +53,13 @@ print('industry 100 MW greenfield ~2 years = ',100/730,'MW/day')
 for p in [199999,200000]:
     r=(2,6) if p<200000 else (4,12)
     print('prompt',p,'cost $%.4f'%((p*r[0]+5000*r[1])/1e6))
+# 2026-11-10: the numbers the three 3D stages' step lists print (Figs. 3 to 5), from the same inputs as the page's window.XCX, XG1 and XHV
+bench=100/730
+for nm,g,mw,d in [('benchmark',None,100,730),('Colossus first cluster',100000,130,122),('Colossus II first',110000,210,91),('Colossus II second',110000,220,64)]:
+    print('Fig. 3',nm,'%.2f MW a day'%(mw/d),'%.1f times the benchmark'%((mw/d)/bench),'' if g is None else 'GPUs a day %s'%format(round(g/d),','))
+for nm,r in [('Grok-1',g1),('Grok 2',g2)]:
+    print('Fig. 4',nm,'total %.1fB active %.1fB (%.1f%%)'%(r['tot']/1e9,r['act']/1e9,100*r['act']/r['tot']))
+print('Fig. 4 one Grok-1 expert %.0fM; experts %.1fB; active experts %.1fB; attention %.1fB; embeddings %.1fB; Grok 2 dense %.1fB'%(3*6144*ff/1e6,64*8*3*6144*ff/1e9,64*2*3*6144*ff/1e9,64*(6144*48*128*2+6144*8*128*2)/1e9,2*131072*6144/1e9,64*3*8192*32768/1e9))
+A,S=8,2  # illustrative tokens per attempt and for the leader, thousands (Fig. 5)
+for n in (4,16):
+    print('Fig. 5',n,'agents: billed',(n*A+S)*1000,'parallel time',A+S,'one chain',n*A+S,'ratio %.1f'%((n*A+S)/(A+S)))

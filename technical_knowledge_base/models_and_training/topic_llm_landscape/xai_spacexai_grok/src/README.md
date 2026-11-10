@@ -1,4 +1,6 @@
-# xAI / SpaceXAI: Grok, interactive page (v4, rebuilt 2026-10-24 to the teaching contract)
+# xAI / SpaceXAI: Grok, interactive page (v4, rebuilt 2026-10-24 to the teaching contract; 2026-11-10 split layout and three 3D stages)
+
+The 2026-11-10 section at the end supersedes the build notes below where they differ.
 
 Child page of Topic: llm-landscape (storage key `xai-tab`). Rebuilt by editing only: no new runs; every number keeps its source.
 
@@ -39,3 +41,27 @@ Why about 22 minutes is right: the core is the lab's own design choices with the
 - `viz_ideas.md`: scored candidates, rejections, and the 2026-10-24 changes.
 
 2026-10-26 (final follow-up sweep): two links called Test-time compute and reasoning a tab of the landscape root; it is a child page now.
+
+## 2026-11-10: split layout, three 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
+- **Templates** copied unchanged: `02_split.html` (after `01b_css.html`), `21_js_rd_common.js`, `25_js_s3.js` (renderer v2), `99_js_tabs.js` (key `xai-tab`). `build.sh` lists the new parts and now checks for an em-dash written as bytes (the file contains none).
+- **Data**: `11a_js_data.js` holds `window.XCX` (the S-1's Colossus builds and yardstick), `window.XG1` (Grok-1 and Grok 2 configs and the parameter sum the calculator and Fig. 4 share; the calculator in `11_js_read.js` now reads it) and `window.XHV` (agent counts and Heavy's illustrative token budget). `recompute.py` has a section reproducing every number the step lists print.
+- **Fig. 3 `stg-cx`** (5 steps, `41_js_sc_cx.js`): each build as a block as long as its days to bring online and as high as its megawatts, so its ramp's slope is MW per day (dots climb each ramp at a speed set by its rate); the yardstick, the three clusters, then the four rates as columns (0.14, 1.07, 2.31, 3.44; 25 times; GPUs per day 820, 1,209, 1,719). It replaces the 2D bars and their three-way toggle.
+- **Fig. 4 `stg-g1`** (6 steps, `42_js_sc_g1.js`): Grok-1's 64 layers as a stack; one layer as 8 experts (heights to scale, 604M each), the router and attention as glass plates; the router keeps 2 (which two is illustrative, labelled); 2 lit per layer; total against active as columns to scale (316.5B, 84.6B, 26.7% against the 25% line); Grok 2 with its 51.5B dense block (114.9B of 269.5B, 42.6%). Nothing after Grok 2 is drawn: xAI published no architecture. The calculator and the formula stay 2D in their own split (a reader-driven tool); its predict prompt no longer gives away what Fig. 4 shows.
+- **Fig. 5 `stg-hv`** (5 steps, `43_js_sc_hv.js`): time along the floor, agents as lanes; the query fans out to 4 agents, 8,000 tokens each, the leader's 2,000, the same 34,000 as one chain (34 units, 3.4 times), then 16 agents (130,000 tokens, 10 units against 130). Inputs labelled illustrative as before. It replaces the 2D animation `12_js_hv.js` (deleted) and its two toggles; the general mechanism links Test-time compute and reasoning.
+- **Fig. 9 `#ij`** (2D): `13_js_ij.js` now runs on `RD.anim` (plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion; a scenario switch replays). Its caption carousel became three step lists (`sx-ij`, `sx-ij-plain`, `sx-ij-gate`), one shown per scenario; the dot travels each arrow on a forward step (SMIL, not under reduced motion).
+- **Splits** (text left, visual right): the idea and hero, lineage (release notes moved into the text column, since a long open block cannot sit in a sticky column), Colossus, Grok-1 (stage) and its calculator, Heavy, the three habits of reading the numbers (index panels, Terminal-Bench bars, tokens bars), the price cliff, posture with the injection animation. Full width: Training (the recipe matrix is a five-column text table that reads badly in a column), the dated lineup table and the closed blocks, Further reading.
+- **Kept 2D**: hero (a flow diagram), lineage (a timeline), index panels, Terminal-Bench and tokens bars (numbers on an axis), the price cliff (a curve), the injection (a protocol between six parties, flat by nature).
+- **Checks**: `check_stages.mjs` (new, from the repo root with a shots dir outside the repo): the three stages and the injection animation play in view, step to the end with one list item per step, stop off screen, never move under reduced motion; splits two columns at 1400 px and one below 1100; every number in the three step lists recomputed from `XCX`, `XG1`, `XHVS`. `check_controls.mjs`: adds 1400 px, clears the remembered tab between runs, and its never-autoplay assertion is inverted (the injection animation must play in view and not under reduced motion).
+
+### Length judgement (2026-11-10)
+| | Before (audit 2026-11-10, before this pass) | After |
+|---|---|---|
+| Reading, core | 5,047 words, 21.9 min | 5,895 words, 25.6 min (header: 26) |
+| Reading, closed details | 2,382 words, 10.4 min | unchanged |
+| Further reading | 485 words, 2.1 min | unchanged |
+| Visuals inline (audit count) | 5 | 7 |
+
+The added words are almost all step lists (23 items, 16 for the three stages, 7 for the injection's main scenario); the injection's and Heavy's captions were drawn by script before, so the audit never counted them. Sentences the lists now carry were cut around them (the Colossus caption and rates sentence, the Heavy card note). Nothing labelled core was cut.
+
+### Knowledge ledger (2026-11-10; problems 0)
+234 units: core 150, depth 41, volatile 14, owned 6, fat 23. Five units added for the stages' computed facts; unit 89 and 228 re-keyed; units 211 to 219 re-keyed so no key contains a reading time.
