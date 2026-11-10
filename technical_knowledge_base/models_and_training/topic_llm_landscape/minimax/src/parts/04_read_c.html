@@ -1,29 +1,39 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ax"></div></div><div class="s3L">
 <section id="s-msa">
 <h2>MSA (MiniMax Sparse Attention, M3): keep exact lookup, read a few blocks</h2>
 <p>M3 takes the third route. <b>Trained sparse attention</b> keeps the softmax and the full KV cache but lets each query attend only to a selected subset of keys; if the right keys are selected the lookup is exact, because nothing was compressed. The difficulty moves into selection (cheap, trainable end to end) and into kernels (a selected set is irregular, and irregular memory access is what GPUs do worst). Sparse attention in general, and DeepSeek's DSA, are taught on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}; MSA is MiniMax's version, from the {{MSA paper, arXiv 2606.13392|@pmsa}} and M3's {{config|@cm3}}:</p>
-<ol class="tight">
-<li><b>Index branch.</b> One small index query head per KV group and one index key head shared by all groups (in M3, 4 index queries and the shared key, all of dimension 128) score every earlier token: <span class="m"><i>S</i><sub><i>i,j</i></sub> = <b>q</b><sup>idx</sup><sub><i>i,r</i></sub> · <b>k</b><sup>idx</sup><sub><i>j</i></sub> / √<i>d</i><sub>idx</sub></span>.</li>
-<li><b>Block scores.</b> Keys are cut into blocks of <span class="m"><i>B<sub>k</sub></i> = 128</span> tokens; a block scores the maximum of its tokens' scores, so one strongly relevant token lifts its whole block.</li>
-<li><b>Selection per GQA group.</b> Each group keeps its own top <span class="m"><i>k</i> = 16</span> blocks (the query's own block always included), ranking raw scores since softmax preserves order ("exp-free" top-k).</li>
-<li><b>Exact attention on the selection.</b> Ordinary softmax runs over the <span class="m"><i>kB<sub>k</sub></i> = 2,048</span> selected keys only, with each group's own KV head.</li>
-<li><b>Training.</b> A KL loss pulls the index scores towards the main branch's attention; its inputs are detached, so it updates only the index projections. Details in a closed block below.</li>
+<p class="try"><b>Predict, then watch:</b> at a 128K context, how many of the cache's 1,024 blocks does one M3 token read in one MSA layer, and how many does M2 read? Fig. 5 plays MSA first; then switch to full GQA and to the lightning hybrid.</p>
+<div class="s3chips" id="axM" role="group" aria-label="Attention route"><button class="on" data-m="msa" aria-pressed="true">MSA (M3)</button><button data-m="full" aria-pressed="false">Full GQA (M2)</button><button data-m="lin" aria-pressed="false">Lightning hybrid (01)</button>
+<label class="small" style="margin-left:6px">Context <select id="axT"><option value="32768">32K</option><option value="131072" selected>128K</option><option value="1048576">1M</option></select></label></div>
+<ol class="sx" id="sx-ax-msa">
+<li><b>A token arrives.</b> At position <span class="ax-n">131,072</span> it enters one of M3's 57 MSA layers and forms 64 query heads of 128 (4 GQA groups of 16), its key and value for each of the 4 KV heads, and for the index branch 4 index queries (one per group) and one shared index key, all of dimension 128. Each grey plate is one KV head's cache over the whole context, in blocks of 128 earlier tokens (to scale: a lit block is one block); the gold plate holds the index keys.</li>
+<li><b>Write to the cache: nothing is dropped.</b> Its keys and values (2 × 4 × 128 × 2 = 2,048 bytes) go to every KV head and its index key (256 bytes, BF16 assumed) to the gold plate. All <span class="ax-nb">1,024</span> blocks stay resident: MSA never shrinks what is stored, it only chooses what to read.</li>
+<li><b>Index branch: score every earlier token.</b> One small index query head per KV group and one index key head shared by all groups score every earlier token, <span class="m"><i>S</i><sub><i>i,j</i></sub> = <b>q</b><sup>idx</sup><sub><i>i,r</i></sub> · <b>k</b><sup>idx</sup><sub><i>j</i></sub> / √<i>d</i><sub>idx</sub></span>: 4 × 128 × <span class="ax-n">131,072</span> multiply-adds, reading all the index keys (<span class="ax-ib">32.0 MiB</span>). The one part of MSA that still grows with the context, which is why it is kept light.</li>
+<li><b>Block scores: max-pool.</b> Keys are cut into blocks of <span class="m"><i>B<sub>k</sub></i> = 128</span> tokens; a block scores the maximum of its tokens' scores, so one strongly relevant token lifts its whole block (the gold shade: group 1's block scores).</li>
+<li><b>Selection per GQA group: 16 blocks each.</b> Each group ranks the blocks by raw score (an "exp-free" top-k, since softmax preserves order) and keeps its own top <span class="m"><i>k</i> = 16</span>, the query's own block always included. The four colours are the four groups: they share the local block and the sink at the start but retrieve different long-range blocks; <span class="ax-of">64 of 1,024</span> blocks are lit.</li>
+<li><b>Exact attention on the selection.</b> Each group's 16 query heads run ordinary softmax over the <span class="m"><i>kB<sub>k</sub></i> = 2,048</span> selected keys of their own KV head, reading 4 × 2,048 × 2 × 128 × 2 bytes = 4 MiB. Nothing was compressed, so if the right blocks were chosen the lookup is exact. This layer read <span class="ax-rm">36.0 MiB</span> for the token, against <span class="ax-r2">512 MiB</span> in one of M2's layers.</li>
 </ol>
-<p class="try"><b>Predict, then play:</b> at a 128K context, how many of the grid's 1,024 blocks does one M3 token read in one MSA layer, and how many does M2 read? Then switch to the lightning hybrid.</p>
-<div class="card" id="ax">
-<p class="ft" style="font-weight:600;margin:0 0 4px">One decoded token through one layer of each generation, to scale</p>
-<div class="mlx-top"><div class="seg" id="axM" role="group" aria-label="Attention route"><button class="on" data-m="msa" aria-pressed="true">MSA (M3)</button><button data-m="full" aria-pressed="false">Full GQA (M2)</button><button data-m="lin" aria-pressed="false">Lightning hybrid (01)</button></div>
-<label class="small">Context <select id="axT"><option value="32768">32K</option><option value="131072" selected>128K</option><option value="1048576">1M</option></select></label></div>
-<div id="axSvg" class="mlx-svg"></div>
-<div class="mlx-ctl"><button id="axBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="axPlay" aria-label="Play" title="Play or pause" class="mlx-play">&#9654; Play</button><button id="axFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="axScrub" min="0" max="700" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="axSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="mlx-cap" aria-live="polite"><div class="t" id="axStep"></div><p id="axCap"></p></div>
-<div class="mlx-cnt" id="axCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Each square is one block of 128 earlier tokens, so the grid is the context to scale; the bars compare bytes per layer to scale. MSA reads 16 squares per group (64 of 1,024 at 128K), M2 reads all of them, the lightning layer one fixed state. Block scores and selections are <span class="ill">illustrative</span> (a fixed seed with a sink block and a few hot regions, the pattern of the MSA paper's Figure 5); every count and byte figure is computed from the configs. One GQA group is 16 query heads in M3 and 6 in M2.</p>
-</div>
+<ol class="sx" id="sx-ax-full" hidden>
+<li><b>A token arrives.</b> At position <span class="ax-n">131,072</span><span class="ax-m2w"></span> it enters one of M2's 62 layers and forms 48 query heads of 128 (8 GQA groups of 6) and its key and value for each of the 8 KV heads, one orange plate each.</li>
+<li><b>Write to the cache.</b> Its keys and values, 2 × 8 × 128 × 2 = 4,096 bytes, are appended to the 8 heads; the cache already holds every earlier token, <span class="ax-nb">1,024</span> blocks of 128.</li>
+<li><b>Every query head scores every key.</b> No selection: each head's query is dotted with all <span class="ax-n">131,072</span> keys of its group's KV head, so the token reads every key (<span class="ax-k2">256 MiB</span>) and does 48 × 128 × <span class="ax-n">131,072</span> multiply-adds for the scores.</li>
+<li><b>Softmax over everything, then the values.</b> The weighted sum reads every value (<span class="ax-k2">256 MiB</span> more, purple), another 48 × 128 × <span class="ax-n">131,072</span> multiply-adds: <span class="ax-r2">512 MiB</span> read in this one layer for one token. Exact, the reference the other two routes are measured against, and its cost grows with every token in every layer: why M2 stopped at a 196,608-token window and M3 needed MSA to reach 1M.</li>
+</ol>
+<ol class="sx" id="sx-ax-lin" hidden>
+<li><b>A token arrives.</b> It enters one of MiniMax-01's 70 lightning layers and forms 64 heads of query, key and value, each of dimension 128.</li>
+<li><b>No cache: update the state.</b> Nothing is appended per token: this layer keeps no cache at all. Each head adds <span class="m"><b>k</b><sup>⊤</sup><b>v</b></span> to its fixed 128 × 128 state (green glass): 64 × 128 × 128 multiply-adds.</li>
+<li><b>Read the state, not the history.</b> The output is <span class="m"><b>q</b></span> times the state: another 64 × 128 × 128 multiply-adds, reading 64 × 128 × 128 × 2 bytes = 2 MiB at any context. The cheapest route by far, and the one that lost exact recall: a fixed state cannot hand back one earlier token verbatim.</li>
+<li><b>The 8th layer is still softmax.</b> One layer in every eight is softmax GQA with 8 KV heads: it caches 4,096 bytes per token and reads all of them, as M2 does (<span class="ax-r2">512 MiB</span> here). That is MiniMax-01's 40 KiB per token: only 10 of its 80 layers grow with context. MiniMax gave this up in M2 for quality on multi-hop reasoning and retrieval, not for speed.</li>
+</ol>
+<p class="small mute">Block scores and selections are <span class="ill">illustrative</span> (a fixed seed with a sink block and a few hot regions, the pattern of the MSA paper's Figure 5); every count and byte figure is computed from the configs. One GQA group is 16 query heads in M3 and 6 in M2. <b>Training</b>: a KL loss pulls the index scores towards the main branch's attention; its inputs are detached, so it updates only the index projections (details in a closed block below).</p>
 <p><b>The cost per query</b> at position <span class="m"><i>n</i></span>, counting multiply-adds for scores and the weighted sum in the main branch and for scores alone in the index branch:</p>
 <div class="fm"><math display="block"><msub><mi>C</mi><mtext>full</mtext></msub><mo>=</mo><mn>2</mn><mi>H</mi><msub><mi>d</mi><mi>h</mi></msub><mi>n</mi><mo>,</mo><mspace width="16px"/><msub><mi>C</mi><mtext>MSA</mtext></msub><mo>=</mo><mn>2</mn><mi>H</mi><msub><mi>d</mi><mi>h</mi></msub><mspace width="2px"/><mi>k</mi><msub><mi>B</mi><mi>k</mi></msub><mo>+</mo><msub><mi>H</mi><mtext>idx</mtext></msub><msub><mi>d</mi><mtext>idx</mtext></msub><mi>n</mi></math>
 <p class="wh">With M3's <span class="m"><i>H</i> = 64</span>, <span class="m"><i>d<sub>h</sub></i> = 128</span>, <span class="m"><i>kB<sub>k</sub></i> = 2,048</span>, <span class="m"><i>H</i><sub>idx</sub> = 4</span>, <span class="m"><i>d</i><sub>idx</sub> = 128</span> at <span class="m"><i>n</i> = 1,048,576</span>: <span class="m"><i>C</i><sub>full</sub> ≈ 1.72 × 10<sup>10</sup></span>, <span class="m"><i>C</i><sub>MSA</sub> = 33,554,432 + 536,870,912 ≈ 5.70 × 10<sup>8</sup></span>, a ratio of about 30. Each query reads 2,048 of 1,048,576 keys, 1 in 512, and the index branch is 94% of what remains, which is why it has to be light.</p></div>
+<p><b>Selection does not shrink storage.</b> Every key must stay resident for the indexer to choose from. M3's main cache is <span class="m">60 × 2 × 4 × 128 × 2</span> bytes = 120 KiB per token, about 120 GiB for one 1M-token sequence, plus one 128-dimension index key per token in each of the 57 MSA layers: 14.25 KiB more per token if stored in BF16 (the precision is not stated; <span class="ill">assumption</span>). The saving over M2 comes from halving the KV heads (8 to 4), not from MSA; the model card's "reduces the attention compute and memory footprint" ({{M3 card|@km3}}) is true of what each query reads, not of what is stored.</p>
+</section>
+</div></div>
+
+<section id="s-msa2">
 <p><b>Headline claims, recomputed.</b></p>
 <div class="tw"><table>
 <tr><th>Claim</th><th>Source</th><th>Recomputed here</th><th>Verdict</th></tr>
@@ -32,9 +42,14 @@
 <tr><td>M3's per-token compute at 1M is 1/20 of the previous generation's; prefill more than 9 times, decoding more than 15 times faster</td><td>{{M3 announcement|@m3b}}, {{model card|@km3}}</td><td class="num" id="rpC"></td><td><b>Does not reproduce</b> under this accounting: with M3's three full-attention layers counted the ratio is about 9.5 (close to the 9 times prefill); only with all 60 layers sparse does it pass 20 (about 23). MiniMax do not state their accounting.</td></tr>
 </table></div>
 <p class="small mute">Recomputed: attention multiply-adds per decoded token summed over all layers, M2 (62 layers, 48 heads) against M3 (3 full layers + 57 MSA layers, 64 heads). The chart in the next section shows every context length.</p>
-<p><b>Selection does not shrink storage.</b> Every key must stay resident for the indexer to choose from. M3's main cache is <span class="m">60 × 2 × 4 × 128 × 2</span> bytes = 120 KiB per token, about 120 GiB for one 1M-token sequence, plus one 128-dimension index key per token in each of the 57 MSA layers: 14.25 KiB more per token if stored in BF16 (the precision is not stated; <span class="ill">assumption</span>). The saving over M2 comes from halving the KV heads (8 to 4), not from MSA; the model card's "reduces the attention compute and memory footprint" ({{M3 card|@km3}}) is true of what each query reads, not of what is stored.</p>
+</section>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-kern">
 <p><b>The kernel: "KV outer, gather Q".</b> A natural sparse kernel loops over queries and fetches the blocks each one selected; every fetched tile then serves only the <span class="m"><i>G</i></span> query heads of one group, about <span class="m"><i>G</i></span> FLOPs per byte (16 in M3: 64 query heads over 4 groups). MSA's kernel inverts the loops: for each KV block it gathers every query that selected it into one 128 × 128 matrix multiply, so the tile is loaded once and reused. The paper puts the intensity at about <span class="m">⅔ <i>B<sub>k</sub></i></span>, roughly 85 for <span class="m"><i>B<sub>k</sub></i> = 128</span>; hot blocks (an early "sink" block nearly every query selects) are split across thread blocks by a scheduler. MiniMax report it as more than 4 times faster than the open-source Flash-Sparse-Attention and flash-moba kernels ({{M3 announcement|@m3b}}, repeated by launch partner {{Fireworks|@fw}}; code on {{GitHub|@msagh}}).</p>
-<div class="card fig" id="ki">
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card fig" id="ki">
 <p class="ft">Same (query, block) pairs, fewer tile loads when the loop runs over blocks</p>
 <div id="kiSvg"></div>
 <p class="cap" id="kiDiag"></p>
@@ -42,15 +57,34 @@
 <div class="ctl"><label>Block size <i>B<sub>k</sub></i>: <b id="kiBv"></b><input type="range" id="kiB" min="0" max="3" step="1" value="2" aria-label="Block size"></label><label>Query heads per KV head <i>G</i>: <b id="kiGv"></b><input type="range" id="kiG" min="0" max="3" step="1" value="2" aria-label="GQA ratio"></label></div>
 <div class="out" id="kiOut"></div>
 <p class="small mute" id="kiCap" style="margin:4px 0 0"></p>
-</div>
+</div></div></div></div>
+
+<section id="s-msa3">
 <p><b>Where MSA sits, and what it scored.</b> Block-level selection with a separate top-k per GQA group keeps reads contiguous while letting groups retrieve different blocks (the paper's attention maps show each group tracing its own long-range stripes beside a shared local diagonal and sink column). In granularity MSA is finer than Kimi's MoBA but <b>coarser than DSA</b>, which selects individual tokens; the M3 announcement's wording that MSA partitions the KV "more precisely" than DSA and MoBA ({{MiniMax|@m3b}}) is about effective coverage, not selection unit. On the paper's 109B test model (41 layers, 6B active, 3T training tokens), MSA converted from a full-attention checkpoint and extended to long context scored 72.12 on RULER at 128K against 72.00 for full attention, and 45.93 on HELMET at 128K against 46.53; trained sparse from scratch, it matched or beat full attention on most of the paper's pretraining suite.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-arc"></div></div><div class="s3L">
 <section id="s-arc">
 <h2>What each route stores, reads and computes</h2>
-<p>The three generations on one set of axes. Compressing history into a fixed state (linear) buys the most and costs recall; selecting which history to read (sparse) buys less and keeps lookups exact, at the price of a trained selector that runs over every token and can miss a block; full attention is the reference both are measured against.</p>
+<p>The three generations on one set of axes. Fig. 6 sets them side by side at 128K and at 1M: one group per quantity, one column per route (green MiniMax-01, orange M2, blue M3), each group on its own scale because the units differ. Compressing history into a fixed state (linear) buys the most and costs recall; selecting which history to read (sparse) buys less and keeps lookups exact, at the price of a trained selector that runs over every token and can miss a block; full attention is the reference both are measured against.</p>
+<ol class="sx" id="sx-arc">
+<li><b>Stored per sequence, at 128K.</b> The left group, glass: M2 keeps 31.0 GiB of keys and values for one 131,072-token sequence, MiniMax-01 5.14 GiB (its 10 softmax layers plus the fixed 140 MiB of lightning state), M3 16.8 GiB, of which 1.78 GiB (gold) are index keys (BF16 assumed). Storage is where MSA saves nothing: M3 sits below M2 only because it has 4 KV heads instead of 8.</li>
+<li><b>Read per decoded token.</b> The middle group, streaming to the token: M2 reads everything it stored, 31.0 GiB; the hybrid reads its 5.14 GiB; M3 reads 2.75 GiB, 11.3 times less than M2, and 65% of that is the index keys (gold): the selector has become the main read. Decode is memory-bound, so this group is the closest of the three to decode speed.</li>
+<li><b>Multiply-adds per decoded token.</b> The right group: M2 9.99 × 10¹⁰, the hybrid 2.16 × 10¹⁰ (its lightning layers cost the same at any context), M3 1.22 × 10¹⁰, 8.2 times less than M2, of which the index branch (gold) is 31%.</li>
+<li><b>At 1M tokens.</b> M2 cannot run here (its window is 196,608 tokens; dashed and cut). M3 stores 134 GiB against the hybrid's 40.1 GiB, but reads 20.5 GiB per token against 40.1 GiB and does 8.41 × 10¹⁰ multiply-adds against 1.72 × 10¹¹: half the hybrid's on both, with every lookup still exact.</li>
+<li><b>The "1/20" accounting.</b> M2's formula at 1M (7.99 × 10¹¹ multiply-adds, had it a window that long) against M3's gives a ratio of 9.5; only with all 60 layers sparse (hypothetical, 3.42 × 10¹⁰; M3 keeps 3 full-attention layers) does it reach 23.3, past MiniMax's 1/20. MiniMax do not state their accounting.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-arc2">
+<h3>Every context length</h3>
 <p class="try"><b>Predict, then switch:</b> in which of the three views does M3 sit on top of the hybrid, and in which far below M2? Tick "all 60 layers sparse" to see which accounting gives MiniMax's "1/20".</p>
-<div class="card fig" id="cc">
+<p>The same three quantities as curves from 4K to 4M tokens, with the hypothetical "01 if all softmax" (what the hybrid avoided) as a fourth line; the table under the chart gives each value against M2 at the slider's context.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card fig" id="cc">
 <p class="ft" id="ccTitle">Storage is where MSA saves nothing; reads and compute are where it saves most</p>
 <div class="seg" id="ccM"><button class="on" data-m="st">Stored per sequence</button><button data-m="rd">Read per decoded token</button><button data-m="cp">Compute per decoded token</button></div>
 <div><label class="chk"><input type="checkbox" id="ccAll"> M3 with all 60 layers sparse (hypothetical)</label><label class="chk"><input type="checkbox" id="ccIdx" checked> count M3's index keys (BF16 assumed)</label></div>
@@ -59,5 +93,5 @@
 <div class="tw"><table id="ccTab"></table></div>
 <p class="small mute" id="ccNote"></p>
 <p class="cap">Computed from the configs: MiniMax-01's 7:1 hybrid (10 softmax layers with 8 KV heads, 70 lightning layers with a 64 × 128 × 128 state each), the same 80 layers if all were softmax GQA (what the hybrid avoided), M2 (62 layers, 8 KV heads), M3 (3 full-attention and 57 MSA layers, 4 KV heads). Each line ends at the model's window; the faded continuation is beyond it. Read: keys and values one new token reads (for MSA, all index keys plus 16 selected blocks per group), BF16, summed over layers; lightning layers read and rewrite their state. Compute: multiply-adds for scores and value sums; lightning layers count one state read and one update per head (2 × 128 × 128). Weights, MLPs and experts excluded. The per-token cache figures above (40 KiB, 248 KiB, 120 KiB) match by construction; whole-model sizing for any model is the {{Long context calculator|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}'s.</p>
-</div>
-</section>
+</div></div></div></div>
+

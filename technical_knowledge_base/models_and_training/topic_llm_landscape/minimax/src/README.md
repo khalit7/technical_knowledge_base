@@ -1,4 +1,4 @@
-# MiniMax, interactive page (v4, rebuilt 2026-10-24 to the teaching contract)
+# MiniMax, interactive page (v4, rebuilt 2026-10-24 to the teaching contract; 2026-11-10 split layout and three 3D stages, the section at the end, which supersedes the build notes where they differ)
 
 Child page of Topic: llm-landscape (storage key `mm-tab`). Rebuilt by editing only: no new runs, no new numbers except derived ones shown with their formula (expert widths per token, kernel tile loads on an illustrative selection).
 
@@ -36,3 +36,26 @@ Why about 22 minutes is right: the page owns three of MiniMax's own designs (lig
 
 ---
 Earlier notes (v3): the page replaced all text of the Notion page; `recompute.py` holds every reproduced default; `inputs/` holds the configs, cards, papers and web pages fetched on 1 October 2026.
+
+## 2026-11-10: split layout, three 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
+- **Templates** copied unchanged: `02_split.html` (after `01_head.html` in `build.sh`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `mm-tab`). `build.sh` keeps its explicit lists (new: `02_split.html`, `25_js_s3.js`, `41_js_sc_lt.js`, `42_js_sc_ax.js`, `43_js_sc_arc.js`; removed: `13_js_anim.js`, deleted) and writes its em-dash test as bytes.
+- **Data**: the stages use the page's own model (`stored`, `readB`, `compB`, `KB`, `KSEL`, `SELT` in `10b_js_model.js`, from the configs; the same numbers as `recompute.out`) and the lightning toy (q, k, v in the text). Each scene exposes what it draws (`window.MM_LT`, `MM_AX`, `MM_ARC`); `check_stages.mjs` checks every number in the step lists against them.
+- **Fig. 3 `stg-lt`** (6 steps, `41_js_sc_lt.js`), lightning on four tokens: k·v bars on plinths; token by token, the running sum handed along a chain (4 dependent steps); the sequence cut into two block trays; block 1's masked product as a flat 2 x 2 glass plate (rows queries, columns keys, upper cell masked) streaming into both outputs at once; the state S1 = 3 as a teal plate carried to block 2; block 2's outputs stacked intra (purple) plus inter (teal) = 5 and 24. Replaces the table stepper (`lt` in `11_js_read.js`, removed); its captions became the step list.
+- **Fig. 5 `stg-ax`** (6, 4 and 4 steps, `42_js_sc_ax.js`), one decoded token through one layer, with the route chooser and the context select (32K, 128K, 1M) in the left column: MSA as 4 grey KV-head plates and the gold index-key plate (append, the index sweep, the 40 highest block scores as bars, each group's 16 blocks lit in its own colour, those blocks streaming to the token); full GQA as 8 orange plates read whole (keys, then values in purple); lightning as 64 green 128 x 128 state plates, then the softmax layer's 8 plates. Replaces the 2D canvas animation and its never-autoplay controller (`13_js_anim.js`); its step captions became three step lists (`sx-ax-msa`, `-full`, `-lin`, one shown per route), with context-dependent numbers in spans the script fills (the 128K values are written statically). The old 5-item MSA mechanism list is now the MSA step list. Block scores and selections stay illustrative (the same seeded generator), said on the page. Its "Compare, to scale" step was dropped: Fig. 6 now carries the comparison.
+- **Fig. 6 `stg-arc`** (5 steps, `43_js_sc_arc.js`): stored (glass), read (solid, streaming to the token) and compute, one group each, one column per route (MiniMax-01 green, M2 orange, M3 blue, M3's index share gold), each group on its own scale; the camera moves to the group a step is about; at 1M M2 is a cut, dashed ghost; the last step shows M3 all-sparse against M3 as built (the "1/20" accounting). The 2D log-scale chart (`cc`) stays beside it in its own split as the any-context explorer.
+- **2D kept, each in a split** (text left, card right): hero layer strips, lineage timeline, SWA ablation bars, kernel tile diagram and intensity widget, store/read/compute curves, MoE widths to scale. They are strips, a timeline, bars on a signed axis, a loop-order diagram with sliders, log curves and exact width proportions, which read best flat. Full width: the generations table, release notes (closed), the 7:1 hybrid (the hero carries its picture), the claims table, "Where MSA sits", CISPO and RL, licences, Models today (volatile, unchanged), Depth and Further reading.
+- **Checks**: `check_stages.mjs` (new; from the repo root, with a shots directory outside the repo): every stage plays when scrolled into view, steps to its end with one list item per step (all three routes and the 1M context of Fig. 5), stops off screen, never moves under reduced motion; splits two columns at 1400 px and one below 1100; step-list numbers against the model. `check_controls.mjs`: 1400 px added; its never-autoplay assertions on the old animation were removed (inverted in `check_stages.mjs`).
+- No real image: still no physical object, and the papers' figures carry only arXiv's non-exclusive licence.
+
+### Length judgement (2026-11-10)
+| | Before this pass | After |
+|---|---|---|
+| Reading, core | 5,000 words, 21.7 min | 6,082 words, 26.4 min |
+| Reading, closed details | 1,113 words, 4.8 min | unchanged |
+| Further reading | 2.4 min | unchanged |
+| Visuals inline in Reading (audit count) | 7 | 9 |
+
+The added words are the step lists (21 items): the old animation's 17 captions were script text the audit could not count (now static, two of the three route lists hidden until chosen), and Fig. 6's list adds the 128K and 1M comparisons with M3's index share that the page did not state before. Nothing was cut; a reader following one route of Fig. 5 reads about 2 minutes less than the measured total.
+
+### Knowledge ledger (2026-11-10; problems 0)
+234 units: core 143, depth 21, volatile 18, owned 2, fat 50 (unchanged counts). Re-keyed to the new wording: 26 ("is all block 1 hands on"), 80 ("2,048 selected keys of their own KV head"), 115 ("in blocks of 128 earlier tokens"). No key contains a reading time.

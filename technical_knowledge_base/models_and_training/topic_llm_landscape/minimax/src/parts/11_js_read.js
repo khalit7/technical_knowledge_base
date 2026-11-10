@@ -1,33 +1,4 @@
-// ---- Reading tab: lightning stepper, SWA ablation chart, recomputed claims ----
-(function(){ // lightning toy: token by token against blocks of B = 2
-  if(!$('lt'))return;
-  const q=[1,2,1,3],k=[1,1,2,1],v=[2,1,1,3],kv=k.map((x,i)=>x*v[i]);
-  const run=[];kv.reduce((s,x,i)=>(run[i]=s+x),0);const o=q.map((x,i)=>x*run[i]);
-  const intra=[2,6,2,15],inter=[0,0,3,9];
-  const CAP={tok:['Token 1: the running sum is k₁v₁ = 2, so o₁ = 1 × 2 = 2.','Token 2 must wait for token 1\'s sum: 2 + 1 = 3, so o₂ = 2 × 3 = 6.','Token 3 waits for token 2: 3 + 2 = 5, so o₃ = 1 × 5 = 5.','Token 4 waits for token 3: 5 + 3 = 8, so o₄ = 3 × 8 = 24. Four dependent steps for four tokens: on a GPU that serial chain is the bottleneck.'],
-    blk:['Block 1 (tokens 1 and 2) computes both outputs at once with the masked product inside the block: o₁ = 1 × 2 = 2, o₂ = 2 × (2 + 1) = 6. There is no earlier state yet.','Only the state crosses the boundary: S₁ = k₁v₁ + k₂v₂ = 3 (green). Nothing else from block 1 is kept.','Block 2 computes both outputs at once: the intra-block part (1 × 2 = 2 and 3 × (2 + 3) = 15) plus the inter-block part q × S₁ (1 × 3 = 3 and 3 × 3 = 9). So o₃ = 5 and o₄ = 24, the same as token by token, in two block steps instead of four token steps.']};
-  const st={m:'tok',s:0};
-  function draw(){const tok=st.m==='tok',n=tok?4:3,s=st.s;
-    const shown=i=>tok?i<=s:(s>=2?true:(i<2));
-    const cell=(val,i,cls)=>'<td class="'+(cls||'')+'">'+val+'</td>';
-    let h='<tr><th></th>'+[1,2,3,4].map(t=>'<th>t = '+t+(tok?'':(t<3?' (block 1)':' (block 2)'))+'</th>').join('')+'</tr>';
-    h+='<tr><th>q</th>'+q.map(x=>cell(x)).join('')+'</tr><tr><th>k</th>'+k.map(x=>cell(x)).join('')+'</tr><tr><th>v</th>'+v.map(x=>cell(x)).join('')+'</tr><tr><th>k·v</th>'+kv.map(x=>cell(x)).join('')+'</tr>';
-    if(tok){h+='<tr><th>running sum</th>'+run.map((x,i)=>cell(i<=s?x:'',i,i===s?'hl':'')).join('')+'</tr>';
-      h+='<tr><th>o</th>'+o.map((x,i)=>cell(i<=s?x:'',i,i===s?'hl':'')).join('')+'</tr>'}
-    else{const cur=i=>(s===0&&i<2)||(s===2&&i>=2);
-      h+='<tr><th>intra-block</th>'+intra.map((x,i)=>cell(shown(i)?x:'',i,cur(i)?'in':'')).join('')+'</tr>';
-      h+='<tr><th>q × state</th>'+inter.map((x,i)=>cell(shown(i)?x:'',i,cur(i)&&i>=2?'st':'')).join('')+'</tr>';
-      h+='<tr><th>state handed on</th>'+[0,1,2,3].map(i=>cell(i===1&&s>=1?'S₁ = 3':(i===3&&s>=2?'S₂ = 8':''),i,(i===1&&s===1)?'st':'')).join('')+'</tr>';
-      h+='<tr><th>o</th>'+o.map((x,i)=>cell(shown(i)?x:'',i,cur(i)?'hl':'')).join('')+'</tr>'}
-    $('ltTab').innerHTML=h;$('ltCap').textContent=CAP[st.m][s];
-    $('ltCnt').textContent='Step '+(s+1)+' of '+n+(tok?' · dependent steps so far: '+(s+1):' · block steps so far: '+(s===0?1:2));
-    $('ltBack').disabled=s===0;$('ltFwd').disabled=s===n-1}
-  segBind('ltM',m=>{st.m=m;st.s=0;draw()});
-  $('ltFwd').addEventListener('click',()=>{st.s=Math.min((st.m==='tok'?4:3)-1,st.s+1);draw()});
-  $('ltBack').addEventListener('click',()=>{st.s=Math.max(0,st.s-1);draw()});
-  draw();
-})();
-
+// ---- Reading tab: SWA ablation chart, recomputed claims (the lightning toy is the 3D stage in 41_js_sc_lt.js) ----
 (function(){ // SWA ablation: hybrid sliding window minus full attention
   if(!$('sw'))return;
   const D={pt:[['HELMET ICL',75.8,72.7],['MMLU',85.5,85.6],['MATH',60.3,60.3],['RULER 128K CWE',90.0,72.0],['RULER 128K MQ',99.0,93.0],['RULER 32K CWE',99.0,99.0],['RULER 32K MQ',99.0,99.0],['MTOB K-e Bleurt',60.0,45.0],['MTOB e-k ChrF',44.8,27.2]],

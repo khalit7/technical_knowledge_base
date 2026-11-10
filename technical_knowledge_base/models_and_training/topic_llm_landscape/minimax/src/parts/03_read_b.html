@@ -1,21 +1,24 @@
+<div class="s3sp"><div class="s3R"><div id="stg-lt"></div></div><div class="s3L">
 <section id="s-light">
 <h2>Lightning attention (MiniMax-01, M1): linear attention computed in blocks</h2>
 <p><b>The bill being attacked.</b> Softmax attention forms an <span class="m"><i>n</i> × <i>n</i></span> score matrix, so prefill costs on the order of <span class="m"><i>n</i><sup>2</sup><i>d</i></span> per head, and every decoded token reads the whole KV cache: <span class="m">2 · <i>H</i><sub>kv</sub> · <i>d</i><sub>h</sub> · <i>b</i></span> bytes per token per layer (key and value, KV heads, head dimension, 2 bytes in BF16; {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} owns the sizing). <b>Linear attention</b> drops the softmax, so <span class="m">(<i>QK</i><sup>⊤</sup>)<i>V</i> = <i>Q</i>(<i>K</i><sup>⊤</sup><i>V</i>)</span>: a fixed <span class="m"><i>d</i> × <i>d</i></span> state <span class="m"><i>S<sub>t</sub></i> = <i>S</i><sub><i>t</i>−1</sub> + <b>k</b><sub><i>t</i></sub><sup>⊤</sup><b>v</b><sub><i>t</i></sub></span> replaces the cache, and <span class="m"><b>o</b><sub><i>t</i></sub> = <b>q</b><sub><i>t</i></sub><i>S<sub>t</sub></i></span> ({{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}} owns the recurrence and its gated successors).</p>
 <p><b>Lightning attention</b> is MiniMax's IO-aware way of computing it: a kernel contribution, not a new mathematical form ({{MiniMax-01 report, arXiv 2501.08313|@p01}}). Computed token by token, causal linear attention is a cumulative sum along the sequence, which serialises the very dimension a GPU wants to parallelise. Lightning cuts the sequence into blocks and splits each block's output in two: inside the block, the ordinary masked quadratic product (the report's "left product", small and parallel); from all earlier blocks, one multiplication by the carried state (the "right product").</p>
-<p class="try"><b>Predict, then step:</b> four tokens with scalar <span class="m"><i>q</i> = (1, 2, 1, 3)</span>, <span class="m"><i>k</i> = (1, 1, 2, 1)</span>, <span class="m"><i>v</i> = (2, 1, 1, 3)</span>. Token by token the running sums are 2, 3, 5, 8, so <span class="m"><i>o</i> = (2, 6, 5, 24)</span>. How many dependent steps does each way take? Step through both.</p>
-<div class="card" id="lt">
-<div class="seg" id="ltM"><button class="on" data-m="tok">Token by token (a running sum)</button><button data-m="blk">Lightning: blocks of B = 2</button></div>
-<div class="tw"><table class="toy" id="ltTab"></table></div>
-<div class="mlx-ctl"><button id="ltBack" aria-label="Previous step">&#9664;</button><button id="ltFwd" aria-label="Next step">&#9654; Next step</button><span class="small mute" id="ltCnt"></span></div>
-<p class="small" id="ltCap" style="min-height:3.2em;margin:4px 0 0"></p>
-<p class="small mute" style="margin:2px 0 0">In blocks: block 1 gives <span class="m"><i>o</i><sub>1</sub> = 2</span>, <span class="m"><i>o</i><sub>2</sub> = 6</span> and hands on only <span class="m"><i>S</i><sub>1</sub> = 3</span>; block 2 gives <span class="m"><i>o</i><sub>4</sub> = 3 × (2 + 3) + 3 × 3 = 24</span> (intra plus inter). Same outputs, two block steps instead of four token steps.</p>
-</div>
+<p class="try"><b>Predict, then watch:</b> four tokens with scalar <span class="m"><i>q</i> = (1, 2, 1, 3)</span>, <span class="m"><i>k</i> = (1, 1, 2, 1)</span>, <span class="m"><i>v</i> = (2, 1, 1, 3)</span>. Token by token the running sums are 2, 3, 5, 8, so <span class="m"><i>o</i> = (2, 6, 5, 24)</span>. How many dependent steps does each way take? Fig. 3 plays both.</p>
+<ol class="sx" id="sx-lt">
+<li><b>Four tokens.</b> Each purple bar is a token's <span class="m"><i>k</i> · <i>v</i></span> = 2, 1, 2, 3: what linear attention adds to its state. The output of token <i>t</i> is <span class="m"><i>q<sub>t</sub></i></span> times the sum of every <span class="m"><i>k</i> · <i>v</i></span> up to <i>t</i>.</li>
+<li><b>Token by token: four dependent steps.</b> The running sum is 2, then 2 + 1 = 3, then 5, then 8 (teal), each waiting for the one before, and <span class="m"><i>o</i> = <i>q</i> × sum</span> = 2, 6, 5, 24 (orange). On a GPU that serial chain along the sequence is the bottleneck.</li>
+<li><b>Cut into blocks of B = 2.</b> Lightning splits the sequence into blocks and each block's output into two parts: one computed inside the block, one from everything before it.</li>
+<li><b>Block 1: the masked product.</b> Inside the block, the ordinary masked quadratic product (the report's "left product", rows queries, columns keys, the upper cell masked) gives both outputs at once: <span class="m"><i>o</i><sub>1</sub> = 1 × 2 = 2</span>, <span class="m"><i>o</i><sub>2</sub> = 2 × (2 + 1) = 6</span>. There is no earlier state yet.</li>
+<li><b>Only the state crosses: S₁ = 3.</b> <span class="m"><i>S</i><sub>1</sub> = <i>k</i><sub>1</sub><i>v</i><sub>1</sub> + <i>k</i><sub>2</sub><i>v</i><sub>2</sub> = 3</span> is all block 1 hands on (in a real model a <i>d</i> × <i>d</i> matrix per head; here <i>d</i> = 1). Nothing else from block 1 is kept.</li>
+<li><b>Block 2: intra-block plus inter-block.</b> The masked product inside block 2 gives 2 and 15 (purple); the carried state, <span class="m"><i>q</i> × <i>S</i><sub>1</sub></span> (the "right product"), gives 3 and 9 (teal). So <span class="m"><i>o</i><sub>3</sub> = 5</span> and <span class="m"><i>o</i><sub>4</sub> = 3 × (2 + 3) + 3 × 3 = 24</span>, the same as token by token, in two block steps instead of four token steps.</li>
+</ol>
 <p>For block <span class="m"><i>i</i></span> of <span class="m"><i>B</i></span> tokens, the same split as a formula:</p>
 <div class="fm"><math display="block"><msub><mi>O</mi><mi>i</mi></msub><mo>=</mo><mrow><mo>[</mo><mrow><mo>(</mo><msub><mi>Q</mi><mi>i</mi></msub><msubsup><mi>K</mi><mi>i</mi><mo>⊤</mo></msubsup><mo>)</mo></mrow><mo>⊙</mo><mi>M</mi><mo>]</mo></mrow><msub><mi>V</mi><mi>i</mi></msub><mo>+</mo><msub><mi>Q</mi><mi>i</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>,</mo><mspace width="16px"/><msub><mi>S</mi><mi>i</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msubsup><mi>K</mi><mi>i</mi><mo>⊤</mo></msubsup><msub><mi>V</mi><mi>i</mi></msub></math>
 <dl><dt>Q<sub>i</sub>, K<sub>i</sub>, V<sub>i</sub></dt><dd>the <i>B</i> × <i>d</i> queries, keys and values of block <i>i</i></dd><dt>M</dt><dd>the <i>B</i> × <i>B</i> causal mask; ⊙ is elementwise, so the first term is the <b>intra-block</b> part</dd><dt>S<sub>i−1</sub></dt><dd>the <i>d</i> × <i>d</i> state summing <b>k</b><sub><i>j</i></sub><sup>⊤</sup><b>v</b><sub><i>j</i></sub> over all earlier blocks: the <b>inter-block</b> part</dd></dl>
 <p class="wh">Cost per head <span class="m"><i>O</i>(<i>nd</i><sup>2</sup> + <i>nBd</i>)</span>: state updates and reads, plus the intra-block products; linear in <i>n</i> for a fixed block size.</p></div>
 <p><b>At real scale.</b> MiniMax uses blocks of 256 tokens, keeps each block's working set in on-chip SRAM in the spirit of {{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}}, and reports a constant training speed as sequence length grows, the only linear model in its comparison to beat FlashAttention-2 ({{report|@p01}}, section 2.2 and appendix). One head with <span class="m"><i>d</i> = 128</span>, <span class="m"><i>B</i> = 256</span>, <span class="m"><i>n</i> = 1,048,576</span>: softmax's <span class="m"><i>n</i><sup>2</sup><i>d</i> ≈ 1.41 × 10<sup>14</sup></span> against lightning's <span class="m"><i>nd</i>(<i>d</i> + <i>B</i>) ≈ 5.15 × 10<sup>10</sup></span> multiply-adds, a ratio of <span class="m"><i>n</i> / (<i>d</i> + <i>B</i>) ≈ 2,731</span> (constant factors ignored); and 4,096 dependent block steps instead of 1,048,576 token steps.</p>
 </section>
+</div></div>
 
 <section id="s-hyb">
 <h2>The 7:1 hybrid, and what the state costs</h2>
@@ -28,6 +31,7 @@
 <p>At 456B total and 45.9B active parameters, MiniMax describe Text-01 as the first successful large-scale implementation of linear attention. It was trained on contexts up to 1M tokens and extrapolated to 4M at inference, which is where the 4M-token claim comes from ({{Text-01 model card|@k01}}).</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-m2">
 <h2>M2's reversal: back to full attention</h2>
 <p>M2 (27 October 2025) dropped lightning attention and returned to softmax GQA in every layer: 62 layers, 48 query heads and 8 KV heads of dimension 128 ({{config|@cm2}}), trained to a 192K-token native context ({{M2 series report, arXiv 2605.26494|@pm2}}). That is <span class="m">62 × 2 × 8 × 128 × 2</span> bytes = 248 KiB per token, about 46.5 GiB for one full 196,608-token sequence: 6.2 times the hybrid's per-token cache, paid deliberately.</p>
@@ -42,11 +46,12 @@
 <li><b>Sliding windows failed the same way.</b> In ablations continued for hundreds of billions to trillions of tokens, hybrid sliding-window attention (SWA) degraded retrieval, multi-hop reasoning and in-context learning. The chart has every row of the two tables: the gap opens past 32K tokens and is mixed below it.</li>
 <li><b>The infrastructure was not there.</b> Linear attention is far more sensitive to numerical precision, many linear designs are memory-bound even in training, and it did not yet work cleanly with prefix caching and speculative decoding. In theory its compute crossover with full attention lies at "a few thousand tokens"; reaching it in production needs those three problems solved.</li>
 </ul>
-<div class="card fig" id="sw">
+<p>The workloads that had become the product, long reasoning chains that refer back to their own steps and agent loops full of tool outputs to be quoted exactly, are exact-recall workloads, where a compressed state is weakest; paying the quadratic cost was the cheaper trade. MiniMax framed the reversal as conditional: "as GPU compute growth slows while data length keeps increasing, the benefits of linear and sparse attention will gradually emerge."</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card fig" id="sw">
 <p class="ft">The hybrid loses most where context is long and recall is exact</p>
 <div class="seg" id="swM"><button class="on" data-m="pt">Pretraining (Table 2)</button><button data-m="sft">After fine-tuning (Table 3)</button></div>
 <div id="swSvg"></div>
 <p class="cap">Sliding-window hybrid's score minus full attention's, on MiniMax's ablation models at the M2 architecture scale, not the released M2. Source: {{M2 series report|@pm2}}, Tables 2 and 3 (columns "Baseline" = full attention and "w/ SWA"). Orange: the hybrid loses; green: it wins.</p>
-</div>
-<p>The workloads that had become the product, long reasoning chains that refer back to their own steps and agent loops full of tool outputs to be quoted exactly, are exact-recall workloads, where a compressed state is weakest; paying the quadratic cost was the cheaper trade. MiniMax framed the reversal as conditional: "as GPU compute growth slows while data length keeps increasing, the benefits of linear and sparse attention will gradually emerge."</p>
-</section>
+</div></div></div></div>
