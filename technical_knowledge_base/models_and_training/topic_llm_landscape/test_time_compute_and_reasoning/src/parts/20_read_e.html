@@ -1,16 +1,11 @@
+<div class="s3sp"><div class="s3L">
 <section id="tc-s8">
 <h2>8. How a model learns to spend it, and what that training produces</h2>
 <p>How a model learns to use a scratchpad well has two answers, and current practice uses both. The algorithms (PPO, GRPO and its fixes) are on {{RL for LLMs: RLHF, GRPO, RLVR|n:3c65c17b0d0d818c9bcff7177325fe56}}; this section is about what each recipe produces.</p>
 <p><b>Supervised fine-tuning on reasoning traces.</b> Collect problems, generate or obtain long chains of thought, keep the ones whose final answers are correct (rejection sampling, the STaR idea), and train on them as ordinary next-token prediction. Cheap, stable, no rollout infrastructure, and how a small model inherits a large one's reasoning style: DeepSeek's distilled R1 variants from 1.5B to 70B were produced exactly this way, from 800,000 R1-curated samples, "only SFT" and no RL stage (<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener noreferrer">DeepSeek-R1</a>; {{the R1 paper page|n:3c65c17b0d0d813faca4f7a51eaa0c65}}). Small curated sets go further than expected: s1 fine-tuned Qwen2.5-32B-Instruct on s1K, "1,000 questions paired with reasoning traces" (<a href="https://arxiv.org/abs/2501.19393" target="_blank" rel="noopener noreferrer">Muennighoff et al., 2025</a>). Its limits are structural. The student is bounded by the teacher. It imitates the surface form of deliberation, including steps it could not have derived itself, so it learns what reasoning looks like rather than a policy it can execute reliably. And because the training set is filtered for success, it contains almost no genuine errors and so teaches almost nothing about recovering from one.</p>
 <p><b>RL with verifiable rewards (RLVR).</b> Let the model generate its own trajectories and score the final answer with a program: string or numeric match against a reference for mathematics, a test suite for code, a checker for formal proofs. Two properties follow. First, the reward is not a learned model, so the usual reward-hacking channel (exploiting a reward model's misgeneralisation) is closed; what remains is gaming the checker itself, for example code that special-cases the visible tests. Second, and more important, the trajectories are the model's own, so credit assignment is on-policy: what gets reinforced is behaviour this model can actually produce. That is why long traces, self-checking and backtracking <i>emerge</i> under RLVR rather than having to be demonstrated.</p>
 <p>R1-Zero was the clean demonstration: pure RL on a strong base model (DeepSeek-V3-Base), no supervised reasoning data at all, produced spontaneous re-derivation and reflection, and its responses grew over training "from hundreds to thousands" of reasoning tokens purely because longer thinking earned more reward, while AIME 2024 pass@1 rose from 15.6% to 77.9% (86.7% with self-consistency) in the expanded version (<a href="https://www.nature.com/articles/s41586-025-09422-z" target="_blank" rel="noopener noreferrer">Nature, 2025</a>; the January 2025 <a href="https://arxiv.org/abs/2501.12948v1" target="_blank" rel="noopener noreferrer">arXiv v1</a> reported 71.0%, and 86.7% with majority voting over 64 samples). The model learned to spend test-time compute because spending it was rewarded. The production recipe combines the two in a specific order, and R1's is the openly documented version:</p>
-<div class="fig"><h4>R1's four stages: format first, then capability, then distil, then polish</h4>
-<div class="tl">
-<div><b class="d">1. Cold start</b> a small SFT set of curated long chains of thought fixes format and readability (R1-Zero's traces were correct but mixed languages and were painful to read).</div>
-<div><b class="d">2. Reasoning RL</b> large-scale RLVR for capability.</div>
-<div><b class="d">3. Rejection sampling</b> the RL model's own best trajectories become a new SFT set, used both to re-tune the flagship and to distil smaller models.</div>
-<div><b class="d">4. Second RL</b> a final RL stage over all scenarios.</div>
-</div></div>
+
 <p>RLVR's binding constraint is that it needs a verifier, so it covers mathematics, code and formal domains cleanly and writing, analysis and judgement poorly. Extending it means reintroducing a learned reward model or model-graded rubrics, which reopens exactly the reward-hacking channel that made RLVR attractive; length penalties and process reward models (section 4) only partially fix the verbosity and hacking that follow. The optimiser behind most reasoning RL is GRPO (Group Relative Policy Optimization, from {{DeepSeekMath|n:3c65c17b0d0d817f9fc5cb9a9fbcbee5}}): per prompt it samples a group of G completions, scores each with the verifier, and gives every token of a completion the same advantage, its reward minus the group mean over the group standard deviation, with no critic network. For test-time compute this means an RL run's bottleneck becomes generation throughput, since every prompt needs G long rollouts, which is why RL stacks run vLLM or SGLang inside the training loop and treat rollout and training weight synchronisation as a first-order engineering concern.</p>
 <details class="dp"><summary>GRPO's zero-signal groups: why easy and impossible prompts waste the batch</summary><div>
 <p>A group where all G completions are correct, or all wrong, has every advantage zero and contributes nothing but its sampling cost; a prompt the model solves with probability p gives such a group with probability p<sup>G</sup> + (1 − p)<sup>G</sup>, so on easy or impossible problems that is most of the batch. Every token of a failed trajectory is penalised equally, including correct early steps, because no critic remains to tell them apart. The worked example (rewards 1, 0, 0, 0 give +1.732 and −0.577), the PPO comparison, the KL term and the fixes most 2026 recipes use in place of textbook GRPO (Dr. GRPO, DAPO's higher upper clip, dynamic sampling of degenerate groups) are on RL for LLMs.</p>
@@ -23,13 +18,26 @@
 </div>
 </div></details>
 
+</section>
+</div><div class="s3R"><div class="s3side"><div class="fig"><h4>R1's four stages: format first, then capability, then distil, then polish</h4>
+<div class="tl">
+<div><b class="d">1. Cold start</b> a small SFT set of curated long chains of thought fixes format and readability (R1-Zero's traces were correct but mixed languages and were painful to read).</div>
+<div><b class="d">2. Reasoning RL</b> large-scale RLVR for capability.</div>
+<div><b class="d">3. Rejection sampling</b> the RL model's own best trajectories become a new SFT set, used both to re-tune the flagship and to distil smaller models.</div>
+<div><b class="d">4. Second RL</b> a final RL stage over all scenarios.</div>
+</div></div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="tc-s8b">
 <h3>RLVR sharpens; it does not extend</h3>
 <p>RLVR-trained models beat their base models at small k such as pass@1, but the base models reach a higher pass@k when k is large: the RL model concentrates probability on solutions the base model could already sample rather than acquiring new ones. In pass@k terms, RL raises p on problems where it was already above zero and can drive it to zero where it was small, and 1 − (1 − p)<sup>k</sup> rewards breadth at large k. Pretraining quality still bounds the ceiling, which is the most important thing to hold before assuming an RL stage will fix a capability gap.</p>
-<div class="fig" id="ttcYu"><h4>Over 450 GRPO steps, pass@1 climbs and pass@256 does not</h4>
+
+</section>
+</div><div class="s3R"><div class="s3side"><div class="fig" id="ttcYu"><h4>Over 450 GRPO steps, pass@1 climbs and pass@256 does not</h4>
 <div class="seg" id="ttcYuM"><button class="on" data-m="0">Omni-MATH-Train</button><button data-m="1">Omni-MATH-Test</button><button data-m="2">MATH500</button></div>
 <div id="ttcYuSvg" class="chart"></div>
 <p class="repro" id="ttcYuNote"></p>
-<p class="cap"><a href="https://arxiv.org/abs/2504.13837" target="_blank" rel="noopener noreferrer">Yue et al. (2025)</a> trained Qwen2.5-7B with GRPO and measured both ends of the pass@k curve at each checkpoint (their Tables 3 and 4), plotted as published. On Omni-MATH-Train pass@1 rises from 9.9% to 42.5% while pass@256 falls from the base model's 67.2% to 64.3%. <span class="vend">published</span> Whether newer, longer RL runs escape the pattern is debated on RL for LLMs, and agentic post-training shows the same trade on {{Sharpening Tax in Post-Training|n:3fe5c17b0d0d81efa2a9f532c14c87a3}}.</p></div>
+<p class="cap"><a href="https://arxiv.org/abs/2504.13837" target="_blank" rel="noopener noreferrer">Yue et al. (2025)</a> trained Qwen2.5-7B with GRPO and measured both ends of the pass@k curve at each checkpoint (their Tables 3 and 4), plotted as published. On Omni-MATH-Train pass@1 rises from 9.9% to 42.5% while pass@256 falls from the base model's 67.2% to 64.3%. <span class="vend">published</span> Whether newer, longer RL runs escape the pattern is debated on RL for LLMs, and agentic post-training shows the same trade on {{Sharpening Tax in Post-Training|n:3fe5c17b0d0d81efa2a9f532c14c87a3}}.</p></div></div></div></div>
+<section id="tc-s8c">
 <details class="dp"><summary>The mechanism on ten illustrative problems: sharpening alone costs no coverage, dropping problems does</summary><div>
 <div class="card" id="ttcSh">
 <div class="ctl"><label>sharpening: RL turns s samples' worth of chances into one <span class="ill">illustrative</span> <b id="ttcShSv"></b><input type="range" id="ttcShS" min="1" max="16" step="1" value="6"></label>
@@ -42,6 +50,7 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-lp"></div></div><div class="s3L">
 <section id="tc-s9">
 <h2>9. Recurrent depth: spending the budget inside the network</h2>
 <p>The latent way spends the budget in activations rather than in tokens. A <b>looped transformer</b> reuses the same layers several times per token, so serial depth grows without adding parameters and without writing anything down. The idea goes back to the <a href="https://arxiv.org/abs/1807.03819" target="_blank" rel="noopener noreferrer">Universal Transformer (Dehghani et al., 2018)</a>, which applied one block repeatedly with a learned halting rule. The clearest modern form is Huginn (<a href="https://arxiv.org/abs/2502.05171" target="_blank" rel="noopener noreferrer">Geiping et al., 2025</a>): a prelude that embeds the token, a recurrent core iterated r times with the input re-injected each time, and a coda that decodes. Its 3.5-billion-parameter proof of concept, trained on 800 billion tokens with layers (2, 4, 2) and a mean of 32 iterations, improved on reasoning benchmarks "up to a computation load equivalent to 50 billion parameters".</p>
@@ -49,18 +58,33 @@
 <math display="block"><msub><mi>D</mi><mtext>token</mtext></msub><mo>=</mo><msub><mi>L</mi><mtext>prelude</mtext></msub><mo>+</mo><msub><mi>L</mi><mtext>core</mtext></msub><mo>×</mo><mi>r</mi><mo>+</mo><msub><mi>L</mi><mtext>coda</mtext></msub></math>
 <dl><dt>D<sub>token</sub></dt><dd>serial layer applications spent on one token</dd><dt>L<sub>prelude</sub>, L<sub>core</sub>, L<sub>coda</sub></dt><dd>layers in each part (2, 4 and 2 in Huginn)</dd><dt>r</dt><dd>how many times the core runs, chosen at inference</dd></dl>
 </div>
-<p>Huginn at its training mean: 2 + 4 × 32 + 2 = 132 layer applications per token from 8 distinct layers. The animation runs the same 8 layers of weights three ways, to scale: an ordinary model buying 32 layers of depth by writing four tokens, Huginn's shape buying the same 32 in one token by looping its core, and RLT carrying a state from token to token.</p>
-<div class="card" id="ttcLp">
-<h4 style="margin:0 0 4px;font-size:14.5px">The same 32 layers of depth, bought by writing, by looping, or by carrying state</h4>
-<div class="an-top"><div class="seg" id="ttcLpM" role="group" aria-label="How depth is spent"><button class="on" data-m="ord" aria-pressed="true">Ordinary: depth by writing</button><button data-m="loop" aria-pressed="false">Looped core</button><button data-m="rlt" aria-pressed="false">State carried across tokens (RLT)</button></div></div>
-<div id="ttcLpSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="ttcLpBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="ttcLpPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="ttcLpFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="ttcLpScrub" min="0" max="500" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="ttcLpSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="ttcLpStep"></div><p id="ttcLpCap"></p></div>
-<div class="an-cnt" id="ttcLpCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Shapes are scaled down so they fit: 8 layers instead of a frontier model's dozens, 7 loops instead of Huginn's 32 (2 + 4 × 7 + 2 = 32), RLT's 4+4 split from its experiments rather than the report's 48+48 illustration. Layer counts, loop structure and the carried state follow <a href="https://arxiv.org/abs/2502.05171" target="_blank" rel="noopener noreferrer">Geiping et al.</a> and the <a href="https://yifanzhang-pro.github.io/recurrent-looped-tranformer/" target="_blank" rel="noopener noreferrer">RLT project page</a>; the tokens are placeholders.</p>
-</div>
+<p>Huginn at its training mean: 2 + 4 × 32 + 2 = 132 layer applications per token from 8 distinct layers. The stage runs the same 8 layers of weights three ways, to scale: an ordinary model buying 32 layers of depth by writing four tokens, Huginn's shape buying the same 32 in one token by looping its core, and RLT carrying a state from token to token.</p>
+<div class="s3chips" id="lpM" role="group" aria-label="How depth is spent"><button class="on" data-m="ord" aria-pressed="true">Ordinary: depth by writing</button><button data-m="loop" aria-pressed="false">Looped core</button><button data-m="rlt" aria-pressed="false">State carried across tokens (RLT)</button></div>
+<ol class="sx" id="sx-lp-ord">
+<li><b>A token arrives.</b> An ordinary transformer with 8 distinct layers, drawn as a stack of plates. One forward pass is 8 layer applications in a row, and that is all the serial computation one token can get.</li>
+<li><b>Token 1.</b> The activations climb the 8 layers once and the model emits a token. The only way to compute more is to write something down and start again from it.</li>
+<li><b>Token 2.</b> The next forward pass reads token 1 back in. Depth now accumulates across tokens, but only through the text: the top-layer state of token 1 is discarded, and what crosses to token 2 is the sampled token.</li>
+<li><b>Token 3.</b> 8 more applications, one more token of chain of thought.</li>
+<li><b>Token 4: depth by writing.</b> 32 layer applications of serial depth (D = L × T = 8 × 4), bought with 4 tokens a monitor can read, a 4-step wait, and 4 tokens of KV cache in every layer. This is chain-of-thought reasoning.</li>
+</ol>
+<ol class="sx" id="sx-lp-loop" hidden>
+<li><b>A token arrives.</b> The same 8 distinct layers, arranged as in Huginn (Geiping et al., 2025): a 2-layer prelude, a 4-layer recurrent core and a 2-layer coda. The core's output is fed back into its own input, with the token's embedding re-injected each time.</li>
+<li><b>Prelude.</b> The prelude embeds the token into the latent space the core works in: 2 layer applications.</li>
+<li><b>Core, loop 1.</b> The 4 core layers run once. Instead of passing on to the coda, the result loops back to the core's first layer.</li>
+<li><b>Loops 2 to 7.</b> The same 4 layers, the same weights, six more times. Serial depth climbs with no token emitted and nothing written: the deliberation lives in activations.</li>
+<li><b>Coda: one token.</b> After r = 7 loops the coda decodes one token. Depth 2 + 4 × 7 + 2 = 32, the same as four tokens of chain of thought, from the same 8 layers of weights, and nothing a monitor can read. Huginn trained with a mean of 32 loops, 2 + 4 × 32 + 2 = 132 layers of depth from 8 real ones.</li>
+</ol>
+<ol class="sx" id="sx-lp-rlt" hidden>
+<li><b>A token arrives.</b> RLT (Zhang, Feng and Qin, 2026) in its 4+4 split: 4 causal encoder blocks supply token representations and a global key-value memory, and 4 decoder blocks do the stepping. Every token still evaluates all 8 blocks.</li>
+<li><b>Token 1.</b> The encoder and then the decoder run once, and the model emits a token, as an ordinary model would.</li>
+<li><b>Token 2: the state crosses.</b> The previous token's final decoder state is fed into this token's decoder input through a gated merge. In an ordinary decoder nothing computed at the last layer of token 1 reaches the first layer of token 2; here it does, continuously, without passing through the text.</li>
+<li><b>Token 3.</b> The carried state has now passed through 12 decoder blocks: the path grows by 4 every token, at fixed per-token compute.</li>
+<li><b>Token 4: unbounded temporal depth.</b> After t tokens the state path has traversed 4t decoder blocks (48t in the report's tied 48+48 illustration). The tokens are still written, but part of what links them is an activation no transcript shows.</li>
+</ol>
+<p class="stnote">Shapes are scaled down so they fit: 8 layers instead of a frontier model's dozens, 7 loops instead of Huginn's 32 (2 + 4 × 7 + 2 = 32), RLT's 4+4 split from its experiments rather than the report's 48+48 illustration. Layer counts, loop structure and the carried state follow <a href="https://arxiv.org/abs/2502.05171" target="_blank" rel="noopener noreferrer">Geiping et al.</a> and the <a href="https://yifanzhang-pro.github.io/recurrent-looped-tranformer/" target="_blank" rel="noopener noreferrer">RLT project page</a>; the tokens are placeholders.</p>
+</section>
+</div></div>
+<section id="tc-s9b">
 <div class="ttc3">
 <div><div class="k">What it buys</div><p>Compute without the token bill and without the latency of emitting the reasoning; serial depth without parameters.</p></div>
 <div><div class="k">What it costs</div><p>Everything downstream of the transcript: a monitor cannot read deliberation that was never written, an evaluation harness cannot reconstruct the working state, and a serving stack has to persist the recurrent state between requests or recompute it.</p></div>

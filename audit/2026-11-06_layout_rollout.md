@@ -165,8 +165,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_landscape/mistral_ai` Mistral AI
 - [x] `models_and_training/topic_llm_landscape/moonshot_ai_kimi` Moonshot AI: Kimi
 - [x] `models_and_training/topic_llm_landscape/openai_gpt_family` OpenAI: GPT family
-- [ ] `models_and_training/topic_llm_landscape/other_notable_providers` Other notable providers
-- [ ] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
+- [x] `models_and_training/topic_llm_landscape/other_notable_providers` Other notable providers
+- [x] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
 - [ ] `models_and_training/topic_llm_landscape/xai_spacexai_grok` xAI / SpaceXAI: Grok
 - [ ] `models_and_training/topic_llm_landscape/zhipu_glm` Zhipu: GLM
 - [ ] `models_and_training/topic_llm_landscape` Topic: llm-landscape
@@ -458,6 +458,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_landscape/mistral_ai`: Fig. 2 step 3 busy (eight expert copies per layer, the router's chosen experts hard to see); the cache animation's two hidden mode lists repeat a lot (could become short paragraphs); Large 4 absent from Fig. 3 (no widths in its card); the Table 5 routing chart moved to the Mixtral paper page's ownership; verify_layout flags the Weights tab (accepted: tool).
 - `models_and_training/topic_llm_landscape/moonshot_ai_kimi`: QK-Clip close-up is a crop, faded neighbour columns sit at the card edge; KDA state field busy; MoE expert slabs small (legible at 1400 only); fixed a .gl b{display:block} rule that broke inline maths.
 - `models_and_training/topic_llm_landscape/openai_gpt_family`: timeline's 2026 cluster labels crowd at about 690 px column width; Astra section full width with no visual (published findings are a list, not a structure); router scores in Fig. 6 seeded and illustrative (labelled); verify_layout flags the gpt-oss on one GPU tab (accepted: tool).
+- `models_and_training/topic_llm_landscape/other_notable_providers`: core 36 to 42 min plus 15 closed; empty space at the card top in the OLMo and Bonsai full views; the Bonsai close-up's ternary values and group size are illustrative (Prism states no group size); stages carry plain titles, not figure numbers; two derived statements added (decoding reads every weight once per token at batch 1; log2 3 = 1.58 bits is the floor).
+- `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning`: Fig. 4 last step dense near the answer stacks; Fig. 3 bar-field step leaves space above; Fig. 2 blocks thin at full view; Fig. 3's fifteen-sample draw sits at the expected counts (labelled illustrative); verify_layout flags the lab tab (accepted: tool).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)

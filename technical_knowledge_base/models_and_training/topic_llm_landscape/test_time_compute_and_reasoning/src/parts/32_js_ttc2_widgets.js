@@ -1,7 +1,7 @@
 // ---- Test-time compute and reasoning. Widgets in Reading sections 1, 3 and 8 ----
 (function(){
 const T=window.TTC;if(!T)return;
-const {$,fmt,fmtBytes,mulberry32,segBind,svgEl,stat,sci,A,logFrame,lineChart,legend,n3,pc1,TM,makeAnim,onTab}=T;
+const {$,fmt,fmtBytes,mulberry32,segBind,svgEl,stat,sci,A,logFrame,lineChart,legend,n3,pc1,TM,onTab}=T;
 // ---- Section 1: one slider, T (tokens written before the answer), on the illustrative 60-layer model ----
 (function(){
   if(!$('ttcKvT'))return;

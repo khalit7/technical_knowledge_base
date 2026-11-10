@@ -1,4 +1,4 @@
-// ---- Test-time compute and reasoning: shared helpers, sampling maths and the step-animation engine, namespaced under window.TTC ----
+// ---- Test-time compute and reasoning: shared helpers and sampling maths, namespaced under window.TTC (the 2D step engine was retired 2026-11-10: the page's animations are 3D stages, 4x_js_sc_*.js) ----
 // Moved from the landscape root's old "Deeper: test-time compute" tab on 2026-10-24. Charts register per tab (Reading t-read, Benchmark lab t-lab).
 (function(){
 window.TAB_RENDER=window.TAB_RENDER||{};
@@ -74,42 +74,9 @@ function lineChart(o){const W=o.W||640,H=o.H||260,pl=o.pl||44,pr=o.pr||12,pt=o.p
 const legend=ser=>'<div class="leg">'+ser.map(s=>'<span><i style="background:'+s.c+(s.dash?';background:repeating-linear-gradient(90deg,'+s.c+' 0 5px,transparent 5px 8px)':'')+'"></i>'+s.name+'</span>').join('')+'</div>';
 const n3=(v,d)=>(+v).toFixed(d==null?3:d);
 const pc1=v=>(100*v).toFixed(1)+'%';
-// ---- Shared step-animation engine: play, pause, step, scrub, speed; animates only on screen and in the visible tab ----
-// cfg: {card, pre (id prefix), n(mode) -> number of steps, draw(mode,k,e) where e in [0,1] is progress through step k, dur(mode,k) -> ms at 1x}
-function makeAnim(cfg){
-  const card=$(cfg.card);if(!card)return null;
-  const P=cfg.pre,RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const st={m:cfg.mode,k:0,t:RM?1:0,play:false,spd:1,vis:false,raf:0,last:0}; // never autoplays: waits on step 1 until the reader presses play or steps
-  const cl=v=>v<0?0:v>1?1:v;
-  const N=()=>cfg.n(st.m);
-  function draw(){const e=RM?1:cl(st.t);cfg.draw(st.m,st.k,e);
-    const sc=$(P+'Scrub');sc.max=N()*100;sc.value=Math.round((st.k+cl(st.t))*100);
-    const pb=$(P+'Play'),end=st.k===N()-1&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play')}
-  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/cfg.dur(st.m,st.k);if(st.t>=1){if(st.k<N()-1){st.k++;st.t=0}else{st.t=1;st.play=false}}
-    card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
-  function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $(P+'Play').addEventListener('click',()=>{if(st.play){pause()}else{if(st.k===N()-1&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<N()-1){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $(P+'Fwd').addEventListener('click',()=>{pause();if(st.t<1)st.t=1;else st.k=Math.min(N()-1,st.k+1),st.t=1;draw()});
-  $(P+'Back').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $(P+'Scrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(N()-1,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=N()*100)st.t=1;draw()});
-  $(P+'Spd').addEventListener('change',e=>{st.spd=+e.target.value});
-  const seg=$(P+'M');if(seg)seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    pause();st.m=b.dataset.m;st.k=0;st.t=RM?1:0;draw()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
-  let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
-  onTab(()=>{draw();kick()},cfg.tab);
-  draw();
-  return {st,draw,narrow:()=>card.clientWidth<560};
-}
-
-
 // redraw width-sensitive charts when a visible tab crosses the 560 px breakpoint
 let bucket=null;addEventListener('resize',()=>{const b=document.documentElement.clientWidth<600;if(b===bucket)return;bucket=b;DRAWS.forEach(([tab,f])=>{const t=document.getElementById(tab);if(!t||t.hidden)return;try{f()}catch(e){}})});
 // charts inside a closed <details> measure their width when it opens
 document.addEventListener('toggle',e=>{const d=e.target;if(!d.open||!d.closest||!d.closest('#t-read'))return;DRAWS.forEach(([tab,f])=>{if(tab==='t-read')try{f()}catch(x){}})},true);
-window.TTC={$,fmt,fmtBytes,mulberry32,segBind,svgEl,stat,sci,A,logFrame,lineChart,legend,n3,pc1,TM,makeAnim,onTab};
+window.TTC={$,fmt,fmtBytes,mulberry32,segBind,svgEl,stat,sci,A,logFrame,lineChart,legend,n3,pc1,TM,onTab};
 })();

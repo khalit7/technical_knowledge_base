@@ -1,7 +1,7 @@
 // node <page>/src/check_controls.mjs <index.html>   (run from the repo root)
 // Clicks every button, moves every range to min, mid and max, opens every <details>, in 390 px dark and 920 px light;
 // fails on page or console errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity in a tab's text.
-// Also checks, under reduced motion and normal motion, that no animation advances before the reader acts.
+// Also checks (2026-11-10, the autoplay rule) that every 3D stage plays by itself once scrolled into view under normal motion and never moves under reduced motion.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
@@ -13,11 +13,14 @@ try {
     await p.setViewport({ width, height: 900 });
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: motion }]);
     await p.goto('file://' + path.resolve(process.argv[2]));
-    await p.evaluate(() => { for (const id of ['ttcSp', 'ttcLp']) document.getElementById(id).scrollIntoView(); });
-    const read = () => p.evaluate(() => ['ttcSpScrub', 'ttcLpScrub', 'ttcPrmCtl-s'].map(i => +document.getElementById(i).value));
-    const s0 = await read(); await new Promise(r => setTimeout(r, 2500)); const s1 = await read();
-    // first step only: 0, or its end state (100) under reduced motion, which draws without tweening
-    if (s0.join() !== s1.join() || s1.some(v => v > 100)) errs.push('animation moved before the reader acted: ' + s0 + ' then ' + s1);
+    // a pass before this one saved its last tab; start every pass on the Reading tab
+    await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + path.resolve(process.argv[2]));
+    for (const id of ['stg-sp', 'stg-sel', 'stg-prm', 'stg-lp']) {
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 2200));
+      const f = await p.$eval('#' + id, e => +e.dataset.frames || 0);
+      if (motion === 'reduce' && f > 0) errs.push(id + ' moved by itself under reduced motion');
+      if (motion !== 'reduce' && !(f > 0)) errs.push(id + ' did not play when scrolled into view');
+    }
     for (const t of await p.$$eval('button[data-t]', bs => bs.map(b => b.dataset.t))) {
       await p.click(`button[data-t=${t}]`); await new Promise(r => setTimeout(r, 200));
       await p.evaluate(t => {

@@ -1,6 +1,6 @@
 (function(){
 const T=window.TTC;if(!T)return;
-const {$,fmt,fmtBytes,mulberry32,segBind,svgEl,stat,sci,A,logFrame,lineChart,legend,n3,pc1,TM,makeAnim,onTab}=T;
+const {$,fmt,fmtBytes,mulberry32,segBind,svgEl,stat,sci,A,logFrame,lineChart,legend,n3,pc1,TM,onTab}=T;
 // ---- Test-time compute and reasoning. Published curves, recomputed: Brown et al. coverage fits (Benchmark lab tab), what the selector keeps (Reading 3), Yue et al. (Reading 8) ----
 (function(){
   if(!$('ttcSlBars'))return;

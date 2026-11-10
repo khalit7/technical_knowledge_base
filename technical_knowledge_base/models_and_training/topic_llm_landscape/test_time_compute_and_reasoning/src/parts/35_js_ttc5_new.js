@@ -1,4 +1,4 @@
-// ---- Test-time compute and reasoning. Built for this page on 2026-10-24: the hero, the PRM beam-search stepper (section 4) and the cost slider (section 7) ----
+// ---- Test-time compute and reasoning. Built for this page on 2026-10-24: the hero and the cost slider (section 7); the PRM beam-search stepper became the 3D stage 42_js_sc_prm.js on 2026-11-10 ----
 (function(){
 const T=window.TTC;if(!T)return;
 const {$,fmt,stat,onTab}=T;
@@ -37,40 +37,6 @@ const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(300,Math.m
     H+=bh+4;
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="One question, three places to spend test-time compute: a longer serial chain, parallel chains with a selector, or loops inside the network; learned by RL on checkable answers and controlled by a budget, effort level or router">'+g+'</svg>';}
   onTab(draw);draw();
-})();
-
-// ---- Section 4: beam search against a process reward model, N = 4 beams, beam width M = 2 (Snell et al. 2024, Section 5.2). Illustrative scores ----
-(function(){
-  const el=$('ttcPrm');if(!el||!window.RD)return;
-  // nodes: [depth, row, PRM score, parent index or -1, final answer]
-  const N=[[1,0,.82,-1],[1,1,.35,-1],[1,2,.67,-1],[1,3,.21,-1],
-    [2,0,.88,0],[2,1,.54,0],[2,2,.71,2],[2,3,.30,2],
-    [3,0,.91,4,'42'],[3,1,.62,4,'17'],[3,2,.74,6,'42'],[3,3,.40,6,'42']];
-  const keep={1:[0,2],2:[4,6]};
-  const S=[['Sample N = 4 first steps','The base model proposes four different first steps for the same problem. Nothing is scored yet.',1,0],
-    ['The PRM scores each step','The process reward model predicts, for each partial solution, how likely it is to end correct (its reward-to-go). An outcome reward model could not do this: it only reads finished answers.',1,1],
-    ['Keep the top N / M = 2','Only the two best prefixes survive (0.82 and 0.67). Compute is no longer spent on the two that already look wrong.',1,2],
-    ['Expand each M = 2 times, score again','Each kept prefix gets two continuations, back to four candidates; the PRM scores the new steps and the top two are kept again.',2,2],
-    ['Finish four solutions','The kept prefixes are expanded to complete answers. Snell et al. score a whole solution by the PRM’s prediction at its last step.',3,1],
-    ['Best-of-N weighted','Scores are summed per final answer: 42 gets 0.91 + 0.74 + 0.40 = 2.05, 17 gets 0.62. The answer 42 is returned, a vote weighted by the verifier.',3,3]];
-  function draw(i){const s=S[i],W=Math.min(760,width(el)),nar=W<560,top=8,rh=nar?40:44,tree=top+4*rh,H=tree+(nar?30:8);
-    const x0=nar?44:84,res=nar?62:200,dx=(W-x0-res)/3,X=d=>x0+(d-1)*dx+dx*0.5,Y=rw=>top+rw*rh+rh/2;let g=defs;
-    g+='<circle cx="16" cy="'+(tree/2)+'" r="9" fill="var(--ink)"/>'+t(2,tree/2+26,'problem',{fs:11,fill:'var(--mute)'});
-    const vis=n=>n[0]<=s[2];
-    N.forEach((n,k)=>{if(!vis(n))return;const [d,rw,sc,p,ans]=n,x=X(d),y=Y(rw);
-      const px=p<0?16:X(N[p][0]),py=p<0?tree/2:Y(N[p][1]);
-      const dead=(d<s[2]&&keep[d]&&!keep[d].includes(k))||(d===s[2]&&s[3]>=2&&keep[d]&&!keep[d].includes(k));
-      g+='<line x1="'+(px+(p<0?9:24))+'" y1="'+py+'" x2="'+(x-24)+'" y2="'+y+'" stroke="'+(dead?'var(--dim)':'var(--mute)')+'" stroke-width="1.3"/>';
-      const scored=d<s[2]||s[3]>=1;const fill=dead?'var(--soft)':ans&&s[3]>=3?(ans==='42'?'var(--open2)':'var(--soft)'):'var(--acc2)';
-      g+=r(x-24,y-12,48,24,fill,dead?'var(--dim)':'var(--acc)',6);
-      g+=t(x,y+4,scored?sc.toFixed(2):'step',{a:'middle',fs:11.5,fill:dead?'var(--mute)':'var(--ink)'});
-      if(ans&&s[3]>=1)g+=t(x+30,y+4,'→ '+ans,{fs:11.5,w:600});});
-    if(s[3]>=3){if(nar){g+=t(W/2,H-10,'sum per answer: 42 = 2.05 ✓, 17 = 0.62',{a:'middle',fs:11.5,w:600,fill:'var(--good)'})}
-      else{const bx=W-180;g+=r(bx,Y(0)-14,176,Y(1)-Y(0)+28,'var(--bg)','var(--good)',6)+t(bx+10,Y(0)+4,'answer 42: 2.05 ✓',{fs:11.5,w:600,fill:'var(--good)'})+t(bx+10,Y(1)+4,'answer 17: 0.62',{fs:11.5,fill:'var(--mute)'});}}
-    el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Beam search against a process reward model, step '+(i+1)+'">'+g+'</svg>';
-    $('ttcPrmStep').textContent='Step '+(i+1)+' of '+S.length+': '+s[0];$('ttcPrmCap').textContent=s[1];}
-  const a=RD.anim({card:'ttcPrmCard',ctl:'ttcPrmCtl',n:S.length,draw,ms:2200,label:'Beam search step'});
-  addEventListener('resize',()=>{const r=$('t-read');if(r&&!r.hidden)a.redraw()});
 })();
 
 // ---- Section 7: the bill for one request as the thinking grows (Claude 3.7 Sonnet list prices, $3 and $15 per million tokens) ----
