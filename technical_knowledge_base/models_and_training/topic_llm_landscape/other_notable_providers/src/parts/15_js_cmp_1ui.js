@@ -23,7 +23,7 @@
     h+='</tbody></table>';
     $('cmpTab').innerHTML=h;$('cmpN').textContent=rows.length+' of '+LABS.length+' labs';
     $('cmpTab').querySelectorAll('tr.cr').forEach(tr=>tr.addEventListener('click',()=>{open=open===tr.dataset.id?null:tr.dataset.id;draw()}));
-    $('cmpTab').querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();window.__showTab&&window.__showTab(a.dataset.tab);const to=document.getElementById(a.dataset.to);if(to)to.scrollIntoView({block:'start'})}));
+    $('cmpTab').querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();(b=>b&&b.click())(document.querySelector('#tabs button[data-t="'+a.dataset.tab+'"]'));const to=document.getElementById(a.dataset.to);if(to)to.scrollIntoView({block:'start'})}));
   }
   onTab('t-cmp',draw);draw();
 })();

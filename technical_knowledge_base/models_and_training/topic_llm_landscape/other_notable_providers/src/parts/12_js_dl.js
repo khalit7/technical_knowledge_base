@@ -52,28 +52,41 @@
     s+='<rect x="'+pl+'" y="'+(ly-9)+'" width="10" height="10" rx="2" fill="var(--c1)"/><text x="'+(pl+14)+'" y="'+ly+'" font-size="10.5" fill="var(--mute)">computing</text>';
     s+='<rect x="'+(pl+90)+'" y="'+(ly-9)+'" width="10" height="10" rx="2" fill="var(--c5)"/><text x="'+(pl+104)+'" y="'+ly+'" font-size="10.5" fill="var(--mute)">'+(m==='dp'?'all-reduce of fp32 gradients, GPUs idle':'all-reduce of int8 pseudo-gradients')+'</text>';
     $('dlSvg').innerHTML=svgEl(W,H,s,'Training timeline of four nodes');
-    if(st.lk!==k||st.lm!==m+st.r){const c=cap(m,k);$('dlStep').textContent='Step '+(k+1)+' of 6: '+c[0]+(m==='dp'?', sync every step':', DiLoCo');$('dlCap').innerHTML=c[1];st.lk=k;st.lm=m+st.r}
+    if(st.lk!==k||st.lm!==m+st.r){fillList();st.lk=k;st.lm=m+st.r}
+    mark();
     const x=at(m,now),o=at(m==='dp'?'dl':'dp',now);
     $('dlCnt').innerHTML=stat('Elapsed',tm(now),R[st.r].n)+stat('Steps per node',fmt(x.steps),'other method: '+fmt(o.steps))+
       stat('Sent per node',fmt(x.sent/1e9)+' GB',m==='dp'?'40 GB per step':'10 GB per 100 steps')+stat('Compute utilisation',now?(100*x.util).toFixed(1)+'%':'·',m==='dl'?'published: '+R[st.r].pub+'%':'extrapolated, not measured');
     const scr=$('dlScrub');scr.max=600;scr.value=Math.round((k+st.t)*100);
     const pb=$('dlPlay'),fin=k===5&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':fin?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':fin?'Replay':'Play');
   }
+  // the step lists on the left (one per method): their text is cap() for the chosen region; the static HTML carries the USA case
+  const LS={dp:$('sx-dl-dp'),dl:$('sx-dl-dl')};
+  function fillList(){['dp','dl'].forEach(m=>{const L=LS[m];if(!L)return;[...L.children].forEach((li,i)=>{const c=cap(m,i);li.innerHTML='<b>'+c[0]+'.</b> '+c[1]})})}
+  function mark(){const L=LS[st.m];if(!L)return;[...L.children].forEach((li,i)=>{li.classList.toggle('on',i===st.k);li.classList.toggle('done',i<st.k);if(i===st.k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')})}
+  // motion rules (2026-11-06): plays by itself once at least half in view, pauses off screen and resumes, stops for good on any reader control or at the last step,
+  // never moves by itself under reduced motion; each step's motion plays once, then the step holds so its explanation can be read
+  const HOLD=2200;
   const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+  const setP=p=>{st.play=p;if(p)card.dataset.playing='1';else delete card.dataset.playing};
   function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/DUR;if(st.t>=1){if(st.k<5){st.k++;st.t=0}else{st.t=1;st.play=false}}
+    if(st.t<1){st.t=Math.min(1,st.t+dt*st.spd/DUR);st.hold=0}else if(st.oneStep){st.oneStep=false;setP(false)}else{st.hold=(st.hold||0)+dt*st.spd;if(st.hold>=HOLD){if(st.k<5){st.k++;st.t=0;st.hold=0}else{setP(false);st.ended=true}}}
     card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
   function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('dlPlay').addEventListener('click',()=>{if(st.play){pause()}else{if(st.k===5&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<5){st.k++;st.t=0}st.play=true;kick()}draw()});
-  $('dlFwd').addEventListener('click',()=>{pause();if(st.t<1)st.t=1;else st.k=Math.min(5,st.k+1);draw()});
-  $('dlBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $('dlScrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(5,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
+  const pause=()=>{setP(false);if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+  const user=()=>{st.user=true;st.oneStep=false;pause()};
+  function auto(){if(RM||st.user||st.ended||st.play||!live())return;setP(true);draw();kick()}
+  $('dlPlay').addEventListener('click',()=>{if(st.play){user();draw();return}st.user=true;if(st.k===5&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<5){st.k++;st.t=0}st.hold=0;st.ended=false;setP(true);kick();draw()});
+  $('dlFwd').addEventListener('click',()=>{user();if(st.k<5){st.k++;st.t=RM?1:0;st.hold=0;if(!RM){setP(true);st.oneStep=true}}else st.t=1;draw();kick()});
+  $('dlBack').addEventListener('click',()=>{user();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $('dlScrub').addEventListener('input',e=>{user();const v=+e.target.value;st.k=Math.min(5,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
   $('dlSpd').addEventListener('change',e=>{st.spd=+e.target.value});
   $('dlR').addEventListener('change',e=>{st.r=e.target.value;st.lk=-1;draw()});
+  ['dp','dl'].forEach(m=>{const L=LS[m];if(!L)return;[...L.children].forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{user();st.k=i;st.t=1;draw()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})});
+  // a mode toggle restarts from step 1 with the other step list and replays (the one exception to "stops for good")
   const seg=$('dlM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.play=false;draw();kick()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
+    pause();st.m=b.dataset.m;st.k=0;st.t=RM?1:0;st.hold=0;st.user=false;st.ended=false;Object.keys(LS).forEach(m=>{if(LS[m])LS[m].hidden=m!==st.m});draw();auto()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
   document.addEventListener('visibilitychange',kick);
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
   onTab('t-read',()=>{draw();kick()});

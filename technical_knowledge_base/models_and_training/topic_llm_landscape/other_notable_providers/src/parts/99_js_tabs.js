@@ -1,4 +1,4 @@
-// ---- Tabs ---- (template; this page stores its last tab under onp-tab and adds __showTab and data-to scrolling)
+// ---- Tabs ---- (template; this page stores its last tab under onp-tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};
@@ -10,12 +10,10 @@
     shown[id]=1;dispatchEvent(new Event('resize'));
     if(save){try{localStorage.setItem('onp-tab',id)}catch(e){}}
   }
-  window.__showTab=id=>show(id,true);
   btns.forEach(b=>b.addEventListener('click',()=>show(b.dataset.t,true)));
   bar.addEventListener('keydown',e=>{const i=btns.findIndex(b=>b.getAttribute('aria-selected')==='true');
     if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=btns[(i+(e.key==='ArrowRight'?1:btns.length-1))%btns.length];n.focus();show(n.dataset.t,true)}});
   // links inside the reading tab that point at other tabs
-  // data-to (this page): scroll to that element after switching
   document.querySelectorAll('a[data-tab]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();show(a.dataset.tab,true);const to=a.dataset.to&&document.getElementById(a.dataset.to);(to||bar).scrollIntoView({block:'start'})}));
   let start='t-read';try{const v=localStorage.getItem('onp-tab');if(v&&document.getElementById(v))start=v}catch(e){}
   // a link may name a tab in the URL (page/#t-kv): open it

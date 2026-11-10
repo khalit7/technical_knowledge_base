@@ -12,7 +12,7 @@ def need(cond, msg):
     if not cond: bad.append(msg)
 # recompute.py (this page) -> prose
 for frag, prose in [('= 96 KiB per token', '96 KiB'), ('= 6 KiB per token', '6 KiB'), ('= 320 KiB per token', '320 KiB'), ('= 16 KiB per token', '16 KiB'), ('= 8 KiB per token', '8 KiB'),
-                    ('(tokens): 533', 'about 533 tokens'), ('ctx  131,072: transformer    12288.0 MiB  hybrid     814.8 MiB', '12 GiB per sequence against 0.8 GiB'),
+                    ('(tokens): 533', 'about 533 tokens'), ('ctx  131,072: transformer    12288.0 MiB  hybrid     814.8 MiB', '12 GiB per sequence against 814.8 MiB'),
                     ('1.76 bit: 5.94 GB; 16-bit 54 GB; ratio 9.09x', '16 ÷ 1.76 = 9.09'), ('218B 4-bit: 109 GB', '218 × 4 ÷ 8 = 109 GB'),
                     ('8-bit 111 GB', 'holds at 8-bit (111 GB)'), ('2.026 bytes per parameter', 'about 2.03 bytes per parameter'),
                     ('Hy4 preview             15.7x', '770 ÷ 49 = 15.7'), ('Qwen3.8-Flash-Next      20.8x', '125 ÷ 6 = 20.8'), ('Step 5 Preview          22.2x', '600 ÷ 27 = 22.2'),
