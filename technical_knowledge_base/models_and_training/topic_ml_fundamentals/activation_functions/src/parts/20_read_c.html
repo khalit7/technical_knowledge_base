@@ -22,6 +22,7 @@
 <p><b>Why the smooth ones win in transformers</b> is not settled. The papers report empirical gains (GELU over ReLU and ELU on their benchmarks, Swish over ReLU on ImageNet and translation); the old page's "self-scaling" has no source beyond the Bernoulli motivation above. In Shazeer's controlled comparison (next section), GELU and Swish alone barely beat ReLU in pre-training perplexity (1.983 and 1.994 against 1.997 at 65,536 steps, with run-to-run spreads of 0.003 to 0.005) and were behind it at the end of training (1.679 and 1.683 against 1.677): the gain that stuck came from gating.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-gf"></div></div><div class="s3L">
 <section id="s-glu">
 <h2>Gated units: GLU, ReGLU, GEGLU, SwiGLU</h2>
 <p>A gated linear unit computes two projections of the same input and multiplies them elementwise, one passed through a nonlinearity (<a href="https://arxiv.org/abs/1612.08083" target="_blank" rel="noopener noreferrer">Dauphin et al. 2016</a>, for gated convolutional language models). Shazeer put the variants into the Transformer's feed-forward block, without biases (<a href="https://arxiv.org/abs/2002.05202" target="_blank" rel="noopener noreferrer">GLU Variants Improve Transformer, 2020</a>, equation 6):</p>
@@ -36,31 +37,45 @@
 <tr><td>SwiGLU</td><td>SiLU (Swish with β = 1)</td><td>Shazeer 2020; PaLM, Llama, Mistral, Qwen, DeepSeek, SmolLM and most open LLMs since</td></tr>
 </table></div>
 <p><b>What the gate does to the gradient.</b> With <i>g</i> = <i>x</i><i>W</i> and <i>u</i> = <i>x</i><i>V</i>, the hidden unit is <i>h</i> = SiLU(<i>g</i>)&thinsp;<i>u</i>, so &part;<i>h</i>/&part;<i>u</i> = SiLU(<i>g</i>): the slope of the linear path is not a fixed function of its own input but is set, token by token, by a second projection of the same input. That is the old page's "learned adaptive slope", and the only mechanism the formula itself shows. Its other claims for gated units ("very expressive, stable training, balanced mean/variance") are <i class="nl u">unconfirmed</i>: the paper that introduced them offers none, and says so: "We offer no explanation as to why these architectures seem to work; we attribute their success, as all else, to divine benevolence."</p>
-<p class="try"><b>Predict, then step:</b> with the same parameter budget, will the gated block leave more hidden values near zero than the GELU block, or fewer? One real token, " cat" in "The cat sat on the mat because it was tired.", through two real feed-forward blocks: GPT-2 small's (layer 6, a plain GELU block of width 4<i>d</i>) and SmolLM2-135M's (layer 15, a SwiGLU block of width 8<i>d</i>/3). Both are drawn to scale in units of their own <i>d</i>, and both cost 8<i>d</i><sup>2</sup> parameters. Each strip is a vector, one thin column per number, blue for positive and orange for negative. Step through, then switch blocks; in the SwiGLU block, try another gate function on the same pre-activations.</p>
-<div class="card" id="gf">
-<h4>One token, two blocks of 8<i>d</i><sup>2</sup> parameters: GELU squashes negatives, the gate multiplies and keeps both signs</h4>
+<p class="try"><b>Predict, then watch:</b> with the same parameter budget, will the gated block leave more hidden values near zero than the GELU block, or fewer? One real token, " cat" in "The cat sat on the mat because it was tired.", through two real feed-forward blocks: GPT-2 small's (layer 6, a plain GELU block of width 4<i>d</i>) and SmolLM2-135M's (layer 15, a SwiGLU block of width 8<i>d</i>/3). In Fig. 3 each vector is a row of signed bars (up positive, down negative) and each weight matrix a glass plate drawn to scale, <i>d</i> tall and its hidden width wide: both blocks cost 8<i>d</i><sup>2</sup> parameters. Switch blocks; in the SwiGLU block, try another gate function on the same pre-activations.</p>
 <div class="seg2" id="gfM" role="group" aria-label="Block"><button data-m="plain" class="on">Plain FFN (GPT-2, GELU)</button><button data-m="glu">SwiGLU FFN (SmolLM2-135M)</button></div>
-<label class="small" id="gfGl" style="margin-left:8px">Gate function <select id="gfG"><option value="silu" selected>SiLU (as trained: SwiGLU)</option><option value="sigmoid">sigmoid (GLU)</option><option value="relu">ReLU (ReGLU)</option><option value="gelu">GELU (GEGLU)</option><option value="id">none (bilinear)</option></select></label>
-<div id="gfSvg" class="plotbox"></div>
-<div class="an-ctl" id="gfC"></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="gfT"></div><p id="gfP" style="margin:2px 0 0"></p></div>
-<div class="cnt" id="gfN"></div>
-<p class="small mute">Vectors recorded with forward hooks by <code>src/real_models.py</code> (float32, stored as 16-bit integers with one scale per vector); the GELU and the gate products are recomputed in your browser from the stored pre-activations. "Near zero" means |<i>h</i>| below 0.1 times the root mean square of that token's hidden vector. Gate functions other than SiLU are applied to SmolLM2's own gate pre-activations, which were trained for SiLU: <i class="nl i">illustrative</i>, to show what each gate passes, not how a model trained with it would behave.</p>
+<label class="small" id="gfGl" hidden>Gate function <select id="gfG"><option value="silu" selected>SiLU (as trained: SwiGLU)</option><option value="sigmoid">sigmoid (GLU)</option><option value="relu">ReLU (ReGLU)</option><option value="gelu">GELU (GEGLU)</option><option value="id">none (bilinear)</option></select></label>
+<ol class="sx" id="sx-gf-plain">
+<li><b>The input.</b> One token, " cat", as GPT-2 small's sixth block sees it after LayerNorm: <span data-gf="dP">768</span> numbers (the first 24 drawn).</li>
+<li><b>Up projection.</b> A <span data-gf="dP">768</span> &times; <span data-gf="hP">3,072</span> matrix (plus a bias) widens it four times: <span data-gf="p1">2.36 million</span> multiply-adds. <span data-gf="pneg">88.8%</span> of the 3,072 pre-activations are negative.</li>
+<li><b>GELU.</b> Every negative pre-activation is squashed into GELU's dip, between &minus;0.17 and 0, while positive ones pass almost unchanged. Only <span data-gf="pnear">5.5%</span> of the hidden values are near zero by the 0.1 &times; rms test, yet <span data-gf="phneg">88.8%</span> are small negatives: GELU leaves few exact zeros.</li>
+<li><b>Down projection.</b> A 3,072 &times; 768 matrix brings it back to width <i>d</i>, the block's output added to the residual stream. Two matrices, 8<i>d</i><sup>2</sup> = <span data-gf="ppar">4.72 million</span> parameters.</li>
+</ol>
+<ol class="sx" id="sx-gf-glu" hidden>
+<li><b>The input.</b> The same word, " cat", in SmolLM2-135M's sixteenth block after RMSNorm: <span data-gf="dS">576</span> numbers. Its block is narrower (8<i>d</i>/3 = <span data-gf="hS">1,536</span>) because it has three matrices.</li>
+<li><b>Gate projection.</b> The first of two projections of the same input: <i>g</i> = <i>x</i><i>W</i><sub>gate</sub>. <span data-gf="gneg">66.8%</span> of its 1,536 entries are negative.</li>
+<li><b>Up projection, in parallel.</b> <i>u</i> = <i>x</i><i>W</i><sub>up</sub>, the values that will be passed on. Two matrices so far, 2 &times; 576 &times; 1,536 = <span data-gf="s2">1.77 million</span> parameters.</li>
+<li><b>The gate.</b> SiLU of <i>g</i>, in place: a negative <i>g</i> gives a value near zero (SiLU dips only to &minus;0.28), a positive one passes almost unchanged, so per unit the gate is roughly open or shut. Other gate functions (the menu above) shut differently: ReLU exactly, sigmoid softly whatever the sign.</li>
+<li><b>Multiply.</b> <i>h</i> = SiLU(<i>g</i>) &odot; <i>u</i>: each of <i>u</i>'s values scaled by its own gate. Where the gate is shut, <i>h</i> is near zero whatever <i>u</i> says; where open, <i>h</i> takes <i>u</i>'s sign, so <span data-gf="sneg">50.7%</span> of <i>h</i> is negative and <span data-gf="snear">24.2%</span> near zero.</li>
+<li><b>Down projection.</b> The third matrix brings <i>h</i> back to width <i>d</i>. Total: 3 &times; <i>d</i> &times; 8<i>d</i>/3 = 8<i>d</i><sup>2</sup>, the same as the plain block: <span data-gf="spar">2.65 million</span> parameters here. The gated block buys its multiplication with a narrower hidden layer.</li>
+</ol>
+<p class="small" id="gfN" aria-live="polite"></p>
+<p class="small mute">Vectors recorded with forward hooks by <code>src/real_models.py</code> (float32, stored as 16-bit integers with one scale per vector); the GELU and the gate products are recomputed in your browser from the stored pre-activations. The figure draws the first 32 hidden units; the percentages are over the whole vector. "Near zero" means |<i>h</i>| below 0.1 times the root mean square of that token's hidden vector. Gate functions other than SiLU are applied to SmolLM2's own gate pre-activations, which were trained for SiLU: <i class="nl i">illustrative</i>, to show what each gate passes, not how a model trained with it would behave; the last step then shows the output the model computed with SiLU.</p>
 <details class="dp"><summary>The answer <span class="mute">(on this token)</span></summary><div class="b"><p>More. GPT-2's GELU block leaves 5.5% of its 3,072 hidden values below 0.1 &times; rms, and 88.8% of them negative but small (inside GELU's dip); SmolLM2's SwiGLU block leaves 24.2% of its 1,536 below 0.1 &times; rms, and 50.7% negative, because the sign of each product comes from <i>u</i>. The gate shuts units multiplicatively, without the exact zeros of ReLU. One token each: the {{Inside real models|#t-real}} tab gives the same measures over 283 thousand tokens and every layer.</p></div></details>
-</div>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-glu2" aria-label="Shazeer's results">
 <p><b>Shazeer's results.</b> All variants matched for parameters and computation, on T5's span-filling pre-training (the base model, <i>d</i> = 768) and then fine-tuned once on a mixture of GLUE, SuperGLUE and SQuAD. Lower log-perplexity is better; at 65,536 steps the bracket is the standard deviation over runs of the same model.</p>
-<div class="card" id="sz">
-<h4>Every gated variant beats every ungated one in pre-training perplexity</h4>
-<div class="seg2" id="szM" role="group" aria-label="Measure"><button data-k="p65" class="on">Log-perplexity, 65,536 steps</button><button data-k="p524">Log-perplexity, 524,288 steps</button><button data-k="glue">GLUE average</button><button data-k="sglue">SuperGLUE average</button></div>
-<div id="szSvg" class="plotbox"></div>
-<p class="small mute" id="szX"></p>
-</div>
 <p>Read with the noise in mind: at 65,536 steps GEGLU (1.942 &plusmn; 0.004) and SwiGLU (1.944 &plusmn; 0.010) are indistinguishable, and both are about 0.05 below ReLU (1.997 &plusmn; 0.005), ten times the spread <i class="nl d">derived</i>. The fine-tuning scores come from one run each and the paper calls them "noisy"; the spread T5 measured for the GLUE average was 0.235. Every gated variant beat every ungated one in pre-training perplexity, at both lengths <i class="nl d">derived from Table 1</i>.</p>
 <p><b>Why gating won.</b> On this evidence PaLM (2022) and then Llama (2023) replaced ReLU and GELU with SwiGLU, accepting a third matrix, and nearly every open model since did the same; the root's {{Defaults across models|n:3c65c17b0d0d81d796ccc0a293218c57}} tab shows the switch year by year. A later line of work goes the other way for inference speed: replacing SiLU and GELU with ReLU in a pre-trained Llama or Falcon and fine-tuning briefly brings back exact zeros that a server can skip (<a href="https://arxiv.org/abs/2310.04564" target="_blank" rel="noopener noreferrer">Mirzadeh et al. 2023, "ReLU Strikes Back"</a>).</p>
 <details class="dp"><summary>What PaLM and Llama said when they adopted it <span class="mute">(quoted)</span></summary><div class="b">
 <p>PaLM: "they have been shown to significantly increase quality compared to standard ReLU, GeLU, or Swish activations (Shazeer, 2020). Note that this does require three matrix multiplications in the MLP rather than two" (<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Chowdhery et al. 2022</a>, section 2). Llama: "We replace the ReLU non-linearity by the SwiGLU activation function ... We use a dimension of 2/3 4d instead of 4d as in PaLM" (<a href="https://arxiv.org/abs/2302.13971" target="_blank" rel="noopener noreferrer">Touvron et al. 2023</a>, section 2.2).</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="sz">
+<h4>Every gated variant beats every ungated one in pre-training perplexity</h4>
+<div class="seg2" id="szM" role="group" aria-label="Measure"><button data-k="p65" class="on">Log-perplexity, 65,536 steps</button><button data-k="p524">Log-perplexity, 524,288 steps</button><button data-k="glue">GLUE average</button><button data-k="sglue">SuperGLUE average</button></div>
+<div id="szSvg" class="plotbox"></div>
+<p class="small mute" id="szX"></p>
+</div>
+</div></div></div>
 
 <section id="s-width">
 <h2>The 2/3 rule, and who follows it</h2>

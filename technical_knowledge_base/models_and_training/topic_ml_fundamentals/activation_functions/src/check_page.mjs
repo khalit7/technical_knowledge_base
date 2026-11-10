@@ -1,4 +1,4 @@
-// Exercise every control on the built page: both animations through every step in every mode and gate, the Shazeer
+// Exercise every control on the built page (the three 3D stages are stepped by check_stages.mjs): the gate menu, the Shazeer
 // toggles, the atlas (every function on and off, shading, thresholds, ranges, hover), the real-model tab (every model,
 // measure, threshold and layer). Fails on script errors, NaN, undefined or Infinity in visible text; saves close-up
 // screenshots of the main visuals to ../.shots/ (light 920 px and dark 390 px).
@@ -7,7 +7,8 @@ import { createRequire } from 'module';import path from 'path';import { fileURLT
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.resolve(HERE, '../../../../../html_utils/package.json'));
 const puppeteer = require('puppeteer');
-const file = path.resolve(HERE, '../index.html'), shots = path.resolve(HERE, '../.shots');
+const file = path.resolve(HERE, '../index.html'), shots = process.argv[2] || path.resolve(HERE, '../.shots');
+(await import('fs')).mkdirSync(shots, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell' });
 const out = {};
 for (const [scheme, w] of [['light', 920], ['dark', 390]]) {
@@ -16,27 +17,18 @@ for (const [scheme, w] of [['light', 920], ['dark', 390]]) {
   await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await p.setViewport({ width: w, height: 900 });
   await p.goto('file://' + file);
-  const bad = async (where) => { const t = await p.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll('script,style,.tab[hidden]').forEach(e => e.remove()); c.querySelectorAll('#dsSvg text').forEach(e => { if (e.textContent === 'NaN') e.remove() }); const d = c.querySelector('#dr'); if (d) d.querySelectorAll('#drSvg,#drN,#drP,#drT').forEach(e => e.remove()); return c.textContent.split('not-a-number (NaN)').join('') }); for (const x of ['NaN', 'undefined', 'Infinity']) { const i = t.indexOf(x); if (i >= 0) errs.push(where + ': ' + x + ' near "' + t.slice(Math.max(0, i - 40), i + 20).replace(/\n/g, ' ') + '"') } };
+  const bad = async (where) => { const t = await p.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll('script,style,.tab[hidden]').forEach(e => e.remove()); c.querySelectorAll('#dsSvg text').forEach(e => { if (e.textContent === 'NaN') e.remove() }); return c.textContent.split('not-a-number (NaN)').join('') }); for (const x of ['NaN', 'undefined', 'Infinity']) { const i = t.indexOf(x); if (i >= 0) errs.push(where + ': ' + x + ' near "' + t.slice(Math.max(0, i - 40), i + 20).replace(/\n/g, ' ') + '"') } };
   const badDead = async where => { const t = await p.evaluate(() => ['drN', 'drP'].map(i => document.getElementById(i).textContent).join(' ')); if (/undefined|Infinity|null/.test(t)) errs.push(where + ': ' + t.slice(0, 80)) };
   const click = s => p.evaluate(s => document.querySelector(s).click(), s);
   const slide = async (sel, vals) => { for (const v of vals) await p.evaluate((s, v) => { const e = document.querySelector(s); e.value = v; e.dispatchEvent(new Event('input')) }, sel, v) };
   const shot = async (sel, name) => { try { const e = await p.$(sel); await e.scrollIntoView(); await e.screenshot({ path: shots + '/x-' + name + '-' + scheme + '-' + w + '.png' }) } catch (x) { errs.push('shot ' + sel + ': ' + x.message + ' tab ' + await p.evaluate(() => [...document.querySelectorAll('.tab')].filter(t => !t.hidden).map(t => t.id).join())) } };
   await p.evaluate(() => document.querySelector('button[data-t="t-read"]').click());
   const caps = [];
-  // dead units: every run, every epoch
-  for (const r of [0, 1, 2]) { await click('#drM [data-r="' + r + '"]'); await click('#drC-p'); const n = await p.evaluate(() => +document.getElementById('drC-s').max);
-    for (let i = 0; i <= n; i++) { await p.evaluate(i => { const e = document.getElementById('drC-s'); e.value = i; e.dispatchEvent(new Event('input')) }, i); }
-    caps.push(await p.evaluate(() => document.getElementById('drP').innerText)); await bad('dead run ' + r); await badDead('dead run ' + r); if (r === 1) await shot('#dr', 'dead') }
-  await click('#drM [data-r="1"]'); await p.evaluate(() => { const e = document.getElementById('drC-s'); e.value = 6; e.dispatchEvent(new Event('input')) });
-  caps.push(await p.evaluate(() => document.getElementById('drP').innerText));
   await shot('#ds', 'sweep');
-  // gated FFN: both modes, every gate, every step
-  for (const m of ['plain', 'glu']) { await click('#gfM [data-m="' + m + '"]');
-    for (const g of (m === 'glu' ? ['silu', 'sigmoid', 'relu', 'gelu', 'id'] : ['silu'])) { await p.evaluate(g => { const e = document.getElementById('gfG'); e.value = g; e.dispatchEvent(new Event('change')) }, g);
-      const n = await p.evaluate(() => +document.getElementById('gfC-s').max);
-      for (let i = 0; i <= n; i++) { await p.evaluate(i => { const e = document.getElementById('gfC-s'); e.value = i; e.dispatchEvent(new Event('input')) }, i); await bad('glu ' + m + ' ' + g + ' ' + i) }
-      if (g === 'silu') { caps.push(await p.evaluate(() => document.getElementById('gfP').innerText)); await shot('#gf', 'ffn-' + m) } } }
-  await p.evaluate(() => { const e = document.getElementById('gfG'); e.value = 'silu'; e.dispatchEvent(new Event('change')) });
+  // the gate function menu of Fig. 3 (the stage itself is stepped by check_stages.mjs)
+  await click('#gfM [data-m="glu"]');
+  for (const g of ['silu', 'sigmoid', 'relu', 'gelu', 'id', 'silu']) { await p.evaluate(g => { const e = document.getElementById('gfG'); e.value = g; e.dispatchEvent(new Event('change')) }, g); await bad('gate ' + g); caps.push(await p.evaluate(() => document.getElementById('gfN').innerText)) }
+  await click('#gfM [data-m="plain"]');
   for (const k of ['p65', 'p524', 'glue', 'sglue']) { await click('#szM [data-k="' + k + '"]'); await bad('sz ' + k) }
   // slope figure: every activation at both input scales
   for (const k of ['1', '3']) { await click('#slK [data-m="' + k + '"]'); for (const f of ['sigmoid', 'tanh', 'relu', 'gelut', 'silu']) { await click('#slF [data-m="' + f + '"]'); await bad('slope ' + f + ' x' + k) } }
@@ -68,12 +60,6 @@ for (const [scheme, w] of [['light', 920], ['dark', 390]]) {
   out[scheme] = { errs, caps, inside, tbl: tbl.split('\n').slice(0, 6) };
   await p.close();
 }
-// no autoplay under normal motion: scroll both animations into view, wait, and check they are still on step 0
-{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + file);
-  await p.evaluate(() => { localStorage.clear(); document.querySelector('button[data-t="t-read"]').click() });
-  const moved = [];
-  for (const id of ['dr', 'gf']) { await p.evaluate(id => document.getElementById(id).scrollIntoView(), id); await new Promise(r => setTimeout(r, 3000));
-    const v = await p.evaluate(id => document.getElementById(id === 'dr' ? 'drC-s' : 'gfC-s').value, id); if (v !== '0') moved.push(id + ' at step ' + v) }
-  out.autoplay = moved.length ? moved : 'none'; await p.close() }
+// autoplay, stillness under reduced motion and every stage step: check_stages.mjs (2026-11-06 motion rules)
 console.log(JSON.stringify(out, null, 1));
 await b.close();

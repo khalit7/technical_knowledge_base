@@ -25,3 +25,11 @@ Scores: quantity the reader moves (0-2), reproduces a published figure (x2), com
 
 What the methodology lacked here: a rule for "real data from a released model" when the claim is qualitative (Voita's per-layer values exist only as a plot): measure the same quantity on the smallest family member, say "qualitatively", and never read the curve.
 Rule proposed: when a failure mode has two symptoms (dead network or overflow), show both arms of the same sweep; the activation often decides only which symptom appears.
+
+## 2026-11-10: the split layout and three 3D stages (renderer v2)
+| # | Visual | Data | Where | Status |
+|---|---|---|---|---|
+| AF15 | **Fig. 1, folding the plane**: XOR-shaped points on a plane, the flat least-squares plane, two ReLU units as creased sheets, their difference as a folded sheet, a flat cut at 0.5 | `mk_fold.py` (60 seeded points, illustrative; hand-set weights; accuracies computed) | Reading, Why a nonlinearity | built (3D) |
+| AF16 | **Fig. 2, dead units in 3D**: the 384 hidden units as columns (height = share of images on), dead ones flat red, three layers in depth, flows as dense as the live share; replaces the 2D epoch animation (AF2), 31 epochs grouped into 3, 6 and 4 explained stretches | `dead_relu_toy.py` frames | Reading, Dead units | built (3D) |
+| AF17 | **Fig. 3, one token through two blocks in 3D**: signed bars for x, the hidden units (first 32) and y, glass plates d deep and hidden-width wide (two of d x 4d against three of d x 8d/3), flows along each projection, the gate applied in place; replaces the 2D strips (AF? gated before/after) | `real_models.py` token records | Reading, Gated units | built (3D) |
+| AF18 | Inside real models as 3D towers of layers sized by real widths | real_models.json | none | rejected for now: a per-layer share is a bar chart, which reads best flat; the tab's 2D chart already shows it |
