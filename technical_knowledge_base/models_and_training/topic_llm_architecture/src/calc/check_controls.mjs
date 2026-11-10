@@ -27,23 +27,24 @@ try {
     if (rm === 'reduce') {
       console.log(scheme, width, rm, errs.length ? errs : 'clean'); fail += errs.length; await p.close(); continue;
     }
+    // the KV parts (#cc-var, the context card and its animation, the KV dtype) left this tab on 2026-10-23 for Long context: skip what is absent
+    const has = async id => !!(await p.$('#' + id));
     const models = await p.$$eval('#cc-model option', os => os.map(o => o.value));
     for (const m of models) {
       await p.select('#cc-model', m);
-      for (const v of ['cfg', 'mha', 'mqa']) { await p.select('#cc-var', v); }
-      await p.select('#cc-var', 'cfg');
+      if (await has('cc-var')) { for (const v of ['cfg', 'mha', 'mqa']) { await p.select('#cc-var', v); } await p.select('#cc-var', 'cfg'); }
       // step both animations to the end
-      for (const id of ['cc-anctl']) { const n = await p.$eval('#' + id + '-s', e => +e.max); for (let i = 0; i < n; i++) await p.click('#' + id + '-f'); }
+      for (const id of ['cc-anctl']) { if (!(await has(id + '-s'))) continue; const n = await p.$eval('#' + id + '-s', e => +e.max); for (let i = 0; i < n; i++) await p.click('#' + id + '-f'); }
       await check('model ' + m);
     }
-    const cmps = await p.$$eval('#cc-cmp option', os => os.map(o => o.value));
+    if (await has('cc-cmp')) { const cmps = await p.$$eval('#cc-cmp option', os => os.map(o => o.value));
     await p.select('#cc-model', 'deepseek-v3');
-    for (const c of cmps) { await p.select('#cc-cmp', c); } await check('compare all');
-    for (const [id, vals] of [['cc-ctx', ['8', '12', '17', '20']], ['cc-b', ['0', '4', '8']]]) for (const v of vals) {
+    for (const c of cmps) { await p.select('#cc-cmp', c); } await check('compare all'); }
+    for (const [id, vals] of [['cc-ctx', ['8', '12', '17', '20']], ['cc-b', ['0', '4', '8']]]) if (await has(id)) for (const v of vals) {
       await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, v); await check(id + '=' + v); }
-    for (const id of ['cc-wdt', 'cc-kdt']) { const vs = await p.$$eval('#' + id + ' option', os => os.map(o => o.value)); for (const v of vs) { await p.select('#' + id, v); await check(id + '=' + v); } }
+    for (const id of ['cc-wdt', 'cc-kdt']) { if (!(await has(id))) continue; const vs = await p.$$eval('#' + id + ' option', os => os.map(o => o.value)); for (const v of vs) { await p.select('#' + id, v); await check(id + '=' + v); } }
     // play the context animation briefly
-    await p.evaluate(() => document.getElementById('cc-ctxcard').scrollIntoView()); await p.click('#cc-anctl-p'); await new Promise(r => setTimeout(r, 2500)); await p.click('#cc-anctl-p'); await check('ctx play');
+    if (await has('cc-ctxcard')) { await p.evaluate(() => document.getElementById('cc-ctxcard').scrollIntoView()); await p.click('#cc-anctl-p'); await new Promise(r => setTimeout(r, 2500)); await p.click('#cc-anctl-p'); await check('ctx play'); }
     // drills: one wrong pick and one Show me each
     const nd = await p.$$eval('#cc-drills .cc-pr', d => d.length);
     for (let i = 0; i < nd; i++) { await p.click(`#cc-drills .cc-pr[data-i="${i}"] button[data-j="0"]`); await p.click(`#cc-drills .cc-pr[data-i="${i}"] button[data-j="-1"]`); }
@@ -63,8 +64,8 @@ try {
     // open all details and check again
     await p.evaluate(() => document.querySelectorAll('#t-calc details').forEach(d => d.open = true)); await check('details open');
     if (shots) {
-      await p.select('#cc-model', 'deepseek-v3'); await p.select('#cc-cmp', 'llama-3.1-8b');
-      for (const s of ['cc-s-pick', 'cc-s-where', 'cc-s-fm', 'cc-s-ctx', 'cc-s-drill', 'cc-s-check']) {
+      await p.select('#cc-model', 'deepseek-v3'); if (await has('cc-cmp')) await p.select('#cc-cmp', 'llama-3.1-8b');
+      for (const s of ['cc-s-pick', 'cc-s-where', 'cc-s-fm', 'cc-s-ctx', 'cc-s-drill', 'cc-s-check']) { if (!(await has(s))) continue;
         await p.evaluate(id => document.getElementById(id).scrollIntoView(), s); await new Promise(r => setTimeout(r, 200));
         await p.screenshot({ path: path.join(shots, `${scheme}_${width}_${s}.png`) });
       }

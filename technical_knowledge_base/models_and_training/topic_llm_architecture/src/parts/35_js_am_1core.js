@@ -1,7 +1,8 @@
 // ---- Architecture map (t-map): shared helpers under window.AM ----
 // Data: window.AMD (models, from src/map/build_map.py) and window.AMS (shift stepper, from src/map/shifts.py).
-// The step controller is a copy of RD.anim registered on this tab: it animates only while its card is on screen
-// in the visible tab, never autoplays: it waits until the reader presses play or steps (2026-10-23).
+// The step controller is a copy of RD.anim registered on this tab (motion rules of 2026-11-06): it plays by itself once at least half of
+// its card is on screen in the visible tab, pauses off screen, stops for good on any reader control or at its last step, never moves under
+// reduced motion; auto:false makes it a widget the reader drives (the long-replay rule), which never plays by itself.
 window.AM=(function(){
   if(!window.AMD||!document.getElementById('t-map'))return null;
   const RM=!!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -34,7 +35,7 @@ window.AM=(function(){
   // step controller (copy of RD.anim for this tab)
   function anim(o){
     const card=$(o.card),ctl=$(o.ctl);
-    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const st={i:o.start||0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1,user:false,ended:false};
     const pid=o.ctl+'-';
     ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
       '<button id="'+pid+'p" aria-label="Play">&#9654; Play</button>'+
@@ -45,22 +46,25 @@ window.AM=(function(){
     function show(){const sc=q('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
     const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
     function tick(){st.timer=0;if(!st.play||!live())return;
-      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show();if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
       st.timer=setTimeout(tick,(o.ms||1400)/st.spd)}
     function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1400)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
     function setPlay(p){st.play=p;q('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';q('p').setAttribute('aria-label',p?'Pause':'Play');
       if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
-    q('p').addEventListener('click',()=>setPlay(!st.play));
-    q('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    q('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    q('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    q('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    q('f').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    q('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    q('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
     q('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-      kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    const RMQ=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function auto(){if(o.auto!==false&&!RMQ&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
     onRender(()=>{show();kick()});
     show();
-    return {reset(n,i){setPlay(false);st.n=n;st.i=i==null?0:i;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+    // reset: a mode toggle restarts from step 0 (or i) and replays, the one exception to "stops for good"; go: a reader's jump stops autoplay
+    return {reset(n,i){setPlay(false);st.n=n;st.i=i==null?0:i;st.ended=false;st.user=false;show();auto()},go(i){st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
       redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n}};
   }
   function seg(el,f){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));f(b.dataset.m)})}

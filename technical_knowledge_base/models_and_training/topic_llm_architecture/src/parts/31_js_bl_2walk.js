@@ -119,7 +119,7 @@
     $('bl-walk-layer').addEventListener('change',e=>{layer=+e.target.value;anim.redraw()});
     $('bl-walk-list').innerHTML=STEPS.map((s,k)=>'<li><a href="#" data-k="'+k+'">'+B.esc(s.t)+'</a></li>').join('');
     $('bl-walk-list').addEventListener('click',e=>{const a=e.target.closest('a[data-k]');if(!a)return;e.preventDefault();anim.go(+a.dataset.k)});
-    anim=window.RD.anim({card:'bl-walk',ctl:'bl-walk-ctl',n:STEPS.length,draw,ms:3200,label:'Block step'});
+    anim=window.RD.anim({card:'bl-walk',ctl:'bl-walk-ctl',n:STEPS.length,draw,ms:3200,label:'Block step',auto:false}); // a widget: 14 steps the reader drives (long-replay rule)
   }
   B.onRender(()=>{build();if(anim)anim.redraw()});
   B.onResize(()=>{if(anim)anim.redraw()});

@@ -2,9 +2,10 @@
 <h2>2. Tokens in, a distribution out</h2>
 <p>A <dfn>tokenizer</dfn> cuts text into integer ids from a vocabulary of size V (Llama 3.1: V = 128,256, {{config|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}}). Each id picks a row of a V &times; d embedding table; the blocks transform that vector; a final norm and a d &times; V unembedding give one score (<dfn>logit</dfn>) per vocabulary entry, and a softmax turns the logits into next-token probabilities. In <dfn>training</dfn> every position predicts its own next token at once, and a <dfn>causal mask</dfn> stops it seeing later ones, so one pass over a 4,096-token sequence gives 4,096 training examples; in <dfn>generation</dfn> the model predicts one token, appends it and runs again (picking the token is {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}).</p>
 <p><b>The distinction that crosses pages: vocabulary size.</b> A bigger vocabulary needs fewer tokens per sentence, so attention and the KV cache (sections 4 and 9) are cheaper per sentence, but the two V &times; d tables grow and each token is rarer in training. <dfn>Tied embeddings</dfn> use one matrix for both ends ({{Press and Wolf 2016|https://arxiv.org/abs/1608.05859}}), which small models do because the table is a large share of them: in a 135M-parameter model with a 49,152-token vocabulary at d = 576 it is 28M parameters, a fifth of the model, so count it once when <code>tie_word_embeddings</code> is true. Llama 3.1 8B does not tie (<code>"tie_word_embeddings": false</code>); its two tables are 1.05 billion of its 8.03 billion parameters (<span class="der">derived</span> as 2 &times; 128,256 &times; 4,096).</p>
-<p class="deepnote">Go deeper: {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}} (BPE, byte-level, unigram, the language tax, glitch tokens); {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}} for what the mask and the objective can be instead; the {{logit lens|#t-inside}} shows what the residual stream would predict if the model stopped after each layer.</p>
+<p class="deepnote">Go deeper: {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}} (BPE, byte-level, unigram, the language tax, glitch tokens); {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}} for what the mask and the objective can be instead; the {{logit lens|#t-inside}} shows what the residual stream would predict if the model stopped after each layer. Drawn in 3D: one sentence through a tokenizer ({{Tokenizers, Fig. 1|n:3c65c17b0d0d817187bcd94a1b0f15ea#stg-hero}}), one token becoming a vector ({{The transformer from zero, Fig. 2|n:3fd5c17b0d0d8174980ddde4a20c7b3c#stg-emb}}) and the last vector becoming a loss ({{Fig. 6|n:3fd5c17b0d0d8174980ddde4a20c7b3c#stg-out}}).</p>
 </section>
 
+<div class="s3sp" id="rd-s3sp"><div class="s3L">
 <section id="rd-s3">
 <h2>3. The block and its residual stream</h2>
 <p>A block does two things to the residual stream x of every position, each wrapped the same way: normalise a copy, transform it, add the result back. In the <dfn>pre-norm</dfn> layout every current model uses (section 7):</p>
@@ -14,13 +15,8 @@
 
 <div class="pr"><div class="q">Predict: in one Llama 3.1 8B block, what share of the weights sits in the feed-forward network rather than in attention?</div>
 <div class="opts"><button>About a third</button><button>About half</button><button data-r="1">About four fifths</button><button>Almost all, 95%</button></div>
-<div class="ans" hidden><span class="der">derived</span> 176.2M of 218.1M, 81%, drawn below. The classic block (full multi-head attention, FFN width 4d) has 4d&sup2; in attention and 8d&sup2; in the FFN, two thirds; GQA shrinks K and V by 4 times and the three-matrix FFN is 3.5d wide, which pushes the FFN share up.</div></div>
+<div class="ans" hidden><span class="der">derived</span> 176.2M of 218.1M, 81%, drawn in the figure. The classic block (full multi-head attention, FFN width 4d) has 4d&sup2; in attention and 8d&sup2; in the FFN, two thirds; GQA shrinks K and V by 4 times and the three-matrix FFN is 3.5d wide, which pushes the FFN share up.</div></div>
 
-<div class="fig" id="rd-wt">
-<h4>Four fifths of a Llama 3.1 8B block's weights are in the FFN, so attention design changes the cache far more than the parameter count</h4>
-<div class="rd-svg" id="rd-wt-svg"></div>
-<p class="cap"><span class="der">derived</span> from the {{Llama 3.1 8B config|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}} (hidden_size 4,096, 32 heads, 8 KV heads, head_dim 128, intermediate_size 14,336, no biases): 218.1M weights per block, 41.9M in attention and 176.2M in the FFN. The tiny GPT of the running example (d_model 256, 8 query heads of 32 with 8 KV heads, a GELU FFN of 1,024, two matrices): 786,944 weights per block, 262,144 in attention and 524,288 in the FFN, the classic 4d&sup2; and 8d&sup2; split <span class="meas">measured</span> (<code>model.param_groups()</code>).</p>
-</div>
 <p>That split is why mixture of experts (section 6) targets the FFN, where the parameters are, while the attention variants (section 4) target the cache. Each weight is used once per token in one multiply and one add, so a forward pass costs about <b>2 FLOPs per weight per token</b>; the backward pass costs about twice the forward, giving <b>6N FLOPs per training token</b> ({{Kaplan et al. 2020, section 2.1|https://arxiv.org/abs/2001.08361}}). Attention adds a term that grows with the context (section 8).</p>
 
 <details class="dp"><summary>One token through one Llama 3.1 8B block: every step's shape and weights</summary><div>
@@ -39,5 +35,12 @@
 </tbody></table></div>
 <p>In your head: attention Q and output 2 &times; 4,096&sup2; = 33.6M, K and V 2 &times; 4,096 &times; 1,024 = 8.4M; FFN 3 &times; 4,096 &times; 14,336 = 176.2M; about 218M. Times 32, plus two 525M embedding tables: 8.03B. The {{Block lab|#t-block}} runs one real token of the running sequence through every step with the recorded vectors, and quotes the line of transformers' Llama code that does each.</p>
 </div></details>
-<p class="deepnote">Go deeper: {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} derives every step and trains the GPT; the {{Block lab|#t-block}} walks one token through it with shapes, parameters and FLOPs for six real models.</p>
+<p class="deepnote">Go deeper: {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} derives every step and trains the GPT; the {{Block lab|#t-block}} walks one token through it with shapes, parameters and FLOPs for six real models. Drawn in 3D: the block on its residual stream ({{The transformer from zero, Fig. 5|n:3fd5c17b0d0d8174980ddde4a20c7b3c#stg-blk}}) and where the norm sits in it ({{Normalisation, Fig. 2|n:3fd5c17b0d0d8163b50dc5e9d9240e89#stg-place}}).</p>
 </section>
+</div><div class="s3R"><div class="s3side">
+<div class="fig" id="rd-wt">
+<h4>Four fifths of a Llama 3.1 8B block's weights are in the FFN, so attention design changes the cache far more than the parameter count</h4>
+<div class="rd-svg" id="rd-wt-svg"></div>
+<p class="cap"><span class="der">derived</span> from the {{Llama 3.1 8B config|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}} (hidden_size 4,096, 32 heads, 8 KV heads, head_dim 128, intermediate_size 14,336, no biases): 218.1M weights per block, 41.9M in attention and 176.2M in the FFN. The tiny GPT of the running example (d_model 256, 8 query heads of 32 with 8 KV heads, a GELU FFN of 1,024, two matrices): 786,944 weights per block, 262,144 in attention and 524,288 in the FFN, the classic 4d&sup2; and 8d&sup2; split <span class="meas">measured</span> (<code>model.param_groups()</code>).</p>
+</div>
+</div></div></div>

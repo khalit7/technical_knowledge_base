@@ -1,5 +1,6 @@
 // node technical_knowledge_base/models_and_training/topic_llm_architecture/src/check_controls.mjs <index.html>  (run from the repository root)
-// Every tab at 390 px dark and 920 px light: scroll through it (nothing may start playing by itself), then click every
+// Every tab at 390 px dark and 920 px light: scroll through it (the reader-driven widgets, the long replays, may not start playing by
+// themselves; the stage and the short steppers do autoplay, which check_stages.mjs tests), then click every
 // button, move every range and select; fail on page errors, a visible #jsErr, sideways scroll, or NaN/undefined/Infinity.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
@@ -17,8 +18,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     const h = await p.evaluate(() => document.body.scrollHeight);
     for (let y = 0; y < h; y += 700) { await p.evaluate(y => scrollTo(0, y), y); await sleep(60); }
     await sleep(1500);
-    const moved = await p.$$eval(`#${t} button.an-play, #${t} [id$="-p"]`, bs => bs.filter(x => /Pause/.test(x.textContent)).length);
-    if (moved) errs.push(`${t}: ${moved} animation(s) playing without a press`);
+    const WIDGETS = ['bl-walk-ctl-p', 'in-phctl-p', 'in-wnctl-p', 'am-tl-ctl-p'];
+    const moved = await p.$$eval(`#${t} button.an-play, #${t} [id$="-p"]`, (bs, W) => bs.filter(x => W.includes(x.id) && /Pause/.test(x.textContent)).length, WIDGETS);
+    if (moved) errs.push(`${t}: ${moved} widget(s) playing without a press`);
     await p.evaluate(tid => {
       const root = document.getElementById(tid);
       root.querySelectorAll('details').forEach(d => d.open = true);

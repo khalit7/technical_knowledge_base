@@ -76,7 +76,7 @@
   A.seg($('am-tl-col'),m=>{mode=m;legend();anim.redraw()});
   legend();flags();
   $('am-tl-sel').innerHTML='<p class="small mute">Click a dot or a flag to see that model\'s card.</p>';
-  anim=A.anim({card:'am-tl-card',ctl:'am-tl-ctl',n:QS.length,start:QS.length-1,ms:450,label:'Quarter',draw:i=>draw(i)});
+  anim=A.anim({card:'am-tl-card',ctl:'am-tl-ctl',n:QS.length,start:QS.length-1,ms:450,label:'Quarter',draw:i=>draw(i),auto:false}); // a widget: 31 quarters, opens on the latest
   A.tabLinks($('am-tl-sel'));
   A.onRender(()=>anim.redraw());A.onResize(()=>anim.redraw());
 })();

@@ -155,10 +155,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
 - [x] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
 - [x] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
-- [~] `models_and_training/topic_llm_architecture` Topic: llm-architecture
+- [x] `models_and_training/topic_llm_architecture` Topic: llm-architecture
 - [x] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
 - [x] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
-- [ ] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
+- [~] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
 - [ ] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
 - [ ] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
 - [ ] `models_and_training/topic_llm_landscape/minimax` MiniMax
@@ -448,6 +448,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/positional_encodings`: empty space above and below the scene at 1400 (worst Figs. 1, 5, 6); Fig. 6 NTK step's per-pair out-of-range count can exceed plain's (modulo-one-turn judgement; the step also gives how far the slowest pair turns); running-sequence card about 1,070 px tall, not sticky; core 33 to 38 min plus 20 closed.
 - `models_and_training/topic_llm_architecture/the_transformer_from_zero`: core 32 to 40 min plus 22 closed; Fig. 3 step 4 shows a small unexplained cluster at the lower right; full-view steps small (Fig. 1 steps 3 and 6, Fig. 4 step 3); stages read the root's src/block/out/trace_ref_baseline_s1500.json (keep it if the root is reorganised); Fig. 4 heights are square-root weights (said in the step).
 - `models_and_training/topic_llm_architecture/tokenizers`: core 42 to 46 min plus 15 closed; Fig. 2 tile and pair labels crowd each other at 1400; wide shallow scenes leave empty card space; tile letters hidden on phones; dark 390 shots checked only at the middle step; verify_layout flags the Vocabulary timeline outside a split (accepted: reader tool).
+- `models_and_training/topic_llm_architecture` (root): Fig. 1 busy at 1400 with FFN plates cut at the card's bottom edge; step 7's 32 receding outlines busier than the rest; page 918 KB; read/check_read.mjs and read/check_data.py are stale (they drive Reading animations retired in October; check_stages covers Reading now); unit 474's clause (a 64-token window keeps a quarter of a 256-token cache) should be absorbed by Attention variants; verify_layout flags the four lab tabs (accepted).
 - `models_and_training/topic_llm_landscape/alibaba_qwen`: Fig. 3 all-five step draws grids in a thin band with empty space below; hero step 4 "16 attention" note close to the 2.4T tower at 390; which experts light up is a seeded illustrative pick (said in the step); no Qwen figures (no reuse licence).
 - `models_and_training/topic_llm_landscape/anthropic_claude_family`: Fig. 5 plates small with row names hidden on phones; Fig. 6 step 5 columns after turn 1 short (turn 1's cache write dominates, real); recompute.py's Sonnet 5.5 cache read set to the page's $0.10 (cut 7 October, sourced in the 19 October issue); the page's inputs/about-claude_pricing.md predates that cut.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
@@ -460,3 +461,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Native multimodal models: the old token viewer paired mismatched images because `ar/tokenize_data.py` writes the first 16 test images, not the topic's fixed 16; rerunning it on test16() (needs scratch data) would restore all classes. Rerun?
 - Generative and multimodal root: five children (Vision encoders, VLMs, Diffusion, Autoencoders, Evaluating) have not absorbed the facts in its "Kept from the retired labs" block. Move them into the children, or keep the block?
 - Pages over about 50 minutes core or with large closed details (see polish notes): condense in the cosmetic pass, or leave?
+- LLM architecture root: Fig. 1 (3D) replaced the clickable 2D hero map (the step list carries the owner links; the old hero is in git history), and the map tab's eras stepper now opens on the 2018 block and plays to "as shipped" (before, it opened on "as shipped" and waited). Keep both, or restore the old behaviour?

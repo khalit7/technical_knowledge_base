@@ -109,10 +109,10 @@
     h+='<div class="small">Sources: '+sh.src.map(s=>lk(s[0],s[1])).join(' · ')+'</div>';
     $('am-er-cap').innerHTML=h;
   }
-  function setTarget(id){tg=S.targets.find(t=>t.id===id)||tg;anim.reset(tg.states.length,tg.states.length-1);
-    $('am-er-jump').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m!=='0'))}
+  function setTarget(id){tg=S.targets.find(t=>t.id===id)||tg;anim.reset(tg.states.length,0);
+    $('am-er-jump').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m==='0'))}
   A.seg(segT,setTarget);
   A.seg($('am-er-jump'),m=>anim.go(m==='0'?0:tg.states.length-1));
-  anim=A.anim({card:'am-er-card',ctl:'am-er-ctl',n:tg.states.length,start:tg.states.length-1,ms:2200,label:'Shift',draw:draw});
+  anim=A.anim({card:'am-er-card',ctl:'am-er-ctl',n:tg.states.length,ms:4600,label:'Shift',draw:draw});
   A.onRender(()=>anim.redraw());A.onResize(()=>anim.redraw());
 })();
