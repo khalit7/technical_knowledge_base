@@ -41,7 +41,7 @@
 
   // ---- Training recipe ----
   function recipe(){
-    const el=$('acRecipe');if(!el)return;const W=Math.max(300,Math.min(880,RD.width(el))),narrow=W<640;let s='',H;
+    const el=$('acRecipe');if(!el)return;const W=Math.max(300,Math.min(880,RD.width(el))),narrow=W<760;let s='',H; // five boxes in a row need about 150 px each: the split's right column (about 650 px) takes the stacked layout
     const S=[['boxo','Pretraining',['data, size, architecture'],'undisclosed'],
              ['box','SL-CAI',['critique and revise','against a constitution'],'published, 2022'],
              ['box','RLAIF',['AI labels: harmlessness','human labels: helpfulness'],'published, 2022'],

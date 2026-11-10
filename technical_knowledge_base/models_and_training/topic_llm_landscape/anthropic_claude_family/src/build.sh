@@ -1,13 +1,13 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
-# Assemble ../index.html from parts/: head and CSS, the HTML parts in order, then the scripts, tabs last (99_js_tabs.js and 21_js_rd_common.js are the explainer-page skill templates).
+# Assemble ../index.html from parts/: head and CSS, the HTML parts in order, then the scripts, tabs last (99_js_tabs.js, 21_js_rd_common.js, 02_split.html and 25_js_s3.js are the explainer-page skill templates, copied unchanged).
 # Links in any part are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 # They expand to <a href="url" target="_blank" rel="noopener noreferrer">text</a>.
 cd "$(dirname "$0")"
-{ cat parts/00_top.html parts/01_css.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/05d_read_deep.html parts/06_tabs.html parts/07_more.html
+{ cat parts/00_top.html parts/01_css.html parts/02_split.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/05d_read_deep.html parts/06_tabs.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11_js_read.js parts/11b_js_figs.js parts/12_js_sim.js parts/13_js_line.js parts/14_js_cost.js parts/15a_aa_data.js parts/15_js_aa.js parts/16a_metr_data.js parts/16_js_metr.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11_js_read.js parts/11b_js_figs.js parts/12_js_sim.js parts/13_js_line.js parts/14_js_cost.js parts/15a_aa_data.js parts/15_js_aa.js parts/16a_metr_data.js parts/16_js_metr.js parts/25_js_s3.js parts/41_js_sc_ap.js parts/42_js_sc_ss.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 fab51=>"https://www.anthropic.com/claude-fable-and-mythos-5-1",
@@ -76,7 +76,8 @@ metry=>"https://metr.org/assets/benchmark_results_1_1.yaml",
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=$u=~m{^@(\w+)$}?($A{$1}||die "alias $1"):$u;$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"/ge;
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html
 # Reading time in the header: RT_CORE and RT_DEPTH are filled from rt.json, which html_utils/audit_pages.mjs measures
 # on the built page (230 words a minute, core and closed details apart); rerun the audit and update rt.json after editing text.

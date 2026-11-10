@@ -6,7 +6,8 @@ import json, math, datetime, yaml
 # Prices: input, output, cache read, 5m write (= 1.25 x input), 1h write (= 2 x input). $/MTok. Pricing page, read 2026-10-01.
 PR = {
  'Fable 5.1': (10, 50, 0.25), 'Fable 5': (10, 50, 1.00), 'Opus 5.5': (4, 20, 0.20), 'Opus 5': (5, 25, 0.50),
- 'Sonnet 5.5': (2, 10, 0.20), 'Sonnet 4.6': (3, 15, 0.30), 'Haiku 4.5': (1, 5, 0.10), 'Opus 4.1': (15, 75, 1.50),
+ 'Sonnet 5.5': (2, 10, 0.10),  # cache read cut from $0.20 to $0.10 on 7 October 2026 (tech-news issue of 19 October; the page's PRICES)
+ 'Sonnet 4.6': (3, 15, 0.30), 'Haiku 4.5': (1, 5, 0.10), 'Opus 4.1': (15, 75, 1.50),
 }
 
 def fixed(m, P=100_000, T=50, N=5_000, O=2_000, cache=True):
@@ -47,6 +48,21 @@ for W, r in [(1.25, .1), (2, .1), (1.25, .025), (2, .025), (1.25, .05)]:
     print('break-even', W, r, math.floor((W - 1) / (1 - r)) + 1)
 # 45% saving: cached share s of Fable 5 cost that gives saving 0.75 s = 0.45
 print('cache share of Fable 5 bill needed for 45%:', 0.45 / 0.75, 'for 25%:', 0.25 / 0.75)
+
+# Fig. 5 (42_js_sc_ss.js, window.SS): the growing session for 16 turns, per model; the numbers its step list quotes (Opus 5.5 by default)
+print('== Fig. 5, 16 turns ==')
+def fig5(m, win=1_000_000, P=100_000, N=5_000, O=2_000, T=16):
+    i, o, c = PR[m]; w = 1.25 * i; cached = none = 0; last = None
+    for t in range(1, T + 1):
+        ctx = P + (t - 1) * (N + O) + N
+        if ctx > win: continue
+        rd = 0 if t == 1 else P + (t - 2) * (N + O) + N; wr = P + N if t == 1 else O + N
+        cost = (rd * c + wr * w + O * o) / 1e6; cached += cost; none += (ctx * i + O * o) / 1e6
+        last = (t, cost, rd, rd * c / 1e6 / cost)
+        if t == 1: t1 = cost
+    return round(t1, 4), last, round(cached, 3), round(none, 3), round(none / cached, 2)
+for m, win in [('Opus 5.5', 1e6), ('Fable 5.1', 1e6), ('Fable 5', 1e6), ('Sonnet 5.5', 1e6), ('Haiku 4.5', 2e5)]:
+    print(f'{m:11s}', fig5(m, win))
 
 print('== AA v4.3 ==')
 d = json.load(open('../../src/data/aa_snapshot.json'))

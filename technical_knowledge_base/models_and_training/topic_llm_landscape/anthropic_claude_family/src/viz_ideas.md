@@ -97,3 +97,8 @@ Google page's thinking-level matrix (G6) and cost-per-task split (G2), Topic: ll
 - Removed: CAI stepper (owned by the paper page); AA mini stats (the root owns the cross-lab ranking).
 - Fixed: the session animation autoplayed on scroll and on a mode switch; it now waits for the reader.
 - No image: no physical object to show; rejected the CAI paper figure (owned by the paper page).
+
+## 7. Layout rollout of 2026-11-10 (split layout, renderer v2 stages)
+- Built: Fig. 5 `stg-ap` (append-only plates, 6 steps, data window.AP = the simulator's own blocks and rules) and Fig. 6 `stg-ss` (one column per turn of the growing session, 6 steps, window.SS = the page's growing-context accounting). Fig. 6 replaces the 16-frame 2D square-grid animation, whose turns are now one explained stretch (step 3) instead of one frame each.
+- Kept 2D: hero, lineage, recipe, thinking before/after (structure, a timeline and a before/after read best flat); request checker and simulator (reader-driven tables); worked table and split bars; ladder bars; the three tool tabs (log scatter, fit line, sliders).
+- Rejected: a 3D hero (Anthropic publishes no architecture, so any tower would be invented internals); a thinking-budget stage (the page has no per-request thinking-token data beyond Artificial Analysis's per-run totals, which the Effort and cost tab plots on a log axis, a 2D reading).

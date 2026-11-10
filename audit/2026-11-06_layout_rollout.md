@@ -155,9 +155,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
 - [x] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
 - [x] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
-- [ ] `models_and_training/topic_llm_architecture` Topic: llm-architecture
+- [~] `models_and_training/topic_llm_architecture` Topic: llm-architecture
 - [x] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
-- [~] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
+- [x] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
 - [ ] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
 - [ ] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
 - [ ] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
@@ -449,6 +449,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/the_transformer_from_zero`: core 32 to 40 min plus 22 closed; Fig. 3 step 4 shows a small unexplained cluster at the lower right; full-view steps small (Fig. 1 steps 3 and 6, Fig. 4 step 3); stages read the root's src/block/out/trace_ref_baseline_s1500.json (keep it if the root is reorganised); Fig. 4 heights are square-root weights (said in the step).
 - `models_and_training/topic_llm_architecture/tokenizers`: core 42 to 46 min plus 15 closed; Fig. 2 tile and pair labels crowd each other at 1400; wide shallow scenes leave empty card space; tile letters hidden on phones; dark 390 shots checked only at the middle step; verify_layout flags the Vocabulary timeline outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_landscape/alibaba_qwen`: Fig. 3 all-five step draws grids in a thin band with empty space below; hero step 4 "16 attention" note close to the 2.4T tower at 390; which experts light up is a seeded illustrative pick (said in the step); no Qwen figures (no reuse licence).
+- `models_and_training/topic_llm_landscape/anthropic_claude_family`: Fig. 5 plates small with row names hidden on phones; Fig. 6 step 5 columns after turn 1 short (turn 1's cache write dominates, real); recompute.py's Sonnet 5.5 cache read set to the page's $0.10 (cut 7 October, sourced in the 19 October issue); the page's inputs/about-claude_pricing.md predates that cut.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
