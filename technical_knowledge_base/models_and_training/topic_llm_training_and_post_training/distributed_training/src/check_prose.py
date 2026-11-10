@@ -9,9 +9,9 @@ rd, an = R['reading'], R['anim']
 want = []
 f1 = lambda v: f'{v:.1f}'
 m = rd['mem']
+# Fig. 2 is a 3D stage since 2026-11-10 (heights from window.ANIM, checked by check_calc.mjs); its step list carries the numbers
 want += [f'bf16 weights {f1(m["w"])} GB', f'bf16 gradients {f1(m["g"])} GB', f'Adam moments {f1(m["o"])} GB', f'sequence {f1(m["acts"])} GB',
-         f'width:{m["pct"]["w"]:.2f}%', f'width:{m["pct"]["o"]:.2f}%', f'width:{m["pct"]["acts"]:.2f}%', f'left:{m["pct"]["line80"]:.2f}%',
-         f'Model states {f1(sum(an["states"]["DP"] for _ in [0]))} GB']
+         f'Model states {f1(an["states"]["DP"])} GB', f'About {m["w"] + m["g"] + m["o"] + m["acts"]:.0f} GB in all']
 c = rd['ckpt']
 want += [f'{c["store_all"]:.0f} GB', f'{c["selective"]:.1f} GB', f'{c["full"]:.1f} GB', f'width:{c["pct"]["selective"]:.1f}%', f'width:{c["pct"]["full"]:.2f}%']
 d = rd['dp_hide']

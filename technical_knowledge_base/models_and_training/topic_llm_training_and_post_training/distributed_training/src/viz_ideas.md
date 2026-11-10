@@ -74,3 +74,19 @@ Placement: the strongest visual, the step-through (#1 above), was one card in it
 | Predict, then reveal: ZeRO-1 at 64 GPUs; GPipe against 1F1B | predict | sections 4 and 6 | the two misconceptions the old mistakes list named |
 
 Rejected again: a pipeline schedule animation (the DeepSeek and Llama 3 pages have them; the PP step-through already draws a 1F1B timeline); a collective-cost calculator (Interconnects owns it).
+
+## 2026-11-10: the split layout and 3D stages (renderer v2)
+| Visual | Now | Why |
+|---|---|---|
+| Hero, six panels | 2D static, right of the core sentence | six small multiples compared side by side; depth would shrink them and add nothing |
+| Memory bar | **3D** `stg-mem`: slabs to scale on one GPU, the 80 GB as a dashed ring | the stack is the thing every split removes a block of; the same slabs return on every GPU of Figs. 4 to 12 |
+| Five collectives, before and after | **3D** `stg-coll`: chunks travel between four GPU boards, dots stream on their paths | who ends with what is a movement between devices |
+| Six step-throughs (DP, ZeRO-1/2/3 and HSDP, TP, PP, EP, CP) | **3D** `stg-dp`, `stg-zero`, `stg-tp`, `stg-pp`, `stg-ep`, `stg-cp`, one scene (`32_js_sc_gpu.js`) | four GPUs with their memory stacks, their quarter of the model and their data, and the bytes flowing: the page's core picture, the same in every section |
+| TP / TP + SP block | **3D** `stg-tpb`: two GPUs as lanes in depth, matrices as glass plates, the half not held as an outline | the column and row split is spatial; depth separates the two GPUs |
+| Nested layouts with seconds per axis | **3D** `stg-mesh`: a mesh of GPU cubes (server, pipeline, replicas), then seconds per axis as columns | the 3D mesh is the natural figure of 3D parallelism |
+| ZeRO slider, bubble widget | 2D, right column | one parameter each; numbers on an axis |
+| Ring / all-gather / Ulysses | 2D static, right column | three small diagrams compared side by side |
+| Checkpointing bars | 2D static, right column | three numbers spanning 100 times; a bar reads best |
+| Layout calculator tab | full width | a reader-driven tool used across the page |
+
+Rejected: a 3D hero (six stages would be small and slow); a 3D checkpointing stack (the message is three numbers); redrawing DualPipe (the DeepSeek page owns it).

@@ -1,24 +1,56 @@
 
 <section id="rd-tp">
+<div class="s3sp"><div class="s3R"><div id="stg-tpb"></div></div><div class="s3L">
 <h2>5. Tensor parallelism and sequence parallelism</h2>
-<p>Tensor parallelism splits individual weight matrices across GPUs ({{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}): a <b>column-parallel</b> matrix followed by a <b>row-parallel</b> one, in the feed-forward block and in attention (heads are divided among GPUs). One feed-forward block on two GPUs:</p>
-<div class="fig" id="tpf"><h4>Column split, then row split: one all-reduce per block, and sequence parallelism trades it for a reduce-scatter and an all-gather</h4>
-<div class="seg" id="tpSeg"><button data-m="tp" class="on">TP</button><button data-m="sp">TP + sequence parallel</button></div>
-<div class="sv" id="tpSvg"></div>
-<p class="small" id="tpCap"></p>
-</div>
-<p>That is two all-reduces per layer forward and two backward, inside every layer, in small latency-bound messages on the critical path: the next matmul needs the result, so overlap cannot hide them. Four GPUs, the same step as before:</p>
-<div class="card dt-an" id="anT" data-modes="TP" data-cmp="DP"></div>
-<p>TP sends 51.5 GB per GPU for this step, more than any other split, and its bytes per FLOP do not depend on the batch at all, only on the degree, the hidden size and the link, so a slow link cannot be bought back with bigger batches: for Llama 3.1 70B at TP 8 over a 400 Gb/s card the communication is 141% of the compute ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} section 9 <i class="nl d">derived</i>). Hence Megatron's guidance, TP "up to degree g when using g-GPU servers", then pipeline parallelism across servers (<a href="https://arxiv.org/abs/2104.04473" target="_blank" rel="noopener noreferrer">Narayanan et al. 2021</a>); the Playbook measured "around 43% performance degradation" when TP crosses nodes, against 14% for PP. Keep the degree a divisor of the number of heads (of KV heads, with grouped-query attention): otherwise the attention has to be reshuffled, and the JAX page measured 1.33 times the predicted bytes for 4 heads over 8 devices.</p>
+<p>Tensor parallelism splits individual weight matrices across GPUs ({{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}): a <b>column-parallel</b> matrix followed by a <b>row-parallel</b> one, in the feed-forward block and in attention (heads are divided among GPUs). Fig. 7 runs one feed-forward block on two GPUs, in Megatron-LM's notation (<i>Y</i> = GeLU(<i>X</i>·<i>A</i>), <i>Z</i> = <i>Y</i>·<i>B</i>), first as plain TP, then with sequence parallelism:</p>
+<div class="s3chips" id="tpbM"><button data-m="tp" class="on">TP</button><button data-m="sp">TP + sequence parallel</button></div>
+<ol class="sx" id="sx-tpb">
+<li><b>The input, whole on both GPUs.</b> Both GPUs hold every token of <i>X</i>. Megatron's <i>f</i> operator is the identity going forward (its backward is an all-reduce).</li>
+<li><b>Column split of A.</b> GPU 0 holds the first half of <i>A</i>'s columns, GPU 1 the second (the outline is the half it does not hold). <i>X</i>·<i>A</i>₀ and <i>X</i>·<i>A</i>₁ are independent, so GeLU runs locally with no communication.</li>
+<li><b>Row split of B.</b> Each GPU holds the matching half of <i>B</i>'s rows, so <i>Z</i>ᵢ = <i>Y</i>ᵢ·<i>B</i>ᵢ is only a partial sum of the output.</li>
+<li><b>One all-reduce.</b> <i>Z</i>₀ + <i>Z</i>₁ = <i>Z</i> needs a sum, one all-reduce of the block's output (<i>b</i> × <i>s</i> × <i>h</i> values; Megatron's <i>g</i>). Then LayerNorm and dropout run on all tokens on both GPUs: duplicated work and duplicated activation memory.</li>
+</ol>
+<ol class="sx" id="sx-tpbs" hidden>
+<li><b>Own tokens only.</b> Outside the matmuls each GPU keeps only its own half of the tokens, so LayerNorm and dropout are no longer duplicated.</li>
+<li><b>All-gather.</b> An all-gather rebuilds the full <i>X</i> on both GPUs before the column-parallel matmul.</li>
+<li><b>Column split of A.</b> As in TP: GeLU(<i>X</i>·<i>A</i>ᵢ) on each GPU, no communication.</li>
+<li><b>Row split of B.</b> As in TP: each GPU ends with a partial sum.</li>
+<li><b>Reduce-scatter.</b> A reduce-scatter replaces the all-reduce, leaving each GPU the summed output for its own tokens. Same bytes, because an all-reduce is a reduce-scatter plus an all-gather.</li>
+</ol>
 <p><b>Sequence parallelism</b> (Megatron-style) extends TP to the regions TP leaves replicated, LayerNorm and dropout, by splitting their activations along the sequence. The all-reduce becomes a reduce-scatter plus an all-gather of the same total size, so communication is unchanged and the duplicated activation memory disappears: activations per layer fall from <i>sbh</i>(34 + 5<i>as</i>/<i>h</i>) to <i>sbh</i>/<i>t</i>(34 + 5<i>as</i>/<i>h</i>), and with selective recomputation to 34<i>sbh</i>/<i>t</i> (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022</a>). One small collective appears: each GPU ran the LayerNorm on its own tokens, so the LayerNorm weights' gradients are partial sums and need an all-reduce over the TP group (recorded on {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} section 6). It is not context parallelism (section 8): it lives inside the TP group and leaves attention whole.</p>
+</div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-tp"></div></div><div class="s3L">
+<p>That is two all-reduces per layer forward and two backward, inside every layer, in small latency-bound messages on the critical path: the next matmul needs the result, so overlap cannot hide them. Fig. 8: four GPUs, the same step as before:</p>
+<ol class="sx" id="sx-tp" data-mode="TP">
+<li><b>Setup: every matrix cut in four.</b> Each GPU holds a quarter of every weight matrix: query, key and value heads and the first feed-forward matrices by columns, the attention output and second feed-forward matrix by rows. 4 bytes per parameter, 32.1 GB. The four GPUs act as one model replica, so the whole batch, four 8,192-token sequences, goes through all four.</li>
+<li><b>Layer 1, attention.</b> Column-parallel QKV gives each GPU 8 of the 32 heads, so attention runs locally. The row-parallel output projection leaves a partial sum on each GPU: one all-reduce of the batch's hidden states, 0.40 GB per GPU. With sequence parallelism this is a reduce-scatter plus an all-gather of the same size, and LayerNorm activations are split by tokens.</li>
+<li><b>Layer 1, feed-forward.</b> Column-parallel W1 and W3, the SwiGLU applied locally (the reason for the column-then-row pairing: no sync in between), row-parallel W2, then the second all-reduce.</li>
+<li><b>Layers 2 to 32.</b> Two all-reduces per layer: 64 in the forward pass, 25.8 GB per GPU.</li>
+<li><b>Backward.</b> The mirror image: two all-reduces of input gradients per layer, 64 more, 25.8 GB. Each GPU computes the weight gradients for its own slices only.</li>
+<li><b>Optimiser step, no gradient sync.</b> There is one replica, so nothing to average. Total 51.5 GB per GPU, more than any other split, in 128 small, latency-bound pieces inside every layer: tensor parallelism only works on NVLink.</li>
+</ol>
+<p class="small dt-ro" id="ro-tp"></p>
+<p>TP sends 51.5 GB per GPU for this step, more than any other split, and its bytes per FLOP do not depend on the batch at all, only on the degree, the hidden size and the link, so a slow link cannot be bought back with bigger batches: for Llama 3.1 70B at TP 8 over a 400 Gb/s card the communication is 141% of the compute ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} section 9 <i class="nl d">derived</i>). Hence Megatron's guidance, TP "up to degree g when using g-GPU servers", then pipeline parallelism across servers (<a href="https://arxiv.org/abs/2104.04473" target="_blank" rel="noopener noreferrer">Narayanan et al. 2021</a>); the Playbook measured "around 43% performance degradation" when TP crosses nodes, against 14% for PP. Keep the degree a divisor of the number of heads (of KV heads, with grouped-query attention): otherwise the attention has to be reshuffled, and the JAX page measured 1.33 times the predicted bytes for 4 heads over 8 devices.</p>
+</div></div>
 <p class="small impl"><b>Implemented in:</b> {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} sections 5 and 6 (DTensor, TP and SP on a real block); {{Sharding and scale (JAX)|n:3c65c17b0d0d8125b084e6720cc66b3d}}; the Megatron-LM page's section {{Method: the f and g operators|n:3c65c17b0d0d8133ae92fbe90a1f308e#s-mlp}}, which splits a layer on real matrices.</p>
 </section>
 
 <section id="rd-pp">
+<div class="s3sp"><div class="s3R"><div id="stg-pp"></div></div><div class="s3L">
 <h2>6. Pipeline parallelism</h2>
-<p>Pipeline parallelism splits the model into <b>stages</b> of consecutive layers, one per GPU or group. Only activations (forward) and their gradients (backward) cross a stage boundary, 2<i>sbh</i> bytes per micro-batch each way, so PP is cheap on bandwidth and is the preferred way to split a model across servers. Run naively, one batch at a time, only one stage works while the others wait: the <b>bubble</b>. Cutting the batch into <i>m</i> <b>micro-batches</b> lets stages work on different micro-batches at once. Four stages, four micro-batches, the 1F1B schedule:</p>
-<div class="card dt-an" id="anP" data-modes="PP" data-cmp="DP"></div>
-<p>The idle share of the timeline is (<i>p</i> − 1)/(<i>m</i> + <i>p</i> − 1), 43% here; Megatron writes the same bubble as (<i>p</i> − 1)/<i>m</i> of the ideal time, 75%. A schedule decides the order of forwards and backwards:</p>
+<p>Pipeline parallelism splits the model into <b>stages</b> of consecutive layers, one per GPU or group. Only activations (forward) and their gradients (backward) cross a stage boundary, 2<i>sbh</i> bytes per micro-batch each way, so PP is cheap on bandwidth and is the preferred way to split a model across servers. Run naively, one batch at a time, only one stage works while the others wait: the <b>bubble</b>. Cutting the batch into <i>m</i> <b>micro-batches</b> lets stages work on different micro-batches at once. Fig. 9: four stages, four micro-batches, the 1F1B schedule, with the timeline on the floor:</p>
+<ol class="sx" id="sx-pp" data-mode="PP">
+<li><b>Setup: eight layers per GPU.</b> GPU 0 holds layers 1 to 8 with the embedding, GPU 3 layers 25 to 32 with the output head: 4 bytes per parameter of the whole model each, 32.1 GB (the end stages a little more). The batch is cut into four micro-batches, one sequence each; the timeline on the floor fills as the step runs.</li>
+<li><b>Warm-up.</b> Micro-batch 1 enters stage 1, then its activations are sent to stage 2, and so on. The later stages wait: the start of the bubble.</li>
+<li><b>Steady state: one forward, one backward.</b> 1F1B: once the last stage starts backward, each stage alternates a forward and a backward, so it never holds more than p micro-batches of activations (GPipe holds all m). Gradients flow back by send and receive.</li>
+<li><b>Cool-down.</b> The pipeline drains; the first stage waits for the last gradients. Idle share of the timeline: (p − 1)/(m + p − 1) = 43%; in Megatron's terms the bubble is (p − 1)/m = 75% of the ideal time.</li>
+<li><b>Optimiser step.</b> Each stage updates its own layers; nothing to average. The traffic was tiny, 0.54 GB per GPU at most, one activation per micro-batch per boundary: pipeline parallelism is the split to put on slow links.</li>
+</ol>
+<p class="small dt-ro" id="ro-pp"></p>
+<p>The idle share of the timeline is (<i>p</i> − 1)/(<i>m</i> + <i>p</i> − 1), 43% here; Megatron writes the same bubble as (<i>p</i> − 1)/<i>m</i> of the ideal time, 75%.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p>A schedule decides the order of forwards and backwards:</p>
 <ul class="tight">
 <li><b>GPipe</b> (<a href="https://arxiv.org/abs/1811.06965" target="_blank" rel="noopener noreferrer">Huang et al. 2019</a>): all forwards, then all backwards. Bubble time fraction (<i>p</i> − 1)/<i>m</i> of the ideal time, and every stage holds the activations of all <i>m</i> micro-batches.</li>
 <li><b>1F1B</b> (from PipeDream, <a href="https://arxiv.org/abs/1806.03377" target="_blank" rel="noopener noreferrer">Harlap et al. 2018</a>; Megatron uses its flushing variant, PipeDream-Flush): after a warm-up, each stage alternates one forward and one backward. The bubble is <b>the same</b> as GPipe's; what changes is memory, at most <i>p</i> micro-batches in flight instead of <i>m</i> (<a href="https://arxiv.org/abs/2104.04473" target="_blank" rel="noopener noreferrer">Narayanan et al. 2021</a>).</li>
@@ -29,7 +61,9 @@
 <div class="pr" id="ppr"><div class="q">Predict: 8 stages, 20 micro-batches. Switching from GPipe to 1F1B does what to the bubble?</div>
 <div class="opts"><button data-a="0">halves it</button><button data-a="1">nothing</button><button data-a="0">removes it</button></div>
 <div class="ans" hidden>Nothing: both idle (<i>p</i> − 1)/<i>m</i> = 35% of the ideal time. 1F1B caps the activations in flight at <i>p</i> micro-batches instead of <i>m</i>. Interleaving (÷ <i>v</i>), zero-bubble schedules and DualPipe are what shrink the bubble: move the sliders.</div></div>
-<div class="card" id="pb"><h4 style="margin:0 0 4px;font-size:14.5px">The bubble falls with more micro-batches and with interleaving; 1F1B alone changes only memory</h4>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card" id="pb"><h4 style="margin:0 0 4px;font-size:14.5px">Fig. 10 · The bubble falls with more micro-batches and with interleaving; 1F1B alone changes only memory</h4>
 <div class="ctl">
 <label>Stages, <i>p</i> = <b id="pbPv">8</b><input type="range" id="pbP" min="2" max="32" step="2" value="8"></label>
 <label>Micro-batches per step, <i>m</i> = <b id="pbMv">20</b><input type="range" id="pbM" min="1" max="64" step="1" value="20"></label>
@@ -39,6 +73,7 @@
 <p class="small mute" id="pbN"></p>
 <p class="small mute">The default is DeepSeek's DualPipe README example, 8 stages and 20 micro-batches; at <i>m</i> = 8 the GPipe and 1F1B rows rise to 88% of the ideal time. Rows use <i class="nl i">illustrative</i> chunk times (forward 1, full backward 2, weight-gradient part 1), which is what makes ZB-H1 exactly a third of 1F1B.</p>
 </div>
+</div></div></div>
 <p>The price of PP is the bubble, a batch-size constraint (enough micro-batches per step), uneven memory (the first stage holds the most activations, and the embedding) and invasive code changes. Rank-by-rank schedule animations are linked rather than rebuilt: the {{DeepSeek page|n:3c65c17b0d0d81a2ae7ec6796947a235#s-pipe}} (Training systems section) runs 1F1B, ZB1P, DualPipe and DualPipeV, and the Llama 3 page's {{Run the 16K-GPU job|n:3c65c17b0d0d81aca58ccb9d720b474e}} tab simulates Llama 3's interleaved schedule with its tunable micro-batch grouping.</p>
 <p class="small impl"><b>Implemented in:</b> {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} section 8 (every PyTorch schedule, measured); {{Sharding and scale (JAX)|n:3c65c17b0d0d8125b084e6720cc66b3d}} (by hand with shard_map).</p>
 </section>

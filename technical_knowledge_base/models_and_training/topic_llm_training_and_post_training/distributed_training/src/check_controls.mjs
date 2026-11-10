@@ -1,4 +1,4 @@
-// Exercise every control on the page in headless Chrome and look for NaN, undefined, Infinity or script errors.
+// Exercise every control on the page (the 3D stages' steps are exercised by check_stages.mjs) in headless Chrome and look for NaN, undefined, Infinity or script errors.
 // Run from the repo root: node technical_knowledge_base/.../distributed_training/src/check_controls.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -19,40 +19,21 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   await p.$eval('button[data-t=t-read]', e => e.click());
   const scan = async (sel, tag) => {
     checks++;
-    const t = await p.$eval(sel, e => e.innerText + ' ' + e.innerHTML);
+    const t = (await p.$eval(sel, e => e.innerText + ' ' + e.innerHTML)).replace(/ZeRO-Infinity/g, 'ZeRO-Inf');
     const m = t.match(/NaN|undefined|Infinity|null GB/);
     if (m) { bad++; console.log('BAD', scheme, tag, m[0], t.slice(Math.max(0, t.indexOf(m[0]) - 80), t.indexOf(m[0]) + 40)) }
   };
-  // step-throughs: every card, every mode, both batches, every step
-  const cards = await p.$$eval('.dt-an', cs => cs.map(c => c.id));
-  for (const id of cards) {
-    const modes = await p.$$eval('#' + id, cs => cs[0].dataset.modes.split(','));
-    for (const B of ['4', '1']) {
-      await p.select('#' + id + 'B', B);
-      for (const m of modes) {
-        if (modes.length > 1) await p.$eval('#' + id + 'M button[data-m="' + m + '"]', e => e.click());
-        const n = await p.$eval('#' + id + 'C-s', e => +e.max + 1);
-        for (let i = 0; i < n; i++) {
-          await p.$eval('#' + id + 'C-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i);
-          await scan('#' + id, id + ' ' + m + ' B' + B + ' step ' + i);
-        }
-        if (width === 920 || ['DP', 'PP', 'EP', 'HSDP'].includes(m)) {
-          await p.$eval('#' + id + 'C-s', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, Math.min(2, n - 1));
-          const el = await p.$('#' + id); await el.screenshot({ path: path.join(shots, `an-${m}-b${B}-${scheme}-${width}.png`) });
-        }
-      }
-    }
-    for (const c of ['ZeRO-3', 'TP']) { await p.select('#' + id + 'Cmp', c); await scan('#' + id + 'Cnt', id + ' compare ' + c) }
-  }
-  // nothing plays by itself: every play button still says Play after load
+  // this run emulates reduced motion, so nothing may play by itself: every stage's play button still says Play after load
+  // (autoplay on view, its stop rules and the step lists are checked by check_stages.mjs)
   const playing = await p.$$eval('.an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
   if (playing) { bad++; console.log('AUTOPLAY', scheme, playing) }
   // ZeRO slider, TP and mesh toggles, predict blocks
   for (const v of ['0', '6', '10']) { await p.$eval('#zN', (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v); await scan('#zBars', 'zero n ' + v) }
-  for (const m of ['sp', 'tp']) { await p.$eval('#tpSeg button[data-m="' + m + '"]', e => e.click()); await scan('#tpf', 'tp ' + m) }
-  for (const m of ['dsv3', 'l405_8k_16k']) { await p.$eval('#meshSeg button[data-m="' + m + '"]', e => e.click()); await scan('#mesh', 'mesh ' + m) }
+  for (const m of ['sp', 'tp']) { await p.$eval('#tpbM button[data-m="' + m + '"]', e => e.click()); await scan('#rd-tp', 'tp ' + m) }
+  for (const m of ['dsv3', 'l405_8k_16k']) { await p.$eval('#meshM button[data-m="' + m + '"]', e => e.click()); await scan('#rd-comp', 'mesh ' + m) }
+  for (const m of ['ZeRO-1', 'ZeRO-2', 'HSDP', 'ZeRO-3']) { await p.$eval('#stg-zero-m button[data-m="' + m + '"]', e => e.click()); await scan('#rd-zero', 'zero ' + m) }
   for (const id of ['zpr', 'ppr']) { await p.$eval('#' + id + ' .opts button', e => e.click()); await scan('#' + id, 'predict ' + id) }
-  for (const sel of ['#heroP', '#collP', '#cpP']) await scan(sel, sel);
+  for (const sel of ['#heroP', '#cpP']) await scan(sel, sel);
   // bubble table
   for (const [P, M, V] of [['2', '1', '1'], ['8', '20', '2'], ['32', '64', '4'], ['32', '1', '1']]) {
     for (const [id, v] of [['pbP', P], ['pbM', M], ['pbV', V]]) await p.$eval('#' + id, (e, v) => { e.value = v; e.dispatchEvent(new Event('input')) }, v);

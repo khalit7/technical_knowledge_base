@@ -1,29 +1,74 @@
 
 <section id="rd-dp">
+<div class="s3sp"><div class="s3R"><div id="stg-dp"></div></div><div class="s3L">
 <h2>3. Data parallelism (DP, DDP)</h2>
-<p>Replicate the model on every GPU and give each replica a different micro-batch. After backward, an <b>all-reduce</b> averages the gradients, so every replica takes the identical optimiser step. Step through one step of Llama 3 8B on four GPUs, four sequences of 8,192 tokens (or one of 32,768: data parallelism cannot cut a single sequence):</p>
-<div class="card dt-an" id="anD" data-modes="DP" data-cmp="DP"></div>
+<p>Replicate the model on every GPU and give each replica a different micro-batch. After backward, an <b>all-reduce</b> averages the gradients, so every replica takes the identical optimiser step. Fig. 4 plays one step of Llama 3 8B on four GPUs, four sequences of 8,192 tokens (given one sequence of 32,768 instead, three GPUs would have nothing to do: data parallelism cannot cut a single sequence). The same step, on the same four GPUs, returns under every split below:</p>
+<ol class="sx" id="sx-dp" data-mode="DP">
+<li><b>Setup: four full copies.</b> Every GPU holds the whole model, its gradients and its optimiser state: 16 bytes per parameter, 128.5 GB, past the 80 GB line of an H100. This is the memory ceiling the other splits remove. Each GPU gets its own sequence.</li>
+<li><b>Forward.</b> Each GPU runs its own sequence through all 32 layers and keeps the activations for backward, so the green slab grows. No communication.</li>
+<li><b>Backward, with the all-reduce starting.</b> Gradients appear from the last layer back. DDP groups them into buckets of 25 MiB and starts an all-reduce on each bucket as soon as it is ready, so the dots start flowing round the ring while backward is still running.</li>
+<li><b>All-reduce finishes.</b> Every GPU now holds the average gradient. A ring all-reduce sends 2(n − 1)/n of the buffer per GPU: 1.5 × 16.1 GB = 24.1 GB each, whatever the number of GPUs.</li>
+<li><b>Optimiser step.</b> Every GPU applies the same update to its own copy, so the four copies stay identical. Four times the optimiser work and memory for one result: the redundancy ZeRO removes.</li>
+</ol>
+<p class="small dt-ro" id="ro-dp"></p>
 <p>DDP sends the gradients in buckets (25 MiB by default in PyTorch's <a href="https://github.com/pytorch/pytorch/blob/main/torch/nn/parallel/distributed.py" target="_blank" rel="noopener noreferrer">DistributedDataParallel</a>) as soon as each is ready, so the all-reduce overlaps the rest of backward. PyTorch's old <code>DataParallel</code> was a single process driving the GPUs of one machine by threads; DDP runs one process per GPU, works across machines, and is the baseline everything else builds on (<a href="https://arxiv.org/abs/2006.15704" target="_blank" rel="noopener noreferrer">Li et al. 2020</a>). It scales nearly linearly while the all-reduce hides behind backward, and that has a size condition: a replica sends about 2 × 2Ψ bytes and computes 6Ψ FLOPs per token, so the transfer hides when each replica processes <span class="fx"><i>T</i> ≥ 2<i>I</i>/3</span> tokens per step, where <i>I</i> is the GPU's sustained FLOP/s over the link's bytes per second. For an H100 at 40% of its BF16 peak over a 400 Gb/s card that is about <b>5,300 tokens</b> per replica ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} section 9 <i class="nl d">derived</i>); Llama 3 405B's 16M-token batches over 128 replicas give 131,072 tokens each, far above it.</p>
 <p>Its cost is memory: the full 16 bytes per parameter on every GPU, the ceiling ZeRO and FSDP remove. The global batch is micro-batch × gradient-accumulation steps × data-parallel degree (<a href="https://nanotron-ultrascale-playbook.static.hf.space/index.html" target="_blank" rel="noopener noreferrer">Playbook</a>), so DP is also how a layout reaches its target batch once the model fits, and a fixed token budget per step caps it: Llama 3's 16K-GPU run had fewer sequences per DP rank than its 8K-GPU run and a lower MFU (41% against 43%, §3.3.2).</p>
+</div></div>
 <p class="small impl"><b>Implemented in:</b> {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} section 3 (DDP's reducer, buckets, comm hooks); {{Sharding and scale (JAX)|n:3c65c17b0d0d8125b084e6720cc66b3d}}; {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}} (torchrun, rendezvous).</p>
 </section>
 
 <section id="rd-zero">
+<div class="s3sp"><div class="s3L">
 <h2>4. ZeRO and FSDP: sharded data parallelism</h2>
 <p>Data parallelism stores the same 16 bytes per parameter <i>n</i> times. ZeRO ({{paper page|n:3c65c17b0d0d81879a7ed90bca007699}}, <a href="https://arxiv.org/abs/1910.02054" target="_blank" rel="noopener noreferrer">Rajbhandari et al. 2019</a>) shards them across the data-parallel group instead, in three stages.</p>
 <div class="pr" id="zpr"><div class="q">Predict: the ZeRO paper's 7.5B model needs 120 GB per GPU under plain data parallelism. Shard only the optimiser state over 64 GPUs (ZeRO-1). About how much is left per GPU?</div>
 <div class="opts"><button data-a="0">about 60 GB</button><button data-a="1">about 31 GB</button><button data-a="0">about 2 GB</button></div>
 <div class="ans" hidden>31.4 GB. The 12 bytes of fp32 master weights and Adam moments become 12/64, but the 4 bytes of bf16 weights and gradients stay whole on every GPU: 4 + 12/64 = 4.19 bytes per parameter. Sharding the 4 is what stages 2 and 3 do.</div></div>
-<div class="fig"><h4>Each stage shards one more block; the part left whole sets the floor</h4>
+<p><b>ZeRO-1</b> shards the optimiser state: each GPU updates its 1/<i>n</i> of the fp32 master weights, then an all-gather shares the updated bf16 weights. <b>ZeRO-2</b> also shards the gradients, reduce-scattered as backward produces them; stages 1 and 2 send what DDP sends. <b>ZeRO-3</b> also shards the parameters: each layer's weights are all-gathered just in time for forward and again for backward, then freed. Communication is 3Ψ against DP's 2Ψ, 1.5 times (§7), and model-state memory falls as 1/<i>N</i>.</p>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="fig"><h4>Fig. 5 · Each stage shards one more block; the part left whole sets the floor</h4>
 <div class="ctl"><label>Data-parallel GPUs, <i>n</i> = <b id="zNv">64</b><input type="range" id="zN" min="0" max="10" step="1" value="6" aria-label="Data-parallel GPUs, powers of two"></label></div>
 <div id="zBars"></div>
 <div class="leg"><span><i style="background:var(--c1)"></i>bf16 weights</span><span><i style="background:var(--c5)"></i>bf16 gradients</span><span><i style="background:var(--c4)"></i>fp32 optimiser state</span><span><i style="background:var(--bad)"></i>80 GB</span></div>
 <p class="small mute">Model states per GPU for 7.5B parameters, full bar 120 GB. ZeRO-1 keeps 4 + 12/<i>n</i> bytes per parameter, ZeRO-2 2 + 14/<i>n</i>, ZeRO-3 16/<i>n</i>. At <i>n</i> = 64 the bars reproduce ZeRO Table 1 independently: 31.4, 16.6 and 1.88 GB.</p>
 </div>
-<p><b>ZeRO-1</b> shards the optimiser state: each GPU updates its 1/<i>n</i> of the fp32 master weights, then an all-gather shares the updated bf16 weights. <b>ZeRO-2</b> also shards the gradients, reduce-scattered as backward produces them; stages 1 and 2 send what DDP sends. <b>ZeRO-3</b> also shards the parameters: each layer's weights are all-gathered just in time for forward and again for backward, then freed. Communication is 3Ψ against DP's 2Ψ, 1.5 times (§7), and model-state memory falls as 1/<i>N</i>.</p>
-<p class="try"><b>Try:</b> step ZeRO-3 against the DP counters: the bars fall to a quarter while the bytes counter grows by half. Then HSDP, where only 8.0 GB per GPU crosses InfiniBand.</p>
-<div class="card dt-an" id="anZ" data-modes="ZeRO-1,ZeRO-2,ZeRO-3,HSDP" data-init="ZeRO-3" data-cmp="DP"></div>
+</div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-zero"></div></div><div class="s3L">
+<p>Fig. 6 plays the same step as Fig. 4 under each stage, and under hybrid sharding (HSDP) across two servers. Pick one; the readout under the steps compares it with DP: the slabs fall to a quarter under ZeRO-3 while the bytes grow by half, and HSDP sends only 8.0 GB per GPU across InfiniBand.</p>
+<div class="s3chips" id="stg-zero-m"><button data-m="ZeRO-1">ZeRO-1</button><button data-m="ZeRO-2">ZeRO-2</button><button data-m="ZeRO-3" class="on">ZeRO-3 (FSDP)</button><button data-m="HSDP">HSDP</button></div>
+<ol class="sx" id="sx-z1" data-mode="ZeRO-1" hidden>
+<li><b>Setup: optimiser state sharded.</b> Weights and gradients stay whole; each GPU keeps a quarter of the 12 bytes of fp32 master weights and Adam moments: 2 + 2 + 12/4 = 7 bytes per parameter, 56.2 GB. The purple slab is a quarter of DP's.</li>
+<li><b>Forward.</b> As in DP: each GPU runs its own sequence through the whole model.</li>
+<li><b>Backward.</b> Full gradients are computed and held on every GPU.</li>
+<li><b>Reduce-scatter of the gradients.</b> Instead of an all-reduce, each GPU receives the sum only for its own quarter: (n − 1)/n × 16.1 GB = 12.0 GB sent per GPU, half an all-reduce.</li>
+<li><b>Optimiser step on a quarter.</b> Each GPU updates only its quarter of the fp32 master weights with its quarter of the Adam state.</li>
+<li><b>All-gather of the updated weights.</b> Each GPU broadcasts its updated bf16 quarter; another 12.0 GB. Reduce-scatter plus all-gather is exactly an all-reduce, so ZeRO-1 and 2 cost the same 24.1 GB as DP while holding 56.2 or 44.2 GB instead of 128.5.</li>
+</ol>
+<ol class="sx" id="sx-z2" data-mode="ZeRO-2" hidden>
+<li><b>Setup: optimiser state and gradients sharded.</b> Weights stay whole; each GPU keeps a quarter of the gradients and of the optimiser state: 2 + 14/4 = 5.5 bytes per parameter, 44.2 GB.</li>
+<li><b>Forward.</b> As in DP: each GPU runs its own sequence through the whole model.</li>
+<li><b>Backward with reduce-scatter.</b> Each bucket is reduce-scattered as soon as it is ready: GPU i receives the summed gradients for its quarter only and frees the rest. (n − 1)/n × 16.1 GB = 12.0 GB sent per GPU.</li>
+<li><b>Optimiser step on a quarter.</b> Each GPU updates only its quarter of the fp32 master weights with its quarter of the Adam state.</li>
+<li><b>All-gather of the updated weights.</b> Each GPU broadcasts its updated bf16 quarter; another 12.0 GB. Reduce-scatter plus all-gather is exactly an all-reduce, so ZeRO-1 and 2 cost the same 24.1 GB as DP while holding 56.2 or 44.2 GB instead of 128.5.</li>
+</ol>
+<ol class="sx" id="sx-z3" data-mode="ZeRO-3">
+<li><b>Setup: everything sharded.</b> Each GPU holds a quarter of every layer's weights, gradients and optimiser state: 16/4 = 4 bytes per parameter, 32.1 GB. This is FSDP's default (FULL_SHARD).</li>
+<li><b>Forward, layer by layer.</b> Before each layer runs, its quarters are all-gathered into a full copy (the pale layer climbing the stack), used, and freed. One layer's full weights exist at a time. 32 all-gathers, (n − 1)/n × 16.1 GB = 12.0 GB sent per GPU.</li>
+<li><b>Backward: gather again, then reduce-scatter.</b> Each layer is all-gathered again for backward (12.0 GB), and its gradients are reduce-scattered straight away so each GPU keeps only its quarter (12.0 GB).</li>
+<li><b>Optimiser step, no final gather.</b> Each GPU updates its own quarter. The weights stay sharded until the next forward gathers them. Total 36.1 GB per GPU: 1.5 times DP, the price of holding a quarter of the weights.</li>
+</ol>
+<ol class="sx" id="sx-hsdp" data-mode="HSDP" hidden>
+<li><b>Setup: shard inside the server, replicate across.</b> Two servers of two GPUs. Inside each server the model is sharded in halves (8 bytes per parameter, 64.2 GB); the two servers are replicas of each other. A 2-D device mesh: shard on one axis, replicate on the other.</li>
+<li><b>Forward: all-gather over NVLink.</b> Each layer is gathered from its two halves inside the server, just in time: (2 − 1)/2 × 16.1 GB = 8.0 GB per GPU, all on NVLink.</li>
+<li><b>Backward: gather and reduce-scatter over NVLink.</b> Gather again for backward, then reduce-scatter the gradients inside the server: 16.1 GB more on NVLink.</li>
+<li><b>All-reduce across servers.</b> Only now does traffic cross InfiniBand: each GPU all-reduces its half of the gradients with its twin in the other server, 8.0 GB. Plain ZeRO-3 over all four GPUs would push its whole 36.1 GB through a ring that crosses the servers.</li>
+<li><b>Optimiser step.</b> Each GPU updates its half; the twins stay identical. A failed server leaves a complete replica behind, which is what fault-tolerant HSDP (torchft) builds on.</li>
+</ol>
+<p class="small dt-ro" id="ro-zero"></p>
 <p>The extra gathers are not free: with gradient accumulation ZeRO-3 gathers the weights again for every micro-batch, forward and backward, and across servers that traffic lands on the slow link; HSDP or ZeRO-2 are the usual fixes. Re-gathering for backward is itself a choice: keeping each layer's gathered weights from forward to backward saves the second all-gather (2Ψ again instead of 3Ψ) for activation-like memory. FSDP2's <code>reshard_after_forward</code> controls it (by default every module reshards except the root); XLA kept the weights on the {{Sharding and scale (JAX)|n:3c65c17b0d0d8125b084e6720cc66b3d}} page's measured run; Llama 3's FSDP shards optimiser state and gradients but keeps weights gathered after forward (§3.3.2).</p>
+</div></div>
 <p><b>FSDP</b> is PyTorch's native version, "motivated by" ZeRO with a design aligned with the rest of PyTorch (<a href="https://arxiv.org/abs/2304.11277" target="_blank" rel="noopener noreferrer">Zhao et al. 2023</a>); its default full sharding is ZeRO-3, and it has a ZeRO-2-like mode as well. <b>FSDP2</b> (<code>fully_shard</code>) shards each parameter on its own dimension 0 as a DTensor, so it composes with TP, PP and EP on a device mesh. The 2026 default: on PyTorch, without a need for NVMe offload, use FSDP2 rather than DeepSpeed; the arithmetic is the same, the composition cleaner.</p>
 <p><b>Hybrid sharding (HSDP)</b> builds "a 2-D DeviceMesh that contains replica groups on one dimension and shard groups on the other" (torchtitan paper): FSDP-shard within a server (or a small group), DDP-replicate across groups. The heavy per-layer all-gathers stay on NVLink and only the gradient all-reduce crosses servers (8.0 GB per GPU on InfiniBand against 36.1 GB for ZeRO-3 across both servers). It also bounds the blast radius of a failure: a lost server leaves complete replicas, which is how {{torchft|https://github.com/pytorch/torchft}} does "fault tolerance across the replicated dimension". Use it when the model fits in one server's (or group's) aggregate memory.</p>
 <details class="dp"><summary>Offload, and what FSDP2's per-parameter sharding buys <span class="mute">(depth)</span></summary><div class="b">

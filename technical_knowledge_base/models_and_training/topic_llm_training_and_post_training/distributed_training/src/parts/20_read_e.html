@@ -1,13 +1,24 @@
 
 <section id="rd-comp">
+<div class="s3sp"><div class="s3R"><div id="stg-mesh"></div></div><div class="s3L">
 <h2>9. Composing them: 4D and 5D parallelism</h2>
 <p>Real runs stack the splits on a mesh of GPUs. The standard order, outermost to innermost: <b>DP (FSDP or HSDP) × PP × CP × TP (+SP)</b>, with EP as a further axis for MoE layers. Llama 3 orders its groups [TP, CP, PP, DP] from innermost to outermost because "the innermost parallelism requires the highest network bandwidth and lowest latency, and hence is usually constrained to within the same server", while DP tolerates latency by prefetching weights and reducing gradients asynchronously (§3.3.2).</p>
-<div class="fig" id="mesh"><h4>The chattiest axis sits inside the server: bytes and seconds per GPU per step, axis by axis</h4>
-<div class="seg" id="meshSeg"><button data-m="l405_8k_16k" class="on">Llama 3 405B, 16,384 H100s</button><button data-m="dsv3">DeepSeek-V3, 2,048 H800s</button></div>
-<div class="sv" id="meshSvg"></div>
-<p class="small" id="meshCap"></p>
-<p class="small mute">From the {{Layout calculator|#t-calc}}'s presets <i class="nl d">derived</i>: Llama 3 405B at TP 8 × PP 16 × DP 128 sends 236.8 GB per GPU per step over NVLink for TP (0.53 s), 18.9 GB over the network for DP (0.38 s) and 1.07 GB for PP (0.02 s), against 6.15 s of compute at 41% MFU; DeepSeek-V3's 64-way EP sends 704 GB over InfiniBand (14.1 s) against 20.4 s of compute. Peak bandwidths, no overlap credited.</p>
-</div>
+<p>Fig. 14 draws two published layouts as meshes of GPUs, axis by axis, with the bytes and seconds per GPU per step that the {{Layout calculator|#t-calc}} computes for each axis:</p>
+<div class="s3chips" id="meshM"><button data-m="l405_8k_16k" class="on">Llama 3 405B, 16,384 H100s</button><button data-m="dsv3">DeepSeek-V3, 2,048 H800s</button></div>
+<ol class="sx" id="sx-mesh">
+<li><b>One server: TP 8 on NVLink.</b> Eight GPUs of one server form a tensor-parallel group, the chattiest axis: 236.8 GB per GPU per step, but on NVLink, 0.53 s.</li>
+<li><b>Sixteen servers: the pipeline.</b> Sixteen servers in a row are the 16 pipeline stages; between them pass only activations and their gradients, 1.07 GB per GPU per step, 0.02 s over the network.</li>
+<li><b>128 replicas: data parallel.</b> The whole pipeline is replicated 128 times (three copies drawn); the gradient reduce crosses the network, 18.9 GB, 0.38 s. TP moves twelve times the bytes DP does, but on a link nine times faster and inside the server; PP sends almost nothing, so it can span servers.</li>
+<li><b>All 16,384 GPUs against compute.</b> 8 × 16 × 128 GPUs. All three axes together take under a sixth of the 6.15 s of compute at 41% MFU, before any overlap.</li>
+</ol>
+<ol class="sx" id="sx-meshd" hidden>
+<li><b>Sixteen pipeline stages, no TP.</b> 2,048 H800s in 16 pipeline stages of 128 GPUs (16 servers each, three drawn); no tensor parallelism at all.</li>
+<li><b>Experts over eight servers.</b> The 64-way expert all-to-all spans 8 servers, so it crosses InfiniBand: 704 GB per GPU per step, 14.1 s, the largest term.</li>
+<li><b>ZeRO-1 and the pipeline on the network.</b> The dense parts are ZeRO-1 data parallel over the stage's 128 GPUs (16.6 GB, 0.33 s) and the pipeline sends 14.1 GB (0.28 s).</li>
+<li><b>Compute against communication.</b> The expert traffic is close to the 20.4 s of compute: the "approximately 1:1" that DualPipe hides by overlapping one micro-batch's communication with another's computation.</li>
+</ol>
+<p class="small mute">Fig. 14's numbers are from the {{Layout calculator|#t-calc}}'s presets <i class="nl d">derived</i>: Llama 3 405B at TP 8 × PP 16 × DP 128 sends 236.8 GB per GPU per step over NVLink for TP (0.53 s), 18.9 GB over the network for DP (0.38 s) and 1.07 GB for PP (0.02 s), against 6.15 s of compute at 41% MFU; DeepSeek-V3's 64-way EP sends 704 GB over InfiniBand (14.1 s) against 20.4 s of compute. Peak bandwidths, no overlap credited.</p>
+</div></div>
 <div class="tw"><table>
 <thead><tr><th>Run</th><th class="num">GPUs</th><th class="num">TP</th><th class="num">CP</th><th class="num">PP</th><th class="num">EP</th><th class="num">DP</th><th>Notes</th></tr></thead>
 <tbody>
@@ -29,15 +40,19 @@
 </section>
 
 <section id="rd-ac">
+<div class="s3sp"><div class="s3L">
 <h2>10. Activation checkpointing</h2>
 <p>Instead of storing every activation for backward, store a few and recompute the rest. One 8,192-token sequence through Llama 3 8B, no tensor parallelism:</p>
-<div class="fig"><h4>Selective recomputation removes nine tenths of the activations for 2 to 3% more compute</h4>
+<p><b>Full</b> recomputation (keep only each layer's input) costs 30 to 40% more execution time (36% measured); <b>selective</b> recomputation of only the attention core, the large but cheap part, cuts activation memory about 5 times for 2.7% (GPT-3) or 1.6% (MT-NLG) extra FLOPs (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022</a>; the Playbook quotes 70% less activation memory for 2.7% compute). {{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}} already recomputes attention in its backward pass instead of storing the score matrix, which is why selective checkpointing pairs naturally with it. Llama 3 trained 8K sequences with no activation checkpointing at all, after deallocating stage inputs and outputs it no longer needed (§3.3.2).</p>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="fig"><h4>Fig. 15 · Selective recomputation removes nine tenths of the activations for 2 to 3% more compute</h4>
 <div class="zrow"><span>Store all</span><span class="sbar"><span style="width:100%;background:var(--c3)"></span></span><span class="v">380 GB</span></div>
 <div class="zrow"><span>Selective</span><span class="sbar"><span style="width:9.6%;background:var(--c3)"></span></span><span class="v">36.5 GB</span></div>
 <div class="zrow"><span>Full</span><span class="sbar"><span style="width:0.87%;background:var(--c3)"></span></span><span class="v">3.3 GB</span></div>
 <p class="small mute">Per layer <i>sbh</i>(34 + 5<i>as</i>/<i>h</i>) bytes when the attention scores are stored, 34<i>sbh</i> when the attention core is recomputed (selective, or FlashAttention), 2<i>sbh</i> plus one layer's working set with full recomputation (Korthikanti et al. 2022), times 32 layers at <i>s</i> = 8,192, <i>h</i> = 4,096, <i>a</i> = 32 <i class="nl d">derived</i>, a GPT-style estimate (Llama's SwiGLU and GQA change the constants).</p>
 </div>
-<p><b>Full</b> recomputation (keep only each layer's input) costs 30 to 40% more execution time (36% measured); <b>selective</b> recomputation of only the attention core, the large but cheap part, cuts activation memory about 5 times for 2.7% (GPT-3) or 1.6% (MT-NLG) extra FLOPs (<a href="https://arxiv.org/abs/2205.05198" target="_blank" rel="noopener noreferrer">Korthikanti et al. 2022</a>; the Playbook quotes 70% less activation memory for 2.7% compute). {{FlashAttention|n:3c65c17b0d0d81e4a3e8e7a2c4771381}} already recomputes attention in its backward pass instead of storing the score matrix, which is why selective checkpointing pairs naturally with it. Llama 3 trained 8K sequences with no activation checkpointing at all, after deallocating stage inputs and outputs it no longer needed (§3.3.2).</p>
+</div></div></div>
 <div class="co corr"><div class="t">Correction</div>The old page said activation checkpointing "(full or selective) trades about 30% compute". That figure is full recomputation's (30 to 40%); selective recomputation costs about 2 to 3%.</div>
 </section>
 

@@ -50,29 +50,17 @@
 #t-read .zrow .v{text-align:right;font-variant-numeric:tabular-nums}
 #t-read .seg{margin:4px 0 6px}
 #t-read .sv text{font-size:11px}
-#t-read #heroP{grid-template-columns:repeat(3,minmax(0,1fr))}#t-read #collP{grid-template-columns:repeat(5,minmax(0,1fr))}
-@media (max-width:760px){#t-read #collP{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:520px){#t-read #heroP,#t-read #collP{grid-template-columns:repeat(2,minmax(0,1fr))}#t-read .pan{gap:6px}#t-read .pan>div{padding:5px 6px}}
+#t-read #heroP{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:520px){#t-read #heroP{grid-template-columns:repeat(2,minmax(0,1fr))}#t-read .pan{gap:6px}#t-read .pan>div{padding:5px 6px}}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#rd-top">The idea</a><a href="#rd-mem">Memory</a><a href="#rd-coll">Collectives</a><a href="#rd-dp">Data</a><a href="#rd-zero">ZeRO, FSDP</a><a href="#rd-tp">Tensor</a><a href="#rd-pp">Pipeline</a><a href="#rd-ep">Expert</a><a href="#rd-cp">Context</a><a href="#rd-comp">Composing</a><a href="#rd-ac">Recompute</a><a href="#rd-fw">Frameworks</a><a href="#rd-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="rd-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A training step can be cut along six dimensions: <span class="hl">the batch, the stored state, each weight matrix, the layers, the experts or the sequence</span>. Each cut lowers what one GPU holds or computes and pays for it in bytes that a <i>collective</i> must move between GPUs, so a layout puts the chattiest cut on the fastest wire: NVLink inside a server, about nine times faster per GPU than the network between servers on an H100 cluster.</p>
-<div class="fig" id="hero"><h4>Six ways to cut one step over four GPUs: who holds what, and what has to cross the wire</h4>
-<div class="pan" id="heroP">
-<div><h5>Data (DP)</h5><div class="sv" data-hero="DP"></div><p><b>Cuts the batch</b>; every GPU holds the whole model. Sends an all-reduce of the gradients: 24.1 GB. Any link.</p></div>
-<div><h5>Sharded data (ZeRO-3, FSDP)</h5><div class="sv" data-hero="ZeRO-3"></div><p><b>Cuts the stored state</b> as well. Sends each layer's weights twice and the gradients once: 36.1 GB. A fast link.</p></div>
-<div><h5>Tensor (TP)</h5><div class="sv" data-hero="TP"></div><p><b>Cuts every matrix</b>; every GPU sees the whole batch. Sends four all-reduces inside every layer: 51.5 GB. NVLink only.</p></div>
-<div><h5>Pipeline (PP)</h5><div class="sv" data-hero="PP"></div><p><b>Cuts the layers</b>. Sends one activation and one gradient per micro-batch: 0.54 GB. Any link, but stages idle in the bubble.</p></div>
-<div><h5>Expert (EP)</h5><div class="sv" data-hero="EP"></div><p><b>Cuts the experts</b> of an MoE model. Sends tokens to their experts and back by all-to-all: 13.6 GB. NVLink, or a few servers.</p></div>
-<div><h5>Context (CP)</h5><div class="sv" data-hero="CP"></div><p><b>Cuts the sequence</b>. Sends keys and values in every layer, plus the gradient all-reduce: 30.5 GB. A fast link.</p></div>
-</div>
-<div class="leg"><span><i style="background:var(--c1)"></i>GPU 0</span><span><i style="background:var(--c2)"></i>GPU 1</span><span><i style="background:var(--c3)"></i>GPU 2</span><span><i style="background:var(--c4)"></i>GPU 3</span><span><i style="background:var(--dim)"></i>a full copy on every GPU</span><span><i style="border:1.5px dashed var(--mute);background:none"></i>stored as a quarter, gathered when used</span></div>
-<p class="small mute">Left: the batch, four sequences in chunks of tokens. Right: the model, eight rows of layers, each an attention and a feed-forward half in four slices. Bytes are per GPU for one step of Llama 3 8B on four GPUs, from each section's step-through <i class="nl d">derived</i>.</p>
-</div>
 <p><b>You need:</b> what a training step holds in memory (weights, gradients, Adam's state, activations), which the parent {{Topic: llm-training-and-post-training|n:3c65c17b0d0d81b6876ee72b7056793b}} sets out in its Machinery section. The links themselves (NVLink, InfiniBand, rings and trees) are owned by {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}; mixture-of-experts design by {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}.</p>
 <dl class="terms">
 <dt>Collective</dt><dd>an operation every GPU in a group calls together; NCCL implements them on NVIDIA hardware (section 2).</dd>
@@ -97,4 +85,18 @@
 </tbody></table></div>
 <p class="small mute">Formulas: ring collectives from <a href="https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md" target="_blank" rel="noopener noreferrer">nccl-tests</a>; ZeRO's 2Ψ against 3Ψ from {{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}} §7; tensor-parallel all-reduces from {{Megatron-LM|n:3c65c17b0d0d8133ae92fbe90a1f308e}}; the other rows are <i class="nl d">derived</i> in <code>src/recompute.py</code>. Numbers are published with the source linked unless marked <i class="nl d">derived</i>, <i class="nl i">illustrative</i>, <i class="nl r">reported</i> (the maker's own figure) or <i class="nl u">unconfirmed</i>. The one-line version of this table, beside precision and clusters, is in the parent page's {{Machinery section|n:3c65c17b0d0d81b6876ee72b7056793b}}.</p>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side">
+<div class="fig" id="hero"><h4>Fig. 1 · Six ways to cut one step over four GPUs: who holds what, and what has to cross the wire</h4>
+<div class="pan" id="heroP">
+<div><h5>Data (DP)</h5><div class="sv" data-hero="DP"></div><p><b>Cuts the batch</b>; every GPU holds the whole model. Sends an all-reduce of the gradients: 24.1 GB. Any link.</p></div>
+<div><h5>Sharded data (ZeRO-3, FSDP)</h5><div class="sv" data-hero="ZeRO-3"></div><p><b>Cuts the stored state</b> as well. Sends each layer's weights twice and the gradients once: 36.1 GB. A fast link.</p></div>
+<div><h5>Tensor (TP)</h5><div class="sv" data-hero="TP"></div><p><b>Cuts every matrix</b>; every GPU sees the whole batch. Sends four all-reduces inside every layer: 51.5 GB. NVLink only.</p></div>
+<div><h5>Pipeline (PP)</h5><div class="sv" data-hero="PP"></div><p><b>Cuts the layers</b>. Sends one activation and one gradient per micro-batch: 0.54 GB. Any link, but stages idle in the bubble.</p></div>
+<div><h5>Expert (EP)</h5><div class="sv" data-hero="EP"></div><p><b>Cuts the experts</b> of an MoE model. Sends tokens to their experts and back by all-to-all: 13.6 GB. NVLink, or a few servers.</p></div>
+<div><h5>Context (CP)</h5><div class="sv" data-hero="CP"></div><p><b>Cuts the sequence</b>. Sends keys and values in every layer, plus the gradient all-reduce: 30.5 GB. A fast link.</p></div>
+</div>
+<div class="leg"><span><i style="background:var(--c1)"></i>GPU 0</span><span><i style="background:var(--c2)"></i>GPU 1</span><span><i style="background:var(--c3)"></i>GPU 2</span><span><i style="background:var(--c4)"></i>GPU 3</span><span><i style="background:var(--dim)"></i>a full copy on every GPU</span><span><i style="border:1.5px dashed var(--mute);background:none"></i>stored as a quarter, gathered when used</span></div>
+<p class="small mute">Left: the batch, four sequences in chunks of tokens. Right: the model, eight rows of layers, each an attention and a feed-forward half in four slices. Bytes are per GPU for one step of Llama 3 8B on four GPUs, from each section's stage (Figs. 4 to 12) <i class="nl d">derived</i>.</p>
+</div>
+</div></div></div>
