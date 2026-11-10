@@ -22,6 +22,8 @@
   // training snapshots animation
   if($('tz-trn')){
     const S=D.snaps,F=D.floors;
+    // seven of the twelve snapshots, one per step of the list sx-trn (steps 0, 50, 100, 300, 500, 1,000, 1,500); the curve shows all twelve
+    const SI=[0,50,100,300,500,1000,1500].map(t=>S.findIndex(s=>s.step===t));
     function plot(i){
       const el=$('tz-trn-plot'),W=RD.width(el),H=205,m={l:40,r:12,t:26,b:26};
       const X=s=>m.l+(W-m.l-m.r)*Math.sqrt(s/1500),Y=v=>m.t+(H-m.t-m.b)*(9-v)/(9-1.5);
@@ -33,16 +35,16 @@
       S.forEach((s,j)=>{b+='<circle cx="'+X(s.step)+'" cy="'+Y(s.val)+'" r="'+(j===i?5.5:3)+'" fill="'+(j===i?'var(--c2)':'var(--c1)')+'"/>'});
       b+=RD.t(m.l-30,12,'held-out loss (nats) against step (square-root axis)',{fill:'var(--mute)'});
       el.innerHTML=RD.svg(W,H,b,'Held-out loss over training with the selected snapshot')}
-    function draw(i){
-      const s=S[i];plot(i);
+    function draw(k){
+      const i=SI[k],s=S[i];plot(i);
       const below=s.val<F.bigram?'below the bigram line':s.val<F.unigram?'below the unigram line':'above the unigram line';
       $('tz-trn-cnt').innerHTML=RD.stat('Step',s.step.toLocaleString('en-US'),(s.step*8192/1e6).toFixed(1)+'M tokens seen')+RD.stat('Held-out loss',s.val.toFixed(3),below)+RD.stat('Running sequence',s.seq.toFixed(3),'mean nats per token');
       TZ.tokens($('tz-trn-tok'),D.pieces,s.tok,TZ.lossColor,(j,v)=>'position '+j+': '+v.toFixed(2)+' nats');
       $('tz-trn-gen').innerHTML='<b>Greedy, prompt 7:</b> '+esc(D.prompt7)+' <span style="color:var(--c3);font-weight:600">'+esc(s.greedy.slice(0,230))+'</span>';
     }
-    RD.anim({card:'tz-trn',ctl:'tz-trn-ctl',n:S.length,draw,ms:1700,label:'Training snapshot'});
+    const trA=RD.anim({card:'tz-trn',ctl:'tz-trn-ctl',n:SI.length,draw,ms:4200,label:'Training snapshot',list:'sx-trn'});
     $('tz-trn-tok').addEventListener('click',e=>{const sp=e.target.closest('span[data-i]');if(sp)$('tz-trn-info').textContent='"'+D.pieces[+sp.dataset.i]+'" at '+sp.title})
-    RD.onResize(()=>{const sc=document.getElementById('tz-trn-ctl-s');if(sc)plot(+sc.value)});
+    RD.onResize(()=>plot(SI[trA.i]));
   }
   // sampling explorer
   if($('tz-smp')){

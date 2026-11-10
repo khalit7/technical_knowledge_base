@@ -2,12 +2,19 @@
 <a href="#tz-s0">The idea</a><a href="#tz-s1">1 Task</a><a href="#tz-s2">2 Embedding</a><a href="#tz-s3">3 One head</a><a href="#tz-s4">4 Many heads</a><a href="#tz-s5">5 FFN</a><a href="#tz-s6">6 Block</a><a href="#tz-s7">7 Model and loss</a><a href="#tz-s8">8 Training</a><a href="#tz-s9">9 Sampling</a><a href="#tz-s10">10 Counting</a><a href="#tz-s11">11 Ablations</a><a href="#tz-mis">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="tz-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A decoder-only transformer keeps one vector of D numbers per token, the <span class="hl">residual stream</span>, and every block adds two updates to it: attention, which mixes in what earlier positions hold, and a feed-forward network, which transforms each position on its own; the token table, reused as the output layer, turns the last vector into next-token scores, and cross-entropy against the sequence shifted by one is the whole training signal.</p>
-<div class="hero" id="tz-hero-card"><h4>The tiny GPT end to end: every shape, every parameter, and what each piece is worth</h4>
-<div class="rd-svg" id="tz-hero"></div>
-<p class="small">Shapes on the running sequence (B = 1, T = 256); parameters of the tiny GPT, [[f:p_total|i]] in all. <span style="color:var(--bad);font-weight:600">Orange tags</span>: held-out loss after removing that piece and retraining from scratch at the same budget, against [[f:abl_base_val|f3]] for the full model (section 11). Measured on Apple M1 Pro. Tap a box to go to its section.</p></div>
+<ol class="sx" id="sx-hero">
+<li><b>Ids to vectors.</b> The running sequence's 256 token ids, (1, 256) = (B, T), pick rows of the token table (4,096 &times; 256 = 1,048,576 parameters) and of the position table (256 &times; 256 = 65,536); their sum, (1, 256, 256) = (B, T, D), is the residual stream ({{section 2|#tz-s2}}).</li>
+<li><b>One block.</b> Each block reads a normalised copy of the stream twice: attention (8 heads of hd = 32; q, k, v, o: 4 &times; 256 &times; 256 = 262,144 parameters) adds what earlier positions hold, then the FFN (256 to 1,024 to 256, 524,288 parameters) transforms each position on its own and adds again ({{sections 3 to 6|#tz-s3}}).</li>
+<li><b>Six blocks, one stream.</b> The same block six times, 786,944 parameters each; the stream keeps its shape (1, 256, 256) all the way up. The columns are the trained model's median stream norm after the embedding and after each block: 1.3 to 65.5 (root Block lab).</li>
+<li><b>Final norm, then the token table again.</b> A last LayerNorm (256 gains), then the unembedding, which is the token table itself (tied: 0 new parameters), scores the final vector against all 4,096 rows: logits (1, 256, 4,096) = (B, T, V) ({{section 7|#tz-s7}}).</li>
+<li><b>Next-token loss.</b> Softmax over the logits, then minus the log probability of the token that came next. For "o" at position 157 the next token is "x", given [[f:p_next|pct1]], so the loss there is [[f:loss_here|f3]] nats. Averaged over the running sequence: untrained [[f:loss0|f3]] (ln 4,096 = 8.318), trained [[f:loss_trained|f3]].</li>
+<li><b>What each piece is worth.</b> Each piece removed and the model retrained at the same budget ({{section 11|#tz-s11}}), held-out loss against [[f:abl_base_val|f3]] for the full model: no positions [[f:abl_nopos_val|f3]], one head [[f:abl_1head_val|f3]] ([[f:abl_1head_s1_val|f3]] at seed 1), no FFN [[f:abl_noffn_val|f3]] (also 54% fewer parameters), no attention [[f:abl_noattn_val|f3]] (the bigram floor), no norms [[f:abl_nonorm_val|f3]], no residual sum [[f:abl_noresid_val|f3]] (the unigram level).</li>
+</ol>
+<p class="small mute">The tiny GPT, [[f:p_total|i]] parameters, on the running sequence (B = 1, T = 256). Not to scale: the token table has 16 times the position table's rows. Stream norms and probabilities are the trained checkpoint's, traced on CPU by the root's <code>src/block/trace.py</code> (this page's file loads that checkpoint with identical logits); removal losses measured on Apple M1 Pro.</p>
 <p><b>You need:</b> PyTorch's <code>nn.Linear</code> and a softmax. The root {{Topic: llm-architecture|n:3fd5c17b0d0d8172b490dc9f9ac281df}} traces one token through one block of this same trained model in its Block lab tab (every intermediate vector, FLOPs per operation against context); this page builds the code that walk traces. {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}} derives the backward pass counted here; {{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} runs the 2017 encoder-decoder in the browser. Each piece's alternatives are a sibling's: {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}, {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}, {{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}}, {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}, {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}.</p>
 <dl class="terms">
 <dt>Residual stream</dt><dd>the D numbers each position carries from the embedding to the output; every sublayer adds to it.</dd>
@@ -19,6 +26,8 @@
 <dt>Unigram, bigram floor</dt><dd>the loss of the best model that sees no context, or only the previous token.</dd>
 <dt>Ablation</dt><dd>remove one component, retrain at the same budget, compare.</dd>
 </dl>
+</section></div></div>
+<section id="tz-s0b">
 <details class="mist"><summary>The nine steps of <code>gpt_zero.py</code>, their shapes and the test that proved each <span class="mute">(reference)</span></summary><div class="b">
 <p>The page writes the pieces into an empty file, <code>gpt_zero.py</code> ([[f:file_lines|i]] lines when finished), tests each one on the running sequence as it is added, trains the result, samples from it, counts its parameters and FLOPs by hand, and removes one piece at a time. The code of each step is in a closed block under its section.</p>
 <div class="tw"><table class="rd-cmp">
@@ -57,38 +66,44 @@
 <p class="small mute">Real-model numbers are from the configs saved by the root ({{Llama 3.1 8B config.json|https://huggingface.co/unsloth/Meta-Llama-3.1-8B/raw/main/config.json}}, read 2026-10-18). Since the tiny GPT has T = D = 256, shapes are written with numbers and letters so it is clear which 256 is which. Every measurement comes from the file built below; its code and test outputs sit in a closed block under each section.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-emb"></div></div><div class="s3L">
 <section id="tz-s2">
 <h2>2. Tokens to vectors: the embedding and the position table</h2>
 <p>Each token id selects one learned row of D numbers from a (V, D) table: an id is a name, not a quantity (id 1,407 is not "more" than id 12). A row lookup equals a one-hot vector times the table, so the table trains like any weight matrix, but <code>nn.Embedding</code> only indexes. A second table adds one learned row per position (<dfn>learned absolute positions</dfn>, as in GPT-2), because attention compares positions only through dot products, which do not know where their vectors came from: shuffle the tokens and an attention layer without a mask returns the same outputs, shuffled the same way (it is <dfn>permutation-equivariant</dfn>), so word order would be invisible. Every later block reads the sum.</p>
-<div class="tz-fig" id="tz-emb-card"><h4>Two lookups and a sum: the same token at two positions becomes two vectors</h4>
-<div class="rd-svg" id="tz-emb"></div>
-<p class="cap">"Roxy" is four tokens (" R", "o", "x", "y"). At positions 20 and 25 the token rows are identical (difference 0.0); after adding the position rows their cosine is 0.433. The shuffle test on the trained model's embeddings and head 0 of its first attention layer, without the causal mask: without positions the outputs are the same rows shuffled (largest change 5.6e-07 of the largest output); with positions added, 1.13. Measured by <code>src/zero/steps.py</code> on CPU.</p></div>
+<ol class="sx" id="sx-emb">
+<li><b>An id picks a row.</b> Token 157 of the running sequence, "o" in "Why are you sad, Ro|xy", is id 79; the lookup takes row 79 of the (4,096, 256) token table. The same as a one-hot vector times the table (difference 0), but <code>nn.Embedding</code> only indexes.</li>
+<li><b>The row is the token's vector.</b> 256 learned numbers (norm [[f:emb_tok_norm|f2]] in the trained model), drawn as signed bars: up for positive, down for negative.</li>
+<li><b>The position picks a row of a second table.</b> Row 157 of the (256, 256) position table (norm [[f:emb_pos_norm|f2]]): one learned row per position, as in GPT-2.</li>
+<li><b>The sum is what block 1 reads.</b> x = token row + position row (norm [[f:emb_x_norm|f2]]): the residual stream starts here, (1, 256, 256) = (B, T, D) for the whole sequence.</li>
+<li><b>One row, many sums.</b> "o" is [[f:o_count|i]] of the 256 tokens of the running sequence; all of them read row 79, and only their position rows tell them apart. Measured on "Roxy"'s first token " R" at positions 20 and 25: the token rows are identical (difference 0.0); after adding the position rows their cosine is 0.433.</li>
+</ol>
+<p class="small mute">Vectors of the trained checkpoint, traced by the root's <code>src/block/trace.py</code> (CPU); the tables are drawn at the same height, not to scale. The shuffle test on the trained model's embeddings and head 0 of its first attention layer, without the causal mask: without positions the outputs are the same rows shuffled (largest change 5.6e-07 of the largest output); with positions added, 1.13. Measured by <code>src/zero/steps.py</code> on CPU.</p>
 [[shapes:embed]]
 <p><b>Cost.</b> V &times; D parameters for tokens ([[f:p_emb|i]] here; 525M in Llama 3.1 8B, 128,256 &times; 4,096, <span class="der">derived</span>) and T<sub>max</sub> &times; D for positions ([[f:p_pos|i]]); no FLOPs. The token table is 18% of the tiny GPT and 6.5% of Llama 3.1 8B; in SmolLM2-135M it is 28M of 135M ({{config|https://huggingface.co/HuggingFaceTB/SmolLM2-135M/raw/main/config.json}}: 49,152 &times; 576), which is why small models tie it to the output layer (section 7). A learned position table also fixes the longest sequence the model can ever read: position 256 has no row (an <code>IndexError</code>, in the closed Mistakes block). RoPE, ALiBi and no positions at all (NoPE) remove the table; {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}} compares them on this same model. <b>Check:</b> <code>emb.tok.weight.shape == (V, D)</code>; the one-hot identity; the shuffle test with and without the position table.</p>
 <details class="mist"><summary>The code: step 2 of <code>gpt_zero.py</code>, and its test output</summary><div class="b">
 <pre class="rd-code">[[snip:2]]</pre>
 <pre class="rd-code rd-out">[[out:embed]]</pre></div></details>
-</section>
+</section></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-att"></div></div><div class="s3L">
 <section id="tz-s3">
 <h2>3. One attention head, by hand</h2>
 <p>After the embedding, position t knows only its own token. Predicting what follows "Roxy found an" needs earlier positions, and which ones depends on content ("an" points at the next word's first sound; "Roxy" back at whoever Roxy is), which no fixed averaging window can do. Each position emits three linear maps of its residual vector x, hd numbers each: a <dfn>query</dfn> q (what it looks for), a <dfn>key</dfn> k (what it offers to be found by) and a <dfn>value</dfn> v (what it hands over if found). Position j's <dfn>score</dfn> for position i is q<sub>i</sub>&middot;k<sub>j</sub> / &radic;hd; the <dfn>causal mask</dfn> sets the scores of later positions (j &gt; i) to minus infinity, so the <dfn>softmax</dfn> (exponentiate, divide by the row's sum) gives them weight exactly 0 and the rest weights that sum to 1. The output for position i is the weighted sum of the values.</p>
-<div class="tz-fig" id="tz-att"><h4>One head on the first ten tokens: score, mask, normalise, mix</h4>
-<div class="an-ctl" id="tz-att-ctl"></div>
-<div class="rd-svg" id="tz-att-svg"></div>
-<div class="an-cap" id="tz-att-cap"></div>
-<p class="small mute">Structure only: the cells mark which weights exist, not their values; token 0 is <code>&lt;|endoftext|&gt;</code>, which starts every story. The measured numbers in the captions are from <code>steps.py</code> on the running sequence (a head with random weights).</p></div>
+<ol class="sx" id="sx-att">
+<li><b>Three projections.</b> Layer 1's LayerNorm hands the head a normalised copy of "o"'s vector (256 numbers); three (256, 32) matrices, W<sub>q</sub>, W<sub>k</sub> and W<sub>v</sub>, turn it into a <span class="s3q">query</span>, a <span class="s3k">key</span> and a <span class="s3v">value</span> of hd = 32 numbers each. Every position does the same.</li>
+<li><b>Scores against every key.</b> The query is dotted with the key of each of the 158 positions so far and divided by &radic;32: one row of the (T, T) score matrix on the floor (keys across, queries in depth). The highest, [[f:h4_top_score|f2]], is the "x" at position 143.</li>
+<li><b>The causal mask.</b> Keys after the query (j &gt; i, the dark triangle) get minus infinity, so position 157 cannot read the 98 tokens after it. Every row has the same rule, so the triangle is the mask of all 256 queries at once.</li>
+<li><b>Softmax.</b> Each row becomes weights that sum to 1 (measured: max |sum &minus; 1| = 2.4e-07; above the diagonal exactly 0.0). This head puts [[f:h4_x_share|pct0]] of its weight on the [[f:h4_x_count|i]] earlier "x" tokens, the token that followed "Ro" each time "Roxy" appeared, [[f:h4_top|f2]] on the latest at 143; the model ends up giving "x" [[f:p_next|pct0]] (section 7).</li>
+<li><b>Mix the values.</b> The output for position 157 is the weighted sum of the values, y = &Sigma;<sub>j&le;157</sub> w<sub>j</sub> v<sub>j</sub>, 32 numbers for this head; the dots show each value's weight.</li>
+<li><b>Edit a later token.</b> Key 200 lies in the masked triangle for rows 0 to 199, so changing token 200 cannot move their outputs. Measured on the running sequence (a head with random weights, <code>steps.py</code>): changing token 200 moves outputs 0 to 199 by exactly 0.0 and outputs 200 to 255 by up to 4.1e-04. One forward pass is therefore T valid next-token examples.</li>
+</ol>
+<p class="small mute">Layer 1, head 4 of the trained checkpoint (scores already divided by &radic;32, weights and vectors as traced by the root's <code>src/block/trace.py</code>); token 0 is <code>&lt;|endoftext|&gt;</code>, which starts every story. The score matrix is drawn wider than deep; it is 256 by 256.</p>
 <div class="fm"><div class="eq">y<sub>i</sub> = &Sigma;<sub>j&le;i</sub> softmax<sub>j</sub>( q<sub>i</sub>&middot;k<sub>j</sub> / &radic;hd ) v<sub>j</sub>, &nbsp; q = xW<sub>q</sub>, k = xW<sub>k</sub>, v = xW<sub>v</sub></div>
 <dl><dt>x</dt><dd>(T, D): one sequence, before batching</dd><dt>W<sub>q</sub>, W<sub>k</sub>, W<sub>v</sub></dt><dd>(D, hd) each: 3 &times; 256 &times; 32 = 24,576 parameters per head</dd><dt>scores</dt><dd>(T, T): row i is token i against every token; the mask keeps the lower triangle</dd></dl></div>
 [[shapes:one_head]]
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="tz-s3b">
 <p><b>Why divide by &radic;hd.</b> If the entries of q and k are independent with mean 0 and variance 1, their dot product sums hd such products and has variance hd (Vaswani et al. 2017, section 3.2.1 and its footnote, {{arXiv 1706.03762|https://arxiv.org/abs/1706.03762}}; the {{Attention Is All You Need|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} paper page reproduces it). Measured: standard deviation [[f:dot_std|f2]] for hd = 32, against &radic;32 = 5.66. Scores that wide push the softmax onto one key, so the row is close to one-hot and its gradient close to zero; the scale keeps the softmax soft at any head size:</p>
-<div class="tz-fig"><h4>Without the scale, one key takes most of the weight</h4>
-<div class="rd-bars">
-<div><span class="nm">hd 32, unscaled</span><span class="tr"><span style="width:[[f:maxw32_raw|pct0]]"></span></span><span class="v">[[f:maxw32_raw|f2]]</span></div>
-<div><span class="nm">hd 128, unscaled</span><span class="tr"><span style="width:[[f:maxw128_raw|pct0]]"></span></span><span class="v">[[f:maxw128_raw|f2]]</span></div>
-<div class="hl"><span class="nm">hd 32 or 128, scaled</span><span class="tr"><span style="width:[[f:maxw32_sc|pct0]]"></span></span><span class="v">[[f:maxw32_sc|f2]]</span></div>
-</div>
-<p class="cap">The largest of 256 softmax weights, averaged over random unit-variance queries and keys (<code>steps.py</code>, CPU). A uniform row would give each key 1/256 = 0.004.</p></div>
 <p>Dropping the scale on the trained tiny GPT raises the running sequence's loss from 1.96 to 2.88, measured by the root's Block lab, which also shows the mask and transpose bugs. Llama's code stores it as <code>self.scaling = self.head_dim**-0.5</code> ([[ref:hf_scaling]]); nanoGPT multiplies by <code>1.0 / math.sqrt(k.size(-1))</code> ([[ref:nano_scores]]).</p>
 <p><b>Cost.</b> T &times; T scores per head: memory and FLOPs that grow with the square of the context (section 10). The alternatives (sharing K and V across heads, compressing them, windows) are {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}. <b>Check:</b> rows of the weights sum to 1, the upper triangle is 0, and editing a later token never moves an earlier output.</p>
 <div class="pr" id="tz-pr1"><div class="q">Predict: with the causal mask, what is the attention weight of token 0 on itself, in every head and every layer?</div>
@@ -98,18 +113,31 @@
 <pre class="rd-code">[[snip:3]]</pre>
 <pre class="rd-code rd-out">[[out:one_head]]</pre>
 <p class="rd-codecap">A head with random weights on the running sequence's embeddings. The change test edits token 200 and recomputes: positions 0 to 199 do not move at all (difference exactly 0), which is what makes one forward pass a valid set of T training examples.</p></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="tz-fig card"><h4>Without the scale, one key takes most of the weight</h4>
+<div class="rd-bars">
+<div><span class="nm">hd 32, unscaled</span><span class="tr"><span style="width:[[f:maxw32_raw|pct0]]"></span></span><span class="v">[[f:maxw32_raw|f2]]</span></div>
+<div><span class="nm">hd 128, unscaled</span><span class="tr"><span style="width:[[f:maxw128_raw|pct0]]"></span></span><span class="v">[[f:maxw128_raw|f2]]</span></div>
+<div class="hl"><span class="nm">hd 32 or 128, scaled</span><span class="tr"><span style="width:[[f:maxw32_sc|pct0]]"></span></span><span class="v">[[f:maxw32_sc|f2]]</span></div>
+</div>
+<p class="cap">The largest of 256 softmax weights, averaged over random unit-variance queries and keys (<code>steps.py</code>, CPU). A uniform row would give each key 1/256 = 0.004.</p></div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-heads"></div></div><div class="s3L">
 <section id="tz-s4">
 <h2>4. Many heads in one matrix multiply</h2>
 <p>One head produces one weighting per position, so it follows one relation at a time (the previous word, or the subject, or the matching quote). Several heads follow several relations in parallel, each in its own space of hd = D / H numbers, at the same parameter count as one wide head. Instead of H small (D, hd) matrices, one (D, D) matrix computes all H queries at once; the result is viewed as (B, T, H, hd) and transposed to (B, H, T, hd), so the head axis sits next to the batch axis and every head becomes an independent batched matrix multiply. After attention the heads are transposed back, laid side by side, and an output projection W<sub>o</sub> (D, D) mixes them. The four matrices are the layer's 4D<sup>2</sup> = [[f:p_attn_layer|i]] parameters.</p>
-<div class="tz-fig" id="tz-heads-card"><h4>Split, attend, merge: one attention layer's shapes on the running sequence</h4>
-<div class="rd-svg" id="tz-heads"></div>
-<p class="cap">Measured: the batched layer equals 8 separate one-head calls concatenated (max difference 0) and <code>F.scaled_dot_product_attention(q, k, v, is_causal=True)</code> to [[f:sdpa_diff|e]]; the file uses the fused call for speed.</p></div>
+<ol class="sx" id="sx-heads">
+<li><b>One matmul for all heads.</b> <code>att.q</code> is one (256, 256) matrix: it computes all 8 heads' queries at once, (1, 256, 256) = (B, T, D); drawn is row 157, "o", in layer 1 of the trained model. W<sub>k</sub> and W<sub>v</sub> do the same for keys and values.</li>
+<li><b>view: 256 = 8 &times; 32.</b> <code>.view(B, T, H, hd)</code> cuts each 256-vector into 8 heads of 32, (1, 256, 8, 32). Nothing moves in memory.</li>
+<li><b>transpose: heads become a batch.</b> <code>.transpose(1, 2)</code> gives (1, 8, 256, 32): 8 independent (T, hd) problems, each with its own (T, T) weights. Row 157 of each, measured: heads 0 and 5 put [[f:h0_prev|pct0]] and [[f:h5_prev|pct0]] on the previous token " R"; head 4 [[f:h4_x_share|pct0]] on the earlier "x" tokens (Fig. 3); heads 1, 2 and 7 spread almost evenly ([[f:ent_lo|f1]] to [[f:ent_hi|f1]] bits of entropy; uniform over 158 keys is [[f:ent_uniform|f1]]).</li>
+<li><b>Each head's output.</b> Each head mixes its own values into 32 numbers: (1, 8, 256, 32).</li>
+<li><b>Merge and mix.</b> <code>.transpose(1, 2).reshape(B, T, D)</code> lays the 8 outputs side by side again, 256 numbers, and W<sub>o</sub> (256, 256) mixes them into attention's output for "o" (norm [[f:l1_attn_out|f2]]), which is added to the stream (section 6).</li>
+</ol>
+<p class="small mute">Measured: the batched layer equals 8 separate one-head calls concatenated (max difference 0) and <code>F.scaled_dot_product_attention(q, k, v, is_causal=True)</code> to [[f:sdpa_diff|e]]; the file uses the fused call for speed. Vectors and weights: the trained checkpoint, layer 1, traced by the root's <code>src/block/trace.py</code>; weights under 0.3% are not drawn.</p>
 [[shapes:multi_head]]
 <p><b>Cost.</b> The same 4D<sup>2</sup> parameters and the same FLOPs whatever H is; each head's scores are T &times; T, so H heads hold H score matrices. The single-head ablation in section 11 measures what eight heads buy here. <b>Check:</b> the concatenation test, or the comparison with the fused kernel.</p>
 <details class="mist"><summary>The code: step 4, and the two details that trip everyone once</summary><div class="b">
 <pre class="rd-code">[[snip:4]]</pre>
 <pre class="rd-code rd-out">[[out:multi_head]]</pre>
 <p>nanoGPT does the same split at [[ref:nano_split]] and the merge at [[ref:nano_merge]]. <code>nn.Linear(D_in, D_out)</code> stores its weight as (out, in) and computes x W<sup>T</sup>, so head h's query matrix is the slice <code>q.weight[h*hd:(h+1)*hd].T</code>. And <code>.view</code> needs memory laid out in the order of the new shape, which a transpose breaks: the merge must use <code>.reshape</code> or <code>.contiguous().view</code>. The split must be a <code>view</code> to (B, T, H, hd) followed by a transpose; viewing straight to (B, H, T, hd) silently scrambles tokens across heads (loss 1.96 to 3.64 on the trained model, root Block lab).</p></div></details>
-</section>
+</section></div></div>

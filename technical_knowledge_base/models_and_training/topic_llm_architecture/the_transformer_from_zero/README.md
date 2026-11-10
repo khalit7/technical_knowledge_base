@@ -5,8 +5,8 @@ Site: https://khalit7.github.io/technical_knowledge_base/models_and_training/top
 
 Child page of Topic: llm-architecture. `index.html` is the whole Notion page, built from `src/` with `sh src/build.sh`.
 
-Tabs (rebuilt 2026-10-23 to the teaching contract): Reading (the core idea and a hero of the whole model with shapes,
-parameters and ablation results; the decoder in nine steps, each with its figure and its tested code in a closed block;
+Tabs (rebuilt 2026-10-23 to the teaching contract; split layout and six 3D stages on the trained model's own trace, 2026-11-10):
+Reading (the core idea and a 3D hero of the whole model with shapes, parameters and ablation results; the decoder in nine steps, each with its figure and its tested code in a closed block;
 training and the loss curve; sampling with and without a KV cache; parameters and FLOPs by hand against the code and nine
 real configs; six ablations at an equal budget; mistakes and interview rehearsal closed), Shapes and counts (every weight
 and activation shape of ten configs), Further reading. How it was built: `src/README.md`.

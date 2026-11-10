@@ -40,3 +40,15 @@ Scores 0 to 2 on the criteria of the explainer-page skill (visuals/choosing.md);
 Rejected in the rebuild: real attention weights in the one-head grid (needs the trained checkpoint, which lives in scratch; a
 CPU extract of layer 1's weights for ten tokens would take seconds and is proposed for the next run); a FLOPs slider over
 context (the root Block lab owns it); a parameter-share bar per model (the root's section 3 figure draws it).
+
+## 2026-11-10 rollout (split layout, renderer v2 stages)
+| visual | kind | where | data | why |
+|---|---|---|---|---|
+| Fig. 1 the tiny GPT end to end | 3D stage, 6 steps | top (replaces the static hero SVG) | counts from accounting.py; median stream norms, p("x") from the root's trace; removal losses from the ablation runs | a pipeline with depth: the stream as one ribbon through six blocks, the tied table drawn twice with an arc |
+| Fig. 2 tokens to vectors | 3D stage, 5 steps | section 2 (replaces the illustrative two-lookups SVG) | the trained token row 79 and position row 157 of "o", their sum | rows lifted out of two tables, real numbers instead of illustrative colours |
+| Fig. 3 one head by hand | 3D stage, 6 steps | section 3 (replaces the structure-only 5-frame stepper) | layer 1, head 4: q, k, v, scores, weights, output of "o" | the (T, T) matrix with its causal triangle on the floor and one real row standing on it; the head finds the earlier "x" tokens |
+| Fig. 4 many heads in one matmul | 3D stage, 5 steps | section 4 (replaces the static split/merge SVG) | layer 1's 8 heads at row 157, outputs, W_o output | split, transpose and merge as moving blocks; eight real patterns side by side (height is the square root of the weight so spread heads show) |
+| Fig. 5 one pre-norm block | 3D stage, 6 steps | section 6 (replaces the static block SVG) | every intermediate of "o" through block 1 | the stream on a rail, branches behind it, the FFN's 1,024 numbers four times as long |
+| Fig. 6 the head and the loss | 3D stage, 5 steps | section 7 (replaces the shifted-targets SVG) | final norm, logit range, top 10 probabilities of "o" | shift, tied table, softmax, -ln p on one position |
+Kept 2D, now in splits: the scale bars (section 3), FFN to scale (section 5: areas must stay comparable, perspective would distort them), training snapshots (7 steps of 12, a loss curve and a token map read flat), KV cache before/after (5 of 11 steps, two step lists), the sampler (a reader-driven widget), one block's matrices to scale (section 10, same reason as the FFN), ablation curves and the before/after token map (section 11). Full width: You need and terms detail, section 1, FLOPs, the real-config table, Depth, the Shapes and counts tab (a reader-driven tool).
+Rejected: a 3D parameter-count stage (Fig. 1 and the 2D to-scale figures already carry the counts; areas to scale read better flat); a 3D KV cache (Long context owns the cache at length and draws it in 3D; this page owns only why it exists).

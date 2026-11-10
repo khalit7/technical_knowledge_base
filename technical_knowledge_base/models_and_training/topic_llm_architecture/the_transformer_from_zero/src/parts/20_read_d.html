@@ -1,9 +1,4 @@
-<section id="tz-s8">
-<h2>8. Training it, and reading the loss curve</h2>
-<p><b>The loop.</b> Draw 32 random windows of 257 tokens from the training split, run the model, take the loss, backpropagate (the gradient of the loss with respect to every parameter; derived in {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}), clip the gradient's norm to 1, and let AdamW update the weights. The schedule is the running example's for every run on this topic: learning rate 3e-3 reached after 100 warm-up steps, then a cosine decay to 3e-4 at step 1,500; AdamW with betas (0.9, 0.95) and weight decay 0.1 on matrices only; fp32 (faster than bf16 autocast on this GPU: 40k against 30k tokens/s, root setup). How these choices are made at scale is {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}.</p>
-<p><b>Reading the curve.</b> A loss curve is easier to read against the losses of models you can write down. A model that ignores context and always predicts each token's overall frequency scores the <dfn>unigram</dfn> cross-entropy, [[f:unigram|f3]] nats on the held-out split (root Block lab). A model that sees only the previous token scores at best about the <dfn>bigram</dfn> cross-entropy, [[f:bigram|f3]] nats here (counts of token pairs in the 122M training tokens, smoothed toward the unigram, <span class="der">calculated</span> by <code>src/train/curve.py</code>). The uniform guess is 8.318. The run passes the unigram line by step [[f:cross_uni|i]] (train loss) and the bigram line between steps 200 and 250 (held-out); everything below [[f:bigram|f2]] is the model using more than one token of context.</p>
-<div class="rd-anim" id="tz-trn"><h4>One run, twelve snapshots: the running sequence through the model as it trains</h4>
-<p class="small">Predict first: which tokens of the story stay expensive longest? Then step through.</p>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-anim card" id="tz-trn"><h4>One run, seven snapshots: the running sequence through the model as it trains</h4>
 <div class="an-ctl" id="tz-trn-ctl"></div>
 <div class="rd-svg" id="tz-trn-plot"></div>
 <div class="an-cnt" id="tz-trn-cnt"></div>
@@ -11,35 +6,59 @@
 <div class="tz-tok" id="tz-trn-tok"></div>
 <div class="small mute" id="tz-trn-info">Tap a token to read its loss at this snapshot.</div>
 <div class="tz-gen" id="tz-trn-gen"></div>
-<p class="small mute">Every token coloured by how surprised the model was by it, and the greedy continuation of the sequence's own opening. Snapshots of the root Inside lab's retrain of the same baseline (seed 0, the same schedule; final held-out 2.2744), evaluated here on CPU with this page's file. Measured on Apple M1 Pro.</p></div>
-<p>Three phases show up. Steps 0 to about 50: the model learns which tokens are common; the continuation is a repeated fragment ("ryryry", "volcano volcano"). Steps 50 to about 300: grammar arrives, local and repetitive ("The little girl named Lily. The little girl named Lily."). After that the gains are in the tokens that need memory of the story. The name is the clearest case: "Roxy" is four tokens (" R", "o", "x", "y"), and at step 1,500 the three after " R" cost [[f:roxy_first|f1]] nats together at the name's first appearance, [[f:roxy_second|f1]] at the second and [[f:roxy_later|f1]] on average from the third on (nine occurrences), against about 25 for every occurrence at step 0 and still 9 to 11 at step 300; the drop for repeats starts at step 500. So the model reuses the name from earlier in its context. It does so without an induction head in the usual sense (the root Inside lab's repeated-random-token probe scores 0.012 on this model), so the mechanism at this scale is unconfirmed.</p>
+<p class="small mute">Every token coloured by how surprised the model was by it, and the greedy continuation of the sequence's own opening. Snapshots of the root Inside lab's retrain of the same baseline (seed 0, the same schedule; final held-out 2.2744), evaluated here on CPU with this page's file. Measured on Apple M1 Pro.</p></div></div></div><div class="s3L">
+<section id="tz-s8">
+<h2>8. Training it, and reading the loss curve</h2>
+<p><b>The loop.</b> Draw 32 random windows of 257 tokens from the training split, run the model, take the loss, backpropagate (the gradient of the loss with respect to every parameter; derived in {{Matrix calculus and backprop|n:3f05c17b0d0d817e9892e01088179c93}}), clip the gradient's norm to 1, and let AdamW update the weights. The schedule is the running example's for every run on this topic: learning rate 3e-3 reached after 100 warm-up steps, then a cosine decay to 3e-4 at step 1,500; AdamW with betas (0.9, 0.95) and weight decay 0.1 on matrices only; fp32 (faster than bf16 autocast on this GPU: 40k against 30k tokens/s, root setup). How these choices are made at scale is {{Pretraining|n:3c65c17b0d0d814f82cffd0d5c0dd5ba}}.</p>
+<p><b>Reading the curve.</b> A loss curve is easier to read against the losses of models you can write down. A model that ignores context and always predicts each token's overall frequency scores the <dfn>unigram</dfn> cross-entropy, [[f:unigram|f3]] nats on the held-out split (root Block lab). A model that sees only the previous token scores at best about the <dfn>bigram</dfn> cross-entropy, [[f:bigram|f3]] nats here (counts of token pairs in the 122M training tokens, smoothed toward the unigram, <span class="der">calculated</span> by <code>src/train/curve.py</code>). The uniform guess is 8.318. The run passes the unigram line by step [[f:cross_uni|i]] (train loss) and the bigram line between steps 200 and 250 (held-out); everything below [[f:bigram|f2]] is the model using more than one token of context.</p>
+
+<p class="small"><b>Predict first:</b> which tokens of the story stay expensive longest? Three phases show up; the steps walk seven of the run's twelve snapshots (all twelve are the dots on the curve).</p>
+<ol class="sx" id="sx-trn">
+<li><b>Step 0: uniform.</b> Held-out 8.381 against the uniform 8.318; every token costs about the same, and the greedy continuation is a repeated fragment ("ryryry", "volcano volcano").</li>
+<li><b>Steps 0 to about 50: the model learns which tokens are common.</b> Held-out 4.609 at step 50, far below the unigram line; the continuation strings common words together ("She was a time").</li>
+<li><b>Steps 50 to about 300: grammar arrives, local and repetitive</b> ("The little girl named Lily. The little girl named Lily."). Held-out 4.082 at step 100.</li>
+<li><b>Step 300: below the bigram line.</b> Held-out 3.312: the model now uses more than one token of context, but the name is still expensive: the three tokens after " R" cost about 25 nats at every occurrence at step 0, and still 9 to 11 at step 300.</li>
+<li><b>Step 500: memory of the story.</b> Held-out 2.942. After that the gains are in the tokens that need memory of the story; the drop for repeats of the name starts here.</li>
+<li><b>Step 1,000.</b> Held-out 2.469; the greedy continuation is a story ("he saw a big, shiny rock on the ground").</li>
+<li><b>Step 1,500: the name is reused.</b> Held-out 2.274. The three tokens after " R" cost [[f:roxy_first|f1]] nats together at the name's first appearance, [[f:roxy_second|f1]] at the second and [[f:roxy_later|f1]] on average from the third on (nine occurrences). So the model reuses the name from earlier in its context; greedy writes "Roxy saw a big, scary cat".</li>
+</ol>
+<p>It does so without an induction head in the usual sense (the root Inside lab's repeated-random-token probe scores 0.012 on this model), so the mechanism at this scale is unconfirmed.</p>
 <p><b>How to check a run is healthy:</b> the first logged loss is near ln V; the loss falls below the unigram line within tens of steps; the held-out loss keeps falling with the training loss (12.3M tokens is a tenth of one pass over the training shard, so no window is seen twice on average and there is nothing to overfit yet); no spike survives clipping.</p>
 <details class="mist"><summary>The training loop, and the run's numbers</summary><div class="b">
 <pre class="rd-code">[[snip:train]]</pre>
 <p class="rd-codecap"><code>src/train/train_zero.py</code>: the root's <code>train.py</code> loop (its seeded batches and its fixed held-out windows are imported), with this page's model. Same seed, same batches, same starting weights as the reference run.</p>
 <p><b>Measured on Apple M1 Pro (MPS), 2026-10-18.</b> 1,500 steps x 8,192 tokens = 12.3M tokens, seed 0, [[f:base_sec|f0]] s at a median [[f:base_toks|i]] tokens/s; held-out loss [[f:abl_base_val|f4]] (the running example's 20 fixed validation windows) and [[f:abl_base_val100|f4]] on 100 windows, against [[f:ref_val|f4]] and [[f:ref_val100|f4]] for the shared tiny GPT's reference run and [[f:rerun_val|f4]] for the Block lab's rerun of it (same seed; MPS reruns differ in the third decimal; a second seed gives [[f:seed1_val|f3]]). The run's arithmetic is about [[f:run_flops|e]] FLOPs (3 &times; the forward count of section 10, per sequence, &times; 48,000 sequences, <span class="der">derived</span>), so the laptop sustained about [[f:run_tflops|f1]] TFLOP/s. What transfers: losses at this seed and budget, and the order of the ablations; what does not: seconds, and anything about scale.</p></div></details>
-</section>
+</section></div></div>
 
-<section id="tz-s9">
-<h2>9. Sampling: from logits to text</h2>
-<p>Generation runs the prompt through the model, turns the last position's logits into a distribution, picks one token, appends it, and repeats. Recomputing the whole prefix every step repeats work: the keys and values of earlier positions never change (the mask stops them from seeing new tokens), so a <dfn>KV cache</dfn> keeps them per layer, and each new step runs the model on one token only and attends over the cache.</p>
-<div class="tz-fig" id="tz-kv"><h4>Recompute the prefix, or keep its keys and values: the same ten new tokens both ways</h4>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="tz-fig card" id="tz-kv"><h4>Recompute the prefix, or keep its keys and values: the same ten new tokens both ways</h4>
 <div class="seg" id="tz-kv-seg"><button data-m="0" class="on">Without a cache</button><button data-m="1">With a KV cache</button></div>
 <div class="an-ctl" id="tz-kv-ctl"></div>
 <div class="rd-svg" id="tz-kv-svg"></div>
 <div class="an-cnt" id="tz-kv-cnt"></div>
-<div class="an-cap" id="tz-kv-cap"></div>
-<p class="small mute">A 30-token prompt, then 10 generated tokens, as in <code>steps.py</code>'s cache test. FLOPs are <span class="der">derived</span> for the tiny GPT: weights 2 &times; [[f:matmul_params|i]] per token through the model (every block matrix and the output layer), attention 4 &times; L &times; D per key read (a query against a key and a weight times a value); with a cache only the new token goes through.</p></div>
+<p class="small mute">A 30-token prompt, then 10 generated tokens, as in <code>steps.py</code>'s cache test. FLOPs are <span class="der">derived</span> for the tiny GPT: weights 2 &times; [[f:matmul_params|i]] per token through the model (every block matrix and the output layer), attention 4 &times; L &times; D per key read (a query against a key and a weight times a value); with a cache only the new token goes through.</p></div></div></div><div class="s3L">
+<section id="tz-s9">
+<h2>9. Sampling: from logits to text</h2>
+<p>Generation runs the prompt through the model, turns the last position's logits into a distribution, picks one token, appends it, and repeats. Recomputing the whole prefix every step repeats work: the keys and values of earlier positions never change (the mask stops them from seeing new tokens), so a <dfn>KV cache</dfn> keeps them per layer, and each new step runs the model on one token only and attends over the cache.</p>
+<ol class="sx" id="sx-kv0">
+<li><b>Prefill.</b> The 30 prompt tokens go through in one forward pass, the same either way. Without a cache nothing is kept but the logits.</li>
+<li><b>Token 31.</b> The whole prefix, now 31 tokens, goes through the model again to produce one new token.</li>
+<li><b>Token 32.</b> 32 tokens through: every step repeats all the earlier work and a little more.</li>
+<li><b>Token 35.</b> 35 tokens through for one new token; the FLOPs of the step grow with the length.</li>
+<li><b>Token 40.</b> 40 tokens through; summed over the steps, the total grows with the square of the length.</li>
+</ol>
+<ol class="sx" id="sx-kv1" hidden>
+<li><b>Prefill.</b> The same pass over the 30 prompt tokens, and their keys and values are kept: per layer K is (1, 8, 30, 32) = (B, H, t, hd), and V the same.</li>
+<li><b>Token 31.</b> Only the new token goes through; its query reads the 30 cached keys and values in each layer, and its own key and value are appended.</li>
+<li><b>Token 32.</b> One token through again; the cache grows by one token, 2 &times; L &times; D numbers.</li>
+<li><b>Token 35.</b> The step costs the weights once plus a read of the cache; it no longer reruns the prefix.</li>
+<li><b>Token 40.</b> 40 tokens cached; the FLOPs so far are a fraction of the recompute total on the other tab, for 245,760 bytes of cache in bf16.</li>
+</ol>
+
 <p>Measured: decoding tokens 30 to 39 one at a time with the cache matches one full forward to [[f:cache_diff|e]]. The cache costs 2 &times; L &times; D numbers per token: 6,144 bytes in bf16 here, 128 KiB for Llama 3.1 8B with its 8 key-value heads (root findings). How big it gets at long context is the {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}} page's KV-cache calculator; serving at scale is {{Batching, KV cache and scheduling|n:3c65c17b0d0d819db53bd2c48909e5b2}}.</p>
 [[shapes:sample]]
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="tz-s9b">
 <p><b>Picking the token.</b> <dfn>Greedy</dfn> decoding takes the largest logit; it is deterministic and, in small models, repetitive. <dfn>Temperature</dfn> T divides the logits before the softmax: T &lt; 1 sharpens the distribution toward greedy, T &gt; 1 flattens it toward uniform. <dfn>Top-k</dfn> keeps only the k largest logits. The explorer uses the trained model's real logits at two points of the running sequence; the bars are the probabilities after the transform. Predict before you drag: at T = 2, does the true next token gain or lose probability? (Top-p, min-p and the rest are {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}.)</p>
-<div class="rd-anim" id="tz-smp"><h4>Temperature and top-k on real logits of the trained tiny GPT</h4>
-<div class="seg" id="tz-smp-pt"></div>
-<div class="rd-calc"><label>Temperature T: <b id="tz-smp-tv">1.00</b><input type="range" id="tz-smp-t" min="5" max="200" value="100" step="5" aria-label="Temperature"></label>
-<label>Top-k <select id="tz-smp-k"><option value="0">off (all 4,096)</option><option value="1">1 (greedy)</option><option value="5">5</option><option value="40">40</option></select></label></div>
-<div class="an-cnt" id="tz-smp-cnt"></div>
-<div class="tz-dist" id="tz-smp-bars"></div>
-</div>
 <details class="mist"><summary>Real continuations at six settings, and what they show</summary><div class="b">
 <p>Real continuations of evaluation prompt 1 ("Once upon a time, there was a little girl named Lily. She loved to") from the same model, seed 0, 50 new tokens:</p>
 <div class="tw"><table><thead><tr><th>Setting</th><th>Continuation (measured, CPU)</th></tr></thead><tbody>[[tbl:samples]]</tbody></table></div>
@@ -48,4 +67,11 @@
 <details class="mist"><summary>The code: step 9, generation with a KV cache, and its test output</summary><div class="b">
 <pre class="rd-code">[[snip:9]]</pre>
 <pre class="rd-code rd-out">[[out:sample]]</pre></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-anim card" id="tz-smp"><h4>Temperature and top-k on real logits of the trained tiny GPT</h4>
+<div class="seg" id="tz-smp-pt"></div>
+<div class="rd-calc"><label>Temperature T: <b id="tz-smp-tv">1.00</b><input type="range" id="tz-smp-t" min="5" max="200" value="100" step="5" aria-label="Temperature"></label>
+<label>Top-k <select id="tz-smp-k"><option value="0">off (all 4,096)</option><option value="1">1 (greedy)</option><option value="5">5</option><option value="40">40</option></select></label></div>
+<div class="an-cnt" id="tz-smp-cnt"></div>
+<div class="tz-dist" id="tz-smp-bars"></div>
+</div></div></div></div>

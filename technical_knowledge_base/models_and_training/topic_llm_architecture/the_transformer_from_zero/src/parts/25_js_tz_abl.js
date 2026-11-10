@@ -33,13 +33,14 @@
     else{for(let k=0;k<=8;k++)g.push(TZ.lossColor(k)+' '+(k*12.5)+'%');$('tza-scale').innerHTML='<span>loss 0</span><i style="background:linear-gradient(90deg,'+g.join(',')+')"></i><span>8 nats or more</span>'}
     const d=a.tok.map((v,j)=>v-base.tok[j]),worse=d.filter(x=>x>1).length,better=d.filter(x=>x<-1).length;
     const order=d.map((x,j)=>[x,j]).sort((p,q)=>q[0]-p[0]).slice(0,5).map(([x,j])=>'"'+esc(P[j+1])+'" +'+x.toFixed(1));
-    $('tza-cap').innerHTML=mode==='base'?'<b>Before:</b> the baseline. Each of the 255 predicted tokens of the running sequence coloured by its loss; mean '+TZ.fmt(base.seq,3)+' nats.':
-      mode==='abl'?'<b>After:</b> the same sequence through <b>'+esc(a.label)+'</b> ('+esc(a.what)+'); mean '+TZ.fmt(a.seq,3)+' nats.':
-      '<b>Difference</b> (ablation minus baseline): red where the ablation is more surprised. Largest increases: '+order.join(', ')+'.';
+    // a live readout under the step list's explanation (sx-abl): the numbers of this step for the chosen ablation
+    $('tza-cap').innerHTML=mode==='base'?'Baseline: mean '+TZ.fmt(base.seq,3)+' nats over the 255 tokens.':
+      mode==='abl'?esc(a.label)+' ('+esc(a.what)+'): mean '+TZ.fmt(a.seq,3)+' nats.':
+      'Largest increases: '+order.join(', ')+'.';
     $('tza-cnt').innerHTML=RD.stat('Baseline',TZ.fmt(base.seq,3),'mean nats, running sequence')+RD.stat(esc(a.label),TZ.fmt(a.seq,3),'mean nats')+RD.stat('Tokens over 1 nat worse',worse,'of 255 ('+better+' over 1 nat better)');
   }
-  an=RD.anim({card:'tza-seq',ctl:'tza-ctl',n:3,draw:drawSeq,ms:2600,label:'Before, after, difference'});
-  $('tza-pick').addEventListener('change',e=>{cur=withTok.find(a=>a.key===e.target.value);an.reset(3)});
+  an=RD.anim({card:'tza-seq',ctl:'tza-ctl',n:3,draw:drawSeq,ms:4200,label:'Before, after, difference',list:'sx-abl'});
+  $('tza-pick').addEventListener('change',e=>{cur=withTok.find(a=>a.key===e.target.value);an.reset(3,'sx-abl')});
   $('tza-tok').addEventListener('click',e=>{const sp=e.target.closest('span[data-i]');if(sp)$('tza-info').textContent='"'+D.pieces[+sp.dataset.i]+'" (position '+sp.dataset.i+'): '+sp.title});
   // samples
   $('tza-prompt').innerHTML=D.prompts.map((p,i)=>'<option value="'+i+'"'+(i===6?' selected':'')+'>'+(i+1)+'. '+esc(p.slice(0,48))+'...</option>').join('');

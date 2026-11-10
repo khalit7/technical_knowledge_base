@@ -1,6 +1,6 @@
 // node src/check_controls.mjs <index.html>  (run from the repo root; puppeteer from html_utils)
 // Clicks every control of every tab at 390 px dark and 920 px light; fails on page or console errors, a visible
-// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Then checks reduced motion: no autoplay.
+// #jsErr, sideways scroll, or NaN / undefined / Infinity in a tab's text. Then: each 2D animation plays once in view, none under reduced motion.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const file = 'file://' + path.resolve(process.argv[2]);
@@ -36,18 +36,22 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push(box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-// nothing may move before the reader acts: scroll every animation into view, wait, and check every controller is still on
-// step 0 and paused, with reduced motion and without
+// motion (2026-11-06 rule, inverted from the old never-autoplay check): every 2D animation scrolled into view plays by itself
+// (its play button reads Pause), and under reduced motion none moves (all paused, every scrubber on step 0). The 3D stages: check_stages.mjs
 for (const rm of ['reduce', 'no-preference']) {
   const p = await b.newPage();
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
-  await p.setViewport({ width: 920, height: 900 }); await p.goto(file); await sleep(300);
-  for (const id of await p.$$eval('#t-read .an-ctl', cs => cs.map(c => c.id))) {
-    await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(1800);
+  await p.setViewport({ width: 920, height: 900 }); await p.goto(file); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto(file); await sleep(300);
+  const ids = await p.$$eval('#t-read .an-ctl:not(.stg-bar)', cs => cs.map(c => c.id)), notPlaying = [];
+  for (const id of ids) {
+    await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(1600);
+    const on = await p.$eval('#' + id + '-p', b => /Pause/.test(b.textContent)); if (!on) notPlaying.push(id);
   }
-  const playing = await p.$$eval('.an-play', bs => bs.filter(x => /Pause/.test(x.textContent)).length);
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).length);
-  console.log(rm + ' motion: animations playing =', playing, ', scrubbers off step 0 =', moved); if (playing || moved) bad++;
+  if (rm === 'reduce') {
+    const playing = await p.$$eval('.an-play', bs => bs.filter(x => /Pause/.test(x.textContent)).length);
+    const moved = await p.$$eval('#t-read .an-ctl:not(.stg-bar) input[type=range]', rs => rs.filter(r => +r.value !== 0).length);
+    console.log('reduced motion: animations playing =', playing, ', scrubbers off step 0 =', moved); if (playing || moved) bad++;
+  } else { console.log('motion: ' + ids.length + ' animations, not playing when in view:', notPlaying.length ? notPlaying : 'none'); if (notPlaying.length) bad++; }
   await p.close();
 }
 await b.close();

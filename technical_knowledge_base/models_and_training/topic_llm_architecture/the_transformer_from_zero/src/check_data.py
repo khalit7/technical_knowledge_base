@@ -52,12 +52,30 @@ data = re.search(r"/\* 22_js_tz_0data.js \*/(.*?)</script>", page, re.S).group(1
 node = ("const document={getElementById:(id)=>({innerHTML:'',addEventListener(){},querySelectorAll:()=>[],value:id==='tzd-kind'?'all':'any',set textContent(v){}})};"
         "const RD={esc:s=>s,stat:()=>''};const window={RD};" + data.replace("window.TZD", "window.TZD") + js +
         ";console.log(JSON.stringify(window.TZDR.models.map(m=>[m.key,window.TZDR.count(m.s).total])))")
-res = subprocess.run(["node", "-e", node], capture_output=True, text=True)
+res = subprocess.run(["node", "-"], input=node, capture_output=True, text=True)  # on stdin: the script is over the 128 KB argument limit
 if res.returncode:
     raise SystemExit("node failed: " + res.stderr[-800:])
 out = json.loads(res.stdout)
 py = {x["key"]: x["total"] for x in acc["real"]}; py["tiny"] = acc["params"]["baseline"]["total"]
 for k, v in out:
     ok(py[k] == v, f"drill count {k}: JS {v} vs Python {py[k]}")
+# 4. the 3D stages (2026-11-10): the scene data equals a fresh run of make_scene_data.py, and the numbers the step lists quote are the trace's
+import sys; sys.path.insert(0, HERE); import make_scene_data as MS
+ok(open(os.path.join(HERE, "parts", "26_js_tz_scene.js")).read() == MS.text(), "parts/26_js_tz_scene.js differs from make_scene_data.py")
+TS = json.loads(re.search(r"window\.TZS=(\{.*?\});\n", page, re.S).group(1))
+ok(TS == MS.build(), "the page's TZS differs from make_scene_data.py")
+lists = {m.group(1): re.sub(r"<[^>]+>", " ", m.group(2)) for m in re.finditer(r'<ol class="sx" id="(sx-[\w-]+)"[^>]*>(.*?)</ol>', page, re.S)}
+need = {"sx-hero": [f"{F['p_next'] * 100:.1f}%", f"{F['loss_here']:.3f}", f"{F['abl_noattn_val']:.3f}", "786,944", "65.5"],
+        "sx-emb": ["id 79", f"{TS['emb_norm']['tok']:.2f}", f"{TS['emb_norm']['pos']:.2f}", f"{TS['emb_norm']['x']:.2f}", f"{F['o_count']}", "0.433"],
+        "sx-att": [f"{F['h4_top_score']:.2f}", f"{F['h4_x_share'] * 100:.0f}%", f"{F['h4_top']:.2f}", "2.4e-07", "4.1e-04", "98 tokens"],
+        "sx-heads": [f"{F['h0_prev'] * 100:.0f}%", f"{F['h5_prev'] * 100:.0f}%", f"{F['ent_lo']:.1f}", f"{F['ent_hi']:.1f}", f"{TS['l1_norm']['attn_out']:.2f}"],
+        "sx-blk": [f"{TS['l1_norm'][k]:.{d}f}" for k, d in (("x_in", 2), ("norm1", 1), ("attn_out", 2), ("x_mid", 2), ("norm2", 1), ("ffn_out", 1), ("x_out", 1))] + [f"{F['gelu_neg'] * 100:.0f}%"],
+        "sx-out": [f"{TS['l6_out_norm']:.1f}", f"{TS['norm_f_norm']:.1f}", f"{TS['logit_min']:.2f}", f"{TS['logit_max']:.2f}", f"{F['top_rest'] * 100:.1f}%", f"{F['top_other'] * 100:.1f}%"],
+        "sx-trn": [f"{s['val']:.3f}" for s in curve["snaps"] if s["step"] in (0, 50, 100, 300, 500, 1000, 1500)]}
+for lid, xs in need.items():
+    ok(lid in lists, f"step list {lid} missing")
+    for x in xs:
+        ok(x in lists.get(lid, ""), f"step list {lid} lacks {x}")
+ok(sum(1 for p in curve["pieces"] if p == "o") == F["o_count"], "count of o")
 print("checked", len(out), "drill models,", len(D["abl"]), "runs,", len(D["snaps"]), "snapshots")
 print("FAIL" if fails else "OK", *fails, sep="\n")

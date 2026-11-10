@@ -45,3 +45,17 @@
   (2,688,768 parameters); no attention 3.6951 / 3.703 (bigram floor 3.6158).
 - Roxy at step 1,500 (in_snap): tokens "o","x","y" cost 9.0 nats together at the first occurrence, 4.5 at the second,
   1.6 on average from the third on; about 25 at step 0, 9 to 11 at step 300.
+
+## The trained model traced on "o" at position 157 (2026-11-10, for the 3D stages)
+Source: the root's `src/block/out/trace_ref_baseline_s1500.json` (root `src/block/trace.py`, CPU; the checkpoint this page's
+gpt_zero.py loads with identical logits). Read by `make_scene_data.py`; every figure below is printed from it.
+- Token "o", id 79, position 157 ("Why are you sad, Ro|xy"), next token "x". Embedding norms: token row 1.214, position row
+  0.559, sum 1.327.
+- Layer 1: LN copy norm 10.393; attention output 1.828; x + attention 2.330; second LN copy 15.565; FFN output 53.034;
+  block output 53.328; 58.98% of the 1,024 FFN pre-activations negative. Scores in the trace are already divided by sqrt(32)
+  (softmax of them equals the recorded weights to 5.5e-05).
+- Layer 1 head 4: top score 7.242 on "x" at 143; 79.3% of the weight on the 6 earlier "x" tokens (22, 27, 48, 81, 113, 143),
+  0.391 on 143. Heads 0 and 5: 64.8% and 70.3% on " R" at 156. Heads 1, 2, 7: entropy 6.888, 7.020, 7.264 bits (log2 158 = 7.30).
+- After block 6: norm 65.772; final norm 23.346; logits -9.085 to 10.843; p("x") 0.7585 (loss 0.276); top 10 sum 0.8149.
+- Median token's stream norm: 1.307 after the embedding, 65.501 after block 6 (the "1.3 to 65.5" of the root Block lab).
+- "o" is 12 of the 256 tokens of the running sequence.

@@ -135,6 +135,25 @@ T["err"] = {k: e(v["message"]) for k, v in err.items()}
 T["samples"] = "".join(f"<tr><td>{'greedy' if x['T'] == 0 else 'T ' + format(x['T'], '.1f') + (', top-k ' + str(x['top_k']) if x.get('top_k') else '')}</td><td>{e(x['text'])}</td></tr>" for x in smp["samples"])
 F["matmul_params"] = acc["flops"]["matmul_params"]
 
+# ---------------------------------------------------------------- the 3D stages (2026-11-10): the trained model's trace of "o" at position 157
+# (make_scene_data.py writes parts/26_js_tz_scene.js; the facts the step lists quote are taken from the same numbers here)
+import math, make_scene_data as MS
+TS = MS.build()
+open(os.path.join(HERE, "parts", "26_js_tz_scene.js"), "w").write(MS.text())
+_pc = curve["pieces"]
+_w4 = TS["l1_attn"][4]
+F.update({
+    "p_next": TS["p_next"], "loss_here": TS["loss_here"], "top_rest": round(TS["top10_sum"] - TS["p_next"], 4), "top_other": round(1 - TS["top10_sum"], 4),
+    "logit_max": TS["logit_max"], "logit_min": TS["logit_min"],
+    "emb_tok_norm": TS["emb_norm"]["tok"], "emb_pos_norm": TS["emb_norm"]["pos"], "emb_x_norm": TS["emb_norm"]["x"],
+    "l1_norm1": TS["l1_norm"]["norm1"], "l1_attn_out": TS["l1_norm"]["attn_out"], "l1_x_mid": TS["l1_norm"]["x_mid"], "l1_norm2": TS["l1_norm"]["norm2"],
+    "l1_ffn_out": TS["l1_norm"]["ffn_out"], "l1_x_out": TS["l1_norm"]["x_out"], "l6_out_norm": TS["l6_out_norm"], "norm_f_norm": TS["norm_f_norm"],
+    "gelu_neg": TS["l1_gelu_neg"], "o_count": sum(1 for x in _pc if x == "o"),
+    "h4_x_share": round(sum(a for j, a in enumerate(_w4) if _pc[j] == "x"), 3), "h4_x_count": sum(1 for j in range(len(_w4)) if _pc[j] == "x"),
+    "h0_prev": TS["l1_attn"][0][156], "h5_prev": TS["l1_attn"][5][156], "h4_top": max(_w4), "h4_top_score": max(TS["l1_scores"][4]),
+    "ent_lo": min(TS["l1_entropy"][i] for i in (1, 2, 7)), "ent_hi": max(TS["l1_entropy"][i] for i in (1, 2, 7)), "ent_uniform": round(math.log2(TS["pos"] + 1), 2),
+})
+
 # ---------------------------------------------------------------- data for the scripts
 D = {
     "snaps": [{"step": s["step"], "val": s["val"], "seq": s["seq_mean"], "tok": s["tok_loss"], "greedy": s["greedy"]} for s in curve["snaps"]],

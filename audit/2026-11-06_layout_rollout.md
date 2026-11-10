@@ -153,8 +153,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/mixture_of_experts` Mixture of experts: routers, load balancing, fine-grained and shared experts, expert parallelism
 - [x] `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability` Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
 - [x] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
-- [~] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
-- [ ] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
+- [x] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
+- [~] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
 - [ ] `models_and_training/topic_llm_architecture` Topic: llm-architecture
 - [ ] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
 - [ ] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
@@ -446,4 +446,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/mixture_of_experts`: core 29 to 35 min plus 20 closed; Fig. 9 dispatch dots dense; Fig. 3 stacks sit partly behind the score field; scenes small with empty card space on phones; verify_layout flags the calculator outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability`: Fig. 1 hero sparse and faint at 1400 (small objects, much empty card); the old stepper's per-token views (token o, token 0) are gone; labels over faded objects in Figs. 3, 4 and 5; Fig. 1 small on phones; Fig. 2's gradient thinning is drawn, not measured (labelled); verify_layout flags the Stability explorer outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_architecture/positional_encodings`: empty space above and below the scene at 1400 (worst Figs. 1, 5, 6); Fig. 6 NTK step's per-pair out-of-range count can exceed plain's (modulo-one-turn judgement; the step also gives how far the slowest pair turns); running-sequence card about 1,070 px tall, not sticky; core 33 to 38 min plus 20 closed.
+- `models_and_training/topic_llm_architecture/the_transformer_from_zero`: core 32 to 40 min plus 22 closed; Fig. 3 step 4 shows a small unexplained cluster at the lower right; full-view steps small (Fig. 1 steps 3 and 6, Fig. 4 step 3); stages read the root's src/block/out/trace_ref_baseline_s1500.json (keep it if the root is reorganised); Fig. 4 heights are square-root weights (said in the step).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
