@@ -512,3 +512,8 @@ Removed (owner has the better visual): the aux-loss-free toy control loop (Mixtu
 Moved to a closed block: the Sinkhorn-Knopp 4 x 4 toy (Normalisation owns mHC and has a random-matrix table, not this projection; proposed for absorption there).
 Kept inline: V4.1-Flash phase switch, layer modes and indexer funnel (no owner carries V4.1-Flash), MoE layouts grid, DualPipe simulator (Distributed Training links here for it), EPLB port, R1 flow and distillation scatter.
 Rejected: a real image. The page is about a lab and its models, not a physical object; the canonical figures (V3's architecture figure) are under arXiv's non-exclusive distribution licence, which does not allow reuse.
+
+## 2026-11-10 (rollout to the split layout and renderer v2)
+- Built: Fig. 2 three cuts (columns of numbers read per decoded token by release, glass case for the cache stored, rescaling between steps), Fig. 3 V4.1-Flash towers, Fig. 4 serving pools. See `README.md`.
+- Considered and kept 2D: the hero as a 3D timeline (a release-by-layer grid reads flat); the cost as a column among published costs (the outside estimates use other units, so there is only one column to draw: a bar does it); the indexer funnel (log scale); EPLB in 3D (the port's bars are the point, and the stage already shows the copies).
+- Rejected: a log-height version of Fig. 2 (a log axis in perspective misleads; the rescale with written ratios keeps every height to scale within its step).

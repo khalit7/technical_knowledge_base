@@ -1,4 +1,4 @@
-// ---- Reading figures (2026-10-24 rebuild): the hero (layer by release), the attention factors, the training-cost bar.
+// ---- Reading figures (2026-10-24 rebuild): the hero (layer by release) and the training-cost bar (the attention factors are Fig. 2, a 3D stage, since 2026-11-10).
 // Static figures drawn at the measured width; no motion. Numbers are in the HTML captions beside them.
 (function(){
   if(!window.RD||!document.getElementById('dsHero'))return;
@@ -7,7 +7,7 @@
   const H=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.fill?' fill="'+o.fill+'"':'')+(o.w?' font-weight="'+o.w+'"':'')+' stroke="var(--bg)" stroke-width="4" paint-order="stroke">'+s+'</text>'};
 
   // ---- hero: which release first shipped DeepSeek's answer for each part of the model ----
-  const COLS=[['V2','May 2024','236B / 21B'],['V3','Dec 2024','671B / 37B'],['R1','Jan 2025','671B / 37B'],['V3.1','Aug 2025',''],['V3.2-Exp','Sep 2025','671B / 37B'],['V4','Apr 2026','1.6T / 49B'],['V4.1-Flash','Sep 2026','552B / 8B to 16B']];
+  const COLS=[['V2','May 2024','236B / 21B'],['V3','Dec 2024','671B / 37B'],['R1','Jan 2025','671B / 37B'],['V3.1','Aug 2025',''],['V3.2-Exp','Sep 2025','671B / 37B'],['V4','Apr 2026','1.6T / 49B'],['V4.1-Flash','Sep 2026','552B / 8B, 16B']];
   const ROWS=[
     ['g','Serving cost: the attention cache and the network'],
     ['Bytes per cache entry','s-mla',[[0,'MLA: 576 numbers']]],
@@ -35,7 +35,7 @@
           s+='<a href="#'+r[1]+'"><rect x="0" y="'+y+'" width="'+W+'" height="22" fill="transparent"/><circle cx="8" cy="'+(y+11)+'" r="5" fill="var(--acc)"/>'+T(20,y+15,r[0]+':',{fill:'var(--acc)'})+T(158,y+15,lab)+'</a>';y+=22})});
         y+=6;s+='<line x1="0" x2="'+W+'" y1="'+(y-3)+'" y2="'+(y-3)+'" stroke="var(--line)"/>'});
       el.style.minWidth='';el.innerHTML=RD.svg(W,y,s,'DeepSeek releases and the parts of the model each one changed');return}
-    const W=Math.max(640,cw0),lw=150,n=COLS.length,cw=(W-lw-6)/n,cx=i=>lw+cw*(i+0.5);
+    const W=Math.max(640,cw0),lw=136,n=COLS.length,cw=(W-lw-6)/n,cx=i=>lw+cw*(i+0.5);
     let y=0,s='';const top=50;
     COLS.forEach((c,i)=>{s+=T(cx(i),14,c[0],{a:'middle',fs:12,w:600})+T(cx(i),29,c[1],{a:'middle',fill:'var(--mute)'})+(c[2]?T(cx(i),43,c[2],{a:'middle',fill:'var(--mute)'}):'')});
     y=top;
@@ -54,23 +54,6 @@
     el.innerHTML=RD.svg(W,y+4,grid+s+body.join(''),'DeepSeek releases against the parts of the model each one changed');
   }
 
-  // ---- attention: the factor each generation shrank ----
-  const AR=[
-    {t:'Numbers per entry (V2, MLA), per token per layer at V3\u2019s dimensions',ts:'Numbers per entry (V2, MLA)',b:[32768,'MHA: 32,768 numbers'],a:[[576,'MLA: 576 numbers, 57× fewer']]},
-    {t:'Entries each decoded token reads (V3.2-Exp, DSA), 131,072-token context',ts:'Entries read (V3.2-Exp, DSA), 128K context',b:[131072,'full attention: all 131,072'],a:[[2048,'DSA: the top 2,048, 64× fewer']]},
-    {t:'Entries stored per layer (V4), 1,048,576-token context',ts:'Entries stored (V4), 1M context',b:[1048576,'one per token: 1,048,576'],a:[[262144+128,'CSA layer: 262,144 + 128 window, 4× fewer'],[8192+128,'HCA layer: 8,192 + 128 window, 126× fewer']]}];
-  function att(){
-    const el=document.getElementById('dsAtt');if(!el)return;
-    const W=RD.width(el),bw=W-4;let y=0,s='';
-    AR.forEach(r=>{
-      s+=T(0,y+13,W<560?r.ts:r.t,{fs:12,w:600});y+=20;
-      const bar=(v,max,lab,c)=>{const w=Math.max(2,bw*v/max);const o=T(0,y+11,lab,{fill:c==='var(--dim)'?'var(--mute)':'var(--ink)'})+'<rect x="0" y="'+(y+15)+'" width="'+w.toFixed(1)+'" height="11" rx="2" fill="'+c+'"/>';y+=32;return o};
-      s+=bar(r.b[0],r.b[0],r.b[1],'var(--dim)');
-      r.a.forEach(a=>{s+=bar(a[0],r.b[0],a[1],'var(--acc)')});
-      y+=8});
-    el.innerHTML=RD.svg(W,y,s,'Before and after bars for MLA, DSA and CSA/HCA');
-  }
-
   // ---- cost: GPU hours of the runs DeepSeek priced ----
   function cost(){
     const el=document.getElementById('dsCost');if(!el)return;
@@ -86,6 +69,6 @@
     s+='<rect x="0" y="108" width="'+(147*sc).toFixed(1)+'" height="22" fill="var(--c4)"/>';
     el.innerHTML=RD.svg(W,136,s,'GPU hours of V3 and R1 training runs');
   }
-  function all(){hero();att();cost()}
+  function all(){hero();cost()}
   RD.onRender(all);RD.onResize(all);all();
 })();

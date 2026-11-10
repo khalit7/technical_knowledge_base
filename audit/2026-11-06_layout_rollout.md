@@ -158,8 +158,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture` Topic: llm-architecture
 - [x] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
 - [x] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
-- [~] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
-- [ ] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
+- [x] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
+- [~] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
 - [ ] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
 - [ ] `models_and_training/topic_llm_landscape/minimax` MiniMax
 - [ ] `models_and_training/topic_llm_landscape/mistral_ai` Mistral AI
@@ -451,6 +451,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture` (root): Fig. 1 busy at 1400 with FFN plates cut at the card's bottom edge; step 7's 32 receding outlines busier than the rest; page 918 KB; read/check_read.mjs and read/check_data.py are stale (they drive Reading animations retired in October; check_stages covers Reading now); unit 474's clause (a 64-token window keeps a quarter of a 256-token cache) should be absorbed by Attention variants; verify_layout flags the four lab tabs (accepted).
 - `models_and_training/topic_llm_landscape/alibaba_qwen`: Fig. 3 all-five step draws grids in a thin band with empty space below; hero step 4 "16 attention" note close to the 2.4T tower at 390; which experts light up is a seeded illustrative pick (said in the step); no Qwen figures (no reuse licence).
 - `models_and_training/topic_llm_landscape/anthropic_claude_family`: Fig. 5 plates small with row names hidden on phones; Fig. 6 step 5 columns after turn 1 short (turn 1's cache write dominates, real); recompute.py's Sonnet 5.5 cache read set to the page's $0.10 (cut 7 October, sourced in the 19 October issue); the page's inputs/about-claude_pricing.md predates that cut.
+- `models_and_training/topic_llm_landscape/deepseek`: Fig. 2 counts numbers, not bytes (precision differs by part; said on the page); side labels hidden on phones; redundant-expert slot positions in Fig. 4 are illustrative (labelled).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -462,3 +463,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Generative and multimodal root: five children (Vision encoders, VLMs, Diffusion, Autoencoders, Evaluating) have not absorbed the facts in its "Kept from the retired labs" block. Move them into the children, or keep the block?
 - Pages over about 50 minutes core or with large closed details (see polish notes): condense in the cosmetic pass, or leave?
 - LLM architecture root: Fig. 1 (3D) replaced the clickable 2D hero map (the step list carries the owner links; the old hero is in git history), and the map tab's eras stepper now opens on the 2018 block and plays to "as shipped" (before, it opened on "as shipped" and waited). Keep both, or restore the old behaviour?
+- DeepSeek Fig. 2: it counts numbers read per decoded token, not bytes, because precision differs by part (BF16 cache, FP8/FP4 indexers); the page says so. Keep numbers, or convert to bytes with per-part precisions?
+- DeepSeek Fig. 2: the V4 CSA indexer key is assumed to be 128 numbers like DSA's (Attention variants gives 64 heads of 128, not the key size); the page labels it an assumption. Source it, or leave it labelled?

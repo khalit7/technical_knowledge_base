@@ -4,10 +4,10 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Links: {{text|url}} becomes an external link (new tab); url may be n:<notion id> (a Notion page) or #t-<tab> (switches tab).
 cd "$(dirname "$0")" || exit 1
 P=parts
-{ cat $P/01_head.html $P/02_read_a.html $P/03_read_b.html $P/04_read_c.html $P/05_tabs.html $P/07_more.html
+{ cat $P/01_head.html $P/02_split.html $P/02_read_a.html $P/03_read_b.html $P/04_read_c.html $P/05_tabs.html $P/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat $P/05z_errbox.js.html
-  for f in $P/10_js_common.js $P/21_js_rd_common.js $P/12_js_attn.js $P/13_js_moe.js $P/14_js_misc.js $P/20_js_pipe.js $P/21_js_r1.js $P/22_js_eplb.js $P/23_js_v41.js $P/24_js_cfg.js $P/30_js_figs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in $P/10_js_common.js $P/21_js_rd_common.js $P/26_js_ds_0data.js $P/13_js_moe.js $P/14_js_misc.js $P/20_js_pipe.js $P/21_js_r1.js $P/22_js_eplb.js $P/23_js_v41.js $P/24_js_cfg.js $P/30_js_figs.js $P/25_js_s3.js $P/41_js_sc_cut.js $P/42_js_sc_v41.js $P/43_js_sc_srv.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo "<script>/* 99_js_tabs.js */"; cat $P/99_js_tabs.js; echo '</script>'
   echo '</body></html>'; } | perl -CSD -pe '
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);if($u=~m{^#(t-[\w-]+)$}){"<a href=\"#\" data-tab=\"$1\">$t<\/a>"}else{$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"}/ge;

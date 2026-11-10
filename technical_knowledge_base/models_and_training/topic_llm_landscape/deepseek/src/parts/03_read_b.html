@@ -1,8 +1,14 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-moe">
 <h2>The MoE layer as DeepSeek configured it</h2>
 <p><b>DeepSeekMoE</b>, from V2, makes two changes to the Mixtral-style mixture of experts (a handful of large experts, two active per token): <b>fine-grained experts</b>, each expert split into narrower ones with more active per token, so V3 routes 8 of 256 rather than 2 of 8 at a similar active budget; and <b>shared experts</b> that every token passes through, absorbing the common computation that would otherwise be duplicated inside every routed expert. Mixtral's 2 of 8 gives 28 possible expert sets per token per layer; V3's 8 of 256 gives about 4.1 × 10<sup>14</sup>, which is what lets experts specialise narrowly. Why both moves work, measured, is on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}} (section 5).</p>
 <p class="try"><b>Try:</b> pick a generation: the grid is every routed expert of one layer to scale, blue the experts one token picked (at random here; a real router picks by affinity); the green count is the shared expert every token also passes through.</p>
-<div class="card"><p class="vt">More, narrower experts per generation, with one always on</p><div class="chips" id="moeC"></div><div id="moeGrid" class="eg"></div><div class="out" id="moeOut"></div><button id="moeR">Route a token</button></div>
+
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="vt">More, narrower experts per generation, with one always on</p><div class="chips" id="moeC"></div><div id="moeGrid" class="eg"></div><div class="out" id="moeOut"></div><button id="moeR">Route a token</button></div></div></div></div>
+
+<section id="s-bal2">
 <p>How the layer changed across generations (from the {{V2|https://arxiv.org/abs/2405.04434}}, {{V3|https://arxiv.org/abs/2412.19437}} and {{V4|https://arxiv.org/pdf/2606.19348}} reports; V4.1-Flash from {{zartbot's breakdown|https://zartbot.github.io/blog/model_arch/dsv41flash_arch/en.html}} and its {{config.json|https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/main/config.json}}):</p>
 <div class="tw"><table style="min-width:600px">
 <tr><th>Model (total / active)</th><th>Routed, active</th><th class="num">Shared</th><th class="num">Expert width</th><th>Affinity</th><th>First layers</th><th>Routing limit</th></tr>
@@ -34,6 +40,10 @@
 <p>DeepSeek trained V3 on H800s, whose interconnect bandwidth is cut relative to the H100, so communication rather than FLOPs was the binding constraint: 20 of each H800's 132 streaming multiprocessors were given over to communication, and V3 trained with 16-way pipeline parallelism, 64-way expert parallelism across 8 nodes and ZeRO-1 data parallelism ({{V3 report|https://arxiv.org/abs/2412.19437}}). Each choice below trades complexity for bandwidth.</p>
 <h3 id="s-fp8">FP8 training (V3), FP4 experts (V4)</h3>
 <p>V3 was the first validation of FP8 training at this scale, roughly halving memory traffic against BF16. Naive FP8 fails because the format's dynamic range is small: one outlier forces a tensor's scale down and small gradients flush to zero. The recipe: one scale per 1 × 128 tile of activations and per 128 × 128 block of weights, so one outlier cannot poison a whole tensor; master weights, optimiser state, normalisation, the embedding and the output layers kept in higher precision; and accumulation promoted to FP32 every 128 elements, because the H800 tensor cores keep only about 14 bits when accumulating FP8 products. The loss stays within 0.25% relative error of BF16 ({{V3 report|https://arxiv.org/abs/2412.19437}}). V4 goes further at the serving end: routed expert weights stored in FP4 through quantisation-aware training, and the lightning indexer computing in FP4 ({{V4 report|https://arxiv.org/pdf/2606.19348}}). The formats and scaling granularity are taught on {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}.</p>
+</section>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-pipe2">
 <h3 id="s-pipe">DualPipe: feed the pipeline from both ends</h3>
 <p>Pipeline parallelism leaves bubbles, stretches where a stage waits on its neighbour. <b>DualPipe</b> feeds micro-batches in from both ends and pairs one micro-batch's forward chunk with another's backward chunk (<i>F</i>&amp;<i>B</i>), so the MoE all-to-all of one hides behind the compute of the other. The chunks have durations <i>F</i> (forward), <i>B</i> (full backward) and <i>W</i> (the backward-for-weights part, which zero-bubble schedules split off to fill gaps). DeepSeek publish each schedule's bubble and memory ({{DualPipe repository|https://github.com/deepseek-ai/DualPipe}}; Table 2 of the {{V3 report|https://arxiv.org/abs/2412.19437}}):</p>
 <div class="tw"><table style="min-width:520px"><tr><th>Schedule</th><th>Bubble</th><th>Parameters per device</th><th>Activations per device</th><th>Devices</th></tr>
@@ -43,13 +53,17 @@
 <tr><td>DualPipeV</td><td class="m">(<i>PP</i>/2 − 1)(<i>F</i>&amp;<i>B</i> + <i>B</i> − 3<i>W</i>)</td><td>2×</td><td><i>PP</i> + 1</td><td><i>PP</i>/2</td></tr></table></div>
 <p>The price is the third column: every device holds two stages, the <i>r</i>-th and the (<i>PP</i> − 1 − <i>r</i>)-th, so micro-batches can enter from both ends. DualPipeV, Sea AI Lab's "cut-in-half" version, gets the same bubble on half the devices. Pipeline parallelism in general is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}, which links here for these schedules.</p>
 <p class="try"><b>Predict:</b> with the README's own example (8 ranks, 20 micro-batches), how much smaller is DualPipe's bubble than 1F1B's? Then switch schedule: the readout goes from 4.5 to 21 time units. On DualPipe, rank 0 runs forward chunks of both directions (blue and teal) and, in the middle, mostly bordered F&amp;B cells, the overlapped pairs. The time ratios are <span class="ill">illustrative</span>.</p>
-<div class="card"><p class="vt">Feeding both ends shrinks the start-up and drain triangles</p><div class="seg" id="ppS"><button data-m="1f1b">1F1B</button><button data-m="zb">ZB1P</button><button class="on" data-m="dp">DualPipe</button></div>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><p class="vt">Feeding both ends shrinks the start-up and drain triangles</p><div class="seg" id="ppS"><button data-m="1f1b">1F1B</button><button data-m="zb">ZB1P</button><button class="on" data-m="dp">DualPipe</button></div>
 <div class="ctl"><label>Pipeline ranks <i>PP</i> <select id="ppP" style="width:100%"><option>4</option><option>6</option><option selected>8</option><option>12</option><option>16</option></select></label>
 <label>Micro-batches: <b id="ppMv">20</b><input type="range" id="ppM" min="4" max="64" step="2" value="20"></label>
 <label>Time ratios <i>F</i> : <i>B</i> : <i>W</i> : <i>F</i>&amp;<i>B</i> <select id="ppR" style="width:100%"><option value="1,2,1,2.5" selected>1 : 2 : 1 : 2.5</option><option value="1,2,1,2">1 : 2 : 1 : 2 (perfect overlap: F&amp;B = max(F, B))</option><option value="1,2,1,3">1 : 2 : 1 : 3 (no overlap gain: F&amp;B = F + B)</option><option value="1,2,0.5,2.5">1 : 2 : 0.5 : 2.5</option></select></label></div>
 <div class="tw"><div id="ppSvg" style="min-width:600px"></div></div>
 <div class="leg"><span><i style="background:var(--c1)"></i>forward</span><span><i style="background:var(--c6)"></i>forward, reverse direction</span><span><i style="background:var(--c2)"></i>backward</span><span><i style="background:var(--c5)"></i>backward for weights (W)</span><span>bordered: overlapped F&amp;B</span></div>
-<div class="out" id="ppOut"></div><p class="small mute" id="ppNote" style="margin:4px 0 0"></p></div>
+<div class="out" id="ppOut"></div><p class="small mute" id="ppNote" style="margin:4px 0 0"></p></div></div></div></div>
+
+<section id="s-sys2">
 <h3 id="s-deepep">DeepEP: kernels shaped like MoE traffic</h3>
 <p><b>DeepEP</b>, DeepSeek's open expert-parallel communication library, is hand-written dispatch and combine kernels with separate NVLink and RDMA paths and a low-latency variant for decode. It exists because MoE traffic is a skewed, dynamically routed, token-level all-to-all, not the uniform exchange generic collectives are built for. V4 folds computation, communication and memory access for the MoE layer into a single fused kernel ({{V4 report|https://arxiv.org/pdf/2606.19348}}).</p>
 <h3 id="s-v4x">V4's residual stream and optimiser: mHC and Muon</h3>

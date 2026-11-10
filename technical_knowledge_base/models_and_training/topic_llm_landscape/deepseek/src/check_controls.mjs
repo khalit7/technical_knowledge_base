@@ -1,11 +1,12 @@
 // node <page>/src/check_controls.mjs <page>/index.html  (run from the repository root)
 // Clicks every button, sets every range and select in every tab, opens every closed block, in 390 px dark and 920 px light;
-// fails on page or console errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity in the tab text.
+// fails on page or console errors, a visible #jsErr, sideways scroll, or NaN / undefined / Infinity in the tab text. (2026-11-10: 1400 px added; the stages autoplay in view,
+// checked by check_stages.mjs; here, under reduced motion, nothing may request animation frames after load.)
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let bad = 0;
-for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
+for (const [scheme, width] of [['dark', 390], ['light', 920], ['light', 1400]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
