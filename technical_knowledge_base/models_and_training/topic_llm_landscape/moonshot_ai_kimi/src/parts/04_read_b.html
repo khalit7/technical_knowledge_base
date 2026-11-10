@@ -1,39 +1,62 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-kda">
 <h2>Kimi Delta Attention and the linear/full hybrid</h2>
 <p>Full softmax attention keeps every past key and value, so its cache grows with context and every decoded token reads all of it. A linear-attention layer instead keeps a fixed-size state matrix per head, at the price of capacity: writes superimpose and precise recall far back degrades. The recurrence, the delta rule and Gated DeltaNet (GDN), the design KDA extends, are owned by {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}, whose "one state, five write rules" animation shows each write rule on the same words.</p>
 <p><b>KDA</b>, from the Kimi Linear paper ({{arXiv 2510.26692|@kl}}), is a gated delta-rule linear attention: each write first subtracts what the state retrieves for that key (so a new association overwrites the old one instead of piling on top), and learned decay makes old content fade. <b>Kimi's contribution is the gate's granularity.</b> GDN, like Mamba-2, has one forget rate per head per token, a scalar; KDA gives every key channel its own forget rate, a diagonal matrix, so a layer can keep one feature for thousands of tokens while flushing another at once.</p>
 <p class="try"><b>Predict, then try:</b> a fact sits under key channel 1 and scratch under channel 2; ten tokens then write elsewhere. With one scalar gate, can you keep the fact and lose the scratch? Per-channel gates of 0.99 and 0.5 keep 0.904 of the fact and 0.001 of the scratch; switch to GDN's scalar gate and it must pick one rate for both. The other preset, <i>Overwrite</i>, writes <b>v</b><sub>1</sub> = (1, 2) then <b>v</b><sub>2</sub> = (3, −1) under <b>k</b> = (1, 0): plain linear attention reads back the blend (4, 1), the delta rule the new value (3, −1).</p>
-<div class="card" id="dr">
-<div class="seg" id="drP"><button class="on" data-m="keep">Keep the fact, flush the scratch</button><button data-m="ow">Overwrite</button></div>
-<div class="seg" id="drR"><button data-m="lin">Linear attention</button><button data-m="delta">Delta rule</button><button data-m="gdn">GDN: scalar gate</button><button class="on" data-m="kda">KDA: per-channel gate</button></div>
-<div class="ctl" id="drCtl"></div>
-<div class="grid"><div id="drState"></div><div id="drRead"></div></div>
-<p class="small mute" id="drNote"></p>
-</div>
 <p>The same thing as an equation, in Beyond attention's layout (the paper stores the transpose):</p>
 <div class="fm"><math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mspace width="0.15em"/><mi>Diag</mi><mo>(</mo><msub><mi>𝛂</mi><mi>t</mi></msub><mo>)</mo><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>𝐤</mi><mi>t</mi></msub><msubsup><mi>𝐤</mi><mi>t</mi><mo>⊤</mo></msubsup><mo>)</mo></mrow><mo>+</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>𝐯</mi><mi>t</mi></msub><msubsup><mi>𝐤</mi><mi>t</mi><mo>⊤</mo></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>𝐨</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mi>t</mi></msub><msub><mi>𝐪</mi><mi>t</mi></msub></math>
 <dl><dt>S<sub>t</sub></dt><dd>the head's state after token <i>t</i>, of size <i>d<sub>v</sub></i> × <i>d<sub>k</sub></i> (128 × 128 in K3)</dd><dt>k<sub>t</sub>, q<sub>t</sub>, v<sub>t</sub></dt><dd>the token's key and query (dimension <i>d<sub>k</sub></i>, L2-normalised) and value (dimension <i>d<sub>v</sub></i>)</dd><dt>α<sub>t</sub></dt><dd>the per-channel forget gate in (0, 1)<sup><i>d<sub>k</sub></i></sup>, held in the diagonal matrix Diag(<b>α</b><sub><i>t</i></sub>); GDN has a single scalar <i>α<sub>t</sub></i> here</dd><dt>β<sub>t</sub></dt><dd>the write strength in (0, 1)</dd></dl>
 <p class="wh">Read right to left inside the first term: decay each key channel by its own rate, then erase what is stored under <b>k</b><sub><i>t</i></sub>; the second term writes <b>v</b><sub><i>t</i></sub> there.</p></div>
 <details class="mist"><summary>The kernel, and what Kimi Linear's ablations kept <span class="mute">(depth)</span></summary><div class="b"><p>The transition is a diagonal-plus-low-rank (DPLR) matrix of a constrained form, and that constraint is what lets Moonshot's chunkwise-parallel kernel run on tensor cores with substantially less computation than a general DPLR kernel. Kimi Linear also adds a low-rank sigmoid output gate and a short convolution (kernel 4) on the queries, keys and values, both of which its ablations keep: without the gate validation perplexity rose from 5.65 to 5.67, with a swish gate instead to 5.81, without the convolution to 5.70.</p></div></details>
 
-<p><b>One layer, one token at a time.</b> The animation follows a single token through one K3 attention layer twice: through KDA, where the state stays one fixed block per head, and, with the toggle, through a full-attention (MLA) layer, where the cache gains an entry per token and every query reads all of them. Both are drawn to the same scale as the MLA explainer on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}, one square per 64 numbers; the last steps sweep the context from one token to K3's 1,048,576.</p>
-<p class="try"><b>Predict, then try:</b> one KDA layer's state is 96 × 128 × 128 numbers; one MLA entry is 576. At about how many tokens does an MLA layer's cache pass the KDA state? Step through KDA (rows fade at different rates, then the erase and write along the key), then full attention: at step 6 the two counters cross near 2,700 tokens.</p>
-<div class="card" id="kx">
-<div class="mlx-top"><div class="seg" id="kxM" role="group" aria-label="Attention type"><button class="on" data-m="kda" aria-pressed="true">Kimi Delta Attention</button><button data-m="mla" aria-pressed="false">Full attention (MLA)</button></div>
-<span class="small mute">One K3 attention layer. Square = 64 numbers. State values in the KDA picture are <span class="ill">illustrative</span>; sizes and counters are K3's.</span></div>
-<div id="kxSvg" class="mlx-svg kx-svg"></div>
-<div class="mlx-ctl"><button id="kxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="kxPlay" aria-label="Play" title="Play or pause" class="mlx-play">&#9654; Play</button><button id="kxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="kxScrub" min="0" max="700" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="kxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="mlx-cap" aria-live="polite"><div class="t" id="kxStep"></div><p id="kxCap"></p></div>
-<div class="mlx-cnt" id="kxCnt"></div>
+</section>
 </div>
-<p><b>The hybrid: three KDA layers, then one full MLA layer.</b> Kimi Linear ablated the ratio on the same 1.4T-token recipe: 3:1 had the lowest validation perplexity (5.65); 7:1 matched its training loss but generalised worse (5.70); 1:1 was about as good (5.66) at a higher inference cost; pure full attention was worst (5.77), and 15:1 worse still (5.82). The full layers keep an exact, lossless recall path for retrieval and copying; the KDA layers carry most of the depth at constant memory.</p>
-<div class="card" id="hr"><div class="t" style="font-weight:600;font-size:14px">Three KDA layers per full layer beat both more and fewer</div><div class="seg" id="hrM"><button class="on" data-m="v">Validation perplexity</button><button data-m="t">Training perplexity</button></div><div id="hrSvg"></div><p class="small mute">Kimi Linear Table 1 ({{arXiv 2510.26692|@kl}}). Horizontal axis: share of layers that keep a growing cache, 1/(<i>r</i> + 1) for an <i>r</i>:1 ratio. K3's 24 of 93 is marked for reference; it was not part of the ablation.</p></div>
+<div class="s3R"><div class="s3side"><div class="card" id="dr">
+<div class="seg" id="drP"><button class="on" data-m="keep">Keep the fact, flush the scratch</button><button data-m="ow">Overwrite</button></div>
+<div class="seg" id="drR"><button data-m="lin">Linear attention</button><button data-m="delta">Delta rule</button><button data-m="gdn">GDN: scalar gate</button><button class="on" data-m="kda">KDA: per-channel gate</button></div>
+<div class="ctl" id="drCtl"></div>
+<div class="grid"><div id="drState"></div><div id="drRead"></div></div>
+<p class="small mute" id="drNote"></p>
+</div>
+</div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-kx"></div></div><div class="s3L">
+<section id="s-kx">
+<h2>One layer, one token: a fixed state against a growing cache</h2>
+<p>The stage follows a single token through one K3 attention layer: through KDA, where the state stays one fixed block per head, then through a full-attention (MLA) layer, where the cache gains an entry per token and every query reads all of them; the last step stacks K3's 93 layers. Its state values are <span class="ill">illustrative</span>, its layout real; the sizes are K3's, from the {{K3 config|@k3cfg}}. The MLA explainer on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}} follows the full-attention side in more detail.</p>
+<p class="try"><b>Predict, then watch:</b> one KDA layer's state is 96 × 128 × 128 numbers; one MLA entry is 576. At about how many tokens does an MLA layer's cache pass the KDA state? In step 7 the two cross near 2,700 tokens.</p>
+<ol class="sx" id="sx-kx">
+<li><b>A token arrives.</b> Token <i>t</i> enters one of K3's 69 KDA layers as its hidden state <b>h</b><sub><i>t</i></sub>, 7,168 numbers (front left). Each of the 96 heads projects it to a query, a key and a value of 128 numbers (after a short convolution, Swish and, for <b>q</b> and <b>k</b>, L2 normalisation), a write strength <i>β</i> and a forget rate for each of the 128 key channels. The field is one head's state, 128 × 128 = 16,384 numbers drawn as one bar per 8 × 8 block, holding everything earlier tokens wrote; whatever the context length, it is this size.</li>
+<li><b>Decay, channel by channel.</b> Diag(<b>α</b><sub><i>t</i></sub>) multiplies each key-channel row of the state by its own rate (green, on the right; the rates are illustrative, and K3 bounds every one above <i>e</i><sup>−5</sup> ≈ 0.0067): rows fade at different rates. Rows near 1 keep their content for thousands of tokens; rows near 0.5 are flushed within a few. Gated DeltaNet would fade every row by the same scalar.</li>
+<li><b>Erase what the key retrieves.</b> The delta rule subtracts <i>β</i><b>k</b>(<b>k</b><sup>⊤</sup><i>S</i>): whatever the state currently returns for this key (<span class="s3k">k</span>, on the left) is removed along the rows where <b>k</b> is large. This is what lets a new association overwrite an old one instead of piling on top.</li>
+<li><b>Write the new value.</b> The outer product <i>β</i><b>k</b><b>v</b><sup>⊤</sup> writes the token's value (<span class="s3v">v</span>, at the back) into the same rows. The state has changed in place; its size has not: still 16,384 numbers per head, 1,572,864 for the layer's 96 heads.</li>
+<li><b>Read with the query.</b> The output is <b>o</b> = <i>S</i><sup>⊤</sup><b>q</b> (<span class="s3q">q</span> on the left, <b>o</b> at the front), then a full-rank sigmoid gate and the output projection. A decoded token reads the whole state once per head: 1,572,864 numbers for the layer, the same at token 10 as at token 1,000,000.</li>
+<li><b>The same token through a full-attention layer.</b> In one of K3's 24 Gated MLA layers, <i>W</i><sup>DKV</sup> maps <b>h</b><sub><i>t</i></sub> to the 512-number latent plus a 64-number key part shared by all 96 heads (not rotated: NoPE), one 576-number entry, and appends it: the cache gains an entry per token. Drawn to the KDA block's scale (equal cross-sections, so length is numbers stored), at 4,096 tokens it holds 2,359,296. In decode the up-projections are absorbed into the query side, so all 96 query heads read every entry, 576 × <i>t</i> numbers, every token.</li>
+<li><b>Let the context grow.</b> The sweep runs the context to 16,384 tokens. The KDA layer stays at 1,572,864 numbers (plus 110,592 of short-convolution state); the MLA cache grows by 576 per token, passes it at about 2,731 tokens and keeps going: at K3's 1,048,576 it would hold 603,979,776 numbers, 384 times as much, far off the card.</li>
+<li><b>The K3 stack.</b> K3 interleaves 3 KDA layers with 1 Gated MLA layer, 23 times, then closes with one more MLA layer: 69 + 24 = 93. Only the 24 MLA layers grow with context, so per token the stack stores 24 × 576 = 13,824 numbers against 53,568 for an all-MLA 93-layer stack; with the 69 fixed states added, that is a 74.0% cut at 1M tokens counted in numbers (73.8% in bytes if the state is kept in FP32), approaching 1 − 24/93 = 74.2% as the context grows.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-ratio">
+<h2>The hybrid: three KDA layers, then one full MLA layer</h2>
+<p>Kimi Linear ablated the ratio on the same 1.4T-token recipe: 3:1 had the lowest validation perplexity (5.65); 7:1 matched its training loss but generalised worse (5.70); 1:1 was about as good (5.66) at a higher inference cost; pure full attention was worst (5.77), and 15:1 worse still (5.82). The full layers keep an exact, lossless recall path for retrieval and copying; the KDA layers carry most of the depth at constant memory.</p>
 <p><b>No positions in the full layers.</b> The MLA layers use no positional encoding at all (NoPE): KDA's decay is itself position-aware, so position and recency are handed entirely to the KDA layers. With nothing rotated, MLA needs no decoupled RoPE key, so these layers run as plain multi-query attention at inference (why: {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}), and the RoPE adjustments that long-context training otherwise needs (frequency-base tuning, YaRN: {{Positional encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}) disappear; K3 extrapolates to 1M tokens "without any positional-encoding modification" ({{K3 report|@k3rep}}, §3.4).</p>
 <p><b>The payoff, against a full-MLA baseline trained the same way on 1.4T tokens:</b> up to 75% less KV cache, up to 6 times the decoding throughput at 1M-token context (time per output token 1.84 ms against 11.48 ms, 6.3×), and equal or better quality on short-context, long-context and RL-style evaluations. It costs custom chunked-parallel kernels (needed to use tensor cores at all), and any capability that depends on exact long-range recall now leans on the one-in-four full layers.</p>
-<p><b>Where "up to 75%" comes from.</b> Only full-attention layers grow a cache, so with <span class="m"><i>r</i></span> KDA layers per full layer the cache is <span class="m">1/(<i>r</i> + 1)</span> of an all-full stack of the same shape: 1/4 at 3:1, a 75% cut. In K3, 24/93 = 25.8% of the layers cache, about a 74% cut against an all-MLA 93-layer stack, plus a fixed KDA state per request that does not grow with context: 96 heads × 128 × 128 = 1,572,864 numbers per KDA layer, 108.5 million over 69 layers. That state is why the cut is "up to": at 1M tokens it is 74.0% counted in numbers, 73.8% in bytes if the state is kept in FP32, but below a few thousand tokens the hybrid holds <i>more</i> than an all-MLA stack would. (How to size any model's cache: {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}.)</p>
-<div class="card" id="pc">
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="hr"><div class="t" style="font-weight:600;font-size:14px">Three KDA layers per full layer beat both more and fewer</div><div class="seg" id="hrM"><button class="on" data-m="v">Validation perplexity</button><button data-m="t">Training perplexity</button></div><div id="hrSvg"></div><p class="small mute">Kimi Linear Table 1 ({{arXiv 2510.26692|@kl}}). Horizontal axis: share of layers that keep a growing cache, 1/(<i>r</i> + 1) for an <i>r</i>:1 ratio. K3's 24 of 93 is marked for reference; it was not part of the ablation.</p></div>
+</div></div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-cut">
+<h2>Where "up to 75%" comes from</h2>
+<p>Only full-attention layers grow a cache, so with <span class="m"><i>r</i></span> KDA layers per full layer the cache is <span class="m">1/(<i>r</i> + 1)</span> of an all-full stack of the same shape: 1/4 at 3:1, a 75% cut. In K3, 24/93 = 25.8% of the layers cache, about a 74% cut against an all-MLA 93-layer stack, plus a fixed KDA state per request that does not grow with context: 96 heads × 128 × 128 = 1,572,864 numbers per KDA layer, 108.5 million over 69 layers. That state is why the cut is "up to": at 1M tokens it is 74.0% counted in numbers, 73.8% in bytes if the state is kept in FP32, but below a few thousand tokens the hybrid holds <i>more</i> than an all-MLA stack would. (How to size any model's cache: {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}.)</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="pc">
 <div class="t" style="font-weight:600;font-size:14px">The hybrid holds more than all-MLA at short context and about a quarter at 1M</div>
 <p class="small" style="margin:4px 0">Per sequence: a Gated MLA layer caches 576 numbers per token (the 512-number latent plus the 64-number shared key part, not rotated under NoPE); a KDA layer holds a fixed 96 × 128 × 128 state plus 3 tokens of short-convolution state for its queries, keys and values. Cache in BF16; the KDA state's precision is <span class="ill">not stated</span> by Moonshot, so it is a switch.</p>
 <div class="ctl"><label>Context: <b id="pcT"></b><input type="range" id="pcCtx" min="10" max="20" step="0.05" value="17"></label><div><div class="seg" id="pcD"><button class="on" data-m="4">KDA state in FP32</button><button data-m="2">KDA state in BF16</button></div></div></div>
@@ -41,7 +64,11 @@
 <div class="out" id="pcOut"></div>
 <p class="small mute">Defaults: the cut at 1,048,576 tokens is 73.8% with an FP32 state (limit 1 − 24/93 = 74.2%), matching "about a 74% cut" by construction from the config. Kimi Linear's "up to 75%" is the same arithmetic at exactly 3:1. Counts per sequence, all heads, all layers.</p>
 </div>
-<p><b>What K3 changed in the hybrid</b> ({{K3 report|@k3rep}}, §2.1):</p>
+</div></div></div>
+
+<section id="s-k3kda">
+<h3>What K3 changed in the hybrid</h3>
+<p>From the {{K3 report|@k3rep}}, §2.1:</p>
 <ul class="tight">
 <li><b>A bounded decay</b> (config <span class="mono">gate_lower_bound</span> −5), so every chunk of the kernel runs as a dense tensor-core matrix multiply instead of a slow position-pair path.</li>
 <li><b>Full-rank gates</b>: KDA's output gate becomes a full-rank projection, and the MLA layers get the same kind of channel-wise sigmoid gate on their output, hence "Gated MLA" (output gates across models: {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}, sinks and gates).</li>

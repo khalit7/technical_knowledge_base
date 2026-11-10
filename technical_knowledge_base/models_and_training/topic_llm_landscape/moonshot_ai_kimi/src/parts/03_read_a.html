@@ -1,7 +1,18 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-top">
 <h2>The idea: change the layers everyone else treats as settled</h2>
 <p class="lead"><b>Moonshot starts from DeepSeek-V3's design (MLA, fine-grained experts with a shared expert, 61 layers, hidden size 7,168) and replaces, one ablation at a time, the parts most labs inherit without question: AdamW, softmax attention in every layer, and the plain residual sum.</b> Moonshot AI is a Beijing lab whose Kimi models are, by most aggregate measures, among the strongest open-weight lines of 2025 and 2026; its edge is not data scale or distribution but this willingness to change what is settled, each change justified by an ablation. Kimi K2 (July 2025) is a DeepSeek-V3 derivative trained with Muon instead of AdamW ({{K2 report|@k2}}); Kimi K3 (July 2026) puts Kimi Delta Attention in three of every four layers and replaces the residual sum with Attention Residuals ({{K3 report|@k3rep}}). The other half of the bet is cycle time: Kimi Linear went from paper (October 2025, {{arXiv 2510.26692|@kl}}) to flagship backbone in well under a year, fast for a change that touches every kernel in the stack.</p>
-<div class="card" id="hero">
+<p><b>You need</b>: multi-head latent attention (MLA) from {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}, linear attention and the delta rule from {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}, routing and shared experts from {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}, and Muon's orthogonalised update from {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}. This page says what Kimi chose and why, and links those owners for the mechanisms.</p>
+<div class="gl">
+<div><b>QK-Clip</b> Moonshot's rule: after an optimiser step, shrink a head's query and key weights whenever that head's largest attention logit (the scaled query-key product <span class="m"><b>q</b><sub><i>i</i></sub><sup>⊤</sup><b>k</b><sub><i>j</i></sub> / √<i>d</i></span> that enters the softmax) passed a threshold. <b>MuonClip</b> is Muon plus weight decay, Adam-matched update scaling and QK-Clip, the optimiser K2 was pretrained with.</div>
+<div><b>KDA</b> (Kimi Delta Attention): a gated delta-rule linear attention with a per-channel forget gate. <b>Kimi Linear</b>: the 48B-total, 3B-active research model that introduced it in a 3:1 hybrid with full MLA layers.</div>
+<div><b>AttnRes</b> (Attention Residuals): each layer takes a learned softmax-weighted mix of earlier layers' outputs instead of their sum.</div>
+<div><b>Sparsity</b> (Moonshot's usage): total experts divided by activated experts, 384 / 8 = 48 for K2. A different number from total over active <i>parameters</i>.</div>
+<div><b>QAT and MXFP4</b>: quantisation-aware training, training with simulated low-precision weights; and microscaling FP4, 4-bit elements with one shared 8-bit scale per block of 32 values (the formats in general: {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</div>
+</div>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="hero">
 <div class="t" style="font-weight:600;font-size:14px;margin-bottom:4px">In one year the stack went from every layer caching to one layer in four</div>
 <div id="heroSvg"></div>
 <div class="gl" style="margin-top:6px">
@@ -11,14 +22,9 @@
 </div>
 <p class="small mute" style="margin:4px 0 0">One square per layer, to scale in depth; layer types from each {{K2 config|@k2cfg}} and {{K3 config|@k3cfg}} (<span class="mono">full_attn_layers</span> 4, 8, ..., 92, 93; <span class="mono">attn_res_block_size</span> 12). Click a section below for each change.</p>
 </div>
-<p><b>You need</b>: multi-head latent attention (MLA) from {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}, linear attention and the delta rule from {{Beyond attention|n:3fd5c17b0d0d8142bc9ecac1fc366966}}, routing and shared experts from {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}, and Muon's orthogonalised update from {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}. This page says what Kimi chose and why, and links those owners for the mechanisms.</p>
-<div class="gl">
-<div><b>QK-Clip</b> Moonshot's rule: after an optimiser step, shrink a head's query and key weights whenever that head's largest attention logit (the scaled query-key product <span class="m"><b>q</b><sub><i>i</i></sub><sup>⊤</sup><b>k</b><sub><i>j</i></sub> / √<i>d</i></span> that enters the softmax) passed a threshold. <b>MuonClip</b> is Muon plus weight decay, Adam-matched update scaling and QK-Clip, the optimiser K2 was pretrained with.</div>
-<div><b>KDA</b> (Kimi Delta Attention): a gated delta-rule linear attention with a per-channel forget gate. <b>Kimi Linear</b>: the 48B-total, 3B-active research model that introduced it in a 3:1 hybrid with full MLA layers.</div>
-<div><b>AttnRes</b> (Attention Residuals): each layer takes a learned softmax-weighted mix of earlier layers' outputs instead of their sum.</div>
-<div><b>Sparsity</b> (Moonshot's usage): total experts divided by activated experts, 384 / 8 = 48 for K2. A different number from total over active <i>parameters</i>.</div>
-<div><b>QAT and MXFP4</b>: quantisation-aware training, training with simulated low-precision weights; and microscaling FP4, 4-bit elements with one shared 8-bit scale per block of 32 values (the formats in general: {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}).</div>
-</div>
+</div></div></div>
+
+<section id="s-one">
 <h3>Every change in one screen</h3>
 <div class="tw"><table class="lt">
 <tr><th>Layer</th><th>Standard design</th><th>Kimi's answer (first shipped)</th><th>Buys</th><th>Costs</th></tr>
@@ -33,11 +39,10 @@
 <p class="small mute">Rivals and cross-provider comparisons are on {{Topic: llm-landscape|n:3c65c17b0d0d812d9e00f6ec89965286}}; the DeepSeek-V3 design K2 starts from is on {{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}}.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-line">
 <h2>The line: each change proven small, then shipped big</h2>
 <p>The order explains the design. Muon was proven on a 16B model (Moonlight) before it trained the 1T K2; KDA and Attention Residuals were proven on the 48B Kimi Linear before K3 combined them; 4-bit QAT went into K2 Thinking before K3 shipped its whole expert set in MXFP4. Click a release for its notes.</p>
-<div class="card"><div class="tw"><div id="lnSvg" style="min-width:560px"></div></div>
-<p class="small mute" style="margin:2px 0 0">Placed by release date and sized by total parameters (log scale); open weights filled, API-only releases as rings (K3.1 Pro at its size; undisclosed sizes on the baseline).</p></div>
 <details class="mist" id="lnNotes"><summary>Release notes, one per model <span class="mute">(depth)</span></summary><div class="b"><div class="tw"><table id="lnTab">
 <tr><th>Release</th><th>What it was</th></tr>
 <tr data-id="chat"><td><b>Kimi chat</b><div class="pt">2023 · closed</div></td><td>Long-context consumer assistant in China, the product the lab was first known for. Year only; size and architecture undisclosed.</td></tr>
@@ -53,6 +58,10 @@
 <tr data-id="k31"><td><b>Kimi K3.1 Pro</b><div class="pt">23 October 2026 · 2.8T / 104B · API only; no weights on Hugging Face as of 2 November 2026</div></td><td>The flagship from 23 October 2026: K3 with much more post-training compute, 55 on Artificial Analysis's index v4.3.2 (K3 44) and 46 on the rebuilt v5, with cyber data removed from mid-training and RL ahead of an announced open release; a Highspeed variant serves 2 to 3 times faster ({{Kimi blog|https://www.kimi.ai/blog/kimi-k3-1-pro}}).</td></tr>
 </table></div></div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="tw"><div id="lnSvg" style="min-width:560px"></div></div>
+<p class="small mute" style="margin:2px 0 0">Placed by release date and sized by total parameters (log scale); open weights filled, API-only releases as rings (K3.1 Pro at its size; undisclosed sizes on the baseline).</p></div>
+</div></div></div>
 
 <section id="s-muon">
 <h2>MuonClip: Muon, plus a fix for what Muon breaks</h2>
@@ -74,20 +83,27 @@
 <p><b>Cost.</b> A handful of matrix multiplies per weight per step; Jordan estimates the FLOP overhead below 1% for typical language-model training (0.5% for a Llama-405B-scale run). The awkward part is distributed: orthogonalisation needs the whole matrix while the training job holds it sharded, which is why Moonshot published a distributed implementation built on ZeRO-1 sharding ({{arXiv 2502.16982|@muon}}). K3's report replaces the all-gather of the whole parameter buffer with peer-to-peer fetches of only the shards each rank owns, cutting memory and communication ({{K3 report|@k3rep}}, §5.2.2).</p>
 </div></details>
 
-<h3>QK-Clip: what Muon broke at scale</h3>
+</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-qk"></div></div><div class="s3L">
+<section id="s-qk">
+<h2>QK-Clip: what Muon broke at scale</h2>
 <p>In a 53B-total, 9B-active test model trained with plain Muon, the largest attention logits passed 1,000 within a few thousand steps; logits that large saturate the softmax and are followed by loss spikes and occasional divergence, and Moonshot saw this more often with Muon than with AdamW ({{K2 report|@k2}}, §2.1). The usual fixes (owned by {{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}}) do not fit K2: a <i>logit soft-cap</i> clips the logits, but the query-key products can still grow without bound before the cap applies; <i>QK-Norm</i> cannot be used with MLA, because MLA never materialises full per-head keys at inference, they are absorbed into the latent projection ({{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}} derives the absorption). QK-Clip acts on the weights instead, after the optimiser step, using the max logit the forward pass already computed. For each head <span class="m"><i>h</i></span>:</p>
+<p class="try"><b>Predict, then watch:</b> h3 reports 150 against τ = 100 and h5 reports 230. What happens to h2 at 88 under the per-head rule, and under a naive rule that clips the whole layer by its worst head? Steps 5 and 6 answer it. The eight maxima are <span class="ill">illustrative</span>; τ and the rule are K2's.</p>
+<ol class="sx" id="sx-qk">
+<li><b>Eight heads, one column each.</b> Each column is one head's max logit <i>S</i><sub>max</sub> over the batch, from the forward pass the step already ran: 42, 88, 150, 64, 230, 97, 120 and 31 (the logits are illustrative). The grey plane is K2's τ = 100. In front of each head stand the weights that make its logits: its content query and key and its rotary query (orange and teal plates, query and key multiplying into the column); behind them, the rotary key every head shares (MLA's decoupled RoPE key).</li>
+<li><b>Without a clip, the maxima run away.</b> Under plain Muon nothing pulls the offending heads back, and they keep growing (drawn 8 times taller here, illustrative; the scale pulls back to fit). In the 53B test model the real maxima passed 1,000 within a few thousand steps.</li>
+<li><b>Per head, γ = τ / S.</b> After the optimiser step, each head above τ gets its own shrink factor: 0.667 for h3 at 150, 0.435 for h5 at 230, 0.833 for h7 at 120. The measured maximum flows back to that head's weights; the five heads below τ get γ = 1. Clipping is per head, not per layer, because only a few heads blow up.</li>
+<li><b>On MLA, four parts of one head.</b> Closer on h3: its content query and key are each multiplied by 0.816 (√γ, so their product scales by γ), its rotary query by 0.667 (γ), and the shared rotary key is left alone, because scaling it would shrink every head at once. Both parts of that head's logit, content and rotary, then scale by γ.</li>
+<li><b>Each clipped head lands on τ.</b> h3, h5 and h7 come back to exactly 100 (the dashed outlines show where they were); the five heads already below τ keep 42, 88, 64, 97 and 31. Only the weights change, for the next step.</li>
+<li><b>The naive rule: clip the whole layer.</b> Scaling every head by the worst head's factor, γ = 0.435 from h5, shrinks the five healthy heads by 56.5% for no reason: h1's 42 becomes 18.3, h2's 88 becomes 38.3. This over-regularisation is what per-head clipping avoids.</li>
+</ol>
 <div class="fm"><math display="block"><msubsup><mi>S</mi><mi>max</mi><mi>h</mi></msubsup><mo>=</mo><mfrac><mn>1</mn><msqrt><mi>d</mi></msqrt></mfrac><munder><mi>max</mi><mrow><mi>X</mi><mo>∈</mo><mi>B</mi></mrow></munder><munder><mi>max</mi><mrow><mi>i</mi><mo>,</mo><mi>j</mi></mrow></munder><msubsup><mi>𝐪</mi><mi>i</mi><mrow><mi>h</mi><mo>⊤</mo></mrow></msubsup><msubsup><mi>𝐤</mi><mi>j</mi><mi>h</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>γ</mi><mi>h</mi></msub><mo>=</mo><mi>min</mi><mrow><mo>(</mo><mn>1</mn><mo>,</mo><mfrac><mi>τ</mi><msubsup><mi>S</mi><mi>max</mi><mi>h</mi></msubsup></mfrac><mo>)</mo></mrow></math><math display="block"><msubsup><mi>W</mi><mi>q</mi><mi>h</mi></msubsup><mo>←</mo><msubsup><mi>γ</mi><mi>h</mi><mi>α</mi></msubsup><msubsup><mi>W</mi><mi>q</mi><mi>h</mi></msubsup><mo>,</mo><mspace width="1em"/><msubsup><mi>W</mi><mi>k</mi><mi>h</mi></msubsup><mo>←</mo><msubsup><mi>γ</mi><mi>h</mi><mrow><mn>1</mn><mo>−</mo><mi>α</mi></mrow></msubsup><msubsup><mi>W</mi><mi>k</mi><mi>h</mi></msubsup></math>
 <dl><dt>B, X</dt><dd>the current batch, and a training sequence in it</dd><dt>i, j</dt><dd>token positions</dd><dt>d</dt><dd>the head dimension</dd><dt>τ</dt><dd>the threshold, 100 for K2</dd><dt>γ<sub>h</sub></dt><dd>the head's shrink factor</dd><dt>α</dt><dd>the split of the shrink between queries and keys, 0.5 (an equal split)</dd></dl>
 <p class="wh">A logit is linear in both <i>W<sub>q</sub></i> and <i>W<sub>k</sub></i>, so the scaled weights multiply every logit of that head by <i>γ<sub>h</sub><sup>α</sup>γ<sub>h</sub><sup>1−α</sup></i> = <i>γ<sub>h</sub></i>, bringing the max logit back to exactly <i>τ</i>. That step's forward and backward passes are unchanged.</p></div>
-<p>Clipping is per head, not per layer, because only a few heads blow up; a naive version that clips every head by the layer's worst would shrink healthy heads too. On MLA each head's logit is the sum of a content part and a rotary part, and the rotary key is shared across heads (MLA's decoupled RoPE key), so the rule becomes: scale the head-specific content query and key by <span class="m">√<i>γ<sub>h</sub></i></span> each, scale the head-specific rotary query by <span class="m"><i>γ<sub>h</sub></i></span>, and leave the shared rotary key alone so that clipping one head does not touch the others. Both parts of that head's logit then scale by <span class="m"><i>γ<sub>h</sub></i></span>.</p>
-<p class="try"><b>Predict, then try:</b> the third head reports 150 against τ = 100. What happens to the head at 80, and to the head at 230, under each rule? Per head: γ = 0.667 for the third head, its content query and key each multiplied by 0.816, its max logit back to 100; the head at 80 untouched. Switch to the naive rule and every head shrinks by the worst head's factor. The logits are <span class="ill">illustrative</span>.</p>
-<div class="card" id="qk">
-<div class="ctl"><label>Threshold <i>τ</i>: <b id="qkT"></b><input type="range" id="qkTau" min="30" max="300" step="5" value="100"></label><div><div class="seg" id="qkM"><button class="on" data-m="head">Per head (K2)</button><button data-m="layer">Naive: whole layer</button></div></div></div>
-<div id="qkSvg"></div>
-<div class="tw"><table id="qkTab"></table></div>
-<p class="small mute" id="qkNote"></p>
-</div>
 <p><b>What it removed.</b> K2's 15.5T-token pretraining run of a model of 1.04T parameters showed no loss spikes at all ({{K2 report|@k2}}, Fig. 3), which at that scale means no weeks lost restarting from checkpoints. QK-Clip was only transiently active: in the first 70,000 steps 12.7% of attention heads triggered it at least once and were clamped to 100; after that every head's max logit stayed below 100 on its own and the clip never fired again, so the finished model is not shaped by it (Appendix D). The same appendix's small-scale ablations, including an aggressive τ = 30, showed no statistically significant loss penalty.</p>
 <p><b>K3 keeps it, per head.</b> K3 trains with <i>Per-Head Muon</i> "together with the weight-clipping mechanism introduced in Kimi K2", weight decay 0.1 and a cosine schedule ({{K3 report|@k3rep}}, §3.3). Per-Head Muon splits the Q, K and V projections' momentum matrices along the head dimension and orthogonalises each head's block separately, because full-matrix orthogonalisation lets heads with larger gradient scales dominate the shared update direction while small-scale heads are under-normalised; per head, every head gets an equal-scale update, and Newton-Schulz on tall per-head blocks is slightly cheaper (§2.5).</p>
 <p class="small">Adoption since: DeepSeek V4 trains most weight matrices with Muon ({{DeepSeek|n:3c65c17b0d0d81a2ae7ec6796947a235}}), Zhipu's GLM line also uses Muon-family optimisers ({{Zhipu: GLM|n:3c65c17b0d0d81a88a84c2ca84b4daf4}}), and K2 itself is fine-tuned with Muon, which Moonshot recommends for a Muon-pretrained checkpoint.</p>
 </section>
+</div></div>
+

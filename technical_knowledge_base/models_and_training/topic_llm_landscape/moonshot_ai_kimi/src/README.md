@@ -1,4 +1,4 @@
-# Moonshot AI: Kimi, interactive page (v4, rebuilt 2026-10-24 to the teaching contract)
+# Moonshot AI: Kimi, interactive page (v4, rebuilt 2026-10-24 to the teaching contract; 2026-11-10 split layout and four 3D stages, the section at the end, which supersedes the build notes where they differ)
 
 Child page of Topic: llm-landscape (storage key `km-tab`). Rebuilt by editing only: no new runs and no new numbers except derived ones shown with their formula (the Muon scale per matrix shape, already in `recompute.py`).
 
@@ -34,3 +34,28 @@ Why about 31 minutes is right: the page owns six of Moonshot's own designs (Muon
 
 ---
 Earlier notes (v3): the page replaced all text of the Notion page; `recompute.py` holds every reproduced default; `inputs/` holds the configs, cards, papers and web pages fetched on 1 October 2026 (one paper author's address removed from `ax_2502.16982.txt` on 2026-10-24). The 2026-10-23 pilot (one owner per concept) added the links to Attention variants and Long context and stopped the animation autoplaying.
+
+## 2026-11-10: split layout, four 3D stages, explained and autoplaying animations (the 2026-11-06 rollout)
+- **Templates** copied unchanged: `02_split.html` (after `01_css_kimi.css` in `build.sh`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `km-tab`). `build.sh` keeps its explicit lists and writes its em-dash test as bytes. Removed: `12_js_qk.js`, `14_js_kx.js` (the 2D KDA/MLA animation and its own controller), `17_js_ar.js`.
+- **Data**: `mk_scene_data.py` writes `parts/30_js_km_data.js` (`window.KM`) from `inputs/k3_config.json`, `inputs/k2_config.json` and the K2 report's Table 2 for DeepSeek-V3. Each scene exposes what it computes (`KM_QK`, `KM_KX`, `KM_MOE`, `KM_AR`); `check_stages.mjs` checks the numbers in the step lists against them.
+- **`stg-qk`** (6 steps, `41_js_sc_qk.js`): eight heads as columns of their max logit (the earlier widget's illustrative maxima), K2's τ = 100 as a glass plane, each head's content query, content key and rotary query as plates, the shared rotary key behind; growth without a clip, γ per head with the maximum streaming back to the weights, the four MLA parts of h3 close up, the clipped heads on τ, then the naive whole-layer rule. Replaces the τ-slider widget (the slider is gone; τ is K2's).
+- **`stg-kx`** (8 steps, `42_js_sc_kx.js`): one KDA head's state as signed bars (the earlier animation's toy values, seed 7), decayed per row, erased along k, written with v, read by q; then the KDA layer's fixed 1,572,864 numbers against an MLA cache at the same scale, appended and read, the context sweeping to 16,384 tokens; then K3's 93 layers from `full_attn_layers`. Its two-mode captions became one step list (`sx-kx`).
+- **`stg-moe`** (4 steps, `43_js_sc_moe.js`): one MoE layer of DeepSeek-V3, K2 and K3, each expert's footprint its input by hidden width, one camera for all three so the sizes compare; active experts lit (which ones is illustrative), shared experts in front, heads as plates behind (128, 64, 96), K3's W↓ latent. Replaces the two paragraphs "More experts" and "Half the heads" (their sentences are the step list).
+- **`stg-ar`** (5 steps, `44_js_sc_ar.js`): sublayer outputs as plates along depth, read by layer 40's attention sublayer: the plain running sum, Full AttnRes at 1/79 each, Block AttnRes over 5 sources, the widget's illustrative trained weights, then K3's 8 blocks plus the embedding and the EAGLE-3 draft. Replaces the layer-slider widget (fixed at layer 40, where the page's prompt already was).
+- **2D kept, each in a split**: hero layer strips, the line (timeline), delta-rule sandbox, ratio chart, cache-against-context chart, parameter card, Quantile Balancing widget, weight-bytes card, the agentic-data pipeline and the K3 distillation diagram. Full width: Muon's update and shape table, the one-screen table, the config table, What K3 changed in the hybrid, K3.1 Pro today (volatile, unchanged), Further reading.
+- **Fixed on the way**: the definitions grid made every bold word a block (`.gl b`), breaking the inline maths in the QK-Clip term; now only each box's first bold title is.
+- **Checks**: `check_stages.mjs` (new; from the repo root, with a shots directory outside the repo) as on MiniMax; `check_controls.mjs`: 1400 px added, its never-autoplay assertions on the removed animation dropped (inverted in `check_stages.mjs`).
+- No real image: still a lab, not a physical object; the papers' figures are CC BY-NC-ND 4.0.
+
+### Length judgement (2026-11-10)
+| | Before this pass | After |
+|---|---|---|
+| Reading, core | 7,465 words, 32.5 min | 8,455 words, 36.8 min |
+| Reading, closed details | 2,230 words, 9.7 min | unchanged |
+| Further reading | 654 words, 2.8 min | unchanged |
+| Visuals inline in Reading (audit count) | 9 | 10, four of them 3D stages |
+
+The added words are the four step lists (23 items). Most replace text the audit could not count (the KDA/MLA animation's 13 script-written captions, the QK-Clip and AttnRes widgets' notes); the rest is the QK-Clip and AttnRes mechanisms now walked step by step with their numbers. Two paragraphs ("More experts", "Half the heads") and the per-head paragraph became step items rather than being kept beside them. Nothing was cut.
+
+### Knowledge ledger (2026-11-10; problems 0)
+291 units: core 215, depth 33, volatile 21, owned 5, fat 17 (unchanged counts). Re-keyed to the new wording: 60, 63, 92, 98, 99, 159. No key contains a reading time.

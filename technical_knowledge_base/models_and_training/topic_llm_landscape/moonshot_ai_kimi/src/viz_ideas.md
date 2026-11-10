@@ -60,3 +60,13 @@ It has no rule for when a model card and a later technical report disagree with 
 | K10 Lineage tab | **Moved inline** as "The line"; cards became a closed static table; config diff merged with the shape table | The order explains the design; one table instead of two overlapping ones |
 | K3 delta-rule sandbox | **Kept**, opens on per-channel against scalar gates | Kimi's own point; the delta rule itself is Beyond attention's |
 | A paper figure (K2 loss curve, AttnRes) | **Rejected** | arXiv licence CC BY-NC-ND 4.0, outside the licences allowed for embedding |
+
+## 2026-11-10: split layout and four 3D stages
+| Idea | Decision | Why |
+|---|---|---|
+| QK-Clip as columns per head, a tau plane, the head's weight plates | **Built** (`stg-qk`) | The per-head rule and the MLA part split are spatial: which plates shrink, which shared plate does not; replaces the 2D bar widget |
+| One token through a KDA layer, then an MLA layer, then the stack | **Built** (`stg-kx`) | State against cache is a volume comparison; replaces the 2D animation and its own never-autoplay controller |
+| One MoE layer of DeepSeek-V3, K2 and K3 to scale | **Built** (`stg-moe`) | Expert count, width and latent are areas on a floor; the same camera for all three makes the sizes comparable |
+| Attention Residuals as plates along depth | **Built** (`stg-ar`) | Sources across depth, block summaries and their weights are spatial; replaces the 2D source-weight widget |
+| Hero strips, timeline, ratio chart, cache curves, parameter bars, weight bytes, Quantile Balancing, delta-rule sandbox | **Kept 2D**, each in a split | Strips, a timeline, a ratio curve, log curves, stacked bars and widgets whose outcome the reader drives read best flat |
+| Max-logit curves from the K2 report (Fig. 2) | **Rejected** | No numeric data in `inputs/` and the figure's licence (CC BY-NC-ND 4.0) does not allow embedding; the stage's maxima are labelled illustrative |

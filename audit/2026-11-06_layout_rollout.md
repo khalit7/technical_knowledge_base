@@ -163,8 +163,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
 - [x] `models_and_training/topic_llm_landscape/minimax` MiniMax
 - [x] `models_and_training/topic_llm_landscape/mistral_ai` Mistral AI
-- [~] `models_and_training/topic_llm_landscape/moonshot_ai_kimi` Moonshot AI: Kimi
-- [ ] `models_and_training/topic_llm_landscape/openai_gpt_family` OpenAI: GPT family
+- [x] `models_and_training/topic_llm_landscape/moonshot_ai_kimi` Moonshot AI: Kimi
+- [x] `models_and_training/topic_llm_landscape/openai_gpt_family` OpenAI: GPT family
 - [ ] `models_and_training/topic_llm_landscape/other_notable_providers` Other notable providers
 - [ ] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
 - [ ] `models_and_training/topic_llm_landscape/xai_spacexai_grok` xAI / SpaceXAI: Grok
@@ -456,6 +456,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_landscape/meta_llama_and_msl`: Fig. 2 close-ups cramped, the glass plane runs past the card edges, "20 · compute-optimal" label on the plane's back edge; Fig. 4 box names sit on their own box tops; core 26 to 32 min (about 29 on a first read).
 - `models_and_training/topic_llm_landscape/minimax`: Fig. 5 at 1M draws plates at half depth, empty space at the card top; Fig. 3 block-2 output label close to a plate cell label; Fig. 5 full-GQA at 1M is hypothetical (said in the step); block scores and selections illustrative (labelled).
 - `models_and_training/topic_llm_landscape/mistral_ai`: Fig. 2 step 3 busy (eight expert copies per layer, the router's chosen experts hard to see); the cache animation's two hidden mode lists repeat a lot (could become short paragraphs); Large 4 absent from Fig. 3 (no widths in its card); the Table 5 routing chart moved to the Mixtral paper page's ownership; verify_layout flags the Weights tab (accepted: tool).
+- `models_and_training/topic_llm_landscape/moonshot_ai_kimi`: QK-Clip close-up is a crop, faded neighbour columns sit at the card edge; KDA state field busy; MoE expert slabs small (legible at 1400 only); fixed a .gl b{display:block} rule that broke inline maths.
+- `models_and_training/topic_llm_landscape/openai_gpt_family`: timeline's 2026 cluster labels crowd at about 690 px column width; Astra section full width with no visual (published findings are a list, not a structure); router scores in Fig. 6 seeded and illustrative (labelled); verify_layout flags the gpt-oss on one GPU tab (accepted: tool).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -470,3 +472,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - DeepSeek Fig. 2: it counts numbers read per decoded token, not bytes, because precision differs by part (BF16 cache, FP8/FP4 indexers); the page says so. Keep numbers, or convert to bytes with per-part precisions?
 - DeepSeek Fig. 2: the V4 CSA indexer key is assumed to be 128 numbers like DSA's (Attention variants gives 64 heads of 128, not the key size); the page labels it an assumption. Source it, or leave it labelled?
 - Meta: Llama 4 tokens per parameter is drawn per active parameter (17B, as the page defines N), with the per-stored ratio beside it. Keep, or swap the emphasis?
+- OpenAI: the caching break-even widget stays on this page although OWNERS.md gives break-even to Caching (the Caching page lacks the 2.15x example and the Eden AI note). Keep, or convert to a link and move the two facts to Caching?
+- Moonshot AI: Kimi: the QK-Clip tau slider and the Attention Residuals layer slider were removed in favour of the stages (recoverable from git). Keep them removed, or restore either explorer?
