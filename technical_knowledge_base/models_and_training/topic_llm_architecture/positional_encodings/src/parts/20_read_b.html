@@ -1,6 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-abs"></div></div><div class="s3L">
 <section id="pe-abs">
 <h2>2. Four answers: add a vector, bias the score, rotate, or nothing</h2>
-<p>An <b>absolute</b> scheme adds a position vector <b>p</b><sub><i>m</i></sub> to the token's embedding once, <b>x</b><sub><i>m</i></sub> = <b>e</b>(token<sub><i>m</i></sub>) + <b>p</b><sub><i>m</i></sub>, and position must survive in the residual stream. A <b>relative bias</b> adds a number that depends on the distance to every attention score, in every layer. <b>RoPE</b> rotates queries and keys so the dot product itself depends on the distance. <b>NoPE</b> adds nothing. The chart puts all of them on one query: one token's content vector (64 dimensions, seeded random, <span class="pe-nl i">illustrative</span>) repeated at every position, so content adds the same to every score and only position differs.</p>
+<p>An <b>absolute</b> scheme adds a position vector <b>p</b><sub><i>m</i></sub> to the token's embedding once, <b>x</b><sub><i>m</i></sub> = <b>e</b>(token<sub><i>m</i></sub>) + <b>p</b><sub><i>m</i></sub>, and position must survive in the residual stream. A <b>relative bias</b> adds a number that depends on the distance to every attention score, in every layer. <b>RoPE</b> rotates queries and keys so the dot product itself depends on the distance. <b>NoPE</b> adds nothing.</p>
+<p class="sxh">Fig. 3, step by step: one pair of tokens, four lanes</p>
+<ol class="sx" id="sx-abs">
+<li><b>One token, twice.</b> The same 64-number content vector (seeded random, <span class="pe-nl i">illustrative</span>) sits at the key, position 16, and again 4 tokens later as the query, position 20. Content alone scores 9.19 in every lane (q · k / √<i>d</i> with q = k); the bar shows what position does to it.</li>
+<li><b>Add a vector (sinusoidal).</b> The sinusoids p(16) and p(20) are added to the two inputs before anything else; their cross terms with the content and with each other add +4.28 to the score. Position now lives in the residual stream, mixed with content.</li>
+<li><b>Bias the score (ALiBi, head 1).</b> Nothing touches the vectors; the score gets −slope × distance = −0.5 × 4 = −2.00, in every layer. T5 does the same with one learned scalar per distance bucket.</li>
+<li><b>Rotate q and k (RoPE).</b> Each pair of the query and the key is turned by its position times its frequency (pair 0 drawn, 1 radian per token); the score drops by 2.93, and that number depends only on the distance.</li>
+<li><b>Nothing (NoPE).</b> The score is content alone; only the causal mask orders the tokens.</li>
+<li><b>Move both tokens 256 places along.</b> Key at 272, query at 276, the same distance. Only the absolute lane changes, from +4.28 to +5.96 (its old bar dotted): the same two tokens at the same distance get a different score at a different place. ALiBi, RoPE and NoPE give exactly what they gave before; RoPE's hands turned, the angle between them did not.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="pe-abs-b">
+<p>The chart puts all of them on one query: one token's content vector (64 dimensions, seeded random, <span class="pe-nl i">illustrative</span>) repeated at every position, so content adds the same to every score and only position differs.</p>
+<p class="try"><b>Predict, then try:</b> which curves move when you shift the pair along? Only the absolute ones (their unshifted curve stays faint): the same two tokens at the same distance get a different score at a different place. Switch to <i>Attention weights</i>: NoPE spreads attention evenly over everything the mask allows, ALiBi decays exponentially (head 1 looks a few tokens back, head 8 hundreds), T5 is flat from 113 tokens on, RoPE with base 10,000 decays and ripples. At 0 to 2,048 the learned table stops at 512: there is no row 512.</p>
+</section></div><div class="s3R"><div class="s3side">
 <div class="card" id="pe-sc">
 <h4>Only the absolute schemes change when the same pair of tokens moves along the sequence</h4>
 <div class="pe-ctlrow"><span class="pe-seg" id="pe-scView" role="group" aria-label="View"><button class="on" data-v="logit" aria-pressed="true">Added to the logit</button><button data-v="w" aria-pressed="false">Attention weights</button></span>
@@ -11,9 +28,11 @@
 <div id="pe-scSvg" class="plot"></div>
 <div class="pe-legs" id="pe-scLeg"></div>
 <div class="pe-out" id="pe-scOut"></div>
-<p class="try"><b>Predict, then try:</b> which curves move when you shift the pair along? Only the absolute ones (their unshifted curve stays faint): the same two tokens at the same distance get a different score at a different place. Switch to <i>Attention weights</i>: NoPE spreads attention evenly over everything the mask allows, ALiBi decays exponentially (head 1 looks a few tokens back, head 8 hundreds), T5 is flat from 113 tokens on, RoPE with base 10,000 decays and ripples. At 0 to 2,048 the learned table stops at 512: there is no row 512.</p>
+
 <p class="small mute">The curve is what position adds to the logit between the query and a key <i>k</i> tokens back, computed exactly. Head selects ALiBi's slope and T5-base's decoder head (the first 8 of its 12). The trained length 512 is <span class="pe-nl i">illustrative</span> (BERT's and T5's input length).</p>
 </div>
+</div></div></div>
+<section id="pe-abs-c">
 <details class="dp"><summary>The exact formula behind each curve <span class="mute">(depth)</span></summary><div class="b">
 <div class="fm"><dl>
 <dt>Sinusoidal, learned</dt><dd>(<i>x</i> + <i>p</i><sub><i>m</i></sub>)·(<i>x</i> + <i>p</i><sub><i>m</i>−<i>k</i></sub>)/√<i>d</i> − <i>x</i>·<i>x</i>/√<i>d</i> = (<i>x</i>·<i>p</i><sub><i>m</i>−<i>k</i></sub> + <i>p</i><sub><i>m</i></sub>·<i>x</i> + <i>p</i><sub><i>m</i></sub>·<i>p</i><sub><i>m</i>−<i>k</i></sub>)/√<i>d</i>, with the 2017 sinusoid or a random 512-row table (<span class="pe-nl i">illustrative</span>, untrained)</dd>
@@ -44,21 +63,26 @@
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-rope"></div></div><div class="s3L">
 <section id="pe-rope">
 <h2>3. RoPE from zero: position as a rotation</h2>
 <p>We want a score that depends on how far apart two tokens are and not where the pair sits, with no parameters, without touching the values, and with keys that can still be computed once and cached. Rotary position embedding ({{RoFormer|n:3c65c17b0d0d81cfa5e9f54459720098}}, Su et al. 2021) gets all four by <b>rotating</b> each query and key instead of adding a vector.</p>
-<p><b>One pair, real numbers.</b> Take θ = 0.5 radians per token and <b>q</b> = <b>k</b> = (1, 0). At <i>m</i> = 3 and <i>n</i> = 5 the query is turned by 1.5 radians to (0.0707, 0.9975) and the key by 2.5 radians to (−0.8011, 0.5985); their dot product is 0.0707 × (−0.8011) + 0.9975 × 0.5985 = 0.5403 = cos(1.0). Move both to <i>m</i> = 10, <i>n</i> = 12: the angles become 5 and 6 radians, the gap is still 1 radian, and the dot product is again 0.5403.</p>
-<div class="card" id="pe-dial">
-<h4>Shift both tokens: both vectors turn, the angle between them does not</h4>
-<div class="pe-ctlrow"><label>Shift both positions by <input type="range" id="pe-dialS" min="0" max="40" value="0" aria-label="Shift both positions"> <b id="pe-dialSv"></b></label>
-<label>Offset <i>n</i> − <i>m</i> <input type="range" id="pe-dialO" min="0" max="12" value="2" aria-label="Offset"> <b id="pe-dialOv"></b></label></div>
-<div id="pe-dialSvg" class="plot"></div><div id="pe-dialOut" class="pe-out"></div>
-<p class="small mute">Defaults are the worked example (θ = 0.5, <i>m</i> = 3, <i>n</i> = 5): slide the shift and q · k stays 0.5403; change the offset and it follows cos((<i>n</i> − <i>m</i>)θ). θ = 0.5 is <span class="pe-nl i">illustrative</span>; real pairs run from 1 radian per token down to millionths.</p>
-</div>
+<p class="sxh">Fig. 4, step by step: one pair, then a whole head</p>
+<ol class="sx" id="sx-rope">
+<li><b>One pair, real numbers.</b> Take θ = 0.5 radians per token and <b>q</b> = <b>k</b> = (1, 0). At <i>m</i> = 3 and <i>n</i> = 5 the query is turned by 1.5 radians to (0.0707, 0.9975) and the key by 2.5 radians to (−0.8011, 0.5985); their dot product is 0.0707 × (−0.8011) + 0.9975 × 0.5985 = 0.5403 = cos(1.0).</li>
+<li><b>Move both along.</b> At <i>m</i> = 10, <i>n</i> = 12 the angles become 5 and 6 radians: both hands have turned, the gap is still 1 radian, and the dot product is again 0.5403. θ = 0.5 is <span class="pe-nl i">illustrative</span>; real pairs run from 1 radian per token down to millionths.</li>
+<li><b>A head is 16 such pairs.</b> A query and a key of the tiny GPT's head shape (32 numbers each, seeded random, <span class="pe-nl i">illustrative</span>) as 16 dials: in each, the query's pair (<span class="s3q">orange</span>) and the key's pair (<span class="s3k">teal</span>) as 2-D vectors. Under each dial, that pair's share of the dot product; unrotated, the shares sum to <b>q</b> · <b>k</b> = −0.91.</li>
+<li><b>Query at 20, key at 24.</b> Pair <i>i</i> of each vector is turned by its position × θ<sub><i>i</i></sub>, pair 0 by 1 radian per token and pair 15 by 0.00018: the shares change and sum to −1.79.</li>
+<li><b>Shift both by 100.</b> Query at 120, key at 124: every hand turns, the fast pairs by many turns, yet each pair's share and the total, −1.79, are exactly as before. The score sees only the distance.</li>
+<li><b>Change the distance to 60.</b> Query at 120, key at 180: the fast pairs' shares swing (pair 0 from 0.00 to 0.89) while the slow ones barely move (pair 15 from −0.49 to −0.48); the total becomes −6.40. Fast pairs resolve neighbouring tokens, slow pairs measure long distances.</li>
+</ol>
 <div class="fm"><div class="eq">(<i>R</i>(<i>m</i>θ) <b>q</b>) · (<i>R</i>(<i>n</i>θ) <b>k</b>) = <b>q</b><sup>T</sup> <i>R</i>(<i>m</i>θ)<sup>T</sup> <i>R</i>(<i>n</i>θ) <b>k</b> = <b>q</b><sup>T</sup> <i>R</i>((<i>n</i> − <i>m</i>)θ) <b>k</b></div>
 <dl><dt>why</dt><dd>a rotation's transpose is its inverse, and two rotations compose by adding their angles: <i>R</i>(α)<sup>T</sup> <i>R</i>(β) = <i>R</i>(β − α)</dd><dt>in complex numbers</dt><dd>read the pair as <i>q</i><sub>0</sub> + i<i>q</i><sub>1</sub>; rotating is multiplying by e<sup>i<i>m</i>θ</sup>, and Re[(q e<sup>i<i>m</i>θ</sup>)(k e<sup>i<i>n</i>θ</sup>)*] = Re[q k* e<sup>i(<i>m</i>−<i>n</i>)θ</sup>]</dd></dl></div>
 <p>Each vector is rotated by its own absolute position, so a key is rotated once and stored rotated in the KV cache; the offset appears only inside the dot product. Rotations keep lengths, and values are not rotated: position shapes where a head looks, not what it reads. <b>RoPE is absolute in form and relative in effect.</b></p>
-<p><b>A whole head is a bank of clocks.</b> Split each query and key of a head (dimension <i>d</i>) into <i>d</i>/2 pairs and give pair <i>i</i> its own speed. In the tiny GPT (head 32, base 10,000) there are 16 pairs: pair 0 turns once every 6.3 tokens, pair 6 once every 199, pair 7 once every 353 and pair 15 once every 35,333. Within the 256-token training window pairs 0 to 6 go round at least once, so the model has seen every angle they can take; pairs 7 to 15 only covered a wedge, pair 15 just 2.6 degrees. Fast pairs resolve neighbouring tokens, slow pairs measure long distances, and that split, 7 fast and 9 slow, is the hero figure and the whole story of section 6. At Llama 3's shape (<i>d</i> = 128, base 500,000) the spectrum runs from pair 0 at 1 radian per token (a turn every 6.3 tokens) to pair 63 at 2.46 × 10<sup>−6</sup> radians per token (a turn every 2.56 million tokens).</p>
+</section>
+</div></div>
+<section id="pe-rope-b">
+<p><b>A whole head is a bank of clocks.</b> Split each query and key of a head (dimension <i>d</i>) into <i>d</i>/2 pairs and give pair <i>i</i> its own speed. In the tiny GPT (head 32, base 10,000) there are 16 pairs: pair 0 turns once every 6.3 tokens, pair 6 once every 199, pair 7 once every 353 and pair 15 once every 35,333. Within the 256-token training window pairs 0 to 6 go round at least once, so the model has seen every angle they can take; pairs 7 to 15 only covered a wedge, pair 15 just 2.6 degrees. Fast pairs resolve neighbouring tokens, slow pairs measure long distances, and that split, 7 fast and 9 slow, is Fig. 1 at the top and the whole story of section 6. At Llama 3's shape (<i>d</i> = 128, base 500,000) the spectrum runs from pair 0 at 1 radian per token (a turn every 6.3 tokens) to pair 63 at 2.46 × 10<sup>−6</sup> radians per token (a turn every 2.56 million tokens).</p>
 <div class="fm"><div class="eq">θ<sub><i>i</i></sub> = base<sup>−2<i>i</i>/<i>d</i></sup>, &nbsp; λ<sub><i>i</i></sub> = 2π / θ<sub><i>i</i></sub> = 2π · base<sup>2<i>i</i>/<i>d</i></sup> tokens, &nbsp; ⟨<i>R<sub>m</sub></i><b>q</b>, <i>R<sub>n</sub></i><b>k</b>⟩ = ⟨<b>q</b>, <i>R</i><sub><i>n</i>−<i>m</i></sub><b>k</b>⟩</div>
 <dl><dt>R<sub>m</sub></dt><dd>the block-diagonal rotation for position <i>m</i>: pair <i>i</i> turned by <i>m</i>θ<sub><i>i</i></sub></dd><dt>base</dt><dd>10,000 in the paper and the tiny GPT; 500,000 in Llama 3; 1,000,000 in Qwen3; up to 10<sup>11</sup> in the configs read below</dd></dl></div>
 <div class="pe-pr" id="pe-dr2"><div class="q">Predict: Llama 3.1 8B has 64 pairs, base 500,000, and was pretrained at 8,192 tokens. How many of its pairs completed at least one full turn within 8,192 tokens?</div>

@@ -38,17 +38,15 @@
   function draw(i){const off=OFF[i],W=RD.width($('pe-paA')),ch=avail[S.c],run=get(ch[1],ch[2]);
     const A=panel($('pe-paA'),base,null,off,W),B=panel($('pe-paB'),run,ch,off,W);
     $('pe-paBt').textContent=ch[0];
-    $('pe-paStep').textContent='Roxy at positions '+fmt(off)+' to '+fmt(off+255)+(off===0?' (the trained window)':off<256?' (partly past 256)':' ('+f2((off+256)/256,1)+' × the trained length at the end)');
-    let t;
-    if(off===0)t='Inside the trained length every RoPE pair is in range. Plain RoPE scores '+f2(A.mean,2)+'. '+(B.err?ch[0]+' cannot fail here yet.':ch[0]+' scores '+f2(B.mean,2)+(B.mean>A.mean+0.02?': the scaling already costs '+f2(B.mean-A.mean,2)+' on text the model handles fine, the price of static scaling.':'.'));
-    else{t='The window now spans '+fmt(off+256)+' tokens. Plain RoPE: '+A.un+' of 16 pairs at angles never seen in training, mean loss '+f2(A.mean,2)+' (from '+(base.shifted['0']?f2(base.shifted['0'].mean,2):'?')+' at offset 0). ';
-      if(B.err)t+=ch[0]+' cannot read it at all: '+B.err+'.';
-      else t+=ch[0]+': '+(B.un!=null?B.un+' pairs out of range, ':'')+'mean loss '+f2(B.mean,2)+'.'+(B.mean<A.mean-0.3?' Same text, same weights, only the positions treated differently.':'')}
-    $('pe-paCap').textContent=t;
     $('pe-paCnt').innerHTML=RD.stat('Plain RoPE',A.mean!=null?f2(A.mean,2):'','mean loss on the 256 tokens')+RD.stat(ch[0],B.mean!=null?f2(B.mean,2):'error','mean loss on the same tokens')+RD.stat('Pairs out of range',(A.un!=null?A.un:'')+' → '+(B.un!=null?B.un:'n/a'),'plain → after, of 16')+RD.stat('Window','0 to '+fmt(off+255),'trained on 0 to 255')}
   function start(){$('pe-paM').innerHTML=avail.map((c,i)=>'<button data-i="'+i+'" class="'+(i===S.c?'on':'')+'" aria-pressed="'+(i===S.c)+'">'+esc(c[0])+'</button>').join('');
-    if(!anim)anim=RD.anim({card:'pe-pa',ctl:'pe-paC',n:OFF.length,draw,ms:2600,label:'Offset step'});else anim.redraw()}
-  $('pe-paM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.c=+b.dataset.i;[...$('pe-paM').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});anim.redraw()});
+    fillList();if(!anim)anim=RD.anim({card:'pe-pa',ctl:'pe-paC',n:OFF.length,draw,ms:4400,label:'Offset step',list:'sx-pa'});else anim.redraw()}
+  // the step list on the left: each offset's measured means for plain RoPE and the chosen method, and plain RoPE's pairs out of range (static text: YaRN x8)
+  function fillList(){const ch=avail[S.c],run=get(ch[1],ch[2]),set=(k,v)=>document.querySelectorAll('#sx-pa [data-pa="'+k+'"]').forEach(el=>el.textContent=v);
+    set('m',ch[0]);OFF.forEach((off,i)=>{const sa=base.shifted[String(off)],sb=run&&run.shifted?run.shifted[String(off)]:null,d=off+255;
+      set('a'+i,sa&&sa.mean!=null?f2(sa.mean,2):'?');set('b'+i,sb&&sb.mean!=null?f2(sb.mean,2):'cannot read it ('+(sb&&sb.error?'IndexError':'not run')+')');
+      let un=0;plainInv.forEach((f,j)=>{if(seen[j]<2*Math.PI-1e-9&&((d*f)%(2*Math.PI))>seen[j]*(1+1e-9))un++});set('u'+i,un)})}
+  $('pe-paM').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.c=+b.dataset.i;[...$('pe-paM').children].forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b)});fillList();anim.reset(OFF.length)});
   $('pe-paNote').innerHTML='Offsets '+OFF.map(fmt).join(', ')+'; the text in front of Roxy is the validation stories that follow it (from token '+fmt(PA.filler_from_val_token||0)+' of val.bin). Loss per cell is the mean of 8 next-token losses (the last cell repeats the final token, 255 targets in all). Dials: each pair judged on its angle modulo one turn at the largest distance in the window, as in section 6. Greedy decoding, 40 new tokens, KV cache on.';
   // per-position curves over 2,048 tokens
   const CV=[['at_mha','plain','RoPE, no scaling','--c1',''],['at_mha','linear x8','RoPE + PI ×8','--c1','2 2'],['at_mha','ntk x8','RoPE + NTK ×8','--c6','4 2'],['at_mha','yarn x8','RoPE + YaRN ×8','--c5',''],

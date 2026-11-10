@@ -23,6 +23,8 @@
     if(s==='sin'){const pq=sinP(mq),pk=sinP(mk);return (dot(x,pk)+dot(pq,x)+dot(pq,pk))/sq}
     if(s==='learned'){if(mq>=L||mk>=L)return null;const pq=E[mq],pk=E[mk];return (dot(x,pk)+dot(pq,x)+dot(pq,pk))/sq}
     return 0}
+  // the same numbers for Fig. 3 (43_js_sc_abs.js): head 1 and base 10,000 whatever this chart's controls say
+  window.PESC={at:(s,mq,k)=>{const h=S.head,b=S.base;S.head=1;S.base=10000;const v=contrib(s,mq,k);S.head=h;S.base=b;return v},content:xx/sq,d};
   // logit view: the key sits at position off and the query k tokens later (so a learned table runs out at k = 512 - off);
   // weights view: the query sits at R + off and attends to every earlier key 0..R+off
   function series(s,off){const n=S.R,pts=[];

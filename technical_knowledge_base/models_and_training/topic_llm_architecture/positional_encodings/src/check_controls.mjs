@@ -17,8 +17,8 @@ try {
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: rm ? 'reduce' : 'no-preference' }]);
     await p.evaluateOnNewDocument(() => { try { localStorage.clear() } catch (e) { } });
     await p.goto('file://' + page_, { waitUntil: 'load' });
-    if (rm) { // nothing may autoplay under reduced motion: scroll the animations into view and check the step stays at 0
-      for (const id of ['pe-br', 'pe-pa']) {
+    if (rm) { // nothing may autoplay under reduced motion: scroll the 2D animation into view and check the step stays at 0 (the 3D stages: check_stages.mjs)
+      for (const id of ['pe-pa']) {
         await p.click('button[data-t=t-read]');
         await p.$eval('#' + id, el => el.scrollIntoView()); await new Promise(r => setTimeout(r, 3500));
         const v = await p.$eval('#' + id + ' .an-ctl input[type=range]', e => e.value); if (v !== '0') { errs.push(id + ' autoplayed under reduced motion (step ' + v + ')') }

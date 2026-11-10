@@ -64,12 +64,18 @@ table.pe-wide{min-width:760px}
 <a href="#pe-over">The idea</a><a href="#pe-why">Why positions</a><a href="#pe-abs">Four answers</a><a href="#pe-rope">RoPE</a><a href="#pe-base">Base and variants</a><a href="#pe-meas">Measured here</a><a href="#pe-break">Past the length</a><a href="#pe-ext">Stretching RoPE</a><a href="#pe-buy">What each buys</a><a href="#pe-recipe">Recipes</a><a href="#pe-beyond">Beyond RoPE</a><a href="#pe-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="pe-over">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Attention is blind to order, so position has to be put in. Nearly every open model does it with <b>RoPE</b>: each pair of query and key dimensions is turned by position × its own frequency, so a score depends only on the distance between two tokens. Its <span class="hl">slow pairs</span>, whose period is longer than the trained length, are what break past that length, and every context-extension method (PI, NTK, YaRN, Llama 3) is a rule for slowing them down.</p>
-<div class="hero" id="pe-hero-card"><h4>RoPE is a bank of clocks; past the trained length only the slow ones leave the angles they learned</h4>
-<div id="pe-hero"></div>
-<p class="small" id="pe-hero-cap">Left: one pair of dimensions. The query is turned by <i>m</i>θ, the key by <i>n</i>θ, and their dot product sees only the gap (<i>n</i> − <i>m</i>)θ. Right: the tiny GPT's 16 pairs (head 32, base 10,000, trained on 256 tokens). Shaded is every angle a pair reached in training: pairs 0 to 6 turn at least once within 256 tokens (full disc), pairs 7 to 15 only cover a wedge. The hands show distance 300, just past the trained 256: all nine slow pairs point outside their wedges (<span style="color:var(--bad)">red</span>), at angles no training example produced, while the fast pairs point at angles they have seen many times. Under each dial, its wavelength in tokens.</p></div>
+<p class="sxh">Fig. 1, step by step: RoPE is a bank of clocks</p>
+<ol class="sx" id="sx-hero">
+<li><b>A head is a row of dials.</b> The tiny GPT (head 32, base 10,000, trained on 256 tokens) has 16 pairs of dimensions, each a dial turning at its own speed: pairs 0 to 6 in the front row, 7 to 15 behind. After one token pair 0 has turned 1 radian (57°) and pair 15 has barely moved. Under each dial, its wavelength: 6.3 tokens for pair 0 up to 35,333 for pair 15.</li>
+<li><b>Training covers 256 tokens.</b> Shaded is every angle a pair reached in training: pairs 0 to 6 turn at least once within 256 tokens (full disc, blue), so they have seen every angle; pairs 7 to 15 only cover a wedge (green), pair 15 just 2.6 degrees.</li>
+<li><b>Distance 300, just past the trained 256.</b> All nine slow pairs point outside their wedges (orange), at angles no training example produced, while the fast pairs point at angles they have seen many times. The scores those slow pairs feed are untested.</li>
+<li><b>YaRN ×8 slows the slow dials.</b> The tiny GPT's own scaling divides the frequency of pairs 7 to 15 by 8 (÷ above each dial), ramps pairs 1 to 6 between ÷1.14 and ÷4 and keeps pair 0: at distance 300 every hand is back inside the angles it learned.</li>
+<li><b>And at 2,048, eight times the trained length,</b> every hand is still inside. That is all a context-extension method does; section 8 measures what it buys on real text.</li>
+</ol>
 <p><b>You need:</b> what attention computes (scores <b>q</b> · <b>k</b>, a softmax, a weighted sum of values) and what a KV cache holds: {{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}} or the root {{Topic: llm-architecture|n:3fd5c17b0d0d8172b490dc9f9ac281df}}. This page owns position schemes and RoPE scaling; MLA's decoupled RoPE key is taught on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}, KV memory and effective context on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}, the RoPE paper itself on {{RoFormer|n:3c65c17b0d0d81cfa5e9f54459720098}}.</p>
 <dl class="terms">
 <dt>Absolute, relative</dt><dd>"where is this token" (added once to the input) against "how far apart are these two" (acting on each attention score, in every layer).</dd>
@@ -80,7 +86,9 @@ table.pe-wide{min-width:760px}
 <dt>Fast, slow pair</dt><dd>wavelength shorter or longer than <i>L</i>: a fast pair has seen every angle in training, a slow pair only a wedge.</dd>
 <dt>NoPE, partial RoPE</dt><dd>no position signal at all (the causal mask still orders tokens); rotating only some of a head's dimensions.</dd>
 </dl>
-<details class="dp"><summary>The six schemes in one table, with the tiny GPT's measured losses <span class="mute">(reference)</span></summary><div class="b">
+</section>
+</div></div>
+<details class="dp" id="pe-ovd"><summary>The six schemes in one table, with the tiny GPT's measured losses <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="pe-cmp" id="pe-ovt">
 <thead><tr><th>Scheme</th><th>What it changes</th><th>Learned?</th><th>Past the trained length</th><th class="num">Tiny GPT, held-out loss at 256 <span class="pe-nl m">measured</span></th><th class="num">Tiny GPT, loss at 1,024 to 2,047 <span class="pe-nl m">measured</span></th><th>In the 2026 configs read here</th></tr></thead><tbody>
 <tr data-s="learned"><td>Learned absolute</td><td>Adds one trained vector per position to the input</td><td>Yes, one row per position</td><td>No row exists: a hard error</td><td class="num" data-c="v"></td><td class="num" data-c="far"></td><td>GPT-2, BERT; none of the 2026 models</td></tr>
@@ -91,24 +99,23 @@ table.pe-wide{min-width:760px}
 <tr data-s="nope"><td>NoPE</td><td>Nothing; the causal mask is the only order signal</td><td>No</td><td>No angles to break, but attention past the trained length is still untrained</td><td class="num" data-c="v"></td><td class="num" data-c="far"></td><td>Some layers of Llama 4, SmolLM3, Command A; all attention layers of Nemotron-H, Granite 4.0-H, Kimi Linear and K3</td></tr>
 </tbody></table></div>
 <p class="small mute">Measured columns: the topic's tiny GPT (6 layers, 256 wide, 1,500 steps on 12.3M TinyStories tokens at context 256, seed 0, equal budgets, only the position scheme changed), Apple M1 Pro, 2026-10-18 (section 5). A gap of a few hundredths is within seed noise. The last column counts the configs read by this page's census (src/census/census.py); "RoPE" includes partial and decoupled RoPE.</p></div></details>
-</section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-why"></div></div><div class="s3L">
 <section id="pe-why">
 <h2>1. Why attention needs positions at all</h2>
 <p>A head scores the token at <i>i</i> against every key <i>j</i> with <i>s<sub>ij</sub></i> = <b>q</b><sub><i>i</i></sub> · <b>k</b><sub><i>j</i></sub> / √<i>d</i>, and <b>q</b>, <b>k</b>, <b>v</b> are linear maps of each token's vector, which says nothing about where the token is. Shuffle the inputs and the outputs shuffle the same way: attention is <dfn>permutation-equivariant</dfn>, so "Roxy climbed the hill" and "the hill climbed Roxy" are the same bag of vectors. <b>The causal mask leaks some order</b>: one layer still sees a set (shuffle tokens 0 to <i>i</i> − 1 and token <i>i</i>'s output is unchanged), but each earlier token saw a different prefix, so from the second layer on the stack can count. A decoder with no positions (NoPE) can learn order; a bidirectional encoder cannot.</p>
-<div class="card" id="pe-why-perm">
-<h4>Shuffle the first 255 tokens of the running sequence: NoPE's first block does not notice, its second does</h4>
-<div id="pe-why-perm-svg" class="plot"></div>
-<p class="small mute" id="pe-why-perm-cap"></p>
-</div>
 <p><b>Where the model keeps position.</b> Fit a linear probe (ridge regression) from the residual stream after each block to the absolute position 0 to 255, on windows the probe never saw: R<sup>2</sup> = 1 means position is written in plainly, 0 that a linear readout cannot find it.</p>
-<div class="card" id="pe-why-probe">
-<h4>Absolute schemes write position into the input; NoPE builds it in the middle blocks; RoPE leaves little in the stream</h4>
-<div id="pe-why-probe-svg" class="plot"></div>
-<p class="small mute" id="pe-why-probe-cap"></p>
-</div>
+<p class="sxh">Fig. 2, step by step: five tiny GPTs that differ only in their position scheme</p>
+<ol class="sx" id="sx-why">
+<li><b>Shuffle the first 255 tokens; NoPE's first block does not notice.</b> Each column is how much token 255's residual stream changes, ‖h − h<sub>shuffled</sub>‖ / ‖h‖, after the embedding (column 0) and after each of the six blocks, on the running sequence. For NoPE the change after block 1 is 2 × 10<sup>−7</sup>, rounding error: one layer sees a set.</li>
+<li><b>Its second block does.</b> From block 2 on NoPE's change grows (4% after block 2, 45% after block 6): each earlier token saw a different prefix, so the stack can count.</li>
+<li><b>Every scheme with positions notices at once.</b> Learned and sinusoidal (the run with embeddings × 16) change by 21% and 42% after block 1, because the shuffle moved their position vectors; ALiBi by 39% and RoPE by 5%, because their scores depend on distances.</li>
+<li><b>Now the probe: where position is written.</b> The same columns, now R<sup>2</sup> of the linear probe. The learned and sinusoidal schemes write position into the input (0.99 and 0.98 at the embedding); NoPE has none there (−0.04) and builds it in the middle blocks, 0.94 by block 3 and 0.97 by block 4.</li>
+<li><b>RoPE and ALiBi leave little in the stream.</b> Their R<sup>2</sup> stays at or below about 0.27 in every block: a relative scheme acts inside attention, on q and k or on the scores, and never needs to write an absolute position anywhere.</li>
+</ol>
 <div class="pe-pr" id="pe-dr1"><div class="q">Predict: in the NoPE model, where does a linear probe find absolute position best?</div>
 <div class="opts"><button data-a="0">Nowhere: without positions there is nothing to find</button><button data-a="1">In the input embedding</button><button data-a="2">In the middle blocks, built from the causal mask</button></div>
 <div class="ans" hidden></div><a href="#pe-dr1-end" class="skip">skip</a><span id="pe-dr1-end"></span></div>
 <p>Positions matter whenever order carries meaning, most when a model must find one token far back and when it runs past the length it was trained on. The two checks are the ones above: a permutation test on one block, a position probe per block.</p>
 </section>
+</div></div>

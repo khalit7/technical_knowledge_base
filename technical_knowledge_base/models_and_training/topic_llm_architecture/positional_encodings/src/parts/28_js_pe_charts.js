@@ -1,4 +1,4 @@
-// ---- Reading: the measured charts (permutation, position probe, runs), the one-pair dial, the base census and YaRN's bands ----
+// ---- Reading: the measured charts (runs), the base census and YaRN's bands (the permutation test, the probe and the one-pair dial are 3D stages since 2026-11-10) ----
 (function(){
   if(!window.PE_DATA||!window.PE)return;
   const {D,fmt,f2,css,esc,pend}=window.PE,RD=window.RD,$=id=>document.getElementById(id);
@@ -14,28 +14,6 @@
     series.forEach(s=>{g+=line(s.v.map((v,i)=>[X(i),Y(v)]),css(s.c),2.2);s.v.forEach((v,i)=>{g+='<circle cx="'+X(i).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="3" fill="'+css(s.c)+'"><title>'+esc(s.n)+', '+(i?'block '+i:'embedding')+': '+v+'</title></circle>'})});
     el.innerHTML=RD.svg(W,H,g,ylab);
     return SC.filter(([k])=>series.some(s=>s.k===k)).map(([k,n,c])=>'<span class="pe-chk"><i style="background:'+css(c)+'"></i>'+n+'</span>').join('')}
-  function drawPerm(){const el=$('pe-why-perm-svg');if(!el)return;const P=D.probe.permutation_rel_change_token255_by_block||{};
-    const ser=SC.filter(([k])=>P[k]).map(([k,n,c])=>({k,n,c,v:P[k].map(x=>Math.max(x,1e-7))}));
-    const leg=blockChart(el,ser,1e-7,1,'relative change of token 255',[[1e-7,'1e-7'],[1e-5,'1e-5'],[1e-3,'0.001'],[0.1,'0.1'],[1,'1']],true);
-    const n=P.nope,r=P.rope;
-    $('pe-why-perm-cap').innerHTML='<span class="pe-legs" style="display:flex">'+leg+'</span>Relative change ‖h − h<sub>shuffled</sub>‖ / ‖h‖ of token 255\'s residual stream after each block, one random shuffle (seed 0) of tokens 0 to 254, log scale (values under 10<sup>−7</sup> drawn at 10<sup>−7</sup>). '+(n?'NoPE: '+n.map(x=>x<1e-5?x.toExponential(0):f2(x,3)).join(', ')+'. Block 1 sees a set, so token 255 is unchanged up to float32 rounding; from block 2 the earlier tokens carry what their own prefixes were, and the change appears. ':pend+' for NoPE. ')+(r?'RoPE changes from block 1 ('+f2(r[1],3)+'), because each key\'s rotation encodes where it now sits.':'')+' Measured on Apple M1 Pro (CPU), src/probe/probe.py.'}
-  function drawProbe(){const el=$('pe-why-probe-svg');if(!el)return;const P=D.probe.position_probe_r2_by_block||{};
-    const ser=SC.filter(([k])=>P[k]).map(([k,n,c])=>({k,n,c,v:P[k]}));
-    const leg=blockChart(el,ser,-0.1,1,'probe R² (held out)',[[0,'0'],[0.25,'0.25'],[0.5,'0.5'],[0.75,'0.75'],[1,'1']]);
-    $('pe-why-probe-cap').innerHTML='<span class="pe-legs" style="display:flex">'+leg+'</span>Ridge regression from the 256-dimension residual stream to the position index 0 to 255, fitted on 24 validation windows and scored on 8 others (R<sup>2</sup> on the held-out windows; below 0 means worse than predicting the mean). Absolute schemes write position into the input and it fades with depth; NoPE builds it from the causal mask; RoPE keeps position inside the attention scores and leaves little in the stream. The sinusoidal line is the model trained with its token embeddings × 16 (below). Measured on Apple M1 Pro (CPU), src/probe/probe.py.'}
-  // the one-pair dial (carried from the Architecture Gallery's 2026-10-02 build)
-  function drawDial(){if(!$('pe-dial'))return;const th=0.5,sh=+$('pe-dialS').value,o=+$('pe-dialO').value,m=3+sh,n=m+o,a=m*th,b=n*th;
-    $('pe-dialSv').textContent=sh+' (m = '+m+', n = '+n+')';$('pe-dialOv').textContent=o;
-    const q=[Math.cos(a),Math.sin(a)],k=[Math.cos(b),Math.sin(b)],dot=q[0]*k[0]+q[1]*k[1];
-    const W=Math.min(360,RD.width($('pe-dialSvg'))),C=Math.min(95,W/2-60),cx=W/2,cy=C+20,H=2*C+40,Pp=v=>[cx+C*v[0],cy-C*v[1]],pq=Pp(q),pk=Pp(k);
-    let s='<circle cx="'+cx+'" cy="'+cy+'" r="'+C+'" fill="none" stroke="var(--line)"/><line x1="'+(cx-C-6)+'" y1="'+cy+'" x2="'+(cx+C+6)+'" y2="'+cy+'" stroke="var(--line)"/><line x1="'+cx+'" y1="'+(cy-C-6)+'" x2="'+cx+'" y2="'+(cy+C+6)+'" stroke="var(--line)"/>';
-    const r=34,st=24;let d='';for(let i=0;i<=st;i++){const t=a+(b-a)*i/st;d+=(i?'L':'M')+(cx+r*Math.cos(t)).toFixed(1)+' '+(cy-r*Math.sin(t)).toFixed(1)}
-    s+='<path d="'+d+'" fill="none" stroke="'+css('--c5')+'" stroke-width="2"/>';
-    const lab=(p,v,txt,c,dy)=>'<line x1="'+cx+'" y1="'+cy+'" x2="'+p[0].toFixed(1)+'" y2="'+p[1].toFixed(1)+'" stroke="'+c+'" stroke-width="2.5"/><circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3.5" fill="'+c+'"/>'+RD.t((p[0]+(v[0]>=0?6:-6)).toFixed(1),(p[1]+dy).toFixed(1),txt,{fs:12.5,fill:c,a:v[0]<0?'end':'start'});
-    s+=lab(pq,q,'q at m = '+m,css('--c1'),-4)+lab(pk,k,'k at n = '+n,css('--c2'),14);
-    $('pe-dialSvg').innerHTML=RD.svg(W,H,s,'Query and key rotated by RoPE');
-    $('pe-dialOut').innerHTML=RD.stat('q rotated by '+f2(a,1)+' rad','('+f2(q[0],4)+', '+f2(q[1],4)+')','')+RD.stat('k rotated by '+f2(b,1)+' rad','('+f2(k[0],4)+', '+f2(k[1],4)+')','')+RD.stat('q · k',f2(dot,4),'cos((n − m) θ) = '+f2(Math.cos(o*th),4))}
-  if($('pe-dial'))['pe-dialS','pe-dialO'].forEach(i=>$(i).addEventListener('input',drawDial));
   // base census: rope_theta against the max context, every RoPE config the topic holds
   const cenS={y:'ctx'};
   const SUPX=e=>String(e).split('').map(c=>'⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]).join('');
@@ -103,7 +81,7 @@
     $('pe-ybOut').innerHTML='<div class="pe-legs"><span class="pe-chk"><i style="background:'+css('--c1')+'"></i>kept: '+keep+'</span><span class="pe-chk"><i style="background:'+css('--c5')+'"></i>ramp: '+rmp+'</span><span class="pe-chk"><i style="background:'+css('--c2')+'"></i>divided by '+sc+': '+intp+'</span></div>'+esc(P.name)+': base '+fmt(P.base)+', '+d+' rotated dims, original '+fmt(Lo)+', factor '+sc+'. Temperature 0.1 ln '+sc+' + 1 = <b>'+f2(t,3)+'</b> (logits × '+f2(t*t,3)+')'+(ybCur==='mistral3'?', switched off in this config (apply_scale false)':'')+(ybCur==='kimik2'?'; β = α = 1, so the ramp collapses to a step at one turn':'')+(ybCur==='dsv4'?'; every pair turns at least once in 65,536 tokens, so none is fully interpolated':'')+'.'}
   if($('pe-ybP')){$('pe-ybP').innerHTML=YB.map(k=>'<button data-k="'+k+'"'+(k===ybCur?' class="on"':'')+'>'+esc(D.presets[k].name.replace(' (decoupled key)',''))+'</button>').join('');
     $('pe-ybP').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ybCur=b.dataset.k;[...$('pe-ybP').children].forEach(x=>x.classList.toggle('on',x===b));drawYb()})}
-  const all=()=>{drawPerm();drawProbe();drawDial();drawCen();drawRuns();drawYb()};
+  const all=()=>{drawCen();drawRuns();drawYb()};
   {const d=$('pe-yb')&&$('pe-yb').closest('details');if(d)d.addEventListener('toggle',()=>{if(d.open)drawYb()})}
   RD.onRender(all);RD.onResize(all);all();
 })();
