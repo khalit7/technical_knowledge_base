@@ -3,10 +3,10 @@ R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/
 # Assemble ../index.html from parts/: head and CSS, the HTML parts in order, the error box, then one <script> per JS part, tabs last.
 # Links in any part are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 cd "$(dirname "$0")"
-{ cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/06_tabs.html parts/07_more.html
+{ cat parts/00_top.html parts/01_css.html parts/01b_css.html parts/02_split.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/06_tabs.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/11_js_swa.js parts/12_js_moe.js parts/13_js_read.js parts/14_js_line.js parts/15_js_fit.js parts/16_js_hero.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/11a_data.js parts/11_js_swa.js parts/13_js_read.js parts/14_js_line.js parts/15_js_fit.js parts/16_js_hero.js parts/25_js_s3.js parts/41_js_sc_mix.js parts/42_js_sc_now.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{my $hf="https://huggingface.co/mistralai/";my $mn="https://mistral.ai/news/";my $dc="https://docs.mistral.ai/models/model-cards/";%A=(
 wiki=>"https://en.wikipedia.org/wiki/Mistral_AI",
@@ -42,5 +42,6 @@ benchlm=>"https://benchlm.ai/model-updates/providers/mistral", seren=>"https://s
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=$u=~m{^@(\w+)$}?($A{$1}||die "alias $1"):$u;$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"/ge;
 ' > ../index.html
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
-if grep -q '—' ../index.html; then echo "EM DASH FOUND"; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -n -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html

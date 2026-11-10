@@ -7,29 +7,10 @@
   const WEIGHTS=7.24e9*2; // bytes, BF16
   const NM={swa:'Mistral 7B: GQA + rolling buffer',gqa:'Full GQA cache (Mixtral\'s attention)',mha:'Full multi-head attention'};
   const TGT=[[0,4096],[4096,4097],[4097,8192],[8192,32768],[32768,32768],[32768,32768]];
-  const H=(t,c)=>({t,c});
-  const CAP={
-   swa:[H('Tokens 1 to 4,096 arrive','Each token leaves one key and one value in each of 32 layers, for 8 key-value heads of 128 numbers: 2 × 32 × 8 × 128 × 2 bytes = 131,072 bytes, 128 KiB. Until the window is full the rolling buffer fills like any cache: 4,096 tokens, 512 MiB. One square is 32 MiB, 256 positions.'),
-    H('Token 4,097 overwrites token 1','Position <i>i</i> (counting from 0) is written to slot <i>i</i> mod <i>W</i>. Position 4,096 lands in slot 4,096 mod 4,096 = 0, over the oldest token, which has just left every layer\'s window. The buffer is a fixed ring and never holds more than 4,096 positions.'),
-    H('To 8,192 tokens, the context Mistral 7B was trained on','The second lap overwrites every slot (colour shows the lap that wrote it). Still 512 MiB; the dashed outline is what a cache without the window would hold by now, 1 GiB.'),
-    H('To 32,768 tokens','Eight laps. Without a window the cache would hold 32,768 positions, 4 GiB; the rolling buffer still holds 4,096, 512 MiB. That is the 8x saving the paper reports for a 32k sequence.'),
-    H('How far back can the last token reach?','Each layer looks back 4,096 positions, but layer 2 reads layer-1 states that already summarise the 4,096 before them, like stacked convolutions. After <i>k</i> layers the reach is about <i>k</i> × 4,096: 8 layers cover all 32,768, and 32 layers reach 131,072, the paper\'s "theoretical attention span". It is an upper bound: anything beyond the window arrives only through what the intermediate states carried, so exact long-range recall is weaker than with full attention.'),
-    H('The two savings multiply','GQA divides the per-token cost by 4 (8 key-value heads instead of 32); the window caps the positions at 4,096, a factor of 8 at this length. Together: 512 MiB against 16 GiB for full multi-head attention, 32 times less. The full MHA cache would be larger than the model\'s own 14.5 GB of weights.')],
-   gqa:[H('Tokens 1 to 4,096 arrive','Mixtral kept Mistral 7B\'s attention shape (32 query heads sharing 8 key-value heads), so a token still costs 128 KiB, but it dropped the window. The first 4,096 tokens look exactly like the rolling buffer: 512 MiB.'),
-    H('Token 4,097 is appended','Without a window nothing is overwritten: position 4,096 gets a new slot and the cache keeps growing by 128 KiB per token.'),
-    H('To 8,192 tokens','1 GiB, twice the rolling buffer.'),
-    H('To 32,768 tokens','4 GiB, the "without the window" line of the worked example: 32,768 × 128 KiB. Mixtral supports "a fully dense context length of 32k tokens".'),
-    H('How far back can the last token reach?','Every layer reads every earlier position directly, so recall is exact at any distance inside the context. That is what the window gave up, and why Mixtral and the field moved away from windowing every layer.'),
-    H('Compared with the other two','Eight times the rolling buffer at 32k, a quarter of full multi-head attention. GQA alone saves the factor of 4 at every length; the window\'s saving grows with the sequence.')],
-   mha:[H('Tokens 1 to 4,096 arrive','A hypothetical Mistral 7B with one key-value head per query head: 2 × 32 × 32 × 128 × 2 = 524,288 bytes, 512 KiB per token. 4,096 tokens already need 2 GiB.'),
-    H('Token 4,097 is appended','No window and no sharing: every token keeps 32 heads of keys and values in every layer.'),
-    H('To 8,192 tokens','4 GiB.'),
-    H('To 32,768 tokens','16 GiB: four times the full GQA cache, and more than the 14.5 GB the model\'s weights take in 16-bit. Decoding reads this whole cache for every new token, which is why the cache, not the arithmetic, limits throughput.'),
-    H('How far back can the last token reach?','Every layer reads every earlier position directly.'),
-    H('Compared with the other two','Thirty-two times the rolling buffer with GQA: the factor of 4 from sharing key-value heads times the factor of 8 from the window at 32k.')]};
+  // the explanation of each step is the step list on the left (sx-swa-swa, sx-swa-gqa, sx-swa-mha), one list per mode
   const WIDE={W:660,H:372,ru:[20,640,34],gr:[20,96],rp:[360,96,280],bars:[20,286]};
   const NAR={W:360,H:560,ru:[16,344,34],gr:[20,96],rp:[16,262,328],bars:[16,452]};
-  const st={m:'swa',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,lk:-1,lm:''};
+  const st={m:'swa',k:0,t:1,play:false,spd:1,vis:false,raf:0,last:0,user:false,ended:false};
   const cl=v=>v<0?0:v>1?1:v,ease=v=>v<.5?2*v*v:1-2*(1-v)*(1-v),lerp=(a,b,u)=>a+(b-a)*u;
   const T=(x,y,s,o)=>'<text x="'+x+'" y="'+y+'" font-size="'+((o&&o.fs)||11)+'"'+(o&&o.a?' text-anchor="'+o.a+'"':'')+(o&&o.c?' fill="'+o.c+'"':'')+(o&&o.w?' font-weight="600"':'')+'>'+s+'</text>';
   const G=(op,s)=>'<g opacity="'+(+op).toFixed(3)+'">'+s+'</g>';
@@ -89,27 +70,33 @@
       s+=G(on?1:.5,T(bx0,y+10,lab,{fs:10.5,w:on})+'<rect x="'+x0+'" y="'+y+'" width="'+ww+'" height="12" rx="2" fill="var(--soft)"/><rect x="'+x0+'" y="'+y+'" width="'+Math.max(v?1.5:0,XB(v)-x0).toFixed(1)+'" height="12" rx="2" fill="'+col+'"/>'+(XB(v)+60>L.W?T(XB(v)-4,y+10,fmtBytes(v),{fs:10.5,a:'end',c:'var(--bg)'}):T(XB(v)+5,y+10,fmtBytes(v),{fs:10.5})))});
     const wx=XB(WEIGHTS);s+='<line x1="'+wx.toFixed(1)+'" x2="'+wx.toFixed(1)+'" y1="'+(by-4)+'" y2="'+(by+62)+'" stroke="var(--ink)" stroke-dasharray="3 2"/>'+T(wx-4,by+74,'weights in BF16, 14.5 GB',{fs:10,a:'end',c:'var(--mute)'});
     $('swaSvg').innerHTML=svgEl(L.W,L.H,s,NM[m]+', step '+(k+1));
-    if(st.lk!==k||st.lm!==m){const S=CAP[m][k];$('swaStep').innerHTML='Step '+(k+1)+' of 6: '+S.t;$('swaCap').innerHTML=S.c;st.lk=k;st.lm=m}
+    const L0=$('sx-swa-'+m);if(L0)[...L0.children].forEach((li,i)=>{li.classList.toggle('on',i===k);li.classList.toggle('done',i<k);if(i===k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});
     $('swaCnt').innerHTML=stat('Tokens so far',fmt(n),'of the 32,768-token input')+stat('Positions held',fmt(held(m,n)),m==='swa'?'min(n, 4,096)':'n')+stat('Bytes per token',fmtBytes(BT[m]),m==='mha'?'2 × 32 × 32 × 128 × 2':'2 × 32 × 8 × 128 × 2')+stat('Cache now',fmtBytes(bytes(m,n)),fmt(bytes(m,n))+' bytes');
     const sc=$('swaScrub');sc.max=600;sc.value=Math.round((k+st.t)*100);
     const pb=$('swaPlay'),end=k===5&&st.t>=1;pb.innerHTML=st.play?'❚❚ Pause':end?'↻ Replay':'▶ Play';pb.setAttribute('aria-label',st.play?'Pause':end?'Replay':'Play');
   }
   const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
+  // motion rules (2026-11-06): plays by itself once at least half in view, pauses off screen and resumes, stops for good on any reader control
+  // or at the last step, never moves by itself under reduced motion; a mode toggle restarts and replays
+  const setP=p=>{st.play=p;if(p)card.dataset.playing='1';else delete card.dataset.playing};
   function tick(now){st.raf=0;if(!st.play||!live())return;const dt=st.last?Math.min(100,now-st.last):16;st.last=now;
-    st.t+=dt*st.spd/DUR;if(st.t>=1){if(st.k<5){st.k++;st.t=0}else{st.t=1;st.play=false}}
+    st.t+=dt*st.spd/DUR;if(st.t>=1){if(st.k<5){st.k++;st.t=0}else{st.t=1;setP(false);st.ended=true}}
     card.dataset.frames=(+card.dataset.frames||0)+1;draw();if(st.play)st.raf=requestAnimationFrame(tick)}
   function kick(){if(st.play&&live()&&!st.raf){st.last=0;st.raf=requestAnimationFrame(tick)}else if(!live()&&st.raf){cancelAnimationFrame(st.raf);st.raf=0}}
-  const pause=()=>{st.play=false;if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
-  $('swaPlay').addEventListener('click',()=>{if(st.play){pause()}else{if(st.k===5&&st.t>=1){st.k=0;st.t=0}else if(st.t>=1&&st.k<5){st.k++;st.t=0}st.play=true;st.last=0;kick()}draw()});
-  $('swaFwd').addEventListener('click',()=>{pause();st.k=Math.min(5,st.k+1);st.t=1;draw()});
-  $('swaBack').addEventListener('click',()=>{pause();st.k=Math.max(0,st.k-1);st.t=1;draw()});
-  $('swaScrub').addEventListener('input',e=>{pause();const v=+e.target.value;st.k=Math.min(5,Math.floor(v/100));st.t=cl(v/100-st.k);draw()});
+  const pause=()=>{setP(false);if(st.raf){cancelAnimationFrame(st.raf);st.raf=0}};
+  const user=()=>{st.user=true;pause()};
+  function auto(){if(RM||st.user||st.ended||st.play||!live())return;if(st.k===0)st.t=0;setP(true);kick();draw()}
+  $('swaPlay').addEventListener('click',()=>{const was=st.play;user();if(!was){if(st.k===5&&st.t>=1){st.k=0;st.t=RM?1:0}else if(st.t>=1&&st.k<5){st.k++;st.t=RM?1:0}setP(true);kick()}draw()});
+  $('swaFwd').addEventListener('click',()=>{user();st.k=Math.min(5,st.k+1);st.t=1;draw()});
+  $('swaBack').addEventListener('click',()=>{user();st.k=Math.max(0,st.k-1);st.t=1;draw()});
+  $('swaScrub').addEventListener('input',e=>{const v=+e.target.value;user();st.k=Math.min(5,Math.floor(v/100));st.t=cl(v/100-st.k);if(v>=600)st.t=1;draw()});
   $('swaSpd').addEventListener('change',e=>{st.spd=+e.target.value});
+  ['swa','gqa','mha'].forEach(m=>{const L=$('sx-swa-'+m);if(L)[...L.children].forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{if(st.m!==m)return;user();st.k=i;st.t=1;draw()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})});
   const seg=$('swaM');seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{seg.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});
-    st.m=b.dataset.m;st.k=0;st.t=1;pause();draw()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.15}).observe(card)}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
+    st.m=b.dataset.m;['swa','gqa','mha'].forEach(m=>{const L=$('sx-swa-'+m);if(L)L.hidden=m!==st.m});st.k=0;st.t=1;pause();st.user=false;st.ended=false;draw();auto()}));
+  if('IntersectionObserver' in window){new IntersectionObserver(es=>{const x=es[es.length-1];st.vis=x.isIntersecting&&(x.intersectionRatio>=.5||x.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+  document.addEventListener('visibilitychange',()=>{kick();auto()});
   let rw=card.clientWidth<560;addEventListener('resize',()=>{const w=card.clientWidth<560;if(w!==rw){rw=w;draw()}});
-  onTab('t-read',()=>{draw();kick()});
+  onTab('t-read',()=>{draw();kick();auto()});
   draw();
 })();

@@ -1,19 +1,5 @@
-// ---- Reading tab: routing repetition, memory against compute, GRPO group, licence chooser ----
+// ---- Reading tab: memory against compute, GRPO group, licence chooser ----
 (function(){
-  // Mixtral paper, Table 5: % of consecutive tokens with the same expert, layers 0 / 15 / 31
-  const RP={'ArXiv':[14.0,27.9,22.7,46.5,62.3,52.9],'DM Mathematics':[14.1,28.4,19.7,44.9,67.0,44.5],'Github':[14.9,28.1,19.7,49.9,66.9,49.2],'Gutenberg':[13.9,26.1,26.3,49.5,63.1,52.2],'PhilPapers':[13.6,25.3,22.1,46.9,61.9,51.3],'PubMed Abstracts':[14.2,24.6,22.0,48.6,61.6,51.8],'StackExchange':[13.6,27.2,23.6,48.2,64.6,53.6],'Wikipedia (en)':[14.4,23.6,25.3,49.8,62.1,51.8]};
-  const RC=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--closed)','var(--mute)'];
-  let rpm=1;
-  function drawRP(){if(!$('rpSvg'))return;const W=640,H=230,pl=40,pr=10,pt=14,pb=40,names=Object.keys(RP),max=rpm===1?32:72,base=rpm===1?12.5:46.4;
-    const Y=v=>pt+(H-pt-pb)*(1-v/max),gw=(W-pl-pr)/3,bw=Math.min(16,(gw-30)/names.length);let s='';
-    for(let v=0;v<=max;v+=rpm===1?8:20)s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="var(--line)"/><text x="'+(pl-5)+'" y="'+(Y(v)+4)+'" font-size="10.5" text-anchor="end" fill="var(--mute)">'+v+'%</text>';
-    [0,15,31].forEach((L,g)=>{const x0=pl+g*gw+(gw-bw*names.length)/2;names.forEach((n,i)=>{const v=RP[n][g+(rpm===1?0:3)];
-      s+='<rect x="'+(x0+i*bw).toFixed(1)+'" y="'+Y(v).toFixed(1)+'" width="'+(bw-2).toFixed(1)+'" height="'+(Y(0)-Y(v)).toFixed(1)+'" fill="'+RC[i]+'"><title>'+n+', layer '+L+': '+v+'%</title></rect>'});
-      s+='<text x="'+(pl+g*gw+gw/2)+'" y="'+(H-pb+15)+'" font-size="11" text-anchor="middle">layer '+L+'</text>'});
-    s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(base)+'" y2="'+Y(base)+'" stroke="var(--ink)" stroke-dasharray="4 3"/><text x="'+(W-pr)+'" y="'+(Y(base)-4)+'" font-size="10.5" text-anchor="end">random '+(rpm===1?'12.5%':'≈ 46%')+'</text>';
-    let lg='';names.forEach((n,i)=>{const col=i%4,row=Math.floor(i/4);lg+='<rect x="'+(pl+col*150)+'" y="'+(H-14+row*0)+'" width="0" height="0"/>'});
-    $('rpSvg').innerHTML=svgEl(W,H,s,'Expert repetition between consecutive tokens')+'<div class="leg">'+names.map((n,i)=>'<span><i style="background:'+RC[i]+';height:10px;width:10px"></i>'+n+'</span>').join('')+'</div>'}
-  if($('rpM'))segBind('rpM',v=>{rpm=+v;drawRP()});
   // memory against compute for the current line
   const MC=[['Mixtral 8x7B',46.7,12.9],['Mistral Small 4',119,6],['Mistral Medium 3.5',128,128],['Devstral 2',123,123],['Mistral Large 3',675,41]];
   let mcs=1;
@@ -45,6 +31,6 @@
       if(good)ok++;return '<div class="lab '+(good?'o':'c')+'"><span class="nm">'+n+'</span><span class="fl">'+RUNG[k]+' · '+v+'</span></div>'}).join('');
     $('lcSum').textContent=ok+' of '+LM.length+' models usable this way. Not legal advice: read each licence before relying on it.'}
   ['lcW','lcC','lcR'].forEach(id=>$(id)&&$(id).addEventListener('change',drawLC));
-  function all(){drawRP();drawMC();drawGR();drawLC()}
+  function all(){drawMC();drawGR();drawLC()}
   onTab('t-read',all);
 })();

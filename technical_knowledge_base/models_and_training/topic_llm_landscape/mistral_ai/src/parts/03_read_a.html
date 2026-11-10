@@ -2,14 +2,10 @@
 <nav class="nav" id="nav">
 <a href="#s-top">The idea</a><a href="#s-7b">Mistral 7B</a><a href="#s-mix">Mixtral</a><a href="#s-now">Current line</a><a href="#s-lin">Lineage</a><a href="#s-train">Training</a><a href="#s-lic">Licences</a><a href="#s-cat">Lineup</a><a href="#s-when">Which model</a>
 </nav>
+<div class="s3sp"><div class="s3L">
 <section id="s-top">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Mistral is a fast follower: it takes an efficiency idea that already works elsewhere (a sliding window with shared key-value heads, sparse experts, then DeepSeek's latent attention and fine-grained experts), ships it early at a size people can run on their own hardware, and decides what you may do with each model by putting it on one rung of a four-rung licence ladder.</p>
-<div class="hero">
-<p class="vt">Three years of shapes: dense, eight big experts, 128 small ones, and dense again where it suits</p>
-<div id="hero"></div>
-<p class="small mute" style="margin:4px 0 0">Each row is one model's layer as its config describes it. Squares are feed-forward experts (blue: routed to by one token; purple: the shared expert every token uses; grey: held in memory, idle for this token). Total over active parameters is the sparsity ratio <i>r</i>. The licence tag is the model's rung on the <a href="#s-lic">ladder</a>. Sources: {{Mistral 7B paper|@m7p}}, {{Mixtral paper|@mixp}}, the configs ({{Large 3|@cfgl3}}, {{Small 4|@cfgs4}}, {{Medium 3.5|@cfgm35}}) and {{Mistral|@l4}} for Large 4, whose config is unpublished.</p>
-</div>
 <p>Mistral AI is a Paris lab founded in April 2023 by Arthur Mensch (from Google DeepMind) and Guillaume Lample and Timothée Lacroix (both from Meta) ({{Wikipedia|@wiki}}). Its bet is that a cheaper model with open weights and EU jurisdiction wins the deals raw benchmark position does not: sovereign and defence work, regulated on-premises installs, anyone who cannot send tokens to a US API. Mensch, July 2026: "we do not yet own the best language models, but we've constantly reduced that gap" ({{Tech Times|@tt}}). It is the European counterweight to the Chinese open-weight labs, alongside Ai2 and the Institute of Foundation Models <span class="q">(the page's own positioning, not a sourced ranking)</span>; how it compares with every other lab is on the {{landscape root|n:3c65c17b0d0d812d9e00f6ec89965286}}.</p>
 <p><b>You need:</b> grouped-query attention, sliding windows and latent attention from {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}; total against active parameters and routing from {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}; GRPO from {{Alignment: SFT, RLHF, DPO, RLVR|n:3c65c17b0d0d81d5bed7e608d4061c7a}}. This page says what Mistral chose and what it bought; those pages teach the mechanisms. Whole-model cache sizing at any context is in the {{KV-cache calculator|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}, where every Mistral model is a preset.</p>
 <dl class="terms">
@@ -19,24 +15,56 @@
 <dt>Licence ladder</dt><dd>the four licences Mistral ships under (Apache 2.0, modified MIT, non-commercial, API only); the rung is a property of each model, not of the lab</dd>
 </dl>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="hero card">
+<p class="vt">Three years of shapes: dense, eight big experts, 128 small ones, and dense again where it suits</p>
+<div id="hero"></div>
+<p class="small mute" style="margin:4px 0 0">Each row is one model's layer as its config describes it. Squares are feed-forward experts (blue: routed to by one token; purple: the shared expert every token uses; grey: held in memory, idle for this token). Total over active parameters is the sparsity ratio <i>r</i>. The licence tag is the model's rung on the <a href="#s-lic">ladder</a>. Sources: {{Mistral 7B paper|@m7p}}, {{Mixtral paper|@mixp}}, the configs ({{Large 3|@cfgl3}}, {{Small 4|@cfgs4}}, {{Medium 3.5|@cfgm35}}) and {{Mistral|@l4}} for Large 4, whose config is unpublished.</p>
+</div>
+</div></div></div>
 
-<section id="s-7b">
-<h2>Mistral 7B: a sliding window and shared key-value heads</h2>
-<p>Mistral 7B (September 2023) attacked the KV cache twice. <b>Grouped-query attention</b>: 32 query heads share 8 key-value heads, so the cache stores a quarter of what multi-head attention (MHA) would. <b>Sliding-window attention</b>: each layer attends only to the last <span class="m"><i>W</i> = 4,096</span> tokens, implemented as a <b>rolling buffer</b> that overwrites the token that just left the window. Windows stack, so after <span class="m"><i>k</i></span> layers a token can be influenced by about <span class="m"><i>k</i> · <i>W</i></span> earlier tokens, the way stacked convolutions grow a receptive field; anything beyond the window arrives only through what the intermediate states carried, so exact long-range recall is weaker than with full attention. Both mechanisms, and the reach stepper, are on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}; here is what they bought on Mistral's own shape.</p>
-<p><b>Concretely</b> ({{Mistral 7B paper|@m7p}}, Table 1; {{config.json|@cfg7}}): width 4,096, 32 layers, head dimension 128, feed-forward width 14,336, 32 query heads, 8 key-value heads, window 4,096, context length 8,192, vocabulary 32,000, Apache 2.0. One token leaves <span class="m">2 × 32 × 8 × 128 × 2 = 131,072</span> bytes, 128 KiB, of 16-bit keys and values. At 32,768 tokens a full cache would need 4 GiB; the rolling buffer holds only <span class="m">min(32,768, 4,096)</span> positions, 512 MiB, eight times less: "On a sequence length of 32k tokens, this reduces the cache memory usage by 8x, without impacting the model quality" ({{paper|@m7p}}). Full MHA with no window would need 16 GiB, more than the model's own 14.5 GB of weights. The two savings multiply: 4 from sharing heads, 8 from the window at 32k, 32 in all.</p>
 
-<h3>The same 32,768-token input, three caches</h3>
-<p class="try"><b>Predict:</b> by how much does the rolling buffer grow between token 8,192 and token 32,768? Then press play, and switch to <b>Full GQA</b> (what Mixtral does) and <b>Full MHA</b> on the same input.</p>
-<div class="card" id="swa">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="swa">
+<p class="vt">The rolling buffer stops at 4,096 positions; the other two keep growing</p>
 <div class="an-top"><div class="seg" id="swaM" role="group" aria-label="Cache design"><button class="on" data-m="swa" aria-pressed="true">GQA + window (Mistral 7B)</button><button data-m="gqa" aria-pressed="false">Full GQA (Mixtral)</button><button data-m="mha" aria-pressed="false">Full MHA</button></div></div>
 <div id="swaSvg" class="an-svg"></div>
 <div class="an-ctl"><button id="swaBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="swaPlay" aria-label="Play" title="Play or pause" class="an-play">&#9654; Play</button><button id="swaFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
 <input type="range" id="swaScrub" min="0" max="600" value="0" step="1" aria-label="Scrub through the steps">
 <label class="small">Speed <select id="swaSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="swaStep"></div><p id="swaCap"></p></div>
 <div class="an-cnt" id="swaCnt"></div>
-<p class="small mute" style="margin:6px 0 0">"Full MHA" is a hypothetical Mistral 7B with 32 key-value heads. Bytes assume 16-bit keys and values. Defaults reproduce the paper's 8x saving at 32k and its 131K "theoretical attention span" (32 × 4,096 = 131,072, sixteen times the 8,192-token training context) independently. The animation waits on its first step until you press play or step.</p>
+<p class="small mute" style="margin:6px 0 0">"Full MHA" is a hypothetical Mistral 7B with 32 key-value heads. Bytes assume 16-bit keys and values. Defaults reproduce the paper's 8x saving at 32k and its 131K "theoretical attention span" (32 × 4,096 = 131,072, sixteen times the 8,192-token training context) independently.</p>
 </div>
+</div></div><div class="s3L">
+<section id="s-7b">
+<h2>Mistral 7B: a sliding window and shared key-value heads</h2>
+<p>Mistral 7B (September 2023) attacked the KV cache twice. <b>Grouped-query attention</b>: 32 query heads share 8 key-value heads, so the cache stores a quarter of what multi-head attention (MHA) would. <b>Sliding-window attention</b>: each layer attends only to the last <span class="m"><i>W</i> = 4,096</span> tokens, implemented as a <b>rolling buffer</b> that overwrites the token that just left the window. Windows stack, so after <span class="m"><i>k</i></span> layers a token can be influenced by about <span class="m"><i>k</i> · <i>W</i></span> earlier tokens, the way stacked convolutions grow a receptive field; anything beyond the window arrives only through what the intermediate states carried, so exact long-range recall is weaker than with full attention. Both mechanisms, and the reach stepper, are on {{Attention variants|n:3fd5c17b0d0d8120859ecc2d0236e846}}; here is what they bought on Mistral's own shape.</p>
+<p><b>Concretely</b> ({{Mistral 7B paper|@m7p}}, Table 1; {{config.json|@cfg7}}): width 4,096, 32 layers, head dimension 128, feed-forward width 14,336, 32 query heads, 8 key-value heads, window 4,096, context length 8,192, vocabulary 32,000, Apache 2.0. One token leaves <span class="m">2 × 32 × 8 × 128 × 2 = 131,072</span> bytes, 128 KiB, of 16-bit keys and values. At 32,768 tokens a full cache would need 4 GiB; the rolling buffer holds only <span class="m">min(32,768, 4,096)</span> positions, 512 MiB: "On a sequence length of 32k tokens, this reduces the cache memory usage by 8x, without impacting the model quality" ({{paper|@m7p}}). The animation walks the same input through the three designs.</p>
+<h3>The same 32,768-token input, three caches</h3>
+<p class="try"><b>Predict:</b> by how much does the rolling buffer grow between token 8,192 and token 32,768? It plays by itself; then switch to <b>Full GQA</b> (what Mixtral does) and <b>Full MHA</b> on the same input.</p>
+<ol class="sx" id="sx-swa-swa" aria-label="Steps, GQA + window (Mistral 7B)">
+<li><b>Tokens 1 to 4,096 arrive.</b> Each token leaves one key and one value in each of 32 layers, for 8 key-value heads of 128 numbers: 2 × 32 × 8 × 128 × 2 bytes = 131,072 bytes, 128 KiB. Until the window is full the rolling buffer fills like any cache: 4,096 tokens, 512 MiB. One square is 32 MiB, 256 positions.</li>
+<li><b>Token 4,097 overwrites token 1.</b> Position <i>i</i> (counting from 0) is written to slot <i>i</i> mod <i>W</i>. Position 4,096 lands in slot 4,096 mod 4,096 = 0, over the oldest token, which has just left every layer's window. The buffer is a fixed ring and never holds more than 4,096 positions.</li>
+<li><b>To 8,192 tokens, the context Mistral 7B was trained on.</b> The second lap overwrites every slot (colour shows the lap that wrote it). Still 512 MiB; the dashed outline is what a cache without the window would hold by now, 1 GiB.</li>
+<li><b>To 32,768 tokens.</b> Eight laps. Without a window the cache would hold 32,768 positions, 4 GiB; the rolling buffer still holds 4,096, 512 MiB. That is the 8x saving the paper reports for a 32k sequence.</li>
+<li><b>How far back can the last token reach?</b> Each layer looks back 4,096 positions, but layer 2 reads layer-1 states that already summarise the 4,096 before them, like stacked convolutions. After <i>k</i> layers the reach is about <i>k</i> × 4,096: 8 layers cover all 32,768, and 32 layers reach 131,072, the paper's "theoretical attention span". It is an upper bound: anything beyond the window arrives only through what the intermediate states carried, so exact long-range recall is weaker than with full attention.</li>
+<li><b>The two savings multiply.</b> GQA divides the per-token cost by 4 (8 key-value heads instead of 32); the window caps the positions at 4,096, a factor of 8 at this length. Together: 512 MiB against 16 GiB for full multi-head attention, 32 in all. Full MHA with no window would need more than the model's own 14.5 GB of weights.</li>
+</ol>
+<ol class="sx" id="sx-swa-gqa" hidden aria-label="Steps, Full GQA (Mixtral)">
+<li><b>Tokens 1 to 4,096 arrive.</b> Mixtral kept Mistral 7B's attention shape (32 query heads sharing 8 key-value heads), so a token still costs 128 KiB, but it dropped the window. The first 4,096 tokens look exactly like the rolling buffer: 512 MiB.</li>
+<li><b>Token 4,097 is appended.</b> Without a window nothing is overwritten: position 4,096 gets a new slot and the cache keeps growing by 128 KiB per token.</li>
+<li><b>To 8,192 tokens.</b> 1 GiB, twice the rolling buffer.</li>
+<li><b>To 32,768 tokens.</b> 4 GiB, the "without the window" line of the worked example: 32,768 × 128 KiB. Mixtral supports "a fully dense context length of 32k tokens".</li>
+<li><b>How far back can the last token reach?</b> Every layer reads every earlier position directly, so recall is exact at any distance inside the context. That is what the window gave up, and why Mixtral and the field moved away from windowing every layer.</li>
+<li><b>Compared with the other two.</b> Eight times the rolling buffer at 32k, a quarter of full multi-head attention. GQA alone saves the factor of 4 at every length; the window's saving grows with the sequence.</li>
+</ol>
+<ol class="sx" id="sx-swa-mha" hidden aria-label="Steps, Full MHA">
+<li><b>Tokens 1 to 4,096 arrive.</b> A hypothetical Mistral 7B with one key-value head per query head: 2 × 32 × 32 × 128 × 2 = 524,288 bytes, 512 KiB per token. 4,096 tokens already need 2 GiB.</li>
+<li><b>Token 4,097 is appended.</b> No window and no sharing: every token keeps 32 heads of keys and values in every layer.</li>
+<li><b>To 8,192 tokens.</b> 4 GiB.</li>
+<li><b>To 32,768 tokens.</b> 16 GiB: four times the full GQA cache, and more than the 14.5 GB the model's weights take in 16-bit. Decoding reads this whole cache for every new token, which is why the cache, not the arithmetic, limits throughput.</li>
+<li><b>How far back can the last token reach?</b> Every layer reads every earlier position directly.</li>
+<li><b>Compared with the other two.</b> Thirty-two times the rolling buffer with GQA: the factor of 4 from sharing key-value heads times the factor of 8 from the window at 32k.</li>
+</ol>
 <p>In symbols: <span class="m"><i>b</i><sub>tok</sub> = 2 · <i>L</i> · <i>n</i><sub>kv</sub> · <i>d</i><sub>h</sub> · <i>s</i></span> bytes per token (key and value, layers, key-value heads, head dimension, bytes per number), and the buffer holds <span class="m"><i>M</i>(<i>n</i>) = <i>b</i><sub>tok</sub> · min(<i>n</i>, <i>W</i>)</span>; the reach bound is <span class="m"><i>R</i>(<i>k</i>) ≈ <i>k</i> · <i>W</i></span>, an upper bound on influence, not a guarantee the information survived. The general formula and every model's cache are on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}.</p>
 <p><b>What it bought.</b> Mistral 7B outperformed "the best open 13B model (Llama 2) across all evaluated benchmarks, and the best released 34B model (Llama 1) in reasoning, mathematics, and code generation" ({{paper|@m7p}}), which established the lab, and it became a common small base for fine-tuning <span class="q">(unconfirmed as "the default")</span>. <b>What did not last:</b> Mistral itself dropped the window in Mixtral, which supports "a fully dense context length of 32k tokens" ({{Mixtral paper|@mixp}}); every current Mistral model uses full grouped-query or latent attention. Treat the window as a 2023 Mistral choice, not a family trait.</p>
 <details class="dp"><summary>Parameter count and the 131K reach, checked <span class="mute">(depth)</span></summary><div class="b">
@@ -44,3 +72,4 @@
 <p>The 131K reach does not mean Mistral 7B handles 131K-token inputs: it is a theoretical bound on how far information can propagate through 32 windowed layers, and the model was trained on 8,192-token contexts.</p>
 </div></details>
 </section>
+</div></div>

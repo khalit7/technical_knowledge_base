@@ -162,8 +162,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
 - [x] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
 - [x] `models_and_training/topic_llm_landscape/minimax` MiniMax
-- [~] `models_and_training/topic_llm_landscape/mistral_ai` Mistral AI
-- [ ] `models_and_training/topic_llm_landscape/moonshot_ai_kimi` Moonshot AI: Kimi
+- [x] `models_and_training/topic_llm_landscape/mistral_ai` Mistral AI
+- [~] `models_and_training/topic_llm_landscape/moonshot_ai_kimi` Moonshot AI: Kimi
 - [ ] `models_and_training/topic_llm_landscape/openai_gpt_family` OpenAI: GPT family
 - [ ] `models_and_training/topic_llm_landscape/other_notable_providers` Other notable providers
 - [ ] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
@@ -455,6 +455,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma`: Fig. 5 expert columns each stand for one expert across all 30 layers, lit set seeded and illustrative (labelled); Fig. 5 uses the report table's 0.28 GB cache for 12B, not the config's 0.30; older 2D widgets with 640-wide viewBoxes shrink text in the right column; mid-glide frames out of Fig. 3's close-up briefly show the zoom; verify_layout flags the Gemma on one machine tab (accepted: tool).
 - `models_and_training/topic_llm_landscape/meta_llama_and_msl`: Fig. 2 close-ups cramped, the glass plane runs past the card edges, "20 · compute-optimal" label on the plane's back edge; Fig. 4 box names sit on their own box tops; core 26 to 32 min (about 29 on a first read).
 - `models_and_training/topic_llm_landscape/minimax`: Fig. 5 at 1M draws plates at half depth, empty space at the card top; Fig. 3 block-2 output label close to a plate cell label; Fig. 5 full-GQA at 1M is hypothetical (said in the step); block scores and selections illustrative (labelled).
+- `models_and_training/topic_llm_landscape/mistral_ai`: Fig. 2 step 3 busy (eight expert copies per layer, the router's chosen experts hard to see); the cache animation's two hidden mode lists repeat a lot (could become short paragraphs); Large 4 absent from Fig. 3 (no widths in its card); the Table 5 routing chart moved to the Mixtral paper page's ownership; verify_layout flags the Weights tab (accepted: tool).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
