@@ -154,10 +154,10 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability` Normalisation, residuals and stability: pre-norm, RMSNorm, QK-norm, initialisation, loss spikes
 - [x] `models_and_training/topic_llm_architecture/positional_encodings` Positional Encodings
 - [x] `models_and_training/topic_llm_architecture/the_transformer_from_zero` The transformer from zero: one block, every shape, a GPT you train
-- [~] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
+- [x] `models_and_training/topic_llm_architecture/tokenizers` Tokenizers
 - [ ] `models_and_training/topic_llm_architecture` Topic: llm-architecture
 - [x] `models_and_training/topic_llm_landscape/alibaba_qwen` Alibaba: Qwen
-- [ ] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
+- [~] `models_and_training/topic_llm_landscape/anthropic_claude_family` Anthropic: Claude family
 - [ ] `models_and_training/topic_llm_landscape/deepseek` DeepSeek
 - [ ] `models_and_training/topic_llm_landscape/google_deepmind_gemini_and_gemma` Google DeepMind: Gemini and Gemma
 - [ ] `models_and_training/topic_llm_landscape/meta_llama_and_msl` Meta: Llama and Meta Superintelligence Labs
@@ -447,6 +447,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_architecture/normalisation_residuals_and_stability`: Fig. 1 hero sparse and faint at 1400 (small objects, much empty card); the old stepper's per-token views (token o, token 0) are gone; labels over faded objects in Figs. 3, 4 and 5; Fig. 1 small on phones; Fig. 2's gradient thinning is drawn, not measured (labelled); verify_layout flags the Stability explorer outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_architecture/positional_encodings`: empty space above and below the scene at 1400 (worst Figs. 1, 5, 6); Fig. 6 NTK step's per-pair out-of-range count can exceed plain's (modulo-one-turn judgement; the step also gives how far the slowest pair turns); running-sequence card about 1,070 px tall, not sticky; core 33 to 38 min plus 20 closed.
 - `models_and_training/topic_llm_architecture/the_transformer_from_zero`: core 32 to 40 min plus 22 closed; Fig. 3 step 4 shows a small unexplained cluster at the lower right; full-view steps small (Fig. 1 steps 3 and 6, Fig. 4 step 3); stages read the root's src/block/out/trace_ref_baseline_s1500.json (keep it if the root is reorganised); Fig. 4 heights are square-root weights (said in the step).
+- `models_and_training/topic_llm_architecture/tokenizers`: core 42 to 46 min plus 15 closed; Fig. 2 tile and pair labels crowd each other at 1400; wide shallow scenes leave empty card space; tile letters hidden on phones; dark 390 shots checked only at the middle step; verify_layout flags the Vocabulary timeline outside a split (accepted: reader tool).
 - `models_and_training/topic_llm_landscape/alibaba_qwen`: Fig. 3 all-five step draws grids in a thin band with empty space below; hero step 4 "16 attention" note close to the 2.4T tower at 390; which experts light up is a seeded illustrative pick (said in the step); no Qwen figures (no reuse licence).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 

@@ -22,14 +22,5 @@
     document.getElementById('tk-failNote').innerHTML=c.note}
   draw();
 
-  // six languages, five tokenizers: premium over the whole FLORES-200 dev + devtest
-  const FL=TD.fl,ix=Object.fromEntries(TK.map((k,i)=>[k,4+i])),row=Object.fromEntries(FL.map(r=>[r[0],r])),eng=row.eng_Latn;
-  const LS=[['fra_Latn','French'],['rus_Cyrl','Russian'],['zho_Hans','Chinese (Simplified)'],['hin_Deva','Hindi'],['tam_Taml','Tamil'],['mya_Mymr','Burmese']];
-  const KS=[['gpt2','GPT-2 (2019)','var(--dim)'],['cl100k','GPT-4 (2023)','var(--c2)'],['o200k','GPT-4o (2024)','var(--c1)'],['gemma3','Gemma 3 (2025)','var(--c3)'],['qwen35','Qwen3.5 (2026)','var(--c4)']];
-  const prem=(c,k)=>row[c][ix[k]]/eng[ix[k]];
-  const max=Math.max(...LS.flatMap(([c])=>KS.map(([k])=>prem(c,k))));
-  let h='<div class="hmleg">'+KS.map(([k,n,col])=>'<span><i style="display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;background:'+col+'"></i>'+n+'</span>').join('')+'</div><div class="bars">';
-  LS.forEach(([c,n])=>{h+='<div class="band" style="text-transform:none;font-size:12.5px">'+n+'</div>';
-    KS.forEach(([k,kn,col])=>{const p=prem(c,k);h+='<div class="row"><span class="nm">'+kn+'</span><span class="track"><span class="fill" style="width:'+(100*p/max).toFixed(1)+'%;background:'+col+'"></span></span><span class="val">'+p.toFixed(2)+'×</span></div>'})});
-  document.getElementById('tk-taxBars').innerHTML=h+'</div><p class="small mute">Premium = tokens for the language ÷ tokens for English over the same 2,009 translated sentences, per tokenizer (1.00× is parity with English).</p>';
+  // (the six-language premium bars moved into Fig. 5, 45_js_sc_tax.js, 2026-11-10)
 })();

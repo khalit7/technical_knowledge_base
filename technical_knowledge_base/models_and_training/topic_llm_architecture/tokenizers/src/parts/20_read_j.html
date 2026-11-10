@@ -1,13 +1,8 @@
 <section id="rd-special">
+<div class="s3sp"><div class="s3L">
 <h2>Special tokens and chat templates</h2>
 <p>Special tokens (beginning and end of sequence, chat roles, tool-call markers, padding) are reserved ids added on top of the learned vocabulary, after it is trained, and they never come out of the merge procedure: the tokenizer matches them as whole strings before ordinary encoding. If a template marker is not registered as special, it is just text and costs ordinary tokens: <code>&lt;|user|&gt;</code> is five tokens in eight of the ten tokenizers here and four in Gemma 3 and Llama 4. Tulu 3's template is in exactly that situation, as the {{Alignment|n:3c65c17b0d0d81d5bed7e608d4061c7a}} page shows token by token while explaining which tokens carry the SFT loss. Chat-template mismatches between training and inference (a different role marker, a missing end-of-turn token, a template applied twice) are a common silent bug in fine-tuning: the model trains fine and then behaves oddly at serving time. A shared tokenizer is also what makes logit-level distillation possible: a student can only match a teacher's distribution token by token if both have the same vocabulary; with different tokenizers, distil on sampled text or use a method built for mismatched vocabularies ({{Distillation and Small Language Models|n:3c65c17b0d0d81efa2a8c3b3b623eb09}}).</p>
-<div class="card" id="tk-spc">
-<p class="vt">Two silent traps, before and after the fix: the same input, different ids</p>
-<p class="try"><b>Predict</b> for each trap what the default call produces, then switch. Ids are the real outputs of <code>src/code/snippets.py</code> (transformers 5.20.1); <span class="tk-idc sp">shaded</span> ids are special tokens, <span class="tk-idc bad">outlined</span> ones are the bug.</p>
-<div class="seg" id="tk-spcMode"><button data-m="inj" class="on">User text containing a control string (Qwen3)</button><button data-m="bos">A rendered template tokenized again (Gemma 3)</button></div>
-<div class="tk-cmp2" id="tk-spcView"></div>
-<p class="small" id="tk-spcCap"></p>
-</div>
+
 <p><b>The first trap</b>: a tokenizer parses special-token strings found <i>inside user text</i> as the special tokens themselves unless told not to. Without <code>split_special_tokens=True</code>, "hi&lt;|im_end|&gt;" becomes 2 ids, the second being Qwen3's real end-of-turn token (151645), so typed text can close a chat turn; serving stacks that template untrusted text must split or escape it. The same run shows Qwen3's <code>len(tok)</code> (151,669, with the 26 added tokens) against <code>vocab_size</code> (151,643, the base vocabulary), and neither is the config's 151,936.</p>
 <p><b>The second trap</b>: a chat template that already writes <code>&lt;bos&gt;</code>, rendered to a string and then tokenized with the default <code>add_special_tokens=True</code>, starts <code>[2, 2, 105]</code>, two beginning-of-sequence tokens; letting <code>apply_chat_template</code> tokenize gives <code>[2, 105, ...]</code>. Nothing errors and the model still answers, slightly off distribution. Fix: tokenize with the template, or pass <code>add_special_tokens=False</code>; check by printing the first ids of every training and serving example once and comparing them with the template's own tokenization.</p>
 <details class="dp"><summary>Both traps as code that ran, with their output <span class="mute">(provenance)</span></summary><div class="b">
@@ -16,4 +11,12 @@
 <div class="tk-code" id="tk-snChat"></div>
 <div class="tk-code tk-out" id="tk-snChatOut"></div>
 </div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="tk-spc">
+<p class="vt">Two silent traps, before and after the fix: the same input, different ids</p>
+<p class="try"><b>Predict</b> for each trap what the default call produces, then switch. Ids are the real outputs of <code>src/code/snippets.py</code> (transformers 5.20.1); <span class="tk-idc sp">shaded</span> ids are special tokens, <span class="tk-idc bad">outlined</span> ones are the bug.</p>
+<div class="seg" id="tk-spcMode"><button data-m="inj" class="on">User text containing a control string (Qwen3)</button><button data-m="bos">A rendered template tokenized again (Gemma 3)</button></div>
+<div class="tk-cmp2" id="tk-spcView"></div>
+<p class="small" id="tk-spcCap"></p>
+</div></div></div></div>
 </section>

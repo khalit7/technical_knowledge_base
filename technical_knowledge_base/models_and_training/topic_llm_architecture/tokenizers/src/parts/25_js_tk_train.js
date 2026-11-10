@@ -72,6 +72,6 @@
   $('tk-trnReset').addEventListener('click',()=>{ta.value=COURSE.join('\n');$('tk-trnBpeN').value=25;$('tk-trnWpN').value=70;$('tk-trnUgN').value=100;train()});
   $('tk-encIn').addEventListener('input',enc);
   M.bpe=A.bpeTrain(COURSE,25);M.wp=A.wpTrain(COURSE,70);M.ug=A.ugTrain(COURSE,100);
-  an=RD.anim({card:'tk-trn',ctl:'tk-trnCtl',n:nSteps('bpe'),draw:i=>draw(i),ms:1500,label:'Training step'});
+  an=RD.anim({card:'tk-trn',ctl:'tk-trnCtl',n:nSteps('bpe'),draw:i=>draw(i),ms:1500,label:'Training step',auto:false});
   train();
 })();

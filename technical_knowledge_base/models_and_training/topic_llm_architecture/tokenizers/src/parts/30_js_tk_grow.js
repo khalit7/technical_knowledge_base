@@ -48,7 +48,7 @@ window.TKG=(function(){
     let h=chips(ids.map(piece))+'<div class="tw"><table class="wide tk-insp"><thead><tr><th>Piece</th><th class="num">Id</th><th class="num">Training count</th><th class="num">Row norm</th></tr></thead><tbody>';
     ids.forEach(d=>{const p=piece(d),z=F.count[d]===0;h+='<tr'+(z?' style="color:var(--bad)"':'')+'><td><code>'+(p.hex?'‹'+p.hex+'›':esc(show(p.s)))+'</code></td><td class="num">'+d+'</td><td class="num">'+fmt(F.count[d])+'</td><td class="num">'+F.norm[d].toFixed(2)+'</td></tr>'});
     $('tk-inspOut').innerHTML=h+'</tbody></table></div>'}
-  const an=RD.anim({card:'tk-grow',ctl:'tk-growCtl',n:KS.length,draw:i=>{k=KS[i];draw();insp()},ms:1100,label:'Merge step',start:KS.length-1});
+  const an=RD.anim({card:'tk-grow',ctl:'tk-growCtl',n:KS.length,draw:i=>{k=KS[i];draw();insp()},ms:1100,label:'Merge step',start:KS.length-1,auto:false});
   $('tk-growK').addEventListener('input',e=>{k=+e.target.value;draw();insp()});
   RD.seg($('tk-growJump'),v=>{k=+v;draw();insp()});
   $('tk-inspIn').addEventListener('input',insp);

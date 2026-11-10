@@ -1,16 +1,17 @@
 <section id="rd-what">
 <h2>What a tokenizer does</h2>
 <p>A modern tokenizer is four stages, each a separate object in the Hugging Face <code>tokenizers</code> library: a <dfn>normalizer</dfn> (optional cleanup such as Unicode NFC; the running example has none), a <dfn>pre-tokenizer</dfn> (cuts text into word-like chunks, and for byte-level BPE turns each chunk into bytes), the <dfn>model</dfn> (BPE: applies the learned merges inside each chunk) and a <dfn>post-processor</dfn> (adds special tokens such as a beginning-of-sequence marker). The <dfn>decoder</dfn> runs it backwards and gives back exactly the same text.</p>
-<div class="card" id="tk-pipe">
-<p class="vt">Step through the four stages on one sentence: only the merge stage shortens it</p>
-<p class="try">Real bytes, the real pre-tokenizer, the real merges in the order the trainer learned them, the real ids and the embedding rows they select. <b>Predict</b> what the merge stage does to "Roxy", then step to it: the trainer never learned a merge for it, so it stays four tokens.</p>
-<div class="an-ctl" id="tk-pipeCtl"></div>
-<div class="an-cap" id="tk-pipeCap"></div>
-<div id="tk-pipeView"></div>
-<div class="an-cnt" id="tk-pipeCnt"></div>
-</div>
-<p>Three things to read off it. A leading space is part of the next token (<code>Ġloved</code> is " loved"; byte-level BPE writes the space byte as <code>Ġ</code> so that every byte has a printable character). "Roxy" costs four tokens while " climb" costs one, because merges are learned from frequency and the name is rare in TinyStories. And id 0 is <code>&lt;|endoftext|&gt;</code>, a <dfn>special token</dfn> that the setup reserved before training to separate stories.</p>
-<p><b>Where the ids go</b> (the hero above): id <i>i</i> selects row <i>i</i> of the embedding matrix <i>E</i> (V &times; d = 4,096 &times; 256 in the tiny GPT), and the output layer multiplies the final hidden state by a V &times; d matrix to give one score (logit) per entry. The tiny GPT <dfn>ties</dfn> the two: the output matrix is the embedding matrix ({{Press and Wolf 2016|https://arxiv.org/abs/1608.05859}}).</p>
+<ol class="sx" id="sx-hero">
+<li><b>The text.</b> "Roxy loved to climb the icy hill.": 33 characters. The model cannot read characters; everything that follows turns them into a short list of integers and back.</li>
+<li><b>UTF-8 bytes.</b> Byte-level BPE starts from bytes, so no input is ever unknown: 33 bytes, each one of the 256 base tokens (ids 1 to 256). A non-Latin character would be 2 to 4 bytes.</li>
+<li><b>Pre-tokenize.</b> GPT-2's regex (quoted under <a href="#rd-enc">Encoding</a>) cuts the bytes into 8 chunks; a space travels with the word after it, and no merge may cross a chunk boundary.</li>
+<li><b>Merge inside each chunk.</b> The learned merges apply lowest rank first: " loved" takes five merges, " the" three (merges 1, 2 and 7). <b>Predict</b> what happens to "Roxy" before it plays: the trainer never learned a merge for it, so it stays <span class="hl">four byte tokens</span> (orange); the full stop is a single byte too. 11 tokens.</li>
+<li><b>Ids.</b> 11 integers, [50, 79, 88, 89, 505, 266, 1014, 263, 3183, 1443, 14]: 33 bytes compressed 3.0 times. These integers are all the model receives.</li>
+<li><b>Embedding rows.</b> Each id selects one row of the 4,096 &times; 256 embedding matrix, so the model's input is an 11 &times; 256 array. "Roxy"'s four rows sit in the byte region at the front; " icy" (3183) was learned late.</li>
+<li><b>Output layer, tied.</b> After the six blocks, the same matrix scores all 4,096 entries for the next token: 2Vd = 2.10M FLOPs per token. Decoding runs the other way, ids to bytes to text, exactly: decode(encode(text)) == text, which the library guarantees for byte-level BPE.</li>
+</ol>
+<p>Three things to read off Fig. 1. A leading space is part of the next token (<code>Ġloved</code> is " loved"; byte-level BPE writes the space byte as <code>Ġ</code> so that every byte has a printable character). "Roxy" costs four tokens while " climb" costs one, because merges are learned from frequency and the name is rare in TinyStories. And id 0 is <code>&lt;|endoftext|&gt;</code>, a <dfn>special token</dfn> that the setup reserved before training to separate stories.</p>
+<p><b>Where the ids go</b> (steps 6 and 7): id <i>i</i> selects row <i>i</i> of the embedding matrix <i>E</i> (V &times; d = 4,096 &times; 256 in the tiny GPT), and the output layer multiplies the final hidden state by a V &times; d matrix to give one score (logit) per entry. The tiny GPT <dfn>ties</dfn> the two: the output matrix is the embedding matrix ({{Press and Wolf 2016|https://arxiv.org/abs/1608.05859}}).</p>
 <details class="dp"><summary>The code that ran, and the tying in the tiny GPT <span class="mute">(provenance)</span></summary><div class="b">
 <p class="small">Encoding with the running example's tokenizer (<code>src/code/snippets.py</code>, Hugging Face <code>tokenizers</code> 0.23.3), with its real output:</p>
 <div class="tk-code" id="tk-snEncode"></div>
@@ -23,3 +24,4 @@
 <div class="tk-opts"><button>1, it is a whole word</button><button>2</button><button>3</button><button data-r="1">5</button></div>
 <div class="tk-ans" hidden><span class="meas">measured</span> 5: <code> r|hin|o|cer|os</code>. The running text's 874 characters become 255 tokens (3.43 characters per token), but rare words shatter: " rhinoceros" 5, " Roxy" and "Roxy" 4 each, " slippery" 3; every other word of the passage is 1 or 2 tokens. GPT-2's 50,257-entry vocabulary needs 228 tokens for the same text, Llama 3's 128,256 entries 222. A rarely seen word costs the model more positions, and the model must learn to assemble its meaning across them.</div></div>
 </section>
+</div></div>

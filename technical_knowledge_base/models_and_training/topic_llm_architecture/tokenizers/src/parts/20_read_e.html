@@ -1,12 +1,26 @@
 <section id="rd-vocab">
+<div class="s3sp"><div class="s3R"><div id="stg-voc"></div></div><div class="s3L">
 <h2>Vocabulary size: what it costs and what it buys</h2>
 <p>A larger vocabulary means fewer tokens per text (fewer tokens to run, more text per context window) and makes every token more expensive at the edges of the model: one more embedding row and one more output row per entry, and an output softmax that scores every entry. Nothing in the blocks changes. So the vocabulary matters most where the blocks are small: in small models, and in mixture-of-experts models, where few weights run per token.</p>
 <div class="tk-pr"><div class="tk-q">Predict: the tiny GPT has 4,721,920 parameters outside its embedding. If it used GPT-2's tokenizer (50,257 entries, tied, width 256) instead of the 4,096-entry one, what share of its parameters would be the embedding table?</div>
 <div class="tk-opts"><button>About 10%</button><button>About 30%</button><button>About half</button><button data-r="1">About three quarters</button></div>
 <div class="tk-ans" hidden><span class="der">derived</span> 50,257 &times; 256 = 12.87M against 4.72M: 73% of the model would be a lookup table, and the output layer would cost 25.7M FLOPs per token against 9.4M for all six blocks. With 4,096 entries the table is 1.05M (18%). That is why the setup trained its own small vocabulary (root <code>src/data/README.md</code>).</div></div>
-<div class="card" id="tk-vcCard">
+<ol class="sx" id="sx-voc">
+<li><b>The tiny GPT, 4,096 entries.</b> The table is 4,096 &times; 256 = 1.05M parameters against 4.72M in the six blocks: 18%. The running text is 255 tokens.</li>
+<li><b>The same model with GPT-2's 50,257 entries.</b> The table grows twelve times, to 12.87M: 73% of the model is a lookup table, and the output layer costs 25.7M FLOPs per token against 9.4M for all six blocks. The running text only shrinks to 228 tokens.</li>
+<li><b>Gemma 3 1B.</b> 262,144 &times; 1,152 = 302M, tied: 30% of 1.0B parameters.</li>
+<li><b>Llama 3.1 8B.</b> Untied: an input and an output table of 128,256 &times; 4,096 = 525M each, 13% of 8.03B; the output layer is 7% of the decode FLOPs.</li>
+<li><b>gpt-oss-20b, all weights.</b> Two tables of 201,088 &times; 2,880 = 579M each: 6% of 20.9B.</li>
+<li><b>gpt-oss-20b, per token.</b> Only 4 of 32 experts run per token, but both tables run every time: 28% of the 4.19B active parameters, and the output layer 16% of the decode FLOPs.</li>
+</ol>
+<p class="small mute">Fig. 4: length in proportion to parameters, one strip per model, input table on the left, output table on the right (one table when tied). <span class="der">derived</span> for the tiny GPT (V &times; 256 against its 4,721,920 other parameters); the others are the root's Config calculator results (below).</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p><b>Any small model.</b> Defaults reproduce Gemma 3 270M's published split, independently: "170 million embedding parameters ... and 100 million for our transformer blocks" ({{Google|https://developers.googleblog.com/en/introducing-gemma-3-270m/}}; 262,144 &times; 640 = 167.8M embedding parameters of 268.1M, leaving 100.3M, reproduced from its config). <b>Predict</b> the share at a 32K vocabulary and the same width, then drag.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="tk-vcCard">
 <p class="vt">In a small model the vocabulary is most of the weights</p>
-<p class="try">Defaults reproduce Gemma 3 270M's published split, independently: "170 million embedding parameters ... and 100 million for our transformer blocks" ({{Google|https://developers.googleblog.com/en/introducing-gemma-3-270m/}}; 262,144 &times; 640 = 167.8M embedding parameters of 268.1M, leaving 100.3M, reproduced from its config). <b>Predict</b> the share at a 32K vocabulary and the same width, then drag.</p>
+
 <div class="ctl">
 <label>Vocabulary <b id="tk-vcVv"></b><input type="range" id="tk-vcV" min="0" max="100" step="1"></label>
 <label>Hidden width <select id="tk-vcD"><option>576</option><option selected>640</option><option>1024</option><option>1152</option><option>2048</option><option>2880</option><option>4096</option><option>5120</option><option>7168</option></select></label>
@@ -14,19 +28,22 @@
 <label><input type="checkbox" id="tk-vcT" checked> Input and output embeddings tied</label>
 </div>
 <div class="out" id="tk-vcOut"></div>
-</div>
-<div class="card" id="tk-veCard">
-<p class="vt">Dense models: the table's share falls with size. Mixture-of-experts: it is a large share of what each token uses</p>
-<p class="try">What the input and output tables cost in the 45 configs of the root's Config calculator, three ways: share of all parameters, share of the parameters active per token, and the output layer's share of decode FLOPs per token. <b>Predict</b> what happens to gpt-oss-20b when you switch from total to active, then switch (it goes from 6% to 28%; the mixture-of-experts models are orange).</p>
-<div class="seg" id="tk-veMode"><button data-m="total" class="on">Share of total</button><button data-m="active">Share of active</button><button data-m="flops">Output layer, share of decode FLOPs</button></div>
-<div id="tk-veBars"></div>
-<p class="small mute"><span class="der">derived</span> from the {{Config calculator (on Topic: llm-architecture)|n:3fd5c17b0d0d8172b490dc9f9ac281df}}'s recorded results (<code>src/calc/out/py_results.json</code>, validated to residual 0 against the Hub's stored-tensor counts; read 2026-10-18), by <code>src/vocab/calc_embed.py</code>: tables = V &times; d, doubled when untied; vision towers and MTP layers excluded, as in the calculator; decode FLOPs at context 1 (the embedding lookup costs no FLOPs), sorted by total parameters. Share of active: the calculator's "all" accounting, embedding included, routed experts scaled by k/E.</p>
-</div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<p><b>All 45 configs.</b> What the input and output tables cost in the 45 configs of the root's Config calculator, three ways: share of all parameters, share of the parameters active per token, and the output layer's share of decode FLOPs per token. <b>Predict</b> what happens to gpt-oss-20b when you switch from total to active, then switch (it goes from 6% to 28%; the mixture-of-experts models are orange).</p>
 <p>In dense models the table's share falls with size, because it grows with width only (Qwen3-0.6B 26%, Llama 3.1 8B 13%, Llama 3.1 405B 1%). Mixture-of-experts models break the pattern: the table is a tiny share of their total weights but a large share of what each token actually uses, because only a few experts run per token while the whole output layer runs every time. In gpt-oss-20b the input and output tables are 28% of the active parameters and the output layer is 16% of the decode FLOPs per token; in DeepSeek-V3 5% and 2.5%. Whoever designs a sparse model with a 200K vocabulary pays for it on every token.</p>
 <details class="dp"><summary>Thirteen configs as a table <span class="mute">(derived)</span></summary><div class="b">
 <div class="tw" id="tk-vocCalcTab"></div>
 <p class="small mute">Table = V &times; d for the input embedding plus V &times; d for the output layer when untied. Output-layer FLOPs = 2 &times; V &times; d, as a share of the calculator's decode FLOPs per token at context 1. A 1B-parameter model with a 256K vocabulary and width 2,048, tied: 256K &times; 2,048 = 537M, about half of 1B, and an output layer of 2 &times; 256K &times; 2,048 = 1.07 GFLOPs per token, about half of the forward pass (2 GFLOPs); Gemma 3 1B is close to this (262,144 &times; 1,152 = 302M, 30% of 1.0B, from the root's Config calculator).</p>
 </div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="tk-veCard">
+<p class="vt">Dense models: the table's share falls with size. Mixture-of-experts: it is a large share of what each token uses</p>
+
+<div class="seg" id="tk-veMode"><button data-m="total" class="on">Share of total</button><button data-m="active">Share of active</button><button data-m="flops">Output layer, share of decode FLOPs</button></div>
+<div id="tk-veBars"></div>
+<p class="small mute"><span class="der">derived</span> from the {{Config calculator (on Topic: llm-architecture)|n:3fd5c17b0d0d8172b490dc9f9ac281df}}'s recorded results (<code>src/calc/out/py_results.json</code>, validated to residual 0 against the Hub's stored-tensor counts; read 2026-10-18), by <code>src/vocab/calc_embed.py</code>: tables = V &times; d, doubled when untied; vision towers and MTP layers excluded, as in the calculator; decode FLOPs at context 1 (the embedding lookup costs no FLOPs), sorted by total parameters. Share of active: the calculator's "all" accounting, embedding included, routed experts scaled by k/E.</p>
+</div></div></div></div>
 <p><b>Config vocab_size is not the tokenizer's size.</b> Configs pad the embedding matrix up to a round number so that the matmul tiles well on GPU tensor cores (<code>pad_to_multiple_of</code> in transformers); the extra rows are never produced by the tokenizer, yet still cost parameters and output FLOPs. Qwen3's config says 151,936 rows for 151,669 tokenizer entries (267 rows never used), DeepSeek-V3's 129,280 for 128,815, Llama 4's 202,048 for 201,135 <span class="meas">measured</span> (entries counted from each <code>tokenizer.json</code> with added tokens). Count <code>len(tokenizer)</code>, not the config.</p>
 <details class="dp"><summary>Where transformers pads, and a tying trap <span class="mute">(transformers 5.20.1)</span></summary><div class="b">
 <p class="small">A second trap: tying is a config flag, not a file layout. Qwen3-0.6B sets <code>tie_word_embeddings</code> true, yet its safetensors also store a separate <code>lm_head</code> (751.6M stored against 596.0M in memory; root FACTS).</p>

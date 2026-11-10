@@ -30,5 +30,5 @@
         (cur&&k>0?'<div class="tks">'+p.map((x,j)=>'<span class="tk '+(j%2?'b':'a')+'">'+show(x)+'</span>').join('')+'</div>':'')+'</div><div class="n">'+p.length+'</div></div>'});
     const p=ROWS[i][1];
     box.innerHTML='<div class="an-cnt">'+stat('Steps for the large model',p.length,ROWS[i][0])+stat('Mean bytes per step',(te.encode(S).length/p.length).toFixed(2),te.encode(S).length+' bytes in all')+stat('Saving against bytes',(100*(1-p.length/bytes.length)).toFixed(0)+'%')+'</div>'+h}
-  RD.anim({card:'tk-patch',ctl:'tk-patchCtl',n:ROWS.length,draw,ms:1800,label:'Patching scheme'});
+  RD.anim({card:'tk-patch',ctl:'tk-patchCtl',n:ROWS.length,draw,ms:3800,label:'Patching scheme',list:'sx-patch'});
 })();

@@ -69,3 +69,8 @@ Rejected in this rebuild:
 - Built: special-token traps as before/after (Qwen3 control string in user text; Gemma 3 double BOS), from the recorded ids of `code/snippets.py`. Only the first three ids of the Gemma run were recorded, so the visual shows those and the counts (11 against 10); a fuller view needs the run repeated with all ids printed (seconds on CPU, needs the tokenizer files, which are not on this machine now).
 - Moved inline: merge replay, cost plot, inspector (Grow tab); calculator, share bars, savings plot (Vocabulary size tab). The timeline stays a tab (across 41 models).
 - Rejected: an animation of the pre-tokenizer regex (the pipeline stepper's pre-tokenizer stage already shows it); a chat-template piece-by-piece diagram (Gemma's split of "user\n" was not recorded; would be unconfirmed).
+
+## 2026-11-10 (layout rollout): 3D candidates
+- Built: Fig. 1 sentence through the tokenizer (replaces hero SVG and pipeline stepper), Fig. 2 BPE trained on the running story, Fig. 3 encoding one word by rank, Fig. 4 vocabulary tables as model strips, Fig. 5 language tax as token rows. All from the page's own data and engines.
+- Kept 2D: the cost plot (log axis, two curves), the share bars (45 configs, a ranking), the timeline (log axis over dates), the arithmetic and letters results (tables of answers), every real tokenizer output (text reads best as text), the merge replay and the three trainers (reader-driven widgets).
+- Rejected: a 3D bar field of premiums (6 languages x 5 tokenizers): a heatmap reads better flat, and Fig. 5 already shows the premiums on the rows; a 3D special-token trap: the ids are a short list, text is clearer.

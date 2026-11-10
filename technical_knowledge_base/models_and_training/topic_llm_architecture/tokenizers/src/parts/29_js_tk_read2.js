@@ -1,35 +1,4 @@
-// ---- Reading tab (new parts): pipeline animation, arithmetic, trailing space, letters, glitch tokens, drills ----
-(function(){
-  if(!window.TKR||!$tk('tk-pipe'))return;
-  function $tk(i){return document.getElementById(i)}
-  const {N,piece}=TKR,{esc,fmt,chips}=TKV,P=N.pipe,W=P.words;
-  const ids=P.ids_from_library,nW=W.length,nS=3+nW+3;
-  const byteChip=b=>'<span class="tk sp" title="byte 0x'+b.toString(16).padStart(2,'0')+'">'+(b===32?'<span class="ws">␣</span>':esc(String.fromCharCode(b)))+'<sub class="small mute">'+b.toString(16).padStart(2,'0')+'</sub></span>';
-  const idsChips=a=>chips(a.map(piece));
-  function draw(i){const v=$tk('tk-pipeView'),cap=$tk('tk-pipeCap'),cnt=$tk('tk-pipeCnt');let h='',t='',p='',sym=0,mg=0;
-    const nb=W.reduce((s,w)=>s+w.bytes.length,0);
-    if(i===0){t='1. The text';p='"'+esc(P.sentence)+'": '+P.sentence.length+' characters. The model cannot read characters; everything below turns them into a short list of integers and back.';h='<div class="tk-code">'+esc(P.sentence)+'</div>';sym=P.sentence.length}
-    else if(i===1){t='2. UTF-8 bytes';p='Byte-level BPE starts from bytes, so no input is ever unknown: '+nb+' bytes, each one of the 256 base tokens (ids 1 to 256). A non-Latin character would be 2 to 4 bytes.';h='<div class="tks">'+W.flatMap(w=>w.bytes).map(byteChip).join('')+'</div>';sym=nb}
-    else if(i===2){t='3. Pre-tokenize';p='GPT-2\'s regex (quoted below) cuts the bytes into '+nW+' chunks; a space travels with the word after it, and no merge may cross a chunk boundary.';h=W.map(w=>'<div class="wrow">'+'<div class="tks">'+w.bytes.map(byteChip).join('')+'</div></div>').join('');sym=nb}
-    else if(i<3+nW){const k=i-3,w=W[k];mg=W.slice(0,k+1).reduce((s,x)=>s+x.ranks.length,0);
-      t='4. Merge inside chunk '+(k+1)+' of '+nW+': "'+esc(w.w)+'"';
-      p=w.ranks.length?'Apply learned merges lowest rank first: '+w.ranks.map(r=>'merge '+fmt(r)).join(', ')+'. '+(w.trace[w.trace.length-1].length>1?'No merge joins what is left, so the chunk ends as '+w.trace[w.trace.length-1].length+' tokens: the trainer never saw "'+esc(w.w.trim())+'" often enough.':'One token: the whole chunk is in the vocabulary.'):'No merge applies.';
-      h=W.map((x,j)=>{if(j<k)return '<div class="wrow">'+idsChips(x.trace[x.trace.length-1])+'</div>';
-        if(j>k)return '<div class="wrow" style="opacity:.5"><div class="tks">'+x.bytes.map(byteChip).join('')+'</div></div>';
-        return '<div class="wrow" style="display:block">'+x.trace.map((s,m)=>'<div style="display:flex;gap:6px;align-items:center"><span class="small mute" style="min-width:6.5em">'+(m?'merge '+fmt(x.ranks[m-1]):'bytes')+'</span>'+idsChips(s)+'</div>').join('')+'</div>'}).join('');
-      sym=W.reduce((s,x,j)=>s+(j<=k?x.trace[x.trace.length-1].length:x.bytes.length),0)}
-    else if(i===3+nW){t='5. Ids';p=ids.length+' tokens: '+nb+' bytes compressed '+(nb/ids.length).toFixed(1)+' times. These integers are all the model receives.';
-      h='<div class="tks">'+ids.map(x=>{const q=piece(x);return '<span class="tk a" style="text-align:center">'+(q.hex?'‹'+q.hex+'›':TKV.chipText(q.s))+'<br><b>'+x+'</b></span>'}).join('')+'</div>';sym=ids.length;mg=W.reduce((s,x)=>s+x.ranks.length,0)}
-    else if(i===4+nW){t='6. Embedding rows';p='Each id selects one row of the 4,096 &times; 256 embedding matrix: the model\'s input is an '+ids.length+' &times; 256 array. The same matrix, transposed, scores all 4,096 entries at the output (tied).';
-      const w=RD.width(v),H=56,x=id=>8+(w-16)*id/4096;let s='<svg viewBox="0 0 '+w+' '+H+'" width="'+w+'" height="'+H+'" role="img" aria-label="Rows selected in the embedding matrix"><rect x="8" y="14" width="'+(w-16)+'" height="20" fill="var(--soft)" stroke="var(--line)"/>';
-      ids.forEach(d=>{s+='<line x1="'+x(d).toFixed(1)+'" x2="'+x(d).toFixed(1)+'" y1="12" y2="36" stroke="var(--bad)" stroke-width="2"/>'});
-      s+='<text x="8" y="50" font-size="11" fill="var(--mute)">row 0</text><text x="'+(w-8)+'" y="50" font-size="11" text-anchor="end" fill="var(--mute)">row 4,095</text><text x="8" y="10" font-size="11" fill="var(--mute)">bytes 1 to 256 on the left, later merges to the right</text></svg>';
-      h=s;sym=ids.length;mg=W.reduce((s,x)=>s+x.ranks.length,0)}
-    else{t='7. Decode';p='Ids back to bytes back to text, exactly: decode(encode(text)) == text, which the library guarantees for byte-level BPE.';h='<div class="tk-code">'+esc(ids.map(x=>{const q=piece(x);return q.s||''}).join(''))+'</div>';sym=P.sentence.length;mg=W.reduce((s,x)=>s+x.ranks.length,0)}
-    v.innerHTML=h;cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
-    cnt.innerHTML=RD.stat('Symbols now',fmt(sym))+RD.stat('Merges applied',fmt(mg))+RD.stat('Vocabulary','4,096')}
-  RD.anim({card:'tk-pipe',ctl:'tk-pipeCtl',n:nS,draw,ms:2200,label:'Pipeline stage'});
-})();
+// ---- Reading tab (new parts): arithmetic, trailing space, letters, glitch tokens, drills (the pipeline animation became Fig. 1, 41_js_sc_hero.js, 2026-11-10) ----
 (function(){
   if(!window.TKR)return;
   const {N,pct,$}=TKR,{esc,fmt,strChips}=TKV;
