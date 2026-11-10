@@ -2,7 +2,8 @@
 
 - rb: the 48-pair STS-B batch, cosines x1000 for BERT (first-last avg) and unsup-SimCSE ([CLS]), plus the
   statistics table for every pooling.
-- ts: the 2-D toy (sphere mode): every snapshot's 200 angles as base64 bytes, and the metrics.
+- sp: the 3-D toy (sphere3 mode, 2026-11-10): every snapshot's 200 test points as x, y, z bytes (base64), and the metrics.
+  (The 2-D circle run, inputs/toy_sphere.json, is kept as a record but no longer embedded.)
 - tc: the collapse toy: metrics per snapshot and the 10 x 10 class-mean cosine matrices.
 - mae: the MAE images and masks; ij: I-JEPA-style masks on the same 14 x 14 grid, drawn with the paper's
   sampling rules (4 targets, scale 0.15-0.2, aspect 0.75-1.5; context scale 0.85-1.0, unit aspect,
@@ -12,7 +13,7 @@ Run: python3 mk_data.py
 import base64, json, math, random
 
 rb = json.load(open('inputs/real_batch.json'))
-ts = json.load(open('inputs/toy_sphere.json'))
+sp = json.load(open('inputs/toy_sphere3.json'))
 tc = json.load(open('inputs/toy_collapse.json'))
 mae = json.load(open('inputs/mae.json'))
 
@@ -26,10 +27,10 @@ RB = dict(s1=rb['batch_s1'], s2=rb['batch_s2'], gold=rb['batch_gold'],
           M=dict(bert=flat(mods['bert:first_last_avg']['batch_cos']), simcse=flat(mods['simcse:cls']['batch_cos'])),
           tbl=tbl, paper=dict(bert=59.04, bert_t5=53.87, simcse=76.85))
 
-TS = dict(steps=ts['steps'], snap_steps=ts['snap_steps'], labels=ts['test_labels'], runs={})
-for k, r in ts['runs'].items():
-    TS['runs'][k] = dict(cfg=r['cfg'], snaps=[{kk: s[kk] for kk in ('step', 'std', 'align', 'unif', 'knn', 'loss')} for s in r['snaps']],
-                         ang=[base64.b64encode(bytes(a)).decode() for a in r['kept']],
+SP = dict(steps=sp['steps'], snap_steps=sp['snap_steps'], labels=sp['test_labels'], runs={})
+for k, r in sp['runs'].items():
+    SP['runs'][k] = dict(cfg=r['cfg'], snaps=[{kk: s[kk] for kk in ('step', 'std', 'align', 'unif', 'knn', 'loss')} for s in r['snaps']],
+                         xyz=[base64.b64encode(bytes(a)).decode() for a in r['kept']],
                          fin=[{kk: s[kk] for kk in ('std', 'align', 'unif', 'knn')} for s in r['final_seeds']])
 
 TC = dict(steps=tc['steps'], snap_steps=tc['snap_steps'], raw_knn=None, runs={})
@@ -65,6 +66,6 @@ IJ = dict(targets=[sorted(r * G + c for r, c in t) for t in targets], context=so
 
 MAE = dict(cfg=mae['config'], original=mae['original'], ratios={k: dict(mask=v['mask'], loss=v['loss_masked'], nvis=v['n_visible'], visible=v['visible'], recon=v['recon'])
                                                               for k, v in mae['ratios'].items()})
-out = 'window.CSD=' + json.dumps(dict(rb=RB, ts=TS, tc=TC, mae=MAE, ij=IJ), separators=(',', ':')) + ';\n'
+out = 'window.CSD=' + json.dumps(dict(rb=RB, sp=SP, tc=TC, mae=MAE, ij=IJ), separators=(',', ':')) + ';\n'
 open('parts/20_js_data.js', 'w').write(out)
 print('20_js_data.js', len(out), 'bytes; I-JEPA context', len(IJ['context']), 'targets', [len(t) for t in IJ['targets']], 'union', len(alltg))

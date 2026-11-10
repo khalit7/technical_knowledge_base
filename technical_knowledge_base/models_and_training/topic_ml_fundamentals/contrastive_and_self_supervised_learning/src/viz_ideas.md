@@ -29,3 +29,11 @@ What the methodology lacked here: guidance for pooling conventions that share a 
 - Built: two-branch diagram toggled across six designs (static structure, toggle-compare). Inline.
 - Moved inline: One real batch (InfoNCE lab) and Collapse lab; each explained one mechanism.
 - Rejected: a stepper per design (the six differ in structure, not in order of operations); a real image of a paper figure (arXiv default licence; the MAE section already shows a real photo).
+
+## 2026-11-10 rollout (split layout, 3D stages v2)
+- Built: Fig. 1, the hero as a 3D bar field (a cosine matrix is a matrix of heights; BERT morphing into SimCSE on the same batch). Replaces the 2D heatmap and its toggle.
+- Built: Fig. 2, one anchor through InfoNCE in three rows (cosines, softmax, gradient shares), with τ raised and the SimCSE state; the gradient's distribution had no picture before.
+- Built: Fig. 3, two branches as glass plates, one step per design, with data, gradient and EMA flows and a stop-gradient slab. Replaces the 2D toggle (the 2026-10-24 note rejected a stepper because the designs differ in structure; a step per design is a comparison walk, not an order of operations).
+- Built: Fig. 4, digits on a real sphere (new `sphere3` toy run, about a minute on CPU). Replaces the 2D circle animation.
+- Kept 2D: triplet lab, InfoNCE lab, collapse lab (widgets), masking animation (the real photograph is the content), tables.
+- Rejected: a CLIP sphere of image and text embeddings (no real CLIP embeddings on the page; would need a new model run, and CLIP as an encoder is owned elsewhere); a 3D collapse bar field (the per-dimension std bars and the curve read best flat, and Fig. 4 already shows a collapse on the sphere).

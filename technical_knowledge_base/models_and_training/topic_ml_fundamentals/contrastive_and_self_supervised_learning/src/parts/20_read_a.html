@@ -27,15 +27,17 @@
 </style>
 <nav class="nav" id="rd-nav" aria-label="Sections"><a href="#cs-one">The idea</a><a href="#cs-trip">Pairs and triplets</a><a href="#cs-nce">InfoNCE</a><a href="#cs-arch">Two branches</a><a href="#cs-au">Alignment and uniformity</a><a href="#cs-col">Collapse</a><a href="#cs-mask">Masked modelling</a><a href="#cs-emb">CLIP and embeddings</a><a href="#cs-depth">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hr"></div></div><div class="s3L">
 <section id="cs-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Make the data supply its own target: <span class="hl">two views of the same thing must land close in embedding space</span>, and something must stop the trivial answer, every input mapped to one point. The methods differ only in that something: negatives pushed away (contrastive), an asymmetric pair of networks (BYOL, SimSiam, DINO), a statistic of the batch (Barlow Twins, VICReg), or predicting the hidden part of the input (MAE, I-JEPA).</p>
-<div class="hero" id="hr-card"><h4>One real batch, before and after contrastive training: the diagonal stays high, everything else falls</h4>
-<div class="seg2" id="hr-m" role="group" aria-label="Model"><button data-m="bert" class="on" aria-pressed="true">Before: BERT, masked-LM only</button><button data-m="simcse" aria-pressed="false">After: same BERT, SimCSE</button></div>
-<div class="hr-wrap"><div class="rd-svg" id="hr-svg"></div><div><div class="cnt" id="hr-cnt"></div>
-<p class="small">Rows are anchors, columns candidates: eight sentence pairs from the STS benchmark test split, each cell the real cosine between an anchor and a candidate. <b>Diagonal (outlined): the positive</b>, the anchor's own paraphrase; the pairing is the label. <b>Everything else: negatives.</b> Each row is one 8-way classification whose right answer is the diagonal. Over the full 48-pair batch, contrastive training moves the mean negative cosine from 0.60 to 0.31 while the positives stay at 0.92 and 0.91 <span class="nl m">measured</span>.</p></div></div>
-<details class="dp"><summary>The eight pairs <span class="mute">(rows and columns of the matrix)</span></summary><div class="b small" id="hr-pairs"></div></details>
-</div>
+<p>Fig. 1 is one real batch before and after contrastive training: the diagonal stays high, everything else falls.</p>
+<ol class="sx" id="sx-hr">
+<li><b>Before: BERT, masked-LM only.</b> Eight sentence pairs from the STS benchmark test split; rows are anchors, columns candidates, and each bar is the real cosine between an anchor and a candidate. Everything is high: the positives average <span data-hr="bpos">0.92</span> and the negatives <span data-hr="bneg">0.59</span>.</li>
+<li><b>The diagonal is the label.</b> Each anchor's positive (blue) is its own paraphrase; the pairing is the label, and the other seven candidates are negatives. Each row is one 8-way classification whose right answer is the diagonal: row <span data-hr="row">7</span>'s streams are as dense as a softmax at τ = 0.05 puts probability, <span data-hr="pb">96%</span> already on the positive, although candidate <span data-hr="hard">3</span> scores <span data-hr="hcos">0.76</span> against the positive's <span data-hr="rpos">0.96</span>.</li>
+<li><b>After: the same BERT, SimCSE.</b> Contrastive training lowers every negative to a mean of <span data-hr="sneg">0.28</span> while the positives stay at <span data-hr="spos">0.90</span>; row 7 now puts <span data-hr="ps">100%</span> on its positive. Over the full 48-pair batch the mean negative cosine moves from 0.60 to 0.31 while the positives stay at 0.92 and 0.91 <span class="nl m">measured</span>.</li>
+</ol>
+<details class="dp"><summary>The eight pairs <span class="mute">(rows and columns of Fig. 1)</span></summary><div class="b small" id="hr-pairs"></div></details>
 <p><b>You need:</b> softmax cross entropy and its gradient <i>p</i> &minus; <i>y</i> ({{Loss functions|n:3c65c17b0d0d8161a72bc8c572f37d55}}), cosine similarity of l2-normalised vectors, and for the masked-modelling section a ViT's patch tokens ({{ViT paper page|n:3c65c17b0d0d811fa231cfcde6c1954d}}). The parent ({{Topic: ml-fundamentals|n:3c65c17b0d0d81d796ccc0a293218c57}}, "Beyond one network" and "Everything is cross entropy") places this paradigm beside supervised training; this page owns the mechanisms.</p>
 <dl class="terms">
 <dt>View</dt><dd>one augmented version of an input (a crop with colour jitter, the same sentence through dropout); two views of one input form a positive pair.</dd>
@@ -46,6 +48,11 @@
 <dt>EMA, momentum encoder</dt><dd>a copy of the network whose weights are an exponential moving average of the trained one; it gets no gradient.</dd>
 <dt>Stop-gradient</dt><dd>treating one branch's output as a constant target (<code>detach()</code>), so the gradient flows through the other branch only.</dd>
 </dl>
+</section>
+</div></div>
+
+<section id="cs-fam">
+<h3>The five families in one table</h3>
 <div class="tw"><table class="choose">
 <tr><th>Family</th><th>Positive pair, or target</th><th>What stops a constant output</th><th>Landmarks</th></tr>
 <tr><td>Contrastive</td><td>two views of one input; an image and its caption</td><td>negatives: the rest of the batch, a memory bank or a queue</td><td>CPC 2018, SimCLR 2020, MoCo 2019, CLIP 2021, SimCSE 2021</td></tr>
@@ -57,6 +64,7 @@
 <p class="small mute">Dates are first arXiv versions; each method is sourced where it is described below; the family tree in the closed Depth section puts them on one time axis.</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="cs-trip">
 <h2>Pairs and triplets: the margin losses</h2>
 <p>Early self-supervision invented <b>pretext tasks</b> whose answer the data already holds (which rotation was applied, where a patch sits, how to unshuffle a jigsaw); the features were good only insofar as the proxy needed them. <b>Instance discrimination</b> (<a href="https://arxiv.org/abs/1805.01978" target="_blank" rel="noopener noreferrer">Wu et al. 2018</a>) made the geometry itself the goal: treat every image as its own class, keep each image's feature in a memory bank rather than a classifier's weights, and use noise-contrastive estimation to cope with a million classes. The losses that state the geometry are older.</p>
@@ -66,7 +74,10 @@
 <dl><dt>&alpha;</dt><dd>the margin the negative must clear beyond the positive; "The margin α is set to 0.2" (§3.3)</dd><dt>d<sub>ap</sub>, d<sub>an</sub></dt><dd>the two squared distances; on unit vectors &#8214;<i>u</i> &minus; <i>v</i>&#8214;<sup>2</sup> = 2 &minus; 2 cos(<i>u</i>, <i>v</i>)</dd></dl></div>
 <p>A triplet already separated by the margin contributes nothing, neither loss nor gradient. So the loss lives or dies by which negatives it sees. FaceNet names three kinds: <b>hard</b> (closer than the positive), <b>semi-hard</b> ("further away from the anchor than the positive exemplar, but still hard because the squared distance is close to the anchor-positive distance. Those negatives lie inside the margin α", §3.2) and <b>easy</b> (beyond the margin). It mines them online inside mini-batches of "around 1,800 exemplars" with "around 40 faces" per identity, and picks semi-hard ones because "Selecting the hardest negatives can in practice lead to bad local minima early on in training, specifically it can result in a collapsed model (i.e. f(x) = 0)". The result was 99.63% on LFW and 95.12% on YouTube Faces.</p>
 <p class="pred"><b>Predict:</b> with FaceNet's margin of 0.2, how many of this batch's 2,256 triplets (48 anchors, 47 negatives each) still contribute anything, before and after contrastive training? Then move the margin.</p>
-<div class="card" id="tr-card"><h4>Most triplets are already satisfied: only negatives inside the margin get a gradient</h4>
+<p>Two lessons carry over to everything below. A hinge spends its gradient on a handful of triplets and none on the rest, so it needs mining and big pools of candidates. And pushing hardest on the closest negatives can collapse the embedding. InfoNCE answers the first by scoring one positive against <i>all</i> the negatives at once, each weighted by a softmax; as τ &rarr; 0 it becomes max(0, max<sub><i>j</i></sub> <i>s<sub>ij</sub></i> &minus; <i>s<sub>ii</sub></i>)/τ, a margin-free hinge on the hardest negative alone <span class="nl d">derived</span>. Listwise ranking losses are the same softmax over a list: with one relevant item ListNet's top-one loss is InfoNCE ({{Loss functions, "Ranking losses"|n:3c65c17b0d0d8161a72bc8c572f37d55}}).</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="tr-card"><h4>Most triplets are already satisfied: only negatives inside the margin get a gradient</h4>
 <div class="seg2" id="tr-m" role="group" aria-label="Model"><button data-m="bert" class="on" aria-pressed="true">BERT</button><button data-m="simcse" aria-pressed="false">After SimCSE</button></div>
 <div class="tr-ctl"><label>Anchor <b id="tr-an"></b><input type="range" id="tr-a" min="1" max="48" value="31" aria-label="Anchor"></label><label>Margin &alpha; = <b id="tr-av"></b><input type="range" id="tr-al" min="0" max="100" value="20" aria-label="Margin"></label></div>
 <p class="small" id="tr-as" style="margin:2px 0"></p>
@@ -74,6 +85,4 @@
 <div class="lg"><span><i class="zl" style="background:var(--bad);opacity:.35"></i>hard: closer than the positive</span><span><i class="zl" style="background:var(--c5);opacity:.45"></i>semi-hard: inside the margin</span><span><i class="zl" style="background:var(--soft);border:1px solid var(--line)"></i>easy: no loss, no gradient</span><span><i class="zl" style="background:var(--c3)"></i>the positive</span></div>
 <div class="cnt" id="tr-cnt"></div>
 <p class="small mute">Squared distances 2 &minus; 2 cos from the real cosines of the 48-pair batch (BERT first-last average pooling; SimCSE [CLS]), computed in the page. At &alpha; = 0.2, 21 of 2,256 triplets are active under BERT (1 hard, 20 semi-hard) and 1 after SimCSE, the false negative of anchor 31 below; at &alpha; = 0.8, 1,825 and 153 <span class="nl d">derived</span>. Recomputed in <code>src/recompute.py</code>.</p>
-</div>
-<p>Two lessons carry over to everything below. A hinge spends its gradient on a handful of triplets and none on the rest, so it needs mining and big pools of candidates. And pushing hardest on the closest negatives can collapse the embedding. InfoNCE answers the first by scoring one positive against <i>all</i> the negatives at once, each weighted by a softmax; as τ &rarr; 0 it becomes max(0, max<sub><i>j</i></sub> <i>s<sub>ij</sub></i> &minus; <i>s<sub>ii</sub></i>)/τ, a margin-free hinge on the hardest negative alone <span class="nl d">derived</span>. Listwise ranking losses are the same softmax over a list: with one relevant item ListNet's top-one loss is InfoNCE ({{Loss functions, "Ranking losses"|n:3c65c17b0d0d8161a72bc8c572f37d55}}).</p>
-</section>
+</div></div></div></div>

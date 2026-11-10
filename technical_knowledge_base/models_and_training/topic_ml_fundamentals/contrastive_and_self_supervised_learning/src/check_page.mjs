@@ -1,9 +1,10 @@
-// Exercise every control on the built page, all in the Reading tab: the hero's model switch, the triplet lab (model,
-// anchor, margin; its batch counts against recompute.py), the InfoNCE lab (sliders, model switch, symmetric box, row
-// clicks), the two-branch diagram's six designs, the circle animation, the masking animation (MAE at three ratios,
-// I-JEPA), every collapse-lab pair through every snapshot, and the family-tree chips. Checks that nothing plays before
-// the reader acts (also under reduced motion); fails on any script error, NaN, undefined or Infinity in visible text,
-// or sideways scroll. usage: node src/check_page.mjs (needs html_utils/node_modules)
+// Exercise every control on the built page, all in the Reading tab: the triplet lab (model, anchor, margin; its batch
+// counts against recompute.py), the InfoNCE lab (sliders, model switch, symmetric box, row clicks), the four 3D stages'
+// step lists (hero, InfoNCE, two branches, sphere with its temperature toggle), the masking animation (MAE at three
+// ratios, I-JEPA), every collapse-lab pair through every snapshot, and the family-tree chips. Motion (2026-11-10, the
+// rollout): the masking animation plays when scrolled into view except under reduced motion; the collapse lab is a widget
+// that never moves by itself (check_stages.mjs checks the stages' autoplay in full). Fails on any script error, NaN,
+// undefined or Infinity in visible text, or sideways scroll. usage: node src/check_page.mjs (needs html_utils/node_modules)
 import { createRequire } from 'module'; import path from 'path'; import { fileURLToPath } from 'url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.resolve(HERE, '../../../../../html_utils/package.json'));
@@ -24,9 +25,11 @@ for (const w of [390, 920]) {
   // nothing moves before the reader acts: every animation still on its first step after scrolling through
   await p.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 120)) } scrollTo(0, 0) });
   await new Promise(r => setTimeout(r, 1500));
-  for (const id of ['sp-ctl', 'mk-ctl', 'cl-ctl']) { const v = await p.evaluate(id => document.getElementById(id + '-s').value, id); checks++; if (v !== '0') errs.push(w + ' ' + id + ' moved by itself to step ' + v) }
+  // the collapse lab is a widget: still on its opening (last) snapshot; the masking animation: on step 0 under reduced motion, moved otherwise
+  { const v = await p.evaluate(() => document.getElementById('cl-ctl-s').value); checks++; if (v !== '15') errs.push(w + ' collapse widget moved by itself to ' + v) }
+  { const v = await p.evaluate(() => document.getElementById('mk-ctl-s').value), rm = w === 390; checks++; if (rm ? v !== '0' : false) errs.push(w + ' masking animation moved under reduced motion to ' + v) }
   const side = async (where) => { checks++; if (await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)) errs.push(w + ' ' + where + ': sideways scroll') };
-  for (const m of ['bert', 'simcse']) { await p.evaluate(m => document.querySelector('#hr-m [data-m="' + m + '"]').click(), m); await bad('hero ' + m) }
+  for (const lid of ['sx-hr', 'sx-nce', 'sx-ar', 'sx-sp']) { const n = await p.$eval('#' + lid, e => e.children.length); for (let i = 0; i < n; i++) await p.evaluate((lid, i) => document.getElementById(lid).children[i].click(), lid, i); await bad('stage list ' + lid); await side('stage ' + lid) }
   // triplet lab: batch counts must match recompute.py
   const want = { 'bert 0.2': 21, 'simcse 0.2': 1, 'bert 0.8': 1825, 'simcse 0.8': 153 };
   for (const k in want) { const [m, a] = k.split(' '); const got = await p.evaluate((m, a) => CS_TRIP(m, +a).active, m, a); checks++; if (got !== want[k]) errs.push('triplet active ' + k + ' = ' + got + ', want ' + want[k]) }
@@ -49,8 +52,7 @@ for (const w of [390, 920]) {
   }
   await p.evaluate(() => { const s = document.querySelector('#rb-hm svg'), r = s.getBoundingClientRect(); s.dispatchEvent(new MouseEvent('click', { clientX: r.left + 5, clientY: r.bottom - 2, bubbles: true })) });
   const ai = await p.evaluate(() => document.getElementById('rb-ai').textContent); if (!ai.startsWith('48')) errs.push(w + ' row click gave ' + ai); await bad('row click');
-  for (const m of ['simclr', 'moco', 'byol', 'simsiam', 'dino', 'vicreg']) { await p.evaluate(m => document.querySelector('#ar-seg [data-m="' + m + '"]').click(), m); await bad('arch ' + m); await side('arch ' + m) }
-  for (const k of ['infonce_t05', 'infonce']) { await p.evaluate(k => document.querySelector('#sp-seg [data-k="' + k + '"]').click(), k); await fwd('sp-ctl', 24); await bad('sphere ' + k) }
+  for (const k of ['infonce', 'infonce_t05']) { await p.evaluate(k => document.querySelector('#spM [data-k="' + k + '"]').click(), k); for (let i = 0; i < 4; i++) await p.evaluate(i => document.getElementById('sx-sp').children[i].click(), i); await bad('sphere ' + k) }
   for (const r of ['0.5', '0.75', '0.9']) { await p.evaluate(r => { document.querySelector('#mk-m [data-v="mae"]').click(); document.querySelector('#mk-r [data-v="' + r + '"]').click() }, r); await fwd('mk-ctl', 6); await bad('mae ' + r) }
   await p.evaluate(() => document.querySelector('#mk-m [data-v="ij"]').click()); await fwd('mk-ctl', 6); await bad('ijepa');
   const np = await p.$$eval('#cl-pair button', a => a.length);

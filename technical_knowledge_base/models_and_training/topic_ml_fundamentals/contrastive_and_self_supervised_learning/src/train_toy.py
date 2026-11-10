@@ -6,6 +6,9 @@ steps of training. Two modes:
   sphere    encoder MLP 64-256-256-2 (no BatchNorm), l2-normalised output = a point on the circle.
             Runs: InfoNCE at tau 0.2 and 0.5, positives only. Stores every test point's angle per snapshot
             (one byte) for the alignment and uniformity view (Wang and Isola 2020).
+  sphere3   the same with a 3-D output (64-256-256-3), so every test digit is a point on the unit sphere;
+            stores each point's x, y, z per snapshot as one byte each (round(127 v) + 128). Added 2026-11-10
+            for the page's 3D stage; writes inputs/toy_sphere3.json.
   collapse  encoder MLP 64-256-256-16 with BatchNorm (SimSiam's projector layout, scaled down), the same
             encoder for every objective: InfoNCE, positives only, SimSiam (with and without stop-gradient,
             without predictor), BYOL, DINO (with and without centering or sharpening), VICReg (with and
@@ -17,7 +20,7 @@ effective rank (exp of the entropy of the normalised singular values, Roy and Ve
 (E||f(x)-f(x+)||^2 over two fresh augmentations) and uniformity (log E exp(-2||f(x)-f(y)||^2)), 5-NN accuracy
 (leave one out, cosine). Three seeds per run; snapshots kept for seed 0, final metrics for all seeds.
 
-Run:  OMP_NUM_THREADS=2 uv run --with torch --with scikit-learn --with numpy python train_toy.py sphere|collapse [steps] [only]
+Run:  OMP_NUM_THREADS=2 uv run --with torch --with scikit-learn --with numpy python train_toy.py sphere|sphere3|collapse [steps] [only]
 Writes inputs/toy_sphere.json or inputs/toy_collapse.json.
 """
 import json, math, sys, time
@@ -30,9 +33,9 @@ MODE = sys.argv[1]
 STEPS = int(sys.argv[2]) if len(sys.argv) > 2 else 3000
 ONLY = sys.argv[3].split(',') if len(sys.argv) > 3 else None
 BATCH = 256
-NSNAP = 24 if MODE == 'sphere' else 16
+NSNAP = 24 if MODE.startswith('sphere') else 16
 SNAP = sorted(set([0] + [int(round(x)) for x in np.geomspace(5, STEPS, NSNAP - 1)]))
-D = 2 if MODE == 'sphere' else 16
+D = {'sphere': 2, 'sphere3': 3}.get(MODE, 16)
 BN = MODE == 'collapse'
 K = 32  # DINO prototypes
 
@@ -146,7 +149,9 @@ def run(cfg, seed, keep):
                 t_enc.train()
             snaps.append(rec)
             if keep:
-                if MODE == 'sphere':
+                if MODE == 'sphere3':
+                    kept.append([int(round(v * 127)) + 128 for v in z.numpy().ravel().tolist()])
+                elif MODE == 'sphere':
                     ang = torch.atan2(z[:, 1], z[:, 0]).numpy()
                     kept.append([int(round((a % (2 * math.pi)) / (2 * math.pi) * 256)) % 256 for a in ang])
                 else:  # class-mean cosine matrix (10 x 10, diagonal over distinct pairs), upper triangle, x1000
@@ -199,7 +204,7 @@ def run(cfg, seed, keep):
 
 
 def main():
-    runs = SPHERE_RUNS if MODE == 'sphere' else COLLAPSE_RUNS
+    runs = SPHERE_RUNS if MODE.startswith('sphere') else COLLAPSE_RUNS
     out = dict(mode=MODE, steps=STEPS, batch=BATCH, dim=D, snap_steps=SNAP, test_labels=Yte.tolist(),
                show_idx=SHOW.tolist(), runs={})
     t0 = time.time()
