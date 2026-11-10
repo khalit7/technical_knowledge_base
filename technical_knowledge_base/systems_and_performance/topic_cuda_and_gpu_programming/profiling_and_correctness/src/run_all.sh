@@ -18,3 +18,4 @@ sh build.sh
 node check/check_js.mjs
 python3 check/check_embed.py
 (cd ../../../../.. && node technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness/src/check/check_page.mjs "${SHOTS:-/tmp/prof_shots}")
+(cd ../../../../.. && node technical_knowledge_base/systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness/src/check/check_stages.mjs "${SHOTS:-/tmp/prof_shots}")

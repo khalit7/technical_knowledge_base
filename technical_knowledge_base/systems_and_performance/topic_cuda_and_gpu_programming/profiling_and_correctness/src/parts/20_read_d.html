@@ -9,26 +9,46 @@ ncu --import sm.ncu-rep --page details                          <span class="c">
 ncu --nvtx --nvtx-include "step/" ...                           <span class="c"># only kernels inside an NVTX range</span></pre>
 <p>Flags from <code>ncu --help</code> (2026.3.1): <code>-k</code> takes an exact name or <code>regex:</code>; <code>-c</code> limits the number of profiled launches; without <code>--set</code> the <b>basic</b> set is collected (LaunchStats, Occupancy, SpeedOfLight, WorkloadDistribution: an estimated <span data-v="set_basic">229</span> metrics), while <b>full</b> is an estimated <span data-v="set_full">9,059</span> metrics in <span data-v="set_full_n">24</span> sections (<code>ncu --list-sets</code>). Compile with <code>-lineinfo</code> and add <code>--import-source on</code> to see metrics per line of your source. A Python API for reports ships in <code>extras/python/ncu_report.py</code>.</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3R"><div id="stg-walk"></div></div><div class="s3L">
+<section id="rd-s4w">
 <h3>Read a report top-down: three real before-and-after pairs</h3>
-<p>The <dfn>Speed of Light</dfn> (SOL) section comes first: "for each unit, the throughput reports the achieved percentage of utilization with respect to the theoretical maximum", and its two headline numbers are the highest such percentage among the compute units (<b>Compute (SM)</b>) and among the memory units (<b>Memory</b>). They place the kernel: memory high and compute low is <b>memory-bound</b> (move fewer bytes); compute high is <b>compute-bound</b> (cheaper instructions, tensor cores, lower precision); both low is <b>latency-bound</b> (too few warps, stalls, a tail of idle SMs, or a tiny kernel). Then follow the section the numbers point to. Step through NVIDIA's three sample pairs in that order, with the tool's real numbers:</p>
-<div class="card" id="rd-walk-card">
-<div class="seg" id="rd-walk-seg"><button data-m="0" class="on">Uncoalesced loads</button><button data-m="1">Bank conflicts</button><button data-m="2">double against float</button></div>
-<div class="rd-chart" id="rd-walk-svg"></div>
-<div class="an-ctl" id="rd-walk-ctl"></div>
-<div class="an-cap" id="rd-walk-cap"></div>
-<div class="an-cnt" id="rd-walk-cnt"></div>
+<p>The <dfn>Speed of Light</dfn> (SOL) section comes first: "for each unit, the throughput reports the achieved percentage of utilization with respect to the theoretical maximum", and its two headline numbers are the highest such percentage among the compute units (<b>Compute (SM)</b>) and among the memory units (<b>Memory</b>). They place the kernel: memory high and compute low is <b>memory-bound</b> (move fewer bytes); compute high is <b>compute-bound</b> (cheaper instructions, tensor cores, lower precision); both low is <b>latency-bound</b> (too few warps, stalls, a tail of idle SMs, or a tiny kernel). Then follow the section the numbers point to. Fig. 2 walks NVIDIA's three sample pairs in that order with the tool's real numbers: the slow kernel's columns in orange, NVIDIA's fixed kernel's in green beside them, the rule's estimate as a purple ghost.</p>
+<div class="s3chips" id="rd-walk-mode"><button data-m="0" class="on">Uncoalesced loads</button><button data-m="1">Bank conflicts</button><button data-m="2">double against float</button></div>
+<ol class="sx" id="sx-wk-0">
+<li><b>Duration first.</b> <code>addConstDouble3</code> took <span data-v="wk0_db">89.86</span> &micro;s (<code>gpu__time_duration.sum</code>).</li>
+<li><b>Speed of Light: which unit is closest to its peak?</b> Compute (SM) <span data-v="wk0_cb">30.2</span>%, Memory <span data-v="wk0_mb">88.4</span>%, against the glass ceiling at 100%: memory-bound.</li>
+<li><b>Follow the section the numbers point to.</b> Memory Workload Analysis: <span data-v="wk0_eb">24.0</span> sectors per global load request, where 8-byte loads by 32 lanes need 8.</li>
+<li><b>What the guided analysis says.</b> The Source Counters rule: "uncoalesced global accesses resulting in a total of 3145728 excessive sectors (67% of the total 4718592 sectors)", Est. Speedup <span data-v="wk0_est">64.67</span>%. The ghost is the duration that predicts: <span data-v="wk0_ghost">31.75</span> &micro;s.</li>
+<li><b>Change one thing.</b> Treat the array of double3 as a plain array of doubles: each thread loads one 8-byte value instead of three loads 24 bytes apart (<code>d_out[i] = d_in[i] + k</code> over 3N threads).</li>
+<li><b>Profile again.</b> <code>addConstDouble</code> took <span data-v="wk0_da">89.73</span> &micro;s; Compute <span data-v="wk0_ca">31.0</span>%, Memory <span data-v="wk0_ma">90.6</span>%; <span data-v="wk0_ea">8.0</span> sectors per request.</li>
+<li><b>Verdict: estimate against the clock.</b> Estimated <span data-v="wk0_est">64.67</span>% less time; measured <span data-v="wk0_gain">0.14</span>%. The sectors fell to the ideal and the time did not move.</li>
+</ol>
+<ol class="sx" id="sx-wk-1" hidden>
+<li><b>Duration first.</b> <code>transposeCoalesced</code> took <span data-v="wk1_db">1,420</span> &micro;s.</li>
+<li><b>Speed of Light: which unit is closest to its peak?</b> Compute (SM) <span data-v="wk1_cb">22.6</span>%, Memory <span data-v="wk1_mb">90.2</span>%: memory-bound.</li>
+<li><b>Follow the section the numbers point to.</b> Memory Workload Analysis Tables: bank conflicts are <span data-v="wk1_eb">96.4%</span> of the shared-load wavefronts (ideal 0%).</li>
+<li><b>What the guided analysis says.</b> "On average a 32.2 - way bank conflict across all 2097152 shared load requests", Est. Speedup <span data-v="wk1_est">87.21</span>%: a predicted <span data-v="wk1_ghost">181.62</span> &micro;s.</li>
+<li><b>Change one thing.</b> Pad the shared tile by one column: <code>__shared__ float tile[32][32]</code> becomes <code>tile[32][33]</code>, so a column of the tile falls in 32 different banks.</li>
+<li><b>Profile again.</b> <code>transposeNoBankConflicts</code> took <span data-v="wk1_da">997.63</span> &micro;s; Compute <span data-v="wk1_ca">32.4</span>%, Memory <span data-v="wk1_ma">88.7</span>%; conflicts <span data-v="wk1_ea">0.0%</span>.</li>
+<li><b>Verdict: estimate against the clock.</b> Estimated <span data-v="wk1_est">87.21</span>% less time; measured <span data-v="wk1_gain">29.7</span>% (<span data-v="wk1_x">1.42</span>&times;): a real gain, far from the promise.</li>
+</ol>
+<ol class="sx" id="sx-wk-2" hidden>
+<li><b>Duration first.</b> <code>Sobel&lt;double&gt;</code> took <span data-v="wk2_db">628.03</span> &micro;s.</li>
+<li><b>Speed of Light: which unit is closest to its peak?</b> Compute (SM) <span data-v="wk2_cb">85.3</span>%, Memory <span data-v="wk2_mb">2.0</span>%: compute-bound.</li>
+<li><b>Follow the section the numbers point to.</b> Compute Workload Analysis: the FP64 pipe is busy <span data-v="wk2_eb">86.4%</span> of active cycles, and this GPU runs FP64 at 1/64 of FP32.</li>
+<li><b>What the guided analysis says.</b> "FP64 is the highest-utilized pipeline (86.4%)"; "the pipeline is over-utilized and likely a performance bottleneck". No speedup estimate is given, so there is no ghost.</li>
+<li><b>Change one thing.</b> Compute the Sobel filter in <code>float</code> instead of <code>double</code> (<code>Sobel&lt;double&gt;</code> to <code>Sobel&lt;float&gt;</code>): the report notes this GPU's FP32 to FP64 peak ratio is 64:1.</li>
+<li><b>Profile again.</b> <code>Sobel&lt;float&gt;</code> took <span data-v="wk2_da">31.87</span> &micro;s; Compute <span data-v="wk2_ca">77.7</span>%, Memory <span data-v="wk2_ma">46.4</span>%; FP64 pipe <span data-v="wk2_ea">0.0%</span>.</li>
+<li><b>Verdict: the clock.</b> <span data-v="wk2_gain">94.9</span>% less time (<span data-v="wk2_x">19.71</span>&times;), the largest gain of the three, from the one rule that gave no estimate.</li>
+</ol>
 <p class="small mute"><span class="der">real tool, NVIDIA's reports</span>: values printed by <code>ncu --import ... --page details</code> (Nsight Compute 2026.3.1) from the six <code>.ncu-rep</code> files in <code>extras/samples</code>, profiled by NVIDIA on an RTX A4500 (56 SMs, compute capability 8.6) with <code>--set full</code>. The {{Report reader|#t-ncu}} tab shows every section of all six.</p>
-</div>
 <div class="co key"><div class="t">The lesson of the first pair: the rules are hypotheses</div>Nsight Compute's guided analysis estimated a <b><span data-v="w0_est">64.67</span>%</b> speedup from fixing the uncoalesced loads of <code>addConstDouble3</code>. NVIDIA's fixed kernel took <b><span data-v="w0_b">89.86</span> &micro;s</b> before and <b><span data-v="w0_a">89.73</span> &micro;s</b> after (64.67% estimated, 0.14% measured): both kernels move the same bytes from DRAM, and DRAM was the limit, so the extra L1 sectors cost nothing. For the transpose the estimate was <span data-v="w1_est">87.21</span>% and the real gain <span data-v="w1_gain">29.7</span>% less time. The rules point at where to look; the clock decides. This is the old page's "trust it as a hypothesis generator" confirmed with NVIDIA's own data.</div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s4o">
 <h3>Occupancy and warp stalls: where a warp's cycles go</h3>
 <p>Each SM sub-partition's scheduler can issue one instruction per cycle from any <i>eligible</i> warp. A warp is <dfn>stalled</dfn> when its next instruction cannot go, and the Warp State section splits each warp's cycles between issued instructions by reason. Stalls only cost time when no warp is eligible, so read them together with <b>achieved occupancy</b> (how many warps were there to hide them) and the issue rate. The same before-and-after pairs:</p>
-<div class="card" id="rd-stall-card">
-<div class="seg" id="rd-stall-seg"><button data-m="0">Uncoalesced loads</button><button data-m="1" class="on">Bank conflicts</button><button data-m="2">double against float</button></div>
-<div class="rd-chart" id="rd-stall-svg"></div>
-<div class="stleg" id="rd-stall-leg"></div>
-<div class="an-cnt" id="rd-stall-cnt"></div>
-<p class="small mute"><span class="der">real tool, NVIDIA's reports</span>: "Warp Cycles Per Issued Instruction" and the "Warp State (All Cycles)" table of each report, first 10 reasons (the rest, under half a cycle, is shown as other); occupancy from the Occupancy section. The transpose with bank conflicts spent 83.8 of 158.5 cycles per instruction in MIO throttle; padding the tile removed it. In the Sobel pair achieved occupancy fell from 95.5% to 83.8% while cycles per issued instruction fell from 280 to 11.9: occupancy is a means, not the goal.</p>
-</div>
 <ul>
 <li><b>Long scoreboard</b>: waiting for data from L1, L2 or DRAM; a memory-latency problem (more warps or loads in flight, fewer loads).</li>
 <li><b>MIO throttle</b> and <b>short scoreboard</b>: mostly shared-memory or special-function pressure (the bank-conflict pair). <b>Tex throttle</b>: the texture/L1 queue is full (the Sobel <code>double</code> kernel).</li>
@@ -37,6 +57,15 @@ ncu --nvtx --nvtx-include "step/" ...                           <span class="c">
 <li><b>Memory throughput</b> (<code>gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed</code>, shown as "DRAM Throughput"): near its peak, the kernel is done unless it can move fewer bytes.</li>
 </ul>
 <p class="small">The scoreboards are real bits in every SASS instruction: which instruction sets one and which waits on it is decoded in section 4 of {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}} ("The bits nobody prints"), with its scoreboard replay.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-stall-card"><h4>What a warp waited for, before and after the fix</h4>
+<div class="seg" id="rd-stall-seg"><button data-m="0">Uncoalesced loads</button><button data-m="1" class="on">Bank conflicts</button><button data-m="2">double against float</button></div>
+<div class="rd-chart" id="rd-stall-svg"></div>
+<div class="stleg" id="rd-stall-leg"></div>
+<div class="an-cnt" id="rd-stall-cnt"></div>
+<p class="small mute"><span class="der">real tool, NVIDIA's reports</span>: "Warp Cycles Per Issued Instruction" and the "Warp State (All Cycles)" table of each report, first 10 reasons (the rest, under half a cycle, is shown as other); occupancy from the Occupancy section. The transpose with bank conflicts spent 83.8 of 158.5 cycles per instruction in MIO throttle; padding the tile removed it. In the Sobel pair achieved occupancy fell from 95.5% to 83.8% while cycles per issued instruction fell from 280 to 11.9: occupancy is a means, not the goal.</p>
+</div></div></div></div>
+<section id="rd-s4m">
 <details class="dp"><summary>Metric names, and which metric answers which question <span class="mute">(reference table)</span></summary><div class="b">
 <p>Every metric is <code>unit__counter.rollup.submetric</code>: the hardware unit, what is counted, how the instances of the unit are combined (<code>.sum</code>, <code>.avg</code>, <code>.min</code>, <code>.max</code> over all SMs or all L2 slices), and an optional view (<code>.per_second</code>, <code>.pct_of_peak_sustained_elapsed</code>, ...). "Throughput metrics return the maximum percentage value of their constituent counters" ({{Profiling Guide, metrics structure|https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html}}). Click the parts:</p>
 <div class="anat" id="rd-anat"></div>

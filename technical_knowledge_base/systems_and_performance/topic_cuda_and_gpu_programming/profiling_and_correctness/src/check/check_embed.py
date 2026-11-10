@@ -82,11 +82,17 @@ for text, got, want in claims:
 # defaults of assert_close quoted in the Numerics lab
 for k, v in (("float32 1.3e-6 and 1e-5", NU["assert_close_defaults"]["float32"]), ("bfloat16 0.016 and 1e-5", NU["assert_close_defaults"]["bfloat16"]), ("float16 0.001 and 1e-5", NU["assert_close_defaults"]["float16"])):
     ok(k in PAGE and float(k.split()[1]) == v[0] and float(k.split()[3]) == v[1], "tolerance text " + k)
-# privacy
+# privacy across the page and everything in its folder (2026-11-10): the login name (looked up here at run time, case-sensitive,
+# never written down), this machine's hostname, home paths, private patterns and IPv4 addresses. The one address allowed is the
+# loopback 127.0.0.1, which appears in NVIDIA's own sample reports (the profiled process's host) and in ncu --help.
+import getpass, socket
 U = "Us" + "ers"
 pat = re.compile(U + "/|" + U + "-|gl" + "pat|sk" + "-ant|/private" + "/tmp")
-ok(not pat.search(PAGE), "private pattern in index.html")
-for root, dirs, files in os.walk(SRC):
+who, host = getpass.getuser(), socket.gethostname()
+ipv4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+hits = []
+for root, dirs, files in os.walk(os.path.join(SRC, "..")):
+    dirs[:] = [x for x in dirs if x not in (".shots", "__pycache__", "node_modules")]
     for fn in files:
         p = os.path.join(root, fn)
         try:
@@ -95,6 +101,11 @@ for root, dirs, files in os.walk(SRC):
             continue
         if fn == "check_embed.py":
             continue
-        ok(not pat.search(txt), "private pattern in " + os.path.relpath(p, SRC))
+        ips = [m for m in ipv4.findall(txt) if m != "127.0.0.1"]
+        for what, found in (("login name", who and re.search(r"\b" + re.escape(who) + r"\b", txt)), ("hostname", host and host in txt),
+                            ("home path", "/home/" in txt), ("private pattern", pat.search(txt)), ("IPv4 address", ips)):
+            if found:
+                hits.append("%s in %s" % (what, os.path.relpath(p, os.path.join(SRC, ".."))))
+ok(not hits, "no login name, hostname, home path, private pattern or IP address in the page folder" + (": " + "; ".join(hits[:6]) if hits else ""))
 print("check_embed:", "ok" if not fail else "%d failures" % fail, "(%d prose claims)" % len(claims))
 sys.exit(1 if fail else 0)

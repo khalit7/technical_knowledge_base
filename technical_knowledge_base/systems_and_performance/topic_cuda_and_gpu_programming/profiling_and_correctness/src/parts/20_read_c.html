@@ -7,11 +7,10 @@
 <tr><td>Output</td><td><code>.nsys-rep</code>, GUI, <code>nsys stats</code> tables</td><td>Chrome/Perfetto JSON trace, TensorBoard, <code>key_averages()</code> tables</td><td><code>.ncu-rep</code>, GUI, <code>--page details</code> text</td></tr>
 <tr><td>Run here?</td><td><span class="vend">docs only</span></td><td><span class="meas">yes, CPU and MPS</span></td><td><span class="der">reads NVIDIA's reports</span></td></tr>
 </tbody></table></div>
-
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s3t">
 <h3>Reading a timeline: six shapes and what they mean</h3>
-<div class="card" id="rd-sym-card">
-<div class="rd-chart" id="rd-sym-svg"></div>
-<p class="small mute"><span class="der">illustrative shapes, not a measured trace</span>: rows as Nsight Systems and Perfetto draw them, one step on the time axis. Pick a row of the table to draw its shape; the red bracket marks what to notice.</p>
+<p>Most timelines that need work look like one of six shapes. Pick a row to draw its shape on the right:</p>
 <div class="tw"><table class="tbl-sm symp sel" id="rd-sym-tab"><thead><tr><th>On the timeline you see</th><th>It usually means</th><th>Try</th></tr></thead><tbody>
 <tr data-k="0" tabindex="0" class="on"><td>Gaps between kernels on the GPU row; the CPU row is solid</td><td>CPU-bound or launch-bound: Python and launch overhead cannot keep the queue full</td><td>bigger batches, <code>torch.compile</code> (fewer, fused kernels), {{CUDA graphs|n:3f05c17b0d0d81b19a6acab65c370b75}}</td></tr>
 <tr data-k="1" tabindex="0"><td>A <code>cudaStreamSynchronize</code> or <code>cudaMemcpy</code> blocking the CPU mid-step</td><td>a hidden synchronise: <code>.item()</code>, <code>.cpu()</code>, a data-dependent shape</td><td>move logging out of the hot loop, keep values on the GPU</td></tr>
@@ -20,7 +19,12 @@
 <tr data-k="4" tabindex="0"><td>The whole GPU idle at the start of each step</td><td>the data loader is the bottleneck</td><td>more workers, preprocessing off the critical path</td></tr>
 <tr data-k="5" tabindex="0"><td>A few kernels take most of the GPU time</td><td>good news: you know what to optimise</td><td>Nsight Compute on those kernels (section 4)</td></tr>
 </tbody></table></div>
-</div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-sym-card"><h4>What to look for on the GPU row: the gap, and what the CPU was doing in it</h4>
+<div class="rd-chart" id="rd-sym-svg"></div>
+<p class="small mute"><span class="der">illustrative shapes, not a measured trace</span>: rows as Nsight Systems and Perfetto draw them, one step on the time axis. The red bracket marks what to notice.</p>
+</div></div></div></div>
+<section id="rd-s3c">
 <details class="dp"><summary>What sits under the tools; Nsight Systems commands, capture ranges and report scripts <span class="mute">(docs only, not run here)</span></summary><div class="b">
 <p>Under the first two sits <b>CUPTI</b> (the CUDA Profiling Tools Interface), NVIDIA's library for collecting kernel start and end times, copies and counters from inside a process. Nsight Systems records CPU threads, CUDA API calls, kernels, copies, NCCL, OS calls and your own <b>NVTX</b> ranges (named intervals you mark in code), its kernel times through CUPTI (Nsight Compute's {{Profiling Guide|https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html}}). torch.profiler is built on Kineto ("an in-process profiling library integrated with the PyTorch Profiler", {{pytorch/kineto|https://github.com/pytorch/kineto}}), whose CUDA backend is CUPTI (its <code>CuptiActivityApi</code> sources); it names every operator, its input shapes and the kernels it launched.</p>
 <pre class="code">nsys profile -t cuda,nvtx,osrt -o step python train.py   <span class="c"># default -t is cuda,opengl,nvtx,osrt</span>
@@ -28,6 +32,8 @@ nsys profile --capture-range=cudaProfilerApi ...          <span class="c"># reco
 nsys stats step.nsys-rep                                  <span class="c"># summary tables in the terminal</span></pre>
 <p>In Python, mark phases so the timeline is readable: <code>torch.cuda.nvtx.range_push("forward")</code> ... <code>range_pop()</code> (or the <code>torch.cuda.nvtx.range</code> context manager), and limit the capture to a few steps with <code>torch.cuda.profiler.start()</code>/<code>stop()</code> plus <code>--capture-range=cudaProfilerApi</code>. The <code>nsys stats</code> report scripts include <code>cuda_gpu_kern_sum</code> ("a summary of CUDA kernels and their execution times"), <code>cuda_api_sum</code>, <code>cuda_gpu_mem_time_sum</code>, <code>nvtx_sum</code> and <code>osrt_sum</code>. CUDA graphs are traced as whole graphs by default ({{User Guide v2026.5|https://docs.nvidia.com/nsight-systems/UserGuide/index.html}}, {{Analysis Guide|https://docs.nvidia.com/nsight-systems/AnalysisGuide/index.html}}).</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s3p">
 <h3>torch.profiler, run on a real training step</h3>
 <p>A two-block MLP (LayerNorm, 512 to 2,048 to 512 with GELU, residual) plus a 1,000-way classifier, batch 256, one AdamW step, profiled with 1 step skipped, 1 warm-up step and 2 recorded; on CUDA add <code>ProfilerActivity.CUDA</code> <span class="meas">run here</span>:</p>
 <pre class="code">from torch.profiler import profile, schedule, record_function, ProfilerActivity
@@ -40,12 +46,12 @@ with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
         ...
         prof.step()                                  <span class="c"># advances the schedule</span>
 print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=15))</pre>
-<div class="card" id="rd-prof-card">
+<p><b>The same operator, two meanings.</b> On the CPU, <code>aten::mm</code> is the biggest row: the CPU does the multiply, so its "self CPU" time is the work (<span data-v="pc_mm">498.3</span> &micro;s per call). With the model on the GPU, the same operator costs <span data-v="pm_mm">38.5</span> &micro;s of CPU time per call: only the time to queue it. PyTorch 2.14 has no MPS profiler activity (its activities are <span data-v="p_acts">CPU, XPU, MTIA, CUDA, HPU, PrivateUse1</span>), so the GPU's own time is missing and the waiting shows up wherever the CPU blocked: the step's own row holds <span data-v="pm_step">6.76</span> ms of "self" time, the synchronise at the end of each step. That is what a CUDA profile looks like if you forget <code>ProfilerActivity.CUDA</code>, and why on a GPU you sort by the device columns (<code>self_cuda_time_total</code>, called <code>device</code> time in PyTorch 2.14's tables).</p>
+<p class="small">Open a saved trace in {{Perfetto|https://ui.perfetto.dev}} or <code>chrome://tracing</code>. For multi-GPU traces, Meta's {{Holistic Trace Analysis|https://github.com/facebookresearch/HolisticTraceAnalysis}} computes the temporal breakdown, idle time, kernel breakdown and communication/computation overlap per rank. PyTorch's wider tooling is the subject of {{Topic: pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-prof-card"><h4>The same step on the CPU and on the M1 GPU: with the model on the GPU the CPU mostly waits</h4>
 <div class="seg" id="rd-prof-seg"><button data-m="cpu" class="on">Model on the CPU</button><button data-m="mps">Model on the M1 GPU (MPS)</button></div>
 <div class="rd-chart" id="rd-prof-svg"></div>
 <div class="tw" id="rd-prof-tab"></div>
 <p class="small mute" id="rd-prof-note"></p>
-</div>
-<p><b>The same operator, two meanings.</b> On the CPU, <code>aten::mm</code> is the biggest row: the CPU does the multiply, so its "self CPU" time is the work (<span data-v="pc_mm">498.3</span> &micro;s per call). With the model on the GPU, the same operator costs <span data-v="pm_mm">38.5</span> &micro;s of CPU time per call: only the time to queue it. PyTorch 2.14 has no MPS profiler activity (its activities are <span data-v="p_acts">CPU, XPU, MTIA, CUDA, HPU, PrivateUse1</span>), so the GPU's own time is missing and the waiting shows up wherever the CPU blocked: the step's own row holds <span data-v="pm_step">6.76</span> ms of "self" time, the synchronise at the end of each step. That is what a CUDA profile looks like if you forget <code>ProfilerActivity.CUDA</code>, and why on a GPU you sort by the device columns (<code>self_cuda_time_total</code>, called <code>device</code> time in PyTorch 2.14's tables).</p>
-<p class="small">Open a saved trace in {{Perfetto|https://ui.perfetto.dev}} or <code>chrome://tracing</code>. For multi-GPU traces, Meta's {{Holistic Trace Analysis|https://github.com/facebookresearch/HolisticTraceAnalysis}} computes the temporal breakdown, idle time, kernel breakdown and communication/computation overlap per rank. PyTorch's wider tooling is the subject of {{Topic: pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}.</p>
-</section>
+</div></div></div></div>

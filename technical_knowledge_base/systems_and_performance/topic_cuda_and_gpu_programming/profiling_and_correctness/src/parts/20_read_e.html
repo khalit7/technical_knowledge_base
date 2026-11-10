@@ -21,9 +21,15 @@
 <div class="pr" id="rd-pr3"><div class="q">Predict: a correct float16 matmul (float32 accumulation) on this laptop's GPU, 256 &times; 256 output, <i>K</i> = 4,096, compared with <code>assert_close</code>'s float16 defaults against a float64 reference rounded to float16. How many of the 65,536 elements fail?</div>
 <div class="opts"><button data-a="0">None: the kernel is correct</button><button data-a="1" data-right="1">A few dozen</button><button data-a="2">Most of them</button></div>
 <div class="ans" hidden><span class="meas">measured on Apple M1 Pro GPU</span>: <b><span data-v="mm_f4096">23</span></b> fail at <i>K</i> = 4,096 and <b><span data-v="mm_f16384">51</span></b> at 16,384 (none at 64 and 512). The worst error is <span data-v="mm_scale">0.16</span>% of the scale of the terms, about what rounding the result to float16 alone explains; the failing elements are those whose result is small after cancellation, where rtol = 0.001 of a small number is tighter than the rounding. bfloat16's default rtol of 0.016 passes every element at every <i>K</i>. Defaults are a starting point; set the tolerance from the format and <i>K</i>, and say what you chose.</div></div>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s5a">
 <h3>Accumulate in float32, even when inputs are 16-bit</h3>
+<p><span class="meas">computed here</span> (NumPy, 256 random dot products per point, inputs N(0,1) rounded to float16; products are exact in float32): median error relative to &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. A running sum kept in float16 or bfloat16 loses accuracy roughly in proportion to <i>K</i>: at <i>K</i> = 65,536 the bfloat16 running sum is off by <span data-v="acc_bf">14.6</span>% of the scale, because each small product is rounded against a large running total. Float32 accumulation keeps the error near 10<sup>&minus;6</sup>, and a pairwise tree (how a parallel reduction adds) keeps it lower and nearly flat. This is why tensor-core matmuls on 16-bit inputs accumulate in float32, and why a reduction kernel keeps its partial sums in float32.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>A 16-bit running sum loses accuracy in proportion to K; float32 does not</h4>
 <div class="rd-chart" id="rd-acc"></div>
-<p class="small"><span class="meas">computed here</span> (NumPy, 256 random dot products per point, inputs N(0,1) rounded to float16; products are exact in float32): median error relative to &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. A running sum kept in float16 or bfloat16 loses accuracy roughly in proportion to <i>K</i>: at <i>K</i> = 65,536 the bfloat16 running sum is off by <span data-v="acc_bf">14.6</span>% of the scale, because each small product is rounded against a large running total. Float32 accumulation keeps the error near 10<sup>&minus;6</sup>, and a pairwise tree (how a parallel reduction adds) keeps it lower and nearly flat. This is why tensor-core matmuls on 16-bit inputs accumulate in float32, and why a reduction kernel keeps its partial sums in float32.</p>
+<p class="small mute"><span class="meas">computed here</span>: median error relative to &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;, 256 dot products per point, inputs rounded to float16; log scales.</p></div></div></div></div>
+<section id="rd-s5w">
 <details class="dp" id="rd-nl-det"><summary>Workbench: any input, accumulator and output format, length and summation order</summary><div class="b">
 <p>Pick the number formats of a dot product (the inner loop of every matmul and attention score), its length and its summation order, and see how far the result lands from the exact answer and whether <code>torch.testing.assert_close</code>'s defaults would pass it.</p>
 <div class="ctl">
@@ -39,21 +45,49 @@
 <p class="small mute" id="nl-note"></p>
 <p class="small">How it works: each trial draws two vectors of N(0, 1) numbers with a seeded generator, rounds them to the input format, forms the products (exact in double precision, then rounded to the accumulator), adds them in the chosen order rounding after every addition, and rounds the result to the output format. The error is measured against the exact dot product of the rounded inputs (computed with Shewchuk's exact summation), divided by &radic;&Sigma;(a<sub>i</sub>b<sub>i</sub>)&sup2;. "Passes" applies <code>assert_close</code>'s default rtol and atol for the output type (float32 1.3e-6 and 1e-5, bfloat16 0.016 and 1e-5, float16 0.001 and 1e-5) against the exact result rounded once to that type. The rounding model matches PyTorch 2.14.1's casts on 2,055 test values and six whole experiments bit for bit (<code>check/check_js.mjs</code> against <code>code/reference.py</code>). Real tensor cores may compute products and partial sums with internal widths this model does not capture.</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s5o">
 <h3>Order changes the bits: split-K, tiles and atomics</h3>
 <p>The same 1,048,576 float32 numbers summed in different orders <span class="meas">computed here</span>, error in units in the last place (<dfn>ulps</dfn>, here the spacing of float32 numbers at the size of the answer, <span data-v="ulp">0.0039</span>):</p>
+<p>Exact answer from <code>math.fsum</code>. "Split-K S" cuts the sum into S chunks, sums each, then adds the S partials, which is what a matmul does when it splits the <i>K</i> dimension across thread blocks to use more SMs. Every choice of S gives a different, equally legitimate answer. Sorting by value (all negatives first) is the worst order: the running total grows large before the positives cancel it.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Every order is a different answer; sorting by value is the worst</h4>
 <div class="bars" id="rd-order"></div>
-<p class="small">Exact answer from <code>math.fsum</code>. "Split-K S" cuts the sum into S chunks, sums each, then adds the S partials, which is what a matmul does when it splits the <i>K</i> dimension across thread blocks to use more SMs. Every choice of S gives a different, equally legitimate answer. Sorting by value (all negatives first) is the worst order: the running total grows large before the positives cancel it.</p>
+<p class="small mute"><span class="meas">computed here</span>: error of each order in float32 ulps at the size of the answer, log scale.</p></div></div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-sum"></div></div><div class="s3L">
+<section id="rd-s5t">
 <p><b>Atomics make the order change from run to run.</b> When many threads add into one location with <code>atomicAdd</code>, the hardware decides the order, so the same kernel on the same input returns different bits each run. Three MLX kernels summing the same 1,048,576 float32 numbers 30 times each <span class="meas">measured on Apple M1 Pro GPU</span>:</p>
 <div class="tw" id="rd-atom-tab"></div>
 <p class="small">One atomic per thread gave 30 different answers in 30 runs, spread over 552 ulps; one atomic per 256-thread group gave 17, spread over 30 ulps; a fixed tree gave the same bits every time.</p>
-<div class="card" id="rd-sum-card">
-<div class="seg" id="rd-sum-seg"><button data-m="seq" class="on">Left to right</button><button data-m="pair">Pairwise tree</button><button data-m="atom">Atomics (random order)</button></div>
-<div class="rd-chart" id="rd-sum-svg"></div>
-<div class="an-ctl" id="rd-sum-ctl"></div>
-<div class="an-cap" id="rd-sum-cap"></div>
+<p>Fig. 3 shrinks the effect to sixteen float16 numbers, one large (2,048) and fifteen near 1, so every rounding can be seen. At 2,048 the gap between float16 numbers is 2, so adding something near 1 to a large total can round it away. Pick an order:</p>
+<div class="s3chips" id="rd-sum-mode"><button data-m="seq" class="on">Left to right</button><button data-m="pair">Pairwise tree</button><button data-m="atom">Atomics (random order)</button></div>
+<ol class="sx" id="sx-sum-seq">
+<li><b>Sixteen numbers, the large one first.</b> A thread's loop adds them left to right into one running total, rounded to float16 after every addition.</li>
+<li><b>Additions 1 to 5.</b> 2,048 + 0.90 = <span data-v="sum_a1">2,048.90</span> rounds back to <span data-v="sum_r1">2,048</span>; the next, <span data-v="sum_a2">2,049.10</span>, rounds up to <span data-v="sum_r2">2,050</span>. Each small number is rounded against the large total. After five: <span data-v="sum_s5">2,052</span> against an exact <span data-v="sum_e5">2,053.00</span>.</li>
+<li><b>Additions 6 to 10.</b> The same at every step; what is lost goes up and down with each rounding: <span data-v="sum_s10">2,056</span> against <span data-v="sum_e10">2,057.85</span>.</li>
+<li><b>Additions 11 to 15.</b> The total crawls on in steps of 2, rounding each time.</li>
+<li><b>The result.</b> <span data-v="sum_seq">2,060</span> against the exact <span data-v="sum_exact">2,062.99</span>: <span data-v="sum_seq_lost">2.99</span> lost, about three of the fifteen small numbers.</li>
+</ol>
+<ol class="sx" id="sx-sum-pair" hidden>
+<li><b>Sixteen numbers in a tree.</b> A parallel reduction adds neighbours first, so the small numbers meet each other before they meet 2,048.</li>
+<li><b>Level 1: <span data-v="sum_n1">8</span> pairs.</b> Seven of the pairs are near 2 (the largest <span data-v="sum_l1">2.20</span>), where float16's spacing is tiny, so they are almost exact; only the pair holding 2,048 rounds away its partner.</li>
+<li><b>Level 2: four sums of four.</b> The small partial sums are still small, so they stay nearly exact.</li>
+<li><b>Level 3: two sums of eight.</b> <span data-v="sum_p3">2,054</span> and <span data-v="sum_q3">7.99</span>: the fifteen small numbers now reach the large one in a few large pieces instead of fifteen small ones.</li>
+<li><b>The result.</b> <span data-v="sum_pair">2,062</span> against the exact <span data-v="sum_exact">2,062.99</span>: <span data-v="sum_pair_lost">0.99</span> lost, a third of the left-to-right loss with the same rounding.</li>
+</ol>
+<ol class="sx" id="sx-sum-atom" hidden>
+<li><b>The hardware picks the order.</b> With atomics, whichever thread arrives first adds first; the small numbers above the row show this run's order.</li>
+<li><b>Additions 1 to 5.</b> Small numbers that arrive before 2,048 add up nearly exactly; once 2,048 is in, every later one is rounded against it.</li>
+<li><b>Additions 6 to 10.</b> Where 2,048 falls in the order decides how much is lost.</li>
+<li><b>Additions 11 to 15.</b> The red columns behind record the loss after each addition.</li>
+<li><b>The result of this run.</b> The readout gives its answer; "Another run" draws a new order and may give a different answer from the same numbers.</li>
+</ol>
+<p><button id="rd-sum-again" hidden style="font-size:13px">Another run</button></p>
 <div class="an-cnt" id="rd-sum-cnt"></div>
-<p class="small mute">Sixteen float16 numbers, one large (2,048) and fifteen near 1; every addition is rounded to float16 by the page's float16 model, which matches PyTorch's casts bit for bit on 2,055 test values (<code>check/check_js.mjs</code>). At 2,048 the gap between float16 numbers is 2, so adding something near 1 to a large total can round it away. "Another run" draws a new atomic order.</p>
-</div>
+<p class="small mute">Every addition is rounded to float16 by the page's float16 model, which matches PyTorch's casts bit for bit on 2,055 test values (<code>check/check_js.mjs</code>). "Another run" draws a new atomic order. The red columns behind are the exact sum of the numbers added so far minus the rounded total.</p>
+</section>
+</div></div>
+<section id="rd-s5d">
 <h3>When you need the same bits every run</h3>
 <ul>
 <li><code>torch.use_deterministic_algorithms(True)</code> makes PyTorch use deterministic implementations where they exist and raise an error where they do not (for example <code>index_add_</code> and <code>scatter_add_</code> on CUDA, which use atomics); it also stops Inductor from autotuning in ways that change numerics. "Deterministic operations tend to have worse performance" ({{PyTorch reproducibility notes|https://docs.pytorch.org/docs/2.14/notes/randomness.html}}; docstring of PyTorch 2.14.1).</li>

@@ -1,6 +1,6 @@
 // Clicks every control of the page at 390 px (dark) and 920 px (light); reports page errors, NaN, undefined,
 // sideways scroll, prose numbers whose literal differs from the data (data-was), and missing values;
-// saves element screenshots to the folder given as the first argument (default: ./shots).
+// checks that every 3D stage plays by itself once in view (inverted 2026-11-10); saves element screenshots to the folder given as the first argument (default: ./shots).
 // Run from the repo root: node <page>/src/check/check_page.mjs <outdir>
 import { createRequire } from 'module';
 import path from 'path';
@@ -36,18 +36,17 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   // prose numbers
   const vals = await p.evaluate(() => ({ miss: window.RDV_MISSING, was: [...document.querySelectorAll('[data-was]')].map(e => e.dataset.v + ': html "' + e.dataset.was + '" data "' + e.textContent + '"') }));
   if (vals.miss.length || vals.was.length) { fail++; console.log('FAIL prose values', JSON.stringify(vals)); }
-  // Reading animations
-  for (const [seg, ctl, card, n] of [['#rd-tl-seg', '#rd-tl-ctl', '#rd-tl-card', 4], ['#rd-walk-seg', '#rd-walk-ctl', '#rd-walk-card', 7], ['#rd-sum-seg', '#rd-sum-ctl', '#rd-sum-card', 15]]) {
+  // the three 3D stages (their own checks are in check_stages.mjs): every mode, stepped to its last step
+  for (const [seg, id] of [['#rd-tl-mode', 'stg-time'], ['#rd-walk-mode', 'stg-walk'], ['#rd-sum-mode', 'stg-sum']]) {
     const btns = await p.$$(seg + ' button');
     for (let b = 0; b < btns.length; b++) {
       await btns[b].evaluate(x => x.scrollIntoView({ block: 'center' })); await btns[b].click(); await sleep(100);
-      for (let i = 0; i < n; i++) await p.click(ctl + '-f');
-      await check(seg + ' ' + b);
-      await shot(card, card.slice(1) + '-' + b);
-      await p.click(ctl + '-b'); await p.click(ctl + '-p'); await sleep(200); await p.click(ctl + '-p');
+      const n = await p.$eval(`#${id}-r`, e => +e.max + 1);
+      for (let i = 0; i < n; i++) await p.click(`#${id}-f`);
+      await sleep(400); await check(seg + ' ' + b);
+      if (id === 'stg-sum' && b === 2) { await p.click('#rd-sum-again'); await sleep(200); await check('another run'); }
     }
   }
-  const again = await p.$('#rd-sum-again'); if (again) { await again.click(); await sleep(100); }
   await clickAll('#rd-prof-seg button'); await shot('#rd-prof-card', 'prof-mps'); await p.click('#rd-prof-seg button[data-m="cpu"]'); await shot('#rd-prof-card', 'prof-cpu');
   await clickAll('#t-read .pr button[data-a]'); await check('predict');
   // timeline shapes (rows of the symptom table) and warp stalls (pair switch)
@@ -74,9 +73,9 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.$eval('#nl-K', e => { e.value = 12; e.dispatchEvent(new Event('input')); }); await sleep(800);
   await shot('#rd-nl-det', 'numlab');
   await p.click('#tabs button[data-t="t-more"]'); await sleep(150); await check('more');
-  // no animation may move before the reader acts
-  const p2 = await browser.newPage(); await p2.setViewport({ width: w, height: 900 }); await p2.goto(page_, { waitUntil: 'load' });
-  for (const c of ['#rd-tl-card', '#rd-walk-card', '#rd-sum-card']) { await p2.$eval(c, x => x.scrollIntoView({ block: 'center' })); await sleep(1800); const i = await p2.$eval(c + ' input[type=range]', x => x.value); if (i !== '0') { fail++; console.log('FAIL autoplay', c, i); } }
+  // inverted 2026-11-10 (the autoplay rule of 2026-11-06): every stage plays by itself once scrolled into view
+  const p2 = await browser.newPage(); await p2.setViewport({ width: w, height: 900 }); await p2.goto(page_, { waitUntil: 'load' }); await p2.click('#tabs button[data-t="t-read"]'); await sleep(300);
+  for (const c of ['#stg-time', '#stg-walk', '#stg-sum']) { await p2.$eval(c, x => x.scrollIntoView({ block: 'center' })); await sleep(2200); const fr = await p2.$eval(c, x => +x.dataset.frames || 0); if (!(fr > 0)) { fail++; console.log('FAIL no autoplay', c); } }
   await p2.close(); await shot('#t-more', 'more');
   if (errs.length) { fail++; console.log('FAIL console', scheme, w, errs.slice(0, 5)); }
   await p.close();
