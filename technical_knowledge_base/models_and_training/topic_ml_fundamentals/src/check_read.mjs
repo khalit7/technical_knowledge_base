@@ -1,8 +1,6 @@
-// Exercise every control of the Reading tab at 390 px dark and 920 px light: the step strip (both recipes, every stage,
-// every stage button, the script-written tab link), the five-network animation (every network, every comparison, every step,
+// Exercise every control of the Reading tab at 390 px dark and 920 px light: Fig. 1's recipe toggle (both recipes, every step), the five-network animation (every network, every comparison, every step,
 // the thread buttons that load it), the loss explorer, cross entropy split and BPTT controls, and every link to another tab;
-// first, that neither animation moves before the reader acts (2026-10-24 rebuild: update geometry, schedules, weight decay
-// and ROC/PR widgets retired to src/retired/parts). Fails on console errors, NaN or undefined in the tab text,
+// first, that Fig. 1 and Fig. 2 play by themselves once in view (2026-11-10, the layout rollout; inverted from the 2026-10-24 never-autoplay check). Fails on console errors, NaN or undefined in the tab text,
 // or sideways scroll. Screenshots land in ../.shots/rd-*.png.
 // usage: node src/check_read.mjs   (from anywhere)
 import { createRequire } from 'node:module';
@@ -49,18 +47,18 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     if (on === 't-read') problems.push(label + ': tab link did not switch tab');
     await p.click('button[data-t=t-read]'); await wait(120);
   };
-  // nothing moves before the reader acts: scroll to both animations and confirm they stay on their opening step (the strip opens on step 1, the variance animation on its full picture)
-  for (const c of ['rd-st', 'rd-vn']) { await p.$eval('#' + c, e => e.scrollIntoView()); await wait(300); const v0 = await p.$eval(`#${c}C-s`, s => +s.value); await wait(1500); const v = await p.$eval(`#${c}C-s`, s => +s.value); if (v !== v0) problems.push(c + ' moved before the reader acted (step ' + v0 + ' to ' + v + ')') }
-  // step strip
+  // 2026-11-06 motion rules: Fig. 1 (stg-step) and Fig. 2 (rd-vn) play by themselves once scrolled into view (src/check_stages.mjs checks the rest)
+  await p.$eval('#stg-step', e => e.scrollIntoView({ block: 'center' })); await wait(2200);
+  if (!((await p.$eval('#stg-step', e => +e.dataset.frames || 0)) > 0)) problems.push('stg-step did not play when scrolled into view');
+  await p.$eval('#rd-vn', e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+  if (!(await p.$eval('#rd-vnC-p', e => /Pause/.test(e.textContent)))) problems.push('rd-vn did not play when scrolled into view');
+  // the recipe toggle of Fig. 1 (both recipes, every step)
   let nst = 0;
   for (const r of ['classic', 'modern']) {
     await p.$eval(`#rd-stR button[data-r=${r}]`, b => b.click()); await wait(80);
-    nst += await stepAll('rd-stC', 'strip ' + r); await clickAll('#rd-stS button');
-    const cap = await p.$eval('#rd-stT', e => e.textContent); if (!cap.startsWith('7')) problems.push('strip last button did not select stage 7: ' + cap);
-    for (const i of [0, 3]) { await p.evaluate(i => document.querySelectorAll('#rd-stS button')[i].click(), i); await shot('#rd-st', `strip-${r}-${i + 1}`) }
+    const n = await p.$eval('#stg-step-r', e => +e.max + 1);
+    for (let i = 0; i < n; i++) { await p.$eval('#stg-step-r', (e, i) => { e.value = i; e.dispatchEvent(new Event('input')) }, i); await check(`stg-step ${r} step ${i}`); nst++ }
   }
-  await p.evaluate(() => document.querySelectorAll('#rd-stS button')[6].click());
-  await p.evaluate(() => document.querySelector('#rd-stP a[data-tab]').click()); await wait(120); await tabBack('strip caption');
   // the five networks
   await p.$eval('#rd-vn', e => e.scrollIntoView()); await wait(300);
   let nvn = 0;
@@ -69,9 +67,9 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     for (let g = 0; g < 5; g++) { await p.select('#rd-vnG', String(g)); await check(`vn ${m} vs ${g}`) }
     await p.select('#rd-vnG', m === 4 ? '0' : '4');
     nvn += await stepAll('rd-vnC', 'vn ' + m);
-    await setRange('rd-vnC-s', 34); await shot('#rd-vn', 'vn-' + m + '-end');
+    await setRange('rd-vnC-s', 4); await wait(2600); await shot('#rd-vn', 'vn-' + m + '-end');
   }
-  await setRange('rd-vnC-s', 9); await shot('#rd-vn', 'vn-4-mid');
+  await setRange('rd-vnC-s', 1); await wait(2600); await shot('#rd-vn', 'vn-4-mid');
   const nld = await clickAll('#rd-t2C button, .rd-ld');
   // loss explorer and cross entropy split
   let nsl = await sweep('rd-lsP', 'loss p') + await sweep('rd-lsG', 'loss gamma');
@@ -92,7 +90,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (inPage.length) problems.push('in-page links with no target: ' + inPage.join(' '));
   await shot('#rd-over', 'over');
   if (errs.length) problems.push('errors ' + JSON.stringify(errs.slice(0, 5)));
-  console.log(`${scheme} ${width}: strip steps ${nst}, network steps ${nvn}, thread loaders ${nld}, slider positions ${nsl}, tab links ${tabLinks.length}, checks ${checks}; problems ${problems.length}`);
+  console.log(`${scheme} ${width}: Fig. 1 steps ${nst}, network steps ${nvn}, thread loaders ${nld}, slider positions ${nsl}, tab links ${tabLinks.length}, checks ${checks}; problems ${problems.length}`);
   problems.slice(0, 12).forEach(x => console.log('  ' + x));
   bad += problems.length;
   await p.close();

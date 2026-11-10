@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id), R = DG.R, fmt = DG.fmt, fmtT = DG.fmtT;
   const card = $('dg-anim'); if (!card) return;
   const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const st = {m: 'van', k: 0, play: false, spd: 1, vis: false, raf: 0, last: 0, acc: 0};
+  const st = {m: 'van', k: 0, play: false, spd: 1, vis: false, raf: 0, last: 0, acc: 0, user: false, ended: false, lis: []};
   const FRAME = 260; // ms per recorded frame at 1x
 
   // spike score state (k = 7, window 100) accumulated per step for the spike mode
@@ -35,29 +35,36 @@
   const layAt = (id, step) => { const L = R.runs[id].lay || []; let row = null; L.forEach(r => { if (r[0] <= step) row = r; }); return row; };
   const lossAt = (id, step) => { const r = R.runs[id]; if (r.div && step >= r.div) return null; let v = r.init; r.tr.forEach(p => { if (p[0] <= step && p[1] !== null) v = p[1]; }); return v; };
 
+  // which explained stretch (one ol.sx item) a frame belongs to: four per case (the long-replay rule, 2026-11-06)
+  function stretch(k) {
+    const f = frames(), n = f.length, step = f[Math.min(k, n - 1)];
+    if (st.m === 'van') return k === 0 ? 0 : step <= 200 ? 1 : k < n - 1 ? 2 : 3;
+    if (st.m === 'exp') return k === 0 ? 0 : step === 2 ? 1 : k < n - 1 ? 2 : 3;
+    return step <= 50 ? 0 : step <= 150 ? 1 : step < R.spike.main.base.n ? 2 : 3;
+  }
+  const firstOf = j => { const n = frames().length; for (let k = 0; k < n; k++) if (stretch(k) === j) return k; return 0; };
+  // the live numbers under the chart; the step list on the left explains each stretch
   function caption(step, f) {
-    const n = f.length, k = st.k;
+    const n = f.length, k = st.k, j = stretch(k);
     if (st.m === 'van') {
       const b = layAt(M.van.bug, step), x = layAt(M.van.fix, step), rb = b[b.length - 1] / b[1], rx = x[x.length - 1] / x[1];
-      if (k === 0) return ['Step 1: the same batch through both networks', 'Before any update the backward pass already tells the story. In the sigmoid network the first layer\'s weights get a gradient ' + fmt(rb) + ' times smaller than the output layer\'s; with ReLU and He initialisation the ratio is ' + fmt(rx) + '. Each sigmoid layer multiplies the backward signal by at most 0.25.'];
-      if (step <= 200) return ['Steps 10 to 200: one network learns, the other waits', 'SGD with momentum applies these gradients as they are, so the sigmoid network\'s early layers barely move and its loss stays near ln 10 = 2.303, the loss of guessing. The ReLU network\'s loss falls from the first steps.'];
-      if (k < n - 1) return ['Steps 200 to 600: the gap does not close', 'Now, at step ' + step + ', the first-to-last gradient ratio is ' + fmt(rb) + ' with sigmoids and ' + fmt(rx) + ' with ReLU. A plateau caused by vanishing gradients does not end by waiting.'];
-      return ['Step 600: the end of the run', 'Sigmoid: training loss ' + fmt(R.runs[M.van.bug].fin.train) + ', accuracy ' + Math.round(R.runs[M.van.bug].fin.acc * 100) + '% (chance is 10%). ReLU with He initialisation: ' + fmt(R.runs[M.van.fix].fin.train) + ' and ' + Math.round(R.runs[M.van.fix].fin.acc * 100) + '%. Same data, same depth, same batches.'];
+      if (j < 3) return 'At step ' + step + ' the first layer\'s gradient is ' + fmt(rb) + ' times smaller than the output layer\'s with sigmoids, ' + fmt(rx) + ' with ReLU and He initialisation.';
+      return 'Sigmoid: training loss ' + fmt(R.runs[M.van.bug].fin.train) + ', accuracy ' + Math.round(R.runs[M.van.bug].fin.acc * 100) + '% (chance is 10%). ReLU with He initialisation: ' + fmt(R.runs[M.van.fix].fin.train) + ' and ' + Math.round(R.runs[M.van.fix].fin.acc * 100) + '%.';
     }
     if (st.m === 'exp') {
       const b = R.runs[M.exp.bug];
-      if (k === 0) return ['Step 1: the forward pass has already exploded', 'With every weight drawn from N(0, 1), each 64-wide ReLU layer multiplies the signal by about 5.7, so the logits are enormous and the loss before any update is ' + fmt(b.init) + ' instead of ln 10 = 2.303. The gradients are largest at the input end. He initialisation (variance 2/64) starts at ' + fmt(R.runs[M.exp.fix].init) + '.'];
-      if (step === 2) return ['Step 2: NaN', 'One update with those gradients and every weight is NaN: the bars are gone and they will not come back. A NaN never recovers; only the fix can.'];
-      if (k < n - 1) return ['Steps 3 to 60: the fixed network trains', 'With He initialisation and clipping at 1.0 the gradient norms stay within a few orders of magnitude of each other and the loss falls. At step ' + step + ' it is ' + fmt(lossAt(M.exp.fix, step)) + '.'];
-      return ['Step 60', 'The fixed run reaches training loss ' + fmt(R.runs[M.exp.fix].fin.train) + ' in 60 steps; the bug ended at step 2.'];
+      if (j === 0) return 'Loss before any update: ' + fmt(b.init) + ' with weights N(0, 1), ' + fmt(R.runs[M.exp.fix].init) + ' with He initialisation (variance 2/64); ln 10 = 2.303.';
+      if (j === 1) return 'From here on every weight is NaN in the bug\'s network.';
+      if (j === 2) return 'The fixed run\'s training loss at step ' + step + ': ' + fmt(lossAt(M.exp.fix, step)) + '.';
+      return 'The fixed run reaches training loss ' + fmt(R.runs[M.exp.fix].fin.train) + ' in 60 steps; the bug ended at step 2.';
     }
     const S = spk(), sb = spikesUpTo(S.base.gnorm, step, 100, 7), sf = spikesUpTo(S.both.gnorm, step, 100, 7), mb = Math.max(...S.base.mx.slice(0, step).map(v => v || 0)), mf = Math.max(...S.both.mx.slice(0, step).map(v => v || 0));
-    const pk = a => { let j = 30; for (let i = 30; i < a.length; i++) if ((a[i] || 0) > (a[j] || 0)) j = i; return [j + 1, a[j]]; };
+    const pk = a => { let i0 = 30; for (let i = 30; i < a.length; i++) if ((a[i] || 0) > (a[i0] || 0)) i0 = i; return [i0 + 1, a[i0]]; };
     const pb = pk(S.base.loss), pf = pk(S.both.loss), lr = R.spike.main.base.lr;
-    if (step <= 50) return ['Steps 1 to 50: warmup', 'Both runs start identically: same seed, same batches, the learning rate rising linearly to its peak of ' + lr.toExponential(0) + '. The largest attention logit so far: ' + fmt(mb) + ' without QK-norm, ' + fmt(mf) + ' with it.'];
-    if (step <= 150) return ['Steps 50 to 150: the spike', 'At the peak rate both runs spike. With QK-norm and z-loss the loss jumps to ' + fmt(pf[1]) + ' at step ' + pf[0] + ' and recovers; without them it jumps to ' + fmt(pb[1]) + ' at step ' + pb[0] + ' while the largest attention logit passes ' + fmt(mb) + '. Gradient-norm spikes so far (7 standard deviations, 100-step window): ' + sb + ' against ' + sf + '.'];
-    if (step < R.spike.main.base.n) return ['Steps 150 to 1,500: one run recovers, one never does', 'The cosine schedule lowers the rate, but without QK-norm the run never gets back to where it was before the spike: attention has become nearly one-hot and the logits keep growing (' + fmt(mb) + ' now). Gradient-norm spikes so far: ' + sb + ' against ' + sf + '.'];
-    return ['Step 1,500: the end', 'Final validation loss ' + fmt(R.spike.main.base.fv) + ' without the fixes, ' + fmt(R.spike.main.both.fv) + ' with QK-norm plus z-loss. Gradient-norm spikes over the run: ' + sb + ' against ' + sf + '. The sweep below shows the same effect across five learning rates, and the spike score lets you separate the two fixes.'];
+    if (j === 0) return 'Peak learning rate ' + lr.toExponential(0) + '. The largest attention logit so far: ' + fmt(mb) + ' without QK-norm, ' + fmt(mf) + ' with it.';
+    if (j === 1) return 'With QK-norm and z-loss the loss peaks at ' + fmt(pf[1]) + ' at step ' + pf[0] + '; without them at ' + fmt(pb[1]) + ' at step ' + pb[0] + ', while the largest attention logit passes ' + fmt(mb) + '. Gradient-norm spikes so far (7 standard deviations, 100-step window): ' + sb + ' against ' + sf + '.';
+    if (j === 2) return 'Largest attention logit without QK-norm: ' + fmt(mb) + ' now. Gradient-norm spikes so far: ' + sb + ' against ' + sf + '.';
+    return 'Final validation loss ' + fmt(R.spike.main.base.fv) + ' without the fixes, ' + fmt(R.spike.main.both.fv) + ' with QK-norm plus z-loss. Gradient-norm spikes over the run: ' + sb + ' against ' + sf + '.';
   }
 
   function bars(step) {
@@ -84,9 +91,10 @@
   }
   function draw() {
     const f = frames(), k = Math.min(st.k, f.length - 1), step = f[k];
-    const [t, c] = caption(step, f);
-    $('dg-astep').textContent = 'Step ' + step + ' of ' + f[f.length - 1] + ': ' + t.replace(/^Steps? [^:]*: /, '');
-    $('dg-acap').innerHTML = c;
+    $('dg-astep').textContent = 'Training step ' + step + ' of ' + f[f.length - 1];
+    $('dg-acap').innerHTML = caption(step, f);
+    const j = stretch(k); (st.lis || []).forEach((li, i) => { li.classList.toggle('on', i === j); li.classList.toggle('done', i < j); if (i === j) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current'); });
+    card.dataset.playing = st.play ? '1' : '';
     const el = $('dg-aplot');
     if (st.m === 'spk') {
       const S = spk(), N = R.spike.main.base.n, cut = a => a.slice(0, step).map((v, i) => [i + 1, v]);
@@ -113,25 +121,36 @@
     st.raf = 0; if (!st.play || !live()) return;
     const dt = st.last ? Math.min(120, now - st.last) : 16; st.last = now; st.acc += dt * st.spd;
     const n = frames().length;
-    if (st.acc >= FRAME) { st.acc = 0; if (st.k < n - 1) { st.k++; draw(); } else { st.play = false; draw(); return; } }
+    if (st.acc >= FRAME) { st.acc = 0; if (st.k < n - 1) { st.k++; if (st.k === n - 1) { st.play = false; st.ended = true; } draw(); if (!st.play) return; } else { st.play = false; st.ended = true; draw(); return; } }
     card.dataset.frames = (+card.dataset.frames || 0) + 1;
     st.raf = requestAnimationFrame(tick);
   }
   function kick() { if (st.play && live() && !st.raf) { st.last = 0; st.raf = requestAnimationFrame(tick); } else if (!live() && st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; } }
   const pause = () => { st.play = false; if (st.raf) { cancelAnimationFrame(st.raf); st.raf = 0; } };
-  $('dg-aplay').addEventListener('click', () => { if (st.play) pause(); else { if (st.k >= frames().length - 1) st.k = 0; st.play = true; kick(); } draw(); });
-  $('dg-afwd').addEventListener('click', () => { pause(); st.k = Math.min(frames().length - 1, st.k + 1); draw(); });
-  $('dg-aback').addEventListener('click', () => { pause(); st.k = Math.max(0, st.k - 1); draw(); });
-  $('dg-ascrub').addEventListener('input', e => { pause(); st.k = +e.target.value; draw(); });
+  const user = () => { st.user = true; };
+  $('dg-aplay').addEventListener('click', () => { user(); if (st.play) pause(); else { if (st.k >= frames().length - 1) st.k = 0; st.play = true; kick(); } draw(); });
+  $('dg-afwd').addEventListener('click', () => { user(); pause(); st.k = Math.min(frames().length - 1, st.k + 1); draw(); });
+  $('dg-aback').addEventListener('click', () => { user(); pause(); st.k = Math.max(0, st.k - 1); draw(); });
+  $('dg-ascrub').addEventListener('input', e => { user(); pause(); st.k = +e.target.value; draw(); });
   $('dg-aspd').addEventListener('change', e => { st.spd = +e.target.value; });
+  // the step list on the left: one item per stretch; a click jumps to its first frame and stops autoplay
+  function bindList() {
+    ['van', 'exp', 'spk'].forEach(m => { const L = $('sx-dg-' + m); if (L) L.hidden = m !== st.m; });
+    const L = $('sx-dg-' + st.m); st.lis = L ? [...L.children] : [];
+    st.lis.forEach((li, j) => { li.tabIndex = 0; li.setAttribute('role', 'button'); const go = () => { user(); pause(); st.k = firstOf(j); draw(); };
+      li.onclick = go; li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; });
+  }
+  // autoplay (2026-11-06): plays once at least half in view, pauses off screen and resumes, stops for good on any control or at the last frame, never under reduced motion
+  function auto() { if (RM || st.user || st.ended || st.play || !live()) return; st.play = true; draw(); kick(); }
   const seg = $('dg-am');
   seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     seg.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-    st.m = b.dataset.m; st.k = 0; st.acc = 0; if (!RM) st.play = true; draw(); kick();
+    pause(); st.m = b.dataset.m; st.k = 0; st.acc = 0; st.user = false; st.ended = false; bindList(); draw(); auto();
   }));
-  if ('IntersectionObserver' in window) new IntersectionObserver(es => { st.vis = es[es.length - 1].isIntersecting; kick(); }, {threshold: .15}).observe(card); else st.vis = true;
+  bindList();
+  if ('IntersectionObserver' in window) new IntersectionObserver(es => { const x = es[es.length - 1]; st.vis = x.isIntersecting && (x.intersectionRatio >= .5 || x.intersectionRect.height >= innerHeight * .5); if (st.vis) auto(); kick(); }, {threshold: [0, .25, .5, .75]}).observe(card); else st.vis = true;
   document.addEventListener('visibilitychange', kick);
-  function render() { if ($('t-debug').hidden) return; draw(); kick(); }  // waits on its first frame until the reader presses play (2026-10-24)
+  function render() { if ($('t-debug').hidden) return; draw(); kick(); }
   window.TAB_RENDER = window.TAB_RENDER || {}; (window.TAB_RENDER['t-debug'] = window.TAB_RENDER['t-debug'] || []).push(render);
   let rw = 0; addEventListener('resize', () => { const w = card.clientWidth; if (!$('t-debug').hidden && Math.abs(w - rw) > 20) { rw = w; draw(); } });
 })(window.DG);

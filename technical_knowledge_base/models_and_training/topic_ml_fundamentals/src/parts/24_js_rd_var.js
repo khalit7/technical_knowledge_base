@@ -3,8 +3,10 @@
 (function(){
   const $=id=>document.getElementById(id);
   if(!$('rd-vn'))return;
-  const L=16,NS=L+L+3; // input, 16 forward layers, loss, 16 backward layers, summary
-  let m=0,g=4,an;
+  const L=16,NS=5; // five explained stretches (the long-replay rule, 2026-11-06): the batch, forward through 16 layers, the loss, backward through 16 layers, first against last
+  let m=0,g=4,an,rv=L,rti=0,lastI=-1;
+  // stretch i and how many layers of it are revealed (r) -> the frame drawn: 0 input, 1..16 forward, 17 loss, 18..33 backward, 34 summary
+  const frameOf=(i,r)=>i===0?0:i===1?Math.max(1,r):i===2?L+1:i===3?L+1+Math.max(1,r):2*L+2;
   const MD=RDE.MODES,F=RD.f,E=RD.e;
   $('rd-vnM').innerHTML=MD.map((d,i)=>'<button data-m="'+i+'">'+d.name+'</button>').join('');
   $('rd-vnG').innerHTML=MD.map((d,i)=>'<option value="'+i+'">'+d.name+'</option>').join('');
@@ -26,7 +28,7 @@
       b:'The residual path carries the gradient straight down; the branches add a little each.',
       s:'Every layer gets a gradient of similar size (1.16 to 1.50), and the loss starts near ln 10. This is the 2026 transformer block\'s answer to all four causes at once.'}
   };
-  function draw(i){const S=RDE.stats(m),G=RDE.stats(g),id=MD[m].id,n=NOTE[id];
+  function frame(i,stretch){const S=RDE.stats(m),G=RDE.stats(g),id=MD[m].id,n=NOTE[id];
     $('rd-vnM').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.m===m));$('rd-vnG').value=g;
     const fw=Math.min(i,L),bk=i>=L+2?Math.min(L,i-L-1):0,cur=i>=1&&i<=L?i:(i>=L+2&&i<=2*L+1?L+1-(i-L-1):0);
     const box=$('rd-vnSvg'),W=RD.width(box),ph=Math.round(Math.min(170,Math.max(120,W*.26))),gap=34,ml=42,mr=8,mt=16,H=mt+ph+gap+ph+28;
@@ -49,23 +51,25 @@
     if(g!==m)for(let l=1;l<=L;l++){s+='<circle cx="'+x(l)+'" cy="'+ya(G.acts[l-1])+'" r="3.2" fill="var(--mute)" stroke="var(--bg)"/><circle cx="'+x(l)+'" cy="'+yb(G.grads[l-1])+'" r="3.2" fill="var(--mute)" stroke="var(--bg)"/>'}
     if(i===L+1)s+='<text x="'+((W+ml)/2)+'" y="'+(y0b-22)+'" font-size="11.5" text-anchor="middle" fill="var(--c2)">loss = '+F(S.loss,3)+'  (ln 10 = 2.303)</text>';
     box.innerHTML=s+'</svg>';
-    let t,p;
-    if(i===0){t='The batch: 32 inputs of 64 numbers';p='Spread (standard deviation) '+F(S.inStd,2)+'. Watch what each layer does to it on the way up, then what happens to the gradient on the way down.'}
-    else if(i<=L){t='Forward, layer '+i+': spread '+F(S.acts[i-1],3);p=(i<=2||i===L)?n.f:'Each bar is how spread out the layer\'s 32 &times; 64 outputs are. On this log scale, a steady staircase down or up means the same factor lost or gained at every layer.'}
-    else if(i===L+1){t='The loss: '+F(S.loss,3);p='Cross entropy over 10 classes; a network that cannot tell its inputs apart scores ln 10 = 2.303. Now the gradient flows back down.'}
-    else if(i<=2*L+1){const l=cur;t='Backward, layer '+l+': gradient '+E(S.grads[l-1]);p=(l>=L-1||l<=2)?n.b:'Each layer\'s gradient is the one above it times the layer\'s own Jacobian: a product that grows one factor per layer.'}
-    else{t='First layer against last: '+E(S.grads[0]/S.grads[L-1]);p=n.s}
-    $('rd-vnT').innerHTML=t;
+    let p;
+    if(stretch===0||stretch===1)p=n.f;
+    else if(stretch===2)p='Loss '+F(S.loss,3)+' against ln 10 = 2.303.';
+    else if(stretch===3)p=n.b;
+    else p=n.s;
     $('rd-vnP').innerHTML=p;
     const la=i>=1&&i<=L?i:fw,lg=cur&&i>L+1?cur:(i===2*L+2?1:null);
     $('rd-vnN').innerHTML=RD.stat('Network',MD[m].name,'')+RD.stat('Spread, layer '+(la||'in'),la?F(S.acts[la-1],3):F(S.inStd,3),g!==m?'compared: '+(la?F(G.acts[la-1],3):F(G.inStd,3)):'')+
       RD.stat('Gradient'+(lg?', layer '+lg:''),lg?E(S.grads[lg-1]):'not yet',lg&&g!==m?'compared: '+E(G.grads[lg-1]):'')+
       RD.stat('First / last layer gradient',i===2*L+2?E(S.grads[0]/S.grads[L-1]):'at the end',g!==m&&i===2*L+2?'compared: '+E(G.grads[0]/G.grads[L-1]):'');
   }
-  an=RD.anim({card:'rd-vn',ctl:'rd-vnC',n:NS,start:NS-1,draw,ms:650,label:'Layer step'});
-  $('rd-vnM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;m=+b.dataset.m;if(g===m)g=m===4?0:4;an.reset(NS);an.play()});
-  $('rd-vnG').addEventListener('change',e=>{g=+e.target.value;an.redraw()});
+  // a stretch that walks the layers reveals them one by one during its step (all at once under reduced motion)
+  function draw(i){clearInterval(rti);const fresh=i!==lastI;lastI=i;
+    if((i===1||i===3)&&fresh&&!RD.RM){rv=1;frame(frameOf(i,rv),i);rti=setInterval(()=>{rv++;frame(frameOf(i,rv),i);if(rv>=L)clearInterval(rti)},150)}
+    else{if(fresh)rv=L;frame(frameOf(i,rv),i)}}
+  an=RD.anim({card:'rd-vn',ctl:'rd-vnC',n:NS,draw,ms:4200,label:'Stretch of the forward and backward pass',list:'sx-vn'});
+  $('rd-vnM').addEventListener('click',e=>{const b=e.target.closest('button[data-m]');if(!b)return;m=+b.dataset.m;if(g===m)g=m===4?0:4;lastI=-1;an.reset(NS)});
+  $('rd-vnG').addEventListener('change',e=>{g=+e.target.value;frame(frameOf(an.i,rv),an.i)});
   // buttons in threads 2 and 3 load a pair into this animation
-  document.querySelectorAll('#rd-t2C button,.rd-ld').forEach(b=>b.addEventListener('click',()=>{m=+b.dataset.m;g=+b.dataset.g;$('rd-vn').scrollIntoView({block:'start'});an.reset(NS);an.play()}));
-  let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>an.redraw(),120)});
+  document.querySelectorAll('#rd-t2C button,.rd-ld').forEach(b=>b.addEventListener('click',()=>{m=+b.dataset.m;g=+b.dataset.g;$('rd-vn').scrollIntoView({block:'center'});lastI=-1;an.reset(NS)}));
+  let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>frame(frameOf(an.i,rv),an.i),120)});
 })();

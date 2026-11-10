@@ -187,7 +187,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` Optimisers and learning-rate schedulers
 - [x] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
 - [x] `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer` Sequence models: the pre-transformer lineage
-- [~] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
+- [x] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack` The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor
 - [~] `systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores` Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy` GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills
@@ -481,6 +481,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_ml_fundamentals/regularisation`: Fig. 2 step 4 "on this axis bp = 0" label at the card edge and the bowl runs off the top; Fig. 3 faded front row tints the blue columns; phone labels close at some transitions.
 - `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer`: `check_cells.py` not rerun (needs torch, not in the offline cache); the cell engine is unchanged and `check_page.mjs` passed. Run `uv run --no-project --with torch python check_cells.py` from `src/` once online.
 - `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack`: Fig. 4 top (source) plate touches the card top at step 3; Fig. 3 tool names sit just above their boxes; `src/out/sass.json` (gitignored) regenerated locally for `check_embed.py`; recorded logs keep Docker-container paths (`/tmp/cs/...`, `/work`).
+- `models_and_training/topic_ml_fundamentals` (root): Fig. 1 full-line view small at 390 px (steps 1 and 8); Optimisers' Further reading still describes the root's "step strip" (now Fig. 1); `check_times.py` misses quotes placed far after the link (the nine children's quotes of the root were fixed by hand).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -516,3 +517,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Regularisation: Fig. 2 uses the error level at the explorer's step 9 of 10 (ridge (184, 132)), while the 2D explorer opens on step 7 ((244, 171)); both labelled. Fine, or open the explorer on the same level?
 - Sequence models: corrected the LSTM story from the real activations (unit 4 input gate averages 0.88 over the distractors, forget gate 0.95; the key is re-written every step, cell grows to +15.2 for key b, -5.8 for key a); the old text said the input gate shuts. The four-cell widget now opens on key b. Accept?
 - Compiler stack: now 44 min core plus 24 closed (was 37 plus 23), the longest page so far in the rollout. Accept, or trim the Fig. 5 and Fig. 6 step lists?
+- ML fundamentals root: the lab's sigmoid preset claims 10 of 10 seeds end above 75%, but seed 8 ends at 50% on this machine (Node 20.20; engine unchanged since 2026-10-03). Restate as 9 of 10, or treat as an environment difference? The Defaults morph stays a widget (the reader picks two models).

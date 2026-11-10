@@ -66,9 +66,7 @@
 <div class="dg-chips" id="dg-syms" role="group" aria-label="Symptom"></div>
 <div class="dg-det" id="dg-det" aria-live="polite"></div>
 
-<h2 id="dg-h-anim">Bug and fix, step by step</h2>
-<p>The same network, the same seed and the same batches, with the bug and with the fix, replayed from the recorded logs. The bars are the gradient norm of each layer's weights on a log scale (first layer on the left): a healthy deep network keeps them within a few orders of magnitude of each other; a vanishing one slopes down towards the input, an exploding one shoots off the top.</p>
-<div class="card dg-anim" id="dg-anim">
+<div class="s3sp"><div class="s3R"><div class="card dg-anim" id="dg-anim">
 <div class="seg" id="dg-am" role="group" aria-label="Case"><button class="on" data-m="van" aria-pressed="true">Vanishing</button><button data-m="exp" aria-pressed="false">Exploding</button><button data-m="spk" aria-pressed="false">Loss spikes</button></div>
 <div class="stepcap" id="dg-astep"></div>
 <div class="capt" id="dg-acap"></div>
@@ -76,6 +74,28 @@
 <div class="out" id="dg-acnt"></div>
 <div class="row"><button id="dg-aback" aria-label="Step back">&#9664;&#9664;</button><button id="dg-aplay" aria-label="Play">&#9654; Play</button><button id="dg-afwd" aria-label="Step forward">&#9654;&#9654;</button><input type="range" id="dg-ascrub" min="0" max="100" value="0" aria-label="Scrub through training"><label class="small">Speed <select id="dg-aspd"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label></div>
 </div>
+</div><div class="s3L">
+<h2 id="dg-h-anim">Bug and fix, step by step</h2>
+<p>The same network, the same seed and the same batches, with the bug and with the fix, replayed from the recorded logs. The bars are the gradient norm of each layer's weights on a log scale (first layer on the left): a healthy deep network keeps them within a few orders of magnitude of each other; a vanishing one slopes down towards the input, an exploding one shoots off the top.</p>
+<ol class="sx" id="sx-dg-van">
+<li><b>Step 1: the same batch through both networks.</b> Before any update the backward pass already tells the story: each sigmoid layer multiplies the backward signal by at most 0.25, so the first layer's gradient is far smaller than the output layer's; with ReLU and He initialisation the layers stay close.</li>
+<li><b>Steps 10 to 200: one network learns, the other waits.</b> SGD with momentum applies these gradients as they are, so the sigmoid network's early layers barely move and its loss stays near ln 10 = 2.303, the loss of guessing; the ReLU network's loss falls from the first steps.</li>
+<li><b>Steps 200 to 600: the gap does not close.</b> A plateau caused by vanishing gradients does not end by waiting.</li>
+<li><b>Step 600: the end of the run.</b> Same data, same depth, same batches; the final losses and accuracies are under the chart.</li>
+</ol>
+<ol class="sx" id="sx-dg-exp" hidden>
+<li><b>Step 1: the forward pass has already exploded.</b> With every weight drawn from N(0, 1), each 64-wide ReLU layer multiplies the signal by about 5.7, so the logits are enormous and the loss before any update is far above ln 10 = 2.303; the gradients are largest at the input end.</li>
+<li><b>Step 2: NaN.</b> One update with those gradients and every weight is NaN: the bars are gone and they will not come back. A NaN never recovers; only the fix can.</li>
+<li><b>Steps 3 to 60: the fixed network trains.</b> With He initialisation and clipping at 1.0 the gradient norms stay within a few orders of magnitude of each other and the loss falls.</li>
+<li><b>Step 60: the end.</b> The fixed run reaches its final training loss in 60 steps; the bug ended at step 2.</li>
+</ol>
+<ol class="sx" id="sx-dg-spk" hidden>
+<li><b>Steps 1 to 50: warmup.</b> Both runs start identically: same seed, same batches, the learning rate rising linearly to its peak.</li>
+<li><b>Steps 50 to 150: the spike.</b> At the peak rate both runs spike. With QK-norm and z-loss the loss jumps and recovers; without them it jumps higher while the largest attention logit climbs.</li>
+<li><b>Steps 150 to 1,500: one run recovers, one never does.</b> The cosine schedule lowers the rate, but without QK-norm the run never gets back to where it was before the spike: attention has become nearly one-hot and the logits keep growing.</li>
+<li><b>Step 1,500: the end.</b> The final validation losses and the count of gradient-norm spikes are under the chart. The sweep below shows the same effect across five learning rates, and the spike score lets you separate the two fixes.</li>
+</ol>
+</div></div>
 
 <h2 id="dg-h-gal">Loss-curve gallery</h2>
 <p>Every pathology as a real curve. Solid: training loss; dashed: validation loss; log scale. Click a curve to open its symptom above.</p>
