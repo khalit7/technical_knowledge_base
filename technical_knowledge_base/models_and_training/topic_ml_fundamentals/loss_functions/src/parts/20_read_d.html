@@ -1,6 +1,7 @@
 
 <section id="s-rank">
 <h2>Ranking losses: only the order counts</h2>
+<div class="s3sp"><div class="s3L">
 <p>A search engine scores each document <i>i</i> for a query, <i>s</i><sub><i>i</i></sub> = <i>f</i>(<i>x</i><sub><i>i</i></sub>), and shows them sorted. The labels are relevance grades, and the metric only looks at the order, usually NDCG: each document's gain 2<sup><i>l</i></sup> &minus; 1 divided by log(1 + its rank), summed, over the best possible sum (<a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">Burges 2010</a>, eq. 5; the log's base cancels in the ratio). Three ways to turn that into a loss:</p>
 <ul class="tight">
 <li><b>Pairwise.</b> For each pair where <i>i</i> should rank above <i>j</i>, penalise the score difference. PyTorch's <code>MarginRankingLoss</code> is the hinge version, max(0, &minus;<i>y</i>&middot;(<i>x</i><sub>1</sub> &minus; <i>x</i><sub>2</sub>) + margin), margin 0 by default (PyTorch 2.14 docstring). <b>RankNet</b> is the logistic version: model P(<i>i</i> above <i>j</i>) = 1/(1 + e<sup>&minus;σ(<i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>)</sup>) and take cross entropy, which for a known order is <i>C</i> = log(1 + e<sup>&minus;σ(<i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>)</sup>), the logistic margin loss above with <i>m</i> = <i>s</i><sub><i>i</i></sub> &minus; <i>s</i><sub><i>j</i></sub>; "when <i>s</i><sub><i>i</i></sub> = <i>s</i><sub><i>j</i></sub>, the cost is log 2" (<a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/MSR-TR-2010-82.pdf" target="_blank" rel="noopener noreferrer">Burges 2010</a>, section 2).</li>
@@ -9,6 +10,10 @@
 </ul>
 <p><b>Why pairwise is not enough, in numbers.</b> Ten documents, relevant at ranks 2 and 10, the rest irrelevant <i class="nl i">illustrative</i>: 9 pairs are in the wrong order, NDCG 0.564. Fix A lifts the bottom relevant document to rank 5: 4 wrong pairs, NDCG 0.624. Fix B swaps the top two: 8 wrong pairs, NDCG 0.790. A pairwise loss prefers A; the user, and NDCG, prefer B <i class="nl d">computed here</i>. Burges's Figure 1 makes the same point (13 pairwise errors reduced to 11 by a move that hurts the top of the list).</p>
 <p class="try"><b>Predict, then look:</b> under RankNet, which document gets the largest push? Under LambdaRank? Then move the second relevant document up the list.</p>
+
+<p>With the default list, RankNet pushes the relevant document at rank 2 only 0.30 times as hard as the one at rank 10, because rank 10 is in more wrong pairs; LambdaRank raises that to 0.42. The irrelevant document at rank 1 is pushed down 0.24 times as hard as rank 10 is pushed up under RankNet, 0.75 times under LambdaRank: the swap that fixes the top of the list now carries a far larger share of the gradient <i class="nl d">computed here</i>.</p>
+<p class="small">The <b>triplet loss</b>, max{<i>d</i>(<i>a</i>, <i>p</i>) &minus; <i>d</i>(<i>a</i>, <i>n</i>) + margin, 0}, is the same idea for embeddings: rank the matching pair above the non-matching one for an anchor (PyTorch's <code>TripletMarginLoss</code>: margin 1, p = 2 by default). Its margin, the choice of negatives and the collapse that hard negatives cause are owned by {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}} ("Pairs and triplets: the margin losses"), which runs it on a real batch.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="rk-card">
 <div class="ph">Same scores, same pairs: LambdaRank moves the push to the top of the list</div>
 <div class="ctl2"><label>second relevant document at rank <b id="rk-pv">10</b> <input type="range" id="rk-p" min="3" max="10" value="10" aria-label="Rank of the second relevant document"></label></div>
@@ -16,13 +21,25 @@
 <div class="cnt" id="rk-out"></div>
 <p class="small mute">Each bar is &minus;λ<sub><i>i</i></sub> = &minus;&part;<i>C</i>/&part;<i>s</i><sub><i>i</i></sub> summed over the document's pairs (Burges 2010, eqs. 3, 4 and 6; σ = 1): right is "push this score up". Each panel is scaled to its own largest bar, because LambdaRank's λ carries NDCG's units. Scores fall by 0.4 per rank from 2.0 <i class="nl i">illustrative</i>; RankNet's λ checked against PyTorch autograd, LambdaRank's recomputed independently (<code>src/recompute.py</code>).</p>
 </div>
-<p>With the default list, RankNet pushes the relevant document at rank 2 only 0.30 times as hard as the one at rank 10, because rank 10 is in more wrong pairs; LambdaRank raises that to 0.42. The irrelevant document at rank 1 is pushed down 0.24 times as hard as rank 10 is pushed up under RankNet, 0.75 times under LambdaRank: the swap that fixes the top of the list now carries a far larger share of the gradient <i class="nl d">computed here</i>.</p>
-<p class="small">The <b>triplet loss</b>, max{<i>d</i>(<i>a</i>, <i>p</i>) &minus; <i>d</i>(<i>a</i>, <i>n</i>) + margin, 0}, is the same idea for embeddings: rank the matching pair above the non-matching one for an anchor (PyTorch's <code>TripletMarginLoss</code>: margin 1, p = 2 by default). Its margin, the choice of negatives and the collapse that hard negatives cause are owned by {{Contrastive and self-supervised learning|n:3c65c17b0d0d811db6a7d02d0ee7215c}} ("Pairs and triplets: the margin losses"), which runs it on a real batch.</p>
+</div></div></div>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-zl"></div></div><div class="s3L">
 <section id="s-logit">
 <h2>The level of the logits: what cross entropy ignores</h2>
 <p>Because the cross-entropy gradient <i>p</i> &minus; <i>y</i> sums to zero over the classes, adding the same constant <i>c</i> to every logit changes neither the softmax nor the loss. The overall level, log <i>Z</i> = log Σ<sub><i>j</i></sub> e<sup><i>z</i><sub><i>j</i></sub></sup>, is free to drift, and in large models it does. Two fixes act on the logits themselves: <b>z-loss</b> adds 10<sup>&minus;4</sup>&middot;log<sup>2</sup> <i>Z</i> to pull the level to log <i>Z</i> = 0 (PaLM), and <b>soft-capping</b> bounds them, soft_cap&middot;tanh(logits / soft_cap) (Gemma 2: 50 in attention, 30 on the final layer). Both, with the instabilities they prevent and measured runs, are owned by {{Normalisation, residuals and stability|n:3fd5c17b0d0d8163b50dc5e9d9240e89}} (section 5 for z-loss, section 4 for soft-capping).</p>
+<p>Fig. 4 takes the same prediction as Fig. 3 and moves only the level.</p>
+<ol class="sx" id="sx-zl">
+<li><b>Where the level sits.</b> SmolLM2's top logit is <span data-zl="zmax">20.0</span> and log <i>Z</i> = <span data-zl="logZ">21.6</span> (the glass plate). Cross entropy, log <i>Z</i> &minus; <i>z</i><sub>winter</sub> = <span data-zl="ce">1.63</span>, sees only differences; z-loss sees the level: 10<sup>&minus;4</sup>&middot;log<sup>2</sup> <i>Z</i> = <span data-zl="zl0">0.047</span>.</li>
+<li><b>Shift every logit by <i>c</i> = <span data-zl="c">+8</span></b> <i class="nl i">illustrative</i>. The softmax in front does not move and cross entropy stays 1.63, but log <i>Z</i> becomes <span data-zl="logZc">29.6</span> and z-loss <span data-zl="zlc">0.088</span>.</li>
+<li><b>z-loss pushes down.</b> Its gradient on logit <i>i</i> is 2&middot;10<sup>&minus;4</sup>&middot;log <i>Z</i>&middot;<i>p<sub>i</sub></i>, largest on the likeliest token: <span data-zl="gc">1.2×10<sup>−3</sup></span> on winter here (<span data-zl="g0">8.4×10<sup>−4</sup></span> at the model's own level), small beside cross entropy's 0.805, and the same sign on every logit, so it moves the level, not the differences.</li>
+<li><b>Down to log Z = 0.</b> Every logit falls together; the softmax and cross entropy never change.</li>
+<li><b>Each logit is its log-probability.</b> At log <i>Z</i> = 0 winter sits at <span data-zl="lp">−1.63</span> and <span data-zl="sn">time</span> at <span data-zl="lpn">−3.46</span>, and z-loss is 0: the level PaLM's z-loss pulls towards.</li>
+</ol>
+</section>
+</div></div>
+
+<section id="s-logit-b">
 <details class="mist dd"><summary>Real logits from three small models: where the level sits, and what bf16 storage does to it <small>(measured)</small></summary><div class="b">
 <p class="small">PaLM added "an auxiliary loss of z_loss = 10<sup>&minus;4</sup> &middot; log<sup>2</sup> <i>Z</i> to encourage the softmax normalizer log(<i>Z</i>) to be close to 0, which we found increases the stability of training" (<a href="https://arxiv.org/abs/2204.02311" target="_blank" rel="noopener noreferrer">Chowdhery et al. 2022</a>). Its gradient on logit <i>i</i> is 2&middot;10<sup>&minus;4</sup>&middot;log <i>Z</i>&middot;softmax<sub><i>i</i></sub>, a push of every logit towards a level where log <i>Z</i> = 0 and each logit <i>is</i> its log-probability. Wortsman et al. reproduced the failure it prevents, output logits diverging late in training, in small models trained without weight decay at high learning rates, and found z-loss resolves it (weight decay also helped in their larger models; <a href="https://arxiv.org/abs/2309.14322" target="_blank" rel="noopener noreferrer">Wortsman et al. 2023</a>). Which landmark models used it is in the parent's {{Defaults across models|n:3c65c17b0d0d81d796ccc0a293218c57}} tab.</p>
 <p class="small">Why the level matters at all is number formats: bfloat16 keeps 8 significant bits, so the gap between neighbouring values grows with magnitude (0.0078 near 1, 0.125 near 24, 0.5 near 100) <i class="nl d">derived</i>. Logits stored in bf16 at a high level lose the small differences the softmax depends on. Slide the shift <i>c</i> added to every logit: cross entropy does not move, z-loss does, and so does the damage bf16 storage does to the probabilities.</p>
@@ -47,8 +64,12 @@
 
 <section id="s-gan">
 <h2>The adversarial loss, and the fix in the same paper</h2>
+<div class="s3sp"><div class="s3L">
 <p>A GAN trains a generator <i>G</i> and a discriminator <i>D</i> against each other in one minimax game, min<sub><i>G</i></sub> max<sub><i>D</i></sub> E[log <i>D</i>(<i>x</i>)] + E[log(1 &minus; <i>D</i>(<i>G</i>(<i>z</i>)))]. The original paper already warned that this form starves the generator: "Early in learning, when <i>G</i> is poor, <i>D</i> can reject samples with high confidence ... In this case, log(1 &minus; <i>D</i>(<i>G</i>(<i>z</i>))) saturates. Rather than training <i>G</i> to minimize log(1 &minus; <i>D</i>(<i>G</i>(<i>z</i>))) we can train <i>G</i> to maximize log <i>D</i>(<i>G</i>(<i>z</i>))", which has the same fixed point "but provides much stronger gradients early in learning" (<a href="https://arxiv.org/abs/1406.2661" target="_blank" rel="noopener noreferrer">Goodfellow et al. 2014</a>, section 3). This is the <b>non-saturating</b> loss most GANs train with.</p>
 <p class="try"><b>Predict, then slide:</b> when the discriminator gives a fake 0.01, how many times stronger is the non-saturating gradient? Slide how confidently the discriminator rejects a generated sample.</p>
+
+<p>Later losses change the game itself: least-squares GANs replace the log loss with squared error, because the sigmoid cross-entropy loss "may lead to the vanishing gradients problem", and minimising it amounts to the Pearson χ<sup>2</sup> divergence (<a href="https://arxiv.org/abs/1611.04076" target="_blank" rel="noopener noreferrer">Mao et al. 2017</a>); Wasserstein GANs minimise the earth mover's distance with a Lipschitz critic, enforced in the first paper by weight clipping, which its authors call "a clearly terrible way to enforce a Lipschitz constraint" (<a href="https://arxiv.org/abs/1701.07875" target="_blank" rel="noopener noreferrer">Arjovsky et al. 2017</a>). GANs themselves belong to {{Topic: generative-and-multimodal|n:3c65c17b0d0d817ab6ade318917bff55}}.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="gn-card">
 <div class="ph">The minimax gradient vanishes exactly when the generator is worst</div>
 <div class="ctl2"><label><i>D</i>(<i>G</i>(<i>z</i>)) = <b id="gn-dv"></b> <input type="range" id="gn-d" min="0" max="1000" value="100" aria-label="Discriminator output on a fake sample"></label></div>
@@ -56,7 +77,7 @@
 <div class="cnt" id="gn-out"></div>
 <p class="small mute">Gradients with respect to the discriminator's logit <i>l</i> on the sample, <i>D</i> = σ(<i>l</i>): minimax d/d<i>l</i> log(1 &minus; σ(<i>l</i>)) = &minus;<i>D</i>; non-saturating d/d<i>l</i> (&minus;log σ(<i>l</i>)) = &minus;(1 &minus; <i>D</i>) <i class="nl d">derived</i>, checked with PyTorch autograd. At <i>D</i> = 0.01 the ratio is (1 &minus; <i>D</i>)/<i>D</i> = 99.</p>
 </div>
-<p>Later losses change the game itself: least-squares GANs replace the log loss with squared error, because the sigmoid cross-entropy loss "may lead to the vanishing gradients problem", and minimising it amounts to the Pearson χ<sup>2</sup> divergence (<a href="https://arxiv.org/abs/1611.04076" target="_blank" rel="noopener noreferrer">Mao et al. 2017</a>); Wasserstein GANs minimise the earth mover's distance with a Lipschitz critic, enforced in the first paper by weight clipping, which its authors call "a clearly terrible way to enforce a Lipschitz constraint" (<a href="https://arxiv.org/abs/1701.07875" target="_blank" rel="noopener noreferrer">Arjovsky et al. 2017</a>). GANs themselves belong to {{Topic: generative-and-multimodal|n:3c65c17b0d0d817ab6ade318917bff55}}.</p>
+</div></div></div>
 </section>
 
 <section id="s-mist">

@@ -1,5 +1,6 @@
-// Exercise every control on the built page (both themes' logic is the same), step through the animation in both
-// scenarios and all three robust losses, and fail on any script error, NaN, undefined or Infinity in visible text.
+// Exercise every control on the built page (both themes' logic is the same), step through the outlier stage (Fig. 2) in both
+// datasets, and fail on any script error, NaN, undefined or Infinity in visible text. Since 2026-11-10 the stages play by themselves
+// once scrolled into view (the 2026-11-06 rule); src/check_stages.mjs checks every stage, its step lists and reduced motion in depth.
 // usage: node src/check_page.mjs (needs html_utils/node_modules)
 import { createRequire } from 'module';import path from 'path';import { fileURLToPath } from 'url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -15,20 +16,20 @@ const bad = async (where) => { const t = await p.evaluate(() => document.body.in
 const slide = async (sel, vals) => { for (const v of vals) { await p.evaluate((s, v) => { const e = document.querySelector(s); e.value = v; e.dispatchEvent(new Event('input')) }, sel, v) } };
 const clickAll = async sel => { const n = await p.$$eval(sel, a => a.length); for (let i = 0; i < n; i++) await p.evaluate((s, i) => document.querySelectorAll(s)[i].click(), sel, i) };
 let steps = 0;
-// nothing may move before the reader acts: scroll the animation into view, wait, and its step must still be 0
-await p.evaluate(() => document.getElementById('oa-card').scrollIntoView()); await new Promise(r => setTimeout(r, 3500));
-const still = await p.evaluate(() => document.getElementById('oa-ctl-s').value); if (still !== '0') errs.push('animation moved by itself: step ' + still);
+// the outlier stage plays by itself once scrolled into view (it used to wait for the reader; the rule changed on 2026-11-06)
+await p.evaluate(() => document.getElementById('stg-ol').scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 3500));
+const moved = await p.evaluate(() => +document.getElementById('stg-ol').dataset.frames || 0); if (!(moved > 0)) errs.push('outlier stage did not play when scrolled into view');
 // Reading
 await slide('#pk-t', [1, 50, 99, 90]); await slide('#pk-d', [0, 60, 40]);
 await p.evaluate(() => document.getElementById('pk-z').click()); await bad('picker zero');
 const mape0 = await p.evaluate(() => document.getElementById('pk-out').innerText);
 await p.evaluate(() => document.getElementById('pk-z').click());
-for (const sc of ['a', 's']) for (const l of ['huber', 'mae', 'logcosh']) {
-  await p.evaluate((sc, l) => { document.querySelector('#oa-sc [data-s="' + sc + '"]').click(); document.querySelector('#oa-l [data-l="' + l + '"]').click() }, sc, l);
-  for (let i = 0; i < 6; i++) { await p.evaluate(() => document.getElementById('oa-ctl-f').click()); steps++ }
-  await bad('anim ' + sc + ' ' + l);
+for (const m of ['a', 's']) {
+  await p.evaluate(m => document.querySelector('#olM [data-m="' + m + '"]').click(), m);
+  for (let i = 0; i < 6; i++) { await p.evaluate(() => document.getElementById('stg-ol-f').click()); steps++ }
+  await bad('outlier stage ' + m);
 }
-const after = await p.evaluate(() => document.getElementById('oa-cap').innerText);
+const after = await p.evaluate(() => document.querySelector('#stg-ol .stg-st').textContent + ' · ' + document.querySelector('#sx-ol-s li.on').innerText.slice(0, 90));
 await p.evaluate(() => document.querySelectorAll('details').forEach(d => d.open = true));
 await slide('#zl-c', [0, 24, 3, 12]); await slide('#gn-d', [0, 1000, 500, 171]); await bad('reading');
 // Fit a line
@@ -56,5 +57,5 @@ const rk = await p.evaluate(() => document.getElementById('rk-out').innerText);
 
 await p.evaluate(() => document.querySelector('button[data-t="t-more"]').click()); await bad('more');
 const box = await p.evaluate(() => { const d = document.getElementById('jsErr'); return d && !d.hidden ? d.textContent : '' }); if (box) errs.push('errbox: ' + box);
-console.log(JSON.stringify({ errs, steps, mape_with_zero_river: mape0.replace(/\n/g, ' ').slice(-60), anim_last_caption: after, fit_table: fitTbl.split('\n').slice(0, 8), focal_at_0968: focal.replace(/\n/g, ' '), logits_last_caption: lgcap, ranking: rk.replace(/\n/g, ' ') }, null, 1));
+console.log(JSON.stringify({ errs, steps, mape_with_zero_river: mape0.replace(/\n/g, ' ').slice(-60), outlier_stage_end: after, fit_table: fitTbl.split('\n').slice(0, 8), focal_at_0968: focal.replace(/\n/g, ' '), logits_last_caption: lgcap, ranking: rk.replace(/\n/g, ' ') }, null, 1));
 await b.close();

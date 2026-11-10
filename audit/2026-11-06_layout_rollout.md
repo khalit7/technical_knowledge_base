@@ -182,9 +182,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_ml_fundamentals/classical_ml` Classical ML
 - [x] `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning` Contrastive and self-supervised learning
 - [x] `models_and_training/topic_ml_fundamentals/evaluation_metrics` Evaluation metrics
-- [~] `models_and_training/topic_ml_fundamentals/loss_functions` Loss functions
-- [ ] `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` Normalisation and initialisation
-- [ ] `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` Optimisers and learning-rate schedulers
+- [x] `models_and_training/topic_ml_fundamentals/loss_functions` Loss functions
+- [~] `models_and_training/topic_ml_fundamentals/normalisation_and_initialisation` Normalisation and initialisation
+- [~] `models_and_training/topic_ml_fundamentals/optimisers_and_learning_rate_schedulers` Optimisers and learning-rate schedulers
 - [ ] `models_and_training/topic_ml_fundamentals/regularisation` Regularisation
 - [ ] `models_and_training/topic_ml_fundamentals/sequence_models_pre_transformer` Sequence models: the pre-transformer lineage
 - [ ] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
@@ -475,6 +475,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_ml_fundamentals/classical_ml`: Fig. 2 forest plates busy (many overlapping curves); PC3 label over the wine cloud in Fig. 4 steps 4-5; Fig. 2 small on phones; `check_ml.mjs` needs the gitignored `check/ref.json`.
 - `models_and_training/topic_ml_fundamentals/contrastive_and_self_supervised_learning`: sphere outlines faint in Fig. 4; empty floor in Figs. 2 and 4; Fig. 3 dense at 390 px; "The batch is the task" states the InfoNCE ln N bound without linking Information theory (its owner): add the link.
 - `models_and_training/topic_ml_fundamentals/evaluation_metrics`: Fig. 1 row labels (orange, blue) do not match the columns' right/wrong colours (green, purple); phone labels touch (TP/FN in Fig. 1 step 2, Fig. 2 step 6 tower labels); Fig. 3 later rows show faintly from step 1.
+- `models_and_training/topic_ml_fundamentals/loss_functions`: Fig. 2 Anscombe view sparse (clean points' columns nearly flat, the scene small in the card).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -504,3 +505,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Classical ML: 31 min core (about 29 reading one mode per figure); the step lists were kept in full. Fig. 4 PCA uses the three wine measurements that weigh most in PC1 (labelled). A separate kernel-lift SVM stage was not built (CM24 in viz_ideas.md). Trim, or keep?
 - Contrastive: a new 3-D sphere toy run (`train_toy.py sphere3`, about a minute on CPU) replaced the circle's numbers; the 2-D run's "about 50%" kept as a record. No CLIP stage (no real image-text embeddings on the page). Keep?
 - Evaluation metrics: 29 min core (about 27 reading one scorer); the k slider kept beside Fig. 2 although the figure walks through k. Remove the slider, or keep?
+- Loss functions: Fig. 1 uses a new measured input, `src/real_tokens.py` running SmolLM2-135M on CPU over four public-domain sentences (`inputs/real_tokens.json`); Fig. 4's logit shift of +8 is illustrative. Keep?

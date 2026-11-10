@@ -1,4 +1,5 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-ce"></div></div><div class="s3L">
 <section id="s-ce">
 <h2>Cross entropy: likelihood, KL, and the gradient p &minus; y</h2>
 <p>A five-class image classifier outputs logits <i>z</i> = (3.0, 1.5, 0.5, &minus;0.5, &minus;1.5) for cat, dog, fox, owl and car; the softmax turns them into <i>p</i> = (0.743, 0.166, 0.061, 0.022, 0.008) <i class="nl i">illustrative</i>. If the image is a cat, cross entropy is &minus;log 0.743 = 0.30 nats; if it is a car, &minus;log 0.008 = 4.80.</p>
@@ -7,6 +8,18 @@
 <li><b>It is entropy plus KL.</b> Against any target distribution <i>P</i>, cross entropy <i>H</i>(<i>P</i>, <i>Q</i>) = <i>H</i>(<i>P</i>) + <i>D</i><sub>KL</sub>(<i>P</i>&#8214;<i>Q</i>). With a one-hot <i>P</i>, <i>H</i>(<i>P</i>) = 0 and the loss <i>is</i> the KL; with a soft target (label smoothing, a teacher) <i>H</i>(<i>P</i>) &gt; 0 is a floor no model goes below. The derivation is on {{Information theory for ML|n:3c65c17b0d0d81c6baf3f778a62e14e5}}.</li>
 <li><b>Its gradient on the logits is just</b> &part;<i>L</i>/&part;<i>z</i><sub><i>k</i></sub> = <i>p</i><sub><i>k</i></sub> &minus; <i>y</i><sub><i>k</i></sub>. Every wrong class is pushed down by its probability, the right class up by what it lacks, and the pushes sum to zero <i class="nl d">derived</i>. For the cat that is &minus;0.257 on the cat logit; for the car, &minus;0.992 on the car logit: a confidently wrong example gets almost the largest push possible (1).</li>
 </ul>
+<p>Fig. 3 runs one real prediction through the loss: SmolLM2-135M on the Dickens sentence, at the token after "it was the spring of hope, it was the" (<code>src/real_tokens.py</code>) <i class="nl m">measured</i>.</p>
+<ol class="sx" id="sx-ce">
+<li><b>The logits.</b> The model's nine most likely next tokens of <span data-ce="V">49,152</span>, all close: "<span data-ce="s0">winter</span>" <span data-ce="z0">20.0</span>, "<span data-ce="s1">summer</span>" <span data-ce="z1">19.9</span>, "<span data-ce="s2">fall</span>" <span data-ce="z2">19.8</span>, "<span data-ce="s3">autumn</span>" <span data-ce="z3">19.5</span>.</li>
+<li><b>The softmax.</b> <i>p</i> = e<sup><i>z</i> &minus; log <i>Z</i></sup>, with log <i>Z</i> = <span data-ce="logZ">21.6</span> over the whole vocabulary: winter gets <span data-ce="p0">19.5%</span>, summer <span data-ce="p1">17.9%</span>, fall <span data-ce="p2">16.3%</span>, and <span data-ce="rest">24.7%</span> is spread over the other <span data-ce="restn">49,145</span> tokens.</li>
+<li><b>The target.</b> Dickens wrote "winter": <i>y</i> is 1 there and 0 everywhere else, and the loss is &minus;ln <i>p</i> = log <i>Z</i> &minus; <i>z</i> = <span data-ce="ce">1.63</span> nats.</li>
+<li><b>The gradient, p &minus; y.</b> Gradient descent moves each logit by &minus;(<i>p</i> &minus; <i>y</i>): winter is pulled up by 1 &minus; <i>p</i> = <span data-ce="pull">0.805</span>, every other token is pushed down by its own probability (summer <span data-ce="g1">0.179</span>, fall <span data-ce="g2">0.163</span>), and the rest of the vocabulary by <span data-ce="pushr">0.247</span> together. The tokens that took the probability are pushed hardest.</li>
+<li><b>The pushes add up to the pull.</b> <i>p</i> and <i>y</i> both sum to 1, so the gradient sums to zero: a step reshapes the logits but never moves their overall level, which is why that level is free (<a href="#s-logit">Fig. 4</a>).</li>
+</ol>
+</section>
+</div></div>
+
+<section id="s-ce-b">
 <p><b>The same gradient for every standard pairing.</b> Pair each output with its matching activation and loss and the gradient in the logit <i>z</i> (the raw score before any squashing, what backprop starts from) is always <b>prediction minus target</b> <i class="nl d">derived</i>:</p>
 <div class="tw"><table>
 <tr><th>Output</th><th>Activation, loss</th><th>&part;<i>L</i>/&part;<i>z</i></th></tr>
@@ -16,8 +29,17 @@
 <tr><td>a count</td><td>rate μ = e<sup><i>z</i></sup>, Poisson negative log-likelihood</td><td>e<sup><i>z</i></sup> &minus; <i>y</i></td></tr>
 </table></div>
 <p>Each pairing is a generalised linear model: the target's distribution is in the exponential family, the logit is its natural parameter, and the negative log-likelihood has gradient <b>mean minus target</b> (why, from the distribution: {{Probability for ML|n:3c65c17b0d0d815f9a47d613409b5a0c}}, section 7; every derivation step: {{Calculus and optimisation for ML|n:3c65c17b0d0d81eb8b49ed6a0f897f3b}}, section 2). What it means in practice: the push on a logit is bounded by 1 and is largest exactly when the model is most wrong. A squashing activation paired with the <i>wrong</i> loss keeps the activation's slope, which vanishes there: squared error on a sigmoid has gradient 2(<i>p</i> &minus; <i>y</i>)<i>p</i>(1 &minus; <i>p</i>), and at <i>z</i> = &minus;6 with <i>y</i> = 1 that is &minus;0.0049 against cross entropy's &minus;0.9975, about <b>203 times</b> smaller; the softmax case is the 38 times below.</p>
+<div class="s3sp"><div class="s3L">
 <p>Every other classification loss is this gradient reshaped: a softer target, a weight per example, or a different function of <i>p</i>. The widget puts each beside cross entropy on the same logits.</p>
 <p class="try"><b>Predict, then look:</b> on the car (confidently wrong), which loss pushes the car logit hardest, and which barely at all? Pick "confidently wrong", then each loss on the right.</p>
+
+<p>What the widget shows, in numbers <i class="nl d">computed here</i>:</p>
+<ul class="tight">
+<li><b>MSE on probabilities lets the worst examples off.</b> On the car it pushes the car logit by 0.026 against cross entropy's 0.992, 38 times less, because the softmax's slope <i>p</i><sub><i>k</i></sub>(1 &minus; <i>p</i><sub><i>k</i></sub>) is nearly 0 at <i>p</i> = 0.008 and squared error has no log to cancel it. Cross entropy's log exactly cancels that slope, which is why classifiers train on it; the parent's {{Training lab|n:3c65c17b0d0d81d796ccc0a293218c57}} trains the same network both ways.</li>
+<li><b>Focal loss silences the easy example, not the hard one.</b> On the cat it pushes 0.046, 5.6 times less than cross entropy; on the car it pushes 1.053, about the same. That is the point of focal loss: the gradient budget moves to the hard examples.</li>
+<li><b>Label smoothing stops short of certainty and lifts the tail.</b> On the cat it pushes the cat logit 0.177 instead of 0.257, and it pushes the car logit <i>up</i> (0.012), because <i>p</i> = 0.008 is below its target of 0.02 for every wrong class.</li>
+</ul>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="lg-card">
 <div class="ph">Same logits, four losses: the gradient each one puts on every logit</div>
 <div class="ctl2"><span class="seg2" id="lg-in" role="group" aria-label="Example"><button data-m="0" class="on">easy: it is a cat</button><button data-m="4">confidently wrong: it is a car</button></span>
@@ -27,12 +49,7 @@
 <div class="an-cap" id="lg-cap"></div>
 <p class="small mute">Bars are &minus;&part;<i>L</i>/&part;<i>z</i><sub><i>k</i></sub>, the direction gradient descent moves each logit (up is towards the class), on one scale across both panels; the right class is outlined. Label smoothing uses PyTorch's convention (target 1 &minus; ε + ε/<i>K</i> on the right class, ε/<i>K</i> = 0.02 on each other); focal is &minus;(1 &minus; <i>p</i><sub><i>t</i></sub>)<sup>γ</sup> log <i>p</i><sub><i>t</i></sub> with α = 1; MSE on probabilities is the Brier score Σ<sub><i>k</i></sub>(<i>p</i><sub><i>k</i></sub> &minus; <i>y</i><sub><i>k</i></sub>)<sup>2</sup>. Gradients checked against PyTorch autograd (<code>src/recompute.py</code>).</p>
 </div>
-<p>What the widget shows, in numbers <i class="nl d">computed here</i>:</p>
-<ul class="tight">
-<li><b>MSE on probabilities lets the worst examples off.</b> On the car it pushes the car logit by 0.026 against cross entropy's 0.992, 38 times less, because the softmax's slope <i>p</i><sub><i>k</i></sub>(1 &minus; <i>p</i><sub><i>k</i></sub>) is nearly 0 at <i>p</i> = 0.008 and squared error has no log to cancel it. Cross entropy's log exactly cancels that slope, which is why classifiers train on it; the parent's {{Training lab|n:3c65c17b0d0d81d796ccc0a293218c57}} trains the same network both ways.</li>
-<li><b>Focal loss silences the easy example, not the hard one.</b> On the cat it pushes 0.046, 5.6 times less than cross entropy; on the car it pushes 1.053, about the same. That is the point of focal loss: the gradient budget moves to the hard examples.</li>
-<li><b>Label smoothing stops short of certainty and lifts the tail.</b> On the cat it pushes the cat logit 0.177 instead of 0.257, and it pushes the car logit <i>up</i> (0.012), because <i>p</i> = 0.008 is below its target of 0.02 for every wrong class.</li>
-</ul>
+</div></div></div>
 </section>
 
 <section id="s-cls">
@@ -56,9 +73,11 @@
 
 <section id="s-marg">
 <h2>One axis for every classification loss: the margin</h2>
+<div class="s3sp"><div class="s3L">
 <p>With labels <i>y</i> &isin; {&minus;1, +1} and a score <i>f</i>(<i>x</i>), the margin <i>m</i> = <i>y</i>&middot;<i>f</i>(<i>x</i>) is positive when the example is classified correctly and large when it is classified confidently. The loss we would like is the 0-1 loss (1 if <i>m</i> &le; 0); it has no gradient, so training minimises a convex surrogate: hinge max(0, 1 &minus; <i>m</i>) for the SVM, logistic log(1 + e<sup>&minus;<i>m</i></sup>), which is binary cross entropy on logits, and exponential e<sup>&minus;<i>m</i></sup>, which AdaBoost minimises (<a href="https://doi.org/10.1214/aos/1016218223" target="_blank" rel="noopener noreferrer">Friedman, Hastie and Tibshirani 2000</a>). A convex surrogate gives the right decisions in the limit exactly when it is differentiable at 0 with a negative slope there (<a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett, Jordan and McAuliffe 2006</a>, Theorem 6), which all of these pass.</p>
 <p><b>Who pulls hardest.</b> A misclassified point at <i>m</i> = &minus;5 pulls with 0.99 under the logistic loss, 1 under hinge, and e<sup>5</sup> = 148 under the exponential loss <i class="nl d">derived</i>. A mislabelled example is exactly such a point, which is why exponential-loss boosting suffers under label noise; Long and Servedio prove that for a broad class of convex potentials, any nonzero rate of random label noise can stop a booster from beating 1/2 accuracy on a data set it would learn without noise (<a href="https://doi.org/10.1007/s10994-009-5165-z" target="_blank" rel="noopener noreferrer">Long and Servedio 2010</a>).</p>
 <p class="try"><b>Try:</b> switch to "pull" and drag <i>m</i> to &minus;3; then press the two buttons under the chart to land on Lin et al.'s focal numbers.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="sh-c">
 <div class="ph">Every surrogate pulls on wrong examples; they differ in how fast they let go of right ones</div>
 <div class="ctl2"><span class="seg2" id="sh-cv" role="group" aria-label="Quantity"><button data-v="phi" class="on">loss</button><button data-v="pull">pull</button></span></div>
@@ -70,7 +89,10 @@
 <p class="repro" id="sh-repro"><b>Defaults reproduce</b> Lin et al.'s "100× lower loss" at p<sub>t</sub> = 0.9 and "1000×" at p<sub>t</sub> ≈ 0.968 for γ = 2: 100× and 977×, independently.</p>
 <p class="small mute">Logistic loss in nats, log(1 + e<sup>&minus;<i>m</i></sup>), which is <code>BCEWithLogitsLoss</code> on the score; some texts divide by ln 2 so that it equals 1 at <i>m</i> = 0. Focal is the binary focal loss on the same score, <i>p</i><sub><i>t</i></sub> = σ(<i>m</i>), α = 1. Values and pulls checked against PyTorch autograd.</p>
 </div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>What the score estimates.</b> If a fraction η of inputs like <i>x</i> are positive, the logistic loss is minimised at <i>f</i> = log(η/(1 &minus; η)), the log-odds, so σ(<i>f</i>) is the probability; exponential at half the log-odds; squared hinge at 2η &minus; 1; hinge at sign(η &minus; ½), "for all η &isin; (0, 1) other than 1/2" (<a href="https://doi.org/10.1198/016214505000000907" target="_blank" rel="noopener noreferrer">Bartlett et al. 2006</a>, Example 3): an SVM's score carries the decision and nothing about how sure it is.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="sh-k">
 <div class="ph">Logistic recovers η exactly; hinge keeps only the sign; focal is pulled towards 0.5</div>
 <p class="small" style="margin:2px 0">The expected loss of a score <i>f</i> is η&middot;φ(<i>f</i>) + (1 &minus; η)&middot;φ(&minus;<i>f</i>). Its minimum <i>f</i>* is what a model trained on that loss learns to output.</p>
@@ -79,4 +101,5 @@
 <div class="tw"><table class="ftbl" id="sh-kt"></table></div>
 <p class="small mute">Closed forms for logistic (log-odds), exponential (half the log-odds), squared hinge (2η &minus; 1) and hinge (sign; Bartlett et al. 2006, Example 3); focal by a grid then golden-section search, checked against SciPy. Each curve is shifted and scaled to its own range so their minima can be compared.</p>
 </div>
+</div></div></div>
 </section>
