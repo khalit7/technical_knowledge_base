@@ -1,9 +1,39 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fat"></div></div><div class="s3L">
 <section id="rd-s5">
 <h2>5. Which binary runs on which GPU</h2>
 <p>Every NVIDIA GPU has a <dfn>compute capability</dfn> (CC): 8.0 for the A100, 8.9 for the L4 and RTX 4090, 9.0 for the H100 and H200, 10.0 for the B200 and GB200, 10.3 for the B300 and GB300, 12.0 for the RTX 5090 ({{NVIDIA, CUDA GPU compute capability|https://developer.nvidia.com/cuda-gpus}}) <span class="ev pub">documented</span>. Compiler targets are named after it: <code>compute_90</code> is a <dfn>virtual architecture</dfn> (PTX for CC 9.0's feature set), <code>sm_90</code> a <dfn>real architecture</dfn> (SASS for CC 9.0 chips). CUDA 13.4's nvcc knows these real targets <span class="ev cmp">recorded here</span>: <span id="cs-codes"></span>. Nothing older than Turing (7.5) is left, and with no <code>-arch</code> nvcc builds for sm_75 (<span id="cs-defarch"></span>).</p>
-<h3>The driver's search, step by step</h3>
-<p>When a kernel is first used, the driver looks in the binary's fat binary for a SASS image this GPU can run, then for a PTX image it can compile. Pick a binary (the objects compiled on this page, PyTorch 2.14's wheels, or your own mix), a GPU and a driver, and step through; the toggle removes the PTX, the usual difference between a binary that survives a new GPU and one that does not.</p>
-<div id="cs-runbox">
+<h3>What your PyTorch wheel carries, and which image each GPU runs</h3>
+<p>PyTorch 2.14 with CUDA 13.x on x86_64 ships SASS for <span id="cs-whl"></span>; on aarch64 (Grace, DGX Spark, Jetson Thor): <span id="cs-whlA"></span>. "Release/RC wheels ship SASS-only to keep libtorch_cuda.so size down"; nightlies add PTX for 12.0 ({{PyTorch v2.14.0, .ci/manywheel/build_env_setup.py|https://github.com/pytorch/pytorch/blob/v2.14.0/.ci/manywheel/build_env_setup.py}}) <span class="ev pub">source code</span>.</p>
+<div class="pr" id="cs-pr1"><div class="q">Predict: the PyTorch 2.14 release wheel (CUDA 13, x86_64) on a B300, compute capability 10.3. There is no sm_103 image in it. What happens?</div><div class="opts"><button data-a="0">Fails: no kernel image</button><button data-a="1">Runs the sm_100 SASS</button><button data-a="2">JIT-compiles PTX at start-up</button></div><div class="ans" hidden></div></div>
+<p>When a kernel is first used, the driver looks in the binary's fat binary for a SASS image this GPU can run, then for a PTX image it can compile. Fig. 5 runs that search for the release wheel on seven GPUs <span class="ev der">derived from the documented rules below</span>: SASS slabs orange, PTX purple, a launch that fails red.</p>
+<div class="s3chips" id="cs-fatMode"><button data-m="w" class="on">release wheel (SASS only)</button><button data-m="n">nightly (+ PTX 12.0)</button></div>
+<ol class="sx" id="sx-fat">
+<li><b>Six SASS images, no PTX.</b> The release wheel carries machine code for <code>sm_75</code>, <code>sm_80</code>, <code>sm_86</code>, <code>sm_90</code>, <code>sm_100</code> and <code>sm_120</code>, and nothing a driver could compile.</li>
+<li><b>A100 and L4: the same major version.</b> The A100 (CC 8.0) takes <code>sm_80</code>. The L4 (CC 8.9) has no <code>sm_89</code> image, so it takes <code>sm_86</code>: a cubin runs on the same major version at an equal or higher minor, and the driver picks the highest that fits.</li>
+<li><b>H100 and B200: an exact match each.</b> CC 9.0 takes <code>sm_90</code>, CC 10.0 <code>sm_100</code>.</li>
+<li><b>B300: no sm_103, still runs.</b> CC 10.3 has no image of its own; <code>sm_100</code> is the same major at a lower minor, so it runs that, with no compilation at load time (the answer to the prediction).</li>
+<li><b>RTX 5090: sm_120.</b> CC 12.0, an exact match.</li>
+<li><b>A future GPU of a new major version fails.</b> A hypothetical CC 13.0 GPU finds no SASS of major 13 and no PTX to compile: <code>cudaErrorNoKernelImageForDevice</code>, "no kernel image is available for execution on the device".</li>
+</ol>
+<ol class="sx" id="sx-fatn" hidden>
+<li><b>The nightly adds one PTX image.</b> The same six SASS images plus PTX <code>compute_120</code>.</li>
+<li><b>Today's GPUs do not change.</b> Each still takes its SASS image, as with the release wheel: SASS always wins when it fits.</li>
+<li><b>The future GPU now runs, after a JIT compile.</b> With no SASS of major 13, the driver compiles <code>compute_120</code> PTX for CC 13.0 (PTX compiles for any equal or higher compute capability): a slow first use of each kernel, then the driver's cache.</li>
+</ol>
+<h3>The rules the driver follows</h3>
+<ul>
+<li><b>SASS</b> runs within one major version on equal or newer minors: "a cubin compiled for compute capability 8.6 (sm_86) runs on GPUs with CC 8.6 or 8.9, but not on CC 8.0", and GPUs "are not binary compatible between major compute capability versions" ({{CUDA Programming Guide 1.3|https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/cuda-platform.html}}).</li>
+<li><b>PTX</b> "can be JIT compiled at application runtime for any compute capability equal or higher to the compute capability of the PTX code" (same page). The driver does it when no compatible SASS exists and "automatically caches a copy of the generated binary code".</li>
+<li><b>The driver must know the PTX's version</b> (section 3). CUDA 13.x applications need driver 580 or newer; a 13.0 driver runs SASS built by CUDA 13.4 (minor version compatibility) but cannot JIT its PTX ({{CUDA compatibility guide|https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html}}).</li>
+<li>If nothing fits: <code>cudaErrorNoKernelImageForDevice</code>, "no kernel image is available for execution on the device".</li>
+</ul>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s5b">
+<h3>The driver's search, for any binary, GPU and driver</h3>
+<p>Fig. 5 is one binary. The tool on the right runs the same search on any: pick a binary (the objects compiled on this page, PyTorch 2.14's wheels, or your own mix), a GPU and a driver, and step through; the toggle removes the PTX, the usual difference between a binary that survives a new GPU and one that does not.</p>
+</section></div>
+<div class="s3R"><div class="s3side cs-ns"><div id="cs-runbox">
 <div class="run-ctl">
 <label>Binary <select id="run-fat"></select></label>
 <label>GPU <select id="run-gpu"></select></label>
@@ -19,19 +49,14 @@
 <div class="an-cap" id="run-cap"></div>
 <div class="run-out" id="run-out"></div>
 </div>
-<p class="small mute">A model of NVIDIA's documented rules (below), checked against a Python reference (<code>src/code/compat.py</code>) on all <span id="run-ncase"></span> combinations: the logic agrees on 660 cases. The binaries' contents are real (<code>cuobjdump</code> on objects compiled here, and PyTorch's build table); nothing was loaded on a GPU.</p>
+<p class="small mute">A model of NVIDIA's documented rules (beside Fig. 5), checked against a Python reference (<code>src/code/compat.py</code>) on all <span id="run-ncase"></span> combinations: the logic agrees on 660 cases. The binaries' contents are real (<code>cuobjdump</code> on objects compiled here, and PyTorch's build table); nothing was loaded on a GPU.</p>
 <details class="cs-d"><summary>The same binary on every GPU (click a row to step through it above)</summary><div class="b">
 <p class="small mute">Green: a SASS image runs. Blue: the driver JIT-compiles PTX (slow first use, then cached). Yellow: the launch fails. "A future CC 13.0 GPU" is hypothetical, any GPU of a new major version. Jetson Thor is aarch64, so it would in practice get the aarch64 wheel, which includes 11.0.</p>
 <div class="tw"><table class="run-m" id="run-m"></table></div>
 </div></details>
 </div>
-<h3>The rules the driver follows</h3>
-<ul>
-<li><b>SASS</b> runs within one major version on equal or newer minors: "a cubin compiled for compute capability 8.6 (sm_86) runs on GPUs with CC 8.6 or 8.9, but not on CC 8.0", and GPUs "are not binary compatible between major compute capability versions" ({{CUDA Programming Guide 1.3|https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/cuda-platform.html}}).</li>
-<li><b>PTX</b> "can be JIT compiled at application runtime for any compute capability equal or higher to the compute capability of the PTX code" (same page). The driver does it when no compatible SASS exists and "automatically caches a copy of the generated binary code".</li>
-<li><b>The driver must know the PTX's version</b> (section 3). CUDA 13.x applications need driver 580 or newer; a 13.0 driver runs SASS built by CUDA 13.4 (minor version compatibility) but cannot JIT its PTX ({{CUDA compatibility guide|https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html}}).</li>
-<li>If nothing fits: <code>cudaErrorNoKernelImageForDevice</code>, "no kernel image is available for execution on the device".</li>
-</ul>
+</div></div></div>
+<section id="rd-s5c">
 <h3>What each flag puts in the binary</h3>
 <p><code>-gencode arch=compute_XY,code=...</code> is the explicit form: <code>arch</code> chooses the PTX to compile from, <code>code</code> lists what to embed (<code>sm_XY</code> for SASS, <code>compute_XY</code> for the PTX itself). <code>-arch=sm_XY</code> is shorthand: "nvcc --gpu-architecture=sm_100 is equivalent to nvcc --gpu-architecture=compute_100 --gpu-code=sm_100,compute_100" ({{nvcc manual|https://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html#gpu-architecture-arch}}). What <code>cuobjdump -lelf -lptx</code> finds in the softmax object for each choice <span class="ev cmp">compiled here</span>:</p>
 <div class="tw"><table class="tbl-sm" id="cs-fatT"></table></div>
@@ -43,9 +68,6 @@
 <p>Because <code>-arch=sm_90a</code> also emits generic <code>compute_90</code> PTX (section 2), the generic pass reaches ptxas with Hopper-only instructions <span class="ev cmp">compiled here</span>:</p>
 <pre class="code" id="cs-gotcha" style="white-space:pre-wrap"></pre>
 <p>Two fixes, both compiled here: ask for the specific target only (<code>-gencode arch=compute_90a,code=sm_90a</code>, no PTX), or guard the Hopper-only code with <code>#if defined(__CUDA_ARCH_FEAT_SM90_ALL)</code>, the macro nvcc defines only in the <code>a</code> pass (it is in the dryrun of section 2). CUTLASS guards this way.</p></div>
-<h3>What your PyTorch wheel carries</h3>
-<p>PyTorch 2.14 with CUDA 13.x on x86_64 ships SASS for <span id="cs-whl"></span>; on aarch64 (Grace, DGX Spark, Jetson Thor): <span id="cs-whlA"></span>. "Release/RC wheels ship SASS-only to keep libtorch_cuda.so size down"; nightlies add PTX for 12.0 ({{PyTorch v2.14.0, .ci/manywheel/build_env_setup.py|https://github.com/pytorch/pytorch/blob/v2.14.0/.ci/manywheel/build_env_setup.py}}) <span class="ev pub">source code</span>.</p>
-<div class="pr" id="cs-pr1"><div class="q">Predict: the PyTorch 2.14 release wheel (CUDA 13, x86_64) on a B300, compute capability 10.3. There is no sm_103 image in it. What happens?</div><div class="opts"><button data-a="0">Fails: no kernel image</button><button data-a="1">Runs the sm_100 SASS</button><button data-a="2">JIT-compiles PTX at start-up</button></div><div class="ans" hidden></div></div>
 <h3>The JIT cache, and when loading happens</h3>
 <p>Kernels load lazily by default (<code>CUDA_MODULE_LOADING=LAZY</code>): a kernel is loaded, and JIT-compiled if the binary has only PTX for this GPU, the first time it is used. So the first training step is slow once per machine (per cache directory, <code>~/.nv/ComputeCache</code> on Linux), then fast; in a container with a fresh home directory it is slow every time, unless <code>CUDA_CACHE_PATH</code> points at a persistent volume. <code>CUDA_FORCE_PTX_JIT=1</code> ignores every cubin: the standard test that your binary would survive a future GPU.</p>
 <details class="cs-d"><summary>Every JIT-cache variable</summary><div class="b">

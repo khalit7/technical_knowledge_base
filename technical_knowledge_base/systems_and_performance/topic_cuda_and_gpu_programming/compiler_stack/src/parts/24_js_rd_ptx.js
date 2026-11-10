@@ -1,4 +1,4 @@
-// ---- Reading: the softmax PTX with feature highlights; old ptxas; ptxas levels ----
+// ---- Reading: the softmax PTX with feature highlights; old ptxas ----
 (function(){
   const D=window.CSD,E=RD.esc,P=D.ptx_softmax;
   const F={
@@ -21,12 +21,6 @@
   document.getElementById('cs-oldptxas').textContent=D.old_ptxas.slice(0,6).join('\n');
   document.getElementById('cs-tritonHead').textContent=D.triton_ptx_head.filter(l=>/Generated/.test(l))[0].replace(/^\/\/\s*/,'')+' ('+D.triton_ptx_head.filter(l=>/^\.version/.test(l))[0]+')';
   const L=D.ptxas_levels;
-  function lv(){const el=document.getElementById('cs-ptxasLv'),W=RD.width(el),rh=30,lw=W<520?44:56,vw=W<520?118:150,H=L.length*rh+8;
-    const mx=Math.max(...L.map(r=>r[2])),bw=W-lw-vw-8;let s='';
-    L.forEach((r,i)=>{const y=4+i*rh,w=Math.max(2,bw*r[2]/mx);
-      s+=RD.t(2,y+18,'-O'+r[0],{fs:12,fill:'var(--ink)',w:600})+'<rect x="'+lw+'" y="'+(y+4)+'" width="'+w.toFixed(1)+'" height="'+(rh-10)+'" rx="3" fill="'+(r[0]===0?'var(--dim)':'var(--acc)')+'"/>'+
-        RD.t(lw+w+6,y+18,r[2]+' instr., '+r[1]+' regs',{fs:11.5,fill:'var(--ink)'});});
-    el.innerHTML=RD.svg(W,H,s,'SASS instructions and registers at each ptxas level');}
-  lv();RD.onRender(lv);RD.onResize(lv);
+  // the ptxas levels (D.ptxas_levels) are drawn by the 3D stage Fig. 4 (41_js_sc_down.js)
   RD.onRender(()=>{const a=document.querySelector('#cs-ptxSeg button.on');if(a)show(a.dataset.m)});
 })();

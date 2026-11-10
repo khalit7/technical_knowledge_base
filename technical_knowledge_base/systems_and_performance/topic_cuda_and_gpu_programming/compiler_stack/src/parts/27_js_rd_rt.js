@@ -22,9 +22,9 @@
            ['default','k_inline','asm ex2.approx.ftz','Inline PTX with <code>.ftz</code> (flush denormals to zero): only the multiply and MUFU.EX2 are left.'],
            ['use_fast_math','k_expf','expf(x) with -use_fast_math','The compiler flag rewrites <code>expf</code> to the fast form and adds <code>.ftz</code> to the arithmetic: the same two instructions as the inline PTX, from unchanged source.']];
   function step(i){const s=S[i],sass=D.exp[s[0]][s[1]].filter(arith),ptx=D.exp_ptx[s[0]+':'+s[1]].filter(l=>!/cvta|mul\.wide/.test(l));
-    document.getElementById('cs-expCap').innerHTML='<div class="t">'+(i+1)+' of 4: <code>'+E(s[2])+'</code></div><p>'+s[3]+'</p>';
+    // the step's explanation is the list #sx-exp on the left
     document.getElementById('cs-expP').textContent=ptx.join('\n');
     document.getElementById('cs-expS').textContent=sass.join('\n');
     document.getElementById('cs-expCnt').innerHTML=RD.stat('SASS arithmetic instructions',sass.length)+RD.stat('MUFU.EX2',sass.filter(l=>/MUFU/.test(l)).length)+RD.stat('whole kernel, SASS',D.exp[s[0]][s[1]].length,'instructions, without end padding');}
-  RD.anim({card:'cs-expCard',ctl:'cs-expCtl',n:4,draw:step,ms:2600,label:'Version of exp'});
+  RD.anim({card:'cs-expCard',ctl:'cs-expCtl',n:4,draw:step,ms:4200,label:'Version of exp',list:'sx-exp'});
 })();

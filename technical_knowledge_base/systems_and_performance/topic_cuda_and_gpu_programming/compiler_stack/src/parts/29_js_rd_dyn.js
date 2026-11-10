@@ -23,14 +23,14 @@
     ['Fix it at the source, then keep fullgraph=True','Move the logging out of the compiled function, or use the hint in the log (<code>reorderable_logging_functions</code>); replace data-dependent <code>if</code> on tensors with <code>torch.where</code> or <code>torch.cond</code>. With no break, one graph covers the whole function, and the compiler can fuse across what used to be the break. <code>fullgraph=True</code> is how you keep it that way: a new break becomes a test failure, not a silent slowdown.',()=>['Hints from the log',mark(reason.filter(l=>/Hint/.test(l)),null),'For comparison: the running example, one graph',mark(T.graph.map(short),/mul|softmax|matmul/)],[1,0,1]]];
   let mode='b';const steps=()=>mode==='b'?SB:SF;
   function draw(i){const s=steps()[i],v=s[2]();
-    document.getElementById('cs-dynCap').innerHTML='<div class="t">'+(i+1)+' of '+steps().length+': '+s[0]+'</div><p>'+s[1]+'</p>';
+    // the step's explanation is the list #sx-dyn / #sx-dynf beside the panels (its captions moved there in the 2026-11-06 rollout)
     document.getElementById('cs-dynLt').textContent=v[0];document.getElementById('cs-dynL').innerHTML=v[1];
     document.getElementById('cs-dynRt').textContent=v[2];document.getElementById('cs-dynR').innerHTML=v[3]||'';
     document.getElementById('cs-dynR').parentNode.style.display=v[2]?'':'none';
     document.getElementById('cs-dynCnt').innerHTML=RD.stat('graphs compiled',s[3][0])+RD.stat('graph breaks',s[3][1])+RD.stat('frames Dynamo handled',s[3][2]);
     const on=document.querySelector('#cs-dynL .on');if(on){const pre=document.getElementById('cs-dynL');pre.scrollTop=Math.max(0,on.offsetTop-pre.offsetTop-40)}}
-  const an=RD.anim({card:'cs-dynCard',ctl:'cs-dynCtl',n:SB.length,draw:draw,ms:3200,label:'Dynamo step'});
-  RD.seg(document.getElementById('cs-dynMode'),m=>{mode=m;an.reset(steps().length)});
+  const an=RD.anim({card:'cs-dynCard',ctl:'cs-dynCtl',n:SB.length,draw:draw,ms:4200,label:'Dynamo step',list:'sx-dyn'});
+  RD.seg(document.getElementById('cs-dynMode'),m=>{mode=m;document.getElementById('sx-dyn').hidden=m!=='b';document.getElementById('sx-dynf').hidden=m!=='f';an.reset(steps().length,m==='b'?'sx-dyn':'sx-dynf')});
   // explain table
   const X=T.explain;
   document.getElementById('cs-expl').innerHTML='<tr><th>Function</th><th class="num">graphs</th><th class="num">breaks</th><th class="num">ops in graphs</th><th>reason Dynamo gives</th></tr>'+

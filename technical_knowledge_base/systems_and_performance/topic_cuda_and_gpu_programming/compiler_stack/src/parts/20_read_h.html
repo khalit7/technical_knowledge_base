@@ -1,6 +1,26 @@
+<div class="s3sp"><div class="s3R"><div id="stg-tc"></div></div><div class="s3L">
 <section id="rd-s8">
 <h2>8. torch.compile as one road: what reaches Inductor, and what it costs</h2>
 <p>This section follows what each stage hands to the next; how to use torch.compile well (every graph-break kind, dynamic shapes, regional compilation, export) is on {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}.</p>
+<p>Fig. 6 follows the running example, <code>softmax(x * 0.125) @ w</code>, stage by stage <span class="ev run">run here, torch 2.14.1, CPU</span>: each stage is a glass plate, what it hands on stands after it, and dots flow along the road. The second view puts a <code>print</code> in the middle of the function.</p>
+<div class="s3chips" id="cs-tcMode"><button data-m="r" class="on">one road</button><button data-m="b">a graph break</button></div>
+<ol class="sx" id="sx-tc">
+<li><b>Dynamo: the frame becomes an FX graph.</b> The frame of <code>attn_like</code> (21 bytecode instructions) goes to Dynamo, which records its three tensor operations: <code>mul</code>, <code>softmax</code>, <code>matmul</code>.</li>
+<li><b>Guards: when the graph may be reused.</b> 18 guard lines are checked on every call before the cached code runs; a failure recompiles, up to <code>recompile_limit</code> = 8 versions.</li>
+<li><b>AOTAutograd: forward, and backward when needed.</b> Forward and backward are traced together on fake tensors and split by a min-cut; this call needs no gradients, so only a forward graph goes on.</li>
+<li><b>Inductor: seven scheduler nodes, one kernel.</b> Fusion (Fig. 2) leaves one kernel plus the library matmul, <code>extern_kernels.mm</code>.</li>
+<li><b>Codegen: C++ here, Triton on a GPU.</b> One C++ kernel of 115 lines on the CPU (run here); on a GPU, Triton (for the RMSNorm, <code>triton_per_fused_add_mean_mul_pow_rsqrt_0</code>, generated here without a device).</li>
+<li><b>PTX and ptxas.</b> Triton writes PTX (<code>.version 8.8</code>) through LLVM's NVPTX back end and runs its own ptxas: the bottom of Fig. 4. Not run here: no GPU.</li>
+</ol>
+<ol class="sx" id="sx-tcb" hidden>
+<li><b>Line 12 is traced into graph 1.</b> In <code>with_print</code>, Dynamo records <code>mul</code> and <code>softmax</code>.</li>
+<li><b>Line 13, print: a graph break.</b> "Failed to trace builtin operator": graph 1 is compiled and the frame's bytecode rewritten, 21 instructions become 105.</li>
+<li><b>Python runs the print; graph 2 is traced.</b> The generated resume function (30 instructions) is traced too: graph 2 holds the <code>sum</code>.</li>
+<li><b>Every call: two graphs with Python between.</b> <code>torch._dynamo.explain</code> counts 2 graphs and 1 break; nothing fuses across the break.</li>
+</ol>
+</section>
+</div></div>
+<section id="rd-s8b">
 <h3>Dynamo: a graph and the guards that keep it valid</h3>
 <p>CPython lets a library replace the function that evaluates every Python frame (PEP 523); <dfn>TorchDynamo</dfn> installs itself there, sees each call before CPython runs it, and reads the function's bytecode symbolically: tensor operations are recorded into an <dfn>FX graph</dfn>, everything else (Python arithmetic on ints, loops over lists, attribute lookups) runs at trace time and its result is baked in ({{Ansel et al., PyTorch 2, ASPLOS 2024, section 3|https://docs.pytorch.org/assets/pytorch2-2.pdf}}) <span class="ev pub">documented</span>. The graph recorded for the running example <span class="ev run">run here, torch 2.14.1, CPU</span>:</p>
 <pre class="code" id="cs-fx"></pre>
@@ -13,10 +33,23 @@ def with_print(x):
     y = torch.softmax(x * 0.125, dim=-1)
     print("max prob", "(printed from Python)")
     return y.sum(dim=-1)</pre>
+<div class="s3chips" id="cs-dynMode"><button data-m="b" class="on">default: break and resume</button><button data-m="f">fullgraph=True</button></div>
+<ol class="sx" id="sx-dyn">
+<li><b>The call reaches Dynamo.</b> CPython creates the frame for <code>with_print(x)</code> and, through the PEP 523 hook, hands it to Dynamo instead of running it. Dynamo starts reading the original bytecode.</li>
+<li><b>Line 12 is traced into a graph.</b> <code>x * 0.125</code> and <code>torch.softmax</code> are tensor operations: Dynamo records them instead of running them.</li>
+<li><b>Line 13: print cannot be traced.</b> Dynamo has no graph operation for <code>print</code>. Its log (right) says why, and suggests fixes.</li>
+<li><b>Graph 1 is compiled; the bytecode is rewritten.</b> Dynamo compiles what it has, then writes new bytecode for the frame: call the compiled graph, call <code>print</code> in ordinary Python, then call a generated <dfn>resume function</dfn> holding the rest of the original code. Highlighted: the three calls.</li>
+<li><b>The resume function is traced too.</b> It is a normal Python function, so when the rewritten code calls it, the PEP 523 hook fires again and Dynamo traces it: graph 2 holds the <code>sum</code>.</li>
+<li><b>The next call: guards, then cached code.</b> Called again with the same shape, both frames pass their guards and run their cached code. Every call still runs <code>print</code> in Python between two compiled graphs, and nothing is fused across the break.</li>
+</ol>
+<ol class="sx" id="sx-dynf" hidden>
+<li><b>The call reaches Dynamo.</b> As before: the frame for <code>with_print(x)</code> goes to Dynamo.</li>
+<li><b>Line 12 is traced into a graph.</b> The multiply and the softmax are recorded.</li>
+<li><b>Line 13 under fullgraph=True: an error.</b> With <code>fullgraph=True</code> nothing is split: the first thing Dynamo cannot trace raises. The exception is on the right <span class="ev run">run here</span>.</li>
+<li><b>Fix it at the source, then keep fullgraph=True.</b> Move the logging out of the compiled function, or use the hint in the log (<code>reorderable_logging_functions</code>); replace data-dependent <code>if</code> on tensors with <code>torch.where</code> or <code>torch.cond</code>. With no break, one graph covers the whole function, and the compiler can fuse across what used to be the break. <code>fullgraph=True</code> is how you keep it that way: a new break becomes a test failure, not a silent slowdown.</li>
+</ol>
 <div class="card" id="cs-dynCard">
-<div class="seg" id="cs-dynMode"><button data-m="b" class="on">default: break and resume</button><button data-m="f">fullgraph=True</button></div>
 <div class="an-ctl" id="cs-dynCtl"></div>
-<div class="an-cap" id="cs-dynCap"></div>
 <div class="cs-dyn"><div><div class="small mute" id="cs-dynLt"></div><pre class="code" id="cs-dynL"></pre></div><div><div class="small mute" id="cs-dynRt"></div><pre class="code" id="cs-dynR"></pre></div></div>
 <div class="an-cnt" id="cs-dynCnt"></div>
 </div>

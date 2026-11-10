@@ -57,7 +57,7 @@ window.CSRUN=(function(){
     else cap='<b>Result.</b>';
     $('run-cap').innerHTML=cap;
     $('run-out').className='run-out'+(k>n?' '+R.outcome:'');$('run-out').innerHTML=k>n?outcomeHtml(R):'<span class="mute">Step on to see the result.</span>';}
-  const an=RD.anim({card:'run-card',ctl:'run-ctl',n:3,draw:draw,ms:1500,label:'Driver step'});
+  const an=RD.anim({card:'run-card',ctl:'run-ctl',n:3,draw:draw,ms:1500,label:'Driver step',auto:false});
   function matrix(){const rows=gpus.map((g,i)=>{const r=dec(S.L,g[1],S.drv,134,S.f,S.d);return '<tr data-i="'+i+'" style="cursor:pointer"><td>'+E(g[0])+'</td><td>'+(g[1]/10|0)+'.'+g[1]%10+'</td><td class="o-'+r.outcome+(i===+$('run-gpu').value?' o-cur':'')+'">'+(r.outcome==='sass'?'SASS '+r.image:r.outcome==='jit'?'JIT from '+r.image:r.code)+'</td></tr>'}).join('');
     $('run-m').innerHTML='<tr><th>GPU</th><th>CC</th><th>Outcome</th></tr>'+rows;}
   $('run-m').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]');if(!tr)return;$('run-gpu').value=tr.dataset.i;update()});

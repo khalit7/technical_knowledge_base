@@ -48,8 +48,27 @@ ok(D["torch_wheels"]["13.4"]["x86_64"] == [75, 80, 86, 90, 100, 120] and D["torc
 ok(D["nvrtc"]["med_cubin"] < 100 and "Tens of milliseconds" in read, "NVRTC compile tens of milliseconds")
 ok(len(D["nvrtc"]["special"]) < len(D["nvrtc"]["generic"]), "specialised kernel shorter")
 ok(all(v["ok"] if isinstance(v, dict) and "ok" in v else True for v in json.load(open(os.path.join(SRC, "out", "tile", "tile.json"))).values()), "cuTile compiled for all four targets")
-for bad in ("/Users/", "Users-", "/private/tmp", "glpat", "sk-ant"):
+for bad in ("/Users/", "Users-", "/private/tmp", "/home/", "glpat", "sk-ant"):
     ok(bad not in html, "no '%s' in the page" % bad)
+# privacy across the page and everything in src/ (2026-11-10): the login name (looked up here, case-sensitive, never written down),
+# this machine's hostname, home paths and IPv4 addresses; recorded logs keep only paths inside the Docker containers (/work, /tmp/...)
+import getpass, socket
+who, host = getpass.getuser(), socket.gethostname()
+ipv4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+hits = []
+for root, dirs, files in os.walk(os.path.join(SRC, "..")):
+    dirs[:] = [d for d in dirs if d not in (".shots", "__pycache__", "node_modules")]
+    for f in files:
+        fp = os.path.join(root, f)
+        try:
+            t = open(fp, encoding="utf-8").read()
+        except (UnicodeDecodeError, OSError):
+            continue
+        for what, found in (("login name", who and re.search(r"\b" + re.escape(who) + r"\b", t)), ("hostname", host and host in t),
+                            ("home path", "/home/" in t or "/Users/" in t), ("IPv4 address", ipv4.search(t))):
+            if found and f != "check_embed.py":
+                hits.append("%s in %s" % (what, os.path.relpath(fp, os.path.join(SRC, ".."))))
+ok(not hits, "no login name, hostname, home path or IP address in the page or src/" + (": " + "; ".join(hits[:6]) if hits else ""))
 # the fusion stepper's nodes (parts/30_js_rd_fuse.js) are Inductor's own, as logged
 log = open(os.path.join(SRC, "out", "tc", "inductor_cpu.log")).read()
 fjs = open(os.path.join(SRC, "parts", "30_js_rd_fuse.js")).read()

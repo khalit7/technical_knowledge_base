@@ -43,13 +43,20 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (errs.length || box) { problems++; console.log('errors', errs, box) }
   await p.close();
 }
-// no animation may move before the reader acts (normal motion, every stepper card scrolled into view)
-{ const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto(url); await new Promise(r => setTimeout(r, 400));
-  const ids = await p.$$eval('#t-read .an-ctl', es => es.map(e => e.id));
+// motion (2026-11-06 rule, replacing the old never-autoplay check): under reduced motion no stepper moves by itself; with normal motion
+// the explained step animations play once in view while the two reader-driven tools (the driver's search, the scoreboard replay) never do.
+// The 3D stages have their own checks in check_stages.mjs.
+for (const reduce of [true, false]) { const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
+  if (reduce) await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  await p.goto(url); await new Promise(r => setTimeout(r, 400));
+  await p.evaluate(() => document.querySelector('#tabs button[data-t="t-read"]').click()); await new Promise(r => setTimeout(r, 300));  // the page reopens on the last tab used
   await p.evaluate(() => document.querySelectorAll('#t-read details').forEach(d => d.open = true));
-  for (const id of ids) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1200)); }
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
-  console.log(`autoplay check: ${ids.length} steppers, ${moved.length} moved by themselves${moved.length ? ' ' + moved : ''}`); if (moved.length) problems++;
+  const ids = await p.$$eval('#t-read .an-ctl[id]', es => es.map(e => e.id));
+  const tools = ['run-ctl', 'sx-ctl'], played = [];
+  for (const id of ids) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1300));
+    if (await p.$eval(`#${id}-p`, e => e.getAttribute('aria-label') === 'Pause').catch(() => false)) played.push(id); }
+  const bad = reduce ? played : ids.filter(id => tools.includes(id) ? played.includes(id) : !played.includes(id));
+  console.log(`motion check (${reduce ? 'reduced motion' : 'normal motion'}): ${ids.length} steppers, ${played.length} played${bad.length ? '; wrong: ' + bad : ''}`); if (bad.length) problems++;
   await p.close(); }
 await b.close();
 console.log(problems ? `PROBLEMS: ${problems}` : 'ui: all clear');

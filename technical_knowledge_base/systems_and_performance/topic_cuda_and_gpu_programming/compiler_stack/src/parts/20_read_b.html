@@ -1,17 +1,28 @@
+<div class="s3sp"><div class="s3R"><div id="stg-nvcc"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. nvcc is a driver, not a compiler</h2>
 <p>A <code>.cu</code> file holds two programs, host code for the CPU and device code for the GPU. <code>nvcc</code> splits them, compiles the device code once per target you asked for, packs the results into a fat binary, embeds that in the host object as data, and hands the host code to your normal C++ compiler. <code>nvcc --dryrun</code> prints every command without running it.</p>
 <div class="pr" id="cs-pr0"><div class="q">Predict first: you compile with <code>nvcc -arch=sm_90a</code>. How many GPU code images end up inside the object file?</div><div class="opts"><button data-a="0">1: the H100 machine code</button><button data-a="1">2: machine code plus its PTX</button><button data-a="2">3</button><button data-a="3">4</button></div><div class="ans" hidden></div></div>
-<p>The real commands for the row softmax kernel <span class="ev cmp">compiled here, CUDA 13.4.2</span>; the toggle runs the same file with <code>-arch=sm_90</code>:</p>
-<div class="card" id="cs-nvccCard">
-<div class="seg" id="cs-nvccMode"><button data-m="a" class="on">-arch=sm_90a (11 commands)</button><button data-m="p">-arch=sm_90 (8 commands)</button></div>
-<div class="an-ctl" id="cs-nvccCtl"></div>
-<div class="an-cap" id="cs-nvccCap"></div>
-<pre class="code" id="cs-nvccCmd" style="white-space:pre-wrap;word-break:break-all;max-height:140px;overflow:auto"></pre>
-<div id="cs-nvccFiles"></div>
-<div class="an-cnt" id="cs-nvccCnt"></div>
-</div>
-<p class="small mute">From <code>nvcc --dryrun -O3 -arch=sm_90a -c softmax.cu</code>, temporary paths shortened to <code>&lt;tmp&gt;</code>; file sizes from the same build with <code>--keep</code>. Script: <code>src/code/nvcc_stages.sh</code>.</p>
-<p>The programs it ran: <b>gcc -E</b> preprocesses, once for the host and once per device target with a different <code>__CUDA_ARCH__</code> (how one file holds code for several generations behind <code>#if __CUDA_ARCH__ &gt;= 900</code>; the preprocessed device file is 1.4 MB for a 32-line kernel, almost all CUDA headers). <b>cudafe++</b>, NVIDIA's C++ front end, separates host from device and replaces each <code>kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(args)</code> with a generated <dfn>launch stub</dfn>, a host function that packs the arguments and calls the runtime. <b>cicc</b> lowers device code to NVVM IR (NVIDIA's dialect of LLVM IR; {{NVVM IR specification|https://docs.nvidia.com/cuda/nvvm-ir-spec/index.html}}), optimises it with LLVM (inlining, unrolling, deciding which pointer points into which memory) and prints PTX, once per virtual target. <b>ptxas</b> allocates registers, schedules and emits SASS in a cubin; with <code>-arch=sm_90a</code> it also runs once on the generic <code>compute_90</code> PTX only to check it. <b>fatbinary</b> packs the images. With <code>-rdc=true</code> (device functions called across files) <code>nvlink</code> joins cubins first; this build did not need it.</p>
+<p>Fig. 3 runs the real commands for the row softmax kernel <span class="ev cmp">compiled here, CUDA 13.4.2</span>: each program is a box, each file it writes a slab on the floor (height on a log scale, sizes from the same build with <code>--keep</code>), dots flow along each file's path. Blue is the host side, purple the generic <code>compute_90</code> pass, teal the Hopper-specific <code>compute_90a</code> pass, orange SASS.</p>
+<div class="s3chips" id="cs-nvccMode"><button data-m="a" class="on">-arch=sm_90a (11 commands)</button><button data-m="p">-arch=sm_90 (8 commands)</button></div>
+<ol class="sx" id="sx-nvcc">
+<li><b>The host side, split from the device side</b> (commands 1 and 2). <b>gcc -E</b> preprocesses the host side once (<code>softmax.cpp4.ii</code>, 1.23 MB; <code>__CUDA_ARCH_LIST__=900</code> tells headers which targets are being built). <b>cudafe++</b>, NVIDIA's C++ front end, separates host from device and replaces each <code>kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(args)</code> with a generated <dfn>launch stub</dfn>, a host function that packs the arguments and calls the runtime: <code>.cudafe1.cpp</code> (1.16 MB) and <code>.stub.c</code> (1.6 KB).</li>
+<li><b>The generic pass: compute_90 to PTX</b> (commands 3 and 4). The device side is preprocessed again with <code>__CUDA_ARCH__=900</code>: the preprocessed device file is 1.4 MB for a 32-line kernel, almost all CUDA headers (how one file holds code for several generations behind <code>#if __CUDA_ARCH__ &gt;= 900</code>). <b>cicc</b> lowers it to NVVM IR (NVIDIA's dialect of LLVM IR; {{NVVM IR specification|https://docs.nvidia.com/cuda/nvvm-ir-spec/index.html}}), optimises it with LLVM (inlining, unrolling, deciding which pointer points into which memory) and prints PTX, once per virtual target: <code>compute_90.ptx</code>, 6.1 KB.</li>
+<li><b>ptxas only checks the generic PTX</b> (command 5). <code>ptxas -arch=compute_90</code> writes nothing; it checks that this PTX is valid, so a Hopper-only instruction fails here (section 5's trap).</li>
+<li><b>The specific pass: compute_90a to PTX</b> (commands 6 and 7). The device side a third time, now also defining <code>__CUDA_ARCH_FEAT_SM90_ALL</code> and <code>__CUDA_ARCH_SPECIFIC__=900</code>: PTX that may use wgmma and setmaxnreg, <code>compute_90a.ptx</code>, 6.1 KB.</li>
+<li><b>ptxas: PTX to SASS for sm_90a</b> (command 8). Register allocation, scheduling, encoding: the H100's machine code in a cubin, 7.8 KB.</li>
+<li><b>fatbinary packs three images</b> (commands 9 and 10). PTX <code>compute_90</code>, SASS <code>sm_90a</code> and PTX <code>compute_90a</code> go into <code>softmax.fatbin</code> (11.0 KB), written out as a C array (<code>softmax.fatbin.c</code>, 30.2 KB) the host compiler can include; <code>rm</code> deletes the binary form.</li>
+<li><b>gcc compiles the host side</b> (command 11). The host C++ with the stub and the fat binary inside: <code>softmax.o</code>, 17.8 KB, the object your linker sees. With <code>-rdc=true</code> (device functions called across files) <code>nvlink</code> would join cubins first; this build did not need it.</li>
+</ol>
+<ol class="sx" id="sx-nvccp" hidden>
+<li><b>The host side, split from the device side</b> (commands 1 and 2). As with <code>sm_90a</code>: gcc -E, then cudafe++ writes the host C++ and the launch stub.</li>
+<li><b>One device pass: compute_90 to PTX</b> (commands 3 and 4). There is no architecture-specific target, so the device side is preprocessed and compiled once.</li>
+<li><b>ptxas: the same PTX to SASS for sm_90</b> (command 5). Machine code for compute capability 9.0, from the PTX that will also be shipped.</li>
+<li><b>fatbinary packs two images</b> (commands 6 and 7): SASS <code>sm_90</code> and PTX <code>compute_90</code>.</li>
+<li><b>gcc compiles the host side</b> (command 8): the object, with one fewer device pass than <code>-arch=sm_90a</code>.</li>
+</ol>
+<div class="cs-ro" id="cs-nvccRo"><div class="small mute" id="cs-nvccWhich"></div><pre class="code" id="cs-nvccCmd" style="white-space:pre-wrap;word-break:break-all;max-height:150px;overflow:auto"></pre></div>
+<p class="small mute">From <code>nvcc --dryrun -O3 -arch=sm_90a -c softmax.cu</code> (and <code>-arch=sm_90</code>), temporary paths shortened to <code>&lt;tmp&gt;</code>; file sizes from the sm_90a build with <code>--keep</code>. Script: <code>src/code/nvcc_stages.sh</code>.</p>
 <p>The answer to the prediction: <code>-arch=sm_90a</code> puts <b>three</b> images in the object, the sm_90a machine code and two PTX copies (generic <code>compute_90</code> and Hopper-specific <code>compute_90a</code>), where <code>-arch=sm_90</code> puts two. Section 5 explains why the extra copy exists and the trap it sets.</p>
 </section>
+</div></div>

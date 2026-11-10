@@ -1,4 +1,4 @@
-// ---- Reading section 1: Inductor's fusion rounds on the running example, as a stepper ----
+// ---- Reading section 1: Inductor's fusion rounds on the running example, as a stepper (plays once in view; its steps are explained by the list #sx-fu on the left) ----
 // Nodes and rounds are Inductor's own, from src/out/tc/inductor_cpu.log (TORCH_LOGS=fusion, torch 2.14.1);
 // the round lines themselves are window.CSD.tc.fusion_log, and check/check_embed.py checks this file against the log.
 (function(){
@@ -12,6 +12,7 @@
     ['op4','sum','reduction','per row: the sum of the exps'],
     ['op5','div','pointwise','64 x 256: divide by the sum'],
     ['op6','mm','extern','the matmul by w: a library call, never fused']];
+  window.CSFUSE=N;  // the same nodes for Fig. 6 (43_js_sc_tc.js)
   const F=[ // groups per frame, refused pair, caption
     {g:[[0],[1],[2],[3],[4],[5],[6]],cap:['Seven scheduler nodes','Dynamo recorded three operations (a multiply, a softmax, a matmul); decomposed and rewritten they are seven nodes: four row reductions, two full-size pointwise nodes and the external matmul. Unfused, every arrow between them would be a tensor written to memory and read back.']},
     {g:[[0,1,2],[3,4],[5],[6]],bad:[3,5],cap:['Round 1: seven nodes into four','The three reductions over the same rows merge, and exp merges with the sum that consumes it. op3 with op5 is refused: "cannot fuse op3 with op5: intermediate nodes between node1 &amp; node2" (the sum must finish before any divide).']},
@@ -35,8 +36,9 @@
     }
     s+=RD.t(pad,14,'scheduler nodes after this step: '+nodesAfter[i],{fs:11,fill:'var(--mute)'});
     el.innerHTML=RD.svg(W,H,s,'Inductor fusion, step '+(i+1));
-    document.getElementById('cs-fuCap').innerHTML='<div class="t">Step '+(i+1)+' of '+F.length+': '+f.cap[0]+'</div><p>'+f.cap[1]+'</p>'+(i===0?'<p class="small mute">'+N.map(nd=>'<b>'+nd[0]+'</b> '+E(nd[3])).join('; ')+'.</p>':'')+(R[i]?'<p class="small mute">Inductor\u2019s log: <code>'+E(R[i].join(' | '))+'</code></p>':'')+(f.code?'<p class="small mute"><code>'+E(T.cpp_name)+'</code></p>':'');
+    // the step list on the left (#sx-fu) explains each step; under the figure only Inductor's own log line for the round
+    document.getElementById('cs-fuCap').innerHTML=R[i]?'Inductor\u2019s log: <code>'+E(R[i].join(' | '))+'</code>':f.code?'<code>'+E(T.cpp_name)+'</code>':'Nodes as Inductor\u2019s scheduler lists them, before any fusion round.';
     document.getElementById('cs-fuCnt').innerHTML=RD.stat('fusion round',i===0?'not yet':Math.min(i,3)+' of 3')+RD.stat('scheduler nodes',nodesAfter[i])+RD.stat('kernels written',f.code?'1 + library mm':'not yet');}
-  const an=RD.anim({card:'cs-fuCard',ctl:'cs-fuCtl',n:F.length,draw:draw,ms:2600,label:'Fusion step'});
+  const an=RD.anim({card:'cs-fuCard',ctl:'cs-fuCtl',n:F.length,draw:draw,ms:4200,label:'Fusion step',list:'sx-fu'});
   RD.onResize(()=>an.redraw());
 })();

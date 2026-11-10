@@ -37,6 +37,6 @@
   function load(k){K=k;R=D.sass[K];prep();an.reset(R.length)}
   $('sx-k').addEventListener('change',e=>load(e.target.value));
   prep();
-  an=RD.anim({card:'sx-card',ctl:'sx-ctl',n:R.length,draw:(i)=>draw(i),ms:700,label:'Instruction'});
+  an=RD.anim({card:'sx-card',ctl:'sx-ctl',n:R.length,draw:(i)=>draw(i),ms:700,label:'Instruction',auto:false});  // a replay of hundreds of instructions: a widget the reader drives, never autoplays
   RD.onRender(()=>an.redraw());
 })();

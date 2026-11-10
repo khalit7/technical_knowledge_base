@@ -27,3 +27,14 @@ Question the page keeps returning to: what does my code become on its way to the
 | R5 | Register-pressure ladder | rejected: the root and memory hierarchy pages have it |
 
 What the methodology lacked: a rule for validating reverse-engineered formats; used here: a self-consistency check on real code plus a negative control.
+
+## 2026-11-06 rollout (split layout, 3D stages v2), built 2026-11-10
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 16 | **Fig. 3, nvcc as a driver in 3D**: the real `--dryrun` commands as program boxes in three lanes (host, compute_90, compute_90a), each file a slab on the floor (log height, `--keep` sizes), flows along each file's path; sm_90a (7 grouped steps for 11 commands) against sm_90 (5 for 8); the real command text under the list | Reading s2 | built; replaces the 2D nvcc stepper (1) |
+| 17 | **Fig. 4, the softmax on its way down**: source, PTX (230 virtual registers as cubes by type), ptxas, SASS plates; -O0 792 slots and 31 registers shrinking to 232 and 18; four targets' slots, registers and argument offsets | Reading s3 | built; replaces the ptxas bar chart (15) |
+| 18 | **Fig. 5, which image each GPU runs**: the PyTorch 2.14 release wheel as a stack of SASS slabs, seven GPUs in front taking theirs, the CC 13.0 GPU failing; nightly mode adds PTX 12.0 and the future GPU JIT-compiles; outcomes from `CSRUN.decide` | Reading s5 | built; the "Will it run?" tool (2) stays beside it as a reader-driven widget |
+| 19 | **Fig. 6, torch.compile as one road**: frame, guards as a gate of 18 posts, Dynamo, AOTAutograd, Inductor (7 nodes to 1 kernel + mm), C++ and Triton, PTX, ptxas, SASS as plates along a road; a graph-break mode (graph 1, Python, resume function, graph 2) | Reading s8 | built |
+| R7 | Hero in 3D (six roads converging on a PTX plate) | rejected: the hero is a map of six roads with three labelled boxes each and click-for-detail; flat reads best, and Figs. 4 and 6 give the depth |
+| R8 | Scoreboard replay or the driver's search as 3D stages | rejected: both are reader-driven tools over real listings (232 to 280 instructions; any binary on any GPU); the long-replay rule makes them widgets |
+| R9 | Fusion rounds (Fig. 2) in 3D | rejected: seven nodes merging in a row read best flat; Fig. 6 shows the outcome in 3D |

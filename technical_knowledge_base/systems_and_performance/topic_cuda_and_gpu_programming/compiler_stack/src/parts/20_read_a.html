@@ -11,15 +11,23 @@
 <tr><td>cuTile</td><td>one tile-level kernel</td><td>you, by hand</td><td>CUDA Tile IR (threads not yet chosen)</td><td>tileiras, straight to SASS</td></tr>
 </table></div>
 <p class="small mute">Documented, each from the source linked in its row; TVM's CUDA path is from its 0.11 source and may differ in later releases. XLA's own passes, refusal reasons and cost model are taught on {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}}; Triton's stages on {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}; torch.compile from the user's side on {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}.</p>
-<h3>Fusion, watched on the running example</h3>
-<p>Graph compilers fuse in rounds: try every pair of nodes that may share a loop, merge the legal ones, repeat until nothing changes. Inductor did this to <code>softmax(x * 0.125) @ w</code> with <code>x</code> of 64 x 256 <span class="ev run">run here, torch 2.14.1, CPU, TORCH_LOGS=fusion</span>. Predict first: the softmax is a scale, a max, a subtract, an exp, a sum and a divide. How many kernels will it become? Then step through.</p>
-<div class="card cs-fu" id="cs-fuCard">
-<div class="an-ctl" id="cs-fuCtl"></div>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card cs-fu s3stick" id="cs-fuCard">
+<div class="small" style="font-weight:600">Fig. 2 · Seven scheduler nodes become one kernel plus a library call</div>
 <div class="rd-chart" id="cs-fuSvg"></div>
-<div class="an-cap" id="cs-fuCap"></div>
+<div class="an-ctl" id="cs-fuCtl"></div>
 <div class="an-cnt" id="cs-fuCnt"></div>
-</div>
-<p class="small mute">The seven scheduler nodes and the fusion log are Inductor's own (<code>torch/_inductor/scheduler.py</code> in 2.14.1).</p>
+<div class="small mute" id="cs-fuCap"></div>
+</div></div></div><div class="s3L">
+<h3>Fusion, watched on the running example</h3>
+<p>Graph compilers fuse in rounds: try every pair of nodes that may share a loop, merge the legal ones, repeat until nothing changes. Inductor did this to <code>softmax(x * 0.125) @ w</code> with <code>x</code> of 64 x 256 <span class="ev run">run here, torch 2.14.1, CPU, TORCH_LOGS=fusion</span>. Predict first: the softmax is a scale, a max, a subtract, an exp, a sum and a divide. How many kernels will it become?</p>
+<ol class="sx" id="sx-fu">
+<li><b>Seven scheduler nodes.</b> Dynamo recorded three operations (a multiply, a softmax, a matmul); decomposed and rewritten they are seven nodes: four row reductions (<code>op0</code> is every scaled value finite?, <code>op1</code> and <code>op2</code> two row maxima, <code>op4</code> the sum of the exps), two full-size pointwise nodes (<code>op3</code> subtract, scale, exp; <code>op5</code> divide) and the external matmul <code>op6</code>. Unfused, every arrow between them would be a tensor written to memory and read back.</li>
+<li><b>Round 1: seven nodes into four.</b> The three reductions over the same rows merge, and exp merges with the sum that consumes it. <code>op3</code> with <code>op5</code> is refused: "cannot fuse op3 with op5: intermediate nodes between node1 &amp; node2" (the sum must finish before any divide).</li>
+<li><b>Round 2: four nodes into two.</b> With the sum now inside, everything that loops over rows becomes one outer loop over the 64 rows (Inductor's <code>OuterLoopFusedSchedulerNode</code>). The matmul stays outside: it is an extern kernel.</li>
+<li><b>Round 3 finds nothing: code generation.</b> One C++ kernel for the six nodes plus one library call. The wrapper allocates the buffers, calls the kernel, then <code>extern_kernels.mm</code>. The intermediates never leave the kernel's row loop.</li>
+</ol>
+<p class="small mute">The seven scheduler nodes and the fusion log are Inductor's own (<code>torch/_inductor/scheduler.py</code> in 2.14.1); the log line of each round is under the figure.</p>
+</div></div>
 <p>Seven scheduler nodes became one C++ kernel, <code>cpp_fused__softmax_abs_all_amax_eq_mul_ne_sub_0</code>, plus <code>extern_kernels.mm</code> for the matmul. A node fuses with another only when they share a loop over the same rows and nothing between them has to finish first (round 1 refuses <code>op3</code> with <code>op5</code> because the sum, <code>op4</code>, sits between them; round 2 merges all six once the sum is inside). The matmul is not fused: it goes to a library. The extra row reductions are an algebraic rewrite: Inductor takes the maximum of the unscaled input and applies the scale after subtracting, guarded by a check that every scaled value is finite. The same rewrite appears in Inductor's GPU code for this graph on the Triton page.</p>
 <details class="cs-d"><summary>The fusion log, the wrapper and the whole generated C++ kernel</summary><div class="b">
 <pre class="code" id="cs-fus" style="max-height:220px;overflow:auto"></pre>

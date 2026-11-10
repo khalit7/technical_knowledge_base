@@ -1,13 +1,8 @@
-<section id="rd-s4">
+<div class="s3sp"><div class="s3L"><section id="rd-s4">
 <h2>4. SASS: reading the machine code</h2>
 <p>ptxas turns PTX into <dfn>SASS</dfn>, the instruction set one GPU generation executes. NVIDIA does not publish its encoding; it publishes the opcodes with one-line meanings ({{CUDA Binary Utilities, instruction set reference|https://docs.nvidia.com/cuda/cuda-binary-utilities/index.html#instruction-set-reference}}) and tools that print it: <code>cuobjdump -sass</code> for a binary, <code>nvdisasm</code> for a cubin. The parent's {{Compiler explorer|n:3c65c17b0d0d81c39f34d5e070d783c1}} tab lines SASS up against source; this section teaches the grammar of one line, then the part nobody prints.</p>
 <h3>Anatomy of one line</h3>
-<p>Pick a real instruction from the softmax on sm_90a <span class="ev cmp">compiled here</span>, then click any part of it.</p>
-<div class="card" id="cs-anatCard">
-<label class="small">Instruction <select id="cs-anatPick"></select></label>
-<div class="cs-anat" id="cs-anat"></div>
-<div class="an-cap" id="cs-anatCap"></div>
-</div>
+<p>Pick a real instruction (right) from the softmax on sm_90a <span class="ev cmp">compiled here</span>, then click any part of it.</p>
 <div class="tw"><table class="tbl-sm">
 <tr><th>You see</th><th>It means</th></tr>
 <tr><td><code>R0</code> to <code>R254</code>, <code>RZ</code></td><td>Per-thread 32-bit registers; <code>RZ</code> reads zero. <code>R6.64</code> is the pair R6, R7 holding a 64-bit address.</td></tr>
@@ -18,21 +13,34 @@
 <tr><td><code>SR_TID.X</code>, <code>SR_CTAID.X</code></td><td>Special registers, read with <code>S2R</code> or <code>S2UR</code>.</td></tr>
 <tr><td><code>.reuse</code></td><td>Keep this source operand in the operand reuse cache for the next instruction (one of the control bits below).</td></tr>
 </table></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="cs-anatCard"><div class="small" style="font-weight:600">One SASS line of the softmax, taken apart</div>
+<label class="small">Instruction <select id="cs-anatPick"></select></label>
+<div class="cs-anat" id="cs-anat"></div>
+<div class="an-cap" id="cs-anatCap"></div>
+</div>
+</div></div></div>
+<section id="rd-s4o">
 <details class="cs-d"><summary>The opcodes that matter, by family (counts across four kernels)</summary><div class="b">
 <p>Counts across the four kernels of the scoreboard replay below (the softmax on sm_90a and sm_100a, the tiled matmul and the Hopper wgmma tile on sm_90a); meanings from NVIDIA's tables.</p>
 <div id="cs-fam"></div>
 <p>The memory opcodes and their modifiers (<code>.E</code>, <code>.128</code>, <code>.EF</code>, <code>.CONSTANT</code>, <code>LDGSTS</code>) have a whole tab, Memory instructions, on {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}; the tensor-core instructions (<code>HMMA</code>, <code>HGMMA</code>, <code>UTCHMMA</code>) belong to {{Libraries and tensor cores|n:3c65c17b0d0d81a7adcaebee2f44a087}}.</p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s4b">
 <h3>The bits nobody prints: stall counts and scoreboards</h3>
 <p>Since Volta every SASS instruction is one 128-bit word, and part of it is not the instruction: it is <dfn>control information</dfn> ptxas writes to tell the warp scheduler how to run it. A GPU issues each warp's instructions in order and, unlike a CPU core, does not track register dependencies itself; ptxas, which knows each latency, writes the waits into the code. Jia et al. worked out the layout ({{Dissecting the NVIDIA Volta GPU Architecture via Microbenchmarking, section 2.1|https://arxiv.org/abs/1804.06826}}, 2018) <span class="ev pub">independent reverse engineering, not documented by NVIDIA</span>: 21 bits, from the top, of reuse flags (4), a wait mask (6), a read barrier (3), a write barrier (3), a yield bit (1) and a stall count (4).</p>
-<div class="cs-bits" id="cs-bitsHead"></div>
-<p class="small mute">Bits 127 down to 105 of the instruction word. RB and WB: read and write barrier (scoreboard) indices; Y: yield.</p>
 <ul>
 <li><b>Stall count</b> (0 to 15): cycles before this warp's next instruction may issue. Fixed-latency arithmetic is spaced by stall counts alone.</li>
 <li><b>Write barrier</b>: an instruction of variable latency (a global or shared load, a shuffle, <code>MUFU.EX2</code>) gets one of six <dfn>scoreboards</dfn> (SB0 to SB5; 7 means none), released when its result arrives. <b>Wait mask</b>: an instruction that needs the result waits on that scoreboard's bit. <b>Read barrier</b>: the same for "do not overwrite this register until the store has read it". <b>Yield</b>: set, prefer to keep issuing from this warp; clear, prefer to switch.</li>
 </ul>
-<p>Step through a whole kernel: each instruction issues after its stall count, or first waits for the scoreboards in its mask. The six boxes are the scoreboards, with the register each guards and the instruction that set it <span class="ev cmp">compiled here, decoded with Jia et al.'s layout</span>. Try: in the softmax, step from the first <code>LDG.E</code> (it sets a scoreboard) to the <code>FMNMX</code> that waits for it; in the wgmma tile, watch <code>HGMMA</code> and the <code>WARPGROUP</code> instructions.</p>
-<div id="cs-sxbox">
+<p>Step through a whole kernel in the replay on the right: each instruction issues after its stall count, or first waits for the scoreboards in its mask. The six boxes are the scoreboards, with the register each guards and the instruction that set it <span class="ev cmp">compiled here, decoded with Jia et al.'s layout</span>. Try: in the softmax, step from the first <code>LDG.E</code> (it sets a scoreboard) to the <code>FMNMX</code> that waits for it; in the wgmma tile, watch <code>HGMMA</code> and the <code>WARPGROUP</code> instructions.</p>
+<div class="co key"><div class="t">Checked here, on real code</div>If the decoding is right, every register written by an instruction that sets a scoreboard must be waited for before anything reads it. <code>src/code/sass_decode.py</code> decodes every instruction of six kernels compiled for sm_80, sm_90a, sm_100a and sm_120 and checks exactly that: <b id="cs-sbOk"></b>. As a control, reading the 21 bits one or two positions off finds <b id="cs-sbNeg"></b> violations. So the 2018 Volta layout still describes ptxas's output for Ampere, Hopper and both Blackwells <span class="ev der">derived</span>.</div>
+<p>This is what Nsight Compute's stall reasons name: "long scoreboard" is a wait on a scoreboard set by a memory operation through L1 (global, local, texture), "short scoreboard" one set by shared memory or a special function ({{Nsight Compute profiling guide, warp stall reasons|https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html}}). Reading the bits shows, without a profiler, which loads the compiler expects you to wait on and how far apart it managed to put them.</p>
+</section></div>
+<div class="s3R"><div class="s3side cs-ns"><div class="card"><div class="small" style="font-weight:600">The 21 control bits, and a scoreboard replay of four real kernels</div><div class="cs-bits" id="cs-bitsHead"></div>
+<p class="small mute">Bits 127 down to 105 of the instruction word. RB and WB: read and write barrier (scoreboard) indices; Y: yield.</p>
+</div><div id="cs-sxbox">
 <label class="small">Kernel <select id="sx-k"></select></label>
 <div class="stepbox" id="sx-sum"></div>
 <div class="card" id="sx-card">
@@ -47,11 +55,12 @@
 <div class="sx-tw"><table class="sx-t" id="sx-t"></table></div>
 </div></details>
 </div>
-<div class="co key"><div class="t">Checked here, on real code</div>If the decoding is right, every register written by an instruction that sets a scoreboard must be waited for before anything reads it. <code>src/code/sass_decode.py</code> decodes every instruction of six kernels compiled for sm_80, sm_90a, sm_100a and sm_120 and checks exactly that: <b id="cs-sbOk"></b>. As a control, reading the 21 bits one or two positions off finds <b id="cs-sbNeg"></b> violations. So the 2018 Volta layout still describes ptxas's output for Ampere, Hopper and both Blackwells <span class="ev der">derived</span>.</div>
-<p>This is what Nsight Compute's stall reasons name: "long scoreboard" is a wait on a scoreboard set by a memory operation through L1 (global, local, texture), "short scoreboard" one set by shared memory or a special function ({{Nsight Compute profiling guide, warp stall reasons|https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html}}). Reading the bits shows, without a profiler, which loads the compiler expects you to wait on and how far apart it managed to put them.</p>
+</div></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s4c">
 <h3>Registers: allocated against live</h3>
-<div class="card"><div class="small" style="font-weight:600">Live registers never reach the 18 ptxas allocates</div>
-<div class="rd-chart" id="cs-liveChart"></div></div>
 <p id="cs-liveTxt"></p>
 <p class="small mute">Counted from <code>nvdisasm -plr</code>, which marks for every instruction the registers still holding a value needed later; softmax, sm_90a <span class="ev cmp">compiled here</span>.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="small" style="font-weight:600">Live registers never reach the 18 ptxas allocates</div>
+<div class="rd-chart" id="cs-liveChart"></div></div>
+</div></div></div>

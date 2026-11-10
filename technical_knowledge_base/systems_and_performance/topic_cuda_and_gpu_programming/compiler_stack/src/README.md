@@ -64,3 +64,42 @@ Why about 37 minutes is right: the page covers two complete roads (nvcc and torc
 
 ## Knowledge ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 304 units: core 236, depth 58, fat 10, owned 0, volatile 0. 297 drafted from the page as built on 2026-10-19 by `ledger.py init` (keys found by a script that looks for the longest phrase of each unit on the rebuilt page, then 24 set by hand); 7 added for the new cross-cutting content. Units from the two folded tabs carry a `note`.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-10
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `cs-tab`). No new runs: every scene draws from `parts/22_js_data.js` (unchanged, still rebuilt byte for byte from `out/` by `check_embed.py`).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | hero, 2D static, clickable (Fig. 1) | no |
+| Reading | 1 table, codegen | full width | table | no |
+| Reading | 1 Fusion | split | 2D step animation (Fig. 2) | yes, 4 |
+| Reading | 2 nvcc | split | **3D** `stg-nvcc` (Fig. 3), sm_90a and sm_90 | yes, 7 and 5 |
+| Reading | 3 PTX | split | PTX highlighter, 2D listing | no |
+| Reading | 3 Toolkit tie | full width | code | no |
+| Reading | 3 On the way down | split | **3D** `stg-down` (Fig. 4) | yes, 5 |
+| Reading | 4 Anatomy | split | 2D line anatomy | no |
+| Reading | 4 Control bits | split | bit layout + scoreboard replay (reader-driven tool) | no |
+| Reading | 4 Live registers | split | 2D chart | no |
+| Reading | 5 Which image | split | **3D** `stg-fat` (Fig. 5), release wheel and nightly | yes, 6 and 3 |
+| Reading | 5 Driver's search | split | "Will it run?" tool (reader-driven) | no |
+| Reading | 5 flags, a/f, trap, JIT cache | full width | tables, code | no |
+| Reading | 6 NVRTC stats, templates | full width | stats | no |
+| Reading | 6 Compiling late | split | SASS listing with toggle | no |
+| Reading | 6 Inline PTX | split | PTX and SASS listings | no |
+| Reading | 6 e^x | split | 2D step animation (Fig. 7) | yes, 4 |
+| Reading | 7 LLVM, Tile IR | split, split | PTX headers; Tile IR table | no |
+| Reading | 8 torch.compile | split | **3D** `stg-tc` (Fig. 6), one road and a graph break | yes, 6 and 4 |
+| Reading | 8 Dynamo, AOT, cost, Depth | full width | code; the Dynamo stepper (closed block) with lists | yes, 6 and 4 |
+| Inside torch.compile | | full width | reader-driven log browser | no |
+
+**Stages and their data.** `40_js_sc_nvcc.js`: the real `--dryrun` commands (`CSD.dryrun`, `dryrun_sm90`) as program boxes in three lanes (host blue, compute_90 purple, compute_90a teal; SASS orange), files as slabs with log height from the `--keep` sizes, the step's real commands printed under the list. `41_js_sc_down.js`: source (32 lines), PTX (245 lines; 230 virtual registers as cubes by type, `CSD.ptx_regs`), ptxas, SASS plates; -O0 792 slots / 31 registers to -O3 232 / 18 (`ptxas_levels`); four targets' slots (`sass_check`), registers (`sass_regs`) and argument offsets. `42_js_sc_fat.js`: the PyTorch 2.14 release wheel and nightly (`CSC.fat`) on seven GPUs, every outcome from `CSRUN.decide` (the 660/660-checked port of `compat.py`). `43_js_sc_tc.js`: frame, 18-post guard gate, Dynamo, AOTAutograd, Inductor (the seven nodes of `30_js_rd_fuse.js`, exposed as `window.CSFUSE`), C++ (115 lines) and Triton, PTX `.version 8.8`, ptxas, SASS; a graph-break mode from `with_print`'s logs. Objects fade at the card's edge so close-ups never show a cut box; crowded labels hide under 520 px (the step text names them).
+
+**Motion.** Stages and the fusion, e^x and Dynamo steppers play once in view (lists `sx-*`); the per-step captions moved into the lists. The scoreboard replay (232 to 280 instructions) and the driver's search are widgets (`auto:false`): long replays and reader-driven tools. Removed: the 2D nvcc stepper (`23_js_rd_flow.js`), the ptxas bar chart (`24_js_rd_ptx.js`), both carried by Figs. 3 and 4.
+
+**Kept 2D:** the hero (a map of six roads, click for detail), fusion rounds and e^x (flat sequences), listings, tables, the live-register chart, both tools.
+
+**Checks.** `check/check_stages.mjs` (new, about 4.5 minutes): plays on view, steps, list lengths, mode swaps, no redraw off screen, reduced motion, splits, label overlaps at 1400 px including mid-tween, and every number in the step lists against `CSD`/`CSC`/`CSRUN`. `check/check_ui.mjs`: its never-autoplay assertion inverted. `check/check_embed.py`: privacy now scans the page and all of `src/` for the login name (looked up at run time, case-sensitive), hostname, home paths and IPv4 addresses. Recorded logs keep container paths only (`/work`, `/tmp/cs`).
+
+**Length.** Reading core 8,534 words (37.1 min) before, 10,056 (43.7 min) after; closed 5,284 (23.0) to 5,577 (24.2). The growth is the step lists of the four new figures and the nvcc list now static (about 1,200 visible words), which explain each figure step by step; no prose was added beyond the figure intros, and the paragraphs the lists replaced were folded in.
+
+**Ledger**: 304 units, core 236, depth 53, fat 10, owned 5, problems 0. Re-keyed: 30, 35, 36, 72, 118, 141, 151, 244, 269 (their text moved into step lists or new headings) and 272, 282, 287 to 293, 295, 296 (keys no longer contain a reading time).
