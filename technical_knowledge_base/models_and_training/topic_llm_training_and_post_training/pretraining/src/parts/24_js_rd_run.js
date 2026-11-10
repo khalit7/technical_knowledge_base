@@ -1,8 +1,7 @@
-// ---- Reading, Data stages: a run stage by stage (LR and data mix to scale, playhead, three recipes) ----
+// ---- Reading, Data stages: a run stage by stage (LR and data mix to scale, playhead, three recipes; each recipe's steps are explained by its step list sx-rn-<recipe>, its sources printed under it) ----
 (function(){
   const $=id=>document.getElementById(id);
   if(!$('rn-card'))return;
-  const L=(t,u)=>'<a href="'+u+'" target="_blank" rel="noopener noreferrer">'+t+'</a>';
   const CAT={web:['Web','var(--c1)'],hq:['Filtered high-quality web','var(--c6)'],code:['Code','var(--c3)'],maths:['Maths','var(--c2)'],
     ref:['Papers, books, encyclopedia','var(--c4)'],inst:['Instructions and Q&A','var(--c5)'],nd:['Not disclosed','var(--dim)']};
   const ORDER=['web','hq','code','maths','ref','inst','nd'];
@@ -13,34 +12,31 @@
     gpt3:{total:300*B,
       segs:[{a:0,b:300*B,mix:{web:60,hq:22,ref:19},lbl:'One mix'}],
       lr:t=>t<0.375*B?t/(0.375*B):(t<260*B?cosf(t,0.375*B,260*B):0.1),
-      src:'GPT-3: Table 2.2 mix (Common Crawl 60%, WebText2 22%, Books1 and Books2 8% each, Wikipedia 3%; the printed weights sum to 101%, drawn normalised; WebText2 shown as filtered high-quality web), section 2.3 and Appendix B schedule ('+L('Brown et al. 2020','https://arxiv.org/abs/2005.14165')+').',
       steps:[
-        {t:0.375*B,h:'Warmup: 375M tokens',p:'The learning rate rises linearly from zero over the first 375M tokens, 0.1% of the run, while the batch also ramps from 32K tokens.'},
-        {t:100*B,h:'One cosine, one mix',p:'The mix is fixed for the whole run. Quality comes from repetition instead of a stage: Wikipedia is seen 3.4 times, filtered Common Crawl 0.44 times (Table 2.2).'},
-        {t:260*B,h:'260B tokens: the cosine reaches its floor',p:'The learning rate has decayed to 10% of peak and stays there. There is no separate decay phase and no change of data.'},
-        {t:300*B,h:'300B tokens: the end',p:'Nothing about the last tokens is special. This is the "one homogeneous pass" that later recipes replaced.'}]},
+        {t:0.375*B},
+        {t:100*B},
+        {t:260*B},
+        {t:300*B}]},
     olmo2:{total:3.95*T,
       segs:[{a:0,b:3.90*T,mix:{web:95.2,code:2.1,ref:2.1,maths:0.6},lbl:'OLMo 2 Mix'},{a:3.90*T,b:3.95*T,mix:{hq:47.2,inst:19.05,ref:12.96,maths:20.8},lbl:'Dolmino 50B'}],
       lr:t=>t<8.39*B?t/(8.39*B):(t<=3.90*T?cosf(t,0,5*T):cosf(3.90*T,0,5*T)*(1-(t-3.90*T)/(0.05*T))),
-      src:'OLMo 2 7B: Table 3 (peak 3e-4, 2,000 warmup steps of 1,024 × 4,096 tokens = 8.39B, cosine to 10% planned over 5T, cut after 4T), Table 10 "PT Mix" and Table 13 (Dolmino 50B) compositions, section 2.3 (linear decay to zero in mid-training), Tables 9 and 14 ('+L('OLMo et al. 2025','https://arxiv.org/html/2501.00656v3')+'). Stage 1 ended at 3.90T by the last checkpoint name. Defaults reproduce Table 4 independently: stage-1 maths of 0.6% × 3.90T = 23.4B against OpenWebMath 12.2B + Algebraic Stack 11.8B = 24.0B, within the rounding of Table 10\'s one-decimal shares.',
       steps:[
-        {t:8.39*B,h:'Warmup: 2,000 steps, 8.4B tokens',p:'Learning rate from zero to its 3e-4 peak.'},
-        {t:2*T,h:'Stage 1: one cosine over the OLMo 2 Mix',p:'95.2% DCLM web, 2.1% code, 2.1% papers and Wikipedia, 0.6% maths. The cosine is planned to reach 10% of peak at 5T tokens.'},
-        {t:3.90*T,h:'The cut at 3.90T',p:'Training stops 1.1T short of the planned 5T, with the learning rate still at 20% of peak (derived: 0.1 + 0.9 × ½(1 + cos(π × 3.90/5)) = 0.203). OLMo-0424 had shown the cosine tail can be cut and replaced by a linear decay with little loss.'},
-        {t:3.95*T,h:'The anneal: 50B tokens of Dolmino, LR linearly to zero',p:'The mix switches to filtered web (47%), maths (21%), instructions and Q&A (19%), papers and encyclopedia (13%), and no code. These 50B tokens, 1.3% of the run, hold 10.4B maths tokens, almost half as many as all of stage 1.'},
-        {t:3.95*T,h:'Three anneals, averaged',p:'The anneal is run three times on different data orders and the weights averaged (a "soup"). The 7B went from 24.1 to 67.5 on GSM8K and 59.8 to 63.7 on MMLU (Table 9). How much of that is the decay and how much the data is the next section.'}]},
+        {t:8.39*B},
+        {t:2*T},
+        {t:3.90*T},
+        {t:3.95*T},
+        {t:3.95*T}]},
     smol:{total:11.34*T,
       segs:[{a:0,b:8*T,mix:{web:85,code:12,maths:3},lbl:'Stage 1'},{a:8*T,b:10*T,mix:{web:75,code:15,maths:10},lbl:'Stage 2'},
             {a:10*T,b:11.1*T,mix:{web:63,code:24,maths:13},lbl:'Stage 3'},{a:11.1*T,b:11.2*T,mix:{nd:100},lbl:'Long context'},{a:11.2*T,b:11.34*T,mix:{nd:100},lbl:'Reasoning'}],
       lr:t=>t<4.72*B?t/(4.72*B):(t<10*T?1:(t<=11.1*T?1-(t-10*T)/(1.1*T):null)),
-      src:'SmolLM3: stage mixes, WSD schedule (2,000 warmup steps × 2.36M tokens = 4.72B, linear decay to 0 over the final 10% of steps), long-context and reasoning mid-training from the '+L('SmolLM3 blog','https://huggingface.co/blog/smollm3')+'. The blog\'s stage 3 runs "10T to 11.1T" against a stated 11.2T total; drawn to 11.1T, with the decay over stage 3, which the blog calls the decay phase (about the final 10%). Learning rates and mixes for the two mid-training stages are not given (grey).',
       steps:[
-        {t:4.72*B,h:'Warmup: 2,000 steps, 4.7B tokens',p:'Then the learning rate stays flat at its 2e-4 peak: the stable phase of warmup-stable-decay (WSD).'},
-        {t:8*T,h:'Stage 1, 0 to 8T: the core mix',p:'85% web (FineWeb-Edu, DCLM, FineWeb2), 12% code, 3% maths. 240B maths tokens.'},
-        {t:10*T,h:'Stage 2, 8T to 10T: better maths and code, LR still flat',p:'75% web, 15% code (adds Stack-Edu), 10% maths (FineMath4+, InfiWebMath4+, MegaMath). The data changes without a decay: the two levers are separate here.'},
-        {t:11.1*T,h:'Stage 3, 10T to 11.1T: decay and upsample together',p:'63% web, 24% code, 13% maths, with instruction and reasoning sets such as OpenMathReasoning, while the learning rate falls linearly to zero.'},
-        {t:11.2*T,h:'Long context: 2 × 50B tokens',p:'4K to 32K context with RoPE theta 1.5M, then 32K to 64K with theta 5M, on the decay mixture with maths, code and reasoning upsampled. YaRN extrapolates to 128K at inference.'},
-        {t:11.34*T,h:'Reasoning mid-training: 35B tokens × 4 epochs',p:'About 140B tokens of reasoning traces before SFT. Pretraining used about 583B maths tokens in total (derived: 3% × 8T + 10% × 2T + 13% × 1.1T).'}]}
+        {t:4.72*B},
+        {t:8*T},
+        {t:10*T},
+        {t:11.1*T},
+        {t:11.2*T},
+        {t:11.34*T}]}
   };
   let key='gpt3';
   // maths tokens up to t
@@ -94,17 +90,16 @@
     $('rn-plot').innerHTML=svg(r,i);
     const g=segAt(r,t>0?t-1:t),lr=r.lr(Math.max(0,t-1)),tot=Object.values(g.mix).reduce((p,q)=>p+q,0);
     const mc=((g.mix.maths||0)+(g.mix.code||0))/tot*100;
-    $('rn-cap').innerHTML='<div class="t">'+st.h+'</div><p>'+st.p+'</p>';
     $('rn-cnt').innerHTML=RD.stat('Tokens so far',fmt(t),'of '+fmt(r.total)+' drawn')+
       RD.stat('Learning rate',lr==null?'not stated':Math.round(lr*100)+'% of peak','at the playhead')+
       RD.stat('Maths and code in the mix',g.mix.nd?'not disclosed':mc.toFixed(1).replace(/\.0$/,'')+'%',g.lbl)+
       RD.stat('Maths tokens so far',key==='gpt3'?'none listed':fmt(mathsTo(r,t)),key==='gpt3'?'no maths source in Table 2.2':'derived: share × tokens');
-    $('rn-src').innerHTML=r.src;
   }
   $('rn-leg').innerHTML='<span><i style="background:var(--ink);height:2px"></i>learning rate (share of peak)</span>'+ORDER.map(c=>'<span><i style="background:'+CAT[c][1]+'"></i>'+CAT[c][0]+'</span>').join('');
-  const A=RD.anim({card:'rn-card',ctl:'rn-ctl',n:R[key].steps.length,draw:draw,ms:2600,label:'Run step'});
+  const A=RD.anim({card:'rn-card',ctl:'rn-ctl',n:R[key].steps.length,draw:draw,ms:4600,label:'Run step',list:'sx-rn-gpt3'});
   $('rn-mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;key=b.dataset.m;
-    [...$('rn-mode').children].forEach(x=>x.classList.toggle('on',x===b));A.reset(R[key].steps.length);});
+    [...$('rn-mode').children].forEach(x=>x.classList.toggle('on',x===b));
+    Object.keys(R).forEach(m=>{$('sx-rn-'+m).hidden=m!==key;document.querySelectorAll('[data-rn-src="'+m+'"]').forEach(q=>q.hidden=m!==key)});A.reset(R[key].steps.length,'sx-rn-'+key);});
   addEventListener('resize',()=>{if($('rn-plot').offsetParent)A.redraw()});
   // ---- hero: the whole SmolLM3 run, static, with the page's decisions numbered on it ----
   function hero(){const el=$('pt-hero-svg');if(!el||!el.offsetParent)return;const r=R.smol;

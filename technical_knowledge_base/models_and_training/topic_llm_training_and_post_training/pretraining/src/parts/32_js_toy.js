@@ -1,7 +1,7 @@
-// ---- The toy (once the Anneal a toy tab, now in Reading sections 2 and 5): four cells, loss curves, per-character heatmap animation, findings ----
+// ---- The toy (once the Anneal a toy tab, now in Reading section 5): four cells, loss curves, findings. Its per-character losses are Fig. 2 (33_js_sc_ls.js) ----
 (function(){
   const $=id=>document.getElementById(id);
-  if(!$('ty-card')||!window.TOY)return;
+  if(!$('ty-cells')||!window.TOY)return;
   const esc=RD.esc,S=TOY.seeds,K=TOY.keys,meta=TOY.meta;
   const ki=k=>K.indexOf(k);
   const MET={text:['All text','bits per character',false],t_start:['Word starts','bits per character',false],t_inside:['Inside words','bits per character',false],
@@ -59,34 +59,6 @@
   $('ty-met').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;met=b.dataset.m;[...$('ty-met').children].forEach(x=>x.classList.toggle('on',x===b));redraw()});
   $('ty-view').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;view=b.dataset.v;[...$('ty-view').children].forEach(x=>x.classList.toggle('on',x===b));redraw()});
   $('ty-seed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||+b.dataset.s>=S.length)return;seed=+b.dataset.s;[...$('ty-seed').children].forEach(x=>x.classList.toggle('on',x===b));redraw()});
-  // ---- heatmap animation (seed 1) ----
-  const s0=S[0],disp=meta.display;
-  let brSel='decay_maths';
-  $('ty-br').innerHTML=BN.map(b=>'<button data-b="'+b+'"'+(b===brSel?' class="on"':'')+'>'+BR[b][0]+'</button>').join('');
-  const col=v=>{const t=Math.max(0,Math.min(1,v/6));return 'hsla('+(210-210*t).toFixed(0)+',75%,'+(55)+'%,'+(0.15+0.6*t).toFixed(2)+')'};
-  $('ty-scale').innerHTML=[0,1,2,3,4,5,6].map(v=>'<span style="background:'+col(v)+'"></span>').join('');
-  const STEPS=[{k:'0',h:'Step 0: an untrained model',p:'Every character is a guess among '+meta.vocab.length+' symbols: about log2 '+meta.vocab.length+' = '+Math.log2(meta.vocab.length).toFixed(2)+' bits each.'},
-    {k:'600',h:'Step 600: spelling arrives first',p:'Letters inside common words and the spaces after them are already cheap; the first letter of each word, where the text makes a choice, is still expensive.'},
-    {k:'2000',h:'Step 2,000: words, not yet sense',p:'Most of the remaining loss sits on word starts and on the digits of the sums. The sample reads like English words in no particular order.'},
-    {k:'6000',h:'Step 6,000: end of stage 1 at a flat learning rate',p:'This checkpoint is where the four branches start. With 3% sums in the mix the answers are still mostly guessed.'},
-    {k:'br',h:'Step 7,200: after the branch',p:''}];
-  function cat(prev,c){if(/[0-9+=\n]/.test(c)||/[0-9+=]/.test(prev))return null;return /[a-z]/.test(c)?(/[a-z]/.test(prev)?'in':'st'):'sp'}
-  function heat(i){
-    const st=STEPS[i],key=st.k==='br'?brSel:st.k,hv=s0.heat[key];
-    let h='<span>'+esc(disp[0])+'</span>';const acc={txt:[],ans:[],op:[]};
-    let seenEq=false;
-    for(let j=1;j<disp.length;j++){const c=disp[j],v=hv[j-1];if(disp[j-1]==='\n')seenEq=false;if(c==='=')seenEq=true;
-      const inSum=/[0-9+=]/.test(c)||(c==='\n'&&/[0-9]/.test(disp[j-1]));
-      if(/[0-9]/.test(c))(seenEq?acc.ans:acc.op).push(v);else if(!inSum)acc.txt.push(v);
-      h+=(c==='\n'?'<span style="background:'+col(v)+'">⏎</span>\n':'<span style="background:'+col(v)+'" title="'+v.toFixed(2)+' bits">'+esc(c)+'</span>')}
-    $('ty-heat').innerHTML=h;
-    const p=st.k==='br'?(brSel.indexOf('maths')>0?'The maths-heavy branch has seen far more sums: the answer digits go cold, while the operands, which are random, stay warm by necessity.':'On the same mix the answer digits stay warm: decaying the learning rate sharpens what the model has, it does not supply sums it rarely saw.')+(brSel.indexOf('decay')===0?' The text cools a little more on the decayed branches.':' With the learning rate held flat the text barely moves from step 6,000.'):st.p;
-    $('ty-cap').innerHTML='<div class="t">'+(st.k==='br'?'Step 7,200: '+BR[brSel][0]:st.h)+'</div><p>'+p+'</p>';
-    $('ty-cnt').innerHTML=RD.stat('Text',mean(acc.txt).toFixed(2)+' bits','per character, this passage')+RD.stat('Sum answers',mean(acc.ans).toFixed(2)+' bits','per digit after "="')+RD.stat('Sum operands',mean(acc.op).toFixed(2)+' bits','per digit; floor about 3.25');
-    $('ty-sample').textContent=s0.samples[key]||'';
-  }
-  const A=RD.anim({card:'ty-card',ctl:'ty-ctl',n:STEPS.length,draw:heat,ms:2600,label:'Checkpoint'});
-  $('ty-br').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;brSel=b.dataset.b;[...$('ty-br').children].forEach(x=>x.classList.toggle('on',x===b));A.go(STEPS.length-1)});
   // ---- findings, from the recorded runs (prose is static; see check_data.py) ----
   const f=k=>{const o=finals(k),r={};Object.keys(o).forEach(b=>r[b]=mean(o[b]));return r};
   const A1=f('acc'),T=f('text'),AN=f('m_answer');
@@ -94,6 +66,6 @@
   // the findings are static text in 20_read_e.html; these are the values check_data.py compares it with
   window.PT_TOYF={acc:A1,text:T,m_answer:AN};
   grid();
-  RD.onRender(()=>{plot();A.redraw()});
+  RD.onRender(plot);
   addEventListener('resize',()=>{if($('ty-plot').offsetParent)plot()});
 })();

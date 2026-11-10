@@ -42,7 +42,7 @@
     $('sp-det').innerHTML='<b>'+(r.c==='retime'?'Re-timing of record 21':'Record '+r.n)+'</b>, '+r.d+': <b>'+r.m+' min</b>'+(prev&&r.c!=='retime'&&r.c!=='base'?', '+((1-r.m/prev.m)*100).toFixed(1)+'% faster than the previous timing':'')+
       '<br>'+esc(r.desc)+'<br><span class="mute">Kind (this page\'s tagging): '+CAT[r.c][0]+'</span>'+(r.url?' · <a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">source</a>':'');A.redraw()}
   $('sp-plot').addEventListener('click',e=>{const c=e.target.closest('circle');if(c)detail(+c.dataset.k)});
-  const A=RD.anim({card:'sp-card',ctl:'sp-ctl',n:stepIdx.length,start:stepIdx.length-1,draw:draw,ms:900,label:'Replay month'});
+  const A=RD.anim({card:'sp-card',ctl:'sp-ctl',n:stepIdx.length,start:stepIdx.length-1,draw:draw,ms:900,label:'Replay month',auto:false});
   // shares
   const tot=recs.reduce((a,r)=>a+r.g,0);
   const sh=['arch','opt','sys','attn','mixed','sched','eval'].map(k=>[k,recs.filter(r=>r.c===k).reduce((a,r)=>a+r.g,0)/tot*100,recs.filter(r=>r.c===k).length]);
