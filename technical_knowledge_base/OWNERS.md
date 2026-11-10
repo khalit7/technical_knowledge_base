@@ -79,7 +79,7 @@ Agreed 2026-10-23 with the teaching contract ([../.claude/skills/explainer-page/
 | Mistral: lineage; Mistral 7B's rolling buffer | `.../topic_llm_landscape/mistral_ai` | the mixtral_of_experts paper owns its routing-repetition evidence; MoE and attention variants link |
 | Moonshot: Kimi lineage; QK-Clip and MuonClip, Per-Head Muon, Attention Residuals (Block AttnRes), Stable LatentMoE with SiTU-GLU and Quantile Balancing, K3's bounded KDA decay | `.../topic_llm_landscape/moonshot_ai_kimi` | attention variants, normalisation, beyond attention, MoE and optimisers (Muon) name them and link |
 | MiniMax: lineage; MSA and its KV-outer kernel; lightning attention's block split | `.../topic_llm_landscape/minimax` | attention variants names MSA; RL for LLMs owns CISPO |
-| Zhipu: GLM lineage and design choices | `.../topic_llm_landscape/zhipu_glm` | RL for LLMs owns slime |
+| Zhipu: GLM lineage and design choices | `.../topic_llm_landscape/zhipu_glm` | RL for LLMs owns asynchronous RL in general |
 | xAI: Grok lineage and design choices | `.../topic_llm_landscape/xai_spacexai_grok` | agent security owns the injection lessons; agentic benchmarks owns Terminal-Bench |
 | Smaller labs, and fully open releases: what a model flow ships, OLMo's artefacts, the open-weights comparison, the Ai2 OLMo lineage (Ai2 OLMo was folded in here) | `.../topic_llm_landscape/other_notable_providers` | beyond attention keeps the general hybrid-state against KV-cache crossover |
 

@@ -56,3 +56,10 @@ ls=[3,5,8,40];print('sync util',sum(ls)/(4*max(ls)))
 # AA cost per point
 for m,s,c in [('GLM-5.3',44.8,2.0056),('Kimi K3',43.6,2.0001),('MiMo-V2.6-Pro',46.3,.1332),('Flash',41.8,.2533)]: print(m,'$/point',c/s)
 print('TB3 ratio',28.3/4.6,'MTP',5.47/4.56)
+# --- 2026-11-10: the factorisation of the 4.6 per-layer cache ratio (four factors; the earlier text gave three, which multiply to 5.4) ---
+mix=LF/nd; nope=mla/mlaF; ipool=plFn/plF; ikeys=(pl53/mla)/((mlaF+idx)/mlaF)
+print('4.6 =',mix,'x',nope,'x',ipool,'x',ikeys,'=',mix*nope*ipool*ikeys,' (3 factors only:',mix*nope*ipool,')')
+# --- the numbers the 3D stages' step lists quote (also checked against the page in check_stages.mjs) ---
+r=att(L1M); print('DSA layer at 1M: indexer',g['index_n_heads']*idx*L1M,'attention',g['num_attention_heads']*2048*(mla+g['kv_lora_rank']),'ratio',g['index_n_heads']*idx*L1M/(g['num_attention_heads']*2048*(mla+g['kv_lora_rank'])))
+print('IndexShare indexer cut',L/nfull,'cache cut',1-g53/g5,'| 1M work 5.3',r['g53'],'Flash',r['flash'],'dense MLA',r['full'],'ratios',r['full']/r['g53'],r['full']/r['flash'])
+print('MoE layers 4.5',a['num_hidden_layers']-a['first_k_dense_replace'],'x2 =',2*(a['num_hidden_layers']-a['first_k_dense_replace']),'| GLM-5',L-g['first_k_dense_replace'],'x2 =',2*(L-g['first_k_dense_replace']))

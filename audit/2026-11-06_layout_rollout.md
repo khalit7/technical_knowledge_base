@@ -167,8 +167,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_landscape/openai_gpt_family` OpenAI: GPT family
 - [x] `models_and_training/topic_llm_landscape/other_notable_providers` Other notable providers
 - [x] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
-- [ ] `models_and_training/topic_llm_landscape/xai_spacexai_grok` xAI / SpaceXAI: Grok
-- [ ] `models_and_training/topic_llm_landscape/zhipu_glm` Zhipu: GLM
+- [x] `models_and_training/topic_llm_landscape/xai_spacexai_grok` xAI / SpaceXAI: Grok
+- [x] `models_and_training/topic_llm_landscape/zhipu_glm` Zhipu: GLM
 - [ ] `models_and_training/topic_llm_landscape` Topic: llm-landscape
 - [ ] `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` Alignment: SFT, RLHF, DPO Family, RLVR
 - [ ] `models_and_training/topic_llm_training_and_post_training/distillation_and_small_language_models` Distillation and Small Language Models
@@ -460,6 +460,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_landscape/openai_gpt_family`: timeline's 2026 cluster labels crowd at about 690 px column width; Astra section full width with no visual (published findings are a list, not a structure); router scores in Fig. 6 seeded and illustrative (labelled); verify_layout flags the gpt-oss on one GPU tab (accepted: tool).
 - `models_and_training/topic_llm_landscape/other_notable_providers`: core 36 to 42 min plus 15 closed; empty space at the card top in the OLMo and Bonsai full views; the Bonsai close-up's ternary values and group size are illustrative (Prism states no group size); stages carry plain titles, not figure numbers; two derived statements added (decoding reads every weight once per token at batch 1; log2 3 = 1.58 bits is the floor).
 - `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning`: Fig. 4 last step dense near the answer stacks; Fig. 3 bar-field step leaves space above; Fig. 2 blocks thin at full view; Fig. 3's fifteen-sample draw sits at the expected counts (labelled illustrative); verify_layout flags the lab tab (accepted: tool).
+- `models_and_training/topic_llm_landscape/xai_spacexai_grok`: Fig. 5 step 5 16-agent block narrow (true scale against the 130-unit chain); side labels hidden at 390; Training recipe matrix kept full width; injection card not sticky on phones.
+- `models_and_training/topic_llm_landscape/zhipu_glm`: Flash towers look gold-topped (the top sparse layer's indexer cap shows through the KDA slab); hero after the opening text on phones; attention stage fixed at 1M (the 2D work chart covers other lengths); DeepSeek-V3 and Kimi K2 dense-layer counts (3 and 1) carried from the previous page, not rechecked; fixed a wrong live factorisation of Flash's 4.6 cache ratio (missing 0.85 factor) and a missing body wrapper.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -476,3 +478,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Meta: Llama 4 tokens per parameter is drawn per active parameter (17B, as the page defines N), with the per-stored ratio beside it. Keep, or swap the emphasis?
 - OpenAI: the caching break-even widget stays on this page although OWNERS.md gives break-even to Caching (the Caching page lacks the 2.15x example and the Eden AI note). Keep, or convert to a link and move the two facts to Caching?
 - Moonshot AI: Kimi: the QK-Clip tau slider and the Attention Residuals layer slider were removed in favour of the stages (recoverable from git). Keep them removed, or restore either explorer?
+- Zhipu: GLM: a new 3D stage draws slime's asynchronous rollout lanes (illustrative numbers, links RL for LLMs), although the October rebuild had removed a similar animation as RL for LLMs' ground. Keep it, or delete `43_js_sc_sl.js` and its split? (OWNERS.md now reads "RL for LLMs owns asynchronous RL in general".)
