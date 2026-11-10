@@ -47,3 +47,14 @@ DeepSeek MLA explainer (before/after, counters, to scale: B and A drawn at true 
 ## What the methodology lacked
 
 A rule for "best possible" overlays: when a method cannot reproduce a real artifact exactly (LoRA cannot make a full-rank update), showing its optimal approximation (truncated SVD) is honest only with the caveat that the method would find a different solution, not a compressed copy. Also: published parameter tables can count frozen shared tensors (VeRA); recompute both ways before calling a mismatch.
+
+## 2026-11-10 (split layout and 3D stages)
+| Idea | Where | Status |
+|---|---|---|
+| LoRA on one real matrix as glass plates with signed bars, A and B to scale, flows through both paths, the real update behind the rank-r copy, the merge | Reading, LoRA on one real matrix (`stg-lora`) | built |
+| The update's 576 singular values as a 24 x 24 field of columns, sigma squared, lit to rank r | Reading, How low (`stg-sv`) | built |
+| Llama 3 8B block's seven matrices to scale with the adapter column per matrix, lit per target set; attention at matched parameters | Reading, Which matrices (`stg-where`) | built |
+| Memory as stacked slabs with GPU cards as planes | Reading, Memory (`stg-mem`) | built; activations not drawn (the page computes none) |
+| One base, small adapters per request, the adapter pool and KV pages | Reading, Serving (`stg-serve`) | built (illustrative requests) |
+| DoRA in 3D: a matrix's columns split into a magnitude row and a unit-direction plate | Reading, DoRA | not built: the teaching point is an angle and a length in one plane, which the 2D figure shows; `delta_probe.json` holds per-layer DoRA dM and dD between the two checkpoints, but the paper's measure is across training checkpoints |
+| Hero in 3D | Reading, top | not built: at rank 16 A and B are 0.4% of the square's side, invisible in perspective; the 2D drawing to scale says it |

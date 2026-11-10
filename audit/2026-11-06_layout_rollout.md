@@ -173,7 +173,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` Alignment: SFT, RLHF, DPO Family, RLVR
 - [x] `models_and_training/topic_llm_training_and_post_training/distillation_and_small_language_models` Distillation and Small Language Models
 - [~] `models_and_training/topic_llm_training_and_post_training/distributed_training` Distributed Training
-- [ ] `models_and_training/topic_llm_training_and_post_training/peft` Parameter-Efficient Fine-Tuning (PEFT)
+- [x] `models_and_training/topic_llm_training_and_post_training/peft` Parameter-Efficient Fine-Tuning (PEFT)
 - [ ] `models_and_training/topic_llm_training_and_post_training/pretraining` Pretraining
 - [ ] `models_and_training/topic_llm_training_and_post_training/quantization_and_precision` Quantization and Precision
 - [ ] `models_and_training/topic_llm_training_and_post_training/reward_hacking` Reward Hacking
@@ -465,6 +465,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_landscape` (root): closed-column close-up labels sit close together; lab names on the map are hidden on phones.
 - `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr`: Fig. 5 rejected-row label touches its column; empty band in Figs. 2 and 4.
 - `models_and_training/topic_llm_training_and_post_training/distillation_and_small_language_models`: Fig. 1 logit value labels touch the glass plate edge; Fig. 3 route graph is busy at the last step (small labels among many nodes).
+- `models_and_training/topic_llm_training_and_post_training/peft`: Fig. 2 "gradients reach A and B only" runs to the card edge; Fig. 8 (serving) dense with flow dots and small in the card; Fig. 4 empty space below the plates.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -485,3 +486,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - LLM landscape root: Fig. 1 draws the serving axis as output price per M tokens (log), and places labs by one stand-in model each (Moonshot by Kimi K3, Meta by Muse Wonder, Hy3 at its median price, GLM-5.3 in the MIT/Apache column). Keep these choices? The narrated video describes the pre-November page: remake later?
 - Alignment: SFT, RLHF, DPO, RLVR: the committed `derived.json` keeps the Mac-made numbers; `recompute.py` on this machine differs in last digits only. Accept, or regenerate here and commit the new digits?
 - Distillation: Fig. 4 draws Minitron 4B-Depth's 16 kept layers without saying which ones (the sources used do not say; the caption notes it). Source which layers were kept, or leave as is?
+- PEFT: the Biderman checkpoint stepper became a static chart with its four-way toggle; keep or restore the stepper? Also, `delta_probe.json` holds real per-layer DoRA magnitude/direction changes (base against Instruct): build a real-data DoRA view from it, or leave the 2D illustration?

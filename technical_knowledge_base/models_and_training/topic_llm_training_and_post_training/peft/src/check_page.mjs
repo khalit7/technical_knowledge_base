@@ -1,4 +1,5 @@
-// Exercise every control of the PEFT page in light 920 px and dark 390 px; screenshot each card; report errors and NaN/undefined text.
+// Exercise every control of the PEFT page in light 920 px and dark 390 px under reduced motion; screenshot each card; report errors and NaN/undefined text.
+// The five 3D stages, the DoRA figure's autoplay and the split layout are checked by check_stages.mjs (2026-11-10).
 // usage (from the repo root): node technical_knowledge_base/models_and_training/topic_llm_training_and_post_training/peft/src/check_page.mjs [outdir]
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -23,9 +24,9 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const bad = async where => { const t = await p.evaluate(() => document.body.innerText); const m = t.match(/.{0,40}(NaN|undefined|Infinity|null%).{0,40}/); if (m) problems.push(scheme + ' ' + where + ': ' + m[0]); };
   const click = async (sel, where) => { const els = await p.$$(sel); for (const e of els) { await e.evaluate(x => { x.scrollIntoView({ block: 'center' }); x.click() }); actions++; await wait(60); await bad(where + ' ' + sel) } };
   const shot = async (sel, name) => { const e = await p.$(sel); if (e) { const vis = await e.evaluate(x => [x.getBoundingClientRect().height, [...document.querySelectorAll('.tab')].filter(t=>!t.hidden).map(t=>t.id).join()]); if (!vis[0]) { problems.push(scheme + ' hidden ' + sel + ' ' + vis); return } await e.evaluate(x => x.scrollIntoView({ block: 'start' })); await wait(150); await e.screenshot({ path: path.join(out, name + '-' + scheme + '.png') }) } };
-  // nothing moves before the reader acts: every animation sits on step 1 after load and scrolling past it
-  for (const id of ['mx', 'bd', 'dr']) { await p.$eval('#' + id, x => x.scrollIntoView({ block: 'center' })); await wait(1600);
-    const v = await p.$eval('#' + id + 'Ctl-s', e => e.value); if (v !== '0') problems.push(scheme + ' autoplay ' + id + ' at step ' + v) }
+  // under reduced motion nothing moves by itself (2026-11-06: with normal motion the animations play once in view; check_stages.mjs checks that)
+  for (const id of ['dr']) { await p.$eval('#' + id, x => x.scrollIntoView({ block: 'center' })); await wait(1600);
+    const v = await p.$eval('#' + id + 'Ctl-s', e => e.value); if (v !== '0') problems.push(scheme + ' reduced motion: ' + id + ' moved to step ' + v) }
   // hero: every rank; memory calculator: every model and rank
   for (const r of ['1', '16', '64', '256']) await click(`#heroR button[data-m="${r}"]`, 'hero');
   await click('#heroR button[data-m="16"]', 'hero'); await shot('#hero', 'hero');
@@ -33,29 +34,25 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
     await p.select('#memM', m); actions++; await bad('mem ' + m);
     for (const r of ['1', '8', '16', '64', '256']) { await p.select('#memR', r); actions++; await bad('mem rank ' + r) } }
   await p.select('#memM', 'LLaMA 65B'); await p.select('#memR', '64');
-  problems.push('INFO ' + scheme + ' mem 65B r64: ' + await p.$eval('#memB', e => e.innerText.replace(/\s+/g, ' ')));
-  await shot('#mem', 'mem-65b'); await p.select('#memM', 'Llama 3 8B'); await p.select('#memR', '16');
-  problems.push('INFO ' + scheme + ' mem 8B r16: ' + await p.$eval('#memB', e => e.innerText.replace(/\s+/g, ' ')));
-  await shot('#mem', 'mem'); await shot('#fam', 'fam'); await shot('#wm', 'wm');
-  // reading: matrix animation, both modes, every step, every rank
-  for (const m of ['lora', 'full']) {
-    await click(`#mxM button[data-m=${m}]`, 'mx');
-    for (const r of ['1', '4', '16', '64']) { await p.select('#mxR', r); actions++;
-      for (let i = 0; i < 5; i++) { await click('#mxCtl-f', 'mx step') } }
-    await shot('#mx', 'mx-' + m);
-    await click('#mxCtl-b', 'mx back');
-  }
-  await p.select('#mxR', '16');
+  problems.push('INFO ' + scheme + ' mem 65B r64: ' + await p.$eval('#sx-mem', e => e.innerText.replace(/\s+/g, ' ')));
+  await shot('#stg-mem', 'mem-65b'); await p.select('#memM', 'Llama 3 8B'); await p.select('#memR', '16');
+  problems.push('INFO ' + scheme + ' mem 8B r16: ' + await p.$eval('#sx-mem', e => e.innerText.replace(/\s+/g, ' ')));
+  await shot('#stg-mem', 'mem'); await shot('#fam', 'fam');
+  // reading: Fig. 2's rank chips, every step of every stage by its step list
+  for (const r of ['1', '4', '64', '16']) await click(`#loraR button[data-r="${r}"]`, 'lora rank');
+  for (const l of ['sx-lora', 'sx-sv', 'sx-where', 'sx-mem', 'sx-serve', 'sx-dr']) { const n = await p.$eval('#' + l, e => e.children.length); for (let i = 0; i < n; i++) await click(`#${l} > li:nth-child(${i + 1})`, l) }
+  await shot('#stg-lora', 'lora'); await shot('#stg-sv', 'sv'); await shot('#stg-where', 'where'); await shot('#stg-serve', 'serve');
+
   for (const m of ['r90', 'rel', 'e16']) { await click(`#hmM button[data-m=${m}]`, 'hm') }
   const cells = await p.$$('#hmP rect[data-i]'); for (const i of [0, 7, 100, 209]) { await cells[i].evaluate(x => x.dispatchEvent(new MouseEvent('click', { bubbles: true }))); actions++; await bad('hm cell') }
   await shot('#hm', 'hm');
-  for (const m of ['code_cpt', 'math_cpt', 'code_ift', 'math_ift']) { await click(`#bdM button[data-m=${m}]`, 'bd'); for (let i = 0; i < 8; i++) await click('#bdCtl-f', 'bd step') }
+  for (const m of ['code_cpt', 'math_cpt', 'code_ift', 'math_ift']) await click(`#bdM button[data-m=${m}]`, 'bd');
   await shot('#bd', 'bd');
-  for (const m of ['lora', 'dora']) { await click(`#drM button[data-m=${m}]`, 'dr'); for (let i = 0; i < 6; i++) await click('#drCtl-f', 'dr step'); await shot('#dr', 'dr-' + m) }
+  for (let i = 0; i < 4; i++) await click('#drCtl-f', 'dr step'); await shot('#dr', 'dr');
   for (const s of ['S1', 'S2', 'S4']) await click(`#slS button[data-s=${s}]`, 'sl');
   await shot('#sl', 'sl');
   // scrubbers and play
-  await click('#mxCtl-p', 'play'); await wait(300); await click('#mxCtl-p', 'pause');
+  await click('#drCtl-p', 'play'); await wait(300); await click('#drCtl-p', 'pause');
   // parameter tab
   await click('button[data-t=t-count]', 'tab');
   const pres = await p.$$('#pcRep button[data-p]');
