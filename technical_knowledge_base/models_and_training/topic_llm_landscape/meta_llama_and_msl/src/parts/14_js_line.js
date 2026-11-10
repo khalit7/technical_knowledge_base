@@ -5,7 +5,7 @@
   const LANES=[['o','Open weights','var(--open)'],['g','Organisation','var(--mute)'],['c','Closed','var(--closed)']];
   const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const nice=s=>{const [y,m,d]=s.split('-').map(Number);return d+' '+MON[m-1]+' '+y};
-  function draw(){const host=$('lnSvg');const narrow=host.clientWidth<560,W=narrow?360:880,pl=narrow?8:96,pr=14,laneH=narrow?62:78,top=34,H=top+laneH*3+30;
+  function draw(){const host=$('lnSvg');const narrow=host.clientWidth<560,W=narrow?360:Math.max(560,Math.min(880,host.clientWidth||880)),pl=narrow?8:96,pr=14,laneH=narrow?62:78,top=34,H=top+laneH*3+30;
     const x0=range==='z'?2025:2023,x1=2026.84,X=v=>pl+(W-pl-pr)*(v-x0)/(x1-x0);let s='';
     for(let y=Math.ceil(x0);y<=2026;y++){s+='<line x1="'+X(y)+'" x2="'+X(y)+'" y1="'+(top-6)+'" y2="'+(H-24)+'" stroke="var(--line)"/><text x="'+(X(y)+3)+'" y="'+(H-10)+'" font-size="11" fill="var(--mute)">'+y+'</text>';
       if(range==='z')[0.25,0.5,0.75].forEach(q=>{if(y+q<x1)s+='<line x1="'+X(y+q)+'" x2="'+X(y+q)+'" y1="'+(top-6)+'" y2="'+(H-24)+'" stroke="var(--line)" stroke-dasharray="2 3"/>'})}

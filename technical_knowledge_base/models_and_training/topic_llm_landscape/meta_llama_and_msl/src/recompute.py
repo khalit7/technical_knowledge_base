@@ -90,3 +90,10 @@ print()
 print('== AA')
 print('Muse 1.3 xhigh 45.1 $1.3678 max 48.1 $1.6049; Glimmer 17.5 $0.0567')
 print('cost ratio max/xhigh',1.6049/1.3678)
+print()
+print('== Fig. 2: training tokens per parameter (per active, and per stored for Llama 4)')
+for gen,ms in [('Llama 1',[('7B',7e9,1e12),('13B',13e9,1e12),('33B',33e9,1.4e12),('65B',65e9,1.4e12)]),('Llama 2',[('7B',7e9,2e12),('13B',13e9,2e12),('70B',70e9,2e12)]),
+    ('Llama 3',[('8B',8e9,15e12),('70B',70e9,15e12),('405B',405e9,15.6e12)]),('Llama 4',[('Scout',17e9,40e12,109e9),('Maverick',17e9,22e12,400e9)])]:
+    print(gen,', '.join('%s %.1f (x%.1f)'%(m[0],m[2]/m[1],m[2]/m[1]/20)+(' stored %.1f'%(m[2]/m[3]) if len(m)>3 else '') for m in ms))
+gl,cl=kvtok(12,8,128),kvtok(36,8,128)
+print('Fig. 3: cache at 65,536 GiB %.3f, all-global %.1f; at 1M %.2f, all-global %.0f; temperature %.4f'%((gl*65536+cl*8192)/2**30,kvtok(48,8,128)*65536/2**30,(gl*2**20+cl*8192)/2**30,kvtok(48,8,128)*2**20/2**30,1+0.1*math.log(1+65537//8192)))

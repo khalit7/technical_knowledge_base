@@ -47,3 +47,13 @@ const LINE=[
 ['2026-10-12','c',0,'Muse Wonder and Wonder Full','Meta\'s first frontier model: Wonder on the API at $4 / $20 (52 on Intelligence Index v4.3); Wonder Full, 56, only in Muse Code subscriptions. Closed weights.','https://research.meta.ai/blog/muse-wonder','Meta'],
 ['2026-10-15','o',1,'Muse Spark Open','816B total, 42B active MoE, 1M context, Muse Model License; 39 on Intelligence Index v4.3; first large open Meta model since Llama 4.','https://huggingface.co/meta-models/Muse-Spark-Open-816B-A42B','model card']
 ];
+// Training tokens per parameter for each Llama generation (Fig. 2, the overtraining stage): [generation, year, tokens note, source, models]
+// each model [name, parameters N (active per token for an MoE model), training tokens D, total stored parameters for an MoE model].
+// Tokens: LLaMA paper (1.0T for 7B and 13B, 1.4T for 33B and 65B), Llama 2 paper (2T), Llama 3 paper (about 15T; 15.6T for the 405B), Llama 4 model card (about 40T Scout, 22T Maverick).
+const OT=[
+ ['Llama 1','2023','1.0T and 1.4T tokens','LLaMA paper',[['7B',7e9,1e12],['13B',13e9,1e12],['33B',33e9,1.4e12],['65B',65e9,1.4e12]]],
+ ['Llama 2','2023','2T tokens','Llama 2 paper',[['7B',7e9,2e12],['13B',13e9,2e12],['70B',70e9,2e12]]],
+ ['Llama 3 and 3.1','2024','about 15T tokens','Llama 3 paper',[['8B',8e9,15e12],['70B',70e9,15e12],['405B',405e9,15.6e12]]],
+ ['Llama 4','2025','about 40T and 22T tokens','model card',[['Scout',17e9,40e12,109e9],['Maverick',17e9,22e12,400e9]]]
+];
+const CHIN=20; // compute-optimal tokens per parameter (Hoffmann et al.)
