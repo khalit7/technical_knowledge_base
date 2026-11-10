@@ -88,7 +88,7 @@
   $('scPick').addEventListener('change',e=>{sel=e.target.value;if(D.find(x=>x[0]===sel)[3]==='hist')$('scHist').checked=true;draw()});
   $('scHist').addEventListener('change',draw);
   $('scBits').addEventListener('change',readout);
-  (window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=[draw];
+  ((window.TAB_RENDER=window.TAB_RENDER||{})['t-read']=window.TAB_RENDER['t-read']||[]).push(draw);
   let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(draw,150)});
   draw();
 })();

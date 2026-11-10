@@ -1,12 +1,8 @@
-// ---- Where the thinking goes: one schematic per design ----
+// ---- Fig. 2, where the thinking goes: one schematic per design, stepped by RD.anim (plays once in view; stops on any control) ----
 (function(){
   const $=id=>document.getElementById(id);
-  const M={
-    router:{who:'OpenAI GPT-5.x and GPT-6',where:'A per-request router decides whether to answer at once or reason first.',sees:'A tier and an effort setting; the reasoning is not returned.',cost:'Latency and cost vary per call, and choosing a tier (Astra, Sol, Luna) is a routing decision on top of the model\'s own ('+A('https://venturebeat.com/technology/openai-releases-gpt-6-sol-and-luna-models-slashing-api-costs-50-or-more','VentureBeat')+').'},
-    effort:{who:'Anthropic Claude',where:'Thinking tokens; the caller sets an effort level and the model decides step by step how long to think. On Opus 5.5 thinking cannot be switched off.',sees:'A summary of the thinking, or nothing; never the raw chain of thought.',cost:'Every thinking token is billed as output, so the bill exceeds the visible text ('+A('https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf','Opus 5.5 system card')+').'},
-    branch:{who:'Google Gemini Deep Think',where:'Several reasoning branches in parallel, then a selection among them.',sees:'A mode switch.',cost:'Several traces per query: better where the answer can be checked, more expensive per query.'},
-    loop:{who:'OpenAI GPT-6 Astra (recurrent depth)',where:'Activations loop back through the model\'s own layers, so part of the deliberation is spent in latent space and never becomes text. Its use is reportedly limited ('+A('https://techcrunch.com/2026/09/02/openais-new-reasoning-technique-alarms-ai-safety-experts/','TechCrunch')+'); OpenAI\'s announcement does not describe the architecture ('+A('https://openai.com/index/gpt-6-astra/','OpenAI')+').',sees:'Nothing: the latent part leaves no transcript.',cost:'A safety monitor cannot read it ('+A('https://techcrunch.com/2026/09/02/openais-new-reasoning-technique-alarms-ai-safety-experts/','TechCrunch')+'), a harness cannot rebuild the working state from the transcript, and serving must keep the state between requests.'}
-  };
+  // the four designs, one step each; what each step shows is written out in the step list (sx-th) beside the figure
+  const ORD=['router','effort','branch','loop'];
   const box=(x,y,w,h,t,cls)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(cls||'var(--soft)')+'" stroke="var(--line)"/><text x="'+(x+w/2)+'" y="'+(y+h/2+5)+'" font-size="13" text-anchor="middle">'+t+'</text>';
   const arr=(x1,y1,x2,y2,d)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.5" marker-end="url(#ah)"'+(d?' stroke-dasharray="4 3"':'')+'/>';
   const tok=(x,y,n,col,label)=>{let s='';for(let i=0;i<n;i++)s+='<rect x="'+(x+i*15)+'" y="'+y+'" width="11" height="11" rx="2" fill="'+col+'"/>';return s+(label?'<text x="'+x+'" y="'+(y+26)+'" font-size="11.5" fill="var(--mute)">'+label+'</text>':'')};
@@ -19,9 +15,8 @@
     if(m==='loop'){s+=box(200,60,170,70,'');for(let i=0;i<4;i++)s+='<rect x="'+(212+i*38)+'" y="72" width="30" height="46" rx="3" fill="var(--acc2)"/>';s+='<text x="285" y="150" font-size="11.5" text-anchor="middle" fill="var(--mute)">layers, looped: no tokens emitted</text>';s+='<path d="M360,60 C410,10 160,10 210,60" fill="none" stroke="var(--bad)" stroke-width="2" marker-end="url(#ah)"/><text x="285" y="22" font-size="12" text-anchor="middle" fill="var(--bad)">recurrent state</text>';s+=arr(100,95,198,95);s+=arr(370,95,538,95)}
     return s+'</svg>';
   }
-  function draw(m){const d=M[m];$('thSvg').innerHTML=svg(m);$('thKv').innerHTML='<dt>Who</dt><dd>'+d.who+'</dd><dt>Where it goes</dt><dd>'+d.where+'</dd><dt>Caller sees</dt><dd>'+d.sees+'</dd><dt>What it costs</dt><dd>'+d.cost+'</dd>'}
-  document.querySelectorAll('#thM button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#thM button').forEach(x=>x.classList.toggle('on',x===b));draw(b.dataset.m)}));
-  draw('router');
+  if(!$('thCard'))return;
+  RD.anim({card:'thCard',ctl:'thCtl',n:ORD.length,ms:5200,label:'Design',list:'sx-th',draw:i=>{$('thSvg').innerHTML=svg(ORD[i])}});
 })();
 // ---- Nav highlight ----
 (function(){

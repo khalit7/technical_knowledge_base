@@ -169,8 +169,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning` Test-time compute and reasoning
 - [x] `models_and_training/topic_llm_landscape/xai_spacexai_grok` xAI / SpaceXAI: Grok
 - [x] `models_and_training/topic_llm_landscape/zhipu_glm` Zhipu: GLM
-- [ ] `models_and_training/topic_llm_landscape` Topic: llm-landscape
-- [ ] `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` Alignment: SFT, RLHF, DPO Family, RLVR
+- [x] `models_and_training/topic_llm_landscape` Topic: llm-landscape
+- [x] `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr` Alignment: SFT, RLHF, DPO Family, RLVR
 - [ ] `models_and_training/topic_llm_training_and_post_training/distillation_and_small_language_models` Distillation and Small Language Models
 - [ ] `models_and_training/topic_llm_training_and_post_training/distributed_training` Distributed Training
 - [ ] `models_and_training/topic_llm_training_and_post_training/peft` Parameter-Efficient Fine-Tuning (PEFT)
@@ -462,6 +462,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `models_and_training/topic_llm_landscape/test_time_compute_and_reasoning`: Fig. 4 last step dense near the answer stacks; Fig. 3 bar-field step leaves space above; Fig. 2 blocks thin at full view; Fig. 3's fifteen-sample draw sits at the expected counts (labelled illustrative); verify_layout flags the lab tab (accepted: tool).
 - `models_and_training/topic_llm_landscape/xai_spacexai_grok`: Fig. 5 step 5 16-agent block narrow (true scale against the 130-unit chain); side labels hidden at 390; Training recipe matrix kept full width; injection card not sticky on phones.
 - `models_and_training/topic_llm_landscape/zhipu_glm`: Flash towers look gold-topped (the top sparse layer's indexer cap shows through the KDA slab); hero after the opening text on phones; attention stage fixed at 1M (the 2D work chart covers other lengths); DeepSeek-V3 and Kimi K2 dense-layer counts (3 and 1) carried from the previous page, not rechecked; fixed a wrong live factorisation of Flash's 4.6 cache ratio (missing 0.85 factor) and a missing body wrapper.
+- `models_and_training/topic_llm_landscape` (root): closed-column close-up labels sit close together; lab names on the map are hidden on phones.
+- `models_and_training/topic_llm_training_and_post_training/alignment_sft_rlhf_dpo_rlvr`: Fig. 5 rejected-row label touches its column; empty band in Figs. 2 and 4.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -479,3 +481,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - OpenAI: the caching break-even widget stays on this page although OWNERS.md gives break-even to Caching (the Caching page lacks the 2.15x example and the Eden AI note). Keep, or convert to a link and move the two facts to Caching?
 - Moonshot AI: Kimi: the QK-Clip tau slider and the Attention Residuals layer slider were removed in favour of the stages (recoverable from git). Keep them removed, or restore either explorer?
 - Zhipu: GLM: a new 3D stage draws slime's asynchronous rollout lanes (illustrative numbers, links RL for LLMs), although the October rebuild had removed a similar animation as RL for LLMs' ground. Keep it, or delete `43_js_sc_sl.js` and its split? (OWNERS.md now reads "RL for LLMs owns asynchronous RL in general".)
+- LLM landscape root: Fig. 1 draws the serving axis as output price per M tokens (log), and places labs by one stand-in model each (Moonshot by Kimi K3, Meta by Muse Wonder, Hy3 at its median price, GLM-5.3 in the MIT/Apache column). Keep these choices? The narrated video describes the pre-November page: remake later?
+- Alignment: SFT, RLHF, DPO, RLVR: the committed `derived.json` keeps the Mac-made numbers; `recompute.py` on this machine differs in last digits only. Accept, or regenerate here and commit the new digits?

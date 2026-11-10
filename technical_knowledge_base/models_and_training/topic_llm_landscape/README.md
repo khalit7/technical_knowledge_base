@@ -29,3 +29,5 @@ Folded into this page on 2026-10-01 (their Notion pages are marked for deletion)
 2026-10-24 (topic close): the Reading tab was rebuilt to the teaching contract as a map (core idea, a hero of each lab's best model with its answer on the three axes, comparisons, child cards); the interactive lab map and the Release history's Cadence view were retired; the old "Deeper: inside an MoE" tab is gone. See `src/README.md`.
 
 2026-10-24: the "Deeper: test-time compute" tab (parts `34_*`, `src/ttc/`) moved to its own child page, `test_time_compute_and_reasoning/`; the root links it from section 2, the child cards and Further reading.
+
+2026-11-10 (layout rollout): the Reading tab is on the split layout. The hero is now Fig. 1, a 3D stage of the labs on the three axes (openness across, where the thinking goes front to back, list output price as height), each marker named after its child page; the index list moved beside section 1; the four thinking designs are a stepped Fig. 2 with its steps written out; child cards link each child's figures. See `src/README.md`.

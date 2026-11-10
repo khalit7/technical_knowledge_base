@@ -26,6 +26,7 @@
     ['GPT-6 Luna',0.01,0.10,0.50,0],
     ['Claude Haiku 5.5',0.01,0.10,0.50,0,[1e5,0.05,0.50,2.50]]
   ];
+  window.PCP=P; // read by Fig. 1 (34_js_sc_map.js): each lab's output price
   let sel='Claude Opus 5.5';
   const sizes=[0,10000,25000,50000,100000,200000,400000];
   function money(x){return x>=0.095?'$'+x.toFixed(2):x>=0.01?'$'+x.toFixed(3):'$'+x.toFixed(4)}
