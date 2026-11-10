@@ -1,4 +1,4 @@
-// ---- Tabs ---- (storage key og-tab; links may carry data-to to scroll to a section)
+// ---- Tabs ---- (replace STORAGE_KEY with the page prefix plus "-tab", e.g. gm-tab, so each page remembers its own last tab)
 (function(){
   const bar=document.getElementById('tabs');const btns=[...bar.querySelectorAll('button')];
   const shown={};

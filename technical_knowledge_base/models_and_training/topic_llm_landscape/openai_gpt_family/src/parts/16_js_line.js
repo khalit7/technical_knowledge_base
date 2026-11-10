@@ -42,7 +42,7 @@
   let range='all';
   function draw(){
     const t0=range==='all'?Date.UTC(2018,3,1):Date.UTC(2026,5,15),t1=Date.UTC(2026,9,20),T25=Date.UTC(2025,0,1);
-    const W=900,pl=128,pr=14,w=W-pl-pr;
+    const W=Math.max(640,Math.min(900,Math.round(RD.width($('lnSvg').parentElement)))),pl=118,pr=14,w=W-pl-pr; // measured: the timeline sits in the right column of its split
     const x=t=>range!=='all'?pl+w*(t-t0)/(t1-t0):(t<T25?pl+w*.42*(t-t0)/(T25-t0):pl+w*(.42+.58*(t-T25)/(t1-T25)));
     const ev=E.filter(e=>e.d>=t0).sort((a,b)=>a.d-b.d);
     // greedy label rows per lane
@@ -63,5 +63,5 @@
     $('lnSvg').querySelectorAll('.lnd').forEach(g=>g.addEventListener('click',()=>{const c=$(g.dataset.id);document.querySelectorAll('.tl-item').forEach(q=>q.classList.toggle('sel',q===c));const det=$('lnDet');if(det)det.open=true;c.scrollIntoView({block:'center'})}));
     $('lnCards').innerHTML=ev.map(e=>'<div class="tl-item" style="border-left:4px solid '+C[e.k]+'" id="'+e.id+'"><h3>'+e.n+'</h3><div class="dt">'+dl(e)+' · '+LANES.find(l=>l[0]===e.k)[1]+(e.sz?' · size: '+e.sz:'')+' · '+e.src+'</div><p style="margin:4px 0 0;font-size:14px">'+e.t+'</p></div>').join('');
   }
-  segBind('lnR',m=>{range=m;draw()});onTab('t-read',draw);
+  segBind('lnR',m=>{range=m;draw()});onTab('t-read',draw);RD.onResize(draw);
 })();

@@ -53,3 +53,25 @@ print('== prices')
 print('6 Sol vs 5.6 Sol',1-2/4,1-10/20,' Luna',1-.1/.2,1-.5/1.2,' 5.6 Luna cut',1-.2/1,1-1.2/6,' Terra',1-2/2.5,1-12/15,' Sol promo',1-4/5,1-20/30)
 print('Law relative', 54/38.7-1)
 print('Sol 6.1 vs Astra per token', 2/10, 10/50, ' Luna', .1/10,.5/50)
+print('== Fig. 3 (what one request costs): the step list, from the price table and AA run totals')
+def split(m,I,O,h=0):
+    pi,pc,pw,po=P[m]; L=I>272000; mi,mo=(2,1.5) if L else (1,1)
+    return I*(1-h)*pi*mi/1e6, I*h*pc*mi/1e6, O*po*mo/1e6
+print('50K/5K astra',split('gpt-6-astra',50000,5000),' sol',sum(split('gpt-6.1-sol',50000,5000)),' luna',sum(split('gpt-6-luna',50000,5000)))
+print('300K',sum(split('gpt-6-astra',300000,10000)),' base rates',(300000*10+10000*50)/1e6,' 272K',sum(split('gpt-6-astra',272000,10000)))
+print('agent 200K 75% cached',split('gpt-6-astra',200000,5000,.75),sum(split('gpt-6-astra',200000,5000,.75)),' uncached',sum(split('gpt-6-astra',200000,5000)))
+for n in ['GPT-6 Astra (max)','GPT-6.1 Sol (max)','GPT-6 Luna (max)']:
+    r=R[n];pi,pc,po=r['price_in'],r['price_cached'],r['price_out']
+    I,O,Rr,C,cpt=r['index_tokens_input'],r['index_tokens_output'],r['index_tokens_reasoning'],r['cost_to_run_index'],r['aa_cost_per_index_task']
+    h=max(0,min(1,(I*pi+O*po-C*1e6)/(I*(pi-pc))));sc=cpt/C
+    print(n,'h %.3f'%h,'per task in %.0f out %.0f reasoning %.0f'%(I*sc,O*sc,Rr*sc),'$ uncached %.4f cached %.4f reasoning %.4f visible %.4f'%(I*sc*(1-h)*pi/1e6,I*sc*h*pc/1e6,Rr*sc*po/1e6,(O-Rr)*sc*po/1e6))
+print('== Fig. 6 and Fig. 7 (gpt-oss): from config.json')
+EXP=2880*2*2880+2*2880+2880*2880+2880
+print('expert',EXP,' read 4 experts MXFP4 MB',4*EXP*4.25/8/1e6,' dense BF16 layer GB',128*EXP*2/1e9,' ratio',128*EXP*2/(4*EXP*4.25/8))
+kv=2*8*64*2;print('cache per token per layer',kv,' full layer at 131072 MB',kv*131072/1e6,' banded KB',kv*128/1e3,' 18 full + 18 banded GB',(18*kv*131072+18*kv*128)/1e9)
+for n,L,E in [('120b',36,128),('20b',24,32)]:
+    o=oss(L,E);w=o['ckpt_GB']*1e9;f=L//2
+    kvs=lambda g,win:((f if win else L)*2*(8 if g else 64)*64*2*131072+(f if win else 0)*2*(8 if g else 64)*64*2*128)
+    print(n,'BF16 GB %.1f'%(o['total']*2),'experts BF16 %.1f MXFP4 %.1f'%(o['mlp']*2,o['mlp']*4.25/8),'rest %.1f'%((o['total']-o['mlp'])*2),'released GB %.2f'%(w/1e9),
+          'cache GB %.2f / no window %.2f / no GQA %.2f / neither %.2f'%tuple(kvs(*a)/1e9 for a in [(1,1),(1,0),(0,1),(0,0)]),
+          'left on 80 GB %.2f, sequences %d'%((80e9-w)/1e9,(80e9-w)//kvs(1,1)),'tokens that fit in 16 GB',int((16e9-w-f*kv*128)//(f*kv)))

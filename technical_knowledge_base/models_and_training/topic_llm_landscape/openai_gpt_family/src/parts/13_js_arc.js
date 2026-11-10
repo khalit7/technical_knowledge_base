@@ -91,19 +91,12 @@ const ARC=[['max',62.7,26098,98.6,17332],['xhigh',59.3,37317,98.4,18147],['high'
     s+=row(by+2,'Standard, best',.627*g,g?'62.7%, $26,098':'',cB,ada?(k===5?.4:.25):1);
     s+=row(by+20,'Adapter, best',.999*g,g?'99.9%, $18,817':'',cG,ada?1:(k===5?.4:.25));
     return {W,H,s,label:ada?'Provider Adapter harness':'Standard harness'}}
-  const common=[['A frame arrives','The harness sends GPT-6 Astra the current frame of an unfamiliar ARC-AGI-3 game. It has to explore, infer the goal and plan, with no instructions.'],
-    ['Astra reasons, out of sight','Hidden reasoning works out what the objects do. The caller sees none of it; the tokens are billed as output, and on Astra part of the work may stay in activations.'],
-    ['It acts and keeps notes','It returns an action and the notes it chooses to carry forward. ARC Prize saw Astra invent a compact algebraic shorthand for them, such as "extend8 to3".']];
+  // the step text is the ol.sx list #sx-hx in 04_read_b.html (one list for both harnesses: steps 4 to 6 say what each does)
+  const STEPS=['A frame arrives','Astra reasons, out of sight','It acts and keeps notes','Between requests','Turn 2','A whole game, a whole run'];
   const cnt=ada=>(k,e)=>{const r1=k<1?0:k===1?12*e:12,r2=k<4?0:(ada?5:11)*(k===4?e:1),tot=r1+r2;
     return k===5?stat('Best Semi-Private score',ada?'99.9%':'62.7%',ada?'high effort':'max effort')+stat('Cost of that run',ada?'$18,817':'$26,098',ada?'27.9% less':'')+stat('Tokens, 167 pairs both solved',ada?'49% fewer':'baseline',ada?'and 3.66× faster':'')
       :stat('Reasoning tokens so far',fmt(Math.round(tot))+'K','illustrative')+stat('Requests',k>=4?'2':'1','one per turn')+stat('Carried to the next request',k<3?'nothing yet':ada?'notes + opaque state':'notes only',k<3?'':ada?'encrypted, on OpenAI\'s side':'the transcript too')};
-  makeAnim({id:'hx',aria:'Harness',dur:3600,
+  makeAnim({id:'hx',list:'sx-hx',fig:'Fig. 4 · the same game, two turns, through each harness',aria:'Harness',dur:4800,
     foot:'Token counts per turn are <span class="ill">illustrative</span>, drawn to one scale for both harnesses; the last step\'s figures are ARC Prize\'s measurements ({{ARC Prize|@arc}}).',
-    modes:[
-      {label:'Standard harness',steps:common.concat([['Between requests: only the notes survive','The standard harness is provider-neutral: the next request carries the transcript and the notes. Astra\'s opaque reasoning state is dropped, so whatever it had worked out but not written down is gone.'],
-        ['Turn 2: rebuild, then move','Before it can make new progress, part of turn 1\'s understanding has to be rebuilt from the notes and the transcript: more reasoning tokens, more time, for the same next move.'],
-        ['A whole game, a whole run','The rebuilding repeats every turn. Across the Semi-Private set the best standard run scored 62.7%, at max effort, for $26,098.']]),draw:(k,e,ph,n)=>draw(0,k,e,ph,n),cnt:cnt(false)},
-      {label:'Provider Adapter',steps:common.concat([['Between requests: the state is kept','The Provider Adapter passes back Astra\'s opaque reasoning state with the notes: in OpenAI\'s API, encrypted reasoning items or a <code>previous_response_id</code>, which only OpenAI can read.'],
-        ['Turn 2: continue where it stopped','Nothing to rebuild: the next move starts from the state turn 1 left. The same progress costs fewer reasoning tokens.'],
-        ['A whole game, a whole run','When a game runs long the adapter compacts earlier turns so the model keeps reusing its work. Best run: 99.9% at high effort for $18,817; on the 167 pairs both harnesses solved, 49% fewer tokens and 3.66 times faster.']]),draw:(k,e,ph,n)=>draw(1,k,e,ph,n),cnt:cnt(true)}]});
+    modes:[{label:'Standard harness',steps:STEPS,draw:(k,e,ph,n)=>draw(0,k,e,ph,n),cnt:cnt(false)},{label:'Provider Adapter',steps:STEPS,draw:(k,e,ph,n)=>draw(1,k,e,ph,n),cnt:cnt(true)}]});
 })();

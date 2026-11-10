@@ -23,6 +23,7 @@ const OSS=(function(){
   const ctxs=[1024,2048,4096,8192,16384,32768,65536,131072];
   function kvSeq(m,T,o){const L=OSS[m].L,kvh=o.gqa?8:64,per=2*kvh*64*o.kvb,full=o.win?L/2:L,win=o.win?L/2:0;return full*per*T+win*per*Math.min(T,128)}
   function wBytes(m,f){const a=OSS[m];return f==='mx'?ck(a):f==='fp8'?a.mlp*1+a.rest*2:a.total*2}
+  OSS.kvSeq=kvSeq;OSS.wBytes=wBytes; // the one-card stage (Fig. 7, 43_js_sc_fit.js) draws the same numbers
   function mem(){
     S.ctx=ctxs[Math.min(ctxs.length-1,S.T)];
     const ctx=S.ctx,w=wBytes(S.m,S.fmt),kv=kvSeq(S.m,ctx,S)*S.bs,tot=w+kv,bud=S.bud*B;

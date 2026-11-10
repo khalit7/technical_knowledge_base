@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-oss"></div></div><div class="s3L">
 <section id="s-oss">
 <h2>gpt-oss: the one open window</h2>
 <p>gpt-oss-120b and gpt-oss-20b (5 August 2025) are OpenAI's first open weights since GPT-2, Apache 2.0 licensed, and the only place its design choices are visible ({{model card|@oss}}). Both are <b>MoE</b> (mixture-of-experts) transformers: each layer's feed-forward block is many expert networks, of which a router picks a few per token.</p>
@@ -6,35 +7,70 @@
 <tr><td>gpt-oss-120b</td><td class="num">36</td><td class="num">116.8B</td><td class="num">5.1B</td><td class="num">128</td><td class="num">60.8 GiB</td></tr>
 <tr><td>gpt-oss-20b</td><td class="num">24</td><td class="num">20.9B</td><td class="num">3.6B</td><td class="num">32</td><td class="num">12.8 GiB</td></tr>
 </table></div>
-<p>What OpenAI chose, each with the page that owns the mechanism:</p>
+<p class="try"><b>Predict:</b> one token through one feed-forward block of gpt-oss-120b. How many times fewer weight bytes does it read than a dense block holding the same parameters? Step 4 of Fig. 6 has the answer.</p>
+<ol class="sx" id="sx-oss">
+<li><b>Thirty-six layers, two kinds of attention.</b> Each layer is an attention block (teal: banded, a 128-token window; orange: full attention) over an MoE feed-forward block, alternating in the configuration's layer order. A token's hidden state, 2,880 numbers, climbs the stack.</li>
+<li><b>One layer's feed-forward is 128 experts.</b> Pulled out of the stack: each cube is one expert of 24.9M parameters, about 3.19B for the layer. A router, one linear projection of 2,880 × 128 (0.37M parameters), gives the token a score per expert; it is the only part of the block that looks at all 128.</li>
+<li><b>The router keeps four.</b> Only the four highest scores survive, and a softmax over just those four gives the weights that mix their outputs. The other 124 experts are not read at all for this token. (The scores drawn are <span class="ill">illustrative</span>, seeded; the counts are the configuration's.)</li>
+<li><b>Four experts read, in MXFP4.</b> Each chosen expert's weights are stored in blocks of 32 four-bit values sharing one 8-bit scale, 4.25 bits a parameter, about 13.2 MB an expert: <span id="oss-rd">52.9 MB</span> read for this layer, against <span id="oss-dn">6.37 GB</span> if the same parameters were one dense BF16 block (the outlined column, to scale). About <span id="oss-x">120</span> times fewer: 32 from using 4 of 128 experts and 3.8 from 4.25 bits instead of 16. Each expert runs its gated SwiGLU and the four outputs, weighted, are summed into the residual stream: about 0.2 GFLOP, against 6.4 GFLOP dense.</li>
+<li><b>Thirty-six layers later.</b> A different four light up in every layer. Per token the experts contribute 36 × 4 × 24.9M = 3.58B parameters; with attention (0.96B) and the unembedding (0.58B) that is <b><span id="oss-act">5.13B active of 116.83B</span></b> (4.4%), the model card's figure, rebuilt from config.json.</li>
+<li><b>Only the full layers keep a growing cache.</b> A layer's key-value cache is 2 × 8 KV heads × 64 × 2 bytes = 2,048 bytes a token. At 131,072 tokens a full layer holds <span id="oss-full">268 MB</span>; a banded layer never more than 128 tokens, <span id="oss-band">262 KB</span>. The 18 full layers hold <span id="oss-c">4.84 GB</span>, half what 36 full layers would.</li>
+<li><b>gpt-oss-20b: the same block, smaller.</b> 24 layers, the same alternation and width, 32 experts with 4 run: <span id="oss-20">3.61B active of 20.91B</span>, 12.8 GiB as released.</li>
+</ol>
+<p>The routing mechanism itself is {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}', where the same configurations sit beside the other open sparse models. What OpenAI chose, each with the page that owns the mechanism:</p>
 <ul>
-<li><b>MXFP4 experts.</b> The models were post-trained with their MoE weights already quantised to <b>MXFP4</b>, a microscaling 4-bit floating-point format in which each block of 32 values shares one 8-bit scale ({{MX formats|@mx}}), 4.25 bits per parameter including the scales. The MoE weights are more than 90% of all parameters, so this is what puts 120b on a single 80 GB GPU and 20b in 16 GB. Because quantisation happened during post-training, the released weights are the ones the model was tuned in. The format is {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}'s; one block is quantised on the <a href="#" data-tab="t-oss">gpt-oss on one GPU</a> tab.</li>
-<li><b>Attention.</b> Layers alternate between a banded (sliding) window of 128 tokens and full dense attention, so only half the layers pay the quadratic cost of attending to everything and only half keep a cache that grows with context. Each layer has 64 query heads of dimension 64 sharing 8 key-value heads: <b>GQA</b> (grouped-query attention), eight query heads per KV head. Each head also has a learned <b>attention sink</b>, a bias in the denominator of its softmax that lets it pay no attention to any token instead of spreading probability over tokens that do not deserve it. Windows, GQA and sinks are taught on {{Attention variants (Sinks and gates)|n:3fd5c17b0d0d8120859ecc2d0236e846}}; what they save in cache here is on the gpt-oss tab, and cache sizing in general on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}.</li>
+<li><b>MXFP4 experts.</b> The models were post-trained with their MoE weights already quantised to <b>MXFP4</b>, a microscaling 4-bit floating-point format in which each block of 32 values shares one 8-bit scale ({{MX formats|@mx}}), 4.25 bits per parameter including the scales. The MoE weights are more than 90% of all parameters, so this is what puts 120b on a single 80 GB GPU and 20b in 16 GB. Because quantisation happened during post-training, the released weights are the ones the model was tuned in. The format is {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}'s; one block is quantised on the <a href="#" data-tab="t-oss">gpt-oss on one GPU</a> tab, and Fig. 7 below puts the result on one card.</li>
+<li><b>Attention.</b> Layers alternate between a banded (sliding) window of 128 tokens and full dense attention, so only half the layers pay the quadratic cost of attending to everything and only half keep a cache that grows with context. Each layer has 64 query heads of dimension 64 sharing 8 key-value heads: <b>GQA</b> (grouped-query attention), eight query heads per KV head. Each head also has a learned <b>attention sink</b>, a bias in the denominator of its softmax that lets it pay no attention to any token instead of spreading probability over tokens that do not deserve it. Windows, GQA and sinks are taught on {{Attention variants (Sinks and gates)|n:3fd5c17b0d0d8120859ecc2d0236e846}}; what they save in cache is step 6 of Fig. 6 and the gpt-oss tab, the window mechanism in 3D is the {{LLM Architecture Gallery|n:3c65c17b0d0d81be8a07f2562fa2030a}}'s sliding-windows section (section 6), and cache sizing in general is on {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5}}.</li>
+</ul>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-fit"></div></div><div class="s3L">
+<section id="s-fit">
+<h3>On one card</h3>
+<p>Fig. 7 stacks gpt-oss's bytes, from the configuration files, against a card's memory.</p>
+<ol class="sx" id="sx-fit">
+<li><b>gpt-oss-120b in BF16.</b> Every weight at 2 bytes: <span id="fit-bf">233.7 GB</span>, the experts (blue, one slab per layer) <span id="fit-bfe">229.4 GB</span> of it and everything else (teal: attention, embeddings, norms) <span id="fit-r">4.2 GB</span>. That is about three 80 GB cards before any cache.</li>
+<li><b>MXFP4 experts.</b> At 4.25 bits a parameter the experts shrink to <span id="fit-mxe">60.9 GB</span>; the rest stays in BF16, so the model is <span id="fit-mx">65.2 GB</span> (60.70 GiB, against the card's 60.8) and fits under 80 GB.</li>
+<li><b>Add the cache for one long sequence.</b> At the full 131,072 tokens the BF16 cache is <span id="fit-kv">4.84 GB</span> (the 18 full layers; the banded ones hold 128 tokens each). <span id="fit-left">14.8 GB</span> are left, room for <span id="fit-n">3</span> such sequences.</li>
+<li><b>Without the window, or without GQA.</b> The same sequence's cache with every layer full would be <span id="fit-nw">9.7 GB</span>; with 64 KV heads instead of 8, <span id="fit-ng">38.7 GB</span>; with neither, <span id="fit-nn">77.3 GB</span>, more than the weights. These are <span class="ill">illustrative alternatives</span>, not shipped variants: what the attention choices buy on one card.</li>
+<li><b>gpt-oss-20b on a 16 GB card.</b> <span id="fit-w20">13.7 GB</span> of weights fit. The full 131,072-token cache, <span id="fit-k20">3.22 GB</span>, does not: together <span id="fit-t20">17.0 GB</span>. The card holds the weights and about <span id="fit-tok">91,500</span> tokens of cache, before activations and runtime overheads, which are not counted here.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-oss2">
+<h3>Positions, norms, training and effort</h3>
+<ul>
 <li><b>Positions.</b> <b>RoPE</b> extended with <b>YaRN</b> to 131,072 tokens on the dense layers (from 4,096, a factor of 32, {{config|@cfg120}}); the scaling methods are {{Positional Encodings|n:3c65c17b0d0d81a5b7c9e578fcdfac00}}'.</li>
 <li><b>Normalisation and activation.</b> RMSNorm before each attention and MoE block (pre-norm placement, as in GPT-2), and a gated SwiGLU in the experts that OpenAI calls unconventional, "including clamping and a residual connection".</li>
 <li><b>Training.</b> Text only, trillions of tokens focused on STEM, coding and general knowledge, knowledge cutoff June 2024; 2.1 million H100-hours for 120b, almost ten times fewer for 20b; post-trained "using similar CoT RL techniques as OpenAI o3", in the harmony chat format, whose channels separate chain of thought (analysis), tool calls (commentary) and answers (final).</li>
 <li><b>Reasoning effort</b> is set in the system prompt with a keyword such as "Reasoning: low" (low, medium or high) instead of by separate checkpoints.</li>
 </ul>
-<figure class="img"><div class="fig-t">Effort is a line in the system prompt, and the chain of thought has its own channel</div>
+<p>The signal is that nothing here is exotic: it is conventional modern practice, which suggests the closed flagships differ from public models in data, RL and scale rather than in block design. It shows what OpenAI considered settled practice in 2025; it says nothing about recurrent depth or how Astra is built. The <a href="#" data-tab="t-oss">gpt-oss on one GPU</a> tab rebuilds the parameter table from the configuration and works out what fits in 80 GB.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><figure class="img"><div class="fig-t">Fig. 8 · Effort is a line in the system prompt, and the chain of thought has its own channel</div>
 <div class="imgw"><img src="img/harmony_input.webp" alt="A harmony-format prompt: a system message with reasoning set to low and the valid channels analysis, commentary and final; a developer message defining a get_current_weather function; a user message asking for the weather in San Francisco" loading="lazy"></div>
 <div class="imgw" style="margin-top:6px"><img src="img/harmony_output.webp" alt="The model's reply in harmony format: a short chain of thought on the analysis channel, then a tool call on the commentary channel with JSON arguments" loading="lazy"></div>
 <p class="cap">Notice <code>reasoning: low</code> in the system message, and the reply's two channels: the chain of thought on <code>analysis</code>, the tool call on <code>commentary</code>, with the answer to come on <code>final</code>. The tokens in red are special tokens of the chat format (templates in general: {{Tokenizers|n:3c65c17b0d0d817187bcd94a1b0f15ea}}).</p>
-<p class="credit">Figures 17 and 18 of the gpt-oss-120b and gpt-oss-20b model card, OpenAI (Agarwal et al.), 2025, {{arXiv:2508.10925|@oss}}, CC BY 4.0.</p></figure>
-<p class="try"><b>Step through:</b> one token through one feed-forward block of gpt-oss-120b, then the same token through a dense block holding the same parameters. Everything is to scale: one small square is 64 numbers of the hidden state, one large square one expert of 24.9M parameters. Predict first: how many times fewer weight bytes does the MoE block read for this token?</p>
-<div class="card" id="moex"></div>
-<p>About 120 times fewer: 32 from using 4 of 128 experts and 3.8 from 4.25 bits instead of 16. The routing mechanism itself is {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}', where the same configurations sit beside the other open sparse models. The signal is that nothing here is exotic: it is conventional modern practice, which suggests the closed flagships differ from public models in data, RL and scale rather than in block design. It shows what OpenAI considered settled practice in 2025; it says nothing about recurrent depth or how Astra is built. The <a href="#" data-tab="t-oss">gpt-oss on one GPU</a> tab rebuilds the parameter table from the configuration and works out what fits in 80 GB.</p>
-</section>
+<p class="credit">Figures 17 and 18 of the gpt-oss-120b and gpt-oss-20b model card, OpenAI (Agarwal et al.), 2025, {{arXiv:2508.10925|@oss}}, CC BY 4.0.</p></figure></div></div></div></div>
 
+
+<div class="s3sp"><div class="s3L">
 <section id="s-train">
 <h2>Training approach</h2>
 <p><b>What is public.</b> Frontier data is not. The known pillars: very large web crawl plus licensed corpora, heavy use of synthetic data (model-generated, filtered and graded by other models), and the RLHF family at a scale nobody else had in the early years.</p>
 <p><b>RLVR.</b> The o-series and GPT-5 lines use large-scale <b>RLVR</b> (reinforcement learning from verifiable rewards): RL on tasks where a program decides whether the answer is right, such as maths with a checker or code with a test suite. A code grader cannot be gamed by writing text a judge finds persuasive, which let RL run far longer without reward hacking than RLHF could ({{RL for LLMs|n:3c65c17b0d0d818c9bcff7177325fe56}} owns the algorithms).</p>
 <p><b>Deliberative alignment</b> is OpenAI's own layer on top: the model reasons explicitly over a written safety specification before answering, so a refusal is the outcome of reasoning about a rule rather than a memorised reflex to surface features of the prompt.</p>
-<figure><div class="fig-t">Before and after: a refusal learned as a reflex, and one reasoned from a written rule</div><div id="daSvg"></div>
-<p class="cap">The same borderline request through each. The reflex keys on surface features, so it refuses harmless prompts that look risky and misses harmful ones phrased innocently; the deliberative model cites the clause it applies in its chain of thought. That is why jailbreak resistance and over-refusal improve together, which they normally trade against each other. The example request is <span class="ill">illustrative</span>.</p></figure>
+
 <p><b>The router as system design.</b> It is the one architectural idea OpenAI discusses openly, and its efficiency messaging leads with fewer thinking tokens for the same score. Read that as a claim about cost per solved task rather than about benchmark ceilings; it is the metric that matters once accuracy is bought per request, and GPT-6.1 Sol's pitch (Astra's DeepSWE score at about a fifth of the cost) is the same claim at the tier level.</p>
 <p><b>Architecture visibility.</b> Flagship weights are closed, and dense against MoE is unconfirmed, though MoE is widely assumed from the pricing and latency structure. gpt-oss is the only window.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><figure style="margin:0"><div class="fig-t">Fig. 9 · Before and after: a refusal learned as a reflex, and one reasoned from a written rule</div><div id="daSvg"></div>
+<p class="cap">The same borderline request through each. The reflex keys on surface features, so it refuses harmless prompts that look risky and misses harmful ones phrased innocently; the deliberative model cites the clause it applies in its chain of thought. That is why jailbreak resistance and over-refusal improve together, which they normally trade against each other. The example request is <span class="ill">illustrative</span>.</p></figure></div></div></div></div>
 
 <section id="s-safe">
 <h2>Safety and deployment</h2>
