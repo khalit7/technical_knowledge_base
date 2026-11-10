@@ -1,11 +1,21 @@
 <section id="s-pre">
 <h2>3 &middot; Beyond the diagonal: Shampoo, SOAP, Adafactor, and what the state costs</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-pre"></div></div><div class="s3L">
 <p>A weight is a matrix W (m &times; n), and its gradient's high-curvature directions mix rows and columns. Matrix-aware preconditioners act on both sides of it.</p>
 <ul>
 <li><b>Shampoo</b> ({{Gupta, Koren and Singer 2018|https://arxiv.org/html/1802.09568}}) keeps one m &times; m factor for the rows and one n &times; n factor for the columns, L &larr; L + G G<sup>&#8868;</sup> and R &larr; R + G<sup>&#8868;</sup>G, and steps W &larr; W &minus; &eta; L<sup>&minus;1/4</sup> G R<sup>&minus;1/4</sup>: a Kronecker-factored approximation of full-matrix AdaGrad at m&sup2; + n&sup2; memory instead of (mn)&sup2;. The matrix roots are expensive, so practical versions recompute them only every few steps.</li>
 <li><b>SOAP</b> ({{Vyas et al. 2024|https://arxiv.org/html/2409.11321}}) starts from the observation that Shampoo (with the 1/2 power) is Adafactor run in the eigenbasis of Shampoo's preconditioner, and replaces Adafactor with Adam: rotate the gradient into the eigenbases of L and R, run Adam there, rotate back. Its one hyperparameter beyond Adam's is how often the eigenbasis is refreshed.</li>
 <li><b>Adafactor</b> ({{Shazeer and Stern 2018|https://arxiv.org/html/1804.04235}}) goes the other way, towards less memory: it keeps only the row and column sums of each matrix's squared gradients and rebuilds a rank-1 estimate of v from them, "from O(nm) to O(n+m)". It was the optimiser of {{T5|https://arxiv.org/abs/1910.10683}}.</li>
 </ul>
+<p class="sxh">Fig. 3, step by step</p>
+<ol class="sx" id="sx-pre">
+<li><b>One real weight matrix.</b> W is one of Kimi K2's <span data-pr="cnt">69,300</span> expert matrices, <span data-pr="big">7,168</span> &times; <span data-pr="sml">2,048</span> (<span data-pr="w">14.7</span>M weights; shape from its <code>config.json</code>). Every step a gradient G of the same shape arrives. Every plate in the figure is drawn to the same scale, so a slab the size of W is one state value per weight.</li>
+<li><b>Adam and AdamW: two more slabs.</b> m and v are the size of W: 2 values per weight, whatever the shape.</li>
+<li><b>Muon: one slab.</b> Only the momentum: 1 value per weight on hidden matrices (embeddings, head and 1-D parameters stay on AdamW, section 4).</li>
+<li><b>Adafactor: a row and a column.</b> v is rebuilt from one sum per row and one per column, <span data-pr="mn">9,216</span> values for 14.7M weights: <span data-pr="af">0.0006</span> per weight, at the price of a rank-1 estimate of v.</li>
+<li><b>Shampoo: a factor per side.</b> L accumulates GG<sup>&#8868;</sup> and R accumulates G<sup>&#8868;</sup>G, each as large as its side squared; the step sends G through both, L<sup>&minus;1/4</sup>GR<sup>&minus;1/4</sup>. R alone is <span data-pr="sq">3.5</span> times the size of W, because the matrix is long and thin: <span data-pr="sh">3.79</span> values per weight, before any blocking.</li>
+<li><b>SOAP: the eigenbases too, and Adam inside them.</b> Each factor's eigenbasis is another plate the same size, and Adam's m and v run in the rotated basis: 2 + 2 &times; 3.79 = <span data-pr="sp">9.57</span> values per weight for this matrix, and <span data-pr="all">9.54</span> over the whole model (soap.py's defaults; the table below).</li>
+</ol>
 <details class="dp"><summary>Newton, quasi-Newton, full-matrix AdaGrad and Shampoo's exponent; SOAP's reported gains <span class="mute">(depth)</span></summary><div class="b"><ul>
 <li><b>Newton's method</b> uses the Hessian H, the matrix of second derivatives: &theta; &larr; &theta; &minus; H<sup>&minus;1</sup>&nabla;J. It undoes the curvature in every direction at once and converges in far fewer steps, but H has n&sup2; entries (O(n&sup2;) memory) and inverting it costs O(n&sup3;): for a network with 10<sup>9</sup> weights, impossible. Quasi-Newton methods (L-BFGS) build a low-rank approximation from recent gradient differences and Hessian-free methods use Hessian-vector products; both work for small, full-batch problems and break down with mini-batch noise. The practical descendants are the structured preconditioners above.</li>
 <li><b>Full-matrix AdaGrad</b> ({{Duchi et al. 2011|https://jmlr.org/papers/v12/duchi11a.html}}) divides by the square root of the whole matrix &Sigma; g g<sup>&#8868;</sup> instead of its diagonal: rotation-invariant, but n&sup2; again.</li>
@@ -13,39 +23,45 @@
 <li><b>SOAP's reported gains:</b> on 360M and 660M language models with 2M-token batches, at least 40% fewer iterations and at least 35% less wall-clock time than AdamW, and about 20% better than Shampoo on both (Vyas et al.).</li>
 </ul></div></details>
 
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>What the optimiser state costs</h3>
 <p>In mixed precision with Adam, each parameter needs 2 bytes for the bf16 weight, 2 for its gradient, 4 for an fp32 master copy and 4 each for m and v: 16 bytes ({{ZeRO|n:3c65c17b0d0d81879a7ed90bca007699}}; 2 + 2 + 4 + 4 &times; 2 = 16, reproduced by construction). Optimiser states "use 33&ndash;75% of the total memory footprint during training" ({{Dettmers et al. 2021|https://arxiv.org/html/2110.02861#S1}}). Where that state lives across GPUs (ZeRO stages, FSDP) is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}.</p>
-<div class="card" id="mem-card">
+<details class="dp"><summary>How the state is counted <span class="mute">(provenance)</span></summary><div class="b"><p >State values per parameter are counted per matrix: Adam 2mn, Muon mn on hidden matrices and 2mn on the embedding, output head and every 1-D parameter (norms, router biases), Adafactor m + n, SOAP 2mn plus, for each side d &le; 10,000, a d &times; d factor and its d &times; d eigenbasis (<code>max_precond_dim = 10000</code> and <code>precondition_1d = False</code> are soap.py's defaults; larger sides, such as a vocabulary, get no factor). Bytes: 4 per state value, 1 for 8-bit Adam. Training bytes per parameter = 2 (bf16 weight) + 2 (bf16 gradient) + 4 (fp32 master) + state bytes, before activations and before any ZeRO sharding. Parameter recounts: SmolLM3 3.08B, OLMo 2 7.30B, Llama 3.1 405.85B, Kimi K2 1,026.41B (within 3,416 parameters of Hugging Face's count; the K2 report's 1.04T is discussed on {{Moonshot AI: Kimi|n:3c65c17b0d0d81f5abf5dbdbac821a12}}). Shampoo is not listed because its memory depends on the blocking an implementation chooses.</p></div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="mem-card">
 <h4>Muon keeps about half of AdamW's state; SOAP on Kimi K2 keeps about nine times the parameter count</h4>
 <p class="try"><b>Try:</b> switch models. Muon's state is a little more than half on small models, whose embedding is a bigger share (89% of OLMo 2 7B sits in hidden matrices, 99.8% of Kimi K2). SOAP's state on Kimi K2: each of its 69,300 expert matrices (7,168 &times; 2,048) carries a 7,168 &times; 7,168 factor and a 2,048 &times; 2,048 one, each with its eigenbasis.</p>
 <div class="seg" id="mem-model"></div>
 <div id="mem-out"></div>
 <p class="small mute">Counted per matrix from each model's <code>config.json</code>, 4 bytes per state value (1 for 8-bit Adam), before activations and ZeRO sharding; the counting rules are in the closed block below.</p>
 </div>
-<details class="dp"><summary>How the state is counted <span class="mute">(provenance)</span></summary><div class="b"><p >State values per parameter are counted per matrix: Adam 2mn, Muon mn on hidden matrices and 2mn on the embedding, output head and every 1-D parameter (norms, router biases), Adafactor m + n, SOAP 2mn plus, for each side d &le; 10,000, a d &times; d factor and its d &times; d eigenbasis (<code>max_precond_dim = 10000</code> and <code>precondition_1d = False</code> are soap.py's defaults; larger sides, such as a vocabulary, get no factor). Bytes: 4 per state value, 1 for 8-bit Adam. Training bytes per parameter = 2 (bf16 weight) + 2 (bf16 gradient) + 4 (fp32 master) + state bytes, before activations and before any ZeRO sharding. Parameter recounts: SmolLM3 3.08B, OLMo 2 7.30B, Llama 3.1 405.85B, Kimi K2 1,026.41B (within 3,416 parameters of Hugging Face's count; the K2 report's 1.04T is discussed on {{Moonshot AI: Kimi|n:3c65c17b0d0d81f5abf5dbdbac821a12}}). Shampoo is not listed because its memory depends on the blocking an implementation chooses.</p></div></details>
+</div></div></div>
 </section>
 
 <section id="s-muon">
 <h2>4 &middot; Orthogonal and sign updates: Muon and Lion</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-ns"></div></div><div class="s3L">
 <h3>Muon</h3>
 <p>A gradient matrix is usually dominated by a few singular directions, so an SGD or Adam step moves mostly along them. {{Muon|https://kellerjordan.github.io/posts/muon/}} (Keller Jordan, 2024; "MomentUm Orthogonalized by Newton-Schulz") replaces each hidden matrix's momentum by the nearest semi-orthogonal matrix, so every direction the gradient spans gets a comparable step and rare directions are not drowned out. {{Bernstein|https://jeremybernste.in/writing/deriving-muon}} derives it as steepest descent under the spectral norm.</p>
-<div class="card" id="ns-card">
-<h4>Five Newton-Schulz iterations squeeze a 7.3 : 1 spread of singular values to 1.66 : 1</h4>
-<p class="try"><b>Predict</b> whether five iterations land every singular value exactly on 1, then step through.</p>
-<div class="an-ctl" id="ns-ctl"></div>
-<div class="an-cap" id="ns-cap"></div>
-<div class="rd-svg" id="ns-svg"></div>
-<p class="small mute">The 32 nonzero singular values of one real gradient (the parent page's toy, layer 8's first feed-forward matrix, 64 &times; 176, batch 32; <code>inputs/root_gradient_sv.json</code>), normalised to Frobenius norm 1. Each iteration X &larr; aX + (bXX<sup>&#8868;</sup> + c(XX<sup>&#8868;</sup>)&sup2;)X maps every singular value &sigma; to a&sigma; + b&sigma;<sup>3</sup> + c&sigma;<sup>5</sup> and keeps the singular vectors, so the five scalar maps here are exact (<code>ns_data.py</code>). Range: 0.04 to 0.32 before, 0.15 to 0.95 after one iteration, 0.50 to 1.20 after two, 0.68 to 1.13 after five.</p>
-</div>
+<p class="sxh">Fig. 4, step by step</p>
+<ol class="sx" id="sx-ns">
+<li><b>The gradient's <span data-ns="n">32</span> directions.</b> The momentum of one real 64 &times; 176 hidden matrix (the parent page's toy, layer 8's first feed-forward matrix, batch 32; <code>inputs/root_gradient_sv.json</code>), normalised to Frobenius norm 1, has singular values from <span data-ns="lo0">0.04</span> to <span data-ns="hi0">0.32</span>: the strongest direction is <span data-ns="r0">7.3</span> times the weakest, so an SGD or Adam step moves mostly along the first few.</li>
+<li><b>Iteration 1.</b> X &larr; aX + (bXX<sup>&#8868;</sup> + c(XX<sup>&#8868;</sup>)&sup2;)X keeps the singular vectors and maps every value &sigma; to a&sigma; + b&sigma;<sup>3</sup> + c&sigma;<sup>5</sup> (the purple curve on the right; dashed: output = input). Small values are lifted fast, by up to a = 3.4445 times: the range is now <span data-ns="lo1">0.15</span> to <span data-ns="hi1">0.95</span>.</li>
+<li><b>Iteration 2.</b> Values above about 1 are pushed back down, values below lifted again: <span data-ns="lo2">0.50</span> to <span data-ns="hi2">1.20</span>. The orange plane is the target, every value 1, which is the orthogonal matrix UV<sup>&#8868;</sup>.</li>
+<li><b>Iterations 3 to 5.</b> The values oscillate inside a band around 1 and end between <span data-ns="lo5">0.68</span> and <span data-ns="hi5">1.13</span>, a spread of <span data-ns="r5">1.66</span> : 1, against 7.3 : 1 before (grey: the gradient's own values).</li>
+<li><b>Close to orthogonal, and fast.</b> Not exactly 1: the coefficients trade precision for speed on the smallest values, which the authors found does not hurt. Every direction the gradient spans now gets a comparable step, and no singular value decomposition was ever computed.</li>
+</ol>
+<p class="small mute">Because each iteration keeps the singular vectors, the five scalar maps in Fig. 4 are exact (<code>ns_data.py</code>).</p>
 <p>For one m &times; n hidden weight with gradient G (the defaults of the {{reference code|https://github.com/KellerJordan/Muon}} and of <code>torch.optim.Muon</code>):</p>
 <ol>
 <li>Momentum B &larr; &mu;B + (1 &minus; &mu;)G with &mu; = 0.95, and the Nesterov-style update U = (1 &minus; &mu;)G + &mu;B.</li>
-<li>Normalise U to unit Frobenius norm, then five iterations with (a, b, c) = (3.4445, &minus;4.7750, 2.0315): approximately UV<sup>&#8868;</sup> from U's singular value decomposition, without computing one. The coefficients were tuned to lift small singular values as fast as possible, so the output's singular values land roughly between 0.5 and 1.5 rather than exactly at 1, which the authors found does not hurt (the figure ends at 0.68 to 1.13).</li>
+<li>Normalise U to unit Frobenius norm, then five iterations with (a, b, c) = (3.4445, &minus;4.7750, 2.0315): approximately UV<sup>&#8868;</sup> from U's singular value decomposition, without computing one. The coefficients were tuned to lift small singular values as fast as possible, so the output's singular values land roughly between 0.5 and 1.5 rather than exactly at 1, which the authors found does not hurt (Fig. 4 ends at 0.68 to 1.13).</li>
 <li>Step W &larr; W &minus; &eta;&middot;s&middot;X, where s rescales for the matrix's shape: &radic;max(1, m/n) in Jordan's version; Moonshot's 0.2&middot;&radic;max(m, n), which matches the update's size to AdamW's typical RMS of 0.2 to 0.4 so AdamW's learning rate and decay can be reused ({{Liu et al. 2025, section 2.2|https://arxiv.org/html/2502.16982#S2.SS2}}). PyTorch offers both as <code>adjust_lr_fn</code> options.</li>
 </ol>
 <ul>
 <li><b>Which parameters:</b> only 2-D hidden matrices; a 1-D parameter has nothing to orthogonalise. Embeddings, the output head, norms and biases stay on AdamW; Jordan found using AdamW for the embedding and head important even though they are 2-D. GLM-4.5 runs Muon on "all parameters except word embedding, bias, and weights for RMSNorm" with 5 Newton-Schulz steps, momentum 0.95 and update RMS 0.2 ({{GLM-4.5, section 2.4|https://arxiv.org/html/2508.06471#S2.SS4}}).</li>
-<li><b>Cost:</b> one state buffer instead of AdamW's two (the memory table above), and a FLOP overhead of at most T&middot;m/B for T iterations, model width m and batch B tokens: 5 &times; 768 / 524,288 = 0.7% for the speedrun and 5 &times; 16,384 / 16M = 0.5% for a Llama 405B-sized run (Jordan's arithmetic, reproduced). The real catch is that orthogonalisation needs the whole matrix while large runs shard it, which is why Moonshot published a distributed version built on ZeRO-1 ({{Liu et al. 2025|https://arxiv.org/html/2502.16982#S1}}).</li>
+<li><b>Cost:</b> one state buffer instead of AdamW's two (Fig. 3 and the memory table, section 3), and a FLOP overhead of at most T&middot;m/B for T iterations, model width m and batch B tokens: 5 &times; 768 / 524,288 = 0.7% for the speedrun and 5 &times; 16,384 / 16M = 0.5% for a Llama 405B-sized run (Jordan's arithmetic, reproduced). The real catch is that orthogonalisation needs the whole matrix while large runs shard it, which is why Moonshot published a distributed version built on ZeRO-1 ({{Liu et al. 2025|https://arxiv.org/html/2502.16982#S1}}).</li>
 <li><b>Scale:</b> Moonshot added weight decay and the shape scaling and reported "~2x computational efficiency compared to AdamW with compute optimal training" (52% of the FLOPs) with the 16B Moonlight model; MuonClip (Muon plus QK-Clip, which rescales a head's query and key projections whenever its largest attention logit exceeds &tau; = 100) then trained the 1T-parameter Kimi K2 on 15.5T tokens "with zero loss spike" ({{Kimi K2 report|https://arxiv.org/html/2507.20534}}; mechanism on {{Moonshot AI: Kimi|n:3c65c17b0d0d81f5abf5dbdbac821a12}}).</li>
 <li><b>Per head:</b> Kimi K3 trains with Per-Head Muon, which orthogonalises each attention head's block of the Q, K and V momentum separately, because on the full matrix heads with larger gradients dominate the shared direction and small-scale heads are under-normalised ({{Moonshot AI: Kimi|n:3c65c17b0d0d81f5abf5dbdbac821a12#s-muon}}).</li>
 </ul>
@@ -54,6 +70,7 @@
 <li><code>torch.optim.Muon</code> ({{docs|https://docs.pytorch.org/docs/stable/generated/torch.optim.Muon.html}}; first in the PyTorch 2.9 documentation, inferred from the versioned docs) and <code>optax.contrib.muon</code> in JAX ({{docs|https://optax.readthedocs.io/en/latest/api/contrib.html}}). PyTorch runs the Newton-Schulz iterations in bfloat16 and defaults to weight decay 0.1.</li>
 </ul></div></details>
 
+</div></div>
 <h3>Lion</h3>
 <p>{{Lion|https://arxiv.org/html/2302.06675}} ("EvoLved Sign Momentum", Chen et al. 2023) was found by a program search over update rules. Its step is the sign of an interpolation between the momentum and the current gradient, and the momentum is updated afterwards with a different rate:</p>
 <div class="fm"><div class="eq">&theta; &larr; &theta; &minus; &eta;&middot;(sign(&beta;<sub>1</sub>m + (1&minus;&beta;<sub>1</sub>)g) + &lambda;&theta;), &nbsp; m &larr; &beta;<sub>2</sub>m + (1&minus;&beta;<sub>2</sub>)g</div><dl><dt>&beta;<sub>1</sub>, &beta;<sub>2</sub></dt><dd>0.9 and 0.99 by default</dd></dl></div>

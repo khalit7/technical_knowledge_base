@@ -1,6 +1,6 @@
 Source of the interactive HTML on the Notion page "Optimisers and learning-rate schedulers" (child of Topic: ml-fundamentals; storage key `optim-tab`).
 
-Build: `sh build.sh` writes `../index.html` from `parts/` (01 head, 02 css, 10 header, `20_read_*.html` a to e, 35 race tab, 39 Further reading, then every JS part in order, 99 tabs last). The header's reading time is measured with `html_utils/audit_pages.mjs` and written into `10_header.html` by hand.
+Build: `sh build.sh` writes `../index.html` from `parts/` (01 head, 02 css, 02 split, 10 header, `20_read_*.html` a to e, 35 race tab, 39 Further reading, then every JS part in order, 99 tabs last). The header's reading time is measured with `html_utils/audit_pages.mjs` and written into `10_header.html` by hand.
 
 Generated parts: `parts/31_js_race_lr.js` (node checks/tune.mjs), `parts/41_js_mem_data.js` (python3 recompute.py), `parts/45_js_ns_0data.js` (python3 ns_data.py, from `inputs/root_gradient_sv.json`: the 32 singular values of the parent page's real 64 x 176 gradient, extracted from the built root page).
 
@@ -41,3 +41,40 @@ No real-model data beyond configs and one real gradient's singular values: the s
 2026-10-26 (final follow-up sweep): section 4 adds one line on Kimi K3's Per-Head Muon, linking the Kimi page that owns it.
 
 2026-10-26 (final follow-up sweep, second batch): the "You need" pointer to Calculus and optimisation names its sections 4 (momentum's rate, 0.519 on diag(1, 10)), 10 (noise floor) and 11 (edge of stability).
+
+## 2026-11-10: the split layout and six 3D stages (renderer v2)
+The 2026-11-06 rollout (briefs `rebuild-page.md` and `layout-rollout.md`). Templates copied unchanged: `02_split.html` (after `02_css.html` in `build.sh`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `optim-tab`). The three inline mini-races (`47_js_mini.js`) and the Newton-Schulz stepper (`46_js_ns.js`) were replaced by stages and deleted; the endpoints animation in `44_js_end.js` became Fig. 6 (the part now only computes `END_RES` and writes the endpoint table). The bias-correction card (40 steps, two modes) and the race (100 frames) are long replays whose outcome is the point, so they are widgets (`auto:false`): no autoplay, no step list, opening on step 12 and on the last frame.
+
+Stages (all data from the page's own engines; none invented):
+- `60_js_sc_surf.js`: shared helper; a race surface as a mesh (height log10(1 + loss)) and runs of `OPTE` at `RACE_LR` as balls with trails.
+- Fig. 1 `61_js_sc_mom.js`: SGD, momentum, Nesterov on the axis-aligned ravine; momentum's step along the floor against each gradient, close up.
+- Fig. 2 `62_js_sc_ad.js`: per-coordinate steps (|g| and |step|/eta as columns per parameter), AdaGrad, RMSProp, Adam on both ravines, Shampoo's accumulated H^(-1/2) as a cross.
+- Fig. 3 `63_js_sc_pre.js`: state to scale beside one Kimi K2 expert matrix (shape from `MEM_MODELS`): Adam, Muon, Adafactor, Shampoo's factors, SOAP's eigenbases.
+- Fig. 4 `64_js_sc_ns.js`: the 32 real singular values through five Newton-Schulz maps (`NS_SV`), with the scalar map on a plate.
+- Fig. 5 `65_js_sc_nz.js`: Adam and Nesterov on the noisy ravine under constant, cosine and WSD, the last 60 positions as a cloud; 20-seed averages computed as `checks/race_facts.mjs` does.
+- Fig. 6 `66_js_sc_en.js`: three endpoints under cosine, WSD and schedule-free as rate curtains, then the expected losses (`END_RES`).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | hero, 2D static | no |
+| Reading | 1 Momentum | split | 3D Fig. 1 (replaces mini-race m1) | yes, 5 |
+| Reading | 2 Adam and the diagonal limit | split | 3D Fig. 2 (replaces m2) | yes, 6 |
+| Reading | 2 Bias correction, warmup | split | 2D widget | no |
+| Reading | 2 AdamW | split | 2D static derived chart | no |
+| Reading | 3 Beyond the diagonal | split | 3D Fig. 3 (new) | yes, 6 |
+| Reading | 3 What the state costs | split | 2D table widget | no |
+| Reading | 4 Muon | split | 3D Fig. 4 (replaces the 2D stepper) | yes, 5 |
+| Reading | 4 Lion, 5 Evidence | full width | none / table | no |
+| Reading | 6 Batch size | split | 2D slider widget | no |
+| Reading | 7 Schedules, noise floor | split | 3D Fig. 5 (replaces m3) | yes, 4 |
+| Reading | 7 Schedule table | full width | sparklines table | no |
+| Reading | 7 Three endpoints | split | 3D Fig. 6 (replaces the 2D animation) | yes, 4 |
+| Reading | 7 compare, 8, 9 | full width | none | no |
+| Optimiser race | | full width (a tool used across the page) | 2D widget | no |
+| Further reading | | unchanged | | |
+
+Kept 2D: the hero (a flow of boxes reads flat), the bias-correction lanes and curve, the decay ratio on a log axis, the memory table, the critical-batch curve and the sparklines (curves and tables), the evidence table, the race (a reader-driven tool on contour maps).
+
+Checks: `node src/check_stages.mjs <shots dir>` (from the repo root): every stage plays on view, steps to its last step with one list item per step, stops off screen, never moves under reduced motion; the widgets never move by themselves; the static step-list numbers equal the scenes' computed values, and several are recomputed independently (race_facts.json, NS_SV, the SOAP counting rule, the endpoint costs). `checks/check_controls.mjs` now checks the widgets stay where they open instead of the old never-autoplay rule.
+
+Length: Reading core 29.1 to 33.3 min (230 wpm), closed 13.6 min (unchanged), race 3.7 min. The growth is the six step lists, which carry what the old captions and legend tables carried plus the mechanism each step shows (momentum's 9.8 times step along the floor, Adam's first step straight across the rotated valley, SOAP's 9.57 values per weight on one matrix); the duplicate provenance captions were cut to one line each. Ledger: 352 units (core 234, depth 96, fat 22), problems 0; five units added for the stages' new facts; one unit (the old endpoints play instructions) became fat; 22 Further-reading keys that contained minutes were re-keyed to the words after the time.

@@ -45,7 +45,8 @@
     s+='<line x1="'+x(i+1)+'" x2="'+x(i+1)+'" y1="'+mt+'" y2="'+(H-mb)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>';
     svg.setAttribute('viewBox','0 0 '+W+' '+H);svg.setAttribute('width',W);svg.setAttribute('height',H);svg.innerHTML=s}
   compute();
-  const an=RD.anim({card:'bc-card',ctl:'bc-ctl',n:N,ms:900,draw,label:'Adam step'});
+  // a widget the reader drives (40 steps, two modes): no autoplay, opening on step 12, where the uncorrected step peaks
+  const an=RD.anim({card:'bc-card',ctl:'bc-ctl',n:N,ms:900,draw,label:'Adam step',auto:false,start:11});
   document.querySelectorAll('#bc-mode button').forEach(b=>b.addEventListener('click',()=>{corr=b.dataset.v==='1';document.querySelectorAll('#bc-mode button').forEach(x=>x.classList.toggle('on',x===b));compute();an.redraw()}));
   document.querySelectorAll('#bc-b2 button').forEach(b=>b.addEventListener('click',()=>{b2=+b.dataset.v;document.querySelectorAll('#bc-b2 button').forEach(x=>x.classList.toggle('on',x===b));compute();an.redraw()}));
   addEventListener('resize',()=>an.redraw());

@@ -63,7 +63,8 @@
   mr.addEventListener('input',()=>{mul=Math.pow(10,+mr.value/8);mo.textContent='× '+(mul>=1?mul.toPrecision(3):mul.toPrecision(2));restart()});
   sd.addEventListener('change',()=>{seed=+sd.value;restart()});
   compute();drawPick();note.innerHTML=TRY[sk];sdl.style.display='none';
-  an=RD.anim({card:'rc-card',ctl:'rc-ctl',n:F,ms:70,draw,label:'Step'});
+  // a widget the reader drives (100 frames per run): no autoplay, opening on the last frame, every path complete
+  an=RD.anim({card:'rc-card',ctl:'rc-ctl',n:F,ms:70,draw,label:'Step',auto:false,start:F-1});
   (window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-race']=window.TAB_RENDER['t-race']||[]).push(()=>{bgKey='';an.redraw()});
   addEventListener('resize',()=>{if(!card.offsetParent)return;bgKey='';an.redraw()});
 })();

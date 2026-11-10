@@ -1,7 +1,15 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-batch">
 <h2>6 &middot; Batch size and the learning rate</h2>
 <p>A larger batch averages more examples per gradient, so the gradient is less noisy and a larger step is safe. Up to a point that buys fewer steps for the same data; beyond it, extra examples per step are wasted. {{McCandlish et al. 2018|https://arxiv.org/abs/1812.06162}} fit this trade-off with one relation, (S/S<sub>min</sub> &minus; 1)(E/E<sub>min</sub> &minus; 1) = 1 (their equation 2.11), where S and E are the steps and training examples needed to reach a given loss, and define the <b>critical batch</b> B<sub>crit</sub> = E<sub>min</sub>/S<sub>min</sub> (equation 2.12). Solving with E = BS gives S = S<sub>min</sub>(1 + B<sub>crit</sub>/B) and E = E<sub>min</sub>(1 + B/B<sub>crit</sub>).</p>
-<div class="card" id="bt-card">
+<ul>
+<li><b>SGD: the linear scaling rule.</b> "When the minibatch size is multiplied by k, multiply the learning rate by k", all other hyperparameters unchanged, with a gradual warmup that reaches k&eta; after 5 epochs: ResNet-50 at a batch of 8,192 on 256 GPUs in one hour, matching small-batch accuracy ({{Goyal et al. 2017, sections 2.1 and 2.2|https://arxiv.org/abs/1706.02677}}). The rule fails at the start of training (hence the warmup) and at very large batches.</li>
+<li><b>Adam and RMSProp: the square-root rule.</b> For batch &kappa;B use &eta;&radic;&kappa;, &beta;<sub>1</sub>&prime; = 1 &minus; &kappa;(1 &minus; &beta;<sub>1</sub>), &beta;<sub>2</sub>&prime; = 1 &minus; &kappa;(1 &minus; &beta;<sub>2</sub>) and &epsilon;/&radic;&kappa; ({{Malladi et al. 2022, Definition 5.2|https://arxiv.org/abs/2205.10287}}), derived from an SDE approximation of Adam. The &beta; rule is the part usually forgotten, and it runs out: with &beta;<sub>2</sub> = 0.95, &kappa;(1 &minus; &beta;<sub>2</sub>) reaches 1 at &kappa; = 20.</li>
+<li><b>Past the critical batch</b> no rule helps: steps barely fall. Muon is reported to keep its data efficiency at batch sizes far beyond AdamW's critical batch (Essential AI 2025, linked below), and for LLMs the peak rate is usually found by sweeps at small scale and transferred by fitted scaling rules or by parametrisations such as &mu;P, designed to keep the optimum fixed as width grows; Essential AI report &mu;P transfer with Muon up to 3.7B parameters ({{2025|https://arxiv.org/html/2505.02222}}).</li>
+</ul>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="bt-card">
 <h4>At the critical batch you pay twice the minimum steps and twice the minimum data</h4>
 <p class="try"><b>Predict</b> what an 8 times larger batch than B<sub>crit</sub> saves in steps, then drag.</p>
 <label class="small">Batch size B relative to B<sub>crit</sub>: <b id="bt-v">1</b><input type="range" id="bt-r" min="-4" max="4" step="1" value="0" aria-label="Batch size relative to the critical batch"></label>
@@ -9,26 +17,21 @@
 <div class="bt-out" id="bt-out"></div>
 <p class="small mute"><span class="der">derived</span> from McCandlish et al.'s equations 2.11 and 2.12; the default (B = B<sub>crit</sub>) lands on their statement that training then "takes twice as many passes through the training data as an optimally data-efficient (small-batch) run would take, and twice as many optimization steps as an optimally time-efficient (large-batch) run would take", by construction of the formula. At 8 B<sub>crit</sub>: 1.12 times the minimum steps for 9 times the minimum data. Their critical batch grows during a run ("the noise scale increases as the loss decreases") and is predicted, at the order-of-magnitude level, by the gradient noise scale. The rate rules below are relative to a batch you have tuned, scaled by &kappa;.</p>
 </div>
-<ul>
-<li><b>SGD: the linear scaling rule.</b> "When the minibatch size is multiplied by k, multiply the learning rate by k", all other hyperparameters unchanged, with a gradual warmup that reaches k&eta; after 5 epochs: ResNet-50 at a batch of 8,192 on 256 GPUs in one hour, matching small-batch accuracy ({{Goyal et al. 2017, sections 2.1 and 2.2|https://arxiv.org/abs/1706.02677}}). The rule fails at the start of training (hence the warmup) and at very large batches.</li>
-<li><b>Adam and RMSProp: the square-root rule.</b> For batch &kappa;B use &eta;&radic;&kappa;, &beta;<sub>1</sub>&prime; = 1 &minus; &kappa;(1 &minus; &beta;<sub>1</sub>), &beta;<sub>2</sub>&prime; = 1 &minus; &kappa;(1 &minus; &beta;<sub>2</sub>) and &epsilon;/&radic;&kappa; ({{Malladi et al. 2022, Definition 5.2|https://arxiv.org/abs/2205.10287}}), derived from an SDE approximation of Adam. The &beta; rule is the part usually forgotten, and it runs out: with &beta;<sub>2</sub> = 0.95, &kappa;(1 &minus; &beta;<sub>2</sub>) reaches 1 at &kappa; = 20.</li>
-<li><b>Past the critical batch</b> no rule helps: steps barely fall. Muon is reported to keep its data efficiency at batch sizes far beyond AdamW's critical batch (Essential AI 2025, linked below), and for LLMs the peak rate is usually found by sweeps at small scale and transferred by fitted scaling rules or by parametrisations such as &mu;P, designed to keep the optimum fixed as width grows; Essential AI report &mu;P transfer with Muon up to 3.7B parameters ({{2025|https://arxiv.org/html/2505.02222}}).</li>
-</ul>
-</section>
+</div></div></div>
 
 <section id="s-sched">
 <h2>7 &middot; Schedules: how the base rate moves over the run</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-nz"></div></div><div class="s3L">
 <p>A high rate early travels quickly towards a basin; a low rate late settles at its bottom. With noisy gradients there is a second reason: at a constant rate the iterate never converges but hovers in a region whose size grows with &eta;, so the final loss is set by how low the rate gets at the end.</p>
-<div class="card mini" id="m3-card">
-<h4>With noisy gradients, a constant rate stalls at a floor that only a decay goes below</h4>
-<p class="try"><b>Predict</b> where Adam's loss ends at a constant rate against a cosine decay of the same peak, then switch and step through.</p>
-<div class="seg" id="m3-mode"></div>
-<div class="cv"><canvas id="m3-cv" aria-label="Paths on the noisy ravine under three schedules"></canvas></div>
-<div class="an-ctl" id="m3-ctl"></div>
-<div class="an-cap" id="m3-cap"></div>
-<div class="tw" id="m3-leg"></div>
-<p class="small mute">The race's noisy ravine (the axis-aligned valley plus Gaussian noise of standard deviation 1.5 on every gradient component, seed 1), 300 steps, the same peak rate under each schedule. Over seeds 1 to 20, Adam's loss over its last 60 steps averages 0.031 at its tuned constant rate and cosine brings its final loss to 0.011; plain SGD's floor is 0.103 and cosine ends at 0.062 (<code>checks/race_facts.mjs</code>).</p>
-</div>
+<p class="sxh">Fig. 5, step by step</p>
+<ol class="sx" id="sx-nz">
+<li><b>Noise on every gradient, a constant rate.</b> The race's noisy ravine: the axis-aligned valley with Gaussian noise of standard deviation 1.5 on every gradient component (seed 1). Adam (rate <span data-nz="alr">0.1</span>) and Nesterov (<span data-nz="nlr">0.00562</span>) at their tuned constant rates reach the floor of the valley quickly, then stop improving: after 300 steps their losses are <span data-nz="ac">3.4e-2</span> and <span data-nz="nc">3.5e-2</span>.</li>
+<li><b>Close up: they hover.</b> The dots are their last 60 positions. Each step adds fresh noise as fast as the pull of the valley removes it, so the iterate wanders in a cloud whose size is set by the rate. Over seeds 1 to 20, Adam's loss over its last 60 steps averages <span data-nz="afl">0.031</span>.</li>
+<li><b>Cosine: the same peak, decayed to zero.</b> Early steps are as fast as before; late steps are small enough to average the noise out, so the cloud shrinks onto the minimum: Adam ends at <span data-nz="acos">2.8e-4</span> and Nesterov at <span data-nz="ncos">1.1e-4</span>, about a hundred times below the constant-rate floor (over 20 seeds, Adam's cosine run ends at <span data-nz="acos20">0.011</span> on average).</li>
+<li><b>WSD: hover, then cool down.</b> Constant for the first <span data-nz="ws">240</span> steps, then a 1&minus;sqrt cooldown over the last 20%: the path hovers at the floor until the cooldown starts, then settles below it, ending at <span data-nz="aw">9.6e-3</span> (Adam) and <span data-nz="nw">1.0e-2</span> (Nesterov). Here that is above cosine, whose decay is longer.</li>
+</ol>
+<p class="small mute">300 steps, the same peak rate under each schedule. For plain SGD the 20-seed floor is 0.103 and cosine ends at 0.062 (<code>checks/race_facts.mjs</code>).</p>
+</div></div>
 <p>Two questions separate every schedule family: <b>does it need the total number of steps T in advance</b>, and <b>what shape is the decay</b>.</p>
 <div class="tw"><table>
 <thead><tr><th>Scheduler</th><th class="sk">shape</th><th>Rule</th><th>Needs T?</th><th>Where it lives</th></tr></thead>
@@ -41,19 +44,20 @@
 </tbody></table></div>
 <p class="small mute">Sparklines: 100 steps, rate as a share of its own peak; equal to <code>torch.optim.lr_scheduler</code> to 10<sup>&minus;15</sup> where PyTorch has the shape (<code>checks/sched_check.py</code>); warmup lengths are illustrative. Eight more shapes (step, exponential, warm restarts, one-cycle, plateau, schedule-free, WSM) are in the closed reference table in Depth.</p>
 
-<div class="card" id="en-card">
-<h4>Three endpoints cost 1,750 steps with cosine, 1,150 with WSD and 1,000 schedule-free</h4>
-<p class="try"><b>Try:</b> you want a model at 250, 500 and 1,000 steps (to fit a scaling law, or because you do not yet know how long you can train). Step through each method and watch the step counter: cosine needs one run per length; WSD branches cooldowns off one shared run; schedule-free reads all three off one run.</p>
-<div class="seg" id="en-mode"><button data-v="cos" class="on">cosine</button><button data-v="wsd">WSD</button><button data-v="sf">schedule-free</button></div>
-<div class="an-ctl" id="en-ctl"></div>
-<div class="an-cap" id="en-cap"></div>
-<div class="an-cnt" id="en-cnt"></div>
-<div class="plot"><svg id="en-plot" role="img" aria-label="Expected loss against step for each schedule"></svg></div>
+<div class="s3sp"><div class="s3R"><div id="stg-en"></div></div><div class="s3L">
+<p>Cosine's cost is easiest to see when you want models at several lengths, say 250, 500 and 1,000 steps (to fit a scaling law, or because you do not yet know how long you can train). Fig. 6 runs plain SGD on the noisy quadratic model of {{Zhang et al. 2019|https://arxiv.org/abs/1907.04164}} (<span class="ill2">illustrative</span> toy, exact expected losses); each curtain is one run's rate as a share of its peak, and its length is what it costs.</p>
+<p class="sxh">Fig. 6, step by step</p>
+<ol class="sx" id="sx-en">
+<li><b>Cosine must know its length.</b> Each endpoint is a separate run from step 0, its rate tuned for that length (<span data-en="clr">1.0, 0.56, 0.42</span>). Three endpoints cost 250 + 500 + 1,000 = <span data-en="cc">1,750</span> steps.</li>
+<li><b>WSD branches cooldowns off one trunk.</b> One constant-rate trunk (rate <span data-en="wlr">0.18</span>, tuned once for 1,000 steps) is shared; each length branches a 1&minus;sqrt cooldown over its last 20% off it. Three endpoints cost 800 + 50 + 100 + 200 = <span data-en="cw">1,150</span> steps.</li>
+<li><b>Schedule-free reads all three off one run.</b> Schedule-free SGD keeps a constant rate (<span data-en="slr">0.32</span>) and averages its iterates on the fly: one run of 1,000 steps, read at 250, 500 and 1,000 with no cooldown at all: <span data-en="cs">1,000</span> steps.</li>
+<li><b>What each endpoint reaches.</b> Expected loss at each length. Re-tuned for each length, cosine is lowest everywhere (<span data-en="c1k">0.0014</span> at 1,000); schedule-free (<span data-en="s1k">0.0018</span>) and WSD (<span data-en="w1k">0.0022</span>), tuned once, come within <span data-en="sp">26</span>% and <span data-en="wp">54</span>% at 1,000 and are further behind at 250 (<span data-en="c250">0.0050</span> against <span data-en="s250">0.0097</span> and <span data-en="w250">0.0108</span>), where their single rate is too low. All three end far below the never-decayed rate (grey, <span data-en="k1k">0.0063</span>).</li>
+</ol>
 <div class="tw" id="en-tab"></div>
-<p class="small mute"><span class="ill2">illustrative</span> toy: plain SGD on the noisy quadratic model of {{Zhang et al. 2019|https://arxiv.org/abs/1907.04164}}, exact expected losses; grey line: the best constant rate, never decayed. How it was built and what it cannot show is in the closed block below.</p>
-</div>
 
 <details class="dp"><summary>How the three-endpoints toy works, and what it does not show <span class="mute">(depth)</span></summary><div class="b"><p>The model: 10 coordinates with curvatures from 1 down to 0.01 (condition number 100), start at 1, gradient noise with covariance 0.09&middot;H, plain SGD. The losses are exact expected values computed by recursion (no sampling); <code>checks/nqm_check.py</code> matches them with 4,000 seeded PyTorch runs (<code>torch.optim.SGD</code> and <code>schedulefree.SGDScheduleFree</code>), largest deviation 2.1 standard errors. Learning rates: the best of a log grid (10<sup>k/8</sup>), cosine re-tuned per length, the others tuned once for 1,000 steps. Grey line: the same SGD at its best constant rate, never decayed. Re-tuned for each length, cosine reaches the lowest loss at every endpoint here, by 1.3 to 2.2 times; schedule-free and WSD, tuned once, come within 26% and 54% at 1,000 steps and are further behind at 250, where their single rate is too low; all three end 2.9 to 4.4 times below the never-decayed rate. A quadratic favours schedules that decay throughout; in LLM pretraining tuned constant-plus-cooldown runs match cosine (below), and schedule-free gives "strong (but not optimal)" results there (H&auml;gele et al., section 4.2). What the toy shows exactly is the cost structure.</p></div></details>
+</div></div>
+
 <h3>How the schedules compare</h3>
 <ul>
 <li><b>At a fixed, known budget, final quality is a near-tie.</b> "The constant learning rate with a short cooldown (&lt; 20% of total training steps) can achieve the same final loss as cosine, and only outperforms for a longer fraction of cooldown steps", and it "scales predictably and reliably similar to cosine" ({{H&auml;gele et al. 2024|https://arxiv.org/html/2405.18392}}), which is why WSD spread so fast. Not everyone agrees: GLM-4.5 chose cosine because WSD runs "perform worse on general benchmarks (SimpleQA, MMLU)" ({{section 2.4|https://arxiv.org/html/2508.06471#S2.SS4}}).</li>
@@ -85,7 +89,7 @@
 <div class="fm"><div class="eq">y<sub>t</sub> = (1&minus;&beta;)z<sub>t</sub> + &beta;x<sub>t</sub>, &nbsp; z<sub>t+1</sub> = z<sub>t</sub> &minus; &gamma;&nabla;f(y<sub>t</sub>), &nbsp; x<sub>t+1</sub> = (1&minus;c<sub>t+1</sub>)x<sub>t</sub> + c<sub>t+1</sub>z<sub>t+1</sub></div>
 <dl><dt>z</dt><dd>the plain SGD (or Adam) sequence, at a constant rate &gamma;</dd><dt>x</dt><dd>a running average of z, with c<sub>t+1</sub> = 1/(t+1) at a constant rate (weighted by &gamma;<sub>t</sub>&sup2; with warmup); this is the model you evaluate</dd><dt>y</dt><dd>the point where the gradient is taken, between the two; &beta; &asymp; 0.9 plays the role of momentum</dd></dl></div>
 <ul>
-<li>Averaging iterates is old; the trick is taking the gradient at the interpolation y, which makes the average converge as fast as a well-tuned decay without knowing T ({{The Road Less Scheduled, section 2|https://arxiv.org/html/2405.15682#S2}}; {{NeurIPS 2024 oral|https://neurips.cc/virtual/2024/oral/98003}}). It won AlgoPerf's 2024 self-tuning track (section 5). In the three-endpoints figure it reads all three endpoints off one run.</li>
+<li>Averaging iterates is old; the trick is taking the gradient at the interpolation y, which makes the average converge as fast as a well-tuned decay without knowing T ({{The Road Less Scheduled, section 2|https://arxiv.org/html/2405.15682#S2}}; {{NeurIPS 2024 oral|https://neurips.cc/virtual/2024/oral/98003}}). It won AlgoPerf's 2024 self-tuning track (section 5). In Fig. 6 it reads all three endpoints off one run.</li>
 <li>In code, call <code>optimizer.eval()</code> before evaluating or saving: the weights held during training are y, not the average x (practice notes below).</li>
 <li>Both variants are in the {{Optimiser race|#t-race}}, checked against the <code>schedulefree</code> package; on the noisy ravine they go below the constant-rate floor with no schedule.</li>
 </ul>
