@@ -1,4 +1,5 @@
-<section id="rd-s5">
+<div class="s3sp"><div class="s3L"><section id="rd-s5">
+
 <h2>5. Registers, spills, and arrays that fall into local memory</h2>
 <p>Registers are the only storage the arithmetic units read directly, and they are rationed: 65,536 32-bit registers per SM on every current NVIDIA GPU, shared by all resident threads, at most 255 per thread. A thread that keeps more values alive than it has registers <span class="hl">spills</span> some to local memory. Fast kernels (register-tiled matmul, FlashAttention) keep large pieces of the output in registers on purpose, so they live right at this edge.</p>
 <p>Compile with <code>-Xptxas -v</code> (or <code>--resource-usage</code>) and ptxas prints, per kernel, a line like this <span class="der">compiled here</span>:</p>
@@ -9,24 +10,21 @@
 <li><b>stack frame</b>: bytes per thread of local memory for any reason: spills, or an array the compiler could not keep in registers.</li>
 </ul>
 <h3>One kernel under eight register caps</h3>
-<p>The kernel keeps 128 running sums per thread (the shape of a register-tiled matmul's accumulator). Uncapped, ptxas uses <span id="rd-rdef"></span> registers and spills nothing. Then the same file under <code>-maxrregcount</code> from 32 to 255:</p>
-<div class="seg" id="rd-rcseg"><button data-m="sm_80">sm_80 (A100)</button><button data-m="sm_90a" class="on">sm_90a (H100)</button><button data-m="sm_120">sm_120 (RTX 5090)</button></div>
-<div class="rd-chart" id="rd-rcchart"></div>
-<p class="small" id="rd-rcnote"></p>
+<p>The kernel keeps 128 running sums per thread (the shape of a register-tiled matmul's accumulator). Uncapped, ptxas uses <span id="rd-rdef"></span> registers and spills nothing. Then the same file under <code>-maxrregcount</code> from 32 to 255 (right):</p>
 <p>Two lessons. Below what the kernel needs, every register removed becomes spill traffic: at a cap of 32 each thread writes and rereads over a kilobyte. Above it, ptxas does not stop at what it needs: on sm_90a it used every register it was allowed (192, 224, 255), presumably to schedule loads earlier, and each extra register lowers how many warps fit. Prefer <code>__launch_bounds__(maxThreadsPerBlock, minBlocksPerSM)</code> per kernel over a per-file <code>-maxrregcount</code> (both in the {{Best Practices Guide, register pressure|https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}}), and measure: a few spilled bytes that hit L1 can cost less than the occupancy they buy back.</p>
 <details class="dp"><summary>Is "uses every register it is allowed" documented? <span class="mute">(only for launch bounds)</span></summary><div class="b">
 <p>NVIDIA documents it for launch bounds: "If both minBlocksPerMultiprocessor and maxThreadsPerBlock are specified, the compiler may increase register usage up to L in order to reduce the number of instructions and better hide the latency" ({{C++ language extensions, launch bounds|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html}}); the same happening under <code>-maxrregcount</code> is observed here, not documented.</p>
 </div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Below what the kernel needs, every register removed becomes spill traffic</h4>
+<div class="seg" id="rd-rcseg"><button data-m="sm_80">sm_80 (A100)</button><button data-m="sm_90a" class="on">sm_90a (H100)</button><button data-m="sm_120">sm_120 (RTX 5090)</button></div>
+<div class="rd-chart" id="rd-rcchart"></div>
+<p class="small" id="rd-rcnote"></p>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s5b">
 <h3>Local memory without any register pressure</h3>
-<p>An array can land in local memory while the kernel uses only a few registers. The compiler puts there "Arrays for which it cannot determine that they are indexed with constant quantities, Large structures or arrays that would consume too much register space, Any variable if the kernel uses more registers than available" ({{Programming Guide 2.3.3.4, local memory|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html}}). Registers have no addresses, so <code>h[b]</code> with <code>b</code> known only at run time needs memory. Two versions of a per-thread 16-bin histogram, <span class="der">compiled here</span> for sm_90a:</p>
-<div class="rd-two">
-<div><b>Run-time index:</b> <code>h[bins[k * 4096 + t] &amp; 15] += 1.f;</code>
-<pre class="sass" id="rd-hdyn"></pre></div>
-<div><b>Constant indices only:</b> <code>for (j = 0; j &lt; 16; ++j) h[j] += (b == j) ? 1.f : 0.f;</code>
-<pre class="sass" id="rd-hsel"></pre></div>
-</div>
+<p>An array can land in local memory while the kernel uses only a few registers. The compiler puts there "Arrays for which it cannot determine that they are indexed with constant quantities, Large structures or arrays that would consume too much register space, Any variable if the kernel uses more registers than available" ({{Programming Guide 2.3.3.4, local memory|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html}}). Registers have no addresses, so <code>h[b]</code> with <code>b</code> known only at run time needs memory. Two versions of a per-thread 16-bin histogram, <span class="der">compiled here</span> for sm_90a (right):</p>
 <p>The first uses <span id="rd-hdynregs"></span>; the four <code>STL.128</code> zero the 64-byte array in local memory and every update is an <code>LDL</code> and an <code>STL</code>. The second does 16 compare-and-adds per update but keeps all 16 bins in registers (<span id="rd-hselregs"></span>). Local memory is interleaved so that "consecutive 32-bit words are accessed by consecutive thread IDs. Accesses are therefore fully coalesced as long as all threads in a warp access the same relative address" (same section); here every lane picks its own bin, so the accesses scatter too.</p>
-<div class="bars" id="rd-localbars"></div>
 <p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: the same two kernels in Metal, 262,144 threads &times; 1,024 updates each: <b>7.08 ms</b> with the run-time index against <b>4.49 ms</b> with constant indices, 1.58 times slower despite a sixteenth of the arithmetic. Apple's compiler faces the same problem (registers are not addressable) and makes the same choice.</p>
 <div class="pr" id="rd-pr3"><div class="q">Predict: ptxas reports "64 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads, Used 22 registers". What is in the 64 bytes?</div>
 <div class="opts"><button data-a="0">Spilled registers</button><button data-a="1" data-right="1">An array indexed at run time</button><button data-a="2">Shared memory</button></div>
@@ -34,7 +32,14 @@
 <details class="dp"><summary>What you cannot control: register bank conflicts</summary><div class="b">
 <p>"The compiler and hardware thread scheduler will schedule instructions as optimally as possible to avoid register memory bank conflicts. An application has no direct control over these bank conflicts. In particular, there is no register-related reason to pack data into vector data types such as float4" ({{Best Practices Guide 10.2.7|https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html}}).</p>
 </div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="rd-two">
+<div><b>Run-time index:</b> <code>h[bins[k * 4096 + t] &amp; 15] += 1.f;</code>
+<pre class="sass" id="rd-hdyn"></pre></div>
+<div><b>Constant indices only:</b> <code>for (j = 0; j &lt; 16; ++j) h[j] += (b == j) ? 1.f : 0.f;</code>
+<pre class="sass" id="rd-hsel"></pre></div>
+</div>
+<div class="bars" id="rd-localbars"></div></div></div></div></div>
 
 <section id="rd-s6">
 <h2>6. Constant memory and kernel parameters</h2>

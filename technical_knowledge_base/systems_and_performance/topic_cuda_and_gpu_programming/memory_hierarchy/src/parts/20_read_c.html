@@ -12,15 +12,21 @@
 <p class="small">What CUDA 13.4.2 turned each intrinsic into <span class="der">compiled here</span>. The meanings are quoted from the PTX ISA; the reading of the SASS suffixes (EF for evict-first, STRONG.GPU for "performed at the L2, the GPU's point of coherence") is an inference from the names and the PTX definitions, since NVIDIA does not document SASS. <code>.lu</code> ("last use") exists mainly for restoring spills.</p>
 <div class="tw" id="rd-cops"></div>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s2b">
 <h3>The free way to use L2: order the work</h3>
 <p>Blocks that run at the same time share L2. A tiled matmul that launches its output tiles row by row reads every B column panel for each row of tiles; launching them in groups of rows ("grouped" or "swizzled" block order) lets concurrently running blocks reuse the same A and B panels from L2. {{Triton's matmul tutorial|https://triton-lang.org/main/getting-started/tutorials/03-matrix-multiplication.html}} counts it for 9 &times; 9 blocks: row-major "we need to load 90 blocks into SRAM to compute the first 9 output blocks", grouped "we only need to load 54 blocks".</p>
-<div class="card" id="rd-l2card">
+<p>Switch the order on the right: the same nine output tiles of C need 90 blocks loaded in row-major order and 54 in groups of three rows.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-l2card">
 <h4>Same nine output tiles, two launch orders: 90 against 54 blocks loaded</h4>
 <div class="seg" id="rd-l2seg"><button data-m="row" class="on">Row-major order</button><button data-m="grp">Grouped order (3 rows)</button></div>
 <div class="rd-chart" id="rd-l2svg"></div>
 <div class="an-cnt" id="rd-l2cnt"></div>
 <p class="small mute">The first nine output tiles of C (dark) need the A row panels to their left and the B column panels above them (shaded); each panel is nine blocks. Row-major: 1 A panel + 9 B panels = 9 + 81 = 90 blocks. Grouped: 3 + 3 panels = 27 + 27 = 54 <span class="der">derived</span>, as Triton's tutorial states. {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}} builds the grouped launch.</p>
 </div>
+</div></div></div>
+<section id="rd-s2c">
 <details class="dp"><summary>Keeping a buffer in L2 on purpose <span class="mute">(persisting accesses, compute capability 8.0 and later)</span></summary><div class="b">
 <p>"A portion of the L2 cache can be set aside to be used for persisting data accesses to global memory" ({{Programming Guide 4.14, L2 cache control|https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/l2-cache-control.html}}). Two calls, from that page:</p>
 <pre class="sass">size_t size = min(int(prop.l2CacheSize * 0.75), prop.persistingL2CacheMaxSize);

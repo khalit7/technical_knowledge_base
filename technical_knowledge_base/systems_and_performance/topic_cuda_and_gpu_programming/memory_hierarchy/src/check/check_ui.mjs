@@ -31,23 +31,22 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     if (r.nan || r.undef || r.side || r.err) { fail++; console.log('FAIL', scheme, w, tag, JSON.stringify(r)); }
   };
   const clickAll = async (sel) => { for (const b of await p.$$(sel)) { await b.evaluate(x => x.scrollIntoView({ block: 'center' })); await b.click(); await new Promise(r => setTimeout(r, 120)); } };
-  // Reading: nothing moves before the reader acts
+  // Reading (2026-11-10): the five 3D stages play once scrolled into view (check/check_stages.mjs tests that, and reduced motion);
+  // the tile-loop timeline is a widget: it never plays by itself and stays on its finished schedule
   await new Promise(r => setTimeout(r, 2500));
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => +r.value !== 0).map(r => r.id));
-  if (moved.length) { fail++; console.log('FAIL autoplay', scheme, w, moved); }
+  const moved = await p.$$eval('#rd-pctl input[type=range]', rs => rs.filter(r => +r.value !== +r.max).map(r => r.id));
+  if (moved.length) { fail++; console.log('FAIL widget moved', scheme, w, moved); }
   await p.$$eval('#t-read details', ds => ds.forEach(d => { d.open = true; d.dispatchEvent(new Event('toggle')); }));
   await new Promise(r => setTimeout(r, 300));
-  await shot('#rd-hcard', 'hero');
+  await shot('#stg-hero', 'hero');
   await clickAll('#rd-l2seg button'); await shot('#rd-l2card', 'l2order'); await check('l2');
-  await clickAll('#rd-tl-mode button'); await clickAll('#rd-tl-ctl button');
-  await p.click('#rd-tl-mode button[data-m="smem"]'); for (let i = 0; i < 6; i++) await p.click('#rd-tl-ctl-f');
   for (const t of ['4', '8', '16', '32']) await p.select('#rd-tl-t', t);
-  await shot('#rd-tl-card', 'tile'); await check('tile');
-  await clickAll('#rd-wseg button'); await clickAll('#rd-wba button');
-  await clickAll('#rd-wctl button'); await check('warp');
-  await p.click('#rd-wseg button[data-m="aos"]'); await p.click('#rd-wba button[data-m="0"]');
-  for (let i = 0; i < 9; i++) await p.click('#rd-wctl-f');
-  await shot('#rd-wcard', 'warp-aos-before');
+  await check('tile');
+  // the five stages: every control, then each stage at its last step
+  for (const id of ['stg-hero', 'stg-load', 'stg-tile', 'stg-bank', 'stg-async']) {
+    await clickAll(`#${id} .stg-bar button`); for (let i = 0; i < 7; i++) await p.click(`#${id}-f`);
+    await shot('#' + id, id + '-last'); await check(id);
+  }
   await clickAll('#rd-pseg button'); await clickAll('#rd-pctl button');
   await p.click('#rd-pseg button[data-m="3"]'); for (let i = 0; i < 9; i++) await p.click('#rd-pctl-f');
   await shot('#rd-pcard', 'pipe-3'); await check('pipe');

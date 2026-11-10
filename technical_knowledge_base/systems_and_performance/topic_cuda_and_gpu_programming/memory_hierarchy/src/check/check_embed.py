@@ -1,7 +1,7 @@
 """Checks (run from src/: python3 check/check_embed.py):
 1. the built page embeds exactly out/data.json (window.MHD);
 2. every number quoted in the prose equals what the data gives (formatted as on the page);
-3. no private paths or tokens in the page or in src/.
+3. no private paths or tokens in the page or in src/; no login name (case-sensitive), hostname, home path or IPv4 address anywhere in the page folder.
 """
 import json, re, os, sys, statistics as st
 
@@ -53,5 +53,23 @@ for root, _, files in os.walk("."):
                 bad += 1; print("PRIVATE PATTERN IN", p)
 if pat.search(html):
     bad += 1; print("PRIVATE PATTERN IN index.html")
+# privacy across the page and everything in src/ (2026-11-10): the login name (looked up here, case-sensitive, never written down),
+# this machine's hostname, home paths and IPv4 addresses; recorded compiler logs keep only paths inside the Docker container (/work)
+import getpass, socket
+who, host = getpass.getuser(), socket.gethostname()
+ipv4 = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
+SECTIONS = {"10.2.1.2", "10.2.1.3", "2.3.3.4", "2.3.3.5", "2.3.4.1", "2.3.4.2", "9.7.10.1"}  # section numbers of NVIDIA's guides quoted on the page, not addresses
+for root, dirs, files in os.walk(".."):
+    dirs[:] = [d for d in dirs if d not in (".shots", "__pycache__", "node_modules")]
+    for f in files:
+        fp = os.path.join(root, f)
+        try:
+            t = open(fp, encoding="utf-8").read()
+        except (UnicodeDecodeError, OSError):
+            continue
+        for what, found in (("login name", who and re.search(r"\b" + re.escape(who) + r"\b", t)), ("hostname", host and host in t),
+                            ("home path", "/ho" + "me/" in t or "/Use" + "rs/" in t), ("IPv4 address", any(m not in SECTIONS for m in ipv4.findall(t)))):
+            if found and f != "check_embed.py":
+                bad += 1; print("PRIVATE:", what, "in", os.path.relpath(fp, ".."))
 print("embed ok, prose numbers", len([v for v in expect.values() if v]) - bad, "of", len([v for v in expect.values() if v]), "found;", "FAIL" if bad else "all checks ok")
 sys.exit(1 if bad else 0)

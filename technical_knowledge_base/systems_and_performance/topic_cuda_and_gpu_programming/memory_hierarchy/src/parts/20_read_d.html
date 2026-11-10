@@ -1,16 +1,20 @@
+<div class="s3sp"><div class="s3R"><div id="stg-tile"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Tiling: fetch once, reuse from shared memory</h2>
 <p><dfn>Shared memory</dfn> is on-chip SRAM inside the SM, visible to all threads of one block and managed by your code. The pattern is always the same: threads cooperatively copy a <span class="hl">tile</span> from global memory into a <code>__shared__</code> array (each thread one or a few elements, coalesced), wait at <code>__syncthreads()</code>, then all read the tile many times at on-chip speed. On a matmul tile of <i>C</i> = <i>A</i> &times; <i>B</i>: without shared memory every thread fetches its own row of <i>A</i> and column of <i>B</i>, so each element is fetched once per thread that needs it; with shared memory the block fetches each element once per tile.</p>
-<div class="card" id="rd-tl-card">
-<div class="seg" id="rd-tl-mode"><button class="on" data-m="dir">Before: every thread reads global memory</button><button data-m="smem">After: tiles staged in shared memory</button></div>
-<div class="rd-chart" id="rd-tl-fig"></div>
-<div class="an-cap" id="rd-tl-cap"></div>
-<div class="an-cnt" id="rd-tl-cnt"></div>
-<div class="an-ctl" id="rd-tl-ctl"></div>
-<p class="small mute">One block of 4 &times; 4 threads computes a 4 &times; 4 tile of C with K = 8, in two phases of 4. The number in each cell of A and B is how many times it has been fetched from global memory so far. <span class="ann">illustrative sizes</span>; moved here from the parent page, whose section 4 now links to this page.</p>
+<p>Fig. 3 runs it on one block of 4 &times; 4 threads computing a 4 &times; 4 tile of C with K = 8, in two phases of 4 <span class="ann">illustrative sizes</span> (moved here from the parent page, whose section 4 now links to this page). Each bar on A and B is as tall as the number of times that element has been fetched from global memory.</p>
+<ol class="sx" id="sx-tile">
+<li><b>The work.</b> Thread (r, c) needs row r of A and column c of B. The four threads in a row all need the same A elements, the four in a column the same B elements.</li>
+<li><b>Before: every thread reads global memory.</b> Each element is fetched 4 times: 256 global fetches for 64 distinct values.</li>
+<li><b>After, phase 1: copy one tile of A and one of B into shared memory.</b> Each of the 16 threads fetches one element of A and one of B (32 fetches, each value exactly once), then the block waits at <code>__syncthreads()</code> so nobody reads a half-filled tile.</li>
+<li><b>Phase 1 math: every thread reads the tiles from shared memory.</b> The same operand reads as before, but from on-chip memory, about 16 times lower latency than HBM on Hopper (29 against 479 cycles, measured on an H800). Global memory is not touched.</li>
+<li><b>Phase 2: the next tiles, the same way.</b> Another 32 fetches and four more steps of reuse: 64 global fetches in all, against 256, a factor of T = 4.</li>
+</ol>
 <div class="ctl"><label>At real size, tile T <select id="rd-tl-t"><option>4</option><option>8</option><option selected>16</option><option>32</option></select></label><span class="small mute" id="rd-tl-real"></span></div>
-</div>
 <p>The saving is a factor of the tile width <i>T</i>: global loads per block fall from 2<i>T</i>&sup2;<i>K</i> to 2<i>T</i><i>K</i> <span class="der">derived</span>. <span class="meas">measured on Apple M1 Pro GPU</span> (the parent topic's simulator runs): a 2,048 float32 matmul ran at <b id="rd-mmn">353</b> GFLOP/s without tiles and <b id="rd-mm8">677</b> with 8 &times; 8 threadgroup tiles, but only <b id="rd-mm32">478</b> with 32 &times; 32: a bigger tile needs more threads and memory per block, fewer blocks fit at once, and latency hiding suffers. Tile sizes are tuned per GPU; the full matmul ladder (register tiles, vector loads, matrix instructions) is on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
+</section>
+</div></div>
+<section id="rd-s3b">
 <h3>Declaring it and sizing it</h3>
 <p>A static <code>__shared__</code> array shows up in the compiler's report; <code>extern __shared__</code> is sized by the third launch parameter and is invisible at compile time, so the occupancy calculator must be told the launch size.</p>
 <details class="dp"><summary>Three declarations as ptxas sees them <span class="mute">(compiled here, sm_90a)</span></summary><div class="b">
@@ -33,10 +37,31 @@ kernel&lt;&lt;&lt;grid, block, 200 * 1024&gt;&gt;&gt;(...);</pre>
 </div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-bank"></div></div><div class="s3L">
 <section id="rd-s4">
 <h2>4. Banks: when a tile read takes turns</h2>
-<p>Shared memory is divided into 32 <span class="hl">banks</span>: "successive 32-bit words map to successive banks", and "Each bank has a bandwidth of 32 bits per clock cycle" ({{Programming Guide 2.3.4.2|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html}}). Lanes reading different words of the same bank take turns (a <dfn>bank conflict</dfn>); lanes reading the same word get it broadcast. The classic case is a transpose: reading a column of <code>float tile[32][32]</code> puts all 32 lanes in one bank, 32 passes. Predict what one padding column, <code>[32][33]</code>, does, then switch the layout.</p>
-<div class="card" id="rd-scard">
+<p>Shared memory is divided into 32 <span class="hl">banks</span>: "successive 32-bit words map to successive banks", and "Each bank has a bandwidth of 32 bits per clock cycle" ({{Programming Guide 2.3.4.2|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/writing-cuda-kernels.html}}). Lanes reading different words of the same bank take turns (a <dfn>bank conflict</dfn>); lanes reading the same word get it broadcast. The classic case is a transpose: reading a column of <code>float tile[32][32]</code> puts all 32 lanes in one bank, 32 passes. Fig. 4 shows six accesses of one warp; each cube is a word a bank must deliver, stacked by pass, the counts from the page's bank model <span class="der">derived</span>:</p>
+
+<ol class="sx" id="sx-bank">
+<li><b>A row read: lane l reads word l.</b> 32 consecutive words land on 32 different banks: 1 pass, the ideal.</li>
+<li><b>A column of <code>float tile[32][32]</code>.</b> The classic transpose: every row is 32 words long, so column c is in bank c in every row, and all 32 lanes queue on one bank: 32 passes.</li>
+<li><b>Padded to <code>[32][33]</code>.</b> One unused word per row makes row r start in bank r, so the column spreads over all 32 banks: 1 pass again.</li>
+<li><b>XOR swizzle: element (r, c) stored at column c ^ r.</b> Every row and every column on distinct banks, with no padding: 1 pass.</li>
+<li><b>16-byte elements (<code>float4</code>), lanes 128 bytes apart.</b> Lane l's 16 bytes are words 32l to 32l + 3, banks 0 to 3 for every lane: 32 passes where 4 would do.</li>
+<li><b>The same at a stride of 9 elements (144 bytes).</b> The lanes spread over all 32 banks: 4 passes, the ideal.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s4b">
+<h3>Try any layout or stride</h3>
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span> (the parent topic's simulator runs): threadgroup-memory reads with a lane stride of 32 ran at <b id="rd-b32">113</b> billion reads per second against <b id="rd-b1">318</b> at stride 1 and <b id="rd-b33">394</b> at stride 33, the same signature (Apple does not document its banks).</p>
+<details class="dp"><summary>Any stride, in one rule <span class="mute">(4-byte words)</span></summary><div class="b"><p>Word <i>w</i> lives in bank <i>w</i> mod 32, so a warp reading with a lane stride of <i>s</i> words has a conflict of degree gcd(<i>s</i>, 32): a stride of 2 puts lanes <i>l</i> and <i>l</i> + 16 in one bank (a 2-way conflict, two passes), a stride of 3 or any odd stride is free, a stride of 32 is the worst (the Programming Guide draws both cases in its Figure 15) <span class="der">derived</span>. A conflict only costs time when shared memory is the bottleneck: in the parent topic's 32 &times; 32 transpose on the M1 Pro, DRAM was the limit and padding changed nothing measurable <span class="meas">measured on Apple M1 Pro GPU</span>.</p></div></details>
+<p><b>Wide accesses.</b> Real kernels load 8 or 16 bytes per lane, and then the rule gives a floor, not a conflict-free promise: a warp asking for 32 &times; 16 = 512 bytes needs at least 512 / 128 = 4 passes, since 32 banks deliver 128 bytes per pass. The cost is the passes of the busiest bank. NVIDIA's own example: with 16-byte (int4) elements "each set of eight threads loads a row", and a column-wise store "must be serialized, resulting in eight store transactions, giving an eight-way bank conflict" ({{Programming Guide 4.12, TMA swizzle|https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html}}). The current guide does not spell out how 8-byte accesses are split.</p>
+
+
+<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: bytes per second read from threadgroup memory by 131,072 threads, 16 KB per threadgroup, median of 3 runs. With 16-byte elements: <b>1,893 GB/s</b> at a lane stride of 1 element, <b>1,049</b> at 4, <b>565</b> at 8, and <b>1,905</b> at 9, the signature of 4-byte banks the rule predicts (inference: Apple documents neither bank count nor width). Wide reads also moved more bytes per second than 4-byte reads (<b>1,108 GB/s</b> at stride 1, noisy under load): on chip as off chip, fewer and wider accesses win.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-scard">
 <h4>One warp's shared-memory access, bank by bank</h4>
 <div class="ctl">
 <label>Pattern <select id="acc-smode"><option value="col">lane l reads column c of a 32 &times; 32 float tile</option><option value="stride">lane l reads element l &times; s</option></select></label>
@@ -50,14 +75,8 @@ kernel&lt;&lt;&lt;grid, block, 200 * 1024&gt;&gt;&gt;(...);</pre>
 <p class="small mute" id="acc-snote"></p>
 <p class="small mute">Each box is one distinct word a bank must deliver, stacked by pass: blue boxes fit within the ideal number of passes, orange ones are extra. For 8- and 16-byte elements the pass count is the floor that the 32-bit rule implies; the lab does not model how the hardware splits 8-byte accesses, only the bank load. <span class="der">derived</span>, checked against the Python reference.</p>
 </div>
-<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span> (the parent topic's simulator runs): threadgroup-memory reads with a lane stride of 32 ran at <b id="rd-b32">113</b> billion reads per second against <b id="rd-b1">318</b> at stride 1 and <b id="rd-b33">394</b> at stride 33, the same signature (Apple does not document its banks).</p>
-<details class="dp"><summary>Any stride, in one rule <span class="mute">(4-byte words)</span></summary><div class="b"><p>Word <i>w</i> lives in bank <i>w</i> mod 32, so a warp reading with a lane stride of <i>s</i> words has a conflict of degree gcd(<i>s</i>, 32): a stride of 2 puts lanes <i>l</i> and <i>l</i> + 16 in one bank (a 2-way conflict, two passes), a stride of 3 or any odd stride is free, a stride of 32 is the worst (the Programming Guide draws both cases in its Figure 15) <span class="der">derived</span>. A conflict only costs time when shared memory is the bottleneck: in the parent topic's 32 &times; 32 transpose on the M1 Pro, DRAM was the limit and padding changed nothing measurable <span class="meas">measured on Apple M1 Pro GPU</span>.</p></div></details>
-<p><b>Wide accesses.</b> Real kernels load 8 or 16 bytes per lane, and then the rule gives a floor, not a conflict-free promise: a warp asking for 32 &times; 16 = 512 bytes needs at least 512 / 128 = 4 passes, since 32 banks deliver 128 bytes per pass. The cost is the passes of the busiest bank. NVIDIA's own example: with 16-byte (int4) elements "each set of eight threads loads a row", and a column-wise store "must be serialized, resulting in eight store transactions, giving an eight-way bank conflict" ({{Programming Guide 4.12, TMA swizzle|https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html}}). The current guide does not spell out how 8-byte accesses are split.</p>
-<div class="pr" id="rd-pr2"><div class="q">Predict: each lane reads one float4 (16 bytes), lanes 128 bytes apart (lane l reads element 8l). How many passes against the ideal 4?</div>
-<div class="opts"><button data-a="0">4: no conflict, the lanes read different words</button><button data-a="1">8: a 2-way conflict</button><button data-a="2" data-right="1">32: every lane in the same 4 banks</button></div>
-<div class="ans" hidden>Lane l's 16 bytes are words 32l to 32l + 3, which are banks 0 to 3 for every lane. Banks 0 to 3 each serve 32 different words: 32 passes, 8 times the ideal. A stride of 9 elements (144 bytes) spreads them out again; set the widget to "element l &times; s", 16 bytes, s = 8 and 9.</div></div>
-<div class="bars" id="rd-tgbars"></div>
-<p class="small"><span class="meas">measured on Apple M1 Pro GPU</span>: bytes per second read from threadgroup memory by 131,072 threads, 16 KB per threadgroup, median of 3 runs. With 16-byte elements: <b>1,893 GB/s</b> at a lane stride of 1 element, <b>1,049</b> at 4, <b>565</b> at 8, and <b>1,905</b> at 9, the signature of 4-byte banks the rule predicts (inference: Apple documents neither bank count nor width). Wide reads also moved more bytes per second than 4-byte reads (<b>1,108 GB/s</b> at stride 1, noisy under load): on chip as off chip, fewer and wider accesses win.</p>
+<div class="card"><h4>Threadgroup reads on the M1 Pro: the stride-8 dip of 4-byte banks</h4><div class="bars" id="rd-tgbars"></div></div></div></div></div>
+<section id="rd-s4c">
 <p><b>Swizzles: the libraries' answer.</b> Padding breaks the alignment that 16-byte and TMA copies need and wastes memory, so libraries permute instead: element (r, c) is stored at column c XOR f(r), which keeps every row and every column on distinct banks (the XOR layout above). Hopper's TMA engine writes tiles already swizzled: "the TMA engine can be instructed to 'swizzle' the data before storing it in shared memory", and with <code>CU_TENSOR_MAP_SWIZZLE_128B</code> "each matrix element is from a different bank for both the rows and columns" (same page). CUTLASS's layout algebra that generalises this is on {{Libraries and tensor cores|n:3c65c17b0d0d81a7adcaebee2f44a087}}.</p>
 <details class="dp"><summary>Beyond one block: distributed shared memory <span class="mute">(Hopper clusters)</span></summary><div class="b">
 <p>On Hopper and later, blocks of a cluster can read each other's shared memory (distributed shared memory, about 180 cycles in Luo et al.'s H800 measurements against 29 for local shared memory <span class="indep">independent</span>); the hardware side is on {{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}, section 8, the launch side on {{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}}.</p>

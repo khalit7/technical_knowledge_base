@@ -1,4 +1,4 @@
-// ---- Reading section 6: the tile loop with 1 to 4 shared-memory stages, animated on one timeline drawn to scale ----
+// ---- Reading section 7: the tile loop with 1 to 4 shared-memory stages, animated on one timeline drawn to scale ----
 (function(){
   const M=window.MHM,f=MC.fmtN,L=479,C=200,N=8;
   let S=1,r=M.pipeline(S,L,C,N);
@@ -38,7 +38,8 @@
       p=S===1?'Try 2, 3 and 4 stages on the same axis.':f(sync/r.total,2)+' times faster than synchronous. The floor is one latency plus all the math: '+f(L+N*C,0)+' cycles.'}
     cap.innerHTML='<div class="t">'+tt+'</div><p>'+p+'</p>';
   }
-  const an=RD.anim({card:'rd-pcard',ctl:'rd-pctl',n:N+1,draw:draw,ms:900,label:'Tile'});
-  RD.seg(document.getElementById('rd-pseg'),v=>{S=+v;r=M.pipeline(S,L,C,N);an.reset(N+1)});
+  // a widget the reader drives (Fig. 5 carries the explained steps): it never plays by itself and opens on the finished schedule
+  const an=RD.anim({card:'rd-pcard',ctl:'rd-pctl',n:N+1,draw:draw,ms:900,label:'Tile',auto:false,start:N});
+  RD.seg(document.getElementById('rd-pseg'),v=>{S=+v;r=M.pipeline(S,L,C,N);an.reset(N+1);an.go(N,true)});
   RD.onResize(()=>an.redraw());
 })();

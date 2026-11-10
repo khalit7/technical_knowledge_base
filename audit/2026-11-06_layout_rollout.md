@@ -190,7 +190,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `models_and_training/topic_ml_fundamentals` Topic: ml-fundamentals
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack` The compiler stack: PTX, SASS, NVRTC, torch.compile and Inductor
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores` Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05
-- [~] `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy` GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills
+- [x] `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy` GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills
 - [~] `systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness` Profiling, benchmarking and correctness: Nsight, honest timing, numerical checks
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/programming_model` The CUDA programming model: threads, warps, blocks, launches, occupancy
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu` Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL
@@ -483,6 +483,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_cuda_and_gpu_programming/compiler_stack`: Fig. 4 top (source) plate touches the card top at step 3; Fig. 3 tool names sit just above their boxes; `src/out/sass.json` (gitignored) regenerated locally for `check_embed.py`; recorded logs keep Docker-container paths (`/tmp/cs/...`, `/work`).
 - `models_and_training/topic_ml_fundamentals` (root): Fig. 1 full-line view small at 390 px (steps 1 and 8); Optimisers' Further reading still describes the root's "step strip" (now Fig. 1); `check_times.py` misses quotes placed far after the link (the nine children's quotes of the root were fixed by hand).
 - `systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores`: Fig. 3 is small at 390 px; Fig. 1 tail-wave tile placement follows the scheduler model's assumption (tile t on SM t mod P, stated); Fig. 2 cta_group::2 shape labelled illustrative.
+- `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy`: Fig. 2 strip labels at 920 px were moved off the sectors after the last screenshot (re-screenshot); Fig. 4 bank strip thin and wide in the card. The root's 7 owned keys (94, 113, 374, 385, 472, 486, 488) were re-keyed by the lead to the rebuilt text.
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
@@ -520,3 +521,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Compiler stack: now 44 min core plus 24 closed (was 37 plus 23), the longest page so far in the rollout. Accept, or trim the Fig. 5 and Fig. 6 step lists?
 - ML fundamentals root: the lab's sigmoid preset claims 10 of 10 seeds end above 75%, but seed 8 ends at 50% on this machine (Node 20.20; engine unchanged since 2026-10-03). Restate as 9 of 10, or treat as an environment difference? The Defaults morph stays a widget (the reader picks two models).
 - Libraries and tensor cores: 36 min core (was 31), about 330 words of it in Fig. 3's hidden Hopper and Blackwell lists. Accept?
+- GPU memory hierarchy: the static 2D hero ladder became a 3D stage, and the section 1 and 4 predict boxes were dropped (their answers are now the stages; kept as fat). Keep?

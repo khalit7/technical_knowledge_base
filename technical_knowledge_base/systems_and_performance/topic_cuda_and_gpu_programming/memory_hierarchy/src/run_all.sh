@@ -7,4 +7,4 @@ docker run --rm --name cumem-cc --cpus 2 --memory 4g -v "$PWD":/work kb-gpu-lab:
 MLXPY="$MLXPY" sh code/run_m1.sh
 # 3. page data, the models' reference, build and checks
 python3 code/summarize.py && python3 code/reference.py && node check/check_js.mjs && sh build.sh && python3 check/check_embed.py
-# 4. UI check from the repo root: node <this folder>/check/check_ui.mjs <scratch folder for screenshots>
+# 4. UI and stage checks from the repo root: node <this folder>/check/check_ui.mjs <scratch folder for screenshots>; node <this folder>/check/check_stages.mjs <scratch folder>

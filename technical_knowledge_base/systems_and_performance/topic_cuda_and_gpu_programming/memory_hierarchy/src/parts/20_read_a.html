@@ -1,10 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-top">
 <p class="core"><b>The core idea.</b> A kernel is fast when the bytes it needs are already close to the arithmetic: fetch each byte from DRAM once, in whole 32-byte sectors, and reuse it from shared memory and registers as many times as the math needs.</p>
-<div class="hero" id="rd-hcard">
-<h4>Every byte comes up the same ladder; your code decides how often it climbs</h4>
-<div class="rd-chart" id="rd-hero"></div>
-<p class="small mute">The rungs as a CUDA programmer sees them, with the SASS instruction that touches each one. Sizes for an H100 SXM (compute capability 9.0) from the {{CUDA Programming Guide, compute capabilities|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html}} and NVIDIA's {{H100 page|https://www.nvidia.com/en-us/data-center/h100/}} <span class="vend">vendor spec</span>; load latencies in cycles measured on an H800 by Luo et al. (shared 29.0, L1 40.7, L2 263.0, global 478.8; {{arXiv 2402.13499|https://arxiv.org/abs/2402.13499}}) <span class="indep">independent</span>. "Local" memory (spills) sits in DRAM with global memory: the name is its scope, not its place.</p>
-</div>
+<h4 style="margin:14px 0 4px">Every byte comes up the same ladder; your code decides how often it climbs</h4>
+<p class="small">Fig. 1 draws the rungs a CUDA programmer touches on an H100 SXM as plates, each as wide as the logarithm of its capacity: from 80 GB at the bottom to a few hundred KB per SM at the top. Step through it:</p>
+<ol class="sx" id="sx-hero">
+<li><b>DRAM (HBM3): 80 GB at 3.35 TB/s.</b> Global memory (<code>LDG</code>, <code>STG</code>), local memory (<code>LDL</code>, <code>STL</code>) and constant memory (<code>LDC</code>) all live here, 478.8 cycles away. "Local" memory (spills) sits in DRAM with global memory: the name is its scope, not its place.</li>
+<li><b>L2: 50 MB for the whole GPU.</b> Every DRAM access passes through it, 263.0 cycles away; it is where all SMs see the same data.</li>
+<li><b>Shared memory and L1: one SRAM pool per SM.</b> Up to 228 KB per SM; shared memory (<code>LDS</code>, <code>STS</code>) at 29.0 cycles, L1 (caching <code>LDG</code>) at 40.7. <code>LDGSTS</code> and TMA fill shared memory straight from global memory.</li>
+<li><b>Registers: one thread's own.</b> 65,536 x 32-bit per SM, up to 255 per thread, read by the ALUs directly. Per SM the register file (256 KB) is as large as the shared memory.</li>
+<li><b>The climb.</b> Pinned host RAM reaches HBM only through the copy engines (<code>cudaMemcpyAsync</code>, DMA over PCIe or NVLink-C2C), copies rather than loads. A fast kernel brings each byte up from HBM once and reuses it many times at the top (the dot density here is illustrative).</li>
+</ol>
+<p class="small mute">Sizes for an H100 SXM (compute capability 9.0) from the {{CUDA Programming Guide, compute capabilities|https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html}} and NVIDIA's {{H100 page|https://www.nvidia.com/en-us/data-center/h100/}} <span class="vend">vendor spec</span>; 256 KB = 65,536 &times; 4 bytes <span class="der">derived</span>; load latencies in cycles measured on an H800 by Luo et al. (shared 29.0, L1 40.7, L2 263.0, global 478.8; {{arXiv 2402.13499|https://arxiv.org/abs/2402.13499}}) <span class="indep">independent</span>. Three SMs are drawn; the GPU has many more.</p>
+</section>
+</div></div>
+<section id="rd-top2">
 <p>Everything marked <span class="der">compiled here</span> is real output of NVIDIA's CUDA 13.4.2 compiler for sm_80 (A100), sm_90a (H100) and sm_120 (RTX 5090); no GPU is needed to compile. Everything marked <span class="meas">measured on Apple M1 Pro GPU</span> was run on this laptop, whose GPU is also a SIMT machine with 32-wide SIMD-groups and a programmer-managed on-chip memory, so the shapes transfer even where the numbers do not. No NVIDIA GPU was used.</p>
 <div class="co key"><div class="t">Three questions for every array in a kernel</div>
 <b>Where does it live</b> (which rung)? <b>How many times is each byte read</b> (once: stream it; many times: stage it on chip)? <b>In what order do neighbouring threads touch it</b> (neighbours on neighbouring addresses, or not)? Sections 1 to 8 answer them for one space each; section 9 turns them into a verdict on one kernel.</div>

@@ -1,24 +1,39 @@
+<div class="s3sp"><div class="s3R"><div id="stg-async"></div></div><div class="s3L">
 <section id="rd-s7">
 <h2>7. Asynchronous copies: loading the next tile while computing this one</h2>
-<p>Section 3's tile loop, written plainly, sends every load global memory to a register, then register to shared memory, and the SM sits idle for a full memory latency (about 479 cycles on an H800) at the start of every tile: idle time, plus registers held just to carry data in transit. Since Ampere (compute capability 8.0) one instruction copies global to shared memory directly, without a register in between, and the thread does not wait for it: "This not only reduces register usage by copying the data directly to shared memory, but also ensures all loads from global memory are in-flight" ({{Programming Guide 4.12.1, LDGSTS|https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html}}). With two or more shared-memory buffers (<span class="hl">stages</span>), the copy for tile t + 1 runs while the math on tile t proceeds.</p>
-<div class="card" id="rd-pcard">
-<div class="seg" id="rd-pseg"><button data-m="1" class="on">Synchronous (1 buffer)</button><button data-m="2">2 stages</button><button data-m="3">3 stages</button><button data-m="4">4 stages</button></div>
-<div class="rd-chart" id="rd-psvg"></div>
-<div class="an-cnt" id="rd-pcnt"></div>
-<div class="an-cap" id="rd-pcap"></div>
-<div class="an-ctl" id="rd-pctl"></div>
-<p class="small mute">One block's loop over 8 tiles. Top rows: copies in flight (each lasts one memory latency); bottom row: the SM computing. A copy can start only when its buffer is free (the tile that last used it has been computed); a tile can be computed only when its copy has landed. <span class="ann">illustrative</span>: 479 cycles per copy (H800 global latency, Luo et al.) and 200 cycles of math per tile; it ignores bandwidth limits and the other blocks on the SM, which also hide latency. The schedule is checked against a Python reference (<code>src/code/reference.py</code>).</p>
-</div>
-<p><span class="der">compiled here</span> for sm_90a, the same tile loop written both ways:</p>
-<div class="rd-two">
+<p>Section 3's tile loop, written plainly, sends every load global memory to a register, then register to shared memory, and the SM sits idle for a full memory latency (about 479 cycles on an H800) at the start of every tile: idle time, plus registers held just to carry data in transit. Since Ampere (compute capability 8.0) one instruction copies global to shared memory directly, without a register in between, and the thread does not wait for it: "This not only reduces register usage by copying the data directly to shared memory, but also ensures all loads from global memory are in-flight" ({{Programming Guide 4.12.1, LDGSTS|https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/async-copies.html}}). With two or more shared-memory buffers (<span class="hl">stages</span>), the copy for tile t + 1 runs while the math on tile t proceeds. Fig. 5 runs one block's loop over 8 tiles through the page's pipeline model <span class="ann">illustrative</span>: 479 cycles per copy (the H800 global latency, Luo et al.) and 200 cycles of math per tile.</p>
+<ol class="sx" id="sx-async">
+<li><b>Synchronous, one buffer.</b> Copy through a register, wait, compute, repeat: 8 tiles take 5,432 cycles, the SM busy 29% of them.</li>
+<li><b><code>LDGSTS</code>: straight into shared memory.</b> No register in between. With one buffer that saves registers, not time: the next copy still waits for the buffer to be free.</li>
+<li><b>Two stages.</b> While the SM computes on one buffer, the next tile streams into the other: 2,916 cycles, busy 55%.</li>
+<li><b>Three stages.</b> Two copies in flight during each tile's math: 2,237 cycles, busy 72%.</li>
+<li><b>Four stages.</b> 2,079 cycles, busy 77%: the floor, one latency plus all the math (479 + 8 &times; 200 = 2,079 cycles). Every stage is another tile of shared memory.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s7b">
+<p><span class="der">compiled here</span> for sm_90a, the same tile loop written both ways (right):</p>
+<p>On the left the compiler unrolled the loop and issued four 16-byte loads ahead, each parked in four registers until its <code>STS.128</code>: it hides latency by spending registers. On the right <code>LDGSTS</code> writes shared memory directly; <code>LDGDEPBAR</code> closes a group of copies (the commit) and <code>DEPBAR.LE SB0, 0x1</code> waits until at most one group is still in flight (the <code>wait_prior(1)</code>). The <code>.BYPASS</code> matches the guide: "copying 16-bytes enables the L1 BYPASS mode, in which case the L1 is not polluted". The copies are per thread, so a <code>__syncthreads()</code> is still needed before other threads read the tile.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="rd-two">
 <div><b>Synchronous:</b> <code>s[tid] = a[t * 256 + tid];</code>
 <pre class="sass" id="rd-async0"></pre></div>
 <div><b>Two stages:</b> <code>__pipeline_memcpy_async</code>, <code>__pipeline_commit</code>, <code>__pipeline_wait_prior(1)</code>
 <pre class="sass" id="rd-async1"></pre></div>
 </div>
-<p>On the left the compiler unrolled the loop and issued four 16-byte loads ahead, each parked in four registers until its <code>STS.128</code>: it hides latency by spending registers. On the right <code>LDGSTS</code> writes shared memory directly; <code>LDGDEPBAR</code> closes a group of copies (the commit) and <code>DEPBAR.LE SB0, 0x1</code> waits until at most one group is still in flight (the <code>wait_prior(1)</code>). The <code>.BYPASS</code> matches the guide: "copying 16-bytes enables the L1 BYPASS mode, in which case the L1 is not polluted". The copies are per thread, so a <code>__syncthreads()</code> is still needed before other threads read the tile.</p>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s7c">
 <p><b>The cost.</b> Each stage is another tile of shared memory, so stages trade against block size and occupancy (section 3): this is exactly Triton's <code>num_stages</code>, and Triton 3.8.0 compiles a plain matmul's tile loads to <code>LDGSTS</code> on sm_80 (the parent's {{Compiler explorer|n:3c65c17b0d0d81c39f34d5e070d783c1}}). Hopper's <span class="hl">TMA</span> goes further: one thread issues a copy of a whole multi-dimensional tile (up to 5 dimensions), completion is signalled on a shared-memory barrier, and the tile can land swizzled (section 4). The TMA programming model and the warp-specialised producer/consumer kernels built on it are on {{Libraries and tensor cores|n:3c65c17b0d0d81a7adcaebee2f44a087}}; a full pipelined matmul on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}; the copy engines inside the SM on {{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}, section 8.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-pcard">
+<div class="seg" id="rd-pseg"><button data-m="1" class="on">Synchronous (1 buffer)</button><button data-m="2">2 stages</button><button data-m="3">3 stages</button><button data-m="4">4 stages</button></div>
+<div class="rd-chart" id="rd-psvg"></div>
+<div class="an-cnt" id="rd-pcnt"></div>
+<div class="an-cap" id="rd-pcap"></div>
+<div class="an-ctl" id="rd-pctl"></div>
+<p class="small mute">The same loop on one time axis; step through it or switch the stages. One block's loop over 8 tiles. Top rows: copies in flight (each lasts one memory latency); bottom row: the SM computing. A copy can start only when its buffer is free (the tile that last used it has been computed); a tile can be computed only when its copy has landed. <span class="ann">illustrative</span>: 479 cycles per copy (H800 global latency, Luo et al.) and 200 cycles of math per tile; it ignores bandwidth limits and the other blocks on the SM, which also hide latency. The schedule is checked against a Python reference (<code>src/code/reference.py</code>).</p>
+</div>
+</div></div></div>
 
 <section id="rd-s8">
 <h2>8. Host memory: pinned, mapped and managed</h2>
