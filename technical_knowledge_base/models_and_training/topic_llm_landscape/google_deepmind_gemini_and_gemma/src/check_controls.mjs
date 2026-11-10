@@ -1,15 +1,16 @@
 // node <page>/src/check_controls.mjs <page>/index.html  (run from the repo root)
 // Clicks every button, moves every slider to min, mid and max, picks every select option and toggles every checkbox
-// in every tab, at 390 px dark and 920 px light; fails on page errors, a visible #jsErr, sideways scroll or NaN/undefined/Infinity.
+// in every tab (the three 3D stages' controls included), at 390 px dark, 920 px light and 1400 px light, under reduced motion; fails on page errors,
+// a visible #jsErr, sideways scroll or NaN/undefined/Infinity. Autoplay, stepping and the stop rules of the stages are checked by check_stages.mjs.
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 let bad = 0;
-for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
+for (const [scheme, width] of [['dark', 390], ['light', 920], ['light', 1400]]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.setViewport({ width, height: 900 }); await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
-  await p.goto('file://' + path.resolve(process.argv[2]));
+  await p.goto('file://' + path.resolve(process.argv[2])); await p.evaluate(() => { try { localStorage.clear() } catch (e) { } }); await p.goto('file://' + path.resolve(process.argv[2]));
   for (const t of await p.$$eval('button[data-t]', bs => bs.map(b => b.dataset.t))) {
     await p.click(`button[data-t=${t}]`);
     await p.evaluate(id => {

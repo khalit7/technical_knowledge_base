@@ -87,3 +87,8 @@ See rows I to M above. General: single numbers (benchmarks), no public data (lat
 - Moved inline: the lineage timeline (from its tab, into "How the design got here"; cards in a closed block a dot click opens); the one-task cost breakdown (from Cost per task, into "Works harder").
 - Removed: the list-price-by-generation chart (a price-history chart, a rejected pattern; its numbers are now one sentence in the dated lineup) and the index-against-cost-per-task scatter (cross-provider comparison, owned by the landscape root's Capability vs price tab).
 - Rejected: a Deep Think width-against-depth diagram (the root's test-time compute section owns it); a Live Extended Thinking timeline (one sentence says it); a Gemini architecture figure (no openly licensed one exists).
+
+## 2026-11-10 (split layout rollout)
+- Built: Fig. 3 media against the window (3D tiles of 1,024 tokens), Fig. 4 edge checkpoints on two memory plates, Fig. 5 Gemma 4 towers against one card's memory. They replace the 2D edge bars and the sparse-against-dense rows.
+- Considered and kept 2D: "works harder" as 3D columns (thinking budget against tokens and price): its message is ratios on one axis, which the token bars and the one-task widget already show flat. The Gemma attention strip stays 2D: the gallery's Fig. 8 owns the same windows in 3D and is linked. Gemma 4 layer sharing: linked to the gallery's Fig. 14, not redrawn.
+- Rejected: a MatFormer nesting drawing (the page has no per-layer widths for Gemma 3n E2B inside E4B to draw it from).

@@ -1,15 +1,18 @@
+// ---- Media rates, one source for the calculator and Fig. 3 (the media stage): Gemini 3's media-resolution table (tokens per frame at
+// default or low and at high, per second of audio, per image and per PDF page at the default) and the Gemini 2.5 report's rates; window of every 3.x model ----
+window.GGMED={WIN:1048576,g3:{lo:70,hi:280,a:25,img:1120,pdf:560},g25:{hi:258,lo:66,a:32,img:258,pdf:258}};
 // ---- Media against the window (Reading) ----
 (function(){
-  const WIN=1048576;let res='lo';
+  const M=GGMED,WIN=M.WIN;let res='lo';
   const hm=s=>{s=Math.round(s);const h=Math.floor(s/3600),m=Math.round((s%3600)/60);return h?(h+' h '+m+' min'):(m+' min')};
   function draw(){
     const g3=$('mdEra').value==='g3';
     const tMin=+$('mdT').value,t=tMin*60,f=+$('mdF').value;
-    const r=g3?(res==='hi'?280:70):(res==='hi'?258:66),a=$('mdA').checked?(g3?25:32):0;
+    const E=g3?M.g3:M.g25,r=E[res],a=$('mdA').checked?E.a:0;
     const nI=+$('mdI').value,nP=+$('mdP').value;
     $('mdTv').textContent=tMin+' min';$('mdIv').textContent=fmt(nI);$('mdPv').textContent=fmt(nP);
     const btns=$('mdRes').querySelectorAll('button');btns[0].textContent=g3?'default / low (70)':'low (66)';btns[1].textContent=g3?'high (280)':'default (258)';
-    const Nf=t*f*r,Na=t*a,Ni=nI*(g3?1120:258),Np=nP*(g3?560:258),N=Nf+Na+Ni+Np;
+    const Nf=t*f*r,Na=t*a,Ni=nI*E.img,Np=nP*E.pdf,N=Nf+Na+Ni+Np;
     const mv=$('mdM').value;let pin,pa,lab;
     if(mv==='pro'){pin=N>200000?4:2;pa=pin;lab='3.1 Pro at $'+pin+(N>200000?' (prompt above 200K)':'')}
     else if(mv==='fl31'){pin=0.25;pa=0.5;lab='3.1 Flash-Lite'}

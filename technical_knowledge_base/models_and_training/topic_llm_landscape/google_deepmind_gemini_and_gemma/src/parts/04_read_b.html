@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-think">
 <h2>How thinking is controlled</h2>
 <p>Gemini models <b>think dynamically by default</b>: the model decides per request how much reasoning a prompt needs. The caller steers it with one parameter, <code>thinking_level</code>, in the generation config: <code>minimal</code>, <code>low</code>, <code>medium</code> or <code>high</code>. Google's guidance is minimal or low for fact retrieval and classification, the default for comparisons and creative reasoning, and high for advanced coding, mathematics and multi-step planning ({{thinking guide|@think}}). Four details are Google-specific and are where code breaks:</p>
@@ -7,23 +8,45 @@
 <li><b>You pay for thinking you do not see.</b> Thinking tokens are billed as output, and the bill counts every thought token generated even when only a summary returns: "Pricing is based on the full thought tokens the model needs to generate". Summaries are controlled by <code>thinking_summaries</code>; by default only the final answer returns.</li>
 <li><b>Thought signatures must go back.</b> Each response carries encrypted <b>thought signatures</b>, a representation of the model's reasoning state, present even after minimal reasoning. If you manage history yourself, every thought block must be resent exactly as received, or multi-turn tool use loses the reasoning that led to the call. With server-side state (<code>previous_interaction_id</code>) Google handles them.</li>
 </ul>
-<div class="card" id="thk">
+<p>The two outer designs this sits between (a caller-set token budget, and a hidden router that decides for you) and the research behind them are on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}, section 6; Anthropic's equivalent, adaptive thinking with an effort setting, is on {{Anthropic: Claude family|n:3c65c17b0d0d814cb979d0eabca59a45}}.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="thk">
 <div class="fig-t">One request is not portable: levels and defaults differ by model</div>
 <p class="try"><b>Predict, then try:</b> will <code>minimal</code> work on the newest Flash? Pick the level your code sends. Models that reject it are struck out; the ringed cell is each model's default. <code>minimal</code> fails on 3.8 Flash, 3.7 Flash and 3.1 Pro.</p>
 <div class="seg" id="thkSeg"><button data-m="minimal">minimal</button><button data-m="low">low</button><button data-m="medium" class="on">medium</button><button data-m="high">high</button></div>
 <div class="tw"><table class="thm" id="thkTab"></table></div>
 <div class="co" id="thkOut" style="margin-bottom:0"></div>
 <p class="small mute">From the per-model table in the {{thinking guide|@think}}. The guide lists the 2.5 Pro and 2.5 Flash defaults only as "on", with no level, and still lists <code>gemini-3-pro-preview</code>, which was shut down on 9 March 2026.</p>
-</div>
-<p>The two outer designs this sits between (a caller-set token budget, and a hidden router that decides for you) and the research behind them are on {{Test-time compute and reasoning|n:4035c17b0d0d813f9fb2d62cff1f09ef}}, section 6; Anthropic's equivalent, adaptive thinking with an effort setting, is on {{Anthropic: Claude family|n:3c65c17b0d0d814cb979d0eabca59a45}}.</p>
-</section>
+</div></div></div></div>
 
+
+<div class="s3sp"><div class="s3R"><div id="stg-md"></div></div><div class="s3L">
 <section id="s-media">
 <h2>How media is counted against the window</h2>
-<p>Native multimodality makes media a token cost like any other, so "will this fit, and what will it cost" is arithmetic. On the Gemini 3 models a video frame costs 70 tokens at the default, low and medium media resolution and 280 at high; frames are sampled at 1 per second; audio costs 25 tokens per second at every resolution; an image costs 1,120 tokens at the default (280 low, 560 medium, 2,240 ultra high, set per item); a PDF page 560 at the default ({{media resolution|@media}}). For a video with its soundtrack:</p>
+<p>Native multimodality makes media a token cost like any other, so "will this fit, and what will it cost" is arithmetic. On the Gemini 3 models a video frame costs 70 tokens at the default, low and medium media resolution and 280 at high; frames are sampled at 1 per second; audio costs 25 tokens per second at every resolution; an image costs 1,120 tokens at the default (280 low, 560 medium, 2,240 ultra high, set per item); a PDF page 560 at the default ({{media resolution|@media}}). Fig. 3 lays one hour of video out on the window, drawn as 32 × 32 tiles of 1,024 tokens (1,048,576 tokens on every 3.x model, {{models|@models}}). How a vision encoder turns pixels into tokens in general is on {{Vision-language models|n:3fc5c17b0d0d81adbb7be5bc41c4d9d0}}; this section is about Google's rates.</p>
+<ol class="sx" id="sx-md">
+<li><b>One second of video is 95 tokens.</b> One frame sampled per second costs 70 tokens at the default resolution (blue) and its second of soundtrack 25 more (green). The camera is on one tile: 1,024 tokens, so a tile holds about 10.8 seconds of video with sound (1,024 / 95).</li>
+<li><b>An hour is a third of the window.</b> Default resolution: 3,600 × (1 × 70 + 25) = 3,600 × 95 = <b>342,000</b> tokens, 32.6% of the window: 252,000 for the frames and 90,000 for the sound, 334 of the 1,024 tiles. On 3.8 Flash that input costs 342,000 / 10<sup>6</sup> × $0.75 = $0.2565 (about 51 cents from 2027).</li>
+<li><b>At high resolution the same hour does not fit.</b> At high: 3,600 × 305 = 1,098,000 tokens, over the window by 49,424 (the red tiles past the edge) before a question is typed. The longest video that fits is 1,048,576 / 95 ≈ 11,038 seconds (3 h 4 min) at default and 1,048,576 / 305 ≈ 3,438 seconds (57 min) at high.</li>
+<li><b>What the rest of the window holds.</b> After the default hour 706,576 tokens are left (1,048,576 − 342,000): room for 630 images at the default 1,120 tokens each (gold), or 1,261 PDF pages at 560. One image costs as much as 16 frames.</li>
+<li><b>Gemini 2.5's rates filled the window with the hour.</b> 258 tokens per frame by default and 32 per second of audio: 3,600 × (258 + 32) = 1,044,000 tokens, 99.6% of the window. The 2.5 report made the same point with its own figures: dropping from 258 to 66 tokens per frame took the window from about 1 hour of video to about 3 ({{Gemini 2.5 report|@g25}}); at 66 the window holds 1,048,576 / 98 ≈ 10,700 seconds, 2.97 hours.</li>
+<li><b>Agentic video loads only what it needs.</b> On 1 September 2026 Google added agentic video understanding for 3.7 Flash, 3.6 Flash and 3.5 Flash-Lite ({{release notes|@log}}): instead of every frame at 1 per second, the model loads only the transcript, frames or audio it needs, so "a 1-hour lecture that would use ~1.08M tokens in static mode might use ~108K tokens", depending on prompt and content ({{tokens page|@tokens}}). Outlined: the static count; solid: the agentic one.</li>
+</ol>
+<p>So "an hour of video" is a third of the window at the default and does not fit at high. The static count is the ceiling: agentic loading can only spend less.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-media-b">
+<h3>Your own media, priced</h3>
+<p>For a video with its soundtrack:</p>
 <div class="fm"><math display="block"><mi>N</mi><mo>=</mo><mi>t</mi><mrow><mo>(</mo><mi>f</mi><mo>·</mo><mi>r</mi><mo>+</mo><mi>a</mi><mo>)</mo></mrow><mspace width="2em"/><mi>C</mi><mo>=</mo><mfrac><mi>N</mi><msup><mn>10</mn><mn>6</mn></msup></mfrac><mo>·</mo><msub><mi>p</mi><mtext>in</mtext></msub></math>
 <p class="wh"><i>N</i> input tokens; <i>t</i> seconds; <i>f</i> frames sampled per second (1 by default); <i>r</i> tokens per frame (70 at default or low resolution, 280 at high); <i>a</i> audio tokens per second (25, or 0 for a silent video); <i>C</i> input cost in dollars at <i>p</i><sub>in</sub> dollars per million tokens.</p></div>
-<div class="card" id="med">
+<p>The calculator beside works this for any mix of video, images and PDF pages, and prices it on any Gemini model.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="med">
 <div class="fig-t">An hour of video is a third of the window at the default resolution, and does not fit at high</div>
 <p class="try"><b>Try:</b> the defaults are the worked example, one hour on 3.8 Flash. Switch to high resolution and the hour overflows the window before you have typed a question; switch the rates to Gemini 2.5's to see the report's "1 hour versus 3 hours". Add images or PDF pages to fill the rest of the window.</p>
 <div class="ctl">
@@ -40,10 +63,9 @@
 <div id="mdBar"></div>
 <div class="out" id="mdOut"></div>
 <p class="small mute">Window 1,048,576 tokens for every 3.x model ({{models|@models}}). Prices from {{pricing|@pricing}}; 3.1 Pro's rate for the whole prompt doubles above 200K tokens. The 2.5 rates: 258 tokens per frame by default, 66 at low ({{Gemini 2.5 report|@g25}}), audio 32 tokens per second (the generic {{tokens page|@tokens}}, which also still quotes 263 video tokens per second for older models).</p>
-</div>
-<p><b>Worked example: one hour on 3.8 Flash.</b> Default resolution: 3,600 × (1 × 70 + 25) = 3,600 × 95 = <b>342,000</b> tokens, 32.6% of the window, costing 342,000 / 10<sup>6</sup> × $0.75 = $0.2565 (about 51 cents from 2027). At high: 3,600 × 305 = 1,098,000 tokens, over the window by 49,424. The longest video that fits is 1,048,576 / 95 ≈ 11,038 seconds (3 h 4 min) at default and 1,048,576 / 305 ≈ 3,438 seconds (57 min) at high. So "an hour of video" is a third of the window at the default and does not fit at high. The 2.5 report made the same point with its own figures: dropping from 258 to 66 tokens per frame took the window from about 1 hour of video to about 3 ({{Gemini 2.5 report|@g25}}).</p>
-<div class="co"><div class="t">Agentic video processing</div>On 1 September 2026 Google added agentic video understanding for 3.7 Flash, 3.6 Flash and 3.5 Flash-Lite ({{release notes|@log}}): instead of every frame at 1 per second, the model loads only the transcript, frames or audio it needs, so "a 1-hour lecture that would use ~1.08M tokens in static mode might use ~108K tokens", depending on prompt and content ({{tokens page|@tokens}}). The formula above is the static case, and the ceiling.</div>
-</section>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
 <section id="s-cost">
 <h2>What "works harder" costs</h2>
 <p>Cost per task is tokens per task times price per token, and a release can move either factor:</p>
@@ -56,9 +78,15 @@
 <li>On 1 January 2027 both prices double, so the same task costs about 1.24 × 2 = $2.48 on 3.8 Flash ($2.49 from AA's unrounded $1.2428), with no change to the model.</li>
 <li>Even then it is well under Claude Fable 5.1's $7.63 per task at maximum effort, which is about 6.2 times the introductory figure.</li>
 </ol>
-<div class="card"><div class="fig-t">Same price, a third more per task: 3.8 Flash spends more tokens on every axis</div><div id="wh"></div></div>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="fig-t">Same price, a third more per task: 3.8 Flash spends more tokens on every axis</div><div id="wh"></div></div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="s-cost-b">
 <p>The lesson travels: compare models on cost per task, not on the price list, and expect a newer "cheap" tier to spend more tokens than its predecessor. The caller holds two levers: a lower <code>thinking_level</code> cuts <i>T</i><sub>out</sub>, and context caching, a tenth of the input price, cuts what the repeated input costs. The widget below moves both on one index task.</p>
-<div class="card">
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card">
 <div class="fig-t">One task taken apart: most of 3.8 Flash's bill is input, and caching is what keeps it small</div>
 <p class="try"><b>Predict, then try:</b> which lever moves 3.8 Flash's bill more, removing the cache or halving the output? Drag the cached share to 0: the task costs three times as much. Halve the output tokens (roughly what a lower thinking level does, by an amount Google does not publish): it falls by a fifth.</p>
 <div class="ctl">
@@ -71,7 +99,8 @@
 <div id="tkBar"></div>
 <div class="out" id="tkOut"></div>
 <p class="small mute">Run totals and prices from Artificial Analysis ({{3.8 Flash|@aa38}}, {{3.7 Flash|@aa37}}, {{3.1 Pro|@aa31}}, {{Argon|@aaargon}}, {{leaderboard|@aalb}}). Cache prices: a tenth of input on the Flash models and 3.1 Pro, 95% off on Argon. The batch option halves every Google price ({{pricing|@pricing}}) and leaves Fable 5.1 at its standard price. The defaults reproduce AA's cost per task <b>by construction</b> (see below).</p>
-</div>
+</div></div></div></div>
+<section id="s-cost-c">
 <details class="dp"><summary>How the widget is fitted: the cached share is back-solved</summary><div class="b">
 <p>Writing in the cached share <i>h</i> of input tokens, billed at the cache price <i>p</i><sub>c</sub>:</p>
 <div class="fm"><math display="block"><msub><mi>C</mi><mtext>task</mtext></msub><mo>=</mo><mfrac><mrow><msub><mi>T</mi><mtext>in</mtext></msub><mo>(</mo><mn>1</mn><mo>−</mo><mi>h</mi><mo>)</mo><msub><mi>p</mi><mtext>in</mtext></msub><mo>+</mo><msub><mi>T</mi><mtext>in</mtext></msub><mi>h</mi><mspace width="0.15em"/><msub><mi>p</mi><mi>c</mi></msub><mo>+</mo><msub><mi>T</mi><mtext>out</mtext></msub><msub><mi>p</mi><mtext>out</mtext></msub></mrow><msup><mn>10</mn><mn>6</mn></msup></mfrac></math></div>

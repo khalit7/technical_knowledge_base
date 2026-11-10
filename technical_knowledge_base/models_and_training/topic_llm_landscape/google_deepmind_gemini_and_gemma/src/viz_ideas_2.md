@@ -105,7 +105,7 @@ A unit toggle converts the API series to per month (22B/min is about 950T per 30
 **Formula.** Doubling time = Δt · ln 2 / ln(b/a). Unit conversion: per month = per minute x 60 x 24 x 30 (30-day month, stated).
 
 **Data, with status.** All published, dated:
-- I/O 2025: "9.7 trillion tokens a month ... Now, we're processing over 480 trillion — that's 50 times more"; 400M MAU (https://blog.google/technology/ai/io-2025-keynote/).
+- I/O 2025: "9.7 trillion tokens a month ... Now, we're processing over 480 trillion -- that's 50 times more"; 400M MAU (https://blog.google/technology/ai/io-2025-keynote/).
 - Q2 2025: "over 980 trillion monthly tokens"; 450M MAU (https://blog.google/inside-google/message-ceo/alphabet-earnings-q2-2025/).
 - Q3 2025: "over 1.3 quadrillion monthly tokens, more than 20x growth in a year"; "7 billion tokens per minute, via direct API"; 650M MAU (https://blog.google/inside-google/message-ceo/alphabet-earnings-q3-2025/ and https://www.sec.gov/Archives/edgar/data/0001652044/000165204425000087/googexhibit991q32025.htm).
 - Q4 2025: "over 10 billion tokens per minute ... up from 7 billion"; "over 750 million monthly active users"; "lower Gemini serving unit costs by 78% over 2025"; capex $91.447B for 2025 and $175 to 185B guided for 2026 (https://www.sec.gov/Archives/edgar/data/0001652044/000165204426000012/googexhibit991q42025.htm, https://blog.google/inside-google/message-ceo/alphabet-earnings-q4-2025/).

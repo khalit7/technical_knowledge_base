@@ -1,4 +1,4 @@
-// ---- Reading figures drawn at the measured width (2026-10-24): hero, edge-model parameters, sparse against dense ----
+// ---- Reading figures drawn at the measured width (2026-10-24): the hero ----
 (function(){
   if(!$('heroSvg'))return;
   const T=RD.t;
@@ -24,28 +24,7 @@
     y+=10;s+=box(1,y,W-2,46,'var(--mute)',['Trained on TPU pods with JAX and ML Pathways',L?'v5p (Gemini 2.5); v6e, v4 (Gemma 4)':'TPU v5p pods (Gemini 2.5); v6e and v4 (Gemma 4)']);y+=48;
     $('heroSvg').innerHTML=RD.svg(W,y,s,'Hero: the frontier Gemini model is distilled into the Flash tiers and into open Gemma, all trained on TPUs');
   }
-  // edge models: checkpoint against effective or resident parameters, to scale
-  function ple(){
-    const el=$('pleSvg'),W=Math.max(300,Math.min(860,RD.width(el))),mx=8,sc=v=>v/mx*(W-125);
-    const R=[['Gemma 4 E2B',5.1,'5.1B with embeddings',2.3,'2.3B effective'],['Gemma 4 E4B',8,'8B with embeddings',4.5,'4.5B effective'],['Gemma 3n E2B',5,'over 5B loaded (standard execution)',1.91,'1.91B resident with PLE']];
-    let s='',y=4;
-    R.forEach(([n,a,al,b,bl],i)=>{
-      s+=T(0,y+12,n,{fs:12,w:600});y+=18;
-      s+='<rect x="0" y="'+y+'" width="'+sc(a)+'" height="14" rx="2" fill="var(--dim)"'+(i===2?' stroke="var(--mute)" stroke-dasharray="4 3"':'')+'/>'+T(sc(a)+5,y+11,al.split(' (')[0],{fs:11,fill:'var(--mute)'});y+=17;
-      s+='<rect x="0" y="'+y+'" width="'+sc(b)+'" height="14" rx="2" fill="var(--acc)"/>'+T(sc(b)+5,y+11,bl,{fs:11});y+=24});
-    el.innerHTML=RD.svg(W,y,s,'Edge models: checkpoint parameters against effective or resident parameters');
-  }
-  // sparse against dense, each row to its own scale
-  function mvd(){
-    const el=$('mvdSvg'),W=Math.max(300,Math.min(860,RD.width(el))),bw=W-96;
-    const R=[['Compute per token (GFLOP)',7.6,61.4,''],['Weights in bf16 (GB)',52.0,64.0,''],['Weights at 4 bits, Q4_0 (GB)',16.2,19.2,''],['Weights read per token at 4 bits (GB)',2.8,19.2,''],['KV cache at 32K, int8 (GB)',0.28,1.10,'']];
-    let s='',y=4;
-    R.forEach(([n,a,b])=>{const m=Math.max(a,b),sc=v=>Math.max(2,v/m*bw);
-      s+=T(0,y+12,n,{fs:12,w:600});y+=18;
-      s+='<rect x="0" y="'+y+'" width="'+sc(a)+'" height="14" rx="2" fill="var(--acc)"/>'+T(sc(a)+5,y+11,'26B A4B '+a,{fs:11});y+=17;
-      s+='<rect x="0" y="'+y+'" width="'+sc(b)+'" height="14" rx="2" fill="var(--dim)"/>'+T(Math.min(sc(b)+5,W-4),y+11,'31B '+b,{fs:11,a:sc(b)+5>W-50?'end':null,fill:'var(--mute)'});y+=24});
-    el.innerHTML=RD.svg(W,y,s,'Gemma 4 26B A4B against 31B: compute, memory and bytes read per token');
-  }
-  const all=()=>{hero();ple();mvd()};
+  // (2026-11-10: the edge-model bars and the sparse-against-dense bars became the 3D stages Fig. 4 and Fig. 5, 42_js_sc_pl.js and 43_js_sc_sd.js)
+  const all=()=>{hero()};
   RD.onRender(all);RD.onResize(all);
 })();

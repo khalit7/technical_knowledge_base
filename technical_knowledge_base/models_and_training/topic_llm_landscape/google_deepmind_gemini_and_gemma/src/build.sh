@@ -1,13 +1,13 @@
 #!/bin/sh
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null) && [ -x "$R/.venv/bin/python3" ] && PATH="$R/.venv/bin:$PATH"; export LC_ALL=en_US.UTF-8   # pin repo Python (3.12) and locale (glob order): page hashes depend on both
-# Assemble ../index.html from parts/: the head and CSS, the HTML parts in order, then the scripts, tabs last.
+# Assemble ../index.html from parts/: the head, CSS and split layout, the HTML parts in order, then the scripts, tabs last.
 # Links in the HTML parts are written {{text|url}}; url may be an alias (@name, below) or n:<notion id>.
 # They expand to <a href="url" target="_blank" rel="noopener noreferrer">text</a>.
 cd "$(dirname "$0")"
-{ cat parts/00_top.html parts/01_css.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/06_tabs.html parts/07_more.html
+{ cat parts/00_top.html parts/01_css.html parts/02_split.html parts/02_header.html parts/03_read_a.html parts/04_read_b.html parts/05_read_c.html parts/06_tabs.html parts/07_more.html
   echo '<div id="jsErr" hidden style="margin:12px 0;padding:10px 12px;border:1px solid #c2703a;border-radius:8px;font:13px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap"></div>'
   cat parts/05z_errbox.js.html
-  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11_js_think.js parts/12_js_media.js parts/13_js_strip.js parts/15_js_line.js parts/16a_aa_data.js parts/16_js_cost.js parts/17_js_gemma.js parts/18_js_roof.js parts/19_js_spec.js parts/20_js_figs.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
+  for f in parts/10_js_common.js parts/21_js_rd_common.js parts/11_js_think.js parts/12_js_media.js parts/13_js_strip.js parts/15_js_line.js parts/16a_aa_data.js parts/16_js_cost.js parts/17_js_gemma.js parts/18_js_roof.js parts/19_js_spec.js parts/20_js_figs.js parts/25_js_s3.js parts/41_js_sc_md.js parts/42_js_sc_pl.js parts/43_js_sc_sd.js parts/99_js_tabs.js; do echo "<script>/* $(basename $f) */"; cat "$f"; echo '</script>'; done
   echo '</body></html>'; } | perl -CSD -pe '
 BEGIN{%A=(
 pricing=>"https://ai.google.dev/gemini-api/docs/pricing",
@@ -71,8 +71,9 @@ b37=>"https://blog.google/innovation-and-ai/models-and-research/gemini-models/in
 );}
 s/\{\{([^|{}]+)\|([^{}]+)\}\}/my($t,$u)=($1,$2);$u=$u=~m{^@(\w+)$}?($A{$1}||die "alias $1"):$u;$u=~s{^n:}{https:\/\/app.notion.com\/p\/};"<a href=\"$u\" target=\"_blank\" rel=\"noopener noreferrer\">$t<\/a>"/ge;
 ' > ../index.html
-grep -c 'href=' ../index.html >/dev/null
 if grep -q '{{' ../index.html; then echo "unexpanded link"; grep -o '{{[^}]*}}' ../index.html | head; fi
+ED=$(printf '\342\200\224')  # the em-dash character, written as bytes so this file contains none
+if grep -q "$ED" ../index.html; then echo "EM DASH FOUND"; grep -o ".\{30\}$ED.\{30\}" ../index.html | head; fi
 wc -c ../index.html
 # Reading time: src/rt.json holds the minutes measured by html_utils/audit_pages.mjs (230 words a minute,
 # core and closed details apart); update it after editing text. The external resources total is computed here.
