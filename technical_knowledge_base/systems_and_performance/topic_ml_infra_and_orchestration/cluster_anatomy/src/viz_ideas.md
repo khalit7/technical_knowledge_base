@@ -28,3 +28,6 @@ A rule for schematic drawings of hardware whose wiring is not published (the DGX
 
 ## Photos (2026-10-24)
 HGX B200 board (s1), GB200 NVL72 rack (s2), CERN data hall (s4), DGX-1 plus storage demo rack (s5); sources and licences in `../img/CREDITS.md`. Rejected: the InfiniBand cabling photo (already on Interconnects and scaling, where cabling is taught); DGX Spark photos (a desktop, not a cluster node). No openly licensed DGX H100 photo was found.
+
+## 2026-11-12 rollout (split layout, renderer v2)
+Built as 3D stages: Fig. 1 the staircase (replaces nothing; the 2D ladder stays beside "You need"), Fig. 2 the job's life (was the 2D stepper, row 6), Fig. 3 placement (was the 2D placement animation), Fig. 4 storage tiers of one SuperPOD scalable unit (new; the tier table stays). Kept 2D: the ladder (log-scale bars), the DGX H100 schematic (a clickable labelled diagram; Interconnects and scaling owns the 3D server), the message path (a widget the reader drives; its hops are a route diagram), the explorer and the sizing calculator (tools, full width). Rejected for 3D: a node stage for the PCIe tree and NUMA (it would redraw Interconnects and scaling's Fig. 2), a 3D power table (ranked numbers read best flat).

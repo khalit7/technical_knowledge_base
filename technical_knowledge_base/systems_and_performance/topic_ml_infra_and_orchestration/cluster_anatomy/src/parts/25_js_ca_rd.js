@@ -1,4 +1,4 @@
-// ---- Reading tab: ladder, node drawing, placement animation, designs table, measured spans ----
+// ---- Reading tab: ladder, node drawing, designs table, measured spans (the placement is the 3D stage in 43_js_sc_place.js) ----
 (function(){
   const CA=window.CA,esc=RD.esc,$=id=>document.getElementById(id);
   const fmt=(v,d)=>v==null?'n/a':(+v).toLocaleString('en-GB',{maximumFractionDigits:d==null?1:d});
@@ -60,55 +60,7 @@
     draw();RD.onRender(draw);RD.onResize(draw);
   })();
 
-  // 4. placement animation: the same 16-rank ring, packed or spread
-  (function(){const box=$('ca-place-svg');if(!box)return;const PL=CA.place;
-    let mode='packed';
-    // nodes: pod p (0,1), rack r (0..3), slot s (0,1); id = p*8+r*2+s
-    const nodes=[];for(let p=0;p<2;p++)for(let r=0;r<4;r++)for(let s=0;s<2;s++)nodes.push({p,r,s,id:nodes.length});
-    function ranks(){ // list of [node id, gpu index] in ring order
-      if(mode==='packed'){const a=[];for(let n=0;n<2;n++)for(let g=0;g<8;g++)a.push([n,g]);return a}
-      return nodes.map(n=>[n.id,0])}
-    function lvl(a,b){const A=nodes[a[0]],B=nodes[b[0]];if(a[0]===b[0])return 0;if(A.p!==B.p)return 3;if(A.r!==B.r)return 2;return 1}
-    const LV=['NVLink, 0 switches','same rack, 1 switch','other rack, 3 switches','other pod, 5 switches'],SW=[0,1,3,5],COL=['var(--c4)','var(--c3)','var(--c1)','var(--c2)'];
-    const STEPS=['The cluster','Place the 16 ranks','Draw the ring','Idle cluster: time','Busy cluster: time'];
-    function edges(){const a=ranks();return a.map((x,i)=>[x,a[(i+1)%a.length]])}
-    function counts(){const c=[0,0,0,0];edges().forEach(e=>c[lvl(e[0],e[1])]++);return c}
-    function geo(){const W=Math.max(300,Math.min(860,RD.width(box)));const narrow=W<560;
-      const podW=narrow?W-16:(W-28)/2,rackW=(podW-10)/4,nodeH=26,podH=2*nodeH+54;
-      return {W,narrow,podW,rackW,nodeH,podH,H:narrow?2*podH+30:podH+18}}
-    function pos(G,nid,gpu){const n=nodes[nid];const px=G.narrow?8:8+n.p*(G.podW+12),py=G.narrow?8+n.p*(G.podH+14):8;
-      const rx=px+5+n.r*G.rackW,ry=py+34+n.s*(G.nodeH+4);const dx=(G.rackW-14)/8;return [rx+5+dx*(gpu+.5),ry+G.nodeH/2+3,px,py,rx,ry]}
-    function draw(i){const G=geo();let s='';const sel={};if(i>=1)ranks().forEach(r=>sel[r[0]+':'+r[1]]=1);
-      for(let p=0;p<2;p++){const px=G.narrow?8:8+p*(G.podW+12),py=G.narrow?8+p*(G.podH+14):8;
-        s+='<rect x="'+px+'" y="'+py+'" width="'+G.podW.toFixed(1)+'" height="'+G.podH+'" rx="6" fill="none" stroke="var(--line)"/>'+RD.t(px+6,py+13,'Pod '+(p+1),{fs:11,fill:'var(--mute)'});}
-      nodes.forEach(n=>{const q=pos(G,n.id,0);const rx=q[4],ry=q[5];
-        s+='<rect x="'+(rx+2).toFixed(1)+'" y="'+ry+'" width="'+(G.rackW-6).toFixed(1)+'" height="'+G.nodeH+'" rx="3" fill="var(--soft)" stroke="var(--line)"/>';
-        for(let g=0;g<8;g++){const c=pos(G,n.id,g);const on=sel[n.id+':'+g];const busy=i>=4&&!on;
-          s+='<circle cx="'+c[0].toFixed(1)+'" cy="'+c[1].toFixed(1)+'" r="'+(on?3.2:2.4)+'" fill="'+(on?'var(--acc)':busy?'var(--mute)':'var(--dim)')+'"/>'}});
-      if(i>=2)edges().forEach(e=>{const L=lvl(e[0],e[1]);if(L===0&&mode==='packed'&&i<2)return;
-        const a=pos(G,e[0][0],e[0][1]),b=pos(G,e[1][0],e[1][1]);const hot=i>=4&&L===3;
-        if(L===0){s+='<line x1="'+a[0].toFixed(1)+'" y1="'+(a[1]+5)+'" x2="'+b[0].toFixed(1)+'" y2="'+(b[1]+5)+'" stroke="'+COL[0]+'" stroke-width="3" stroke-linecap="round"/>';return}
-        const mx=(a[0]+b[0])/2,my=Math.min(a[1],b[1])-(14+L*4);
-        s+='<path d="M'+a[0].toFixed(1)+' '+a[1].toFixed(1)+' Q'+mx.toFixed(1)+' '+my.toFixed(1)+' '+b[0].toFixed(1)+' '+b[1].toFixed(1)+'" fill="none" stroke="'+(hot?'var(--bad)':COL[L])+'" stroke-width="'+(hot?2.6:1.5)+'"'+(L===0?' opacity=".8"':'')+'/>'});
-      box.innerHTML=RD.svg(G.W,G.H,s,'Two pods of four racks; the ring of the 16-rank job');
-      const c=counts();const sw=c.reduce((t,v,k)=>t+v*SW[k],0);
-      const used=new Set(ranks().map(r=>r[0]));const racks=new Set([...used].map(n=>nodes[n].p*4+nodes[n].r)),pods=new Set([...used].map(n=>nodes[n].p));
-      const t=i<3?'':(i===3?PL.packed_ms:(mode==='packed'?PL.packed_ms:PL.spread_busy_ms));
-      const cap={0:'Two pods of four racks, two 8-GPU servers per rack: the levels of section 4, drawn small.',
-        1:mode==='packed'?'The scheduler gives the job two whole servers in one rack: 16 GPUs, 1 rack, 1 pod.':'The scheduler gives the job one free GPU on each of 16 servers: 16 GPUs over 8 racks and 2 pods.',
-        2:mode==='packed'?'The ring: 14 of its 16 edges are NVLink inside a server; 2 cross the rack switch.':'The ring: every edge leaves a server; 8 stay in a rack, 6 cross racks inside a pod, 2 cross between pods.',
-        3:'Idle cluster. Each GPU sends 2 x 15/16 of 1 GB, limited by its own 50 GB/s card in both placements: '+fmt(PL.packed_ms,1)+' ms.',
-        4:mode==='packed'?'Busy cluster (grey dots are other jobs). The packed job never touches the shared layers: still '+fmt(PL.packed_ms,1)+' ms.':'Busy cluster. The 2 cross-pod edges share the 1:'+PL.o+' top layer with everyone: '+fmt(PL.busy_bw,2)+' GB/s per GPU, and the ring waits for its slowest edge: '+fmt(PL.spread_busy_ms,1)+' ms.'}[i];
-      $('ca-place-cap').innerHTML='<div class="t">'+(i+1)+'. '+STEPS[i]+'</div><p>'+cap+'</p>';
-      $('ca-place-cnt').innerHTML=RD.stat('Servers, racks, pods',i>=1?used.size+', '+racks.size+', '+pods.size:'','')+
-        RD.stat('Ring edges by level',i>=2?c.join(' / '):'','NVLink / rack / pod / cross-pod')+
-        RD.stat('Switches per trip round the ring',i>=2?sw:'','')+
-        RD.stat('All-reduce of 1 GB, bandwidth term',t===''?'':fmt(t,1)+' ms',i>=3?'derived':'');
-    }
-    const A=RD.anim({card:'ca-place-card',ctl:'ca-place-ctl',n:STEPS.length,draw,ms:1800,label:'Placement step'});
-    RD.seg($('ca-place-mode'),m=>{mode=m;A.reset(STEPS.length)});
-    RD.onResize(()=>A.redraw());
-  })();
+  // 4. placement: now the 3D stage Fig. 3 (43_js_sc_place.js)
 
   // 7. designs table, sortable
   (function(){const tb=$('ca-des-rows');if(!tb)return;let key='n',dir=-1;

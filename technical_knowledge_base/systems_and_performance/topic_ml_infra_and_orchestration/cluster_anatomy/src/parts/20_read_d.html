@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-job"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Four networks, the control nodes, and how a job lands</h2>
 <p>A cluster moves very different traffic: gradients between GPUs (huge, bursty, every step, and the step waits for them), training data and checkpoints (large), logins, job submissions and container images (small, many), and the power-cycle command for a node whose operating system is dead. On one network a checkpoint burst slows the gradients, and a broken switch takes away the only way to reach a hung node. So NVIDIA's DGX SuperPOD reference design separates them: "DGX SuperPOD configurations utilize four network fabrics" ({{SuperPOD network fabrics|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html}}) <span class="vend">vendor</span>, plus the NVLink inside each node:</p>
@@ -9,13 +10,8 @@
 </ul>
 <p><b>The control nodes.</b> Besides the GPU nodes, a cluster has a few ordinary servers that run it. "The DGX SuperPOD architecture is a combination of DGX systems, InfiniBand and Ethernet networking, management nodes, and storage", with a management rack of "networking switches, management servers, storage arrays, and UFM appliances" (UFM is the InfiniBand fabric manager) ({{SuperPOD architecture|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/dgx-superpod-architecture.html}}) <span class="vend">vendor</span>. What runs on them: <dfn>login nodes</dfn>, where people ssh in (through a bastion, with keys, multiplexing and tunnels: {{SSH|n:3c65c17b0d0d81f88f50e478c94ebdcd#s-cluster}}, section 13), edit, build and submit, never train; the <dfn>controller</dfn> or <dfn>head node</dfn>, which runs the scheduler and holds the state of every node and job (Slurm's <code>slurmctld</code>, Kubernetes' API server and scheduler, Ray's head node; the daemons are taught on {{Slurm|n:3c65c17b0d0d81889c32cd050bbbadd3}}); and service nodes for provisioning, monitoring and the fabric manager. They sit on the front-end, and the scheduler is a layer on top of the hardware: it only knows the shape it is told.</p>
 
-<div class="rd-card" id="ca-job-card">
-<h4>One job's life: which machines take part and which network carries each step</h4>
-<div class="rd-svg" id="ca-job-svg"></div>
-<div class="ca-jl" id="ca-job-leg"></div>
-<div class="an-ctl" id="ca-job-ctl"></div>
-<div class="an-cap" id="ca-job-cap"></div>
-<ol id="ca-job-steps" hidden>
+<p>Fig. 2 follows one 16-GPU job on two 8-GPU nodes through a cluster laid out as NVIDIA's SuperPOD (schematic): each step lights the machines that take part and streams dots along the network that carries the traffic, coloured <span style="color:var(--c1);font-weight:600">front-end</span>, <span style="color:var(--c2);font-weight:600">compute fabric</span>, <span style="color:var(--c3);font-weight:600">storage fabric</span>, <span style="color:var(--c5);font-weight:600">out-of-band</span> and <span style="color:var(--c4);font-weight:600">NVLink</span>.</p>
+<ol class="sx" id="sx-job">
 <li data-net="" data-on="you login ctl reg A B leaf sto"><b>The cluster at rest.</b> A login node and the controller on the front-end; two GPU nodes, each with 8 GPUs on NVLink, its NICs, local NVMe and a BMC; a leaf switch of the compute fabric; the storage servers; every BMC on the out-of-band network.</li>
 <li data-net="inb" data-on="you login ctl"><b>Submit (front-end).</b> You ssh to a login node and run <code>sbatch --nodes=2 --gpus-per-node=8 train.sh</code>; the request goes to the controller, which queues it.</li>
 <li data-net="inb" data-on="ctl A B"><b>Place (front-end).</b> The scheduler picks two free nodes, under one leaf if it has been told the topology (section 4), and tells <code>slurmd</code> on each to start the job.</li>
@@ -26,10 +22,10 @@
 <li data-net="sto" data-on="A B nvme sto"><b>Read and checkpoint (storage).</b> Batches come from local NVMe or the parallel file system; every so often all 16 ranks write a checkpoint at once, a burst (section 5). On Meta's clusters this rides the front-end; Fire-Flyer 2 sends it over the compute fabric on its own virtual lane.</li>
 <li data-net="inb oob" data-on="ctl A B bmc"><b>Watch and recover (front-end, out-of-band).</b> <code>slurmd</code> and <code>kubelet</code> heartbeat to the controller, which declares a node dead when they stop (the parent's {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}); a hung node is power-cycled through its BMC over the out-of-band network, which works when the operating system does not.</li>
 </ol>
-<p class="small mute">A 16-GPU job on two 8-GPU nodes, SuperPOD layout (schematic). Press play or step. Lit: the machines and the network of each step. The commands are Slurm's; on Kubernetes the API server, the scheduler and the kubelet play the same parts.</p>
-</div>
+<p class="small mute">The commands are Slurm's; on Kubernetes the API server, the scheduler and the kubelet play the same parts.</p>
 
 <details class="dp"><summary>Not everyone splits the networks the same way: Meta, DeepSeek and NVIDIA compared <span class="mute">(under 1 min)</span></summary><div class="b">
 <p>Meta's RoCE clusters have two: "the frontend (FE) network for tasks such as data ingestion, checkpointing, and logging", and the backend, "a specialized fabric that connects all RDMA NICs in a non-blocking architecture" ({{Meta engineering, Aug 5 2024|https://engineering.fb.com/2024/08/05/data-center-engineering/roce-network-distributed-ai-training-at-scale/}}) <span class="pub">published</span>: storage rides the front-end. DeepSeek's Fire-Flyer 2 goes the other way: each node has a single 200 Gb/s InfiniBand card, and its storage servers sit on the same fabric, "each storage server equipped with two IB NICs, respectively connected to different zones" ({{Fire-Flyer 2, section III|https://arxiv.org/html/2408.14158v2}}) <span class="pub">authors</span>, so gradients and checkpoints share one network, kept apart with InfiniBand service levels mapped to virtual lanes so that "flows in distinct lanes do not interfere with each other" (section VI-A1). Three designs, three answers: every separate network costs cables, switches and ports; merging them costs interference.</p>
 </div></details>
 </section>
+</div></div>

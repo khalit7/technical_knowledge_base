@@ -1,13 +1,22 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s4">
 <h2>4. From rack to cluster: the levels and why placement matters</h2>
-<figure class="ph"><img src="img/cern_data_hall.webp" alt="Rows of server racks in a large data hall, each row enclosed under a transparent roof that contains the cold aisle" loading="lazy" width="900" height="600">
-<figcaption><b>Racks stand in rows; the rows fill a hall.</b> Each frame is a rack, about 2 m tall, with its own power feeds; switches at the top of a rack or the end of a row join them. A training cluster is this, filled with GPU servers, its levels set by how many GPUs one switch can reach (CERN's general-purpose hall, 2010, not a GPU cluster).<span class="cr">Photo: Hugovanmeijeren, {{Cern datacenter|https://commons.wikimedia.org/wiki/File:Cern_datacenter.jpg}}, CC BY-SA 3.0, resized.</span></figcaption></figure>
 <p><b>Rack.</b> A steel frame with shared power feeds and, often, a switch at the top (<dfn>top-of-rack</dfn>, ToR). How many GPUs go in one is decided mostly by watts and cooling (section 6): Meta's Llama 3 cluster puts 16 GPUs (two servers) behind each rack switch ({{Llama 3, section 3.3.1|https://arxiv.org/html/2407.21783v3}}) <span class="pub">published</span>; NVIDIA's B200 SuperPOD puts "two DGX B200 systems per rack" ({{SuperPOD components|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/dgx-superpod-components.html}}) <span class="vend">vendor</span>; an NVL72 is one rack of 72.</p>
 <p><b>Pod, or scalable unit.</b> The block designed once and copied: racks whose GPUs reach each other at full NIC speed. NVIDIA's <dfn>scalable unit</dfn> (SU) is 32 DGX nodes with 8 leaf switches, one per rail ({{SuperPOD network fabrics|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/network-fabrics.html}}); in its tables one DGX system is removed "to accommodate for UFM connectivity", which is why 4 SUs hold 127 nodes and 1,016 GPUs, not 1,024. Meta's pod (also called an <dfn>AI zone</dfn>) is 192 racks, 3,072 GPUs, with "full bisection bandwidth" inside (Llama 3 report). How leaves and spines are wired and what <dfn>rail-optimised</dfn> means is section 6 of the {{interconnects page|n:3c65c17b0d0d81808563fd41fb163af0}}.</p>
 <p><b>Cluster.</b> Pods joined by a top layer of switches, usually <dfn>oversubscribed</dfn>. Meta's 8 pods are joined at 1:7; the "cross-AI Zone connectivity is oversubscribed by design", and "the job scheduler tries to minimize cross-zone traffic" ({{Meta engineering, Aug 5 2024|https://engineering.fb.com/2024/08/05/data-center-engineering/roce-network-distributed-ai-training-at-scale/}}) <span class="pub">published</span>.</p>
 <p><b>How big can each level be?</b> Set by switch ports. With switches of <i>k</i> ports, a two-layer fat tree reaches <i>k</i><sup>2</sup>/2 network cards and a three-layer one <i>k</i><sup>3</sup>/4 ({{Al-Fares et al. 2008|https://dl.acm.org/doi/10.1145/1402958.1402967}}): 2,048 and 65,536 with 64-port switches <span class="der">derived</span>. The arithmetic reproduces published designs: DeepSeek's Fire-Flyer 2 used 40-port QM8700 switches, and 40<sup>2</sup>/2 = 800 is exactly its "800-port Fat-Tree" "configured with 20 spine switches and 40 leaf switches" <span class="pub">authors</span>; NVIDIA's 4-SU SuperPOD has 32 leaves and 16 spines, which the {{Sizing calculator|#t-casize}} gets from the same formula.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card">
+<figure class="ca-ph"><img src="img/cern_data_hall.webp" alt="Rows of server racks in a large data hall, each row enclosed under a transparent roof that contains the cold aisle" loading="lazy" width="900" height="600">
+<figcaption><b>Racks stand in rows; the rows fill a hall.</b> Each frame is a rack, about 2 m tall, with its own power feeds; switches at the top of a rack or the end of a row join them. A training cluster is this, filled with GPU servers, its levels set by how many GPUs one switch can reach (CERN's general-purpose hall, 2010, not a GPU cluster).<span class="cr">Photo: Hugovanmeijeren, {{Cern datacenter|https://commons.wikimedia.org/wiki/File:Cern_datacenter.jpg}}, CC BY-SA 3.0, resized.</span></figcaption></figure>
+</div></div></div></div>
 
-<div class="rd-card" id="ca-mp-card">
+<div class="s3sp"><div class="s3L">
+<h3>Which switches one message crosses</h3>
+<p>The levels decide what a single message crosses. Pick two routes in the widget beside this paragraph and compare them: inside a node a message never meets a network switch; across pods it crosses five, and the shared top layer sets its speed. <b>Predict first:</b> which hop is slowest on the cross-pod route, and does it change at 1:1? Then step through the hops; both routes move at once, and the counters under the drawing give each route's switches, slowest hop, latency and time for 1 GB.</p>
+<p class="small">Rail-optimised fabric of 8-GPU H100 servers, one 400 Gb/s NIC per GPU. Bandwidth per hop, one direction: NVLink 4 450 GB/s, PCIe 5.0 x16 about 63, NIC and leaf-spine links 50, pod-to-core 50 / oversubscription when every GPU crosses at once <span class="der">derived</span>. Small-message latency: NVLink 3.33 µs, InfiniBand 2.8 µs within a leaf, 3.7 µs across leaves ({{Zhao et al. 2025, Table 5|https://arxiv.org/html/2505.09343}}) <span class="pub">authors</span>; none is published for the PXN and cross-pod routes. Time for 1 GB = latency + 1 GB / slowest hop. PXN is NCCL moving data over NVLink to the GPU whose NIC sits on the destination's rail. How collectives combine such messages is the interconnects page's Collective simulator.</p>
+</div><div class="s3R"><div class="s3side">
+<div class="card" id="ca-mp-card">
 <h4>One message, hop by hop: inside a node it never meets a network switch; across pods it crosses five</h4>
 <div class="mp-lbl"><span style="color:var(--c1);font-weight:600">Route A</span></div><div class="seg" id="mp-a"></div>
 <div class="mp-lbl"><span style="color:var(--c2);font-weight:600">Route B</span></div><div class="seg" id="mp-b"></div>
@@ -16,17 +25,28 @@
 <div class="an-ctl" id="mp-ctl"></div>
 <div class="mp-cap" id="mp-cap"></div>
 <div class="mp-cnt" id="mp-cnt"></div>
-<p class="small mute">Predict first: which hop is slowest on the cross-pod route, and does it change at 1:1? Then step; both routes move at once. Rail-optimised fabric of 8-GPU H100 servers, one 400 Gb/s NIC per GPU. Bandwidth per hop, one direction: NVLink 4 450 GB/s, PCIe 5.0 x16 about 63, NIC and leaf-spine links 50, pod-to-core 50 / oversubscription when every GPU crosses at once <span class="der">derived</span>. Small-message latency: NVLink 3.33 µs, InfiniBand 2.8 µs within a leaf, 3.7 µs across leaves ({{Zhao et al. 2025, Table 5|https://arxiv.org/html/2505.09343}}) <span class="pub">authors</span>; none is published for the PXN and cross-pod routes. Time for 1 GB = latency + 1 GB / slowest hop. PXN is NCCL moving data over NVLink to the GPU whose NIC sits on the destination's rail. How collectives combine such messages is the interconnects page's Collective simulator.</p>
-</div>
 
-<div class="rd-card" id="ca-place-card">
-<h4>The same 16-GPU job, placed two ways: equal on an idle cluster, seven times slower spread on a busy one</h4>
-<div class="seg" id="ca-place-mode"><button data-m="packed" class="on">Packed: 2 nodes in one rack</button><button data-m="spread">Spread: 1 GPU on each of 16 nodes</button></div>
-<div class="rd-svg" id="ca-place-svg"></div>
-<div class="an-ctl" id="ca-place-ctl"></div>
-<div class="an-cap" id="ca-place-cap"></div>
-<div class="an-cnt" id="ca-place-cnt"></div>
-<p class="small mute">Predict first: on an idle cluster, is the spread job slower than the packed one? Then step both modes. A cluster shaped like Llama 3's, drawn small: 2 pods of 4 racks, 2 servers of 8 GPUs per rack (the real pods have 192 racks). One ring all-reduce of 1 GB (gradients of about 0.5B parameters in bf16). Switches crossed per ring edge: 0 inside a server (NVLink), 1 inside a rack, 3 between racks of one pod, 5 between pods. Time is the bandwidth term only, 2(N-1)/N x 1 GB / slowest edge <span class="der">derived</span>: latency per hop and congestion are left out, so real gaps are larger.</p>
 </div>
-<p>On an idle cluster both placements take the same 37.5 ms in this model, because each GPU's own 50 GB/s card is the limit either way. When the cluster is busy, the spread job's two cross-pod edges share the 1:7 top layer with every other job, and the ring runs at the pace of its slowest edge: 262.5 ms <span class="der">derived</span>. It also crosses 36 switches per trip round the ring against 2, so every step pays more latency, and it depends on 8 racks and 2 pods being healthy instead of one rack. That is why schedulers pack: Slurm's <code>topology/tree</code> plugin and <code>--switches</code> option, Kueue's Topology Aware Scheduling, and DeepSeek's HAI platform, which allows "cross-zone computing tasks" to be "limited to one at most" (Fire-Flyer 2, section III-B) <span class="pub">authors</span>. Scattered placement costs little on an idle network and a lot on a busy one, so the same job is fast one day and slow the next. Packing has its own cost: waiting for 2 whole nodes in one rack takes longer than taking any 16 free GPUs, the trade-off the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures.</p>
-</section>
+</div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-place"></div></div><div class="s3L">
+<h3>The same 16-GPU job, placed two ways</h3>
+<p>Fig. 3 places one data-parallel job of 16 GPUs on a cluster shaped like Llama 3's, drawn small: 2 pods of 4 racks, 2 servers of 8 GPUs per rack (the real pods have 192 racks). The job runs one ring all-reduce of 1 GB (gradients of about 0.5B parameters in bf16). Switches crossed per ring edge: 0 inside a server (NVLink), 1 inside a rack, 3 between racks of one pod, 5 between pods; the ring's arcs rise as high as the switch layer they cross. <b>Predict first:</b> on an idle cluster, is the spread job slower than the packed one?</p>
+<div class="s3chips" id="ca-place-mode"><button data-m="packed" class="on">Packed: 2 nodes in one rack</button><button data-m="spread">Spread: 1 GPU on each of 16 nodes</button></div>
+<ol class="sx" id="sx-place-packed">
+<li><b>The cluster.</b> Two pods of four racks, two 8-GPU servers per rack, a rack switch on each rack, a pod layer above each pod and the shared top layer over both.</li>
+<li><b>Place: 2 servers, 1 rack, 1 pod.</b> The scheduler gives the job two whole servers in one rack: 16 GPUs.</li>
+<li><b>The ring: 14 of its 16 edges are NVLink.</b> Inside each server the ring runs over NVLink; only 2 edges cross the rack switch, so a trip round the ring crosses 2 switches.</li>
+<li><b>Idle cluster: 37.5 ms.</b> Each GPU sends 2 x 15/16 of 1 GB, limited by its own 50 GB/s card <span class="der">derived</span>.</li>
+<li><b>Busy cluster: still 37.5 ms.</b> Other jobs (grey) fill the rest of the cluster and stream over the top layer, but the packed job never touches the shared layers.</li>
+</ol>
+<ol class="sx" id="sx-place-spread" hidden>
+<li><b>The cluster.</b> Two pods of four racks, two 8-GPU servers per rack, a rack switch on each rack, a pod layer above each pod and the shared top layer over both.</li>
+<li><b>Place: 16 servers, 8 racks, 2 pods.</b> The scheduler gives the job one free GPU on each of 16 servers.</li>
+<li><b>The ring: every edge leaves a server.</b> 8 edges stay in a rack, 6 cross racks inside a pod, 2 cross between pods: 36 switches per trip round the ring against 2.</li>
+<li><b>Idle cluster: the same 37.5 ms.</b> On an idle cluster both placements take the same 37.5 ms in this model, because each GPU's own 50 GB/s card is the limit either way.</li>
+<li><b>Busy cluster: 262.5 ms, seven times slower.</b> The spread job's two cross-pod edges share the 1:7 top layer with every other job: 50 / 7 = 7.14 GB/s each, and the ring runs at the pace of its slowest edge <span class="der">derived</span>.</li>
+</ol>
+<p class="small mute">Time is the bandwidth term only, 2(N-1)/N x 1 GB / slowest edge <span class="der">derived</span>: latency per hop and congestion are left out, so real gaps are larger.</p>
+<p>The spread job also pays latency on each of its 36 switches, and depends on 8 racks and 2 pods being healthy instead of one rack. That is why schedulers pack: Slurm's <code>topology/tree</code> plugin and <code>--switches</code> option, Kueue's Topology Aware Scheduling, and DeepSeek's HAI platform, which allows "cross-zone computing tasks" to be "limited to one at most" (Fire-Flyer 2, section III-B) <span class="pub">authors</span>. Scattered placement costs little on an idle network and a lot on a busy one, so the same job is fast one day and slow the next. Packing has its own cost: waiting for 2 whole nodes in one rack takes longer than taking any 16 free GPUs, the trade-off the parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures.</p>
+</div></div>

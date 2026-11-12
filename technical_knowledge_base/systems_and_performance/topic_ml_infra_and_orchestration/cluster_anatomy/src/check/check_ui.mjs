@@ -1,4 +1,4 @@
-// Every tab: click every control (the message path and job stepper live in the Reading tab since 2026-10-24) at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
+// Every tab: click every control (the message path and the job, now a 3D stage, live in the Reading tab since 2026-10-24) at 390 px dark and 920 px light; fail on page errors, NaN, undefined,
 // Infinity or sideways scroll; check the page's sizing model against src/out/expected.json.
 // Usage (repo root): node <this file> <page folder> [screenshot dir]
 import {createRequire} from 'module';
@@ -43,9 +43,11 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
           for(let v=0;v<=+sl.max;v++){sl.value=v;sl.dispatchEvent(new Event('input'));c++}
           if((document.getElementById('ca-mp-card').innerText.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b|\?\)/g)||[]).length)return -1}
         document.querySelector('#mp-a [data-m="node"]').click();document.querySelector('#mp-b [data-m="pod"]').click();
-        const js=document.getElementById('ca-job-ctl-s');for(let v=0;v<=+js.max;v++){js.value=v;js.dispatchEvent(new Event('input'));c++;
-          if(!document.getElementById('ca-job-cap').textContent.includes('Step '+(v+1)))return -2}
-        return c});ok(m>0,`${w} ${scheme} t-read message path: 25 route pairs, every hop (${m} actions)`)}
+        // the job is the 3D stage Fig. 2 since 2026-11-12: its scrubber walks the 9 items of the step list (check_stages.mjs checks the rest)
+        const js=document.getElementById('stg-job-r');if(+js.max!==document.querySelectorAll('#sx-job li').length-1)return -2;
+        for(let v=0;v<=+js.max;v++){js.value=v;js.dispatchEvent(new Event('input'));c++;
+          if(document.querySelector('#stg-job .stg-st').textContent!=='step '+(v+1)+' of '+(+js.max+1))return -3}
+        return c});ok(m>0,`${w} ${scheme} t-read message path: 25 route pairs, every hop; the job stage's 9 steps (${m} actions)`)}
     const bad=await p.evaluate(t=>{const s=document.getElementById(t).innerText;return (s.match(/\bNaN\b|\bundefined\b|Infinity|\bnull\b/g)||[]).length},tab);
     const sw=await p.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
     ok(bad===0,`${w} ${scheme} ${tab}: ${n} control actions, no NaN/undefined/null (${bad})`);

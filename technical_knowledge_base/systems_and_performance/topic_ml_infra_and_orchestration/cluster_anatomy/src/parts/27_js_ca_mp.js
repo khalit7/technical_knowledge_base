@@ -57,8 +57,9 @@
         RD.stat('Slowest hop',fmt(st.bw,st.bw<10?2:0)+' GB/s',esc(st.why))+RD.stat('Small-message latency',st.lat==null?'not published':fmt(st.lat,2)+' µs','')+
         RD.stat('1 GB message',fmt(st.ms,1)+' ms','derived')+'</div></div>'}).join('');
   }
-  const A=RD.anim({card:'ca-mp-card',ctl:'mp-ctl',n:maxN(),draw,ms:1100,label:'Hop'});
-  const re=()=>A.reset(maxN());
+  // a widget the reader drives (the long-replay rule, case b): it never plays by itself and opens on the last hop, both routes drawn in full
+  const A=RD.anim({card:'ca-mp-card',ctl:'mp-ctl',n:maxN(),draw,ms:1100,label:'Hop',auto:false,start:maxN()-1});
+  const re=()=>{A.reset(maxN());A.go(maxN()-1,true)};
   RD.seg($('mp-a'),m=>{ra=m;re()});RD.seg($('mp-b'),m=>{rb=m;re()});
   $('mp-o').addEventListener('change',()=>A.redraw());
   RD.onResize(()=>A.redraw());

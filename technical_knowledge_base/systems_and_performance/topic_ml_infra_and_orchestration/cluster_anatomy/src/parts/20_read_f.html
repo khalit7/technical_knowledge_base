@@ -1,6 +1,16 @@
+<div class="s3sp"><div class="s3R"><div id="stg-sto"></div></div><div class="s3L">
 <section id="rd-s5">
 <h2>5. Storage tiers at cluster level</h2>
 <p>Training data and checkpoints are far larger than any GPU's memory, and the storage every node can see is far slower than the storage inside one node. So a cluster has a ladder of tiers, each bigger, slower and longer-lived than the one above; the infrastructure's job is to keep the GPUs fed from the top while the truth lives at the bottom.</p>
+<p>Fig. 4 puts the tiers on one scalable unit of NVIDIA's SuperPOD (32 nodes, two per rack) and sends a training job's data through them. Box sizes are not to scale; the numbers are the sources' own.</p>
+<ol class="sx" id="sx-sto">
+<li><b>Inside one node: three tiers.</b> GPU memory, 8 x 80 GB = 640 GB at 3.35 TB/s per GPU; host DRAM, 2 TB, reached over PCIe 5.0 x16 at about 63 GB/s each way per GPU; local NVMe, 30.72 TB in RAID 0, whose bandwidth the guide does not give. Each is bigger and slower than the one above, and the NVMe is lost with the node.</li>
+<li><b>The shared file system: 32 nodes, one pipe.</b> Each node can read faster than 40 GB/s; the standard tier gives all 32 together 40 GB/s of read. When they all read at once, each gets 40 / 32 = 1.25 GB/s <span class="der">derived</span>.</li>
+<li><b>Object storage: where the data lives for years.</b> Tens to hundreds of PB behind the file system. Meta's Tectonic for Llama 3 (a different cluster, drawn here for scale): 240 PB on 7,500 SSD servers, 2 TB/s sustained and 7 TB/s peak for the whole cluster.</li>
+<li><b>Stage once, read many times.</b> The dataset comes down the ladder once, from the object store through the file system to each node's NVMe; every later epoch reads it locally, so the shared tiers carry the average, not every read.</li>
+<li><b>Checkpoint: every GPU writes at once.</b> All ranks write together, a burst towards the file system, whose write is "at least ½ of the read performance": 20 GB/s per 32 nodes on the standard tier <span class="der">derived</span>. Written straight there, the GPUs wait for the slowest pipe.</li>
+<li><b>Write near, drain far.</b> The checkpoint lands first in host memory or local NVMe at node speed, training resumes, and the copy drains to the shared file system in the background.</li>
+</ol>
 <div class="tw"><table class="rd-cmp">
 <thead><tr><th>Tier</th><th>Capacity</th><th>Bandwidth</th><th>Lives for</th><th>Source</th></tr></thead>
 <tbody>
@@ -10,14 +20,19 @@
 <tr><td>Shared high-performance file system</td><td data-h="Capacity">PBs</td><td data-h="Bandwidth">SuperPOD guidance: 40 to 125 GB/s read per 32 nodes</td><td data-h="Lives for">the project</td><td data-h="Source"><a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/storage-architecture.html" target="_blank" rel="noopener noreferrer">source</a> <span class="vend">vendor</span></td></tr>
 <tr><td>Object storage / data lake</td><td data-h="Capacity">tens to hundreds of PB</td><td data-h="Bandwidth">Llama 3's Tectonic: 2 TB/s sustained, 7 TB/s peak for the cluster</td><td data-h="Lives for">years</td><td data-h="Source"><a href="https://arxiv.org/html/2407.21783v3" target="_blank" rel="noopener noreferrer">source</a> <span class="pub">operator</span></td></tr>
 </tbody></table></div>
-<figure class="ph"><img src="img/dgx1_storage_rack.webp" alt="A demonstration rack holding, from the top, two 100 Gb Ethernet network switches, one all-flash storage system and five DGX-1 GPU servers" loading="lazy" width="340" height="661" style="max-width:170px">
-<figcaption><b>Shared storage is its own box on the network, not a disk in the node.</b> A cluster in miniature: two 100 Gb Ethernet switches at the top, an all-flash storage system, five DGX-1 servers below (NetApp's ONTAP AI demonstration rack, 2018). Every server reads the shared tier through those switches; only its local NVMe is inside it. At full size the storage tier is rows of such systems (Llama 3's Tectonic: 7,500 SSD servers).<span class="cr">Photo: Qdrddr, {{NetApp ONTAP AI|https://commons.wikimedia.org/wiki/File:NetApp_ONTAP_AI.jpg}}, CC BY-SA 4.0, cropped.</span></figcaption></figure>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
 <p><b>Per node against the whole cluster.</b> NVIDIA asks that each SuperPOD node can read faster than 40 GB/s, and sizes the shared file system at 40 GB/s of read per 32-node SU in its standard tier, 125 GB/s in the enhanced one, with write "at least ½ of the read performance" ({{SuperPOD storage guidance, Tables 5 and 6|https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/storage-architecture.html}}) <span class="vend">vendor</span>. Put together: 32 nodes each able to pull 40 GB/s could ask for 1,280 GB/s, and the standard tier gives 40, so <b>only one node in 32 can read at its peak at a time</b> <span class="der">derived</span>. Storage is sized for the average plus bursts; the local NVMe absorbs the difference: stage the dataset once, read it many times locally.</p>
 <div class="pr"><div class="q">Predict. A 4-SU SuperPOD (1,016 GPUs) writes a checkpoint of 4 GB per GPU, the top of Llama 3's "1 MB to 4 GB per GPU". With the standard tier's 80 GB/s of write, how long do the GPUs wait if nothing is asynchronous?</div>
 <div class="opts"><button data-a="0">About 1 second</button><button data-a="1">About 51 seconds</button><button data-a="0">About 15 minutes</button></div>
 <div class="ans" hidden>1,016 x 4 GB = 4.06 TB; at 80 GB/s that is 50.8 s <span class="der">derived</span> (16.3 s on the enhanced tier's 250 GB/s). Every 30 minutes that is almost 3% of the run spent writing, which is why checkpoints go first to host memory or local NVMe and drain to shared storage in the background: the parent's {{Storage lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} measures async checkpointing on the running example, and {{Storage and data movement|n:3fc5c17b0d0d818a94ced3fc7c3331fe}} owns the rest: the same ladder drawn as a checkpoint walks down it (its opening figure), how striping spreads one file over many servers (section 2) and why start-up and small files storm the metadata servers (section 4). This page keeps only the tiers and their sizes.</div></div>
 <p class="small">Real examples: Llama 3's Tectonic, 240 PB on 7,500 SSD servers, 2 TB/s sustained and 7 TB/s peak; Fire-Flyer 2's 3FS, 180 storage nodes, 8 TB/s of read on the compute fabric; AI2's Jupiter on WEKA (section 8). Formats, shards and data loaders are on {{Storage and loading at scale|n:3f95c17b0d0d81398782efcb29d950d4}}; the page cache and <code>fsync</code> on {{Storage and file systems|n:3f05c17b0d0d8141be7acc1313570cbf}}.</p>
-</section>
+</div><div class="s3R"><div class="s3side"><div class="card">
+<figure class="ca-ph"><img src="img/dgx1_storage_rack.webp" alt="A demonstration rack holding, from the top, two 100 Gb Ethernet network switches, one all-flash storage system and five DGX-1 GPU servers" loading="lazy" width="340" height="661" style="max-height:480px;width:auto;max-width:100%;margin:0 auto">
+<figcaption><b>Shared storage is its own box on the network, not a disk in the node.</b> A cluster in miniature: two 100 Gb Ethernet switches at the top, an all-flash storage system, five DGX-1 servers below (NetApp's ONTAP AI demonstration rack, 2018). Every server reads the shared tier through those switches; only its local NVMe is inside it. At full size the storage tier is rows of such systems (Llama 3's Tectonic: 7,500 SSD servers).<span class="cr">Photo: Qdrddr, {{NetApp ONTAP AI|https://commons.wikimedia.org/wiki/File:NetApp_ONTAP_AI.jpg}}, CC BY-SA 4.0, cropped.</span></figcaption></figure>
+</div></div></div></div>
 
 <section id="rd-s6">
 <h2>6. Power and cooling: the limit that shapes the rest</h2>
