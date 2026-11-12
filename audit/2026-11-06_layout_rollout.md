@@ -224,7 +224,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_jax_and_tpu` Topic: jax-and-tpu
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy` Cluster anatomy: nodes, GPUs, networks and storage tiers
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale` Fault tolerance at scale: failures, checkpoint/restart and elastic training
-- [~] `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml` Kubernetes for ML: scheduling, device plugins, gang scheduling and operators
+- [x] `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml` Kubernetes for ML: scheduling, device plugins, gang scheduling and operators
 - [~] `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training` Launching distributed training: torchrun, rendezvous, NCCL and hangs
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows` ML platforms and workflows: pipelines, experiment tracking and model registry
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost` Observability and cost: GPU metrics, goodput, utilisation and capacity planning
@@ -518,6 +518,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_jax_and_tpu`: hero overview a long shallow chain (small objects); TPU lab sections 3 and 4 right cards taller than the left text; renderer saved as 26_js_s3.js (loads after 25_js_rd_shard.js); page 935 KB; Tool map timeline full width (tool tab).
 - `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy`: job stage small at 390; Fig. 3 packed close-up frames rack 0 off-centre; tool tabs full width. Lead fix: ML infra root unit 997 re-keyed without its minutes.
 - `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale`: core 42 min plus 27 closed (36 before); 3D scenes small at 390; Fig. 2 "16 rows" labels close to the batch label on phones; Fig. 1 step 6 crops node 1 at the left (intentional close-up); Failure taxonomies report detail full width below its split.
+- `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml`: the loop's clock label clamps at the left edge on phones; preemption scene shortens the high-priority pod name to "nopreempt". Agent removed duplicated section 2 and 3 paragraphs and predicts (closed details 19.0 to 17.8 min).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -588,3 +589,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - JAX and TPU root: five long lab replays (trace, vmap, twins, ring, Pallas grid) are widgets rather than grouped stretches (a per-Python-line grouping of the trace is noted in viz_ideas); the Tool map animation keeps 13 steps (just over the about-12 guide, each change sourced); 2D animation cards sticky on desktop. Keep these?
 - Cluster anatomy: the hero climbs from one GPU outwards; the levels ladder stays a 2D card beside "You need"; the message path is a widget opening on the last hop; the storage stage mixes SuperPOD tiers with Meta's Tectonic object store (labelled a different cluster). Keep these?
 - Fault tolerance at scale: the hero stays a 2D timeline (the reliability page's Fig. 3 is linked); the three long replays are widgets; the recovery animation always has seven parts (unpaid parts drawn at zero width). Keep these?
+- Kubernetes for ML: the hero stays a 2D map of the page (the 3D control loop sits below; could become the hero); failure timelines are a widget opening on each run's end; Kueue steps grouped one per workload. Keep these?

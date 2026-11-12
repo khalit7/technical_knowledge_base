@@ -10,12 +10,13 @@ uv run --no-project --with pyyaml python -I make_data.py   # out/data.json, part
 sh build.sh                                  # ../index.html
 python3 -I check/check_embed.py              # embedded data == out/data.json, prose numbers, privacy
 node check/check_ui.mjs <page folder>        # from the repo root, absolute folder: every control, 390 dark and 920 light
+node check/check_stages.mjs [shots dir]      # a few minutes: the 2026-11-06 rollout checks (below)
 ```
 
 ## Files
 | Path | What |
 |---|---|
-| `build.sh`, `parts/` | page parts (storage key `km-tab`; prefix `km`). Reading `20_read_a` (shared styles) to `20_read_n` (closed depth: mistakes, interview), `20_read_z`; JS `21_js_rd_common.js` and `99_js_tabs.js` (skill templates, never autoplay), `22_js_km_data.js` (generated), `23_js_km_rd.js` (Reading animations), `24_js_km_static.js` (hero, two-network pod, Deployment against LeaderWorkerSet: static diagrams), `30_js_km_cycle.js` (scheduling cycle, now in section 3's closed block), `31_js_km_kueue.js` (Kueue admission, now inline in section 8), `32_*` (Manifest builder tab), `39_tab_more.html` |
+| `build.sh`, `parts/` | page parts (storage key `km-tab`; prefix `km`). Reading `20_read_a` (shared styles) to `20_read_n` (closed depth: mistakes, interview), `20_read_z`; JS `02_split.html`, `21_js_rd_common.js`, `25_js_s3.js` and `99_js_tabs.js` (skill templates; animations autoplay in view since 2026-11-12), `22_js_km_data.js` (generated), `23_js_km_rd.js` (Reading animations), `24_js_km_static.js` (hero, two-network pod, Deployment against LeaderWorkerSet: static diagrams), `30_js_km_cycle.js` (scheduling cycle, now in section 3's closed block), `31_js_km_kueue.js` (Kueue admission, now inline in section 8), `32_*` (Manifest builder tab), `39_tab_more.html` |
 | `ledger.json` | knowledge ledger (`python3 html_utils/ledger.py check <page>`) |
 | `k8s/` | every manifest and generator that ran: `train-indexed-job.sh`, `train-jobset.sh`, `gpu-pod.sh`, `spread-pod.sh`, `gang-pod.sh`, `gang-podgroup.sh`, `kueue-job.sh`, `e4a-per-index.yaml`, `e4b-success-policy.yaml`, `e5-priority.yaml`, `e7-device-plugin.yaml`, `e8-dra*.yaml`, `e9-*.yaml`, `e10-kueue.yaml`, `e12-trainjob.yaml`, `km-sched-config.yaml` |
 | `scripts/` | `km_watch.py` (namespace watcher, one JSON line per change), `km_lib.sh`, run drivers `km_e2.sh`, `km_e3.sh`, `km_e5.sh`, `km_e6.sh`, `km_e78.sh`, `km_e10.sh`, `km_e11.sh`, `km_e12.sh`, `km_evict.py`, the control-plane switches `km_sched_reconf.sh` and `km_gang_reconf.sh`, and `km_save_runs.py` (scrubs raw output into `runs/` with the root's `src/data/scrub.py`) |
@@ -60,3 +61,36 @@ Why 32 minutes is right: the core lost about 9 minutes of listings, line referen
 2026-10-24 topic close: section 2's exit-code finding links Launching distributed training section 3 (torchrun's agent); Further reading times fixed (training root 27 to 22, LLM serving in production 32 to 30); ledger keys 377, 378 updated.
 
 2026-10-26 (final follow-up sweep): the scheduling-cycle caption links Containers and isolation section 12 for what requests and limits become on the node (cgroup files, QoS and `oom_score_adj`), which this page does not teach.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `km-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`. No new runs; no change to `recompute.py`, `make_data.py` or `out/`: every scene draws from `window.KM`.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | 2D hero chain (static) | no |
+| Reading | 1 Control loop | split | **3D** `stg-loop`: controllers, API server, workers; three layers as modes | yes, 5 / 6 / 7 |
+| Reading | 2 Jobs | split | 2D failure timelines, a widget (opens on its end, never plays by itself) | no |
+| Reading | 3 Scheduler | split | **3D** `stg-pack`: filter, score, bind; two profiles as modes | yes, 6 + 6 |
+| Reading | 3 depth: the scheduling cycle | full width, closed | 2D widget (the reader's own sequence) | no |
+| Reading | 4 GPUs | split | 2D sequence animation, device plugin against DRA | yes, 7 / 6 |
+| Reading | 5 RDMA | split | 2D two-network pod (static) | no |
+| Reading | 6 Placement | split | 2D spread toggle (Ignore against Honor) | no |
+| Reading | 6 Priority and preemption | split | **3D** `stg-pre` (run e5a) | yes, 4 |
+| Reading | 7 Gangs | split | **3D** `stg-gang`: without and with a PodGroup | yes, 4 / 6 |
+| Reading | 8 Kueue | split | 2D admission animation, one step per workload | yes, 4 / 3 |
+| Reading | 9 JobSet, 10 Operators | full width | YAML and a table | no |
+| Reading | 11 Serving | split | 2D Deployment against LeaderWorkerSet (static) | no |
+| Reading | 12 Storage | split | the PVC log | no |
+| Manifest builder, Further reading | | full width (tool, links) | unchanged | no |
+
+**Stages and their data.** `40_js_sc_geo.js`: a worker as a slab with its 4 fake GPUs (`example.com/gpu: 4`), a pod as a block on the slots it holds; illustrative sizes. `41_js_sc_loop.js`: `KM.life` (the watch streams of km-e1, km-e3a and km-tj), grouped into stretches (top object, JobSet, Job, pods, binding, start, completion); each stretch's clock is its last recorded change; which worker each pod went to is read from the binding notes. `42_js_sc_pack.js`: `KM.scores` (the logged per-plugin scores), bars are NodeResourcesFit, the plugin that differs between nodes. `43_js_sc_gang.js`: `KM.gang.tl0` and `KM.gang.tl` (pod timelines), the log lines in the list are `KM.gang.log`. `44_js_sc_pre.js`: `KM.preempt.tl` at four moments (1.2, 6.5, 12.65 and 15.3 s), each checked to fall in its stretch of the timeline.
+
+**Kept 2D** and why: the hero is a labelled map of the page with section references; the failure runs are swimlanes on a time axis (and long replays, so a widget); device plugin against DRA is a sequence diagram; the spread toggle is one end state per policy; Kueue admission is quota bars and a block view; the network and LWS figures are labelled structure; the PVC output is a log.
+
+**Changed text.** The control-loop, scheduler, preemption, gang, device and Kueue explanations moved from caption carousels and per-step captions into step lists (the device and Kueue captions were drawn by script before, so their words are now static and counted); the gang "what happened" paragraph and the Kueue pair of result boxes became list items. Removed as duplicates: a second copy of section 2's predict, resumed-run and shard paragraphs inside its depth block, and a second copy of section 3's predict. Section 10 links the control-loop stage's TrainJob mode instead of a second reconcile-loop stage.
+
+**Checks**: `check/check_stages.mjs` at 1400 px light, 920 px light and 390 px dark: the four stages and two 2D animations play once in view, step to the end with one list item per step, stop redrawing off screen and never move under reduced motion; mode chips swap the list and replay; the failure timeline and the cycle stepper never play by themselves (the timeline opens on its last moment); 12 Reading splits are two columns at 1400 px and one below 1100 px; canvas labels do not overlap or leave the card; every time, node, score and message in the step lists equals `window.KM`. `check_ui.mjs` and `check_embed.py` unchanged and passing.
+
+**Length judgement.** Reading core 32.4 min before (7,450 words, `audit_pages.mjs`), 38.6 min after (8,873); closed details 19.0 before, 17.8 after (the duplicated depth paragraphs went); other tabs unchanged (Manifest builder 1.4, Further reading 2.7). The added words are the step lists that explain the stages and animations, as the rollout requires; the hidden mode lists (JobSet and TrainJob layers, the bin-packing profile, the gang run, DRA, TAS) count in the audit although a reader sees one list at a time. Nothing the ledger holds was cut.
+
+**Ledger**: 402 units unchanged (core 252, depth 126, fat 24); keys of units 29, 31, 36, 59, 105, 196, 197 and 228 to 233 reworded to the new list text. `ledger.py check` problems 0 here and on the root.

@@ -1,17 +1,27 @@
+<div class="s3sp"><div class="s3R"><div id="stg-gang"></div></div><div class="s3L">
 <section id="rd-s7">
 <h2>7. Gang scheduling: every pod or none</h2>
 <p>The scheduler places one pod per cycle and knows nothing of the job it belongs to. Two jobs that each need the whole cluster can each get half, and wait forever for the other half: a <dfn>partial-placement deadlock</dfn>. The parent's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} produced exactly that on this cluster and fixed it with Kueue. A <dfn>gang</dfn> is a set of pods that must start together; <dfn>gang scheduling</dfn> binds all of them or none. Kubernetes v1.37 has it built in, behind a gate: a <code>PodGroup</code> object with <code>gang.minCount</code>, and a GangScheduling plugin that holds a group's pods at PreEnqueue until minCount exist and at Permit until minCount are placed. This page switched the gate on for one run, on the parent's deadlock input:</p>
-<div class="rd-card" id="km-gang-card">
-<h4>The parent's deadlock input, without and with a PodGroup <span class="meas">measured</span></h4>
+<p class="sxh">The parent's deadlock input, without and with a PodGroup <span class="meas">measured</span></p>
 <div class="seg" id="km-gang-mode"><button data-m="nogang" class="on">No gang (default)</button><button data-m="gang">PodGroup, minCount 2</button></div>
-<div class="km-svg" id="km-gang-svg"></div>
-<div class="an-ctl" id="km-gang-ctl"></div>
-<div class="an-cap" id="km-gang-cap"></div>
+<ol class="sx" id="sx-gang-nogang">
+<li><b>Six pods, all gated.</b> Three jobs a, b and c of two pods; each pod holds a whole worker's 4 fake GPUs, 12 in all, so 1.5 jobs fit. A scheduling gate holds every pod until the run releases it.</li>
+<li><b>a0, b0 and c0 are released and bound.</b> Released one second apart, each first pod finds a free worker: a0 on worker2, b0 on worker, c0 on worker3.</li>
+<li><b>a1, b1 and c1 are released: Pending.</b> No worker has 4 GPUs free. The scheduler sees three more pods it cannot place; it has no idea they belong to jobs that are already half running.</li>
+<li><b>28 s after the last release: deadlock.</b> Three Running pods wait for peers that cannot be placed: every job half placed, none able to run. This would last until a timeout or a person.</li>
+</ol>
+<ol class="sx" id="sx-gang-gang" hidden>
+<li><b>Six pods, gated, in three PodGroups.</b> The same pods; each pair now names a PodGroup with <code>gang.minCount</code> 2.</li>
+<li><b>a0, b0 and c0 are released: held at PreEnqueue.</b> None even enters the scheduling queue: <code>waiting for minCount pods from a gang to appear in scheduling queue</code>. No GPU is taken.</li>
+<li><b>a1 is released: gang a is bound whole (4.4 s).</b> Both pods are placed, held at Permit until the second is reserved, then released together: <code>Quorum is met for a gang. Allowing other pods from a gang waiting on permit</code>. a0 on worker, a1 on worker2.</li>
+<li><b>b1 and c1 are released: gangs b and c are refused whole.</b> Only worker3 is free: <code>minCount (2) cannot be satisfied: 1 scheduled, 0 remaining</code>. Neither pod of either gang is bound, so no GPU is held by half a job.</li>
+<li><b>Gang a finishes; gang b is bound whole (39.3 s).</b> a's pods ended at 34.8 and 35.3 s; the next gang takes both freed workers.</li>
+<li><b>Gang b finishes; gang c is bound whole (85.3 s).</b> b's pods ended at 69.4 and 69.9 s. The gangs ran one after another as the GPUs freed up, and no job ever sat half placed.</li>
+</ol>
 <p class="small mute">Three jobs of two pods, each pod holding a whole worker's 4 fake GPUs (12 in all, so 1.5 jobs fit), released one second apart in the order a0, b0, c0, a1, b1, c1. Pods sleep 30 s in the gang run (600 s in the other, which was stopped after 28 s). Snapshots in <code>src/runs/e11nogang.snap</code>, <code>e11gang.snap</code>; scheduler log in <code>e11gang.schedlog.txt</code>.</p>
-</div>
-<p>Without the gang, a0, b0 and c0 each took a worker and the other three waited: every job half placed, none able to run. With the PodGroups, a0 was held at PreEnqueue (<code>waiting for minCount pods from a gang to appear in scheduling queue</code>); when a1 arrived both were placed and released together (<code>Quorum is met for a gang. Allowing other pods from a gang waiting on permit</code>); gangs b and c were refused as a whole (<code>minCount (2) cannot be satisfied: 1 scheduled, 0 remaining</code>) and ran one after another as the GPUs freed up.</p>
 <p><b>Which one to use.</b> Native gangs fix the deadlock but have no notion of quota or queues: a big job still waits behind whatever arrives first, and two teams still race. Kueue gives queues and quotas and works with the default scheduler today (and its admission can lag behind real placement: an admitted workload can still find a node broken, which <code>waitForPodsReady</code>, default timeout 30 minutes in v0.20 per <code>apis/config/v1beta2/defaults.go</code> line 48, handles by evicting and requeueing it). Volcano and KAI replace the scheduler and give both, at the cost of running a second scheduler you must trust with every GPU pod.</p>
 <p>Beyond Kueue and the native PodGroup, three batch schedulers replace kube-scheduler for GPU pods and do gangs, queues and fair share inside it: <b>Volcano</b> (CNCF), <b>KAI Scheduler</b> (NVIDIA, from Run:ai) and <b>YuniKorn</b>; the older <b>coscheduling plugin</b> is a second scheduler build with a PodGroup CRD (what OpenAI used on its 7,500-node cluster); <b>LeaderWorkerSet</b> gangs each serving group (section 11).</p>
+</section></div></div>
 <details class="dp"><summary>The gang options compared: where the gang is decided, what else each brings, versions <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="rd-cmp">
 <thead><tr><th>Option</th><th>Where the gang is decided</th><th>What else it brings</th><th>Status (dated)</th></tr></thead>
@@ -58,4 +68,3 @@ spec:
 <div class="co warn"><div class="t">The webhook outage in full, and the finalizer trap</div>
 <p>The full message: <code>failed calling webhook "mpod.kb.io": failed to call webhook: Post "https://kueue-webhook-service.kueue-system.svc:443/mutate--v1-pod?timeout=10s": ... connection refused</code>. And the PodGroups carry a finalizer (<code>scheduling.k8s.io/podgroup-protection</code>) that a kube-controller-manager controller removes; with the gate on only in the API server and scheduler, deleting them hung until the finalizer was removed by hand. Turning on a beta gate means turning it on in every component that has it.</p></div>
 </div></details>
-</section>

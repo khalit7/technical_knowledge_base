@@ -59,7 +59,7 @@ window.KMCYC=(function(){
     $('km-cyc-tab').innerHTML=a.map((s,i)=>'<tr><td>p'+(i+1)+'</td><td class="num">'+s.g+'</td><td>'+(s.bound?WN[s.bound]:'<b>Pending</b>')+'</td><td>'+tot(s)+'</td><td>'+(b[i].bound?WN[b[i].bound]:'<b>Pending</b>')+'</td><td>'+tot(b[i])+'</td></tr>').join('')}
   let A=null;
   function init(){if(!$('km-cyc-card'))return;load();table();
-    A=RD.anim({card:'km-cyc-card',ctl:'km-cyc-ctl',n:sim.length*5,draw,ms:1100,label:'Pod and phase'});
+    A=RD.anim({card:'km-cyc-card',ctl:'km-cyc-ctl',n:sim.length*5,draw,ms:1100,label:'Pod and phase',auto:false}); // a widget (long replay, case b: the reader drives it, also with a sequence of their own); it never plays by itself
     RD.seg($('km-cyc-prof'),m=>{tag=m;load();A.reset(sim.length*5)});
     RD.seg($('km-cyc-src'),m=>{src=m;$('km-cyc-own').hidden=m!=='own';if(m==='rec')seq=[2,1,1,2,2,4];else parse();load();A.reset(sim.length*5)});
     $('km-cyc-seq').addEventListener('input',()=>{parse();load();A.reset(sim.length*5)});}
