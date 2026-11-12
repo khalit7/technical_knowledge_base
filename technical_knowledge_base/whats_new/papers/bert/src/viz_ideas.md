@@ -66,3 +66,15 @@ Old page's visuals: none (prose only). Its links (arXiv, google-research/bert, t
 | P-bert.20 | Hero: one encoder pretrained with MLM and NSP, then copied and fine-tuned per task with one output layer (after Figure 1) | static annotated diagram | built (`12_js_hero.js`): the whiteboard figure for BERT; tokens illustrative |
 | P-bert.21 | Results at a glance: previous best against BERT-Large on GLUE, SQuAD v1.1, SQuAD v2.0, SWAG, NER (dumbbell, axis from 70) | static chart | built: the Results section had no visual beside its claims; NER drawn in orange because BERT is below CSE there |
 | P-bert.22 | The paper's own Figure 1 as an image | real image | rejected: the arXiv licence is not CC BY; the redraw carries it |
+
+## 2026-11-12 layout rollout (split layout, renderer v2 stages, autoplay)
+
+| id | Visual | Kind | Decision |
+|---|---|---|---|
+| P-bert.23 | Hero, Figure 1 in 3D: the toy pair as token blocks, the encoder, the masked LM and NSP heads with the toy BERT's numbers, then copies of the encoder in depth with one output layer each | 3D stage (`31_js_sc_hero.js`) | built; replaces P-bert.20 (the copies are what depth shows: one checkpoint, one copy per task) |
+| P-bert.24 | The leak, three modes (masked LM, left to right, both ways with nothing hidden): input words, layer 1 and layer 2 as rows in depth, real attention as line width and flow density | 3D stage (`32_js_sc_mlm.js`) | built; replaces the 2D `sx` animation; its counters became step text |
+| P-bert.25 | Figure 2 in 3D: token, segment and position tables as glass plates feeding shelves of signed bars, their sum on top | 3D stage (`33_js_sc_emb.js`) | built; replaces the 2D colour-strip Figure 2 (same vectors). A depth layout (rows behind each other) was tried first and rejected: the bars were seen from above and unreadable |
+| P-bert.26 | NSP through [CLS]: real pair, [CLS] attention streams, C, the pooler plate, the two-way softmax, then a random B | 3D stage (`34_js_sc_nsp.js`) | built |
+| P-bert.27 | Run-tab attention heatmap (2 layers × 4 heads) as a bar field | 3D candidate | rejected: a widget the reader drives with a sentence builder, and a heatmap reads best flat |
+| P-bert.28 | Then and now in 3D | 3D candidate | rejected: a block diagram with parameter counters; nothing spatial to show. Kept 2D with a generated step list |
+| P-bert.29 | Results dumbbell, Figure 5 decoded, the toy curves, Tables tab charts | 2D | kept: curves, scatters and gaps on an axis |

@@ -1,4 +1,4 @@
-// ---- The paper tab: recounted parameters, the "see itself" animation, the fill-in reveal, Figure 2 with real vectors,
+// ---- The paper tab: recounted parameters, the fill-in reveal (the leak stage and Figure 2 are 3D scenes, 32_js_sc_mlm.js and 33_js_sc_emb.js),
 // the masking widget, the three predict reveals and Figure 5 ----
 const RC=PAPER.rc,TB=PAPER.tables;
 const fM=v=>(v/1e6).toFixed(1)+'M';
@@ -17,75 +17,16 @@ function hbars(el,title,items,o){o=o||{};fit(el,w=>{let lw=Math.min(o.lw||110,w*
   $('pcB').textContent=fM(p.base_30522);$('pcL').textContent=fM(p.large_30522);$('pcG').textContent=fM(p.gpt1);
 })();
 
-// ---- live numbers from the toy models for the animation and the fill-in question ----
-const TOY={};
+// ---- live numbers from the toy models for the fill-in question ----
 function toyFill(sentence,t){const B=BM.load('bert'),Lm=BM.load('ltr');const w=sentence.slice();const mw=w.slice();mw[t-1]='[MASK]';
   const rb=BM.run(B,mw),rl=BM.run(Lm,w);return {bert:BM.fill(B,rb,t),ltr:BM.fill(Lm,rl,t)}}
 const top5=pr=>pr.map((p,i)=>({i,p})).sort((a,b)=>b.p-a.p).slice(0,5).map(x=>({t:BM.vocab[x.i],p:x.p}));
-(function(){try{const s='the big dog barked at the farmer'.split(' ');const f=toyFill(s,3);TOY.sx={bert:f.bert[BM.IDX.dog],ltr:f.ltr[BM.IDX.dog]}}catch(e){__jsErr('toy: '+e.message)}})();
-
-// ---- the "see itself" animation ----
-(function(){
-  const W0=['the','big','dog','barked','at','the','farmer'],n=W0.length,T=2; // target index (0-based) = dog
-  const C={mlm:'Masked LM (BERT)',ltr:'Left to right (GPT)',bi:'Both ways, no mask'};
-  const steps={
-    mlm:[{t:'Hide the word',c:'The data generator replaces <b>dog</b> with <code>[MASK]</code>. The answer is no longer anywhere in the input.'},
-      {t:'Layer 1 looks both ways',c:'Every position attends to every position. No node can pick up the word <b>dog</b>: it is not there.'},
-      {t:'Layer 2 looks both ways',c:'The state at the masked position gathers both sides, including <b>barked</b> three words to the right.'},
-      {t:'Predict the hidden word',c:'The masked-LM head reads <i>T</i><sub>3</sub>. Only the context can explain the answer, so the model must learn what "barked" implies. This is the objective that makes deep bidirectionality trainable.'}],
-    ltr:[{t:'The input, read left to right',c:'Nothing is hidden, but each position may attend only to itself and the positions to its left.'},
-      {t:'Layer 1 looks left',c:'The nodes at and after <b>dog</b> pick up the word; the ones before it cannot.'},
-      {t:'Layer 2 looks left',c:'To predict <b>dog</b>, a language model uses the state at the previous word, <b>big</b>. It has seen "the big" and nothing else.'},
-      {t:'Predict the next word',c:'No path carries <b>dog</b> into the prediction, so the task is honest, but the verb on the right is invisible: the model can only spread its bet over every animal.'}],
-    bi:[{t:'The input, nothing hidden',c:'Suppose we try to train a bidirectional model as a language model, predicting each word at its own position.'},
-      {t:'Layer 1 looks both ways',c:'Every node in layer 1 attends to <b>dog</b> and now holds a copy of it.'},
-      {t:'Layer 2 looks both ways',c:'The output at position 3 attends to all of them: seven attention paths, plus the residual stream at position 3 itself, carry the answer in.'},
-      {t:'Predict: the answer leaks',c:'The model "could trivially predict the target word" (<a href="'+PAPER.meta.ax+'#S3.SS1" target="_blank" rel="noopener noreferrer">§3.1</a>): it learns to copy, and the representation learns nothing. This is why bidirectional LMs were not trained before.'}]};
-  const allow=(m,i,j)=>m==='ltr'?j<=i:true;
-  function draw(m,k,e,w){const pad=8,cw=(w-2*pad)/n,ys=[178,124,70,18],H=200,r=Math.min(14,cw*.32);
-    const xs=i=>pad+cw*(i+.5),hot=(lay,i)=>{if(m==='mlm')return false;if(lay===0)return i===T;if(m==='bi')return true;return i>=T};
-    const out=m==='ltr'?T-1:T;let s='';
-    // edges
-    for(let lay=1;lay<=2;lay++){if(k<lay)continue;const op=k===lay?e:1;
-      for(let i=0;i<n;i++){if(lay===2&&i!==out)continue;for(let j=0;j<n;j++){if(!allow(m,i,j))continue;const carry=hot(lay-1,j);
-        s+=G(op*(carry?.95:.35),ln2(xs(j),ys[lay-1]-r,xs(i),ys[lay]+r,carry?'var(--c2)':'var(--dim)',{sw:carry?1.8:1}))}}}
-    if(k>=3){s+=G(e,ln2(xs(out),ys[2]-r,xs(T),ys[3]+12,'var(--acc)',{sw:2,da:'4 3'}))}
-    // nodes
-    for(let lay=0;lay<3;lay++)for(let i=0;i<n;i++){const vis=lay===0||k>=lay||(lay===2&&k>=2);const on=lay===0||k>=lay;
-      if(lay===2&&i!==out&&k>=2){s+=G(.35,`<circle cx="${xs(i).toFixed(1)}" cy="${ys[lay]}" r="${r*.55}" fill="var(--soft)" stroke="var(--line)"/>`);continue}
-      if(!on){s+=`<circle cx="${xs(i).toFixed(1)}" cy="${ys[lay]}" r="${r*.55}" fill="var(--soft)" stroke="var(--line)"/>`;continue}
-      const h=hot(lay,i)&&(lay===0||k>=lay);s+=`<circle cx="${xs(i).toFixed(1)}" cy="${ys[lay]}" r="${r}" fill="${h?'var(--c2)':'var(--soft)'}" stroke="${h?'var(--c2)':'var(--mute)'}" opacity="${h?.85:1}"/>`}
-    // labels
-    for(let i=0;i<n;i++){const wd=m==='mlm'&&i===T?'[MASK]':W0[i];s+=tx(xs(i),ys[0]+r+14,wd,{fs:11,a:'middle',w:i===T?600:null,c:i===T?'var(--c2)':null})}
-    s+=tx(pad,ys[1]+4,'L1',{fs:11,c:'var(--mute)'})+tx(pad,ys[2]+4,'L2',{fs:11,c:'var(--mute)'});
-    if(k>=3){const lab=m==='bi'?'copies "dog"':m==='ltr'?'guess from "the big"':'predict "dog" from both sides';s+=G(e,tx(Math.min(w-pad,Math.max(pad,xs(T))),ys[3]+4,lab,{fs:12,a:xs(T)<w*.3?'start':'middle',w:600,c:'var(--acc)'}))}
-    return svgW(w,H+12,s,'Attention paths in a two-layer model, '+C[m])}
-  function counters(m,k){const L=m==='ltr'?1:2,Rr=m==='ltr'?0:4;const see=m==='bi'?'yes':'no';
-    let live='';if(k>=3&&TOY.sx){live=m==='mlm'?stat('Toy BERT: P(dog)',(TOY.sx.bert*100).toFixed(1)+'%','masked LM, after pretraining'):m==='ltr'?stat('Toy left-to-right: P(dog)',(TOY.sx.ltr*100).toFixed(1)+'%','next word after "the big"'):stat('Toy model','not trained','it would learn to copy')}
-    return stat('Can the answer reach the prediction?',see,m==='bi'?'through every layer-1 node':'no path carries it')+stat('Context words used',(m==='ltr'?'2 left':'2 left, '+Rr+' right'),m==='ltr'?'"the big"':'')+live}
-  makeAnim({id:'sx',modes:steps,mode:'mlm',draw,counters,dur:2600});
-})();
 
 // ---- predict: fill in the blank ----
 PRED_REVEAL['pr-fill']=function(){const go=()=>{const v=$('pfV').value,s=('the big cat '+v+' at the farmer').split(' ');const f=toyFill(s,3);
   hbars($('pfA'),'Bidirectional (toy BERT)',top5(f.bert).map(x=>({t:x.t,p:x.p,c:LANG.ANIMALS[x.t]===v?'var(--good)':'var(--acc)'})),{max:1});
   hbars($('pfB'),'Left to right (toy LTR)',top5(f.ltr).map(x=>({t:x.t,p:x.p,c:LANG.ANIMALS[x.t]===v?'var(--good)':'var(--c2)'})),{max:1})};
   $('pfV').addEventListener('change',go);go()};
-
-// ---- Figure 2 with the toy's real vectors ----
-(function(){const el=$('embFig');if(!el)return;
-  const draw=w=>{const B=BM.load('bert'),P=B.P,Hd=BM.cfg.H,pk=BM.pack('austin smiled'.split(' '),'i met austin'.split(' '));
-    const n=pk.ids.length,lw=Math.min(78,w*.2),cw=(w-lw-4)/n,ch=Math.max(1.6,Math.min(3,170/Hd/4)),rows=['Token','Segment','Position','Sum'];
-    const vec=(r,t)=>{const id=pk.ids[t],o=new Float64Array(Hd);for(let j=0;j<Hd;j++){const a=P.tok[id*Hd+j],b=P.seg[pk.seg[t]*Hd+j],c=P.pos[t*Hd+j];o[j]=r===0?a:r===1?b:r===2?c:a+b+c}return o};
-    let mx=0;for(let r=0;r<4;r++)for(let t=0;t<n;t++)for(const v of vec(r,t))mx=Math.max(mx,Math.abs(v));
-    const bh=Hd*ch,top=26;let s='';
-    for(let t=0;t<n;t++)s+=tx(lw+cw*(t+.5),16,BM.vocab[pk.ids[t]],{fs:11,a:'middle',w:pk.ids[t]<4?600:null});
-    rows.forEach((nm,r)=>{const y=top+r*(bh+16);s+=tx(lw-6,y+bh/2+4,nm,{fs:11,a:'end',c:r===3?'var(--ink)':'var(--mute)',w:r===3?600:null});
-      for(let t=0;t<n;t++){const v=vec(r,t),x=lw+cw*t+2,ww=cw-4;for(let j=0;j<Hd;j++){const q=v[j]/mx;s+=rc(x,y+j*ch,ww,ch+.2,q>0?'var(--c1)':'var(--c2)',{r:0,op:Math.min(1,Math.abs(q)*1.6).toFixed(2)})}
-        if(r===1)s+=tx(x+ww/2,y+bh+11,pk.seg[t]?'B':'A',{fs:11,a:'middle',c:'var(--mute)'})}
-      if(r<3)s+=tx(lw-6,y+bh+13,r<2?'+':'=',{fs:12,a:'end',c:'var(--mute)'})});
-    el.innerHTML=svgW(w,top+4*(bh+16),s,'Token, segment and position embeddings and their sum')};
-  onTab('t-read',()=>fit(el,draw));fit(el,draw)})();
 
 // ---- the masking widget: the paper's rule on a toy pretraining pair, with the toy BERT's predictions ----
 (function(){

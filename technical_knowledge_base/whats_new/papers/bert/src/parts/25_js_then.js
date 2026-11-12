@@ -35,6 +35,8 @@
   const ffnSub=c=>(c.glu?'GeGLU, inner '+fmt(c.I):'GELU, '+fmt(c.I))+(c.bias?' · biases':'');
   function counters(m,k){const c=states[k],p=params(c),p0=params(states[0]).total;
     return stat('Parameters (encoder)',fM(p.total),k?('from '+fM(p0)+(k===CH.length-1?'; stated 149M':'')):'110M with the pooler')+stat('Embeddings',fM(p.emb),(100*p.emb/p.total).toFixed(0)+'% of the total')+stat('Context',fmt(c.ctx)+' tokens',c.pos?'learned positions':'RoPE')+stat('Keys per query',fmt(Math.round(keys(c))),'at '+fmt(c.ctx)+' tokens, mean over layers')+stat('Training data',c.data,'')}
-  const A=makeAnim({id:'thx',modes:{x:CH},mode:'x',draw,counters,dur:3200});
+  // the step list on the left: one item per change, generated from CH so the steps and the drawing never disagree
+  $('sx-thx').innerHTML=CH.map(x=>'<li><b>'+x.t+'.</b> '+x.c+'</li>').join('');
+  const A=makeAnim({id:'thx',modes:{x:CH},mode:'x',lists:{x:'sx-thx'},draw,counters,dur:4600});
   onTab('t-then',()=>{if(A)A.draw()});
 })();

@@ -1,9 +1,23 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
 <div class="co key" id="core"><div class="t">The idea in one sentence</div><p class="lead" style="margin:2px 0 0">Hide 15% of the input words and train a deep Transformer encoder to recover them from both sides, so every layer can look left and right without the answer leaking into its own prediction; then copy that one pretrained encoder per task, add a single output layer and fine-tune everything.</p></div>
-<div class="card" id="hero-fig"><div class="t" style="font-weight:600;margin-bottom:4px">One encoder, pretrained once with two losses, then copied and fine-tuned per task with one small output layer</div><div id="heroFig"></div><p class="small mute" style="margin:4px 0 0">After the paper's {{Figure 1|ax:S2.F1}}, redrawn; illustrative tokens. Pretraining: the masked LM predicts the hidden word at <code>[MASK]</code>, next sentence prediction (NSP) classifies from the <code>[CLS]</code> state <i>C</i> whether sentence B (green) really follows sentence A (blue). Fine-tuning: the same weights with one new layer: a label from <i>C</i> for sentence tasks, start and end scores over the token states <i>T<sub>i</sub></i> for SQuAD, a tag per token for NER.</p></div>
 <p class="small"><b>New terms.</b> <i>Masked LM</i> (MLM): predict hidden input words from both sides. <i>NSP</i>: is sentence B the real next sentence? <i>C</i>: the final state of <code>[CLS]</code>; <i>T<sub>i</sub></i>: the final state of token <i>i</i>. <i>Feature-based</i> against <i>fine-tuning</i> transfer: freeze the representations and feed them to a task model, or train everything.</p>
-<nav class="nav" id="nav"><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-arch">Model and input</a><a href="#s-mlm">Masked LM</a><a href="#s-nsp">Next sentence</a><a href="#s-pre">Pretraining</a><a href="#s-ft">Fine-tuning</a><a href="#s-res">Results</a><a href="#s-abl">Ablations</a><a href="#s-trust">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
+<nav class="nav" id="nav"><a href="#s-glance">At a glance</a><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-arch">Model and input</a><a href="#s-mlm">Masked LM</a><a href="#s-nsp">Next sentence</a><a href="#s-pre">Pretraining</a><a href="#s-ft">Fine-tuning</a><a href="#s-res">Results</a><a href="#s-abl">Ablations</a><a href="#s-trust">How much to believe</a><a href="#s-why">Why it matters</a><a href="#s-con">Connections</a></nav>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
+<section id="s-glance"><h2>The method at a glance</h2>
+[[S2.F1|§3, Figure 1]]
+<p id="hero-fig"><b>One encoder, pretrained once with two losses, then copied and fine-tuned per task with one small output layer.</b> The figure is the paper's {{Figure 1|ax:S2.F1}} in 3D, run on one pretraining pair of this page's toy language by the toy BERT ({{Run a toy BERT|tab:t-run}}); drag it to turn it.</p>
+<ol class="sx" id="sx-hero">
+<li><b>One input: a pair of sentences.</b> <code>[CLS]</code>, sentence A (blue), <code>[SEP]</code>, sentence B (green), <code>[SEP]</code>, packed into one sequence. For the masked LM some word positions are hidden: here <b>dog</b> becomes <code>[MASK]</code>.</li>
+<li><b>One deep encoder, every layer looking both ways.</b> A stack of Transformer layers (12 in BERT-Base, 24 in Large, 2 in the toy) turns every token into a final state: <i>C</i> for <code>[CLS]</code>, <i>T<sub>i</sub></i> for token <i>i</i>. The orange streams are the masked position gathering from both sides, in proportion to its attention weights.</li>
+<li><b>Loss 1: the masked LM.</b> <i>T<sub>i</sub></i> at the masked position goes through a softmax over the vocabulary: the toy BERT puts <span id="hr-p"></span> on <b>dog</b>, a word it can only infer from "barked" on its right.</li>
+<li><b>Loss 2: next sentence prediction (NSP).</b> <i>C</i> is classified IsNext or NotNext, whether sentence B really follows sentence A; for this real pair the toy says IsNext with <span id="hr-n"></span>. The two losses are added; this pretraining is done once, on unlabelled text.</li>
+<li><b>Copy the pretrained encoder, once per task.</b> Every task starts from the same checkpoint in its own copy, and all of its weights will be fine-tuned.</li>
+<li><b>Add one small output layer each.</b> A label from <i>C</i> for sentence tasks (GLUE), start and end scores over the token states <i>T<sub>i</sub></i> for a SQuAD answer span, a tag per token for NER. Everything else is the copied encoder.</li>
+</ol>
+<p class="small mute">After {{Figure 1|ax:S2.F1}}, redrawn (the arXiv paper is not CC BY, so no image of the original); the paper's figure uses illustrative tokens, this one the toy's. The output layers in the last step are drawn, not run: the toy's own fine-tuning is measured in {{Run a toy BERT|tab:t-run:rres}}.</p>
+</section></div></div>
+
 
 <section id="s-prob"><h2>Problem</h2>
 [[S1|§1 Introduction, §2 Related work]]
@@ -12,21 +26,31 @@
 <p class="lead"><b>The gap:</b> a way to pretrain a genuinely deep bidirectional model on unlabelled text that transfers to many tasks, sentence-level and token-level, with minimal task-specific architecture.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-mlm"></div></div><div class="s3L">
 <section id="s-idea"><h2>Idea: hide the word, then let every layer look both ways</h2>
 [[S3.SS1|§3.1 Task #1: Masked LM]]
 <p>Why can a bidirectional model not simply be trained to predict each word? Because in a stack of self-attention layers, the state at position <i>i</i> in layer 2 attends to every position of layer 1, and each of those already attended to the word at <i>i</i>. The answer leaks into its own prediction, and the model "could trivially predict the target word" ({{§3.1|ax:S3.SS1}}). A left-to-right model avoids the leak by never looking right, which is exactly the handicap.</p>
-<p>BERT's answer is the <b>masked language model</b> (MLM), the Cloze task of {{Taylor (1953)|https://doi.org/10.1177/107769905303000401}}: replace some input words with a <code>[MASK]</code> token and predict the original only at those positions, from both sides ({{§3.1|ax:S3.SS1}}). The word to predict is not in the input any more, so no path through the layers can carry it, and every layer may attend in both directions. The animation runs one sentence through two layers three ways.</p>
-<div class="card" id="sx">
-<div class="an-top"><div class="seg" id="sxM" role="group" aria-label="Pretraining objective"><button class="on" data-m="mlm" aria-pressed="true">Masked LM (BERT)</button><button data-m="ltr" aria-pressed="false">Left to right (GPT)</button><button data-m="bi" aria-pressed="false">Both ways, no mask</button></div>
-<span class="small mute">Target: the word <b>dog</b> in "the big dog barked at the farmer". Live numbers come from this page's toy models.</span></div>
-<div id="sxSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="sxBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="sxPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="sxFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="sxScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="sxSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="sxStep"></div><p id="sxCap"></p></div>
-<div class="an-cnt" id="sxCnt"></div>
-<p class="small mute" style="margin:6px 0 0">Two attention layers; a line is an attention connection that can carry information. Orange nodes hold information from the word <b>dog</b> itself. The left-to-right model predicts the word at a position from the state one position earlier, as a language model does. The probabilities in the last step are real outputs of the toy BERT and toy left-to-right model in the {{Run a toy BERT|tab:t-run}} tab (the "both ways, no mask" model is not trained: it would learn to copy). It starts paused: press play or step.</p>
-</div>
+<p>BERT's answer is the <b>masked language model</b> (MLM), the Cloze task of {{Taylor (1953)|https://doi.org/10.1177/107769905303000401}}: replace some input words with a <code>[MASK]</code> token and predict the original only at those positions, from both sides ({{§3.1|ax:S3.SS1}}). The word to predict is not in the input any more, so no path through the layers can carry it, and every layer may attend in both directions. The figure runs one sentence through two layers three ways; pick one, then follow its steps.</p>
+<div class="seg" id="sxM" role="group" aria-label="Pretraining objective" style="margin:6px 0 2px"><button class="on" data-m="mlm" aria-pressed="true">Masked LM (BERT)</button><button data-m="ltr" aria-pressed="false">Left to right (GPT)</button><button data-m="bi" aria-pressed="false">Both ways, no mask</button></div>
+<ol class="sx" id="sx-mlm">
+<li><b>Hide the word.</b> The data generator replaces <b>dog</b> with <code>[MASK]</code>. The answer is no longer anywhere in the input.</li>
+<li><b>Layer 1 looks both ways.</b> Every position attends to every position. No state can pick up the word <b>dog</b>: it is not there. The blue streams are the masked position gathering context from both sides.</li>
+<li><b>Layer 2 looks both ways.</b> The state at the masked position gathers both sides, including <b>barked</b> three words to the right.</li>
+<li><b>Predict the hidden word.</b> The masked-LM head reads <i>T</i><sub>3</sub>, and the toy BERT gives <b>dog</b> <span id="mlP"></span>. Only the context can explain the answer, so the model must learn what "barked" implies. This is the objective that makes deep bidirectionality trainable.</li>
+</ol>
+<ol class="sx" id="sx-ltr" hidden>
+<li><b>The input, read left to right.</b> Nothing is hidden, but each position may attend only to itself and the positions to its left.</li>
+<li><b>Layer 1 looks left.</b> The states at and after <b>dog</b> pick up the word (orange); the ones before it cannot.</li>
+<li><b>Layer 2 looks left.</b> To predict <b>dog</b>, a language model uses the state at the previous word, <b>big</b>. It has seen "the big" and nothing else.</li>
+<li><b>Predict the next word.</b> No path carries <b>dog</b> into the prediction, so the task is honest, but the verb on the right is invisible: the toy left-to-right model spreads its bet over the animals (<span id="ltTop"></span>), with <b>dog</b> at <span id="ltP"></span>.</li>
+</ol>
+<ol class="sx" id="sx-bi" hidden>
+<li><b>The input, nothing hidden.</b> Suppose we try to train a bidirectional model as a language model, predicting each word at its own position.</li>
+<li><b>Layer 1 looks both ways.</b> Every state in layer 1 attends to <b>dog</b> and now holds a copy of it (orange).</li>
+<li><b>Layer 2 looks both ways.</b> The output at position 3 attends to all of them: seven attention paths, plus the residual stream at position 3 itself, carry the answer in.</li>
+<li><b>Predict: the answer leaks.</b> The model "could trivially predict the target word" ({{§3.1|ax:S3.SS1}}): it learns to copy, and the representation learns nothing. This is why bidirectional LMs were not trained before.</li>
+</ol>
+<p class="small mute" style="margin:6px 0 0">Two attention layers of this page's toy models ({{Run a toy BERT|tab:t-run}}): line width and dot density are their real attention weights, heads averaged, and the probabilities are their real outputs. Orange states hold information from the word <b>dog</b> itself. The left-to-right model predicts the word at a position from the state one position earlier, as a language model does. "Both ways, no mask" uses the toy BERT's weights on the unmasked sentence; such a model is not trained here, since it would learn to copy.</p>
 <div class="pred" id="pr-fill" data-ans="0"><div class="q">a left-to-right model reads "the big ___" and must guess the next word; the sentence goes on "... purred at the farmer". How sure can it be that the word is <b>cat</b>?</div>
 <div class="opts"><button>About 1 in 4: it cannot tell the animals apart</button><button>About 1 in 2</button><button>Almost certain</button></div>
 <div class="fb"></div>
@@ -37,7 +61,9 @@
 <p class="small mute">Top five words for the blank, softmax over the 86 ordinary words of the toy vocabulary. Bidirectional: the masked-LM head at the <code>[MASK]</code>. Left to right: the next-word head at "big".</p>
 </div></div>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-emb"></div></div><div class="s3L">
 <section id="s-arch"><h2>Model and input</h2>
 [[S3|§3, Figure 2]]
 <p>BERT is "a multi-layer bidirectional Transformer encoder" almost identical to the original of {{Vaswani et al. (2017)|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} ({{§3|ax:S3}}). With <i>L</i> layers, hidden size <i>H</i> and <i>A</i> attention heads, and the feed-forward size always 4<i>H</i> (footnote 3):</p>
@@ -53,10 +79,19 @@
 <li>Every sequence starts with <code>[CLS]</code>; its final hidden state <i>C</i> ∈ ℝ<sup><i>H</i></sup> is the aggregate representation for classification. The final state of token <i>i</i> is <i>T<sub>i</sub></i>.</li>
 <li>A pair is packed into one sequence, separated by <code>[SEP]</code>, and each token also gets a learned <b>segment</b> embedding, A or B.</li>
 <li>The input vector of each token is the <b>sum</b> of its token, segment and (learned) position embeddings ({{Figure 2|ax:S3.F2}}).</li></ul>
-<div class="card"><div id="embFig"></div>
-<p class="small mute" style="margin:6px 0 0">Figure 2 redrawn with the toy BERT's real learned vectors (24 numbers each, colour is sign and size), for "[CLS] austin smiled [SEP] i met austin [SEP]". Each column is one token; the bottom row is the sum, which the model then layer-normalises. Note the segment row: two vectors only, A for the first sentence and B for the second.</p></div>
+<ol class="sx" id="sx-emb">
+<li><b>One sequence, two segments.</b> "[CLS] austin smiled [SEP] i met austin [SEP]": sentence A, then sentence B, each closed by <code>[SEP]</code>. The word austin appears twice.</li>
+<li><b>Token embedding.</b> Each token reads its row of the token table (90 words × 24 numbers in the toy, 30,522 × 768 in BERT-Base). Both austins get the same vector.</li>
+<li><b>Segment embedding.</b> The segment table has two rows only: every token of sentence A gets vector A, every token of B vector B. This is how the model tells the two sentences apart.</li>
+<li><b>Position embedding.</b> One learned vector per position (24 in the toy, 512 in BERT), unlike the fixed sinusoids of {{the original Transformer|n:3c65c17b0d0d81999af7f16f8ed8ee9e}}.</li>
+<li><b>Add them.</b> Each token's input is the sum of its three vectors, which the model then layer-normalises before the first layer.</li>
+<li><b>The same word, two inputs.</b> The two austins share their token vector but not their sums: position and segment are what tell them apart before any attention runs.</li>
+</ol>
+<p class="small mute" style="margin:6px 0 0">Figure 2 redrawn with the toy BERT's real learned vectors: 24 numbers each, drawn as bars (up positive, down negative, one scale for every row); the tables are the glass plates on the left. Note the segment row: two vectors only, A for the first sentence and B for the second.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-mlm"><h2>Pretraining task 1: the masked LM</h2>
 [[S3.SS1|§3.1, Appendix A.1]]
 <p>The data generator picks <b>15%</b> of the WordPiece positions of each sequence at random. Their final states <i>T<sub>i</sub></i> go through a softmax over the vocabulary and are trained with cross-entropy to predict the original token; unlike a denoising autoencoder, nothing else is reconstructed ({{§3.1|ax:S3.SS1}}; how MLM compares with causal LM, span corruption and UL2 as objectives is on {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}). Masking is applied after WordPiece tokenisation, uniformly, with no special treatment of word pieces ({{A.2|ax:A1.SS2}}).</p>
@@ -68,22 +103,31 @@
 <tr><td>10%: replaced by a random word</td><td>my dog is hairy → my dog is apple</td><td class="num">1.5%</td></tr>
 <tr><td>10%: left unchanged</td><td>my dog is hairy → my dog is hairy</td><td class="num">1.5%</td></tr></tbody></table></div>
 <p>Because the encoder does not know which words it will be asked to predict, or which were swapped, it is forced to keep "a distributional contextual representation of every input token"; keeping some words unchanged biases the representation towards the observed word, and random replacement touches only 1.5% of tokens (10% of 15%), too few to harm understanding ({{A.1|ax:A1.SS1}}). The price: only 15% of positions produce a loss in each batch, against every position for a left-to-right model, so MLM should need more steps. It does converge marginally slower, but its downstream accuracy overtakes the left-to-right model's almost immediately ({{C.1|ax:A3.SS1}}, Figure 5 below).</p>
-<div class="card" id="mk">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="mk">
 <div class="ctl"><label>Pretraining pair <select id="mkP"></select></label><div><button id="mkR">Draw another masking</button></div></div>
 <div id="mkSeq"></div>
 <div class="out" id="mkOut"></div>
 <div id="mkTally"></div>
 <p class="small mute" style="margin:6px 0 0">The masking is the paper's rule exactly as the toy was trained (at least one position, never <code>[CLS]</code> or <code>[SEP]</code>; then 80/10/10). The predictions are the toy BERT's, at every chosen position, including those it was not told were changed. The tally draws the rule 10,000 times over this pair's positions.</p>
-</div>
-</section>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-nsp"></div></div><div class="s3L">
 <section id="s-nsp"><h2>Pretraining task 2: next sentence prediction</h2>
 [[S3.SS1|§3.1 Task #2: NSP]]
 <p>Question answering and natural language inference turn on the relation between two sentences, which language modelling does not capture directly. So every pretraining example is a pair: 50% of the time B is the sentence that actually follows A (IsNext), 50% a random sentence from the corpus (NotNext), and <i>C</i>, the final <code>[CLS]</code> state, classifies which ({{§3.1|ax:S3.SS1}}). The final model gets 97% to 98% on it (footnote 5), and <i>C</i> is "not a meaningful sentence representation without fine-tuning, since it was trained with NSP" (footnote 6). The appendix's examples:</p>
 <div class="fm"><div class="eq" style="font-family:ui-monospace,Menlo,monospace;font-size:13px">[CLS] the man went to [MASK] store [SEP] he bought a gallon [MASK] milk [SEP] → IsNext<br>[CLS] the man [MASK] to the store [SEP] penguin [MASK] are flight ##less birds [SEP] → NotNext</div><div class="wh">{{Appendix A.1|ax:A1.SS1}}. The total pretraining loss is the mean masked-LM likelihood plus the mean NSP likelihood ({{A.2|ax:A1.SS2}}).</div></div>
+<ol class="sx" id="sx-nsp">
+<li><b>Pack a real pair.</b> Sentence A and the sentence that really follows it in the toy's training text, as one sequence: an IsNext example.</li>
+<li><b><code>[CLS]</code> reads the whole pair.</b> Its final state <i>C</i> is built by attention over every token of both sentences; the streams are <code>[CLS]</code>'s real layer-2 attention weights in the toy BERT, heads averaged.</li>
+<li><b><i>C</i>, the pooler, two classes.</b> <i>C</i> goes through a dense layer with tanh (the pooler) and a two-way softmax: IsNext with <span id="nsP1"></span> for this pair.</li>
+<li><b>Swap B for a random sentence.</b> Half of all pretraining pairs do this: B is drawn from elsewhere in the corpus, a NotNext example.</li>
+<li><b>The same weights say NotNext.</b> IsNext falls to <span id="nsP2"></span>. In the toy this is easy, since each of its documents is about one entity and a real next sentence shares it; the 97% to 98% above is the paper's model on real text.</li>
+</ol>
 <p>The paper reports NSP as "very beneficial to both QA and NLI" ({{§3.1|ax:S3.SS1}}); its own ablation shows a mixed effect (QNLI loses 3.5 points without it, the others 0.6 or less), and later work dropped it ({{How much to believe|tab:t-read:s-trust}}).</p>
 <details class="mist"><summary>Earlier sentence objectives</summary><div class="b"><p>Earlier sentence objectives ({{Jernite et al. 2017|https://arxiv.org/abs/1705.00557}}, {{Logeswaran and Lee 2018|https://arxiv.org/abs/1803.02893}}) transferred only sentence embeddings; BERT transfers all its parameters ({{§3.1|ax:S3.SS1}}).</p></div></details>
 </section>
+</div></div>
 
 <section id="s-pre"><h2>Pretraining setup</h2>
 [[A1.SS2|§3.1 Pre-training data, Appendix A.2]]
@@ -119,6 +163,7 @@
 <p class="small mute">Measured on 2,000 test sentences (see {{Run a toy BERT|tab:t-run:rres}}), fine-tuned on 128 labelled sentences, mean of 3 seeds. The same left-to-right model classifies the whole sentence well from its last token, which has read everything: the damage is specific to token-level outputs, as the paper argues for SQuAD.</p></div></div>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-res"><h2>Results: eleven tasks</h2>
 [[S4|§4, Tables 1 to 4]]
 <p>BERT set a new state of the art on eleven NLP tasks ({{abstract|ax:S1}}, {{§4|ax:S4}}). Counting the tasks of section 4, they are the eight GLUE tasks reported in Table 1, SQuAD v1.1, SQuAD v2.0 and SWAG; CoNLL NER (§5.3) is not among them.</p>
@@ -128,9 +173,9 @@
 <li><b>SQuAD v2.0</b> ({{§4.3|ax:S4.SS3}}, {{Table 3|ax:S4.T3}}): 83.1 test F1, +5.1 over the previous best (78.0).</li>
 <li><b>SWAG</b> ({{§4.4|ax:S4.SS4}}, {{Table 4|ax:S4.T4}}): 86.3%, +27.1 over the dataset authors' ESIM+ELMo and +8.3 over GPT; expert humans scored 85.0 and five-annotator humans 88.0 (on 100 samples).</li>
 <li><b>CoNLL-2003 NER</b> ({{§5.3|ax:S5.SS3}}, {{Table 7|ax:S5.T7}}): 92.8 test F1 fine-tuned (Large), competitive with task-specific systems (CSE 93.1, CVT 92.6) rather than above them.</li></ul>
-<div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">One recipe, five benchmarks: large gains on GLUE, SQuAD v2.0 and SWAG, a small one on SQuAD v1.1, and level with the best on NER</div><div id="resFig"></div><p class="small mute" style="margin:4px 0 0">Grey: the previous best the paper compares against; colour: BERT-Large (blue above, orange below). GLUE from §4.1 (official leaderboard score), SQuAD from Tables 2 and 3 (v1.1: an ensemble of 7 with TriviaQA), SWAG from Table 4, NER from Table 7. The axis starts at 70, so read the gaps, not bar lengths.</p></div>
 <p>The headline claim is less any one number than the pattern: the same pretrained checkpoint with a one-layer head beat specialised architectures on sentence-level and token-level tasks alike ({{§1|ax:S1}}). Every table is sortable and rebuilt in {{The paper's tables, rebuilt|tab:t-tables}}.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">One recipe, five benchmarks: large gains on GLUE, SQuAD v2.0 and SWAG, a small one on SQuAD v1.1, and level with the best on NER</div><div id="resFig"></div><p class="small mute" style="margin:4px 0 0">Grey: the previous best the paper compares against; colour: BERT-Large (blue above, orange below). GLUE from §4.1 (official leaderboard score), SQuAD from Tables 2 and 3 (v1.1: an ensemble of 7 with TriviaQA), SWAG from Table 4, NER from Table 7. The axis starts at 70, so read the gaps, not bar lengths.</p></div></div></div></div>
 
 <section id="s-abl"><h2>Ablations: what the gains come from</h2>
 [[S5|§5, Tables 5 to 8, Figure 5]]
@@ -146,9 +191,9 @@
 <details class="mist"><summary>Model size against earlier work</summary><div class="b"><p>Earlier feature-based studies had found mixed returns ({{Peters et al. 2018b|https://arxiv.org/abs/1808.08949}}: two to four bi-LM layers; {{Melamud et al. 2016|https://aclanthology.org/K16-1006/}}: 200 to 600 hidden units helped, 1,000 did not). For scale, the largest Transformer in {{Vaswani et al.|n:3c65c17b0d0d81999af7f16f8ed8ee9e}} was L=6, H=1024, A=16 (100M parameters in the encoder) and the largest in the literature L=64, H=512, A=2 (235M, {{Al-Rfou et al. 2018|https://arxiv.org/abs/1808.04444}}).</p></div></details>
 <p><b>Feature-based BERT</b> ({{§5.3|ax:S5.SS3}}, {{Table 7|ax:S5.T7}}). Frozen features have advantages: some tasks do not fit an encoder, and an expensive representation can be computed once and reused. On NER, frozen BERT-Base features into a two-layer 768-dimensional BiLSTM do nearly as well as fine-tuning: concatenating the top four layers gives 96.1 dev F1, 0.3 behind fine-tuning's 96.4; the input embeddings alone give 91.0.</p>
 <p><b>Masking procedure</b> ({{C.2|ax:A3.SS2}}, {{Table 8|ax:A3.T8}}). Fine-tuning is "surprisingly robust" to the 80/10/10 split (MNLI 83.6 to 84.4 across six mixes). The feature-based NER case, where the representation cannot adapt, shows the mismatch: <code>[MASK]</code> only drops to 94.0 against 94.9, and random only is much worse too.</p>
-<p><b>Training steps</b> ({{C.1|ax:A3.SS1}}, {{Figure 5|ax:A3.F5}}). BERT-Base gains almost 1.0% MNLI going from 500k to 1M steps, and the masked LM, though it converges slightly slower, "begins to outperform the LTR model almost immediately".</p>
-<div class="card"><div id="f5r"></div>
-<p class="small mute" style="margin:6px 0 0">The points of {{Figure 5|ax:A3.F5}}, decoded from the figure's own vector coordinates in the arXiv HTML (exact to the plot, not read by eye; see tables.json). Read this way the left-to-right model is ahead at 30k and 50k steps (79.4 and 79.8 against 78.6 and 79.6) and the masked LM leads from 100k on; the 500k to 1M gain is 0.8 by linear interpolation between the 400k and 600k points ("almost 1.0%" in the text). The toy's own version is in {{Run a toy BERT|tab:t-run:rf5}}.</p></div>
+<div class="s3sp"><div class="s3L"><p><b>Training steps</b> ({{C.1|ax:A3.SS1}}, {{Figure 5|ax:A3.F5}}). BERT-Base gains almost 1.0% MNLI going from 500k to 1M steps, and the masked LM, though it converges slightly slower, "begins to outperform the LTR model almost immediately".</p></div>
+<div class="s3R"><div class="s3side"><div class="card"><div id="f5r"></div>
+<p class="small mute" style="margin:6px 0 0">The points of {{Figure 5|ax:A3.F5}}, decoded from the figure's own vector coordinates in the arXiv HTML (exact to the plot, not read by eye; see tables.json). Read this way the left-to-right model is ahead at 30k and 50k steps (79.4 and 79.8 against 78.6 and 79.6) and the masked LM leads from 100k on; the 500k to 1M gain is 0.8 by linear interpolation between the 400k and 600k points ("almost 1.0%" in the text). The toy's own version is in {{Run a toy BERT|tab:t-run:rf5}}.</p></div></div></div></div>
 </section>
 
 <section id="s-trust"><h2>How much of this to believe</h2>
