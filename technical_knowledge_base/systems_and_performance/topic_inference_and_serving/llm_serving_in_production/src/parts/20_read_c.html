@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-rt"></div></div><div class="s3L">
 <section id="pr-s2">
 <h2>2. Routing: which replica gets the request</h2>
 <p>For ordinary web servers any replica will do, so the classic routers are <dfn>round robin</dfn> (1, 2, 3, 1, 2, 3, ...) and <dfn>least loaded</dfn> (fewest requests in flight). An LLM replica is not interchangeable: it keeps a <dfn>prefix cache</dfn> of prompts it has already processed, and a request whose beginning is cached there skips that part of its prefill. A chat resends its whole history every turn, an agent its tools and growing context every step; send turn 2 to a different replica from turn 1 and the whole history is computed again.</p>
@@ -8,6 +9,38 @@
 <div><b>Weighted scorers (llm-d)</b>Score every replica on several signals (prefix-cache match, queue depth, KV usage, LoRA affinity), each from 0 to 1 times a weight, and pick the highest total ({{llm-d scheduler|https://llm-d.ai/docs/dev/architecture/core/router/epp/scheduling}}). Red Hat's documented example weighs the prefix scorer 3 and the queue scorer 2 ({{OpenShift AI 3.5 docs|https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.5/html/deploy_models_using_distributed_inference_with_llm-d/configuring-llm-scheduler}}).</div>
 </div>
 <p><b>The experiment.</b> Three llama-server replicas (Qwen3-0.6B, Q4_K_M) on the M1 Pro, each with 2 slots of 2,048 tokens and a host prompt cache (<code>--cache-ram</code>), behind a router written for this page (<code>src/exp/route_client.py</code>) that implements the four families: SGLang v0.5.21's <code>select_worker</code> with its command-line defaults (0.3, 64, 1.5), on token blocks instead of characters, and a weighted score of prefix match 3 and queue 2. llama-server reports, for each request, how many prompt tokens it found cached and how many it computed, so every hit rate below is the engine's own count; the replicas' Prometheus counters (<code>llamacpp:prompt_tokens_total</code>) agree to the token. <span class="meas">measured on Apple M1 Pro</span></p>
+<p>Fig. 2 replays three of the measured runs request by request; each request lands on its replica as a slab as long as its prompt, <span style="color:var(--good);font-weight:600">green</span> what the replica found cached, <span style="color:var(--bad);font-weight:600">orange</span> what it computed. Choose a run:</p>
+<div class="s3chips" id="rt-mode"><button data-m="rr" class="on">Round robin</button><button data-m="pa">Follow the cache (SGLang)</button><button data-m="bw">Two bursts, cache 3 + queue 2</button></div>
+<ol class="sx" id="sx-rt-rr">
+<li><b>Eight requests, three empty replicas.</b> Four conversations, A to D: a first turn (the shared 1,000-token system prompt plus 1,000 tokens), then a second turn that resends both, the 300-token answer the replica generated and 200 new tokens. Sent one at a time; each replica has a 1.5 GiB host prompt cache.</li>
+<li><b>A1 to replica 1.</b> Nothing is cached anywhere: all 2,000 tokens computed.</li>
+<li><b>B1 to replica 2.</b> Round robin takes the next replica in turn: 2,000 computed, although replica 1 already holds the same system prompt.</li>
+<li><b>C1 to replica 3.</b> 2,000 computed.</li>
+<li><b>D1 to replica 1.</b> Back to the start of the cycle; replica 1 holds A1, so the system prompt is cached: 1,000 computed.</li>
+<li><b>A2 to replica 2.</b> Its first turn is on replica 1; replica 2 holds only the system prompt (from B1): 1,500 of 2,500 computed.</li>
+<li><b>B2 to replica 3.</b> The same miss: 1,500 computed.</li>
+<li><b>C2 to replica 1.</b> 1,500 computed.</li>
+<li><b>D2 to replica 2.</b> 1,500 computed. Every second turn landed away from its first: 13,000 prompt tokens computed (4,500, 5,000 and 3,500 per replica), exactly what counting predicts.</li>
+</ol>
+<ol class="sx" id="sx-rt-pa" hidden>
+<li><b>The same eight requests, SGLang's rules.</b> Follow the longest cached match when it covers more than 0.3 of the prompt, else take the least loaded replica; sent one at a time, 1.5 GiB of host cache each.</li>
+<li><b>A1 to replica 1.</b> No match anywhere and every replica idle: 2,000 computed.</li>
+<li><b>B1 to replica 1.</b> The system prompt matches there, half of B1's prompt, above 0.3: the router follows the cache. 1,000 computed.</li>
+<li><b>C1 to replica 1.</b> The same: 1,000 computed.</li>
+<li><b>D1 to replica 1.</b> The same: 1,000 computed. Each request finds every replica idle, so the load rules never pull one away.</li>
+<li><b>A2 to replica 1.</b> Its whole first turn and answer are still cached: 2,299 tokens found, 201 computed.</li>
+<li><b>B2 to replica 1.</b> 201 computed.</li>
+<li><b>C2 to replica 1.</b> 201 computed.</li>
+<li><b>D2 to replica 1.</b> 201 computed: 5,804 in all, every request on one replica, the other two idle. What this saves depends on memory (below).</li>
+</ol>
+<ol class="sx" id="sx-rt-bw" hidden>
+<li><b>Two bursts of four, a weighted score.</b> Each replica scores prefix match times 3 plus queue times 2; the four first turns arrive together, then the four second turns. 1.5 GiB of host cache each.</li>
+<li><b>The first burst spreads.</b> A1 to replica 1, B1 to 2, C1 to 3, D1 to 1: with requests in flight the queue term counts. All four arrive before anything is cached: 2,000 computed each.</li>
+<li><b>The second burst mostly follows the cache.</b> B2, C2 and D2 land where their first turns are (201 computed each); A2 goes to replica 3, away from its first turn, and computes 1,500.</li>
+<li><b>Spread 3, 2, 3.</b> <span data-f="r8b_wt">10,103</span> prompt tokens computed, more than the hash and SGLang's rules (<span data-f="r8b_ca">6,804</span>, all eight on replica 1), but the lowest mean TTFT, <span data-f="r8b_wt_ttft">1.73 to 1.74 s</span>, against <span data-f="r8b_ca_ttft">3.2 to 3.5 s</span>.</li>
+</ol>
+<p><b>What it shows.</b> Round robin computed <span data-f="r8_rr">13,000</span> prompt tokens in every run, exactly what counting predicts. A toy prefix-aware router that charges a load penalty for every request already sent would compute 7,800, but real routers see only requests <i>in flight</i>, and requests arriving one at a time leave none. So least loaded, SGLang's rules, the weighted scorer and the hash all sent all eight to replica 1, and what that saved depended on memory: with a 256 MiB host cache (about one 2,300-token conversation at 112 KiB per token) <span data-f="r8_pa_small">9,701</span> tokens were computed, with 1.5 GiB <span data-f="r8_pa_big">5,804</span>. <b>When requests overlap, load becomes visible</b> (the third run in Fig. 2): the weighted scorer spread the eight requests, while the hash and SGLang's rules still sent all eight to replica 1; round robin and least loaded computed <span data-f="r8b_rr">14,000</span>. <span class="small mute">The three replicas share one GPU, so spreading helps less than it would on three.</span></p>
+<details class="dp"><summary>Depth: every policy in every scenario, request by request</summary><div>
 <div class="card pr-card" id="pr-rt-card">
 <h4>Real routers send one-at-a-time requests to one replica; memory decides what that saves</h4>
 <div class="seg" id="pr-rt-scn"></div>
@@ -16,23 +49,36 @@
 <div class="an-cap" id="pr-rt-cap"></div>
 <div class="an-cnt" id="pr-rt-cnt"></div>
 <div class="an-ctl" id="pr-rt-ctl"></div>
-<p class="small mute">Four two-turn conversations, eight requests (system prompt 1,000 tokens, first turns 2,000, second turns 2,500 plus the generated answer); every policy repeated <span data-f="r8_reps">3</span> times on fresh replicas, identical routing and token counts each time. Step through it; switch policy and scenario.</p>
+<p class="small mute">Every policy in every scenario: four two-turn conversations, eight requests (system prompt 1,000 tokens, first turns 2,000, second turns 2,500 plus the generated answer); every policy repeated <span data-f="r8_reps">3</span> times on fresh replicas, identical routing and token counts each time. It opens on the last request; step back through it, switch policy and scenario.</p>
 </div>
-<p><b>What it shows.</b> Round robin computed <span data-f="r8_rr">13,000</span> prompt tokens in every run, exactly what counting predicts. A toy prefix-aware router that charges a load penalty for every request already sent would compute 7,800, but real routers see only requests <i>in flight</i>, and requests arriving one at a time leave none. So least loaded, SGLang's rules, the weighted scorer and the hash all sent all eight to replica 1, and what that saved depended on memory: with a 256 MiB host cache (about one 2,300-token conversation at 112 KiB per token) <span data-f="r8_pa_small">9,701</span> tokens were computed, with 1.5 GiB <span data-f="r8_pa_big">5,804</span>. <b>When requests overlap, load becomes visible</b> (third scenario, two bursts of four): the hash and SGLang's rules still sent all eight to replica 1, computing the fewest tokens (<span data-f="r8b_ca">6,804</span>) at a mean TTFT of <span data-f="r8b_ca_ttft">3.2 to 3.5 s</span>; the weighted scorer's queue term spread them 3, 2, 3 and computed <span data-f="r8b_wt">10,103</span> with the lowest mean TTFT, <span data-f="r8b_wt_ttft">1.73 to 1.74 s</span>; round robin and least loaded computed <span data-f="r8b_rr">14,000</span>. <span class="small mute">The three replicas share one GPU, so spreading helps less than it would on three.</span></p>
+</div></details>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="pr-s2t">
 <h3>A real multi-turn trace</h3>
 <p>Mooncake, Kimi's serving system, released its production request traces with a hash per 512-token block, so prefix sharing between requests is exact while the text stays private ({{FAST'25 release|https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release}}). This page keeps every turn of one conversation in twelve from the first 30 minutes, scales each block to 16 tokens and plays it 20 times faster: <span data-f="tr_req">541</span> requests from <span data-f="tr_conv">304</span> conversations at about <span data-f="tr_rate">3.1</span> per second. One replica with unlimited cache would find <span data-f="tr_ideal">40.6%</span> of prompt tokens cached (the {{batching page|n:3c65c17b0d0d819db53bd2c48909e5b2}} found 36.6% on the whole trace); each replica here holds much less, so routing decides what is reused.</p>
 <div class="pr" id="pr-pr1"><div class="q">Predict: which policy gives the lowest median and p90 time to first token on this trace?</div>
 <div class="opts"><button>Round robin</button><button>Least loaded</button><button>Hash of the first two blocks</button><button>SGLang cache-aware</button><button data-ok="1">Weighted cache plus queue</button></div>
 <div class="ans" hidden>The weighted cache-plus-queue score: median <span data-f="cv_wt_p50">0.23 to 0.25 s</span> and p90 <span data-f="cv_wt_p90">1.09 to 1.18 s</span> in all three repeats, against <span data-f="cv_rr_p50">0.34 to 0.39 s</span> and <span data-f="cv_rr_p90">2.28 to 2.51 s</span> for round robin. It reuses about as much cache as hashing and SGLang's rules and also steers away from a busy replica. At the p99 the repeats overlap (weighted <span data-f="cv_wt_p99">2.3 to 2.7 s</span>, least loaded <span data-f="cv_ll_p99">2.6 to 2.9 s</span>, cache-aware <span data-f="cv_ca_p99">2.4 to 4.2 s</span>): three runs cannot rank them there.</div></div>
-<div class="fig"><h4>Following the prefix and watching the queue moves the whole TTFT curve left</h4>
-<div class="rl-chart" id="rl-cdf"></div>
-<p class="cap">Share of the 541 requests whose TTFT was at most x (log scale), first repeat of each policy; the thick line is the weighted cache-plus-queue score. <span class="meas">measured on Apple M1 Pro</span></p></div>
 <div class="tw"><table class="tbl-sm" id="pr-conv-tab"></table></div>
-<p><b>Following the prefix nearly doubles the reuse</b>: hashing the first two blocks (system prompt plus the start of the conversation), SGLang's rules and the weighted score found <span data-f="cv_pa_hit">17 to 19%</span> of prompt tokens cached, round robin and least loaded <span data-f="cv_rr_hit">11 to 12%</span>, and the replicas computed about 7% fewer prompt tokens. <b>A bad key is worse than no routing</b>: hashing only the first block, which every request shares (the system prompt), sent all <span data-f="cv_h1_n">541</span> requests to one replica, found <span data-f="cv_h1_hit">9.9%</span> cached and gave a median TTFT of <span data-f="cv_h1_p50">7.7 s</span>. <b>SGLang's imbalance rule never fired</b>: no replica ever had more than <span data-f="cv_ca_maxload">10</span> requests in flight against its threshold of 64, so the router followed the cache whenever the match exceeded 0.3 of the prompt (<span data-f="cv_ca_cache">301</span> of 541 decisions in the first run) and otherwise picked the least loaded; on a small deployment its load protection is off unless you lower the thresholds. All policies delivered the same output tokens per second, because the arrival schedule is fixed; the difference is the work done and the wait.</p>
-<div class="fig"><h4>More replicas, less reuse, unless the router follows the prefix</h4>
+<p><b>Following the prefix nearly doubles the reuse</b>: hashing the first two blocks (system prompt plus the start of the conversation), SGLang's rules and the weighted score found <span data-f="cv_pa_hit">17 to 19%</span> of prompt tokens cached, round robin and least loaded <span data-f="cv_rr_hit">11 to 12%</span>, and the replicas computed about 7% fewer prompt tokens. <b>A bad key is worse than no routing</b>: hashing only the first block, which every request shares (the system prompt), sent all <span data-f="cv_h1_n">541</span> requests to one replica, found <span data-f="cv_h1_hit">9.9%</span> cached and gave a median TTFT of <span data-f="cv_h1_p50">7.7 s</span>.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig"><h4>Following the prefix and watching the queue moves the whole TTFT curve left</h4>
+<div class="rl-chart" id="rl-cdf"></div>
+<p class="cap">Share of the 541 requests whose TTFT was at most x (log scale), first repeat of each policy; the thick line is the weighted cache-plus-queue score. <span class="meas">measured on Apple M1 Pro</span></p></div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="pr-s2s">
+<p><b>Scaled out, the gap grows.</b> Replaying the same trace through a simulated pool of 1 to 16 replicas (beside this paragraph) shows what three replicas cannot: a router that ignores the cache finds less and less of each conversation as replicas are added, while one that follows the prefix keeps its reuse.</p>
+<p><b>SGLang's imbalance rule never fired</b>: no replica ever had more than <span data-f="cv_ca_maxload">10</span> requests in flight against its threshold of 64, so the router followed the cache whenever the match exceeded 0.3 of the prompt (<span data-f="cv_ca_cache">301</span> of 541 decisions in the first run) and otherwise picked the least loaded; on a small deployment its load protection is off unless you lower the thresholds. All policies delivered the same output tokens per second, because the arrival schedule is fixed; the difference is the work done and the wait.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="fig"><h4>More replicas, less reuse, unless the router follows the prefix</h4>
 <div class="seg" id="rl-cap"></div>
 <div class="rl-chart" id="rl-sim"></div>
-<p class="cap">The same trace replayed by <code>src/exp/route_sim.py</code> through 1 to 16 replicas whose cache is a least-recently-used set of 16-token blocks; each request holds its replica's load for the time it took in the measured round-robin run. With 2,048 tokens per replica it lands within about 2 points of every measured hit rate at three replicas (squares). Round robin's reuse falls as replicas are added, because each holds a smaller share of each conversation; prefix routing keeps it. <span class="der">simulated</span></p></div>
+<p class="cap">The same trace replayed by <code>src/exp/route_sim.py</code> through 1 to 16 replicas whose cache is a least-recently-used set of 16-token blocks; each request holds its replica's load for the time it took in the measured round-robin run. With 2,048 tokens per replica it lands within about 2 points of every measured hit rate at three replicas (squares). Round robin's reuse falls as replicas are added, because each holds a smaller share of each conversation; prefix routing keeps it. <span class="der">simulated</span></p></div></div></div></div>
+<section id="pr-s2d">
 <details class="dp" id="rl-det"><summary>Depth: every request of the trace runs, and every repeat</summary><div>
 <p class="small">Three replicas, 2 slots of 2,048 tokens and a 256 MiB host prompt cache each; <span id="rl-meta"></span>. One dot per request, placed by the time it was sent and the replica it went to; colour is the share of its prompt found in that replica's cache, size its prompt length. A conversation's later turns can only hit where its earlier turns went.</p>
 <div class="seg" id="rl-pol"></div>

@@ -9,7 +9,7 @@ window.PRSIM=(function(){
   function run(p){
     const arr=arrivals(p),svc=p.prefill+p.out*p.tpot,nSteps=Math.round(p.T/DT),per=Math.round(p.period/DT);
     let ready=p.init,pending=[],running=[],queue=[],qi=0,ai=0;const ttft=[];
-    let acc={busy:0,q:0,kv:0,n:0},win=[],recs=[[0,p.init]],series=[],repSec=0;
+    let acc={busy:0,q:0,kv:0,n:0},win=[],recs=[[0,p.init]],series=[],repSec=0,starts=[];
     for(let k=0;k<nSteps;k++){
       const t=(k+1)*DT;
       while(pending.length&&pending[0]<=t){pending.shift();ready++}
@@ -27,8 +27,8 @@ window.PRSIM=(function(){
         if(Math.abs(m/p.target-1)<=p.tol)want=total;else want=Math.ceil(ready*m/p.target-1e-9);
         want=Math.max(p.min_r,Math.min(p.max_r,want,total+Math.max(4,total)));
         recs.push([t,want]);recs=recs.filter(x=>x[0]>t-p.down_window);
-        if(want>total){for(let j=0;j<want-total;j++)pending.push(t+p.cold)}
-        else{const lo=Math.max(...recs.map(x=>x[1]));if(lo<total){let drop=total-lo;while(drop>0&&pending.length){pending.pop();drop--}ready=Math.max(p.min_r,ready-drop)}}
+        if(want>total){for(let j=0;j<want-total;j++){pending.push(t+p.cold);starts.push([Math.round(t*100)/100,0])}}
+        else{const lo=Math.max(...recs.map(x=>x[1]));if(lo<total){let drop=total-lo;while(drop>0&&pending.length){pending.pop();for(let j=starts.length-1;j>=0;j--)if(!starts[j][1]){starts[j][1]=1;break}drop--}ready=Math.max(p.min_r,ready-drop)}}
         let rc=0;for(const x of arr){if(t-p.period<x&&x<=t)rc++}
         series.push({t:Math.round(t*100)/100,ready,starting:pending.length,waiting,running:running.length,metric:Math.round(m*1e4)/1e4,want,
           ttft_p90:Math.round(pct(win,0.9)*1000)/1000,rate:Math.round(rc/p.period*1000)/1000});
@@ -38,7 +38,8 @@ window.PRSIM=(function(){
     let ok=0;for(const x of ttft)if(x<=p.slo)ok++;
     return {n:ttft.length,unserved:arr.length-ttft.length,ttft_p50:Math.round(pct(ttft,0.5)*1000)/1000,ttft_p99:Math.round(pct(ttft,0.99)*1000)/1000,
       slo_ok:Math.round(ok/Math.max(1,arr.length)*1e4)/1e4,replica_hours:Math.round(repSec/3600*1000)/1000,
-      peak:Math.max(...series.map(s=>s.ready+s.starting)),series};
+      peak:Math.max(...series.map(s=>s.ready+s.starting)),series,
+      starts};   // starts: [decision time, 1 if cancelled before it served] for every replica started (the page's 3D stage draws each cold start; not in the Python reference)
   }
   return {run,arrivals,Rng};
 })();

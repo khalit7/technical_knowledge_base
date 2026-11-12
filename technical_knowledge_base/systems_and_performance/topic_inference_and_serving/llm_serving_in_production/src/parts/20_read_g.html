@@ -17,22 +17,39 @@
 <details class="dp"><summary>Depth: every llama-server metric, read from the live replicas</summary><div>
 <p class="small"><span data-f="lc_metric_names">n_busy_slots_per_decode, n_decode_total, n_tokens_max, predicted_tokens_seconds, prompt_seconds_total, prompt_tokens_cached_total, prompt_tokens_seconds, prompt_tokens_total, requests_deferred, requests_processing, spec_decode_num_accepted_tokens_total, spec_decode_num_draft_tokens_total, spec_decode_num_drafts_total, tokens_predicted_seconds_total, tokens_predicted_total</span> (each prefixed <code>llamacpp:</code>). vLLM's full TTFT bucket list: 0.001, 0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 20, 40, 80, 160, 640 and 2,560 seconds.</p></div></details>
 </section>
+<div class="s3sp"><div class="s3R"><div class="card pr-card" id="pr-co-card">
+<h4>Fig. 5 · The same 5-second freeze: the closed loop stops asking, the open loop records the backlog</h4>
+<div class="seg" id="pr-co-mode"><button class="on" data-m="closed">Closed loop, 2 users</button><button data-m="poisson">Open loop, Poisson 3/s</button></div>
+<div class="pr-chart" id="pr-co-svg"></div>
+<div class="an-cnt" id="pr-co-cnt"></div>
+<div class="an-ctl" id="pr-co-ctl"></div>
+<p class="small mute">One llama-server, Qwen3-0.6B Q4_K_M, 4 slots, driven by the parent's <code>loadgen.py</code>; 120 requests of about 150 words, 48-token answers; the server process frozen with SIGSTOP 15 s after the start and resumed 5 s later, the kind of pause a garbage collection, a page-cache miss on the weights or a noisy neighbour causes. Each dot is a request at the time it was sent and its end-to-end latency (log scale); hollow circles are still waiting. First repeat shown. <span class="meas">measured on Apple M1 Pro</span></p>
+</div></div><div class="s3L">
 <section id="pr-s8">
 <h2>8. Load testing without fooling yourself</h2>
 <p>A load test is meant to predict what users will see, and the way the load is generated decides the answer as much as the server does. A <dfn>closed-loop</dfn> generator simulates N users who each wait for their answer before sending the next request; an <dfn>open-loop</dfn> generator sends at times fixed in advance (Poisson arrivals at a rate), whatever the server is doing. Users of a public service are close to open loop. When a closed-loop server slows down, the generator slows with it and never sends the requests that would have queued: Gil Tene called this <dfn>coordinated omission</dfn>, and wrk2 corrects it by measuring each request from the moment it should have been sent ({{wrk2 README|https://github.com/giltene/wrk2}}). The general theory (queueing, Little's law, test types) is on {{Capacity planning and performance|n:3ef5c17b0d0d81458291d55d7443700c}}.</p>
 <div class="pr" id="pr-pr3"><div class="q">Predict: the server freezes for 5 seconds in a 40-second test of 120 requests. How many requests will a closed-loop generator with 2 users record as slower than one second?</div>
 <div class="opts"><button data-ok="1">About 2</button><button>About 15 (3 per second for 5 seconds)</button><button>About 90</button></div>
 <div class="ans" hidden>About 2: each user has one request stuck in the freeze and sends nothing more until it returns. The open-loop generator recorded <span data-f="co_open_over1">94 and 103</span> of 120 above one second in the two repeats, because the requests that kept arriving during the freeze queued and the backlog took most of the run to clear.</div></div>
-<div class="card pr-card" id="pr-co-card">
-<h4>The same 5-second freeze: the closed loop stops asking, the open loop records the backlog</h4>
-<div class="seg" id="pr-co-mode"><button class="on" data-m="closed">Closed loop, 2 users</button><button data-m="poisson">Open loop, Poisson 3/s</button></div>
-<div class="pr-chart" id="pr-co-svg"></div>
-<div class="an-cap" id="pr-co-cap"></div>
-<div class="an-cnt" id="pr-co-cnt"></div>
-<div class="an-ctl" id="pr-co-ctl"></div>
-<p class="small mute">One llama-server, Qwen3-0.6B Q4_K_M, 4 slots, driven by the parent's <code>loadgen.py</code>; 120 requests of about 150 words, 48-token answers; the server process frozen with SIGSTOP 15 s after the start and resumed 5 s later, the kind of pause a garbage collection, a page-cache miss on the weights or a noisy neighbour causes. Each dot is a request at the time it was sent and its end-to-end latency (log scale); hollow circles are still waiting. First repeat shown. <span class="meas">measured on Apple M1 Pro</span></p>
-</div>
+<p>Fig. 5 replays the first repeat of each run in five stretches; choose the generator in the figure.</p>
+<ol class="sx" id="sx-co-c">
+<li><b>The test.</b> 120 requests to one llama-server, frozen from second 15 to second 20. Each dot will be one request, placed at the time it was sent and at its latency (log scale); a hollow circle is still waiting.</li>
+<li><b>0 to 15 s: healthy.</b> Two users, each waiting for an answer before asking again: about 3.1 requests a second, each answered in about half a second; 54 requests sent.</li>
+<li><b>15 to 20 s: the server is frozen.</b> Both users are stuck waiting, so the generator sends nothing: the requests real users would have sent now are never made.</li>
+<li><b>20 to 30 s: it resumes.</b> The two stuck requests record 5.6 s each; the next ones are fast at once, because nothing queued.</li>
+<li><b>To the end, 38 s.</b> 2 of 120 requests above one second, median 0.52 s: the freeze barely shows.</li>
+</ol>
+<ol class="sx" id="sx-co-o" hidden>
+<li><b>The test.</b> The same server, requests and freeze; each dot one request at the time it was sent and its latency (log scale), a hollow circle still waiting.</li>
+<li><b>0 to 15 s: healthy.</b> Requests arrive at random, 3 a second on average, whatever the server is doing; 44 sent, most answered within a second.</li>
+<li><b>15 to 20 s: frozen, and requests keep coming.</b> 17 arrive while it is frozen and wait, each recording the time it waits.</li>
+<li><b>20 to 30 s: the backlog.</b> The server resumes behind a queue; requests sent after the freeze wait behind it too, about 5 to 6 s each.</li>
+<li><b>To the end, 42 s.</b> 94 of 120 above one second, median 4.76 s: what users would have seen.</li>
+</ol>
 <p>With the freeze, the closed-loop run's median latency was <span data-f="co_closed_p50">0.52 and 0.89 s</span> in the two repeats and only <span data-f="co_closed_over1">2 and 4</span> requests took over a second; the open-loop run's median was <span data-f="co_open_p50">4.76 and 1.81 s</span>. Same server, same freeze. Applying wrk2's correction to the closed-loop samples (each slow sample also stands for the requests its user would have sent meanwhile) raises its p90 from <span data-f="co_closed_p90">0.65 and 0.93 s</span> to <span data-f="co_corr_p90">1.48 and 2.42 s</span>, closer to what the open loop saw, but it is a model of the missing requests, not a measurement. Open-loop arrivals at a stated rate are the honest default for a service; keep closed loops for "N agents in a loop" workloads, where the clients really do wait.</p>
+</section>
+</div></div>
+<section id="pr-s8r">
 <details class="dp" id="ll-det"><summary>Depth: every request of all four runs, and every repeat with the correction</summary><div>
 <div class="seg" id="ll-run"></div>
 <div class="ll-chart" id="ll-dots"></div>

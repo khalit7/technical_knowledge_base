@@ -1,4 +1,5 @@
-// ---- Reading tab, section 2: eight requests replayed on three real replicas (before/after animation) ----
+// ---- Reading tab, section 2 (closed block): eight requests replayed on three real replicas, every policy in every scenario. A widget the
+// reader drives (no autoplay, no step list): it opens on its last step; Fig. 2 above walks three of these runs step by step. ----
 (function(){
   const svgEl=document.getElementById('pr-rt-svg');if(!svgEl||!window.PRD)return;
   const DET=PRD.route_detail||{},SUM=PRD.route||{};
@@ -39,8 +40,8 @@
       RD.stat('Most requests on one replica',Math.max(...per),'')+
       RD.stat('A toy router\'s count',pol==='rr'?'13,000':'7,800','prompt tokens computed for all eight');
   }
-  const A=RD.anim({card:'pr-rt-card',ctl:'pr-rt-ctl',n:9,draw,ms:1300,label:'Routing step'});
-  RD.seg(scnSeg,v=>{scn=v;polButtons();A.reset(9)});
-  RD.seg(polSeg,v=>{pol=v;A.reset(9)});
+  const A=RD.anim({card:'pr-rt-card',ctl:'pr-rt-ctl',n:9,draw,ms:1300,label:'Routing step',auto:false,start:8});
+  RD.seg(scnSeg,v=>{scn=v;polButtons();A.go(8,true)});
+  RD.seg(polSeg,v=>{pol=v;A.go(8,true)});
   RD.onResize(()=>A.redraw());
 })();

@@ -1,4 +1,5 @@
-// ---- Reading tab, section 3 (moved from the Autoscaling lab): controls, the two-run chart animated over the half hour, and the summary table ----
+// ---- Reading tab, section 3 (moved from the Autoscaling lab): controls, the two-run chart over the half hour (a widget: 121 frames, opens on
+// the last, moves only when the reader steps or plays it), and the summary table ----
 (function(){
   const root=document.getElementById('sc-chart');if(!root)return;
   const D=window.PRD||{};const m1=D.cold_preset||null;
@@ -87,7 +88,7 @@
   document.getElementById('sc-pre').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     document.querySelectorAll('#sc-pre button').forEach(x=>x.classList.toggle('on',x===b));
     const P=PRE[b.dataset.p];Object.assign(cfg.a,P.a);Object.assign(cfg.b,P.b);runPanel('sc-a','a');runPanel('sc-b','b');recompute()});
-  const A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:121,draw,ms:180,label:'Time step'});
+  const A=RD.anim({card:'sc-card',ctl:'sc-ctl',n:121,draw,ms:180,label:'Time step',auto:false,start:120});  // a widget (long-replay rule b): opens on the end of the half hour, never plays by itself
   runPanel('sc-a','a');runPanel('sc-b','b');trafficPanel();
   RD.onRender(()=>{if(!R.a)recompute();else A.redraw()});
   RD.onResize(()=>A.redraw());
