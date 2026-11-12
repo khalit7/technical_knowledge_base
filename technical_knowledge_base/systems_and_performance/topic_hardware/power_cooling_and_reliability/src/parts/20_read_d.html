@@ -1,28 +1,44 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-fail"></div></div><div class="s3L">
 <section id="pw-s5">
 <h2>5. What fails, how often, and how the hardware tells you</h2>
 <p>Synchronous training needs every GPU in the job: if one dies, the collective it was part of never completes and the whole job stops. So the job fails whenever <i>any</i> part fails, and with N parts that is N times as often as one part.</p>
 <div class="fm"><div class="eq">MTBF<sub>job</sub> = 1 / (N<sub>servers</sub> &times; r)</div>
 <dl><dt>r</dt><dd>failures per server per day of running (one server = 8 GPUs)</dd><dt>N<sub>servers</sub></dt><dd>servers in the job</dd></dl></div>
-<p class="lane">Double the GPUs, halve the time between stops</p>
-<div class="card" id="pw-mtbf-card"><div id="pw-mtbf" class="plot"></div></div>
-<p class="small mute">Job MTBF against GPUs, both axes log <span class="pill d">derived</span>, at three published failure rates. Llama 3's 419 unexpected interruptions in 54 days on 2,048 servers is 3.79 failures per thousand server-days: one 8-GPU server fails about once every 264 days, one GPU-share about every 5.8 years, yet the 16,384-GPU job stops once every 3.1 hours, and at the same rate 100,000 GPUs stop every 30 minutes. Meta's research clusters measured 6.50 and 2.34 per thousand node-days, which project to 1.8 hours for 16,384 GPUs and 0.23 hours for 131,072 ({{Kokolis et al., Feb 2025|https://arxiv.org/abs/2410.21680}}; reproduced here) <span class="pill i">published</span>. The dashed line is 20 minutes, a 5-minute checkpoint plus 15 minutes to recover: where MTBF approaches it, section 6's first-order formula breaks. Google's Gemini report says the same in words: more accelerators "results in a proportionate decrease in the mean time between failure" ({{Gemini report|https://arxiv.org/abs/2312.11805}}).</p>
+<ol class="sx" id="sx-fail">
+<li><b>2,048 servers, one job.</b> Llama 3's 16,384 GPUs are 2,048 eight-GPU servers, every one needed for every step; each tile here stands for 8 servers. At Llama 3's rate one server fails about once every 264 days, so the job as a whole stops about once every 3.1 hours.</li>
+<li><b>A checkpoint every 48 minutes.</b> Every 48.1 minutes (Young's interval for this job, section 6) training pauses for 5 minutes while every server writes its share of the model and optimiser state to storage.</li>
+<li><b>One server fails.</b> On section 6's default day the first failure comes 0.93 h in. Its collective never completes, so all 16,384 GPUs stop, and the 7.5 minutes of training since the last checkpoint are thrown away.</li>
+<li><b>Swap and reload.</b> 10 minutes of downtime to detect the fault and swap in a healthy server, then 5 minutes of recovery while every server reloads the last checkpoint; training resumes from there.</li>
+<li><b>A whole day.</b> 8 failures in 24 hours (times from the default day, tile positions illustrative). With Young's interval the job ends the day with 16.5 h of saved training; checkpointing every 3 hours, with 11.7 h.</li>
+</ol>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="pw-s5b" aria-label="Job MTBF against GPUs">
+<p><b>Three published rates.</b> The chart beside this applies that formula at three failure rates. Llama 3's 419 unexpected interruptions in 54 days on 2,048 servers is 3.79 failures per thousand server-days: one 8-GPU server fails about once every 264 days, one GPU-share about every 5.8 years, yet the 16,384-GPU job stops once every 3.1 hours, and at the same rate 100,000 GPUs stop every 30 minutes. Meta's research clusters measured 6.50 and 2.34 per thousand node-days, which project to 1.8 hours for 16,384 GPUs and 0.23 hours for 131,072 ({{Kokolis et al., Feb 2025|https://arxiv.org/abs/2410.21680}}; reproduced here) <span class="pill i">published</span>. The dashed line is 20 minutes, a 5-minute checkpoint plus 15 minutes to recover: where MTBF approaches it, section 6's first-order formula breaks. Google's Gemini report says the same in words: more accelerators "results in a proportionate decrease in the mean time between failure" ({{Gemini report|https://arxiv.org/abs/2312.11805}}).</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="pw-mtbf-card"><p class="lane">Double the GPUs, halve the time between stops</p><div id="pw-mtbf" class="plot"></div><p class="small mute">Job MTBF against GPUs, both axes log <span class="pill d">derived</span>; dashed: 20 minutes, C + D + R.</p></div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="pw-s5c" aria-label="What actually fails">
 <p><b>What actually fails.</b> Meta's Llama 3 405B pre-training is the best public record: in a 54-day snapshot on up to 16,384 H100s there were 466 interruptions, 47 planned and <b>419 unexpected</b>, about 78% of them confirmed or suspected hardware; only three needed significant manual intervention, and the run kept more than 90% effective training time ({{Llama 3 &sect;3.3.4, Table 5|https://arxiv.org/html/2407.21783v3#S3.SS3.SSS4}}) <span class="pill i">published</span>. Describing Prometheus, its GB200 and GB300 cluster (section 2), Meta reports "more than 85% goodput for pre-training runs" of Muse Wonder ({{Meta engineering, Oct 19 2026|https://engineering.fb.com/2026/10/19/data-center-engineering/inside-prometheus-meta-gigawatt-scale-supercluster/}}) <span class="pill v">vendor</span>; goodput, the share of time that produces kept progress, is defined on {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}. Table 5, coloured by where in the hardware each cause sits:</p>
-<div class="lg" id="pw-t5lg"></div>
-<div class="bars" id="pw-t5"></div>
 <p>The GPU itself (die, HBM, on-chip SRAM, its management processor, thermal interface and sensors) caused <b>64.0%</b> of stops, 268 of 419 by count <span class="pill d">derived</span>. Memory on the GPU alone, HBM3 plus SRAM, caused 91, 21.7%. Yet each GPU is very reliable: 72 HBM interruptions over 16,384 GPUs for 54 days is one per 33.6 GPU-years <span class="pill d">derived</span>. Nothing here is a bad part; it is the multiplication. {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}} reads eleven published failure tables against this one.</p>
 <details class="dp"><summary>Correction: Table 5's "Faulty GPU" percentage</summary>
 <div class="co corr">Table 5 prints "Faulty GPU: 148, 30.1%", but 148 of 419 is 35.3%; every other row's percentage matches its count. By count the GPU rows add to 268 of 419, 64.0%, not the 58.7% the paper's text gives (the sum of the printed percentages). The parent page's section 8 quotes 35.3% and links here.</div></details>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="pw-t5card"><p class="lane">Table 5 by where the cause sits: the GPU dominates</p><div class="lg" id="pw-t5lg"></div>
+<div class="bars" id="pw-t5"></div></div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="pw-s5d" aria-label="How the hardware reports a fault">
 <p><b>How the hardware reports a fault</b>, from a single flipped bit to a replaced GPU:</p>
-<div class="card" id="pw-esc-card"><div id="pw-esc" class="plot"></div></div>
+
 <ul>
 <li><b>ECC on memory.</b> HBM and on-chip SRAM store extra check bits with every word: a single flipped bit is corrected on the fly and counted; two flipped bits are detected and reported as uncorrectable, and if the job was using that data the process dies.</li>
 <li><b>Row remapping.</b> From Ampere on, "every bank in DRAM is equipped with spare rows"; a row that keeps producing errors is remapped to a spare, which "requires a GPU reset to take effect and will remain persistent throughout the life of the GPU" ({{NVIDIA memory error management|https://docs.nvidia.com/deploy/a100-gpu-mem-error-mgmt/row-remapping.html}}) <span class="pill v">vendor</span>. When a bank runs out of spares, the GPU is due for replacement.</li>
 <li><b>Xid errors.</b> The NVIDIA driver writes numbered "Xid" messages to the kernel log for GPU faults (memory errors, a GPU that stops answering on PCIe, hangs); NVIDIA keeps a catalogue of what each number means and what to do ({{Xid errors|https://docs.nvidia.com/deploy/xid-errors/index.html}}, updated Sep 2026). Cluster health checks watch these.</li>
 <li><b>Lemon nodes.</b> Some servers fail again and again. Meta's research clusters traced repeat-offender ("lemon") nodes to GPUs in 28.2% of cases and PCIe errors in 15.4%; the leading failure sources overall were InfiniBand links, filesystem mounts, GPU memory errors and PCIe errors ({{Kokolis et al.|https://arxiv.org/abs/2410.21680}}). Finding and removing them is a large part of cluster reliability work.</li>
 </ul>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="pw-esc-card"><p class="lane">From a flipped bit to a replaced GPU</p><div id="pw-esc" class="plot"></div></div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="pw-s6">
 <h2>6. The checkpoint interval: Young, Daly and when they break</h2>
 <p>A checkpoint saves model and optimiser state so a failed job restarts from it. Checkpointing often wastes time writing; checkpointing rarely wastes the work done since the last save at every failure. The best interval in between follows from four numbers:</p>
@@ -30,8 +46,9 @@
 <div class="eq">T<sub>Young</sub> = &radic;(2 &mu; C) + C &nbsp;&nbsp; T<sub>Daly</sub> = &radic;(2 (&mu; + D + R) C) + C</div>
 <dl><dt>T</dt><dd>the period: T &minus; C of training, then a checkpoint</dd><dt>C</dt><dd>time training is paused per checkpoint</dd><dt>D, R</dt><dd>downtime after a failure (detect, replace) and recovery (restart, reload)</dd><dt>&mu;</dt><dd>MTBF of the whole job, from section 5</dd></dl></div>
 <p>The first term is time spent checkpointing; the second is failures, one every &mu; hours, each costing the downtime, the recovery and on average <b>half a period</b> of lost work, because a failure is equally likely anywhere in the period. Minimising over T gives Young's interval ({{Young 1974|https://doi.org/10.1145/361147.361115}}) and Daly's, which adds recovery ({{Daly 2006|https://doi.org/10.1016/j.future.2004.11.016}}; both as eq. 12 and 13 of {{Aupy et al. 2013|https://arxiv.org/abs/1302.3752}}). The square root is the intuition: double the failure rate and the best interval shrinks only by &radic;2. For Llama 3's rate (&mu; = 3.09 h) and a 5-minute synchronous checkpoint, Young gives 48.1 minutes; with 10 minutes of downtime and 5 of recovery the exact optimum is 44.8 minutes and the job keeps 72.5% of its time <span class="pill d">derived</span>. A 3-hour interval on the same run keeps 53.2%.</p>
-<p><b>Watch it.</b> One day of that job: the same random failures hit two copies, one checkpointing every 3 hours and one at Young's interval. <b>Predict</b> how much more training the Young lane keeps by evening, then step through the day; change the job size, the pause or your interval below.</p>
-<div class="ctl">
+<p><b>Watch it.</b> The widget beside this replays one day of that job: the same random failures hit two copies, one checkpointing every 3 hours and one at Young's interval. It opens at the end of the day; press play to watch it hour by hour, and at each failure the caption under the lanes says how much work each copy threw away. <b>Predict</b> how much more training the Young lane keeps by evening, then change the job size, the pause or your interval: the stats above the lanes follow.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ck-wcard"><div class="ctl">
 <label>GPUs in the job <b id="ck-gv"></b><input type="number" id="ck-g" min="8" max="2000000" step="8" value="16384" aria-label="GPUs in the job">
 <span class="chips" id="ck-gp"><button data-v="1024">1,024</button><button data-v="16384" class="on">16,384 (Llama 3)</button><button data-v="100000">100,000</button><button data-v="131072">131,072</button></span></label>
 <label>Failures per 1,000 server-days <b id="ck-rv"></b><input type="number" id="ck-r" min="0.1" max="50" step="0.01" value="3.789" aria-label="Failures per thousand server-days">
@@ -43,20 +60,24 @@
 <label>The day <b id="ck-sv"></b><span style="display:flex;gap:6px"><button id="ck-seed">Another day</button><button id="ck-seed0">The default day</button></span></label>
 </div>
 <div class="out" id="ck-stats"></div>
-<div class="card" id="ck-card">
+<div id="ck-card" class="ck-in">
 <div class="lg"><span><i style="background:var(--c3)"></i>training, saved by a checkpoint</span><span><i style="background:var(--c3);opacity:.45"></i>training, not yet saved</span><span><i style="background:var(--c1)"></i>checkpointing</span><span><i style="background:var(--bad)"></i>work thrown away by a failure</span><span><i style="background:var(--dim)"></i>down and recovering</span><span><i style="background:var(--ink);width:3px"></i>failure</span></div>
 <div id="ck-svg" class="plot"></div>
 <div class="an-ctl" id="ck-ctl"></div>
 <div class="cap" id="ck-cap"></div>
 <div class="out" id="ck-out"></div>
 </div>
-<p class="lane">The curve is flat near the optimum and falls steeply at long intervals</p>
-<div class="card" id="ck-curve-card"><div id="ck-curve" class="plot"></div>
-<div class="lg"><span><i style="background:var(--c1)"></i>exact (Poisson failures)</span><span><i style="background:var(--c2)"></i>first-order formula</span><span><i style="background:var(--c4);border-radius:50%"></i>Monte Carlo (6 runs of 400 MTBFs, range)</span><span><i style="background:var(--good);width:3px"></i>Young</span><span><i style="background:var(--bad);width:3px"></i>your interval</span></div></div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="pw-s6b" aria-label="The exact answer">
 <p><b>The exact answer.</b> If failures arrive at random (a Poisson process), the expected time is known exactly: Time<sub>final</sub> = (&mu; + D) e<sup>R/&mu;</sup> (e<sup>T/&mu;</sup> &minus; 1) Time<sub>base</sub> / (T &minus; C) (quoted by Aupy et al. from earlier work). The curve above uses it; the first-order line falls below it as the interval grows and can go negative at large scale.</p>
 <div class="pred" id="pw-pred2"><b>Predict.</b> At 131,072 GPUs (Llama 3's failure rate, &mu; = 23 minutes) with a 5-minute checkpoint, the first-order waste formula predicts a negative useful fraction. Is Young's interval still a good choice?
 <div class="opts"><button data-a="0">No, it is far from the optimum</button><button data-a="1" data-ok>Yes, it is still close to the optimum</button><button data-a="2">The job cannot make progress at all</button></div>
 <div class="ans">Yes. The exact formula gives 26.6% useful time at Young's interval against 27.0% at the true optimum; the first-order formula's &minus;6.2% is the formula breaking, not the job <span class="pill d">derived</span>. The interval rule is robust; the efficiency estimate is not, once &mu; is only a few times C + D + R. The fix at that scale is a smaller C, D and R: in the table below, a 10-second pause roughly doubles the useful fraction.</div></div>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="ck-curve-wrap"><p class="lane">The curve is flat near the optimum and falls steeply at long intervals</p>
+<div id="ck-curve-card"><div id="ck-curve" class="plot"></div>
+<div class="lg"><span><i style="background:var(--c1)"></i>exact (Poisson failures)</span><span><i style="background:var(--c2)"></i>first-order formula</span><span><i style="background:var(--c4);border-radius:50%"></i>Monte Carlo (6 runs of 400 MTBFs, range)</span><span><i style="background:var(--good);width:3px"></i>Young</span><span><i style="background:var(--bad);width:3px"></i>your interval</span></div></div></div></div></div></div>
+<section id="pw-s6c" aria-label="Useful time at scale">
 <div class="tw"><table class="tbl-sm" id="pw-scaletab"></table></div>
 <p class="small mute">Useful fraction of wall-clock time at the exact optimum, Llama 3's failure rate, D = 10 min, R = 5 min <span class="pill u">illustrative</span>, against the first-order formula's prediction at Young's interval <span class="pill d">derived</span>. Real systems at these scales cut D and R too (hot spares, in-memory checkpoints): {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}, section 5, which sets each recovery design against the part of the lost time it removes. The {{Llama 3 paper page|n:3c65c17b0d0d81aca58ccb9d720b474e}} replays the 54 days of Table 5.</p>
 <details class="dp"><summary>What reproduces what, and the simulator's inputs</summary>

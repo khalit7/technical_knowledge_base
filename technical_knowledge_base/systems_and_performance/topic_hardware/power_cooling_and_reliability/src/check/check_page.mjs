@@ -1,6 +1,7 @@
 // Whole-page check: every tab and control at 390 px dark and 920 px light (page errors, NaN, undefined, sideways scroll);
 // (2026-10-23: the simulator and planner moved into Reading) the checkpoint simulator's JavaScript against src/recompute.py (the default day's totals, the exact optimum, the swing trace);
 // screenshots per tab and per Reading section to ../../.shots/own/ (gitignored).
+// 2026-11-12: autoplay checks inverted (the swing plays in view; the checkpoint day is a widget).
 // usage: node <page>/src/check/check_page.mjs   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'module';
 import path from 'path';
@@ -27,6 +28,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width: w, height: 900 });
   await p.goto('file://' + pageFile);
   await p.evaluate(() => { try { localStorage.clear() } catch (e) {} });
+  await p.goto('file://' + pageFile); // reload, so a tab remembered from an earlier run does not hide Reading
   // JS engine against the Python reference (before any control is touched)
   const js = await p.evaluate(() => {
     const E = window.PWE, S = window.PW.sim_defaults;
@@ -41,12 +43,15 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   if (js.f.some((x, i) => !close(x, exp.day_fails_h[i], 1e-3)) || js.nf !== exp.day_fails_h.length) { console.log('FAIL arrivals'); bad++; }
   if (!close(js.topt, exp.sim_T_opt_min, 0.01)) { console.log('FAIL t_opt', js.topt); bad++; }
   if (!close(js.effY, exp.sim_eff_exact_young, 1e-3)) { console.log('FAIL eff young', js.effY); bad++; }
-  // nothing moves before the reader acts: scroll each animation into view, wait, and expect step 0
-  for (const [card, sl] of [['pw-swing-card', 'pw-swing-ctl-s'], ['ck-card', 'ck-ctl-s']]) {
-    await p.evaluate(c => document.getElementById(c).scrollIntoView(), card); await sleep(2500);
-    const v = await p.evaluate(i => document.getElementById(i).value, sl);
-    if (v !== '0') { console.log('FAIL autoplay', card, v); bad++; }
-  }
+  // 2026-11-12 (inverted from the old never-autoplay check): the power-swing animation plays by itself once scrolled into view;
+  // the checkpoint day is a widget that opens on the end of the day and never plays by itself
+  { // scroll twice: lazy images above the card can shift it while the first scroll settles
+    for (const ms of [600, 1500]) { await p.evaluate(() => document.getElementById('pw-swing-card').scrollIntoView({ block: 'center' })); await sleep(ms); }
+    const lab = await p.evaluate(() => document.getElementById('pw-swing-ctl-p').getAttribute('aria-label'));
+    if (lab !== 'Pause') { console.log('FAIL swing did not play in view', lab); bad++; }
+    await p.evaluate(() => document.getElementById('ck-card').scrollIntoView({ block: 'center' })); await sleep(1500);
+    const v = await p.evaluate(() => [document.getElementById('ck-ctl-p').getAttribute('aria-label'), document.getElementById('ck-ctl-s').value, document.getElementById('ck-ctl-s').max]);
+    if (v[0] !== 'Play' || v[1] !== v[2]) { console.log('FAIL checkpoint widget moved by itself', v); bad++; } }
   for (const tab of ['t-read', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(300);
@@ -59,6 +64,7 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
       const sw = await p.evaluate(() => [...document.querySelectorAll('#pw-swing-out .v')].map(e => e.textContent));
       if (!sw[1] || !sw[1].startsWith(String(exp.swing_raw_pp_mw.toFixed(1)))) { console.log('FAIL swing raw', sw, exp.swing_raw_pp_mw); bad++; }
       await p.evaluate(() => document.querySelector('#pw-swing-seg button[data-m="smooth"]').click());
+      await p.evaluate(() => { const s = document.getElementById('pw-swing-ctl-s'); s.value = s.max; s.dispatchEvent(new Event('input', { bubbles: true })); });
       const sw2 = await p.evaluate(() => [...document.querySelectorAll('#pw-swing-out .v')].map(e => e.textContent));
       if (!sw2[1].startsWith(String(exp.swing_smooth_pp_mw.toFixed(1))) || !sw2[2].includes(String(exp.swing_energy_overhead_pct.toFixed(1)))) { console.log('FAIL swing smooth', sw2, exp.swing_smooth_pp_mw, exp.swing_energy_overhead_pct); bad++; }
       const ids = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));

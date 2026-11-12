@@ -1,4 +1,4 @@
-// Clicks every control at 390 px dark and 920 px light; fails on page errors, NaN, undefined or sideways scroll.
+// Clicks every control at 390 px dark and 920 px light (reduced motion, so the stages stay put); fails on page errors, NaN, undefined or sideways scroll.
 // Usage (from the repo root): node <page>/src/check/check_ui.mjs <page>/index.html <shots dir>
 import { createRequire } from 'module';
 import path from 'path';
@@ -26,17 +26,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     if (p.length) { fails++; console.log('FAIL', w, scheme, tag, p.join(', ')); }
   };
   const setVal = (id, v) => page.evaluate((id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, id, v);
-  // Reading: the memory animation in each mode, stepped to the loss and to the end
-  for (const m of ['eager', 'flash', 'ckpt']) {
-    await page.evaluate(m => document.querySelector('#rd-mem-mode button[data-m="' + m + '"]').click(), m);
-    for (let i = 0; i < 34; i++) await page.click('#rd-mem-ctl-f');
-    await bad('mem ' + m + ' at loss');
-    const el = await page.$('#rd-mem-card'); await el.screenshot({ path: `${shots}/rd-mem-${m}-${w}-${scheme}.png` });
-    for (let i = 0; i < 20; i++) await page.click('#rd-mem-ctl-f');
-    await page.click('#rd-mem-zoom'); await bad('mem zoom ' + m); await page.click('#rd-mem-zoom');
-  }
-  await page.evaluate(() => { const s = document.getElementById('rd-mem-ctl-s'); s.value = 66; s.dispatchEvent(new Event('input')); });
-  await bad('mem end');
+  // Reading: the memory animation became the 3D stage Fig. 3 (2026-11-12); check_stages.mjs steps it, checks autoplay and reduced motion
   // Reading: the roofline slider over every position, the run-cost presets at both MFU ends (added 2026-10-23)
   for (let v = 0; v <= 14; v++) { await setVal('rd-roof-m', v); await bad('roof ' + v); if (v === 9 || v === 14) { const el = await page.$('#rd-roof-card'); await el.screenshot({ path: `${shots}/rd-roof-${v}-${w}-${scheme}.png` }); } }
   await setVal('rd-roof-m', 0);
@@ -72,15 +62,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (errs.length) { fails++; console.log('ERRORS', w, scheme, errs.slice(0, 5)); }
   await page.close();
 }
-// nothing moves before the reader acts: normal motion, the animation card on screen for 3 s, still on step 0
-{ const page = await browser.newPage(); await page.setViewport({ width: 920, height: 900 });
-  await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
-  await page.goto(url, { waitUntil: 'load' });
-  await page.evaluate(() => document.getElementById('rd-mem-card').scrollIntoView()); await new Promise(r => setTimeout(r, 3000));
-  checks++; const v = await page.$eval('#rd-mem-ctl-s', e => +e.value); if (v !== 0) { fails++; console.log('FAIL autoplay: step', v); }
-  await page.evaluate(() => document.querySelector('#rd-mem-mode button[data-m="eager"]').click()); await new Promise(r => setTimeout(r, 2000));
-  checks++; const v2 = await page.$eval('#rd-mem-ctl-s', e => +e.value); if (v2 !== 0) { fails++; console.log('FAIL autoplay after mode switch: step', v2); }
-  await page.close(); }
+// Autoplay and reduced motion (the 2026-11-06 rule: stages play when scrolled into view, never under reduced motion) are checked by check_stages.mjs.
 await browser.close();
 console.log(fails ? 'UI FAIL ' + fails + ' of ' + checks : 'UI OK, ' + checks + ' states checked');
 process.exit(fails ? 1 : 0);

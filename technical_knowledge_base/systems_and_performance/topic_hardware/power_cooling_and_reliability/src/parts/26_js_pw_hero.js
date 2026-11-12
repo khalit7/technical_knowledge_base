@@ -1,8 +1,8 @@
-// ---- Reading top: the hero diagram (power in, heat out, multiplied by lockstep) and section 5's fault-escalation diagram ----
-// Shared box-chain drawer: boxes in a row when wide, a two-column snake (hero) or a single column (escalation) when narrow.
+// ---- Reading section 5: the fault-escalation diagram (2026-11-12: the 2D hero it shared this drawer with became the 3D Fig. 1, 40_js_sc_hero.js) ----
+// Box-chain drawer: boxes in a row when wide, a single column when narrow.
 (function(){
   const $=id=>document.getElementById(id);
-  if(!$('pw-hero-svg')&&!$('pw-esc'))return;
+  if(!$('pw-esc'))return;
   const esc=RD.esc;
   // bands: [{title, col, boxes:[[title, sub], ...], dash:[indices drawn dashed, unlinked]}]
   function chain(el,bands,o){
@@ -22,12 +22,7 @@
           s+='<line x1="'+(x1+(x2>x1?2:x2<x1?-2:0)).toFixed(1)+'" y1="'+(y1+(y2>y1?2:0))+'" x2="'+(x2-(x2>x1?2:x2<x1?-2:0)).toFixed(1)+'" y2="'+(y2-(y2>y1?2:0))+'" stroke="var(--mute)" stroke-width="1.4" marker-end="url(#'+o.id+'-ah)"/>'}});
       const rows=Math.max(...pos.map(p=>p.row))+1;y+=rows*bh+(rows-1)*gap+14});
     el.innerHTML=RD.svg(W,y,s,o.label)}
-  const HERO=[
-    {title:'Power in (a 1 GW site)',col:'var(--c1)',boxes:[['Grid connection','1 GW, high voltage'],['Substation, UPS, cooling','PUE 1.2: 167 MW lost'],['GB200 NVL72 rack','~120 kW, 54 V busbar'],['One Blackwell GPU','up to 1,200 W']]},
-    {title:'Heat out (every watt)',col:'var(--c2)',boxes:[['GPU die','every watt becomes heat'],['Cold plate on chip','liquid, not air'],['Coolant distribution','to facility water'],['Cooling tower','heat and water out']]},
-    {title:'Multiplied by lockstep (Llama 3)',col:'var(--acc)',boxes:[['16,384 GPUs, one step','compute, then all wait'],['Load swings','tens of MW per step'],['Any part fails','job stops every 3.1 h']]}];
   const ESC=[{title:'',col:'var(--c1)',boxes:[['1 bit flips','ECC corrects, counts'],['2 bits flip','uncorrectable, job dies'],['Row keeps failing','spare row after reset'],['Bank out of spares','replace the GPU'],['Multiplier errs','no ECC: silent (sec. 7)']],dash:[4]}];
-  function draw(){if($('pw-hero-svg'))chain($('pw-hero-svg'),HERO,{id:'pwh',titles:true,snake:true,minW:740,label:'Power flows from a 1 GW grid connection to a 1,200 W GPU, every watt leaves as heat through a cold plate and the facility water loop, and lockstep training multiplies swings and failures'});
-    if($('pw-esc'))chain($('pw-esc'),ESC,{id:'pwe',titles:false,snake:false,minW:820,label:'Memory faults escalate from a corrected bit to an uncorrectable error, a remapped row and a replaced GPU; an arithmetic error has no ECC and is silent'})}
+  function draw(){chain($('pw-esc'),ESC,{id:'pwe',titles:false,snake:false,minW:2000,label:'Memory faults escalate from a corrected bit to an uncorrectable error, a remapped row and a replaced GPU; an arithmetic error has no ECC and is silent'})}
   RD.onRender(draw);RD.onResize(draw);draw();
 })();

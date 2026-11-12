@@ -1,28 +1,7 @@
-// ---- Reading: the hero (top), the roofline with one movable matmul (s2), MFU of real runs (s4), the run-cost estimate (s7). Numbers from window.PMD (out/recompute.json) ----
+// ---- Reading: the roofline with one movable matmul (s2), MFU of real runs (s4), the run-cost estimate (s7). Numbers from window.PMD (out/recompute.json) ----
 (function(){
   const P=window.PMD,X=window.CALCX,$=id=>document.getElementById(id);
   const PK=989.5e12,BW=3.35e12;
-  const box=(x,y,w,h,stroke,big,lines,fill)=>{let b='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(fill||'var(--soft)')+'" stroke="'+stroke+'" stroke-width="1.5"/>';
-    b+=RD.t(x+8,y+18,big,{fs:14,w:600});lines.forEach((s,i)=>{b+=RD.t(x+8,y+34+i*14,s,{fs:11,fill:'var(--mute)'})});return b};
-
-  // ---------- hero: four divisions ----------
-  function hero(){const el=$('rd-hero');if(!el)return;const W=RD.width(el);
-    const rows=[
-      {q:'A training step (section 1)',c:X.sig(P.step_tf_8k,3)+' TFLOP',cd:['60.1 GFLOP per token','× 8,192 tokens'],op:'÷',k:'989.5 TFLOP/s',kd:['× 40% MFU','one H100'],a:X.sig(P.anim_time_s.flash,3)+' s per step',ad:['arithmetic is the limit']},
-      {q:'What the step holds (section 3)',c:Math.round(P.anim_peaks_GB.flash)+' GB held',cd:[X.sig(P.states_fsdp8_GB,3)+' GB model state',' + '+X.sig(P.act_total_flash_GB,3)+' GB activations'],op:'vs',k:'80 GB',kd:['memory capacity'],a:'fits, barely',ad:['state sharded over 8 GPUs','with FlashAttention']},
-      {q:'A decoded token (section 6)',c:X.sig(2*P.l8_P/1e9+P.kv_seq_4k_GB,3)+' GB read',cd:[X.sig(2*P.l8_P/1e9,4)+' GB weights',' + '+X.sig(P.kv_seq_4k_GB,2)+' GB KV cache'],op:'÷',k:'3.35 TB/s',kd:['memory bandwidth'],a:X.sig(P.tpot_b1_ms,3)+' ms per token',ad:[Math.round(P.tps_b1)+' tokens/s at batch 1','bandwidth is the limit']},
-      {q:'A whole run (section 7)',c:'7.2e23 FLOPs',cd:['6 × 8.03e9 × 15T tokens'],op:'÷',k:'989.5 TFLOP/s',kd:['× 40% MFU','then × $3.99 per hour'],a:'$'+X.sig(P.usd_h100/1e6,3)+'M',ad:[Math.round(P.gpuh_h100/1e3)+'K H100-hours']}];
-    let b='',y=4;const narrow=W<600,bh=66;
-    rows.forEach((r,i)=>{
-      if(narrow){b+=RD.t(0,y+12,r.q,{fs:12,w:600});y+=18;
-        const g=8,w=(W-g)/2;b+=box(0,y,w,bh,'var(--c1)',r.c,r.cd)+box(w+g,y,w,bh,'var(--c4)',r.op+' '+r.k,r.kd);y+=bh+6;
-        b+=box(0,y,W,bh,'var(--acc)','= '+r.a,r.ad,'var(--bg)');y+=bh+14}
-      else{const lw=Math.min(150,W*.17),g=24,w=(W-lw-2*g)/3;let x=lw;
-        b+=RD.t(0,y+bh/2-2,r.q.replace(/ \(.*/,''),{fs:12,w:600})+RD.t(0,y+bh/2+13,r.q.replace(/^.*\(/,'('),{fs:11,fill:'var(--mute)'});
-        b+=box(x,y,w,bh,'var(--c1)',r.c,r.cd);x+=w;b+=RD.t(x+g/2,y+bh/2+5,r.op,{a:'middle',fs:14,w:600});x+=g;
-        b+=box(x,y,w,bh,'var(--c4)',r.k,r.kd);x+=w;b+=RD.t(x+g/2,y+bh/2+5,'=',{a:'middle',fs:14,w:600});x+=g;
-        b+=box(x,y,w,bh,'var(--acc)',r.a,r.ad,'var(--bg)');y+=bh+10}});
-    el.innerHTML=RD.svg(W,y,b,'Four divisions: FLOPs over peak, bytes held against capacity, bytes read over bandwidth, FLOPs over peak times price');}
 
   // ---------- roofline ----------
   const mmI=m=>2*m*4096*4096/(2*(m*4096+4096*4096+m*4096));
@@ -92,6 +71,6 @@
   const cs=$('rd-cost-mfu');if(cs){cs.addEventListener('input',cost);
     RD.seg($('rd-cost-p'),v=>{pre=v;cs.value=P.cost_presets[v].mfu.toFixed(3);cost()});}
 
-  function all(){hero();roof();mfu();cost()}
+  function all(){roof();mfu();cost()}
   all();RD.onRender(all);RD.onResize(all);
 })();

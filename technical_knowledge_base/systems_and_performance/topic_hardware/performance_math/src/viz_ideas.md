@@ -51,3 +51,15 @@ Rejected in the rebuild: a 16-bytes-per-parameter strip (the ZeRO paper page ste
 ## What the methodology lacked
 - A rule for "counted on a model you cannot run": the meta device gives exact FLOPs and saved bytes for any size with no hardware. Worth adding to section 2 as a source of real data.
 - A rule for operator-level predictions: label them as roofline estimates, compare them with a measurement on the hardware you have, and only then project them.
+
+## 2026-11-12 rollout: 3D stages (renderer v2)
+Built:
+- **Fig. 1, the hero in 3D**: one H100 package (die, HBM stacks, an 80 GB tray drawn to scale) taking the four divisions in turn: a 492 TFLOP work block streaming into the die, the step's 73 GB held under the 80 GB lid, 16.6 GB streaming from HBM per decoded token, and the whole run as 783 H100 tiles. Replaces the 2D four-row hero; numbers from `window.PMD`.
+- **Fig. 2, a step's FLOPs as a volume**: floor area = the numbers each token multiplies against (weights per part, one square per billion; the embedding flat; attention's 2LTh keys and values), height = FLOPs per number (2 forward, 4 backward, 5 for FlashAttention's backward). 6ND becomes a box of height 6; the attention floor growing 16 times at 131,072 tokens shows why long context costs 5.9 times 6N. Chosen over plain stacked towers (a sum drawn in 3D, decoration) because area and height each mean something.
+- **Fig. 3, what a step holds, by kind**: the model state as five slabs (2 + 2 + 4 + 4 + 4 bytes per parameter), sharded onto 8 GPUs, then one GPU's activations piling up layer by layer and freed in backward, then plain attention (a 489 GB needle against the 80 GB lid) and full recompute. Replaces the 2D memory-over-time animation (68 frames, over the long-replay limit).
+Rejected for 3D (kept 2D):
+- The roofline as a surface or ramp: the message is where a point sits on two log axes against two roofs; a third axis adds nothing and hides the ridge. The slider widget stays.
+- MFU as useful work against peak over a run (a glass ceiling over a run's bars): one number per run, read best as bars on one axis.
+- Serving's prefill and decode: the decode step reading weights and KV cache is the sibling Memory technology's Fig. 3; linked instead of redrawn.
+- Communication bytes per parallelism scheme: Distributed Training and Interconnects own the layouts and the collectives.
+- The ledger and planner tabs: calculators; stay full width.

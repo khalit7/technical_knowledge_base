@@ -1,4 +1,4 @@
-// ---- Reading section 6, checkpoint simulator: one day, same failures, two intervals; useful time against the interval ----
+// ---- Reading section 6, checkpoint simulator (a widget: no autoplay, opens on the end of the day): one day, same failures, two intervals; useful time against the interval ----
 (function(){
   const P=window.PW,E=window.PWE,F=window.PWF,$=id=>document.getElementById(id),D0=P.sim_defaults;
   const st={g:D0.gpus,r:D0.rate,C:D0.C,D:D0.D,R:D0.R,T:D0.bad,seed:D0.seed,H:D0.horizon};
@@ -72,7 +72,7 @@
   function syncLabels(){$('ck-gv').textContent='';$('ck-rv').textContent='';$('ck-cv').textContent=F.dur(st.C);$('ck-drv').textContent=F.dur(st.D)+' + '+F.dur(st.R);
     $('ck-tv').textContent=F.dur(st.T);$('ck-sv').textContent='seed '+st.seed}
   function all(keepStep){compute();stats();syncLabels();$('ck-t').value=sliderFromT(st.T);
-    if(A){if(keepStep)A.redraw();else A.go(N-1)}drawCurve()}
+    if(A){if(keepStep)A.redraw();else A.go(N-1,true)}drawCurve()}
   // controls
   const num=(id,key,scale)=>$(id).addEventListener('change',e=>{const v=+e.target.value;if(!(v>0)&&!(v===0&&(key==='D'||key==='R')))return;st[key]=v*(scale||1);clearChips(id);all()});
   const chipsFor={'ck-g':'ck-gp','ck-r':'ck-rp','ck-c':'ck-cp'};
@@ -85,7 +85,8 @@
   $('ck-seed').addEventListener('click',()=>{st.seed=(st.seed*7919+13)%100000;all()});
   $('ck-seed0').addEventListener('click',()=>{st.seed=D0.seed;all()});
   compute();
-  A=RD.anim({card:'ck-card',ctl:'ck-ctl',n:N,draw:drawDay,ms:260,label:'Hour of the day'});
+  // a widget the reader drives (the long-replay rule, case b: 97 quarter-hours): it never plays by itself and opens on the end of the day
+  A=RD.anim({card:'ck-card',ctl:'ck-ctl',n:N,draw:drawDay,ms:260,label:'Hour of the day',auto:false,start:N-1});
   all(true);
   RD.onRender(()=>{drawCurve()});
   RD.onResize(()=>{A.redraw();drawCurve()});

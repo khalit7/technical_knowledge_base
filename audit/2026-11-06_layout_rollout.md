@@ -200,8 +200,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_hardware/gpu_architecture` GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin
 - [x] `systems_and_performance/topic_hardware/interconnects_and_scaling` Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism
 - [x] `systems_and_performance/topic_hardware/memory_technology` Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache
-- [ ] `systems_and_performance/topic_hardware/performance_math` Performance math: FLOPs, memory, MFU, tokens per second, costing a run
-- [ ] `systems_and_performance/topic_hardware/power_cooling_and_reliability` Power, cooling, reliability and the data centre: failures at scale, the per-gigawatt view
+- [x] `systems_and_performance/topic_hardware/performance_math` Performance math: FLOPs, memory, MFU, tokens per second, costing a run
+- [x] `systems_and_performance/topic_hardware/power_cooling_and_reliability` Power, cooling, reliability and the data centre: failures at scale, the per-gigawatt view
 - [ ] `systems_and_performance/topic_hardware/tpus_and_other_accelerators` TPUs and other accelerators: systolic arrays, TPU pods, AMD, Trainium, Groq, Cerebras
 - [ ] `systems_and_performance/topic_hardware` Topic: hardware
 - [ ] `systems_and_performance/topic_inference_and_serving/batching_kv_cache_and_scheduling` Batching, KV cache and scheduling in depth
@@ -494,6 +494,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_hardware/gpu_architecture`: Fig. 1 GPC plan (which SMs are off) illustrative; Rubin drawn with no HBM stacks (count not stated); no new licensed H100 or B200 photo searched for.
 - `systems_and_performance/topic_hardware/memory_technology`: Fig. 2 label "5 x 1,024 = 5,120 wires" sits slightly over a stack edge at 1400.
 - `systems_and_performance/topic_hardware/interconnects_and_scaling`: Fig. 5 busy at mid steps (two servers, switches and traffic lines); 3D scenes small at 390.
+- `systems_and_performance/topic_hardware/performance_math`: the two calculator tabs (FLOP and memory ledger, Run and serving planner) stay full width; run_all.sh changes last float digits on this Python (files restored to HEAD).
+- `systems_and_performance/topic_hardware/power_cooling_and_reliability`: Fig. 2 step 4 hides the rack water loop; Fig. 3 bars sit behind the storage box at some angles; section 3 calculator split has a short left column.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -540,3 +542,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - GPU architecture: Fig. 3 bars use the A100 as 1x and include the RTX 5090; the section 7 tile stays 2D and links Libraries and tensor cores Fig. 3; the scheduler steps stop at cycles 100 / 500-700 / 1,000 / 2,000. Keep these? Search for an openly licensed H100 or B200 photo?
 - Memory technology: drawn counts (8 DRAM dies per stack, 8 GDDR7 packages on the RTX 5090) labelled illustrative; stream dot count is 4 x log10 of bandwidth in GB/s; Fig. 3 assumes vLLM's default 92% utilisation, ignores activations and uses bytes / bandwidth as the step time. Keep these?
 - Interconnects and scaling: pipe cross-section area (not width) proportional to bandwidth (diameter 0.012 x sqrt GB/s); four PCIe switches per server and four spine switches illustrative; data parallel "about 4%" derived from 2^24 / 128 tokens per replica (Llama 3 405B, marked derived); the MI300X mesh drawn on the HGX server's 8 positions, not its real board layout. Keep these?
+- Performance math: Fig. 2 draws FLOPs as volume (floor = numbers multiplied against, height = FLOPs per number; step 1 draws one 4,096 x 4,096 weight larger than scale, stated); the 2D memory-over-time animation with its mode switch and counters was retired into Fig. 3's step list (reversible); both tool tabs stay full width; hero block size and tile field illustrative. Keep these?
+- Power, cooling and reliability: Fig. 1 hall drawn as 70 blocks of 100 racks; tray order and in-tray layout illustrative (the guide gives no shelf positions); Fig. 2 cubes to scale with each other, not with the rack; Fig. 3 failing tiles a fixed draw (seed 7) on the real default day; the checkpoint day opens on its last frame. Keep these?

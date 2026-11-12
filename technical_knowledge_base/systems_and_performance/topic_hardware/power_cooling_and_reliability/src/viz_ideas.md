@@ -37,3 +37,12 @@ Moved: the Checkpoint simulator and the Gigawatt planner from tabs into sections
 
 ## What the methodology lacked
 A rule for reconciling overlap with a sibling in another topic (Training Infrastructure covers the same Young/Daly rule). Resolved by owning the exact model and its validation here and linking there for recovery engineering.
+
+## Added 2026-11-12 (split layout and 3D stages v2)
+| Idea | Placement | Data |
+|---|---|---|
+| Fig. 1, 3D: one gigawatt from grid, substation and UPS to a GB200 NVL72 rack, one pulled-out compute tray, heat out through cold plates, CDU and plant, then the hall of about 6,944 racks (replaces the 2D hero chain) | top of Reading, 6 steps | PW.systems (120 kW, 72 GPUs), PUE 1.2, 1,200 W; tray counts from the DGX GB200 user guide; derived 167 / 833 MW, 86.4 kW, 6,944 racks, 500,000 GPUs; stream area proportional to MW |
+| Fig. 2, 3D: one second of coolant for a 120 kW rack, air (1.88 m cube) against water (14 cm cube), cold plates, CDU, tower | section 3, 4 steps | the cooling calculator's defaults and Q = m cp dT |
+| Fig. 3, 3D: 2,048 servers as 256 tiles; checkpoint to storage, one failure stops all, swap and reload, the default day's 8 failures and the two lanes' saved hours | section 5, 5 steps | the page's engine (PWE) on the default day; tile positions illustrative |
+| Power swing as 5 explained stretches with a step list per mode (was 13 one-phase steps with a caption carousel) | section 4 | unchanged trace |
+Kept 2D: chip bars (a toggle between two scales), job MTBF (log axes), Table 5 (ranked bars), the escalation chain (a sequence of states, no space), the checkpoint day and useful-time curve (a time line and a curve; the day is a widget the reader drives), the scale table, energy-per-token bars. Rejected for 3D: per-stage conversion losses as separate steps (no primary per-stage efficiencies for one site, as before), immersion as a step (one sourced sentence and a photo carry it).
