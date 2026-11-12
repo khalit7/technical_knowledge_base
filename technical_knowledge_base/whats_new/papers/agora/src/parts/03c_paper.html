@@ -1,8 +1,19 @@
 
+<div class="s3sp"><div class="s3R"><div id="stg-sa"></div></div><div class="s3L">
 <section id="s-recipe"><h2>What the agents found: the winning recipe</h2>
 [[S4.SS4|§4.4, Algorithm 1, Table 3, Appendix B]]
 <p>The best contribution at cutoff is a chain of 73 Python modules, each importing its parent and modifying the model the parent returns; ten earlier variants imported for shared code bring the import closure to 83. The authors traced the imports to the base module and checked the constants against the code ({{§4.4|ax:S4.SS4}}). It has two stages.</p>
-<p><b>Stage A: copy what the donors predict, not what they are.</b> Six donors that share the GPT-2 vocabulary (GPT-2 small and large, Cerebras-GPT 111M to 1.3B) are asked for their next-token distribution after every vocabulary token <i>v</i>, under 28 short contexts <i>p</i> (no context, end-of-text, 22 single tokens and four two-token clause starters). Their log-probabilities are blended (0.725 on GPT-2 small) into a 50,257 × 50,257 context-averaged bigram table <i>M</i>. Its column mean <i>u</i> is split off as a unigram-like anchor, and the centred rest <i>C</i> = <i>M</i> − 1<i>u</i><sup>⊤</sup> is factorised to rank <i>d</i> − 1 = 671 by randomized SVD. The factors become the input embedding and the output head, dimension 0 carries <i>u</i>, and every sublayer is zeroed, so for input token <i>v</i> the logits are approximately <span class="m"><i>u</i>/<i>T<sub>u</sub></i> + rank-671 part of <i>C</i>(<i>v</i>, ·)/<i>T<sub>b</sub></i></span>: a factorised bigram model stored in a 14-layer network ({{§4.4|ax:S4.SS4}}, {{Table 5|ax:A2.T5}}). The {{Rebuild tab|tab:t-run}} runs this stage on a CPU with GPT-2 small alone.</p>
+<p><b>Stage A: copy what the donors predict, not what they are.</b> Instead of copying weights, the recipe asks other models what token comes next and stores the answer, compressed, in the target's embedding and output head ({{§4.4|ax:S4.SS4}}, {{Table 5|ax:A2.T5}}):</p>
+<ol class="sx" id="sx-sa">
+<li><b>Six donors, one vocabulary.</b> GPT-2 small and large and Cerebras-GPT 111M to 1.3B all use GPT-2's 50,257 tokens. Each block's height is its blend weight in Table 5: 0.725 on GPT-2 small.</li>
+<li><b>Ask what comes next, 28 ways.</b> Each donor gives its next-token log-probabilities after every vocabulary token <i>v</i>, under 28 short contexts <i>p</i> (no context, end-of-text, 22 single tokens and four two-token clause starters): 28 tables of 50,257 × 50,257.</li>
+<li><b>Blend and average into one table <i>M</i>.</b> Rows are the previous token, columns the next one: a context-averaged bigram table.</li>
+<li><b>Split off the anchor <i>u</i>.</b> The column mean <i>u</i>, a unigram-like anchor, lifts off; the centred rest <i>C</i> = <i>M</i> − 1<i>u</i><sup>⊤</sup> remains.</li>
+<li><b>Factorise <i>C</i> to rank <i>d</i> − 1 = 671.</b> Randomized SVD gives two thin factors. The bars are our rebuild's share of <i>C</i> kept at each rank (GPT-2 small alone, 28 contexts): @@R:ours.stage_a_c28.energy.1:0%@@% at rank 1, @@R:ours.stage_a_c28.energy.671:1%@@% at 671.</li>
+<li><b>Store it in the 14-layer target.</b> The factors become the input embedding and the output head, hidden dimension 0 carries <i>u</i>, and every sublayer is zeroed, so a token's vector passes straight up the residual stream.</li>
+<li><b>What it computes.</b> For input token <i>v</i> the logits are approximately <span class="m"><i>u</i>/<i>T<sub>u</sub></i> + rank-671 part of <i>C</i>(<i>v</i>, ·)/<i>T<sub>b</sub></i></span>: a factorised bigram model stored in a 14-layer network. After " Jane", our rebuild's prior guesses "'s" 8.2%, " Doe" 6.0% and " Aust" 5.4%; the anchor alone guesses "," 12%.</li>
+</ol>
+<p class="small mute">Donor weights, contexts and shapes are the paper's; the bars and the guesses come from this page's rebuild, which the {{Rebuild tab|tab:t-run}} runs on a CPU with GPT-2 small alone.</p>
 <details class="more"><summary>Stage A in full: the contexts, clipping, SVD settings, temperatures and norms</summary>
 <p><b>Stage A: copy what the donors predict, not what they are.</b> Six donors that share the GPT-2 vocabulary (GPT-2 small and large, Cerebras-GPT 111M to 1.3B) are queried on every vocabulary token <i>v</i> under 28 contexts <i>p</i>: no context, end-of-text, 22 single tokens (punctuation and function words such as " the") and four two-token clause starters (". The", ", and", ". This", ", or"). Their next-token log-softmaxes, clipped to ±25, are blended with fixed donor weights (0.725 on GPT-2 small) and per-row context weights into a 50,257 × 50,257 context-averaged bigram table <i>M</i>. Its column mean <i>u</i> is split off as a unigram-like anchor; the centred table <i>C</i> = <i>M</i> − 1<i>u</i><sup>⊤</sup> is factorised to rank <i>d</i> − 1 = 671 by randomized SVD (oversampling 32, one power iteration, a fixed sketch). The factors become the input embedding and the output head; hidden dimension 0 carries <i>u</i>; two temperatures (<i>T<sub>b</sub></i> = 0.9314, <i>T<sub>u</sub></i> = 1.00459) rescale the two terms; every sublayer is zeroed and every norm gets unit gain and zero bias. The final RMSNorm then rescales an embedding row by about √<i>d</i>, which the 1/√<i>d</i> factors cancel, so for input token <i>v</i> the logits are approximately <span class="m"><i>u</i>/<i>T<sub>u</sub></i> + rank-671 part of <i>C</i>(<i>v</i>, ·)/<i>T<sub>b</sub></i></span>: a factorised bigram model stored in a 14-layer network ({{§4.4|ax:S4.SS4}}, {{Table 5|ax:A2.T5}}). The {{Rebuild tab|tab:t-run}} runs this stage on a CPU with GPT-2 small alone.</p>
 </details>
@@ -13,7 +24,19 @@
 <p class="note">From {{Table 3|ax:S4.T3}} and {{Table 5|ax:A2.T5}}. The attention scalars fall from 0.21 on layer 0 to about −0.0025 on the deep layers: almost all of the work is Stage A.</p></div>
 </details>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="card" id="dsc">
+<div class="t" style="font-weight:600;margin-bottom:4px">Most of the drop came in the first hours; the last 0.03 is the size of hardware noise</div>
+<div class="an-top"><div class="seg" id="dscM" role="group" aria-label="View"><button class="on" data-m="full" aria-pressed="true">The whole descent</button><button data-m="zoom" aria-pressed="false">The last 0.03, against hardware noise</button></div>
+<span class="small mute">Every milestone of Table 4 at its UTC time.</span></div>
+<div id="dscSvg" class="an-svg"></div>
+<div class="an-ctl"><button id="dscBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="dscPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="dscFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
+<input type="range" id="dscScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
+<label class="small">Speed <select id="dscSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
+<div class="an-cnt" id="dscCnt"></div>
+<p class="note">Values from {{Table 4|ax:S4.T4}} (v4); blue points are on the winner's recorded ancestry, purple ones are predecessors by description, dashed rings are milestones still to come. Shares are of the descent from 3.3923 to the final 1.899044.</p>
+</div></div><div class="s3L">
 <section id="s-res"><h2>Results</h2>
 [[S4.SS5|§4.5, Table 4, Figure 3]]
 <p><b>The trajectory.</b> Within six hours of the switch to a unigram prior, three accounts had extended it to bigram statistics under 3, 6, 12 and 24 prefixes (1.93). Those first 18 scored contributions account for about 98% of the total reduction. The remaining 1,106 found the next 0.03 by adding Cerebras-GPT donors, widening to 28 contexts, adding a power iteration to the SVD and attention mean-pooling, and, after May 2, re-enabling SSM and feed-forward sublayers ({{§4.5|ax:S4.SS5}}). The paper warns that every row of {{Table 4|ax:S4.T4}} was selected on the same development evaluator, so adjacent rows are stages of a search, not a controlled ablation; and the four earliest rows are predecessors by description, not recorded parents.</p>
@@ -21,17 +44,25 @@
 <div class="opts"><button>About a third</button><button>About two thirds</button><button>About 98%</button></div>
 <div class="fb"></div>
 <div class="reveal" hidden><div id="pr98B"></div><p>(3.3923 − 1.9304) / (3.3923 − 1.899044) = @@R:share_18th:1%@@%. The unigram and bigram steps alone (2.5151, then 2.1284) are already @@R:share_first_two_improvements:1%@@%. The other eleven days bought @@R:remaining_after_18th:4@@ bits per byte.</p></div></div>
-<div class="card" id="dsc">
-<div class="an-top"><div class="seg" id="dscM" role="group" aria-label="View"><button class="on" data-m="full" aria-pressed="true">The whole descent</button><button data-m="zoom" aria-pressed="false">The last 0.03, against hardware noise</button></div>
-<span class="small mute">Every milestone of Table 4 at its UTC time.</span></div>
-<div id="dscSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="dscBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="dscPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="dscFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="dscScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="dscSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="dscStep"></div><p id="dscCap"></p></div>
-<div class="an-cnt" id="dscCnt"></div>
-<p class="note">Values from {{Table 4|ax:S4.T4}} (v4); blue points are on the winner's recorded ancestry, purple ones are predecessors by description. Shares are of the descent from 3.3923 to the final 1.899044. The animation never plays by itself: press play or step.</p>
-</div>
+<p class="sxh">The whole descent, in eight stretches</p>
+<ol class="sx" id="sx-dsc-full">
+<li><b>Before the run.</b> Random initialisation of the target scores 3.3923 bits per byte: the baseline every share is measured from. A trained GPT-2 124M sits at about 1.0.</li>
+<li><b>April 27, 00:24, worker1: copy the weights.</b> Slicing GPT-2's and Mamba's weights into the target wherever shapes match scores 4.6784, worse than doing nothing; it was published as a negative result with an explanation.</li>
+<li><b>00:57, worker1: copy the predictions instead.</b> A unigram prior read off GPT-2's predictions, residual sublayers zeroed: 2.5151, already @@R:share_by_milestone.2.share:1%@@% of the whole descent.</li>
+<li><b>01:50, worker1: a bigram table, factorised.</b> The bigram transition matrix through randomized SVD into embedding and head: 2.1284, @@R:share_by_milestone.3.share:1%@@%. One account, 86 minutes after its first scored attempt.</li>
+<li><b>Later on day one, worker2: prefixes.</b> 24 prefixes with geometric-mean aggregation (1.9319), then a log-softmax per prefix before averaging (1.9304, the 18th scored contribution): @@R:share_by_milestone.5.share:1%@@%.</li>
+<li><b>April 28 and 29, the H100 workers: more donors, more contexts.</b> A second donor, Cerebras-GPT 111M, on weighted rows (1.9228), then the 28th context on the six-donor recipe (1.9136).</li>
+<li><b>May 1: a better SVD, a first sublayer.</b> One power iteration in the randomized SVD (1.9062, worker2), then layer-0 attention as a uniform causal mean-pool (1.9054, slurm_worker_5).</li>
+<li><b>After the May 2 views and prompt: the last 0.006.</b> An SSM edit joins the leading chain (1.9028, May 3), a layer-0 feed-forward projection from GPT-2 small (1.8995, May 5), cross-band SSM writes (1.899044, May 8). Switch to the last 0.03 to see these against hardware noise.</li>
+</ol>
+<ol class="sx" id="sx-dsc-zoom" hidden>
+<li><b>Day one ends at 1.9304.</b> worker2's prefixes: 1.9319, then 1.9304. The axis now spans only 1.895 to 1.936; the shaded band around the best so far is the cross-hardware spread the paper reports (most within 5 × 10⁻⁴, at most 1.2 × 10⁻³).</li>
+<li><b>April 28 and 29: 0.0168 more.</b> A second donor (1.9228), then the 28th context (1.9136): steps of about 8 and 9 thousandths, well above the band.</li>
+<li><b>May 1: 0.0082 more.</b> The SVD power iteration (1.9062), then layer-0 attention mean-pooling (1.9054): the second step, 0.8 thousandths, is already smaller than the largest cross-hardware gap.</li>
+<li><b>May 3: 2.6 thousandths.</b> The SSM edit chosen after a landscape read (1.9028), the one later step clearly above the band.</li>
+<li><b>May 5 to 8: down into the noise.</b> The feed-forward projection gains 3.3 thousandths (1.8995); the next three days add 4.6 × 10⁻⁴ in all, ending at 1.899044, whose last step was 3 × 10⁻⁷ over the previous best: about @@R:last_step.ratio_typical_to_last:0@@ times smaller than the typical cross-hardware gap.</li>
+</ol>
+
 <details class="more"><summary>What did not work (negative results)</summary>
 <p><b>Negative results.</b> The graph also records what did not work, and later workers cited those records when choosing directions. Doubling the prefix set to 48 made the recipe worse (four controlled variants). Flattening the singular-value spectrum, transplanting native Mamba blocks from hybrid donors, copying GPT-2's embedding matrix directly, and building the prior from a donor with another tokenizer (Pythia) all regressed and were published with their scores. In the window, 60 contributions carry an explicit negative- or null-result tag, 29 of them negative-result ({{§4.5|ax:S4.SS5}}).</p>
 </details>
@@ -41,7 +72,9 @@
 </details>
 <div class="co key"><div class="t">The primary result</div>Without training data or a single gradient update on the target, the community's best <code>transfer()</code> initialises the frozen 119.6M hybrid to <b>1.899044</b> bits per byte, against 3.3923 for random initialisation and about 1.0 for a trained GPT-2 124M: (3.3923 − 1.899044) / (3.3923 − 1.0) = <b>@@R:gap_closed:1%@@%</b> of the gap closed ({{§4.5|ax:S4.SS5}}). A low-rank approximation of donor next-token behaviour transferred across architectures, where the first indexed parameter-copying attempt did worse than random. The last recorded improvement was 3 × 10⁻⁷ over the previous best (9 × 10⁻⁶ over its own parent), far below the cross-hardware variation.</div>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-coord"><h2>Coordination dynamics</h2>
 [[S4.SS6|§4.6, Figures 4 and 5]]
 <p>At cutoff the graph has 1,703 nodes, 1,894 edges, 149 multi-parent nodes, and one component holding 98.9% of the nodes ({{Figure 4|ax:S4.F4}} draws it, including 123 contributions posted after the cutoff, with the winner's ancestry as a highlighted spine). The paper reads four patterns from the trace ({{§4.6|ax:S4.SS6}}):</p>
@@ -49,10 +82,10 @@
 <li><b>Narrow spine.</b> One lineage collects most of the follow-on work; side branches are short and quickly abandoned.</li>
 <li><b>Equal-score convergence.</b> Of 523 pairs of different accounts posting identical scores, 76% fall within an hour of each other and 90% within six; removing verifications and parent-child pairs leaves 499 pairs with the same timing (79% and 90%). Identical scores can come from re-runs of a shared parent or from different methods, so this is convergence on the same results, not independent rediscovery (version 1 called it "parallel rediscovery", with 696 pairs, 63% and 80%; {{Figure 5|ax:S4.F5}}).</li>
 <li><b>Community-level diagnosis.</b> Several families of contributions converge near 1.90. Agents attributed the plateau to a globally linear evaluator and underused target sublayers and called the bigram recipe a hard local optimum; nobody tested these explanations.</li></ol>
-<figure class="pfig" id="dagFig">
+<p>Workers adopted leading results quickly: 194 of the 232 new bests (@@R:new_best_followed:0%@@%) drew follow-on work from at least one other account within six hours, a median of three accounts among those. They also repeated work and concentrated most effort on one lineage. The paper's own summary: shared visibility supported reuse, but did not by itself sustain broad exploration.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><figure class="pfig" id="dagFig">
 <div class="t">One long spine (orange) carries the winner; side branches stay short</div>
 <a href="img/research_dag_topology.webp" target="_blank" rel="noopener noreferrer" title="Open full size"><img src="img/research_dag_topology.webp" width="1080" height="1150" alt="The run's contribution graph drawn as a force layout: the setup commit at the centre, hundreds of green result nodes in clusters, and the winner's ancestry as an orange path that loops out to the upper left and back to a star near the centre, with labels for the first attempt (4.68), the 24-prefix bigram (1.93) and the best scores near 1.899" loading="lazy"></a>
 <figcaption>Notice how little of the graph the orange ancestry touches: the winner was assembled along one lineage (by 15 accounts), while most clusters around it are side branches. This is the repository's version of {{Figure 4|ax:S4.F4}}; its labels are the authors' (its "today SOTA 1.89899" is below the paper's cutoff best of 1.899044, and Figure 4 also draws 123 contributions posted after the cutoff, which may explain it: unconfirmed). Credit: Yifan Zhang et al., {{Agora repository|https://github.com/yifanzhang-pro/Agora/blob/master/assets/research-dag-topology.png}}, Apache License 2.0.</figcaption>
-</figure>
-<p>Workers adopted leading results quickly: 194 of the 232 new bests (@@R:new_best_followed:0%@@%) drew follow-on work from at least one other account within six hours, a median of three accounts among those. They also repeated work and concentrated most effort on one lineage. The paper's own summary: shared visibility supported reuse, but did not by itself sustain broad exploration.</p>
-</section>
+</figure></div></div></div>

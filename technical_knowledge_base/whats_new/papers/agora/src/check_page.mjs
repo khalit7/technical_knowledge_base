@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, and the animations stepping end to end. The stages and animations themselves
+// (autoplay, step lists, reduced motion, three widths) are checked in more depth by check_stages.mjs.
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/agora/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,9 +43,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view and wait
-    for (const id of ['dsc', 'rp']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) } }
+    // animations and 3D stages play by themselves once scrolled into view (2026-11-06; this inverts the 2026-10-25 never-autoplay check)
+    for (const id of ['dsc', 'rp']) { if (await p.$(`#${t} #${id}`)) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) } }
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1800);
+      if (!((await p.$eval('#' + id, e => +e.dataset.frames || 0)) > 0)) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     await p.evaluate(t => document.querySelectorAll(`#${t} details`).forEach(d => d.open = true), t); await wait(150); await audit(t + ' details open');
     // predict widgets: answer each (wrong first, then right)
     const preds = await p.$$(`#${t} .pred`);

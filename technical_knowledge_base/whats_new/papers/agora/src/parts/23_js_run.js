@@ -47,7 +47,11 @@
     const modes={};['uniform','unigram','stage_a','gpt2'].forEach(m=>modes[m]=steps(m));
     function caption(m,k){const b=bitsOf(m),a=k*PER,z=Math.min(N,(k+1)*PER);let hi=a;for(let i=a;i<z;i++)if(b[i]>b[hi])hi=i;let lo=a;for(let i=a;i<z;i++)if(b[i]<b[lo])lo=i;
       const q=s=>'"'+s.replace(/\n/g,'↵')+'"';return 'Under '+NAMES[m]+', the cheapest token here is '+q(DM.tokens[lo+1])+' ('+b[lo].toFixed(1)+' bits) and the costliest '+q(DM.tokens[hi+1])+' ('+b[hi].toFixed(1)+' bits).'}
-    Object.keys(modes).forEach(m=>modes[m].forEach((s,k)=>s.c=caption(m,k)));
+    // the step lists on the left, one per model, one item per stretch of five tokens (the captions live there, not under the card)
+    const box=$('sx-rp-box'),lid=m=>'sx-rp-'+m;
+    box.innerHTML=Object.keys(modes).map(m=>'<ol class="sx" id="'+lid(m)+'"'+(m==='stage_a'?'':' hidden')+'>'+modes[m].map((s,k)=>'<li></li>').join('')+'</ol>').join('');
+    const fill=m=>{[...$(lid(m)).children].forEach((li,k)=>{li.innerHTML='<b>'+modes[m][k].t+'.</b> '+caption(m,k)})};
+    Object.keys(modes).forEach(fill);
     function draw(m,k,e){const b=bitsOf(m),z=Math.min(N,(k+1)*PER),shown=k*PER+Math.round(e*(z-k*PER));let h='<div class="tokrow">';
       const sh=t=>esc(t).replace(/\n/g,'↵');h+='<span class="tok"><span>'+sh(DM.tokens[0])+'</span><small>given</small></span>';
       for(let i=0;i<N;i++){const t=DM.tokens[i+1],vis=i<shown,bb=b[i],a=Math.min(1,bb/16);
@@ -57,8 +61,9 @@
       const tp=m==='uniform'?'every token: 1 / 50,257':(m==='stage_a'&&rank!=='671')?'shown at rank 671 only':DM.models[m].top[shown-1].map(([t,p])=>'"'+esc(t).replace(/\n/g,'↵')+'" '+(100*p).toFixed(0)+'%').join(', ');
       return stat('bits so far',bits.toFixed(1),shown+' tokens, '+by+' bytes')+stat('bits per byte so far',(bits/by).toFixed(3),'')+stat('next-token guesses before "'+esc(DM.tokens[shown]).replace(/\n/g,'↵')+'"',tp,'')}
     const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
-    const an=makeAnim({id:'rp',modes,mode:'stage_a',draw,counters,dur:2400});
-    $('rpRank').addEventListener('change',e=>{rank=e.target.value;modes.stage_a.forEach((s,k)=>s.c=caption('stage_a',k));if(an){an.st.lk=-1;an.draw()}});}
+    const lists={};Object.keys(modes).forEach(m=>lists[m]=lid(m));
+    const an=makeAnim({id:'rp',modes,lists,mode:'stage_a',draw,counters,dur:4000});
+    $('rpRank').addEventListener('change',e=>{rank=e.target.value;fill('stage_a');if(an)an.draw()});}
   // 4. noise
   if(NZ){const nm={uniform:'uniform guess',unigram_c28:'unigram anchor u',c1_r671_T1:'1 context, rank 671, T = 1',c28_r256_T1:'28 contexts, rank 256, T = 1',c28_r671_T1:'28 contexts, rank 671, T = 1',c28_r671_Tpaper:'28 contexts, rank 671, paper\'s T',c28_full:'28 contexts, full table',gpt2:'GPT-2, full context'};
     let t='<div class="tw"><table><thead><tr><th>model (our rebuild)</th><th class="num">bpb, 200 texts</th><th class="num">± SE over texts</th><th class="num">texts 0 to 99</th><th class="num">texts 100 to 199</th></tr></thead><tbody>';

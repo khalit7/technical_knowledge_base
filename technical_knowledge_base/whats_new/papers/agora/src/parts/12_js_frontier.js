@@ -82,6 +82,8 @@
     $('frNode').innerHTML=d;
     $('frStats').innerHTML=stat('clusters at '+st.tau.toFixed(2),R.k,'single-link over descriptions')+stat('largest cluster',Math.round(100*R.top)+'%','of '+NODES.filter(v=>v.tag!=='setup').length+' contributions')+stat('effective clusters','k<sub>eff</sub> = '+R.keff.toFixed(2),'evenness '+(R.keff/R.k).toFixed(2))+stat('ranked first',R.cand[0].id+' ('+R.cand[0].tag+')','U = '+R.cand[0].U.toFixed(1)+', N = '+R.N);
   }
+  // the same illustrative graph, scored at the defaults (D = 1.0 as exported, threshold 0.80, self-citations excluded), for the 3D stages above
+  {const R0=compute();window.FRG={nodes:NODES.map(v=>({id:v.id,acct:v.acct,tag:v.tag,m:v.m,par:v.par.slice(),ang:v.ang,lab:v.lab,S:v.S,n:v.n,U:v.U,cl:v.cl,Sparts:v.Sparts.map(p=>({id:p.v.id,acct:p.v.acct,tag:p.v.tag,w:p.w,counted:p.counted}))})),rank:R0.cand.map(v=>v.id),N:R0.N}}
   $('frTau').addEventListener('input',e=>{st.tau=+e.target.value;$('frTauV').textContent=st.tau.toFixed(2);draw()});
   segBind('frD',m=>{st.D=+m;draw()});
   $('frSelf').addEventListener('change',e=>{st.self=e.target.checked;draw()});
