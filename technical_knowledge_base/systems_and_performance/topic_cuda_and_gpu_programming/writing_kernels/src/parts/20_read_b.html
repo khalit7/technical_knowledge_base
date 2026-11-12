@@ -1,28 +1,57 @@
+<div class="s3sp"><div class="s3R"><div id="stg-red"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. Reductions: many numbers into one</h2>
 <p>Sum 2<sup>25</sup> (33.5 million) floats. On a CPU it is one loop. On a GPU, thousands of threads each do a part and then combine their parts, and combining is where every difficulty lives: threads in different blocks cannot see each other's shared memory or wait for each other inside one kernel launch. The shape of the answer is a <dfn>tree</dfn>: in step 1, half the threads each add two numbers; in step 2, a quarter add two partial sums; after log<sub>2</sub>(256) = 8 steps one thread holds the block's total. Each block writes its total, and a second, tiny launch (or an atomic add) combines the block totals.</p>
-<p>Mark Harris's {{Optimizing Parallel Reduction in CUDA|https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf}} (NVIDIA, 2007) is the classic ladder: seven kernels for summing 4M integers on a G80, each fixing one problem, from 2.083 to 62.671 GB/s, 30.04 times faster, and 73 GB/s on 32M elements against the G80's 86.4 GB/s peak <span class="rd-pub">published</span>. Its first three rungs differ only in which threads add which elements; play them on one input:</p>
-<div class="card" id="tr-card"><h4>Same 16 numbers, six ways to combine them: idle lanes and bank conflicts are visible</h4>
-<div class="seg" id="tr-mode" role="group" aria-label="Method">
-<button data-m="r1" class="on">Interleaved (R1)</button><button data-m="r2">Strided (R2)</button><button data-m="r3">Sequential (R3)</button><button data-m="r5">Warp shuffle</button><button data-m="hs">Scan: Hillis-Steele</button><button data-m="bl">Scan: Blelloch</button>
-</div>
-<div class="tr-fig" id="tr-fig"></div>
-<div class="an-ctl" id="tr-ctl"></div>
-<div class="tr-cap" id="tr-cap"></div>
+<p>Mark Harris's {{Optimizing Parallel Reduction in CUDA|https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf}} (NVIDIA, 2007) is the classic ladder: seven kernels for summing 4M integers on a G80, each fixing one problem, from 2.083 to 62.671 GB/s, 30.04 times faster, and 73 GB/s on 32M elements against the G80's 86.4 GB/s peak <span class="rd-pub">published</span>. Its first three rungs differ only in which threads add which elements. Fig. 2 plays them, and the warp shuffle, on the same 16 numbers, one row per step, so idle lanes and bank conflicts are visible:</p>
+<div class="s3chips" id="stg-red-m" role="group" aria-label="Method"><button data-m="r1" class="on">Interleaved (R1)</button><button data-m="r2">Strided (R2)</button><button data-m="r3">Sequential (R3)</button><button data-m="r5">Warp shuffle</button></div>
+<ol class="sx" id="sx-red-r1">
+<li><b>The input.</b> 16 values in shared memory, held by 4 warps of 4 lanes (the colours), in banks b0 to b3. Harris rung 1, interleaved: at stride s, threads whose index is a multiple of 2s add.</li>
+<li><b>Stride 1.</b> Threads whose index is a multiple of 2 add the value 1 to their right: 8 additions, but all 4 warps issue, so 8 lanes sit idle (orange lamps). A barrier (the dashed red line) follows every shared-memory step.</li>
+<li><b>Stride 2.</b> Multiples of 4 add the value 2 to their right: 4 additions; all 4 warps still issue, 12 lanes idle.</li>
+<li><b>Stride 4.</b> Multiples of 8: 2 additions, 2 warps issue, 6 lanes idle.</li>
+<li><b>Stride 8.</b> Thread 0 adds element 8 and the sum, 48, is in element 0. In all: 15 additions, 29 idle lanes, 4 barriers. R1 makes whole warps issue for one working lane (<dfn>divergence</dfn>: lanes of one warp taking different branches run one after the other).</li>
+</ol>
+<ol class="sx" id="sx-red-r2" hidden>
+<li><b>The input.</b> Harris rung 2, strided index: thread t works on element 2st, so the working threads are contiguous and their addresses strided.</li>
+<li><b>Stride 1.</b> Thread t adds into element 2t: the 8 working threads fill 2 warps, so no lane idles; but their addresses are 2 apart, so two lanes of a warp land in the same <dfn>bank</dfn> (lanes hitting the same bank of shared memory wait in turn): a 2-way conflict.</li>
+<li><b>Stride 2.</b> Element 4t: addresses 4 apart, all 4 lanes of the warp in one bank, the worst conflict, 4-way.</li>
+<li><b>Stride 4.</b> Element 8t: 2 working lanes, 2-way again.</li>
+<li><b>Stride 8.</b> Thread 0 adds element 8: the sum, 48. In all: 15 additions and only 5 idle lanes, but 33 shared-memory transactions, as many as R1, because of the conflicts. R2 removes the idle lanes but its worst bank conflict becomes 4-way.</li>
+</ol>
+<ol class="sx" id="sx-red-r3" hidden>
+<li><b>The input.</b> Harris rung 3, sequential addressing: halve the range each step.</li>
+<li><b>Half-width 8.</b> Thread t adds element t + 8: contiguous threads, contiguous addresses. No idle lanes, no conflicts.</li>
+<li><b>Half-width 4.</b> Thread t adds element t + 4: one warp, all 4 lanes working.</li>
+<li><b>Half-width 2.</b> Thread t adds element t + 2: 2 lanes of the warp idle.</li>
+<li><b>Half-width 1.</b> The sum, 48, is in element 0. In all: 15 additions, 5 idle lanes, 15 transactions, no conflicts. R3 fixes both problems; the 4 barriers remain.</li>
+</ol>
+<ol class="sx" id="sx-red-r5" hidden>
+<li><b>The input, in registers.</b> Each lane holds one value in a register; no shared memory yet.</li>
+<li><b>Shuffle down by 2.</b> Inside each warp, a lane adds the register of the lane 2 above it (the green dots). No shared memory, no barrier.</li>
+<li><b>Shuffle down by 1.</b> Lane 0 of each warp now holds its warp's sum: 11, 14, 12 and 11.</li>
+<li><b>One trip through shared memory.</b> Lane 0 of each warp writes its warp's sum to shared-memory slot w; one barrier, the only one.</li>
+<li><b>Warp 0 takes over.</b> It reads the 4 warp sums and shuffles down by 2.</li>
+<li><b>Shuffle down by 1.</b> The sum, 48, is in lane 0. In all: 1 barrier instead of 4 and 4 shared-memory transactions instead of 15; 25 additions instead of 15, because every lane of a warp adds in each shuffle step even when nobody reads its result.</li>
+</ol>
 <div class="tr-cnt" id="tr-cnt"></div>
-<p class="small mute">A toy GPU: warps of 4 lanes and 4 shared-memory banks (real: 32 of each), same proportions; arrows run from the value a thread reads to the one it writes. Predict before you step: R1 makes whole warps issue for one working lane (<dfn>divergence</dfn>: lanes of one warp taking different branches run one after the other); R2 removes the idle lanes but its worst bank conflict becomes 4-way (lanes hitting the same <dfn>bank</dfn> of shared memory wait in turn); R3 fixes both; the warp shuffle needs one barrier instead of four. The two scans are section 3's: Hillis-Steele does 49 additions where Blelloch does 30, in half the steps. Counts checked against <code>src/tree_model.py</code>.</p>
+<p class="small mute">A toy GPU: warps of 4 lanes and 4 shared-memory banks (real: 32 of each), same proportions; dots flow from the value a thread reads to the one it writes, one row per step from front to back; the counters run up to the current step. Counts checked against <code>src/tree_model.py</code>; the two scans of section 3 run on the same toy in Fig. 3.</p>
 <details class="dp"><summary>All six on the same input, totals <span class="mute">(table)</span></summary><div class="b">
 <div class="tw"><table id="tr-tab"></table></div>
 <p class="small mute">Additions: useful adds. Active lanes: lane-steps doing work. Idle lanes: lanes of issued warps with nothing to do. Barriers: <code>__syncthreads()</code> after each shared-memory step. Shared-memory transactions: per warp and per access (read source, read destination, write destination), the largest number of distinct addresses in one bank, summed; a value above the number of warp requests means bank conflicts. The reductions end with the sum, 48, in element 0; Hillis-Steele with the inclusive scan; Blelloch with the exclusive scan.</p>
 </div></details>
-</div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s2m">
 <p>We re-ran the ladder as Metal kernels on 2<sup>25</sup> floats <span class="rd-meas">measured on Apple M1 Pro GPU</span>. Harris's last rung was 30 times faster than his first; predict ours.</p>
 <div class="rd-pr" data-pr="red"><div class="q">On the M1 Pro, R6 (grid-stride, vector loads, SIMD sums) against R1 (interleaved, divergent):</div>
 <div class="opts"><button data-a="0">about 30&times;</button><button data-a="0">about 8&times;</button><button data-a="1">under 2&times;</button></div>
 <div class="ans" hidden>Only <span data-wk="red_ladder_x">1.6</span>&times;: R1 takes <span data-wk="red_R1_ms">1.61</span> ms (<span data-wk="red_R1_gbs">83</span> GB/s) and R6 <span data-wk="red_R6_ms">1.01</span> ms (<span data-wk="red_R6_gbs">133</span> GB/s), about the speed of MLX's own <code>mx.sum</code> (<span data-wk="red_L_ms">1.04</span> ms). Even the worst kernel reads memory at more than half the copy speed.</div></div>
-<div class="bars wk-bars" data-wkbars="reduce:R1,R2,R3,R4,R5,R6,A1,L" data-unit="ms"></div>
-<p class="small mute">Median of 3 runs; the thin line spans the fastest and slowest of all 21 trials. Each time includes MLX's per-call launch-and-wait overhead, which the {{topic root|n:3c65c17b0d0d81c39f34d5e070d783c1}} measured at about 0.2 ms (its section 1), so the kernels themselves are faster than shown and the differences between them larger in proportion.</p>
 <p><b>Why the ladder flattened.</b> In 2007 the G80 had little on-chip cache and slow integer arithmetic, so the index arithmetic, idle lanes and barriers of the early rungs cost more than the memory traffic. A modern GPU has far more arithmetic per byte of bandwidth (a higher ridge point), so a reduction is limited by reading the input almost however clumsily it combines it; the remaining gap is the 8 barriers per 256 values of R1 to R3. The lesson that survives: <b>do most of the work in registers, one value per element, and make the tree as small as possible</b> (a <dfn>grid-stride loop</dfn>: a fixed grid where each thread sums many elements in a register first). That is what every production reduction does.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>The whole reduction ladder spans less than 2 times on the M1 Pro</h4>
+<div class="bars wk-bars" data-wkbars="reduce:R1,R2,R3,R4,R5,R6,A1,L" data-unit="ms"></div>
+<p class="small mute">Median of 3 runs; the thin line spans the fastest and slowest of all 21 trials. Each time includes MLX's per-call launch-and-wait overhead, which the {{topic root|n:3c65c17b0d0d81c39f34d5e070d783c1}} measured at about 0.2 ms (its section 1), so the kernels themselves are faster than shown and the differences between them larger in proportion.</p></div></div></div></div>
+<section id="rd-s2d">
 <details class="dp"><summary>Harris's seven rungs by name <span class="mute">(depth)</span></summary><div class="b">
 <div class="rd-ladder">
 <div><b>1 Interleaved, divergent</b><span>At step s, threads with <code>tid % (2s) == 0</code> add. Most lanes of every warp sit idle while the warp still issues.</span></div>
@@ -33,16 +62,21 @@
 <div><b>6, 7 Unrolled, many per thread</b><span>Templates remove loop overhead; then the grid-stride loop, so the tree runs once per thread block, not once per 512 elements.</span></div>
 </div></div></details>
 
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s2s">
 <h3>Inside a warp: shuffles</h3>
 <p>A <dfn>shuffle</dfn> moves a register value directly from one lane of a warp to another, with no shared memory and no barrier. Five of them sum 32 values; compiled for an H100 (sm_90a) <span class="rd-vend">compiled</span>, it is exactly five shuffle-and-add pairs, and the mask <code>0xffffffff</code> says all 32 lanes take part:</p>
-<div class="rd-two"><div><pre class="rd-code">__device__ float warp_sum(float v) {
+
+<p>Since Volta (2017) the lanes of a warp are not guaranteed to run in lockstep, so old "warp-synchronous" code that reads other lanes' shared-memory writes without a barrier is a bug: use the <code>*_sync</code> shuffles or <code>__syncwarp()</code>.</p>
+<details class="dp"><summary>Correction to old habits: why "warp-synchronous" code broke <span class="mute">(depth)</span></summary><div class="b">Harris's rung 5 relied on the 32 lanes of a warp executing in lockstep, reading each other's shared-memory writes with no barrier. Since Volta (2017), lanes of a warp can be scheduled independently, and NVIDIA's {{Volta tuning guide|https://docs.nvidia.com/cuda/volta-tuning-guide/index.html}} says plainly: "Assumptions that code is executed in lockstep or that reads/writes from separate threads are visible across a warp without synchronization are invalid." Use the <code>*_sync</code> shuffles, or <code>__syncwarp()</code> between shared-memory steps. Old tutorials (and old kernels) still contain the <code>volatile</code> trick.</div></details>
+
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Five shuffles sum a warp: five SHFL and FADD pairs in the binary</h4><b class="small">The source</b><pre class="rd-code">__device__ float warp_sum(float v) {
   for (int o = 16; o &gt; 0; o &gt;&gt;= 1)
     v += __shfl_down_sync(0xffffffffu, v, o);   // add the value held by lane (lane + o)
   return v;                                     // lane 0 holds the sum of all 32
-}</pre></div><div><pre class="rd-code" data-excerpt="warp_sum_sm90a"></pre></div></div>
-<p>Since Volta (2017) the lanes of a warp are not guaranteed to run in lockstep, so old "warp-synchronous" code that reads other lanes' shared-memory writes without a barrier is a bug: use the <code>*_sync</code> shuffles or <code>__syncwarp()</code>.</p>
-<details class="dp"><summary>Correction to old habits: why "warp-synchronous" code broke <span class="mute">(depth)</span></summary><div class="b">Harris's rung 5 relied on the 32 lanes of a warp executing in lockstep, reading each other's shared-memory writes with no barrier. Since Volta (2017), lanes of a warp can be scheduled independently, and NVIDIA's {{Volta tuning guide|https://docs.nvidia.com/cuda/volta-tuning-guide/index.html}} says plainly: "Assumptions that code is executed in lockstep or that reads/writes from separate threads are visible across a warp without synchronization are invalid." Use the <code>*_sync</code> shuffles, or <code>__syncwarp()</code> between shared-memory steps. Old tutorials (and old kernels) still contain the <code>volatile</code> trick.</div>
-
+}</pre><b class="small">As compiled for sm_90a</b><pre class="rd-code" data-excerpt="warp_sum_sm90a"></pre></div></div></div></div>
+<section id="rd-s2c">
 <h3>Combining blocks</h3>
 <p>Four ways to turn one partial per block into one number: (1) a second, small launch that reduces the partials (R1 to R6 above); (2) every block does an <dfn>atomic add</dfn> of its partial into one output (A1: one launch, <span data-wk="red_A1_ms">1.05</span> ms); (3) the last block to finish, detected with an atomic counter, reduces all partials; (4) a cooperative launch, where <code>grid.sync()</code> makes every block wait for all the others (blocks must all be resident at once, which limits the grid size). PyTorch's own reduction kernel uses the third.</p>
 <details class="dp"><summary>What PyTorch does, and a correction to the old page <span class="mute">(depth)</span></summary><div class="b">PyTorch's <code>Reduce.cuh</code> keeps a global buffer and a semaphore per output when a reduction spans blocks (source excerpt in <code>src/inputs/pytorch_extracts.txt</code>, PyTorch main at commit 8d1d972, read 2026-10-05). The old page said "in library code use CUB (<code>cub::BlockReduce</code>, <code>cub::DeviceReduce</code>), which is what PyTorch does". For sums, PyTorch does not: <code>torch.sum</code> on CUDA calls its own <code>gpu_reduce_kernel</code> ({{ReduceSumProdKernel.cu|https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ReduceSumProdKernel.cu}}). It does use CUB for a one-dimensional <code>cumsum</code> (section 3). CUB is still the right thing to call in your own CUDA code: <code>cub::BlockReduce</code> compiles to the same five shuffles per warp ({{Compiled for NVIDIA|#t-sass}}).</div></details>
@@ -51,20 +85,49 @@
 <p>Floating-point addition is not associative: (a + b) + c can differ from a + (b + c) in the last bits, so different orders give different sums.</p>
 <div class="rd-pr" data-pr="acc"><div class="q">The 2<sup>25</sup> inputs are uniform in [0, 1), so the exact sum is about 16.8 million. Add them one by one into a single float32 accumulator, in order. What comes out?</div>
 <div class="opts"><button data-a="0">the exact sum, to 7 digits</button><button data-a="0">off by a few units</button><button data-a="1">stuck at 16,777,216</button></div>
-<div class="ans" hidden>The running sum reaches 2<sup>24</sup> = <span data-wk="acc_2p24">16,777,216</span>, where float32's spacing between neighbouring numbers is 2, and from then on adding any value below 1 rounds back to the same number. Result <span data-wk="acc_seq">16,777,216</span>, off by <span data-wk="acc_seq_err">495</span> from the float64 sum <span data-wk="acc_exact">16,777,711.32</span>. The GPU tree gives <span data-wk="acc_tree">16,777,712</span>, off by <span data-wk="acc_tree_err">0.68</span>: a tree adds numbers of similar size at every level, which is why parallel reductions are usually <i>more</i> accurate than the sequential loop they replace <span class="rd-meas">measured on Apple M1 Pro GPU</span>.</div></details>
+<div class="ans" hidden>The running sum reaches 2<sup>24</sup> = <span data-wk="acc_2p24">16,777,216</span>, where float32's spacing between neighbouring numbers is 2, and from then on adding any value below 1 rounds back to the same number. Result <span data-wk="acc_seq">16,777,216</span>, off by <span data-wk="acc_seq_err">495</span> from the float64 sum <span data-wk="acc_exact">16,777,711.32</span>. The GPU tree gives <span data-wk="acc_tree">16,777,712</span>, off by <span data-wk="acc_tree_err">0.68</span>: a tree adds numbers of similar size at every level, which is why parallel reductions are usually <i>more</i> accurate than the sequential loop they replace <span class="rd-meas">measured on Apple M1 Pro GPU</span>.</div></div>
 <p><b>Atomics make the order, and so the bits, change from run to run.</b> We ran the atomic kernel A1 30 times on the same input in each of the 3 runs: it gave <span data-wk="acc_atomic_runs">7, 6, 8</span> distinct results (from <span data-wk="acc_atomic_lo">16,777,702</span> to <span data-wk="acc_atomic_hi">16,777,718</span>), because the blocks arrive in a different order each time; the two-launch tree gave one result every time <span class="rd-meas">measured on Apple M1 Pro GPU</span>. This is why <code>torch.use_deterministic_algorithms(True)</code> exists, why two "identical" training runs drift apart, and why a test must compare with a tolerance rather than bit for bit (section 8).</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-scan"></div></div><div class="s3L">
 <section id="rd-s3">
 <h2>3. Scan: running totals</h2>
-<p>An <dfn>inclusive scan</dfn> (prefix sum) turns x<sub>0</sub>, x<sub>1</sub>, x<sub>2</sub>, ... into x<sub>0</sub>, x<sub>0</sub>+x<sub>1</sub>, x<sub>0</sub>+x<sub>1</sub>+x<sub>2</sub>, ...; an <dfn>exclusive</dfn> scan shifts it by one and starts at 0. Every output depends on every earlier input, yet it is everywhere in model code: a mixture-of-experts layer counts how many tokens go to each expert and scans the counts to find where each expert's tokens start in a packed buffer; top-p sampling scans sorted probabilities; packing variable-length sequences scans their lengths into offsets; <code>torch.cumsum</code> is a scan. Two parallel algorithms (from {{GPU Gems 3, chapter 39|https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda}}, Harris, Sengupta and Owens), both in the last two modes of the widget in section 2:</p>
+<p>An <dfn>inclusive scan</dfn> (prefix sum) turns x<sub>0</sub>, x<sub>1</sub>, x<sub>2</sub>, ... into x<sub>0</sub>, x<sub>0</sub>+x<sub>1</sub>, x<sub>0</sub>+x<sub>1</sub>+x<sub>2</sub>, ...; an <dfn>exclusive</dfn> scan shifts it by one and starts at 0. Every output depends on every earlier input, yet it is everywhere in model code: a mixture-of-experts layer counts how many tokens go to each expert and scans the counts to find where each expert's tokens start in a packed buffer; top-p sampling scans sorted probabilities; packing variable-length sequences scans their lengths into offsets; <code>torch.cumsum</code> is a scan. Two parallel algorithms (from {{GPU Gems 3, chapter 39|https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda}}, Harris, Sengupta and Owens), both run in Fig. 3 on the toy of Fig. 2:</p>
 <div class="wk-cmp">
 <div><h4>Hillis and Steele</h4>Step k: every element adds the one 2<sup>k</sup> places to its left. log<sub>2</sub>(n) steps, all elements busy, but O(n log n) additions: for n = 2<sup>24</sup>, <span data-wk="hs_adds">386</span> million adds against 16.8 million for a loop <span class="rd-der">derived</span>, &Sigma;<sub>k&lt;24</sub>(n &minus; 2<sup>k</sup>). Fine inside a warp.</div>
 <div><h4>Blelloch (work-efficient)</h4>An up-sweep builds a tree of partial sums (a reduction), a down-sweep pushes prefixes back down: "approximately 2 &times; (n &minus; 1) adds and n &minus; 1 swaps", <span data-wk="bl_adds">33.6</span> million for n = 2<sup>24</sup> <span class="rd-der">derived</span>, but twice the steps.</div>
 </div>
+<div class="s3chips" id="stg-scan-m" role="group" aria-label="Scan"><button data-m="hs" class="on">Hillis-Steele</button><button data-m="bl">Blelloch</button></div>
+<ol class="sx" id="sx-scan-hs">
+<li><b>The input.</b> The same 16 values. Inclusive scan, Hillis and Steele: log<sub>2</sub>(16) = 4 steps, every element busy.</li>
+<li><b>Offset 1.</b> Every element adds the one 1 to its left, reading from the previous copy (a double buffer), so no element reads a value already updated: 15 additions.</li>
+<li><b>Offset 2.</b> Every element adds the one 2 to its left: 14 additions.</li>
+<li><b>Offset 4.</b> Every element adds the one 4 to its left: 12 additions.</li>
+<li><b>Offset 8.</b> 8 more additions and the row is the inclusive scan, ending at the total, 48. In all 49 additions where a sequential loop needs 15: the price of using every lane at every step.</li>
+</ol>
+<ol class="sx" id="sx-scan-bl" hidden>
+<li><b>The input.</b> Exclusive scan, Blelloch: an up-sweep (a reduction tree), then a down-sweep.</li>
+<li><b>Up-sweep, distance 1.</b> Element 2(t + 1) &minus; 1 adds the one 1 to its left: 8 additions, addresses 2 apart (a 2-way bank conflict).</li>
+<li><b>Up-sweep, distance 2.</b> Element 4(t + 1) &minus; 1 adds the one 2 to its left: 4 additions, a 4-way conflict.</li>
+<li><b>Up-sweep, distance 4.</b> Element 8(t + 1) &minus; 1 adds the one 4 to its left.</li>
+<li><b>Up-sweep, distance 8.</b> The last element now holds the total, 48: the up-sweep is a reduction.</li>
+<li><b>Clear the root.</b> Set the last element (the total) to 0: the down-sweep will produce an exclusive scan.</li>
+<li><b>Down-sweep, distance 8.</b> Each pair swaps, and the right element adds the left one's old value (orange dots).</li>
+<li><b>Down-sweep, distance 4.</b> The same at half the distance: 2 pairs.</li>
+<li><b>Down-sweep, distance 2.</b> 4 pairs.</li>
+<li><b>Down-sweep, distance 1.</b> The exclusive scan, starting at 0. In all 30 additions against Hillis-Steele's 49, in 9 steps instead of 4: Hillis-Steele does 49 additions where Blelloch does 30, in half the steps.</li>
+</ol>
+<div class="tr-cnt" id="sc-cnt"></div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="rd-s3b">
 <p>On a real GPU neither is used across the whole array. Inside a warp, a scan is five shuffles (<code>__shfl_up_sync</code>; Metal's <code>simd_prefix_exclusive_sum</code>); across a block, warps exchange totals through shared memory; across blocks is the hard part, because block 7 needs the total of blocks 0 to 6. <b>Reduce, then scan</b> takes three launches: (a) each block sums its tile; (b) one block scans the tile sums into offsets; (c) each block scans its tile again and adds its offset. The input is read twice and the output written once: 3 passes over memory, against 2 for a copy. <b>Decoupled look-back</b> does it in one pass (it is how <code>cub::DeviceScan</code> works; details below; not run here).</p>
-<div class="bars wk-bars" data-wkbars="scan:C1,C2,L,copy" data-unit="ms"></div>
 <p>On 2<sup>24</sup> floats <span class="rd-meas">measured on Apple M1 Pro GPU</span>, Hillis and Steele over the whole array, 24 launches each reading and writing everything, takes <span data-wk="scan_C1_ms">18.81</span> ms; the three-launch scan <span data-wk="scan_C2_ms">1.41</span> ms, <span data-wk="scan_c1_c2">13.4</span> times faster and <span data-wk="scan_c2_copy">1.41</span> times a plain copy (<span data-wk="scan_copy_ms">1.00</span> ms), close to the 3 : 2 ratio of passes that counting bytes predicts. MLX's library <code>mx.cumsum</code> took <span data-wk="scan_L_ms">7.78</span> ms on the same input, <span data-wk="scan_lib_c2">5.5</span> times slower than our 40 lines (code in {{Kernel bench (M1)|#t-bench}}): <b>libraries are not always at the ceiling, and the copy time tells you when they are not</b>.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>The three-launch scan runs at 1.41 times a copy; MLX's cumsum is 5.5 times slower than it</h4>
+<div class="bars wk-bars" data-wkbars="scan:C1,C2,L,copy" data-unit="ms"></div>
+<p class="small mute">2<sup>24</sup> floats, median of 3 runs, <span class="rd-meas">measured on Apple M1 Pro GPU</span>.</p></div></div></div></div>
+<section id="rd-s3d">
 <details class="dp"><summary>Decoupled look-back, and what PyTorch calls <span class="mute">(depth)</span></summary><div class="b">
 <p>Decoupled look-back ({{Merrill and Garland, NVIDIA, 2016|https://research.nvidia.com/publication/2016-03_single-pass-parallel-prefix-scan-decoupled-look-back}}) scans in one launch: each block publishes its own total as soon as it has it, and its inclusive prefix once it knows it; a block that needs its offset looks back at its predecessors' published values, summing totals until it meets a published prefix. It "requires only ~2n data movement" and its throughput "approaches that of copy operations" <span class="rd-pub">published</span>. It relies on earlier blocks making progress while later ones wait, a guarantee Metal does not document, so we did not run it here.</p>
 <p>In PyTorch, a one-dimensional <code>torch.cumsum</code> on CUDA calls <code>cub::inclusive_scan</code>, and a separate <code>inclusive_deterministic_scan</code> for floating-point types when deterministic algorithms are requested ({{ScanUtils.cuh|https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ScanUtils.cuh}}, read 2026-10-05): the default single-pass scan can add in an order that depends on timing, for the same reason as the atomic sum of section 2.</p>

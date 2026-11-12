@@ -5,7 +5,7 @@ Page: `../index.html`, built by `sh build.sh` from `parts/` (page prefix `wk`, s
 ## Tabs and parts
 | Tab | Parts | What |
 |---|---|---|
-| Reading `t-read` | `20_read.html` (styles), `20_read_a` (nav, the idea in one screen: core sentence, hero, you need, new terms, what is real, closed pattern table; section 1 matmul ladder), `20_read_b` (2 reductions with the reduce-and-scan widget, 3 scan), `20_read_c` (4 softmax and norms, 5 fusion), `20_read_d` (6 decode GEMV, 7 FlashAttention with the split and schedule widgets), `20_read_e` (8 testing, closed depth), `20_read_z`; JS `21_js_rd_common.js` (skill template, never autoplays), `22_js_data.js` (WKD), `22_js_ladder.js` (WKL), `23_js_rd.js` (bars, SASS excerpts, predict-then-reveal, decode chart), `23_js_rd_hero.js`, `24_js_rd_tree0.js` / `24_js_rd_tree1.js`, `25_js_rd_fa.js`, `26_js_rd_extra.js` (softmax ladder bars, passes diagram) | sections 1 to 8 core, closed depth blocks inside each |
+| Reading `t-read` | `02_split.html` (split layout, skill template), `20_read.html` (styles, nav), `20_read_a` (the idea: core sentence, the Fig. 1 hero stage with its step list, you need, new terms, what is real, closed pattern table; section 1 matmul ladder), `20_read_b` (2 reductions with the Fig. 2 stage, 3 scan with the Fig. 3 stage), `20_read_c` (4 softmax and norms, 5 fusion with the Fig. 5 stage), `20_read_d` (6 decode GEMV, 7 FlashAttention with the Fig. 6 stage, the split-K/split-Q animation and the FA-3 schedule widget), `20_read_e` (8 testing, closed depth), `20_read_z`; JS `21_js_rd_common.js` (skill template), `22_js_data.js` (WKD), `22_js_ladder.js` (WKL), `23_js_rd_main.js` (bars, SASS excerpts, predict-then-reveal, decode chart), `24_js_rd_fa.js` (split and schedule models and cards), `24_js_rd_treemodel.js` (WKT), `25_js_s3.js` (renderer v2, skill template), `26_js_rd_extra.js` (softmax ladder bars, passes diagram), `40_js_sc_hero.js`, `41_js_sc_tree.js` (Figs. 2 and 3), `42_js_sc_fuse.js`, `43_js_sc_fa.js` (WKFT, the toy) | sections 1 to 8 core, closed depth blocks inside each |
 | Kernel bench (M1) `t-bench` | `33_tab_bench.html`, `33_js_bench.js` | every M1 timing with spread, load, rate and timed source: used across the page |
 | Compiled for NVIDIA `t-sass` | `34_tab_sass.html`, `34_js_sass.js` | registers and instruction mix of every CUDA kernel for three targets: used across the page |
 | Further reading `t-more` | `39_tab_more.html` | |
@@ -15,7 +15,7 @@ Page: `../index.html`, built by `sh build.sh` from `parts/` (page prefix `wk`, s
 - `cuda/`: the same patterns in CUDA C++ (`kernels/`), compiled for sm_80, sm_90a and sm_120 in the topic root's `kb-gpu-lab:1` image (CUDA 13.4.2) by `compile_all.sh`; `sass_stats.py` reads `ptxas -v` and `cuobjdump -sass` into `cuda/out/stats.json`. Raw SASS dumps are git-ignored and regenerated.
 - `inputs/`: verbatim extracts of sources read on 2026-10-05 (Harris's deck, PyTorch, vLLM, flash-attention, cublasLt.h and compute-sanitizer from the toolkit), and `root_kernel_lab_matmul.json`: the topic root's Kernel lab matmul and softmax runs on the same M1 (copied by `ladder.py` from `../../src/lab/out/data.json`, refreshed when that file is present).
 - `gen_data.py` merges everything into `out/data.json` and `parts/22_js_data.js` (median of the three run medians; min and max over all trials). `recompute.py --fill` derives every number the prose states (`out/expected.json`) and writes it into the `<span data-wk>` tags. `ladder.py` derives the hero's bytes per FMA from `cuda/kernels/m_ladder.cu`'s tile sizes, joins Boehm's table, the compiled counts and the lab's M1 times into `out/ladder.json` and `parts/22_js_ladder.js`, and writes the hero's numbers as a static table into section 1's closed block. `tree_model.py` and `fa_model.py` are independent Python versions of the two widget models.
-- Checks: `node check/check_js.mjs` (widget models against Python), `python3 check/check_embed.py` (page embeds exactly `out/data.json` and `out/ladder.json`, prose numbers equal `expected.json`, no private paths), `node <this folder>/check/check_page.mjs <page folder> <out dir>` from the repo root (every control at 390 px dark and 920 px light, and no animation moves before the reader acts). Reproduce everything: `MLXPY=<python with mlx> sh run_all.sh`.
+- Checks: `node check/check_js.mjs` (widget models against Python), `python3 check/check_embed.py` (page embeds exactly `out/data.json` and `out/ladder.json`, prose numbers equal `expected.json`, no private paths), `node <this folder>/check/check_page.mjs <page folder> <out dir>` from the repo root (every control at 390 px dark and 920 px light, under reduced motion; the FA-3 schedule widget stays on its finished time line), `node <this folder>/check/check_stages.mjs [shots dir]` from the repo root (about 4 minutes: the five stages and the split animation play on view, step lists match in every mode, nothing moves under reduced motion or redraws off screen, splits, label overlaps at 1400 px, step-list numbers against WKL, WKT, WKD and WKFT, the toy FlashAttention against the direct softmax). Reproduce everything: `MLXPY=<python with mlx> sh run_all.sh`.
 
 ## The 2026-10-23 rebuild: what changed and why
 The audit found 39 minutes of Reading with no visual drawn in it (the decode chart was its only SVG) and the page's two mechanism animations in separate tabs. OWNERS.md now gives this page writing CUDA kernels by hand: the progression from a naive kernel to a tiled, coalesced, vectorised one, warp-level primitives, reductions, fusion and launch configuration.
@@ -23,7 +23,7 @@ The audit found 39 minutes of Reading with no visual drawn in it (the decode cha
 - **Matmul first** (section 1): it is the progression the page owns, and the hero is its picture; the section keeps what the stepper does not say (coalescing invisible in the binary, FFMA per shared load, registers and blocks per SM, beyond CUDA cores). The compiled table, Boehm's table (now static text), the hero's numbers as a table, the correction and the SASS inner loops are closed.
 - **Absorbed from the root's Kernel lab**: the softmax ladder (bars inline in section 4: one threadgroup per row is 50 times faster than one thread per row; every later rung stays within 13% of a copy) and the M1 matmul ladder times (in the hero and its table). The root's lab keeps its runs; it should now link here for the progression.
 - **Moved inline**: the reduce-and-scan widget (old tab "Reduce and scan, animated") into section 2, the split-K/split-Q animation and the FA-3 schedule (old tab "Attention schedules") into section 7. A new static before/after of residual + RMSNorm passes (5 against 4) sits in section 4.
-- **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (`wk-tab`); the widgets no longer start playing on a mode switch.
+- **No autoplay**: `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates (`wk-tab`); the widgets no longer start playing on a mode switch. (Superseded on 2026-11-12: animations and stages now play once in view; see the rollout section below.)
 - **Depth into closed blocks**: Harris's rungs by name, the warp-synchronous correction, PyTorch's reduction and scan internals, decoupled look-back, LayerNorm timings and Welford's merge, epilogues in cuBLASLt/CUTLASS/Triton, the GEMV's SASS and Marlin, FA-3's numbers and machinery, FA-4, the backward pass, sanitizer tools, tolerances and inputs that break kernels, interview rehearsal, the practice path.
 - **Deleted as fat**: wind-up headings, pointers to the removed tabs, the "Common mistakes" list (each restated a section; the one new line, compare against the compiled framework, is now in section 5), interview answers that restated a section.
 - Section numbers changed (matmul is 1; reductions 2, scan 3, norms 4); cross-references in the bench and compiled tabs and Further reading were updated.
@@ -47,3 +47,46 @@ Why 31 minutes is right: the page teaches eight kernel patterns that a transform
 
 ## Not run here
 Nothing ran on an NVIDIA GPU. Decoupled look-back was not run (no forward-progress guarantee on Metal). The cause of the S = 8 split-KV slowdown is not established. Why the three-sweep softmax (S2) runs near copy speed (likely cache hits on the 16 KB row) was not profiled.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `wk-tab`). Parts renamed so the load order is explicit: `23_js_rd.js` is `23_js_rd_main.js`; `23_js_rd_hero.js` (the 2D hero) and `24_js_rd_tree1.js` (the 2D tree widget) are removed, their figures now 3D; `24_js_rd_tree0.js` is `24_js_rd_treemodel.js`; `25_js_rd_fa.js` is `24_js_rd_fa.js`. Every script runs after the parts it uses (data 22, models 24, renderer 25, scenes 40 to 43, tabs 99). No new runs.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | **3D** `stg-hero` (Fig. 1), the matmul ladder | yes, 7 |
+| Reading | You need, terms, what is real, pattern table | full width | none | no |
+| Reading | 1 Matmul ladder | full width | none (Fig. 1 is its picture; compiled table and inner loops closed) | no |
+| Reading | 2 Reductions | split | **3D** `stg-red` (Fig. 2), modes R1, R2, R3, warp shuffle | yes, 5, 5, 5, 6 |
+| Reading | 2 Measured ladder | split | 2D bars | no |
+| Reading | 2 Harris's rungs | full width | closed list | no |
+| Reading | 2 Shuffles | split | source and SASS listings | no |
+| Reading | 2 Combining blocks, order of additions | full width | predict box | no |
+| Reading | 3 Scan | split | **3D** `stg-scan` (Fig. 3), Hillis-Steele and Blelloch | yes, 5 and 10 |
+| Reading | 3 Measured scans | split | 2D bars | no |
+| Reading | 4 Softmax ladder, online softmax | split | 2D bars | no |
+| Reading | 4 LayerNorm | full width | predict box, table | no |
+| Reading | 4 Residual + RMSNorm | split | 2D passes diagram | no |
+| Reading | 5 Fusion, epilogue | split | **3D** `stg-fuse` (Fig. 5) | yes, 5 |
+| Reading | 5 Against compiled MLX | split | 2D bars | no |
+| Reading | 5 Prologue | full width | table | no |
+| Reading | 6 Decode GEMV | split | 2D bars | no |
+| Reading | 7 FlashAttention, the algorithm | split | **3D** `stg-fa` (Fig. 6), illustrative toy | yes, 7 |
+| Reading | 7 FA-2 grid | split | 2D bars (log) | no |
+| Reading | 7 Split K against split Q | split | 2D animation (`RD.anim`, plays on view) | yes, 6 and 5 |
+| Reading | 7 Causal masks | full width | none | no |
+| Reading | 7 FA-3 | split | 2D schedule widget (no autoplay, opens finished) | no |
+| Reading | 7 Decode, split the keys | split | 2D line chart | no |
+| Reading | 8 Testing, Depth | full width | none | no |
+| Kernel bench, Compiled for NVIDIA | | full width | reader-driven tools | no |
+
+**Stages and their data.** Fig. 1: `WKL` per rung (block tile, K step 32 for rung 3 and 8 after, thread tile, global bytes per FMA as log bars); the 256 x 256 corner and the drawn warp tile of rung 7 are illustrative sizes; the step list carries each rung's numbers (bytes, registers, Boehm's GFLOP/s, M1 time). Figs. 2 and 3: `WKT.run(mode)`, the same states and counters the 2D widget had; the counters under each list run up to the current step. Fig. 5: `WKD.m1.fuse` at K = 1,024 (unfused 10.71, staged 13.76, precise 11.40, fast 10.07, matmul alone 9.92 ms). Fig. 6: `WKFT`, an illustrative toy (seed 5, 4 query rows, 16 keys in 4 tiles, d = 4) whose final output equals the direct softmax to 1e-16; the rows whose maximum rises (tile 2: rows 1 and 2; tile 3: row 4; tile 4: rows 1 and 2) are checked against the list.
+
+**Motion.** The five stages and the split-K/split-Q animation play once in view (lists `sx-hero`, `sx-red-*`, `sx-scan-*`, `sx-fuse`, `sx-fa`, `sx-fak`/`sx-faq`); mode chips swap the list and replay. The FA-3 schedule is a widget (`auto:false`, 25 frames, opens on its finished time line, every mode too). Per-step captions were moved into the step lists and removed.
+
+**Fixed in passing.** The old `20_read_b.html` never closed the "warp-synchronous" correction block and closed the accumulation predict box with `</details>`, so "Combining blocks" and "The order of additions changes the answer" were hidden inside a closed block (ledger units 53 and 59 to 65 were labelled depth for that reason; now core). SVG labels in the split and schedule cards raised from 10 to 11 px.
+
+**Length.** Reading core 7,117 words (31 min) before, 9,542 (41.5 min) after, of which 679 words (3 min) are the step lists of the modes not shown by default; closed 3,563 (15.5) before, 3,319 (14.4) after (the 244 words of the nesting fix moved into the core). The growth is the step lists (2,281 words, 1,600 shown by default): the hero's captions were one at a time before and are now a list with each rung's numbers; Figs. 2, 3 and 6 explain mechanisms that were a widget caption or prose before; the split-K/split-Q steps were a caption carousel. Duplicates between the hero list and section 1 were cut from the list. Every unit kept is core or depth; 42 minutes is long, but it covers eight kernel patterns, each with its measured result and now its explained figure.
+
+**Ledger**: 420 units, core 281, depth 93, fat 46, problems 0. Re-keyed 321, 322, 327 (the widget's caption became the stage's note and step lists); 53 and 59 to 65 relabelled core (nesting fix); added 415 to 420, one per new figure and one for the traffic claim of Fig. 6.
+
+**Checks.** `check/check_stages.mjs` (new), `check/check_page.mjs` (its never-autoplay assertion now applies to the FA-3 widget only, and it runs under reduced motion), `check/check_js.mjs` and `check/check_embed.py` (paths of the renamed parts updated).

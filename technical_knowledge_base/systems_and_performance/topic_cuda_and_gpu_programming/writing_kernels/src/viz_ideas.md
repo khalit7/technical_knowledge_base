@@ -40,3 +40,16 @@ What the methodology lacked here: a rule for **lesson cases**. Two of the fused 
 | WK.26 | Reduce and scan widget | moved from its own tab to Reading s2 | model, checked against Python | moved: it explains one mechanism |
 | WK.27 | Split-K against split-Q, FA-3 schedule | moved from the Attention schedules tab to Reading s7 | derived models | moved: each explains one mechanism |
 | WK.28 | An occupancy slider (registers per thread to blocks per SM) | none | | rejected: the root's GPU simulator owns occupancy; one sentence and the compiled tab carry the two cases |
+
+## 2026-11-12: the split-layout rollout (3D stages, renderer v2)
+| # | Idea | Where | Evidence | Decision |
+|---|---|---|---|---|
+| WK.29 | **Fig. 1, the matmul ladder as a matmul cube** (C on the floor, A and B on two walls, depth k up the walls; per rung the warp or block tile, the shared-memory K step as glass, the thread tile in registers, flows global to shared to registers; global bytes per FMA as log bars) | Reading top | `WKL` (derived traffic, published GFLOP/s, compiled registers, measured M1 times) | built, replaces the 2D hero (WK.23): the tiles are spatial and the cube shows which strips of A and B one block reads |
+| WK.30 | **Fig. 2, the reduction tree level by level** (one row of bars per step, nearer the viewer; lane lamps; shared-memory glass and barrier lines; green flows for shuffles) with R1, R2, R3 and the warp shuffle as modes | Reading s2 | `WKT` model (checked against `tree_model.py`) | built, replaces the 2D widget (WK.26) |
+| WK.31 | **Fig. 3, the two scans** on the same toy | Reading s3 | `WKT` | built: section 3 had no visual of its own |
+| WK.32 | **Fig. 5, fusion** (global memory floor, kernels above; C written and read back, then kept in registers; measured times as bars) | Reading s5 | `WKD.m1.fuse` | built |
+| WK.33 | **Fig. 6, FlashAttention tile by tile** (Q tile on chip, K and V tiles streamed up, S as a bar field, running m and l, O rescaled; S and P never written) | Reading s7 | an illustrative seeded toy computed in the page (`WKFT`), checked equal to the direct softmax | built: the page had no picture of the algorithm itself, only of its schedules |
+| WK.34 | Split-K against split-Q in 3D (warps as layers) | Reading s7 | | rejected for now: the 2D card reads clearly and its counters carry the point; it now has step lists and plays on view |
+| WK.35 | FA-3 schedule as an autoplaying animation | Reading s7 | | kept as a widget (25 frames of one schedule: the long-replay rule, case b), opening on its finished time line |
+| WK.36 | Measured bars (reduction, scan, softmax ladder, fusion, GEMV, FA grid), the decode split chart, the passes diagram | Reading | measured | kept 2D, in the right column: numbers on an axis read best flat |
+| WK.37 | A photo (a GPU die or board) | none | | rejected: the page is about code and traffic, not hardware; GPU architecture owns the physical pictures |

@@ -48,7 +48,7 @@ window.WKFA=(function(){
   if(!document.getElementById('fa-card1'))return;
   const F=window.WKFA;
   // ---------- part 1 drawing
-  const fig1=document.getElementById('fa-fig1'),cap1=document.getElementById('fa-cap1'),cnt1=document.getElementById('fa-cnt1');
+  const fig1=document.getElementById('fa-fig1'),cnt1=document.getElementById('fa-cnt1');
   let m1='k',S1=F.split(m1);
   const WC=['var(--c1)','var(--c3)','var(--c2)','var(--c4)'];
   function draw1(i){
@@ -57,25 +57,25 @@ window.WKFA=(function(){
     let s=RD.t(x0,14,'S tile, 64 x 64, by warp',{fill:'var(--mute)'});
     for(let r=0;r<4;r++)for(let c=0;c<4;c++){const w=m1==='q'?r:c;const on=i>=2;
       s+='<rect x="'+(x0+c*g)+'" y="'+(y0+r*g)+'" width="'+(g-2)+'" height="'+(g-2)+'" rx="2" fill="'+(on?WC[w]:'var(--soft)')+'" opacity="'+(on?0.75:1)+'" stroke="var(--line)"/>'}
-    s+=RD.t(x0,y0+4*g+14,m1==='q'?'rows split: warp w owns rows 16w..16w+15':'keys split: warp w owns keys 16w..16w+15',{fill:'var(--mute)',fs:10});
+    s+=RD.t(x0,y0+4*g+14,m1==='q'?'rows split: warp w owns rows 16w..16w+15':'keys split: warp w owns keys 16w..16w+15',{fill:'var(--mute)',fs:11});
     // shared memory box and O box
     const bx=x0+4*g+24,bw=Math.max(80,(W-bx-10)/2-8);
     const smUse=show==='load'||show==='p'&&m1==='k'||show==='m';
-    s+='<rect x="'+bx+'" y="'+y0+'" width="'+bw+'" height="'+(4*g-2)+'" rx="4" fill="'+(smUse?'var(--hl)':'var(--soft)')+'" stroke="var(--line)"/>'+RD.t(bx+6,y0+14,'shared memory',{fs:10,w:600});
-    s+=RD.t(bx+6,y0+30,'K, V tile'+(i>=1?' (loaded)':''),{fs:10});
-    if(m1==='k'&&i>=3)s+=RD.t(bx+6,y0+46,'row maxima x 4 warps',{fs:10,fill:'var(--c2)'});
-    if(m1==='k'&&i>=5)s+=RD.t(bx+6,y0+62,'partial O x 4 warps',{fs:10,fill:'var(--c2)'});
+    s+='<rect x="'+bx+'" y="'+y0+'" width="'+bw+'" height="'+(4*g-2)+'" rx="4" fill="'+(smUse?'var(--hl)':'var(--soft)')+'" stroke="var(--line)"/>'+RD.t(bx+6,y0+14,'shared memory',{fs:11,w:600});
+    s+=RD.t(bx+6,y0+30,'K, V tile'+(i>=1?' (loaded)':''),{fs:11});
+    if(m1==='k'&&i>=3)s+=RD.t(bx+6,y0+46,'maxima x 4 warps',{fs:11,fill:'var(--c2)'});
+    if(m1==='k'&&i>=5)s+=RD.t(bx+6,y0+62,'partial O x 4',{fs:11,fill:'var(--c2)'});
     const ox=bx+bw+12,ow=Math.max(60,W-ox-10);
-    s+='<rect x="'+ox+'" y="'+y0+'" width="'+ow+'" height="'+(4*g-2)+'" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(ox+6,y0+14,'O rows (registers)',{fs:10,w:600});
+    s+='<rect x="'+ox+'" y="'+y0+'" width="'+ow+'" height="'+(4*g-2)+'" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(ox+6,y0+14,'O rows (registers)',{fs:11,w:600});
     for(let w=0;w<4;w++){const yy=y0+20+w*((4*g-26)/4);const full=m1==='q'?i>=4:i>=6;
       s+='<rect x="'+(ox+6)+'" y="'+yy.toFixed(1)+'" width="'+(ow-12)*(full?1:(i>=4&&m1==='k'?0.25:0))+'" height="'+((4*g-26)/4-3).toFixed(1)+'" fill="'+WC[w]+'" opacity=".7" rx="2"/>'}
     fig1.innerHTML=RD.svg(W,H,s,'Split K against split Q, step '+i);
-    cap1.innerHTML='<b>'+(m1==='q'?'Split Q (FA-2)':'Split K (FA-1)')+(i?', step '+i+' of '+S1.length:'')+'.</b> '+(i?step.cap:'One loop iteration of one thread block: load a K and V tile, compute scores, softmax, multiply by V.');
     let w=0,r=0,b=0;for(let k=0;k<i;k++){w+=S1[k].w;r+=S1[k].r;b+=S1[k].b}
     cnt1.innerHTML=RD.stat('Shared memory writes',w.toLocaleString('en-US'),'values')+RD.stat('Shared memory reads',r.toLocaleString('en-US'),'values')+RD.stat('Barriers',b)+RD.stat('Exchanges between warps',m1==='k'?Math.max(0,(i>=3)+(i>=5)):0);
   }
-  const A1=RD.anim({card:'fa-card1',ctl:'fa-ctl1',n:S1.length+1,draw:draw1,ms:1800,label:'Step'});
-  RD.seg(document.getElementById('fa-split'),m=>{m1=m;S1=F.split(m);A1.reset(S1.length+1)});
+  // the steps are explained by the step lists sx-fak and sx-faq on the left (the caps in WKFA.split are their source text)
+  const A1=RD.anim({card:'fa-card1',ctl:'fa-ctl1',n:S1.length+1,draw:draw1,ms:4200,label:'Step',list:'sx-fak'});
+  RD.seg(document.getElementById('fa-split'),m=>{m1=m;S1=F.split(m);['k','q'].forEach(x=>{const l=document.getElementById('sx-fa'+x);if(l)l.hidden=x!==m});A1.reset(S1.length+1,'sx-fa'+m)});
   // ---------- part 2: time line
   const fig2=document.getElementById('fa-fig2'),cap2=document.getElementById('fa-cap2'),cnt2=document.getElementById('fa-cnt2'),rr=document.getElementById('fa-r');
   let m2='seq',r=0.5,SC=F.schedule(m2,r,8);
@@ -85,14 +85,14 @@ window.WKFA=(function(){
     const W=Math.min(760,RD.width(fig2)),L=78,R=8,lane=26,H=2*lane+50;
     const tmax=Math.max(...['seq','pp','ip','both'].map(m=>F.schedule(m,r,8).end));
     const now=SC.end*i/TICKS,x=t=>L+(W-L-R)*t/tmax;
-    let s=RD.t(4,24,'Tensor cores',{fs:10})+RD.t(4,24+lane,'Exponentials',{fs:10});
+    let s=RD.t(4,24,'Tensor cores',{fs:11})+RD.t(4,24+lane,'Exponentials',{fs:11});
     SC.tasks.forEach(t=>{if(t.st>=now)return;const y=t.res==='tc'?10:10+lane,en=Math.min(t.en,now);
       const col=t.g===0?'var(--c1)':'var(--c3)';
       s+='<rect x="'+x(t.st).toFixed(1)+'" y="'+y+'" width="'+Math.max(0.5,x(en)-x(t.st)-1).toFixed(1)+'" height="'+(lane-6)+'" rx="2" fill="'+col+'" opacity="'+(t.k==='G1'?0.6:0.9)+'"/>';
-      if(x(en)-x(t.st)>22)s+=RD.t(((x(t.st)+x(en))/2).toFixed(1),y+14,({G0:'QK',SM:'exp',G1:'PV'}[t.k])+(t.j+1),{a:'middle',fs:10.5,fill:'var(--bg)'})});
+      if(x(en)-x(t.st)>22)s+=RD.t(((x(t.st)+x(en))/2).toFixed(1),y+14,({G0:'QK',SM:'exp',G1:'PV'}[t.k])+(t.j+1),{a:'middle',fs:11,fill:'var(--bg)'})});
     s+='<line x1="'+x(now).toFixed(1)+'" x2="'+x(now).toFixed(1)+'" y1="6" y2="'+(2*lane+12)+'" stroke="var(--ink)" stroke-dasharray="2 3"/>';
-    for(let t=0;t<=tmax;t+=2)s+=RD.t(x(t).toFixed(1),2*lane+28,t,{a:'middle',fs:10.5,fill:'var(--mute)'});
-    s+=RD.t(((L+W-R)/2).toFixed(1),2*lane+44,'time (one unit = one GEMM)',{a:'middle',fs:10,fill:'var(--mute)'});
+    for(let t=0;t<=tmax;t+=2)s+=RD.t(x(t).toFixed(1),2*lane+28,t,{a:'middle',fs:11,fill:'var(--mute)'});
+    s+=RD.t(((L+W-R)/2).toFixed(1),2*lane+44,'time (one unit = one GEMM)',{a:'middle',fs:11,fill:'var(--mute)'});
     fig2.innerHTML=RD.svg(W,H,s,NAMES[m2]+' schedule');
     const busy=SC.tasks.filter(t=>t.res==='tc').reduce((q,t)=>q+Math.max(0,Math.min(t.en,now)-Math.min(t.st,now)),0);
     cap2.innerHTML='<b>'+NAMES[m2]+'.</b> '+({seq:'GEMM0, softmax, GEMM1, then the next iteration: the tensor cores wait for every softmax.',
@@ -101,10 +101,11 @@ window.WKFA=(function(){
       both:'Both techniques together, as in FlashAttention-3.'}[m2])+(i===TICKS?' Tensor cores busy '+(100*SC.util).toFixed(0)+'% of the time.':'');
     cnt2.innerHTML=RD.stat('Time so far',now.toFixed(1),'units')+RD.stat('Tensor cores busy',now>0?(100*busy/now).toFixed(0)+'%':'0%')+RD.stat('Total time',SC.end.toFixed(1),'units, 8 iterations')+RD.stat('Warpgroups',SC.wg);
   }
-  const A2=RD.anim({card:'fa-card2',ctl:'fa-ctl2',n:TICKS+1,draw:draw2,ms:300,label:'Time'});
+  // a widget (the long-replay rule, case b): 25 frames of one schedule, so it never plays by itself and opens on the finished schedule
+  const A2=RD.anim({card:'fa-card2',ctl:'fa-ctl2',n:TICKS+1,draw:draw2,ms:300,label:'Time',auto:false,start:TICKS});
   function table(){const rows=['seq','pp','ip','both'].map(m=>{const q=F.schedule(m,r,8);return '<tr'+(m===m2?' style="background:var(--acc2)"':'')+'><td>'+NAMES[m]+'</td><td class="num">'+q.end.toFixed(1)+'</td><td class="num">'+(100*q.util).toFixed(0)+'%</td></tr>'}).join('');
     document.getElementById('fa-tab').innerHTML='<tr><th>Schedule, softmax / GEMM = '+r.toFixed(2)+'</th><th class="num">total time (units)</th><th class="num">tensor cores busy</th></tr>'+rows}
-  RD.seg(document.getElementById('fa-sched'),m=>{m2=m;SC=F.schedule(m2,r,8);A2.reset(TICKS+1);table()});
+  RD.seg(document.getElementById('fa-sched'),m=>{m2=m;SC=F.schedule(m2,r,8);A2.reset(TICKS+1);A2.go(TICKS,true);table()});
   rr.addEventListener('input',()=>{r=+rr.value;document.getElementById('fa-rv').textContent=r.toFixed(2);SC=F.schedule(m2,r,8);A2.go(TICKS);table()});
   table();
   RD.onResize(()=>{A1.redraw();A2.redraw()});

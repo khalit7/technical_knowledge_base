@@ -1,5 +1,5 @@
 // Click every control of the page at 390 px dark and 920 px light; report errors, NaN, undefined and sideways scroll;
-// save element screenshots to <out dir>. Usage (from the repo root):
+// save element screenshots to <out dir>. Runs with reduced motion, so nothing plays by itself while controls are clicked. Usage (from the repo root):
 //   node <page>/src/check/check_page.mjs <page folder> <out dir>
 import { createRequire } from 'module';
 import path from 'path';
@@ -53,14 +53,13 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   if (errs.length) { problems++; console.log('ERRORS', scheme, width, errs.slice(0, 5)); }
   await page.close();
 }
-// nothing may move before the reader acts: normal motion, scroll every animation into view, wait, every scrubber still at 0
+// motion (2026-11-06 rollout): animations and stages now play once in view (src/check/check_stages.mjs checks that);
+// the FA-3 schedule is a widget: scrolled into view it must stay on its finished time line
 { const page = await browser.newPage(); await page.setViewport({ width: 920, height: 900 });
   await page.goto(url, { waitUntil: 'load' });
-  const moved = await page.evaluate(async () => { const sleep = ms => new Promise(r => setTimeout(r, ms)); const out = [];
-    for (const c of document.querySelectorAll('#t-read .an-ctl')) { c.scrollIntoView({ block: 'center' }); await sleep(2500);
-      const r = c.querySelector('input[type=range]'); if (r && +r.value !== 0) out.push(c.id + '=' + r.value); }
-    return out; });
-  if (moved.length) { problems++; console.log('AUTOPLAY', moved); } else console.log('no animation moved before the reader acted');
+  const moved = await page.evaluate(async () => { const sleep = ms => new Promise(r => setTimeout(r, ms)); const c = document.getElementById('fa-ctl2');
+    c.scrollIntoView({ block: 'center' }); await sleep(2500); const r = c.querySelector('input[type=range]'); return r && +r.value !== +r.max ? r.value + '/' + r.max : ''; });
+  if (moved) { problems++; console.log('WIDGET MOVED', moved); } else console.log('the schedule widget stayed on its finished time line');
   await page.close(); }
 await browser.close();
 console.log(problems ? `FAIL ${problems}` : 'OK no errors, NaN, undefined or sideways scroll');

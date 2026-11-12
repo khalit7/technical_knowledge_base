@@ -1,4 +1,4 @@
-"""Python reference for Reading section 7's attention schedules (parts/25_js_rd_fa.js): split-K against split-Q shared-memory
+"""Python reference for Reading section 7's attention schedules (parts/24_js_rd_fa.js): split-K against split-Q shared-memory
 counts per loop iteration, and the list-scheduling model of FlashAttention-3's overlap. Written from the same
 rules; writes out/fa_expected.json, which check/check_js.mjs compares with the page's JavaScript."""
 import json, os

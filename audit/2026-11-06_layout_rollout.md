@@ -195,9 +195,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/programming_model` The CUDA programming model: threads, warps, blocks, launches, occupancy
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu` Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/triton_and_gluon` Triton and Gluon: block-level kernels, autotuning, what the compiler does
-- [~] `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels` Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention
+- [x] `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels` Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming` Topic: cuda-and-gpu-programming
-- [ ] `systems_and_performance/topic_hardware/gpu_architecture` GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin
+- [~] `systems_and_performance/topic_hardware/gpu_architecture` GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin
 - [ ] `systems_and_performance/topic_hardware/interconnects_and_scaling` Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism
 - [ ] `systems_and_performance/topic_hardware/memory_technology` Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache
 - [ ] `systems_and_performance/topic_hardware/performance_math` Performance math: FLOPs, memory, MFU, tokens per second, costing a run
@@ -489,6 +489,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_cuda_and_gpu_programming/programming_model`: Figs 1, 2 and 4 small at 390; Fig. 4 last step, the fourth wave's 16 empty SM slots are subtle; check_stages lives at src/check/check_stages.mjs (about 4 min).
 - `systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu`: Fig. 1 small in its card at step 1; side labels hide on phones.
 - `systems_and_performance/topic_cuda_and_gpu_programming/triton_and_gluon`: Fig. 3 top plate (TTIR) has no visible label at step 4; core now 44 min (37 before); check_embed.py fails its rebuild-equals check on this checkout because the LLVM IR files are not committed (Docker run_all.sh regenerates them), prose checks pass.
+- `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels`: Fig. 6 Q, K, V plates crop at the left edge at 1400 ("tile 2" label cut); core now 42 min (31 before; about 3 min hidden mode lists, plus about 1 min un-hidden by a missing </details> fix).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -530,3 +531,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - CUDA programming model: Fig. 2 (warp divergence, illustrative, no timing) reverses an older rejection in viz_ideas ("GPU architecture and the root already have it"); the register slider stays a separate tool beside Fig. 3; only the 3D stages are numbered (Figs 1 to 4). Keep these?
 - Streams, CUDA graphs and multi-GPU: Fig. 3 draws 8 of the 64 ranks as a logical ring; Figs 1 and 3 play each step's time to scale (about 3.7 s a step); Figs 2 and 3 open on the "before" mode; Fig. 2 GPU-busy shares are steady-state (30%, 76%, 85%); the static capture, instantiate, replay card was folded into Fig. 2's graph mode. Also corrected: one-engine pipeline 8.52 ms (was 8.54, an upper bound). Keep these?
 - Triton and Gluon: the hero uses an illustrative 1,152 cubed matmul (9 x 9 tiles, matching section 3); Fig. 2 autotune has no timing bars (no GPU run); Fig. 3 plate depth is log10 of line count; grouped order opens at 1 program (the tutorial's "90 against 54" is step 3). Unverified: the #mma layout giving each warp 16-row strips is the agent's reading of the wgmma layout, not in any run output. Keep these, and check the #mma claim?
+- Writing kernels: Fig. 6 FlashAttention runs on an illustrative toy (seed 5, 4 query rows, 16 keys in 4 tiles, d = 4); Fig. 1's 256 x 256 corner and rung 7 warp tile are illustrative; split-K/split-Q stays 2D; the FA-3 schedule is a widget opening finished; "Combining blocks" and "The order of additions" are now open core reading (a missing </details> had hidden them). Keep these?
