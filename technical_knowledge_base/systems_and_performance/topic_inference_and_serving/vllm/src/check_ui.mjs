@@ -1,5 +1,5 @@
-// Puppeteer check of the page: nothing moves before the reader acts (normal motion, every animation stays on step 0
-// after scrolling through the page), then every tab, every button, select and range, every stepper run stepped end to end,
+// Puppeteer check of the page: with normal motion the two 2D animations play once scrolled into view and the recorded stepper
+// (a widget) does not move by itself (inverted from the 2026-10-23 never-autoplay check, 2026-11-12), then every tab, every button, select and range, every stepper run stepped end to end,
 // at 390 px dark and 920 px light. Fails on page errors, NaN/undefined/Infinity in visible text, sideways scroll,
 // a visible #jsErr box. usage: node check_ui.mjs <screenshot dir>
 import { createRequire } from 'module';
@@ -22,14 +22,20 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await p.evaluateOnNewDocument(() => { try { localStorage.clear() } catch (e) {} });
   await p.goto(page_url, { waitUntil: 'load' });
   const tabs = await p.$$eval('#tabs button', bs => bs.map(b => b.dataset.t));
-  // no autoplay: scroll every animation card into view, wait, and expect every scrubber still at 0
+  // motion (2026-11-06): with normal motion the two 2D animations (request path, async timeline) play once scrolled into view,
+  // and the recorded stepper (a widget, 48 to 121 steps) never moves by itself; the 3D stages are checked by check_stages.mjs
   if (scheme === 'light') {
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'no-preference' }]);
-    for (const id of await p.$$eval('#t-read input[type=range]', rs => rs.map(r => r.id))) {
-      await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await new Promise(r => setTimeout(r, 1200));
-      const v = await p.$eval('#' + id, r => +r.value); if (v !== 0) errs.push(`autoplay: ${id} moved to ${v}`);
+    await p.goto(page_url, { waitUntil: 'load' });
+    for (const [card, ctl, plays] of [['vl-path-card', 'vl-path-ctl', true], ['vl-async-card', 'vl-async-ctl', true], ['vl-st-card', 'vl-st-ctl', false]]) {
+      await p.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), card);
+      const v0 = await p.$eval(`#${ctl}-s`, r => +r.value); await new Promise(r => setTimeout(r, 1500));
+      const [v1, lab] = await p.$eval(`#${ctl}-s`, r => [+r.value, document.getElementById(r.id.replace(/-s$/, '-p')).getAttribute('aria-label')]);
+      if (plays && lab !== 'Pause') errs.push(`autoplay: ${card} did not play when scrolled into view`);
+      if (!plays && (lab !== 'Play' || v1 !== v0)) errs.push(`widget: ${card} moved by itself (${v0} -> ${v1}, ${lab})`);
     }
     await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
+    await p.goto(page_url, { waitUntil: 'load' });
   }
   for (const t of tabs) {
     await p.click(`#tabs button[data-t="${t}"]`);

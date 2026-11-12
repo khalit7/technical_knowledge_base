@@ -1,18 +1,20 @@
 <section id="vl-s4">
 <h2>4. The model runner, and Model Runner V2</h2>
+<div class="s3sp"><div class="s3L">
 <p><b>The problem.</b> The scheduler's decision is a small dictionary ({request: tokens this step}, plus new block ids). The GPU needs dense tensors: one flat list of input token ids for all requests, their positions, where each request's tokens start, every request's block table, and per-request sampling settings. Building those in Python from scratch every step would cost more than the forward pass of a small model, so the <dfn>model runner</dfn>, one per GPU, keeps a <dfn>persistent batch</dfn>: tensors that stay allocated across steps and change only where a request joined or left.</p>
 <p>Each step the runner (1) applies the scheduler's diff (new requests, finished ones, new blocks), (2) gathers the step's inputs and attention metadata, (3) runs the model, replaying a captured CUDA graph when the batch shape allows, (4) computes logits for the last position of each request, and (5) samples. Then the sampled ids go back to <span class="mono">update_from_output</span>.</p>
 
 <h3>Why a second model runner</h3>
 <p>The V1 runner's persistent batch used its state tensors directly as model inputs, so a request finishing in the middle forced rows to be reordered, and it kept a duplicate copy of each request's state; asynchronous scheduling was retrofitted onto it. Model Runner V2 (MRV2) was rewritten "from first principles" ({{design doc|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/design/model_runner_v2.md}}):</p>
-<div class="rd-card" id="vl-mr-card">
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="vl-mr-card">
 <h4>Request B finishes and E joins: V1 rewrites rows, V2 writes one row and gathers</h4>
 <div class="seg" id="vl-mr-seg"><button data-m="v1" class="on">Model Runner V1</button><button data-m="v2">Model Runner V2</button></div>
 <div class="vl-svg" id="vl-mr"></div>
 <div class="an-cap" id="vl-mr-cap"></div>
 <div class="an-cnt" id="vl-mr-cnt"></div>
 <p class="small mute">The mechanism is the {{design doc|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/design/model_runner_v2.md}}'s: V1 "uses persistent state tensors directly as model and sampler inputs", so joins and finishes need "tensor-wide reordering" and a backup copy of request state (<span class="mono">CachedRequestState</span>); V2 gives each request "a permanent row for its active lifetime" and gathers the step's inputs on the GPU. V1's moves are its code's: a new request fills the first empty row ({{gpu_input_batch.py L326|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/worker/gpu_input_batch.py#L326}}), then rows are swapped so decodes come before prefills ({{swap_states, L582|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/worker/gpu_input_batch.py#L582}}; {{gpu_model_runner.py L1135|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/worker/gpu_model_runner.py#L1135}}). The four requests are <span class="der">illustrative</span>; not run here.</p>
-</div>
+</div></div></div></div>
 <p>The other four differences follow the same idea of keeping the CPU out of the step: async scheduling designed in rather than retrofitted, block-table diffs applied by one kernel, Triton kernels for input preparation and a Gumbel-max sampler, and explicit CUDA graph management.</p>
 <details class="dp"><summary>V1 against V2, all five differences <span class="mute">(design doc table)</span></summary><div class="b">
 <div class="tw"><table>

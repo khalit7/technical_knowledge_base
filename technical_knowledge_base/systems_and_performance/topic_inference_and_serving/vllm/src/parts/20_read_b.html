@@ -1,15 +1,30 @@
 <section id="vl-s1">
 <h2>1. One request, through vLLM's code</h2>
-<p><b>The problem.</b> A GPU must never wait for Python. Tokenizing, detokenizing, parsing JSON and writing HTTP are CPU work; if the loop that feeds the GPU did them, the GPU would idle between steps. So since the V1 rewrite the work is split across <b>processes</b>: one <b>API server</b> (FastAPI, chat template, tokenizer, detokenizer, stop strings, streaming; <span class="mono">--api-server-count</span> adds more), one <b>engine core</b> per data-parallel rank (the busy loop, with two I/O threads and two Python queues so socket work never blocks it), and the <b>GPU worker</b>, which lives inside the engine core with one GPU (executor "uni", {{parallel.py L1033|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/parallel.py#L1033}}) and is one process per GPU with tensor parallelism. ZeroMQ sockets carry msgpack-encoded requests one way and outputs the other.</p>
-
-<div class="rd-card" id="vl-path-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-card" id="vl-path-card">
 <h4>One streamed request crosses two processes and back: follow it function by function</h4>
 <div class="vl-lanes" id="vl-path-lanes"></div>
-<div class="an-cap" id="vl-path-cap"></div>
 <div class="an-cnt" id="vl-path-cnt"></div>
 <div class="an-ctl" id="vl-path-ctl"></div>
 <p class="small mute"><span class="vend">source</span>: vLLM v0.31.0, every line number linked in the caption. The token chip shows what travels at each step: text, token ids, a scheduler decision, a sampled token id, text again.</p>
-</div>
+</div></div></div><div class="s3L">
+<p><b>The problem.</b> A GPU must never wait for Python. Tokenizing, detokenizing, parsing JSON and writing HTTP are CPU work; if the loop that feeds the GPU did them, the GPU would idle between steps. So since the V1 rewrite the work is split across <b>processes</b>: one <b>API server</b> (FastAPI, chat template, tokenizer, detokenizer, stop strings, streaming; <span class="mono">--api-server-count</span> adds more), one <b>engine core</b> per data-parallel rank (the busy loop, with two I/O threads and two Python queues so socket work never blocks it), and the <b>GPU worker</b>, which lives inside the engine core with one GPU (executor "uni", {{parallel.py L1033|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/parallel.py#L1033}}) and is one process per GPU with tensor parallelism. ZeroMQ sockets carry msgpack-encoded requests one way and outputs the other.</p>
+
+<p class="sxh">The animation, step by step: one streamed request, function by function</p>
+<ol class="sx" id="sx-path">
+<li><b>The client sends one request.</b> A JSON body with the prompt and <span class="mono">stream: true</span>. FastAPI routes it to {{create_completion (api_router.py L47)|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/openai/completion/api_router.py#L47}}.</li>
+<li><b>The serving layer builds sampling parameters.</b> <span class="mono">OpenAIServingCompletion.create_completion</span> ({{serving.py L109|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/openai/completion/serving.py#L109}}) turns the request into SamplingParams and calls <span class="mono">engine_client.generate()</span> ({{L203|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/entrypoints/openai/completion/serving.py#L203}}), an async generator.</li>
+<li><b>Tokenize, in the API server.</b> <span class="mono">AsyncLLM.add_request</span> runs the InputProcessor ({{async_llm.py L449|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/async_llm.py#L449}}): chat template and tokenizer, on this process's CPU. It also creates the request's own output queue, a RequestOutputCollector ({{L495|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/async_llm.py#L495}}).</li>
+<li><b>Register, then send to the engine.</b> The OutputProcessor gets an incremental detokenizer for this request ({{L547|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/async_llm.py#L547}}); then {{add_request_async (L550)|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/async_llm.py#L550}} sends an EngineCoreRequest, msgpack over a ZeroMQ socket ({{core_client.py L1259|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core_client.py#L1259}}).</li>
+<li><b>Engine core: an I/O thread receives it.</b> A dedicated input thread decodes the message and puts it on a Python queue ({{core.py L1754|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L1754}}), so socket work never blocks the loop.</li>
+<li><b>The busy loop picks it up.</b> Each loop iteration first drains the input queue ({{_process_input_queue, L1496|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L1496}}), so new requests join between steps; <span class="mono">Scheduler.add_request</span> ({{scheduler.py L2557|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L2557}}) appends it to the waiting queue and its full blocks are hashed for the prefix cache.</li>
+<li><b>schedule(): who runs, how many tokens.</b> The scheduler fills a token budget: running requests first, then waiting ones, allocating KV blocks for each ({{scheduler.py L562|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L562}}). Our request is admitted and gets its prompt (or a chunk of it). Section 2 opens this function.</li>
+<li><b>The model runs.</b> <span class="mono">execute_model</span> ({{core.py L641|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L641}}) goes through the executor to the worker's model runner: build input ids, positions and block tables, run the forward pass ({{model_runner.py L1676|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/worker/gpu/model_runner.py#L1676}}), then sample one token per request ({{L2050|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/worker/gpu/model_runner.py#L2050}}).</li>
+<li><b>update_from_output(): append, check, free.</b> The sampled id is appended to the request; EOS, stop token ids and max_tokens are checked here; a finished request's blocks go back to the pool ({{scheduler.py L1967|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L1967}}).</li>
+<li><b>Outputs leave the engine.</b> The step's outputs for every running request go on the output queue ({{L1526|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L1526}}); an output thread sends them over ZeroMQ ({{L1856|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L1856}}). The loop is already scheduling the next step.</li>
+<li><b>Detokenize, check stop strings.</b> The API server's output_handler task ({{async_llm.py L813|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/async_llm.py#L813}}) hands them to <span class="mono">process_outputs</span> ({{output_processor.py L646|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/output_processor.py#L646}}): incremental detokenizing and stop-string checks ({{L720|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/output_processor.py#L720}}), then a put into this request's collector ({{L745|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/output_processor.py#L745}}).</li>
+<li><b>Stream it out, and repeat.</b> <span class="mono">generate()</span> yields from that collector ({{L735|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/async_llm.py#L735}}); the serving layer writes one server-sent event. Steps 7 to 12 repeat once per output token until the request finishes.</li>
+</ol>
+</div></div>
 
 <p>Three consequences, each a classic production surprise:</p>
 <ul>
@@ -22,14 +37,28 @@
 <div class="opts"><button data-a="0">2</button><button data-a="0">4</button><button data-a="0">5</button><button data-a="1">6</button><button data-a="0">8</button></div>
 <div class="ans" hidden><b>Six.</b> One API server, one engine core, and one worker process per GPU, because with more than one GPU the executor becomes "mp" (multiprocessing). The {{architecture overview|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/design/arch_overview.md}} gives the general count: A API servers + DP engine cores + N workers (+1 coordinator when DP &gt; 1); <span class="mono">-tp 2 -dp 4</span> on eight GPUs makes 17. With one GPU it is two processes, the worker living inside the engine core. The CPU backend is the exception: it always uses the multiprocessing executor because OpenMP threads must be set up in their own process ({{cpu.py L317 to L324|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/platforms/cpu.py#L317}}), so the CPU container here showed three vLLM processes <span class="meas">measured here</span>: <span id="vl-ps-line"></span></div></div>
 
-<div class="rd-card" id="vl-async-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-card" id="vl-async-card">
 <h4>Async scheduling hides the CPU's work behind the GPU's: the same three steps, before and after</h4>
 <div class="seg" id="vl-async-seg"><button data-m="sync" class="on">Synchronous (CPU backend, and GPU before async)</button><button data-m="async">Async scheduling (GPU default)</button></div>
 <div class="rd-svg" id="vl-async-svg"></div>
-<div class="an-cap" id="vl-async-cap"></div>
 <div class="an-cnt" id="vl-async-cnt"></div>
 <div class="an-ctl" id="vl-async-ctl"></div>
 <p class="small mute"><span class="der">illustrative</span> durations (CPU work 3 ms, GPU work 10 ms per step) to show the mechanism; the mechanism itself is the source's: with async scheduling the engine core keeps a batch queue of 2 ({{vllm.py L592|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/vllm.py#L592}}) and <span class="mono">step_with_batch_queue</span> schedules step N+1 before step N's result is back ({{core.py L670|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/engine/core.py#L670}}). The CPU platform turns it off ({{cpu.py L314|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/platforms/cpu.py#L314}}), so the recorded runs in section 3 are synchronous.</p>
-</div>
+</div></div></div><div class="s3L">
+<p><b>Async scheduling.</b> The CPU work of a step (scheduling, then applying the sampled tokens) can run while the GPU computes the previous step, as long as the scheduler does not need that step's tokens first.</p>
+<p class="sxh">The animation, step by step</p>
+<ol class="sx" id="sx-async-sync">
+<li><b>Step 1.</b> The engine core schedules (3 ms), then waits while the GPU runs the forward pass (10 ms); only then can it apply the sampled tokens (1 ms). The GPU is idle while the CPU decides.</li>
+<li><b>Step 2.</b> The next <span class="mono">schedule()</span> cannot start before step 1's tokens are applied, so the GPU idles another 4 ms between forward passes.</li>
+<li><b>Step 3.</b> The same gap again: every step costs the CPU's time plus the GPU's, 14 ms.</li>
+<li><b>Step 4.</b> <span data-vlk="as-sync">Four steps take 56 ms, and the GPU is busy 71% of the time.</span></li>
+</ol>
+<ol class="sx" id="sx-async-async" hidden>
+<li><b>Step 1.</b> With a batch queue of 2, the engine core schedules step 1 (3 ms), launches it, and schedules step 2 while forward pass 1 runs.</li>
+<li><b>Step 2.</b> Forward pass 2 starts the moment pass 1 ends; step 1's tokens are applied while the GPU is already busy, and step 3 is scheduled in its shadow.</li>
+<li><b>Step 3.</b> As long as the CPU work (4 ms) is shorter than the forward pass (10 ms), each step costs only the forward pass.</li>
+<li><b>Step 4.</b> <span data-vlk="as-async">Four steps take 44 ms instead of 56, and the GPU is busy 91% of the time</span>; only the first schedule and the last update stay exposed.</li>
+</ol>
 <p><b>What async scheduling costs.</b> Step N+1 is decided before step N's token is known, so a request that will finish at step N is scheduled once more; the running loop skips a request whose in-flight tokens already reach <span class="mono">max_tokens</span> ({{scheduler.py L635|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L635}}), and outputs that arrive for a request preempted in between are marked stale ({{scheduler.py L1563|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py#L1563}}). It matters for small models and small batches, where a GPU step is a few milliseconds and the CPU work is the same order; a profile with gaps between GPU kernels at batch 1 means the CPU is the bottleneck.</p>
+</div></div>
 </section>

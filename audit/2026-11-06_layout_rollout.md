@@ -211,8 +211,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
 - [x] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
 - [x] `systems_and_performance/topic_inference_and_serving/speculative_decoding` Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover
-- [~] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
-- [ ] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
+- [x] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
+- [~] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
 - [~] `systems_and_performance/topic_jax_and_tpu/jax_core` JAX core: arrays, tracing, jit, grad, vmap and pytrees
 - [ ] `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases` JAX LLM codebases: MaxText, Tunix, levanter
 - [ ] `systems_and_performance/topic_jax_and_tpu/pallas_kernels` Pallas kernels
@@ -505,6 +505,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_inference_and_serving/sampling_and_decoding`: beam tree last step small on phones; beam and mask full views leave empty space above; Sampler lab Preset select's long first option cut at its edge.
 - `systems_and_performance/topic_inference_and_serving/sglang`: hero full views hide part names on phones (small at 390). Lead fix: section 9 now says prefill (4 nodes) and decode (9 nodes) were measured separately, as the LMSYS post states (12-node cluster).
 - `systems_and_performance/topic_inference_and_serving/speculative_decoding`: tree stage small at 390 (step 4 mask has no token labels there); Fig. 1 time bars not flush in perspective; the cost-model widget allows context 32,768 at B 512 with no HBM capacity check.
+- `systems_and_performance/topic_inference_and_serving/vllm`: Fig. 1 (steps 6, 7) and Fig. 3 full views leave empty canvas; request path and async cards sit above their lists on phones; Fig. 3 "request 1's three blocks are full and hashed" is deduced from the test's final asserted queue.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -562,3 +563,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Sampling and decoding: the JSON before/after run is a widget (no autoplay); top-p against min-p stays 2D; in Fig. 1 all other tokens are one block on the same scale (a 77.3% tower at T 1.5); Fig. 2 greedy and beam swap step lists by toggle. Keep these?
 - SGLang: Fig. 3 uses an illustrative case (16 questions, 5 documents, 3,000-token pool, arrival order 3; fcfs 4 rounds, lpm 3); slot numbers drawn lowest-free-first; the two widgets open on their last frame and round 1; the overlap animation shows decode steps 1, 2, 3 then all five. Keep these?
 - Speculative decoding: Fig. 1 draft cost 0.1 pass on H100 (illustrative, as before); Fig. 3 at alpha 0.8, k 4, c 0.05 never crosses below 1x in the batches shown (captioned "why it falls, not where"); Fig. 4 contrasts "Code: rename" with "Story"; Fig. 5 opens on example 3; each rule keeps its own step list (136 hidden words; could fold to one sentence). Keep these? Add an HBM capacity check to the cost-model widget?
+- vLLM: Fig. 1 follows customer C of the prefix-caching-on run while Fig. 2 uses the caching-off run (its step fills the 64-token budget); the unit-test predict became Fig. 3; the stepper widget opens on A2's admission or the first preemption; the 12-step request-path list kept although it overlaps Fig. 1 (cutting it saves about 2 min). Keep these?

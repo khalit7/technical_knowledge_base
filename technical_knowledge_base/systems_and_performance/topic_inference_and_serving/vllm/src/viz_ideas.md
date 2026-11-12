@@ -31,3 +31,14 @@ methods to snapshot objects each step). It worked well and is reusable for SGLan
 | VL16 | **V1 against V2 runner, toggle on the same event** (B finishes, E joins): V1 fills the empty row then swaps rows so decodes come first, V2 writes one row and gathers (`23_js_vl_mr.js`) | Reading s4 | built; replaces the rejection of VL12 with a static toggle whose moves are V1's code (gpu_input_batch.py L326, L582; gpu_model_runner.py L1135) |
 | VL1 | Scheduler stepper | moved from its tab to the end of Reading s3 | moved |
 | VL6, VL7, VL8, VL9 | Knob lab sweeps, metrics time series, every metric, patched metric | moved inline: sweeps beside the knob table (s5, headline charts open, the rest in closed blocks), time series in s6, every metric in a closed block in s6, the live patched metric in s8 | moved |
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| VL17 | **Fig. 1, 3D**: customer C of the recorded prefix-caching-on run through the client, API server, engine core (scheduler with its queues and budget, block pool) and GPU worker (layers as glass plates), seven steps ending on where each knob acts (`41_js_sc_hero.js`) | Reading, top | built; replaces VL14 |
+| VL18 | **Fig. 2, 3D**: one recorded engine step (prefix caching off, step 4): requests as bars, the 64-token budget filled loop 1 then loop 2, the block pool, the flat batch through the layers, the outputs (`42_js_sc_step.js`) | Reading s2 | built; replaces the four-card "one call of schedule()" box |
+| VL19 | **Fig. 3, 3D**: the free queue in test_evict (5 asserted steps) plus a hit and an eviction (2 illustrative steps), blocks gliding between the queue and the request plates (`43_js_sc_fq.js`) | Reading s3 | built; replaces VL15 and the unit-test predict |
+| VL20 | Request path and async timeline with step lists (`22_js_vl_path.js`) | Reading s1 | kept 2D: lanes of named functions and a CPU/GPU timeline read best flat; the async animation went from 12 per-event frames to 4 per mode |
+| VL21 | 3D CUDA graphs captured per batch size against eager launches | rejected: the page measures nothing about graphs (the CPU image has none); a figure would be invented |
+| VL22 | 3D V1 against V2 runner rows | rejected: a toggle between two row tables is flat; kept 2D (VL16) |
+| VL23 | 3D for the recorded stepper (48 to 121 steps) | rejected: a long replay whose outcome the reader drives; kept a 2D widget (no autoplay) that opens on A2's admission or the first preemption |

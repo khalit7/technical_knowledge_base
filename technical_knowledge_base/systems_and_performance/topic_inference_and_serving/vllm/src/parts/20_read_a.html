@@ -1,8 +1,8 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar) select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
@@ -77,7 +77,7 @@
 #t-read .vl-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:7px 10px;margin:8px 0;white-space:pre;overflow-x:auto;line-height:1.45}
 #t-read .vl-code .c{color:var(--mute)}#t-read .vl-code .a{color:var(--good)}#t-read .vl-code .d{color:var(--bad)}
 #t-read .vl-fl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;white-space:nowrap}
-#t-read .vl-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px;margin:8px 0}
+#t-read .vl-lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:8px;margin:8px 0}
 #t-read .vl-lane{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0;background:var(--bg)}
 #t-read .vl-lane h5{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--mute)}
 #t-read .vl-box{border:1px solid var(--line);border-radius:6px;padding:3px 7px;margin:3px 0;font-size:12.5px;transition:background .25s,border-color .25s;min-width:0;overflow-wrap:anywhere}
@@ -149,20 +149,20 @@
 
 <section id="vl-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <p class="core">vLLM is <span class="hl">one loop in its own process</span>: every step it calls <span class="mono">schedule()</span>, runs the model once, and calls <span class="mono">update_from_output()</span>. The scheduler gives each request a share of a per-step <b>token budget</b> and the blocks to hold it from a <b>pool of fixed-size KV blocks</b>; almost every production knob changes the budget, the pool, or how fast the model step runs.</p>
-
-<div class="hero" id="vl-hero-card">
-<h4>One loop between the API server and the GPU, and where each knob acts</h4>
-<div class="vl-svg" id="vl-hero"></div>
-<ol>
-<li><b>Two processes, two queues.</b> The API server speaks HTTP, tokenizes and detokenizes; the engine core runs a busy loop; they exchange msgpack messages over ZeroMQ (section 1).</li>
-<li><b>One loop, three calls.</b> <span class="mono">schedule()</span>, the model, <span class="mono">update_from_output()</span> (<span class="vl-fl">v1/engine/core.py L630</span>).</li>
-<li><b>No phases, only a token budget.</b> Prefill, chunked prefill, decode and speculative tokens are all "give this request some tokens this step" (section 2).</li>
-<li><b>Memory is a pool of 16-token blocks</b> (on GPU): a free queue whose order is the eviction policy, and a map from block hash to block that is the whole prefix cache (section 3).</li>
-<li><b>The GPU side is a model runner per GPU,</b> Model Runner V2 by default since v0.29.0 (section 4).</li>
+<p class="sxh">Fig. 1, step by step: one loop between the API server and the GPU, and where each knob acts</p>
+<p class="small mute">Customer C of the recorded run in section 3 (prefix caching on), through vLLM's processes. The token counts and block numbers are what the real engine held; the layout is schematic. <span class="vend">source</span>: vLLM v0.31.0; <span class="meas">measured here</span>: the recording.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The API server tokenizes.</b> C's question, "Do you sell batteries for electric bikes?", arrives as an HTTP request with <span class="mono">stream: true</span>. The API server process speaks HTTP, applies the chat template and tokenizes, on its own CPU: <span data-vlk="h-np">104 token ids</span>, most of them the shop's system prompt that every customer shares.</li>
+<li><b>Two processes, two queues.</b> The token ids go to the engine core as one msgpack message over ZeroMQ and join the scheduler's waiting queue between two steps; outputs come back the same way (section 1).</li>
+<li><b>One loop, three calls. No phases, only a token budget.</b> Every step the busy loop calls <span class="mono">schedule()</span>, the model, <span class="mono">update_from_output()</span> (<span class="vl-fl">v1/engine/core.py L630</span>). In step 4 of the recording the scheduler gives A and B, already decoding, 1 token each and C <span data-vlk="h-c">40</span>: <span data-vlk="h-used">42 of the 64-token budget</span>. Prefill, chunked prefill, decode and speculative tokens are all "give this request some tokens this step" (section 2).</li>
+<li><b>Memory is a pool of 16-token blocks</b> on a GPU (32 tokens on this CPU). The KV cache manager finds C's first <span data-vlk="h-hit">2 blocks (64 tokens)</span> already cached by hash, shared with A and B, and hands it blocks <span data-vlk="h-new">7 and 8</span> for the rest from the head of the free queue. A free queue whose order is the eviction policy, and a map from block hash to block that is the whole prefix cache (section 3).</li>
+<li><b>The GPU side is a model runner per GPU.</b> The worker's model runner lays the step's <span data-vlk="h-used2">42 tokens</span> out as one flat batch, runs one forward pass through Qwen3-0.6B's 28 layers, writes their keys and values into the blocks, and samples one token for each request whose prompt is complete, C's first among them. With one GPU the worker lives inside the engine core; Model Runner V2 by default since v0.29.0 (section 4).</li>
+<li><b>Tokens stream back.</b> <span class="mono">update_from_output()</span> appends each sampled id; the outputs go back over ZeroMQ; the API server detokenizes, checks stop strings and writes one server-sent event. The loop repeats until C finishes at <span data-vlk="h-fin">step 24</span>: "Yes, we do sell batteries for electric bikes. Let me know if you need help with that!" Its blocks are freed: <span data-vlk="h-free">block 8, partial and unhashed, to the front of the free queue; block 7, full and hashed, to the back</span>, kept as cache; blocks 1 and 2 stay with A and B.</li>
+<li><b>Where each knob acts.</b> <span class="mono">--api-server-count</span> on the API server; <span class="mono">max_num_seqs</span>, <span class="mono">max_num_batched_tokens</span> and <span class="mono">max_loras</span> in the scheduler; <span class="mono">gpu_memory_utilization</span>, <span class="mono">enable_prefix_caching</span> and <span class="mono">block_size</span> on the pool; the <span class="mono">-O</span> level (CUDA graphs, torch.compile) on the worker. Section 5 gives each one's default and trade.</li>
 </ol>
-<p class="small mute">Knob names in <span class="hl">accent</span> sit where they act; section 5 gives each one's default and trade. <span class="vend">source</span>: vLLM v0.31.0.</p>
-</div>
+</div></div>
 
 <p><b>You need:</b> continuous batching, paged attention and prefix caching as ideas, with their papers: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}} owns them, and this page shows only how vLLM's code implements them. How many bytes one token's cache takes for a given model: {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}} (KV-cache calculator). Prefill, decode, TTFT and ITL: the root, {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}.</p>
 <dl class="terms">

@@ -1,4 +1,6 @@
-// ---- Scheduler stepper tab: replays vLLM v0.31.0's recorded scheduler and block pool (data: window.VL_STEP) ----
+// ---- Section 3, the recorded scheduler: replays vLLM v0.31.0's recorded scheduler and block pool (data: window.VL_STEP).
+// A widget (the long-replay rule, case b, 2026-11-06): 48 to 121 engine steps, so it never plays by itself; it opens on the step that answers
+// the section's question (the follow-up A2's admission, or the first preemption in the tight run) and its live caption explains each step. ----
 (function(){
   const D=window.VL_STEP;if(!D||!D.runs||!D.runs.length)return;
   window.VL_STEPX=window.VL_STEPX||function(){D.runs.forEach(r=>{Object.values(r.req).forEach(q=>{if(!q.pieces)q.pieces=D.texts[q.t]});r.steps.forEach(st=>{if(typeof st.blocks==='string')st.blocks=st.blocks.split(',').map(x=>x.split('.').map(Number))})})};window.VL_STEPX();
@@ -73,8 +75,10 @@
     const rows=D.runs.map(r=>'<tr><td>'+esc(r.label)+'</td><td>'+r.sum.steps+'</td><td>'+r.sum.tokens_computed.toLocaleString('en-GB')+'</td><td>'+r.sum.hit_tokens.toLocaleString('en-GB')+'</td><td>'+r.sum.preemptions+'</td><td>'+r.sum.evicted_blocks+'</td></tr>').join('');
     $('vl-st-sum').innerHTML='<p class="small" style="font-weight:600;margin:8px 0 0">The four runs side by side</p><div class="tw"><table class="vl-cmp"><tr><th>Run</th><th>Engine steps</th><th>Tokens computed</th><th>Prompt tokens served from cache</th><th>Preemptions</th><th>Cached blocks evicted</th></tr>'+rows+'</table></div><p class="small mute">All prompts together hold '+D.runs[0].sum.prompt_tokens.toLocaleString('en-GB')+' tokens. <span class="meas">measured here</span>: counted from the recordings.</p>';
   }
-  function start(){desc();if(an)an.reset(run.steps.length);}
-  an=RD.anim({card:'vl-st-card',ctl:'vl-st-ctl',n:run.steps.length,draw:i=>draw(Math.min(i,run.steps.length-1)),ms:1700,label:'Engine step'});
+  // the step a run opens on: its first preemption if it has one, else the step that admits A2 (a cache hit when prefix caching is on)
+  const openAt=r=>{const f=t=>r.steps.findIndex(s=>s.ev.some(t));const p=f(e=>e[0]==='preempt');return p>=0?p:Math.max(0,f(e=>e[0]==='admit'&&e[1]==='A2'))};
+  function start(){desc();if(an){an.reset(run.steps.length);an.go(openAt(run),true)}}
+  an=RD.anim({card:'vl-st-card',ctl:'vl-st-ctl',n:run.steps.length,draw:i=>draw(Math.min(i,run.steps.length-1)),ms:1700,label:'Engine step',auto:false,start:openAt(run)});
   RD.seg(seg,m=>{run=D.runs.find(r=>r.key===m);start()});
   RD.tabLinks($('vl-st-cap'));
   desc();summary();
