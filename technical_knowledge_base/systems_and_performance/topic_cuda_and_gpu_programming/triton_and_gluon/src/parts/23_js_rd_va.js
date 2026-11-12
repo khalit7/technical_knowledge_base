@@ -52,10 +52,12 @@
     for(let r=0;r<8;r++)g+=RD.t(L-4,14+r*ch+ch*0.7,String(r*128),{a:'end',fs:11,fill:'var(--mute)'});
     g+=RD.t(L,10,s.spt?'colour = warp (4 warps x 32 threads); outlined = thread 0':'one block of 1,024 values (no threads yet)',{fs:10.5,fill:'var(--mute)'});
     box.innerHTML=RD.svg(W,H,g,'1,024 elements of one program');
-    $('rd-va-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+S.length+': '+esc(s.t)+'</div><p>'+esc(s.p)+'</p><pre class="tg-pre" style="margin:4px 0">'+s.ir.map(esc).join('\n')+'</pre>';
+    // the step's explanation is the step list on the left (#sx-va-<mode>); the card shows the IR or SASS lines of this step
+    $('rd-va-ir').textContent=s.ir.join('\n');
     $('rd-va-cnt').innerHTML=s.c.map(c=>RD.stat(c[0],c[1])).join('');
   }
-  const A=RD.anim({card:'rd-va-card',ctl:'rd-va-ctl',n:6,draw,ms:3200,label:'Vector add step'});
-  RD.seg($('rd-va-mode'),m=>{mode=m;A.redraw()});
+  const A=RD.anim({card:'rd-va-card',ctl:'rd-va-ctl',n:6,draw,ms:4200,label:'Vector add step',list:'sx-va-hint'});
+  // a mode toggle shows that mode's step list and replays from step 1
+  RD.seg($('rd-va-mode'),m=>{mode=m;['hint','n1000','nohint'].forEach(k=>{const L=$('sx-va-'+k);if(L)L.hidden=k!==m});A.reset(6,'sx-va-'+m)});
   RD.onResize(()=>A.redraw());
 })();

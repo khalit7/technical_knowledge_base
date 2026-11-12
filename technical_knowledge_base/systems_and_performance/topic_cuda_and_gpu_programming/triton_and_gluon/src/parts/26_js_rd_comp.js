@@ -11,7 +11,7 @@
     ['LLVM IR',nf(m.llir_lines)+' lines','Per-thread scalar code with NVVM (or AMDGPU) intrinsics: from here on it is an ordinary compiler.','var(--c3)'],
     ['PTX / AMDGCN',nf(m.ptx_lines)+' lines','NVIDIA\'s virtual ISA from LLVM\'s NVPTX back end, or AMD machine assembly.','var(--c4)'],
     ['cubin / hsaco',nf(m.sass_lines)+' SASS instructions','ptxas (bundled in the Triton wheel) turns PTX into SASS for one GPU; AMD links a code object.','var(--c5)']];
-  $('rd-stages').innerHTML=st.map(s=>'<div style="--sc:'+s[3]+'"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div><p>'+s[2]+'</p></div>').join('');
+  if($('rd-stages'))$('rd-stages').innerHTML=st.map(s=>'<div style="--sc:'+s[3]+'"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div><p>'+s[2]+'</p></div>').join('');
   // ---- pass strip ----
   const CAT=[[/^(inline|canonicalize|cse|symbol-dce|sccp|triton-combine|triton-reorder-broadcast|triton-loop-unroll|triton-licm|triton-loop-aware-cse|gluon-inline|triton-rewrite-tensor-descriptor-to-pointer)$/,'var(--dim)','clean-up'],
     [/^(convert-triton-to-tritongpu|tritongpu-coalesce|tritongpu-remove-layout-conversions|tritongpu-optimize-thread-locality|tritongpu-reduce-data-duplication|triton-nvidia-gpu-plan-cta|triton-nvidia-optimize-descriptor-encoding|triton-nvidia-optimize-tmem-layouts|tritongpu-coalesce-async-copy)$/,'var(--c1)','layouts'],

@@ -32,8 +32,8 @@
   let mode='row';
   function state(n){const rows=new Set(),cols=new Set(),done=[];for(let p=0;p<n;p++){const[m,c]=order(p,mode==='grouped'?3:0);rows.add(m);cols.add(c);done.push([m,c])}return{rows,cols,done,tiles:(rows.size+cols.size)*9}}
   window.TG_grouped=n=>{const s=state(n);return s.tiles};
-  function draw(i){
-    const n=i,s=state(n),box=$('rd-gr-svg'),W=Math.min(760,RD.width(box)),gap=Math.max(10,W*0.03),cs=Math.floor((W-2*gap-8)/27*0.98),gw=cs*9,H=gw*2+gap+40;
+  function paint(n){
+    const s=state(n),box=$('rd-gr-svg'),W=Math.min(760,RD.width(box)),gap=Math.max(10,W*0.03),cs=Math.floor((W-2*gap-8)/27*0.98),gw=cs*9,H=gw*2+gap+40;
     // layout: B on top right, A on left bottom, C bottom right
     const ax=4,ay=gw+gap+22,bx=ax+gw+gap,by=16,cx=bx,cy=ay;
     let g=RD.t(bx,by-4,'B (K x N)',{fs:11,fill:'var(--mute)'})+RD.t(ax,ay-6,'A (M x K)',{fs:11,fill:'var(--mute)'})+RD.t(cx,cy-6,'C (M x N), launch order',{fs:11,fill:'var(--mute)'});
@@ -46,12 +46,16 @@
     for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(!s.done.some(d=>d[0]===r&&d[1]===c))g+='<rect x="'+(cx+c*cs)+'" y="'+(cy+r*cs)+'" width="'+(cs-1)+'" height="'+(cs-1)+'" fill="none" stroke="var(--line)"/>';
     box.innerHTML=RD.svg(W,H,g,'Tiles of A and B needed by the programs launched so far');
     const other=(()=>{const keep=mode;mode=mode==='row'?'grouped':'row';const v=state(n).tiles;mode=keep;return v})();
-    $('rd-gr-cap').innerHTML='<div class="t">'+n+' program'+(n===1?'':'s')+' launched ('+(mode==='row'?'row-major':'grouped')+')</div><p>'+
-      (n===0?'Nothing launched yet. Each program will compute one tile of C and needs a whole row of A tiles and a whole column of B tiles.':
-       n<=9?'Programs launched so far need '+s.rows.size+' row'+(s.rows.size>1?'s':'')+' of A and '+s.cols.size+' column'+(s.cols.size>1?'s':'')+' of B. '+(n===9?'This is the tutorial\'s comparison point: 9 output tiles.':''):'Past 9 programs both orders keep growing; what matters is how many tiles the programs resident at the same moment share, and grouped ordering keeps that set compact.')+'</p>';
-    $('rd-gr-cnt').innerHTML=RD.stat('A tiles needed',s.rows.size*9)+RD.stat('B tiles needed',s.cols.size*9)+RD.stat('A + B tiles',s.tiles,'other order: '+other);
+    $('rd-gr-cnt').innerHTML=RD.stat('programs launched',n,mode==='row'?'row-major':'grouped')+RD.stat('A tiles needed',s.rows.size*9)+RD.stat('B tiles needed',s.cols.size*9)+RD.stat('A + B tiles',s.tiles,'other order: '+other);
   }
-  const A=RD.anim({card:'rd-gr-card',ctl:'rd-gr-ctl',n:82,draw,ms:700,start:9,label:'Programs launched'});
-  RD.seg($('rd-gr-mode'),m=>{mode=m;A.redraw()});
+  // the launch is played in stretches (the long-replay rule): step i shows CNT[i] programs; moving forward one step plays
+  // the programs of that stretch one after another, about 1.6 s per stretch; back, the scrubber and reduced motion jump
+  const CNT=[1,3,9,18,27,81];let last=-1,tw=0;
+  function draw(i){const to=CNT[i],from=i===last+1&&i>0?CNT[i-1]:to;last=i;if(tw){clearInterval(tw);tw=0}
+    const card=$('rd-gr-card');if(from===to||RD.RM||!card.classList.contains('rd-fwd')){paint(to);return}
+    let n=from;const dt=Math.max(40,Math.min(400,1600/(to-from)));paint(n);
+    tw=setInterval(()=>{n++;paint(n);if(n>=to){clearInterval(tw);tw=0}},dt)}
+  const A=RD.anim({card:'rd-gr-card',ctl:'rd-gr-ctl',n:CNT.length,draw,ms:4600,label:'Launch stretch',list:'sx-gr'});
+  RD.seg($('rd-gr-mode'),m=>{mode=m;A.reset(CNT.length)});
   RD.onResize(()=>A.redraw());
 })();

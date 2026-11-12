@@ -9,11 +9,13 @@
 <div class="pr" id="rd-pr2"><div class="q">Predict: a row of 1,000 columns, but someone passes <code>BLOCK=512</code>. What happens?</div>
 <div class="opts"><button data-a="0">Compile error</button><button data-a="0">Out-of-bounds read</button><button data-a="1">Runs, wrong answer, no error</button></div>
 <div class="ans" hidden>Runs without complaint and is wrong: <span id="rd-mist-512"></span> <span class="ev run">interpreter</span>. Columns 512 to 999 are never read, so each row is normalised over its first half only. Nothing in Triton checks that your block covers your data: that is what the mask and a test against a reference are for.</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Where a block stops fitting: the register cliff</h3>
-<p>A block lives in <dfn>registers</dfn>, at most 255 per thread. Each thread holds BLOCK / (32 x num_warps) elements, so a long row in few warps runs out and the compiler <dfn>spills</dfn> to <dfn>local memory</dfn> (slow, off-chip, private to the thread). Predict where the cliff is for 4 warps, then read the grid:</p>
-<div class="card"><h4>Too many elements per thread, and the row moves from registers to a stack in memory</h4><div class="tw" id="rd-soft-grid"></div>
-<p class="small mute">The same softmax compiled for sm_90a at seven block sizes and four warp counts <span class="ev cmp">compiled here</span>. Each cell: registers per thread, plus the stack frame in bytes per thread when there is one (spilled values live there); elements per thread in grey. From <code>cuobjdump -res-usage</code>.</p></div>
+<p>A block lives in <dfn>registers</dfn>, at most 255 per thread. Each thread holds BLOCK / (32 x num_warps) elements, so a long row in few warps runs out and the compiler <dfn>spills</dfn> to <dfn>local memory</dfn> (slow, off-chip, private to the thread). Predict where the cliff is for 4 warps, then read the grid on the right.</p>
+
 <p>At 32,768 columns with 4 warps each thread would hold 256 floats: the compiler gives each thread a 2,728-byte stack frame instead (and the register count falls to 32, because the values now live in memory). With 8 warps each thread holds 128 and they fit in 170 registers. The cliff is not one number: at 65,536 columns even 16 warps (128 per thread again) spilled, so read the compiler's report rather than guess. The fix is more warps per program, which is why {{tutorial 02|https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/02-fused-softmax.py}} uses 8 warps, reads the compiled kernel's register count (<code>kernel.n_regs</code>) and launches only as many <dfn>persistent</dfn> programs as fit on the GPU at once, each looping over many rows. Rows too long for any block need the online softmax, which reads the row in chunks ({{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}).</p>
+</div><div class="s3R"><div class="s3side"><div class="card"><h4>Too many elements per thread, and the row moves from registers to a stack in memory</h4><div class="tw" id="rd-soft-grid"></div>
+<p class="small mute">The same softmax compiled for sm_90a at seven block sizes and four warp counts <span class="ev cmp">compiled here</span>. Each cell: registers per thread, plus the stack frame in bytes per thread when there is one (spilled values live there); elements per thread in grey. From <code>cuobjdump -res-usage</code>.</p></div></div></div></div>
 </section>
 
 <section id="rd-s3">
@@ -21,17 +23,25 @@
 <p>Each program computes one <dfn>tile</dfn> of C, a BM x BN block. It walks along K in steps of BK, loading a BM x BK tile of A and a BK x BN tile of B and multiplying them into an FP32 accumulator in registers. <code>tl.dot</code> is the block multiply; the compiler turns it into tensor-core instructions. This is {{tutorial 03|https://github.com/triton-lang/triton/blob/v3.8.0/python/tutorials/03-matrix-multiplication.py}} almost line for line.</p>
 <pre class="code" id="rd-src-mm"></pre>
 <p class="small"><code>% M</code> on the row offsets wraps edge tiles back into the matrix so loads stay in bounds (the extra rows are computed, then dropped by the store mask); the K tail is masked with <code>other=0.0</code> so it adds nothing. Anything done to C before it is written (bias, activation, a cast to FP16) goes after the loop while the accumulator is still FP32 and on chip: the <dfn>epilogue</dfn>, free fusion. <span class="ev run">interpreter</span> 200 x 150 x 130 (no size a multiple of its tile): <span id="rd-int-mm"></span>.</p>
-<h3>Why the order of programs matters: grouped ordering</h3>
-<p>Programs that run at the same time share the GPU's <dfn>L2 cache</dfn>, so tiles one has loaded are cheap for the others. Launched row by row, the first 9 programs share one row of A but need 9 different columns of B; launched in groups of GROUP_M rows, they share both. Same input, both orders:</p>
-<div class="card" id="rd-gr-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-gr-card">
 <h4>Grouping the launch order: 54 tiles instead of 90 for the first 9 programs</h4>
 <div class="seg" id="rd-gr-mode"><button data-m="row" class="on">Row-major order</button><button data-m="grouped">Grouped, GROUP_M = 3</button></div>
 <div class="tgviz" id="rd-gr-svg"></div>
-<div class="an-cap" id="rd-gr-cap"></div>
 <div class="an-cnt" id="rd-gr-cnt"></div>
 <div class="an-ctl" id="rd-gr-ctl"></div>
-<p class="small mute">A, B and C each 9 x 9 tiles. The counter is the number of distinct A and B tiles the programs launched so far need (each needs 9 of A and 9 of B). Defaults reproduce tutorial 03's "90 blocks" against "54 blocks" for the first 9 output tiles, by construction (the same count, computed in <code>src/code/recompute.py</code>). The tutorial reports "more than 10%" on some hardware, "220 to 245 TFLOPS on A100" <span class="ev pub">published</span> <span class="ev not">not run here</span>.</p>
-</div>
+<p class="small mute">A, B and C each 9 x 9 tiles. The counter is the number of distinct A and B tiles the programs launched so far need (each needs 9 of A and 9 of B). Step 3 reproduces tutorial 03's "90 blocks" against "54 blocks" for the first 9 output tiles, by construction (the same count, computed in <code>src/code/recompute.py</code>). The tutorial reports "more than 10%" on some hardware, "220 to 245 TFLOPS on A100" <span class="ev pub">published</span> <span class="ev not">not run here</span>.</p>
+</div></div></div><div class="s3L">
+<h3>Why the order of programs matters: grouped ordering</h3>
+<p>Programs that run at the same time share the GPU's <dfn>L2 cache</dfn>, so tiles one has loaded are cheap for the others. Launched row by row, the first 9 programs share one row of A but need 9 different columns of B; launched in groups of GROUP_M rows, they share both. The toggle on the right switches between the two orders; the steps play the launch in stretches.</p>
+<ol class="sx" id="sx-gr">
+<li><b>One program.</b> Tile (0, 0) of C needs a whole row of A (9 tiles) and a whole column of B (9 tiles): 18 tiles in either order.</li>
+<li><b>Three programs.</b> Row-major walks along the row, (0, 0), (0, 1), (0, 2): 1 row of A and 3 columns of B, 36 tiles. Grouped walks down a column of 3 rows: 3 rows and 1 column, also 36. No difference yet.</li>
+<li><b>Nine programs: the tutorial's comparison point.</b> Row-major has covered one full row of C: 1 row of A and 9 columns of B, 90 tiles. Grouped has covered a 3 x 3 square: 3 rows and 3 columns, 54 tiles. Same 9 outputs, 40% fewer tiles to keep in L2.</li>
+<li><b>Eighteen programs.</b> Row-major: 2 rows and 9 columns, 99 tiles. Grouped: 3 rows and 6 columns, 81 tiles. The grouped set is still the more compact one.</li>
+<li><b>Twenty-seven programs.</b> Both orders now need 3 rows of A and every column of B, 108 tiles: grouped has finished its first band of GROUP_M = 3 rows, the same set row-major reaches after three full rows.</li>
+<li><b>All 81 programs.</b> Every tile of A and B, 162, in both orders. The totals end equal; what grouping changes is how compact the set of tiles is for the programs resident at the same moment, which is what L2 has to hold.</li>
+</ol>
+</div></div>
 <h3>One tl.dot, six instructions</h3>
 <p>The same source (128 x 128 x 32 tiles, FP16 inputs, 4 warps, <code>num_stages=4</code>) compiled for six targets <span class="ev cmp">compiled here</span>: a different tensor-core instruction for each, fed a different way.</p>
 <div class="tw" id="rd-mm-tbl"></div>

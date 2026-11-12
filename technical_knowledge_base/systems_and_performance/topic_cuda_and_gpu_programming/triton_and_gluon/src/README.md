@@ -16,6 +16,7 @@
 - `check_embed.py`: the page embeds exactly today's data; 21 hand-written prose numbers agree with it.
 - `check_js.mjs`: the page's JavaScript against `recompute.py`: occupancy 136/136, shared memory 88/88, layout bases 8/8 (equal to Triton's printed bases), grouped counts 162/162.
 - `check_ui.mjs`: every control in every tab at 390 px dark and 920 px light; no errors, NaN, undefined or sideways scroll.
+- `check_stages.mjs` (2026-11-12, about 4 minutes, from the repo root): the rollout checks, see below.
 
 ## Inputs
 - `inputs/gluon_tutorial02_published.json`: the GB200 throughputs and the instruction table printed in Gluon tutorial 02 (v3.8.0), copied by hand.
@@ -51,3 +52,42 @@ Core time fell only from 39.9 to 36.5 minutes counting the Layout explorer that 
 
 ### Ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 320 units: core 224, depth 59, fat 37, owned 0, volatile 0. Fat units carry a `note` with the reason.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `tg-tab`). No new runs: every scene draws from `parts/22_js_data.js` (`window.TGD`, unchanged) and `TG_ARCH` (`32_js_cfg.js`).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | **3D** `stg-hero` (Fig. 1), one program, one tile | yes, 5 |
+| Reading | You need, terms, who decides, evidence, versions | full width | table | no |
+| Reading | 1 Vector add, specialisation key | full width | code | no |
+| Reading | 1 What the compiler made of it | split | 2D layout-pass animation, three modes | yes, 6 per mode (three lists) |
+| Reading | 2 Softmax | full width | code | no |
+| Reading | 2 Register cliff | split | compiled grid (table card) | no |
+| Reading | 3 Matmul code | full width | code | no |
+| Reading | 3 Grouped ordering | split | 2D animation in six stretches, two modes | yes, 6 |
+| Reading | 3 One tl.dot, six instructions; FP32 box | full width | table | no |
+| Reading | 4 Attention code | full width | code | no |
+| Reading | 4 Causal tiles | split | 2D static diagram | no |
+| Reading | 4 Attention table, 5 warps table | full width | tables | no |
+| Reading | 5 num_stages | split | 2D chart | no |
+| Reading | 5 TMA, 6 code | full width | code | no |
+| Reading | 6 Autotuning | split | **3D** `stg-at` (Fig. 2) | yes, 7 |
+| Reading | 7 Stages | split | **3D** `stg-comp` (Fig. 3), Triton and Gluon modes | yes, 6 and 4 |
+| Reading | 7 Passes | split | pass strip (reader-driven) | no |
+| Reading | 7 Before and after | full width | IR listing widget | no |
+| Reading | 8 Layouts | split | Layout explorer (reader-driven), with the linear-layout text on the left | no |
+| Reading | 9 to 12 | full width | code, tables; details closed | no |
+| Compiler stages, Config explorer | | full width | tools: wide IR listings and a wide table, used from several sections | no |
+
+**Stages and their data.** Fig. 1 (`40_js_sc_hero.js`): an illustrative 1,152-cube FP16 matmul (9 x 9 tiles of 128, K in 36 slices of 32), C on the floor, A and B as glass walls, the K loop flowing into program 40's accumulator; then the sm_90a build of the page's matmul (`TGD.main` matmul.sm_90a: 4 stages, 64 KB, 200 registers; `#mma` warpsPerCTA [4, 1]; wgmma m64n128k16, 4 per K step) and the six targets' instructions per K step (`TGD.exp.mma_per_kstep`, log heights). Fig. 2 (`41_js_sc_at.js`): tutorial 03's 16 configurations on sm_90a (`TGD.sweep`): footprint BM x BN, height shared memory, the 227 KB plane, 5 over, 11 timed at do_bench's default 125 ms (derived), winner blank (needs a GPU). Fig. 3 (`42_js_sc_comp.js`): six plates whose depth grows with the stage's line count (206, 300, 1,696, 1,346 lines, 816 SASS instructions), tl.dot flowing down with its name at each level (from `TGD.ir`), the TTGIR plate carrying the shared buffers and the `#mma` warps; the Gluon mode follows the Gluon vector add (no TTIR, the same `#blocked` line Triton's coalesce chose). Scenes export `TG_HERO`, `TG_AT`, `TG_COMP` for the checks.
+
+**Removed**: the 2D hero (`28_js_rd_hero.js`, carried by Fig. 1), the 2D autotuning stepper (`34_js_rd_at.js`, carried by Fig. 2), the stage boxes of section 7 (carried by Fig. 3; their text is now its step list). The vector-add and autotuning captions moved from the scripts into step lists (the vector add keeps a per-step IR or SASS excerpt in its card, which is data, not a repeat of the list). Grouped ordering was 81 one-program frames opening on step 9; it now plays six explained stretches (1, 3, 9, 18, 27, 81 programs). Kept 2D, and why: `viz_ideas.md`.
+
+**Motion.** The three stages and both 2D animations play once in view (template rules); the vector-add and grouped toggles, and Fig. 3's chips, swap the step list and replay. The pass strip, the before/after IR and the Layout explorer never move by themselves.
+
+**Checks.** `check/check_stages.mjs` (new): plays on view, steps, list lengths, mode swaps, no redraw off screen, reduced motion, 10 splits, label overlaps at 1400 px including mid-tween, and every number in the step lists against `TGD` and the scenes' exports (grouped counts recomputed with `TG_grouped` in both orders). `check_js.mjs` 136/136, 88/88, 8/8, 162/162; `check_ui.mjs` ok. `check_embed.py`: the prose checks pass, but its first check (the data file regenerates byte for byte) cannot pass on a checkout without the uncommitted large LLVM IR files that `run_all.sh` writes (`build_data.py` then drops the LLVM IR excerpts); `22_js_data.js` was left as committed.
+
+**Length.** Reading core 8,399 words (36.5 min) before, 10,009 (43.5 min) after; closed 1,814 (7.9) unchanged. The growth is the step lists: about 1,600 visible words, most of which were captions drawn by script before (the vector add's six steps per mode, the autotuner's seven, the six stage boxes), which the audit did not count; the rest explains the three 3D figures step by step. The vector add's three lists repeat their first two steps (one list shows at a time). Every unit kept is core or depth; the length is right for about ten mechanisms, five of them with a figure explained step by step.
+
+**Ledger**: 326 units, core 230, depth 59, fat 37, problems 0. Re-keyed: 133 (the tuner's infinitely-slow rule now in Fig. 2's step 3), 152 (the pass-strip sentence points right). Added: 321 to 326 (the three 3D figures, the Gluon mode, the vector-add lists, the grouped stretches).

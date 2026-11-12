@@ -1,8 +1,17 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-one">
 <p class="core">In Triton you write what one <b>program</b> does to whole <b>blocks</b> of numbers; <span class="hl">the compiler decides</span>, separately for each GPU, which thread holds which element, how wide each load is, what goes into shared memory, how deep the copy pipeline runs and which tensor-core instruction does the multiply. <b>Gluon</b> is the same compiler with those decisions handed back to you.</p>
-<div class="hero" id="rd-hero-card"><h4>One source, decided per GPU: what you write, what the compiler chooses, what each GPU runs</h4>
-<div class="tgviz" id="rd-hero"></div>
-<p class="small" id="rd-hero-cap">Every instruction listed is real compiler output <span class="ev cmp">compiled here</span>: the same 128 x 128 x 32 FP16 <code>tl.dot</code> became <code>mma.sync</code> on sm_80 and sm_120, <code>wgmma</code> on sm_90a, <code>tcgen05.mma</code> on sm_100a and MFMA on gfx942 and gfx950 (section 3). The middle column is the compiler's pipeline (section 7); the <span class="hl">highlighted</span> TTGIR box holds the decisions this page is about. Gluon programs start at TTGIR, the level where those decisions are written down (section 10).</p></div>
+<p class="sxh">Fig. 1, step by step: one matmul program, and what the compiler decides for it</p>
+<ol class="sx" id="sx-hero">
+<li><b>The grid: one program per tile of C.</b> A 1,152 x 1,152 x 1,152 FP16 matmul <span class="ev der">illustrative size</span> with 128 x 128 tiles of C is a grid of 9 x 9 = 81 programs. Each asks <code>tl.program_id(0)</code> which tile it owns; you never write a thread index.</li>
+<li><b>Program 40 owns one tile.</b> Tile (4, 4) of C: 128 x 128 outputs, accumulated in FP32 in the program's registers. Everything this program computes, it computes for that tile only.</li>
+<li><b>The K loop: a tile of A and a tile of B per step.</b> Row 4 of A and column 4 of B are cut into BK = 32 slices: 36 steps, each loading a 128 x 32 tile of A and a 32 x 128 tile of B and calling <code>acc += tl.dot(a, b)</code>. Your code ends here: whole blocks, no threads.</li>
+<li><b>Inside the program, the compiler decides.</b> Compiled for sm_90a (H100) with 4 warps and <code>num_stages=4</code> <span class="ev cmp">compiled here</span>: 4 shared-memory buffers for A and 4 for B, 64 KB in all; an accumulator layout (<code>#mma</code>, <code>warpsPerCTA = [4, 1]</code>) that gives each warp 16-row strips of the tile; and <code>wgmma</code> m64n128k16, 4 instructions per K step, 200 registers per thread.</li>
+<li><b>Same source, six instructions.</b> The same 128 x 128 x 32 FP16 <code>tl.dot</code> became <code>mma.sync</code> on sm_80 and sm_120, <code>wgmma</code> on sm_90a, <code>tcgen05.mma</code> on sm_100a and MFMA on gfx942 and gfx950 <span class="ev cmp">compiled here</span>. Per K step the whole program issues 256 on sm_80, 4 on sm_90a, 2 on sm_100a, 256 on sm_120, 64 on gfx942 and 32 on gfx950: the larger the instruction, the fewer it takes (section 3). The pipeline that makes these choices is section 7; Gluon programs start at TTGIR, the level where the decisions are written down (section 10).</li>
+</ol>
+</section>
+</div></div>
+<section id="rd-one-b">
 <p><b>You need:</b> threads, warps, thread blocks (CTAs) and occupancy ({{The CUDA programming model|n:3c65c17b0d0d8162865eec15d9dae87e}}), and coalescing, shared memory and spills ({{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}}). The parent's {{Triton section|n:3c65c17b0d0d81c39f34d5e070d783c1}} (section 6 of its Reading tab) is a one-screen preview of this page; the CUDA C++ versions of the same kernels are on {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}.</p>
 <dl class="terms">
 <dt>Program</dt><dd>one instance of the kernel; it owns one block of the data and becomes one CUDA thread block (CTA) of num_warps x 32 threads.</dd>
@@ -43,19 +52,44 @@ vadd[grid](a, b, c, n, BLOCK=256)
 </div>
 <p><b>The first call compiles.</b> Triton builds a <dfn>specialisation key</dfn> from the arguments and compiles, or fetches the binary from its cache. The key holds every <code>tl.constexpr</code> value (here <code>BLOCK</code>), each argument's type, and whether each pointer and integer is divisible by 16, in which case it carries a <code>tt.divisibility = 16</code> hint ({{backends/compiler.py|https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/backends/compiler.py}}). A new key means a new compilation (<a href="#rd-s12">section 12</a>).</p>
 <details class="dp"><summary>Two special cases in the key, and where the cache lives <span class="mute">(depth)</span></summary><div class="b">An integer argument equal to 1 becomes a compile-time constant, and an integer of 2<sup>31</sup> or more becomes <code>i64</code> instead of <code>i32</code> <span class="ev cmp">checked here</span> with <code>triton.runtime.jit.mangle_type</code>. Compiled kernels are cached in <code>~/.triton/cache</code> by default, set by <code>TRITON_CACHE_DIR</code> ({{knobs.py|https://github.com/triton-lang/triton/blob/v3.8.0/python/triton/knobs.py}}).</div></details>
-<h3>What the compiler made of those eight lines</h3>
-<p>Compiled for sm_90a (H100) with <code>BLOCK=1024</code> and 4 warps, one program has 128 threads for 1,024 elements, so each thread owns <b><span id="rd-va-ept"></span></b> elements per input. Predict before stepping: will each thread's elements be neighbours or 128 apart? The toggle runs the same source under two other specialisations: <code>n = 1,000</code> (not a multiple of 16, so <code>n</code> loses its hint) and no hints at all (as when tensors start at odd offsets).</p>
-<div class="card" id="rd-va-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="rd-va-card">
 <h4>The layout passes turn 1-element loads into 16-byte loads, unless a hint is missing</h4>
 <div class="seg" id="rd-va-mode"><button data-m="hint" class="on">Aligned pointers, n = 992</button><button data-m="n1000">Aligned pointers, n = 1,000</button><button data-m="nohint">No alignment hints</button></div>
 <div class="tgviz" id="rd-va-svg"></div>
-<div class="an-cap" id="rd-va-cap"></div>
+<pre class="tg-pre" id="rd-va-ir" style="margin:6px 0"></pre>
 <div class="an-cnt" id="rd-va-cnt"></div>
 <div class="an-ctl" id="rd-va-ctl"></div>
 <p class="small mute">Real compiled output: layouts copied from the IR before and after each pass (<code>src/out/passes.json</code>), instruction counts from the SASS of each build (<code>src/out/compile.json</code>). One program's 1,024 elements as 8 rows of 128, coloured by warp; thread 0's elements outlined.</p>
-</div>
+</div></div></div><div class="s3L">
+<h3>What the compiler made of those eight lines</h3>
+<p>Compiled for sm_90a (H100) with <code>BLOCK=1024</code> and 4 warps, one program has 128 threads for 1,024 elements, so each thread owns <b><span id="rd-va-ept"></span></b> elements per input. Predict before it plays: will each thread's elements be neighbours or 128 apart? The toggle runs the same source under two other specialisations: <code>n = 1,000</code> (not a multiple of 16, so <code>n</code> loses its hint) and no hints at all (as when tensors start at odd offsets).</p>
+<ol class="sx" id="sx-va-hint">
+<li><b>Triton's view: one program, one block of 1,024 numbers.</b> The source says nothing about threads. One program owns elements 0 to 1,023 of a, b and c; to Triton these are three blocks of values (TTIR, no layout yet).</li>
+<li><b>Pass convert-triton-to-tritongpu: a default layout.</b> The first GPU pass attaches a layout to every block: 4 warps of 32 threads, one element per thread per round, so thread 0 owns elements 0, 128, 256 and so on. Correct, but each element would be its own 4-byte load: 8 loads of 4 B per input per thread, one warp instruction covering 128 B.</li>
+<li><b>Pass tritongpu-coalesce: 4 neighbours per thread.</b> Coalesce asks the axis analysis how many neighbouring addresses are contiguous and 16-byte aligned. The pointers carry <code>tt.divisibility = 16</code>, so runs of 4 floats are provably aligned: it gives the loads and stores a layout with 4 elements per thread (2 loads of 16 B per input, 512 B per warp instruction) and inserts <code>convert_layout</code> operations around them.</li>
+<li><b>Pass tritongpu-remove-layout-conversions: one layout everywhere.</b> The conversions it just inserted would move data between threads through shared memory. This pass propagates the 4-per-thread layout through the add and deletes them: no <code>convert_layout</code> left, 0 B of shared memory, 26 registers per thread.</li>
+<li><b>The SASS: what each thread executes.</b> 4 <code>LDG.E.128</code> (2 for a, 2 for b; the second pair at +0x800 bytes, element 512) and 2 <code>STG.E.128</code> for c, each guarded by one predicate per run of 4.</li>
+<li><b>The mask: lanes past the end.</b> n = 992 is a multiple of 16, so the mask switches whole runs of 4 on or off: the last 32 lanes (hatched) are neither loaded nor stored, and the loads stay 16 bytes wide.</li>
+</ol>
+<ol class="sx" id="sx-va-n1000" hidden>
+<li><b>Triton's view: one program, one block of 1,024 numbers.</b> The source says nothing about threads. One program owns elements 0 to 1,023 of a, b and c; to Triton these are three blocks of values (TTIR, no layout yet).</li>
+<li><b>Pass convert-triton-to-tritongpu: a default layout.</b> The first GPU pass attaches a layout to every block: 4 warps of 32 threads, one element per thread per round, so thread 0 owns elements 0, 128, 256 and so on. Correct, but each element would be its own 4-byte load: 8 loads of 4 B per input per thread, one warp instruction covering 128 B.</li>
+<li><b>Pass tritongpu-coalesce: still 4 per thread.</b> The pointers are aligned, so coalesce gives the loads and stores the same 4-per-thread layout as with n = 992. Only <code>n</code> lost its hint: 1,000 is not a multiple of 16.</li>
+<li><b>Pass tritongpu-remove-layout-conversions: one layout everywhere.</b> As before, the conversions are deleted: no <code>convert_layout</code> left, 0 B of shared memory, 26 registers per thread.</li>
+<li><b>The SASS: scalar after all.</b> The layout still says 4 per thread, but the mask may cut a run of 4, so every element gets its own predicate and its own load: 16 <code>LDG.E</code> and 8 <code>STG.E</code> per thread.</li>
+<li><b>The mask: lanes past the end.</b> With n = 1,000 the last 24 lanes (hatched) are switched off. 1,000 happens to be a multiple of 4, but the compiler only knows what the specialisation key says: n is not a multiple of 16, so a run of 4 could be cut, and every element needs its own predicate.</li>
+</ol>
+<ol class="sx" id="sx-va-nohint" hidden>
+<li><b>Triton's view: one program, one block of 1,024 numbers.</b> The source says nothing about threads. One program owns elements 0 to 1,023 of a, b and c; to Triton these are three blocks of values (TTIR, no layout yet).</li>
+<li><b>Pass convert-triton-to-tritongpu: a default layout.</b> The first GPU pass attaches a layout to every block: 4 warps of 32 threads, one element per thread per round, so thread 0 owns elements 0, 128, 256 and so on. Correct, but each element would be its own 4-byte load: 8 loads of 4 B per input per thread, one warp instruction covering 128 B.</li>
+<li><b>Pass tritongpu-coalesce: no proof of alignment, so 1 per thread.</b> Without the divisibility hint the analysis cannot prove that 4 neighbours sit in one aligned 16-byte chunk, so it keeps 1 element per thread: a 16-byte load from a misaligned address would be illegal.</li>
+<li><b>Pass tritongpu-remove-layout-conversions: nothing to remove.</b> The kernel keeps the 1-per-thread layout throughout: 0 B of shared memory, 30 registers per thread.</li>
+<li><b>The SASS: four times the instructions.</b> 16 <code>LDG.E</code> (8 for a, 8 for b) and 8 <code>STG.E</code> for c per thread: four times as many memory instructions for the same bytes.</li>
+<li><b>The mask: lanes past the end.</b> With n = 1,000 the last 24 lanes (hatched) are switched off, each by its own predicate, since every load is already one element wide.</li>
+</ol>
 <p><b>What it means.</b> A 128-bit load moves 4 floats per instruction, so the hinted build issues a quarter of the load instructions: <span id="rd-va-ldg"></span> <span class="ev cmp">compiled here</span>. The surprise is the middle case: the layout still gives each thread runs of 4, yet the loads are scalar, because the mask <code>offs &lt; n</code> could now end inside a run and the compiler cannot prove a whole run is in or out. <b>The length of your tensor changed the machine code.</b> The compiler learns how many offsets are contiguous and aligned from an axis analysis that starts from these hints. On a memory-bound kernel the memory system often hides the difference (the {{GPU memory hierarchy|n:3c65c17b0d0d814a8edef7bd21c303d3}} page measured 4-, 8- and 16-byte accesses on the M1 Pro at about the same bandwidth); it matters for instruction issue on wide kernels, and for what the compiler can only do with known alignment, such as 16-byte asynchronous copies into shared memory. You lose the hints by passing a sliced tensor at an odd offset or a stride that is not a multiple of 16.</p>
 <div class="pr" id="rd-pr1"><div class="q">Predict: <code>BLOCK=1000</code> instead of 1024 (exactly the vector length, so no mask needed). What happens?</div>
 <div class="opts"><button data-a="0">Works, slightly faster</button><button data-a="1">Error before it runs</button><button data-a="0">Works, but reads past the end</button></div>
 <div class="ans" hidden>Error: block shapes must be powers of two. The interpreter says <code id="rd-mist-pow2"></code> <span class="ev run">interpreter</span>. Round up with <code>triton.next_power_of_2</code> and mask the tail.</div></div>
+</div></div>
 </section>

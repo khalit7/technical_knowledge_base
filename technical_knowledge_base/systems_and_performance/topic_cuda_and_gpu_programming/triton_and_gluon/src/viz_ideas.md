@@ -36,3 +36,13 @@ A rule for "compiled but not run" evidence: this page needed a fifth evidence cl
 | 14 | Causal tile grid (visited, masked diagonal, skipped) | Reading s4 | static diagram | n_b = 8 illustrative; 8,192 fraction from `TGD.exp.causal_tiles_8192_128` |
 | 15 | Autotuning stepper over tutorial 03's 16 configurations on sm_90a | Reading s6 | stepper (process) | `TGD.sweep` mm_* rows, 227 KB limit; timing from do_bench defaults (derived) |
 Moved: Layout explorer (10) from its tab into Reading s8.
+
+## Added 2026-11-12 (the 2026-11-06 rollout: split layout, 3D stages v2)
+| # | Visual | Where | Kind | Data |
+|---|---|---|---|---|
+| 16 | Fig. 1, one program, one tile: C as 9 x 9 programs, A and B as glass walls, the K loop flowing into the accumulator, the sm_90a decisions, six targets' instructions per K step | Reading top (replaces 13) | 3D stage, 5 steps | illustrative 1,152-cube matmul; `TGD.main` matmul.sm_90a, `TGD.exp.mma_per_kstep` |
+| 17 | Fig. 2, the autotuner: 16 configurations as slabs (tile footprint, shared-memory height), the 227 KB plane, timing, cache | Reading s6 (replaces 15) | 3D stage, 7 steps | `TGD.sweep` mm_* sm_90a, `TG_ARCH`; do_bench defaults (derived) |
+| 18 | Fig. 3, one operation down the compiler: six glass plates (depth from line counts), tl.dot flowing down; Gluon mode with no TTIR | Reading s7 (replaces the stage boxes) | 3D stage, 6 + 4 steps | `TGD.main`, `TGD.ir`, `TGD.gluon` |
+Changed: the vector-add and grouped-order animations now play once in view, explained by step lists (three and one); grouped order plays in six stretches (1, 3, 9, 18, 27, 81 programs) instead of 81 one-program frames.
+
+Kept 2D, and why: the vector add's 1,024 elements by warp (a flat grid of cells is the clearest picture of who owns what; depth would hide cells), grouped order (a counting picture of two flat matrices), the register-cliff grid and every table (numbers read row by row), the causal tile triangle (flat by nature), the num_stages chart (a line chart against limits), the pass strip and the IR before/after (text), the Layout explorer (a reader-driven tool on a 2D tensor). Rejected: an autotuner stage "with measured times" (no GPU, so no times exist; the winner is left blank), a 3D vector add (the hero already shows a program owning a block).
