@@ -244,9 +244,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/bitune` Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
 - [x] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
 - [x] `whats_new/papers/clip` Learning Transferable Visual Models From Natural Language Supervision (CLIP)
-- [~] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
+- [x] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
 - [~] `whats_new/papers/context_language_models` Context Language Models
-- [ ] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
+- [~] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
 - [ ] `whats_new/papers/deepseek_r1` DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
 - [ ] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
 - [ ] `whats_new/papers/deepseekmath` DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
@@ -538,6 +538,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/bitune`: Fig. 2 labels sit on the boxes ("causal K, V", "bidirectional K, V", answer step); faint bidirectional bars hard to read on phones; Run-tab alpha chart colours keys blue and values orange (predates the q/k/v colour rule).
 - `whats_new/papers/chinchilla`: Fig. 1 step 1 model labels small on phones; the Gopher vs Chinchilla loss gap (0.019) is subtle even in the close-up.
 - `whats_new/papers/clip`: Fig. 1 step 4 the "caption embeddings" label touches the right edge and "softmax, rows and columns" crowds T4; Run-tab charts and Tables tab stay full width (tool and table tabs). Template-wide: consider `.s3sp{clear:both}` in `02_split.html` (CLIP added it locally because a floated "in the paper" label shrank the splits).
+- `whats_new/papers/constitutional_ai`: Fig. 1 small in a tall card on phones; step 7 the "reward" label sits on its flow; HH RLHF mode the "44,849 human harmlessness" label overlaps the dots.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -627,3 +628,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Bitune: the paper's Figure 1 stays the hero and the 3D stage is the Idea figure; the stage opens on Bitune with LoRA one toggle away; causal pass orange and bidirectional blue to match the paper's Figure 1. Keep?
 - Chinchilla: the 3D loss surface uses Besiroglu et al.'s corrected constants rather than the paper's published Eq. 10 (stated in the caption; one-line switch `FITS.hoff`); surface height is loss above E on a linear scale; the same-budget animation has one step list shared by both allocations. Keep?
 - CLIP: the hero and the objective stage share the same four toy pairs (overview, then the separate row and column softmax and the captioning comparison); the supervised-head mode is drawn, not run (labelled); header 28 min counts hidden mode lists (27 for one pass). Keep?
+- Constitutional AI: the paper's Figure 1 stays the hero and the 3D pipeline is the Idea figure; the soft label 0.7 / 0.3 in the stage is illustrative (labelled); changing the prompt in the replay tab resets to step 1 without replaying. Keep?

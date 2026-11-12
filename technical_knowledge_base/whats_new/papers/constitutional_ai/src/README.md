@@ -6,8 +6,8 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Headline card with verdict, the core sentence and the paper's Figure 1 as hero, "You need" and new terms, then Problem, Idea (the CAI and HH RLHF pipelines as one before/after animation with label counters), Stage 1 (the wifi example, data, findings, a predict question revealing how much each released revision rewrites), Stage 2 (the multiple-choice format, CoT and clamping, a predict question with a live soft/hard/clamped label demo), Results (with a predict question on the refusal count, and the Appendix D median check), How much of this to believe, What it takes to use this, Why it matters (beyond the paper), Connections. |
-| Replay the critiques | `t-run` | The live ingredient: 18 of the 66 released critique-revision chains stepped through principle by principle, with word diffs, and the four models' median answers to the same prompt. |
+| The paper | `t-read` | Headline card with verdict, the core sentence and the paper's Figure 1 as hero, "You need" and new terms, then Problem, Idea (the CAI and HH RLHF pipelines as one 3D stage with a mode toggle, a step list per pipeline and label counters), Stage 1 (the wifi example, data, findings, a predict question revealing how much each released revision rewrites), Stage 2 (the multiple-choice format, CoT and clamping, a predict question with a live soft/hard/clamped label demo), Results (with a predict question on the refusal count, and the Appendix D median check), How much of this to believe, What it takes to use this, Why it matters (beyond the paper), Connections. |
+| Replay the critiques | `t-run` | The live ingredient: 18 of the 66 released critique-revision chains stepped through principle by principle (a nine-item step list on the left, rebuilt per prompt, with each revision's measured new words), with word diffs, and the four models' median answers to the same prompt. |
 | Count the refusals | `t-count` | A visible refusal classifier over all 4,488 released answers, bars per model, a 66 × 17 grid per model, the audit list, and the Appendix D median table. |
 | The constitution and the numbers | `t-const` | Both lists of 16 principles verbatim with draw counts, the paper's counts recomputed, one real HHH evaluation item. |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -32,8 +32,8 @@
 
 ## Parts
 
-HTML: `00_top`, `01_css` (LoRA page's CSS plus chat bubbles, diff marks, principle lists), `02_header`, `03_paper`, `04_run`, `05_count`, `06_const`, generated `_gen_card`, `_gen_more`.
-JS: `10_js_common`, `_gen_data`, `_gen_cai`, `11_js_ui` (shared: `fit`, `makeAnim`, predict widget, `legend`), `13_js_read` (pipeline animation, revision chart, label demo, refusal bars), `23_js_run` (chain replay with LCS diff, model cards), `24_js_count`, `26_js_const`, `99_js_tabs` (the skill template, storage key `cai-tab`).
+HTML: `00_top`, `01_css` (LoRA page's CSS plus chat bubbles, diff marks, principle lists), `02_split` (the explainer-page template, unchanged), `02_header`, `03_paper`, `04_run`, `05_count`, `06_const`, generated `_gen_card`, `_gen_more`.
+JS: `10_js_common`, `_gen_data`, `_gen_cai`, `11_js_ui` (shared: `fit`, `makeAnim` with the 2026-11-06 motion rules, copied from the Chinchilla page, predict widget, `legend`), `13_js_read` (revision chart, label demo, refusal bars), `23_js_run` (chain replay with LCS diff and its generated step list, model cards), `24_js_count`, `26_js_const`, `25_js_s3` (the template, renderer v2, unchanged), `31_js_sc_pip` (the pipeline scene), `99_js_tabs` (the template, storage key `cai-tab`; a `data-to` link opens the closed block that holds its target).
 
 ## What reproduces
 
@@ -68,3 +68,27 @@ Why about 18 minutes is right: the added top (core sentence, hero and its captio
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems (including no movement before a click and every closed block opened; default refusal count HH RLHF 386). `mk_coverage.py`: 52 of 52 (the reading-time item's keys updated).
+
+## The 2026-11-12 layout rollout (split layout, renderer v2 stage, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged). Reading: the top (core sentence, You need, New terms) beside the paper's Figure 1; Idea beside the 3D stage (stage first in the DOM); Stage 1 as two splits (the recipe beside the paper's wifi example as a card; What the authors found and its predict question beside the revision-churn chart); Stage 2 as two splits (the recipe beside the multiple-choice prompt format as a card; the CoT paragraph and its predict question beside the label demo); Results as two splits (the result bullets beside Figure 2; the refusal question, the Appendix D median check and the closed blocks beside the refusal bars). Problem, How much to believe, What it takes, Why it matters and Connections have no visual and stay full width. Replay the critiques: the replay card (sticky on wide screens) beside the intro, prompt select and step list; the four model cards stay full width. Count the refusals: the intro beside the controls and bars, the grid's legend beside the grid; the audit list and Appendix D table stay full width. The constitution and the numbers and Further reading: lists and tables, full width. Sections split across two grids get a second section id (`s-sl2`, `s-rl2`, `s-res2`) so no section spans two columns.
+- **One 3D stage** (`31_js_sc_pip.js`, template `25_js_s3.js`), replacing the 2D before/after animation `#pip`: stage 1 along the back lane (the helpful RLHF model with the people who labelled its helpfulness, the red-team prompt stack, the harmful answer, four revision cards, SL-CAI), stage 2 along the front lane (two answers, the feedback model, the soft label as two bars on a plinth, the preference model with the people who gave helpfulness labels, RL-CAI), and between them the constitution as two stacks of 16 principle cards, one card flying out per critique (principles 1, 4, 8, 7: the released grocery-store chain, `CAI.x.chains[57]`) and one per comparison. Flows carry prompts, answers, revisions, samples and labels; their dot counts follow the page's counts (731,324 revisions against 270,592 helpfulness samples; 182,831 AI harmlessness against 135,296 human helpfulness labels; HH RLHF's 44,849 from the released harmless-base split). The HH RLHF toggle swaps the step list (`sx-pip-rlhf`) and replays the same scene with people in the judge's place, a dashed footprint where the critique step was and a ghost where SL-CAI was. The camera moves in close for each step and pulls back to the front lane for PM and RL. The soft label's 0.7 and 0.3 are illustrative and labelled so; the counters (`#pipCnt`) are the old animation's, updated per step.
+- **Kept 2D**: the revision-churn bars, the soft/hard/clamped label demo (curves the reader drives), the refusal bars, the paper's Figures 1 and 2 (images; values are not read off), the critique replay (text with word diffs), the count tab's bars and 66 x 17 grid, every table.
+- **Motion**: `makeAnim` (11_js_ui.js) is Chinchilla's (plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, `data-playing`, an `ol.sx` per mode). The critique replay's caption carousel (`crxStep`, `crxCap`) became its step list, rebuilt per prompt by `23_js_run.js`; changing the prompt resets it to step 1 without replaying. `05z_errbox.js.html` and `99_js_tabs.js` are the templates. `check_page.mjs` now asserts that the stage and the replay play when scrolled into view instead of forbidding it; `check_stages.mjs` (after Chinchilla's, plus the stage's mode toggle) checks the stage in both modes and the replay at 1400 light, 920 light and 390 dark and under reduced motion.
+
+## Length judgement (2026-11-12)
+| | Before | After |
+|---|---|---|
+| The paper, core | 18.1 min (4,156 words) | 20.3 min (4,679) |
+| The paper, closed | 3.9 min (895) | 3.9 min (895) |
+| Replay the critiques | 4.2 min (969) | 4.8 min (1,105; the step list) |
+| Count the refusals; The constitution; Further reading | 3.3 + 7.9 closed; 8.4; 2.5 | 3.3 + 7.9 closed (762 open words, up 9); 8.4; 2.5 |
+| Visuals in Reading (audit) | 6 | 6 (the 2D pipeline animation became the 3D stage) |
+
+The growth is the two step lists that now explain the stage (about 500 words, most of it the old animation's captions moved into static text); nothing was cut. Header: "Reading: 20 min, plus 4 in closed details." Pages that quote the old 18 minutes need `check_times.py --fix` by the lead.
+
+Ledger: 243 units (core 199, depth 27, owned 6, volatile 9, fat 2); 14 added for the stage's two step lists; keys of units 27, 29, 32, 35 (Idea and Stage 1 wording), 166, 168 (Replay) and 178 (Count) re-pointed to the reworded sentences; `ledger.py check` problems 0.
+
+## Checks (12 November 2026)
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 0 problems. `check_stages.mjs`: 0 problems. `verify_layout.mjs`: problems 0. `mk_coverage.py`: 52 of 52. `ledger.py check`: problems 0.

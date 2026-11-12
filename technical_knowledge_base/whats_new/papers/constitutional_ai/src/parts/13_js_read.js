@@ -1,44 +1,8 @@
-// ---- The paper tab: the two pipelines animated, the revision measurement, the label demo, the refusal count ----
+// ---- The paper tab: the revision measurement, the label demo, the refusal count ----
 (function(){
 const RC=PAPER.rc,S=CAI.s;
 const wrap=(t,fs,maxw)=>{const cw=fs*.56,n=Math.max(4,Math.floor(maxw/cw)),out=[];let cur='';t.split(' ').forEach(w=>{if((cur+' '+w).trim().length>n&&cur){out.push(cur);cur=w}else cur=(cur+' '+w).trim()});if(cur)out.push(cur);return out};
-// ---------- 1. pipelines: Constitutional AI against HH RLHF ----------
-const N={
- cai:[
-  {t:'Helpful-only RLHF model',s:'trained with human helpfulness labels only',who:'h',c:'Start from a <b>helpful-only RLHF model</b>: human helpfulness labels, no harmlessness data at all. It complies with harmful requests, which is the point: it is good at following instructions, including the instruction to critique itself (§1.4).'},
-  {t:'Red-team prompt, harmful answer',s:'182,831 prompts (42,496 human, 140,335 generated)',who:'n',c:'Sample its answer to a red-team prompt. Prompts came from crowdworkers baiting earlier models (42,496) and from few-shot prompting a pretrained model (140,335); the first answer is typically harmful.'},
-  {t:'Critique, then revise ×4',s:'a random principle of 16 each time',who:'a',c:'The same model critiques its answer against a principle drawn at random, then rewrites it to remove the harm. Four rounds per prompt, 731,324 revisions in all. The only human input here is the 16 principles and a few few-shot examples.'},
-  {t:'Fine-tune: SL-CAI',s:'revisions + helpfulness samples, 1 epoch',who:'n',c:'Fine-tune a <b>pretrained</b> model on the revisions from all four steps plus 270,592 helpfulness samples. This gets the policy on-distribution so RL needs less exploration.'},
-  {t:'Two answers per prompt',s:'sampled from SL-CAI',who:'n',c:'SL-CAI answers each red-team prompt twice. The same model will start RL, so the PM is trained on the kind of text the policy produces.'},
-  {t:'Feedback model picks',s:'"which is less harmful?" with 1 of 16 principles',who:'a',c:'A pretrained LM (or, in the CoT variant, the helpful RLHF model thinking step by step) sees both answers and a random principle as a multiple-choice question. Its normalised probabilities for (A) and (B) are the label: 182,831 AI comparisons, no human looks at any of them.'},
-  {t:'PM, then RL: RL-CAI',s:'AI harmlessness + human helpfulness labels',who:'h',c:'Train a hybrid PM (182,831 AI harmlessness comparisons and 135,296 human helpfulness ones) and run RL against it from SL-CAI. From here the code is RLHF\'s.'}],
- rlhf:[
-  {t:'Pretrained LM',s:'RLHF here starts from it directly',who:'n',c:'The baseline: HH RLHF as in Bai et al. (2022), retrained for this paper directly from the pretrained model (§4.2).'},
-  {t:'Crowdworkers red-team',s:'conversations written to bait the model',who:'h',c:'People write conversations designed to elicit harmful output, and at each turn the model gives two answers.'},
-  {t:'(no critique step)',s:'',who:'x',c:'There is no supervised harmlessness stage: nothing rewrites the harmful answers.'},
-  {t:'(no SL stage)',s:'',who:'x',c:'No supervised fine-tuning on revisions either; RL starts from the pretrained model.'},
-  {t:'Two answers per turn',s:'from the model being red-teamed',who:'n',c:'Pairs of answers are collected in the conversations themselves.'},
-  {t:'Crowdworker picks',s:'"which is more harmless?"',who:'h',c:'A person picks the more harmless answer. Asked only that, workers rewarded refusals, "which likely produced a significant amount of data favoring evasiveness" (footnote 9): the label the paper set out to replace.'},
-  {t:'PM, then RL: HH RLHF',s:'human harmlessness + human helpfulness labels',who:'h',c:'Train the PM on human harmlessness and helpfulness comparisons and run RL. The released harmless-base split of that earlier work alone holds 44,849 comparisons.'}]};
-const cnt=(m,k,e)=>{const f=(v,at)=>k>at?v:k===at?Math.round(v*e):0;const box=(l,v,d)=>'<div class="stat"><div class="k">'+l+'</div><div class="v">'+v+'</div><div class="d">'+(d||'')+'</div></div>';
-  if(m==='cai')return '<div class="grid">'+box('Human harmlessness labels','0','none at any step')+box('AI harmlessness labels',fmt(f(RC.pm_ai,5)),'one per red-team prompt')+box('Human helpfulness labels',fmt(f(RC.pm_human,6)),'in the PM')+box('Principles written',fmt(f(16,2)+f(16,5)),'16 for critiques, 16 for labels')+'</div>';
-  return '<div class="grid">'+box('Human harmlessness labels',fmt(f(44849,5)),'released harmless-base split')+box('AI harmlessness labels','0','')+box('Human helpfulness labels',k>=6?'yes':'0','count not given for this PM')+box('Principles written','0','the objective lives in the labels')+'</div>'};
-const pipDraw=(m,k,e,w)=>{const L=N[m],two=w>=600,gap=14;let s='',pos=[];
-  if(two){const bw=(w-3*gap-8)/4,bh=70;L.forEach((n,i)=>{const r=i<4?0:1,c=i<4?i:7-i;pos.push({x:4+c*(bw+gap),y:10+r*(bh+34),w:bw,h:bh})})}
-  else{const bw=w-8,bh=50;L.forEach((n,i)=>pos.push({x:4,y:6+i*(bh+16),w:bw,h:bh}))}
-  const H=pos[pos.length-1].y+pos[pos.length-1].h+10;
-  L.forEach((n,i)=>{if(i===0)return;const a=pos[i-1],b=pos[i];let x1,y1,x2,y2;
-    if(two&&i===4){x1=a.x+a.w/2;y1=a.y+a.h;x2=b.x+b.w/2;y2=b.y}else if(two&&i>4){x1=a.x;y1=a.y+a.h/2;x2=b.x+b.w;y2=b.y+b.h/2}else if(two){x1=a.x+a.w;y1=a.y+a.h/2;x2=b.x;y2=b.y+b.h/2}else{x1=a.x+a.w/2;y1=a.y+a.h;x2=b.x+b.w/2;y2=b.y}
-    s+=G(i<=k?1:.25,ar(x1,y1,x2+(two&&i>4?2:two&&i<4?-2:0),y2-(two&&i!==4?0:2)))});
-  L.forEach((n,i)=>{const p=pos[i],op=i<k?1:i===k?.35+.65*e:.22,stroke=n.who==='h'?'var(--c2)':n.who==='a'?'var(--c1)':'var(--line)',fill=i===k?'var(--acc2)':n.who==='x'?'var(--bg)':'var(--soft)';
-    let g=rc(p.x,p.y,p.w,p.h,fill,{s:stroke,sw:n.who==='h'||n.who==='a'?2:1,r:7,da:n.who==='x'?'4 3':null});
-    const tl=wrap(n.t,12,p.w-12),sl=n.s?wrap(n.s,11,p.w-12):[];const lines=tl.length+sl.length,lh=14;let y=p.y+p.h/2-(lines-1)*lh/2+4;
-    tl.forEach(t=>{g+=tx(p.x+p.w/2,y,t,{fs:12,a:'middle',w:600});y+=lh});sl.forEach(t=>{g+=tx(p.x+p.w/2,y,t,{fs:11,a:'middle',c:'var(--mute)'});y+=lh});
-    if(n.who==='h'||n.who==='a')g+=tx(p.x+p.w-6,p.y+12,n.who==='h'?'people':'model',{fs:11,a:'end',c:stroke});
-    s+=G(op,g)});
-  return svgEl(w,H,s,'The '+(m==='cai'?'Constitutional AI':'HH RLHF')+' pipeline, step '+(k+1))};
-const mk=m=>N[m].map(n=>({t:n.t.replace(/[()]/g,''),c:n.c}));
-makeAnim({id:'pip',modes:{cai:mk('cai'),rlhf:mk('rlhf')},mode:'cai',draw:pipDraw,counters:cnt,dur:3200});
+// ---------- 1. the pipelines are the 3D stage in 31_js_sc_pip.js ----------
 
 // ---------- 2. how much each revision rewrites ----------
 (()=>{const C=S.chains;fit($('revSvg'),w=>{const H=200,pl=44,pr=10,pt=18,pb=40,iw=w-pl-pr,ih=H-pt-pb;let s='';

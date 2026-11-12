@@ -1,6 +1,7 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the critique replay stepping end to end, and every animation and stage
+// playing once scrolled into view (the full motion rules are in check_stages.mjs).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/constitutional_ai/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -42,11 +43,11 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-25): scroll each animation into view and wait
-    for (const id of ['pip', 'crx']) {
+    // since 2026-11-06 every animation and stage plays by itself once well in view (check_stages.mjs tests the full motion rules)
+    for (const id of ['stg-pip', 'crx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
-      await p.$eval('#' + id, e => e.scrollIntoView()); await wait(900);
-      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`);
+      await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(1500);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`);
     }
     // closed details hold controls and outputs too: open them all
     await p.evaluate(t => document.querySelectorAll('#' + t + ' details').forEach(d => d.open = true), t); await wait(200); await audit(t + ' details open');
@@ -94,7 +95,7 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
       for (const id of ['revSvg', 'labSvg', 'evSvg']) { await p.$eval('#' + id, e => e.scrollIntoView()); const el = await p.$('#' + id); await el.screenshot({ path: `${shots}/x-${id}-${scheme}-${width}.png` }) }
     }
     // step the animations through every step and screenshot the middle
-    for (const id of ['pip', 'crx']) {
+    for (const id of ['crx']) {
       if (!(await p.$(`#${t} #${id}`))) continue;
       const modes = await p.$$eval(`#${id}M button`, bs => bs.map(b => b.dataset.m)).catch(() => []);
       for (const m of (modes.length ? modes : [null])) {
