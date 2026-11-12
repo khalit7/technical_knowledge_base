@@ -22,7 +22,7 @@ f1 = lambda v: f"{v:,.1f}"
 f2 = lambda v: f"{v:,.2f}"
 checks = [  # (text in the page, value, formatter)
     ("<b>Up to 128 KB</b>1,239 GB/s", N["m1_l1_gbs"], lambda v: f"<b>Up to 128 KB</b>{f0(v)} GB/s"),
-    ("this laptop: 5.76 GB/s sequential, measured</div></div><div class=\"tk\"><b>0.36</b>", (M["ssd"]["seq_GBs"], mod["l8"]["wbytes"]), lambda v: f"this laptop: {f2(v[0])} GB/s sequential, measured</div></div><div class=\"tk\"><b>{v[0]*1e9/v[1]:.2f}</b>"),
+    ("at 5.76 GB/s sequential on this laptop, measured. Ceiling <b>0.36</b>", (M["ssd"]["seq_GBs"], mod["l8"]["wbytes"]), lambda v: f"at {f2(v[0])} GB/s sequential on this laptop, measured. Ceiling <b>{v[0]*1e9/v[1]:.2f}</b>"),
     ("16.06 GB / 3.35 TB/s = 4.8 ms, at most 209 steps", mod["l8"]["wbytes"], lambda v: f"{v/1e9:.2f} GB / 3.35 TB/s = {v/3.35e12*1e3:.1f} ms, at most {f0(3.35e12/v)} steps"),
     ("173 times more", N["horowitz_dram_over_fmul"], lambda v: f"{f0(v)} times more"),
     ("arithmetic grew 12.8&times; and HBM bandwidth 10.8&times;", (N["gen_bf16_x"], N["gen_bw_x"]), lambda v: f"arithmetic grew {f1(v[0])}&times; and HBM bandwidth {f1(v[1])}&times;"),
@@ -42,7 +42,7 @@ checks = [  # (text in the page, value, formatter)
     ("<b>5.23 Gb/s per pin</b>", N["h100_pin_gbps"], lambda v: f"<b>{f2(v)} Gb/s per pin</b>"),
     ("5.3 TB/s = 5.18 Gb/s", N["mi300x_pin_gbps"], lambda v: f"5.3 TB/s = {f2(v)} Gb/s"),
     ("would need 10.7 HBM4 stacks", N["rubin_stacks_at_jedec"], lambda v: f"would need {f1(v)} HBM4 stacks"),
-    ("conversation holds 4.29 GB", mod["l8"]["kv"]["32768"] / 1e9, lambda v: f"conversation holds {f2(v)} GB"),
+    ("At 32,768 tokens that is 4.29 GB", mod["l8"]["kv"]["32768"] / 1e9, lambda v: f"At 32,768 tokens that is {f2(v)} GB"),
     ("in FP16) took 4.11 ms", kv[("GQA", 131072)] / 1000, lambda v: f"in FP16) took {f2(v)} ms"),
     ("gives 141 GB/s plus a fixed 0.30 ms", M["kvfit"]["GQA"], lambda v: f"gives {f0(v['gbs'])} GB/s plus a fixed {v['us0']/1000:.2f} ms"),
     ("took 5.9&times; as long (13.0 against 2.2 ms)", (kv[("MHA", 65536)], kv[("GQA", 65536)]), lambda v: f"took {v[0]/v[1]:.1f}&times; as long ({v[0]/1000:.1f} against {v[1]/1000:.1f} ms)"),

@@ -82,19 +82,6 @@ window.MC=(function(){
   RD.seg(document.getElementById('rd-lad-mode'),m=>{mode=m;draw()});RD.onRender(draw);RD.onResize(draw);draw();
 })();
 
-// ---- section 4: width x rate ----
-(function(){
-  const el=document.getElementById('rd-wr-svg');
-  const sys=[{n:'RTX 5090 GDDR7',w:512,r:28,c:'var(--c2)'},{n:'H100 SXM HBM3 (5 stacks)',w:5120,r:5.234,c:'var(--c1)'},{n:'MI300X HBM3',w:8192,r:5.176,c:'var(--c4)'},{n:'one HBM4 stack (standard)',w:2048,r:8,c:'var(--c3)'}];
-  function draw(){const W=RD.width(el),L=6,R=6,T=6,maxW=8192,maxR=28,hh=56/maxR,rowH=94,H=T+sys.length*rowH;let s='';
-    const scaleX=(W-L-R)/maxW;let y=T;
-    sys.forEach(o=>{const w=Math.max(2,o.w*scaleX),h=Math.max(3,o.r*hh);s+='<rect x="'+L+'" y="'+(y+56-h)+'" width="'+w+'" height="'+h+'" style="fill:'+o.c+';opacity:.75"/>'+
-      RD.t(L,y+72,o.n,{fs:11,w:600})+RD.t(L,y+86,o.w+' bits x '+MC.fmtN(o.r,1)+' Gb/s / 8 = '+MC.fmtN(o.w*o.r/8,0)+' GB/s',{fs:10.5,fill:'var(--mute)'});y+=rowH});
-    el.innerHTML=RD.svg(W,H,s,'Bus width times pin rate');
-    document.getElementById('rd-wr-note').innerHTML='Width and height to scale (same scale for all). H100 and MI300X pin rates derived from their published bandwidth and bus width; RTX 5090 rate published; HBM4 standard rate from Rambus. <span class="der">derived</span>'}
-  RD.onRender(draw);RD.onResize(draw);draw();
-})();
-
 // ---- section 5: the ladder of tiers ----
 (function(){
   const D=MEMD,el=document.getElementById('rd-ladder'),note=document.getElementById('rd-ladder-note');let mode='all';

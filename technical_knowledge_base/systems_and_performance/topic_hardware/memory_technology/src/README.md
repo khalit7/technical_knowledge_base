@@ -1,6 +1,6 @@
 # Memory technology: sources, scripts, outputs
 
-Page parts in `parts/` (assembled by `build.sh` into `../index.html`): `20_read.html` (styles) and `20_read_a.html` to `20_read_i.html` (Reading: top with core sentence, hero, new terms; sections 1 to 7; section 8 all closed depth), `39_tab_more.html` (Further reading); JS: `21_js_rd_common.js` and `99_js_tabs.js` (the explainer-page skill templates, storage key `hwmem-tab`; nothing moves before the reader acts), `22_js_data.js` (generated, `window.MEMD`), `23_js_rd_charts.js` (chart helpers `MC` and the Reading charts), `24_js_rd_bank.js` (DRAM bank animation, `BANKSIM`), `25_js_rd_meas.js` (the measured charts and tables that were the Memory lab tab). Photos in `../img/` with `../img/CREDITS.md`.
+Page parts in `parts/` (assembled by `build.sh` into `../index.html`): `20_read.html` (styles) and `20_read_a.html` to `20_read_i.html` (Reading: top with core sentence, hero, new terms; sections 1 to 7; section 8 all closed depth), `39_tab_more.html` (Further reading); JS: `02_split.html`, `21_js_rd_common.js`, `25_js_s3.js` and `99_js_tabs.js` (the explainer-page skill templates, unchanged except the storage key `hwmem-tab`; animations and stages play once in view), `40_js_sc_hero.js`, `41_js_sc_hbm.js`, `42_js_sc_kv.js` (the three 3D scenes), `22_js_data.js` (generated, `window.MEMD`), `23_js_rd_charts.js` (chart helpers `MC` and the Reading charts), `24_js_rd_bank.js` (DRAM bank animation, `BANKSIM`), `25_js_rd_meas.js` (the measured charts and tables that were the Memory lab tab). Photos in `../img/` with `../img/CREDITS.md`.
 
 ## Reproduce
 `MLXPY=<python with mlx> SCRATCH=<dir outside the repo> sh run_all.sh` runs everything below in order.
@@ -8,6 +8,7 @@ Page parts in `parts/` (assembled by `build.sh` into `../index.html`): `20_read.
 - `code/ssd_read.py`: the internal SSD with the page cache bypassed (`F_NOCACHE` on write and read). `out/ssd.json|log`. `out/ssd_cached_attempt.txt` records the first, cache-served attempt.
 - `code/build_data.py` (stdlib only): aggregates the runs (median of run medians, spread across runs), computes the KV cache of 13 models from `inputs/configs/*.json`, the derived numbers, the DRAM bank reference; writes `out/data.json` (embedded verbatim), `out/expected.json` (test vectors) and `parts/22_js_data.js`.
 - `check/check_embed.py`: the page embeds exactly `out/data.json`; 39 hand-written numbers in the prose match it.
+- `check/check_stages.mjs` (from the repo root, a few minutes): the 2026-11-06 rollout checks, see the last section.
 - `check/check_ui.mjs` (from the repo root, puppeteer `headless: 'shell'`): the page's JS against `out/expected.json` (9,522 values) and every control at 390 px dark and 920 px light (no errors, NaN, undefined, sideways scroll), with screenshots.
 
 ## Inputs
@@ -51,3 +52,37 @@ Why about 23 minutes is right: the page teaches seven things a reader cannot get
 312 units: core 246, depth 28, fat 24, owned 14 (all `owned:models_and_training/topic_llm_architecture/long_context`, from the KV pilot). 284 drafted by `ledger.py init` from the page before this rebuild; 17 carried over from the KV pilot ledger (section "pilot: ..."); 11 added by hand for script-rendered text (generations note, ladder table, SSD table, decode and random-block notes, bank captions) and for what was added (hero, CXL, photos, the decode bound). Fat units carry a `note`.
 
 2026-10-26 (final follow-up sweep): the tiers table's host DRAM capacity ("terabytes per server") now cites NVIDIA's DGX B200 page (2 TB, configurable to 4 TB).
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js`, `21_js_rd_common.js`, `99_js_tabs.js` (key `hwmem-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. No new runs: every scene draws from `window.MEMD` (`out/data.json`, unchanged).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | **3D** `stg-hero` (Fig. 1): one H100 server from the die outward | yes, 7 |
+| Reading | You need, new terms, reference table | full width | table (closed) | no |
+| Reading | 1 Why memory | split | 2D generations chart | no |
+| Reading | 2 DRAM cell, array | split | 2D bank animation, three orders | yes, 5 + 5 + 5 |
+| Reading | 2 Measured random blocks | split | 2D log-log chart | no |
+| Reading | 2 Why bandwidth costs power | split | 2D energy bars | no |
+| Reading | 3 SRAM and the cache ladder | split | 2D measured ladder (three modes) | no |
+| Reading | 3 NVIDIA's ladder, SRAM-only machines, method | full width | none; details closed | no |
+| Reading | 4 Packaging | split | **3D** `stg-hbm` (Fig. 2): HBM against GDDR7 | yes, 5 |
+| Reading | 4 HBM, GDDR7, LPDDR cards | split | photo (P100 HBM2 stack edge-on) | no |
+| Reading | 4 Per-stack growth, spec sheet, the trade | full width | table (closed) | no |
+| Reading | 5 Stacks along the die edge | split | two photos (Fiji, TPU v4) | no |
+| Reading | 5 Further from the die, unified memory | split | 2D tiers bars | no |
+| Reading | 5 CXL | full width | none | no |
+| Reading | 6 Decode bound | split | **3D** `stg-kv` (Fig. 3): what one decode step reads | yes, 5 |
+| Reading | 6 Measured decode attention | split | 2D log-log chart | no |
+| Reading | 6 Allocation, when it matters; 7 Offload; 8 Depth | full width | tables; details closed | no |
+| Further reading | | unchanged | | |
+
+**Stages and their data.** Fig. 1: `nums.h100_onchip_mb` (119.2 MB), `chips` h100 (80 GB, 3.35 TB/s), the ladder's PCIe Gen5 x16 (128 GB/s both directions, 64 each way) and 400 Gb/s NIC (50 GB/s), CXL as one DDR5-4800 channel (38.4 GB/s, derived), `meas.ssd.seq_GBs`; ceilings are bandwidth / `models` l8 `wbytes`; dot counts 4 x log10 of the bandwidth in GB/s; positions and the DIMM count illustrative. Fig. 2: `chips` h100 and rtx5090, `nums.h100_pin_gbps`, `nums.rtx5090_gbs` (28 Gb/s = 1,792 x 8 / 512), `nums.hbm2_pj`, `nums.gddr5_pj`; one lane per 64 wires; dot speed proportional to the pin rate; the 8 DRAM dies per stack and 8 GDDR7 packages illustrative. Fig. 3: `models` l8 (`wbytes`, 32 layers, `kv_tok_bf16`, `kv` at 32,768 and 131,072 tokens), `chips` h100, vLLM's `gpu_memory_utilization` 0.92; step time = (weights + cache) / 3.35 TB/s, activations ignored; the scene exports `window.MT_KV` and the check recomputes every number in the list.
+
+**Removed**: the 2D hero rows (numbers now in Fig. 1's step list), the 2D width-by-rate rectangles (Fig. 2), the bank animation's per-read caption (the step lists). The bank animation went from 17 frames to 5 explained stretches (the long-replay rule), each stretch playing its reads one by one when entered going forward. Kept 2D and why: `viz_ideas.md`.
+
+**Length judgement.** Reading core 23.3 min before (5,359 words), 27.8 min after (6,386 words, `audit_pages.mjs`); closed details 8.8 min both times; Further reading 2.9 min unchanged. Visuals in Reading 9 before, 11 after by the audit's count (three 3D stages; two 2D drawings retired). The four and a half minutes are the step lists that now explain each stage and the bank animation on the left, as the rollout requires, including new derived results in Fig. 3 (a batch of four at 32K reads the same cache bytes as one 128K conversation; 13 conversations fill vLLM's 92%). Prose the stages carry was condensed (the KV paragraph of section 6, the width-by-rate note). Nothing the ledger holds was cut.
+
+**Ledger**: 320 units (core 252, depth 28, fat 24, owned 14, volatile 2): two keys re-pointed (23: the generations chart sentence; 104: width by rate, now Fig. 2's lanes), five units added for the new step-list results; `ledger.py check` problems 0 here and on the root.
+
+**Checks** (2026-11-12): `check/check_stages.mjs` (problems 0), `check/check_ui.mjs` (PASS), `check/check_embed.py` (38 prose checks, 0 problems; two prose anchors moved to the new wording), `html_utils/checkpage.sh` (fail=0, emdash 0, errbox 1, clipped 0).

@@ -1,21 +1,26 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s5">
 <h2>5. Capacity against bandwidth: the tiers, and CXL</h2>
-<p>Bandwidth comes from many short wires; capacity comes from many dies. Both compete for the space next to the processor. An HBM stack holds at most 16 dies (64 GB at the standard die size), and each stack needs its own wide interface along the edge of the GPU die, so only so many stacks fit:</p>
-<div class="ph2">
+<p>Bandwidth comes from many short wires; capacity comes from many dies. Both compete for the space next to the processor. An HBM stack holds at most 16 dies (64 GB at the standard die size), and each stack needs its own wide interface along the edge of the GPU die, so only so many stacks fit (the two packages on the right).</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="ph2">
 <figure class="ph"><img src="img/amd_fiji_package.webp" alt="The AMD Fiji GPU package: a large GPU die in the middle of a silicon interposer with four small HBM stacks, two on each side" loading="lazy" width="900" height="603">
 <figcaption>AMD Fiji (Radeon R9 Fury X): four HBM stacks on the interposer, two along each long edge of the die.<span class="cr">C. Spille / pcgameshardware.de, CC BY-SA 4.0, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:AMD_Fiji_GPU_package_with_GPU,_HBM_memory_and_interposer.jpg}}</span></figcaption></figure>
 <figure class="ph"><img src="img/tpuv4_package.webp" alt="A TPU v4 package seen from above: one large silicon die in the centre with two HBM stacks on each side" loading="lazy" width="520" height="516">
 <figcaption>Google TPU v4: the same layout, four stacks beside one die. More stacks need more die edge; that is what caps HBM capacity per chip.<span class="cr">Jouppi et al. 2023, Figure 2, CC BY 4.0, {{arXiv:2304.01433|https://arxiv.org/abs/2304.01433}}</span></figcaption></figure>
-</div>
-<p>Going further from the die (board, CPU socket, a CXL device, another node, an SSD) buys capacity cheaply, but the wires get longer, fewer and slower. The hero figure at the top is one server's ladder; here are the rungs across products, each as published (or measured here), on a log scale where every grid step is 10&times;:</p>
-<div class="card" id="rd-ladder-card">
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<p>Going further from the die (board, CPU socket, a CXL device, another node, an SSD) buys capacity cheaply, but the wires get longer, fewer and slower. The hero figure at the top is one server's ladder; the chart on the right shows the rungs across products, each as published (or measured here), on a log scale where every grid step is 10&times;.</p>
+
+<p>From HBM down to the host link the bandwidth drops about 26&times; on an H100 (3,350 against 128 GB/s, and that 128 is both directions together), so anything that crosses PCIe once per step must be small or overlapped with compute (section 7). The network to another node (50 GB/s for a 400 Gb/s NIC) is slower again, which is why parallelism is chosen around the network ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}).</p>
+<div class="co"><div class="t">Unified memory blurs one rung</div>Apple's M1 Pro has one pool of LPDDR5 shared by CPU and GPU: no copy, no PCIe, but only 200 GB/s. NVIDIA's GH200 joins a Grace CPU and a Hopper GPU with a 900 GB/s coherent NVLink-C2C link, "7X faster than PCIe Gen5", sharing one page table for up to 624 GB of CPU and GPU memory ({{NVIDIA GH200|https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/}}). Coherent does not mean equally fast: the GPU still reads its own HBM much faster than the CPU's LPDDR5X.</div>
+</div><div class="s3R"><div class="s3side"><div class="card" id="rd-ladder-card">
 <h4 style="margin:0 0 4px;font-size:14.5px">From wafer SRAM to a network link: five orders of magnitude of bandwidth</h4>
 <div class="seg" id="rd-ladder-mode"><button data-m="all" class="on">Published tiers</button><button data-m="m1">This laptop, measured</button></div>
 <div class="bars" id="rd-ladder"></div>
 <p class="small mute" id="rd-ladder-note"></p>
-</div>
-<p>From HBM down to the host link the bandwidth drops about 26&times; on an H100 (3,350 against 128 GB/s, and that 128 is both directions together), so anything that crosses PCIe once per step must be small or overlapped with compute (section 7). The network to another node (50 GB/s for a 400 Gb/s NIC) is slower again, which is why parallelism is chosen around the network ({{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}).</p>
-<div class="co"><div class="t">Unified memory blurs one rung</div>Apple's M1 Pro has one pool of LPDDR5 shared by CPU and GPU: no copy, no PCIe, but only 200 GB/s. NVIDIA's GH200 joins a Grace CPU and a Hopper GPU with a 900 GB/s coherent NVLink-C2C link, "7X faster than PCIe Gen5", sharing one page table for up to 624 GB of CPU and GPU memory ({{NVIDIA GH200|https://www.nvidia.com/en-us/data-center/grace-hopper-superchip/}}). Coherent does not mean equally fast: the GPU still reads its own HBM much faster than the CPU's LPDDR5X.</div>
+</div></div></div></div>
+<section>
 <h3>CXL: memory on PCIe wires</h3>
 <p><dfn id="g-cxl">CXL</dfn> (Compute Express Link) adds a rung between a CPU's own DRAM and the SSD. Its CXL.mem protocol "maps device memory to the system address space": a last-level cache miss to a CXL address becomes a request on a CXL port that brings back the cache line, with no page fault and no DMA. It runs over PCIe's electrical interface with its own low-latency link layer; with PCIe 5.0 a bidirectional x8 CXL port at a 2:1 read:write ratio matches one DDR5-4800 channel (38.4 GB/s, derived). CXL 1.1 attaches a device directly, 2.0 adds switch-based pooling, 3.0 standardises switch-less pooling and more bandwidth. The price is latency: Intel measures 25 ns per round-trip port traversal, about 70 ns end to end over NUMA-local DRAM; a pool shared by 8 to 16 sockets adds 70 to 90 ns, rack-scale pooling more than 180 ns.</p>
 <p>Why anyone pays it: in Azure's clusters up to 25% of DRAM was stranded (cores all rented, memory left over), DRAM "can be 50% of server cost", and pooling it over CXL cut DRAM cost by 7% with performance within 1 to 5% of local memory over 158 workloads ({{Li et al., Pond, ASPLOS 2023|https://arxiv.org/abs/2203.00241}}, sections 1 and 2) <span class="indep">published, Microsoft</span>. For an ML engineer CXL is so far a CPU-side tier: it enlarges host memory, the rung offload uses (section 7), and a GPU reaches it only through the host. The capacity-bandwidth trade is the same at every rung: more bytes, further away, fewer of them per second.</p>

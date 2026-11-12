@@ -198,8 +198,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels` Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming` Topic: cuda-and-gpu-programming
 - [x] `systems_and_performance/topic_hardware/gpu_architecture` GPU architecture: SMs, warps, tensor cores, Ampere to Blackwell and Rubin
-- [ ] `systems_and_performance/topic_hardware/interconnects_and_scaling` Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism
-- [ ] `systems_and_performance/topic_hardware/memory_technology` Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache
+- [~] `systems_and_performance/topic_hardware/interconnects_and_scaling` Interconnects and scaling: PCIe, NVLink, InfiniBand and RoCE, why the network picks your parallelism
+- [x] `systems_and_performance/topic_hardware/memory_technology` Memory technology: HBM, GDDR, SRAM, capacity against bandwidth, the KV cache
 - [ ] `systems_and_performance/topic_hardware/performance_math` Performance math: FLOPs, memory, MFU, tokens per second, costing a run
 - [ ] `systems_and_performance/topic_hardware/power_cooling_and_reliability` Power, cooling, reliability and the data centre: failures at scale, the per-gigawatt view
 - [ ] `systems_and_performance/topic_hardware/tpus_and_other_accelerators` TPUs and other accelerators: systolic arrays, TPU pods, AMD, Trainium, Groq, Cerebras
@@ -492,6 +492,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels`: Fig. 6 Q, K, V plates crop at the left edge at 1400 ("tile 2" label cut); core now 42 min (31 before; about 3 min hidden mode lists, plus about 1 min un-hidden by a missing </details> fix).
 - `systems_and_performance/topic_cuda_and_gpu_programming`: hero warp step crowded (two of four lane rows partly hide each other); empty floor in the full view on wide screens; the 52em text cap makes the compiler tab's boxes look narrow inside full-width borders.
 - `systems_and_performance/topic_hardware/gpu_architecture`: Fig. 1 GPC plan (which SMs are off) illustrative; Rubin drawn with no HBM stacks (count not stated); no new licensed H100 or B200 photo searched for.
+- `systems_and_performance/topic_hardware/memory_technology`: Fig. 2 label "5 x 1,024 = 5,120 wires" sits slightly over a stack edge at 1400.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -536,3 +537,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Writing kernels: Fig. 6 FlashAttention runs on an illustrative toy (seed 5, 4 query rows, 16 keys in 4 tiles, d = 4); Fig. 1's 256 x 256 corner and rung 7 warp tile are illustrative; split-K/split-Q stays 2D; the FA-3 schedule is a widget opening finished; "Combining blocks" and "The order of additions" are now open core reading (a missing </details> had hidden them). Keep these?
 - CUDA root: the GPU simulator's three simulators and the Compiler explorer's sections 1 and 3 are now widgets opening on their last frame; Kernel lab section 2 (online softmax) overlaps Writing kernels Fig. 6 and Compiler explorer section 1 overlaps Compiler stack Fig. 4 and Triton Fig. 3: both kept as widgets with links (removing them is the stricter reading); Compiler explorer section 4 is now a static chart. Keep, or remove the two overlaps?
 - GPU architecture: Fig. 3 bars use the A100 as 1x and include the RTX 5090; the section 7 tile stays 2D and links Libraries and tensor cores Fig. 3; the scheduler steps stop at cycles 100 / 500-700 / 1,000 / 2,000. Keep these? Search for an openly licensed H100 or B200 photo?
+- Memory technology: drawn counts (8 DRAM dies per stack, 8 GDDR7 packages on the RTX 5090) labelled illustrative; stream dot count is 4 x log10 of bandwidth in GB/s; Fig. 3 assumes vLLM's default 92% utilisation, ignores activations and uses bytes / bandwidth as the step time. Keep these?
