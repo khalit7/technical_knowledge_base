@@ -11,33 +11,6 @@ document.querySelectorAll('.ry-pr').forEach(pr=>pr.querySelector('.opts').addEve
   pr.querySelectorAll('.opts button').forEach(x=>{x.classList.toggle('right',x.dataset.r==='1');if(x===b&&x.dataset.r!=='1')x.classList.add('wrong')});
   pr.classList.add('done')}));
 
-// cluster map
-function drawMap(){
-  const el=$('ry-map');const w=RD.width(el);const narrow=w<560;
-  const nodes=[
-    {id:'ray-head',t:'mi-ray-head',cpu:0,gpu:0,cap:2000,lines:['GCS (gcs_server)','dashboard + 10 modules','autoscaler monitor','the driver, Ray Train controller']},
-    {id:'ray-w1',t:'mi-ray-w1',cpu:2,gpu:2,cap:1100,lines:['raylet + object store 80 MB','worker processes','Ray Train ranks 0, 1']},
-    {id:'ray-w2',t:'mi-ray-w2',cpu:2,gpu:2,cap:1100,lines:['raylet + object store 80 MB','worker processes','Ray Train ranks 2, 3']}];
-  const bw=narrow?w-8:(w-24)/3, bh=164, gap=12;
-  const H=narrow?(bh+gap)*3:bh+34;
-  let s='';
-  nodes.forEach((n,i)=>{
-    const x=narrow?4:i*(bw+gap), y=narrow?i*(bh+gap):0;
-    const used=Y.mem_idle_mb[n.id.replace('ray-','')];
-    s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="8" fill="var(--soft)" stroke="'+NODE_COL[n.id]+'" stroke-width="1.5"/>';
-    s+=RD.t(x+10,y+19,n.t,{fs:13,w:600});
-    s+=RD.t(x+10,y+37,n.cpu+' CPU, '+n.gpu+' fake_gpu',{fs:11.5,fill:'var(--mute)'});
-    n.lines.forEach((l,k)=>{s+=RD.t(x+10,y+58+k*16,l,{fs:11.5})});
-    const mw=bw-20, frac=used/n.cap;
-    s+='<rect x="'+(x+10)+'" y="'+(y+bh-24)+'" width="'+mw+'" height="10" rx="3" fill="var(--bg)" stroke="var(--line)"/>';
-    s+='<rect x="'+(x+10)+'" y="'+(y+bh-24)+'" width="'+(mw*frac).toFixed(1)+'" height="10" rx="3" fill="'+NODE_COL[n.id]+'"/>';
-    s+=RD.t(x+10,y+bh-30,'idle '+used+' MB of '+n.cap+' MB cap',{fs:11,fill:'var(--mute)'});
-  });
-  if(!narrow){s+='<line x1="'+(bw/2)+'" y1="'+(bh+8)+'" x2="'+(w-bw/2)+'" y2="'+(bh+8)+'" stroke="var(--mute)" stroke-dasharray="4 3"/>';
-    s+=RD.t(w/2,bh+26,'Docker bridge network mi-ray-net; shared volume /shared on all three',{fs:11,a:'middle',fill:'var(--mute)'});}
-  el.innerHTML=RD.svg(w,H,s,'The three Ray containers: head with 0 CPUs, two workers with 2 CPUs and 2 fake GPUs each');
-}
-
 function stats(){
   const t=Y.tasks;
   $('ry-task-stats').innerHTML=RD.stat('One task, round trip',f2(t.rtt.median_ms)+' ms','median of '+t.rtt.n+'; p90 '+f2(t.rtt.p90_ms)+' ms')+
@@ -58,11 +31,15 @@ function stats(){
     RD.stat('fit() total',R.map(r=>f1(r.result.secs)).join(', ')+' s','final global loss '+R[0].result.metrics.gloss);
 }
 
-// eight naps: before/after on the same input
-let napMode='together',napAnim=null;
+// eight naps: before/after on the same input, replayed in stretches (2026-11-06 long-replay rule): each step sweeps the run's clock
+// from the previous stretch's end to its own; the boundaries are read from the run's tasks (window.RY_NAPB, checked against the list)
+let napMode='together',napAnim=null,napCur=0,napSweep=1,napRaf=0;
 function napData(){const n=Y.tasks.naps[napMode];const lanes=[...new Set(n.tasks.map(t=>t.host+' pid '+t.pid))].sort();return {n,lanes,T:Math.max(4.2,...n.tasks.map(t=>t.e))}}
-function drawNap(i){
-  const el=$('ry-nap');const w=RD.width(el);const {n,lanes,T}=napData();const now=i/10;
+function napB(m){const n=Y.tasks.naps[m||napMode],st=n.tasks.map(t=>t.s).sort((a,b)=>a-b),en=n.tasks.map(t=>t.e).sort((a,b)=>a-b);
+  return (m||napMode)==='together'?[st[3],en[3],n.secs]:[en[0],en[3],n.secs]}
+window.RY_NAPB=napB;
+function drawNapAt(now){
+  const el=$('ry-nap');const w=RD.width(el);const {n,lanes,T}=napData();
   const L=Math.min(130,w*0.3),R=10,top=18,lh=26,H=top+lanes.length*lh+26;const sx=t=>L+(w-L-R)*t/T;
   let s='';
   for(let k=0;k<=Math.floor(T);k++){s+='<line x1="'+sx(k)+'" y1="'+top+'" x2="'+sx(k)+'" y2="'+(H-22)+'" stroke="var(--line)"/>'+RD.t(sx(k),H-8,k+' s',{fs:10.5,a:'middle',fill:'var(--mute)'})}
@@ -72,43 +49,32 @@ function drawNap(i){
     if(sx(e)-sx(t.s)>16)s+=RD.t(sx(t.s)+4,y+13,'#'+t.i,{fs:10.5,fill:'var(--bg)'})});
   s+='<line x1="'+sx(Math.min(now,T))+'" y1="'+(top-6)+'" x2="'+sx(Math.min(now,T))+'" y2="'+(H-22)+'" stroke="var(--ink)" stroke-width="1.2"/>';
   el.innerHTML=RD.svg(w,H,s,'Eight half-second tasks on four worker processes');
-  const done=n.tasks.filter(t=>t.e<=now).length;
-  $('ry-nap-cap').innerHTML='<b>t = '+f1(Math.min(now,T))+' s</b>: '+done+' of 8 tasks finished. '+(napMode==='together'?
-    'All eight were submitted at once; four run immediately (4 CPUs), the next four start as soon as a slot frees. Total measured: <b>'+f2(n.secs)+' s</b>.':
-    'Each ray.get waits for its task before the next is submitted, so only one task ever runs while three CPUs idle. Total measured: <b>'+f2(n.secs)+' s</b>.');
+  const done=n.tasks.filter(t=>t.e<=now).length,run=n.tasks.filter(t=>t.s<=now&&t.e>now).length;
+  $('ry-nap-cap').innerHTML='<b>t = '+f2(Math.min(now,T))+' s</b>: '+run+' running, '+done+' of 8 finished'+(now>=n.secs-1e-6?'; measured total <b>'+f2(n.secs)+' s</b>.':'.');
 }
-function napSteps(){return Math.ceil(napData().T*10)+1}
+function napFrame(){const B=napB(),t0=napCur?B[napCur-1]:0;drawNapAt(t0+(B[napCur]-t0)*napSweep)}
+function drawNap(i){const fwd=i===napCur+1&&$('ry-nap-card').classList.contains('rd-fwd');napCur=i;cancelAnimationFrame(napRaf);
+  if(!fwd||RD.RM){napSweep=1;napFrame();return}
+  const s0=performance.now();napSweep=0;const go=now=>{napSweep=Math.min(1,(now-s0)/1800);napFrame();if(napSweep<1)napRaf=requestAnimationFrame(go)};napRaf=requestAnimationFrame(go)}
 
 // objects stepper
-const OBJ_STEPS=[
-  {k:'made',t:'1. Two tasks on w1 return a 1 KB and a 1 MB array'},
-  {k:'get',t:'2. The driver (on the head) calls ray.get on the 1 MB one'},
-  {k:'put',t:'3. The driver calls ray.put on a 4 MB array'},
-  {k:'r0',t:'4. A task on w2 reads a 16 MB object made on w1'},
-  {k:'r1',t:'5. A second task on w2 reads it again'},
-  {k:'r2',t:'6. A task on w1 reads it'}];
+const OBJ_STEPS=[{k:'made'},{k:'get'},{k:'put'},{k:'r0'},{k:'r1'},{k:'r2'}];
 let objStep=0;
 function drawObj(){
   const el=$('ry-obj');const w=RD.width(el);const o=Y.objects;const st=OBJ_STEPS[objStep].k;
   const names=['ray-head','ray-w1','ray-w2'];const bw=(w-16)/3,H=150;
   const chips={'ray-head':[],'ray-w1':[],'ray-w2':[]};let inline=null;
   const loc=(arr,label,col)=>arr[0].nodes.forEach(n=>chips[n].push({l:label,c:col}));
-  if(st==='made'){loc(o.before.big,'1 MB result','var(--c1)');inline='1 KB result: no store location (inline, '+o.before.small[0].size+' bytes serialised, held by the driver)'}
+  if(st==='made'){loc(o.before.big,'1 MB result','var(--c1)');inline=1}
   if(st==='get'){loc(o.after.big,'1 MB result','var(--c1)')}
   if(st==='put'){loc(o.after.big,'1 MB result','var(--c1)');loc(o.put.where,'4 MB ray.put','var(--c4)')}
   if(st[0]==='r'){const i=+st[1];if(i===0)chips['ray-w1'].push({l:'16 MB object',c:'var(--c2)'});else loc(o.read16[i-1].where_after,'16 MB object','var(--c2)');}
   let s='';names.forEach((n,i)=>{const x=i*(bw+8);s+='<rect x="'+x+'" y="0" width="'+bw+'" height="'+H+'" rx="8" fill="var(--soft)" stroke="'+NODE_COL[n]+'"/>'+RD.t(x+8,18,n,{fs:12.5,w:600})+RD.t(x+8,34,'object store',{fs:10.5,fill:'var(--mute)'});
-    chips[n].filter(c=>c.l).forEach((c,k)=>{s+='<rect x="'+(x+8)+'" y="'+(44+k*28)+'" width="'+(bw-16)+'" height="22" rx="4" fill="'+c.c+'" opacity=".85"/>'+RD.t(x+14,59+k*28,c.l,{fs:11,fill:'var(--bg)'})})});
+    if(inline&&n==='ray-head')chips[n].push({l:'1 KB: inline, in the driver',c:'var(--mute)',dash:1});chips[n].filter(c=>c.l).forEach((c,k)=>{s+=c.dash?'<rect x="'+(x+8)+'" y="'+(44+k*28)+'" width="'+(bw-16)+'" height="22" rx="4" fill="none" stroke="var(--mute)" stroke-dasharray="3 3"/>'+RD.t(x+14,59+k*28,c.l,{fs:11,fill:'var(--mute)'}):'<rect x="'+(x+8)+'" y="'+(44+k*28)+'" width="'+(bw-16)+'" height="22" rx="4" fill="'+c.c+'" opacity=".85"/>'+RD.t(x+14,59+k*28,c.l,{fs:11,fill:'var(--bg)'})})});
   if(st[0]==='r'){const i=+st[1];const r=o.read16[i];const to=names.indexOf(r.on);const from=names.indexOf('ray-w1');
     if(to!==from&&i===0){const x1=from*(bw+8)+bw/2,x2=to*(bw+8)+bw/2;s+='<path d="M'+x1+' '+(H-14)+' L'+x2+' '+(H-14)+'" stroke="var(--c2)" stroke-width="2" marker-end="url(#ryArr)"/>';}
     s='<defs><marker id="ryArr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--c2)"/></marker></defs>'+s}
   el.innerHTML=RD.svg(w,H,s,'Object copies per node at this step');
-  let cap='';
-  if(st==='made')cap='The 1 MB array is in w1\'s store, where its task ran. '+inline+'. Both were made with NodeAffinitySchedulingStrategy pinned to w1.';
-  if(st==='get')cap='After <code>ray.get</code> the 1 MB object has two copies, on w1 and on the head (the driver\'s node). The array the driver got is read-only (writeable '+o.get_big.writeable+', owndata '+o.get_big.owndata+'): a view of shared memory. Writing to it raised <code>'+E(o.readonly.type)+': '+E(o.readonly.msg)+'</code>.';
-  if(st==='put')cap='<code>ray.put</code> stores the value in the store of the caller\'s node: the head. The driver owns it.';
-  if(st[0]==='r'){const r=o.read16[+st[1]];cap='The task ran on '+r.on+' and took <b>'+f3(r.secs)+' s</b> end to end. '+(+st[1]===0?'w2 had no copy, so its raylet pulled one from w1 (in 5 MB chunks).':'A local copy already existed: no transfer.')+' Copies afterwards: '+r.where_after[0].nodes.join(' and ')+'.'}
-  $('ry-obj-cap').innerHTML='<b>'+OBJ_STEPS[objStep].t+'.</b> '+cap;
 }
 
 // spilling
@@ -162,10 +128,10 @@ function ftTable(){
   $('ry-ft-table').querySelector('tbody').innerHTML=h;
 }
 
-function all(){drawMap();stats();drawNap(napAnim?napAnim.i:0);drawObj();drawSpill();drawProc();placeCap();ftTable()}
-napAnim=RD.anim({card:'ry-nap-card',ctl:'ry-nap-ctl',n:napSteps(),draw:drawNap,ms:110,label:'Time'});
-RD.seg($('ry-nap-mode'),m=>{napMode=m;napAnim.reset(napSteps())});
-$('ry-obj-step').innerHTML=OBJ_STEPS.map((s,i)=>'<button data-m="'+i+'"'+(i?'':' class="on"')+'>'+(i+1)+'</button>').join('');
-RD.seg($('ry-obj-step'),m=>{objStep=+m;drawObj()});
+let objAnim=null;
+function all(){stats();napFrame();drawObj();drawSpill();drawProc();placeCap();ftTable()}
+napAnim=RD.anim({card:'ry-nap-card',ctl:'ry-nap-ctl',n:3,draw:drawNap,ms:4200,label:'Stretch of the run',list:'sx-nap-together'});
+RD.seg($('ry-nap-mode'),m=>{napMode=m;napCur=0;document.querySelectorAll('.sx-nap').forEach(l=>l.hidden=l.id!=='sx-nap-'+m);napAnim.reset(napB().length,'sx-nap-'+m)});
+objAnim=RD.anim({card:'ry-obj-card',ctl:'ry-obj-ctl',n:OBJ_STEPS.length,draw:i=>{objStep=i;drawObj()},ms:4600,label:'Step',list:'sx-obj'});
 RD.onRender(all);RD.onResize(all);all();
 })();

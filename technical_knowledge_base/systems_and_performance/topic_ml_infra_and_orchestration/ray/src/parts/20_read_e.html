@@ -8,14 +8,23 @@
 <li><b>Objects</b> lost with a node are rebuilt by their owner re-running the task (the GCS log said "Attempting to recover 2 lost objects by resubmitting their tasks"), if that task is retryable. Objects whose owner died are lost for good (<code>OwnerDiedError</code>), and so are <code>ray.put</code> objects whose only copy was on the lost node.</li>
 <li><b>Nodes</b> are declared dead by the GCS after <code>health_check_failure_threshold</code> = 5 failed checks, sent every <code>health_check_period_ms</code> = 3,000 ms with a <code>health_check_timeout_ms</code> = 10,000 ms timeout (<code>ray_config_def.h</code> lines 1060 to 1064). Here the first check failed 11.7 s after the node was killed and the node was dead at 29.9 s; the root's Failure lab measured 30.0 s on its own run.</li>
 </ul>
-<p>The replay puts the ownership rule to work: on <code>ray-w2</code>, <b>A</b> an 8 MB task output (driver owns it, retryable), <b>B</b> the same with <code>max_retries=0</code>, <b>C</b> an 8 MB array a task on w2 <code>ray.put</code> itself and returned, <b>D</b> a 1 KB task output (inline), and two actors (<code>max_restarts=1</code> and the default 0). Then <code>docker kill mi-ray-w2</code>, and the driver asked for each. Predict each fate, then step.</p>
-<div class="ry-card" id="ry-loss-card"><h4>One node lost, six fates, decided by owner and lineage <span class="ry-meas">measured</span></h4>
-<div class="ry-seg" id="ry-loss-pick"></div>
-<div id="ry-loss"></div>
-<div class="ry-ctl" id="ry-loss-ctl"></div>
-<div class="ry-anc" id="ry-loss-cap"></div>
-<p class="ry-cap">Timeline dots: GCS log lines (purple), the driver's answers (blue), the re-executed task (orange). Seconds after the kill, from the host's clock (kill), the GCS log (health checks, node death), the shared run log (re-executed task) and the driver (each <code>ray.get</code>). The driver asked in order D, A, B, C, then the actors, so B's and C's answers came after A's 31 s wait. The GCS timings are set by its health-check settings and transfer to real clusters.</p>
-</div>
+</section>
+
+<div class="s3sp"><div class="s3R"><div id="stg-loss"></div></div><div class="s3L">
+<section id="s-loss">
+<h3>One node lost, six fates, decided by owner and lineage</h3>
+<p>The node-loss run puts the ownership rule to work: on <code>ray-w2</code>, <b>A</b> an 8 MB task output (driver owns it, retryable), <b>B</b> the same with <code>max_retries=0</code>, <b>C</b> an 8 MB array a task on w2 <code>ray.put</code> itself and returned, <b>D</b> a 1 KB task output (inline), and two actors (<code>max_restarts=1</code> and the default 0). Then <code>docker kill mi-ray-w2</code>, and the driver asked for each. Predict each fate, then follow Fig. 3.</p>
+<p class="sxh">Fig. 3, step by step: seconds after the kill <span class="ry-meas">measured</span></p>
+<ol class="sx" id="sx-loss">
+<li><b>Before the kill.</b> A, B and C sit in w2's object store, and both Counter actors run on w2. D came back inline when its task finished, so it lives in the driver's memory on the head.</li>
+<li><b>w2 is killed at 0 s.</b> The driver asks for D first: it returns at once (0.42 s after the kill, when the driver started asking), because it was never on w2. Then it asks for A and waits.</li>
+<li><b>The GCS health checks fail.</b> The first failed check came 11.7 s after the kill, then one every 3 s: 20.9, 23.9, 26.9 and 29.9 s. Nobody else knows the node is gone; <code>ray.get(A)</code> is still waiting.</li>
+<li><b>Node declared dead at 29.9 s.</b> After 5 failed checks the GCS marks w2 dead, reschedules its placement groups and hands its actors to the actor manager.</li>
+<li><b>A is rebuilt from lineage.</b> Its owner, the driver, is alive and holds the lineage, and the task is retryable (<code>max_retries</code> 3): it re-ran the task on w1 at 31.4 s, and <code>ray.get(A)</code> returned after 31.0 s of waiting.</li>
+<li><b>B and C are lost.</b> B: <code>ObjectReconstructionFailedError</code>, the owner is alive but may not re-run a <code>max_retries=0</code> task. C: <code>OwnerDiedError</code> at 41.7 s; its owner was the worker on w2 that called <code>ray.put</code>, and <code>ray.put</code> objects have no lineage anyway.</li>
+<li><b>The actors.</b> With <code>max_restarts=1</code> the GCS restarted the Counter on w1; <code>__init__</code> ran again, so the next call returned 1. With the default 0 it is dead: <code>ActorDiedError</code>.</li>
+</ol>
+<p class="ry-cap">Times from the host's clock (kill), the GCS log (health checks, node death), the shared run log (re-executed task) and the driver (each <code>ray.get</code>). The driver asked in order D, A, B, C, then the actors, so B's and C's answers came after A's 31 s wait. The GCS timings are set by its health-check settings and transfer to real clusters. Positions are schematic.</p>
 <details class="ry-d"><summary>Each item: owner, outcome, why, and Ray's message</summary>
 <div class="tw"><table id="ry-loss-table"><thead><tr><th>Thing on the dead node</th><th>Owner</th><th>Outcome</th><th>Why</th></tr></thead><tbody></tbody></table></div>
 </details>
@@ -24,7 +33,15 @@
 <div class="ans">No. The owner is the worker on B that called <code>ray.put</code>; its count and location table died with it. Ray's docs: "Currently, Ray does not support recovery from owner failure", and "Ray will clean up any remaining copies of the object's value to prevent a memory leak" ({{object fault tolerance|https://docs.ray.io/en/latest/ray-core/fault_tolerance/objects.html}}). The error reads "The object's owner has exited. This is the Python worker that first created the ObjectRef via .remote() or ray.put()"; measured here with the copy on the killed node itself (object C). Rule: let the driver or a long-lived actor own what you cannot lose; return values from tasks instead of <code>ray.put</code> inside them.</div></div>
 <p><b>The head</b> is the exception: without GCS fault tolerance, losing it loses the cluster. With <b>GCS fault tolerance</b> the GCS writes its tables to an external Redis; when it restarts, raylets and workers reconnect (they wait up to <code>gcs_rpc_server_reconnect_timeout_s</code> = 60 s, line 549) and running tasks and actors continue ({{Ray docs: GCS fault tolerance|https://docs.ray.io/en/latest/ray-core/fault_tolerance/gcs.html}}; on KubeRay 1.3.0 and later, a <code>gcsFaultToleranceOptions</code> field in the RayCluster spec: {{KubeRay GCS fault tolerance|https://docs.ray.io/en/latest/cluster/kubernetes/user-guides/kuberay-gcs-ft.html}}). <span class="ry-nr">not run here</span>: it needs a Redis and a head restart, which teaches little on a toy cluster beyond what the docs state.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="ry-card s3stick" id="ry-dp-card"><h4 id="ry-dp-title"></h4>
+<div class="ry-seg" id="ry-dp-mode"><button data-m="streaming" class="on">Streaming, fused (default)</button><button data-m="pipelined">Streaming, two operators</button><button data-m="staged">Staged (materialize between)</button></div>
+<div id="ry-dp"></div>
+<div class="ry-ctl" id="ry-dp-ctl"></div>
+<p class="ry-cap" id="ry-dp-live"></p>
+<div class="ry-leg" id="ry-dp-leg"></div>
+</div></div><div class="s3L">
 <section id="s-data">
 <h2>Ray Data: streaming blocks through the cluster</h2>
 <p>Training reads and transforms data while GPUs wait. Inside each training process, preprocessing is tied to the trainer's CPUs; all up front, it needs storage for the whole result and a long wait. A Ray Data <code>Dataset</code> is a lazy plan (<code>read_*</code> or <code>from_items</code>, then <code>map_batches(fn)</code>, then a consumer such as <code>iter_batches</code> or a Ray Train worker). Data moves as <b>blocks</b> in the object store, which Ray Data "attempts to bound ... between 1 MiB and 128 MiB" ({{Ray Data internals|https://docs.ray.io/en/latest/data/data-internals.html}}; <code>DEFAULT_TARGET_MAX_BLOCK_SIZE</code>, <code>python/ray/data/context.py</code> line 76). The <b>streaming executor</b> runs every operator at once: each "takes in and outputs a stream of blocks", each block is one Ray task (or an actor pool for stateful work such as a model), and the first batch arrives once the first block has passed every stage.</p>
@@ -40,18 +57,31 @@ ds = ds.map_batches(window, batch_size=1)                 <span class="c"># pipe
 for b in ds.iter_batches(batch_size=512, batch_format="numpy"):
     time.sleep(0.1)                                       <span class="c"># a training step</span></pre>
 <div class="out" id="ry-data-stats"></div>
-<p>Predict which plan feeds the training loop first and which finishes last, then step the three runs.</p>
-<div class="ry-seg" id="ry-dp-mode"><button data-m="streaming" class="on">Streaming, fused (default)</button><button data-m="pipelined">Streaming, two operators</button><button data-m="staged">Staged (materialize between)</button></div>
-<div class="ry-card" id="ry-dp-card"><h4 id="ry-dp-title"></h4>
-<div id="ry-dp"></div>
-<div class="ry-ctl" id="ry-dp-ctl"></div>
-<div class="ry-anc" id="ry-dp-cap"></div>
-<div class="ry-leg" id="ry-dp-leg"></div>
+<p>Predict which plan feeds the training loop first and which finishes last, then watch the three runs.</p>
+<p class="sxh">The three runs, in stretches</p>
+<ol class="sx sx-dp" id="sx-dp-streaming">
+<li><b>Start-up.</b> The plan is built and <code>FromItems</code> cuts the text into 24 blocks; the first tasks start at 1.02 s.</li>
+<li><b>Fused tasks, then the first batch.</b> Each block is one task that runs encode and then window, four at a time; the first batch reaches the training loop at 2.38 s.</li>
+<li><b>Everything overlaps.</b> The workers keep producing blocks while the training loop consumes batches; the last block is done at 6.26 s.</li>
+<li><b>Training drains.</b> All 35 batches are done at 6.76 s.</li>
+</ol>
+<ol class="sx sx-dp" id="sx-dp-pipelined" hidden>
+<li><b>Start-up.</b> The same 24 blocks; the first tasks start at 0.87 s.</li>
+<li><b>Two operators interleave.</b> encode and window run as separate tasks on the same 4 CPUs (window asks for 0.5 CPU), with a store hop between them; the first batch arrives at 3.13 s.</li>
+<li><b>Everything overlaps.</b> The last block is done at 8.21 s.</li>
+<li><b>Training drains.</b> All 35 batches are done at 8.82 s.</li>
+</ol>
+<ol class="sx sx-dp" id="sx-dp-staged" hidden>
+<li><b>Start-up.</b> The same 24 blocks; the first tasks start at 0.85 s.</li>
+<li><b>Only encode runs.</b> Every block is encoded before anything else may start, and the training loop waits: <code>materialize()</code> returns at 4.60 s (red line).</li>
+<li><b>Then window, then the first batch.</b> window starts on the stored blocks, and the first batch reaches the training loop at 5.07 s.</li>
+<li><b>Training drains.</b> The last block is done at 7.56 s and all 35 batches at 9.15 s, the slowest of the three.</li>
+</ol>
 <p class="ry-cap"><span class="ry-meas">measured</span> Same 24 blocks, same 17,424 samples in 35 batches, three plans; lanes are worker processes, the bottom lane the training loop in the driver. Fused: each block is one task running both functions, and training starts as soon as the first blocks are done. Two operators: separate tasks interleave on the same 4 CPUs (window asks for 0.5 CPU) with a store hop between, which cost time here; on a real pipeline you unfuse on purpose when stages need different resources (CPU decode, GPU model). Staged: every encode finishes before any window starts, so training waits for the whole first stage: the bulk-synchronous plan streaming replaced. The shapes are the lesson, not the seconds.</p>
-</div>
 <details class="ry-d"><summary>Operators, tasks and wall time per plan, from <code>ds.stats()</code></summary>
 <div class="tw"><table id="ry-dp-ops"><thead><tr><th>Mode</th><th>Operators reported by <code>ds.stats()</code></th><th class="num">Tasks</th><th class="num">Wall time</th></tr></thead><tbody></tbody></table></div>
 </details>
 <p><b>Published claim.</b> The Ray Data paper ({{Luan et al., The Streaming Batch Model for Efficient and Fault-Tolerant Heterogeneous Execution|https://arxiv.org/abs/2501.12407}}, 2025-01-16; UC Berkeley and Anyscale, Ray's company) reports "2.5-12x" throughput on heterogeneous batch inference over batch and stream processing systems, and 31% higher training throughput for Stable Diffusion than single-node data loaders <span class="ry-pub">published, authors' own measurements</span>. Not reproduced here.</p>
 <p><b>When it matters.</b> Heavy preprocessing, or preprocessing on a different machine type than training (CPU nodes decoding video for GPU trainers), and offline batch inference. For a text run already tokenized into shards, a plain loader is simpler ({{Storage and loading|n:3f95c17b0d0d81398782efcb29d950d4}} covers formats and loaders).</p>
 </section>
+</div></div>

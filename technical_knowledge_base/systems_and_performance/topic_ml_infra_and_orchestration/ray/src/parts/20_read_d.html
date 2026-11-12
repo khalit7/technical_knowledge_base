@@ -1,30 +1,32 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-arch">
 <h2>Processes: the GCS, raylets, workers and the driver</h2>
-<p>Four kinds of process make the cluster in the hero figure; knowing which holds what is how you read logs and failures.</p>
+<p>Four kinds of process make the cluster in Fig. 1; knowing which holds what is how you read logs and failures.</p>
 <div class="grid">
 <div class="sp"><div class="n">GCS (head only)</div><p>The <b>Global Control Service</b> (older papers: Global Control Store), <code>gcs_server</code>: the node table, the actor table (where each actor lives, its restarts), placement groups, jobs, a key-value store. It health-checks every raylet and declares nodes dead. It does <em>not</em> hold objects or schedule ordinary tasks.</p></div>
 <div class="sp"><div class="n">Raylet (every node)</div><p>A <b>scheduler</b> that grants worker leases for this node's resources or points the request elsewhere (spillback), the <b>object store</b> and object manager, and the <b>worker pool</b> that starts and reuses Python workers.</p></div>
 <div class="sp"><div class="n">Workers</div><p>Python processes running tasks and actors. Each embeds a <b>core worker</b> library, which is where ownership lives.</p></div>
 <div class="sp"><div class="n">Driver</div><p>Your script after <code>ray.init()</code>: a worker that owns everything it submits. Here and for Ray Jobs it runs on the head, so the head needs memory for it.</p></div>
 </div>
-<div class="ry-card" id="ry-proc-card"><h4>On the head, the dashboard outweighs the GCS <span class="ry-meas">measured</span></h4>
-<div id="ry-proc" class="bars"></div>
-<p class="ry-cap" id="ry-proc-cap"></p>
-</div>
 <p><b>When it matters.</b> The head is a single point of failure and a memory hot spot. The root's {{Failure lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} saw the head at 95% of its 1.5 GB cap during Ray Train runs, and Ray's memory monitor killed 13 non-training worker processes there. On a real cluster: no training on the head (<code>--num-cpus 0</code>, as here), memory for the driver, dashboard and Ray Train's controller, and GCS fault tolerance (Failures, below).</p>
 <details class="ry-d"><summary>Found here: raising a container's memory cap does not raise Ray's kill threshold</summary>
 <p class="small">Ray's memory monitor kills workers when a node's memory use passes <code>memory_usage_threshold</code> = 0.95 (<code>ray_config_def.h</code> line 79), checked every 250 ms (line 83). The threshold in bytes is computed once, when the raylet starts (<code>src/ray/common/monitors/threshold_memory_monitor.cc</code> line 33 stores it; line 126 compares against it). After <code>docker update --memory 2000m</code> on the running head, a Ray Train run still died with "Memory usage 1539858432B exceeded threshold of 1494220800B (71.2% of 2097152000B limit)": 1,494,220,800 is 95% of the <em>old</em> 1,500 MiB limit. Raise memory before <code>ray start</code>, or restart Ray after resizing. (This page then ran its head with 2,000 MB from the start, on 2026-10-16.)</p>
 </details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="ry-card" id="ry-proc-card"><h4>On the head, the dashboard outweighs the GCS <span class="ry-meas">measured</span></h4>
+<div id="ry-proc" class="bars"></div>
+<p class="ry-cap" id="ry-proc-cap"></p>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-sched">
 <h2>Scheduling: resources, policies and placement groups</h2>
 <p><b>Resources are counters.</b> A node advertises numbers (<code>CPU</code>, <code>GPU</code>, <code>memory</code>, any custom name such as <code>fake_gpu</code>); a task or actor asks for amounts (<code>num_cpus=1</code>, <code>num_gpus=0.5</code>, <code>resources={"fake_gpu": 1}</code>) and runs only where they are free. The numbers are for placement, not enforcement: Ray does not stop a task from using more (unlike Slurm with cgroups). On a real GPU node Ray sets <code>CUDA_VISIBLE_DEVICES</code> for the GPUs it assigned; for a custom resource it sets nothing.</p>
 <p><b>Policies.</b> The default <b>hybrid</b> policy prefers the local node until its critical resource passes <code>scheduler_spread_threshold</code> = 0.5 utilisation (<code>ray_config_def.h</code> line 252), then picks randomly among the least-loaded few (<code>src/ray/raylet/scheduling/policy/hybrid_scheduling_policy.h</code> lines 29 to 48: "Scheduling a task on a new node incurs a cold start penalty ... Past a certain utilization threshold, a big noisy neighbor problem occurs"). <code>"SPREAD"</code> spreads; <code>NodeAffinitySchedulingStrategy(node_id, soft)</code> pins to one node (soft: fall back if it is gone).</p>
 <p class="ry-cap" id="ry-place-cap"></p>
 <p><b>Placement groups</b> reserve several <b>bundles</b> at once, all or nothing, so a multi-worker job never starts with half its GPUs: Ray's gang scheduling. The GCS reserves them with a two-phase commit across raylets ("The first phase of 2PC ... prepare resources", "The second phase of 2PC", <code>src/ray/gcs/gcs_placement_group_scheduler.h</code> lines 114 and 116). Ray Train puts its worker group in one (<code>ScalingConfig(placement_strategy="PACK")</code> by default).</p>
-<div class="ry-card" id="ry-pg-card"><h4>Four bundles, two nodes of two: only the strict strategies refuse <span class="ry-meas">measured</span></h4>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="ry-card" id="ry-pg-card"><h4>Four bundles, two nodes of two: only the strict strategies refuse <span class="ry-meas">measured</span></h4>
 <div id="ry-pg"></div>
 <p class="ry-cap">Each bundle is 1 CPU + 1 <code>fake_gpu</code>, what one Ray Train worker asks for. Placements as recorded by the root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} (<code>src/sched/runs/ray/ray_pg.jsonl</code> in the root's folder, Ray 2.59.0, 2026-10-16). PACK prefers one node but settles for two; SPREAD spreads bundles over nodes, best effort; the STRICT_ variants wait rather than settle: STRICT_PACK needs one node with 4 and STRICT_SPREAD four nodes, so both stayed PENDING (with 2 bundles each, both were created) and the autoscaler printed "Error: No available node types can fulfill resource request ... {'CPU': 4.0, 'fake_gpu': 4.0}". A second group that needed 3 of 4 GPUs waited holding nothing, then got all 3 at once 0.68 s after the first was removed.</p>
-</div>
-</section>
+</div></div></div></div>

@@ -1,12 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-train"></div></div><div class="s3L">
 <section id="s-train">
 <h2>Ray Train: the worker group, checkpoints and failures</h2>
-<p>Distributed PyTorch needs N processes on the right machines, each told its rank, the world size and rank 0's address, a process group, and someone to restart from a checkpoint when one dies. torchrun does this per node and Slurm or Kubernetes supply machines; Ray Train does all of it inside a Ray cluster. <code>TorchTrainer(train_loop, scaling_config=ScalingConfig(num_workers=4, ...), run_config=RunConfig(...)).fit()</code>:</p>
-<ol class="tight">
-<li>A <b>controller</b> actor (Ray Train v2, the default: <code>RAY_TRAIN_V2_ENABLED</code> defaults to true, <code>python/ray/train/v2/_internal/constants.py</code> line 149) requests a placement group of N bundles ("Requesting resources: {'CPU': 1, 'fake_gpu': 1} * 4").</li>
-<li>It starts N <code>RayTrainWorker</code> actors, sets <code>MASTER_ADDR</code>, <code>MASTER_PORT</code>, <code>RANK</code>, <code>WORLD_SIZE</code>, <code>LOCAL_RANK</code> and initialises the process group with <code>TorchConfig(backend=...)</code> ("Setting up process group for: env:// [rank=0, world_size=4]"). The root's Launch lab has the env dump.</li>
-<li>Every worker runs your <code>train_loop</code>. <code>ray.train.report(metrics, checkpoint=Checkpoint.from_directory(d))</code> uploads the checkpoint to <code>storage_path</code> and queues a report; <code>ray.train.get_checkpoint()</code> returns the latest <em>registered</em> one after a restart.</li>
-<li>The controller polls the workers every <code>DEFAULT_HEALTH_CHECK_INTERVAL_S</code> = 2.0 s (line 35; <code>controller.py</code> line 436), collects reports and, on a failure, applies <code>FailureConfig</code>: a new worker group from the latest checkpoint, up to <code>max_failures</code> times (default 0: <code>python/ray/air/config.py</code> line 368), or raise.</li>
+<p>Distributed PyTorch needs N processes on the right machines, each told its rank, the world size and rank 0's address, a process group, and someone to restart from a checkpoint when one dies. torchrun does this per node and Slurm or Kubernetes supply machines; Ray Train does all of it inside a Ray cluster, from one call: <code>TorchTrainer(train_loop, scaling_config=ScalingConfig(num_workers=4, ...), run_config=RunConfig(...)).fit()</code>.</p>
+<p class="sxh">Fig. 4, step by step: run 1 of the crash test <span class="ry-meas">measured</span></p>
+<ol class="sx" id="sx-train">
+<li><b><code>fit()</code> starts a controller.</b> A <b>controller</b> actor (Ray Train v2, the default: <code>RAY_TRAIN_V2_ENABLED</code> defaults to true, <code>python/ray/train/v2/_internal/constants.py</code> line 149) runs on the head and requests a placement group of N bundles ("Requesting resources: {'CPU': 1, 'fake_gpu': 1} * 4"), PACK by default.</li>
+<li><b>The bundles are reserved together.</b> The GCS reserves all four at once with its two-phase commit, two on w1 and two on w2: one bundle per fake GPU, and no rank starts until every rank can.</li>
+<li><b>One worker per GPU.</b> It starts N <code>RayTrainWorker</code> actors, one in each bundle (ranks 0 and 1 on w1, 2 and 3 on w2), and sets <code>MASTER_ADDR</code>, <code>MASTER_PORT</code>, <code>RANK</code>, <code>WORLD_SIZE</code>, <code>LOCAL_RANK</code>. In run 1 the group was running 9.0 s after <code>fit()</code>.</li>
+<li><b>The process group.</b> The workers initialise the process group with <code>TorchConfig(backend=...)</code> ("Setting up process group for: env:// [rank=0, world_size=4]"), gloo here, before your loop runs. Then every worker runs your <code>train_loop</code>, and DDP all-reduces the gradients every step. The root's Launch lab has the env dump.</li>
+<li><b>Reports and checkpoints.</b> <code>ray.train.report(metrics, checkpoint=Checkpoint.from_directory(d))</code> uploads the checkpoint to <code>storage_path</code> and queues a report. The controller polls the workers every <code>DEFAULT_HEALTH_CHECK_INTERVAL_S</code> = 2.0 s (line 35; <code>controller.py</code> line 436) and registered step 50 at 11.67 s, once it held the report of every worker.</li>
+<li><b>Rank 3 dies after reporting step 100.</b> All four ranks reported step 100, and rank 0 uploaded its checkpoint, at 11.67 s. Rank 3 exited with code 13 at step 120 (12.14 s), before the next poll, and its report died with it: step 100 is never registered.</li>
+<li><b>A new group from step 50.</b> The poll found the failure at 13.69 s and applied <code>FailureConfig</code>: a new worker group from the latest checkpoint, up to <code>max_failures</code> times (default 0: <code>python/ray/air/config.py</code> line 368), or raise. <code>ray.train.get_checkpoint()</code> returns the latest <em>registered</em> one after a restart, step 50: the new group started at 19.02 s and redid 70 steps.</li>
 </ol>
+<p class="ry-cap">Positions are schematic; the times are seconds after <code>fit()</code> in run 1 (runs 2 and 3 below behaved the same).</p>
+
 <details class="ry-d"><summary>The loop of <code>src/scripts/ry_train.py</code> (the running example on Ray Train's checkpoint API)</summary>
 <pre>ck = ray.train.get_checkpoint()                 <span class="c"># None on the first attempt</span>
 if ck:
@@ -28,18 +35,23 @@ TorchTrainer(loop, torch_config=TorchConfig(backend="gloo"),
     run_config=RunConfig(storage_path="/shared/results", failure_config=FailureConfig(max_failures=1),
                          checkpoint_config=CheckpointConfig(num_to_keep=2))).fit()</pre>
 </details>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="ry-card" id="ry-tr-card"><h4 id="ry-tr-title"></h4>
+<div class="ry-seg" id="ry-tr-run"></div>
+<div class="ry-seg" id="ry-tr-view"><button data-m="real" class="on">What happened</button><button data-m="naive">What you might expect</button></div>
+<div id="ry-tr"></div>
+<div class="ry-ctl" id="ry-tr-ctl"></div>
+<p class="ry-cap" id="ry-tr-cap"></p>
+<div class="ry-leg"><span><i style="background:var(--c1)"></i>training steps</span><span><i style="background:var(--c5)"></i>report called (worker)</span><span><i style="background:var(--good)"></i>checkpoint registered (controller)</span><span><i style="background:var(--bad)"></i>crash or failure seen</span></div>
+<p class="ry-cap">Every rank calls report at step 100 (the second tick on each lane), but no green dot for 100 follows on the controller lane, so the restart begins at 50. 4 workers on 2 nodes; rank 3 exits with code 13 at step 120. Three runs; pick one above. The scrubber walks the run event by event.</p>
+</div></div></div><div class="s3L">
+<section id="s-train-replay">
+<h3>The crash, replayed: why the restart began at step 50</h3>
 <div class="ry-pr" id="ry-pr3"><div class="q">Predict: checkpoints every 50 steps; rank 3 crashes at step 120 on the first attempt; <code>max_failures=1</code>. From which step does the second attempt start?</div>
 <div class="opts"><button data-r="0">100</button><button data-r="1">50</button><button data-r="0">0</button><button data-r="0">it does not restart</button></div>
 <div class="ans">From step 50, in all three runs made here, although every worker had called <code>report</code> for step 100 and rank 0 had written the step-100 checkpoint half a second before the crash. A report reaches the controller only when it polls, and it registers a checkpoint only once it holds that report from <em>every</em> worker (<code>report_handler.py</code> lines 40 and 63: "Wait for all workers to report training results", <code>if not all(self._training_report_queues): return</code>). Rank 3's step-100 report died inside its process, so step 100 was never registered: 70 steps redone instead of 20, and the step-100 files stayed in storage as an orphan directory that <code>num_to_keep=2</code> did not delete.</div></div>
-<div class="ry-seg" id="ry-tr-run"></div>
-<div class="ry-seg" id="ry-tr-view"><button data-m="real" class="on">What happened</button><button data-m="naive">What you might expect</button></div>
-<div class="ry-card" id="ry-tr-card"><h4 id="ry-tr-title"></h4>
-<div id="ry-tr"></div>
-<div class="ry-ctl" id="ry-tr-ctl"></div>
-<div class="ry-anc" id="ry-tr-cap"></div>
-<div class="ry-leg"><span><i style="background:var(--c1)"></i>training steps</span><span><i style="background:var(--c5)"></i>report called (worker)</span><span><i style="background:var(--good)"></i>checkpoint registered (controller)</span><span><i style="background:var(--bad)"></i>crash or failure seen</span></div>
-<p class="ry-cap">Every rank calls report at step 100 (the second tick on each lane), but no green dot for 100 follows on the controller lane, so the restart begins at 50. 4 workers on 2 nodes; rank 3 exits with code 13 at step 120. Three runs; pick one above.</p>
-</div>
 <div class="out" id="ry-tr-stats"></div>
 <div class="out" id="ry-train-stats"></div>
 <p class="ry-cap"><span class="ry-meas">measured</span> The restarted group recomputed steps 50 to 120 and finished; its loss matched the uninterrupted running example at most logged steps and differed by one float32 rounding step (2.4e-7) at steps 70, 180 and 200, the DDP bucket-rebuild effect the root's Failure lab explains (a restarted process steps once with the initial bucket layout).</p>
@@ -54,16 +66,19 @@ TorchTrainer(loop, torch_config=TorchConfig(backend="gloo"),
 </details>
 <p><b>Check.</b> The driver log shows the controller's decisions ("[FailurePolicy] RETRY ... Error count: 1 (max allowed: 1)", "Started training worker group of size 4" with every rank's node and pid); <code>result.checkpoint</code> and <code>result.best_checkpoints</code> are what the controller registered. A newest checkpoint on disk that <code>get_checkpoint()</code> did not return is this race.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-serve">
 <h2>Ray Serve: replicas are actors behind a proxy</h2>
 <p>Ray Serve runs online inference on a Ray cluster. A <b>deployment</b> is a class decorated with <code>@serve.deployment</code>; each copy of it is a <b>replica</b>, an actor. A <b>controller</b> actor ("a global actor unique to each Serve instance that manages the control plane") creates and replaces replicas; an <b>HTTP proxy</b> actor (by default "one HTTP proxy actor on the head node", port 8000) receives requests and routes them to replicas through a <code>DeploymentHandle</code>. Deployments call each other through handles, so a pipeline of models is one Python program ({{Ray Serve architecture|https://docs.ray.io/en/latest/serve/architecture.html}}).</p>
-<div class="ry-card" id="ry-serve-card"><h4>A request queues at the proxy only when every replica is at <code>max_ongoing_requests</code></h4>
-<div id="ry-serve"></div>
-<p class="ry-cap"><span class="ry-src">from the source</span> Defaults at tag <code>ray-2.59.0</code> (<code>python/ray/serve/_private/constants.py</code> lines 283 and 284, <code>python/ray/serve/config.py</code> lines 695 and 704, read 2026-10-24): each replica takes up to <code>max_ongoing_requests</code> = 5 at once; with autoscaling on, the controller aims for <code>target_ongoing_requests</code> = 2 per replica between <code>min_replicas</code> and <code>max_replicas</code> (both 1 by default), adding replicas after <code>upscale_delay_s</code> = 30 s of load and removing them after <code>downscale_delay_s</code> = 600 s. "When replica Actors fail, the Controller Actor replaces them with new ones."</p>
-</div>
+
 <p><b>Batching and LLMs.</b> <code>@serve.batch</code> gathers concurrent calls into one list (defaults <code>max_batch_size</code> = 10, <code>batch_wait_timeout_s</code> = 0.01, <code>python/ray/serve/batching.py</code> lines 803 and 804). For LLMs, <b>Ray Serve LLM</b> wraps an engine ("Engine-agnostic backends such as vLLM and SGLang") behind <code>LLMConfig</code> and <code>build_openai_app</code>, an OpenAI-compatible app, with prefill-decode disaggregation, multi-LoRA and prefix-aware routing ({{Ray Serve LLM|https://docs.ray.io/en/latest/serve/llm/index.html}}). What those mechanisms are is the serving topic's: {{vLLM|n:3c65c17b0d0d8113b976d8bcaf2c0722}} and {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}} own batching, routing and autoscaling as ideas. <span class="ry-nr">not run here</span>: a Serve app on this cluster would show actor placement already measured above; on Kubernetes it runs as a <b>RayService</b>.</p>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="ry-card" id="ry-serve-card"><h4>A request queues at the proxy only when every replica is at <code>max_ongoing_requests</code></h4>
+<div id="ry-serve"></div>
+<p class="ry-cap"><span class="ry-src">from the source</span> Defaults at tag <code>ray-2.59.0</code> (<code>python/ray/serve/_private/constants.py</code> lines 283 and 284, <code>python/ray/serve/config.py</code> lines 695 and 704, read 2026-10-24): each replica takes up to <code>max_ongoing_requests</code> = 5 at once; with autoscaling on, the controller aims for <code>target_ongoing_requests</code> = 2 per replica between <code>min_replicas</code> and <code>max_replicas</code> (both 1 by default), adding replicas after <code>upscale_delay_s</code> = 30 s of load and removing them after <code>downscale_delay_s</code> = 600 s. "When replica Actors fail, the Controller Actor replaces them with new ones."</p>
+</div></div></div></div>
 
 <section id="s-tune">
 <h2>Ray Tune, briefly</h2>

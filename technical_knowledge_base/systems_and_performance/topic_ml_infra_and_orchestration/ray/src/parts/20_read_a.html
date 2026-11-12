@@ -1,13 +1,20 @@
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav"><a href="#s-one">The idea</a><a href="#s-tasks">Tasks</a><a href="#s-actors">Actors</a><a href="#s-objects">Objects</a><a href="#s-own">Ownership</a><a href="#s-arch">Processes</a><a href="#s-sched">Scheduling</a><a href="#s-ft">Failures</a><a href="#s-data">Ray Data</a><a href="#s-train">Ray Train</a><a href="#s-serve">Ray Serve</a><a href="#s-kuberay">KubeRay</a><a href="#s-when">When Ray</a><a href="#s-mis">Mistakes</a></nav>
-
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <h2>The idea</h2>
 <p class="ry-core">Ray turns Python functions and classes into <b>tasks</b> and <b>actors</b> scheduled across a cluster; their results are immutable <b>objects</b> kept in each node's shared-memory store, and every object has an <span class="ry-hl">owner</span>, the worker that created it, which counts its references, knows where its copies are and decides whether it can be rebuilt after a failure.</p>
-<div class="ry-card" id="ry-hero-card"><h4>One call, <code>y = f.remote(x)</code>, on this page's cluster: who does what</h4>
-<div id="ry-hero"></div>
-<p class="ry-cap">The driver (your script) asks a raylet for a worker lease (1), pushes the task straight to the leased worker (2), and the 8 MB result is stored in that node's object store (3); a reader on another node pulls a copy (4). The <span class="ry-hl">owner's table</span> in the driver is the only record of <code>y</code>'s references, copies and lineage. The GCS on the head keeps cluster metadata and health-checks nodes; it is not on the task's path. Ray Train, Data, Serve and Tune are libraries built from these pieces; the machines underneath come from Kubernetes or Slurm.</p>
-</div>
+<p class="sxh">Fig. 1, step by step: one call, <code>y = f.remote(x)</code>, on the cluster every number on this page came from <span class="ry-meas">measured</span></p>
+<ol class="sx" id="sx-hero">
+<li><b>The cluster.</b> Ray 2.59.0 in three containers on one laptop (setup in the root's <code>src/data/README.md</code>). The head offers <b>0 CPUs</b>, so no task runs there; it holds the GCS (cluster metadata and node health checks) and your driver. Each worker, w1 and w2, offers 2 CPUs, an 80 MB object store and 2 <code>fake_gpu</code> (a custom resource Ray counts and hands out, not a device); every node runs a raylet. Idle memory from <code>docker stats</code>: head 692 MB of a 2,000 MB cap, workers 244 and 243 MB of 1,100 MB.</li>
+<li><b>The call returns a ref and makes an owner.</b> Nothing runs yet: the driver (your script) creates the ObjectRef <code>y</code>, becomes its <span class="ry-hl">owner</span> and writes its table: 1 reference, no location yet, and the lineage, the task <code>f(x)</code>, to re-run if every copy is lost.</li>
+<li><b>A lease, with spillback.</b> The owner asks its local raylet (the head's) for a worker lease that fits 1 CPU. The head offers 0 CPUs, so its raylet answers with <b>spillback</b>: ask w1, which has free CPUs (it knows other nodes' free resources from the cluster view the GCS keeps in sync). w1's raylet grants a lease on one of its pooled worker processes, or starts one.</li>
+<li><b>Push straight to the worker.</b> The owner sends the task <b>directly to the leased worker</b>. The GCS is not on this path, which is why ordinary tasks keep running while it is briefly slow. If w1 has no copy of the argument <code>x</code>, its object manager pulls one first.</li>
+<li><b>The result lands in w1's store.</b> 8 MB is over the 100 KB inline limit, so it is written to w1's object store and the worker tells the owner "y is at w1"; the lease can be reused for the next task of the same shape. A result under 100 KB would travel inside the reply and live in the owner's memory instead.</li>
+<li><b>A reader on w2 pulls a copy.</b> The owner tells w2 where <code>y</code> is; w2's raylet pulls a copy into its own store, and that copy serves every reader on w2. Measured with a 16 MB object: the first read on w2 took 0.42 s, the second 5 ms.</li>
+<li><b>Freed when the count reaches 0.</b> The driver deletes <code>y</code>: the owner tells both stores to free their copies and forgets the lineage.</li>
+</ol>
+<p class="ry-cap">The <span class="ry-hl">owner's table</span> in the driver is the only record of <code>y</code>'s references, copies and lineage. Message order from the {{Ownership paper|https://www.usenix.org/conference/nsdi21/presentation/cheng}} and Ray's {{architecture whitepaper|https://docs.ray.io/en/latest/ray-contribute/whitepaper.html}}; no timings are drawn per message because none were measured. Ray Train, Data, Serve and Tune are libraries built from these pieces; the machines underneath come from Kubernetes or Slurm. Positions are schematic.</p>
 <p><b>Where it sits.</b> Slurm and Kubernetes hand out <em>machines</em> to jobs (the root page's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} compares them). Ray runs <em>inside</em> machines you already have, usually Kubernetes pods (KubeRay) or a Slurm allocation, and schedules the tasks of one program across them. It is not a rival to Slurm for "who gets the cluster"; it is the layer that makes one program distributed.</p>
 <p class="small"><b>You need:</b> DDP and <code>torch.distributed</code> for the Ray Train section ({{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}); the root page's {{Slurm, Kubernetes and Ray comparison|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} for the cluster layer below.</p>
 <p class="small" style="margin-bottom:2px"><b>New terms</b></p>
@@ -23,11 +30,84 @@
 <li><b>Placement group</b>: bundles of resources reserved all or nothing.</li>
 <li><b>Block</b>: Ray Data's unit, a chunk of rows in the object store.</li>
 </ul>
-<div class="ry-card" id="ry-map-card"><h4>The cluster every number on this page came from <span class="ry-meas">measured</span></h4>
-<div id="ry-map"></div>
-<p class="ry-cap">Ray 2.59.0 in three containers on one laptop (setup in the root's <code>src/data/README.md</code>). The head offers <b>0 CPUs</b>, so no task runs there; each worker offers 2 CPUs, an 80 MB object store and 2 <code>fake_gpu</code> (a custom resource Ray counts and hands out, not a device). Memory is <code>docker stats</code> with the cluster idle.</p>
-</div>
 <details class="ry-d"><summary>How the evidence was made</summary>
-<p class="small">All runs: Ray 2.59.0 (PyPI 2026-10-02), torch 2.14.1 CPU, 2026-10-16, scripts in <code>src/scripts/</code> (<code>ry_core.py</code> tasks, actors, objects, spilling, failures and a node loss; <code>ry_data.py</code> Ray Data; <code>ry_train.py</code> Ray Train with its checkpoint API), raw output scrubbed in <code>src/runs/</code>. Timings are <b>measured on Apple M1 Pro, Docker Desktop VM, shared machine</b>: rough, useful for ratios and orders of magnitude, not as cluster numbers. Placements, counts, error types, messages and event orders are deterministic and transfer to a real cluster. Ray source is quoted at tag <code>ray-2.59.0</code> (commit <code>dd83c3a</code>), file and line, located by pattern in <code>src/scripts/ry_quotes.py</code>; Ray Serve defaults were read from the same tag on 2026-10-24. The head was given a 2,000 MB cap, 500 MB more than the shared setup's 1,500 MB (see Processes). Process sizes are resident memory (RSS) read from <code>/proc</code>, which double-counts shared pages. Ray runs in Linux containers because it refuses a multi-node cluster on macOS ("Multi-node Ray clusters are not supported on Windows and OSX").</p>
+<p class="small">All runs: Ray 2.59.0 (PyPI 2026-10-02), torch 2.14.1 CPU, 2026-10-16, scripts in <code>src/scripts/</code> (<code>ry_core.py</code> tasks, actors, objects, spilling, failures and a node loss; <code>ry_data.py</code> Ray Data; <code>ry_train.py</code> Ray Train with its checkpoint API), raw output scrubbed in <code>src/runs/</code>. Timings are <b>measured on Apple M1 Pro, Docker Desktop VM, shared machine</b>: rough, useful for ratios and orders of magnitude, not as cluster numbers. Placements, counts, error types, messages and event orders are deterministic and transfer to a real cluster. Ray source is quoted at tag <code>ray-2.59.0</code> (commit <code>dd83c3a</code>), file and line, located by pattern in <code>src/scripts/ry_quotes.py</code>; Ray Serve defaults were read from the same tag on 2026-10-24. The head was given a 2,000 MB cap, 500 MB more than the shared setup's 1,500 MB (see Processes). Process sizes are resident memory (RSS) read from <code>/proc</code>, which double-counts shared pages. The containers share a Docker bridge network and a volume mounted at <code>/shared</code> on all three. Ray runs in Linux containers because it refuses a multi-node cluster on macOS ("Multi-node Ray clusters are not supported on Windows and OSX").</p>
 </details>
 </section>
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div class="ry-card s3stick" id="ry-nap-card"><h4>Where <code>ray.get</code> sits decides whether tasks overlap <span class="ry-meas">measured</span></h4>
+<div class="ry-seg" id="ry-nap-mode"><button data-m="together" class="on">Submit all, then get</button><button data-m="get_in_loop">ray.get inside the loop</button></div>
+<div id="ry-nap"></div>
+<div class="ry-ctl" id="ry-nap-ctl"></div>
+<p class="ry-cap" id="ry-nap-cap"></p>
+</div></div><div class="s3L">
+<section id="s-tasks">
+<h2>Tasks: remote functions and futures</h2>
+<p><code>@ray.remote</code> registers a function with the cluster. <code>f.remote(x)</code> does not run <code>f</code>: it sends a task description (function, arguments, resource request, by default 1 CPU) to Ray and returns an <b>ObjectRef</b> at once. <code>ray.get(ref)</code> blocks until the result exists; <code>ray.wait(refs)</code> returns the ones that are ready. Because <code>.remote()</code> returns immediately, you submit many tasks before waiting for any: that is where the parallelism comes from.</p>
+<p class="ry-src-q">From <code>src/scripts/ry_core.py</code> (section <code>tasks</code>), run as the driver on the head:</p>
+<pre>@ray.remote
+def noop():
+    return socket.gethostname()
+
+<span class="c"># one at a time: submit, wait, repeat (100 times)</span>
+for _ in range(100):
+    ray.get(noop.remote())
+<span class="c"># 1,000 at once: submit all, then wait for all</span>
+hosts = ray.get([noop.remote() for _ in range(1000)])</pre>
+<div class="out" id="ry-task-stats"></div>
+<p class="ry-cap"><span class="ry-meas">measured</span> One tiny task round trip (submit, schedule, run, return) took about 3 ms on this laptop; 1,000 tasks submitted together cost well under 1 ms each, because Ray pipelines them across the 4 worker processes and reuses a leased worker for many tasks. The 1,000 results came from both workers (the split is in the card). The {{Ownership paper|https://www.usenix.org/conference/nsdi21/presentation/cheng}} (NSDI 2021, the design Ray implements) reports about 1 ms per task on a real cluster <span class="ry-pub">published</span>: the same order.</p>
+<div class="ry-pr" id="ry-pr1"><div class="q">Predict: eight tasks that each sleep 0.5 s, on 4 free CPUs. How long does <code>ray.get([nap.remote(i, 0.5) for i in range(8)])</code> take, and how long does <code>[ray.get(nap.remote(i, 0.5)) for i in range(8)]</code> take? Answer, then watch the replay.</div>
+<div class="opts"><button data-r="0">0.5 s and 0.5 s</button><button data-r="1">about 1 s and about 4 s</button><button data-r="0">about 4 s and about 4 s</button><button data-r="0">about 1 s and about 1 s</button></div>
+<div class="ans">About 1 s (two waves of 4 on 4 CPUs) against about 4 s: 4.0 s instead of 1.1 s here. In the second form each <code>ray.get</code> waits for its task before the next is even submitted, so the eight run one after another: the classic "ray.get in a loop" mistake.</div></div>
+<p class="sxh">The replay, in stretches of the recorded run</p>
+<ol class="sx sx-nap" id="sx-nap-together">
+<li><b>Submit all eight.</b> Every <code>.remote()</code> returns at once; four tasks start within 12 ms, one on each worker process (two per worker node).</li>
+<li><b>The first wave.</b> Four run side by side for 0.5 s; the other four wait for a free CPU.</li>
+<li><b>The second wave.</b> Each freed process takes the next task (two on w2 started 0.1 s late, at 0.61 s); <code>ray.get</code> returns all eight at 1.12 s: two waves of 4 on 4 CPUs.</li>
+</ol>
+<ol class="sx sx-nap" id="sx-nap-get_in_loop" hidden>
+<li><b>Task 0 runs alone.</b> It runs on w1 for 0.5 s while three CPUs idle: the loop is blocked in <code>ray.get</code> and has not submitted task 1.</li>
+<li><b>Tasks 1 to 3, one at a time.</b> Each is submitted only when the previous one returns, so they alternate between w1 and w2 and never overlap: 2.02 s so far.</li>
+<li><b>Tasks 4 to 7, the same.</b> Done at 4.03 s, eight tasks times 0.5 s, on a cluster that could run four at once.</li>
+</ol>
+<p class="ry-cap">Each lane is one worker process (node and pid from the run); each bar is one task, placed where and when it really ran. Same eight tasks, same cluster.</p>
+<p><b>Cost.</b> A task is a scheduling decision, a message and a serialisation: milliseconds, not microseconds. Batch tiny work into fewer, larger tasks. The Ray docs' own example ({{anti-pattern: too fine-grained tasks|https://docs.ray.io/en/latest/ray-core/patterns/too-fine-grained-tasks.html}} <span class="ry-pub">published</span>) runs 10,000 calls of a 10-microsecond function: about 0.17 s as plain calls, 1.6 s as one task each, 0.03 s as batches of 1,000 per task.</p>
+<p><b>Check.</b> <code>ray status</code> shows CPUs in use; <code>ray timeline</code> writes a Chrome trace with each task as a bar per worker, as drawn here. Serial bars that should overlap mean a <code>ray.get</code> between submissions.</p>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-actor"></div></div><div class="s3L">
+<section id="s-actors">
+<h2>Actors: a process with state</h2>
+<p>Tasks forget everything between calls; a model on a GPU, a replay buffer or a simulator must live in one process. <code>@ray.remote</code> on a class makes an actor class: <code>Counter.remote()</code> starts a dedicated worker process, runs <code>__init__</code> there and returns an <b>actor handle</b>. Calls from one caller run one at a time in submission order (unless you ask for <code>max_concurrency</code> or async methods), so two calls never touch the state at once.</p>
+<pre>@ray.remote
+class Counter:
+    def __init__(self):
+        self.n = 0
+    def incr(self):
+        self.n += 1
+        return self.n
+
+c = Counter.remote()                                  <span class="c"># a new process on some node</span>
+vals = ray.get([c.incr.remote() for _ in range(1000)])  <span class="c"># 1,000 calls queued, run in order</span></pre>
+<div class="out" id="ry-actor-stats"></div>
+<p class="sxh">Fig. 2, step by step: three Counters from <code>ry_core.py</code> <span class="ry-meas">measured</span></p>
+<ol class="sx" id="sx-actor">
+<li><b><code>Counter.remote()</code> starts a process.</b> Ray placed a dedicated worker process for the actor on w1 in 0.16 s, ran <code>__init__</code> there (<code>n = 0</code>) and returned a handle.</li>
+<li><b>Calls go straight to that process.</b> 100 calls one at a time: a median round trip of 0.95 ms, against 2.96 ms for a task. After creation, an actor call round trip is faster than a task's: no scheduling decision, the caller talks straight to the actor's process.</li>
+<li><b>Queued calls run in order.</b> 1,000 <code>incr</code> calls submitted at once took 0.23 s and returned 101 to 1100: the 1,000 queued calls came back in order (the counter starts above 1 because the 100 single calls ran first).</li>
+<li><b>The process dies, <code>max_restarts=1</code>.</b> A second Counter, on w2 with <code>n</code> at 3, is killed. The call in flight fails with <code>ActorUnavailableError</code>; Ray starts a new process on w1 with a new pid, <code>__init__</code> runs again, and the next call returns 1: the state is gone.</li>
+<li><b>The default, <code>max_restarts=0</code>.</b> A third Counter, on w1, is killed and stays dead: every later call raises <code>ActorDiedError</code>.</li>
+</ol>
+<div class="tw"><table>
+<tr><th></th><th>Task</th><th>Actor</th></tr>
+<tr><td>State between calls</td><td>none</td><td>kept in the actor's process</td></tr>
+<tr><td>Where it runs</td><td>any node with free resources, chosen per call</td><td>one process, placed once at creation</td></tr>
+<tr><td>Order of calls</td><td>none: tasks run as resources free up</td><td>one caller's calls run in submission order</td></tr>
+<tr><td>Resources held</td><td>while running (1 CPU by default)</td><td>for its lifetime if it asks for any; by default 1 CPU to place it and 0 while it runs (<a href="https://docs.ray.io/en/latest/ray-core/scheduling/resources.html" target="_blank" rel="noopener noreferrer">Ray docs: resources</a>)</td></tr>
+<tr><td>On a crash</td><td>retried 3 times by default (system failures)</td><td>not restarted by default; with <code>max_restarts</code>, restarted with fresh state</td></tr>
+<tr><td>Typical use</td><td>preprocessing, scoring, parallel map</td><td>model replicas, simulators, rollout workers, Ray Train workers (<code>RayTrainWorker</code>), vLLM engines in RL stacks</td></tr>
+</table></div>
+</section>
+</div></div>

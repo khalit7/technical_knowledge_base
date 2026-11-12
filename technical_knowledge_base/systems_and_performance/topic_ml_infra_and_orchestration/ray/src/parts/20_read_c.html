@@ -1,3 +1,7 @@
+<div class="s3sp"><div class="s3R"><div class="ry-card s3stick" id="ry-obj-card"><h4>Copies appear where objects are read <span class="ry-meas">measured</span></h4>
+<div id="ry-obj"></div>
+<div class="ry-ctl" id="ry-obj-ctl"></div>
+</div></div><div class="s3L">
 <section id="s-objects">
 <h2>Objects and the object store</h2>
 <p>Tasks pass data to each other. Sending every result back through the submitting program would make it the bottleneck, so every node runs an <b>object store</b> (historically Plasma): shared memory, managed by the node's raylet, that every worker on the node can map. A result is stored where its task ran, and:</p>
@@ -7,30 +11,32 @@
 <li><b>Reads are zero-copy, objects immutable.</b> A NumPy array from the store is a read-only view of shared memory; a new value is a new object.</li>
 <li><b>The store has a size.</b> By default 30% of the node's memory (<code>DEFAULT_OBJECT_STORE_MEMORY_PROPORTION</code>, <code>python/ray/_private/ray_constants.py</code> line 110), capped at 200 GB (line 106); this cluster sets 80 MB per node with <code>--object-store-memory</code>.</li>
 </ul>
-<div class="ry-card" id="ry-obj-card"><h4>Copies appear where objects are read, read from <code>ray.experimental.get_object_locations</code> <span class="ry-meas">measured</span></h4>
-<div class="ry-seg" id="ry-obj-step"></div>
-<div id="ry-obj"></div>
-<div class="ry-anc" id="ry-obj-cap"></div>
-</div>
+<p class="sxh">The stepper: copies per node, read from <code>ray.experimental.get_object_locations</code> after each action <span class="ry-meas">measured</span></p>
+<ol class="sx" id="sx-obj">
+<li><b>Two tasks on w1 return a 1 KB and a 1 MB array.</b> The 1 MB array is in w1's store, where its task ran. The 1 KB result has no store location: inline, 1,269 bytes serialised, held by the driver. Both tasks were pinned to w1 with <code>NodeAffinitySchedulingStrategy</code>.</li>
+<li><b>The driver calls <code>ray.get</code> on the 1 MB one.</b> Now it has two copies, on w1 and on the head (the driver's node). The array the driver got is read-only (writeable False, owndata False), a view of shared memory: writing to it raised <code>ValueError: assignment destination is read-only</code>.</li>
+<li><b>The driver calls <code>ray.put</code> on a 4 MB array.</b> <code>ray.put</code> stores the value in the store of the caller's node, the head, and the driver owns it.</li>
+<li><b>A task on w2 reads a 16 MB object made on w1.</b> w2 had no copy, so its raylet pulled one from w1 in 5 MB chunks: 0.419 s end to end. Copies afterwards: w1 and w2.</li>
+<li><b>A second task on w2 reads it again.</b> A local copy already existed: no transfer, 0.005 s.</li>
+<li><b>A task on w1 reads it.</b> Local as well: 0.008 s. Copies stay on w1 and w2 until the owner frees them.</li>
+</ol>
 <p><b>Cost.</b> A cross-node read pays the network once per node, then is free on that node: here the first 16 MB read on the other worker took about 0.4 s and the second about 5 ms (a Docker bridge on a laptop, far below a real 100 to 400 Gb/s fabric; the ratio is the lesson). Passing a big array <em>by value</em> to many tasks stores a fresh copy per call; <code>ray.put</code> it once and pass the ref. (Both were timed; at 4 calls of 8 MB the difference was within this laptop's noise, so no number is quoted.) <b>Check:</b> <code>ray memory</code> lists every reference with its size, owner and why it is alive; <code>--stats-only</code> prints store usage and spill counters.</p>
-<h3 id="s-spill">When the store fills: spilling</h3>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<section id="s-spill">
+<h3>When the store fills: spilling</h3>
 <p>Past <code>object_spilling_threshold</code> = 0.8 of capacity (<code>ray_config_def.h</code> line 827), the raylet writes objects that are referenced but not in use to local disk through <b>IO worker</b> processes (<code>max_io_workers</code> = 4 per node) and restores them when read. Unreferenced objects are deleted; objects in use cannot be spilled. Only if spilling cannot keep up does a <code>put</code> fail with <code>ObjectStoreFullError</code> (spilling is on by default, <code>automatic_object_spilling_enabled</code>, line 804).</p>
-<div class="ry-card" id="ry-spill-card"><h4>Spilling makes reads slower, not failures: 14 objects of 8 MB into an 80 MB store <span class="ry-meas">measured</span></h4>
-<div id="ry-spill"></div>
-<p class="ry-cap" id="ry-spill-cap"></p>
-</div>
 <p><b>When it matters.</b> Spilling turns an out-of-memory crash into slower progress: right for data pipelines, wrong for a latency-sensitive actor. Its hidden cost showed up later here: the spill and restore IO workers stayed alive (two of each, about 400 MB of resident memory on a 1.1 GB node, <code>src/runs/debug/ps_w1_after_spill.txt</code>), and the next Ray Train run on that node was killed by Ray's memory monitor (<a href="#s-mis">Mistakes</a>). <code>ray memory --stats-only</code> printed "Spilled 64 MiB, 8 objects, avg write throughput 212 MiB/s" and "Restored 64 MiB, 8 objects, avg read throughput 1591 MiB/s"; spill throughput that low on a real node means a slow disk: point <code>object_spilling_config</code> (in <code>ray start --system-config</code>) at local NVMe ({{Ray docs: object spilling|https://docs.ray.io/en/latest/ray-core/objects/object-spilling.html}}).</p>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="ry-card" id="ry-spill-card"><h4>Spilling makes reads slower, not failures: 14 objects of 8 MB into an 80 MB store <span class="ry-meas">measured</span></h4>
+<div id="ry-spill"></div>
+<p class="ry-cap" id="ry-spill-cap"></p>
+</div></div></div></div>
 
 <section id="s-own">
 <h2>Ownership: who is responsible for an object</h2>
-<p>Once refs are passed between tasks on many nodes, someone must know when an object can be freed, where its copies are and what to do if its node dies; a central table for every object would be a bottleneck at millions of tasks per second. Ray's answer, from the {{Ownership paper|https://www.usenix.org/conference/nsdi21/presentation/cheng}} (Wang et al., NSDI 2021): the worker that creates an ObjectRef, by <code>.remote()</code> or <code>ray.put</code>, is its <span class="ry-hl">owner</span>, and keeps in its own memory the <b>reference count</b> (borrowers report back to it), the <b>locations</b> of the copies and the <b>lineage</b>, the task that produced it, kept while the object is referenced (<code>lineage_pinning_enabled</code>, line 208) up to <code>max_lineage_bytes</code> = 1 GB per owner (line 224). Step through one task to see the owner's table change; toggle the result size to see the inline path.</p>
-<div class="ry-card" id="ry-life-card"><h4>The owner's table, not the GCS, tracks <code>y</code> through its whole life <span class="ry-src">from the design</span></h4>
-<div class="ry-seg" id="ry-life-mode"><button data-m="big" class="on">Large result (8 MB)</button><button data-m="small">Small result (1 KB)</button></div>
-<div id="ry-life"></div>
-<div class="ry-ctl" id="ry-life-ctl"></div>
-<div class="ry-anc" id="ry-life-cap"></div>
-<p class="ry-cap">Steps from the Ownership paper and Ray's {{architecture whitepaper|https://docs.ray.io/en/latest/ray-contribute/whitepaper.html}}; where a 1 KB and a 1 MB result ended up is measured (Objects, above). The order of messages is the design's; no timings are drawn because none were measured per message. The GCS is not on this path, which is why ordinary tasks keep running while it is briefly slow.</p>
-</div>
+<p>Once refs are passed between tasks on many nodes, someone must know when an object can be freed, where its copies are and what to do if its node dies; a central table for every object would be a bottleneck at millions of tasks per second. Ray's answer, from the {{Ownership paper|https://www.usenix.org/conference/nsdi21/presentation/cheng}} (Wang et al., NSDI 2021): the worker that creates an ObjectRef, by <code>.remote()</code> or <code>ray.put</code>, is its <span class="ry-hl">owner</span>, and keeps in its own memory the <b>reference count</b> (borrowers report back to it), the <b>locations</b> of the copies and the <b>lineage</b>, the task that produced it, kept while the object is referenced (<code>lineage_pinning_enabled</code>, line 208) up to <code>max_lineage_bytes</code> = 1 GB per owner (line 224). Fig. 1, at the top of the page, follows one task while the owner's table changes (steps 2, 5 and 7).</p>
 <p><b>Consequences.</b> The driver owns everything it submits. A task that calls <code>ray.put</code> or submits tasks inside its body owns <em>those</em> objects, and they die with that worker even if the data sat on a healthy node. <code>ray.put</code> objects have no lineage (no task made them), so they cannot be rebuilt. Small inline objects live in the owner's memory, so they survive the loss of the node that computed them. Failures, below, shows all four on a real node loss.</p>
 </section>

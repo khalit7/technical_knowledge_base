@@ -1,4 +1,4 @@
-// ---- Ray child page: Reading, Ray Train failure replay (moved from its tab, 2026-10-24) ----
+// ---- Ray child page: Reading, Ray Train failure replay (moved from its tab, 2026-10-24; a widget since 2026-11-12, Fig. 4 is the 3D stage) ----
 (function(){
 const Y=window.RY,E=RD.esc,$=id=>document.getElementById(id),U=window.RYU,f1=U.f1,f2=U.f2;
 const reg=f=>{RD.onRender(f);RD.onResize(f)};
@@ -44,8 +44,9 @@ function draw(i){
   if(view==='naive')c+=' <span class="ill">illustrative</span> If step 100 had been registered, the second attempt would start at step 100 and redo 20 steps instead of 70: the faded bars, at the measured '+(I.per*1000).toFixed(0)+' ms per step of the real second attempt. That is not what Ray did.';
   $('ry-tr-cap').innerHTML=c;
 }
-const anim=RD.anim({card:'ry-tr-card',ctl:'ry-tr-ctl',n:EV.length,draw:draw,ms:1500,label:'Event'});
-function setRun(k){ri=k;EV=events(RUNS[ri]);$('ry-tr-title').innerHTML='Run '+(ri+1)+' of 3 <span class="ry-meas">measured</span>';anim.reset(EV.length);tables()}
+// a widget (2026-11-06 long-replay rule, case b): the outcome is the point, so it never plays by itself and opens on the run's last event
+const anim=RD.anim({card:'ry-tr-card',ctl:'ry-tr-ctl',n:EV.length,draw:draw,label:'Event',auto:false,start:EV.length-1});
+function setRun(k){ri=k;EV=events(RUNS[ri]);$('ry-tr-title').innerHTML='Run '+(ri+1)+' of 3 <span class="ry-meas">measured</span>';anim.reset(EV.length);anim.go(EV.length-1,true);tables()}
 $('ry-tr-run').innerHTML=RUNS.map((r,k)=>'<button data-m="'+k+'"'+(k?'':' class="on"')+'>Run '+(k+1)+'</button>').join('');
 RD.seg($('ry-tr-run'),m=>setRun(+m));
 RD.seg($('ry-tr-view'),m=>{view=m;anim.redraw()});

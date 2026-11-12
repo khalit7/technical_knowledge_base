@@ -34,3 +34,7 @@ Nothing to reproduce from a published table here; the reproducible things are de
 - Moved inline: the three lab tabs' visuals (each explained one mechanism).
 - Placement groups are now drawn here (this page owns Ray scheduling); the root's Scheduling lab section 7 should link here rather than keep its own Ray table (reported).
 - Rejected: a Ray Serve run (actor placement already measured; queueing would need a load generator on a laptop VM: dated, machine-bound numbers); real images (software; no openly licensed figure teaches more than the hero).
+
+## 2026-11-12 (split layout, renderer v2)
+Built: four 3D stages (Fig. 1 one call through the cluster with the owner's table as glass; Fig. 2 the Counter actor; Fig. 3 the node loss; Fig. 4 Ray Train's worker group, process group, reports and restart); the nap and Ray Data timelines replayed in stretches; the object stepper with a step list; the Train replay as a still widget.
+Rejected: a 3D object stepper (Fig. 1 draws the same path; the three columns read flat); a 3D Ray Serve (not run here); the 2D cluster map and life-of-a-task stepper (folded into Fig. 1).

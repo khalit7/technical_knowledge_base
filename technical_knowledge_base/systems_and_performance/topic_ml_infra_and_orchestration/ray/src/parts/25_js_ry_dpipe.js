@@ -8,8 +8,18 @@ const NAME={streaming:'Streaming, fused: encode and window in one task per block
 let mode='streaming';
 const T=()=>Math.max(...['streaming','pipelined','staged'].map(m=>Y.data[m].total))+0.3;
 function lanes(d){const ws=[...new Set(d.blocks.filter(b=>b.st!=='train').map(b=>b.h+' pid '+b.p))].sort();return ws.concat(['driver: training loop'])}
-function draw(i){
-  const el=$('ry-dp');if(!el)return;const d=Y.data[mode];const w=RD.width(el);const now=i/10;const TT=T();
+// stretches (2026-11-06 long-replay rule): each step sweeps the run's clock from the previous boundary to its own; the boundaries come
+// from the run's blocks (window.RY_DPB, checked against the step lists): first task, first batch (staged: materialize first), last block, end
+function bounds(m){const d=Y.data[m],w=d.blocks.filter(b=>b.st!=='train'),w0=Math.min(...w.map(b=>b.s)),lw=Math.max(...w.map(b=>b.e));
+  return m==='staged'?[w0,d.materialized,d.first,d.total]:[w0,d.first,lw,d.total]}
+window.RY_DPB=bounds;
+let cur=0,sweep=1,raf=0;
+function frame(){const B=bounds(mode),t0=cur?B[cur-1]:0;drawAt(t0+(B[cur]-t0)*sweep)}
+function draw(i){const fwd=i===cur+1&&$('ry-dp-card').classList.contains('rd-fwd');cur=i;cancelAnimationFrame(raf);
+  if(!fwd||RD.RM){sweep=1;frame();return}
+  const s0=performance.now();sweep=0;const go=now=>{sweep=Math.min(1,(now-s0)/2000);frame();if(sweep<1)raf=requestAnimationFrame(go)};raf=requestAnimationFrame(go)}
+function drawAt(now){
+  const el=$('ry-dp');if(!el)return;const d=Y.data[mode];const w=RD.width(el);const TT=T();
   const ls=lanes(d);const L=Math.min(130,w*0.32),R=8,top=8,lh=22,H=top+ls.length*lh+30;const sx=t=>L+(w-L-R)*t/TT;
   let s='';
   for(let k=0;k<=TT;k+=1){s+='<line x1="'+sx(k)+'" y1="'+top+'" x2="'+sx(k)+'" y2="'+(H-24)+'" stroke="var(--line)"/>';if(k%2===0)s+=RD.t(sx(k),H-10,k+' s',{fs:10,a:'middle',fill:'var(--mute)'})}
@@ -21,14 +31,10 @@ function draw(i){
   s+='<line x1="'+sx(Math.min(now,TT))+'" y1="'+top+'" x2="'+sx(Math.min(now,TT))+'" y2="'+(H-24)+'" stroke="var(--acc)" stroke-width="1.5"/>';
   el.innerHTML=RD.svg(w,H,s,'Every block of the pipeline on the workers timeline');
   const enc=d.blocks.filter(b=>b.st==='encode'&&b.e<=now).length,win=d.blocks.filter(b=>b.st==='window'&&b.e<=now).length,tr=d.blocks.filter(b=>b.st==='train'&&b.e<=now).length;
-  let c='<b>t = '+(Math.min(now,TT)).toFixed(1)+' s.</b> Blocks encoded '+enc+' of 24, windowed '+win+' of 24, training batches done '+tr+' of '+d.batches+'.';
-  if(now>=d.first)c+=' First batch reached the training loop at <b>'+f2(d.first)+' s</b>.';
-  if(d.materialized&&now>=d.materialized)c+=' materialize() returned at '+f2(d.materialized)+' s (red line): only then did window start.';
-  if(now>=d.total)c+=' All done at <b>'+f2(d.total)+' s</b>.';
-  $('ry-dp-cap').innerHTML=c;
+  $('ry-dp-live').innerHTML='<b>t = '+(Math.min(now,TT)).toFixed(2)+' s.</b> Blocks encoded '+enc+' of 24, windowed '+win+' of 24, training batches '+tr+' of '+d.batches+'.';
 }
-const anim=RD.anim({card:'ry-dp-card',ctl:'ry-dp-ctl',n:Math.ceil(T()*10)+1,draw:draw,ms:90,label:'Time'});
-function setMode(m){mode=m;$('ry-dp-title').innerHTML=E(NAME[m])+' <span class="ry-meas">measured</span>';anim.reset(Math.ceil(T()*10)+1)}
+const anim=RD.anim({card:'ry-dp-card',ctl:'ry-dp-ctl',n:4,draw:draw,ms:4400,label:'Stretch of the run',list:'sx-dp-streaming'});
+function setMode(m){mode=m;cur=0;$('ry-dp-title').innerHTML=E(NAME[m])+' <span class="ry-meas">measured</span>';document.querySelectorAll('.sx-dp').forEach(l=>l.hidden=l.id!=='sx-dp-'+m);anim.reset(bounds(m).length,'sx-dp-'+m)}
 RD.seg($('ry-dp-mode'),setMode);
 $('ry-dp-leg').innerHTML=['encode','window','train'].map(k=>'<span><i style="background:'+COL[k]+'"></i>'+(k==='train'?'training step (driver)':k)+'</span>').join('')+'<span>dashed: first batch and end</span>';
 function statics(){
@@ -37,7 +43,7 @@ function statics(){
   if($('ry-dp-stats'))$('ry-dp-stats').innerHTML=['streaming','pipelined','staged'].map(m=>RD.stat({streaming:'Fused',pipelined:'Two operators',staged:'Staged'}[m],f2(D[m].first)+' s to first batch','total '+f2(D[m].total)+' s; '+D[m].ops.reduce((a,o)=>a+o.tasks,0)+' tasks')).join('');
   $('ry-dp-ops').querySelector('tbody').innerHTML=['streaming','pipelined','staged'].map(m=>D[m].ops.map((o,j)=>'<tr><td>'+(j?'':({streaming:'Fused',pipelined:'Two operators',staged:'Staged'}[m]))+'</td><td><code>'+E(o.name)+'</code></td><td class="num">'+o.tasks+'</td><td class="num">'+o.secs.toFixed(2)+' s</td></tr>').join('')).join('');
 }
-function all(){if(!vis())return;statics();draw(anim.i)}
+function all(){if(!vis())return;statics();frame()}
 reg(all);
 statics();
 })();
