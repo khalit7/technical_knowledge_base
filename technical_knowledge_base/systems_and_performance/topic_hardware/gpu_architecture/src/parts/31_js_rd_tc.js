@@ -1,4 +1,4 @@
-// ---- Reading s7: one 128x128x64 tile through mma.sync (Ampere), wgmma (Hopper) and tcgen05 (Blackwell) ----
+// ---- Reading s7 (2D, kept flat: the 3D pipeline of the same tile is Fig. 3 on Libraries and tensor cores): one 128x128x64 tile through mma.sync (Ampere), wgmma (Hopper) and tcgen05 (Blackwell) ----
 // Counts come from window.GA.tile (src/recompute.py, PTX ISA shapes); the layout is a schematic.
 (function(){
   const G=window.GA,T=G.tile,$=id=>document.getElementById(id),f=n=>Number(n).toLocaleString('en-US');
@@ -65,12 +65,14 @@
     g+=arrow(xH+bw*0.5,yR-2,xH+bw*0.5,y1+h1+2,act('rh'),'store');
     if(s.pair)g+=RD.t(W/2,yM+44,'cta_group::2: two SMs, one 256-row instruction',{a:'middle',fs:11,fill:'var(--c2)',w:600});
     el.innerHTML=RD.svg(W,yM+(s.pair?52:34),g,'Tile through the tensor cores');
-    $('ga-tcCap').textContent=s.cap;
     $('ga-tcOut').innerHTML=RD.stat('Matrix instructions issued',f(s.mma),m.who)+RD.stat('Copy instructions for the inputs',f(s.cp),s.tma||mode!=='amp'?'TMA, from one thread':'16 bytes each, from every thread')+
       RD.stat('Accumulators live in',s.acc==='tmem'?'tensor memory':s.acc==='reg'?'registers':'not yet allocated',s.acc==='reg'?T.acc_regs_per_thread_128+' registers per thread':s.acc==='tmem'?T.tmem_cols+' of 512 columns':'')+
       RD.stat('Tensor math, SM clocks',s.clk?f(s.clk):(mode==='bw'&&i>=3?'not published':'...'),mode==='amp'?'1,024 FMAs per clock':mode==='hop'?'2,048 FMAs per clock':'');
   }
-  const an=RD.anim({card:'ga-tcCard',ctl:'ga-tcCtl',n:M.bw.steps.length,draw,ms:2600,label:'Step'});
-  RD.seg($('ga-tcSeg'),m=>{mode=m;an.reset(M[mode].steps.length)});
+  const an=RD.anim({card:'ga-tcCard',ctl:'ga-tcCtl',n:M.amp.steps.length,draw,ms:4600,label:'Step',list:'sx-tc-amp'});
+  window.GA_TC=M; // check/check_stages.mjs compares the step lists with these counts
+  const NAMES={amp:'Ampere: mma.sync',hop:'Hopper: wgmma',bw:'Blackwell: tcgen05'};
+  // a mode toggle swaps the step list and replays (the one exception to stopping for good)
+  RD.seg($('ga-tcSeg'),m=>{mode=m;['amp','hop','bw'].forEach(k=>{$('sx-tc-'+k).hidden=k!==m});$('sxh-tc').textContent=NAMES[m];an.reset(M[mode].steps.length,'sx-tc-'+m)});
   RD.onResize(()=>an.redraw());
 })();

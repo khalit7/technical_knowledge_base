@@ -3,7 +3,9 @@
 (function(){
   const G=window.GA,$=id=>document.getElementById(id);
   const MODES=[{W:2,n:1,C:8},{W:16,n:1,C:8},{W:16,n:4,C:32}];
-  const LAT=G.hide[0].lat,T=G.hide[0].T,S=G.hide[0].steady_from,STEP=100,N=T/STEP+1;
+  const LAT=G.hide[0].lat,T=G.hide[0].T,S=G.hide[0].steady_from;
+  // four explained steps per program (the step lists #sx-hide-0..2 on the left): the timeline drawn up to these cycles
+  const FR=[[100,500,1000,T],[100,600,1000,T],[100,700,1000,T]],N=4,NAMES=['2 warps, one load each','16 warps, one load each','16 warps, 4 loads in flight each'];
   function sim(m){
     const W=m.W,prog=[];for(let i=0;i<m.n;i++)prog.push('L');for(let i=0;i<m.C;i++)prog.push('C');
     const pc=new Array(W).fill(0),ra=new Array(W).fill(0),st=[];let cur=0,iss=0,steady=0;const issuedAt=new Uint8Array(T);
@@ -29,8 +31,8 @@
   let mode=0;
   const COL=['var(--c5)','var(--dim)','var(--c1)','var(--c2)'];
   function draw(i){
-    const r=R[mode],box=$('ga-hideSvg'),W=Math.min(860,RD.width(box)),lw=W<480?44:60,pw=W-lw-6;
-    const rh=r.W>4?Math.max(8,Math.min(12,200/r.W)):18,y0=40,tc=Math.min(T,i*STEP),X=t=>lw+t/T*pw;
+    const r=R[mode],box=$('ga-hideSvg'),tc=FR[mode][i],W=Math.min(860,RD.width(box)),lw=W<480?44:60,pw=W-lw-6;
+    const rh=r.W>4?Math.max(8,Math.min(12,200/r.W)):18,y0=40,X=t=>lw+t/T*pw;
     let g=RD.t(2,12,'cycle',{fs:11,fill:'var(--mute)'});
     for(let t=0;t<=T;t+=500)g+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="16" y2="'+(y0+r.W*rh+4)+'" stroke="var(--line)"/>'+RD.t(X(t),12,t,{a:t===T?'end':'middle',fs:11,fill:'var(--mute)'});
     g+=RD.t(2,30,'issue',{fs:11,w:600});
@@ -46,13 +48,11 @@
     const used=tc?r.cum[tc]/tc:0,waiting=tc<T?r.st.filter(a=>a[tc]===1).length:r.st.filter(a=>a[T-1]===1).length;
     $('ga-hideOut').innerHTML=RD.stat('Cycle',tc.toLocaleString('en-US'),'of '+T.toLocaleString('en-US'))+RD.stat('Issue slots used so far',(used*100).toFixed(1)+'%',r.cum[tc].toLocaleString('en-US')+' instructions')+
       RD.stat('Arithmetic done',r.ar[tc].toLocaleString('en-US'),'instructions')+RD.stat('Steady state (cycles 1,000 to 2,000)',tc>=T?(r.steady*100).toFixed(1)+'%':'at the end','issue-slot utilisation')+RD.stat('Warps waiting on memory now',waiting+' of '+r.W,'');
-    let c;
-    if(i===0)c=['Two warps. Each issues its load, then has nothing to do for 466 cycles.','All 16 warp slots filled. Each warp issues its one load as soon as the scheduler reaches it, then waits.','16 warps, each issuing 4 independent loads back to back before it needs any of them, then 32 arithmetic instructions.'][mode];
-    else if(tc>=T)c=['Two warps keep the scheduler busy only '+(r.steady*100).toFixed(1)+'% of the time: almost every cycle is wasted.','Even the maximum number of warps fills only '+(r.steady*100).toFixed(0)+'% of the issue slots: 16 warps x 9 instructions cannot cover 466 cycles of waiting.','The scheduler issues every cycle in the steady state ('+(r.steady*100).toFixed(0)+'%): more work per load, not more warps, closed the gap.'][mode];
-    else c='Cycle '+tc+': '+waiting+' of '+r.W+' warps are waiting on memory; the scheduler has issued in '+(used*100).toFixed(1)+'% of cycles so far.'+(mode===2&&tc>=500&&tc<=700?' The first loads are returning while later warps still have arithmetic queued: the gaps start to close.':'');
-    $('ga-hideCap').textContent=c;
+
   }
-  const an=RD.anim({card:'ga-hideCard',ctl:'ga-hideCtl',n:N,draw,ms:900,label:'Cycle step'});
-  RD.seg($('ga-hideSeg'),m=>{mode=+m;an.reset(N)});
+  const an=RD.anim({card:'ga-hideCard',ctl:'ga-hideCtl',n:N,draw,ms:4200,label:'Step',list:'sx-hide-0'});
+  window.GA_HIDE={R,FR}; // check/check_stages.mjs compares the step lists with these
+  // a mode toggle swaps the step list and replays (the one exception to stopping for good)
+  RD.seg($('ga-hideSeg'),m=>{mode=+m;[0,1,2].forEach(k=>{$('sx-hide-'+k).hidden=k!==mode});$('sxh-hide').textContent=NAMES[mode];an.reset(N,'sx-hide-'+mode)});
   RD.onResize(()=>an.redraw());
 })();

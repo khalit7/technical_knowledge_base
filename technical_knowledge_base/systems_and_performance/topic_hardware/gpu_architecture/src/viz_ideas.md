@@ -38,3 +38,15 @@ A rule for microbenchmarks run on a different vendor's hardware: here every M1 c
 | GA11 | Photos: GA100 die (CC BY 3.0) and a delidded Tesla P100 package with four HBM2 stacks (CC0) | Reading s9 | Real objects; `img/CREDITS.md` |
 
 Rejected 2026-10-23: TSUBAME 4.0 node photos (H100 under cold plates; shows the node, not the GPU, and nodes belong to cluster pages); Geekerwan H100 PCIe card photos (a shroud, nothing to notice); an SXM socket photo (no GPU in it).
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+| Visual | Decision | Why |
+|---|---|---|
+| Hero (GA9) | **3D**, `40_js_sc_hero.js`, Fig. 1 | A die is spatial: 144 SM slots in 8 GPCs around the L2, HBM sites beside it, one SM opened, the tile's path as flows. Replaces `27_js_rd_hero.js`. |
+| SM per generation | **3D**, `41_js_sc_sm.js`, Fig. 2 | Four quadrants and the SRAM around them are a layout; the generation switch became steps. Replaces the 2D drawing and its segment buttons in `24_js_rd_sm.js` (the table stays). |
+| Floorplans (GA7) | **3D**, `43_js_sc_gen.js`, Fig. 3 | Six chips to their counts, one per step, then BF16 against bandwidth bars over each. The two-chip comparison stays as a table (`29_js_rd_floor.js`, drawings removed). |
+| Two ways past one reticle (GA10) | **3D**, `44_js_sc_amd.js`, Fig. 4 | MI300X is literally stacked (XCDs on I/O dies); the drop and the cross-XCD path read best in depth. Replaces `30_js_rd_amd.js`. |
+| Scheduler timeline | kept **2D** (stepper, 4 explained steps per program, three step lists) | A timeline of cycles against warps is flat by nature; 21 frames per program became 4 explained stretches (the long-replay rule). |
+| Tile through three generations | kept **2D** (stepper, three step lists) | Libraries and tensor cores already draws the same tile as a 3D pipeline (its Fig. 3); a second 3D copy would repeat it. Linked instead. |
+| M1 charts, tables | kept **2D** | Log axes, bars and tables read best flat. |
+| Photos (GA11) | kept, moved to the right column of section 9 | Real objects that no diagram shows. No openly licensed H100 or B200 die or board photo found (2026-10-23 search, not repeated). |

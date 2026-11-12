@@ -1,4 +1,4 @@
-// Whole-page check: every tab, every control clicked, at 390 px dark and 920 px light; page errors, NaN, undefined,
+// Whole-page check: every tab, every control clicked, at 390 px dark and 920 px light; page errors, NaN, undefined; the 2D animations play in view;
 // sideways scroll; animation utilisation against window.GA.hide; screenshots per tab and per Reading section.
 // usage: node <page>/src/check/check_page.mjs [shots dir]   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'module';
@@ -24,10 +24,13 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.setViewport({ width: w, height: 900 });
   await p.goto('file://' + pageFile);
   await p.evaluate(() => { try { localStorage.clear() } catch (e) {} });
-  // nothing may move before the reader acts: scroll every card into view, wait, and check the scrubbers are still at 0
-  const moved = await p.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .card')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 120)); }
-    await new Promise(r => setTimeout(r, 2500)); return [...document.querySelectorAll('#t-read .an-ctl input[type=range]')].filter(r => +r.value !== 0).map(r => r.id); });
-  if (moved.length) { bad++; console.log(scheme, w, 'autoplay: scrubbers moved', moved); } else console.log(scheme, w, 'no autoplay ok');
+  // since 2026-11-06 an animation plays by itself once at least half in view: scroll each 2D card into view and check it plays
+  // (the 3D stages and reduced motion are checked by check_stages.mjs)
+  for (const [card, ctl] of [['ga-hideCard', 'ga-hideCtl'], ['ga-tcCard', 'ga-tcCtl']]) {
+    await p.$eval('#' + card, e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+    const lab = await p.$eval(`#${ctl}-p`, e => e.getAttribute('aria-label'));
+    if (lab !== 'Pause') { bad++; console.log(scheme, w, card, 'did not play when scrolled into view'); } else console.log(scheme, w, card, 'plays in view ok');
+  }
   for (const tab of ['t-read', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(250);

@@ -1,18 +1,46 @@
+<div class="s3sp"><div class="s3R"><div class="card" id="ga-tcCard">
+<h4>The same tile on three generations: fewer instructions, issued by fewer threads, and the accumulators move out of the registers</h4>
+<div class="seg" id="ga-tcSeg"><button data-m="amp" class="on">Ampere: mma.sync</button><button data-m="hop">Hopper: wgmma</button><button data-m="bw">Blackwell: tcgen05</button></div>
+<div id="ga-tcSvg" class="plotbox"></div>
+<div class="out" id="ga-tcOut"></div>
+<div class="an-ctl" id="ga-tcCtl"></div>
+<p class="small mute">Tile 128 &times; 128 &times; 64, BF16 inputs, FP32 accumulators, one thread block on one SM. Instruction counts from the shapes in the {{PTX ISA|https://docs.nvidia.com/cuda/parallel-thread-execution/index.html}} (9.4): <code>mma.sync m16n8k16</code> per warp, <code>wgmma m64nNk16</code> (N up to 256) per warpgroup of 4 warps, <code>tcgen05.mma</code> 128 &times; N &times; 16 issued by one thread <span class="pill d">derived: (128/m) &times; (128/n) &times; (64/k)</span>. Clocks at the published per-SM rates; none for Blackwell (not published). Layout schematic, not to silicon area.</p>
+</div></div><div class="s3L">
 <section id="ga-s7">
 <h2>7. Tensor cores, generation by generation</h2>
 <p><b>The problem.</b> Ordinary lanes do one multiply-add per thread per instruction. An H100 SM has 128 of them, so our tile's million FMAs would take 8,192 cycles of perfect issue. But in a matrix multiply every number of A meets a whole row of B, and a <span class="hl">tensor core</span> exploits that structure: a small fixed-function array that takes a tile of A, a tile of B and an accumulator tile and returns A&middot;B + C in one instruction.</p>
 <p><b>Throughput per SM.</b> On the A100 each of the 4 tensor cores per SM does 256 FP16 multiply-adds per clock, 1,024 per SM, sixteen times the A100 SM's 64 FP32 lanes ({{A100 in depth|https://developer.nvidia.com/blog/nvidia-ampere-architecture-in-depth/}}). The H100's do twice that per SM on the same types and four times with FP8 ({{Hopper in depth|https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/}}): 2,048 FP16 FMAs per SM per clock, a rate that reproduces the H100's 989.5 TFLOPS at a <span id="ga-hclk">1.83</span> GHz clock <span class="pill d">989.5e12 / (132 &times; 2,048 &times; 2)</span>, a clock NVIDIA's blog leaves "not finalized". NVIDIA publishes no per-SM rate for Blackwell; Rubin "doubles the Tensor Core throughput per clock by doubling the amount of data it can process along the K dimension" ({{Inside Rubin|https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/}}).</p>
-<p>The bigger change across generations is not the rate but <b>who issues the multiply, where its operands come from, and where its results go</b>: that is what decides whether threads, registers and shared memory can keep up. Predict before you step: on which generation does the accumulator leave the register file?</p>
-<div class="card" id="ga-tcCard">
-<h4>The same tile on three generations: fewer instructions, issued by fewer threads, and the accumulators move out of the registers</h4>
-<div class="seg" id="ga-tcSeg"><button data-m="amp" class="on">Ampere: mma.sync</button><button data-m="hop">Hopper: wgmma</button><button data-m="bw">Blackwell: tcgen05</button></div>
-<div id="ga-tcSvg" class="plotbox"></div>
-<div class="cap" id="ga-tcCap"></div>
-<div class="out" id="ga-tcOut"></div>
-<div class="an-ctl" id="ga-tcCtl"></div>
-<p class="small mute">Tile 128 &times; 128 &times; 64, BF16 inputs, FP32 accumulators, one thread block on one SM. Instruction counts from the shapes in the {{PTX ISA|https://docs.nvidia.com/cuda/parallel-thread-execution/index.html}} (9.4): <code>mma.sync m16n8k16</code> per warp, <code>wgmma m64nNk16</code> (N up to 256) per warpgroup of 4 warps, <code>tcgen05.mma</code> 128 &times; N &times; 16 issued by one thread <span class="pill d">derived: (128/m) &times; (128/n) &times; (64/k)</span>. Clocks at the published per-SM rates; none for Blackwell (not published). Layout schematic, not to silicon area.</p>
-</div>
-<p><b>What it shows.</b> Ampere needs <span id="ga-tA">512</span> warp instructions and every operand passes through registers; Hopper needs <span id="ga-tH">8</span> warpgroup instructions reading straight from shared memory, but its accumulators still fill a quarter of the register file; Blackwell needs <span id="ga-tB">4</span>, issued by a single thread, and the accumulators move to tensor memory. Each step frees threads for addresses, epilogues or softmax. On an H800, Luo et al. found the Ampere-style <code>mma</code> reaching on average only <b>62.9%</b> of the tensor cores' peak, while <code>wgmma</code> reaches <b>729.3</b> of 756.5 TFLOPS (<span id="ga-wgPct">96.4</span>%) in FP16 ({{Luo et al. 2024|https://arxiv.org/html/2402.13499v1}}, Table VIII) <span class="pill i">independent</span>: a kernel written for the A100 runs on an H100 but leaves a third of its tensor-core peak unused.</p>
+<p>The bigger change across generations is not the rate but <b>who issues the multiply, where its operands come from, and where its results go</b>: that is what decides whether threads, registers and shared memory can keep up. The same tile goes through each generation on the right; predict before it plays: on which generation does the accumulator leave the register file?</p>
+<p class="sxh" id="sxh-tc">Ampere: mma.sync</p>
+<ol class="sx" id="sx-tc-amp">
+<li><b>The inputs wait in HBM.</b> A 128 &times; 64 slice of A and a 64 &times; 128 slice of B, 32,768 bytes in BF16, in HBM or L2.</li>
+<li><b>2,048 asynchronous copies.</b> The 128 threads issue 2,048 copies of 16 bytes each (16 per thread), global to shared memory, skipping the registers. Every one costs an issue slot and address arithmetic.</li>
+<li><b>Fragments into registers.</b> Each of the 4 warps copies its 64-row strip of A and 64-column strip of B from shared memory into registers (<code>ldmatrix</code>): 65,536 bytes of shared-memory reads, twice the tile.</li>
+<li><b>mma.sync, one warp at a time.</b> One <code>m16n8k16</code> per warp multiplies a 16 &times; 16 piece of A by a 16 &times; 8 piece of B (2,048 FMAs); the first 16-wide k-step takes 128 of them. The 64 KB of FP32 accumulators sit in registers, 128 per thread.</li>
+<li><b>512 instructions in all.</b> The other 3 k-steps: 512 <code>mma.sync</code>, each issued by a warp scheduler. At the A100's 1,024 FMAs per SM per clock the math takes 1,024 clocks.</li>
+<li><b>Epilogue from registers.</b> The results are already in registers: convert to BF16 and store. Operands and results both passed through the register file.</li>
+</ol>
+<ol class="sx" id="sx-tc-hop" hidden>
+<li><b>The same tile, on Hopper.</b> The same 32,768 bytes of inputs in HBM or L2.</li>
+<li><b>TMA: 2 instructions.</b> One thread issues 2 copies, one per input, each with a tensor descriptor; the copy engine moves all 32,768 bytes and an asynchronous transaction barrier counts them in.</li>
+<li><b>wgmma reads shared memory.</b> <code>wgmma m64n128k16</code>: the warpgroup (4 warps) issues one instruction per 64 rows, reading A and B straight from shared memory: no <code>ldmatrix</code>, no operand registers. The first k-step takes 2.</li>
+<li><b>Asynchronous, but the sums stay in registers.</b> The warps can issue other work while the tensor cores run, and wait on a fence later; the 64 KB of accumulators are still in registers, 128 per thread.</li>
+<li><b>8 instructions in all.</b> 4 k-steps: 8 <code>wgmma</code>, 64 times fewer than Ampere. At the H100's 2,048 FMAs per SM per clock: 512 clocks.</li>
+<li><b>Epilogue from registers,</b> as on Ampere.</li>
+</ol>
+<ol class="sx" id="sx-tc-bw" hidden>
+<li><b>The same tile, on a Blackwell datacenter GPU</b> (sm_100).</li>
+<li><b>TMA, as on Hopper:</b> 2 instructions from one thread.</li>
+<li><b>tcgen05.mma from a single thread.</b> 128 &times; 128 &times; 16 per instruction; operands come from shared memory, and the accumulator is allocated in tensor memory, 128 of its 512 columns.</li>
+<li><b>4 instructions in all.</b> The register file holds no accumulators, so the warps are free for other work, such as writing out the previous tile.</li>
+<li><b>Epilogue through tcgen05.ld.</b> It copies the results from tensor memory into registers, a slice at a time, then they are converted and stored.</li>
+<li><b>Two SMs, one instruction.</b> With <code>cta_group::2</code> a pair of SMs cooperates on one instruction covering a 256-row tile ("paired SMs cooperate on a single MMA operation", Inside Blackwell Ultra). NVIDIA publishes no per-SM clock rate for Blackwell, so no clock count is shown.</li>
+</ol>
+<p><b>What it shows.</b> From 512 warp instructions to 8 to 4, the operands stop passing through registers and then the accumulators move to tensor memory. Each step frees threads for addresses, epilogues or softmax. On an H800, Luo et al. found the Ampere-style <code>mma</code> reaching on average only <b>62.9%</b> of the tensor cores' peak, while <code>wgmma</code> reaches <b>729.3</b> of 756.5 TFLOPS (<span id="ga-wgPct">96.4</span>%) in FP16 ({{Luo et al. 2024|https://arxiv.org/html/2402.13499v1}}, Table VIII) <span class="pill i">independent</span>: a kernel written for the A100 runs on an H100 but leaves a third of its tensor-core peak unused.</p>
+<p class="small mute">The same tile as a pipelined kernel, with its shared-memory stages and barriers in 3D: Fig. 3 on {{Libraries and tensor cores|n:3c65c17b0d0d81a7adcaebee2f44a087}}; this figure is only the data path per generation.</p>
+</section>
+</div></div>
+<section id="ga-s7b">
 <div class="tw"><table class="gen">
 <thead><tr><th>Generation</th><th>First in</th><th>Formats added</th><th>Who issues</th><th>Operands from</th><th>Accumulator in</th></tr></thead>
 <tbody>

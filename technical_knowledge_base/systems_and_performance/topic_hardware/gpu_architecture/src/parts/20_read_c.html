@@ -1,29 +1,44 @@
-<section id="ga-s3">
-<h2>3. Hiding latency: why a GPU needs thousands of threads</h2>
-<p><b>The problem.</b> A load from HBM takes about 466 cycles on an A100 and 479 on a Hopper (H800), measured by {{Luo et al. 2024|https://arxiv.org/html/2402.13499v1}}, Table IV <span class="pill i">independent</span>.</p>
-<p><b>How it works.</b> Each quadrant's scheduler holds up to 16 resident warps on A100, H100 and B200 (64 per SM; 48 per SM on the RTX 5090). Every cycle it issues from any warp whose next instruction has its inputs ready; a warp waiting on memory is simply skipped, at no cost (section 2). So the question is "is some warp always ready". Predict before you step: with all 16 slots full, how busy is the scheduler?</p>
-<div class="card" id="ga-hideCard">
+<div class="s3sp"><div class="s3R"><div class="card" id="ga-hideCard">
 <h4>Filling every warp slot is not enough; loads in flight per warp are what keep the scheduler busy</h4>
 <div class="seg" id="ga-hideSeg"><button data-m="0" class="on">2 warps</button><button data-m="1">16 warps (the maximum)</button><button data-m="2">16 warps, 4 loads in flight each</button></div>
 <div id="ga-hideSvg" class="plotbox"></div>
-<div class="cap" id="ga-hideCap"></div>
 <div class="out" id="ga-hideOut"></div>
 <div class="an-ctl" id="ga-hideCtl"></div>
 <p class="small mute"><span class="ill">Illustrative program</span>: each warp issues its load(s), waits for all of them, then issues 8 arithmetic instructions per load; one issue per cycle; load latency 466 cycles (A100, Luo et al. Table IV). Scheduler policy: greedy then oldest (keep the current warp until it stalls, then the lowest-numbered ready warp), a policy from the research literature; NVIDIA does not publish its own. Utilisation counted from cycle 1,000 on, after start-up. Python reference: <code>src/recompute.py</code> (<code>hide_sim</code>), which the page's numbers match.</p>
-</div>
+</div></div><div class="s3L">
+<section id="ga-s3">
+<h2>3. Hiding latency: why a GPU needs thousands of threads</h2>
+<p><b>The problem.</b> A load from HBM takes about 466 cycles on an A100 and 479 on a Hopper (H800), measured by {{Luo et al. 2024|https://arxiv.org/html/2402.13499v1}}, Table IV <span class="pill i">independent</span>.</p>
+<p><b>How it works.</b> Each quadrant's scheduler holds up to 16 resident warps on A100, H100 and B200 (64 per SM; 48 per SM on the RTX 5090). Every cycle it issues from any warp whose next instruction has its inputs ready; a warp waiting on memory is simply skipped, at no cost (section 2). So the question is "is some warp always ready". The timeline on the right is one quadrant running three programs; predict before it plays: with all 16 slots full, how busy is the scheduler?</p>
+<p class="sxh" id="sxh-hide">2 warps, one load each</p>
+<ol class="sx" id="sx-hide-0">
+<li><b>Cycles 0 to 100: two loads, then nothing.</b> Each warp issues its load (cycles 0 and 1) and then needs the data, 466 cycles away. The scheduler has nothing else to issue: 98 of the first 100 cycles are empty.</li>
+<li><b>Cycle 466: the data returns.</b> Each warp issues its 8 arithmetic instructions and its next load, 18 busy cycles in all, then both wait again: 20 instructions by cycle 500.</li>
+<li><b>Cycle 1,000: the steady state.</b> The same 18 busy cycles come back every 474; from here on the page counts utilisation, after start-up.</li>
+<li><b>Cycle 2,000: 74 instructions.</b> Almost every cycle was wasted.</li>
+</ol>
+<ol class="sx" id="sx-hide-1" hidden>
+<li><b>Cycles 0 to 100: sixteen loads, then nothing.</b> Every warp slot is full. Each warp issues its load in the first 16 cycles, then all 16 wait.</li>
+<li><b>Cycles 466 to 610: one burst.</b> The loads return one per cycle; each warp has only 8 arithmetic instructions before its next load, so the 16 warps fill 144 cycles and are all waiting again: 150 instructions by cycle 600.</li>
+<li><b>Cycle 1,000: the steady state.</b> Bursts of 144 busy cycles alternate with 330 idle ones; 220 instructions so far.</li>
+<li><b>Cycle 2,000: 560 instructions.</b> About a third of the issue slots, with every warp slot full.</li>
+</ol>
+<ol class="sx" id="sx-hide-2" hidden>
+<li><b>Cycles 0 to 100: 64 loads in flight.</b> The same 16 warps, but each issues 4 independent loads back to back before it needs any of them: 64 loads in the first 64 cycles.</li>
+<li><b>Cycles 469 to 700: the gaps close.</b> Each warp whose data has returned has 32 arithmetic instructions; while it computes, the next warps' loads come back: 295 instructions by cycle 700.</li>
+<li><b>Cycle 1,000: the steady state.</b> The scheduler has issued every cycle since cycle 469; 595 instructions so far.</li>
+<li><b>Cycle 2,000: 1,595 instructions.</b> Every issue slot used, by the same 16 warps.</li>
+</ol>
 <p><b>What it shows.</b> With 2 warps the scheduler issues in <span id="ga-h0">3.6</span>% of cycles; with all 16 slots filled, still only about <span id="ga-h1">34</span>%, because each warp has only a few instructions of work per load. The bound is the fraction of time any warp has work: utilisation &asymp; W &times; (instructions per load round) / (instructions + latency) = 16 &times; 9 / 474 &asymp; 30% <span class="pill d">derived</span>. The third mode keeps the same 16 warps but lets each issue 4 independent loads before it needs any, and the scheduler is busy <span id="ga-h2">100</span>% of the time: <b>memory-level parallelism inside each thread</b> (unrolled loops, 16-byte loads, and from Ampere on copy hardware, section 8).</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="ga-s3b">
 <h3>How many bytes must be in flight: Little's law, requests in flight = throughput &times; latency</h3>
 <div class="fm"><div class="eq">bytes in flight = bandwidth &times; latency</div>
 <dl><dt>M1 Pro</dt><dd><span id="ga-lM1bw">148</span> GB/s (best coalesced read measured here) &times; <span id="ga-lM1lat">485</span> ns (pointer chase into DRAM, measured here) = <b><span id="ga-lM1kb">70</span> KiB</b> in flight, about <span id="ga-lM1core">4.4</span> KiB per GPU core <span class="pill m">measured here</span> <span class="pill d">derived</span></dd>
 <dt>H100 SXM</dt><dd>3.35 TB/s (vendor) &times; <span id="ga-lHlat">273</span> ns (H800's 478.8 cycles at 1.755 GHz, Luo et al., as a stand-in) = <b><span id="ga-lHmb">0.91</span> MB</b> in flight, about <span id="ga-lHsm">6,900</span> bytes per SM <span class="pill d">derived</span></dd></dl></div>
 <p>At 4 bytes per thread that is <span id="ga-lH4">1,731</span> loads in flight on every SM at once, close to the 2,048 threads an SM can hold at all; at 16 bytes per thread (one <code>float4</code>), <span id="ga-lH16">433</span>. Hence 16-byte loads, several outstanding per thread, and on Hopper and Blackwell the TMA, which keeps whole tiles in flight without threads.</p>
-<div class="card" id="ga-m1Card">
-<h4>Measured: bandwidth grows with requests in flight until memory saturates</h4>
-<div class="grid"><div id="ga-stream" class="plotbox"></div><div id="ga-little" class="plotbox"></div></div>
-<p class="small">Left, a coalesced read of 256 MB (each thread loops over the buffer in 16-byte loads): <span id="ga-sOne">1.27</span> GB/s with 32 threads (one SIMD-group, Apple's warp), <span id="ga-sPeak">148</span> GB/s with thousands, <span id="ga-sRatio">117</span> times more from parallelism alone, flattening near 8,192 threads, 512 per core. Right, a 256 MB pointer chase in which each thread's next address depends on its last load: <span id="ga-cOne">2.0</span> million to <span id="ga-cSat">406</span> million loads per second, <span id="ga-cRatio">202</span> times. Apple M1 Pro 16-core GPU, medians of 3 runs, whiskers the run spread. <span class="pill m">measured here</span></p>
-<div class="tr">Transfers to NVIDIA: the shape (one warp reaches about 1% of the bandwidth; saturation needs thousands of threads or several wide loads per thread) and Little's law.</div>
-<div class="tr ntr">Does not transfer: where the curve flattens (here about 512 threads per core) and the plateau (148 GB/s here, 3.35 TB/s nominal on an H100, whose HBM is about 17 times the M1's 200 GB/s shared memory, Apple's figure).</div>
-</div>
 <div class="pred" id="ga-pred1" data-right="0"><b>Predict first.</b> An H100 has 132 SMs with up to 2,048 threads each. If every thread could keep only one 4-byte load in flight, what fraction of the 3.35 TB/s could the chip reach?
 <div class="opts"><button data-a="0">about 100%</button><button data-a="1">about half</button><button data-a="2">under 5%</button></div>
 <div class="ans">270,336 threads &times; 4 bytes = 1.08 MB in flight, against the 0.91 MB needed, so in principle about all of it, <b>but only if every thread slot on every SM is filled</b> and nothing else limits occupancy (section 4). Kernels heavy in registers or shared memory fall below that, so real kernels rely on wide loads, not thread count. <span class="pill d">derived</span></div></div>
@@ -33,3 +48,10 @@
 <p class="small">Method: <code>src/m1/gpu_micro.py</code>, custom Metal kernels through <code>mx.fast.metal_kernel</code>; three full runs 20 s apart (<code>src/run_all.sh</code>); each point is the median of the three runs' medians of 5 timings, whiskers the lowest and highest run median. Every chase result is checked against the chain computed in NumPy, every read against a float64 sum. The laptop was shared with other work. Raw outputs: <code>src/m1/out/</code>.</p>
 </div></details>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ga-m1Card">
+<h4>Measured: bandwidth grows with requests in flight until memory saturates</h4>
+<div class="grid"><div id="ga-stream" class="plotbox"></div><div id="ga-little" class="plotbox"></div></div>
+<p class="small">Left, a coalesced read of 256 MB (each thread loops over the buffer in 16-byte loads): <span id="ga-sOne">1.27</span> GB/s with 32 threads (one SIMD-group, Apple's warp), <span id="ga-sPeak">148</span> GB/s with thousands, <span id="ga-sRatio">117</span> times more from parallelism alone, flattening near 8,192 threads, 512 per core. Right, a 256 MB pointer chase in which each thread's next address depends on its last load: <span id="ga-cOne">2.0</span> million to <span id="ga-cSat">406</span> million loads per second, <span id="ga-cRatio">202</span> times. Apple M1 Pro 16-core GPU, medians of 3 runs, whiskers the run spread. <span class="pill m">measured here</span></p>
+<div class="tr">Transfers to NVIDIA: the shape (one warp reaches about 1% of the bandwidth; saturation needs thousands of threads or several wide loads per thread) and Little's law.</div>
+<div class="tr ntr">Does not transfer: where the curve flattens (here about 512 threads per core) and the plateau (148 GB/s here, 3.35 TB/s nominal on an H100, whose HBM is about 17 times the M1's 200 GB/s shared memory, Apple's figure).</div>
+</div></div></div></div>
