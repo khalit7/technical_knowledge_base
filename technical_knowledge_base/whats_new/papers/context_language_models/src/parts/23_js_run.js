@@ -111,7 +111,9 @@ function counters(m,k,e){const S=SIM[m].steps,s=S[Math.min(k,S.length-1)];let to
     stat(serve==='scr'?'Prefilled (after SCR)':'Prefilled',fmt(U)+' tok',serve==='scr'&&s.reloc?fmt(s.reloc)+' relocated':'')+stat('This call',e14(serve==='scr'?s.f_scr:s.f_std))+
     stat('Running total',pf(tot/1e15),'whole episode: '+pf(serve==='scr'?SIM[m].pflops_scr:SIM[m].pflops_std))+stat(m==='summary'?'Summaries so far':m==='clm'?'Edits so far':'Edits so far',String(ed))}
 $('rpLeg').innerHTML=['hit','re','new','scr','gen'].map(k=>'<span><i style="background:'+ST[k][0]+';opacity:'+(k==='hit'?0.42:0.85)+'"></i>'+ST[k][1]+'</span>').join('')+'<span><i style="background:none;border-top:2px dashed var(--bad);height:0;width:14px"></i>budget</span><span><i style="background:none;border-top:2px dotted var(--mute);height:0;width:14px"></i>trigger</span>';
-anim=makeAnim({id:'rp',modes:anim_modes,mode:'clm',draw,counters,dur:2200});
+// opens on the first call after the first edit or summary (Base: its last call, where it runs out), the frame that shows what a policy does
+const startAt=m=>{const S=SIM[m].steps,i=S.findIndex((s,j)=>j>0&&(S[j-1].kind==='edit'||S[j-1].kind==='compact'));return i>0?i:S.length-1};
+anim=makeAnim({id:'rp',modes:anim_modes,mode:'clm',start:startAt,draw,counters,dur:2200});
 ['rpSa','rpSl','rpCa','rpKeep'].forEach(id=>$(id).addEventListener(id==='rpKeep'?'change':'input',()=>{rebuild()}));
 $('rpReset').addEventListener('click',()=>{$('rpSa').value=75;$('rpSl').value=1600;$('rpCa').value=75;$('rpKeep').value=0;rebuild()});
 segBind('rpY',v=>{ymode=v;$('rpY').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===v?'true':'false'));if(anim)anim.draw()});

@@ -1,6 +1,6 @@
 // Exercise every control of the page in both themes and widths, and check what checkpage.sh does not:
 // SVG text at least 11 px on screen (font size times the SVG's screen scale), no NaN/undefined/Infinity
-// in visible text, no errors, no sideways scroll, and the animations stepping end to end.
+// in visible text, no errors, no sideways scroll, the replay stepping end to end, the stage playing on view (check_stages.mjs checks it in full).
 // usage (from the repo root): node technical_knowledge_base/whats_new/papers/context_language_models/src/check_page.mjs [shots dir]
 import puppeteer from '../../../../../html_utils/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 import path from 'node:path';
@@ -30,11 +30,13 @@ fs.mkdirSync(shots, { recursive: true });
   if (r.out.length) problems.push('JS against recompute.py: ' + r.out.slice(0, 6).join(' | ')); else console.log('JS replay and calculator agree with recompute.py (' + r.n + ' replays, 3 turns)');
   await p.close();
 }
-// 2. reduced motion: nothing autoplays
+// 2. reduced motion: nothing moves by itself (neither the 3D stage nor the replay widget)
 {
   const p = await b.newPage(); await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]); await p.setViewport({ width: 920, height: 900 }); await p.goto(file);
+  await p.$eval('#stg-cache', e => e.scrollIntoView({ block: 'center' })); await new Promise(r => setTimeout(r, 1500));
+  const fs = await p.$eval('#stg-cache', e => +e.dataset.frames || 0); if (fs) problems.push('reduced motion: the stage moved (' + fs + ' frames)');
   await p.click('#tabs button[data-t=t-run]'); await p.$eval('#rp', e => e.scrollIntoView()); await new Promise(r => setTimeout(r, 1500));
-  const fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (fr) problems.push('reduced motion: the replay autoplayed (' + fr + ' frames)'); else console.log('reduced motion: no autoplay');
+  const fr = await p.$eval('#rp', e => +e.dataset.frames || 0); if (fr) problems.push('reduced motion: the replay autoplayed (' + fr + ' frames)'); else if (!fs) console.log('reduced motion: nothing moves by itself');
   await p.close();
 }
 for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
@@ -70,7 +72,10 @@ for (const [scheme, width] of [['light', 920], ['dark', 390]]) {
   const clk = sel => p.$eval(sel, e => e.click()); // DOM click: a sticky nav cannot intercept it
   for (const t of tabs) {
     await p.click(`#tabs button[data-t=${t}]`); await wait(250); await audit(t + ' open');
-    // nothing may move before the reader acts (2026-10-26): scroll each animation into view and wait
+    // motion (2026-11-12 rollout): a 3D stage plays by itself once scrolled into view; the replay (#rp) is a widget under the long-replay
+    // rule (about 30 calls the reader drives), so it still never moves before the reader acts
+    for (const id of await p.$$eval(`#${t} .stg`, xs => xs.map(x => x.id))) { await p.$eval('#' + id, e => e.scrollIntoView({ block: 'center' })); await wait(2000);
+      const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (!fr) problems.push(`${scheme} ${width}: ${id} did not play when scrolled into view`) }
     for (const id of await p.$$eval(`#${t} .card`, cs => cs.filter(c => c.querySelector('.an-play')).map(c => c.id))) { await p.$eval('#' + id, e => e.scrollIntoView()); await wait(1200);
       const fr = await p.$eval('#' + id, e => +e.dataset.frames || 0); if (fr) problems.push(`${scheme} ${width}: ${id} moved before any click (${fr} frames)`) }
     // closed details hold text too: open them all

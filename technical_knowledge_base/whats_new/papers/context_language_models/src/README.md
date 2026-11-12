@@ -3,6 +3,7 @@
 `sh build.sh` writes `../index.html` (it runs `mk_tables.py`, `recompute.py` and `mk_paper.py` first, and refuses to build if an `ax:` link or margin label names an anchor that is not in `inputs/anchors.txt`). Then, from the repo root:
 - `python3 technical_knowledge_base/whats_new/papers/context_language_models/src/mk_coverage.py`: `coverage.json`, every item checked against the built page.
 - `node technical_knowledge_base/whats_new/papers/context_language_models/src/check_page.mjs [shots dir]`: the JS replay and turn calculator against `recompute.py`, reduced motion, then every control and the animation in both themes and widths (set `CHROME_PATH` if puppeteer's own browser is missing).
+- `node technical_knowledge_base/whats_new/papers/context_language_models/src/check_stages.mjs [shots dir]`: the 3D stage and the replay widget at three widths and under reduced motion, and the stage's step list against the engine (2026-11-12).
 - `sh html_utils/checkpage.sh technical_knowledge_base/whats_new/papers/context_language_models`.
 
 Rebuilding the inputs (not needed to build the page):
@@ -56,3 +57,30 @@ Why about 22 minutes is right: the top added about 400 words (core sentence, her
 
 ## Knowledge ledger (`ledger.json`, labelled by `label_ledger.py`)
 266 units: core 239, depth 18, owned 4, volatile 3, fat 2 (the old reading-time header and the tab-bar labels). 250 drafted by `ledger.py init` from the page before the pass; 16 added. `ledger.py check`: problems 0.
+
+## The 2026-11-12 layout rollout (split layout, renderer v2 stage, explained motion)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged). The paper tab: the core sentence, You need and New terms beside the paper's Figure 1; What an edit costs beside the One turn's bill calculator; Learning it beside the GRPO rollout card; Suffix Cache Reuse beside the paper's Figure 4; the new One trajectory section beside its 3D stage (stage first in the DOM); Results (the zero-shot paragraphs and the 9B reversal) beside the Figure 5 and 19 chart, with the rest of Results continuing full width as `s-res2`. Problem, Idea, Why it matters, Connections, How much to believe and Using it have no visual and stay full width. Replay a trajectory: the intro, the what-is-illustrative box and Things to try beside the replay card; the three-policy table full width. Tables and Further reading: tables and lists, full width.
+- **One 3D stage** (`31_js_sc_cache.js`, template `25_js_s3.js` unchanged), "One trajectory, call by call", in a new section after SCR. Each row is one model call's prompt to scale along the 32,768-token window, call 1 at the back; cached blocks lie flat, blocks the server computes stand up (new, re-prefilled, reused by SCR, generated), a bar at the head of each row is the call's FLOPs from Eq. 9; the budget is a red glass wall, the 75% trigger a dashed line. Seven steps: appending (calls 1 to 4), the edit call, the call after it on a prefix cache (folded turns flow into notes, the kept turn re-prefilled), the same call with SCR (the kept turn's cache flows to its new place), the whole episode on a prefix cache, with SCR, and the Summary run for comparison. The data is the Replay tab's engine (`CLMR.simulate`, the algorithm `recompute.py` checks) at its defaults with "keeps the newest 1 turn", the setting where SCR matters; the step list quotes its numbers and `check_stages.mjs` recomputes every one of them from the engine. The camera moves in close for steps 1 to 4 and pulls back for the episode.
+- **Kept 2D**: the Figure 5 and 19 chart (accuracy against FLOPs, a scatter read off axes), the One turn's bill calculator (sliders on one formula), the GRPO rollout card (eight signed bars the reader flips), the predict reveals' bars, the paper's Figures 1 and 4 (images), the Replay chart (prompt size and running FLOPs per call are curves) and every table.
+- **The replay is a widget** (the long-replay rule): about 30 calls per policy that the reader drives with five controls, so it does not autoplay and has no step list; it opens on the first call after the first edit or summary (Base: where it runs out), and its live caption describes the call shown. The motion explained step by step is the stage. `makeAnim` (11_js_ui.js) gained `start(mode)` and sets `data-playing` while it plays; a new paragraph on the Replay tab says how to use it and links to the stage.
+- **Templates**: `99_js_tabs.js` (storage key `clm-tab`, `data-to` scrolls) and `05z_errbox.js.html` recopied; `21_js_rd_common.js` not used.
+- `check_page.mjs` now asserts that the stage plays when scrolled into view and that nothing moves under reduced motion; the replay's never-autoplay assertion stays (it is a widget). `check_stages.mjs` (after Constitutional AI's): the step list's numbers against the engine, the stage at 1400 light, 920 light and 390 dark (autoplay, one list item per step, flows stop off screen, stepping to the end, a reader control stops it), the replay widget (no autoplay, no step list, opening frame per policy, plays on Play), splits two columns at 1400, reduced motion.
+- `label_ledger.py`: added units now take their key, label and section from its list on every run (so a reworded sentence re-points its key there); nine units added for the stage and the widget paragraph.
+
+## Length judgement (2026-11-12)
+| | Before | After |
+|---|---|---|
+| The paper, core | 21.7 min (4,991 words) | 24.2 min (5,577) |
+| The paper, closed | 2.5 min (580) | 2.5 min (580) |
+| Replay a trajectory | 2.5 min (571) | 2.8 min (634; the widget paragraph) |
+| Tables (core + closed); Further reading | 5.1 + 3.4; 3.3 | unchanged |
+| Visuals in Reading (audit) | 4 | 5 (the stage) |
+
+The growth is the new One trajectory section: its intro and seven-step list (about 590 words) explain the stage, which shows what the page only said in words before: an edit's cost lands on the call after it, and SCR wins back the turns that survive. Nothing was cut. Header: "Reading: 24 min, plus 3 in closed details." No other page quotes this page's reading time (`check_times.py`).
+
+Ledger: 275 units (core 248, depth 18, owned 4, volatile 3, fat 2); 9 added (the stage's intro and seven steps, the widget paragraph); unit 80 ("click the rollouts ...") and the added unit for the script-drawn Reading charts re-pointed after "below" became "on the card"; unit 147's derived key moved to another run of its words. `ledger.py check`: problems 0.
+
+## Checks (12 November 2026)
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0 (202 KB). `check_page.mjs`: 0 problems (the JS replay and calculator agree with `recompute.py`). `check_stages.mjs`: 0 problems. `verify_layout.mjs`: problems 0 (the replay's "check autoplay" lines are the widget, as intended). `mk_coverage.py`: 32 of 32. `ledger.py check`: problems 0.

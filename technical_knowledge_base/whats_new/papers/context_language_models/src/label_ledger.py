@@ -31,7 +31,17 @@ NEW = [
  ('owned:' + BK, 'Why a prefix cache stops at the first differing token (block-hash lookup) is owned by the serving page; this page keeps one sentence and the link.', 'stops at the first miss'),
  ('owned:' + RL, 'GRPO and its group-relative advantage in general, owned by RL for LLMs; this page keeps what stepwise GRPO changes.', 'group relative policy optimization is ppo minus the value model'),
  ('owned:' + CE, 'Production compaction triggers (Claude API compaction at 150,000 input tokens by default), owned by Context engineering.', '150,000 input tokens by default'),
- ('core', 'Reading: Figure 5 and 19 chart, GRPO rollout widget, predict reveal bars, all drawn by script.', 'click the rollouts below to flip success and failure'),
+ ('core', 'Reading: Figure 5 and 19 chart, GRPO rollout widget, predict reveal bars, all drawn by script.', 'click the rollouts on the card to flip success and failure'),
+ # 2026-11-12 layout rollout: the 3D stage (Fig. 2, one trajectory call by call) and its step list, numbers from the Replay engine at keep 1
+ ('core', 'Stage Fig. 2: each row a call\'s prompt to scale, cached flat, computed standing, bar per call from Eq. 9; illustrative episode, the paper\'s pricing.', 'cached blocks lie flat; blocks the server must compute stand up'),
+ ('core', 'Stage step 1: appending, only the new tail is prefilled (1,800, 5,600, 5,600, 6,660); bills 1.03 to 3.84 x 10^14.', 'the bills are 1.03, 2.98, 3.09 and 3.84'),
+ ('core', 'Stage step 2: call 5 passes 75% (21,504 of 28,672) and writes a 260-token edit; itself an append, 3.37 x 10^14.', 'over the 21,504 that are 75% of the budget'),
+ ('core', 'Stage step 3: after the edit the unchanged kept turn is re-prefilled; call 6 costs 3.48 x 10^14 for a third of the prompt.', 'more than call 5\'s for a third of the prompt'),
+ ('core', 'Stage step 4: SCR relocates the kept turn; 965 tokens prefilled instead of 6,565, 0.66 x 10^14.', '965 tokens instead of 6,565'),
+ ('core', 'Stage step 5: 33 calls, 9 edits; post-edit calls 3.32 of 11.41 PFLOPs on a prefix cache.', 'those nine calls cost 3.32 of the episode\'s 11.41 pflops'),
+ ('core', 'Stage step 6: with SCR the post-edit calls fall to 0.47 PFLOPs, the episode to 8.56 (25% less).', 'and the episode to 8.56, 25% less'),
+ ('core', 'Stage step 7: Summary 9.01 PFLOPs, SCR saves nothing; keeping a turn verbatim pays only with SCR; folding every turn 8.30.', 'keeping a turn verbatim pays only with scr'),
+ ('core', 'Replay tab is a widget: opens on the first call after the first edit, no autoplay.', 'it is a tool, not an animation'),
  ('core', 'Replay tab: one episode under three context policies, priced with Eq. 9, drawn by script.', 'the whole episode, three policies side by side'),
  ('core', 'Tables tab: Tables 1 and 2 and the decoded figures, with every check, drawn by script.', 'every check against a printed number'),
 ]
@@ -66,13 +76,14 @@ for x in u:
         x['label'] = 'volatile'
     else:
         x['label'] = 'depth' if k in det else 'core'
-have = {x['text'] for x in u if x.get('added')}
+have = {x['text']: x for x in u if x.get('added')}
 n = max(x['id'] for x in u)
 for lab, text, key in NEW:
-    if text in have:
-        continue
+    sec = 'layout rollout 2026-11-12' if text.startswith(('Stage', 'Replay tab is a widget')) else 'light pass 2026-10-26'
+    if text in have:  # an added unit keeps its id; its label, key and section follow this list (a reworded sentence re-points its key here)
+        have[text].update(label=lab, key=key, section=sec); continue
     tab = 't-tables' if text.startswith('Tables tab') else 't-run' if text.startswith('Replay tab') else 't-read'
-    n += 1; u.append({'id': n, 'tab': tab, 'section': 'light pass 2026-10-26', 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
+    n += 1; u.append({'id': n, 'tab': tab, 'section': sec, 'text': text, 'label': lab, 'key': key, 'where': '', 'added': True})
 F.write_text(json.dumps(u, indent=1, ensure_ascii=False) + '\n')
 c = {}
 for x in u: c[x['label'].split(':')[0]] = c.get(x['label'].split(':')[0], 0) + 1
