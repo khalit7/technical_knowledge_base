@@ -225,8 +225,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy` Cluster anatomy: nodes, GPUs, networks and storage tiers
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale` Fault tolerance at scale: failures, checkpoint/restart and elastic training
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml` Kubernetes for ML: scheduling, device plugins, gang scheduling and operators
-- [~] `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training` Launching distributed training: torchrun, rendezvous, NCCL and hangs
-- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows` ML platforms and workflows: pipelines, experiment tracking and model registry
+- [x] `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training` Launching distributed training: torchrun, rendezvous, NCCL and hangs
+- [~] `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows` ML platforms and workflows: pipelines, experiment tracking and model registry
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost` Observability and cost: GPU metrics, goodput, utilisation and capacity planning
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/ray` Ray: tasks, actors, the object store and Ray Train
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/slurm` Slurm from zero: allocation, gang scheduling, fairshare and preemption
@@ -519,6 +519,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy`: job stage small at 390; Fig. 3 packed close-up frames rack 0 off-centre; tool tabs full width. Lead fix: ML infra root unit 997 re-keyed without its minutes.
 - `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale`: core 42 min plus 27 closed (36 before); 3D scenes small at 390; Fig. 2 "16 rows" labels close to the batch label on phones; Fig. 1 step 6 crops node 1 at the left (intentional close-up); Failure taxonomies report detail full width below its split.
 - `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml`: the loop's clock label clamps at the left edge on phones; preemption scene shortens the high-priority pod name to "nopreempt". Agent removed duplicated section 2 and 3 paragraphs and predicts (closed details 19.0 to 17.8 min).
+- `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training`: header counts every mode list (one pass about 35 min); Fig. 2 NCCL start-up is illustrative from the v2.30.7-1 source (no GPU run); store step titles script-written (ledger cannot see them). Verified by checkpage, ledgers and privacy grep only (usage limit): run verify_layout.mjs on it.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 

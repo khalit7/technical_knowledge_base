@@ -110,12 +110,19 @@
 <a href="#s0">The idea</a><a href="#s-one">1 The chain</a><a href="#s-land">2 Launchers</a><a href="#s-agent">3 The agent</a><a href="#s-rdzv">4 Rendezvous</a><a href="#s-store">5 The shared store</a><a href="#s-pg">6 gloo and NCCL</a><a href="#s-time">7 Timeouts</a><a href="#s-hang">8 Hangs</a><a href="#s-net">9 Containers</a><a href="#s-check">10 Bring-up</a><a href="#s-depth">11 Depth</a>
 </div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Starting a distributed job is a chain of six links (scheduler, node launcher, agent rendezvous, worker start, communicator, first step), each owned by different software with its own timeout. <b>A broken link rarely crashes</b>: the processes that did start wait for the ones that did not until some timeout fires, so <span class="hl">which timeout fires first decides both how long you wait and what the error says</span>.</p>
-<div class="hero" id="ld-hero-card"><h4>Two nodes, four GPUs: who starts whom, where they meet, and the clock on each link</h4>
-<div class="rd-svg" id="ld-hero"></div>
-<p class="small">The running example on two nodes of two GPUs. Numbers are the six links of section 1; the grey times are each link's default timeout (torch 2.14.1). The <span class="hl">blue</span> store is where every process learns the others' addresses; the blue lines are the communicator built from them. On Slurm the whole chain took 7.5 s, submit to first step (median of 5 runs, parent Launch lab, <span class="meas">measured</span>).</p></div>
+<p>Fig. 1 is the running example on two nodes of two ranks, launched by Slurm (the parent's Launch lab; times are medians of 5 runs, <span class="meas">measured</span>; the variables are what each worker recorded). Each step is one link, with its default timeout:</p>
+<ol class="sx" id="sx-hero">
+<li><b>Scheduler.</b> sbatch asks slurmctld for two nodes and runs the batch script on the first: 0.73 s from submit. No timeout but the job's time limit; a node that never boots leaves the job pending.</li>
+<li><b>Node launcher.</b> srun starts one task per node, each a <dfn>torchrun agent</dfn> (0.089 s), which then spends 1.31 s importing torch. Nothing times out here either.</li>
+<li><b>Agent rendezvous.</b> Both agents meet at the c10d store on port 29500, hosted by node 0's agent, and learn their node rank (GROUP_RANK 0 and 1) and the number of nodes (GROUP_WORLD_SIZE 2): 1.09 s. The clock here is the rendezvous join timeout, 600 s for c10d (900 s for static).</li>
+<li><b>Workers start.</b> Each agent spawns one worker per GPU and hands it RANK, LOCAL_RANK, WORLD_SIZE 4 and MASTER_ADDR c1 with MASTER_PORT 34161 (a second store the node-0 agent opened for the workers, not 29500); spawning and importing torch take 2.49 s.</li>
+<li><b>Communicator.</b> <code>init_process_group</code>: every rank writes its address into the <span class="hl">store</span> (where every process learns the others' addresses), reads the others' and gloo connects all of them, a full mesh of TCP: 9 ms. From here the process-group timeout runs: 30 min for gloo, 10 min for NCCL.</li>
+<li><b>First step.</b> Data, model and the DDP wrapper (which broadcasts rank 0's weights to every rank) take 1.95 s, the first step 0.16 s. On Slurm the whole chain took 7.5 s, submit to first step.</li>
+</ol>
 <p><b>You need:</b> what a process group, a collective and the c10d store are from the code side ({{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}, section 1), and what the schedulers do ({{Slurm from zero|n:3c65c17b0d0d81889c32cd050bbbadd3}}, {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}}). Parallelism forms are on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; this page is everything between "the scheduler gave me nodes" and "step 1 ran".</p>
 <dl class="terms">
 <dt>Rank, local rank</dt><dd>a process's number in the job (0 to W−1, W the <dfn>world size</dfn>) and on its own machine (picks the GPU).</dd>
@@ -126,15 +133,19 @@
 <dt>Bootstrap</dt><dd>NCCL's own start-up: a ring of TCP connections over which ranks swap addresses and topology.</dd>
 </dl>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-one">
 <h2>1. The chain, measured on three schedulers</h2>
-<p><b>The running example</b> is the topic's tiny GPT (112,577 parameters, TinyShakespeare, DDP over gloo, standing in for NCCL), 2 nodes × 2 processes, in Linux containers on an Apple M1 Pro (Docker Desktop VM, shared machine), torch 2.14.1. The {{Launch lab of the parent page|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} timed every stage; click a link for what it does, its timeout and how it broke there.</p>
-<div class="card" id="ld-chain-card">
+<p><b>The running example</b> is the topic's tiny GPT (112,577 parameters, TinyShakespeare, DDP over gloo, standing in for NCCL), 2 nodes × 2 processes, in Linux containers on an Apple M1 Pro (Docker Desktop VM, shared machine), torch 2.14.1. The {{Launch lab of the parent page|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} timed every stage on Slurm, Kubernetes and Ray; in the explorer beside this, click a link for what it does, its timeout and how it broke there.</p>
+<p>Typical failures seen there: a node that never arrives gives a bare RendezvousTimeoutError after 602 s (c10d); a missing pod gives "1/2 clients joined" at 903 s (static); a wrong WORLD_SIZE gives "wait timeout after 120000ms"; Ray Train with too few resources retries "worker group startup timed out" every 60 s, forever.</p>
+<p>When a job "hangs at start", the first question is always <b>which link is it stuck in?</b> Section 7 puts every link's clock on one axis; section 8 is how to find the one rank that is different once training has started.</p>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ld-chain-card">
+<h4 style="margin:0 0 6px;font-size:14.5px">The six links on each scheduler: seconds spent, and the clock on each</h4>
 <div class="ld-sys seg" id="ld-chain-sys"><button data-m="slurm" class="on">Slurm</button><button data-m="k8s">Kubernetes</button><button data-m="ray">Ray</button></div>
 <div class="ld-chain" id="ld-chain"></div>
 <div class="ld-det" id="ld-chain-det"></div>
-<div class="small mute">Times: the parent page's Launch lab, median of 5 runs, 2 × 2 ranks, image already on every node, <span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine. Timeouts: torch 2.14.1 and Ray 2.59.0 source, each linked in section 7. Typical failures seen there: a node that never arrives gives a bare RendezvousTimeoutError after 602 s (c10d); a missing pod gives "1/2 clients joined" at 903 s (static); a wrong WORLD_SIZE gives "wait timeout after 120000ms"; Ray Train with too few resources retries "worker group startup timed out" every 60 s, forever.</div>
-</div>
-<p>When a job "hangs at start", the first question is always <b>which link is it stuck in?</b> Section 7 puts every link's clock on one axis; section 8 is how to find the one rank that is different once training has started.</p>
-</section>
+<div class="small mute">Times: the parent page's Launch lab, median of 5 runs, 2 × 2 ranks, image already on every node, <span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine. Timeouts: torch 2.14.1 and Ray 2.59.0 source, each linked in section 7.</div>
+</div></div></div></div>

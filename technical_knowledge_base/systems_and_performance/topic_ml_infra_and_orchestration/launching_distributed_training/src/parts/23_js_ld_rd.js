@@ -79,26 +79,26 @@ chain();
     const fails=E.filter(e=>e.k==='a_failed'),crash=LG.find(l=>l.ev==='crash');
     const p1=P.filter(p=>p.restart===1),p0=P.filter(p=>p.restart===0);
     const S=[];
-    S.push({t:ports[0].t,ph:0,port:ports[0].p,keys:[],tag:'empty',w:['wait','wait'],
+    S.push({ti:'Attempt 0 meets',t:ports[0].t,ph:0,port:ports[0].p,keys:[],tag:'empty',w:['wait','wait'],
       cap:'Attempt 0. The two agents meet at the rendezvous store (port 29613); rank 0\'s agent opens the workers\' store on a free port, '+ports[0].p+'.'+(p0[0]&&p0[0].num_keys!=null?' The probe in each worker finds it empty: '+p0[0].num_keys+' keys.':' (No probe: without a shared agent store the workers\' rank 0 creates the store inside init_process_group.)')});
-    S.push({t:LG.find(l=>l.ev==='start').t,ph:0,port:ports[0].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['run','run'],
+    S.push({ti:'Addresses written, training',t:LG.find(l=>l.ev==='start').t,ph:0,port:ports[0].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['run','run'],
       cap:'init_process_group: each rank writes its gloo address under its key and connects to the other. Training starts.'});
-    S.push({t:crash.t,ph:0,port:ports[0].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['run','dead'],
+    S.push({ti:'Rank 1 exits 13',t:crash.t,ph:0,port:ports[0].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['run','dead'],
       cap:'Rank 1 exits with code 13 after step '+crash.step+'. Its listening socket is gone; rank 0\'s next collective fails ("Read error ... Connection reset by peer").'});
-    S.push({t:fails[fails.length-1].t,ph:1,port:ports[0].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:m==='noshare'?'gone':'stale',w:['dead','dead'],
+    S.push({ti:'Both agents restart',t:fails[fails.length-1].t,ph:1,port:ports[0].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:m==='noshare'?'gone':'stale',w:['dead','dead'],
       cap:'Both agents log "Worker group FAILED. 1/1 attempts left; will restart worker group", stop their workers and go back to the rendezvous.'});
     const same=ports[1].p===ports[0].p;
-    S.push({t:ports[1].t,ph:1,port:ports[1].p,keys:same?['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1','(a third key)']:[],tag:same?'stale':'empty',w:['wait','wait'],
+    S.push({ti:same?'Attempt 1: the same store':'Attempt 1: a new store',t:ports[1].t,ph:1,port:ports[1].p,keys:same?['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1','(a third key)']:[],tag:same?'stale':'empty',w:['wait','wait'],
       cap:'Attempt 1. The agents meet again. Workers\' store port: '+ports[1].p+(same?', the same store as attempt 0. The probe counts '+p1[0].num_keys+' keys already there, both gloo address keys of attempt 0 among them.':', a new store: the old one and its keys are gone.')});
     if(m==='noshare'){const rs=LG.find(l=>l.ev==='resume'),en=LG.find(l=>l.ev==='end');
-      S.push({t:rs.t,ph:1,port:ports[1].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['run','run'],
+      S.push({ti:'Resumed',t:rs.t,ph:1,port:ports[1].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['run','run'],
         cap:'The new workers write fresh addresses and connect. Both load step_000020.pt and resume at step '+rs.step+', '+f1(rs.t-crash.t)+' s after the crash.'});
-      S.push({t:en.t,ph:1,port:ports[1].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['done','done'],
+      S.push({ti:'Same loss as without the crash',t:en.t,ph:1,port:ports[1].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1'],tag:'fresh',w:['done','done'],
         cap:'Step '+en.step+' reached; global loss '+en.gloss+', the same value as the uninterrupted run at step 80 recorded by the parent\'s Failure lab. Job succeeded.'});
     }else{const em=E.filter(e=>e.k==='err_mesh'||(e.k==='other'&&/^RendezvousConnectionError/.test(e.msg)));
       em.forEach((e,i)=>{const r=e.who==='A'?0:1;const w=i===0?(r===0?['dead','wait']:['wait','dead']):['dead','dead'];
         const ref=/Connection refused/.test(e.msg),to=/Connect timeout/.test(e.msg);
-        S.push({t:e.t,ph:1,port:ports[1].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1','(a third key)'],tag:'stale',w:w,
+        S.push({ti:'Rank '+r+(ref?': connection refused':to?': connect timeout':': store lost'),t:e.t,ph:1,port:ports[1].p,keys:['default_pg/0//cpu//0/0','default_pg/0//cpu//0/1','(a third key)'],tag:'stale',w:w,
           cap:'Rank '+r+': '+(ref?'connected to the address its peer had in attempt 0: "Gloo connectFullMesh failed ... Connection refused".':to?'after waiting '+f1(e.t-ports[1].t)+' s for a peer that will never connect: "Gloo connectFullMesh failed ... Connect timeout [none]" (300 s, the c10d Store default).':'its agent loses the rendezvous store: "RendezvousConnectionError: The connection to the C10d store has failed."')+(i===em.length-1?' No restarts left: the job fails.':'')});});
     }
     return S;}
@@ -108,16 +108,18 @@ chain();
     ['A','B'].forEach((a,k)=>{const y=20+k*95;b+='<rect x="4" y="'+y+'" width="'+bw+'" height="72" rx="8" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(12,y+18,'agent '+a+' (node '+k+')',{w:600,fs:12})+
       '<rect x="12" y="'+(y+28)+'" width="'+(bw-16)+'" height="34" rx="6" fill="var(--bg)" stroke="'+col[s.w[k]]+'" stroke-width="2"/>'+RD.t(20,y+50,'rank '+k+': '+({wait:'starting',run:'training',dead:'failed',done:'finished'}[s.w[k]]),{fs:12,fill:col[s.w[k]]})});
     const sx=bw+30,sw=w-sx-6;
-    b+='<rect x="'+sx+'" y="20" width="'+sw+'" height="167" rx="8" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(sx+10,38,'workers\' store, port '+s.port,{w:600,fs:12})+RD.t(sx+sw-8,38,'attempt '+s.ph,{a:'end',fs:11,fill:'var(--mute)'});
-    s.keys.forEach((k,j)=>{const y=52+j*30,st=s.tag==='stale';b+='<rect x="'+(sx+10)+'" y="'+y+'" width="'+(sw-20)+'" height="24" rx="4" fill="var(--bg)" stroke="'+(st?'var(--bad)':'var(--good)')+'"'+(st?' stroke-dasharray="4 3"':'')+'/>'+RD.t(sx+16,y+16,esc(k)+(st&&k[0]!=='('?'  (attempt 0, stale)':''),{fs:11})});
+    b+='<rect x="'+sx+'" y="20" width="'+sw+'" height="167" rx="8" fill="var(--soft)" stroke="var(--line)"/>'+(sw<300?RD.t(sx+10,34,'workers\' store :'+s.port,{w:600,fs:12})+RD.t(sx+10,48,'attempt '+s.ph,{fs:11,fill:'var(--mute)'}):RD.t(sx+10,38,'workers\' store, port '+s.port,{w:600,fs:12})+RD.t(sx+sw-8,38,'attempt '+s.ph,{a:'end',fs:11,fill:'var(--mute)'}));
+    const nk=sw<300;s.keys.forEach((k,j)=>{const y=(nk?58:52)+j*(nk?28:30),st=s.tag==='stale';b+='<rect x="'+(sx+10)+'" y="'+y+'" width="'+(sw-20)+'" height="24" rx="4" fill="var(--bg)" stroke="'+(st?'var(--bad)':'var(--good)')+'"'+(st?' stroke-dasharray="4 3"':'')+'/>'+RD.t(sx+16,y+16,esc(nk?k.replace('default_pg/0//cpu//0/','.../'):k)+(st&&k[0]!=='('?(nk?'  stale':'  (attempt 0, stale)'):''),{fs:11})});
     if(!s.keys.length)b+=RD.t(sx+12,64,s.tag==='gone'?'(store gone with attempt 0)':'(empty)',{fs:12,fill:'var(--mute)'});
     $('ld-st-svg').innerHTML=RD.svg(w,h,b,'workers store and two ranks, step '+(i+1));
-    $('ld-st-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+steps.length+' (+'+f1(s.t)+' s)</div><p>'+s.cap+'</p>';
     $('ld-st-cnt').innerHTML=RD.stat('Time since start',f1(s.t)+' s','')+RD.stat('Workers\' store port',s.port,s.ph?(s.port===steps[0].port?'reused':'new'):'')+RD.stat('Outcome',mode==='noshare'?(i===steps.length-1?'succeeded':'running'):(i===steps.length-1?'failed':'running'),'');
   }
-  steps=build(mode);
-  const an=RD.anim({card:'ld-st-card',ctl:'ld-st-ctl',n:steps.length,draw:draw,ms:2600,label:'Store animation step'});
-  RD.seg($('ld-st-mode'),m=>{mode=m;steps=build(m);an.reset(steps.length)});
+  // the step list on the left, one per run, written from the same steps the drawing uses (the per-step caption moved here)
+  ['share_a','share_b','noshare'].forEach(m=>{$('sx-st-'+m).innerHTML=build(m).map(s=>'<li><b>'+s.ti+'</b> <span class="mute">(+'+f1(s.t)+' s)</span> '+s.cap+'</li>').join('')});
+  const show=m=>document.querySelectorAll('.sx-st').forEach(l=>l.hidden=l.id!=='sx-st-'+m);
+  steps=build(mode);show(mode);
+  const an=RD.anim({card:'ld-st-card',ctl:'ld-st-ctl',n:steps.length,draw:draw,ms:4600,label:'Store animation step',list:'sx-st-'+mode});
+  RD.seg($('ld-st-mode'),m=>{mode=m;steps=build(m);show(m);an.reset(steps.length,'sx-st-'+m)});
   RD.onResize(()=>an.redraw());
 })();
 

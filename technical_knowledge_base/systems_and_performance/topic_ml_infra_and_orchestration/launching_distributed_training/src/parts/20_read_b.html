@@ -18,10 +18,14 @@
 <div class="opts"><button data-r="0">Accelerate's own TCP handshake</button><button data-r="1">torchrun's static rendezvous, with 10.0.0.5:29500 as its endpoint</button><button data-r="0">torchrun's c10d (dynamic) rendezvous</button></div>
 <div class="ans" hidden>torchrun's static rendezvous. Accelerate 1.15.0 hands the job to <code>torch.distributed.run</code>; its <code>--rdzv_backend</code> defaults to <code>static</code>, and for more than one machine (without <code>--same_network</code>) it sets <code>rdzv_endpoint = main_process_ip:main_process_port</code> ({{utils/launch.py:224|L:acc_rdzv}}), port 29500 when none is given. So Accelerate jobs inherit torchrun's timeouts, including the 900 s static wait of section 7.</div></div>
 </section>
+<div class="s3sp"><div class="s3L">
 <section id="s-agent">
 <h2>3. torchrun's agent: start, watch, restart</h2>
 <p>torchrun is a thin command-line wrapper around PyTorch's <dfn>elastic agent</dfn> (<code>LocalElasticAgent</code>). One agent runs per node and its whole life is one loop ({{api.py:906-974|L:agent_failed}}):</p>
-<div class="fig" id="ld-loop-card"><h4>The agent's loop: every failure goes back to the rendezvous, and takes every node with it</h4>
+</details>
+<div class="co warn"><div class="t">Exit codes change on the way up</div>The worker exited 13; torchrun's own exit code is 1 and the 13 survives only in the ChildFailedError report ("exitcode : 13"). Anything above torchrun (srun's <code>--kill-on-bad-exit</code>, Slurm's job state, a Kubernetes <code>podFailurePolicy</code>) sees 1, so a podFailurePolicy rule on exit code 13 never matches (measured by the sibling page {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}} on Kubernetes v1.37.0). Match on log text, or have the script write an error file (decorate the entry point with <code>@record</code> from <code>torch.distributed.elastic.multiprocessing.errors</code>).</div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card fig" id="ld-loop-card"><h4>The agent's loop: every failure goes back to the rendezvous, and takes every node with it</h4>
 <div class="rd-svg" id="ld-loop"></div>
 <p class="small">Times on the arrows are from the restart run below: a rank exits with code 13 at step 30; both agents log FAILED within about a second; the workers are back at step 20 (the last checkpoint) 4.3 s after the crash (<span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine; the parent's Failure lab measured 3.4 s for the same restart on Slurm).</p></div>
 <ol class="tight">
@@ -33,9 +37,7 @@
 <p>So <b>a restart restarts every process of every node</b>, not just the one that died (the healthy ranks' collectives fail when their peer vanishes, their agents see FAILED too); <b>it runs your script again from the top</b>, so it continues only if the script loads its own checkpoint; and <b>it costs at least a monitor interval, a rendezvous and a cold start</b>.</p>
 <details class="dp"><summary>Agent B's own log lines in that restart run</summary><div class="b">
 <pre class="rd-code rd-out" id="ld-agentlog"></pre>
-<div class="rd-codecap">torch 2.14.1; two agents, one rank each, <code>--max-restarts=1</code>, <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code>; script <code>src/scripts/ld_rdzv.sh noshare</code>. Rank 1 exits with code 13 at step 30 on the first attempt only.</div></div></details>
-<div class="co warn"><div class="t">Exit codes change on the way up</div>The worker exited 13; torchrun's own exit code is 1 and the 13 survives only in the ChildFailedError report ("exitcode : 13"). Anything above torchrun (srun's <code>--kill-on-bad-exit</code>, Slurm's job state, a Kubernetes <code>podFailurePolicy</code>) sees 1, so a podFailurePolicy rule on exit code 13 never matches (measured by the sibling page {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}} on Kubernetes v1.37.0). Match on log text, or have the script write an error file (decorate the entry point with <code>@record</code> from <code>torch.distributed.elastic.multiprocessing.errors</code>).</div>
-</section>
+<div class="rd-codecap">torch 2.14.1; two agents, one rank each, <code>--max-restarts=1</code>, <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code>; script <code>src/scripts/ld_rdzv.sh noshare</code>. Rank 1 exits with code 13 at step 30 on the first attempt only.</div></div></div></div></div>
 
 <section id="s-rdzv">
 <h2>4. Rendezvous: static and dynamic</h2>
@@ -48,34 +50,76 @@
 <li>Heartbeat older than 5 s × 3 attempts ({{:1430|L:dyn_keepalive}}, {{:1435|L:dyn_keepmax}}, check {{:476|L:dyn_dead}}): the node is <b>dead</b>, removed by whoever syncs next.</li>
 <li>Join deadline passed (600 s by default, {{:144|L:dyn_timeouts}}): <b>give up</b> with RendezvousTimeoutError. The dynamic backend reads <code>join_timeout</code> ({{:1385|L:dyn_gettimeout}}), not the launcher's <code>timeout=900</code>, so c10d jobs give up at 600 s while static ones wait 900 s (the parent's Launch lab measured 602 s and 903 s).</li>
 </ul>
-<p>The replay below is a real run of those rules, before and after: the same arrivals and the same kill under c10d and under static. Three agents A, B and C play three nodes (one container, one rank each); A starts at 0 s, B at 3 s, C at 45 s; after 40 steps at world size 3, C is killed with SIGKILL. c10d runs with <code>--nnodes=2:3 --max-restarts=3</code> (and <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code>, section 5); static with <code>--nnodes=3</code>.</p>
-<div class="pr" id="ld-pr2"><div class="q">Predict before you play: in the c10d run C is killed at 56.2 s. How long until A and B are training again at world size 2?</div>
-<div class="opts"><button data-r="0">About 1 s: the agents notice at their next monitor tick</button><button data-r="0">About 15 s: the heartbeat expiry</button><button data-r="1">About 43 s</button><button data-r="0">Never: an elastic job cannot shrink</button></div>
-<div class="ans" hidden>About 43 s, and every part is a default. The agents saw their workers fail within 1 s and went back to the rendezvous; but C was still a participant of the completed round, so A and B could only join the <b>wait list</b> of the next round until C was declared dead, 13 s after the kill (heartbeats every 5 s, dead after 3 missed). Then A and B formed round 2, reached <code>min_nodes=2</code>, and the 30 s last call ran out: 13 + 30 = 43 s. The parent's Failure lab measured 44.0 s for the same scale-down on Slurm. Shorter settings (<code>--rdzv-conf last_call_timeout=...,keep_alive_interval=...</code>) shorten it, at the price of smaller groups or slow nodes declared dead.</div></div>
+</section>
+
+<div class="s3sp"><div class="s3R">
 <div class="card" id="rz-card">
+<h4 style="margin:0 0 6px;font-size:14.5px">Three agents, one late and one killed: what each rendezvous backend does with them</h4>
 <div class="seg" id="rz-mode"><button data-m="elastic" class="on">c10d (dynamic)</button><button data-m="static">static</button><button data-m="elastic_share">c10d, store shared (section 5)</button></div>
 <div class="rz-svg" id="rz-svg"></div><div class="small mute">Green bars: training, by the world size in rank 0's log; dots: logged events (red: failures, blue: rounds completed).</div>
-<div class="ctl2" id="rz-ctl"></div>
-<div class="an-cap" id="rz-cap"></div>
+<div class="an-ctl" id="rz-ctl"></div>
 <div class="rz-state" id="rz-state"></div>
 <div class="small mute">Every step is a line the agents logged: torch records each rendezvous action as an event but discards it by default (a NullHandler, {{handlers.py:14|L:events_null}}), so the runs used a 20-line wrapper, <code>src/scripts/ld_torchrun.py</code>, that turns that log on and calls torchrun's own <code>main()</code>. Heartbeats and "stale state" retries are left out; round, participants, wait list and deadline are rebuilt from the events by the rules above. Seconds since A started, <span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine, rough to about a second (the defaults behind them, 30 s last call, 5 s × 3 heartbeats, 60 s store reads, are exact). Script: <code>src/scripts/ld_rdzv.sh elastic | elastic_share | static</code>.</div>
 </div>
-<p>What the c10d run shows: <b>a node joining a running job costs a full restart</b> of every worker (2.3 s here, from the agents noticing C to round 1 done at <code>max_nodes</code>), free in torchrun's accounting; <b>losing a node costs heartbeat expiry plus a last call</b> (13 + 30 s), with no error in the logs, only silence; and the ranks followed the sorted descriptors (here A, B, C happened to sort in arrival order, pids 11, 16, 31). Under static, nothing re-forms: A and B's workers fail and both agents exit 1 within 1.3 s of the kill (no restarts allowed; with restarts it would wait for a third node at the same fixed world size). Static is right only when something above it (Slurm's requeue, a JobSet restart) replaces the node.</p>
+</div><div class="s3L">
+<section id="s-rdzv-replay">
+<h3>The replay: a late node and a killed node</h3>
+<p>The replay beside this is a real run of those rules, before and after: the same arrivals and the same kill under c10d and under static. Three agents A, B and C play three nodes (one container, one rank each); A starts at 0 s, B at 3 s, C at 45 s; after 40 steps at world size 3, C is killed with SIGKILL. c10d runs with <code>--nnodes=2:3 --max-restarts=3</code> (and <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code>, section 5); static with <code>--nnodes=3</code>.</p>
+<div class="pr" id="ld-pr2"><div class="q">Predict before it plays: in the c10d run C is killed at 56.2 s. How long until A and B are training again at world size 2?</div>
+<div class="opts"><button data-r="0">About 1 s: the agents notice at their next monitor tick</button><button data-r="0">About 15 s: the heartbeat expiry</button><button data-r="1">About 43 s</button><button data-r="0">Never: an elastic job cannot shrink</button></div>
+<div class="ans" hidden>About 43 s, and every part is a default. The agents saw their workers fail within 1 s and went back to the rendezvous; but C was still a participant of the completed round, so A and B could only join the <b>wait list</b> of the next round until C was declared dead, 13 s after the kill (heartbeats every 5 s, dead after 3 missed). Then A and B formed round 2, reached <code>min_nodes=2</code>, and the 30 s last call ran out: 13 + 30 = 43 s. The parent's Failure lab measured 44.0 s for the same scale-down on Slurm. Shorter settings (<code>--rdzv-conf last_call_timeout=...,keep_alive_interval=...</code>) shorten it, at the price of smaller groups or slow nodes declared dead.</div></div>
+<p class="sxh">Step by step, from the agents' own log</p>
+<ol class="sx sx-rz" id="sx-rz-elastic">
+<li><b>A waits for a quorum.</b> A starts at 0 s, hosts the store and joins round 0 alone; with <code>min_nodes=2</code> it cannot complete. B arrives at 3 s and joins at 4.1 s: the minimum is reached, so a last-call deadline is set 30 s away.</li>
+<li><b>The last call runs out.</b> Nobody else arrives; at 34.2 s B marks round 0 complete, ranks follow the sorted descriptors (A rank 0, B rank 1) and both agents start their workers at world size 2.</li>
+<li><b>Training at world size 2.</b> Rank 0 logs step 1 at 36.9 s. The store is quiet apart from heartbeats.</li>
+<li><b>C joins a running job.</b> C starts at 45 s and lands on the wait list of round 1 at 46.1 s; at their next monitor tick A and B see it, stop their workers and rejoin. Round 1 completes at once at <code>max_nodes=3</code> (48.2 s); from the agents noticing C to round 1 done took 2.3 s. The workers resume from the step 50 checkpoint at world size 3.</li>
+<li><b>C is killed.</b> After 40 steps at world size 3, C gets SIGKILL at 56.2 s. A and B's collectives fail and both agents log "Worker group FAILED" within 1 s.</li>
+<li><b>Silence: C is still a participant.</b> Round 1 is complete and still lists C, so A and B can only join the wait list of round 2. Nothing is logged until C's heartbeat is 15 s old: at 69.3 s, 13 s after the kill, A declares C dead.</li>
+<li><b>Round 2, and another last call.</b> A and B form round 2, reach <code>min_nodes=2</code> and wait out a second 30 s last call: complete at 99.5 s, 43 s after the kill. The workers resume from the step 50 checkpoint at world size 2.</li>
+<li><b>The job finishes.</b> Rank 0 reaches step 600 at 175 s; both agents wait at the exit barrier, close the rendezvous and exit 0.</li>
+</ol>
+<ol class="sx sx-rz" id="sx-rz-static" hidden>
+<li><b>Two agents wait for three.</b> A starts at 0 s and opens the store; B connects at 3 s. Static has no rounds: with <code>--nnodes=3</code> both simply wait for a third node.</li>
+<li><b>C arrives; ranks are fixed.</b> C starts at 45 s and the rendezvous completes at 46.1 s with world size 3; the workers start training at 49.1 s.</li>
+<li><b>Training at world size 3.</b> 40 steps, then C is killed with SIGKILL at 54.4 s.</li>
+<li><b>Nothing re-forms.</b> A and B's workers fail and both agents exit 1 at 55.7 s, 1.3 s after the kill (no restarts allowed; with restarts it would wait for a third node at the same fixed world size).</li>
+</ol>
+<ol class="sx sx-rz" id="sx-rz-share" hidden>
+<li><b>Round 0 as before.</b> A and B meet, the 30 s last call runs out, round 0 completes at 34.1 s at world size 2.</li>
+<li><b>Training at world size 2.</b> Rank 0 trains to step 70; the store is shared between rounds (no <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE</code>).</li>
+<li><b>C arrives; everyone re-rendezvous.</b> C starts at 45 s; at 46.1 s A and B detect the new node, stop their workers and rejoin.</li>
+<li><b>Everyone waits on a key nobody writes.</b> C needs MASTER_ADDR from round 1's keys; A, rank 0 again, already runs its store server and skips publishing it. Nothing is logged for a minute.</li>
+<li><b>All three fail.</b> At 107.8 s, 61.5 s after the re-rendezvous began, each agent's read hits the c10d store's 60 s timeout (section 5 explains why).</li>
+</ol>
+<p>What the runs show: <b>a node joining a running job costs a full restart</b> of every worker, free in torchrun's accounting; <b>losing a node costs heartbeat expiry plus a last call</b> (13 + 30 s), with no error in the logs, only silence; and the ranks followed the sorted descriptors (here A, B, C happened to sort in arrival order, pids 11, 16, 31). Static is right only when something above it (Slurm's requeue, a JobSet restart) replaces the node.</p>
 <details class="dp"><summary>Every logged event of the selected run (click a line to jump to it)</summary><div class="b"><div class="rz-log" id="rz-log"></div></div></details>
+</section>
+</div></div>
+<section id="s-rdzv-store">
 <p><b>Where the store lives.</b> With c10d the agent whose host name matches <code>--rdzv-endpoint</code> hosts the store; when several agents share a machine, all try, one wins and the rest connect as clients ({{c10d_rendezvous_backend.py:154|L:c10d_twice}}). That process is a <b>single point of failure</b>: the parent's Failure lab killed the agent hosting the store and the whole job died with "RendezvousConnectionError: The connection to the C10d store has failed", elastic or not. Put the endpoint on the node least likely to fail, or run the store outside the job (etcd-v2 backend, or a dedicated host).</p>
 </section>
 
-<section id="s-store">
-<h2>5. The store between attempts: one variable decides whether a restart works</h2>
-<p>After the agents meet, the workers need a store too: <code>init_process_group</code> uses it to swap the addresses gloo or NCCL will connect to. In torch 2.14.1 the rank-0 agent starts a second TCPStore on a free port for the workers, <b>kept for the life of the agent</b> and reused by every later round ({{dynamic_rendezvous.py:1209-1217|L:dyn_bootcond}}). The worker side assumes the opposite: "We create a new TCPStore for every retry so no need to add prefix for each attempt" ({{rendezvous.py:205|L:rdzv_noprefix}}). So after a restart the new workers find the old workers' keys still there, including each rank's old gloo address. <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> ({{:1146|L:dyn_share}}) turns the sharing off: each round's rank 0 builds a fresh store on a new port. The parent's Failure lab found that in-job restarts on two Slurm nodes failed with the default and worked with the variable set; this before/after shows why, from three recorded runs of the same crash, with a probe in every worker counting the store's keys before <code>init_process_group</code>.</p>
+<div class="s3sp"><div class="s3R">
 <div class="card" id="ld-st-card">
+<h4 style="margin:0 0 6px;font-size:14.5px">The workers' store across a restart: kept (default) or rebuilt</h4>
 <div class="seg" id="ld-st-mode"><button data-m="share_a" class="on">Shared store (default), run 1</button><button data-m="share_b">Shared store, run 2</button><button data-m="noshare">Not shared (variable set)</button></div>
 <div class="rd-svg" id="ld-st-svg"></div>
 <div class="an-ctl" id="ld-st-ctl"></div>
-<div class="an-cap" id="ld-st-cap"></div>
 <div class="an-cnt" id="ld-st-cnt"></div>
 <div class="small mute">Two torchrun agents in one container, c10d rendezvous, one rank each, <code>--max-restarts=1</code>, rank 1 exits with code 13 at step 30 of the first attempt (<code>src/scripts/ld_rdzv.sh</code>, <code>ld_wrap.py</code>). Times from the agents' and workers' logs, <span class="meas">measured</span> on Apple M1 Pro, Docker Desktop VM, shared machine. Keys are the gloo address keys of the default group, <code>default_pg/0//cpu//0/&lt;rank&gt;</code>. With the variable set the job resumed 4.3 s after the crash and reached step 80 with global loss 2.5297603607177734, the uninterrupted run's value.</div>
 </div>
+</div><div class="s3L">
+<section id="s-store">
+<h2>5. The store between attempts: one variable decides whether a restart works</h2>
+<p>After the agents meet, the workers need a store too: <code>init_process_group</code> uses it to swap the addresses gloo or NCCL will connect to. In torch 2.14.1 the rank-0 agent starts a second TCPStore on a free port for the workers, <b>kept for the life of the agent</b> and reused by every later round ({{dynamic_rendezvous.py:1209-1217|L:dyn_bootcond}}). The worker side assumes the opposite: "We create a new TCPStore for every retry so no need to add prefix for each attempt" ({{rendezvous.py:205|L:rdzv_noprefix}}). So after a restart the new workers find the old workers' keys still there, including each rank's old gloo address. <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code> ({{:1146|L:dyn_share}}) turns the sharing off: each round's rank 0 builds a fresh store on a new port. The parent's Failure lab found that in-job restarts on two Slurm nodes failed with the default and worked with the variable set; the before/after beside this shows why, from three recorded runs of the same crash, with a probe in every worker counting the store's keys before <code>init_process_group</code>.</p>
+<p class="sxh">Step by step, from the agents' and workers' logs</p>
+<ol class="sx sx-st" id="sx-st-share_a"></ol>
+<ol class="sx sx-st" id="sx-st-share_b" hidden></ol>
+<ol class="sx sx-st" id="sx-st-noshare" hidden></ol>
 <p>Both shared runs failed, differently. In run 1 rank 1 connected at once to rank 0's old port and got "Connection refused", while rank 0 waited for a connection that could never come for 300 s, the c10d Store's default timeout ({{Store.hpp:21|L:store_300}}), not the 60 s process-group timeout the script passed (that this 300 s is the one gloo used is our reading; gloo's own source was not checked). In run 2 rank 0 read the stale address. Which rank loses the race is chance, which is why restarts with the default look flaky rather than broken; the sibling PyTorch page's "flaky elastic restarts" on one machine are consistent with it.</p>
+</section>
+</div></div>
+<section id="s-store-grow">
 <div class="co warn"><div class="t">The same sharing breaks growing an elastic job</div>In the replay's "store shared" mode (section 4), C's arrival made the agents re-rendezvous into round 1. C, new, needed MASTER_ADDR from the round's keys ({{api.py:102|L:api_masteraddr}}); A, rank 0 again, already had its store server and skipped publishing it (the condition at {{dynamic_rendezvous.py:1209|L:dyn_bootcond}}). All three agents waited on keys nobody would write, and all three failed 61.5 s later on the c10d store's 60 s read timeout: "wait timeout after 60000ms, keys: /torch.rendezvous.ld-el.1/MASTER_ADDR". With the variable set the same arrival cost 2.3 s. <b>For any job with <code>--max-restarts</code> above 0 or an elastic node range, set <code>TORCH_DISABLE_SHARE_RDZV_TCP_STORE=1</code></b> on torch 2.14.1 (whether this is reported upstream was not checked).</div>
 </section>
