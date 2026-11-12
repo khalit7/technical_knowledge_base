@@ -74,18 +74,9 @@ const zoomR=t=>1.1+1.7*Math.sqrt(1-(t>0?DM.abar[Math.round(t)]:1));
 // ---- The animation: forward chain against two reverse chains, same 300 points ----
 (function(){const n=300,seed=42,X0=DM.roll(n,5),E=DM.gauss(77),EP=new Float64Array(2*n);for(let i=0;i<2*n;i++)EP[i]=E();
   const kinds={eps:'eps_simple',mu:'mu_mse'},jobs={},ROLL={};
-  const fwdT=[0,50,100,200,300,500,700,1000],revT=[1000,700,500,300,200,100,50,10,0];
-  const fc=['The data: 300 points of the Swiss roll, each coordinate an 8-bit integer scaled to [−1, 1] as §3.3 does for pixels.',
-    'After 50 steps the roll is blurred but intact: ᾱ is still 0.97, noise sd 0.17. Each step multiplies the signal by √(1 − β) and adds variance β.',
-    'β is still small (it rises linearly from 0.0001 to 0.02), but the noise adds up: sd 0.32, close to the 0.4 gap between the roll\'s arms. The closed form jumps straight here.',
-    'The arms have merged (noise sd 0.58).',
-    'Structure is gone: ᾱ = 0.40, signal 0.63 of its size against noise sd 0.78.','Halfway, signal 0.28 of its size, noise sd 0.96: only a smudge of the data\'s mean remains.',
-    'Practically pure noise; ᾱ = 0.007.','t = T = 1,000: x_T is 𝒩(0, I) to within L_T ≈ 6 × 10⁻⁶ bits per dimension. Generating means running this backwards.'];
-  const RCAP={eps:['Start: 300 draws from 𝒩(0, I), the same for both reverse chains.','The first 300 steps: the network pulls the cloud inwards towards the data\'s scale; little structure yet.',
-    'Coarse structure first: the cloud takes the roll\'s outline (§4.3, "large scale image features appear first").','The arms separate.','The spiral is clear; from here the steps refine detail.',
-    'Fine detail: noise sd added per step is now under 0.05.','Almost there; each step moves points by tiny amounts.','The last steps are the 8-bit level detail, where most of the bound\'s bits go.','x_0: the samples sit on the roll.'],
-    mu:['Start: the same 300 draws from 𝒩(0, I) as the ε chain.','The μ̃ model, trained on plain MSE, also pulls the cloud in…','…but compare the ε chain at the same t: no spiral is forming here.','Its network has to output almost exactly its own input plus a correction about β in size; errors in that correction add up over the steps (our explanation, not the paper\'s).','Points stay spread across the gaps between the arms.','Late steps refine detail, but cannot repair the coarse structure.','','','x_0: few samples on the roll. Table 2 left this row blank: "unstable to train and generated poor samples".']};
-  const steps=(ts,c)=>ts.map((t,i)=>({t:'t = '+t,c:c[i]||'Each step: x<sub>t−1</sub> = μ<sub>θ</sub>(x<sub>t</sub>, t) + σ<sub>t</sub>z.'}));
+  // the steps are explained by the step lists beside the card (sx-dfx-f, sx-dfx-e, sx-dfx-m): eight stretches per chain, the reverse ones replaying every 10th of the 1,000 steps
+  const fwdT=[0,50,100,200,300,500,700,1000],revT=[1000,700,500,300,200,100,50,0];
+  const steps=ts=>ts.map(t=>({t:'t = '+t}));
   const job=m=>{if(!jobs[m]){jobs[m]=SAMP.get(kinds[m],n,seed,'beta',10)}return jobs[m]};
   let A=null,lastD=0;const prog=$('dfxProg');
   function fwdPts(t){const ab=t?DM.abar[t]:1,a=Math.sqrt(ab),b=Math.sqrt(1-ab),o=new Float64Array(2*n);for(let i=0;i<2*n;i++)o[i]=a*X0[i]+b*EP[i];return o}
@@ -106,7 +97,7 @@ const zoomR=t=>1.1+1.7*Math.sqrt(1-(t>0?DM.abar[Math.round(t)]:1));
   function counters(m,k){const ts=m==='fwd'?fwdT:revT,t=ts[k],ab=t?DM.abar[t]:1,B=ptsFor(m,t);
     const nfe=m==='fwd'?'0 (closed form)':fmt(n*(DM.T-t));
     return stat('timestep t',t,m==='fwd'?'forward':'reverse, from 1,000')+stat('signal √ᾱ<sub>t</sub>',Math.sqrt(ab).toFixed(3),'noise sd '+Math.sqrt(1-ab).toFixed(3))+stat('network evaluations',nfe,m==='fwd'?'Eq. 4 jumps to any t':'300 points × steps so far')+stat('on the roll',B.ok?pct(onr(m,t,B.x),0):'…','within 0.04 of the curve')}
-  A=makeAnim({id:'dfx',mode:'fwd',dur:2200,modes:{fwd:steps(fwdT,fc),eps:steps(revT,RCAP.eps),mu:steps(revT,RCAP.mu)},draw,counters});
+  A=makeAnim({id:'dfx',mode:'fwd',dur:3600,modes:{fwd:steps(fwdT),eps:steps(revT),mu:steps(revT)},lists:{fwd:'sx-dfx-f',eps:'sx-dfx-e',mu:'sx-dfx-m'},draw,counters});
   // start computing the reverse chains as soon as the card is near the screen
   if('IntersectionObserver' in window)new IntersectionObserver(es=>{if(es[0].isIntersecting){ensure('eps');}},{rootMargin:'400px'}).observe($('dfx'));
   window.DFX_JOB=job;

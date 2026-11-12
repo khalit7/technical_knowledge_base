@@ -246,9 +246,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `whats_new/papers/clip` Learning Transferable Visual Models From Natural Language Supervision (CLIP)
 - [x] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
 - [x] `whats_new/papers/context_language_models` Context Language Models
-- [~] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
+- [x] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
 - [~] `whats_new/papers/deepseek_r1` DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning
-- [ ] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
+- [~] `whats_new/papers/deepseek_v3_technical_report` DeepSeek-V3 Technical Report
 - [ ] `whats_new/papers/deepseekmath` DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
 - [ ] `whats_new/papers/demystifying_agent_skills` Demystifying Agent Skills: Why They Work - Until They Don't
 - [ ] `whats_new/papers/diffusiongemma_technical_report` DiffusionGemma Technical Report
@@ -631,3 +631,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - CLIP: the hero and the objective stage share the same four toy pairs (overview, then the separate row and column softmax and the captioning comparison); the supervised-head mode is drawn, not run (labelled); header 28 min counts hidden mode lists (27 for one pass). Keep?
 - Constitutional AI: the paper's Figure 1 stays the hero and the 3D pipeline is the Idea figure; the soft label 0.7 / 0.3 in the stage is illustrative (labelled); changing the prompt in the replay tab resets to step 1 without replaying. Keep?
 - Context Language Models: the 3D stage uses "keep the newest 1 turn" (the Replay default 0 leaves SCR nothing to move; one-line switch); the replay (about 30 calls per policy) is a widget with no autoplay or step list, explained by the stage instead; the episode is illustrative, priced with the paper's Eq. 9. Keep?
+- DDPM: hero plates zoom out as t grows (dashed square marks [-1, 1]^2); the density surface is rescaled to the same peak at each t (the 9-fold drop stated in the steps); the 2D Idea animation stays beside the 3D hero (shows the mu-tilde chain and counters); header counts all three Idea step lists (about 1.3 min shown one at a time). Keep?

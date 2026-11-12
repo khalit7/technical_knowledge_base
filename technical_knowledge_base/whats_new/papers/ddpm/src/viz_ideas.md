@@ -24,7 +24,10 @@ Lesson: a background sampler that redraws on every slice when paused can starve 
 ## Light pass, 2026-10-24
 | id | Idea | Decision |
 |---|---|---|
-| P-ddpm.L1 | Hero: Figure 2 (the two Markov chains) redrawn on the toy Swiss roll, five panels on one scale, q dashed and p_theta solid | Built (`16_js_hero.js`), static. The paper is under arXiv's non-exclusive licence, so the figure is redrawn, not embedded. |
+| P-ddpm.L1 | Hero: Figure 2 (the two Markov chains) redrawn on the toy Swiss roll, five panels on one scale, q dashed and p_theta solid | Built (`16_js_hero.js`), static; replaced on 2026-11-12 by R1. The paper is under arXiv's non-exclusive licence, so the figure is redrawn, not embedded. |
 | P-ddpm.L2 | Move the learned score field from the Sample tab to "Why this is score matching" | Built: it proves that claim, so it sits beside it. |
 | P-ddpm.L3 | Real image: the paper's CIFAR10 or CelebA-HQ samples (Figure 1) | Rejected: not openly licensed (arXiv non-exclusive licence, NeurIPS proceedings); the live samples carry the point. |
 | P-ddpm.L4 | Move the whole Sample tab into Reading | Rejected: it is a lab with four variants used by four sections (Idea, ablation, progressive coding, evidence); only the score field moved. |
+| P-ddpm.R1 | Hero as a 3D stage: Figure 2 as two stacks of plates along t (forward q exact, reverse chain from the trained eps model), flows along six points, the predicted noise as arrows | Built 2026-11-12 (`31_js_sc_hero.js`), replacing L1's static panels. |
+| P-ddpm.R2 | The noised data's density as a surface over the plane, spreading to a Gaussian, with the eps-network's score arrows on it and the reverse chain climbing it | Built 2026-11-12 (`32_js_sc_score.js`) beside "Why this is score matching"; the 2-D score widget stays as the tool for all four models. |
+| P-ddpm.R3 | The weighting chart, Figure 5 and the training curves in 3D | Rejected: curves on axes read best flat. |
