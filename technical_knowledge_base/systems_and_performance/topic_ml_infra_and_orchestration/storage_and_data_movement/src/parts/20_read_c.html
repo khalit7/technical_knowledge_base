@@ -1,9 +1,11 @@
 <section id="rd-s3">
+<div class="s3sp"><div class="s3L">
 <h2>3. The other designs: where the metadata lives, and who places the bytes</h2>
 <p>Every parallel file system answers two questions differently: <b>who owns the names</b> (a dedicated metadata tier, or every server), and <b>who decides where a byte goes</b> (a layout handed out once, or a placement every server can compute). That choice decides how it behaves under a metadata storm and when a server fails.</p>
-<div class="rd-card" id="sd-fam-card"><h4>Two families: a separate metadata tier that hands out layouts, or metadata spread over every server</h4>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="sd-fam-card"><h4>Two families: a separate metadata tier that hands out layouts, or metadata spread over every server</h4>
 <div class="rd-svg" id="sd-fam-svg"></div>
-<p class="small">Left: the client asks the metadata tier once, then reads and writes the storage servers directly; data I/O never touches the metadata tier, but every name does. Right: every server holds data and metadata, so there is no single metadata tier to size, at the price of distributed locking (GPFS's token manager, "one metanode per open file"). Tectonic and 3FS put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace.</p></div>
+<p class="small">Left: the client asks the metadata tier once, then reads and writes the storage servers directly; data I/O never touches the metadata tier, but every name does. Right: every server holds data and metadata, so there is no single metadata tier to size, at the price of distributed locking (GPFS's token manager, "one metanode per open file"). Tectonic and 3FS put metadata in a transactional key-value store behind stateless servers, which is how they scale the namespace.</p></div></div></div></div>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>System</th><th>Metadata</th><th>Data placement</th><th>Published scale</th></tr></thead>
 <tbody>
@@ -39,17 +41,23 @@
 100.00    0.347848          19     17983       652 total</pre>
 <p class="rd-codecap">Run 1 of 3. "errors" are failed calls.</p></div></details>
 
-<div class="rd-card"><h4>The same four operations on three stores: network storage is a hundred times slower per name, and misses are worst</h4>
+<div class="s3sp"><div class="s3L">
+<p><b>The same four operations on three stores</b> (the chart beside this): each process works in its own directory and creates, <code>stat</code>s, misses and deletes names in lock step.</p>
+<p>A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host: network file systems cache what exists far better than what does not. The object store pays a full HTTP request for everything, even a HEAD.</p>
+<details class="dp"><summary>The same runs as a table, with the toy's one-server rate <span class="mute">(reference)</span></summary><div class="b"><div class="tw sd-tw" id="sd-mreal"></div></div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card"><h4>The same four operations on three stores: network storage is a hundred times slower per name, and misses are worst</h4>
 <p class="small">Each process works in its own directory: create empty files, <code>stat</code> them, look up names that do not exist ("miss", an S3 HEAD that returns 404), delete them, in lock step <span class="meas">measured</span> (medians of 3; <code>src/runs/meta_real.py</code>). Operations per second, all processes together, log scale.</p>
 <div class="seg" id="sdm-p"><button data-m="1">1 process</button><button data-m="4">4</button><button data-m="16" class="on">16</button></div>
 <div class="sv" id="sdm-real"></div>
-<p class="small">A local file system does hundreds of thousands of operations a second, a network one a few thousand: the gap is the round trip, not the disk. The host folder shared into the VM answers <code>stat</code> of an existing file from its cache, as fast as local disk, but every lookup of a <b>missing</b> name crosses to the host: network file systems cache what exists far better than what does not. The object store pays a full HTTP request for everything, even a HEAD.</p></div>
-<details class="dp"><summary>The same runs as a table, with the toy's one-server rate <span class="mute">(reference)</span></summary><div class="b"><div class="tw sd-tw" id="sd-mreal"></div></div></details>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <div class="pr"><div class="q">Predict. 16,384 ranks (Llama 3 405B's scale) start at the same second and each runs <code>import torch</code> from a Python environment on the shared file system. Suppose only the 652 failed lookups per rank reach the metadata servers (everything else cached). At 3,000 metadata operations per second, how long is the start-up stall?</div>
 <div class="opts"><button data-a="0">Under a second</button><button data-a="0">About a minute</button><button data-a="1">About an hour</button></div>
 <div class="ans" hidden>16,384 x 652 = 10.7 million lookups; at 3,000 a second that is 3,561 s, about an hour <span class="der">derived</span>, before a single step. With all 17,983 calls reaching the server it would be 27 hours. Real metadata servers are faster than this FSx entry size and clients cache more, so the real number depends on the system, but the shape is why large clusters never run Python from the shared file system: the environment lives in the container image on each node's local disk (squashfs images through enroot and pyxis on Slurm, image layers on Kubernetes), or is unpacked to local NVMe at job start. Move the inputs below to try your own cluster.</div></div>
-<div class="rd-card" id="sdm-calc"><h4>The start-up storm: stall = ranks x calls per rank / metadata capacity</h4>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="sdm-calc"><h4>The start-up storm: stall = ranks x calls per rank / metadata capacity</h4>
 <p class="small">Calls per rank are measured with <code>strace</code>; how many of them a real client sends to the server depends on its caches, so choose the bound.</p>
 <div class="calc">
 <label>Ranks starting together <input type="number" id="sdm-r" min="1" step="1" value="16384"></label>
@@ -60,25 +68,28 @@
 </div>
 <div class="out" id="sdm-out"></div>
 <p class="small mute" id="sdm-note"></p>
-</div>
+</div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>More clients, one metadata server: the rate flattens and every operation waits longer</h3>
 <p>On the toy, 16 client processes each create, <code>stat</code> and delete 300 files of their own through one metadata server held to half a CPU, then through two (the idea of Lustre's <dfn>DNE</dfn>, Distributed Namespace: names hashed over servers).</p>
-<div class="rd-card" id="sdm-anim-card">
+<p>Two metadata servers served 16 clients at 2,635 operations per second against 1,603 for one <span class="meas">measured</span>. The server, not the clients, was the limit: at 16 and 32 clients its container used all of its half CPU while the client container used about a fifth of its two, and 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
+<p class="small">The card beside this replays the run on one clock (the bar is completed operations, each client's dot busy while it waits); the curve under it is the whole sweep from 1 to 16 clients.</p>
+<details class="dp"><summary>CPU use during the runs, and DNE on real Lustre <span class="mute">(depth)</span></summary><div class="b">
+<div class="tw" id="sdm-cpu"></div>
+<p>One MDS serves a whole Lustre file system until DNE adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)".</p>
+</div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="sdm-anim-card">
 <h4>The same 14,400 operations from 16 clients: a second metadata server gives 1.6 times the rate, not 2</h4>
-<p class="small">16 processes x 300 files x (create, stat, unlink). The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
+<p class="small">16 processes x 300 files x (create, stat, unlink). It opens on the finished run; pick one or two servers and press play to replay it. The bar is completed operations at the measured aggregate rate, on one clock for both modes; each client's dot is busy while it waits for its answer.</p>
 <div class="seg" id="sdm-mode"><button data-m="1" class="on">One metadata server</button><button data-m="2">Two (DNE)</button></div>
 <div class="sv" id="sdm-svg"></div>
 <div class="an-cap" id="sdm-cap"></div>
 <div class="an-cnt" id="sdm-cnt"></div>
 <div class="an-ctl" id="sdm-ctl"></div>
 </div>
-<div class="sv" id="sdm-curve"></div>
-<p class="small">Two metadata servers served 16 clients at 2,635 operations per second against 1,603 for one <span class="meas">measured</span>. The server, not the clients, was the limit: at 16 and 32 clients its container used all of its half CPU while the client container used about a fifth of its two, and 32 clients got fewer operations per second than 16 and waited twice as long for each.</p>
-<details class="dp"><summary>CPU use during the runs, and DNE on real Lustre <span class="mute">(depth)</span></summary><div class="b">
-<div class="tw" id="sdm-cpu"></div>
-<p>One MDS serves a whole Lustre file system until DNE adds more: a directory can live on another MDT (<code>lfs mkdir -i mdt_index</code>), or one huge directory can be spread over several with <code>lfs mkdir -c mdt_count</code>, "indended [sic] for specific applications where many output files are being created in one large directory (over 50k entries)".</p>
-</div></details>
+<div class="card"><div class="sv" id="sdm-curve"></div></div></div></div></div>
 
 <h3>The fixes, in the order to try them</h3>
 <ul class="tight">

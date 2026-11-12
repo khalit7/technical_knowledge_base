@@ -40,27 +40,37 @@ NodeName=c1 Arch=aarch64 CoresPerSocket=4
 </div></details>
 </section>
 
-<section id="s-life">
-<h2>2. The life of a job, from the controller's own log</h2>
-<p>"My job is not running" can mean a dozen things, and each is a different state. The running example was submitted twice: once while bob's job (12 GPUs, time limit 1 minute, sleeping 25 s) held every GPU, once on an idle cluster, with the controller at <code>debug</code> level and the <code>Backfill</code> flag on and a prolog and epilog that log a line per node <span class="sl-meas">measured</span>. Each step below is one real log line, time to scale.</p>
-<div class="sl-card" id="sl-lf-card"><h4>Only the wait changes: the same job behind a 12-GPU job, then on an idle cluster</h4>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="sl-card" id="sl-lf-card"><h4>Only the wait changes: the same job behind a 12-GPU job, then on an idle cluster</h4>
 <div class="sl-seg" id="sl-lf-mode"><button data-m="busy" class="on">busy cluster (job 79)</button><button data-m="idle">idle cluster (job 125)</button></div>
-<div id="sl-lf-svg" class="sl-svg"></div><div class="sl-ctl" id="sl-lf-ctl"></div><div class="sl-anc" id="sl-lf-cap"></div>
+<div id="sl-lf-svg" class="sl-svg"></div><div class="sl-ctl" id="sl-lf-ctl"></div>
 <pre id="sl-lf-raw" style="min-height:3em"></pre>
 <div class="out" id="sl-lf-cnt"></div>
-<p class="sl-cap">Lanes: the controller, the backfill scheduler, the two nodes (prolog, batch script, step launch, epilog) and the training ranks; the band on top is the job state. <code>squeue</code>, polled every second, agreed. Logs in <code>src/runs/raw1</code> and <code>raw2</code>, IPs scrubbed.</p></div>
-<div class="tw"><table><thead><tr><th>Stage</th><th class="num">busy (job 79)</th><th class="num">idle (job 125)</th></tr></thead><tbody id="sl-lf-tab"></tbody></table></div>
-<p class="sl-cap">From allocation to the last epilog the two runs took 9.7 s and 9.4 s; the rest of the difference, 23 s, is all queue. Slurm's own steps are milliseconds (allocation to prolog 5 to 7 ms, prolog to batch script 11 to 12 ms, script to step launch 27 to 28 ms); the training processes began 2.2 to 2.3 s after the step launch (<code>torchrun</code>, imports, rendezvous) and trained for about 6.3 to 6.5 s.</p>
-<ol>
+<p class="sl-cap">Lanes: the controller, the backfill scheduler, the two nodes (prolog, batch script, step launch, epilog) and the training ranks; the band on top is the job state; time is to scale. Under the chart, the raw log lines of the current stage. <code>squeue</code>, polled every second, agreed. Logs in <code>src/runs/raw1</code> and <code>raw2</code>, IPs scrubbed.</p></div></div></div><div class="s3L">
+<section id="s-life">
+<h2>2. The life of a job, from the controller's own log</h2>
+<p>"My job is not running" can mean a dozen things, and each is a different state. The running example was submitted twice: once while bob's job (12 GPUs, time limit 1 minute, sleeping 25 s) held every GPU, once on an idle cluster, with the controller at <code>debug</code> level and the <code>Backfill</code> flag on and a prolog and epilog that log a line per node <span class="sl-meas">measured</span>. Each dot on the right is one real log line; the eight stages below group them.</p>
+<ol class="sx" id="sx-lf-busy">
 <li><b>Submit.</b> <code>sbatch</code> sends the script and its options; the controller checks them against partitions, limits and node configurations (a request no node could ever satisfy is refused here with <code>Requested node configuration is not available</code>), assigns an id and an initial priority (<code>InitPrio=4166</code>), and stores the script: editing the file afterwards changes nothing.</li>
 <li><b>Pending</b>, with a reason, here <code>Resources</code> (first in line, resources busy). Backfill planned the start at 05:37:53 and logged the same plan 12 times (every 2 s, <code>bf_interval=2</code>): that is the blocker's <i>time limit</i>, not its real end. Slurm plans with limits because it cannot know runtimes.</li>
 <li><b>Allocate.</b> The blocker ended at 05:37:18.890; a job ending is an event that runs the main scheduler, which allocated c1 and c2 22 ms later, 34 s before the plan. A planned start is an upper bound that usually moves earlier.</li>
 <li><b>Prolog.</b> With <code>PrologFlags=Alloc</code>, slurmd runs the site's prolog as root on every node first (5 ms later here). Sites check GPU health here; a prolog that exits non-zero drains the node and requeues the job.</li>
 <li><b>Batch step.</b> The script runs on the first node (c1) as the user: step <code>79.batch</code>.</li>
-<li><b>Job steps.</b> Each <code>srun</code> asks the controller for a step; slurmd starts a <code>slurmstepd</code> on each node, which starts the tasks. The one <code>srun</code> here started one <code>torchrun</code> per node: step <code>79.0</code>.</li>
+<li><b>Job steps.</b> Each <code>srun</code> asks the controller for a step; slurmd starts a <code>slurmstepd</code> on each node, which starts the tasks. The one <code>srun</code> here started one <code>torchrun</code> per node: step <code>79.0</code>. The ranks began 2.3 s later and trained for about 6.5 s.</li>
 <li><b>Completing.</b> When the script exits, every node kills leftovers and runs the epilog; only then are the nodes free.</li>
-<li><b>Completed, and recorded</b> in slurmdbd; <code>sacct</code> shows the job and each step:</li>
+<li><b>Completed, and recorded</b> in slurmdbd; <code>sacct</code> shows the job and each step (below).</li>
 </ol>
+<ol class="sx" id="sx-lf-idle" hidden>
+<li><b>Submit.</b> Job 125, the same file on an idle cluster: accepted with <code>InitPrio=6666</code>.</li>
+<li><b>Pending for 444 ms.</b> Nothing is ahead of it, so there is no plan to make; it waits only for the next scheduler pass.</li>
+<li><b>Allocate, by backfill.</b> The backfill cycle came before the main loop (section 6 says why) and started job 125 on c1 and c2.</li>
+<li><b>Prolog</b> on both nodes, 7 ms after the allocation.</li>
+<li><b>Batch step</b> <code>125.batch</code> on c1, 11 ms later.</li>
+<li><b>Job steps.</b> Step <code>125.0</code>, one <code>torchrun</code> per node; the ranks began 2.2 s later, trained for about 6.3 s and reached the same loss.</li>
+<li><b>Completing:</b> the steps end, the script exits, the epilogs run.</li>
+<li><b>Completed</b> 9.4 s after the allocation, against 9.7 s for job 79: everything but the queue is the same.</li>
+</ol>
+<div class="tw"><table><thead><tr><th>Stage</th><th class="num">busy (job 79)</th><th class="num">idle (job 125)</th></tr></thead><tbody id="sl-lf-tab"></tbody></table></div>
+<p class="sl-cap">From allocation to the last epilog the two runs took 9.7 s and 9.4 s; the rest of the difference, 23 s, is all queue. Slurm's own steps are milliseconds (allocation to prolog 5 to 7 ms, prolog to batch script 11 to 12 ms, script to step launch 27 to 28 ms); the training processes began 2.2 to 2.3 s after the step launch (<code>torchrun</code>, imports, rendezvous) and trained for about 6.3 to 6.5 s.</p>
 <pre>$ sacct -j 79 --format=JobID,JobName,State,Elapsed,NodeList,AllocTRES
        JobID    JobName      State    Elapsed        NodeList                         AllocTRES
 ------------ ---------- ---------- ---------- --------------- ---------------------------------
@@ -94,3 +104,4 @@ NodeName=c1 Arch=aarch64 CoresPerSocket=4
 <p class="sl-cap">Raw logs in <code>src/runs/raw1/</code>. The same log, when a node dies mid-run, shows <code>requeue job JobId=48 due to failure of node c2</code> (the root's Failure lab).</p>
 </div></details>
 </section>
+</div></div>

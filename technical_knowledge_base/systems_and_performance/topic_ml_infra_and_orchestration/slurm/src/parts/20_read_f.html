@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-pre">
 <h2>8. Preemption and requeue: taking nodes back</h2>
 <p>The cluster is full of long training jobs and an urgent job arrives (an evaluation before a deadline, a team whose guaranteed share others are using). Preemption lets the scheduler stop running jobs to make room; the same requeue machinery serves time limits.</p>
@@ -7,9 +8,6 @@
 <tr><td><code>GraceTime</code></td><td>the victim gets SIGCONT and SIGTERM at once and SIGKILL only after GraceTime (default 0): the window to write a checkpoint.</td></tr>
 </tbody></table></div>
 <p>For training the usual choice is REQUEUE with a GraceTime long enough to checkpoint, with low-priority work in a preemptible QOS or partition. The root's {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} preempted bob's 12-GPU batch job with a 4-GPU urgent job on this cluster: <code>preempted JobId=39 has been requeued to reclaim resources for JobId=40</code>, the urgent job was allocated 0.6 s after submission, and the victim could not restart for 121 s. GPU-hours lost per preemption are the time since the last checkpoint times the GPUs, the trade-off the root's Failure lab turns into a checkpoint interval.</p>
-<div class="sl-card" id="sl-pe-card"><h4>Checkpoint before the limit, then two minutes of dead time: job 128 <span class="sl-meas">measured</span></h4>
-<div id="sl-pe-svg" class="sl-svg"></div>
-<p class="sl-cap"><code>--time=1 --signal=B:USR1@25 --requeue</code>: Slurm should signal the batch shell 25 s before the 60 s limit; the script traps SIGUSR1, saves, and runs <code>scontrol requeue</code>; the next start resumes. The signal came 12 s after the start, not 35 s; the requeued job became eligible at 05:44:53, 121 s after the requeue, and finished from its checkpoint. 16 Oct 2026, <code>sacct -D</code>.</p></div>
 <p>Two lessons for a checkpoint budget. The signal "may be sent up to 60 seconds earlier than specified" because of how Slurm resolves events ({{sbatch --signal|https://slurm.schedmd.com/sbatch.html}}), so ask for more warning than a save takes, plus a minute. And a requeued job's begin time is pushed past the job credential's lifetime (120 s by default) plus 1 s, so the old run's credentials and I/O are gone before the new run starts: <b>budget two minutes of dead time per requeue</b>, for preemption and for time limits alike. <code>SLURM_RESTART_COUNT</code> tells the script it is a restart; the running example instead finds its <code>latest</code> checkpoint pointer and resumes from it. A 30-day run on a cluster whose maximum job time is 2 days is a chain of such hops (or of <code>afterany</code> jobs, section 9).</p>
 <details class="dp"><summary>The script, its output, <code>sacct -D</code>, and the tier test in the source <span class="mute">(measured and source)</span></summary><div class="b">
 <pre data-ex="sig_script"></pre>
@@ -19,7 +17,12 @@
 <div class="sl-src-q">In partition_prio, a strictly higher tier is the test <span class="q-ref" data-r="pp_tier"></span></div><pre data-q="pp_tier"></pre>
 </div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="sl-card" id="sl-pe-card"><h4>Checkpoint before the limit, then two minutes of dead time: job 128 <span class="sl-meas">measured</span></h4>
+<div id="sl-pe-svg" class="sl-svg"></div>
+<p class="sl-cap"><code>--time=1 --signal=B:USR1@25 --requeue</code>: Slurm should signal the batch shell 25 s before the 60 s limit; the script traps SIGUSR1, saves, and runs <code>scontrol requeue</code>; the next start resumes. The signal came 12 s after the start, not 35 s; the requeued job became eligible at 05:44:53, 121 s after the requeue, and finished from its checkpoint. 16 Oct 2026, <code>sacct -D</code>.</p></div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-arr">
 <h2>9. Arrays, dependencies and heterogeneous jobs: workflows inside Slurm</h2>
 <p>Real work is rarely one job: a sweep is 50 nearly identical jobs; a pipeline is "tokenise, then train, then evaluate, and clean up if training fails"; an RL setup wants a CPU-only controller beside GPU workers, started together. All three tools were run here at once:</p>
@@ -31,8 +34,6 @@ sbatch -J sl-fail --wrap 'sleep 5; exit 3'         <span class="c"># 108: fails 
 sbatch -J sl-clean  --dependency=afternotok:108 ... <span class="c"># 109: only if 108 fails</span>
 sbatch -J sl-report --dependency=afterok:108 ...    <span class="c"># 110: only if 108 succeeds</span>
 sbatch -J sl-single --dependency=singleton ...      <span class="c"># 111 and 112: same name, one at a time</span></pre>
-<div class="sl-card" id="sl-dg-card"><h4>Eligible is not started: what sacct recorded <span class="sl-meas">measured</span></h4><div id="sl-dg-svg" class="sl-svg"></div>
-<p class="sl-cap">Thin grey: submitted, not yet eligible (a dependency or the array throttle). Bar: running, on the node shown. Every job asks for 1 fake GPU except sl-train (4). 16 Oct 2026, one-second resolution; seconds from submission.</p></div>
 <ul>
 <li><b>Arrays.</b> One submission, one job id (102), tasks <code>102_0</code> to <code>102_5</code>, each with <code>SLURM_ARRAY_TASK_ID</code> set (the script picks its hyperparameters or shard from it). <code>%2</code> throttles: tasks 2 to 5 pended with reason <code>JobArrayTaskLimit</code> and started in pairs. Until a task starts, the pending tasks are one record in the controller, which is why a 1,000-task array costs the scheduler far less than 1,000 jobs; the default <code>MaxArraySize</code> is 1001 (<span class="q-ref" data-r="def_array"></span>), so <code>--array=0-1000</code> is the largest by default.</li>
 <li><b>Dependencies.</b> sl-train became eligible the second sl-prep ended (+10 s), sl-eval when sl-train ended; <code>afternotok</code> ran the cleanup because 108 exited 3. sl-report, waiting on <code>afterok:108</code>, can never run, and Slurm says so but leaves it queued (<code>DependencyNeverSatisfied</code>):
@@ -48,3 +49,6 @@ Without <code>--kill-on-invalid-dep=yes</code> (or the cluster-wide <code>kill_i
 <p class="sl-cap">Job 116, 16 Oct 2026. <code>sdiag</code> counted "2 heterogeneous job components" started by backfill.</p>
 </div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="sl-card" id="sl-dg-card"><h4>Eligible is not started: what sacct recorded <span class="sl-meas">measured</span></h4><div id="sl-dg-svg" class="sl-svg"></div>
+<p class="sl-cap">Thin grey: submitted, not yet eligible (a dependency or the array throttle). Bar: running, on the node shown. Every job asks for 1 fake GPU except sl-train (4). 16 Oct 2026, one-second resolution; seconds from submission.</p></div></div></div></div>

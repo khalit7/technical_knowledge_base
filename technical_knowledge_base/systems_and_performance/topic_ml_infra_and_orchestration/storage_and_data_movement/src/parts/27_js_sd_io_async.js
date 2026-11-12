@@ -38,7 +38,8 @@
     else cap+=(R.async.bg.some(g=>g.t0<=t&&t<g.t1)?'The asynchronous run trains while its checkpoint is written in the background (thin band). ':'')+'All three runs are training.';
     $('io-as-cap').textContent=cap;
   }
-  const A=H.anim({card:'io-as-card',ctl:'io-as-ctl',n:NF,ms:260,label:'Time through the three runs',draw});
+  // a widget (61 frames, the long-replay rule): it never plays by itself and opens on the last frame, all three timelines drawn
+  const A=H.anim({card:'io-as-card',ctl:'io-as-ctl',n:NF,ms:260,label:'Time through the three runs',draw,auto:false,start:'last'});
   function text(){
     const S=src(),bl=window.IO_BLK;const sy=bl(S.sync),as=bl(S.async);
     const norm=k=>{const w=S[k].steps.filter(x=>x[2]===0).map(x=>x[1]).sort((a,b)=>a-b);return w[w.length>>1]};

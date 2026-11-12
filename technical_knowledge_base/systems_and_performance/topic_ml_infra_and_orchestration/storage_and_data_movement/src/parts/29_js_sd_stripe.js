@@ -25,7 +25,8 @@
     const cnt=[['Measured time',f(Math.min(t,S.write_s),2)+' s'],['Written',f(done,0)+' of '+f(tot,0)+' MiB'],['Servers in use',String(lay.length)],['Write rate (median)',f(S.write_MBps,1)+' MB/s'],['Read rate (median)',f(S.read_MBps,1)+' MB/s']];
     $('sds-cnt').innerHTML=cnt.map(x=>RD.stat(x[0],x[1])).join('');
   }
-  const A=R.anim({card:'sds-anim-card',ctl:'sds-ctl',n:NF,draw,ms:700,label:'Time step'});
+  // a widget (14 frames of a measured run): it never plays by itself and opens on the last frame
+  const A=R.anim({card:'sds-anim-card',ctl:'sds-ctl',n:NF,draw,ms:700,label:'Time step',auto:false,start:'last'});
   H.seg($('sds-mode'),m=>{C=+m;A.reset(NF)});
   $('sds-note').textContent='Runs: '+['1','2','4'].map(c=>'count '+c+' write '+T.stripe[c].write_all.map(x=>f(x,2)).join(', ')+' s').join('; ')+'. 25 MB/s per server is the token bucket\'s 25,000,000 bytes per second; one server delivered '+f(T.stripe['1'].write_MBps,1)+' MB/s, the gap being request overhead.';
 

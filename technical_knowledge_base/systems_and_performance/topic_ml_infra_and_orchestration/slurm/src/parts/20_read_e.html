@@ -1,13 +1,23 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fs"></div></div><div class="s3L">
 <section id="s-prio">
 <h2>7. Priority: one number per job</h2>
 <p>The main loop walks jobs in priority order, so the whole policy of who goes first is how that number is computed. With <code>PriorityType=priority/multifactor</code> it is a weighted sum of factors, each between 0 and 1, then truncated to an integer. A concrete case first: for this page's gallery run the weights were age 1,000, fairshare 10,000, job size 1,000, partition 1,000, QOS 2,000 and GPU TRES 500 (the cluster's normal configuration uses only fairshare and age; the variant is <code>src/scripts/sl_slurm.conf</code>). Fifteen jobs waited behind bob's 12-GPU job, and <code>sprio</code> was read twice, 51 seconds apart. Nobody touched anything in between:</p>
-<div class="sl-card" id="sl-pq-card"><h4>The same queue, 51 seconds later: fairshare reorders it</h4>
-<div class="sl-seg" id="sl-pq-mode"><button data-m="0" class="on">05:38:07</button><button data-m="1">05:38:58</button></div>
-<div id="sl-pq-svg" class="sl-svg"></div>
-<p class="sl-cap">Each bar is one pending job's priority as <code>sprio -l</code> printed it, split into its weighted factors, in the order the main loop would try them. Held jobs (priority 0) and jobs not yet eligible are left out; a hatched end is the nice penalty. Click a job for its sum. <span class="sl-meas">measured</span></p><div id="sl-pq-info" class="sl-anc"></div></div>
-<div class="sl-pr" id="sl-pr4"><div class="q">Predict: bob's job 95 had the highest priority of all at 05:38:07 (9,166). At 05:38:58 it was second to last (4,250). What changed?</div>
+<div class="sl-pr" id="sl-pr4"><div class="q">Predict: bob's job 95 had the highest priority of all at 05:38:07 (9,166). At 05:38:58 it was the lowest of the eleven jobs with a priority (4,250). What changed?</div>
 <div class="opts"><button data-a="0">Its age factor fell</button><button data-a="1">Bob's 12-GPU job kept running, so bob's recent usage grew and his fairshare rank fell</button><button data-a="0">An administrator changed his QOS</button></div>
-<div class="ans">Fairshare. Bob's blocker was charging him 15 billing units per second (12 GPUs at 1.0 plus 12 CPUs at 0.25). At 05:38:07 teamb's usage was still below teama's (EffectvUsage 0.31 against 0.69 in <code>sshare</code>), so bob ranked 3 of 4 users (factor 0.75: 7,500 points); by 05:38:58 teamb had passed teama (0.60 against 0.40) and bob dropped to rank 1 (0.25: 2,500 points), while alice rose to 0.5 and carol to 0.75. Fair Tree compares teams first, so carol, who ran nothing, moves with her team. That swing of 5,000 points dwarfs every other factor here.</div></div>
+<div class="ans">Fairshare: bob's own running job raised his team's usage, and Fair Tree ranked him last. Steps 2 to 5 on the right show it.</div></div>
+<p class="sxh">The same queue, 51 seconds later: fairshare reorders it</p>
+<ol class="sx" id="sx-fs">
+<li><b>05:38:07: the queue.</b> The eleven jobs with a priority, in the order the main loop would try them. Bob's job 95 leads with 9,166, of which 7,500 is fairshare.</li>
+<li><b>Why bob led.</b> Fair Tree compares teams first: teamb had used less than teama (EffectvUsage 0.31 against 0.69 in <code>sshare</code>), so bob ranked 3 of the 4 users (root, alice, carol, bob), a factor of 0.75: 7,500 points; alice got 0.25 (2,500) and carol 0.5 (5,000).</li>
+<li><b>Bob's own job keeps running.</b> His 12-GPU job 81 charges teamb 15 billing units per second (12 GPUs at 1.0 plus 12 CPUs at 0.25). 51 s later teamb's raw usage is 1,078 against teama's 724, and EffectvUsage reads 0.60 against 0.40.</li>
+<li><b>Fair Tree re-ranks.</b> Bob drops to rank 1 (0.25: 2,500 points); alice rises to 0.5 (5,000) and carol, who ran nothing, to 0.75 (7,500), moving with her team. That swing of 5,000 points dwarfs every other factor: age added 83 to 87 points.</li>
+<li><b>05:38:58: the queue re-sorted.</b> Job 95 falls from first to last of the eleven, at 4,250 (in <code>squeue</code> only the two held jobs, at 0, sit below it); carol's job 93 leads at 9,083 but still cannot run (<code>AssocGrpGRES</code>): priority and limits are separate questions.</li>
+</ol>
+<p class="sl-cap">Each column is one job's priority as <code>sprio -l</code> printed it: the coloured block is its fairshare points (alice blue, carol teal, bob purple), the white block the other factors, less any nice penalty; job 89's red glass top is its nice penalty, the points it gave up. Held jobs (priority 0) and jobs not yet eligible are left out. Back row: each team's EffectvUsage from <code>sshare</code>. Per-job sums are in the calculator below. <span class="sl-meas">measured</span></p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<section id="s-prio-f">
 <div class="fm"><div class="eq">priority = W<sub>age</sub>&middot;age + W<sub>fs</sub>&middot;fairshare + W<sub>size</sub>&middot;jobsize + W<sub>part</sub>&middot;partition + W<sub>qos</sub>&middot;qos + &Sigma; W<sub>tres</sub>&middot;tres &minus; nice</div>
 <dl>
 <dt>age</dt><dd>time eligible (since <code>AccrueTime</code>) over <code>PriorityMaxAge</code>, capped at 1. A job held by a dependency or a begin time does not accrue (jobs 84 and 85 showed <code>AccrueTime=Unknown</code>).</dd>
@@ -18,7 +28,10 @@
 <dt>tres</dt><dd>each TRES the job asks for over the partition's total, with its own weight (<code>PriorityWeightTRES=GRES/gpu=500</code>).</dd>
 <dt>nice</dt><dd>subtracted as is (<code>--nice=1500</code>); users may only lower their own priority.</dd>
 </dl></div>
-<div class="sl-card" id="sl-pc-card"><h4>Recompute any row: the calculator lands on <code>sprio</code> for all 22 rows</h4>
+<p><b>Two things that surprise people.</b> <code>sprio</code> shows factors as of the last recalculation, not now: at 05:38:58 the age factor of jobs eligible since 05:37:48 read 0.0867, which is 52 s over 600, so they were computed at about 05:38:40 (one <code>PriorityCalcPeriod</code> after the previous one). And the printed parts need not add up: job 82's parts were 86.67 + 5,000 + 500 + 1,000 + 333.33 = 6,920.0, printed 6,920, while <code>sprio -l</code> rounds each part (87, 333). Defaults: <code>PriorityDecayHalfLife</code> 7 days and <code>PriorityCalcPeriod</code> 5 minutes (<span class="q-ref" data-r="def_decay"></span>); this cluster uses 10 minutes and 1 minute so a lab can watch them move. Most sites make fairshare dominant, age stops starvation, and QOS gives fast lanes such as debug.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="sl-card" id="sl-pc-card"><h4>Recompute any row: the calculator lands on <code>sprio</code> for all 22 rows</h4>
 <p class="small">The formula as Slurm 24.11.5 computes it (<code>set_priority_factors()</code> and <code>_get_priority_internal()</code> in <code>priority_multifactor.c</code>): factors times weights, summed as doubles in the source's order, minus nice, truncated. Defaults reproduce every <code>sprio</code> row of the gallery run, independently (<code>src/scripts/recompute.py</code> does the same in Python). Predict what doubling the fairshare weight does to job 95's rank at 05:38:58, then change it.</p>
 <label class="small">Start from a measured row: <select id="pc-pre"></select></label>
 <div id="pc-in"></div>
@@ -31,6 +44,4 @@
 <div class="co key"><div class="t">Truncation, not rounding: job 90 sums to 8,584.999... and prints 8584</div><span id="pc-trunc"></span></div>
 <div class="sl-src-q">Source: the sum, then truncation to an integer, and 0 reserved for held jobs</div><pre data-q="prio_sum"></pre>
 <p class="small mute">The factors are computed in <code>set_priority_factors()</code>: age <span class="q-ref" data-r="prio_age"></span>, job size <span class="q-ref" data-r="prio_js"></span>, partition <span class="q-ref" data-r="prio_part"></span>, QOS <span class="q-ref" data-r="prio_qos"></span>, TRES <span class="q-ref" data-r="prio_tres"></span>.</p>
-</div></details></div>
-<p><b>Two things that surprise people.</b> <code>sprio</code> shows factors as of the last recalculation, not now: at 05:38:58 the age factor of jobs eligible since 05:37:48 read 0.0867, which is 52 s over 600, so they were computed at about 05:38:40 (one <code>PriorityCalcPeriod</code> after the previous one). And the printed parts need not add up: job 82's parts were 86.67 + 5,000 + 500 + 1,000 + 333.33 = 6,920.0, printed 6,920, while <code>sprio -l</code> rounds each part (87, 333). Defaults: <code>PriorityDecayHalfLife</code> 7 days and <code>PriorityCalcPeriod</code> 5 minutes (<span class="q-ref" data-r="def_decay"></span>); this cluster uses 10 minutes and 1 minute so a lab can watch them move. Most sites make fairshare dominant, age stops starvation, and QOS gives fast lanes such as debug.</p>
-</section>
+</div></details></div></div></div></div>

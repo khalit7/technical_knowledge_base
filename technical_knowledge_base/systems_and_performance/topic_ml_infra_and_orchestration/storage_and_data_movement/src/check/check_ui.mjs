@@ -17,11 +17,15 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
   await p.emulateMediaFeatures([{name:'prefers-color-scheme',value:scheme}]);
   await p.setViewport({width:w,height:900});
   await p.goto('file://'+path.join(folder,'index.html'),{waitUntil:'load'});
-  await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
-  // no animation may move before the reader acts (2026-10-24): load, scroll the Reading tab end to end, wait, then look
-  const playing=await p.evaluate(async()=>{for(let y=0;y<document.body.scrollHeight;y+=600){scrollTo(0,y);await new Promise(r=>setTimeout(r,60))}
-    await new Promise(r=>setTimeout(r,1500));return [...document.querySelectorAll('button[aria-label="Pause"]')].length+[...document.querySelectorAll('input[type=range][id$="-s"]')].filter(e=>+e.value>0).length});
-  ok(playing===0,`${w} ${scheme}: nothing autoplays after a full scroll (${playing} moved)`);
+  await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});await p.goto('file://'+path.join(folder,'index.html'),{waitUntil:'load'}); // open on Reading, not the last tab a previous run saved
+  // motion rules (inverted 2026-11-12 from the 2026-10-24 never-autoplay rule): after a full scroll the two stepped animations have started
+  // by themselves, and the three long replays (widgets) have not moved from their last frame; check_stages.mjs checks the 3D stages
+  const mv=await p.evaluate(async()=>{for(let y=0;y<document.body.scrollHeight;y+=600){scrollTo(0,y);await new Promise(r=>setTimeout(r,60))}
+    await new Promise(r=>setTimeout(r,1500));for(const c of ['sd-life-card','sd-rs-card']){document.getElementById(c).scrollIntoView({block:'center'});await new Promise(r=>setTimeout(r,1200))}
+    const g=id=>[document.getElementById(id+'-p').getAttribute('aria-label'),+document.getElementById(id+'-s').value,+document.getElementById(id+'-s').max];
+    return {anims:['sd-life-ctl','sd-rs-ctl'].map(g),widgets:['sds-ctl','sdm-ctl','io-as-ctl'].map(g)}});
+  ok(mv.anims.every(a=>a[0]==='Pause'||a[1]>0),`${w} ${scheme}: the stepped animations started once in view (${JSON.stringify(mv.anims)})`);
+  ok(mv.widgets.every(a=>a[0]==='Play'&&a[1]===a[2]),`${w} ${scheme}: the widgets did not move from their last frame (${JSON.stringify(mv.widgets)})`);
   await p.evaluate(()=>scrollTo(0,0));
   for(const tab of ['t-read','t-sdsize','t-more']){
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);

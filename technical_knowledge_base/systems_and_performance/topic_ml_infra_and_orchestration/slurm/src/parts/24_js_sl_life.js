@@ -1,4 +1,5 @@
 // ---- Reading section 2: the running example's log lines on a timeline, busy cluster against idle cluster ----
+// Eight stages (the step lists sx-lf-busy and sx-lf-idle), each showing the log lines of its stretch (2026-11-12: a long replay is grouped into explained stretches).
 (function(){
 const S=window.SL, esc=RD.esc, $=id=>document.getElementById(id), T=RD.t;
 if(!$('sl-lf-card'))return;
@@ -8,14 +9,20 @@ let mode='busy';
 function evs(m){const r=S[m],sub=r.events.find(e=>e.k==='submit').t;return r.events.map(e=>Object.assign({},e,{rt:e.t-sub}))}
 function span(m){const e=evs(m);return {lo:Math.min(...e.map(x=>x.rt)),hi:Math.max(...e.map(x=>x.rt))}}
 const LO=Math.min(span('busy').lo,span('idle').lo),HI=Math.max(span('busy').hi,span('idle').hi)+0.5;
+// the eight stages: index of the last event of each stretch, and the moment drawn (now)
+function stages(m){const E=evs(m),last=k=>{let j=-1;E.forEach((e,i)=>{if(e.k===k)j=i});return j},HIx=HI;
+  const plan=last('plan'),sub=last('submit'),e2=plan>=0?plan:sub,alloc=last('alloc');
+  const ends=[sub,e2,alloc,last('prolog'),last('batch'),last('train'),last('epilog'),last('epilog')];
+  return ends.map((j,i)=>({j,now:i===1?E[e2+1].rt-0.001:i===7?HIx:E[j].rt,from:i?ends[i-1]+1:0}))}
+window.SL_LF={stages,evs};
 function stateAt(m,rt){const e=evs(m);const at=k=>{const x=e.find(z=>z.k===k);return x?x.rt:Infinity};
   if(rt<0)return '';if(rt<at('alloc'))return 'PENDING';if(rt<at('done'))return 'RUNNING';
   const lastEp=Math.max(...e.filter(z=>z.k==='epilog').map(z=>z.rt));if(rt<lastEp)return 'COMPLETING';return 'COMPLETED'}
-function draw(i){const E=evs(mode),el=$('sl-lf-svg'),W=Math.min(RD.width(el),860),L=W<480?64:84,R=10,lh=W<480?30:34,top=26,H=top+LANES.length*lh+26;
+function draw(si){const E=evs(mode),G=stages(mode)[si],i=G.j,el=$('sl-lf-svg'),W=Math.min(RD.width(el),860),L=W<480?64:84,R=10,lh=W<480?30:34,top=26,H=top+LANES.length*lh+26;
   const x=t=>L+(W-L-R)*(t-LO)/(HI-LO);let b='';const cur=E[i];
   // state band
   const sub=0,alloc=(E.find(e=>e.k==='alloc')||{}).rt,done=(E.find(e=>e.k==='done')||{}).rt;
-  const now=cur.rt;const seg=(a,z,c,t)=>{if(now<a)return;const e2=Math.min(z,now);b+='<rect x="'+x(a)+'" y="6" width="'+Math.max(1,x(e2)-x(a))+'" height="13" fill="'+c+'" opacity=".55"/>';if(x(e2)-x(a)>58)b+=T(x(a)+4,16,t,{fs:11})};
+  const now=G.now;const seg=(a,z,c,t)=>{if(now<a)return;const e2=Math.min(z,now);b+='<rect x="'+x(a)+'" y="6" width="'+Math.max(1,x(e2)-x(a))+'" height="13" fill="'+c+'" opacity=".55"/>';if(x(e2)-x(a)>58)b+=T(x(a)+4,16,t,{fs:11})};
   seg(sub,alloc,'var(--dim)','PENDING');seg(alloc,done,'var(--good)','RUNNING');seg(done,HI,'var(--c5)','');
   LANES.forEach((ln,k)=>{const y=top+k*lh;b+='<line x1="'+L+'" y1="'+(y+lh/2)+'" x2="'+(W-R)+'" y2="'+(y+lh/2)+'" stroke="var(--line)"/>'+T(4,y+lh/2+4,ln[1],{fs:11,fill:'var(--mute)'})});
   // training span
@@ -25,20 +32,21 @@ function draw(i){const E=evs(mode),el=$('sl-lf-svg'),W=Math.min(RD.width(el),860
   (S[mode].plans||[]).forEach(t=>{const rt=t-R0;if(rt>now)return;const y=top+1*lh+lh/2;b+='<line x1="'+x(rt)+'" y1="'+(y-7)+'" x2="'+x(rt)+'" y2="'+(y+7)+'" stroke="var(--c5)" stroke-width="2"/>'});
   if(S[mode].pstart&&now>=(S[mode].plans[0]-R0)){const prt=S[mode].pstart-R0,y=top+1*lh+lh/2;b+=T(W-R-2,y-9,'planned start +'+prt.toFixed(1)+' s \u2192',{fs:11,a:'end',fill:'var(--c5)'})}
   E.forEach((e,k)=>{if(k>i)return;const li=LANES.findIndex(l=>l[0]===e.lane);if(li<0)return;const y=top+li*lh+lh/2;
-    b+='<circle cx="'+x(e.rt)+'" cy="'+y+'" r="'+(k===i?6:4)+'" fill="'+(KCOL[e.k]||'var(--ink)')+'"'+(k===i?' stroke="var(--ink)" stroke-width="1.5"':'')+'/>'});
+    const nw=k>=G.from&&si<7;b+='<circle'+(nw?' class="rd-new"':'')+' cx="'+x(e.rt)+'" cy="'+y+'" r="'+(nw?6:4)+'" fill="'+(KCOL[e.k]||'var(--ink)')+'"'+(nw?' stroke="var(--ink)" stroke-width="1.5"':'')+'/>'});
   b+='<line x1="'+x(now)+'" y1="'+top+'" x2="'+x(now)+'" y2="'+(top+LANES.length*lh)+'" stroke="var(--ink)" stroke-dasharray="3 3"/>';
   const step=HI-LO>20?5:2;for(let t=Math.ceil(LO/step)*step;t<=HI;t+=step)b+=T(x(t),H-6,(t>0?'+':'')+t+' s',{fs:11,a:'middle',fill:'var(--mute)'});
   el.innerHTML=RD.svg(W,H,b,'Timeline of the running example on Slurm');
   const clk=t=>{const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=(t%60).toFixed(3);return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+s.padStart(6,'0')};
-  $('sl-lf-cap').innerHTML='<b>'+clk(cur.t)+' UTC, '+(cur.rt>=0?'+':'')+cur.rt.toFixed(3)+' s.</b> '+esc(cur.txt)+(cur.k==='plan'&&S[mode].nplan>1?' (logged '+S[mode].nplan+' times in all).':'');
-  $('sl-lf-raw').textContent=cur.raw;
+  const lines=si<7?E.slice(G.from,i+1).map(e=>clk(e.t)+' '+e.raw):[];
+  $('sl-lf-raw').textContent=lines.length?lines.join('\n'):'(no new log line: the job is COMPLETED, and sacct reads it from slurmdbd)';
   const plans=E.slice(0,i+1).filter(e=>e.k==='plan').length;
-  $('sl-lf-cnt').innerHTML=RD.stat('since sbatch',cur.rt.toFixed(2)+' s',cur.rt<0?'before the job is submitted':'')+RD.stat('job state',stateAt(mode,now)||'not yet submitted',now<0?'the blocker takes every GPU':'')+
-    RD.stat('nodes held',now>=alloc?(now>=done?'releasing':'c[1-2]'):'none',now>=alloc?'4 CPUs, 4 GPUs':'')+RD.stat('backfill plans seen',mode==='busy'?(plans?S.busy.nplan:0):0,mode==='busy'?'start 05:37:53 each time':'started at once');}
-const n=()=>S[mode].events.length;
-const A=RD.anim({card:'sl-lf-card',ctl:'sl-lf-ctl',n:n(),draw:draw,ms:1500,label:'Log line'});
+  $('sl-lf-cnt').innerHTML=RD.stat('since sbatch',now.toFixed(2)+' s',now<0?'before the job is submitted':'')+RD.stat('job state',stateAt(mode,now)||'not yet submitted',now<0?'the blocker takes every GPU':'')+
+    RD.stat('nodes held',now>=alloc?(si===7?'none':now>=done?'releasing':'c[1-2]'):'none',now>=alloc&&si<7?'4 CPUs, 4 GPUs':'')+RD.stat('backfill plans seen',mode==='busy'?(plans?S.busy.nplan:0):0,mode==='busy'?'start 05:37:53 each time':'started at once');}
+const n=()=>stages(mode).length;
+const A=RD.anim({card:'sl-lf-card',ctl:'sl-lf-ctl',n:n(),draw:draw,ms:4600,label:'Stage',list:'sx-lf-busy'});
 RD.onResize(()=>A.redraw());
-RD.seg($('sl-lf-mode'),m=>{mode=m;A.reset(n())});
+RD.seg($('sl-lf-mode'),m=>{mode=m;['busy','idle'].forEach(x=>$('sx-lf-'+x).hidden=x!==m);A.reset(n(),'sx-lf-'+m)});
+(window.SLANIM=window.SLANIM||{}).lf=A;
 // summary table, computed from the events
 (function(){const row=(name,f)=>'<tr><td>'+name+'</td><td class="num">'+f('busy')+'</td><td class="num">'+f('idle')+'</td></tr>';
   const g=(m,k,last)=>{const e=evs(m).filter(z=>z.k===k);return e.length?(last?e[e.length-1]:e[0]).rt:NaN};

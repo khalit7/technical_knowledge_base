@@ -24,7 +24,8 @@
       :'Each client waits about '+f(lat,1)+' ms per answer; alone, one client waited '+f(M['1_1'].lat_ms,1)+' ms.');
     $('sdm-cnt').innerHTML=[['Operations per second',f(r,0)],['Per operation, seen by a client',f(lat,1)+' ms'],['Time for all 14,400',f(OPS/r,1)+' s'],['Servers',String(K)]].map(x=>RD.stat(x[0],x[1])).join('');
   }
-  const A=R.anim({card:'sdm-anim-card',ctl:'sdm-ctl',n:NF,draw,ms:700,label:'Time step'});
+  // a widget (13 frames of a measured run): it never plays by itself and opens on the last frame
+  const A=R.anim({card:'sdm-anim-card',ctl:'sdm-ctl',n:NF,draw,ms:700,label:'Time step',auto:false,start:'last'});
   H.seg($('sdm-mode'),m=>{K=+m;A.reset(NF)});
 
   // ---- curve: ops/s and latency against clients ----

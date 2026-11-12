@@ -1,6 +1,10 @@
 <section id="rd-s6">
 <h2>6. Caches and tiers in between</h2>
+<div class="s3sp"><div class="s3L">
 <p><b>The problem.</b> The object store is cheap and holds everything, but answers in 100-200 ms and has no POSIX; the parallel file system is fast but costs several times as much per byte (FSx for Lustre persistent SSD at 125 MB/s per TiB: $0.145 per GB-month, against S3 Standard's $0.023, AWS us-east-1, read 2026-10-16 <span class="pub">published</span>). A <dfn>cache</dfn> or <dfn>tier</dfn> keeps the working set on fast media near the GPUs and the rest in the object store.</p>
+</div>
+<div class="s3R"><div class="s3side"><figure class="ph"><img src="img/nvme_u2_drive.webp" alt="Two 2.5-inch U.2 NVMe solid-state drives, one showing its SFF-8639 connector edge, the other its label" loading="lazy" width="640" height="367">
+<figcaption>The local tier is a handful of drives like these inside each node: U.2 NVMe, 2.5 inches, on PCIe (this one 800 GB). A DGX H100 has eight 3.84 TB drives for staging and first checkpoint copies; they die with the node, so they are never the only copy.<span class="cr">Photo: Dmitry Nosachev, {{CC BY-SA 4.0|https://creativecommons.org/licenses/by-sa/4.0/}}, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:OCZ_Z6300_NVMe_flash_SSD,_U.2_(SFF-8639)_form-factor.jpg}}.</span></figcaption></figure></div></div></div>
 <div class="tw sd-tw"><table class="rd-cmp">
 <thead><tr><th>Layer</th><th>How it fills</th><th>What it is good for</th><th>Watch out for</th></tr></thead>
 <tbody>
@@ -11,15 +15,19 @@
 <tr><td>JuiceFS</td><td data-h="Fills">its own metadata engine; data cut into 64 MB chunks and 4 MB blocks stored as objects ({{JuiceFS architecture|https://juicefs.com/docs/community/architecture/}})</td><td data-h="Good for">POSIX over any object store, with local caches</td><td data-h="Watch">"you cannot find the original file directly in the object storage": the bucket is only readable through JuiceFS</td></tr>
 <tr><td>Alluxio</td><td data-h="Fills">a distributed cache in front of object stores</td><td data-h="Good for">analytics: the open-source edition "is purpose-built for analytics workloads"</td><td data-h="Watch">for AI it points to its Enterprise Edition; the open-source line has had no release since mid-2024, v2.9.x ({{Alluxio|https://github.com/Alluxio/alluxio}})</td></tr>
 </tbody></table></div>
-<figure class="ph"><img src="img/nvme_u2_drive.webp" alt="Two 2.5-inch U.2 NVMe solid-state drives, one showing its SFF-8639 connector edge, the other its label" loading="lazy" width="640" height="367">
-<figcaption>The local tier is a handful of drives like these inside each node: U.2 NVMe, 2.5 inches, on PCIe (this one 800 GB). A DGX H100 has eight 3.84 TB drives for staging and first checkpoint copies; they die with the node, so they are never the only copy.<span class="cr">Photo: Dmitry Nosachev, {{CC BY-SA 4.0|https://creativecommons.org/licenses/by-sa/4.0/}}, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:OCZ_Z6300_NVMe_flash_SSD,_U.2_(SFF-8639)_form-factor.jpg}}.</span></figcaption></figure>
+<div class="s3sp"><div class="s3R"><div id="stg-cache"></div></div>
+<div class="s3L">
 <p><b>When a cache helps, in one line.</b> It pays only for bytes read more than once. Single-pass pretraining reads each token about once, so a data cache adds nothing but a copy; multi-epoch fine-tuning, many jobs reading the same dataset, evaluation sets, model weights loaded by every serving replica, and container images are where caches earn their space. The second kind of help is latency: a cache on local NVMe answers in microseconds where the object store answers in a tenth of a second, which matters for small files and for random access.</p>
+<p class="sxh">Fig. 3, step by step: a loader, an object store and a local cache</p>
+<ol class="sx" id="sx-cache"><li><b>Two tiers, one dataset.</b> The object store holds 16 shards of 4 MiB (64 MiB of the running example's token ids); the node has GPUs and an empty local NVMe cache.</li><li><b>First epoch: every shard is a request.</b> Each shard comes from the object store and a copy stays on NVMe: 555.7 MB/s one at a time, 1,084.5 MB/s with 16 threads, from the S3 stand-in <span class="meas">measured</span> (the root page's Storage lab).</li><li><b>Second epoch: the cache answers.</b> From local disk (a Docker volume standing in for NVMe): 1,773.9 MB/s, and 3,880.6 MB/s with 16 threads <span class="meas">measured</span>.</li><li><b>Single pass: the cache is only a copy.</b> Each token is read once, so the copy is never read again.</li><li><b>Many readers of the same bytes.</b> Epochs, jobs and serving replicas reading one dataset or one set of weights: a shared cache tier filled once pays for itself. The three nodes are <span class="sim">illustrative</span>.</li></ol>
+</div></div>
 <details class="dp"><summary>GPUDirect Storage: removing the CPU bounce buffer <span class="mute">(depth)</span></summary><div class="b">
 <p><b>GPUDirect Storage</b> removes a different hop: "a direct data path for direct memory access (DMA) transfers between GPU memory and storage" that "avoids a bounce buffer through the CPU"; NVIDIA's only number is that such a path "offers at least twice the peak bandwidth as compared to taking a data path through the CPU" on suitable PCIe topologies ({{GDS overview v1.19.1|https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html}}) <span class="vend">vendor</span>. It needs supported NVMe or network storage and code written to the cuFile API; not run here.</p>
 </div></details>
 <div class="io-moved">
 <h4>Measured: the same checkpoint on six local stand-ins; the path that looks local is the slowest</h4>
-<p>From the root page's Storage lab (Apple M1 Pro, Docker Desktop's Linux VM, shared machine; medians of repeated runs). Nothing on a laptop behaves like a 2 TB/s file system, but the <i>order</i> of the tiers and the reasons for it reproduce. The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with <code>torch.save</code>, flushed to the device with <code>fsync</code>, renamed into place, then read back after dropping it from the page cache:</p>
+<div class="s3sp"><div class="s3L">
+<p>From the root page's Storage lab (Apple M1 Pro, Docker Desktop's Linux VM, shared machine; medians of repeated runs). Nothing on a laptop behaves like a 2 TB/s file system, but the <i>order</i> of the tiers and the reasons for it reproduce. The running example's checkpoint, and the same GPT made wider (d 256, 4 layers: 3.2M parameters; d 512, 8 layers: 25.3M), each written with <code>torch.save</code>, flushed to the device with <code>fsync</code>, renamed into place, then read back after dropping it from the page cache (the bars in the card beside this):</p>
 <details class="dp"><summary>The six stand-ins, and what each one stands for <span class="mute">(provenance)</span></summary><div class="b">
 <ul class="tight small">
 <li><b>Mac SSD, native</b>: the laptop's own disk (stands for local NVMe). <code>fsync</code> on macOS does not flush the drive's cache; <code>F_FULLFSYNC</code> does, and is used here.</li>
@@ -31,16 +39,16 @@
 <div class="io-pr"><div class="q">Predict: which local target is slowest for the 304 MB checkpoint: the object store or the shared host folder?</div>
 <div class="opts"><button data-a="0">The object store: HTTP, multipart uploads, a separate server</button><button data-a="1">The shared folder: it looks like a local path</button></div>
 <div class="ans" hidden id="io-pr1-ans"></div></div>
-<div class="io-card" id="io-tiers-card">
+<p id="io-tiers-text"></p>
+</div>
+<div class="s3R"><div class="s3side"><div class="io-card" id="io-tiers-card">
 <div class="seg" id="io-tiers-op"><button data-m="write" class="on">Write (save + fsync + rename)</button><button data-m="read">Read (cold) + load</button></div>
 <div class="seg" id="io-tiers-sz"><button data-m="ex">1.39 MB (running example)</button><button data-m="m">38.6 MB</button><button data-m="l" class="on">304 MB</button></div>
 <div class="bars" id="io-tiers-bars"></div>
 <p class="small mute" id="io-tiers-note"></p>
-</div>
-<p id="io-tiers-text"></p>
+</div></div></div></div>
 </div>
 </section>
-
 <section id="rd-s7">
 <h2>7. Moving data: staging, checkpoint paths, other regions</h2>
 <p><b>Staging a dataset</b> is a copy, and a copy's time is its size over the narrowest pipe: <code>t = bytes / min(source read, destination write, the link between)</code>. 100 TB over one 100 Gb/s (12.5 GB/s) link takes 2.2 hours <span class="der">derived</span>, and many files make it slower, because a single-threaded copy also pays a metadata round trip per file; the fix is a copy tool that parallelises both.</p>
@@ -59,22 +67,25 @@
 <li><b>To the object store</b>: survives the cluster; retention lives here. torchtitan keeps the latest 10 by default (<code>keep_latest_k: int = 10</code>, interval 500 steps), so capacity is about ten checkpoints, not one. Megatron Core writes straight to object stores with <code>--save msc://my-profile/checkpoints</code> through NVIDIA's Multi-Storage Client ({{Megatron Core MSC|https://docs.nvidia.com/megatron-core/developer-guide/latest/user-guide/msc_integration.html}}); FSx can export to its linked bucket automatically.</li>
 </ol>
 <div class="io-moved">
+<div class="s3sp"><div class="s3L">
 <h3>Asynchronous checkpointing, measured: training stops for the copy, not for the write</h3>
-<p>An <dfn>asynchronous checkpoint</dfn> splits the save in two: <b>stage</b> the state into host memory (a PCIe copy of each rank's shard), then let training continue while a background thread writes the staged copy. The cost: a second copy of the state in host RAM, and the write must finish before the next checkpoint starts. The same 60 training steps of the 3.2M-parameter GPT (4 ranks, DCP, a checkpoint every 15 steps) without checkpoints, with <code>dcp.save</code> and with <code>dcp.async_save</code>; step times are each step's slowest rank, from the root page's Storage lab (Apple M1 Pro, Docker Desktop VM and native, shared machine) <span class="io-tag io-measured">measured</span>:</p>
-<div class="io-card" id="io-as-card">
-<div class="seg" id="io-as-tgt"><button data-m="slow_bind" class="on">Slow shared folder (container)</button><button data-m="slow_vol">Docker volume (container)</button><button data-m="native">Mac SSD (native, 25.3M parameters)</button></div>
-<div id="io-as-svg" class="io-svg"></div>
-<div class="io-leg"><span><i style="background:var(--c3)"></i>training step</span><span><i style="background:var(--c2)"></i>training stopped for the checkpoint</span><span><i style="background:var(--c1);opacity:.35"></i>background write (drawn with the synchronous write's measured time)</span></div>
-<div class="io-ctl" id="io-as-ctl"></div>
-<div class="io-cap" id="io-as-cap"></div>
-<div class="io-out" id="io-as-out"></div>
-</div>
+<p>An <dfn>asynchronous checkpoint</dfn> splits the save in two: <b>stage</b> the state into host memory (a PCIe copy of each rank's shard), then let training continue while a background thread writes the staged copy. The cost: a second copy of the state in host RAM, and the write must finish before the next checkpoint starts. The same 60 training steps of the 3.2M-parameter GPT (4 ranks, DCP, a checkpoint every 15 steps) without checkpoints, with <code>dcp.save</code> and with <code>dcp.async_save</code>; step times are each step's slowest rank, from the root page's Storage lab (Apple M1 Pro, Docker Desktop VM and native, shared machine) <span class="io-tag io-measured">measured</span>, replayed in the card beside this.</p>
 <p id="io-as-text"></p>
 <p><b>Published, at scale:</b> PyTorch and IBM report that asynchronous DCP cut the time a 7B model's training stood still per checkpoint from 148.8 s to 6.3 s on average, the 6.3 s being the copy to CPU memory <span class="io-tag io-published">published</span> ({{PyTorch blog, November 2024|https://pytorch.org/blog/reducing-checkpointing-times/}}). Google's Gemini 1.0 report describes keeping redundant copies of model state in other hosts' memory, raising its largest job's goodput from 85% to 97% ({{Gemini 1.0 report, section 3|https://arxiv.org/abs/2312.11805}}).</p>
 <details class="dp"><summary>The async trap we hit: give the background writer its own process group <span class="mute">(a real hang and crash)</span></summary><div class="b">
 <p class="small">DCP's save runs collectives (it gathers every rank's plan and agrees the file is complete). <code>async_save</code> runs them in a background thread; if that thread uses the same process group as training, two threads issue collectives on one channel at once. Our first attempt (4 ranks, gloo, native) <b>hung</b>: every rank at 0% CPU after the first checkpoint, nothing printed for over four minutes. A rerun <b>crashed</b> 3 s after the checkpoint, two ranks aborting with:</p>
 <div class="io-err">gloo::EnforceNotMet: [enforce fail at .../third_party/gloo/gloo/transport/uv/pair.cc:253] op.nread == op.preamble.nbytes</div>
 <p class="small">The fix is one line, the one the PyTorch blog recommends: create a group once, <code>ck_pg = dist.new_group(backend="gloo")</code>, and pass <code>process_group=ck_pg</code> to <code>async_save</code>. All runs above use it.</p></div></details>
+</div>
+<div class="s3R"><div class="s3side"><div class="io-card" id="io-as-card">
+<div class="seg" id="io-as-tgt"><button data-m="slow_bind" class="on">Slow shared folder (container)</button><button data-m="slow_vol">Docker volume (container)</button><button data-m="native">Mac SSD (native, 25.3M parameters)</button></div>
+<div id="io-as-svg" class="io-svg"></div>
+<div class="io-leg"><span><i style="background:var(--c3)"></i>training step</span><span><i style="background:var(--c2)"></i>training stopped for the checkpoint</span><span><i style="background:var(--c1);opacity:.35"></i>background write (drawn with the synchronous write's measured time)</span></div>
+<p class="small mute">It opens on the finished runs; press play to replay them on one clock.</p>
+<div class="io-ctl" id="io-as-ctl"></div>
+<div class="io-cap" id="io-as-cap"></div>
+<div class="io-out" id="io-as-out"></div>
+</div></div></div></div>
 </div>
 <p><b>Other regions and clouds</b> cost money as well as time. AWS charges $0.02 per GB from us-east-1 to us-west-2, $0.01 to us-east-2, and $0.09 per GB for the first 10 TB a month out to the internet; inbound is free (AWS Price List, AWSDataTransfer, published 2026-09-16) <span class="pub">published</span>. One 405B checkpoint at MLPerf Storage's 5.29 TB costs about $106 to copy to another US region and about $476 to take out to the internet, and takes 423 s over a dedicated 100 Gb/s link <span class="der">derived</span>. Keeping ten of them in a second region doubles their storage bill, which is why most labs replicate only selected checkpoints.</p>
 </section>

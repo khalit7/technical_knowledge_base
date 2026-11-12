@@ -91,13 +91,13 @@
         if(ph>=1)b+=H.line(cx+cw,cy+40,rx,cy+40,'var(--c2)',{sw:ph>=4&&ph<6?3:1.5});
       }
       el.innerHTML=H.svg(W,Hh,b,'One 8 MiB write, step '+(i+1));
-      $('sd-life-cap').innerHTML='<div class="t">'+(i+1)+'. '+esc(s[0])+'</div><p>'+esc(s[1])+'</p>';
       const sent=ph>=5?8:ph>=4?4:0;
       cnt('sd-life-cnt',mode==='lus'?[['Bytes through the metadata server','0'],['Most bytes on one server',f(Math.ceil(sent/4),0)+' MiB'],['Servers the bytes touch',ph>=4?'4':'0'],['Metadata requests',ph>=6?'2':ph>=1?'1':'0']]
         :[['Bytes through the server',sent+' MiB'],['Most bytes on one server',sent+' MiB'],['Servers the bytes touch',ph>=4?'1':'0'],['Requests to that server',ph>=6?'open, writes, close':ph>=1?'open':'0']]);
     }
-    const A=R.anim({card:'sd-life-card',ctl:'sd-life-ctl',n:STEPS.lus.length,draw,ms:1700,label:'Write step'});
-    H.seg($('sd-life-mode'),m=>{mode=m;A.reset(STEPS[m].length)});
+    // the steps are explained on the left by #sx-life-lus and #sx-life-nfs (the STEPS text above, written into the page), one item per step
+    const A=R.anim({card:'sd-life-card',ctl:'sd-life-ctl',n:STEPS.lus.length,draw,ms:4200,label:'Write step',list:'sx-life-lus'});
+    H.seg($('sd-life-mode'),m=>{mode=m;['lus','nfs'].forEach(k=>{$('sx-life-'+k).hidden=k!==m});A.reset(STEPS[m].length,'sx-life-'+m)});
   })();
 
   // ---- animation 2: resharding reads ----
@@ -119,16 +119,16 @@
         if(on)read+=r.bytes});
       const Hh=46+ranks.length*(rowH+6)+4;
       el.innerHTML=H.svg(Wd,Hh,b,'Resharding reads, '+W+' ranks');
-      const n=ranks.length;let cap;
-      if(i===0)cap=['The checkpoint on disk','Four shard files written by 4 ranks, '+MB(onDisk)+' of data, and the .metadata map. Each new rank first reads .metadata, then plans which stored chunks overlap the rows it now owns.'];
-      else if(i<=n){const r=ranks[i-1];const parts=Object.keys(r.per_file).map(k=>k.replace('.distcp','')+' '+MB(r.per_file[k])).join(', ');
-        cap=['New rank '+r.rank+' reads '+MB(r.bytes)+' in '+f(r.n_reads,0)+' reads',parts+'. '+(W===4?'The same layout: its own file, plus the small replicated entries (step counters and the like) from the others.':W===2?'It now owns two old shards exactly, so it reads two whole files and nothing else of size.':'Its rows straddle two old chunks, so it reads both whole chunks and keeps a part of one: '+'the overlap is read again by its neighbour.')]}
-      else cap=['Total: '+f(read/onDisk,2)+' times the bytes on disk',W===3?'Three ranks read 1.50 times the checkpoint, because DCP reads whole stored chunks (filesystem.py, lines 869-884). At a divisor of the old world size each byte is read once.':'Each byte of data is read once (plus the replicated entries every rank needs).'];
-      $('sd-rs-cap').innerHTML='<div class="t">'+esc(cap[0])+'</div><p>'+esc(cap[1])+'</p>';
       cnt('sd-rs-cnt',[['Ranks loading',String(W)],['Bytes read so far',MB(read)],['Data on disk',MB(onDisk)],['Read / on disk',f(read/onDisk,2)+'x']]);
     }
-    const A=R.anim({card:'sd-rs-card',ctl:'sd-rs-ctl',n:D.loads[4].length+2,draw,ms:1600,label:'Reshard step'});
-    H.seg($('sd-rs-mode'),m=>{W=+m;A.reset(D.loads[W].length+2)});
+    // the step lists on the left (#sx-rs-4, #sx-rs-2, #sx-rs-3): one item per step, written from the recorded reads
+    [4,2,3].forEach(w=>{const ranks=D.loads[w],read=ranks.reduce((s,r)=>s+r.bytes,0),it=[['The checkpoint on disk','Four shard files written by 4 ranks, '+MB(onDisk)+' of data, and the .metadata map. Each new rank first reads .metadata, then plans which stored chunks overlap the rows it now owns.']];
+      ranks.forEach(r=>{const parts=Object.keys(r.per_file).map(k=>k.replace('.distcp','')+' '+MB(r.per_file[k])).join(', ');
+        it.push(['New rank '+r.rank+' reads '+MB(r.bytes)+' in '+f(r.n_reads,0)+' reads.',parts+'. '+(w===4?'The same layout: its own file, plus the small replicated entries (step counters and the like) from the others.':w===2?'It now owns two old shards exactly, so it reads two whole files and nothing else of size.':'Its rows straddle two old chunks, so it reads both whole chunks and keeps a part of one: the overlap is read again by its neighbour.')])});
+      it.push(['Total: '+f(read/onDisk,2)+' times the bytes on disk.',w===3?'Three ranks read 1.50 times the checkpoint, because DCP reads whole stored chunks (filesystem.py, lines 869-884). At a divisor of the old world size each byte is read once.':'Each byte of data is read once (plus the replicated entries every rank needs).']);
+      $('sx-rs-'+w).innerHTML=it.map(x=>'<li><b>'+esc(x[0].replace(/\.$/,''))+'.</b> '+esc(x[1])+'</li>').join('')});
+    const A=R.anim({card:'sd-rs-card',ctl:'sd-rs-ctl',n:D.loads[4].length+2,draw,ms:4200,label:'Reshard step',list:'sx-rs-4'});
+    H.seg($('sd-rs-mode'),m=>{W=+m;[4,2,3].forEach(k=>{$('sx-rs-'+k).hidden=k!==W});A.reset(D.loads[W].length+2,'sx-rs-'+W)});
   })();
 
   // ---- drills and reading time ----

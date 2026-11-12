@@ -38,16 +38,35 @@ details.dp>.b{padding:0 12px 10px;min-width:0}
 #sl-pc-card td.ok{color:var(--good);font-weight:600}#sl-pc-card td.no{color:var(--bad);font-weight:600}
 #sl-pc-card tr.sel td{background:var(--acc2)}#sl-pc-card tbody tr{cursor:pointer}
 @media (max-width:520px){.sl-terms{grid-template-columns:minmax(0,1fr)}.sl-terms dd{margin:0 0 4px}}
+/* eased steps (skill template 01_head): RD.anim adds rd-fwd to the card on a forward step; marks with class rd-new ease in */
+#t-read .rd-fwd .rd-new{animation:slIn .5s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:center}
+@keyframes slIn{from{opacity:0;transform:translateY(-6px) scale(.85)}}
+@media (prefers-reduced-motion:reduce){#t-read .rd-fwd .rd-new{animation:none}}
+/* split layout: cards in the right column fill it; step-list code wraps */
+.s3side .sl-card{margin-top:6px}
+ol.sx code{overflow-wrap:anywhere}
+.sl-legend{font-size:12.5px;color:var(--mute);margin:4px 0 0}
 </style>
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav"><a href="#s-one">The idea</a><a href="#s-arch">Daemons</a><a href="#s-life">Life of a job</a><a href="#s-res">Resources</a><a href="#s-steps">Steps</a><a href="#s-lim">Limits</a><a href="#s-sched">Two loops</a><a href="#s-prio">Priority</a><a href="#s-pre">Preemption</a><a href="#s-arr">Arrays</a><a href="#s-resv">Reservations</a><a href="#s-acct">Accounting</a><a href="#s-cont">Containers</a><a href="#s-run">Training job</a><a href="#s-deep">Depth</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="sl-core">Slurm is <b>one controller</b> that gives each job <span class="sl-hl">its whole allocation at once or nothing</span>, tries waiting jobs in the order of <b>one priority number</b>, and lets a lower job start early (backfill) only when its <b>time limit</b> fits a gap; steps, limits, preemption and reservations are refinements of that one loop.</p>
-<div class="sl-card" id="sl-hero-card"><h4>One job's path: queue, allocation, steps</h4>
-<div class="sl-svg" id="sl-hero"></div>
-<p class="sl-cap">The topic's lab cluster with the running example (job 79) as it ran: <b>1</b> <code>sbatch</code> queues it in <code>slurmctld</code>; <b>2</b> the main loop or backfill grants c1 and c2 together (gang scheduling comes free); <b>3</b> the script runs as step <code>79.batch</code> on c1, and its <code>srun</code> starts step <code>79.0</code> on both nodes; <b>4</b> the order of waiting jobs is one integer per job, fed by usage that <code>slurmdbd</code> records. Section numbers below follow the same path.</p></div>
+<p class="sxh">One job's path: queue, allocation, steps</p>
+<ol class="sx" id="sx-hero">
+<li><b>A full cluster.</b> Three nodes of 4 CPUs and 4 fake GPUs, each running <code>slurmd</code>; one controller, <code>slurmctld</code>, holds every job and node in memory; <code>slurmdbd</code> keeps the accounting. Bob's job 78 holds all 12 GPUs, with a time limit of 1 minute.</li>
+<li><b>sbatch.</b> At 05:36:55.526 UTC <code>sbatch</code> hands the running example, job 79 (2 nodes, 2 GPUs each), to the controller, which queues it with priority 4166 and reason <code>Resources</code>.</li>
+<li><b>A plan made from time limits.</b> Backfill plans job 79 for 05:37:53, the moment job 78's limit runs out, not its real end, and re-plans every 2 s (12 times).</li>
+<li><b>Both nodes at once.</b> Job 78 ends at 05:37:18.890, 25 s into its limit; 22 ms later the main loop grants c1 and c2 together, 34 s before the plan. A job gets its whole allocation or nothing, so gang scheduling comes free.</li>
+<li><b>Steps.</b> The script runs on c1 as step <code>79.batch</code>; its <code>srun</code> starts step <code>79.0</code>, one <code>torchrun</code> per node with 2 ranks each, which train to global loss 2.2638769149780273.</li>
+<li><b>Recorded.</b> By 05:37:28.650 the epilogs have run and the nodes are free; <code>slurmdbd</code> keeps the job's <code>billing=5,cpu=4,gres/gpu=4,node=2</code>. That usage feeds fairshare, and the order of waiting jobs is one integer per job (section 7).</li>
+</ol>
+<p class="sl-cap">Drawn from job 79's own log lines (<code>slurmctld</code>, <code>slurmd</code>, prolog and epilog, 16 Oct 2026); positions and sizes are <span class="sl-ill">illustrative</span>. Section numbers below follow the same path; section 2 puts every log line on a clock.</p>
+</section>
+</div></div>
+<div class="sl-intro">
 <p><b>You need:</b> nothing beyond Linux processes and a training job. Why clusters need a scheduler at all, and Slurm against Kubernetes and Ray, are on the parent {{Topic: ml-infra-and-orchestration|n:3c65c17b0d0d81b5925bfd1d8665dd4b}}; how <code>torchrun</code> and NCCL start the ranks inside a step is on {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}}.</p>
 <dl class="sl-terms">
 <dt>Allocation (job)</dt><dd>nodes, CPUs, memory and GPUs held for a time limit, granted all at once.</dd>
@@ -77,4 +96,4 @@ details.dp>.b{padding:0 12px 10px;min-width:0}
 <p><b>Versions.</b> Slurm here is the Debian 13 package 24.11.5; the current upstream release is 26.05.5 (13 October 2026, {{SchedMD releases|https://github.com/SchedMD/slurm/releases}}); source is quoted at tag <code>slurm-24-11-5-1</code> so it matches what ran. Slurm has been open source (GPL-2.0) since 2002; NVIDIA bought SchedMD, its developer, in December 2025 and said it stays open source ({{NVIDIA, 2025-12-15|https://blogs.nvidia.com/blog/nvidia-acquires-schedmd/}}). Most large GPU training clusters run it: the root's {{Tool map|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} has the dated evidence.</p>
 <p><b>What the root's labs already show</b> on this same cluster, and this page links instead of repeating: the {{Scheduling lab|n:3c65c17b0d0d81b5925bfd1d8665dd4b}} (an eight-job queue under FIFO and backfill, Fair Tree between two teams, partition preemption, the Kubernetes gang deadlock), the Failure lab (killed and drained nodes, health checks) and the Launch lab (start-up time by stage).</p>
 </div></details>
-</section>
+</div>

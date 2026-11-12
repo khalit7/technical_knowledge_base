@@ -25,6 +25,17 @@ The question the page keeps returning to: **why is my job (not) running, and wha
 The Job lifecycle animation and the Priority calculator moved from their tabs into sections 2 and 7. The clickable cluster map was removed (the hero carries the structure; its notes are in the top's closed block).
 Rejected: a photo (the subject is software; no real object teaches more than the logs shown), a measured backfill Gantt (the root's Scheduling lab owns the measured eight-job run).
 
+## The 2026-11-06 rollout (done 2026-11-12): split layout and 3D stages (renderer v2)
+| Visual | Where | Kind | Data |
+|---|---|---|---|
+| Hero: job 79 through the lab cluster (queue in front, nodes c1 to c3 with 4 GPUs and 4 CPUs each, slurmctld and slurmdbd behind) | top | **3D stage**, 6 steps, step list `sx-hero` | `SL.busy.events` (job 79's slurmctld, slurmd, prolog and epilog lines): submit time and InitPrio, backfill's plan and its count, the blocker's end, the allocation, the steps, the last epilog, gloss |
+| Main loop and backfill | Reading 6 | **3D stage**, 7 steps, `sx-bf`: the floor is nodes by time; a job is a block of nodes by time limit, the queue in front shows the same footprints so a job is seen to fit a gap or not | illustrative, as the stepper it replaces; the rules are the source's |
+| Fairshare reorders the queue in 51 s | Reading 7 | **3D stage**, 5 steps, `sx-fs`: one column per job (priority, fairshare block coloured by user), team usage meters behind, bob's job 81 charging teamb | `SL.snaps` (sprio -l and sshare -a -l at 05:38:07 and 05:38:58) |
+| Job lifecycle, busy against idle | Reading 2 | 2D animation, now eight explained stages (`sx-lf-busy`, `sx-lf-idle`) instead of 21 and 15 log-line frames; each stage shows its raw log lines | unchanged |
+| Four steps with and without --exact | Reading 4 | 2D animation, now 3 and 2 stretches (`sx-st-plain`, `sx-st-exact`) instead of 13 one-second frames | unchanged |
+Replaced: the static 2D hero, the 2D backfill stepper and the 2D stacked priority bars (their 3D stages carry the same content; per-job factor sums are in the calculator). Kept 2D: stranded GPUs (a toggle of two end states on 8 squares), where limits live (a labelled map), job 128's requeue, the dependency Gantt and the maintenance window (timelines), the calculator (a widget), the pending-reason decoder (a tool).
+Rejected for 3D: preemption (this page's own runs have no preemption; the root's Scheduling lab owns the measured one and draws it; job 128's requeue is a timeline); four steps on CPU slots (a good spatial fit, but the measured result is a time difference that the 2D Gantt shows directly; a candidate for later).
+
 ## Rejected
 - Rebuilding FIFO vs backfill, the Fair Tree calculator and the preemption Gantt: the root's Scheduling lab has them on the same cluster; linked.
 - A trace replay (Parallel Workloads Archive) through the backfill simulator: large download, the root's simulator already shows the shapes.

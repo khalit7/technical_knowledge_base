@@ -229,8 +229,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows` ML platforms and workflows: pipelines, experiment tracking and model registry
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost` Observability and cost: GPU metrics, goodput, utilisation and capacity planning
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/ray` Ray: tasks, actors, the object store and Ray Train
-- [~] `systems_and_performance/topic_ml_infra_and_orchestration/slurm` Slurm from zero: allocation, gang scheduling, fairshare and preemption
-- [~] `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement` Storage and data movement: parallel file systems, object storage and checkpoint I/O
+- [x] `systems_and_performance/topic_ml_infra_and_orchestration/slurm` Slurm from zero: allocation, gang scheduling, fairshare and preemption
+- [x] `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement` Storage and data movement: parallel file systems, object storage and checkpoint I/O
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration` Topic: ml-infra-and-orchestration
 - [ ] `systems_and_performance/topic_pytorch_ecosystem/distributed_pytorch` Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP
 - [ ] `systems_and_performance/topic_pytorch_ecosystem/extending_pytorch` Extending PyTorch: custom ops, tensor subclasses, kernels
@@ -523,6 +523,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows`: zoomed hero steps leave empty card space; 390 px body text may lack a gutter (theme-wide?).
 - `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost`: Figs 2 and 3 phone labels tight; dashboard and planner tool tabs full width; Fig. 1 derived from the page's engine (no DCGM recording; labelled).
 - `systems_and_performance/topic_ml_infra_and_orchestration/ray`: Fig. 4 head node cropped at the left at 1400 (labels clamped to the edge); Fig. 1 GCS label under the owner's-table line; Fig. 3 labels run past their node; stages small on phones.
+- `systems_and_performance/topic_ml_infra_and_orchestration/slurm`: hero step 4 label sits over c1's cubes at 1400; hero step 5 close view busy; fairshare stage small on phones; check_ui.mjs needs an absolute repo root. Corrected: job 95 was last of the eleven with a priority (not second to last); a section 14 pointer is now section 13.
+- `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement`: core 50 min plus 18 closed (42 before); scene labels near the canvas edge at 390 ("file system", Fig. 4); widget splits' right column much taller than the left.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -597,3 +599,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - ML platforms and workflows: keeps the tools' spelling "artifact"; Fig. 2 opens on "One run"; Fig. 3 bars show held-out loss minus 2.0 (stated); the resume card caption dropped for the step list. Keep these?
 - Observability and cost: job 133 drawn on node 1 in Fig. 3 (its node was not recorded); Fig. 1 step 4 uses the hung case's 8 polling SMs (illustrative); predicts cut from 5 to 3. Keep these?
 - Ray: the Ownership section's life-of-a-task stepper folded into Fig. 1 (its "small result" mode now a sentence); the Ray Train crash replay is a still widget (Fig. 4 plays the run); "9.0 s" for 8.965 s and "6.76 s" for 6.765 to match the page's rounding. Keep these?
+- Slurm: the backfill stage keeps the illustrative four-job queue (the root lab owns the measured run); the stacked factor bars dropped for the fairshare stage (per-job factors only in the calculator); the srun steps stay 2D. Keep these?
+- Storage and data movement: Fig. 3 uses the root lab's Docker-volume reads as a stand-in for local NVMe (last step illustrative); the four-writers predict became prose; three replays are widgets; 50 min core: trim the step lists? Keep these?

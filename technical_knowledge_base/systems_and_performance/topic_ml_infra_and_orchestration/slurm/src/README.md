@@ -2,11 +2,12 @@
 
 Child page 2 of Topic: ml-infra-and-orchestration. Prefix `sl`. Built 2026-10-16.
 
-Rebuild: `python3 scripts/make_data.py && sh build.sh` (from this folder; `make_data.py` also reads the root's `src/fail` and `src/data`, so the 2026-10-24 rebuild ran `build.sh` only, data unchanged). Checks: `python3 scripts/recompute.py`, `python3 scripts/check_data.py`, `node scripts/check_ui.mjs <repo root> ../index.html <shots dir>`, from the repo root `sh html_utils/checkpage.sh <page folder>` and `python3 html_utils/ledger.py check <page folder>`.
+Rebuild: `python3 scripts/make_data.py && sh build.sh` (from this folder; `make_data.py` also reads the root's `src/fail` and `src/data`, so the 2026-10-24 rebuild ran `build.sh` only, data unchanged). Checks: `python3 scripts/recompute.py`, `python3 scripts/check_data.py`, `node scripts/check_ui.mjs <absolute repo root> ../index.html <shots dir>`, from the repo root `node <page folder>/src/check/check_stages.mjs [shots dir]` (a few minutes), from the repo root `sh html_utils/checkpage.sh <page folder>` and `python3 html_utils/ledger.py check <page folder>`.
 
 | Path | What |
 |---|---|
-| `parts/` | page parts: `20_read_a` (styles, the idea in one screen) to `20_read_h` (section 13 and closed depth), `20_read_z`; JS `21_js_rd_common.js` and `99_js_tabs.js` (skill templates, storage key `sl-tab`, never autoplay), `22_js_sl_read.js` (source quotes, exhibits, predict boxes, job states), `23_js_sl_read2.js` (steps animation, priority snapshots, dependency Gantt), `24_js_sl_life.js` (lifecycle animation, from the old Job lifecycle tab), `25_js_sl_prio.js` (priority calculator, from the old tab), `26_js_sl_vis.js` (hero, stranded GPUs, limits, two-loop stepper, requeue timeline, maintenance window); `32_*` Why pending?, `39_tab_more.html`; `15_js_sl_data.js` is generated |
+| `parts/` | page parts: `02_split.html`, `21_js_rd_common.js`, `25_js_s3.js` and `99_js_tabs.js` (skill templates, unchanged; storage key `sl-tab`; animations and stages play once in view since 2026-11-12), `20_read_a` (styles, the idea in one screen) to `20_read_h` (section 13 and closed depth), `20_read_z`; `22_js_sl_read.js` (source quotes, exhibits, predict boxes, job states), `23_js_sl_read2.js` (steps animation in stretches, dependency Gantt), `24_js_sl_life.js` (lifecycle animation in eight stages), `25_js_sl_prio.js` (priority calculator), `26_js_sl_vis.js` (stranded GPUs, limits, requeue timeline, maintenance window), 3D scenes `40_js_sc_geo.js` (a node: 4 GPU cubes, 4 CPU tiles), `41_js_sc_hero.js`, `42_js_sc_bf.js`, `43_js_sc_fs.js`; `32_*` Why pending?, `39_tab_more.html`; `15_js_sl_data.js` is generated |
+| `check/check_stages.mjs` | the 2026-11-06 rollout checks (below) |
 | `ledger.json` | knowledge ledger of the 2026-10-24 rebuild |
 | `scripts/sl_runs.sh` | every run on the shared Slurm cluster, by phase (arch setup life steps gallery deps het resv acct restore, then life_idle steps2 sig steps3 munge_t); `setup` applies `sl_slurm.conf` and creates QOS sl-high, sl-small and a GPU limit on carol; `restore` deletes them and puts back the root's `src/data/slurm/slurm.conf` |
 | `scripts/sl_slurm.conf` | the variant config used during the runs: priority weights for every factor, `AccountingStorageEnforce=associations,limits,qos`, prolog and epilog, `batch` PriorityJobFactor 2, extra partition `sllow` |
@@ -53,3 +54,37 @@ Why about 31 minutes is right: the page owns the whole of Slurm for ML (daemons,
 
 ## 2026-10-26 ownership sweep
 This page owns Slurm on Kubernetes (Khalid's decision). The closed block in section 12 absorbed the root Tool map's Slinky and SUNK facts (open-sourcing date, slurm-bridge, SUNK accounting and scope, which to pick); the root keeps one merged row linking here.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `sl-tab`). No new runs; no change to `make_data.py`, `sl_data.json` or `recompute.py`: every scene draws from `window.SL`.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea in one screen | split | **3D** `stg-hero` (job 79's log) | yes, 6 |
+| Reading | You need, terms, what "measured" means | full width | none | no |
+| Reading | 1 Daemons | full width | table | no |
+| Reading | 2 Life of a job | split | 2D lifecycle animation, busy and idle as modes | yes, 8 + 8 |
+| Reading | 3 Resources | split | 2D stranded-GPUs toggle (static figure) | no |
+| Reading | 4 Steps | split | 2D steps animation, without and with `--exact` as modes | yes, 3 + 2 |
+| Reading | 5 Limits | split | 2D where limits live (static) | no |
+| Reading | 6 Two loops | split | **3D** `stg-bf` (illustrative queue) | yes, 7 |
+| Reading | 7 Priority | split | **3D** `stg-fs` (sprio and sshare) | yes, 5 |
+| Reading | 7 Priority: formula and calculator | split | 2D calculator (widget) | no |
+| Reading | 8 Preemption | split | 2D job 128 timeline (static) | no |
+| Reading | 9 Arrays | split | 2D dependency Gantt (static) | no |
+| Reading | 10 Reservations | split | 2D maintenance window (static) | no |
+| Reading | 11 Accounting, 12 Containers, 13 Training job, Depth | full width | none (a listing in 13) | no |
+| Why pending? | decoder | split: notes left, the decoder right | tool | no |
+| Further reading | | full width | links | no |
+
+**Stages and their data.** `41_js_sc_hero.js`: `SL.busy.events`, grouped into six stretches (the blocker 78 on every GPU, sbatch, backfill's plan, the allocation of c1 and c2 together, the steps, the record); every time and number in `sx-hero` is recomputed from the events by the check. `42_js_sc_bf.js`: the seven frames of the old 2D stepper (illustrative, labelled), the floor being nodes by time and each job a block of its nodes by its time limit, the queue in front with the same footprints. `43_js_sc_fs.js`: `SL.snaps` (eleven `sprio -l` rows at each time, `squeue` for users, `sshare -a -l` for team EffectvUsage, RawUsage and each user's FairShare factor). `40_js_sc_geo.js`: the node as `slurm.conf` declares it (4 CPUs, `gpu:4`); positions and sizes illustrative.
+
+**Kept 2D** and why: the lifecycle and steps animations are timelines whose message is time to scale (now grouped into explained stretches: the long-replay rule); the stranded-GPUs toggle is two end states on eight squares; where limits live is a labelled map; job 128, the dependencies and the maintenance window are timelines; the calculator and the decoder are widgets. Not built: a preemption stage (this page's runs have none; the root's Scheduling lab owns the measured one).
+
+**Changed text.** The hero's caption became its step list; the lifecycle's eight-item list became the busy step list and an idle list was added (its numbers were only in the table); the backfill captions (script-drawn before) are now the static step list; the priority predict answer was shortened to point at the fairshare steps, which now carry its numbers; the steps animation's per-second captions became three and two stretch items (the paragraph that restated them was folded in). Per-step captions under the animations were removed where a list explains them (`sl-lf-cap`, `sl-st-cap`, `sl-bf-cap`); the lifecycle keeps the raw log lines of the current stage as evidence. **Correction:** job 95 at 05:38:58 was "second to last"; it was last of the eleven jobs with a priority (only the two held jobs, at 0, sat below it in `squeue`); the check recomputes this. Section 4 said "section 14" for the training job; it is section 13.
+
+**Checks**: `check/check_stages.mjs` at 1400 px light, 920 px light and 390 px dark: the three stages and two 2D animations play once in view, step to the end with one list item per step, stop redrawing off screen and never move under reduced motion; mode buttons swap the list and replay; 11 Reading splits and the Why pending? split are two columns at 1400 px and one below 1100 px; canvas labels do not overlap or leave the card; every time, count and priority in the hero, lifecycle, steps and fairshare lists equals `window.SL`, and the backfill list equals the scene's own states. `scripts/check_ui.mjs` lost its never-autoplay assertion (now in `check_stages.mjs`, inverted) and the screenshots of removed cards; `scripts/check_data.py` unchanged and passing.
+
+**Length judgement.** Reading core 31.4 min before (7,232 words, `audit_pages.mjs`), 34.9 min after (8,024); closed details 16.2 before and after; Why pending? 1.7 and Further reading 2.0 unchanged. The added words are the step lists that explain the three stages and two animations, as the rollout requires, plus the idle lifecycle and `--exact` lists, which are hidden until their mode is chosen but counted by the audit; script-drawn captions they replaced were not counted before. Nothing the ledger holds was cut.
+
+**Ledger**: 391 units unchanged (core 251, depth 62, fat 78); keys of units 175 (the nice penalty, now the fairshare stage's red glass) and 340 (the decoder now on the right) reworded. `ledger.py check` problems 0 here and on the root (the root's keys on this page, such as "gang scheduling comes free" and "fits no gap", are kept).
