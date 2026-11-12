@@ -77,9 +77,9 @@
   const lc=$('fst-loop-code');
   if(lc){lc.innerHTML=code.map((l,i)=>'<div data-l="'+i+'">'+E(l)+'</div>').join('');
     const rows=[...lc.children];
-    RD.anim({card:'fst-loopcard',ctl:'fst-loop-ctl',n:steps.length,ms:2200,label:'Line',draw:i=>{const st=steps[i];
-      rows.forEach((d,k)=>{d.classList.toggle('on',st[0].includes(k));d.classList.toggle('dim',!st[0].includes(k))});
-      $('fst-loop-cap').innerHTML='<div class="t">'+(i+1)+' of '+steps.length+': '+st[1]+'</div><p>'+st[2]+'</p>'}});}
+    // the explanation of each step is the step list #sx-loop on the left (static text, same numbers); the card only highlights the lines
+    RD.anim({card:'fst-loopcard',ctl:'fst-loop-ctl',n:steps.length,ms:4200,label:'Line',list:'sx-loop',draw:i=>{const st=steps[i];
+      rows.forEach((d,k)=>{d.classList.toggle('on',st[0].includes(k));d.classList.toggle('dim',!st[0].includes(k))})}});}
 
   // ---- closed blocks: registration, tied weights, loading, determinism, DataLoader seeding ----
   if($('fst-reg'))$('fst-reg').innerHTML=table(['query','result'],[['<code>len(list(m.parameters()))</code>',r.parameters],['<code>len(list(m.named_parameters(remove_duplicate=False)))</code>',r.named_parameters_remove_duplicate_false],['<code>len(m.state_dict())</code>',r.state_dict_entries],['elements: parameters / state_dict',fmt(r.numel_parameters)+' / '+fmt(r.numel_state_dict)],['<code>m.head.weight is m.tok.weight</code>',r.tied_same_object],['modules in the tree',r.modules],['buffers of the attn="manual" variant',r.manual_buffers.length+' causal masks, persistent=False: in state_dict? '+r.manual_state_dict_has_mask]]);

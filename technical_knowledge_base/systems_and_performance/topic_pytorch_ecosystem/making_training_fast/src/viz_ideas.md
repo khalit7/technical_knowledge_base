@@ -45,3 +45,7 @@ Placement changed, not the data: every visual now sits beside the claim it prove
 | Memory budget calculator | tab | tab (kept: serves sections 8 to 10) | calculator |
 
 Rejected on 2026-10-23: a separate MFU chart (two numbers per device; a sentence with the formula says it completely); a CUDA-graphs visual (owned and drawn by Streams, CUDA graphs and multi-GPU; nothing runs here).
+
+## 2026-11-12: the 3D rollout
+- Built: Fig. 1 (hero: time slabs and a memory tower, levers streaming into the part they shrink), Fig. 2 (the hunt as a staircase, reverted fixes on a back row), Fig. 3 (two recorded traces as decks on one clock), Fig. 4 (memory at 13 moments of one step, plain and checkpointed rows).
+- Considered and not built: a GPU lane with kernel bars in Fig. 3 (an MPS trace records none; drawing one would invent timings, so the lane is drawn empty and labelled); torchao float8 in the staircase (never timed here: no float8 hardware); a 3D BlockMask (a tile grid is a heatmap and reads best flat); the SAC curves in Fig. 4 (their peaks are in section 9's bars; four rows would hide each other).

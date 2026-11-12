@@ -51,9 +51,9 @@ for (const [w, scheme, rm] of [[1400, 'light', false], [390, 'dark', false], [14
       }
     }
     // 2D animations driven by RD.anim or a page controller: play buttons inside a split that are not stage buttons
-    const anims = await p.evaluate(t => [...document.getElementById(t).querySelectorAll('.s3sp .an-play')].filter(b => !b.closest('.stg')).map(b => b.id).filter(Boolean), t);
+    const anims = await p.evaluate(t => [...document.getElementById(t).querySelectorAll('.s3sp .an-play')].filter(b => !b.closest('.stg') && !b.closest('details:not([open])')).map(b => b.id).filter(Boolean), t);
     for (const id of anims) {
-      await p.$eval('#' + id, e => e.closest('.card, .s3side, .s3R').scrollIntoView({ block: 'center' })); await sleep(1500);
+      await p.$eval('#' + id, e => (e.closest('.card, .s3side, .s3R') || e).scrollIntoView({ block: 'center' })); await sleep(1500);
       const txt = await p.$eval('#' + id, e => e.textContent + ' ' + (e.closest('.card,.s3R') && e.closest('.card,.s3R').dataset.frames || ''));
       if (!rm && !/Pause|Replay/.test(txt)) info.push(`${w} 2D ${id}: after 1.5 s reads "${txt.trim()}" (check autoplay)`);
       if (rm && /Pause/.test(txt)) problems.push(`reduced motion: 2D ${id} playing`);

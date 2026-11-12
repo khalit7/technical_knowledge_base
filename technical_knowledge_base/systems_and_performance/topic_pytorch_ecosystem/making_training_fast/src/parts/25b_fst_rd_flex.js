@@ -50,11 +50,12 @@
     const code={causal:'def causal(b, h, q, k):\n    return q &gt;= k',sliding_window:'def sliding_window(b, h, q, k):          # W = '+W+'\n    return (q &gt;= k) &amp; (q - k &lt; W)',
       document_causal:'doc = torch.tensor(document_id_of_each_position)\ndef document_causal(b, h, q, k):\n    return (doc[q] == doc[k]) &amp; (q &gt;= k)',prefix_lm:'def prefix_lm(b, h, q, k):               # PREFIX = '+PRE+'\n    return (k &lt; PREFIX) | (q &gt;= k)'}[mask];
     $('at-code').innerHTML=code+'\n\nbm = create_block_mask('+mask+', None, None, '+T+', '+T+')\nout = torch.compile(flex_attention)(q, k, v, block_mask=bm)';}
-  function all(){drawPos();check();if(A)A.reset(NS);else draw(0)}
+  function all(){drawPos();check();if(A){A.reset(NS);A.go(NS-1,true)}else draw(NS-1)}
   U.seg($('at-mask'),[['causal','Causal'],['sliding_window','Sliding window ('+W+')'],['document_causal','Document (4 packed)'],['prefix_lm','Prefix-LM ('+PRE+')']],m=>{mask=m;all()},mask);
   U.seg($('at-T'),[['256','T = 256'],['1024','T = 1,024'],['4096','T = 4,096']],t=>{T=+t;all()},'1024');
-  U.seg($('at-mode'),[['flex','FlexAttention (BlockMask)'],['dense','SDPA, dense mask']],m=>{mode=m;if(A)A.reset(NS)},'flex');
-  A=RD.anim({card:'at-card',ctl:'at-ctl',n:NS,ms:160,draw,label:'Tiles computed'});
+  U.seg($('at-mode'),[['flex','FlexAttention (BlockMask)'],['dense','SDPA, dense mask']],m=>{mode=m;if(A){A.reset(NS);A.go(NS-1,true)}},'flex');
+  // a widget (the long-replay rule, case b): 40 frames of a sweep the reader configures; it never plays by itself and opens on the finished sweep
+  A=RD.anim({card:'at-card',ctl:'at-ctl',n:NS,ms:160,draw,label:'Tiles computed',auto:false,start:NS-1});
   RD.onRender(()=>{drawPos();A.redraw()});
   // measured tables
   const TF=D.time_flex&&D.time_flex.results;

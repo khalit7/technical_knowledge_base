@@ -1,12 +1,20 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="fst-s0">
 <h2>The idea</h2>
 <p class="core">A training step is slow or out of memory for one main reason at a time: measure where its time and its peak memory go, fix the biggest piece with the lever aimed at it, and measure again.</p>
-<div class="rd-card" id="fst-herocard">
-<div class="figt">One step of the larger variant on the Apple GPU, as first written: every lever on this page aims at one part of these two bars</div>
-<div class="rd-svg" id="fst-hero"></div>
-<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1: phases on MPS with a synchronize after each (162 ms timed without them; section 3); memory alive at the peak, float32 (section 8); the slivers are gradients so far (4.2 MB) and backward temporaries (21.1 MB). Section numbers in brackets.</p>
-</div>
-<p>The job is the topic's running example (a small GPT, see the {{root page|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}) and its <b>larger variant</b> (8 blocks, d 512, 8 heads, context 256, batch 8: 25.4M parameters), measured on an Apple M1 Pro's CPU and GPU. Every result says what carries over to NVIDIA GPUs.</p>
+<p>The job is the topic's running example (a small GPT, see the {{root page|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}) and its <b>larger variant</b> (8 blocks, d 512, 8 heads, context 256, batch 8: 25.4M parameters), measured on an Apple M1 Pro's CPU and GPU. Every result says what carries over to NVIDIA GPUs. Fig. 1 is one step of the larger variant on the Apple GPU, as first written: every lever on this page aims at one part of its time or its memory.</p>
+<p class="sxh">Fig. 1, step by step</p>
+<ol class="sx" id="sx-hero">
+<li><b>Time, as first written.</b> One step split into phases, each followed by a synchronize: data 17.2 ms, forward 46.4, backward 92.0, optimizer 25.2. The synchronizes remove overlap, so the phases add up to 181 ms against 162 ms timed without them (section 3).</li>
+<li><b>Memory at the peak, early in backward.</b> 867.4 MB alive at once: activations 537.7 MB, AdamW state 203.0, parameters 101.5, and the slivers are backward temporaries (21.1 MB) and gradients so far (4.2 MB). Float32, measured on the CPU (section 8).</li>
+<li><b>Levers on the time.</b> DataLoader workers hide the data phase (section 4); a fused attention kernel, torch.compile and CUDA graphs, and autocast shorten forward and backward (sections 11, 2, 6); fused AdamW shrinks the optimizer (5); dropping the per-step <code>.item()</code> sync lets the CPU run ahead (3). What is left is matmuls, measured by MFU (3).</li>
+<li><b>Levers on the memory.</b> Checkpointing and SAC, or smaller micro-batches with accumulation, shrink the activations (sections 9, 7); with a big vocabulary a fused linear cross-entropy removes the logits (10), and on long context a fused attention kernel the T &times; T matrix (11); fewer bits (torchao and 8-bit AdamW, 12) or sharding (FSDP2) shrink weights and AdamW state.</li>
+<li><b>After the levers.</b> Time with the hunt's kept fixes, phased the same way: data 1.0 ms, forward 41.7, backward 84.2, optimizer 7.4 (133.6 ms timed normally). Memory with every block checkpointed: peak 485.3 MB, activations 4.2 MB, gradients 92.5 MB and backward temporaries 84.1 MB at the end of backward. Two separate measured runs: the hunt did not checkpoint.</li>
+</ol>
+<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1: phases on MPS with a synchronize after each (section 3); memory alive at the peak, float32 (section 8). Section numbers in brackets. Lever labels on the figure name the part each one shrinks; drag to turn the scene.</p>
+</section>
+</div></div>
+<section id="fst-s0b">
 <div class="co"><div class="t">You need</div>The {{root page|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}'s running example and its section 6 (the intuition this page deepens); {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}} for saved tensors, which checkpointing hooks into; {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}} for FLOPs per token and roofline arithmetic.</div>
 <div class="co"><div class="t">New terms</div><div class="terms">
 <div><b>synchronize</b>: wait until the device has finished its queued work</div>
@@ -39,14 +47,10 @@
 </ul></div></details>
 <p class="small mute">Labels: <span class="meas">measured</span> here (src/exp/), <span class="vend">vendor</span>, <span class="der">derived</span>, <span class="ann">illustrative</span>. Timed runs held a lock so no other job of this knowledge base ran at the same time; the load average is quoted next to them.</p>
 </section>
+<div class="s3sp"><div class="s3L">
 <section id="fst-s1">
 <h2>1. Measuring honestly</h2>
 <p>Every fix is judged by a number, and three things make a naive timing lie. <b>Asynchronous devices</b>: on a GPU (CUDA or Apple's MPS) a PyTorch call only <i>queues</i> a kernel and returns, so you must wait for the device (<code>torch.cuda.synchronize()</code>, <code>torch.mps.synchronize()</code>) before reading the clock. <b>Warm-up</b>: the first calls pay one-off costs (memory allocation into the caching allocator, kernel selection, compilation for <code>torch.compile</code>, lazy initialisation); run a few untimed steps first. <b>Noise</b>: other processes, thermal limits and frequency scaling move every number; repeat, report the median and the spread, and record the machine's load.</p>
-<div class="rd-card">
-<div class="figt">Without a synchronize the clock times the queuing: the same matrix multiply on MPS, timed three ways</div>
-<div class="bars" id="fst-timer-bars"></div>
-<p class="small mute" id="fst-timer-note"></p>
-</div>
 <p><code>torch.utils.benchmark.Timer</code> does the bookkeeping: it warms up, chooses how many runs fit in a time budget, sets the thread count, and reports the median and interquartile range (IQR, the spread of the middle half of the runs). At 2.14.1 its default clock calls <code>torch.accelerator.synchronize()</code> before every reading whenever an accelerator is present, CUDA or MPS alike (<code>torch/utils/benchmark/utils/timer.py</code> L15 to 18), so the synchronize inside this page's timed statement is redundant but harmless:</p>
 <div class="code">import torch.utils.benchmark as tb
 def call():
@@ -55,6 +59,12 @@ m = tb.Timer(stmt="call()", globals={"call": call}).blocked_autorange(min_run_ti
 print(m.median, m.iqr, len(m.times))</div>
 <p><b>Whole training steps</b>: warm up, synchronise, time N steps, synchronise, divide; median of three. <b>What carries over to NVIDIA GPUs</b>: the method, byte and op counts, which fixes apply; not the times (a fix that wins 20% here can win 2% or 2 times on an H100). CUDA events and Nsight: {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card">
+<div class="figt">Without a synchronize the clock times the queuing: the same matrix multiply on MPS, timed three ways</div>
+<div class="bars" id="fst-timer-bars"></div>
+<p class="small mute" id="fst-timer-note"></p>
+</div></div></div></div>
 <section id="fst-s2">
 <h2>2. torch.profiler</h2>
 <p>A step time says how slow, not where. <dfn>torch.profiler</dfn> records every operator PyTorch runs (start, end, thread; input shapes, Python stack and memory if asked) and, on CUDA, every GPU kernel and copy. Its output is a <dfn>trace</dfn>, a timeline you open in {{Perfetto|https://ui.perfetto.dev/}} or <code>chrome://tracing</code>.</p>

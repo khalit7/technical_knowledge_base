@@ -1,4 +1,4 @@
-// ---- Reading sections 0 to 6: the hunt (phases, stage by stage animation), timing, data, optimizer, precision ----
+// ---- Reading sections 1 to 6: the hunt's phases and its data (path, used by the 3D Fig. 2), timing, data, optimizer, precision ----
 (function(){
   const D=window.FST,U=window.FU,$=U.$;
   const STAGE={s0:['Baseline','as first written'],s1:['+ DataLoader workers','num_workers=2, persistent, prefetch 2'],s2:['+ fused AdamW','fused=True'],s3:['+ SDPA','F.scaled_dot_product_attention'],
@@ -21,22 +21,7 @@
     U.bars($('fst-ph-bars'),rows);
     $('fst-ph-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, '+(phdev==='mps'?'MPS':'CPU, 4 threads')+', PyTorch 2.14.1; median of '+s0.trials.length+' trials of 20 steps after 8 warm-up steps, each phase followed by a device synchronize (which removes overlap, so the phases add up to more than a normal step: '+U.ms(Object.values(m).reduce((a,b)=>a+b,0))+' here against '+U.ms(stages(phdev).find(r=>r.stage==='s0').median_ms)+' timed normally); bench lock, '+U.load(s0.load_before)+' (src/exp/hunt.py phases).'}
   if($('fst-ph-seg'))U.seg($('fst-ph-seg'),[['mps','MPS'],['cpu','CPU']],d=>{phdev=d;phDraw()},'mps');
-  // ---- stage-by-stage animation ----
-  let hdev='mps',A=null;
-  function hDraw(i){const {out}=path(hdev);if(!out.length)return;const mx=out[0].r.median_ms*1.0;
-    const cap=out[0].r.median_ms*1.15;
-    const rows=out.map((o,k)=>({nm:STAGE[o.r.stage][0],ml:k<=i?({base:'baseline',gain:'kept: faster',neutral:'no measurable change',slower:'slower: reverted',slowerkept:'slightly slower here; kept (see caption)'}[o.v])+'; range '+U.f1(o.r.min_ms)+' to '+U.f1(o.r.max_ms)+(o.r.median_ms>cap?'; bar off scale':''):'',v:k<=i?Math.min(o.r.median_ms,cap):0,txt:k<=i?(o.r.median_ms>=1e4?(o.r.median_ms/1e3).toFixed(1)+' s':U.ms(o.r.median_ms)):'',col:{base:'var(--c2)',gain:'var(--c3)',neutral:'var(--c5)',slower:'var(--dim)',slowerkept:'var(--c5)'}[o.v],hl:k===i}));
-    U.bars($('fst-hunt-bars'),rows,cap);
-    const o=out[i],ref=o.base?{r:o.base}:null;
-    const d=ref?o.r.median_ms-ref.r.median_ms:0;
-    const WHY={s0:'Everything as first written.',s1:'Two worker processes build batches in the background, so the 16 ms of Python work per batch overlaps the step.',s2:'One fused kernel updates all 100 parameter tensors instead of several small ops per tensor.',
-      s3:hdev==='mps'?'On MPS with gradients, SDPA runs the same math path as the written-out attention (section 10), so there is nothing to gain; it measured a few milliseconds slower. It stays in the later stages anyway, because it is the right default wherever a fused kernel exists (CPU here, CUDA), and a strict hunt on this machine alone would revert it.':'On the CPU, SDPA runs a flash-style kernel instead of materialising the 256 &times; 256 scores per head.',
-      s4:hdev==='mps'?'Without .item() every step, the CPU can queue the next step while the GPU works; here the GPU is the bottleneck, so overlap buys little.':'On the CPU .item() costs nothing (no device to wait for): any change is noise.',
-      s5:'bfloat16 autocast on hardware without native bfloat16 arithmetic: conversions cost more than they save (section 6).',s6:hdev==='mps'?'Inductor fuses the element-wise ops (LayerNorm, GELU, residual adds, masking) into generated Metal kernels: fewer launches and fewer round trips to memory, a measurable gain here.':'On the CPU the step is dominated by matmuls, which compiled code still hands to the same BLAS library; the fused element-wise kernels saved nothing measurable.',s7:'Compile and bfloat16 together: the bfloat16 cost dominates again.'};
-    $('fst-hunt-cap').innerHTML='<div class="t">'+STAGE[o.r.stage][0]+' ('+STAGE[o.r.stage][1]+'): '+U.ms(o.r.median_ms)+(i?', '+(d<=0?'':'+')+U.f1(d)+' ms against '+STAGE[ref.r.stage][0].replace('+ ','')+({base:'',gain:': kept',neutral:': no measurable change',slower:': slower, reverted',slowerkept:': slightly slower here, kept'}[o.v]):'')+'</div><p>'+WHY[o.r.stage]+'</p>'}
-  function hInit(){const {out}=path(hdev);if(!A)A=RD.anim({card:'fst-huntcard',ctl:'fst-hunt-ctl',n:Math.max(1,out.length),ms:1500,draw:hDraw,label:'Fix'});else A.reset(Math.max(1,out.length));
-    const r0=out[0]&&out[0].r;if(r0)$('fst-hunt-note').innerHTML='<span class="meas">measured on Apple M1 Pro</span>, '+(hdev==='mps'?'MPS':'CPU, 4 threads')+', PyTorch 2.14.1; per stage the median of '+r0.trials_ms.length+' runs of 20 steps after 8 warm-up steps (bars: median; text: range), timed with a synchronize at both ends; bench lock, '+U.load(r0.load_before)+' at the start. Each stage is compared with the stage it was built on: green, faster beyond the spread of both; amber, within the spread, or slightly slower but kept for the reason in the caption; grey, slower (reverted). bfloat16 and compile are each tried on top of stage 4; compile and bfloat16 together on top of compile (src/exp/hunt.py).'}
-  if($('fst-hunt-seg'))U.seg($('fst-hunt-seg'),[['mps','MPS'],['cpu','CPU']],d=>{hdev=d;hInit()},'mps');
+  // the stage-by-stage view is the 3D Fig. 2 (42_js_sc_hunt.js), which reads path() and STAGE from window.FST_HUNT
   // hunt summary sentence
   const pm=path('mps'),pc=path('cpu');
   const full=p=>['s0','s1','s2','s3','s4','s5','s6'].every(k=>p.out.some(o=>o.r.stage===k));

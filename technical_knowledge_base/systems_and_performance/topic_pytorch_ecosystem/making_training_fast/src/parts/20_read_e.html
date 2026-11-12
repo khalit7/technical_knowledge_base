@@ -1,17 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-mem"></div></div><div class="s3L">
 <section id="fst-s8">
 <h2>8. Memory: what fills it during one step</h2>
 <p>Five things live in memory during training (float32, AdamW, <i>P</i> parameters): <b>parameters</b>, 4 bytes &times; <i>P</i>, always; <b>gradients</b>, 4 bytes &times; <i>P</i>, built layer by layer in backward, freed by <code>zero_grad(set_to_none=True)</code>; <b>optimizer state</b>, 8 bytes &times; <i>P</i> from the first <code>step()</code>; <b>activations</b>, saved by forward for backward, scaling with batch &times; sequence length; and short-lived <b>temporaries</b>. The fixed cost is 16 bytes per parameter (4 + 4 + 8); mixed-precision training with float32 master weights also comes to 16, split differently (2 + 2 + 12 in the ZeRO paper's accounting; {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} owns that arithmetic and how sharding divides it).</p>
-<div class="rd-card" id="fst-memcard">
-<div class="figt">The peak is a moment: memory by category through one step of the larger variant, plain against checkpointed on one scale (step through it)</div>
-<div class="seg" id="fst-mem-seg"></div>
-<div class="rd-svg" id="fst-mem-svg"></div>
-<div class="leg" id="fst-mem-leg"></div>
-<div class="an-cap" id="fst-mem-cap"></div>
-<div class="an-cnt" id="fst-mem-cnt"></div>
-<div class="an-ctl" id="fst-mem-ctl"></div>
-<p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, the second training step; only the heights are exact.</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (bytes, not time): PyTorch's memory profiler (<code>torch.profiler</code> with <code>profile_memory=True, record_shapes=True, with_stack=True</code>, then <code>prof._memory_profile()</code>, the engine behind <code>export_memory_timeline</code>) follows every tensor from allocation to free and puts it in a category. The second training step (optimizer state exists). The x axis is the profiled run's own clock, so only the heights are exact. src/exp/mem_step.py.</p></div></details>
-</div>
-<p>Before the forward pass, 304.5 MB is already in use: parameters (101.5 MB = 25,373,184 &times; 4 bytes) and AdamW state (203.0 MB). Forward adds the activations; the peak, 867.4 MB, comes early in backward, when 537.7 MB of activations are still held and the first backward temporaries (21.1 MB) and gradients (4.2 MB) appear. Gradients reach their full 101.5 MB only at the end of backward, by which time most activations are gone, so the textbook sum "16 bytes per parameter plus activations" (943.6 MB) overstates this peak. Switch to <i>Checkpoint every block</i>: the activations nearly vanish and the peak moves to the <i>end</i> of backward (485.3 MB), where full gradients and the last block's rebuilt activations coexist. The {{Memory budget|#t-mem}} tab turns this into a calculator with both moments.</p>
+<p class="sxh">Fig. 4, step by step. The peak is a moment: memory by category through one step of the larger variant, plain behind, checkpointed in front</p>
+<ol class="sx" id="sx-mem">
+<li><b>Before forward: 304.5 MB.</b> Before the forward pass, 304.5 MB is already in use: parameters (101.5 MB = 25,373,184 &times; 4 bytes) and AdamW state (203.0 MB), the only things that persist between steps.</li>
+<li><b>Forward: activations pile up.</b> Each op saves what its backward will need, block by block; the faint columns ahead are the moments still to come.</li>
+<li><b>The peak, early in backward: 867.4 MB.</b> Forward has added the activations; the peak comes early in backward, when 537.7 MB of activations are still held and the first backward temporaries (21.1 MB) and gradients (4.2 MB) appear.</li>
+<li><b>Backward: activations out, gradients in.</b> Gradients appear layer by layer and reach their full 101.5 MB only at the end of backward, by which time most activations are gone.</li>
+<li><b>Optimizer step and zero_grad.</b> AdamW reads every gradient and updates the parameters and its two running averages in place; <code>set_to_none</code> frees every gradient tensor, and memory is back to 304.5 MB.</li>
+<li><b>Checkpoint every block (the back row).</b> Forward now saves only each block's input, 42.3 MB instead of 546.4 MB, so the activations nearly vanish; in backward each block first rebuilds its activations.</li>
+<li><b>Its peak moves to the end of backward: 485.3 MB.</b> 44% lower, at the moment where full gradients and the last block's rebuilt activations coexist: gradients 92.5 MB and backward temporaries 84.1 MB on top of the 304.5 MB that never leaves.</li>
+</ol>
+<p>So the textbook sum "16 bytes per parameter plus activations" (943.6 MB) overstates this peak: gradients grow while activations shrink, and the peak is the larger of two moments. The {{Memory budget|#t-mem}} tab turns this into a calculator with both moments.</p>
+<details class="src"><summary>Fig. 4 measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (bytes, not time): PyTorch's memory profiler (<code>torch.profiler</code> with <code>profile_memory=True, record_shapes=True, with_stack=True</code>, then <code>prof._memory_profile()</code>, the engine behind <code>export_memory_timeline</code>) follows every tensor from allocation to free and puts it in a category. The second training step (optimizer state exists). Each column is the memory at one moment of the profiled run's own clock (moments placed by phase: before forward, four in forward, six in backward including the run's peak, the optimizer, after zero_grad), so only the heights are exact. src/exp/mem_step.py.</p></div></details>
 <div class="pr" id="fst-pr-mem">
 <div class="q">Predict: in the larger variant (8 blocks, d 512, context 256, batch 8, 25.4M parameters), which is bigger at the peak: parameters plus gradients plus AdamW state, or the saved activations?</div>
 <div class="opts"><button data-a="0">Weights, gradients and optimizer state</button><button data-a="1">Activations</button><button data-a="2">About equal</button></div>
@@ -27,6 +29,8 @@
 </tbody></table></div>
 </div></details>
 </section>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <section id="fst-s9">
 <h2>9. Activation checkpointing as a lever, full and selective</h2>
 <p><dfn>Activation checkpointing</dfn> keeps only each block's <i>input</i> in forward and reruns the block's forward in backward to rebuild what it needs: memory down, compute up by about one extra forward of the checkpointed part. Use <code>checkpoint(block, x, use_reentrant=False)</code>; how it hooks autograd's saved tensors is on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, the trade at cluster scale on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}. <dfn>Selective activation checkpointing</dfn> (SAC) lets a <i>policy</i>, called for every ATen op in the region, save some outputs anyway; the usual one saves matmul outputs (expensive to recompute) and recomputes element-wise ops ({{PyTorch blog, 2025|https://pytorch.org/blog/activation-checkpointing-techniques/}}; prototype since 2.5). The six <code>CheckpointPolicy</code> values at 2.14.1: <code>MUST_SAVE</code>, <code>PREFER_SAVE</code>, <code>MUST_RECOMPUTE</code>, <code>PREFER_RECOMPUTE</code>, <code>MUST_CPU_OFFLOAD</code>, <code>PREFER_CPU_OFFLOAD</code> <span class="meas">read from the installed wheel</span>.</p>
@@ -41,21 +45,30 @@ def policy(ctx, op, *args, **kwargs):
 
 x = checkpoint(block, x, use_reentrant=False,
                context_fn=partial(create_selective_checkpoint_contexts, policy))</div>
-<div class="rd-card" id="fst-ckcard">
+<p>Full checkpointing cut the peak from 867.4 MB to 485.3 MB (44% less): forward now saves only each block's input, 42.3 MB instead of 546.4 MB. The price: backward runs 1,087 ATen calls instead of 567 (each block's forward again), and the step went from 389 ms to 475 ms on the CPU (+22%) and from 150 ms to 189 ms on MPS. SAC saving matmuls landed in between (724.6 MB, 411 ms on CPU); SAC saving only attention matched full checkpointing's peak (485.3 MB). Saving the matmuls saved little because here most activation bytes <i>are</i> matmul outputs (the MLP's 4d-wide fc and GELU outputs, the 3d-wide qkv projection); SAC pays off when expensive ops have small outputs, or when only some layers save. A policy must name the ops that actually run, and names differ by device (<code>_scaled_dot_product_flash_attention_for_cpu</code> on CPU, <code>_scaled_dot_product_flash_attention</code> or <code>_efficient_attention</code> on CUDA).</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="fst-ckcard">
 <div class="figt">Checkpointing every block cuts the peak by 44% for 22% more step time; saving the matmuls saves little</div>
 <div class="bars" id="fst-ck-bars"></div>
 <div class="seg" id="fst-ck-seg"></div>
 <p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, float32, the same batch and the same loss (3.39147) in all four.</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, PyTorch 2.14.1, float32, the same batch and the same loss (3.39147) in all four. Memory: CPU memory profiler, deterministic (src/exp/mem_step.py). ATen calls counted with a <code>TorchDispatchMode</code>. Time: median of 3 trials of 10 steps after 3 warm-up steps, CPU 4 threads and MPS, load average 3.5 (src/exp/time_misc.py <code>ckpt</code>, bench lock).</p></div></details>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="fst-s9b">
+<h3>The same knob inside torch.compile</h3>
+<p>Under <code>torch.compile</code> the partitioner already decides what to save ({{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}} owns it); <code>torch._functorch.config.activation_memory_budget</code>, default 1.0, makes it a memory target: in between it "solves a 0-1 knapsack to find the minimum recompute necessary to stay below the activation memory budget" (<code>torch/_functorch/config.py</code> L190 to 202 at 2.14.1). Budget 1.0 saves what eager saves: by default the partitioner optimises runtime, not memory. The PyTorch blog's example spells it <code>torch._dynamo.config.activation_memory_budget</code>; at 2.14.1 it lives in <code>torch._functorch.config</code> <span class="meas">checked on the installed wheel</span>.</p>
+</section>
 </div>
-<p>Full checkpointing cut the peak from 867.4 MB to 485.3 MB (44% less): forward now saves only each block's input, 42.3 MB instead of 546.4 MB. The price: backward runs 1,087 ATen calls instead of 567 (each block's forward again), and the step went from 389 ms to 475 ms on the CPU (+22%) and from 150 ms to 189 ms on MPS. SAC saving matmuls landed in between (724.6 MB, 411 ms on CPU); SAC saving only attention matched full checkpointing's peak (485.3 MB). Saving the matmuls saved little because here most activation bytes <i>are</i> matmul outputs (the MLP's 4d-wide fc and GELU outputs, the 3d-wide qkv projection); SAC pays off when expensive ops have small outputs, or when only some layers save. A policy must name the ops that actually run, and names differ by device (<code>_scaled_dot_product_flash_attention_for_cpu</code> on CPU, <code>_scaled_dot_product_flash_attention</code> or <code>_efficient_attention</code> on CUDA).</p>
-<div class="rd-card">
+<div class="s3R"><div class="s3side"><div class="rd-card">
 <div class="figt">torch.compile's memory budget: one knob from "save what eager saves" (1.0) to "recompute everything" (0.0)</div>
 <div class="bars" id="fst-budget-bars"></div>
 <p class="small mute"><span class="meas">measured</span> on the larger variant, CPU, deterministic (src/exp/budget.py): activation bytes saved for backward; at 0.0 backward recomputes the whole forward.</p><details class="src"><summary>The numbers</summary><div class="b"><p class="small mute">Eager saves 546.4 MB; compiled at budget 1.0 546.8 MB, at 0.5 273.0 MB, at 0.2 109.1 MB, and at 0.0 nothing beyond the inputs (0.0 MB); eager checkpointing of every block keeps the block inputs, 42.3 MB. The loss is the same in all (3.81230, freshly initialised model on batch 1).</p></div></details>
-</div>
-<p>Under <code>torch.compile</code> the partitioner already decides what to save ({{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}} owns it); <code>torch._functorch.config.activation_memory_budget</code>, default 1.0, makes it a memory target: in between it "solves a 0-1 knapsack to find the minimum recompute necessary to stay below the activation memory budget" (<code>torch/_functorch/config.py</code> L190 to 202 at 2.14.1). Budget 1.0 saves what eager saves: by default the partitioner optimises runtime, not memory. The PyTorch blog's example spells it <code>torch._dynamo.config.activation_memory_budget</code>; at 2.14.1 it lives in <code>torch._functorch.config</code> <span class="meas">checked on the installed wheel</span>.</p>
+</div></div></div></div>
+<section id="fst-s9c">
 <p><b>When</b>: activations dominate the peak and you would otherwise shrink the batch; not when weights and optimizer state dominate (shard those: FSDP2, the root's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}). <b>Check</b>: peak and step time before and after, and the same loss on the same batch.</p>
 </section>
+<div class="s3sp"><div class="s3L">
 <section id="fst-s10">
 <h2>10. The logits problem and fused linear cross-entropy</h2>
 <p>The <dfn>logits</dfn>, one score per vocabulary entry per position, are batch &times; sequence &times; V. With a real tokeniser (GPT-2's has 50,257 entries; the running example has 43 characters) the logits, their softmax and their gradient are the largest tensors of the step. To see it, the larger variant was given V = 50,257 (the batches still use only 43 characters, which changes no shapes and therefore no bytes): one logits tensor is 8 &times; 256 &times; 50,257 &times; 4 bytes = <span class="der">411.7 MB</span>.</p>
@@ -65,10 +78,11 @@ x = checkpoint(block, x, use_reentrant=False,
 h = model.ln_f(hidden)                                   <span class="c"># (B*T, d): stop before the head</span>
 loss = F.linear_cross_entropy(h.view(-1, d), model.head.weight, y.view(-1),
                               options=LinearCrossEntropyOptions())   <span class="c"># without options: no chunking</span></div>
-<div class="rd-card" id="fst-lcecard">
+<p>The unfused step peaks at 2394.2 MB; at that moment the backward temporaries alone hold 823.4 MB, the softmax's gradient and the logits' gradient, two tensors of 411.7 MB each. The chunked loss brings the peak to 1278.8 MB (1.87 times lower), and its saved activations from 957.8 MB to 541.9 MB, about what the 43-character model saves (546.4 MB): the vocabulary no longer costs activation memory. The default call (2394.2 MB) is byte for byte the unfused peak. Against the release notes' "up to 4x", this whole step (weights, AdamW state, block activations included) gains 1.87 times, and pays in time: +69% on the CPU, +84% on MPS. The docstring's rule: chunking "is a win when <code>num_batches &gt;= in_features</code> and <code>num_classes &gt; in_features</code>; below that, the reference path is cheaper". Logits scale with tokens &times; V, not width, so a small model with a big tokenizer is hit hardest. <b>Check</b>: the peak with and without, and the loss to rounding.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="fst-lcecard">
 <div class="figt">With a 50,257-entry vocabulary the chunked loss nearly halves the peak; the default call changes nothing</div>
 <div class="bars" id="fst-lce-bars"></div>
 <p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, the same loss in every run (8.9544 for all four).</p><details class="src"><summary>Measured on Apple M1 Pro: how</summary><div class="b"><p class="small mute"><span class="meas">measured on Apple M1 Pro</span>, CPU, float32, PyTorch 2.14.1, deterministic (CPU memory profiler, src/exp/mem_step.py); the same loss in every run (8.9544 for all four). Step time, median of 3 trials of 5 steps: unfused 827 ms, chunked 1398 ms on CPU; 491 ms and 900 ms on MPS (load average 3.5; bench lock).</p></div></details>
-</div>
-<p>The unfused step peaks at 2394.2 MB; at that moment the backward temporaries alone hold 823.4 MB, the softmax's gradient and the logits' gradient, two tensors of 411.7 MB each. The chunked loss brings the peak to 1278.8 MB (1.87 times lower), and its saved activations from 957.8 MB to 541.9 MB, about what the 43-character model saves (546.4 MB): the vocabulary no longer costs activation memory. The default call (2394.2 MB) is byte for byte the unfused peak. Against the release notes' "up to 4x", this whole step (weights, AdamW state, block activations included) gains 1.87 times, and pays in time: +69% on the CPU, +84% on MPS. The docstring's rule: chunking "is a win when <code>num_batches &gt;= in_features</code> and <code>num_classes &gt; in_features</code>; below that, the reference path is cheaper". Logits scale with tokens &times; V, not width, so a small model with a big tokenizer is hit hardest. <b>Check</b>: the peak with and without, and the loss to rounding.</p>
-</section>
+</div></div></div></div>

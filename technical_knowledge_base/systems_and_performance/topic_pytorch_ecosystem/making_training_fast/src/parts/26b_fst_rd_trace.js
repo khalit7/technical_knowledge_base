@@ -1,4 +1,4 @@
-// ---- Reading section 3, the trace card (moved from the old Profiler trace tab on 2026-10-23): two real traces (before and after the hunt), same clock, animated playhead ----
+// ---- Reading section 3, the trace explorer in a closed block (moved from the old Profiler trace tab on 2026-10-23): two real traces (before and after the hunt), same clock, a playhead the reader drives ----
 (function(){
   const D=window.FST,U=window.FU,$=U.$,esc=RD.esc;
   const TR=D.hunt_trace&&D.hunt_trace.traces;if(!TR)return;
@@ -53,9 +53,11 @@
   $('tr-svg').addEventListener('click',e=>{const r=e.target.closest('rect[data-i]');if(!r)return;const [b,a]=pair(dev);const tr=+r.dataset.p?a:b;const ev=tr.events[+r.dataset.i];
     $('tr-info').innerHTML='<b>'+esc(tr.names[ev[3]])+'</b> ('+(+r.dataset.p?'after':'before')+', '+(ev[0]?'second thread':'main thread')+', depth '+ev[4]+'): starts at '+(ev[1]/1e3).toFixed(2)+' ms, lasts '+(ev[2]/1e3).toFixed(3)+' ms.'});
   $('tr-leg').innerHTML=[['data','var(--c5)'],['forward','var(--c1)'],['backward','var(--c4)'],['optimizer','var(--c3)'],['.item() wait','var(--c2)'],['ops, main thread','var(--acc)']].map(c=>'<span style="--sw:'+c[1]+'">'+c[0]+'</span>').join('');
-  A=RD.anim({card:'fst-trcard',ctl:'tr-ctl',n:N,ms:180,draw,label:'Clock'});
+  // a widget the reader drives (the long-replay rule, case b): it never plays by itself and opens on the finished step; the 3D Fig. 3 carries the story
+  A=RD.anim({card:'fst-trcard',ctl:'tr-ctl',n:N,ms:180,draw,label:'Clock',auto:false,start:N-1});
+  {const dd=$('fst-trcard').closest('details');if(dd)dd.addEventListener('toggle',()=>{if(dd.open){A.redraw();table(which)}})}
   RD.onRender(()=>{A.redraw();table(which)});
-  U.seg($('tr-dev'),[['mps','MPS (Apple GPU)'],['cpu','CPU, 4 threads']],d=>{dev=d;if(A){A.reset(N)}table(which);note()},'mps');
+  U.seg($('tr-dev'),[['mps','MPS (Apple GPU)'],['cpu','CPU, 4 threads']],d=>{dev=d;if(A){A.reset(N);A.go(N-1,true)}table(which);note()},'mps');
   U.seg($('tr-which'),[['b','Before'],['a','After']],w=>{which=w;table(w)},'b');
   $('tr-zoom').addEventListener('change',e=>{zoom=+e.target.value;A.redraw()});
   $('tr-pan').addEventListener('input',e=>{pan=+e.target.value/1000;A.redraw()});
