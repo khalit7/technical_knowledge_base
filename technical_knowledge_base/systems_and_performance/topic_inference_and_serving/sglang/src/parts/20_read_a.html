@@ -1,8 +1,8 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar) select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
@@ -102,10 +102,18 @@
 </nav>
 
 <section id="sg-s0">
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <p class="core"><b>SGLang keeps the KV cache of every finished request in a <span class="hl">radix tree</span> of token runs, so a later request that begins with the same tokens skips recomputing them; its scheduler, router and structured-output path are built around reusing that tree.</b></p>
-<div class="hero" id="sg-hero-card"><h4>Where each idea acts: one request through an SGLang deployment</h4>
-<div class="rd-svg" id="sg-hero"></div>
-<p class="small">Three processes per server talk over ZeroMQ sockets so that tokenizing, scheduling and detokenizing never block one another: the HTTP server with the <b>TokenizerManager</b> (OpenAI-compatible or native <code>/generate</code>; chat template, token ids), the <b>Scheduler</b>, one per GPU rank, which owns the waiting queue, the <span class="hl">radix tree</span> and the KV pool and runs the model ({{scheduler.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py}}), and the <b>DetokenizerManager</b>, which turns new ids into text and streams it ({{detokenizer_manager.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/detokenizer_manager.py}}). The tree lives on the CPU and maps runs of token ids to slot numbers in the GPU's KV pool; the KV itself never moves. Everything this page says about caching and ordering happens inside the Scheduler. Section numbers in the figure point to where each part is explained.</p></div>
+<p class="sxh">Fig. 1, step by step: customer B of section 2's toy bank assistant, through one deployment (schematic layout; the token counts are the page's radix cache's)</p>
+<ol class="sx" id="sx-hero">
+<li><b>Router (section 8).</b> The SGLang Model Gateway, written in Rust, keeps an approximate tree of the text it has sent to each replica; its default policy, <code>cache_aware</code>, sends the request to the replica likely to hold its prefix unless the load is imbalanced.</li>
+<li><b>TokenizerManager.</b> The HTTP server (OpenAI-compatible or native <code>/generate</code>) applies the chat template and turns the text into token ids: 15 for this prompt. Three processes per server talk over ZeroMQ sockets so that tokenizing, scheduling and detokenizing never block one another.</li>
+<li><b>Scheduler: the queue and the tree (sections 2 and 4).</b> One Scheduler per GPU rank owns the waiting queue, the <span class="hl">radix tree</span> and the KV pool, and runs the model ({{scheduler.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py}}). The queue is ordered by the schedule policy; the request's tokens are matched against the tree: 9 of its 15 are cached (the system prompt). Everything this page says about caching and ordering happens here.</li>
+<li><b>The KV pool on the GPU (section 5).</b> The tree lives on the CPU and maps runs of token ids to slot numbers in the GPU's KV pool; the KV itself never moves. Prefill reads the 9 cached tokens' KV in place and computes only the 6 new ones into free slots, while the overlap loop prepares the next batch on the CPU.</li>
+<li><b>Decode, the grammar mask, the stream (section 6).</b> Each step samples one token per request, after masking the vocabulary if the request asked for a schema. The <b>DetokenizerManager</b> turns new ids into text and streams it back ({{detokenizer_manager.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/detokenizer_manager.py}}).</li>
+<li><b>Finish: insert, and evict when full (section 2).</b> The prompt and the answer, minus its last token, go into the tree as a new branch. When the pool fills, the least recently used leaves that no running request holds are evicted.</li>
+</ol>
+</div></div>
 <p><b>You need:</b> prefill, decode and the KV cache (the keys and values every layer computed for every earlier token) from the parent {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}; continuous batching, paged attention and <dfn>prefix caching</dfn> as ideas (keeping the KV after a request ends so the next request with the same beginning reuses it) from {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}. The other engine, read the same way, is {{vLLM: inside the default engine|n:3c65c17b0d0d8113b976d8bcaf2c0722}}.</p>
 <dl class="terms">
 <dt>Radix tree</dt><dd>a prefix tree whose edges carry whole runs of tokens; a node exists only where two cached sequences part (section 2).</dd>

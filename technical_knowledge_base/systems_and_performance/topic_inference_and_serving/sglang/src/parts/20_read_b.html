@@ -18,19 +18,22 @@ def tips(s):
 </section>
 
 <section id="sg-s2">
+<div class="s3sp"><div class="s3R"><div id="stg-tree"></div></div><div class="s3L">
 <h2>2. The radix tree, from zero</h2>
 <p><b>The problem.</b> A prefix cache must answer one question fast, millions of times: <i>of the tokens this new request starts with, how many have I already computed, and where is their KV?</i> A dictionary from whole prompts finds only exact repeats. A <dfn>trie</dfn> (prefix tree) finds the longest shared beginning by walking one token per level, but a 2,000-token system prompt would be 2,000 nodes deep. A <dfn>radix tree</dfn> is a trie whose edges carry whole runs of tokens: the 2,000-token system prompt is one node and each conversation that continues it is one more.</p>
 <p><b>What each node holds</b> ({{TreeNode, radix_cache.py L249|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/mem_cache/radix_cache.py#L249}}): its run of token ids (the <i>key</i>), the indices of the KV slots holding those tokens' keys and values in the GPU pool (the <i>value</i>), its children (indexed by first token), a <dfn>lock reference</dfn> count and a last-access time for eviction. The tree only maps token runs to slot numbers, which is why it can live on the CPU.</p>
-<div class="rd-card" id="sg-tree-card">
-<h4>Eight requests through a radix tree, then through hash blocks: the tree shares partial blocks and evicts whole leaves</h4>
-<div class="seg" id="sg-tree-mode"><button data-m="radix" class="on">Radix tree (SGLang)</button><button data-m="blocks">Hash blocks of 4 (vLLM-style)</button></div>
-<div class="rd-svg sg-tree" id="sg-tree-svg"></div>
-<div class="an-cap" id="sg-tree-cap"></div>
-<div class="an-cnt" id="sg-tree-cnt"></div>
-<div class="an-ctl" id="sg-tree-ctl"></div>
-<p class="src">Eight requests from a toy bank assistant, one word per token, pool of 40 slots (10 blocks of 4; vLLM uses 16, 4 keeps the picture readable). Watch three differences: the tree shares the tail of a partially filled block and the hash table cannot; the tree evicts whole leaves while blocks go one at a time; the bookkeeping is a handful of nodes against a row per block. Both modes run the page's port of the two caches (src/iso/ref.py), which reproduces SGLang's and vLLM's own classes request by request (section 3).</p>
-</div>
-<p><b>The five operations</b>, each with its line in v0.5.21's <code>radix_cache.py</code>; step through the animation above to see each one happen:</p>
+<p>Fig. 2 runs eight requests from a toy bank assistant through the page's port of SGLang's cache (src/iso/ref.py, which reproduces SGLang's and vLLM's own classes request by request, section 3): one word per token, a pool of 40 KV slots. Which slot numbers a node holds is drawn lowest free slot first; every count is the cache's.</p>
+<ol class="sx" id="sx-tree">
+<li><b>Request 1: an empty tree.</b> Customer A's 14-token prompt matches nothing, so all 14 tokens are computed. Prompt and answer, minus the answer's last token (whose KV was never computed), are inserted: 17 of 40 slots. The leaf is split at the prompt boundary so the answer can be evicted before the question.</li>
+<li><b>Request 2: match, then split.</b> Customer B shares the 9-token system prompt. The walk stops inside A's node, which is cut in two so the shared part becomes its own node; only the slot list is sliced, nothing moves on the GPU. B's 6 new tokens and its answer hang off the shared node: 26 of 40.</li>
+<li><b>Request 3: a second turn.</b> A resends its whole first turn: 17 of 21 prompt tokens match, all the way down A's answer, and only ". And savings ?" is new. The matched path is locked while the request runs, so nothing on it can be evicted under it: 31 of 40.</li>
+<li><b>Request 4: the first eviction.</b> A travel assistant shares only "You are a" (3 tokens), so the trunk splits again near the root. It needs 12 slots and 9 are free: the least recently used unlocked leaf, B's answer "Yes , online" (3 tokens), is evicted. The pool is full, 40 of 40.</li>
+<li><b>Requests 5 and 6: hits to the token.</b> C matches 10 tokens, the system prompt plus "What", splitting A's question there; B's question (6 tokens) and A's "$9" (1) are evicted. D repeats A word for word and reuses 13 of 14 tokens: the last prompt token is always recomputed to produce the first output. D reserved 4 slots by evicting ". And savings ?", then gave them back when its KV turned out to be in the tree already: 36 of 40.</li>
+<li><b>Requests 7 and 8: tips first.</b> The travel customer's second turn reuses 15 of 18 tokens; E reuses 12 ("... What is my"), and C's answer "Nine to five" is evicted. Branches are eaten from the tips inward, so the shared trunk survives longest.</li>
+<li><b>The tree at the end.</b> 14 nodes describe everything cached; the eight requests reused 79 of 123 prompt tokens (64%). The same requests through hash blocks are compared below.</li>
+</ol>
+
+<p><b>The five operations</b> of Fig. 2, each with its line in v0.5.21's <code>radix_cache.py</code>:</p>
 <div class="stepbox">
 <div style="--sc:var(--good)"><div class="k">match</div><p>Walk from the root along the child whose first token matches, comparing token by token ({{L639|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/mem_cache/radix_cache.py#L639}}). The hit is capped at the prompt length minus one, so at least one token is computed to produce the first output ({{schedule_batch.py L1702|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/schedule_batch.py#L1702}}).</p></div>
 <div style="--sc:var(--c5)"><div class="k">split</div><p>If the walk stops inside a node's run, the node is cut in two so the shared part becomes its own node ({{L665|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/mem_cache/radix_cache.py#L665}}); only the slot list is sliced, nothing moves on the GPU.</p></div>
@@ -38,12 +41,26 @@ def tips(s):
 <div style="--sc:var(--c4)"><div class="k">lock</div><p>A running request increments the lock count of every node on its path ({{L583|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/mem_cache/radix_cache.py#L583}}); a prefix in use never disappears under it.</p></div>
 <div style="--sc:var(--bad)"><div class="k">evict</div><p>When the pool is full, pop the least recently used <i>unlocked leaf</i>, free its slots, and push its parent if it has just become a childless unlocked leaf ({{L553|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/mem_cache/radix_cache.py#L553}}). Branches are eaten from the tips inward, so the shared trunk survives longest.</p></div>
 </div>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<h3>Tree against hash blocks, on the same requests</h3>
+<p>vLLM keeps the same kind of cache as a table of hashed blocks (section 3). Replaying Fig. 2's eight requests through both, in the widget beside this text, shows three differences: the tree shares the tail of a partially filled block and the hash table cannot; the tree evicts whole leaves while blocks go one at a time; the bookkeeping is a handful of nodes against a row per block. Both modes run the page's port of the two caches.</p>
 <div class="pr" data-ok="1"><div class="q">Predict: request 6 repeats request 1 word for word ("You are a bank assistant . Be brief . What is my balance ?", 14 tokens) after other requests have filled the pool. At most how many of its tokens can the radix tree reuse?</div>
 <div class="opts"><button data-a="0">All 14</button><button data-a="1">13</button><button data-a="2">12, a whole number of blocks</button><button data-a="3">None, it was evicted</button></div>
-<div class="ans" hidden><b>13.</b> The match is capped at the prompt length minus one: the last prompt token is always recomputed, because its forward pass is what produces the logits for the first output token (SGLang's <code>_compute_max_prefix_len</code>; vLLM's <code>max_cache_hit_length = num_tokens - 1</code>). Blocks of 4 reuse 12 (three full blocks inside the first 13 tokens); with vLLM's real 16-token blocks a 14-token prompt reuses nothing. Step to request 6 in the animation: with this pool both caches still hold it.</div></div>
+<div class="ans" hidden><b>13.</b> The match is capped at the prompt length minus one: the last prompt token is always recomputed, because its forward pass is what produces the logits for the first output token (SGLang's <code>_compute_max_prefix_len</code>; vLLM's <code>max_cache_hit_length = num_tokens - 1</code>). Blocks of 4 reuse 12 (three full blocks inside the first 13 tokens); with vLLM's real 16-token blocks a 14-token prompt reuses nothing. Step to request 6 in the widget: with this pool both caches still hold it.</div></div>
 <div class="ff"><div class="t">Cost, when it matters, how to check</div><ul>
 <li><b>Cost:</b> CPU work proportional to the matched length, one node per branch point, and no GPU memory beyond KV that would otherwise sit in free slots (eviction gives them back on demand).</li>
 <li><b>When:</b> any traffic with repeated beginnings (chat history, shared system prompts, few-shot examples, retrieval over the same documents, agents). On unrelated one-shot prompts it does nothing and costs little (no measurable overhead without hits, {{launch blog|https://lmsys.org/blog/2024-01-17-sglang/}}).</li>
 <li><b>Check:</b> <code>meta_info.cached_tokens</code> in every native response, <code>#cached-token</code> in the prefill log line, the hit counters with <code>--enable-metrics</code>; compare with <code>--disable-radix-cache</code>.</li>
 </ul></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="sg-tree-card">
+<h4>The same eight requests, tree against hash blocks of 4: the tree shares partial blocks and evicts whole leaves</h4>
+<div class="seg" id="sg-tree-mode"><button data-m="radix" class="on">Radix tree (SGLang)</button><button data-m="blocks">Hash blocks of 4 (vLLM-style)</button></div>
+<div class="rd-svg sg-tree" id="sg-tree-svg"></div>
+<div class="an-cap" id="sg-tree-cap"></div>
+<div class="an-cnt" id="sg-tree-cnt"></div>
+<div class="an-ctl" id="sg-tree-ctl"></div>
+<p class="src">Opens on the last request; step back through all 17 frames, or switch the mode. Pool of 40 slots, 10 blocks of 4 (vLLM uses 16; 4 keeps the picture readable).</p>
+</div></div></div></div>
 </section>

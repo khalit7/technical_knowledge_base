@@ -1,33 +1,43 @@
 <section id="sg-s5">
-<h2>5. The overlap scheduler: hiding the CPU behind the GPU</h2>
-<p><b>The problem.</b> Every decode step has CPU work around the GPU work: pick the batch, allocate KV slots, match prefixes, build the input tensors, then read the sampled tokens back, check stop conditions, free finished requests and insert them into the tree. In a plain loop the GPU waits through all of it. With a small model, or many GPUs splitting each step so each one's forward is short, the CPU share can be large: the SGLang v0.4 post says an unoptimized engine "can spend as much as half of its time on CPU overhead" ({{LMSYS, 2024-12-04|https://lmsys.org/blog/2024-12-04-sglang-v0-4/}}) <span class="vend">project's claim</span>.</p>
-<p><b>How it works.</b> The overlap loop ({{event_loop_overlap, scheduler.py L1941|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py#L1941}}) launches batch <i>k</i> on the GPU without waiting, then processes the results of batch <i>k</i> minus 1 and schedules batch <i>k</i> plus 1 while the GPU is busy. Batch <i>k</i> plus 1 needs tokens batch <i>k</i> has not produced yet, so they are passed as placeholders the GPU fills in when it gets there (the <code>FutureMap</code>, {{overlap_utils.py L248|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/overlap_utils.py#L248}}). The plain loop remains ({{event_loop_normal, L1906|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py#L1906}}) behind <code>--disable-overlap-schedule</code>. The idea is NanoFlow's, as the v0.4 post credits; vLLM's asynchronous scheduling does the same job.</p>
-<div class="rd-card" id="sg-ovl-card">
+<div class="s3sp"><div class="s3R"><div class="rd-card s3stick" id="sg-ovl-card">
 <h4>Five decode steps: the plain loop leaves the GPU idle during CPU work; the overlap loop fills those gaps</h4>
 <div class="seg" id="sg-ovl-mode"><button data-m="normal" class="on">Plain loop</button><button data-m="overlap">Overlap loop</button></div>
 <div class="rd-svg" id="sg-ovl-svg"></div>
-<div class="an-cap" id="sg-ovl-cap"></div>
 <div class="an-cnt" id="sg-ovl-cnt"></div>
 <div class="an-ctl" id="sg-ovl-ctl"></div>
 <p class="src">Illustrative durations: 5 ms of GPU work and 1.5 ms of CPU work per step. Steady state: GPU plus CPU per step in the plain loop, the larger of the two with overlap.</p>
-</div>
+</div></div><div class="s3L">
+<h2>5. The overlap scheduler: hiding the CPU behind the GPU</h2>
+<p><b>The problem.</b> Every decode step has CPU work around the GPU work: pick the batch, allocate KV slots, match prefixes, build the input tensors, then read the sampled tokens back, check stop conditions, free finished requests and insert them into the tree. In a plain loop the GPU waits through all of it. With a small model, or many GPUs splitting each step so each one's forward is short, the CPU share can be large: the SGLang v0.4 post says an unoptimized engine "can spend as much as half of its time on CPU overhead" ({{LMSYS, 2024-12-04|https://lmsys.org/blog/2024-12-04-sglang-v0-4/}}) <span class="vend">project's claim</span>.</p>
+<p><b>How it works.</b> The overlap loop ({{event_loop_overlap, scheduler.py L1941|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py#L1941}}) launches batch <i>k</i> on the GPU without waiting, then processes the results of batch <i>k</i> minus 1 and schedules batch <i>k</i> plus 1 while the GPU is busy. Batch <i>k</i> plus 1 needs tokens batch <i>k</i> has not produced yet, so they are passed as placeholders the GPU fills in when it gets there (the <code>FutureMap</code>, {{overlap_utils.py L248|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/overlap_utils.py#L248}}). The plain loop remains ({{event_loop_normal, L1906|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py#L1906}}) behind <code>--disable-overlap-schedule</code>. The idea is NanoFlow's, as the v0.4 post credits; vLLM's asynchronous scheduling does the same job.</p>
+<p class="sxh">The animation, step by step</p>
+<ol class="sx" id="sx-ovl-normal">
+<li><b>Step 1.</b> The CPU schedules batch 1 (0.75 ms), the GPU runs its forward pass (5 ms), then the CPU processes the results (0.75 ms). The GPU waits through both CPU parts.</li>
+<li><b>Step 2.</b> Batch 2 cannot start until batch 1's results are processed and batch 2 is scheduled: another 1.5 ms of idle GPU between the two forward passes.</li>
+<li><b>Step 3.</b> The same gap again: every step costs GPU time plus CPU time, 6.5 ms.</li>
+<li><b>Steps 4 and 5.</b> Five steps take 32.5 ms, and the GPU is busy 77% of the time.</li>
+</ol>
+<ol class="sx" id="sx-ovl-overlap" hidden>
+<li><b>Step 1.</b> The CPU schedules batch 1, launches it on the GPU without waiting, and at once schedules batch 2 while forward pass 1 runs.</li>
+<li><b>Step 2.</b> Forward pass 2 starts the moment pass 1 ends; batch 2's inputs include tokens pass 1 had not produced yet, passed as placeholders the GPU fills in. Meanwhile the CPU processes batch 1's results and schedules batch 3.</li>
+<li><b>Step 3.</b> The GPU runs back to back as long as the CPU work (1.5 ms) is shorter than the forward pass (5 ms): each step costs the larger of the two.</li>
+<li><b>Steps 4 and 5.</b> Five steps take 26.5 ms instead of 32.5, and the GPU is busy 94% of the time; only the first schedule and the last results stay exposed.</li>
+</ol>
 <div class="ff"><div class="t">Cost, when it matters, how to check</div><ul>
 <li><b>Cost:</b> complexity, a finished request noticed one step late (its slot frees one step later), and a sync wherever the CPU must see a token before building the next step: on the Apple backend a batch with a grammar or a custom logit processor cannot be chained ({{scheduler_mixin.py|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/hardware_backend/mlx/scheduler_mixin.py}}); on GPUs SGLang syncs for grammars only with some speculative-decoding algorithms ({{L2015|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/managers/scheduler.py#L2015}}).</li>
 <li><b>When:</b> small models, low batch sizes, many GPUs per model, fast GPUs: whenever a forward pass takes a few milliseconds. The v0.4 post measured 1.1 times its previous version and says the gain is largest "on small models and large tensor parallelism sizes" <span class="vend">vendor</span>.</li>
 <li><b>Check:</b> a profiler timeline (Nsight Systems on NVIDIA) shows gaps between kernels in the plain loop and none with overlap; or compare decode throughput at concurrency 1 with and without <code>--disable-overlap-schedule</code>.</li>
 </ul></div>
+</div></div>
 <details class="dp"><summary>Why there is no measurement from the M1 here <span class="mute">(a failed experiment)</span></summary><div class="b">
 <p>Not measured: with the overlap loop on <i>and</i> off, a sequence of 32 requests of 128 tokens in and out at concurrency 1, 4 and 8 crashed the server every time (6 configurations, each retried once on a fresh server). With the overlap on, the Metal out-of-memory error inside the chained-decode path; with it off, an error in the overlap bookkeeping (<code>overlap_utils.py</code>, <code>stash</code>). A short decode (32 tokens) had worked in the first smoke tests; 128-token outputs in sequence did not. The 1.1 times above is the project's own figure.</p></div></details>
 </section>
 
 <section id="sg-s6">
+<div class="s3sp"><div class="s3L">
 <h2>6. Structured output: where the grammar sits, and the jump-forward that was removed</h2>
 <p><dfn>Constrained decoding</dfn> sets the probability of every token that would break a grammar (a JSON schema, a regular expression, an EBNF grammar) to zero before sampling, using a <dfn>token mask</dfn> over the whole vocabulary (151,936 tokens for Qwen3). How the masks are built, and how XGrammar's context-independent tokens make them cheap, is taught on {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}; this section is how SGLang wires it in.</p>
-<div class="rd-card" id="sg-gram-card">
-<h4>A constrained request in SGLang: the grammar is compiled once per schema, then masks every step</h4>
-<div class="rd-svg" id="sg-gram"></div>
-<p class="src">Measured on the M1 with Qwen3-0.6B: first request with a new schema 957 ms to first token (compilation included); 13.4 ms against 4.9 ms per output token with and without the schema <span class="meas">measured on Apple M1 Pro</span>, where the grammar also stops decode steps being chained (section 5), which is much of that per-token cost here.</p>
-</div>
+
 <p><b>The default backend is XGrammar</b> ({{serving_hook.py L219|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/arg_groups/serving_hook.py#L219}}), with <code>llguidance</code> and <code>outlines</code> selectable by <code>--grammar-backend</code>; its mask is computed on the CPU, overlapped with the GPU's forward pass, and its paper reports up to 100 times faster than earlier engines ({{Dong et al., arXiv 2411.15100|https://arxiv.org/abs/2411.15100}}) <span class="vend">authors' measurement</span>. A request asks for it with <code>json_schema</code>, <code>regex</code> or <code>ebnf</code> in its sampling parameters, or the OpenAI <code>response_format</code>. On the M1, 24 of 24 answers with a JSON schema parsed as JSON against 0 of 24 without it (unconstrained, the model wraps its JSON in a Markdown code fence).</p>
 <p><b>The compressed FSM, and what became of it.</b> In February 2024 SGLang introduced <dfn>jump-forward decoding</dfn>: where the grammar allows only one continuation (the key <code>{"name": "</code> in a schema, say), append that whole string in one prefill step instead of decoding it token by token, with the radix tree keeping the KV; the post reported up to 2 times lower latency and 2.5 times higher throughput than Outlines with vLLM ({{LMSYS, 2024-02-05|https://lmsys.org/blog/2024-02-05-compressed-fsm/}}) <span class="vend">vendor</span>. It was <b>removed in v0.4.4</b> "to simplify the code maintenance" ({{PR #4032, merged 2025-03-03|https://github.com/sgl-project/sglang/pull/4032}}). In v0.5.21 the backends still define <code>try_jump_forward</code> ({{xgrammar_backend.py L167|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/constrained/xgrammar_backend.py#L167}}) but nothing in the scheduler calls it, so no current SGLang release jump-forwards: forced strings are decoded one masked token at a time.</p>
 <div class="ff"><div class="t">Cost, when it matters, how to check</div><ul>
@@ -35,6 +45,12 @@
 <li><b>When:</b> tool calling and any machine-read output. The serving-time trade-offs (overhead under load, measured with llama.cpp grammars) are on {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}.</li>
 <li><b>Check:</b> parse every response, and compare time per output token with and without the schema at the same output length.</li>
 </ul></div>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="sg-gram-card">
+<h4>A constrained request in SGLang: the grammar is compiled once per schema, then masks every step</h4>
+<div class="rd-svg" id="sg-gram"></div>
+<p class="src">Measured on the M1 with Qwen3-0.6B: first request with a new schema 957 ms to first token (compilation included); 13.4 ms against 4.9 ms per output token with and without the schema <span class="meas">measured on Apple M1 Pro</span>, where the grammar also stops decode steps being chained (section 5), which is much of that per-token cost here.</p>
+</div></div></div></div>
 <details class="dp" id="sgm-json-det"><summary>The JSON-schema run on the M1, with one answer each way <span class="mute">(measured on the M1)</span></summary><div class="b">
 <p class="small">Twelve chat requests asking for an invented person, with and without a JSON schema (name, city, age, up to four skills) through the default XGrammar backend; two passes each. Grammars apply on the Apple backend only with <code>--mlx-enable-sampling</code>: without the flag the same requests were decoded greedily without a mask, the grammar rejected the first token (a code fence) and every request ended after 2 tokens with invalid output (0 valid of 24). One server run with another job on the machine (load average 13.7), so read the ratio, not the absolute times.</p>
 <div class="tw" id="sgm-json"></div>

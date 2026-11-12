@@ -1,5 +1,5 @@
-// Click every control at 390 px dark and 920 px light; fail on page errors, NaN/undefined/Infinity in visible text,
-// sideways scroll, or any animation that moves before the reader acts (normal motion). Usage: node check_ui.mjs [shots dir]
+// Click every control at 390 px dark and 920 px light (reduced motion, so nothing plays by itself); fail on page errors,
+// NaN/undefined/Infinity in visible text or sideways scroll. Usage: node check_ui.mjs [shots dir]
 import {createRequire} from 'module'; import path from 'path'; import {fileURLToPath} from 'url'; import fs from 'fs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(here, '..', '..', '..', '..', '..', 'html_utils', 'package.json'));
@@ -7,18 +7,9 @@ const puppeteer = require('puppeteer');
 const file = 'file://' + path.join(here, '..', 'index.html'), shots = process.argv[2];
 if (shots) fs.mkdirSync(shots, {recursive: true});
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const ANIMS = ['sg-tree-ctl', 'sgs-ctl', 'sg-ovl-ctl'];
 let fails = 0;
 const b = await puppeteer.launch({headless: 'shell', executablePath: process.env.CHROME_PATH || undefined});
-// 1. nothing moves before the reader acts (normal motion, every card scrolled into view)
-{ const p = await b.newPage(); await p.setViewport({width: 920, height: 900}); await p.goto(file); await sleep(500);
-  for (const c of ANIMS) { await p.$eval('#' + c, e => e.scrollIntoView({block: 'center'})); await sleep(1500);
-    const v = await p.$eval('#' + c + '-s', e => +e.value); if (v !== 0) { fails++; console.log('FAIL autoplay', c, v); } }
-  // a mode toggle must not start playing either
-  for (const [seg, c] of [['#sg-tree-mode', 'sg-tree-ctl'], ['#sgs-mode', 'sgs-ctl'], ['#sg-ovl-mode', 'sg-ovl-ctl']]) {
-    await p.evaluate(s => document.querySelectorAll(s + ' button')[1].click(), seg); await sleep(1600);
-    const v = await p.$eval('#' + c + '-s', e => +e.value); if (v !== 0) { fails++; console.log('FAIL toggle autoplay', c, v); } }
-  await p.close(); }
+// Motion (autoplay of Fig. 1 to 3 and the overlap animation, the two widgets that never play, reduced motion) is checked by check_stages.mjs.
 for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   const p = await b.newPage(); const errs = [];
   p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
@@ -51,7 +42,7 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await clickAll('#t-read .pr .opts button');
   await bad('reading');
   if (shots) { await p.click('#sgv-hw button'); await sleep(150);
-    for (const id of ['sg-hero-card', 'sg-tree-card', 'sgt-card', 'sgt-diff-det', 'sgm-mt-det', 'sgs-anim-card', 'sg-ovl-card', 'sg-gram-card', 'sg-route-card', 'sgv-card', 'sgm-bug-det']) {
+    for (const id of ['stg-hero', 'sg-tree-card', 'sgt-card', 'sgt-diff-det', 'sgm-mt-det', 'sgs-anim-card', 'sg-ovl-card', 'sg-gram-card', 'sg-route-card', 'sgv-card', 'sgm-bug-det']) {
       const el = await p.$('#' + id); if (el) { await el.scrollIntoView(); await sleep(150); await el.screenshot({path: path.join(shots, `${id}_${w}.png`)}); } } }
   await p.click('#tabs button[data-t="t-more"]'); await sleep(300); await bad('more');
   await p.close();

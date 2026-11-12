@@ -31,3 +31,14 @@ What the methodology lacked here: a rule for when the product under study is bug
 | SG3, SG5, SG7, SG8 | The four labs | Reading s3, s4, closed blocks, s10 | moved inline from their tabs |
 | SG2, SG4 | Static bars of the two results | - | removed: the inline labs show the same result and their captions keep the numbers |
 | SG17 | Jump-forward before/after on a JSON answer | - | rejected again: feature removed in v0.4.4 |
+
+## 2026-11-12 rollout (split layout, renderer v2 stages)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| SG18 | Fig. 1, 3D: one request (toy customer B) through router, TokenizerManager, Scheduler (queue and tree on the CPU), KV pool on the GPU, DetokenizerManager; camera in close per step, flows along the request's path | Reading top | built; replaces SG14 (the static SVG hero) |
+| SG19 | Fig. 2, 3D: the eight toy requests through the radix tree, nodes laid along token positions and fanned out by branch, the 40-slot pool behind, the request's prompt as a strip of cached and computed tokens, evicted leaves as red ghosts | Reading s2 | built; SG1 stays as the tree-against-blocks widget beside it |
+| SG20 | Fig. 3, 3D: one queue of 16 questions on 5 documents, fcfs and lpm lanes side by side, round by round, cached documents as blocks, computed twice marked | Reading s4 | built; SG5 stays as the widget for every setting and all four policies |
+| SG21 | Overlap loop in 3D (CPU and GPU lanes as stacks) | - | rejected: a timeline reads best flat; the 2D animation got a step list instead |
+| SG22 | Router decision tree in 3D | - | rejected: a flowchart is flat; LLM serving in production owns the measured routing stage |
+| SG23 | DeepSeek large-scale deployment in 3D (prefill and decode pools, EP over nodes) | - | rejected: Distributed and disaggregated serving owns EP and PD with its own stages; this page has vendor numbers only, kept in a table |
+| SG24 | InferenceX curves and the hit-rate cliff in 3D | - | rejected: log-axis curves read best flat |

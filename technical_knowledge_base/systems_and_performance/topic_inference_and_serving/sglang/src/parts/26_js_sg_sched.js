@@ -1,4 +1,5 @@
-// ---- Reading section 4: four queue policies on one queue, round by round (was the Scheduling lab tab) ----
+// ---- Reading section 4: four queue policies on one queue, round by round (was the Scheduling lab tab). A widget the reader drives
+// (its round count depends on the settings: the long-replay rule, case b): it never plays by itself and opens on round 1; Fig. 3 (42_js_sc_sched.js) tells the story ----
 (function(){
   const root=document.getElementById('sgs-anim-card'),rd=document.getElementById('t-read');if(!root||!window.SG)return;
   const $=id=>document.getElementById(id),fmt=n=>Math.round(n).toLocaleString('en-US');
@@ -17,7 +18,7 @@
       h+='<div class="row'+(r.hit_tokens===best?' hl':'')+'"><div class="nm">'+p+(p==='fcfs'?' (default)':'')+'<span class="ml">'+r.rounds.length+' rounds, '+fmt(r.prefill_tokens)+' computed'+(p==='lpm'&&prm.nq>128?'; off while &gt;128 wait':'')+'</span></div><div class="track"><div class="fill" style="width:'+v.toFixed(1)+'%;background:var(--acc)"></div></div><div class="val">'+v.toFixed(1)+'%</div></div>'}
     h='<p class="small">Share of prompt tokens served from the cache:</p>'+h;
     $('sgs-bars').innerHTML=h;
-    if(A)A.reset(res[mode].rounds.length+1);}
+    if(A){A.reset(res[mode].rounds.length+1);A.go(1,true)}}
   function draw(i){if(!res)return;const r=res[mode],el=$('sgs-svg'),w=RD.width(el);const n=prm.nq,cols=Math.max(8,Math.floor((w-4)/13)),cell=Math.min(12,(w-4)/cols-1);
     if(i===0){el.innerHTML=RD.svg(w,40,RD.t(4,24,'Before round 1: '+n+' questions waiting, nothing cached.',{fs:12}),'');$('sgs-cap-t').innerHTML='<div class="t">'+mode+'</div><p>Press play or step forward.</p>';$('sgs-cnt').innerHTML='';return}
     const rd=r.rounds[i-1],adm=new Set(rd.admitted),rowsQ=Math.ceil(rd.wait.length/cols),hq=rowsQ*(cell+1)+6,hd=prm.nd*14+20,h=hq+hd+20;let b='';
@@ -31,8 +32,8 @@
     $('sgs-cap-t').innerHTML='<div class="t">Round '+i+' of '+r.rounds.length+': '+rd.admitted.length+' admitted, '+docsAdm.size+' document'+(docsAdm.size>1?'s':'')+'</div><p>'+(mode==='fcfs'?'Arrival order: whatever document comes next.':mode==='lpm'?(rd.wait.length>128?'More than 128 waiting: lpm falls back to arrival order this round.':'Longest cached prefix first; questions sharing an uncached document wait behind the first of them (in-batch prefix caching).'):mode==='dfs-weight'?'Depth first through the tree, the subtree with most waiting questions first.':'A seeded shuffle.')+' This round reused '+fmt(rd.hit)+' tokens and computed '+fmt(rd.prefill)+'.</p>';
     $('sgs-cnt').innerHTML=RD.stat('Waiting',rd.wait.length)+RD.stat('Reused so far',fmt(cumH))+RD.stat('Computed so far',fmt(cumP))+RD.stat('Reuse so far',(100*cumH/Math.max(1,cumH+cumP)).toFixed(1)+'%')}
   compute();
-  A=RD.anim({card:'sgs-anim-card',ctl:'sgs-ctl',n:res[mode].rounds.length+1,draw:draw,ms:1200,label:'Round'});
+  A=RD.anim({card:'sgs-anim-card',ctl:'sgs-ctl',n:res[mode].rounds.length+1,draw:draw,ms:1200,label:'Round',auto:false,start:1});
   ['sgs-nq','sgs-nd','sgs-dl','sgs-cap','sgs-seed'].forEach(id=>$(id).addEventListener('input',()=>compute()));
-  RD.seg($('sgs-mode'),m=>{mode=m;A.reset(res[m].rounds.length+1)});
+  RD.seg($('sgs-mode'),m=>{mode=m;A.reset(res[m].rounds.length+1);A.go(1,true)});
   RD.onResize(()=>A.redraw());
 })();

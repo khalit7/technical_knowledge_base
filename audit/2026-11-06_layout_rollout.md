@@ -209,7 +209,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_inference_and_serving/llm_serving_in_production` LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing
 - [x] `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference` Local and on-device inference: llama.cpp, Ollama, MLX
 - [x] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
-- [~] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
+- [x] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
 - [~] `systems_and_performance/topic_inference_and_serving/speculative_decoding` Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover
 - [ ] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
 - [ ] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
@@ -503,6 +503,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_inference_and_serving/llm_serving_in_production`: wide scenes (hero, routing, autoscaling) small on phones; Fig. 3 "waiting per replica" (15 s mean) can read high just after the queue drains while the queue column shows 0.
 - `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference`: core 48 min plus 53 closed (41 before), one of the longest pages; Fig. 1 small on phones; Figs 3 and 4 fade off-view objects at the frame edge in close-ups.
 - `systems_and_performance/topic_inference_and_serving/sampling_and_decoding`: beam tree last step small on phones; beam and mask full views leave empty space above; Sampler lab Preset select's long first option cut at its edge.
+- `systems_and_performance/topic_inference_and_serving/sglang`: hero full views hide part names on phones (small at 390). Lead fix: section 9 now says prefill (4 nodes) and decode (9 nodes) were measured separately, as the LMSYS post states (12-node cluster).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -558,3 +559,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - LLM serving in production: default modes (Fig. 2 round robin, Fig. 3 queue-depth autoscaler, Fig. 4 llama-server one adapter set per batch, Fig. 5 closed loop); the old eight-request stepper kept as a closed widget; Fig. 2 uses the 1.5 GiB-cache runs for its first two modes; no 3D load-test ramp (no concurrency-sweep data on this page). Keep these?
 - Local and on-device inference: 48 min core plus 53 in closed details: condense in the cosmetic pass? The section 1 predict box was removed (Fig. 3's list would reveal it; the prose now asks for a prediction before step 2); Fig. 4 uses the RTX 5090 at PCIe x8 (about 32 GB/s) and the 43 GB 70B model as the too-big case; the File explorer field walk is a widget; new M1 (not M1 Pro) package photo, labelled. Keep these?
 - Sampling and decoding: the JSON before/after run is a widget (no autoplay); top-p against min-p stays 2D; in Fig. 1 all other tokens are one block on the same scale (a 77.3% tower at T 1.5); Fig. 2 greedy and beam swap step lists by toggle. Keep these?
+- SGLang: Fig. 3 uses an illustrative case (16 questions, 5 documents, 3,000-token pool, arrival order 3; fcfs 4 rounds, lpm 3); slot numbers drawn lowest-free-first; the two widgets open on their last frame and round 1; the overlap animation shows decode steps 1, 2, 3 then all five. Keep these?
