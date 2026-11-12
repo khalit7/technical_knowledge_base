@@ -1,17 +1,43 @@
-<section id="ic-s7">
-<h2>7. Collectives on the wire: algorithms and what they cost</h2>
-<p>Training code calls a handful of <dfn>collectives</dfn>, operations every GPU in a group joins: <b>all-reduce</b> (everyone ends with the sum), <b>reduce-scatter</b> (everyone ends with the sum of one slice), <b>all-gather</b> (everyone ends with every slice), <b>all-to-all</b> (everyone sends a different piece to everyone). {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} explains which parallelism calls which. A library (NCCL on NVIDIA, RCCL on AMD, XLA on TPU) turns each call into a schedule of point-to-point messages, and the schedule decides how many latencies and how many bytes the operation pays. Watch four schedules on the same input first:</p>
-<div class="card" id="ic-arcard">
+<div class="s3sp"><div class="s3R"><div class="card" id="ic-arcard">
 <h4>The same 8B gradients, four algorithms: the ring pays many latencies, recursive doubling many bytes, the switch neither</h4>
 <div class="seg" id="ic-aralg"><button data-m="ring" class="on">Ring</button><button data-m="rd">Recursive doubling</button><button data-m="rab">Halving-doubling</button><button data-m="switch">In-switch</button></div>
 <div class="seg" id="ic-arlink"><button data-m="nvl4" class="on">NVLink 4</button><button data-m="ib">InfiniBand 400G</button><button data-m="laptop">This laptop</button></div>
 <div class="seg" id="ic-arsize"><button data-m="16060522496" class="on">16.06 GB (8B gradients)</button><button data-m="8192">8 KB (one decoded token)</button></div>
 <div id="ic-arsvg" class="plot"></div>
-<div class="cap" id="ic-arcap"></div>
 <div class="an-ctl" id="ic-arctl"></div>
 <div class="out" id="ic-arcnt"></div>
-<p class="small mute">8 GPUs, each buffer cut into 8 chunks; a chunk's shade shows how many GPUs' contributions it holds (pale: its own; full: all 8). <b>Predict, then step:</b> at 16.06 GB, ring and halving-doubling send the same 28.1 GB per GPU and tie; recursive doubling sends 48.2 GB; in-switch sends 16.06 GB and finishes in about 57% of the ring's time. At 8 KB the step count is everything, and recursive doubling's 3 steps beat the ring's 14.</p>
-</div>
+
+</div></div><div class="s3L">
+<section id="ic-s7">
+<h2>7. Collectives on the wire: algorithms and what they cost</h2>
+<p>Training code calls a handful of <dfn>collectives</dfn>, operations every GPU in a group joins: <b>all-reduce</b> (everyone ends with the sum), <b>reduce-scatter</b> (everyone ends with the sum of one slice), <b>all-gather</b> (everyone ends with every slice), <b>all-to-all</b> (everyone sends a different piece to everyone). {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} explains which parallelism calls which. A library (NCCL on NVIDIA, RCCL on AMD, XLA on TPU) turns each call into a schedule of point-to-point messages, and the schedule decides how many latencies and how many bytes the operation pays. Fig. 4 runs four schedules on the same input; pick one with the first row of buttons.</p>
+<p class="small">8 GPUs, each buffer cut into 8 chunks; a chunk's shade shows how many GPUs' contributions it holds (pale: its own; full: all 8). <b>Predict, then step:</b> at 16.06 GB, which schedule sends the most bytes per GPU, and which ties with the ring? Then pick 8 KB: there the step count is everything, and recursive doubling's 3 steps beat the ring's 14.</p>
+<ol class="sx" id="sx-ar-ring">
+<li><b>Start.</b> Every GPU holds its own gradients for all 8 chunks (pale). Goal: every GPU ends with the sum of all 8 GPUs' contributions in every chunk.</li>
+<li><b>Reduce-scatter, step 1.</b> Each GPU sends one chunk, 1/8 of the buffer, to its right neighbour, which adds it to its own copy. Every link is busy, each carrying an eighth of the buffer.</li>
+<li><b>Reduce-scatter, steps 2 to 7.</b> The partial sums keep moving right and growing; after 7 steps each GPU owns one fully summed chunk (8/8).</li>
+<li><b>All-gather, steps 8 to 14.</b> Each GPU passes a finished chunk to the right, which overwrites its copy; nothing is added, the sums just travel. In all, 14 latencies and 2 &times; 7/8 of the buffer per GPU: 28.1 GB at 16.06 GB.</li>
+</ol>
+<ol class="sx" id="sx-ar-rd" hidden>
+<li><b>Start.</b> Every GPU holds its own gradients for all 8 chunks (pale).</li>
+<li><b>Swap with the GPU at distance 1 and add.</b> Each GPU sends its whole buffer to its partner (0 with 1, 2 with 3, and so on) and adds what it receives: every chunk now holds 2 of 8 contributions.</li>
+<li><b>Distance 2.</b> The whole buffer again, to the GPU two away: 4 of 8.</li>
+<li><b>Distance 4: done in 3 steps.</b> All 8 contributions everywhere, but each GPU sent the whole buffer three times: 48.2 GB at 16.06 GB, where the ring sends 28.1.</li>
+</ol>
+<ol class="sx" id="sx-ar-rab" hidden>
+<li><b>Start.</b> Every GPU holds its own gradients for all 8 chunks (pale).</li>
+<li><b>Halving, step 1.</b> Each GPU swaps half of its chunks with the GPU at distance 4, keeps the other half and adds: half the buffer moves.</li>
+<li><b>Halving, steps 2 and 3.</b> A quarter, then an eighth, with partners at distance 2 and 1; each GPU now owns one fully summed chunk, as after the ring's reduce-scatter.</li>
+<li><b>Doubling, steps 4 to 6.</b> Finished chunks swap back over growing distances (1, 2, 4): the same bytes as the ring, 28.1 GB per GPU at 16.06 GB, in 6 steps instead of 14.</li>
+</ol>
+<ol class="sx" id="sx-ar-switch" hidden>
+<li><b>Start.</b> Every GPU holds its own gradients for all 8 chunks (pale).</li>
+<li><b>Up: every GPU sends its whole buffer to the NVSwitch</b>, which adds the 8 copies as they arrive (the switch row).</li>
+<li><b>Down: the switch multicasts the sum.</b> In hardware the up and down streams overlap in chunks, so the time is one buffer's worth plus two latencies: 16.06 GB sent per GPU and about 57% of the ring's time.</li>
+</ol>
+</section>
+</div></div>
+<section>
 <p>With <i>n</i> GPUs, a buffer of <i>S</i> bytes, and every GPU able to send and receive one message per step:</p>
 <div class="tw"><table>
 <thead><tr><th>Algorithm</th><th>Steps (latencies)</th><th>Bytes sent per GPU</th><th>Time, alpha-beta</th><th>Good for</th></tr></thead>
@@ -26,7 +52,9 @@
 <p class="small">Formulas: {{Thakur, Rabenseifner and Gropp, 2005|https://journals.sagepub.com/doi/10.1177/1094342005051521}} for recursive doubling and halving-doubling; the ring line is their ring reduce-scatter plus ring all-gather, composed here <span class="pill d">derived</span>. Their &gamma; term for the additions is dropped: on GPUs the adds are far cheaper than the transfers. The tree row is the usual &alpha;-&beta; estimate <span class="pill d">derived</span>; NVIDIA: rings' "latency scales linearly with the number of GPUs", trees give "full bandwidth and a logarithmic latency", "up to 180x improvement at 24k GPUs" in latency ({{NCCL 2.4 blog, 2019|https://developer.nvidia.com/blog/massively-scale-deep-learning-training-nccl-2-4/}}). The in-switch line is idealised (the switch adds as fast as data arrives).</p>
 
 </div></details>
-
+</section>
+<div class="s3sp"><div class="s3L">
+<section>
 <h3>On a torus: one axis, two axes, or a tree</h3>
 <p>On a TPU slice the ring runs along a torus axis in both directions at once, and a collective over two mesh axes uses both, halving the bandwidth term; a tree trades the ring's n/2 latencies for 2 log<sub>2</sub> n. The formulas are in the closed block.</p>
 <p>For the 8B's 16.06 GB along one 16-chip v5p axis the ring form gives about 2 &times; 16.06 GB / 180 GB/s = 0.178 s, 0.059 s over all three axes <span class="pill d">derived</span>, against 62.5 ms over 8 H100s' NVLink. The book's own statements, and a worked example checked against a profile, are in the closed block.</p>
@@ -39,7 +67,8 @@
 <p>A bidirectional ring all-gather takes "T<sub>total</sub> = V / W<sub>ici</sub>", which "doesn't depend on X!", gathering over several axes "increases the available bandwidth by a factor of N<sub>axes</sub>", "an AllReduce is twice as expensive as an AllGather", an all-to-all on a 1-D ring is "1/4 the cost of an AllGather", and an axis without the wraparound "typically doubles the time of most communication" ({{scaling book, sharding|https://jax-ml.github.io/scaling-book/sharding/}}). The book's worked example, an all-gather of 34 MB over a 4-chip v5e axis, predicts 378 &micro;s with a wraparound and 560 &micro;s without one; the profile it shows measured 680 &micro;s <span class="pill i">measured by Google</span>.</p>
 
 </div></details>
-<div class="card" id="ic-cccard">
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ic-cccard">
 <h4>All-reduce time against message size: flat while latency dominates, then rising with the bytes <span class="pill d">derived</span></h4>
 <div class="ctl">
 <label>Devices on the axis: <b id="ic-ccnv"></b><input type="range" id="ic-ccn" min="2" max="10" step="1" value="6" aria-label="Devices, as a power of two"></label>
@@ -49,8 +78,8 @@
 <div class="hmleg" id="ic-ccleg"></div>
 <p class="small mute" id="ic-ccnote"></p>
 <p class="small"><b>Predict, then drag:</b> at 1,024 devices, which loses for a 100 KB message, the ring or the tree? For small messages latency dominates and a ring over many devices loses; for large ones bandwidth dominates and the ring's latency is irrelevant.</p>
-</div>
-
+</div></div></div></div>
+<section>
 <h3>What real clusters measure</h3>
 <p>Against published nccl-tests runs, rings reach 76 to 81% of NVLink's per-direction rate, and in-switch reduction is real but well short of its ideal: 1.29 times the ring on H200 and 1.23 times on B200, not 1.75 times. The table, its model and what nccl-tests' busbw means are in the closed block.</p>
 <details class="dp"><summary>busbw, and published nccl-tests against the model <span class="mute">(3 min)</span></summary><div class="b">
@@ -64,19 +93,23 @@
 <details class="dp"><summary>NCCL's three protocols: LL, LL128, Simple <span class="mute">(under 1 min)</span></summary><div class="b">
 <p>The protocols trade latency against bandwidth: <b>LL</b> sends 4 bytes of data with a 4-byte flag (about 1 &micro;s per hop, 25 to 50% of peak bandwidth), <b>LL128</b> 120 bytes of data with an 8-byte flag (about 2 &micro;s, about 95%), <b>Simple</b> large chunks with memory fences (about 6 &micro;s, near peak) ({{Hu et al., Demystifying NCCL, Table I|https://arxiv.org/abs/2507.04786}}) <span class="pill i">independent</span>.</p>
 </div></details>
-
+</section>
+<div class="s3sp"><div class="s3L">
+<section>
 <h3>Measured here: latency against bandwidth on one laptop</h3>
-<div class="card" id="ic-mcard">
-<h4>Ring against recursive doubling, measured: recursive doubling wins small, the ring wins past the crossover</h4>
-<div class="seg" id="ic-msn"><button data-m="2">2 ranks</button><button data-m="4">4 ranks</button><button data-m="8" class="on">8 ranks</button></div>
-<div id="ic-mchart" class="plot"></div>
-<div class="small" id="ic-mnote"></div>
-</div>
 <p>Both algorithms written with send and receive in PyTorch, run as 2, 4 and 8 processes on this laptop over loopback TCP. At small sizes the ring takes <span id="ic-mratio"></span> as long as recursive doubling with 8 ranks; the model's step count predicts 14/3 = 4.67. The predicted crossover is <span id="ic-mxo"></span>, and the measured crossover falls between the 1 MiB and 4 MiB sizes for 4 and 8 ranks.</p>
 <details class="dp"><summary>How it was measured, and the two departures from the model <span class="mute">(1 min)</span></summary><div class="b">
 <p class="small"><span class="pill m">measured here</span> Apple M1 Pro (8 performance and 2 efficiency cores), PyTorch 2.14.1, Gloo backend, three runs 20 s apart, median shown with the min-max range; load average 5.5 to 7.2 (the machine was shared with other jobs). The "links" are slow (about 80 &micro;s per message) and share one memory system; every result was checked against the exact sum. Lines: the alpha-beta model with &alpha; fitted from sizes up to 16 KiB (both algorithms pooled, time divided by steps) and &beta; from the ring at 16 MiB <span class="pill d">derived</span>. Gloo's own all-reduce (grey) is shown for reference; its algorithm choice was not inspected. Script: <code>src/meas/coll_bench.py</code>.</p>
 <p>Two departures teach as much as the agreement. The per-step latency grows with the number of ranks (<span id="ic-malist"></span>), because the processes compete for cores. And the bandwidth per rank falls as ranks are added (<span id="ic-mblist"></span>) while the total stays near <span id="ic-magg"></span>: all the "links" share one memory system, exactly like GPUs whose NICs share an oversubscribed switch. The model assumes independent links; a real fabric only gives you that if it was built with full bisection.</p>
 </div></details>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ic-mcard">
+<h4>Ring against recursive doubling, measured: recursive doubling wins small, the ring wins past the crossover</h4>
+<div class="seg" id="ic-msn"><button data-m="2">2 ranks</button><button data-m="4">4 ranks</button><button data-m="8" class="on">8 ranks</button></div>
+<div id="ic-mchart" class="plot"></div>
+<div class="small" id="ic-mnote"></div>
+</div></div></div></div>
+<section>
 <div class="co corr"><div class="t">Corrections to the old page's sanity numbers</div>The old page put the 16 GB all-reduce at "~2 x 16/50 = 0.64 s" over 400G InfiniBand and "~70 ms" over NVLink 4. 2S/&beta; is the large-n limit; for 8 GPUs the ring factor is 2 &times; 7/8 = 1.75, giving 0.56 s and 62 ms (<span id="ic-corr1"></span>) <span class="pill d">derived</span>. It also said SHARP "roughly halv[es] traffic": the bytes per GPU do fall from 2(n&minus;1)/n &middot; S to S, but measured speed-ups are 1.23 to 1.29 times inside a server (table above).</div>
 <div class="deepnote"><b>Go deeper (optional).</b> The {{Collective simulator|#t-sim}} tab runs any of these algorithms, plus all-gather and all-to-all, for 2 to 16 GPUs at any size and link, draws time against size with the crossovers, and overlays the published curves.</div>
 </section>

@@ -1,4 +1,4 @@
-// ---- Reading visuals added 2026-10-23: hero cluster, alpha-beta curves (s1), switch against mesh (s3), RDMA stepper and
+// ---- Reading visuals added 2026-10-23: alpha-beta curves (s1), RDMA stepper and
 // credits against pause (s4), topology shapes (s5), torus collective calculator (s7, absorbed from Sharding and scale) ----
 (function(){
   const D=window.IC,$=id=>document.getElementById(id),T=RD.t;
@@ -7,36 +7,6 @@
   const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="'+(o.r||4)+'" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"/>'};
   const line=(x1,y1,x2,y2,c,w,dash)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="'+(w||1.5)+'"'+(dash?' stroke-dasharray="'+dash+'"':'')+'/>';
   const num=(x,y,k,c)=>'<circle cx="'+x+'" cy="'+y+'" r="9" fill="'+c+'"/>'+T(x,y+4,String(k),{a:'middle',fs:11,w:700,fill:'var(--bg)'});
-
-  // ---- hero: two servers, rails, spine ----
-  (function(){const host=$('ic-hero');if(!host)return;
-    function draw(){const W=Math.min(860,RD.width(host)),H=270,m=8;let s='';
-      const nar=W<520,gap=nar?10:24,sw=(W-2*m-gap)/2,sx=j=>m+j*(sw+gap);
-      const ySp=22,yLf=88,yNic=150,yGpu=192,yNv=238;
-      const leafX=k=>m+(k+0.5)*(W-2*m)/4,spX=i=>W/2+(i-0.5)*Math.min(220,W*0.4);
-      // spine links
-      for(let i=0;i<2;i++)for(let k=0;k<4;k++)s+=line(spX(i),ySp+12,leafX(k),yLf-11,'var(--bad)',1.2);
-      // NIC to leaf links
-      for(let j=0;j<2;j++)for(let g=0;g<4;g++){const gx=sx(j)+(g+0.5)*sw/4;s+=line(gx,yNic-9,leafX(g),yLf+11,'var(--c2)',1.4)}
-      for(let i=0;i<2;i++){s+=box(spX(i)-30,ySp-11,60,23,{stroke:'var(--bad)'})+T(spX(i),ySp+4,'spine',{a:'middle',fs:11})}
-      for(let k=0;k<4;k++){const lw=nar?44:58;s+=box(leafX(k)-lw/2,yLf-11,lw,22,{stroke:'var(--c2)'})+T(leafX(k),yLf+4,(nar?'rail ':'rail ')+k,{a:'middle',fs:11})}
-      for(let j=0;j<2;j++){const x=sx(j);s+=box(x,yNic-20,sw,yNv-yNic+36,{fill:'none',r:8});
-        s+=T(x+6,yNv+28,'server '+j+' (4 of 8 GPUs shown)',{fs:11,fill:'var(--mute)'});
-        const cw=sw/4,bw=Math.min(46,cw-8);
-        for(let g=0;g<4;g++){const gx=x+(g+0.5)*cw;
-          s+=line(gx,yNic+9,gx,yGpu-14,'var(--c5)',2)+line(gx,yGpu+14,gx,yNv-7,'var(--c3)',2.4);
-          s+=box(gx-bw/2,yNic-9,bw,18,{stroke:'var(--c2)'})+T(gx,yNic+4,'NIC',{a:'middle',fs:11});
-          s+=box(gx-bw/2,yGpu-14,bw,28,{fill:'var(--acc2)',stroke:'var(--c4)',sw:1.5})+T(gx,yGpu+4,'GPU',{a:'middle',fs:11})}
-        s+=box(x+6,yNv-7,sw-12,16,{fill:'var(--soft)',stroke:'var(--c3)',sw:1.5})+T(x+sw/2,yNv+5,'NVSwitch',{a:'middle',fs:11});
-      }
-      // numbered markers
-      const g0=sx(0)+0.5*sw/4,g1=sx(0)+1.5*sw/4;
-      s+=num(g0+Math.min(23,sw/8-4)+2,yGpu-12,1,'var(--c4)')+num(sx(1)+sw-14,yNv,2,'var(--c3)')+num(sx(0)+2.5*sw/4-12,(yNic+yGpu)/2+1,3,'var(--c5)')+
-        num((sx(0)+sw/8*3+leafX(3))/2+6,(yNic+yLf)/2,4,'var(--c2)')+num((spX(0)+leafX(0))/2,(ySp+yLf)/2,5,'var(--bad)');
-      host.innerHTML=RD.svg(W,H,s,'Two servers of GPUs: NVSwitch inside each server, a NIC per GPU, NICs wired to rail leaf switches, leaves wired to spine switches');
-    }
-    RD.onRender(draw);RD.onResize(draw);draw();
-  })();
 
   // ---- alpha-beta: effective bandwidth against message size ----
   (function(){const host=$('ic-ab');if(!host)return;
@@ -62,24 +32,9 @@
     $('ic-abS').addEventListener('input',draw);RD.onRender(draw);RD.onResize(draw);draw();
   })();
 
-  // ---- switch against mesh ----
-  (function(){const host=$('ic-mesh');if(!host)return;let mode='sw';
-    function draw(){const W=Math.min(620,RD.width(host)),H=Math.min(300,Math.max(230,W*0.62)),cx=W/2,cy=H/2,R=Math.min(W*0.38,H*0.4);let s='';
-      const P=g=>[cx+R*Math.cos(Math.PI*2*g/8-Math.PI/2),cy+R*Math.sin(Math.PI*2*g/8-Math.PI/2)];
-      if(mode==='sw'){s+=box(cx-42,cy-14,84,28,{stroke:'var(--c3)',sw:1.5})+T(cx,cy+4,'NVSwitch',{a:'middle',fs:11});
-        for(let g=0;g<8;g++){const [x,y]=P(g),hl=g===0||g===3;s+=line(x,y,cx+(x-cx)*0.2,cy+(y-cy)*0.2,hl?'var(--acc)':'var(--c3)',hl?5:3.5)}}
-      else{for(let a=0;a<8;a++)for(let b=a+1;b<8;b++){const [x1,y1]=P(a),[x2,y2]=P(b),hl=a===0&&b===3;s+=line(x1,y1,x2,y2,hl?'var(--acc)':'var(--c3)',hl?3:0.9)}}
-      for(let g=0;g<8;g++){const [x,y]=P(g);s+=box(x-20,y-12,40,24,{fill:'var(--acc2)',stroke:(g===0||g===3)?'var(--acc)':'var(--c4)',sw:(g===0||g===3)?2:1})+T(x,y+4,'GPU '+g,{a:'middle',fs:11})}
-      host.innerHTML=RD.svg(W,H,s,mode==='sw'?'Eight GPUs each with one fat link to an NVSwitch':'Eight GPUs each joined directly to the seven others by thin links');
-      $('ic-meshout').innerHTML=mode==='sw'?RD.stat('GPU 0 to GPU 3','450 GB/s','the whole NVLink port')+RD.stat('Per GPU, all peers at once','450 GB/s','shared by destinations')+RD.stat('Links per GPU','18 to the switches','4 NVSwitch chips'):
-        RD.stat('GPU 0 to GPU 3','64 GB/s','one link of seven')+RD.stat('Per GPU, all peers at once','448 GB/s','only if traffic uses all 7 links')+RD.stat('Links per GPU','7 direct','no switch hop');
-    }
-    RD.seg($('ic-meshm'),m=>{mode=m;draw()});RD.onRender(draw);RD.onResize(draw);draw();
-  })();
-
-  // ---- RDMA stepper: the caption is the static list item ----
-  (function(){const host=$('ic-rdsvg');if(!host)return;const items=[...$('ic-rdsteps').querySelectorAll('li')];
-    function draw(i){items.forEach((li,k)=>li.classList.toggle('on',k===i));
+  // ---- RDMA stepper: its steps are explained by the step list #sx-rd on the left (RD.anim marks the current one; plays once in view) ----
+  (function(){const host=$('ic-rdsvg');if(!host)return;const items=[...$('sx-rd').children];
+    function draw(i){
       const W=Math.min(760,RD.width(host)),H=236,cw=(W-60)/2,xs=[10,W-10-cw];let s='';
       const rows=[['app','program (CPU)',18],['kern','kernel TCP stack',66],['nic','NIC',134],['gpu','GPU memory',190]];
       const yOf=k=>rows.find(r=>r[0]===k)[2];
@@ -98,7 +53,7 @@
       else if(i===4){s+=arr(xs[0]+cw*0.7,yOf('gpu'),xs[0]+cw*0.7,yOf('nic')+30,'var(--c5)')+arr(xs[0]+cw,yOf('nic')+15,xs[1],yOf('nic')+15,'var(--c2)')+arr(xs[1]+cw*0.3,yOf('nic')+30,xs[1]+cw*0.3,yOf('gpu'),'var(--c5)')+T(mid,yOf('nic')-6,'RDMA write',{a:'middle',fs:11,fill:'var(--c2)'})}
       host.innerHTML=RD.svg(W,H,'<defs><marker id="ic-rda" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--mute)"/></marker></defs>'+s,'RDMA step '+i);
     }
-    RD.anim({card:'ic-rdcard',ctl:'ic-rdctl',n:items.length,draw,ms:2200,label:'RDMA step'});
+    RD.anim({card:'ic-rdcard',ctl:'ic-rdctl',n:items.length,draw,ms:4600,label:'RDMA step',list:'sx-rd'});
   })();
 
   // ---- credits against pause frames ----

@@ -26,15 +26,16 @@
     const n=8;let alg='ring',link='nvl4',S=16060522496,run=null;
     const ab=()=>{if(link==='laptop'){const p=D.links.find(l=>l.id==='laptop').per_n['8'];return [p.alpha*1e-6,p.beta*1e9]}const l=D.links.find(x=>x.id===link);return [l.alpha*1e-6,l.beta*1e9]};
     const NM={ring:'Ring',rd:'Recursive doubling',rab:'Halving-doubling',switch:'In-switch'};
-    function caption(i){
-      if(i===0)return 'Start: every GPU holds its own gradients for all 8 chunks (pale). Goal: every GPU holds the sum of all 8 GPUs’ contributions in every chunk.';
-      const K=run.steps;
-      if(alg==='ring')return i<=n-1?'Reduce-scatter step '+i+' of '+(n-1)+': each GPU sends one chunk (1/8 of the buffer) to its right neighbour, which adds it to its own copy. After 7 steps each GPU owns one fully summed chunk.':'All-gather step '+(i-n+1)+' of '+(n-1)+': each GPU passes a finished chunk to the right, which overwrites its copy. Nothing is added; the sums just travel.';
-      if(alg==='rd')return 'Step '+i+' of '+K+': each GPU swaps its whole buffer with the GPU at distance '+(1<<(i-1))+' and adds. Few steps, but the whole buffer moves every time.';
-      if(alg==='rab')return i<=3?'Reduce-scatter by halving, step '+i+': swap half of the chunks still being summed with the GPU at distance '+(8>>i)+', keep and add the other half.':'All-gather by doubling, step '+(i-3)+': swap finished chunks with the GPU at distance '+(1<<(i-4))+'. Same bytes as the ring in 6 steps instead of 14.';
-      return i===1?'Every GPU sends its whole buffer up to the NVSwitch, which adds the 8 copies as they arrive (shown in the switch row).':'The switch multicasts the sum back down. In hardware the up and down streams overlap in chunks, so the time is one buffer’s worth plus two latencies.';
-    }
-    function draw(i){
+    // the step list's items are stretches of the simulator's frames: [first, last] frame each list step plays (the long-replay rule: the ring's
+    // 14 transfers are 4 explained steps); stepping forward plays the stretch frame by frame, back and the scrubber jump to its end
+    const STR={ring:[[0,0],[1,1],[2,7],[8,14]],rd:[[0,0],[1,1],[2,2],[3,3]],rab:[[0,0],[1,1],[2,3],[4,6]],switch:[[0,0],[1,1],[2,2]]};
+    window.IC_ARSTR=STR; // checked by check/check_stages.mjs
+    const card=$('ic-arcard');let sub=0;
+    const visible=()=>!document.hidden&&card.offsetParent!==null;
+    function draw(L){clearTimeout(sub);const [f0,f1]=STR[alg][Math.min(L,STR[alg].length-1)];
+      if(f1>f0&&card.classList.contains('rd-fwd')&&!RD.RM){let f=f0;const go=()=>{frame(f);if(f<f1){f++;sub=setTimeout(()=>visible()?go():frame(f1),Math.min(520,2600/(f1-f0+1)))}};go()}
+      else frame(f1)}
+    function frame(i){
       const host=$('ic-arsvg'),W=Math.min(860,RD.width(host)),cw=Math.min(64,(W-20)/n),gap=Math.max(4,cw*0.18),cellW=cw-gap,ch=15,top=54,H=top+n*(ch+2)+(alg==='switch'?66:20);
       const x0=(W-n*cw)/2;const sn=run.snaps[i];let s='';
       // arrows for this step
@@ -48,16 +49,16 @@
           if(cellW>26)s+=RD.t(x+cellW/2,top+c*(ch+2)+11.5,k+'/8',{a:'middle',fs:11,fill:f>0.5?'var(--bg)':'var(--ink)'});}}
       if(alg==='switch'){const y=top+n*(ch+2)+28;s+='<rect x="'+x0+'" y="'+y+'" width="'+(n*cw-gap)+'" height="18" rx="4" fill="var(--soft)" stroke="var(--line)"/>'+RD.t(x0+(n*cw-gap)/2,y+13,'NVSwitch'+(sn.sw?': holds '+ICSIM.pop(sn.sw[0])+'/8 in every chunk':''),{a:'middle',fs:11})}
       host.innerHTML=RD.svg(W,H,'<defs><marker id="ic-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--acc)"/></marker></defs>'+s,'All-reduce of 8 chunks over 8 GPUs, '+NM[alg]+', step '+i);
-      set('ic-arcap','<b>'+NM[alg]+'.</b> '+caption(i));
       const [a,b]=ab();const done=i===run.steps;const tt=done?run.time:sn.t;
       set('ic-arcnt',RD.stat('Step',i+' of '+run.steps,'each step costs one latency')+RD.stat('Sent per GPU so far',fB(sn.sent),'of '+fB(run.sent)+' in total')+
         RD.stat('Clock',fT(tt),done&&alg==='switch'?'2α + S/β (overlapped)':'α × steps + bytes / β')+
         RD.stat('Latency share',(100*(alg==='switch'?2*a:run.steps*a)/run.time).toFixed(S<1e6?0:2)+'%','of the final time'));
     }
     let A=null;
-    function rebuild(){const [a,b]=ab();run=ICSIM.run('ar',alg,n,S,a,b);if(A)A.reset(run.snaps.length);}
+    const LIST=a=>'sx-ar-'+a;
+    function rebuild(){const [a,b]=ab();run=ICSIM.run('ar',alg,n,S,a,b);Object.keys(STR).forEach(x=>$(LIST(x)).hidden=x!==alg);if(A)A.reset(STR[alg].length,LIST(alg));}
     rebuild();
-    A=RD.anim({card:'ic-arcard',ctl:'ic-arctl',n:run.snaps.length,draw,ms:1300,label:'All-reduce step'});
+    A=RD.anim({card:'ic-arcard',ctl:'ic-arctl',n:STR[alg].length,draw,ms:5200,label:'All-reduce step',list:LIST(alg)});
     RD.seg($('ic-aralg'),m=>{alg=m;rebuild()});RD.seg($('ic-arlink'),m=>{link=m;rebuild()});RD.seg($('ic-arsize'),m=>{S=+m;rebuild()});
     RD.onResize(()=>A.redraw());
   })();

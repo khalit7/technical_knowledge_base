@@ -1,6 +1,7 @@
 // Whole-page check: every tab and control at 390 px dark and 920 px light (page errors, NaN, undefined, sideways scroll);
 // the page's simulator and fabric JavaScript against the Python reference cases in out/expected.json;
-// screenshots per tab and per Reading section to ../../.shots/own/.
+// screenshots per tab and per Reading card to ../../.shots/own/; the two 2D animations play once scrolled into view (2026-11-06 rule; the
+// 3D stages and reduced motion are checked by check_stages.mjs).
 // usage: node <page>/src/check/check_page.mjs   (puppeteer from html_utils/node_modules)
 import { createRequire } from 'module';
 import path from 'path';
@@ -52,11 +53,10 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.evaluate(() => { for (const d of document.querySelectorAll('#t-read details')) d.open = false; });
   const shot = async (id, tag) => { const el = await p.$('#' + id); if (!el) { bad++; console.log('missing', id); return; }
     await el.scrollIntoView(); await sleep(200); await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${id}${tag || ''}.png`) }); };
-  for (const id of ['ic-herocard', 'ic-abcard', 'ic-meshcard', 'ic-flcard', 'fab-card', 'ic-arcard', 'ic-cccard', 'ic-mcard', 'ic-pcard']) await shot(id);
+  for (const id of ['ic-herocard', 'ic-abcard', 'ic-flcard', 'fab-card', 'ic-arcard', 'ic-cccard', 'ic-mcard', 'ic-pcard']) await shot(id);
   for (const m of ['ft', 'torus', 'df']) { await p.evaluate(m => document.querySelector('#ic-topom button[data-m="' + m + '"]').click(), m); await shot('ic-topocard', '_' + m); }
-  await p.evaluate(() => document.querySelector('#ic-meshm button[data-m="mesh"]').click()); await shot('ic-meshcard', '_mesh');
   for (const k of [0, 4]) { await p.evaluate(k => { const r = document.getElementById('ic-rdctl-s'); r.value = k; r.dispatchEvent(new Event('input', { bubbles: true })); }, k); await shot('ic-rdcard', '_' + k); }
-  for (const id of ['ic-s3', 'ic-s6']) { const el = await p.$('#' + id + ' figure'); await el.scrollIntoView(); await sleep(300); await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${id}_fig.png`) }); }
+  for (const im of ['gb200', 'infiniband', 'tpuv4']) { const el = await p.$('figure:has(img[src*="' + im + '"])'); if (!el) { bad++; console.log('missing figure', im); continue; } await el.scrollIntoView(); await sleep(300); await el.screenshot({ path: path.join(shots, `${scheme}_${w}_${im}_fig.png`) }); }
   if (errs.length) { bad++; console.log('ERRORS', scheme, errs); }
   if (scheme === 'dark') {
     // JS simulator and fabric model against Python
@@ -74,11 +74,13 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   }
   await p.close();
 }
-{ // nothing moves before the reader acts: scroll every animation into view and wait
+{ // the two 2D animations play by themselves once scrolled into view (Khalid, 2026-11-06; this replaced the never-autoplay check)
   const p = await browser.newPage(); await p.setViewport({ width: 920, height: 900 }); await p.goto('file://' + pageFile);
-  for (const id of ['ic-arcard', 'ic-rdcard']) { await p.$eval('#' + id, e => e.scrollIntoView()); await sleep(3000); }
-  const moved = await p.evaluate(() => ['ic-arctl-s', 'ic-rdctl-s'].map(i => +document.getElementById(i).value));
-  if (moved.some(v => v !== 0)) { bad++; console.log('FAIL autoplay', moved); } else console.log('no autoplay: animations wait on step 0');
+  for (const [card, ctl] of [['ic-arcard', 'ic-arctl'], ['ic-rdcard', 'ic-rdctl']]) {
+    await p.$eval('#' + card, e => e.scrollIntoView({ block: 'center' })); await sleep(1500);
+    const lab = await p.$eval('#' + ctl + '-p', e => e.getAttribute('aria-label'));
+    if (lab !== 'Pause') { bad++; console.log('FAIL', card, 'did not play when scrolled into view'); } else console.log(card, 'plays once in view');
+  }
   await p.close(); }
 await browser.close();
 console.log(bad ? 'FAIL ' + bad : 'ALL OK');

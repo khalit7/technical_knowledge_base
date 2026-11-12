@@ -14,19 +14,22 @@
 <p><b>The rack-scale answer.</b> An NVL72 rack makes 72 GPUs one NVLink domain, so expert parallelism up to 72 never touches the network. DeepSeek's own hardware wish list asks for the same thing from the other side: "future hardware should integrate intra-node (scale-up) and inter-node (scale-out) communication into a unified framework" ({{Zhao et al., ISCA 2025|https://arxiv.org/html/2505.09343}}).</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-par"></div></div><div class="s3L">
 <section id="ic-s9">
 <h2>9. Why the network picks your parallelism</h2>
 <p><b>One number per link.</b> Divide the FLOP/s a GPU actually sustains by the bandwidth of the link its traffic crosses: the <dfn>link intensity</dfn> I = F / &beta;, the FLOPs the GPU does in the time one byte crosses. It plays the role the ridge point plays in the parent page's roofline: a parallelism whose computation per byte sent is below I waits on the link. For an H100 at 40% of its dense BF16 peak (F = 396 TFLOP/s): <b id="ic-Inv"></b> FLOPs per byte over NVLink 4, <b id="ic-Iib"></b> over a 400 Gb/s NIC <span class="pill d">derived</span>.</p>
-<div class="card" id="ic-pcard">
-<h4>Move the link down the ladder: data parallelism's break-even rises with I, tensor parallelism's cost rises with no batch to absorb it</h4>
-<div class="ctl">
-<label>GPU <select id="ic-pchip"></select></label>
-<label>Link the traffic crosses <select id="ic-plink"></select></label>
-<label>Fraction of peak sustained <b id="ic-pmfuv">40%</b><input type="range" id="ic-pmfu" min="0.2" max="0.7" step="0.05" value="0.4"></label>
-</div>
-<div class="out" id="ic-pout"></div>
-<p class="small mute" id="ic-pnote"></p>
-</div>
+<p>Fig. 5 puts each kind of parallelism on the two servers of Fig. 1, its traffic on the link it crosses, and beside them a pair of bars: the step's compute time and its communication time, to scale, with no overlap (the table below).</p>
+<ol class="sx" id="sx-par">
+<li><b>Two rungs, two link intensities.</b> Over NVLink 4 an H100 at 40% of its dense BF16 peak does 880 FLOPs in the time one byte crosses; over a 400 Gb/s NIC, 7,916, nine times more. The bars are those two numbers.</li>
+<li><b>Tensor parallelism 8 inside the server: 16%.</b> Four all-reduces of the activations per layer stay on NVLink; for Llama 3.1 70B the communication is 16% of the layer's compute.</li>
+<li><b>The same tensor parallelism across the NIC: 141%.</b> The same bytes over a link nine times slower: with no overlap the GPUs wait 59% of the time, and the next matmul needs the result, so nothing hides it. Bigger batches do not help, because the ratio depends only on t, h and I.</li>
+<li><b>Pipeline across servers: 0.34%.</b> Llama 3.1 405B in 16 stages sends one activation forward (and one gradient back) per stage boundary, each GPU its 1/8 over its own NIC: a trickle against the stage's compute.</li>
+<li><b>Data parallelism across replicas: about 4%.</b> The gradient all-reduce, once per step, rides the rails (GPU <i>k</i> with GPU <i>k</i>, never the spine) and overlaps backward. It breaks even at 5,277 tokens per replica on a 400 Gb/s NIC; Llama 3 405B ran about 131,000 (16M tokens over 128 replicas), so it costs about 4% of compute <span class="pill d">derived: 5,277 / 131,072</span>.</li>
+<li><b>Expert parallelism: all-to-all over the spine, about 1:1.</b> Every GPU sends a different piece to every other, so most bytes cross the spine (83% on 16 servers, section 5) and nothing is reduced on the way; DeepSeek-V3 reports computation to communication of about 1:1 across servers and limits each token to 4 nodes (section 8).</li>
+</ol>
+</section>
+</div></div>
+<section>
 <div class="tw"><table>
 <thead><tr><th>Parallelism</th><th>Traffic per step, per GPU</th><th>Compute it is set against</th><th>Fits a link when</th><th>H100, 40%: NVLink 4 / 400G NIC</th></tr></thead>
 <tbody>
@@ -39,6 +42,9 @@
 <details class="dp"><summary>Assumptions behind the table <span class="mute">(under 1 min)</span></summary><div class="b">
 <p class="small">P parameters, T tokens per data-parallel replica per step, h hidden size. The TP column is the parent page's Performance calculator model (Megatron-LM's two all-reduces forward and two backward per layer; Llama 3.1 70B, 8,192 tokens, real layer sizes); the simplified 12h&sup2; formula gives <span id="ic-tpS"></span>. PP: Llama 3.1 405B, one 8,192-token micro-batch, 126/16 layers per stage with TP 8 inside the server, each GPU sending its 1/8 over its own NIC. All rows assume no overlap; overlap hides the data-parallel and pipeline traffic, never the tensor-parallel all-reduces, whose result the next matmul needs. <span class="pill d">derived</span></p>
 </div></details>
+</section>
+<div class="s3sp"><div class="s3L">
+<section>
 <p><b>Reading the table.</b> Data parallelism over a 400 Gb/s NIC breaks even at about 5,300 tokens per replica per step, and real runs are far above that: Llama 3 405B's 16M-token batches over 128 replicas are about 131,000 tokens each <span class="pill d">derived: 16,384 GPUs / (TP 8 &times; PP 16) = 128 replicas</span>. So data parallelism crosses the slowest rung comfortably and overlaps the rest. Tensor parallelism is the opposite: its ratio does not depend on batch size at all, only on t, h and I, so a slow link cannot be fixed by bigger batches. Over NVLink it costs <span id="ic-tpR2"></span> of the layer's compute; over a NIC the GPUs would wait <span id="ic-tpW"></span> of the time. That is the whole rule: <b>tensor and expert parallelism inside the NVLink domain, pipeline and data parallelism across it</b>, and the NVL72 rack exists to make "inside" bigger. TPU slices follow it too: FSDP and tensor parallelism on ICI, data parallelism over DCN (section 6).</p>
 <div class="ff"><div class="t">Two real runs that follow the rule</div><ul>
 <li><b>Llama 3 405B</b>: tensor parallelism 8 (one server), pipeline 16, data parallelism across the rest, on a fabric oversubscribed 1:7 above each 3,072-GPU pod ({{Llama 3 report|https://arxiv.org/html/2407.21783v3}}). Alibaba places pipeline traffic across its oversubscribed pods for the same reason.</li>
@@ -47,6 +53,18 @@
 <li>"Running TP across InfiniBand wastes 90%+ of your FLOPs waiting": for 70B with TP 8 over a 400 Gb/s NIC the communication is 141% of the compute, so with no overlap the GPUs wait about 59% of the time. Bad enough, not 90%.</li>
 <li>"TP=2 attention+MLP all-reduces for one 8B-scale layer stack easily exceed PCIe budgets at inference batch 1": at batch 1 each all-reduce carries one token, 8 KB (4,096 values in bf16), far below PCIe's n<sub>&frac12;</sub> of about 315 KB (with its assumed 5 &micro;s latency). The cost is latency, not bandwidth: 64 all-reduces per token (2 per layer, 32 layers) at several microseconds each.</li>
 </ul></div>
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="ic-pcard">
+<h4>Move the link down the ladder: data parallelism's break-even rises with I, tensor parallelism's cost rises with no batch to absorb it</h4>
+<div class="ctl">
+<label>GPU <select id="ic-pchip"></select></label>
+<label>Link the traffic crosses <select id="ic-plink"></select></label>
+<label>Fraction of peak sustained <b id="ic-pmfuv">40%</b><input type="range" id="ic-pmfu" min="0.2" max="0.7" step="0.05" value="0.4"></label>
+</div>
+<div class="out" id="ic-pout"></div>
+<p class="small mute" id="ic-pnote"></p>
+</div></div></div></div>
+<section>
 <div class="deepnote"><b>Go deeper.</b> How the splits compose into 3-D, 4-D and 5-D layouts, and what each holds and sends, with an animated step under nine splits and a layout calculator: {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}, section 9 "Composing them". The same step on 1, 8 and 64 GPUs, FSDP against HSDP: the parent's {{Performance calculator|n:3c65c17b0d0d8118beeefaed56da6f8e}}. Choosing a mesh on a TPU slice: {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}.</div>
 </section>
 

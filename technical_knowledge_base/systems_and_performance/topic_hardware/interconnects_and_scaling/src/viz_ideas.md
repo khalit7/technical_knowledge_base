@@ -35,3 +35,8 @@ Chosen by the kind of concept, each placed beside its claim in Reading:
 - **Fabric explorer**: moved from its own tab into section 5 (it explains one mechanism).
 - **Photos**: GB200 NVL72 rack (Wikimedia, CC BY-SA 4.0), InfiniBand cabling (Wikimedia, CC0), TPU v4 paper Figure 1 (CC BY 4.0).
 Rejected: an animated packet-level PFC congestion tree (illustrative only; the static diagram and the UEC quotes carry it); a Frontier photo for dragonflies (the visible cables could not be confirmed as Slingshot links); a separate NVLink generations chart (the table says it).
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+- **Built, 3D**: Fig. 1 the ladder on two servers (replaces the static hero; pipes with area proportional to bandwidth, flows on the rung each step is about); Fig. 2 one server, switch against mesh, NVLS (replaces the 2D toggle); Fig. 5 each parallelism's traffic on the cluster with compute against communication bars (new: section 9 had only a table and a widget).
+- **Kept 2D**: log-axis charts (ladder bars, alpha-beta curves, torus calculator, laptop measurement), the topology toggle, the Fabric explorer and link-intensity widget, the RDMA stepper, the credit diagram.
+- **Rejected**: a 3D TPU torus cube (the TPU v4 paper's own Figure 1 shows it, and the TPUs sibling owns the pod builder); a 3D all-reduce ring (Streams, graphs and multi-GPU owns NCCL programming and has one; the 2D grid of chunk states shows the bytes better); linear pipe widths (HBM would be 67 times the spine's width; area keeps every rung visible).

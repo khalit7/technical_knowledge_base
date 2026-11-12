@@ -57,7 +57,8 @@
     $('sim-cnote').textContent=note;
   }
   rebuild();
-  A=RD.anim({card:'sim-card',ctl:'sim-ctl',n:st.run.snaps.length,draw,ms:900,label:'Step',tab:'t-sim'});
+  // a tool the reader drives (up to 30 frames): never plays by itself (the long-replay rule, case b); its caption reads each frame
+  A=RD.anim({card:'sim-card',ctl:'sim-ctl',n:st.run.snaps.length,draw,ms:900,label:'Step',auto:false});
   const upd=()=>{$('sim-Sv').textContent=fB(st.S)};upd();
   $('sim-coll').addEventListener('change',e=>{st.coll=e.target.value;fillAlg();rebuild()});
   $('sim-alg').addEventListener('change',e=>{st.alg=e.target.value;rebuild()});
@@ -65,5 +66,7 @@
   $('sim-link').addEventListener('change',e=>{st.link=e.target.value;rebuild()});
   $('sim-S').addEventListener('input',e=>{st.S=Math.pow(2,+e.target.value);upd();rebuild()});
   RD.seg($('sim-ym'),m=>{st.ym=m;curve()});
-  RD.onRender(()=>{curve();A.redraw()},'t-sim');RD.onResize(()=>{curve();A.redraw()},'t-sim');
+  // the template's RD.onRender and RD.onResize serve the Reading tab only: this tab registers its own
+  const redraw=()=>{curve();A.redraw()};(window.TAB_RENDER=window.TAB_RENDER||{});(window.TAB_RENDER['t-sim']=window.TAB_RENDER['t-sim']||[]).push(redraw);
+  {let t=0;addEventListener('resize',()=>{const r=$('t-sim');if(!r||r.hidden||r.offsetParent===null)return;clearTimeout(t);t=setTimeout(redraw,60)})}
 })();
