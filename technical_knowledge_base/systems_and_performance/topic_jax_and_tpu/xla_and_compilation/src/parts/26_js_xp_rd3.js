@@ -18,30 +18,26 @@
   document.getElementById('xp-poly').innerHTML='the exported input is <code>'+esc(P.in_aval_x)+'</code>, the output <code>'+esc(P.out_aval)+'</code>; called with batches of 2 and 8 it returns shapes ['+P.call_2.shape.join(', ')+'] and ['+P.call_8.shape.join(', ')+'], equal to <code>jit</code> (difference '+P.call_2.max_diff_vs_jit+'). The module adds '+P.shape_assertions+' shape assertions and dynamic operations ('+P.dynamic_ops.map(o=>'<code>'+esc(o)+'</code>').join(', ')+'); '+XP.kb(P.serialized_bytes)+' serialized.';
   const V=E.vjp;
   document.getElementById('xp-vjp').innerHTML=XP.kb(V.serialized_bytes_vjp1)+' against '+XP.kb(V.serialized_bytes_vjp0)+' without; <code>jax.grad</code> of the deserialized function matches <code>jax.grad</code> of the original within '+V.grad_max_diff.toExponential(1)+'.';
-  // 10. the storm: same loop, exact shapes against buckets
+  // 10. the storm: a widget the reader drives (exact shapes against buckets), all 64 calls at once; no autoplay (the long-replay rule, case b)
   const ST=D.rec.storm;let smode='exact';
   const sh=document.getElementById('xp-storm-svg'), sc=document.getElementById('xp-storm-cnt'), scap=document.getElementById('xp-storm-cap');
-  const calls=()=>smode==='exact'?ST.calls_exact:ST.calls_bucket;
   const med=a=>a.slice().sort((x,y)=>x-y)[Math.floor(a.length/2)];
-  function sdraw(i){
-    const C=calls(), W=RD.width(sh), H=170, pl=40, pb=22, pt=8, n=C.length, bw=(W-pl-6)/n;
+  function sdraw(){
+    const C=smode==='exact'?ST.calls_exact:ST.calls_bucket, W=RD.width(sh), H=170, pl=40, pb=22, pt=8, n=C.length, bw=(W-pl-6)/n;
     const maxv=Math.max(...ST.calls_exact.map(c=>c[3]),...ST.calls_bucket.map(c=>c[3]));
     const lg=v=>Math.log10(1+v), y=v=>H-pb-(H-pb-pt)*lg(v)/lg(maxv);
     let s='';
     [1,10,100].forEach(v=>{if(v<=maxv)s+='<line x1="'+pl+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(pl-4,y(v)+3,v+' ms',{a:'end',fs:11})});
-    const upto=Math.min(n,(i+1)*2);
-    for(let k=0;k<upto;k++){const c=C[k];s+='<rect x="'+(pl+k*bw+0.5)+'" y="'+y(c[3])+'" width="'+Math.max(1,bw-1)+'" height="'+(H-pb-y(c[3]))+'" fill="'+(c[2]?'var(--c2)':'var(--c3)')+'"><title>L='+c[0]+' shape '+c[1]+': '+c[3]+' ms'+(c[2]?' (compiled)':'')+'</title></rect>'}
+    let comp=0,tot=0;
+    C.forEach((c,k)=>{comp+=c[2];tot+=c[3];s+='<rect x="'+(pl+k*bw+0.5)+'" y="'+y(c[3])+'" width="'+Math.max(1,bw-1)+'" height="'+(H-pb-y(c[3]))+'" fill="'+(c[2]?'var(--c2)':'var(--c3)')+'"><title>L='+c[0]+' shape '+c[1]+': '+c[3]+' ms'+(c[2]?' (compiled)':'')+'</title></rect>'});
     s+=RD.t(pl,H-6,'call 1',{fs:11})+RD.t(W-6,H-6,'call 64 (L = 64)',{a:'end',fs:11});
     sh.innerHTML=RD.svg(W,H,s,'Time per call, log scale');
-    let comp=0,tot=0;for(let k=0;k<upto;k++){comp+=C[k][2];tot+=C[k][3]}
     const R=ST.runs.map(r=>r[smode==='exact'?'exact':'bucketed']);
-    sc.innerHTML=RD.stat('Calls',upto+' of '+n)+RD.stat('Compilations so far',String(comp))+RD.stat('Wall time so far',(tot/1000).toFixed(2)+' s','this repeat')+RD.stat('Compile time, median of 3',med(R.map(r=>r.compile_s)).toFixed(2)+' s','for all 64 calls');
-    const last=C[upto-1];
-    scap.innerHTML='<div class="t">Call '+upto+': prefix length '+last[0]+(smode==='bucket'?', padded to '+last[1]:'')+'</div><p>'+(last[2]?'A shape this function has not seen: trace, lower and compile again (orange).':'Shape already compiled: the cached executable runs (green).')+(upto>=n?' Total: '+comp+' compilations. Exact shapes: '+ST.runs[1].exact.compiles+'; buckets: '+ST.runs[1].bucketed.compiles+'.':'')+'</p>';
+    sc.innerHTML=RD.stat('Calls',String(n))+RD.stat('Compilations',String(comp),'orange bars')+RD.stat('Wall time',(tot/1000).toFixed(2)+' s','this repeat')+RD.stat('Compile time, median of 3',med(R.map(r=>r.compile_s)).toFixed(2)+' s','for all 64 calls');
+    scap.innerHTML=smode==='exact'?'Every new prefix length is a shape the function has not seen: trace, lower and compile again (orange), 64 times.':'Lengths padded up to 16, 32, 48 or 64: four compilations (orange), then every call runs a cached executable (green).';
   }
-  const san=RD.anim({card:'xp-storm-card',ctl:'xp-storm-ctl',n:32,draw:sdraw,ms:420,label:'Calls'});
-  RD.seg(document.getElementById('xp-storm-seg'),m=>{smode=m;san.reset(32)});
-  RD.onResize(()=>san.redraw());
+  RD.seg(document.getElementById('xp-storm-seg'),m=>{smode=m;sdraw()});
+  sdraw();RD.onRender(sdraw);RD.onResize(sdraw);
   document.getElementById('xp-logc').textContent=D.rec.log.code+'\n\n# the first '+D.rec.log.messages.length+' log lines (WARNING level while the flag is on):\n'+D.rec.log.messages.join('\n')+'\n# print(g._cache_size()):\n'+D.rec.log.cache_size;
   // 11. profiler views
   const T=D.prof.tools;

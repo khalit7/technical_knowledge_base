@@ -83,6 +83,22 @@ checks = [
     ("peak 374.4 MB, 0.3% from the reconstruction", n["xla_peak_mb"] == 374.4 and n["peak_diff_pct"] == 0.3),
     ("peak attribution: divisions 28%, erfc 17.9%", n["peak_div_pct"] == 28 and n["peak_erfc_pct"] == 17.9),
     ("storm: 64 compilations against 4", (n["storm_exact_compiles"], n["storm_bucket_compiles"]) == (64, 4)),
+    # numbers typed into the step lists of the 2026-11-12 rollout (Fig. 1 to 3, the pass and memory steppers)
+    ("Fig. 1: x - mu recorded twice (u, z), 2 subtracts in StableHLO, 2 chains of 4 in HLO", gen["low"]["scn"]["sub"]["jaxpr"] == ["u", "z"] and gen["low"]["scn"]["sub"]["shlo"] == 2
+     and gen["low"]["scn"]["sub"]["hlo_chains"] == [["broadcast", "reshape", "broadcast", "subtract"]] * 2),
+    ("Fig. 1: CSE removes one subtract; ynn_fusion.7 (kCustom) holds LayerNorm: 16 equations, 18 instructions, 1 subtract",
+     gen["low"]["scn"]["sub"]["cse_attn"][1] == -1 and gen["low"]["scn"]["sub"]["opt_name"] == "ynn_fusion.7" and gen["low"]["scn"]["sub"]["opt_kind"] == "kCustom"
+     and gen["low"]["scn"]["sub"]["ln_eqns"] == 16 and gen["low"]["scn"]["sub"]["opt_instrs"] == 18 and gen["low"]["scn"]["sub"]["opt_subtracts"] == 1),
+    ("Fig. 2: 7 kernels unfused, 14 x 512 KiB (+12 scalar bytes) = 7,340,044; fused 1,048,576 = 2 x 512 KiB, 7.0x, broadcast_multiply_fusion",
+     len(gen["low"]["scn"]["chain"]["unfused"]) == 7 and gen["low"]["scn"]["chain"]["unfused_b"] == 14 * 524288 + 3 * 4 == 7340044
+     and gen["low"]["scn"]["chain"]["fused_b"] == 2 * 524288 == 1048576 and round(7340044 / 1048576, 1) == 7.0 and gen["low"]["scn"]["chain"]["fused_name"] == "broadcast_multiply_fusion"),
+    ("Fig. 3: compilations value 1, shape 2, dtype 2, weak 2, static 2, tree 2, config 2, lambda 3, named 1, closure 1",
+     [[s for s in gen["rec"]["sc"] if s["key"] == k][0]["counts"]["compile"] for k in ("value", "shape", "dtype", "weak", "static", "tree", "config", "lambda", "named", "closure")] == [1, 2, 2, 2, 2, 2, 2, 3, 1, 1]),
+    ("pass stepper: 4,993 to 5,368 at dot_decomposer; 6 algsimp in simplification; 134 reduce-windows; 88 copies; 142 bitcasts; 173 library fusions; 799 fusions; 1,784 and 783 at the end",
+     (lambda S: [x[3] for x in S if x[2] == "batched_gather_scatter_normalizer"] == [4993] and [x[3] for x in S if x[2] == "dot_decomposer"] == [5368]
+      and sum(1 for x in S if x[2] == "algsimp" and x[1] == "simplification") == 6 and [x[7].get("reduce-window") for x in S if x[2] == "tree_reduction_rewriter"] == [134]
+      and [x[7].get("copy") for x in S if x[2] == "layout-assignment"] == [88] and [x[7].get("bitcast") for x in S if x[2] == "reshape-decomposer"] == [142]
+      and [x[7].get("fusion") for x in S if x[2] == "dot-library-rewriter"] == [173] and [x[4] for x in S if x[2] == "fusion-wrapper"] == [799] and S[-1][3] == 1784 and S[-1][4] == 783)(pd["step"]["steps"])),
 ]
 for name, ok in checks:
     print(("ok  " if ok else "FAIL"), name)

@@ -35,29 +35,31 @@
   document.getElementById('xp-lay-copies').textContent=lay?f(lay[7].copy||0):'?';
   document.getElementById('xp-lay-bitcasts').textContent=rd?f(rd[7].bitcast||0):'?';
 
-  // 3. the staircase animation: same program, pass by pass
-  const host=document.getElementById('xp-stair-svg'), cap=document.getElementById('xp-stair-cap'), cn=document.getElementById('xp-stair-cnt');
-  let prog='attn';
-  function draw(i){
-    const P=D.pass[prog], S=P.steps, W=RD.width(host), H=200, padL=44, padB=26, padT=10;
-    const n=S.length, maxI=Math.max(P.start,...S.map(s=>s[3])), bw=(W-padL-8)/(n+1);
+  // 3. the staircase: same program, pass by pass, stepped in seven explained stretches (#sx-stair), never one step per pass (the long-replay rule)
+  const host=document.getElementById('xp-stair-svg'), cn=document.getElementById('xp-stair-cnt');
+  let prog='step';
+  // stretch boundaries by pass name, so both programs split the same way
+  function stretches(S){const at=(nm,from)=>{for(let k=from||0;k<S.length;k++)if(S[k][2]===nm)return k;return -1};
+    const b1=at('algsimp'),b2=at('transpose-folding'),b3=at('cse',b2)+1,b4=at('dot-library-rewriter'),b5=at('fusion',b4),b6=at('fusion-wrapper',b5)+1;
+    return [[0,b1],[b1,b2],[b2,b3],[b3,b4],[b4,b4+1],[b5,b6],[b6,S.length]]}
+  function draw(g){
+    const P=D.pass[prog], S=P.steps, G=stretches(S), W=RD.width(host), H=200, padL=44, padB=26, padT=10;
+    const n=S.length, maxI=Math.max(P.start,...S.map(s=>s[3])), bw=(W-padL-8)/(n+1), lo=G[g][0], hi=G[g][1];
     const y=v=>H-padB-(H-padB-padT)*v/maxI;
     let s='';
     for(let t=0;t<=4;t++){const v=maxI*t/4;s+='<line x1="'+padL+'" x2="'+(W-4)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)"/>'+RD.t(padL-4,y(v)+3,f(Math.round(v)),{a:'end',fs:11})}
     s+='<rect x="'+(padL+1)+'" y="'+y(P.start)+'" width="'+Math.max(1,bw-2)+'" height="'+(H-padB-y(P.start))+'" fill="var(--dim)"><title>start: '+P.start+'</title></rect>';
     let path='';
-    S.forEach((st,k)=>{const x=padL+(k+1)*bw;const on=k===i, past=k<i;
-      s+='<rect x="'+(x+1)+'" y="'+y(st[3])+'" width="'+Math.max(1,bw-2)+'" height="'+(H-padB-y(st[3]))+'" fill="'+(on?'var(--c2)':past?'var(--acc)':'var(--acc2)')+'"><title>'+esc(st[2])+': '+st[3]+'</title></rect>';
-      path+=(k?'L':'M')+(x+bw/2).toFixed(1)+','+y(st[4]).toFixed(1)});
-    s+='<path d="'+path+'" fill="none" stroke="var(--c3)" stroke-width="1.6"/>';
+    S.forEach((st,k)=>{const x=padL+(k+1)*bw, on=k>=lo&&k<hi, past=k<lo, fut=k>=hi;
+      s+='<rect class="'+(on?'rd-new':'')+'" x="'+(x+1)+'" y="'+y(st[3])+'" width="'+Math.max(1,bw-2)+'" height="'+(H-padB-y(st[3]))+'" fill="'+(on?'var(--c2)':past?'var(--acc)':'var(--acc2)')+'" opacity="'+(fut?.45:1)+'"><title>'+esc(st[2])+': '+st[3]+'</title></rect>';
+      if(k<hi)path+=(path?'L':'M')+(x+bw/2).toFixed(1)+','+y(st[4]).toFixed(1)});
+    if(path)s+='<path d="'+path+'" fill="none" stroke="var(--c3)" stroke-width="1.6"/>';
     s+=RD.t(padL,H-8,'start',{fs:11})+RD.t(W-6,H-8,'end of pipeline',{a:'end',fs:11});
     host.innerHTML=RD.svg(W,H,s,'Instructions after each pass');
-    const st=S[i], prev=i?S[i-1][3]:P.start;
-    cn.innerHTML=RD.stat('Pass',(i+1)+' of '+n,esc(st[1]))+RD.stat('Instructions',f(st[3]),(st[3]-prev>=0?'+':'')+f(st[3]-prev)+' from the previous')+RD.stat('Fusions',f(st[4]),'top-level')+RD.stat('Text lines',(st[5]?'+'+st[5]:'0')+' / -'+st[6],'changed in this pass');
-    const d=Object.entries(st[7]||{}).slice(0,5).map(([k,v])=>'<code>'+esc(k)+'</code> '+(v>0?'+':'')+v).join(', ');
-    cap.innerHTML='<div class="t"><code>'+esc(st[2])+'</code></div><p>'+esc(XP.pdesc(st[2]))+'</p><p class="xp-note">Opcode changes: '+(d||'none (instructions renamed or reordered)')+'</p>';
+    const first=S[lo], last=S[hi-1], prev=lo?S[lo-1][3]:P.start;
+    cn.innerHTML=RD.stat('Stretch',(g+1)+' of '+G.length,esc(first[2])+(hi-lo>1?' to '+esc(last[2]):''))+RD.stat('Instructions',f(prev)+' to '+f(last[3]),(last[3]-prev>=0?'+':'')+f(last[3]-prev)+' in this stretch')+RD.stat('Fusions',f(last[4]),'top-level, after it')+RD.stat('Passes',String(hi-lo),'that changed the text');
   }
-  const an=RD.anim({card:'xp-stair-card',ctl:'xp-stair-ctl',n:D.pass.attn.steps.length,draw,ms:1500,label:'Pass'});
-  RD.seg(document.getElementById('xp-stair-seg'),m=>{prog=m;an.reset(D.pass[m].steps.length)});
+  const an=RD.anim({card:'xp-stair-card',ctl:'xp-stair-ctl',n:7,draw,ms:4200,label:'Stretch',list:'sx-stair'});
+  RD.seg(document.getElementById('xp-stair-seg'),m=>{prog=m;an.reset(7)});
   RD.onResize(()=>an.redraw());
 })();

@@ -192,6 +192,54 @@ tot = sum(v for k, v in prof["by_phase_us"].items())
 for k in ("forward", "backward", "optimiser"):
     n["prof_%s_pct" % k] = round(100 * prof["by_phase_us"].get(k, 0) / tot)
 
+# ---------------------------------------------------------------- scenes (2026-11): the facts the 3D stages draw, derived from the recorded outputs
+def follow_sub():
+    """Fig. 1 follows LayerNorm's x - mu down the attention block's four forms (lowering.json, attention_block.forms)."""
+    F = low["attention_block"]["forms"]
+    eqs = [l.strip() for l in F["jaxpr"].split("\n") if re.match(r"^\s+[a-z]+:\S+ = ", l)]
+    ln = next(i for i, l in enumerate(eqs) if "dot_general" in l)            # LayerNorm: every equation before the first matmul
+    jx = [l.split(":")[0] for l in eqs if re.search(r"= sub q t$", l)]       # the subtraction, recorded once per time Python ran it
+    sh = len(re.findall(r"stablehlo\.subtract %arg10,", F["stablehlo"]))     # %arg10 is x
+    lines = {}
+    for l in F["hlo"].split("\n"):
+        m = re.match(r"\s*(?:ROOT )?([\w.]+) = (\S+) (\w[\w-]*)\((.*?)\)", l)
+        if m:
+            lines[m.group(1)] = (m.group(3), [o.strip() for o in m.group(4).split(",")])
+    chains, names = [], set()
+    for k, (op, ar) in lines.items():
+        if op == "subtract" and ar[0] == "x.1":
+            ch, cur = [k], ar[1]
+            while cur.startswith("sub."):
+                ch.append(cur)
+                cur = lines[cur][1][0]
+            chains.append([lines[c][0] for c in reversed(ch)])
+            names.update(ch)
+    fz = [b for b in F["opt_hlo"].split("\n\n") if "stack_frame_id=12" in b and "subtract(" in b][0]
+    fops = [re.search(r" = \S+ ([\w-]+)\(", l).group(1) for l in fz.split("\n")[1:] if " = " in l]
+    fname = fz.split(" ")[0].lstrip("%")
+    caller = re.search(r"%(\w+(?:\.\d+)?) = \S+ fusion\([^)]*\), kind=(\w+), calls=%" + re.escape(fname) + ",", F["opt_hlo"])
+    cse = [s for s in pdiff["programs"]["attn"]["steps"] if s["pass"] == "cse"][0]
+    # where the followed instructions sit in program order (fractions of each form's length), so the scene can light the right tiles
+    sl = [l for l in F["stablehlo"].split("\n") if re.match(r"\s+(%\S+ = |stablehlo\.|func\.return|return)", l)]
+    hl = [l for l in F["hlo"].split("\n") if re.match(r"\s*(ROOT )?[\w.]+ = ", l)]
+    ent = [l for l in F["opt_hlo"].split("ENTRY")[1].split("\n") if re.search(r" (fusion|dot|copy)\(", l)]
+    pos = {"jaxpr": [round(i / len(eqs), 4) for i, l in enumerate(eqs) if re.search(r"= sub q t$", l)],
+           "shlo": [round(i / len(sl), 4) for i, l in enumerate(sl) if "stablehlo.subtract %arg10," in l],
+           "hlo": [round(i / len(hl), 4) for i, l in enumerate(hl) if re.match(r"\s*(?:ROOT )?([\w.]+) = ", l).group(1) in names],
+           "kernels": [[re.search(r"%(\S+) = ", l).group(1), re.search(r"kind=(\w+)", l).group(1) if "kind=" in l else ""] for l in ent]}
+    return {"pos": pos, "jaxpr": jx, "ln_eqns": ln, "shlo": sh, "hlo_chains": chains, "opt_name": caller.group(1), "opt_kind": caller.group(2),
+            "opt_instrs": sum(1 for o in fops if o not in ("parameter", "constant")), "opt_subtracts": fops.count("subtract"),
+            "cse_attn": [cse["instructions"], cse.get("delta", {}).get("subtract", 0)]}
+
+
+chain = {s: fus["breakers"][s]["chain"] for s in ("default", "no_fusion")}
+scn = {"sub": follow_sub(),
+       "chain": {"code": [m for m in fus["breaker_meta"] if m["key"] == "chain"][0]["code"],
+                 "unfused": [[x.get("ops", [""])[0], x["name"]] for x in chain["no_fusion"]["list"]], "unfused_b": chain["no_fusion"]["bytes_accessed"],
+                 "fused": [o for o in chain["default"]["list"][0]["ops"] if o != "constant"], "fused_b": chain["default"]["bytes_accessed"],
+                 "fused_name": chain["default"]["list"][0]["name"], "array_b": 256 * 512 * 4}}
+lowd["scn"] = scn
+
 XPD = {"meta": {"versions": low["versions"], "xla": pipe["xla_commit"], "jax_commit": "32544801e261"},
        "low": lowd, "pipe": pip, "pass": passes, "fuse": fusd, "rec": recd, "buf": buf, "inp": inp, "cache": cached,
        "exp": expd, "prof": profd, "flags": flagd, "n": n}

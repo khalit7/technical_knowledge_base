@@ -3,7 +3,7 @@
 `sh build.sh` writes `../index.html` from `parts/` (same build script as the root page, with the Reading tab starting at `20_read_a.html`).
 
 ## Tabs
-Reading (`20_read_*.html`, JS `23` to `27`; `21_js_rd_common.js` and `99_js_tabs.js` are the skill templates since 2026-10-23), Pass diff viewer (`31_*`), Fusion explorer (`32_*`), Recompile detective (`33_*`), Profile reader (`34_*`), Further reading (`39_tab_more.html`). `22_js_xp_0data.js` is generated: never edit it. Storage key for the open tab: `xp-tab`.
+Reading (`20_read_*.html`, JS `23` to `27`, the 3D scenes `41` to `44`; `02_split.html`, `21_js_rd_common.js`, `99_js_tabs.js` and `40_js_s3.js` (the renderer, `25_js_s3.js` in the templates, renamed only so it loads after this page's own `25_js_xp_rd2.js`) are the skill templates, copied unchanged on 2026-11-12), Pass diff viewer (`31_*`), Fusion explorer (`32_*`), Recompile detective (`33_*`), Profile reader (`34_*`), Further reading (`39_tab_more.html`). `22_js_xp_0data.js` is generated: never edit it. Storage key for the open tab: `xp-tab`.
 
 ## Shape
 A child-page shape (`.claude/skills/explainer-page/page-kinds/topic-child.md`): Reading opens with the core idea, a hero figure, "You need" and new terms, then follows the pipeline's own order (lowering, PJRT, passes, fusion, layouts, buffers, remat) and then what the user controls (caches, export, recompiles, profiling, flags), how XLA compares with torch.compile, and a closed depth section (four mistakes, two interview questions). Labs are the four the brief asked for. The root's Compiler lab owns the overview (five forms, MLP-block fusion, donation, remat policies, scan): linked, not rebuilt.
@@ -26,6 +26,7 @@ $PY flags_lab.py             # flag docs from source, 5 CPU settings measured ->
 python3 make_data.py && sh ../build.sh && python3 reading_time.py && python3 make_data.py && sh ../build.sh
 python3 check_data.py        # page embeds exactly the data; data-xp keys exist; prose facts match
 node check_page.mjs ../../index.html   # every control at 390 dark and 920 light, no errors, NaN or sideways scroll
+node ../check_stages.mjs                # the 2026-11 rollout checks: stages and steppers autoplay in view, step lists match, reduced motion, splits
 ```
 `xp_common.py` reuses the root lab's `xc_common.py` (scrub, initial state) and `hlo_tools.py`. Large outputs (HLO dumps 64 MB, profiles, the persistent cache, exports) stay in `$JX_SCRATCH/xp/`.
 
@@ -60,3 +61,53 @@ Why 34 minutes is right: this page owns XLA in depth (HLO, the pipeline, fusion 
 
 ## Knowledge ledger (`ledger.json`; `python3 html_utils/ledger.py check`: problems 0)
 415 units: core 330, depth 47, fat 38 (no owned or volatile units). 403 drafted by `ledger.py init`, 12 added by hand for script-rendered tables and charts.
+
+## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying steppers (2026-11-12)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (as `40_js_s3.js`), `21_js_rd_common.js`, `99_js_tabs.js` (key `xp-tab`). `build.sh` now writes the em-dash it looks for as bytes. No new runs: `make_data.py` derives `XPD.low.scn` (the followed subtraction in the four forms, the chain's kernels and bytes) from `lab/out/*.json`, and `check_data.py` checks every number typed into the new step lists. Each numbered section is one `<section>` (for the nav) holding its splits as `div.xp-blk`.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | **3D** `stg-hero` Fig. 1 | yes, 6 |
+| Reading | You need, new terms, evidence, reconciliation | full width | none | no |
+| Reading | 1 Lowering | split | four-forms viewer (text, reader-driven) | no |
+| Reading | 1 details | full width | tables | no |
+| Reading | 2 PJRT | split | 2D static diagram | no |
+| Reading | 3 HLO anatomy | full width | HLO line (text) | no |
+| Reading | 3 Passes | split | 2D stepper, 7 stretches, two programs | yes, 7 |
+| Reading | 4 Fusion | split | **3D** `stg-fuse` Fig. 2 | yes, 5 |
+| Reading | 4 The rule | split | 2D duplicate-or-store toggle | no |
+| Reading | 4 Fusion kinds, library | full width | none | no |
+| Reading | 4 What XLA refuses | split | 2D bars | no |
+| Reading | 4 Softmax three ways | split | 2D static before/after, three columns | no |
+| Reading | 4 Whole step, GPU and TPU | full width | table | no |
+| Reading | 5 Layouts | split | optimised HLO (text) | no |
+| Reading | 5 Tiling | split | 2D slider | no |
+| Reading | 6 Buffer assignment | split | 2D stepper, 5 stretches | yes, 5 |
+| Reading | 6 Peak attribution | split | 2D bars | no |
+| Reading | 6 Plan, aliasing | full width | table, correction | no |
+| Reading | 7 Remat | full width | table | no |
+| Reading | 8 Caches | split | 2D static diagram | no |
+| Reading | 8 Persistent cache runs | full width | table | no |
+| Reading | 9 AOT, export | full width | tables, code | no |
+| Reading | 10 Recompiles | split | **3D** `stg-rec` Fig. 3 | yes, 8 |
+| Reading | 10 The storm | split | 2D widget (exact against buckets, all 64 calls, no autoplay) | no |
+| Reading | 10 At scale, fixes; 11 to 13; Depth | full width | tables, code | no |
+| Pass diff viewer, Fusion explorer, Recompile detective, Profile reader | | full width | tools (unchanged; the pass viewer's Play runs only on a click) | no |
+| Further reading | | unchanged | | |
+
+**Stages and their data.**
+- Fig. 1 (`42_js_sc_hero.js`): block 0's attention sub-block as four glass plates in a staircase, one tile per instruction in program order (jaxpr 61, StableHLO 90, HLO 133, optimised 13 kernels as blocks), LayerNorm's `x - mu` raised in blue: `u` and `z` in the jaxpr, two `stablehlo.subtract`, two broadcast-reshape-broadcast-subtract chains in HLO, one after CSE (the attention block's CSE delta: subtract -1), then `ynn_fusion.7` (kCustom: all of LayerNorm, 16 equations, 18 instructions); the last step writes the whole step's counts (3,411, 5,318, 4,932, 817) and the 374.4 MB peak. Replaces the 2D hero, whose lever boxes became the step texts.
+- Fig. 2 (`43_js_sc_fuse.js`): the Fusion explorer's chain `tanh(x * 2.0 + 1.0) * 3.0` on f32[256,512]: memory row on the floor, chip row above; fusion off (7 kernels, writes and reads as flows, 7,340,044 bytes = 14 x 512 KiB + 12 scalar bytes, derived and checked), the kernels sliding into `broadcast_multiply_fusion`, fused (1,048,576 bytes, 7.0 times fewer).
+- Fig. 3 (`44_js_sc_rec.js`): call, cache shelf (one block per executable), result in front, the slow path behind; one recorded case per step (value 1 compile, shape 2, weak 2, static 2, lambda 3 with one cache per function object, closure 1 with the stale `[2. 2.]`), then the storm's 64 executables against 4. It replaced the bullet list of causes, whose quotes moved into the step texts; JAX core's Fig. 2 is linked for the mechanism of one hit and one miss.
+- Colours: jaxpr purple, StableHLO teal, HLO orange, kernels and executables green, the followed operation and reads blue, writes and misses orange.
+
+**Long replays.** The pass staircase (34 or 45 passes), the memory curve (266 points) and the storm (64 calls) used to step one frame at a time. Now: the staircase is 7 explained stretches (by pass name, same for both programs), the memory curve 5 (inputs, forward, the peak, backward, optimiser; the whole curve is drawn faintly from the first step), and the storm is a reader-driven widget showing all 64 calls. The softmax kernel-by-kernel stepper became a static three-column before/after.
+
+**Kept 2D, and why.** The four-forms viewer, the HLO anatomy and the layout examples are text; the staircase, memory curve, storm times and refusal counts are numbers on an axis; the tile padding is one flat parameter; the PJRT layers, duplicate-or-store and the two caches are small flat structures. No real image: none shows something new on a compiler page.
+
+**Checks.** `check_stages.mjs` (new, adapted from JAX core): at 1400 light, 920 light and 390 dark every stage and both steppers play when scrolled into view and step to their last step with one list item per step; stages stop redrawing off screen; every split is two columns at 1400; the storm widget has no play button and its counters read 64 and 4; the softmax columns hold 6, 6 and 4 kernels; under reduced motion nothing moves; no errors, `undefined`, `Infinity` or sideways scroll. `check_page.mjs`: every control at 390 dark and 920 light. `check_data.py`: five new checks for the step-list numbers.
+
+**Length.** Reading core 7,902 words (34.4 min) before, 8,965 (39.0 min) after; closed 3,104 (13.5 min) unchanged; other tabs unchanged. The growth is the five step lists (about 1,500 visible words) that explain each figure; before, the steppers' captions were drawn by script one step at a time (not counted), and the causes list of section 10 (about 250 words) is now Fig. 3's step list. Visuals drawn inline (audit count): 8 before, 10 after.
+
+**Ledger** (`python3 html_utils/ledger.py check`: problems 0): 423 units, core 338, depth 47, fat 38. Re-keyed: 19, 79, 115, 117, 155, 208, 211, 213, 214, 343 (their sentences moved into step lists or cards). Added by hand: 416 to 423 (the new step lists). The root's ledger (`systems_and_performance/topic_jax_and_tpu`) still checks with problems 0.

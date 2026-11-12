@@ -219,8 +219,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
 - [x] `systems_and_performance/topic_jax_and_tpu/sharding_and_scale` Sharding and scale: Mesh, GSPMD, shard_map and multi-host
 - [x] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
-- [ ] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
-- [ ] `systems_and_performance/topic_jax_and_tpu/xla_and_compilation` XLA and compilation: jaxprs, StableHLO, fusion and recompiles
+- [~] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
+- [x] `systems_and_performance/topic_jax_and_tpu/xla_and_compilation` XLA and compilation: jaxprs, StableHLO, fusion and recompiles
 - [ ] `systems_and_performance/topic_jax_and_tpu` Topic: jax-and-tpu
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy` Cluster anatomy: nodes, GPUs, networks and storage tiers
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale` Fault tolerance at scale: failures, checkpoint/restart and elastic training
@@ -513,6 +513,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_jax_and_tpu/pallas_kernels`: wide scenes small at 390; Fig. 2 "only the core that runs step 0 zeroes its copy" inferred from pl.when(program_id(0) == 0) (measured result is the three seeds); band-to-core assignment illustrative (stated).
 - `systems_and_performance/topic_jax_and_tpu/sharding_and_scale`: core 46 min plus 26 closed (38 before); some stages leave empty space at 390; Fig. 1 step 4 infers the all-gather from the measured FSDP x tensor layout (same specs, stated).
 - `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance`: the "Try your own shape" widget (128 and 256 arrays side by side) stays a full-width section in Reading (reader-driven lab); Fig. 1 close-ups leave part of the chip out of frame by design; Fig. 3 op names hide on phones.
+- `systems_and_performance/topic_jax_and_tpu/xla_and_compilation`: tool tabs full width; renderer saved as 40_js_s3.js (after the page's 25_js_xp_rd2.js), content unchanged; Fig. 1 one merge step stands for both reshape folding and CSE (text says only what the data shows); Fig. 2 broadcast-to-kernel pairing structural.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -578,3 +579,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Pallas kernels: Fig. 3 opens on the naive index map; the flash replay plays four stretches; the Grid and BlockSpec lab and pipeline timeline open on their last step; wasted copies dark grey (the page's orange is q). Keep these?
 - Sharding and scale: the 94-operation propagation replay is a widget opening on its last frame; the PartitionSpec widget stays 2D; pipeline and MoE step lists are written by script (numbers change with the chosen run). Keep these?
 - TPU programming and performance: section 8 gets a calculated (not measured, no TPU used) profile, Fig. 3; its 32-tokens-per-chip step models one short sequence as the Roofline lab does (only the weight matmuls behave as in decode); an em-dash in src/inputs/scaling_book_extracts.txt was replaced with "--". Keep these?
+- XLA and compilation: the pass stepper opens on "Whole train step" (was the attention block); the storm is a widget; the softmax stepper became a static three-column before/after. Keep these?

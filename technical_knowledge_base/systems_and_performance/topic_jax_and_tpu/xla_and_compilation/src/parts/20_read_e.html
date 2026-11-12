@@ -1,19 +1,33 @@
 <section id="rd-s4">
+<div class="s3sp"><div class="s3R"><div id="stg-fuse"></div></div><div class="s3L">
+<div class="xp-blk">
 <h2>4. Fusion: how XLA decides, and why it stops</h2>
 <p>Run a chain of elementwise operations one kernel at a time and every intermediate result is written to memory and read straight back; for this kind of work memory traffic, not arithmetic, is the cost. <dfn>Fusion</dfn> compiles a group of operations into one kernel so intermediates stay in registers or on-chip memory. The root's Compiler lab shows the result on one MLP block; this section shows the decisions.</p>
+<p>Fig. 2 runs the smallest case, four elementwise operations, with the fusion pass off and on (the Fusion explorer's "elementwise chain", compiled on this CPU) <span class="xp-tag m">measured here</span>:</p>
+<ol class="sx" id="sx-fuse">
+<li><b>The program: seven HLO operations.</b> <code>tanh(x * 2.0 + 1.0) * 3.0</code> on a 256 x 512 float32 array, 512 KiB: three broadcasts that turn the constants into arrays, then multiply, add, tanh and multiply. The arrows are the data dependences.</li>
+<li><b>Fusion off: every operation is its own kernel.</b> With <code>--xla_disable_hlo_passes=fusion</code> XLA emits 7 kernels, and the three broadcasts each write a full 512 KiB array holding one constant.</li>
+<li><b>Each kernel reads its inputs from memory and writes its result back.</b> The first multiply reads x and a broadcast array and writes x * 2; add, tanh and the last multiply do the same with the previous result. Fourteen trips of 512 KiB: 7,340,044 bytes in XLA's <code>cost_analysis()</code>.</li>
+<li><b>Fusion pulls each producer into its consumer.</b> Walking back from the output, the fusion pass asks of every operand whether to pull it in (the rule below); all seven operations are cheap, so they merge into one <code>kLoop</code> kernel, <code>broadcast_multiply_fusion</code>, and every intermediate stays in registers.</li>
+<li><b>Fused: read x once, write y once.</b> 1,048,576 bytes, 7.0 times fewer. Where elementwise work is limited by memory bandwidth (every accelerator), bytes moved predict the time; the whole train step's count is in the table below.</li>
+</ol>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
+<div class="xp-blk">
 <h3>The rule: pull producers into consumers, duplicate only what is cheap</h3>
 <p>XLA's basic fusion pass (<code>InstructionFusion</code>, which the CPU subclasses as <code>CpuInstructionFusion</code>) walks the program from its outputs back to its inputs. For each instruction (the <dfn>consumer</dfn>) and each of its operands (the <dfn>producer</dfn>) it asks one question, <code>ShouldFuse(consumer, operand_index)</code>; a yes pulls the producer's computation inside the consumer's kernel. If the producer has other users it now runs twice, once inside the fusion and once for the others, and XLA accepts that only for cheap operations, decided by a fixed list in <code>InstructionFusion::IsExpensive</code> (<code>instruction_fusion.cc:80</code>): <code>add</code>, <code>multiply</code>, <code>select</code>, <code>broadcast</code>, <code>transpose</code> are cheap; <code>exp</code>, <code>dot</code>, <code>convolution</code>, collectives and custom calls are expensive <span class="xp-tag s">read in source</span>.</p>
 <div class="pr" id="xp-pr-dup"><div class="q">Two programs on a 256 x 512 array: <code>e = jnp.exp(x)</code>, then <code>(e + 1).sum(-1)</code> and <code>(e * 2).max(-1)</code>; and the same with <code>e = x * 2</code>. Which compiles to fewer kernels? Predict, then switch the card below.</div>
 <div class="opts"><button data-a="0">The same: both fuse everything</button><button data-a="1">The multiply version</button><button data-a="0">The exp version</button></div>
 <div class="ans" hidden>The multiply: <span id="xp-dup-mul"></span> kernels against <span id="xp-dup-exp"></span>, and half the bytes moved (<span id="xp-dup-bytes"></span>) <span class="xp-tag m">measured here</span>. Recomputation is the price of fusion, and XLA only pays it when it is cheap.</div></div>
-<div class="rd-card" id="xp-dup-card">
+</div></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="xp-dup-card">
 <h4>One producer, two consumers: a cheap producer is copied into both, an expensive one is stored</h4>
 <div class="xp-seg" id="xp-dup-seg"><button data-m="mul_two_users" class="on">e = x * 2 (cheap)</button><button data-m="exp_two_users">e = exp(x) (expensive)</button></div>
 <div class="rd-svg" id="xp-dup-svg"></div>
 <p class="xp-note" id="xp-dup-cap"></p>
 <p class="xp-note">Kernels and their operations are the optimised HLO, default setting; bytes are XLA's <code>cost_analysis()</code> for the whole program <span class="xp-tag m">measured here</span>. With <code>x * 2</code>: 2 kernels, each recomputing the multiply. With <code>exp</code>: 3 kernels, the first writing a 512 KiB result that both reductions read back. The reductions are library fusions (<code>kCustom</code>), explained below.</p>
-</div>
+</div></div></div></div>
 
 <h3>Fusion kinds</h3>
 <p>Every fusion carries a kind, a hint for code generation that each backend uses differently: <code>kLoop</code> (one loop over the output's elements: elementwise chains, broadcasts, on CPU even reductions), <code>kInput</code> (built around a reduction, transpose, concatenate or scatter), <code>kOutput</code> (work fused after an operation such as a matmul) and <code>kCustom</code> (backend-specific: here the YNNPACK library; on GPU, Triton and cuDNN). The train step's <span data-xp="step_fusions"></span> fusions are <span data-xp="step_kloop"></span> <code>kLoop</code> and <span data-xp="step_kcustom"></span> <code>kCustom</code> <span class="xp-tag m">measured here</span>.</p>
@@ -29,23 +43,26 @@
 </div></details>
 <div class="co warn"><div class="t">A library inside the CPU compiler</div>XLA:CPU at this commit hands matmuls and many reductions to the YNNPACK library: its debug-option defaults add three library fusion types, <code>INDIVIDUAL_DOT</code>, <code>INDIVIDUAL_CONVOLUTION</code> and <code>REDUCE</code> (<code>debug_options_flags.cc:272</code>), while the help text of the flag that controls them still says "The default list is currently empty" (<code>:1660</code>). The code wins: the <code>kCustom</code> fusions named <code>ynn_fusion</code> in every dump here are those. On GPU the counterpart is cuBLAS or Triton for matmuls; on TPU, XLA's own code for the MXU.</div>
 
+<div class="s3sp"><div class="s3L">
+<div class="xp-blk">
 <h3>What XLA refuses, and why</h3>
 <p>XLA logs every decision at verbose level (<code>TF_CPP_MIN_LOG_LEVEL=0 TF_CPP_VMODULE=cpu_instruction_fusion=2,instruction_fusion=3</code>). Counted over the whole train step <span class="xp-tag m">measured here</span>:</p>
-<div class="rd-bars" id="xp-dec-bars"></div>
-<p class="xp-note">XLA's own strings (<code>FusionDecision::Forbid("...")</code>), instruction names replaced by X; counts are decisions, not pairs. "operand can not be duplicated" and "expensive producer would be duplicated" are the duplication rule above; "Too many reductions inside single fusion" is a CPU limit of five, "to avoid excessive compilation times" (<code>cpu_instruction_fusion.cc:482</code>); "Fusion is not profitable" refuses an expensive producer whose consumer reads each element more than once (a broadcast does); "Producer is not loop-fusible" covers library fusions, sorts, custom calls and loops. First logged examples: {{Fusion explorer|#t-xpfuse}}.</p>
+</div></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card"><h4>The fusion pass's own reasons, counted over the train step</h4><div class="rd-bars" id="xp-dec-bars"></div>
+<p class="xp-note">XLA's own strings (<code>FusionDecision::Forbid("...")</code>), instruction names replaced by X; counts are decisions, not pairs. "operand can not be duplicated" and "expensive producer would be duplicated" are the duplication rule above; "Too many reductions inside single fusion" is a CPU limit of five, "to avoid excessive compilation times" (<code>cpu_instruction_fusion.cc:482</code>); "Fusion is not profitable" refuses an expensive producer whose consumer reads each element more than once (a broadcast does); "Producer is not loop-fusible" covers library fusions, sorts, custom calls and loops. First logged examples: {{Fusion explorer|#t-xpfuse}}.</p></div></div></div></div>
 
+<div class="s3sp"><div class="s3L">
+<div class="xp-blk">
 <h3>The same softmax, three ways</h3>
-<div class="rd-card" id="xp-sm-card">
+<p>Two things show. With the library off, XLA's own <code>tree_reduction_rewriter</code> splits each reduction into a <code>reduce-window</code> over chunks and then a smaller reduction, a pass whose header explains it as increasing "precision for the reduction operation by applying the reduce-window first" (pairwise-style summation, smaller rounding error). And with the fusion pass off, the CPU still wraps each remaining operation in a one-operation <code>kLoop</code> fusion (<code>FusionWrapper</code>, "so that the fusion emitter can kick in"), which is why "no fusion" still prints fusions.</p></div></div>
+<div class="s3R"><div class="s3side"><div class="rd-card card" id="xp-sm-card">
 <h4>One softmax: 4 kernels by default, 6 with the library off or the fusion pass off</h4>
-<p class="xp-note">One <code>jax.nn.softmax(x, axis=-1)</code> on a 256 x 512 array, compiled three ways on this CPU <span class="xp-tag m">measured here</span>: XLA's default; with the YNNPACK library fusions switched off (<code>--xla_cpu_experimental_ynn_fusion_type=-individual_dot,-individual_convolution,-reduce</code>); with the fusion pass switched off (<code>--xla_disable_hlo_passes=fusion</code>). Each box is one kernel with the operations inside it; the bar under it marks a trip to memory. Bytes moved is XLA's <code>cost_analysis()</code>.</p>
-<div class="xp-seg" id="xp-sm-seg"><button data-m="no_fusion">Fusion pass off</button><button data-m="no_library">Library fusions off</button><button data-m="default" class="on">Default</button></div>
-<div class="an-ctl" id="xp-sm-ctl"></div>
-<div class="an-cnt" id="xp-sm-cnt"></div>
-<div class="xp-kern" id="xp-sm-k"></div>
-<div class="an-cap" id="xp-sm-cap"></div>
+<p class="xp-note">One <code>jax.nn.softmax(x, axis=-1)</code> on a 256 x 512 array, compiled three ways on this CPU <span class="xp-tag m">measured here</span>: XLA's default; with the YNNPACK library fusions switched off (<code>--xla_cpu_experimental_ynn_fusion_type=-individual_dot,-individual_convolution,-reduce</code>); with the fusion pass switched off (<code>--xla_disable_hlo_passes=fusion</code>). Each box is one kernel with the operations inside it, in the order they run; every kernel writes its result to memory for the next to read back. Bytes moved is XLA's <code>cost_analysis()</code>.</p>
+<div class="xp-three" id="xp-sm-k"></div>
 </div>
-<p>Two things show. With the library off, XLA's own <code>tree_reduction_rewriter</code> splits each reduction into a <code>reduce-window</code> over chunks and then a smaller reduction, a pass whose header explains it as increasing "precision for the reduction operation by applying the reduce-window first" (pairwise-style summation, smaller rounding error). And with the fusion pass off, the CPU still wraps each remaining operation in a one-operation <code>kLoop</code> fusion (<code>FusionWrapper</code>, "so that the fusion emitter can kick in"), which is why "no fusion" still prints fusions.</p>
+</div></div></div>
 
+<div class="xp-blk">
 <h3>The whole train step, with and without fusion</h3>
 <div class="tw"><table class="xp-t" id="xp-fuse-step"></table></div>
 <p class="xp-note">Kernels, bytes moved and the temporary-memory plan are deterministic; step and compile times are CPU seconds <span class="xp-tag m">measured here</span> on a shared machine (each in a fresh process; medians of 7 steps after 2 warm-up steps). Losses after 5 steps from the same start are identical to every printed digit with fusion on or off; with the library off the last digit moves (a different summation order).</p>
@@ -54,4 +71,5 @@
 <h3>On GPU and TPU</h3>
 <p>XLA:GPU replaces the fixed rules with <code>PriorityFusion</code> (<code>fusion_pipeline.cc:79</code>), which estimates each candidate's run time with a cost model of the device and fuses the most profitable first, followed by <code>MultiOutputFusion</code> (<code>:89</code>), which lets one kernel produce several outputs (two reductions that read the same input, done in one pass over it). Matmuls go to cuBLAS through <code>GemmRewriter</code> or become Triton kernels through <code>GemmFusion</code> (<code>gpu_compiler.cc:2132</code>), and <code>SoftmaxRewriterTriton</code> (<code>:2172</code>) turns softmax-like patterns into Triton kernels <span class="xp-tag s">read in source</span>. On the CPU multi-output fusion exists (<code>CpuMultiOutputFusion</code>) but is added only when a backend option asks for it (<code>cpu_compiler.cc:1098</code>). The TPU's fusion rules are inside <code>libtpu</code>. What transfers from this CPU: the rules' logic (cheap producers duplicate, expensive ones materialise, loops and custom calls are walls) and the byte accounting. What does not: the exact kernels, and the library split. When no compiler will fuse what you need (attention's online softmax), you write the kernel: {{Pallas kernels|n:3fa5c17b0d0d817699fcf65d085402e7}} in JAX, {{Triton|n:3c65c17b0d0d81729d15ed4d1a4461b3}} in PyTorch.</p>
 <p>Every one of the step's fusions, with its kind, phase and model function, and thirteen small programs that keep or break fusion, are in the {{Fusion explorer|#t-xpfuse}}.</p>
+</div>
 </section>

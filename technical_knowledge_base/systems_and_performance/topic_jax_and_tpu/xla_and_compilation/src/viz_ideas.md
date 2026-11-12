@@ -26,6 +26,11 @@ The question the page keeps returning to: **what did the compiler do to my train
 | 17 | TPU tile padding (one slider) | Reading s5 | derived from docs/tiled_layout.md | Parameter with a crossover at multiples of 128; default reproduces the page's 1.97x by construction | n/a |
 | 18 | The two caches (static flow) | Reading s8 | cache_key.py, cache runs | What a hit skips at each level | n/a |
 
+| 19 | Fig. 1, 3D hero: the attention sub-block's four forms as plates, LayerNorm's `x - mu` followed down (2026-11-12) | Reading top | `lowering.json` forms via `make_data.py` (`low.scn.sub`) | Replaces the 2D hero: a whiteboard picture of the levels with one operation traced through them; adds beyond JAX core's Fig. 2 (that one is about time and the cache) | n/a |
+| 20 | Fig. 2, 3D: the elementwise chain unfused (7 kernels, 14 trips to memory) and fused (one kernel) (2026-11-12) | Reading s4 | `fusion_lab.json` chain breaker (`low.scn.chain`) | Fusion's whole point, memory traffic, made visible with real byte counts | n/a |
+| 21 | Fig. 3, 3D: which changes miss the compile cache, one recorded case per step, then the storm (2026-11-12) | Reading s10 | `recompile.json` scenarios and storm | Replaces the bullet list of causes; links JAX core's Fig. 2 for the hit/miss mechanism | n/a |
+| 22 | Pass staircase as seven explained stretches; memory chart as five; storm and softmax as reader-driven or static figures (2026-11-12) | Reading s3, s6, s10, s4 | unchanged data | The long-replay rule: no animation steps once per pass, position or call | n/a |
+
 ## Rejected
 
 - Rebuilding the root's five-forms stepper and MLP-block fusion animation: owned by the root's Compiler lab, linked instead.
@@ -34,6 +39,9 @@ The question the page keeps returning to: **what did the compiler do to my train
 - Animating Inductor against XLA on the PyTorch twin: owned by the CUDA topic's compiler-stack page.
 - A real image (TPU board, XLA's architecture figure): this page is about a compiler, not a physical object; the hero diagram is the better tool (2026-10-23).
 - xprof's op profile and memory profile views: empty on CPU (recorded on the page as a finding).
+- 2026-11-12, kept 2D: the four-forms viewer, HLO anatomy, layout examples and every table (text is the content); the pass staircase, the memory-over-schedule curve, the storm's per-call times and the refusal counts (numbers on an axis); the tile-padding slider (one parameter, flat); the duplicate-or-store and two-caches diagrams (small flat structures that read at a glance); the PJRT layers (a short stack, flat is clearer than 3D).
+- 2026-11-12: the lowering levels as plates beyond the attention block (the whole step's 3,411 / 5,318 / 4,932 / 817 are written on Fig. 1's last step instead of drawn as 14,000 tiles); a 3D memory timeline (no per-layer attribution over time in the dump, only totals and the peak breakdown).
+- 2026-11-12: a real image. Still none that shows something new: the subject is a compiler, and an XProf screenshot of a CPU trace would add nothing the Profile reader does not.
 
 ## What the methodology lacked
 A rule for **compiler internals with no published figure to reproduce**: here the "reproduce" check became "reconstruct XLA's own reported number from its dump" (peak memory within 0.3%; kernel counts reconciled with the root's lab, which counted reducer bodies as kernels).

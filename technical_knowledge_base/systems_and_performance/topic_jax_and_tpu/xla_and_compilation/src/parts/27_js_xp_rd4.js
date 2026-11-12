@@ -1,46 +1,11 @@
-// ---- Reading: the static figures added on 2026-10-23 (hero, PJRT, duplicate-or-store, TPU tile padding, the two caches) ----
+// ---- Reading: the static figures added on 2026-10-23 (PJRT, duplicate-or-store, TPU tile padding, the two caches); the 2D hero was replaced by the 3D Fig. 1 (42_js_sc_hero.js) on 2026-11-12 ----
 (function(){
-  if(!document.getElementById('xp-hero'))return;
+  if(!document.getElementById('xp-pjrt-svg'))return;
   const D=XP.D, n=D.n, esc=XP.esc, f=XP.f, T=RD.t;
   const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="'+(o.fill||'var(--soft)')+'" stroke="'+(o.stroke||'var(--line)')+'"'+(o.dash?' stroke-dasharray="4 3"':'')+(o.sw?' stroke-width="'+o.sw+'"':'')+'/>'};
   const arrow=(x1,y1,x2,y2,c)=>{c=c||'var(--mute)';const a=Math.atan2(y2-y1,x2-x1),h=6;
     return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="1.3"/><path d="M'+x2+','+y2+' L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+','+(y2-h*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+','+(y2-h*Math.sin(a+0.45)).toFixed(1)+'Z" fill="'+c+'"/>'};
   const lines=(x,y,arr,o)=>arr.map((s,i)=>T(x,y+i*14,s,o)).join('');
-
-  // 1. hero: the stages, their counts, and the levers
-  const kb=v=>f(v);
-  const ROWS=[
-    {o:'JAX',n:'Python train_step',d:'runs once, on tracers',c:'1 function',l:['shapes, static args:','the cache key (8, 10)']},
-    {o:'JAX',n:'jaxpr',d:'one equation per primitive',c:kb(n.step_jaxpr)+' eqns',l:[]},
-    {o:'JAX',n:'StableHLO',d:'lowering rules, one module',c:kb(n.step_shlo)+' ops',l:['jax.export','ships this (9)']},
-    {o:'PJRT',n:'PJRT',d:'the plug to a device plugin',c:'C API 0.'+n.pjrt_minor,l:['install the plugin','for your jaxlib (2)']},
-    {o:'XLA',n:'HLO',d:'XLA\'s form, before any pass',c:kb(n.step_hlo)+' instrs',l:[]},
-    {o:'XLA',n:'Passes',d:'simplify, CSE, layout, fuse',c:n.pass_step_changed+' changed',l:['XLA_FLAGS (12)','--xla_dump_to (3)']},
-    {o:'XLA',n:'Optimised HLO',d:n.step_fusions+' fusions, '+n.step_dots+' matmuls',c:kb(n.step_kernels)+' kernels',l:['what fuses (4)','layouts (5)']},
-    {o:'XLA',n:'Schedule, buffers',d:'planned peak, every byte placed',c:n.xla_peak_mb+' MB',l:['donate_argnums (6)','jax.checkpoint (7)']},
-    {o:'backend',n:'Executable',d:'LLVM, PTX or libtpu',c:'1 per key',l:['two caches (8)','profile it (11)']}];
-  const OC={JAX:'var(--c1)',PJRT:'var(--c6)',XLA:'var(--c2)',backend:'var(--c3)'};
-  function hero(){
-    const host=document.getElementById('xp-hero'), W=RD.width(host), narrow=W<560;
-    const ox=20, bx=ox+8, bw=Math.round((W-bx)*(narrow?0.58:0.56)), lx=bx+bw+(narrow?10:18), lw=W-lx-2;
-    const rh=narrow?38:36, gap=11, top=4;
-    let s='';
-    // owner bands
-    const groups=[['JAX',0,2],['PJRT',3,3],['XLA',4,7],['backend',8,8]];
-    groups.forEach(([g,a,b])=>{const y1=top+a*(rh+gap),y2=top+b*(rh+gap)+rh;
-      s+='<rect x="2" y="'+y1+'" width="5" height="'+(y2-y1)+'" rx="2" fill="'+OC[g]+'"/>';
-      const my=(y1+y2)/2;s+='<text transform="translate('+(ox-3)+','+my+') rotate(-90)" text-anchor="middle" font-size="11" fill="var(--mute)">'+(g==='backend'?'device':g)+'</text>'});
-    ROWS.forEach((r,i)=>{const y=top+i*(rh+gap);
-      s+=box(bx,y,bw,rh,{stroke:OC[r.o]});
-      s+=T(bx+8,y+15,esc(r.n),{w:600,fs:12})+T(bx+bw-7,y+15,esc(r.c),{a:'end',fs:11.5,w:600,fill:OC[r.o]});
-      s+=T(bx+8,y+30,esc(r.d),{fs:11,fill:'var(--mute)'});
-      if(i<ROWS.length-1)s+=arrow(bx+bw/2,y+rh+1,bx+bw/2,y+rh+gap-1);
-      if(r.l.length){s+='<line x1="'+(bx+bw+1)+'" y1="'+(y+rh/2)+'" x2="'+(lx-1)+'" y2="'+(y+rh/2)+'" stroke="var(--acc)" stroke-dasharray="3 3"/>';
-        s+=box(lx,y+2,lw,rh-4,{fill:'var(--bg)',stroke:'var(--acc)'});s+=lines(lx+7,y+15,r.l.map(esc),{fs:11,fill:'var(--acc)'})}
-    });
-    const H=top+ROWS.length*(rh+gap)-gap+4;
-    host.innerHTML=RD.svg(W,H,s,'The train step from Python to executable, with the levers at each stage');
-  }
 
   // 2. PJRT structure
   function pjrt(){
@@ -127,6 +92,6 @@
     host.innerHTML=RD.svg(W,y+2,s,'The in-memory and persistent compilation caches');
   }
 
-  function all(){hero();pjrt();dup();pad();cache()}
+  function all(){pjrt();dup();pad();cache()}
   all();RD.onRender(all);RD.onResize(all);
 })();

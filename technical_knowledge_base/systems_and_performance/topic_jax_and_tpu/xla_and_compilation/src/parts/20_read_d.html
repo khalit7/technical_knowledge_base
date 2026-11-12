@@ -1,25 +1,40 @@
 <section id="rd-s3">
+<div class="xp-blk">
 <h2>3. XLA's HLO and its pass pipeline</h2>
 <p><b>HLO</b> (High Level Operations) is XLA's own program form. A module holds computations: the <code>ENTRY</code> computation is the program, and the others are called from it (fusion bodies, loop bodies, the two-argument functions that tell a reduction how to combine values). Each line is one <dfn>instruction</dfn>. One line of the optimised attention block, taken apart:</p>
 <pre class="xp-code">%dot.4 = f32[4096,128]{1,0} dot(%param_0, %param_1), lhs_contracting_dims={1}, rhs_contracting_dims={0}
  name     shape (dtype[dims])  opcode   operands          attributes: which dimensions are summed over
                        {1,0} = layout: dimension 1 is fastest-varying in memory (row-major)</pre>
 <p class="xp-cap">The shape <code>[4096,128]</code> is the batch of 32 x 128 characters flattened by a pass called <code>dot_decomposer</code>, which puts every matmul into one canonical form. On a TPU the same line would carry a tiled layout such as <code>{1,0:T(8,128)(2,1)}</code> and possibly a memory space <code>S(1)</code>, which XLA's docs gloss as "this array lives in VMEM (on a TPU)" (<a href="https://github.com/openxla/xla/blob/91888df6ce85102c30220e41d952065925e10886/docs/shapes.md" target="_blank" rel="noopener noreferrer">docs/shapes.md</a>) <span class="xp-tag g">Google docs</span>; section 5 explains tiles.</p>
+</div>
+
+<div class="s3sp"><div class="s3R"><div class="rd-card card" id="xp-stair-card">
+<h4>The same program, pass by pass: CSE removes the duplicates, the library rewrite and fusion collapse the rest</h4>
+<div class="xp-seg" id="xp-stair-seg"><button data-m="step" class="on">Whole train step</button><button data-m="attn">Attention block, forward + backward</button></div>
+<div class="an-ctl" id="xp-stair-ctl"></div>
+<div class="an-cnt" id="xp-stair-cnt"></div>
+<div class="xp-chart" id="xp-stair-svg"></div>
+<p class="xp-note">Bars: top-level instructions after each pass that changed the text (a fusion counts as one), the current stretch highlighted; the line: how many of them are fusions <span class="xp-tag m">measured here</span>. Each pass's diff, opcode by opcode, is in the {{Pass diff viewer|#t-xppass}}.</p>
+</div>
+</div><div class="s3L">
+<div class="xp-blk">
 <p><b>Passes.</b> XLA optimises by running <dfn>passes</dfn>: each reads the whole module and rewrites it (simplify algebra, remove duplicates, choose layouts, fuse, insert copies). Passes are grouped into <dfn>pipelines</dfn>; a pipeline wrapped in <code>HloPassFix</code> repeats until nothing changes, which is why the dumps show <code>algsimp</code>, <code>dce</code> and <code>reshape-mover</code> six times in a row. Each backend assembles its own pipeline: <code>cpu_compiler.cc</code> has <span data-xp="cpu_addpass"></span> <code>AddPass</code> calls naming <span data-xp="cpu_classes"></span> pass classes, <code>gpu_compiler.cc</code> with its fusion pipeline <span data-xp="gpu_addpass"></span> naming <span data-xp="gpu_classes"></span>, and <span data-xp="shared_classes"></span> classes appear in both <span class="xp-tag s">read in source</span>. The TPU pipeline lives in the closed <code>libtpu</code>.</p>
 <p><b>How to watch them.</b> <code>XLA_FLAGS="--xla_dump_to=DIR --xla_dump_hlo_pass_re=.*"</code> writes the module after every pass that changed it: for the train step <span data-xp="pass_step_files"></span> per-pass files (<span data-xp="dump_step_mb"></span> MB with everything else XLA dumps), of which <span data-xp="pass_step_changed"></span> differ in program text once metadata is set aside; for the attention sub-block forward and backward, <span data-xp="pass_attn_changed"></span> of <span data-xp="pass_attn_files"></span>.</p>
 <div class="pr" id="xp-pr-cse"><div class="q">Predict before you step through the passes: which single pass removes the most instructions from the train step before fusion?</div>
 <div class="opts"><button data-a="0">algsimp (algebraic simplification)</button><button data-a="1">cse (common-subexpression elimination)</button><button data-a="0">dce (dead-code elimination)</button></div>
 <div class="ans" hidden><code>cse</code>, from <span id="xp-cse-from"></span> to <span id="xp-cse-to"></span> instructions. The step computes the global gradient norm twice (once inside <code>clip_by_global_norm</code>, once for logging), one square, sum and add per parameter array each time, and broadcasts the same scalars into each of the 69 optimiser updates. Tracing records all of it; CSE keeps one copy. Its header: "Identical constants and identical instructions with the same operands are commoned" (<code>hlo_cse.h:32</code>).</div></div>
-<div class="rd-card" id="xp-stair-card">
-<h4>The same program, pass by pass: CSE removes the duplicates, the library rewrite and fusion collapse the rest</h4>
-<div class="xp-seg" id="xp-stair-seg"><button data-m="attn" class="on">Attention block, forward + backward</button><button data-m="step">Whole train step</button></div>
-<div class="an-ctl" id="xp-stair-ctl"></div>
-<div class="an-cnt" id="xp-stair-cnt"></div>
-<div class="xp-chart" id="xp-stair-svg"></div>
-<div class="an-cap" id="xp-stair-cap"></div>
-<p class="xp-note">Bars: top-level instructions after each pass that changed the text (a fusion counts as one); the line: how many of them are fusions <span class="xp-tag m">measured here</span>. On the train step the count falls from 4,681 to 3,758 at <code>cse</code>, and from 3,677 to 2,006 at <code>fusion</code>. Each pass's diff, opcode by opcode, is in the {{Pass diff viewer|#t-xppass}}.</p>
-</div>
+<p>The chart on the right replays the pipeline on two real programs, grouped into the seven stretches below; the numbers in the steps are the train step's, and the counters follow the program you pick.</p>
+<ol class="sx" id="sx-stair">
+<li><b>Canonicalise and inline.</b> <code>dot_decomposer</code> puts every matmul into one canonical form, adding reshapes and transposes around each (4,993 to 5,368 instructions), and <code>call-inliner</code> pastes the nested jits JAX lowered as private functions into their callers.</li>
+<li><b>Simplify to a fixed point.</b> <code>algsimp</code>, <code>dce</code> and <code>reshape-mover</code> (with constant folding) repeat to a fixed point. <code>tree_reduction_rewriter</code> adds 134 <code>reduce-window</code>s along the way (section 4 says why).</li>
+<li><b>Fold transposes, then CSE.</b> <code>transpose-folding</code> lets dots read their inputs transposed; common-subexpression elimination then removes the duplicates tracing recorded, from 4,681 to 3,758 instructions, the largest drop before fusion.</li>
+<li><b>Choose layouts.</b> <code>layout-assignment</code> gives every array one memory order and adds 88 copies where a producer and a consumer disagree; <code>reshape-decomposer</code> turns 142 reshapes into free bitcasts (section 5).</li>
+<li><b>Hand work to the library (CPU only).</b> <code>dot-library-rewriter</code> wraps matmuls and many reductions into 173 YNNPACK library fusions (<code>kCustom</code>).</li>
+<li><b>Fuse.</b> <code>fusion</code> takes the module from 3,677 to 2,006 instructions, and <code>fusion-wrapper</code> wraps every leftover operation in a one-operation fusion: 799 fusions.</li>
+<li><b>Clean up, copy, schedule.</b> CSE, <code>algsimp</code> and <code>dce</code> run once more, <code>copy-insertion</code> adds the copies aliasing needs, and the scheduled module is left with 1,784 instructions, 783 of them fusions.</li>
+</ol>
 <p><b>Only on GPU</b> <span class="xp-tag s">read in source</span> <span class="xp-tag n">not run here</span>: <span id="xp-gpu-only"></span>. They are the passes that need a cost model of the device (<code>PriorityFusion</code> ranks fusions by estimated run time), call vendor libraries (<code>GemmRewriter</code> for cuBLAS), generate Triton kernels (<code>GemmFusion</code>, <code>SoftmaxRewriterTriton</code>), fit memory (<code>HloRematerialization</code>, section 7), or overlap communication (the collective passes taught on {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}).</p>
+</div></div></div>
 <details class="dp"><summary>Every pass that changed these programs, with its class, header line and where each backend adds it <span class="mute">(reference)</span></summary><div class="b">
 <div class="tw"><table class="xp-t xp-cards xp-wide" id="xp-pass-tab"></table></div>
 <p class="xp-note">Pass names are the ones in the dump file names; each is matched to its class by finding the <code>name()</code> string in the class's header at the pinned commit (header and line in the table). "GPU" lists the lines of <code>gpu_compiler.cc</code> (or <code>fusion_pipeline.cc</code>) that add the same class or its GPU variant (<code>GpuAlgebraicSimplifier</code>, <code>GpuLayoutAssignment</code>, <code>PriorityFusion</code> in the fusion row). Copy insertion on GPU happens in a separate pipeline file not fetched here. PyTorch's nearest counterpart to this pipeline is AOTAutograd plus Inductor: decompositions, functionalisation, pattern passes, then the scheduler that fuses.</p>
