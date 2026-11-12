@@ -1,54 +1,7 @@
-// ---- Reading: static SVG figures drawn at the measured width: hero (top), dynamic-shape grid (4), partitioner trade-off (5), compile-time phase bars (9, 10) ----
+// ---- Reading: static SVG figures drawn at the measured width (the hero is now the 3D Fig. 1, 41_js_sc_call.js): dynamic-shape grid (4), partitioner trade-off (5), compile-time phase bars (9, 10) ----
 (function(){
   const {$,esc}=TU,D=TCP;if(!$('t-read'))return;
   const T=RD.t;
-  const ar=(x1,y1,x2,y2,col,dash)=>{const a=Math.atan2(y2-y1,x2-x1),h=6;
-    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="1.6"'+(dash?' stroke-dasharray="4 3"':'')+'/>'+
-      '<path d="M'+x2+' '+y2+' L'+(x2-h*Math.cos(a-0.45)).toFixed(1)+' '+(y2-h*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-h*Math.cos(a+0.45)).toFixed(1)+' '+(y2-h*Math.sin(a+0.45)).toFixed(1)+'Z" fill="'+col+'"/>'};
-  const box=(x,y,w,h,col,o)=>{o=o||{};return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(o.fill||'var(--bg)')+'" stroke="'+col+'" stroke-width="'+(o.sw||1.4)+'"'+(o.dash?' stroke-dasharray="5 3"':'')+'/>'};
-  // ---------- hero ----------
-  const STAGES=[
-    {t:'Your code',c:'var(--mute)',l:['GPT.forward(idx, y)','Python bytecode','first call'],n:['GPT.forward(idx, y): Python bytecode, first call']},
-    {t:'Dynamo',c:'var(--c1)',l:['FX graph: 59 ops','549 guards','sections 1, 2'],n:['FX graph of 59 ops, 549 guards (sections 1, 2)']},
-    {t:'AOTAutograd',c:'var(--c3)',l:['joint graph 646 ops','fwd 271 | bwd 427','saves 34.81 MB (5)'],n:['joint 646 ops, cut to fwd 271 and bwd 427;','saves 34.81 MB for backward (section 5)']},
-    {t:'Inductor',c:'var(--c4)',l:['fuse, write kernels','block fwd: 4 kernels','+ wrapper call() (6)'],n:['fuses; one block forward = 4 kernels','plus a Python wrapper call() (section 6)']},
-    {t:'Cache on disk',c:'var(--c5)',l:['cold step 9.1 s','warm step 0.85 s','sections 9, 10'],n:['cold first step 9.1 s, warm 0.85 s (9, 10)']}];
-  function hero(){
-    const el=$('tcp-hero');if(!el)return;const w=Math.min(RD.width(el),900);let s='';
-    if(w>=700){
-      const pad=2,gap=18,bw=(w-2*pad-4*gap)/5,yA=62,hA=78,yB=196,hB=48,cx=i=>pad+i*(bw+gap);
-      s+=T(cx(0),yA-8,'First call',{fill:'var(--mute)',fs:11.5,w:600});
-      STAGES.forEach((S,i)=>{const x=cx(i);s+=box(x,yA,bw,hA,S.c,{sw:i?1.8:1.2});s+=T(x+bw/2,yA+18,S.t,{a:'middle',fs:13,w:600,fill:S.c});
-        S.l.forEach((l,j)=>{s+=T(x+bw/2,yA+36+j*15,esc(l),{a:'middle',fs:11.5,fill:j===2?'var(--mute)':'var(--ink)'})});
-        if(i<4)s+=ar(x+bw+1,yA+hA/2,x+bw+gap-2,yA+hA/2,'var(--mute)')});
-      // graph break off-ramp above Dynamo
-      const gx=cx(1),gw=bw*2+gap;s+=box(gx,4,gw,36,'var(--bad)',{dash:1,fill:'var(--soft)'});
-      s+=T(gx+gw/2,19,'Graph break: a line Dynamo cannot capture',{a:'middle',fs:11.5,fill:'var(--bad)',w:600});
-      s+=T(gx+gw/2,33,'runs in Python, graph split in two (section 3)',{a:'middle',fs:11,fill:'var(--ink)'});
-      s+=ar(cx(1)+bw/2,yA-2,cx(1)+bw/2,42,'var(--bad)',1);
-      // later call lane
-      s+=T(cx(0),yB-8,'Every later call',{fill:'var(--mute)',fs:11.5,w:600});
-      s+=box(cx(0),yB,bw,hB,'var(--mute)');s+=T(cx(0)+bw/2,yB+20,'same function',{a:'middle',fs:12,w:600});s+=T(cx(0)+bw/2,yB+36,'new inputs',{a:'middle',fs:11.5,fill:'var(--mute)'});
-      s+=ar(cx(0)+bw+1,yB+hB/2,cx(1)-2,yB+hB/2,'var(--mute)');
-      s+=box(cx(1),yB,bw,hB,'var(--acc)',{sw:2,fill:'var(--acc2)'});s+=T(cx(1)+bw/2,yB+20,'guards (C++)',{a:'middle',fs:12.5,w:600});s+=T(cx(1)+bw/2,yB+36,'45 to 81 µs',{a:'middle',fs:11.5});
-      const px=cx(2),pw=bw*3+gap*2;s+=ar(cx(1)+bw+1,yB+hB/2,px-2,yB+hB/2,'var(--good)');
-      s+=box(px,yB,pw,hB,'var(--good)');s+=T(px+pw/2,yB+20,'pass: run the cached kernels, no Python per op',{a:'middle',fs:12,w:600,fill:'var(--good)'});s+=T(px+pw/2,yB+36,'fail: compile another version (recompile, section 4)',{a:'middle',fs:11.5,fill:'var(--bad)'});
-      s+=ar(cx(1)+bw/2,yB-2,cx(1)+bw/2,yA+hA+3,'var(--bad)',1);
-      s+=T(cx(1)+bw/2+6,(yA+hA+yB)/2+4,'fail: recompile',{fs:11,fill:'var(--bad)'});
-      el.innerHTML=RD.svg(w,yB+hB+4,s,'The torch.compile pipeline: Dynamo, AOTAutograd, Inductor, the cache, and the guard check on later calls');
-    }else{
-      const bh=48,gap=16;let y=0;
-      s+=T(0,y+12,'First call',{fill:'var(--mute)',fs:11.5,w:600});y+=20;
-      STAGES.forEach((S,i)=>{const h=S.n.length>1?bh+12:bh;s+=box(1,y,w-2,h,S.c,{sw:i?1.8:1.2});s+=T(10,y+18,S.t,{fs:12.5,w:600,fill:S.c});
-        S.n.forEach((l,j)=>{s+=T(10,y+34+j*14,esc(l),{fs:11})});
-        if(i===1){s+=T(w-10,y+18,'break: section 3',{a:'end',fs:11,fill:'var(--bad)'})}
-        y+=h;if(i<4){s+=ar(w/2,y+1,w/2,y+gap-2,'var(--mute)');y+=gap}});
-      y+=14;s+=T(0,y+12,'Every later call',{fill:'var(--mute)',fs:11.5,w:600});y+=20;
-      s+=box(1,y,w-2,62,'var(--acc)',{sw:2,fill:'var(--acc2)'});s+=T(10,y+18,'guards in C++, 45 to 81 µs',{fs:12.5,w:600});
-      s+=T(10,y+34,'pass: run the cached kernels',{fs:11.5,fill:'var(--good)'});s+=T(10,y+50,'fail: recompile (section 4)',{fs:11.5,fill:'var(--bad)'});y+=64;
-      el.innerHTML=RD.svg(w,y,s,'The torch.compile pipeline: Dynamo, AOTAutograd, Inductor, the cache, and the guard check on later calls');
-    }
-  }
   // ---------- dynamic shapes grid ----------
   const DS=[['default','default (automatic dynamic)','default'],['static','dynamic=False','dynamic=False'],['dynamic_true','dynamic=True','dynamic=True'],['mark_dynamic','mark_dynamic(min=2, max=64)','mark_dynamic'],['mark_unbacked','mark_unbacked','mark_unbacked']];
   function dyn(){
@@ -112,7 +65,7 @@
   function cache(){const R=[['cold_whole_4_save','Cold (empty cache)','Cold'],['mega_whole_4','Mega-cache, empty dir','Mega-cache'],['warm_whole_4','Warm (same cache dir)','Warm']];
     pbars('tcp-cache-svg',R);
     if($('tcp-cache-note'))$('tcp-cache-note').textContent='Whole model, 4 blocks; colours as in section 9. Each of 3 rounds: a cold run that saved the mega-cache ('+TU.comma(C.cold_whole_4_save.runs[0].mega)+' bytes), a warm run in the same directory, a mega-cache load into a new empty directory. Cache hits (FX graph, AOTAutograd): '+R.map(([k,,ns])=>ns+' '+C[k].runs[0].hit[0]+', '+C[k].runs[0].hit[2]).join('; ')+'. CPU, bench lock.'}
-  function all(){hero();dyn();part();reg();cache()}
+  function all(){dyn();part();reg();cache()}
   RD.onRender(all);RD.onResize(all);all();
   // the per-run table (section 10, closed block)
   if($('tcpc-tbl')){const rows=[];Object.entries(C).forEach(([k,v])=>v.runs.forEach((r,j)=>{const p=phases(r);rows.push([esc(k),j+1,r.first.toFixed(2),p[0][0].toFixed(2),p[1][0].toFixed(2),p[2][0].toFixed(2),(r.ts['async_compile.wait']||0).toFixed(2),r.hit[0]+' / '+r.hit[1],r.hit[2]+' / '+r.hit[3],r.load.toFixed(1)])}));

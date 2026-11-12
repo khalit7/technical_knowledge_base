@@ -237,9 +237,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_pytorch_ecosystem/libraries_on_top_of_pytorch` Libraries on top of PyTorch: HF stack, torchtitan, Lightning, Axolotl, DeepSpeed
 - [x] `systems_and_performance/topic_pytorch_ecosystem/making_training_fast` Making training fast: profiling, memory, attention, torchao
 - [x] `systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd` Tensors, the dispatcher and autograd
-- [~] `systems_and_performance/topic_pytorch_ecosystem/torch_compile` torch.compile from the user's side
-- [ ] `systems_and_performance/topic_pytorch_ecosystem` Topic: pytorch-ecosystem
-- [ ] `whats_new/papers/agora` Agora: Git as Shared Memory for Collective AutoResearch
+- [x] `systems_and_performance/topic_pytorch_ecosystem/torch_compile` torch.compile from the user's side
+- [~] `systems_and_performance/topic_pytorch_ecosystem` Topic: pytorch-ecosystem
+- [~] `whats_new/papers/agora` Agora: Git as Shared Memory for Collective AutoResearch
 - [ ] `whats_new/papers/bert` BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding
 - [ ] `whats_new/papers/bitune` Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
 - [ ] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
@@ -531,6 +531,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_pytorch_ecosystem/extending_pytorch`: Fig. 2 close-up barely closer than the full view; Fig. 1 full view empty space below at 1400; some older SVG labels at 11 to 11.5 px; Fig. 3 output box not to scale and not stated.
 - `systems_and_performance/topic_pytorch_ecosystem/making_training_fast`: Fig. 3 thin with much empty space at 1400 and small on phones; Fig. 2 value labels close ("143.0 ms" twice); core 38 min plus 20 closed (32 before).
 - `systems_and_performance/topic_pytorch_ecosystem/tensors_dispatcher_and_autograd`: the engine explorer (3.2, about 1,100 px tall, reader-driven) stays a full-width section; Fig. 4 small on phones; Fig. 2 step 1 shows only the storage row in close.
+- `systems_and_performance/topic_pytorch_ecosystem/torch_compile`: Figs 1 and 3 small on phones; Fig. 3 empty space above and below at 1400.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -613,3 +614,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Extending PyTorch: Fig. 1 traces ext::gelu2 (two devices) not ext::gelu; Fig. 3 scale column thicker than scale (stated); the subclass tracer is a widget opening on the weight's first forward call; the two tool tabs stay full width. Keep these?
 - Making training fast: the 2D trace player kept as a closed "explore op by op" widget; Fig. 4 shows plain against full checkpointing only (SAC in bars, SAC curves no longer drawn); Fig. 2 blocks cut at 1.3x baseline (only CPU bfloat16 43.7 s cut); Fig. 1 last step pairs the hunt's kept-fix time with the checkpointed memory (two runs, labelled). Keep these?
 - Tensors, the dispatcher and autograd: Fig. 3 replaced the pick-two situation comparison with a fixed seven-situation walk; the engine explorer kept as a full-width widget below Fig. 4. Keep these?
+- torch.compile: the graph-break fixer became a widget (Fig. 2 animates the print case); fusion step 3 groups the round-1 fusions by LayerNorm (stated); no modes stage (no per-mode compile measurement; proposal: three fresh-process cold compiles per mode, about 10 s each). Run those measurements?

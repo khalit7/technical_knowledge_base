@@ -2,30 +2,28 @@
 (function(){
   const {$,esc}=TU,I=TCP.ind;if(!$('tcp-fuse-card'))return;
   const kindCol={reduction:'var(--c1)',pointwise:'var(--c3)',extern:'var(--c2)'};
-  // states: 0 = initial; one per fusion event; then round 2; then codegen
-  const states=[];let groups=I.nodes.map(n=>({id:n.name,members:[n]}));
-  states.push({groups:groups.map(g=>({...g})),t:'Lowering hands the scheduler 16 nodes',p:'Pointwise chains were already inlined during lowering: op3 alone holds LayerNorm\'s subtract, multiply, rsqrt and add; op14 is all of GELU. Extern nodes (orange) are library calls: addmm, attention.',f:0});
-  I.fusions.forEach(([a,b],k)=>{
-    const ga=groups.find(g=>g.id===a),gb=groups.find(g=>g.id===b);
-    const merged={id:a+'_'+b,members:ga.members.concat(gb.members),hot:true};
-    groups=groups.filter(g=>g!==ga&&g!==gb);groups.splice(Math.min(...[ga,gb].map(g=>I.nodes.findIndex(n=>n.name===g.members[0].name))),0,merged);
-    groups.sort((x,y)=>I.nodes.findIndex(n=>n.name===x.members[0].name)-I.nodes.findIndex(n=>n.name===y.members[0].name));
-    const ln=ga.members[0].model_line===105?'first':'second';
-    states.push({groups:groups.map(g=>({...g,hot:g===merged})),t:'Round 1, fusion '+(k+1)+' of '+I.fusions.length+': '+a+' with '+b,p:'Both read the same activation row by row (the '+ln+' LayerNorm\'s statistics and normalisation), so one loop can do both and the intermediate never goes to memory.',f:k+1});
-  });
-  states.push({groups:groups.map(g=>({...g})),t:'Round 2: no more fusions; '+Object.values(I.rejects).reduce((a,b)=>a+b,0)+' pairs were rejected in all',p:'Every rejection had the same reason: "'+esc(Object.keys(I.rejects)[0])+'". For example a LayerNorm and the next one cannot share a loop, because the attention and matmuls (extern) must run between them.',f:I.fusions.length});
+  // five steps (2026-11-12): the 16 nodes; the three fusions that make each LayerNorm one node (grouped by LayerNorm; the log interleaves them);
+  // round 2; codegen. The step list #sx-fuse explains each; the counters below the nodes follow the step.
+  const states=[];let groups=I.nodes.map(n=>({id:n.name,members:[n]}));const pos=g=>I.nodes.findIndex(n=>n.name===g.members[0].name);
+  states.push({groups:groups.map(g=>({...g})),f:0});
+  let made=0;
+  function fuse(ids){const hot=[];ids.forEach(k=>{const [a,b]=I.fusions[k],ga=groups.find(g=>g.id===a),gb=groups.find(g=>g.id===b);
+      const m={id:a+'_'+b,members:ga.members.concat(gb.members)};groups=groups.filter(g=>g!==ga&&g!==gb);groups.push(m);made++;hot.push(m.id)});
+    groups.sort((x,y)=>pos(x)-pos(y));states.push({groups:groups.map(g=>({...g,hot:hot.includes(g.id)})),f:made})}
+  const lnOf=k=>I.nodes.find(n=>n.name===I.fusions[k][0].split('_')[0]).origins.some(o=>/_1|_2/.test(o))?2:1;
+  fuse(I.fusions.map((_,k)=>k).filter(k=>lnOf(k)===1));fuse(I.fusions.map((_,k)=>k).filter(k=>lnOf(k)===2));
+  states.push({groups:groups.map(g=>({...g})),f:made});
   const fused=I.launches.filter(l=>l.kind==='fused').map(l=>l.name);
-  states.push({groups:groups.map(g=>({...g})),t:'Codegen: '+groups.length+' nodes become '+fused.length+' C++ kernels and '+I.launches.filter(l=>l.kind!=='fused').length+' library calls',p:'Each non-extern group is one kernel: '+fused.map(esc).join(', ')+'. The externs become 4 calls to extern_kernels.addmm (BLAS) and one call to the CPU flash-attention kernel; one extern node only unpacks the attention result.',f:I.fusions.length,code:true});
-  const box=$('tcp-fuse-nodes'),cap=$('tcp-fuse-cap'),cnt=$('tcp-fuse-cnt');
+  states.push({groups:groups.map(g=>({...g})),f:made,code:true});
+  const box=$('tcp-fuse-nodes'),cnt=$('tcp-fuse-cnt');
   function draw(i){const S=states[i];let fi=0;
     box.innerHTML=S.groups.map(g=>{const k=g.members.some(m=>m.kind==='reduction')?'reduction':g.members[0].kind;
       const name=S.code&&k!=='extern'?fused[fi++]:g.id;
       const org=[...new Set(g.members.flatMap(m=>m.origins))].slice(0,6).join(', ');
       return '<span class="'+(g.hot?'g':'')+'" style="--sc:'+kindCol[k]+'" title="'+esc(org)+'">'+esc(name)+(g.members.length>1?' <b>('+g.members.length+')</b>':'')+(org?'<br><small class="mute">'+esc(org)+'</small>':'')+'</span>'}).join('');
-    cap.innerHTML='<div class="t">'+S.t+'</div><p>'+S.p+'</p>';
     cnt.innerHTML=TU.stat('Scheduler nodes',S.groups.length)+TU.stat('Fusions made',S.f)+TU.stat('Generated kernels',S.code?fused.length:'not yet');
   }
-  RD.anim({card:'tcp-fuse-card',ctl:'tcp-fuse-ctl',n:states.length,draw,ms:1700,label:'Fusion step'});
+  RD.anim({card:'tcp-fuse-card',ctl:'tcp-fuse-ctl',n:states.length,draw,ms:4600,label:'Fusion step',list:'sx-fuse'});
   // C++ against Triton against the wrapper
   const pre=$('tcp-code-pre'),note=$('tcp-code-note');
   RD.seg($('tcp-code-seg'),m=>{

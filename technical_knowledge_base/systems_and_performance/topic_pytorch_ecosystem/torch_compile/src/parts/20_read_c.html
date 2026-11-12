@@ -1,16 +1,20 @@
+<div class="s3sp"><div class="s3L">
 <section id="tcp-s4">
 <h2>4. Recompiles and dynamic shapes</h2>
 <p>Sizes are guarded like everything else: a new sequence length, a short last batch or a learning rate passed as a Python number fails a guard and costs seconds of compiling. Compiling for "any size" instead gives kernels that cannot specialise (no fully unrolled loops, extra index arithmetic) and adds symbolic reasoning to every compile.</p>
 <p><b>How it works.</b> The first call compiles every size <i>static</i>. When a size guard fails, <dfn>automatic dynamic shapes</dfn> (<code>automatic_dynamic_shapes</code>, on by default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L188" target="_blank" rel="noopener noreferrer">config.py L188</a>) recompiles with the changed dimension replaced by a <dfn>symbol</dfn> (s75 below) read at run time, guarded by inequalities instead of equalities. Two exceptions are built in: sizes 0 and 1 stay specialised, because a dimension of 1 broadcasts and code valid for "any n" may be wrong for 1 (<dfn>0/1 specialisation</dfn>); and parameters' shapes are always static (<code>force_parameter_static_shapes</code>). <i>Predict before you look: six calls with T = 64, 32, 48, 16, 1, 64; how many compiles by default?</i></p>
-<div class="rd-card" id="tcp-dyn-card">
+<p><b>Default</b>: T = 32 fails the exact-size guard ("tensor 'idx' size mismatch at index 1. expected 64, actual 32") and recompiles with T symbolic, range [2, inf]; 48 and 16 reuse it; T = 1 falls outside "2 &lt;= idx.size()[1]" (0/1 specialisation) and compiles a third version (Fig. 1 replays this row, guard by guard). <b><code>dynamic=False</code></b>: every new length compiles, 5 times. <b><code>mark_dynamic(idx, 1, min=2, max=64)</code></b> before each call: one compile covers 64, 32, 48 and 16, and T = 1 is now an error (<code>ConstraintViolationError</code>), not a recompile: a bound you state is checked.</p>
+<details class="dp"><summary>The two odd strategies: dynamic=True compiled 4 times, mark_unbacked broke tracing <span class="mute">(measured; one cause unconfirmed)</span></summary><div class="b"><p><b><code>dynamic=True</code></b>: symbolic from the first call, yet 4 compiles here; the recompile log blamed a guard that itself raised ("'NoneType' object has no attribute 'size'": some guard read a size from an attribute that is <code>None</code>) and then the 0/1 guard. Recorded; which guard raised was not traced further (<span class="unc">cause unconfirmed</span>), and it looks like a Dynamo bug rather than anything the model does. <b><code>mark_unbacked</code></b> (no 0/1 specialisation, see unbacked symbols below) broke tracing at <code>scaled_dot_product_attention</code> inside the block loop, so <code>GPT.forward</code> was skipped and each block frame compiled on its own.</p></div></details>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="tcp-dyn-card">
 <h4>The same six calls under five strategies: default compiles 3 times, dynamic=False 5</h4>
 <div class="rd-svg" id="tcp-dyn-grid"></div>
 <p class="small mute">The running example, forward, eval, CPU, torch 2.14.1 (exp/dynamic.py). A filled square is a call that compiled (two for <code>dynamic=True</code>'s first call), an empty one reused a version, a red one raised. Pick a strategy for its recompile reasons as logged:</p>
 <div class="seg" id="tcp-dyn-seg"></div>
 <div id="tcp-dyn-out"></div>
-</div>
-<p><b>Default</b>: T = 32 fails the exact-size guard ("tensor 'idx' size mismatch at index 1. expected 64, actual 32") and recompiles with T symbolic, range [2, inf]; 48 and 16 reuse it; T = 1 falls outside "2 &lt;= idx.size()[1]" (0/1 specialisation) and compiles a third version. <b><code>dynamic=False</code></b>: every new length compiles, 5 times. <b><code>mark_dynamic(idx, 1, min=2, max=64)</code></b> before each call: one compile covers 64, 32, 48 and 16, and T = 1 is now an error (<code>ConstraintViolationError</code>), not a recompile: a bound you state is checked.</p>
-<details class="dp"><summary>The two odd strategies: dynamic=True compiled 4 times, mark_unbacked broke tracing <span class="mute">(measured; one cause unconfirmed)</span></summary><div class="b"><p><b><code>dynamic=True</code></b>: symbolic from the first call, yet 4 compiles here; the recompile log blamed a guard that itself raised ("'NoneType' object has no attribute 'size'": some guard read a size from an attribute that is <code>None</code>) and then the 0/1 guard. Recorded; which guard raised was not traced further (<span class="unc">cause unconfirmed</span>), and it looks like a Dynamo bug rather than anything the model does. <b><code>mark_unbacked</code></b> (no 0/1 specialisation, see unbacked symbols below) broke tracing at <code>scaled_dot_product_attention</code> inside the block loop, so <code>GPT.forward</code> was skipped and each block frame compiled on its own.</p></div></details>
+</div></div></div></div>
+<section id="tcp-s4b">
 <p><b>Python numbers behave like sizes</b>: the Compile lab showed a float learning rate compiled at calls 1 and 2 and symbolic afterwards (<code>specialize_float = False</code>, config.py L162). Values that are not numbers (a string flag, a dtype, a module attribute) are guarded by value with no symbolic fallback. A small function called with ten different strings:</p>
 <div class="tcp-kv" id="tcp-limit"></div>
 <p>After <code>recompile_limit</code> (8, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/config.py#L121" target="_blank" rel="noopener noreferrer">config.py L121</a>) versions of one frame, Dynamo stops compiling it and runs it eagerly, with only this warning (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_dynamo/convert_frame.py#L2000-L2019" target="_blank" rel="noopener noreferrer">convert_frame.py L2000-L2019</a>), recorded:</p>
@@ -22,6 +26,7 @@
 <p><b>Check.</b> <code>TORCH_LOGS=recompiles</code> names the failing guard for every recompile; <code>TORCH_LOGS=dynamic</code> shows each symbol as it is created ("create_symbol s75 = 32 for L['idx'].size()[1] [2, int_oo]", recorded) and every guard on it; <code>torch.compiler.set_stance("fail_on_recompile")</code> makes a test fail on any recompile.</p>
 <details class="dp"><summary>Profile-guided dynamism across processes needs a job id <span class="mute">(measured)</span></summary><div class="b"><p><code>automatic_dynamic_local_pgo</code> is on at 2.14.1: Dynamo can remember, in the cache directory, which dimensions turned out dynamic, so the next process compiles them dynamic from the start. But "PGO does nothing (even if explicitly enabled) unless a valid <code>job_id</code> is available" (<code>torch.compiler.config.job_id</code>, torch/compiler/config.py L48-L70 at v2.14.1). Two fresh processes calling T = 64 then 32, sharing one cache directory: <span id="tcp-pgo"></span></p></div></details>
 </section>
+<div class="s3sp"><div class="s3R"><div id="stg-cut"></div></div><div class="s3L">
 <section id="tcp-s5">
 <h2>5. AOTAutograd: the backward graph, and what crosses to it</h2>
 <p>Dynamo captured only the forward. In eager mode the backward is decided op by op as the forward runs, each op saving what its own derivative needs; a compiler wants the backward as a graph ahead of time, and wants to choose what is saved.</p>
@@ -31,28 +36,31 @@
 <div><b>min_cut_rematerialization_partition</b>Inductor's default. A max-flow min-cut where cutting an edge means saving that tensor (cost: its bytes) and cheap ops may be recomputed instead; matmuls, reductions and long chains are banned from recompute (<code>ban_recompute_*</code>, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L159-L174" target="_blank" rel="noopener noreferrer">functorch config.py L159-L174</a>; <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/partitioners.py#L4109" target="_blank" rel="noopener noreferrer">partitioners.py L4109</a>).</div>
 <div><b>activation_memory_budget</b>Below 1.0 (the default, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L202" target="_blank" rel="noopener noreferrer">L202</a>) expensive ops may be recomputed too, chosen by a knapsack (solver "dp", L215) over runtime estimated from FLOPs (L209), until the saved bytes fit the fraction asked for.</div>
 </div>
-<p>One block of the running example (training, CPU, input (8, 64, 256)), cut every way on the real Inductor path (its joint-graph passes, then the partitioner, wrapped to record what it received and returned):</p>
-<div class="rd-card" id="tcp-part-card">
-<h4>Memory is bought with recompute: from 8.40 MB and 88 backward ops to 0 MB and 134</h4>
-<div class="rd-svg" id="tcp-part-svg"></div>
-<p class="small mute" id="tcp-part-note"></p>
-</div>
-<p><b>default_partition</b> keeps 8,404,992 bytes, eager's number to within 4 bytes (8,404,996 live after one eager block forward, measured on the sibling page): the accounting is right. <b>Min-cut at budget 1.0</b> keeps 7,880,704 bytes: the 524,288-byte <code>.contiguous()</code> copy of the attention output (the input of <code>proj</code>) can be rebuilt in backward from the attention output it saves anyway, and saving the parameters themselves is free where default saved transposed views of them. So 6% less memory for 10 more backward ops. <b>Lower budgets</b> buy memory with recomputation: at 0.0 nothing but inputs is saved and the backward reruns the matrix multiplies and the attention. Step through the cuts on the joint graph itself:</p>
-<div class="rd-card" id="tcpp-card">
-<h4>The block's 144-op joint graph: which values each cut saves, and which it recomputes</h4>
-<div class="an-ctl" id="tcpp-ctl"></div>
-<div class="an-cap" id="tcpp-cap"></div>
-<div class="an-cnt" id="tcpp-cnt"></div>
-<div class="leg bx"><span style="--sw:var(--c2)">saved for backward</span><span style="--sw:var(--open2)">computed in forward, recomputed in backward</span><span style="--sw:var(--acc2)">forward only</span><span style="--sw:var(--soft)">backward only</span></div>
-<div class="tcpp-jg" id="tcpp-grid"></div>
-<div class="tcpp-info" id="tcpp-info">Tap an operation.</div>
-<p class="small mute">The joint graph as AOTAutograd handed it to the partitioner after Inductor's joint-graph passes, in order, forward first. Recorded with torch 2.14.1 (exp/aot.py).</p>
-<details class="dp"><summary>What this cut saves, value by value</summary><div class="b"><div class="tw"><table id="tcpp-tbl"></table></div>
-<p class="small mute">Saved values that are graph inputs (the block input, parameters) are kept by the caller anyway and are listed but not counted. default_partition saves transposed views of the weights where min-cut saves the weights themselves; views share the weights' memory, so both cost nothing extra.</p></div></details>
-</div>
+<p>One block of the running example (training, CPU, input (8, 64, 256)), cut every way on the real Inductor path (its joint-graph passes, then the partitioner, wrapped to record what it received and returned). Fig. 3 draws all 144 operations of its joint graph and steps through the cuts:</p>
+<p class="sxh">Fig. 3: the block's 144-op joint graph, which values each cut saves, and which it recomputes</p>
+<ol class="sx" id="sx-cut">
+<li><b>The joint graph.</b> 56 forward operations in front, 88 backward behind, as AOTAutograd handed them to the partitioner after Inductor's joint-graph passes. Everything the backward reads from the forward must either cross the cut or be computed again.</li>
+<li><b>default_partition: save what the backward needs.</b> 15 activations cross the wall (orange, height and dots by bytes): 8,404,992 bytes, with 88 backward ops and nothing recomputed. The two tallest, 2,097,152 bytes each, belong to the MLP, whose hidden layer is four times wider than the block.</li>
+<li><b>Min-cut, budget 1.0 (Inductor's default).</b> 17 cheap operations turn green: recomputed in backward instead of saved, among them the GELU intermediates and the reshaped attention output (the input of <code>proj</code>). 14 activations cross, 7,880,704 bytes; 98 backward ops.</li>
+<li><b>Budget 0.5.</b> Allowed half the activation bytes: some matrix multiplies and the attention are recomputed too. 4 activations cross (3,670,016 bytes); 39 operations recomputed, 121 backward ops.</li>
+<li><b>Budget 0.2.</b> A fifth of the bytes: 3 activations (1,572,864 bytes); most of the block is recomputed (40 operations), 122 backward ops.</li>
+<li><b>Budget 0.0.</b> No activation crosses, only inputs are saved: the backward reruns the matrix multiplies and the attention, like full activation checkpointing. 52 operations recomputed, 134 backward ops instead of 88.</li>
+</ol>
+<details class="dp"><summary>What this cut saves, value by value <span class="mute">(follows the figure's step: <span id="tcpp-tcap">default_partition</span>)</span></summary><div class="b"><div class="tw"><table id="tcpp-tbl"></table></div>
+<p class="small mute">Saved values that are graph inputs (the block input, parameters) are kept by the caller anyway and are listed but not counted. default_partition saves transposed views of the weights where min-cut saves the weights themselves; views share the weights' memory, so both cost nothing extra. Recorded with torch 2.14.1 (exp/aot.py).</p></div></details>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="tcp-s5b">
+<p><b>default_partition</b> keeps 8,404,992 bytes, eager's number to within 4 bytes (8,404,996 live after one eager block forward, measured on the sibling page): the accounting is right. <b>Min-cut at budget 1.0</b> keeps 7,880,704 bytes: the 524,288-byte <code>.contiguous()</code> copy of the attention output (the input of <code>proj</code>) can be rebuilt in backward from the attention output it saves anyway, and saving the parameters themselves is free where default saved transposed views of them. So 6% less memory for 10 more backward ops.</p>
 <div class="pr" data-ok="0"><div class="q">Predict: the running example's training step on the CPU with <code>activation_memory_budget = 0.0</code> (save nothing, recompute everything) against the default budget: how much slower?</div>
 <div class="opts"><button data-a="0">Some, well under 2 times</button><button data-a="1">About 2 times: the forward runs twice</button><button data-a="2">Not slower at all</button></div>
 <div class="ans" hidden id="tcp-budget-ans"></div></div>
 <p><b>When it matters</b>: when activations, not parameters, set the batch you can fit (long sequences, many layers). It is the compiler's activation checkpointing, and composes with it: a <code>checkpoint</code>ed region is recomputed whatever the partitioner thinks. On this model the default min-cut barely moves memory; the budget is the lever. <b>Check</b>: <code>TORCH_LOGS=aot_graphs</code> prints the forward graph (its return statement lists what is saved) and the backward graph; <code>TORCH_LOGS=aot_joint_graph</code> the joint graph.</p>
 <details class="dp"><summary>The whole model under each cut, and a larger model <span class="mute">(measured)</span></summary><div class="b"><p>The whole model behaves the same way: 36,862,468 bytes saved under default_partition (plus 12.63 MB of transposed parameter views, which cost nothing), 34,814,468 at budget 1.0 (the same figure the Compile lab measured), 17,301,504 at 0.5, 6,903,808 at 0.2 and 0 at 0.0, with 427, 578, 593 and 635 backward ops. On a larger configuration {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}} (section 9) measured the same knob at 546.8, 273.0 and 0 MB for budgets 1.0, 0.5 and 0.0.</p></div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="tcp-part-card">
+<h4>Memory is bought with recompute: from 8.40 MB and 88 backward ops to 0 MB and 134</h4>
+<div class="rd-svg" id="tcp-part-svg"></div>
+<p class="small mute" id="tcp-part-note"></p>
+</div></div></div></div>

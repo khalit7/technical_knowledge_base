@@ -1,11 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-call"></div></div><div class="s3L">
 <section id="tcp-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core"><code>torch.compile</code> captures your Python as a graph on the first call (<b>Dynamo</b>), derives the backward and chooses what the forward keeps for it (<b>AOTAutograd</b>), fuses both into kernels (<b>Inductor</b>), and reuses that code on every later call whose <b>guards</b> still pass. Everything you tune is one of three things: keep the graph whole, keep the guards passing, pay the compile once.</p>
-<div class="hero" id="tcp-hero-card">
-<h4>The first call runs three compilers; every later call is a guard check</h4>
-<div class="rd-svg" id="tcp-hero"></div>
-<p class="small mute">Numbers are the running example, measured here (torch 2.14.1, CPU): the whole training step for Dynamo and AOTAutograd (the root's Compile lab and section 5), one block's forward for Inductor (section 6), the cold and warm first step for the cache (sections 9 and 10). The off-ramps are the two ways the picture goes wrong: a graph break (section 3) and a recompile (section 4).</p>
-</div>
+<p class="sxh">Fig. 1: the first call runs three compilers; every later call is a guard check</p>
+<ol class="sx" id="sx-call">
+<li><b>First call, T = 64: three compilers.</b> Nothing is cached. Dynamo reads the bytecode into a graph and writes guards; AOTAutograd derives the backward and cuts it from the forward; Inductor fuses both into kernels. For the whole training step: 59 graph ops and 549 guards, a joint graph of 646 ops cut into 271 forward and 427 backward that keeps 34.81 MB for backward (sections 1, 2, 5); one block's forward becomes 4 kernels plus a Python wrapper (section 6); cold first step about 9.1 s, warm 0.85 s (sections 9, 10). The result is cache entry 0/0, valid while T == 64.</li>
+<li><b>T = 32: a guard fails, so Dynamo compiles again.</b> The log names the guard: "tensor 'idx' size mismatch at index 1. expected 64, actual 32". The new entry 0/1 compiles T as a symbol, s75, guarded by 2 &le; T instead of an equality (section 4).</li>
+<li><b>T = 48, then 16: a hit.</b> The entries are checked in order: 0/0 fails, 0/1 passes, and its cached kernels run with no Python per op. The check runs in C++: 45 to 81 µs for the whole model's 549 guards (section 2).</li>
+<li><b>T = 1: outside the symbol's range.</b> Sizes 0 and 1 stay specialised (a 1 broadcasts), so "2 &lt;= idx.size()[1]" fails as well and entry 0/2 is compiled for T == 1 alone.</li>
+<li><b>T = 64 again: entry 0/0 still serves it.</b> Six calls, three compiles: the cache keeps every version and walks them in order.</li>
+<li><b>Ten different strings: the recompile limit.</b> A small function guarded on a string's value compiles eight versions (mode == 'a0' to 'a7'); after <code>recompile_limit</code> (8) the ninth and tenth calls compile nothing and run eagerly, with only a warning (section 4).</li>
+</ol>
+<p class="small mute">Step 1's numbers are the running example's training step, measured here (torch 2.14.1, CPU); steps 2 to 5 replay section 4's recorded run (the forward, eval, exp/dynamic.py) with its logged reasons, and step 6 the recompile-limit run of the same script. The two ways the picture goes wrong are a graph break (section 3, Fig. 2) and a recompile (steps 2 and 4).</p>
+</section>
+</div></div>
 <p><code>torch.compile(model)</code> returns a wrapper and does nothing until the first call. The parent page's {{Compile lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} measured what this does to one training step of the running example (the 3,186,944-parameter character GPT: 4 blocks, d 256, batch 8 x 64 tokens): one graph, 59 operations, 0 breaks, 549 guards; no gain on the laptop's CPU (23.20 ms against 22.75 ms) and 1.18 times on its GPU (MPS). This page goes one level down into each stage, on the same model, so you can predict what compile will do to your code, read what it did, and fix it.</p>
 <p><b>You need</b> fake tensors and functionalization ({{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, section 2.5). <b>New terms</b>, each defined again where it is used:</p>
 <dl class="terms">
@@ -37,7 +45,14 @@
 </tbody></table></div>
 </div></details>
 <div class="deepnote"><b>Where the neighbours are.</b> Compile's place in a bottleneck hunt, and the activation-memory budget on a larger model: {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}; custom ops that remove graph breaks: {{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}}; where Inductor's Triton goes next (PTX, SASS): {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}}, section 1; CUDA graphs: {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}.</div>
-</section>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-card" id="tcp-walk-card">
+<h4>Same instructions: CPython computes as it goes, Dynamo only writes the graph down</h4>
+<div class="seg" id="tcp-walk-seg"><button class="on" data-m="dyn">Dynamo tracing (compile time)</button><button data-m="eager">CPython running it (eager)</button></div>
+<div class="an-ctl" id="tcp-walk-ctl"></div>
+<div class="an-cnt" id="tcp-walk-cnt"></div>
+<div class="tcp-cols"><div><h5 id="tcp-walk-fn">Bytecode</h5><div class="tcp-bc" id="tcp-walk-bc"></div></div><div id="tcp-walk-right"></div></div>
+<p class="small mute">Recorded with torch 2.14.1, Python 3.12, CPU (exp/walk.py). By the end CPython has run 9 ATen calls; Dynamo has run none, with both <code>Linear.forward</code> calls inlined (depth 1). Dynamo's copy of <code>MLP.forward</code> has two extra instructions before each call (<code>PUSH_NULL</code>, <code>SWAP</code>) from rewriting the bytecode into a canonical form. Stack entries are Dynamo's own <code>repr</code>, shortened (<code>Lazy(...)</code> = LazyVariableTracker).</p>
+</div></div></div><div class="s3L">
 <section id="tcp-s1">
 <h2>1. Dynamo: reading your Python as it runs</h2>
 <p>A compiler needs the whole computation as a graph, but a model is ordinary Python: loops over layers, attribute lookups, the odd <code>if</code>. Dynamo keeps running Python as Python and captures only what it can prove safe.</p>
@@ -50,18 +65,28 @@
 <div><b>Constant, builtin, Python module</b>Computed at trace time: <code>C // n_head</code> is evaluated now and baked into the graph as a number, with a guard on what it came from.</div>
 </div>
 <p>One frame gives three things: an <dfn>FX graph</dfn> (tensor operations and their inputs), the guards, and new bytecode for the frame that gathers the inputs, calls the compiled graph and returns its result. The running example's MLP (block 0: <code>self.proj(F.gelu(self.fc(x)))</code>), recorded instruction by instruction from Dynamo itself (its <code>step()</code> wrapped), against the same call run by CPython with every ATen call caught by a dispatch mode. Same input, (8, 64, 256). <i>Predict before you step: how many kernels run while Dynamo traces?</i></p>
-<div class="rd-card" id="tcp-walk-card">
-<h4>Same instructions: CPython computes as it goes, Dynamo only writes the graph down</h4>
-<div class="seg" id="tcp-walk-seg"><button class="on" data-m="dyn">Dynamo tracing (compile time)</button><button data-m="eager">CPython running it (eager)</button></div>
-<div class="an-ctl" id="tcp-walk-ctl"></div>
-<div class="an-cap" id="tcp-walk-cap"></div>
-<div class="an-cnt" id="tcp-walk-cnt"></div>
-<div class="tcp-cols"><div><h5 id="tcp-walk-fn">Bytecode</h5><div class="tcp-bc" id="tcp-walk-bc"></div></div><div id="tcp-walk-right"></div></div>
-<p class="small mute">Recorded with torch 2.14.1, Python 3.12, CPU (exp/walk.py). By the end CPython has run 9 ATen calls (two <code>addmm</code>, <code>gelu</code>, and the views and transposes <code>F.linear</code> decomposes into on the CPU); Dynamo has run none: 36 instructions, both <code>Linear.forward</code> calls inlined (depth 1), a graph of three calls (<code>linear</code>, <code>gelu</code>, <code>linear</code>) on five inputs (x and four parameters), and 45 guards. Dynamo's copy of <code>MLP.forward</code> has two extra instructions before each call (<code>PUSH_NULL</code>, <code>SWAP</code>) from rewriting the bytecode into a canonical form. Stack entries are Dynamo's own <code>repr</code>, shortened (<code>Lazy(...)</code> = LazyVariableTracker).</p>
-</div>
+<p class="sxh">Step through it: Dynamo tracing, then CPython running the same call</p>
+<ol class="sx" id="sx-walk-dyn">
+<li><b>Start tracing <code>MLP.forward</code>.</b> Dynamo intercepted the frame through its PEP 523 hook before any instruction ran; its stack starts empty, and <code>self</code> is pushed as a LazyVariableTracker, inspected (and guarded) only if the code uses it.</li>
+<li><b>Look up <code>self.proj</code>, <code>F.gelu</code>, <code>self.fc</code>; push <code>x</code>.</b> Attribute lookups are answered now, at trace time, and each answer becomes a guard (the count grows from 7 to 13); the global <code>F</code>'s identity is guarded, so replacing it would invalidate the code. <code>PUSH_NULL</code> and <code>SWAP</code> are bookkeeping Dynamo inserted when it normalised the bytecode for a method call.</li>
+<li><b>Inline <code>Linear.forward</code> for <code>fc</code>.</b> A call into a module is not compiled separately: Dynamo follows it (depth 1), so both frames end up in one graph. <code>self.weight</code> and <code>self.bias</code> are parameters, so they become graph inputs (placeholders).</li>
+<li><b>Call <code>F.linear</code>: a node, no arithmetic.</b> On TensorVariables Dynamo runs the function on fake tensors (shapes only) to learn the output shape and adds the node <code>linear</code> to the FX graph; it then returns to <code>MLP.forward</code> with the result on its stack.</li>
+<li><b>Call <code>F.gelu</code>.</b> One more node, <code>gelu</code>. A real run would launch a kernel here; Dynamo only writes it down.</li>
+<li><b>Inline <code>Linear.forward</code> for <code>proj</code>.</b> The same pattern again: two more placeholders and the node <code>linear_1</code>.</li>
+<li><b>Return: the graph is complete.</b> Dynamo marks the returned TensorVariable as the graph output, compiles the graph (3 calls on 5 inputs, 45 guards) and writes new bytecode for the frame that calls it. Next call: run the guards, then the compiled code.</li>
+</ol>
+<ol class="sx" id="sx-walk-eag" hidden>
+<li><b><code>MLP.forward</code> starts.</b> CPython evaluates the frame instruction by instruction, with real values on its stack: the same attribute lookups, done again on every call.</li>
+<li><b><code>self.fc(x)</code> enters <code>Linear.forward</code>.</b> The call goes through <code>Module.__call__</code>, which runs hooks and then <code>Linear.forward</code>: a new frame, with its own lookups.</li>
+<li><b><code>F.linear</code> runs 4 ATen calls.</b> It reaches the dispatcher and, on the CPU, decomposes into a view, a transpose and <code>addmm</code> (the matrix multiply plus bias), then a view back. Each one is a kernel that reads and writes memory now.</li>
+<li><b>GELU runs as its own kernel</b> over all 524,288 elements.</li>
+<li><b><code>self.proj</code>: the same 4 ATen calls again.</b></li>
+<li><b>Return.</b> Nine ATen calls ran on real data, and nothing was kept: eager mode has no graph to reuse.</li>
+</ol>
 <p>Attribute lookups such as <code>self.fc</code> never reach the graph: they were answered at trace time, and the answer is protected by a guard.</p>
 <div class="pr" data-ok="1"><div class="q">Predict: inside a compiled function, how many times does <code>self.fc</code> (a Python attribute lookup) run per call after the first?</div>
 <div class="opts"><button data-a="0">Once per call, like eager</button><button data-a="1">Zero: the compiled bytecode never looks it up</button><button data-a="2">Once per guard check</button></div>
 <div class="ans" hidden><b>Zero, as such.</b> The rewritten bytecode (recorded with <code>TORCH_LOGS=bytecode</code>) fetches the parameters straight out of <code>self._modules['fc']._parameters['weight']</code> and passes them to the compiled graph; whether <code>fc</code> is still the same kind of module is the guards' job, and they run in C++ before the call. That is why a module swapped after compilation is caught by a guard and recompiled rather than silently ignored.</div></div>
 <p><b>Cost.</b> Tracing is Python running Python: for the whole running example, Dynamo's share of the first call ("entire_frame_compile" minus the backend) was about 0.25 s of the roughly 9 s cold compile; the rest is AOTAutograd and Inductor (section 10). Afterwards each call pays only the guard check (section 2). <b>Check</b> with <code>TORCH_LOGS=bytecode</code> (original and rewritten bytecode), <code>graph_code</code> (the FX graph with each line's source), <code>trace_bytecode</code> (every instruction with the tracker stack, what the stepper replays), or <code>torch._dynamo.explain(fn)(*args)</code> for a summary of graphs and breaks.</p>
 </section>
+</div></div>

@@ -41,3 +41,13 @@ The question the page keeps returning to: when does compile pay, what does it co
 
 ## What the methodology lacked
 Recording a tracer's internal state (Dynamo's stack per instruction) needs a wrapped internal function, not a public API; that is said on the page. Timings on a shared laptop needed load averages per run and medians of fresh processes.
+
+## Rollout of 2026-11-12 (split layout, renderer v2)
+| Idea | Where | Why |
+|---|---|---|
+| Fig. 1, 3D: a call walks the cache entries' guards; compilers behind; section 4's six recorded calls, then the recompile limit | top | The core claim is a sequence over a spatial cache; replaces the static hero |
+| Fig. 2, 3D: a print in Block.forward at the level of frames and graphs | section 3 | Shows why a break in the loop costs the caller; the sibling's Fig. 2 has the op-level view |
+| Fig. 3, 3D: the joint graph's 144 ops with the cut as a glass wall | section 5 | What crosses the cut, and its bytes, is spatial; replaces the 2D explorer grid |
+| Walk and fusion steppers with step lists, walk grouped into stretches | sections 1, 6 | Long-replay rule; captions became the lists |
+
+Rejected: a 3D figure of the modes as three paths (no per-mode compile time recorded here, CUDA graphs not run: it would be illustrative); the fixer as a stage (nine kinds times broken or fixed is a comparison the reader drives, so a widget); the dynamic-shapes grid in 3D (a table reads best flat).

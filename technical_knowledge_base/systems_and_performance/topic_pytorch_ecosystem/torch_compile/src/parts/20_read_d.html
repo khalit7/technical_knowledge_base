@@ -1,3 +1,10 @@
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-card" id="tcp-fuse-card">
+<h4>Lowering already did most of the fusing: 16 nodes, 6 fusions, 4 kernels</h4>
+<div class="an-ctl" id="tcp-fuse-ctl"></div>
+<div class="an-cnt" id="tcp-fuse-cnt"></div>
+<div class="tcp-nodes" id="tcp-fuse-nodes"></div>
+<div class="leg"><span style="--sw:var(--c1)">reduction</span><span style="--sw:var(--c3)">pointwise</span><span style="--sw:var(--c2)">extern (library call)</span></div>
+</div></div></div><div class="s3L">
 <section id="tcp-s6">
 <h2>6. Inductor: from ATen graph to fused kernels</h2>
 <p>The graphs AOTAutograd hands over are still one ATen op per line; run op by op, each element-wise op would read its input from memory and write its output back (the Compile lab's fused GELU moved 4 MiB instead of 36 MiB). Inductor works in three passes:</p>
@@ -7,15 +14,17 @@
 <div style="--sc:var(--c3)"><div class="k">Codegen</div><div class="v">kernels + wrapper</div><p>One kernel per fused group: C++ with OpenMP and vector intrinsics on a CPU, Triton on a GPU, Metal on MPS; plus a Python wrapper, <code>call()</code>, that allocates buffers (reusing dead ones) and launches kernels and library calls in order.</p></div>
 </div>
 <p>One block's forward on the CPU (inference, (8, 64, 256)), every scheduler decision recorded with <code>TORCH_LOGS=fusion</code>. <i>Predict before you step: how many kernels does the scheduler end with?</i></p>
-<div class="rd-card" id="tcp-fuse-card">
-<h4>Lowering already did most of the fusing: 16 nodes, 6 fusions, 4 kernels</h4>
-<div class="an-ctl" id="tcp-fuse-ctl"></div>
-<div class="an-cap" id="tcp-fuse-cap"></div>
-<div class="an-cnt" id="tcp-fuse-cnt"></div>
-<div class="tcp-nodes" id="tcp-fuse-nodes"></div>
-<div class="leg"><span style="--sw:var(--c1)">reduction</span><span style="--sw:var(--c3)">pointwise</span><span style="--sw:var(--c2)">extern (library call)</span></div>
-</div>
-<p>The 16 nodes handed to the scheduler already contain whole chains (op3 is LayerNorm's normalisation with <code>sub</code>, <code>mul</code>, <code>rsqrt</code>, <code>add</code> folded in; op14 is all of GELU). The scheduler made 6 fusions in its first round, joining each LayerNorm's two statistics passes and its normalisation into one node, and rejected 27 other pairs, every one for the same reason ("intermediate nodes between node1 &amp; node2"); its second round found nothing. Ten nodes became 4 C++ kernels, 4 <code>addmm</code> calls into the BLAS library and 1 call to the CPU flash-attention kernel. The residual add after attention was fused into the second LayerNorm's kernel (<code>cpp_fused_add_native_layer_norm_view_1</code>): it reads the sum while computing the statistics instead of writing it out first. The wrapper reuses dead buffers 8 times (lines ending <code># reuse</code>).</p>
+<p class="sxh">Step through the scheduler</p>
+<ol class="sx" id="sx-fuse">
+<li><b>Lowering hands the scheduler 16 nodes.</b> They already contain whole chains: op3 is LayerNorm's normalisation with <code>sub</code>, <code>mul</code>, <code>rsqrt</code>, <code>add</code> folded in; op14 is all of GELU. Extern nodes (orange) are library calls: <code>addmm</code> and attention.</li>
+<li><b>The first LayerNorm becomes one node.</b> Three fusions join its two statistics passes and its normalisation (op0 with op1, op2 with op3, then the two pairs): they read the same activation row by row, so one loop does all of it and the intermediates never go to memory.</li>
+<li><b>The second LayerNorm, with the residual add.</b> The same three fusions on op9 to op12. The residual add after attention travels with it: the kernel reads the sum while computing the statistics instead of writing it out first. (The log interleaves the six fusions of round 1; they are grouped here by LayerNorm.)</li>
+<li><b>Round 2: nothing more fuses.</b> The scheduler rejected 27 other pairs, every one for the same reason ("intermediate nodes between node1 &amp; node2"): a LayerNorm and the next one cannot share a loop, because the attention and matmuls (extern) must run between them.</li>
+<li><b>Codegen: 10 nodes, 4 C++ kernels.</b> Each non-extern group is one kernel (<code>cpp_fused_native_layer_norm_0</code>, <code>cpp_fused_add_native_layer_norm_view_1</code>, <code>cpp_fused_gelu_view_2</code>, <code>cpp_fused_add_view_3</code>); the externs become 4 <code>addmm</code> calls into the BLAS library and 1 call to the CPU flash-attention kernel (one extern node only unpacks the attention result). The wrapper reuses dead buffers 8 times (lines ending <code># reuse</code>).</li>
+</ol>
+</section>
+</div></div>
+<section id="tcp-s6b">
 <p>The same fused GELU kernel as Inductor wrote it for the CPU, and as it writes it for a GPU (Triton 3.8.0 in Docker with a stand-in driver that only answers "which GPU target?"; generated, never run; where that Triton goes next is section 1 of {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}}):</p>
 <div class="seg" id="tcp-code-seg"><button class="on" data-m="cpp">C++ (CPU, run here)</button><button data-m="triton">Triton (GPU style, generated only)</button><button data-m="wrap">The wrapper's call()</button></div>
 <pre class="code" id="tcp-code-pre"></pre>

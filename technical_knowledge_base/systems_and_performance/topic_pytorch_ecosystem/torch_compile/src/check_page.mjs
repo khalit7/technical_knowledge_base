@@ -1,5 +1,5 @@
 // Browser check of every tab: every segmented control, every animation stepped to its end in every mode, every
-// select option and slider extreme, every predict button, a click on trace bars, at 390 dark and 920 light.
+// select option and slider extreme, every predict button, at 390 dark and 920 light (the 3D stages and autoplay: check_stages.mjs).
 // Fails on script errors, NaN/undefined/Infinity in text, sideways scroll, a visible error box.
 // usage: node check_page.mjs <index.html> <shots dir>   (puppeteer from html_utils via createRequire)
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
@@ -45,8 +45,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
       // selects and sliders
       for (const sel of root.querySelectorAll('select')) { if (sel.closest('.an-ctl')) continue; for (const o of sel.options) { sel.value = o.value; sel.dispatchEvent(new Event('change')); out.clicks++; await sleep(15); scan('select ' + sel.id + '=' + o.value); side(sel.id) } sel.selectedIndex = 0; sel.dispatchEvent(new Event('change')) }
       for (const r of root.querySelectorAll('input[type=range]')) { if (r.closest('.an-ctl')) continue; for (const v of [r.min, r.max, (+r.min + +r.max) / 2]) { r.value = v; r.dispatchEvent(new Event('input')); out.clicks++; await sleep(15); scan('range ' + r.id + '=' + v); side(r.id) } }
-      // trace bars
-      for (const g of [...root.querySelectorAll('.tcpp-jg button')].filter((x, i) => i % 9 === 0)) { g.click(); out.clicks++; await sleep(10); scan('joint node ' + g.textContent) }
       for (const pr of root.querySelectorAll('.pr')) { const bs = pr.querySelectorAll(".opts button"); if (!bs.length) { out.issues.push("predict without options"); continue } bs[0].click(); bs[bs.length - 1].click(); out.clicks += 2; if (pr.querySelector('.ans').hidden) out.issues.push('answer not revealed') }
       for (const d of root.querySelectorAll('details')) d.open = true;
       window.scrollTo(0, 0); scan('all'); side('all');

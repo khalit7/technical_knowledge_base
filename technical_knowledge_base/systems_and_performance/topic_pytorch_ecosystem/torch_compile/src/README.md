@@ -33,7 +33,8 @@ Only `time_compile.jsonl` and `time_steady.json` are timings (bench lock, load a
 - `exp/common.py`: imports the running example; `logs()` captures torch's logging artifacts without TORCH_LOGS; `clean()` strips machine paths; `save()` refuses to write anything with a private string.
 - `inputs/*.json`: the recorded outputs above (all small; no binaries).
 - `build_data.py` writes `parts/22_tcp_data.js` (window.TCP); `check_data.py` checks the page embeds the current data, every prose number is a recorded value (or a listed constant with its reason) and nothing private or em dash is present; `check_page.mjs` clicks every control at 390 dark and 920 light.
-- `parts/`: `20_read*.html` Reading (the idea, sections 1 to 13, closed depth), `21_js_rd_common.js` and `99_js_tabs.js` the skill templates (storage key `tcp-tab`; nothing plays until the reader acts), `23_tcp_util.js` helpers, `24` the Dynamo walk stepper and guard kinds, `25` the Reading tables, `26` the fusion stepper and code viewer, `27` the static SVG figures (hero, dynamic-shape grid, partitioner trade-off, compile-time phase bars, per-run table), `28_tcp_rd_brk.js` the graph-break fixer (section 3), `28_tcp_rd_part.js` the joint-graph explorer (section 5), `29` predict wiring, `39` Further reading.
+- `parts/`: `20_read*.html` Reading (the idea, sections 1 to 13, closed depth), `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (storage key `tcp-tab`) and `../build.sh` the skill templates copied unchanged on 2026-11-12, `23_tcp_util.js` helpers, `24` the Dynamo walk stepper (7 and 6 explained stretches) and guard kinds, `25_tcp_rd_tables.js` the Reading tables, `26` the fusion stepper (5 steps) and code viewer, `27` the static SVG figures (dynamic-shape grid, partitioner trade-off, compile-time phase bars, per-run table), `28_tcp_rd_brk.js` the graph-break fixer (section 3.1, a widget), `29` predict wiring, `39` Further reading, and the 3D scenes `41_js_sc_call.js` (Fig. 1), `42_js_sc_brk.js` (Fig. 2), `43_js_sc_cut.js` (Fig. 3).
+- `check_stages.mjs` (run `node src/check_stages.mjs` from the repo root): every stage and stepper plays when scrolled into view, steps to its end, has one list item per step, never moves under reduced motion, flows stop off screen, splits are two columns at 1400 px; screenshots of each mid-step into `../.shots/`.
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check`).
 - `viz_ideas.md`, `coverage.md`.
 
@@ -72,3 +73,47 @@ Why about 32 minutes is right: the page owns the whole of torch.compile from the
 ## Close of the topic (2026-10-23)
 
 Sibling and neighbour reading times in Further reading set to each page's header; Tensors, the dispatcher and autograd's section numbers updated (functionalisation and fake tensors are its Reading 2.5); Making training fast's compile memory budget is its section 9.
+
+## The 2026-11 rollout: split layout, three 3D stages, explained and autoplaying animations (2026-11-12)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged (see Files). No new runs: every scene draws from `window.TCP` (`inputs/` via `build_data.py`, unchanged). The build script is the template's (it writes the em-dash detector as bytes; the old one held the character).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea in one screen (core sentence, Fig. 1) | split | **3D** `stg-call` Fig. 1: one call into a compiled function; the compilers write cache entry 0/0, then section 4's six recorded calls walk the entries' guards (fail, pass, recompile), then the recompile limit | yes, 6 |
+| Reading | intro, You need, terms, six answers, stage table, neighbours | full width | cards, table | no |
+| Reading | 1 Dynamo | split | Dynamo walk (2D `RD.anim`, two modes; long replay grouped into stretches that play their instructions one by one) | yes, 7 and 6 |
+| Reading | 2 Guards | full width | stat tiles, closed tree | no |
+| Reading | 3 Graph breaks | split | **3D** `stg-brk` Fig. 2: a print in `Block.forward`, frame by frame (one 101-op graph; `GPT.forward` abandoned; two pieces of 18 and 5 ops around the print; 8 piece calls per forward; the fix) | yes, 5 |
+| Reading | 3.1 Each kind of break | split | graph-break fixer (2D widget: no stepping, no autoplay) | no (widget) |
+| Reading | 4 Recompiles (first part) | split | dynamic-shapes grid (2D, side) | no |
+| Reading | 4 rest: numbers, limit, unbacked, PGO | full width | stats, code | no |
+| Reading | 5 AOTAutograd | split | **3D** `stg-cut` Fig. 3: the block's 144-op joint graph, forward in front, backward behind, the cut as a glass wall; saved activations and recomputed ops per cut | yes, 6 |
+| Reading | 5 numbers, predict, when it matters | split | partitioner trade-off plot (2D, side) | no |
+| Reading | 6 Inductor | split | fusion stepper (2D `RD.anim`) | yes, 5 |
+| Reading | 6 code viewer, knobs; 7 Modes; 8 Compiled autograd | full width | code, tables | no |
+| Reading | 9 Regional, 10 Caches | split | phase bars (2D, side) | no |
+| Reading | 10 rest, 11 to 13, Depth | full width | tables, boxes | no |
+| Further reading | | unchanged | | |
+
+What changed and why:
+- **The static hero became Fig. 1.** The page's core claim is a sequence (first call compiles; later calls check guards in order; a miss compiles another entry), so it plays as one; the cache entries in depth are the per-frame cache. Steps 2 to 5 are section 4's recorded default-strategy run (exp/dynamic.py) with its logged reasons; step 1 quotes the training step's measured numbers (the old hero's), said in the caption; step 6 is the recompile-limit run.
+- **Fig. 2 is new.** It shows the frame-level reason a break inside the block loop costs the caller, with the print row of exp/fixer.py; the sibling Extending PyTorch's Fig. 2 draws a similar split op by op (linked, not redrawn). The fixer that animated one segment per frame (up to 14) became a widget: pick a line and broken or fixed, the lane shows the whole forward.
+- **The joint-graph explorer became Fig. 3.** The cut has spatial structure (forward and backward rows, a wall between them, values crossing it, their bytes as height and dot count). Its tap-an-op readout went; the per-cut saved-values table stays closed and follows the figure's step.
+- **The Dynamo walk** (36 and 32 instructions, one per frame) is grouped into 7 and 6 explained stretches; stepping forward plays each stretch's instructions. Its per-instruction captions moved into the two step lists. **The fusion stepper** went from 9 states to 5 (the six round-1 fusions grouped by LayerNorm, said in step 3); its captions moved into the step list and the paragraph after it was cut (the list carries it).
+- **Kept 2D**: the dynamic-shapes grid (a table of calls against strategies), the partitioner trade-off (a scatter), the phase bars (timings), the code viewer, every table. **No 3D for the modes** (the brief's third candidate): the page has no per-mode compile-time measurement (the root lab's first-call times per mode came from one process with a warm cache) and the CUDA-graph paths were not run here; drawing them would be illustrative. Proposal: three fresh-process cold compiles per mode under the bench lock (about 10 s each on this model, a few minutes in all). **No real images**: the page is about software; a photo teaches nothing here.
+- Condensed: section 3's "where the break sits" paragraph (Fig. 2 carries it), section 5's "lower budgets" sentence (Fig. 3 step 6), the walk card's note (the list carries the counts).
+- CSS: `#t-read .an-ctl` now excludes the stage bar (`:not(.stg-bar)`), so the stage controls keep the template's layout; long `.mech` headings wrap.
+
+### Length judgement (2026-11-12)
+| | Before (audit 2026-11-12, before this pass) | After |
+|---|---|---|
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 31.8 min (7,316 words) | 36.8 min (8,457 words) |
+| Reading, closed details | 14.2 min (3,267 words) | 14.2 min (3,272 words) |
+| Further reading | 587 words | 587 words |
+| Visuals drawn in Reading (audit) | 6 | 8 |
+
+The extra core words are the step lists of the three stages and two steppers (29 items, about 1,400 words), most of which were script-written captions before (invisible to the audit: the walk's per-instruction captions, the fusion and explorer captions, the hero's labels) and are now written out beside their figures, as the rollout asks; prose the figures now carry was cut. The 2026-10-23 judgement stands: thirteen mechanisms, each with a measured number and a picture.
+
+### Knowledge ledger
+357 units: core 256, depth 72, fat 29; problems 0. Re-keyed: 157 ("10 nodes, 4 C++ kernels", the fusion list's last step), 301 (Fig. 3 step 1); the texts of 135, 332, 333, 344 and 347 describe the new figures.

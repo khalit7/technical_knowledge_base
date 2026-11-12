@@ -8,26 +8,32 @@
 <div class="tcp-kv" id="tcp-ddp"></div>
 <p>Distributed internals are owned by {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}.</p></div></details>
 </section>
+<div class="s3sp"><div class="s3L">
 <section id="tcp-s9">
 <h2>9. Regional compilation: compile the block, not the model</h2>
 <p>Compile time grows with graph size, and an LLM is one block repeated 32 to 128 times; compiling the whole model traces and optimises every copy. Compile the repeated module instead: <code>for b in model.blocks: b.compile()</code> (<code>nn.Module.compile</code> compiles in place). Dynamo compiles <code>Block.forward</code> once; because parameters are graph inputs (inlined built-in modules, always on at 2.14.1), every other block instance passes the same guards and reuses the code. torchtitan does exactly this with <code>fullgraph=True</code>. A newer variant keeps one compile of the whole model but marks the block as a region compiled once and called many times: <code>torch.compiler.nested_compile_region</code> (in the 2.14.1 API). Cold first training step, fresh process, empty cache:</p>
-<div class="rd-card" id="tcp-reg-card">
+<p>The whole model went from 9.19 s to 10.85 s when the blocks doubled from 4 to 8; per block stayed flat (5.72 s, 5.66 s) because the extra blocks cost nothing to compile; <code>nested_compile_region</code> sat between (8.04 s, 8.42 s), since the rest of the model is still traced around the region. Steady-state step time did not suffer (whole 24.11 ms, regional 23.80, nested 23.91, medians of 5 x 20 steps): the fusion lost across block boundaries (a residual add that could have joined the next LayerNorm) is too small to see on a CPU. Always worth trying first on a deep model; the gap grows with depth (1.9 times at 8 blocks here; production models have tens to hundreds). <b>Check</b>: the cache counter <code>fxgraph_cache_miss</code> was 2 in every variant: one forward and one backward graph compiled, whether that graph is the whole model or one block.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="tcp-reg-card">
 <h4>Per block stays flat as the model doubles; whole-model compile grows</h4>
 <div class="rd-svg" id="tcp-reg-svg"></div>
 <div class="leg"><span style="--sw:var(--c1)">Dynamo tracing</span><span style="--sw:var(--c2)">forward: AOTAutograd + Inductor</span><span style="--sw:var(--c4)">backward compile (at first backward)</span><span style="--sw:var(--dim)">running the step, the rest</span></div>
 <p class="small mute" id="tcp-reg-note"></p>
-</div>
-<p>The whole model went from 9.19 s to 10.85 s when the blocks doubled from 4 to 8; per block stayed flat (5.72 s, 5.66 s) because the extra blocks cost nothing to compile; <code>nested_compile_region</code> sat between (8.04 s, 8.42 s), since the rest of the model is still traced around the region. Steady-state step time did not suffer (whole 24.11 ms, regional 23.80, nested 23.91, medians of 5 x 20 steps): the fusion lost across block boundaries (a residual add that could have joined the next LayerNorm) is too small to see on a CPU. Always worth trying first on a deep model; the gap grows with depth (1.9 times at 8 blocks here; production models have tens to hundreds). <b>Check</b>: the cache counter <code>fxgraph_cache_miss</code> was 2 in every variant: one forward and one backward graph compiled, whether that graph is the whole model or one block.</p>
-</section>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L">
 <section id="tcp-s10">
 <h2>10. Caches: paying the compile once</h2>
 <p>A cold compile of this tiny model's step takes about 9 seconds; real models take minutes, and a job on 1,000 GPUs restarted after a failure pays it on every rank. Several caches on disk, all under <code>TORCHINDUCTOR_CACHE_DIR</code> (a per-user temporary directory by default), each keyed by a hash of its input graph, the config and the versions: the <dfn>FX graph cache</dfn> (Inductor's output for a post-AOTAutograd graph; <code>fx_graph_cache</code>, on, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_inductor/config.py#L109" target="_blank" rel="noopener noreferrer">inductor config.py L109</a>), the <dfn>AOTAutograd cache</dfn> (forward and backward graphs for a Dynamo graph, so AOTAutograd is skipped too; <code>enable_autograd_cache</code>, on, <a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/_functorch/config.py#L71" target="_blank" rel="noopener noreferrer">functorch config.py L71</a>), the compiled kernels (C++ shared objects, Triton binaries) and autotuning results. Dynamo still traces in every new process: guards are not cached. <dfn>Mega-cache</dfn> packs the entries a process used into one blob: <code>torch.compiler.save_cache_artifacts()</code> returns bytes, <code>load_cache_artifacts(bytes)</code> installs them in another process's cache directory. <i>Predict: a mega-cache loaded into an empty directory, how close to warm?</i></p>
-<div class="rd-card" id="tcp-cache-card">
+<p>Warm, the first step took 0.85 s against 9.08 s cold (medians): both Inductor graphs and the AOTAutograd entry hit, nothing was compiled, and what is left is Dynamo tracing again plus loading cached code, the floor of a warm start. The mega-cache gave 5.06 s: the same hits (2 FX graph, 1 AOTAutograd), but 4.0 s still went to <code>async_compile.wait</code>, compiling the C++ kernels again. The blob (1,265,370 bytes) carries generated source, not this machine's compiled <code>.so</code> files, so on a CPU it saves the Python half of the compile and not the C++ half. On a GPU the large win is the Triton kernels and autotuning results it carries (not measured here).</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="rd-card" id="tcp-cache-card">
 <h4>Warm skips the compile; a mega-cache on a CPU still rebuilds the C++</h4>
 <div class="rd-svg" id="tcp-cache-svg"></div>
 <p class="small mute" id="tcp-cache-note"></p>
-</div>
-<p>Warm, the first step took 0.85 s against 9.08 s cold (medians): both Inductor graphs and the AOTAutograd entry hit, nothing was compiled, and what is left is Dynamo tracing again plus loading cached code, the floor of a warm start. The mega-cache gave 5.06 s: the same hits (2 FX graph, 1 AOTAutograd), but 4.0 s still went to <code>async_compile.wait</code>, compiling the C++ kernels again. The blob (1,265,370 bytes) carries generated source, not this machine's compiled <code>.so</code> files, so on a CPU it saves the Python half of the compile and not the C++ half. On a GPU the large win is the Triton kernels and autotuning results it carries (not measured here).</p>
+</div></div></div></div>
+<section id="tcp-s10b">
 <details class="dp"><summary>Every timed run, with its phases and cache hits <span class="mute">(3 runs each, bench lock)</span></summary><div class="b">
 <div class="tw"><table class="rd-tbl tcp-tbl" id="tcpc-tbl"></table></div>
 <p class="small mute">Phases are Dynamo's own timers (<code>calculate_time_spent()</code>): Dynamo = <code>entire_frame_compile</code> minus <code>backend_compile</code>; forward = <code>backend_compile</code>; backward = <code>entire_backward_compile</code>; the rest = first-step time minus both. Waiting for the C++ compiler (<code>async_compile.wait</code>) sits inside the forward and backward phases and is listed per run. CPU, 4 threads, torch 2.14.1; the figures above use the run closest to the median of three.</p></div></details>
