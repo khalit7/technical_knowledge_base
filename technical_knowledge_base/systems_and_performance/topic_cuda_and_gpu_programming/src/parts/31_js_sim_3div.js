@@ -66,7 +66,7 @@
       U.stat('Lane utilisation',U.pct(issued?useful/(32*issued):1),'whole run: '+U.pct(eff))+
       U.stat('Warp 0 / warp 1 lanes in A',S.warps[0].na+' / '+S.warps[1].na,'the rest take B');
   }
-  const A=U.anim({card:'sim-div-card',ctl:'sim-div-ctl',n:Math.max(S.warps[0].rows.length,S.warps[1].rows.length),draw,ms:800,label:'Issue slot'});
+  const A=U.anim({card:'sim-div-card',ctl:'sim-div-ctl',n:Math.max(S.warps[0].rows.length,S.warps[1].rows.length),draw,ms:800,label:'Issue slot',auto:false,start:'end'});
   function update(){S=cur();A.reset(Math.max(S.warps[0].rows.length,S.warps[1].rows.length))}
   U.seg($('sim-div-mode'),m=>{mode=m;$('sim-div-free').hidden=m!=='free';update()});
   $('sim-div-cond').addEventListener('change',e=>{cond=e.target.value;update()});

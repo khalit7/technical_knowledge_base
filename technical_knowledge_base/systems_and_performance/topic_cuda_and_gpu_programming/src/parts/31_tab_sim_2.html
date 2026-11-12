@@ -1,6 +1,7 @@
 
 <!-- ============================ 4 OCCUPANCY ============================ -->
 <section id="sim-s4">
+<div class="s3sp sim-sp"><div class="s3L">
 <h2>2. How many warps fit on an SM: occupancy</h2>
 <p><b>The problem.</b> An SM runs many warps at once so that while some wait for memory, others compute (section 3 shows why that matters). How many fit is decided when the block is placed: every warp gets its registers and every block its shared memory for its whole life, out of fixed per-SM budgets. <b>Occupancy</b> is the number of resident warps divided by the maximum the SM can hold. Four limits apply, and the smallest wins:</p>
 <ul class="tight"><li><b>Registers:</b> 65,536 32-bit registers per SM on every current GPU; a warp needs registers per thread x 32, rounded up to a multiple of 256, taken from one of the SM's 4 sub-partitions.</li>
@@ -8,6 +9,7 @@
 <li><b>Warp slots:</b> 48 or 64 warps per SM.</li>
 <li><b>Block slots:</b> 16, 24 or 32 blocks per SM (and on some GPUs, barriers per block slot).</li></ul>
 <p class="small mute">Per-SM limits: <a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide, Compute Capabilities, Tables 30 and 31</a> (last updated 2026-09-10). Allocation rules: NVIDIA's occupancy calculator header <code>cuda_occupancy.h</code>, CUDA 13.4.2, which this calculator ports line by line.</p>
+</div><div class="s3R sim-span">
 <div class="card" id="sim-occ-card">
 <div class="sim-bar">
 <label>GPU <select id="sim-occ-arch" aria-label="Target architecture"></select></label>
@@ -25,9 +27,13 @@
 <div class="sim-fig" id="sim-occ-fig"></div>
 <p class="sim-note" id="sim-occ-valid"></p>
 </div>
+</div><div class="s3L sim-l2">
 
+</div></div>
+<div class="s3sp sim-sp"><div class="s3L">
 <h3>Before and after on one kernel: capping registers</h3>
 <p>The {{Compiler explorer|#t-compile}}'s register ladder compiles a kernel in which each thread keeps 128 running sums, the way a register-tiled matmul keeps its piece of the output; <code>ptxas</code> gives it <span class="sim-acc-r">168</span> registers per thread. The animation fills one SM's register file warp by warp, blocks of 128 threads, until the next block no longer fits, then does the same with the kernel capped at 128 registers (what <code>__launch_bounds__(128, 4)</code> or <code>-maxrregcount=128</code> asks for). The register file is drawn to scale: 4 sub-partitions of 16,384 registers, one cell per 256.</p>
+</div><div class="s3R sim-span">
 <div class="card" id="sim-rf-card">
 <div class="sim-bar"><div class="seg" id="sim-rf-mode" role="group" aria-label="Uncapped or capped"><button data-m="0" class="on">Before: as compiled</button><button data-m="1">After: capped at 128</button></div><label>GPU <select id="sim-rf-arch" aria-label="Target architecture"></select></label></div>
 <div class="sim-fig" id="sim-rf-fig"></div>
@@ -35,9 +41,11 @@
 <div class="sim-cap" id="sim-rf-cap"></div>
 <div class="sim-out" id="sim-rf-out"></div>
 </div>
+</div><div class="s3L sim-l2">
 <div class="co warn"><div class="t">Higher occupancy is not the goal</div>The capped kernel fits more warps, but 128 live sums cannot fit in 128 registers alongside addresses and loop counters, so <code>ptxas</code> would have to spill some to "local memory", which lives in DRAM behind the caches; the register ladder in the {{Compiler explorer|#t-compile}} shows the spill bytes appear past 255. Fewer warps that each keep more data in registers often win: Volkov's "Better performance at lower occupancy" showed matmul and FFT kernels running fastest at low occupancy by giving each thread more independent work (<a href="https://www.nvidia.com/content/gtc-2010/pdfs/2238_gtc2010.pdf" target="_blank" rel="noopener noreferrer">GTC 2010</a>), and today's FlashAttention and CUTLASS kernels often run only one or two large blocks per SM on purpose. Occupancy matters when a kernel is waiting on memory and has nothing else to do, which is the next section.</div>
 
 <div class="sim-chk"><h4>When it matters for training, and how to check</h4>
 <p style="margin:0 0 6px">You meet occupancy when a custom kernel (Triton or CUDA) is slower than expected: Triton's <code>num_warps</code> and <code>num_stages</code> and a block size that uses too much shared memory change it directly. A Triton autotune sweep is in effect a search over this calculator's inputs.</p>
 <p style="margin:0">Check: compile with <code>-Xptxas -v</code> (or read the {{Compiler explorer|#t-compile}}) for registers and shared memory; Nsight Compute's Occupancy section reports Theoretical Occupancy (<code>sm__maximum_warps_per_active_cycle_pct</code>, what this calculator computes) against achieved occupancy; "large discrepancies between the theoretical and the achieved occupancy during execution typically indicates highly imbalanced workloads" (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>). At run time, <code>cudaOccupancyMaxActiveBlocksPerMultiprocessor</code> gives the same answer.</p></div>
+</div></div>
 </section>

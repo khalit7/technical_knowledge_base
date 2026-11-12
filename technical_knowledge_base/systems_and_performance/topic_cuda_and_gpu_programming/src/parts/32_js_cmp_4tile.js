@@ -25,7 +25,7 @@
     const pre=X.$('cmp-tile-code'),cur=pre.children[i];if(cur)pre.scrollTop=Math.max(0,cur.offsetTop-pre.offsetTop-60);
     X.$('cmp-tile-note').innerHTML=lp.note||'';
   }
-  const A=X.anim({card:'cmp-tile',ctl:'cmp-tile-ctl',n:L().lines.length,draw,ms:500,label:'Instruction'});
+  const A=X.anim({card:'cmp-tile',ctl:'cmp-tile-ctl',n:L().lines.length,draw,ms:500,label:'Instruction',auto:false,start:'end'});
   X.seg(X.$('cmp-tile-mode'),m=>{mode=m;A.reset(L().lines.length)});
   X.seg(X.$('cmp-tile-a'),m=>{arch=m;A.reset(L().lines.length)});
   X.onResize(()=>A.redraw());

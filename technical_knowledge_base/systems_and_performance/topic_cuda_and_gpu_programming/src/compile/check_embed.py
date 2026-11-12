@@ -62,7 +62,7 @@ cases = [l.split() for l in open(os.path.join(HERE, "occ", "cases.txt"))]
 js = re.search(r"window\.CMPX\.occ=function.*?\n\};", page, re.S).group(0)
 prog = "window={CMP:%s,CMPX:{}};\n%s\nconst C=%s;console.log(JSON.stringify(C.map(c=>window.CMPX.occ(c[0],+c[6],+c[7],+c[8],0,+c[9]).blocks)));" % (
     json.dumps({"archinfo": D["archinfo"]}), js.replace("window.CMPX.occ=", "window.CMPX.occ="), json.dumps(cases))
-out = subprocess.run(["node", "-e", prog], capture_output=True, text=True)
+out = subprocess.run(["node", "-"], input=prog, capture_output=True, text=True)  # on stdin: the program is longer than Linux allows for one argument
 jsb = json.loads(out.stdout)
 for c, b in zip(cases, jsb):
     n += 1

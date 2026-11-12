@@ -4,9 +4,9 @@
   const d=64;
   const MODES={U:'Unfused: softmax, then matmul',F2:'Fused, two passes over S',F1:'Fused, one pass (online)'};
   const STEPS={
-    U:[['rS','Kernel 1 (softmax) reads S.'],['wP','Kernel 1 writes P, the same size as S, to device memory.'],['rPV','Kernel 2 (matmul) reads P back, and V.'],['wO','Kernel 2 writes O.']],
-    F2:[['rS','Pass 1 reads S to find each row\'s maximum m and sum l (kept on chip).'],['rSV1','Pass 2 reads S again, a tile at a time, with V; p = e<sup>s &minus; m</sup> / l is formed on chip and multiplied into O.'],['rSV2','...to the last tile. P never exists in device memory, but S was read twice.'],['wO','Write O.']],
-    F1:[['rSV1','One pass: each 32-column tile of S is read once with the matching rows of V; the running max and sum are updated and the partial O rows rescaled.'],['rSV2','Tile after tile, still one read of S.'],['rSV3','The last tile.'],['wO','Divide by the sum l and write O. S read once, P never stored.']]};
+    U:[['rS'],['wP'],['rPV'],['wO']],
+    F2:[['rS'],['rSV1'],['rSV2'],['wO']],
+    F1:[['rSV1'],['rSV2'],['rSV3'],['wO']]};
   let N=4096,mode='U';
   const bytesAt=(m,i)=>{const s=4*N*N,v=4*N*d,o=4*N*d;let b=0;
     STEPS[m].slice(0,i+1).forEach(([k])=>{b+=k==='rS'?s:k==='wP'?s:k==='rPV'?s+v:k==='wO'?o:0});
@@ -35,15 +35,17 @@
     s+='<defs><marker id="lab-ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"></path></marker></defs></svg>';
     el.innerHTML=s;
     const c=X.find('fused',mode==='U'?'U_lib':mode,N);
-    $('lab-fu-cap').innerHTML='<b>Step '+(i+1)+' of '+st.length+'.</b> '+st[i][1];
     $('lab-fu-stats').innerHTML=X.stat('Bytes moved so far',X.fbytes(bytesAt(mode,i)),'minimum by design <span class="lab-tag d">derived</span>')+
       X.stat('Whole design',X.fbytes(C.fusedBytes(mode,N,d)),mode==='U'?'3 x 4N<sup>2</sup> + V + O':mode==='F2'?'2 x 4N<sup>2</sup> + V + O':'4N<sup>2</sup> + V + O')+
       X.stat('Measured time',X.fms(c.ms)+' ms',(mode==='U'?'MLX softmax then @':'our fused kernel')+' <span class="lab-tag m">measured</span>')+
       X.stat('Peak memory',f(c.peak_mib,0)+' MiB','MLX allocator, inputs included <span class="lab-tag m">measured</span>');
   }
   X.seg($('lab-fu-n'),[2048,4096,8192].map(n=>[String(n),'N = '+f(n)]),String(N),v=>{N=+v;an.show();plot()});
-  X.seg($('lab-fu-mode'),Object.keys(MODES).map(k=>[k,MODES[k]]),mode,v=>{mode=v;an.reset(STEPS[mode].length)});
-  const an=X.anim({card:'lab-fu-card',ctl:'lab-fu-ctl',n:STEPS[mode].length,draw,ms:1500,label:'Step'});
+  // the step list on the left explains each step of the chosen design; the other designs' lists are hidden
+  const showList=()=>Object.keys(MODES).forEach(k=>{const l=$('lab-fu-sx-'+k);if(l){l.hidden=k!==mode;l.previousElementSibling.hidden=k!==mode}});
+  X.seg($('lab-fu-mode'),Object.keys(MODES).map(k=>[k,MODES[k]]),mode,v=>{mode=v;showList();an.reset(STEPS[mode].length,'lab-fu-sx-'+mode)});
+  showList();
+  const an=X.anim({card:'lab-fu-card',ctl:'lab-fu-ctl',n:STEPS[mode].length,draw,ms:4000,label:'Step',list:'lab-fu-sx-'+mode});
   const DES=[['U_lib','unfused, MLX','var(--c2)'],['U_ours','unfused, ours (S6 + M7)','var(--c5)'],['F2','fused, 2 passes','var(--c1)'],['F1','fused, online','var(--c3)']];
   function plot(){
     const rows=[];[2048,4096,8192].forEach(n=>DES.forEach(([k,l,col])=>{const c=X.find('fused',k,n);rows.push({label:'N='+n+' '+l,v:c.ms,vt:X.fms(c.ms)+' ms',col,on:n===N})}));

@@ -37,7 +37,7 @@
     $('lab-on-cap').innerHTML=cap;$('lab-on-stats').innerHTML=stats;
   }
   X.seg($('lab-on-mode'),[['online','Online softmax (FlashAttention)'],['naive','Naive: store every score']],om,v=>{om=v;oa.reset(nSteps())});
-  const oa=X.anim({card:'lab-on-card',ctl:'lab-on-ctl',n:nSteps(),draw,ms:1500,label:'Step'});
+  const oa=X.anim({card:'lab-on-card',ctl:'lab-on-ctl',n:nSteps(),draw,ms:1500,label:'Step',auto:false,start:'end'});
   oa.show();
 
   // ---- measured chart: time or memory against N ----

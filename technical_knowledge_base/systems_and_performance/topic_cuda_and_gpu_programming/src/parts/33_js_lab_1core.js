@@ -44,34 +44,51 @@ window.LABX=(function(){
     rng:seed=>()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296},
     demoRow:()=>{const r=calc.rng(7);const s=[],v=[];for(let i=0;i<32;i++){s.push(Math.round((r()*6-2+(i===13?3:0)+(i===27?4:0))*100)/100);v.push(Math.round((r()*2-1)*100)/100)}return {s,v}}
   };
-  // ---- step-animation controller (play, pause, step, scrub, speed); animates only while on screen in the
-  // visible tab; never moves before the reader acts (2026-10-23) ----
+  // ---- step-animation controller (play, pause, step, scrub, speed), with the template's motion rules (2026-11-06):
+  // plays by itself once at least half of its card is on screen in the visible tab, pauses off screen and resumes on return,
+  // stops for good on any reader control or at its last step, never moves by itself under reduced motion; marks its step list
+  // (o.list, an ol.sx on the left) and sets data-playing on the card while it plays. o.auto===false: a widget the reader drives, never plays by itself.
   function anim(o){
     const card=$(o.card),ctl=$(o.ctl);
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
+    const st={i:0,n:o.n,play:false,timer:0,vis:false,spd:1,user:false,ended:false,lis:[]};
     const p=o.ctl+'-';
     ctl.innerHTML='<button id="'+p+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button>'+
-      '<button id="'+p+'p" aria-label="Play">&#9654; Play</button>'+
+      '<button id="'+p+'p" class="an-play" aria-label="Play">&#9654; Play</button>'+
       '<button id="'+p+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button>'+
       '<input type="range" id="'+p+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
       '<label>Speed <select id="'+p+'v" aria-label="Speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option><option value="4">4x</option></select></label>';
     const g=s=>$(p+s);
-    function show(){const sc=g('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
+    function bindList(id){const L=id&&$(id);st.lis=L?[...L.children]:[];
+      st.lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');const j=()=>{st.user=true;setPlay(false);st.i=i;show()};li.onclick=j;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();j()}}})}
+    function show(){const sc=g('s');sc.max=st.n-1;sc.value=st.i;st.lis.forEach((li,i)=>{li.classList.toggle('on',i===st.i);li.classList.toggle('done',i<st.i);if(i===st.i)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});o.draw(st.i)}
     const live=()=>st.vis&&!document.hidden&&visible()&&card.offsetParent!==null;
     function tick(){st.timer=0;if(!st.play||!live())return;
-      if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}
+      if(st.i>=st.n-1){st.ended=true;setPlay(false);return}st.i++;show();if(st.i>=st.n-1){st.ended=true;setPlay(false);return}
       st.timer=setTimeout(tick,(o.ms||1300)/st.spd)}
-    function setPlay(v){st.play=v;const b=g('p');b.innerHTML=v?'&#10074;&#10074; Pause':'&#9654; Play';b.setAttribute('aria-label',v?'Pause':'Play');
-      clearTimeout(st.timer);st.timer=0;if(v){if(st.i>=st.n-1){st.i=0;show()}st.timer=setTimeout(tick,(o.ms||1300)/st.spd)}}
-    g('p').addEventListener('click',()=>setPlay(!st.play));
-    g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1300)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(v){st.play=v;g('p').innerHTML=v?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',v?'Pause':'Play');
+      if(v)card.dataset.playing='1';else delete card.dataset.playing;
+      if(!v&&st.timer){clearTimeout(st.timer);st.timer=0}if(v&&st.i>=st.n-1){st.i=0;show()}kick()}
+    g('p').addEventListener('click',()=>{st.user=true;setPlay(!st.play)});
+    g('f').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
+    g('b').addEventListener('click',()=>{st.user=true;setPlay(false);st.i=Math.max(0,st.i-1);show()});
+    g('s').addEventListener('input',e=>{st.user=true;setPlay(false);st.i=+e.target.value;show()});
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{es.forEach(e=>{st.vis=e.isIntersecting;
-      if(st.vis&&st.play&&!st.timer){st.timer=setTimeout(tick,400)}})},{threshold:.3}).observe(card)}
-    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&st.play&&!st.timer)st.timer=setTimeout(tick,400)});
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},show,setPlay,get i(){return st.i},get n(){return st.n}};
+    function auto(){if(o.auto!==false&&!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)}
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);
+      if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
+    document.addEventListener('visibilitychange',kick);
+    bindList(o.list);
+    if(o.start==='end')st.i=st.n-1;
+    onRender(()=>{show();setTimeout(()=>{auto();kick()},50)});
+    return {
+      // a mode toggle: restart with a new step count (and step list); an explained animation replays, a widget opens on o.start
+      reset(n,list){setPlay(false);st.n=n;st.i=o.start==='end'?n-1:0;st.ended=false;st.user=false;if(list)bindList(list);show();auto()},
+      go(i){st.user=true;setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},
+      redraw(){o.draw(st.i)},show,setPlay,
+      play(){if(!RM)setPlay(true)},
+      get i(){return st.i},get n(){return st.n}
+    };
   }
   // ---- a small predict-then-reveal widget ----
   function quiz(el,q,opts,right,ans){

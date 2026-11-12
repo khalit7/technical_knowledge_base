@@ -56,7 +56,7 @@
     el.innerHTML=U.svg(W,H,b,'Utilisation against warps');
   }
   compute();
-  const A=U.anim({card:'sim-lat-card',ctl:'sim-lat-ctl',n:Math.ceil(T/step),draw,ms:160,label:'Cycle'});
+  const A=U.anim({card:'sim-lat-card',ctl:'sim-lat-ctl',n:Math.ceil(T/step),draw,ms:160,label:'Cycle',auto:false,start:'end'});
   function update(){compute();A.reset(Math.ceil(T/step))}
   function lbl(){$('sim-lat-wv').textContent=S.w;$('sim-lat-cv').textContent=S.c;$('sim-lat-lv').textContent=S.l;$('sim-lat-kv').textContent=S.k}
   U.seg($('sim-lat-mode'),m=>{S.mode=m;$('sim-lat-free').hidden=$('sim-lat-pre').hidden=m!=='free';update()});

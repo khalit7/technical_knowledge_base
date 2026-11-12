@@ -1,9 +1,11 @@
 
 <!-- ============================ 5 LATENCY HIDING ============================ -->
 <section id="sim-s5">
+<div class="s3sp sim-sp"><div class="s3L">
 <h2>3. Warps in flight hide memory latency</h2>
 <p><b>The problem.</b> A load from DRAM takes hundreds of cycles to come back. Microbenchmarks measured average global-memory latencies of 466 cycles on an A100, 479 on an H800 (a Hopper H100 variant) and 542 on an RTX 4090, against about 29 to 30 cycles for shared memory and 262 to 273 for the L2 cache (<a href="https://arxiv.org/html/2402.13499v1" target="_blank" rel="noopener noreferrer">Luo et al., 2024, Table IV</a>; independent measurements, not NVIDIA figures). A GPU does not hide this with big caches or out-of-order execution like a CPU. It hides it with other warps: each SM sub-partition has a warp scheduler that, every cycle, picks one warp whose next instruction is ready and issues it. Nsight Compute's words: active warps that are not stalled are <b>eligible</b>; the scheduler issues from one of them; "on cycles with no eligible warp, the issue slot is skipped" (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide, Scheduler Statistics</a>).</p>
 <p><b>The model.</b> One scheduler, <i>W</i> warps, each running the same loop: issue <i>k</i> independent loads, wait <i>L</i> cycles for them, then <i>k</i> x <i>c</i> instructions that use the data. The scheduler issues one instruction per cycle and keeps issuing from the same warp until it stalls, then switches to the warp that has been ready longest ("greedy then oldest"). Little's law gives the answer the simulation lands on: the scheduler is kept busy when <i>W</i> x <i>k</i>(<i>c</i> + 1) &ge; <i>k</i>(<i>c</i> + 1) + <i>L</i>, so utilisation = min(1, <i>W</i>&middot;<i>k</i>(<i>c</i>+1) / (<i>k</i>(<i>c</i>+1) + <i>L</i>)).</p>
+</div><div class="s3R sim-span">
 <div class="card" id="sim-lat-card">
 <div class="sim-bar"><div class="seg" id="sim-lat-mode" role="group" aria-label="Before or after"><button data-m="2" class="on">Before: 2 warps</button><button data-m="6">After: 6 warps</button><button data-m="free">Choose</button></div></div>
 <div class="ctl" id="sim-lat-free" hidden>
@@ -21,6 +23,7 @@
 <div class="sim-out" id="sim-lat-out"></div>
 <div class="sim-fig" id="sim-lat-sweep"></div>
 </div>
+</div><div class="s3L sim-l2">
 <div class="sim-pred"><b>Predict first.</b> A kernel issues one DRAM load (L = 479 cycles on an H800) for every 8 other instructions. How many warps must one scheduler hold to never idle? An H100 SM holds at most 64 warps over 4 schedulers. <button data-sim-reveal="sim-lat-ans">Reveal</button>
 <div class="ans" id="sim-lat-ans" hidden>(9 + 479) / 9, about 55 warps per scheduler, but a scheduler can hold at most 64 / 4 = 16. Even at full occupancy it idles about 70% of the time (16 x 9 / 488 = 30% busy). Occupancy alone cannot hide DRAM latency for code like this; each warp must keep several loads in flight at once (set k to 4: 16 warps are then enough), which is what unrolled loops, vector loads and asynchronous copies (<code>cp.async</code>, TMA) with double buffering do.</div></div>
 
@@ -34,6 +37,7 @@
 <div class="sim-chk"><h4>When it matters for training, and how to check</h4>
 <p style="margin:0 0 6px">It explains why small kernels are slow: a softmax over a few rows, a decode step at batch 1, or a launch with fewer blocks than the GPU has SMs leaves schedulers idle. It is the reason behind "fuse small kernels", CUDA graphs, and split-K or persistent kernels that keep every SM busy. The {{Kernel lab|#t-lab}} shows it on real attention kernels; the softmax ladder is in {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}, section 4.</p>
 <p style="margin:0">Check in Nsight Compute: Scheduler Statistics (eligible warps per cycle, and the share of cycles with no eligible warp) and Warp State Statistics, where a large "stall long scoreboard" means warps are waiting on L1TEX (global or local memory) operations (<a href="https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html" target="_blank" rel="noopener noreferrer">Profiling Guide</a>).</p></div>
+</div></div>
 </section>
 
 <!-- ============================ INTERVIEW ============================ -->

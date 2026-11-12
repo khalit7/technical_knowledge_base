@@ -23,7 +23,7 @@
     X.$('cmp-pipe-code').innerHTML=s.text.map(l=>'<span class="cmp-ln'+(l[1]?' on':'')+'"><span class="n"></span>'+X.esc(l[0])+'</span>').join('');
     X.$('cmp-pipe-note').innerHTML=s.note||'';
   }
-  const A=X.anim({card:'cmp-pipe',ctl:'cmp-pipe-ctl',n:steps().length,draw,ms:2600,label:'Compiler stage'});
+  const A=X.anim({card:'cmp-pipe',ctl:'cmp-pipe-ctl',n:steps().length,draw,ms:2600,label:'Compiler stage',auto:false,start:'end'});
   X.seg(X.$('cmp-pipe-mode'),m=>{mode=m;A.reset(steps().length)});
   X.onResize(()=>A.redraw());
 })();

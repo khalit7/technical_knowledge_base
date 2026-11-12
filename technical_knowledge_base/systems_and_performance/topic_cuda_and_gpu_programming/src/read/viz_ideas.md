@@ -30,3 +30,9 @@ Central question of the page: **for one operation, where does the time go betwee
 ## What the methodology lacked for this page
 
 No NVIDIA device: the "reproduce a published figure" test was met by real compiler output (registers, spills, instruction choice) and by measurements on another SIMT GPU, each labelled with what transfers. A rule worth adding: when the measurement platform differs from the subject's, state the ratio that decides transfer (here the ridge point: about 30 FLOP/byte on the M1 Pro against 295 on an H100), so the reader can scale the result.
+
+## 2026-11-12: layout rollout (split layout, renderer v2)
+
+- **Built: Fig. 1, one kernel's life** (`parts/26_js_sc_hero.js`, stage `stg-hero`, list `sx-hero`, ten steps): the CPU with the call, the four sources of a kernel, PTX and SASS as two glass plates over a fat binary of four targets, a stream of launches, the GPU (HBM stacks either side of the die, L2 across it, 11 of 132 SMs, one SM drawn enlarged), the grid as a plate streaming blocks onto the SMs, four warps of 32 lanes with one split by a branch, the memory ladder with flows from HBM through L2 and shared memory to registers, two tiles into a tensor core, a second GPU with NCCL flows, and the profiler's timeline. Replaces the HTML stack hero; each step links the owning child's own figure.
+- **Kept 2D**: the eager against compiled timeline (CPU and GPU lanes over time) and the attention bytes to scale (a number on an axis); both now have step lists on the left.
+- **Rejected, linked instead**: a root stage for the launch grid, occupancy, the memory ladder, tiles into an accumulator, streams or the compiler levels: Programming model Figs. 1 to 4, Memory hierarchy Figs. 1 and 3, Writing kernels Fig. 6, Streams Figs. 1 to 3, Compiler stack Figs. 4 and 5 and Triton Fig. 3 own them.

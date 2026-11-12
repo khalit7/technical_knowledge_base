@@ -75,8 +75,11 @@
 <li><b>Compute capability</b> ("sm_90" means 9.0): NVIDIA's version number for a GPU generation's instruction set and limits. Code is compiled <i>for</i> one or more of them.</li>
 </ul></div>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="cmp-pipe-h">1. From source to instructions, one line at a time</h3>
-<p>A compiler works in stages, each turning one language into a lower one. Follow the single line that adds two numbers in a vector-add kernel through every stage. Then switch to Triton and watch the same addition take a different road to the same kind of machine code.</p>
+<p>A compiler works in stages, each turning one language into a lower one. Follow the single line that adds two numbers in a vector-add kernel through every stage. Then switch to Triton and watch the same addition take a different road to the same kind of machine code. Click a stage, or step through: the figure opens on the last stage, the SASS that runs.</p>
+<p class="small">The compiler stages themselves are taught, one form at a time, by {{The compiler stack|n:3f05c17b0d0d81ddbc00fac9e8a2ff89}}, whose {{Fig. 4|n:3f05c17b0d0d81ddbc00fac9e8a2ff89#stg-down}} takes the row softmax down the nvcc road, and by {{Triton and Gluon|n:3c65c17b0d0d81729d15ed4d1a4461b3}}, whose {{Fig. 3|n:3c65c17b0d0d81729d15ed4d1a4461b3#stg-comp}} takes one operation down Triton's compiler. This widget keeps what they do not show side by side: this toolchain's real output for one line on both roads.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="cmp-pipe">
 <div class="cmp-bar"><span class="seg" id="cmp-pipe-mode" role="group" aria-label="Compiler path"><button data-m="cuda" class="on">CUDA C++ (nvcc)</button><button data-m="triton">Triton (Python)</button></span></div>
 <div class="cmp-svg" id="cmp-pipe-svg"></div>
@@ -85,6 +88,7 @@
 <div class="cmp-anctl" id="cmp-pipe-ctl"></div>
 <p class="cmp-note" id="cmp-pipe-note"></p>
 </div>
+</div></div></div>
 
 <h3 id="cmp-xp-h">2. The explorer: source, PTX and SASS side by side</h3>
 <p>Pick a kernel from the ladder (each step adds one idea) and a GPU target. <b>Click any line of source</b>: the PTX and SASS lines the compiler produced from it light up (the mapping comes from the compiler's own line tables, <code>.loc</code> in PTX and <code>nvdisasm -g</code> for SASS). Click a SASS line for a plain-words meaning of its instruction, taken from NVIDIA's instruction-set table. Above the listings, the compiler's resource report and what it implies.</p>
@@ -104,8 +108,15 @@
 <div class="cmp-note" id="cmp-xp-op" aria-live="polite">Click a SASS line to see what its instruction does.</div>
 </div>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="cmp-tile-h">3. Before and after: naive vs tiled matmul, in the instructions</h3>
 <p>The naive matmul reads both operands of every multiply-add from global memory. The tiled version first copies a 32 by 32 tile of A and of B into shared memory, then does 32 multiply-adds per element from there. In C++ the two inner loops look almost the same. In SASS the difference is plain: count the loads that go to global memory (<code>LDG</code>) against the loads from shared memory (<code>LDS</code>) for every fused multiply-add (<code>FFMA</code>). The animation steps through the <b>real inner loop</b> the compiler produced, one instruction at a time, with running counters.</p>
+<p class="small">The figure opens on the whole inner loop; switch kernels or targets, or replay it one instruction at a time.</p>
+
+<div class="cmp-q" id="cmp-q1"><b>Predict first.</b> In the tiled kernel, how many bytes come from global memory per multiply-add, compared with the naive kernel's 8 bytes (two 4-byte floats)?
+<div class="opts"><button>About the same</button><button>Half</button><button data-ans>About a 32nd: each loaded value is reused 32 times</button></div>
+<p class="cmp-reveal small" hidden><span class="cmp-verdict"></span> Each thread loads one element of A and one of B per tile (8 bytes) and then does 32 multiply-adds with values from shared memory, so global traffic per multiply-add falls from 8 bytes to 8/32 = 0.25 bytes. (Caches soften the naive kernel's real traffic: neighbouring threads read the same row of A, which the L1 cache can serve. The instruction count does not lie, though: the naive loop still issues two global loads per FFMA.)</p></div>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="cmp-tile">
 <div class="cmp-bar"><span class="seg" id="cmp-tile-mode" role="group" aria-label="Kernel"><button data-m="naive" class="on">Before: naive</button><button data-m="tiled">After: tiled</button></span>
 <span class="seg" id="cmp-tile-a" role="group" aria-label="GPU target"></span></div>
@@ -115,22 +126,29 @@
 <pre id="cmp-tile-code" aria-label="Inner loop SASS"></pre>
 <p class="cmp-note" id="cmp-tile-note"></p>
 </div>
-<div class="cmp-q" id="cmp-q1"><b>Predict first.</b> In the tiled kernel, how many bytes come from global memory per multiply-add, compared with the naive kernel's 8 bytes (two 4-byte floats)?
-<div class="opts"><button>About the same</button><button>Half</button><button data-ans>About a 32nd: each loaded value is reused 32 times</button></div>
-<p class="cmp-reveal small" hidden><span class="cmp-verdict"></span> Each thread loads one element of A and one of B per tile (8 bytes) and then does 32 multiply-adds with values from shared memory, so global traffic per multiply-add falls from 8 bytes to 8/32 = 0.25 bytes. (Caches soften the naive kernel's real traffic: neighbouring threads read the same row of A, which the L1 cache can serve. The instruction count does not lie, though: the naive loop still issues two global loads per FFMA.)</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="cmp-tc-h">4. Before and after: one multiply-add per thread vs one tensor-core instruction</h3>
 <p>An <code>FFMA</code> does one multiply-add per thread, so 32 per warp instruction. A <b>tensor core</b> is a unit on the SM that multiplies small matrices in one instruction. Each generation made that instruction bigger and moved more of the work off the threads: the warp-level <code>mma.sync</code> (SASS <code>HMMA</code>, the form every generation since Volta has) is issued by one warp with operands in registers; Hopper's <code>wgmma</code> (SASS <code>HGMMA</code>) is issued by a <b>warpgroup</b> of four warps and reads its operands straight from shared memory; datacenter Blackwell's <code>tcgen05.mma</code> (SASS <code>UTCHMMA</code> and relatives) is issued by a <b>single thread</b>, reads shared memory and accumulates into <b>Tensor Memory</b> (TMEM), a separate on-chip store of 256 KB per block (512 columns x 128 lanes x 4 bytes, PTX ISA), so the accumulator no longer occupies registers at all. The chart counts multiply-adds per issued instruction, from the instruction shapes in this tab's kernels; the table under it shows which target accepted which instruction, from the real compiles.</p>
+<ul class="small" id="cmp-tc-list"></ul>
+<p class="small">Each instruction drawn to one scale, as tiles, is {{Libraries and tensor cores|n:3c65c17b0d0d81a7adcaebee2f44a087}}' {{Fig. 2|n:3c65c17b0d0d81a7adcaebee2f44a087#stg-mma}}; what this section adds is which of them compiled for which target, here.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="cmp-tc">
 <div class="cmp-svg" id="cmp-tc-svg"></div>
-<div class="cmp-cap" id="cmp-tc-cap"></div>
-<div class="cmp-anctl" id="cmp-tc-ctl"></div>
 <div class="tw" id="cmp-tc-tab"></div>
 <p class="cmp-note" id="cmp-tc-note"></p>
 </div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="cmp-spill-h">5. Before and after: register pressure and spills</h3>
 <p>Keeping more partial results per thread in registers means each value loaded from memory is reused more (that is how fast matmuls work: each thread owns a small tile of the output). The price is registers. A thread can use at most 255, and every register a thread uses is taken from the SM's fixed pool of 65,536, so fewer threads fit. Past the limit, the compiler <b>spills</b>: it parks values in <b>local memory</b>, which despite the name is per-thread space in global memory (behind the L1 and L2 caches), and reloads them later with <code>STL</code> and <code>LDL</code> instructions. Slide N, the number of running sums each thread keeps.</p>
+
+<div class="cmp-q" id="cmp-q2"><b>Predict first.</b> ptxas reports a kernel uses 0 bytes of spill stores but 40 registers. You raise the block size from 128 to 1024 threads. Will it spill now?
+<div class="opts"><button>Yes, more threads need more registers</button><button data-ans>No: registers are per thread; the block size changes how many blocks fit, not the per-thread count</button></div>
+<p class="cmp-reveal small" hidden><span class="cmp-verdict"></span> Register allocation is decided per thread at compile time. A bigger block only changes how many blocks fit on an SM. The exception: <code>__launch_bounds__</code> (or <code>-maxrregcount</code>) tells ptxas the block size up front, and it may then cap registers per thread so that the block fits, which can cause spills. The ladder above uses <code>__launch_bounds__(128)</code>.</p></div>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="cmp-spill">
 <div class="cmp-bar"><label style="flex:1 1 220px">N = <b id="cmp-spill-nv"></b> sums per thread <input type="range" id="cmp-spill-n" min="0" max="5" step="1" value="0" aria-label="Sums per thread"></label>
 <span class="seg" id="cmp-spill-a" role="group" aria-label="GPU target"></span></div>
@@ -139,9 +157,7 @@
 <div class="cmp-cap" id="cmp-spill-cap"></div>
 <details class="cmp-d"><summary>The SASS that does the spilling (selected N and target)</summary><div><pre id="cmp-spill-code"></pre></div></details>
 </div>
-<div class="cmp-q" id="cmp-q2"><b>Predict first.</b> ptxas reports a kernel uses 0 bytes of spill stores but 40 registers. You raise the block size from 128 to 1024 threads. Will it spill now?
-<div class="opts"><button>Yes, more threads need more registers</button><button data-ans>No: registers are per thread; the block size changes how many blocks fit, not the per-thread count</button></div>
-<p class="cmp-reveal small" hidden><span class="cmp-verdict"></span> Register allocation is decided per thread at compile time. A bigger block only changes how many blocks fit on an SM. The exception: <code>__launch_bounds__</code> (or <code>-maxrregcount</code>) tells ptxas the block size up front, and it may then cap registers per thread so that the block fits, which can cause spills. The ladder above uses <code>__launch_bounds__(128)</code>.</p></div>
+</div></div></div>
 
 <h3 id="cmp-where-h">6. What compiled where: one source, four generations</h3>
 <p>PTX is portable forward: PTX written for <code>compute_80</code> can be compiled for any later GPU. Machine code is not: a cubin (compiled GPU binary) runs only on GPUs of the same major version with an equal or higher minor version, so sm_80 SASS runs on an RTX 3090 (8.6) but not on an H100 (9.0) (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/cuda-platform.html" target="_blank" rel="noopener noreferrer">CUDA Programming Guide 1.3.4</a>). Since Hopper there is a third kind of target: the <b>"a" suffix</b> (sm_90a, sm_100a, sm_120a) unlocks <b>architecture-specific</b> instructions that only the exact chip runs, which is where the newest tensor-core instructions live (<a href="https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html" target="_blank" rel="noopener noreferrer">Programming Guide 5.1.2</a>). Each cell below is a real compile; click a red one for the compiler's own words.</p>
@@ -151,8 +167,12 @@
 <p class="cmp-note" id="cmp-where-note"></p>
 </div>
 
+<div class="s3sp"><div class="s3L">
 <h3 id="cmp-occ-h">7. From the resource report to occupancy</h3>
 <p><b>Occupancy</b> is how many warps an SM holds at once, as a fraction of its maximum. Warps waiting for memory are parked while others compute, so more resident warps hide more latency, up to a point. Four limits apply at once, and the smallest wins: registers (65,536 per SM, allocated per warp in chunks of 256), shared memory (per block, plus 1 KB that CUDA reserves per block, per the <a href="https://docs.nvidia.com/cuda/ampere-tuning-guide/index.html" target="_blank" rel="noopener noreferrer">Ampere tuning guide</a>), the maximum warps per SM and the maximum blocks per SM. All four come from the compiler's report and the documented per-SM limits. Change the block size and watch which limit binds.</p>
+
+<div class="tw" id="cmp-occ-lim"></div>
+</div><div class="s3R"><div class="s3side">
 <div class="card" id="cmp-occ">
 <div class="cmp-bar"><label>Kernel <select id="cmp-occ-k" aria-label="Kernel"></select></label>
 <span class="seg" id="cmp-occ-a" role="group" aria-label="GPU target"></span></div>
@@ -161,7 +181,7 @@
 <div class="cmp-cap" id="cmp-occ-cap"></div>
 <p class="cmp-note" id="cmp-occ-note"></p>
 </div>
-<div class="tw" id="cmp-occ-lim"></div>
+</div></div></div>
 
 <h3 id="cmp-tri-h">8. Triton: the same operations, the compiler's choices</h3>
 <p>In Triton you write what a whole block computes (load a tile, <code>tl.dot</code> two tiles, store a tile) and the compiler decides which thread holds which element, whether to stage data through shared memory, how many pipeline stages to use, and which tensor-core instruction to emit. The table shows what Triton chose for each target, read from the PTX and SASS it produced. Correctness was checked separately by running the same kernels in Triton's CPU interpreter (<code>TRITON_INTERPRET=1</code>) against PyTorch.</p>

@@ -59,25 +59,48 @@
 <div class="lab-box"><h4>The softmax and matmul ladders now live on Writing kernels</h4><p class="small" style="margin:0">This lab's first two experiments, the softmax ladder (one thread per row against one threadgroup per row, 50 times apart, then every later rung within a few percent of a copy) and the matmul ladder (229.20 ms naive and uncoalesced down to the 8 &times; 8 matrix-instruction kernel), are taught where the kernels are owned: the hero stepper and section 1 of {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}} for matmul, its section 4 for softmax. Their runs are still recorded here (<code>src/lab/out/data.json</code>) and that page quotes them.</p></div>
 
 <section id="lab-s3">
-<h3>1. Fuse softmax into the matmul</h3>
-<p>In attention, softmax is followed by a matmul: O = softmax(S) V, where S holds one score per (query, key) pair and V holds one 64-number vector per key. Done the obvious way, softmax writes its whole N &times; N output P to device memory and the matmul reads it back. <b>Fusing</b> means one kernel does both, so P lives only in fast on-chip memory, a tile at a time. There is a catch: to normalise a row you need its maximum and sum, which you only know after seeing the whole row. Two ways out: read S twice (once for the statistics, once to multiply), or use the <b>online softmax</b> trick: keep a running maximum and, whenever it grows, rescale everything accumulated so far.</p>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="card" id="lab-fu-card">
 <p style="margin:0 0 4px"><b>Before and after on the same S and V</b> <span class="lab-tag m">measured</span> <span class="lab-tag d">derived bytes</span></p>
 <div class="lab-seg" id="lab-fu-n" role="group" aria-label="Size N"></div>
 <div class="lab-seg" id="lab-fu-mode" role="group" aria-label="Design"></div>
 <div class="lab-plot" id="lab-fu-svg"></div>
-<p class="lab-cap" id="lab-fu-cap"></p>
 <div class="out" id="lab-fu-stats"></div>
 <div class="lab-anctl" id="lab-fu-ctl"></div>
 </div>
 <div class="lab-plot" id="lab-fu-plot"></div>
+</div></div><div class="s3L">
+<h3>1. Fuse softmax into the matmul</h3>
+<p>In attention, softmax is followed by a matmul: O = softmax(S) V, where S holds one score per (query, key) pair and V holds one 64-number vector per key. Done the obvious way, softmax writes its whole N &times; N output P to device memory and the matmul reads it back. <b>Fusing</b> means one kernel does both, so P lives only in fast on-chip memory, a tile at a time. There is a catch: to normalise a row you need its maximum and sum, which you only know after seeing the whole row. Two ways out: read S twice (once for the statistics, once to multiply), or use the <b>online softmax</b> trick: keep a running maximum and, whenever it grows, rescale everything accumulated so far.</p>
+<p class="small">Pick a design on the figure and follow its steps; the bars under it are the measured times of every design at three sizes.</p>
+<p class="sxh">Unfused: softmax, then matmul</p>
+<ol class="sx" id="lab-fu-sx-U">
+<li><b>Read S.</b> Kernel 1 (softmax) reads S.</li>
+<li><b>Write P.</b> Kernel 1 writes P, the same size as S, to device memory.</li>
+<li><b>Read P back.</b> Kernel 2 (matmul) reads P back, and V.</li>
+<li><b>Write O.</b> Kernel 2 writes O.</li>
+</ol>
+<p class="sxh">Fused, two passes over S</p>
+<ol class="sx" id="lab-fu-sx-F2">
+<li><b>Pass 1: statistics.</b> Pass 1 reads S to find each row's maximum m and sum l (kept on chip).</li>
+<li><b>Pass 2: multiply.</b> Pass 2 reads S again, a tile at a time, with V; p = e<sup>s &minus; m</sup> / l is formed on chip and multiplied into O.</li>
+<li><b>To the last tile.</b> P never exists in device memory, but S was read twice.</li>
+<li><b>Write O.</b> O is written once.</li>
+</ol>
+<p class="sxh">Fused, one pass (online)</p>
+<ol class="sx" id="lab-fu-sx-F1">
+<li><b>One pass.</b> Each 32-column tile of S is read once with the matching rows of V; the running max and sum are updated and the partial O rows rescaled.</li>
+<li><b>Tile after tile.</b> Still one read of S.</li>
+<li><b>The last tile.</b> The running statistics now cover the whole row.</li>
+<li><b>Write O.</b> Divide by the sum l and write O. S read once, P never stored.</li>
+</ol>
 <p class="lab-note" id="lab-fu-note"></p>
 <div class="lab-two"><div><h5>Metal: fused kernel (ONLINE = 0 or 1)</h5><pre id="lab-fu-metal"></pre></div><div><h5>Triton: the same in 25 lines</h5><pre id="lab-fu-triton"></pre></div></div>
+</div></div>
 </section>
 
 <section id="lab-s4">
-<h3>2. Attention: naive against online softmax</h3>
-<p>Attention for one head is O = softmax(Q K<sup>T</sup> / &radic;d) V. The naive way runs three library calls and puts N &times; N matrices (scores S, then probabilities P) in device memory: memory grows with the <b>square</b> of the sequence length. The FlashAttention way is section 1's online kernel with one more step inside the loop: compute the 64 &times; 32 tile of scores from a tile of Q and a tile of K on chip. Nothing of size N &times; N ever exists. Step through one query row to see the bookkeeping:</p>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="card" id="lab-on-card">
 <p style="margin:0 0 4px"><b>One query row, 8 tiles of 4 keys: naive against online</b> <span class="lab-tag d">computed in your browser</span></p>
 <div class="lab-seg" id="lab-on-mode" role="group" aria-label="Method"></div>
@@ -87,12 +110,18 @@
 <div class="lab-anctl" id="lab-on-ctl"></div>
 <p class="lab-note">Scores and the 1-number values are seeded pseudo-random; the last step checks that both methods give the same output to 12 digits. Python reference: <code>src/lab/code/recompute.py</code>.</p>
 </div>
-<p>Now the real kernels as sequence length grows, 4 heads of dimension 64, fp32: <span class="lab-tag m">measured</span></p>
+<div class="card" style="margin-top:10px"><p style="margin:0 0 4px"><b>The real kernels as sequence length grows</b> <span class="lab-tag m">measured</span></p>
 <div class="lab-seg" id="lab-at-mode" role="group" aria-label="Chart"></div>
 <div class="lab-plot" id="lab-at-plot"></div>
+</div>
+</div></div><div class="s3L">
+<h3>2. Attention: naive against online softmax</h3>
+<p>Attention for one head is O = softmax(Q K<sup>T</sup> / &radic;d) V. The naive way runs three library calls and puts N &times; N matrices (scores S, then probabilities P) in device memory: memory grows with the <b>square</b> of the sequence length. The FlashAttention way is section 1's online kernel with one more step inside the loop: compute the 64 &times; 32 tile of scores from a tile of Q and a tile of K on chip. Nothing of size N &times; N ever exists. The figure checks the bookkeeping on one query row and opens on its last step, where both methods agree; the kernel block by block, step by step, is {{Writing kernels|n:3c65c17b0d0d81b9ab89c1bb7238cb6c}}' {{Fig. 6|n:3c65c17b0d0d81b9ab89c1bb7238cb6c#stg-fa}}.</p>
+<p>Now the real kernels as sequence length grows, 4 heads of dimension 64, fp32: <span class="lab-tag m">measured</span></p>
 <p class="lab-note" id="lab-at-note"></p>
 <div class="lab-box"><h4>What it shows</h4><p class="small" id="lab-at-find" style="margin:0"></p></div>
 <details class="lab-d"><summary>The flash-style Metal kernel and its Triton twin</summary><div><div class="lab-two"><div><h5>Metal (timed)</h5><pre id="lab-at-metal"></pre></div><div><h5>Triton</h5><pre id="lab-at-triton"></pre></div></div></div></details>
+</div></div>
 </section>
 
 <section id="lab-s5">

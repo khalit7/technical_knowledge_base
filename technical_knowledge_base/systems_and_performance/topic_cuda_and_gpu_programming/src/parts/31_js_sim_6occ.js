@@ -101,7 +101,7 @@
     $('sim-rf-cap').textContent=cap;
     $('sim-rf-out').innerHTML=U.stat('Registers per thread',P.regs,rfMode?'capped':'ptxas -v, '+rfArch)+U.stat('Warps placed',placed.length,'max '+P.a.maxW+' warp slots')+U.stat('Registers in use',(used*256).toLocaleString('en-US'),'of 65,536')+U.stat('Occupancy',U.pct(placed.length/P.a.maxW),'when full: '+U.pct(P.o.occ));
   }
-  const RA=U.anim({card:'sim-rf-card',ctl:'sim-rf-ctl',n:P.warps.length+1,draw:rfDraw,ms:450,label:'Warp placed'});
+  const RA=U.anim({card:'sim-rf-card',ctl:'sim-rf-ctl',n:P.warps.length+1,draw:rfDraw,ms:450,label:'Warp placed',auto:false,start:'end'});
   function rfUpdate(){P=plan();RA.reset(P.warps.length+1)}
   U.seg($('sim-rf-mode'),m=>{rfMode=+m;rfUpdate()});
   $('sim-rf-arch').addEventListener('change',e=>{rfArch=e.target.value;rfUpdate()});

@@ -1,25 +1,24 @@
-// ---- Compiler explorer: 4. FFMA vs tensor-core instructions (animated, log scale); 5. spill ladder ----
+// ---- Compiler explorer: 4. FFMA vs tensor-core instructions (a static chart, log scale, with what each row means listed beside it); 5. spill ladder ----
 (function(){
   const X=window.CMPX,D=window.CMP;if(!D||!X.$('cmp-tc'))return;
   const R=D.tc.rows;
-  function draw(i){
+  function draw(){const i=R.length-1;
     const el=X.$('cmp-tc-svg'),W=X.width(el),narrow=W<560,lw=narrow?0:200,bh=20,gap=narrow?30:10,top=6;
     const mx=Math.log10(R.reduce((m,r)=>Math.max(m,r.maxMacs||r.macs),1)),x0=lw+4,x1=W-70;
     const sc=v=>x0+(x1-x0)*Math.log10(Math.max(1,v))/mx;
     let s='';
     for(let e=0;e<=Math.ceil(mx);e++){const x=sc(Math.pow(10,e));if(x>x1+1)break;s+='<line x1="'+x+'" x2="'+x+'" y1="0" y2="'+(top+R.length*(bh+gap))+'" stroke="var(--line)"/><text x="'+x+'" y="'+(top+R.length*(bh+gap)+12)+'" font-size="10" text-anchor="middle" fill="var(--mute)">'+Math.pow(10,e).toLocaleString('en-US')+'</text>'}
     R.forEach((r,j)=>{const y=top+j*(bh+gap)+(narrow?14:0),on=j<=i;
-      s+='<text x="'+(narrow?4:lw)+'" y="'+(narrow?y-4:y+14)+'" font-size="11.5" '+(narrow?'':'text-anchor="end" ')+'fill="var(--ink)" font-weight="'+(j===i?600:400)+'">'+X.esc(r.name)+'</text>';
+      s+='<text x="'+(narrow?4:lw)+'" y="'+(narrow?y-4:y+14)+'" font-size="11.5" '+(narrow?'':'text-anchor="end" ')+'fill="var(--ink)" font-weight="600">'+X.esc(r.name)+'</text>';
       if(r.maxMacs&&r.maxMacs>r.macs)s+='<rect x="'+x0+'" y="'+(y+3)+'" width="'+Math.max(1,(on?sc(r.maxMacs):x0)-x0)+'" height="'+(bh-6)+'" fill="none" stroke="'+r.col+'" stroke-dasharray="3 2"/>';
-      s+='<rect x="'+x0+'" y="'+y+'" width="'+Math.max(1,(on?sc(r.macs):x0)-x0)+'" height="'+bh+'" rx="3" fill="'+r.col+'" opacity="'+(j===i?1:.75)+'"/>';
+      s+='<rect x="'+x0+'" y="'+y+'" width="'+Math.max(1,(on?sc(r.macs):x0)-x0)+'" height="'+bh+'" rx="3" fill="'+r.col+'" opacity="1"/>';
       if(on)s+='<text x="'+(sc(r.macs)+4)+'" y="'+(y+14)+'" font-size="11" fill="var(--ink)">'+r.macs.toLocaleString('en-US')+'</text>'});
     const H=top+R.length*(bh+gap)+18;
     el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Multiply-adds per instruction, log scale">'+s+'</svg>';
-    const r=R[i];
-    X.$('cmp-tc-cap').innerHTML='<b>'+X.esc(r.name)+'</b>: '+r.cap;
   }
-  const A=X.anim({card:'cmp-tc',ctl:'cmp-tc-ctl',n:R.length,draw,ms:2600,label:'Instruction'});
-  X.onResize(()=>A.redraw());
+  // what each row means, beside the chart (it was a caption stepped row by row before 2026-11-12)
+  X.$('cmp-tc-list').innerHTML=R.map(r=>'<li><b>'+X.esc(r.name)+'</b>: '+r.cap+'</li>').join('');
+  draw();X.onRender(draw);X.onResize(draw);
   let h='<table class="cmp-t"><thead><tr><th>Instruction (PTX)</th><th>SASS seen</th>'+D.archs.map(a=>'<th>'+a+'</th>').join('')+'</tr></thead><tbody>';
   D.tc.avail.forEach(r=>{h+='<tr><td><code>'+X.esc(r.ptx)+'</code></td><td>'+X.esc(r.sass)+'</td>'+D.archs.map(a=>{const v=r.arch[a];return '<td class="'+(v===true?'cmp-ok':'cmp-bad')+'">'+(v===true?'yes':X.esc(v))+'</td>'}).join('')+'</tr>'});
   X.$('cmp-tc-tab').innerHTML=h+'</tbody></table>';

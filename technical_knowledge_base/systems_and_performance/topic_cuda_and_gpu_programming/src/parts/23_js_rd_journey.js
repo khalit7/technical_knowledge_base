@@ -5,19 +5,11 @@
   const BW_H100=3.35e12, BW_M1=(window.RDC&&RDC.softmax.gbps_median||166)*1e9;
   // events: lane c (CPU) or g (GPU); t0..t1 in time units (0..10); s = first step shown; rw = matrices moved
   const M={
-    eager:{steps:[
-      ['Python reaches t = s * scale','PyTorch\'s dispatcher sees a CUDA tensor and picks the CUDA multiply kernel. Nothing has run on the GPU yet.'],
-      ['Launch 1: the multiply','The CPU enqueues the kernel on the stream and returns at once. The GPU reads s (256 MiB) and writes t (256 MiB). Meanwhile Python has already moved to the next line.'],
-      ['Launch 2: the softmax','The softmax waits in the queue behind the multiply, then reads t back from memory and writes p. Two kernels, four full passes over memory, for two lines of code.'],
-      ['p.item(): the CPU waits','Only now does the CPU block, until the GPU has finished both kernels. Without this synchronisation a Python timer would have measured only the launches.']],
+    eager:{n:4,
       ev:[{c:'c',t0:0,t1:1,s:0,l:'dispatch *'},{c:'c',t0:1,t1:1.5,s:1,l:'launch'},{c:'g',t0:1.5,t1:4.5,s:1,l:'multiply kernel',rw:2,col:'var(--c2)'},
           {c:'c',t0:1.6,t1:2.6,s:2,l:'dispatch softmax'},{c:'c',t0:2.6,t1:3.1,s:2,l:'launch'},{c:'g',t0:4.6,t1:7.6,s:2,l:'softmax kernel',rw:2,col:'var(--c1)'},
           {c:'c',t0:3.2,t1:7.6,s:3,l:'wait (sync)',wait:1}],launch:[0,1,2,2]},
-    comp:{steps:[
-      ['First call: compile','TorchDynamo captures the two lines as a graph; Inductor writes one Triton kernel that scales and normalises in a single pass, and compiles it (once; later calls reuse it).'],
-      ['Launch: one fused kernel','One launch. The kernel reads s once, multiplies by scale in registers, computes the row maximum and sum, and writes p. The intermediate t never exists in memory.'],
-      ['p.item(): the CPU waits','The CPU blocks until the single kernel finishes.'],
-      ['Half the traffic','Two passes over memory instead of four. For a memory-bound operation, half the bytes is close to half the time; the compute was never the bottleneck.']],
+    comp:{n:4,
       ev:[{c:'c',t0:0,t1:1.4,s:0,l:'capture, compile (once)'},{c:'c',t0:1.4,t1:1.9,s:1,l:'launch'},{c:'g',t0:1.9,t1:4.9,s:1,l:'fused scale + softmax',rw:2,col:'var(--c3)'},
           {c:'c',t0:2,t1:4.9,s:2,l:'wait (sync)',wait:1}],launch:[0,1,1,1]}
   };
@@ -40,13 +32,15 @@
     });
     const defs='<defs><marker id="rdjrA" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L8,4L0,8z" fill="var(--mute)"/></marker></defs>';
     box.innerHTML=RD.svg(W,H,defs+s,'Timeline of CPU and GPU work for '+(mode==='eager'?'eager':'compiled')+' softmax');
-    const st=M[mode].steps[i];
-    document.getElementById('rd-jr-cap').innerHTML='<div class="t">Step '+(i+1)+' of '+M[mode].steps.length+': '+st[0]+'</div><p>'+st[1]+'</p>';
     const rw=rwAt(i),by=rw*MB;
     document.getElementById('rd-jr-cnt').innerHTML=RD.stat('Kernel launches',M[mode].launch[i])+RD.stat('Memory traffic',(by/1048576).toFixed(0)+' MiB',rw+' passes of 256 MiB')+
       RD.stat('At H100 bandwidth',(by/BW_H100*1e3).toFixed(2)+' ms','bytes / 3.35 TB/s')+RD.stat('At M1 Pro softmax rate',(by/BW_M1*1e3).toFixed(1)+' ms','bytes / '+(BW_M1/1e9).toFixed(0)+' GB/s measured');
   }
-  RD.seg(document.getElementById('rd-jr-mode'),m=>{mode=m;an.reset(M[mode].steps.length)});
-  an=RD.anim({card:'rd-jr-card',ctl:'rd-jr-ctl',n:4,draw,ms:2200,label:'Timeline step'});
+  // the step list on the left explains each step; the other version's list is hidden
+  const LI={eager:'sx-jr-eager',comp:'sx-jr-comp'};
+  const showList=()=>Object.keys(LI).forEach(k=>{const l=document.getElementById(LI[k]);if(l){l.hidden=k!==mode;l.previousElementSibling.hidden=k!==mode}});
+  RD.seg(document.getElementById('rd-jr-mode'),m=>{mode=m;showList();an.reset(M[mode].n,LI[mode])});
+  showList();
+  an=RD.anim({card:'rd-jr-card',ctl:'rd-jr-ctl',n:4,draw,ms:4200,label:'Timeline step',list:LI.eager});
   RD.onResize(()=>an.redraw());
 })();
