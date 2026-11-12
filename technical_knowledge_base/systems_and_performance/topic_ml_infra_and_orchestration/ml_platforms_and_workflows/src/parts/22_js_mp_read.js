@@ -81,9 +81,11 @@ const lanes=[
  {name:'Fix, then rerun everything',tasks:STEPS.map(s=>({s,d:['register','end'].includes(s)?dur(res,s):dur(fail,s)}))},
  {name:'Fix, then resume',tasks:STEPS.map(s=>({s,d:dur(res,s),c:res.tasks.find(x=>x.step===s).cloned}))}];
 lanes.forEach(l=>{let t=0;l.tasks.forEach(k=>{k.t0=t;t+=k.d;k.t1=t});l.total=t});
-const tot=lanes[1].total,NF=Math.ceil(tot)+1;
+const tot=lanes[1].total;
+// six explained stretches (step list sx-rs), not one frame a second: the failed run, then the moments a step of the rerun-everything lane or the whole resume lane ends
+const TS=[0,lanes[1].tasks[0].t1,lanes[2].total,lanes[1].tasks[1].t1,lanes[1].tasks[2].t1,tot];window.MP_RS={TS,rerun:lanes[1].total,resume:lanes[2].total,cloned:['start','train','evaluate'].reduce((a,s)=>a+dur(res,s),0)};
 const col={start:'var(--c1)',train:'var(--c3)',evaluate:'var(--c4)',register:'var(--c2)',end:'var(--mute)'};
-function drawR(f){const el=$('mp-rs-svg'),W=Math.max(300,el.clientWidth||600),L=Math.min(150,W*0.3),Rr=10,lh=34,H=lanes.length*lh+34,tc=Math.min(f,tot);
+function drawR(f){const el=$('mp-rs-svg'),W=Math.max(300,el.clientWidth||600),L=Math.min(150,W*0.3),Rr=10,lh=34,H=lanes.length*lh+34,tc=TS[f];
   const xs=t=>L+t/tot*(W-L-Rr);let g='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Task timelines: failed run, rerun everything, resume">';
   for(let s=0;s<=tot;s+=5)g+='<line x1="'+xs(s)+'" x2="'+xs(s)+'" y1="4" y2="'+(H-24)+'" stroke="var(--line)"/><text x="'+xs(s)+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="var(--mute)">'+s+' s</text>';
   lanes.forEach((l,i)=>{const yy=8+i*lh;g+='<text x="4" y="'+(yy+16)+'" font-size="11.5" fill="var(--ink)">'+(W<460?l.name.replace('Fix, then ',''):l.name)+'</text>';
@@ -94,15 +96,9 @@ function drawR(f){const el=$('mp-rs-svg'),W=Math.max(300,el.clientWidth||600),L=
   if(f>0)g+='<line x1="'+xs(tc)+'" x2="'+xs(tc)+'" y1="'+(8+lh-4)+'" y2="'+(H-24)+'" stroke="var(--acc)" stroke-width="1.5"/>';
   g+='</svg>';el.innerHTML=g;
   const sp=l=>l.tasks.reduce((a,k)=>a+Math.max(0,Math.min(k.t1,tc)-k.t0),0),done=l=>l.tasks.filter(k=>k.t1<=tc+1e-9).length;
-  const cur=l=>{const k=l.tasks.find(k=>tc>=k.t0&&tc<k.t1);return k?k.s:(tc>=l.total?'finished':'')};
-  let cap;
-  if(f===0)cap='The failed run: <code>start</code>, <code>train</code> and <code>evaluate</code> finished, <code>register</code> raised after '+dur(fail,'register').toFixed(1)+' s. Fix the one line, then press play: both lanes start at 0 with the fixed code.';
-  else if(tc>=tot)cap='Rerunning everything took '+lanes[1].total.toFixed(1)+' s of task time and repeated training; resume took '+lanes[2].total.toFixed(1)+' s, of which the three cloned steps took '+(dur(res,'start')+dur(res,'train')+dur(res,'evaluate')).toFixed(2)+' s. Measured wall clock including Metaflow\'s own start-up: resume '+M.wall.r1_resume+' s; complete runs from scratch '+Math.min(M.wall.r2,M.wall.r3,M.wall.r4,M.wall.r6)+' to '+Math.max(M.wall.r2,M.wall.r3,M.wall.r4,M.wall.r6)+' s.';
-  else cap='At '+tc.toFixed(0)+' s. Rerun everything: <b>'+cur(lanes[1])+'</b>'+(cur(lanes[1])==='train'?' (torchrun again, the expensive step on a real run)':'')+'. Resume: <b>'+cur(lanes[2])+'</b>'+(tc<0.05?'':(cur(lanes[2])==='register'?' (the cloned steps were copied from the original run\'s datastore in milliseconds; only the fixed step runs)':''))+'.';
-  $('mp-rs-cap').innerHTML=cap;
   $('mp-rs-stats').innerHTML=RDstat('Rerun all: task seconds',sp(lanes[1]).toFixed(1),done(lanes[1])+' of 5 steps done')+RDstat('Resume: task seconds',sp(lanes[2]).toFixed(1),done(lanes[2])+' of 5 steps done')+RDstat('Training reruns','rerun all: '+(tc>lanes[1].tasks[1].t0?1:0)+'; resume: 0','');
 }
 function RDstat(k,v,d){return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>'}
-RD.anim({card:'mp-rs-card',ctl:'mp-rs-ctl',n:NF,draw:drawR,ms:700,label:'Second'});
+RD.anim({card:'mp-rs-card',ctl:'mp-rs-ctl',n:TS.length,draw:drawR,ms:3600,label:'Moment',list:'sx-rs'});
 addEventListener('resize',()=>{if(!$('t-read').hidden)drawR(+$('mp-rs-ctl-s').value)});
 })();

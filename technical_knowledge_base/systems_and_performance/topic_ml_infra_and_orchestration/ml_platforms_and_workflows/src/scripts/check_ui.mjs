@@ -50,33 +50,33 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
     await p.evaluate(s => { const e = document.querySelector(s); if (e) e.scrollIntoView({ block: 'center' }) }, sel); await sleep(700);
     if (prep) await p.evaluate(prep); await sleep(300); const el = await p.$(sel); if (el) await el.screenshot({ path: `${shots}/${name}-${scheme}-${width}.png` }) };
   const slider = (id, v) => `(()=>{const s=document.getElementById('${id}');s.value=${v};s.dispatchEvent(new Event('input',{bubbles:true}))})()`;
-  await shot('t-read', '#mp-rs-card', 'resume-mid', slider('mp-rs-ctl-s', 7));
-  await shot('t-read', '#mp-rs-card', 'resume-end', slider('mp-rs-ctl-s', 19));
+  await shot('t-read', '#mp-rs-card', 'resume-mid', slider('mp-rs-ctl-s', 2));
+  await shot('t-read', '#mp-rs-card', 'resume-end', slider('mp-rs-ctl-s', 5));
   await shot('t-read', '#mp-xp-card', 'xplat');
   await shot('t-read', '#mp-xp-card', 'xplat-rank', "document.querySelector('#mp-xp-seg button[data-k=l]').click()");
-  await shot('t-read', '#s-idea .mp-card', 'hero');
-  await shot('t-read', '#s-lin .mp-card', 'lin-v1', "document.querySelector('#ln-btns button[data-n=v1]').click()");
-  await shot('t-read', '#ln-al-card', 'alias-3', slider('ln-al-ctl-s', 3));
+  await shot('t-read', '#ln-svg', 'lin-v1', "document.querySelector('#ln-btns button[data-n=v1]').click()");
   await shot('t-read', '#rp-card', 'rep-v1', "document.querySelector('#rp-pick button:nth-child(1)').click();" + slider('rp-ctl-s', 5));
   await shot('t-read', '#rp-card', 'rep-v3', "document.querySelector('#rp-pick button:nth-child(3)').click();" + slider('rp-ctl-s', 5));
   await shot('t-read', '#s-fs', 'featurestore');
-  await shot('t-read', '#s-cloud', 'cloud');
-  await shot('t-read', '#s-trk .mp-card:nth-of-type(2)', 'mlflow-arch');
+  await shot('t-read', '#s-cloud-jobs', 'cloud');
+  await shot('t-read', '#mp-st-db', 'mlflow-arch');
   await shot('t-pick', '#t-pick', 'pick');
   console.log(scheme, width, 'controls', clicks, 'errors', JSON.stringify(errs));
   if (errs.length) bad = 1;
   await p.close();
 }
-// nothing moves before the reader acts: load, scroll every animation card into view, wait, check every step slider is still 0
+// motion (2026-11-12, the split-layout rollout): with normal motion every 2D animation plays once scrolled into view; under reduced motion nothing moves by itself
 for (const rm of ['reduce', 'no-preference']) {
   const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
   await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
   await p.goto('file://' + path.resolve(file)); await sleep(300);
-  for (const id of ['mp-rs-card', 'ln-al-card', 'rp-card']) { await p.evaluate(i => document.getElementById(i).scrollIntoView({ block: 'center' }), id); await sleep(1600) }
-  const v = await p.$$eval('input[type=range][id$="-ctl-s"]', es => es.map(e => e.id + '=' + e.value));
-  const moved = v.filter(x => !x.endsWith('=0'));
-  console.log('autoplay', rm, moved.length ? 'MOVED ' + moved.join(' ') : 'none');
-  if (moved.length) bad = 1; await p.close();
+  await p.click('#tabs button[data-t=t-read]'); await sleep(300); // an earlier page left another tab in localStorage
+  const moved = [], still = [];
+  for (const id of ['mp-rs', 'rp']) { await p.evaluate(i => document.getElementById(i + '-card').scrollIntoView({ block: 'center' }), id); await sleep(4500);
+    const r = await p.evaluate(i => [+document.getElementById(i + '-ctl-s').value, document.getElementById(i + '-ctl-p').getAttribute('aria-label')], id);
+    (r[0] > 0 || r[1] === 'Pause' ? moved : still).push(id + '=' + r) }
+  console.log('autoplay', rm, 'moved:', moved.join(' ') || 'none', 'still:', still.join(' ') || 'none');
+  if (rm === 'reduce' ? moved.length : still.length) bad = 1; await p.close();
 }
 await b.close();
 process.exit(bad);

@@ -1,4 +1,4 @@
-// ---- Lineage graph (Reading section 7) and alias stepper (section 6), moved from the Lineage graph tab 2026-10-24: nodes and edges built from the recorded ids and hashes ----
+// ---- Lineage graph (Reading section 7) moved from the Lineage graph tab 2026-10-24 (the alias stepper of section 6 became the 3D stage Fig. 3, 42_js_sc_reg.js, 2026-11-12): nodes and edges built from the recorded ids and hashes ----
 (function(){
 const M=window.MP,U=window.MPU,$=id=>document.getElementById(id),esc=U.esc;
 const N=[],E=[];const node=(id,col,label,sub,info,cls)=>{N.push({id,col,label,sub,info,cls});};
@@ -62,13 +62,5 @@ function draw(){const el=$('ln-svg');const W=Math.max(660,RD.width(el));const co
 function pick(id){sel=id;const n=N.find(x=>x.id===id);$('ln-det').innerHTML=n?n.info:'Click a box.';
   [...$('ln-btns').children].forEach(b=>b.classList.toggle('on',!!id&&b.dataset.n===id));draw()}
 $('ln-btns').addEventListener('click',e=>{const b=e.target.closest('button');if(b)pick(b.dataset.n)});
-// alias history
-const AH=M.alias_hist;
-function drawA(f){let champ=null;$('ln-chips').innerHTML=M.versions.map(v=>{const h=AH.find(x=>x.v===v.v);const reg=v.v<=f;if(reg)champ=h.champion;
-  return '<div class="ln-chip'+(reg?'':' gone')+(v.v===f?' new':'')+'">v'+v.v+'<br><span class="small">'+v.val_loss.toFixed(4)+'</span></div>'}).join('')+'<div class="ln-chip ch">@champion<br><span class="small">'+(champ?'v'+champ:'none')+'</span></div>';
-  if(f===0){$('ln-al-cap').innerHTML='Before the first registration: no versions, no alias. <code>get_model_version_by_alias</code> raises, so the gate treats the champion loss as infinity.';return}
-  const h=AH[f-1],v=M.versions[f-1],r=M.runs.find(x=>x.id===v.run);
-  $('ln-al-cap').innerHTML='Version '+v.v+' registered (lr '+r.lr+', split '+r.split+', held-out loss '+v.val_loss+'). '+(h.promoted?(h.prev?'Lower than version '+h.prev+': the alias moves from v'+h.prev+' to v'+v.v+'.':'No champion yet: the alias goes to v'+v.v+'.'):'Not lower than version '+h.prev+': the alias stays.'+(r.split!==0.9?' The comparison itself is invalid: different held-out text.':(v.val_loss===M.versions.find(x=>x.v===h.prev).val_loss?' Exactly equal: this is the reproduction.':'')))}
-RD.anim({card:'ln-al-card',ctl:'ln-al-ctl',n:AH.length+1,draw:drawA,ms:1500,label:'Registration'});
 RD.onRender(draw);RD.onResize(draw);draw();
 })();

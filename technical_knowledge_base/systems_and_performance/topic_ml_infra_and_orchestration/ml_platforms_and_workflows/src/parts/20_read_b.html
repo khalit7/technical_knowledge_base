@@ -1,7 +1,22 @@
+<div class="s3sp"><div class="s3R"><div id="stg-flow"></div></div><div class="s3L">
 <section id="s-wf">
 <h2>2. Workflows: the steps around training, written as a graph</h2>
 <p>A <b>workflow engine</b> reads the graph, starts each step when its inputs exist, records what each step produced, and decides what to do when a step fails. It is an <b>orchestrator</b>: it decides order and records state; the compute runs wherever the step sends it (a local process, a Kubernetes pod, a Slurm job, a Ray task).</p>
-<p><b>The running example as a workflow.</b> Four steps and an end, in one Python file (<code>src/lab/flow.py</code>, Metaflow 2.19.39). Each <code>self.x = ...</code> inside a step becomes an <b>artifact</b>: Metaflow serialises it, stores it under the SHA-1 of its bytes in its datastore ({{content_addressed_store.py line 98|https://github.com/Netflix/metaflow/blob/2.19.39/metaflow/datastore/content_addressed_store.py}}), and hands it to the next step. That is how the 1.4 MB checkpoint travels from <code>train</code> to <code>evaluate</code>: through the datastore, not through a path someone has to remember.</p>
+<p><b>The running example as a workflow.</b> Four steps and an end, in one Python file (<code>src/lab/flow.py</code>, Metaflow 2.19.39). Each <code>self.x = ...</code> inside a step becomes an <b>artifact</b>: Metaflow serialises it, stores it under the SHA-1 of its bytes in its datastore ({{content_addressed_store.py line 98|https://github.com/Netflix/metaflow/blob/2.19.39/metaflow/datastore/content_addressed_store.py}}), and hands it to the next step. That is how the 1.4 MB checkpoint travels from <code>train</code> to <code>evaluate</code>: through the datastore, not through a path someone has to remember. Fig. 2 replays two real runs with the SHA-1 prefixes Metaflow recorded: the champion's, and the failed run that was resumed (section 3).</p>
+<div class="s3chips" id="mp-flow-mode"><button data-m="run" class="on">One run, start to end</button><button data-m="res">Fail, then resume</button></div>
+<ol class="sx" id="sx-flow-run">
+<li><b>The graph.</b> Five steps; an arrow means "needs that step's output". In front, the datastore. Run <code>1792142984707002</code>, lr 0.01, the champion's.</li>
+<li><b>start: pin the inputs.</b> It checks the text against the pinned hash, splits it, hashes the code, and stores small artifacts: <code>data_sha</code>, <code>train_sha</code>, <code>val_sha</code>, <code>code_sha</code>, the environment (1.97 s).</li>
+<li><b>train: submit, then store the result.</b> The step calls <code>torchrun</code> with 2 ranks over gloo (6.18 s) and stores the checkpoint, 1,386,058 bytes, under SHA-1 <code>fb9f87f3</code>. The next step finds it by that hash.</li>
+<li><b>evaluate: read by hash.</b> It loads the checkpoint from the datastore, scores 256 fixed windows of the held-out split and stores <code>val_loss</code> 2.1776 (2.39 s).</li>
+<li><b>register, then end.</b> register reads the same checkpoint, logs it to MLflow as a model and registers version 3; the gate moves <code>champion</code> to it (3.94 s; section 6). end prints a summary.</li>
+</ol>
+<ol class="sx" id="sx-flow-res" hidden>
+<li><b>The failed run.</b> Run <code>1792142900051724</code>: start, train (8.24 s) and evaluate finished and their artifacts are in the datastore (checkpoint under <code>e1f3cd69</code>); register raised after 2.6 s, because MLflow 3.17's default model format needs an input example.</li>
+<li><b>Fix one line, resume.</b> <code>python flow.py resume</code> makes run <code>1792142936774695</code>. Its start, train and evaluate are <b>cloned</b>: 0.01 s each, no compute, their artifacts the same hashes already in the datastore.</li>
+<li><b>Only register and end run.</b> register runs the fixed code (5.19 s), reads the same checkpoint <code>e1f3cd69</code> and registers version 1; end takes 0.28 s. Training did not run again.</li>
+<li><b>The lineage trap.</b> The cloned start step still carries the code hash it recorded before the fix, <code>3cdcf1a9ce10</code>, and version 1 is tagged with it, while register ran the fixed code <code>67873f121e99</code>. Section 3 says what to do about it.</li>
+</ol>
 <div class="mp-card"><h4>The flow, as it ran: decorators are the engine's features, the body is ordinary Python <span class="mp-meas">real code</span></h4>
 <pre id="mp-flowsrc"></pre>
 <p class="mp-cap">Shortened from <code>src/lab/flow.py</code> (the full file also opens and closes the MLflow run in each step). <code>train</code> calls the topic's unchanged <code>train.py</code> through torchrun: the workflow orchestrates, torchrun launches, gloo does the communication.</p></div>
@@ -16,24 +31,34 @@
 <div class="opts"><button data-a="0">About 1.4 MB: artifacts are deduplicated</button><button data-a="1">About 7.5 MB: one checkpoint per run that trained, deduplicated only when bytes are identical</button><button data-a="0">About 50 MB: every step copies every artifact</button></div>
 <div class="ans" id="mp-pr1a"></div></div>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3R"><div class="mp-card s3stick" id="mp-rs-card"><h4>The same failed run: rerunning everything repeats training; resume runs only the fixed step <span class="mp-meas">measured task times</span></h4>
+<div class="mp-lanes" id="mp-rs-svg"></div>
+<div class="mp-ctl" id="mp-rs-ctl"></div>
+<div class="grid" id="mp-rs-stats"></div>
+<p class="mp-cap">Run <code>1792142900051724</code> failed in <code>register</code>; <code>python flow.py resume</code> made run <code>1792142936774695</code>. Middle lane: the same five tasks rerun at the durations they actually took (start, train, evaluate from the failed run, register and end from the resumed one). Drawn to scale; seconds are from one shared laptop.</p></div></div><div class="s3L">
 <section id="s-resume">
 <h2>3. Retries, timeouts, caching and resume: what an engine does when a step fails</h2>
 <p><b>The problem.</b> Steps fail: a flaky network call, a bug in the last step, a machine that disappears. Without an engine you rerun the whole script, paying again for every step that had already worked; when the first step is a multi-hour training job, that is the whole cost.</p>
 <p><b>How it works.</b> The engine stored every finished step's outputs, so it can start again <b>from the failure</b>. Metaflow's <code>resume</code> "reuses results of every successful step instead of actually running them", deciding what to reuse "by the flow and step names", not by the code; parameters cannot change on resume ({{Metaflow docs, debugging|https://docs.metaflow.org/metaflow/debugging}}).</p>
-<div class="mp-card" id="mp-rs-card"><h4>The same failed run: rerunning everything repeats training; resume runs only the fixed step <span class="mp-meas">measured task times</span></h4>
-<div class="mp-lanes" id="mp-rs-svg"></div>
-<div class="mp-ctl" id="mp-rs-ctl"></div>
-<div class="mp-anc" id="mp-rs-cap"></div>
-<div class="grid" id="mp-rs-stats"></div>
-<p class="mp-cap">Run <code>1792142900051724</code> failed in <code>register</code> (MLflow 3.17's default model format needs an input example: <a href="#s-reg">section 6</a>). After the one-line fix, <code>python flow.py resume</code> made run <code>1792142936774695</code>, which cloned <code>start</code>, <code>train</code> and <code>evaluate</code> in 0.01 s each and ran only <code>register</code> and <code>end</code>. Middle lane: the same five tasks rerun at the durations they actually took (start, train, evaluate from the failed run, register and end from the resumed one). Drawn to scale; seconds are from one shared laptop. Press play or step.</p></div>
+<ol class="sx" id="sx-rs">
+<li><b>The failed run.</b> start, train and evaluate finished; register raised after 2.6 s. Fix the one line; both lower lanes then start at 0 with the fixed code.</li>
+<li><b>At 2.5 s.</b> Rerunning everything has redone start. Resume cloned start, train and evaluate in 0.01 s each from the original run's datastore and is already in register.</li>
+<li><b>At 5.5 s: resume has finished.</b> Rerunning everything is in train: torchrun again, the expensive step on a real run.</li>
+<li><b>At 10.7 s.</b> Rerunning everything has repeated all 8.24 s of training for a checkpoint it already had.</li>
+<li><b>At 13.1 s.</b> It has repeated evaluate and reaches register, the only step that needed to run.</li>
+<li><b>At 18.6 s: both done.</b> Rerunning everything took 18.6 s of task time and repeated training; resume took 5.5 s, of which the three cloned steps took 0.03 s. Measured wall clock including Metaflow's own start-up: resume 6.48 s; complete runs from scratch 16.58 to 19.16 s.</li>
+</ol>
+
 <p><b>The other engines</b> do the same by different keys. Airflow reruns from a failed task when you clear it, because task-instance states live in its metadata database ({{Airflow docs, DAG runs|https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dag-run.html}}); Kubeflow Pipelines and Flyte cache step outputs keyed on the step's inputs, so an unchanged step is skipped ({{KFP overview|https://www.kubeflow.org/docs/components/pipelines/overview/}}; Flyte's typed inputs and outputs "allow for parameterized workflows, data lineage and caching", {{Lyft, 2020-01-07|https://flyte.org/blog/introducing-flyte-a-cloud-native-machine-learning-and-data-processing-platform}}). Retries (<code>@retry</code>, three times by default in Metaflow) handle transient failures; a <b>timeout</b> turns a hang into a failure the engine can act on, and in Metaflow "by default, there is no timeout for steps" ({{Metaflow docs, failures|https://docs.metaflow.org/scaling/failures}}).</p>
-<p><b>The cost.</b> Every step's outputs are stored (7.5 MB of datastore here for eight small runs; for real checkpoints, terabytes), and every step must be safe to run twice (<b>idempotent</b>): a step that appends to a table or sends an email does it again on retry. Resume also creates a <b>lineage trap</b>, measured here: the resumed run's <code>start</code> step was cloned, so its recorded <code>code_sha</code> (<code>3cdcf1a9ce10</code>) is the hash of the code <i>before</i> the fix, while <code>register</code> ran the fixed code (<code>67873f121e99</code>). Registry version 1 therefore points at a code hash that never produced it end to end (the lineage graph in section 7 shows it). Record the code hash in every step, or forbid code changes between failure and resume for runs that will be registered.</p>
+<p><b>The cost.</b> Every step's outputs are stored (7.5 MB of datastore here for eight small runs; for real checkpoints, terabytes), and every step must be safe to run twice (<b>idempotent</b>): a step that appends to a table or sends an email does it again on retry. Resume also creates a <b>lineage trap</b> (Fig. 2, the resume's step 4): the cloned <code>start</code> step recorded the code hash from <i>before</i> the fix. Registry version 1 therefore points at a code hash that never produced it end to end (the lineage graph in section 7 shows it). Record the code hash in every step, or forbid code changes between failure and resume for runs that will be registered.</p>
 <p><b>When it matters, and how to check.</b> Whenever an early step is expensive (training, a large data job, an evaluation over thousands of prompts); for cheap steps, rerunning is simpler than reasoning about what was reused. Make the last step fail on purpose and resume: the log must say it cloned the earlier steps (here <code>Cloning previously run task 1792142900051724/train/2</code>), and their outputs must keep the same content hashes (they do).</p>
 <div class="mp-pr" id="mp-pr2"><div class="q">Predict: after the failure you also want to try lr 0.003 instead of 0.001. You run <code>python flow.py resume --lr 0.003</code>. What happens?</div>
 <div class="opts"><button data-a="0">train reruns with the new learning rate, the rest is reused</button><button data-a="1">Parameters cannot change on resume: the cloned train step keeps lr 0.001; a new learning rate is a new run</button><button data-a="0">Metaflow notices the parameter changed and reruns everything</button></div>
 <div class="ans">Resume is for continuing the same run after a failure, not for changing it. Metaflow's docs: parameter values "can't be changed on resume", and configs from the original run are used. Changing an input means a new run with its own record; that is what keeps the record honest. Caching engines (KFP, Flyte) handle this differently: a changed input changes the cache key, so the step reruns.</div></div>
 </section>
+</div></div>
 
 <section id="s-eng">
 <h2>4. The engines compared</h2>
