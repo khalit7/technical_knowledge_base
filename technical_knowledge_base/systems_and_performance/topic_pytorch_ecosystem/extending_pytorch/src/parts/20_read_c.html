@@ -1,3 +1,8 @@
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-card" id="ext-tbl-card">
+<h4>Each registration fills one slot of the operator's table and unlocks one more thing</h4>
+<div class="an-ctl" id="ext-tbl-ctl"></div>
+<div class="rd-svg" id="ext-tbl-view"></div>
+</div></div></div><div class="s3L">
 <section id="rd-s1">
 <h2>1. Custom operators with torch.library</h2>
 <p><b>The problem.</b> You have a kernel PyTorch cannot see inside: compiled C++, a Metal or CUDA kernel, a call into another library. Called as a plain Python function it works in eager mode, but autograd does not know its gradient, <code>torch.compile</code> cannot trace through it, and <code>torch.export</code> cannot put it in a graph. A <dfn>custom operator</dfn> fixes all three by making your function a first-class entry in the dispatcher, like <code>aten::addmm</code>, and by telling PyTorch the three facts it cannot work out by itself.</p>
@@ -38,14 +43,14 @@ gelu.register_autograd(backward, setup_context=setup_context)
 
 <span class="c"># 4. the test</span>
 torch.library.opcheck(gelu, (torch.randn(4, 8, 32, requires_grad=<span class="k">True</span>),))</div>
-<p>Swapped into every block's MLP (<code>self.proj(gelu(self.fc(x)))</code>), the model's loss is <span data-v="variants/full/loss"></span>, the same as with <code>F.gelu</code> (<span data-v="ref_loss"></span>), the largest gradient difference is <span data-v="variants/full/grad_diff|e"></span>, and <code>torch.compile(fullgraph=True)</code> gives one graph whose gradients differ from eager by at most <span data-v="variants/full/comp_grad_diff|e"></span> <span class="meas">measured here, CPU</span>. Step through what each registration adds:</p>
-<div class="rd-card" id="ext-tbl-card">
-<h4>Each registration fills one slot of the operator's table and unlocks one more thing</h4>
-<div class="an-ctl" id="ext-tbl-ctl"></div>
-<div class="an-cap" id="ext-tbl-cap"></div>
-<div class="rd-svg" id="ext-tbl-view"></div>
-<p class="small mute">Slots as the decorator registers them (source in the closed block below); results recorded for the three variants <i>kernel only</i>, <i>+ fake</i> and <i>+ fake + autograd</i> of <code>src/exp/custom_ops.py</code>: a kernel alone trains in neither mode, a fake gives one compiled graph but no compiled backward, and only all three pass opcheck's four tests and train under compile.</p>
-</div>
+<p>Swapped into every block's MLP (<code>self.proj(gelu(self.fc(x)))</code>), the model's loss is <span data-v="variants/full/loss"></span>, the same as with <code>F.gelu</code> (<span data-v="ref_loss"></span>), the largest gradient difference is <span data-v="variants/full/grad_diff|e"></span>, and <code>torch.compile(fullgraph=True)</code> gives one graph whose gradients differ from eager by at most <span data-v="variants/full/comp_grad_diff|e"></span> <span class="meas">measured here, CPU</span>. The stepper beside this section adds them one at a time:</p>
+<p class="sxh">The stepper, step by step: what each registration adds</p>
+<ol class="sx" id="sx-tbl">
+<li><b><code>@custom_op("ext::gelu", mutates_args=())</code>: a kernel alone.</b> The decorator defines the operator and registers your function as its kernel for every device. It also registers a fake slot and an autograd slot that raise. Eager forward runs; eager backward and <code>torch.compile</code> both stop: a kernel alone trains in neither mode.</li>
+<li><b><code>+ gelu.register_fake</code>: compile can trace.</b> The fake fills the Meta slot: given input shapes it returns an empty output of the right shape. Dynamo can now trace the op as one node, but AOTAutograd cannot build the backward graph.</li>
+<li><b><code>+ gelu.register_autograd</code>: everything works.</b> The formula fills the Autograd slot. Eager and compiled training both work, every parameter gets a gradient, and <code>opcheck</code> passes all four tests.</li>
+</ol>
+<p class="small mute">Slots as the decorator registers them (source in the closed block below); results recorded for the three variants <i>kernel only</i>, <i>+ fake</i> and <i>+ fake + autograd</i> of <code>src/exp/custom_ops.py</code>: a fake gives one compiled graph but no compiled backward, and only all three pass opcheck's four tests and train under compile.</p>
 <p><code>custom_op</code> is a thin layer over the dispatcher: it parses the schema, defines the operator in a <code>torch.library.Library</code> and registers the slots above at once: your function as the kernel at <code>CompositeExplicitAutograd</code> (every device, unless you name devices), and a fake and an autograd kernel that raise until you register your own. The <code>ADInplaceOrView</code> kernel (which bumps version counters) exists only for operators that mutate.</p>
 <details class="qa"><summary>Source: what custom_op registers at definition (PyTorch v2.14.1)</summary><div>
 <div class="ext-qh" data-q="co_register"></div><div class="ext-q" data-q="co_register"></div>
@@ -53,6 +58,9 @@ torch.library.opcheck(gelu, (torch.randn(4, 8, 32, requires_grad=<span class="k"
 <div class="ext-qh" data-q="co_cea"></div><div class="ext-q" data-q="co_cea"></div>
 </div></details>
 
+</section>
+</div></div>
+<section id="rd-s1b">
 <h3>1.2 The schema, inferred from type hints</h3>
 <p>The dispatcher needs a schema string, not Python annotations; <code>custom_op</code> writes it with <code>torch.library.infer_schema</code>. Python <code>int</code> becomes <code>SymInt</code>, an integer that may be symbolic under <code>torch.compile</code>, so size arguments do not force a recompile. <code>Tensor?</code> is an optional tensor and <code>SymInt[]</code> a list. <code>Tensor(a0!)</code> is an <dfn>alias annotation</dfn>: <code>a0</code> names the memory, <code>!</code> says it is written to; it appears for arguments listed in <code>mutates_args</code>.</p>
 <details class="qa"><summary>What infer_schema produced for six signatures, and the error for one it cannot handle</summary><div><div id="ext-schemas"></div></div></details>

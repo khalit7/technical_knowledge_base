@@ -37,12 +37,17 @@ y = torch.ops.extc.gelu(x)</div>
 <details class="qa"><summary>The macro's source, and the dispatcher's table for extc::gelu</summary><div>
 <p><span class="ext-qh" data-q="torch_library_macro" style="display:inline"></span></p>
 <div class="code" id="ext-cppdump"></div></div></details>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s32">
 <h3>3.2 What it costs</h3>
-<div class="rd-card"><h4>Overhead dominates 64 floats; the kernel dominates a real activation <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
+
+<p><b>Overhead:</b> through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> our loop is about 11 times slower than ATen's GELU, which is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially because the extension was compiled without OpenMP flags. Measure a custom kernel against what it replaces, on your shapes.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card"><h4>Overhead dominates 64 floats; the kernel dominates a real activation <span class="meas">measured on Apple M1 Pro, CPU, 4 threads, bench lock, median of 3</span></h4>
 <div class="seg" id="ext-call-seg"><button class="on" data-m="small (64)">64 floats: overhead</button><button data-m="mlp (8,64,1024)">8 &times; 64 &times; 1024: the kernel</button></div>
 <div class="rd-svg" id="ext-call-bars"></div>
-<p class="small mute" id="ext-call-note"></p></div>
-<p><b>Overhead:</b> through pybind11 the C++ function costs what <code>F.gelu</code> costs; as a dispatcher operator with a Python autograd kernel it costs about five times as much, because every call enters Python at the <code>Autograd</code> key even when nothing needs a gradient (a C++ autograd registration would avoid that; not measured here). <b>Kernel:</b> our loop is about 11 times slower than ATen's GELU, which is vectorised (4 floats per NEON instruction) and multi-threaded; ours computes one <code>erf</code> at a time, and <code>at::parallel_for</code> runs serially because the extension was compiled without OpenMP flags. Measure a custom kernel against what it replaces, on your shapes.</p>
+<p class="small mute" id="ext-call-note"></p></div></div></div></div>
+<section id="rd-s33">
 <p><b>Build.</b> A cold <code>load_inline</code> of this 50-line file took <span data-v="timing/build_cold_s/2"></span> to <span data-v="timing/build_cold_s/0"></span> s (three builds, each in a fresh directory and process); afterwards the build directory acts as a cache.</p>
 <div class="co warn"><div class="t">One namespace, one TORCH_LIBRARY, per process</div>Loading a second build of the same file under another module name (to time a cold build) killed the Python process with SIGABRT (return code <span data-v="dup/returncode"></span>) and no Python traceback: a namespace may be defined by one <code>TORCH_LIBRARY</code> block only. Use <code>TORCH_LIBRARY_FRAGMENT</code> to add definitions from several files, and never import two copies of an extension.</div>
 <details class="qa"><summary>Beyond this example: autograd in C++, CUDA, one wheel for several PyTorch versions</summary><div><ul>

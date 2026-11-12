@@ -1,49 +1,14 @@
-// ---- Reading figures (2026-10-23): hero (slots on the call path), the custom-op table stepper (1.1),
+// ---- Reading figures (2026-10-23; the hero became the 3D stage 41_js_sc_hero.js on 2026-11-12): the custom-op table stepper (1.1),
 // the cache trap (2.3) and what the compiler sees for three ways of plugging a kernel (4). All SVG, drawn at the measured width.
 (function(){
-  if(!document.getElementById('ext-hero'))return;
+  if(!window.EXT||!window.RD)return;
   const E=window.EXT,esc=RD.esc,$=id=>document.getElementById(id),T=RD.t;
   const box=(x,y,w,h,o)=>{o=o||{};return '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+Math.max(1,w).toFixed(1)+'" height="'+h+'" rx="'+(o.r||6)+'" fill="'+(o.fill||'var(--bg)')+'" stroke="'+(o.stroke||'var(--line)')+'" stroke-width="'+(o.sw||1)+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+(o.op!=null?' opacity="'+o.op+'"':'')+'/>'};
   const arrow=(x,y1,y2)=>'<path d="M'+x+' '+y1+' V'+(y2-4)+'" stroke="var(--mute)" stroke-width="1.4"/><path d="M'+(x-4)+' '+(y2-6)+' L'+x+' '+y2+' L'+(x+4)+' '+(y2-6)+'" fill="none" stroke="var(--mute)" stroke-width="1.4"/>';
 
-  // ---------- hero: one call path, five slots ----------
-  const HERO=[
-    ['plain','Your code','y = gelu(x);  out = F.linear(x, w)','',''],
-    ['hook','Python API','the function you called','__torch_function__ · TorchFunctionMode','intercept Python calls on your type'],
-    ['fact','Autograd key','records the backward node','register_autograd','fact 2: the gradient'],
-    ['fact','ADInplaceOrView key','version counters and views','mutates_args in the schema','fact 3: what the op writes'],
-    ['hook','Python key','hands the ATen operator to Python','__torch_dispatch__ · TorchDispatchMode','tensor subclasses, dispatch modes'],
-    ['split']];
-  const LAST=[['fact','Fake (Meta) kernel','used while compile and export trace','register_fake','fact 1: the output’s shape'],
-              ['hook','Backend kernel','CPU · MPS · CUDA · PrivateUse1','register_kernel · TORCH_LIBRARY_IMPL','C++, Metal, Triton (triton_op), Helion']];
-  function heroRow(r,x,y,w,h,wide){let b='';const k=r[0];
-    b+=box(x,y,w,h,k==='fact'?{fill:'var(--acc2)',stroke:'var(--acc)',sw:2}:k==='hook'?{stroke:'var(--c4)',sw:1.5,dash:'5 3'}:{fill:'var(--soft)'});
-    if(wide){const hx=x+w*0.47;
-      b+=T(x+12,y+17,esc(r[1]),{fs:12.5,fill:'var(--ink)',w:600})+T(x+12,y+33,esc(r[2]),{fs:11,fill:'var(--mute)'});
-      if(r[3])b+=T(hx,y+17,esc(r[3]),{fs:12,fill:k==='fact'?'var(--acc)':'var(--ink)',w:600})+T(hx,y+33,esc(r[4]),{fs:11,fill:k==='fact'?'var(--acc)':'var(--mute)'});
-    }else{
-      b+=T(x+10,y+16,esc(r[1]),{fs:12,fill:'var(--ink)',w:600})+T(x+10,y+31,esc(r[2]),{fs:11,fill:'var(--mute)'});
-      if(r[3])b+=T(x+10,y+48,esc(r[3]),{fs:11.5,fill:k==='fact'?'var(--acc)':'var(--ink)',w:600})+T(x+10,y+63,esc(r[4]),{fs:11,fill:k==='fact'?'var(--acc)':'var(--mute)'});
-    }return b}
-  function hero(){const el=$('ext-hero'),W=RD.width(el),wide=W>=620,g=12;let y=2,b='';
-    HERO.forEach((r,j)=>{
-      if(r[0]==='split')return;
-      const h=wide?42:(r[3]?70:38);
-      b+=heroRow(r,1,y,W-2,h,wide);y+=h;b+=arrow(28,y,y+g);y+=g});
-    if(wide){const gg=30,w=(W-2-gg)/2,h=70;
-      LAST.forEach((r,j)=>{b+=heroRow(r,1+j*(w+gg),y,w,h,false)});
-      b+=T(1+w+gg/2,y+h/2+4,'or',{fs:11,fill:'var(--mute)',a:'middle'});y+=h;
-    }else{LAST.forEach((r,j)=>{const h=70;b+=heroRow(r,1,y,W-2,h,false);y+=h;if(j===0){b+=T(W/2,y+11,'or, when the call runs for real',{fs:11,fill:'var(--mute)',a:'middle'});y+=16}})}
-    el.innerHTML=RD.svg(W,y+2,b,'The call path from your code through the Python API, the autograd, ADInplaceOrView and Python dispatch keys, to a fake or real kernel, with the extension point at each slot')}
-  hero();RD.onRender(hero);RD.onResize(hero);
-
   // ---------- 1.1: the operator's table, one registration at a time ----------
   if($('ext-tbl-card')){
     const VAR=['kernel_only','kernel_fake','full'];
-    const STEP=[
-      ['@custom_op("ext::gelu", mutates_args=())','The decorator defines the operator and registers your function as its kernel for every device. It also registers a fake slot and an autograd slot that raise. Eager forward runs; eager backward and torch.compile both stop.'],
-      ['+ gelu.register_fake','The fake fills the Meta slot: given input shapes it returns an empty output of the right shape. Dynamo can now trace the op as one node, but AOTAutograd cannot build the backward graph.'],
-      ['+ gelu.register_autograd','The formula fills the Autograd slot. Eager and compiled training both work, every parameter gets a gradient, and opcheck passes all four tests.']];
     function slots(i){return [
       ['CompositeExplicitAutograd','gelu: your kernel, every device','on'],
       ['Meta (the fake)',i>=1?'torch.empty_like(x)':'raises: no fake registered',i>=1?'new':'bad'],
@@ -69,8 +34,8 @@
         b+='<circle cx="'+(rx+7)+'" cy="'+(ry+9)+'" r="6" fill="'+c+'"/>'+T(rx+7,ry+13,r[1]?'✓':'✗',{fs:10,fill:'var(--bg)',a:'middle',w:700});
         b+=T(rx+19,ry+13,esc(r[0])+':',{fs:11.5,fill:'var(--ink)',w:600})+T(rx+19+(wide?122:122),ry+13,esc(r[2]),{fs:11.5,fill:c});ry+=24});
       el.innerHTML=RD.svg(W,Math.max(y,ry)+4,b,'dispatch slots of ext::gelu and what works');
-      $('ext-tbl-cap').innerHTML='<div class="t">Step '+(i+1)+' of 3: <code>'+esc(STEP[i][0])+'</code></div><p>'+STEP[i][1]+'</p>'}
-    const an=RD.anim({card:'ext-tbl-card',ctl:'ext-tbl-ctl',n:3,draw,ms:2200,label:'Registration step'});
+    }
+    const an=RD.anim({card:'ext-tbl-card',ctl:'ext-tbl-ctl',n:3,draw,ms:4200,label:'Registration step',list:'sx-tbl'});
     RD.onResize(()=>an.redraw());
   }
 

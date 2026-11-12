@@ -1,23 +1,34 @@
+<div class="s3sp"><div class="s3R"><div id="stg-dyn"></div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. Custom operators under torch.compile, and two traps</h2>
 <p>The parent page showed the lesson on a toy function (Reading section 8: 3 graphs and 2 breaks against 1 and 0). Here it is on the whole running example, then what the compiler does with the opaque node, then two ways a correct-looking op loses its gradients under compile.</p>
 
 <h3>2.1 Dynamo traces the forward: an opaque call against a custom op</h3>
-<p><dfn>Dynamo</dfn>, the front of <code>torch.compile</code>, records tensor operations into an FX <dfn>graph</dfn> and breaks it at a call it cannot trace, here a C++ function exposed through pybind11. The animation replays what <code>torch._dynamo.explain</code> recorded on one forward (<code>src/exp/graphs.py</code>), the GELU called directly, then as the custom op of section 1.</p>
-<div class="rd-card" id="ext-dyn-card">
-<h4>The direct call cuts the forward into pieces; the custom op keeps one graph</h4>
+<p><dfn>Dynamo</dfn>, the front of <code>torch.compile</code>, records tensor operations into an FX <dfn>graph</dfn> and breaks it at a call it cannot trace, here a C++ function exposed through pybind11. Fig. 2 replays what <code>torch._dynamo.explain</code> recorded on one forward (<code>src/exp/graphs.py</code>), the GELU called directly, then as the custom op of section 1.</p>
 <div class="seg" id="ext-dyn-seg"><button class="on" data-m="pybind">Before: direct call (pybind11)</button><button data-m="custom_op">After: custom op</button></div>
-<div class="an-ctl" id="ext-dyn-ctl"></div>
-<div class="an-cap" id="ext-dyn-cap"></div>
-<div class="rd-svg" id="ext-dyn-svg"></div>
-<div id="ext-dyn-view"></div>
-<div class="an-cnt" id="ext-dyn-cnt"></div>
-<div class="leg"><span style="--sw:var(--acc)">compiled graph (one colour per graph)</span><span style="--sw:var(--c5)">runs eagerly in Python</span><span style="--sw:var(--bad)">graph break</span></div>
-<p class="small mute">Each bar segment is one stretch of the forward, its width proportional to the operations in it (101 in all); colour says where it ran: inside a compiled graph, eagerly in Python, or at a graph break.</p>
-</div>
-<p>With the direct call, Dynamo compiled <span data-v="graphs/pybind/gc"></span> small graphs (<span data-v="graphs/pybind/bc"></span> breaks) covering only the inside of a block, and the outer <code>GPT.forward</code> (embeddings, final norm, head, loss) ran uncompiled; the parent's Compile lab measured what that shape costs with a <code>print</code> inside a block: 7 to 9% on the step. The reason Dynamo gave: <span class="ext-err" data-v="graphs/pybind/breaks/0/reason|raw"></span>. With the custom op, one graph of <span data-v="graphs/custom_op/n0"></span> operations holds the whole forward.</p>
+<p class="sxh">Fig. 2, step by step: what Dynamo recorded on one forward</p>
+<ol class="sx" id="sx-dyn-pb">
+<li><b>Dynamo starts at <code>GPT.forward</code>.</b> It inlines every call it can (block, attention, MLP) looking for one graph. In the recording the outer <code>GPT.forward</code> ended up uncompiled: its 4 embedding operations (the back row) run eagerly in Python.</li>
+<li><b>Block 0: graph 1.</b> ln1, attention, the residual and ln2: <span data-v="graphs/pybind/graphs/0/length"></span> operations traced into one small graph (the first tray).</li>
+<li><b>The GELU: a graph break.</b> The MLP's <code>fc</code> becomes graph 2 on its own; then Dynamo meets the C++ call and stops. Python runs <code>raw_gelu</code> outside any graph (the red box, lifted out of the row).</li>
+<li><b>After the break: graphs 3 and 4.</b> A new graph starts for <code>proj</code>, another for the residual add. Inductor sees neither the GELU nor anything it could fuse across it.</li>
+<li><b>Blocks 1 to 3 reuse the four graphs.</b> Compiled once for block 0, they run again; every block makes a trip through Python at its GELU.</li>
+<li><b>Done: <span data-v="graphs/pybind/gc"></span> graphs, <span data-v="graphs/pybind/bc"></span> breaks, an uncompiled outer frame.</b> Final norm, head and loss (the front row) run eagerly too, op by op.</li>
+</ol>
+<ol class="sx" id="sx-dyn-co" hidden>
+<li><b>One graph from the first operation.</b> Dynamo traces <code>GPT.forward</code> and everything it calls into a single graph; the embeddings are its first 4 operations.</li>
+<li><b>Block 0, still graph 1.</b> The operations up to ln2 and the MLP's <code>fc</code> join the same graph: one tray under every row.</li>
+<li><b>The custom op is one node.</b> Dynamo does not look inside <code>ext::gelu</code>. It asks the fake for the output's shape, records <code>ext.gelu.default</code> (the dark box) and keeps tracing: no break.</li>
+<li><b>Blocks 1 to 3, the same graph.</b> <code>ext.gelu.default</code> appears once per block, <span data-v="export/ext_nodes"></span> nodes in all.</li>
+<li><b>Done: one graph of <span data-v="graphs/custom_op/n0"></span> operations.</b> Export of the same model also gives one graph (below).</li>
+</ol>
+<p class="small mute">Each small box is one operation of the forward recorded by <code>torch._dynamo.explain</code> (101 in all), one row per stretch of the model; a glass tray is a compiled graph, one colour per graph; a box with no tray ran eagerly in Python; the red box is the graph break.</p>
+<p>So the direct call leaves small graphs covering only the inside of a block; the parent's Compile lab measured what that shape costs with a <code>print</code> inside a block: 7 to 9% on the step. The reason Dynamo gave: <span class="ext-err" data-v="graphs/pybind/breaks/0/reason|raw"></span>. The custom op holds the whole forward in one graph.</p>
 <p><b>Export has no fallback.</b> <code>torch.compile</code> can break a graph and run Python; <code>torch.export</code>, which must produce one graph to save and run elsewhere, cannot. With the custom op, <code>torch.export.export</code> captured <span data-v="export/ops"></span> operations including <span data-v="export/ext_nodes"></span> <code>ext.gelu</code> nodes, still <span data-v="export/ext_nodes_core"></span> after <code>run_decompositions()</code> lowered the rest to <span data-v="export/ops_core"></span> core ATen operations, and the exported module's logits matched eager. With the direct call it failed, because the C++ function was handed a fake tensor and tried to read its data: <span class="ext-err" data-v="export/pybind_error|raw"></span></p>
 
+</section>
+</div></div>
+<section id="rd-s2b">
 <h3>2.2 What Inductor does with an opaque node</h3>
 <p><dfn>Inductor</dfn> turns the graph into code. The <code>call()</code> function it generated for the MLP's forward (<code>fc</code>, GELU, <code>proj</code>, inference):</p>
 <div class="rd-two"><div><div class="small mute">F.gelu: <span data-v="inductor/native/n"></span> generated kernel</div><div class="code" id="ext-ind-native"></div></div><div><div class="small mute">custom op: <span data-v="inductor/custom_op/n"></span> generated kernels</div><div class="code" id="ext-ind-custom"></div></div></div>
@@ -30,11 +41,16 @@
 <h3>2.3 Two traps that drop gradients without an error</h3>
 <p>Both were found while building this page, with the C++ operator of section 3 given its fake and formula from Python by name (<code>torch.library.register_fake("extc::gelu")</code>).</p>
 <p><b>Trap 1: registering after the first trace.</b> In one process, the op was first traced bare, then registered, then compiled. The compiled model trained with the right loss, but the MLP weights got no gradients: the compiled backward treated the op's output as not needing one. <code>opcheck</code> in the same process says so (<span class="ext-err" data-v="variants/cpp_late/opcheck/test_aot_dispatch_dynamic/msg|raw"></span>). The cause is a per-operator cache: the Python object for each operator overload remembers, per dispatch key, which kernel to use during tracing, and registering through <code>torch.library</code> does not empty it. Emptying <code>torch.ops.extc.gelu.default._dispatch_cache</code> after the registration made all four tests pass in the same process; so did a fresh process with the registrations made at import. <b>Register everything when the module is imported, before any call.</b></p>
+</section>
+<div class="s3sp"><div class="s3L"><section id="rd-s2c">
 <p><b>Trap 2: the warm cache keeps the wrong answer.</b> Compiled artifacts are cached on disk across processes: Inductor's FX graph cache and the <dfn>AOTAutograd cache</dfn>, which stores the compiled forward and backward pair. Four fresh processes shared one cache directory (<code>src/exp/cache_trap.py</code>, the running example compiled once, one forward and backward each):</p>
-<div class="rd-card"><h4>A correct process read the broken backward that the first one cached</h4>
-<div class="rd-svg" id="ext-trap-svg"></div>
-<p class="small mute">Recorded: parameters with no gradient were 16 of 52 in process 1 (late registration) and process 2 (registered at import, shared cache), 0 of 52 with <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> and 0 of 52 with <code>TORCHINDUCTOR_FORCE_DISABLE_CACHES=1</code>. Loss 3.801371 in all four.</p></div>
+
 <p>The cache key evidently does not cover the operator's Python registrations (graph and configuration were identical), and turning off only the AOTAutograd cache fixed it. <b>When you change an operator's registrations, clear the compile cache</b> (<code>TORCHINDUCTOR_CACHE_DIR</code>, by default <code>torchinductor_&lt;user&gt;</code> in the temporary directory, or set <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> while developing), and keep one cheap CI test that compares compiled gradients against eager on one batch.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="rd-card"><h4>A correct process read the broken backward that the first one cached</h4>
+<div class="rd-svg" id="ext-trap-svg"></div>
+<p class="small mute">Recorded: parameters with no gradient were 16 of 52 in process 1 (late registration) and process 2 (registered at import, shared cache), 0 of 52 with <code>TORCHINDUCTOR_AUTOGRAD_CACHE=0</code> and 0 of 52 with <code>TORCHINDUCTOR_FORCE_DISABLE_CACHES=1</code>. Loss 3.801371 in all four.</p></div></div></div></div>
+<section id="rd-s2d">
 <details class="qa"><summary>Source: the per-overload dispatch cache and the AOTAutograd cache flag (PyTorch v2.14.1)</summary><div>
 <div class="ext-qh" data-q="ops_cache_init"></div><div class="ext-q" data-q="ops_cache_init"></div>
 <div class="ext-qh" data-q="ops_cache_store"></div><div class="ext-q" data-q="ops_cache_store"></div>

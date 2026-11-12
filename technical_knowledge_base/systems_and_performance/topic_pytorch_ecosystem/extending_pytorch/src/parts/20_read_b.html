@@ -2,14 +2,21 @@
 <a href="#rd-s0">The idea</a><a href="#rd-s1">1 Custom ops</a><a href="#rd-s2">2 Under compile</a><a href="#rd-s3">3 C++</a><a href="#rd-s4">4 Kernels</a><a href="#rd-s5">5 Subclasses</a><a href="#rd-s6">6 Modes</a><a href="#rd-deep">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="lead"><b>Every way of extending PyTorch plugs your code into one slot on the path a call already takes, and autograd, <code>torch.compile</code> and <code>torch.export</code> keep working only if you also hand PyTorch the three facts it cannot read from opaque code: the output's shape (a <i>fake</i>), the gradient, and what the code writes.</b></p>
-<div class="rd-card" id="ext-hero-card">
-<h4>One call path, six slots to plug into; the three highlighted ones are the facts a custom operator must supply</h4>
-<div class="rd-svg" id="ext-hero"></div>
-<p class="small mute">The dispatcher's keys in their real order, simplified (the sibling page draws all of them). In each slot, left: what happens there; right: the API you plug in with.</p>
-</div>
+<p class="sxh">Fig. 1, step by step: one call path, six slots to plug into; the three facts highlighted</p>
+<ol class="sx" id="sx-hero">
+<li><b>One call, a stack of keys.</b> <code>ext::gelu2(x)</code>, the page's operator with a C++ kernel for the CPU and a Metal one for the Apple GPU (section 1.6), enters at the top. The dispatcher walks its keys in order; a key with a kernel registered for this operator runs it, a key without one passes the call down.</li>
+<li><b>Python API: <code>__torch_function__</code>.</b> Before anything else, a tensor subclass or a <code>TorchFunctionMode</code> sees the Python function you called (<code>F.linear</code>, <code>Tensor.add</code>), above autograd (section 5.1).</li>
+<li><b>Autograd: fact 2, the gradient.</b> <code>register_autograd</code> fills this slot (<code>Autograd[alias]</code> in the operator's recorded table): it records the backward node, so <code>loss.backward()</code> knows the op's gradient.</li>
+<li><b>ADInplaceOrView: fact 3, what the op writes.</b> Version counters and views. The schema's <code>mutates_args</code> decides whether the op has a kernel here; <code>ext::gelu2</code> writes nothing, so the slot is empty and the call passes through.</li>
+<li><b>Python key: <code>__torch_dispatch__</code>.</b> Tensor subclasses and dispatch modes receive the ATen operator here, below autograd (sections 5 and 6). Plain tensors skip it.</li>
+<li><b>The kernel for the device.</b> A CPU tensor runs the C++ kernel at <code>CPU</code>, an MPS tensor the Metal kernel at <code>MPS</code>: one operator, one kernel per device (<code>register_kernel</code>, <code>TORCH_LIBRARY_IMPL</code>; Triton and Helion kernels plug in the same way, section 4).</li>
+<li><b>Under compile: fact 1, the output's shape.</b> <code>torch.compile</code> and <code>torch.export</code> trace with fake tensors, so the call goes to <code>Meta</code>, where <code>register_fake</code> returns an empty (8, 64, 1024) output: a shape, no data.</li>
+</ol>
+<p class="small mute">The dispatcher's keys in their real order, simplified ({{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}} walks all of them, Reading 2.2). The kernels drawn at the bottom are the ones in <code>ext::gelu2</code>'s table as recorded with <code>torch._C._dispatch_dump</code> (CPU, MPS, Meta and Autograd; closed block in 1.6).</p>
 <div class="rd-two">
 <div><p><b>You need</b>: the dispatcher's keys and the autograd graph from {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}} (Reading 2 and 3), and what a graph break is from {{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}}.</p>
 <p><b>The running example.</b> The parent topic's 3,186,944-parameter character-level GPT ({{Topic: pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}, defined once in the root's <code>src/model/</code>), changed in two ways: the GELU in every block's MLP becomes <b>your own kernel</b> (C++, then Metal, then Helion), and the block weights become an <b>int8 tensor subclass</b>.</p></div>
@@ -21,6 +28,9 @@
 <li><dfn>Wrapper subclass</dfn>: a tensor with a shape but no storage, whose data lives in inner tensors.</li>
 <li><dfn>Dispatch mode</dfn>: a context manager that sees every ATen call in a region.</li></ul></div>
 </div>
+</section>
+</div></div>
+<section id="rd-s0t">
 <h3>Which hook for which need, with what was measured</h3>
 <div class="tw"><table class="rd-tbl">
 <thead><tr><th>You need</th><th>Use</th><th>Autograd</th><th>torch.compile</th><th>Measured here</th></tr></thead>

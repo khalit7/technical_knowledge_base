@@ -1,4 +1,4 @@
-// ---- Reading 5.1 (moved from the old Subclass tracer tab, 2026-10-23): recorded calls at the __torch_function__ and __torch_dispatch__ levels ----
+// ---- Reading 5.1 (moved from the old Subclass tracer tab, 2026-10-23; a widget that never autoplays since 2026-11-12): recorded calls at the __torch_function__ and __torch_dispatch__ levels ----
 (function(){
   if(!document.getElementById('es-card'))return;
   const E=window.EXT,esc=RD.esc,$=id=>document.getElementById(id),U=window.EXTU;
@@ -22,9 +22,11 @@
     let s=0,f=0,b=0;const seen=new Set();for(let j=0;j<=i;j++){const x=L.ev[j];if(x[1]==='f')f++;else if(x[1]==='b')b++;else s++;seen.add(x[2])}
     $('es-cnt').innerHTML=RD.stat('Setup calls',s,'nn.Parameter creation')+RD.stat('Forward calls',f+' / '+L.nf,'so far / total')+RD.stat('Backward calls',b+' / '+L.nb,'so far / total')+RD.stat('Distinct operations',seen.size,'so far');
     $('es-cap').innerHTML='<div class="t">'+CAPS[mode][0]+'</div><p>'+CAPS[mode][1]+' Loss: '+L.loss.toFixed(6)+' (a <code>'+esc(L.loss_type)+'</code>); the weight\'s gradient arrives as a <code>'+esc(L.grad_type)+'</code>.</p>';}
-  // the shared step controller (play, pause, step, scrub, speed); it lives in RD and plays only while visible
-  const an=RD.anim({card:'es-card',ctl:'es-ctl',n:LV.function.ev.length,draw,ms:420,label:'Recorded call'});
-  RD.seg($('es-seg'),m=>{mode=m;an.reset(LV[m].ev.length);hist()});
+  // a widget the reader drives (the long-replay rule, case b: hundreds of recorded calls): it never plays by itself and has no step list;
+  // it opens on the first forward call that involves the weight's matrix multiply, the informative frame
+  const first=m=>{const ev=LV[m].ev,i=ev.findIndex(x=>x[1]==='f'&&/linear|addmm|^t$/.test(x[2]));return i>=0?i:Math.max(0,ev.findIndex(x=>x[1]==='f'))};
+  const an=RD.anim({card:'es-card',ctl:'es-ctl',n:LV.function.ev.length,draw,ms:420,label:'Recorded call',auto:false,start:first('function')});
+  RD.seg($('es-seg'),m=>{mode=m;an.reset(LV[m].ev.length);an.go(first(m),true);hist()});
   $('es-jump').addEventListener('click',()=>{const k=LV[mode].ev.findIndex(x=>x[1]==='b');if(k>=0)an.go(k)});
   let hph='f';
   function hist(){const H=LV[mode].hist,items=Object.entries(H).filter(([k])=>k.startsWith(hph==='f'?'forward:':'backward:')).map(([k,v])=>({k:'<code>'+esc(k.split(':').slice(1).join(':'))+'</code>',v,c:hph==='f'?'var(--c1)':'var(--c2)'})).sort((a,b)=>b.v-a.v);

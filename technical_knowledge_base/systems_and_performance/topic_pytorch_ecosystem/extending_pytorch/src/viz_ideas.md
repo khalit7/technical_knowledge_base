@@ -42,3 +42,18 @@ Rejected at this rebuild:
 - A dispatcher key walk for the custom op: the sibling page owns the dispatcher and records one call key by key (its Reading 2.2); the hero names the slots and links there.
 - Keeping the Subclass tracer as a tab: it explains one mechanism (where the two intercept points sit), so it moved inline.
 - A second comparison table for "choosing" (old section 8): merged into the top table; the Which extension point? tab asks the same questions one at a time.
+
+## 2026-11-12 rollout: split layout, three 3D stages (renderer v2)
+Built:
+| Idea | Kind | Placement | Data |
+|---|---|---|---|
+| Fig. 1: one call to `ext::gelu2` down the keys as stacked glass plates (Python API, Autograd, ADInplaceOrView, Python key), then the CPU and MPS kernels, then the fake at Meta | 3D stage, 7 steps (replaces the static hero) | top, split | `mps.dispatch_lines` (the recorded `_dispatch_dump`) decides which kernels and which filled slot are drawn |
+| Fig. 2: one forward as Dynamo recorded it, every operation a box, graphs as glass trays; direct call against custom op | 3D stage with a mode toggle, 6 and 5 steps (replaces the 22-frame 2D strip animation, the long-replay rule) | 2.1, split | `graphs.json` (per-graph op lists) |
+| Fig. 3: the Int8Weight wrapper (shell, qdata, scale) with ATen calls arriving through `__torch_dispatch__`, the float32 temporary, the plain output, backward, flattening under compile | 3D stage, 7 steps (replaces the 2D float32 against int8 before/after) | 5.3, split | `int8` (recorded call counts, graph inputs); bytes derived from shapes |
+
+Kept 2D (they read best flat): the custom-op slot stepper (a table filling, 3 steps, now with a step list), the cache-trap diagram, the per-call and int8 timing bars, the plug diagram (three flat structures side by side), the opcheck grid and every table. The subclass tracer stays 2D as a widget (hundreds of recorded calls: the long-replay rule, case b; no autoplay, no step list).
+
+Rejected at this pass:
+- A 3D stage for the cache trap: four processes and one directory are a flat relationship; depth would add nothing.
+- A 3D opcheck grid (variants by tests as bars): pass and fail are binary; a table reads faster.
+- Splitting the Custom-op lab tab: its comparison needs the full width (two variant columns side by side); its one paragraph is an introduction, not notes beside a chart.
