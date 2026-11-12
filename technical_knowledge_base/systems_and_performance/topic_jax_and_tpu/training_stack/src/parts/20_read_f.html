@@ -2,10 +2,14 @@
 <h2>5. orbax: checkpoints that resume the same run</h2>
 <p>A run is preempted at step 80. To continue <b>the same run</b>, not a similar one, you need everything that decides step 81: the parameters, the optimiser's moments and step count (the schedule reads it), the random streams (dropout) and the data loader's position. PyTorch scatters these across <code>model.state_dict()</code>, <code>optimizer.state_dict()</code>, <code>scheduler.state_dict()</code>, the global RNG states and a loader with no state; in JAX all of them are pytrees, and orbax saves pytrees.</p>
 
+<div class="s3sp"><div class="s3L">
 <h3>What each missing piece costs, measured</h3>
 <p>The running example in NNX with dropout 0.1, its AdamW chain and a grain pipeline. One process trains 160 steps without stopping; another trains 80, saves and exits; then a fresh process per variant restores part of the checkpoint and trains steps 80 to 159, compared with the uninterrupted run over all 210 arrays of parameters and optimiser state (<code>src/runs/ts_ckpt.py</code>) <span class="ts-meas">measured</span>.</p>
-<p class="ts-pred"><b>Predict</b>: you restore parameters and optimiser state but build a new grain iterator. Is the resumed loss at step 80 equal to the uninterrupted run's? Pick "no data iterator" and step.</p>
-<div class="ts-box" id="rs-card">
+<p class="ts-pred"><b>Predict</b>: you restore parameters and optimiser state but build a new grain iterator. Is the resumed loss at step 80 equal to the uninterrupted run's? Pick "no data iterator" in the chart.</p>
+<p><b>Reading the signatures.</b> Restoring everything gives an identical run, every array bit for bit. A fresh data iterator re-reads batches 0, 1, 2, so the very first resumed loss is off (by 0.015). A fresh optimiser gives the same first loss (the forward pass does not read it) but restarts warmup and zeroes the moments, so the curve then drifts. Fresh RNG streams repeat the dropout masks of steps 0 onward: a tiny first difference (1.9e-4) that compounds. "Params only", what <code>torch.save(model.state_dict())</code> keeps, combines all three. The step count is in the optimiser state here (<code>opt.step</code>), so the schedule followed it.</p>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card ts-box" id="rs-card">
 <h4>Each omission gives a different run with no error, and its own signature</h4>
 <div class="ts-ctl"><span class="small">Restored</span><span class="seg" id="rs-var"><button data-m="all" class="on">everything</button><button data-m="no_data">no data iterator</button><button data-m="no_opt">no optimiser</button><button data-m="no_rng">no RNG</button><button data-m="params_only">Params only</button></span></div>
 <div class="rs-chips" id="rs-chips"></div>
@@ -16,7 +20,7 @@
 </div>
 <div class="tw"><table class="ts-t" id="ts-ckv-t"></table></div>
 <p class="ts-cap">Top panel: training loss, resumed against uninterrupted; bottom: the absolute difference on a log scale (exactly zero sits on the floor). "First loss off by" is the gap at step 80, the first step after resuming.</p>
-<p><b>Reading the signatures.</b> Restoring everything gives an identical run, every array bit for bit. A fresh data iterator re-reads batches 0, 1, 2, so the very first resumed loss is off (by 0.015). A fresh optimiser gives the same first loss (the forward pass does not read it) but restarts warmup and zeroes the moments, so the curve then drifts. Fresh RNG streams repeat the dropout masks of steps 0 onward: a tiny first difference (1.9e-4) that compounds. "Params only", what <code>torch.save(model.state_dict())</code> keeps, combines all three. The step count is in the optimiser state here (<code>opt.step</code>), so the schedule followed it.</p>
+</div></div></div>
 
 <h3>How a CheckpointManager save works</h3>
 <ul class="tight">
@@ -33,9 +37,18 @@
 <p>The RNG state saved with the model: <span id="rs-rng"></span>. The data iterator state: <code data-ts="ckpt.iterator_state" data-f="kvjson"></code>.</p>
 </div></details>
 
+<div class="s3sp"><div class="s3R"><div id="stg-mesh"></div></div><div class="s3L">
 <h3>Restoring onto a different mesh</h3>
-<p>Saved sharded on a <code>(data 2, model 4)</code> mesh of 8 simulated devices at step 20 and restored onto four layouts, <b>restore was exact on every layout</b>, but <b>continuing was bit-identical only when restored into the shardings the state had when saved</b>; otherwise, even on the same mesh, the run drifted by float rounding (up to 3.4e-6 in a parameter by step 40) <span class="ts-meas">measured</span>. The cause: after one jitted step the compiler had re-sharded 81 of the 210 parameter and optimiser leaves, so a freshly built model compiles a different step that sums in a different order. Pin the state's shardings in the train step (<code>out_shardings</code> or <code>jax.lax.with_sharding_constraint</code>), and when the mesh really changes, compare losses, not bits.</p>
+<p>A checkpoint saved sharded on one mesh restores exactly onto any other layout, because you restore into a target that carries the shardings you want; continuing bit for bit is another matter (Fig. 3). Pin the state's shardings in the train step (<code>out_shardings</code> or <code>jax.lax.with_sharding_constraint</code>), and when the mesh really changes, compare losses, not bits.</p>
+<ol class="sx" id="sx-mesh">
+<li><b>Saved on (data 2, model 4).</b> Eight simulated CPU devices. fc1's kernel [128, 512] is annotated <code>P(None, 'model')</code>: each device holds one 128-column block (its glass plate, drawn at the block's offset) and the two data rows hold copies.</li>
+<li><b>The compiler re-shards.</b> After one jitted step, 81 of the 210 parameter and optimiser leaves had shardings other than their annotations: the fc1 bias, annotated <code>P()</code> (a full copy on every device), came back as <code>P('model',)</code> (a quarter each).</li>
+<li><b>orbax saves at step 20.</b> Every device's shards go into TensorStore, one OCDBT store per process (<code>ocdbt.process_0</code>, 9.5 MB here), each process writing the shards it owns: no gather to one device.</li>
+<li><b>Restore onto five targets.</b> The same mesh built fresh, (8 x 1), (1 x 8), one device, and the same mesh with the shardings the state had when saved. Each target is a pytree carrying the shardings you want, and every restore was exact, bit for bit.</li>
+<li><b>Continue to step 40.</b> Only the run restored into the saved shardings stayed bit-identical to the uninterrupted run. Every other target compiles a different step that sums in a different order, and its parameters drifted by 2.7e-6 to 3.4e-6 by step 40.</li>
+</ol>
 <details class="mist"><summary>The five restores, layout by layout, and why this is not nondeterminism</summary><div class="b"><p>The running example was restored onto the same mesh, (8 x 1), (1 x 8) and one device, plus the same mesh into the saved shardings, and trained to step 40 (<code>src/runs/ts_ckpt_mesh.py</code>). The model's annotations replicate the biases (spec <code>P()</code>); after one step the fc1 bias, for example, came back as <code>P('model',)</code>. The same 20 steps run three times on one mesh were identical every time (<code>src/runs/ts_mesh_det.py</code>).</p><div class="tw"><table class="ts-t" id="ts-mesh-t"></table></div></div></details>
+</div></div>
 
 <details class="mist"><summary>Emergency checkpointing and orbax's new API (read, not run)</summary><div class="b"><p>On a large TPU job the cost of a checkpoint is the write to remote storage (Cloud Storage), so you checkpoint rarely and lose up to an interval of work on each failure. orbax's <code>experimental.emergency.CheckpointManager</code> keeps two tiers: frequent <b>local</b> checkpoints to fast local storage (RAM disk) on each host (default <code>save_interval_steps</code> 10: <a data-ts-src="orbax_emergency_local_interval"></a>) and rare <b>persistent</b> ones to remote storage (default 1000: <a data-ts-src="orbax_emergency_persistent_interval"></a>); after a failure, a slice that still holds a complete local checkpoint broadcasts it to the replaced hosts, and the persistent tier is the fallback (docstring at <a data-ts-src="orbax_emergency_cm"></a>). The module is marked "experimental; do not use without specific approval" (<a data-ts-src="orbax_emergency_warning"></a>). Not run here: it needs several hosts and slices. orbax also ships a new API, <code>orbax.checkpoint.experimental.v1</code> (<a data-ts-src="orbax_v1"></a>), still under <code>experimental</code> at 0.12.7; the code on this page uses the stable <code>CheckpointManager</code>, as Tunix does. MaxText has moved to the v1 API (<code>ocp.training.Checkpointer</code>, on {{JAX LLM codebases|n:3fa5c17b0d0d81f8bd5ad523e9f2dde0}}, section 5).</p></div></details>
 </section>

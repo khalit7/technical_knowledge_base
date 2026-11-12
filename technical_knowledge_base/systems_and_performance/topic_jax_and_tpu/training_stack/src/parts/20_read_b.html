@@ -14,14 +14,11 @@
 </tbody></table></div>
 <p class="ts-src">Source at flax v0.12.10: <a data-ts-src="flax_variable"></a>, <a data-ts-src="flax_param"></a>, <a data-ts-src="flax_batchstat"></a>. Arrays are read and written with <code>v[...]</code>; <code>v.value</code> still works in 0.12 but warns that it is deprecated.</p>
 
-<h3>split: one object becomes a graphdef and states</h3>
-<p><code>graphdef, state = nnx.split(model)</code> walks the object graph. The <b>graphdef</b> records every node (module, list, Variable) and every non-array attribute; the <b>state</b> is a pytree of the arrays, keyed by path. <code>nnx.merge(graphdef, state)</code> builds an equivalent object; <code>nnx.update(model, state)</code> writes arrays back into an existing one. With filters, <code>nnx.split(model, f1, f2, ...)</code> returns one state per filter: a filter is a Variable type, a path predicate (<code>nnx.PathContains("kernel")</code>), a combination (<code>nnx.All</code>, <code>nnx.Any</code>, <code>nnx.Not</code>), or <code>...</code> for "everything else". It is how you say "differentiate the Params only", "decay only the kernels", "vectorise the stacked layers, broadcast the rest".</p>
-<p class="ts-pred"><b>Predict</b>, then step the split below: with <code>+ dropout</code> and the filter <code>nnx.Not(nnx.Param)</code>, how many of the leaves land in group 1?</p>
-<div class="ts-box" id="si-card">
+<div class="s3sp"><div class="s3R">
+<div class="ts-box card" id="si-card">
 <h4>The running example's real state, split by a filter, module by module</h4>
 <div class="ts-ctl"><span class="small">Model</span><span class="seg" id="si-model"><button data-m="plain" class="on">running example</button><button data-m="dropout">+ dropout</button><button data-m="counter">+ StepCount</button><button data-m="scan">scanned (stacked)</button></span></div>
 <div class="ts-ctl"><span class="small">Filter</span><span class="seg" id="si-filter" style="flex-wrap:wrap"></span></div>
-<div class="ts-capstep" id="si-cap"></div>
 <div class="ts-anctl" id="si-ctl"></div>
 <div class="out" id="si-stats"></div>
 <div class="si-two">
@@ -30,6 +27,11 @@
 <div class="si-g"><h4 id="si-h3">rest (...)</h4><div id="si-g2"></div></div>
 </div>
 </div>
+</div><div class="s3L">
+<h3>split: one object becomes a graphdef and states</h3>
+<p><code>graphdef, state = nnx.split(model)</code> walks the object graph. The <b>graphdef</b> records every node (module, list, Variable) and every non-array attribute; the <b>state</b> is a pytree of the arrays, keyed by path. <code>nnx.merge(graphdef, state)</code> builds an equivalent object; <code>nnx.update(model, state)</code> writes arrays back into an existing one. With filters, <code>nnx.split(model, f1, f2, ...)</code> returns one state per filter: a filter is a Variable type, a path predicate (<code>nnx.PathContains("kernel")</code>), a combination (<code>nnx.All</code>, <code>nnx.Any</code>, <code>nnx.Not</code>), or <code>...</code> for "everything else". It is how you say "differentiate the Params only", "decay only the kernels", "vectorise the stacked layers, broadcast the rest".</p>
+<p class="ts-pred"><b>Predict</b>, then watch the split: with <code>+ dropout</code> and the filter <code>nnx.Not(nnx.Param)</code>, how many of the leaves land in group 1?</p>
+<ol class="sx" id="sx-si"></ol>
 <p class="ts-cap">Every leaf with its Variable type, path and shape, as recorded by <code>src/runs/ts_nnx.py</code> (flax 0.12.10) <span class="ts-meas">measured</span>; bars are proportional to the square root of the element count. With dropout the answer is two: the dropout stream's <code>RngKey</code> and <code>RngCount</code>; the 69 others are Params. Each Variable goes to the first filter that matches it, and the filters must cover every leaf: forgetting <code>...</code> raises "Non-exhaustive filters".</p>
 <div class="out" id="ts-gd-stats"></div>
 <p>The graphdef of the running example has 170 nodes and 571 attributes, against 69 state leaves <span class="ts-meas">measured</span>. Its static attributes include things a PyTorch user would never think of as part of the model: <code>in_features</code>, <code>use_bias</code>, <code>dtype</code>, <code>param_dtype</code>, <code>precision</code>, the <code>dot_general</code> function itself. That is the point: <b>everything in the graphdef is a compile-time constant</b>. Two models built with different seeds have <span data-ts="nnx.E1.graphdef_equal_other_seed" data-f="eqword"></span> graphdefs and equal hashes, so <code>nnx.jit</code> reuses one compiled program for both; change any static attribute and the graphdef, the cache key and the program all change (section 2).</p>
@@ -44,6 +46,7 @@
 <div class="ts-err" data-ts-err="nnx.E2_split_error"></div>
 <p class="ts-src">Source: <code>GraphDef</code> at <a data-ts-src="flax_graphdef"></a>; <code>split</code> at <a data-ts-src="flax_split"></a>; <code>merge</code> at <a data-ts-src="flax_merge"></a>; <code>update</code> at <a data-ts-src="flax_update"></a>.</p>
 </div></details>
+</div></div>
 
 <h3>Randomness is state: nnx.Rngs</h3>
 <p>PyTorch draws dropout masks from a global generator that advances by itself. JAX has no global generator: a random function takes a <b>key</b> and returns the same numbers for the same key. NNX stores a key and a counter per stream (<code>params</code>, <code>dropout</code>, ...) inside the model; each draw folds the counter into the key and increments it. Measured on the running example with dropout <span class="ts-meas">measured</span>:</p>

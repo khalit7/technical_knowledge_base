@@ -22,6 +22,16 @@ def step_count(m, x):
 <p class="ts-src">Source: <a data-ts-src="flax_optimizer"></a>; the message at <a data-ts-src="flax_optimizer_wrt"></a>.</p>
 </div></details>
 
+<div class="s3sp"><div class="s3R">
+<div class="ts-box card" id="ts-scan-card">
+<h4>The program stops growing with depth once the layers are scanned</h4>
+<div class="ts-ctl"><span class="small">Depth</span><span class="seg" id="ts-scan-depth"><button data-m="4" class="on">4 layers</button><button data-m="8">8</button><button data-m="16">16</button></span><span class="seg" id="ts-scan-mode"><button data-m="unrolled" class="on">Python loop (before)</button><button data-m="scan">nnx.scan (after)</button></span></div>
+<div class="ts-svgw" id="ts-scan-svg"></div>
+<div class="ts-anctl" id="ts-scan-ctl"></div>
+<div class="out" id="ts-scan-stats"></div>
+</div>
+
+</div><div class="s3L">
 <h3>Scan over layers: one traced block instead of four</h3>
 <p>A Python <code>for</code> loop over layers is unrolled when traced: 4 blocks give 4 copies of the block in the jaxpr, 48 give 48, and compile time grows with depth. Create the blocks with <code>nnx.vmap</code> over a split of the Rngs, so every parameter gets a leading layer axis (a <code>[128, 512]</code> kernel becomes <code>[4, 128, 512]</code>); run them with <code>nnx.scan</code>, which lowers to one <code>lax.scan</code> whose body is traced once. This is the NNX spelling of MaxText's <code>scan_layers</code> and of Linen's <code>nn.scan</code>.</p>
 <pre class="ts-code">@nnx.split_rngs(splits=cfg["n_layers"])
@@ -34,17 +44,22 @@ self.blocks = make_blocks(rngs)          # every Param now has a leading axis of
 def body(x, blk):
     return blk(x)
 x = body(x, self.blocks)</pre>
-<p class="ts-pred"><b>Predict</b>: at 16 layers, how many top-level jaxpr equations does each version have? Pick a depth and a mode, then step.</p>
-<div class="ts-box" id="ts-scan-card">
-<h4>The program stops growing with depth once the layers are scanned</h4>
-<div class="ts-ctl"><span class="small">Depth</span><span class="seg" id="ts-scan-depth"><button data-m="4" class="on">4 layers</button><button data-m="8">8</button><button data-m="16">16</button></span><span class="seg" id="ts-scan-mode"><button data-m="unrolled" class="on">Python loop (before)</button><button data-m="scan">nnx.scan (after)</button></span></div>
-<div class="ts-svgw" id="ts-scan-svg"></div>
-<div class="ts-capstep" id="ts-scan-cap"></div>
-<div class="ts-anctl" id="ts-scan-ctl"></div>
-<div class="out" id="ts-scan-stats"></div>
-</div>
-<p class="ts-cap">Loss and gradient of a training batch, traced and compiled with <code>jax.jit</code> on CPU (<code>src/runs/ts_nnx.py</code>, E7) <span class="ts-meas">measured</span>. The scanned jaxpr stays at 130 top-level equations and 3,616 optimised HLO lines at every depth; the unrolled one grows from 1,147 equations at 4 layers to 4,231 at 16. Logits agree to 7.2e-7 (XLA fuses the two programs differently).</p>
+<p class="ts-pred"><b>Predict</b>: at 16 layers, how many top-level jaxpr equations does each version have? Pick a depth and a mode; each replays its four steps.</p>
+<ol class="sx" id="sx-scan-u">
+<li><b>Before: a Python loop.</b> The blocks are separate modules and every parameter keeps its own shape: fc1's kernel is [128, 512], once per block.</li>
+<li><b>Tracing runs the loop.</b> Each block's operations are appended to the jaxpr again, about 257 top-level equations per block (derived from the 4- and 8-layer counts).</li>
+<li><b>XLA compiles all of it.</b> The optimised HLO grows with the depth too: 5,497 lines at 4 layers, 19,213 at 16.</li>
+<li><b>Depth against size.</b> 1,147 equations at 4 layers, 2,175 at 8, 4,231 at 16: the program grows linearly with depth, and its compile time with it (0.6 s to 1.0 s here, rough).</li>
+</ol>
+<ol class="sx" id="sx-scan-s" hidden>
+<li><b>Before: stacked parameters.</b> The blocks were created by <code>nnx.vmap</code>, so every parameter has a leading layer axis: fc1's kernel is [4, 128, 512] at 4 layers.</li>
+<li><b>nnx.scan traces the body once,</b> with one slice of the stacked parameters as the block's weights.</li>
+<li><b>lax.scan runs it depth times.</b> The loop lives inside XLA; the jaxpr has 130 top-level equations whatever the depth, and the optimised HLO 3,616 lines.</li>
+<li><b>Depth against size.</b> 130 equations at 4, 8 and 16 layers: the program stops growing with depth.</li>
+</ol>
+<p class="ts-cap">Loss and gradient of a training batch, traced and compiled with <code>jax.jit</code> on CPU (<code>src/runs/ts_nnx.py</code>, E7) <span class="ts-meas">measured</span>. The logits of the two versions agree to 7.2e-7 (XLA fuses the two programs differently).</p>
 <p><b>On this CPU at 4 to 16 tiny layers the scanned program compiled more slowly</b> (about 0.9 to 1.3 s against 0.6 to 1.0 s, single rough runs): the loop machinery has a fixed cost. The saving is in growth; at the 32 to 128 layers of real LLMs the unrolled program is what dominates compile time (not run here: the measured trend is the evidence, the extrapolation is not). The cost of scanning: every layer must have identical structure, per-layer Python logic is gone, and XLA cannot fuse across layer boundaries. Pair it with <code>nnx.remat</code> to choose which activations each layer saves. Source: <a data-ts-src="flax_vmap"></a>, <a data-ts-src="flax_scan"></a>, <a data-ts-src="flax_split_rngs"></a>.</p>
+</div></div>
 
 <h3>Sharding annotations on parameters</h3>
 <p>NNX attaches a layout to each parameter at creation: wrap an initialiser with <code>nnx.with_partitioning(init, ("embed", "mlp"))</code>, where the names are <b>logical axes</b> of the weight, and map logical names to mesh axes once with <code>nnx.logical_axis_rules</code>. Under <code>jax.set_mesh(mesh)</code> the parameter is <b>born sharded</b> ("eager sharding", on by default in 0.12.10: <a data-ts-src="flax_eager_shard_flag"></a>). The optimiser's moment trees inherit each parameter's sharding, so optimiser memory is split exactly like the weights; the compiler inserts the collectives (12 all-reduces in one training step of the layout below) <span class="ts-meas">measured</span>. Choosing the mesh and the rules for a real model is {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}'s subject; MaxText's rules are on {{JAX LLM codebases|n:3fa5c17b0d0d81f8bd5ad523e9f2dde0}}, section 3.</p>

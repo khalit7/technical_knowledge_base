@@ -1,4 +1,4 @@
-// ---- Reading section 1: the split stepper (was the State inspector tab) ----
+// ---- Reading section 1: the split stepper (was the State inspector tab); its steps are written out in #sx-si on the left ----
 (function(){
   const U=TSU,D=U.D,N=D.nnx,root=document.getElementById('si-card');if(!root)return;
   const FILTERS=Object.keys(N.E2.plain.groups);
@@ -29,17 +29,22 @@
     document.getElementById('si-g1').innerHTML=a||'<span class="small mute">nothing yet</span>';
     document.getElementById('si-g2').innerHTML=b||'<span class="small mute">nothing yet</span>';
     document.getElementById('si-h2').innerHTML='group 1: <code>'+U.esc(filter)+'</code>';
-    const cap=document.getElementById('si-cap');
-    cap.innerHTML=i===0?'Before: one Python object, '+L.length+' leaves in '+M.length+' top-level parts. Press play: <code>nnx.split(model, '+U.esc(filter)+', ...)</code> visits them in path order.':
-      i<M.length?'Visiting <code>'+U.esc(M[i-1])+'</code>: each Variable goes to the first filter that matches it; '+(M.length-i)+' parts left.':
-      'After: graphdef plus two states. '+na+' leaves ('+U.int(sa)+' numbers) matched the filter; '+nb+' ('+U.int(sb)+') fell to <code>...</code>.'+(model==='scan'?' (Scanned model: group membership derived from the filter rule, the leaves themselves are measured.)':'');
     document.getElementById('si-stats').innerHTML=RD.stat('leaves',L.length,model==='scan'?'stacked on a layer axis':'')+RD.stat('group 1',na,U.int(sa)+' numbers')+RD.stat('rest',nb,U.int(sb)+' numbers');
   }
+  // the step list on the left, one item per step: before, one visit per top-level part, after (rebuilt when the model or filter changes)
+  function list(){const L=leaves(),M=mods();let na=0,nb=0,sa=0,sb=0;L.forEach(l=>{if(inFirst(l[0],l[1])){na++;sa+=l[3]}else{nb++;sb+=l[3]}});
+    const f='<code>'+U.esc(filter)+'</code>';
+    document.getElementById('sx-si').innerHTML='<li><b>Before: one Python object.</b> '+L.length+' leaves in '+M.length+' top-level parts. <code>nnx.split(model, '+U.esc(filter)+', ...)</code> visits them in path order.</li>'+
+      M.map(m=>{const ls=L.filter(l=>modOf(l[0])===m),k=ls.filter(l=>inFirst(l[0],l[1])).length;
+        return '<li><b>Visit <code>'+U.esc(m)+'</code>.</b> '+ls.length+(ls.length===1?' leaf':' leaves')+': '+(k===ls.length?'all match '+f:k?k+' match '+f+', '+(ls.length-k)+' fall to <code>...</code>':'none match '+f+'; they fall to <code>...</code>')+'.</li>'}).join('')+
+      '<li><b>After: a graphdef and two states.</b> '+na+' leaves ('+U.int(sa)+' numbers) matched the filter; '+nb+' ('+U.int(sb)+') fell to <code>...</code>.'+(model==='scan'?' (Scanned model: group membership is derived from the filter rule; the leaves themselves are measured.)':'')+'</li>';
+    return 'sx-si'}
   const seg=document.getElementById('si-filter');
   seg.innerHTML=FILTERS.map((f,i)=>'<button data-m="'+U.esc(f)+'"'+(i===0?' class="on"':'')+'>'+U.esc(f)+'</button>').join('');
-  const A=RD.anim({card:'si-card',ctl:'si-ctl',n:mods().length+1,draw,ms:700,label:'Split step'});
-  RD.seg(document.getElementById('si-model'),v=>{model=v;A.reset(mods().length+1)});
-  RD.seg(seg,v=>{filter=v;A.reset(mods().length+1)});
+  list();
+  const A=RD.anim({card:'si-card',ctl:'si-ctl',n:mods().length+2,draw,ms:3500,label:'Split step',list:'sx-si'});
+  RD.seg(document.getElementById('si-model'),v=>{model=v;A.reset(mods().length+2,list())});
+  RD.seg(seg,v=>{filter=v;A.reset(mods().length+2,list())});
   // static attributes and optimizer sample
   const SA=N.E1.static_attr_values;
   U.table('si-static',[['Attribute'],['Values seen']],Object.keys(SA).map(k=>['<code>'+U.esc(k)+'</code>',SA[k].map(v=>'<code>'+U.esc(v)+'</code>').join(', ')]));

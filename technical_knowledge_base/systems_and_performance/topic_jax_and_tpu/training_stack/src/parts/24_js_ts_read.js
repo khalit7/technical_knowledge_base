@@ -67,45 +67,35 @@
   // charts inside closed <details> have no width until opened: redraw everything on open
   document.querySelectorAll('#t-read details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)dispatchEvent(new Event('resize'))}));
 
-  // ---- scan before/after animation ----
+  // ---- scan before/after: four explained steps in each mode (step lists #sx-scan-u and #sx-scan-s on the left) ----
   const rows=N.E7.rows,byKey={};rows.forEach(r=>byKey[r.kind+r.layers]=r);
-  const per=(byKey.unrolled8.jaxpr_top_eqns-byKey.unrolled4.jaxpr_top_eqns)/4,base=byKey.unrolled4.jaxpr_top_eqns-4*per;
   let depth=4,mode='unrolled';
-  const svg=document.getElementById('ts-scan-svg'),cap=document.getElementById('ts-scan-cap'),stats=document.getElementById('ts-scan-stats');
-  function nsteps(){return mode==='unrolled'?depth+2:4}
-  function draw(i){if(!svg)return;const W=Math.max(280,svg.clientWidth||600),H=200,maxE=byKey.unrolled16.jaxpr_top_eqns;
-    const r=byKey[mode+depth];let s='',eq;
-    const barW=W-150;
-    s+=RD.t(6,16,'Python traces',{fs:11,fill:'var(--mute)'});
-    if(mode==='unrolled'){
-      const traced=Math.min(depth,Math.max(0,i-0));const bh=Math.min(10,120/depth);
-      for(let k=0;k<depth;k++){const y=26+k*(bh+2),on=k<traced;s+='<rect x="6" y="'+y+'" width="86" height="'+bh+'" rx="2" fill="'+(on?'var(--c1)':'var(--soft)')+'" stroke="var(--line)"/>'}
-      s+=RD.t(6,26+depth*(bh+2)+12,traced+' of '+depth+' blocks',{fs:10.5,fill:'var(--mute)'});
-      eq=i===0?0:Math.round(base+per*traced);if(i>=depth+1)eq=r.jaxpr_top_eqns;
-    }else{
-      const on=i>=1;s+='<rect x="6" y="26" width="86" height="14" rx="2" fill="'+(on?'var(--c3)':'var(--soft)')+'" stroke="var(--line)"/>';
-      s+=RD.t(6,56,'1 block body',{fs:10.5,fill:'var(--mute)'});
-      if(i>=2)s+='<path d="M96 33 C 130 10, 130 60, 96 40" fill="none" stroke="var(--c3)" stroke-width="1.6"/>'+RD.t(112,64,'lax.scan x'+depth,{fs:10.5,fill:'var(--c3)'});
-      eq=i===0?0:r.jaxpr_top_eqns;
-    }
-    const X=140,w=v=>Math.max(1,v/maxE*(barW-10));
-    s+=RD.t(X,16,(W<520?'jaxpr equations (to scale)':'top-level jaxpr equations (bar to scale, 16-layer unrolled = full width)'),{fs:10.5,fill:'var(--mute)'});
-    s+='<rect x="'+X+'" y="26" width="'+w(eq)+'" height="16" fill="'+(mode==='scan'?'var(--c3)':'var(--c1)')+'"/>'+RD.t(X+w(eq)+4,38,U.int(eq),{fs:11});
-    const done=i>=nsteps()-1;
-    s+=RD.t(X,70,'optimised HLO lines',{fs:10.5,fill:'var(--mute)'});
-    const maxH=byKey.unrolled16.hlo_lines;const hv=done?r.hlo_lines:0;
-    s+='<rect x="'+X+'" y="78" width="'+Math.max(1,hv/maxH*(barW-10))+'" height="16" fill="var(--c4)"/>'+RD.t(X+Math.max(1,hv/maxH*(barW-10))+4,90,done?U.int(hv):'(after compile)',{fs:11});
-    s+=RD.t(X,122,'parameter layout',{fs:10.5,fill:'var(--mute)'});
-    s+=RD.t(X,140,mode==='unrolled'?'fc1.kernel: '+depth+' x [128, 512]':'fc1.kernel: [' +depth+', 128, 512]',{fs:11});
-    svg.innerHTML=RD.svg(W,H-40,s,'unrolled versus scanned layers');
-    const C=mode==='unrolled'?
-      (i===0?'Before: a Python for loop over '+depth+' blocks. Tracing runs the loop.':i<=depth?'Tracing block '+i+' of '+depth+': its operations are appended to the jaxpr again (about '+Math.round(per)+' top-level equations per block, derived from the 4- and 8-layer counts).':'Done: '+U.int(r.jaxpr_top_eqns)+' equations, '+U.int(r.hlo_lines)+' HLO lines, compiled in '+r.compile_s+' s (rough). Grows with every layer.'):
-      ['After: blocks created by nnx.vmap, so every parameter has a leading axis of '+depth+'.','nnx.scan traces the block body once, with one slice of the stacked parameters.','XLA runs that body '+depth+' times in a loop; the jaxpr has '+r.jaxpr_top_eqns+' top-level equations whatever the depth.','Done: '+U.int(r.hlo_lines)+' HLO lines, compiled in '+r.compile_s+' s (rough). The same at 4, 8 and 16 layers.'][i];
-    cap.textContent=C;
-    stats.innerHTML=RD.stat('layers',depth,'')+RD.stat('jaxpr equations (final)',U.int(r.jaxpr_top_eqns),mode)+RD.stat('HLO lines',U.int(r.hlo_lines),'optimised')+RD.stat('compile time',r.compile_s+' s','rough, loaded CPU');
+  const svg=document.getElementById('ts-scan-svg'),stats=document.getElementById('ts-scan-stats');
+  function draw(i){if(!svg)return;const W=Math.max(280,svg.clientWidth||600),narrow=W<520,maxE=byKey.unrolled16.jaxpr_top_eqns,maxH=byKey.unrolled16.hlo_lines;
+    const r=byKey[mode+depth],C=mode==='scan'?'var(--c3)':'var(--c1)';let s='';
+    const X=narrow?112:150,bw=W-X-60,w=(v,m)=>Math.max(1,v/m*bw);
+    s+=RD.t(6,16,'Python traces',{fs:12,fill:'var(--mute)'});
+    if(mode==='unrolled'){const bh=Math.min(12,128/depth);
+      for(let k=0;k<depth;k++){const y=26+k*(bh+2),on=i>=1;s+='<rect class="'+(i===1?'rd-new':'')+'" x="6" y="'+y+'" width="'+(X-30)+'" height="'+bh+'" rx="2" fill="'+(on?C:'var(--soft)')+'" stroke="var(--line)"/>'}
+      s+=RD.t(6,26+depth*(bh+2)+14,(i>=1?depth:0)+' of '+depth+' blocks',{fs:12,fill:'var(--mute)'})}
+    else{s+='<rect x="6" y="26" width="'+(X-30)+'" height="16" rx="2" fill="'+(i>=1?C:'var(--soft)')+'" stroke="var(--line)"/>'+RD.t(6,58,'1 block body',{fs:12,fill:'var(--mute)'});
+      if(i>=2)s+='<path class="rd-new" d="M'+(X-20)+' 30 C '+(X+4)+' 8, '+(X+4)+' 60, '+(X-20)+' 40" fill="none" stroke="'+C+'" stroke-width="1.8"/>'+RD.t(6,76,'lax.scan x '+depth,{fs:12,fill:C})}
+    const eq=mode==='unrolled'?(i>=1?r.jaxpr_top_eqns:0):(i>=2?r.jaxpr_top_eqns:0),hv=i>=2?r.hlo_lines:0;
+    s+=RD.t(X,16,narrow?'jaxpr equations':'top-level jaxpr equations (to scale)',{fs:12,fill:'var(--mute)'});
+    s+='<rect x="'+X+'" y="24" width="'+w(eq,maxE)+'" height="16" fill="'+C+'"/>'+RD.t(X+w(eq,maxE)+4,37,eq?U.int(eq):'',{fs:12});
+    s+=RD.t(X,62,'optimised HLO lines',{fs:12,fill:'var(--mute)'});
+    s+='<rect x="'+X+'" y="70" width="'+w(hv,maxH)+'" height="16" fill="var(--c4)"/>'+RD.t(X+w(hv,maxH)+4,83,hv?U.int(hv):'(after compile)',{fs:12});
+    // the last step: the same program at every recorded depth
+    let y=112;s+=RD.t(X,y,'equations at 4, 8 and 16 layers',{fs:12,fill:'var(--mute)'});
+    [4,8,16].forEach((d,j)=>{const v=byKey[mode+d].jaxpr_top_eqns,yy=y+8+j*20;s+=RD.t(X-6,yy+12,d,{a:'end',fs:12,fill:'var(--mute)'});
+      if(i>=3)s+='<rect class="rd-new" x="'+X+'" y="'+yy+'" width="'+w(v,maxE)+'" height="14" fill="'+C+'" opacity="'+(d===depth?1:.55)+'"/>'+RD.t(X+w(v,maxE)+4,yy+12,U.int(v),{fs:12})});
+    s+=RD.t(X,200,mode==='unrolled'?'fc1.kernel: '+depth+' x [128, 512]':'fc1.kernel: ['+depth+', 128, 512]',{fs:12});
+    svg.innerHTML=RD.svg(W,208,s,'unrolled versus scanned layers');
+    stats.innerHTML=RD.stat('layers',depth,'')+RD.stat('jaxpr equations',U.int(r.jaxpr_top_eqns),mode)+RD.stat('HLO lines',U.int(r.hlo_lines),'optimised')+RD.stat('compile time',r.compile_s+' s','rough, loaded CPU');
   }
-  if(svg){const A=RD.anim({card:'ts-scan-card',ctl:'ts-scan-ctl',n:nsteps(),draw,ms:1100,label:'Tracing step'});
-    RD.seg(document.getElementById('ts-scan-depth'),v=>{depth=+v;A.reset(nsteps())});
-    RD.seg(document.getElementById('ts-scan-mode'),v=>{mode=v;A.reset(nsteps())});
+  if(svg){const A=RD.anim({card:'ts-scan-card',ctl:'ts-scan-ctl',n:4,draw,label:'Step',list:'sx-scan-u'});
+    const L=m=>{document.getElementById('sx-scan-u').hidden=m!=='unrolled';document.getElementById('sx-scan-s').hidden=m==='unrolled';return m==='unrolled'?'sx-scan-u':'sx-scan-s'};
+    RD.seg(document.getElementById('ts-scan-depth'),v=>{depth=+v;A.reset(4,L(mode))});
+    RD.seg(document.getElementById('ts-scan-mode'),v=>{mode=v;A.reset(4,L(mode))});
     RD.onResize(()=>A.redraw());}
 })();

@@ -66,13 +66,23 @@ details.mist .b h3{font-size:14.5px;margin:12px 0 4px}
 </style><div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav"><a href="#s-one">The idea</a><a href="#s-nnx">1 NNX state</a><a href="#s-nnxt">2 NNX transforms</a><a href="#s-old">3 Linen, Equinox</a><a href="#s-optax">4 optax</a><a href="#s-orbax">5 orbax</a><a href="#s-grain">6 grain</a><a href="#s-mp">7 float16</a><a href="#s-eval">8 Metrics</a><a href="#s-full">9 Full script</a><a href="#s-depth">Checklists</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <p class="lead"><b>A JAX training run is one compiled, pure step function applied to a pytree of state; Flax NNX turns your model object into that pytree, optax is a pair of pure functions over it, orbax writes it to disk, and grain makes the data position a few integers inside it.</b> So the run you resume is the same run only when every piece of <span class="ts-hl">state</span> that decides the next step (parameters, optimiser moments and step count, random streams, data position) went into the checkpoint.</p>
+<p class="sxh">One training step: everything that decides step t + 1 is state you can name, save and restore</p>
+<ol class="sx" id="sx-hero">
+<li><b>grain hands over a batch.</b> Record i is computed from i, a seed and the epoch (section 6): a shuffled permutation of the running example's 7,781 windows, read by worker processes and batched 32 at a time. The cells are the real window indices of batch 0, coloured by index. The loader's whole position is a few integers.</li>
+<li><b>Flax NNX splits the model at the jit boundary.</b> The object becomes its <b>graphdef</b> (the structure: 170 nodes, every attribute static; it keys the compile cache; the wire frame) and its <span class="ts-hl">state</span> (69 leaves, 826,368 parameters plus the dropout stream's key and counter), which enters the compiled step as traced arrays (section 1).</li>
+<li><b>Loss, then nnx.grad.</b> The batch runs forward through the state to a scalar loss; <code>nnx.grad</code> differentiates with respect to the <code>nnx.Param</code> leaves only, so the gradients are a pytree shaped like the parameters (section 2).</li>
+<li><b>optax: a chain the gradient passes through.</b> Clip by global norm, Adam's moments, decoupled weight decay, times minus the learning rate: each is an <code>update</code> function that reads its own slice of the optimiser state and returns a new one. That state (141 leaves, two moment trees and step counts) is arrays too (section 4).</li>
+<li><b>The new state goes back into the object.</b> <code>nnx.jit</code> writes the updated parameters, the advanced RNG counter and the optimiser state back into your Python objects after the call; metrics accumulate as running sums on the device (section 8). The graphdef did not change, so the next call reuses the compiled step.</li>
+<li><b>orbax saves it while training continues.</b> One checkpoint holds four items: model state with its RNG, optimiser state, the grain iterator and a JSON item with the step. <code>save()</code> copies the arrays to host memory and returns (0.14 s here); a background thread writes them (done at 0.36 s) while the next batch is already being trained on (section 5). The graphdef is the one part not saved: it is rebuilt from your code, and the same structure reuses the same compiled step.</li>
+</ol>
+<p class="ts-cap">Six layer plates stand for the 69 state leaves; counts and times were measured on the running example below. Drag to turn the scene.</p>
+</section>
+</div></div>
 
-<div class="ts-fig" id="ts-hero-card"><div class="ft">One training step: everything that decides step t + 1 is <span class="ts-hl">state</span> you can name, save and restore</div>
-<div class="ts-svgw" id="ts-hero"></div>
-<p class="ts-cap">The graphdef (the model's structure) is the only part not saved: it is rebuilt from your code and keys the compile cache, so the same structure reuses one compiled step. Section numbers on the figure point to where each box is explained; every number on this page was measured on the running example below.</p></div>
-
+<section id="s-need">
 <p><b>You need</b>: <code>jax.jit</code>, <code>jax.grad</code>, pytrees and PRNG keys ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}), and a PyTorch training loop, which the table below maps onto this stack. <b>New terms</b>:</p>
 <div class="ts-terms">
 <div><b>Variable</b>: a typed box holding one array of an NNX module (<code>nnx.Param</code>, <code>nnx.RngKey</code>, ...).</div>

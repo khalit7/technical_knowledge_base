@@ -61,6 +61,19 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
     ok(T.full.final_bitwise_equal_A_vs_BC===fu.final_bitwise_equal_A_vs_BC,'complete script result equals out/full.json');
     ok(Object.keys(T.ckpt_mesh.targets).every(k=>T.ckpt_mesh.targets[k].continued_bitwise_equal_ref===cm.targets[k].continued_bitwise_equal_ref),'mesh restore equals out/ckpt_mesh.json');
     ok(Object.keys(src).every(k=>T.src[k]&&T.src[k].l===src[k].line),'source line numbers equal out/source.json');
+    // the numbers written into the step lists (2026-11-12 rollout) equal the recorded data
+    const L=await p.evaluate(()=>Object.fromEntries([...document.querySelectorAll('ol.sx[id]')].map(o=>[o.id,o.textContent.replace(/\s+/g,' ')])));
+    const f=n=>Math.round(n).toLocaleString('en-US'),E7=Object.fromEntries(nnx.E7.rows.map(r=>[r.kind+r.layers,r])),md=J('mesh_det').sharding_changed_by_training;
+    const sv=opt.S8.sv_after_frob_and_each_iter.map(v=>v.filter(x=>x>=0.5).length),s0=opt.S1.steps[0];
+    const want={'sx-hero':[f(gr.n_windows),nnx.E1.n_nodes+' nodes',nnx.E1.num_leaves+' leaves',f(nnx.E1.n_params),nnx.E9.n_leaves+' leaves',ck.save_call_s.toFixed(2)+' s',ck.save_total_s.toFixed(2)],
+      'sx-opt':[s0.grad_norm.toFixed(3),s0.clip_scale.toFixed(4),f(nnx.E1.n_params),s0.lr.toExponential(1)],
+      'sx-scan-u':[String((E7.unrolled8.jaxpr_top_eqns-E7.unrolled4.jaxpr_top_eqns)/4),f(E7.unrolled4.hlo_lines),f(E7.unrolled16.hlo_lines),f(E7.unrolled4.jaxpr_top_eqns),f(E7.unrolled8.jaxpr_top_eqns),f(E7.unrolled16.jaxpr_top_eqns)],
+      'sx-scan-s':[String(E7.scan4.jaxpr_top_eqns),f(E7.scan16.hlo_lines)],
+      'sx-mesh':[md.n_changed+' of the '+md.n_leaves,(cm.files_bytes/1e6).toFixed(1)+' MB','step '+cm.save_at,'step '+cm.total],
+      'sx-ns':sv.slice(1).map(n=>n+' of 128'),
+      'sx-grain':[f(gr.n_windows)]};
+    for(const [id,ws] of Object.entries(want))ok(ws.every(w=>(L[id]||'').includes(w)),`${id}: step-list numbers equal the data (${ws.filter(w=>!(L[id]||'').includes(w))})`);
+    {const d=Object.values(cm.targets).filter(t=>!t.continued_bitwise_equal_ref).map(t=>t.param_maxdiff_vs_ref);ok((L['sx-mesh']||'').includes(Math.min(...d).toExponential(1)+' to '+Math.max(...d).toExponential(1)),'sx-mesh: drift range equals out/ckpt_mesh.json')}
     // the root's Training lab number this page quotes
     const rootMixed=JSON.parse(fs.readFileSync(path.resolve(HERE,'../../../src/train/out/mixed.json'),'utf8'));
     ok(Math.abs(rootMixed.variants.f32.val_300-opt.S9.runs['adamw (running example)'].val_end)<1e-6,'AdamW 300-step validation loss agrees with the root Training lab (mixed.json f32) within 1e-6');

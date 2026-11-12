@@ -2,18 +2,28 @@
 <h2>4. optax, transformation by transformation</h2>
 <p>An optax <code>GradientTransformation</code> is a named tuple of two pure functions: <code>init(params) -&gt; state</code> and <code>update(grads, state, params) -&gt; (updates, new_state)</code> (<a data-ts-src="optax_gt"></a>). <code>optax.chain(t1, t2, ...)</code> feeds each one's output into the next and keeps a tuple of their states (<a data-ts-src="optax_chain"></a>). Every optimiser you know is a chain: <code>optax.adamw</code> is <code>scale_by_adam</code>, then <code>add_decayed_weights</code>, then <code>scale_by_learning_rate</code> (<a data-ts-src="optax_adamw"></a>). Because the state is just more arrays, it is jitted, sharded and checkpointed like the model. The algorithms themselves (why Adam, AdamW, Lion, Muon, which schedule) are {{Optimisers and learning-rate schedulers|n:3c65c17b0d0d817080bbc90954681d09}}'s; this section is how optax builds and runs them.</p>
 
+<div class="s3sp"><div class="s3R"><div id="stg-opt"></div></div><div class="s3L">
 <h3>One real step through the running example's chain</h3>
 <p>The running example uses <code>chain(clip_by_global_norm(1.0), adamw(lr_schedule, b1=0.9, b2=0.95, eps=1e-8, weight_decay=0.1, mask=decay_mask))</code>. A script recomputes every stage by hand on the real gradients of the first 12 steps and checks it against <code>tx.update</code>: the largest difference was 7.3e-11 <span class="ts-meas">measured</span>, float rounding in the bias correction. Step 0 for the noise coordinate shows the point of &#949;; step 0 for any weight shows the first update is the sign of the gradient.</p>
 <p class="ts-pred"><b>Predict</b>: at step 0 the gradient norm was 4.616. What does clipping at 1.0 multiply every gradient by, and how big is Adam's direction for a weight before the learning rate?</p>
+<ol class="sx" id="sx-opt">
+<li><b>The gradient.</b> g for the eight tracked numbers (columns) on training batch t, from <code>jax.grad</code>. Every row of bars is scaled to its own largest value. At step 0 the key bias's gradient (seventh column) is about 5e-13, float noise, against 0.027 for the embedding, so it does not show.</li>
+<li><b>clip_by_global_norm(1.0).</b> The global norm over all 826,368 gradients was 4.616 at step 0, so clipping scaled every gradient by 0.2166: the row keeps its shape and shrinks.</li>
+<li><b>scale_by_adam updates its state.</b> m = 0.9 m + 0.1 g and v = 0.95 v + 0.05 g&#178;; from a zero start m is a tenth of the gradient and v (always positive) a twentieth of its square. These two trees are the optimiser state a checkpoint must hold.</li>
+<li><b>Bias correction.</b> Dividing by 1 &#8722; &#946;&#8321;<sup>t+1</sup> and 1 &#8722; &#946;&#8322;<sup>t+1</sup> (0.1 and 0.05 at step 0) undoes the pull towards the zero start: at step 0, m&#770; = g and v&#770; = g&#178;.</li>
+<li><b>The Adam direction m&#770; / (&#8730;v&#770; + &#949;).</b> At step 0 it is &#177;1 (to within 0.001) for every coordinate whose gradient is well above &#949;: the first update is the sign of the gradient times the learning rate, whatever the gradient's size. The noise column stays near zero (about 1e-5), because its &#8730;v&#770; is far below &#949; = 1e-8, so &#949; sets its step: &#949; is what stops Adam from normalising pure noise into full-size steps.</li>
+<li><b>add_decayed_weights(0.1, mask).</b> Adds 0.1 &#215; p only where the mask is true, the 25 weight matrices (the first four columns); biases, norms and embeddings are left alone.</li>
+<li><b>scale_by_learning_rate.</b> Multiplies by minus the learning rate, 2.0e-5 at step 0 (linear warmup to 1e-3 over 50 steps): an update of 2.0e-5 for a weight and 2.3e-10 for the key bias.</li>
+<li><b>apply_updates.</b> p + update is the new parameter. optax returned it with the new state; nothing was mutated, so the same step can be jitted, sharded and checkpointed.</li>
+</ol>
 <div class="ts-box" id="op-card">
-<h4>Ten stages of one AdamW step for one number, on real gradients</h4>
-<div class="ts-ctl"><label class="small">Step <select id="op-step"></select></label><label class="small">Number <select id="op-coord"></select></label></div>
+<div class="ts-ctl"><label class="small">Training step <select id="op-step"></select></label><label class="small">Number <select id="op-coord"></select></label></div>
+<div class="ts-capstep an-cap" id="op-cap"></div>
 <div class="op-pipe" id="op-pipe"></div>
-<div class="ts-capstep" id="op-cap"></div>
-<div class="ts-anctl" id="op-ctl"></div>
 <div class="out" id="op-stats"></div>
 </div>
-<p class="ts-cap">Values from <code>src/runs/ts_optax.py</code> (S1) <span class="ts-meas">measured</span>: eight tracked numbers (weights with and without decay, a LayerNorm scale, an embedding, a bias whose gradient is float noise). At step 0 clipping scaled every gradient by 0.2166; the Adam direction m&#770;/&#8730;v&#770; is exactly &#177;1 for every coordinate (m&#770; = g and v&#770; = g&#178;), so the first update is the sign of the gradient times the learning rate, whatever the gradient's size. The key bias's gradient, about 5e-13, is far below &#949; = 1e-8, so &#949; sets its step (update 2.3e-10 against 2.0e-5 for a weight): &#949; is what stops Adam from normalising pure noise into full-size steps.</p>
+<p class="ts-cap">Values from <code>src/runs/ts_optax.py</code> (S1) <span class="ts-meas">measured</span>: eight tracked numbers (weights with and without decay, a LayerNorm scale, an embedding, a bias whose gradient is float noise), shown for the chosen training step and number; the highlighted column and the cards follow your choice.</p>
+</div></div>
 <div class="fm"><div class="eq">g &#8594; g&#183;min(1, c/&#8214;g&#8214;) &#8594; m = &#946;&#8321;m + (1&#8722;&#946;&#8321;)g, v = &#946;&#8322;v + (1&#8722;&#946;&#8322;)g&#178; &#8594; m&#770;/(&#8730;v&#770; + &#949;) &#8594; + &#955;&#183;p&#183;mask &#8594; &#215;(&#8722;&#951;&#8348;)</div>
 <dl><dt>c</dt><dd>clip threshold 1.0, applied to the global norm of all gradients (<code>clip_grad_norm_</code>)</dd><dt>m, v</dt><dd>Adam moments (<code>exp_avg</code>, <code>exp_avg_sq</code>); m&#770; = m/(1&#8722;&#946;&#8321;&#7511;), v&#770; = v/(1&#8722;&#946;&#8322;&#7511;)</dd><dt>&#955;</dt><dd>weight decay 0.1, only where the mask is true (25 weight matrices)</dd><dt>&#951;&#8348;</dt><dd>learning rate at step t: linear warmup to 1e-3 over 50 steps</dd></dl></div>
 <details class="mist"><summary>The whole tree at the chosen step: global norm after each stage</summary><div class="b"><div class="tw"><table class="ts-t" id="op-norms"></table></div>
@@ -35,9 +45,13 @@
 <div><div class="tw"><table class="ts-t" id="op-fin"></table></div><p class="ts-cap"><code>apply_if_finite(adamw, 3)</code>, NaN injected at step 3 (S5).</p></div></div>
 </div></details>
 
+<div class="s3sp"><div class="s3L">
 <h3>Schedules are functions of the step</h3>
 <p>A schedule is any function from the step count to a number, evaluated inside the compiled step. The old page's <code>warmup_cosine_decay_schedule(0.0, 3e-4, warmup_steps=2000, decay_steps=100000, end_value=3e-5)</code>, evaluated by optax, gives 3.00e-4 at step 2,000, 1.650e-4 at step 51,000 (halfway through the cosine: (3e-4 + 3e-5)/2 <span class="ts-der">derived</span>) and 3.00e-5 at 100,000: <code>decay_steps</code> <b>includes</b> the warmup (<a data-ts-src="optax_wcd"></a>). Warmup-stable-decay (WSD) is <code>join_schedules</code> of three linear or constant pieces.</p>
-<div class="ts-fig"><div class="ft">decay_steps counts from step 0, warmup included</div><div class="ts-svgw" id="op-sched-svg"></div><p class="ts-cap">Both schedules evaluated by optax (S6) <span class="ts-meas">measured</span>.</p></div>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card ts-fig"><div class="ft">decay_steps counts from step 0, warmup included</div><div class="ts-svgw" id="op-sched-svg"></div><p class="ts-cap">Both schedules evaluated by optax (S6) <span class="ts-meas">measured</span>.</p></div>
+</div></div></div>
 
 <h3>Lion and Muon in optax</h3>
 <p>Both are in optax (Lion in core, Muon in <code>optax.contrib</code>, where optax keeps newer optimisers alongside schedule-free, Prodigy and SOAP-style ones); how they work is on the optimisers page. One optax-specific trap matters in practice:</p>
@@ -45,9 +59,16 @@
 <details class="mist"><summary>Lion and Muon measured here: Lion's sign step, Muon's Newton-Schulz on a real gradient, and 300 steps with four optimisers</summary><div class="b">
 <p><b>Lion</b> (Chen et al., 2023) keeps one moment and steps by its sign: every coordinate moves by exactly the learning rate. On one step at lr 1e-4, 99.92% of the updates had magnitude 1e-4 and the rest were exact zeros (zero gradients) <span class="ts-meas">measured</span>. Its state is one tree (826,369 numbers, half of AdamW's), its default weight decay is 1e-3 (<a data-ts-src="optax_lion"></a>), and its authors recommend a learning rate 3 to 10 times smaller and decay 3 to 10 times larger than AdamW's (<a href="https://arxiv.org/abs/2302.06675" target="_blank" rel="noopener noreferrer">arXiv 2302.06675</a>, section 5).</p>
 <p><b>Muon</b> (Jordan, 2024) applies momentum, then replaces each weight matrix's update by an approximately orthogonal one (the same singular vectors, singular values pushed towards 1) through five iterations of a quintic Newton-Schulz map with optax's coefficients (3.4445, &#8722;4.7750, 2.0315) (<a data-ts-src="optax_muon_coeffs"></a>, <a data-ts-src="optax_ns_iter"></a>). On the running example's real first-layer MLP gradient ([128, 512]) the singular values spanned a ratio of 1.2e8; after normalisation and five iterations 122 of the 128 ended between 0.5 and 1.20, close to the 0.5 to 1.5 band the optax docstring describes, while the smallest stayed near zero (5.7e-6): a direction with essentially no gradient is not amplified in five iterations.</p>
+<ol class="sx" id="sx-ns">
+<li><b>Before: the gradient divided by its Frobenius norm.</b> Largest singular value 0.92, smallest 8e-9: the raw gradient's singular values span a ratio of 1.2e8, and plain momentum SGD would step mostly along the top few directions.</li>
+<li><b>Iteration 1</b> of X &#8592; 3.4445 X &#8722; 4.7750 (XX&#7488;)X + 2.0315 (XX&#7488;)&#178;X: the small singular values grow fastest; 4 of 128 are at or above 0.5.</li>
+<li><b>Iteration 2.</b> The largest overshoots to 1.20; 10 of 128 at or above 0.5.</li>
+<li><b>Iteration 3.</b> 33 of 128 at or above 0.5.</li>
+<li><b>Iteration 4.</b> 84 of 128 at or above 0.5.</li>
+<li><b>Iteration 5.</b> 122 of 128 between 0.5 and 1.20: the update direction Muon uses (then scaled by the learning rate and a shape factor). The near-zero direction stays near zero (5.7e-6).</li>
+</ol>
 <div class="ts-box" id="op-ns-card">
 <div class="ts-svgw" id="op-ns-svg"></div>
-<div class="ts-capstep" id="op-ns-cap"></div>
 <div class="ts-anctl" id="op-ns-ctl"></div>
 </div>
 <p class="ts-cap">The gradient normalised by its Frobenius norm, then each Newton-Schulz iteration (S8); bars are its 128 singular values, sorted, on a log scale. The library's own <code>orthogonalize_via_newton_schulz</code> agrees with the hand iteration to 3.6e-7 in every singular value <span class="ts-meas">measured</span>.</p>

@@ -48,8 +48,8 @@ window.TSU=(function(){
     if(o.logy){y0=Math.log10(y0);y1=Math.log10(y1)}if(y1===y0)y1=y0+1;
     const X=x=>L+(x-x0)/(x1-x0||1)*(W-L-R),Y=y=>{y=o.logy?Math.log10(Math.max(y,1e-30)):y;return T+(1-(y-y0)/(y1-y0))*(H-T-B)};
     let s='';for(let i=0;i<=4;i++){const yv=y0+(y1-y0)*i/4,yy=T+(1-i/4)*(H-T-B);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--line)"/>'+
-      '<text x="'+(L-4)+'" y="'+(yy+3)+'" text-anchor="end" font-size="10" fill="var(--mute)">'+(o.logy?('1e'+yv.toFixed(1)).replace('.0',''):(Math.abs(yv)<0.01&&yv!==0?ex(yv,0):yv.toFixed(o.dec==null?2:o.dec)))+'</text>'}
-    for(let i=0;i<=4;i++){const xv=x0+(x1-x0)*i/4;s+='<text x="'+X(xv)+'" y="'+(H-B+14)+'" text-anchor="'+(i===4?'end':i===0?'start':'middle')+'" font-size="10" fill="var(--mute)">'+Math.round(xv)+'</text>'}
+      '<text x="'+(L-4)+'" y="'+(yy+3)+'" text-anchor="end" font-size="11" fill="var(--mute)">'+(o.logy?('1e'+yv.toFixed(1)).replace('.0',''):(Math.abs(yv)<0.01&&yv!==0?ex(yv,0):yv.toFixed(o.dec==null?2:o.dec)))+'</text>'}
+    for(let i=0;i<=4;i++){const xv=x0+(x1-x0)*i/4;s+='<text x="'+X(xv)+'" y="'+(H-B+14)+'" text-anchor="'+(i===4?'end':i===0?'start':'middle')+'" font-size="11" fill="var(--mute)">'+Math.round(xv)+'</text>'}
     s+='<text x="'+((L+W-R)/2)+'" y="'+(H-4)+'" text-anchor="middle" font-size="10.5" fill="var(--mute)">'+(o.xlab||'step')+'</text>';
     if(o.zero&&y0<0&&y1>0)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(0)+'" y2="'+Y(0)+'" stroke="var(--mute)" stroke-dasharray="2 3"/>';
     series.forEach(se=>{const d=se.pts.filter(p=>isFinite(p[1])).map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join('');
