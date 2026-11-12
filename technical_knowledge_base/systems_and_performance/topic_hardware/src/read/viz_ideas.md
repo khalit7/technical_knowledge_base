@@ -28,3 +28,8 @@ Central question of the Reading tab: for one training step (Llama 3.1 8B, 64 x 8
 
 ## What the methodology lacked
 A rule for numbers shared across tabs built in parallel: here the Reading tab aligned its running step (64 x 8,192 tokens) with the calculator's animation after both existed, and quotes the calculator rather than recomputing the same quantity with a different model.
+
+## 2026-11-12 (layout rollout)
+- Built: Fig. 1, a 3D map (`parts/27_js_sc_hero.js`): one training step's hardware from the inside out, eight steps, each lighting one child's part and linking that child's figure.
+- Rejected: 3D stages for the die, the SM, HBM stacks, the link ladder, the power path or the systolic array on this root: each child already owns that stage (GPU architecture Figs. 1 and 2, Memory technology Figs. 1 and 2, Interconnects Figs. 1, 2 and 5, Power Figs. 1 to 3, TPUs Figs. 2 to 4); the root links them.
+- Kept 2D: the tile race, the bar charts, the atlas charts and the rooflines (numbers on axes, log scales).

@@ -24,7 +24,7 @@ checks = [  # (text that must appear in the Reading tab, value it states, refere
     ('2.53 &times; 10<sup>16</sup> FLOPs', 2.53e16, s['flops_6nd'], .003),
     ('128.5 GB of state', 128.5e9, s['states'], .001),
     ('16.06 GB of gradients', 16.06e9, s['bytes_bf16'], .001),
-    ('40% of peak: <span class="hl">64 s</span>', 64, s['step_1gpu'], .01),
+    ('dense BF16 peak: <span class="hl">64 s</span>', 64, s['step_1gpu'], .01),
     ('8.0 s on 8 and 1.0 s on 64', 8.0, s['step_8gpu'], .01),
     ('8.0 s on 8 and 1.0 s on 64', 1.0, s['step_64gpu'], .01),
     ('about 102 GFLOP/s at 3.2 GHz', 102, U['cpu']['gflops_spec'], .01),

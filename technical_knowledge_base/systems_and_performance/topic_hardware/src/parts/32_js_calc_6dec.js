@@ -44,7 +44,7 @@
     const seg=(id,f)=>$(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...$(id).children].forEach(x=>x.classList.toggle('on',x===b));f(+b.dataset.v);P.reset();P.auto()});
     seg('calc-dmode',v=>{B=v});seg('calc-dctx',v=>{ctx=v});
     X.onRender(()=>P.set(P.t));addEventListener('resize',()=>{if(!$('t-calc').hidden)P.set(P.t)});
-    P.set(0);
+    P.end();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

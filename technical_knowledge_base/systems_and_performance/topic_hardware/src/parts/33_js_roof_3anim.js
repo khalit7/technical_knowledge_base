@@ -20,34 +20,22 @@
   function draw(i){const d=stepData(i),chip=mode==='m1'?m1:h100,prec=mode==='m1'?'fp16':'bf16';
     const trail=[];for(let j=0;j<i;j++){const q=stepData(j);trail.push({ai:q.ai,g:q.g,r:3,fill:'var(--dim)',label:'batch '+q.M})}
     R.chart({el:$('roof-anplot'),chips:[{chip:chip,prec:prec,main:true}],pts:trail,cur:{ai:d.ai,g:d.g,label:'batch '+d.M},xr:[0.3,3000],yr:mode==='m1'?[20,20000]:[400,4e6],aria:'One linear layer at growing batch on the '+chip.name});
-    $('roof-ancap').innerHTML=caption(i);
     const tok=d.t/d.M;
     $('roof-anout').innerHTML=R.stat('Batch',d.M.toLocaleString('en-US'),mode==='m1'?'measured, median of 21 trials':'computed from the vendor roof')+
       R.stat('Time per call',R.fT(d.t),d.meas?'trials '+R.fT(sweep[i].s_min)+' to '+R.fT(sweep[i].s_max):'at the roof, a lower bound')+
       R.stat('Time per token',R.fT(tok),i?R.sig(stepData(0).t/tok,3)+'x faster per token than batch 1':'the decode case')+
       R.stat('Achieved',R.fF(d.g),R.pct(d.g/d.P)+' of '+(d.meas?'measured':'vendor')+' peak');
   }
-  // step controller: play, pause, step, scrub, speed; animates only on screen in the visible tab; paused under reduced motion
-  const ctl=$('roof-anctl'),card=$('roof-s-anim');
-  ctl.innerHTML='<button id="roof-an-b" aria-label="Previous step">&#9664;&#9664;</button><button id="roof-an-p" aria-label="Play">&#9654; Play</button><button id="roof-an-f" aria-label="Next step">&#9654;&#9654;</button><input type="range" id="roof-an-s" min="0" max="'+(sweep.length-1)+'" value="0" aria-label="Batch step"><label class="small">Speed <select id="roof-an-v"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></label>';
-  const st={i:0,play:false,timer:0,vis:false,started:false,spd:1},n=sweep.length;
-  const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-  function show(){$('roof-an-s').value=st.i;draw(st.i)}
-  function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=n-1){setPlay(false);return}st.i++;show();if(st.i>=n-1){setPlay(false);return}st.timer=setTimeout(tick,1700/st.spd)}
-  function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,1700/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-  function setPlay(p){st.play=p;$('roof-an-p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('roof-an-p').setAttribute('aria-label',p?'Pause':'Play');
-    if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=n-1){st.i=0;show()}kick()}
-  $('roof-an-p').addEventListener('click',()=>setPlay(!st.play));
-  $('roof-an-f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(n-1,st.i+1);show()});
-  $('roof-an-b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-  $('roof-an-s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-  $('roof-an-v').addEventListener('change',e=>{st.spd=+e.target.value});
+  // the step list on the left carries each batch's text for the chosen chip (it was a caption under the plot); RD.anim (the skill template)
+  // plays it once half in view, pauses off screen, stops for good on any control or the last step, and never moves under reduced motion
+  const n=sweep.length;
+  function list(){$('roof-ansx').innerHTML=sweep.map((_,i)=>'<li>'+caption(i)+'</li>').join('')}
+  list();
+  const A=RD.anim({card:'roof-ancard',ctl:'roof-anctl',n,draw,ms:4200,label:'Batch step',list:'roof-ansx'});
   document.querySelectorAll('#roof-anmode button').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('#roof-anmode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;setPlay(false);st.i=0;show()}));
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.2}).observe(card)}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
+    document.querySelectorAll('#roof-anmode button').forEach(x=>x.classList.toggle('on',x===b));mode=b.dataset.m;list();A.reset(n,'roof-ansx')}));
   let lastW=0;
-  R.onRender(()=>{const w=$('roof-anplot').clientWidth;if(w){lastW=w;show()}kick()});
-  addEventListener('resize',()=>{const w=$('roof-anplot').clientWidth;if(w&&w!==lastW){lastW=w;show()}});
+  R.onRender(()=>{const w=$('roof-anplot').clientWidth;if(w){lastW=w;A.redraw()}});
+  addEventListener('resize',()=>{const w=$('roof-anplot').clientWidth;if(w&&w!==lastW){lastW=w;A.redraw()}});
   window.ROOFX.anim={setMode:m=>{mode=m},draw:draw,n:n};
 })();

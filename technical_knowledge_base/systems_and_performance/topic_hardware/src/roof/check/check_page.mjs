@@ -72,9 +72,9 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
     const meas = document.getElementById('roof-meas'); meas.checked = false; fire(meas, 'change'); meas.checked = true; fire(meas, 'change');
     chip.value = 'm1g'; fire(chip, 'change'); op.value = 'linear'; fire(op, 'change'); prec.value = 'fp16'; fire(prec, 'change');
     kn.value = '8192'; fire(kn, 'change'); sh.value = 6; fire(sh, 'input');
-    for (const b of document.querySelectorAll('#roof-anmode button')) { b.click(); await sleep(50); for (let i = 0; i < 13; i++) { document.getElementById('roof-an-f').click(); k++; } document.getElementById('roof-an-b').click(); }
-    document.querySelector('#roof-anmode button').click(); document.getElementById('roof-an-p').click();
-    const s = document.getElementById('roof-an-s'); s.value = 3; fire(s, 'input'); document.getElementById('roof-an-v').value = '2'; fire(document.getElementById('roof-an-v'), 'change');
+    for (const b of document.querySelectorAll('#roof-anmode button')) { b.click(); await sleep(50); for (let i = 0; i < 13; i++) { document.getElementById('roof-anctl-f').click(); k++; } document.getElementById('roof-anctl-b').click(); }
+    document.querySelector('#roof-anmode button').click(); document.getElementById('roof-anctl-p').click();
+    const s = document.getElementById('roof-anctl-s'); s.value = 3; fire(s, 'input'); document.getElementById('roof-anctl-v').value = '2'; fire(document.getElementById('roof-anctl-v'), 'change');
     for (const b of document.querySelectorAll('#t-roof .roof-pr .opts button')) { b.click(); k++; }
     for (const id of ['roof-mp', 'roof-mt']) { const r = document.getElementById(id); for (const v of [r.min, r.max, r.value]) { r.value = v; fire(r, 'input'); k++; } }
     const mc = document.getElementById('roof-mchip'); for (const o of [...mc.options]) { mc.value = o.value; fire(mc, 'change'); k++; }

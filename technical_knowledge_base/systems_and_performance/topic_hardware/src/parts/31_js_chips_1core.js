@@ -22,30 +22,9 @@ window.CHIPX=(function(){
   const VC={NVIDIA:'var(--c3)',AMD:'var(--c2)',Google:'var(--c1)',AWS:'var(--c5)',Cerebras:'var(--c4)',Groq:'var(--c6)',Intel:'var(--acc)',SambaNova:'var(--closed)',Apple:'var(--mute)'};
   const inGroup=(c,g)=>g==='all'||(g==='nvdc'&&c.vendor==='NVIDIA'&&c.kind==='dc')||(g==='desk'&&(c.kind==='consumer'||c.kind==='laptop'))||(g==='amd'&&c.vendor==='AMD')||(g==='tpu'&&c.kind==='tpu')||(g==='other'&&['AWS','Cerebras','Groq','Intel','SambaNova'].indexOf(c.vendor)>=0);
   const width=el=>{const w=el&&el.clientWidth;return w&&w>40?w:Math.max(280,Math.min(880,(document.documentElement.clientWidth||900)-50))};
-  // step-animation controller: play, pause, step, scrub, speed; only runs on screen in the visible tab; paused under reduced motion
-  function anim(o){
-    const card=document.getElementById(o.card),ctl=document.getElementById(o.ctl),pid=o.ctl+'-';
-    const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};
-    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step">&#9664;&#9664;</button><button id="'+pid+'p" aria-label="Play">&#9654; Play</button><button id="'+pid+'f" aria-label="Next step">&#9654;&#9654;</button>'+
-      '<input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+(o.label||'Step')+'">'+
-      '<label class="small">Speed <select id="'+pid+'v"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></label>';
-    const $=s=>document.getElementById(pid+s);
-    function show(){const sc=$('s');sc.max=st.n-1;sc.value=st.i;o.draw(st.i)}
-    const live=()=>st.vis&&!document.hidden&&card.offsetParent!==null;
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}st.timer=setTimeout(tick,(o.ms||1800)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||1800)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(p){st.play=p;$('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('p').setAttribute('aria-label',p?'Pause':'Play');if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
-    $('p').addEventListener('click',()=>setPlay(!st.play));
-    $('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+1);show()});
-    $('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);show()});
-    $('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
-    $('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;kick()},{threshold:.3}).observe(card)}else st.vis=true;
-    document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();kick()});
-    show();
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},redraw(){o.draw(st.i)},get i(){return st.i}};
-  }
+  // step animations use the Reading tab's RD.anim (the skill template): plays once half in view, pauses off screen, stops for good on any
+  // control or the last step, never moves by itself under reduced motion, marks its step list; redrawn at the measured width when this tab opens
+  function anim(o){const A=RD.anim(o);onRender(()=>A.redraw());return A}
   // tween numbers for smooth redraws (skipped under reduced motion)
   function tween(from,to,ms,f){if(RM||!from){f(to);return}const t0=performance.now();let raf;
     (function step(t){const k=Math.min(1,(t-t0)/ms),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;f(to.map((v,i)=>from[i]+(v-from[i])*e));if(k<1)raf=requestAnimationFrame(step)})(t0);}

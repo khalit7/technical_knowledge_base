@@ -13,7 +13,9 @@ window.CALCP=function(o){
   o.scrub.addEventListener('input',()=>{stop();set(o.scrub.value/1000*o.total())});
   o.next.addEventListener('click',()=>{stop();const s=o.stops().find(x=>x>t+1e-9);set(s==null?o.total():s)});
   o.prev.addEventListener('click',()=>{stop();const ss=o.stops().filter(x=>x<t-1e-9);set(ss.length?ss[ss.length-1]:0)});
-  return {set:set,reset:()=>{stop();set(0)},get t(){return t},stop:stop,auto:()=>{if(!X.RM&&!playing&&t===0)start()}};
+  // a widget (the rollout's long-replay rule, case b): it never plays by itself on view; it opens on the finished step, and a cluster or
+  // batch the reader picks replays from the start (under reduced motion it shows the finished step instead)
+  return {set:set,reset:()=>{stop();set(0)},get t(){return t},stop:stop,end:()=>{set(o.total());stop()},auto:()=>{if(X.RM){set(o.total());stop()}else if(!playing&&t===0)start()}};
 };
 (function(){
   const X=window.CALCX,$=id=>document.getElementById(id);
@@ -84,7 +86,7 @@ window.CALCP=function(o){
     $('calc-smode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.v;[...$('calc-smode').children].forEach(x=>x.classList.toggle('on',x===b));P.reset();P.auto()});
     $('calc-sov').addEventListener('change',e=>{ov=e.target.checked;P.reset();P.auto()});
     X.onRender(()=>{P.set(P.t)});addEventListener('resize',()=>{if(!$('t-calc').hidden)P.set(P.t)});
-    P.set(0);
+    P.end();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

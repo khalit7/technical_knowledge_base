@@ -9,15 +9,35 @@
 <tr><td><b><dfn id="g-systolic">Systolic array</dfn></b> (TPU and most other accelerators)</td><td>A grid of multiply-accumulate cells; weights stay put while activations flow cell to cell</td><td>None needed: a compiler schedules every transfer ahead of time</td><td class="num">128 &times; 128 cells (TPU v2 to v5), 256 &times; 256 (v6e)</td></tr>
 </table></div>
 <p class="small mute">M1 Pro CPU: about 102 GFLOP/s at 3.2 GHz, measured 97.5 GFLOP/s in {{C++: the machine underneath, section 9|n:4055c17b0d0d811fa947ee576a97a516#cb-s9}} <span class="meas">measured here</span>; GPU core 128 lanes at 1.296 GHz ({{metal-benchmarks|https://github.com/philipturner/metal-benchmarks}} <span class="indep">independent</span>); H100 SM 128 fp32 lanes and four tensor cores ({{NVIDIA Hopper in depth|https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/}} <span class="vend">vendor spec</span>); array sizes from {{How To Scale Your Model|https://jax-ml.github.io/scaling-book/tpus/}}.</p>
-<p>Predict before you press play: the GPU core runs at 1.296 GHz, the CPU core at 3.2 GHz. Which finishes the same tile first, and by how much? The same 64 &times; 64 &times; 64 piece of a matrix multiply (262,144 FMAs) is given to four engines on one time axis.</p>
+<div class="s3sp"><div class="s3R">
 <div class="card" id="rd-tile-card">
+<div class="t" style="font-weight:600;font-size:14px">Width beats clock: the same tile on four engines, one time axis</div>
 <div class="seg" id="rd-tile-mode"><button data-m="all" class="on">All four</button><button data-m="cpu">CPU core vs GPU core (M1 Pro)</button><button data-m="sm">CUDA cores vs tensor cores (H100 SM)</button></div>
 <div class="rd-chart" id="rd-tile-svg"></div>
-<div class="an-cap" id="rd-tile-cap"></div>
 <div class="an-ctl" id="rd-tile-ctl"></div>
 <div class="an-cnt" id="rd-tile-cnt"></div>
-<p class="small mute">Width beats clock: one GPU core does 8 times the work per cycle of a CPU core and still finishes this tile about 3 times sooner; the tensor cores do 16 times the work per cycle of the same SM's lanes. Each square is a 4 &times; 4 block of the output. The H100 clock, 1.83 GHz, is <span class="der">derived</span> from 989.5 TFLOPS dense BF16 / (132 SMs &times; 4,096 FLOPs per cycle), where 4,096 is the A100 SM's 1,024 dense FP16 FMAs per clock ({{A100 whitepaper|https://images.nvidia.com/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf}}) doubled for Hopper, as {{How To Scale Your Model|https://jax-ml.github.io/scaling-book/gpus/}} also gives; measured per-core rates 97.5 GFLOP/s (CPU) and 5.01 TFLOP/s / 16 = 313 GFLOP/s (GPU) <span class="meas">measured here</span>. On the whole M1 Pro the 16 GPU cores at 5,008 GFLOP/s beat the 8 CPU threads by a factor of 8.9.</p>
+<p class="small mute">Each square is a 4 &times; 4 block of the output. The H100 clock, 1.83 GHz, is <span class="der">derived</span> from 989.5 TFLOPS dense BF16 / (132 SMs &times; 4,096 FLOPs per cycle), where 4,096 is the A100 SM's 1,024 dense FP16 FMAs per clock ({{A100 whitepaper|https://images.nvidia.com/aem-dam/en-zz/Solutions/data-center/nvidia-ampere-architecture-whitepaper.pdf}}) doubled for Hopper, as {{How To Scale Your Model|https://jax-ml.github.io/scaling-book/gpus/}} also gives; measured per-core rates 97.5 GFLOP/s (CPU) and 5.01 TFLOP/s / 16 = 313 GFLOP/s (GPU) <span class="meas">measured here</span>. On the whole M1 Pro the 16 GPU cores at 5,008 GFLOP/s beat the 8 CPU threads by a factor of 8.9.</p>
 </div>
+</div><div class="s3L">
+<p>Predict before it plays: the GPU core runs at 1.296 GHz, the CPU core at 3.2 GHz. Which finishes the same tile first, and by how much? The same 64 &times; 64 &times; 64 piece of a matrix multiply (262,144 FMAs) is given to four engines on one time axis; the buttons on the figure pick two of them.</p>
+<ol class="sx" id="sx-tile-all">
+<li><b>t = 0: the same tile everywhere.</b> Every engine starts the same tile: 4,096 outputs, each a dot product of length 64, so 262,144 FMAs. Time runs at the same rate for all of them.</li>
+<li><b>70 ns: the H100 SM's tensor cores finish.</b> 128 cycles at 1.83 GHz. Tensor cores do a small matrix multiply per instruction, so one SM finishes 2,048 FMAs per cycle. This is where the 989.5 TFLOPS of an H100 come from; its ordinary lanes alone give 67 TFLOPS of FP32.</li>
+<li><b>1,119 ns: the same SM's CUDA cores finish.</b> 2,048 cycles. Same SM, ordinary lanes: 128 FMAs per cycle, 16 times fewer than its tensor cores. A matmul that does not use tensor cores (fp32 without TF32, an odd shape, a hand-written loop) leaves most of the chip idle.</li>
+<li><b>1,580 ns: one M1 Pro GPU core finishes.</b> 2,048 cycles at 1.296 GHz. 128 lanes, 8 times the CPU core per cycle; at less than half the clock it still finishes about 3 times sooner. Measured: 313 GFLOP/s per core against 97.5 for the CPU core.</li>
+<li><b>5,120 ns: the CPU core finishes.</b> 16,384 cycles at 3.2 GHz: 16 FMAs per cycle (4 units &times; 4 lanes). Its transistors went to running one thread fast, not to arithmetic width. Measured 97.5 GFLOP/s, 95% of its 102.4 peak.</li>
+</ol>
+<ol class="sx" id="sx-tile-cpu" hidden>
+<li><b>t = 0: one CPU core against one GPU core.</b> Both on the M1 Pro, both given the 262,144 FMAs of the tile; the GPU core's clock is less than half the CPU core's.</li>
+<li><b>1,580 ns: the GPU core finishes.</b> 128 lanes do 128 FMAs per cycle, 8 times the CPU core, so 2,048 cycles at 1.296 GHz are enough.</li>
+<li><b>5,120 ns: the CPU core finishes.</b> 16 FMAs per cycle need 16,384 cycles, about 3 times longer even at 3.2 GHz: width beats clock.</li>
+</ol>
+<ol class="sx" id="sx-tile-sm" hidden>
+<li><b>t = 0: one H100 SM, two ways.</b> The same SM's ordinary fp32 lanes (CUDA cores) against its four tensor cores, at the same 1.83 GHz clock.</li>
+<li><b>70 ns: the tensor cores finish.</b> 2,048 FMAs per cycle: 128 cycles.</li>
+<li><b>1,119 ns: the CUDA cores finish.</b> 128 FMAs per cycle, 16 times fewer: 2,048 cycles. Peak FLOPS are tensor-core FLOPS.</li>
+</ol>
 <p><b>The costs.</b> A GPU thread is slow and a GPU is bad at anything sequential or branchy, so the CPU stays: it runs Python, launches every kernel and feeds the data (the symptom table in section 10). A systolic array reads each operand from memory once and reuses it hundreds of times without a register file, which saves energy, but anything that is not a large dense matmul runs on a much slower vector unit, and the program goes through a compiler (XLA).</p>
-<div class="deepnote"><b>Go deeper.</b> The SM, warps and tensor cores as silicon: {{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}. Systolic arrays from zero, with a cycle-level simulator, and the machines built on them: {{TPUs and other accelerators|n:3c65c17b0d0d8151bbc2e0ceea196187}}. The CPU side: {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}.</div>
+<div class="deepnote"><b>Go deeper.</b> The SM, warps and tensor cores as silicon: {{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}. Systolic arrays from zero, with a cycle-level simulator ({{Fig. 2|n:3c65c17b0d0d8151bbc2e0ceea196187#stg-sys}}, 80 multiply-adds cycle by cycle), and the machines built on them: {{TPUs and other accelerators|n:3c65c17b0d0d8151bbc2e0ceea196187}}. The CPU side: {{C++: the machine underneath|n:4055c17b0d0d811fa947ee576a97a516}}.</div>
+</div></div>
 </section>

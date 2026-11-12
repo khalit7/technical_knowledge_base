@@ -19,12 +19,12 @@
   let pair='gb200_vs_h100',pv=null;
     function peelCap(i,p,A,B){const a=p.a,b=p.b,ca=BY[a.chip],cb=BY[b.chip];
     const r=(x,y)=>sig(x/y)+'x';
-    if(i===0)return '<b>Step 1, as printed.</b> '+esc(a.lab)+': '+fF(A[0])+' '+esc(a.fl)+(a.sparse?' with sparsity':'')+' ('+X.srcA(a.src,'source')+'). '+esc(b.lab)+': '+fF(B[0])+' '+esc(b.fl)+(b.sparse?' with sparsity':'')+' ('+X.srcA(b.src,'source')+'). Read naively, the first is '+r(A[0],B[0])+' the second.';
-    if(i===1)return '<b>Step 2, per chip.</b> Divide by the chips each figure covers: '+a.n.toLocaleString('en-US')+' and '+b.n.toLocaleString('en-US')+'. Now '+fF(A[1])+' against '+fF(B[1])+': '+r(A[1],B[1])+'.';
+    if(i===0)return '<b>As printed.</b> '+esc(a.lab)+': '+fF(A[0])+' '+esc(a.fl)+(a.sparse?' with sparsity':'')+' ('+X.srcA(a.src,'source')+'). '+esc(b.lab)+': '+fF(B[0])+' '+esc(b.fl)+(b.sparse?' with sparsity':'')+' ('+X.srcA(b.src,'source')+'). Read naively, the first is '+r(A[0],B[0])+' the second.';
+    if(i===1)return '<b>Per chip.</b> Divide by the chips each figure covers: '+a.n.toLocaleString('en-US')+' and '+b.n.toLocaleString('en-US')+'. Now '+fF(A[1])+' against '+fF(B[1])+': '+r(A[1],B[1])+'.';
     if(i===2){const ha=a.sparse?A[1]/A[2]:1,hb=b.sparse?B[1]/B[2]:1;
-      return '<b>Step 3, dense.</b> Replace each sparse figure with the vendor’s own dense figure in the same format: '+fF(A[2])+' and '+fF(B[2])+' ('+r(A[2],B[2])+').'+
+      return '<b>Dense.</b> Replace each sparse figure with the vendor’s own dense figure in the same format: '+fF(A[2])+' and '+fF(B[2])+' ('+r(A[2],B[2])+').'+
         ((a.sparse&&Math.abs(ha-2)>.05)||(b.sparse&&Math.abs(hb-2)>.05)?' Note: here the sparse figure is not twice the dense one ('+(a.sparse?esc(ca.short)+' '+sig(ha)+'x':'')+(a.sparse&&b.sparse?', ':'')+(b.sparse?esc(cb.short)+' '+sig(hb)+'x':'')+'), so "halve it" would have been wrong: always look for the printed dense value.':' Dense is exactly half of sparse here.')}
-    if(i===3)return '<b>Step 4, the same format.</b> Training runs mostly in BF16, so use each chip’s BF16 dense rate: '+fF(A[3])+' and '+fF(B[3])+'. '+esc(ca.short)+' / '+esc(cb.short)+' = '+r(A[3],B[3])+'.';
+    if(i===3)return '<b>The same format.</b> Training runs mostly in BF16, so use each chip’s BF16 dense rate: '+fF(A[3])+' and '+fF(B[3])+'. '+esc(ca.short)+' / '+esc(cb.short)+' = '+r(A[3],B[3])+'.';
     return '<b>What changed.</b> The headline ratio was '+r(A[0],B[0])+'; per chip, at equal format and without sparsity, it is '+r(A[3],B[3])+'. Memory bandwidth per chip: '+fBW(ca.bw)+' against '+fBW(cb.bw)+' ('+r(ca.bw,cb.bw)+'), often the number that decides speed.'}
   function peelDraw(i){const p=PAIRS[pair],A=peelVals(p.a),B=peelVals(p.b),k=Math.min(i,3);
     const host=document.getElementById('chip-peelplot'),W=X.width(host)-12,H=150,l=8,rr=8,x0=l,x1=W-rr,lo=2,hi=8;
@@ -36,14 +36,17 @@
         const lab=fF(o[1]),inside=w>90;b+=T(inside?x0+w-6:x0+w+6,o[3]+15,lab,{a:inside?'end':'start',fs:12,w:600,fill:inside?'var(--bg)':'var(--ink)'})});
       host.innerHTML=svg(W,H,b,'Headline compute of two systems, normalised step by step, log scale')});
     pv=target;
-    document.getElementById('chip-peelcap').innerHTML='<span class="mute">'+(i+1)+' / 5.</span> '+peelCap(i,p,A,B);
     const ratio=A[k]/B[k];
     document.getElementById('chip-peelcnt').innerHTML=['<div class="stat"><div class="k">Ratio now</div><div class="v">'+sig(ratio)+'x</div><div class="d">'+esc(p.a.lab)+' / '+esc(p.b.lab)+'</div></div>',
       '<div class="stat"><div class="k">Headline ratio</div><div class="v">'+sig(A[0]/B[0])+'x</div><div class="d">as printed</div></div>',
       '<div class="stat"><div class="k">BF16 dense per chip</div><div class="v">'+sig(A[3]/B[3])+'x</div><div class="d">the like-for-like answer</div></div>'].join('')}
-  const peelA=X.anim({card:'chip-peelcard',ctl:'chip-peelctl',n:5,draw:peelDraw,ms:2600,label:'Normalisation step'});
+  // the step list on the left carries each step's text for the chosen pair (it was a caption under the plot)
+  function peelList(){const p=PAIRS[pair],A=peelVals(p.a),B=peelVals(p.b),L=document.getElementById('chip-peelsx');
+    L.innerHTML=[0,1,2,3,4].map(i=>'<li>'+peelCap(i,p,A,B)+'</li>').join('');X.tabLinks(L)}
+  peelList();
+  const peelA=X.anim({card:'chip-peelcard',ctl:'chip-peelctl',n:5,draw:peelDraw,ms:4600,label:'Normalisation step',list:'chip-peelsx'});
   document.getElementById('chip-peelpair').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pair=b.dataset.m;pv=null;
-    document.querySelectorAll('#chip-peelpair button').forEach(x=>x.classList.toggle('on',x===b));peelA.reset(5)});
+    document.querySelectorAll('#chip-peelpair button').forEach(x=>x.classList.toggle('on',x===b));peelList();peelA.reset(5,'chip-peelsx')});
 
   // ================= 2. Timeline =================
   let tlSel=null;
@@ -84,19 +87,21 @@
         if(on&&j===i)s+=T(x+bw/2,y-3,sig(o[0],2),{a:'middle',fs:9.5,w:600})});
       s+=T(cx,H-18,esc(g.c.short),{a:'middle',fs:10.5,w:j===i?600:400})+T(cx,H-6,g.c.rel.slice(0,4),{a:'middle',fs:9.5,fill:'var(--mute)'})});
     host.innerHTML=svg(W,H,s,'Compute and bandwidth relative to A100, log scale');
-    const g=G[i],cap=[
-      '<b>A100 (2020) is the baseline:</b> 312 TFLOPS BF16 dense against 2.04 TB/s, so a kernel must do about '+sig(G[0].ridge)+' FLOPs per byte it reads to keep the tensor cores busy.',
-      '<b>H100 (2022):</b> BF16 compute 3.2x, FP8 (new) 6.3x, but bandwidth only 1.6x. The ridge almost doubles to '+sig(G[1].ridge)+': kernels that were compute-bound on A100 become memory-bound.',
-      '<b>H200 (2023):</b> the same compute with HBM3e: bandwidth 2.4x the A100 and memory 1.8x. The only generation here where the ridge falls ('+sig(G[2].ridge)+'): NVIDIA spent the step on memory, because inference was memory-bound.',
-      '<b>B200 (2024):</b> two dies; BF16 7.2x, FP4 (new) 29x, bandwidth 3.9x. In BF16 the ridge is '+sig(G[3].ridge)+'; in FP4 it is '+sig(BY.b200.peaks.fp4/BY.b200.bw)+'.',
-      '<b>B300 (2025):</b> BF16 unchanged from B200, FP4 1.5x, memory 288 GB. Compute in the lowest format is now 43x the A100 while bandwidth is 3.9x.',
-      '<b>Rubin (announced 2026):</b> BF16 13x, NVFP4 112x, and HBM4 at 22 TB/s, 11x. Bandwidth caught up in BF16 (ridge '+sig(G[5].ridge)+'), not in the low formats (FP4 ridge '+sig(BY.rubin.peaks.fp4/BY.rubin.bw)+'). The lesson for kernels and batch sizes: the cheaper the arithmetic, the more reuse per byte you need.'][i];
-    document.getElementById('chip-grcap').innerHTML=cap;
+    const g=G[i];
+
     document.getElementById('chip-grcnt').innerHTML=['<div class="stat"><div class="k"><span style="color:var(--c1)">&#9632;</span> BF16 compute</div><div class="v">'+sig(g.bf,3)+'x</div><div class="d">'+fF(g.c.peaks.bf16)+'</div></div>',
       '<div class="stat"><div class="k"><span style="color:var(--c2)">&#9632;</span> Lowest format</div><div class="v">'+sig(g.lo,3)+'x</div><div class="d">'+fF(X.low(g.c)[0])+' '+FN[g.lf]+'</div></div>',
       '<div class="stat"><div class="k"><span style="color:var(--c3)">&#9632;</span> Bandwidth</div><div class="v">'+sig(g.bw,3)+'x</div><div class="d">'+fBW(g.c.bw)+'</div></div>',
       '<div class="stat"><div class="k">Ridge, BF16</div><div class="v">'+sig(g.ridge)+'</div><div class="d">FLOPs per byte</div></div>'].join('')}
-  X.anim({card:'chip-grcard',ctl:'chip-grctl',n:GEN.length,draw:grDraw,ms:3200,label:'Generation'});
+  // the step list on the left: one item per generation (it was a caption under the chart)
+  function grCaps(){const G=growth();return ['<b>A100 (2020) is the baseline:</b> 312 TFLOPS BF16 dense against 2.04 TB/s, so a kernel must do about '+sig(G[0].ridge)+' FLOPs per byte it reads to keep the tensor cores busy.',
+      '<b>H100 (2022):</b> BF16 compute 3.2x, FP8 (new) 6.3x, but bandwidth only 1.6x. The ridge almost doubles to '+sig(G[1].ridge)+': kernels that were compute-bound on A100 become memory-bound.',
+      '<b>H200 (2023):</b> the same compute with HBM3e: bandwidth 2.4x the A100 and memory 1.8x. The only generation here where the ridge falls ('+sig(G[2].ridge)+'): NVIDIA spent the step on memory, because inference was memory-bound.',
+      '<b>B200 (2024):</b> two dies; BF16 7.2x, FP4 (new) 29x, bandwidth 3.9x. In BF16 the ridge is '+sig(G[3].ridge)+'; in FP4 it is '+sig(BY.b200.peaks.fp4/BY.b200.bw)+'.',
+      '<b>B300 (2025):</b> BF16 unchanged from B200, FP4 1.5x, memory 288 GB. Compute in the lowest format is now 43x the A100 while bandwidth is 3.9x.',
+      '<b>Rubin (announced 2026):</b> BF16 13x, NVFP4 112x, and HBM4 at 22 TB/s, 11x. Bandwidth caught up in BF16 (ridge '+sig(G[5].ridge)+'), not in the low formats (FP4 ridge '+sig(BY.rubin.peaks.fp4/BY.rubin.bw)+'). The lesson for kernels and batch sizes: the cheaper the arithmetic, the more reuse per byte you need.']}
+  document.getElementById('chip-grsx').innerHTML=grCaps().map(c=>'<li>'+c+'</li>').join('');
+  X.anim({card:'chip-grcard',ctl:'chip-grctl',n:GEN.length,draw:grDraw,ms:4800,label:'Generation',list:'chip-grsx'});
 
   // ================= 4. Ridge point of every chip =================
   // arithmetic intensity of an M x K x N matmul reading A, B and writing C once, s bytes per element

@@ -1,4 +1,5 @@
 // Reading tab check: every control clicked at 390 px dark and 920 px light; errors, NaN, undefined, sideways scroll; screenshots per section.
+// Since the 2026-11-06 rollout the tile animation must play by itself once scrolled into view (it was the opposite before).
 // usage: node src/read/check/check_read.mjs <shots dir>   (run from the repo root; puppeteer comes from html_utils/node_modules)
 import { createRequire } from 'module';
 import path from 'path';
@@ -28,8 +29,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     const root = document.getElementById('t-read'); let c = 0;
     const secs = [...root.querySelectorAll('section')];
     for (const s of secs) { s.scrollIntoView(); await new Promise(r => setTimeout(r, 60)); }
-    const card = document.getElementById('rd-tile-card'); card.scrollIntoView(); await new Promise(r => setTimeout(r, 1500));
-    const moved = [...root.querySelectorAll('.an-ctl input[type=range]')].filter(r => +r.value !== 0).length; if (moved) window.__autoplay = moved;
+    const card = document.getElementById('rd-tile-card'); card.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 1500));
+    window.__autoplay = /Pause/.test(document.getElementById('rd-tile-ctl-p').textContent) ? 1 : 0;
     const btns = [...root.querySelectorAll('button')];
     for (const b of btns) { if (b.offsetParent === null) continue; b.scrollIntoView({ block: 'center' }); b.click(); c++; await new Promise(r => setTimeout(r, 25)); }
     for (const r of root.querySelectorAll('input[type=range]')) { for (const v of [r.min, r.max, Math.round((+r.min + +r.max) / 2)]) { r.value = v; r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); c++; } }
@@ -45,8 +46,8 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     const errBox = !document.getElementById('jsErr').hidden; const auto = window.__autoplay || 0;
     return { nan, side, errBox, auto, words: t.split(/\s+/).length };
   });
-  console.log(scheme, w, 'controls', n, 'errors', JSON.stringify(errs), 'nan', res.nan, 'sideways', res.side, 'errbox shown', res.errBox, 'moved before the reader acted', res.auto, 'words', res.words);
-  if (errs.length || res.nan || res.side || res.errBox || res.auto) bad++;
+  console.log(scheme, w, 'controls', n, 'errors', JSON.stringify(errs), 'nan', res.nan, 'sideways', res.side, 'errbox shown', res.errBox, 'tile played on view', !!res.auto, 'words', res.words);
+  if (errs.length || res.nan || res.side || res.errBox || !res.auto) bad++;
   const ids = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));
   for (const id of ids) {
     const el = await p.$('#' + id);
