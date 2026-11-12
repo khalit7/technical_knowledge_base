@@ -54,7 +54,8 @@ cd .. && python3 ddp_timeline.py && python3 build_data.py && sh build.sh && pyth
 | `build_data.py` | `inputs/` -> `parts/22_dpt_data.js` |
 | `check_data.py` | embedded data = inputs; prose numbers = data; privacy and dash grep |
 | `check_page.mjs` | puppeteer: every control at 390 dark and 920 light (tabs t-read, t-dpt-mesh, t-more) |
-| `parts/` | `20_read*.html` + `21_js_rd_common.js` (skill template, never autoplays), `23_dpt_util.js`, `24_dpt_rd.js`, `25_dpt_sp.js`, `26_dpt_hook.js` (hook lab, closed block in section 3), `27_dpt_pipe.js` (schedule explorer, section 8), `28_dpt_fig.js` (hero and the new static figures and DDP stepper) (Reading); `32_*` mesh explorer; `39_tab_more.html`; `99_js_tabs.js` (skill template, key `dpt-tab`) |
+| `check_stages.mjs` | puppeteer (2026-11-12): every 3D stage and the TP/SP animation play when scrolled into view, step to the end, have one list item per step, never move under reduced motion, flows stop off screen; the pipeline explorer never plays by itself; splits are two columns at 1400 px |
+| `parts/` | `02_split.html` and `25_js_s3.js` (skill templates, the split layout and renderer v2), `41_js_sc_hero.js` to `45_js_sc_dcp.js` (the five 3D stages); `20_read*.html` + `21_js_rd_common.js` (skill template, autoplays on view), `23_dpt_util.js`, `24_dpt_rd.js`, `25_dpt_sp.js`, `26_dpt_hook.js` (hook lab, closed block in section 3), `27_dpt_pipe.js` (schedule explorer, section 8), `28_dpt_fig.js` (hero and the new static figures and DDP stepper) (Reading); `32_*` mesh explorer; `39_tab_more.html`; `99_js_tabs.js` (skill template, key `dpt-tab`) |
 
 ## Sources read (pinned)
 
@@ -89,3 +90,55 @@ Why 30 minutes is right: the page owns ten APIs (launch and groups, collectives,
 ## Close of the topic (2026-10-23)
 
 Sibling and neighbour reading times in Further reading set to each page's header (the 60 and 50 min were stale); times dropped for pages whose header states none (Interconnects and scaling, Fault tolerance at scale, Memory allocators, Launching distributed training, the paper pages). Ten ledger keys that began with a stale time were re-keyed to their descriptions.
+
+## The 2026-11 rollout: split layout, five 3D stages, explained and autoplaying animations (2026-11-12)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `05z_errbox.js.html`, `99_js_tabs.js` (key `dpt-tab`) and `build.sh` (it writes the em-dash it looks for as bytes). No new runs: every scene draws from `window.DPT` (`inputs/` via `build_data.py`, unchanged).
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea in one screen | split | **3D** `stg-hero` Fig. 1: the model as 6 slabs per rank under one process, DDP, FSDP2, TP, PP; the ring all-reduce, an FSDP2 all-gather, TP's per-block all-reduces, PP's send/recv as flows | yes, 5 |
+| Reading | You need, terms, layouts table | full width | table (closed) | no |
+| Reading | 1 Launch, groups | split | c10d static figure (2D) | no |
+| Reading | 1 Elastic restarts | split | restart timeline (2D) | no |
+| Reading | 2 Collectives table | full width | table | no |
+| Reading | 2 Cost per call | split | time against size, log-log (2D) | no |
+| Reading | 3 DDP | split | **3D** `stg-ddp` Fig. 2: two replicas, layers filling with their bucket's colour at the recorded ready times, buckets to scale, all-reduce flows; mode toggle step 1 / step 0 | yes, 7 and 7 |
+| Reading | 3 switches, hook lab, depth | full width | hook lab (closed) | no |
+| Reading | 4 FSDP2 | split | **3D** `stg-fsdp` Fig. 3: 4 ranks x 5 units in quarters, gather, free, reduce-scatter | yes, 6 |
+| Reading | 4 Prefetch | split | prefetch timeline (2D) | no |
+| Reading | 4 MixedPrecision, HSDP, depth | full width | table | no |
+| Reading | 5 DTensor | split | **3D** `stg-dt` Fig. 4: Shard, Replicate, Partial of a 4 x 6 on 2 ranks; S(1) x S(0) -> P; relu's all-reduce | yes, 6 |
+| Reading | 6 TP plans | full width | none | no |
+| Reading | 6 Sequence parallel | split | TP against TP + SP lanes (`RD.anim`, 2D) | yes, 9 and 11 |
+| Reading | 7 Context parallel | full width | none | no |
+| Reading | 8 Pipelining | split | schedule explorer (2D widget, never autoplays) | no (widget) |
+| Reading | 8 table, V-schedule warning, depth | full width | tables | no |
+| Reading | 9 DCP | split | **3D** `stg-dcp` Fig. 5: ranks, the checkpoint directory to scale, read back as HSDP or one .pt | yes, 4 |
+| Reading | 10 Composing | split | one weight cut by TP then FSDP, to scale (2D) | no |
+| Reading | 11 Debugging | split | first disagreeing sequence number (2D) | no |
+| Reading | 11 tools table, 12 Depth | full width | tables | no |
+| Mesh explorer | | split | notes and tables left, layouts, rank grid and memory right | no (explorer) |
+| Further reading | | unchanged | | |
+
+What changed and why:
+- **The static hero became Fig. 1**: what each rank holds is spatial (ranks side by side, a model stacked in layers), and the collectives are now visible as movement. The four notes under the old hero are its step list.
+- **The DDP stepper became Fig. 2**: the same 7 moments of the recorded backward, now with both replicas and the buckets as objects that fill; the per-step caption moved into the two step lists (one per mode), with the recorded times. The 2D tick timeline was dropped: its numbers are in the lists.
+- **The static FSDP2 table figure became Fig. 3**, the DTensor placements figure **Fig. 4**, the DCP files figure **Fig. 5**; their captions became step lists and short notes. The DTensor stage's last step applies the relu rule (recorded on a Partial A) to the product; the note says so.
+- **TP/SP animation**: `RD.anim` with two step lists (`sx-sp-tp`, `sx-sp-sp`) swapped by the mode buttons; the caption box was removed (its text is the lists).
+- **Kept 2D** (they read best flat): the c10d diagram, the restart timeline, the log-log cost chart, the prefetch timeline, the TP/SP lanes, the pipeline schedule explorer (a timeline widget the reader drives), the to-scale composed weight, the flight-recorder strip, every table.
+- **No real images**: the page is about software APIs; GPU and interconnect photos belong to the hardware pages.
+- Every scene label that would not fit at phone width has a short form; grouped side labels hide under 520 px and the step lists name the parts.
+
+### Length judgement (2026-11-12)
+| | Before (audit 2026-11-12, before this pass) | After |
+|---|---|---|
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 30.2 min (6,944 words) | 36.2 min (8,332 words) |
+| Reading, closed details | 20.0 min | 20.0 min |
+| Other tabs | Mesh explorer 1.4, Further reading 2.6 | unchanged |
+| Visuals in Reading (audit count) | 14 | 13 (five 3D canvases replace the static hero, FSDP2, DTensor and DCP figures and the DDP stepper; the DDP tick timeline was dropped) |
+
+The rise is the step lists: the DDP and TP/SP explanations used to be one script-written caption at a time (the audit counted only the one on screen) and are now written out in full, including the lists of the mode not shown (DDP step 0, TP + SP); and Figs. 1, 3, 4 and 5 gained step lists where they had one caption. No section gained other prose; nothing in the ledger was cut.
+
+### Knowledge ledger
+348 units: core 229, depth 80, fat 38, owned 1; `ledger.py check` problems 0, and the root's ledger problems 0. Keys updated for reworded units 112, 114 (DTensor figure), 338 (FSDP2 root unit), 339 (relu's all-reduce), 344 (hero).

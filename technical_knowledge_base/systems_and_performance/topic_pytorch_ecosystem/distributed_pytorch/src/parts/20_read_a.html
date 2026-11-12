@@ -1,17 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="dpt-s0">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Distributed PyTorch runs <b>the same script in several processes</b>, one per device, which cooperate only through <dfn>collectives</dfn> (calls every process of a group makes together, such as summing a tensor across all of them). Every API on this page is a rule for <span class="hl">what each process holds</span> and <span class="hl">which collectives it calls</span>: copy the model and split the data (DDP), shard the model's state too (FSDP2), split the matrices (tensor parallel), split the sequence (sequence and context parallel), split the layers (pipelining), and save it all without gathering it in one place (DCP).</p>
-<div class="hero" id="dpt-hero-card"><h4>The same model on several processes: under each API, every rank holds a different piece and sends different collectives</h4>
-<div class="dpt-fig" id="dpt-hero"></div>
-<div class="hnote">
-<div style="--sc:var(--c1)"><b>DDP, 4 ranks</b>the whole model on each, different data; 2 all-reduces per step (1,051,648 and 11,696,128 bytes); 12,747,776 B of weights per rank</div>
-<div style="--sc:var(--c3)"><b>FSDP2, 4 ranks</b>1/4 of every parameter, gradient and optimizer state; gathered whole just before use; 14 collectives: 9 all-gathers, 5 gradient reductions; 3,187,200 B of weights per rank</div>
-<div style="--sc:var(--c4)"><b>Tensor parallel, 2 ranks</b>half of each attention and MLP matrix, the same data; 16 all-reduces of 524,288 B per step</div>
-<div style="--sc:var(--c5)"><b>Pipeline, 2 stages</b>half the blocks each; activations forward and their gradients back by send/recv, once per micro-batch; idle 10 to 21% of the step (measured bubble)</div>
-</div>
-<p class="small mute">Model drawn as embeddings, 4 blocks and the output layer; filled = held by that rank, dashed = held only while in use. <span class="meas">Counts and bytes measured on the running example, CPU processes, gloo, torch 2.14.1, 2026-10-13</span>; the pipeline row's bubble is from the 8-block variant of section 8.</p>
-</div>
-<p><b>You need:</b> the parallelism forms themselves (why sharding saves memory, the split maths, which split at what scale), which {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} owns; this page shows only PyTorch's API for each and what it does. The parent's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab follows one step of the same model through DDP, FSDP2, TP, a 2-stage pipeline, DCP and three hangs. The running example is the topic's 3,186,944-parameter character GPT (4 blocks, d<sub>model</sub> 256, batch 8 &times; 64 tokens, AdamW), imported unchanged by every script in <code>src/exp/</code>.</p>
+<p class="sxh">Fig. 1, step by step: the same model on several processes</p>
+<ol class="sx" id="sx-hero">
+<li><b>One model, one process.</b> The topic's running example: embeddings, 4 blocks and the output layer, 3,186,944 parameters, 12,747,776 bytes of float32 weights. Each slab is one of those parts.</li>
+<li><b>DDP, 4 ranks.</b> The whole model on each, different data; 2 all-reduces per step (1,051,648 and 11,696,128 bytes) average the gradients, drawn as dots running round all four ranks; 12,747,776 B of weights per rank.</li>
+<li><b>FSDP2, 4 ranks.</b> 1/4 of every parameter, gradient and optimizer state; gathered whole just before use (here block 1, its pieces flowing from every rank) and freed after; 14 collectives: 9 all-gathers, 5 gradient reductions; 3,187,200 B of weights per rank.</li>
+<li><b>Tensor parallel, 2 ranks.</b> Half of each attention and MLP matrix, the same data; the embeddings and output layer stay whole. 16 all-reduces of 524,288 B per step, one pair of dots per block.</li>
+<li><b>Pipeline, 2 stages.</b> Half the blocks each; activations forward and their gradients back by send/recv, once per micro-batch; idle 10 to 21% of the step (measured bubble, from the 8-block variant of section 8).</li>
+</ol>
+<p class="small mute">Filled = held by that rank, faint = held only while in use or not at all. <span class="meas">Counts and bytes measured on the running example, CPU processes, gloo, torch 2.14.1, 2026-10-13</span>; slab sizes are not to scale.</p>
+</section>
+</div></div>
+<p><b>You need:</b> the parallelism forms themselves (why sharding saves memory, the split maths, which split at what scale), which {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} owns; this page shows only PyTorch's API for each and what it does. The parent's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab follows one step of the same model through DDP, FSDP2, TP, a 2-stage pipeline, DCP and three hangs. The running example is the topic's 3,186,944-parameter character GPT (4 blocks, d<sub>model</sub> 256, batch 8 &times; 64 tokens, AdamW), imported unchanged by every script in <code>src/exp/</code>. The JAX counterpart of this page (meshes, shardings and collectives in JAX) is {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}.</p>
 <dl class="terms">
 <dt>Rank, world size</dt><dd>a process's index, and how many there are.</dd>
 <dt>Process group, backend</dt><dd>a set of ranks that run collectives together, and the library that moves the bytes (NCCL on NVIDIA GPUs, gloo on CPUs).</dd>
@@ -35,20 +37,27 @@
 </tbody></table></div>
 <p class="small mute"><span class="meas">Measured on Apple M1 Pro, CPU, gloo, torch 2.14.1, one thread per process, 2026-10-13; 50 recordings on 2, 4 and 8 processes.</span> Counts, sizes, placements, memory and losses carry over to GPUs in kind; times do not (section 12). NCCL itself is on {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}.</p>
 </div></details>
-</section>
 
+<div class="s3sp"><div class="s3L">
 <section id="dpt-s1">
 <h2>1. Launch, process groups and the store (c10d)</h2>
 <p>Eight Python processes start on eight GPUs. Before any tensor moves, each must learn who it is, find the others and agree on a channel. <dfn>c10d</dfn> (PyTorch's distributed core) does this in three layers: a <dfn>store</dfn> (a small key-value server everyone can reach), a <dfn>process group</dfn> (a set of ranks plus a backend) and the <dfn>backend</dfn> itself.</p>
+<p><code>torchrun --nproc_per_node 4 train.py</code> starts 4 copies with <code>RANK</code>, <code>LOCAL_RANK</code>, <code>WORLD_SIZE</code>, <code>MASTER_ADDR</code> and <code>MASTER_PORT</code> set. <code>init_process_group("gloo")</code> connects each to a <code>TCPStore</code> at that address; every rank writes its address under a key and reads the others' (the <dfn>rendezvous</dfn>). <code>init_device_mesh("cpu", (2, 2), mesh_dim_names=("dp", "tp"))</code> lays ranks 0 to 3 out as [[0, 1], [2, 3]] and creates one group per row ("tp": {0, 1}, {2, 3}) and per column ("dp": {0, 2}, {1, 3}); recorded on rank 1: coordinate (0, 1), tp group [0, 1], dp group [1, 3].</p>
+<p>Neighbouring ranks share a row, which is why torchtitan puts tensor parallelism on the innermost (last) mesh dimension: neighbouring ranks share a server and its fast links (section 10). A collective can also run on any subset you name, <code>dist.new_group([0, 1])</code>. The {{Mesh explorer|#t-dpt-mesh}} shows every group of every layout run here. How torchrun's agent, rendezvous and the launchers above it work on a cluster is {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}}'s subject; this page takes the processes as given.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="dpt-c10d-card"><h4>torchrun starts the workers and names them; the store introduces them; a mesh cuts them into groups</h4>
 <div class="dpt-fig" id="dpt-c10d"></div>
-<p class="small"><code>torchrun --nproc_per_node 4 train.py</code> starts 4 copies with <code>RANK</code>, <code>LOCAL_RANK</code>, <code>WORLD_SIZE</code>, <code>MASTER_ADDR</code> and <code>MASTER_PORT</code> set. <code>init_process_group("gloo")</code> connects each to a <code>TCPStore</code> at that address; every rank writes its address under a key and reads the others' (the <dfn>rendezvous</dfn>). <code>init_device_mesh("cpu", (2, 2), mesh_dim_names=("dp", "tp"))</code> lays ranks 0 to 3 out as [[0, 1], [2, 3]] and creates one group per row ("tp": {0, 1}, {2, 3}) and per column ("dp": {0, 2}, {1, 3}); recorded on rank 1: coordinate (0, 1), tp group [0, 1], dp group [1, 3]. <span class="meas">Measured, 4 CPU processes.</span></p>
-</div>
-<p>Neighbouring ranks share a row, which is why torchtitan puts tensor parallelism on the innermost (last) mesh dimension: neighbouring ranks share a server and its fast links (section 10). A collective can also run on any subset you name, <code>dist.new_group([0, 1])</code>. The {{Mesh explorer|#t-dpt-mesh}} shows every group of every layout run here.</p>
+<p class="small mute">Left: the launch and the rendezvous. Right: the 2 &times; 2 mesh, rows the tp groups, columns the dp groups; rank 1 highlighted. <span class="meas">Measured, 4 CPU processes.</span></p>
+</div></div></div></div>
+
+<div class="s3sp"><div class="s3L">
 <h3>Elastic restarts</h3>
-<p>When one process dies, the others block in their next collective. <code>torchrun --max-restarts N</code> turns that into a restart: its agent kills the survivors, runs the rendezvous again and starts <b>every</b> worker from the top of the script, with <code>TORCHELASTIC_RESTART_COUNT</code> incremented. Nothing is kept in memory, so the script must resume from its own checkpoint. Run here with rank 1 crashing at step 3:</p>
+<p>When one process dies, the others block in their next collective. <code>torchrun --max-restarts N</code> turns that into a restart: its agent kills the survivors, runs the rendezvous again and starts <b>every</b> worker from the top of the script, with <code>TORCHELASTIC_RESTART_COUNT</code> incremented. Nothing is kept in memory, so the script must resume from its own checkpoint. Run here with rank 1 crashing at step 3: losses after the restart equal an uninterrupted run exactly, because the checkpoint holds weights, AdamW state and the step number.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="dpt-el-card"><h4>A restart reruns every worker from the top; the checkpoint makes it continue where it stopped</h4><div id="dpt-el"></div>
-<p class="small mute">Events from both ranks of one run (2 processes, <code>--max-restarts 2</code>, the script checkpoints after every step). Losses after the restart equal an uninterrupted run exactly, because the checkpoint holds weights, AdamW state and the step number. <span class="meas">Measured, 2 CPU processes.</span></p></div>
+<p class="small mute">Events from both ranks of one run (2 processes, <code>--max-restarts 2</code>, the script checkpoints after every step). <span class="meas">Measured, 2 CPU processes.</span></p></div>
+</div></div></div>
 <details class="dp"><summary>Depth: what torchrun sets, the store's prefixes, the backend trap on a Mac, flaky restarts <span class="mute">(3 min)</span></summary><div class="b">
 <p>Every variable torchrun handed rank 1 of 4:</p>
 <div class="tw"><table class="rd-tbl" id="dpt-env"></table></div>
@@ -57,4 +66,4 @@
 <p>torchrun's own log of the restart, host and process ids removed: <span id="dpt-ellog"></span></p>
 <div class="co"><div class="t">Restarts on this machine were flaky</div><span id="dpt-elrep"></span> The 20-second timeout is the script's own (<code>init_process_group(timeout=...)</code>); the cause was not isolated (gloo over the loopback interface on macOS). torchrun's restart budget absorbed it, which is the general lesson: give <code>--max-restarts</code> some slack and make resuming cheap. For failures that should not restart the whole job, <code>torchft</code> keeps healthy replicas training (the parent's {{Ecosystem map|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab has its status; {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}} owns recovery).</div>
 </div></details>
-</section>
+

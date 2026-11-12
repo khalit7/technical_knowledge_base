@@ -1,10 +1,17 @@
+<div class="s3sp"><div class="s3R"><div id="stg-dcp"></div></div><div class="s3L">
 <section id="dpt-s9">
 <h2>9. Distributed checkpoints (DCP): every rank writes its own shards</h2>
 <p><dfn>DCP</dfn> (<code>torch.distributed.checkpoint</code>) has every rank write its own shards plus one <code>.metadata</code> file mapping every piece of every tensor to its offsets, so a checkpoint loads into any other layout and nothing is ever gathered on one rank. <code>dcp.save(state, checkpoint_id=dir)</code> and <code>dcp.load(state, checkpoint_id=dir)</code> take the state dict of DTensors that FSDP2 and TP already hold; the parent lab saved from 4 FSDP2 ranks and loaded into 2 and into 1.</p>
-<div class="fig" id="dpt-dcp-card"><h4>Four shard files and a map: the map lets any other layout read the pieces it needs</h4>
-<div class="dpt-fig" id="dpt-dcp"></div>
-<p class="small">Saved from 4 FSDP2 ranks: four <code>.distcp</code> files of about 9.8 MB each (model and AdamW state) and a <code>.metadata</code> of 144,171 bytes. Loaded into a 2 &times; 2 HSDP model (placements <code>(Replicate(), Shard(0))</code>, local block weight 512 &times; 256 instead of 256 &times; 256) with a largest parameter difference of 0.0, and the next step's loss was identical on both layouts (3.0912256). <code>dcp_to_torch_save</code> turned the directory into one 38,343,430-byte <code>.pt</code> with no process group. <span class="meas">Measured, 4 CPU processes.</span></p>
-</div>
+<p class="sxh">Fig. 5, step by step: saved from 4 FSDP2 ranks, read back two ways</p>
+<ol class="sx" id="sx-dcp">
+<li><b>Four ranks, four quarters.</b> After training under FSDP2, each rank holds its shard of every parameter and of AdamW's state, as DTensors.</li>
+<li><b><code>dcp.save</code>: every rank writes its own file.</b> Four <code>.distcp</code> files of about 9.8 MB each (model and AdamW state), written in parallel, nothing gathered; one <code>.metadata</code> of 144,171 bytes maps every piece of every tensor to its file and offsets.</li>
+<li><b><code>dcp.load</code> into another layout.</b> A 2 &times; 2 HSDP model (placements <code>(Replicate(), Shard(0))</code>, local block weight 512 &times; 256 instead of 256 &times; 256) asks for its pieces; the map says which files hold them, and each rank reads only those. Largest parameter difference 0.0; the next step's loss was identical on both layouts (3.0912256).</li>
+<li><b>One file for tools that want one.</b> <code>dcp_to_torch_save</code> turned the directory into one 38,343,430-byte <code>.pt</code> with no process group.</li>
+</ol>
+<p class="small mute">File heights are to scale by bytes; the <code>.pt</code> has four times a shard file's footprint, so its volume is to scale. Which file each HSDP rank reads is drawn from the layout (rows 0 to 511 of a block weight are FSDP ranks 0 and 1's quarters); DCP's planner reads them through the map. <span class="meas">Measured, 4 CPU processes.</span></p>
+</section>
+</div></div>
 <p><b>Async save needs its own process group.</b> <code>dcp.async_save(state, checkpoint_id=...)</code> copies the state to CPU memory, returns a future and writes in a background thread, so training continues; its planning uses collectives. On the default group, while the next forward and backward issued FSDP2's collectives, gloo aborted two of the four processes: two threads issuing collectives on one group in different orders (section 11's rule). With <code>process_group=dist.new_group(backend="gloo")</code>, as torchtitan does (<code>components/checkpointer/dcp.py</code> L189, 0.3.0), it worked: <span id="dpt-async"></span></p>
 <details class="dp"><summary>Depth: the failed run, the files, Hugging Face safetensors <span class="mute">(2 min)</span></summary><div class="b">
 <ul>
@@ -14,7 +21,8 @@
 <li><b>Hugging Face safetensors.</b> <code>dcp.save(state, storage_writer=HuggingFaceStorageWriter(path, save_distributed=True, enable_consolidation=True))</code> refused the running example: <span id="dpt-hf0"></span> safetensors will not store two names for one tensor, and the tied <code>tok.weight</code>/<code>head.weight</code> are one. Dropping <code>head.weight</code> (how Hugging Face stores tied embeddings) worked: <span id="dpt-hf1"></span> File formats themselves are on {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}}, section 3.</li>
 </ul>
 </div></details>
-</section>
+
+<div class="s3sp"><div class="s3L">
 <section id="dpt-s10">
 <h2>10. Composing PP, FSDP and TP the torchtitan way</h2>
 <p>Real jobs combine several of these on one mesh. torchtitan (PyTorch's reference trainer; release 0.3.0 read here) does it in a fixed order, and the order is the lesson:</p>
@@ -24,14 +32,17 @@
 <li><b>Per stage: context parallel, then TP, then activation checkpointing, then <code>torch.compile</code> per block, then FSDP2 last</b> (<code>models/llama3/parallelize.py</code> L42-94). FSDP2 goes last because it shards whatever DTensors TP produced along one more mesh dimension; compile goes before it so each block compiles once.</li>
 <li>Then weights are materialised and initialised on each rank (<code>to_empty</code>, <code>init_weights</code>), and the schedule (1F1B by default, <code>config/configs.py</code> L210) drives training.</li>
 </ol>
+<p><b>Run here on 8 processes</b> with the running example in that order: two stages of 2 blocks, TP on each block (the 16-all-reduce plan of section 6), <code>fully_shard</code> over the dp axis, <code>Schedule1F1B</code> with 4 micro-batches, and one all-reduce over the pp axis for the tied embedding and head, which now live on different stages. Each rank held about 1.6 MB of the 12.75 MB of weights, and every rank's gradients matched one process on the same 16 sequences to 1.8e-7. The dp reductions happen once per step, not per micro-batch: the pipeline asks FSDP2 to reduce only after the last micro-batch. The {{Mesh explorer|#t-dpt-mesh}} has this layout rank by rank.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="dpt-c3s-card"><h4>Each layer of the recipe cuts the same weight again: TP's half, then FSDP's half of that</h4>
 <div class="dpt-fig" id="dpt-c3s"></div>
 <p class="small">Block 0's <code>mlp.fc.weight</code> on rank 0 of the 8-process run (pp 2 &times; dp 2 &times; tp 2), drawn to scale: [1024, 256] in the model, [512, 256] after <code>ColwiseParallel</code>, [256, 256] after <code>fully_shard</code>. Its placements on the (dp, tp) mesh were <span id="dpt-c3p"></span>: sharded on dimension 0 by TP and again, "strided", by FSDP (<code>_StridedShard</code>), so that each rank's rows are the right ones of TP's shard. <span class="meas">Measured, 8 CPU processes, gloo.</span></p>
 </div>
-<p><b>Run here on 8 processes</b> with the running example in that order: two stages of 2 blocks, TP on each block (the 16-all-reduce plan of section 6), <code>fully_shard</code> over the dp axis, <code>Schedule1F1B</code> with 4 micro-batches, and one all-reduce over the pp axis for the tied embedding and head, which now live on different stages. Each rank held about 1.6 MB of the 12.75 MB of weights, and every rank's gradients matched one process on the same 16 sequences to 1.8e-7. The dp reductions happen once per step, not per micro-batch: the pipeline asks FSDP2 to reduce only after the last micro-batch. The {{Mesh explorer|#t-dpt-mesh}} has this layout rank by rank.</p>
+</div></div></div>
 <details class="dp"><summary>Depth: the 8-process run per rank; torchtitan's own trainer <span class="mute">(2 min)</span></summary><div class="b">
 <div class="tw"><table class="rd-tbl" id="dpt-c3"></table></div>
 <p class="small mute"><span class="meas">Measured, 8 CPU processes, gloo, one step.</span> The reference is one process on the same 16 sequences (dp rank d trains on batch d; the two tp ranks of a replica share it). Each rank's collectives by mesh axis: <span id="dpt-c3c"></span></p>
 <p class="small">torchtitan's own trainer, run on this CPU with four patches (it imports Triton unconditionally, picks a CUDA-like device, uses FlexAttention, and sets FSDP2's gradient divide factor to 1 which needs a reduce op gloo lacks), and its defaults that change results, are on the {{Libraries on top of PyTorch|n:3c65c17b0d0d81019d98f99978dc26f6}} child; so is DeepSpeed ZeRO against FSDP2, run there on CPU. Launching such a job on a cluster: {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}}.</p>
 </div></details>
-</section>
+

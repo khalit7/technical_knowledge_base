@@ -1,13 +1,30 @@
+<div class="s3sp"><div class="s3R"><div id="stg-ddp"></div></div><div class="s3L">
 <section id="dpt-s3">
 <h2>3. DDP: buckets that all-reduce while backward runs</h2>
 <p><dfn>DDP</dfn> (<code>DistributedDataParallel</code>) keeps a full model on every rank and averages gradients during backward. The C++ <dfn>reducer</dfn> (<code>torch/csrc/distributed/c10d/reducer.cpp</code>) puts one autograd hook on each parameter. Gradients are grouped into <dfn>buckets</dfn>; when every gradient of a bucket is ready, the bucket goes to a <dfn>communication hook</dfn> (by default an all-reduce) and backward carries on. In the first step all gradients share one bucket; after it, DDP rebuilds the buckets in the order the gradients actually arrived, the first one closing at about 1 MiB and the rest at 25 MiB (<code>bucket_cap_mb</code>), so the first bucket fills early in backward.</p>
-<div class="fig" id="dpt-ddp-card"><h4>After the rebuild, the first all-reduce leaves 1 ms into backward instead of after it</h4>
-<div class="rd-ctl"><span class="seg" id="dpt-ddp-seg"><button class="on" data-m="0">Step 0: one bucket</button><button data-m="1">Step 1 on: rebuilt buckets</button></span></div>
-<div class="dpt-fig" id="dpt-ddp"></div>
-<div class="an-cap" id="dpt-ddp-cap"></div>
-<div class="an-ctl" id="dpt-ddp-ctl"></div>
-<p class="small mute">Rank 0 of 2; each tick is one of the 52 parameter tensors becoming ready, at its recorded time, coloured by bucket; diamonds are the all-reduces as issued. Step 0: one bucket of 12,747,776 bytes, all-reduced 30.7 ms into backward, when the last gradient arrived. Step 1: buckets of 1,051,648 bytes (<code>ln_f</code> and block 3's <code>mlp.proj</code>: 4 tensors) and 11,696,128 bytes (the other 48), all-reduced at 1.0 and 17.25 ms. <span class="meas">Measured: the parent lab's DDP run (2 CPU processes, gloo), reshaped by <code>src/ddp_timeline.py</code>.</span> On NCCL the all-reduce runs on its own CUDA stream while backward computes; on gloo with one thread per process the overlap is limited, so read the order, not the gaps.</p>
-</div>
+<div class="rd-ctl"><span class="seg" id="dpt-ddp-seg"><button class="on" data-m="1">Step 1 on: rebuilt buckets</button><button data-m="0">Step 0: one bucket</button></span></div>
+<p class="sxh">Fig. 2, step by step: one recorded backward on rank 0 of 2</p>
+<ol class="sx" id="sx-ddp-0" hidden>
+<li><b>Backward starts at the loss.</b> Forward is done; gradients become ready from the last layer back. In step 0 one bucket holds all 52 gradients, 12,747,776 bytes.</li>
+<li><b>The first gradients wait.</b> ln_f and block 3's <code>mlp.proj</code> are ready 12.53 ms into backward, but their bucket is the whole model: nothing can be sent yet (the bucket is 8% full).</li>
+<li><b>Block 3 done, 16.80 ms.</b> Still waiting: the one bucket is 25% full.</li>
+<li><b>Block 2 done, 21.52 ms.</b> Each block adds 3,159,040 bytes of gradients; 50% full.</li>
+<li><b>Block 1 done, 26.14 ms.</b> Block 0 and the embeddings remain; 74% full.</li>
+<li><b>The last gradient arrives: the only all-reduce leaves.</b> tok.weight is ready at 30.64 ms and the bucket is all-reduced at once: all 12.75 MB go after backward has finished computing.</li>
+<li><b>backward() returns, 41.78 ms,</b> once the all-reduce is done. Step 0 is also slower overall (first-step overheads); compare the order, not only the totals.</li>
+</ol>
+<ol class="sx" id="sx-ddp-1">
+<li><b>Backward starts at the loss.</b> From step 1 on there are two buckets, rebuilt in the order the gradients arrived in step 0: 1,051,648 bytes (<code>ln_f</code> and block 3's <code>mlp.proj</code>: 4 tensors) and 11,696,128 bytes (the other 48).</li>
+<li><b>Bucket 0 is full: its all-reduce leaves at once.</b> At 1.00 ms its 1,051,648 bytes go between the ranks while backward continues into block 3.</li>
+<li><b>Block 3 done, 4.65 ms.</b> Bucket 1 is 18% full; bucket 0's all-reduce is already under way.</li>
+<li><b>Block 2 done, 8.80 ms.</b> Each block adds 3,159,040 bytes of gradients; bucket 1 is 45% full.</li>
+<li><b>Block 1 done, 12.97 ms.</b> Block 0 and the embeddings remain; 72% full.</li>
+<li><b>The last gradient arrives: bucket 1 leaves.</b> tok.weight is ready at 17.23 ms; its bucket's all-reduce of 11,696,128 bytes is issued at 17.25 ms. Only this bucket waits for the end of backward.</li>
+<li><b>backward() returns, 30.94 ms.</b> On NCCL the 1 MB all-reduce would run on its own CUDA stream under block 3 to 0's backward; on gloo with one thread per process the overlap is limited, so read the order, not the gaps.</li>
+</ol>
+<p class="small mute">Both ranks are drawn with rank 0's recorded times; a layer fills with its bucket's colour as its gradients become ready, and bucket heights are to scale by bytes. Step 0: one bucket of 12,747,776 bytes, all-reduced 30.7 ms into backward, when the last gradient arrived. Step 1: buckets all-reduced at 1.0 and 17.25 ms. <span class="meas">Measured: the parent lab's DDP run (2 CPU processes, gloo), reshaped by <code>src/ddp_timeline.py</code>.</span> The same overlap at scale, 8 of 64 GPUs with seven buckets on NCCL, is Fig. 3 of {{Streams, CUDA graphs and multi-GPU|n:3f05c17b0d0d81b19a6acab65c370b75}}.</p>
+</section>
+</div></div>
 <p>Three switches change that machinery, each measured here on 2 processes.</p>
 <p><b>Unused parameters.</b> The reducer waits for every parameter of a bucket; one that forward did not use never gets a gradient, so its bucket never completes and DDP raises at the next step. <code>find_unused_parameters=True</code> walks the autograd graph from the outputs every step and all-reduces a used-parameter bitmap (216 bytes here: 54 parameters &times; 4 bytes); <code>static_graph=True</code> promises the same set every step, learns it once and rebuilds buckets after step 1.</p>
 <p><b>Gradient accumulation.</b> With 4 micro-batches per optimizer step, only the sum matters, so all-reducing after each wastes three. <code>with ddp.no_sync():</code> lets backward accumulate locally:</p>

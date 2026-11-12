@@ -1,11 +1,15 @@
+<div class="s3sp"><div class="s3L">
 <section id="dpt-s11">
 <h2>11. Debugging: hangs, mismatches and the flight recorder</h2>
 <p><b>The rule behind every hang:</b> all ranks of a group must call the same collectives, in the same order, with matching sizes. A collective completes only when every member calls it, so one rank that skips one, calls a different one, or dies leaves the rest waiting until the timeout (10 minutes for NCCL, 30 for other backends by default at 2.14.1). The parent lab caused three hangs on purpose; this page met the rule three more times without trying: PowerSGD's callbacks (section 3), <code>async_save</code> on the default group (section 9) and a <code>from_local</code> with wrongly sized pieces (section 5).</p>
+<p>Every process group keeps a ring buffer of its recent collectives (<code>TORCH_FR_BUFFER_SIZE</code> entries: name, sizes, dtypes, sequence number, stack). On NCCL, <code>TORCH_NCCL_DUMP_ON_TIMEOUT=1</code> makes the watchdog write one file per rank when a collective times out, and <code>torchfrtrace &lt;dir&gt;</code> (shipped with PyTorch as <code>torch.distributed.flight_recorder.fr_trace</code>) lines the ranks up and names the first mismatch. From PyTorch 2.15 the recorder is backend-agnostic and each watchdog publishes its health to the debug server, so a timeout on any rank triggers dumps from every rank, the ranks that were waiting included, not only from the one that timed out. So for a 512-GPU job that hangs: find the first sequence number where ranks disagree on the operation or its sizes, or where a rank is missing, then read that rank's stack. <code>torchrun</code> sets <code>TORCH_NCCL_ASYNC_ERROR_HANDLING=1</code> for its workers, which makes the NCCL watchdog abort the process on a timeout instead of leaving it hung.</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="fig" id="dpt-fr-card"><h4>The first sequence number at which ranks disagree is the bug</h4>
 <div class="dpt-fig" id="dpt-frfig"></div>
 <p class="small">The parent lab's "skipped all-reduce", dumped from both ranks and lined up by <code>torchfrtrace</code>: collectives 1 to 3 (all-reduces) agree; at sequence number 4 rank 0 called an <code>all_reduce</code> that only rank 0 runs (a logging all-reduce under <code>if rank == 0</code>) while rank 1 went on to <code>barrier</code>: <code>COLLECTIVE_TYPE_MISMATCH</code>, culprit rank 0, with the stack naming the line. <span class="meas">Measured, 2 CPU processes, gloo, torch 2.14.1.</span></p>
 </div>
-<p>Every process group keeps a ring buffer of its recent collectives (<code>TORCH_FR_BUFFER_SIZE</code> entries: name, sizes, dtypes, sequence number, stack). On NCCL, <code>TORCH_NCCL_DUMP_ON_TIMEOUT=1</code> makes the watchdog write one file per rank when a collective times out, and <code>torchfrtrace &lt;dir&gt;</code> (shipped with PyTorch as <code>torch.distributed.flight_recorder.fr_trace</code>) lines the ranks up and names the first mismatch. From PyTorch 2.15 the recorder is backend-agnostic and each watchdog publishes its health to the debug server, so a timeout on any rank triggers dumps from every rank, the ranks that were waiting included, not only from the one that timed out. So for a 512-GPU job that hangs: find the first sequence number where ranks disagree on the operation or its sizes, or where a rank is missing, then read that rank's stack. <code>torchrun</code> sets <code>TORCH_NCCL_ASYNC_ERROR_HANDLING=1</code> for its workers, which makes the NCCL watchdog abort the process on a timeout instead of leaving it hung.</p>
+</div></div></div>
 <div class="tw"><table class="rd-tbl">
 <thead><tr><th>Tool, in the order to reach for it</th><th>What it catches</th><th>Cost</th><th>Where measured</th></tr></thead>
 <tbody>
@@ -26,7 +30,7 @@
 <p><b>One-sided transports.</b> <code>torch.distributed</code> gained a Python transport API for one-sided reads and writes, with NIXL as the first backend: a transport connects to a peer through a store, with no process group or collective, and <code>Transport.read_stream</code> and <code>write_stream</code> enqueue transfers on a CUDA stream, so they can be captured in a CUDA graph.</p>
 <p class="small mute">All three are marked API Unstable in the {{PyTorch 2.15 release blog|https://pytorch.org/blog/pytorch-2-15-release-blog/}}. Every measurement on this page was taken on torch 2.14.1 with gloo, so none of this was run here.</p>
 </div></details>
-</section>
+
 
 <section id="dpt-s12">
 <h2>12. Depth: what carries over to GPUs, and mistakes seen here</h2>

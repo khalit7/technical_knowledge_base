@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3R"><div id="stg-fsdp"></div></div><div class="s3L">
 <section id="dpt-s4">
 <h2>4. FSDP2: fully_shard, one unit gathered at a time</h2>
 <p><dfn>FSDP2</dfn> (<code>torch.distributed.fsdp.fully_shard</code>) is PyTorch's ZeRO stage 3 (the form is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}, section 4): each rank keeps 1/n of every parameter, gradient and optimizer state, gathers a <dfn>unit</dfn>'s full weights just before using them and reduce-scatters its gradients. You call <code>fully_shard</code> on each block, then on the whole model; each call makes one unit. What it does to a module is concrete:</p>
@@ -6,15 +7,26 @@
 <li>the module's class is swapped for a subclass that also inherits <code>FSDPModule</code> (checked: <code>GPT</code> becomes <code>FSDPGPT</code>, bases <code>FSDPModule</code> then <code>GPT</code>; each <code>Block</code> becomes <code>FSDPBlock</code>), so <code>model.unshard()</code>, <code>reshard()</code> and <code>set_requires_gradient_sync()</code> exist;</li>
 <li>forward pre/post hooks and autograd hooks schedule the gathers and reductions (how they sit on the tensor-subclass machinery: {{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}}).</li>
 </ul>
-<div class="fig" id="dpt-fsdp-card"><h4>One step on 4 ranks: 9 all-gathers bring each unit in, 5 reductions send its gradients out</h4>
-<div class="dpt-fig" id="dpt-fsdp"></div>
-<p class="small">Rank 0's step in issue order. The root unit (embeddings, final LayerNorm, the tied head) is gathered once and kept through backward, because backward needs it first; each block is gathered for its forward, freed, gathered again for its backward, and its gradients reduced: 1 + 4 + 4 = 9 all-gathers (28,160 bytes in for the root, 789,760 per block) and 4 + 1 = 5 reductions (3,159,040 bytes per block, 112,640 for the root; on gloo each is an all-reduce of the full gradient, section 2). The parent's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab animates this step against DDP's. <span class="meas">Measured, 4 CPU processes, step 1.</span></p>
-</div>
+<p class="sxh">Fig. 3, step by step: one training step on 4 ranks, rank 0's recording</p>
+<ol class="sx" id="sx-fsdp">
+<li><b>At rest, every rank holds a quarter.</b> Each of the 5 units (the root: embeddings, final LayerNorm and the tied head; then blocks 0 to 3) is cut into 4 row shards, one per rank: 3,187,200 B of weights and 6,374,608 B of AdamW state per rank, against DDP's 12,747,776 and 25,495,760.</li>
+<li><b>The root unit is gathered, and kept.</b> Its all-gather brings 28,160 bytes in per rank. It is not freed after forward, because backward needs it first.</li>
+<li><b>Block 0: gathered just before its forward, freed after.</b> Each rank sends its quarter to the others (789,760 bytes in per rank), runs the block on the whole weights, then drops the three borrowed quarters.</li>
+<li><b>Blocks 1 to 3, one at a time.</b> The same gather, compute and free per block, so at most one block (plus the root) is ever whole. Forward issued 1 + 4 = 5 all-gathers.</li>
+<li><b>Backward: gather again, then reduce-scatter the gradients.</b> Block 3 is gathered a second time to compute its gradients; the full-size gradient is summed across ranks and each keeps the quarter it owns (3,159,040 bytes per block; on gloo an all-reduce of the full gradient, section 2).</li>
+<li><b>Down to block 0, then the root.</b> Four backward all-gathers and five reductions (the root's last, 112,640 bytes): 1 + 4 + 4 = 9 all-gathers and 4 + 1 = 5 reductions, 14 collectives per step. Each rank ends with the gradient quarter its optimizer updates.</li>
+</ol>
+<p class="small mute">Rank 0's step in issue order: 9 all-gathers (28,160 bytes in for the root, 789,760 per block) and 5 reductions (3,159,040 bytes per block, 112,640 for the root). The parent's {{Distributed lab|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab animates this step against DDP's. <span class="meas">Measured, 4 CPU processes, step 1.</span> Sizes on the stage are not to scale.</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Prefetching: issue the next gather early</h3>
 <p>By default FSDP2 prefetches implicitly: while block i runs forward it has already issued block i + 1's all-gather; in backward, the next block's. <code>block.set_modules_to_forward_prefetch([...])</code> and <code>set_modules_to_backward_prefetch([...])</code> name the modules explicitly, here two ahead.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="fig"><h4>Explicit prefetch issues gathers earlier, and holds more gathered weights at once</h4><div class="rd-ctl"><span class="seg" id="dpt-pf-seg"><button class="on" data-m="implicit (default)">Implicit (default)</button><button data-m="explicit, 2 ahead">Explicit, 2 ahead</button></span></div>
 <div class="dpt-svg" id="dpt-pf"></div><div class="small" id="dpt-pf-cap"></div>
 <p class="small mute"><span class="meas">Measured, 2 CPU processes, step 2</span>: bars are each block's forward and backward on rank 0, diamonds the all-gathers and gradient reductions as issued. Gloo on one thread does not overlap communication with compute the way NCCL streams do, so read the order, not the gaps.</p></div>
+</div></div></div>
 <h3>MixedPrecisionPolicy: what travels in which dtype</h3>
 <div class="tw"><table class="rd-tbl" id="dpt-mp"></table></div>
 <p class="small mute"><span class="meas">Measured, 2 CPU processes, step 1.</span> <code>param_dtype=bfloat16</code> casts each gathered weight, so the all-gathers carry half the bytes and forward and backward compute in bfloat16; the sharded master weights and AdamW stay float32 (persistent state is the same in all three rows). <code>reduce_dtype</code> sets the gradient reduction. torchtitan's default is exactly the middle row: bfloat16 parameters, float32 reductions (torchtitan 0.3.0 <code>config/configs.py</code> L85 and L93). On this M1 Pro CPU, bfloat16 matrix multiplication has no hardware support (FACTS fst: 2.1 GFLOP/s), so these rows are for bytes and dtypes, not speed.</p>
@@ -32,4 +44,4 @@
 <div class="tw"><table class="rd-tbl" id="dpt-f1"></table></div>
 <p class="small mute"><span class="meas">Measured, 2 CPU processes.</span> FSDP1 still runs at 2.14.1 and printed no deprecation warning; the parent page's correction stands (no formal deprecation notice at 2.14, {{Ecosystem map|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab).</p>
 </div></details>
-</section>
+

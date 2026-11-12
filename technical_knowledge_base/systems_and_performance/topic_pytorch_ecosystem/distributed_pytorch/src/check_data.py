@@ -67,6 +67,17 @@ c("largest difference 1.6e-7 over these runs", max(tl), "%.1e" % max(tl) == "1.6
 c("0.37 of the right one", pp["ZBVZeroBubble_w2_m4"]["ranks"][0]["tied_grad_ratio_to_reference"], round(pp["ZBVZeroBubble_w2_m4"]["ranks"][0]["tied_grad_ratio_to_reference"], 2) == 0.37)
 c("(3.0912256)", r0("dcp_more")["reshard_to_hsdp"]["next_loss_hsdp"], round(r0("dcp_more")["reshard_to_hsdp"]["next_loss_hsdp"], 7) == 3.0912256 and r0("dcp_more")["reshard_to_hsdp"]["next_loss_fsdp4"] == r0("dcp_more")["reshard_to_hsdp"]["next_loss_hsdp"])
 c("1,051,648 and 11,696,128 bytes", fs["ddp4"]["steps"][1]["coll"], [e["in"] for e in fs["ddp4"]["steps"][1]["coll"] if e["op"] == "all_reduce"] == [1051648, 11696128])
+# step lists of the 3D stages (2026-11-12): numbers written in static HTML
+c("ready 12.53 ms into backward", dd[0]["ready"][3][1], round(dd[0]["ready"][3][1], 2) == 12.53)
+c("tok.weight is ready at 30.64 ms", max(q[1] for q in dd[0]["ready"]), round(max(q[1] for q in dd[0]["ready"]), 2) == 30.64)
+c("tok.weight is ready at 17.23 ms", max(q[1] for q in dd[1]["ready"]), round(max(q[1] for q in dd[1]["ready"]), 2) == 17.23)
+c("backward() returns, 41.78 ms", dd[0]["bwd_end_ms"], round(dd[0]["bwd_end_ms"], 2) == 41.78)
+c("backward() returns, 30.94 ms", dd[1]["bwd_end_ms"], round(dd[1]["bwd_end_ms"], 2) == 30.94)
+c("Each block adds 3,159,040 bytes", sum(q[3] for q in dd[1]["ready"] if q[0].startswith("blocks.2.")), sum(q[3] for q in dd[1]["ready"] if q[0].startswith("blocks.2.")) == 3159040)
+c("6,374,608 B of AdamW state per rank, against DDP's 12,747,776 and 25,495,760", (D["mesh"]["fsdp4"]["ranks"][0]["state"], D["mesh"]["ddp4"]["ranks"][0]["state"]),
+  D["mesh"]["fsdp4"]["ranks"][0]["state"]["opt_state"] == 6374608 and D["mesh"]["ddp4"]["ranks"][0]["state"] == {"params": 12747776, "opt_state": 25495760})
+c("full-shape (4, 8) partial product", [x for x in D["dprop"]["cases"] if x[0] == "mm" and x[1] == ["S1", "S0"]][0], [x for x in D["dprop"]["cases"] if x[0] == "mm" and x[1] == ["S1", "S0"]][0][2:5] == [["P(sum)"], {}, [4, 8]])
+c("local block weight 512 &times; 256", D["dcp"]["reshard"]["local_shape"], D["dcp"]["reshard"]["local_shape"] == [512, 256])
 for lit, val, ok in chk:
     print(("ok  " if ok else "BAD ") + lit + "  <- " + str(val)[:80]); bad |= not ok
 

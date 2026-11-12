@@ -7,7 +7,7 @@
   const FULL=[1,1,1,1,1,1,1,1],H0=[1,1,1,1,0,0,0,0],H1=[0,0,0,0,1,1,1,1];
   const st=(a,c)=>a.map(v=>v?c:'');
   const full=c=>[st(FULL,c),st(FULL,c)],half=c=>[st(H0,c),st(H1,c)],gath=()=>[H0.map(v=>v?'h':'g'),H1.map(v=>v?'h':'g')];
-  // steps: [chip label, is_comm, lanes, caption title, caption text, comm counted]
+  // steps: [chip label, is_comm, lanes, caption title, caption text, comm counted]; the titles and texts are written out as the step lists #sx-sp-tp and #sx-sp-sp on the left (2026-11-12)
   const S={
     tp:[
       ['input',0,full('h'),'Block input','Both ranks hold the whole activation, 8 sequences &times; 64 tokens &times; 256 (recorded <code>ln1</code> input, local shape '+sh(b(tp)[0],'in')+', a '+b(tp)[0].in.placement+'). The same numbers sit in two memories.',0],
@@ -32,11 +32,10 @@
       ['proj (Rowwise)',0,full('p'),'MLP down-projection: a Partial sum','A full-shape partial result.',0],
       ['reduce-scatter',1,half('h'),'Reduce-scatter','Back to half the tokens per rank. Per training step of the whole model: 18 all-gathers and 16 reduce-scatters (recorded), against TP\'s 16 all-reduces.',1]]};
   let mode='tp';
-  const A=RD.anim({card:'dpt-sp-card',ctl:'dpt-sp-ctl',n:S.tp.length,ms:1700,label:'Step of the block',draw(i){
+  const A=RD.anim({card:'dpt-sp-card',ctl:'dpt-sp-ctl',n:S.tp.length,ms:3800,label:'Step of the block',list:'sx-sp-tp',draw(i){
     const s=S[mode];i=Math.min(i,s.length-1);const cur=s[i];
     $('dpt-sp-flow').innerHTML=s.map((x,k)=>'<span class="'+(x[1]?'cm ':'')+(k===i?'on':k<i?'done':'')+'">'+x[0]+'</span>').join('');
     $('dpt-sp-lanes').innerHTML=[0,1].map(r=>'<div class="dpt-lane"><b>rank '+r+'</b><div class="dpt-tiles">'+cur[2][r].map(c=>'<span class="'+c+'" style="flex:1"></span>').join('')+'</div></div>').join('');
-    $('dpt-sp-cap').innerHTML='<div class="t">'+(i+1)+'. '+cur[3]+'</div><p>'+cur[4]+'</p>';
     const comm=s.slice(0,i+1).filter(x=>x[5]).length,held=cur[2][0].filter(c=>c).length;
     const rec=mode==='tp'?tp:sp;
     $('dpt-sp-cnt').innerHTML=RD.stat('Collectives so far in this block',comm,'forward of one block')+
@@ -44,5 +43,5 @@
       RD.stat('Per training step (recorded)',mode==='tp'?'16 all-reduces':'18 all-gathers + 16 reduce-scatters','4 blocks, forward and backward')+
       RD.stat('Saved activations per rank (recorded)',U.mb(rec.saved),'one process: '+U.mb(rec.saved_one));
   }});
-  U.seg($('dpt-sp-seg'),m=>{mode=m;A.reset(S[m].length)});
+  U.seg($('dpt-sp-seg'),m=>{mode=m;['tp','sp'].forEach(x=>{$('sx-sp-'+x).hidden=x!==m});A.reset(S[m].length,'sx-sp-'+m)});
 })();
