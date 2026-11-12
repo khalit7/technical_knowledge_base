@@ -1,4 +1,4 @@
-// ---- Then and now: the recipe step-through, and softmax against sigmoid on one toy batch ----
+// ---- Then and now: the recipe step-through, explained by its generated step list (sx-tn) ----
 (function(){
 const ax='https://arxiv.org/abs/';
 // each step: the recipe card after the change, which field changed, the reported zero-shot ImageNet top-1, and its source
@@ -14,7 +14,7 @@ const ST=[
  {y:2022.9,who:'OpenCLIP',f:{data:'LAION-2B, public, CLIP-filtered',img:'ViT-H/14 (ViT-bigG/14: 80.1%)',txt:'Transformer',loss:'softmax over the batch, both ways'},ch:['data','img'],zs:78.0,src:['OpenCLIP README','https://github.com/mlfoundations/open_clip'],
   t:'OpenCLIP on LAION: the recipe in the open (2022)',c:'Open code and open data; reproducible scaling laws found that "the training distribution plays a key role", with OpenAI and OpenCLIP models scaling differently on the same architecture. ViT-H/14: 78.0%.'},
  {y:2023.25,who:'SigLIP',f:{loss:'sigmoid per pair (t = 10, b = −10 at start)',batch:'32k is enough; up to 1M tried',img:'locked pre-trained tower (SigLiT)'},ch:['loss','batch','img'],zs:84.5,src:['SigLIP',ax+'2303.15343'],
-  t:'SigLIP: a sigmoid instead of a softmax (Google, March 2023)',c:'Each pair is its own binary decision, so the loss no longer needs the whole batch. With a locked image tower, 84.5% zero-shot "in two days" on four TPUv4 chips. The demo below runs both losses on one toy batch.'},
+  t:'SigLIP: a sigmoid instead of a softmax (Google, March 2023)',c:'Each pair is its own binary decision, so the loss no longer needs the whole batch. With a locked image tower, 84.5% zero-shot "in two days" on four TPUv4 chips.'},
  {y:2023.33,who:'DataComp',f:{data:'DataComp-1B, filtered from 12.8B',img:'ViT-L/14',txt:'Transformer',loss:'softmax over the batch, both ways',batch:'as CLIP'},ch:['data'],zs:79.2,src:['DataComp',ax+'2304.14108'],
   t:'DataComp: change only the data (April 2023)',c:'Fix CLIP\'s training code and compute and compete on filtering: DataComp-1B trains a ViT-L/14 to 79.2%, "outperforming OpenAI\'s CLIP ViT-L/14 by 3.7 percentage points while using the same training procedure and compute".'},
  {y:2023.75,who:'MetaCLIP',f:{data:'WIT-style metadata balancing on CommonCrawl',img:'ViT-H/14'},ch:['data','img'],zs:80.5,src:['MetaCLIP',ax+'2309.16671'],
@@ -36,6 +36,7 @@ function tnDraw(m,k,e,w){const f=card(k),ch=ST[k].ch;let s='';const lw=Math.min(
   pts.forEach((p,i)=>{const last=P[i]===ST[k];s+=G(last?e:1,'<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(last?5:4)+'" fill="'+(last?'var(--c2)':'var(--c1)')+'"/>'+tx(p.lx,p.ly,p.t,{a:p.la,fs:11}))});
   return svgW(w,T+H,s,'recipe and zero-shot ImageNet over time')}
 function tnCnt(m,k){const S=ST[k];return stat('Changed',S.ch.length?S.ch.map(c=>FIELDS.find(f=>f[0]===c)[1].toLowerCase()).join(', '):'the starting recipe','')+stat('Zero-shot ImageNet',S.zs!=null?S.zs+'%':'not reported as one number','')+stat('Source','<a href="'+S.src[1]+'" target="_blank" rel="noopener noreferrer">'+S.src[0]+'</a>','')}
-makeAnim({id:'tn',modes:{x:ST.map(s=>({t:s.t,c:s.c}))},mode:'x',draw:tnDraw,counters:tnCnt,dur:3200});
+$('sx-tn').innerHTML=ST.map(x=>'<li><b>'+x.t+'.</b> '+x.c+'</li>').join('');
+makeAnim({id:'tn',modes:{x:ST.map(s=>({t:s.t}))},mode:'x',lists:{x:'sx-tn'},draw:tnDraw,counters:tnCnt,dur:4600});
 // (the softmax-against-sigmoid animation moved to its owner, the Vision encoders page, on 2026-10-24)
 })();

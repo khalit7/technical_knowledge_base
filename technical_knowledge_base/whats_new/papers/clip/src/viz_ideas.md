@@ -38,3 +38,11 @@ Scores: reproduces or is computable (double), parameter to move, shows what a se
 | P-clip.18 | **Hero: Figure 1 redrawn** (N × N pair grid; class names as sentences against a new image) | Reading, top | built | static, schematic; arXiv non-exclusive licence, so redrawn |
 | P-clip.19 | Figures 7 and 13 and the toy Figure 2 curves out of the predict reveals | Reading | moved | each in a card after its question |
 | P-clip.20 | Softmax against sigmoid on one toy batch (Then and now; P-clip.12) | none | removed | SigLIP's loss, owned and drawn by Vision encoders; linked instead |
+
+## 2026-11-12 layout rollout
+| # | Idea | Placement | Status | Notes |
+|---|---|---|---|---|
+| P-clip.21 | **Hero: Figure 1 in 3D**: four real toy pairs, image combs and caption combs into a 4 × 4 glass plate of logits, the symmetric loss pulling the diagonal up; then one photo against six prompt embeddings, the argmax lifting | Reading, top | built | replaces P-clip.18 (static) |
+| P-clip.22 | **Write the caption against pick the pair in 3D** (P-clip.2 as a stage): vocabulary plates per token, row and column softmax flows | Reading, Objective | built | replaces the 2D animation |
+| P-clip.23 | **Classifier written in words in 3D** (P-clip.5 as a stage): the classifier as a plate of text-embedding rows aligned with the image embedding | Reading, Zero-shot | built | replaces the 2D animation |
+| P-clip.24 | The live eight-pair batch as a 3D bar field | none | rejected | a widget driven by a slider and swaps; reads best as a flat heatmap with hover values |

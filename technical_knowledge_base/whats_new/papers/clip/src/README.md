@@ -79,3 +79,31 @@ Why about 25 minutes is right: the audit counts the pseudocode and every predict
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 5, 299 KB, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 778 actions, 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 88 of 88 (the reading-time and Problem keys updated). The model and its JS are unchanged, so `check_forward.py` was not rerun.
+
+## The 2026-11-12 layout rollout (split layout, renderer v2 stages, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged; `01b_css.html` adds `.s3sp{clear:both}` so a split never shrinks beside the floated "in the paper" label). The paper: In one picture (stage), Objective as three splits (the predict question beside the toy Figure 2 curves; the objective stage; the N × N paragraph and Figure 3's pseudocode beside the live batch), Zero-shot (stage; the Visual N-Grams paragraph stays full width after it), Prompts (the toy's prompt table right), How good (Figure 5 recomputed beside its paragraph; the examples-per-class question beside Figure 7), Robustness (the intro and question beside Figure 13; "Is ImageNet the cause?" beside the toy robustness table). Problem, Idea, Data, Encoders, Linear probes, Humans/overlap/bias, Limitations, Why it matters, Connections, How much to believe and Use it have no visual and stay full width. Run a tiny CLIP: the intro left, the classify-with-words card right; the test, search, probe, curves and trust notes stay full width. Then and now: the stepper right, its generated step list left; the sigmoid paragraph and the survived/changed list full width. Tables and Further reading: full width, unchanged.
+- **Three 3D stages** (template `25_js_s3.js`, renderer v2, unchanged; shared data and helpers in `30_js_sc_lib.js`: signed-bar combs along x or z, toy-web pictures drawn into the scene with an affine transform, caption tiles), all driven by the shipped toy CLIP at load time:
+  - `31_js_sc_hero.js`, Fig. 1 (replaces the static `14_js_hero.js`, deleted): the four toy pairs the objective always used; image combs (rows) and caption combs (columns) streaming into a 4 × 4 glass plate of real logits; then the two softmaxes averaged, the diagonal pulled up (flows) and the rest pushed down (arrows), with the batch loss; then the test: one test photo against six "a photo of a {class}" embeddings, a 1 × 6 slice of the plate, the argmax lifting.
+  - `32_js_sc_obj.js`, Figures 2 and 3, two modes with two step lists: pick the pair (image and text encoders as glass plates, the 4 × 4 logits, the row softmax with flows along rows, the column softmax with flows down columns, image-side, caption-side and mean loss) and write the caption (each token a choice on a 6 × 11 glass vocabulary plate with the real token lit, every token of every caption, filler words raised in orange, then three bars: the captioning ceiling, the bits the toy captioner still pays from its log, and log₂ 4 per image for picking the pair). It replaces the 2D `ob` animation; its captions and counters became the step lists (live numbers in `ob-li`, `ob-lt`, `ob-loss`, `ob-toks`, `ob-bits`, `ob-paid`).
+  - `33_js_sc_zs.js`, §3.1.2, two modes: zero-shot (the test photo's embedding in front of a glass plate whose rows are the six sentences' embeddings, aligned number by number; flows into each row with density set by its probability; the argmax lifts; then two new sentences, small or big) and the supervised head (a plate of 36 unnamed rows, drawn not run, since the toy ships no such head; the missing row for a new question; retraining). It replaces the 2D `zs` animation.
+- **Kept 2D**: the toy Figure 2 curves (a log-axis line chart), Figures 5, 7 and 13 and Table 2 (bar charts of printed numbers), the live eight-pair batch (a heatmap with a slider: reads best flat and is a widget, not a sequence), the prompt and robustness tables, every Run-tab widget, the Tables tab, and the Then and now stepper (a recipe card and a dated scatter, nothing spatial).
+- **Motion**: `11_js_ui.js` is BERT's copy (the rollout's `makeAnim`: plays once half in view, pauses off screen, stops for good on any control or at the end, never under reduced motion, marks `data-playing`, binds an `ol.sx`). `99_js_tabs.js` and `05z_errbox.js.html` are the templates (storage key `clip-tab`). `21_js_rd_common.js` was not added: nothing uses `RD.anim`. `check_page.mjs` now asserts that the Then and now stepper plays on view instead of forbidding it, and no longer steps the removed `ob` and `zs`.
+- **Prose**: the hero caption, the two animations' captions, counters and footnotes became step lists; the SigLIP step lost its stale "the demo below" sentence (that demo moved to Vision encoders on 2026-10-25). Nothing else was cut.
+
+## Length judgement (2026-11-12)
+| | Before (audit 2026-11-12, pre-pass) | After |
+|---|---|---|
+| The paper, core | 5,659 words, 24.6 min | 6,530 words, 28.4 min |
+| The paper, closed | 2,759 words, 12.0 min | unchanged |
+| Run a tiny CLIP | 4.5 min | unchanged |
+| Tables; Then and now; Further reading | 8.1; 1.9; 2.0 min | 8.1; 3.4; 2.0 min |
+| Visuals in The paper (audit) | 9 | 9 (three stages replace the static hero and two 2D animations) |
+
+The growth is the step lists: the old animations' captions lived in JavaScript, which the audit did not count, and they now sit in the prose (the audit also counts the hidden second-mode lists of the objective and zero-shot stages, about 1.5 minutes), so one pass reads about 27 minutes. The header says 28 (from `reading.json`). No knowledge was cut.
+
+Ledger: 323 units (core 213, depth 96, owned 7, volatile 2, fat 5); 3 added for the stages, 8 rekeyed (41, 42, 44, 45, 92, 94, 95, 280) where an animation caption or footnote became a step or was reworded; `ledger.py check` problems 0.
+
+## Checks (12 November 2026)
+`checkpage.sh`: tabs 5, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 716 actions, 0 problems. `check_stages.mjs`: 18 stages and animations (three widths; both modes of the objective and zero-shot stages), 0 problems. `mk_coverage.py`: 88 of 88. `ledger.py check`: problems 0. Model, weights and `check_forward.py` untouched (not rerun).
