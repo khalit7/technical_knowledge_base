@@ -1,30 +1,34 @@
 <section id="xf-s9">
-<h2>9. vmap: write it for one example, run it on a batch</h2>
-<p><b>The problem.</b> Many computations are easiest to write for one example: one sequence's loss, one query against one key, one sample's gradient. Batching them by hand means adding a leading dimension everywhere and getting every transpose right; a Python loop over examples is slow. <code>jax.vmap(f, in_axes=...)</code> does the rewrite for you: it traces <code>f</code> with <dfn>batch tracers</dfn> that remember which dimension is the batch, and replaces each primitive with its batched form through that primitive's <dfn>batching rule</dfn>. No loop survives into the program. <code>in_axes</code> gives the batched dimension of each argument (<code>None</code> for an argument shared by the whole batch); <code>out_axes</code> places it in the output.</p>
-<div class="xf-box" id="xf-vm-card"><h4>The MLP on one token, then vmapped over the 4,096 tokens of a batch</h4>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="xf-box" id="xf-vm-card"><h4>The MLP on one token, then vmapped over the 4,096 tokens of a batch</h4>
 <pre class="xf-code">jax.make_jaxpr(mlp)(p, x_one)                           # x_one: f32[128], one token
 jax.make_jaxpr(jax.vmap(mlp, in_axes=(None, 0)))(p, x)  # x: f32[4096,128], 32 x 128 tokens; p shared</pre>
 <div class="xf-two"><div class="xf-pane"><div class="h">mlp on one token</div><div class="xf-lines" id="xf-vm-one"></div></div>
 <div class="xf-pane"><div class="h">vmap(mlp): the batch</div><div class="xf-lines" id="xf-vm-bat"></div></div></div>
 <div class="xf-cap" id="xf-vm-cap"></div>
 <div class="xf-anctl" id="xf-vm-ctl"></div>
-<p class="small mute" id="xf-vm-note"></p></div>
+<p class="small mute" id="xf-vm-note"></p></div></div></div><div class="s3L">
+<h2>9. vmap: write it for one example, run it on a batch</h2>
+<p><b>The problem.</b> Many computations are easiest to write for one example: one sequence's loss, one query against one key, one sample's gradient. Batching them by hand means adding a leading dimension everywhere and getting every transpose right; a Python loop over examples is slow. <code>jax.vmap(f, in_axes=...)</code> does the rewrite for you: it traces <code>f</code> with <dfn>batch tracers</dfn> that remember which dimension is the batch, and replaces each primitive with its batched form through that primitive's <dfn>batching rule</dfn>. No loop survives into the program. <code>in_axes</code> gives the batched dimension of each argument (<code>None</code> for an argument shared by the whole batch); <code>out_axes</code> places it in the output.</p>
+
 <p><b>One rule, different programs.</b> The batching rule of <code>dot_general</code> looks at which inputs carry a batch dimension. The same one-line function <code>dot(q, k) = q @ k</code> on two vectors of 32 (one query, one key) becomes three different programs (real jaxprs):</p>
 <div class="seg" id="xf-bt-mode"><button data-v="one" class="on">no vmap</button><button data-v="keys">over keys: in_axes=(None, 0)</button><button data-v="both">over pairs: (0, 0)</button><button data-v="grid">nested: all pairs</button></div>
 <pre class="xf-code" id="xf-bt-jx"></pre>
 <p class="small mute" id="xf-bt-cap"></p>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Per-example gradients of the running example</h3>
 <p>Ordinary training needs the batch-mean gradient, but some methods need one gradient per example: differentially private SGD clips each example's gradient norm before averaging, and data-attribution methods score examples by their gradients. In PyTorch the plain way is a loop of <code>backward()</code> calls; <code>torch.func.vmap</code> with <code>torch.func.grad</code> ports JAX's approach. Here all four ways computed the 32 per-example gradients of the running example's loss (32 sequences of 128 characters, 826,368 parameters each, so <span data-xf="vm.bytes"></span> of gradients):</p>
 <pre class="xf-code">def per_ex_loss(params, xi, yi):                 # one sequence: int32[128]
     return loss_fn(params, xi[None], yi[None])
 per_ex_grads = jax.jit(jax.vmap(jax.grad(per_ex_loss), in_axes=(None, 0, 0)))(params, x, y)</pre>
-<div class="xf-box"><h4>Time for all 32 per-example gradients</h4>
+
+<p><b>Why vmap wins here.</b> The loop runs 32 small programs, each with matrix products of one sequence; the vmapped program runs one program whose matrix products carry the batch, which keeps the hardware busy and pays dispatch overhead once. The traced per-example gradient program has <span data-xf="vm.eq1"></span> equations for one example and <span data-xf="vm.eq2"></span> after vmap: the same program with batched shapes, not 32 copies.</p>
+</div><div class="s3R"><div class="s3side"><div class="xf-box"><h4>Time for all 32 per-example gradients</h4>
 <div class="xf-chart" id="xf-vm-bars"></div>
 <p class="small mute" id="xf-vm-tnote"></p>
 <div class="tw"><table class="xf-t" id="xf-vm-agree"></table></div>
 <div class="xf-chart" id="xf-vm-norms"></div>
-<p class="small mute">Each dot is one sequence's gradient norm (the quantity DP-SGD clips). Their mean gradient equals the batch gradient (row above), because the loss is a mean over equally long sequences.</p></div>
-<p><b>Why vmap wins here.</b> The loop runs 32 small programs, each with matrix products of one sequence; the vmapped program runs one program whose matrix products carry the batch, which keeps the hardware busy and pays dispatch overhead once. The traced per-example gradient program has <span data-xf="vm.eq1"></span> equations for one example and <span data-xf="vm.eq2"></span> after vmap: the same program with batched shapes, not 32 copies.</p>
+<p class="small mute">Each dot is one sequence's gradient norm (the quantity DP-SGD clips). Their mean gradient equals the batch gradient (row above), because the loss is a mean over equally long sequences.</p></div></div></div></div>
 </section>
 
 <section id="xf-s10">

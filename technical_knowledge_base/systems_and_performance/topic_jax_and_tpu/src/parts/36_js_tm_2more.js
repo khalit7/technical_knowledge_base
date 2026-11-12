@@ -3,31 +3,19 @@
   const {D,$,esc,byId,stTag,show,open,link,RM,onRender,ver}=window.TM;
   const tab=$('t-map');
   // ---------- before/after animation: the same ten jobs, Oct 2023 -> Oct 2026 ----------
-  const N=D.ev.length+1,st={i:0,play:false,timer:0,vis:false,started:false};
+  // the step animation is the template's RD.anim: plays by itself once half in view, stops for good on a control or at the last change;
+  // its steps (October 2023, then each change in date order) are the list sx-tm on the left
+  const N=D.ev.length+1;let A=null;
   function occ(k){const o={},was={};D.slots.forEach(s=>{o[s[0]]={v:s[2],id:s[3]};});
     for(let j=0;j<k;j++){const e=D.ev[j];if(!(e[1] in was))was[e[1]]=D.slots.find(s=>s[0]===e[1])[2];o[e[1]]={v:e[2],id:e[3]};}return {o,was};}
-  function draw(){const k=st.i,{o,was}=occ(k),cur=k>0?D.ev[k-1]:null;
-    $('tm-as').max=N-1;$('tm-as').value=k;
-    $('tm-acap').innerHTML=k===0?'<b>October 2023.</b> What a JAX user reached for, job by job. Press play.':
-      '<b>'+esc(cur[0])+'</b> (change '+k+' of '+(N-1)+'): '+esc(cur[4])+(k===N-1?' <b>October 2026: this is the stack today.</b>':'');
+  function draw(k){const {o,was}=occ(k),cur=k>0?D.ev[k-1]:null;
     $('tm-aslots').innerHTML=D.slots.map(s=>{const x=o[s[0]],c=cur&&cur[1]===s[0];
       return '<div class="tm-slot'+(c?' chg':'')+(s[0] in was?' done':'')+'" data-tm-tool="'+(x.id||'')+'"><span class="k">'+esc(s[1])+'</span><span class="v">'+esc(x.v)+'</span><span class="was">'+(s[0] in was?esc(was[s[0]]):'')+'</span></div>'}).join('');
     $('tm-aseg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',(b.dataset.m==='0'&&k===0)||(b.dataset.m==='1'&&k===N-1)));}
-  const live=()=>st.vis&&!document.hidden&&tab.offsetParent!==null&&!tab.hidden;
-  function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=N-1){setPlay(false);return}st.i++;draw();if(st.i>=N-1){setPlay(false);return}st.timer=setTimeout(tick,1700)}
-  function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,1700);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-  function setPlay(p){st.play=p;$('tm-ap').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';$('tm-ap').setAttribute('aria-label',p?'Pause':'Play');
-    if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=N-1){st.i=0;draw()}kick()}
-  $('tm-ap').addEventListener('click',()=>setPlay(!st.play));
-  $('tm-af').addEventListener('click',()=>{setPlay(false);st.i=Math.min(N-1,st.i+1);draw()});
-  $('tm-ab').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-1);draw()});
-  $('tm-as').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;draw()});
-  $('tm-aseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;setPlay(false);st.i=b.dataset.m==='1'?N-1:0;draw()});
+  (L=>{if(L)L.innerHTML=['<b>October 2023.</b> What a JAX user reached for, job by job.'].concat(D.ev.map((e,i)=>'<b>'+esc(e[0])+'.</b> '+esc(e[4])+(i===D.ev.length-1?' <b>October 2026: this is the stack today.</b>':''))).map(c=>'<li>'+c+'</li>').join('')})($('sx-tm'));
+  A=RD.anim({card:'tm-anim',ctl:'tm-actl',n:N,draw,ms:3600,label:'Change',list:'sx-tm'});onRender(()=>A.redraw());
+  $('tm-aseg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;A.go(b.dataset.m==='1'?N-1:0)});
   $('tm-aslots').addEventListener('click',e=>{const s=e.target.closest('[data-tm-tool]');if(s&&s.dataset.tmTool)open(s.dataset.tmTool)});
-  if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;
-    if(st.vis&&!st.started&&live()){st.started=true;/* never autoplays (2026-10-23) */}kick()},{threshold:.3}).observe($('tm-anim'))}else st.vis=true;
-  document.addEventListener('visibilitychange',kick);
-  draw();
 
   // ---------- picker ----------
   $('tm-pjob').innerHTML=D.pick.map(p=>'<option value="'+p.id+'">'+esc(p.label)+'</option>').join('');

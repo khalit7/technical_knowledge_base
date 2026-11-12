@@ -44,8 +44,9 @@
     cap.innerHTML='<b>Equation '+(k+1)+' of '+N+': <code>'+esc(p)+'</code></b> &rarr; <code>'+esc(outShape(e))+'</code>. From '+where+'. '+(PR[p]?PR[p][0].toUpperCase()+PR[p].slice(1):'')+extra;
   }
   build();
-  const A=anim({card:'xf-tr-card',ctl:'xf-tr-ctl',n:T.attention.eqns.length+2,draw,ms:1100,label:'Tracing step'});
-  seg($('xf-tr-fn'),v=>{st.fn=v;build();A.reset(T[v].eqns.length+2)});
+  // a widget the reader steps (38 frames, rollout rule 3b): never plays by itself, opens on the finished trace
+  const A=anim({card:'xf-tr-card',ctl:'xf-tr-ctl',n:T.attention.eqns.length+2,draw,ms:1100,label:'Tracing step',auto:false,start:T.attention.eqns.length+1});
+  seg($('xf-tr-fn'),v=>{st.fn=v;build();A.reset(T[v].eqns.length+2);A.go(T[v].eqns.length+1,true)});
   // tracer types
   const order=['no transformation','jit','make_jaxpr','grad','vmap','jit(vmap(grad))'];
   $('xf-tracers').innerHTML='<tr><th>called under</th><th>Python type of the argument</th><th>printed</th></tr>'+order.filter(k=>T.tracers[k]).map(k=>{const s=T.tracers[k],j=s.indexOf(': ');

@@ -4,23 +4,23 @@
   const T=window.RDJ.trace,meas=T.ops!=null&&T.kernels!=null;
   const N=meas?T.ops:60,F=meas?T.kernels:12,K=T.torchKernels!=null?T.torchKernels:N;
   const unit=Math.max(1,Math.ceil(Math.max(N,K)/48));
-  const lanesEl=document.getElementById('rd-tr-lanes'),cnt=document.getElementById('rd-tr-cnt'),cap=document.getElementById('rd-tr-cap');
+  const lanesEl=document.getElementById('rd-tr-lanes'),cnt=document.getElementById('rd-tr-cnt');
   let mode='both';
   document.getElementById('rd-tr-note').innerHTML=(meas?
     '<span class="meas">measured</span> on the running example\'s whole train step (forward, backward, clipping and AdamW; Compiler lab): '+N.toLocaleString('en-US')+' primitives in its jaxpr become '+F.toLocaleString('en-US')+' kernels after XLA ('+T.fusions+' of them fusions, the rest matmuls); the PyTorch twin runs '+K.toLocaleString('en-US')+' aten operators that do work per eager step (views, allocations and scalar reads excluded; 1,309 top-level calls counting them, Training lab).':
     '<span class="ill">illustrative</span> counts (60 operations, 12 fused kernels) until the Compiler lab measures the running example.')+
    ' One box = '+unit+' operation'+(unit>1?'s':'')+'. Timing is not to scale: the point is what runs, not how long.';
   const calls=['f32[B,T] batch','same shape','same shape','new sequence length'];
-  // per step: which events have happened. Events per call: pt (eager run), jt (trace), jc (compile), jr (run)
+  // per step: which events have happened (the step texts are the list sx-tr in 20_read_b.html). Events per call: pt (eager run), jt (trace), jc (compile), jr (run)
   const steps=[
-   {ev:[],t:'Before the first call',p:'Both frameworks hold the same model and the same batch. Watch what Python does on each call.'},
-   {ev:[[0,'pt']],t:'Call 1, PyTorch: every operation goes through Python',p:'Eager mode runs the step line by line: each operation is dispatched from Python and launches its own kernel the moment it is reached.'},
-   {ev:[[0,'pt'],[0,'jt']],t:'Call 1, JAX: trace',p:'jit runs the Python function once with tracers (shapes and dtypes only) and records every primitive into a jaxpr. Nothing has been computed yet.'},
-   {ev:[[0,'pt'],[0,'jt'],[0,'jc']],t:'Call 1, JAX: compile',p:'XLA compiles the whole step, forward, backward and optimiser update together, fusing chains of operations into fewer kernels. This is the slow part of the first call.'},
-   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr']],t:'Call 1, JAX: run the executable',p:'The compiled program runs as '+F.toLocaleString('en-US')+' kernels, about a quarter as many as the primitives traced. The executable is cached under the signature: shapes, dtypes and static arguments.'},
-   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr'],[1,'pt'],[1,'jr']],t:'Call 2, same shapes',p:'PyTorch dispatches every operation from Python again. JAX finds the signature in its cache: the Python function does not run at all (a print inside it would stay silent).'},
-   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr'],[1,'pt'],[1,'jr'],[2,'pt'],[2,'jr']],t:'Call 3, same shapes',p:'The steady state: JAX pays no Python cost per operation, and its kernels are fewer because they are fused.'},
-   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr'],[1,'pt'],[1,'jr'],[2,'pt'],[2,'jr'],[3,'pt'],[3,'jt'],[3,'jc'],[3,'jr']],t:'Call 4, a new sequence length',p:'PyTorch does not care. For JAX this is a new signature: trace again, compile again. A batch whose length changes every step recompiles every step, which is why JAX code pads to a few fixed lengths (buckets).'}];
+   {ev:[]},
+   {ev:[[0,'pt']]},
+   {ev:[[0,'pt'],[0,'jt']]},
+   {ev:[[0,'pt'],[0,'jt'],[0,'jc']]},
+   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr']]},
+   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr'],[1,'pt'],[1,'jr']]},
+   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr'],[1,'pt'],[1,'jr'],[2,'pt'],[2,'jr']]},
+   {ev:[[0,'pt'],[0,'jt'],[0,'jc'],[0,'jr'],[1,'pt'],[1,'jr'],[2,'pt'],[2,'jr'],[3,'pt'],[3,'jt'],[3,'jc'],[3,'jr']]}];
   function boxes(n,cls){let s='';for(let i=0;i<Math.ceil(n/unit);i++)s+='<span class="'+cls+'" style="width:7px"></span>';return s}
   function lane(name,kind,ev){
     let rows='';
@@ -46,8 +46,7 @@
     const ptOps=n('pt')*K,jxPy=n('jt')*N,tr=n('jt'),cp=n('jc'),jk=n('jr')*F;
     cnt.innerHTML=(mode!=='jx'?RD.stat('PyTorch: ops run from Python',ptOps.toLocaleString('en-US'))+RD.stat('PyTorch: kernels launched',ptOps.toLocaleString('en-US')):'')+
       (mode!=='pt'?RD.stat('JAX: ops run from Python',jxPy.toLocaleString('en-US'),'only while tracing')+RD.stat('JAX: traces, compiles',tr+', '+cp)+RD.stat('JAX: kernels launched',jk.toLocaleString('en-US')):'');
-    cap.innerHTML='<div class="t">'+steps[i].t+'</div><p>'+steps[i].p+'</p>';
   }
-  const A=RD.anim({card:'rd-tr-card',ctl:'rd-tr-ctl',n:steps.length,draw,ms:2200,label:'Animation step'});
+  const A=RD.anim({card:'rd-tr-card',ctl:'rd-tr-ctl',n:steps.length,draw,ms:4200,label:'Animation step',list:'sx-tr'});
   RD.seg(document.getElementById('rd-tr-mode'),m=>{mode=m;A.redraw()});
 })();

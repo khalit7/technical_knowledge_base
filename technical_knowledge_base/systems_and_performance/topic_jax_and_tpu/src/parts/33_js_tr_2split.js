@@ -8,8 +8,8 @@
     '<b>m = MLP(128, 512, rngs=nnx.Rngs(0))</b>: an ordinary Python object, like an nn.Module. Its arrays live inside it: two kernels of 65,536 numbers, two biases (512 and 128) and a counter.',
     '<b>Two kinds of state.</b> The kernels and biases are <code>nnx.Param</code> (blue); <code>calls</code> is a plain <code>nnx.Variable</code> (orange), state that is not trained, like a PyTorch buffer.',
     '<b>graphdef, params, rest = nnx.split(m, nnx.Param, ...)</b>: the filters pick leaves; every <code>nnx.Param</code> moves into the <code>params</code> State, a pytree keyed by path (fc1/kernel, ...).',
-    'The <code>...</code> filter takes everything left: the counter goes into <code>rest</code>. Every array has now left the object.',
-    'What remains is the <b>graphdef</b>: classes, attribute names, shapes and dtypes, no arrays. It is hashable, so it can be a static argument and part of the compile-cache key.',
+    '<b>The rest.</b> The <code>...</code> filter takes everything left: the counter goes into <code>rest</code>. Every array has now left the object.',
+    '<b>What remains is the graphdef</b>: classes, attribute names, shapes and dtypes, no arrays. It is hashable, so it can be a static argument and part of the compile-cache key.',
     '<b>Inside nnx.jit</b> (or your own <code>jax.jit</code>), only the arrays cross the boundary as pytree leaves; the graphdef stays outside as a constant. That is the whole trick that lets an object-style API run under pure transformations.',
     '<b>m2 = nnx.merge(graphdef, params, rest)</b> puts the arrays back into a new object of the same structure: <code>m2(x) == m(x)</code>. <code>nnx.jit</code> does split before and merge after every call, and writes changed state (the counter) back into <code>m</code>.'];
   let geo=null,built=0;const card='tr-split-card';
@@ -44,7 +44,8 @@
     op('tr-sp-jit',i===5?1:0);op('tr-sp-jitl',i===5?1:0);
     $('tr-sp-tl').textContent=i>=4&&i<6?'graphdef (structure only, no arrays)':i===6?'m2 = nnx.merge(graphdef, params, rest)':'m: MLP';
     $('tr-sp-tree').setAttribute('stroke-dasharray',i>=4&&i<6?'5 4':'');
-    $('tr-split-cap').innerHTML=CAP[i]}
-  const A=anim({card,ctl:'tr-split-ctl',n:CAP.length,ms:2200,label:'Split step',draw});
+}
+  (L=>{if(L)L.innerHTML=CAP.map(c=>'<li>'+c+'</li>').join('')})($('sx-tr-split'));
+  const A=anim({card,ctl:'tr-split-ctl',n:CAP.length,ms:4200,label:'Split step',draw,list:'sx-tr-split'});
   onResize(()=>{built=0;A.redraw()});
 })();

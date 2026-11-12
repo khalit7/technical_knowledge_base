@@ -62,8 +62,17 @@
 <div class="xc-nav"><a href="#xc-s1">1. Stages</a><a href="#xc-s2">2. Fusion</a><a href="#xc-s3">3. Passes</a><a href="#xc-s4">4. Memory and donation</a><a href="#xc-s5">5. Remat</a><a href="#xc-s6">6. Scan or unroll</a><a href="#xc-s7">7. Compile time and caches</a><a href="#xc-s8">8. Debugging</a><a href="#xc-s9">9. Against torch.compile</a><a href="#xc-s10">10. In the source</a><a href="#xc-s11">Mistakes and interviews</a></div>
 
 <section id="xc-s1">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="xc-box" id="xc-pipe-card">
+<div class="xc-stages" id="xc-pipe-chips"></div>
+<div class="xc-cnt" id="xc-pipe-cnt"></div>
+<div class="xc-api" id="xc-pipe-api"></div>
+<pre class="xc-code" id="xc-pipe-txt"></pre>
+<div class="xc-codecap" id="xc-pipe-txtcap"></div>
+<div class="xc-anctl" id="xc-pipe-ctl"></div>
+</div></div></div><div class="s3L">
 <h3>1. One train step, five forms</h3>
 <p>Between your Python and the processor there are five forms of the same program. Each has a name you will meet in error messages and docs, and each can be printed:</p>
+<ol class="sx" id="sx-xc-pipe"></ol>
 <ul class="tight">
 <li><b>jaxpr</b> (JAX expression): JAX's own program, a flat list of <i>equations</i>, each one <i>primitive</i> (an operation JAX knows how to differentiate, batch and lower, such as <code>dot_general</code>, <code>add</code>, <code>reduce_sum</code>) applied to typed variables. Produced by <b>tracing</b>: running your function with <i>tracers</i>, stand-in values that carry only a shape and dtype and record every operation applied to them.</li>
 <li><b>StableHLO</b>: the jaxpr <b>lowered</b> to a versioned, portable operation set written in MLIR (a compiler-infrastructure format). It is the hand-off point between front ends (JAX, PyTorch/XLA, TorchTPU, TorchNeuron) and compilers.</li>
@@ -71,40 +80,37 @@
 <li><b>Optimised HLO</b>: after XLA's passes (section 3) have simplified, fused and laid out the program. Each top-level instruction left is roughly one <b>kernel</b>, one piece of code launched on the device.</li>
 <li><b>Executable</b>: machine code for the backend (LLVM-generated code for this CPU; GPU and TPU code elsewhere).</li>
 </ul>
-<div class="xc-box" id="xc-pipe-card">
-<div class="xc-stages" id="xc-pipe-chips"></div>
-<div class="xc-cap" id="xc-pipe-cap"></div>
-<div class="xc-cnt" id="xc-pipe-cnt"></div>
-<div class="xc-api" id="xc-pipe-api"></div>
-<pre class="xc-code" id="xc-pipe-txt"></pre>
-<div class="xc-codecap" id="xc-pipe-txtcap"></div>
-<div class="xc-anctl" id="xc-pipe-ctl"></div>
-</div>
-<p class="xc-small">The text in the box is the real output for one MLP sub-block of the model (<code>x + mlp(layer_norm(x))</code>, block 0), small enough to read; the counters are for the whole train step (forward, backward and AdamW update), whose texts run to hundreds of kilobytes. Paths were stripped from the printed texts.</p>
 
+<p class="xc-small">The text in the box is the real output for one MLP sub-block of the model (<code>x + mlp(layer_norm(x))</code>, block 0), small enough to read; the counters are for the whole train step (forward, backward and AdamW update), whose texts run to hundreds of kilobytes. Paths were stripped from the printed texts.</p>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Where the operations come from</h3>
 <p>The train step is three programs in one: the forward pass, the backward pass that <code>jax.grad</code> derives from it, and the optimiser update. Counting each separately (forward only, then forward and backward, then the whole step) shows something PyTorch users rarely see:</p>
+</div><div class="s3R"><div class="s3side"><div class="xc-box" id="xc-pc-card">
 <div class="seg" id="xc-pc-seg"><button data-v="eq" class="on" aria-pressed="true">jaxpr equations</button><button data-v="k" aria-pressed="false">kernels after XLA</button><button data-v="f" aria-pressed="false">FLOPs</button></div>
 <div id="xc-pc-bars"></div>
 <p class="xc-small" id="xc-pc-note"></p>
+</div></div></div></div>
 </section>
 
 <section id="xc-s2">
-<h3>2. Fusion: the same 29 equations, before and after XLA</h3>
-<p><b>The problem.</b> Run the MLP sub-block eagerly and every equation is its own kernel: it reads its inputs from memory and writes its output back, even when the next equation immediately reads that output again. On accelerators, memory traffic, not arithmetic, is usually the bottleneck for this kind of elementwise work. <b>Fusion</b> merges a chain of operations into one kernel so intermediate values stay in registers or on-chip memory.</p>
-<div class="xc-box" id="xc-fz-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="xc-box" id="xc-fz-card">
 <div class="seg" id="xc-fz-seg"><button data-v="0" class="on" aria-pressed="true">Before (eager: one kernel per equation)</button><button data-v="last" aria-pressed="false">After XLA</button></div>
-<div class="xc-cap" id="xc-fz-cap"></div>
 <div class="xc-cnt" id="xc-fz-cnt"></div>
 <div class="xc-fz" id="xc-fz"></div>
 <div class="xc-leg" id="xc-fz-leg"></div>
 <div class="xc-anctl" id="xc-fz-ctl"></div>
-</div>
+</div></div></div><div class="s3L">
+<h3>2. Fusion: the same 29 equations, before and after XLA</h3>
+<p><b>The problem.</b> Run the MLP sub-block eagerly and every equation is its own kernel: it reads its inputs from memory and writes its output back, even when the next equation immediately reads that output again. On accelerators, memory traffic, not arithmetic, is usually the bottleneck for this kind of elementwise work. <b>Fusion</b> merges a chain of operations into one kernel so intermediate values stay in registers or on-chip memory.</p>
+<ol class="sx" id="sx-xc-fz"></ol>
+
 <p class="xc-small">Real data: the 29 equations of the block's jaxpr, and the 4 kernels of its optimised HLO. Each equation is placed in the kernel that computes it, matched by the operation name and source line XLA keeps in its metadata (<code>src/xla/fusion_demo.py</code>). "Bytes moved" before fusion is derived: every equation reads its inputs and writes its output once (<span data-xc="demo.eagerBytes|mb"></span>); after fusion it is XLA's own <code>cost_analysis()["bytes accessed"]</code> (<span data-xc="demo.xlaBytes|mb"></span>). Hover a chip for the equation.</p>
 <div class="co warn"><div class="t">What transfers to GPU and TPU, and what does not</div>The <b>idea</b> transfers: elementwise chains, broadcasts and the reductions of LayerNorm fuse on every backend, and duplicated work is removed. The <b>exact kernels</b> do not: on this CPU, XLA hands matmuls to the YNNPACK library and fuses LayerNorm into the matmul's input ("library fusion"); on a GPU, XLA calls libraries such as cuBLAS, which "often preclude complex fusion opportunities", or, "for more advanced fusions which include matrix multiplication or softmax", generates the kernel with Triton (<a href="https://openxla.org/xla/gpu_architecture" target="_blank" rel="noopener noreferrer">OpenXLA, XLA:GPU architecture</a>, read 2026-10-15); on a TPU, matmuls run on the MXU in code XLA generates itself (the {{TPU and Pallas lab|#t-tpu}}). Not run here (no GPU or TPU); the counts are XLA:CPU's.</div>
 <div class="xc-pr"><div class="xc-q">Predict: the whole train step has <span data-xc="step.jaxpr"></span> jaxpr equations. How many kernels does XLA leave?</div>
 <div class="xc-opts"><button>about 3,000 (fusion is rare)</button><button data-r="1">about 800</button><button>about 50 (one per layer and op type)</button></div>
 <div class="xc-ans" hidden><b><span data-xc="step.kernels"></span> kernels</b>, of which <span data-xc="step.fusions"></span> are fusions (<span data-xc="step.fusionsMulti"></span> merge two or more operations; the rest wrap a single operation, which is how XLA:CPU emits it) and the other <span data-xc="step.kernelsByOp.dot"></span> are matmuls (<code>dot</code>). Counted are the top-level instructions that do work; the small <code>add</code> or <code>max</code> bodies a reduction applies through <code>to_apply=</code> (<span data-xc="step.reducerBodies"></span> here) run inside their caller's kernel and are not counted (an earlier version of this lab counted them and said 1,057). Why not far fewer: the optimiser updates 69 separate arrays, each with its own small chain, and XLA:CPU does not merge the chains of different arrays into one kernel. That is the problem PyTorch's <code>foreach</code> and <code>fused</code> optimisers solve by hand.</div></div>
+</div></div>
 </section>
 
 <section id="xc-s3">

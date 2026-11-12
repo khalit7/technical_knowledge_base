@@ -1,13 +1,17 @@
 <section id="sh-s4">
+<div class="s3sp"><div class="s3L">
 <h2>4. Six layouts of the running example's train step</h2>
 <p>The whole train step (forward, backward, gradient clipping and AdamW, parameters and optimizer state donated) compiled for each layout, then run for <span id="sh-nsteps"></span> steps from the shared initial weights on the shared batches. Same Python function every time: only the shardings change. The parallelism strategies themselves (why each exists, what it costs in the abstract) are taught framework-free on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; the PyTorch implementations on {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}. This section shows what XLA actually does with them.</p>
 <div class="tw"><table class="sh-t" id="sh-st-t"><thead><tr><th>Layout</th><th>mesh</th><th>collectives in the compiled step</th><th class="num">sent per device</th><th class="num">params + Adam per device</th><th class="num">temp per device</th><th class="num">loss gap</th></tr></thead><tbody></tbody></table></div>
 <p class="small mute"><span class="sh-meas">measured</span> Collectives counted in <code>compile().as_text()</code>; "sent per device" sums the ring cost of each (section 3) <span class="sh-der">derived</span>; parameter and optimizer bytes from each array's shard shape; temp from <code>memory_analysis().temp_size_in_bytes</code> (activations and scratch); loss gap = largest |loss &minus; one-device loss| over the steps. Click a row for the detail.</p>
+
+<div class="co key"><div class="t">What the six runs teach</div><ul class="tight" id="sh-st-lessons"></ul></div>
+<p><b>Sequence and context parallelism, briefly.</b> <dfn>Sequence parallelism</dfn> (Megatron's sense) splits the activations that tensor parallelism leaves replicated (LayerNorm, dropout) along the sequence, turning each TP all-reduce into a reduce-scatter plus an all-gather; <dfn>context parallelism</dfn> splits the whole sequence over devices so that very long contexts fit, and must then bring every query together with every key. The "Sequence sharded" row does the second by annotation only: the compiler's answer is to all-gather K and V in every layer, which works but sends the full K and V to everyone. Ring attention instead passes K/V blocks round the ring with <code>ppermute</code> while computing, overlapping the transfer with the math; that is hand-written with <code>shard_map</code>, not something propagation invents. Not run here.</p>
+</div><div class="s3R"><div class="s3side"><div class="sh-box" id="sh-st-card">
 <div class="seg" id="sh-st-m"><span class="lbl">chart</span><button data-m="mem" class="on">memory per device</button><button data-m="comm">bytes sent per device</button></div>
 <div class="sh-svgw" id="sh-st-chart"></div>
 <div class="sh-box" id="sh-st-detail"></div>
-<div class="co key"><div class="t">What the six runs teach</div><ul class="tight" id="sh-st-lessons"></ul></div>
-<p><b>Sequence and context parallelism, briefly.</b> <dfn>Sequence parallelism</dfn> (Megatron's sense) splits the activations that tensor parallelism leaves replicated (LayerNorm, dropout) along the sequence, turning each TP all-reduce into a reduce-scatter plus an all-gather; <dfn>context parallelism</dfn> splits the whole sequence over devices so that very long contexts fit, and must then bring every query together with every key. The "Sequence sharded" row does the second by annotation only: the compiler's answer is to all-gather K and V in every layer, which works but sends the full K and V to everyone. Ring attention instead passes K/V blocks round the ring with <code>ppermute</code> while computing, overlapping the transfer with the math; that is hand-written with <code>shard_map</code>, not something propagation invents. Not run here.</p>
+</div></div></div></div>
 </section>
 
 <section id="sh-s5">

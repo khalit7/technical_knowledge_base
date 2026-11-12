@@ -1,3 +1,13 @@
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="rd-card" id="rd-tr-card">
+<h4>The same train step called four times: PyTorch dispatches every op every call, JAX traces once and then runs fused kernels</h4>
+<div class="seg" id="rd-tr-mode"><button data-m="both" class="on">Both</button><button data-m="pt">PyTorch eager</button><button data-m="jx">JAX jit</button></div>
+<div class="rd-lanes" id="rd-tr-lanes"></div>
+<div class="an-cnt" id="rd-tr-cnt"></div>
+<div class="an-ctl" id="rd-tr-ctl"></div>
+<div class="leg"><span style="--sw:var(--c2)">op dispatched from Python</span><span style="--sw:var(--c5)">op recorded while tracing</span><span style="--sw:var(--c4)">compiling</span><span style="--sw:var(--c1)">compiled (fused) kernel</span></div>
+<p class="small mute" id="rd-tr-note"></p>
+</div>
+</div></div><div class="s3L">
 <section id="rd-s2">
 <h2>2. The functional model and the transformations</h2>
 <p><b>Tracing.</b> When a transformation meets your function, JAX calls it once with <dfn>tracers</dfn>: stand-ins that carry an <dfn>abstract value</dfn> (shape and dtype, no numbers) and record every array operation into a <dfn>jaxpr</dfn>, a small typed program of <dfn>primitives</dfn>. Python itself (loops, helper functions, arithmetic on shapes) runs to completion and leaves no trace. Every transformation is then an interpreter over that program, which explains the rest:</p>
@@ -8,16 +18,17 @@
 </ul>
 <p>The discipline follows from tracing. Arrays are <dfn>immutable</dfn> (<code>x = x.at[0].set(1.0)</code> returns a new array; under <code>jit</code> it becomes an in-place write). A Python <code>if</code> on a traced value is an error and a Python loop is unrolled, so compiled code uses <code>jax.lax.cond</code>, <code>jnp.where</code>, <code>jax.lax.scan</code> and <code>while_loop</code>. Randomness is a value: a <dfn>key</dfn> (<code>jax.random.key(0)</code>) is split into a fresh subkey for every use, and the same key always gives the same numbers. And a <dfn>pytree</dfn> (nested lists, tuples, dicts and registered classes with arrays at the leaves) holds parameters, gradients and optimiser state alike: <code>jax.tree.map(lambda p, g: p - lr * g, params, grads)</code> is a complete SGD step, replacing <code>model.parameters()</code>, <code>state_dict()</code> and parameter groups.</p>
 
-<div class="rd-card" id="rd-tr-card">
-<h4>The same train step called four times: PyTorch dispatches every op every call, JAX traces once and then runs fused kernels</h4>
-<div class="seg" id="rd-tr-mode"><button data-m="both" class="on">Both</button><button data-m="pt">PyTorch eager</button><button data-m="jx">JAX jit</button></div>
-<div class="rd-lanes" id="rd-tr-lanes"></div>
-<div class="an-cnt" id="rd-tr-cnt"></div>
-<div class="an-cap" id="rd-tr-cap"></div>
-<div class="an-ctl" id="rd-tr-ctl"></div>
-<div class="leg"><span style="--sw:var(--c2)">op dispatched from Python</span><span style="--sw:var(--c5)">op recorded while tracing</span><span style="--sw:var(--c4)">compiling</span><span style="--sw:var(--c1)">compiled (fused) kernel</span></div>
-<p class="small mute" id="rd-tr-note"></p>
-</div>
+<p class="sxh">Fig. 2, step by step</p>
+<ol class="sx" id="sx-tr">
+<li><b>Before the first call.</b> Both frameworks hold the same model and the same batch. Watch what Python does on each call.</li>
+<li><b>Call 1, PyTorch: every operation goes through Python.</b> Eager mode runs the step line by line: each operation is dispatched from Python and launches its own kernel the moment it is reached.</li>
+<li><b>Call 1, JAX: trace.</b> <code>jit</code> runs the Python function once with tracers (shapes and dtypes only) and records every primitive into a jaxpr. Nothing has been computed yet.</li>
+<li><b>Call 1, JAX: compile.</b> XLA compiles the whole step, forward, backward and optimiser update together, fusing chains of operations into fewer kernels. This is the slow part of the first call.</li>
+<li><b>Call 1, JAX: run the executable.</b> The compiled program runs as 816 kernels, about a quarter as many as the primitives traced. The executable is cached under the signature: shapes, dtypes and static arguments.</li>
+<li><b>Call 2, same shapes.</b> PyTorch dispatches every operation from Python again. JAX finds the signature in its cache: the Python function does not run at all (a print inside it would stay silent).</li>
+<li><b>Call 3, same shapes.</b> The steady state: JAX pays no Python cost per operation, and its kernels are fewer because they are fused.</li>
+<li><b>Call 4, a new sequence length.</b> PyTorch does not care. For JAX this is a new signature: trace again, compile again. A batch whose length changes every step recompiles every step, which is why JAX code pads to a few fixed lengths (buckets).</li>
+</ol>
 
 <div class="pr" id="rd-pr2"><div class="q">Predict: a jitted function contains <code>print("step", x)</code>. You call it three times with arrays of the same shape. What appears?</div>
 <div class="opts"><button data-r="0">Three lines, with the values</button><button data-r="1">One line, showing a tracer, not a value</button><button data-r="0">Nothing: print is removed by jit</button></div>
@@ -60,5 +71,6 @@ print(jax.make_jaxpr(mlp)(w1, w2, x))</pre><pre class="rd-code rd-out">{ lambda 
   in (m,) }</pre><p class="rd-codecap">Ran with jax 0.11.2 on Apple M1 Pro (CPU), Python 3.12.11; output as printed.</p><!--/CODE:jaxpr-->
 <p>Inputs with their abstract values, one primitive per line, no Python left. The GELU became <code>tanh</code> and a cube because <code>jax.nn.gelu</code> defaults to the tanh approximation (<code>approximate=True</code>) while PyTorch's <code>nn.GELU</code> defaults to the exact form (<code>approximate='none'</code>). Nested transformations: each primitive is handled by the current trace, held in a context (<code>core.trace_ctx</code>); tracing has been "stackless" since jax 0.4.36 (December 2024), so explanations of trace levels and <code>MainTrace</code>, including part 1 of Autodidax, describe machinery that no longer exists, and an inner <code>jit</code> prints as <code>jit</code>, where older posts show <code>pjit</code>. Loops: <code>lax.scan</code> is how layers, RNNs and decode loops are written, and much faster to compile than an unrolled loop; <code>fori_loop</code> and <code>while_loop</code> with a dynamic trip count are not reverse-differentiable. Flax's <code>nnx.Rngs</code> does the key splitting inside models.</p>
 </div></details>
-<div class="deepnote"><b>Go deeper.</b> {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}} owns every mechanism here: tracing (section 2), the jit cache and what recompiles (3), jaxprs (4), control flow (5), autodiff (6), vmap (8), pytrees (9), keys (10). The {{Transforms lab|#t-xf}} keeps what spans them on the running example: its attention traced line by line, grad checked against PyTorch, vmap timed against a loop, and a toy tracer in a few dozen lines.</div>
+<div class="deepnote"><b>Go deeper.</b> {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}} owns every mechanism here: tracing (section 2), the jit cache and what recompiles (3), jaxprs (4), control flow (5), autodiff (6), vmap (8), pytrees (9), keys (10); its {{Fig. 2|n:3c65c17b0d0d81b7a0d1faba6cef5561#stg-jit}} traces once, compiles once and runs many times, the JAX lane of Fig. 2 here without PyTorch beside it. The {{Transforms lab|#t-xf}} keeps what spans them on the running example: its attention traced line by line, grad checked against PyTorch, vmap timed against a loop, and a toy tracer in a few dozen lines.</div>
 </section>
+</div></div>

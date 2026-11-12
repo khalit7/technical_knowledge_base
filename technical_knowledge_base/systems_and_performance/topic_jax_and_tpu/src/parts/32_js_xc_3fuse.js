@@ -51,10 +51,11 @@
     const kern=nG+eagerLeft;
     let bytes=E.filter(e=>!gathered(e.k)&&!(s===N-1&&e.k==null)).reduce((a,e)=>a+e.b,0)+K.slice(0,nG).reduce((a,k)=>a+k.io,0);
     $('xc-fz-cnt').innerHTML=[['Kernels launched',X.n0(kern)],['Bytes moved',X.mb(bytes)],['Equations still separate',X.n0(eagerLeft)]].map(c=>'<div class="stat"><div class="k">'+c[0]+'</div><div class="v">'+c[1]+'</div></div>').join('');
-    $('xc-fz-cap').innerHTML=caps[s];
+    
     $('xc-fz-seg').querySelectorAll('button').forEach(b=>{const on=(b.dataset.v==='0'&&s===0)||(b.dataset.v==='last'&&s===N-1);b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false')});
   }
   $('xc-fz-leg').innerHTML=[['ew','elementwise'],['red','reduction'],['mm','matmul'],['mov','broadcast or copy']].map(c=>'<span><i style="background:'+colr[c[0]]+'"></i>'+c[1]+'</span>').join('');
-  const A=X.anim({card:'xc-fz-card',ctl:'xc-fz-ctl',n:N,draw,ms:2600,label:'Fusion step'});
+  (L=>{if(L)L.innerHTML=caps.map(c=>'<li>'+c+'</li>').join('')})($('sx-xc-fz'));
+  const A=X.anim({card:'xc-fz-card',ctl:'xc-fz-ctl',n:N,draw,ms:4200,label:'Fusion step',list:'sx-xc-fz'});
   $('xc-fz-seg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;A.go(b.dataset.v==='0'?0:N-1)});
 })();

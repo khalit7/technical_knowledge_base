@@ -21,12 +21,13 @@
   chips.addEventListener('click',e=>{const b=e.target.closest('button');if(b)A.go(+b.dataset.i)});
   function draw(i){const s=st[i];
     chips.querySelectorAll('button').forEach((b,j)=>{b.classList.toggle('on',j===i);b.classList.toggle('done',j<i)});
-    $('xc-pipe-cap').innerHTML='<b>'+(i+1)+'/'+st.length+' '+X.esc(s.n)+'.</b> '+s.cap;
     $('xc-pipe-cnt').innerHTML=s.cnt.map(c=>'<div class="stat"><div class="k">'+X.esc(c[0])+'</div><div class="v">'+X.esc(c[1])+'</div></div>').join('')+
       (s.time!=null?'<div class="stat"><div class="k">CPU time for this stage, train step</div><div class="v">'+X.sec(s.time)+'</div><div class="d">median, rough (section 7)</div></div>':'');
     $('xc-pipe-api').innerHTML='How to print it: '+s.api;
     $('xc-pipe-txt').textContent=s.txt;$('xc-pipe-txtcap').textContent=s.tc;}
-  A=X.anim({card:'xc-pipe-card',ctl:'xc-pipe-ctl',n:st.length,draw,ms:4200,label:'Stage'});
+  // the step list on the left (sx-xc-pipe): one item per form, the caption's lead word joined to the form's name
+  (L=>{if(L)L.innerHTML=st.map(s=>{const m=/^<b>([^<]*)<\/b>\s*/.exec(s.cap);return '<li><b>'+X.esc(s.n)+(m?': '+m[1].toLowerCase():'.')+'</b> '+(m?s.cap.slice(m[0].length):s.cap)+'</li>'}).join('')})($('sx-xc-pipe'));
+  A=X.anim({card:'xc-pipe-card',ctl:'xc-pipe-ctl',n:st.length,draw,ms:4200,label:'Stage',list:'sx-xc-pipe'});
 
   // where the operations come from: forward, backward, optimiser
   const P=D.pieces,f=P.forward,fb=P.forward_backward,sp=P.step;

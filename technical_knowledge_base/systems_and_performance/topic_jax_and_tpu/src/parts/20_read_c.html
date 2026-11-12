@@ -1,11 +1,7 @@
+<div class="s3sp"><div class="s3L">
 <section id="rd-s3">
 <h2>3. What the compiler does</h2>
 <p>A jitted function passes through four forms, each printable: the <b>jaxpr</b> (<code>jax.make_jaxpr(f)(x)</code>); <b>StableHLO</b>, a versioned, portable operation set in MLIR and the hand-off point between frameworks and compilers (PyTorch's TPU and Trainium backends emit it too; <code>jax.jit(f).lower(x).as_text()</code>); <b>optimised HLO</b> after XLA's passes (<code>.compile().as_text()</code>); and <b>machine code</b> (LLVM for CPUs, GPU kernels, some through Triton, or the TPU backend).</p>
-<div class="rd-card">
-<h4>The running example's train step through the pipeline: thousands of operations become about 800 kernels</h4>
-<div id="rd-xla-strip"></div>
-<p class="small mute" id="rd-xla-note"></p>
-</div>
 <p>The passes that matter to you, each defined once:</p>
 <ul class="tight">
 <li><dfn>Fusion</dfn>: a chain of elementwise operations (often with the reduction after it) becomes one kernel, so intermediates never make a round trip to HBM. The whole step, backward and optimiser included, is one program to fuse across, which is why a JAX step is usually fast without hand-written kernels.</li>
@@ -16,5 +12,11 @@
 <p><b>Compile time is real time.</b> A large step's first call can take seconds to minutes; the executable is cached in memory, and a <dfn>persistent compilation cache</dfn> (<code>jax.config.update("jax_compilation_cache_dir", ...)</code>) keeps it across runs. Long Python loops multiply compile time, which is why layers are stacked and run with <code>lax.scan</code>.</p>
 <p><b>Against <code>torch.compile</code>.</b> TorchDynamo reads Python bytecode, captures what it can, and at anything it cannot handle inserts a <dfn>graph break</dfn> that runs eagerly. JAX never reads your Python: Python control flow is resolved while tracing or is an error. One graph or none, no silent fallback ({{torch.compile from the user's side|n:3c65c17b0d0d8123a232d75bd7339ecb}} owns the PyTorch side).</p>
 <details class="dp"><summary>Two measurements on the running example</summary><div><p><code>compiled.cost_analysis()</code> counts a loop body once: the step written with <code>lax.scan</code> reports 6.39 GFLOP against 23.71 for the unrolled step <span class="meas">measured</span> (Compiler lab), so multiply by the trip count yourself. Flax's donation spelling is <code>@nnx.jit(donate_argnames=("model", "optimizer"))</code> (flax 0.12.10, <code>nnx/transforms/compilation.py</code>:317-318).</p></div></details>
-<div class="deepnote"><b>Go deeper.</b> {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} owns the compiler: lowering (section 1), the pass pipeline (3), fusion decisions (4), layouts (5), buffer assignment (6), remat (7), caches (8), recompiles (10), profiling (11). The {{Compiler lab|#t-xla}} keeps the cross-cutting views on the running example: its five forms, one MLP block before and after fusion, donation, remat policies, scan against unroll and a cold against a cached compile.</div>
+<div class="deepnote"><b>Go deeper.</b> {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} owns the compiler: lowering (section 1), the pass pipeline (3), fusion decisions (4), layouts (5), buffer assignment (6), remat (7), caches (8), recompiles (10), profiling (11); its {{Fig. 1|n:3fa5c17b0d0d8135adcedefac9e1bb48#stg-hero}} takes one attention sub-block down through the forms and {{Fig. 2|n:3fa5c17b0d0d8135adcedefac9e1bb48#stg-fuse}} fuses one chain. The {{Compiler lab|#t-xla}} keeps the cross-cutting views on the running example: its five forms, one MLP block before and after fusion, donation, remat policies, scan against unroll and a cold against a cached compile.</div>
 </section>
+</div><div class="s3R"><div class="s3side"><div class="rd-card">
+<h4>The running example's train step through the pipeline: thousands of operations become about 800 kernels</h4>
+<div id="rd-xla-strip"></div>
+<p class="small mute" id="rd-xla-note"></p>
+</div>
+</div></div></div>

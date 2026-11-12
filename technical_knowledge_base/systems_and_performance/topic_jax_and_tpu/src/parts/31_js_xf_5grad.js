@@ -54,7 +54,8 @@
     let why=p==='dot_general'?' The batching rule of <code>dot_general</code> kept the contraction and let the batch dimension pass through: a vector-matrix product became a matrix-matrix product (dimension numbers: see the two panes).':' An elementwise primitive is batched by applying it to the larger array: its rule just moves the batch dimension along.';
     vcap.innerHTML='<b>Equation '+(k+1)+': <code>'+esc(p)+'</code></b>: <code>'+esc(a)+'</code> on one token became <code>'+esc(b)+'</code>.'+why;
   }
-  anim({card:'xf-vm-card',ctl:'xf-vm-ctl',n:bat.eqns.length+2,draw:vdraw,ms:1300,label:'vmap step'});
+  // a widget the reader steps (rollout rule 3b): never plays by itself, opens on the finished batched program
+  anim({card:'xf-vm-card',ctl:'xf-vm-ctl',n:bat.eqns.length+2,draw:vdraw,ms:1300,label:'vmap step',auto:false,start:bat.eqns.length+1});
   $('xf-vm-note').innerHTML='Real jaxprs from <code>jax.make_jaxpr</code> on block 0\'s MLP; the 4,096 batch dimension is highlighted. Script <code>src/xf/run_vmap.py</code>.';
   // batching rule of dot_general on one function
   const BC={one:'Two vectors of 32 (one query, one key): <code>dot_general</code> contracts dimension 0 of both and returns a scalar <code>f32[]</code>.',

@@ -39,7 +39,8 @@
       if(f===0)note=' Same weights, same batch: the losses agree to every printed digit.';
       if(s>=n)note=' End of the run: final validation losses '+fmt(T.val.torch[T.val.torch.length-1],'4')+' (PyTorch) and '+fmt(T.val.jax[T.val.jax.length-1],'4')+' (JAX).';
       $('tr-twin-cap').innerHTML='<b>Step '+st.toLocaleString('en-US')+'.</b> Training loss PyTorch '+a.toFixed(4)+', plain JAX '+b.toFixed(4)+', NNX '+c.toFixed(4)+'; |PyTorch &#8722; JAX| '+fmt(Math.abs(a-b),'e1')+'.'+note}
-    const A=anim({card:'tr-twin-card',ctl:'tr-twin-ctl',n:F,ms:420,label:'Training step',draw});
+    // a widget the reader scrubs (41 frames, rollout rule 3b): never plays by itself, opens on the end of the run
+    const A=anim({card:'tr-twin-card',ctl:'tr-twin-ctl',n:F,ms:420,label:'Training step',draw,auto:false,start:F-1});
     seg($('tr-twin-mode'),m=>{mode=m;A.redraw()});onResize(()=>A.redraw());
     $('tr-twin-stats').innerHTML=stat('Final validation loss','PyTorch '+fmt(T.val.torch[T.val.torch.length-1],'4'),'plain JAX '+fmt(T.val.jax[T.val.jax.length-1],'4')+', NNX '+fmt(T.val.nnx[T.val.nnx.length-1],'4'))+
       stat('Largest training-loss gap',fmt(T.max_abs_loss_diff.torch_vs_jax,'e1'),'PyTorch vs plain JAX over all '+n.toLocaleString('en-US')+' steps')+
@@ -72,8 +73,9 @@
       if(i===4)s+=TR.t((xs+X(N))/2,lane[1]+lh/2+4,'new process: restore',{a:'middle',fs:11,fill:'var(--c1)'});
       if(i>=5)s+='<path d="'+L.slice(S).map((v,k)=>(k?'L':'M')+X(S+k).toFixed(1)+' '+Y(v,lane[0]).toFixed(1)).join('')+'" fill="none" stroke="var(--c1)" stroke-width="1" stroke-dasharray="3 3"/>';
       s+=TR.t(L0,H-2,'0',{fs:10,fill:'var(--mute)'})+TR.t(L0+pw,H-2,String(N),{a:'end',fs:10,fill:'var(--mute)'})+TR.t(L0+pw/2,H-2,'step',{a:'middle',fs:10,fill:'var(--mute)'});
-      el.innerHTML=TR.svg(W,H,s,'Checkpoint and resume timeline');$('tr-ck-cap').innerHTML=CAP[i]}
-    const A=anim({card:'tr-ck-card',ctl:'tr-ck-ctl',n:CAP.length,ms:2000,label:'Checkpoint step',draw});onResize(()=>A.redraw());
+      el.innerHTML=TR.svg(W,H,s,'Checkpoint and resume timeline');}
+    (L=>{if(L)L.innerHTML=CAP.map(c=>'<li>'+c+'</li>').join('')})($('sx-tr-ck'));
+    const A=anim({card:'tr-ck-card',ctl:'tr-ck-ctl',n:CAP.length,ms:4200,label:'Checkpoint step',draw,list:'sx-tr-ck'});onResize(()=>A.redraw());
     $('tr-ck-stats').innerHTML=stat('Resumed state against uninterrupted',K.bit_identical_state?'bit-identical':'different',K.n_arrays_compared+' arrays, largest difference '+K.max_abs_diff)+
       stat('Losses after resuming',K.losses_identical?'identical':'different','all '+(N-S)+' steps, compared as float64')+
       stat('Async save',K.save_call_s.toFixed(2)+' s','until save() returned; '+K.save_total_s.toFixed(2)+' s until written (rough)');

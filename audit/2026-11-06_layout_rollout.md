@@ -221,7 +221,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
 - [x] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
 - [x] `systems_and_performance/topic_jax_and_tpu/xla_and_compilation` XLA and compilation: jaxprs, StableHLO, fusion and recompiles
-- [~] `systems_and_performance/topic_jax_and_tpu` Topic: jax-and-tpu
+- [x] `systems_and_performance/topic_jax_and_tpu` Topic: jax-and-tpu
 - [~] `systems_and_performance/topic_ml_infra_and_orchestration/cluster_anatomy` Cluster anatomy: nodes, GPUs, networks and storage tiers
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/fault_tolerance_at_scale` Fault tolerance at scale: failures, checkpoint/restart and elastic training
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml` Kubernetes for ML: scheduling, device plugins, gang scheduling and operators
@@ -515,6 +515,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance`: the "Try your own shape" widget (128 and 256 arrays side by side) stays a full-width section in Reading (reader-driven lab); Fig. 1 close-ups leave part of the chip out of frame by design; Fig. 3 op names hide on phones.
 - `systems_and_performance/topic_jax_and_tpu/xla_and_compilation`: tool tabs full width; renderer saved as 40_js_s3.js (after the page's 25_js_xp_rd2.js), content unchanged; Fig. 1 one merge step stands for both reshape folding and CSE (text says only what the data shows); Fig. 2 broadcast-to-kernel pairing structural.
 - `systems_and_performance/topic_jax_and_tpu/training_stack`: optax and grain scenes wide and shallow (small bars at 1400); hero last step busy at full view; grain worker-to-record assignment not recorded (flows cross the worker plate as a whole, stated).
+- `systems_and_performance/topic_jax_and_tpu`: hero overview a long shallow chain (small objects); TPU lab sections 3 and 4 right cards taller than the left text; renderer saved as 26_js_s3.js (loads after 25_js_rd_shard.js); page 935 KB; Tool map timeline full width (tool tab).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -582,3 +583,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - TPU programming and performance: section 8 gets a calculated (not measured, no TPU used) profile, Fig. 3; its 32-tokens-per-chip step models one short sequence as the Roofline lab does (only the weight matmuls behave as in decode); an em-dash in src/inputs/scaling_book_extracts.txt was replaced with "--". Keep these?
 - XLA and compilation: the pass stepper opens on "Whole train step" (was the attention block); the storm is a widget; the softmax stepper became a static three-column before/after. Keep these?
 - JAX training stack: the optax stage redraws on step or number change (replays only for the grain toggles); the split stepper keeps the 2D explorer; steppers advance every 3.5 to 3.6 s. Keep these?
+- JAX and TPU root: five long lab replays (trace, vmap, twins, ring, Pallas grid) are widgets rather than grouped stretches (a per-Python-line grouping of the trace is noted in viz_ideas); the Tool map animation keeps 13 steps (just over the about-12 guide, each change sourced); 2D animation cards sticky on desktop. Keep these?

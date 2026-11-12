@@ -10,6 +10,7 @@
 </section>
 
 <section id="xc-s5">
+<div class="s3sp"><div class="s3L">
 <h3>5. Rematerialisation: memory against recompute</h3>
 <p><b>The problem.</b> The backward pass needs the forward pass's intermediate values (the attention scores, the GELU inputs, ...). Keeping them all is the "temp" bar above, and it grows with batch, sequence length and depth. <b>Rematerialisation</b> (<code>jax.checkpoint</code>, alias <code>jax.remat</code>; PyTorch's <code>torch.utils.checkpoint</code>) keeps less and recomputes the rest during the backward pass. A <b>policy</b> says what to keep:</p>
 <ul class="tight">
@@ -18,7 +19,11 @@
 <li><code>dots_with_no_batch_dims_saveable</code>: keep matmuls against weights, but not the batched ones (attention's <code>q @ k</code> and <code>p @ v</code>, whose outputs are the large <i>B x H x T x T</i> tensors).</li>
 </ul>
 <p>Production code names its policies by what they keep: MaxText's default is <code>remat_policy: 'full'</code> (recompute everything), with a ladder of options from <code>'minimal'</code> to <code>'full'</code> that its config describes as a "trade-off between speed (fastest to slowest) and HBM usage (highest to lowest)", including variants that offload saved tensors to host memory (<a href="https://github.com/AI-Hypercomputer/maxtext/blob/1a95d1e5371021aab8d0574c53d2cca425474318/src/maxtext/configs/base.yml#L489" target="_blank" rel="noopener noreferrer">configs/base.yml:489-492</a>).</p>
-<div class="xc-box" id="xc-rm-card">
+
+<div class="xc-pr"><div class="xc-q">Predict: wrapping 3 of the 4 blocks saves memory. How much more does wrapping the 4th save?</div>
+<div class="xc-opts"><button>Another quarter of the saving</button><button data-r="1">Nothing</button><button>It doubles the saving</button></div>
+<div class="xc-ans" hidden>With <code>nothing_saveable</code>, temp memory is <span data-xc="remat.k3|mb"></span> with 3 blocks wrapped and <span data-xc="remat.k4|mb"></span> with all 4: no saving, while the 4th block's recompute still costs FLOPs. The backward pass starts at the last block: its activations are needed the moment the forward pass ends, so whether they were kept or recomputed, they are all alive at the peak. Remat pays where activations wait a long time to be used, which is the early layers.</div></div>
+</div><div class="s3R"><div class="s3side"><div class="xc-box" id="xc-rm-card">
 <div class="ctl">
 <label>Blocks wrapped in <code>jax.checkpoint</code>: <b id="xc-rm-kv">4</b> of 4<input type="range" id="xc-rm-k" min="0" max="4" step="1" value="4" aria-label="Blocks rematerialised"></label>
 <label>Policy <select id="xc-rm-pol"><option value="nothing_saveable">nothing_saveable (recompute all)</option><option value="dots_saveable">dots_saveable</option><option value="dots_with_no_batch_dims_saveable">dots_with_no_batch_dims_saveable</option></select></label>
@@ -27,36 +32,39 @@
 <div class="xc-cnt" id="xc-rm-cnt"></div>
 <div class="xc-plot" id="xc-rm-plot"></div>
 <p class="xc-small" id="xc-rm-note"></p>
-</div>
-<div class="xc-pr"><div class="xc-q">Predict: wrapping 3 of the 4 blocks saves memory. How much more does wrapping the 4th save?</div>
-<div class="xc-opts"><button>Another quarter of the saving</button><button data-r="1">Nothing</button><button>It doubles the saving</button></div>
-<div class="xc-ans" hidden>With <code>nothing_saveable</code>, temp memory is <span data-xc="remat.k3|mb"></span> with 3 blocks wrapped and <span data-xc="remat.k4|mb"></span> with all 4: no saving, while the 4th block's recompute still costs FLOPs. The backward pass starts at the last block: its activations are needed the moment the forward pass ends, so whether they were kept or recomputed, they are all alive at the peak. Remat pays where activations wait a long time to be used, which is the early layers.</div></div>
+</div></div></div></div>
 </section>
 
 <section id="xc-s6">
+<div class="s3sp"><div class="s3L">
 <h3>6. Scan or unroll: compile time grows with the program</h3>
 <p>The running example's <code>apply</code> loops over its 4 layers in Python. Tracing runs that loop, so the jaxpr holds 4 copies of the block, and XLA compiles 4 copies. <code>apply_scan</code> stacks the layers' weights into arrays with a leading layer axis and runs one traced block under <code>jax.lax.scan</code>, which XLA compiles once as a loop (a <code>while</code> in HLO). Same logits (difference 0.0, checked by setup). The cost of unrolling is compile time and program size, and it grows with depth:</p>
+
+<div class="co warn"><div class="t">A trap in cost_analysis</div>XLA's <code>cost_analysis()</code> counts a loop body once. For the scan version of the train step it reports <span data-xc="pieces.step_scan.flops|gf"></span>, against <span data-xc="pieces.step.flops|gf"></span> for the unrolled one: the same arithmetic, with the 4 layers counted as one. MFU calculations from <code>cost_analysis</code> on scanned models must multiply by the trip count.</div>
+</div><div class="s3R"><div class="s3side"><div class="xc-box" id="xc-sc-card">
 <div class="seg" id="xc-sc-seg"><button data-v="compile" class="on" aria-pressed="true">Compile time</button><button data-v="opt_hlo_bytes" aria-pressed="false">Optimised HLO size</button><button data-v="jaxpr_eqns" aria-pressed="false">jaxpr equations</button><button data-v="steady_median" aria-pressed="false">Step time</button></div>
 <div class="xc-plot" id="xc-sc-plot"></div>
 <p class="xc-small" id="xc-sc-note"></p>
-<div class="co warn"><div class="t">A trap in cost_analysis</div>XLA's <code>cost_analysis()</code> counts a loop body once. For the scan version of the train step it reports <span data-xc="pieces.step_scan.flops|gf"></span>, against <span data-xc="pieces.step.flops|gf"></span> for the unrolled one: the same arithmetic, with the 4 layers counted as one. MFU calculations from <code>cost_analysis</code> on scanned models must multiply by the trip count.</div>
+</div></div></div></div>
 </section>
 
 <section id="xc-s7">
-<h3>7. Compile time and the caches</h3>
-<p>A jitted function keeps an in-memory cache of executables keyed on the <b>signature</b>: argument shapes, dtypes, shardings and the values of static arguments. A new signature means trace, lower and compile again (the {{Transforms lab|#t-xf}} counts recompiles). That cache dies with the process. The <b>persistent compilation cache</b> writes executables to disk so the next process can skip XLA:</p>
-<pre class="xc-code">jax.config.update("jax_compilation_cache_dir", "/path/to/cache")
-jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)   # default 1.0: faster compiles are not saved
-jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)     # -1: no size threshold</pre>
-<div class="xc-box" id="xc-cc-card">
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="xc-box" id="xc-cc-card">
 <div class="seg" id="xc-cc-seg"><button data-v="cpu" class="on" aria-pressed="true">CPU time of trace, lower, compile</button><button data-v="wall" aria-pressed="false">Wall clock</button></div>
-<div class="xc-cap" id="xc-cc-cap"></div>
 <div class="xc-race" id="xc-cc-race"></div>
 <div class="xc-leg" id="xc-cc-leg"></div>
 <div class="xc-anctl" id="xc-cc-ctl"></div>
-</div>
+</div></div></div><div class="s3L">
+<h3>7. Compile time and the caches</h3>
+<p>A jitted function keeps an in-memory cache of executables keyed on the <b>signature</b>: argument shapes, dtypes, shardings and the values of static arguments. A new signature means trace, lower and compile again (the {{Transforms lab|#t-xf}} counts recompiles). That cache dies with the process. The <b>persistent compilation cache</b> writes executables to disk so the next process can skip XLA:</p>
+<ol class="sx" id="sx-xc-cc"></ol>
+<pre class="xc-code">jax.config.update("jax_compilation_cache_dir", "/path/to/cache")
+jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)   # default 1.0: faster compiles are not saved
+jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)     # -1: no size threshold</pre>
+
 <p class="xc-small" id="xc-cc-note"></p>
 <div class="xc-pr"><div class="xc-q">Predict: you set only <code>jax_compilation_cache_dir</code> (other options at their defaults) and rerun the script. Is the running example's train step loaded from the cache?</div>
 <div class="xc-opts"><button>Yes, every jitted function is cached</button><button data-r="1">Not if it compiled in under a second</button><button>Only on TPU</button></div>
 <div class="xc-ans" hidden><code>jax_persistent_cache_min_compile_time_secs</code> defaults to 1.0 (pinned source, section 10): programs that compiled faster are never written (its help text: "This threshold can be raised to decrease the number of entries written to the cache"). <span id="xc-cc-def"></span> Large models compile for minutes on TPU, so the default is right there; small experiments need the threshold lowered.</div></div>
+</div></div>
 </section>

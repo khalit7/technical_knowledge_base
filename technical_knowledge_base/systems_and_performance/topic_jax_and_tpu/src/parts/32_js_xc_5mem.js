@@ -53,7 +53,7 @@
 
   // ---- 7. compile cache race
   const T=D.timing;
-  if(!T||!T.step||!T.cache){$('xc-cc-cap').innerHTML='Timings pending (src/xla/timing.py).';return}
+  if(!T||!T.step||!T.cache){$('xc-cc-note').innerHTML='Timings pending (src/xla/timing.py).';return}
   const st=T.step,c=T.cache;let cpu=true;
   const g=(o,k)=>cpu&&o[k+'_cpu']!=null?o[k+'_cpu']:o[k];
   const mk=()=>[
@@ -65,9 +65,11 @@
   function race(i){
     $('xc-cc-race').innerHTML=lanes.map((l,j)=>{const on=i===3||j===i,done=j<i;
       return '<span>'+X.esc(l.n)+'</span><span class="tr">'+l.seg.map(s=>'<span title="'+s[0]+': '+X.sec(s[1])+'" style="background:'+s[2]+';width:'+(on||done?(100*s[1]/mx).toFixed(2):0)+'%"></span>').join('')+'</span><span class="v">'+(on||done?X.sec(tot(l)):'')+'</span>'}).join('');
-    $('xc-cc-cap').innerHTML=caps[i];}
+}
   $('xc-cc-leg').innerHTML=[['trace','var(--c1)'],['lower','var(--c6)'],['compile','var(--c2)'],['load from disk','var(--c5)'],['run one step','var(--c3)']].map(q=>'<span><i style="background:'+q[1]+'"></i>'+q[0]+'</span>').join('');
-  const RA=X.anim({card:'xc-cc-card',ctl:'xc-cc-ctl',n:4,draw:race,ms:2200,label:'Cache step'});
+  const ttl=['New process, no cache.','Same process, second call.','New process, disk cache.','All three side by side.'];
+  (L=>{if(L)L.innerHTML=caps.map((c,i)=>'<li><b>'+ttl[i]+'</b> '+(i<3?c:'The three calls on one time axis.')+'</li>').join('')})($('sx-xc-cc'));
+  const RA=X.anim({card:'xc-cc-card',ctl:'xc-cc-ctl',n:4,draw:race,ms:3600,label:'Cache step',list:'sx-xc-cc'});
   X.seg($('xc-cc-seg'),v=>{cpu=v==='cpu';lanes=mk();mx=Math.max(...lanes.map(tot));RA.redraw()});
   $('xc-cc-note').innerHTML='Medians: '+T.stepN+' fresh processes without a cache, '+(c.n-1)+' processes reading the cache written by a first one ('+X.n0(c.first.cache_files)+' files, '+X.mb(c.first.cache_bytes)+'). '+T.label+'; 1-minute load averages during the runs '+T.loads.join(', ')+'. "Run" is the median steady step. The first call through the normal path took '+X.sec(st.first_call)+' in total.';
   if(c.default)$('xc-cc-def').innerHTML='Measured here with the default threshold: the step\'s compile took '+X.sec(c.default.compile)+' of wall time on this busy machine, and the cache directory then held '+c.default.files+' file'+(c.default.files===1?'':'s')+'. The threshold is compared with wall time (<code>compiler.py:844</code>), so whether a borderline program is cached depends on how loaded the machine was when it compiled.';
