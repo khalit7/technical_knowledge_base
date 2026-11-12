@@ -1,5 +1,5 @@
 // Whole-page check: every tab, every control, at 390 px dark and 920 px light: page errors, NaN, undefined,
-// sideways scroll; animation end states against window.PM (from recompute.py); the planner's JavaScript
+// sideways scroll; animation and stage end states against window.PM (from recompute.py); the planner's JavaScript
 // occupancy port against the values NVIDIA's cuda_occupancy.h produced; screenshots.
 // usage (from the repo root): node <page>/src/check/check_page.mjs [shots dir]
 import { createRequire } from 'module';
@@ -57,13 +57,20 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     out.push(['race stale reads', last(window.PM_RC.nobar).stale, P.toy_race.stale]);
     out.push(['shuffle lane 0', last(window.PM_SH.shfl).v[0], 528]);
     out.push(['shared lane 0', last(window.PM_SH.smem).v[0], 528]);
-    for (const m of ['before', 'after']) { const S = window.PM_WQ[m], c = P.wq[m];
-      out.push(['waves ' + m, S.filter(s => s.w).length, c.waves]);
-      out.push(['last wave ' + m, last(S.filter(s => s.w)).run, c.last_wave_tiles]); }
+    // Fig. 4 (3D waves stage) against P.wq and P.rowsum
+    const W = window.PM_WAVE;
+    out.push(['waves: A100 tiles at N = 1,544', W.a_after, P.wq.after.tiles]);
+    out.push(['waves: last A100 wave', W.a_tail, P.wq.after.last_wave_tiles]);
+    out.push(['waves: H100 row-sum waves', W.h_waves, P.rowsum.waves]);
+    out.push(['waves: H100 blocks per wave', W.h_wave, P.rowsum.per_wave]);
+    out.push(['waves: last wave fill %', W.h_fill, P.rowsum.last_fill_pct]);
+    // Fig. 3 (3D occupancy stage) against the header's values
+    for (const c of window.PM_OCC) out.push(['occupancy stage ' + c.k, c.n, P.occ.sm_90a[c.k].blocks[7]]);
     for (const [dx, sec] of [[32, 4], [16, 4], [8, 4], [4, 8], [1, 32]]) out.push(['sectors ' + dx, window.PM_IX(dx).sectors, sec]);
     for (const k of ['heavy_plain', 'heavy_lb1024', 'heavy_lb256x8']) { const r = P.occ.sm_90a[k]; out.push(['occupancy figure ' + k, window.PM_OC(r.regs), r.blocks[7]]); }
-    out.push(['error stepper: steps', window.PM_HD.bad.length, 7]);
-    out.push(['error stepper: code at copy', /700/.test(window.PM_HD.bad[5].p) ? 700 : 0, 700]);
+    out.push(['error stepper: steps', window.PM_HD.bad.length, document.getElementById('sx-he').children.length]);
+    out.push(['host stepper: steps', window.PM_HD.ok.length, document.getElementById('sx-hd').children.length]);
+    out.push(['error stepper: code at copy', /700/.test(document.getElementById('sx-he').children[5].textContent) ? 700 : 0, 700]);
     // planner port against NVIDIA's header values (P.occ is checked against cuda_occupancy.h by recompute.py)
     let mism = 0, tot = 0;
     for (const a of Object.keys(P.occ)) for (const k of Object.keys(P.occ[a])) { const r = P.occ[a][k];
@@ -77,7 +84,9 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
   await p.reload(); await sleep(300);
   const moving = await p.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .card')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 60)); }
     await new Promise(r => setTimeout(r, 2500)); return [...document.querySelectorAll('#t-read .an-play')].filter(b => /Pause/.test(b.textContent)).length; });
-  console.log(scheme, 'animations playing without a click (after reload):', moving); if (moving) bad++;
+  // since the 2026-11-06 rollout every animation plays by itself once in view (check/check_stages.mjs checks each one, and reduced motion);
+  // here: after scrolling through, at least the animations scrolled past have started
+  console.log(scheme, 'animations playing by themselves after scrolling into view:', moving); if (!moving) bad++;
   const secs = await p.evaluate(() => [...document.querySelectorAll('#t-read section')].map(s => s.id));
   for (const id of secs) {
     const el = await p.$('#' + id);

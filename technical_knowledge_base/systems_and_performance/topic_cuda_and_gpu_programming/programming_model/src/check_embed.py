@@ -27,7 +27,9 @@ for f in sorted(glob.glob("parts/20_read_*.html")):
             ok = abs(round(float(v), dec) - float(t)) < 1e-9
         if not ok:
             print("MISMATCH", f, path, "page", txt, "data", v); bad += 1
-for pat in ("/Users/", "Users-", "glpat", "sk-ant", "-Users-"):
+import getpass, socket
+# the login name and the hostname are looked up at run time (case-sensitive), never written here
+for pat in ("/Users/", "Users-", "glpat", "sk-ant", "-Users-", "/" + "home" + "/", "/" + "tmp/" + "claude", getpass.getuser(), socket.gethostname().split(".")[0]):
     for f in ["../index.html", "../README.md"] + [g for g in glob.glob("**/*", recursive=True) if not g.endswith("check_embed.py")]:
         try:
             if pat in open(f, errors="ignore").read():

@@ -6,14 +6,27 @@
 <li><b>Launch errors</b>: an impossible configuration (more than 1,024 threads per block, too much shared memory: <code>cudaErrorInvalidConfiguration</code>; too many registers for the block: <code>cudaErrorLaunchOutOfResources</code>). The launch statement cannot return them, so ask right after it: <code>cudaGetLastError()</code> "returns current error state and then resets it to <code>cudaSuccess</code>" (<code>cudaPeekAtLastError()</code> returns it "without resetting it").</li>
 <li><b>Execution errors</b>, raised while the kernel runs: an out-of-bounds or misaligned access, a device-side <code>assert</code>, a timeout. They surface at the next call that waits for the GPU, and are "returned by every CUDA runtime API until the error state has been cleared" ({{Programming Guide 2.1.7|https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html}}) <span class="rd-vend">vendor doc</span>.</li>
 </ol>
-<p>The program of section 1 again, with a kernel that reads out of bounds. Predict which line reports the error, then step:</p>
-<div class="card" id="pm-he-card">
+</section>
+<div class="s3sp"><div class="s3R"><div class="card s3stick" id="pm-he-card">
+<h4>The error surfaces two calls after the launch that caused it</h4>
 <div class="rd-fig" id="pm-he-fig"></div>
 <div class="rd-leg"><span style="--sw:var(--c4)">CPU work</span><span style="--sw:var(--mute)">CPU blocked (hatched)</span><span style="--sw:var(--c6)">copy</span><span style="--sw:var(--c3)">kernel</span><span style="--sw:var(--bad)">error</span></div>
-<div class="rd-cap" id="pm-he-cap"></div>
 <div class="an-ctl" id="pm-he-ctl"></div>
 <p class="small mute" style="margin:2px 0">It opens at the launch (step 4); step back for the start. Same program and schematic timing as section 1 <span class="rd-ill">illustrative timing</span>. The error is reported by <code>cudaMemcpy</code>, two calls after the guilty launch; <code>cudaGetLastError()</code> right after the launch returned success. Code 700 is <code>cudaErrorIllegalAddress</code>, a sticky error (below).</p>
 </div>
+</div><div class="s3L"><section id="pm-s6b">
+<p>The program of section 1 again, with a kernel that reads out of bounds. Predict which line reports the error, then follow the stepper:</p>
+<ol class="sx" id="sx-he">
+<li><b>Start.</b> The same program as section 1: the host arrays are in CPU memory.</li>
+<li><b>1 cudaMalloc, twice.</b> As before.</li>
+<li><b>2 cudaMemcpy, host to device.</b> As before: the CPU waits for the copy.</li>
+<li><b>3 and 4 The launch.</b> The CPU queues the kernel and returns at once.</li>
+<li><b>The kernel faults; the CPU does not know.</b> One thread reads past the end of <code>x</code>: an illegal address, and the kernel stops. The CPU had already called <code>cudaGetLastError()</code>, which returned <code>cudaSuccess</code>: the launch itself was valid.</li>
+<li><b>5 cudaMemcpy reports the error.</b> The copy waits for the kernel, which has failed, and returns code 700, <code>cudaErrorIllegalAddress</code>, "an illegal memory access was encountered". This is the line the error macro blames, two calls after the guilty launch.</li>
+<li><b>Sticky: every later call fails.</b> Every CUDA call in this process now returns 700, <code>cudaFree</code> included. The process must be restarted; no retry inside it can recover.</li>
+</ol>
+</section></div></div>
+<section id="pm-s6c">
 <pre class="rd-code">#define CUDA_CHECK(call) do { cudaError_t e_ = (call); if (e_ != cudaSuccess) \
   printf("%s:%d %s failed: %s (%s, code %d)\n", __FILE__, __LINE__, #call, \
          cudaGetErrorName(e_), cudaGetErrorString(e_), (int)e_); } while (0)

@@ -192,8 +192,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/libraries_and_tensor_cores` Libraries and tensor cores: cuBLAS, cuDNN, CUTLASS and CuTe, mma, wgmma, TMA, tcgen05
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy` GPU memory hierarchy: coalescing, shared memory, bank conflicts, registers and spills
 - [x] `systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness` Profiling, benchmarking and correctness: Nsight, honest timing, numerical checks
-- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/programming_model` The CUDA programming model: threads, warps, blocks, launches, occupancy
-- [ ] `systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu` Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL
+- [x] `systems_and_performance/topic_cuda_and_gpu_programming/programming_model` The CUDA programming model: threads, warps, blocks, launches, occupancy
+- [~] `systems_and_performance/topic_cuda_and_gpu_programming/streams_graphs_and_multi_gpu` Streams, CUDA graphs and multi-GPU programming: overlap, launch overhead, NCCL
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/triton_and_gluon` Triton and Gluon: block-level kernels, autotuning, what the compiler does
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming/writing_kernels` Writing kernels: reductions, softmax, tiled matmul, fusion, FlashAttention
 - [ ] `systems_and_performance/topic_cuda_and_gpu_programming` Topic: cuda-and-gpu-programming
@@ -486,6 +486,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_cuda_and_gpu_programming/memory_hierarchy`: Fig. 2 strip labels at 920 px were moved off the sectors after the last screenshot (re-screenshot); Fig. 4 bank strip thin and wide in the card. The root's 7 owned keys (94, 113, 374, 385, 472, 486, 488) were re-keyed by the lead to the rebuilt text.
 - `systems_and_performance/topic_cuda_and_gpu_programming/profiling_and_correctness`: stages small at 390 px (Fig. 3 tree); section nav highlight does not follow the new sub-sections (template behaviour).
 - (template-wide) about 250 ledger.json files hold keys containing a minutes number (e.g. "(27 min read)"); each breaks on the next check_times --fix. A one-off script re-keying them on the words before the number would stop the repeated hand fixes.
+- `systems_and_performance/topic_cuda_and_gpu_programming/programming_model`: Figs 1, 2 and 4 small at 390; Fig. 4 last step, the fourth wave's 16 empty SM slots are subtle; check_stages lives at src/check/check_stages.mjs (about 4 min).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -524,3 +525,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Libraries and tensor cores: 36 min core (was 31), about 330 words of it in Fig. 3's hidden Hopper and Blackwell lists. Accept?
 - GPU memory hierarchy: the static 2D hero ladder became a 3D stage, and the section 1 and 4 predict boxes were dropped (their answers are now the stages; kept as fat). Keep?
 - Profiling and correctness: header 31 min counts every mode's step list (one path is about 28). Also proposed: record real nsys traces and ncu reports on the local RTX 5090s to replace the illustrative timeline shapes and NVIDIA's 2023 A4500 reports. Run that GPU work?
+- CUDA programming model: Fig. 2 (warp divergence, illustrative, no timing) reverses an older rejection in viz_ideas ("GPU architecture and the root already have it"); the register slider stays a separate tool beside Fig. 3; only the 3D stages are numbered (Figs 1 to 4). Keep these?

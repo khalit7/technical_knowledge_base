@@ -1,7 +1,7 @@
-// ---- Reading s3: one warp's sum by shuffles against shared memory + barriers (same input) ----
+// ---- Reading s3: one warp's sum by shuffles against shared memory + barriers (same input); steps explained by #sx-sh-shfl and #sx-sh-smem ----
 (function(){
   const fig=document.getElementById('pm-sh-fig');if(!fig)return;
-  const cap=document.getElementById('pm-sh-cap'),cnt=document.getElementById('pm-sh-cnt');
+  const cnt=document.getElementById('pm-sh-cnt');
   const OFF=[16,8,4,2,1];
   // precompute every step's values for both modes
   function shflSteps(){const st=[{v:Array.from({length:32},(_,i)=>i+1),act:[],note:0}];
@@ -26,13 +26,9 @@
     b+=RD.t(4,h-4,mode==='shfl'?'values live in registers, one per lane':'values live in shared memory s[0..31]',{fs:10.5,fill:'var(--mute)'});
     fig.innerHTML=RD.svg(w,h,b,'Thirty-two lanes and their values');
     const c=counters(i);
-    let t,p;
-    if(i===0){t='Start: lane i holds i + 1';p=mode==='shfl'?'Each lane has one value in a register. Sum = 528.':'Each thread stores its value into shared memory (1 STS), then the block waits at __syncthreads() (1 BAR) so every store is visible.'}
-    else if(mode==='shfl'){t='Shuffle '+i+' of 5: add the value '+S.off+' lanes away';p='v += __shfl_down_sync(0xffffffff, v, '+S.off+'). Lanes '+(32-S.off)+' to 31 have no lane '+S.off+' above them and get their own value back; their results are never used. Lanes 0 to '+((32>>i)-1)+' carry the partial sums.'+(i===5?' Lane 0 now holds 528: five instructions, no memory, no barrier.':'')}
-    else{t='Level '+i+' of 5: threads 0 to '+(S.off-1)+' add s[t + '+S.off+']';p='Two shared-memory loads and one store per thread, then __syncthreads() so the next level reads finished values.'+(i===5?' s[0] = 528 after 10 loads, 6 stores and 6 barriers (reading the result is one more load).':'')}
-    cap.innerHTML='<div class="t">'+t+'</div><p>'+p+'</p>';
     cnt.innerHTML=RD.stat('SHFL',c.SHFL)+RD.stat('LDS (shared loads)',c.LDS)+RD.stat('STS (shared stores)',c.STS)+RD.stat('BAR (barriers)',c.BAR)}
-  const A=RD.anim({card:'pm-sh-card',ctl:'pm-sh-ctl',n:6,draw,ms:1500,label:'Reduction step'});
-  RD.seg(document.getElementById('pm-sh-mode'),m=>{mode=m;A.reset(6)});
+  const A=RD.anim({card:'pm-sh-card',ctl:'pm-sh-ctl',list:'sx-sh-shfl',n:6,draw,label:'Reduction step'});
+  // a mode toggle swaps the step list on the left (#sx-sh-shfl, #sx-sh-smem) and replays from the start
+  RD.seg(document.getElementById('pm-sh-mode'),m=>{mode=m;['shfl','smem'].forEach(x=>{document.getElementById('sx-sh-'+x).hidden=x!==m});A.reset(6,'sx-sh-'+m)});
   RD.onResize(()=>A.redraw());
 })();

@@ -26,3 +26,12 @@ Method: `.claude/skills/explainer-page/visuals/choosing.md`. Needs of the text, 
 
 ## What the methodology lacked
 A rule for evidence when the target hardware is absent: here "compiled here" (real compiler output, and host programs actually run without a GPU) proved as strong as measurement for many claims (register caps, compiler-removed loads, warp aggregation, how grid.sync is built), and is worth naming as its own evidence class.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+12. **Fig. 1, one launch unpacked, 3D** (replaces 8). Four plates left to right (grid, block 9, warp 1, lane 5 = thread 37 and its element 2,341); the camera moves in on each level, dots flow from the lit item to the next plate; the last step labels how each level cooperates and where it runs. Nested structure, so 3D.
+13. **Fig. 2, a block in warps and a branch in a warp, 3D** (new). The block as 8 tiles of 8 x 4 lanes; then warp 1's issue slots in time order: one instruction for 32 lanes, path A with lanes 16 to 31 masked, path B with lanes 0 to 15 masked, reconverged. The rejection of a divergence animation above is reversed because the rollout brief asked for it as a 3D candidate: it is illustrative (no timing), teaches only the issue-slot picture, and links to GPU architecture for the measured cost.
+14. **Fig. 3, occupancy, 3D** (new; 11 stays as the reader-driven widget beside it). One H100 SM's 64 warp slots and 65,536 registers (64 cells of 1,024) filled by the three heavy kernels: 2, 4, 8 blocks; the waiting block; spill stores flowing to local memory.
+15. **Fig. 4, waves, 3D** (replaces the 2D before/after of 1). SMs on the floor, time upward, one layer per wave, a queue of waiting blocks; NVIDIA's A100 example, then the running example's row sum on an H100 (1,056 blocks per wave, 4 waves, last 87.9% full).
+16. **Step lists** for the four 2D animations (host program, shuffles, race, error program): their per-step captions moved out of the scripts into `ol.sx` lists on the left; mode toggles swap the list.
+
+Kept 2D: the host and error steppers (timelines read flat), the shuffle and race animations (a row of values and memory cells; the change of numbers is the point), the warp-shape widget and the register slider (reader-driven tools), the M1 staircase and launch-cost charts (values on an axis), the Launch planner (a calculator).
