@@ -1,32 +1,59 @@
-<section id="dd-s3">
+<div class="s3sp"><div class="s3R"><div id="stg-tp"></div></div><div class="s3L"><section id="dd-s3">
 <h2>3. Tensor parallelism at serve time: latency, inside one server</h2>
 <p>Tensor parallelism cuts every weight matrix across GPUs (Megatron-LM's split, column then row, heads divided among GPUs; the form is on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} and the {{Megatron-LM paper page|n:3c65c17b0d0d8133ae92fbe90a1f308e}}). At serve time three things differ from training. There are no gradients, so the only traffic is two <dfn>all-reduces</dfn> per layer, every decode step. Each GPU keeps the KV cache of its own heads, so the cache per GPU shrinks too. And the step is tiny: at batch 1 the messages carry a few kilobytes, so the cost is synchronisation latency, not bandwidth.</p>
 <div class="fm"><div class="eq">bytes each GPU sends per all-reduce (ring) = 2 (t &minus; 1) / t &times; hidden size &times; 2 bytes &times; tokens in the step</div>
 <p class="small">Running example: hidden size 8,192, so one token's activation is 16 KiB. At TP 8 each GPU sends <span id="dd-s3-ar"></span> per all-reduce, and a token needs 2 &times; 80 = 160 of them: <span id="dd-s3-tok"></span> per token per GPU. The planner charges about 6.7 &micro;s per small all-reduce (two NVLink hops of 3.33 &micro;s, from {{DeepSeek's ISCA 2025 paper, Table 5|https://arxiv.org/html/2505.09343}}), so 160 of them cost about 1.1 ms per token, a sixth of the whole step at TP 8. <span class="der">derived</span></p></div>
-<p>Predict before you press play: which of the four layouts makes one user's token fastest, and which serves 64 users best?</p>
-<div class="dd-card" id="dd-split-card">
-<h4>One decode step on eight H200s, four ways: only tensor parallelism makes one user faster</h4>
-<div class="seg" id="dd-split-mode"><button class="on" data-m="one">1 GPU (7 idle)</button><button data-m="rep">8 replicas</button><button data-m="tp">Tensor parallel 8</button><button data-m="pp">Pipeline parallel 8</button></div>
-<div class="seg" id="dd-split-users"><button class="on" data-m="1">1 user</button><button data-m="64">64 users</button></div>
-<div class="dd-svg" id="dd-split-svg"></div>
-<div class="leg"><span style="--sw:var(--dim)">fixed per-step work (2.5 ms)</span><span style="--sw:var(--c1)">reading weights and cache</span><span style="--sw:var(--c2)">all-reduces</span><span style="--sw:var(--c3)">pipeline micro-batches</span></div>
-<div class="an-ctl" id="dd-split-ctl"></div>
-<div class="an-cap" id="dd-split-cap"></div>
-<div class="an-cnt" id="dd-split-cnt"></div>
-<p class="small mute">To scale: one axis for all four modes. Llama 3.1 70B, FP8 weights, BF16 cache, 2,000-token prompts; step times from the Capacity planner's roofline (80% of memory bandwidth, 34.5% of FP8 peak, 2.5 ms fixed per step, communication not overlapped). The 1,024 cap on conversations is the planner's <code>max_num_seqs</code> setting, not memory. <span class="der">derived</span></p>
-</div>
-<p>With one user, TP 8 makes the token <span id="dd-s3-speed"></span> times faster; replicas and pipeline stages make it no faster at all. With 64 users the picture changes: eight replicas give each copy 8 users but each copy still reads all 72.7 GB per step, while TP 8 reads each weight once for all 64; at equal users, TP 8 delivers <span id="dd-s3-tps"></span> tokens per second against <span id="dd-s3-rtps"></span> for the replicas. The replicas win back when traffic is high enough to fill each copy's batch: the throughput-against-latency trade the parent's {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} searches for you (try TP 1 against TP 2 there).</p>
+<p class="small">Fig. 3a draws the 80 layers as eight glass slabs of ten and one server's eight H200s; step times from the planner, <span class="der">derived</span>.</p>
+<ol class="sx" id="sx-tp">
+<li><b>One GPU holds everything.</b> All 80 layers sit on one H200: 72.7 GB of weights read once per step, one user's token in 21.6 ms, and the other seven GPUs idle.</li>
+<li><b>Cut every layer eight ways.</b> Each GPU now holds one eighth of every layer, 9.1 GB, and the KV cache of one of the model's 8 key/value heads.</li>
+<li><b>Two all-reduces per layer.</b> Each layer ends with the GPUs summing their partial results: 28 KiB sent per GPU per all-reduce, 160 per token, 4.59 MB in all, about 1.1 ms of waiting.</li>
+<li><b>Faster, but not eight times.</b> One token now takes 6.0 ms: the weight reading shrank from 19.1 ms to 2.4 ms, the 2.5 ms of fixed work per step did not, and the all-reduces added 1.1 ms.</li>
+<li><b>Only inside the NVLink domain.</b> NVLink moves 450 GB/s each way per GPU; a 400 Gb/s card between servers moves 50 GB/s, nine times less, and every one of the 160 all-reduces per token would wait on it.</li>
+</ol>
 <p><b>Why it stays inside one server.</b> Every all-reduce sits between two matrix multiplications that need its result, so it cannot hide behind other work. NVLink gives an H100 900 GB/s counting both directions, 450 GB/s each way ({{NVIDIA|https://www.nvidia.com/en-us/data-center/nvlink/}}, vendor spec); a 400 Gb/s network card moves 50 GB/s each way, nine times less, with several microseconds more latency per message; {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}} (section 9) works the ratio out for this model. Hence the rule every engine's documentation repeats: tensor parallelism within the NVLink domain (8 GPUs in an HGX server, 72 in a GB200 NVL72 rack), pipeline or expert parallelism across it.</p>
 <p><b>Two serve-time limits.</b> The KV cache is split by heads, and Llama 3.1 70B has 8 key/value heads: at TP 8 each GPU owns one, and beyond 8 the heads must be copied, so the cache stops shrinking (TP 16 would also push the all-reduces across servers: use TP 8 with PP 2, or two replicas). And the head counts must divide evenly by the TP degree (vLLM refuses to start otherwise: "Total number of attention heads ... must be divisible by tensor parallel size", {{config/model.py L1504-1509|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/model.py}}).</p>
 <p><b>How to check it:</b> vLLM <code>--tensor-parallel-size 8</code>; SGLang <code>--tp-size 8</code>; TensorRT-LLM <code>tensor_parallel_size</code>. Measure time per output token at batch 1 against TP 1; if it improves much less than the planner predicts, profile the all-reduces (NCCL logs which link it used: {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}, section 10) and check that CUDA graphs are on, since launch overhead grows with every extra collective.</p>
 <div class="ff" id="dd-tp-meas"></div>
-</section>
-<section id="dd-s4">
+</section></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-pp"></div></div><div class="s3L"><section id="dd-s4">
 <h2>4. Pipeline parallelism at serve time: capacity, across servers</h2>
-<p>Pipeline parallelism cuts the model by depth: with 8 stages, GPU 0 holds layers 1 to 10, GPU 1 layers 11 to 20, and so on, each stage with the KV cache of its own layers. A token's hidden state, 16 KiB for this model, is the only thing that crosses a boundary: any network can carry that. At serve time there is no backward pass and no 1F1B schedule to design; what remains is that a single request walks the stages one after another, so it gets <b>no faster</b>: in the animation above, pipeline parallel 8 takes the same time per token as one GPU, and each GPU is idle seven eighths of the time (the <dfn>pipeline bubble</dfn>). The bubble fills only when several batches are in flight at once, one per stage (vLLM v0.31.0: "PP requires PP-size concurrent batches to fill the pipeline", {{config/vllm.py L592-602|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/vllm.py}}). With 64 users in eight micro-batches every stage is busy and throughput matches eight replicas, but each user still waits for the whole pipeline every token.</p>
+<p>Pipeline parallelism cuts the model by depth: with 8 stages, GPU 0 holds layers 1 to 10, GPU 1 layers 11 to 20, and so on, each stage with the KV cache of its own layers. A token's hidden state, 16 KiB for this model, is the only thing that crosses a boundary: any network can carry that. At serve time there is no backward pass and no 1F1B schedule to design; what remains is that a single request walks the stages one after another, so it gets <b>no faster</b>: pipeline parallel 8 takes the same time per token as one GPU (Fig. 3b, step 2, and Fig. 4), and each GPU is idle seven eighths of the time (the <dfn>pipeline bubble</dfn>). The bubble fills only when several batches are in flight at once, one per stage (vLLM v0.31.0: "PP requires PP-size concurrent batches to fill the pipeline", {{config/vllm.py L592-602|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/vllm.py}}). With 64 users in eight micro-batches every stage is busy and throughput matches eight replicas, but each user still waits for the whole pipeline every token.</p>
+<ol class="sx" id="sx-pp">
+<li><b>Cut by depth.</b> GPU 0 holds layers 1 to 10, GPU 1 layers 11 to 20, and so on: 9.1 GB of weights each, and the KV cache of its own layers.</li>
+<li><b>One user walks the stages.</b> The token's 16 KiB hidden state crosses each boundary in turn: one token takes 21.4 ms, as on one GPU, and each GPU works one eighth of the time.</li>
+<li><b>Fill the pipeline.</b> With 64 users in eight micro-batches, one per stage, every stage is busy: 2,796 tokens per second, the same as eight replicas, but each user still waits for all eight stages, 22.9 ms per token.</li>
+<li><b>Across servers.</b> Tensor parallel 8 inside each server and pipeline parallel 2 between two servers: only the 16 KiB hidden state per token crosses the network, which is how Llama 3.1 405B in BF16 (810 GB) runs on two 8-GPU H100 servers.</li>
+</ol>
 <p><b>When it matters:</b> across servers. vLLM's guidance: "Set <code>tensor_parallel_size</code> to the number of GPUs per node and <code>pipeline_parallel_size</code> to the number of nodes", for example TP 8 and PP 2 on two 8-GPU servers; and pipeline parallelism without tensor parallelism when a model must be split unevenly or the GPUs have no NVLink, such as L40S ({{vLLM v0.31.0 docs, Parallelism and Scaling|https://github.com/vllm-project/vllm/blob/v0.31.0/docs/serving/parallelism_scaling.md}}). Llama 3.1 405B in BF16 (810 GB) on H100s (640 GB per server) is the textbook case.</p>
 <p><b>How to check it:</b> <code>--pipeline-parallel-size</code> in vLLM, <code>--pp-size</code> in SGLang. Watch per-stage utilisation: an idle stage means too few requests in flight, or uneven stages (a stage holding the embedding or the output layer does more work).</p>
 <div class="ff" id="dd-pp-meas"></div>
+</section></div></div>
+<div class="s3sp"><div class="s3R"><div class="dd-card" id="dd-split-card">
+<h4>Fig. 4 · one decode step on eight H200s, four ways: only tensor parallelism makes one user faster</h4>
+<div class="small mute" id="dd-split-now"></div>
+<div class="dd-svg" id="dd-split-svg"></div>
+<div class="leg"><span style="--sw:var(--dim)">fixed per-step work (2.5 ms)</span><span style="--sw:var(--c1)">reading weights and cache</span><span style="--sw:var(--c2)">all-reduces</span><span style="--sw:var(--c3)">pipeline micro-batches</span></div>
+<div class="an-ctl" id="dd-split-ctl"></div>
+<div class="an-cnt" id="dd-split-cnt"></div>
+<p class="small mute">To scale: one axis for the four layouts at each number of users. Llama 3.1 70B, FP8 weights, BF16 cache, 2,000-token prompts; step times from the Capacity planner's roofline (80% of memory bandwidth, 34.5% of FP8 peak, 2.5 ms fixed per step, communication not overlapped). The 1,024 cap on conversations is the planner's <code>max_num_seqs</code> setting, not memory. <span class="der">derived</span></p>
+</div>
+</div><div class="s3L"><section id="dd-s4c">
+<h3>One decode step, four layouts</h3>
+<p>Predict first: which of the four layouts makes one user's token fastest, and which serves 64 users best?</p>
+<ol class="sx" id="sx-split">
+<li><b>One GPU, one user.</b> The whole 72.7 GB of weights is read once per step: 21.6 ms per token. The other seven GPUs wait.</li>
+<li><b>Eight replicas, one user.</b> The user lands on one copy, which works exactly like the single GPU: 21.6 ms. Copies add capacity, never speed for one request.</li>
+<li><b>Tensor parallel 8, one user.</b> Each GPU reads 9.1 GB, so the reading shrinks eightfold, but each of the 80 layers ends in all-reduces (1.08 ms in all): 6.0 ms per token.</li>
+<li><b>Pipeline parallel 8, one user.</b> The token walks the stages one after another: 21.4 ms, as on one GPU, each GPU busy one eighth of the time.</li>
+<li><b>Eight replicas, 64 users.</b> Each copy serves 8 users and still reads all 72.7 GB every step: 22.9 ms per step, 2,796 tokens per second on the eight GPUs.</li>
+<li><b>Tensor parallel 8, 64 users.</b> Each weight is read once for all 64 users: 8.1 ms per step, 7,949 tokens per second.</li>
+<li><b>Pipeline parallel 8, 64 users.</b> Eight micro-batches of 8 users keep every stage busy: 22.9 ms per token for each user and 2,796 tokens per second, the same as the replicas; only one 16 KiB hidden state per token crosses each boundary.</li>
+</ol>
+<p>With one user, TP 8 makes the token <span id="dd-s3-speed"></span> times faster; replicas and pipeline stages make it no faster at all. With 64 users the picture changes: eight replicas give each copy 8 users but each copy still reads all 72.7 GB per step, while TP 8 reads each weight once for all 64; at equal users, TP 8 delivers <span id="dd-s3-tps"></span> tokens per second against <span id="dd-s3-rtps"></span> for the replicas. The replicas win back when traffic is high enough to fill each copy's batch: the throughput-against-latency trade the parent's {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} searches for you (try TP 1 against TP 2 there).</p>
+</section></div></div>
+<section id="dd-s4d">
 <details class="dp" id="dd-m1-split"><summary>Measured here: one model split by tensors and by layers, on a laptop <span class="mute">(runs, tables)</span></summary><div class="b">
 <p class="small">No NVIDIA GPU here, so the splits were run at laptop scale: one Apple M1 Pro (16 GB unified memory, one GPU) and the 5 CPUs Docker Desktop gives vLLM's CPU image. Two processes on one machine share one GPU and talk over loopback TCP or shared memory, so the numbers show <em>how each mechanism behaves</em>, not how fast a datacenter runs it. Every run was repeated; the spread is shown; the machine was shared with other agents, so load averages are recorded.</p>
 <div class="co" id="m1-env"></div>

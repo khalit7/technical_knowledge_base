@@ -1,8 +1,8 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar) select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
@@ -121,17 +121,28 @@
 #t-read details.dp>.b{padding:0 12px 10px}
 #t-read .ill{font-size:11.5px;color:var(--mute);font-weight:600}
 #t-read h3{margin-top:22px}
+#t-read .s3sp .dd-card,#t-read .s3sp .hero{margin-top:6px}
+#t-read .s3L>section>h2:first-child,#t-read section>.s3sp:first-child .s3L>h2:first-child{margin-top:24px}
+#t-read .s3L .mech{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
 </style>
 <nav class="nav" id="rd-nav">
 <a href="#dd-s0">The idea</a><a href="#dd-s1">1 Why split</a><a href="#dd-s2">2 Replicas, routing</a><a href="#dd-s3">3 Tensor parallel</a><a href="#dd-s4">4 Pipeline parallel</a><a href="#dd-s5">5 Expert parallel</a><a href="#dd-s6">6 Prefill/decode split</a><a href="#dd-s7">7 When it pays</a><a href="#dd-s8">8 Serving layer</a><a href="#dd-s9">9 Choosing, checking</a><a href="#dd-dp">Depth</a>
 </nav>
 
 <section id="dd-s0">
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">Serving one model on many GPUs is a choice of <span class="hl">what crosses between GPUs, and how often</span>: nothing (replicas), two all-reduces per layer for every token (tensor parallel), one hidden state per stage (pipeline parallel), every token to its experts and back (expert parallel), or the whole KV cache once per request (prefill/decode split). The link each one can afford decides where it may run, and above the engines a serving layer (Dynamo, llm-d) decides which GPU gets which request.</p>
-<div class="hero" id="dd-hero-card"><h4>Five ways to spread serving: what crosses, how often, and over which link</h4>
-<div class="dd-svg" id="dd-hero"></div>
-<p class="small">Running example unless marked: Llama 3.1 70B, FP8 weights, BF16 cache, H200s, 8 GPUs per split (4 drawn). Per token at TP 8 each GPU sends <b>4.59 MB</b> over 160 all-reduces; a pipeline boundary carries one <b>16 KiB</b> hidden state; DeepSeek-V3's expert parallelism moves <b>9.98 MB</b> per token over 58 MoE layers; a 2,000-token prompt's cache is <b>625 MiB</b>, sent once. <span class="der">derived</span>, formulas in sections 3 to 6.</p></div>
+<p class="small">Fig. 1, five ways to spread serving: what crosses, how often, and over which link. Running example unless marked: Llama 3.1 70B, FP8 weights, BF16 cache, H200s, 8 GPUs per split (4 drawn). Per token at TP 8 each GPU sends <b>4.59 MB</b> over 160 all-reduces; a pipeline boundary carries one <b>16 KiB</b> hidden state; DeepSeek-V3's expert parallelism moves <b>9.98 MB</b> per token over 58 MoE layers; a 2,000-token prompt's cache is <b>625 MiB</b>, sent once. <span class="der">derived</span>, formulas in sections 3 to 6.</p>
+<ol class="sx" id="sx-hero">
+<li><b>Replicas: more users.</b> Each GPU holds a whole copy; a router in front sends each request to one copy, and nothing crosses between them (section 2).</li>
+<li><b>Tensor parallel: lower latency.</b> Each GPU holds a slice of every layer, and every layer ends in two all-reduces: 4.59 MB per token per GPU, so it needs NVLink, inside one server (section 3).</li>
+<li><b>Pipeline parallel: more capacity.</b> Each GPU holds a run of whole layers; only one 16 KiB hidden state crosses each stage boundary, so any network will do, across servers (section 4).</li>
+<li><b>Expert parallel: giant MoE models.</b> Attention stays on each GPU with its own users; every token travels to its experts on other GPUs and back: 9.98 MB per token for DeepSeek-V3, over RDMA, overlapped with compute (section 5).</li>
+<li><b>Prefill/decode split: no stalls.</b> Prefill GPUs compute prompts, decode GPUs make every later token; a request's 625 MiB of KV cache crosses once, about 13 ms at 50 GB/s over RDMA, 1.5 ms over NVLink (sections 6 and 7).</li>
+<li><b>The serving layer on top.</b> Above the engines, Dynamo or llm-d routes each request to a GPU (for the cache it already holds), moves caches between pools and resizes them (sections 2 and 8).</li>
+</ol>
+</div></div>
 <p><b>You need:</b> the parallelism forms themselves (how tensor, pipeline and expert parallelism cut a model, and what an all-reduce and an all-to-all are) from {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}: this page shows only what changes when there are no gradients and a user waits for every token. One engine on one GPU (prefill, decode, continuous batching, the KV cache) from the parent {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, whose {{Capacity planner|n:3c65c17b0d0d81c08b3bc95ff45c7b13}} computes every derived number here (run by <code>src/recompute.py</code>). KV bytes per token: {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}'s calculator. The MoE layer itself: {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}. The links (NVLink, InfiniBand, RoCE) and collective costs: {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}.</p>
 <dl class="terms">
 <dt>Replica</dt><dd>a complete copy of the engine; a request is served by one copy.</dd>

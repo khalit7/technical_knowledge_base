@@ -58,7 +58,7 @@ window.DDEPLB=(function(){
     $('ep-res').innerHTML=RD.stat('Busiest GPU over the mean, default',fmt(In,2)+'×','MoE layer time set by this GPU')+RD.stat('Busiest GPU over the mean, EPLB',fmt(Ie,2)+'×',s.R+' redundant experts')+
       RD.stat('GPU time wasted waiting, default',fmt(100*(1-1/In),0)+'%','1 − mean/max')+RD.stat('GPU time wasted waiting, EPLB',fmt(100*(1-1/Ie),0)+'%','same batch');
     $('ep-say').textContent='Layer '+(s.l+1)+': the router’s favourite expert takes '+fmt(100*D.top_share[s.l],1)+'% of this layer’s choices over the whole text, against '+fmt(100/D.E,1)+'% if all were equal. '+(Ie<In?'The balancer, planned on history, cuts the wait on this batch from '+fmt(100*(1-1/In),0)+'% to '+fmt(100*(1-1/Ie),0)+'%.':'On this batch the balancer does not help: the batch differs from the history it planned on.');
-    anim.reset(steps());
+    anim.reset(steps());anim.go(anim.n-1,true); // a widget: opens on the finished plan
   }
   // section 2: the decisions
   let AL=null;
@@ -77,7 +77,7 @@ window.DDEPLB=(function(){
     el.innerHTML=RD.svg(W,H,b,'EPLB decisions step by step');
     $('ep-an-cap').textContent=i===0?'Start: '+E+' experts, '+P+' slots on '+s.G+' GPUs ('+per+' each).':last.t==='rep'?'Step '+i+': a redundant slot goes to expert '+(last.e+1)+', which had the most load per copy ('+fmt(last.v,0)+').':'Step '+i+': a copy of expert '+(last.e+1)+' (load '+fmt(last.v,0)+') goes to GPU '+last.g+', the lightest GPU with a free slot.'+(i===s.pe.log.length?' Done: every GPU holds '+per+' slots.':'');
   }
-  const anim=RD.anim({card:'ep-an-card',ctl:'ep-an-ctl',n:2,draw:drawAn,ms:350,label:'Decision'});
+  const anim=RD.anim({card:'ep-an-card',ctl:'ep-an-ctl',n:2,draw:drawAn,ms:350,label:'Decision',auto:false}); // a widget (long-replay rule, case b): dozens of decisions, never plays by itself
   function table(){
     let h='<tr><th>GPUs</th><th>Redundant</th><th>Placement</th><th class="num">Per batch, mean</th><th class="num">Per batch, p90</th><th class="num">All traffic</th><th class="num">On its own history</th></tr>';
     D.results.forEach(r=>{h+='<tr><td>'+r.G+'</td><td>'+r.R+'</td><td>'+(r.kind==='naive'?'default':'EPLB')+'</td><td class="num">'+fmt(r.batch_mean,2)+'</td><td class="num">'+fmt(r.batch_p90,2)+'</td><td class="num">'+fmt(r.all_mean,2)+'</td><td class="num">'+fmt(r.hist_mean,2)+'</td></tr>'});

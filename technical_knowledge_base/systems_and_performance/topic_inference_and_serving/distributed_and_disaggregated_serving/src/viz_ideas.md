@@ -38,3 +38,21 @@ A rule for simulated evidence about a mode the simulator has not been validated 
 | DD4, DD5 moved inline | sections 7, 5 | | lab tabs folded; tables closed |
 | DD6 moved into closed blocks | sections 4, 6 | | |
 Rejected: a prefix-routing before/after (the parent root draws it, section 9; LLM serving in production has a routing toy).
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+| Idea | Placement | Kind | Notes |
+|---|---|---|---|
+| Fig. 1: five splits on four GPUs, then the serving layer above | top | **3D stage**, 6 steps | replaces the static SVG hero; numbers from DDC |
+| Fig. 2: Dynamo's router weighing cache against load on three workers | section 2 | **3D stage**, 5 steps | one glass cell per KV block (125), A's 112 cached; loads illustrative as before; replaces the 2D slider chart (step 5 shows the 212-block crossover) |
+| Fig. 3a / 3b: one model on eight GPUs, cut across every layer / by depth | sections 3, 4 | **3D stages**, 5 and 4 steps | planner step times; two servers (NVLink inside, 400 Gb/s card between) as the last step of each |
+| Fig. 4: one decode step four ways | section 4 | 2D animation, 7 explained steps | the Gantt reads best flat; the two mode toggles became seven steps (layout x users) with a step list |
+| Fig. 5: one MoE layer, dispatch, combine, dual-batch overlap | section 5 | **3D stage**, 4 steps | replaces the static SVG; which experts a token picks is illustrative |
+| EP balance chart, EPLB stepper | section 5 | 2D chart; 2D widget | log axes and bars read flat; the EPLB stepper has dozens of decisions, so it is a widget opening on the finished plan (long-replay rule b) |
+| Fig. 6: a prompt at two busy GPUs, colocated against disaggregated, the cache crossing | section 6 | **3D stage**, 6 steps | DDC.pdanim and ex_xfer |
+| Fig. 7: the same arrival on a time axis, three settings | section 6 | 2D widget | 20 frames: a widget opening on the whole window (long-replay rule b); its live caption stays |
+| KV cache on the wire per link | section 6 | 2D widget | a table of numbers |
+| Goodput curves and bars | section 7 | 2D chart | curves against rate read flat |
+| Fig. 8: the serving-layer projects as layers of one stack | section 8 | **3D stage**, 5 steps | schematic; the "What each one adds" list became its step list |
+| Who-does-what grid | section 8, beside Choosing | 2D static | a matrix reads flat |
+| Memory to scale | section 1 | 2D static | bars to scale read flat |
+Rejected for 3D: the goodput curves, the EP load bars, the time axis of Fig. 7 (all axes of numbers). No photo: the page is about software and layouts; the hardware it runs on (an HGX server, an NVL72 rack, InfiniBand cabling) is photographed on Interconnects and scaling, which this page links.

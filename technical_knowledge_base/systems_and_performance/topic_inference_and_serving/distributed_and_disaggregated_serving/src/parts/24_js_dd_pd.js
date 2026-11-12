@@ -45,7 +45,8 @@
       RD.stat('Normal time per token',fmt(b0.tpot,1)+' ms',mode==='pd'?'64 users on one GPU':'32 users per GPU')+
       RD.stat('Busy GPU-time in this window',fmt(100*b0.g.reduce((a,l)=>a+l.reduce((s,q)=>s+Math.max(0,Math.min(q[1],TMAX)-q[0]),0),0)/(2*TMAX))+'%','of the two GPUs');
   }
-  const An=RD.anim({card:'dd-pdan-card',ctl:'dd-pdan-ctl',n:NS,draw,ms:550,label:'Time'});
-  RD.seg(document.getElementById('dd-pdan-mode'),m=>{mode=m;An.reset(NS)});
+  // a widget (the long-replay rule, case b): it never plays by itself and opens on the whole 760 ms window; a mode toggle shows that mode's whole window
+  const An=RD.anim({card:'dd-pdan-card',ctl:'dd-pdan-ctl',n:NS,draw,ms:550,label:'Time',auto:false,start:NS-1});
+  RD.seg(document.getElementById('dd-pdan-mode'),m=>{mode=m;An.reset(NS);An.go(NS-1,true)});
   RD.onResize(()=>An.redraw());
 })();

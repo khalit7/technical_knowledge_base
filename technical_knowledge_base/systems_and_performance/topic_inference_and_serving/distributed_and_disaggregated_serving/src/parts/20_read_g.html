@@ -1,9 +1,16 @@
-<section id="dd-s8">
+<div class="s3sp"><div class="s3R"><div id="stg-stack"></div></div><div class="s3L"><section id="dd-s8">
 <h2>8. The serving layer: Dynamo, llm-d, TensorRT-LLM, Triton, KServe, Ray Serve</h2>
 <p>An engine (vLLM, SGLang, TensorRT-LLM) runs a model on a fixed set of GPUs. Once there are many engines, something has to choose which engine gets each request, move caches between them, start and stop them, and hide all of it behind one API: the <dfn>serving layer</dfn>. The products sit at different heights in that stack, and their names are confusing, so first the map. Nothing in this section was run here: it is read from documentation and source, with dates.</p>
-<div class="dd-card" id="dd-stack-card"><h4>Who does what above the engines</h4>
-<div class="dd-svg" id="dd-stack"></div>
-<p class="small mute">Filled: the project does it itself. Ring: through another component it drives (an engine, or llm-d under KServe). Blank: not covered on this page. From each project's documentation, read 2026-10-09 and 2026-10-10.</p></div>
+<p class="small">Fig. 8 stacks the projects by how far above the GPUs they work; the table after it gives versions, and the who-does-what grid sits beside the Choosing table.</p>
+<ol class="sx" id="sx-stack">
+<li><b>Engines on GPUs.</b> At the bottom, an engine (vLLM, SGLang or TensorRT-LLM) runs one model on a fixed set of GPUs. <b>TensorRT-LLM</b> is NVIDIA's engine, PyTorch-based by default since 1.0, with continuous batching under the name in-flight batching and disaggregation with <code>trtllm-serve disaggregated</code>.</li>
+<li><b>Triton: one server, many back ends.</b> <b>Triton Inference Server</b> (renamed Dynamo-Triton; not OpenAI's Triton kernel language) is a general server for a zoo of frameworks behind one HTTP/gRPC endpoint. Its dynamic batcher groups whole requests and runs each batch to completion: <b>dynamic batching is not continuous batching</b>, so for LLMs it hands batching to its TensorRT-LLM or vLLM back end. It does not route across engines.</li>
+<li><b>Dynamo: a layer across engines.</b> <b>Dynamo</b> is the engine-agnostic, NVIDIA-led layer: a Rust front end, the KV-aware router of section 2, a planner that resizes the prefill and decode pools to meet latency targets, a KV block manager that offloads cache to host memory, disk and object storage, NIXL for transfers, and Grove for gang scheduling a prefill/decode group on Kubernetes.</li>
+<li><b>llm-d: the same jobs on Kubernetes.</b> <b>llm-d</b> is Kubernetes-first and built on vLLM, with tested recipes ("well-lit paths"); its router is an Endpoint Picker for the Gateway API Inference Extension that scores pods on prefix-cache match, queue depth, KV usage and predicted latency. <b>KServe</b> drives llm-d through an <code>LLMInferenceService</code> resource on Kubernetes.</li>
+<li><b>Ray Serve LLM: on a Ray cluster.</b> <b>Ray Serve LLM</b> runs vLLM engines on a Ray cluster with prefill/decode disaggregation and prefix-aware routers, next to training and data jobs.</li>
+</ol>
+</section></div></div>
+<section id="dd-s8b">
 <div class="tw"><table class="dd-tbl">
 <tr><th>Name</th><th>What it is</th><th>Runs on</th><th>Version (date)</th><th>Disaggregation</th><th>Routing</th></tr>
 <tr><td>TensorRT-LLM</td><td>NVIDIA's LLM engine, PyTorch-based since 1.0; <code>trtllm-serve</code> gives an OpenAI-compatible server</td><td>NVIDIA GPUs</td><td>v1.2.1 (2026-04-20); 1.3 and 1.4 in release candidates</td><td>yes, context and generation servers, cache over NIXL</td><td>round robin or KV-cache-aware in its disaggregated front end</td></tr>
@@ -16,14 +23,6 @@
 <p class="small mute">Versions and dates from each project's GitHub releases, read 2026-10-09 and 2026-10-10; TensorRT-LLM, Dynamo and llm-d read again 2026-10-26.</p>
 <p class="small">The Kubernetes objects underneath (LeaderWorkerSet for a replica that spans nodes, KServe's <code>LLMInferenceService</code>, the vLLM production stack) are set up, with what each one schedules, in section 11 of {{Kubernetes for ML|n:3c65c17b0d0d81cf9417de52108cfbce}}.</p>
 
-<h3>What each one adds</h3>
-<ul>
-<li><b>Dynamo</b>: the engine-agnostic, NVIDIA-led layer: a Rust front end, the KV-aware router of section 2, a planner that resizes the prefill and decode pools to meet latency targets, a KV block manager that offloads cache to host memory, disk and object storage, NIXL for transfers, and Grove for gang scheduling a prefill/decode group on Kubernetes.</li>
-<li><b>llm-d</b>: Kubernetes-first and built on vLLM; tested recipes ("well-lit paths"); its router is an Endpoint Picker for the Gateway API Inference Extension that scores pods on prefix-cache match, queue depth, KV usage and predicted latency.</li>
-<li><b>TensorRT-LLM</b>: NVIDIA's engine, PyTorch-based by default since 1.0; continuous batching under the name in-flight batching; disaggregation with <code>trtllm-serve disaggregated</code>.</li>
-<li><b>Triton Inference Server</b> (renamed Dynamo-Triton; not OpenAI's Triton kernel language): a general server for a zoo of frameworks. Its dynamic batcher groups whole requests and runs each batch to completion: <b>dynamic batching is not continuous batching</b>, so for LLMs it hands batching to its TensorRT-LLM or vLLM back end.</li>
-<li><b>KServe</b> drives llm-d through an <code>LLMInferenceService</code> resource on Kubernetes; <b>Ray Serve LLM</b> runs vLLM engines on a Ray cluster with prefill/decode disaggregation and prefix-aware routers.</li>
-</ul>
 <details class="dp"><summary>Each project in detail: parts, versions, history, quotes <span class="mute">(reference)</span></summary><div class="b">
 <h4>NVIDIA Dynamo</h4>
 <p>Announced at GTC on 2025-03-18 (first release v0.1.0 the same day), 1.0 on 2026-03-13, v1.6.0 on 2026-10-22, paired with vLLM v0.31.0, SGLang v0.5.21 and TensorRT-LLM v1.3.0rc29 ({{releases|https://github.com/ai-dynamo/dynamo/releases}}). The README calls it "the orchestration layer above inference engines": "it doesn't replace SGLang, TensorRT-LLM, or vLLM, it turns them into a coordinated multi-node inference system", "Built in Rust for performance, Python for extensibility" ({{README|https://github.com/ai-dynamo/dynamo}}). Its parts:</p>
@@ -57,6 +56,8 @@
 <p><b>TensorRT-LLM.</b> Its disaggregation blog, all on GB200: DeepSeek R1 at 4,400 in and 1,200 out gained 1.4 to 1.8 times, 1.6 to 2.5 times with multi-token prediction, "especially at lower concurrency levels"; Qwen 3 at 8,192 in and 1,024 out 1.7 to 6.11 times. <span class="vend">vendor</span></p>
 </div></details>
 
+</section>
+<div class="s3sp"><div class="s3L"><section id="dd-s8c">
 <h3>Choosing</h3>
 <div class="tw"><table class="dd-tbl">
 <tr><th>Situation</th><th>Start with</th><th>Why</th></tr>
@@ -68,4 +69,7 @@
 <tr><td>Python-first platform already on Ray</td><td>Ray Serve LLM</td><td>same cluster as training and data jobs</td></tr>
 </table></div>
 <p class="small">Adapted from the old version of this page and checked against each project's current documentation; it is advice, not a measurement.</p>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="dd-card" id="dd-stack-card"><h4>Who does what above the engines</h4>
+<div class="dd-svg" id="dd-stack"></div>
+<p class="small mute">Filled: the project does it itself. Ring: through another component it drives (an engine, or llm-d under KServe). Blank: not covered on this page. From each project's documentation, read 2026-10-09 and 2026-10-10.</p></div></div></div></div>

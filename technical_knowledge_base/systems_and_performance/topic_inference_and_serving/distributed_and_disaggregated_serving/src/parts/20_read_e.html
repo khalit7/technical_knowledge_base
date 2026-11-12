@@ -1,8 +1,18 @@
-<section id="dd-s6">
+<div class="s3sp"><div class="s3R"><div id="stg-pd"></div></div><div class="s3L"><section id="dd-s6">
 <h2>6. Splitting prefill from decode</h2>
 <p><b>The problem.</b> <dfn>Prefill</dfn> computes the whole prompt at once and is limited by compute; <dfn>decode</dfn> makes one token per user per step and is limited by memory bandwidth. In one engine they share every step, so a long prompt arriving makes every running user wait: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}} (section 5) measured one prompt freezing running streams for 2.66 s on llama-server with a 2,048-token chunk budget. Chunked prefill cuts the prompt into pieces and so trades long stalls for many shorter ones; it cannot remove them.</p>
-<p><b>The idea</b> of <dfn>disaggregated serving</dfn>: a request is prefilled on a prefill engine, which produces the first token and the request's whole KV cache; the cache is copied to a decode engine, which produces every later token. Decode engines never see a prompt, so their users never stall, and each pool gets its own parallelism and batch size. Predict before you step through it: when the prompt arrives, who pays, and what does the split cost instead?</p>
-<div class="dd-card" id="dd-pdan-card">
+<p><b>The idea</b> of <dfn>disaggregated serving</dfn>: a request is prefilled on a prefill engine, which produces the first token and the request's whole KV cache; the cache is copied to a decode engine, which produces every later token. Decode engines never see a prompt, so their users never stall, and each pool gets its own parallelism and batch size. Predict before it plays: when the prompt arrives, who pays, and what does the split cost instead?</p>
+<p class="small mute">Fig. 6: the running example on two H200s, 64 users mid-answer, no shared prefix; step lengths from the Capacity planner's roofline, one prompt only. <span class="der">derived</span></p>
+<ol class="sx" id="sx-pd">
+<li><b>Colocated: two engines, 64 users.</b> Each H200 runs a whole engine and decodes 32 users: every user gets a token every 27.3 ms.</li>
+<li><b>A prompt arrives.</b> A 2,000-token prompt lands on GPU A. It fits in one step's 8,192-token budget, so that step takes 430 ms, and GPU A's 32 users get no token until it ends.</li>
+<li><b>Split the roles.</b> Disaggregated, GPU A only prefills and GPU B only decodes, now for all 64 users: a token every 33.2 ms.</li>
+<li><b>Prefill builds the cache.</b> GPU A computes the prompt in 424 ms and, with it, the request's KV cache: 2,000 tokens &times; 320 KiB = 625 MiB across 80 layers.</li>
+<li><b>The cache crosses once.</b> The 625 MiB moves to GPU B: 13.1 ms over a 400 Gb/s card (NIXL over RDMA), 1.5 ms over NVLink; engines send it layer by layer while prefill is still running.</li>
+<li><b>Decode never pauses.</b> GPU B takes the new user as its 65th and keeps its rhythm; GPU A waits for the next prompt.</li>
+</ol>
+</section></div></div>
+<div class="s3sp"><div class="s3R"><div class="dd-card" id="dd-pdan-card">
 <h4>A 2,000-token prompt arrives at two busy GPUs: the split removes the pause and fills the decode GPU</h4>
 <div class="seg" id="dd-pdan-mode"><button class="on" data-m="co">Colocated, budget 8,192</button><button data-m="c512">Colocated, budget 512</button><button data-m="pd">Disaggregated</button></div>
 <div class="dd-svg" id="dd-pdan-svg"></div>
@@ -12,15 +22,21 @@
 <div class="an-cnt" id="dd-pdan-cnt"></div>
 <p class="small mute">Running example on H200s, 64 users mid-answer (32 per GPU when colocated), no shared prefix; each step's length from the Capacity planner's roofline. Illustrative arrival time; one prompt only. <span class="der">derived</span></p>
 </div>
+</div><div class="s3L"><section id="dd-s6b">
+<p>Fig. 7 lays the same arrival on a time axis, in three settings: colocated with vLLM's 8,192-token budget, colocated with the budget turned down to 512 (chunked prefill), and disaggregated. Pick a setting; the scrubber replays the 760 ms window.</p>
 <p>Read the counters together. Disaggregation removes the pause, and the new user even gets the first token sooner (no decode work rides in the prefill step), but the decode GPU now carries 64 users, so everyone's normal time per token rises from <span id="dd-s6-co"></span> to <span id="dd-s6-pd"></span> ms, and the prefill GPU sits idle between prompts. Whether that trade wins depends on the traffic and the targets: section 7.</p>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="dd-s6c">
 <h3>What moving the cache costs</h3>
 <p>The KV cache of one request is (prompt tokens) &times; (KV bytes per token; the sizing for any model is {{Long context|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}'s calculator). For the running example that is 2,000 &times; 320 KiB = <b><span id="dd-s6-mib"></span> MiB</b>, which takes <span id="dd-s6-ms"></span> ms over one 400 Gb/s network card at full speed (about 1.5 ms over NVLink), about 3% of the <span id="dd-s6-pre"></span> ms the prefill itself takes. Engines also send the cache layer by layer while prefill is still running, so most of the transfer hides behind compute. Move the prompt length: the transfer grows with the prompt like the prefill does, so its share stays small; on a slow link it does not.</p>
-<div class="dd-card" id="dd-kvx">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="dd-card" id="dd-kvx">
 <h4>One request's cache on the wire, per link</h4>
 <div class="dd-ctl"><label>Model <select id="dd-kvx-m"></select></label><label>Prompt <input type="range" id="dd-kvx-p" min="0" max="6" value="2"> <b id="dd-kvx-pv"></b></label></div>
 <div id="dd-kvx-out"></div>
 <p class="small mute">KV bytes per token from each model's config.json with the hardware root's calculator (BF16 cache; DeepSeek's MLA stores one compressed latent per layer, so its cache is 4.7 times smaller per token than the dense 70B's despite the larger model). Link speeds one direction: NVLink 4 from the H100's 900 GB/s both ways; PCIe 5.0 x16 as the planner uses; network cards at their line rate. Full speed assumed; real transfers reach less. <span class="der">derived</span></p>
-</div>
+</div></div></div></div>
+<section id="dd-s6d">
 <p><b>How the cache moves.</b> Every engine has a pluggable transport. vLLM v0.31.0 registers 17 <dfn>KV connectors</dfn>, among them NixlConnector (NVIDIA's NIXL library over RDMA or NVLink), MooncakeConnector, LMCacheConnectorV1, OffloadingConnector and ExampleConnector, which writes the cache to shared files ({{kv_connector/factory.py L153-246|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/distributed/kv_transfer/kv_connector/factory.py}}); its documentation still labels the feature experimental. Who starts the transfer matters. With the default NixlConnector the decode instance pulls: after prefill finishes it allocates blocks and reads the cache, and that setup sits on the time to first token. In push mode (NixlPushConnector) decode registers its destination blocks when it allocates them, before prefill ends, and prefill writes the cache straight into decode's memory. On Qwen3-32B with one prefill and one decode P5en instance over EFA, AWS measured the time to first token for 16k-token prompts at 8 queries per second fall from about 1,744 ms to 540 ms, and time per output token improve by up to 30% ({{AWS, Oct 19 2026|https://aws.amazon.com/blogs/machine-learning/push-based-kv-transfer-to-improve-ttft-and-tpot-for-disaggregated-inference-in-vllm/}}) <span class="vend">vendor</span>. It buys an earlier start and costs routing freedom: the router commits to a decode instance before prefill instead of choosing one by load afterwards. SGLang v0.5.21 offers six transfer backends with Mooncake the default and NIXL the other common one ({{arg_groups/choices.py L120-127|https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/arg_groups/choices.py}}); TensorRT-LLM's current documentation sends the cache over NIXL. <dfn>NIXL</dfn> (NVIDIA Inference Xfer Library) abstracts "various types of memory (e.g., CPU and GPU) and storage (e.g., file, block and object store)" behind one point-to-point API, with UCX, GPUDirect Storage, Mooncake, libfabric and object-store plug-ins; it runs on Linux only ({{README|https://github.com/ai-dynamo/nixl}}, v1.5.0, 2026-09-30).</p>
 <p><b>Ratio.</b> How many prefill GPUs per decode GPU? TensorRT-LLM's guide states the rule: choose the ratio so that "aggregated throughput of context servers matches the aggregated throughput of generation servers" ({{disaggregated serving blog|https://nvidia.github.io/TensorRT-LLM/blogs/tech_blog/blog5_Disaggregated_Serving_in_TensorRT-LLM.html}}). The right ratio moves with prompt and answer lengths; a ratio sized for chat strands GPUs when traffic turns to long documents, which is why Dynamo and llm-d add planners that resize the two pools as traffic changes (section 8).</p>
 <div class="ff" id="dd-pd-meas"></div>

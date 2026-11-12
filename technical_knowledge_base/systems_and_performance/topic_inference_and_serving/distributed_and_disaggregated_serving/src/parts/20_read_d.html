@@ -1,18 +1,25 @@
-<section id="dd-s5">
+<div class="s3sp"><div class="s3R"><div id="stg-ep"></div></div><div class="s3L"><section id="dd-s5">
 <h2>5. Expert parallelism at serve time: tokens fly to their experts</h2>
 <p>A <dfn>mixture-of-experts</dfn> (MoE) layer replaces the MLP with many smaller experts and a router that sends each token to a few of them (the layer itself, routing and its training-time balancing are on {{Mixture of experts|n:3fd5c17b0d0d81fda06bf955af7c2b58}}). DeepSeek-V3 (and R1) has 256 routed experts per MoE layer, picks 8 per token, and has 58 MoE layers: 671 billion parameters in all, 37.6 billion used per token as the hardware root's calculator counts them from the {{config.json|https://huggingface.co/deepseek-ai/DeepSeek-V3/blob/main/config.json}} (DeepSeek rounds to 671B and 37B). Most of the weights are experts, and any one token touches a few percent of them.</p>
 <p>At serve time each GPU gets a few experts, and the attention layers usually run data-parallel (section 2), each GPU attending over its own users. Every MoE layer then needs two <dfn>all-to-alls</dfn>: <em>dispatch</em> (each token's hidden state to its 8 experts' GPUs) and <em>combine</em> (the 8 results back).</p>
-<div class="dd-card" id="dd-ep-card"><h4>Attention stays home, tokens travel: one MoE layer under expert parallelism</h4>
-<div class="dd-svg" id="dd-ep"></div>
-<p class="small mute">Four GPUs drawn; DeepSeek's decode units use 144. One token on GPU 0 picks 8 experts; three of its trips are drawn. Dispatch carries the hidden state in FP8 (7,168 bytes per expert), combine brings the result back in BF16 (14,336 bytes). <span class="der">derived</span> from DeepSeek-V3's config.</p></div>
 <div class="fm"><div class="eq">bytes per token per MoE layer = k &times; hidden &times; (1 byte FP8 dispatch + 2 bytes BF16 combine)</div>
 <p class="small">DeepSeek-V3: 8 &times; 7,168 &times; 3 = <span id="dd-s5-pl"></span> per token per layer; over 58 MoE layers, <span id="dd-s5-pt"></span> per token, about twice what tensor parallelism moves for the dense 70B model. FP8 dispatch and BF16 combine are what DeepSeek uses ({{inference system overview|https://github.com/deepseek-ai/open-infra-index/blob/main/202502OpenSourceWeek/day_6_one_more_thing_deepseekV3R1_inference_system_overview.md}}). <span class="der">derived</span></p></div>
 <p>Unlike tensor parallelism, much of this traffic can be overlapped: while one micro-batch's tokens are in flight, another micro-batch computes (DeepSeek's "dual-batch overlap"). That is why expert parallelism can cross servers where tensor parallelism cannot, and why it has its own communication libraries. DeepEP, DeepSeek's, had "normal" kernels for prefill (large batches, bandwidth-bound) and "low-latency" kernels for decode (pure RDMA); on H800s with 400 Gb/s cards its v1 README reported dispatch of 128 tokens in 77 &micro;s at EP 8 and 194 &micro;s at EP 256 ({{DeepEP v1.2.1 README|https://github.com/deepseek-ai/DeepEP/blob/v1.2.1/README.md}}, 2025-09-16, vendor; the current README is a rewrite, "V2.5", without these tables). vLLM exposes the same split as <code>--all2all-backend deepep_high_throughput</code> or <code>deepep_low_latency</code> ({{config/parallel.py L44-56|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/parallel.py}}).</p>
 
+<p class="small mute">Fig. 5: four GPUs drawn; DeepSeek's decode units use 144. One token on GPU 0 picks 8 experts; three of its trips are drawn. Dispatch carries the hidden state in FP8 (7,168 bytes per expert), combine brings the result back in BF16 (14,336 bytes). <span class="der">derived</span> from DeepSeek-V3's config.</p>
+<ol class="sx" id="sx-ep">
+<li><b>Attention stays home.</b> Each GPU runs attention, data-parallel, over its own users with their own KV cache; the 256 routed experts of each MoE layer are spread over the GPUs, 64 each when four are drawn.</li>
+<li><b>Dispatch.</b> A token on GPU 0 picks its 8 experts; its hidden state travels in FP8, 7,168 bytes to each chosen expert, most of them on other GPUs.</li>
+<li><b>Combine.</b> Each expert's result comes back in BF16, 14,336 bytes, and the eight are summed on GPU 0: 172,032 bytes per token per MoE layer, 9.98 MB per token over 58 layers.</li>
+<li><b>Hide it behind compute.</b> Two micro-batches take turns: while one's tokens are in flight to their experts, the other computes attention (DeepSeek's dual-batch overlap). This is why expert parallelism can cross servers where tensor parallelism cannot.</li>
+</ol>
+</section></div></div>
+<div class="s3sp"><div class="s3L"><section id="dd-s5b">
 <h3>The catch: the busiest GPU sets the pace</h3>
 <p>The router decides where tokens go, not the scheduler, and some experts are far more popular than others. Every GPU must finish its experts before the combine, so a step lasts as long as the most loaded GPU. Measured here on a real MoE (IBM's Granite 3.1 1B-A400M, 32 experts, 8 per token, on WikiText-2): <span id="dd-s5-imb"></span></p>
 <p><dfn>Redundant experts</dfn> are the fix DeepSeek published: copy the hottest experts onto extra slots and pack the copies so every GPU carries about the same load. Their {{EPLB|https://github.com/deepseek-ai/EPLB}} (Expert Parallelism Load Balancer) does it greedily from recent load statistics: replicate whichever expert has the highest load per copy until the slots run out, then fill GPUs heaviest-first. A hierarchical variant first balances groups of experts across servers (for prefill), a global one ignores groups (for decode). vLLM turns it on with <code>--enable-eplb</code>. The chart replays the real router's choices on 4 or 8 simulated GPUs; the balancer plans on the first half of the text (the <b>history</b>) and is judged on unseen batches from the second half (the <b>traffic</b>). Predict first: on one unseen 512-token batch, does EPLB still bring the busiest GPU close to the mean?</p>
-<div class="dd-card" id="dd-ep-lab"><h4>Default placement against EPLB, judged on traffic the balancer never saw</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="dd-card" id="dd-ep-lab"><h4>Default placement against EPLB, judged on traffic the balancer never saw</h4>
 <div class="ep-ctl">
 <label>GPUs <select id="ep-g"><option value="4">4</option><option value="8" selected>8</option></select></label>
 <label>Redundant experts <select id="ep-r"></select></label>
@@ -24,12 +31,9 @@
 <div class="ep-res" id="ep-res"></div>
 <p class="small" id="ep-say"></p>
 <p class="small mute">Averaged over all 24 layers and every unseen 512-token batch on 8 GPUs, the busiest GPU carries 1.52 times the mean load with the default placement, 1.22 with EPLB packing alone and 1.17 with 16 redundant experts: balance planned on history helps, but small batches stay uneven. <span class="meas">measured here</span></p>
-</div>
-<div class="dd-card" id="ep-an-card"><h4>How EPLB decides: copies to the hottest experts, then heaviest copy to the lightest GPU</h4>
-<div class="ep-plot" id="ep-an"></div>
-<div class="an-ctl" id="ep-an-ctl"></div>
-<div class="an-cap" id="ep-an-cap"></div>
-<p class="small mute">EPLB's global policy on the chosen layer's history, one decision per step, with the GPUs and redundant experts chosen above.</p></div>
+</div></div></div></div>
+<div class="s3sp"><div class="s3L"><section id="dd-s5c">
+<p>How EPLB reaches its placement, one decision at a time, on the history of the layer chosen above with its GPUs and redundant experts: each spare slot first goes to the expert with the most load per copy, then every copy is placed, heaviest first, on the lightest GPU that still has a free slot. The stepper opens on the finished plan; step back or drag the scrubber to watch it being built.</p>
 <details class="dp"><summary>The routing data, and every layer under every setting <span class="mute">(measured here)</span></summary><div class="b">
 <p class="small" id="ep-data"></p>
 <div class="tw"><table class="ep-tbl" id="ep-tbl"></table></div>
@@ -37,6 +41,13 @@
 <p class="small">The {{DeepSeek page|n:3c65c17b0d0d81a2ae7ec6796947a235}} steps through EPLB's README example on toy numbers; this one runs the unchanged code on measured routing.</p>
 </div></details>
 
+</section></div>
+<div class="s3R"><div class="s3side"><div class="dd-card" id="ep-an-card"><h4>How EPLB decides: copies to the hottest experts, then heaviest copy to the lightest GPU</h4>
+<div class="ep-plot" id="ep-an"></div>
+<div class="an-ctl" id="ep-an-ctl"></div>
+<div class="an-cap" id="ep-an-cap"></div>
+<p class="small mute">EPLB's global policy on the chosen layer's history, one decision per step, with the GPUs and redundant experts chosen above.</p></div></div></div></div>
+<section id="dd-s5d">
 <h3>What a production deployment looks like</h3>
 <p>DeepSeek's own V3/R1 service, as of February 2025 <span class="vend">vendor</span>: prefill units of 4 servers (32 H800s, expert parallelism 32, each GPU holding 9 routed experts and 1 shared expert, with 32 redundant experts) and decode units of 18 servers (144 GPUs, expert parallelism 144, 2 routed experts and 1 shared expert per GPU), so prefill and decode are also disaggregated (section 6). DeepSeek has since released the engine itself: {{DeepInfer|https://github.com/deepseek-ai/DeepInfer}} (Apache 2.0, October 2026) is the offline-inference release of "the high-performance inference framework that powers DeepSeek's large-scale production services", originally built mostly on vLLM, and it serves one model, DeepSeek-V4.1-Flash, on NVIDIA SM100 (Blackwell) and Huawei Ascend 950. Its layout is this section's: data-parallel attention with balanced context parallelism, experts spread by expert parallelism and balanced by EPLB, on DeepSeek's FlashMLA, DeepGEMM and DeepEP kernels. What it withholds is everything above one engine: the KV cache system, prefill/decode disaggregation and load balancing across replicas are not in the release, so whoever serves it at scale still builds sections 2, 6 and 8 themselves. Its README gives no throughput in text, only Pareto charts (prefill on 4 SM100 GPUs, decode on 64). The open re-creations of this layout (SGLang on 96 H100s, llm-d's wide-EP path, TensorRT-LLM's wide-EP on GB200 NVL72) are on {{SGLang|n:3c65c17b0d0d81e691e4ce9f9b5d1fad}} (section 9, with its two-batch overlap, vendor figures) and in section 8. TensorRT-LLM's team adds a caution: "if the MoE GroupGEMM computation is not the bottleneck, then large-scale EP may not help much" ({{wide-EP blog, part 1|https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/blogs/tech_blog/blog04_Scaling_Expert_Parallelism_in_TensorRT-LLM.md}}, vendor).</p>
 <details class="dp"><summary>DeepSeek's reported throughput and margin, and the slot check <span class="mute">(vendor, derived)</span></summary><div class="b">

@@ -56,3 +56,54 @@ Why 31 minutes is right: the page teaches five distinct ways to spread serving, 
 
 ## Ledger (`ledger.json`, `python3 html_utils/ledger.py check`: problems 0)
 347 units: core 228, depth 86, fat 30, owned 3 (Megatron's column/row split and head division, at Distributed Training). 340 drafted by `ledger.py init` from the 2026-10-19 build; 7 added by hand for the new figures and the script-rendered section 7 table.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js`, `99_js_tabs.js` (key `dd-tab`), `05z_errbox.js.html`. The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. No new runs and no change to `recompute.py`, `gen_data.py` or the data: every scene draws from `window.DDC` (planner numbers), and its step-list numbers are checked against it.
+
+New parts: `40_js_sc_00lib.js` (shared GPU board, labels, the fade rule), `40_js_sc_hero.js` (Fig. 1), `41_js_sc_rt.js` (Fig. 2), `42_js_sc_tp.js` (Figs. 3a and 3b), `43_js_sc_ep.js` (Fig. 5), `44_js_sc_pd.js` (Fig. 6), `45_js_sc_stack.js` (Fig. 8). Removed from `23_js_dd_figs.js`: the SVG hero, the router slider chart and the EP layer drawing (each replaced by a stage). `23_js_dd_split.js`: the four-way decode step is now seven explained steps (layout x users) with `#sx-split`, its two mode toggles and caption gone. `24_js_dd_pd.js` (Fig. 7) and the EPLB stepper in `32_js_ep.js` are widgets (`auto:false`, opening on their last frame): long replays whose outcome the reader drives.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | Top (core idea, Fig. 1) | split | **3D** `stg-hero`: five splits on four GPUs, then the serving layer | yes, 6 |
+| Reading | You need, terms, running example, five-splits table (closed) | full width | none | no |
+| Reading | 1 Why one GPU stops being enough | split | 2D memory to scale | no |
+| Reading | 2 Replicas, routing | split | **3D** `stg-rt`: Dynamo's cost on three workers (loads illustrative) | yes, 5 |
+| Reading | 2 How to check, DP attention | full width | none | no |
+| Reading | 3 Tensor parallel | split | **3D** `stg-tp`: 80 layers cut across 8 GPUs, all-reduces, time bars, two servers | yes, 5 |
+| Reading | 4 Pipeline parallel | split | **3D** `stg-pp`: 8 stages, one user, 8 micro-batches, PP 2 across servers | yes, 4 |
+| Reading | 4 One decode step, four layouts | split | 2D animation (Fig. 4), autoplays | yes, 7 |
+| Reading | 4 Laptop runs (closed) | full width | tables | no |
+| Reading | 5 Expert parallel | split | **3D** `stg-ep`: attention home, dispatch, combine, overlap | yes, 4 |
+| Reading | 5 The catch, EPLB | split | 2D chart (measured routing) | no |
+| Reading | 5 How EPLB decides | split | 2D widget (EPLB stepper, opens on the plan) | no |
+| Reading | 5 Production deployment | full width | none | no |
+| Reading | 6 Splitting prefill from decode | split | **3D** `stg-pd`: colocated, stall, split, cache built and moved | yes, 6 |
+| Reading | 6 Same arrival on a time axis | split | 2D widget (Fig. 7, three settings, live caption) | no |
+| Reading | 6 What moving the cache costs | split | 2D calculator (cache per link) | no |
+| Reading | 6 How the cache moves, ratio, laptop runs | full width | none, closed tables | no |
+| Reading | 7 Goodput, DistServe example | full width | stat boxes | no |
+| Reading | 7 The running example, simulated | split | 2D curves and bars | no |
+| Reading | 7 Method, published claims | full width | closed tables | no |
+| Reading | 8 Serving layer | split | **3D** `stg-stack`: engines, Triton, Dynamo, llm-d with KServe, Ray Serve LLM | yes, 5 |
+| Reading | 8 Versions table, claims | full width | table | no |
+| Reading | 8 Choosing | split | 2D who-does-what grid | no |
+| Reading | 9 Choosing a layout, Depth | full width | table, closed blocks | no |
+| Further reading | | unchanged | | |
+
+Kept 2D and why: memory bars, goodput curves, EP load bars, the per-link cache table and the who-does-what grid are numbers on axes or matrices and read best flat; Fig. 4 is a Gantt chart. The "What each one adds" list of section 8 was merged into Fig. 8's step list (same facts, said once).
+
+### Length judgement
+| | Before (2026-11-12, audit) | After |
+|---|---|---|
+| Reading, core (230 words a minute) | 7,456 words, 32 min | 9,027 words, 39 min |
+| Reading, closed details | 4,762 words, 21 min | 4,762 words, 21 min |
+| Further reading | 769 words, 3 min | 769 words, 3 min |
+| Visuals in Reading (audit count) | 11 | 15 (7 of them 3D stages) |
+
+The 1,570 extra core words are the eight step lists (seven stages and Fig. 4) plus one caption sentence per stage; nothing was cut except the duplicated "What each one adds" list. Each list carries the planner's numbers for its step, which the prose before stated only in part. If the page must shrink: the hero list could lose its section pointers, and the Fig. 4 list could drop the 64-user replicas step (the PP step repeats its numbers).
+
+### Knowledge ledger
+357 units: core 235, depth 86, fat 31, owned 3, volatile 2 (`ledger.py check`: problems 0). Three keys reworded (59, 115, 344: the old mode buttons and two captions); five units added for the stages (section "added 2026-11-12"). The root's ledger still finds every unit it keys on this page (problems 0).
+
+### Checks (2026-11-12)
+`check_data.py` (OK), `check_ui.mjs` (664 controls at 390 dark and 920 light, 0 errors), `checkpage.sh` (fail=0, emdash 0, errbox 1, clipped 0), `check_stages.mjs` (new: autoplay, reduced motion, off-screen redraws, step counts, label overlaps at 1400 px, splits, and every step-list number against `window.DDC`).
