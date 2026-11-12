@@ -46,14 +46,14 @@
     $('map-d-lossd').textContent=door==='ddp'?'rank 0; each rank had its own batch, so only step 1 matches the plain loop':(L.every((x,j)=>x===P[j])?'identical to the plain loop':'differs from the plain loop');
     $('map-d-cap').innerHTML=cap(i,fr);
   }
-  function setDoor(d){door=d;$('map-door-seg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.d===d));ctl.reset(frames().length,M.RM?frames().length-1:0)}
+  function setDoor(d){door=d;$('map-door-seg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.d===d));ctl.reset(frames().length,frames().length-1)}   // a widget: opens on the whole stack, plays only when asked
   function init(){
     $('map-door-seg').innerHTML=DOORS.map(([k,t])=>'<button data-d="'+k+'"'+(k===door?' class="on"':'')+'>'+t+'</button>').join('');
     $('map-door-seg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){setDoor(b.dataset.d)}});
     $('map-door-what').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;what=b.dataset.w;
       $('map-door-what').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));setDoor(door)});
     ctl=M.anim({card:'map-d-stack',n:frames().length,draw,ms:650,play:'map-d-play',back:'map-d-back',fwd:'map-d-fwd',scrub:'map-d-scrub',speed:'map-d-speed'});
-    ctl.reset(frames().length,M.RM?frames().length-1:0);
+    ctl.reset(frames().length,frames().length-1);
     const h=D.checks.defaults.hf_trainer,p=D.checks.defaults.lightning;
     $('map-def-hf').innerHTML='<code>max_grad_norm='+h.max_grad_norm+'</code> (gradient clipping on), <code>learning_rate='+h.learning_rate+'</code> with a <code>'+M.esc(h.lr_scheduler_type)+'</code> schedule, <code>optim="'+M.esc(h.optim)+'"</code> and <code>seed='+h.seed+'</code>; the run replaced the optimizer and scheduler, set <code>max_grad_norm=0</code> and read batches in order';
     $('map-def-pl').innerHTML='<code>gradient_clip_val='+p.gradient_clip_val+'</code>, <code>precision="'+M.esc(p.precision)+'"</code>, <code>accumulate_grad_batches='+p.accumulate_grad_batches+'</code>';

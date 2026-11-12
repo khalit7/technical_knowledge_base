@@ -126,9 +126,9 @@ window.DST_DERIVE={srcLocal,dstLocal};
       J.stat('Loss (4 micro-batches)',(R0[1].losses.reduce((s,x)=>s+x,0)/R0[1].losses.length).toFixed(5),'mean; one process: '+PP[cur].ref_loss.toFixed(5));
     const e=evs[i];$('dst-pp-cap').innerHTML=e?'<b>Rank '+e[1]+': '+(e[2][0]==='F'?'forward':'backward')+' of micro-batch '+e[2][1]+'.</b> '+
       (e[2][0]==='F'&&e[1]===0?'Its output activations (2 &times; 64 &times; 256 floats) are sent to rank 1.':e[2][0]==='F'?'Received from rank 0; at the end the loss is computed here.':e[1]===1?'The gradient of its input is sent back to rank 0.':'Rank 0 finishes this micro-batch and frees its activations.'):'';}
-  const an=RD.anim({card:'dst-pp',ctl:'dst-pp-ctl',n:evs.length,ms:900,draw:draw,label:'Action'});
+  const an=RD.anim({card:'dst-pp',ctl:'dst-pp-ctl',n:evs.length,ms:900,draw:draw,label:'Action',auto:false,start:evs.length-1});   // a long replay (every F and B of the schedule): a widget that opens on the finished schedule and never plays by itself
   J.onR(()=>an.redraw());
-  J.seg($('dst-pp-seg'),[['gpipe','GPipe'],['1f1b','1F1B']],cur,m=>{cur=m;S=schedule(cur);flat();an.reset(evs.length)});
+  J.seg($('dst-pp-seg'),[['gpipe','GPipe'],['1f1b','1F1B']],cur,m=>{cur=m;S=schedule(cur);flat();an.reset(evs.length);an.go(evs.length-1,true)});
   const r0=PP.gpipe.ranks[0];$('dst-pp-tb').textContent=r0.tied_before.toFixed(3);$('dst-pp-ta').textContent=r0.tied_after.toExponential(1);
 })();
 

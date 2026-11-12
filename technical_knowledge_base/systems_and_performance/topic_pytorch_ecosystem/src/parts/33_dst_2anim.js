@@ -82,11 +82,11 @@ $('dst-an-next').addEventListener('click',()=>{stop();const n=evTimes().find(x=>
 $('dst-an-back').addEventListener('click',()=>{stop();const p=evTimes().filter(x=>x<t-1e-6);t=p.length?p[p.length-1]:0;draw()});
 $('dst-an-scrub').addEventListener('input',e=>{stop();t=+e.target.value/1000*TMAX;draw()});
 $('dst-an-speed').addEventListener('change',e=>{spd=+e.target.value});
-J.seg($('dst-an-seg'),[['ddp','DDP'],['fsdp','FSDP2'],['nr','FSDP2, no reshard after forward']],cur,m=>{stop();cur=m;t=0;draw()});
+J.seg($('dst-an-seg'),[['ddp','DDP'],['fsdp','FSDP2'],['nr','FSDP2, no reshard after forward']],cur,m=>{stop();cur=m;t=MODES[cur].ranks[0].t.opt1;draw()});
 let started=false;
-// nothing plays until the reader presses Play (2026-10-23)
+// a widget the reader drives (rollout rule 3b, 2026-11-12): it opens on the finished step, so every collective is on screen, and plays only when asked
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
-J.onR(draw);draw();
+t=MODES[cur].ranks[0].t.opt1;J.onR(draw);draw();
 
 // ---------- bytes per step ----------
 (function(){

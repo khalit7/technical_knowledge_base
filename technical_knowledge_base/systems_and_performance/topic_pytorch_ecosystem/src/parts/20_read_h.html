@@ -1,18 +1,14 @@
 <section id="rd-s7">
 <h2>7. Distributed: the same program in several processes</h2>
+<div class="s3sp"><div class="s3L">
 <p>Distributed PyTorch runs <b>one copy of your script per device</b>. <code>torchrun --nproc_per_node 8 train.py</code> starts 8 processes, each with a <dfn>rank</dfn> (0 to 7) and the <dfn>world size</dfn> (8); <code>torch.distributed.init_process_group</code> connects them through <dfn>c10d</dfn>, using <dfn>NCCL</dfn> between NVIDIA GPUs or <dfn>gloo</dfn> on CPUs. They cooperate only through <dfn>collectives</dfn>: <dfn>all-reduce</dfn> (everyone ends with the sum), <dfn>all-gather</dfn> (everyone ends with everyone's pieces), <dfn>reduce-scatter</dfn> (sum, then each keeps one piece), <dfn>broadcast</dfn>. The rule that explains every hang: <b>all ranks must call the same collectives, with the same shapes, in the same order</b>. Why each scheme saves memory, and what it sends at scale, is {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}; what follows is what PyTorch's APIs do, recorded by the flight recorder on 2 and 4 CPU processes <span class="meas">measured on Apple M1 Pro, CPU, gloo</span> ({{Distributed lab|#t-dist}}).</p>
 <p><dfn>DDP</dfn> keeps a full copy of the model on every rank and averages gradients with all-reduces during backward, grouped into buckets so communication overlaps the rest of backward. <dfn>FSDP2</dfn> (<code>fully_shard</code>) splits every parameter across ranks, gathers a block's full weights just before using it, frees them after, and reduce-scatters gradients so each rank keeps only its part.</p>
-<div class="rd-card" id="rd-dst-card">
-<h4>DDP against FSDP2 on the same step: what each rank holds, and every collective it calls</h4>
-<div class="seg" id="rd-dst-seg"><button class="on" data-m="ddp">DDP</button><button data-m="fsdp">FSDP2</button></div>
-<div id="rd-dst-ranks" class="rd-two"></div>
-<div class="an-cap" id="rd-dst-cap"></div>
-<div class="an-cnt" id="rd-dst-cnt"></div>
-<div class="an-ctl" id="rd-dst-ctl"></div>
-<p class="small mute">Rank 0's flight-recorder entries for the second step (step 1) of the running example at world size 2, <span class="meas">measured on Apple M1 Pro, CPU, gloo</span>; bars show each parameter group's share held by the rank, gathered weights lighter. DDP's step 1 all-reduces 1,051,648 B, then 11,696,128 B (its first step uses one bucket; {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}, section 3, steps both); FSDP2 makes 14 collectives. Both give the same losses, 3.80137, 3.09551, 3.16247.</p>
-</div>
+<p>{{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}} draws both on the running example: its {{Fig. 1|n:3c65c17b0d0d815e85aff8decd8f35ab#stg-hero}} shows what each rank holds under DDP, FSDP2, tensor and pipeline parallelism, {{Fig. 2|n:3c65c17b0d0d815e85aff8decd8f35ab#stg-ddp}} steps DDP's buckets through one recorded backward and {{Fig. 3|n:3c65c17b0d0d815e85aff8decd8f35ab#stg-fsdp}} one FSDP2 step on 4 ranks. Recorded here, rank 0's flight-recorder entries for the second step (step 1) at world size 2 <span class="meas">measured on Apple M1 Pro, CPU, gloo</span>: DDP's step 1 all-reduces 1,051,648 B, then 11,696,128 B (its first step uses one bucket; Distributed PyTorch, section 3, steps both); FSDP2 makes 14 collectives. Both give the same losses, 3.80137, 3.09551, 3.16247.</p>
+</div><div class="s3R"><div class="s3side"><div class="rd-card" id="rd-dst-mcard">
+<h4>Fig. 4 · peak memory per rank, DDP against FSDP2</h4>
 <div class="bars" id="rd-dst-mem"></div>
 <p class="small mute">Peak memory per rank = weights + AdamW state + DDP's gradient buckets + the step's peak of activations and temporaries <span class="meas">measured on Apple M1 Pro, CPU</span> ({{Distributed lab|#t-dist}}, section 6). On the tiny model activations dominate, so sharding saves less than the ratio of ranks; on the 25.3M-parameter variant, with 303 MB of weights and AdamW state per DDP rank, FSDP2 on 4 ranks cuts the peak from 548 MB to 249 MB.</p>
+</div></div></div></div>
 <p><b>One vocabulary for every split.</b> A <dfn>DeviceMesh</dfn> arranges ranks as a grid; a <dfn>DTensor</dfn> is a tensor plus a mesh plus one <dfn>placement</dfn> per mesh dimension, and changing placement is a collective. That is why DDP, FSDP2 and tensor parallelism read as one table:</p>
 <div class="tw"><table class="rd-tbl"><thead><tr><th>From</th><th>To</th><th>Collective</th><th>Where you meet it</th></tr></thead><tbody>
 <tr><td>Shard(0)</td><td>Replicate()</td><td>all-gather</td><td>FSDP2 gathering a block's weights</td></tr>

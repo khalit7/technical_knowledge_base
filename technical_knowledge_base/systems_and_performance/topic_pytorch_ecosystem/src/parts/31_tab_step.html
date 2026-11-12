@@ -67,8 +67,7 @@
 </section>
 <section id="stp-s3">
 <h2>3. Step through it: 923 calls, one at a time</h2>
-<p>Forward runs the model and, because the parameters require gradients, autograd records a <b>node</b> for every differentiable op: a small object that knows how to compute that op's gradient and which tensors it must keep (<b>saved tensors</b>). Backward walks those nodes from the loss back to the parameters. The optimizer then updates every parameter. Below is every call that reached the dispatcher, in order. The stack beside the call (below it on a phone) is the route it took through the dispatcher; the chart is the memory this step holds on top of the 38.25 MB that sits there all the time (12.75 MB of parameters, 25.5 MB of AdamW state, 8 KB of batch).</p>
-<div class="card" id="stp-run">
+<div class="s3sp"><div class="s3R"><div class="card" id="stp-run">
 <div class="stp-ctl"><span class="seg" id="stp-run-ph"><button data-m="0" class="on">Forward</button><button data-m="1">Backward</button><button data-m="2">Optimizer</button></span>
 <label class="small"><input type="checkbox" id="stp-run-skipv"> skip views</label></div>
 <div class="stp-ctl" id="stp-run-ctl"></div>
@@ -85,7 +84,9 @@
 <div class="stp-leg"><span><i style="background:var(--c1)"></i>forward</span><span><i style="background:var(--c2)"></i>backward</span><span><i style="background:var(--c3)"></i>optimizer</span><span>height: live bytes above the 38.25 MB base, after each call</span></div>
 <div class="stp-plot" id="stp-run-g"></div>
 <div class="stp-leg"><span><i style="background:var(--c1)"></i>node recorded, keeps saved activations</span><span><i style="background:var(--c6)"></i>node recorded, keeps nothing new</span><span><i style="background:var(--c2)"></i>backward has run it (saved tensors freed)</span><span><i style="border:1.5px solid var(--c5);background:none"></i>current</span><span>&#9670; AccumulateGrad: writes a parameter's .grad</span></div>
-</div>
+</div></div><div class="s3L">
+<p>Forward runs the model and, because the parameters require gradients, autograd records a <b>node</b> for every differentiable op: a small object that knows how to compute that op's gradient and which tensors it must keep (<b>saved tensors</b>). Backward walks those nodes from the loss back to the parameters. The optimizer then updates every parameter. Below is every call that reached the dispatcher, in order. The stack beside the call (below it on a phone) is the route it took through the dispatcher; the chart is the memory this step holds on top of the 38.25 MB that sits there all the time (12.75 MB of parameters, 25.5 MB of AdamW state, 8 KB of batch).</p>
+</div></div>
 </section>
 <section id="stp-s4">
 <h2>4. The graph, and what it keeps</h2>
@@ -96,9 +97,7 @@
 </section>
 <section id="stp-s5">
 <h2>5. Before and after: the same step with activation checkpointing</h2>
-<p><b>Activation checkpointing</b> (<code>torch.utils.checkpoint.checkpoint(block, x, use_reentrant=False)</code>, here around each of the 4 blocks) tells autograd not to keep a block's intermediate tensors. Forward keeps only each block's input. In backward, when a node inside the block needs a tensor it did not keep, PyTorch reruns the block's forward to rebuild it, then carries on. The trade: memory for compute. Watch the same step both ways, drawn to the same scale.</p>
-<p class="small">Pass <code>use_reentrant=False</code> explicitly. At 2.14.1 a call that leaves it out still runs the older reentrant variant and only warns (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/checkpoint.py#L635-L647" target="_blank" rel="noopener noreferrer">checkpoint.py L635 to L647</a>); on this step that variant recomputed all 16 block matrix multiplies instead of 12 ({{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, section 3.6).</p>
-<div class="card" id="stp-ck">
+<div class="s3sp"><div class="s3R"><div class="card" id="stp-ck">
 <div class="stp-ctl"><span class="seg" id="stp-ck-m"><button data-m="both" class="on">Both</button><button data-m="plain">Plain</button><button data-m="ckpt">Checkpointed</button></span></div>
 <div class="stp-ctl" id="stp-ck-ctl"></div>
 <div class="stp-plot" id="stp-ck-p"></div>
@@ -106,34 +105,39 @@
 <div class="stp-st" id="stp-ck-st"></div>
 </div>
 <p class="small mute" id="stp-ck-src"></p>
+</div><div class="s3L">
+<p><b>Activation checkpointing</b> (<code>torch.utils.checkpoint.checkpoint(block, x, use_reentrant=False)</code>, here around each of the 4 blocks) tells autograd not to keep a block's intermediate tensors. Forward keeps only each block's input. In backward, when a node inside the block needs a tensor it did not keep, PyTorch reruns the block's forward to rebuild it, then carries on. The trade: memory for compute. Watch the same step both ways, drawn to the same scale.</p>
+<p class="small">Pass <code>use_reentrant=False</code> explicitly. At 2.14.1 a call that leaves it out still runs the older reentrant variant and only warns (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/checkpoint.py#L635-L647" target="_blank" rel="noopener noreferrer">checkpoint.py L635 to L647</a>); on this step that variant recomputed all 16 block matrix multiplies instead of 12 ({{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}, section 3.6).</p>
 <div class="card" id="stp-pq2">
 <p><b>Predict.</b> With checkpointing, backward reruns each block's forward. Each block's forward has 4 <code>addmm</code> calls. How many <code>addmm</code> calls does the checkpointed backward make?</p>
 <div class="chips" id="stp-pq2-c"><button data-a="0">0</button><button data-a="1">12</button><button data-a="2">16</button><button data-a="3">32</button></div>
 <div class="stp-reveal co key" id="stp-pq2-r" hidden></div>
 </div>
+</div></div>
 </section>
 <section id="stp-s6">
 <h2>6. Before and after: the same forward with gradients off</h2>
-<p>For evaluation and generation you do not need a graph. Two switches turn it off. <code>torch.no_grad()</code> sets grad mode off: every call still enters the autograd kernel, which sees there is nothing to record and passes the call on. <code>torch.inference_mode()</code> goes further: it removes the autograd and <code>ADInplaceOrView</code> keys for the thread, so calls skip those layers entirely, and tensors created inside are <b>inference tensors</b> with no version counter (using one later in autograd raises an error). Same weights, same batch, three ways:</p>
-<div class="card" id="stp-ng">
+<div class="s3sp"><div class="s3R"><div class="card" id="stp-ng">
 <div class="stp-ctl" id="stp-ng-ctl"></div>
 <div class="stp-plot" id="stp-ng-p"></div>
 <div class="stp-cap" id="stp-ng-cap"></div>
 <div class="stp-st" id="stp-ng-st"></div>
-</div>
+</div></div><div class="s3L">
+<p>For evaluation and generation you do not need a graph. Two switches turn it off. <code>torch.no_grad()</code> sets grad mode off: every call still enters the autograd kernel, which sees there is nothing to record and passes the call on. <code>torch.inference_mode()</code> goes further: it removes the autograd and <code>ADInplaceOrView</code> keys for the thread, so calls skip those layers entirely, and tensors created inside are <b>inference tensors</b> with no version counter (using one later in autograd raises an error). Same weights, same batch, three ways:</p>
 <div class="co"><div class="t">Why the inference-mode trace has fewer calls</div><span id="stp-ng-why"></span></div>
+</div></div>
 </section>
 <section id="stp-s7">
 <h2>7. Where the time goes</h2>
-<p>Wall time per phase, with <code>.item()</code>-free timing: on MPS each phase ends with <code>torch.mps.synchronize()</code>, because MPS (like CUDA) queues work and returns before it is done. <span id="stp-t-meta"></span></p>
-<div class="card"><div class="bars" id="stp-t-bars"></div></div>
+<div class="s3sp"><div class="s3L"><p>Wall time per phase, with <code>.item()</code>-free timing: on MPS each phase ends with <code>torch.mps.synchronize()</code>, because MPS (like CUDA) queues work and returns before it is done. <span id="stp-t-meta"></span></p>
 <p>Inside one profiled CPU step (<code>torch.profiler</code>, self time per ATen op), the biggest items:</p>
-<div class="card"><div class="tw"><table class="stp-tbl" id="stp-t-prof"></table></div><p class="small mute" id="stp-t-pn"></p></div>
 <div class="card" id="stp-pq3">
 <p><b>Predict.</b> The optimizer phase is about a quarter of the CPU step. AdamW has three implementations: a Python loop over parameters (what PyTorch picked here), <code>foreach</code> (one call per operation over the list of all parameters) and <code>fused</code> (one kernel doing the whole update). Which is fastest on the M1 Pro CPU, and by how much?</p>
 <div class="chips" id="stp-pq3-c"><button data-a="0">foreach, about 2&times;</button><button data-a="1">fused, about 3&times;</button><button data-a="2">all about the same</button></div>
 <div class="stp-reveal" id="stp-pq3-r" hidden><div class="card"><div class="bars" id="stp-t-opt"></div></div><div class="co key" id="stp-pq3-t"></div></div>
 </div>
+</div><div class="s3R"><div class="s3side"><div class="card"><div class="bars" id="stp-t-bars"></div></div>
+<div class="card"><div class="tw"><table class="stp-tbl" id="stp-t-prof"></table></div><p class="small mute" id="stp-t-pn"></p></div></div></div></div>
 </section>
 <section id="stp-s8">
 <h2>8. Checks: does the recording add up?</h2>

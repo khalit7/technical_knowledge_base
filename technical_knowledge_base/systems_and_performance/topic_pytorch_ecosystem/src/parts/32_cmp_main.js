@@ -42,7 +42,7 @@ const OUTN={new_gelu:['a','b','c','d','e','f','g','out'],add_ln:['s','out']};
 const INS={new_gelu:['x'],add_ln:['x','r','w','b']};
 U.EXPR=EXPR;
 let fn='new_gelu',md='eager';
-const NF=8; // sweep frames for the fused loop
+const NF=2; // sweep frames for the fused loop: start, halfway, done (each explained in the step list)
 function sizeOf(name,f){const sh=Fz[f].shapes;if(f==='new_gelu')return 4*sh[0].reduce((a,b)=>a*b,1);
   if(name==='w'||name==='b')return 1024;return 4*sh[0].reduce((a,b)=>a*b,1)}
 function nSteps(){return md==='eager'?Fz[fn].ops.length+1:NF+1}
@@ -103,12 +103,15 @@ function draw(i){
   $('cmp-fu-st').innerHTML=RD.stat('Kernels launched',k+' of '+(eg?ops.length:1),eg?'one per op':'one for the whole function')+
    RD.stat('Bytes read from memory',MiB(Math.round(R)),'so far')+RD.stat('Bytes written',MiB(Math.round(Wr)),'so far')+
    RD.stat('Measured, CPU / MPS',ms(t.cpu[eg?'eager':'compiled'].med)+' / '+ms(t.mps[eg?'eager':'compiled'].med),(eg?'eager':'compiled')+', median of 5 x 200 calls');
-  $('cmp-fu-cap').innerHTML=cap(i);
 }
-const an=RD.anim({card:'cmp-fu',ctl:'cmp-fu-ctl',n:nSteps(),draw:draw,ms:1500,label:'Fusion step'});
+// the step list on the left (sx-cmp-fu), written from the same captions for the chosen function and mode
+function ttl(i){const F=Fz[fn];if(md==='eager')return i===0?'Before':'Kernel '+i+', aten::'+esc(F.ops[i-1][0]);return i===0?'One kernel':i===NF?'Done':'Halfway'}
+function fillList(){$('sx-cmp-fu').innerHTML=Array.from({length:nSteps()},(_,i)=>'<li><b>'+ttl(i)+'.</b> '+cap(i)+'</li>').join('')}
+fillList();
+const an=RD.anim({card:'cmp-fu',ctl:'cmp-fu-ctl',n:nSteps(),draw:draw,ms:4000,label:'Fusion step',list:'sx-cmp-fu'});
 onR(()=>an.redraw());
-seg($('cmp-fu-fn'),v=>{fn=v;an.reset(nSteps())});
-seg($('cmp-fu-md'),v=>{md=v;an.reset(nSteps())});
+seg($('cmp-fu-fn'),v=>{fn=v;fillList();an.reset(nSteps(),'sx-cmp-fu')});
+seg($('cmp-fu-md'),v=>{md=v;fillList();an.reset(nSteps(),'sx-cmp-fu')});
 $('cmp-fu-k1').textContent=gel.kernel;$('cmp-fu-k2').textContent=Fz.add_ln.kernel;
 // predict 1
 (function(){const g=gel.t,al=Fz.add_ln.t;

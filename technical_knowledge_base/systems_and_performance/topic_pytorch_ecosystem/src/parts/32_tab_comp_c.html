@@ -1,39 +1,39 @@
 <section id="cmp-s7">
 <h2>7. Inductor: the kernels that replace the eager ops</h2>
-<p><b>Inductor</b> is the default back end. It lowers each graph to a loop-level form, groups the operations that can share one pass over memory, writes one kernel per group (C++ with OpenMP for CPUs, Triton for NVIDIA and AMD GPUs, Metal shaders for Apple GPUs), and sends matrix multiplies to a library (<code>extern_kernels.addmm</code> and <code>mm</code>: the BLAS ATen uses) unless autotuning picks a generated template. Ops it has no lowering for run as <b>fallbacks</b>: the original ATen kernel, called from the generated code. Left: the eager calls for one training step's forward or backward. Right: what the compiled step launches instead. Click a green kernel to read it.</p>
-<div class="card" id="cmp-ind">
+<div class="s3sp"><div class="s3L"><p><b>Inductor</b> is the default back end. It lowers each graph to a loop-level form, groups the operations that can share one pass over memory, writes one kernel per group (C++ with OpenMP for CPUs, Triton for NVIDIA and AMD GPUs, Metal shaders for Apple GPUs), and sends matrix multiplies to a library (<code>extern_kernels.addmm</code> and <code>mm</code>: the BLAS ATen uses) unless autotuning picks a generated template. Ops it has no lowering for run as <b>fallbacks</b>: the original ATen kernel, called from the generated code. Left: the eager calls for one training step's forward or backward. Right: what the compiled step launches instead. Click a green kernel to read it.</p>
+<p id="cmp-ind-p"></p>
+</div><div class="s3R"><div class="s3side"><div class="card" id="cmp-ind">
 <div class="seg" id="cmp-ind-dev"><button data-m="cpu" class="on">CPU (C++/OpenMP)</button><button data-m="mps">MPS (Metal)</button></div>
 <div class="seg" id="cmp-ind-ph"><button data-m="0" class="on">Forward</button><button data-m="1">Backward</button></div>
 <div class="out" id="cmp-ind-st"></div>
 <div class="cmp-leg"><span><i style="background:var(--c3)"></i>generated kernel (fused)</span><span><i style="background:var(--c1)"></i>library matmul (extern)</span><span><i style="background:var(--c2)"></i>ATen fallback</span><span><i style="background:var(--dim)"></i>eager dispatcher call</span></div>
 <div class="cmp-row"><div><div class="small"><b>Eager</b>: calls into the dispatcher</div><div class="cmp-list" id="cmp-ind-l"></div></div><div><div class="small"><b>Compiled</b>: launches in the generated wrapper</div><div class="cmp-list" id="cmp-ind-r"></div></div></div>
 <div id="cmp-ind-k"></div>
-</div>
-<p id="cmp-ind-p"></p>
+</div></div></div></div>
 </section>
 
 <section id="cmp-s8">
 <h2>8. Speed, memory and compile time</h2>
-<p>The honest headline first: <b>on this CPU, compiling the model did not make the training step faster</b>; on the M1 Pro's GPU it did. The per-step bars are medians of 5 trials of 20 steps; whiskers span the trials.</p>
-<div class="card" id="cmp-sp">
+<div class="s3sp"><div class="s3L"><p>The honest headline first: <b>on this CPU, compiling the model did not make the training step faster</b>; on the M1 Pro's GPU it did. The per-step bars are medians of 5 trials of 20 steps; whiskers span the trials.</p>
+<p><b>Why no gain on the CPU.</b> The profiler splits the CPU time of the forward and backward (optimizer excluded). Eager: <span data-cmp="pr_mm"></span> in matrix multiplies and attention, and <span data-cmp="pr_rest"></span> in everything else, which is the part Inductor can fuse. Compiled: the matmuls and attention are the same library kernels (<span data-cmp="pr_mmc"></span>), the two generated graphs that replace everything fusible took <span data-cmp="pr_cg"></span>, and <span data-cmp="pr_oth"></span> went to what is left outside them (copies, fills, entering the compiled region). The fusible part got <span data-cmp="pr_pct"></span> cheaper, but it was under half of the time to begin with, and Inductor's C++ on this ARM CPU (128-bit NEON vectors of 4 floats) gains little over ATen's hand-written kernels for these ops. The phase timings below agree, and show how much two runs of the same script vary.</p>
+<p><b>Memory.</b> Compiling did not change what the forward keeps for backward on this model: AOTAutograd saved <span data-cmp="aot_mb"></span> against eager's 34.76 MB (section 6), and the MPS allocator held <span data-cmp="mps_mem"></span> after the forward. To cut activation memory you still need {{activation checkpointing|#t-step}} or a smaller batch.</p>
+<p><b>Compile time.</b> The first call of the compiled training step, in a fresh process: <span data-cmp="cold"></span> with an empty cache directory, <span data-cmp="warm"></span> when the cache from an earlier run was there (Inductor's FX-graph cache and AOTAutograd's cache are on by default and live in <code>TORCHINDUCTOR_CACHE_DIR</code>). Modes add more: max-autotune's first call took <span data-cmp="ma_first"></span>. Whether compiling pays is arithmetic:</p>
+<p><b>The optimizer.</b> <code>torch.compile(model)</code> compiles the forward and backward only; <code>opt.step()</code> stays eager. Compiling it too (<code>torch.compile(opt.step)</code>) brought the CPU step to <span data-cmp="copt"></span>; simply passing <code>fused=True</code> to AdamW, with no compile at all, did better, <span data-cmp="fused"></span> (the {{Inside one step|#t-step}} tab shows why: the default on CPU and MPS is a for-loop over 52 parameters). On MPS, the compiled model with fused AdamW was the fastest combination measured, <span data-cmp="mps_best"></span> against <span data-cmp="mps_eager"></span> eager.</p>
+</div><div class="s3R"><div class="s3side"><div class="card" id="cmp-sp">
 <div class="seg" id="cmp-sp-dev"><button data-m="cpu" class="on">CPU, 4 threads</button><button data-m="mps">MPS</button></div>
 <div class="cmp-plot" id="cmp-sp-svg"></div>
 <p class="small mute" id="cmp-sp-note"></p>
 </div>
-<p><b>Why no gain on the CPU.</b> The profiler splits the CPU time of the forward and backward (optimizer excluded). Eager: <span data-cmp="pr_mm"></span> in matrix multiplies and attention, and <span data-cmp="pr_rest"></span> in everything else, which is the part Inductor can fuse. Compiled: the matmuls and attention are the same library kernels (<span data-cmp="pr_mmc"></span>), the two generated graphs that replace everything fusible took <span data-cmp="pr_cg"></span>, and <span data-cmp="pr_oth"></span> went to what is left outside them (copies, fills, entering the compiled region). The fusible part got <span data-cmp="pr_pct"></span> cheaper, but it was under half of the time to begin with, and Inductor's C++ on this ARM CPU (128-bit NEON vectors of 4 floats) gains little over ATen's hand-written kernels for these ops. The phase timings below agree, and show how much two runs of the same script vary.</p>
 <div class="card" id="cmp-ph">
 <div class="seg" id="cmp-ph-dev"><button data-m="cpu" class="on">CPU</button><button data-m="mps">MPS</button></div>
 <div class="tw"><table class="cmp-tbl" id="cmp-ph-tbl"></table></div>
 <p class="small mute" id="cmp-ph-note"></p>
 </div>
-<p><b>Memory.</b> Compiling did not change what the forward keeps for backward on this model: AOTAutograd saved <span data-cmp="aot_mb"></span> against eager's 34.76 MB (section 6), and the MPS allocator held <span data-cmp="mps_mem"></span> after the forward. To cut activation memory you still need {{activation checkpointing|#t-step}} or a smaller batch.</p>
-<p><b>Compile time.</b> The first call of the compiled training step, in a fresh process: <span data-cmp="cold"></span> with an empty cache directory, <span data-cmp="warm"></span> when the cache from an earlier run was there (Inductor's FX-graph cache and AOTAutograd's cache are on by default and live in <code>TORCHINDUCTOR_CACHE_DIR</code>). Modes add more: max-autotune's first call took <span data-cmp="ma_first"></span>. Whether compiling pays is arithmetic:</p>
 <div class="card" id="cmp-be">
 <div class="ctl"><label>Compile time (first call minus a normal step): <b id="cmp-be-cv"></b><input type="range" id="cmp-be-c" min="0" max="100" step="1"></label><label>Time saved per step: <b id="cmp-be-sv"></b><input type="range" id="cmp-be-s" min="0" max="100" step="1"></label><label>Steps in the run: <b id="cmp-be-nv"></b><input type="range" id="cmp-be-n" min="0" max="100" step="1"></label></div>
 <div class="out" id="cmp-be-st"></div>
 <p class="small mute" id="cmp-be-note"></p>
-</div>
-<p><b>The optimizer.</b> <code>torch.compile(model)</code> compiles the forward and backward only; <code>opt.step()</code> stays eager. Compiling it too (<code>torch.compile(opt.step)</code>) brought the CPU step to <span data-cmp="copt"></span>; simply passing <code>fused=True</code> to AdamW, with no compile at all, did better, <span data-cmp="fused"></span> (the {{Inside one step|#t-step}} tab shows why: the default on CPU and MPS is a for-loop over 52 parameters). On MPS, the compiled model with fused AdamW was the fastest combination measured, <span data-cmp="mps_best"></span> against <span data-cmp="mps_eager"></span> eager.</p>
+</div></div></div></div>
 </section>
 
 <section id="cmp-s9">

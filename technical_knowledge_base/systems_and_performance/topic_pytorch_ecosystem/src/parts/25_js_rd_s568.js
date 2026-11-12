@@ -28,8 +28,8 @@
       let h='<div class="split"><div>Before</div><div class="sb">'+seg('fwd',ph.fwd,tot)+seg('bwd',ph.bwd,tot)+seg('opt',ph.opt,tot,s.hl==='opt'&&!s.after)+'</div>';
       h+='<div>After</div><div class="sb" style="width:'+(s.after?(100*(s.after===2?fused:after)/tot).toFixed(1):0)+'%;transition:width .5s">'+(s.after?seg('fwd',ph.fwd,after)+seg('bwd',ph.bwd,after)+seg('opt',fo.fused,after,s.hl==='opt'):'')+'</div></div>';
       h+='<div class="out">'+RD.stat('Step, before',ph.step.toFixed(2)+' ms','for-loop AdamW')+RD.stat('Optimizer share',(100*(s.after?fo.fused/after:ph.opt/ph.step)).toFixed(0)+'%',s.after?'after the fix':'before')+RD.stat('Step, after',s.after===2?fused.toFixed(2)+' ms':s.after?after.toFixed(2)+' ms':'&hellip;',s.after===2?'measured':s.after?'predicted':'')+'</div>';
-      pb.innerHTML=h;document.getElementById('rd-prf-cap').innerHTML='<div class="t">'+(i+1)+' / '+S.length+'. '+s.t+'</div><p>'+s.p+'</p>'}
-    RD.anim({card:'rd-prf-card',ctl:'rd-prf-ctl',n:S.length,draw,ms:3000,label:'Bottleneck step'});
+      pb.innerHTML=h}
+    RD.anim({card:'rd-prf-card',ctl:'rd-prf-ctl',n:S.length,draw,ms:4200,label:'Bottleneck step',list:'sx-prf'});   // each step explained in the list sx-prf on the left
   }
   // ---------- section 8: the custom-op result ----------
   const eo=document.getElementById('rd-ext-out');

@@ -28,7 +28,7 @@
 <div class="tw"><table class="dst-tbl" id="dst-sh-t"></table></div>
 <div class="small mute" id="dst-sh-note"></div>
 </div>
-<p>What happens in one step, per unit, in order:</p>
+<p>What happens in one step, per unit, in order (drawn in 3D, on 4 ranks, as {{Fig. 3|n:3c65c17b0d0d815e85aff8decd8f35ab#stg-fsdp}} of Distributed PyTorch):</p>
 <ol>
 <li><b>Forward:</b> just before a block runs, <b>all-gather</b> its shards into full weights (here each rank sends 1.58 MB and receives the other rank's 1.58 MB); run it; then, by default, free the full weights again (<b>reshard after forward</b>), keeping only the activations.</li>
 <li><b>Backward:</b> all-gather the block's weights a second time (they were freed), compute its gradients, then <b>reduce-scatter</b> them: sum across ranks and leave each rank only its own 1/n slice. Free the full weights and full gradient.</li>
@@ -40,8 +40,7 @@
 
 <section id="dst-s5">
 <h2>5. DDP against FSDP2, the same step</h2>
-<p>The same step (step 2, batch 4 on rank 0 and batch 5 on rank 1), recorded under each strategy on 2 ranks. Lanes are ranks; the bar is the step's compute (forward, backward, optimizer); each mark above it is a collective at the moment it was issued, its height to scale with the bytes it carries. The memory line is rank 0's live bytes over the same step.</p>
-<div class="card" id="dst-an">
+<div class="s3sp"><div class="s3R"><div class="card" id="dst-an">
 <div class="seg" id="dst-an-seg"></div>
 <div class="dst-ctl"><button id="dst-an-play">Play</button><button id="dst-an-back" aria-label="Previous event">&#9664;</button><button id="dst-an-next" aria-label="Next event">&#9654;</button><input type="range" id="dst-an-scrub" min="0" max="1000" value="0" aria-label="Time in the step"><label>Speed <select id="dst-an-speed"><option value="0.5">0.5&times;</option><option value="1" selected>1&times;</option><option value="2">2&times;</option></select></label></div>
 <div class="dst-plot" id="dst-an-svg"></div>
@@ -49,23 +48,25 @@
 <div class="dst-st" id="dst-an-st"></div>
 <div class="dst-leg"><span><i style="background:var(--c4)"></i>all-reduce</span><span><i style="background:var(--c1)"></i>all-gather</span><span><i style="background:var(--c2)"></i>reduce-scatter (run as all-reduce on gloo)</span><span><i style="background:var(--acc2)"></i>forward</span><span><i style="background:var(--closed2)"></i>backward</span><span><i style="background:var(--open2)"></i>optimizer</span></div>
 <div class="dst-src">Order and sizes from the flight recorder; issue times measured in one run (CPU, 1 thread per rank, other agents running: indicative only). The memory line comes from a profiled run of the same step and is aligned to this run at the end of forward and of backward.</div>
-</div>
+</div></div><div class="s3L">
+<p>The same step (step 2, batch 4 on rank 0 and batch 5 on rank 1), recorded under each strategy on 2 ranks. Lanes are ranks; the bar is the step's compute (forward, backward, optimizer); each mark above it is a collective at the moment it was issued, its height to scale with the bytes it carries. The memory line is rank 0's live bytes over the same step.</p>
+</div></div>
 <div class="tw"><table class="dst-tbl" id="dst-bytes"></table></div>
 <p class="small mute" id="dst-bytes-note"></p>
 </section>
 
 <section id="dst-s6">
 <h2>6. Memory per rank</h2>
-<p>What each rank holds at its peak during one step: persistent state (weights, AdamW's two moments, DDP's bucket buffers) plus the step's own peak (activations saved for backward, gathered weights, full-size gradients before they are reduced, collective temporaries). Bars to scale within a model size.</p>
-<div class="card" id="dst-mem">
-<div class="seg" id="dst-mem-seg"></div>
-<div class="bars" id="dst-mem-bars"></div>
-<div class="dst-leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>AdamW state</span><span><i style="background:var(--c6)"></i>DDP buckets</span><span><i style="background:var(--c2)"></i>step peak above that</span></div>
-<div class="dst-cap" id="dst-mem-cap"></div>
-</div>
+<div class="s3sp"><div class="s3L"><p>What each rank holds at its peak during one step: persistent state (weights, AdamW's two moments, DDP's bucket buffers) plus the step's own peak (activations saved for backward, gathered weights, full-size gradients before they are reduced, collective temporaries). Bars to scale within a model size.</p>
 <div class="card" id="dst-pq2">
 <p><b>Predict.</b> On the tiny model, going from 2 to 4 FSDP2 ranks cuts the persistent state in half. What happens to the step's own peak (activations and everything gathered)?</p>
 <div class="chips" id="dst-pq2-c"><button data-a="0">Halves too</button><button data-a="1">Stays the same</button><button data-a="2">Grows (more communication)</button></div>
 <div class="dst-reveal" id="dst-pq2-r" hidden><p><b>It stays the same: <span id="dst-pq2-v"></span>.</b> Each rank still processes a full batch of 8 sequences, so its activations do not shrink, and the gathered weights of one block are full-size whatever n is. FSDP shards model state, not activations: that is what activation checkpointing ({{Inside one step|#t-step}}), tensor parallel and context parallel are for. On the tiny model activations dominate, so the total falls only from <span id="dst-pq2-a"></span>; on the 8-block variant, where weights and Adam state are 303 MB, from <span id="dst-pq2-b"></span>.</p></div>
 </div>
+</div><div class="s3R"><div class="s3side"><div class="card" id="dst-mem">
+<div class="seg" id="dst-mem-seg"></div>
+<div class="bars" id="dst-mem-bars"></div>
+<div class="dst-leg"><span><i style="background:var(--c1)"></i>weights</span><span><i style="background:var(--c5)"></i>AdamW state</span><span><i style="background:var(--c6)"></i>DDP buckets</span><span><i style="background:var(--c2)"></i>step peak above that</span></div>
+<div class="dst-cap" id="dst-mem-cap"></div>
+</div></div></div></div>
 </section>

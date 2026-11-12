@@ -234,7 +234,7 @@ const GL=(function(){
     paintG(k)}
   function relayout(){layoutMem();layoutG()}
   relayout();onR(relayout);
-  const A=anim({card:'stp-run',ctl:'stp-run-ctl',n:seq.length,ms:900,label:'Call',draw});
+  const A=anim({card:'stp-run',ctl:'stp-run-ctl',n:seq.length,ms:900,label:'Call',draw,auto:false});   // a long replay the reader drives (923 calls): never plays by itself
   function setPh(p,k){ph=p;$('stp-run-ph').querySelectorAll('button').forEach(b=>b.classList.toggle('on',+b.dataset.m===p));build();A.reset(seq.length);
     if(k!==undefined){let i=seq.indexOf(k);if(i<0)i=seq.findIndex(x=>x>=k);A.go(Math.max(0,i))}}
   function go(k){setPh(ops[k][0],k)}
@@ -287,7 +287,7 @@ const GL=(function(){
       const done=kk>=v.o.length-1;cap.push('<b>'+v.nm+'</b>: '+(done?'step finished':PHN[o[0]]+(o[0]===1&&o[3]?', <b>recomputing</b> a block’s forward (<code>'+esc(S[o[1]])+'</code>)':', <code>'+esc(S[o[1]])+'</code>')))});
     $('stp-ck-st').innerHTML=st;$('stp-ck-cap').innerHTML=cap.join('<br>')}
   layout();onR(()=>{layout()});
-  const A=anim({card:'stp-ck',ctl:'stp-ck-ctl',n:F+1,ms:280,label:'Progress through the step',draw});
+  const A=anim({card:'stp-ck',ctl:'stp-ck-ctl',n:F+1,ms:280,label:'Progress through the step',draw,auto:false,start:F});   // a long replay: opens on the finished step, never plays by itself
   RD.seg($('stp-ck-m'),m=>{mode=m;A.redraw()});
   const S0=P.plain,S1=P.ckpt.sum,t=T.cpu;
   $('stp-ck-src').innerHTML='Recorded: plain forward leaves '+MB(S0.live_after_fwd-BASE)+' live, checkpointed '+MB(S1.live_after_fwd-BASE)+' (the 4 block inputs, the logits and the loss). Backward calls '+fmt(S0.n_bwd)+' plain against '+fmt(S1.n_bwd)+' checkpointed, '+V[1].rec+' of them recomputing forward ops. Same loss ('+S0.loss+' and '+S1.loss+') and the same gradients. Time on CPU (median of '+T.trials+' &times; '+T.steps+' steps): step '+t.plain.step.median_ms.toFixed(1)+' ms plain, '+t.checkpoint.step.median_ms.toFixed(1)+' ms checkpointed; backward '+t.plain.bwd.median_ms.toFixed(1)+' against '+t.checkpoint.bwd.median_ms.toFixed(1)+' ms. Non-reentrant checkpointing stops each recompute early, once it has rebuilt everything backward will ask for (<a href="https://github.com/pytorch/pytorch/blob/v2.14.1/torch/utils/checkpoint.py#L936-L956" target="_blank" rel="noopener noreferrer">checkpoint.py L936</a>; <a href="https://docs.pytorch.org/docs/stable/checkpoint.html" target="_blank" rel="noopener noreferrer">docs</a>).';
@@ -315,7 +315,7 @@ const GL=(function(){
       st+=RD.stat(esc(l.nm),fmt(nd)+' nodes','live above base at this call: '+MB(o[5]-BASE))});
     $('stp-ng-cap').innerHTML=cap.join('<br>');$('stp-ng-st').innerHTML=st}
   layout();onR(layout);
-  anim({card:'stp-ng',ctl:'stp-ng-ctl',n:N,ms:450,label:'Forward call',draw});
+  anim({card:'stp-ng',ctl:'stp-ng-ctl',n:N,ms:450,label:'Forward call',draw,auto:false,start:N-1});   // a long replay: opens on the last forward call, never plays by itself
   const tc=T.cpu.forward,tm=T.mps.forward;
   const inf=P.infer.ops,cn=nm=>inf.filter(o=>S[o[1]]===nm).length;
   $('stp-ng-why').innerHTML='Not because it runs fewer kernels. With autograd on, a math-kernel op such as <code>linear</code> decomposes at the autograd key, so the recording mode (at the Python key, below autograd) sees the pieces: <code>t</code>, <code>addmm</code>, <code>view</code>. Under <code>inference_mode</code> the autograd keys are gone, the first key with a kernel is <code>Python</code> (a backend fallback, which outranks the decomposition), and the mode sees the whole op: '+cn('linear')+' <code>linear</code>, '+cn('layer_norm')+' <code>layer_norm</code>, '+cn('scaled_dot_product_attention')+' <code>scaled_dot_product_attention</code>, '+cn('cross_entropy_loss')+' <code>cross_entropy_loss</code>; each still decomposes after the mode passes it on. <code>no_grad</code> differs from grad mode on by only the '+(tr.length-P.nograd.ops.length)+' <code>detach</code> calls autograd makes when an op saves its own output (attention and log-softmax). Live memory above base at the end of forward: '+MB(L[0].o[L[0].o.length-1][5]-BASE)+' with the graph, '+MB(P.nograd.sum.live_after_fwd-BASE)+' under no_grad and '+MB(P.infer.sum.live_after_fwd-BASE)+' under inference_mode (only the logits and the loss). Time per forward, median: CPU '+tc.grad.median_ms.toFixed(2)+' ms with grad, '+tc.no_grad.median_ms.toFixed(2)+' no_grad, '+tc.inference_mode.median_ms.toFixed(2)+' inference_mode; MPS '+tm.grad.median_ms.toFixed(2)+', '+tm.no_grad.median_ms.toFixed(2)+', '+tm.inference_mode.median_ms.toFixed(2)+' ms. Turning the graph off saved about '+Math.round(100*(1-tc.no_grad.median_ms/tc.grad.median_ms))+'% on the CPU and '+Math.round(100*(1-tm.no_grad.median_ms/tm.grad.median_ms))+'% on MPS; no_grad against inference_mode is within the run-to-run spread on both.';
