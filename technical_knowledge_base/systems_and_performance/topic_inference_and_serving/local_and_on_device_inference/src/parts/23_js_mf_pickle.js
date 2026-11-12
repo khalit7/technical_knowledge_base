@@ -1,7 +1,7 @@
 // ---- section 2: the pickle machine, step by step, on the real disassemblies (pickletools output in MF.pk) ----
 (function(){
   const card=document.getElementById('mf-pk-card');if(!card)return;
-  const E=RD.esc,opsEl=document.getElementById('mf-pk-ops'),stEl=document.getElementById('mf-pk-stack'),cap=document.getElementById('mf-pk-cap'),cnt=document.getElementById('mf-pk-cnt');
+  const E=RD.esc,opsEl=document.getElementById('mf-pk-ops'),stEl=document.getElementById('mf-pk-stack'),cnt=document.getElementById('mf-pk-cnt');
   document.getElementById('mf-pk-wo').textContent=MF.pk.wo;
   function parse(txt){return txt.split('\n').map(l=>l.match(/^\s*(\d+):\s+(\S+)\s+([A-Z_0-9]+)\s*(.*)$/)).filter(Boolean).map(m=>({pos:+m[1],op:m[3],arg:m[4].replace(/\s*\(MARK at \d+\)/,'').trim(),line:m[0].replace(/^\s+/,'')}))}
   // run the pickle machine symbolically (nothing is imported or called); record the state after every opcode
@@ -33,9 +33,13 @@
       states.push({st:st.map(show),calls,imps,stor,note,danger});
     });return states}
   const MODES={};
+  // the steps the step lists explain (2026-11-12): at most eight stretches of the program, each ending on the opcode its list item names
+  const nth=(ops,op,n)=>{let c=0;for(let i=0;i<ops.length;i++)if(ops[i].op===op&&++c===n)return i;return -1};
+  const last=(ops,op)=>{for(let i=ops.length-1;i>=0;i--)if(ops[i].op===op)return i;return -1};
   [['tiny',MF.pk.dis],['evil',MF.pk.evilDis]].forEach(([k,t])=>{const ops=parse(t),states=run(ops);
-    const key=new Set(['GLOBAL','REDUCE','BINPERSID','SETITEMS','SETITEM','STOP']);const steps=[0];
-    ops.forEach((o,i)=>{if(i&&key.has(o.op))steps.push(i)});MODES[k]={ops,states,steps}});
+    const steps=k==='tiny'?[0,nth(ops,'GLOBAL',1),nth(ops,'GLOBAL',2),nth(ops,'BINPERSID',1),nth(ops,'REDUCE',1),nth(ops,'REDUCE',2),last(ops,'REDUCE'),last(ops,'STOP')]
+      :[0,nth(ops,'GLOBAL',1),nth(ops,'REDUCE',1),nth(ops,'SETITEM',1),last(ops,'STOP')];
+    MODES[k]={ops,states,steps}});
   // safetensors: the same two tensors
   const T=MF.tinySt,hx=T.hex,n=T.header_len;
   const stSteps=[
@@ -49,19 +53,14 @@
   let mode='tiny';
   function hexLines(a,b){let s='';for(let i=0;i<hx.length/2;i+=16){let l=('000'+i.toString(16)).slice(-4)+'  ';
     for(let j=i;j<Math.min(i+16,hx.length/2);j++){const by=hx.substr(2*j,2);l+=(j>=a&&j<b?'<b>'+by+'</b>':by)+' '}s+='<div>'+l+'</div>'}return s}
-  const A=RD.anim({card:'mf-pk-card',ctl:'mf-pk-ctl',n:MODES.tiny.steps.length,ms:1500,label:'Pickle step',draw:i=>{
+  const A=RD.anim({card:'mf-pk-card',ctl:'mf-pk-ctl',n:MODES.tiny.steps.length,ms:3800,label:'Pickle step',list:'sx-pk-tiny',draw:i=>{
     if(mode==='st'){const s=stSteps[i];opsEl.innerHTML=hexLines(s.a,s.b);
       stEl.innerHTML='<div class="small mute">Result so far</div>'+(i>=5?'<div class="it">layer.bias: F32 [2] = [0, 0]</div>':'')+(i>=6?'<div class="it">layer.weight: BF16 [2, 3]</div>':'')+(i<5?'<div class="it">'+(i<1?'header length known':i<2?'header parsed':i<3?'header: bias entry':'header: bias and weight entries')+'</div>':'');
-      cap.innerHTML='<div class="t">'+(i+1)+'/'+stSteps.length+'. '+s.t+'</div><p>'+s.p+'</p>';
       cnt.innerHTML=RD.stat('bytes read',MFU.c(Math.min(s.b,hx.length/2)),'of '+hx.length/2+' in the file')+RD.stat('functions imported','0')+RD.stat('functions called','0');return}
     const M=MODES[mode],k=M.steps[i],S=M.states[k],o=M.ops[k];
     opsEl.innerHTML=M.ops.map((x,j)=>'<div class="'+(j===k?'cur':j<k?'done':'')+((x.op==='GLOBAL'||x.op==='REDUCE')?' danger':'')+'">'+E(x.line)+'</div>').join('');
     const cur=opsEl.children[k];if(cur)opsEl.scrollTop=Math.max(0,cur.offsetTop-opsEl.offsetTop-90);
     stEl.innerHTML='<div class="small mute">Stack (top last)</div>'+S.st.slice(-7).map(v=>'<div class="it'+(/^result of|^<builtins|^<__builtin__/.test(v)?' call':'')+'">'+E(v.length>110?v.slice(0,110)+'...':v)+'</div>').join('');
-    const evilCall=mode==='evil'&&o.op==='REDUCE';
-    cap.innerHTML='<div class="t">'+(i+1)+'/'+M.steps.length+'. Opcode '+(k+1)+' of '+M.ops.length+': '+o.op+'</div><p>'+E(S.note||'push values for the next call')+'</p>'+
-      (evilCall?'<p><b>This is the attack.</b> Loading with plain pickle printed our message; swap print for os.system and it runs a shell command with your permissions.</p>':'')+
-      (mode==='tiny'&&o.op==='STOP'?'<p>To rebuild 2 small tensors the loader imported '+S.imps+' names and made '+S.calls+' calls. weights_only=True allows exactly these names and refuses all others.</p>':'');
     cnt.innerHTML=RD.stat('opcodes run',(k+1)+' of '+M.ops.length)+RD.stat('functions imported',S.imps)+RD.stat('functions called',S.calls,mode==='tiny'?'storages fetched: '+S.stor:'')}});
-  RD.seg(document.getElementById('mf-pk-mode'),m=>{mode=m;A.reset(m==='st'?stSteps.length:MODES[m].steps.length)});
+  RD.seg(document.getElementById('mf-pk-mode'),m=>{mode=m;['tiny','evil','st'].forEach(x=>{document.getElementById('sx-pk-'+x).hidden=x!==m});A.reset(m==='st'?stSteps.length:MODES[m].steps.length,'sx-pk-'+m)});
 })();

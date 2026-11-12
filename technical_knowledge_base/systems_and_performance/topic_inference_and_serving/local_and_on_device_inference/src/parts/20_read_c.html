@@ -1,16 +1,35 @@
 <section id="lo-s2">
+<div class="s3sp"><div class="s3R"><div id="stg-mem"></div></div><div class="s3L">
 <h2>2. Will it fit? Weights, cache and buffers</h2>
 <p>The model must sit in memory the GPU reads fast: its own VRAM on a graphics card (32 GB on an RTX 5090), or on a Mac the unified memory the CPU and GPU share, of which macOS lets the GPU use only part. Three things need room:</p>
 <div class="fm"><div class="eq">memory &asymp; weights + KV cache + buffers</div>
 <dl><dt>weights</dt><dd>parameters &times; bits per weight / 8 (Qwen3-4B at Q4_K_M: 4.02 billion &times; <span data-lo="bpwQ4km4"></span> bits measured, about 2.5 GB)</dd>
 <dt>KV cache</dt><dd>bytes per token &times; context &times; slots, where bytes per token = 2 &times; layers &times; KV heads &times; head size &times; bytes per value</dd>
 <dt>buffers</dt><dd>scratch for one step's activations, a few hundred MB for small models (llama.cpp prints its compute buffer at start)</dd></dl></div>
-<p><b>The cache can outweigh the model</b> (the hero above): Qwen3-4B keeps 2 &times; 36 &times; 8 &times; 128 &times; 2 = 147,456 bytes per token in F16, so its full 40,960-token context costs 6.0 GB, more than twice the 2.5 GB of Q4_K_M weights. Long contexts are paid in memory first and speed second. Two remedies: a quantised cache (<code>-ctk q8_0 -ctv q8_0</code> halves it; the {{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}} measured no perplexity change at q8_0 on Qwen3-1.7B), and a context no longer than you need.</p>
+<p><b>The cache can outweigh the model</b> (Fig. 1): Qwen3-4B keeps 2 &times; 36 &times; 8 &times; 128 &times; 2 = 147,456 bytes per token in F16, so its full 40,960-token context costs 6.0 GB, more than twice the 2.5 GB of Q4_K_M weights. Long contexts are paid in memory first and speed second. Two remedies: a quantised cache (<code>-ctk q8_0 -ctv q8_0</code> halves it; the {{batching sibling|n:3c65c17b0d0d819db53bd2c48909e5b2}} measured no perplexity change at q8_0 on Qwen3-1.7B), and a context no longer than you need.</p>
 <p>macOS lets the GPU use <span data-lo="wsGB"></span> of this laptop's 16 GB (<span class="meas">measured</span>), and llama-server's <code>--fit</code> shrinks unset settings until the plan fits.</p>
 <details class="dp"><summary>The Mac working set and llama-server's defaults <span class="mute">(depth)</span></summary><div class="b">
 <p><b>How much a Mac lets the GPU use.</b> Metal reports a "recommended maximum working set", and llama.cpp sizes its plans to it (<code>ggml-metal-device.m</code> L1276, L1350). <span class="meas">Measured here</span>: <span data-lo="wsGB"></span> of 16 GB (<span data-lo="wsPct"></span>). <b>What llama-server does by default</b> at b11146: <code>-c 0</code> asks for the model's trained context, and <code>--fit</code> (on) shrinks unset settings until the plan fits with a 1,024 MiB margin (<code>common/fit.h</code>). <span class="meas">Measured here</span>, Qwen3-1.7B Q4_K_M with no options: <span data-lo="defSummary"></span></p>
 </div></details>
 <p>The {{Fit and speed|#t-fit}} tab does this arithmetic for any model and machine before you download anything (a Mac, a DGX Spark, one or two RTX 5090s).</p>
+
+<p class="sxh">Fig. 4, two kinds of local machine: where the bytes live decides what fits and how fast it streams</p>
+<ol class="sx" id="sx-mem">
+<li><b>A Mac: one pool for both.</b> On this M1 Pro the CPU and the GPU read the same 16 GB at 200 GB/s. The file is loaded once and the GPU reads it where it lies: Fig. 1's 2.49 GB of weights and 6.04 GB of cache sit inside its <span data-lo="wsGB"></span> share.</li>
+<li><b>A PC: two memories and a link.</b> An RTX 5090 carries its own 32 GB of GDDR7 at 1,792 GB/s (section 9); the CPU has system RAM; between them runs PCIe (5.0 on this card; at x8, as when a desktop holds two cards, about 32 GB/s each way).</li>
+<li><b>Loading crosses the link once.</b> The file comes from disk into system RAM and is copied over PCIe into the card's memory. Nothing crosses the link again while tokens are generated.</li>
+<li><b>Then every token reads the card's memory.</b> The same 2.49 GB file streams at up to 1,792 GB/s: a ceiling of 1,792 / 2.49 = 719 tokens per second (<span class="der">derived</span>; the published scoreboard reaches 64% of the 5090's peak, section 9) against 80 on the laptop.</li>
+<li><b>Too big for the card.</b> A 70B model at about 4.8 bits is about 43 GB (section 9): 32 GB fit on the card and the remaining 11 GB of layers stay in system RAM, where the CPU runs them at system RAM's tens of GB/s (partial offload, <code>-ngl</code>, below). Those layers set the pace.</li>
+<li><b>The trade.</b> A GPU streams a model that fits about nine times faster than this laptop (1,792 against 200 GB/s); a Mac's single pool, up to 512 GB, fits a model that no single card can hold.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<h3>Why a Mac has one pool</h3>
+<p>On Apple silicon the memory is not on the motherboard: it sits in the chip's own package, beside the processor. Apple describes "a unified memory architecture that brings together high-bandwidth, low-latency memory into a single pool within a custom package" ({{Apple, M1 announcement, 10 November 2020|https://www.apple.com/newsroom/2020/11/apple-unleashes-m1/}}). The CPU and the GPU are two clients of those same chips, so a model is never copied to the GPU; the price is that the pool's size is fixed when the machine is bought (16 GB on this laptop, up to 512 GB on the largest Macs).</p>
+</div><div class="s3R"><div class="s3side">
+<figure class="lo-card lo-ph"><img src="img/m1_package.webp" alt="Photo of an Apple M1 package on a Mac mini logic board: a metal lid with the Apple logo on the left and two dark memory packages on the right, on one green substrate" loading="lazy" width="560" height="639">
+<figcaption class="small"><b>The memory is in the package.</b> An Apple M1 (the generation before this laptop's M1 Pro) on a Mac mini board: the processor (CPU and GPU) is under the metal lid; the two dark parts on the right are its memory, on the same substrate. Photo: Sonic8400, {{CC BY-SA 4.0|https://creativecommons.org/licenses/by-sa/4.0/}}, {{Wikimedia Commons|https://commons.wikimedia.org/wiki/File:Mac_Mini_M1_chip.jpg}}.</figcaption></figure>
+</div></div></div>
 
 <h3>When it does not fit</h3>
 <ul class="tight">

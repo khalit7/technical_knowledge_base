@@ -2,17 +2,28 @@
 <h2>4. Quantisation from zero: what a GGUF type name means</h2>
 <p>Sections 1 and 2 say the same thing twice: fewer bytes per weight means more model in the same memory and more tokens per second. A trained model stores each weight as a 16-bit float; <dfn>quantisation</dfn> stores it as a small integer code plus a few shared numbers that turn codes back into values, at the cost of error. The general theory (number formats, quantisation-aware training, GPTQ and AWQ) is owned by {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}}; this section is the family local engines use, llama.cpp's GGUF types, and section 5 measures them.</p>
 
-<h3>The idea: a scale per small block</h3>
-<p>Take 32 consecutive weights of one row. Find a <dfn>scale</dfn> <code>d</code> so the codes cover the block's range, store <code>d</code> once (16 bits), and store each weight as the integer <code>q</code> nearest to <code>w / d</code>. The kernel computes <code>d &times; q</code> as it multiplies (it <dfn>dequantises</dfn> on the fly; the weights stay compressed in memory). The scale is per block because one scale for a whole matrix would waste the codes on a few outliers. Its cost is spread over the block: 16 bits over 32 weights is 0.5 bit per weight, so a 4-bit type with a 16-bit scale per 32 weights is 4.5 <dfn>bits per weight</dfn>.</p>
+<div class="s3sp"><div class="s3R">
 <div class="lo-card" id="lo-qb">
 <h4>One block of 32 real weights, before and after: the error shrinks as the grid fits the block better</h4>
 <div class="seg" id="lo-qb-seg"><button data-m="Q8_0">Q8_0</button><button data-m="Q4_0" class="on">Q4_0</button><button data-m="Q4_K">Q4_K</button><button data-m="IQ4_XS">IQ4_XS</button><button data-m="Q2_K">Q2_K</button></div>
 <div class="lo-svg" id="lo-qb-svg"></div>
 <div class="an-ctl" id="lo-qb-ctl"></div>
-<div class="an-cap" id="lo-qb-cap"></div>
+<div class="an-note" id="lo-qb-cap"></div>
 <div class="an-cnt" id="lo-qb-cnt"></div>
 <p class="small mute">The first 32 weights of a row of layer 14's query projection in Qwen3-1.7B, from the F16 file and five quantised files made here with <code>llama-quantize</code>. Blue bars: trained weights; orange dots: what the file gives back; dashed lines: the levels the codes can express; red: the error. Stored scales and codes decoded from the files' bytes; values from llama.cpp's own dequantiser (gguf-py), by <code>scripts/blocks.py</code>. Q4_K and IQ4_XS come from the Q4_K_M and IQ4_XS files; Q2_K from the Q2_K file made with an importance matrix.</p>
 </div>
+</div><div class="s3L">
+<h3>The idea: a scale per small block</h3>
+<p>Take 32 consecutive weights of one row. Find a <dfn>scale</dfn> <code>d</code> so the codes cover the block's range, store <code>d</code> once (16 bits), and store each weight as the integer <code>q</code> nearest to <code>w / d</code>. The kernel computes <code>d &times; q</code> as it multiplies (it <dfn>dequantises</dfn> on the fly; the weights stay compressed in memory). The scale is per block because one scale for a whole matrix would waste the codes on a few outliers. Its cost is spread over the block: 16 bits over 32 weights is 0.5 bit per weight, so a 4-bit type with a 16-bit scale per 32 weights is 4.5 <dfn>bits per weight</dfn>.</p>
+<p class="sxh">Five steps, the same for every format (pick one above the figure)</p>
+<ol class="sx" id="sx-qb">
+<li><b>The 32 weights, as trained.</b> The first 32 weights of one row of layer 14's query projection in Qwen3-1.7B, read from the F16 GGUF converted here. Each is a 16-bit float: 2 bytes. A 1.7B model stores 2.03 billion of them, so every token generated reads about 4 GB.</li>
+<li><b>Pick a scale.</b> Quantisation stores one shared number (the scale) for a small group of weights, and a short integer code per weight. The scale is chosen so the codes cover the group's range (the dashed lines are the levels the codes can express).</li>
+<li><b>Snap each weight to the nearest level.</b> Each weight is replaced by the nearest of those levels. Fewer bits, fewer levels, bigger jumps.</li>
+<li><b>Store the codes.</b> What is written to the file. The bytes per weight, scales included, is the bits-per-weight figure every quant name stands for.</li>
+<li><b>Read it back.</b> At run time the kernel multiplies each code back by its scale (dequantises) as it reads. The gap between the dot and the bar is the error this format introduced on this block.</li>
+</ol>
+</div></div>
 
 <h3>Three generations of GGUF types</h3>
 <div class="tw"><table class="lo-tbl tbl-sm">
@@ -25,14 +36,18 @@
 <p class="small mute">Bits per weight from the block structs in <code>ggml/src/ggml-common.h</code> (b11146, L180 to L460): <code>block_q4_K</code> is 2 + 2 bytes of super-block scales (<code>d</code>, <code>dmin</code>), 12 bytes of 6-bit sub-block scales and minimums, and 128 bytes of 4-bit codes, 144 bytes per 256 weights = 4.5 bits, each weight being <code>d &middot; scale<sub>j</sub> &middot; q &minus; dmin &middot; min<sub>j</sub></code>. The same values appear in Hugging Face's GGUF table ({{HF docs|https://huggingface.co/docs/hub/gguf}}), whose IQ4_NL row wrongly says 256-weight super-blocks: the struct holds 32. Ternary and 1-bit types: section 10.</p>
 <details class="dp"><summary>One real Q4_K super-block decoded by hand <span class="mute">(depth)</span></summary><div class="b"><div id="mf-q4k"></div><p class="small mute">The first block of layer 0's key projection in the Qwen3-0.6B Q4_K_M file, decoded from its bytes and checked against gguf-py's decoder (<span class="meas">run here</span>).</p></div></details>
 
+<div class="s3sp"><div class="s3L">
 <h3>Names like Q4_K_M are recipes, not types</h3>
 <p>A GGUF file mixes types: <code>llama-quantize</code> applies a recipe per tensor, the type in the name for most and more bits where errors hurt most. For <code>Q4_K_M</code> ("medium"), the value projection (<code>attn_v</code>) and the second feed-forward matrix (<code>ffn_down</code>) get Q6_K in the first eighth of the layers, the last eighth and every third layer between (the <code>use_more_bits</code> rule, <code>src/llama-quant.cpp</code> L434 to L436, L556 to L557, L612 to L617), and the output layer gets Q6_K. In the Qwen3-0.6B Q4_K_M file read in section 3, 168 tensors are Q4_K, 29 are Q6_K (the embedding, and <code>attn_v</code> and <code>ffn_down</code> in 14 of the 28 layers) and 113 small vectors stay F32: <span data-mf="ggBpw"></span> bits per weight averaged over every value, not 4.</p>
-<div class="lo-card"><h4>A "4-bit" file is a quarter Q6_K by bytes</h4><div id="mf-ggtypes" class="bars"></div><p class="small mute">Tensor bytes by type in the Qwen3-0.6B Q4_K_M file, <span class="meas">read here</span>.</p></div>
+
 <p>On small models the label misleads further: Qwen3-1.7B's duplicated embedding (section 3) makes its Q4_K_M average <span data-lo="q4kmBpw"></span> bits per weight. Compare files by size, not by label.</p>
 <details class="dp"><summary>Why small models average more bits <span class="mute">(depth)</span></summary><div class="b">
 <p><b>On small models the label misleads further.</b> Qwen3-1.7B's checkpoint stores its tied embedding twice (section 3), and llama.cpp keeps both copies as <code>token_embd</code> and <code>output</code>: 30.6% of the file's 2.03 billion values, which the quantiser keeps at higher precision. So on this model Q4_K_M averages <span data-lo="q4kmBpw"></span> bits per weight, Q2_K <span data-lo="bpwQ2"></span> and IQ1_M <span data-lo="iq1mBpw"></span> (tensor mix of the Q4_K_M file made here: <span data-lo="q4kmMix"></span>). On a 70B model the embedding and output are about 3% of the weights, and the averages sit close to the names. Compare files by size, not by label.</p>
 </div></details>
 <details class="dp"><summary>_S and _L variants, and makers' own recipes <span class="mute">(depth)</span></summary><div class="b"><p><code>_S</code> and <code>_L</code> shift the balance: <code>Q4_K_S</code> is mostly Q4_K but not uniformly (<code>attn_v</code> in the first 4 layers and <code>ffn_down</code> in the first eighth go to Q5_K, the output layer to Q6_K), and the only <code>_L</code> type in llama.cpp is <code>Q3_K_L</code>; Hub uploads that keep the embedding and output at Q8_0 under an "_L" name are their makers' recipes, not llama.cpp types (same file and lines; the {{Quantization and Precision|n:3c65c17b0d0d817b8f41ff66fba4cd0e}} page corrected an old claim that Q4_K_S "is uniformly Q4_K"). Bigger files on Hugging Face often carry a maker's own mix (Unsloth's "dynamic" quants, for example); the name then tells you only the base type. Never requantise a quantised file (Q8_0 to Q4_K_M stacks two roundings); always start from BF16 or F32.</p></div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="lo-card"><h4>A "4-bit" file is a quarter Q6_K by bytes</h4><div id="mf-ggtypes" class="bars"></div><p class="small mute">Tensor bytes by type in the Qwen3-0.6B Q4_K_M file, <span class="meas">read here</span>.</p></div>
+</div></div></div>
 
 <h3>Importance matrices: spend the error where it matters least</h3>
 <p>Plain quantisation picks each block's scale to minimise the error on the weights themselves, but a weight that multiplies a large activation matters more than one that multiplies a small one. An <dfn>importance matrix</dfn> records, for each input column of each matrix, the average squared activation over a calibration text; <code>llama-quantize --imatrix</code> then chooses scales (and lattice points) that minimise the error weighted by it ({{PR #4861|https://github.com/ggml-org/llama.cpp/pull/4861}}, January 2024). It costs one pass of the full-precision model over the calibration text (here 128 chunks of 512 tokens of bartowski's {{calibration_datav3|https://gist.github.com/bartowski1182/eb213dccb3571f863da82e99418f81e8}}, about 2 minutes for Qwen3-1.7B on this laptop) and nothing at run time. The lowest types refuse to run without one: IQ1_S, IQ1_M, the IQ2 types and IQ3_XXS, plus Q2_K inside a Q2_K_S file (<code>tensor_requires_imatrix</code>, <code>src/llama-quant.cpp</code> L822 to L840).</p>

@@ -207,9 +207,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_inference_and_serving/batching_kv_cache_and_scheduling` Batching, KV cache and scheduling in depth
 - [x] `systems_and_performance/topic_inference_and_serving/distributed_and_disaggregated_serving` Distributed and disaggregated serving: Dynamo, llm-d, TensorRT-LLM, Triton
 - [x] `systems_and_performance/topic_inference_and_serving/llm_serving_in_production` LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing
-- [~] `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference` Local and on-device inference: llama.cpp, Ollama, MLX
-- [ ] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
-- [ ] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
+- [x] `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference` Local and on-device inference: llama.cpp, Ollama, MLX
+- [~] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
+- [~] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
 - [ ] `systems_and_performance/topic_inference_and_serving/speculative_decoding` Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover
 - [ ] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
 - [ ] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
@@ -501,6 +501,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_hardware`: hero step 1 small at 1400; step 7 "NVLink all-reduce" label overlaps the server tray; tool tabs (Chip atlas, calculator, Roofline lab) stay full width except their animated sections.
 - `systems_and_performance/topic_inference_and_serving/distributed_and_disaggregated_serving`: some 1400 framings leave empty floor; scenes small on phones.
 - `systems_and_performance/topic_inference_and_serving/llm_serving_in_production`: wide scenes (hero, routing, autoscaling) small on phones; Fig. 3 "waiting per replica" (15 s mean) can read high just after the queue drains while the queue column shows 0.
+- `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference`: core 48 min plus 53 closed (41 before), one of the longest pages; Fig. 1 small on phones; Figs 3 and 4 fade off-view objects at the frame edge in close-ups.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -554,3 +555,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Hardware root: the calculator's two replays are widgets opening finished; the Chip atlas and Roofline lab step lists are built by script from the caption functions (the ledger cannot see their text); the tile animation steps are "start, then each engine finishing" (25/50/75% frames dropped). Keep these?
 - Distributed and disaggregated serving: the router slider was dropped (Fig. 2 step 5 shows the crossover); Fig. 4's two mode toggles became seven fixed steps; Fig. 7 and the EPLB stepper are widgets opening on their last frame; section 8's "what each one adds" list merged into Fig. 8's step list. Keep these?
 - LLM serving in production: default modes (Fig. 2 round robin, Fig. 3 queue-depth autoscaler, Fig. 4 llama-server one adapter set per batch, Fig. 5 closed loop); the old eight-request stepper kept as a closed widget; Fig. 2 uses the 1.5 GiB-cache runs for its first two modes; no 3D load-test ramp (no concurrency-sweep data on this page). Keep these?
+- Local and on-device inference: 48 min core plus 53 in closed details: condense in the cosmetic pass? The section 1 predict box was removed (Fig. 3's list would reveal it; the prose now asks for a prediction before step 2); Fig. 4 uses the RTX 5090 at PCIe x8 (about 32 GB/s) and the 43 GB 70B model as the too-big case; the File explorer field walk is a widget; new M1 (not M1 Pro) package photo, labelled. Keep these?

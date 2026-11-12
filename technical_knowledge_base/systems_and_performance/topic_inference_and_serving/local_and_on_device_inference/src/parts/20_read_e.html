@@ -1,3 +1,4 @@
+<div class="s3sp"><div class="s3L">
 <h3>safetensors: remove the program</h3>
 <p><b>safetensors removes the program:</b> 8 bytes giving the header length, a JSON header (each tensor's dtype, shape and byte offsets), then the raw bytes back to back. Nothing in it can name a function, and each tensor is a slice of the file at a known place. It cannot say "this tensor is that one", so tied weights are stored twice: Qwen3-0.6B's <code>lm_head</code> duplicates its embedding, <span data-mf="lmPct"></span> of the file.</p>
 <details class="dp"><summary>The layout, field by field <span class="mute">(depth)</span></summary><div class="b">
@@ -8,8 +9,6 @@
 <li><b>The data buffer:</b> every tensor's raw bytes, back to back. The spec forbids holes and overlaps, which also rules out "polyglot" files hiding a second payload.</li>
 </ol>
 </div></details>
-<p>The first bytes of the real Qwen3-0.6B <code>model.safetensors</code> (<span data-mf="st06Size"></span> bytes): the first 8, read little-endian, give the header length, and the JSON starts right after.</p>
-<div class="mf-hex" id="mf-st-hex"></div>
 <details class="dp"><summary>The header measured, and what each tool does with the duplicate <span class="mute">(depth)</span></summary><div class="b">
 <p>The header is <span data-mf="st06Hlen"></span> bytes describing <span data-mf="st06N"></span> tensors, <span data-mf="st06HdrPct"></span> of the file. A reader parses that JSON, and then each tensor is a slice of the file at a known place: no parsing, no conversion.</p>
 <p><b>What it cannot say: tied weights are stored twice.</b> Qwen3-0.6B's config says <code>tie_word_embeddings: true</code> (the input embedding and the output layer, <code>lm_head</code>, are one matrix), but safetensors cannot express an alias, so the released file stores both; the two byte ranges hash the same, <span class="meas">measured here</span>: <span data-mf="lmBytes"></span> bytes (<span data-mf="lmMB"></span>, <span data-mf="lmPct"></span> of the file) are a duplicate. Qwen3-1.7B does the same in its second shard (its index has 311 entries and the second shard holds exactly one tensor, <code>lm_head.weight</code>); Qwen3-4B's checkpoint does not. Downstream tools disagree: MLX's converter honours the tie and keeps one copy (<span data-mf="mlxbfN"></span> tensors; Qwen3-1.7B is 3.44 GB in MLX bf16 against 4.06 GB as F16 GGUF), while llama.cpp's converter keeps both, as <code>token_embd</code> and <code>output</code>, which inflates small models' bits per weight (section 4).</p>
@@ -19,7 +18,14 @@
 <p><b>Shards.</b> Big checkpoints are split into <code>model-00001-of-00002.safetensors</code> and so on, with <code>model.safetensors.index.json</code> mapping every tensor name to its shard. transformers chooses the split when saving: <code>max_shard_size</code> defaulted to "5GB" in v4 and "50GB" from v5.0.0 (2026-01-26). The Hub recommends files under 200 GB and enforces 500 GB per file ({{Hub storage limits|https://huggingface.co/docs/hub/storage-limits}}).</p>
 <p><b>Status, October 2026.</b> A Trail of Bits audit commissioned by Hugging Face with EleutherAI and Stability AI found "no critical security flaw leading to arbitrary code execution" (2023-05-23, {{HF blog|https://huggingface.co/blog/safetensors-security-audit}}). safetensors became a PyTorch Foundation project on 2026-04-08 ({{announcement|https://www.linuxfoundation.org/press/pytorch-foundation-announces-safetensors-as-newest-contributed-project-to-secure-ai-model-execution}}) and moved to the github.com/safetensors organisation; the latest release is v0.8.0 (2026-06-09). Its dtypes run from F64 down to F8 (E4M3, E5M2, E8M0) and F4/F6 for microscaling formats.</p>
 </div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="lo-card" id="mf-st-card"><h4>The first bytes of a real safetensors file: a length, then JSON</h4>
+<p class="small">The first bytes of the real Qwen3-0.6B <code>model.safetensors</code> (<span data-mf="st06Size"></span> bytes): the first 8, read little-endian, give the header length, and the JSON starts right after.</p>
+<div class="mf-hex" id="mf-st-hex"></div>
+</div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>GGUF: one file, everything in it</h3>
 <p><b>GGUF goes the other way:</b> one file holding tensors, tokenizer, chat template and architecture numbers as typed metadata, every tensor aligned so the file can be mapped and used in place. Each tensor carries its own type, so "Q4_K_M" is a mix of types (section 4).</p>
 <details class="dp"><summary>The layout, field by field <span class="mute">(depth)</span></summary><div class="b">
@@ -31,8 +37,6 @@
 <li><b>Padding</b> to <code>general.alignment</code> (32 when absent), then the <b>data section</b>; every offset is a multiple of the alignment, so the file can be mapped and each tensor used in place.</li>
 </ol>
 </div></details>
-<div class="lo-card" id="mf-gg-card"><h4>Almost all of a GGUF's header is the tokenizer</h4><div id="mf-ggmap"></div><div class="small mute" id="mf-ggmap-cap">Tap a segment.</div>
-<p class="small">The real Qwen3-0.6B Q4_K_M file (<span data-mf="ggSize"></span> bytes) to scale, then its header zoomed. Everything before the data is <span data-mf="ggDs"></span> bytes (<span data-mf="ggHdrPct"></span> of the file), and <span data-mf="ggTokPct"></span> of that is the tokenizer: 151,936 token strings, their types and 151,387 merge rules. The <span data-mf="ggKv"></span> other facts and all <span data-mf="ggN"></span> tensor infos fit in the rest.</p></div>
 <details class="dp"><summary>Reading GGUF shapes <span class="mute">(depth)</span></summary><div class="b">
 <p><b>One trap:</b> GGUF stores dimensions fastest-first, the reverse of PyTorch: the embedding safetensors lists as <code>[151936, 1024]</code> appears as <code>[1024, 151936]</code>. Same bytes, same order, opposite way of writing the shape. Each tensor carries its own type, so one file mixes several; "Q4_K_M" is a recipe, taken apart in section 4.</p>
 </div></details>
@@ -54,15 +58,22 @@
 <li><b>New architectures wait for the converter.</b> Every family needs its own code in llama.cpp's converter (in b11146 a package of per-family modules) and its own graph in llama.cpp, so a new model can take days to months to get a working GGUF.</li>
 <li><b>No code, but not no risk.</b> A parser reading lengths from a hostile file is attack surface: Databricks reported heap overflows in <code>gguf_init_from_file</code> (CVE-2024-25664 to 25668, 2024-03-22, {{Databricks|https://www.databricks.com/blog/ggml-gguf-file-format-vulnerabilities}}) and Cisco Talos others (CVE-2024-21836 and three more). Today's parser rejects strings over 1 GiB and arrays over 2<sup>30</sup> elements ({{gguf.cpp L19-L20|https://github.com/ggml-org/llama.cpp/blob/b11146/ggml/src/gguf.cpp}}). And the embedded chat template is a program: llama-cpp-python rendered it with an unsandboxed Jinja2 until 0.2.72 ({{CVE-2024-34359|https://github.com/abetlen/llama-cpp-python/security/advisories/GHSA-56xg-wfcc-g829}}, CVSS 9.6, 2024-05-10).</li>
 </ul></div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="lo-card" id="mf-gg-card"><h4>Almost all of a GGUF's header is the tokenizer</h4><div id="mf-ggmap"></div><div class="small mute" id="mf-ggmap-cap">Tap a segment.</div>
+<p class="small">The real Qwen3-0.6B Q4_K_M file (<span data-mf="ggSize"></span> bytes) to scale, then its header zoomed. Everything before the data is <span data-mf="ggDs"></span> bytes (<span data-mf="ggHdrPct"></span> of the file), and <span data-mf="ggTokPct"></span> of that is the tokenizer: 151,936 token strings, their types and 151,387 merge rules. The <span data-mf="ggKv"></span> other facts and all <span data-mf="ggN"></span> tensor infos fit in the rest.</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>MLX: safetensors with packed groups</h3>
 <p><b>An MLX model</b> is safetensors plus a <code>quantization</code> block in <code>config.json</code>; each quantised layer becomes three tensors: packed 4-bit codes, and a BF16 scale and bias per group of 64 weights.</p>
 <details class="dp"><summary>The config and the three tensors of one layer <span class="mute">(depth)</span></summary><div class="b">
 <p>An MLX model is a Hugging Face-style folder whose weights are safetensors and whose <code>config.json</code> says how they are quantised; <code>mlx_lm convert -q</code> wrote <code>"quantization": { "group_size": 64, "bits": 4, "mode": "affine" }</code> into Qwen3-0.6B's config (and mirrored it as <code>quantization_config</code>). What MLX adds is a layout: each quantised linear layer becomes <b>three tensors</b>, <code>weight</code> with the 4-bit codes packed eight to a 32-bit word (lowest bits first), and <code>scales</code> and <code>biases</code> with one BF16 scale <i>s</i> and offset <i>b</i> per group of 64 weights, each weight being <i>s</i>&middot;<i>q</i> + <i>b</i> ({{mx.quantize|https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.core.quantize.html}}). So the 4-bit file has <span data-mf="mlx4N"></span> tensors where the BF16 one has 310; layer 0's key projection (1,024 &times; 1,024) becomes <code>k_proj.weight</code> U32 [1024, 128], <code>k_proj.scales</code> and <code>k_proj.biases</code> BF16 [1024, 16].</p>
 </div></details>
-<div class="lo-card" id="mf-grp-card"><h4>The same 256 weights, 144 bytes either way: GGUF keeps a block together, MLX spreads it over three tensors</h4><div id="mf-grp"></div></div>
 <p>Both cost 4.5 bits per weight; the difference is where the scales live, which shapes the kernels. Loading needs no copy to a GPU (unified memory); MLX does not use the Neural Engine ({{mlx issue #18|https://github.com/ml-explore/mlx/issues/18}}, since 2023). Its other modes and its quality against GGUF: section 7.</p>
 <details class="dp"><summary>One MLX group decoded by hand, and conversion runs <span class="mute">(depth)</span></summary><div class="b"><p>The first MLX group decoded by hand (first word <code>06 b5 ae cb</code> = 3,417,224,454, codes 6, 0, 5, 11, 14, 10, 11, 12) equals <code>mx.dequantize</code> exactly <span class="meas">run here, mlx 0.32.3</span>. Two runs of <code>mlx_lm convert</code> took 2.3 and 1.7 s and gave the same SHA-256 as the store's copy made two days earlier.</p></div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="lo-card" id="mf-grp-card"><h4>The same 256 weights, 144 bytes either way: GGUF keeps a block together, MLX spreads it over three tensors</h4><div id="mf-grp"></div></div>
+</div></div></div>
 
 <h3>ONNX: the model as a graph</h3>
 <p><b>ONNX</b> stores the computation as well as the weights: a graph of operators pinned to an opset, so it runs on CPUs, GPUs and NPU SDKs years later. Qwen3-0.6B exported here became <span data-mf="onNodes"></span> operators and no KV cache, so generating needs a cache-aware export and a loop (ONNX Runtime GenAI). It suits encoders, classic ML and NPUs, not datacenter LLM engines.</p>
@@ -95,6 +106,7 @@
 <tr><td><code>chat_template.jinja</code></td><td>The template as its own file, the newer layout: mlx-lm wrote one into the MLX folder made here.</td></tr>
 </tbody></table></div></div></details>
 
+<div class="s3sp"><div class="s3L">
 <h3>Conversions: which ones keep every number</h3>
 <p>Every arrow between formats is a <dfn>repack</dfn> (same numbers, new layout) or a <dfn>requantisation</dfn> (new numbers):</p>
 <p><b>Lossless:</b> pickle to safetensors, BF16 safetensors to BF16 GGUF or F32 ONNX. <b>Lossy:</b> BF16 to F16 (a little) and any quantisation, so always quantise from the full-precision original, never from a quantised file.</p>
@@ -106,11 +118,6 @@
 <li><b>Reproducible:</b> the GGUF converter, <code>llama-quantize</code> and <code>mlx_lm convert</code> all gave byte-identical files on re-runs here, so a SHA-256 is a fair check that a file is what you think.</li>
 </ul>
 </div></details>
-<div class="lo-card" id="mf-cv-card"><h4>Pick a format: every route in and out, whether the numbers survive, and what happened when it ran here</h4>
-<div class="nodes" id="mf-cv-nodes"></div>
-<div class="hmleg"><span style="color:var(--good)">lossless</span><span style="color:var(--bad)">lossy (numbers change)</span><span style="color:var(--c4)">numbers kept, other things lost or added</span></div>
-<div id="mf-cv-edges"></div>
-<p class="small mute">Starting from the Hugging Face safetensors original; runs on the Apple M1 Pro, 2026-10-11, or "not run here" with the reason.</p></div>
 <details class="dp"><summary>The same model as eight files, and the commands run here <span class="mute">(depth)</span></summary><div class="b">
 <div id="mf-cv-sizes" class="bars"></div>
 <p class="small mute">Qwen3-0.6B. Sizes are real files measured here; the ONNX row is the F32 export (graph plus external data). The bars share one scale.</p>
@@ -120,13 +127,20 @@ llama-quantize q06-bf16.gguf q06-Q4_K_M.gguf Q4_K_M                             
 # safetensors to MLX 4-bit
 python -m mlx_lm convert --hf-path Qwen3-0.6B --mlx-path q06-mlx4 -q --q-bits 4 --q-group-size 64   # about 2 s</div>
 </div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="lo-card" id="mf-cv-card"><h4>Pick a format: every route in and out, whether the numbers survive, and what happened when it ran here</h4>
+<div class="nodes" id="mf-cv-nodes"></div>
+<div class="hmleg"><span style="color:var(--good)">lossless</span><span style="color:var(--bad)">lossy (numbers change)</span><span style="color:var(--c4)">numbers kept, other things lost or added</span></div>
+<div id="mf-cv-edges"></div>
+<p class="small mute">Starting from the Hugging Face safetensors original; runs on the Apple M1 Pro, 2026-10-11, or "not run here" with the reason.</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <h3>Loading: mapping, not reading</h3>
 <p>safetensors and GGUF tensors sit at known offsets, so a loader <b>memory-maps</b> the file (nothing is read until touched) instead of running a pickle program and copying every storage. Same Qwen3-0.6B weights, warm cache, <span class="meas">measured here</span>:</p>
 <details class="dp"><summary>What mapping does <span class="mute">(depth)</span></summary><div class="b">
 <p>To <dfn>memory-map</dfn> a file is to make it appear as memory without reading it: nothing is copied until a byte is touched, then the OS brings in that 16 KiB <dfn>page</dfn> (on Apple silicon) from its <dfn>page cache</dfn>, the RAM it keeps recently read files in. Because safetensors and GGUF tensors sit at known offsets in their final layout, a loader can hand out slices of the mapping; a pickle must run its program first and, by default, copy every storage. The same Qwen3-0.6B weights loaded both ways, each in a fresh process, <span data-mf="lbReps"></span> times, files already in the page cache (<span class="meas">measured on Apple M1 Pro, PyTorch 2.14.1, safetensors 0.8.0</span>):</p>
 </div></details>
-<div class="lo-card"><h4>safetensors returns in milliseconds because it maps; a pickle copies first</h4><div id="mf-lb" class="bars"></div><div class="small mute">Bars: median seconds to return (whiskers: min to max). Right: extra resident memory over a baseline process. "Touch" reads one value in every page of every tensor, so all 1.5 GB is really brought in.</div></div>
 <p>llama.cpp maps GGUF by default; mapping matters most when the file is not yet in RAM or only part of the model is needed, and a cold load is disk-bound.</p>
 <details class="dp"><summary>The numbers, and llama-server mapped against read <span class="mute">(depth)</span></summary><div class="b">
 <p>Plain <code>torch.load</code> took <span data-mf="binFull"></span> and <span data-mf="binFullMiB"></span> MiB of new memory before anything was usable; <code>safetensors.torch.load_file</code> returned in <span data-mf="stFull"></span> with <span data-mf="stFullMiB"></span> MiB, and touching every page then took <span data-mf="stTouch"></span> in total. llama.cpp maps GGUF files by default (<code>--load-mode auto</code>: "mmap, unless a device does not support it"). llama-server on Qwen3-4B Q4_K_M (2.5 GB), four starts each way, warm page cache, <span class="meas">measured</span>:</p>
@@ -137,6 +151,9 @@ python -m mlx_lm convert --hf-path Qwen3-0.6B --mlx-path q06-mlx4 -q --q-bits 4 
 <p>Mapping saved about a third of a second and 0.6 GiB here (medians). The bigger wins come when the file is not yet in RAM, when several processes share one mapping, or when only part of the model is needed (a pipeline stage, a tensor-parallel rank). With a cold cache all of this is disk-bound: about 3.2 GB/s on this laptop's SSD ({{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, which owns cold starts and autoscaling).</p>
 </div></details>
 <details class="dp"><summary>torch.load with mmap, the page cache, and published loading numbers <span class="mute">(depth)</span></summary><div class="b"><p><code>torch.load(mmap=True)</code> closes most of the gap (<span data-mf="binMmap"></span>, then <span data-mf="binMmapTouch"></span> touched) but still runs the pickle program. llama.cpp refuses to map a GGUF whose data section is not aligned. A second start is quicker because the file is still in the page cache (the router run in section 6 shows it).</p><p>The safetensors README credits the format with loading BLOOM on 8 GPUs "from 10mn with regular PyTorch weights down to 45s" <span class="vend">vendor</span>. fastsafetensors (IBM Research, {{arXiv 2505.23072|https://arxiv.org/abs/2505.23072}}) copies groups of tensors straight into GPU memory, with GPUDirect Storage where available, and reports 4.8x to 7.5x faster loads and 26.4 GB/s for Llama-70B on four GPUs <span class="vend">authors</span>; vLLM and SGLang accept <code>--load-format fastsafetensors</code>. On a datacenter GPU the weights must still be copied from host memory into HBM, which is what these attack.</p></div></details>
+</div><div class="s3R"><div class="s3side">
+<div class="lo-card"><h4>safetensors returns in milliseconds because it maps; a pickle copies first</h4><div id="mf-lb" class="bars"></div><div class="small mute">Bars: median seconds to return (whiskers: min to max). Right: extra resident memory over a baseline process. "Touch" reads one value in every page of every tensor, so all 1.5 GB is really brought in.</div></div>
+</div></div></div>
 
 <h3>Choosing a format</h3>
 <div class="tw"><table class="mf-tbl"><thead><tr><th>Situation</th><th>Format</th></tr></thead><tbody>

@@ -1,7 +1,7 @@
 // usage: node check_ui.mjs <outdir for screenshots>
 // Every tab at 390 px dark and 920 px light: every animation stepped forward and back in every mode, every select option,
 // every range value, every predict button; fails on page errors, NaN/undefined/Infinity in visible text, sideways scroll
-// or elements wider than the viewport. Screenshots each card and each lab section.
+// or elements wider than the viewport. Screenshots each card and each lab section. Motion: see the end of the loop and check_stages.mjs.
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -79,14 +79,19 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
       for (let y = 0, k = 0; y < hh && k < 8; y += 1100, k++) await page.screenshot({ path: path.join(out, tab + '_' + w + '_' + k + '.png'), clip: { x: 0, y, width: w, height: Math.min(1100, hh - y) }, captureBeyondViewport: true });
     }
   }
-  // nothing moves before the reader acts: reload, bring every animation into view, wait, and every scrubber must still be at step 0
+  // motion (2026-11-12, inverted from the old never-autoplay rule): every 2D Reading animation plays by itself once scrolled into view
+  // (its play button reads Pause); the File explorer is a widget the reader drives and never moves by itself. The 3D stages: check_stages.mjs.
   await page.reload(); await sleep(300);
-  for (const t of ['t-read', 't-bytes']) {
-    await page.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), t); await sleep(200);
-    for (const id of await page.evaluate(t => [...document.querySelectorAll('#' + t + ' .an-ctl')].map(c => c.id), t)) { await page.evaluate(id => document.getElementById(id).scrollIntoView({ block: 'center' }), id); await sleep(1200) }
-    const moved = await page.evaluate(t => [...document.querySelectorAll('#' + t + ' .an-ctl input[type=range]')].filter(r => +r.value !== 0).map(r => r.id), t);
-    if (moved.length) errs.push('autoplay: ' + moved.join(', '));
+  await page.evaluate(() => document.querySelector('#tabs button[data-t="t-read"]').click()); await sleep(300);
+  for (const ctl of ['lo-qb-ctl', 'mf-pk-ctl', 'lo-cr-ctl']) {
+    await page.evaluate(id => document.getElementById(id).closest('.lo-card').scrollIntoView({ block: 'center' }), ctl); await sleep(1500);
+    const lab = await page.evaluate(id => document.getElementById(id + '-p').getAttribute('aria-label'), ctl);
+    if (lab !== 'Pause') errs.push('did not play when in view: ' + ctl);
   }
+  await page.evaluate(() => document.querySelector('#tabs button[data-t="t-bytes"]').click()); await sleep(200);
+  await page.evaluate(() => document.getElementById('mf-bx-card').scrollIntoView({ block: 'center' })); await sleep(2500);
+  if (await page.evaluate(() => +document.getElementById('mf-bx-ctl-s').value !== 0 || document.getElementById('mf-bx-ctl-p').getAttribute('aria-label') !== 'Play')) errs.push('the File explorer widget moved by itself');
+  await page.evaluate(() => document.querySelector('#tabs button[data-t="t-read"]').click());
   const jsErr = await page.evaluate(() => { const e = document.getElementById('jsErr'); return e && !e.hidden ? e.textContent : '' });
   const f = errs.length + badAll.length + (sideAll ? 1 : 0) + wideAll.length + (jsErr ? 1 : 0);
   console.log(w, scheme, 'controls', total, 'errors', errs.length, 'bad', badAll.length, 'sideways', sideAll, 'wide', wideAll.length, 'jsErr', jsErr ? 1 : 0);

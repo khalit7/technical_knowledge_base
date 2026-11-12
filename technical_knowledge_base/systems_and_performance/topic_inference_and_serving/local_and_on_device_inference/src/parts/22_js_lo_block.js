@@ -15,13 +15,7 @@
   }
   const fx=v=>{const a=Math.abs(v);return a===0?'0':a>=0.01?v.toFixed(4):v.toExponential(2)};
   const rms=(a,b)=>Math.sqrt(a.reduce((s,v,i)=>s+(v-b[i])**2,0)/a.length);
-  const caps=[
-    ['The 32 weights, as trained','The first 32 weights of one row of layer 14\'s query projection in Qwen3-1.7B, read from the F16 GGUF converted here. Each is a 16-bit float: 2 bytes. A 1.7B model stores 2.03 billion of them, so every token generated reads about 4 GB.'],
-    ['Pick a scale','Quantization stores one shared number (the scale) for a small group of weights, and a short integer code per weight. The scale is chosen so the codes cover the group\'s range.'],
-    ['Snap each weight to the nearest level','Each weight is replaced by the nearest of the levels the codes can express (the horizontal lines). Fewer bits, fewer levels, bigger jumps.'],
-    ['Store the codes','What is written to the file. The bytes per weight, including the scales, is the bits-per-weight figure every quant name stands for.'],
-    ['Read it back','At run time the kernel multiplies each code back by its scale (dequantizes) as it reads. The gap between the dot and the bar is the error this format introduced on this block.']
-  ];
+
   function draw(i){
     const I=info(fmt),W=Math.max(300,Math.min(860,RD.width(el))),H=W<480?230:260,L=46,R=10,T=14,Bm=26;
     const all=F.slice(0,N).concat(I.rec);const mx=Math.max(...all.map(Math.abs))*1.12;
@@ -36,11 +30,12 @@
         if(i>=4)b+='<line x1="'+x(k).toFixed(1)+'" x2="'+x(k).toFixed(1)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(q).toFixed(1)+'" stroke="var(--bad)" stroke-width="2"/>'}
       if(i===3&&I.codes&&W>=480)b+=RD.t(x(k),H-Bm+14,String(I.codes[k]),{a:'middle',fs:9,fill:'var(--mute)'})}
     el.innerHTML=RD.svg(W,H,b,'one block of 32 weights, '+fmt);
-    document.getElementById('lo-qb-cap').innerHTML='<div class="t">'+(i+1)+'/5 '+caps[i][0]+' ('+fmt+')</div><p>'+caps[i][1]+'</p><p class="small mute">'+(i===1||i===2?I.scale:i===3?I.store+(I.codes&&W<480?'. Codes: '+I.codes.slice(0,N).join(' '):''):i===4?'RMS error on these 32 weights '+fx(rms(F.slice(0,N),I.rec))+'; on the whole 2,048 &times; 2,048 tensor the error is '+(B.types[fmt].rel*100).toFixed(1)+'% of the weights\' RMS.':'')+'</p>';
+    // the step list on the left explains each step; this line gives the chosen format's own numbers for it
+    document.getElementById('lo-qb-cap').innerHTML='<b>'+fmt+'</b>: '+(i===0?'F16, 2 bytes per weight.':i===1||i===2?I.scale:i===3?I.store+(I.codes&&W<480?'. Codes: '+I.codes.slice(0,N).join(' '):''):'RMS error on these 32 weights '+fx(rms(F.slice(0,N),I.rec))+'; on the whole 2,048 &times; 2,048 tensor the error is '+(B.types[fmt].rel*100).toFixed(1)+'% of the weights\' RMS.');
     const C=document.getElementById('lo-qb-cnt');
     C.innerHTML=RD.stat('bits per weight',i>=3?I.bpw:'16','F16 = 16')+RD.stat('bytes for these 32',i>=3?I.bytes:'64','F16: 64 bytes')+RD.stat('RMS error, this block',i>=4?fx(rms(F.slice(0,N),I.rec)):'&ndash;','relative to F16')+RD.stat('whole tensor, relative',i>=4?(B.types[fmt].rel*100).toFixed(1)+'%':'&ndash;','error RMS / weight RMS');
   }
-  const A=RD.anim({card:'lo-qb',ctl:'lo-qb-ctl',n:5,draw,ms:1800,label:'Quantization step'});
+  const A=RD.anim({card:'lo-qb',ctl:'lo-qb-ctl',n:5,draw,ms:4200,label:'Quantisation step',list:'sx-qb'});
   RD.seg(document.getElementById('lo-qb-seg'),m=>{fmt=m;A.reset(5)});
   RD.onResize(()=>A.redraw());
 })();

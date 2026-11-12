@@ -12,7 +12,7 @@
       const asc=row.map(x=>{const v=parseInt(x,16);return v>=32&&v<127?String.fromCharCode(v):'.'}).join('');
       s+=c(f.o+i).padStart(11,' ')+'  '+row.join(' ').padEnd(48,' ')+' '+E(asc)+'\n'}
     return s+(f.n>h.length/2&&h?'... '+c(f.n-h.length/2)+' more bytes':'')||'(a span of fields: see the steps around it)'}
-  const A=RD.anim({card:'mf-bx-card',ctl:'mf-bx-ctl',n:MF.fields.st06.fields.length,ms:1700,label:'Field',draw:i=>{
+  const A=RD.anim({card:'mf-bx-card',ctl:'mf-bx-ctl',n:MF.fields.st06.fields.length,ms:1700,label:'Field',auto:false,draw:i=>{
     const F=MF.fields[file],f=F.fields[i];const hdrEnd=file==='gguf'?MF.gg.q4km.ds:MF.st[SK[file]].ds;
     $('mf-bx-m1').textContent='Whole file, '+c(F.size)+' bytes';$('mf-bx-m2').textContent='First '+c(hdrEnd)+' bytes (everything before the tensor data), zoomed';
     mark($('mf-bx-map1'),f,F.size);mark($('mf-bx-map2'),f,F.size,hdrEnd);
