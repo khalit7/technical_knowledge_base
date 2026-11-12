@@ -1,5 +1,6 @@
 // Clicks every control at 390 px dark and 920 px light; fails on page errors, NaN, undefined or sideways scroll,
-// or any animation that moves before the reader acts (scrubbers must still be at 0 after scrolling through the page).
+// or any animation or stage that moves by itself under reduced motion (scrubbers must still be at 0 after scrolling through the page).
+// Autoplay on view (2026-11-06) is checked by check_stages.mjs without reduced motion.
 // Usage (from the repo root): node <page>/src/check_ui.mjs <page>/index.html <shots dir>
 import { createRequire } from 'module';
 import path from 'path';
@@ -18,8 +19,8 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
   await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
   await page.goto(url, { waitUntil: 'load' });
-  // no autoplay: scroll every card into view, wait, then every scrubber must still read 0
-  await page.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .card')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 120)); } });
+  // reduced motion: scroll every card and stage into view, wait, then every scrubber must still read 0
+  await page.evaluate(async () => { for (const c of document.querySelectorAll('#t-read .card, #t-read .stg')) { c.scrollIntoView(); await new Promise(r => setTimeout(r, 120)); } });
   await new Promise(r => setTimeout(r, 1500));
   const moved = await page.$$eval('#t-read .an-ctl input[type=range]', a => a.filter(x => +x.value !== 0).map(x => x.id));
   if (moved.length) { fails++; console.log('FAIL autoplay', w, scheme, moved); }
@@ -32,12 +33,12 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   // Reading
   for (const sel of ['#rd-sys-mode button', '#rd-fit-mod button', '#rd-fit-prec button', '#rd-amd-mode button', '#t-read .pr .opts button']) await clickAll(sel);
   await page.evaluate(() => { document.querySelector('#rd-sys-mode button[data-m="sys"]').click(); });
-  for (let i = 0; i < 16; i++) await page.click('#rd-sys-ctl-f');
+  for (let i = 0; i < 5; i++) await page.click('#stg-sys-f');
   await bad('read');
-  for (const id of ['rd-hero-card', 'rd-sys-card', 'rd-fit-card', 'rd-amd-card', 'rd-ws-card']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
+  for (const id of ['rd-hero-card', 'stg-sys', 'rd-fit-card', 'rd-amd-card', 'stg-pod', 'stg-wafer']) { const el = await page.$('#' + id); await el.screenshot({ path: `${shots}/${id}-${w}-${scheme}.png` }); }
   await page.evaluate(() => { document.querySelector('#rd-sys-mode button[data-m="lanes"]').click(); });
-  for (let i = 0; i < 9; i++) await page.click('#rd-sys-ctl-f');
-  { const el = await page.$('#rd-sys-card'); await el.screenshot({ path: `${shots}/rd-sys-lanes-${w}-${scheme}.png` }); }
+  for (let i = 0; i < 3; i++) await page.click('#stg-sys-f');
+  { const el = await page.$('#stg-sys'); await el.screenshot({ path: `${shots}/rd-sys-lanes-${w}-${scheme}.png` }); }
   await bad('read lanes');
   // Section 1: shapes card and the closed cycle-by-cycle block
   const pres = await page.$$eval('#sy-pre button', a => a.length);

@@ -28,24 +28,3 @@
   RD.seg(document.getElementById('rd-amd-mode'),m=>{mode=m;draw()});
   RD.onRender(draw);RD.onResize(draw);draw();
 })();
-// ---- Reading, section 8: Cerebras weight streaming, a static annotated diagram ----
-(function(){
-  const el=document.getElementById('rd-ws-svg');if(!el)return;
-  function box(x,y,w,h,t1,t2,c){return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="var(--soft)" stroke="'+c+'" stroke-width="1.5"/>'+
-    RD.t(x+w/2,y+(t2?h/2-2:h/2+4),t1,{a:'middle',fs:12,w:600})+(t2?RD.t(x+w/2,y+h/2+13,t2,{a:'middle',fs:11,fill:'var(--mute)'}):'')}
-  function arrow(x1,y1,x2,y2,c){const a=Math.atan2(y2-y1,x2-x1),s=7;
-    return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+c+'" stroke-width="2"/><path d="M'+x2+' '+y2+' L'+(x2-s*Math.cos(a-0.45)).toFixed(1)+' '+(y2-s*Math.sin(a-0.45)).toFixed(1)+' L'+(x2-s*Math.cos(a+0.45)).toFixed(1)+' '+(y2-s*Math.sin(a+0.45)).toFixed(1)+'Z" fill="'+c+'"/>'}
-  function draw(){
-    const w=RD.width(el),bw=Math.min(300,w-20),bx=(w-bw)/2;
-    let h=box(bx,6,bw,44,'(1) MemoryX','all weights and optimizer state','var(--c4)');
-    h+=box(bx,104,bw,44,'(2) SwarmX','broadcast down, sum gradients up','var(--c4)');
-    const n=3,gap=10,ww=Math.min(150,(w-20-(n-1)*gap)/n),wx0=(w-(n*ww+(n-1)*gap))/2,wy=202;
-    for(let i=0;i<n;i++){const x=wx0+i*(ww+gap);h+=box(x,wy,ww,58,'CS-3 wafer '+(i+1),'batch shard '+(i+1),'var(--acc)');
-      h+=arrow(x+ww*0.35,150,x+ww*0.35,wy-2,'var(--c1)')+arrow(x+ww*0.65,wy-2,x+ww*0.65,150,'var(--c2)')}
-    h+=arrow(bx+bw*0.35,52,bx+bw*0.35,102,'var(--c1)')+arrow(bx+bw*0.65,102,bx+bw*0.65,52,'var(--c2)');
-    h+=RD.t(bx+bw*0.35-6,82,"layer's weights",{a:'end',fs:11,fill:'var(--c1)'})+RD.t(bx+bw*0.65+6,82,'summed gradients',{fs:11,fill:'var(--c2)'});
-    h+=RD.t(w/2,wy+76,'(3) activations stay on each wafer; (4) gradients go back up',{a:'middle',fs:11,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(w,wy+84,h,'Weight streaming: MemoryX, SwarmX and three wafers');
-  }
-  RD.onRender(draw);RD.onResize(draw);draw();
-})();

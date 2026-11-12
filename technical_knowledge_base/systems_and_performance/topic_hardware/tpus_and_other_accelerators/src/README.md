@@ -2,14 +2,15 @@
 
 Build: `sh build.sh` writes `../index.html` from `parts/`. Everything (recompute, build, checks): `sh run_all.sh` (python3, node with html_utils' node_modules).
 
-- `parts/`: 01_head (shared look copied from the root), 10_header (tabs: Reading, Further reading), 20_read_a..i (Reading: a = styles and nav, b = the idea (core sentence, hero, comparison table, you need, new terms), c = s1 systolic arrays with the shapes card and a closed cycle-by-cycle block, d = s2 inside a TPU (photos) and s3 generations, e = s4 pods (racks photo, slice builder), f = s5 AMD (board diagram) and s6 Trainium, g = s7 Groq and s8 Cerebras (weight-streaming diagram), h = s9 other bets (Gaudi, SambaNova, Etched, in-house, who can get each), i = s10 your code and a closed interview block), 20_read_z closes it; 21_js_rd_common and 99_js_tabs are the explainer-page skill templates (storage key `tpu-tab`; nothing moves before the reader acts); 22_js_sys_core (the systolic simulator, port of `sim/systolic.py`); 23 to 26 Reading JS; 28 hero; 29 AMD board and weight-streaming diagrams; 31 the shapes card and cycle-by-cycle block (section 1); 32 the slice builder (section 4); 39 Further reading.
+- `parts/`: 01_head (shared look copied from the root), 02_split (the split layout, skill template, in `build.sh` after 01_head), 10_header (tabs: Reading, Further reading), 20_read_a..i (Reading: a = styles and nav, b = the idea (core sentence and hero in a split, comparison table, you need, new terms), c = s1 systolic arrays (Fig. 2 stage split, the shapes card split, a closed cycle-by-cycle widget), d = s2 inside a TPU (photos split) and s3 generations, e = s4 pods (Fig. 3 stage split; slice builder and racks photo split), f = s5 AMD (board diagram split) and s6 Trainium, g = s7 Groq (fit chart and die photo split) and s8 Cerebras (Fig. 4 stage split), h = s9 other bets, i = s10 your code and a closed interview block), 20_read_z closes it; 21_js_rd_common, 25_js_s3 (renderer v2) and 99_js_tabs are the explainer-page skill templates, unchanged (storage key `tpu-tab`); 22_js_sys_core (the systolic simulator, port of `sim/systolic.py`); 25_js_rd_fit (section 7 chart), 26 predict blocks, 28 hero, 29 AMD board diagram, 31 the shapes card and the cycle-by-cycle widget (section 1), 32 the slice builder (section 4); scenes 40_js_sc_sys (Fig. 2), 41_js_sc_pod (Fig. 3), 42_js_sc_wafer (Fig. 4); 39 Further reading.
 - `sim/systolic.py`: cycle-level weight-stationary array and the tiled model; writes `out/systolic_ref.json`.
 - `recompute.py`: every derived number on the page; writes `out/recompute.json`.
 - `check_embed.py`: prose and table numbers equal `out/recompute.json`; the animation's matrices are reference case 0.
 - `check_sim.mjs`: the page's JavaScript (simulator, tiled model, Reading animation, fit chart, pod all-reduce) against the Python (61 comparisons).
-- `check_ui.mjs`: clicks every control at 390 px dark and 920 px light; fails on errors, NaN, undefined, sideways scroll, or any scrubber that moved before the reader acted; screenshots every card and figure to a given folder.
+- `check_ui.mjs`: clicks every control at 390 px dark and 920 px light under reduced motion; fails on errors, NaN, undefined, sideways scroll, or any scrubber (stages included) that moved by itself; screenshots every card, stage and figure to a given folder.
+- `check_stages.mjs` (from the repo root, a few minutes): the 2026-11-06 rollout checks, see the last section.
 - `inputs/`: extracts of the primary sources read (scaling book, TPU v4 paper, CACM 2020 Table 1), HF parameter counts, and the research notes (AMD and Trainium; Groq, Cerebras and energy, fetched 2026-10-05; Gaudi 3, SambaNova, Etched and the photo search, `research_other_asics.md`, fetched 2026-10-23) with every quote and URL.
-- `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check`). `../img/`: three TPU v4 photos, credits in `../img/CREDITS.md`.
+- `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check`). `../img/`: three TPU v4 photos and a Groq die shot (added 2026-11-12), credits in `../img/CREDITS.md`.
 - `live.md`: the old Notion page "TPUs: systolic arrays and pod-scale machines" (copy of the root's `src/read/old/02_tpus.md`); `coverage.json` maps each of its 50 claims to where it is carried, corrected or why dropped.
 - `viz_ideas.md`: visuals built and rejected, with scores.
 
@@ -42,3 +43,35 @@ Why about 35 minutes is right: the page teaches one mechanism (the systolic arra
 
 ## Topic close (2026-10-24)
 Section 4 now keeps the chip's view of a pod: ICI and the torus defined in one paragraph, the TPU v4 racks photo, the slice builder (its caption carries the scaling book's rule and the 0.178 / 0.059 / 0.357 s v5p numbers), Ironwood's 144 cubes and 1.77 PB, and the mesh box. The topology, the optical circuit switches (48 of 136 ports, twisted tori, under 5% of cost), the scaling book's worked example, Ironwood's pod and DCN are taught on Interconnects and scaling sections 6 and 7, which absorbed them; their ledger units are `owned:` that page. The torus hop widget (`retired/24_js_rd_torus.js`) retired: Interconnects section 5 draws the torus with hop counts. `check_embed.py` drops the book-example and OCS-count numbers; `check_ui.mjs` drops the widget. Reading 35.0 to 32.5 min core (closed 6.7 to 6.5). Further reading: times set to each header; the Interconnects card names TPU tori and optical switches.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` and `99_js_tabs.js` (key `tpu-tab`). The page's `#t-read .an-ctl` rules skip `.stg-bar`; `build.sh` writes the em-dash detector's character as bytes. No new runs; `recompute.py`, `sim/systolic.py` and their outputs are unchanged. The 2D systolic animation (`23_js_rd_sys.js`) and the 2D weight-streaming diagram (in `29_js_rd_diag.js`) are removed: Figs. 2 and 4 replace them.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | 2D hero (log scales) | no |
+| Reading | Comparison table, predict | full width | table | no |
+| Reading | 1 The problem, Horowitz's energies | full width | none | no |
+| Reading | 1 How a systolic array answers it | split | **3D** `stg-sys` (Fig. 2): the 4 x 4 array against 16 scalar lanes (mode switch) | yes, 5 + 3 |
+| Reading | 1 Padding, small batches, bigger arrays | split | 2D shapes card (a widget: calculator plus utilisation sweep) | no |
+| Reading | 1 Tensor cores; cycle by cycle | full width | closed widget (`auto:false`: never plays by itself) | no |
+| Reading | 2 Inside a TPU chip | split | photos (TPU v4 package and board) | no |
+| Reading | 2 Peaks; 3 Generations | full width | tables | no |
+| Reading | 4 ICI and the torus | split | **3D** `stg-pod` (Fig. 3): a cube of 64 chips, rings along it, the pod | yes, 6 |
+| Reading | 4 What a slice costs, the mesh | split | 2D slice builder (a widget) and the racks photo | no |
+| Reading | 5 AMD | split | 2D board diagram (toggle) | no |
+| Reading | 6 Trainium | full width | none | no |
+| Reading | 7 Groq | split | 2D fit chart (log scale) and the Groq die photo | no |
+| Reading | 8 Cerebras | split | **3D** `stg-wafer` (Fig. 4): dies to scale, defects, weight streaming, inference | yes, 6 |
+| Reading | 9 Other bets; 10 Your code | full width | tables | no |
+| Further reading | | unchanged | | |
+
+**Stages and their data.** Fig. 2: reference case 0 (`X` 5 x 4, `W` 4 x 4, the matrices `check_embed.py` compares) run through `SYS.simulate`; every busy cell, partial sum, result, input read and hand-off comes from its frames, grouped into the long-replay rule's stretches (load 4 cycles; fill 1 to 3; full flow 4 to 8, until the last input enters; drain 9 to 11; done), each stretch playing its cycles during its step; the lanes mode plays two rounds of 4 steps. The scene exports `window.__tpuRdSys` (for `check_sim.mjs`) and `window.TPU_SYS` (for `check_stages.mjs`). Fig. 3: `POD.slice` on v5p with 16.06 GB: one axis of a 4 x 4 x 4 cube 0.178 s, three axes 0.059 s, a 2 x 2 x 4 slice without wraparound 0.357 s; 96 optical links per cube; Ironwood's 144 cubes; chips on a grid and switch paths schematic. Fig. 4: areas 46,225, 814 and 25 x 29 mm drawn to scale (1 unit = 20 mm), ratios about 57 and 64 derived; the core patch, MemoryX, SwarmX and the wafers schematic; 70,553,706,496 parameters x 2 bytes = 141.1 GB over 44 GB wafers = 4.
+
+**Kept 2D and why**: the hero, the fit chart and the utilisation sweep are log scales or curves; the shapes card and slice builder are widgets with many controls (the slice builder's numbers are what Fig. 3 animates); the AMD board diagram is a flat graph, and Interconnects and scaling's Fig. 2 already draws the switch against the mesh in 3D (now linked from the caption); the peak and generation tables are tables. Trainium (section 6) has no visual: its NeuronCore is a 128 x 128 systolic array (Fig. 2 draws the mechanism) and no die area or layout is published in the page's sources, so a 3D chip would be invented.
+
+**Real image**: Groq's first-generation die (Wikimedia Commons, CC BY-SA 4.0, found on a new search on 2026-11-12) beside the fit chart in section 7: it shows how regular a cache-free, arbiter-free chip looks. Still no openly licensed photo of a Cerebras wafer, an AMD Instinct or a Trainium chip.
+
+**Length judgement.** Reading core 34.0 min before (7,823 words, `audit_pages.mjs`), 37.7 min after (8,674); closed details 6.5 min both times; Further reading 2.6 min unchanged. Visuals in Reading 8 before, 9 after by the audit's count (three 3D stages and a photo added; the 2D systolic animation and weight-streaming diagram retired). The four minutes are the step lists that now explain the three stages on the left (the systolic list has two modes), as the rollout requires; prose the stages carry moved into the lists instead of being repeated (Cerebras's training paragraph is now steps 3 to 5 of Fig. 4; the slice paragraph of section 4 is steps 3 to 6 of Fig. 3; section 1's "What it shows" lost the sentence the done step carries). Nothing the ledger holds was cut.
+
+**Ledger**: 388 units (core 264, depth 33, fat 59, owned 22, volatile 10): 11 units added for the step lists' new results (section "added 2026-11-12"); no key changed. `ledger.py check` problems 0 here and on the root.

@@ -24,9 +24,9 @@
     return {h,bot:bot+18,sx,top};
   }
   function draw(){
-    const w=RD.width(el),wide=w>=640,lab=w<480?72:112;
+    const w=RD.width(el),wide=w>=760,lab=w<480?72:112;
     const pw=wide?(w-16)/2:w;
-    const memBar=(r,y,sx,ax0)=>{const ax=ax0-8;const x1=sx(r[2]),c=r[3]==='SRAM'?'var(--c2)':'var(--c1)';
+    const memBar=(r,y,sx,ax0)=>{const ax=ax0-2;const x1=sx(r[2]),c=r[3]==='SRAM'?'var(--c2)':'var(--c1)';
       const txt=(r[2]<1?r[2].toFixed(1):Math.round(r[2]))+' GB '+r[3];
       const inside=x1-ax>92;
       return '<rect x="'+ax+'" y="'+(y+5)+'" width="'+Math.max(2,x1-ax).toFixed(1)+'" height="14" rx="2" fill="'+c+'" fill-opacity=".85"/>'+

@@ -1,4 +1,4 @@
-// ---- Systolic array lab tab ----
+// ---- Reading, section 1: the shapes card (utilisation against shape) and the closed cycle-by-cycle widget ----
 (function(){
   const tab=document.getElementById('sy-card');if(!tab)return;
   const $=id=>document.getElementById(id);
@@ -61,7 +61,7 @@
     let macs=0;for(let j=0;j<=i;j++)macs+=sim.frames[j].act;
     $('sy-acap').innerHTML='<b>Cycle '+(i+1)+' of '+sim.cycles+'</b> (M + K + N &minus; 2 = '+(M+K+N-2)+'): '+f.act+' of '+(K*N)+' cells busy; each colour is one row of X moving right and down as a diagonal band. Multiply-adds so far '+macs+' of '+(M*K*N)+'; whole tile utilisation '+Math.round(100*M*K*N/(K*N*sim.cycles))+'%. Result '+(sim.ok?'<span class="ok">matches the plain matrix multiply</span>':'<span class="bad">does not match</span>')+'.'}
   build();
-  const A=RD.anim({card:'sy-anim-card',ctl:'sy-actl',n:sim.cycles,ms:700,label:'Cycle',draw:drawA});
+  const A=RD.anim({card:'sy-anim-card',ctl:'sy-actl',n:sim.cycles,ms:700,label:'Cycle',draw:drawA,auto:false});  // a widget the reader drives (sliders pick the shape): never plays by itself
   ['sy-am','sy-ak','sy-an'].forEach(id=>$(id).addEventListener('input',()=>{A.reset(build())}));
   RD.onRender(()=>{out();A.redraw()});
   RD.onResize(()=>{chart();A.redraw()});

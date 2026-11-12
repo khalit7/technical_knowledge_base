@@ -35,3 +35,7 @@ Rejected in the rebuild: a Gaudi output-stationary animation (section 1's weight
 
 ## What the Methodology lacked for this page
 A rule for vendor documents that disagree with themselves (TPU v6e MXU count, Trainium3 link bandwidth, Trainium2 peak): shown as boxes with the arithmetic, never resolved silently.
+
+## 2026-11-12 rollout (renderer v2)
+- **Built**: Fig. 2, the systolic array as an upright 4 x 4 wall of cells with glass weight tiles, inputs flowing right and partial sums down, results dropping to the floor as bars, against 16 scalar lanes pulling operands from a register file (mode switch); Fig. 3, a 4 x 4 x 4 TPU cube with its rings and the pod of 144 cubes; Fig. 4, the WSE-3, an H100 die and Groq's first chip to scale, a patch of cores routed around a dead one, weight streaming and four wafers serving 70B. They replace the 2D systolic animation and the 2D weight-streaming diagram (the "Cerebras weight-streaming animation" rejected above is now built, schematic and labelled so, since it is the structure, not the timing, that teaches).
+- **Rejected**: a Trainium chip in 3D (no die layout or area in the page's sources); a 3D hero (log scales); a TensorCore data path (HBM, VMEM, MXU) in 3D, which belongs to TPU programming and performance; a 3D AMD board, already Fig. 2 of Interconnects and scaling.
