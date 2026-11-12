@@ -108,6 +108,18 @@ claim("33.5 MB of MLP-hidden all-gathers", sum(r["bytes"] for r in fs["fsdp_naiv
 n = multi["normal"]
 if not (n["processes_agree"] and n["max_abs_loss_diff_vs_one_device"] <= 4.8e-7):
     fails.append("multi run")
+# 2026-11-12: numbers written in the step lists of the 3D stages (Fig. 1, 3, 12) and the ring list (section 7)
+agf = [c for c in small["fsdp_tp"]["collectives"] if c[0] == "all-gather" and c[1] == "forward"]
+claim("28 of its 29 forward all-gathers run in groups of 2", sum(c[3] for c in agf if c[2] == 2) == 28 and sum(c[3] for c in agf) == 29, "hero all-gathers")
+tpc = [c for c in prop["cases"] if c["id"] == "tp"][0]["shardy"]
+arf = [c for c in tpc["collectives"] if c["phase"] == "fwd"]  # one entry per collective in the compiled block
+claim("exactly 2 all-reduces, 2,097,152 bytes", len(arf) == 2 and all(c["kind"] == "all-reduce" for c in arf) and sum(c["bytes"] for c in arf) == 2097152 and all(c["line"] == 51 for c in arf), "fig 3 all-reduce")
+claim("1,048,576 bytes per device ([16, 128, 128] in float32)", 16 * 128 * 128 * 4 == 1048576, "fig 3 per device")
+claim("one K and one V block, 262,144 bytes each", re_["ring"]["collectives"]["collective-permute"]["bytes"] == 14 * 262144, "ring block")
+p0 = n["processes"][0]
+claim("0, 1, 2, 3, 2048, 2049, 2050, 2051", p0["device_ids"] == [0, 1, 2, 3, 2048, 2049, 2050, 2051], "multi ids")
+claim("4.211680 at step 0, 3.388048 at step 19", f"{p0['losses'][0]:.6f}" == "4.211680" and f"{p0['losses'][19]:.6f}" == "3.388048", "multi losses")
+claim("gives 4.211680 at step 0 and 3.388048 at step 19", f"{multi['one_device_losses'][0]:.6f}" == "4.211680" and f"{multi['one_device_losses'][19]:.6f}" == "3.388048", "one-device losses")
 
 # 3. privacy: everything under the page folder that will be committed
 pat = re.compile(r"/Users/|Users-|" + re.escape(__import__("getpass").getuser()) + r"|glpat|sk-ant|[\w.+-]+@[\w-]+\.[\w.]+|\.local\b|MacBook")

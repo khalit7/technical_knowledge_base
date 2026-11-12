@@ -1,14 +1,27 @@
+<div class="s3sp"><div class="s3R"><div id="stg-multi"></div></div><div class="s3L">
 <section id="s-multi">
 <h2>12. Many hosts: one program, many controllers</h2>
 <p><b>The model.</b> A TPU slice larger than one host (one VM with a few chips attached) runs <em>one Python process per host</em>, all executing the same script: JAX is <dfn>multi-controller</dfn>. The JAX guide: "All processes (usually) run the same Python script", and "it's crucial that all processes with participating devices run the same computation in the same order", a rule that is "mostly unchecked", so a mismatch hangs ({{JAX docs, multi-controller JAX|https://docs.jax.dev/en/latest/multi_process.html}}, read 2026-10-15). The PyTorch picture is close: <code>torchrun</code> starts one process per GPU and you call <code>init_process_group</code>; JAX starts one process per host and you call <code>jax.distributed.initialize()</code> (<span id="ss-ref-dist"></span>), which on Cloud TPU, Slurm or Kubernetes needs no arguments. After it, <code>jax.devices()</code> lists every chip of every host (the <dfn>global</dfn> devices) and <code>jax.local_devices()</code> this host's (also called <dfn>addressable</dfn>). A jitted function over a global array is still one SPMD program; the difference from one host is only that a process can touch the shards on its own devices and nothing else.</p>
 <p><b>Run here.</b> JAX runs the same thing on CPU with several processes on one machine, so this page does it for real: 2 processes, each owning 4 simulated devices, connected by <code>jax.distributed</code> over localhost (collectives between processes use gloo, the default CPU implementation, <span id="ss-ref-gloo"></span>). Each process loads only its 16 of the batch's 32 rows and builds the global batch with <code>jax.make_array_from_process_local_data</code> (<span id="ss-ref-mapl"></span>), then both run the running example's data-parallel train step for 20 steps. <span class="meas">measured</span> <span id="ss-multi-sum"></span></p>
-<div class="ss-card" id="mu-card">
-<h4>One step, two ways: the program is the same; only who can touch which shard changes</h4>
-<div class="seg" id="mu-mode"><span class="lbl">Run as</span><button data-m="2" class="on">Two processes x 4 devices</button><button data-m="1">One process x 8 devices</button></div>
-<div class="ss-svg" id="mu-svg"></div>
-<div class="an-ctl" id="mu-ctl"></div>
-<div class="ss-cap" id="mu-cap"></div>
-</div>
+<div class="seg" id="mu-mode"><span class="lbl">Fig. 12 runs as</span><button data-m="2" class="on">Two processes x 4 devices</button><button data-m="1">One process x 8 devices</button></div>
+<ol class="sx" id="sx-multi2">
+<li><b>Start.</b> Two copies of the same script, one per "host". Each sees only its own 4 devices until they connect.</li>
+<li><b>Connect.</b> <code>jax.distributed.initialize(coordinator_address=..., num_processes=2, process_id=i)</code>. Now <code>jax.devices()</code> lists all 8 in both processes (0, 1, 2, 3, 2048, 2049, 2050, 2051: process 1's devices got ids from 2048, as observed here), <code>jax.local_devices()</code> only its own 4. Both build the same mesh over all 8.</li>
+<li><b>Load.</b> Process 0 loads rows 0 to 15 of the batch, process 1 rows 16 to 31, and each calls <code>make_array_from_process_local_data</code> with the <code>P('data', None)</code> sharding and its own rows. The result is one global [32, 128] array; each process can touch only its own 4 shards of [4, 128].</li>
+<li><b>Compute.</b> The jitted step runs on every device: forward and backward on its 4 rows give partial gradients.</li>
+<li><b>All-reduce.</b> The one all-reduce in the compiled step (the same single collective as on one host) sums the gradients over all 8 devices. Between the processes it travels over gloo here; on a slice it would ride ICI.</li>
+<li><b>Update.</b> Every device applies the same AdamW update to its copy of the replicated weights. Both processes read the same loss: 4.211680 at step 0, 3.388048 at step 19.</li>
+</ol>
+<ol class="sx" id="sx-multi1" hidden>
+<li><b>Start.</b> One process sees all 8 devices.</li>
+<li><b>Nothing to connect.</b> <code>jax.devices()</code> is local; every shard is addressable.</li>
+<li><b>Load.</b> The process loads all 32 rows and <code>device_put</code>s them with <code>P('data', None)</code>: 4 rows per device.</li>
+<li><b>Compute.</b> The same jitted step, the same per-device work.</li>
+<li><b>All-reduce.</b> The same single all-reduce, now a memory copy inside one process.</li>
+<li><b>Update.</b> The same weights. The root lab's one-device run gives 4.211680 at step 0 and 3.388048 at step 19.</li>
+</ol>
+</section></div></div>
+<div class="ss-cont">
 <h3>The two errors you will meet</h3>
 <p class="small">Both pasted from the run: reading a global array in one process fails on purpose, and hosts passing different values for a replicated array both stop at <code>device_put</code>.</p>
 <div id="mu-err"></div>
@@ -28,7 +41,7 @@
 <p><b>Single controller.</b> Google's own Gemini runs used the other model, a single controller: "the 'single controller' programming model of Jax and Pathways allows a single Python process to orchestrate the entire training run" ({{Gemini 1 report, arXiv 2312.11805, section 3|https://arxiv.org/abs/2312.11805}}); Pathways is not open source.</p>
 <p><b>Launching.</b> The same script is started on every host of the slice (on Cloud TPU, one command over all workers; under GKE or Slurm, one pod or task per host). <code>jax.distributed.initialize()</code> then needs no arguments: the JAX guide lists Slurm, Kubernetes and Cloud TPU as environments where they "are automatically populated". Not run here.</p>
 </div></details>
-</section>
+</div>
 
 <section id="s-debug">
 <h2>13. Debugging shardings: the toolkit, with real output</h2>

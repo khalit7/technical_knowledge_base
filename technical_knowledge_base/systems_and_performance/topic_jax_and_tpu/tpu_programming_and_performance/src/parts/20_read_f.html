@@ -1,7 +1,19 @@
+<div class="s3sp"><div class="s3R"><div id="stg-prof"></div></div><div class="s3L">
 <section id="s-prof">
 <h2>8. Profiling on a TPU: predict each fusion, then find the ones that miss</h2>
 <p>Wrap a few steps in <code>with jax.profiler.trace("/tmp/prof"):</code> (or <code>jax.profiler.start_trace</code> / <code>stop_trace</code>), call <code>jax.block_until_ready</code> on the result so the work lands inside the window, and open the directory with XProf (<code>pip install xprof</code>, the successor of the TensorBoard profile plugin). It is the counterpart of <code>torch.profiler</code> plus Nsight Systems, with one difference that changes how you read it: there are no kernel launches, only the compiled XLA program, so every row of the timeline is an HLO operation, usually a <dfn>fusion</dfn> (one matmul plus the elementwise work XLA fused around it).</p>
 <p><b>The habit.</b> The scaling book reads a real trace this way: an MLP up-projection, bf16[8, 1024, 8192] by bf16[8192, 16384] sharded 4-way data parallel and 2-way model parallel on 8 TPU v2 cores, "should" take 2 x 32 x 1024 x 8192 x 32768 &divide; (23e12 x 8) = 95.6 ms "which is pretty much exactly how long it takes (96ms)" <span class="vend">published</span>. Predict each big fusion's time from its shapes with the roofline of <a href="#s-roof">section 3</a>, then look for the ones that miss: those are memory-bound, padded, or waiting.</p>
+<p>Fig. 3 makes that prediction for one Llama 2 7B decoder layer on v5e, the matmuls of the {{Roofline lab|#t-roof}}'s 7B layer drawn as a profile: each operation a block on the timeline, its width the best time the roofline allows, in two lanes like a trace viewer's rows. It is <span class="der">calculated</span>, not a measured trace (no TPU was used); the VPU's softmax and LayerNorm are left out.</p>
+<ol class="sx" id="sx-prof">
+<li><b>The layer as a predicted trace.</b> Nine matmuls at 4,096 tokens per chip (one sequence of 4,096): q, k and v projections, the attention scores and their product with v, the output projection and the three MLP matmuls, end to end in 11.2 ms. Each block's width is max(FLOPs &divide; peak, bytes &divide; bandwidth).</li>
+<li><b>The back lane: how busy the MXUs are.</b> A block's height is its FLOP rate as a share of the bf16 peak. The seven weight matmuls stand at 100%: they are compute-bound. The two attention matmuls stand at 50%: an intensity of 120 against a ridge of 240.5.</li>
+<li><b>The front lane: how busy HBM is.</b> Height is bytes moved as a share of what the bandwidth allows in that time. The two attention blocks fill it: they write and read the 4,096 x 4,096 scores, so they are memory-bound and take 2.8 ms between them, as long as the four projections together.</li>
+<li><b>Fuse attention.</b> A fused kernel keeps the scores in VMEM: the two blocks become one, compute-bound, and the layer drops to 9.8 ms. This is the trace's lesson in one move: the block that missed its prediction was waiting on HBM.</li>
+<li><b>32 tokens per chip.</b> The same layer on one short sequence of 32: every block is memory-bound, the MXU lane stands at about 13% (an intensity of 32 against 240.5), the HBM lane is full, and the layer takes 0.50 ms for 1/128 of the work. The time axis is redrawn for this step. The weight matmuls behave as in a decode step of 32 users.</li>
+</ol>
+</section>
+</div></div>
+<section>
 <div class="tw"><table class="narrow">
 <thead><tr><th>View</th><th>Answers</th><th>What to look for on a TPU</th></tr></thead>
 <tbody>
@@ -14,14 +26,19 @@
 <p class="tq-src">Tool names from xprof 2.23.2, listed by running it here; what they show on a TPU from the scaling book's profiling chapter <span class="vend">published</span>. Not run here: on a CPU <code>jax.profiler.trace</code> works and xprof converts the trace, but its TPU views come back empty (the HLO stats have 0 rows, the op profile and memory profile are empty: measured by the {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} page, whose Profile reader tab walks the running example's CPU trace).</p>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-mfu">
 <h2>9. MFU and cost per token: ask how attention was counted</h2>
 <p><b>The definition.</b> Model FLOPs utilisation is the FLOPs the model needs per step divided by step time x peak FLOP/s; equivalently, measured tokens per second over the tokens per second peak would allow (MaxText's <code>docs/reference/performance_metrics.md</code>; the general treatment is on {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). "Model" FLOPs means what the architecture needs, not what the program executes: rematerialisation adds hardware FLOPs (28% on the running example) but no model FLOPs, so it lowers MFU.</p>
 <p><b>How MaxText counts.</b> <code>calculate_tflops_training_per_device</code> (<code>src/maxtext/utils/maxtext_utils.py:1152</code>) sums 2 x m x k x n for every weight matmul, triples it for forward plus backward, and adds attention as 4 x sequence<sup>2</sup> x heads x head size per layer and sequence, tripled, then halved for causal masking (<code>causal_attention_flops = noncausal_attention_flops / 2</code>, line 1217). The halving arrived with MaxText pull request 1988; its tiering page warns that "Some older TFLOPS/s results are impacted by an updated calculation for causal attention" <span class="vend">published</span>.</p>
 <p><b>What we found.</b> We ported that function line by line, fed it each model's MaxText config, and multiplied by the published tokens per second per chip. Six of the eight published MFUs come back within a quarter of a point only when attention is counted the old, non-causal way; counted causally, as the current code does, every one is lower, by 0.8 to 5.1 points <span class="der">calculated from published numbers</span>:</p>
+</section>
+</div><div class="s3R"><div class="s3side">
 <div class="tq-card" id="tq-mfu-card"><h4>The published MFU matches the old, non-causal count, not the current one</h4>
 <div class="tq-svg" id="tq-mfu-svg"></div>
 <p class="tq-src">Published MFU and approximate tokens/s per device from MaxText's <code>docs/reference/models/tiering.md</code> at 1a95d1e5 (undated; read 2026-10-15). Peaks 918 TFLOP/s (v6e) and 459 (v5p). The two that do not reproduce: Llama 2 70B on v5p (67.0% non-causal against 65.4% published; its tokens/s is "approx") and Llama 3.1 405B on v6e (35.2% against 38.55%: unexplained).</p></div>
+</div></div></div>
+<section>
 <p>The gap grows with sequence length: at 8,192 tokens, Llama 3.1 8B's attention is 13% of its FLOPs counted causally and 22% non-causally, so the same run reads as 40.4% or 45.5%. When you compare an MFU across codebases, or against a GPU number, ask for the FLOP formula and which peak it divided by (dense bf16, not sparse or fp8), or compare tokens per second per chip on the same model and sequence length. MaxText's own docs say the same ("Care needs to be token to compare MFU across codebases", sic). Compute your own run's MFU three ways:</p>
 <div class="tq-card" id="tq-f-card">
 <h4>Your run: one throughput, three MFUs</h4>

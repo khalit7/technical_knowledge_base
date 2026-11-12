@@ -67,33 +67,35 @@ tr.ss-sel td{background:var(--acc2)}tr.ss-click{cursor:pointer}
 <a href="#s-idea">The idea</a><a href="#s-mesh">1 Mesh, specs</a><a href="#s-modes">2 Who decides</a><a href="#s-prop">3 Propagation</a><a href="#s-explicit">4 Explicit</a><a href="#s-smap">5 shard_map</a><a href="#s-strat">6 Strategies</a><a href="#s-cp">7 Context</a><a href="#s-pipe">8 Pipeline</a><a href="#s-moe">9 Experts</a><a href="#s-cost">10 Costs</a><a href="#s-choose">11 Choosing a mesh</a><a href="#s-multi">12 Many hosts</a><a href="#s-debug">13 Debugging</a><a href="#s-depth">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-idea">
 <p class="ss-core">In JAX you write the step for one device and give a few arrays a layout over a named grid of devices; <span class="hl">someone then lays out every other array</span> (the compiler's propagation, the type system, or you inside <code>shard_map</code>), and the communication is whatever those layouts force. Communication is a consequence of layout, so you read it off the compiled program, never off the Python.</p>
-<div class="ss-hero" id="ss-hero">
-<h4>Three annotations in, one program per device out, with the collectives the layouts force</h4>
-<div class="ss-hero-g">
-<div><div class="ss-hn">1. You annotate a few arrays</div>
+<p class="sxh">Fig. 1, step by step: three annotations in, one program per device out</p>
+<ol class="sx" id="sx-hero">
+<li><b>A mesh names the devices.</b> <code>jax.make_mesh((2, 4), ('data', 'model'))</code> arranges 8 devices as a grid with named axes: 2 along <code>data</code>, 4 along <code>model</code>. Nothing in the model code mentions devices.</li>
+<li><b>You annotate the weight.</b> The running example's fc1 weight w [128, 512] as <code>P('data', 'model')</code>: rows split by <code>data</code>, columns by <code>model</code>; each device holds one (64, 128) block, 32,768 bytes, as <code>jax.debug.visualize_array_sharding</code> printed here.</li>
+<li><b>You annotate the batch.</b> A batch x [32, 128] as <code>P('data', None)</code> is split by rows only, so the 4 devices of a <code>data</code> row hold the same 16 rows: an axis a spec does not name holds copies.</li>
+<li><b>Someone lays out the rest.</b> To multiply its 16 rows of x by w, a device needs all 128 rows of its column block, but holds 64: the partitioner inserts an all-gather over <code>data</code>, between the two devices of each column. The compiled FSDP x tensor step of section 6 does exactly this: 28 of its 29 forward all-gathers run in groups of 2, the pairs along <code>data</code>.</li>
+<li><b>One program per device.</b> Each device now computes its own (16, 128) block of y = x @ w, so y comes out as <code>P('data', 'model')</code> with no further traffic. The SPMD partitioner wrote that per-device program and its collectives; you read them in <code>jit(f).lower(...).compile().as_text()</code>.</li>
+</ol>
 <pre class="ss-hcode">mesh = jax.make_mesh((2, 4), ('data', 'model'))
 w = jax.device_put(w, NamedSharding(mesh, P('data', 'model')))
 x = jax.device_put(x, NamedSharding(mesh, P('data', None)))
 loss, grads = jax.jit(step)(w, x)</pre>
-<p class="small">The running example's fc1 weight w [128, 512] and a batch x [32, 128], on 8 devices arranged as a (data 2, model 4) mesh. Nothing else in <code>step</code> mentions devices.</p></div>
-<div><div class="ss-hn">2. Each device holds one block</div><div id="ss-hero-mesh" class="ss-svg"></div>
-<p class="small">w as <code>P('data', 'model')</code>: rows split by <code>data</code>, columns by <code>model</code>; each device holds (64, 128), as <code>jax.debug.visualize_array_sharding</code> printed here. x is split by rows only, so the 4 devices of a <code>data</code> row hold the same 16 rows.</p></div>
-<div><div class="ss-hn">3. Someone lays out the rest</div>
+<p class="small">Who is "someone" is set per mesh axis, by its axis type:</p>
 <div class="ss-lanes">
 <div class="ss-lane" style="--sc:var(--c1)"><b>Auto: the compiler</b>Shardy propagation spreads your annotations after tracing (section 3).</div>
 <div class="ss-lane" style="--sc:var(--c3)"><b>Explicit: the types</b>Each op's rule gives its output a sharding while tracing; ambiguity is an error (section 4).</div>
 <div class="ss-lane" style="--sc:var(--c4)"><b>Manual: you, in <code>shard_map</code></b>Per-device code; you call <code>psum</code>, <code>all_gather</code>, <code>ppermute</code> (section 5).</div>
-</div>
-<div class="ss-arrow">&darr; the SPMD partitioner writes one program per device</div>
-<div class="ss-lane" style="--sc:var(--c2)"><b>Collectives where layouts disagree</b><span class="ss-coll ss-k-ag">all-gather</span><span class="ss-coll ss-k-ar">all-reduce</span><span class="ss-coll ss-k-rs">reduce-scatter</span><span class="ss-coll ss-k-a2a">all-to-all</span><span class="ss-coll ss-k-cp">collective-permute</span><br>read them in <code>jit(f).lower(...).compile().as_text()</code></div>
-</div>
-</div>
+<div class="ss-lane" style="--sc:var(--c2)"><b>Collectives where layouts disagree</b><span class="ss-coll ss-k-ag">all-gather</span><span class="ss-coll ss-k-ar">all-reduce</span><span class="ss-coll ss-k-rs">reduce-scatter</span><span class="ss-coll ss-k-a2a">all-to-all</span><span class="ss-coll ss-k-cp">collective-permute</span></div>
 </div>
 <p>You know how PyTorch spreads a model over GPUs: you pick a wrapper (DDP, FSDP2, a tensor-parallel plan) or a <code>DTensor</code> placement, and it owns the communication. JAX works the other way round: change one <code>PartitionSpec</code> and a different set of collectives appears in the compiled program, while the Python code does not change.</p>
 <p><b>You need</b> {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}} (jit, tracing, vmap), the parallelism forms from {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} (this page shows only JAX's API and behaviour for each), and HLO dumps from {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}}.</p>
-<p class="small"><span class="meas">measured</span> means run here on an Apple M1 Pro CPU with 8 simulated devices (<code>XLA_FLAGS=--xla_force_host_platform_device_count=8</code>, jax 0.11.2): the compiled programs, the collectives and their sizes, the memory figures and the losses are real and deterministic; speeds are not (a "collective" between simulated devices is a memory copy). TPU numbers are <span class="vend">published</span> by Google; arithmetic on them is <span class="der">derived</span>.</p>
+</section>
+</div></div>
+
+<section id="s-terms">
+<p class="small"><span class="meas">measured</span> means run here on an Apple M1 Pro CPU with 8 simulated devices (<code>XLA_FLAGS=--xla_force_host_platform_device_count=8</code>, jax 0.11.2): the compiled programs, the collectives and their sizes, the memory figures and the losses are real and deterministic; speeds are not (a "collective" between simulated devices is a memory copy). TPU numbers are <span class="vend">published</span> by Google; arithmetic on them is <span class="der">derived</span>. Fig. 1 draws this run's shapes and specs; sizes on the stage are not to scale.</p>
 <h3>New terms</h3>
 <dl class="ss-terms">
 <dt>Mesh</dt><dd>a grid of devices with named axes, such as (data 2, model 4).</dd>

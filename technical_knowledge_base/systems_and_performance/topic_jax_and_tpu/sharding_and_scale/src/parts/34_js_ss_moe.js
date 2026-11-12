@@ -27,18 +27,23 @@
     if(i>=2){const y=32+G*ch+4;s+=RD.t(lab-6,y+ch/2,'received',{a:'end',fs:11,w:600});
       for(let e=0;e<E;e++)s+=RD.t(lab+e*cw+cw/2,y+ch/2,colSum[e],{a:'middle',fs:cw<40?10.5:11,w:600,fill:e===hot?'var(--acc)':undefined})}
     el.innerHTML=RD.svg(lab+E*cw+6,H,s,'Tokens from each device to each expert');
-    const C=r.capacity,bytesA2A=r.hand.collectives['all-to-all'].bytes/2;
+    const C=r.capacity;
+    $('mo-cnt').innerHTML=RD.stat('capacity C per expert per device',C,'factor '+cf+' x 512 x '+k+' / 8')+RD.stat('assignments dropped',U.num(r.dropped)+' of '+U.num(r.assignments),(100*r.dropped/r.assignments).toFixed(1)+'%')+
+      RD.stat('all-to-alls (hand-written)',(i>=4?2:i>=2?1:0)+' of 2',U.MB(r.hand.collectives['all-to-all'].bytes)+' in the compiled forward');
+  }
+  // the step list on the left, written from the chosen run's recorded routing (top-k, capacity factor)
+  function list(){const r=run(),C=r.capacity,bytesA2A=r.hand.collectives['all-to-all'].bytes/2;
+    const colSum=[...Array(8).keys()].map(e=>r.kept.reduce((a,row)=>a+row[e],0)),hot=colSum.indexOf(Math.max(...colSum));
     const cap=['<b>Route.</b> Each device runs the router on its 512 tokens: '+(k===1?'one expert per token (top-1)':'two experts per token (top-2)')+'. The numbers are the real counts: tokens on device g that want expert e. They sum to '+U.num(r.assignments)+'.',
       '<b>Fit to capacity.</b> Each expert accepts C = '+C+' tokens from each device, in token order (first choices before second choices). '+U.num(r.dropped)+' of '+U.num(r.assignments)+' assignments do not fit and are dropped (red). Every device packs a [8 experts, '+C+' slots, 128] block, zero-padded.',
       '<b>Dispatch: all-to-all.</b> Device g sends row g of the matrix: slot block e goes to device e. Afterwards device e holds column e: the tokens of all 8 devices that chose its expert. One all-to-all, '+U.MB(bytesA2A)+' per device including padding.',
       '<b>Compute.</b> Each device runs only its own expert MLP on the [8, '+C+', 128] block it received: no weights move, only tokens. The busiest expert (outlined, '+hot+') has '+colSum[hot]+' real tokens; every expert computes on all 8 x '+C+' = '+(8*C)+' slots, padding included.',
       '<b>Combine: all-to-all back.</b> The inverse all-to-all returns each token\'s output to the device it came from, where it is weighted by its gate value and added to the residual stream; dropped tokens get 0.'];
-    $('mo-cap').innerHTML=cap[i];
-    $('mo-cnt').innerHTML=RD.stat('capacity C per expert per device',C,'factor '+cf+' x 512 x '+k+' / 8')+RD.stat('assignments dropped',U.num(r.dropped)+' of '+U.num(r.assignments),(100*r.dropped/r.assignments).toFixed(1)+'%')+
-      RD.stat('all-to-alls (hand-written)',(i>=4?2:i>=2?1:0)+' of 2',U.MB(r.hand.collectives['all-to-all'].bytes)+' in the compiled forward');
-  }
-  const an=U.anim({tab:'t-read',card:'mo-card',ctl:'mo-ctl',n:STEPS,draw,ms:1800,label:'Step'});
-  U.seg($('mo-k'),v=>{k=+v;an.redraw()});U.seg($('mo-cf'),v=>{cf=+v;an.redraw()});
+    $('sx-moe').innerHTML=cap.map(x=>'<li>'+x+'</li>').join('')}
+  list();
+  const an=U.anim({card:'mo-card',ctl:'mo-ctl',n:STEPS,draw,ms:4200,label:'Step',list:'sx-moe'});
+  const re=()=>{list();an.reset(STEPS,'sx-moe')};
+  U.seg($('mo-k'),v=>{k=+v;re()});U.seg($('mo-cf'),v=>{cf=+v;re()});
   addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const cs=c=>Object.keys(c).map(x=>U.chip(x,x+' x'+c[x].count+', '+U.MB(c[x].bytes))).join(' ');
   $('mo-t').querySelector('tbody').innerHTML=MO.runs.map(r=>'<tr><td>top-'+r.k+'</td><td class="num">'+r.capacity_factor+'</td><td class="num">'+r.capacity+'</td><td class="num">'+U.num(r.dropped)+' / '+U.num(r.assignments)+'</td><td>'+cs(r.hand.collectives)+'<br>'+cs(r.hand.grad_collectives)+'</td><td>'+cs(r.auto.collectives)+'<br>'+cs(r.auto.grad_collectives)+'</td><td class="num">'+U.sci(Math.max(r.hand.max_abs_err,r.auto.max_abs_err))+' / '+U.sci(Math.max(r.hand.grad_max_abs_err,r.auto.grad_max_abs_err))+'</td></tr>').join('');

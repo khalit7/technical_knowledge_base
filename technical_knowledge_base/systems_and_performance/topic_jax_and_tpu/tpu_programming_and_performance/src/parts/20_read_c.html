@@ -1,21 +1,36 @@
-<section id="s-roof">
-<h2>3. Rooflines: the batch you need, per generation</h2>
-<p><b>Concrete first.</b> Llama 2 7B's MLP up-projection multiplies a [B, 4,096] activation by a [4,096, 11,008] weight. In decode, B is the number of users generating at once; in training it is the tokens on one chip. The weight is 90 MB in bf16 whatever B is, so at B = 1 the MXUs do one multiply-add per weight read and wait on HBM; at B = 4,096 the same bytes feed 4,096 times the work. Step through the batch and watch each generation's dot climb its roof:</p>
+<div class="s3sp"><div class="s3R">
 <div class="tq-card" id="tq-walk-card">
 <h4>One weight matrix, from decode to training: the dot climbs the slope until it hits the ridge</h4>
 <div class="seg" id="tq-walk-gen" role="group" aria-label="Generation"><span class="lbl">Counters for</span></div>
 <div class="tq-svg" id="tq-walk-svg"></div>
 <div class="an-ctl" id="tq-walk-ctl"></div>
-<div class="tq-cap" id="tq-walk-cap"></div>
 <div class="tq-cnt" id="tq-walk-cnt"></div>
 <p class="tq-src">[B, 4,096] x [4,096, 11,008] in bf16 (MaxText's <code>configs/models/llama2-7b.yml</code>). Each roof is one generation: the slanted part is HBM bandwidth, the flat part bf16 peak, both <span class="vend">published</span>; dots are <span class="der">calculated</span> as min(peak, intensity x bandwidth). Log scales on both axes.</p>
 </div>
+</div><div class="s3L">
+<section id="s-roof">
+<h2>3. Rooflines: the batch you need, per generation</h2>
+<p><b>Concrete first.</b> Llama 2 7B's MLP up-projection multiplies a [B, 4,096] activation by a [4,096, 11,008] weight. In decode, B is the number of users generating at once; in training it is the tokens on one chip. The weight is 90 MB in bf16 whatever B is, so at B = 1 the MXUs do one multiply-add per weight read and wait on HBM; at B = 4,096 the same bytes feed 4,096 times the work. The batch grows step by step in the figure; watch each generation's dot climb its roof:</p>
+<ol class="sx" id="sx-walk">
+<li><b>Batch 1: a decode step for one user.</b> Each weight is read once and used for one multiply-add per token, so the intensity is about 1 FLOP per byte: every generation sits far down its slanted roof, at a fraction of a percent of peak.</li>
+<li><b>Batch 8: eight users decoding together.</b> The weight bytes are the same, the FLOPs eight times more, so each dot climbs the slope by 8x. Still memory-bound everywhere.</li>
+<li><b>Batch 32: still on the slope.</b> This is where many serving systems run; the MXUs are mostly idle and the step time is the weight bytes divided by HBM bandwidth.</li>
+<li><b>Batch 128.</b> v5p, the generation with the most bandwidth per FLOP, is within reach of its ridge (166). The others are not.</li>
+<li><b>Batch 240: the scaling book's critical batch for v5e.</b> The intensity is 222, so v5e and v4 come within 10% of their peaks; v6e, whose MXUs grew much faster than its HBM, is still under half its peak.</li>
+<li><b>Batch 512.</b> Past every ridge except v6e's (560). This is a small training micro-batch per chip, or a busy prefill.</li>
+<li><b>Batch 1,024: everything compute-bound.</b> From here more tokens per chip add time but not efficiency; the matmul is as fast as the MXUs.</li>
+<li><b>Batch 4,096: a training micro-batch</b> (one 4,096-token sequence per chip). Same weights, same shapes as batch 1: only the number of rows changed, and every generation went from under 1% of its peak to all of it.</li>
+</ol>
 <p><b>The rule.</b> The <dfn>arithmetic intensity</dfn> of an operation is its FLOPs divided by the bytes it moves between HBM and the chip. Below the chip's ridge point an operation is memory-bound (time = bytes &divide; bandwidth); above it, compute-bound (time = FLOPs &divide; peak). For [B, D] x [D, F] in bf16 the FLOPs are 2BDF and the bytes 2(BD + DF + BF), so when B is much smaller than D and F the intensity is about B. Hence the scaling book's rule: <b>a bf16 matmul is compute-bound only when the number of tokens it processes per chip exceeds the ridge point</b>, 1.97e14 &divide; 8.2e11 = 240 on v5e (its figure; our table uses Cloud's 819 GB/s and gets 240.5). Store the weights in int8 but compute in bf16 and the weight bytes halve, so the threshold halves to 120 (also the scaling book's figure).</p>
-<div class="tw" id="tq-bcrit"></div>
-<p class="tq-src"><span class="der">calculated</span> from the generation table. "Tokens" means rows of the activation matrix on one chip after sharding: in training, per-chip batch x sequence; in decode, the sequences generating at once. v6e needs the biggest batch because its MXUs grew 4.7 times from v5e and its HBM bandwidth only 2 times.</p>
+
 <div class="pr" id="tq-pr-roof"><div class="q">Predict: Llama 2 7B serving 64 users at once on a v6e. Are its weight matmuls compute-bound or memory-bound?</div>
 <div class="opts"><button data-a="0">Compute-bound: 64 users is a big batch</button><button data-a="1">Memory-bound</button><button data-a="0">It depends on the context length</button></div>
 <div class="ans" hidden>Memory-bound. Each decode step processes 64 tokens per weight read, an intensity of about 64, and v6e's ridge is 560: the MXUs could do nine times more. The context length changes the attention part (always memory-bound in decode), not the weight matmuls. To use a v6e's MXUs on decode you need more than 560 sequences per chip, or int8 weights (280), or several chips' worth of users per copy of the weights.</div></div>
+</section>
+</div></div>
+<section>
+<div class="tw" id="tq-bcrit"></div>
+<p class="tq-src"><span class="der">calculated</span> from the generation table. "Tokens" means rows of the activation matrix on one chip after sharding: in training, per-chip batch x sequence; in decode, the sequences generating at once. v6e needs the biggest batch because its MXUs grew 4.7 times from v5e and its HBM bandwidth only 2 times.</p>
 
 <h3>Attention is the exception</h3>
 <p>The two attention matmuls have no weights to reuse. In training or prefill, the scores QK<sup>T</sup> for one head and one sequence of S tokens multiply [S, d<sub>h</sub>] by [d<sub>h</sub>, S]: 2S<sup>2</sup>d<sub>h</sub> FLOPs over 2(2Sd<sub>h</sub> + S<sup>2</sup>) bytes if the S x S score matrix goes to HBM. At S = 4,096 and head size 128 that is an intensity of 120, below every generation's ridge <span class="der">calculated</span>. Hence a fused attention kernel (flash or splash attention, a Pallas kernel on TPU): the scores stay in VMEM, the S<sup>2</sup> term leaves the byte count, and the intensity climbs to about S. In decode each new token reads the whole key-value cache to do two FLOPs per cached number, an intensity near 1 (the scaling book: "we're basically always memory bandwidth-bound during attention"). Grouped-query attention helps by exactly the group size, because several query heads share one cached key and value. The scaling book turns this into a lower bound on a decode step:</p>

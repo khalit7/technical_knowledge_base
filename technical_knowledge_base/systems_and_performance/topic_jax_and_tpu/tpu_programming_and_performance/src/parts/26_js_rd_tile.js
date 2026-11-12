@@ -4,14 +4,9 @@
   // presets: the Reading tab's arrays (recompute.json) plus two extra
   const PRE=D.rc.tiles.map(t=>[t[0],t[1],t[2]]).concat([['Llama 2 7B q weight [4096, 4096]',4096,4096],['one KV-cache page [16 tokens, 128]',16,128]]);
   $('tq-t-pre').innerHTML=PRE.map((p,i)=>'<option value="'+i+'">'+E(p[0])+'</option>').join('')+'<option value="-1">custom</option>';
-  $('tq-t-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-t-r').value=PRE[i][1];$('tq-t-c').value=PRE[i][2]}an.reset(6)});
+  $('tq-t-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-t-r').value=PRE[i][1];$('tq-t-c').value=PRE[i][2]}an.redraw()});
   ['tq-t-r','tq-t-c','tq-t-dt'].forEach(id=>$(id).addEventListener('input',()=>{if(id!=='tq-t-dt')$('tq-t-pre').value='-1';an.redraw()}));
-  const CAP=['<b>Before: the logical array.</b> A row-major array, the PyTorch and NumPy picture: element (i, j) sits at offset i x cols + j, so memory runs along each row in turn (the arrow).',
-    '<b>Cut into tiles.</b> XLA covers the array with tiles of 8 rows x 128 columns, the shape of a TPU vector register (2 or 4 rows instead of 8 when the array has only that many). Tiles never straddle the array\'s edge: they extend past it.',
-    '<b>Padding.</b> Everything a tile covers outside the array (hatched) is stored and moved anyway. A minor dimension of 65 pays for 128.',
-    '<b>After: tile order in memory.</b> Memory now runs tile by tile: tile 0 holds rows 0 to 7 of columns 0 to 127, tile 1 the next 128 columns, and so on along the row of tiles, then the next row of tiles. Neighbouring elements of one column, 8 rows apart, are now close.',
-    '<b>Inside a tile: packing.</b> TPUs work on 32-bit words. For bf16 the second level of tiling, (2,1), puts element (2r, c) and (2r+1, c) in one word; for int8, (4,1) puts four rows in one word; float32 needs none. The zoom shows one tile\'s first 8 rows and 16 columns, one box per word.',
-    '<b>The bill.</b> Bytes stored against bytes the array needs. Moving this array to or from HBM costs the stored bytes, so the padding factor multiplies every memory-bound operation that touches it.'];
+  // the step explanations are the list #sx-tile on the left (2026-11-12; they were a caption under the figure)
   function draw(i){
     const R=Math.max(1,+$('tq-t-r').value||1),C=Math.max(1,+$('tq-t-c').value||1),bpe=+$('tq-t-dt').value,h=U.hbmTile(R,C),tr=h.t,tilesR=h.rows/tr,tilesC=h.cols/128;
     const host=$('tq-t-svg'),W=Math.min(760,U.width(host)),zoom=i>=4,boxW=zoom?Math.min(W*0.46,320):W-24,maxH=zoom?220:260;
@@ -32,12 +27,11 @@
       for(let r=0;r<8;r+=rowsPerWord)for(let c=0;c<16;c++)g+='<rect x="'+(zx+c*cw-0.5)+'" y="'+(zy+r*chh-0.5)+'" width="'+cw+'" height="'+(chh*rowsPerWord)+'" fill="none" stroke="var(--c4)" stroke-width="1.3" rx="2"/>';
       g+=U.tx(zx,zy+8*chh+14,rowsPerWord===1?'one 32-bit word per element':rowsPerWord+' rows share each 32-bit word',{fs:10.5,fill:'var(--c4)'})}
     const Hh=Math.max(y0+ph,zoom?y0+8*22:0)+30;host.innerHTML=U.S(W,Hh,g,'Tiled layout of the array');
-    $('tq-t-cap').innerHTML='<b>Step '+(i+1)+' of 6.</b> '+CAP[i];
     const need=R*C*bpe,stored=h.padded*bpe;
     $('tq-t-cnt').innerHTML=RD.stat('Tile',tr+' x 128',tr<8?'small-tile rule':'')+RD.stat('Tiles',U.fmt(tilesR*tilesC),U.fmt(tilesR)+' x '+U.fmt(tilesC))+RD.stat('Stored shape','['+h.rows+', '+h.cols+']','')+
       RD.stat('Bytes needed',U.bytes(need),'')+RD.stat('Bytes stored',U.bytes(stored),'')+RD.stat('Padding factor',U.fmt(stored/need,2)+'x',U.pct(1-need/stored)+' wasted');
   }
-  const an=RD.anim({card:'tq-t-card',ctl:'tq-t-ctl',n:6,draw,ms:2600,label:'Tiling step'});
+  const an=RD.anim({card:'tq-t-card',ctl:'tq-t-ctl',n:6,draw,ms:4200,label:'Tiling step',list:'sx-tile'});
   // MXU utilisation
   const MP=D.rc.mxu;$('tq-m-pre').innerHTML='<option value="-1">custom</option>'+MP.map((p,i)=>'<option value="'+i+'"'+(i===1?' selected':'')+'>'+E(p[0])+'</option>').join('');
   $('tq-m-pre').addEventListener('change',e=>{const i=+e.target.value;if(i>=0){$('tq-m-m').value=MP[i][1];$('tq-m-k').value=MP[i][2];$('tq-m-n').value=MP[i][3]}drawM()});

@@ -217,8 +217,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases` JAX LLM codebases: MaxText, Tunix, levanter
 - [x] `systems_and_performance/topic_jax_and_tpu/pallas_kernels` Pallas kernels
 - [x] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
-- [~] `systems_and_performance/topic_jax_and_tpu/sharding_and_scale` Sharding and scale: Mesh, GSPMD, shard_map and multi-host
-- [~] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
+- [x] `systems_and_performance/topic_jax_and_tpu/sharding_and_scale` Sharding and scale: Mesh, GSPMD, shard_map and multi-host
+- [x] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
 - [ ] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
 - [ ] `systems_and_performance/topic_jax_and_tpu/xla_and_compilation` XLA and compilation: jaxprs, StableHLO, fusion and recompiles
 - [ ] `systems_and_performance/topic_jax_and_tpu` Topic: jax-and-tpu
@@ -511,6 +511,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases`: Codebase map and Config explorer tabs full width (tools).
 - `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax`: Fig. 1 steps 1 and 6 small at 390; Fig. 3 empty space above the stacks at 1400; section 1 code panes wrap long lines in the right column.
 - `systems_and_performance/topic_jax_and_tpu/pallas_kernels`: wide scenes small at 390; Fig. 2 "only the core that runs step 0 zeroes its copy" inferred from pl.when(program_id(0) == 0) (measured result is the three seeds); band-to-core assignment illustrative (stated).
+- `systems_and_performance/topic_jax_and_tpu/sharding_and_scale`: core 46 min plus 26 closed (38 before); some stages leave empty space at 390; Fig. 1 step 4 infers the all-gather from the measured FSDP x tensor layout (same specs, stated).
+- `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance`: the "Try your own shape" widget (128 and 256 arrays side by side) stays a full-width section in Reading (reader-driven lab); Fig. 1 close-ups leave part of the chip out of frame by design; Fig. 3 op names hide on phones.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -574,3 +576,5 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - JAX LLM codebases: Fig. 1 slab heights equal with line counts in labels (faint slabs where the map has no part); Fig. 3 plate not to scale (short side held to a minimum); the traced step plays as 8 stretches, not 17 stages; GRPO has one step list for both placements; the porting animation stays 2D. Keep these?
 - PyTorch to JAX: the ladder verdict line kept under its step list; the Divergence hunter is a widget opening on step 299; Fig. 2 shows 4 of 69 tensors (the explorer stays in a closed block); conversion stat tiles removed (numbers in step 6). A "logits overlaid" view would need a small rerun of pj_hunt.py saving logits: run it?
 - Pallas kernels: Fig. 3 opens on the naive index map; the flash replay plays four stretches; the Grid and BlockSpec lab and pipeline timeline open on their last step; wasted copies dark grey (the page's orange is q). Keep these?
+- Sharding and scale: the 94-operation propagation replay is a widget opening on its last frame; the PartitionSpec widget stays 2D; pipeline and MoE step lists are written by script (numbers change with the chosen run). Keep these?
+- TPU programming and performance: section 8 gets a calculated (not measured, no TPU used) profile, Fig. 3; its 32-tokens-per-chip step models one short sequence as the Roofline lab does (only the weight matmuls behave as in decode); an em-dash in src/inputs/scaling_book_extracts.txt was replaced with "--". Keep these?

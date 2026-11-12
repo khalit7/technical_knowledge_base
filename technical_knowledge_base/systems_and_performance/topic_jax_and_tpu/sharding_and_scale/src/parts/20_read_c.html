@@ -1,17 +1,18 @@
+<div class="s3sp"><div class="s3R"><div id="stg-prop"></div></div><div class="s3L">
 <section id="s-prop">
 <h2>3. How sharding propagation decides</h2>
-<p><b>The problem.</b> Assigning a layout to every array so that total communication is smallest is a search over an exponential space; production compilers do not solve it. Both of XLA's propagators are <em>heuristics that spread your annotations</em> through the program and never invent a new split you did not ask for. Knowing their rules is how you predict where they will go wrong. First see one at work: a transformer block of the running example (forward and backward), every sharding read from the HLO that XLA dumped right after its propagation pass.</p>
-<div class="ss-card" id="pp-card">
-<h4>Before and after propagation: your two annotations become a layout for every operation</h4>
-<div class="seg" id="pp-case"><span class="lbl">Case</span></div>
-<p class="small" id="pp-note"></p>
-<div class="seg" id="pp-part"><span class="lbl">Propagator</span><button data-m="shardy" class="on">Shardy</button><button data-m="gspmd">GSPMD</button></div>
-<div class="an-ctl" id="pp-ctl"></div>
-<div class="ss-cap" id="pp-cap"></div>
-<div class="ss-cnt" id="pp-cnt"></div>
-<div class="pp-flow" id="pp-flow"></div>
-<p class="ss-src">At step 0 only what you annotated has a sharding (green); each step fills in the next operation, in program order (forward, then backward), with the sharding the propagator chose and the collectives the partitioner put on that line. The propagator's own visiting order is not recorded in the dump; program order is used for reading. <span class="meas">measured</span> post-propagation HLO dumps, jax 0.11.2, 8 simulated CPU devices, Auto axes; how they were made is in the closed block below.</p>
-</div>
+<p><b>The problem.</b> Assigning a layout to every array so that total communication is smallest is a search over an exponential space; production compilers do not solve it. Both of XLA's propagators are <em>heuristics that spread your annotations</em> through the program and never invent a new split you did not ask for. Knowing their rules is how you predict where they will go wrong. Fig. 3 follows one through the MLP of a transformer block of the running example under Megatron's layout, every sharding read from the HLO that XLA dumped right after its propagation pass (Shardy, the default):</p>
+<ol class="sx" id="sx-prop">
+<li><b>Two kinds of annotation.</b> On the (data 2, model 4) mesh the activations x [32, 128, 128] arrive as <code>P('data', None, None)</code>, and Megatron's weights carry their own: fc1 [128, 512] <code>P(None, 'model')</code> (column-parallel), fc2 [512, 128] <code>P('model', None)</code> (row-parallel). Every other array has no sharding yet (dashed).</li>
+<li><b>Through fc1.</b> A matmul's rule is <code>(i, k), (k, j) -&gt; (i, j)</code>: the row factor i brings <code>data</code> from x, the column factor j brings <code>model</code> from fc1. h [32, 128, 512] gets <code>P(data, -, model)</code>, as the dump shows at <code>model_jax.py:51</code>: each device computes its (16, 128, 128) block with no communication.</li>
+<li><b>Through GELU.</b> Elementwise operations pass a sharding straight through: all ten operations of the exact GELU at <code>model_jax.py:68</code> come out <code>P(data, -, model)</code>.</li>
+<li><b>Into fc2: partial sums.</b> fc2's contracting dimension (512) is split on <code>model</code> in both operands, so each device multiplies its 128 columns by its 128 rows of fc2 and holds a full-size [16, 128, 128] partial sum: the four devices of a <code>data</code> row each hold a quarter of the answer.</li>
+<li><b>The partitioner adds the all-reduce.</b> Summing the partials over <code>model</code> is an all-reduce among the 4 devices of each <code>data</code> row: 1,048,576 bytes per device ([16, 128, 128] in float32). Attention's output projection is row-parallel too, so the block's forward pass has exactly 2 all-reduces, 2,097,152 bytes, both at <code>model_jax.py:51</code>, and no other collective.</li>
+</ol>
+
+<p>Both propagators hand their result to the same SPMD partitioner, which rewrites the program per device and inserts the collectives: XLA's CPU pipeline adds either <code>sdy::ShardyXLA</code> (<span id="ss-ref-x1"></span>) or <code>ShardingPropagation</code> (<span id="ss-ref-x2"></span>), then <code>StatefulRngSpmdPartitioner</code>.</p>
+</section></div></div>
+<div class="ss-cont">
 <h3>The rules, side by side</h3>
 <div class="tw"><table><thead><tr><th></th><th>GSPMD ({{Xu et al. 2021|https://arxiv.org/abs/2105.04663}})</th><th>Shardy (JAX's default since 0.7.0)</th></tr></thead><tbody>
 <tr><td><b>A sharding is</b></td><td>a tile assignment over a device list (<code>HloSharding</code>)</td><td>mesh axes per dimension, like a <code>PartitionSpec</code>; each dimension <dfn>open</dfn> (more axes may be added) or <dfn>closed</dfn></td></tr>
@@ -37,7 +38,7 @@
 <li><b>An explicit hierarchy of strategies</b>, "interpreted as nested for loops": user priorities (<code>{"x"}p1</code>), then operation priorities ("pass-through" ops such as elementwise and reshape first, dot and reduce later, the same idea as GSPMD's), then aggressive propagation (resolves conflicts), then basic propagation ("propagates axes that are compatible between all operands and results", no conflict resolution). Loops, conditionals and <code>shard_map</code> regions are crossed through "data flow edges".</li>
 </ul>
 </div></details>
-<p>Both propagators hand their result to the same SPMD partitioner, which rewrites the program per device and inserts the collectives: XLA's CPU pipeline adds either <code>sdy::ShardyXLA</code> (<span id="ss-ref-x1"></span>) or <code>ShardingPropagation</code> (<span id="ss-ref-x2"></span>), then <code>StatefulRngSpmdPartitioner</code>.</p>
+
 <details class="dp"><summary>How the stepper was made, reading the two notations in a dump, and the GSPMD deprecation warning <span class="mute">(2 min)</span></summary><div class="b">
 <p><code>src/runs/ss_prop.py</code> compiles <code>loss = mean(block(x)<sup>2</sup>)</code> and its gradient with <code>XLA_FLAGS=--xla_dump_hlo_pass_re=shardy-xla|sharding-propagation</code>, once with Shardy (the default) and once with <code>jax_use_shardy_partitioner=False</code> (GSPMD); <code>src/runs/ss_hlo.py</code> reads each instruction's sharding (converting both notations to <code>P(...)</code> over the mesh) and the Python line it came from. Operations are grouped by source line and kind; the largest instance stands for the group. jax 0.11.2, 8 simulated CPU devices, Auto axes.</p>
 <p>Dump the program right after propagation with <code>XLA_FLAGS="--xla_dump_to=DIR --xla_dump_hlo_pass_re=shardy-xla|sharding-propagation"</code>. The same tensor (the running example's <code>q = x @ wq</code> under Megatron tensor parallelism on a (data 2, model 4) mesh) in the two notations, pasted from the dumps:</p>
@@ -47,23 +48,46 @@ dot(...), sharding={mesh['data'=2,'model'=4], [{'data'}, {}, {'model'}]}
 dot(...), sharding={devices=[2,1,4]&lt;=[8]}</pre>
 <p>Both say <code>P('data', None, 'model')</code>. A GSPMD sharding with <code>last_tile_dim_replicate</code> adds a final grid dimension of copies (<code>devices=[2,1,1,4]&lt;=[8] last_tile_dim_replicate</code> is <code>P('data', None, None)</code> replicated over the 4 model devices). Turning Shardy off in jax 0.11.2 still works and prints a warning, pasted from the run: <code>GSPMD sharding propagation is going to be deprecated and not supported in the future. Please consider migrating to Shardy (https://openxla.org/shardy). For reference, Shardy is already the default partitioner in JAX.</code></p>
 </div></details>
+</div>
+<div class="s3sp"><div class="s3L">
+<section id="s-prop2">
 <h3>Measured: when the two propagators differ</h3>
 <p><span class="meas">measured</span> On one transformer block (forward and backward), five annotation cases, both propagators agree on every one of the 94 operation groups except a few small ones (the causal mask, a bias gradient) that Shardy leaves unannotated and GSPMD marks replicated, which means the same thing; and they insert identical collectives. On the whole train step they do not:</p>
 <div id="ss-propdiff"></div>
 <div class="pr" id="ss-pr1"><div class="q">Predict: in the tensor-parallel train step, which propagator sends more bytes, and why?</div><div class="opts"><button data-a="0">Shardy: it is newer and more aggressive</button><button data-a="1">GSPMD: it splits small elementwise work it was not asked to split, then gathers it back</button><button data-a="2">Neither: same annotations, same program</button></div><div class="ans" hidden></div></div>
 <p>In counts: the same tensor-parallel train step compiled to 18 collectives under Shardy and 167 under GSPMD, and the unconstrained FSDP step to 210 under Shardy and 148 under GSPMD. Where they come from, line by line:</p>
-<div class="ss-card" id="pp-full-card">
+<p>On the block alone the two propagators agree; on the whole step they diverge where the program has <em>freedom</em>: small replicated tensors and elementwise optimizer math that could be split over an idle axis, or activations whose layout nothing pins down. The lesson is not that one propagator is better: on the unconstrained FSDP layout GSPMD was the better one. It is that <b>a layout that depends on propagation for the activations is fragile</b>. The root lab's FSDP layout with one <code>with_sharding_constraint</code> on the residual stream per block compiles to the same collectives under both (78 all-gathers and 70 all-reduces each). Constrain activations at block boundaries, as MaxText does through its logical axis rules.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="ss-card card" id="pp-full-card">
 <h4>The whole train step: the propagators part ways where the program leaves freedom</h4>
 <div class="seg" id="pp-full"><span class="lbl">Layout</span><button data-m="tp" class="on">Data 2 x tensor 4</button><button data-m="fsdp_naive">FSDP, weights only</button><button data-m="seq">Sequence sharded</button></div>
 <div class="ss-svg" id="pp-full-svg"></div>
 <div class="ss-leg"><span><i style="background:var(--c1)"></i>Shardy</span><span><i style="background:var(--c2)"></i>GSPMD</span></div>
 <p class="ss-src">The root lab's layouts, full train step (forward, backward, clipping, AdamW), collectives grouped by the Python line they came from. Bars: bytes (summed result sizes) per line, Shardy above GSPMD. <span id="pp-full-note"></span></p>
 </div>
-<p>On the block alone the two propagators agree; on the whole step they diverge where the program has <em>freedom</em>: small replicated tensors and elementwise optimizer math that could be split over an idle axis, or activations whose layout nothing pins down. The lesson is not that one propagator is better: on the unconstrained FSDP layout GSPMD was the better one. It is that <b>a layout that depends on propagation for the activations is fragile</b>. The root lab's FSDP layout with one <code>with_sharding_constraint</code> on the residual stream per block compiles to the same collectives under both (78 all-gathers and 70 all-reduces each). Constrain activations at block boundaries, as MaxText does through its logical axis rules.</p>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
+<section id="s-prop3">
+<h3>Replay the whole block yourself</h3>
+<p>The widget on the right replays every operation group of the same block, forward and backward, for five annotation cases and both propagators: Megatron's layout of Fig. 3, FSDP with only the weights annotated, FSDP plus one constraint on the residual stream, a sequence split, and a conflict (x arrives with its features split on the weights' axis). It opens with everything assigned; step back to step 0, where only your annotations (green) have a sharding, and forward in program order. The dump records the result, not the propagator's visiting order.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="ss-card card" id="pp-card">
+<h4>Before and after propagation: your two annotations become a layout for every operation</h4>
+<div class="seg" id="pp-case"><span class="lbl">Case</span></div>
+<p class="small" id="pp-note"></p>
+<div class="seg" id="pp-part"><span class="lbl">Propagator</span><button data-m="shardy" class="on">Shardy</button><button data-m="gspmd">GSPMD</button></div>
+<div class="an-ctl" id="pp-ctl"></div>
+<div class="ss-cap" id="pp-cap"></div>
+<div class="ss-cnt" id="pp-cnt"></div>
+<div class="pp-flow" id="pp-flow"></div>
+<p class="ss-src"><span class="meas">measured</span> post-propagation HLO dumps, jax 0.11.2, 8 simulated CPU devices, Auto axes; how they were made is in the closed block above.</p>
+</div>
+</div></div></div>
+<div class="ss-cont">
 <details class="dp"><summary>Every operation group of the block, both propagators side by side <span class="mute">(table, 5 cases)</span></summary><div class="b">
 <p class="small">Highlighted rows: the two propagators chose differently. "none" means the propagator left the operation unannotated (the partitioner then replicates it). Per-device shape follows from the sharding and the mesh. The case is the one chosen in the stepper above.</p>
 <div class="seg" id="pp-ph"><span class="lbl">Phase</span><button data-m="all" class="on">Both</button><button data-m="fwd">Forward</button><button data-m="bwd">Backward</button></div>
 <div class="tw"><table id="pp-t"><thead><tr><th>Line</th><th>Op</th><th>Phase</th><th>Shape</th><th>Shardy</th><th>GSPMD</th><th>Per device (Shardy)</th><th>Source (model_jax.py)</th></tr></thead><tbody></tbody></table></div>
 <div id="pp-coll"></div>
 </div></details>
-</section>
+</div>

@@ -28,14 +28,11 @@
         for(let d=0;d<N;d++)for(let u=0;u<Math.min(i,N);u++){if((d-u+N)%N<=d)work[d]++}}
       else{sent=i>=1?2*(N-1)*blk:0;held=i>=1?N:1;comp=i>=2?1:0;if(i>=2)for(let d=0;d<N;d++)work[d]=d+1}
       el.innerHTML=RD.svg(lab+N*cw+6,H,s,'Query blocks by key blocks for causal attention split over 8 devices');
-      const capR=['<b>Start.</b> Each device holds its own 16 tokens: queries, keys and values for one block of the sequence. Grey cells are masked by causality and will never be computed.'];
-      for(let t=0;t<N;t++)capR.push('<b>Step '+(t+1)+' of '+N+'.</b> Device d holds the K/V block that started on device (d &minus; '+t+') mod 8'+(t===0?' (its own: the triangular diagonal block)':'')+'. It updates its running max, denominator and numerator, then passes the block right with <code>ppermute</code>'+(t===N-1?'; done: divide numerator by denominator':'')+'. '+(t>0?'Devices whose block now comes from a later position skip the work (masked).':''));
-      const capA=['<b>Start.</b> Each device holds its own block of queries, keys and values.','<b>All-gather.</b> Every device receives the 7 other K and V blocks in one collective: it now holds the whole sequence\'s keys and values.','<b>Compute.</b> Each device attends its queries to every earlier key at once, with the causal mask shifted by its offset. Device 7 does 8 blocks of work, device 0 one.'];
-      $('ss-cp-cap').innerHTML=(mode==='ring'?capR:capA)[i];
       $('ss-cp-cnt').innerHTML=RD.stat('bytes received per device',U.MB(sent),'measured block: '+U.MB(blk))+RD.stat('K/V blocks held per device',held+' of 8','')+RD.stat('work done, device 0 / device 7',work[0]+' / '+work[7]+' blocks','');
     }
-    const an=U.anim({tab:'t-read',card:'ss-cp-card',ctl:'ss-cp-ctl',n:steps(),draw,ms:1500,label:'Step'});
-    U.seg($('ss-cp-mode'),v=>{mode=v;an.reset(steps())});RD.onResize(()=>an.redraw());
+    // the step list on the left explains each step (sx-cp-ring, sx-cp-ag); a method toggle swaps the list and replays
+    const an=U.anim({card:'ss-cp-card',ctl:'ss-cp-ctl',n:steps(),draw,ms:3800,label:'Step',list:'sx-cp-ring'});
+    U.seg($('ss-cp-mode'),v=>{mode=v;$('sx-cp-ring').hidden=v!=='ring';$('sx-cp-ag').hidden=v==='ring';an.reset(steps(),'sx-cp-'+v)});RD.onResize(()=>an.redraw());
     const R=CP.running_example,Lg=CP.long.methods,nm={propagate:'Propagation (jit)',allgather:'All-gather (shard_map)',ring:'Ring (shard_map)'};
     const cs=c=>Object.keys(c).map(k=>U.chip(k,k+' x'+c[k].count+', '+U.MB(c[k].bytes))).join(' ');
     $('ss-cp-meas').innerHTML='<div class="tw"><table><thead><tr><th>Method</th><th>Forward collectives</th><th>Backward collectives</th><th class="num">Error</th><th class="num">Temp per device, 128 tokens</th><th class="num">Temp per device, 8,192 tokens</th></tr></thead><tbody>'+

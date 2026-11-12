@@ -1,9 +1,9 @@
-// ---- Reading tab, part 0 (2026-10-23 rebuild): the hero's mesh, the PartitionSpec widget (section 1), the shard_map diagram (section 5).
+// ---- Reading tab, part 0: the PartitionSpec widget (section 1). The hero and the shard_map figure are 3D stages since 2026-11-12 (41_js_sc_hero.js, 43_js_sc_smap.js).
 // Everything here is derived from the definitions (a 2 x 4 mesh, fc1 [128, 512] float32); P('data','model') matches the measured
 // visualize_array_sharding output (SS.debug.shard_shapes).
 (function(){
   const U=SSU, esc=U.esc, $=id=>document.getElementById(id);
-  if(!$('ss-hero-mesh'))return;
+  if(!$('ss-spec-svg'))return;
   const AX={data:2,model:4}, ROWS=128, COLS=512, BYTES=ROWS*COLS*4;
   const SPECS=[
     {t:"P()",r:[],c:[],note:'Replicated: all 8 devices hold the whole weight. Data parallelism keeps weights like this.'},
@@ -32,8 +32,6 @@
         s+=RD.t(x+bw/2,y+bh-6,'('+ROWS/kr+', '+COLS/kc+')',{a:'middle',fs:11})}}
     el.innerHTML=RD.svg(lab+4*(bw+gap),top+2*(bh+gap),s,'A 2 by 4 mesh of devices; each holds the block of the 128 by 512 weight that '+sp.t+' assigns it');
   }
-  // hero
-  const hero=()=>mesh($('ss-hero-mesh'),SPECS[3],true);
   // widget
   let cur=3;
   function widget(){
@@ -45,27 +43,6 @@
     $('ss-spec-note').innerHTML='<b>'+esc(sp.t)+'.</b> '+sp.note+' <span class="der">derived</span> from the spec and the mesh (data 2, model 4).';
   }
   U.seg($('ss-spec-seg'),v=>{cur=+v;widget()});
-  // shard_map diagram: global x [32, 128] -> 8 local [4, 128] -> psum -> replicated output
-  function smap(){
-    const el=$('ss-sm-svg'),W=U.width(el),two=W<560,per=two?4:8,gap=6,bw=(W-gap*(per-1))/per,bh=50;
-    const rowsY=[74],nrow=two?2:1;if(two)rowsY.push(74+bh+gap);
-    const yb=rowsY[nrow-1]+bh+14,H=yb+70;
-    let s=RD.t(0,13,'x [32, 128] with in_specs=P(\'data\')',{fs:11.5,w:600});
-    const sw=W/8;
-    for(let k=0;k<8;k++){s+='<rect x="'+(k*sw+1)+'" y="20" width="'+(sw-2)+'" height="18" rx="2" fill="'+COL[k]+'" fill-opacity=".75"/>';
-      s+=RD.t(k*sw+sw/2,33,(W<520?'':'rows ')+(4*k)+'-'+(4*k+3),{a:'middle',fs:W<520?9.5:11,fill:'var(--bg)',w:600})}
-    s+=RD.t(W/2,58,'shard_map: one call of f per device, on its own block',{a:'middle',fs:11,fill:'var(--mute)'});
-    for(let k=0;k<8;k++){const r=Math.floor(k/per),c=k%per,x=c*(bw+gap),y=rowsY[r];
-      s+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="5" fill="var(--soft)" stroke="var(--line)"/>';
-      s+='<rect x="'+(x+4)+'" y="'+(y+4)+'" width="'+(bw-8)+'" height="8" rx="2" fill="'+COL[k]+'" fill-opacity=".75"/>';
-      s+=RD.t(x+bw/2,y+27,'device '+k,{a:'middle',fs:11,w:600});
-      s+=RD.t(x+bw/2,y+42,'f on [4, 128]',{a:'middle',fs:11})}
-    s+='<rect x="0" y="'+yb+'" width="'+W+'" height="22" rx="4" fill="var(--c2)" fill-opacity=".22" stroke="var(--c2)"/>';
-    s+=RD.t(W/2,yb+15,(W<520?'psum(g, \'data\'): all-reduce over 8 devices':'jax.lax.psum(g, \'data\'): an all-reduce over the 8 devices'),{a:'middle',fs:11,w:600});
-    s+=RD.t(W/2,yb+44,(W<520?'out_specs=P(): same g on every device':'out_specs=P(): the same summed g on every device'),{a:'middle',fs:11});
-    s+=RD.t(W/2,yb+62,(W<520?'only the psum moved bytes':'(the only bytes that moved are the ones the psum named)'),{a:'middle',fs:11,fill:'var(--mute)'});
-    el.innerHTML=RD.svg(W,H,s,'shard_map splits x into 8 blocks of 4 rows, runs f per device, then a psum all-reduces the result');
-  }
-  function all(){hero();widget();smap()}
+  function all(){widget()}
   RD.onRender(all);RD.onResize(all);all();
 })();

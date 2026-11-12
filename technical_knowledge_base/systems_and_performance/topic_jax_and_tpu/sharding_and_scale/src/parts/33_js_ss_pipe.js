@@ -12,7 +12,7 @@
   const COL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--acc)','var(--bad)'];
   function draw(i){
     const r=runs[ri],S=r.S,T=r.ticks,sch=r.schedule,el=$('pi-svg'),W=U.width(el);
-    const lab=62,cw=Math.min(54,(W-lab-6)/T),ch=34,H=S*ch+26;
+    const lab=62,cw=Math.min(84,(W-lab-6)/T),ch=34,H=S*ch+26;
     let s='';for(let t=0;t<T;t++)s+=RD.t(lab+t*cw+cw/2,12,'t'+t,{a:'middle',fs:10.5});
     let busy=0,idle=0;
     for(let st=0;st<S;st++){const y=18+st*ch;s+=RD.t(lab-6,y+ch/2+4,'stage '+st,{a:'end',fs:11});
@@ -26,14 +26,18 @@
     el.innerHTML=RD.svg(lab+T*cw+6,H,'<defs><marker id="pi-ar" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0L6,3L0,6z" fill="var(--ink)"/></marker></defs>'+s,'Pipeline schedule');
     const lps=r.layers_per_stage_per_repeat;
     $('pi-desc').innerHTML='Mesh (stage '+r.S+', data '+(8/r.S)+'); stage s holds layers '+r.stage_layers.map((l,s)=>s+': ['+l.join(', ')+']').join('; ')+'. Each tick runs '+lps+' layer'+(lps>1?'s':'')+' per stage.';
-    if(i===0)$('pi-cap').innerHTML='<b>Before the first tick.</b> Every device holds its stage\'s layers and its data shard\'s '+r.M+' microbatches; nothing has run.';
-    else{const t=i-1,row=sch[t],act=row.map((c,s)=>c?'stage '+s+' runs m'+c[0]+(r.R>1?' (repeat '+c[1]+')':''):'stage '+s+' idle').join('; ');
-      $('pi-cap').innerHTML='<b>Tick '+t+' of '+T+'.</b> '+act+'.'+(t<T-1?' Then every stage passes its output on with one <code>ppermute</code>.':' Last tick: the outputs go to every stage with a <code>psum</code>.')}
     const tot=S*Math.max(1,Math.min(i,T));
     $('pi-cnt').innerHTML=RD.stat('busy stage-ticks',busy+' of '+(S*i),'')+RD.stat('bubble so far',i?Math.round(idle/(S*i)*100)+'%':'0%','whole run: '+(r.bubble_fraction_forward*100).toFixed(1)+'%')+RD.stat('formula (S&minus;1)/(MR+S&minus;1)',(r.formula_bubble*100).toFixed(1)+'%','S='+r.S+', M='+r.M+', R='+r.R)+RD.stat('forward ppermutes so far',Math.max(0,Math.min(i,T-1)),'measured total, fwd+bwd: '+r.collectives['collective-permute'].count);
   }
-  const an=U.anim({tab:'t-read',card:'pi-card',ctl:'pi-ctl',n:runs[0].ticks+1,draw,ms:1100,label:'Tick'});
-  U.seg($('pi-run'),v=>{ri=+v;an.reset(runs[ri].ticks+1)});
+  // the step list on the left: one item per tick of the chosen run, written from its recorded schedule
+  function list(){const r=runs[ri],T=r.ticks,sch=r.schedule;
+    let h='<li><b>Before the first tick.</b> Every device holds its stage\'s layers ('+r.stage_layers.map((l,s)=>'stage '+s+': '+l.join(', ')).join('; ')+') and its data shard\'s '+r.M+' microbatches; nothing has run.</li>';
+    for(let t=0;t<T;t++){const row=sch[t],idle=row.filter(c=>!c).length,act=row.map((c,s)=>c?'stage '+s+' runs m'+c[0]+(r.R>1?' (repeat '+c[1]+')':''):'stage '+s+' idles').join(', ');
+      h+='<li><b>Tick '+t+(idle?', '+idle+' idle':'')+'.</b> '+act[0].toUpperCase()+act.slice(1)+'.'+(t<T-1?' Then every stage passes its output on with one <code>ppermute</code>.':' Last tick: the outputs go to every stage with a <code>psum</code>. Bubble: '+(r.bubble_fraction_forward*100).toFixed(1)+'% of stage-ticks, the formula (S&minus;1)/(MR+S&minus;1) exactly.')+'</li>'}
+    $('sx-pipe').innerHTML=h}
+  list();
+  const an=U.anim({card:'pi-card',ctl:'pi-ctl',n:runs[0].ticks+1,draw,ms:3400,label:'Tick',list:'sx-pipe'});
+  U.seg($('pi-run'),v=>{ri=+v;list();an.reset(runs[ri].ticks+1,'sx-pipe')});
   addEventListener('resize',()=>{const t=$('t-read');if(t&&!t.hidden)an.redraw()});
   const cs=c=>Object.keys(c).map(k=>U.chip(k,k+' x'+c[k].count+', '+U.MB(c[k].bytes))).join(' ');
   $('pi-t').querySelector('tbody').innerHTML=PP.runs.map(r=>'<tr><td>'+(r.kind==='gpipe_contiguous'?'GPipe, contiguous microbatches':r.kind==='gpipe'?'GPipe':'Circular')+'</td><td class="num">'+r.S+'</td><td class="num">'+r.M+'</td><td class="num">'+r.R+'</td><td>'+r.stage_layers.map(l=>'['+l.join(',')+']').join(' ')+'</td><td class="num">'+r.ticks+'</td><td class="num">'+(r.bubble_fraction_forward*100).toFixed(1)+'%</td><td>'+cs(r.collectives)+'</td><td class="num">'+U.sci(r.abs_loss_diff)+' / '+U.sci(r.grad_max_abs_diff)+'</td><td class="num">'+U.MB(r.temp_bytes_per_device)+'</td></tr>').join('');

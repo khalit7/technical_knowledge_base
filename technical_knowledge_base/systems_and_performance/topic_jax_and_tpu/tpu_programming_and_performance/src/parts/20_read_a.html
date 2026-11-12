@@ -54,16 +54,25 @@ tr.tq-sel td{background:var(--acc2)}tr.tq-click{cursor:pointer}
 <nav class="nav" id="rd-nav" aria-label="Sections">
 <a href="#s-one">The idea</a><a href="#s-chip">The chip</a><a href="#s-gens">Generations</a><a href="#s-roof">Rooflines</a><a href="#s-pad">Tiles, padding</a><a href="#s-prec">Precision</a><a href="#s-mem">Memory</a><a href="#s-slice">Slices</a><a href="#s-prof">Profiling</a><a href="#s-mfu">MFU, cost</a><a href="#s-depth">Depth</a>
 </nav>
+<div class="s3sp"><div class="s3R"><div id="stg-chip"></div></div><div class="s3L">
 <section id="s-one">
 <h2 style="margin-top:14px">The idea in one screen</h2>
 <p class="core">A TPU is a few large matrix units fed from HBM through a compiler-managed scratch memory, with no kernels and no caches, so a JAX program is fast on it when <span class="hlt">its shapes keep those units fed</span>: enough tokens per chip to pass the ridge point, dimensions in whole 128 (or 256) tiles, bf16 operands, a memory plan that fits HBM, and a mesh laid on whole torus axes.</p>
-<div class="tq-card" id="tq-hero-card">
-<h4>One TPU chip as your program meets it: every byte goes HBM, then VMEM, then the MXUs</h4>
-<div class="seg" id="tq-hero-gen" role="group" aria-label="Generation"><span class="lbl">Generation</span></div>
-<div class="tq-svg" id="tq-hero"></div>
+<p>Fig. 1 is one TPU chip as your program meets it: every byte goes HBM, then VMEM, then the unit that runs it. Pick a generation; the figure, the steps and the counters follow it.</p>
+<div class="s3chips" id="tq-hero-gen" role="group" aria-label="Generation"></div>
+<ol class="sx" id="sx-chip">
+<li><b>The chip, as XLA sees it.</b> HBM at the back holds every array (<span data-tqg="hbm">16 GB</span> on <span data-tqg="gen">v5e</span>); VMEM in the middle is scratch memory the compiler fills by DMA, with nothing caching HBM for you; in front, the TensorCore and its three units.</li>
+<li><b>Every operand starts in HBM.</b> Before any unit touches a number, a DMA copies it into VMEM at <span data-tqg="bw">819 GB/s</span>. This copy is the slow side of every roofline.</li>
+<li><b>Matmuls run on the MXUs.</b> <span data-tqg="mxu">4 MXUs of 128 × 128</span>, systolic arrays that hold a weight tile while activations stream through: bf16 in, float32 sum, <span data-tqg="peak">197 TFLOP/s</span> together. Peak over bandwidth is the ridge point, <span data-tqg="ridge">240.5</span> FLOPs per byte: an operation that does less work per byte copied leaves the MXUs waiting (<a href="#s-roof">section 3</a>).</li>
+<li><b>Everything else runs on the VPU.</b> Adds, exp, LayerNorm, softmax and casts run on the vector unit, on registers of 8 sublanes × 128 lanes of float32, far slower than the MXUs (<a href="#s-chip">section 1</a>).</li>
+<li><b>The scalar unit drives both.</b> It runs the control flow, computes addresses and issues the DMAs and the vector and matrix instructions, with its own small memory (SMEM).</li>
+<li><b>Beyond the chip.</b> A host CPU runs one JAX process for <span data-tqg="host">8</span> chips over PCIe; ICI links join neighbouring chips into a slice (a 2D or 3D torus); DCN joins slices. Each is a much slower link than HBM (<a href="#s-slice">section 7</a>).</li>
+</ol>
 <div class="tq-cnt" id="tq-hero-cnt"></div>
-<p class="tq-src">Sizes per TensorCore from JAX's own TPU table (<code>jax/_src/tpu_info.py</code> at jax-v0.11.2: MXUs, VMEM, SMEM 1 MiB); HBM, ICI and hosts from the Cloud TPU pages (last updated 2026-10-13); link, DCN and PCIe rates from the {{scaling book|https://jax-ml.github.io/scaling-book/tpus/}} <span class="vend">published</span>. Schematic, not to scale. <span class="hlt">Blue</span> marks the path every matmul operand takes; the ridge point is its two ends divided, <span class="der">calculated</span>.</p>
-</div>
+<p class="tq-src">Sizes per TensorCore from JAX's own TPU table (<code>jax/_src/tpu_info.py</code> at jax-v0.11.2: MXUs, VMEM, SMEM 1 MiB); HBM, ICI and hosts from the Cloud TPU pages (last updated 2026-10-13); link, DCN and PCIe rates from the {{scaling book|https://jax-ml.github.io/scaling-book/tpus/}} <span class="vend">published</span>. Schematic, not to scale. Blue dots are matmul operands, teal the VPU's, purple the scalar unit's instructions; the ridge point is the peak divided by the HBM bandwidth, <span class="der">calculated</span>.</p>
+</section>
+</div></div>
+<div>
 <p><b>You need:</b> the roofline idea (FLOPs per byte against a chip's ratio) from {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}, and <code>jax.jit</code> from {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}. Elsewhere, and linked rather than repeated: the silicon (systolic arrays cycle by cycle, optical switches, all generations as hardware) on {{TPUs and other accelerators|n:3c65c17b0d0d8151bbc2e0ceea196187}}; kernels on {{Pallas kernels|n:3fa5c17b0d0d817699fcf65d085402e7}}; meshes and collectives on {{Sharding and scale|n:3c65c17b0d0d8125b084e6720cc66b3d}}; HLO layouts and the profiler's internals on {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}}.</p>
 <dl class="terms">
 <dt>TensorCore</dt><dd>one sequential processor; a chip has one or two. XLA compiles your whole jitted step into one program for it.</dd>
@@ -88,4 +97,4 @@ No TPU was used. <span class="vend">published</span>: Google's Cloud TPU pages (
 <tr><td>Slice and generation</td><td>Peak, HBM, ICI and price</td><td>Two tracks: v5e, v6e cheap and 2D; v4, v5p, TPU7x large and 3D <span class="vend">published</span> (<a href="#s-gens">generations</a>)</td></tr>
 <tr><td>How you report speed</td><td>Whether your MFU means anything</td><td>Six of MaxText's eight published MFUs reproduce (within a quarter of a point) only when attention is counted as non-causal <span class="der">calculated</span> (<a href="#s-mfu">MFU</a>)</td></tr>
 </tbody></table></div></div></details>
-</section>
+</div>

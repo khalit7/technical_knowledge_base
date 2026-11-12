@@ -35,15 +35,7 @@
   // ---- roofline walk animation ----
   const WALK=[1,8,32,128,240,512,1024,4096];let wGen='v5e';
   U.seg($('tq-walk-gen'),U.GEN_ORDER.map(k=>[k,gl(k)]),wGen,v=>{wGen=v;walkAn.redraw()});
-  const CAP=[
-    'Batch 1: a decode step for one user. Each weight is read once and used for one multiply-add per token, so the intensity is about 1 FLOP per byte: every generation sits far down its slanted roof, at a fraction of a percent of peak.',
-    'Batch 8: eight users decoding together. The weight bytes are the same, the FLOPs eight times more, so each dot climbs the slope by 8x. Still memory-bound everywhere.',
-    'Batch 32: still on the slope. This is where many serving systems run; the MXUs are mostly idle and the step time is the weight bytes divided by HBM bandwidth.',
-    'Batch 128: v5p, the generation with the most bandwidth per FLOP, is within reach of its ridge (166). The others are not.',
-    'Batch 240: the scaling book\'s critical batch for v5e. the intensity is 222, so v5e and v4 come within 10% of their peaks; v6e, whose MXUs grew much faster than its HBM, is still under half its peak.',
-    'Batch 512: past every ridge except v6e\'s (560). This is a small training micro-batch per chip, or a busy prefill.',
-    'Batch 1,024: everything compute-bound. From here more tokens per chip add time but not efficiency; the matmul is as fast as the MXUs.',
-    'Batch 4,096: a training micro-batch (one 4,096-token sequence per chip). Same weights, same shapes as batch 1: only the number of rows changed, and every generation went from under 1% of its peak to all of it.'];
+  // the step explanations are the list #sx-walk on the left (2026-11-12; they were a caption under the chart)
   function walkDraw(i){
     const host=$('tq-walk-svg'),W=Math.min(760,U.width(host)),H=Math.round(Math.min(330,W*0.62));
     const L=46,R=10,T=10,B=34,x0=Math.log10(0.5),x1=Math.log10(2e4),y0=Math.log10(1e11),y1=Math.log10(4e15);
@@ -59,12 +51,11 @@
       const y=Math.min(g.bf16,ai*g.bw);s+='<circle cx="'+X(ai)+'" cy="'+Y(y)+'" r="'+(on?6:4)+'" fill="'+c+'" stroke="var(--bg)" stroke-width="1.5"/>'});
     s+='<line x1="'+X(ai)+'" x2="'+X(ai)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="var(--ink)" stroke-dasharray="3 3" opacity=".5"/>'+U.tx(X(ai)+4,T+12,'B = '+U.fmt(B_),{fs:11,w:600});
     host.innerHTML='<div class="tq-leg">'+U.GEN_ORDER.map(k=>'<span><i style="background:'+U.GEN_COLOR[k]+'"></i>'+gl(k)+'</span>').join('')+'</div>'+U.S(W,H,s,'Roofline of five TPU generations with the matmul at batch '+B_);
-    $('tq-walk-cap').innerHTML='<b>Step '+(i+1)+' of '+WALK.length+'.</b> '+CAP[i];
     const g=G[wGen],bd=U.bound(mmv.fl,mmv.by,g.bf16,g.bw);
     $('tq-walk-cnt').innerHTML=RD.stat('Batch B',U.fmt(B_),'tokens per chip')+RD.stat('FLOPs',U.si(mmv.fl),'2 B D F')+RD.stat('Bytes from HBM',U.bytes(mmv.by),'bf16 in, weights, out')+
       RD.stat('Intensity',U.fmt(ai,1),'FLOPs per byte')+RD.stat(gl(wGen)+': bound',bd.compute?'compute':'memory','ridge '+U.fmt(g.bf16/g.bw))+RD.stat(gl(wGen)+': of peak',U.pct(bd.frac),'best case')+RD.stat(gl(wGen)+': time',U.time(bd.t),'lower bound');
   }
-  const walkAn=RD.anim({card:'tq-walk-card',ctl:'tq-walk-ctl',n:WALK.length,draw:walkDraw,ms:2200,label:'Batch step'});
+  const walkAn=RD.anim({card:'tq-walk-card',ctl:'tq-walk-ctl',n:WALK.length,draw:walkDraw,ms:4200,label:'Batch step',list:'sx-walk'});
   RD.onResize(()=>walkAn.redraw());
 
   // 4. tiles and MXU tables (computed live; the check compares with recompute.json)
@@ -74,13 +65,7 @@
 
   // 5. bf16 passes animation
   const TERMS=[[0,0],[0,1],[1,0],[0,2],[1,1],[2,0]];const PN=['hi','mid','lo'];
-  const SCAP=['Two float32 numbers, 24 significant bits each. The MXU only multiplies bf16 numbers, which keep 8.',
-    'Round each to bf16: the "hi" parts. This is all DEFAULT precision uses.',
-    '1 pass (DEFAULT): multiply the hi parts once. The product of two bf16 numbers is exact in float32, so the whole error comes from the rounding of the inputs.',
-    'Take what rounding threw away and round that to bf16 too: the "mid" parts carry the next 8 bits.',
-    '3 passes (HIGH, also called bfloat16_3x): add hi x mid and mid x hi. The error drops by about two to three orders of magnitude; mid x mid is skipped because it is smaller still.',
-    'One more split: the "lo" parts, the last bits of each float32 number.',
-    '6 passes (HIGHEST): add the three products whose sizes come next (hi x lo, mid x mid, lo x hi). The result is as accurate as float32 arithmetic, at six times the MXU work.'];
+  // the step explanations are the list #sx-split on the left
   const STEPN=[0,0,1,1,3,3,6];
   function splitDraw(i){
     const a=U.fr(+$('tq-split-a').value||0),b=U.fr(+$('tq-split-b').value||0);
@@ -95,12 +80,11 @@
         s+=U.tx(70+cw*(q+.5),40+ch*(p+.62),k<0?'skipped':(on?U.sig(A[p]*Bv[q],2):'pass '+(k+1)),{a:'middle',fs:10,fill:on?'var(--ink)':'var(--mute)'})}}
     s+=U.tx(4,40+ch*1.6,'a',{fs:12,w:600});
     host.innerHTML=U.S(W,H,s,'Partial products of the bf16 pieces');
-    $('tq-split-cap').innerHTML='<b>Step '+(i+1)+' of 7.</b> '+SCAP[i];
     const err=n?Math.abs(approx-exact):NaN;
     $('tq-split-cnt').innerHTML=RD.stat('Passes',n?String(n):'none yet','bf16 products')+RD.stat('a x b exact',exact.toPrecision(10),'float64')+RD.stat('With these passes',n?approx.toPrecision(10):'n/a','float32 sum')+
       RD.stat('Relative error',n?(exact?U.sig(err/Math.abs(exact),2):'0'):'n/a','')+RD.stat('float32 product',U.fr(exact).toPrecision(10),'rounded once, for comparison');
   }
-  const splitAn=RD.anim({card:'tq-split-card',ctl:'tq-split-ctl',n:7,draw:splitDraw,ms:2400,label:'Pass step'});
+  const splitAn=RD.anim({card:'tq-split-card',ctl:'tq-split-ctl',n:7,draw:splitDraw,ms:4200,label:'Pass step',list:'sx-split'});
   ['tq-split-a','tq-split-b'].forEach(id=>$(id).addEventListener('input',()=>splitAn.redraw()));
   RD.onResize(()=>splitAn.redraw());
   // measured precision

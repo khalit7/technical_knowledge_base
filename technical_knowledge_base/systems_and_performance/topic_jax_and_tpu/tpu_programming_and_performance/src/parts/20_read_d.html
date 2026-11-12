@@ -1,6 +1,4 @@
-<section id="s-pad">
-<h2>4. Tiles and padding: why dimensions should be multiples of 128</h2>
-<p>In PyTorch on a GPU a [128, 65] tensor occupies 128 x 65 numbers; an odd size costs a slower kernel at worst. On a TPU the hardware works on fixed tiles, in memory and in the MXU, and an odd size is padded up to whole tiles: you pay for the padding in bytes, in bandwidth and in MXU cycles. Step through a [128, 65] bf16 array (the running example's output head) being tiled, then try your own shape:</p>
+<div class="s3sp"><div class="s3R">
 <div class="tq-card" id="tq-t-card">
 <h4>The same array before and after tiling: a last dimension of 65 is stored as 128</h4>
 <div class="tq-ctl"><label>Array <select id="tq-t-pre"></select></label>
@@ -8,39 +6,79 @@
 <label>dtype <select id="tq-t-dt"><option value="4">float32</option><option value="2" selected>bf16</option><option value="1">int8</option></select></label></div>
 <div class="tq-svg" id="tq-t-svg"></div>
 <div class="an-ctl" id="tq-t-ctl"></div>
-<div class="tq-cap" id="tq-t-cap"></div>
 <div class="tq-cnt" id="tq-t-cnt"></div>
 <p class="tq-src">Rules from XLA's <code>docs/tiled_layout.md</code> at the pinned commit 91888df6 <span class="vend">published</span>; everything drawn is <span class="der">calculated</span> for a row-major array.</p>
 </div>
+</div><div class="s3L">
+<section id="s-pad">
+<h2>4. Tiles and padding: why dimensions should be multiples of 128</h2>
+<p>In PyTorch on a GPU a [128, 65] tensor occupies 128 x 65 numbers; an odd size costs a slower kernel at worst. On a TPU the hardware works on fixed tiles, in memory and in the MXU, and an odd size is padded up to whole tiles: you pay for the padding in bytes, in bandwidth and in MXU cycles. The figure tiles a [128, 65] bf16 array (the running example's output head); type your own shape into it:</p>
+<ol class="sx" id="sx-tile">
+<li><b>Before: the logical array.</b> A row-major array, the PyTorch and NumPy picture: element (i, j) sits at offset i x cols + j, so memory runs along each row in turn (the arrow).</li>
+<li><b>Cut into tiles.</b> XLA covers the array with tiles of 8 rows x 128 columns, the shape of a TPU vector register (2 or 4 rows instead of 8 when the array has only that many). Tiles never straddle the array's edge: they extend past it.</li>
+<li><b>Padding.</b> Everything a tile covers outside the array (hatched) is stored and moved anyway. A minor dimension of 65 pays for 128.</li>
+<li><b>After: tile order in memory.</b> Memory now runs tile by tile: tile 0 holds rows 0 to 7 of columns 0 to 127, tile 1 the next 128 columns, and so on along the row of tiles, then the next row of tiles. Neighbouring elements of one column, 8 rows apart, are now close.</li>
+<li><b>Inside a tile: packing.</b> TPUs work on 32-bit words. For bf16 the second level of tiling, (2,1), puts element (2r, c) and (2r+1, c) in one word; for int8, (4,1) puts four rows in one word; float32 needs none. The zoom shows one tile's first 8 rows and 16 columns, one box per word.</li>
+<li><b>The bill.</b> Bytes stored against bytes the array needs. Moving this array to or from HBM costs the stored bytes, so the padding factor multiplies every memory-bound operation that touches it.</li>
+</ol>
 <p><b>The rule in memory.</b> In the words of XLA's tiling document: "The most common format in XLA/TPU is tiling by 8x128"; when the second-to-last dimension is 1 or 2 it uses 2 x 128 tiles, when it is 3 or 4, 4 x 128; bf16 uses "(8,128)(2,1)", where the second level packs two rows into one 32-bit word, and 8-bit types "(8,128)(4,1)" <span class="vend">published (XLA docs)</span>. You see it in every TPU HLO dump as a suffix like <code>bf16[32,32,4096]{2,1,0:T(8,128)(2,1)S(1)}</code> (from the scaling book's profiling chapter; <code>S(1)</code> means the array lives in VMEM). So the last dimension is padded to a multiple of 128 and the one before it to a multiple of 8. XLA's layout assignment may pick another dimension order precisely to avoid padding (a [128, 65] weight stored with 128 as the minor dimension pads only to [72, 128]); the notation and the pass that picks it are on {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}}.</p>
-<p><b>The rule in the MXU.</b> A matmul streams 8-row slabs of the activation through an MXU holding a k x n weight tile of side 128 (or 256 on v6e and TPU7x), so its utilisation is at best m k n &divide; (pad<sub>8</sub>(m) pad<sub>S</sub>(k) pad<sub>S</sub>(n)). Predict before you look: what share of a 256-wide MXU does a 128 x 128 projection use?</p>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-mxu"></div></div><div class="s3L">
+<section>
+
+<p><b>The rule in the MXU.</b> A matmul streams 8-row slabs of the activation through an MXU holding a k x n weight tile of side 128 (or 256 on v6e and TPU7x), so its utilisation is at best m k n &divide; (pad<sub>8</sub>(m) pad<sub>S</sub>(k) pad<sub>S</sub>(n)). Predict before you look: what share of a 256-wide MXU does a 128 x 128 projection use? Fig. 2 answers in its fourth step.</p>
+<ol class="sx" id="sx-mxu">
+<li><b>One weight tile on a 128-wide MXU.</b> The running example's output head multiplies [4,096, 128] activations by a [128, 65] weight. The weight (blue) is loaded into the 128 x 128 array and stays there while activations pass.</li>
+<li><b>The rest of the array is padding.</b> 63 of its 128 columns hold zeros (grey), and the MXU multiplies them anyway: at best 50.8% of its multiply-adds are useful.</li>
+<li><b>Activations stream through in slabs of 8 rows.</b> 4,096 rows are 512 slabs, a multiple of 8, so the rows add no padding; every slab still pays for the grey columns.</li>
+<li><b>A 256-wide MXU wastes more.</b> On v6e and TPU7x the same weight fills 12.7% of one array, and the q projection (128 x 128), which fills a 128-wide MXU, uses a quarter.</li>
+<li><b>A head of 32 wastes most.</b> The running example's attention scores multiply by a [32, 128] block of keys: k = 32 fills a quarter of a 128-wide array (25%) and a sixteenth of a 256-wide one (6.25%).</li>
+<li><b>Sizes in whole tiles fill it.</b> With head size 128 the same scores fill a 128-wide array (100%) and half of a 256-wide one (50%); Llama 2 7B's MLP up-projection, [4,096, 11,008], is 100% on both.</li>
+</ol>
+<p>The running example's head size of 32 is the lesson: fine for teaching on a CPU, it would leave three quarters of a 128-wide MXU multiplying zeros, and fifteen sixteenths of a 256-wide one. Production models use head sizes of 128 for this reason, and on v6e and TPU7x even a 128 x 128 projection fills only a quarter of an MXU. <b>What to do:</b> choose model width, head size and MLP width as multiples of 128 (256 if you target v6e or TPU7x); pad the vocabulary to a multiple of 128 (the bytes are trivial, about 0.1% for GPT-2's 50,257); keep the per-chip batch a multiple of 8. <b>How to check:</b> dump the optimised HLO (<code>XLA_FLAGS=--xla_dump_to=...</code>) on a TPU and read the <code>T(...)</code> suffixes, or look for padding in the profiler's memory viewer. Nothing errors; the step is just slower and bigger.</p>
+</section>
+</div></div>
+<section>
 <div class="tq-card" id="tq-m-card">
-<h4>A matmul on the MXU: the grey is padding the array multiplies as zeros</h4>
+<h4>Try your own shape: the grey is padding the array multiplies as zeros</h4>
 <div class="tq-ctl"><label>m (rows of activations) <input type="number" id="tq-m-m" min="1" value="4096"></label><label>k <input type="number" id="tq-m-k" min="1" value="128"></label><label>n <input type="number" id="tq-m-n" min="1" value="65"></label>
 <label>Preset <select id="tq-m-pre"></select></label></div>
 <div class="tq-two"><div><div class="tq-svg" id="tq-m-svg128"></div></div><div><div class="tq-svg" id="tq-m-svg256"></div></div></div>
 <div class="tw" id="tq-m-tab"></div>
 <p class="tq-src">Weight [k, n] cut into MXU tiles (128 x 128 on v4, v5e, v5p; 256 x 256 on v6e and TPU7x); activation rows padded to multiples of 8 sublanes. <span class="der">calculated</span>: an upper bound that ignores weight-loading time and assumes the compiler does not repack shapes (it may batch several small heads into one tile). The root's {{TPU and Pallas lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (section 2) lists the MXU utilisation of every distinct matmul shape in the running example's training step.</p>
 </div>
-<p>The running example's head size of 32 is the lesson: fine for teaching on a CPU, it would leave three quarters of a 128-wide MXU multiplying zeros, and fifteen sixteenths of a 256-wide one. Production models use head sizes of 128 for this reason, and on v6e and TPU7x even a 128 x 128 projection fills only a quarter of an MXU. <b>What to do:</b> choose model width, head size and MLP width as multiples of 128 (256 if you target v6e or TPU7x); pad the vocabulary to a multiple of 128 (the bytes are trivial, about 0.1% for GPT-2's 50,257); keep the per-chip batch a multiple of 8. <b>How to check:</b> dump the optimised HLO (<code>XLA_FLAGS=--xla_dump_to=...</code>) on a TPU and read the <code>T(...)</code> suffixes, or look for padding in the profiler's memory viewer. Nothing errors; the step is just slower and bigger.</p>
 <details class="dp"><summary>Padding factor and MXU use for the running example's arrays and matmuls <span class="mute">(tables)</span></summary><div class="b">
 <div class="tw" id="tq-tiles"></div>
 <div class="tw" id="tq-mxu"></div>
 <p class="tq-src"><span class="der">calculated</span> with the rules above, row-major, no repacking.</p></div></details>
 </section>
 
-<section id="s-prec">
-<h2>5. Matmul precision: what float32 means on a TPU</h2>
-<p>Your model is float32 in PyTorch and in JAX, yet on a TPU its matmuls are not float32 unless you ask. MXUs multiply bf16 numbers (8 bits of mantissa instead of float32's 24) and accumulate in float32; JAX's <code>lax.Precision</code> chooses how a float32 matmul is built from bf16 products. Its docstring (<code>jax/_src/lax/lax.py:2169</code>, jax-v0.11.2): DEFAULT "performs float32 computations in bfloat16"; HIGH "in 3 bfloat16 passes" (line 2179); HIGHEST "in 6 bfloat16" (line 2183); and, the line that trips people up, "Has no impact on CPU backends" <span class="vend">published (source)</span>. Split each float32 number into a bf16 part and the bf16 remainders of what is left; multiply the parts; add the products that matter. Type your own numbers:</p>
+<div class="s3sp"><div class="s3R">
 <div class="tq-card" id="tq-split-card">
 <h4>One product, three precisions: each extra pass adds the next-largest partial products</h4>
 <div class="tq-ctl"><label>a <input type="number" id="tq-split-a" value="0.3333333" step="any"></label><label>b <input type="number" id="tq-split-b" value="3.1415927" step="any"></label></div>
 <div class="tq-svg" id="tq-split-svg"></div>
 <div class="an-ctl" id="tq-split-ctl"></div>
-<div class="tq-cap" id="tq-split-cap"></div>
 <div class="tq-cnt" id="tq-split-cnt"></div>
 <p class="tq-src">One pass keeps hi x hi; three add the two cross terms; six add the next three. JavaScript rounds to bf16 exactly as NumPy's <code>ml_dtypes</code> does (checked on 8 values by the page's recompute script).</p>
 </div>
+</div><div class="s3L">
+<section id="s-prec">
+<h2>5. Matmul precision: what float32 means on a TPU</h2>
+<p>Your model is float32 in PyTorch and in JAX, yet on a TPU its matmuls are not float32 unless you ask. MXUs multiply bf16 numbers (8 bits of mantissa instead of float32's 24) and accumulate in float32; JAX's <code>lax.Precision</code> chooses how a float32 matmul is built from bf16 products. Its docstring (<code>jax/_src/lax/lax.py:2169</code>, jax-v0.11.2): DEFAULT "performs float32 computations in bfloat16"; HIGH "in 3 bfloat16 passes" (line 2179); HIGHEST "in 6 bfloat16" (line 2183); and, the line that trips people up, "Has no impact on CPU backends" <span class="vend">published (source)</span>. Split each float32 number into a bf16 part and the bf16 remainders of what is left; multiply the parts; add the products that matter. The figure builds one product; type your own numbers into it:</p>
+<ol class="sx" id="sx-split">
+<li><b>Two float32 numbers.</b> 24 significant bits each. The MXU only multiplies bf16 numbers, which keep 8.</li>
+<li><b>Round each to bf16: the "hi" parts.</b> This is all DEFAULT precision uses.</li>
+<li><b>1 pass (DEFAULT).</b> Multiply the hi parts once. The product of two bf16 numbers is exact in float32, so the whole error comes from the rounding of the inputs.</li>
+<li><b>The "mid" parts.</b> Take what rounding threw away and round that to bf16 too: the mid parts carry the next 8 bits.</li>
+<li><b>3 passes (HIGH, also called bfloat16_3x).</b> Add hi x mid and mid x hi. The error drops by about two to three orders of magnitude; mid x mid is skipped because it is smaller still.</li>
+<li><b>The "lo" parts.</b> One more split: the last bits of each float32 number.</li>
+<li><b>6 passes (HIGHEST).</b> Add the three products whose sizes come next (hi x lo, mid x mid, lo x hi). The result is as accurate as float32 arithmetic, at six times the MXU work.</li>
+</ol>
+</section>
+</div></div>
+<section>
 <p><b>On the whole running example (measured here, emulated).</b> A CPU ignores the setting: <code>jnp.dot</code> returned the identical float32 result for nine precision settings and refused only TF32 <span class="meas">measured here</span>, so every one of the running example's 33 forward matmuls was replaced by the split-and-sum above, on the trained weights of the root's 500-step run, over 128 validation sequences, and compared with a float64 forward pass:</p>
 <div class="tw" id="tq-prec-tab"></div>
 <p class="tq-src"><span class="meas">measured here</span>: <code>src/runs/tq_precision.py</code>, jax 0.11.2 on CPU. An emulation of the arithmetic, not XLA:TPU's code (which is not public): the split scheme is the standard one, the TPU's accumulation order differs. What transfers: the size of the errors. What does not: speed.</p>

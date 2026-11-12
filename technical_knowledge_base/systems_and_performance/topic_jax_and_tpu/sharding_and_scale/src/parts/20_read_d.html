@@ -11,14 +11,21 @@
 <p class="small">JAX also has <dfn>unreduced</dfn> types, where "the logical value equals the distributed sum of the physical shards' values along that axis", for delaying a reduction (shown as <code>f32[8,16]{U:X}</code> in the guide). Not run here: the guide marks the details as still to come.</p>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-smap"></div></div><div class="s3L">
 <section id="s-smap">
 <h2>5. shard_map: per-device code, collectives as JAX calls</h2>
 <p>When no layout rule gives the communication you want, you write it. <code>jax.shard_map(f, mesh=mesh, in_specs=..., out_specs=...)</code> (<span id="ss-ref-smap"></span>) cuts each input by its spec, runs <code>f</code> once per device on the local block, and assembles the outputs by <code>out_specs</code>. Inside <code>f</code> shapes are per device and the mapped axes are Manual: nothing crosses a wire unless you call a collective, by axis name.</p>
-<div class="ss-card" id="ss-sm-card">
-<h4>The shape of every shard_map: split by in_specs, run per device, communicate by name, reassemble by out_specs</h4>
-<div class="ss-svg" id="ss-sm-svg"></div>
-<p class="ss-src">The batch x [32, 128] on a mesh of 8 devices over one axis <code>data</code>: with <code>in_specs=P('data')</code> each call of <code>f</code> sees [4, 128] (the shard shape the multi-host run in section 12 recorded). A body ending in <code>jax.lax.psum(g, 'data')</code> leaves the same sum on every device, so <code>out_specs=P()</code> (replicated) is correct. <span class="ill">illustrative</span> body; the shapes are the measured ones.</p>
-</div>
+<p class="sxh">Fig. 5, step by step: the shape of every shard_map</p>
+<ol class="sx" id="sx-smap">
+<li><b>One global array.</b> The batch x [32, 128] on a mesh of 8 devices over one axis, <code>data</code>. <code>in_specs=P('data')</code> names how to cut it: by rows, over <code>data</code>.</li>
+<li><b>Split by in_specs.</b> Each device receives its own block: with <code>in_specs=P('data')</code> each call of <code>f</code> sees [4, 128], rows 4d to 4d + 3 (the shard shape the multi-host run in section 12 recorded). Nothing else is copied.</li>
+<li><b>Inside one device.</b> <code>f</code> runs once per device on its local block. Shapes inside are per device, and <code>jax.lax.axis_index('data')</code> is this device's coordinate (3 for the device in view). The body computes a partial result g of its own.</li>
+<li><b>Communicate by name.</b> <code>jax.lax.psum(g, 'data')</code> is an all-reduce over the 8 devices of the <code>data</code> axis: the only bytes that move are the ones the psum names.</li>
+<li><b>Reassemble by out_specs.</b> A body ending in <code>jax.lax.psum(g, 'data')</code> leaves the same sum on every device, so <code>out_specs=P()</code> (replicated) is correct; a per-device result would use <code>out_specs=P('data')</code> and be stacked back into one array.</li>
+</ol>
+<p class="ss-src"><span class="ill">illustrative</span> body; the shapes are the measured ones.</p>
+</section></div></div>
+<div class="ss-cont">
 <p>The collectives you call, and what they compile to (the names the rest of this page counts in compiled programs):</p>
 <div class="tw"><table><thead><tr><th>JAX call, inside <code>shard_map</code></th><th>HLO op</th><th>What happens</th><th>Used on this page</th></tr></thead><tbody>
 <tr><td><code>jax.lax.psum(x, 'ax')</code></td><td><span class="ss-coll ss-k-ar">all-reduce</span></td><td>every device ends with the sum over the axis</td><td>the pipeline hands its output to every stage (section 8)</td></tr>
@@ -29,4 +36,4 @@
 <tr><td><code>jax.lax.axis_index('ax')</code></td><td>none</td><td>this device's coordinate on the axis</td><td>one program serves every pipeline stage</td></tr>
 </tbody></table></div>
 <p>Two compiler facts measured on this page: <code>jax.grad</code> transposes <code>all_gather</code> into <code>psum_scatter</code>, so the backward of hand-written all-gather attention holds a true reduce-scatter even on CPU (section 7), and it transposes each <code>all_to_all</code> into another all-to-all (section 9). What each collective costs on the wire (ring, torus, tree) is {{Interconnects and scaling|n:3c65c17b0d0d81808563fd41fb163af0}}'s subject; section 10 checks the byte counts JAX produces.</p>
-</section>
+</div>

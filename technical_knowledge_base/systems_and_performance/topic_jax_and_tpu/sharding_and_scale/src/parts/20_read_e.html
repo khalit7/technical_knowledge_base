@@ -1,14 +1,7 @@
+<div class="s3sp"><div class="s3L">
 <section id="s-strat">
 <h2>6. Every strategy, measured at two sizes</h2>
 <p>The framework-free theory of each strategy (why it exists, its memory and traffic in the abstract) is taught on {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}} (data parallelism in section 3, ZeRO and FSDP in section 4, tensor parallelism in section 5); the PyTorch implementations on {{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}; the ZeRO stages step by step on the {{ZeRO paper page|n:3c65c17b0d0d81879a7ed90bca007699}}; Megatron's split on the {{Megatron-LM paper page|n:3c65c17b0d0d8133ae92fbe90a1f308e}}. Here: what XLA produced for each, on the running example (826,368 parameters, the root lab's setup) and on the same model scaled up (25,417,728 parameters: d_model 512, 8 layers, 8 heads, MLP 2,048, context 256, batch 16; seeded initialisation), the full train step on 8 devices. Every layout's loss stays within 4.8e-7 of one device over 3 steps.</p>
-<div class="ss-card" id="ss-st-card">
-<h4>FSDP trades weight traffic for memory; tensor parallelism moves activations, not weights</h4>
-<div class="seg" id="ss-st-cfg"><span class="lbl">Model</span><button data-m="small">Running example (0.83M)</button><button data-m="big" class="on">Scaled up (25.4M)</button></div>
-<div class="seg" id="ss-st-met"><span class="lbl">Show</span><button data-m="bytes" class="on">Bytes moved per step</button><button data-m="mem">Memory per device</button></div>
-<div class="ss-svg" id="ss-st-svg"></div>
-<div class="ss-leg" id="ss-st-leg"></div>
-<div class="ss-src" id="ss-st-note"></div>
-</div>
 <h3>What each row teaches</h3>
 <ul class="tight">
 <li><b>Data parallel</b>: one all-reduce of exactly the gradient bytes (101,670,916 for 25.4M float32 parameters plus 4 bytes for the loss). XLA's CPU <code>AllReduceCombiner</code> merged every gradient into one collective. Each device still holds all parameters and Adam state: 305 MB of 305 MB.</li>
@@ -19,7 +12,24 @@
 <li><b>FSDP x tensor parallel</b>: the most memory-efficient here and the one that drew XLA's warning, pasted from the compile: <code id="ss-invol"></code>. The partitioner could not move an activation from one layout to the other directly, so it replicated it and re-split it. A warning like this is a performance bug report; the fix is a <code>with_sharding_constraint</code> that names the layout you want at that point.</li>
 </ul>
 <details class="dp"><summary>The PyTorch FSDP2 counterpart of XLA's keep-the-gathered-weights choice <span class="mute">(20 s)</span></summary><div class="b"><p>PyTorch FSDP2 makes the same choice explicit: <code>fully_shard(reshard_after_forward=None)</code>, the default in torch 2.14.1, re-gathers in backward for every module except the root ("set to True for non-root modules and False for root modules", <code>torch/distributed/fsdp/_fully_shard/_fully_shard.py:189</code>).</p></div></details>
-</section>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="ss-card card" id="ss-st-card">
+<h4>FSDP trades weight traffic for memory; tensor parallelism moves activations, not weights</h4>
+<div class="seg" id="ss-st-cfg"><span class="lbl">Model</span><button data-m="small">Running example (0.83M)</button><button data-m="big" class="on">Scaled up (25.4M)</button></div>
+<div class="seg" id="ss-st-met"><span class="lbl">Show</span><button data-m="bytes" class="on">Bytes moved per step</button><button data-m="mem">Memory per device</button></div>
+<div class="ss-svg" id="ss-st-svg"></div>
+<div class="ss-leg" id="ss-st-leg"></div>
+<div class="ss-src" id="ss-st-note"></div>
+</div>
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="ss-card card" id="ss-cp-card">
+<h4>The same attention, two schedules: the ring never holds all keys, the all-gather does</h4>
+<div class="seg" id="ss-cp-mode"><span class="lbl">Method</span><button data-m="ring" class="on">Ring (ppermute)</button><button data-m="ag">All-gather K, V</button></div>
+<div class="ss-svg" id="ss-cp-svg"></div>
+<div class="an-ctl" id="ss-cp-ctl"></div>
+<div class="ss-cnt" id="ss-cp-cnt"></div>
+</div>
+</div></div><div class="s3L">
 <section id="s-cp">
 <h2>7. Context parallelism: ring attention against all-gather</h2>
 <p><b>The problem.</b> At long context the activations of one sequence no longer fit on one device, and splitting the batch does not help when the batch is one sequence. <dfn>Context parallelism</dfn> splits the sequence itself: device <i>d</i> holds tokens <i>d</i>T/N to (<i>d</i>+1)T/N &minus; 1 of every sequence. Everything except attention is per-token and needs no communication. Attention needs every query to meet every earlier key. The three traffic patterns and the causal load balancing are {{Distributed Training|n:3c65c17b0d0d8103a916c4824abbd82e}}'s section 8; here, what JAX compiles for each.</p>
@@ -29,16 +39,27 @@
 <li><b>All-gather by hand</b> in <code>shard_map</code>: gather K and V, attend your own queries with the causal mask shifted by your offset. This is the variant Llama 3 used ({{Llama 3 paper, arXiv 2407.21783, section 3.3.2|https://arxiv.org/abs/2407.21783}}) and MaxText's default (<code>context_parallel_strategy: "all_gather"</code>, <span id="ss-ref-cps"></span>).</li>
 <li><b>Ring attention</b> ({{Liu, Zaharia and Abbeel 2023, arXiv 2310.01889|https://arxiv.org/abs/2310.01889}}): pass K/V blocks round the ring with <code>ppermute</code>, N steps, accumulating an online softmax (running max, denominator and numerator), so no device ever holds all keys or a full score matrix.</li>
 </ul>
+<p class="sxh">The schedule, step by step</p>
+<ol class="sx" id="sx-cp-ring">
+<li><b>Start.</b> Each device holds its own 16 tokens: queries, keys and values for one block of the sequence. Grey cells are masked by causality and will never be computed.</li>
+<li><b>Ring step 1: the diagonal.</b> Every device attends its queries to its own K/V block (the triangular diagonal block), updates its running max, denominator and numerator, then passes the block right with <code>ppermute</code>: one K and one V block, 262,144 bytes each.</li>
+<li><b>Ring step 2.</b> Device d now holds the block that started on device (d &minus; 1) mod 8. Device 0's block came from device 7, a later position: masked, so device 0 skips the work.</li>
+<li><b>Ring step 3.</b> Blocks from (d &minus; 2) mod 8; devices 0 and 1 skip.</li>
+<li><b>Ring step 4.</b> Blocks from (d &minus; 3) mod 8; devices 0 to 2 skip.</li>
+<li><b>Ring step 5.</b> Blocks from (d &minus; 4) mod 8; devices 0 to 3 skip: half the ring idles.</li>
+<li><b>Ring step 6.</b> Blocks from (d &minus; 5) mod 8; devices 0 to 4 skip.</li>
+<li><b>Ring step 7.</b> Blocks from (d &minus; 6) mod 8; only devices 6 and 7 work.</li>
+<li><b>Ring step 8: done.</b> Only device 7 works, on block 0; then every device divides numerator by denominator. Device 0 had work in 1 of 8 steps, device 7 in all 8, and no device ever held more than one K/V block.</li>
+</ol>
+<ol class="sx" id="sx-cp-ag" hidden>
+<li><b>Start.</b> Each device holds its own block of queries, keys and values.</li>
+<li><b>All-gather.</b> Every device receives the 7 other K and V blocks in one collective: it now holds the whole sequence's keys and values.</li>
+<li><b>Compute.</b> Each device attends its queries to every earlier key at once, with the causal mask shifted by its offset. Device 7 does 8 blocks of work, device 0 one.</li>
+</ol>
+</section></div></div>
+<div class="ss-cont">
 <details class="dp"><summary>The ring attention code that ran (per device, inside <code>jax.shard_map</code> over the <code>seq</code> axis)</summary><div class="b"><pre id="ss-cp-code"></pre></div></details>
-<div class="ss-card" id="ss-cp-card">
-<h4>The same attention, two schedules: the ring never holds all keys, the all-gather does</h4>
-<div class="seg" id="ss-cp-mode"><span class="lbl">Method</span><button data-m="ring" class="on">Ring (ppermute)</button><button data-m="ag">All-gather K, V</button></div>
-<div class="ss-svg" id="ss-cp-svg"></div>
-<div class="an-ctl" id="ss-cp-ctl"></div>
-<div class="ss-cap" id="ss-cp-cap"></div>
-<div class="ss-cnt" id="ss-cp-cnt"></div>
-</div>
 <div id="ss-cp-meas"></div>
 <p><b>What the numbers say.</b> All three give the one-device result (largest difference 7.5e-8 for the ring; gradients within 2.9e-6 for all three). Per device the ring sends exactly what a ring all-gather of K and V would (7 blocks of each: 3,670,016 bytes, against the all-gather's 4,194,304-byte output of which 7/8 arrives from other devices). The gain is memory: at 8,192 tokens the compiled temp memory is 123 MB per device for the ring against 273 MB for the all-gather version, because nobody holds all keys and values. The cost is N sequential steps, each needing its transfer to overlap with compute. The schedule also shows the known flaw of a plain causal ring: device 0 has work in 1 of 8 steps and device 7 in all 8. Load-balanced orderings (each device holds a chunk from the start and one from the end of the sequence) fix that; MaxText's <code>context_parallel_load_balance: true</code> is the default (<span id="ss-ref-cpb"></span>). Not run here: the load-balanced ordering, and DeepSpeed-Ulysses, which uses all-to-all to swap the sequence split for a head split ({{arXiv 2309.14509|https://arxiv.org/abs/2309.14509}}; MaxText's <code>"ulysses"</code> option).</p>
 <details class="dp"><summary>Megatron's sequence parallelism is a different thing <span class="mute">(30 s)</span></summary><div class="b"><p>Megatron's <dfn>sequence parallelism</dfn> ({{Korthikanti et al. 2022, arXiv 2205.05198|https://arxiv.org/abs/2205.05198}}) is a different thing despite the name: inside a tensor-parallel group it splits the LayerNorm and dropout activations along the sequence, turning each all-reduce into a reduce-scatter plus an all-gather of the same total size. On CPU the reduce-scatter cannot be formed (no <code>ReduceScatterCreator</code> in the pipeline), so it is not shown separately here.</p></div></details>
-</section>
+</div>

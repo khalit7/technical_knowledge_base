@@ -32,3 +32,8 @@ A rule for "measured by emulation": the precision table is a measurement of an e
 - **Moved inline**: idea 7 (tiling stepper and MXU card) to Reading section 4; idea 9's your-run calculator to section 9.
 - **Reversed rejection**: "a TensorCore drawing" was rejected on 2026-10-15 because the root's TPU lab drew one; this page now owns the TPU core, so it draws it and the root should link here.
 - **Rejected**: an XProf trace-viewer screenshot (no licensed TPU trace image found that shows a TPU profile; the table of views stays).
+
+## 2026-11-12 rollout (split layout, renderer v2)
+- **Built, 3D**: Fig. 1 the chip per generation (replaces the static hero); Fig. 2 a weight on the MXU with its padding (shapes from recompute.json); Fig. 3 one 7B layer on v5e as a predicted profile in two lanes (calculated with the Roofline lab's formulas). The 2026-10-15 rejection of "a profile viewer" stands for a measured trace; Fig. 3 is a prediction and says so.
+- **Step lists**: the roofline walk, tiling stepper and bf16 passes keep their 2D drawings; their captions became step lists.
+- **Rejected for 3D**: the roofline (log axes read flat), the remat scatter, the MFU bars, the level diagram, the tiling stepper (a flat memory layout), the bf16 passes (typed numbers in a 3 x 3 grid); a torus with rings and a systolic array (owned as 3D stages by TPUs and other accelerators).

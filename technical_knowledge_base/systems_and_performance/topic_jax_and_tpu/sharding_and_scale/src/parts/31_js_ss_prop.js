@@ -30,7 +30,9 @@
         (here.length?' The partitioner puts '+here.map(x=>U.chip(x[0],x[3]+' '+x[0]+', '+U.MB(x[4]))).join(' ')+' on this line.':'')}
     $('pp-cnt').innerHTML=RD.stat('operations assigned',(i)+' of '+R.length,'')+RD.stat('collectives so far',nc,U.MB(nb))+RD.stat('whole block',c[part].coll.reduce((s,x)=>s+x[3],0)+' collectives',U.MB(c[part].coll.reduce((s,x)=>s+x[4],0)));
   }
-  an=U.anim({tab:'t-read',card:'pp-card',ctl:'pp-ctl',n:steps(),draw:drawAnim,ms:700,label:'Operation'});
+  // a widget (long-replay rule, case b: up to 95 frames): the reader drives it; it never plays by itself and opens on the last frame, every operation assigned
+  an=U.anim({card:'pp-card',ctl:'pp-ctl',n:steps(),draw:drawAnim,ms:700,label:'Operation',auto:false,start:steps()-1});
+  const toEnd=()=>{an.reset(steps());an.go(steps()-1,true)};
   // ---------- table ----------
   function drawTable(){
     const c=P.cases[ci],A=c.shardy.rows,B={};c.gspmd.rows.forEach(r=>B[r[0]+'|'+r[1]+'|'+r[2]]=r[4]);
@@ -40,8 +42,8 @@
     const cs=p=>c[p].coll.length?c[p].coll.map(x=>U.chip(x[0],x[3]+' '+x[0]+' at line '+x[1]+' ('+x[2]+'), '+U.MB(x[4]))).join(' '):'none';
     $('pp-coll').innerHTML='<p class="small"><b>Collectives, Shardy:</b> '+cs('shardy')+'<br><b>Collectives, GSPMD:</b> '+cs('gspmd')+'<br>Groups compared: '+c.n_ops_compared+', different: '+c.n_ops_differ+' (only "none" against replicated). Loss against one device: Shardy '+U.sci(c.shardy.err)+', GSPMD '+U.sci(c.gspmd.err)+'. Line 0: the collective carries no Python line (inserted for an input or output).</p>';
   }
-  U.seg($('pp-case'),v=>{ci=+v;an.reset(steps());drawTable()});
-  U.seg($('pp-part'),v=>{part=v;an.reset(steps())});
+  U.seg($('pp-case'),v=>{ci=+v;toEnd();drawTable()});
+  U.seg($('pp-part'),v=>{part=v;toEnd()});
   U.seg($('pp-ph'),v=>{ph=v;drawTable()});
   drawTable();
   // ---------- whole step ----------
