@@ -1,13 +1,23 @@
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav"><a href="#s-one">The idea</a><a href="#s-tr">1 Four differences</a><a href="#s-def">2 Defaults</a><a href="#s-conv">3 Weights</a><a href="#s-eq">4 Ladder test</a><a href="#s-drift">5 Drift</a><a href="#s-hf">6 GPT-2</a><a href="#s-io">7 Interop</a><a href="#s-when">8 Checklist</a></nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <div class="co key"><div class="t">The core idea</div>
 PyTorch keeps four kinds of state hidden inside objects (the weights in modules, the gradients in <code>.grad</code>, the optimiser's moments in the optimiser, the random generator's position in a global), and JAX makes each of them an <b>argument and a return value of one pure, compiled training step</b>. A port is that rewrite plus a test: about twenty defaults differ between the libraries without a warning, so a port is correct only when one fixed batch gives PyTorch's logits, loss, gradients and first optimiser step.</div>
+<p>Fig. 1 runs one training step of the root's twins (the same 4-layer model in both frameworks) and follows the state. Colours are the same state on both sides: <span style="color:var(--c1);font-weight:600">weights</span>, <span style="color:var(--c2);font-weight:600">gradients</span>, <span style="color:var(--c3);font-weight:600">optimiser state</span>, <span style="color:var(--c4);font-weight:600">random state</span>. Section 1 steps through the real code of both twins line by line.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The same model, twice.</b> Six plates per twin: the token and position embeddings, four transformer blocks, the final LayerNorm and the output head, <span data-k="root.n_params" data-f="int"></span> parameters in <span data-k="convert.n_tensors"></span> tensors, identical in both. On the left they live inside <code>model</code>, an <code>nn.Module</code> object; on the right they are <code>params</code>, a plain pytree (a nested dict of arrays) that nothing owns.</li>
+<li><b>PyTorch: backward writes into the objects.</b> The batch flows up the stack to the loss; <code>loss.backward()</code> sends gradients down and <b>adds</b> them into a <code>.grad</code> slot beside every weight. That stored state is why every step starts with <code>zero_grad</code>.</li>
+<li><b>PyTorch: <code>opt.step()</code> changes everything in place.</b> The optimiser object reads each <code>.grad</code>, updates Adam's moments <code>m</code> and <code>v</code> that it keeps inside, and overwrites the weights; <code>sched.step()</code> advances a hidden counter, and the global generator advances on every random draw. The step returns only <code>loss.item()</code>, a Python number.</li>
+<li><b>JAX: the state goes in as arguments.</b> <code>params</code>, <code>opt_state</code> (Adam's moments and the update count, a pytree shaped like <code>params</code>) and the batch enter <code>jax.jit(train_step)</code>; with dropout a random key enters too. The function may read them and must not change them.</li>
+<li><b>Gradients exist only inside the step.</b> <code>jax.value_and_grad</code> returns them as a value shaped like <code>params</code>; <code>tx.update</code> turns them and <code>opt_state</code> into updates, and they are gone when the function returns. Nothing is stored, so there is nothing to zero.</li>
+<li><b>New state comes out; the caller passes it back.</b> <code>train_step</code> returns new <code>params</code>, a new <code>opt_state</code> and the loss; the caller feeds them into the next call. With <code>donate_argnums=(0, 1)</code> XLA reuses the old buffers (faded), which is safe because the caller never touches them again.</li>
+</ol>
+</section>
+</div></div>
 
-<svg id="pj-hero" role="img" aria-label="Left, PyTorch: train_step(model, opt, sched, x, y) changes weights, .grad, the optimiser's moments and the global random generator in place and returns loss.item(). Right, JAX: the same four kinds of state enter jax.jit(train_step) as arguments and leave as return values; the gradients exist only inside the step."></svg>
-<div class="pj-cap"><b>The same training step, two homes for its state.</b> Left, PyTorch: the step changes four kinds of state in place (dashed arrows). Right, JAX: params, opt_state and the random key go in and new ones come out; the gradients are a value inside the step, never stored. Colours are the same state on both sides. Section 1 steps through the real code of both twins line by line.</div>
-
+<section id="s-need">
 <p><b>You need</b>: PyTorch at the level of writing a training loop, and the running example of {{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} (a 4-layer character transformer, <span data-k="root.n_params" data-f="int"></span> parameters; written three times, in PyTorch, Flax NNX and plain JAX; section 1 steps through two of them side by side). Why JAX insists on pure functions (tracing, the jit cache, pytrees, random keys) is taught on {{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}; how <code>.grad</code> accumulates and what autograd records is on {{Tensors, the dispatcher and autograd|n:3f85c17b0d0d81138595c1c6cd52f795}}. This page uses those ideas and owns only the translation.</p>
 
 <h3>New terms</h3>
@@ -25,19 +35,9 @@ PyTorch keeps four kinds of state hidden inside objects (the weights in modules,
 <p class="small">The sections follow the order of a port: <a href="#s-tr">translate</a>, <a href="#s-def">set every default</a>, <a href="#s-conv">convert the weights by a rule</a>, <a href="#s-eq">climb the ladder</a> on one fixed batch, <a href="#s-drift">judge the drift</a>; then GPT-2, interop and <a href="#s-when">the checklist</a>. All measured on an Apple M1 Pro CPU with the scripts in this page's <code>src/runs/</code>; the 4,000-step figures are the root Training lab's run (<code>src/train/out/twin_long.json</code>), cited, not rerun.</p>
 </section>
 
-<section id="s-tr">
-<h2>1. Four differences, on one training step</h2>
-<p>Both panes are the root's real files, cut to the lines that matter: <code>src/data/model_torch.py</code> and <code>model_jax.py</code> (plain JAX plus optax, state passed explicitly). Step through: each step lights the lines of one difference on both sides.</p>
-<div class="pj-box" id="pj-cs-card">
+<div class="s3sp"><div class="s3R">
+<div class="pj-box card" id="pj-cs-card">
 <div class="pj-anctl" id="pj-cs-ctl"></div>
-<div class="pj-capt" id="pj-cs-cap">
-<div data-i="0">Highlighted lines differ between the twins; every other line is the same arithmetic. Press play or step to take the four kinds of state, then compilation, one at a time.</div>
-<div data-i="1" hidden><b>Weights: a module owns them; a function receives them.</b> <code>nn.Linear</code> creates and keeps its weight inside the object; in JAX <code>init_params</code> returns a dict (a pytree) and every layer is a function of <code>p</code>, so the weights are an argument of <code>train_step</code> and come back out of it. The weight is stored <code>[in, out]</code> (<code>x @ p["w"]</code>), the transpose of PyTorch's <code>[out, in]</code>: section 3. Flax NNX keeps PyTorch's object style (<code>class Block(nnx.Module)</code>), and <code>nnx.jit</code> splits it into the same pytree at the boundary.</div>
-<div data-i="2" hidden><b>Randomness: a global generator against explicit keys.</b> <code>torch.manual_seed</code> sets a hidden generator that advances by itself on every draw. A JAX key is a value: drawing twice with the same key gives the same numbers, so <code>init_params</code> splits it into one key per tensor. This model has no dropout, so its step takes no key; with dropout the key becomes one more argument, split or folded with the step number each step (section 2, Dropout).</div>
-<div data-i="3" hidden><b>Gradients: accumulated into <code>.grad</code> against returned.</b> <code>loss.backward()</code> adds into each parameter's <code>.grad</code>, which is why the step starts with <code>zero_grad</code>. <code>jax.value_and_grad</code> returns the gradients as a pytree shaped like <code>params</code>; nothing is stored, so there is nothing to zero, and gradient accumulation is an explicit sum.</div>
-<div data-i="4" hidden><b>Optimiser state: inside the optimiser against passed through.</b> <code>opt.step()</code> updates Adam's moments in place and <code>sched.step()</code> advances a hidden counter. <code>tx.update(grads, opt_state, params)</code> returns new updates and a new <code>opt_state</code>; the schedule is a function of the update count. Parameter groups become a <b>mask</b> pytree (<code>mask=decay_mask</code>), and clipping becomes a link in the chain, before <code>adamw</code>: the order matters (section 2).</div>
-<div data-i="5" hidden><b>Eager against traced.</b> PyTorch runs each line as it is called and <code>loss.item()</code> returns a number. <code>jax.jit</code> runs the Python once per input shape to record a program, then reruns only that program: a Python <code>if</code> on an array value or a <code>print</code> inside the step sees a tracer, not a number ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}, sections 2 and 3). <code>donate_argnums=(0, 1)</code> lets XLA reuse the old <code>params</code> and <code>opt_state</code> buffers, which is safe only because the caller never touches them again. <code>float(loss)</code> blocks until the device finishes: log every N steps.</div>
-</div>
 <div class="pj-two">
 <div class="pj-pane"><div class="h">PyTorch: model_torch.py</div><div class="pj-lines" id="pj-cs-t">
 <div data-s="1"><span class="ln">15</span>class Attention(nn.Module):</div>
@@ -95,8 +95,23 @@ PyTorch keeps four kinds of state hidden inside objects (the weights in modules,
 </div></div>
 </div>
 </div>
+</div><div class="s3L">
+<section id="s-tr">
+<h2>1. Four differences, on one training step</h2>
+<p>The panes are the root's real files, cut to the lines that matter: <code>src/data/model_torch.py</code> and <code>model_jax.py</code> (plain JAX plus optax, state passed explicitly). Each step lights the lines of one difference on both sides; every unlit line is the same arithmetic.</p>
+<ol class="sx" id="sx-cs">
+<li><b>The lines that differ.</b> Highlighted lines differ between the twins; the steps take the four kinds of state, then compilation, one at a time.</li>
+<li><b>Weights: a module owns them; a function receives them.</b> <code>nn.Linear</code> creates and keeps its weight inside the object; in JAX <code>init_params</code> returns a dict (a pytree) and every layer is a function of <code>p</code>, so the weights are an argument of <code>train_step</code> and come back out of it. The weight is stored <code>[in, out]</code> (<code>x @ p["w"]</code>), the transpose of PyTorch's <code>[out, in]</code>: section 3. Flax NNX keeps PyTorch's object style (<code>class Block(nnx.Module)</code>), and <code>nnx.jit</code> splits it into the same pytree at the boundary.</li>
+<li><b>Randomness: a global generator against explicit keys.</b> <code>torch.manual_seed</code> sets a hidden generator that advances by itself on every draw. A JAX key is a value: drawing twice with the same key gives the same numbers, so <code>init_params</code> splits it into one key per tensor. This model has no dropout, so its step takes no key; with dropout the key becomes one more argument, split or folded with the step number each step (section 2, Dropout).</li>
+<li><b>Gradients: accumulated into <code>.grad</code> against returned.</b> <code>loss.backward()</code> adds into each parameter's <code>.grad</code>, which is why the step starts with <code>zero_grad</code>. <code>jax.value_and_grad</code> returns the gradients as a pytree shaped like <code>params</code>; nothing is stored, so there is nothing to zero, and gradient accumulation is an explicit sum.</li>
+<li><b>Optimiser state: inside the optimiser against passed through.</b> <code>opt.step()</code> updates Adam's moments in place and <code>sched.step()</code> advances a hidden counter. <code>tx.update(grads, opt_state, params)</code> returns new updates and a new <code>opt_state</code>; the schedule is a function of the update count. Parameter groups become a <b>mask</b> pytree (<code>mask=decay_mask</code>), and clipping becomes a link in the chain, before <code>adamw</code>: the order matters (section 2).</li>
+<li><b>Eager against traced.</b> PyTorch runs each line as it is called and <code>loss.item()</code> returns a number. <code>jax.jit</code> runs the Python once per input shape to record a program, then reruns only that program: a Python <code>if</code> on an array value or a <code>print</code> inside the step sees a tracer, not a number ({{JAX core|n:3c65c17b0d0d81b7a0d1faba6cef5561}}, sections 2 and 3). <code>donate_argnums=(0, 1)</code> lets XLA reuse the old <code>params</code> and <code>opt_state</code> buffers, which is safe only because the caller never touches them again. <code>float(loss)</code> blocks until the device finishes: log every N steps.</li>
+</ol>
 <p><b>What it costs.</b> The model translated almost mechanically (the three files are 116 to 148 lines each). The cost is not typing; the result looks right and is subtly different, which is what the next three sections are for. <b>How to check:</b> run both twins on one batch from the same weights and compare logits before anything else; the root's twins agree to <span data-k="hunt.variants.correct.rungs.logits" data-f="s2"></span> (largest logit <span data-k="hunt.ref.max_abs_logit" data-f="f2"></span>).</p>
 
+</section>
+</div></div>
+<section id="s-tr-more">
 <details class="mist"><summary>The whole script, part by part, in PyTorch, Flax NNX and plain JAX (13 rows)</summary><div class="b">
 <p>The middle column is Flax NNX (closest to PyTorch: objects with state), the right one plain JAX plus optax. Both are the root's real files, <code>src/data/model_nnx.py</code> and <code>model_jax.py</code>.</p>
 <div class="tw"><table class="pj-t" id="pj-trtab">

@@ -35,8 +35,8 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
       const q=s=>root.querySelectorAll(s);const sleep=()=>new Promise(r=>setTimeout(r,3));
       if(t==='t-pjdr'){const sel=root.querySelector('#pjdr-pick');for(const o of [...sel.options]){sel.value=o.value;sel.dispatchEvent(new Event('change'));await sleep();for(const b of [...q('.cand')]){b.click();c++;await sleep()}}}
       if(t==='t-read'){for(const b of [...q('#pjwc-filter button')]){b.click();await sleep();for(const d of [...q('#pjwc-names div[data-i]')]){d.click();c++}}
-        for(const b of [...q('#pjwc-src button')]){b.click();await sleep();const f=root.querySelector('#pjwc-ctl-f');for(let i=0;i<9;i++){f.click();c++;await sleep()}}}
-      if(t==='t-read'){const sel=root.querySelector('#pj-lad-v');for(const o of [...sel.options]){sel.value=o.value;sel.dispatchEvent(new Event('change'));const f=root.querySelector('#pj-lad-ctl-f');for(let i=0;i<6;i++){f.click();c++}await sleep()}}
+        for(const id of ['stg-hero','stg-conv']){const f=root.querySelector('#'+id+'-f');for(let i=0;i<8;i++){f.click();c++;await sleep()}}}
+      if(t==='t-read'){const sel=root.querySelector('#pj-lad-v');for(const o of [...sel.options]){sel.value=o.value;sel.dispatchEvent(new Event('change'));const f=root.querySelector('#stg-lad-f');for(let i=0;i<6;i++){f.click();c++}await sleep()}}
       return c},tab);
     // back on this tab (a click may have switched tabs) and re-check
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);

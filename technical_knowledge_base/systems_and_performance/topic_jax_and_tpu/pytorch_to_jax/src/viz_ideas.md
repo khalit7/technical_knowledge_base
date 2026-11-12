@@ -34,3 +34,7 @@ Central question: "my JAX port runs; is it the same model, and if not, where doe
 
 ## What the methodology lacked here
 No published figure to reproduce; the reference is the other framework. The float64 rerun is the closest thing to "reproducing": it shows which differences are rounding (they vanish) and which are semantics (they stay), and it found that Adam amplifies tiny-gradient rounding by lr / eps.
+
+## 2026-11-12 (split layout, renderer v2)
+- Built: Fig. 1 hero (two homes for the training step's state), Fig. 2 checkpoint conversion (plates sized by shape, fc1 turning, the wq corner moving bar by bar, GPT-2's corner unturned), Fig. 3 ladder (two stacks, a log gauge with a glass threshold per rung, replayed per port).
+- Rejected: the two models' logits overlaid (no logit vectors recorded; would need a rerun of `pj_hunt.py` saving one row of logits per port); a 3D Divergence hunter (log curves read best flat); 3D mask cards (a 4 x 4 grid is flat).

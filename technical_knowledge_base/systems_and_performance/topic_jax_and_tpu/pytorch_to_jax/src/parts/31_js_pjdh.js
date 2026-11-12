@@ -20,7 +20,8 @@
     const ks=keys.filter(k=>on.has(k));
     cap.innerHTML='Step '+upto+'. '+(ks.length?ks.map(k=>{const d=V[k].loss[upto];return esc(V[k].label.split('(')[0].trim())+': '+(d==null?'NaN':s2(Math.abs(d-T[upto])))}).join('; '):'Turn on a switch above.')+
       (view==='diff'?' The dashed line is the correct port: float noise, '+s2(Math.abs(V.correct.loss[upto]-T[upto])||0)+' at this step.':'')}
-  const a=PJU.anim({card:'pjdh-card',ctl:'pjdh-ctl',n:FR,draw,ms:350,label:'Training step'},'t-pjdh');a.go(FR-1);
+  // a widget (the long-replay rule, case b): 31 frames of a run the reader composes; it opens on the last frame and never plays by itself
+  const a=PJU.anim({card:'pjdh-card',ctl:'pjdh-ctl',n:FR,draw,ms:350,label:'Training step',auto:false,start:FR-1},'t-pjdh');
   tg.addEventListener('change',e=>{const lb=e.target.closest('label');if(!lb)return;const k=lb.dataset.v;if(e.target.checked)on.add(k);else on.delete(k);lb.classList.toggle('on',e.target.checked);a.redraw();table()});
   RD.seg(document.getElementById('pjdh-view'),m=>{view=m;a.redraw()});
   PJU.onTab('t-pjdh',()=>a.redraw());PJU.onResize('t-pjdh',()=>a.redraw());

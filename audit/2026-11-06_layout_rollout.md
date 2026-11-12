@@ -216,7 +216,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_jax_and_tpu/jax_core` JAX core: arrays, tracing, jit, grad, vmap and pytrees
 - [x] `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases` JAX LLM codebases: MaxText, Tunix, levanter
 - [~] `systems_and_performance/topic_jax_and_tpu/pallas_kernels` Pallas kernels
-- [~] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
+- [x] `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax` PyTorch to JAX: porting a small LM
 - [ ] `systems_and_performance/topic_jax_and_tpu/sharding_and_scale` Sharding and scale: Mesh, GSPMD, shard_map and multi-host
 - [ ] `systems_and_performance/topic_jax_and_tpu/tpu_programming_and_performance` TPU programming and performance
 - [ ] `systems_and_performance/topic_jax_and_tpu/training_stack` The JAX training stack: Flax NNX, optax, orbax and grain
@@ -509,6 +509,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_jax_and_tpu/jax_core`: core 45 min plus 25 closed (38 before); Fig. 2 hit and new-shape counts come from the root lab's drills (stated); Fig. 2 "lower" time includes a second trace (stated).
 - `systems_and_performance/topic_inference_and_serving`: tool tabs (Serving simulator, Engine bench, Capacity planner) full width except the animated sections; sim/check/check_core.mjs not rerun (needs a dump_ref.py reference dump; core untouched).
 - `systems_and_performance/topic_jax_and_tpu/jax_llm_codebases`: Codebase map and Config explorer tabs full width (tools).
+- `systems_and_performance/topic_jax_and_tpu/pytorch_to_jax`: Fig. 1 steps 1 and 6 small at 390; Fig. 3 empty space above the stacks at 1400; section 1 code panes wrap long lines in the right column.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -570,3 +571,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - JAX core: Fig. 2's scan body (three equations, "W becomes a constant") is inferred from the recorded fori_loop jaxpr and the cell code, not a recorded scan jaxpr (agrees with the recorded equation count of 4): record the scan jaxpr to confirm? Also: one colour scheme across scenes, residual blocks sized by cube root of bytes, Fig. 4 vectors by shape only, Fig. 1 replaces the 2D dispatch stepper. Keep these?
 - Inference-and-serving root: prefill against decode cut to 4 steps per mode; the bench replay plays as five stretches at real speed with 3.6 s pauses; reading 29 to 35 min (hero list could be trimmed); the cache bar uses the page's rounded "about 54 GB". Keep these?
 - JAX LLM codebases: Fig. 1 slab heights equal with line counts in labels (faint slabs where the map has no part); Fig. 3 plate not to scale (short side held to a minimum); the traced step plays as 8 stretches, not 17 stages; GRPO has one step list for both placements; the porting animation stays 2D. Keep these?
+- PyTorch to JAX: the ladder verdict line kept under its step list; the Divergence hunter is a widget opening on step 299; Fig. 2 shows 4 of 69 tensors (the explorer stays in a closed block); conversion stat tiles removed (numbers in step 6). A "logits overlaid" view would need a small rerun of pj_hunt.py saving logits: run it?

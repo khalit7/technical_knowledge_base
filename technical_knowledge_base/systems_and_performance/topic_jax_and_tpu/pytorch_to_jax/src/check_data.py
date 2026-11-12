@@ -93,6 +93,14 @@ ok(G["n_params"] == 124439808 and G["greedy_same"] and G["mistakes"]["exact_gelu
 ok(J["interop"]["t2j"]["jax_value_after_torch_inplace_add"] == 105.0, "DLPack aliasing 5 -> 105")
 ok(H["mask_inverted"]["first_nan_step"] == 0, "flipped mask: NaN at step 0")
 ok(J["root"]["n_params"] == 826368, "parameter count 826,368")
+# 4. numbers written into the step lists of the 2026-11-12 stages (Fig. 2 shapes and tiles)
+T = {t["torch"]: t for t in J["convert"]["tensors"]}
+for n, sh in (("tok_emb.weight", [65, 128]), ("blocks.0.attn.wq.weight", [128, 128]), ("blocks.0.ln1.weight", [128]), ("blocks.0.mlp.fc1.weight", [512, 128])):
+    ok(T[n]["torch_shape"] == sh, f"Fig. 2: {n} {sh}")
+ok(T["blocks.0.mlp.fc1.weight"]["nnx_shape"] == [128, 512], "Fig. 2: fc1 kernel [128, 512]")
+ok(len(J["convert"]["tile"]["torch_corner"]) == 6 and len(J["convert"]["tile"]["torch_corner"][0]) == 8, "Fig. 2: wq corner 6 x 8")
+ok(len(J["gpt2"]["tile"]["stored_corner"]) == 6 and len(J["gpt2"]["tile"]["stored_corner"][0]) == 8, "Fig. 2: GPT-2 corner 6 x 8")
+ok(J["root"]["n_params"] == sum(t["n"] for t in J["convert"]["tensors"]), "Fig. 1: 826,368 parameters in the 69 tensors")
 ok("\u2014" not in html, "no em-dashes")
 print("FAILED", fails) if fails else print("all checks passed")
 sys.exit(1 if fails else 0)

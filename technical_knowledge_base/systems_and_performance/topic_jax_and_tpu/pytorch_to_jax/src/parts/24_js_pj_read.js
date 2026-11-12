@@ -23,53 +23,14 @@ window.PJV=(function(){
   return {line,logbars,smooth};
 })();
 
-// ---- hero: the same step, PyTorch's hidden state against JAX's explicit state (static, drawn at the measured width)
-(function(){const el=document.getElementById('pj-hero');if(!el)return;
-  const mix=c=>'color-mix(in srgb,'+c+' 20%,var(--bg))';
-  const box=(x,y,w,h,c,dash)=>'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="7" fill="'+(c?mix(c):'var(--soft)')+'" stroke="'+(c||'var(--line)')+'"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
-  const arr=(x1,y1,x2,y2,c,dash)=>'<path d="M'+x1+' '+y1+' L'+x2+' '+y2+'" stroke="'+(c||'var(--mute)')+'" stroke-width="1.4" fill="none" marker-end="url(#pjh-ah)"'+(dash?' stroke-dasharray="4 3"':'')+'/>';
-  const ST=[['weights','in nn.Module','var(--c1)'],['gradients','in p.grad','var(--c2)'],['optimiser state','in opt, sched','var(--c3)'],['random state','global generator','var(--c4)']];
-  function torchPanel(x,y,w){let b=RD.t(x,y+14,'PyTorch: state lives inside objects',{fs:13,w:600,fill:'var(--ink)'});
-    const by=y+26,bh=30;b+=box(x,by,w,bh,null)+RD.t(x+w/2,by+19,'train_step(model, opt, sched, x, y)',{a:'middle',fs:11.5,fill:'var(--ink)'});
-    const gw=(w-10)/2,gh=40,gy=by+bh+40;
-    ST.forEach((s,i)=>{const gx=x+(i%2)*(gw+10),yy=gy+Math.floor(i/2)*(gh+10);
-      b+=box(gx,yy,gw,gh,s[2],true)+RD.t(gx+8,yy+16,s[0],{fs:12,w:600,fill:'var(--ink)'})+RD.t(gx+8,yy+32,s[1],{fs:11,fill:'var(--mute)'});
-      if(i<2)b+=arr(gx+gw/2,by+bh+2,gx+gw/2,gy-3,s[2],true)});
-    b+=RD.t(x+w/2,by+bh+24,'changed in place',{a:'middle',fs:11,fill:'var(--mute)'});
-    const ey=gy+2*(gh+10)+6;b+=RD.t(x,ey+12,'returns loss.item(): a Python number',{fs:11,fill:'var(--mute)'});
-    return {svg:b,h:ey+18-y}}
-  function jaxPanel(x,y,w){let b=RD.t(x,y+14,'JAX: state goes in and comes out',{fs:13,w:600,fill:'var(--ink)'});
-    const IN=[['params','var(--c1)'],['opt_state','var(--c3)'],['key','var(--c4)'],['x, y',null]],OUT=[['new params','var(--c1)'],['new opt_state','var(--c3)'],['loss',null]];
-    const row=(items,yy)=>{const cw=(w-6*(items.length-1))/items.length;let r='';items.forEach((it,i)=>{const cx=x+i*(cw+6);r+=box(cx,yy,cw,26,it[1])+RD.t(cx+cw/2,yy+17,it[0],{a:'middle',fs:11.5,fill:'var(--ink)'})});return {r,cw}};
-    const iy=y+26,a1=row(IN,iy);b+=a1.r;
-    const by=iy+26+22,bh=62;b+=box(x,by,w,bh,'var(--acc)')+RD.t(x+10,by+18,'jax.jit(train_step): one pure function',{fs:12,w:600,fill:'var(--ink)'});
-    b+=box(x+10,by+28,w-20,24,'var(--c2)')+RD.t(x+w/2,by+44,w<400?'grads: a value inside':'grads = value_and_grad(loss_fn)(...): a value inside',{a:'middle',fs:11,fill:'var(--ink)'});
-    IN.forEach((_,i)=>{const cx=x+i*(a1.cw+6)+a1.cw/2;b+=arr(cx,iy+27,cx,by-3,IN[i][1])});
-    const oy=by+bh+22,a2=row(OUT,oy);b+=a2.r;OUT.forEach((_,i)=>{const cx=x+i*(a2.cw+6)+a2.cw/2;b+=arr(cx,by+bh+1,cx,oy-3,OUT[i][1])});
-    b+=RD.t(x,oy+26+16,'the caller passes them into the next step',{fs:11,fill:'var(--mute)'});
-    return {svg:b,h:oy+26+22-y}}
-  function draw(){const W=RD.width(el.parentElement),wide=W>=640,gap=28;
-    const defs='<defs><marker id="pjh-ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="var(--mute)"/></marker></defs>';
-    let svg,H;
-    if(wide){const pw=(W-gap)/2-2,a=torchPanel(1,2,pw),b=jaxPanel(pw+gap,2,pw);H=Math.max(a.h,b.h)+6;
-      svg=defs+a.svg+'<line x1="'+(pw+gap/2)+'" y1="4" x2="'+(pw+gap/2)+'" y2="'+(H-4)+'" stroke="var(--line)"/>'+b.svg}
-    else{const pw=W-2,a=torchPanel(1,2,pw),b=jaxPanel(1,a.h+22,pw);H=a.h+22+b.h+6;svg=defs+a.svg+'<line x1="0" y1="'+(a.h+11)+'" x2="'+W+'" y2="'+(a.h+11)+'" stroke="var(--line)"/>'+b.svg}
-    el.setAttribute('viewBox','0 0 '+W+' '+H);el.setAttribute('width',W);el.setAttribute('height',H);el.innerHTML=svg}
-  draw();RD.onRender(draw);RD.onResize(draw)})();
+// (the 2D SVG hero was replaced on 2026-11-12 by the 3D stage Fig. 1, 41_js_sc_hero.js)
 
-// ---- section 1: the two twins' code, one difference per step (lines highlighted in both panes; captions are static HTML)
+// ---- section 1: the two twins' code, one difference per step (lines highlighted in both panes; the step list #sx-cs on the left explains each step)
 (function(){const card=document.getElementById('pj-cs-card');if(!card)return;
-  const lines=[...card.querySelectorAll('.pj-lines div')],caps=[...document.querySelectorAll('#pj-cs-cap>div')];
+  const lines=[...card.querySelectorAll('.pj-lines div')];
   function draw(i){lines.forEach(d=>{const s=(d.dataset.s||'').split(' ').filter(Boolean);const on=i===0?s.length>0:s.indexOf(String(i))>=0;
-      d.classList.toggle('on',on);d.classList.toggle('dim',i>0&&!on)});
-    caps.forEach(c=>c.hidden=+c.dataset.i!==i)}
-  RD.anim({card:'pj-cs-card',ctl:'pj-cs-ctl',n:6,draw,ms:4500,label:'Difference'})})();
-
-// ---- conversion stats
-(function(){const J=window.PJ.convert,el=document.getElementById('pj-conv-stats');if(!el)return;
-  el.innerHTML=RD.stat('Tensors',J.n_tensors,J.n_params.toLocaleString('en-US')+' parameters')+RD.stat('Transposed',J.n_transposed,'the Linear kernels')+
-    RD.stat('Logits after loading',PJU.fmt(J.torch_to_nnx_logits_maxdiff,'s2'),'500-step weights, largest logit '+PJU.fmt(J.max_abs_logit,'f1'))+
-    RD.stat('Back to PyTorch',J.roundtrip_bitwise_equal?'bit-equal':'differs',J.roundtrip_strict_load)})();
+      d.classList.toggle('on',on);d.classList.toggle('dim',i>0&&!on)})}
+  RD.anim({card:'pj-cs-card',ctl:'pj-cs-ctl',n:6,draw,ms:5200,label:'Difference',list:'sx-cs'})})();
 
 // ---- mask cards
 (function(){const el=document.getElementById('pj-masks');if(!el)return;const T=4;

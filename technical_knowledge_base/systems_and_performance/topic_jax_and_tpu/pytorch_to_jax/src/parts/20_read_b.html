@@ -44,23 +44,32 @@
 <div class="pj-srcx" data-id="f_dropout"></div><div class="pj-srcx" data-id="f_rngstream"></div>
 </details>
 
+</section>
+<div class="s3sp"><div class="s3L"><section id="s-mask">
 <h3>One boolean tensor, three meanings</h3>
 <p>The cards take the same 4 x 4 lower-triangular boolean tensor (<code>torch.ones(4, 4).tril().bool()</code>) and colour the cells each API lets a query attend to. A green cell is "query row may look at key column".</p>
-<div id="pj-masks"></div>
-<div class="pj-cap">Measured in <code>pj_defaults.py</code>: with this tensor, <code>nn.MultiheadAttention</code>'s first row puts weight <span data-k="defaults.attn_mask.mha_tril_weights_row0"></span> on the five positions (it attends only to the future), and with the inverted tensor <span data-k="defaults.attn_mask.mha_inverted_weights_row0"></span> (correct). <code>jax.nn.dot_product_attention</code> with the tril mask matches SDPA's causal output to <span data-k="defaults.attn_mask.jax_mask_vs_torch" data-f="s2"></span>.</div>
-
 <div class="pj-pr" data-ans="b"><div class="q">Predict: you flip the mask convention in a JAX port, so each position attends only to positions after it, with <code>-inf</code> fill. What happens at step 0?</div>
 <div class="opts"><button data-o="a">The loss is a little high</button><button data-o="b">The loss is NaN</button><button data-o="c">The loss is suspiciously low</button></div>
 <div class="ans" hidden>NaN, at step <span data-k="hunt.variants.mask_inverted.first_nan_step"></span>: the last position has no later position, its row is all <code>-inf</code>, and softmax of that is 0/0. With Flax's <code>finfo.min</code> fill instead there is no NaN: the row averages every value, the model learns to read the future, training loss falls to <span data-k="hunt.variants.mask_inverted_finfo.val_300_own_mask" data-f="f3"></span> on validation with its own mask, and with the correct causal mask the same weights score <span data-k="hunt.variants.mask_inverted_finfo.val_300" data-f="f2"></span>. The NaN is the lucky outcome.</div></div>
-
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card">
+<div id="pj-masks"></div>
+<div class="pj-cap">Measured in <code>pj_defaults.py</code>: with this tensor, <code>nn.MultiheadAttention</code>'s first row puts weight <span data-k="defaults.attn_mask.mha_tril_weights_row0"></span> on the five positions (it attends only to the future), and with the inverted tensor <span data-k="defaults.attn_mask.mha_inverted_weights_row0"></span> (correct). <code>jax.nn.dot_product_attention</code> with the tril mask matches SDPA's causal output to <span data-k="defaults.attn_mask.jax_mask_vs_torch" data-f="s2"></span>.</div>
+</div></div></div></div>
+<section id="s-def-more">
 <details class="mist"><summary>Fast variance: fine until the mean is large (chart)</summary><div class="b">
 <p>Flax computes a LayerNorm's variance in one pass as E[x<sup>2</sup>] - E[x]<sup>2</sup>, which subtracts two large, nearly equal numbers when the mean is large against the spread. The bars are the largest error of the normalised output against PyTorch in float64, for N(0, 1) data shifted by a mean, in float32, log scale.</p>
 <div id="pj-fastvar"></div>
 <div class="pj-cap">From <code>pj_defaults.py</code>. A residual stream with a mean of 1,000 and unit spread is unusual, but outlier features and un-normalised inputs (pixel values, raw sensor data) get there; <code>use_fast_variance=False</code> costs one more pass over the data.</div>
 </div></details>
 
+</section>
+<div class="s3sp"><div class="s3L"><section id="s-drop">
 <h3>Dropout: compare distributions, not values</h3>
 <p>Dropout masks come from each framework's own generator, so twins with dropout can never agree bit for bit: test the port with dropout off (as the running example is), then turn it on and compare statistics. <b>Predict</b> before reading the chart: a JAX port reuses one key for every step's dropout mask (PyTorch's generator advances by itself; a JAX key does not). Will the loss curve show it? The run adds dropout 0.1 to both residual branches and trains 300 steps: PyTorch, JAX with a fresh key per step (<code>fold_in(key, step)</code>), JAX with the same key every step, and the no-dropout anchor.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card">
 <div id="pj-drop"></div>
 <div class="pj-cap"><b>The reused key is invisible in the loss: check that the masks change between steps.</b> <span id="pj-drop-cap"></span></div>
-</section>
+</div></div></div></div>
+

@@ -6,11 +6,14 @@
     ['grads','Gradients',1e-5,'the backward pass'],['step1','One step',1e-6,'the optimiser and its defaults'],['curve','300-step curve',1e-4,'everything, over time']];
   const ORDER=['ln_eps','gelu','fast_var','bf16','no_mask','mask_inverted','mask_inverted_finfo','transpose','init','loss_sum','decay_all','wd_default','b2_default','clip_after','clip_eps','sched_off','naive'];
   const sel=document.getElementById('pj-lad-v'),lad=document.getElementById('pj-lad'),cap=document.getElementById('pj-lad-cap');
+  // the grid and the verdict under the step list follow Fig. 3 (43_js_sc_lad.js calls PJL.draw on every step); the list explains each rung,
+  // the verdict says only what this port measured
   if(sel){
     sel.innerHTML=ORDER.filter(k=>H[k]).map(k=>'<option value="'+k+'">'+esc(H[k].label)+'</option>').join('');
     const val=(v,r)=>{if(r==='curve')return v.max_abs_loss_diff_vs_torch;if(r==='logits'&&v.rungs.logits_nan)return NaN;return v.rungs[r]};
     const pass=(x,t)=>x!=null&&isFinite(x)&&x<=t;
     const txt=x=>x==null||!isFinite(x)?'NaN':s2(x);
+    const first=v=>RUNGS.findIndex(rr=>!pass(val(v,rr[0]),rr[2]));
     function draw(i){const v=H[sel.value],c=H.correct;
       let h='<div class="h"></div><div class="h">correct port</div><div class="h">'+esc(sel.options[sel.selectedIndex].text.slice(0,40))+(sel.options[sel.selectedIndex].text.length>40?'...':'')+'</div>';
       RUNGS.forEach((r,k)=>{const show=k<i,cur=k===i-1;
@@ -18,16 +21,15 @@
         const cls=x=>show?(pass(x,r[2])?'ok':'bad'):'wait';
         h+='<div class="rl">'+r[1]+'<br><span class="mute small">&le; '+r[2].toExponential().replace('e-','e-')+'</span></div><div class="c '+cls(a)+(cur?' cur':'')+'">'+(show?txt(a):'?')+'</div><div class="c '+cls(b)+(cur?' cur':'')+'">'+(show?txt(b):'?')+'</div>'});
       lad.innerHTML=h;
-      let m;
-      if(i===0)m='Both ports start from the PyTorch twin\'s initial weights and see batch 0. Each step compares one more thing with PyTorch; press play or step. Change the port to see where a different bug first fails.';
+      let m;const f=first(v);
+      if(i===0)m='This port: '+(f<0?'passes every rung.':'first fails at <b>'+RUNGS[f][1].toLowerCase()+'</b>.')+' Change the port to replay the climb.';
       else{const r=RUNGS[i-1],b=val(v,r[0]),ok=pass(b,r[2]);
-        const first=RUNGS.findIndex(rr=>!pass(val(v,rr[0]),rr[2]));
-        m='<b>'+r[1]+'</b> checks '+r[3]+'. This port: '+txt(b)+(ok?', within the threshold.':', <b>fails</b>.')+(i-1===first?' This is the first failing rung: look at '+r[3]+'.':'');
-        if(i===RUNGS.length){m+=first<0?' It passed every rung: the difference is harmless (validation '+PJU.fmt(v.val_300,'f4')+' against '+PJU.fmt(c.val_300,'f4')+').':' Validation after 300 steps: '+(v.val_300==null?'NaN':PJU.fmt(v.val_300,'f4'))+' against '+PJU.fmt(c.val_300,'f4')+' for the correct port.';
+        m='<b>'+r[1]+'</b>: this port '+txt(b)+(ok?', within the threshold.':', <b>fails</b>.')+(i-1===f?' The first failing rung: look at '+r[3]+'.':'');
+        if(i===RUNGS.length){m+=f<0?' It passed every rung: the difference is harmless (validation '+PJU.fmt(v.val_300,'f4')+' against '+PJU.fmt(c.val_300,'f4')+').':' Validation after 300 steps: '+(v.val_300==null?'NaN':PJU.fmt(v.val_300,'f4'))+' against '+PJU.fmt(c.val_300,'f4')+' for the correct port.';
           if(r[0]==='curve'&&(v.rungs.step1!=null&&v.rungs.step1<5e-5&&v.rungs.step1>1e-6))m+=' Note the one-step rung: Adam\'s first update is the learning rate times the sign of the gradient, so it hides how large a gradient difference was.'}}
       cap.innerHTML=m}
-    const a=RD.anim({card:'pj-lad-card',ctl:'pj-lad-ctl',n:RUNGS.length+1,draw,ms:1500,label:'Ladder rung'});
-    sel.value='ln_eps';sel.addEventListener('change',()=>a.reset(RUNGS.length+1));a.redraw()}
+    sel.value='ln_eps';draw(0);
+    window.PJL={sel,RUNGS,val,pass,first,draw,port:()=>H[sel.value],correct:()=>H.correct}}
 
   // ---------------- tolerance table by dtype
   const tol=document.getElementById('pj-tol');
