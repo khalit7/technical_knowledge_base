@@ -36,7 +36,8 @@
       RD.stat('Picked token',SD.fmtP(s.pick_p),'rank '+s.pick_rank)+
       RD.stat('Tokens so far',String(i),last?(parse(out)?'valid JSON':'not JSON'):'');
   }
-  const A=RD.anim({card:'rd-js',ctl:'rd-jsC',n:J.free_steps.length,draw,ms:1700,label:'Step'});
+  // a widget (the long-replay rule, case b: 24 and 19 steps): it never plays by itself and opens on step 0; the paragraph on its left explains it
+  const A=RD.anim({card:'rd-js',ctl:'rd-jsC',n:J.free_steps.length,draw,ms:1700,label:'Step',auto:false});
   const el=document.getElementById('rd-jsM');
   el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{el.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));st.m=b.dataset.m;A.reset(steps().length)}));
 })();

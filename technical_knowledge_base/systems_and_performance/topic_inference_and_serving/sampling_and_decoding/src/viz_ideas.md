@@ -55,3 +55,14 @@ Nothing in the methodology covered generating data with a model offline. Rules l
 | SD3 | Twelve decoders scatter | moved from its own tab into Reading section 3 (it proved section 3's claims from one click away) | moved; table and texts closed |
 | SD16 | Temperature-only slider on the real story distribution | slider | rejected: the top-p/min-p animation already toggles T 1, 1.5, 2 on the same distribution |
 | SD17 | Mask-step selector (any of the 19 steps in the mask figure) | stepper | rejected: the before/after animation already steps through them; step 2's renormalised values are below the stored precision |
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+
+| # | Idea | Kind | Decision |
+|---|---|---|---|
+| SD18 | Fig. 1 as a 3D stage: the logits on a plinth, the processors and the softmax as one glass plate, the probabilities on the floor with every other token as one block (its 77.3% at T 1.5 as a tower), the min-p cut as a thin glass sheet, the survivors renormalised, one seeded draw | 3D stage, 6 steps | built; replaces SD12 |
+| SD19 | Fig. 2: greedy against beam search B = 3 as a tree of hypotheses, steps as columns, candidates sorted by total log-probability in depth, a glass wall behind the best 3 | 3D stage, 7 steps per mode | built; replaces the 2D beam animation and its candidate table |
+| SD20 | Fig. 3: the grammar mask at step 0, tiles of 0 or minus infinity under the bars, the vocabulary strip with its 4-token sliver, masked bars to 0, renormalised survivors | 3D stage, 5 steps | built; replaces SD13 |
+| SD21 | Top-p against min-p as three rows in depth (top-k, top-p, min-p) on one distribution | 3D stage | rejected for now: the 2D animation's exact bars, cut labels and three toggles read best flat, and Fig. 1 already carries the pipeline in 3D on the same distribution |
+| SD22 | The 24- and 19-step JSON runs as a stage | long replay | kept 2D as a widget (no autoplay, no step list; the long-replay rule, case b), explained by the paragraph on its left |
+| SD23 | Penalty before/after, twelve-decoder scatter, allowed-set sizes | 2D | kept: three small panels of bars, a log-scale scatter and a log-scale bar chart read best flat |

@@ -1,16 +1,29 @@
+<div class="s3sp"><div class="s3R"><div id="stg-mask"></div></div><div class="s3L">
 <section id="s5"><h2>5. Constrained decoding: JSON schemas and grammars</h2>
 <p>Constrained (or structured) decoding guarantees that the output matches a format, a JSON schema, a regular expression or a context-free grammar, by masking every token that would break it at every step: an engine compiles the constraint to an automaton over the tokenizer's vocabulary, tracks the automaton's state as tokens are emitted, and before the sampler runs sets every disallowed logit to &minus;&infin;. The running example: Qwen2.5-0.5B-Instruct, greedy, asked to extract <code>{"name": string, "age": integer}</code> from one sentence. Its favourite first token is a Markdown fence, which no JSON parser accepts.</p>
-<div class="card"><h4>The mask at step 0: four of 151,665 tokens may start the object</h4>
-<div class="rd-svg" id="sd-mask"></div>
-<p class="small">The model's real probabilities at the first step (top 8 shown). The grammar allows 4 tokens holding 35.5% of the mass; every other logit gets &minus;&infin;, so its probability becomes exactly 0, and the softmax renormalises the survivors: <code>{&#8629;</code> goes from 35.4% to 99.5%, <code>{"</code> from 0.16% to 0.44% <i class="nl m">measured here</i>. The sampler (greedy here) then runs on the masked distribution as usual.</p></div>
+<ol class="sx" id="sx-mask">
+<li><b>The model's first step.</b> Its favourite first token is the Markdown fence <code>```</code> (56.9%), then <code>{&#8629;</code> (35.4%); the other 151,657 tokens hold 1.3% together.</li>
+<li><b>The mask.</b> The grammar allows 4 of 151,665 tokens to start the object (the bright sliver of the vocabulary strip, widened to be visible). An allowed token gets 0 added to its logit, every other one &minus;&infin;.</li>
+<li><b>Add it.</b> Every masked logit becomes &minus;&infin;, so its probability becomes exactly 0: the fence and the prose openings drop out. The 4 allowed tokens held 35.5% of the mass.</li>
+<li><b>Renormalise.</b> The softmax renormalises the survivors: <code>{&#8629;</code> goes from 35.4% to 99.5%, <code>{"</code> from 0.16% to 0.44%.</li>
+<li><b>Choose.</b> The sampler (greedy here) runs on the masked distribution as usual and takes <code>{&#8629;</code>, the model's second choice. The grammar's state moves on, and the next step gets a new mask (Fig. 4 counts them).</li>
+</ol>
+<p class="small">The model's real probabilities at the first step <i class="nl m">measured here</i>; the formula, in the same names:</p>
 <div class="fm"><div class="eq">z&#8242;<sub>i</sub> = z<sub>i</sub> + m<sub>i</sub>,&nbsp;&nbsp; m<sub>i</sub> = 0 if token i keeps the grammar completable, else &minus;&infin;&nbsp;&nbsp;&rArr;&nbsp;&nbsp; p&#8242;<sub>i</sub> = p<sub>i</sub> / &Sigma;<sub>j allowed</sub> p<sub>j</sub></div>
 <dl><dt>m</dt><dd>the mask: a bit per vocabulary entry, recomputed from the grammar's state after every token</dd><dt>p&#8242;</dt><dd>at T = 1, masking then softmax is the model's distribution conditioned on the allowed set</dd></dl></div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p>The mask changes size at every step, and that is what makes it expensive or cheap. Inside a string almost anything is allowed; at a structural position only a handful of tokens are.</p>
-<div class="card"><h4>How many tokens the grammar allows, token by token</h4>
+</div>
+<div class="s3R"><div class="s3side"><div class="card"><h4>Fig. 4 · How many tokens the grammar allows, token by token</h4>
 <div class="rd-svg" id="sd-msz"></div>
-<p class="small">The constrained run's 19 steps, picked token under each bar. Inside the name about 76,660 of 151,665 tokens are allowed; at structural positions 1 to 17. Orange bars are steps where the allowed tokens held under 5% of the model's probability, so the grammar overruled it: step 2 (0.0004%) and step 10 (2.5%), both whitespace, explained below. At step 13 the model gave 22.6% to a quote, which would have made the age a string; the integer type masked it <i class="nl m">measured here</i>.</p></div>
-<p>The whole run, without and with the mask:</p>
-<div class="card" id="rd-js"><h4>Same weights, same greedy rule: only the mask differs</h4>
+<p class="small">The constrained run's 19 steps, picked token under each bar. Inside the name about 76,660 of 151,665 tokens are allowed; at structural positions 1 to 17. Orange bars are steps where the allowed tokens held under 5% of the model's probability, so the grammar overruled it: step 2 (0.0004%) and step 10 (2.5%), both whitespace, explained below. At step 13 the model gave 22.6% to a quote, which would have made the age a string; the integer type masked it <i class="nl m">measured here</i>.</p></div></div></div></div>
+<div class="s3sp"><div class="s3L">
+<p>The whole run, without and with the mask, is a widget you step through (24 tokens unconstrained, 19 constrained): the token list shows the model's top 8 at each step with its own probabilities, a tick marking those the grammar allows; in the constrained mode the masked ones are struck out and the picked token is ringed. Same weights, same greedy rule: the unconstrained run writes its fences and fails to parse, the constrained one parses.</p>
+<p class="try"><b>Try:</b> step 0 in both modes: the model puts 57% on <code>```</code>; the constrained run starts with <code>{</code>. Then step 2 of the constrained run: the model wants two spaces of indentation, the toy grammar's whitespace cap forbids the second, and it is forced onto a token it gave 0.0004%. The output is still valid JSON, with one-space indentation.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="rd-js"><h4>Same weights, same greedy rule: only the mask differs</h4>
 <div class="seg" id="rd-jsM" role="group" aria-label="Decoding"><button data-m="free" class="on">Before: unconstrained</button><button data-m="con">After: grammar-constrained</button></div>
 <div class="ctxt" id="rd-jsCtx"></div>
 <div class="tkl" id="rd-jsL"></div>
@@ -18,8 +31,8 @@
 <div class="an-cap" aria-live="polite"><div class="t" id="rd-jsTt"></div><p id="rd-jsP"></p></div>
 <div class="an-cnt" id="rd-jsN"></div>
 <p class="small mute">The request is illustrative (a made-up person); everything else is the model's real output <i class="nl m">measured here</i>. A tick marks tokens the grammar allows.</p>
-</div>
-<p class="try"><b>Try:</b> step 0 in both modes: the model puts 57% on <code>```</code>; the constrained run starts with <code>{</code>. Then step 2 of the constrained run: the model wants two spaces of indentation, the toy grammar's whitespace cap forbids the second, and it is forced onto a token it gave 0.0004%. The output is still valid JSON, with one-space indentation.</p>
+</div></div></div></div>
+<section id="s5b">
 <details class="dp"><summary>The toy grammar and how the masks were computed</summary><div class="b">
 <p class="small">The grammar is a regular expression, with whitespace capped at two characters between JSON tokens:</p>
 <pre class="ctxt">\{[ \n]{0,2}"name"[ \n]{0,2}:[ \n]{0,2}"[A-Za-z .\-]{1,40}"[ \n]{0,2},[ \n]{0,2}"age"[ \n]{0,2}:[ \n]{0,2}(0|[1-9][0-9]{0,2})[ \n]{0,2}\}</pre>

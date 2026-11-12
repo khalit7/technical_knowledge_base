@@ -1,6 +1,5 @@
 // Click every control in every tab at 390 px dark and 920 px light; fail on page errors, a visible #jsErr,
-// sideways scroll or NaN/undefined/Infinity in the tab text. Then check that no animation moves before the reader acts,
-// with normal and with reduced motion. usage: node <page>/src/check_controls.mjs <page>/index.html
+// sideways scroll or NaN/undefined/Infinity in the tab text. usage: node <page>/src/check_controls.mjs <page>/index.html
 import { createRequire } from 'node:module'; import path from 'node:path';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const file = 'file://' + path.resolve(process.argv[2]);
@@ -34,15 +33,6 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   const box = await p.$eval('#jsErr', d => d.hidden ? '' : d.textContent); if (box) errs.push('jsErr: ' + box);
   console.log(scheme, width, errs.length ? errs : 'clean'); bad += errs.length; await p.close();
 }
-for (const motion of ['no-preference', 'reduce']) {
-  const p = await b.newPage(); await p.setViewport({ width: 920, height: 900 });
-  await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: motion }]);
-  await p.goto(file); await p.$eval('button[data-t=t-read]', x => x.click());
-  const ids = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.map(r => r.id));
-  for (const id of ids) { await p.$eval('#' + id, el => el.scrollIntoView({ block: 'center' })); await sleep(1500); }
-  await sleep(2500);
-  const moved = await p.$$eval('#t-read .an-ctl input[type=range]', rs => rs.filter(r => r.value !== '0').map(r => r.id));
-  console.log('motion', motion, ids.length, 'animations,', moved.length ? 'MOVED: ' + moved : 'none moved before the reader acted'); bad += moved.length; await p.close();
-}
+// Motion (autoplay on view, nothing under reduced motion, the widget never plays) is checked by src/check_stages.mjs since the 2026-11-06 rollout.
 await b.close();
 process.exit(bad ? 1 : 0);

@@ -208,9 +208,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_inference_and_serving/distributed_and_disaggregated_serving` Distributed and disaggregated serving: Dynamo, llm-d, TensorRT-LLM, Triton
 - [x] `systems_and_performance/topic_inference_and_serving/llm_serving_in_production` LLM serving in production: routing, autoscaling, cold starts, multi-LoRA, load testing
 - [x] `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference` Local and on-device inference: llama.cpp, Ollama, MLX
-- [~] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
+- [x] `systems_and_performance/topic_inference_and_serving/sampling_and_decoding` Sampling and Decoding
 - [~] `systems_and_performance/topic_inference_and_serving/sglang` SGLang: radix cache, cache-aware scheduling, large-scale serving
-- [ ] `systems_and_performance/topic_inference_and_serving/speculative_decoding` Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover
+- [~] `systems_and_performance/topic_inference_and_serving/speculative_decoding` Speculative decoding: draft models, EAGLE, MTP, n-gram, the batch-size crossover
 - [ ] `systems_and_performance/topic_inference_and_serving/vllm` vLLM: inside the default engine
 - [ ] `systems_and_performance/topic_inference_and_serving` Topic: inference-and-serving
 - [ ] `systems_and_performance/topic_jax_and_tpu/jax_core` JAX core: arrays, tracing, jit, grad, vmap and pytrees
@@ -502,6 +502,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_inference_and_serving/distributed_and_disaggregated_serving`: some 1400 framings leave empty floor; scenes small on phones.
 - `systems_and_performance/topic_inference_and_serving/llm_serving_in_production`: wide scenes (hero, routing, autoscaling) small on phones; Fig. 3 "waiting per replica" (15 s mean) can read high just after the queue drains while the queue column shows 0.
 - `systems_and_performance/topic_inference_and_serving/local_and_on_device_inference`: core 48 min plus 53 closed (41 before), one of the longest pages; Fig. 1 small on phones; Figs 3 and 4 fade off-view objects at the frame edge in close-ups.
+- `systems_and_performance/topic_inference_and_serving/sampling_and_decoding`: beam tree last step small on phones; beam and mask full views leave empty space above; Sampler lab Preset select's long first option cut at its edge.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -556,3 +557,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Distributed and disaggregated serving: the router slider was dropped (Fig. 2 step 5 shows the crossover); Fig. 4's two mode toggles became seven fixed steps; Fig. 7 and the EPLB stepper are widgets opening on their last frame; section 8's "what each one adds" list merged into Fig. 8's step list. Keep these?
 - LLM serving in production: default modes (Fig. 2 round robin, Fig. 3 queue-depth autoscaler, Fig. 4 llama-server one adapter set per batch, Fig. 5 closed loop); the old eight-request stepper kept as a closed widget; Fig. 2 uses the 1.5 GiB-cache runs for its first two modes; no 3D load-test ramp (no concurrency-sweep data on this page). Keep these?
 - Local and on-device inference: 48 min core plus 53 in closed details: condense in the cosmetic pass? The section 1 predict box was removed (Fig. 3's list would reveal it; the prose now asks for a prediction before step 2); Fig. 4 uses the RTX 5090 at PCIe x8 (about 32 GB/s) and the 43 GB 70B model as the too-big case; the File explorer field walk is a widget; new M1 (not M1 Pro) package photo, labelled. Keep these?
+- Sampling and decoding: the JSON before/after run is a widget (no autoplay); top-p against min-p stays 2D; in Fig. 1 all other tokens are one block on the same scale (a 77.3% tower at T 1.5); Fig. 2 greedy and beam swap step lists by toggle. Keep these?

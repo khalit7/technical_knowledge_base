@@ -3,7 +3,7 @@
 import { createRequire } from 'node:module'; import path from 'node:path'; import fs from 'node:fs';
 const R = createRequire(path.resolve('html_utils/package.json')); const puppeteer = R('puppeteer');
 const [page, out, ...sels] = process.argv.slice(2);
-const want = sels.length ? sels : ['#sd-hero-card', '#sd-pen', '#sd-mask', '#sd-msz', '#dg-plot', '#rd-js', '#rd-pp', '#rd-bm'];
+const want = sels.length ? sels : ['#stg-hero', '#stg-beam', '#stg-mask', '#sd-pen', '#sd-msz', '#dg-plot', '#rd-js', '#rd-pp'];
 fs.mkdirSync(out, { recursive: true });
 const b = await puppeteer.launch({ headless: 'shell', executablePath: process.env.CHROME_PATH || undefined });
 for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
