@@ -1,4 +1,4 @@
-// ---- Reading figures: the hero ladder (top), goodput bars (section 5), alert timeline (section 7),
+// ---- Reading figures: the hero ladder (top), alert timeline (section 7) (the goodput bars became the 3D Fig. 2, 41_js_sc_gp.js),
 // fragmentation diagram (section 8), cost per useful hour and per token with one slider (section 10).
 // Static figures redraw at the measured width; nothing moves by itself. Numbers come from window.OC and OCP. ----
 (function(){
@@ -28,17 +28,6 @@
         s+=T(x0+bw+8,y+16,r[2],{fs:11.5})}});
     el.innerHTML=RD.svg(W,rungs.length*rh+6,s,'One GPU-hour read by seven meters, each usually at most the one above it')});
 
-  // ---- goodput: allocated seconds split by what became of them ----
-  reg(function(){const el=$('oc-gp-svg');if(!el)return;const W=RD.width(el),nar=W<560,G=D.gp;
-    const parts=[['startup_s','start-up','var(--dim)'],['saved_s','progress kept','var(--good)'],['wasted_s','progress lost','var(--bad)'],['after_s','after the last step (the hang)','var(--c5)']];
-    const mx=Math.max(...G.map(g=>g.alloc_s)),lw=nar?0:168,bw=W-lw-8,sc=bw/mx;let s='',y=4;
-    G.forEach(g=>{const lab=(g.run==='oc-base'?'healthy, 400 steps':'hung at step '+g.last_step)+': '+f0(g.rg*100)+'%';
-      if(nar){s+=T(0,y+11,lab,{fs:12,w:600});y+=16}else s+=T(lw-6,y+15,lab,{a:'end',fs:12,w:600});
-      let x=lw;parts.forEach(p=>{const w=(g[p[0]]||0)*sc;s+=rect(x,y,w,20,p[2],{rx:1});if(w>34)s+=T(x+w/2,y+14,f0(g[p[0]],0)+' s',{a:'middle',fs:11,fill:'var(--bg)',w:600});x+=w});
-      y+=30});
-    let lx=0;parts.forEach(p=>{const t=p[1];s+=rect(lx,y+2,10,10,p[2])+T(lx+14,y+11,t,{fs:11});lx+=24+t.length*6.2;if(lx>W-90&&nar){lx=0;y+=16}});
-    el.innerHTML=RD.svg(W,y+18,s,'Allocated seconds of two runs split into start-up, kept, lost and after the last step')});
-
   // ---- alert timeline: seconds after the event ----
   const S={};D.scen.forEach(x=>S[x.id]=x);
   const fire=(x,n)=>{const a=x.alerts.find(a=>a[0]===n&&a[2]==='firing');return a?a[3]:null};
@@ -60,7 +49,7 @@
     el.innerHTML=RD.svg(W,yEnd+18,s,'Seconds from the event to each alert, against the default timeouts')});
 
   // ---- fragmentation: Kueue quota bars and Slurm GPU slots ----
-  reg(function(){const el=$('oc-fr-svg');if(!el)return;const W=RD.width(el),nar=W<620,pw=nar?W:(W-24)/2;let s='';
+  reg(function(){const el=$('oc-fr-svg');if(!el)return;const W=RD.width(el),nar=W<760,pw=nar?W:(W-24)/2;let s='';
     // Kueue: used by the admitted job, requested by the next one
     const q=[['GPUs',4,12,4,'4 of 12'],['CPUs',2,4,2,'2 of 4'],['memory (MiB)',1800,3072,1800,'1,800 of 3,072']];
     s+=T(0,13,nar?'Kueue: the next job (dashed) misses on memory':'Kueue: the next job (dashed) fits GPUs and CPUs, not memory',{fs:12,w:600});

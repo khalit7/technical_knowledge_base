@@ -136,7 +136,9 @@ def goodput(run):
     saved = (last_ck if not ended else last) - first
     o = {"run": run, "alloc_s": fin - adm, "startup_s": first - adm, "saved_s": saved,
          "wasted_s": 0 if ended else last - last_ck, "after_s": fin - last, "last_ckpt_step": ck[-1]["step"] if ck else 0,
-         "last_step": steps[-1]["step"], "ended": ended}
+         "last_step": steps[-1]["step"], "ended": ended,
+         # checkpoint saves, seconds after Kueue's Admitted (drawn by the goodput stage, Fig. 2)
+         "ckpt_s": [[x["step"], round(x["ts"] - adm, 2)] for x in ck]}
     o["rg"] = o["saved_s"] / o["alloc_s"]
     return {k: (round(v, 2) if isinstance(v, float) else v) for k, v in o.items()}
 

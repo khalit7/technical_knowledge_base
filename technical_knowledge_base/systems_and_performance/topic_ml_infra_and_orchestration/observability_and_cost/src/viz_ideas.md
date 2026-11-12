@@ -24,3 +24,10 @@ Built: the hero ladder (static: one GPU-hour through seven meters); goodput bars
 Moved: the Metrics explainer from its own tab into Reading section 2; the healthy-against-hung stepper from section 4 to section 1.
 Removed: the planner tab's cost chart (now drawn once, in Reading section 10).
 Rejected: photos (no licensed GPU-dashboard image; an H100 card photo would decorate); a spot-eviction simulation (no sourced eviction rate).
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+Built: Fig. 1 (`40_js_sc_sm.js`), 132 SMs as columns with HBM behind and three DCGM meters, driven by the seven-situations engine (`OCM`); Fig. 2 (`41_js_sc_gp.js`), the two recorded runs' allocated seconds as slabs with checkpoint saves streaming to storage (new `ckpt_s` in `OC.gp`), then the planner's default run split by its own model; Fig. 3 (`42_js_sc_cb.js`), the Slurm test's GPU-seconds flowing from GPUs to jobs to accounts, then priced.
+Changed: the hung-job stepper is grouped into five explained stretches (four in healthy mode), each playing its 5-second frames; the seven situations and the dashboard replay are widgets (no autoplay, open on the last frame).
+Removed: the 2D goodput bars (Fig. 2 carries the same numbers); the section 2 predict on 26 blocks (folded into Fig. 1's step 3); the section 1 predict (the stretch animation now shows the answer as it plays).
+Kept 2D: hero ladder (lengths on one axis), alert timeline, fragmentation diagram (Kueue quota bars are not spatial; the Slurm half is small), cost against busy share (a curve with a slider), seven-situations widget, dashboard panels (time series).
+Rejected: a 3D fragmentation stage (Fig. 3 already draws the same three nodes and the 2 + 2 free GPUs).

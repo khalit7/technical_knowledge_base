@@ -1,4 +1,4 @@
-// ---- Reading tab: predict-then-reveal, the healthy/hung animation (section 1), the Prometheus sizing calculator (section 6) ----
+// ---- Reading tab: predict-then-reveal, the healthy/hung animation in explained stretches (section 1), the Prometheus sizing calculator (section 6) ----
 (function(){
   const $=id=>document.getElementById(id),E=RD.esc,D=window.OC;if(!D||!$('t-read'))return;
   const f0=(x,d)=>(+x).toLocaleString('en-US',{maximumFractionDigits:d||0,minimumFractionDigits:d||0});
@@ -19,24 +19,32 @@
   const cpuB=mean(base.s.cpu),cpuH=mean(hang.s.cpu),off=(base.marks[0][0]-hang.marks[0][0])/ST;
   function vals(s,i,cpu){const j=Math.round(i+(s===base?off:0));if(j<0)return null;if(j>=s.n)return {ended:1,held:0,cpu:0,sps:null};
     const sps=Object.values(s.s.sps)[0][j],gpu=s.s.kq_gpu[j];return {sps:sps,cpu:cpu(j),held:gpu,run:sps!=null};}
+  // the recording is grouped into explained stretches (the long-replay rule, 2026-11-06): one step-list item per stretch, and each stretch
+  // plays its 5-second frames during its step (forward steps and autoplay); back, the scrubber and reduced motion jump to the stretch's end
+  const S0=hang.marks[0][0],FZ=hang.marks[1][0],END=(N-1)*ST;
+  const STR={hang:[[0,S0+5],[S0+5,FZ],[FZ,FZ+35],[FZ+35,hang.marks[2][0]-5],[hang.marks[2][0]-5,END]],
+    base:[[0,S0+5],[S0+5,S0+50],[S0+50,base.marks[1][0]-base.marks[0][0]+S0+5],[base.marks[1][0]-base.marks[0][0]+S0+5,END]]};
+  window.OC_HB={STR,ST,N,S0};
   function draw(i){const el=$('oc-rd-hb-svg'),W=RD.width(el),a=vals(mode==='hang'?hang:base,i,mode==='hang'?cpuH:cpuB),b=vals(mode==='hang'?base:hang,i,mode==='hang'?cpuB:cpuH);
-    const t=i*ST,frozen=mode==='hang'?t>=hang.marks[1][0]:false;
+    const t=i*ST;
     const gpuUtil=v=>v&&v.held>0&&v.sps!=null?1:0;
-    const rowsM=[['1. Scheduler: GPUs held (of 4)',v=>v&&v.held!=null?v.held/4:0,v=>v&&v.ended?'ended':v&&v.held!=null?f0(v.held)+' of 4':'n/a','measured, Kueue'],
-      ['2a. Device, measured: pod CPU (cores, of 0.6)',v=>v&&v.cpu!=null?v.cpu/.6:0,v=>v&&v.ended?'ended':v&&v.cpu!=null?f0(v.cpu,2):'n/a','measured, cAdvisor'],
-      ['2b. Device on a GPU: utilisation',v=>gpuUtil(v),v=>gpuUtil(v)?'100%':'0%','derived from the definition'],
-      ['3. Training log: steps per second (of 8)',v=>v&&v.sps!=null?v.sps/8:0,v=>v&&v.ended?'ended':v&&v.sps!=null?f0(v.sps,1):'n/a','measured, rank 0 log']];
-    const lw=W<520?0:250,bw=W-lw-70,rh=W<520?44:30;let s='';
-    rowsM.forEach((r,k)=>{const y=k*rh+(W<520?14:4);s+=RD.t(W<520?0:lw-8,W<520?y-2:y+13,r[0],{a:W<520?'start':'end',fs:11.5});
+    const rowsM=[['1. Scheduler: GPUs held (of 4)',v=>v&&v.held!=null?v.held/4:0,v=>v&&v.ended?'ended':v&&v.held!=null?f0(v.held)+' of 4':'n/a'],
+      ['2a. Device, measured: pod CPU (cores, of 0.6)',v=>v&&v.cpu!=null?v.cpu/.6:0,v=>v&&v.ended?'ended':v&&v.cpu!=null?f0(v.cpu,2):'n/a'],
+      ['2b. Device on a GPU: utilisation',v=>gpuUtil(v),v=>gpuUtil(v)?'100%':'0%'],
+      ['3. Training log: steps per second (of 8)',v=>v&&v.sps!=null?v.sps/8:0,v=>v&&v.ended?'ended':v&&v.sps!=null?f0(v.sps,1):'n/a']];
+    const nar=W<520,lw=nar?0:250,bw=W-lw-70,rh=nar?44:30,top=22;let s=RD.t(0,13,Math.max(0,Math.round(t-S0))+' s after submission, '+(mode==='hang'?'hung run':'healthy run'),{fs:12,w:600});
+    rowsM.forEach((r,k)=>{const y=top+k*rh+(nar?14:4);s+=RD.t(nar?0:lw-8,nar?y-2:y+13,r[0],{a:nar?'start':'end',fs:nar?12:11.5});
       const va=Math.min(1,r[1](a)),vb=Math.min(1,r[1](b));
       s+='<rect x="'+lw+'" y="'+y+'" width="'+bw+'" height="10" rx="2" fill="var(--soft)" stroke="var(--line)"/><rect x="'+lw+'" y="'+y+'" width="'+(va*bw).toFixed(1)+'" height="10" rx="2" fill="'+(mode==='hang'?'var(--bad)':'var(--good)')+'"/>';
       s+='<rect x="'+lw+'" y="'+(y+12)+'" width="'+(vb*bw).toFixed(1)+'" height="5" rx="1" fill="var(--mute)" opacity=".6"/>';
-      s+=RD.t(lw+bw+6,y+10,r[2](a),{fs:11,w:600})});
-    el.innerHTML=RD.svg(W,rowsM.length*rh+(W<520?14:8),s,'Three meters, healthy against hung');
-    $('oc-rd-hb-cap').innerHTML='<b>'+Math.round(t)+' s after submission, '+(mode==='hang'?'hung run':'healthy run')+'</b> (thick bar; the thin grey bar is the '+(mode==='hang'?'healthy':'hung')+' run at the same moment). '+
-      (mode==='hang'?(t<10?'Submitted; Kueue admits it at once and the pods start.':!frozen?'Training normally: all four meters agree with the healthy run.':t<hang.marks[2][0]-10?'Rank 3 is frozen. Meter 1 is still full (all 4 GPUs held), the measured CPU has fallen to almost nothing (gloo waits without spinning), a GPU would still read 100% (NCCL polls), and only meter 3 says the truth: no steps since the freeze (its 30-second rate window takes 30 s to fall to zero, which is why the alert in section 7 uses the time since the last step instead).':'The 45-second process-group timeout fired; the job fails and the GPUs are released.'):
-      (t<10?'Submitted and admitted.':a&&a.ended?'The healthy run finished at '+f0(base.marks[1][0]-base.marks[0][0])+' s after submission and released its GPUs; the hung run (grey) is still holding all 4.':'A healthy run: GPUs held, CPU busy, steps advancing. In the hung run the same meters disagree.'));}
-  const A=RD.anim({card:'oc-rd-hb',ctl:'oc-rd-hb-ctl',n:N,ms:700,draw,start:13,label:'Seconds after submission'});
-  RD.seg($('oc-rd-hb-m'),m=>{mode=m;A.reset(N)});
+      s+=RD.t(lw+bw+6,y+10,r[2](a),{fs:12,w:600})});
+    el.innerHTML=RD.svg(W,top+rowsM.length*rh+(nar?14:8),s,'Three meters, healthy against hung')}
+  let raf=0;
+  function stretch(k){cancelAnimationFrame(raf);const r=STR[mode][Math.min(k,STR[mode].length-1)],fa=Math.round(r[0]/ST),fb=Math.min(N-1,Math.round(r[1]/ST));
+    if(RD.RM||!$('oc-rd-hb').classList.contains('rd-fwd')||fb<=fa){draw(fb);return}
+    const t0=performance.now(),dur=(fb-fa)*260;draw(fa);
+    const f=now=>{const u=Math.min(1,(now-t0)/dur);draw(Math.round(fa+(fb-fa)*u));if(u<1)raf=requestAnimationFrame(f)};raf=requestAnimationFrame(f)}
+  const A=RD.anim({card:'oc-rd-hb',ctl:'oc-rd-hb-ctl',n:STR.hang.length,ms:5200,draw:stretch,list:'sx-hb',label:'Stretch of the recording'});
+  RD.seg($('oc-rd-hb-m'),m=>{mode=m;$('sx-hb').hidden=m!=='hang';$('sx-hb-base').hidden=m==='hang';A.reset(STR[m].length,m==='hang'?'sx-hb':'sx-hb-base')});
   RD.onResize(()=>A.redraw());
 })();

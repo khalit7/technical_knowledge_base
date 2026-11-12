@@ -1,14 +1,10 @@
 <div class="tab" id="t-read" role="tabpanel">
 <nav class="nav" id="rd-nav"><a href="#s-idea">The idea</a><a href="#s-meters">Three meters</a><a href="#s-gpu">GPU counters</a><a href="#s-fleet">Fleets</a><a href="#s-mfu">MFU</a><a href="#s-good">Goodput</a><a href="#s-prom">Prometheus</a><a href="#s-alert">Alerts</a><a href="#s-sched">Scheduling</a><a href="#s-charge">Chargeback</a><a href="#s-cost">Cost</a><a href="#s-deep">Design questions</a></nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-idea">
 <h2>The idea</h2>
 <p class="oc-idea">A GPU-hour is paid for whether or not it trains, and each meter between the bill and the training log usually reads at most what the meter above it reads; so page and bill on the job's own progress and the scheduler's allocation, and use the device counters to explain the gap.</p>
-<div class="card oc-fig" id="oc-hero">
-<h4>One GPU-hour, read by seven meters: each usually reads at most the one above it</h4>
-<div id="oc-hero-svg" class="oc-svg"></div>
-<p class="oc-figcap">Bar lengths are illustrative. The order is not a strict law: tensor activity and MFU measure differently (busy cycles against model FLOPs), so either can read higher; section 4 says why.  each label on the right is a published or measured reading from a different fleet, so they are not one chain to multiply. The colour of the meter name says who reports it: <b style="color:var(--c4)">the scheduler</b>, <b style="color:var(--c1)">the GPU</b>, <b style="color:var(--c3)">the training job</b>. The famous gap is rungs 3 to 4: Shanghai AI Lab's LLM clusters read 97% and 99% median GPU utilisation and about 40% median SM activity on the same GPUs (section 3). The last rung is the Capacity planner's default run: 40% MFU times 85.5% goodput, so 34% of the paid peak becomes kept model FLOPs.</p>
-</div>
 <p><b>You need:</b> what SMs, warps and tensor cores are ({{GPU architecture|n:3c65c17b0d0d810682aae39bd614ec64}}); how MFU is counted ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}); Prometheus basics: exporters, scrapes, counters and gauges, cardinality ({{Observability: logs, metrics, traces, alerting|n:3ef5c17b0d0d811e8490c54dd42c2b9b}}). Failure detection and recovery, and the full goodput accounting, are on the sibling {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}}; traces of model calls in an application are on {{LLM observability|n:3c65c17b0d0d81fe82c0c6e9360afec4}}.</p>
 <p><b>New terms</b></p>
 <div class="oc-terms">
@@ -22,20 +18,37 @@
 <div><b>Showback, chargeback</b>: showback reports each team's GPU-hours; chargeback bills them against a budget.</div>
 </div>
 </section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card oc-fig" id="oc-hero">
+<h4>One GPU-hour, read by seven meters: each usually reads at most the one above it</h4>
+<div id="oc-hero-svg" class="oc-svg"></div>
+<p class="oc-figcap">Bar lengths are illustrative. The order is not a strict law: tensor activity and MFU measure differently (busy cycles against model FLOPs), so either can read higher; section 4 says why. Each label on the right is a published or measured reading from a different fleet, so they are not one chain to multiply. The colour of the meter name says who reports it: <b style="color:var(--c4)">the scheduler</b>, <b style="color:var(--c1)">the GPU</b>, <b style="color:var(--c3)">the training job</b>. The famous gap is rungs 3 to 4: Shanghai AI Lab's LLM clusters read 97% and 99% median GPU utilisation and about 40% median SM activity on the same GPUs (section 3). The last rung is the Capacity planner's default run: 40% MFU times 85.5% goodput, so 34% of the paid peak becomes kept model FLOPs.</p>
+</div></div></div></div>
 
+
+<div class="s3sp"><div class="s3R"><div class="card oc-fig s3stick" id="oc-rd-hb">
+<h4>A hung job keeps the bill and the GPU meter full; only the step counter stops</h4>
+<div class="oc-seg" id="oc-rd-hb-m"><button data-m="hang" class="on">Hung run</button><button data-m="base">Healthy run</button></div>
+<div id="oc-rd-hb-svg" class="oc-svg"></div>
+<div class="oc-ctl" id="oc-rd-hb-ctl"></div>
+</div></div><div class="s3L">
 <section id="s-meters">
 <h2>1. Three meters, and a hung job on all of them</h2>
 <p>Three kinds of meter read a training cluster. <b style="color:var(--c4)">The scheduler's accounting</b> (Slurm's <code>sacct</code>, Kueue's Workload conditions, Ray's state API) says who held which GPUs from when to when: it is the bill, and it cannot see whether anything ran. <b style="color:var(--c1)">The device's counters</b> (DCGM on NVIDIA GPUs: utilisation, SM and tensor activity, memory, power, errors) say how busy the chip was, not whether the work was useful. <b style="color:var(--c3)">The training job's log</b> (steps, tokens per second, loss, MFU, time since the last good checkpoint) is the only one that says whether the run advanced. Every failure on this page is one meter looking healthy while another does not.</p>
-<div class="oc-pr"><div class="q">Predict: one rank of a 4-rank job freezes inside a collective. Which meters notice?</div>
-<div class="opts"><button>all three drop together</button><button>the scheduler, because the job is unhealthy</button><button data-r="1">only the training log; a GPU would still read 100% utilisation</button></div>
-<div class="ans">Only the log. The job still holds all its GPUs, and a GPU waiting in an NCCL collective keeps a kernel resident, polling, which counts as a kernel running. Step through the recording below to see each meter.</div></div>
-<div class="card oc-fig" id="oc-rd-hb">
-<h4>A hung job keeps the bill and the GPU meter full; only the step counter stops</h4>
-<div class="oc-seg" id="oc-rd-hb-m"><button data-m="hang" class="on">Hung run</button><button data-m="base">Healthy run</button></div>
-<div class="oc-ctl" id="oc-rd-hb-ctl"></div>
-<div id="oc-rd-hb-svg" class="oc-svg"></div>
-<div class="oc-anc" id="oc-rd-hb-cap"></div>
-<p class="oc-figcap"><span class="oc-meas">measured</span> on the topic's local clusters (Apple M1 Pro, Docker Desktop VM, shared machine; fake GPUs, real schedulers): the running example (the topic's tiny GPT, 4 ranks over gloo) under Kueue, scraped by Prometheus every 5 s; rank 3 was frozen with SIGSTOP at step 150. Thick bar: the selected run; thin grey bar: the other run at the same second. The local clusters have no GPUs, so the device row is the pods' CPU time (cAdvisor, measured) plus what a GPU's utilisation would read by its definition (derived). The steps-per-second row is a 30-second rate window, so it takes 30 s to fall to zero after the freeze, which is why the hang alert in section 7 uses the time since the last step instead.</p>
-</div>
-<p><b>What it shows.</b> The waiting ranks' CPU fell to 0.01 cores, the opposite of what a GPU reports in the same situation: gloo blocks on a socket and spins nothing, while NCCL keeps a kernel resident on the GPU polling for data, so a waiting GPU reads 100% utilisation (NCCL's behaviour by design; not run here). Either way the device meter cannot tell a hang from work or from idleness. The alert on the step counter fired 33 s after a rank froze; the process-group timeout (45 s here) ended the job 83 s after the freeze. All five recorded scenarios replay with their panels and alerts on the {{Cluster dashboard|#t-dash}} tab.</p>
+<p>The recording on the right is the running example (the topic's tiny GPT, 4 ranks over gloo) under Kueue, scraped by Prometheus every 5 s, with rank 3 frozen by SIGSTOP at step 150. Thick bar: the selected run; thin grey bar: the other run at the same second.</p>
+<ol class="sx" id="sx-hb">
+<li><b>Submitted, admitted.</b> Kueue admits the job the moment it is submitted, so the scheduler's meter reads 4 of 4 GPUs held from here on: the bill is running while the pods still start.</li>
+<li><b>Training.</b> All the meters agree with the healthy run: GPUs held, the pods' CPU busy, steps advancing, and a GPU would read 100% utilisation.</li>
+<li><b>Rank 3 freezes at step 150.</b> Meter 1 still reads 4 of 4. The measured CPU falls to 0.01 cores, the opposite of what a GPU reports in the same situation: gloo blocks on a socket and spins nothing, while NCCL keeps a kernel resident on the GPU polling for data, so a waiting GPU reads 100% utilisation (NCCL's behaviour by design; not run here). The steps-per-second row is a 30-second rate window, so it takes 30 s to fall to zero after the freeze; the alert on the time since the last step fired 33 s after a rank froze.</li>
+<li><b>Held, idle, billed.</b> Until the timeout nothing changes but the bill: all 4 GPUs held, no step (the GpusHeldNoProgress alert fired 53 s after the freeze). Either way the device meter cannot tell a hang from work or from idleness; only the training log can.</li>
+<li><b>The timeout ends it.</b> The process-group timeout (45 s here) ended the job 83 s after the freeze and released the GPUs. With NCCL's default of 10 minutes every GPU would have been held, and billed, that long (section 7).</li>
+</ol>
+<ol class="sx" id="sx-hb-base" hidden>
+<li><b>Submitted, admitted.</b> The same job without the freeze: admitted at once, 4 of 4 GPUs held.</li>
+<li><b>Training.</b> GPUs held, CPU busy, steps advancing at about 6 a second; in the hung run (grey) the same meters agree until its rank freezes.</li>
+<li><b>Finished.</b> 400 steps done 75 s after submission; the job completes and releases its GPUs.</li>
+<li><b>Released, while the hung run holds on.</b> The healthy run's meters are all empty; the hung run (grey) still holds all 4 GPUs with no step.</li>
+</ol>
+<p class="small"><span class="oc-meas">measured</span> on the topic's local clusters (Apple M1 Pro, Docker Desktop VM, shared machine; fake GPUs, real schedulers). The local clusters have no GPUs, so the device row is the pods' CPU time (cAdvisor, measured) plus what a GPU's utilisation would read by its definition (derived). All five recorded scenarios replay with their panels and alerts on the {{Cluster dashboard|#t-dash}} tab.</p>
 </section>
+</div></div>

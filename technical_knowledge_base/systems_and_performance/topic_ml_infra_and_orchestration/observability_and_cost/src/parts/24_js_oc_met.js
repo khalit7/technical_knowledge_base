@@ -64,9 +64,10 @@ window.OCM=(function(){
       row('nvl','NVLink busy','share of link bandwidth, from the NVLink byte counters',M.dec,r,rb,ra,'NVLink total on by default')+
       '<tr><td>Training steps in this window<div class="small mute">from the training log, not the GPU</div></td><td class="num"><b>'+((fx?C[cm].pa:C[cm].pb)?'yes':'none')+'</b></td><td class="num">'+(C[cm].pb?'yes':'none')+'</td><td class="num">'+(C[cm].pa?'yes':'none')+'</td></tr></tbody></table></div>';
     $('oc-me-cap').innerHTML='<b>'+C[cm].lab+(fx?', after the fix':'')+'.</b> '+(fx?C[cm].ca:C[cm].cb)+(done?'':' <span class="mute">(readings so far cover slices 1 to '+(i+1)+')</span>')}
-  const A=RD.anim({card:'oc-me-card',ctl:'oc-me-ctl',n:M.SL,ms:450,draw,label:'Slice of the sample window'});
-  RD.seg($('oc-me-case'),m=>{cm=m;A.reset(M.SL);A.go(M.SL-1)});
-  RD.seg($('oc-me-fix'),m=>{fx=+m;A.reset(M.SL);A.go(M.SL-1)});
+  // 20 slices: a widget the reader drives (the long-replay rule, 2026-11-06), opening on the whole window; it never plays by itself
+  const A=RD.anim({card:'oc-me-card',ctl:'oc-me-ctl',n:M.SL,ms:450,draw,auto:false,start:M.SL-1,label:'Slice of the sample window'});
+  RD.seg($('oc-me-case'),m=>{cm=m;A.reset(M.SL);A.go(M.SL-1,true)});
+  RD.seg($('oc-me-fix'),m=>{fx=+m;A.reset(M.SL);A.go(M.SL-1,true)});
   // the definitions and decoder tables are static HTML in 20_read_b.html (written from this engine on 2026-10-24); check/check_data.mjs recomputes the decoder readings
-  A.go(M.SL-1);RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
+  RD.onRender(()=>A.redraw());RD.onResize(()=>A.redraw());
 })();

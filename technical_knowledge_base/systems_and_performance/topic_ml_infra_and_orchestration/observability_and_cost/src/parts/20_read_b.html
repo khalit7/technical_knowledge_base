@@ -1,6 +1,16 @@
+<div class="s3sp"><div class="s3R"><div id="stg-sm"></div></div><div class="s3L">
 <section id="s-gpu">
 <h2>2. GPU counters: what each one counts</h2>
-<p>"Is the GPU busy?" has at least five answers. The driver keeps one coarse duty-cycle counter (GPU utilisation, field 203); DCGM reads finer profiling counters from the chip's performance monitors: SM activity (1002), occupancy (1003), tensor activity (1004), DRAM activity (1005), NVLink and PCIe bytes, plus power, temperature, clock event reasons and Xid errors. The seven situations below apply their definitions; the fields themselves, quoted, are in the closed block.</p>
+<p>"Is the GPU busy?" has at least five answers. The driver keeps one coarse duty-cycle counter (GPU utilisation, field 203); DCGM reads finer profiling counters from the chip's performance monitors: SM activity (1002), occupancy (1003), tensor activity (1004), DRAM activity (1005), NVLink and PCIe bytes, plus power, temperature, clock event reasons and Xid errors. Fig. 1 applies the first three definitions to one H100, situation by situation.</p>
+<ol class="sx" id="sx-sm">
+<li><b>One H100: 132 SMs, three meters.</b> Each block on the floor is one streaming multiprocessor (SM); its height will be the warps resident on it, out of the 64 an SM can hold. On the right, three DCGM meters over one sample window: <span style="color:var(--c5);font-weight:600">GPU utilisation</span> (203, the number nvidia-smi shows), <span style="color:var(--c6);font-weight:600">SM activity</span> (1002) and <span style="color:var(--c1);font-weight:600">tensor activity</span> (1004).</li>
+<li><b>Healthy matmuls: every SM busy.</b> Large BF16 matrix multiplies on all 132 SMs, fed from device memory (the plate behind, 35% DRAM activity). GPU util 100%, SM activity 1.00, tensor activity 0.75. Only about 12 of 64 warp slots are used per SM, so occupancy (0.19) is low, and that is fine.</li>
+<li><b>Too few blocks: 26 of 132 SMs.</b> A kernel launched with 26 thread blocks on a 132-SM GPU runs for the whole one-second sample. A kernel was executing the whole time, so the readings are GPU util 100%, SM activity about 0.2: 26/132 = 0.20 (DCGM's documentation gives the same example with N/5 blocks), and tensor activity 0.14. The opposite case, all SMs busy for a fifth of the window, also reads 0.2 SM activity but 20% utilisation: SM activity alone cannot tell them apart; the pair can.</li>
+<li><b>A hung collective: 8 SMs polling.</b> A peer froze inside an all-reduce; the communication kernel stays resident on a few SMs (8 here), polling for data that never arrives, and nothing moves on NVLink. GPU util still reads 100%; SM activity 0.06, tensor activity 0.00. One SM would be enough: the definition asks only whether a kernel was executing.</li>
+<li><b>Memory-bound: every SM full, tensor pipes idle.</b> An optimiser or elementwise phase: 48 of 64 warps on every SM (occupancy 0.75) and the memory interface busy 90% of the time. GPU util 100%, SM activity 1.00, tensor activity 0.00: a full SM is not a working tensor pipe.</li>
+<li><b>Four situations, one GPU utilisation.</b> The three meters of each situation side by side: GPU utilisation reads 100% in all four, and only SM and tensor activity separate them. That is why a GPU dashboard needs the profiling counters, and why the job's own log (section 4) still decides whether it trained.</li>
+</ol>
+<p class="small"><span class="oc-der">derived</span>, not measured (no GPU here): the activity patterns are the seven situations' illustrative ones below; the readings are exact consequences of the quoted definitions, computed by the same code as the seven situations.</p>
 <details class="oc-deep"><summary>The DCGM fields, quoted, and which dcgm-exporter 4.8.4 ships on</summary>
 <div class="tw"><table class="oc-tbl"><thead><tr><th>Field (id)</th><th>What it counts</th><th>In dcgm-exporter 4.8.4 by default</th></tr></thead><tbody>
 <tr><td><code>DCGM_FI_DEV_GPU_UTIL</code> (203)</td><td>"Percent of time over the past sample period during which one or more kernels was executing on the GPU" (nvidia-smi's <code>utilization.gpu</code>; sample period 1 s to 1/6 s by product)</td><td>on</td></tr>
@@ -18,20 +28,11 @@
 <b>The default exporter does not ship SM activity.</b> Its two lines are commented out in <code>default-counters.csv</code> (lines 105 and 106 at 4.8.4); enable them (and occupancy), and run the exporter with <code>SYS_ADMIN</code>, which profiling fields need.<br>
 <b>The profiling fields were renamed.</b> In DCGM 4.6.1, 1002 is <code>DCGM_FI_PROF_SM_UTIL_RATIO</code> and 1004 <code>DCGM_FI_PROF_TENSOR_UTIL_RATIO</code>; the old names stay as aliases (<code>dcgm_fields.h</code> lines 3821 to 3825), so dashboards may need both.<br>
 <b>They are sampled, and multiplexed.</b> DCGM samples at 1 Hz by default (100 ms minimum); counters that cannot be read together are sampled in turns, and "collection at higher frequencies will result in zeroes returned". dcgm-exporter asks for a new value every 30 s by default (<code>--collect-interval 30000</code>). A 2-second stall between steps is invisible at that resolution; the training log sees it.</div>
-<div class="oc-pr"><div class="q">Predict: a kernel is launched with 26 thread blocks on a 132-SM GPU and runs for the whole one-second sample. What do GPU utilisation and SM activity read?</div>
-<div class="opts"><button>both about 20%</button><button data-r="1">GPU util 100%, SM activity about 0.2</button><button>GPU util about 20%, SM activity 1.0</button></div>
-<div class="ans">A kernel was executing the whole time, so the duty cycle reads 100%. Only 26 of 132 SMs have a resident warp, so SM activity is 26/132 = 0.20 (DCGM's documentation gives the same example with N/5 blocks). The opposite case, all SMs busy for a fifth of the window, also reads 0.2 SM activity but 20% utilisation: SM activity alone cannot tell them apart; the pair can. It is the "Too few blocks" situation below.</div></div>
-<div class="card oc-fig" id="oc-me-card">
-<h4>Seven situations on one simulated H100: GPU utilisation barely moves, the other counters tell them apart</h4>
-<div class="oc-seg" id="oc-me-case"></div>
-<div class="oc-seg" id="oc-me-fix"><button data-m="0" class="on">Before</button><button data-m="1">After the fix</button></div>
-<div class="oc-ctl" id="oc-me-ctl"></div>
-<div id="oc-me-svg" class="oc-svg"></div>
-<div class="oc-leg"><span><i style="background:var(--dim)"></i>SM idle</span><span><i style="background:var(--c1)"></i>tensor pipe busy (shade: share of cycles)</span><span><i style="background:var(--c2)"></i>warps resident, no tensor work (memory, elementwise, waiting)</span><span><i style="background:var(--c4)"></i>communication kernel</span></div>
-<div class="oc-anc" id="oc-me-cap"></div>
-<div id="oc-me-read"></div>
-<p class="oc-figcap">Pick a situation; the readings show the whole sample window. Step or play to watch the 20 slices of the window fill in, then switch to <b>After the fix</b> and see which counters move. The chip is 132 SMs of up to 64 warps each, the H100 SXM's numbers. <span class="oc-der">derived</span>, not measured: the activity patterns are illustrative (SM counts, warps per SM and pipe shares chosen to be typical, not read from a profiler); the readings are exact consequences of the quoted definitions applied to them. The point is which counters can tell two situations apart, not the second decimal.</p>
-</div>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L">
+<h3>Seven situations, and what to check next</h3>
 <p><b>How to read them together:</b> SM activity says how much of the chip has work; occupancy how full each busy SM is; tensor activity how much matmul work is done; DRAM activity whether the phase is memory-bound. NVIDIA's own rule of thumb for SM activity: "A value of 0.8 or greater is necessary, but not sufficient, for effective use of the GPU. A value less than 0.5 likely indicates ineffective GPU usage." No single counter diagnoses a job; the combinations the seven situations produce, and what to check next:</p>
 <div class="tw"><table class="oc-tbl"><thead><tr><th>GPU util</th><th>SM active</th><th>Tensor</th><th>DRAM</th><th>Most likely</th><th>Check next</th></tr></thead><tbody id="oc-me-dec">
 <tr><td class="num">100%</td><td class="num">1.00</td><td class="num">0.75</td><td class="num">0.35</td><td>Compute-bound and healthy</td><td class="small">MFU from the step log against a reference run; occupancy is not a target</td></tr>
@@ -53,7 +54,19 @@
 </tbody></table></div>
 <p class="small mute">Definitions from the nvidia-smi documentation and the DCGM profiling-metrics documentation, read 2026-10-16; field ids from dcgm_fields.h; extracts in <code>src/inputs/dcgm_fields.txt</code>.</p>
 </details>
-</section>
+</div>
+<div class="s3R"><div class="s3side"><div class="card oc-fig" id="oc-me-card">
+<h4>Seven situations on one simulated H100: GPU utilisation barely moves, the other counters tell them apart</h4>
+<div class="oc-seg" id="oc-me-case"></div>
+<div class="oc-seg" id="oc-me-fix"><button data-m="0" class="on">Before</button><button data-m="1">After the fix</button></div>
+<div class="oc-ctl" id="oc-me-ctl"></div>
+<div id="oc-me-svg" class="oc-svg"></div>
+<div class="oc-leg"><span><i style="background:var(--dim)"></i>SM idle</span><span><i style="background:var(--c1)"></i>tensor pipe busy (shade: share of cycles)</span><span><i style="background:var(--c2)"></i>warps resident, no tensor work (memory, elementwise, waiting)</span><span><i style="background:var(--c4)"></i>communication kernel</span></div>
+<div class="oc-anc" id="oc-me-cap"></div>
+<div id="oc-me-read"></div>
+<p class="oc-figcap">Pick a situation; the readings show the whole sample window. Step or play to watch the 20 slices of the window fill in, then switch to <b>After the fix</b> and see which counters move. The chip is 132 SMs of up to 64 warps each, the H100 SXM's numbers. <span class="oc-der">derived</span>, not measured: the activity patterns are illustrative (SM counts, warps per SM and pipe shares chosen to be typical, not read from a profiler); the readings are exact consequences of the quoted definitions applied to them. The point is which counters can tell two situations apart, not the second decimal.</p>
+</div></div></div></div>
+
 
 <section id="s-fleet">
 <h2>3. The gap at fleet scale</h2>

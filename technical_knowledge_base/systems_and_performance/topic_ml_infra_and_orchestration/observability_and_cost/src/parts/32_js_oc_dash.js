@@ -54,9 +54,9 @@ window.OCD=(function(){
     $('oc-db-alerts').innerHTML='<div class="small"><b>Alerts at '+Math.round(t)+' s:</b> '+(names.length?names.map(n=>'<span class="oc-alert '+(st[n]==='firing'?'fire':st[n]==='pending'?'pend':'')+'">'+n+': '+(st[n]||'inactive')+'</span>').join(''):'none defined fire here')+'</div>';
     const ev=s.marks.filter(m=>m[0]<=t).map(m=>Math.round(m[0])+' s '+lab(m[1])+' '+m[2].replace(/:.*->/,' ').replace(/pod-index-1/,'pod 1')).slice(-2).join('; ');
     $('oc-db-cap').innerHTML=CAP[cur]+(ev?'<br><span class="small mute">Events so far: '+RD.esc(ev)+'</span>':'')}
-  const A=RD.anim({card:'oc-db-card',ctl:'oc-db-ctl',n:byId[cur].n,ms:500,draw,label:'Time in the recording'});
-  A.go(byId[cur].n-1);
-  RD.seg($('oc-db-sc'),m=>{cur=m;A.reset(byId[cur].n);A.go(byId[cur].n-1)});
+  // a recording of 22 to 34 frames: a widget the reader drives (the long-replay rule, 2026-11-06), opening on its last frame; it never plays by itself
+  const A=RD.anim({card:'oc-db-card',ctl:'oc-db-ctl',n:byId[cur].n,ms:500,draw,auto:false,start:byId[cur].n-1,label:'Time in the recording'});
+  RD.seg($('oc-db-sc'),m=>{cur=m;A.reset(byId[cur].n);A.go(byId[cur].n-1,true)});
   $('oc-db-ghost').addEventListener('change',()=>A.redraw());
   // what the scrape cost
   const sc=OC.scrape||{},rows=Object.keys(sc).map(k=>'<tr><td>'+RD.esc(k)+'</td><td class="num">'+sc[k][0]+'</td><td class="num">'+sc[k][1]+'</td></tr>').join('');

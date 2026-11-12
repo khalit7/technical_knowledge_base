@@ -19,19 +19,24 @@ Timing without synchronising (the CPU clock stops before the GPU finishes: MFU t
 </details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-gp"></div></div><div class="s3L">
 <section id="s-good">
 <h2>5. Goodput: metering the time that was kept</h2>
-<p>MFU measures the steps that ran; goodput measures how much of the allocated time became progress you kept. Google's version multiplies scheduling goodput, runtime goodput and program goodput (MFU); Meta's ETTR leaves MFU out and counts queueing. The definitions, the badput split per failure and which recovery design removes which part are owned by {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}} (section 9, "Goodput: name every lost second", and section 5, "Recovery designs"). This section is the metering side: what to record so the number can be computed. Here it is from two recorded runs, using Kueue's Workload conditions (Admitted, Finished) and rank 0's log; runtime goodput is seconds of progress saved in a checkpoint over seconds allocated.</p>
-<div class="card oc-fig" id="oc-gp">
-<h4>The hung run held its GPUs for 108 s and kept 13 s of it: runtime goodput 84% healthy, 12% hung</h4>
-<div id="oc-gp-svg" class="oc-svg"></div>
-<p class="oc-figcap"><span class="oc-meas">measured</span>, seconds of allocation, 4 fake GPUs; Kueue's timestamps have one-second resolution. Healthy, 400 steps: allocated 74 s, start-up 7.6 s, progress kept 62.0 s, after the last step 4.5 s. Hung at step 150: allocated 108 s, start-up 7.1 s, progress kept 13.0 s (checkpoint at step 100), progress lost 6.4 s (steps 100 to 150), and 81.6 s after the freeze: the hang. Scheduling goodput is 100% for both (admitted the moment they were submitted); program goodput cannot be measured without a GPU.</p>
-</div>
+<p>MFU measures the steps that ran; goodput measures how much of the allocated time became progress you kept. Google's version multiplies scheduling goodput, runtime goodput and program goodput (MFU); Meta's ETTR leaves MFU out and counts queueing. The definitions, the badput split per failure and which recovery design removes which part are owned by {{Fault tolerance at scale|n:3fc5c17b0d0d815786d1c1dddb311a9b}} (section 9, "Goodput: name every lost second", and section 5, "Recovery designs"). This section is the metering side: what to record so the number can be computed. Fig. 2 does it for two recorded runs, from Kueue's Workload conditions (Admitted, Finished) and rank 0's log; runtime goodput is seconds of progress saved in a checkpoint over seconds allocated.</p>
+<ol class="sx" id="sx-gp">
+<li><b>The bill: 74 seconds allocated.</b> The healthy run (400 steps, 4 fake GPUs) held its GPUs from Kueue's Admitted to its Finished condition. The scheduler knows this slab exactly and nothing inside it.</li>
+<li><b>Where the healthy run's seconds went.</b> Start-up 7.6 s (pods, rendezvous, first batch: no step yet), progress kept 62.0 s, after the last step 4.5 s. The dots are the four checkpoints, one every 100 steps, written to storage at 22.8, 38.9, 54.0 and 69.7 s: everything before the last one is kept. Runtime goodput 84%.</li>
+<li><b>The hung run held its GPUs for 108 s and kept 13 s of it.</b> Start-up 7.1 s, progress kept 13.0 s (checkpoint at step 100, 20.0 s in), progress lost 6.4 s (steps 100 to 150, done but never saved), and 81.6 s after the freeze: the hang.</li>
+<li><b>Runtime goodput: kept over allocated.</b> Only the green slabs count: 62.0 of 74 s healthy, 84%; 13.0 of 108 s hung, 12%. Scheduling goodput is 100% for both (admitted the moment they were submitted); program goodput cannot be measured without a GPU.</li>
+<li><b>The same split at scale.</b> The Capacity planner's default run (Llama 3.1 405B on 14,440 H100s for 90 days, Llama 3's failure rate): of every paid GPU-hour, <span id="oc-gp-use">85.5%</span> is kept progress; checkpoint stalls take <span id="oc-gp-ck">4.8%</span>, work redone after each failure <span id="oc-gp-rw">5.0%</span> and restarts <span id="oc-gp-rs">4.8%</span> (derived from the planner's model: a 60 s stall every 21 minutes, half an interval redone and a 10-minute restart per failure, one failure every 3.5 hours).</li>
+</ol>
+<p class="small"><span class="oc-meas">measured</span>, seconds of allocation, 4 fake GPUs; Kueue's timestamps have one-second resolution. Healthy, 400 steps: allocated 74 s, start-up 7.6 s, progress kept 62.0 s, after the last step 4.5 s. Hung at step 150: allocated 108 s, start-up 7.1 s, progress kept 13.0 s (checkpoint at step 100), progress lost 6.4 s (steps 100 to 150), and 81.6 s after the freeze. Step 5 is <span class="oc-der">derived</span>.</p>
 <p><b>How to record it:</b> log the badput categories directly instead of inferring them afterwards, as Google's open-source {{ml-goodput-measurement|https://github.com/AI-Hypercomputer/ml-goodput-measurement}} library does (device initialisation, program start-up, data loading, checkpoint save and restore, wasted progress from disruptions): a timestamped event per phase, per attempt, plus the step of the last saved checkpoint.</p>
 <details class="oc-deep"><summary>Published goodput numbers, and why one point is worth a lot</summary>
 <p>Google's paper ({{ML Fleet Efficiency, arXiv 2502.06982|https://arxiv.org/html/2502.06982}}, operator) reports scheduling goodput above 95% for all job sizes; Meta ({{Kokolis et al., HPCA 2025|https://arxiv.org/html/2410.21680}}, operator) reports ETTR 0.85 to 0.9 for its largest jobs; the Llama 3 report calls its 405B run's "effective training time" "higher than 90%" without defining it further. Google's own example of the stakes: "a 1% improvement in ML Goodput can translate to more than a million dollars in cost savings" for 20,000 GPUs over 8 weeks ({{Google Cloud blog, 2024-04-10|https://cloud.google.com/blog/products/ai-machine-learning/goodput-metric-as-measure-of-ml-productivity}}, vendor).</p>
 </details>
 </section>
+</div></div>
 
 <section id="s-prom">
 <h2>6. Prometheus for a GPU cluster: exporters, dashboards, and what they cost</h2>
@@ -61,12 +66,16 @@ scrape_configs:
   authorization: {credentials_file: /etc/prometheus/kueue_token}   <span class="c"># a ServiceAccount bound to kueue-metrics-reader</span>
   static_configs: [{targets: ['host.docker.internal:18443']}]</pre>
 </details>
+</section>
+<div class="s3sp"><div class="s3L">
 <h3>What the metrics system costs</h3>
 <p>Prometheus's own capacity rule: "Prometheus stores an average of only 1-2 bytes per sample", and disk = retention x samples per second x bytes per sample ({{Prometheus storage docs|https://prometheus.io/docs/prometheus/latest/storage/}}; default retention 15 days, default scrape 1 minute). The whole local setup held about 1,500 series.</p>
 <div class="oc-pr"><div class="q">Predict: on a 1,024-GPU cluster with dcgm-exporter's defaults, which dominates the series count: the GPU counters or the per-node container metrics?</div>
 <div class="opts"><button>the GPU counters, by far</button><button data-r="1">the per-node container metrics</button><button>about equal</button></div>
 <div class="ans">The container metrics: 25 series per GPU is 25,600 for the GPUs, while about 950 per node over 128 nodes is about 122,000. The calculator's defaults are exactly this case.</div></div>
-<div class="card" id="oc-rd-ps">
+<p>At the defaults that is about 4,900 samples per second and about 12.7 GB for 15 days at 2 bytes per sample. Every label added to a GPU series (job name, user, pod) multiplies the series by the number of values it takes over the retention window: keep job identity on a handful of job-level series and join at query time, not on every per-GPU counter.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="card" id="oc-rd-ps">
 <div class="oc-calc">
 <label>GPUs <input type="number" id="oc-ps-gpu" value="1024" min="8" step="8"></label>
 <label>GPUs per node <input type="number" id="oc-ps-gpn" value="8" min="1" step="1"></label>
@@ -77,8 +86,8 @@ scrape_configs:
 </div>
 <div class="grid" id="oc-ps-out"></div>
 <p class="small mute" id="oc-ps-note"></p>
-</div>
-<p>At the defaults that is about 4,900 samples per second and about 12.7 GB for 15 days at 2 bytes per sample. Every label added to a GPU series (job name, user, pod) multiplies the series by the number of values it takes over the retention window: keep job identity on a handful of job-level series and join at query time, not on every per-GPU counter.</p>
+</div></div></div></div>
+<section id="s-logs">
 <h3>Logs: per rank, with the attempt</h3>
 <p>Metrics are numbers on a fixed interval; when a 4,096-rank job dies you need what each rank was doing and in which order. So every rank writes structured lines with the scheduler's job id and the restart count, every N steps (one line per step at 1 step per second on 1,000 ranks is 86 million lines a day). Traces of the step itself come from profilers (PyTorch profiler or Nsight Systems for a few steps on demand: {{Profiling, benchmarking and correctness|n:3c65c17b0d0d813da895ffee55b0457c}}, {{Making training fast|n:3c65c17b0d0d810d9e1fdf9ec942c20d}}), and for collectives from the NCCL flight recorder, which keeps each rank's last collectives and dumps them on a timeout ({{Distributed PyTorch|n:3c65c17b0d0d815e85aff8decd8f35ab}}, section 11; using it on a real hang is {{Launching distributed training|n:3fc5c17b0d0d81b3a8a5c58224bff9fa}}, section 8).</p>
 <details class="oc-deep"><summary>What the running example logs</summary>

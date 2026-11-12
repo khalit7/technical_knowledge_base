@@ -227,8 +227,8 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml` Kubernetes for ML: scheduling, device plugins, gang scheduling and operators
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training` Launching distributed training: torchrun, rendezvous, NCCL and hangs
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows` ML platforms and workflows: pipelines, experiment tracking and model registry
-- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost` Observability and cost: GPU metrics, goodput, utilisation and capacity planning
-- [ ] `systems_and_performance/topic_ml_infra_and_orchestration/ray` Ray: tasks, actors, the object store and Ray Train
+- [x] `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost` Observability and cost: GPU metrics, goodput, utilisation and capacity planning
+- [~] `systems_and_performance/topic_ml_infra_and_orchestration/ray` Ray: tasks, actors, the object store and Ray Train
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/slurm` Slurm from zero: allocation, gang scheduling, fairshare and preemption
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement` Storage and data movement: parallel file systems, object storage and checkpoint I/O
 - [ ] `systems_and_performance/topic_ml_infra_and_orchestration` Topic: ml-infra-and-orchestration
@@ -521,6 +521,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_ml_infra_and_orchestration/kubernetes_for_ml`: the loop's clock label clamps at the left edge on phones; preemption scene shortens the high-priority pod name to "nopreempt". Agent removed duplicated section 2 and 3 paragraphs and predicts (closed details 19.0 to 17.8 min).
 - `systems_and_performance/topic_ml_infra_and_orchestration/launching_distributed_training`: header counts every mode list (one pass about 35 min); Fig. 2 NCCL start-up is illustrative from the v2.30.7-1 source (no GPU run); store step titles script-written (ledger cannot see them).
 - `systems_and_performance/topic_ml_infra_and_orchestration/ml_platforms_and_workflows`: zoomed hero steps leave empty card space; 390 px body text may lack a gutter (theme-wide?).
+- `systems_and_performance/topic_ml_infra_and_orchestration/observability_and_cost`: Figs 2 and 3 phone labels tight; dashboard and planner tool tabs full width; Fig. 1 derived from the page's engine (no DCGM recording; labelled).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -593,3 +594,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Fault tolerance at scale: the hero stays a 2D timeline (the reliability page's Fig. 3 is linked); the three long replays are widgets; the recovery animation always has seven parts (unpaid parts drawn at zero width). Keep these?
 - Kubernetes for ML: the hero stays a 2D map of the page (the 3D control loop sits below; could become the hero); failure timelines are a widget opening on each run's end; Kueue steps grouped one per workload. Keep these?
 - ML platforms and workflows: keeps the tools' spelling "artifact"; Fig. 2 opens on "One run"; Fig. 3 bars show held-out loss minus 2.0 (stated); the resume card caption dropped for the step list. Keep these?
+- Observability and cost: job 133 drawn on node 1 in Fig. 3 (its node was not recorded); Fig. 1 step 4 uses the hung case's 8 polling SMs (illustrative); predicts cut from 5 to 3. Keep these?
