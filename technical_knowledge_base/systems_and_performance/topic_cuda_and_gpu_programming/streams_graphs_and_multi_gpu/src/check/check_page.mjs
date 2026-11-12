@@ -1,6 +1,6 @@
 // Whole-page check: every tab and control at 390 px dark and 920 px light: page errors, NaN, undefined,
 // sideways scroll; the page's step model (SGM.step) against recompute.py's (window.SG.step); the launch
-// model against NVIDIA's figures; animation end states; screenshots.
+// model against NVIDIA's figures; the stages play once in view; stage end states; screenshots.
 // usage (from the repo root): node <page>/src/check/check_page.mjs [shots dir]
 import { createRequire } from 'module';
 import path from 'path';
@@ -41,9 +41,9 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     return out;
   });
   if (m.length) { console.log('MODEL', scheme, m); bad += m.length; }
-  // nothing may move before the reader acts (2026-10-23): scroll each animation into view, wait, the scrubber stays at 0
-  const auto = await p.evaluate(async () => { const out = []; for (const c of ['sg-ln-card', 'sg-st-card']) { document.getElementById(c).scrollIntoView(); await new Promise(r => setTimeout(r, 2500)); const sc = document.querySelector('#' + c + ' input[type=range]'); if (+sc.value !== 0) out.push(c + ' moved to ' + sc.value); } return out; });
-  if (auto.length) { console.log('AUTOPLAY', scheme, auto); bad += auto.length; } else console.log('no autoplay', scheme);
+  // autoplay (2026-11-06, inverting the 2026-10-23 rule): each 3D stage plays by itself once scrolled into view (its data-frames rises)
+  const auto = await p.evaluate(async () => { const out = []; for (const c of ['stg-pipe', 'stg-launch', 'stg-ring']) { const e = document.getElementById(c); e.scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 2500)); if (!(+e.dataset.frames > 0)) out.push(c + ' did not play'); } return out; });
+  if (auto.length) { console.log('AUTOPLAY', scheme, auto); bad += auto.length; } else console.log('stages play on view', scheme);
   for (const tab of ['t-read', 't-more']) {
     await p.evaluate(t => document.querySelector('#tabs button[data-t="' + t + '"]').click(), tab);
     await sleep(250);
@@ -68,14 +68,15 @@ for (const [scheme, w] of [['dark', 390], ['light', 920]]) {
     else console.log('ok', tab, scheme, w, n, 'controls');
     await p.screenshot({ path: path.join(shots, `${tab}_${scheme}_${w}.png`), fullPage: true });
   }
-  // animation end states: step to the end of each and read the counters
+  // stage end states: step each mode to its last step and read the counters
   await p.evaluate(() => document.querySelector('#tabs button[data-t="t-read"]').click());
   const ends = await p.evaluate(async () => {
     const out = {};
-    for (const [seg, ctl, cnt] of [['sg-st-seg', 'sg-st-ctl', 'sg-st-cnt'], ['sg-ln-seg', 'sg-ln-ctl', 'sg-ln-cnt']]) {
-      for (const b of document.querySelectorAll('#' + seg + ' button')) {
-        b.click(); const sc = document.getElementById(ctl + '-s'); sc.value = sc.max; sc.dispatchEvent(new Event('input'));
-        out[seg + ':' + b.dataset.m] = document.getElementById(cnt).innerText.replace(/\s+/g, ' ');
+    for (const [seg, id, cnt] of [['', 'stg-pipe', 'sg-pipe3-cnt'], ['sg-ln-mode', 'stg-launch', 'sg-ln-cnt'], ['sg-ring-mode', 'stg-ring', 'sg-ring-cnt']]) {
+      for (const b of seg ? document.querySelectorAll('#' + seg + ' button') : [null]) {
+        document.getElementById(id).scrollIntoView({ block: 'center' }); if (b) b.click(); const sc = document.getElementById(id + '-r'); sc.value = sc.max; sc.dispatchEvent(new Event('input'));
+        await new Promise(r => setTimeout(r, 4200));
+        out[id + ':' + (b ? b.dataset.m : '')] = document.getElementById(cnt).innerText.replace(/\s+/g, ' ');
       }
     }
     return out;

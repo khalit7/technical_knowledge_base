@@ -114,7 +114,9 @@ pipe = dict(mb=round(bytes_ / 2**20), h2d_ms=round(bytes_ / PCIE * 1e3, 2), d2h_
 pipe["serial_ms"] = round(pipe["h2d_ms"] + pipe["k_ms"] + pipe["d2h_ms"], 2)
 c = 8
 pipe["pipe8_ms"] = round(pipe["h2d_ms"] + pipe["d2h_ms"] / c + pipe["k_ms"] / c, 2)   # H2D and D2H on two engines
-pipe["pipe8_one_engine_ms"] = round(pipe["h2d_ms"] + pipe["d2h_ms"] + pipe["k_ms"] / c, 2)
+# one engine: copies in and out take turns and the engine never idles; every kernel, the last included, runs under another chunk's copy
+# (the event schedule in parts/23_js_sg_static.js). Before 2026-11-12 this added the last kernel (k_ms / c), an upper bound 0.02 ms too high.
+pipe["pipe8_one_engine_ms"] = round(pipe["h2d_ms"] + pipe["d2h_ms"], 2)
 D["pipe"] = pipe
 
 # ---------- the training-step model (GPT-2 small shape, 64 H100 over 400 Gb/s IB) ----------

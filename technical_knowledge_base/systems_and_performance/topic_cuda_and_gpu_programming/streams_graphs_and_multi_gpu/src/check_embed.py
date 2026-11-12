@@ -40,4 +40,15 @@ for root, _, files in os.walk("."):
             if pat in s: print("PRIVATE", pat, "in", p); bad += 1
 for pat in pats:
     if pat in html: print("PRIVATE in page", pat); bad += 1
+# the login name and hostname, looked up at run time (never spelled here), anywhere in the page folder (case-sensitive)
+import getpass, socket
+who = [x for x in (getpass.getuser(), socket.gethostname().split(".")[0]) if len(x) >= 3]
+for root, dirs, files in os.walk(".."):
+    dirs[:] = [d for d in dirs if d not in (".shots", "__pycache__")]
+    for fn in files:
+        p = os.path.join(root, fn)
+        try: t = open(p, errors="ignore").read()
+        except Exception: continue
+        for w in who:
+            if w in t: print("PRIVATE: login or host name in", p); bad += 1
 print(f"{n} tagged numbers checked; {'OK' if not bad else str(bad) + ' problems'}")

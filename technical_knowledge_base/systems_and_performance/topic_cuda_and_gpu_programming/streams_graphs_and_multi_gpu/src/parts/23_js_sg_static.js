@@ -70,16 +70,19 @@ window.SGT=(function(){
     SGT.bars(el,[['one kernel alone',c.single_ms,'var(--mute)',c.single_ms+' ms'],[c.k+' kernels, one queue',c.one_queue.ms,'var(--c5)',c.one_queue.ms+' ms'],[c.k+' kernels, '+c.k+' queues',c.k_queues.ms,'var(--bad)',c.k_queues.ms+' ms'],[c.k+' kernels, concurrent encoder',c.concurrent.ms,'var(--c3)',c.concurrent.ms+' ms']],'ms');
     $('sg-conc-cap').innerHTML='<span class="rd-meas">measured on Apple M1 Pro GPU</span> '+c.k+' kernels of one 32-thread threadgroup each, a dependent loop of '+c.iters.toLocaleString('en-US')+' FMAs, so each fills one of 16 GPU cores. Median of '+c.runs+' runs of 7 trials (runs for '+c.k+' queues: '+c.k_queues.runs.join(', ')+' ms); load average '+c.load[0]+' to '+c.load[1]+'. Metal through PyObjC.'}
   // chunked pipeline
+  // each event also carries its chunk (e.c) and what it does (e.k: in, ker, out), read by the 3D pipeline scene (Fig. 1)
+  const tag=(e,c,kind)=>{e.c=c;e.k=kind;return e};
   function pipeSim(k,two){const P=S.pipe,hi=P.h2d_ms/k,ke=P.k_ms/k,ho=P.d2h_ms/k,ev=[];
     if(k===1){ev.push(['in',0,hi,'H2D']);ev.push(['ker',hi,hi+ke,'kernel']);ev.push([two?'out':'in',hi+ke,hi+ke+ho,'D2H']);return {ev,T:hi+ke+ho}}
     let inE=0,kE=0,oE=0;const kend=[];
-    if(two){for(let c=0;c<k;c++){const s=inE;inE=s+hi;ev.push(['in',s,inE,'']);const ks=Math.max(inE,kE);kE=ks+ke;ev.push(['ker',ks,kE,'']);kend.push(kE);const os=Math.max(kE,oE);oE=os+ho;ev.push(['out',os,oE,''])}return {ev,T:oE}}
+    if(two){for(let c=0;c<k;c++){const s=inE;inE=s+hi;ev.push(tag(['in',s,inE,''],c,'in'));const ks=Math.max(inE,kE);kE=ks+ke;ev.push(tag(['ker',ks,kE,''],c,'ker'));kend.push(kE);const os=Math.max(kE,oE);oE=os+ho;ev.push(tag(['out',os,oE,''],c,'out'))}return {ev,T:oE}}
     // one engine: copies in issue order, an out may run as soon as its kernel is done (greedy, earliest issued ready op)
     const done=new Array(k).fill(false);let t=0,ni=0,no=0;const ke2=[];let kEnd=0;
     while(no<k){let op=null;if(no<ni&&ke2[no]<=t)op='o';else if(ni<k)op='i';else{t=ke2[no];op='o'}
-      if(op==='i'){ev.push(['in',t,t+hi,'']);t+=hi;const ks=Math.max(t,kEnd);kEnd=ks+ke;ev.push(['ker',ks,kEnd,'']);ke2.push(kEnd);ni++}
-      else{const s=Math.max(t,ke2[no]);ev.push(['in',s,s+ho,'',`var(--c2)`]);t=s+ho;no++}}
+      if(op==='i'){ev.push(tag(['in',t,t+hi,''],ni,'in'));t+=hi;const ks=Math.max(t,kEnd);kEnd=ks+ke;ev.push(tag(['ker',ks,kEnd,''],ni,'ker'));ke2.push(kEnd);ni++}
+      else{const s=Math.max(t,ke2[no]);ev.push(tag(['in',s,s+ho,'',`var(--c2)`],no,'out'));t=s+ho;no++}}
     return {ev,T:t}}
+  window.SGPIPE=pipeSim;
   function drawPipe(){const el=$('sg-pipe-fig');if(!el)return;const k=+$('sg-pipe-k').value,two=$('sg-pipe-two').checked;$('sg-pipe-kv').textContent=k;
     const r=pipeSim(k,two),P=S.pipe;
     const ev=r.ev.map(e=>[e[0],e[1],e[2],e[3],e[4]||(e[0]==='ker'?'var(--c1)':e[0]==='out'?'var(--c2)':'var(--c6)')]);
