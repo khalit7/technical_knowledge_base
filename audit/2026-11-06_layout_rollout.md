@@ -241,9 +241,9 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_pytorch_ecosystem` Topic: pytorch-ecosystem
 - [x] `whats_new/papers/agora` Agora: Git as Shared Memory for Collective AutoResearch
 - [x] `whats_new/papers/bert` BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding
-- [~] `whats_new/papers/bitune` Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
-- [ ] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
-- [ ] `whats_new/papers/clip` Learning Transferable Visual Models From Natural Language Supervision (CLIP)
+- [x] `whats_new/papers/bitune` Bitune: Leveraging Bidirectional Attention to Improve Decoder-Only LLMs
+- [~] `whats_new/papers/chinchilla` Training Compute-Optimal Large Language Models (Chinchilla)
+- [~] `whats_new/papers/clip` Learning Transferable Visual Models From Natural Language Supervision (CLIP)
 - [ ] `whats_new/papers/constitutional_ai` Constitutional AI: Harmlessness from AI Feedback
 - [ ] `whats_new/papers/context_language_models` Context Language Models
 - [ ] `whats_new/papers/ddpm` Denoising Diffusion Probabilistic Models (DDPM)
@@ -535,6 +535,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `whats_new/papers/agora`: Fig. 2 step 4 at 1400, the "w5" lane label sits under the legend text; Stage A final step token labels cramped on phones; Figure 4 lazy-load blank in full-page shots (harmless).
 - `systems_and_performance/topic_pytorch_ecosystem`: hero overview step busy at 1400 (autograd label near the tensor plates); step 4 labels overlap ("backward walks it back" over the plates, "187 nodes" over the last node, the saved-tensors label runs to the right edge). Compile lab tab now 20 + 9: check any child that quotes it as 19 + 9 by hand (check_times does not judge tab links).
 - `whats_new/papers/bert`: Fig. 3 (Figure 2 bars) small on phones; close-up steps of Figs 2 and 4 crop the bottom token labels, one near the "drag to turn" hint. Run-tab attention heatmap and Tables-tab charts stay full width (tool and table tabs).
+- `whats_new/papers/bitune`: Fig. 2 labels sit on the boxes ("causal K, V", "bidirectional K, V", answer step); faint bidirectional bars hard to read on phones; Run-tab alpha chart colours keys blue and values orange (predates the q/k/v colour rule).
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -621,3 +622,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Agora: static hero deleted (3D loop stage replaces it); commit-graph depth = one lane per account; Fig. 2 nodes k, n, m stand in for the missing and edited index records (labelled illustrative); header 33 min counts step lists hidden behind mode toggles; the "Since the paper (checked 25 October 2026)" block was not re-checked. Keep these?
 - PyTorch root: the DDP/FSDP2 rank stepper retired in favour of links to Distributed PyTorch Figs. 1 to 3; the fused fusion sweep cut from 8 frames to 2; long replays (923 calls, step timeline, stack replay) are widgets opening on the finished frame (the 923-call one on the first call). Keep?
 - BERT: hero and NSP use the toy dog pair instead of the paper's "my dog is [MASK]" so every number is the toy's; the fine-tuning heads in the hero's last step are drawn, not run (labelled); the "both ways, nothing hidden" mode uses toy BERT weights on the unmasked sentence (labelled not a trained model); Figure 2 bars use one scale across the three parts. Keep?
+- Bitune: the paper's Figure 1 stays the hero and the 3D stage is the Idea figure; the stage opens on Bitune with LoRA one toggle away; causal pass orange and bidirectional blue to match the paper's Figure 1. Keep?

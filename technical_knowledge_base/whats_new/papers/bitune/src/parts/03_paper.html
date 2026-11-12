@@ -1,28 +1,26 @@
 <section class="tab" id="t-read" role="tabpanel">
 @@CARD@@
+<div class="s3sp"><div class="s3L">
 <section id="s-core">
 <p class="lead"><b>The idea in one sentence:</b> a decoder reads its prompt through the causal mask although the whole prompt is already there, so Bitune prefills the prompt twice, once causally and once <b>bidirectionally with its own adapter</b>, mixes the two sets of keys and values in every block with learned weights, and then generates causally from that mixed cache as usual; on five 2B to 8B models this adds +0.1 to +4.0 points over LoRA on a 5-task zero-shot average, for about 3 times the finetuning time.</p>
+<p class="small"><b>You need:</b> the causal and bidirectional masks and the prefix LM ({{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}), why a KV cache exists ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}, section 9), and LoRA ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}); this page is the paper. <b>New terms:</b> <b>instruction features</b> (the paper's name for the prompt's keys and values in every block); <b>causal and bidirectional pass</b> (the two prefills, each with its own adapter); <b>α<sub>k</sub>, α<sub>v</sub></b> (the learned share of bidirectional keys and values in each block); <b>LoRA16</b> (the rank-16 baseline with Bitune's parameter count); <b>Naive Bidir.</b> (the mask simply switched off over the prompt: a prefix LM made from a pretrained decoder).</p>
+<details class="mist"><summary>Authors, versions and venue</summary><div class="b"><p>Dawid J. Kopiczko, Tijmen Blankevoort, Yuki M. Asano. {{arXiv 2405.14862|https://arxiv.org/abs/2405.14862}}: v1 on 23 May 2024 as "Bitune: Bidirectional Instruction-Tuning" (Vrije Universiteit Amsterdam, Meta, University of Amsterdam); v2 on 28 August 2025 under the current title (Fundamental AI Lab, University of Technology Nuremberg; Blankevoort at Meta). Published at {{EMNLP 2025|https://aclanthology.org/2025.emnlp-main.481/}}, main conference, pages 9510 to 9536. {{Project page|https://dkopi.github.io/bitune/}}. Added to this knowledge base on 2026-09-01 from a blog entry. Topics: llm-architecture, llm-training-and-post-training.</p></div></details>
+</section>
+</div>
+<div class="s3R"><div class="s3side">
 <figure class="pfig" id="heroFig">
 <div class="t">Two passes over the prompt meet only in the cache; the answer is generated the ordinary causal way</div>
 <div class="sc"><img src="img/bitune_fig1_overview.webp" alt="Left, prefilling: the prompt 'Eddie can bake 3 pies a day...' goes through causal attention with weights W_c, giving keys and values K_c, V_c in red, and through bidirectional attention with weights W_B, giving K_B, V_B in blue; the two are added into one row of mixed red-blue instruction features. Right, decoding: the LLM generates 'Eddie bakes 3 x 7 =' with causal attention and W_c, reading the mixed instruction features plus the red features of the tokens it has generated" loading="lazy" width="1600" height="520"></div>
 <figcaption>Notice that only the prompt (the instruction features) is mixed: the generated tokens' own keys and values stay purely causal, and the decoder that reads them is the usual one, so generation code does not change; the price is a second prefill pass and a second set of weights. Figure 1 of the paper ({{arXiv 2405.14862v2|ax:S0.F1}}), by Kopiczko, Blankevoort and Asano, {{CC BY 4.0|https://creativecommons.org/licenses/by/4.0/}}; swipe sideways on a phone.</figcaption>
 </figure>
-<p class="small"><b>You need:</b> the causal and bidirectional masks and the prefix LM ({{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}), why a KV cache exists ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}, section 9), and LoRA ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}); this page is the paper. <b>New terms:</b> <b>instruction features</b> (the paper's name for the prompt's keys and values in every block); <b>causal and bidirectional pass</b> (the two prefills, each with its own adapter); <b>α<sub>k</sub>, α<sub>v</sub></b> (the learned share of bidirectional keys and values in each block); <b>LoRA16</b> (the rank-16 baseline with Bitune's parameter count); <b>Naive Bidir.</b> (the mask simply switched off over the prompt: a prefix LM made from a pretrained decoder).</p>
-<details class="mist"><summary>Authors, versions and venue</summary><div class="b"><p>Dawid J. Kopiczko, Tijmen Blankevoort, Yuki M. Asano. {{arXiv 2405.14862|https://arxiv.org/abs/2405.14862}}: v1 on 23 May 2024 as "Bitune: Bidirectional Instruction-Tuning" (Vrije Universiteit Amsterdam, Meta, University of Amsterdam); v2 on 28 August 2025 under the current title (Fundamental AI Lab, University of Technology Nuremberg; Blankevoort at Meta). Published at {{EMNLP 2025|https://aclanthology.org/2025.emnlp-main.481/}}, main conference, pages 9510 to 9536. {{Project page|https://dkopi.github.io/bitune/}}. Added to this knowledge base on 2026-09-01 from a blog entry. Topics: llm-architecture, llm-training-and-post-training.</p></div></details>
-</section>
+</div></div></div>
 <nav class="nav" id="nav"><a href="#s-core">In one picture</a><a href="#s-prob">Problem</a><a href="#s-idea">Idea</a><a href="#s-method">Method</a><a href="#s-setup">Experiments</a><a href="#s-res">Results</a><a href="#s-abl">Ablations</a><a href="#s-cost">Cost</a><a href="#s-toy">The toy</a><a href="#s-trust">Believe?</a><a href="#s-use">Use it</a><a href="#s-why">Why it matters</a><a href="#s-conn">Connections</a></nav>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-prob"><h2>Problem: the prompt is read through a mask meant for generation</h2>
 [[S1|§1, §2]]
-<p>An instruction-tuned model <b>prefills</b> the whole instruction at once, storing every token's keys and values in every block (the instruction features), then <b>decodes</b> the answer token by token against that cache: <i>p</i>(<i>a</i>|<i>q</i>) = Π<sub><i>i</i></sub> <i>p</i>(<i>a<sub>i</sub></i> | <i>a</i><sub>1</sub>, ..., <i>a</i><sub><i>i</i>−1</sub>, <i>q</i>) ({{§2|ax:S2}}). Decoder-only models apply the causal mask to both phases. It exists for generation, but the prefilled prompt is <b>already fully available</b>, so every prompt token's features are computed from the tokens to its left only. Click a token below to see what it can attend to, in the paper's own prompt template:</p>
+<p>An instruction-tuned model <b>prefills</b> the whole instruction at once, storing every token's keys and values in every block (the instruction features), then <b>decodes</b> the answer token by token against that cache: <i>p</i>(<i>a</i>|<i>q</i>) = Π<sub><i>i</i></sub> <i>p</i>(<i>a<sub>i</sub></i> | <i>a</i><sub>1</sub>, ..., <i>a</i><sub><i>i</i>−1</sub>, <i>q</i>) ({{§2|ax:S2}}). Decoder-only models apply the causal mask to both phases. It exists for generation, but the prefilled prompt is <b>already fully available</b>, so every prompt token's features are computed from the tokens to its left only. Click a token in the explorer beside this to see what it can attend to, in the paper's own prompt template.</p>
 <details class="mist"><summary>The two phases as §2 states them</summary><div class="b"><p>An instruction-tuned model answers in two phases ({{§2|ax:S2}}). <b>Prefilling</b> runs the whole instruction through the model at once and stores, for every token and every block, its key and value vectors (the KV cache; the paper calls them <i>instruction features</i>). <b>Decoding</b> then generates the answer one token at a time, each new token attending to that cache and to the answer so far. The answer is conditional on the instruction from its very first token. Decoder-only models apply the causal mask everywhere, prompt included. The mask exists for generation: a token being predicted must not see the future. When the prompt is prefilled it is already fully available, so masking it throws information away.</p></div></details>
-<div class="card" id="mk">
-<div class="seg" id="mkM" role="group" aria-label="Mask"><button class="on" data-m="causal" aria-pressed="true">causal (every decoder today)</button><button data-m="bidir" aria-pressed="false">bidirectional (Bitune's second pass)</button><button data-m="anti" aria-pressed="false">anti-causal (Table 8)</button></div>
-<div class="chips" id="mkChips"></div>
-<div id="mkSvg"></div>
-<p class="small" id="mkOut" aria-live="polite"></p>
-<p class="small mute">The ARC template of {{Appendix A.10|ax:A1.SS10}} filled with the ARC example of {{Appendix A.9|ax:A1.SS9}}; one word per token for readability (a real tokenizer splits finer).</p>
-</div>
 <div class="pred" id="pr-see" data-ans="1"><div class="q">Under the causal mask, which part of this prompt can the <b>first answer token</b> attend to?</div>
 <div class="opts"><button>Only the last few tokens before it</button><button>All of it</button><button>Only the question, not the choices</button></div>
 <div class="fb"></div>
@@ -30,7 +28,18 @@
 <p>Bidirectional encoders (BERT, T5's encoder) and decoders turned into embedding models (LLM2Vec, NV-Embed) already read their input both ways ({{§1|ax:S1}}; the masks and families compared: {{Families and objectives|n:3fd5c17b0d0d8105b616c17c1439f766}}). Bitune asks a narrower question: can a pretrained decoder get that benefit for ordinary instruction following, without changing the pretrained model or the way it generates?</p>
 <details class="mist"><summary>The evidence for the weakness the paper cites</summary><div class="b"><p>BERT<sub>BASE</sub> was sized to match OpenAI's GPT and scored 79.6 against GPT's 75.1 on the GLUE average ({{BERT Table 1|https://arxiv.org/html/1810.04805v2#S3.T1}}), and T5 and BERT both use bidirectional attention over the input ({{§1|ax:S1}}). Work that turns decoder LLMs into text encoders switches the mask off: LLM2Vec enables bidirectional attention as its first step ({{LLM2Vec|https://arxiv.org/abs/2404.05961}}), and NV-Embed removes "the causal attention mask of LLMs during contrastive training" ({{NV-Embed|https://arxiv.org/abs/2405.17428}}).</p></div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card" id="mk">
+<div class="seg" id="mkM" role="group" aria-label="Mask"><button class="on" data-m="causal" aria-pressed="true">causal (every decoder today)</button><button data-m="bidir" aria-pressed="false">bidirectional (Bitune's second pass)</button><button data-m="anti" aria-pressed="false">anti-causal (Table 8)</button></div>
+<div class="chips" id="mkChips"></div>
+<div id="mkSvg"></div>
+<p class="small" id="mkOut" aria-live="polite"></p>
+<p class="small mute">The ARC template of {{Appendix A.10|ax:A1.SS10}} filled with the ARC example of {{Appendix A.9|ax:A1.SS9}}; one word per token for readability (a real tokenizer splits finer).</p>
+</div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3R"><div id="stg-bt"></div></div><div class="s3L">
 <section id="s-idea"><h2>Idea: read the prompt twice, mix the two caches, generate as usual</h2>
 [[S0.F1|Figure 1, Algorithm 1]]
 <p>The figure at the top is the whole method ({{Figure 1|ax:S0.F1}}, {{Algorithm 1|ax:S2}}). The one design choice it does not show is why the two passes have <b>different weights</b>: so the model can learn to produce and read bidirectional features differently, instead of pushing them through weights trained on causal ones (the ablations below test exactly this).</p>
@@ -42,27 +51,34 @@
 <li><b>Mixing.</b> In every block the two sets of keys and values are averaged with learned weights, and the result becomes the KV cache.</li>
 <li><b>Generation is unchanged</b>: strictly causal, with the original weights, reading the mixed cache. The answer tokens' own keys and values are ordinary causal ones.</li>
 </ol></div></details>
-<p>Here is the whole thing on this page's trained toy (a 3-block decoder, explained {{below|tab:t-read:s-toy}}): the same prompt, prefilled the standard way and then the Bitune way. The grids are the real attention weights of the toy's first block, averaged over its 4 heads; each row is a query token, each column a token it reads.</p>
-<div class="card" id="pf">
-<div class="an-top"><div class="seg" id="pfM" role="group" aria-label="Method"><button class="on" data-m="lora" aria-pressed="true">Standard (LoRA): one causal pass</button><button data-m="bitune" aria-pressed="false">Bitune: two passes, mixed</button></div></div>
-<div id="pfSvg" class="an-svg"></div>
-<div class="an-ctl"><button id="pfBack" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="pfPlay" class="an-play" aria-label="Play">&#9654; Play</button><button id="pfFwd" aria-label="Next step" title="Next step">&#9654;&#9654;</button>
-<input type="range" id="pfScrub" min="0" max="100" value="0" step="1" aria-label="Scrub through the steps">
-<label class="small">Speed <select id="pfSpd"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label></div>
-<div class="an-cap" aria-live="polite"><div class="t" id="pfStep"></div><p id="pfCap"></p></div>
-<div class="an-cnt" id="pfCnt"></div>
-<p class="small mute">Computed live by the toy in your browser (the same forward pass as {{Run Bitune|tab:t-run}}). Counters: block evaluations are tokens × blocks per pass. Nothing moves until you press play or step.</p>
-</div>
+<p><b>Fig. 2 runs it on this page's trained toy</b> (a 3-block decoder with 4 heads, explained {{below|tab:t-read:s-toy}}), with the shipped seed-0 models computing every bar in your browser. The prompt is "&lt;bos&gt; Eve Max Ada Xan Ivy ? chess"; only Ada is in the chess club, and the toy learned each membership with the club named first. A glass plate is one pass's attention in block 1, averaged over the 4 heads: rows are the query tokens (back to front), columns the tokens they read, bar height the weight. <span class="btC">Orange</span> is causal and <span class="btB">blue</span> bidirectional, as in the paper's Figure 1.</p>
+<div class="seg" id="btM" role="group" aria-label="Prefill"><button class="on" data-m="bitune" aria-pressed="true">Bitune: two passes, mixed</button><button data-m="lora" aria-pressed="false">Standard (LoRA): one causal pass</button></div>
+<ol class="sx" id="sx-bt">
+<li><b>The prompt.</b> Eight tokens: five people, then the question "? chess". Only <span class="btMem">Ada</span> is a member.</li>
+<li><b>Pass 1: causal, the default adapter.</b> Exactly the standard prefill, giving the features the pretrained model expects (K<sub>c</sub>, V<sub>c</sub>). The shaded cells are the mask: each row reads only the columns to its left, so no person token can see "chess", and none of their keys and values can say "member of the club being asked about".</li>
+<li><b>Pass 2: bidirectional, its own adapter.</b> No mask: every row may read every column. The person rows now put <span class="btQC"></span> of their block-1 attention on "?" and "chess" to their right (the flowing dots), so from block 2 on each person's keys and values can carry whether that person is a member (K<sub>b</sub>, V<sub>b</sub>).</li>
+<li><b>Two caches.</b> Each pass leaves one key and one value per prompt token and block, 8 tokens × 3 blocks each. The two passes ran side by side through the whole network; they meet only here.</li>
+<li><b>Mix, block by block.</b> K = K<sub>c</sub>(1 − α<sub>k</sub>) + K<sub>b</sub>α<sub>k</sub>, the same for V, with one learned α<sub>k</sub> and one α<sub>v</sub> per block (this toy learned α<sub>k</sub> <span class="btAk"></span> and α<sub>v</sub> <span class="btAv"></span>; the dots' density is each side's share). The mixed cache keeps the usual size.</li>
+<li><b>One entry up close.</b> <span class="btMem">Ada</span>'s key in block 2, 32 numbers as signed bars: the causal key, the bidirectional key and their mix with α<sub>k</sub> = <span class="btAkB"></span>. Block 2 is the first whose keys can carry context from the right, because block 1's keys are projections of the token embeddings ({{Method|tab:t-read:s-method}}).</li>
+<li><b>The answer, generated causally.</b> ":" reads the mixed cache with the ordinary causal weights (the dots' density is its attention to each token, averaged over blocks and heads); its own key and value are plain causal ones appended to the cache, and every later token (here &lt;eos&gt;) is generated as before. Probability on <span class="btMem">Ada</span>: <span class="btPB"></span>, against <span class="btPL"></span> after plain LoRA.</li>
+</ol>
+<ol class="sx" id="sx-lr" hidden>
+<li><b>The prompt.</b> The same eight tokens.</li>
+<li><b>One causal pass.</b> Block 1 of the only pass, averaged over heads: each row reads only the columns to its left (the shaded cells are masked), so no person token can see "chess".</li>
+<li><b>The cache.</b> Every prompt token leaves one key and one value per block: 8 tokens × 3 blocks = 24 entries, the same size as Bitune's mixed cache.</li>
+<li><b>The answer.</b> ":" reads the whole cache, so it sees every token, but it must pick the member from features that were built without the question. Probability on <span class="btMem">Ada</span>: <span class="btPL"></span> (Bitune: <span class="btPB"></span>).</li>
+</ol>
+<div class="out" id="btOut" aria-live="polite"></div>
+<p class="small mute">Computed live by the toy in your browser (the same forward pass as {{Run Bitune|tab:t-run}}, checked against PyTorch). Block evaluations are tokens × blocks per pass. Drag the figure to turn it.</p>
 </section>
+</div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-method"><h2>Method</h2>
 [[S2|§2, Eq. 1 to 8]]
 <p><b>Two sets of features</b> per block ({{Eq. 1, 2|ax:S2.E1}}): causal K<sub>c</sub> = X<sub>c</sub>W<sub>kc</sub>, V<sub>c</sub> = X<sub>c</sub>W<sub>vc</sub>, and bidirectional K<sub>b</sub> = X<sub>b</sub>W<sub>kb</sub>, V<sub>b</sub> = X<sub>b</sub>W<sub>vb</sub>. X<sub>c</sub> and X<sub>b</sub> are each pass's own input to the block: the token embeddings in the first block, then the previous block's output of the same pass. So the two passes run through the whole network side by side; they meet only in the cache. One consequence: in the first block the keys and values are projections of the token embeddings, computed before any attention, so the mask cannot change them there; bidirectional context first reaches the cache in the second block's keys and values (with separate adapters, the first block's still differ by the adapters). Attention is the usual softmax(QK<sup>T</sup>/√d<sub>k</sub> + M)V ({{Eq. 3|ax:S2.E3}}) with M<sub>c</sub>(i, j) = −∞ for future tokens and M<sub>b</sub> = 0 everywhere ({{Eq. 4, 5|ax:S2.E4}}).</p>
 <div class="fm"><div class="eq">K<sub>Bitune</sub> = K<sub>c</sub>(1 − α<sub>k</sub>) + K<sub>b</sub> α<sub>k</sub>, &nbsp; V<sub>Bitune</sub> = V<sub>c</sub>(1 − α<sub>v</sub>) + V<sub>b</sub> α<sub>v</sub>, &nbsp; α<sub>j</sub> = |θ<sub>j</sub>| / (θ<sub>init</sub> + |θ<sub>j</sub>|)</div><div class="wh">{{Eqs. 6 to 8|ax:S2.E6}}: a convex combination per block, with one learnable θ for keys and one for values in every block (the authors' code: <code>pass_scale_k</code>, <code>pass_scale_v</code>; {{repository|https://github.com/dkopi/bitune}}). θ<sub>init</sub> = 0.01 ({{Table 9|ax:A1.T9}}).</div></div>
-<p>Two details of Eq. 8 that the paper leaves implicit (the code initialises θ to θ<sub>init</sub>, in <code>PassScale</code>, variant 607): α starts at exactly 0.5, an even mix, whatever θ<sub>init</sub> is, and θ<sub>init</sub> sets only how fast α can move. Try it:</p>
-<div class="card" id="al">
-<div class="ctl"><label>θ<sub>init</sub> <select id="alInit"><option value="0.1">0.1</option><option value="0.01" selected>0.01 (the paper's default)</option><option value="0.001">0.001</option></select></label><label>|θ| = <b id="alThV"></b><input type="range" id="alTh" min="-4" max="0" step="0.02" value="-2" aria-label="theta, log scale"></label></div>
-<div id="alSvg"></div><p class="small" id="alOut" aria-live="polite"></p></div>
+<p>Two details of Eq. 8 that the paper leaves implicit (the code initialises θ to θ<sub>init</sub>, in <code>PassScale</code>, variant 607): α starts at exactly 0.5, an even mix, whatever θ<sub>init</sub> is, and θ<sub>init</sub> sets only how fast α can move. Try it in the explorer beside this.</p>
 <p><b>In the experiments</b> the bidirectional pass has its own LoRA adapter on every linear layer of attention and MLP, not only on the key and value projections that Eqs. 1 and 2 name; training back-propagates the answer's loss through both caches into both adapters and the θs, three forward passes where standard instruction tuning needs one ({{§2|ax:S2}}, {{Limitations|ax:S5}}).</p>
 <details class="mist"><summary>Implementation details: which weights are separate, training, starting generation, fp32 mixing, several turns</summary><div class="b">
 <p><b>Which weights are separate.</b> Eqs. 1 and 2 name only the key and value projections, but "the components of the model, other than the key and value projections, can have their own separate sets of weights as well" ({{§2|ax:S2}}), and in the experiments they do: the bidirectional pass runs with its own LoRA adapter on every linear layer of attention and MLP (the code's <code>prefill</code> adapter), the causal pass and the answer with the other (<code>default</code>). With full weights that would mean a second copy of the model, impractical for large models, so the default is LoRA ({{§2, Parameter Efficient Fine-tuning|ax:S2}}); full finetuning with two full weight sets is tested too (Table 7).</p>
@@ -71,6 +87,12 @@
 <p><b>Several turns</b> ({{Appendix A.8|ax:A1.SS8}}, not tested): either recompute the whole history's cache bidirectionally every round, or alternate: prefill each new instruction with both masks and append it, generate with causal features only, repeat.</p>
 </div></details>
 </section>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card" id="al">
+<div class="ctl"><label>θ<sub>init</sub> <select id="alInit"><option value="0.1">0.1</option><option value="0.01" selected>0.01 (the paper's default)</option><option value="0.001">0.001</option></select></label><label>|θ| = <b id="alThV"></b><input type="range" id="alTh" min="-4" max="0" step="0.02" value="-2" aria-label="theta, log scale"></label></div>
+<div id="alSvg"></div><p class="small" id="alOut" aria-live="polite"></p></div>
+</div></div></div>
 
 <section id="s-setup"><h2>Experiments</h2>
 [[S3.SS1|§3.1, Appendix A.2, A.3]]
@@ -84,14 +106,19 @@
 </ul>
 </section>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-res"><h2>Results</h2>
 [[S3.T1|Tables 1 to 3, 6, 7, 16, 17]]
 <p><b>Instruction tuning</b> ({{Table 1|ax:S3.T1}}). Over LoRA, the 5-task average rises by <b>+4.0</b> points on Gemma-2B (and +9.3 over the pretrained model), +2.3 on Llama3-8B, +1.4 on Llama2-7B, +0.9 on Phi-2, and only +0.1 on Gemma-7B, the one model where every finetuning method lowered MMLU below the pretrained model's 59.0. Against the parameter-matched LoRA16 the gains are similar (+4.3, +1.8, +1.4, +1.0, +0.5): extra parameters alone do not explain them, because LoRA16 lands within half a point of LoRA on every model. Averages, with ±1 standard error from the three seeds:</p>
-<div class="card"><div id="resSvg"></div><p class="small mute">From {{Table 1|ax:S3.T1}}, {{Table 2|ax:S3.T2}} and the seed spreads in {{Tables 21 and 22|ax:A1.T21}} (the error bar of an average treats the 5 tasks as independent: an approximation). Per task, and against LoRA16 or the pretrained model: {{the tables tab|tab:t-tables:tbGain}}.</p></div>
 <p><b>Trained on each task</b> ({{Table 2|ax:S3.T2}}): smaller average gains (+1.4 Gemma-2B, +0.6 Llama3-8B and Phi-2, +0.1 Gemma-7B and Llama2-7B), and on SIQA Bitune trails the better of the two LoRA baselines on all five models. The consistent win is <b>GSM8K</b>, the one generative task: +2.8 (Gemma-2B), +3.0 (Llama3-8B), +0.9, +0.6, +0.3. <b>Chain of thought</b> ({{Table 3|ax:S3.T3}}): +2.4 on Gemma-2B and +1.3 on Llama3-8B, ahead on every task, with the largest step on GSM8K (+3.4 and +3.2). <b>Codestral-22B</b> on GSM8K: 69.3 to 73.6, +4.3, "even for larger models, which already have strong performance" ({{Table 17|ax:A1.T17}}; one task, one model). <b>Alpaca</b>: +3.4 and +1.0 ({{Table 16|ax:A1.T16}}).</p>
 <p><b>Other ways to update the weights</b> ({{Table 6|ax:S3.T6}}, {{Table 7|ax:S3.T7}}): with DoRA +4.0 and +1.6, with IA3 +2.4 and +1.0 (Gemma-2B and Llama3-8B), and with full finetuning of two full weight sets on Gemma-2B 47.5 to 49.3 (+1.8). The paper writes "gains ranging from +1.6% to +4.0%"; recomputed from its own table, the range is +1.0 to +4.0 ({{checks|tab:t-tables:tbChecks}}).</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card"><div id="resSvg"></div><p class="small mute">From {{Table 1|ax:S3.T1}}, {{Table 2|ax:S3.T2}} and the seed spreads in {{Tables 21 and 22|ax:A1.T21}} (the error bar of an average treats the 5 tasks as independent: an approximation). Per task, and against LoRA16 or the pretrained model: {{the tables tab|tab:t-tables:tbGain}}.</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-abl"><h2>Ablations: which part does the work?</h2>
 [[S3.SS5|§3.5, Tables 5, 8, 15]]
 <p>Four variants, each answering one question ({{§3.5|ax:S3.SS5}}), on Gemma-2B and Llama3-8B:</p>
@@ -105,12 +132,16 @@
 <div class="opts"><button>It helps, on both models</button><button>It hurts: the pretrained features expect the causal mask</button><button>No measurable difference</button></div>
 <div class="fb"></div>
 <div class="reveal" hidden><p>It helps on UltraFeedback: 45.7 to 47.9 on Gemma-2B and 70.4 to 71.9 on Llama3-8B ({{Table 5|ax:S3.T5}}). Every ablated variant beats LoRA. But it is not robust: on Alpaca, Naive Bidir. scores 66.9 against LoRA's 67.2 on Llama3-8B ({{Table 16|ax:A1.T16}}), while Bitune stays ahead (68.2). The full method wins every comparison, but some by little:</p></div></div>
-<div class="card"><div id="ablSvg"></div>
-<p class="small mute">The 5-task averages of {{Table 5|ax:S3.T5}}, with ±1 standard deviation of the average from {{Table 23|ax:A1.T23}} (tasks treated as independent). Bitune's lead over the best ablation is 0.8 points (No Mixing, 1.6 standard errors) on Gemma-2B and 0.4 (Shared Weights, 1.5 standard errors) on Llama3-8B. The toy's panel (axis from 80%): the same variants on this page's toy task, mean ± SD of 3 seeds ({{Run Bitune|tab:t-run}}).</p></div>
 <p><b>The second pass's mask</b> ({{Table 8|ax:S3.T8}}): causal 46.9 / 71.1, anti-causal (each token sees only what follows it) 46.7 / 71.4, bidirectional 49.7 / 72.7 (Gemma-2B / Llama3-8B). "Combining causal and anti-causal features independently does not lead to the same high performance": each token has to see both sides in the same pass.</p>
 <p><b>The mixing coefficient's start</b> ({{Table 15|ax:A1.T15}}): θ<sub>init</sub> 0.1, 0.01, 0.001 give 49.4, 49.7, 47.2 on Gemma-2B and 72.7, 72.7, 72.3 on Llama3-8B. Read from the vector data of {{Figures 2 and 3|ax:A1.F2}}, the trained Llama3-8B ends at α ≈ 0.32 on average with θ<sub>init</sub> 0.01: about two thirds causal, one third bidirectional, every block between 0.06 and 0.55 ({{rebuilt|tab:t-tables:tbFigs}}). The trained model does not abandon its causal features; it adds some bidirectional ones.</p>
 </section>
+</div>
+<div class="s3R"><div class="s3side">
+<div class="card"><div id="ablSvg"></div>
+<p class="small mute">The 5-task averages of {{Table 5|ax:S3.T5}}, with ±1 standard deviation of the average from {{Table 23|ax:A1.T23}} (tasks treated as independent). Bitune's lead over the best ablation is 0.8 points (No Mixing, 1.6 standard errors) on Gemma-2B and 0.4 (Shared Weights, 1.5 standard errors) on Llama3-8B. The toy's panel (axis from 80%): the same variants on this page's toy task, mean ± SD of 3 seeds ({{Run Bitune|tab:t-run}}).</p></div>
+</div></div></div>
 
+<div class="s3sp"><div class="s3L">
 <section id="s-cost"><h2>Cost</h2>
 [[S3.SS4|§3.4, Table 4, Appendix A.4]]
 <p><b>Training</b> ({{Table 14|ax:A1.T14}}): 3.1 times the time (1.0 to 3.1 hours on Gemma-2B, 1.7 to 5.3 on Llama3-8B, one A100) and 16% to 33% more peak memory (14.9 to 19.8 GB, 26.6 to 30.8 GB). The implementation runs the two prompt passes one after the other and "has not been optimized".</p>
@@ -119,13 +150,16 @@
 <div class="opts"><button>Under 1%</button><button>About 2 times</button><button>About 9 times</button></div>
 <div class="fb"></div>
 <div class="reveal" hidden><p>0.6% (62.18 s to 62.56 s). Generation is 31 ms per token, prefill well under a millisecond per token, so the prefill hardly counts, and the paper concludes the extra latency is "negligible". That holds for long answers. Move the sliders to a short answer after a long prompt (classification, retrieval-augmented question answering, a judge) and it stops holding:</p></div></div>
+<p>Two more costs follow from the design, though the paper does not discuss them (<i>beyond the paper; our reasoning</i>): a bidirectional prompt cache cannot be shared between requests that start with the same text, because every token's keys and values now depend on what comes after it, so serving engines' prefix caching ({{vLLM's automatic prefix caching|https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/}}; how prefix caching works: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}) no longer applies to it; and LoRA can usually be merged into the base weights for free serving ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}), while Bitune needs two different weight sets at prefill time, so it keeps one adapter live or holds two merged copies.</p>
+</section>
+</div>
+<div class="s3R"><div class="s3side">
 <div class="card" id="cs">
 <div class="ctl"><label>Prompt tokens: <b id="csPV"></b><input type="range" id="csP" min="1.7" max="4.6" step="0.001" value="3.301" aria-label="prompt tokens, log scale"></label><label>Answer tokens: <b id="csAV"></b><input type="range" id="csA" min="0" max="3.6" step="0.001" value="3.301" aria-label="answer tokens, log scale"></label></div>
 <div class="chips"><button id="csE1">2,000 : 2,000 (Table 4)</button><button id="csE2">200 : 50 (v1)</button><button id="csE3">50 : 200 (v1)</button><button id="csE4">32,000 : 200 (long document)</button></div>
 <div id="csSvg"></div><div class="hn" id="csOut"></div>
 <p class="small mute">Illustrative: a straight-line extension of the one measurement in {{Table 4|ax:S3.T4}} (Gemma-2B, one A100; 0.015 ms per prompt token for LoRA, 0.14 for Bitune, 31.1 ms per generated token, assumed the same for both; measured, Bitune's 2,000 tokens took 62.28 s against 62.15 s). Real prefill cost grows faster than linearly at long context, so long prompts are, if anything, underestimated. Measured, in the v1 paper's appendix: a 200-token prompt with a 50-token answer took 11.5% longer on Gemma-2B and 14.2% on Llama3-8B; a 50-token prompt with a 200-token answer 6.5% and 1.5% ({{v1 Appendix 6.4|https://arxiv.org/html/2405.14862v1#S6.SS4}}; {{all cost tables|tab:t-tables:tbCost}}).</p></div>
-<p>Two more costs follow from the design, though the paper does not discuss them (<i>beyond the paper; our reasoning</i>): a bidirectional prompt cache cannot be shared between requests that start with the same text, because every token's keys and values now depend on what comes after it, so serving engines' prefix caching ({{vLLM's automatic prefix caching|https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/}}; how prefix caching works: {{Batching, KV cache and scheduling in depth|n:3c65c17b0d0d819db53bd2c48909e5b2}}) no longer applies to it; and LoRA can usually be merged into the base weights for free serving ({{PEFT|n:3c65c17b0d0d81eba08eef56b3e3b4eb}}), while Bitune needs two different weight sets at prefill time, so it keeps one adapter live or holds two merged copies.</p>
-</section>
+</div></div></div>
 
 <section id="s-toy"><h2>A toy where the mechanism is visible</h2>
 <p>The paper reports benchmark averages; it does not show <i>when</i> bidirectional prompt features should matter. This page's toy is built to make that visible ({{Run Bitune|tab:t-run}} has all of it). 48 people and 32 clubs, with a fixed random membership table. A tiny decoder (3 blocks, width 32, 4 heads, 41,472 parameters) is pretrained causally on two kinds of text: facts stated club first ("chess Ada yes"), and questions asked <b>before</b> the list ("? chess Ada Ben Cy : Ben"). Then it is instruction-tuned, with rank-4 LoRA on every linear layer, on a new template that asks the question <b>after</b> the list, the way a document followed by a question does:</p>

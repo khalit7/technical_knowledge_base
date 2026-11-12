@@ -6,7 +6,7 @@
 
 | Tab | id | What it holds |
 |---|---|---|
-| The paper | `t-read` | Card with verdict; the core sentence and the hero (the paper's Figure 1), You need and new terms; Problem (mask explorer on the paper's own template, predict question on what the answer token sees); Idea (prefill animation: one causal pass against Bitune's two passes and mix, live on the toy); Method (Eqs. 1 to 8, α(θ) explorer, which weights are separate, training, ":" moved, fp32 mixing, multi-turn); Experiments; Results (gains with noise); Ablations (predict question; Table 5 beside the toy); Cost (predict question, cost calculator, prefix caching and adapter merging); The toy (predict question); How much to believe; What it takes; Why it matters; Connections. |
+| The paper | `t-read` | Card with verdict; the core sentence and the hero (the paper's Figure 1), You need and new terms; Problem (mask explorer on the paper's own template, predict question on what the answer token sees); Idea (3D stage Fig. 2: Bitune's two passes, two caches, the mix and the answer, or LoRA's one causal pass, live on the toy); Method (Eqs. 1 to 8, α(θ) explorer, which weights are separate, training, ":" moved, fp32 mixing, multi-turn); Experiments; Results (gains with noise); Ablations (predict question; Table 5 beside the toy); Cost (predict question, cost calculator, prefix caching and adapter merging); The toy (predict question); How much to believe; What it takes; Why it matters; Connections. |
 | Run Bitune | `t-run` | The live ingredient: a 41,472-parameter causal decoder pretrained on a toy world, instruction-tuned with LoRA, LoRA at twice the rank, Naive Bidir., No Mixing, Only Causal, Shared Weights, an anti-causal second pass, Bitune and a question-first control, 3 seeds each; shipped seed-0 models (6-bit) run in the browser: ask, attention maps of every pass, learned α, results, curves, in-browser test. |
 | The paper's tables, rebuilt | `t-tables` | Table explorer (12 tables, seed spreads and differences in standard errors), Table 1 gains with error bars, checks on the text, Figures 2 and 3 decoded from vector SVG, cost tables (with v1's dropped inference table), the A.13 GSM8K samples graded. |
 | Further reading | `t-more` | Generated from `paper.json`. |
@@ -26,8 +26,8 @@
   - `uv run --with torch --with numpy python train.py pretrain` (about 4 minutes), `... train.py lr`, `... train.py finetune` (about 25 minutes for 27 runs on 2 threads), `... train.py export`, `... check_forward.py`, `... overlap.py`; then `sh build.sh`.
 - `paper.json`, `tables.json`, `mk_paper.py` (card, Further reading, `parts/_gen_data.js`).
 - `inputs/`: paper text v1 and v2, anchors, raw tables, `figs.json`, `gsm8k_samples.json` (A.13 graded), `acl_meta.txt`, `repo_README.md`, `repo_code_extract.txt` (`passes.py` and `PassScale`; the repository has no licence, so only these short extracts are kept as evidence), `repo_api.json`, `later_extracts.txt` (abstracts of LLM2Vec, NV-Embed, Encoder-Decoder Gemma, echo embeddings, UniLM, T5).
-- Parts: `03_paper`, `04_run`, `05_tables`, `13_js_read` (mask, α, cost, small charts), `20_model_data` (generated weights), `22_js_model` (forward pass), `23_js_run`, `24_js_tables`, `26_js_pf` (the prefill animation).
-- `check_page.mjs` (node, from the repo root): every control in both themes and widths, the animation stepped, the in-browser test run; since 2026-10-25 it also fails if the prefill animation moves before a click, and opens every closed block. `label_ledger.py`: labels `ledger.json` (see below). `reading.json`: the header's reading time, measured with `html_utils/audit_pages.mjs` and written by hand. `mk_coverage.py`: `coverage.json`.
+- Parts: `03_paper`, `04_run`, `05_tables`, `13_js_read` (mask, α, cost, small charts), `20_model_data` (generated weights), `22_js_model` (forward pass), `23_js_run`, `24_js_tables`, `25_js_s3` (the template renderer), `31_js_sc_bt` (the Fig. 2 stage; `26_js_pf`, the 2D prefill animation, was removed on 2026-11-12).
+- `check_page.mjs` (node, from the repo root): every control in both themes and widths, the animation stepped, the in-browser test run; it opens every closed block and, since 2026-11-12, checks that the stage plays once in view (the 2026-10-25 never-autoplay assertion inverted). `check_stages.mjs`: the rollout's stage checks (1400 light, 920 light, 390 dark; both modes; reduced motion). `label_ledger.py`: labels `ledger.json` (see below). `reading.json`: the header's reading time, measured with `html_utils/audit_pages.mjs` and written by hand. `mk_coverage.py`: `coverage.json`.
 
 ## Checks
 
@@ -63,3 +63,27 @@ Why about 20 minutes is right: the paper is short, but this page owns its whole 
 
 ## Checks (25 October 2026)
 `checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0. `check_page.mjs`: 310 actions, 0 problems (including no movement before a click and every closed block opened). `mk_coverage.py`: 36 of 36 (three keys updated for the rewording and the softened takeaway). Page 315,611 bytes (122 KB of it the toy's weights).
+
+## The 2026-11-12 layout rollout (split layout, renderer v2 stage, autoplay)
+
+What changed and why:
+- **Split layout** (template `02_split.html`, unchanged): The paper tab: the opening (text left, the paper's Figure 1 right), Problem (mask explorer right), Idea (the new stage), Method (α explorer), Results (gains chart), Ablations (Table 5 chart), Cost (calculator). Experiments, the toy, How much to believe, Use, Why it matters and Connections have no visual and stay full width. Run tab: Ask the models, Look inside and Results from training split (notes left, controls and charts right; the captions became the notes, and `raOut` and `rrOut` moved left); the setup, the in-browser test and the limits card stay full width. Tables tab: Table 1 as gains and Figures 2 and 3 split (caption left); the tables stay full width. Further reading unchanged.
+- **One 3D stage** (template `25_js_s3.js`, renderer v2, unchanged), `31_js_sc_bt.js`, Fig. 2 in Idea. It replaces the 2D prefill animation (`26_js_pf.js`, removed) and keeps its before/after: a toggle (`#btM`) swaps the step list between Bitune (7 steps) and standard LoRA (4 steps) and replays. The causal and bidirectional passes are glass plates over the prompt tokens with block 1's real attention (averaged over 4 heads) as bars and the masked cells shaded; flows carry the tokens into each pass, the person rows' reads of "?" and "chess", each pass into its cache, both caches into the mixed one (dot density by α) and the mixed cache into ":" (density by its attention). A close step shows the member's block-2 key as signed bars: K_c, K_b and the mix. Everything comes from `BT.run` on the shipped seed-0 LoRA and Bitune models, computed in the browser; the numbers quoted in the step list (shares of attention, α per block, the probability on the member) are written in from the same run. Pass colours follow the paper's Figure 1 (causal orange, bidirectional blue).
+- **Kept 2D**: the mask explorer (a click widget over the paper's 22-token template; a binary matrix reads flat), the α(θ) curves, the gains and ablation charts, the cost calculator, every Run-tab chart (heatmaps and curves the reader drives) and every table.
+- **Hero**: the paper's own Figure 1 stays the hero (a canonical figure, CC BY 4.0); the 3D stage is the Idea section's figure.
+- **Motion**: `11_js_ui.js` recopied from the Agora page (its `makeAnim` follows the 2026-11-06 rules; no part of this page uses it now); `99_js_tabs.js` and `05z_errbox.js.html` recopied from the templates (storage key `bitune-tab`; the template no longer opens a closed block next to a `data-to` target, which no link here needed).
+
+## Length judgement (2026-11-12)
+| | Before (audit 2026-11-12, pre-pass) | After |
+|---|---|---|
+| The paper, core | 19.6 min (4,513 words) | 21.7 min (5,002) |
+| The paper, closed | 4.0 min (920) | 4.0 min (920) |
+| Run Bitune; tables; Further reading | 4.1; 6.9; 1.9 min | unchanged (950; 1,580; 447 words) |
+| Visuals in The paper (audit) | 6 | 6 |
+
+The growth is the two step lists that explain the stage; the audit counts the hidden LoRA list too (about 110 words), so one reading is about 21 minutes. Nothing was cut; the old animation's captions lived only in its script. Header: "Reading: 22 min, plus 4 in closed details."
+
+Ledger: 234 units (core 194, depth 32, owned 4, volatile 2, fat 2); 9 keys re-pointed to the reworded sentences (units 21, 39 to 42, 55, 183, 185, 188), 2 units added for the stage's steps; `ledger.py check` problems 0.
+
+## Checks (12 November 2026)
+`checkpage.sh`: tabs 4, fail=0, emdash 0, errbox 1, clipped 0 (about 359 KB, 122 KB of it the toy's weights). `check_page.mjs`: 282 actions, 0 problems. `check_stages.mjs`: 3 stage runs (three widths, both modes), 0 problems. `mk_coverage.py`: 36 of 36.
