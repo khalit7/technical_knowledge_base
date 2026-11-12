@@ -37,8 +37,8 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   };
   const counts = {};
   // animation: every step via the range, buttons, segments
-  const amax = await p.$eval('#tm-as', s => +s.max);
-  for (let v = 0; v <= amax; v++) { await p.evaluate(v => { const s = document.getElementById('tm-as'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await check('anim ' + v) }
+  const amax = await p.$eval('#tm-actl-s', s => +s.max);
+  for (let v = 0; v <= amax; v++) { await p.evaluate(v => { const s = document.getElementById('tm-actl-s'); s.value = v; s.dispatchEvent(new Event('input')) }, v); await check('anim ' + v) }
   counts.animSteps = amax + 1;
   counts.animBtns = await clickAll('#tm-actl button', 'anim button');
   counts.animBtns += await clickAll('#tm-aseg button', 'anim seg');
@@ -63,7 +63,7 @@ for (const [scheme, width] of [['dark', 390], ['light', 920]]) {
   await p.evaluate(() => document.querySelectorAll('#t-map details').forEach(d => d.open = true));
   counts.links = await p.$$eval('#t-map a[data-tab]', a => a.length);
   await check('final');
-  await p.evaluate(() => { const s = document.getElementById('tm-as'); s.value = 0; s.dispatchEvent(new Event('input')); window.scrollTo(0, 0) });
+  await p.evaluate(() => { const s = document.getElementById('tm-actl-s'); s.value = 0; s.dispatchEvent(new Event('input')); window.scrollTo(0, 0) });
   await sleep(300);
   await p.screenshot({ path: path.join(outdir, `tm-${scheme}-${width}.png`), fullPage: true });
   for (const id of await p.$$eval('#t-map section', ss => ss.map(x => x.id))) {

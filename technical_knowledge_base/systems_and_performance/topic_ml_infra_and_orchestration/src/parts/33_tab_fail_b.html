@@ -1,13 +1,6 @@
 
 <section id="fl-s2">
-<h3>2. Kill it: the same failures on Slurm, Kubernetes and Ray</h3>
-<p><b>Who can notice a failure, and how.</b> Three layers watch a training job, each with its own clock:</p>
-<ul class="tight">
-<li><b>The other ranks.</b> They talk to the failed rank over TCP (gloo here, NCCL on GPUs). If its process died, the kernel closes its sockets and the peers get an error at once ("Connection reset by peer"). If it is alive but silent (frozen, or its machine cut off), nothing errors until the <dfn>collective timeout</dfn>: how long a rank waits inside an all-reduce before giving up (30 s in these runs; PyTorch's default is 30 minutes for gloo and 10 minutes for NCCL in 2.14).</li>
-<li><b>The launcher on each machine</b> (torchrun's agent, a Ray Train worker, the container runtime) sees its own child processes exit and their exit codes immediately.</li>
-<li><b>The scheduler.</b> It learns a machine is gone only when heartbeats stop: Slurm's controller waits <code>SlurmdTimeout</code> (30 s in this cluster, 300 s by default), Kubernetes marks a node NotReady after <code>node-monitor-grace-period</code> (50 s by default in v1.37), and Ray's GCS declares a node dead after its health checks fail (30 s measured).</li>
-</ul>
-<p>What happens next is <b>policy</b>, and the three systems ship different defaults. The matrix below holds every run; click a cell to replay it step by step from its own logs.</p>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="fl-card" id="fl-mx-card">
 <h4>Twelve recorded failures: what each system did</h4>
 <div class="fl-mx" id="fl-mx" role="group" aria-label="Failure runs"></div>
@@ -15,10 +8,20 @@
 <div id="fl-tl-head" class="small" style="font-weight:600;margin-top:8px"></div>
 <div class="fl-svg" id="fl-tl-svg"></div>
 <div class="fl-ctl" id="fl-tl-ctl"></div>
-<div class="fl-cap" id="fl-tl-cap" aria-live="polite"></div>
 <div class="fl-out" id="fl-tl-out"></div>
-<p class="small mute"><span class="fl-meas">measured</span>: times in seconds after the failure was injected, from log lines (each caption names its file under <code>src/fail/runs/</code>). The time axis is compressed (square root) so that 0.15 s and 450 s fit on one line. "Rank crashes" is <code>train.py --crash-rank 3 --crash-step 120</code> (exit code 13 after step 120); a node is a container killed with <code>docker kill</code> (its processes die, so peers see closed sockets) or frozen with <code>docker pause</code> (silent, like a hung host).</p>
+<p class="small mute"><span class="fl-meas">measured</span>: times in seconds after the failure was injected, from log lines (each step in the list names its file under <code>src/fail/runs/</code>). The time axis is compressed (square root) so that 0.15 s and 450 s fit on one line. "Rank crashes" is <code>train.py --crash-rank 3 --crash-step 120</code> (exit code 13 after step 120); a node is a container killed with <code>docker kill</code> (its processes die, so peers see closed sockets) or frozen with <code>docker pause</code> (silent, like a hung host).</p>
 </div>
+</div></div><div class="s3L">
+<h3>2. Kill it: the same failures on Slurm, Kubernetes and Ray</h3>
+<p><b>Who can notice a failure, and how.</b> Three layers watch a training job, each with its own clock:</p>
+<ul class="tight">
+<li><b>The other ranks.</b> They talk to the failed rank over TCP (gloo here, NCCL on GPUs). If its process died, the kernel closes its sockets and the peers get an error at once ("Connection reset by peer"). If it is alive but silent (frozen, or its machine cut off), nothing errors until the <dfn>collective timeout</dfn>: how long a rank waits inside an all-reduce before giving up (30 s in these runs; PyTorch's default is 30 minutes for gloo and 10 minutes for NCCL in 2.14).</li>
+<li><b>The launcher on each machine</b> (torchrun's agent, a Ray Train worker, the container runtime) sees its own child processes exit and their exit codes immediately.</li>
+<li><b>The scheduler.</b> It learns a machine is gone only when heartbeats stop: Slurm's controller waits <code>SlurmdTimeout</code> (30 s in this cluster, 300 s by default), Kubernetes marks a node NotReady after <code>node-monitor-grace-period</code> (50 s by default in v1.37), and Ray's GCS declares a node dead after its health checks fail (30 s measured).</li>
+</ul>
+<p>What happens next is <b>policy</b>, and the three systems ship different defaults. The matrix below holds every run; click a cell to replay it step by step from its own logs, each event explained in the list below.</p>
+<ol class="sx" id="sx-fl-tl"></ol>
+</div></div>
 <p><b>What the twelve runs show.</b></p>
 <ul class="tight">
 <li><b>A crash is seen in well under a second everywhere</b>; what differs is the decision. Slurm marks the job FAILED and does nothing more: its <code>--requeue</code> covers node failure and preemption, not a program that exited with an error. A JobSet fails unless <code>failurePolicy.maxRestarts</code> is above 0, and Ray Train unless <code>FailureConfig(max_failures)</code> is; the running example sets both to 0 (as is common in templates), so all three systems stopped. With retries allowed, JobSet recreated every pod and resumed in <span id="fl-k2r">10.3</span> s, Ray Train started a new worker group and resumed in <span id="fl-r2r">10.2</span> s.</li>

@@ -14,13 +14,14 @@
       b+=SC.t(x0+(nw-4)/2,72,p?(p.label+(p.idle?' (idle)':'')):'4 fake GPUs free',{a:'middle',fs:10.5,fill:p?'var(--ink)':'var(--mute)'})});
     box.innerHTML=SC.svg(W,H,b,'Cluster state')+'<div class="sc-jobs">'+st.jobs.map(([n,s,k])=>'<div><i style="background:'+(JC[n]||'var(--c4)')+'"></i><b>'+n+'</b>: <span style="color:'+(KC[k]||'var(--ink)')+'">'+s+'</span></div>').join('')+'</div>';
   }
-  function player(card,svg,ctl,cap,seq){let steps=seq();
-    const an=SC.anim({card,ctl,n:steps.length,ms:1700,label:'Event',draw:i=>{const s=steps[i];draw($(svg),s);$(cap).innerHTML='<b class="t">'+(s.t!=null?'t = '+s.t+' s. ':'')+'</b>'+s.cap}});
-    return {an,set(f){seq=f;steps=seq();an.reset(steps.length);an.go(0)}}}
+  // the step list on the left (list): one item per recorded event, the caption the step draws
+  function player(card,svg,ctl,list,seq){let steps=seq();const fill=()=>SC.sxFill(list,steps.map(s=>'<b class="t">'+(s.t!=null?'t = '+s.t+' s. ':'')+'</b>'+s.cap));fill();
+    const an=SC.anim({card,ctl,n:steps.length,ms:4200,label:'Event',list,draw:i=>{draw($(svg),steps[i])}});
+    return {an,set(f){seq=f;steps=seq();fill();an.reset(steps.length,list)}}}
   if($('sc-gang-card')){let mode='k1';
-    const p=player('sc-gang-card','sc-gang-svg','sc-gang-ctl','sc-gang-cap',()=>D[mode].steps);
+    const p=player('sc-gang-card','sc-gang-svg','sc-gang-ctl','sx-sc-gang',()=>D[mode].steps);
     SC.seg($('sc-gang-mode'),m=>{mode=m;p.set(()=>D[mode].steps)})}
-  if($('sc-bor-card')&&D.k3)player('sc-bor-card','sc-bor-svg','sc-bor-ctl','sc-bor-cap',()=>D.k3.steps);
+  if($('sc-bor-card')&&D.k3)player('sc-bor-card','sc-bor-svg','sc-bor-ctl','sx-sc-bor',()=>D.k3.steps);
   // Ray placement groups: a table of the recorded placements
   if($('sc-ray-out')&&D.ray){let h='<div class="tw"><table><thead><tr><th>Placement group</th><th>Strategy</th><th class="num">bundles</th><th>State after waiting</th><th>Bundle i on node</th></tr></thead><tbody>';
     D.ray.forEach(r=>{h+='<tr><td><code>'+SC.esc(r.name)+'</code>'+(r.note?' <span class="small mute">('+SC.esc(r.note)+')</span>':'')+'</td><td>'+r.strategy+'</td><td class="num">'+r.n+'</td><td'+(r.ready?'':' style="color:var(--bad);font-weight:600"')+'>'+r.state+'</td><td>'+r.nodes.map(n=>n||'&ndash;').join(', ')+'</td></tr>'});

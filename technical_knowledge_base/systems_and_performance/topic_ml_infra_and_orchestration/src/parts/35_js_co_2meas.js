@@ -63,10 +63,12 @@
     el.innerHTML=C.svg(W,106,s,'Allocation of the running example filling up phase by phase');
     let used=0,tr=0;PH.forEach((p,j)=>{if(j<STEPS[i][1]&&a[p[0]]!=null){used+=a[p[0]];if(p[0]==='train')tr+=a[p[0]]}});
     if(i===STEPS.length-1)used=a.alloc_s;
-    $('co-am-cap').innerHTML='<b>Step '+(i+1)+' of '+STEPS.length+'.</b> '+STEPS[i][0]+'<br><span class="small">Allocated so far: <b>'+C.fs(used)+'</b> ('+C.num(used*4,1)+' GPU-s); in training steps: <b>'+C.fs(tr)+'</b>'+(used>0?' = '+C.pct(tr/used)+' of it':'')+'.</span>';
+    $('co-am-cap').innerHTML='<span class="small">Allocated so far: <b>'+C.fs(used)+'</b> ('+C.num(used*4,1)+' GPU-s); in training steps: <b>'+C.fs(tr)+'</b>'+(used>0?' = '+C.pct(tr/used)+' of it':'')+'.</span>';
   }
-  const AM=C.anim({card:'co-am-card',ctl:'co-am-ctl',n:STEPS.length,draw:drawAm,ms:1500,label:'Allocation phase'});
-  C.seg($('co-am-seg'),m=>{am=m;AM.reset()});
+  // the step list on the left (sx-co-am): one item per phase; the live line under the chart keeps only the running counters
+  C.sxFill('sx-co-am',STEPS.map(s=>s[0]));
+  const AM=C.anim({card:'co-am-card',ctl:'co-am-ctl',n:STEPS.length,draw:drawAm,ms:4000,label:'Allocation phase',list:'sx-co-am'});
+  C.seg($('co-am-seg'),m=>{am=m;AM.reset(STEPS.length,'sx-co-am')});
   // ---- a queue ----
   let qm='fifo';
   C.seg($('co-q-seg'),m=>{qm=m;drawQ()});

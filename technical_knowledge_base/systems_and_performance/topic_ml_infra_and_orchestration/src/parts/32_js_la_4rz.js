@@ -30,12 +30,12 @@
         b+=t(rx+8,ry+18,'rank '+(k*2+j),{fs:12,w:600});b+=t(rx+8,ry+35,rs?LBL[rs.s]:LBL.off,{fs:10.5,fill:'var(--mute)'});
         if(rs&&(rs.s==='join'||rs.s==='ok'))b+=line(rx+rw/2,ry,sx+62,sy+14,rc,{sw:1,op:0.7})})});
     el.innerHTML=svg(W,h,b,'Rendezvous of two torchrun agents and four workers');
-    const tt=e.t;
-    $('la-rz-cap').innerHTML='<b>'+(tt>=0?'t = '+H.fmt(tt,tt<10?2:1)+' s':'')+'</b> '+e.cap;
   }
   function init(){if(!$('la-rz-card'))return;
-    H.seg($('la-rz-mode'),m=>{mode=m;A.reset(D.rz[m].events.length);A.go(0);$('la-rz-note').innerHTML=D.rz[m].note||''});
-    A=H.anim({card:'la-rz-card',ctl:'la-rz-ctl',n:D.rz.ok.events.length,draw,ms:1500,label:'Rendezvous step'});
+    // the step list on the left (sx-la-rz): one item per recorded event, with its time
+    const fill=()=>H.sxFill('sx-la-rz',D.rz[mode].events.map(e=>'<b>'+(e.t>=0?'t = '+H.fmt(e.t,e.t<10?2:1)+' s.':'')+'</b> '+e.cap));fill();
+    H.seg($('la-rz-mode'),m=>{mode=m;fill();A.reset(D.rz[m].events.length,'sx-la-rz');$('la-rz-note').innerHTML=D.rz[m].note||''});
+    A=H.anim({card:'la-rz-card',ctl:'la-rz-ctl',n:D.rz.ok.events.length,draw,ms:4200,label:'Rendezvous step',list:'sx-la-rz'});
     $('la-rz-note').innerHTML=D.rz.ok.note||'';
     if($('la-rz-src')&&D.rzsrc)$('la-rz-src').innerHTML=D.rzsrc;}
   init();

@@ -46,14 +46,15 @@
         b+=SC.rect(x(s[0]*60),y0,x(s[1]*60)-x(s[0]*60),y1-y0,'none',{stroke:'var(--ink)',sw:1.3,dash:'4 3',rx:2})+SC.t(x(s[0]*60)+3,y0+10,j.n+'*',{fs:9.5,fill:'var(--ink)'})})}
     b+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+(top-4)+'" y2="'+(y(7)+rh)+'" stroke="var(--bad)" stroke-width="1.5"/>';
     box.innerHTML=SC.svg(W,H,b,'Gantt chart of the eight jobs on 8 fake GPUs under Slurm '+mode);
-    $('sc-w1-cap').innerHTML=caption(mode,ti);
   }
   function stats(){const f=metrics('fifo'),bk=metrics('backfill'),m=mode==='fifo'?f:bk;
     $('sc-w1-stats').innerHTML=SC.stat('Makespan',SC.mmss(m.mk),mode==='fifo'?'FIFO':'backfill (FIFO '+SC.mmss(f.mk)+')')+
       SC.stat('Utilisation',Math.round(100*m.util)+'%','GPU-time used / available')+SC.stat('Mean wait',SC.mmss(m.mw),'start minus submit')+
       SC.stat('B starts at',SC.mmss(run(mode).find(j=>j.n==='B').st),'the big job')}
-  const an=SC.anim({card:'sc-w1-card',ctl:'sc-w1-ctl',n:events(mode).length,draw,ms:1300,label:'Event'});
-  SC.seg($('sc-w1-mode'),m=>{mode=m;an.reset(events(m).length);an.go(events(m).length-1);stats()});
+  // the step list on the left (sx-sc-w1): one item per event, the same captions the chart's steps follow
+  const fill=()=>SC.sxFill('sx-sc-w1',events(mode).map((_,i)=>caption(mode,i)));fill();
+  const an=SC.anim({card:'sc-w1-card',ctl:'sc-w1-ctl',n:events(mode).length,draw,ms:4200,label:'Event',list:'sx-sc-w1'});
+  SC.seg($('sc-w1-mode'),m=>{mode=m;fill();an.reset(events(m).length,'sx-sc-w1');stats()});
   $('sc-w1-ov').addEventListener('change',()=>an.redraw());
   stats();
   // comparison table: Slurm against the pooled simulator and the node-level one

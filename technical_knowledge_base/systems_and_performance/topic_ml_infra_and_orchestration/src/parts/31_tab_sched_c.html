@@ -1,16 +1,19 @@
 <section id="sc-s5">
-<h2>5. Gang scheduling: all of a job or none of it</h2>
-<p><b>The problem.</b> A distributed training job is useless until every rank is running: rank 0 waits at the rendezvous for the others (the {{Launch lab|#t-launch}} shows it), and every GPU it holds meanwhile does nothing. A scheduler that places a job's pieces one by one can give a job part of what it needs. With two or more such jobs in a full cluster, each holds part and waits for the rest, which only the others could free: a <dfn>deadlock</dfn>. <dfn>Gang scheduling</dfn> starts all of a job's pieces together or none of them.</p>
-<p><b>Who has it.</b> In Slurm a job's allocation is one object: it gets all its nodes at once or stays pending, so gangs come free. Kubernetes' default scheduler places <b>pods</b>, one scheduling cycle per pod, and knows nothing of the job they belong to. Upstream is adding a native path (KEP-4671, "Gang Scheduling using Workload Object": alpha in v1.35, its <code>GenericWorkload</code> feature gate beta in v1.37), but the gate is off by default: the v1.37.0 <code>kube-scheduler --help</code> here lists <code>GenericWorkload=true|false (BETA - default=false)</code>. Until then gangs come from an add-on: <b>Kueue</b> (admits a whole workload against quota, then lets the pods be created), <b>Volcano</b> (its own scheduler, with a PodGroup and <code>minMember</code>), or the <b>coscheduling</b> plugin of scheduler-plugins. In Ray, a <b>placement group</b> reserves all its bundles atomically (section 7).</p>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="sc-card" id="sc-gang-card">
 <h4>The deadlock, then the fix, on real Kubernetes <span class="sc-meas">measured</span></h4>
 <p class="small">Three JobSets, sc-a, sc-b and sc-c, each the running example (2 pods, 2 ranks per pod) with each pod asking for a whole worker's 4 fake GPUs. Three workers, so the cluster holds exactly one and a half jobs. <b>Without Kueue</b>, each pod was created behind a scheduling gate and the gates were removed in the order a0, b0, c0, a1, b1, c1, one second apart: the order in which the default scheduler would see them if three job controllers created pods at the same moment. <b>With Kueue</b>, the same three JobSets were created together with a queue label and nothing else.</p>
 <div class="seg" id="sc-gang-mode"><button data-m="k1" class="on">Default scheduler (no gang)</button><button data-m="k2">Through Kueue (gang admission)</button></div>
 <div class="sc-svg" id="sc-gang-svg"></div>
 <div class="sc-ctl" id="sc-gang-ctl"></div>
-<div class="sc-cap" id="sc-gang-cap"></div>
 </div>
+</div></div><div class="s3L">
+<h2>5. Gang scheduling: all of a job or none of it</h2>
+<p><b>The problem.</b> A distributed training job is useless until every rank is running: rank 0 waits at the rendezvous for the others (the {{Launch lab|#t-launch}} shows it), and every GPU it holds meanwhile does nothing. A scheduler that places a job's pieces one by one can give a job part of what it needs. With two or more such jobs in a full cluster, each holds part and waits for the rest, which only the others could free: a <dfn>deadlock</dfn>. <dfn>Gang scheduling</dfn> starts all of a job's pieces together or none of them.</p>
+<p><b>Who has it.</b> In Slurm a job's allocation is one object: it gets all its nodes at once or stays pending, so gangs come free. Kubernetes' default scheduler places <b>pods</b>, one scheduling cycle per pod, and knows nothing of the job they belong to. Upstream is adding a native path (KEP-4671, "Gang Scheduling using Workload Object": alpha in v1.35, its <code>GenericWorkload</code> feature gate beta in v1.37), but the gate is off by default: the v1.37.0 <code>kube-scheduler --help</code> here lists <code>GenericWorkload=true|false (BETA - default=false)</code>. Until then gangs come from an add-on: <b>Kueue</b> (admits a whole workload against quota, then lets the pods be created), <b>Volcano</b> (its own scheduler, with a PodGroup and <code>minMember</code>), or the <b>coscheduling</b> plugin of scheduler-plugins. In Ray, a <b>placement group</b> reserves all its bundles atomically (section 7).</p>
+<ol class="sx" id="sx-sc-gang"></ol>
 <p><b>Without gang scheduling</b> the default scheduler did exactly its job, one pod at a time: a0, b0 and c0 each found a free worker and were bound; a1, b1 and c1 found none. Every job held half of what it needed. Four minutes later nothing had moved:</p>
+</div></div>
 <pre>POD                   JOBSET   IDX   PHASE     NODE
 sc-a-node-0-0-r6w4d   sc-a     0     Running   mi-kind-worker
 sc-a-node-0-1-m4dw7   sc-a     1     Pending   &lt;none&gt;
@@ -55,17 +58,20 @@ Workload  jobset-sc-c-fa6c7  QuotaReserved    Quota reserved in ClusterQueue mi-
 </section>
 
 <section id="sc-s6">
-<h2>6. Quotas and borrowing</h2>
-<p><b>The problem.</b> Two teams each own half of a cluster. If team B is idle, should team A be allowed to use B's half? Yes, or the cluster sits half empty; but when B comes back, B must get its half quickly. <dfn>Quota</dfn> is a team's guaranteed amount; <dfn>borrowing</dfn> lets a team use another's unused quota; <dfn>reclaiming</dfn> takes it back by preempting the borrower.</p>
-<p><b>In Kueue.</b> A <dfn>ClusterQueue</dfn> holds a team's <code>nominalQuota</code> per resource; ClusterQueues in the same <dfn>cohort</dfn> lend unused quota to each other (up to an optional <code>borrowingLimit</code>); <code>preemption.reclaimWithinCohort</code> lets a queue preempt workloads of cohort members that are borrowing. Namespaces submit to a <dfn>LocalQueue</dfn> that points at a ClusterQueue. In Slurm the same ideas are QOS and association limits (<code>GrpTRES</code>) plus partition preemption; Slurm has no lending between limits, so idle capacity is used through a low-priority preemptible partition or QOS instead.</p>
+<div class="s3sp"><div class="s3R"><div class="s3side">
 <div class="sc-card" id="sc-bor-card">
 <h4>Team A borrows, team B reclaims <span class="sc-meas">measured</span></h4>
 <p class="small">ClusterQueues sc-cq-a and sc-cq-b, 6 fake GPUs of quota each, in cohort sc-cohort, both with <code>reclaimWithinCohort: Any</code>. Team A submits three single-pod jobs of 4 GPUs (12 in all: its 6 plus 6 borrowed from B); 15 s later team B submits one job of 4 GPUs.</p>
 <div class="sc-svg" id="sc-bor-svg"></div>
 <div class="sc-ctl" id="sc-bor-ctl"></div>
-<div class="sc-cap" id="sc-bor-cap"></div>
 </div>
+</div></div><div class="s3L">
+<h2>6. Quotas and borrowing</h2>
+<p><b>The problem.</b> Two teams each own half of a cluster. If team B is idle, should team A be allowed to use B's half? Yes, or the cluster sits half empty; but when B comes back, B must get its half quickly. <dfn>Quota</dfn> is a team's guaranteed amount; <dfn>borrowing</dfn> lets a team use another's unused quota; <dfn>reclaiming</dfn> takes it back by preempting the borrower.</p>
+<p><b>In Kueue.</b> A <dfn>ClusterQueue</dfn> holds a team's <code>nominalQuota</code> per resource; ClusterQueues in the same <dfn>cohort</dfn> lend unused quota to each other (up to an optional <code>borrowingLimit</code>); <code>preemption.reclaimWithinCohort</code> lets a queue preempt workloads of cohort members that are borrowing. Namespaces submit to a <dfn>LocalQueue</dfn> that points at a ClusterQueue. In Slurm the same ideas are QOS and association limits (<code>GrpTRES</code>) plus partition preemption; Slurm has no lending between limits, so idle capacity is used through a low-priority preemptible partition or QOS instead.</p>
+<ol class="sx" id="sx-sc-bor"></ol>
 <p><b>What happened.</b> Kueue admitted all three of team A's jobs within 4 s, the second and third by borrowing (<code>Flavors considered: main: default-flavor(Fit;borrow=1)</code>). Eight seconds after team B's job was created its pod was running: Kueue evicted team A's newest borrowing workload (<code>EvictedDueToPreempted ... due to reclamation within the cohort</code>), waited for its pod to stop (<code>WaitingForPreemptedWorkloads</code>), then admitted team B (<code>QuotaReserved ... wait time since queued was 6s</code>). When team B's job finished, team A's evicted job was readmitted by borrowing again, 54 s after it was queued. Borrowing kept every GPU busy, and reclaim gave B its share within seconds; the price was one evicted job, which a training job pays in work since its last checkpoint.</p>
+</div></div>
 <pre>Workload  job-sc-a3-b09ed  EvictedDueToPreempted  Preempted to accommodate a workload (UID: 5d1fcdf5-...) due to
           reclamation within the cohort; preemptor path: /sc-cohort/sc-cq-b; preemptee path: /sc-cohort/sc-cq-a
 Workload  job-sc-b1-1d26c  WaitingForPreemptedWorkloads  couldn't assign flavors to pod set main: insufficient unused

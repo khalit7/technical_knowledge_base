@@ -95,7 +95,8 @@
     H.seg($('la-tl-mode'),m=>{tl.mode=m;fillRuns();legend();A.redraw()});
     $('la-tl-run').addEventListener('change',e=>{const v=+e.target.value;if(tl.mode==='all'){tl.run={slurm:v,k8s:v,ray:v}}else tl.run[tl.mode]=v;A.redraw()});
     fillRuns();legend();
-    A=H.anim({card:'la-tl-card',ctl:'la-tl-ctl',n:NF,draw,ms:140,label:'Time since submit'});
+    // a long replay (60 frames) the reader drives (rollout rule 3b): a widget, no autoplay, opening on the finished timeline; the live caption stays
+    A=H.anim({card:'la-tl-card',ctl:'la-tl-ctl',n:NF,draw,ms:140,label:'Time since submit',auto:false,start:NF-1});
     H.onRender(()=>{ranks();stages()});ranks();stages();
     if($('la-tl-text')&&D.tltext)$('la-tl-text').innerHTML=D.tltext;
     if($('la-st-note')&&D.stnote)$('la-st-note').innerHTML=D.stnote;

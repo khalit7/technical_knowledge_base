@@ -21,3 +21,9 @@ The question the topic keeps returning to: how much of the GPU time you pay for 
 - Utilisation waterfall chart: Cost lab's; Reading gives the three losses as a numbered list.
 - A third backfill mode with padded time limits: with uniform padding every limit scales together and this workload gives the identical schedule (checked in recompute.py), so it would teach nothing; the effect is taught by the predict question instead.
 - A "who uses what" chart with shares: no census exists; a dated evidence table instead.
+
+## 2026-11-12 (layout rollout)
+- Built: R9, the 3D hero (`parts/38_js_sc_hero.js`, Fig. 1): one training job on the lab's Slurm cluster in ten steps, each linking the child figure that owns it. Replaces R1's HTML rows.
+- Removed: the static gang before/after card in section 2 (Kubernetes for ML's all-or-none figure and the Scheduling lab's replay own it); its measured numbers stay in one paragraph.
+- Kept 2D, beside their text in the split: the MTBF bars, the four-tier checkpoint bars, the 36% bar (a number on an axis), the two photos and the storage rack photo.
+- Rejected: a 3D stage for any lab (each lab chart is a time axis, bars or a Gantt of recorded runs, which read best flat); a 3D gang or rendezvous stage on the root (the children's stages own both).

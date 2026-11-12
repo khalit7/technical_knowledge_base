@@ -231,7 +231,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/ray` Ray: tasks, actors, the object store and Ray Train
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/slurm` Slurm from zero: allocation, gang scheduling, fairshare and preemption
 - [x] `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement` Storage and data movement: parallel file systems, object storage and checkpoint I/O
-- [~] `systems_and_performance/topic_ml_infra_and_orchestration` Topic: ml-infra-and-orchestration
+- [x] `systems_and_performance/topic_ml_infra_and_orchestration` Topic: ml-infra-and-orchestration
 - [x] `systems_and_performance/topic_pytorch_ecosystem/distributed_pytorch` Distributed PyTorch: c10d, DDP, FSDP2, DTensor, TP, PP, DCP
 - [~] `systems_and_performance/topic_pytorch_ecosystem/extending_pytorch` Extending PyTorch: custom ops, tensor subclasses, kernels
 - [ ] `systems_and_performance/topic_pytorch_ecosystem/libraries_on_top_of_pytorch` Libraries on top of PyTorch: HF stack, torchtitan, Lightning, Axolotl, DeepSpeed
@@ -526,6 +526,7 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - `systems_and_performance/topic_ml_infra_and_orchestration/slurm`: hero step 4 label sits over c1's cubes at 1400; hero step 5 close view busy; fairshare stage small on phones; check_ui.mjs needs an absolute repo root. Corrected: job 95 was last of the eleven with a priority (not second to last); a section 14 pointer is now section 13.
 - `systems_and_performance/topic_ml_infra_and_orchestration/storage_and_data_movement`: core 50 min plus 18 closed (42 before); scene labels near the canvas edge at 390 ("file system", Fig. 4); widget splits' right column much taller than the left.
 - `systems_and_performance/topic_pytorch_ecosystem/distributed_pytorch`: Fig. 3 busy, its title lines sit over the rank stacks at 1400; four-rank stages show perspective skew at the edges; DCP shard files close-packed at 1400; Fig. 2 bucket 0 small (to scale).
+- `systems_and_performance/topic_ml_infra_and_orchestration`: Failure lab card tall on phones (step list well below the replay); Tool map lineage chart full width (tool tab); five lab checks must run from the repo root with the page path as first argument.
 
 ## Decisions for Khalid (asked together at the end of the rollout, his request of 2026-11-10)
 
@@ -603,3 +604,4 @@ Every page rebuilt to the split layout, 3D stages v2 where reasonable, explained
 - Slurm: the backfill stage keeps the illustrative four-job queue (the root lab owns the measured run); the stacked factor bars dropped for the fairshare stage (per-job factors only in the calculator); the srun steps stay 2D. Keep these?
 - Storage and data movement: Fig. 3 uses the root lab's Docker-volume reads as a stand-in for local NVMe (last step illustrative); the four-writers predict became prose; three replays are widgets; 50 min core: trim the step lists? Keep these?
 - Distributed PyTorch: the DDP stage opens on step 1 (rebuilt buckets, the steady state); the 2D DDP tick timeline dropped (times in the step lists); Fig. 2 draws both ranks with rank 0's recorded times (stated); Fig. 4 applies the relu rule recorded on a Partial A to the product (stated). Keep these?
+- ML infra root: the hero draws the lab's Slurm cluster (Kubernetes and Ray only in step text); failure drawn in fixed red (the page's --bad is orange like the job); the Launch lab timeline is a widget opening finished; the static gang card cut (Kubernetes for ML owns the figure; its numbers kept in a paragraph). Keep these?

@@ -27,7 +27,7 @@
         else h+='<div class="na">'+esc(c.na)+'</div>'})});
     g.innerHTML=h;
   }
-  $('fl-mx').addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b)return;cur=b.dataset.id;grid();A.reset(S[cur].events.length);A.go(0)});
+  $('fl-mx').addEventListener('click',e=>{const b=e.target.closest('button[data-id]');if(!b)return;cur=b.dataset.id;grid();fill();A.reset(S[cur].events.length,'sx-fl-tl')});
   const COL={fail:'var(--bad)',detect:'var(--c5)',act:'var(--c1)',err:'var(--bad)',end:'var(--mute)',resume:'var(--good)'};
   const LAB={fail:'failure',detect:'noticed',act:'action',err:'error',end:'job ended',resume:'resumed'};
   function draw(i){
@@ -47,7 +47,6 @@
     const lx=Math.min(W-pad-4,Math.max(pad+4,x));const anc=lx<W*0.2?'start':lx>W*0.8?'end':'middle';
     b+=H.t(lx,y-16,esc(lab),{a:anc,fs:12,w:600,fill:COL[ev[i][1]]});
     el.innerHTML=H.svg(W,h,b,'Timeline of '+s.title);
-    $('fl-tl-cap').innerHTML='<b>'+esc(LAB[ev[i][1]])+', '+(ti<10?ti.toFixed(2):ti.toFixed(1))+' s:</b> '+esc(ev[i][2])+' <span class="small mute">('+esc(ev[i][3])+')</span>';
     const c=s.cont;
     $('fl-tl-out').innerHTML=[
       ['Noticed after',s.detect_s!=null?fmt(s.detect_s):'n/a'],
@@ -56,5 +55,7 @@
       ['Outcome',s.outcome]].map(([k,v])=>'<div class="stat"><div class="k">'+esc(k)+'</div><div class="v" style="font-size:'+(v.length>16?'13px':'16px')+'">'+esc(v)+'</div></div>').join('');
   }
   grid();
-  const A=H.anim({card:'fl-mx-card',ctl:'fl-tl-ctl',n:S[cur].events.length,draw,ms:1500,label:'Event'});
+  // the step list on the left (sx-fl-tl): one item per logged event of the chosen run, with the log file it comes from
+  const fill=()=>H.sxFill('sx-fl-tl',S[cur].events.map(e=>'<b>'+esc(LAB[e[1]])+', '+(e[0]<10?e[0].toFixed(2):e[0].toFixed(1))+' s:</b> '+esc(e[2])+' <span class="small mute">('+esc(e[3])+')</span>'));fill();
+  const A=H.anim({card:'fl-mx-card',ctl:'fl-tl-ctl',n:S[cur].events.length,draw,ms:4200,label:'Event',list:'sx-fl-tl'});
 })();
