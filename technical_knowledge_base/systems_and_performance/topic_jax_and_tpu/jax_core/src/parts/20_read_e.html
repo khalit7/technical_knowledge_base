@@ -1,4 +1,4 @@
-<section id="s-ad">
+<div class="s3sp"><div class="s3L"><section id="s-ad">
 <h2>6. Autodiff: JVP, VJP, and reverse mode as linearize then transpose</h2>
 <p>Near a point x, a differentiable f from n numbers to m numbers behaves like a linear map, its m x n Jacobian J. Autodiff never builds J; it applies it in one of two directions:</p>
 <div class="grid">
@@ -6,31 +6,57 @@
 <div class="sp"><div class="n">Reverse mode: VJP</div><p><code>y, f_vjp = jax.vjp(f, x)</code>, then <code>f_vjp(u)</code> returns <b>u<sup>T</sup> J</b>: pull a weighting u of the outputs (a "cotangent") back to the inputs. For a scalar loss, u = 1 gives the gradient. PyTorch: <code>loss.backward()</code>, <code>torch.func.vjp</code>.</p></div>
 </div>
 <p>One JVP and one VJP each cost a small constant times one forward pass, so a full Jacobian costs <b>n JVPs</b> (one per input) or <b>m VJPs</b> (one per output): forward mode wins with few inputs, reverse mode with few outputs.</p>
-<div class="jc-box" id="jc-jac-card"><h4>jacfwd's cost grows with inputs only, jacrev's with outputs only; they cross on the diagonal</h4>
+<p>A training loss has 826,368 inputs and 1 output, so reverse mode costs one VJP. <span class="jc-lbl m">measured here</span> on one training batch: forward pass <span data-k="ad.model.flops.forward (loss)" data-f="gflop"></span> GFLOP, <code>value_and_grad</code> <span data-k="ad.model.flops.value_and_grad" data-f="gflop"></span> GFLOP (<b id="jc-vg-ratio"></b> times the forward, measured 2.88), one JVP in one direction <span data-k="ad.model.flops.jvp (one direction)" data-f="gflop"></span> GFLOP. The rule of thumb "backward is twice the forward" holds here to within a few percent.</p>
+
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card" id="jc-jac-card"><h4 class="jc-ft">jacfwd's cost grows with inputs only, jacrev's with outputs only; they cross on the diagonal</h4>
 <div class="jc-sel"><span class="seg" id="jc-jac-mode"><button data-m="ratio" class="on">which wins</button><button data-m="fwd">jacfwd FLOPs</button><button data-m="rev">jacrev FLOPs</button></span></div>
 <div id="jc-jac"></div><div class="jc-cap" id="jc-jac-cap"></div>
 <div class="jc-cap"><span class="jc-lbl m">measured here</span> with XLA's own FLOP count (deterministic), Jacobians of the running example's MLP restricted to k inputs and m outputs of one token.</div>
 <pre class="jc-code" data-code="ad.jac.code"></pre></div>
-<p>A training loss has 826,368 inputs and 1 output, so reverse mode costs one VJP. <span class="jc-lbl m">measured here</span> on one training batch: forward pass <span data-k="ad.model.flops.forward (loss)" data-f="gflop"></span> GFLOP, <code>value_and_grad</code> <span data-k="ad.model.flops.value_and_grad" data-f="gflop"></span> GFLOP (<b id="jc-vg-ratio"></b> times the forward, measured 2.88), one JVP in one direction <span data-k="ad.model.flops.jvp (one direction)" data-f="gflop"></span> GFLOP. The rule of thumb "backward is twice the forward" holds here to within a few percent.</p>
-
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-ad"></div></div><div class="s3L">
+<section id="s-ad-rev">
 <h3>How JAX gets reverse mode: linearize, then transpose</h3>
-<p>PyTorch records a tape of operations and runs each one's backward function. JAX derives reverse mode from forward mode in two steps ({{Radul et al., You Only Linearize Once (2022)|https://arxiv.org/abs/2204.10923}}). <b>Linearize</b>: run the forward computation once with a <code>LinearizeTrace</code>, computing each primal value now and recording the <b>tangent</b> computation (which is linear) into a separate jaxpr; values it needs from the forward pass, such as an activation to multiply by, become that jaxpr's constants, the <b>residuals</b>. <b>Transpose</b>: run the linear jaxpr backwards, replacing every linear primitive by its transpose: a matmul by x becomes a matmul by x<sup>T</sup>, a broadcast becomes a sum, a sum a broadcast, an addition sends its cotangent to both inputs. Step through it on block 0's MLP of the running example (128 to 512 to 128, exact GELU, 4 tokens), every equation real:</p>
-<div class="jc-box" id="jcad-card"><h4>The same MLP, before and after transposition: residuals fill the tape forward, the cotangent drains it backward</h4>
-<div class="jc-sel"><span class="seg" id="jcad-mode"><button data-m="rev" class="on">Reverse mode (VJP = linearize, transpose)</button><button data-m="fwd">Forward mode (JVP)</button></span><span class="seg" id="jcad-who"><button data-m="jax" class="on">tape: JAX residuals</button><button data-m="torch">tape: PyTorch saved tensors</button></span></div>
-<div id="jcad-svg"></div>
-<div class="jc-capt" id="jcad-cap"></div>
+<p>PyTorch records a tape of operations and runs each one's backward function. JAX derives reverse mode from forward mode in two steps ({{Radul et al., You Only Linearize Once (2022)|https://arxiv.org/abs/2204.10923}}). <b>Linearize</b>: run the forward computation once with a <code>LinearizeTrace</code>, computing each primal value now and recording the <b>tangent</b> computation (which is linear) into a separate jaxpr; values it needs from the forward pass, such as an activation to multiply by, become that jaxpr's constants, the <b>residuals</b>. <b>Transpose</b>: run the linear jaxpr backwards, replacing every linear primitive by its transpose: a matmul by x becomes a matmul by x<sup>T</sup>, a broadcast becomes a sum, a sum a broadcast, an addition sends its cotangent to both inputs. Fig. 3 steps through it on block 0's MLP of the running example (128 to 512 to 128, exact GELU, 4 tokens), one plate per equation of the real programs, grouped by stage:</p>
+<div class="s3chips" id="jcad-mode"><button data-m="rev" class="on">Reverse mode (VJP = linearize, transpose)</button><button data-m="fwd">Forward mode (JVP)</button></div>
+<ol class="sx" id="sx-ad">
+<li><b>Two programs, five stages.</b> Block 0's MLP: x @ W1, + b1, GELU, @ W2, + b2. <code>jax.vjp</code> gives one program of 35 equations: 15 forward (front row, one plate per equation, stacked by stage) and 20 backward (back row), run in reverse stage order.</li>
+<li><b>Forward: x @ W1, then + b1.</b> The primal equations run as usual (<code>dot_general</code>, <code>broadcast_in_dim</code>, <code>add</code>), values flowing left to right. The linearize interpreter keeps the input x (float32[4,128], 2.0 KB) on the tape: W1's gradient will need it.</li>
+<li><b>Forward: GELU, nine equations.</b> Exact GELU is <code>erfc</code> plus multiplies, and the linear program needs their outputs, so JAX keeps three float32[4,512] arrays here (0.5 h, erfc and exp, 8.2 KB each) and one scalar literal. Switch the tape to PyTorch: its fused <code>GeluBackward0</code> keeps only its input.</li>
+<li><b>Forward: @ W2 and + b2; y is ready.</b> Two more residuals: the GELU output (8.2 KB), which W2's gradient needs, and W2 itself (float32[512,128], 262 KB), which carries the cotangent back. The tape now holds 297.0 KB in JAX, 280.6 KB in PyTorch.</li>
+<li><b>Backward from y: + b2 and @ W2.</b> The cotangent of y enters on the right. Transposed, the bias broadcast becomes a <code>reduce_sum</code> over tokens (b2's gradient); W2's tangent term becomes GELU-output<sup>T</sup> times the cotangent (W2's gradient: <code>dot_general</code>, then <code>transpose</code>), and the other term the cotangent times W2<sup>T</sup>, passed on. Both residuals leave the tape.</li>
+<li><b>Backward through GELU, nine equations.</b> Elementwise and linear in the tangent, so the transpose multiplies the cotangent by the same saved arrays, term by term; <code>add_any</code> joins the two paths. The GELU residuals leave the tape.</li>
+<li><b>Backward: + b1, then x @ W1.</b> A <code>reduce_sum</code> over tokens gives b1's gradient, and x<sup>T</sup> times the cotangent gives W1's (float32[128,512]). x, the last residual, leaves: the tape is empty.</li>
+<li><b>Done: four weight gradients from one backward pass.</b> The transposed program is <code>jax.vjp</code>'s, and the whole VJP cost 2.03 times the forward FLOPs. A full Jacobian of y (512 outputs) would need 512 such passes, one per output.</li>
+</ol>
+<ol class="sx" id="sx-ad-f" hidden>
+<li><b>Forward mode: one pass, two rows.</b> <code>jax.jvp(f, (p,), (p_dot,))</code> pushes a tangent (here: ones for every weight) through the same five stages, 32 equations: primal plates in front, tangent plates behind, computed together. Nothing goes on a tape.</li>
+<li><b>x @ W1 and + b1.</b> Each primitive's JVP rule emits its primal equation and its tangent equations together: x @ W1_dot for the matmul, the bias tangent broadcast and added.</li>
+<li><b>GELU: 9 primal and 9 tangent equations.</b> The tangent is multiplied by GELU'(h), built on the spot from erfc and exp, used at once and dropped.</li>
+<li><b>@ W2 and + b2.</b> The tangent of a matmul whose weights also move has two terms (h @ W2_dot and h_dot @ W2), joined by <code>add_any</code>.</li>
+<li><b>Done: y and y_dot, and no tape.</b> 2.48 times the forward FLOPs, but y_dot is one directional derivative: the gradient with respect to all 131,712 weights of this MLP would take one JVP per weight. That is why training uses reverse mode.</li>
+</ol>
+<div class="s3chips" id="jcad-who"><span class="small mute" style="align-self:center">tape:</span><button data-m="jax" class="on">JAX residuals</button><button data-m="torch">PyTorch saved tensors</button></div>
+<p class="sxh">The equations of the current step</p>
 <div class="jc-cnt" id="jcad-cnt"></div>
-<div class="jc-anctl" id="jcad-ctl"></div>
 <div class="jc-two" id="jcad-panes"></div>
 <div class="jc-cap">Programs from <code>jax.vjp</code>, <code>jax.linearize</code>, <code>jax.linear_transpose</code> and <code>jax.jvp</code> (<code>run_ad.py</code>). PyTorch's saved tensors were captured with <code>torch.autograd.graph.saved_tensors_hooks</code> on the same weights (torch <span data-k="ad.mlp.torch_version"></span>). XLA's cost analysis: forward <span data-k="ad.mlp.flops.forward" data-f="mflop"></span> MFLOP, JVP <span data-k="ad.mlp.flops.jvp" data-f="mflop"></span>, the linear program alone <span data-k="ad.mlp.flops.linear only" data-f="mflop"></span>, VJP <span data-k="ad.mlp.flops.vjp (forward + backward)" data-f="mflop"></span>.</div>
-</div>
 <p>The transposed program and <code>jax.vjp</code> give the same weight gradients to <span data-k="ad.mlp.transpose_equals_vjp"></span> (they are the same program), and JAX's gradient of the first weight matrix matches PyTorch's to <span data-k="ad.mlp.torch_vs_jax_grad_w1" data-f="e1"></span>. The consequence for rule writers: every primitive needs a JVP rule (<span data-k="vm.rule_tables.ad.primitive_jvps"></span> registered in this process), but only <b>linear</b> primitives need a transpose rule (<span data-k="vm.rule_tables.ad.primitive_transposes"></span>), because only they appear in linearized programs. <code>sin</code> has a JVP rule and no transpose: its derivative multiplies the tangent by <code>cos(x)</code>, and <code>mul</code> by a constant is what gets transposed. Section 11 writes both rules for a new primitive.</p>
 <div class="jc-srcx" data-id="lintrace"></div>
 
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="s-ad-mem">
 <h3>What reverse mode keeps in memory</h3>
-<div id="jc-resbars"></div>
-<div class="jc-cap">Residuals are reverse mode's memory bill: everything the backward pass needs from the forward pass, alive until used. MLP rows: block 0 on 4 tokens; model rows: the whole loss on one batch (32 x 128 characters). "Before XLA" counts the jaxpr's residuals, against PyTorch's <code>saved_tensors_hooks</code>; XLA then fuses and reuses buffers, so the compiled scratch (<code>memory_analysis().temp_size_in_bytes</code>) is what decides out-of-memory. <code>jax.checkpoint</code> on each block recomputes activations instead of storing them, same loss (difference <span data-k="ad.mem.remat_same_loss"></span>).</div>
+
 <p>JAX's residuals follow its primitives: exact GELU is <code>erfc</code> plus multiplies, and the linearized program keeps <code>exp</code>, <code>erfc</code> and a scaled copy of the pre-activation (four [4, 512] arrays) where PyTorch's fused <code>GeluBackward0</code> keeps only its input (<span id="jc-mlp-res"></span>). Remat policies (<code>dots_saveable</code> and friends) and how XLA trades memory for recomputation are on the {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} page and the root's {{Compiler lab|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}}.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="jc-ft">What the MLP and the whole model keep for the backward pass</h4>
+<div id="jc-resbars"></div>
+<div class="jc-cap">Residuals are reverse mode's memory bill: everything the backward pass needs from the forward pass, alive until used. MLP rows: block 0 on 4 tokens; model rows: the whole loss on one batch (32 x 128 characters). "Before XLA" counts the jaxpr's residuals, against PyTorch's <code>saved_tensors_hooks</code>; XLA then fuses and reuses buffers, so the compiled scratch (<code>memory_analysis().temp_size_in_bytes</code>) is what decides out-of-memory. <code>jax.checkpoint</code> on each block recomputes activations instead of storing them, same loss (difference <span data-k="ad.mem.remat_same_loss"></span>).</div></div></div></div></div>
+<section id="s-ad-more">
+
 
 <h3>Second order: nest the transformations, and never build the Hessian</h3>
 <p><code>jax.hessian(f)</code> is <code>jacfwd(jacrev(f))</code>: reverse mode for the gradient, then forward mode over it. When you need curvature times a vector (Newton-CG, influence functions, sharpness), <code>jax.jvp(jax.grad(f), (x,), (v,))[1]</code> is one forward-over-reverse pass, here <b id="jc-hvp-x"></b> times the cost of the gradient (measured 1.7x), and it matches the full Hessian times v to <span data-k="ad.hess.hvp_matches_hessian" data-f="e1"></span>.</p>

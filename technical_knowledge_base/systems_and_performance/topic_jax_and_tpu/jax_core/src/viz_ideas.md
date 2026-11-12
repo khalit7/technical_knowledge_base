@@ -32,3 +32,15 @@ What the methodology lacked for this page: nothing to "reproduce" from a publica
 | jc20 | Pytree flatten: leaves against treedef | static diagram | built, section 9 |
 | jc21 | Autodiff tape, loop bars, custom-derivative sweeps | existing tab visuals | moved inline (each explained one mechanism) |
 | jc22 | Real images | | none: a software page with no physical object to show |
+
+## 2026-11-12 rollout (split layout, 3D stages v2)
+| id | Visual | Kind | Decision |
+|---|---|---|---|
+| jc23 | One sin down a stack of three interpreters (the logged dispatch), with a no-transformation mode | 3D stage, 6 and 2 steps | built, Fig. 1 (hero): replaces jc16 and the 2D dispatch stepper of section 2 |
+| jc24 | A jitted call's life: trace into a jaxpr (one plate per equation), lower to StableHLO, compile, cache, hit, retrace on a new shape | 3D stage, 7 steps | built, Fig. 2 (section 3), scan cell at n = 1,000 with its recorded stage times; hit and miss counts from the root lab's drills |
+| jc25 | grad as the forward program plus its transposed equations, residuals on a tape, gradients by shape | 3D stage, 8 and 5 steps | built, Fig. 3 (section 6): replaces the 2D tape (jc21's tape part); the before/after equation panes stay as text beside the list |
+| jc26 | vmap as per-pair plates merging into one batched dot_general | 3D stage, 4 steps | built, Fig. 4 (section 8), shapes from `run_vmap.py` |
+| jc27 | A pytree flattened into leaves and a treedef, keyed, rebuilt | 3D stage, 6 steps | built, Fig. 5 (section 9): replaces jc20 |
+| jc28 | Loop forms, cond under vmap, residual bars, Jacobian grid, sweeps, async timeline, promotion table, cache-key drills, PRNG before/after | 2D | kept 2D: numbers on an axis, tables or flat sequences; each now beside its text in a split |
+| jc29 | A Python for loop unrolled into 5,000 plates against one scan plate | 3D | rejected for now: the loop bars of section 5 already show it with real counts; Fig. 2 shows one plate per equation for the scan form |
+| jc30 | Real images | | none again: no physical object to show |

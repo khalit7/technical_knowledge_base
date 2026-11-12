@@ -18,16 +18,7 @@
 <tr><td><code>BatchTrace</code></td><td><code>jax.vmap</code></td><td>calls the primitive's batching rule with the batch dimension of each input</td></tr>
 </tbody></table></div>
 
-<div class="jc-box" id="jc-disp-card"><h4>One sin under jit(vmap(jvp(f))) becomes three recorded equations; with no transformation it is one dispatch</h4>
-<div class="jc-sel"><span class="seg" id="jc-disp-mode"><button data-m="t" class="on">jit(vmap(jvp(sin)))</button><button data-m="e">no transformation</button></span></div>
-<pre class="jc-code" data-code="tr.dispatch_log.code"></pre>
-<div class="jc-two"><div class="jc-pane"><div class="h">The trace stack (innermost at the top)</div><div id="jc-disp-stack" style="padding:6px 8px"></div></div>
-<div class="jc-pane"><div class="h">What reaches the bottom</div><div class="jc-lines" id="jc-disp-jaxpr"></div></div></div>
-<div class="jc-capt" id="jc-disp-cap"></div>
-<div class="jc-cnt" id="jc-disp-cnt"></div>
-<div class="jc-anctl" id="jc-disp-ctl"></div>
-<div class="jc-cap">Each step replays a real call, logged by wrapping <code>process_primitive</code> of every trace class during the run (<code>run_trace.py</code>): the JVP trace asks the batch trace for <code>sin</code>, <code>cos</code> and <code>mul</code>, which asks the jaxpr trace for batched versions, which records them.</div>
-</div>
+<p>Fig. 1 at the top steps through one <code>sin</code> under <code>jit(vmap(jvp(f)))</code>: the JVP trace asks the batch trace for <code>sin</code>, <code>cos</code> and <code>mul</code>, which asks the jaxpr trace for batched versions, which records them.</p>
 
 <p>Inside <code>f</code>, the argument is a tracer of the <b>innermost</b> transformation, and its primal or value is a tracer of the next one out, down to a real array or a jaxpr variable. <span class="jc-lbl m">measured here</span> by walking that chain inside <code>f(x) = sin(x).sum()</code> for an <code>x</code> of shape (2, 3):</p>
 <div class="tw"><table class="jc-t" id="jc-chains"></table></div>
@@ -44,9 +35,31 @@
 <details class="mist"><summary>History: levels before December 2024, and which Autodidax to read</summary><div class="b">Before December 2024 this dispatch was decided by <b>levels</b>: every trace had a level on a global stack ("main traces"), every tracer remembered its level, and <code>bind</code> picked the highest level among its arguments. JAX 0.4.36 (2024-12-05) replaced it: <span class="jc-lbl s">source</span> the CHANGELOG says the release "lands 'stackless' ... trace dispatch purely a function of context rather than a function of both context and data. This let us delete a lot of machinery for managing data-dependent tracing: levels, sublevels, <code>post_process_call</code>, <code>new_base_main</code>, <code>custom_bind</code>". The original {{Autodidax|https://docs.jax.dev/en/latest/autodidax.html}} still builds the level stack (its <code>MainTrace(level, ...)</code>); {{Autodidax2, part 1|https://docs.jax.dev/en/latest/autodidax2_part1.html}} rebuilds the current, context-based design. Read the second to match today's source.</div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div id="stg-jit"></div></div><div class="s3L">
 <section id="s-jit">
 <h2>3. jit and its cache: trace once per key, then run the compiled program</h2>
-<p><code>jax.jit(f)</code> returns a wrapper. On each call a C++ fast path builds a <b>cache key</b> from the arguments and looks it up; on a miss, Python traces <code>f</code> (section 2), lowers the jaxpr and asks XLA to compile it, then stores the executable. Everything about recompiles follows from what is in the key, read from the pinned source by the root's Transforms lab:</p>
+<p><code>jax.jit(f)</code> returns a wrapper. On each call a C++ fast path builds a <b>cache key</b> from the arguments and looks it up; on a miss, Python traces <code>f</code> (section 2), lowers the jaxpr and asks XLA to compile it, then stores the executable. Everything about recompiles follows from what is in the key, read from the pinned source by the root's Transforms lab (the key itself is below Fig. 2).</p>
+<p>Fig. 2 follows one jitted function through that life: the recurrent cell <code>h = tanh(h @ W + x_t)</code> of section 5, written with <code>lax.scan</code> over 1,000 steps (h of 32 x 128, the running example's width), with the times <code>run_cf.py</code> recorded for each stage <span class="jc-lbl m">measured here</span>. They are single measurements on a loaded Apple M1 Pro CPU (1-minute load average about 34), so read orders of magnitude.</p>
+<pre class="jc-code" data-code="cf.loops.cell"></pre>
+<ol class="sx" id="sx-jit">
+<li><b>First call: a cache miss.</b> The wrapper builds the key from the function and each argument's abstract value (<code>h</code> float32[32,128], <code>xs</code> float32[1000,32,128]) and finds nothing: nothing has been traced or compiled yet.</li>
+<li><b>Trace: Python runs once, on tracers.</b> The arguments become tracers and <code>f</code>'s body records a jaxpr: one <code>scan</code> equation carrying its body (<code>dot_general</code>, <code>add</code>, <code>tanh</code>) as a sub-jaxpr, 4 equations in all; <code>W</code>, closed over, becomes a constant. <code>jax.make_jaxpr</code> took <b id="jc-jit-tr"></b> ms.</li>
+<li><b>Lower to StableHLO.</b> <code>jit(f).lower(h, xs)</code> (which traces again) turns the jaxpr into a StableHLO module, the portable MLIR form XLA reads: <b id="jc-jit-lo"></b> ms.</li>
+<li><b>XLA compiles: the expensive part.</b> <code>.compile()</code> took <b id="jc-jit-co"></b> ms and produced <b id="jc-jit-hl"></b> lines of optimised HLO with one <code>while</code> loop: the 1,000 steps stay one loop body, not 1,000 copies.</li>
+<li><b>Stored under its key, then run.</b> The executable goes into the cache keyed by the signature, and the call runs it on the real arrays: <b id="jc-jit-ru"></b> ms (median of 5). Tracing and compiling were paid once.</li>
+<li><b>Same shapes, new data: a hit.</b> Every later call with the same signature skips Python, tracing and XLA and goes straight to the cached executable. The root's Transforms lab counted it on the running example's loss: new batches of the same shape cost <b id="jc-jit-h0"></b> traces and <b id="jc-jit-h1"></b> compiles.</li>
+<li><b>A new shape: trace and compile again.</b> XLA compiles for exact shapes, so a new length is a new key, a new trace and a second executable on the shelf. On the loss, a last batch of 16 instead of 32 cost <b id="jc-jit-m0"></b> trace and <b id="jc-jit-m1"></b> compile; going back to 32 cost <b id="jc-jit-b0"></b>: both programs stay cached.</li>
+</ol>
+</section>
+</div></div>
+
+<div class="s3sp"><div class="s3L"><section id="s-jit-key">
+<h3>What is in the key, call by call</h3>
+<p>Three rows teach the rules. A Python float passed as an ordinary argument is traced as a weakly typed <code>~float32[]</code>, so a new value is data, not a new program; the same float marked static compiles once per value. A new lambda per step is a function never seen before, so every step compiles. And a global changed between calls gives a <b>stale answer, not a recompile</b>: it was read once, while tracing, and baked in as a constant. In practice: pad to a few bucket shapes instead of feeding ragged lengths; mark an argument static only when it changes the program (a flag, a layer count); jit once, outside the loop; pass anything that varies as an argument. To watch a running job: <code>jax.config.update("jax_explain_cache_misses", True)</code> logs every miss with its reason (the table's explanations are that log), and <code>jax_log_compiles</code> logs each compile.</p>
+
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card">
+<h4 class="jc-ft">Fourteen changes between calls, and the part of the key each one hits</h4>
 <div class="jc-key" id="jc-key">
 <div class="seg2" data-s="fn"><b>the Python function object</b><small>and the jit options</small></div>
 <div class="seg2" data-s="static"><b>values of static arguments</b><small><code>static_argnums</code>, <code>static_argnames</code>; hashed</small></div>
@@ -58,8 +71,9 @@
 <div class="jc-sel"><label class="chk"><input type="checkbox" id="jc-rc-show"> show the answers (predict first)</label></div>
 <div class="tw"><table class="jc-t" id="jc-rc"></table></div>
 <div class="jc-capt" id="jc-rc-why">Pick a row: what changed, how many new compiles it cost, and why.</div>
-<p>Three rows teach the rules. A Python float passed as an ordinary argument is traced as a weakly typed <code>~float32[]</code>, so a new value is data, not a new program; the same float marked static compiles once per value. A new lambda per step is a function never seen before, so every step compiles. And a global changed between calls gives a <b>stale answer, not a recompile</b>: it was read once, while tracing, and baked in as a constant. In practice: pad to a few bucket shapes instead of feeding ragged lengths; mark an argument static only when it changes the program (a flag, a layer count); jit once, outside the loop; pass anything that varies as an argument. To watch a running job: <code>jax.config.update("jax_explain_cache_misses", True)</code> logs every miss with its reason (the table's explanations are that log), and <code>jax_log_compiles</code> logs each compile.</p>
+</div></div></div></div>
 
+<section id="s-jit-static">
 <h3>Static and traced values; side effects run once</h3>
 <p>While tracing, a value is either <b>static</b> (known to Python now: shapes, dtypes, Python numbers the function closes over, static arguments) or <b>traced</b> (known only when the compiled program runs). Python may branch on static values freely, and the branch taken is baked into the program; a Python <code>if</code> on a traced value has no value to test and raises <code>TracerBoolConversionError</code>, and a shape that depends on data raises <code>ConcretizationTypeError</code> (section 5 gives the primitives that replace both). For the same reason a jitted function must be <b>pure</b>: its Python body runs only while tracing, so anything done on the side happens once. <span class="jc-lbl m">measured</span> by the root's Transforms lab (<code>run_basics.py</code>), one jitted function called three times:</p>
 <pre class="jc-code">log, count = [], [0]

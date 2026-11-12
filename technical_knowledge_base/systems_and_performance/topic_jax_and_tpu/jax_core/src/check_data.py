@@ -93,6 +93,31 @@ ok(rc["pyfloat"]["compiles"] == 0 and rc["static"]["compiles"] == 2 and rc["lamb
    "jit drills: python float 0, static 2, lambda 3, global 0 compiles")
 # root facts quoted
 ok("5.8" in html and "826,368" in html, "root figures quoted (5.8, 826,368)")
+# 4. numbers written into the step lists of the 3D figures (2026-11 rollout), against the data
+T = J["tape"]
+fwd = [e for e in T["vjp"]["eqns"] if not e.get("d")]
+ok(len(T["vjp"]["eqns"]) == 35 and len(fwd) == 15 and "35 equations: 15 forward" in html and "20 backward" in html, "Fig. 3: VJP program 35 equations, 15 forward, 20 backward")
+ok(len(T["jvp"]["eqns"]) == 32 and "same five stages, 32 equations" in html, "Fig. 3: JVP program 32 equations")
+fl = ad["mlp"]["flops"]
+ok(f'{fl["vjp (forward + backward)"] / fl["forward"]:.2f}' == "2.03" and "2.03 times the forward FLOPs" in html, "Fig. 3: VJP 2.03 times the forward FLOPs")
+ok(f'{fl["jvp"] / fl["forward"]:.2f}' == "2.48" and "2.48 times the forward FLOPs" in html, "Fig. 3: JVP 2.48 times the forward FLOPs")
+rj = sum(r["bytes"] for r in ad["mlp"]["residuals"]); rt = sum(r["bytes"] for r in ad["mlp"]["torch_saved"])
+ok(f"{rj/1e3:.1f}" == "297.0" and f"{rt/1e3:.1f}" == "280.6" and "297.0 KB in JAX, 280.6 KB in PyTorch" in html, "Fig. 3: tape totals 297.0 KB and 280.6 KB")
+by = {r["src"].split(" from")[0]: r["bytes"] for r in ad["mlp"]["residuals"]}
+ok(any(r["bytes"] == 2048 and "constant" in r["src"] for r in ad["mlp"]["residuals"]) and "2.0 KB) on the tape" in html, "Fig. 3: x residual 2.0 KB")
+ok(sum(1 for r in ad["mlp"]["residuals"] if r["bytes"] == 8192) == 4 and "8.2 KB each" in html, "Fig. 3: GELU residuals 8.2 KB")
+ok(any(r["bytes"] == 262144 for r in ad["mlp"]["residuals"]) and "262 KB)" in html, "Fig. 3: W2 residual 262 KB")
+ok(128 * 512 + 512 + 512 * 128 + 128 == 131712 and "131,712 weights" in html, "Fig. 3: 131,712 weights in the MLP")
+nv = J["vm"]["nested"]
+ok(nv["shape"] == [6, 7] and "a:f32[6,32] b:f32[7,32]" in nv["jaxpr"] and "float32[6,32] against float32[7,32], all 42 scores" in html, "Fig. 4: q [6,32], k [7,32], 42 scores")
+pm = J["pm"]["final"]
+ok(pm["eager"] == [3.0, 6.0, 9.0] == pm["jit"] and pm["grad"] == [3.0, 3.0, 3.0] and pm["vmap_shape"] == [2, 3] and "eager and jit give [3, 6, 9], grad gives [3, 3, 3]" in html and "shape [2, 3]" in html, "section 11: final primitive results")
+for st in J["pm"]["steps"]:
+    errs = [v for v in st["result"].values() if v != "ok"]
+    if errs:
+        ok(errs[0].replace("NotImplementedError: ", "") in html, "section 11 step list quotes: " + errs[0][:60])
+sc = row(1000, "scan")
+ok(sc["eqns_total"] == 4 and sc["loop_prims"].get("scan") == 1 and "4 equations in all" in html, "Fig. 2: scan jaxpr 4 equations in all")
 ok("\u2014" not in html, "no em-dashes")
 print("FAILED", fails if fails else "") if fails else print("all checks passed")
 sys.exit(1 if fails else 0)

@@ -1,9 +1,7 @@
-<section id="s-jaxpr">
+<div class="s3sp"><div class="s3L"><section id="s-jaxpr">
 <h2>4. Jaxprs: the program every transformation reads and writes</h2>
-<p>A transformation needs the computation as data it can inspect and rewrite. The jaxpr is that data: small (a few dozen primitives cover most models), typed (every variable has an aval) and pure (no Python, no side effects except declared effects). PyTorch counterpart: an FX graph, or the aten graph <code>torch.export</code> produces. A printed jaxpr reads <code>{ lambda constvars ; invars . let equations in (outvars) }</code>, each equation <code>outvars = primitive[params] invars</code>. Hover or tap the legend to find each part in a real one:</p>
-<div class="jc-leg" id="jc-ann-leg"></div>
-<div class="jc-ann" id="jc-ann"></div>
-<div class="jc-cap">Printed by <code>jax.make_jaxpr(cf, static_argnums=1)(jnp.ones(16), 4)</code> in <code>run_trace.py</code>; the function <code>cf</code> and five more programs are in the <a href="#" data-tab="t-jcx">Jaxpr explorer</a>, where every equation links to its Python line and its data flow.</div>
+<p>A transformation needs the computation as data it can inspect and rewrite. The jaxpr is that data: small (a few dozen primitives cover most models), typed (every variable has an aval) and pure (no Python, no side effects except declared effects). PyTorch counterpart: an FX graph, or the aten graph <code>torch.export</code> produces. A printed jaxpr reads <code>{ lambda constvars ; invars . let equations in (outvars) }</code>, each equation <code>outvars = primitive[params] invars</code>. Hover or tap the legend beside it to find each part in a real one.</p>
+
 <ul>
 <li><b>invars and outvars</b>: one variable per array leaf of the inputs and outputs (a pytree of four weights becomes four invars).</li>
 <li><b>constvars</b> (before the semicolon): arrays the function closed over. Here the NumPy array <code>big_np</code> became a constvar; a scalar like <code>3.0</code> became a <b>literal</b>, written into the equation with its type (<code>3.0:f32[]</code>).</li>
@@ -11,6 +9,13 @@
 <li><b>effects</b>: <code>jax.debug.print</code> becomes a <code>debug_print</code> equation with no outputs and a declared effect, so dead-code elimination cannot remove it; <b><code>_</code></b> is an output nobody reads (a "drop var").</li>
 </ul>
 <p>What XLA does with the jaxpr after lowering is the {{XLA and compilation|n:3fa5c17b0d0d8135adcedefac9e1bb48}} page. JAX's own reference: {{Understanding jaxprs|https://docs.jax.dev/en/latest/601/jaxpr.html}}.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="jc-ft">A real jaxpr, its parts coloured</h4>
+<div class="jc-leg" id="jc-ann-leg"></div>
+<div class="jc-ann" id="jc-ann"></div>
+<div class="jc-cap">Printed by <code>jax.make_jaxpr(cf, static_argnums=1)(jnp.ones(16), 4)</code> in <code>run_trace.py</code>; the function <code>cf</code> and five more programs are in the <a href="#" data-tab="t-jcx">Jaxpr explorer</a>, where every equation links to its Python line and its data flow.</div>
+</div></div></div></div>
+<section id="s-jaxpr-more">
 <details class="mist"><summary>Closed-over constants: today's behaviour, the planned change, and a closed jaxpr is now just a jaxpr</summary><div class="b">
 <p>JAX's internals note ({{Handling of closed-over constants|https://docs.jax.dev/en/latest/internals/constants.html}}, dated "As of April 2026") says that today large closed-over arrays become constvars and are embedded in the compiled program, which can bloat HLO, slow compilation through constant folding and lose a constant's sharding; a future default (opt-in now with <code>JAX_USE_SIMPLIFIED_JAXPR_CONSTANTS=True</code>) keeps them as literals and passes them to the compiled program as extra arguments. <span class="jc-lbl m">measured here</span>: closing over a NumPy array and a jax.Array gave <span data-k="tr.constants.n_consts"></span> constvars:</p>
 <pre class="jc-code" data-code="tr.constants.src"></pre>
@@ -24,9 +29,12 @@
 <h2>5. Control flow: primitives with programs inside</h2>
 <p>While tracing, a Python <code>if</code> on a tracer has no value to test, and a Python <code>for</code> is unrolled into the jaxpr once per iteration. For control flow that must live inside the compiled program, JAX provides primitives whose params are sub-jaxprs, traced once each. <span class="jc-lbl m">measured here</span>: each was applied inside <code>jit</code> to a small function of a float32[3] and put through <code>grad</code>, <code>jvp</code> and <code>vmap</code> (<code>run_cf.py</code>):</p>
 <div class="tw"><table class="jc-t" id="jc-cfsup"></table></div>
+</section>
+<div class="s3sp"><div class="s3L"><section id="s-cf-loops">
 <p>Only the loop whose trip count is unknown until run time fails, and only in reverse mode: reverse mode replays the loop backwards, so it must know how many iterations to store. <code>while</code>'s transpose rule is an error by design. <code>fori_loop</code> is not a primitive of its own: it becomes a <code>scan</code> when both bounds are concrete at trace time (so it is reverse-differentiable) and a <code>while</code> when either is traced. For gradients through a loop whose length depends on data (a solver, a decode loop with early stop): a <code>scan</code> to a fixed maximum with masking, or a rule that differentiates the solution rather than the iterations (the fixed point in <a href="#s-cust">section 7</a>).</p>
 
-<div class="jc-box"><h4>Unrolling makes compile time grow with the loop; scan and while stay one body</h4>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="jc-ft">Unrolling makes compile time grow with the loop; scan and while stay one body</h4>
 <div class="jc-sel"><span class="seg" id="jccf-metric"><button data-m="compile_s" class="on">compile time</button><button data-m="run_ms">run time</button><button data-m="hlo_lines">optimised HLO lines</button><button data-m="eqns_total">jaxpr equations</button></span><span class="seg" id="jccf-n"><button data-m="10">n = 10</button><button data-m="100">n = 100</button><button data-m="1000" class="on">n = 1,000</button></span></div>
 <div id="jccf-bars"></div>
 <div class="jc-cap" id="jccf-cap"></div>
@@ -36,14 +44,21 @@
 <details class="jc-src"><summary>What fori_loop became: static bounds (scan) against a traced bound (while), n = 10</summary><pre class="jc-code" data-code="cf.loops.jaxpr_fori_static_n10"></pre><pre class="jc-code" data-code="cf.loops.jaxpr_fori_dynamic_n10"></pre></details>
 </div>
 
+</div></div></div>
+<div class="s3sp"><div class="s3L"><section id="s-cf-vmap">
 <h3>Control flow under vmap: per-example predicates run every branch</h3>
 <p>A batching rule must produce one program for the whole batch. If a <code>cond</code>'s predicate is the same for every example, the batched program is still a <code>cond</code>. If it differs per example, there is no single branch to take, so the rule <b>runs both branches for everyone and selects</b>.</p>
 <div class="jc-pr" data-ans="c"><div class="q">Predict: <code>br(p, h) = lax.cond(p, heavy, light, h)</code>, where heavy is 30 matmuls and light returns h. You vmap it over 8 examples, all with <code>p = False</code>. How long does it take compared with calling it with a predicate that is not batched?</div>
 <div class="opts"><button data-o="a">about the same: every example takes the light branch</button><button data-o="b">8 times longer</button><button data-o="c">hundreds of times longer: heavy runs for all 8</button></div>
 <div class="ans" hidden><span class="jc-lbl m">measured here</span> <b><span data-k="cf.cond_vmap.ms_pred_batched" data-f="f2"></span> ms</b> with a batched predicate against <span data-k="cf.cond_vmap.ms_pred_not_batched" data-f="f3"></span> ms with an unbatched one. The batched jaxpr contains no <code>cond</code> at all: <span id="jc-condprims"></span>. The predicate's value never mattered; its batching did.</div></div>
-<div id="jccf-cv"></div>
-<div class="jc-cap">Same function, three ways to run 8 examples (<code>run_cf.py</code>; Apple M1 Pro CPU, loaded, medians). The batched predicate turned the cond into a select, so the heavy branch ran for everyone.</div>
+
 <p>A <code>while_loop</code> with a per-example predicate does the same over time: the loop continues while <b>any</b> example still wants to, and each iteration keeps the old carry for examples that are done. <span class="jc-lbl m">measured here</span>: <code>jax.vmap(count_to)(jnp.array([1, 10, 100, 1000]), ...)</code> returned counts <span data-k="cf.while_vmap.counts"></span>: each answer right, every example paying for 1,000 iterations. Sort or bucket work by length before vmapping a loop.</p>
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="jc-ft">A per-example predicate runs the heavy branch for everyone</h4>
+<div id="jccf-cv"></div>
+<div class="jc-cap">Same function, three ways to run 8 examples (<code>run_cf.py</code>; Apple M1 Pro CPU, loaded, medians). The batched predicate turned the cond into a select, so the heavy branch ran for everyone.</div></div></div></div></div>
+<section id="s-cf-more">
+
 
 <details class="mist"><summary>Which primitive? A chooser backed by these runs</summary><div class="b"><div id="jccf-q"></div><div class="co key" id="jccf-out"></div></div></details>
 <details class="mist"><summary>Read it in the source: while's transpose, fori_loop's choice, cond and while under vmap; the batched jaxprs</summary><div class="b">

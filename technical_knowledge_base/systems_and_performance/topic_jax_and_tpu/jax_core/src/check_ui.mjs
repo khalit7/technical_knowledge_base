@@ -41,8 +41,9 @@ for(const [w,scheme] of [[390,'dark'],[920,'light']]){
         for(const k of [...q('#jccv-vars input')]){const kk=root.querySelector('#jccv-vars input[data-v="'+k.dataset.v+'"]');if(kk){kk.click();c++;await sleep()}}
         for(const k of [...q('#jccv-vars input')]){const kk=root.querySelector('#jccv-vars input[data-v="'+k.dataset.v+'"]');if(kk&&!kk.checked){kk.click();await sleep()}}
         const r=root.querySelector('#jccv-x');if(r){const mx=+r.max;for(let v=0;v<=mx;v+=7){const rr=root.querySelector('#jccv-x');rr.value=v;rr.dispatchEvent(new Event('input'));c++;await sleep()}}}}
+      // Fig. 3 (the autodiff stage, 2026-11): every step in both modes, with both tapes
       if(t==='t-read'){for(const b of [...q('#jcad-mode button')]){b.click();await sleep();for(const w of [...q('#jcad-who button')]){w.click();
-        const f=root.querySelector('#jcad-ctl-f');for(let i=0;i<14;i++){f.click();c++;await sleep()}}}}
+        const f=root.querySelector('#stg-ad-f');for(let i=0;i<9;i++){f.click();c++;await sleep()}}}}
       return c},tab);
     // back on this tab (a click may have switched tabs) and re-check
     await p.evaluate(t=>document.querySelector('#tabs button[data-t="'+t+'"]').click(),tab);

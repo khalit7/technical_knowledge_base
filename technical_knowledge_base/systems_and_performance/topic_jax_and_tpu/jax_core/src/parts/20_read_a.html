@@ -1,10 +1,25 @@
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="s-one">
 <div class="co key"><div class="t">The core idea</div>
 A JAX transformation runs your Python once on <b>tracers</b> (stand-ins that carry only a shape and a dtype), and every array operation becomes a <b>primitive</b> that asks the <b>current interpreter</b> what it means: run it (no transformation), record it into a <b>jaxpr</b> (jit), differentiate it (grad, jvp) or batch it (vmap); the interpreters stack, so the transformations compose. Everything else on this page (dtype rules, the jit cache, control flow, custom rules, pytrees, keys) is a consequence of that design.</div>
-
-<svg id="jc-hero" class="jc-hero" role="img" aria-label="One sin in your Python, bound to the current trace, means four different things under four interpreters: run now, record an equation, emit sin and cos for the derivative, or apply to the whole batch."></svg>
-<div class="jc-cap">One <code>sin</code> in your code, four meanings. <code>sin_p.bind(x)</code> hands the operation to whichever interpreter is current; under <code>jit(vmap(jvp(f)))</code> the three lower rows run in turn, each binding its output on the next (section 2 steps through the real calls). Click a row to jump to its section.</div>
-
+<p>One <code>sin</code> in your code, four meanings. <code>sin_p.bind(x)</code> hands the operation to whichever interpreter is current; under <code>jit(vmap(jvp(f)))</code> three of them run in turn, each binding its output on the next. Fig. 1 replays the real call, logged by wrapping <code>process_primitive</code> of every trace class during the run (<code>run_trace.py</code>):</p>
+<pre class="jc-code" data-code="tr.dispatch_log.code"></pre>
+<div class="s3chips" id="jc-hero-mode"><button data-m="t" class="on">jit(vmap(jvp(sin)))</button><button data-m="e">no transformation</button></div>
+<ol class="sx" id="sx-hero">
+<li><b>Three interpreters, stacked.</b> <code>jit</code> made a jaxpr trace (bottom), <code>vmap</code> a batch trace on top of it, <code>jvp</code> a JVP trace on top of that. Python now runs <code>f</code> once; its first array operation is <code>lax.sin(x)</code>, which calls <code>sin_p.bind(x)</code>.</li>
+<li><b>jvp's trace receives sin first</b>, because jvp is the innermost transformation. On the per-example <code>float32[3]</code> it runs the JVP rule of sin: the primal needs sin(x), the tangent needs cos(x) times t. It binds <b>sin</b>, <b>cos</b> and <b>mul</b> on its parent, with the parent set as the current trace.</li>
+<li><b>vmap's trace batches sin</b>: the batching rule of an elementwise op applies it to the whole batch, so <code>float32[3]</code> becomes <code>float32[2,3]</code>, batch dim unchanged. It binds that on the jaxpr trace, which <b>records an equation</b>: sin of the batched array. Nothing is computed.</li>
+<li><b>cos takes the same path</b>: batched to <code>float32[2,3]</code>, recorded as a second equation.</li>
+<li><b>mul, the tangent t * cos(x)</b>: both operands carry batch dim 0, so one mul on the batched arrays, recorded as the third equation.</li>
+<li><b>Done: three equations, no numbers.</b> One <code>sin</code> in your Python became the jaxpr below (the unused primal shows as <code>_</code>, a drop var), which is the real output of <code>jax.make_jaxpr(jax.vmap(f))</code>; jit now hands it to XLA (section 3).<pre class="jc-code" data-code="tr.dispatch_log.jaxpr"></pre></li>
+</ol>
+<ol class="sx" id="sx-hero-e" hidden>
+<li><b>Same call, no transformation.</b> The current trace is the <code>EvalTrace</code> (section 2's chain table, last row), and <code>x</code> is a real <code>float32[2,3]</code>. <code>sin_p.bind(x)</code> finds it.</li>
+<li><b>EvalTrace runs the impl</b>: a small compiled program for <code>sin</code> runs on the device and returns a concrete array. No tangent, no batching, no record: one primitive, one dispatch. Without transformations JAX behaves like PyTorch eager, each operation dispatched as Python reaches it, which is why un-jitted JAX is slow for many small ops.</li>
+</ol>
+</section>
+</div></div>
+<section id="s-one-b">
 <p><b>You need</b>: PyTorch autograd and <code>torch.compile</code> at user level, and the root page {{Topic: jax-and-tpu|n:3c65c17b0d0d81ecbc04eea6aa45ea1a}} for the running example (a 4-layer character transformer, d_model 128, 826,368 parameters, TinyShakespeare, defined in the root's <code>src/data/README.md</code>). Its <b>Transforms lab</b> has the first-contact drills (tracing a function line by line, immutable arrays, a toy tracer, per-example gradients timed); this page owns the concepts and goes inside them.</p>
 
 <h3>New terms, and their nearest PyTorch thing</h3>

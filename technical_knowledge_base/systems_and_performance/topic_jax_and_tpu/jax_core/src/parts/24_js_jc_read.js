@@ -6,33 +6,6 @@ const fmtv=v=>Array.isArray(v)?'['+v.map(fmtv).join(', ')+']':(typeof v==='numbe
 // arrays and booleans in data-k spans: re-fill with readable formatting
 document.querySelectorAll('[data-k]').forEach(el=>{const v=U.get(el.dataset.k);if(Array.isArray(v)||typeof v==='boolean')el.textContent=fmtv(v)});
 
-// ---------------------------------------------------------------- hero: one sin, four interpreters
-function drawHero(){const el=$('jc-hero');if(!el)return;const w=RD.width(el.parentNode);const narrow=w<620;
-  const R=[['EvalTrace','no transformation','runs sin now on real numbers','s-trace'],
-    ['DynamicJaxprTrace','jit, make_jaxpr','records b:f32[2,3] = sin a; jaxpr to XLA','s-jit'],
-    ['JVPTrace, LinearizeTrace','jvp, grad','emits sin(x) and cos(x) * t','s-ad'],
-    ['BatchTrace','vmap','applies sin to the whole batch','s-vmap']];
-  let b='<defs><marker id="jcah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--mute)"/></marker></defs>';
-  const box=(x,y,bw,bh,l1,l2,hl,sec)=>'<g'+(sec?' class="jcmapb" data-sec="'+sec+'" style="cursor:pointer"':'')+'><rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="7" fill="'+(hl?'var(--acc2)':'var(--soft)')+'" stroke="'+(hl?'var(--acc)':'var(--line)')+'" stroke-width="'+(hl?2:1)+'"/>'+
-    RD.t(x+8,y+18,l1,{fs:12.5,w:600})+(l2?RD.t(x+8,y+35,l2,{fs:11.5,fill:'var(--mute)'}):'')+'</g>';
-  const arr=(x1,y1,x2,y2)=>'<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="var(--mute)" stroke-width="1.2" marker-end="url(#jcah)"/>';
-  let H;
-  if(!narrow){const lw=Math.min(250,w*0.3),rx=lw+60,rw=w-rx-6,rh=44,gap=8;H=4*rh+3*gap+8;
-    const ay=8,by=H/2+4;
-    b+=box(4,ay,lw,44,'your Python: f(x) = sin(x).sum()','runs once, on tracers',0);
-    b+=arr(4+lw/2,ay+44,4+lw/2,by-2);
-    b+=box(4,by,lw,48,'sin_p.bind(x)','asks the current trace',1);
-    R.forEach((r,i)=>{const y=4+i*(rh+gap);b+=arr(4+lw,by+24,rx-2,y+rh/2);
-      b+=box(rx,y,rw,rh,r[0]+'  ('+r[1]+')',r[2],0,r[3])})}
-  else{const bw=w-8;let y=4;b+=box(4,y,bw,44,'f(x) = sin(x).sum()','your Python, run once on tracers',0);y+=44;b+=arr(w/2,y,w/2,y+14);y+=16;
-    b+=box(4,y,bw,44,'sin_p.bind(x)','asks the current trace',1);y+=44;
-    const top=y;y+=10;let mid=0;R.forEach(r=>{b+=arr(14,y+22,26,y+22);b+=box(28,y,bw-24,44,r[0],r[1]+': '+r[2],0,r[3]);mid=y+22;y+=50});
-    b+='<line x1="14" y1="'+top+'" x2="14" y2="'+mid+'" stroke="var(--mute)" stroke-width="1.2"/>';H=y}
-  el.setAttribute('viewBox','0 0 '+w+' '+H);el.setAttribute('width',w);el.setAttribute('height',H);el.innerHTML=b;
-  el.querySelectorAll('.jcmapb').forEach(g=>g.addEventListener('click',()=>{const s=$(g.dataset.sec);if(s)s.scrollIntoView({block:'start'})}));
-}
-drawHero();RD.onRender(drawHero);RD.onResize(drawHero);
-
 // ---------------------------------------------------------------- async dispatch timeline
 function drawAsync(){const el=$('jc-async');if(!el)return;const A=J.arr.async;const w=RD.width(el.parentNode),narrow=w<520;
   const T=A.dispatch_and_block_ms,lx=narrow?62:84,x=t=>lx+(t/(T*1.12))*(w-lx-8),H=118;
@@ -49,6 +22,11 @@ function drawAsync(){const el=$('jc-async');if(!el)return;const A=J.arr.async;co
   b+=RD.t(x(T)-2,112,'ready: '+T.toFixed(1)+' ms',{fs:11.5,a:'end',w:600});
   el.setAttribute('viewBox','0 0 '+w+' '+H);el.setAttribute('width',w);el.setAttribute('height',H);el.innerHTML=b}
 drawAsync();RD.onRender(drawAsync);RD.onResize(drawAsync);
+
+// ---------------------------------------------------------------- section 3: the numbers in Fig. 2's step list
+(function(){const r=J.cf.loops.rows.find(x=>x.variant==='scan'&&x.n===1000),D=id=>J.rc.drills.find(d=>d.id===id),set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
+  if(r){set('jc-jit-tr',(r.trace_s*1e3).toFixed(1));set('jc-jit-lo',(r.lower_s*1e3).toFixed(1));set('jc-jit-co',(r.compile_s*1e3).toFixed(0));set('jc-jit-hl',r.hlo_lines);set('jc-jit-ru',r.run_ms.toFixed(1))}
+  set('jc-jit-h0',D('values').traces);set('jc-jit-h1',D('values').compiles);set('jc-jit-m0',D('batch16').traces);set('jc-jit-m1',D('batch16').compiles);set('jc-jit-b0',D('back').compiles)})();
 
 // ---------------------------------------------------------------- the jit cache key and the drills (absorbed from the root's Transforms lab)
 (function(){const D=J.rc.drills;if(!$('jc-rc'))return;
@@ -81,31 +59,6 @@ $('jc-trlist').innerHTML=J.src.trace_classes.map(t=>'<code>'+esc(t.name)+'</code
     const last=ch[ch.length-1];const bot=last.value?(last.value==='Var'?'a jaxpr variable (jit is recording)':'a concrete array'):(last.parent?'parent '+last.parent:'');
     h+='<tr><td><code>'+esc(k)+'</code></td><td>'+(parts.length?parts.join(' &rarr; '):'<span class="mute">a plain jax.Array (current trace: EvalTrace)</span>')+'</td><td>'+esc(bot)+'</td></tr>'});
   $('jc-chains').innerHTML=h+'</tbody>'})();
-
-// dispatch animation
-(function(){const L=J.tr.dispatch_log.log;let mode='t';
-  const say={JVPTrace:'jvp\'s trace (outermost of the three to receive it, because it is the innermost transformation)',BatchTrace:'vmap\'s trace',DynamicJaxprTrace:'jit\'s trace'};
-  const rule={JVPTrace:{sin:'runs the JVP rule of sin: the primal needs sin(x), the tangent needs cos(x) times t. It binds sin, cos and mul on its parent, with the parent set as the current trace.'},
-    BatchTrace:{sin:'runs the batching rule of sin (elementwise: the same op on the whole batch, batch dim unchanged) and binds it on its parent.',cos:'batches cos the same way.',mul:'batches mul: both operands carry batch dim 0, so one mul on the batched arrays.'},
-    DynamicJaxprTrace:{sin:'records an equation: sin of the batched float32[2,3]. Nothing is computed.',cos:'records cos on float32[2,3].',mul:'records mul on two float32[2,3]. This is the tangent: t * cos(x).'}};
-  function stepsT(){const s=[{cap:'<b>Start.</b> <code>jit</code> made a jaxpr trace (bottom), <code>vmap</code> a batch trace on top of it, <code>jvp</code> a JVP trace on top of that. Python now runs <code>f</code>; its first array operation is <code>lax.sin(x)</code>, which calls <code>sin_p.bind(x)</code>.',cur:null,rec:0}];
-    let rec=0;L.forEach((e,i)=>{if(e.trace==='DynamicJaxprTrace')rec++;s.push({cap:'<b>'+esc(say[e.trace])+'</b> receives <code>'+esc(e.prim)+'</code> on '+e.in.map(esc).join(', ')+' and '+esc((rule[e.trace]||{})[e.prim]||'processes it.'),cur:e.trace,rec:rec,i:i})});
-    s.push({cap:'<b>Done.</b> One <code>sin</code> in your Python became three recorded equations on batched shapes; no number was computed. The jaxpr on the right is the real output of <code>jax.make_jaxpr(jax.vmap(f))</code> (the unused primal shows as <code>_</code>). jit now hands it to XLA.',cur:null,rec:rec,final:true});return s}
-  function stepsE(){return [{cap:'<b>Same call, no transformation.</b> The current trace is the <code>EvalTrace</code> (chain table, last row). <code>sin_p.bind(x)</code> finds it.',cur:null,rec:0},
-    {cap:'<b>EvalTrace</b> calls the primitive\'s <code>impl</code> on the real float32[2,3]: a small compiled program for <code>sin</code> runs on the device and returns a concrete array. No tangent, no batching, no record: one primitive, one dispatch.',cur:'EvalTrace',rec:0},
-    {cap:'<b>Done.</b> Without transformations JAX behaves like PyTorch eager: each operation dispatched as Python reaches it. That is why un-jitted JAX is slow for many small ops.',cur:null,rec:0,final:true,eval:true}]}
-  let S=stepsT();
-  function draw(i){const st=S[i];const names=mode==='t'?['JVPTrace','BatchTrace','DynamicJaxprTrace']:['EvalTrace'];
-    const lbl={JVPTrace:'JVPTrace <small>jax.jvp: tracers carry (primal, tangent)</small>',BatchTrace:'BatchTrace <small>jax.vmap: tracers carry (value, batch_dim = 0)</small>',DynamicJaxprTrace:'DynamicJaxprTrace <small>jax.jit: tracers are jaxpr variables</small>',EvalTrace:'EvalTrace <small>no transformation: real arrays</small>'};
-    $('jc-disp-stack').innerHTML=names.map(n=>'<div class="jc-nest'+(st.cur===n?' cur':'')+'"><div class="nm">'+lbl[n]+'</div></div>').join('');
-    let lines=[];if(mode==='t'){const all=J.tr.dispatch_log.jaxpr.split('\n');
-      if(st.final)lines=all.map(l=>'<div>'+esc(l)+'</div>');else{const recs=L.filter(e=>e.trace==='DynamicJaxprTrace').slice(0,st.rec).map(e=>'<div class="on">'+esc(e.prim+' '+e.in.join(' '))+'</div>');lines=recs.length?recs:['<div class="dim">(nothing recorded yet)</div>']}}
-    else lines=[st.eval||st.cur?'<div class="on">sin(x) computed: a concrete float32[2,3]</div>':'<div class="dim">(nothing yet)</div>'];
-    $('jc-disp-jaxpr').innerHTML=lines.join('');$('jc-disp-cap').innerHTML=st.cap;
-    const calls=mode==='t'?L.slice(0,st.i===undefined?(st.final?L.length:0):st.i+1).length:(i>0?1:0);
-    $('jc-disp-cnt').innerHTML=RD.stat('process_primitive calls',calls,'logged in the run')+RD.stat('equations recorded',mode==='t'?st.rec:0,'by DynamicJaxprTrace')+RD.stat('Python sin calls',1,'in your code')}
-  const an=RD.anim({card:'jc-disp-card',ctl:'jc-disp-ctl',n:S.length,draw,ms:2200,label:'Dispatch step'});
-  RD.seg($('jc-disp-mode'),m=>{mode=m;S=m==='t'?stepsT():stepsE();an.reset(S.length)})})();
 
 // annotated jaxpr
 (function(){const txt=J.ex.items.cf.text;const leg=[['jc-k-const','constvars (closed-over arrays)'],['jc-k-in','invars'],['jc-k-prim','primitive'],['jc-k-par','params'],['jc-k-lit','literals'],['jc-k-out','outvars'],['jc-k-sub','sub-jaxpr (a param)']];
@@ -167,13 +120,11 @@ $('jc-vg-ratio').textContent=(J.ad.model.flops.value_and_grad/J.ad.model.flops['
 (function(){const I=J.pr.impls;const order=['threefry2x32','threefry4x32','philox2x32','philox4x32','rbg','unsafe_rbg'];
   $('jc-prng').innerHTML='<thead><tr><th>impl</th><th>key dtype</th><th>key data</th><th>first 3 normals of key(0)</th><th class="num">ms, 4M normals</th><th>vmap over keys exact</th></tr></thead><tbody>'+order.filter(k=>I[k]).map(k=>{const r=I[k];return '<tr><td><code>'+k+'</code>'+(k===J.pr.default_impl?' (default)':'')+'</td><td class="mono">'+esc(r.dtype)+'</td><td class="mono">uint32'+esc(JSON.stringify(r.key_shape).replace(/,/g,', '))+'</td><td class="mono">'+r.first3.join(', ')+'</td><td class="num">'+r.ms_4M_normals.toFixed(1)+'</td><td class="'+(r.vmap_equals_loop?'ok':'no')+'">'+(r.vmap_equals_loop?'yes':'no: first key only')+'</td></tr>'}).join('')+'</tbody>'})();
 
-// ---------------------------------------------------------------- section 10: the primitive stepper
+// ---------------------------------------------------------------- section 11: the primitive stepper (its steps are explained by #sx-prim on the left)
 (function(){const P=J.pm.steps,cols=['eager','make_jaxpr','jit','jvp','grad','vmap'];
   function draw(i){let h='<div class="jc-steps"><div class="h rl">after this rule</div>'+cols.map(c=>'<div class="h">'+c+'</div>').join('');
     P.forEach((s,j)=>{const short=['bind only','+ impl','+ abstract eval','+ lowering','+ JVP','+ transpose','+ batching'][j];
       h+='<div class="rl'+(j===i?' cur':'')+'" style="'+(j>i?'opacity:.3':'')+'">'+short+'</div>'+cols.map(c=>{const v=s.result[c];const ok=v==='ok';return '<div class="'+(j>i?'':(ok?'ok':'no'))+(j===i?' cur':'')+'" style="'+(j>i?'opacity:.3':'')+'" title="'+esc(v)+'">'+(j>i?'':(ok?'ok':'error'))+'</div>'}).join('')});
-    $('jc-prim-grid').innerHTML=h+'</div>';$('jc-prim-code').textContent=P[i].code;
-    const errs=cols.map(c=>P[i].result[c]).filter(v=>v!=='ok');const first=errs.length?errs[0]:null;
-    $('jc-prim-cap').innerHTML='<b>Step '+(i+1)+' of '+P.length+': '+esc(P[i].title)+'.</b> '+(first?'Next failure, as JAX reported it: <code>'+esc(first)+'</code>':'Every transformation works. Final check: eager, jit and grad give '+esc(JSON.stringify(J.pm.final.eager))+', '+esc(JSON.stringify(J.pm.final.jit))+' and '+esc(JSON.stringify(J.pm.final.grad))+' (expected gradient 3 = d(2x + x)/dx); vmap output shape '+esc(JSON.stringify(J.pm.final.vmap_shape))+'.')}
-  RD.anim({card:'jc-prim-card',ctl:'jc-prim-ctl',n:P.length,draw,ms:2600,label:'Rule step'})})();
+    $('jc-prim-grid').innerHTML=h+'</div>';$('jc-prim-code').textContent=P[i].code}
+  RD.anim({card:'jc-prim-card',ctl:'jc-prim-ctl',n:P.length,draw,ms:4200,label:'Rule step',list:'sx-prim'})})();
 })();

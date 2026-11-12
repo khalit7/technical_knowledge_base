@@ -1,12 +1,21 @@
+<div class="s3sp"><div class="s3R"><div id="stg-tree"></div></div><div class="s3L">
 <section id="s-tree">
 <h2>9. Pytrees: leaves, a structure, and static data in the jit key</h2>
 <p>A pytree is any nested container of arrays (dicts, lists, tuples, registered classes). Every transformation flattens its arguments into <b>leaves</b> (the arrays it traces) and a <b>treedef</b> (the structure, including each node's <b>auxiliary data</b>, the static part), and the treedef is part of the jit cache key (section 3). The root's Transforms lab, section 7, explores the running example's parameter tree; this section is about your own classes.</p>
-<div class="jc-flow">
-<div class="n"><b>an object</b><code>LayerNorm(scale, bias, eps=1e-5)</code></div><div class="ar">&rarr; flatten &rarr;</div>
-<div class="n"><b>leaves: traced</b><code>[scale f32[128], bias f32[128]]</code></div><div class="ar">+</div>
-<div class="n hl"><b>treedef: part of the cache key</b><code>LayerNorm[(1e-05,)]</code>, the aux data <code>eps</code> inside the node</div>
-</div>
-<div class="jc-cap">What a transformation sees of a registered class: arrays become leaves and are traced; everything else rides in the treedef, is compared by value and is baked into the program.</div>
+<div class="jc-pr" data-ans="b"><div class="q">Predict: a jitted function takes a <code>LayerNorm(scale, bias, eps=1e-5)</code> (code below). You call it with new scale values, then with <code>eps=1e-6</code>. How many times is it traced in total?</div>
+<div class="opts"><button data-o="a">once: both are just different values</button><button data-o="b">twice: the new eps is a new treedef</button><button data-o="c">three times: any change retraces</button></div>
+<div class="ans" hidden><span class="jc-lbl m">measured here</span> traces after the new scale: <b data-k="pt.static.traces_after_new_values"></b>; after the new eps: <b data-k="pt.static.traces_after_new_eps"></b>. Arrays are traced, so new values hit the cache; aux data is compared by value and baked into the program, so a new eps is a new program. Put hyperparameters that change every step (a learning rate on a schedule) in a leaf, not in a static field.</div></div><ol class="sx" id="sx-tree">
+<li><b>An object.</b> <code>LayerNorm(scale, bias, eps=1e-5)</code>, a registered dataclass: two arrays (float32[128] each) and a static field, <code>eps</code>.</li>
+<li><b>Flatten: leaves and a treedef.</b> What a transformation sees of a registered class: arrays become leaves and are traced; everything else rides in the treedef, is compared by value and is baked into the program. Here the treedef prints <code data-k="pt.register.LayerNorm (register_dataclass).treedef"></code>: the aux data inside the node, one <code>*</code> per leaf.</li>
+<li><b>jit traces the leaves; the treedef joins the key.</b> The two leaves enter as tracers, and the treedef, eps included, becomes part of the jit cache key (section 3). Traces so far: 1.</li>
+<li><b>New scale values: a cache hit.</b> The leaves changed, the treedef is equal, so the key matches: traces after the new values, <b data-k="pt.static.traces_after_new_values"></b>.</li>
+<li><b>eps = 1e-6: a new treedef, a new program.</b> The aux data changed, so the key changed and the function was traced again: traces after the new eps, <b data-k="pt.static.traces_after_new_eps"></b>. Put a hyperparameter that changes every step (a learning rate on a schedule) in a leaf, not in a static field.</li>
+<li><b>Unflatten: the object comes back.</b> The output leaves plus the treedef rebuild a <code>LayerNorm</code>, which is how transformations hand back your own types.</li>
+</ol>
+</section>
+</div></div>
+<section id="s-tree-more">
+
 <p>A node type needs two functions, flatten (object to children plus aux data) and unflatten (back). Three ways to get them <span class="jc-lbl m">measured here</span> (<code>run_pytree.py</code>):</p>
 <pre class="jc-code">class Linear:                                      # (a) by hand
     def __init__(self, w, b, name): ...
@@ -25,9 +34,7 @@ class Adam(NamedTuple):                           # (c) NamedTuples are pytrees 
     mu: dict; nu: dict; count: jax.Array</pre>
 <div class="tw"><table class="jc-t" id="jc-treereg"></table></div>
 <p>The treedef prints the aux data inside the node (<code>Linear[fc1]</code>, <code>LayerNorm[(1e-05,)]</code>), and key paths name each leaf (<code>.scale</code>, <code>.mu['w']</code>), which is what optax masks, orbax checkpoints and sharding rules match on. A hand-registered class without key functions gets flat-index paths; <code>register_pytree_with_keys</code> or a dataclass gives names. Flax NNX and Equinox modules are registered the same way, with layer sizes and activation functions as aux data (the {{training stack|n:3c65c17b0d0d817ea0ace9a2ca8677ec}} page covers <code>nnx.split</code> and Equinox's filtered transformations built on this).</p>
-<div class="jc-pr" data-ans="b"><div class="q">Predict: a jitted function takes the <code>LayerNorm</code> above. You call it with new scale values, then with <code>eps=1e-6</code>. How many times is it traced in total?</div>
-<div class="opts"><button data-o="a">once: both are just different values</button><button data-o="b">twice: the new eps is a new treedef</button><button data-o="c">three times: any change retraces</button></div>
-<div class="ans" hidden><span class="jc-lbl m">measured here</span> traces after the new scale: <b data-k="pt.static.traces_after_new_values"></b>; after the new eps: <b data-k="pt.static.traces_after_new_eps"></b>. Arrays are traced, so new values hit the cache; aux data is compared by value and baked into the program, so a new eps is a new program. Put hyperparameters that change every step (a learning rate on a schedule) in a leaf, not in a static field.</div></div>
+
 <p>Because aux data is hashed and compared, it must be hashable with value equality. An array in aux data passes the first call and fails the second, when JAX compares it with the cached one:</p>
 <pre class="jc-code jc-err" data-code="pt.static.unhashable_aux_second_call"></pre>
 <details class="mist"><summary>Unregistered classes, None, is_leaf, transpose, paths, ravel, and what flattening costs</summary><div class="b">
@@ -44,14 +51,19 @@ class Adam(NamedTuple):                           # (c) NamedTuples are pytrees 
 <p><b>What flattening costs.</b> Every jitted call flattens its arguments in C++ to find the cache entry. <span class="jc-lbl m">measured here</span> on the running example's <span data-k="pt.running_example.n_leaves"></span>-leaf parameter tree (<span data-k="pt.running_example.num_nodes"></span> nodes): flatten <span data-k="pt.running_example.flatten_us" data-f="f1"></span> microseconds, unflatten <span data-k="pt.running_example.unflatten_us" data-f="f1"></span>, an identity <code>tree.map</code> <span data-k="pt.running_example.identity_map_us" data-f="f1"></span>; a jitted call taking the whole tree returned in <span data-k="pt.running_example.jit_call_with_69_leaves_us" data-f="f1"></span> microseconds against <span data-k="pt.running_example.jit_call_with_1_leaf_us" data-f="f1"></span> for one array (Apple M1 Pro (CPU), shared machine, low priority, median of 200). Negligible for a training step; it adds up for tiny functions called in a Python loop with large trees, one reason to jit the whole step rather than its pieces.</p></div></details>
 </section>
 
-<section id="s-prng">
+<div class="s3sp"><div class="s3L"><section id="s-prng">
 <h2>10. Random keys: a counter-based hash instead of a global generator</h2>
 <p><code>torch.manual_seed(0)</code> seeds a hidden global generator whose state advances on every call. A pure function cannot use hidden state, and a traced function would freeze it (section 3). So JAX makes the generator state an explicit value, a <b>key</b>, passed in like any argument. The rules: never use a key twice; <code>key, sub = jax.random.split(key)</code> makes new independent keys (keep one to split again); <code>jax.random.fold_in(key, step)</code> derives a key from an integer such as the step number. The classic bug is silent: <span class="jc-lbl m">measured</span> by the root's Transforms lab, two dropout masks drawn with the same key at keep probability 0.9 agreed on 100% of 4,096 positions (they are the same mask), while masks from split keys agreed on 81.8%, close to 0.9 x 0.9 + 0.1 x 0.1 = 82% for independent masks.</p>
-<div class="jc-two">
+</section></div>
+<div class="s3R"><div class="s3side"><div class="card"><h4 class="jc-ft">A generator with state against a hash of a counter</h4>
+<div class="jc-two jc-one">
 <div class="jc-pane"><div class="h">Stateful generator (torch.Generator)</div><div class="jc-flow" style="padding:4px 8px"><div class="n">state<sub>0</sub></div><div class="ar">&rarr;</div><div class="n">draw, state<sub>1</sub></div><div class="ar">&rarr;</div><div class="n">draw, state<sub>2</sub></div></div><div class="small" style="padding:0 8px 6px">Element i needs every draw before it: sequential, and order-dependent across devices.</div></div>
 <div class="jc-pane"><div class="h">Counter-based (Threefry, JAX's default)</div><div class="jc-flow" style="padding:4px 8px"><div class="n hl">bits[i] = threefry(key, i)</div><div class="ar">for any i,</div><div class="n">in any order, on any device</div></div><div class="small" style="padding:0 8px 6px">A keyed hash of a counter: no state to advance, so sharded random numbers are cheap and reproducible.</div></div>
 </div>
 <div class="jc-cap">Why JAX's keys work under jit, vmap and sharding: the default generator, <b>Threefry-2x32</b> ({{Salmon et al. (2011), Parallel random numbers: as easy as 1, 2, 3|http://www.thesalmons.org/john/random123/papers/random123sc11.pdf}}), computes random bits as a keyed hash of a counter, built from 32-bit additions, rotations and XORs.</div>
+</div></div></div></div>
+<section id="s-prng-more">
+
 <p><b>Typed keys.</b> <span class="jc-lbl m">measured here</span>: <code>jax.random.key(0)</code> is a scalar array of a key dtype; the older <code>jax.random.PRNGKey(0)</code> is a plain uint32 array of two words. They give the same stream (<span data-k="pr.keys.same_stream"></span>), but typed keys are the recommended form ({{JEP 9263|https://docs.jax.dev/en/latest/jep/9263-typed-keys.html}}): arithmetic on a key is a bug, a batch of keys has the batch shape and nothing else, and the implementation travels with the dtype.</p>
 <div class="tw"><table class="jc-t"><thead><tr><th></th><th><code>jax.random.key(0)</code></th><th><code>jax.random.PRNGKey(0)</code></th></tr></thead><tbody>
 <tr><td>typeof</td><td class="mono" data-k="pr.keys.key(0).typeof"></td><td class="mono" data-k="pr.keys.PRNGKey(0).typeof"></td></tr>
@@ -80,16 +92,28 @@ class Adam(NamedTuple):                           # (c) NamedTuples are pytrees 
 <p>The last row is real: <span class="jc-lbl m">measured here</span>, vmapping <code>normal</code> over 8 split <code>rbg</code> keys gave the same numbers as drawing 8 values from the first key alone, exactly the docstring's warning; every counter-based generator matched its own loop. The "fastest on TPU" row is the docstring's claim, <span class="jc-lbl p">published</span>, not run here (no TPU); on this CPU the RBG generators were the slowest. The design is in {{JEP 263|https://docs.jax.dev/en/latest/jep/263-prng.html}}.</p></div></details>
 </section>
 
+<div class="s3sp"><div class="s3R"><div class="s3side"><div class="card" id="jc-prim-card"><h4 class="jc-ft">Each rule unlocks a transformation (real results after each step)</h4>
+<div id="jc-prim-grid"></div>
+<pre class="jc-code" id="jc-prim-code"></pre>
+<div class="jc-anctl" id="jc-prim-ctl"></div>
+</div></div>
+</div><div class="s3L">
 <section id="s-prim">
 <h2>11. Writing a new primitive, one rule at a time</h2>
 <p>Almost never needed: <code>custom_jvp</code> or <code>custom_vjp</code> (section 7) cover new derivatives, <code>jax.pure_callback</code> calls host Python, <code>jax.ffi</code> calls compiled C++ or CUDA through XLA's foreign function interface, and {{Pallas|n:3fa5c17b0d0d817699fcf65d085402e7}} writes kernels. A primitive is what those are built from, and writing one shows what every transformation needs. The example is <code>multiply_add(x, y, z) = x * y + z</code> from JAX's own {{primitives guide|https://docs.jax.dev/en/latest/601/jax-primitives.html}}, written against the public extension modules of jax 0.11.2:</p>
-<div class="jc-box" id="jc-prim-card"><h4>Each rule unlocks a transformation (real results after each step)</h4>
-<div id="jc-prim-grid"></div>
-<pre class="jc-code" id="jc-prim-code"></pre>
-<div class="jc-capt" id="jc-prim-cap"></div>
-<div class="jc-anctl" id="jc-prim-ctl"></div>
-<div class="jc-cap">The rules, in the order they unlock things: <b>impl</b> (eager evaluation), <b>abstract evaluation</b> (shapes and dtypes: tracing, so <code>make_jaxpr</code>), <b>lowering</b> (StableHLO: jit), <b>JVP</b> (forward mode), <b>transpose</b> (reverse mode, because grad is linearize then transpose), <b>batching</b> (vmap). Each failure is the message JAX printed (<code>run_prim.py</code>).</div>
-</div>
+<p>Each step adds one rule and runs every transformation again; the failures are the messages JAX printed (<code>run_prim.py</code>).</p>
+<ol class="sx" id="sx-prim">
+<li><b>Create the primitive and a function that binds it.</b> Nothing works yet; eager evaluation fails first: <code>NotImplementedError: Evaluation rule for 'multiply_add' not implemented</code>.</li>
+<li><b>impl: eager evaluation.</b> It runs on concrete values; tracing still fails: <code>Abstract evaluation for 'multiply_add' not implemented</code>.</li>
+<li><b>Abstract evaluation: shapes and dtypes.</b> Tracing works, so <code>make_jaxpr</code> does; jit still fails: <code>MLIR translation rule for primitive 'multiply_add' not found for platform cpu</code>.</li>
+<li><b>Lowering: StableHLO, so jit.</b> Here by tracing the impl, which uses existing primitives (<code>mlir.lower_fun</code>); jvp still fails: <code>Differentiation rule for 'multiply_add' not implemented</code>.</li>
+<li><b>JVP: forward mode.</b> jvp works; grad still fails, because grad is linearize then transpose: <code>Transpose rule (for reverse-mode differentiation) for 'multiply_add' not implemented</code>.</li>
+<li><b>Transpose: reverse mode.</b> grad works; vmap still fails: <code>Batching rule for 'multiply_add' not implemented</code>.</li>
+<li><b>Batching: vmap.</b> Every transformation works. Final check: eager and jit give [3, 6, 9], grad gives [3, 3, 3] (expected gradient 3 = d(2x + x)/dx), and the vmap output has shape [2, 3].</li>
+</ol>
+</section>
+</div></div>
+<section id="s-prim-more">
 <p>Each rule is a dictionary entry keyed by the primitive: <code>ad.primitive_jvps</code>, <code>ad.primitive_transposes</code>, <code>batching.primitive_batchers</code>, and the lowering registry (this process: <span data-k="vm.rule_tables.mlir lowerings (platform independent)"></span> platform-independent lowerings, plus <span data-k="vm.rule_tables.mlir lowerings (cpu)"></span> CPU-, <span data-k="vm.rule_tables.mlir lowerings (cuda)"></span> CUDA- and <span data-k="vm.rule_tables.mlir lowerings (tpu)"></span> TPU-specific ones). The finished primitive's gradient program shows the transpose rule at work: the backward pass is itself a <code>multiply_add</code>. Its jit lowers to two StableHLO ops, <code>stablehlo.multiply</code> and <code>stablehlo.add</code>, because the lowering rule traced the impl (<code>mlir.lower_fun</code>); a real primitive (a new matmul variant, a collective) would emit its own ops or a custom call.</p>
 <pre class="jc-code jc-out" data-code="pm.final.grad_jaxpr"></pre>
 </section>
