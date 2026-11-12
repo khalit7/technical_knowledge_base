@@ -46,3 +46,14 @@ animation point (step by step, ideally against the method it replaced). Build co
 A rule for traces: when a published production trace exists, replay it before inventing workloads, report what the
 authors' own tables give on the same file, and say plainly when the released file and the paper disagree (here the mean
 input length: 7,590 in the report, 8,590 in the file).
+
+## 2026-11-12: split layout and 3D stages (renderer v2)
+Built: five 3D stages driven by this page's simulator (`sched/gen_scenes.py`, `out/scenes.json`), except the hero, which is the running example drawn to scale for the budget and schematic for the pool:
+- Fig. 1 one engine step (budget tray to scale, requests flowing in, pool, host tier); replaced the static SVG hero.
+- Fig. 2 static against continuous batching, eight requests on four seats, before/after in depth.
+- Fig. 3 a 40-block pool with four block tables, shared system-prompt blocks, cached-free blocks and a next turn's prefix hit.
+- Fig. 4 chunked prefill: three budgets as three lanes, each step a slab as long as it lasted; the decode users' tokens as dots.
+- Fig. 5 admission and preemption in a 30-block pool with the waiting queue (newest-first recompute, thrashing).
+Kept 2D (they read best flat): the selective-batching, paging and three-rule preemption steppers (now with step lists), PagedAttention Fig. 2 bars, trace waste bars, hit rate against cache size (log axis), reload-or-recompute bars, host-tier bars, measured tiers, the chunk budget scatter, the steady-traffic curves, the SJF curves, the coverage strip.
+Widgets (more than 12 frames, the reader drives them, no autoplay, open on their last frame): the 16-request eviction replay and the two-client run.
+Rejected: a 3D version of the three-rule preemption stepper (its 12 illustrative blocks read better flat beside the simulated Fig. 5); a 3D hit-rate surface (policy by size is a set of curves on a log axis).

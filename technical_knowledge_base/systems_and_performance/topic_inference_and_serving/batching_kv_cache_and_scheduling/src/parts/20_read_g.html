@@ -1,15 +1,48 @@
 <section id="bk-s6">
+<div class="s3sp"><div class="s3R"><div id="stg-pre"></div></div><div class="s3L">
 <h2>6. Preemption: taking memory back from a running request</h2>
-<p>Nobody knows an answer's length in advance. vLLM admits a request when its prompt fits in free blocks and reserves nothing for the answer (section 2), so at some step a running request needs one more block and there is none. The engine must take memory from someone: <dfn>preemption</dfn>. The engines differ in whom they pick, and one avoids the question by reserving at admission. Same pool, same three requests, three rules:</p>
+<p>Nobody knows an answer's length in advance. vLLM admits a request when its prompt fits in free blocks and reserves nothing for the answer (section 2), so at some step a running request needs one more block and there is none. The engine must take memory from someone: <dfn>preemption</dfn>.</p>
+<p>Fig. 5 runs vLLM's rules in this page's simulator on a deliberately small pool, 30 blocks of 16 tokens, with five requests (lengths illustrative, every admission and preemption simulated). The waiting queue stands on the left.</p>
+<ol class="sx" id="sx-pre">
+<li><b>Admit while the prompt fits.</b> R1, R2 and R3 arrive with prompts of 90, 120 and 70 tokens and are admitted at once: 20 of the 30 blocks. Nothing is set aside for their answers (150, 60 and 130 tokens).</li>
+<li><b>One more, because its prompt fits.</b> R4 arrives at 0.1 s with a 100-token prompt; it fits, so it is admitted: 29 of 30 blocks are held, and every answer still has to grow.</li>
+<li><b>No free block: the newest is preempted.</b> A running request needs a new block and none is free. vLLM takes the newest request, R4, drops its cache and puts it at the front of the queue: 24 of 30 blocks held, and 6 of R4's freed blocks keep their hashes for now.</li>
+<li><b>Back in, recomputing.</b> R2 finishes at 0.30 s. R4 is admitted again and recomputes 108 tokens, its 100-token prompt and the 8 it had generated (its cached blocks were taken in the meantime); R5 arrives and is admitted too: 30 of 30.</li>
+<li><b>Thrashing.</b> The very next step a running request needs a block again; this time the newest is R5, preempted after one step.</li>
+<li><b>Preempted twice.</b> R4 is preempted a second time; R4 and R5 wait while R1 and R3 grow: 22 of 30 held.</li>
+<li><b>A cached prefix softens the second recompute.</b> R3 finishes at 0.64 s. R4 returns and finds 32 of its tokens still cached (2 blocks), so it recomputes 98; R5 recomputes its 81. In all, 3 preemptions for 5 requests.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3R">
 <div class="bk-card" id="bk-pe-card">
 <h4>The pool is full and R1 needs a block: vLLM evicts the newest request, SGLang the one with the fewest output tokens, TensorRT-LLM never admitted them</h4>
 <div class="seg" id="bk-pe-mode"><button data-m="vllm" class="on">vLLM: newest first</button><button data-m="sgl">SGLang: fewest output tokens first</button><button data-m="trt">TensorRT-LLM default: reserve at admission</button></div>
 <div class="an-ctl" id="bk-pe-ctl"></div>
 <div class="bk-svg" id="bk-pe-svg"></div>
-<div class="an-cap" id="bk-pe-cap"></div>
 <div class="an-cnt" id="bk-pe-cnt"></div>
 <p class="small mute"><span class="der">illustrative</span>: 12 blocks of 4 token slots. R1 (oldest) has a 9-token prompt and 7 output tokens, R2 a 13-token prompt and 1 output token, R3 (newest) a 10-token prompt and 3 output tokens; all ask for <code>max_tokens</code> 16. The rules are the engines' own, read in source (table below).</p>
 </div>
+</div><div class="s3L">
+<p>The engines differ in whom they pick, and one avoids the question by reserving at admission. Same pool, same three requests, three rules:</p>
+<ol class="sx" id="sx-pe-vllm">
+<li><b>The pool is full.</b> Three requests hold all 12 blocks. R1 (the oldest) has just filled its fourth block; R3 arrived last.</li>
+<li><b>R1 needs a fifth block, and none is free.</b> Admission reserved nothing for answers, so the engine must take memory from someone.</li>
+<li><b>vLLM preempts the newest request, R3.</b> R3's 4 blocks are freed and its cache dropped; R3 goes to the front of the waiting queue. R1 takes a freed block (2) and continues.</li>
+<li><b>R1 ends; R3 comes back and recomputes.</b> R3's 10 prompt and 3 generated tokens are computed again as a prompt chunk in the token budget, or loaded from a host tier if one is on (section 4).</li>
+</ol>
+<ol class="sx" hidden id="sx-pe-sgl">
+<li><b>The pool is full.</b> The same three requests: R1 has 7 output tokens, R2 1, R3 3.</li>
+<li><b>R1 needs a fifth block, and none is free.</b> SGLang admitted with an estimate of each request's future tokens, and the estimate was low.</li>
+<li><b>SGLang retracts the request with the fewest output tokens, R2.</b> Least work generated is lost: R2 had 1 output token (ties go to the longest prompt). Its 4 blocks are freed and R1 takes block 1.</li>
+<li><b>R1 ends; R2 comes back and recomputes.</b> R2's 13 prompt tokens and 1 output token are computed again. SGLang then raises its estimate of future tokens, admitting less optimistically.</li>
+</ol>
+<ol class="sx" hidden id="sx-pe-trt">
+<li><b>Admission reserved the worst case.</b> R1 was admitted with prompt + max_tokens = 25 slots, 7 blocks. R2 needs 29 slots (8 blocks) and R3 26 (7): only 5 blocks are free, so both wait.</li>
+<li><b>R1 needs a fifth block: it already has it.</b> Its reservation covers any answer up to max_tokens, so no allocation can fail.</li>
+<li><b>No preemption, ever.</b> The price is concurrency: one request runs where vLLM and SGLang ran three, and 7 of the 12 blocks hold nothing.</li>
+<li><b>R1 ends; R2 is admitted with its full reservation.</b> R3 still waits for 7 free blocks. In the simulation below, this rule served 1,785 tokens per second against 2,364 for optimistic admission.</li>
+</ol>
+</div></div>
 <p><b>Recompute or swap.</b> A preempted request's cache is either dropped and recomputed later as a prompt, or copied to host memory and back. Per token, swapping costs 2 &times; KV bytes / link bandwidth and recomputing a prefill: with 320 KiB per token over PCIe Gen5 at 64 GB/s each way, a swap costs about 10 &micro;s per token against about 0.21 ms of prefill for the running example, twenty times cheaper in time. Yet vLLM keeps only recompute, for three reasons: Kwon et al. measured the two "comparable end-to-end" for blocks of 16 to 64 tokens, "recomputation overhead is never higher than 20% of swapping's latency" ({{PagedAttention section 7.3|https://arxiv.org/abs/2309.06180}}, on A100s), because small blocks made swapping many tiny PCIe copies; recompute rides in the token budget on arithmetic a memory-bound decode step leaves idle; and swap needs a host block allocator and copies on the critical path. With an offload tier on (section 4), blocks are already written to host memory as they are computed, so a preempted request's prefix is found there and loaded rather than recomputed: recompute plus a CPU tier behaves like a write-through swap (read in source, not run here).</p>
 <p><b>Admission matters more than the mode.</b> On the simulated H100 with a deliberately small cache (2,000 blocks of 16 tokens, Llama 3.1 8B in BF16, 6 requests per second), recompute and swap at 25 GB/s differ by 3% in throughput (2,364 against 2,430 tokens per second) with the same 146 preemptions; a slow 6 GB/s link makes swap the worse one (2,287). Reserving every request's maximum length, TensorRT-LLM's default rule, removes all preemptions but serves 1,785 tokens per second with a p99 TTFT of 31.25 s, against 12.61 s for optimistic admission (<span class="der">derived</span>). <span class="meas">Measured here</span>, vLLM's CPU backend with a 9,344-token cache reached 100% cache use and 8 preemptions at 16 users, and its output fell from 26.5 to 15.6 tokens per second between 8 and 16 users ({{Engine bench|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}): more concurrent sequences give more throughput only while the cache has room.</p>
 <p><b>Check:</b> <code>vllm:num_preemptions</code> ({{loggers.py L677|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/metrics/loggers.py#L677}}) rising while <code>vllm:kv_cache_usage_perc</code> sits at 1.0 means admission is too optimistic for the answers you get. The fixes, in order: a smaller <code>max_num_seqs</code>, a lower <code>max_tokens</code>, a quantized cache (FP8 halves it), more GPUs.</p>

@@ -9,8 +9,10 @@
 </ul>
 <p>SGLang keeps the same information as a radix tree of token sequences (RadixAttention, {{Zheng et al. 2023|https://arxiv.org/abs/2312.07104}}; the {{SGLang page|n:3c65c17b0d0d81e691e4ce9f9b5d1fad}} reads it in depth) and evicts only leaves that no running request holds, which also sends the tail first.</p>
 
+<div class="s3sp"><div class="s3L">
 <h3>Why the tail must go first</h3>
-<p>A chain of blocks is only useful from its start. Evict a prefix's first block and every later block of it becomes an <dfn>orphan</dfn>: still in memory, never hit again. All blocks of one request were used at the same moment, so plain LRU's tie-break decides. Step through what the other tie-break does on 16 consecutive requests from Kimi's production agent traffic.</p>
+<p>A chain of blocks is only useful from its start. Evict a prefix's first block and every later block of it becomes an <dfn>orphan</dfn>: still in memory, never hit again. All blocks of one request were used at the same moment, so plain LRU's tie-break decides. The replay beside this paragraph runs 16 consecutive requests from Kimi's production agent traffic through a small cache; it opens on the last request, with the totals. Switch the policy and compare: with tail-first LRU the head of a tool prompt survives longest, with head-first LRU the first block goes and the rest of that prompt stays behind as orphans; step back through the requests to see where. Its caption says, for each request, what was found, computed and evicted.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="bk-card" id="bk-ev-card">
 <h4>Sixteen real agent requests through a small prefix cache: head-first eviction leaves orphans</h4>
 <div class="seg" id="bk-ev-pol"><button data-m="lru" class="on">LRU, tail first (vLLM, SGLang)</button><button data-m="lru_head">LRU, head first (naive)</button><button data-m="fifo">FIFO</button><button data-m="lfu">LFU</button><button data-m="opt">Belady (knows the future)</button></div>
@@ -22,9 +24,16 @@
 <div class="an-cnt" id="bk-ev-cnt"></div>
 <p class="small mute"><span class="indep">trace</span>: requests 11,890 to 11,905 of the Mooncake tool-and-agent trace (kvcache-ai/Mooncake, FAST25-release); each square is one 512-token block named by its hash; identical names are identical prefixes. The cache starts empty and is drawn in eviction order: the block on the left goes next. This stretch was picked by searching the trace for one where the policies differ; on whole traces the gaps are smaller (next chart). Replayed by <code>src/evict/evict.py</code>.</p>
 </div>
-
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Which policy, on a whole hour of traffic</h3>
 <p>Moonshot AI released three one-hour request traces from Kimi with every request's 512-token block hashes ({{Mooncake FAST'25 traces|https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release}}): conversation (12,031 requests, 12,035 input tokens on average), tool and agent (23,608 requests, 8,596) and a synthetic one built from public datasets (3,993 requests, 15,325). Replayed here through six policies at fifteen cache sizes. Predict first: on conversations, does keeping the most frequently used blocks (LFU) beat keeping the most recent (LRU)?</p>
+<ul>
+<li><b>Capacity dominates.</b> On the conversation trace, LRU hits 4.5% of blocks with 1,024 blocks (0.5 million tokens), 18.2% with 8,192 (4.2 million) and 33.5% with 32,768, against 36.6% for an unlimited cache. Belady, the best possible policy (it needs the future), already reaches the full 36.6% at 8,192 blocks: the gap is real, but no deployable policy here closes much of it.</li>
+<li><b>Recency beats frequency on conversations.</b> At 8,192 blocks LFU keeps 11.9% against LRU's 18.2%: chats come back while they are fresh, and blocks that were popular an hour ago crowd them out. On agent traffic, where a few tool prompts are reused all hour, LFU edges ahead at small sizes (18.5% against 17.3% at 16 blocks) and loses at middle sizes (39.3% against 44.0% at 8,192). ARC, an adaptive mix of the two and one of vLLM's host-memory policies, tracks LRU within a few points.</li>
+<li><b>The tie-break matters only when the cache is tiny.</b> Head-first LRU loses a fifth of the hits at 16 blocks on agent traffic (14.0% against 17.3%); from 256 blocks up the gap is under one point on every trace (at most 0.7, synthetic trace at 4,096 blocks).</li>
+</ul>
+</div><div class="s3R"><div class="s3side">
 <div class="bk-card" id="ev-card">
 <h4>Capacity matters far more than the policy: hit rate against cache size, six policies</h4>
 <div class="ev-ctl">
@@ -38,11 +47,8 @@
 <div class="tw"><table class="ev-tbl" id="ev-tbl"></table></div>
 <p class="small mute" id="ev-note"></p>
 </div>
-<ul>
-<li><b>Capacity dominates.</b> On the conversation trace, LRU hits 4.5% of blocks with 1,024 blocks (0.5 million tokens), 18.2% with 8,192 (4.2 million) and 33.5% with 32,768, against 36.6% for an unlimited cache. Belady, the best possible policy (it needs the future), already reaches the full 36.6% at 8,192 blocks: the gap is real, but no deployable policy here closes much of it.</li>
-<li><b>Recency beats frequency on conversations.</b> At 8,192 blocks LFU keeps 11.9% against LRU's 18.2%: chats come back while they are fresh, and blocks that were popular an hour ago crowd them out. On agent traffic, where a few tool prompts are reused all hour, LFU edges ahead at small sizes (18.5% against 17.3% at 16 blocks) and loses at middle sizes (39.3% against 44.0% at 8,192). ARC, an adaptive mix of the two and one of vLLM's host-memory policies, tracks LRU within a few points.</li>
-<li><b>The tie-break matters only when the cache is tiny.</b> Head-first LRU loses a fifth of the hits at 16 blocks on agent traffic (14.0% against 17.3%); from 256 blocks up the gap is under one point on every trace (at most 0.7, synthetic trace at 4,096 blocks).</li>
-</ul>
+</div></div></div>
+
 <div class="pr" id="bk-pr3"><div class="q">Predict: the Mooncake report's own table says increasing a global cache from 1,000 to 50,000 blocks raises the hit rate from 30% to 50% under LRU. On the trace file they released, does the replay here find the same?</div>
 <div class="opts"><button data-a="0">Exactly the same</button><button data-a="1" data-ok="1">Same shape, a few points higher</button><button data-a="2">Much lower</button></div>
 <div class="ans" hidden>Same shape, a few points higher: 34.1% at 1,000 blocks, 46.1% at 10,000, 55.1% at 50,000 and 55.3% unlimited, against the table's 30%, 40%, 50% and 51% ({{Mooncake arXiv report, Table 1|https://arxiv.org/abs/2407.00079}}). LRU also beats LFU at middle sizes in both. It does not reproduce exactly: the report says the trace averages 7,590 input tokens, while the released file averages 8,590, so the table may come from a different cut of the data. The FAST'25 paper's Fig. 9 labels (local cache of 3 million tokens as a share of the unlimited hit rate) reproduce closely: 73.7% for tool and agent against 75%, 48.4% for synthetic against 48%, 44.6% for all three merged against 46%, and 37.1% for conversation against 41%.</div></div>

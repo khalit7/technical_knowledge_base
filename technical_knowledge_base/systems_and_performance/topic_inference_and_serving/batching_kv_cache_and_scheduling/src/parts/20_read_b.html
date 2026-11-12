@@ -1,22 +1,47 @@
 <section id="bk-s1">
+<div class="s3sp"><div class="s3R"><div id="stg-cb"></div></div><div class="s3L">
 <h2>1. Continuous batching: one step, any mix of requests</h2>
-<p>Before 2022, servers batched whole requests: take B requests, run them together until the longest answer ends, then take the next B. Finished requests left empty seats and new arrivals waited for the whole batch. Orca ({{Yu et al., OSDI 2022|https://www.usenix.org/conference/osdi22/presentation/yu}}) fixed both with two ideas:</p>
-<ul>
-<li><dfn>Iteration-level scheduling</dfn>: the scheduler hands the engine one step at a time and gets control back after each, so a finished request leaves and a new one joins between any two steps.</li>
-<li><dfn>Selective batching</dfn>: stack every new token of every request into one matrix of shape [total tokens, hidden size] for the layers that do not care which request a token belongs to (the matrix multiplications, normalisation, activation), and split per request only for attention, where each token may look only at its own request's earlier tokens.</li>
-</ul>
-<p>Orca's own example: x1 and x2 are decoding (one new token each, at positions 4 and 2), x3 arrives with a 2-token prompt and x4 with a 3-token prompt. A system that batches [batch, length, hidden] tensors cannot put them in one step ({{Orca, section 3, "C2"|https://www.usenix.org/system/files/osdi22-yu.pdf}}). Step through the same four requests both ways.</p>
-
+<p>Before 2022, servers batched whole requests: take B requests, run them together until the longest answer ends, then take the next B. Finished requests left empty seats and new arrivals waited for the whole batch. Orca ({{Yu et al., OSDI 2022|https://www.usenix.org/conference/osdi22/presentation/yu}}) fixed both with two ideas. The first is <dfn>iteration-level scheduling</dfn>: the scheduler hands the engine one step at a time and gets control back after each, so a finished request leaves and a new one joins between any two steps. Fig. 2 runs the same eight requests both ways on four seats in this page's simulator (Llama 3.1 8B FP8 on the calibrated H100 preset; the request lengths are illustrative, every time is simulated).</p>
+<ol class="sx" id="sx-cb">
+<li><b>Eight requests, four seats.</b> Eight requests are queued at once with answers of 60 to 360 tokens; at most four run together (<code>max_num_seqs</code> 4 for the picture). Time runs left to right on one scale for both rows.</li>
+<li><b>Static batching: the batch runs as long as its longest answer.</b> R1 to R4 start together; their prompts are padded to the longest (560 tokens), so the first step takes 33.6 ms, then every step 4.69 ms makes one token per request. R2's 360 tokens set the batch's length: 1.72 s.</li>
+<li><b>Finished requests leave their seats empty.</b> R3 is done at 0.31 s, R1 at 0.59 s, R4 at 1.16 s, but their seats stay held until the whole batch ends (red): 43% of the seat time the first batch holds is idle.</li>
+<li><b>The next batch waits for the whole first one.</b> R5 to R8 start only at 1.72 s; everything is done at 3.16 s, 475 tokens per second, with seats busy 57% of the time.</li>
+<li><b>Continuous batching: a seat is refilled at the next step.</b> The same requests, scheduled one step at a time: when R3 leaves at 0.30 s, R5 takes its seat in the very next step; R6, R7 and R8 follow the same way.</li>
+<li><b>Same work, finished sooner.</b> Everything is done at 1.85 s, 1.30 s sooner: 811 tokens per second against 475, mean completion 1.27 s against 1.77 s, seats busy 96% of the time against 57%.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3R">
 <div class="bk-card" id="bk-sb-card">
 <h4>Seven new tokens, one weight read instead of four: selective batching against tensor batching (Orca's Figure 5 example)</h4>
 <div class="seg" id="bk-sb-mode"><button data-m="sel" class="on">Selective batching (Orca, and every engine since)</button><button data-m="can">Tensor batching [batch, length, hidden]</button></div>
 <div class="an-ctl" id="bk-sb-ctl"></div>
 <div class="bk-svg" id="bk-sb-svg"></div>
-<div class="an-cap" id="bk-sb-cap"></div>
 <div class="an-cnt" id="bk-sb-cnt"></div>
 <p class="small mute">x<sub>ij</sub> is the j-th token of request i; shaded tokens are prompt tokens, plain ones were generated earlier. One square is one token row of hidden size H. "Weight reads" counts how many times the layer's weights stream from memory for this step: the dominant cost of a decode step.</p>
 </div>
-
+</div><div class="s3L">
+<p>The second idea is <dfn>selective batching</dfn>: stack every new token of every request into one matrix of shape [total tokens, hidden size] for the layers that do not care which request a token belongs to (the matrix multiplications, normalisation, activation), and split per request only for attention, where each token may look only at its own request's earlier tokens.</p>
+<p>Orca's own example: x1 and x2 are decoding (one new token each, at positions 4 and 2), x3 arrives with a 2-token prompt and x4 with a 3-token prompt. A system that batches [batch, length, hidden] tensors cannot put them in one step ({{Orca, section 3, "C2"|https://www.usenix.org/system/files/osdi22-yu.pdf}}). Step through the same four requests both ways.</p>
+<ol class="sx" id="sx-sb-sel">
+<li><b>The request pool.</b> Four requests in four states. x1 and x2 each need one new token computed (x14, x22) on top of what is cached; x3 and x4 have just arrived with 2- and 3-token prompts. Seven token rows need computing in this step.</li>
+<li><b>Stack every new token.</b> Selective batching stacks the seven rows into one matrix of shape [7, H], with no padding and no batch dimension. Non-attention layers do not care which request a row belongs to.</li>
+<li><b>QKV projection: one read of the weights.</b> The query, key and value projections run once on all seven rows. The weights stream from memory once for the whole step; that is the saving batching is for.</li>
+<li><b>Split for attention.</b> Attention is the only place requests must stay apart: each request's rows attend to its own keys and values, the cached ones (x11 to x13 for x1, x21 for x2) plus those just computed. Orca ran one attention call per request; vLLM now does all four in one variable-length kernel call.</li>
+<li><b>Merge back.</b> The four attention outputs are stacked into [7, H] again.</li>
+<li><b>Output projection and MLP: one more read.</b> The rest of the layer runs on all seven rows at once, again one read of each weight matrix. (Every layer of the model repeats steps 3 to 6.)</li>
+<li><b>Sample one token per request.</b> Only each request's last row produces a token: x15, x23, x33 and x44. x3 and x4 got their first token in the same step that x1 and x2 continued: none of them waited for the others.</li>
+</ol>
+<ol class="sx" hidden id="sx-sb-can">
+<li><b>The request pool.</b> The same four requests. A system that batches [batch, length, hidden] tensors needs every request in a batch to have the same number of new tokens at the same position.</li>
+<li><b>Group by shape.</b> x3 and x4 have different prompt lengths (2 and 3), x1 and x2 decode at different positions (4 and 2), and prompts and decodes differ in length. No two of them match, so the step falls apart into four separate runs (Orca, section 3, the three cases of challenge C2). Padding to [4, 3, H] would add 5 empty rows and still mix positions.</li>
+<li><b>Run x1 alone.</b> One token row through the whole layer: the weights stream from memory for a single token.</li>
+<li><b>Run x2 alone.</b> Another full read of the weights for one row.</li>
+<li><b>Run x3 alone.</b> A third read, for two rows.</li>
+<li><b>Run x4 alone.</b> A fourth read, for three rows.</li>
+<li><b>Same four tokens, four times the weight traffic.</b> The outputs are the same x15, x23, x33 and x44, after four reads of the weights instead of one. In practice such systems did not even try: they waited until a whole batch finished (static batching).</li>
+</ol>
+</div></div>
 <p>In today's engines the split and merge are one kernel call: vLLM flattens the step's tokens and passes, per request, where its queries start, its total length and its block table to a variable-length attention kernel. That is why prefill chunks and decodes can share a step (section 5), and why schedulers count tokens, not sequences. Every engine caps a step two ways: the <dfn>token budget</dfn> (new tokens per step, prefill and decode together) and the most sequences per step: in vLLM <code>max_num_batched_tokens</code>, 8,192 on an H100 or H200, and <code>max_num_seqs</code>, 1,024.</p>
 
 <div class="pr" id="bk-pr1"><div class="q">Predict: a decode step for 64 users on the running example (Llama 3.1 70B FP8 on one H200). Roughly how much longer is it than a step for one user?</div>

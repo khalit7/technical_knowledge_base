@@ -8,7 +8,7 @@ page = json.loads(m.group(1))
 J = lambda *p: json.load(open(os.path.join(HERE, *p)))
 want = {'frag': J('evict', 'out', 'frag.json'), 'ev': J('evict', 'out', 'evict_grid.json'), 'evanim': J('evict', 'out', 'evict_anim.json'),
         'evcheck': [J('evict', 'out', 'vllm_evict_conversation.json'), J('evict', 'out', 'vllm_evict_toolagent.json')],
-        'sch': J('sched', 'out', 'sched.json'), 'regress': J('sched', 'out', 'regress.json'), 'meas': J('exp', 'out', 'measured.json'),
+        'sch': J('sched', 'out', 'sched.json'), 'regress': J('sched', 'out', 'regress.json'), 'scn': J('sched', 'out', 'scenes.json'), 'meas': J('exp', 'out', 'measured.json'),
         'kvc': J('kvc', 'out', 'kvc_summary.json') if os.path.exists(os.path.join(HERE, 'kvc', 'out', 'kvc_summary.json')) else None}
 bad = 0
 for k, v in want.items():

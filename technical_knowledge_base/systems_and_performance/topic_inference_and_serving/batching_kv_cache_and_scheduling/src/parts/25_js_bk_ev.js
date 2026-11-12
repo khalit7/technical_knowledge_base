@@ -31,7 +31,7 @@
     document.getElementById('bk-ev-cap-t').innerHTML='<div class="t">'+NM[pol]+', request '+(i+1)+': '+kind+'</div><p>'+s0.hit+' of '+r.b.length+' blocks found at the start of the cache ('+(s0.hit*512).toLocaleString('en-US')+' prompt tokens not recomputed), '+miss+' computed and inserted'+(s0.ev.length?', '+s0.ev.length+' evicted to make room':'')+'.'+why+'</p>';
     document.getElementById('bk-ev-cnt').innerHTML=RD.stat('Hit blocks so far',cum+' of '+tot)+RD.stat('Possible with unlimited space','77 of 140 by the end')+RD.stat('Orphans met so far',String(orph))+RD.stat('Prompt tokens saved so far',(cum*512).toLocaleString('en-US'));
   }
-  const an=RD.anim({card:'bk-ev-card',ctl:'bk-ev-ctl',n:16,draw:draw,ms:1700,label:'Request'});
+  const an=RD.anim({card:'bk-ev-card',ctl:'bk-ev-ctl',n:16,draw:draw,ms:1700,label:'Request',auto:false,start:15});
   RD.seg(document.getElementById('bk-ev-pol'),m=>{pol=m;an.redraw()});
   document.getElementById('bk-ev-cap').addEventListener('change',e=>{cap=+e.target.value;an.redraw()});
   RD.onResize(()=>an.redraw());

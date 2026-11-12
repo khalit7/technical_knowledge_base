@@ -11,6 +11,7 @@ D = {
     'evcheck': [J('evict', 'out', 'vllm_evict_conversation.json'), J('evict', 'out', 'vllm_evict_toolagent.json')],
     'sch': J('sched', 'out', 'sched.json'),
     'regress': J('sched', 'out', 'regress.json'),
+    'scn': J('sched', 'out', 'scenes.json'),
     'meas': opt('exp', 'out', 'measured.json'),
     'kvc': opt('kvc', 'out', 'kvc_summary.json'),
 }

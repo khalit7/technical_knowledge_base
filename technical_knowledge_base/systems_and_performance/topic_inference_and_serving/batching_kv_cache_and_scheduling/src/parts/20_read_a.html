@@ -1,8 +1,8 @@
 <div class="tab" id="t-read" role="tabpanel">
 <style>
-#t-read .an-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
-#t-read .an-ctl input[type=range]{flex:1 1 120px;width:auto;min-width:0}
-#t-read .an-ctl select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
+#t-read .an-ctl:not(.stg-bar){display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:8px 0}
+#t-read .an-ctl:not(.stg-bar) input[type=range]{flex:1 1 120px;width:auto;min-width:0}
+#t-read .an-ctl:not(.stg-bar) select{padding:3px 6px}#t-read .an-play{min-width:6.4em}
 #t-read .an-cap{min-height:5.2em;border-left:3px solid var(--acc);padding:2px 0 2px 10px;margin:8px 0}
 #t-read .an-cap .t{font-weight:600;font-size:14px}#t-read .an-cap p{margin:2px 0;font-size:13.5px}
 #t-read .an-cnt{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:6px;margin:6px 0}
@@ -106,13 +106,23 @@
 #t-read .kc-two>div{min-width:0}
 #t-read .bk-sw{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;margin:4px 0;color:var(--ink)}
 #t-read .bk-sw span:before{content:"";display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--sw);border:1px solid var(--line)}
+#t-read .s3sp .bk-card,#t-read .s3sp .fig{margin-top:6px}
+#t-read .s3L>section>h2:first-child,#t-read section>.s3sp:first-child .s3L>h2:first-child{margin-top:24px}
 </style>
 <section id="bk-s0">
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <div class="core"><b class="k">The idea in one sentence</b>A serving engine is a loop that takes one <span class="hot">step</span> every few milliseconds, and at each step decides <b>which requests run</b>, <b>how many of their tokens it computes</b> and <b>where their KV cache lives</b>; continuous batching, paging, prefix caching, offload, chunked prefill, preemption and queue policies are each a rule for one of those three decisions, and each replaced a simpler rule that wasted memory or made users wait.</div>
-<div class="fig" id="bk-hero"><h4>One step of the running example: a token budget filled from many requests, a cache made of shared blocks</h4>
-<div class="rd-svg" id="bk-hero-svg"></div>
-<p class="cap">Step t on one H200 serving the running example (below). Top, to scale: the step may compute at most 8,192 new tokens. The 64 requests already answering add 1 decode token each; R7, a new chat turn whose 1,000-token system prompt is already cached, adds its other 1,000 prompt tokens; R8, a 40,000-token document, adds a 7,128-token chunk and will finish its prompt over the next steps; R9 waits because the budget is full. Bottom, schematic (one square stands for many blocks): the KV cache is a pool of 16-token blocks; each request's block table lists its blocks wherever they lie; the system prompt's blocks are stored once and shared by every request; blocks of finished requests stay cached until the space is needed; a host-memory tier catches what the GPU evicts. The section number beside each label is where that rule is taught.</p></div>
-<p class="small"><b>You need</b>: why a KV cache exists ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}, section 9, the recompute-against-keep stepper); how many bytes it takes per token for a given model ({{Long context's KV-cache calculator|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}); why a decode step is bound by memory bandwidth ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). The parent, {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, compares the engines; this page is how they schedule.</p>
+<p>Fig. 1 is one step t on one H200 serving the running example (below): the token budget drawn to scale, the KV cache and the host tier schematic (one box stands for many blocks). The section number in each step is where that rule is taught.</p>
+<ol class="sx" id="sx-hero">
+<li><b>One step, one budget.</b> The step may compute at most 8,192 new tokens (vLLM's <code>max_num_batched_tokens</code> on an H200), drawn to scale as the glass tray (sections 1 and 5).</li>
+<li><b>Decodes go in first.</b> The 64 requests already answering add 1 decode token each: 64 of the 8,192.</li>
+<li><b>A new chat turn, half cached.</b> R7, a new chat turn whose 1,000-token system prompt is already cached (section 3), adds its other 1,000 prompt tokens.</li>
+<li><b>A long document, one chunk at a time.</b> R8, a 40,000-token document, adds a 7,128-token chunk and will finish its prompt over the next steps (section 5); R9 waits because the budget is full (section 7).</li>
+<li><b>The cache is a pool of blocks.</b> The KV cache is a pool of 16-token blocks; each request's block table lists its blocks wherever they lie (R1's here, section 2); the system prompt's blocks are stored once and shared by every request, all 65 of them (section 3).</li>
+<li><b>When memory runs short.</b> Blocks of finished requests stay cached until the space is needed, oldest evicted first (section 3); a host-memory tier catches what the GPU evicts and reloads it on a hit (section 4); when no block is free, a running request is preempted (section 6).</li>
+</ol>
+</div></div>
+<p class="small"><b>You need</b>: why a KV cache exists ({{The transformer from zero|n:3fd5c17b0d0d8174980ddde4a20c7b3c}}, section 9, the recompute-against-keep stepper); how many bytes it takes per token for a given model ({{Long context's KV-cache calculator|n:3fd5c17b0d0d81059ee1ce20c0326dc5#t-kv}}); why a decode step is bound by memory bandwidth ({{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}; what one decode step reads, the weights plus every sequence's KV cache, and how the cache fills HBM, is Fig. 3 of {{Memory technology|n:3f05c17b0d0d818ab063e327e3d7009f}}, section 6). The parent, {{Topic: inference-and-serving|n:3c65c17b0d0d81c08b3bc95ff45c7b13}}, compares the engines; this page is how they schedule.</p>
 <div class="terms">
 <div><dfn>Step</dfn> (iteration): one forward pass of the model over every token the scheduler picked.</div>
 <div><dfn>Prefill / decode</dfn>: reading a prompt and writing its keys and values / one pass per further output token.</div>

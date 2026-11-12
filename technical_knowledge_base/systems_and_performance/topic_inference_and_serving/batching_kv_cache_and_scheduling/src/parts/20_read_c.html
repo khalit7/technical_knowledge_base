@@ -1,25 +1,60 @@
 <section id="bk-s2">
-<h2>2. Paging: where the memory went, and how blocks got it back</h2>
-<p>Kwon et al. measured systems that store each request's cache in one contiguous region, sized at admission, and found that only 20.4% to 38.2% of the cache memory held actual tokens ({{PagedAttention, SOSP 2023, Fig. 2|https://arxiv.org/abs/2309.06180}}). The rest was three kinds of waste ({{same paper, Fig. 3|https://arxiv.org/abs/2309.06180}}): <dfn>reservation</dfn>, slots kept for tokens the request will write later; <dfn>internal fragmentation</dfn>, reserved slots never used because the answer ended early; and <dfn>external fragmentation</dfn>, gaps between reservations too small for the next request. Predict before you step: of 48 slots, how many will hold tokens once two requests are admitted with <code>max_tokens</code> 16?</p>
-
+<div class="s3sp"><div class="s3R">
 <div class="bk-card" id="bk-pg-card">
 <h4>The same three requests in 48 cache slots: contiguous reservations leave C waiting, 4-slot blocks fit all three</h4>
 <div class="seg" id="bk-pg-mode"><button data-m="con" class="on">Contiguous: reserve prompt + max_tokens</button><button data-m="pag">Paged: a 4-slot block when the last one fills</button></div>
 <div class="an-ctl" id="bk-pg-ctl"></div>
 <div class="bk-svg" id="bk-pg-svg"></div>
-<div class="an-cap" id="bk-pg-cap"></div>
 <div class="an-cnt" id="bk-pg-cnt"></div>
 <p class="small mute"><span class="der">illustrative</span>: A has a 5-token prompt and will answer 3 tokens, B 7 and 9, C 6 and 4; all ask for <code>max_tokens</code> 16 and nobody knows the answer lengths in advance. One square is one token's slot; vLLM's real blocks hold 16 tokens, 4 here so the picture stays readable.</p>
 </div>
-
-<p><b>How paging works.</b> PagedAttention borrows virtual memory from operating systems. The cache is a pool of fixed-size <dfn>blocks</dfn> (16 tokens in vLLM by default, {{vllm/config/cache.py L71|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/cache.py#L71}}); each request has a <dfn>block table</dfn> mapping its token positions to blocks anywhere in the pool, and takes a new block only when its last one fills. Reservation and external fragmentation disappear, and internal fragmentation shrinks to the unfilled tail of each request's last block: on average half a block, 8 tokens. The cost is an indirection inside the attention kernel, which reads keys and values through the table instead of from one contiguous array. Kwon et al. report 2 to 4 times the throughput of FasterTransformer and their Orca at the same latency (their measurement, 2023); their vLLM held 96.3% token states in the same experiment:</p>
+</div><div class="s3L">
+<h2>2. Paging: where the memory went, and how blocks got it back</h2>
+<p>Kwon et al. measured systems that store each request's cache in one contiguous region, sized at admission, and found that only 20.4% to 38.2% of the cache memory held actual tokens ({{PagedAttention, SOSP 2023, Fig. 2|https://arxiv.org/abs/2309.06180}}). The rest was three kinds of waste ({{same paper, Fig. 3|https://arxiv.org/abs/2309.06180}}): <dfn>reservation</dfn>, slots kept for tokens the request will write later; <dfn>internal fragmentation</dfn>, reserved slots never used because the answer ended early; and <dfn>external fragmentation</dfn>, gaps between reservations too small for the next request. Predict before you step: of 48 slots, how many will hold tokens once two requests are admitted with <code>max_tokens</code> 16?</p>
+<ol class="sx" id="sx-pg-con">
+<li><b>Three requests, 48 free slots.</b> A (5-token prompt), B (7) and C (6) will arrive. Each may write up to max_tokens = 16 more tokens, so a contiguous scheme reserves prompt + 16 slots in one piece.</li>
+<li><b>A and B reserve 21 and 23 slots.</b> Their prompts fill 12 slots; the other 32 are held for answers that may never come (reservation). 4 slots remain.</li>
+<li><b>C arrives and must wait.</b> C needs 22 contiguous slots and only 4 are free. Memory holding 12 tokens turns a request away.</li>
+<li><b>Three decode steps: A ends.</b> A wrote its 3 answer tokens and stopped at 8 of its 21 slots: 13 were reserved for nothing (internal fragmentation, red). B holds 10 of 23.</li>
+<li><b>A is released, C still waits.</b> 25 slots are free, but in two pieces of 21 and 4, and C needs 22 in one piece (external fragmentation).</li>
+<li><b>B ends after 9 answer tokens.</b> B used 16 of its 23 slots; 7 were never used. Only now can C start, five steps late. At the peak, 18 tokens filled 44 slots taken: 41%.</li>
+</ol>
+<ol class="sx" hidden id="sx-pg-pag">
+<li><b>Three requests, 12 blocks of 4 slots.</b> The same requests. Nothing is reserved for answers: a request takes a block only when its last block is full.</li>
+<li><b>A and B take 2 blocks each.</b> A's 5 prompt tokens fill blocks 0 and 1 (one slot of the second), B's 7 fill blocks 2 and 3. 16 slots taken, 12 hold tokens.</li>
+<li><b>C arrives and is admitted at once.</b> C's 6 tokens take blocks 4 and 5. Three requests run where the contiguous scheme ran two.</li>
+<li><b>Three decode steps: A ends.</b> A filled its second block; B and C each needed a third and took blocks 6 and 7 from the free list. The only waste is each request's unfilled last block: 5 slots.</li>
+<li><b>A's blocks go back to the free list.</b> Blocks 0 and 1 are free again; with prefix caching they stay cached until the space is needed (section 3).</li>
+<li><b>B and C end.</b> B needed a fourth block and took block 8: its block table is 2, 3, 6, 8, scattered, and the attention kernel follows it. At the peak, 27 tokens filled 32 slots taken: 84%.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3R"><div id="stg-pool"></div></div><div class="s3L">
+<p><b>How paging works.</b> PagedAttention borrows virtual memory from operating systems. The cache is a pool of fixed-size <dfn>blocks</dfn> (16 tokens in vLLM by default, {{vllm/config/cache.py L71|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/cache.py#L71}}); each request has a <dfn>block table</dfn> mapping its token positions to blocks anywhere in the pool, and takes a new block only when its last one fills. Reservation and external fragmentation disappear, and internal fragmentation shrinks to the unfilled tail of each request's last block: on average half a block, 8 tokens. The cost is an indirection inside the attention kernel, which reads keys and values through the table instead of from one contiguous array.</p>
+<p><b>Sharing.</b> Blocks also make sharing cheap. When one request asks for several samples (<code>n &gt; 1</code>) or runs beam search, the sequences share their prompt's blocks, and a block is copied only when a sequence writes into a shared one (<dfn>copy-on-write</dfn>, counted with a reference count per block). The same reference counts make sharing across requests possible: prefix caching, the next section, and the last steps of Fig. 3.</p>
+<p>Fig. 3 is a 40-block pool of 16-token blocks in this page's simulator, which follows vLLM's block pool rules: four requests whose prompts start with the same 32-token system prompt (lengths illustrative, every allocation and hit simulated).</p>
+<ol class="sx" id="sx-pool">
+<li><b>One request, one block table.</b> R1's 62-token prompt (the 32-token system prompt plus 30 of its own) takes 4 blocks from the free queue; its block table lists them, 0 to 3, and only the last is partly filled (14 of 16 slots).</li>
+<li><b>A second request finds the system prompt cached.</b> R2 starts with the same 32 tokens: the lookup finds blocks 0 and 1 already hashed, so its table points at them (each block now counts 2 holders) and only its own 50 tokens take new blocks, 5 to 8. R1 has meanwhile taken block 4 for its answer.</li>
+<li><b>Shared prefix blocks are counted once.</b> R3 hits blocks 0 and 1 too: three requests, 96 system-prompt tokens in their tables, 2 blocks in memory, each counting 3 holders. Its own 20 tokens take blocks 9 and 10.</li>
+<li><b>Answers grow one block at a time, anywhere.</b> Each request takes a new block only when its last one fills, from wherever the free queue points: R1's table is now 0, 1, 2, 3, 4, 11, 14; R2's ends in 12, R3's in 13. The blocks interleave and the attention kernel follows each table; the only waste is each request's partly filled last block.</li>
+<li><b>A finished request's blocks stay cached.</b> R1 ends. Its own full blocks 2, 3, 4 and 11 keep their hashes and sit in the free queue, cached and free (grey) until the space is needed; its partly filled last block had no hash and is free outright. Blocks 0 and 1 drop to 2 holders.</li>
+<li><b>The next turn reuses the whole history.</b> R4 is R1's next turn: R1's prompt and answer plus 16 new tokens, 118 in all. The lookup finds 6 blocks, 0 and 1 (still shared) and 2, 3, 4, 11 (R1's history): 96 tokens not recomputed. Only 22 tokens are computed, into blocks 18 and 19.</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L">
+<p>Kwon et al. report 2 to 4 times the throughput of FasterTransformer and their Orca at the same latency (their measurement, 2023); their vLLM held 96.3% token states in the same experiment, against 20.4% to 38.2% for the contiguous schemes.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="bk-card" id="bk-f2-card">
 <h4>Paging lifted the share of KV memory holding tokens from 20 to 38% to 96% (PagedAttention Fig. 2)</h4>
 <div class="bk-svg" id="bk-f2-svg"></div>
 <div class="leg"><span style="--sw:var(--good)">token states</span><span style="--sw:var(--c5)">reservation</span><span style="--sw:var(--c2)">internal fragmentation</span><span style="--sw:var(--c4)">external fragmentation and other</span></div>
 <p class="small mute"><span class="vend">authors' measurement</span>, averaged "during the experiment in section 6.2" (basic sampling, one sample per request; the caption does not say which of that section's models and traces the bars cover). Values transcribed from the labels printed on the figure; each segment's meaning follows the figure's stacking order. "Orca" is the authors' reimplementation (Orca was not publicly available): Max reserves the model's 2,048-token maximum, Pow2 the next power of two above the true output length, Oracle exactly the true length (impossible in practice).</p>
 </div>
+</div></div></div>
+<div class="s3sp"><div class="s3L">
 <p>How much contiguous allocation wastes depends on the traffic. On the prompt and answer lengths of Kimi's production traces (section 3 introduces them), time-averaged over each request's answer:</p>
+<p>These traces have long prompts (12,035 tokens on average in the conversation trace) and short answers (343), so even an oracle wastes little, while reserving 16,384 output tokens leaves under half the memory holding tokens; short prompts with a large <code>max_tokens</code>, as in PagedAttention's experiment, are the worst case. Block size barely matters until blocks get large: at 16 tokens the last-block waste is 0.06% here; at 2,048 tokens it is 7%.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="bk-card" id="bk-fr-card">
 <h4>On real request lengths the waste is reservation for answers that never come</h4>
 <div class="bk-ctl">
@@ -29,8 +64,8 @@
 <div class="bars" id="bk-fr-bars"></div>
 <p class="small mute"><span class="indep">trace</span> lengths from the Mooncake traces (kvcache-ai/Mooncake, FAST25-release); <span class="der">derived</span>: at decode step t a request holds P + t tokens; a contiguous scheme holds its whole reservation from the start; a paged one holds ceil((P + t) / b) blocks of b tokens. External fragmentation is not counted (it depends on the allocator), so contiguous schemes look better here than in the figure above. Script: <code>src/evict/gen_frag.py</code>.</p>
 </div>
-<p>These traces have long prompts (12,035 tokens on average in the conversation trace) and short answers (343), so even an oracle wastes little, while reserving 16,384 output tokens leaves under half the memory holding tokens; short prompts with a large <code>max_tokens</code>, as in PagedAttention's experiment, are the worst case. Block size barely matters until blocks get large: at 16 tokens the last-block waste is 0.06% here; at 2,048 tokens it is 7%.</p>
-<p><b>Sharing.</b> Blocks also make sharing cheap. When one request asks for several samples (<code>n &gt; 1</code>) or runs beam search, the sequences share their prompt's blocks, and a block is copied only when a sequence writes into a shared one (<dfn>copy-on-write</dfn>, counted with a reference count per block). The same reference counts make sharing across requests possible: prefix caching, next. <b>Check:</b> vLLM exports <code>vllm:kv_cache_usage_perc</code>; compare it with the tokens your running requests actually hold.</p>
+</div></div></div>
+<p><b>Check:</b> vLLM exports <code>vllm:kv_cache_usage_perc</code>; compare it with the tokens your running requests actually hold.</p>
 <details class="dp"><summary>Choosing a block size, copy-on-write savings, and where the kernels and the hardware are covered</summary><div>
 <p><b>Block size.</b> Smaller blocks waste less but make the block table longer and each memory read smaller; larger blocks read more efficiently but waste more and share less, since a prefix can only be shared in whole blocks. Kwon et al. found 16 to 128 tokens best on ShareGPT and 16 or 32 on Alpaca's short sequences, and chose 16 as vLLM's default ({{PagedAttention section 7.2|https://arxiv.org/abs/2309.06180}}). Small blocks also made their swap path slow, because each block became a separate small PCIe copy (section 6). llama.cpp keeps per-token cells in one buffer shared by all slots, and Mooncake hashes its prefixes in 512-token blocks, which is why the traces below come in 512-token units.</p>
 <p><b>Copy-on-write savings</b> (authors' measurement): 6.1% to 9.8% of memory for parallel sampling and 37.6% to 55.2% for beam search on Alpaca, 16.2% to 30.5% and 44.3% to 66.3% on ShareGPT ({{PagedAttention section 6.3|https://arxiv.org/abs/2309.06180}}).</p>

@@ -34,8 +34,8 @@
     document.getElementById('bk-fa-cap').innerHTML='<div class="t">'+NM[pol]+', first '+t1+' s</div><p>'+msg[pol]+'</p>';
   }
   const nSteps=()=>Math.ceil(T()/2);
-  const an=RD.anim({card:'bk-fa-card',ctl:'bk-fa-ctl',n:nSteps(),draw:draw,ms:700,label:'Time'});
-  RD.seg(document.getElementById('bk-fa-sc'),m=>{sc=+m;an.reset(nSteps())});
+  const an=RD.anim({card:'bk-fa-card',ctl:'bk-fa-ctl',n:nSteps(),draw:draw,ms:700,label:'Time',auto:false,start:nSteps()-1});
+  RD.seg(document.getElementById('bk-fa-sc'),m=>{sc=+m;an.reset(nSteps());an.go(nSteps()-1,true)});
   RD.seg(document.getElementById('bk-fa-pol'),m=>{pol=m;an.redraw()});
   RD.onResize(()=>an.redraw());
 })();

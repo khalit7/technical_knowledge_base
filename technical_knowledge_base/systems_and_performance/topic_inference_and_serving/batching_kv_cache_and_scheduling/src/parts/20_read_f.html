@@ -1,26 +1,43 @@
 <section id="bk-s5">
+<div class="s3sp"><div class="s3R"><div id="stg-ck"></div></div><div class="s3L">
 <h2>5. Chunked prefill: the token budget as a latency dial</h2>
 <p>Continuous batching lets a new prompt join a step that is also decoding other users. If the whole prompt joins at once, that step lasts as long as its prefill, and every user mid-answer sees their stream freeze: a <dfn>generation stall</dfn> (the term is from {{Sarathi-Serve, Agrawal et al., OSDI 2024|https://arxiv.org/abs/2403.02310}}). This is prefill/decode interference; the parent's Engine bench saw a gap of 803 ms in a stream whose median gap was 31.4 ms. The fix: cap the new tokens per step (the token budget), schedule the decodes first, and let a waiting prompt fill what is left, one <dfn>chunk</dfn> per step. Sarathi introduced chunked prefills ({{Agrawal et al. 2023|https://arxiv.org/abs/2308.16369}}); Sarathi-Serve made them stall-free and reports 2.6 times the serving capacity of vLLM at the time for Mistral-7B on one A100, 3.7 times for Yi-34B on two A100s and 5.6 times for Falcon-180B with pipeline parallelism, under tail-latency targets (authors' measurement). vLLM, SGLang and llama-server all chunk by default.</p>
+<p>Fig. 4 runs the parent's simulator on the H100 preset (Llama 3.1 8B in BF16): eight users decode (500-token prompts, 400-token answers) when a 12,000-token prompt arrives at 0.2 s, three times with three budgets. Each slab is one engine step, as long as it lasted and as tall as the prompt tokens it computed.</p>
+<ol class="sx" id="sx-ck">
+<li><b>Eight users decoding.</b> Before 0.2 s each step makes one token for each of the eight users and lasts 7.9 ms: thin slabs, and in front of each lane a dot for every step, the tokens each user sees.</li>
+<li><b>A 12,000-token prompt arrives.</b> At 0.2 s a long prompt joins the queue, the same in all three lanes; it waits at the left of each lane and drains as its chunks are computed.</li>
+<li><b>No chunking: one step of 417 ms.</b> The whole prompt enters one step together with the eight decodes; that step lasts 417 ms, so every user's stream freezes for 417 ms (the longest gap, red), and the prompt's first token comes 420 ms after it arrived.</li>
+<li><b>Budget 2,048: six chunks.</b> Decodes go first and the prompt fills the rest, 2,040 tokens a step (the sixth chunk 1,800): the longest gap falls to 79 ms, and the first token comes after 431 ms.</li>
+<li><b>Budget 512: 24 chunks.</b> 504 prompt tokens a step: the longest gap is 22 ms, the first token comes after 471 ms.</li>
+<li><b>The trade.</b> From no chunking to a 512-token budget the longest gap shrinks 18.7 times (417 to 22 ms) while the long prompt's TTFT grows 1.12 times (420 to 471 ms).</li>
+</ol>
+</div></div>
+<div class="s3sp"><div class="s3L">
 <p><b>The trade.</b> A smaller budget means shorter stalls, but the long prompt needs more steps, each paying fixed costs and re-reading the weights, so its TTFT rises. Measured here: four users decoding on llama-server while a fifth sends a 6,011-token prompt, at six budgets. Predict: does the budget move the stall more, or the long prompt's TTFT?</p>
+<p><span class="meas">Measured here</span> (Qwen3-1.7B, llama-server, three runs per budget): at 128 tokens per step the four decoding users never waited more than 242 ms, but the 6,008-token prompt took 9.55 s to its first token; at 512 tokens, 762 ms and 7.57 s; at 2,048, 2.66 s and 7.17 s; at 8,192, where the whole prompt fits in one step, the four users froze for 7.26 s and the prompt took 7.28 s. Alone, the same four streams had gaps of 26 ms (median) and 33 ms (p99). And at budgets of 2,048 and 8,192 the p99 of all gaps was 37 ms, because the stall is one gap among two thousand: <b>only the maximum gap shows a stall</b>, never the mean and rarely the p99.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="bk-card" id="bk-ck-card">
 <h4>A small budget cuts the stall 30-fold for a third more TTFT: one point per token budget</h4>
 <div class="seg" id="bk-ck-mode"><button data-m="m1" class="on">M1 Pro, llama-server (measured, and simulated)</button><button data-m="h100">H100, Llama 3.1 8B (simulated)</button></div>
 <div class="bk-svg" id="bk-ck-svg"></div>
 <p class="small mute" id="bk-ck-note"></p>
 </div>
-<p><span class="meas">Measured here</span> (Qwen3-1.7B, llama-server, three runs per budget): at 128 tokens per step the four decoding users never waited more than 242 ms, but the 6,008-token prompt took 9.55 s to its first token; at 512 tokens, 762 ms and 7.57 s; at 2,048, 2.66 s and 7.17 s; at 8,192, where the whole prompt fits in one step, the four users froze for 7.26 s and the prompt took 7.28 s. Alone, the same four streams had gaps of 26 ms (median) and 33 ms (p99). And at budgets of 2,048 and 8,192 the p99 of all gaps was 37 ms, because the stall is one gap among two thousand: <b>only the maximum gap shows a stall</b>, never the mean and rarely the p99.</p>
+</div></div></div>
 <div class="pr" id="bk-pr5"><div class="q">Predict: on the simulated H100, halving the budget from 2,048 to 1,024 tokens per step. What happens to the long prompt's TTFT?</div>
 <div class="opts"><button data-a="0">It doubles</button><button data-a="1">It rises by about a half</button><button data-a="2" data-ok="1">It rises by about 2%</button><button data-a="3">It falls</button></div>
 <div class="ans" hidden>About 2%: 0.431 s to 0.439 s, while the longest gap the eight decoding users see halves, from 79 ms to 42 ms (<span class="der">derived</span>, the parent's simulator with the H100 preset fitted to NVIDIA's published measurements). Each chunk is still large enough to keep the GPU busy, so cutting it costs little; the cost grows below about 512 tokens (0.471 s at 512, 0.880 s at 128), where each step's fixed costs and weight reads dominate.</div></div>
+<div class="s3sp"><div class="s3L">
 <h3>Choosing the budget</h3>
 <p>Pick the largest budget whose stall your inter-token latency target tolerates. Under steady traffic (20 chat requests per second and 2 long-document requests per second, Llama 3.1 8B FP8 on the simulated H100):</p>
+<p>The p99 inter-token gap goes from 13 ms at a 512-token budget to 45 ms at 2,048 and 267 ms at 16,384, while p99 TTFT goes from 1.46 s to 1.07 s to 0.95 s. vLLM's 8,192 default on an H100 is tuned for throughput; an interactive service with a 50 ms TPOT target wants about 2,048 on this model. <b>Check:</b> the maximum and p99 inter-token latency (<code>vllm:inter_token_latency_seconds</code> is a histogram) during periods when long prompts arrive.</p>
+</div><div class="s3R"><div class="s3side">
 <div class="bk-card" id="sc1-card">
 <h4>Under steady traffic the budget moves the inter-token p99 twentyfold and TTFT far less; throughput not at all</h4>
 <div class="ev-plot" id="sc1-plot"></div>
 <div class="ev-leg"><span style="--sw:var(--c2)">inter-token latency p99</span><span style="--sw:var(--c1)">TTFT p99</span><span style="--sw:var(--c3)">TTFT p50</span></div>
 <p class="small mute"><span class="sc-der">derived</span>: the parent's simulator on the calibrated H100 preset; chat prompts 100 to 800 tokens, documents 6,000 to 16,000, 30 s of arrivals.</p>
 </div>
-<p>The p99 inter-token gap goes from 13 ms at a 512-token budget to 45 ms at 2,048 and 267 ms at 16,384, while p99 TTFT goes from 1.46 s to 1.07 s to 0.95 s. vLLM's 8,192 default on an H100 is tuned for throughput; an interactive service with a 50 ms TPOT target wants about 2,048 on this model. <b>Check:</b> the maximum and p99 inter-token latency (<code>vllm:inter_token_latency_seconds</code> is a histogram) during periods when long prompts arrive.</p>
+</div></div></div>
 <details class="dp"><summary>The engines in source, the single-prompt tables, and how close the simulator came</summary><div>
 <ul>
 <li><b>vLLM v0.31.0:</b> on by default ({{config/scheduler.py L135|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/scheduler.py#L135}}); the scheduler walks the running requests first (their decodes, and the unfinished chunks of prompts already started), then admits waiting requests while budget remains ({{scheduler.py, schedule()|https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/v1/core/sched/scheduler.py}}).</li>
