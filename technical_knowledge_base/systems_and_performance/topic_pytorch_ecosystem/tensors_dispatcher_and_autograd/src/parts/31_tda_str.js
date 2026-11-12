@@ -43,7 +43,8 @@ function draw(k){ if(!cur)return;
   $('tda-s-log').querySelectorAll('.tda-cell').forEach(c=>c.addEventListener('click',()=>{sel=+c.dataset.e;draw(Math.max(k,sel+1))}));
 }
 const fmtv=x=>Number.isInteger(x)?x:(+x).toFixed(1);
-const an=RD.anim({card:'tda-s-card',ctl:'tda-s-ctl',n:13,draw:i=>{sel=-1;draw(i)},ms:600,label:'Element'});
+// an explorer the reader drives: it never plays by itself
+const an=RD.anim({card:'tda-s-card',ctl:'tda-s-ctl',n:13,draw:i=>{sel=-1;draw(i)},ms:600,label:'Element',auto:false});
 // free mode
 function free(){const sh=$('tda-s-fshape').value.split(',').map(s=>parseInt(s,10)), st=$('tda-s-fstride').value.split(',').map(s=>parseInt(s,10)), off=parseInt($('tda-s-foff').value,10);
   const bad=sh.some(x=>!(x>=1&&x<=12))||st.length!==sh.length||st.some(x=>isNaN(x))||isNaN(off)||off<0;

@@ -2,12 +2,20 @@
 <a href="#rd-s0">The idea</a><a href="#rd-s1">1 Tensors</a><a href="#rd-s2">2 Dispatcher</a><a href="#rd-s3">3 Autograd</a><a href="#rd-s4">4 Modules and the loop</a><a href="#rd-mis">Depth</a>
 </nav>
 
+<div class="s3sp"><div class="s3R"><div id="stg-hero"></div></div><div class="s3L">
 <section id="rd-s0">
-<h2 style="margin-top:14px">The idea in one screen</h2>
+<h2>The idea in one screen</h2>
 <p class="core">Every PyTorch call reads tensors that are <b>headers over a flat block of bytes</b>, is routed by the <b>dispatcher</b> down a stack of kernels chosen by <b>dispatch keys</b> (autocast, <span class="hl">autograd</span>, view tracking, then the device kernel), and one of those kernels, autograd's, <b>records a node</b> that <code>loss.backward()</code> later runs in reverse.</p>
-<div class="hero" id="tda-hero-card"><h4>One call, three machines: <code>torch.mm(x, w)</code> with <code>w</code> requiring grad</h4>
-<div class="tda-svg" id="tda-hero"></div>
-<p class="cap">Left: x is 8 &times; 256 float32, 8,192 bytes of storage read through strides (256, 1); a transpose would write a new header and move no byte. Middle: every CPU tensor carries the keys <code>CPU, ADInplaceOrView, AutogradCPU, AutocastCPU</code>; the thread excludes Autocast unless you enter <code>torch.autocast</code>, and <code>mm</code>'s slot at ADInplaceOrView is a fallthrough. Right: the autograd kernel records <code>MmBackward0</code>, which keeps x and w because the gradient formula needs both; backward runs it and <code>AccumulateGrad</code> writes <code>w.grad</code>. Keys and slots read from the installed wheel (sections 2.1 to 2.3).</p></div>
+<p class="small">Fig. 1 follows one call through all three; each machine has its own section and figure below.</p>
+<ol class="sx" id="sx-hero">
+<li><b>The tensor x is a header over storage.</b> x is 8 &times; 256 float32: 8,192 bytes of storage read through strides (256, 1), offset 0. A transpose would write a new header and move no byte.</li>
+<li><b>The call meets the keys; autocast is skipped.</b> <code>torch.mm(x, w)</code> with <code>w</code> requiring grad: every CPU tensor carries the keys <code>CPU, ADInplaceOrView, AutogradCPU, AutocastCPU</code>, but the thread excludes Autocast unless you enter <code>torch.autocast</code>, so the call starts one key lower.</li>
+<li><b>AutogradCPU records a node.</b> The autograd kernel records <code>MmBackward0</code>, which keeps x and w because the gradient formula needs both, and redispatches below itself.</li>
+<li><b>ADInplaceOrView: a fallthrough.</b> <code>mm</code> neither views nor writes in place, so its slot at this key is a fallthrough and the call drops straight through.</li>
+<li><b>The CPU kernel does the arithmetic.</b> Only now is anything computed: y = x @ w, written to a new storage. y's <code>grad_fn</code> points at the node.</li>
+<li><b>Backward runs the node.</b> <code>loss.backward()</code> reaches <code>MmBackward0</code>, which uses the saved x for w's gradient, and <code>AccumulateGrad</code> writes <code>w.grad</code>.</li>
+</ol>
+<p class="small mute">Keys and slots read from the installed wheel (<code>torch._C._dispatch_keys</code>, <code>_dispatch_dump_table("aten::mm")</code>; sections 2.1 to 2.3); the storage is drawn as 8 rows of 256 floats.</p>
 <p><b>You need:</b> PyTorch as a user (you train models with it). The root, {{Topic: pytorch-ecosystem|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}}, is the map; its {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab records one whole training step of the running example op by op (923 calls). This page explains <i>why</i> each call took the route it did, from the C++ that decides it. The running example is the topic's tiny GPT: 4 blocks, d_model 256, a 43-character vocabulary, 3,186,944 parameters, batch 8 &times; 64, the output layer tied to the input embedding.</p>
 <dl class="terms">
 <dt>Storage</dt><dd>one flat, untyped block of bytes on one device.</dd>
@@ -31,30 +39,34 @@
 <p class="small">Labels used on this page: <span class="meas">measured on Apple M1 Pro</span> for numbers recorded here, <span class="der">derived</span> for arithmetic on them, <span class="vend">vendor</span> for figures from PyTorch's own docs. Each depth block is optional; the core of each section is enough to follow the next.</p>
 </div></details>
 </section>
+</div></div>
 
 <section id="rd-s1">
+<div class="s3sp"><div class="s3R"><div id="stg-ten"></div></div><div class="s3L">
 <h2>1. A tensor is a header over bytes</h2>
-<p>Take <code>x = torch.arange(12.).view(3, 4)</code>. Its storage is 12 floats (48 bytes), and every value equals its own storage index, so the values printed prove the addresses. The header says shape (3, 4), strides (4, 1), offset 0. <code>x.t()</code> writes a new header, shape (4, 3) and strides (1, 4), over the same 12 floats: nothing moves. Reading element [i, j] means reading storage[offset + i&middot;stride<sub>0</sub> + j&middot;stride<sub>1</sub>]:</p>
-<div class="vis" id="tda-ctg-card">
-<h4>A view reads in place; <code>.contiguous()</code> writes a new storage in reading order</h4>
-<div class="seg" id="tda-ctg-seg"><button data-m="view" class="on">x.t(): a view</button><button data-m="copy">x.t().contiguous(): a copy</button></div>
-<p class="small">Predict before you step: as you read x.t() row by row, how many times does the read position jump backwards in storage?</p>
-<div class="tda-svg" id="tda-ctg-svg"></div>
-<div class="an-ctl" id="tda-ctg-ctl"></div>
-<div class="an-cap" id="tda-ctg-cap"></div>
-<div class="an-cnt" id="tda-ctg-cnt"></div>
-<p class="small mute">Every address is what torch 2.14.1 reported for this tensor (<code>src/exp/tensors.py</code>); the copy has strides (3, 1) and shares no storage with x.</p>
-</div>
+<p>Take <code>x = torch.arange(12.).view(3, 4)</code>. Its storage is 12 floats (48 bytes), and every value equals its own storage index, so the values printed prove the addresses. A view reads in place: it is a new header (shape, strides, offset) over the same storage, and reading element [i, j] means reading storage[offset + i&middot;stride<sub>0</sub> + j&middot;stride<sub>1</sub>].</p>
+<p class="small"><b>Predict before Fig. 2 plays:</b> as you read <code>x.t()</code> row by row, how many times does the read position jump backwards in storage?</p>
+<ol class="sx" id="sx-ten">
+<li><b>One storage: 12 floats.</b> <code>torch.arange(12.)</code> fills 48 bytes on one device. It has no shape of its own; everything else is a header over it.</li>
+<li><b>x = a header, shape (3, 4), strides (4, 1), offset 0.</b> Moving one row skips 4 floats, one column 1 float, so row 0 reads storage 0, 1, 2, 3 and row 1 starts at 4.</li>
+<li><b>A slice moves the offset.</b> <code>x[1:, 1:3]</code> has shape (2, 2), strides (4, 1) and offset 5: it reads 5, 6, 9, 10 from the same storage, and nothing is copied.</li>
+<li><b>x.t(): a new header, the same bytes.</b> Shape (4, 3) and strides (1, 4) over the same 12 floats: row 0 of the transpose reads storage 0, 4, 8. Nothing moves.</li>
+<li><b>Read in order, x.t() jumps back three times.</b> Row by row it reads 0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11: consecutive elements sit 4 apart, and after each row the position jumps back (red). No single stride describes that walk, which is why <code>view(12)</code> cannot.</li>
+<li><b>.contiguous() writes a new storage in reading order.</b> <code>x.t().contiguous()</code> copies the 12 floats in the order they are read (48 bytes) into storage of its own, strides (3, 1), sharing nothing with x.</li>
+<li><b>A stride of 0 repeats memory.</b> <code>x[0:1].expand(3, 4)</code> has strides (0, 1): three rows over one row of storage, each of cells 0 to 3 read three times, which is how broadcasting avoids copies.</li>
+</ol>
+<p class="small mute">Every shape, stride, offset and address in Fig. 2 is what torch 2.14.1 reported for that tensor (<code>src/exp/tensors.py</code>); the copy has strides (3, 1) and shares no storage with x.</p>
 <div class="fm"><div class="eq">address(i, j, &hellip;) = offset + i&middot;stride<sub>0</sub> + j&middot;stride<sub>1</sub> + &hellip;</div>
 <dl><dt>address</dt><dd>position in the storage, in elements (multiply by the element size for bytes)</dd><dt>stride<sub>d</sub></dt><dd>elements skipped per step along dimension d; 0 means "repeat the same element"</dd></dl></div>
 <p>A tensor is <dfn>contiguous</dfn> when reading it in order walks the storage in order with no gaps: strides equal the row-major ones for its shape ((4, 1) for (3, 4)). Most kernels are fastest on contiguous input and some require it. Three rules follow from the formula:</p>
 <ul class="tight">
 <li><code>view</code> never copies, so it fails when no strides can describe the new shape over the old layout: <code>x.t().view(12)</code> raised <span class="tda-err">"view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead."</span></li>
 <li><code>reshape</code> returns a view when it can and copies when it cannot: <code>x.reshape(12)</code> shared storage, <code>x.t().reshape(12)</code> did not. <code>.contiguous()</code> copies only when needed; <code>flip</code>, advanced indexing (<code>x[[0, 2]]</code>) and boolean masks always copy, because there are no negative strides (<span class="tda-err">"as_strided: Negative strides are not supported at the moment, got strides: [-4, 1]"</span>).</li>
-<li>A stride of 0 repeats memory: <code>x[0:1].expand(3, 4)</code> is three rows over one row of storage, which is how broadcasting avoids copies; writing into it in place is an error ("more than one element of the written-to tensor refers to a single memory location"). <code>x.unfold(1, 2, 1)</code> makes overlapping windows, so some cells are read twice.</li>
+<li>A stride of 0 repeats memory (step 7), so writing into an expanded tensor in place is an error ("more than one element of the written-to tensor refers to a single memory location"). <code>x.unfold(1, 2, 1)</code> makes overlapping windows, so some cells are read twice.</li>
 </ul>
 <p><b>On the running example</b> this is why attention costs no copies. q, k and v are three views of one (8, 64, 768) <code>qkv</code> output at storage offsets 0, 256 and 512, all with strides (49152, 768, 1); splitting heads with <code>view</code> and <code>transpose</code> gives strides (49152, 64, 768, 1): zero bytes copied. On the CPU the attention kernel then writes its (8, 4, 64, 64) output with strides (16384, 64, 256, 1), already in (batch, position, head, dim) order, so the model's <code>.transpose(1, 2).contiguous()</code> finds a contiguous tensor and copies nothing <span class="meas">measured on Apple M1 Pro, CPU</span>. On MPS the same line copies 524,288 bytes per layer (the root's {{Inside one step|n:3c65c17b0d0d8150aa65ca44b6ed2fd5}} tab, section 1). Every expression on four bases, with every address, is in the {{Stride explorer|#t-tda-str}} tab.</p>
 <p>The header carries more than layout: <code>requires_grad</code>, <code>is_leaf</code> (made by you, not by a recorded op), <code>grad_fn</code> (the node that made it), <code>_base</code> (the tensor it views) and the <dfn>version counter</dfn>, shared by every view of one storage. Section 3.3 shows why autograd needs the counter.</p>
+</div></div>
 
 <details class="dp"><summary>Sixteen expressions on x, as torch reported them <span class="mute">(table)</span></summary><div class="b">
 <div id="tda-viewtbl" class="tw"></div>

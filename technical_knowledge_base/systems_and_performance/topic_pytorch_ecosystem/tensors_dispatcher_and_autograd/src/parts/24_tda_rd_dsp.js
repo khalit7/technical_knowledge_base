@@ -25,42 +25,7 @@ $('tda-tkeys').innerHTML=U.table(['tensor','dispatch keys (torch._C._dispatch_ke
   $('tda-ctx').innerHTML=U.table(['context','included set','excluded set (other devices\' Autocast keys omitted)','effective keys for a plain CPU tensor'],order.map(([k,l])=>{const c=S.tls[k];return ['<code>'+E(l)+'</code>','<span class="small">'+short(c.include)+'</span>','<span class="small">'+short(c.exclude)+'</span>','<b class="small">'+c.effective_cpu.join(', ')+'</b>']}))+
    '<p class="small mute">Measured with torch._C._dispatch_tls_local_include_set / exclude_set, and the effective set computed from the raw bit sets the way DispatchKeyExtractor.h L46 does. Printing collapses "every autograd key" to the names AutogradOther and AutogradNestedTensor; the effective column shows that AutogradCPU is gone under inference_mode.</p>';})();
 
-// 2.2 the walk: two recorded situations side by side (SVG stepper)
-(function(){const W=S.walk, el=$('tda-w-svg');
-  const job={AutocastCPU:'casts the input to bfloat16, then calls the op again with AutocastCPU excluded',AutogradCPU:'records a node if grad mode is on and an input requires grad, then redispatches with the autograd keys masked off',ADInplaceOrView:'view and in-place bookkeeping (nothing to do for this op), then redispatches below','Python (TorchDispatchMode)':'hands the call to the active mode\'s __torch_dispatch__, which logs it and calls the op again',CPU:'does the arithmetic, x * 2',Meta:'computes the output shape only'};
-  function why(w,k){const nm=w.name;
-    if(k==='AutocastCPU')return nm.includes('autocast')?'':'excluded: autocast off';
-    if(k==='AutogradCPU'){if(nm.includes('inference_mode'))return 'excluded: inference_mode';if(nm.includes('inference tensor'))return 'not in the key set';if(nm.includes('meta'))return 'AutogradMeta ran instead';return ''}
-    if(k.startsWith('Python'))return 'not in the key set';
-    if(k==='CPU')return nm.includes('meta')?'not in the key set':'';
-    if(k==='Meta')return nm.includes('meta')?'':'not in the key set';return ''}
-  const why2={'excluded: autocast off':'every Autocast key is in the excluded set unless autocast is on','excluded: inference_mode':'inference_mode adds every autograd key to the excluded set','not in the key set':'neither the tensors nor the thread put it in the key set','AutogradMeta ran instead':'a meta tensor carries AutogradMeta; the boxed autograd fallback ran there, invisible to this log'};
-  const rowsFor=w=>['AutocastCPU','AutogradCPU','ADInplaceOrView','Python (TorchDispatchMode)',w.name.includes('meta')?'Meta':'CPU'];
-  const sa=$('tda-w-a'), sb=$('tda-w-b');
-  [sa,sb].forEach((s,j)=>{s.innerHTML=W.map((w,i)=>'<option value="'+i+'">'+E(w.name)+'</option>').join('');s.value=j?3:1});
-  function col(w,k,x,y,cw){let s=tx(x,y+12,E(w.code.length*6.6<cw?w.code:w.name),'mono b');const rows=rowsFor(w);
-    rows.forEach((key,i)=>{const vi=w.visits.findIndex(v=>v.key===key), yy=y+22+i*30, r=why(w,key);
-      const cur=vi>=0&&vi===k-1, done=vi>=0&&vi<k-1, skip=vi<0;
-      s+='<rect x="'+x+'" y="'+yy+'" width="'+cw+'" height="25" rx="5" fill="'+(cur?'var(--acc)':done?'var(--acc2)':'var(--bg)')+'" stroke="'+(cur||done?'var(--acc)':'var(--line)')+'"'+(skip?' stroke-dasharray="4 3"':'')+'/>';
-      const nm=key.replace(' (TorchDispatchMode)','');
-      s+='<text x="'+(x+8)+'" y="'+(yy+17)+'" class="mono'+(cur?' on b':'')+'"'+(skip?' style="text-decoration:line-through;opacity:.55"':'')+'>'+nm+'</text>';
-      const st=skip?r||'not reached':cur||done?'ran #'+(vi+1)+', '+(w.visits[vi].dtype==='bfloat16'?'bf16':w.visits[vi].dtype==='float32'?'f32':w.visits[vi].dtype):'step '+(vi+1);
-      s+=tx(x+cw-8,yy+17,E(st),cur?'on':'m','end')});
-    const done=k>=w.visits.length;
-    s+=tx(x,y+22+rows.length*30+14,done?'result '+w.result.dtype+' on '+w.result.device+', '+w.visits.length+' kernels ran':' ','m');
-    return s}
-  function draw(k){const a=W[+sa.value], b=W[+sb.value], Wd=RD.width(el), side=Wd>=600, gap=16;let s='',H;
-    if(side){const cw=(Wd-gap)/2;s=col(a,k,0,0,cw)+col(b,k,cw+gap,0,cw);H=22+5*30+24}
-    else{s=col(a,k,0,0,Wd)+col(b,k,0,22+5*30+30,Wd);H=2*(22+5*30+30)}
-    el.innerHTML=RD.svg(Wd,H,s,'Kernels run for the same op in two situations');
-    const line=(w,side)=>{if(k===0){const v=w.visits;return '<p><b>'+side+'</b> ('+E(w.name)+'): '+v.length+' kernels will run, in this order: '+v.map(z=>z.key.replace(' (TorchDispatchMode)','')).join(', ')+'. '+rowsFor(w).filter(key=>w.visits.findIndex(v=>v.key===key)<0).map(key=>key.replace(' (TorchDispatchMode)','')+' is skipped: '+(why2[why(w,key)]||why(w,key))).join('; ')+'.</p>'}
-      const x=w.visits[k-1];if(!x)return '<p><b>'+side+'</b>: done.</p>';
-      return '<p><b>'+side+': '+E(x.key.replace(' (TorchDispatchMode)',''))+'</b> '+(job[x.key]||'')+'. Handed key set ['+(x.keyset?x.keyset.join(', '):'called by the Python fallback')+'], input '+x.dtype+', grad mode '+(x.grad_mode?'on':'off')+'.</p>'};
-    $('tda-w-cap').innerHTML='<div class="t">'+(k===0?'Step 0: the key sets':'Kernel '+k)+'</div>'+line(a,'Left')+line(b,'Right')}
-  const steps=()=>Math.max(W[+sa.value].visits.length,W[+sb.value].visits.length)+1;
-  const an=RD.anim({card:'tda-w-card',ctl:'tda-w-ctl',n:steps(),draw,ms:1300,label:'Kernel'});
-  [sa,sb].forEach(s=>s.addEventListener('change',()=>an.reset(steps())));
-  RD.onResize(()=>an.redraw());})();
+// 2.2 the walk is Fig. 3, a 3D stage (43_js_sc_walk.js)
 
 // 2.3 per-op tables (closed block)
 (function(){const ops=['aten::mm','aten::linear','aten::view','aten::add_.Tensor','aten::gelu','aten::scaled_dot_product_attention','aten::_scaled_dot_product_flash_attention_for_cpu'];

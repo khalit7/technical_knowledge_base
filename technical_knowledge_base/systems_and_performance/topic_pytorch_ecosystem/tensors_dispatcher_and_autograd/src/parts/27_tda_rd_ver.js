@@ -19,7 +19,8 @@ function reveal(a){const c=L[cur];seen[cur]=1;
   if(c.id==='hooks'){const ok=L.find(z=>z.id==='hookscopy');h+=' The correct gradient (the copying hook in the next case) is '+fl(ok.grad_x)+'.'}
   $('tda-v-ans').innerHTML=h+'<p style="margin:6px 0 0">'+E(c.why)+'</p>';$('tda-v-ans').hidden=false;$('tda-v-title').textContent='Case '+(cur+1)+' of '+L.length+': '+c.title;an.go(c.lines.length);list()}
 $('tda-v-opts').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>reveal(b.dataset.a)));
-const an=RD.anim({card:'tda-v-card',ctl:'tda-v-ctl',n:L[0].lines.length+1,draw,ms:1100,label:'Line'});
+// a lab the reader drives (pick a case, predict, reveal): it never plays by itself
+const an=RD.anim({card:'tda-v-card',ctl:'tda-v-ctl',n:L[0].lines.length+1,draw,ms:1100,label:'Line',auto:false});
 list();open();
 })();
 

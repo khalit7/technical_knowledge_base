@@ -1,27 +1,33 @@
 <section id="rd-s2">
+<div class="s3sp"><div class="s3L">
 <h2>2. The dispatcher: a walk down a stack of keys</h2>
 <p>One operator, say <code>mm</code>, has to do different things by context: cast to bfloat16 under mixed precision, record a graph node when gradients are needed, run on a CPU, an Apple GPU or a CUDA GPU, call back into Python for a tensor subclass or a tracing tool, or only compute output shapes while a compiler traces. Instead of writing all of that into every one of thousands of kernels, PyTorch gives each concern its own kernel under its own <dfn>dispatch key</dfn>, and per call a table lookup decides which of them run, in priority order. Each kernel does its one job and calls the operator again with its own key masked off (it <dfn>redispatches</dfn>), so the call walks down the stack.</p>
 
 <h3>2.1 The keys, in priority order</h3>
-<div class="vis"><h4>Higher number runs first: autocast, then autograd, then view bookkeeping, then Python, then the arithmetic</h4>
-<div class="tda-svg" id="tda-ladder"></div>
-<p class="cap">Enum values in the installed 2.14.1 wheel (<code>torch._C.DispatchKey</code>; the order of <code>c10/core/DispatchKey.h</code> at v2.14.1, where <code>Python</code> is declared on line 229, <code>ADInplaceOrView</code> on line 289 and <code>AutocastCPU</code> on line 334). Highlighted: the keys a normal training call meets. Others (functorch's vmap and grad layers, Sparse, Quantized) slot in at the numbers shown.</p></div>
-<p>A key has two parts: a <dfn>functionality</dfn> (Dense, Autograd, Autocast, Python, ...) and, for some functionalities, a <dfn>backend</dfn> bit (CPU, MPS, CUDA, ...). <code>AutogradCPU</code> is the Autograd functionality with the CPU bit. The functionality order is the priority.</p>
 
+<p>A key has two parts: a <dfn>functionality</dfn> (Dense, Autograd, Autocast, Python, ...) and, for some functionalities, a <dfn>backend</dfn> bit (CPU, MPS, CUDA, ...). <code>AutogradCPU</code> is the Autograd functionality with the CPU bit. The functionality order is the priority.</p>
+</div>
+<div class="s3R"><div class="s3side"><div class="vis"><h4>Higher number runs first: autocast, then autograd, then view bookkeeping, then Python, then the arithmetic</h4>
+<div class="tda-svg" id="tda-ladder"></div>
+<p class="cap">Enum values in the installed 2.14.1 wheel (<code>torch._C.DispatchKey</code>; the order of <code>c10/core/DispatchKey.h</code> at v2.14.1, where <code>Python</code> is declared on line 229, <code>ADInplaceOrView</code> on line 289 and <code>AutocastCPU</code> on line 334). Highlighted: the keys a normal training call meets. Others (functorch's vmap and grad layers, Sparse, Quantized) slot in at the numbers shown.</p></div></div></div></div>
+
+<div class="s3sp"><div class="s3R"><div id="stg-walk"></div></div><div class="s3L">
 <h3>2.2 The key set of one call: tensors, plus the thread, minus the thread</h3>
 <p>Every tensor carries a key set: a plain CPU float tensor has <code>CPU, ADInplaceOrView, AutogradCPU, AutocastCPU</code>; an inference tensor only <code>CPU, AutocastCPU</code>; a FakeTensor adds <code>Python</code> and <code>PythonTLSSnapshot</code>. The thread carries two more sets, an <dfn>included</dfn> and an <dfn>excluded</dfn> set, changed by context managers. For each call:</p>
 <div class="fm"><div class="eq">keys = (&#8746; keys of the tensor arguments &#8746; included) &minus; excluded &minus; fallthroughs</div></div>
-<p>and the kernel of the highest key left runs. Two defaults explain a lot: <code>ADInplaceOrView</code> is in every thread's included set, and every <code>Autocast</code> key sits in the excluded set until you enter <code>torch.autocast</code>. So a plain tensor carries <code>AutocastCPU</code>, but the thread hides it. Watch it on a real call:</p>
-<div class="vis" id="tda-w-card">
-<h4>The same op, two situations side by side: which kernels actually ran, and why the others did not</h4>
-<p class="small">Predict first: under <code>torch.no_grad()</code>, does the autograd kernel still run? Pick it on the right, then step.</p>
-<div class="tda-sel"><label>Left <select id="tda-w-a"></select></label><label>Right <select id="tda-w-b"></select></label></div>
-<div class="tda-svg" id="tda-w-svg"></div>
-<div class="an-ctl" id="tda-w-ctl"></div>
-<div class="an-cap" id="tda-w-cap"></div>
-<p class="small mute">The op is <code>tda::scale(Tensor x) -&gt; Tensor</code> (x * 2) with a logging Python kernel registered at AutocastCPU, AutogradCPU, ADInplaceOrView, CPU and Meta; each records the key set it was handed and redispatches below itself, the way the C++ kernels do (op defined with <code>torch.library.Library("tda", "DEF")</code>, kernels registered with <code>with_keyset=True</code>; the autocast kernel calls the op with AutocastCPU excluded, as ATen's autocast wrappers do; the autograd kernel redispatches under <code>_AutoDispatchBelowAutograd</code>, as generated autograd kernels do). Nothing is simulated: the dispatcher chose which ran, in what order (<code>src/exp/dispatch.py</code>, eight situations).</p>
-</div>
-<p>Four lessons in it. Under <code>no_grad</code> the autograd kernel still runs: grad mode is only a flag it reads before deciding not to record, and no key changes. Under <code>inference_mode</code> the autograd keys are excluded, so that kernel is skipped entirely (the custom op still visits ADInplaceOrView because the tensor was made outside the mode and keeps its own keys). Under autocast the input arrives as float32 at AutocastCPU and as bfloat16 everywhere below. And a <code>TorchDispatchMode</code>'s Python key sits below autograd and ADInplaceOrView, so a mode sees calls after autograd has recorded them.</p>
+<p>and the kernel of the highest key left runs. Two defaults explain a lot: <code>ADInplaceOrView</code> is in every thread's included set, and every <code>Autocast</code> key sits in the excluded set until you enter <code>torch.autocast</code>. So a plain tensor carries <code>AutocastCPU</code>, but the thread hides it. Watch it on a real call in Fig. 3.</p>
+<p class="small"><b>Predict first:</b> under <code>torch.no_grad()</code>, does the autograd kernel still run? Fig. 3 walks one recorded call through seven situations, one per step.</p>
+<ol class="sx" id="sx-walk">
+<li><b>A plain call: three kernels.</b> <code>op(w)</code> with <code>w</code> requiring grad: the tensor brings <code>CPU, ADInplaceOrView, AutogradCPU, AutocastCPU</code>, the thread excludes AutocastCPU, so AutogradCPU runs first (handed <code>CPU, ADInplaceOrView, AutogradCPU</code>), then ADInplaceOrView, then the CPU kernel does x * 2. A tensor that does not require grad takes exactly this route.</li>
+<li><b>Under no_grad: the same three.</b> Under <code>no_grad</code> the autograd kernel still runs: grad mode is only a flag it reads before deciding not to record, and no key changes.</li>
+<li><b>Under inference_mode: autograd is skipped.</b> The autograd keys are excluded, so that kernel never runs (two kernels). The op still visits ADInplaceOrView because the tensor was made outside the mode and keeps its own keys.</li>
+<li><b>Under autocast: a cast at the top.</b> AutocastCPU leaves the excluded set, so its kernel runs first, receives float32, casts and calls the op again with AutocastCPU excluded: the input arrives as bfloat16 everywhere below. Four kernels; the result is bfloat16.</li>
+<li><b>Inside a TorchDispatchMode: the Python key.</b> The mode puts <code>Python</code> into the key set; that key sits below autograd and ADInplaceOrView, so a mode sees calls after autograd has recorded them. Four kernels.</li>
+<li><b>A meta tensor: the Meta kernel.</b> <code>torch.empty(4, device='meta')</code> carries Meta keys, so the Meta kernel runs instead of the CPU one and computes the output's shape only. A meta tensor carries AutogradMeta; the boxed autograd fallback ran there, invisible to this log.</li>
+<li><b>An inference tensor outside the mode: two kernels.</b> A tensor made under inference_mode carries only <code>CPU, AutocastCPU</code>, so even in normal mode autograd is not in the key set; ADInplaceOrView still runs because it is in every thread's included set.</li>
+</ol>
+<p class="small mute">The op is <code>tda::scale(Tensor x) -&gt; Tensor</code> (x * 2) with a logging Python kernel registered at AutocastCPU, AutogradCPU, ADInplaceOrView, CPU and Meta; each records the key set it was handed and redispatches below itself, the way the C++ kernels do (op defined with <code>torch.library.Library("tda", "DEF")</code>, kernels registered with <code>with_keyset=True</code>; the autocast kernel calls the op with AutocastCPU excluded, as ATen's autocast wrappers do; the autograd kernel redispatches under <code>_AutoDispatchBelowAutograd</code>, as generated autograd kernels do). Nothing is simulated: the dispatcher chose which ran, in what order (<code>src/exp/dispatch.py</code>, eight situations; the plain tensor and the one requiring grad share step 1).</p>
+</div></div>
 <details class="dp"><summary>The thread's sets in each context, and the C++ that sets them <span class="mute">(measured, with source)</span></summary><div class="b">
 <div id="tda-ctx" class="tw"></div>
 <div class="tda-q" data-q="keyset" data-hl="46"></div>
@@ -32,12 +38,15 @@
 <div id="tda-tkeys" class="tw"></div>
 </div></details>
 
+<div class="s3sp"><div class="s3L">
 <h3>2.3 Behind each key, a table slot</h3>
 <p>Each operator keeps a <dfn>dispatch table</dfn>: one slot per key. A slot is filled by, in order: a kernel registered for exactly that key; else a kernel for an <dfn>alias key</dfn> that covers it (<code>CompositeExplicitAutograd</code>, one implementation for all backends; <code>CompositeImplicitAutograd</code>, a decomposition into other operators that also serves as its own autograd, the "math kernel"); else a <dfn>backend fallback</dfn> registered for every operator at that key; and a <dfn>fallthrough</dfn> means "skip this key". A fallback is <dfn>boxed</dfn>: the arguments arrive as a generic stack of values, which is what lets one function serve every operator. Counted over every operator in the wheel:</p>
-<div class="vis"><h4>Most keys do nothing for most operators: autocast touches 126 of 3,113, view bookkeeping 1,101</h4>
+</div>
+<div class="s3R"><div class="s3side"><div class="vis"><h4>Most keys do nothing for most operators: autocast touches 126 of 3,113, view bookkeeping 1,101</h4>
 <div class="tda-svg" id="tda-opstat"></div>
 <div class="leg" id="tda-opstat-leg"></div>
-<p class="cap">From <code>torch._C._dispatch_dump_table</code> for all 3,113 <code>aten::</code> operators, torch 2.14.1 macOS arm64 wheel (no CUDA kernels in this build). About a quarter decompose (739 math kernels at the CPU key, <code>linear</code> into <code>t</code> and <code>addmm</code> among them); <code>ADInplaceOrView</code> has a real kernel only for views and in-place ops and is a fallthrough for the other 2,012; the <code>Python</code> key is one boxed fallback for all of them; 186 operators have no CPU kernel at all.</p></div>
+<p class="cap">From <code>torch._C._dispatch_dump_table</code> for all 3,113 <code>aten::</code> operators, torch 2.14.1 macOS arm64 wheel (no CUDA kernels in this build). About a quarter decompose (739 math kernels at the CPU key, <code>linear</code> into <code>t</code> and <code>addmm</code> among them); <code>ADInplaceOrView</code> has a real kernel only for views and in-place ops and is a fallthrough for the other 2,012; the <code>Python</code> key is one boxed fallback for all of them; 186 operators have no CPU kernel at all.</p></div></div></div></div>
+
 <p>At the autograd keys the boxed fallback handles operators with no derivative registered, and that bites your own operators. A custom op <code>tda2::noautograd</code> with only a CPU kernel, called on a tensor that requires grad, returned a tensor with <code>grad_fn</code> MulBackward0 and backward ran, with only a warning: <span class="tda-err">"tda2::noautograd: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior."</span> (fallback mode <code>"warn"</code>). The gradient is silently not what the op computes. Register a backward; {{Extending PyTorch|n:3f85c17b0d0d8158a7addcd3d601d72a}} owns <code>register_autograd</code> and custom ops.</p>
 <details class="dp"><summary>Seven operators' tables, slot by slot, and the rule in the source <span class="mute">(measured)</span></summary><div class="b">
 <div class="tda-q" data-q="table"></div>
@@ -53,7 +62,7 @@
 </div></details>
 
 <h3>2.4 Autocast is just a key</h3>
-<p><code>torch.autocast(device, dtype)</code> removes that device's Autocast key from the excluded set; nothing else. From then on every operator reaches the Autocast key first, and for most the slot is a fallthrough. Operators on the <dfn>lower_precision_fp</dfn> list (matrix multiplies, convolutions, attention, <code>linear</code>) get a kernel that casts their floating-point inputs to the autocast dtype; operators on the <dfn>fp32</dfn> list (losses, norms, reductions that lose accuracy) cast to float32. Weights stay float32: the casts are new tensors on every forward. On the running example, one forward under bfloat16 autocast on the CPU made 180 aten calls against 137 without, 43 of them <code>_to_copy</code> casts; all 9 layer norms ran in float32, and the loss was 3.801377 against 3.801371 in float32 <span class="meas">measured on Apple M1 Pro, CPU</span>. Autocast does not make "the model" bf16; it makes chosen ops bf16. Pick "under autocast" in the walker above to see the cast happen at the top of the stack.</p>
+<p><code>torch.autocast(device, dtype)</code> removes that device's Autocast key from the excluded set; nothing else. From then on every operator reaches the Autocast key first, and for most the slot is a fallthrough. Operators on the <dfn>lower_precision_fp</dfn> list (matrix multiplies, convolutions, attention, <code>linear</code>) get a kernel that casts their floating-point inputs to the autocast dtype; operators on the <dfn>fp32</dfn> list (losses, norms, reductions that lose accuracy) cast to float32. Weights stay float32: the casts are new tensors on every forward. On the running example, one forward under bfloat16 autocast on the CPU made 180 aten calls against 137 without, 43 of them <code>_to_copy</code> casts; all 9 layer norms ran in float32, and the loss was 3.801377 against 3.801371 in float32 <span class="meas">measured on Apple M1 Pro, CPU</span>. Autocast does not make "the model" bf16; it makes chosen ops bf16. Step 4 of Fig. 3 shows the cast happen at the top of the stack.</p>
 <details class="dp"><summary>Every op of one autocast forward, by output dtype, and a drill <span class="mute">(measured)</span></summary><div class="b">
 <div class="tda-q" data-q="autocast" data-hl="334,347,350,353"></div>
 <div id="tda-ac" class="tw"></div>

@@ -30,7 +30,7 @@ Everything except `timing.json` is deterministic, except where the page says oth
 - `exp/autograd_lab.py`: the 14 version-counter cases, hooks order, retain/create graph, a custom Function with gradcheck, anomaly mode, grad modes, checkpoint variants on the whole model, reentrant gotchas, engine threads.
 - `exp/module_loop.py`, `exp/dataloader.py`: registration, saving and loading with tied weights, strict loading, forward hooks, zero_grad, accumulation, clipping, AMP and fp16 underflow counts, GradScaler, determinism, worker seeding, pin_memory.
 - `build_data.py` writes `parts/22_tda_data.js`; `check_data.py` checks the embedding equals the inputs and every prose number is in the data (or a listed constant with its reason).
-- `check_controls.mjs` clicks every control at 390 px dark and 920 px light and checks nothing autoplays; `shot_el.mjs` screenshots single Reading elements for review (run both from the repo root).
+- `check_controls.mjs` clicks every control at 390 px dark and 920 px light and checks nothing moves by itself under reduced motion; `check_stages.mjs` checks the four 3D stages (play when scrolled into view, step to the end, one list item per step, nothing moves under reduced motion, no redraws off screen, splits are two columns at 1400 px) and that the three widgets never play by themselves; `shot_el.mjs` screenshots single Reading elements for review (run all three from the repo root).
 - `ledger.json`: the knowledge ledger (`python3 html_utils/ledger.py check <page>`).
 - `viz_ideas.md`, `coverage.md`.
 
@@ -38,7 +38,7 @@ Everything except `timing.json` is deterministic, except where the page says oth
 
 | Tab | Parts | What |
 |---|---|---|
-| Reading `t-read` | `20_read_a` (styles), `20_read_b` (nav, the idea in one screen: core sentence, hero, you need, new terms; section 1 tensors), `20_read_c` (section 2 dispatcher), `20_read_d` (section 3 autograd), `20_read_e` (section 4, a pointer: modules and the loop now live on Making training fast; depth: GPUs, mistakes, interview), `20_read_z`; JS: `21_js_rd_common.js` (the skill template, never autoplays), `22_tda_data.js` (TDA), `23_tda_rd_ten.js` (helpers, the strides before/after, tensor tables), `24_tda_rd_dsp.js` (key ladder, the two-situation walk stepper, slot statistics, aten-call explorer), `25_tda_rd_ag.js` (autograd tables), `26_tda_rd_eng.js` (graph built in forward, run in backward), `27_tda_rd_ver.js` (version-counter lab and mechanism figure), `28_tda_rd_hero.js`, `29_tda_rd_figs.js` (custom Function diagram, checkpoint bars) | sections 1 to 3 core with their visuals, section 4 a short pointer, the depth section closed |
+| Reading `t-read` | `20_read_a` (styles), `20_read_b` (nav, the idea in one screen: core sentence, hero, you need, new terms; section 1 tensors), `20_read_c` (section 2 dispatcher), `20_read_d` (section 3 autograd), `20_read_e` (section 4, a pointer: modules and the loop now live on Making training fast; depth: GPUs, mistakes, interview), `20_read_z`; JS (as of 2026-11-12): `21_js_rd_common.js` (the skill template, autoplays on view), `22_tda_data.js` (TDA), `23_tda_rd_ten.js` (helpers, tensor tables), `24_tda_rd_dsp.js` (key ladder, slot statistics, aten-call explorer), `25_js_s3.js` (renderer v2), `25_tda_rd_ag.js` (autograd tables), `26_tda_rd_eng.js` (the engine explorer, a widget), `27_tda_rd_ver.js` (version-counter lab, a widget, and mechanism figure), `29_tda_rd_figs.js` (custom Function diagram, checkpoint bars), scenes `41_js_sc_hero.js` (Fig. 1), `42_js_sc_ten.js` (Fig. 2), `43_js_sc_walk.js` (Fig. 3), `44_js_sc_graph.js` (Fig. 4) | sections 1 to 3 core with their visuals, section 4 a short pointer, the depth section closed |
 | Stride explorer `t-tda-str` | `31_tab_str.html`, `31_tda_str.js` | unchanged: 36 recorded tensors plus 8 from the running example, every address |
 | Further reading `t-more` | `39_tab_more.html` | |
 
@@ -89,3 +89,47 @@ Why 24 minutes is right: the core now carries exactly the three machines this pa
 
 - No "in production" section: the subject is the runtime itself.
 - Section 4 (modules and the loop) is a pointer paragraph: OWNERS.md gives this page the internals (tensors, dispatcher, autograd); nn.Module and the loop are owned by Making training fast since 2026-10-23.
+
+## The 2026-11 rollout: split layout, four 3D stages, explained and autoplaying animations (2026-11-12)
+
+Briefs `rebuild-page.md` and `layout-rollout.md`. No new runs: every scene draws from `window.TDA` (`inputs/` via `build_data.py`, unchanged). `02_split.html`, `25_js_s3.js` (renderer v2), `21_js_rd_common.js` (autoplays on view), `05z_errbox.js.html`, `99_js_tabs.js` (storage key `tda-tab` kept) and `build.sh` are the skill templates, copied unchanged on 2026-11-12. `28_tda_rd_hero.js` (the static hero) was deleted; the 2D view/copy stepper (`23_tda_rd_ten.js`) and the two-situation walker (`24_tda_rd_dsp.js`) were removed from their files, each replaced by a stage.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea in one screen (core sentence, You need, terms, closed table) | split | **3D** `stg-hero` Fig. 1: one `torch.mm(x, w)` from x's header over storage, down AutocastCPU (skipped), AutogradCPU (records MmBackward0, saves x and w), ADInplaceOrView (fallthrough) to the CPU kernel, then backward to AccumulateGrad | yes, 6 |
+| Reading | 1 Tensors (core) | split | **3D** `stg-ten` Fig. 2: 12 floats of storage on the floor, each header's elements on a standing glass plate, dots from the cell each element reads: x, x[1:, 1:3] (offset 5), x.t(), its reading order with the three jumps back, .contiguous() writing a new storage, expand's stride 0 | yes, 7 |
+| Reading | 1 depth blocks (table, channels_last, dtypes, devices) | full width | tables | no |
+| Reading | 2 intro, 2.1 the keys | split | key ladder (2D, static) | no |
+| Reading | 2.2 the key set of one call | split | **3D** `stg-walk` Fig. 3: the recorded `tda::scale` call down AutocastCPU, AutogradCPU, ADInplaceOrView, Python to CPU or Meta, one situation per step (plain, no_grad, inference_mode, autocast, dispatch mode, meta, inference tensor) | yes, 7 |
+| Reading | 2.3 table slots | split | slot statistics bars (2D, static) | no |
+| Reading | 2.4 to 2.6 | full width | tables and code in closed blocks | no |
+| Reading | 3 intro, 3.1 what a node holds | split | **3D** `stg-graph` Fig. 4: one block's 46 recorded nodes in two rows, saved activations stacked to scale on the node that frees them, forward in two stretches, attention's node close up, backward in four stretches of the recorded order | yes, 7 |
+| Reading | 3.2 the engine's rule | full width | the engine explorer (2D widget, four variants, ready queue, aten calls per node; never plays by itself, opens on the first backward step) | no (widget) |
+| Reading | 3.3 version counters | split, then the lab full width | three-state mechanism figure (2D, static); the 14-case lab is a widget | no |
+| Reading | 3.4 custom Function | split | diagram (2D, static) | no |
+| Reading | 3.5 | full width | none | no |
+| Reading | 3.6 checkpointing | split | bars (2D, static) | no |
+| Reading | 4, Depth | full width | none | no |
+| Stride explorer | | full width | a tool over 44 recorded tensors (widget, never plays by itself) | no |
+| Further reading | | unchanged | | |
+
+What changed and why:
+- **The static hero became Fig. 1**: the three machines are a path one call takes, so the call now moves: storage and header, the keys as glass plates (the skipped ones dashed), the node appearing with its saved tensors, then backward. The hero's caption became its step list.
+- **The view/copy stepper became Fig. 2.** It replayed 13 positions per mode (the long-replay rule); now 7 explained steps, and it gained the offset (x[1:, 1:3]) and stride 0 (expand) from the same record, which the old stepper only stated in prose. The prediction prompt stayed, before the steps.
+- **The two-situation walker became Fig. 3**, one recorded situation per step (the plain tensor and the tensor requiring grad took the same route and share step 1). The "Four lessons" paragraph after the walker moved into the steps (fat as a paragraph; the lessons are units 99 to 101 and 279 to 281). The selects that compared any two situations are gone: every situation now has its own explained step.
+- **The autograd graph has a 3D Fig. 4** for the mechanism (built in forward, freed in backward, from the record), and the old stepper, with up to 93 positions, stays as the engine explorer in 3.2: a widget (case b of the long-replay rule), because its point is what the reader inspects (the ready queue, aten calls per node, the checkpointed and offloaded variants that 3.6 sends the reader to). It stays full width: about 1,100 px tall with its own two columns, it cannot be a sticky right column.
+- **Kept 2D**: the key ladder (a ranked list of enum numbers), the slot statistics (stacked bars over 3,113 operators), the version-counter mechanism (three states side by side), the custom Function diagram and the checkpoint bars (numbers on axes), every table. No real images: the subject is software state, and no photograph shows a stride or a key set.
+- `check_data.py` skips `02_split.html` (CSS only; its `<style id>` defeated the style filter). `20_read_a.html`'s `.an-ctl` rules no longer apply to the stage bars (they wrapped the speed select onto a second line on phones). `check_controls.mjs` already asserted the right thing for the new motion rule (nothing moves under reduced motion); `check_stages.mjs` is new (adapted from Extending PyTorch).
+
+### Length judgement (2026-11-12)
+| | Before (audit 2026-11-12, before this pass) | After |
+|---|---|---|
+| Reading, core (230 words a minute, `html_utils/audit_pages.mjs`) | 23.5 min (5,407 words) | 26.8 min (6,160 words) |
+| Reading, closed details | 28.7 min (6,599 words) | 28.7 min (6,604 words) |
+| Other tabs, core | Stride explorer 579, Further reading 724 words | unchanged |
+| Visuals drawn in Reading (audit) | 10 | 11 |
+
+The 753 extra core words are the four stages' step lists (27 items), most of which were script-written captions before (invisible to the audit: the hero caption, the walker's per-kernel captions, the engine stepper's captions) and are now written out beside their figures, as the rollout asks; the four-lessons paragraph the walk now carries was cut. Nothing else changed in length, so the 2026-10-23 judgement stands.
+
+### Knowledge ledger
+369 units: core 186, depth 123, fat 28, owned 32; problems 0. Unit 98 ("Four lessons in it", the wind-up before the lessons) became fat: its lessons are now steps 2 to 5 of Fig. 3.

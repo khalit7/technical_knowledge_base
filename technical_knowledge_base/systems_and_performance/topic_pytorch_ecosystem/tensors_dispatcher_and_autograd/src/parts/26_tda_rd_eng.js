@@ -67,7 +67,8 @@ function draw(k){const p=P[V], N=p.N, F=p.F, fw=k<=F, b=Math.max(0,k-F), st=p.st
   $('tda-e-cnt').innerHTML=RD.stat('phase',fw?'forward':'backward',fw?k+' / '+F+' nodes created':b+' / '+p.B+' nodes run')+RD.stat('after forward (measured)',after)+RD.stat(V==='mps_offload'?'saved bytes on the host':'saved bytes still held',U.fmt(p.series[k]),'<span class="der">derived</span>')+(p.g.ops?RD.stat('aten calls in backward',opsSoFar===null?'0 / '+p.g.ops.length:opsSoFar+' / '+p.g.ops.length):RD.stat('engine thread',p.g.caller?'caller':'MPS worker thread','measured'))+RD.stat('replayed queue matches record',p.states.some(z=>z.mismatch)?'no':'yes');
 }
 const steps=()=>P[V].F+P[V].B+1;
-const an=RD.anim({card:'tda-e-card',ctl:'tda-e-ctl',n:steps(),draw,ms:700,label:'Step'});
-RD.seg($('tda-e-seg'),m=>{V=m;an.reset(steps())});
+// a widget the reader drives (the long-replay rule, case b: up to 93 positions): it never plays by itself and opens on the first backward step
+const an=RD.anim({card:'tda-e-card',ctl:'tda-e-ctl',n:steps(),draw,ms:700,label:'Step',auto:false,start:P[V].F+1});
+RD.seg($('tda-e-seg'),m=>{V=m;an.reset(steps());an.go(P[V].F+1,true)});
 RD.onResize(()=>an.redraw());
 })();

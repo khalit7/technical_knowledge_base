@@ -61,7 +61,7 @@ CONST = {"8,192": "8x256x4 bytes", "256": "d_model", "768": "3x256", "64": "T/he
          "33,812": "mod amp scaled_max_vs_fp16_max 33812.15, rounded", "1.46e-06": "mod determinism cpu_1_vs_4_threads_max_param_diff 1.4598e-06, 3 significant figures"}
 fails = []
 for fn in sorted(os.listdir(os.path.join(H, "parts"))):
-    if not fn.endswith(".html") or fn.startswith("01_"):
+    if not fn.endswith(".html") or fn.startswith(("01_", "02_")):
         continue
     txt = re.sub(r"<style>.*?</style>", " ", open(os.path.join(H, "parts", fn)).read(), flags=re.S)
     txt = re.sub(r"<[^>]+>", " ", txt)

@@ -23,44 +23,7 @@ const T=D.ten;
 (function(){const cs=T.bases.x.cases;const pick=['x','x.t()','x[1]','x[:, 1]','x[1:, 1:3]','x[:, ::2]','x.view(2, 6)','x[0:1].expand(3, 4)','x.diagonal()','x.unfold(1, 2, 1)','x.detach()','x.reshape(12)','x.t().reshape(12)','x.t().contiguous()','x.flip(0)','x[[0, 2]]'];
   const rows=pick.map(p=>cs.find(c=>c.expr===p)).map(c=>['<code>'+E(c.expr)+'</code>',U.sh(c.shape),U.sh(c.stride),c.offset,c.contig?'yes':'no',c.shares?'<b style="color:var(--good)">yes</b>':'<b style="color:var(--bad)">no: copy</b>','<span class="small">'+E(c.values.slice(0,8).map(v=>Math.round(v)).join(' ')+(c.values.length>8?' &hellip;':''))+'</span>']);
   $('tda-viewtbl').innerHTML=U.table(['expression','shape','strides','offset','contiguous','same storage','values read, in order'],rows);})();
-// 1.1 before/after, drawn as SVG: x.t() (a view, header only) against x.t().contiguous() (a copy), same input
-(function(){const cs=T.bases.x.cases, tv=cs.find(c=>c.expr==='x.t()'), tc=cs.find(c=>c.expr==='x.t().contiguous()');
-  let mode='view';const n=12, el=$('tda-ctg-svg');
-  function draw(i){const k=Math.min(i,n), W=RD.width(el), c=Math.max(22,Math.min(34,Math.floor((W-24)/12)-3)), g=3, x0=8;
-    const cell=(x,y,txt,cls,sub)=>{const f=cls==='cur'?'var(--acc)':cls==='on'?'var(--acc2)':cls==='cp'?'var(--open2)':'var(--bg)';
-      return '<rect x="'+x+'" y="'+y+'" width="'+c+'" height="'+c+'" rx="4" fill="'+f+'" stroke="'+(cls==='cur'?'var(--acc)':cls==='dash'?'var(--dim)':'var(--line)')+'"'+(cls==='dash'?' stroke-dasharray="3 3"':'')+'/>'+
-        (txt!==''?'<text x="'+(x+c/2)+'" y="'+(y+c/2+4)+'" text-anchor="middle" class="mono'+(cls==='cur'?' on':'')+'">'+txt+'</text>':'')+
-        (sub!==undefined?'<text x="'+(x+c/2)+'" y="'+(y+c+12)+'" text-anchor="middle" class="m">'+sub+'</text>':'')};
-    let s='', y=14;
-    s+='<text x="'+x0+'" y="'+y+'" class="b">x.t(): shape (4, 3), strides (1, 4)</text>';y+=8;
-    const gy=y, pos=[];
-    for(let e=0;e<n;e++){const r=Math.floor(e/3), q=e%3, x=x0+q*(c+g), yy=gy+r*(c+g);pos.push([x,yy]);
-      s+=cell(x,yy,Math.round(tv.values[e]),e===k-1?'cur':e<k?'on':'')}
-    const gw=3*(c+g);
-    s+='<text x="'+(x0+gw+10)+'" y="'+(gy+c/2+4)+'" class="m">row 0 reads storage 0, 4, 8</text>';
-    s+='<text x="'+(x0+gw+10)+'" y="'+(gy+c/2+22)+'" class="m">row 1 reads 1, 5, 9</text>';
-    y=gy+4*(c+g)+26;
-    const sy=y+8, touched=new Set(tv.addr.slice(0,k)), cur=k?tv.addr[k-1]:-1;
-    s+='<text x="'+x0+'" y="'+y+'" class="b">x\'s storage: 12 floats, never moved</text>';
-    for(let a=0;a<n;a++)s+=cell(x0+a*(c+g),sy,a,a===cur?'cur':touched.has(a)?'on':'');
-    const ny=sy+c+34;
-    s+='<text x="'+x0+'" y="'+(ny-8)+'" class="b">'+(mode==='copy'?'contiguous() wrote new storage: strides (3, 1)':'No new storage: read in place')+'</text>';
-    for(let a=0;a<n;a++)s+=cell(x0+a*(c+g),ny,mode==='copy'&&a<k?Math.round(tc.values[a]):'',mode==='copy'?(a===k-1?'cur':a<k?'cp':''):'dash');
-    if(k){const [lx,ly]=pos[k-1];const sx=x0+cur*(c+g)+c/2;
-      s+='<path d="M'+(lx+c/2)+' '+(ly+c)+' L'+sx+' '+(sy-2)+'" stroke="var(--acc)" stroke-width="2" fill="none" marker-end="url(#tda-ar)"/>';
-      if(mode==='copy'){const tx=x0+(k-1)*(c+g)+c/2;s+='<path d="M'+sx+' '+(sy+c+2)+' L'+tx+' '+(ny-2)+'" stroke="var(--good)" stroke-width="2" fill="none" marker-end="url(#tda-ar2)"/>'}}
-    const H=ny+c+8;
-    s='<defs><marker id="tda-ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--acc)"/></marker><marker id="tda-ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--good)"/></marker></defs>'+s;
-    el.innerHTML=RD.svg(W,H,s,'x.t() read element by element over its storage');
-    const e=k-1, a=e>=0?tv.addr[e]:null, r=e>=0?Math.floor(e/3):0, cc=e>=0?e%3:0;
-    $('tda-ctg-cap').innerHTML=k===0?'<div class="t">Step 0: only a header</div><p>x.t() has shape (4, 3), strides (1, 4), offset 0, over x\'s 12 floats. Step to read it row by row.</p>':
-      '<div class="t">Element ['+r+', '+cc+'] = storage['+a+']</div><p>address = 0 + '+r+'&times;1 + '+cc+'&times;4 = '+a+'. '+(mode==='copy'?'contiguous() copies it to position '+e+' of a new storage, so the copy reads in order afterwards.':'The view reads it in place: consecutive elements sit 4 apart in memory, which is why view(12) cannot describe it.')+'</p>';
-    $('tda-ctg-cnt').innerHTML=RD.stat('elements read',k+' / 12')+RD.stat('bytes copied',mode==='copy'?k*4:0,'shares storage with x: '+(mode==='copy'?'no':'yes'))+RD.stat('backward jumps in storage',tv.addr.slice(0,k).filter((v,j)=>j&&v<tv.addr[j-1]).length);
-  }
-  const an=RD.anim({card:'tda-ctg-card',ctl:'tda-ctg-ctl',n:n+1,draw,ms:700,label:'Element'});
-  RD.seg($('tda-ctg-seg'),m=>{mode=m;an.reset(n+1)});
-  RD.onResize(()=>an.redraw());
-})();
+// 1.1 the view against the copy is Fig. 2, a 3D stage (42_js_sc_ten.js)
 // 1.3 channels_last
 (function(){const z=T.bases.z.cases, f=T.cl_facts;
   const rows=[['<code>z</code> (NCHW)',U.sh(z[0].shape),U.sh(z[0].stride),'yes','no',z[0].values.slice(0,8).join(' ')+' &hellip;'],
