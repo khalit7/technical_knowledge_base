@@ -1,13 +1,10 @@
-
+<div class="s3sp"><div class="s3L">
 <section id="sd-s2">
 <h2>2. One step: draft, verify, accept</h2>
-<ol>
-<li><b>Draft.</b> The drafter proposes the next k tokens (typically 2 to 8). Here Qwen3-0.6B runs k times in a row, each a fast small forward pass.</li>
-<li><b>Verify.</b> The target runs once over the last accepted token plus the k guesses. A transformer computes a next-token distribution at every input position, so this one pass gives the target's distribution after the context, after guess 1, after guesses 1 and 2, and so on: k + 1 distributions.</li>
-<li><b>Accept.</b> Walk the guesses left to right and keep each one the target agrees with (section 3 says exactly what "agrees" means). At the first disagreement, replace that guess with a token drawn from the target and throw away the rest. If every guess survives, take one more <dfn>bonus token</dfn> from the target's last distribution.</li>
-</ol>
+<p>Fig. 1 was one step; in general: the drafter proposes the next k tokens (typically 2 to 8; here Qwen3-0.6B runs k times in a row), and the target runs once over the last accepted token plus the k guesses, which gives k + 1 distributions. Walk the guesses left to right and keep each one the target agrees with (section 3 says exactly what "agrees" means); at the first disagreement, replace that guess with a token drawn from the target and throw away the rest; if every guess survives, take one more <dfn>bonus token</dfn> from the target's last distribution.</p>
 <p>One target pass therefore yields between 1 token (the first guess was wrong: no worse than plain decoding, apart from the drafting time) and k + 1. Both models' KV caches are rolled back past rejected guesses. Here is a real answer, step by step.</p>
-<div class="card" id="sd-steps-card">
+</section>
+</div><div class="s3R"><div class="s3side"><div class="card" id="sd-steps-card">
 <h4>Code and lists run in long green stretches; free prose breaks every few tokens</h4>
 <div class="seg" id="sd-steps-p"></div>
 <div class="sd-leg"><span><i style="background:var(--open2);outline:1px solid var(--good)"></i>guess accepted</span><span><i style="background:var(--acc2);outline:1px solid var(--acc)"></i>token from the target (correction or bonus)</span><span>| step boundary</span></div>
@@ -15,28 +12,46 @@
 <div class="an-cnt" id="sd-steps-cnt"></div>
 <p class="small mute"><span class="meas">measured here</span> Draft Qwen3-0.6B, target Qwen3-1.7B, k = 4, greedy; written from scratch on MLX with KV caches (the same cache handling as mlx-lm); both models 4-bit. A step that ends in a blue token had a rejection or used its bonus. Acceptance is a property of the text as much as of the drafter.</p>
 </div>
-</section>
-
-<section id="sd-s3">
-<h2>3. The acceptance rule, and why it is exact</h2>
-<p>When the target samples with temperature, "agree" cannot mean "the guess equals the target's top token": we want the kept text distributed exactly as if the target had sampled it alone. Write p for the target's next-token distribution and q for the draft's, at the same position. Overlay them: the overlap min(p, q) is what can be accepted cheaply; the part of p sticking out above q is what the draft under-proposed. Here is a real position from a story the target wrote (Qwen3-1.7B target, Qwen3-0.6B draft, temperature 1), and the same 16 draft guesses judged by two exact rules.</p>
-<div class="card" id="sd-rule-card">
-<h4>The same 16 guesses, two exact rules: the paper's keeps more of them</h4>
+</div></div></div>
+<div class="s3sp"><div class="s3R"><div class="card" id="sd-rule-card">
+<h4>Fig. 2 · The same 16 guesses, two exact rules: the paper's keeps more of them</h4>
 <div class="seg" id="sd-rule-mode"><button class="on" data-m="lev">min(1, p/q) with residual (the paper, vLLM)</button><button data-m="sac">Sample the target, accept if equal (llama.cpp, mlx-lm)</button></div>
 <div class="seg" id="sd-rule-pos"></div>
 <div class="rd-svg" id="sd-rule-svg"></div>
-<div class="an-cap" id="sd-rule-cap"></div>
+<div class="ro" id="sd-rule-ro"></div>
 <div class="an-cnt" id="sd-rule-cnt"></div>
 <div class="an-ctl" id="sd-rule-ctl"></div>
 <p class="small mute"><span class="meas">measured here</span> p and q are the real distributions at that position (top 50 tokens kept on both; the 8 tokens with the largest p + q shown, guesses can fall outside them). The 16 guesses and coin flips are drawn with a fixed seed and reused by both rules, so the only difference is the rule.</p>
 </div>
+</div><div class="s3L">
+<section id="sd-s3">
+<h2>3. The acceptance rule, and why it is exact</h2>
+<p>When the target samples with temperature, "agree" cannot mean "the guess equals the target's top token": we want the kept text distributed exactly as if the target had sampled it alone. Write p for the target's next-token distribution and q for the draft's, at the same position. Overlay them: the overlap min(p, q) is what can be accepted cheaply; the part of p sticking out above q is what the draft under-proposed. Here is a real position from a story the target wrote (Qwen3-1.7B target, Qwen3-0.6B draft, temperature 1), and the same 16 draft guesses judged by two exact rules (Fig. 2).</p>
+<ol class="sx" id="sx-rule-lev">
+<li><b>One real position.</b> The target's p (blue) and the draft's q (orange) at one position of the story; the green outline is their overlap min(p, q), and its total is &alpha;, the chance that one guess is kept.</li>
+<li><b>Guesses 1 to 4.</b> Each guess x is drawn from q. If p(x) &ge; q(x) it is kept outright; otherwise it is kept when a coin falls below p(x)/q(x).</li>
+<li><b>Guesses 5 to 8.</b> A rejected guess is replaced by a draw from the residual max(0, p &minus; q): the tokens the target wanted more than the draft proposed them.</li>
+<li><b>Guesses 9 to 12.</b> Tokens the draft over-proposes (q above p) are the ones rejected; tokens it under-proposes come back through the residual, so the output follows p.</li>
+<li><b>Guesses 13 to 16.</b> Over many guesses the kept share approaches &alpha; = &Sigma; min(p, q).</li>
+<li><b>The tally.</b> Guesses kept against the expected 16&alpha;, and how many the other rule keeps on the very same guesses.</li>
+</ol>
+<ol class="sx" id="sx-rule-sac" hidden>
+<li><b>One real position.</b> The same p and q; this rule ignores the overlap and compares two independent draws.</li>
+<li><b>Guesses 1 to 4.</b> The draft draws x from q; the target draws its own token from p; the guess is kept only if the two are equal.</li>
+<li><b>Guesses 5 to 8.</b> A rejection outputs the target's own draw, so every output token is a genuine sample from p: the rule is exact.</li>
+<li><b>Guesses 9 to 12.</b> Two independent draws agree with probability &Sigma; p&middot;q, lower than &Sigma; min(p, q) whenever the target is uncertain.</li>
+<li><b>Guesses 13 to 16.</b> Guesses that min(1, p/q) would have kept are lost whenever the target's own draw lands elsewhere.</li>
+<li><b>The tally.</b> Guesses kept against the expected 16 &Sigma; p&middot;q, and how many min(1, p/q) keeps on the very same guesses.</li>
+</ol>
 <div class="fm"><div class="eq">accept x ~ q with probability min(1, p(x) / q(x)); otherwise draw from (p &minus; q)<sup>+</sup> / &Sigma;(p &minus; q)<sup>+</sup></div>
 <dl><dt>p, q</dt><dd>target and draft probabilities after the same prefix (after temperature, top-k and so on, the same settings on both)</dd><dt>(p &minus; q)<sup>+</sup></dt><dd>max(0, p(x) &minus; q(x)): the <dfn>residual</dfn></dd></dl></div>
 <p><b>Why it is exact</b> ({{Leviathan et al. 2023|https://arxiv.org/abs/2211.17192}} and {{Chen et al. 2023|https://arxiv.org/abs/2302.01318}}, found independently). The chance of outputting x through acceptance is q(x) &middot; min(1, p(x)/q(x)) = min(p(x), q(x)). The chance of a rejection is &beta; = 1 &minus; &Sigma; min(p, q), and the residual's total mass is &Sigma;(p &minus; q)<sup>+</sup> = &Sigma;(p &minus; min(p, q)) = &beta; too, so the chance of outputting x through rejection is &beta; &middot; (p &minus; q)<sup>+</sup>(x)/&beta; = (p(x) &minus; q(x))<sup>+</sup>. Add them: min(p, q)(x) + (p &minus; q)<sup>+</sup>(x) = p(x). The draft only changes how often we get the token cheaply, never which token we get. A guess is kept with probability</p>
 <div class="fm"><div class="eq">&alpha; = &Sigma;<sub>x</sub> min(p(x), q(x)) = 1 &minus; TV(p, q)</div><dl><dt>TV</dt><dd>total variation distance, half the summed absolute difference between p and q</dd></dl></div>
+</section>
+</div></div>
+<div class="s3sp"><div class="s3L"><section id="sd-s3b">
 <p><b>The second rule is also exact, and slower.</b> llama.cpp and mlx-lm sample the target's own token at each position and keep the guess only if the two are equal (llama.cpp {{common/sampling.cpp L678 to 705|https://github.com/ggml-org/llama.cpp/blob/b11146/common/sampling.cpp#L678}}). Every output token is a genuine sample from p, so the distribution is exact, but a guess survives with probability &Sigma; p(x) q(x), lower than &Sigma; min(p, q) whenever the target is uncertain. With a <i>greedy</i> draft (q all on the draft's top token, what llama.cpp and vLLM's default do), both rules keep a guess with probability p(draft token). Over the target's own story text, mean per-guess acceptance was <span data-f="dAlpha"></span> under min(1, p/q) with a sampled draft, <span data-f="dPg"></span> with a greedy draft and <span data-f="dSpq"></span> under sample-and-compare with a sampled draft <span class="meas">measured here</span>.</p>
-
-<div class="card" id="sdr-card">
+</section></div><div class="s3R"><div class="s3side"><div class="card" id="sdr-card">
 <h4>Your own p and q: exact rules reproduce p whatever q is</h4>
 <p class="small">Five tokens. Set the target's p and the draft's q (each normalised to sum to 1), pick a rule, and compare its output distribution (green, or orange when it is wrong) with p (blue). Predict first: with "Draft far from target", which rules still output p?</p>
 <div class="seg" id="sdr-preset"></div>
@@ -49,7 +64,8 @@
 <div class="small" id="sdr-mc"></div>
 <p class="small mute">Rules: <b>min(1, p/q)</b> with residual (Leviathan et al., vLLM); <b>sample and compare</b> (draft samples from q, target samples from p, keep if equal: llama.cpp and mlx-lm at temperature &gt; 0); <b>greedy draft</b> (draft proposes its top token, kept with probability p(token): llama.cpp's drafter and vLLM's default); <b>bug: resample from p</b> (on rejection draw from p instead of the residual); <b>no verification</b> (always keep the draft's token). Output distributions are computed exactly; the simulation draws with a fixed seed and runs a chi-square test against p.</p>
 </div>
-
+</div></div></div>
+<section id="sd-s3c">
 <p><b>Tested on real models.</b> A proof is a proof, but implementations have bugs. For the story prompt, 20,000 four-token openings were drawn with each rule (k = 3, temperature 1, top-k 50, so steps include rejections, residual draws and bonus tokens) and compared with the target's exact probabilities for all <span data-f="exCats"></span> openings with an expected count of at least 5, plus one "other" bin (a chi-square goodness-of-fit test).</p>
 <div class="tw"><table class="tbl-sm" id="sd-ex-tbl"></table></div>
 <p>The control and the three exact rules give p-values of 0.26, 0.56, 0.47 and 0.37, indistinguishable from sampling the target directly; the bug (on rejection, draw from p instead of the residual) over-produces the tokens both models like and fails by a chi-square of <span data-f="bugChi2"></span>. With 20,000 samples a rule that shifted the opening distribution by more than a few percent of total variation would fail.</p>

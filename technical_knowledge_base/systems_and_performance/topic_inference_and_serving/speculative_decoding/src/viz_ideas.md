@@ -46,3 +46,15 @@ rule as a positive control, so a pass means something.
 | 5, 6, 4 | Moved from the Acceptance rule lab into Reading 3 and 4 (the exactness bars into a closed block) | Reading | moved |
 | 9 | Moved from the Batch crossover lab into Reading 5 (measured-run chart and table into a closed block) | Reading 5 | moved |
 | R6 | A stepper for draft, verify, accept | | rejected: the hero shows the step and the real step strip shows it on real text; a third drawing would repeat them |
+
+## 2026-11-12 rollout (split layout, 3D stages, renderer v2)
+| # | Idea | Placement | Status |
+|---|---|---|---|
+| 15 | Fig. 1, 3D hero: one round on a real position (code-edit answer, `dists.code_edit` 64 to 67, greedy): plain decoding as four weight reads, four draft guesses, one verification pass with the target's p per position, accept, the target's token, then time in target passes (H100 check derived, draft 0.1 illustrative; laptop measured) | Reading, top | built, replaces 13 |
+| 16 | Fig. 3, 3D crossover: step time of a plain and a speculative step at B = 1, 16, 64, 256 (memory read as glass, arithmetic as a solid fill, drafting as a cap) from the page's H100 cost model at alpha 0.8, k 4, c 0.05; long context 8,192 as the last step, B = 256 dropped there (275 GB of KV) | Reading 5 | built |
+| 17 | Fig. 4, 3D drafters: where each drafter reads from (no model, a separate model, Medusa heads, EAGLE-3 on low, middle and top features, MTP module, block diffusion), with the acceptance lengths measured in the Drafters measured tab | Reading 6 | built |
+| 18 | Fig. 5, 3D chain against tree on the same 8-token budget, the tree attention mask as a lit grid, then the means over 171 positions | Reading 7 | built, replaces 10 |
+| 3 | The two-rule animation: 17 one-guess frames grouped into 6 explained steps (long-replay rule), one step list per rule, a readout of the step's numbers instead of the caption | Reading 3 | rebuilt in 2D |
+| R7 | 3D for the pass-time curve, the tokens-per-pass bars, the yield chart, the measured crossover chart and the cost model | | rejected: curves and log axes read best flat; each stays 2D in the right column |
+| R8 | 3D for the p and q overlay of the rule animation | | rejected: the overlap min(p, q) is read off two bars on one axis; depth would hide it |
+| R9 | 3D for the alpha-coloured text and the real step strip | | rejected: text is the content; kept as HTML |

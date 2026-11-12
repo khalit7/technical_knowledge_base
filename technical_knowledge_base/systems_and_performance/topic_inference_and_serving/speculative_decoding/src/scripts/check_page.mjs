@@ -48,13 +48,14 @@ for (const [w, scheme] of [[390, 'dark'], [920, 'light']]) {
   if (errs.length) { bad++; console.log('errors', w, errs.slice(0, 10).join('\n')); }
   await page.close();
 }
-// normal motion: nothing may play before the reader acts (2026-10-23)
-{ const page = await browser.newPage(); await page.setViewport({ width: 920, height: 900 });
-  await page.goto('file://' + file, { waitUntil: 'load' });
-  await page.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 120)); } });
-  await new Promise(r => setTimeout(r, 2500));
-  const playing = await page.$$eval('.an-play', bs => bs.filter(b => /Pause/.test(b.textContent)).length);
-  if (playing) { bad++; console.log('autoplay', playing); } else console.log('no autoplay');
+// motion (2026-11-12, inverted from the 2026-10-23 never-autoplay rule): animations and stages play by themselves once scrolled into view,
+// and under reduced motion nothing moves by itself. src/check_stages.mjs checks each one in detail.
+for (const rm of ['no-preference', 'reduce']) { const page = await browser.newPage(); await page.setViewport({ width: 920, height: 900 });
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: rm }]);
+  await page.goto('file://' + file, { waitUntil: 'load' }); await page.click('#tabs button[data-t="t-read"]');
+  await page.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 600) { scrollTo(0, y); await new Promise(r => setTimeout(r, 900)); } });
+  const moved = await page.evaluate(() => [...document.querySelectorAll('.stg')].filter(s => +s.dataset.frames > 0).length + [...document.querySelectorAll('.an-play')].filter(b => /Pause/.test(b.textContent) || b.closest('.card') && b.closest('.card').querySelector('input[type=range]') && +b.closest('.card').querySelector('input[type=range]').value > 0).length);
+  if (rm === 'reduce' ? moved : !moved) { bad++; console.log('motion', rm, moved); } else console.log('motion', rm, rm === 'reduce' ? 'nothing moved' : moved + ' played');
   await page.close(); }
 await browser.close();
 console.log('bad=' + bad);

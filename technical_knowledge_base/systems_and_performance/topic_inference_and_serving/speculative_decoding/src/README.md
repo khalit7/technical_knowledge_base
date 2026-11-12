@@ -33,7 +33,8 @@ All runs on an Apple M1 Pro (16-core GPU, 16 GB), shared with other agents, betw
     at a time, pausing between sessions), `make_jobs.py` (writes `pool16.json`, `xjobs.json`, `drjobs.json`),
     `ngram_prompts.py` + `weather_module.py` (the code-editing and WikiText prompts), `dl_drafts.py` and
     `convert.sh` (draft downloads at pinned revisions and GGUF conversion).
-  - `check_page.mjs`: puppeteer check of every control at 390 dark and 920 light (closed blocks opened), and that nothing autoplays.
+  - `check_page.mjs`: puppeteer check of every control at 390 dark and 920 light (closed blocks opened), and (since 2026-11-12) that animations play when scrolled into view and nothing moves under reduced motion.
+- `check_stages.mjs` (2026-11-12): the four 3D stages and the rule animation: autoplay on view, step lists, reduced motion, step-list numbers against the scenes, split layout.
 - `results/`: compact copies of the raw results (`compact.py <raw dir>`; per-sample data reduced to test statistics;
   local paths removed).
 - `build_data.py` (+ `build_drafters.py`): writes `data.json` and `parts/15_js_sd_data.js` (window.SD_DATA). Every
@@ -73,3 +74,48 @@ Why about 28 minutes is right: the Reading tab now carries what three tabs did (
 `python3 -I check_data.py`, then from the repo root `sh html_utils/checkpage.sh <this page folder>`, `node <page>/src/scripts/check_page.mjs <shots dir> full` and `python3 html_utils/ledger.py check <page>`.
 
 2026-10-26 (final follow-up sweep): the MTP row of the drafter table adds GLM-5's acceptance length (2.76 against 2.55 for DeepSeek-V3.2) and GLM-5.2's 4.56 to 5.47, linking Zhipu: GLM. The Leviathan Table 4 recompute and the Gemma 4 drafter preset stay on the Google page, which this page links.
+
+## The 2026-11-06 rollout (split layout, 3D stages v2), done 2026-11-12
+Briefs `rebuild-page.md` and `layout-rollout.md`. Templates copied unchanged: `02_split.html` (in `build.sh` after `01_head.html`, which closes `<head>`), `25_js_s3.js` (renderer v2), `21_js_rd_common.js` (autoplay on view), `99_js_tabs.js` (key `sd-tab`). `build.sh` now writes the em-dash detector's character as bytes. Removed: `23_js_sd_hero.js` (the static 2D hero) and `28_js_sd_tree.js` (the 2D chain-against-tree animation), replaced by Figs. 1 and 5. No new runs: the four scenes draw the page's own recorded data or its H100 cost model, and expose what they compute as `window.SD_STG`; `check_stages.mjs` checks every number quoted in the four step lists against it.
+
+| Tab | Section | Layout | Visual | Step list |
+|---|---|---|---|---|
+| Reading | The idea | split | **3D** `stg-hero` (Fig. 1): one round on a real position (`dists.code_edit` 64 to 67), then time in target passes | yes, 6 |
+| Reading | You need, terms | full width | none | no |
+| Reading | 1 Idle chip | split | 2D pass-time chart (log axes) | no |
+| Reading | 2 One step | split | 2D real step strip (widget, toggles) | no |
+| Reading | 3 The rule, the proof | split | 2D animation (Fig. 2), two rules on the same 16 guesses, 6 grouped steps | yes, 6 + 6 (one per rule) |
+| Reading | 3 The second rule | split | 2D widget: your own p and q | no |
+| Reading | 3 Exactness test, temperature 0 | full width | table (bars in a closed block) | no |
+| Reading | 4 Tokens per step | split | 2D slider chart | no |
+| Reading | 4 Real acceptance | split | 2D alpha-coloured text (click a token) | no |
+| Reading | 4 Formula against runs | split | 2D chart | no |
+| Reading | 5 Cost and the crossover | split | **3D** `stg-xo` (Fig. 3): step time at B = 1, 16, 64, 256 and at long context, H100 cost model | yes, 6 |
+| Reading | 5 Measured on the laptop, published results | split | 2D chart | no |
+| Reading | 5 What moves the crossover | split | 2D cost-model widget | no |
+| Reading | 6 Drafters | split | **3D** `stg-dr` (Fig. 4): where each drafter reads from, measured acceptance lengths | yes, 6 |
+| Reading | 6 Drafter table, lossy rules, choosing | full width | table | no |
+| Reading | 7 Trees | split | **3D** `stg-tree` (Fig. 5): chain against tree, tree attention mask, means over 171 positions; four examples | yes, 6 |
+| Reading | 8 In production | full width | knob grid, tables in closed blocks | no |
+| Drafters measured | notes and findings | split | 2D table and bars (right) | no |
+| Further reading | | unchanged (times updated) | | |
+
+Data behind the stages: Fig. 1, the recorded p and q at four positions of the code-edit answer (Qwen3-1.7B target, Qwen3-0.6B draft, MLX), read greedily (draft guess = top q, kept while it equals the top p); its time step uses `SD.h100t` (check of 5 = 1.00 pass, derived), an illustrative 0.1 per draft pass, and the measured `ratio5` and `cDraft`. Fig. 3, `SD.h100t`'s terms (memory, arithmetic, 2.5 ms) at alpha 0.8, k 4, c 0.05 (the cost model's H100 default), context 1,024 and then 8,192; the 256-user column is dropped at 8,192 because its KV cache (275 GB) exceeds one H100 (80 GB, Memory technology). Fig. 4, `drafters.res` acceptance lengths on "Code: rename" and "Story"; Medusa and MTP not run. Fig. 5, `tree.examples` and the facts `treeChain4` to `treeTree32`. Kept 2D and why: `viz_ideas.md` R7 to R9.
+
+The rule animation was 17 one-guess frames with a per-step caption; under the long-replay rule it is now 6 explained steps (the position, four groups of four guesses, the tally) with one step list per rule, and the caption became a readout of the step's numbers (coins, ratios, replacements), which the step list does not repeat. Section 2's three-item list became one paragraph: Fig. 1 now shows the step on real tokens, and every ledger key of the list is kept.
+
+### Length judgement
+| | Before (2026-11-12, `audit_pages.mjs`) | After |
+|---|---|---|
+| Reading, core | 6,932 words, 30 min | 8,231 words, 36 min |
+| Reading, closed details | 1,821 words, 8 min | 1,821 words, 8 min |
+| Drafters measured | 1,221 words | 1,232 words |
+| Visuals in Reading (audit count) | 9 | 12, four of them 3D stages |
+
+The 1,299 extra words are the step lists the rollout requires (hero 6, rule 6 + 6 of which one is hidden at a time, crossover 6, drafters 6, trees 6) and their source notes; they replace the hero caption and the script-written captions of the rule and tree animations, which the audit did not count. Nothing was cut except section 2's list, which Fig. 1 now carries. If the page must shrink: the hidden second rule list (136 words) could fold into a sentence, and the crossover list could drop its millisecond detail.
+
+### Knowledge ledger
+340 units: core 252, depth 27, fat 52, volatile 9 (`ledger.py check`: problems 0). Seven units added for the stages (section "added 2026-11-12"); no key reworded. The root's ledger still finds its seven units keyed on this page (problems 0).
+
+### Checks (2026-11-12)
+`checkpage.sh` (fail=0, emdash 0, errbox 1, clipped 0), `scripts/check_page.mjs <shots> full` (bad=0; its 2026-10-23 never-autoplay check is inverted: things play when scrolled into view, nothing moves under reduced motion), `check_stages.mjs` (problems 0), `check_data.py`, `recompute.py`, `ledger.py check` (problems 0).
