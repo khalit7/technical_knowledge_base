@@ -11,14 +11,12 @@
   const lanes=[$('bch-str-l1'),$('bch-str-l2')];
   const med=B.med;
   const gapMed=S.map(s=>med(s.gaps));
-  function caption(t){
-    const a=times[0],b=times[1];
-    if(t<a[0])return 'Both requests have been sent. Each server is reading its prompt (prefill); nothing is on screen yet. The lone request has the GPU to itself.';
-    if(t<b[0])return 'The lone request is streaming: its first token came after '+B.f(a[0]*1000)+' ms and new tokens arrive about every '+B.f(gapMed[0]*1000,1)+' ms. The loaded request is still waiting behind other users\' prompts.';
-    if(t<a[a.length-1])return 'Both are streaming. Under load each decode step carries up to 16 sequences, so tokens arrive every '+B.f(gapMed[1]*1000,1)+' ms or so instead of '+B.f(gapMed[0]*1000,1)+'; long red gaps are steps that also processed another user\'s new prompt.';
-    if(t<b[b.length-1])return 'The lone request finished in '+B.f(a[a.length-1],2)+' s. The loaded one is still going: the server is producing more tokens in total, but each user gets them more slowly.';
-    return 'Done. Same prompt length, same 128 tokens, same model and server: '+B.f(a[a.length-1],2)+' s alone against '+B.f(b[b.length-1],2)+' s under load. Throughput for the server went up; latency for each user went up too.';
-  }
+  // the five stretches of the replay (the step list bch-str-sx explains each): sent; the lone request streams; the lone one done while the
+  // loaded one still waits (in this recording the lone request ends before the loaded one's first token); the loaded one streams; both done
+  const a0=times[0],b0=times[1];
+  const aE=a0[a0.length-1],bE=b0[b0.length-1],phase=t=>t<a0[0]?0:t<aE?1:t<b0[0]?2:t<bE?3:4;
+  const stops=[];for(let i=0;i<n;i++)stops[phase(i*DT)]=i;for(let k=0;k<5;k++)if(stops[k]==null)stops[k]=k?stops[k-1]:0;
+  $('bch-str-ea').textContent=B.f(a0[a0.length-1],2);$('bch-str-eb').textContent=B.f(b0[b0.length-1],2);$('bch-str-ea2').textContent=$('bch-str-ea').textContent;
   function draw(i){
     const t=i*DT;
     $('bch-str-t').textContent=B.f(Math.min(t,tEnd),2);
@@ -32,7 +30,6 @@
       $(k?'bch-str-ttft2':'bch-str-ttft1').textContent=c?B.f(tt[0]*1000)+' ms':'waiting';
     });
     plot(t);
-    $('bch-str-cap').textContent=caption(t);
   }
   function plot(t){
     const el=$('bch-str-plot');const W=B.width(el),H=96,L=70,R=12;
@@ -47,6 +44,6 @@
     g+='<line x1="'+sx(Math.min(t,tEnd)).toFixed(1)+'" x2="'+sx(Math.min(t,tEnd)).toFixed(1)+'" y1="4" y2="'+(H-20)+'" stroke="var(--ink)" stroke-width="1.5"/>';
     el.innerHTML=B.svg(W,H,g,'Token arrival times, alone and under load');
   }
-  const A=B.anim({card:'bch-str-card',ctl:'bch-str-ctl',n:n,ms:50,jump:4,draw:draw,label:'Time since the request was sent'});
+  const A=B.anim({card:'bch-str-card',ctl:'bch-str-ctl',n:n,stops:stops,ms:50,hold:3600,draw:draw,list:'bch-str-sx',label:'Stretch of the replay'});
   B.onRender(()=>A.redraw());
 })();

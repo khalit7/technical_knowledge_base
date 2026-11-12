@@ -38,7 +38,8 @@ window.PLNA=(function(){
     const el=$('pln-anim');if(!el||!base)return;
     const W=width(el),r=build(i,W),full=i<7?build(7,W)[1]:r[1],md=MODES[mode],v=variants();
     el.innerHTML=svg(W,full+6,r[0],'Before and after: '+md.la+' against '+md.lb);
-    $('pln-ancap').innerHTML='<b>Step '+(i+1)+' of 8.</b> '+CAP[i]({la:md.la,lb:md.lb,A:v.a,B:v.b});
+    // the step list on the left (pln-ansx) carries each step's explanation for the chosen deployment and setting
+    const L=$('pln-ansx');if(L)[...L.children].forEach((li,k)=>{const sp=li.querySelector('span');if(sp)sp.innerHTML=CAP[k]({la:md.la,lb:md.lb,A:v.a,B:v.b})});
   }
   function build(i,W){
     const v=variants(),A=v.a,B=v.b,md=MODES[mode];
@@ -77,8 +78,8 @@ window.PLNA=(function(){
   }
   function init(){
     if(an||!window.RD||!$('pln-ancard'))return;
-    an=RD.anim({card:'pln-ancard',ctl:'pln-anctl',n:8,ms:1900,draw:draw,label:'Animation step'});
-    RD.seg($('pln-anseg'),m=>{mode=m;an.reset(8);an.play()});
+    an=RD.anim({card:'pln-ancard',ctl:'pln-anctl',n:8,ms:4200,draw:draw,label:'Animation step',list:'pln-ansx'});
+    RD.seg($('pln-anseg'),m=>{mode=m;an.reset(8)});
   }
   function update(o){
     base=Object.assign({},o);

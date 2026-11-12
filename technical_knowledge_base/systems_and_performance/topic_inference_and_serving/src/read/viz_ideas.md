@@ -28,3 +28,8 @@ Question the page keeps returning to: what does one more token, one more user, o
 ## What the Methodology lacked here
 A root built after its data tabs must avoid repeating their visuals: the rule used was "the tab shows the measurement or
 the lab; the Reading shows the mechanism once, with the tab's numbers quoted". Worth adding to the method as a lesson.
+
+## 2026-11-12 (layout rollout)
+- Built: Fig. 1, a 3D stage of one request through a serving fleet (renderer v2), replacing the HTML box hero; each step links the owning child's figure.
+- Kept 2D: the lifecycle timeline (Fig. 2) and prefill against decode (Fig. 3), both now explained by step lists; a 3D version of either would put a time axis or a busy fraction in perspective.
+- Rejected: a 3D block pool, engine step, router or speculation stage on the root; each child already owns that stage, and the hero links it.

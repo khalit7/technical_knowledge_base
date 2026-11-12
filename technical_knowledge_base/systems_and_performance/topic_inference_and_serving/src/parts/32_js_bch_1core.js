@@ -63,26 +63,41 @@ window.BCH=(function(){
       (r.lo!=null&&r.hi!=null?'<span class="rng" style="left:'+(100*r.lo/m).toFixed(2)+'%;width:'+(100*Math.max(0.3,(r.hi-r.lo))/m).toFixed(2)+'%"></span>':'')+'</span><span class="val">'+(r.vt!=null?r.vt:fs(r.v))+(o.unit?' '+o.unit:'')+'</span></div>').join('')}
   // segmented control
   function seg(el,fn){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b))return;el.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',x===b?'true':'false')});fn(b.dataset.m)})}
-  // step animation controller for this tab (same manners as the Reading tab's RD.anim): plays only on screen and in the visible tab, starts paused under reduced motion
+  // the replay controller for this tab (2026-11-06 rollout, the long-replay rule): a recorded run of many frames grouped into a few
+  // explained stretches, one item of the step list o.list per stretch. It plays by itself once at least half of the card is on screen
+  // in the visible tab: each stretch plays its frames at o.ms per frame, holds o.hold so its step can be read, then the next begins.
+  // It pauses off screen and resumes on return, stops for good on any reader control or at the end, and never moves under reduced
+  // motion (it opens on the finished replay). o: {card, ctl, n (frames), stops (last frame of each stretch), draw(frame), ms, hold, list, label}
   function anim(o){
-    const card=$(o.card),ctl=$(o.ctl);const st={i:0,n:o.n,play:false,timer:0,vis:false,started:false,spd:1};const pid=o.ctl+'-';
-    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="'+pid+'p" aria-label="Play">&#9654; Play</button><button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button><input type="range" id="'+pid+'s" min="0" max="'+(st.n-1)+'" value="0" step="1" aria-label="'+esc(o.label||'Step')+'"><label class="small">Speed <select id="'+pid+'v"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></label>';
-    const g=s=>$(pid+s);
-    function show(){g('s').max=st.n-1;g('s').value=st.i;o.draw(st.i)}
+    const card=$(o.card),ctl=$(o.ctl),S=o.stops,ns=S.length,pid=o.ctl+'-';
+    const st={k:RM?ns-1:0,f:RM?o.n-1:0,play:false,timer:0,vis:false,user:false,ended:RM,spd:1};
+    ctl.innerHTML='<button id="'+pid+'b" aria-label="Previous step" title="Previous step">&#9664;&#9664;</button><button id="'+pid+'p" class="an-play" aria-label="Play">&#9654; Play</button><button id="'+pid+'f" aria-label="Next step" title="Next step">&#9654;&#9654;</button><input type="range" id="'+pid+'s" min="0" max="'+(ns-1)+'" value="0" step="1" aria-label="'+esc(o.label||'Step')+'"><label class="small">Speed <select id="'+pid+'v"><option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="2">2x</option></select></label>';
+    const g=s=>$(pid+s),lis=o.list&&$(o.list)?[...$(o.list).children]:[];
+    const first=k=>k?S[k-1]+1:0;
+    function show(){g('s').value=st.k;lis.forEach((li,i)=>{li.classList.toggle('on',i===st.k);li.classList.toggle('done',i<st.k);if(i===st.k)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current')});o.draw(st.f)}
     const live=()=>st.vis&&!document.hidden&&visible()&&card.offsetParent!==null;
-    function tick(){st.timer=0;if(!st.play||!live())return;if(st.i>=st.n-1){setPlay(false);return}st.i++;show();if(st.i>=st.n-1){setPlay(false);return}st.timer=setTimeout(tick,(o.ms||100)/st.spd)}
-    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||100)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
-    function setPlay(p){st.play=p;g('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',p?'Pause':'Play');if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.i>=st.n-1){st.i=0;show()}kick()}
-    g('p').addEventListener('click',()=>setPlay(!st.play));
-    g('f').addEventListener('click',()=>{setPlay(false);st.i=Math.min(st.n-1,st.i+(o.jump||1));show()});
-    g('b').addEventListener('click',()=>{setPlay(false);st.i=Math.max(0,st.i-(o.jump||1));show()});
-    g('s').addEventListener('input',e=>{setPlay(false);st.i=+e.target.value;show()});
+    function tick(){st.timer=0;if(!st.play||!live())return;
+      if(st.f<S[st.k]){st.f++;show();st.timer=setTimeout(tick,(o.ms||50)/st.spd);return}
+      if(st.k>=ns-1){st.ended=true;setPlay(false);return}
+      if(!st.held){st.held=true;st.timer=setTimeout(tick,(o.hold||3600)/st.spd);return}
+      st.held=false;st.k++;st.f=first(st.k);show();st.timer=setTimeout(tick,(o.ms||50)/st.spd)}
+    function kick(){if(st.play&&live()&&!st.timer)st.timer=setTimeout(tick,(o.ms||50)/st.spd);else if(!live()&&st.timer){clearTimeout(st.timer);st.timer=0}}
+    function setPlay(p){st.play=p;g('p').innerHTML=p?'&#10073;&#10073; Pause':'&#9654; Play';g('p').setAttribute('aria-label',p?'Pause':'Play');
+      if(!p&&st.timer){clearTimeout(st.timer);st.timer=0}if(p&&st.k>=ns-1&&st.f>=S[ns-1]){st.k=0;st.f=0;st.held=false;show()}kick()}
+    // a reader control: jump to the end of a stretch (its outcome) and stop for good
+    const jump=k=>{st.user=true;setPlay(false);st.k=Math.max(0,Math.min(ns-1,k));st.f=S[st.k];st.held=false;show()};
+    g('p').addEventListener('click',()=>{st.user=true;if(!st.play&&st.f>=S[st.k]&&st.k<ns-1){st.k++;st.f=first(st.k)}setPlay(!st.play)});
+    g('f').addEventListener('click',()=>jump(st.f<S[st.k]?st.k:st.k+1));
+    g('b').addEventListener('click',()=>jump(st.k-1));
+    g('s').addEventListener('input',e=>jump(+e.target.value));
     g('v').addEventListener('change',e=>{st.spd=+e.target.value});
-    if('IntersectionObserver' in window){new IntersectionObserver(es=>{st.vis=es[es.length-1].isIntersecting;if(st.vis&&!st.started&&visible()){st.started=true;if(!RM){st.i=0;show();setPlay(true)}}kick()},{threshold:.25}).observe(card)}else st.vis=true;
+    lis.forEach((li,i)=>{li.tabIndex=0;li.setAttribute('role','button');li.onclick=()=>jump(i);li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();jump(i)}}});
+    const auto=()=>{if(!RM&&!st.user&&!st.ended&&!st.play&&live())setPlay(true)};
+    if('IntersectionObserver' in window){new IntersectionObserver(es=>{const e=es[es.length-1];st.vis=e.isIntersecting&&(e.intersectionRatio>=.5||e.intersectionRect.height>=innerHeight*.5);if(st.vis)auto();kick()},{threshold:[0,.25,.5,.75]}).observe(card)}else st.vis=true;
     document.addEventListener('visibilitychange',kick);
-    onRender(()=>{show();if(st.vis&&!st.started&&!RM){st.started=true;setPlay(true)}kick()});
+    onRender(()=>{show();auto();kick()});
     show();
-    return {reset(n){setPlay(false);st.n=n;st.i=0;show()},go(i){setPlay(false);st.i=Math.max(0,Math.min(st.n-1,i));show()},redraw(){o.draw(st.i)},get i(){return st.i},get n(){return st.n}};
+    return {redraw(){o.draw(st.f)},get k(){return st.k},get n(){return ns}};
   }
   // predict-then-reveal: el has data-ans (button index) ; buttons inside .opts ; .ans hidden until clicked
   function predict(el){const opts=el.querySelectorAll('.opts button'),ans=el.querySelector('.ans');const right=+el.dataset.ans;

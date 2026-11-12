@@ -1,16 +1,25 @@
-<section id="rd-s1">
-<h2>1. One request: prefill, then decode</h2>
-<p>A language model returns a probability for every token in its vocabulary (128,256 for Llama 3.1) being the next one. To answer, the server calls it, picks one token (the sampler, {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}), appends it and calls it again: <dfn>autoregressive</dfn> decoding, one token at a time, each depending on the last. <b>Prefill</b> reads all 2,000 prompt tokens through all 80 layers in one pass and stores every token's key and value vectors (the KV cache); <b>decode</b> then feeds only the newest token, which attends to the cache and adds its own entry. Before prefill the server wraps the messages in the model's chat template and splits them into token ids on the CPU, and the request may queue for a seat in the batch and memory for its cache (section 5). Step through the running example alone on one H200:</p>
-
-<div class="rd-card" id="rd-life-card">
-<h4>Prefill takes 0.42 s for 2,000 tokens; the 300-token answer then takes fifteen times as long</h4>
+<div class="s3sp"><div class="s3R"><div class="rd-card" id="rd-life-card">
+<h4>Fig. 2 · Prefill takes 0.42 s for 2,000 tokens; the 300-token answer then takes fifteen times as long</h4>
 <div class="rd-svg" id="rd-life-svg"></div>
-<div class="an-cap" id="rd-life-cap"></div>
 <div class="an-cnt" id="rd-life-cnt"></div>
 <div class="an-ctl" id="rd-life-ctl"></div>
 <p class="small mute">Times are <span class="der">derived</span> from the {{Capacity planner|#t-plan}}'s step model for this deployment (step time = the larger of bytes read / (bandwidth &times; 0.8) and FLOPs / (FP8 peak &times; 0.345), plus 2.5 ms; the two efficiencies are fitted to MLPerf runs on that tab). Prefill and decode are drawn on different time scales: the 299 decode steps after the first token take about 15 times as long as the prefill.</p>
 </div>
+</div><div class="s3L">
+<section id="rd-s1">
+<h2>1. One request: prefill, then decode</h2>
+<p>A language model returns a probability for every token in its vocabulary (128,256 for Llama 3.1) being the next one. To answer, the server calls it, picks one token (the sampler, {{Sampling and decoding|n:3c65c17b0d0d8115bafcda29a2c7086e}}), appends it and calls it again: <dfn>autoregressive</dfn> decoding, one token at a time, each depending on the last. <b>Prefill</b> reads all 2,000 prompt tokens through all 80 layers in one pass and stores every token's key and value vectors (the KV cache); <b>decode</b> then feeds only the newest token, which attends to the cache and adds its own entry. Fig. 2 follows the running example alone on one H200:</p>
 
+<ol class="sx" id="sx-life">
+<li><b>The request arrives.</b> An HTTP request with the chat messages and settings (max_tokens 300, temperature). Nothing has run on the GPU yet.</li>
+<li><b>Tokenize.</b> The chat template wraps the messages in special tokens and the tokenizer turns the text into 2,000 token ids, on the CPU, in well under a millisecond of GPU time.</li>
+<li><b>Queue.</b> The request waits for a seat in the next batch and for cache blocks. Alone on the GPU it waits for nothing; under load this is where TTFT goes (section 5).</li>
+<li><b>Prefill: all 2,000 prompt tokens in one pass.</b> Every layer computes keys and values for all 2,000 tokens at once and stores them: 625 MiB of KV cache. The weights are read once for 2,000 tokens, so the arithmetic units are the limit (compute-bound): 423.5 ms.</li>
+<li><b>The first token.</b> Prefill ends with probabilities for the first answer token; one is sampled, turned back into text and streamed. This moment is the time to first token, TTFT = 423.5 ms.</li>
+<li><b>Decode, one token per step.</b> Each step feeds only the newest token, reads all 72.66 GB of weights plus the cache, and appends one key and value per layer. The read sets the pace: 21.6 ms per token (memory-bound), the time per output token.</li>
+<li><b>299 steps later.</b> The answer reaches 300 tokens. Each step re-read the weights: the request has caused over 20 TB of memory reads to produce 300 tokens, against one read for its whole prompt.</li>
+<li><b>Done: the cache is freed.</b> End-to-end latency 6.88 s: 0.42 s of prefill, then 299 decode steps. Its 719 MiB of cache are released for the next user (or kept as a prefix cache, section 4).</li>
+</ol>
 <p>Five numbers describe everything that follows: two that a user feels, one the owner pays for, one that runs out, and the bill.</p>
 <div class="rd-five">
 <div style="--sc:var(--c1)"><div class="k">TTFT</div><div class="v">0.42 s</div><p><dfn>Time to first token</dfn>: queueing plus prefill.</p></div>
@@ -21,20 +30,33 @@
 </div>
 <p class="small mute">All five are <span class="der">derived</span> for the running example by the {{Capacity planner|#t-plan}}; the same quantities <span class="meas">measured here</span> on a laptop are on the {{Engine bench|#t-bench}}. Exact definitions (TPOT as (end-to-end latency &minus; TTFT) / (output tokens &minus; 1), percentiles, goodput) are on {{LLM serving in production|n:3f35c17b0d0d818aa406da1f7a784c62}}, section 1. Each token is detokenized and streamed as soon as it exists, usually as server-sent events ({{Streaming and real-time|n:3c65c17b0d0d812daa9fdb38719fc82b}}); the request ends at an end-of-sequence token or max_tokens, and its cache is freed.</p>
 </section>
+</div></div>
 
-<section id="rd-s2">
-<h2>2. Why decode is slow: three regimes</h2>
-<p>A GPU has two budgets: arithmetic per second and bytes read from memory per second. One H200 does 1,979 trillion FP8 operations per second but reads only 4.8 TB/s, so it can do <b>412 operations in the time it reads one byte</b> <span class="der">1,979 / 4.8</span>. Work below that ratio (its <dfn>arithmetic intensity</dfn>) is <dfn>memory-bound</dfn>; above it, <dfn>compute-bound</dfn> (the roofline: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). Each weight does one multiply and one add per token. A decode step has one token per user, so the chip reads all 72.66 GB of weights for <b>2 operations per byte</b>: the arithmetic idles more than 99% of the time and the step lasts as long as the read, 21.6 ms. Prefill shares one read among 2,000 tokens, 3,956 operations per byte: compute-bound, 423.5 ms, about 0.2 ms per token, a hundred times cheaper per token than decoding.</p>
-
-<div class="rd-card" id="rd-pd-card">
-<h4>The same weights: busy arithmetic in prefill, idle arithmetic in decode</h4>
+<div class="s3sp"><div class="s3R"><div class="rd-card" id="rd-pd-card">
+<h4>Fig. 3 · The same weights: busy arithmetic in prefill, idle arithmetic in decode</h4>
 <div class="seg" id="rd-pd-mode"><button class="on" data-m="pre">Prefill: 2,000 prompt tokens, one pass</button><button data-m="dec">Decode: 1 new token per pass</button></div>
 <div class="rd-svg" id="rd-pd-svg"></div>
-<div class="an-cap" id="rd-pd-cap"></div>
 <div class="an-cnt" id="rd-pd-cnt"></div>
 <div class="an-ctl" id="rd-pd-ctl"></div>
 <p class="small mute">One pass through the 80 layers, drawn in 8 groups of 10. Bytes, operations and time are <span class="der">derived</span> from the Capacity planner's step model (weights 72.66 GB in FP8; KV cache read at the token's position; efficiencies 0.8 of bandwidth and 0.345 of FP8 peak, plus 2.5 ms per step). The busy bar is operations / (peak &times; 0.345) over the step time.</p>
 </div>
+</div><div class="s3L">
+<section id="rd-s2">
+<h2>2. Why decode is slow: three regimes</h2>
+<p>A GPU has two budgets: arithmetic per second and bytes read from memory per second. One H200 does 1,979 trillion FP8 operations per second but reads only 4.8 TB/s, so it can do <b>412 operations in the time it reads one byte</b> <span class="der">1,979 / 4.8</span>. Work below that ratio (its <dfn>arithmetic intensity</dfn>) is <dfn>memory-bound</dfn>; above it, <dfn>compute-bound</dfn> (the roofline: {{Performance math|n:3c65c17b0d0d81faad1ef390b0e54d08}}). Each weight does one multiply and one add per token. A decode step has one token per user, so the chip reads all 72.66 GB of weights for <b>2 operations per byte</b>: the arithmetic idles more than 99% of the time and the step lasts as long as the read, 21.6 ms. Prefill shares one read among 2,000 tokens, 3,956 operations per byte: compute-bound, 423.5 ms, about 0.2 ms per token, a hundred times cheaper per token than decoding.</p>
+
+<ol class="sx" id="sx-pd-pre">
+<li><b>2,000 tokens enter together.</b> The whole prompt enters the first layer at once. Each weight will be read from memory once and used 2,000 times.</li>
+<li><b>Layers 1 to 10.</b> This group's weights stream in from memory while 2,000 tokens multiply against them: the arithmetic units, not the memory, set the pace.</li>
+<li><b>All 80 layers.</b> Every group the same: 72.66 GB read, and the arithmetic units busy almost the whole time (3,956 operations per byte, far above the H200's 412).</li>
+<li><b>Done: 423.5 ms for 2,000 tokens.</b> About 0.21 ms per token, compute-bound. Switch to decode to see the same weights serve one token.</li>
+</ol>
+<ol class="sx" id="sx-pd-dec" hidden>
+<li><b>One token enters.</b> A decode step feeds only the newest token. Each weight will be read from memory once and used once.</li>
+<li><b>Layers 1 to 10.</b> This group's weights stream in from memory for a single token's multiply: the arithmetic finishes almost instantly and waits for the next bytes.</li>
+<li><b>All 80 layers.</b> 73.4 GB read (the weights plus this token's cache) for 2 operations per byte: the arithmetic units sit idle about 99% of the step.</li>
+<li><b>Done: 21.6 ms for 1 token.</b> One token per full read of the weights, memory-bound: about 100 times the prefill cost per token. Batching (section 5) puts more tokens on each read.</li>
+</ol>
 <div class="pr" id="rd-pr1" data-ok="2"><div class="q">Predict: a new GPU has twice the H200's arithmetic speed and the same memory bandwidth. How much faster does one user's answer stream on it?</div>
 <div class="opts"><button data-a="0">Twice as fast</button><button data-a="1">About 40% faster</button><button data-a="2">Hardly at all</button><button data-a="3">Slower</button></div>
 <div class="ans" hidden><b>Hardly at all.</b> The 21.6 ms decode step is 19.1 ms of reading weights and cache (73.4 GB at 0.8 of 4.8 TB/s) plus 2.5 ms of fixed overhead; the arithmetic takes about 0.2 ms and was already hidden behind the read. Prefill, which is compute-bound, would get almost twice as fast, so time to first token improves while streaming speed does not. This is why inference chips are judged on bandwidth and memory size at least as much as on FLOP/s.</div></div>
@@ -48,3 +70,4 @@
 <p>Name the regime before choosing a fix. The third is easy to miss: on the laptop the fixed cost was 2.18 ms of a 5 ms Qwen3-0.6B step <span class="meas">measured here</span>, and the planner charges 2.5 ms per H200 step; fewer bytes do not help there. To check where you are, measure prompt-processing and generation speed separately (llama-bench reports pp and tg; vLLM's benchmark reports TTFT and TPOT); if single-stream tokens per second times bytes read per token is close to the memory bandwidth, decode is at its roofline (on this M1 Pro, rated 200 GB/s, plain decode of Qwen3-1.7B in F16 reached 187 GB/s, {{Local and on-device inference|n:3c65c17b0d0d81f7a144fe25d799e811}}, section 1) and only fewer bytes or more users per read will help.</p>
 <details class="mist"><summary>Megakernels and on-chip memory: published batch-1 figures (vendor, dated)</summary><div class="b">Cohere reports 292 tokens per second at batch 1 on an H100 with a whole decode step fused into one kernel, 62% of the hardware's speed-of-light limit and 1.58 times vLLM ({{Cohere, 2026-09-08|https://cohere.com/blog/megakernels}}); Inferact's TPU v7 megakernels 1.4 to 2 times a GB200 baseline at batch 1 to 8 ({{Inferact, 2026-09-23|https://inferact.ai/blog/tpu-megakernels}}). The hardware answer keeps the weights in on-chip SRAM: Cerebras serves Qwen3.8-27B at about 1,800 tokens per second for one stream ({{AlphaSignal, 2026-09-11|https://alphasignal.ai/news/cerebras-runs-alibaba-s-qwen-3-8-27b-at-1-850-tokens-per-second}}). The Engine bench's 147 GB/s is a different number from the 187 above: a line fitted to a 0.6B model as its context grows.</div></details>
 </section>
+</div></div>

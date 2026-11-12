@@ -1,4 +1,5 @@
-// ---- Reading tab: small SVG helpers and section 1's request lifecycle animation ----
+// ---- Reading tab: small SVG helpers and section 1's request lifecycle animation (Fig. 2; its steps are explained by the list sx-life) ----
+// S keeps each step's title and the old caption text for reference; the page shows the same words in sx-life.
 window.RDX=(function(){
   const nf=(x,d)=>Number(x).toLocaleString('en-US',{maximumFractionDigits:d==null?0:d,minimumFractionDigits:d==null?0:Math.min(d,0)});
   const T=(x,y,s,o)=>{o=o||{};return '<text x="'+x+'" y="'+y+'"'+(o.a?' text-anchor="'+o.a+'"':'')+' font-size="'+(o.fs||11)+'"'+(o.w?' font-weight="'+o.w+'"':'')+(o.c?' style="fill:'+o.c+'"':'')+'>'+s+'</text>'};
@@ -23,7 +24,7 @@ window.RDX=(function(){
     ['7. ... 299 steps later','The answer reaches 300 tokens. Each step re-read the weights: the request has caused over 20 TB of memory reads to produce 300 tokens, against one read for its whole prompt.',decAt(300)],
     ['8. Done: the cache is freed','End-to-end latency '+RDX.nf(D.e2e_s,2)+' s: '+RDX.nf(tp/1000,2)+' s of prefill, then 299 decode steps. Its '+RDX.nf(2300*MiB)+' MiB of cache are released for the next user (or kept as a prefix cache, section 4).',[tp+299*td,300,0,D.pre_bytes+299*D.dec_bytes,D.pre_fl+299*D.dec_fl]]
   ];
-  const cap=document.getElementById('rd-life-cap'),cnt=document.getElementById('rd-life-cnt');
+  const cnt=document.getElementById('rd-life-cnt');
   function draw(i){
     const w=RD.width(svgEl),h=168,x0=Math.min(112,w*0.3),W=w-x0-8,xp=x0+W*0.3,xe=x0+W;
     const tx=t=>t<=tp?x0+(xp-x0)*t/tp:xp+(xe-xp)*(t-tp)/(299*td);
@@ -42,9 +43,9 @@ window.RDX=(function(){
     if(i>=7){s+=RDX.T(xe,150,'E2E '+RDX.nf(D.e2e_s,2)+' s',{a:'end',fs:10,w:600})}
     s+=RDX.T(x0,162,'0',{fs:9.5,c:'var(--mute)'})+RDX.T(xp,162,RDX.nf(tp)+' ms',{fs:9.5,a:'middle',c:'var(--mute)'})+RDX.T(xe,162,RDX.nf(tp+299*td)+' ms',{fs:9.5,a:'end',c:'var(--mute)'});
     svgEl.innerHTML=RD.svg(w,h,s,'Timeline of one request: tokenize, queue, prefill, decode, KV cache held and tokens streamed');
-    RDX.cap(cap,S[i][0],S[i][1]);const v=S[i][2];
+    const v=S[i][2]; // the step's explanation is the step list sx-life on the left
     RDX.cnt(cnt,[['Clock',RDX.nf(v[0],1)+' ms'],['Tokens out',RDX.nf(v[1])+' / 300'],['KV cache held',RDX.nf(v[2]*MiB)+' MiB'],['Memory read',(v[3]/GB>=1000?RDX.nf(v[3]/1e12,1)+' TB':RDX.nf(v[3]/GB,1)+' GB')],['Arithmetic',RDX.nf(v[4]/1e12,1)+' TFLOP']]);
   }
-  RD.anim({card:'rd-life-card',ctl:'rd-life-ctl',n:S.length,draw,ms:1800,label:'Request lifecycle step'});
+  RD.anim({card:'rd-life-card',ctl:'rd-life-ctl',n:S.length,draw,ms:4200,label:'Request lifecycle step',list:'sx-life'});
   RD.onResize(()=>draw(+document.getElementById('rd-life-ctl-s').value));
 })();
